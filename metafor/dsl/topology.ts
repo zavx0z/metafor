@@ -306,22 +306,23 @@ function compileLogical(
   nodePath: string,
   relation: LocalTopologyPlacementRelation,
 ): void {
-  const objectId = makeObjectId(state, "f")
+  const objectId = makeObjectId(state, "a")
+  const dataPaths = Array.isArray(node.data) ? node.data : [node.data]
+  
   state.objects[objectId] = {
     id: objectId,
-    kind: "fuzzy",
+    kind: "axion",
     nodePath,
     sourceNode: node,
-    selector: {
-      kind: "logical",
-      dataPaths: Array.isArray(node.data) ? node.data : [node.data],
-      ...(node.expr ? { expr: node.expr } : {}),
-    },
+    dataPaths,
+    ...(node.expr ? { expr: node.expr } : {}),
   }
 
-  const address = buildAddress(parentAddress, "f", nodePath)
+  const address = buildAddress(parentAddress, "a", nodePath)
   const placementId = addPlacement(state, objectId, address, relation, parentPlacementId)
-  addEntanglementSeed(state, placementId, objectId, "fuzzy", address, Array.isArray(node.data) ? node.data : [node.data])
+  
+  // Axion не участвует в entanglement — это не выбор ветви и не множественность
+  // Это логическая группировка, которая не создаёт альтернативных миров
 
   node.child.forEach((child, index) => {
     compileNode(meta, child, state, placementId, address, `${nodePath}.${index}`)
@@ -337,6 +338,28 @@ function compileCondition(
   nodePath: string,
   relation: LocalTopologyPlacementRelation,
 ): void {
+  const dataPaths = Array.isArray(node.data) ? node.data : [node.data]
+  
+  // Валидация: Fuzzy branch-choice basis ограничен state и enum
+  // NodeCondition требует branch-choice через state или enum topology-field
+  if (dataPaths.length > 0) {
+    const fieldName = normalizeFieldPath(dataPaths[0]!)
+    if (fieldName) {
+      const field = meta.fields?.[fieldName] as FieldLike | undefined
+      if (field?.type) {
+        const fieldType = String(field.type)
+        // Разрешены только state или enum для branch selection
+        if (fieldType !== "state" && fieldType !== "enum" && !fieldType.startsWith("enum<")) {
+          throw new Error(
+            `NodeCondition в "${nodePath}" требует branch-choice basis 'state' или 'enum', ` +
+            `но поле "${fieldName}" имеет тип "${fieldType}". ` +
+            `Fuzzy branch selection должен использовать topology-field (state/enum), а не ordinary data-field.`
+          )
+        }
+      }
+    }
+  }
+  
   const objectId = makeObjectId(state, "f")
   state.objects[objectId] = {
     id: objectId,
@@ -345,14 +368,14 @@ function compileCondition(
     sourceNode: node,
     selector: {
       kind: "condition",
-      dataPaths: Array.isArray(node.data) ? node.data : [node.data],
+      dataPaths,
       ...(node.expr ? { expr: node.expr } : {}),
     },
   }
 
   const address = buildAddress(parentAddress, "f", nodePath)
   const placementId = addPlacement(state, objectId, address, relation, parentPlacementId)
-  addEntanglementSeed(state, placementId, objectId, "fuzzy", address, Array.isArray(node.data) ? node.data : [node.data])
+  addEntanglementSeed(state, placementId, objectId, "fuzzy", address, dataPaths)
 
   node.child.forEach((child, index) => {
     const branchRelation: LocalTopologyPlacementRelation = index === 0 ? "true" : "false"
@@ -380,7 +403,11 @@ function compileMap(
 
   const address = buildAddress(parentAddress, "m", nodePath)
   const placementId = addPlacement(state, objectId, address, relation, parentPlacementId)
-  addEntanglementSeed(state, placementId, objectId, "macho", address, [node.data])
+  
+  // MACHO на основе array не участвует в entanglement.
+  // array задаёт множественность ветвей (branch expansion), но не сцепляется
+  // с внешними реакциями через entanglement.
+  // Изменение array происходит только через внутренний процесс атома и Higgs boson.
 
   node.child.forEach((child, index) => {
     compileNode(meta, child, state, placementId, address, `${nodePath}.${index}`, "expands")

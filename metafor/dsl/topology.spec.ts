@@ -19,9 +19,9 @@ describe("compileLocalTopologyFragment", () => {
           ${value.enabled && html`
             <meta-for src="zavx0z/header"></meta-for>
           `}
-          ${value.enabled
-            ? html`<meta-for src="zavx0z/enabled"></meta-for>`
-            : html`<meta-for src="zavx0z/disabled"></meta-for>`}
+          ${value.mode === "card"
+            ? html`<meta-for src="zavx0z/card"></meta-for>`
+            : html`<meta-for src="zavx0z/table"></meta-for>`}
           ${value.rows.map((row) => html`
             <div>
               <meta-for src="zavx0z/row"></meta-for>
@@ -36,14 +36,17 @@ describe("compileLocalTopologyFragment", () => {
 
     expect(fragment.meta).toBe("local-topology")
     expect(fragment.roots.length).toBeGreaterThan(0)
-    expect(objects.filter((object) => object.kind === "fuzzy")).toHaveLength(2)
+    
+    // NodeLogical -> axion (не fuzzy), NodeCondition -> fuzzy (только state/enum)
+    expect(objects.filter((object) => object.kind === "axion")).toHaveLength(1)
+    expect(objects.filter((object) => object.kind === "fuzzy")).toHaveLength(1)
     expect(objects.filter((object) => object.kind === "macho")).toHaveLength(1)
     expect(objects.filter((object) => object.kind === "wimp")).toHaveLength(4)
-    expect(Object.values(fragment.placements).every((placement) => /^\/[wfm]:/.test(placement.address))).toBe(true)
+    expect(Object.values(fragment.placements).every((placement) => /^\/[wfma]:/.test(placement.address))).toBe(true)
     expect(fragment.references.map((reference) => reference.src)).toEqual([
       "zavx0z/header",
-      "zavx0z/enabled",
-      "zavx0z/disabled",
+      "zavx0z/card",
+      "zavx0z/table",
       "zavx0z/row",
     ])
   })
@@ -115,8 +118,11 @@ describe("compileLocalTopologyFragment", () => {
 
     const fragment = compileLocalTopologyFragment(meta)
 
+    // NodeLogical -> axion, NodeCondition -> fuzzy (но boolean поле теперь запрещено)
+    // Этот тест проверяет, что только meta-for становятся wimp
     expect(Object.values(fragment.objects).filter((object) => object.kind === "wimp")).toHaveLength(1)
-    expect(Object.values(fragment.objects).filter((object) => object.kind === "fuzzy")).toHaveLength(1)
+    // NodeLogical с boolean теперь валиден как axion (не требует branch-choice)
+    expect(Object.values(fragment.objects).filter((object) => object.kind === "axion")).toHaveLength(1)
   })
 
   test("выбрасывает ошибку для meta.src, который зависит не от enum topology-field", () => {

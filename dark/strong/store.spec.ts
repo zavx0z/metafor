@@ -105,7 +105,8 @@ describe("@dark/strong — индексация и lookup", () => {
       }
 
       // Проверка что один object имеет multiple placements
-      const childObjectId = "child/shared#f0"
+      // NodeLogical -> axion, поэтому objectId использует префикс "a"
+      const childObjectId = "child/shared#a0"
       const placementIds = strong$.objectPlacementsIndex.get(childObjectId)
       expect(placementIds).toHaveLength(2)
 
