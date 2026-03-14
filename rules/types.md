@@ -1,27 +1,22 @@
 # Типы в MetaFor
 
-Централизованное управление типами в домене `Dark`.
+Централизованное управление типами в доменах.
 
 ## Принцип
 
-Все типы домена `Dark` находятся в пакете `@dark/types`.
+Все типы домена находятся в пакете `@{domain}/types`.
 
-Прямые импорты типов из `.t.ts` файлов запрещены.
-
-## Структура `@dark/types`
+## Структура `@{domain}/types`
 
 ```
-dark/types/
+{domain}/types/
 ├── package.json      # exports: корень = shared.ts
 ├── shared.ts         # shared types (корневой экспорт)
-├── strong.ts         # strong-specific типы
-├── weak.ts           # weak-specific типы
-└── dark.ts           # dark-specific типы
+├── {module}.ts       # module-specific типы
+└── ...
 ```
 
 **Важно:** `index.ts` не используется. Корневой экспорт — это `shared.ts`.
-
-**Удалённые модули:** `gravity.ts` и `em.ts` удалены, их типы перемещены в `shared.ts`.
 
 ## Правило импорта
 
@@ -31,15 +26,15 @@ dark/types/
 
 ```typescript
 // ✅ Правильно — типы сверху
-import type { DarkStore, GlobalTopologyPlacement } from "@dark/types"
+import type { Store, Entity } from "@dark/types"
 import type { MetaAST } from "@metafor/ast"
-import { cloneDarkSnapshot } from "./snapshot.ts"
-import { gravity$ } from "./gravity/store.ts"
+import { cloneSnapshot } from "./snapshot.ts"
+import { store$ } from "./store.ts"
 
 // ❌ Неправильно — типы после кода
-import { cloneDarkSnapshot } from "./snapshot.ts"
-import type { DarkStore } from "@dark/types"  // тип после импорта кода
-import { gravity$ } from "./gravity/store.ts"
+import { cloneSnapshot } from "./snapshot.ts"
+import type { Store } from "@dark/types"  // тип после импорта кода
+import { store$ } from "./store.ts"
 ```
 
 **Принцип:** Сначала все `import type`, затем все `import` (значения/функции).
@@ -51,28 +46,27 @@ import { gravity$ } from "./gravity/store.ts"
 ```typescript
 // ✅ Правильно — один импорт из @dark/types
 import type {
-  DarkStore,
-  DarkStoreSnapshot,
-  GlobalTopologyPlacement,
-  GlobalTopologyReference,
+  Store,
+  StoreSnapshot,
+  Entity,
+  Reference,
 } from "@dark/types"
 
 // ❌ Неправильно — раздельные импорты из одного источника
-import type { DarkStore, DarkStoreSnapshot } from "@dark/types"
-import type { GlobalTopologyPlacement, GlobalTopologyReference } from "@dark/types"
+import type { Store, StoreSnapshot } from "@dark/types"
+import type { Entity, Reference } from "@dark/types"
 ```
 
 ### Shared types — из корня
 
-Типы, используемые несколькими пакетами, импортируются из корня `@dark/types`:
+Типы, используемые несколькими пакетами, импортируются из корня `@{domain}/types`:
 
 ```typescript
 // ✅ Правильно
-import type { GlobalTopologyPlacement, GravityStore, DarkStore } from "@dark/types"
-import type { StrongIndexes, GlobalTopologyMetaIndex } from "@dark/types"
+import type { Entity, Store, Indexes } from "@dark/types"
 
 // ❌ Неправильно — не нужно указывать /shared
-import type { GlobalTopologyPlacement } from "@dark/types/shared"
+import type { Entity } from "@dark/types/shared"
 ```
 
 ### Package-specific types — из модуля
@@ -81,78 +75,43 @@ import type { GlobalTopologyPlacement } from "@dark/types/shared"
 
 ```typescript
 // ✅ Правильно
-import type { StrongIndexStore } from "@dark/types/strong"
-import type { ReplaceFragmentOptions } from "@dark/types/weak"
-import type { DarkConsumer } from "@dark/types/em"
-import type { Address, UUID } from "@dark/types/dark"
+import type { StoreInstance } from "@dark/types/store"
+import type { MutationOptions } from "@dark/types/mutation"
+import type { Address, UUID } from "@dark/types/internal"
 
 // ❌ Неправильно
 import type { Address } from "@dark/types"  // Address не в shared
-import type { StrongIndexStore } from "@dark/types"  // StrongIndexStore не в shared
-import type { GravityStore } from "./gravity/store.t.ts"  // не из .t.ts
+import type { StoreInstance } from "@dark/types"  // StoreInstance не в shared
+import type { Store } from "./store.t.ts"  // не из .t.ts
 ```
 
 ## Распределение типов
 
 ### `shared.ts` — общие типы (корневой экспорт)
 
-Типы, используемые несколькими подпакетами:
+Типы, используемые несколькими подпакетами домена:
 
-- `GlobalTopologyObject`
-- `GlobalTopologyPlacement`
-- `GlobalTopologyLink`
-- `GlobalTopologyReference`
-- `GlobalTopologyEntanglement`
-- `GlobalTopologyIngestOptions`
-- `GlobalTopologyIngestResult`
-- `GlobalTopologyMetaIndex`
-- `StrongIndexes`
-- `StrongIndexesSnapshot`
-- `LocalTopologyFragment`
-- `DarkStore`
-- `DarkStoreSnapshot`
-- `GravityStore`
-- `GravityStoreSnapshot`
+- Основные сущности домена
+- Store интерфейсы
+- Индексы и snapshot типы
+- Общие опции и результаты
 
-Эти типы доступны через `@dark/types` или `@dark/types/shared`.
+Эти типы доступны через `@{domain}/types` или `@{domain}/types/shared`.
 
-### `dark.ts` — внутренние типы dark
+### `{module}.ts` — специфичные типы
 
-Типы, специфичные для домена Dark:
+Типы, используемые только одним подпакетом:
 
-- `Address`
-- `UUID`
-- `generateUUID()`
+- `{module}Store` — store конкретного модуля
+- `{module}Options`, `{module}Result` — опции и результаты операций
+- Внутренние типы модуля
 
-### `strong.ts` — типы strong
+### `{internal}.ts` — внутренние типы
 
-- `StrongIndexStore`
-- `PlacementLookupResult`
-- `ReferenceLookupResult`
+Типы, не используемые между пакетами:
 
-### `weak.ts` — типы weak
-
-Специфичные типы для операций weak:
-
-- `TopologyMutationResult`
-- `ReplaceFragmentOptions`, `ReplaceFragmentResult`
-- `RemovePlacementSubtreeOptions`, `RemovePlacementSubtreeResult`
-- `InsertFragmentAtPlacementOptions`, `InsertFragmentAtPlacementResult`
-- `MovePlacementOptions`, `MovePlacementResult`
-- `RebuildFragmentOptions`, `RebuildFragmentResult`
-
-### `em.ts` — типы em
-
-- `DarkConsumer`
-- `DarkDownstreamProjection`
-
-### `dark.ts` — внутренние типы dark
-
-Типы, специфичные для домена Dark (не используются между пакетами):
-
-- `Address`
-- `UUID`
-- `generateUUID()`
+- `Address`, `UUID` — идентификаторы
+- Вспомогательные функции
 
 ## package.json
 
@@ -166,25 +125,25 @@ import type { GravityStore } from "./gravity/store.t.ts"  // не из .t.ts
   "exports": {
     ".": "./shared.ts",
     "./shared": "./shared.ts",
-    "./strong": "./strong.ts",
-    "./weak": "./weak.ts",
-    "./dark": "./dark.ts"
+    "./store": "./store.ts",
+    "./mutation": "./mutation.ts",
+    "./internal": "./internal.ts"
   },
   "private": true
 }
 ```
 
-**Принцип:** `@dark/types` и `@dark/types/shared` — это один и тот же файл.
+**Принцип:** `@{domain}/types` и `@{domain}/types/shared` — это один и тот же файл.
 
 ## Запрещено
 
 1. **Реэкспорты типов в пакетах**
 
-   Пакеты не должны реэкспортировать типы из `@dark/types`:
+   Пакеты не должны реэкспортировать типы из `@{domain}/types`:
 
    ```typescript
    // ❌ Неправильно в dark/identifier.ts
-   import type { UUID } from "@dark/types/dark"
+   import type { UUID } from "@dark/types/internal"
    export type { UUID }  // реэкспорт запрещён
 
    // ❌ Неправильно в dark/gravity/index.ts
@@ -195,29 +154,19 @@ import type { GravityStore } from "./gravity/store.t.ts"  // не из .t.ts
    export { generateUUID } from "./identifier.ts"
    ```
 
-   **Принцип:** Типы импортируются напрямую из `@dark/types/{module}` там, где они нужны.
+   **Принцип:** Типы импортируются напрямую из `@{domain}/types/{module}` там, где они нужны.
 
-2. **Импорт из `.t.ts` файлов**
+2. **Дублирование типов**
 
-   ```typescript
-   // ❌ Неправильно
-   import type { GravityStore } from "./gravity/store.t.ts"
+   Типы определяются только в `@{domain}/types`. Пакеты импортируют их, а не переопределяют.
 
-   // ✅ Правильно
-   import type { GravityStore } from "@dark/types/gravity"
-   ```
+3. **TSDoc для типов**
 
-3. **Дублирование типов**
-
-   Типы определяются только в `@dark/types`. Пакеты импортируют их, а не переопределяют.
-
-4. **Пустые `.t.ts` файлы**
-
-   Файлы `.t.ts`, содержащие только реэкспорты из `@dark/types`, должны быть удалены.
+   Типы должны иметь TSDoc с описанием назначения и полей.
 
 ## TSDoc для типов
 
-Типы в `@dark/types` должны иметь TSDoc:
+Типы в `@{domain}/types` должны иметь TSDoc:
 
 - Краткое описание назначения типа
 - Описание полей через `/** */` комментарии
@@ -253,11 +202,10 @@ export interface GlobalTopologyPlacement {
 
 При добавлении нового типа:
 
-1. Определи, к какой категории относится тип (shared/gravity/strong/weak/em/dark)
-2. Добавь тип в соответствующий файл `@dark/types/{module}.ts`
-3. Если тип shared — добавь реэкспорт в `@dark/types/index.ts`
-4. Обнови импорты в пакетах на `@dark/types/{module}`
-5. Удали старые `.t.ts` файлы если они больше не нужны
+1. Определи, к какой категории относится тип (shared/{module}/internal)
+2. Добавь тип в соответствующий файл `@{domain}/types/{module}.ts`
+3. Если тип shared — он доступен через корневой экспорт
+4. Обнови импорты в пакетах на `@{domain}/types/{module}`
 
 ## Проверка
 
@@ -273,6 +221,7 @@ bun test
 
 Убедись, что:
 - Нет ошибок TypeScript
-- Все импорты типов идут через `@dark/types`
+- Все импорты типов идут через `@{domain}/types`
 - Нет реэкспортов типов в index.ts пакетов
-- Нет `.t.ts` файлов с реэкспортами
+- Все импорты типов — вверху файла, до импортов кода
+- Все импорты из одного источника объединены в один import

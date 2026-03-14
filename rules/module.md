@@ -3,10 +3,8 @@
 | Файл             | Обязательность  | Назначение                                      |
 | ---------------- | --------------- | ----------------------------------------------- |
 | `index.ts`       | **Обязательно** | Экспорт внешнего API модуля (только ре-экспорт) |
-| `index.t.ts`     | Опционально     | Экспорт типов внешнего API модуля               |
 | `{name}.ts`      | **Обязательно** | Оркестратор модуля, основная логика             |
 | `{name}.spec.ts` | Опционально     | Unit-тесты                                      |
-| `{name}.t.ts`    | Опционально     | TypeScript типы и интерфейсы                    |
 
 ---
 
@@ -15,20 +13,16 @@
 **Правило:**
 
 - **`index.ts`** — только для экспорта внешнего API модуля (ре-экспорт из `{name}.ts`)
-- **`index.t.ts`** — экспорт типов для внешнего API (ре-экспорт из `{name}.t.ts`)
 - **`{name}.ts`** — оркестратор модуля, содержит основную логику и координирует работу внутренних файлов
 
 ```typescript
 // index.ts — только ре-экспорт функций
 export { process } from './process.ts'
 
-// index.t.ts — только ре-экспорт типов
-export type { ProcessParams } from './process.t.ts'
-
 // process.ts — оркестратор модуля
 import { store } from './store.ts'
 import { validate } from './utils.ts'
-import type { ProcessParams } from './process.t.ts'
+import type { ProcessParams } from "@domain/types"
 
 export const process = (params: ProcessParams) => {
   // координация работы модуля
@@ -40,28 +34,47 @@ export const process = (params: ProcessParams) => {
 ## Разделение ответственности
 
 * **`.ts`** — функции, логика, инстансы
-* **`.t.ts`** — только типы (никаких функций)
 * **`.spec.ts`** — только тесты
+
+**Типы:** все типы определяются в `@{domain}/types`.
 
 ---
 
-## Типы в `.t.ts`
+## Типы из `@{domain}/types`
 
-**Правило:** Интерфейсы для store и параметров функций выноси в `.t.ts`.
+**Правило:** Интерфейсы для store и параметров функций импортируются из `@{domain}/types`.
 
 ```typescript
-// ❌ НЕПРАВИЛЬНО: интерфейс в .ts
-export interface StoreState { field: string }
-export const store: StoreState = { field: '' }
-
-// ✅ ПРАВИЛЬНО: интерфейс в .t.ts
-// types.t.ts
-export interface StoreState { field: string }
-
-// store.ts
+// ❌ НЕПРАВИЛЬНО: локальный импорт типа
 import type { StoreState } from './types.t.ts'
-export const store: StoreState = { field: '' }
+
+// ✅ ПРАВИЛЬНО: импорт из @domain/types
+import type { StoreState } from "@domain/types"
 ```
+
+**Структура типов:**
+
+```text
+{domain}/types/
+├── shared.ts        ← типы для нескольких пакетов
+├── {module}.ts      ← типы специфичные для модуля
+└── index.ts         ← реэкспорт shared типов
+```
+
+**Импорт типов:**
+
+```typescript
+// Shared типы — из корня
+import type { Store, Entity } from "@domain/types"
+
+// Module-specific типы — из модуля
+import type { ModuleStore } from "@domain/types/module"
+import type { ProcessParams } from "@domain/types/process"
+```
+
+**См. также:**
+
+* `rules/types.md` — централизованное управление типами
 
 ---
 
@@ -70,27 +83,41 @@ export const store: StoreState = { field: '' }
 **Правило:** Для store создавай объект с состоянием и методами мутации.
 
 ```text
-{name}.t.ts      ← интерфейс {Name}Store
-store.ts         ← инстанс {name}$: {Name}Store + методы
+{domain}/types/{module}.ts  ← интерфейс {Module}Store
+{module}/store.ts           ← инстанс {module}$: {Module}Store + методы
 ```
 
 **Пример:**
 
 ```typescript
-// store.t.ts
-export interface ModuleStore {
-  data: Uint32Array
-  offset: number
-}
-
-// store.ts
-import type { ModuleStore } from './store.t.ts'
-
+// @domain/types/shared.ts
 /**
- * @module store$ — локальное хранилище модуля.
+ * Состояние хранилища модуля.
  *
  * @property data {@link ModuleStore.data|данные для кодирования}
  * @property offset {@link ModuleStore.offset|смещение для аллокаций}
+ */
+export interface ModuleStore {
+  /** Данные для кодирования. */
+  data: Uint32Array
+
+  /** Смещение для аллокаций. */
+  offset: number
+}
+
+// module/store.ts
+import type { ModuleStore } from "@domain/types"
+
+/**
+ * @module module$ — локальное хранилище модуля.
+ *
+ * Используется для:
+ * - хранения данных кодирования
+ * - управления смещением
+ *
+ * @property data {@link ModuleStore.data|описание}
+ * @property offset {@link ModuleStore.offset|описание}
+ *
  * @see {@link ModuleStore} — тип состояния
  */
 export const module$: ModuleStore & {
@@ -99,12 +126,12 @@ export const module$: ModuleStore & {
 } = {
   data: null as unknown as Uint32Array,
   offset: 0,
-  
+
   reset() {
     this.data = null as unknown as Uint32Array
     this.offset = 0
   },
-  
+
   restore(state: ModuleStore) {
     this.data = state.data
     this.offset = state.offset
@@ -134,29 +161,30 @@ const { data, offset } = module$
 
 **См. также:**
 
-* `.qwen/rules/fp.md#7.1-Мутабельное-состояние-с-методами` — паттерн store$
-* `.qwen/rules/tsdoc.md#2-Store-TSDoc` — формат документации
-* `.qwen/rules/packages.md#2-Хранилища-store` — где размещать store
+* `rules/fp.md#7.1-Мутабельное-состояние-с-методами` — паттерн store$
+* `rules/tsdoc.md` — формат документации
+* `rules/packages.md#2-Хранилища-store` — где размещать store
+* `rules/types.md` — централизованное управление типами
 
 ---
 
-## Чек-лист для `.t.ts`
+## Чек-лист для типов
 
-Перед созданием типа спроси:
+Перед добавлением типа в `@{domain}/types` спроси:
 
 1. Тип используется в 2+ функциях модуля?
-1. Тип содержит 3+ поля?
-1. Тип может понадобиться другим модулям?
-1. Это store или параметры функции?
+2. Тип содержит 3+ поля?
+3. Тип может понадобиться другим модулям?
+4. Это store или параметры функции?
 
-Если **хотя бы один ответ "да"** — выноси в `.t.ts`.
+Если **хотя бы один ответ "да"** — добавь тип в `@{domain}/types/{module}.ts`.
 
 ---
 
 ## Примеры
 
-| Модуль  | `.t.ts`         | `.ts`     |
-| ------- | --------------- | --------- |
-| Store   | `{Name}Store`   | `store`   |
-| Process | `ProcessParams` | `process` |
-| API     | `APIConfig`     | `api`     |
+| Модуль  | Тип в `@domain/types/` | `.ts`     |
+| ------- | ---------------------- | --------- |
+| Store   | `shared.ts` → `Store`  | `store`   |
+| Process | `process.ts` → `Params`| `process` |
+| API     | `api.ts` → `Config`    | `api`     |

@@ -115,7 +115,6 @@ export const boundary$ = {
 ```text
 {domain}/{package}/
 ├── {package}.ts       ← оркестратор пакета
-├── store.t.ts         ← интерфейс {Package}Store
 ├── store.ts           ← инстанс {name}$ с методами reset()/restore()
 └── package.json       ← имя: @{domain}/{package}
 ```
@@ -125,7 +124,6 @@ export const boundary$ = {
 ```text
 boundary/fields/
 ├── fields.ts          ← оркестратор @boundary/fields
-├── store.t.ts         ← интерфейс FieldsStore
 ├── store.ts           ← инстанс fields$ с методами
 └── package.json       ← имя: @boundary/fields
 ```
@@ -137,7 +135,6 @@ boundary/fields/
 ```text
 boundary/
 ├── boundary.ts        ← оркестратор домена
-├── store.t.ts         ← интерфейс BoundaryStore
 ├── store.ts           ← инстанс boundary$ с методами
 ├── fields/
 │   ├── fields.ts
@@ -180,7 +177,83 @@ export function resetBoundaryStore(store$: BoundaryStore): void { ... }
 export function restoreBoundaryStore(store$: BoundaryStore, state: BoundaryStore): void { ... }
 ```
 
+---
+
+## Типы для store
+
+**Правило:** Все типы store определяются в `@{domain}/types`.
+
+```text
+{domain}/types/
+├── shared.ts        ← типы для нескольких пакетов (BoundaryStore, FieldsStore)
+├── fields.ts        ← типы специфичные для @boundary/fields
+└── matrix.ts        ← типы специфичные для @boundary/matrix
+```
+
+**Импорт типов:**
+
+```typescript
+// ✅ ПРАВИЛЬНО: импорт из @domain/types
+import type { BoundaryStore } from "@boundary/types"
+import type { FieldsStore } from "@boundary/types/fields"
+
+// ❌ НЕПРАВИЛЬНО: определение локально
+import type { FieldsStore } from "./store.t.ts"
+```
+
+**TSDoc для store:**
+
+Документируй store по слоям:
+
+1. **`@{domain}/types/shared.ts`** — короткие комментарии полей в интерфейсе
+2. **`{domain}/store.ts`** — заголовок с `@property` для каждого поля
+3. **Поля внутри object literal** — без TSDoc
+
+Пример в `@boundary/types/shared.ts`:
+
+```typescript
+/**
+ * Состояние `@boundary/store`.
+ *
+ * Хранит данные, используемые несколькими пакетами:
+ * - {@link BoundaryStore.heap | heap} — для операций с памятью
+ * - {@link BoundaryStore.braneBlockPtrs | braneBlockPtrs} — для указателей
+ */
+export interface BoundaryStore {
+  /** Массив данных для операций. */
+  heap: Uint32Array | null
+
+  /** Указатели на блоки памяти. */
+  braneBlockPtrs: number[]
+}
+```
+
+Пример в `boundary/store.ts`:
+
+```typescript
+/**
+ * Хранилище данных `@boundary`.
+ *
+ * Используется пакетами:
+ * - `@boundary/fields` — для операций с полями
+ * - `@boundary/matrix` — для операций с памятью
+ *
+ * @property heap {@link BoundaryStore.heap|описание}
+ * @property braneBlockPtrs {@link BoundaryStore.braneBlockPtrs|описание}
+ *
+ * @see {@link BoundaryStore} — тип состояния
+ */
+export const boundary$: BoundaryStore = {
+  heap: null as unknown as Uint32Array,
+  braneBlockPtrs: [],
+
+  reset() { ... },
+  restore(state) { ... },
+}
+```
+
 **См. также:**
 
-* `.qwen/rules/module.md#Store-файлы` — структура файлов store
-* `.qwen/rules/fp.md#7.1-Мутабельное-состояние-с-методами` — паттерн store$
+* `rules/types.md` — централизованное управление типами
+* `rules/tsdoc.md` — стандарты документирования
+* `rules/fp.md#7.1-Мутабельное-состояние-с-методами` — паттерн store$
