@@ -1,4 +1,11 @@
-export { topology$ } from "./store"
+/**
+ * `@dark/gravity` — world assembly домена Dark.
+ *
+ * @see {@link topology$} — синглтон topology store
+ * @see {@link initGravityStore} — инициализация с strong index dependency
+ */
+
+export { topology$, initGravityStore, createGravityStore } from "./store.ts"
 export type {
   GlobalTopologyEntanglement,
   GlobalTopologyIngestOptions,
@@ -10,4 +17,4 @@ export type {
   GlobalTopologyReference,
   GlobalTopologySnapshot,
   GlobalTopologyStore,
-} from "./store.t"
+} from "./store.t.ts"

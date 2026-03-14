@@ -1,9 +1,29 @@
 /**
  * `@dark/weak` — structural transformation path домена Dark.
  *
- * В рамках текущего среза `Weak` ещё не исполняет реконфигурацию графа,
- * но ownership transition preparation уже закреплён за `Dark`, а не за
- * downstream-доменами.
+ * Ответственность:
+ * - замена фрагментов
+ * - удаление placement subtree
+ * - вставка фрагментов
+ * - перемещение placements
+ * - перестройка topology после изменений
+ *
+ * @see {@link initWeakMutationStore} — инициализация с topology и strong index dependencies
+ * @see {@link createWeakMutationStore} — создание нового mutation store
  */
 
-export {}
+export { initWeakMutationStore, createWeakMutationStore, weakMutation$ } from "./store.ts"
+export type {
+  TopologyMutationResult,
+  ReplaceFragmentOptions,
+  ReplaceFragmentResult,
+  RemovePlacementSubtreeOptions,
+  RemovePlacementSubtreeResult,
+  InsertFragmentAtPlacementOptions,
+  InsertFragmentAtPlacementResult,
+  MovePlacementOptions,
+  MovePlacementResult,
+  RebuildFragmentOptions,
+  RebuildFragmentResult,
+  WeakMutationStore,
+} from "./store.t.ts"
