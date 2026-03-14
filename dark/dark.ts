@@ -10,6 +10,28 @@ import { compileLocalTopologyFragment } from "../metafor/dsl/topology.ts"
 import type { LocalTopologyFragment, LocalTopologyMetaLike } from "../metafor/dsl/topology.t.ts"
 import { indexEntanglement, indexObject, indexPlacement, indexReference } from "./strong/strong.ts"
 
+/**
+ * Orchestrator загрузки meta и сборки скрытой topology.
+ *
+ * **Рабочий контур:**
+ * ```text
+ * DSL -> AST -> Dark
+ * Dark -> Boundary
+ * Dark -> Bulk
+ * ```
+ *
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark | ONTOLOGY.md} — онтология Dark
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/TOPOLOGY.md | TOPOLOGY.md} — topology как скрытая карта построения
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/dark/README.md | dark/README.md} — ответственность Dark
+ */
+
+/**
+ * Находит следующее доступное число в последовательности ID.
+ *
+ * @param ids — коллекция существующих ID
+ * @param prefix — префикс ID (например, "gp", "gl", "gr")
+ * @returns следующее число в последовательности
+ */
 function getNextSequence(ids: Iterable<string>, prefix: string): number {
   let max = -1
 
@@ -26,6 +48,14 @@ function getNextSequence(ids: Iterable<string>, prefix: string): number {
   return max + 1
 }
 
+/**
+ * Находит следующее доступное число для root occurrence.
+ *
+ * Анализирует адреса placements в формате `/w:{meta}-{n}/...`
+ * и возвращает следующее свободное число.
+ *
+ * @returns следующее число для root occurrence
+ */
 function getNextRootOccurrence(): number {
   let max = -1
 
@@ -42,6 +72,12 @@ function getNextRootOccurrence(): number {
   return max + 1
 }
 
+/**
+ * Перестраивает производное состояние dark state.
+ *
+ * Сбрасывает и пересобирает индексы `gravity$` и `strong$`
+ * на основе текущего состояния `dark$`.
+ */
 function rebuildDerivedDarkState(): void {
   gravity$.reset()
   strong$.reset()
@@ -68,30 +104,72 @@ function rebuildDerivedDarkState(): void {
   gravity$.rootOccurrenceSeq = getNextRootOccurrence()
 }
 
+/**
+ * Сбрасывает всё состояние dark, gravity и strong.
+ *
+ * Используется для полной очистки графа перед загрузкой нового.
+ */
 export function resetDark(): void {
   dark$.reset()
   gravity$.reset()
   strong$.reset()
 }
 
+/**
+ * Восстанавливает состояние dark из снимка и перестраивает индексы.
+ *
+ * @param snapshot — снимок состояния для восстановления
+ */
 export function restoreDark(snapshot: DarkStoreSnapshot): void {
   dark$.restore(snapshot)
   rebuildDerivedDarkState()
 }
 
+/**
+ * Создаёт снимок текущего состояния dark.
+ *
+ * @returns глубокую копию состояния
+ */
 export function snapshotDark(): DarkStoreSnapshot {
   return dark$.snapshot()
 }
 
+/**
+ * Сохраняет meta-схему по адресу в dark store.
+ *
+ * @param address — канонический адрес хаба
+ * @param meta — meta-схема AST
+ * @returns сохранённая meta-схема
+ */
 export function setMeta(address: Address, meta: MetaAST): MetaAST {
   return dark$.setMeta(address, meta)
 }
 
+/**
+ * Получает meta-схему по адресу из dark store.
+ *
+ * @param address — канонический адрес хаба
+ * @returns meta-схема или undefined
+ */
 export function getMeta(address: Address): MetaAST | undefined {
   return dark$.getMeta(address)
 }
 
+/**
+ * Загружает meta-схему по адресу и собирает скрытую топологию.
+ *
+ * Рекурсивно загружает все зависимые meta-схемы через references
+ * и собирает полный граф placements, references и entanglements.
+ *
+ * @param address — канонический адрес хаба для загрузки
+ */
 export async function matter(address: Address): Promise<void> {
+  /**
+   * Гарантирует загрузку meta-схемы.
+   *
+   * @param metaAddress — адрес meta-схемы
+   * @returns загруженная или существующая meta-схема
+   */
   const ensureMetaLoaded = async (metaAddress: Address) => {
     const existing = getMeta(metaAddress)
     if (existing) return existing
@@ -102,6 +180,12 @@ export async function matter(address: Address): Promise<void> {
     return ast
   }
 
+  /**
+   * Гарантирует наличие local topology fragment.
+   *
+   * @param metaAddress — адрес meta-схемы
+   * @returns скомпилированный фрагмент топологии
+   */
   const ensureLocalFragment = async (metaAddress: Address): Promise<LocalTopologyFragment> => {
     const existing = gravity$.getFragment(metaAddress)
     if (existing) return existing
@@ -110,6 +194,13 @@ export async function matter(address: Address): Promise<void> {
     return gravity$.setFragment(metaAddress, compileLocalTopologyFragment(ast as LocalTopologyMetaLike))
   }
 
+  /**
+   * Собирает скрытую топологию из root адреса.
+   *
+   * Рекурсивно обходит все references и загружает зависимые meta-схемы.
+   *
+   * @param rootAddress — адрес корневой meta-схемы
+   */
   const assembleHiddenTopology = async (rootAddress: Address): Promise<void> => {
     const pending: Array<{ metaAddress: Address; parentPlacementId?: string; viaReferenceId?: string }> = [
       { metaAddress: rootAddress },

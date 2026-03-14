@@ -30,10 +30,25 @@ interface PlacementChildrenState {
   placements: ReadonlyMap<string, GlobalTopologyPlacement>
 }
 
+/**
+ * Собирает элементы по IDs из map.
+ *
+ * @param items — map элементов
+ * @param ids — массив IDs для выборки
+ * @returns массив найденных элементов (пропускает отсутствующие)
+ */
 function collectByIds<T>(items: ReadonlyMap<string, T>, ids: readonly string[]): T[] {
   return ids.map((id) => items.get(id)).filter(Boolean) as T[]
 }
 
+/**
+ * Находит placement по адресу.
+ *
+ * @param state — состояние с placements
+ * @param address — полный адрес размещения
+ * @param indexes — strong indexes для lookup (по умолчанию `strong$`)
+ * @returns placement или undefined
+ */
 export function getPlacementByAddress(
   state: PlacementAddressLookupState,
   address: string,
@@ -43,6 +58,14 @@ export function getPlacementByAddress(
   return placementId ? state.placements.get(placementId) : undefined
 }
 
+/**
+ * Находит все placements объекта.
+ *
+ * @param state — состояние с placements
+ * @param objectId — ID объекта
+ * @param indexes — strong indexes для lookup (по умолчанию `strong$`)
+ * @returns массив placements
+ */
 export function getPlacementsByObject(
   state: ObjectPlacementLookupState,
   objectId: string,
@@ -51,6 +74,14 @@ export function getPlacementsByObject(
   return collectByIds(state.placements, indexes.objectPlacementsIndex.get(objectId) ?? [])
 }
 
+/**
+ * Находит все placements meta-схемы.
+ *
+ * @param state — состояние с placements
+ * @param meta — адрес meta-схемы
+ * @param indexes — strong indexes для lookup (по умолчанию `strong$`)
+ * @returns массив placements
+ */
 export function getPlacementsByMeta(
   state: MetaPlacementLookupState,
   meta: string,
@@ -59,6 +90,13 @@ export function getPlacementsByMeta(
   return collectByIds(state.placements, indexes.sourceMetaIndex.get(meta)?.placementIds ?? [])
 }
 
+/**
+ * Находит дочерние placements родителя.
+ *
+ * @param state — состояние с placements
+ * @param parentPlacementId — ID родительского размещения
+ * @returns массив дочерних placements
+ */
 export function getChildren(
   state: PlacementChildrenState,
   parentPlacementId: string,
@@ -66,6 +104,14 @@ export function getChildren(
   return Array.from(state.placements.values()).filter((placement) => placement.parentId === parentPlacementId)
 }
 
+/**
+ * Находит все references по источнику.
+ *
+ * @param state — состояние с references
+ * @param metaSource — адрес source meta-схемы
+ * @param indexes — strong indexes для lookup (по умолчанию `strong$`)
+ * @returns массив references
+ */
 export function getReferencesBySource(
   state: MetaSourceLookupState,
   metaSource: string,
@@ -74,6 +120,14 @@ export function getReferencesBySource(
   return collectByIds(state.references, indexes.metaSourceLookup.get(metaSource) ?? [])
 }
 
+/**
+ * Находит entanglement по адресу.
+ *
+ * @param state — состояние с entanglements
+ * @param address — адрес entanglement
+ * @param indexes — strong indexes для lookup (по умолчанию `strong$`)
+ * @returns entanglement или undefined
+ */
 export function getEntanglementByAddress(
   state: EntanglementAddressLookupState,
   address: string,

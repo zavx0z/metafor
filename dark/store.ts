@@ -3,6 +3,22 @@
  *
  * Здесь живёт весь канонический graph state, который нужен между
  * подпакетами `dark/gravity`, `dark/strong`, `dark/weak` и `dark/em`.
+ *
+ * **Домен `Dark`:**
+ * - скрытый субстрат структуры, памяти, иерархии, истории и эволюции модели
+ * - не является runtime-оркестратором и не дублирует `boundary/` или `bulk/`
+ * - удерживает скрытую структурную рамку и историю схем
+ *
+ * @property meta {@link DarkStore.meta|meta} — загруженные meta-схемы
+ * @property objects {@link DarkStore.objects|objects} — глобальные объекты
+ * @property placements {@link DarkStore.placements|placements} — размещения
+ * @property links {@link DarkStore.links|links} — связи между размещениями
+ * @property references {@link DarkStore.references|references} — ссылки на источники
+ * @property entanglements {@link DarkStore.entanglements|entanglements} — запутанности
+ *
+ * @see {@link DarkStore} — тип состояния
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark | ONTOLOGY.md} — онтология Dark
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/dark/README.md | dark/README.md} — ответственность Dark
  */
 
 import type { DarkStore } from "./store.t.ts"

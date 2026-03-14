@@ -3,6 +3,15 @@
  *
  * Канонический graph пишет в `dark$`, промежуточное gravity-состояние
  * держит `gravity$`, индексы пишет `strong$`.
+ *
+ * **Dark × Gravity:**
+ * - скрытая иерархия и организация схем
+ * - `Graviton` как носитель внутренней гравитационной связности
+ * - геометрия скрытых версий и их преемственности
+ *
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark--gravity | ONTOLOGY.md} — онтология Dark × Gravity
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/TOPOLOGY.md | TOPOLOGY.md} — topology как скрытая карта построения
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/gravity.md | proto/gravity.md} — протокол Gravity
  */
 
 import type {
@@ -24,38 +33,84 @@ import { strong$ } from "../strong/store.ts"
 import { cloneStoredValue } from "../snapshot.ts"
 import { indexEntanglement, indexObject, indexPlacement, indexReference } from "../strong/strong.ts"
 
+/**
+ * Создаёт глобальный ID объекта из meta и локального ID.
+ *
+ * @param meta — адрес meta-схемы
+ * @param localObjectId — локальный ID объекта внутри схемы
+ * @returns глобальный ID в формате `meta#localObjectId`
+ */
 function makeObjectId(meta: string, localObjectId: string): string {
   return `${meta}#${localObjectId}`
 }
 
+/**
+ * Генерирует уникальный ID размещения.
+ *
+ * @param store$ — состояние gravity store
+ * @returns ID в формате `gp{n}`
+ */
 function makePlacementId(store$: GravityStore): string {
   const id = `gp${store$.nextPlacementSeq}`
   store$.nextPlacementSeq += 1
   return id
 }
 
+/**
+ * Генерирует уникальный ID связи.
+ *
+ * @param store$ — состояние gravity store
+ * @returns ID в формате `gl{n}`
+ */
 function makeLinkId(store$: GravityStore): string {
   const id = `gl${store$.nextLinkSeq}`
   store$.nextLinkSeq += 1
   return id
 }
 
+/**
+ * Генерирует уникальный ID ссылки.
+ *
+ * @param store$ — состояние gravity store
+ * @returns ID в формате `gr{n}`
+ */
 function makeReferenceId(store$: GravityStore): string {
   const id = `gr${store$.nextReferenceSeq}`
   store$.nextReferenceSeq += 1
   return id
 }
 
+/**
+ * Очищает meta-строку от недопустимых символов.
+ *
+ * @param meta — исходная meta-строка
+ * @returns строка, содержащая только A-Za-z0-9_-
+ */
 function sanitizeMetaSegment(meta: string): string {
   return meta.replace(/[^A-Za-z0-9_-]+/g, "-")
 }
 
+/**
+ * Генерирует root prefix для meta и инкрементирует счётчик.
+ *
+ * @param store$ — состояние gravity store
+ * @param meta — адрес meta-схемы
+ * @returns префикс в формате `/w:{sanitizedMeta}-{n}`
+ */
 function ensureRootPrefix(store$: GravityStore, meta: string): string {
   const prefix = `/w:${sanitizeMetaSegment(meta)}-${store$.rootOccurrenceSeq}`
   store$.rootOccurrenceSeq += 1
   return prefix
 }
 
+/**
+ * Создаёт глобальные объекты из local topology fragment.
+ *
+ * @param store$ — dark store для записи объектов
+ * @param indexes$ — strong indexes для индексации
+ * @param meta — адрес meta-схемы
+ * @param fragment — local topology fragment
+ */
 function ensureObjectDefinitions(
   store$: DarkStore,
   indexes$: StrongIndexes,
@@ -79,6 +134,20 @@ function ensureObjectDefinitions(
   }
 }
 
+/**
+ * Вставляет local topology fragment в глобальный граф.
+ *
+ * Создаёт global placements, links, references и entanglements,
+ * записывает в `dark$`, обновляет индексы `strong$`.
+ *
+ * @param meta — адрес meta-схемы
+ * @param fragment — local topology fragment для вставки
+ * @param options — опции вставки (parent, viaReference)
+ * @param store$ — dark store для записи (по умолчанию `dark$`)
+ * @param gravityState$ — gravity store для счётчиков (по умолчанию `gravity$`)
+ * @param indexes$ — strong indexes для индексации (по умолчанию `strong$`)
+ * @returns результат вставки с IDs созданных сущностей
+ */
 export function ingestFragment(
   meta: string,
   fragment: LocalTopologyFragment,

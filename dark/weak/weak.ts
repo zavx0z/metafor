@@ -1,5 +1,22 @@
 /**
  * `@dark/weak` — mutation orchestrator topology-слоя поверх глобального `dark$`.
+ *
+ * **Dark × Weak:**
+ * - эволюция схем и активный скрытый переход через `W boson`
+ * - нейтральная переходная медиция через `Z boson`
+ * - мутация и преобразование скрытой структуры
+ * - изменение модели до её проекций в `Boundary` и `Bulk`
+ *
+ * **Topology mutation:**
+ * - `Higgs boson` изменяет topology-fields (`enum` → branch selection, `array` → branch multiplicity)
+ * - `W boson` проводит активный переход между состояниями
+ * - `Z boson` удерживает нейтральную медицию перехода
+ *
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark--weak | ONTOLOGY.md} — онтология Dark × Weak
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ARCHITECTURE.md#dark--weak | ARCHITECTURE.md} — архитектура Dark × Weak
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/TOPOLOGY.md | TOPOLOGY.md} — topology как скрытая карта построения
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/weak.md | proto/weak.md} — протокол Weak и W/Z boson
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/higgs.md | proto/higgs.md} — протокол Higgs и topology-field change
  */
 
 import type { DarkStore } from "../store.t.ts"
@@ -29,6 +46,13 @@ import {
   removeReferenceIndexes,
 } from "../strong/strong.ts"
 
+/**
+ * Находит все descendant placement IDs.
+ *
+ * @param store — store с placements и links
+ * @param rootPlacementId — ID корневого размещения
+ * @returns массив IDs всех потомков
+ */
 function getDescendantPlacementIds(store: Pick<DarkStore, "placements" | "links">, rootPlacementId: string): string[] {
   const descendants: string[] = []
   const queue = [rootPlacementId]
@@ -48,10 +72,24 @@ function getDescendantPlacementIds(store: Pick<DarkStore, "placements" | "links"
   return descendants
 }
 
+/**
+ * Находит все subtree placement IDs (root + descendants).
+ *
+ * @param store — store с placements и links
+ * @param rootPlacementId — ID корневого размещения
+ * @returns массив IDs всех placements в subtree
+ */
 function getSubtreePlacementIds(store: Pick<DarkStore, "placements" | "links">, rootPlacementId: string): string[] {
   return [rootPlacementId, ...getDescendantPlacementIds(store, rootPlacementId)]
 }
 
+/**
+ * Удаляет placement и связанные links.
+ *
+ * @param store$ — dark store
+ * @param placementId — ID размещения для удаления
+ * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ */
 function removePlacement(store$: DarkStore, placementId: string, indexes$: StrongIndexes = strong$): void {
   const placement = store$.getPlacement(placementId)
   if (!placement) return
@@ -66,6 +104,13 @@ function removePlacement(store$: DarkStore, placementId: string, indexes$: Stron
   }
 }
 
+/**
+ * Удаляет reference и индексы.
+ *
+ * @param store$ — dark store
+ * @param referenceId — ID ссылки для удаления
+ * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ */
 function removeReference(store$: DarkStore, referenceId: string, indexes$: StrongIndexes = strong$): void {
   const reference = store$.getReference(referenceId)
   if (!reference) return
@@ -74,6 +119,13 @@ function removeReference(store$: DarkStore, referenceId: string, indexes$: Stron
   store$.deleteReference(referenceId)
 }
 
+/**
+ * Удаляет entanglement и индексы.
+ *
+ * @param store$ — dark store
+ * @param entanglementId — ID запутанности для удаления
+ * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ */
 function removeEntanglement(store$: DarkStore, entanglementId: string, indexes$: StrongIndexes = strong$): void {
   const entanglement = store$.getEntanglement(entanglementId)
   if (!entanglement) return
@@ -82,6 +134,19 @@ function removeEntanglement(store$: DarkStore, entanglementId: string, indexes$:
   store$.deleteEntanglement(entanglementId)
 }
 
+/**
+ * Заменяет фрагмент meta-схемы на новый.
+ *
+ * Удаляет все существующие сущности meta и вставляет новый фрагмент.
+ *
+ * @param meta — адрес meta-схемы для замены
+ * @param newFragment — новый local topology fragment
+ * @param options — опции замены (по умолчанию `{}`)
+ * @param store$ — dark store (по умолчанию `dark$`)
+ * @param gravityState$ — gravity store (по умолчанию `gravity$`)
+ * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @returns результат замены с IDs созданных и удалённых сущностей
+ */
 export function replaceFragment(
   meta: string,
   newFragment: LocalTopologyFragment,
@@ -143,6 +208,15 @@ export function replaceFragment(
   return result
 }
 
+/**
+ * Удаляет subtree размещений.
+ *
+ * @param rootPlacementId — ID корневого размещения для удаления
+ * @param options — опции удаления cascade (по умолчанию `{ cascadeReferences: true, cascadeEntanglements: true }`)
+ * @param store$ — dark store (по умолчанию `dark$`)
+ * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @returns результат удаления с IDs удалённых сущностей
+ */
 export function removePlacementSubtree(
   rootPlacementId: string,
   options: RemovePlacementSubtreeOptions = {},
@@ -197,6 +271,18 @@ export function removePlacementSubtree(
   return result
 }
 
+/**
+ * Вставляет фрагмент в placement.
+ *
+ * @param parentPlacementId — ID родительского размещения
+ * @param fragment — local topology fragment для вставки
+ * @param fragmentMeta — адрес meta-схемы фрагмента
+ * @param options — опции вставки (по умолчанию `{}`)
+ * @param store$ — dark store (по умолчанию `dark$`)
+ * @param gravityState$ — gravity store (по умолчанию `gravity$`)
+ * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @returns результат вставки с IDs созданных сущностей
+ */
 export function insertFragmentAtPlacement(
   parentPlacementId: string,
   fragment: LocalTopologyFragment,
@@ -228,6 +314,15 @@ export function insertFragmentAtPlacement(
   }
 }
 
+/**
+ * Перемещает placement в новый parent.
+ *
+ * @param placementId — ID размещения для перемещения
+ * @param options — опции перемещения с newParentPlacementId
+ * @param store$ — dark store (по умолчанию `dark$`)
+ * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @returns результат перемещения с новыми адресами
+ */
 export function movePlacement(
   placementId: string,
   options: MovePlacementOptions,
@@ -273,6 +368,14 @@ export function movePlacement(
   return result
 }
 
+/**
+ * Перестраивает fragment по meta.
+ *
+ * @param meta — адрес meta-схемы
+ * @param options — опции перестройки (по умолчанию `{}`)
+ * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @returns результат перестройки с IDs сущностей
+ */
 export function rebuildFragment(
   meta: string,
   options: RebuildFragmentOptions = {},
@@ -289,6 +392,13 @@ export function rebuildFragment(
   }
 }
 
+/**
+ * Отсоединяет subtree от parent.
+ *
+ * @param placementId — ID корневого размещения subtree
+ * @param store$ — dark store (по умолчанию `dark$`)
+ * @returns массив IDs всех placements в отсоединённом subtree
+ */
 export function detachSubtree(
   placementId: string,
   store$: DarkStore = dark$,
@@ -308,6 +418,15 @@ export function detachSubtree(
   return getSubtreePlacementIds(store$, placementId)
 }
 
+/**
+ * Перестраивает адреса subtree.
+ *
+ * @param rootPlacementId — ID корневого размещения
+ * @param newAddressPrefix — новый префикс адреса
+ * @param store$ — dark store (по умолчанию `dark$`)
+ * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @returns карту старых адресов → новые адреса
+ */
 export function remapPlacementAddresses(
   rootPlacementId: string,
   newAddressPrefix: string,

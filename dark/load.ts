@@ -6,6 +6,7 @@ import type { Address } from "./dark.t"
  *
  * Не делает orchestration пакета Dark и не мутирует store.
  *
+ * @param address — канонический адрес хаба для загрузки
  * @returns `ast` или `undefined` при ошибке загрузки
  */
 export async function loadMetaAST(address: Address): Promise<MetaAST | undefined> {
@@ -23,8 +24,8 @@ export async function loadMetaAST(address: Address): Promise<MetaAST | undefined
 /**
  * Преобразует Address в путь к файлу для загрузки.
  *
- * @param address - канонический адрес хаба
- * @returns путь к файлу для fetch
+ * @param address — канонический адрес хаба
+ * @returns путь к файлу для fetch в формате `/{address}/meta.json`
  */
 function resolveMetaSource(address: Address): string {
   return `/${address}/meta.json`
