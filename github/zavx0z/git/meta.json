@@ -82,33 +82,28 @@
   },
   "gravity": [
     {
-      "type": "log",
-      "data": "/value/operation",
-      "child": [
-        {
-          "tag": "meta-for",
-          "type": "meta",
-          "string": {
-            "src": {
-              "data": "/value/operation",
-              "expr": "zavx0z/git-${_[0]}"
-            },
-            "context": {
-              "data": [
-                "/value/operation",
-                "/value/args",
-                "/operation",
-                "/args"
-              ],
-              "expr": "${{ _[2]: _[0], _[3]: _[1] }}"
-            }
-          }
+      "tag": "meta-for",
+      "type": "meta",
+      "string": {
+        "src": {
+          "data": "/value/operation",
+          "expr": "zavx0z/git-${_[0]}"
+        },
+        "context": {
+          "data": [
+            "/value/operation",
+            "/value/args",
+            "/operation",
+            "/args"
+          ],
+          "expr": "${{ _[2]: _[0], _[3]: _[1] }}"
         }
-      ]
+      }
     },
     {
       "type": "log",
-      "data": "/value/error",
+      "data": "/state",
+      "expr": "_[0] === \"\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430\"",
       "child": [
         {
           "tag": "meta-for",

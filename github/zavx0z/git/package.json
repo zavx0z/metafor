@@ -4,10 +4,6 @@
   "description": "Git — распределённая система управления версиями",
   "type": "module",
   "private": true,
-  "exports": {
-    ".": "./src/meta.ts",
-    "./monad": "./git.json"
-  },
   "devDependencies": {
     "@metafor/dsl": "workspace:*",
     "@metafor/ast": "workspace:*"

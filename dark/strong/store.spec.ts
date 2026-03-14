@@ -38,7 +38,7 @@ describe("@dark/strong — индексация и lookup", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
@@ -71,8 +71,8 @@ describe("@dark/strong — индексация и lookup", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`
-          ${value.enabled && html`
+        .gravity(({ state, html }) => html`
+          ${state === "idle" && html`
             <meta-for src="child/shared"></meta-for>
             <meta-for src="child/shared"></meta-for>
           `}
@@ -87,7 +87,7 @@ describe("@dark/strong — индексация и lookup", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.ready && html`<div>Child</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Child</div>`}`)
         .bulk()
 
       const rootFragment = compileLocalTopologyFragment(rootMeta)
@@ -149,7 +149,7 @@ describe("@dark/strong — индексация и lookup", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
@@ -170,8 +170,8 @@ describe("@dark/strong — индексация и lookup", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`
-          ${value.enabled && html`
+        .gravity(({ state, html }) => html`
+          ${state === "idle" && html`
             <meta-for src="child/a"></meta-for>
             <meta-for src="child/b"></meta-for>
           `}
@@ -209,7 +209,7 @@ describe("@dark/strong — индексация и lookup", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.value > 0 && html`<div>${value.value}</div>`}`)
+        .gravity(({ state, value, html }) => html`${state === "idle" && html`<div>${value.value}</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)

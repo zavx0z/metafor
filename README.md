@@ -91,7 +91,7 @@ Topology отвечает на вопрос:
 - различие между `LocalTopologyFragment` и `GlobalTopologyGraph`,
 - ответственность template / DSL / `Dark`,
 - topology entities `WIMP`, `Axion`, `Fuzzy`, `MACHO`,
-- правило локальной нормализации `NodeLogical -> Axion`, `NodeCondition(state|enum) -> Fuzzy`, `NodeMap(array) -> MACHO`,
+- правило локальной нормализации `NodeLogical(state|enum) -> Axion`, `NodeCondition(state|enum) -> Fuzzy`, `NodeMap(array) -> MACHO`,
 - topology-адресация и topology-уровневая адресация entanglement.
 
 ### Протокол

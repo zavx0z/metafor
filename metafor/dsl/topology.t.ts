@@ -5,7 +5,7 @@ import type { MetaDSL } from "./metafor.t"
  * Виды topology-объектов в локальном фрагменте.
  *
  * - `wimp` — скрытый meta-узел (NodeMeta), точка привязки topology
- * - `axion` — логический узел (NodeLogical), не является выбором ветви
+ * - `axion` — логический узел (NodeLogical), не является выбором ветви, но basis ограничен state/enum
  * - `fuzzy` — узел выбора ветви (NodeCondition), только state/enum
  * - `macho` — узел множественности (NodeMap), array-based разворачивание
  */
@@ -71,6 +71,7 @@ export interface LocalTopologyWIMP extends LocalTopologyObjectBase {
  *
  * Не является выбором ветви (fuzzy), а выражает логическую группировку.
  * Не участвует в branch selection и не создаёт альтернативных миров.
+ * При этом basis у NodeLogical всё равно должен принадлежать topology-контракту state/enum.
  */
 export interface LocalTopologyAxion extends LocalTopologyObjectBase {
   kind: "axion"

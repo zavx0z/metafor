@@ -4,14 +4,10 @@
   "description": "Git sparse-checkout — разреженный checkout",
   "type": "module",
   "private": true,
-  "exports": {
-    ".": "./src/meta.ts",
-    "./monad": "./git-work-sparse-checkout.json"
-  },
   "devDependencies": {
     "@metafor/dsl": "workspace:*"
   },
   "scripts": {
-    "build": "metafor-build src/meta.ts --out meta.json"
+    "build": "metafor-build meta.ts --out meta.json"
   }
 }

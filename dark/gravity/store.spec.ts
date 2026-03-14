@@ -39,7 +39,7 @@ describe("@dark/gravity — world assembly", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
@@ -59,8 +59,8 @@ describe("@dark/gravity — world assembly", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`
-          ${value.enabled && html`
+        .gravity(({ state, html }) => html`
+          ${state === "idle" && html`
             <meta-for src="child/shared"></meta-for>
             <meta-for src="child/shared"></meta-for>
           `}
@@ -75,7 +75,7 @@ describe("@dark/gravity — world assembly", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.ready && html`<div>Child</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Child</div>`}`)
         .bulk()
 
       const rootFragment = compileLocalTopologyFragment(rootMeta)
@@ -177,7 +177,7 @@ describe("@dark/gravity — world assembly", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
@@ -223,8 +223,8 @@ describe("@dark/gravity — world assembly", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`
-          ${value.enabled && html`<meta-for src="link/child"></meta-for>`}
+        .gravity(({ state, html }) => html`
+          ${state === "idle" && html`<meta-for src="link/child"></meta-for>`}
         `)
         .bulk()
 
@@ -236,7 +236,7 @@ describe("@dark/gravity — world assembly", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.value > 0 && html`<div>Child</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Child</div>`}`)
         .bulk()
 
       const rootFragment = compileLocalTopologyFragment(rootMeta)
@@ -276,7 +276,7 @@ describe("@dark/gravity — world assembly", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
@@ -303,8 +303,8 @@ describe("@dark/gravity — world assembly", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`
-          ${value.enabled && html`
+        .gravity(({ state, html }) => html`
+          ${state === "idle" && html`
             <meta-for src="shared/fragment"></meta-for>
             <meta-for src="shared/fragment"></meta-for>
           `}
@@ -319,7 +319,7 @@ describe("@dark/gravity — world assembly", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.value > 0 && html`<div>Shared</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Shared</div>`}`)
         .bulk()
 
       const rootFragment = compileLocalTopologyFragment(rootMeta)
@@ -356,7 +356,7 @@ describe("@dark/gravity — world assembly", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)

@@ -17,7 +17,7 @@ type FieldLike = {
 
 type TopologyAddressPrefix = "w" | "a" | "f" | "m"
 
-type FuzzyConditionBasis =
+type TopologyBasis =
   | {
       kind: "state"
       dataPath: "/state"
@@ -75,7 +75,7 @@ function getEnumValues(meta: LocalTopologyMetaLike, dataPath: string): Array<str
   return variants
 }
 
-function resolveFuzzyConditionBasis(meta: LocalTopologyMetaLike, dataPath: string): FuzzyConditionBasis {
+function resolveTopologyBasis(meta: LocalTopologyMetaLike, dataPath: string): TopologyBasis {
   if (dataPath === "/state") {
     return {
       kind: "state",
@@ -100,7 +100,7 @@ function resolveFuzzyConditionBasis(meta: LocalTopologyMetaLike, dataPath: strin
   const fieldType = String(field.type)
   if (!isEnumFieldType(fieldType)) {
     throw new Error(
-      `basis "${dataPath}" ссылается на поле "${fieldName}" типа "${fieldType}", но Fuzzy branch selection разрешает только state или enum.`,
+      `basis "${dataPath}" ссылается на поле "${fieldName}" типа "${fieldType}", но topology basis разрешает только state или enum.`,
     )
   }
 
@@ -111,13 +111,18 @@ function resolveFuzzyConditionBasis(meta: LocalTopologyMetaLike, dataPath: strin
   }
 }
 
-function validateConditionDataPaths(meta: LocalTopologyMetaLike, nodePath: string, dataPaths: string[]): void {
+function validateTopologyDataPaths(
+  nodeType: "NodeLogical" | "NodeCondition",
+  meta: LocalTopologyMetaLike,
+  nodePath: string,
+  dataPaths: string[],
+): void {
   for (const dataPath of dataPaths) {
     try {
-      resolveFuzzyConditionBasis(meta, dataPath)
+      resolveTopologyBasis(meta, dataPath)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      throw new Error(`NodeCondition в "${nodePath}" использует недопустимый branch-choice basis: ${message}`)
+      throw new Error(`${nodeType} в "${nodePath}" использует недопустимый topology basis: ${message}`)
     }
   }
 }
@@ -373,6 +378,10 @@ function compileLogical(
   const objectId = makeObjectId(state, "a")
   const dataPaths = Array.isArray(node.data) ? node.data : [node.data]
 
+  // Axion остаётся логической группировкой, но его basis всё равно должен
+  // принадлежать topology-контракту state|enum.
+  validateTopologyDataPaths("NodeLogical", meta, nodePath, dataPaths)
+
   state.objects[objectId] = {
     id: objectId,
     kind: "axion",
@@ -405,7 +414,7 @@ function compileCondition(
   const dataPaths = Array.isArray(node.data) ? node.data : [node.data]
 
   // Fuzzy branch-choice допускает только state и enum topology-fields.
-  validateConditionDataPaths(meta, nodePath, dataPaths)
+  validateTopologyDataPaths("NodeCondition", meta, nodePath, dataPaths)
 
   const objectId = makeObjectId(state, "f")
   state.objects[objectId] = {

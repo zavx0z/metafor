@@ -40,7 +40,7 @@ export default MetaFor("git", { desc: "Git — распределённая си
     "определение операции": process({ env: ["any"] })
       .action(async ({ value }) => {
         if (!value.command) throw new Error("Не удалось определить команду")
-          
+
         const { detect } = await import("./actions/detect")
         return detect<typeof value.operation>(value.command)
       })
@@ -48,16 +48,15 @@ export default MetaFor("git", { desc: "Git — распределённая си
       .error(({ update, error }) => update({ error: error.message })),
   }))
   .reactions(() => [])
-  .gravity(({ value, html }) => html`
-      ${value.operation &&
-      html`
-        <meta-for
-          src="zavx0z/git-${value.operation}"
-          context=${{
-            operation: value.operation,
-            args: value.args,
-          }} />
-      `}
-      ${value.error && html` <meta-for src="zavx0z/git-error" context=${{ message: value.error }} /> `}
-    `)
+  .gravity(
+    ({ value, state, html }) => html`
+      <meta-for
+        src="zavx0z/git-${value.operation}"
+        context=${{
+          operation: value.operation,
+          args: value.args,
+        }} />
+      ${state === "ошибка" && html` <meta-for src="zavx0z/git-error" context=${{ message: value.error }} /> `}
+    `,
+  )
   .bulk()

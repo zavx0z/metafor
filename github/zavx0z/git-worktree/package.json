@@ -4,15 +4,11 @@
   "description": "Git worktree — управление рабочими деревьями",
   "type": "module",
   "private": true,
-  "exports": {
-    ".": "./src/meta.ts",
-    "./monad": "./git-worktree.json"
-  },
   "devDependencies": {
     "@metafor/dsl": "workspace:*",
     "@metafor/ast": "workspace:*"
   },
   "scripts": {
-    "build": "metafor-build src/meta.ts --out meta.json"
+    "build": "metafor-build meta.ts --out meta.json"
   }
 }

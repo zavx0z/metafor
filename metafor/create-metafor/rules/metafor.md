@@ -372,13 +372,11 @@ return { group: group as "start" | "work" | "examine" }
 ## Gravity — иерархия акторов
 
 ```typescript
-.gravity(({ value, html }) => html`
-  ${value.operation && html`
-    <meta-for
-      src="zavx0z/git-${value.operation}"
-      fields=${{ command: value.command, args: value.args }} />
-  `}
-  ${value.error && html`
+.gravity(({ state, value, html }) => html`
+  <meta-for
+    src="zavx0z/git-${value.operation}"
+    fields=${{ command: value.command, args: value.args }} />
+  ${state === "ошибка" && html`
     <meta-for
       src="zavx0z/git-error"
       fields=${{ message: value.error }} />
@@ -404,7 +402,7 @@ return { group: group as "start" | "work" | "examine" }
 
 ```typescript
 .gravity(({ state, value, html }) => html`
-  ${value.ready && html`<meta-for src="zavx0z/panel" />`}
+  ${state === "готово" && html`<meta-for src="zavx0z/panel" />`}
   ${state === "загрузка"
     ? html`<meta-for src="zavx0z/spinner" />`
     : html`<meta-for src="zavx0z/content" />`}
@@ -475,11 +473,9 @@ export default MetaFor("git")
       })
       .success(({ update }) => update({ operation: null })),
   }))
-  .gravity(({ value, html }) => html`
-    ${value.operation && html`
-      <meta-for src="zavx0z/git-${value.operation}" fields=${{ command: value.command }} />
-    `}
-    ${value.error && html`
+  .gravity(({ state, value, html }) => html`
+    <meta-for src="zavx0z/git-${value.operation}" fields=${{ command: value.command }} />
+    ${state === "ошибка" && html`
       <meta-for src="zavx0z/git-error" fields=${{ message: value.error }} />
     `}
   `)

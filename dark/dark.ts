@@ -1,5 +1,5 @@
 import type { MetaAST } from "@metafor/ast"
-import { loadMetaAST } from "./load"
+import { loadMetaAST, resolveMetaSource, resolveMetaTsPath } from "./load"
 import { dark$ } from "./store"
 import { gravity$ } from "./gravity/store.ts"
 import { strong$ } from "./strong/store.ts"
@@ -191,7 +191,13 @@ export async function matter(address: Address): Promise<void> {
     if (existing) return existing
 
     const ast = await ensureMetaLoaded(metaAddress)
-    return gravity$.setFragment(metaAddress, compileLocalTopologyFragment(ast as LocalTopologyMetaLike))
+    const sourcePath = resolveMetaTsPath(metaAddress)
+    try {
+      return gravity$.setFragment(metaAddress, compileLocalTopologyFragment(ast as LocalTopologyMetaLike))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Ошибка компиляции topology для "${sourcePath}": ${message}`)
+    }
   }
 
   /**

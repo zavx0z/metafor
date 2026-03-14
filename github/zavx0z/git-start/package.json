@@ -4,15 +4,11 @@
   "description": "Git start — команды начала работы (clone, init)",
   "type": "module",
   "private": true,
-  "exports": {
-    ".": "./src/meta.ts",
-    "./monad": "./git-start.json"
-  },
   "devDependencies": {
     "@metafor/dsl": "workspace:*",
     "@metafor/ast": "workspace:*"
   },
   "scripts": {
-    "build": "metafor-build src/meta.ts --out meta.json"
+    "build": "metafor-build meta.ts --out meta.json"
   }
 }

@@ -6,7 +6,6 @@ describe("compileLocalTopologyFragment", () => {
   test("собирает локальный topology-фрагмент из gravity одной meta", () => {
     const meta = MetaFor("local-topology")
       .fields((field) => ({
-        enabled: field.boolean.required(true),
         mode: field.enum("card", "table").required("card"),
         rows: field.array.required<string>([]),
       }))
@@ -14,9 +13,9 @@ describe("compileLocalTopologyFragment", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity(({ value, html }) => html`
+      .gravity(({ value, state, html }) => html`
         <section>
-          ${value.enabled && html`
+          ${state === "idle" && html`
             <meta-for src="zavx0z/header"></meta-for>
           `}
           ${value.mode === "card"
@@ -134,7 +133,7 @@ describe("compileLocalTopologyFragment", () => {
   test("не превращает presentation carriers в topology-объекты", () => {
     const meta = MetaFor("carriers")
       .fields((field) => ({
-        enabled: field.boolean.required(true),
+        mode: field.enum("detail", "compact").required("detail"),
       }))
       .superposition({ idle: null })
       .mass()
@@ -143,7 +142,7 @@ describe("compileLocalTopologyFragment", () => {
       .gravity(({ value, html }) => html`
         <div class="layout">
           <span>label</span>
-          ${value.enabled && html`
+          ${value.mode === "detail" && html`
             <section>
               <div>
                 <meta-for src="zavx0z/child"></meta-for>
@@ -158,7 +157,7 @@ describe("compileLocalTopologyFragment", () => {
 
     // Этот тест проверяет, что только meta-for становятся wimp
     expect(Object.values(fragment.objects).filter((object) => object.kind === "wimp")).toHaveLength(1)
-    // NodeLogical с boolean валиден как axion, потому что не является branch-choice
+    // NodeLogical с enum basis валиден как axion, потому что basis принадлежит topology-контракту
     expect(Object.values(fragment.objects).filter((object) => object.kind === "axion")).toHaveLength(1)
   })
 
@@ -223,5 +222,20 @@ describe("compileLocalTopologyFragment", () => {
       .bulk()
 
     expect(() => compileLocalTopologyFragment(meta)).toThrow(/\/mass\/session/)
+  })
+
+  test("выбрасывает ошибку если NodeLogical использует ordinary number basis", () => {
+    const meta = MetaFor("invalid-logical-number")
+      .fields((field) => ({
+        value: field.number.required(0),
+      }))
+      .superposition({ idle: null })
+      .mass()
+      .processes()
+      .reactions()
+      .gravity(({ value, html }) => html`${value.value > 0 && html`<div>Value</div>`}`)
+      .bulk()
+
+    expect(() => compileLocalTopologyFragment(meta)).toThrow(/NodeLogical/)
   })
 })

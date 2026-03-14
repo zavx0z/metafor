@@ -145,7 +145,7 @@ describe("dark/store", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+      .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
       .bulk()
 
     const fragment = compileLocalTopologyFragment(meta)
@@ -171,7 +171,7 @@ describe("dark/store", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+      .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
       .bulk()
 
     const fragment = compileLocalTopologyFragment(meta)

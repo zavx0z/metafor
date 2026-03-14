@@ -35,7 +35,7 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
@@ -66,8 +66,8 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`
-          ${value.enabled && html`<meta-for src="child/cascade"></meta-for>`}
+        .gravity(({ state, html }) => html`
+          ${state === "idle" && html`<meta-for src="child/cascade"></meta-for>`}
         `)
         .bulk()
 
@@ -79,7 +79,7 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.value > 0 && html`<div>${value.value}</div>`}`)
+        .gravity(({ state, value, html }) => html`${state === "idle" && html`<div>${value.value}</div>`}`)
         .bulk()
 
       const rootFragment = compileLocalTopologyFragment(rootMeta)
@@ -122,7 +122,7 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.version && html`<div>v1</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>v1</div>`}`)
         .bulk()
 
       const metaV2 = MetaFor("replace-test")
@@ -134,9 +134,9 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`
-          ${value.version && html`<div>v2</div>`}
-          ${value.newField && html`<span>New</span>`}
+        .gravity(({ state, html }) => html`
+          ${state === "idle" && html`<div>v2</div>`}
+          ${state === "idle" && html`<span>New</span>`}
         `)
         .bulk()
 
@@ -177,7 +177,7 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<div>Parent</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Parent</div>`}`)
         .bulk()
 
       const childMeta = MetaFor("child-insert")
@@ -188,7 +188,7 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.value > 0 && html`<div>Child</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Child</div>`}`)
         .bulk()
 
       const parentFragment = compileLocalTopologyFragment(parentMeta)
@@ -226,7 +226,7 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
@@ -265,8 +265,8 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`
-          ${value.enabled && html`<meta-for src="detach/child"></meta-for>`}
+        .gravity(({ state, html }) => html`
+          ${state === "idle" && html`<meta-for src="detach/child"></meta-for>`}
         `)
         .bulk()
 
@@ -278,7 +278,7 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.value > 0 && html`<div>Child</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Child</div>`}`)
         .bulk()
 
       const rootFragment = compileLocalTopologyFragment(rootMeta)
@@ -322,8 +322,8 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`
-          ${value.enabled && html`
+        .gravity(({ state, html }) => html`
+          ${state === "idle" && html`
             <meta-for src="move/child"></meta-for>
           `}
         `)
@@ -337,7 +337,7 @@ describe("@dark/weak — мутации topology", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.value > 0 && html`<div>Child</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Child</div>`}`)
         .bulk()
 
       const rootFragment = compileLocalTopologyFragment(rootMeta)

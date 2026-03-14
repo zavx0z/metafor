@@ -84,7 +84,7 @@ DSL:
 - сохраняет структурную форму, пришедшую из template,
 - читает `NodeMeta`, `NodeLogical`, `NodeCondition`, `NodeMap` как основные структурные источники,
 - выполняет локальную нормализацию topology,
-- главным образом разрешает topology-специфические правила, например `NodeLogical -> Axion`, `state|enum -> Fuzzy` и `array -> MACHO`,
+- главным образом разрешает topology-специфические правила, например `NodeLogical(state|enum) -> Axion`, `state|enum -> Fuzzy` и `array -> MACHO`,
 - не берёт на себя задачу глобальной сборки мира.
 
 ### Dark
@@ -132,6 +132,7 @@ DSL:
 `Axion`:
 
 - соответствует `&&`-группировке и другим логическим узлам `NodeLogical`,
+- допускает только basis `state` или `enum`,
 - не порождает альтернативные topology-ветви сам по себе,
 - не создаёт entanglement seed,
 - участвует в topology-адресации как отдельный тип размещения.
@@ -199,7 +200,7 @@ DSL:
 
 - template задаёт локальную карту формы,
 - DSL нормализует её до `LocalTopologyFragment`,
-- `NodeLogical` превращается в `Axion`,
+- `NodeLogical` превращается в `Axion` только если все его basis-path принадлежат `state` или `enum`,
 - `NodeCondition` превращается в `Fuzzy` только если все его basis-path принадлежат `state` или `enum`,
 - `enum` превращается в `Fuzzy`-узлы с известным набором размещений ветвей,
 - `array` превращается в `MACHO`-узлы множественности и разворачивания,
@@ -306,7 +307,7 @@ Topology — это карта, из которой строится `Bulk`.
 4. Template / gravity задают основную локальную структурную форму.
 5. DSL выполняет локальную нормализацию topology, а не глобальную сборку мира.
 6. `WIMP`, `Axion`, `Fuzzy`, `MACHO` являются основными topology-сущностями текущей формализации.
-7. `NodeLogical` нормализуется в `Axion`, а `NodeCondition` допустим для topology только при basis `state` или `enum`.
+7. `NodeLogical` нормализуется в `Axion` только при basis `state` или `enum`, а `NodeCondition` допустим для topology только при basis `state` или `enum`.
 8. `enum` всегда означает выбор, `array` всегда означает множественность и разворачивание.
 9. Topology-адресация является типизированной адресацией размещения.
 10. Адресация entanglement должна учитывать topology-путь размещения.

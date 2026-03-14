@@ -8,7 +8,5 @@ export default MetaFor("git-error", { desc: "Git error — команда git" }
   .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .gravity(({ value, html }) => html`
-      ${value.error && html`<div class="error">${value.error}</div>`}
-    `)
+  .gravity()
   .bulk()

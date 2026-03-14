@@ -32,7 +32,7 @@ describe("@dark/em — projection-only", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
@@ -55,7 +55,7 @@ describe("@dark/em — projection-only", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<meta-for src="em/child"></meta-for>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<meta-for src="em/child"></meta-for>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
@@ -84,7 +84,7 @@ describe("@dark/em — projection-only", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.value > 0 && html`<div>Value</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Value</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
@@ -128,7 +128,7 @@ describe("@dark/em — projection-only", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.enabled && html`<div>Content</div>`}`)
+        .gravity(({ state, html }) => html`${state === "idle" && html`<div>Content</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
@@ -174,7 +174,7 @@ describe("@dark/em — projection-only", () => {
         .mass()
         .processes()
         .reactions()
-        .gravity(({ value, html }) => html`${value.value && html`<div>${value.value}</div>`}`)
+        .gravity(({ state, value, html }) => html`${state === "idle" && html`<div>${value.value}</div>`}`)
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
