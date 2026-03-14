@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach } from "bun:test"
 import { MetaFor, compileLocalTopologyFragment } from "../../metafor/dsl/metafor.ts"
 
-import { topology$ } from "./store"
+import { topology$ } from "./store.ts"
 
 beforeEach(() => {
   topology$.reset()

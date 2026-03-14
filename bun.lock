@@ -31,12 +31,6 @@
         "@boundary/strong": "workspace:*",
         "@boundary/weak": "workspace:*",
       },
-      "devDependencies": {
-        "@types/bun": "latest",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
-      },
     },
     "boundary/em": {
       "name": "@boundary/em",
@@ -74,6 +68,7 @@
         "@bulk/gravity": "workspace:*",
         "@bulk/strong": "workspace:*",
         "@bulk/weak": "workspace:*",
+        "@metafor/dark": "workspace:*",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -89,6 +84,9 @@
     "bulk/gravity": {
       "name": "@bulk/gravity",
       "version": "0.0.1",
+      "dependencies": {
+        "@metafor/dark": "workspace:*",
+      },
       "peerDependencies": {
         "typescript": "^5",
       },
@@ -109,6 +107,33 @@
       "peerDependencies": {
         "typescript": "^5",
       },
+    },
+    "dark": {
+      "name": "@metafor/dark",
+      "version": "0.0.1",
+      "dependencies": {
+        "@dark/em": "workspace:*",
+        "@dark/gravity": "workspace:*",
+        "@dark/strong": "workspace:*",
+        "@dark/weak": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/template": "workspace:*",
+      },
+    },
+    "dark/em": {
+      "name": "@dark/em",
+      "version": "0.0.1",
+    },
+    "dark/gravity": {
+      "name": "@dark/gravity",
+    },
+    "dark/strong": {
+      "name": "@dark/strong",
+      "version": "0.0.1",
+    },
+    "dark/weak": {
+      "name": "@dark/weak",
+      "version": "0.0.1",
     },
     "fixture": {
       "name": "fixture",
@@ -331,6 +356,14 @@
 
     "@bulk/weak": ["@bulk/weak@workspace:bulk/weak"],
 
+    "@dark/em": ["@dark/em@workspace:dark/em"],
+
+    "@dark/gravity": ["@dark/gravity@workspace:dark/gravity"],
+
+    "@dark/strong": ["@dark/strong@workspace:dark/strong"],
+
+    "@dark/weak": ["@dark/weak@workspace:dark/weak"],
+
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.22.0", "https://registry.yarnpkg.com/@gerrit0/mini-shiki/-/mini-shiki-3.22.0.tgz", { "dependencies": { "@shikijs/engine-oniguruma": "^3.22.0", "@shikijs/langs": "^3.22.0", "@shikijs/themes": "^3.22.0", "@shikijs/types": "^3.22.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-jMpciqEVUBKE1QwU64S4saNMzpsSza6diNCk4MWAeCxO2+LFi2FIFmL2S0VDLzEJCxuvCbU783xi8Hp/gkM5CQ=="],
 
     "@metafor/ast": ["@metafor/ast@workspace:metafor/ast"],
@@ -338,6 +371,8 @@
     "@metafor/boundary": ["@metafor/boundary@workspace:boundary"],
 
     "@metafor/bulk": ["@metafor/bulk@workspace:bulk"],
+
+    "@metafor/dark": ["@metafor/dark@workspace:dark"],
 
     "@metafor/dsl": ["@metafor/dsl@workspace:metafor/dsl"],
 

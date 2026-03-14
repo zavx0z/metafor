@@ -13,6 +13,6 @@
     "@dark/weak": "workspace:*",
     "@dark/em": "workspace:*",
     "@metafor/ast": "workspace:*",
-    "@zavx0z/template": "workspace:*"
+    "@metafor/template": "workspace:*"
   }
 }

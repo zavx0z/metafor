@@ -6,7 +6,7 @@
 
 import type { MetaAST } from "@metafor/ast"
 import { dark$ } from "../store"
-import type { GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyEntanglement } from "../ap/store.t"
+import type { GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyEntanglement } from "../gravity/store.t"
 
 export type DarkConsumer = "boundary" | "bulk"
 

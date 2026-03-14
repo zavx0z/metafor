@@ -1,6 +1,6 @@
 import type { DarkStore } from "./store.t"
 export type { DarkStore, DarkStoreSnapshot } from "./store.t"
-import { topology$ } from "./ap/store"
+import { topology$ } from "./gravity/store"
 
 export const dark$: DarkStore = {
   meta: new Map(),

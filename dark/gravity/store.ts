@@ -9,7 +9,7 @@ import type {
   GlobalTopologyReference,
   GlobalTopologySnapshot,
   GlobalTopologyStore,
-} from "./store.t"
+} from "./store.t.ts"
 import type { LocalTopologyFragment, LocalTopologyPlacementRelation } from "../../metafor/dsl/topology.t.ts"
 
 function cloneValue<T>(value: T): T {
