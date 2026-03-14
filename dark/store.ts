@@ -5,34 +5,30 @@
  * - `@dark/strong` — индексы и cohesion
  * - `@dark/gravity` — world assembly
  * - `@dark/weak` — мутации
+ * - `@dark/em` — проекции
  *
- * @see {@link dark$} — синглтон dark store
+ * @see {@link dark$} — явный domain store
+ * @see {@link gravity$} — gravity package store
+ * @see {@link strong$} — strong package store
+ * @see {@link weak$} — weak package store
  */
 
 import type { DarkStore } from "./store.t"
 export type { DarkStore, DarkStoreSnapshot } from "./store.t"
-import { strongIndex$ } from "./strong/index.ts"
-import { initGravityStore, topology$ } from "./gravity/index.ts"
-import { initWeakMutationStore, weakMutation$ } from "./weak/index.ts"
+import { gravity$ } from "./gravity/store.ts"
+import { strong$ } from "./strong/store.ts"
+import { weak$ } from "./weak/store.ts"
 
-// Инициализация force-split store
-const gravityStore = initGravityStore(strongIndex$)
-const weakStore = initWeakMutationStore(gravityStore, strongIndex$)
-
-// Экспорт weak mutation API на topology$ для удобства
-Object.assign(topology$, {
-  replaceFragment: weakStore.replaceFragment.bind(weakStore),
-  removePlacementSubtree: weakStore.removePlacementSubtree.bind(weakStore),
-  insertFragmentAtPlacement: weakStore.insertFragmentAtPlacement.bind(weakStore),
-  movePlacement: weakStore.movePlacement.bind(weakStore),
-  rebuildFragment: weakStore.rebuildFragment.bind(weakStore),
-  detachSubtree: weakStore.detachSubtree.bind(weakStore),
-  remapPlacementAddresses: weakStore.remapPlacementAddresses.bind(weakStore),
-})
-
+/**
+ * Явный domain store `@dark`.
+ *
+ * Композиция package stores:
+ * - `meta` — domain-level meta cache
+ * - `topology` — unified topology API (gravity + strong + weak)
+ */
 export const dark$: DarkStore = {
   meta: new Map(),
-  topology: topology$,
+  topology: gravity$,
 
   reset() {
     this.meta = new Map()
@@ -60,3 +56,17 @@ export const dark$: DarkStore = {
     return this.meta.get(address)
   },
 }
+
+// Экспорт weak mutation API на topology для удобства
+Object.assign(gravity$, {
+  replaceFragment: weak$.replaceFragment.bind(weak$),
+  removePlacementSubtree: weak$.removePlacementSubtree.bind(weak$),
+  insertFragmentAtPlacement: weak$.insertFragmentAtPlacement.bind(weak$),
+  movePlacement: weak$.movePlacement.bind(weak$),
+  rebuildFragment: weak$.rebuildFragment.bind(weak$),
+  detachSubtree: weak$.detachSubtree.bind(weak$),
+  remapPlacementAddresses: weak$.remapPlacementAddresses.bind(weak$),
+})
+
+// Экспорт package stores
+export { gravity$, strong$, weak$ }
