@@ -3,18 +3,11 @@
   "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
-  "exports": {
-    ".": "./index.ts"
-  },
   "private": true,
   "dependencies": {
     "@bulk/gravity": "workspace:*",
     "@bulk/strong": "workspace:*",
     "@bulk/weak": "workspace:*",
-    "@bulk/em": "workspace:*",
-    "@metafor/dark": "workspace:*"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
+    "@bulk/em": "workspace:*"
   }
 }

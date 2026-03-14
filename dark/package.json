@@ -3,16 +3,11 @@
   "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
-  "exports": {
-    ".": "./index.ts"
-  },
   "private": true,
   "dependencies": {
     "@dark/gravity": "workspace:*",
     "@dark/strong": "workspace:*",
     "@dark/weak": "workspace:*",
-    "@dark/em": "workspace:*",
-    "@metafor/ast": "workspace:*",
-    "@metafor/template": "workspace:*"
+    "@dark/em": "workspace:*"
   }
 }

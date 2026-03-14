@@ -3,14 +3,11 @@
   "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
-  "exports": {
-    ".": "./index.ts",
-    "./boundary": "./boundary.ts"
-  },
   "private": true,
   "dependencies": {
     "@boundary/gravity": "workspace:*",
     "@boundary/strong": "workspace:*",
-    "@boundary/weak": "workspace:*"
+    "@boundary/weak": "workspace:*",
+    "@boundary/em": "workspace:*"
   }
 }

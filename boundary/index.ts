@@ -5,38 +5,15 @@
  *
  * ## Архитектура
  *
- * Модуль предоставляет единый интерфейс для внешних пакетов:
- * - `write()` — запись канонической boundary-структуры
- * - `update()` — вычисление и чтение перехода состояний
- * - `unlock()` — снятие блокировки с бран
- * - `reset()` — сброс состояния
- * - `FieldType` — типы полей
+ * Домен `Boundary` — граница фиксации, уплощения, каноникализации и вычислимой формы.
  *
  * `Boundary` не владеет source graph loading и primary addressing:
  * эти обязанности закреплены за `@metafor/dark`.
  *
- * @example
- * ```typescript
- * import { write, update, unlock, FieldType } from "@boundary"
+ * Домен изолирован. Прямые импорты из `@boundary` в production-коде запрещены.
+ * Тесты используют `@github/zavx0z/git` для интеграционной проверки.
  *
- * // Инициализация
- * await write({
- *   fields: [{ type: FieldType.F32 }],
- *   branes: [{ values: [[0, 100]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null]] }],
- * })
- *
- * // Переход
- * const states = await update([[0, [[0, 100]]]])
- *
- * // Снятие блокировки
- * unlock([0, 1, 2])
- * ```
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md | ONTOLOGY.md} — онтология доменов
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ARCHITECTURE.md | ARCHITECTURE.md} — архитектурная проекция
+ * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/DEVELOPMENT.md | DEVELOPMENT.md} — режим разработки
  */
-
-export {
-  write,
-  update,
-  unlock,
-  reset,
-  FieldType,
-} from "./boundary"
