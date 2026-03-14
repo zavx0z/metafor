@@ -8,11 +8,10 @@ import {
   getPlacementByAddress,
   getPlacementsByObject,
   getReferencesBySource,
-} from "./gravity/query.ts"
+} from "@dark/gravity"
 import { dark$ } from "./store"
-import { gravity$ } from "./gravity/store.ts"
-import { strong$ } from "./strong/store.ts"
-import { ingestFragment } from "./gravity/gravity.ts"
+import { gravity$, ingestFragment } from "@dark/gravity"
+import { strong$ } from "@dark/strong"
 
 const originalFetch = globalThis.fetch
 

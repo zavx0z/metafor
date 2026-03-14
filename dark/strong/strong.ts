@@ -1,6 +1,6 @@
 
 import type { GlobalTopologyEntanglement, GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyMetaIndex, StrongIndexes } from "@dark/types"
-import { strong$ } from "./store.ts"
+import { strong$ } from "@dark/strong"
 
 /**
  * Добавляет значение в массив, если оно ещё не присутствует.

@@ -22,6 +22,31 @@
 
 ### Порядок импортов
 
+Импорты располагаются в следующем порядке:
+
+1. **Сторонние пакеты** (npm, внешние зависимости)
+2. **Типы из `@{domain}/types`**
+3. **Собственные модули домена** (`@{domain}/{package}`)
+4. **Локальные импорты** (относительные пути)
+
+```typescript
+// ✅ ПРАВИЛЬНО — порядок соблюдён
+import type { MetaAST } from "@metafor/ast"           // 1. Сторонние пакеты
+import type { DarkStore } from "@dark/types"          // 2. Типы из @domain/types
+import { gravity$ } from "@dark/gravity"              // 3. Собственные модули
+import { compileFragment } from "../metafor/dsl/ts"   // 4. Локальные импорты
+import { loadMeta } from "./load.ts"                  // 4. Локальные импорты
+
+// ❌ НЕПРАВИЛЬНО — порядок нарушен
+import { gravity$ } from "./gravity/store.ts"         // локальные до сторонних
+import type { MetaAST } from "@metafor/ast"           // сторонние после локальных
+import type { DarkStore } from "@dark/types"
+```
+
+**Принцип:** Сначала внешние зависимости, затем внутренние.
+
+### Типы сверху, код снизу
+
 **Типы импортируются в самом верху, до импортов кода:**
 
 ```typescript

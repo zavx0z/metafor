@@ -13,15 +13,8 @@ import type {
 } from "@dark/types/weak"
 import type { LocalTopologyFragment } from "../../metafor/dsl/topology.t"
 import { dark$ } from "../store.ts"
-import { gravity$ } from "../gravity/store.ts"
-import { ingestFragment } from "../gravity/gravity.ts"
-import { strong$ } from "../strong/store.ts"
-import {
-  getPlacementIdsByMeta,
-  removeEntanglementIndexes,
-  removePlacementIndexes,
-  removeReferenceIndexes,
-} from "../strong/strong.ts"
+import { gravity$, ingestFragment } from "@dark/gravity"
+import { strong$, getPlacementIdsByMeta, removeEntanglementIndexes, removePlacementIndexes, removeReferenceIndexes } from "@dark/strong"
 
 /**
  * Находит все descendant placement IDs.

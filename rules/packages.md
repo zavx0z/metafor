@@ -108,6 +108,56 @@ export const boundary$ = {
 
 ---
 
+## Импорт между пакетами домена
+
+**Правило:** Пакеты импортируют функционал друг друга через `@{domain}/{package}`, а не напрямую из файлов.
+
+```typescript
+// ✅ ПРАВИЛЬНО — импорт через @domain/package
+import { gravity$, ingestFragment } from "@dark/gravity"
+import { strong$, indexPlacement } from "@dark/strong"
+import { replaceFragment, movePlacement } from "@dark/weak"
+
+// ❌ НЕПРАВИЛЬНО — прямой импорт из файлов
+import { gravity$ } from "./gravity/store.ts"
+import { ingestFragment } from "./gravity/gravity.ts"
+import { strong$ } from "./strong/store.ts"
+import { indexPlacement } from "./strong/strong.ts"
+```
+
+**Принцип:** `index.ts` пакета — это единственная точка входа для внешнего использования.
+
+**Структура экспорта:**
+
+```text
+{domain}/{package}/index.ts  ← экспортирует только используемый функционал
+```
+
+**Пример `@dark/gravity`:**
+
+```typescript
+// ✅ ПРАВИЛЬНО — gravity/index.ts экспортирует API
+export { gravity$ } from "./store.ts"
+export { ingestFragment } from "./gravity.ts"
+export { getPlacementByAddress, getPlacementsByMeta } from "./query.ts"
+
+// Использование в @dark/dark.ts
+import { gravity$, ingestFragment } from "@dark/gravity"
+```
+
+**Пример `@dark/strong`:**
+
+```typescript
+// ✅ ПРАВИЛЬНО — strong/index.ts экспортирует API
+export { strong$ } from "./store.ts"
+export { indexPlacement, indexObject, indexReference } from "./strong.ts"
+
+// Использование в @dark/dark.ts
+import { strong$, indexPlacement } from "@dark/strong"
+```
+
+---
+
 ## Структура store-модуля
 
 **Правило:** store — это модуль внутри пакета, не отдельный пакет.

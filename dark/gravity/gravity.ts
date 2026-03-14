@@ -13,8 +13,7 @@ import type {
 import type { LocalTopologyFragment, LocalTopologyPlacementRelation } from "../../metafor/dsl/topology.t"
 import { dark$ } from "../store.ts"
 import { gravity$ } from "./store.ts"
-import { strong$ } from "../strong/store.ts"
-import { indexEntanglement, indexObject, indexPlacement, indexReference } from "../strong/strong.ts"
+import { strong$, indexEntanglement, indexObject, indexPlacement, indexReference } from "@dark/strong"
 import { cloneStoredValue } from "../snapshot.ts"
 
 /**

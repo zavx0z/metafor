@@ -15,6 +15,42 @@
 - **`index.ts`** — только для экспорта внешнего API модуля (ре-экспорт из `{name}.ts`)
 - **`{name}.ts`** — оркестратор модуля, содержит основную логику и координирует работу внутренних файлов
 
+### Порядок импортов
+
+Импорты располагаются в следующем порядке:
+
+1. **Сторонние пакеты** (npm, внешние зависимости)
+2. **Типы из `@{domain}/types`**
+3. **Собственные модули домена** (`@{domain}/{package}`)
+4. **Локальные импорты** (относительные пути)
+
+```typescript
+// ✅ ПРАВИЛЬНО — порядок соблюдён
+import type { MetaAST } from "@metafor/ast"           // 1. Сторонние пакеты
+import type { ProcessParams } from "@domain/types"    // 2. Типы из @domain/types
+import { validate } from "@domain/utils"              // 3. Собственные модули
+import { store } from "./store.ts"                    // 4. Локальные импорты
+
+// ❌ НЕПРАВИЛЬНО — порядок нарушен
+import { store } from "./store.ts"                    // локальные до сторонних
+import type { MetaAST } from "@metafor/ast"           // сторонние после локальных
+```
+
+**Принцип:** Сначала внешние зависимости, затем внутренние.
+
+### Импорт между пакетами:
+
+```typescript
+// ✅ ПРАВИЛЬНО — импорт через @domain/package
+import { process, ProcessParams } from "@domain/process"
+
+// ❌ НЕПРАВИЛЬНО — прямой импорт из файлов
+import { process } from "./process.ts"
+import { ProcessParams } from "./process.t.ts"
+```
+
+**Пример:**
+
 ```typescript
 // index.ts — только ре-экспорт функций
 export { process } from './process.ts'
