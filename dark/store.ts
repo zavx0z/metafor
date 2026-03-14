@@ -9,14 +9,14 @@
  * - не является runtime-оркестратором и не дублирует `boundary/` или `bulk/`
  * - удерживает скрытую структурную рамку и историю схем
  *
- * @property meta {@link DarkStore.meta|meta} — загруженные meta-схемы
- * @property objects {@link DarkStore.objects|objects} — глобальные объекты
- * @property placements {@link DarkStore.placements|placements} — размещения
- * @property links {@link DarkStore.links|links} — связи между размещениями
- * @property references {@link DarkStore.references|references} — ссылки на источники
- * @property entanglements {@link DarkStore.entanglements|entanglements} — запутанности
+ * @property `meta` — загруженные meta-схемы
+ * @property `objects` — глобальные объекты
+ * @property `placements` — размещения
+ * @property `links` — связи между размещениями
+ * @property `references` — ссылки на источники
+ * @property `entanglements` — запутанности
  *
- * @see {@link DarkStore} — тип состояния
+ * @see DarkStore — тип состояния
  * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark | ONTOLOGY.md} — онтология Dark
  * @see {@link https://github.com/zavx0z/metafor/blob/main/dark/README.md | dark/README.md} — ответственность Dark
  */

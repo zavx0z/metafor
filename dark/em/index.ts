@@ -32,11 +32,11 @@ export type DarkConsumer = "boundary" | "bulk"
  * Проекция graph state для downstream-потребителя.
  *
  * Содержит снимок состояния для экспорта:
- * - {@link DarkDownstreamProjection.consumer | consumer} — тип потребителя
- * - {@link DarkDownstreamProjection.meta | meta} — загруженные meta-схемы
- * - {@link DarkDownstreamProjection.placements | placements} — все placements
- * - {@link DarkDownstreamProjection.references | references} — все references
- * - {@link DarkDownstreamProjection.entanglements | entanglements} — все entanglements
+ * - `consumer` — тип потребителя
+ * - `meta` — загруженные meta-схемы
+ * - `placements` — все placements
+ * - `references` — все references
+ * - `entanglements` — все entanglements
  */
 export interface DarkDownstreamProjection {
   /** Тип потребителя проекции. */

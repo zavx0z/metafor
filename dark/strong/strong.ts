@@ -11,7 +11,8 @@
  * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/strong.md | proto/strong.md} — протокол Strong и Gluon
  */
 
-import type { GlobalTopologyEntanglement, GlobalTopologyMetaIndex, GlobalTopologyPlacement, GlobalTopologyReference } from "@dark/gravity"
+import type { GlobalTopologyEntanglement, GlobalTopologyPlacement, GlobalTopologyReference } from "@dark/gravity"
+import type { GlobalTopologyMetaIndex } from "@dark/strong"
 import type { StrongIndexes } from "./store.t.ts"
 import { strong$ } from "./store.ts"
 

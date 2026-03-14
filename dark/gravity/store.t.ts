@@ -11,11 +11,11 @@ import type {
  * Глобальный объект топологии.
  *
  * Представляет объект из meta-схемы в контексте всего графа:
- * - {@link GlobalTopologyObject.id | id} — уникальный ID в формате `meta#localId`
- * - {@link GlobalTopologyObject.meta | meta} — адрес meta-схемы
- * - {@link GlobalTopologyObject.localObjectId | localObjectId} — локальный ID из схемы
- * - {@link GlobalTopologyObject.kind | kind} — тип объекта
- * - {@link GlobalTopologyObject.definition | definition} — полное определение
+ * - `id` — уникальный ID в формате `meta#localId`
+ * - `meta` — адрес meta-схемы
+ * - `localObjectId` — локальный ID из схемы
+ * - `kind` — тип объекта
+ * - `definition` — полное определение
  */
 export interface GlobalTopologyObject {
   /** Уникальный ID объекта в формате `meta#localId`. */
@@ -38,10 +38,10 @@ export interface GlobalTopologyObject {
  * Глобальное размещение топологии.
  *
  * Представляет экземпляр объекта в конкретном месте графа:
- * - {@link GlobalTopologyPlacement.id | id} — уникальный ID размещения
- * - {@link GlobalTopologyPlacement.address | address} — полный путь в графе
- * - {@link GlobalTopologyPlacement.parentId | parentId} — ID родителя (опционально)
- * - {@link GlobalTopologyPlacement.viaReferenceId | viaReferenceId} — ID ссылки (опционально)
+ * - `id` — уникальный ID размещения
+ * - `address` — полный путь в графе
+ * - `parentId` — ID родителя (опционально)
+ * - `viaReferenceId` — ID ссылки (опционально)
  */
 export interface GlobalTopologyPlacement {
   /** Уникальный ID размещения. */
@@ -76,8 +76,8 @@ export interface GlobalTopologyPlacement {
  * Связь между двумя размещениями.
  *
  * Определяет иерархическое отношение parent-child между размещениями:
- * - {@link GlobalTopologyLink.from | from} — ID родительского размещения
- * - {@link GlobalTopologyLink.to | to} — ID дочернего размещения
+ * - ID родительского размещения
+ * — ID дочернего размещения
  */
 export interface GlobalTopologyLink {
   /** Уникальный ID связи. */
@@ -97,8 +97,8 @@ export interface GlobalTopologyLink {
  * Глобальная ссылка на внешний источник.
  *
  * Связывает размещение с external meta-схемой:
- * - {@link GlobalTopologyReference.src | src} — адрес целевой meta-схемы
- * - {@link GlobalTopologyReference.via | via} — способ связи (field/value)
+ * - `src` — адрес целевой meta-схемы
+ * - `via` — способ связи (field/value)
  */
 export interface GlobalTopologyReference {
   /** Уникальный ID ссылки. */
@@ -136,8 +136,8 @@ export interface GlobalTopologyReference {
  * Глобальная запутанность топологии.
  *
  * Связывает placement с набором references и data paths для cohesion:
- * - {@link GlobalTopologyEntanglement.dataPaths | dataPaths} — пути к данным
- * - {@link GlobalTopologyEntanglement.referenceIds | referenceIds} — связанные ссылки
+ * - `dataPaths` — пути к данным
+ * - `referenceIds` — связанные ссылки
  */
 export interface GlobalTopologyEntanglement {
   /** Уникальный ID запутанности в формате `ent:objectId@address`. */
@@ -169,34 +169,11 @@ export interface GlobalTopologyEntanglement {
 }
 
 /**
- * Индекс сущностей по meta-схеме.
- *
- * Хранит IDs всех сущностей, принадлежащих meta-схеме:
- * - {@link GlobalTopologyMetaIndex.objectIds | objectIds} — объекты
- * - {@link GlobalTopologyMetaIndex.placementIds | placementIds} — размещения
- * - {@link GlobalTopologyMetaIndex.referenceIds | referenceIds} — ссылки
- * - {@link GlobalTopologyMetaIndex.entanglementIds | entanglementIds} — запутанности
- */
-export interface GlobalTopologyMetaIndex {
-  /** IDs объектов из meta-схемы. */
-  objectIds: string[]
-
-  /** IDs размещений из meta-схемы. */
-  placementIds: string[]
-
-  /** IDs ссылок из meta-схемы. */
-  referenceIds: string[]
-
-  /** IDs запутанностей из meta-схемы. */
-  entanglementIds: string[]
-}
-
-/**
  * Опции для вставки фрагмента в граф.
  *
  * Используется при assembly для указания контекста:
- * - {@link GlobalTopologyIngestOptions.parentPlacementId | parentPlacementId} — ID родителя
- * - {@link GlobalTopologyIngestOptions.viaReferenceId | viaReferenceId} — ID ссылки
+ * - `parentPlacementId` — ID родителя
+ * - `viaReferenceId` — ID ссылки
  */
 export interface GlobalTopologyIngestOptions {
   /** ID родительского размещения для вставки (опционально). */
@@ -210,10 +187,10 @@ export interface GlobalTopologyIngestOptions {
  * Результат вставки фрагмента в граф.
  *
  * Возвращает IDs всех созданных сущностей:
- * - {@link GlobalTopologyIngestResult.rootPlacementIds | rootPlacementIds} — корневые размещения
- * - {@link GlobalTopologyIngestResult.placementIds | placementIds} — все размещения
- * - {@link GlobalTopologyIngestResult.referenceIds | referenceIds} — все ссылки
- * - {@link GlobalTopologyIngestResult.entanglementIds | entanglementIds} — все запутанности
+ * - `rootPlacementIds` — корневые размещения
+ * - `placementIds` — все размещения
+ * - `referenceIds` — все ссылки
+ * - `entanglementIds` — все запутанности
  */
 export interface GlobalTopologyIngestResult {
   /** Адрес meta-схемы, которая была вставлена. */
@@ -236,11 +213,11 @@ export interface GlobalTopologyIngestResult {
  * Снимок состояния `@dark/gravity/store`.
  *
  * Хранит промежуточное состояние assembly-слоя:
- * - {@link GravityStoreSnapshot.fragments | fragments} — загруженные фрагменты
- * - {@link GravityStoreSnapshot.nextPlacementSeq | nextPlacementSeq} — счётчик размещений
- * - {@link GravityStoreSnapshot.nextLinkSeq | nextLinkSeq} — счётчик связей
- * - {@link GravityStoreSnapshot.nextReferenceSeq | nextReferenceSeq} — счётчик ссылок
- * - {@link GravityStoreSnapshot.rootOccurrenceSeq | rootOccurrenceSeq} — счётчик root-вхождений
+ * - `fragments` — загруженные фрагменты
+ * - `nextPlacementSeq` — счётчик размещений
+ * - `nextLinkSeq` — счётчик связей
+ * - `nextReferenceSeq` — счётчик ссылок
+ * - `rootOccurrenceSeq` — счётчик root-вхождений
  */
 export interface GravityStoreSnapshot {
   /** Загруженные local topology fragments по meta. */

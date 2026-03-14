@@ -42,7 +42,6 @@ export type {
   GlobalTopologyIngestOptions,
   GlobalTopologyIngestResult,
   GlobalTopologyLink,
-  GlobalTopologyMetaIndex,
   GlobalTopologyObject,
   GlobalTopologyPlacement,
   GlobalTopologyReference,

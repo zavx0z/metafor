@@ -11,12 +11,12 @@ import type {
  * Снимок состояния `@dark/store`.
  *
  * Используется для сериализации и восстановления графа:
- * - {@link DarkStoreSnapshot.meta | meta} — загруженные meta-схемы
- * - {@link DarkStoreSnapshot.objects | objects} — глобальные объекты
- * - {@link DarkStoreSnapshot.placements | placements} — размещения
- * - {@link DarkStoreSnapshot.links | links} — связи между размещениями
- * - {@link DarkStoreSnapshot.references | references} — ссылки на внешние источники
- * - {@link DarkStoreSnapshot.entanglements | entanglements} — запутанности
+ * - `meta` — загруженные meta-схемы
+ * - `objects` — глобальные объекты
+ * - `placements` — размещения
+ * - `links` — связи между размещениями
+ * - `references` — ссылки на внешние источники
+ * - `entanglements` — запутанности
  */
 export interface DarkStoreSnapshot {
   /** Загруженные meta-схемы по адресу. */

@@ -40,6 +40,7 @@ export {
   removeReferenceIndexes,
 } from "./strong.ts"
 export type {
+  GlobalTopologyMetaIndex,
   StrongIndexes,
   StrongIndexStore,
   StrongIndexesSnapshot,
