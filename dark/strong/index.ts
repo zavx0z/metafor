@@ -13,7 +13,6 @@ export {
   indexReference,
   isPlacementIndexed,
   removeEntanglementIndexes,
-  removeObjectIndex,
   removePlacementIndexes,
   removeReferenceIndexes,
 } from "./strong.ts"

@@ -9,22 +9,10 @@ import type {
   GlobalTopologyPlacement,
   GlobalTopologyReference,
   StrongIndexes,
-  StrongIndexesSnapshot,
 } from "@dark/types"
 import type { DarkStrongStore } from "@dark/types/strong"
 import type { LocalTopologyFragment, LocalTopologyPlacementRelation } from "../../metafor/dsl/topology.t"
-import { gravity$ } from "./store.ts"
 import { indexEntanglement, indexObject, indexPlacement, indexReference } from "@dark/strong"
-
-/**
- * Создаёт глубокую копию значения.
- *
- * @param value — значение для клонирования
- * @returns глубокая копия значения
- */
-function cloneValue<T>(value: T): T {
-  return structuredClone(value)
-}
 
 /**
  * Создаёт глобальный ID объекта из meta и локального ID.
@@ -119,7 +107,7 @@ function ensureObjectDefinitions(
       meta,
       localObjectId,
       kind: definition.kind,
-      definition: cloneValue(definition),
+      definition: structuredClone(definition),
     }
 
     dark$.setObject(objectId, object)
@@ -282,7 +270,7 @@ export function ingestFragment(
       referenceIds: seed.referenceIds
         .map((localReferenceId) => localToGlobalReference.get(localReferenceId))
         .filter(Boolean) as string[],
-      seed: cloneValue(seed),
+      seed: structuredClone(seed),
     }
 
     dark$.setEntanglement(entanglement.id, entanglement)

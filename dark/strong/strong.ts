@@ -200,24 +200,6 @@ export function indexObject(
 }
 
 /**
- * Удаляет индекс объекта.
- *
- * @param objectId — ID объекта
- * @param meta — адрес meta-схемы
- * @param store$ — strong indexes (по умолчанию `strong$`)
- */
-export function removeObjectIndex(
-  objectId: string,
-  meta: string,
-  store$: StrongIndexes = strong$,
-): void {
-  const metaIndex = store$.sourceMetaIndex.get(meta)
-  if (metaIndex) {
-    metaIndex.objectIds = metaIndex.objectIds.filter((id) => id !== objectId)
-  }
-}
-
-/**
  * Находит ID placement по адресу.
  *
  * @param address — полный адрес размещения
