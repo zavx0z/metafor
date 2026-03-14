@@ -8,11 +8,20 @@
     ".": {
       "import": "./dist/metafor.js",
       "types": "./dist/index.d.ts"
-    }
+    },
+    "./types": "./types/shared.ts",
+    "./types/shared": "./types/shared.ts",
+    "./types/metafor": "./types/metafor.ts",
+    "./types/process": "./types/process.ts",
+    "./types/reactions": "./types/reactions.ts",
+    "./types/states": "./types/states.ts",
+    "./types/topology": "./types/topology.ts",
+    "./topology": "./topology.ts"
   },
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
+    "types",
     "README.md",
     "README.ru.md"
   ],

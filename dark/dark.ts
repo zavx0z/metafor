@@ -1,10 +1,10 @@
 import type { MetaAST } from "@metafor/ast"
 import type { DarkStoreSnapshot } from "@dark/types"
 import type { Address } from "@dark/types/dark"
-import type { LocalTopologyFragment, LocalTopologyMetaLike } from "../metafor/dsl/topology.t.ts"
+import type { LocalTopologyFragment, LocalTopologyMetaLike } from "@metafor/dsl/types"
 import { gravity$, ingestFragment } from "@dark/gravity"
 import { strong$, indexEntanglement, indexObject, indexPlacement, indexReference } from "@dark/strong"
-import { compileLocalTopologyFragment } from "../metafor/dsl/topology.ts"
+import { compileLocalTopologyFragment } from "@metafor/dsl/topology"
 import { loadMetaAST, resolveMetaTsPath } from "./load"
 import { dark$ } from "./store"
 

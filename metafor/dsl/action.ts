@@ -1,6 +1,6 @@
 import type { Schema } from "@zavx0z/context"
-import type { Mass } from "./metafor.t"
-import type { ReactionAction } from "./reactions.t"
+import type { Mass } from "@metafor/dsl/types/metafor"
+import type { ReactionAction } from "@metafor/dsl/types/reactions"
 
 const PATTERN_UPDATE = /\bupdate\s*\(\s*({[\s\S]*?})\s*\)/g
 const PATTERN_ARROW = /^\s*(\([^)]+\))\s*=>/

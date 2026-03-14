@@ -91,7 +91,7 @@ import { processesSchema, type ProcessesDeclaration, type ActionParams } from ".
 import { serializeStyle } from "./style"
 import { compileLocalTopologyFragment } from "./topology.ts"
 
-import type { MetaForConfig, MetaForFn, BulkDeclaration, GravityDeclaration, MetaDSL, Mass, Self } from "./metafor.t"
+import type { MetaForConfig, MetaForFn, BulkDeclaration, GravityDeclaration, MetaDSL, Mass, Self } from "@metafor/dsl/types/metafor"
 import type {
   LocalTopologyEntanglementSeed,
   LocalTopologyFragment,
@@ -105,7 +105,7 @@ import type {
   LocalTopologyPlacementRelation,
   LocalTopologyReference,
   LocalTopologyWIMP,
-} from "./topology.t"
+} from "@metafor/dsl/types/topology"
 
 export type { MetaForFn, MetaDSL, Self, Mass, Superposition, NodeMeta, NodeType, NodeLogical, ActionParams }
 export type {
@@ -121,8 +121,8 @@ export type {
   LocalTopologyPlacementRelation,
   LocalTopologyReference,
   LocalTopologyWIMP,
-}
-export { compileLocalTopologyFragment }
+} from "@metafor/dsl/types"
+export { compileLocalTopologyFragment } from "./topology"
 
 export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc

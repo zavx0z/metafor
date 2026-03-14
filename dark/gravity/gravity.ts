@@ -11,7 +11,7 @@ import type {
   StrongIndexes,
 } from "@dark/types"
 import type { DarkStrongStore } from "@dark/types/strong"
-import type { LocalTopologyFragment, LocalTopologyPlacementRelation } from "../../metafor/dsl/topology.t"
+import type { LocalTopologyFragment, LocalTopologyPlacementRelation } from "@metafor/dsl/types"
 import { indexEntanglement, indexObject, indexPlacement, indexReference } from "@dark/strong"
 
 /**

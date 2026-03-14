@@ -1,5 +1,5 @@
 import type { NodeCondition, NodeLogical, NodeMap, NodeMeta } from "@metafor/template"
-import type { MetaDSL } from "./metafor.t"
+import type { MetaDSL } from "./metafor"
 
 /**
  * Виды topology-объектов в локальном фрагменте.

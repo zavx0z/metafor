@@ -1,17 +1,17 @@
 import type { Schema, SchemaType, Values } from "@zavx0z/context"
-/** 
+/**
  * # Условия для булевых значений (required)
-  
+
    Позволяет определять условия для обязательных булевых значений в контексте.
    Не поддерживает проверку на null, так как required поля всегда имеют значение.
-  
+
    ## Параметры:
    | Параметр   | Тип     | Описание                           |
    | ---------- | ------- | ---------------------------------- |
    | eq         | boolean | Равно указанному булеву значению   |
    | notEq      | boolean | Не равно указанному булеву значению|
    | logicalEq  | boolean | Логическое равенство               |
-   
+
    @includeExample ./state/test/conditions.boolean.spec.ts
    */
 export type CondBooleanRequired =
@@ -25,12 +25,12 @@ export type CondBooleanRequired =
       logicalEq?: boolean
     }
 
-/** 
+/**
  * # Условия для булевых значений (optional)
-  
+
    Позволяет определять условия для опциональных булевых значений в контексте.
    Поддерживает проверку на null.
-  
+
    ## Параметры:
    | Параметр   | Тип     | Описание                           |
    | ---------- | ------- | ---------------------------------- |
@@ -38,15 +38,15 @@ export type CondBooleanRequired =
    | eq         | boolean | Равно указанному булеву значению   |
    | notEq      | boolean | Не равно указанному булеву значению|
    | logicalEq  | boolean | Логическое равенство               |
-   
+
    @example
    ```typescript
    // Простое условие
    isActive: true
-   
+
    // Проверка на null
    isVerified: null
-   
+
    // Сложное условие
    isAdmin: { eq: true }
    isVerified: { null: true }
@@ -66,12 +66,12 @@ export type CondBooleanOptional =
       logicalEq?: boolean
     }
 
-/** 
+/**
  * # Условия для enum значений (required)
-  
+
    Позволяет определять условия для обязательных enum значений в контексте.
    Не поддерживает проверку на null, так как required поля всегда имеют значение.
-  
+
    ## Параметры:
    | Параметр   | Тип     | Описание                           |
    | ---------- | ------- | ---------------------------------- |
@@ -79,12 +79,12 @@ export type CondBooleanOptional =
    | notEq      | E[number] | Не равно указанному значению      |
    | oneOf      | E[number][] | Одно из указанных значений       |
    | notOneOf   | E[number][] | Не одно из указанных значений    |
-   
+
    @example
    ```typescript
    // Простое условие
    role: 'admin'
-   
+
    // Сложное условие
    role: { eq: 'admin' }
    status: { oneOf: ['active', 'pending'] }
@@ -103,12 +103,12 @@ export type CondEnumRequired<E extends readonly (string | number)[]> =
       notOneOf?: E[number][]
     }
 
-/** 
+/**
  * # Условия для enum значений (optional)
-  
+
    Позволяет определять условия для опциональных enum значений в контексте.
    Поддерживает проверку на null.
-  
+
    ## Параметры:
    | Параметр   | Тип     | Описание                           |
    | ---------- | ------- | ---------------------------------- |
@@ -117,15 +117,15 @@ export type CondEnumRequired<E extends readonly (string | number)[]> =
    | notEq      | E[number] | Не равно указанному значению      |
    | oneOf      | E[number][] | Одно из указанных значений       |
    | notOneOf   | E[number][] | Не одно из указанных значений    |
-   
+
    @example
    ```typescript
    // Простое условие
    role: 'admin'
-   
+
    // Проверка на null
    role: null
-   
+
    // Сложное условие
    role: { eq: 'admin' }
    status: { oneOf: ['active', 'pending'] }
@@ -147,12 +147,12 @@ export type CondEnumOptional<E extends readonly (string | number)[]> =
       notOneOf?: E[number][]
     }
 
-/** 
+/**
  * # Условия для строковых значений (required)
-  
+
    Позволяет определять условия для обязательных строковых значений в контексте.
    Не поддерживает проверку на null, так как required поля всегда имеют значение.
-  
+
    ## Параметры:
    | Параметр      | Тип     | Описание                           |
    | ------------- | ------- | ---------------------------------- |
@@ -167,7 +167,7 @@ export type CondEnumOptional<E extends readonly (string | number)[]> =
    | notEndsWith   | string  | Не заканчивается на указанную строку|
    | length        | number \| { min?: number; max?: number } | Длина строки |
    | between       | [string, string] | Должно быть между двумя строками |
-   
+
    @includeExample ./state/test/conditions.string.spec.ts
    */
 export type CondStringRequired =
@@ -202,12 +202,12 @@ export type CondStringRequired =
       notIn?: string[]
     }
 
-/** 
+/**
  * # Условия для строковых значений (optional)
-  
+
    Позволяет определять условия для опциональных строковых значений в контексте.
    Поддерживает проверку на null.
-  
+
    ## Параметры:
    | Параметр      | Тип     | Описание                           |
    | ------------- | ------- | ---------------------------------- |
@@ -223,18 +223,18 @@ export type CondStringRequired =
    | notEndsWith   | string  | Не заканчивается на указанную строку|
    | length        | number \| { min?: number; max?: number } | Длина строки |
    | between       | [string, string] | Должно быть между двумя строками |
-   
+
    @example
    ```typescript
    // Простое условие
    name: 'John'
-   
+
    // Проверка на null
    name: null
-   
+
    // Регулярное выражение
    email: /@/
-   
+
    // Сложное условие
    name: { length: { min: 2 } }
    email: { pattern: /@/, include: '.com' }
@@ -275,12 +275,12 @@ export type CondStringOptional =
       notIn?: string[]
     }
 
-/** 
+/**
  * # Условия для числовых значений (required)
-  
+
    Позволяет определять условия для обязательных числовых значений в контексте.
    Не поддерживает проверку на null, так как required поля всегда имеют значение.
-  
+
    ## Параметры:
    | Параметр   | Тип     | Описание                           |
    | ---------- | ------- | ---------------------------------- |
@@ -295,7 +295,7 @@ export type CondStringOptional =
    | notLt      | number  | Не меньше указанного числа         |
    | notLte     | number  | Не меньше или равно указанному числу|
    | between    | [number, number] | Должно быть между двумя числами |
-   
+
    @includeExample ./state/test/conditions.number.spec.ts
    */
 export type CondNumberRequired =
@@ -329,12 +329,12 @@ export type CondNumberRequired =
       notIn?: number[]
     }
 
-/** 
+/**
  * # Условия для числовых значений (optional)
-  
+
    Позволяет определять условия для опциональных числовых значений в контексте.
    Поддерживает проверку на null.
-  
+
    ## Параметры:
    | Параметр   | Тип     | Описание                           |
    | ---------- | ------- | ---------------------------------- |
@@ -350,15 +350,15 @@ export type CondNumberRequired =
    | notLt      | number  | Не меньше указанного числа         |
    | notLte     | number  | Не меньше или равно указанному числу|
    | between    | [number, number] | Должно быть между двумя числами |
-   
+
    @example
    ```typescript
    // Простое условие
    age: 18
-   
+
    // Проверка на null
    age: null
-   
+
    // Сложное условие
    age: { gte: 18, lte: 65 }
    score: { between: [0, 100] }
@@ -398,12 +398,12 @@ export type CondNumberOptional =
       notIn?: number[]
     }
 
-/** 
+/**
  * # Условия для массивов (required)
-  
+
    Позволяет определять условия для обязательных массивов в контексте.
    Не поддерживает проверку на null, так как required поля всегда имеют значение.
-  
+
    ## Параметры:
    | Параметр    | Тип     | Описание                           |
    | ----------- | ------- | ---------------------------------- |
@@ -413,12 +413,12 @@ export type CondNumberOptional =
    | every       | Condition | Все элементы удовлетворяют условию |
    | some        | Condition | Хотя бы один элемент удовлетворяет условию |
    | isEmpty     | boolean | Является ли массив пустым          |
-   
+
    @example
    ```typescript
    // Простое условие
    tags: ['admin', 'user']
-   
+
    // Сложное условие
    tags: { length: { min: 1 } }
    scores: { every: { gte: 0 } }
@@ -449,12 +449,12 @@ export type CondArrayRequired<T = any> =
       isEmpty?: boolean
     }
 
-/** 
+/**
  * # Условия для массивов (optional)
-  
+
    Позволяет определять условия для опциональных массивов в контексте.
    Поддерживает проверку на null.
-  
+
    ## Параметры:
    | Параметр    | Тип     | Описание                           |
    | ----------- | ------- | ---------------------------------- |
@@ -465,15 +465,15 @@ export type CondArrayRequired<T = any> =
    | every       | Condition | Все элементы удовлетворяют условию |
    | some        | Condition | Хотя бы один элемент удовлетворяет условию |
    | isEmpty     | boolean | Является ли массив пустым          |
-   
+
    @example
    ```typescript
    // Простое условие
    tags: ['admin', 'user']
-   
+
    // Проверка на null
    tags: null
-   
+
    // Сложное условие
    tags: { length: { min: 1 } }
    scores: { every: { gte: 0 } }

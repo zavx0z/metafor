@@ -1,5 +1,5 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { Mass, Self } from "./metafor.t"
+import type { Mass, Self } from "./metafor"
 
 /**
  * Параметры для action
@@ -162,7 +162,7 @@ export type ParsedActionHandler = {
  * Обработчик успеха или ошибки процесса.
  * Содержит функцию, список полей для чтения и записи.
  */
-type ParsedHandler = {
+export type ParsedHandler = {
   /** Список полей контекста, которые читаются в обработчике */
   read?: string[]
   /** Список полей контекста, которые записываются в обработчике */

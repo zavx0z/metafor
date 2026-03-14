@@ -1,5 +1,5 @@
 import type { DarkGravityStoreSnapshot } from "@dark/types"
-import type { LocalTopologyFragment } from "../../metafor/dsl/topology.t.ts"
+import type { LocalTopologyFragment } from "@metafor/dsl/types"
 
 /**
  * Создаёт глубокую копию значения.

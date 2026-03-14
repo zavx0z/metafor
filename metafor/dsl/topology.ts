@@ -8,7 +8,7 @@ import type {
   LocalTopologyPlacement,
   LocalTopologyPlacementRelation,
   LocalTopologyReference,
-} from "./topology.t"
+} from "@metafor/dsl/types/topology"
 
 type FieldLike = {
   type?: string

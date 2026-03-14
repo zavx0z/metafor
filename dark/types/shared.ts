@@ -6,7 +6,7 @@ import type {
   LocalTopologyObjectKind,
   LocalTopologyPlacementRelation,
   LocalTopologyReference,
-} from "../../metafor/dsl/topology.t"
+} from "@metafor/dsl/types"
 
 /**
  * Глобальный объект топологии.

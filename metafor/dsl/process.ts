@@ -1,8 +1,8 @@
 import type { Schema } from "@zavx0z/context"
-import { ProcessType, type DestroyConfig, type ProcessConfig, type ExecutionEnv, type ActionParams } from "./process.t"
-import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema, Process } from "./process.t"
+import { ProcessType, type DestroyConfig, type ProcessConfig, type ExecutionEnv, type ActionParams } from "@metafor/dsl/types/process"
+import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema, Process } from "@metafor/dsl/types/process"
 import { destroyAppendArg, normalizeFunctionString, parseFunction, updateAppendArg, extractModuleSrc, extractImportSpecifier, validateActionStructure } from "./action"
-import { Initiator, type Mass } from "./metafor.t"
+import { Initiator, type Mass } from "@metafor/dsl/types/metafor"
 
 
 export type { ProcessesDeclaration, ProcessesSchema, ActionParams }

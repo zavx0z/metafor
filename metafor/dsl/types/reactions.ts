@@ -1,6 +1,6 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { Condition, ConditionOptional, CondNumberRequired, CondStringRequired } from "./states.t"
-import type { JsonPatch, Mass, Self } from "./metafor.t"
+import type { Condition, ConditionOptional, CondNumberRequired, CondStringRequired } from "./states"
+import type { JsonPatch, Mass, Self } from "./metafor"
 
 export type ReactionParams = {
   meta: string
@@ -32,11 +32,11 @@ export type ReactionParams = {
 export type ReactionFilterConditions = {
   /**
    # Фильтрация по мете атома
-   
+
    1. Прямое сравнение строки с условием
     - meta: "test" - мета должна быть равна "test"
     - meta: /test/ - мета должна соответствовать регулярному выражению /test/ (без кавычек)
-   
+
    2. Сравнение с условием
     - meta: { eq: "test" } - мета должна быть равна "test"
     - meta: { pattern: /test/ } - мета должна соответствовать регулярному выражению /test/
@@ -57,13 +57,13 @@ export type ReactionFilterConditions = {
    | between        | [string, string]                     | Должно быть между двумя строками      |
    | in             | string[]                             | Входит ли в указанный массив строк     |
    | notIn          | string[]                             | Не входит ли в указанный массив строк  |
-   
+
    @example
    ```typescript
    // Простые фильтры
    meta: "user"
    meta: /^user_/
-   
+
    // Сложные фильтры
    meta: {
      startsWith: "user",
@@ -81,14 +81,14 @@ export type ReactionFilterConditions = {
   meta?: CondStringRequired
   /**
    # Фильтрация по индексу
-   
+
    1. Прямое сравнение числа с условием
     - index: 5 - индекс должен быть равен 5
-   
+
    2. Сравнение с условием
     - index: { eq: 5 } - индекс должен быть равен 5
     - index: { gt: 3 } - индекс должен быть больше 3
- 
+
    Условия сравнения:
    | Параметр       | Тип                                  | Описание                              |
    | -------------- | ------------------------------------ | ------------------------------------- |
@@ -103,13 +103,13 @@ export type ReactionFilterConditions = {
    | notLt          | number                               | Не меньше указанного числа            |
    | notLte         | number                               | Не меньше или равно указанному числу  |
    | between        | [number, number]                     | Должно быть между двумя числами       |
-   
+
    @example
    ```typescript
    // Простые фильтры
    index: 0
    index: { gt: 10 }
-   
+
    // Сложные фильтры
    index: {
      gte: 0,
@@ -124,14 +124,14 @@ export type ReactionFilterConditions = {
   atom?: CondStringRequired
   /**
    # Фильтрация по временной метке
-   
+
    1. Прямое сравнение числа с условием
     - timestamp: 1640995200000 - временная метка должна быть равна 1640995200000
-   
+
    2. Сравнение с условием
     - timestamp: { eq: 1640995200000 } - временная метка должна быть равна 1640995200000
     - timestamp: { gt: 1640995200000 } - временная метка должна быть больше 1640995200000
- 
+
    Условия сравнения:
    | Параметр       | Тип                                  | Описание                              |
    | -------------- | ------------------------------------ | ------------------------------------- |
@@ -146,7 +146,7 @@ export type ReactionFilterConditions = {
    | notLt          | number                               | Не меньше указанного числа            |
    | notLte         | number                               | Не меньше или равно указанному числу  |
    | between        | [number, number]                     | Должно быть между двумя числами       |
-   
+
    @example
    ```typescript
    // Фильтры по времени
@@ -160,7 +160,7 @@ export type ReactionFilterConditions = {
   timestamp?: CondNumberRequired
   /**
    # Фильтрация по операции патча
-   
+
    Доступные операции:
    | Операция       | Описание                              |
    | -------------- | ------------------------------------- |
@@ -168,11 +168,11 @@ export type ReactionFilterConditions = {
    | add            | Добавление нового значения по пути     |
    | remove         | Удаление значения по указанному пути   |
    | test           | Проверка значения по указанному пути   |
-   
+
    Примеры использования:
    - op: "replace" - операция должна быть replace
    - op: "add" - операция должна быть add
-   
+
    @example
    ```typescript
    // Фильтры по операции
@@ -184,18 +184,18 @@ export type ReactionFilterConditions = {
   op?: "replace" | "add" | "remove" | "test"
   /**
    # Фильтрация по пути патча
-   
+
    Доступные пути:
    | Путь           | Описание                              |
    | -------------- | ------------------------------------- |
    | /context       | Путь к контексту атома               |
    | /state         | Путь к состоянию атома               |
    | /              | Корневой путь (полный объект атома)  |
-   
+
    Примеры использования:
    - path: "/context" - путь должен быть /context
    - path: "/state" - путь должен быть /state
-   
+
    @example
    ```typescript
    // Фильтры по пути
@@ -207,17 +207,17 @@ export type ReactionFilterConditions = {
   path?: "/context" | "/state" | "/"
   /**
    # Фильтрация по значению патча
-   
+
    Поддерживает все типы значений с расширенными условиями сравнения.
-   
+
    ## Строковые значения
-   
+
    1. Прямое сравнение
     - value: "active" - значение должно быть равно "active"
     - value: /test/ - значение должно соответствовать регулярному выражению
-   
+
    2. Расширенные условия
-   
+
    | Параметр       | Тип                                  | Описание                              |
    | -------------- | ------------------------------------ | ------------------------------------- |
    | eq             | string                               | Равно указанной строке                |
@@ -231,14 +231,14 @@ export type ReactionFilterConditions = {
    | pattern        | RegExp                               | Шаблон регулярного выражения          |
    | length         | number \| { min?: number; max?: number } | Длина строки                      |
    | between        | [string, string]                     | Должно быть между двумя строками      |
-   
+
    ## Числовые значения
-   
+
    1. Прямое сравнение
     - value: 42 - значение должно быть равно 42
-   
+
    2. Расширенные условия
-   
+
    | Параметр | Тип              | Описание                              |
    | -------- | ---------------- | ------------------------------------- |
    | eq       | number           | Равно указанному числу                |
@@ -254,27 +254,27 @@ export type ReactionFilterConditions = {
    | between  | [number, number] | Должно быть между двумя числами       |
    | in       | number[]        | Входит ли в указанный массив чисел    |
    | notIn    | number[]        | Не входит ли в указанный массив чисел |
-   
+
    ## Булевы значения
-   
+
    1. Прямое сравнение
     - value: true - значение должно быть true
-   
+
    2. Расширенные условия
-   
+
    | Параметр   | Тип     | Описание                           |
    | ---------- | ------- | ---------------------------------- |
    | eq         | boolean | Равно указанному булеву значению   |
    | notEq      | boolean | Не равно указанному булеву значению|
    | logicalEq  | boolean | Логическое равенство               |
-   
+
    ## Массивы
-   
+
    1. Прямое сравнение
     - value: [1, 2, 3] - массив должен быть равен [1, 2, 3]
-   
+
    2. Расширенные условия
-   
+
    | Параметр    | Тип              | Описание                              |
    | ----------- | ---------------- | ------------------------------------- |
    | length      | number \| { min?: number; max?: number } | Длина массива                    |
@@ -283,19 +283,19 @@ export type ReactionFilterConditions = {
    | every       | { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number; include?: string } | Все элементы удовлетворяют условию |
    | some        | { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number; include?: string } | Хотя бы один элемент удовлетворяет условию |
    | isEmpty     | boolean          | Является ли массив пустым             |
-   
+
    ## Null и undefined
-   
+
    | Параметр | Тип     | Описание                    |
    | -------- | ------- | --------------------------- |
    | null     | boolean | Является ли значение null   |
-   
+
    ## Объекты
-   
+
    - value: { name: "test" } - объект должен быть равен { name: "test" }
-   
+
    ## Комбинированные условия
-   
+
    Можно комбинировать с другими фильтрами:
    ```typescript
    filter({
@@ -304,7 +304,7 @@ export type ReactionFilterConditions = {
      path: "/context"
    })
    ```
-   
+
    @example
    ```typescript
    // Простые фильтры
@@ -312,7 +312,7 @@ export type ReactionFilterConditions = {
    value: 42
    value: true
    value: [1, 2, 3]
-   
+
    // Сложные фильтры
    value: {
      gt: 0,

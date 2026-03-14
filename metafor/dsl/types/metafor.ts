@@ -1,7 +1,7 @@
 import type { Schema, Types, Update, Values } from "@zavx0z/context"
-import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
-import type { NodeType } from "../template/index.t"
-import type { ReactionsSchema } from "./reactions.t"
+import type { ProcessesDeclaration, ProcessesSchema } from "./process"
+import type { NodeType } from "@metafor/template"
+import type { ReactionsSchema } from "./reactions"
 import type { Superposition } from "./states"
 import type { ReactionsDeclaration } from "./reactions"
 

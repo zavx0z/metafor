@@ -1,5 +1,5 @@
 import type { Schema } from "@zavx0z/context"
-import type { Superposition } from "./states.t"
+import type { Superposition } from "@metafor/dsl/types"
 export type { Superposition }
 
 /**

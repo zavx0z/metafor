@@ -12,7 +12,7 @@ import type {
   RebuildFragmentOptions,
   RebuildFragmentResult,
 } from "@dark/types/weak"
-import type { LocalTopologyFragment } from "../../metafor/dsl/topology.t"
+import type { LocalTopologyFragment } from "@metafor/dsl/types"
 import { ingestFragment } from "@dark/gravity"
 import { getPlacementIdsByMeta, removeEntanglementIndexes, removePlacementIndexes, removeReferenceIndexes } from "@dark/strong"
 
