@@ -7,13 +7,13 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html }) => html`<meta-hash src="org/repo"></meta-hash>`)
+        elements = parse(({ html }) => html`<meta-for src="org/repo"></meta-for>`)
       })
 
       it("hierarchy", () => {
         expect(elements).toEqual([
           {
-            tag: "meta-hash",
+            tag: "meta-for",
             type: "meta",
             string: { src: "org/repo" },
           },
@@ -22,7 +22,7 @@ describe("meta", () => {
       it("data", () => {
         expect(elements).toEqual([
           {
-            tag: "meta-hash",
+            tag: "meta-for",
             type: "meta",
             string: { src: "org/repo" },
           },
@@ -34,12 +34,12 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html }) => html`<meta-hash src="org/repo" />`)
+        elements = parse(({ html }) => html`<meta-for src="org/repo" />`)
       })
       it("hierarchy", () => {
         expect(elements).toEqual([
           {
-            tag: "meta-hash",
+            tag: "meta-for",
             type: "meta",
             string: { src: "org/repo" },
           },
@@ -49,7 +49,7 @@ describe("meta", () => {
       it("data", () => {
         expect(elements).toEqual([
           {
-            tag: "meta-hash",
+            tag: "meta-for",
             type: "meta",
             string: { src: "org/repo" },
           },
@@ -61,16 +61,13 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html, mass }) => html`<meta-${mass.actors.child} src="org/repo" />`)
+        elements = parse(({ html, mass }) => html`<meta-for src="org/repo" />`)
       })
 
       it("data", () => {
         expect(elements).toEqual([
           {
-            tag: {
-              data: "/mass/actors/child",
-              expr: "meta-${_[0]}",
-            },
+            tag: "meta-for",
             type: "meta",
             string: { src: "org/repo" },
           },
@@ -82,16 +79,13 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html, mass }) => html`<meta-${mass.actors.child} src="org/repo"></meta-${mass.actors.child}>`)
+        elements = parse(({ html, mass }) => html`<meta-for src="org/repo"></meta-for>`)
       })
 
       it("data", () => {
         expect(elements).toEqual([
           {
-            tag: {
-              data: "/mass/actors/child",
-              expr: "meta-${_[0]}",
-            },
+            tag: "meta-for",
             type: "meta",
             string: { src: "org/repo" },
           },
@@ -103,7 +97,7 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html, mass }) => html`<div><meta-${mass.tag} src="org/repo" /></div>`)
+        elements = parse(({ html, mass }) => html`<div><meta-for src="org/repo" /></div>`)
       })
 
       it("data", () => {
@@ -113,10 +107,7 @@ describe("meta", () => {
             type: "el",
             child: [
               {
-                tag: {
-                  data: "/mass/tag",
-                  expr: "meta-${_[0]}",
-                },
+                tag: "meta-for",
                 type: "meta",
                 string: { src: "org/repo" },
               },
@@ -130,21 +121,18 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html, mass }) => html`<meta-hash src="org/parent"><meta-${mass.tag} src="org/child" /></meta-hash>`)
+        elements = parse(({ html, mass }) => html`<meta-for src="org/parent"><meta-for src="org/child" /></meta-for>`)
       })
 
       it("data", () => {
         expect(elements).toEqual([
           {
-            tag: "meta-hash",
+            tag: "meta-for",
             type: "meta",
             string: { src: "org/parent" },
             child: [
               {
-                tag: {
-                  data: "/mass/tag",
-                  expr: "meta-${_[0]}",
-                },
+                tag: "meta-for",
                 type: "meta",
                 string: { src: "org/child" },
               },
@@ -159,7 +147,7 @@ describe("meta", () => {
 
       beforeAll(() => {
         elements = parse<any, { items: { tag: string }[] }>(
-          ({ html, mass }) => html`${mass.items.map((item) => html`<meta-${item.tag} src="org/repo" />`)}`
+          ({ html, mass }) => html`${mass.items.map((item) => html`<meta-for src="org/repo" />`)}`
         )
       })
 
@@ -170,10 +158,7 @@ describe("meta", () => {
             data: "/mass/items",
             child: [
               {
-                tag: {
-                  data: "[item]/tag",
-                  expr: "meta-${_[0]}",
-                },
+                tag: "meta-for",
                 type: "meta",
                 string: { src: "org/repo" },
               },
@@ -188,7 +173,7 @@ describe("meta", () => {
 
       beforeAll(() => {
         elements = parse(
-          ({ html, mass }) => html`${mass.items.length > 0 ? html`<meta-${mass.tag} src="org/true" />` : html`<meta-${mass.tag} src="org/false" />`}`
+          ({ html, mass }) => html`${mass.items.length > 0 ? html`<meta-for src="org/true" />` : html`<meta-for src="org/false" />`}`
         )
       })
 
@@ -200,18 +185,12 @@ describe("meta", () => {
             expr: "_[0] > 0",
             child: [
               {
-                tag: {
-                  data: "/mass/tag",
-                  expr: "meta-${_[0]}",
-                },
+                tag: "meta-for",
                 type: "meta",
                 string: { src: "org/true" },
               },
               {
-                tag: {
-                  data: "/mass/tag",
-                  expr: "meta-${_[0]}",
-                },
+                tag: "meta-for",
                 type: "meta",
                 string: { src: "org/false" },
               },
@@ -227,13 +206,13 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html }) => html`<meta-hash src="org/repo" data-type="component" class="meta-element" />`)
+        elements = parse(({ html }) => html`<meta-for src="org/repo" data-type="component" class="meta-element" />`)
       })
 
       it("data", () => {
         expect(elements).toEqual([
           {
-            tag: "meta-hash",
+            tag: "meta-for",
             type: "meta",
             string: {
               src: "org/repo",
@@ -249,16 +228,13 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html, mass }) => html`<meta-${mass.tag} src="org/repo" data-id="${mass.id}" class="meta-${mass.type}" />`)
+        elements = parse(({ html, mass }) => html`<meta-for src="org/repo" data-id="${mass.id}" class="meta-${mass.type}" />`)
       })
 
       it("data", () => {
         expect(elements).toEqual([
           {
-            tag: {
-              data: "/mass/tag",
-              expr: "meta-${_[0]}",
-            },
+            tag: "meta-for",
             type: "meta",
             string: {
               src: "org/repo",
@@ -281,17 +257,14 @@ describe("meta", () => {
       beforeAll(() => {
         elements = parse(
           ({ html, mass }) => html`
-            <meta-${mass.tag} src="org/repo" ${mass.active && "data-active"} class="${mass.active ? "active" : "inactive"}" />
+            <meta-for src="org/repo" ${mass.active && "data-active"} class="${mass.active ? "active" : "inactive"}" />
           `
         )
       })
       it("data", () => {
         expect(elements).toEqual([
           {
-            tag: {
-              data: "/mass/tag",
-              expr: "meta-${_[0]}",
-            },
+            tag: "meta-for",
             type: "meta",
             string: {
               src: "org/repo",
@@ -316,7 +289,7 @@ describe("meta", () => {
       beforeAll(() => {
         elements = parse(
           ({ html, mass }) => html`
-            <meta-${mass.tag} src="org/repo"
+            <meta-for src="org/repo"
               onclick=${() => mass.handleClick(mass.id)}
               onchange=${(e: Event) => mass.handleChange(e, mass.value)} />
           `
@@ -325,10 +298,7 @@ describe("meta", () => {
       it("data", () => {
         expect(elements).toEqual([
           {
-            tag: {
-              data: "/mass/tag",
-              expr: "meta-${_[0]}",
-            },
+            tag: "meta-for",
             type: "meta",
             string: {
               src: "org/repo",
@@ -353,17 +323,14 @@ describe("meta", () => {
 
       beforeAll(() => {
         elements = parse(
-          ({ html, mass, update }) => html`<meta-${mass.tag} src="org/repo" onclick=${() => update({ selected: mass.id })} />`
+          ({ html, mass, update }) => html`<meta-for src="org/repo" onclick=${() => update({ selected: mass.id })} />`
         )
       })
 
       it("data", () => {
         expect(elements).toEqual([
           {
-            tag: {
-              data: "/mass/tag",
-              expr: "meta-${_[0]}",
-            },
+            tag: "meta-for",
             type: "meta",
             string: {
               src: "org/repo",
@@ -391,7 +358,7 @@ describe("meta", () => {
           ({ html, mass }) => html`
             ${mass.items.map(
               (item) => html`
-                <meta-${item.tag} src="org/repo"
+                <meta-for src="org/repo"
                   data-id="${item.id}"
                   ${item.active && "data-active"}
                   class="meta-${item.active ? "active" : "inactive"}"
@@ -408,10 +375,7 @@ describe("meta", () => {
             data: "/mass/items",
             child: [
               {
-                tag: {
-                  data: "[item]/tag",
-                  expr: "meta-${_[0]}",
-                },
+                tag: "meta-for",
                 type: "meta",
                 string: {
                   src: "org/repo",

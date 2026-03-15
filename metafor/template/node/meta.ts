@@ -28,9 +28,8 @@ export const createNodeDataMeta = (
   node: PartAttrMeta,
   context: ParseContext = { pathStack: [], level: 0 },
 ): NodeMeta => {
-  const processed = processTemplateLiteralAttribute(node.tag, context)
   let result: NodeMeta = {
-    tag: processed || node.tag,
+    tag: node.tag,
     type: "meta",
     ...processBasicAttributes(node, context),
     ...(node.child && { child: node.child.map((child) => createNode(child, context)) }),

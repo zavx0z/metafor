@@ -154,7 +154,7 @@ describe("dark - корневой мета", () => {
         fragment = compileLocalTopologyFragment(ast as LocalTopologyMetaLike)
         gravity$.fragments.set(address, fragment)
       }
-      console.log(fragment)
+      // console.log(fragment)
       expect(fragment).toEqual({
         meta: "git",
         objects: {

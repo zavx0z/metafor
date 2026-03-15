@@ -7,16 +7,13 @@ describe("fields/mass в атрибутах", () => {
 
     beforeAll(() => {
       elements = parse(
-        ({ html, mass, fields }) => html`<meta-${mass.tag} mass=${{ id: fields.id, name: fields.name }} />`
+        ({ html, mass, fields }) => html`<meta-for mass=${{ id: fields.id, name: fields.name }} />`
       )
     })
     it("data", () => {
       expect(elements).toEqual([
         {
-          tag: {
-            data: "/mass/tag",
-            expr: "meta-${_[0]}",
-          },
+          tag: "meta-for",
           type: "meta",
           mass: {
             data: ["/fields/id", "/fields/name"],
@@ -31,15 +28,12 @@ describe("fields/mass в атрибутах", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse(({ html, mass }) => html`<meta-${mass.tag} mass=${{ id: "1", name: "2" }} />`)
+      elements = parse(({ html, mass }) => html`<meta-for mass=${{ id: "1", name: "2" }} />`)
     })
     it("data", () => {
       expect(elements).toEqual([
         {
-          tag: {
-            data: "/mass/tag",
-            expr: "meta-${_[0]}",
-          },
+          tag: "meta-for",
           type: "meta",
           mass: '{ id: "1", name: "2" }',
         },
@@ -53,7 +47,7 @@ describe("fields/mass в атрибутах", () => {
     beforeAll(() => {
       elements = parse(
         ({ html, mass, fields }) => html`
-          <div><meta-${mass.tag} fields=${{ id: fields.id, name: fields.name }} /></div>
+          <div><meta-for fields=${{ id: fields.id, name: fields.name }} /></div>
         `
       )
     })
@@ -64,10 +58,7 @@ describe("fields/mass в атрибутах", () => {
           type: "el",
           child: [
             {
-              tag: {
-                data: "/mass/tag",
-                expr: "meta-${_[0]}",
-              },
+              tag: "meta-for",
               type: "meta",
               fields: {
                 data: ["/fields/id", "/fields/name"],
@@ -85,16 +76,13 @@ describe("fields/mass в атрибутах", () => {
 
     beforeAll(() => {
       elements = parse(
-        ({ html, mass, fields }) => html`<meta-${mass.tag} fields=${{ id: fields.id, name: fields.name }} />`
+        ({ html, mass, fields }) => html`<meta-for fields=${{ id: fields.id, name: fields.name }} />`
       )
     })
     it("data", () => {
       expect(elements).toEqual([
         {
-          tag: {
-            data: "/mass/tag",
-            expr: "meta-${_[0]}",
-          },
+          tag: "meta-for",
           type: "meta",
           fields: {
             data: ["/fields/id", "/fields/name"],
@@ -111,7 +99,7 @@ describe("fields/mass в атрибутах", () => {
     beforeAll(() => {
       elements = parse(
         ({ html, mass, fields }) => html`
-          <meta-${mass.tag}
+          <meta-for
             mass=${{ id: fields.id, name: fields.name }}
             fields=${{ id: fields.id, name: fields.name }} />
         `
@@ -120,10 +108,7 @@ describe("fields/mass в атрибутах", () => {
     it("data", () => {
       expect(elements).toEqual([
         {
-          tag: {
-            data: "/mass/tag",
-            expr: "meta-${_[0]}",
-          },
+          tag: "meta-for",
           type: "meta",
           mass: {
             data: ["/fields/id", "/fields/name"],

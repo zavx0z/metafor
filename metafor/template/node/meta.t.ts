@@ -10,38 +10,29 @@ import type { NodeType } from "./index.t"
  * Поддерживает создание компонентов с динамическими именами тегов.
  *
  * @group Nodes
- * @example Статический мета-тег
+ * @example Tег
  * ```html
- * <meta-component class="custom">
- *   <p>Содержимое компонента</p>
- * </meta-component>
- * ```
- *
- * @example Динамический мета-тег
- * ```html
- * <meta-${mass.actorHash} class="dynamic">
- *   <p>Динамический компонент</p>
- * </meta-${mass.actorHash}>
+ * <meta-for class="custom">
+ * </meta-for>
  * ```
  *
  * @example Мета-элемент с mass и fields
  * ```html
- * <meta-widget mass=${mass.widgetConfig} fields=${mass.userData}>
- *   <div>Виджет с конфигурацией</div>
+ * <meta-widget mass=${mass.widgetConfig} fields=${fields.userData}>
  * </meta-widget>
  * ```
  *
  * Структура узла:
  * - `type` - всегда "meta" для мета-узлов
- * - `tag` - имя мета-тега (статическое или динамическое)
+ * - `tag` - имя мета-тега
  * - `child` - дочерние элементы (опционально)
  * - Атрибуты: `event`, `boolean`, `array`, `string`, `style`
  * - Свойства: `mass`, `fields`
  */
 
 export interface NodeMeta extends Attributes {
-  /** Имя мета-тега (может быть статическим или динамическим) */
-  tag: ValueStatic | ValueDynamic | ValueVariable
+  /** Имя мета-тега */
+  tag: ValueStatic
   /** Тип узла - всегда "meta" для мета-узлов */
   type: "meta"
   /** Дочерние элементы (опционально) */

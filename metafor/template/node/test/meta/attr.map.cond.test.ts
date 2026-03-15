@@ -6,12 +6,12 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse(({ html }) => html` <meta-hash fields=${{}} mass=${{}} /> `)
+      elements = parse(({ html }) => html` <meta-for fields=${{}} mass=${{}} /> `)
     })
     it("attributes", () => {
       expect(elements, "при обработке пустых объектов не должен устанавливаться mass и fields").toEqual([
         {
-          tag: "meta-hash",
+          tag: "meta-for",
           type: "meta",
         },
       ])
@@ -19,7 +19,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
     it("data", () => {
       expect(elements, "fields и mass не должно быть в data").toEqual([
         {
-          tag: "meta-hash",
+          tag: "meta-for",
           type: "meta",
         },
       ])
@@ -35,7 +35,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
           <div>
             ${mass.items.map(
               (item) => html`
-                <meta-${mass.tag}
+                <meta-for
                   mass=${{ id: item.id, name: item.name, type: mass.type }}
                   fields=${{ status: item.status, active: item.active }} />
               `
@@ -56,10 +56,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
               data: "/mass/items",
               child: [
                 {
-                  tag: {
-                    data: "/mass/tag",
-                    expr: "meta-${_[0]}",
-                  },
+                  tag: "meta-for",
                   type: "meta",
                   mass: {
                     data: ["[item]/id", "[item]/name", "/mass/type"],
@@ -87,12 +84,12 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
           <div>
             ${fields.showMeta
               ? html`
-                  <meta-${mass.tag}
+                  <meta-for
                     mass=${{ id: fields.id, name: fields.name }}
                     fields=${{ type: "primary", active: true }} />
                 `
               : html`
-                  <meta-${mass.tag}
+                  <meta-for
                     mass=${{ id: "default", name: "default" }}
                     fields=${{ type: "secondary", active: false }} />
                 `}
@@ -111,10 +108,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
               data: "/fields/showMeta",
               child: [
                 {
-                  tag: {
-                    data: "/mass/tag",
-                    expr: "meta-${_[0]}",
-                  },
+                  tag: "meta-for",
                   type: "meta",
                   mass: {
                     data: ["/fields/id", "/fields/name"],
@@ -123,10 +117,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                   fields: '{ type: "primary", active: true }',
                 },
                 {
-                  tag: {
-                    data: "/mass/tag",
-                    expr: "meta-${_[0]}",
-                  },
+                  tag: "meta-for",
                   type: "meta",
                   mass: '{ id: "default", name: "default" }',
                   fields: '{ type: "secondary", active: false }',
@@ -151,7 +142,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
               ? html`
                   ${mass.items.map(
                     (item) => html`
-                      <meta-${mass.tag}
+                      <meta-for
                         mass=${{
                           id: item.id,
                           name: item.name,
@@ -167,7 +158,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                   )}
                 `
               : html`
-                  <meta-${mass.tag}
+                  <meta-for
                     mass=${{ id: "empty", name: "empty" }}
                     fields=${{ type: "empty", active: false }} />
                 `}
@@ -190,10 +181,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                   data: "/mass/items",
                   child: [
                     {
-                      tag: {
-                        data: "/mass/tag",
-                        expr: "meta-${_[0]}",
-                      },
+                      tag: "meta-for",
                       type: "meta",
                       mass: {
                         data: ["[item]/id", "[item]/name", "/mass/type", "[item]/metadata"],
@@ -207,10 +195,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                   ],
                 },
                 {
-                  tag: {
-                    data: "/mass/tag",
-                    expr: "meta-${_[0]}",
-                  },
+                  tag: "meta-for",
                   type: "meta",
                   mass: '{ id: "empty", name: "empty" }',
                   fields: '{ type: "empty", active: false }',
@@ -235,7 +220,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
               (item) => html`
                 ${item.isActive
                   ? html`
-                      <meta-${mass.tag}
+                      <meta-for
                         mass=${{
                           id: item.id,
                           name: item.name,
@@ -248,7 +233,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                     `
                   : item.hasError
                   ? html`
-                      <meta-${mass.tag}
+                      <meta-for
                         mass=${{
                           id: item.id,
                           name: item.name,
@@ -260,7 +245,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         }} />
                     `
                   : html`
-                      <meta-${mass.tag}
+                      <meta-for
                         mass=${{ id: item.id, name: item.name, type: "inactive" }}
                         fields=${{ status: "inactive" }} />
                     `}
@@ -286,10 +271,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                   data: "[item]/isActive",
                   child: [
                     {
-                      tag: {
-                        data: "/mass/tag",
-                        expr: "meta-${_[0]}",
-                      },
+                      tag: "meta-for",
                       type: "meta",
                       mass: {
                         data: ["[item]/id", "[item]/name"],
@@ -305,10 +287,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                       data: "[item]/hasError",
                       child: [
                         {
-                          tag: {
-                            data: "/mass/tag",
-                            expr: "meta-${_[0]}",
-                          },
+                          tag: "meta-for",
                           type: "meta",
                           mass: {
                             data: ["[item]/id", "[item]/name"],
@@ -317,10 +296,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                           fields: '{ status: "error", message: "Item has error" }',
                         },
                         {
-                          tag: {
-                            data: "/mass/tag",
-                            expr: "meta-${_[0]}",
-                          },
+                          tag: "meta-for",
                           type: "meta",
                           mass: {
                             data: ["[item]/id", "[item]/name"],
@@ -351,7 +327,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
             ${mass.users.map(
               (user) => html`
                 ${user.permissions.includes("admin")
-                  ? html`<meta-${mass.tag}
+                  ? html`<meta-for
                       mass=${{
                         id: user.id,
                         name: user.name,
@@ -371,7 +347,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         canManage: true,
                       }} />`
                   : user.permissions.includes("moderator")
-                  ? html`<meta-${mass.tag}
+                  ? html`<meta-for
                       mass=${{
                         id: user.id,
                         name: user.name,
@@ -390,7 +366,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         canDelete: false,
                         canManage: false,
                       }} />`
-                  : html`<meta-${mass.tag}
+                  : html`<meta-for
                       mass=${{
                         id: user.id,
                         name: user.name,
@@ -432,10 +408,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                   expr: '_[0]("admin")',
                   child: [
                     {
-                      tag: {
-                        data: "/mass/tag",
-                        expr: "meta-${_[0]}",
-                      },
+                      tag: "meta-for",
                       type: "meta",
                       mass: {
                         data: ["[item]/id", "[item]/name", "[item]/permissions", "[item]/settings"],
@@ -452,10 +425,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                       expr: '_[0]("moderator")',
                       child: [
                         {
-                          tag: {
-                            data: "/mass/tag",
-                            expr: "meta-${_[0]}",
-                          },
+                          tag: "meta-for",
                           type: "meta",
                           mass: {
                             data: ["[item]/id", "[item]/name", "[item]/permissions", "[item]/settings"],
@@ -467,10 +437,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                           },
                         },
                         {
-                          tag: {
-                            data: "/mass/tag",
-                            expr: "meta-${_[0]}",
-                          },
+                          tag: "meta-for",
                           type: "meta",
                           mass: {
                             data: ["[item]/id", "[item]/name", "[item]/permissions", "[item]/settings"],
@@ -503,7 +470,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
           <div>
             ${mass.items.map(
               (item) => html`
-                <meta-${mass.tag}
+                <meta-for
                   mass=${{
                     id: item.id,
                     name: item.name,
@@ -544,10 +511,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
               data: "/mass/items",
               child: [
                 {
-                  tag: {
-                    data: "/mass/tag",
-                    expr: "meta-${_[0]}",
-                  },
+                  tag: "meta-for",
                   type: "meta",
                   fields: {
                     data: [

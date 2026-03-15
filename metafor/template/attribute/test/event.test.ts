@@ -6,7 +6,7 @@ describe("event", () => {
   it("update в функции", () => {
     const attributes = [
       {
-        tag: "meta-${mass.tag}",
+        tag: "meta-for",
         type: "meta",
         event: {
           onclick: "() => update({ selected: mass.id })",
@@ -17,10 +17,7 @@ describe("event", () => {
     const data = enrichWithData(attributes)
     expect(data).toEqual([
       {
-        tag: {
-          data: "/mass/tag",
-          expr: "meta-${_[0]}",
-        },
+        tag: "meta-for",
         type: "meta",
         event: {
           onclick: {
