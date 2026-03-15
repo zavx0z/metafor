@@ -1,6 +1,345 @@
 import type { MetaAST } from "@metafor/ast"
 
+/**
+ * DarkMatter — нормализованное облако частиц для домена Dark.
+ *
+ * Это входной формат для Dark-пайплайна после преобразования gravity
+ * из DSL/template-представления в язык частиц тёмной материи.
+ *
+ * DarkMatter ещё не является глобальным графом Dark и не содержит
+ * runtime-индексов, placement-id или stitched-структур.
+ * Это чистое декларативное описание частиц и их вложенности.
+ *
+ * @example
+ * ```ts
+ * const matter: DarkMatter = {
+ *   meta: "zavx0z/git",
+ *   particles: [
+ *     {
+ *       kind: "wimp",
+ *       tag: "meta-for",
+ *       src: {
+ *         mode: "dynamic",
+ *         basis: "/value/operation",
+ *         expr: "zavx0z/git-${_[0]}",
+ *       },
+ *       fields: {
+ *         mode: "dynamic",
+ *         basis: ["/value/operation", "/value/args"],
+ *         expr: "{ operation: _[0], args: _[1] }",
+ *       },
+ *     },
+ *   ],
+ * }
+ * ```
+ */
+export type DarkMatter = {
+  /**
+   * Канонический hub-адрес текущей meta-сущности,
+   * из которой было получено данное облако частиц.
+   */
+  meta: string
 
+  /**
+   * Корневые частицы тёмной материи.
+   *
+   * Это ещё не flatten-boundary структура, а исходное облако частиц,
+   * которое Dark затем разворачивает в свой внутренний граф.
+   */
+  particles: DarkParticle[]
+}
+
+/**
+ * DarkParticle — объединение всех поддерживаемых типов частиц
+ * тёмной материи в Dark-домене.
+ */
+export type DarkParticle = Wimp | Fuzzy | Macho | Axion
+
+/**
+ * StaticBinding — статическая привязка значения.
+ *
+ * Используется, когда значение уже известно на этапе формирования
+ * DarkMatter и не зависит от runtime-basis.
+ *
+ * @typeParam T Тип статического значения.
+ *
+ * @example
+ * ```ts
+ * const src: StaticBinding<string> = {
+ *   mode: "static",
+ *   value: "zavx0z/git-error",
+ * }
+ * ```
+ */
+export type StaticBinding<T = unknown> = {
+  /**
+   * Режим привязки.
+   *
+   * Значение уже задано напрямую и не требует вычисления.
+   */
+  mode: "static"
+
+  /**
+   * Готовое статическое значение.
+   */
+  value: T
+}
+
+/**
+ * DynamicBinding — динамическая привязка значения.
+ *
+ * Используется, когда значение должно быть получено из одного
+ * или нескольких basis-путей и, при необходимости, преобразовано выражением.
+ *
+ * @example
+ * ```ts
+ * const src: DynamicBinding = {
+ *   mode: "dynamic",
+ *   basis: "/value/operation",
+ *   expr: "zavx0z/git-${_[0]}",
+ * }
+ * ```
+ *
+ * @example
+ * ```ts
+ * const fields: DynamicBinding = {
+ *   mode: "dynamic",
+ *   basis: ["/value/operation", "/value/args"],
+ *   expr: "{ operation: _[0], args: _[1] }",
+ * }
+ * ```
+ */
+export type DynamicBinding = {
+  /**
+   * Режим привязки.
+   *
+   * Значение вычисляется из одного или нескольких basis-путей.
+   */
+  mode: "dynamic"
+
+  /**
+   * Basis-путь или список basis-путей, от которых зависит значение.
+   *
+   * Обычно это пути вида:
+   * - `/state`
+   * - `/value/<field>`
+   * - `/mass/<field>`
+   */
+  basis: string | string[]
+
+  /**
+   * Выражение преобразования basis-значений.
+   *
+   * Если выражение отсутствует, binding трактуется как прямая передача
+   * basis-значения без дополнительной сборки.
+   */
+  expr?: string
+}
+
+/**
+ * Binding — универсальная привязка значения для частиц тёмной материи.
+ *
+ * Может быть:
+ * - статической, если значение уже известно;
+ * - динамической, если значение зависит от basis.
+ *
+ * @typeParam T Ожидаемый тип результирующего значения.
+ */
+export type Binding<T = unknown> = StaticBinding<T> | DynamicBinding
+
+/**
+ * Wimp — частица слабого взаимодействия.
+ *
+ * Представляет дочернюю meta-сущность в gravity-облаке.
+ * Именно Wimp задаёт ссылку на вложенную meta и payload,
+ * который должен быть передан ей через fields и mass.
+ *
+ * Wimp не описывает runtime-instance и не содержит placement-информации.
+ * Это только декларативная частица дочерней meta-связи.
+ *
+ * @example
+ * ```ts
+ * const particle: Wimp = {
+ *   kind: "wimp",
+ *   tag: "meta-for",
+ *   src: {
+ *     mode: "static",
+ *     value: "zavx0z/git-error",
+ *   },
+ *   fields: {
+ *     mode: "dynamic",
+ *     basis: "/value/error",
+ *     expr: "{ message: _[0] }",
+ *   },
+ * }
+ * ```
+ */
+export type Wimp = {
+  /**
+   * Дискриминатор типа частицы.
+   */
+  kind: "wimp"
+
+  /**
+   * Имя meta-тега.
+   *
+   * Пока контракт фиксирован на `meta-for`.
+   */
+  tag: "meta-for"
+
+  /**
+   * Источник дочерней meta-сущности.
+   *
+   * Может быть:
+   * - статическим hub-адресом;
+   * - динамическим binding, собирающим hub-адрес из basis.
+   */
+  src: Binding<string>
+
+  /**
+   * Payload для fields дочерней meta-сущности.
+   */
+  fields?: Binding<Record<string, unknown>>
+
+  /**
+   * Payload для mass дочерней meta-сущности.
+   */
+  mass?: Binding<Record<string, unknown>>
+}
+
+/**
+ * Fuzzy — частица ветвления и суперпозиции.
+ *
+ * Представляет узел выбора, зависящий от одного или нескольких basis.
+ * Используется для условий, логических ветвей и прочих форм
+ * неоднозначности, где дальнейшее облако частиц раскрывается
+ * только при выполнении соответствующего условия.
+ *
+ * @example
+ * ```ts
+ * const particle: Fuzzy = {
+ *   kind: "fuzzy",
+ *   basis: ["/state"],
+ *   expr: '_[0] === "ошибка"',
+ *   particles: [
+ *     {
+ *       kind: "wimp",
+ *       tag: "meta-for",
+ *       src: {
+ *         mode: "static",
+ *         value: "zavx0z/git-error",
+ *       },
+ *     },
+ *   ],
+ * }
+ * ```
+ */
+export type Fuzzy = {
+  /**
+   * Дискриминатор типа частицы.
+   */
+  kind: "fuzzy"
+
+  /**
+   * Basis-пути, от которых зависит ветвление.
+   */
+  basis: string | string[]
+
+  /**
+   * Выражение выбора ветви.
+   *
+   * Если отсутствует, Fuzzy может трактоваться как более общий
+   * контейнер суперпозиции без явного predicate-выражения.
+   */
+  expr?: string
+
+  /**
+   * Вложенные частицы, раскрывающиеся внутри данной ветви.
+   */
+  particles: DarkParticle[]
+}
+
+/**
+ * Macho — частица множественности.
+ *
+ * Представляет расширение облака частиц по множественному basis,
+ * например для map/array-подобных структур, где одна декларация
+ * раскрывается в набор однотипных ветвей.
+ *
+ * @example
+ * ```ts
+ * .gravity(({ html, mass }) => html`
+ *   ${mass.items.map(
+ *     (item) => html`
+ *       <meta-for
+ *         src="zavx0z/item"
+ *         fields=${{ id: item.id }}
+ *       />
+ *     `,
+ *   )}
+ * `)
+ * ```
+ */
+export type Macho = {
+  /**
+   * Дискриминатор типа частицы.
+   */
+  kind: "macho"
+
+  /**
+   * Basis, задающий источник множественности.
+   */
+  basis: string
+
+  /**
+   * Вложенные частицы, которые должны быть раскрыты
+   * для каждого элемента множественности.
+   */
+  particles: DarkParticle[]
+}
+
+/**
+ * Axion — лёгкая логическая частица-группировка.
+ *
+ * Используется как служебная структурная обёртка, когда необходимо
+ * сохранить логическую группировку частиц без явной дочерней meta-ссылки.
+ *
+ * Axion не является boundary-формой и не должен трактоваться
+ * как runtime-instance. Это чисто декларативный контейнер.
+ *
+ * @example
+ * ```ts
+ * .gravity(({ html, value }) => html`
+ *   ${value.ready &&
+ *   html`
+ *     <meta-for src="zavx0z/header" />
+ *     <meta-for src="zavx0z/content" />
+ *   `}
+ * `)
+ * ```
+ */
+export type Axion = {
+  /**
+   * Дискриминатор типа частицы.
+   */
+  kind: "axion"
+
+  /**
+   * Basis-путь или basis-пути группировки, если она зависит от данных.
+   */
+  basis?: string | string[]
+
+  /**
+   * Выражение логической группировки или вычисления.
+   */
+  expr?: string
+
+  /**
+   * Вложенные частицы внутри логической группировки.
+   */
+  particles: DarkParticle[]
+}
+// -----------------------------------------------------------------------
 /**
  * Глобальный объект топологии.
  *
