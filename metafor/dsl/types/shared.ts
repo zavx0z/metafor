@@ -65,22 +65,3 @@ export type {
   CondArrayRequired,
   CondArrayOptional,
 } from "./states"
-
-export type {
-  LocalTopologyFragment,
-  LocalTopologyObject,
-  LocalTopologyObjectKind,
-  LocalTopologyPlacement,
-  LocalTopologyPlacementRelation,
-  LocalTopologyLink,
-  LocalTopologyReference,
-  LocalTopologyEntanglementSeed,
-  LocalTopologyWIMP,
-  LocalTopologyAxion,
-  LocalTopologyFuzzy,
-  LocalTopologyMACHO,
-  LocalTopologyMetaLike,
-} from "./topology"
-
-// Реэкспорт для совместимости с compileLocalTopologyFragment
-export { compileLocalTopologyFragment } from "@metafor/dsl/topology"

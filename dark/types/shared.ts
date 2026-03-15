@@ -1,12 +1,5 @@
 import type { MetaAST } from "@metafor/ast"
-import type {
-  LocalTopologyEntanglementSeed,
-  LocalTopologyFragment,
-  LocalTopologyObject,
-  LocalTopologyObjectKind,
-  LocalTopologyPlacementRelation,
-  LocalTopologyReference,
-} from "@metafor/dsl/types"
+
 
 /**
  * Глобальный объект топологии.
@@ -24,10 +17,10 @@ export interface GlobalTopologyObject {
   localObjectId: string
 
   /** Тип объекта из схемы. */
-  kind: LocalTopologyObjectKind
+  kind: any
 
   /** Полное определение объекта из схемы. */
-  definition: LocalTopologyObject
+  definition: any
 }
 
 /**
@@ -61,7 +54,7 @@ export interface GlobalTopologyPlacement {
   viaReferenceId?: string
 
   /** Тип отношения к родителю. */
-  relation: LocalTopologyPlacementRelation
+  relation: any
 }
 
 /**
@@ -80,7 +73,7 @@ export interface GlobalTopologyLink {
   to: string
 
   /** Тип отношения (исключая "root"). */
-  relation: Exclude<LocalTopologyPlacementRelation, "root">
+  relation: Exclude<any, "root">
 }
 
 /**
@@ -111,7 +104,7 @@ export interface GlobalTopologyReference {
   src: string
 
   /** Способ связи: поле или значение. */
-  via: LocalTopologyReference["via"]
+  via: any["via"]
 
   /** Имя поля, через которое определена ссылка (опционально). */
   field?: string
@@ -151,7 +144,7 @@ export interface GlobalTopologyEntanglement {
   referenceIds: string[]
 
   /** Исходное определение запутанности из схемы. */
-  seed: LocalTopologyEntanglementSeed
+  seed: any
 }
 
 /**
@@ -396,7 +389,7 @@ export interface DarkStore extends DarkStoreSnapshot {
  */
 export interface DarkGravityStoreSnapshot {
   /** Загруженные local topology fragments по meta. */
-  fragments: Map<string, LocalTopologyFragment>
+  fragments: Map<string, any>
 
   /** Счётчик для генерации ID размещений. */
   nextPlacementSeq: number
@@ -417,6 +410,3 @@ export interface DarkGravityStoreSnapshot {
  * Хранит промежуточное состояние assembly-слоя gravity.
  */
 export interface DarkGravityStore extends DarkGravityStoreSnapshot {}
-
-// Re-export types from @metafor/dsl
-export type { LocalTopologyFragment }

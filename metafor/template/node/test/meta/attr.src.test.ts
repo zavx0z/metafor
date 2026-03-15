@@ -11,7 +11,7 @@ describe("meta > src атрибут", () => {
       expect(result[0]).toMatchObject({
         type: "meta",
         tag: "meta-for",
-        string: { src: "zavx0z/git" },
+        src: "zavx0z/git",
       })
     })
 
@@ -23,7 +23,7 @@ describe("meta > src атрибут", () => {
       expect(result[0]).toMatchObject({
         type: "meta",
         tag: "meta-for",
-        string: { src: "zavx0z/git/sub/path" },
+        src: "zavx0z/git/sub/path",
       })
     })
 
@@ -35,7 +35,7 @@ describe("meta > src атрибут", () => {
       expect(result[0]).toMatchObject({
         type: "meta",
         tag: "meta-for",
-        string: { src: "my-org/my-repo" },
+        src: "my-org/my-repo",
       })
     })
 
@@ -47,7 +47,7 @@ describe("meta > src атрибут", () => {
       expect(result[0]).toMatchObject({
         type: "meta",
         tag: "meta-for",
-        string: { src: "user_name/repo_name" },
+        src: "user_name/repo_name",
       })
     })
   })
@@ -100,7 +100,7 @@ describe("meta > src атрибут", () => {
         expect(parent.child[0]).toMatchObject({
           type: "meta",
           tag: "meta-for",
-          string: { src: "child/repo" },
+          src: "child/repo",
         })
       }
     })

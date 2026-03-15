@@ -35,6 +35,8 @@ export interface NodeMeta extends Attributes {
   tag: ValueStatic
   /** Тип узла - всегда "meta" для мета-узлов */
   type: "meta"
+  /** src атрибут для meta-компонентов (hub-адрес вида owner/path) */
+  src: ValueStatic | ValueDynamic | ValueVariable
   /** Дочерние элементы (опционально) */
   child?: NodeType[]
   /** mass свойство для meta-компонентов (передача mass объекта) */
@@ -45,6 +47,8 @@ export interface NodeMeta extends Attributes {
 export interface PartAttrMeta extends AttrNodeElement {
   /** Тип узла */
   type: "meta"
+  /** src атрибут для meta-компонентов (hub-адрес вида owner/path) - опционален, т.к. изначально парсится в string */
+  src?: string
   /** mass объекты */
   mass?: string
   /** fields объекты */

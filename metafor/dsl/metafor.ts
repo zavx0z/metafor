@@ -89,40 +89,10 @@ import { validateNoUnconditionalCycles, type Superposition } from "./states"
 import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
 import { processesSchema, type ProcessesDeclaration, type ActionParams } from "./process"
 import { serializeStyle } from "./style"
-import { compileLocalTopologyFragment } from "./topology.ts"
 
 import type { MetaForConfig, MetaForFn, BulkDeclaration, GravityDeclaration, MetaDSL, Mass, Self } from "@metafor/dsl/types/metafor"
-import type {
-  LocalTopologyEntanglementSeed,
-  LocalTopologyFragment,
-  LocalTopologyFuzzy,
-  LocalTopologyLink,
-  LocalTopologyMACHO,
-  LocalTopologyMetaLike,
-  LocalTopologyObject,
-  LocalTopologyObjectKind,
-  LocalTopologyPlacement,
-  LocalTopologyPlacementRelation,
-  LocalTopologyReference,
-  LocalTopologyWIMP,
-} from "@metafor/dsl/types/topology"
 
 export type { MetaForFn, MetaDSL, Self, Mass, Superposition, NodeMeta, NodeType, NodeLogical, ActionParams }
-export type {
-  LocalTopologyEntanglementSeed,
-  LocalTopologyFragment,
-  LocalTopologyFuzzy,
-  LocalTopologyLink,
-  LocalTopologyMACHO,
-  LocalTopologyMetaLike,
-  LocalTopologyObject,
-  LocalTopologyObjectKind,
-  LocalTopologyPlacement,
-  LocalTopologyPlacementRelation,
-  LocalTopologyReference,
-  LocalTopologyWIMP,
-} from "@metafor/dsl/types"
-export { compileLocalTopologyFragment } from "./topology"
 
 export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc

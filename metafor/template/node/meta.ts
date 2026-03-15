@@ -28,18 +28,38 @@ export const createNodeDataMeta = (
   node: PartAttrMeta,
   context: ParseContext = { pathStack: [], level: 0 },
 ): NodeMeta => {
+  const basicAttrs = processBasicAttributes(node, context)
+  
+  // Извлекаем src из string и перемещаем на верхний уровень
+  const src = basicAttrs.string?.src ?? node.src
+  if (basicAttrs.string?.src) {
+    delete basicAttrs.string.src
+    // Если string стал пустым, удаляем его
+    if (Object.keys(basicAttrs.string).length === 0) {
+      delete basicAttrs.string
+    }
+  }
+
+  // Валидируем наличие src атрибута
+  const srcPath = [...context.pathStack, "src"].join("/")
+  if (src === undefined || src === null || src === "") {
+    throw new Error(
+      `Отсутствует обязательный атрибут src в meta узле "${srcPath}". ` +
+        `meta-узел должен иметь атрибут src с hub-адресом вида owner/path.`,
+    )
+  }
+
+  // Валидируем формат src атрибута
+  if (typeof src === "string") {
+    validateSrc(src, srcPath)
+  }
+
   let result: NodeMeta = {
     tag: node.tag,
     type: "meta",
-    ...processBasicAttributes(node, context),
+    src,
+    ...basicAttrs,
     ...(node.child && { child: node.child.map((child) => createNode(child, context)) }),
-  }
-
-  // Валидируем src атрибут если присутствует
-  const srcPath = [...context.pathStack, "src"].join("/")
-  const srcValue = result.string?.src
-  if (srcValue !== undefined && srcValue !== null && typeof srcValue === "string") {
-    validateSrc(srcValue, srcPath)
   }
 
   // Обрабатываем семантические атрибуты

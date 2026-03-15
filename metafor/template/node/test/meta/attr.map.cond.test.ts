@@ -6,13 +6,14 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse(({ html }) => html` <meta-for fields=${{}} mass=${{}} /> `)
+      elements = parse(({ html }) => html` <meta-for src="test/empty" fields=${{}} mass=${{}} /> `)
     })
     it("attributes", () => {
       expect(elements, "при обработке пустых объектов не должен устанавливаться mass и fields").toEqual([
         {
           tag: "meta-for",
           type: "meta",
+          src: "test/empty",
         },
       ])
     })
@@ -21,6 +22,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
         {
           tag: "meta-for",
           type: "meta",
+          src: "test/empty",
         },
       ])
     })
@@ -35,7 +37,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
           <div>
             ${mass.items.map(
               (item) => html`
-                <meta-for
+                <meta-for src="test/item"
                   mass=${{ id: item.id, name: item.name, type: mass.type }}
                   fields=${{ status: item.status, active: item.active }} />
               `
@@ -58,6 +60,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                 {
                   tag: "meta-for",
                   type: "meta",
+                  src: "test/item",
                   mass: {
                     data: ["[item]/id", "[item]/name", "/mass/type"],
                     expr: "{ id: _[0], name: _[1], type: _[2] }",
@@ -84,12 +87,12 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
           <div>
             ${fields.showMeta
               ? html`
-                  <meta-for
+                  <meta-for src="test/primary"
                     mass=${{ id: fields.id, name: fields.name }}
                     fields=${{ type: "primary", active: true }} />
                 `
               : html`
-                  <meta-for
+                  <meta-for src="test/secondary"
                     mass=${{ id: "default", name: "default" }}
                     fields=${{ type: "secondary", active: false }} />
                 `}
@@ -110,6 +113,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                 {
                   tag: "meta-for",
                   type: "meta",
+                  src: "test/primary",
                   mass: {
                     data: ["/fields/id", "/fields/name"],
                     expr: "{ id: _[0], name: _[1] }",
@@ -119,6 +123,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                 {
                   tag: "meta-for",
                   type: "meta",
+                  src: "test/secondary",
                   mass: '{ id: "default", name: "default" }',
                   fields: '{ type: "secondary", active: false }',
                 },
@@ -142,7 +147,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
               ? html`
                   ${mass.items.map(
                     (item) => html`
-                      <meta-for
+                      <meta-for src="test/list-item"
                         mass=${{
                           id: item.id,
                           name: item.name,
@@ -158,7 +163,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                   )}
                 `
               : html`
-                  <meta-for
+                  <meta-for src="test/empty"
                     mass=${{ id: "empty", name: "empty" }}
                     fields=${{ type: "empty", active: false }} />
                 `}
@@ -183,6 +188,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                     {
                       tag: "meta-for",
                       type: "meta",
+                      src: "test/list-item",
                       mass: {
                         data: ["[item]/id", "[item]/name", "/mass/type", "[item]/metadata"],
                         expr: "{ id: _[0], name: _[1], type: _[2], metadata: _[3] }",
@@ -197,6 +203,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                 {
                   tag: "meta-for",
                   type: "meta",
+                  src: "test/empty",
                   mass: '{ id: "empty", name: "empty" }',
                   fields: '{ type: "empty", active: false }',
                 },
@@ -220,7 +227,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
               (item) => html`
                 ${item.isActive
                   ? html`
-                      <meta-for
+                      <meta-for src="test/active"
                         mass=${{
                           id: item.id,
                           name: item.name,
@@ -233,7 +240,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                     `
                   : item.hasError
                   ? html`
-                      <meta-for
+                      <meta-for src="test/error"
                         mass=${{
                           id: item.id,
                           name: item.name,
@@ -245,7 +252,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         }} />
                     `
                   : html`
-                      <meta-for
+                      <meta-for src="test/inactive"
                         mass=${{ id: item.id, name: item.name, type: "inactive" }}
                         fields=${{ status: "inactive" }} />
                     `}
@@ -273,6 +280,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                     {
                       tag: "meta-for",
                       type: "meta",
+                      src: "test/active",
                       mass: {
                         data: ["[item]/id", "[item]/name"],
                         expr: '{ id: _[0], name: _[1], type: "active" }',
@@ -289,6 +297,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         {
                           tag: "meta-for",
                           type: "meta",
+                          src: "test/error",
                           mass: {
                             data: ["[item]/id", "[item]/name"],
                             expr: '{ id: _[0], name: _[1], type: "error" }',
@@ -298,6 +307,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         {
                           tag: "meta-for",
                           type: "meta",
+                          src: "test/inactive",
                           mass: {
                             data: ["[item]/id", "[item]/name"],
                             expr: '{ id: _[0], name: _[1], type: "inactive" }',
@@ -327,7 +337,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
             ${mass.users.map(
               (user) => html`
                 ${user.permissions.includes("admin")
-                  ? html`<meta-for
+                  ? html`<meta-for src="test/admin"
                       mass=${{
                         id: user.id,
                         name: user.name,
@@ -347,7 +357,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         canManage: true,
                       }} />`
                   : user.permissions.includes("moderator")
-                  ? html`<meta-for
+                  ? html`<meta-for src="test/moderator"
                       mass=${{
                         id: user.id,
                         name: user.name,
@@ -366,7 +376,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         canDelete: false,
                         canManage: false,
                       }} />`
-                  : html`<meta-for
+                  : html`<meta-for src="test/user"
                       mass=${{
                         id: user.id,
                         name: user.name,
@@ -410,6 +420,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                     {
                       tag: "meta-for",
                       type: "meta",
+                      src: "test/admin",
                       mass: {
                         data: ["[item]/id", "[item]/name", "[item]/permissions", "[item]/settings"],
                         expr: '{ id: _[0], name: _[1], type: "admin", permissions: _[2], metadata: { level: "admin", access: "full", settings: _[3] } }',
@@ -427,6 +438,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         {
                           tag: "meta-for",
                           type: "meta",
+                          src: "test/moderator",
                           mass: {
                             data: ["[item]/id", "[item]/name", "[item]/permissions", "[item]/settings"],
                             expr: '{ id: _[0], name: _[1], type: "moderator", permissions: _[2], metadata: { level: "moderator", access: "limited", settings: _[3] } }',
@@ -439,6 +451,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         {
                           tag: "meta-for",
                           type: "meta",
+                          src: "test/user",
                           mass: {
                             data: ["[item]/id", "[item]/name", "[item]/permissions", "[item]/settings"],
                             expr: '{ id: _[0], name: _[1], type: "user", permissions: _[2], metadata: { level: "user", access: "basic", settings: _[3] } }',
@@ -470,7 +483,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
           <div>
             ${mass.items.map(
               (item) => html`
-                <meta-for
+                <meta-for src="test/dynamic"
                   mass=${{
                     id: item.id,
                     name: item.name,
@@ -513,6 +526,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                 {
                   tag: "meta-for",
                   type: "meta",
+                  src: "test/dynamic",
                   fields: {
                     data: [
                       "[item]/isActive",

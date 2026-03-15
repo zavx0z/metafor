@@ -6,15 +6,14 @@ describe("fields/mass в атрибутах", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse(
-        ({ html, mass, fields }) => html`<meta-for mass=${{ id: fields.id, name: fields.name }} />`
-      )
+      elements = parse(({ html, fields }) => html`<meta-for src="test/mass-dynamic" mass=${{ id: fields.id, name: fields.name }} />`)
     })
     it("data", () => {
       expect(elements).toEqual([
         {
           tag: "meta-for",
           type: "meta",
+          src: "test/mass-dynamic",
           mass: {
             data: ["/fields/id", "/fields/name"],
             expr: "{ id: _[0], name: _[1] }",
@@ -28,13 +27,14 @@ describe("fields/mass в атрибутах", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse(({ html, mass }) => html`<meta-for mass=${{ id: "1", name: "2" }} />`)
+      elements = parse(({ html, mass }) => html`<meta-for src="test/mass-static" mass=${{ id: "1", name: "2" }} />`)
     })
     it("data", () => {
       expect(elements).toEqual([
         {
           tag: "meta-for",
           type: "meta",
+          src: "test/mass-static",
           mass: '{ id: "1", name: "2" }',
         },
       ])
@@ -46,9 +46,7 @@ describe("fields/mass в атрибутах", () => {
 
     beforeAll(() => {
       elements = parse(
-        ({ html, mass, fields }) => html`
-          <div><meta-for fields=${{ id: fields.id, name: fields.name }} /></div>
-        `
+        ({ html, mass, fields }) => html` <div><meta-for src="test/nested" fields=${{ id: fields.id, name: fields.name }} /></div> `,
       )
     })
     it("data", () => {
@@ -60,6 +58,7 @@ describe("fields/mass в атрибутах", () => {
             {
               tag: "meta-for",
               type: "meta",
+              src: "test/nested",
               fields: {
                 data: ["/fields/id", "/fields/name"],
                 expr: "{ id: _[0], name: _[1] }",
@@ -75,15 +74,14 @@ describe("fields/mass в атрибутах", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse(
-        ({ html, mass, fields }) => html`<meta-for fields=${{ id: fields.id, name: fields.name }} />`
-      )
+      elements = parse(({ html, mass, fields }) => html`<meta-for src="test/fields" fields=${{ id: fields.id, name: fields.name }} />`)
     })
     it("data", () => {
       expect(elements).toEqual([
         {
           tag: "meta-for",
           type: "meta",
+          src: "test/fields",
           fields: {
             data: ["/fields/id", "/fields/name"],
             expr: "{ id: _[0], name: _[1] }",
@@ -98,11 +96,9 @@ describe("fields/mass в атрибутах", () => {
 
     beforeAll(() => {
       elements = parse(
-        ({ html, mass, fields }) => html`
-          <meta-for
-            mass=${{ id: fields.id, name: fields.name }}
-            fields=${{ id: fields.id, name: fields.name }} />
-        `
+        ({ html, fields }) => html`
+          <meta-for src="test/both" mass=${{ id: fields.id, name: fields.name }} fields=${{ id: fields.id, name: fields.name }} />
+        `,
       )
     })
     it("data", () => {
@@ -110,6 +106,7 @@ describe("fields/mass в атрибутах", () => {
         {
           tag: "meta-for",
           type: "meta",
+          src: "test/both",
           mass: {
             data: ["/fields/id", "/fields/name"],
             expr: "{ id: _[0], name: _[1] }",

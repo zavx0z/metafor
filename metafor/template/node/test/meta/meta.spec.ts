@@ -15,7 +15,7 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
-            string: { src: "org/repo" },
+            src: "org/repo",
           },
         ])
       })
@@ -24,7 +24,7 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
-            string: { src: "org/repo" },
+            src: "org/repo",
           },
         ])
       })
@@ -41,7 +41,7 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
-            string: { src: "org/repo" },
+            src: "org/repo",
           },
         ])
       })
@@ -51,7 +51,7 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
-            string: { src: "org/repo" },
+            src: "org/repo",
           },
         ])
       })
@@ -69,7 +69,7 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
-            string: { src: "org/repo" },
+            src: "org/repo",
           },
         ])
       })
@@ -87,7 +87,7 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
-            string: { src: "org/repo" },
+            src: "org/repo",
           },
         ])
       })
@@ -109,7 +109,7 @@ describe("meta", () => {
               {
                 tag: "meta-for",
                 type: "meta",
-                string: { src: "org/repo" },
+                src: "org/repo",
               },
             ],
           },
@@ -129,12 +129,12 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
-            string: { src: "org/parent" },
+            src: "org/parent",
             child: [
               {
                 tag: "meta-for",
                 type: "meta",
-                string: { src: "org/child" },
+                src: "org/child",
               },
             ],
           },
@@ -160,7 +160,7 @@ describe("meta", () => {
               {
                 tag: "meta-for",
                 type: "meta",
-                string: { src: "org/repo" },
+                src: "org/repo",
               },
             ],
           },
@@ -187,12 +187,12 @@ describe("meta", () => {
               {
                 tag: "meta-for",
                 type: "meta",
-                string: { src: "org/true" },
+                src: "org/true",
               },
               {
                 tag: "meta-for",
                 type: "meta",
-                string: { src: "org/false" },
+                src: "org/false",
               },
             ],
           },
@@ -214,8 +214,8 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
+            src: "org/repo",
             string: {
-              src: "org/repo",
               "data-type": "component",
               class: "meta-element",
             },
@@ -236,8 +236,8 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
+            src: "org/repo",
             string: {
-              src: "org/repo",
               "data-id": {
                 data: "/mass/id",
               },
@@ -266,8 +266,8 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
+            src: "org/repo",
             string: {
-              src: "org/repo",
               class: {
                 data: "/mass/active",
                 expr: '${_[0] ? "active" : "inactive"}',
@@ -300,9 +300,7 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
-            string: {
-              src: "org/repo",
-            },
+            src: "org/repo",
             event: {
               onclick: {
                 data: ["/mass/handleClick", "/mass/id"],
@@ -332,9 +330,7 @@ describe("meta", () => {
           {
             tag: "meta-for",
             type: "meta",
-            string: {
-              src: "org/repo",
-            },
+            src: "org/repo",
             event: {
               onclick: {
                 data: "/mass/id",
@@ -377,8 +373,8 @@ describe("meta", () => {
               {
                 tag: "meta-for",
                 type: "meta",
+                src: "org/repo",
                 string: {
-                  src: "org/repo",
                   "data-id": {
                     data: "[item]/id",
                   },
