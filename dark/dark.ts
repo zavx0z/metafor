@@ -2,7 +2,6 @@ import type { MetaAST } from "@metafor/ast"
 import type { Address, MetaLoadTask } from "@dark/types/dark"
 import type { LocalTopologyFragment, LocalTopologyMetaLike } from "@metafor/dsl/types"
 import { gravity$, ingestFragment } from "@dark/gravity"
-import { strong$ } from "@dark/strong"
 import { compileLocalTopologyFragment } from "@metafor/dsl/topology"
 import { loadMetaAST, resolveMetaTsPath } from "./load"
 import { dark$ } from "./store"
@@ -57,17 +56,10 @@ export async function matter(address: Address): Promise<void> {
   while (pending.length > 0) {
     const next = pending.shift()!
     const fragment = await ensureLocalFragment(next.metaAddress)
-    const ingested = ingestFragment(
-      dark$,
-      gravity$,
-      strong$,
-      next.metaAddress,
-      fragment,
-      {
-        ...(next.parentPlacementId ? { parentPlacementId: next.parentPlacementId } : {}),
-        ...(next.viaReferenceId ? { viaReferenceId: next.viaReferenceId } : {}),
-      },
-    )
+    const ingested = ingestFragment(dark$, gravity$, next.metaAddress, fragment, {
+      ...(next.parentPlacementId ? { parentPlacementId: next.parentPlacementId } : {}),
+      ...(next.viaReferenceId ? { viaReferenceId: next.viaReferenceId } : {}),
+    })
 
     for (const referenceId of ingested.referenceIds) {
       const reference = dark$.getReference(referenceId)

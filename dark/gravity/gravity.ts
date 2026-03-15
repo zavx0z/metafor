@@ -8,9 +8,7 @@ import type {
   GlobalTopologyObject,
   GlobalTopologyPlacement,
   GlobalTopologyReference,
-  StrongIndexes,
 } from "@dark/types"
-import type { DarkStrongStore } from "@dark/types/strong"
 import type { LocalTopologyFragment, LocalTopologyPlacementRelation } from "@metafor/dsl/types"
 import { indexObject, indexPlacement, indexReference, indexEntanglement } from "@dark/strong"
 
@@ -88,16 +86,10 @@ function ensureRootPrefix(dark$: DarkGravityStore, meta: string): string {
  * Создаёт глобальные объекты из local topology fragment.
  *
  * @param dark$ — dark store для записи объектов
- * @param strong$ — strong indexes для индексации
  * @param meta — адрес meta-схемы
  * @param fragment — local topology fragment
  */
-function ensureObjectDefinitions(
-  dark$: DarkStore,
-  strong$: DarkStrongStore,
-  meta: string,
-  fragment: LocalTopologyFragment,
-): void {
+function ensureObjectDefinitions(dark$: DarkStore, meta: string, fragment: LocalTopologyFragment): void {
   for (const [localObjectId, definition] of Object.entries(fragment.objects as Record<string, any>)) {
     const objectId = makeObjectId(meta, localObjectId)
     if (dark$.getObject(objectId)) continue
@@ -132,13 +124,12 @@ function ensureObjectDefinitions(
 export function ingestFragment(
   dark$: DarkStore,
   gravity$: DarkGravityStore,
-  strong$: DarkStrongStore,
   meta: string,
   fragment: LocalTopologyFragment,
   options: GlobalTopologyIngestOptions = {},
 ): GlobalTopologyIngestResult {
   gravity$.setFragment(meta, fragment)
-  ensureObjectDefinitions(dark$, strong$, meta, fragment)
+  ensureObjectDefinitions(dark$, meta, fragment)
 
   const localPlacements = Object.values(fragment.placements).sort(
     (left, right) => left.address.length - right.address.length,
