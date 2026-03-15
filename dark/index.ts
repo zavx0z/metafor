@@ -9,4 +9,4 @@ export { dark$ } from "./store.ts"
 export { gravity$ } from "./gravity/store.ts"
 export { strong$ } from "./strong/store.ts"
 
-export { matter, setMeta, getMeta } from "./dark.ts"
+export { matter } from "./dark.ts"
