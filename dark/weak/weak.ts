@@ -168,7 +168,7 @@ export function replaceFragment(
     }
   }
 
-  const ingested = ingestFragment(dark$, gravity$, strong$, meta, newFragment, options)
+  const ingested = ingestFragment(dark$, gravity$, meta, newFragment, options)
   result.rootPlacementIds = ingested.rootPlacementIds
   result.placementIds = ingested.placementIds
   result.referenceIds = ingested.referenceIds
@@ -261,17 +261,10 @@ export function insertFragmentAtPlacement(
   fragmentMeta: string,
   options: InsertFragmentAtPlacementOptions = {},
 ): InsertFragmentAtPlacementResult {
-  const ingested = ingestFragment(
-    dark$,
-    gravity$,
-    strong$,
-    fragmentMeta,
-    fragment,
-    {
-      parentPlacementId,
-      ...options,
-    },
-  )
+  const ingested = ingestFragment(dark$, gravity$, fragmentMeta, fragment, {
+    parentPlacementId,
+    ...options,
+  })
 
   return {
     placementIds: ingested.placementIds,
