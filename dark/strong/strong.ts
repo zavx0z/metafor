@@ -1,301 +1,123 @@
-
-import type { GlobalTopologyEntanglement, GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyMetaIndex, StrongIndexes } from "@dark/types"
-import { strong$ } from "@dark/strong"
+import type {
+  DarkStore,
+  GlobalTopologyEntanglement,
+  GlobalTopologyMetaIndex,
+  GlobalTopologyPlacement,
+  GlobalTopologyReference,
+} from "@dark/types"
+import { strong$ } from "./store.ts"
 
 /**
  * Добавляет значение в массив, если оно ещё не присутствует.
  *
- * @param target — целевой массив
- * @param value — значение для добавления
- * @returns исходный или обновлённый массив
+ * Чистая функция.
  */
-function appendUnique(target: string[], value: string): string[] {
-  return target.includes(value) ? target : [...target, value]
+export function appendUnique<T>(target: T[], value: T): T[] {
+  if (!target.includes(value)) {
+    target.push(value)
+  }
+  return target
 }
 
 /**
- * Гарантирует наличие meta index для meta.
+ * Находит или создаёт meta index.
  *
- * @param store$ — strong indexes
- * @param meta — адрес meta-схемы
- * @returns существующий или новый meta index
+ * Мутирует strong$.
  */
-function ensureMetaIndex(store$: StrongIndexes, meta: string): GlobalTopologyMetaIndex {
-  const existing = store$.sourceMetaIndex.get(meta)
-  if (existing) return existing
-
-  const created: GlobalTopologyMetaIndex = {
-    objectIds: [],
-    placementIds: [],
-    referenceIds: [],
-    entanglementIds: [],
+export function ensureMetaIndex(meta: string): GlobalTopologyMetaIndex {
+  let metaIndex = strong$.sourceMetaIndex.get(meta)
+  if (!metaIndex) {
+    metaIndex = {
+      objectIds: [],
+      placementIds: [],
+      referenceIds: [],
+      entanglementIds: [],
+    }
+    strong$.sourceMetaIndex.set(meta, metaIndex)
   }
-  store$.sourceMetaIndex.set(meta, created)
-  return created
+  return metaIndex
 }
 
 /**
  * Индексирует placement.
  *
- * Обновляет placementAddressIndex, objectPlacementsIndex и sourceMetaIndex.
- *
- * @param placement — размещение для индексации
- * @param meta — адрес meta-схемы
- * @param store$ — strong indexes (по умолчанию `strong$`)
+ * Мутирует strong$.
  */
-export function indexPlacement(
-  placement: GlobalTopologyPlacement,
-  meta: string,
-  store$: StrongIndexes = strong$,
-): void {
-  store$.placementAddressIndex.set(placement.address, placement.id)
-  store$.objectPlacementsIndex.set(
+export function indexPlacement(placement: GlobalTopologyPlacement, meta: string): void {
+  strong$.placementAddressIndex.set(placement.address, placement.id)
+  strong$.objectPlacementsIndex.set(
     placement.objectId,
-    appendUnique(store$.objectPlacementsIndex.get(placement.objectId) ?? [], placement.id),
+    appendUnique(strong$.objectPlacementsIndex.get(placement.objectId) ?? [], placement.id),
   )
-
-  const metaIndex = ensureMetaIndex(store$, meta)
+  const metaIndex = ensureMetaIndex(meta)
   metaIndex.placementIds = appendUnique(metaIndex.placementIds, placement.id)
-}
-
-/**
- * Удаляет индексы placement.
- *
- * @param placement — размещение для удаления
- * @param objectId — ID объекта размещения
- * @param meta — адрес meta-схемы
- * @param store$ — strong indexes (по умолчанию `strong$`)
- */
-export function removePlacementIndexes(
-  placement: GlobalTopologyPlacement,
-  objectId: string,
-  meta: string,
-  store$: StrongIndexes = strong$,
-): void {
-  store$.placementAddressIndex.delete(placement.address)
-
-  const objectPlacements = store$.objectPlacementsIndex.get(objectId)
-  if (objectPlacements) {
-    const filtered = objectPlacements.filter((id) => id !== placement.id)
-    if (filtered.length === 0) {
-      store$.objectPlacementsIndex.delete(objectId)
-    } else {
-      store$.objectPlacementsIndex.set(objectId, filtered)
-    }
-  }
-
-  const metaIndex = store$.sourceMetaIndex.get(meta)
-  if (metaIndex) {
-    metaIndex.placementIds = metaIndex.placementIds.filter((id) => id !== placement.id)
-  }
 }
 
 /**
  * Индексирует reference.
  *
- * Обновляет metaSourceLookup и sourceMetaIndex.
- *
- * @param reference — ссылка для индексации
- * @param meta — адрес meta-схемы
- * @param store$ — strong indexes (по умолчанию `strong$`)
+ * Мутирует strong$.
  */
-export function indexReference(
-  reference: GlobalTopologyReference,
-  meta: string,
-  store$: StrongIndexes = strong$,
-): void {
-  store$.metaSourceLookup.set(
+export function indexReference(reference: GlobalTopologyReference, meta: string): void {
+  strong$.metaSourceLookup.set(
     reference.src,
-    appendUnique(store$.metaSourceLookup.get(reference.src) ?? [], reference.id),
+    appendUnique(strong$.metaSourceLookup.get(reference.src) ?? [], reference.id),
   )
-
-  const metaIndex = ensureMetaIndex(store$, meta)
+  const metaIndex = ensureMetaIndex(meta)
   metaIndex.referenceIds = appendUnique(metaIndex.referenceIds, reference.id)
-}
-
-/**
- * Удаляет индексы reference.
- *
- * @param reference — ссылка для удаления
- * @param meta — адрес meta-схемы
- * @param store$ — strong indexes (по умолчанию `strong$`)
- */
-export function removeReferenceIndexes(
-  reference: GlobalTopologyReference,
-  meta: string,
-  store$: StrongIndexes = strong$,
-): void {
-  const bySource = store$.metaSourceLookup.get(reference.src)
-  if (bySource) {
-    const filtered = bySource.filter((id) => id !== reference.id)
-    if (filtered.length === 0) {
-      store$.metaSourceLookup.delete(reference.src)
-    } else {
-      store$.metaSourceLookup.set(reference.src, filtered)
-    }
-  }
-
-  const metaIndex = store$.sourceMetaIndex.get(meta)
-  if (metaIndex) {
-    metaIndex.referenceIds = metaIndex.referenceIds.filter((id) => id !== reference.id)
-  }
 }
 
 /**
  * Индексирует entanglement.
  *
- * Обновляет entanglementAddressIndex и sourceMetaIndex.
- *
- * @param entanglement — запутанность для индексации
- * @param meta — адрес meta-схемы
- * @param store$ — strong indexes (по умолчанию `strong$`)
+ * Мутирует strong$.
  */
-export function indexEntanglement(
-  entanglement: GlobalTopologyEntanglement,
-  meta: string,
-  store$: StrongIndexes = strong$,
-): void {
-  store$.entanglementAddressIndex.set(entanglement.entanglementAddress, entanglement.id)
-
-  const metaIndex = ensureMetaIndex(store$, meta)
+export function indexEntanglement(entanglement: GlobalTopologyEntanglement, meta: string): void {
+  strong$.entanglementAddressIndex.set(entanglement.entanglementAddress, entanglement.id)
+  const metaIndex = ensureMetaIndex(meta)
   metaIndex.entanglementIds = appendUnique(metaIndex.entanglementIds, entanglement.id)
-}
-
-/**
- * Удаляет индексы entanglement.
- *
- * @param entanglement — запутанность для удаления
- * @param meta — адрес meta-схемы
- * @param store$ — strong indexes (по умолчанию `strong$`)
- */
-export function removeEntanglementIndexes(
-  entanglement: GlobalTopologyEntanglement,
-  meta: string,
-  store$: StrongIndexes = strong$,
-): void {
-  store$.entanglementAddressIndex.delete(entanglement.entanglementAddress)
-
-  const metaIndex = store$.sourceMetaIndex.get(meta)
-  if (metaIndex) {
-    metaIndex.entanglementIds = metaIndex.entanglementIds.filter((id) => id !== entanglement.id)
-  }
 }
 
 /**
  * Индексирует объект.
  *
- * Добавляет objectId в sourceMetaIndex.
- *
- * @param objectId — ID объекта
- * @param meta — адрес meta-схемы
- * @param store$ — strong indexes (по умолчанию `strong$`)
+ * Мутирует strong$.
  */
-export function indexObject(
-  objectId: string,
-  meta: string,
-  store$: StrongIndexes = strong$,
-): void {
-  const metaIndex = ensureMetaIndex(store$, meta)
-  metaIndex.objectIds = appendUnique(metaIndex.objectIds, objectId)
+export function indexObject(objectId: string, meta: string): void {
+  const metaIndex = ensureMetaIndex(meta)
+  appendUnique(metaIndex.objectIds, objectId)
 }
 
 /**
- * Находит ID placement по адресу.
+ * Перестраивает индексы strong$ из данных dark$.
  *
- * @param address — полный адрес размещения
- * @param store — strong indexes (по умолчанию `strong$`)
- * @returns ID placement или undefined
+ * Pipeline функция — мутирует strong$.
  */
-export function getPlacementIdByAddress(
-  address: string,
-  store: Pick<StrongIndexes, "placementAddressIndex"> = strong$,
-): string | undefined {
-  return store.placementAddressIndex.get(address)
-}
-
-/**
- * Находит IDs placements объекта.
- *
- * @param objectId — ID объекта
- * @param store — strong indexes (по умолчанию `strong$`)
- * @returns массив IDs placements
- */
-export function getPlacementIdsByObject(
-  objectId: string,
-  store: Pick<StrongIndexes, "objectPlacementsIndex"> = strong$,
-): string[] {
-  return store.objectPlacementsIndex.get(objectId) ?? []
-}
-
-/**
- * Находит IDs placements meta-схемы.
- *
- * @param meta — адрес meta-схемы
- * @param store — strong indexes (по умолчанию `strong$`)
- * @returns массив IDs placements
- */
-export function getPlacementIdsByMeta(
-  meta: string,
-  store: Pick<StrongIndexes, "sourceMetaIndex"> = strong$,
-): string[] {
-  return store.sourceMetaIndex.get(meta)?.placementIds ?? []
-}
-
-/**
- * Находит IDs references по источнику.
- *
- * @param metaSource — адрес source meta-схемы
- * @param store — strong indexes (по умолчанию `strong$`)
- * @returns массив IDs references
- */
-export function getReferenceIdsBySource(
-  metaSource: string,
-  store: Pick<StrongIndexes, "metaSourceLookup"> = strong$,
-): string[] {
-  return store.metaSourceLookup.get(metaSource) ?? []
-}
-
-/**
- * Находит ID entanglement по адресу.
- *
- * @param address — адрес entanglement
- * @param store — strong indexes (по умолчанию `strong$`)
- * @returns ID entanglement или undefined
- */
-export function getEntanglementIdByAddress(
-  address: string,
-  store: Pick<StrongIndexes, "entanglementAddressIndex"> = strong$,
-): string | undefined {
-  return store.entanglementAddressIndex.get(address)
-}
-
-/**
- * Проверяет наличие placement в индексах.
- *
- * @param address — адрес размещения
- * @param store — strong indexes (по умолчанию `strong$`)
- * @returns true, если placement проиндексирован
- */
-export function isPlacementIndexed(
-  address: string,
-  store: Pick<StrongIndexes, "placementAddressIndex"> = strong$,
-): boolean {
-  return store.placementAddressIndex.has(address)
-}
-
-/**
- * Проверяет наличие reference по источнику.
- *
- * @param metaSource — адрес source meta-схемы
- * @param referenceId — ID ссылки
- * @param store — strong indexes (по умолчанию `strong$`)
- * @returns true, если reference существует
- */
-export function hasReferenceBySource(
-  metaSource: string,
-  referenceId: string,
-  store: Pick<StrongIndexes, "metaSourceLookup"> = strong$,
-): boolean {
-  const bySource = store.metaSourceLookup.get(metaSource)
-  return bySource ? bySource.includes(referenceId) : false
+export function rebuildStrongIndexes(dark$: DarkStore): void {
+  for (const object of dark$.objects.values()) {
+    const metaIndex = ensureMetaIndex(object.meta)
+    metaIndex.objectIds = appendUnique(metaIndex.objectIds, object.id)
+  }
+  for (const placement of dark$.placements.values()) {
+    strong$.placementAddressIndex.set(placement.address, placement.id)
+    strong$.objectPlacementsIndex.set(
+      placement.objectId,
+      appendUnique(strong$.objectPlacementsIndex.get(placement.objectId) ?? [], placement.id),
+    )
+    const metaIndex = ensureMetaIndex(placement.meta)
+    metaIndex.placementIds = appendUnique(metaIndex.placementIds, placement.id)
+  }
+  for (const reference of dark$.references.values()) {
+    strong$.metaSourceLookup.set(
+      reference.src,
+      appendUnique(strong$.metaSourceLookup.get(reference.src) ?? [], reference.id),
+    )
+    const metaIndex = ensureMetaIndex(reference.meta)
+    metaIndex.referenceIds = appendUnique(metaIndex.referenceIds, reference.id)
+  }
+  for (const entanglement of dark$.entanglements.values()) {
+    strong$.entanglementAddressIndex.set(entanglement.entanglementAddress, entanglement.id)
+    const metaIndex = ensureMetaIndex(entanglement.meta)
+    metaIndex.entanglementIds = appendUnique(metaIndex.entanglementIds, entanglement.id)
+  }
 }

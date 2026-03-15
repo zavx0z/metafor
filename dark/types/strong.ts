@@ -1,4 +1,4 @@
-import type { GlobalTopologyMetaIndex, GlobalTopologyObject, GlobalTopologyPlacement, GlobalTopologyReference, StrongIndexes, StrongIndexesSnapshot } from "./shared.ts"
+import type { GlobalTopologyEntanglement, GlobalTopologyMetaIndex, GlobalTopologyObject, GlobalTopologyPlacement, GlobalTopologyReference, StrongIndexes, StrongIndexesSnapshot } from "./shared.ts"
 
 // Re-export shared types used by strong
 export type { GlobalTopologyMetaIndex, StrongIndexes, StrongIndexesSnapshot }
@@ -23,6 +23,56 @@ export interface DarkStrongStore extends StrongIndexes {
    * @returns снимок индексов
    */
   snapshot(): StrongIndexesSnapshot
+
+  /**
+   * Находит ID placement по адресу.
+   */
+  getPlacementIdByAddress(address: string): string | undefined
+
+  /**
+   * Находит IDs placements объекта.
+   */
+  getPlacementIdsByObject(objectId: string): string[]
+
+  /**
+   * Находит IDs placements meta-схемы.
+   */
+  getPlacementIdsByMeta(meta: string): string[]
+
+  /**
+   * Находит IDs references по источнику.
+   */
+  getReferenceIdsBySource(src: string): string[]
+
+  /**
+   * Проверяет наличие reference по source и ID.
+   */
+  hasReferenceBySource(src: string, referenceId: string): boolean
+
+  /**
+   * Проверяет что placement индексирован.
+   */
+  isPlacementIndexed(address: string): boolean
+
+  /**
+   * Находит ID entanglement по адресу.
+   */
+  getEntanglementIdByAddress(address: string): string | undefined
+
+  /**
+   * Удаляет индексы placement.
+   */
+  removePlacementIndexes(placement: GlobalTopologyPlacement, objectId: string, meta: string): void
+
+  /**
+   * Удаляет индексы reference.
+   */
+  removeReferenceIndexes(reference: GlobalTopologyReference, meta: string): void
+
+  /**
+   * Удаляет индексы entanglement.
+   */
+  removeEntanglementIndexes(entanglement: GlobalTopologyEntanglement, meta: string): void
 }
 
 /**

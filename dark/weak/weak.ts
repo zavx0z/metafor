@@ -14,7 +14,6 @@ import type {
 } from "@dark/types/weak"
 import type { LocalTopologyFragment } from "@metafor/dsl/types"
 import { ingestFragment } from "@dark/gravity"
-import { getPlacementIdsByMeta, removeEntanglementIndexes, removePlacementIndexes, removeReferenceIndexes } from "@dark/strong"
 
 /**
  * Находит все descendant placement IDs.
@@ -64,7 +63,7 @@ function removePlacement(dark$: DarkStore, placementId: string, strong$: DarkStr
   const placement = dark$.getPlacement(placementId)
   if (!placement) return
 
-  removePlacementIndexes(placement, placement.objectId, placement.meta, strong$)
+  strong$.removePlacementIndexes(placement, placement.objectId, placement.meta)
   dark$.deletePlacement(placementId)
 
   for (const [linkId, link] of dark$.links.entries()) {
@@ -85,7 +84,7 @@ function removeReference(dark$: DarkStore, referenceId: string, strong$: DarkStr
   const reference = dark$.getReference(referenceId)
   if (!reference) return
 
-  removeReferenceIndexes(reference, reference.meta, strong$)
+  strong$.removeReferenceIndexes(reference, reference.meta)
   dark$.deleteReference(referenceId)
 }
 
@@ -100,7 +99,7 @@ function removeEntanglement(dark$: DarkStore, entanglementId: string, strong$: D
   const entanglement = dark$.getEntanglement(entanglementId)
   if (!entanglement) return
 
-  removeEntanglementIndexes(entanglement, entanglement.meta, strong$)
+  strong$.removeEntanglementIndexes(entanglement, entanglement.meta)
   dark$.deleteEntanglement(entanglementId)
 }
 
@@ -136,7 +135,7 @@ export function replaceFragment(
     removedEntanglementIds: [],
   }
 
-  const existingPlacementIds = getPlacementIdsByMeta(meta, strong$)
+  const existingPlacementIds = strong$.getPlacementIdsByMeta(meta)
   const allToRemove = new Set<string>()
 
   for (const placementId of existingPlacementIds) {
@@ -347,13 +346,13 @@ export function movePlacement(
  * @returns результат перестройки с IDs сущностей
  */
 export function rebuildFragment(
-  strong$: Pick<DarkStrongStore, "sourceMetaIndex">,
+  strong$: DarkStrongStore,
   meta: string,
   options: RebuildFragmentOptions = {},
 ): RebuildFragmentResult {
   void options
   return {
-    placementIds: getPlacementIdsByMeta(meta, strong$),
+    placementIds: strong$.getPlacementIdsByMeta(meta),
     referenceIds: [],
     entanglementIds: [],
     removedPlacementIds: [],

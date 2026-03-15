@@ -1,18 +1,10 @@
-
 export { strong$ } from "./store.ts"
 export {
-  getEntanglementIdByAddress,
-  getPlacementIdByAddress,
-  getPlacementIdsByMeta,
-  getPlacementIdsByObject,
-  getReferenceIdsBySource,
-  hasReferenceBySource,
-  indexEntanglement,
-  indexObject,
+  appendUnique,
+  ensureMetaIndex,
   indexPlacement,
   indexReference,
-  isPlacementIndexed,
-  removeEntanglementIndexes,
-  removePlacementIndexes,
-  removeReferenceIndexes,
+  indexEntanglement,
+  indexObject,
+  rebuildStrongIndexes,
 } from "./strong.ts"

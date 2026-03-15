@@ -4,11 +4,6 @@
 
 import { describe, expect, test, beforeEach } from "bun:test"
 import { MetaFor, compileLocalTopologyFragment } from "../../metafor/dsl/metafor.ts"
-import {
-  hasReferenceBySource,
-  indexPlacement,
-  isPlacementIndexed,
-} from "./strong.ts"
 import { ingestFragment } from "../gravity/gravity.ts"
 import {
   getEntanglementByAddress,
@@ -20,6 +15,7 @@ import {
 import { dark$ } from "../store.ts"
 import { gravity$ } from "../gravity/store.ts"
 import { strong$ } from "./store.ts"
+import { indexPlacement } from "@dark/strong"
 
 describe("@dark/strong — индексация и lookup", () => {
   beforeEach(() => {
@@ -56,7 +52,7 @@ describe("@dark/strong — индексация и lookup", () => {
     })
 
     test("проверяет что placement ещё не индексирован", () => {
-      const isIndexed = isPlacementIndexed("/non-existent")
+      const isIndexed = strong$.isPlacementIndexed("/non-existent")
       expect(isIndexed).toBe(false)
     })
   })
@@ -194,7 +190,7 @@ describe("@dark/strong — индексация и lookup", () => {
     })
 
     test("проверяет что reference уже индексирован по source", () => {
-      const hasRef = hasReferenceBySource("non-existent", "ref-1")
+      const hasRef = strong$.hasReferenceBySource("non-existent", "ref-1")
       expect(hasRef).toBe(false)
     })
   })

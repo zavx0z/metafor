@@ -3,7 +3,7 @@ import type { DarkStoreSnapshot } from "@dark/types"
 import type { Address } from "@dark/types/dark"
 import type { LocalTopologyFragment, LocalTopologyMetaLike } from "@metafor/dsl/types"
 import { gravity$, ingestFragment } from "@dark/gravity"
-import { strong$, indexEntanglement, indexObject, indexPlacement, indexReference } from "@dark/strong"
+import { strong$, rebuildStrongIndexes } from "@dark/strong"
 import { compileLocalTopologyFragment } from "@metafor/dsl/topology"
 import { loadMetaAST, resolveMetaTsPath } from "./load"
 import { dark$ } from "./store"
@@ -64,22 +64,7 @@ function getNextRootOccurrence(): number {
 function rebuildDerivedDarkState(): void {
   gravity$.reset()
   strong$.reset()
-
-  for (const object of dark$.objects.values()) {
-    indexObject(object.id, object.meta, strong$)
-  }
-
-  for (const placement of dark$.placements.values()) {
-    indexPlacement(placement, placement.meta, strong$)
-  }
-
-  for (const reference of dark$.references.values()) {
-    indexReference(reference, reference.meta, strong$)
-  }
-
-  for (const entanglement of dark$.entanglements.values()) {
-    indexEntanglement(entanglement, entanglement.meta, strong$)
-  }
+  rebuildStrongIndexes(dark$)
 
   gravity$.nextPlacementSeq = getNextSequence(dark$.placements.keys(), "gp")
   gravity$.nextLinkSeq = getNextSequence(dark$.links.keys(), "gl")

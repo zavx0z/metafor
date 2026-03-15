@@ -12,7 +12,7 @@ import type {
 } from "@dark/types"
 import type { DarkStrongStore } from "@dark/types/strong"
 import type { LocalTopologyFragment, LocalTopologyPlacementRelation } from "@metafor/dsl/types"
-import { indexEntanglement, indexObject, indexPlacement, indexReference } from "@dark/strong"
+import { indexObject, indexPlacement, indexReference, indexEntanglement } from "@dark/strong"
 
 /**
  * Создаёт глобальный ID объекта из meta и локального ID.
@@ -94,7 +94,7 @@ function ensureRootPrefix(dark$: DarkGravityStore, meta: string): string {
  */
 function ensureObjectDefinitions(
   dark$: DarkStore,
-  strong$: StrongIndexes,
+  strong$: DarkStrongStore,
   meta: string,
   fragment: LocalTopologyFragment,
 ): void {
@@ -111,7 +111,7 @@ function ensureObjectDefinitions(
     }
 
     dark$.setObject(objectId, object)
-    indexObject(objectId, meta, strong$)
+    indexObject(objectId, meta)
   }
 }
 
@@ -196,7 +196,7 @@ export function ingestFragment(
     }
 
     dark$.setPlacement(placementId, placement)
-    indexPlacement(placement, meta, strong$)
+    indexPlacement(placement, meta)
 
     localToGlobalPlacement.set(localPlacement.id, placementId)
     placementIds.push(placementId)
@@ -243,7 +243,7 @@ export function ingestFragment(
     dark$.setReference(referenceId, reference)
     localToGlobalReference.set(localReference.id, referenceId)
     referenceIds.push(referenceId)
-    indexReference(reference, meta, strong$)
+    indexReference(reference, meta)
   }
 
   for (const seed of fragment.entanglementSeeds) {
@@ -274,7 +274,7 @@ export function ingestFragment(
     }
 
     dark$.setEntanglement(entanglement.id, entanglement)
-    indexEntanglement(entanglement, meta, strong$)
+    indexEntanglement(entanglement, meta)
     entanglementIds.push(entanglement.id)
   }
 
