@@ -416,22 +416,7 @@ export interface DarkGravityStoreSnapshot {
  *
  * Хранит промежуточное состояние assembly-слоя gravity.
  */
-export interface DarkGravityStore extends DarkGravityStoreSnapshot {
-  /**
-   * Сохраняет local topology fragment по meta.
-   * @param meta — адрес meta-схемы
-   * @param fragment — фрагмент топологии
-   * @returns сохранённый фрагмент
-   */
-  setFragment(meta: string, fragment: LocalTopologyFragment): LocalTopologyFragment
-
-  /**
-   * Получает fragment по meta.
-   * @param meta — адрес meta-схемы
-   * @returns фрагмент или undefined
-   */
-  getFragment(meta: string): LocalTopologyFragment | undefined
-}
+export interface DarkGravityStore extends DarkGravityStoreSnapshot {}
 
 // Re-export types from @metafor/dsl
 export type { LocalTopologyFragment }

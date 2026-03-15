@@ -23,22 +23,22 @@ export async function matter(address: Address): Promise<void> {
 
   while (pending.length > 0) {
     const next = pending.shift()!
-
     // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
-    // получение фрагмента
+    // получение мета
     // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
     let ast = dark$.meta.get(next.metaAddress)
     if (!ast) {
       ast = await loadMetaAST(next.metaAddress)
       dark$.meta.set(next.metaAddress, structuredClone(ast))
     }
-
-    let fragment = gravity$.getFragment(next.metaAddress)
+    // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
+    // получение фрагмента
+    // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
+    let fragment = gravity$.fragments.get(next.metaAddress)
     if (!fragment) {
-      const compiledTopology = compileLocalTopologyFragment(ast as LocalTopologyMetaLike)
-      fragment = gravity$.setFragment(next.metaAddress, compiledTopology)
+      fragment = compileLocalTopologyFragment(ast as LocalTopologyMetaLike)
+      gravity$.fragments.set(next.metaAddress, fragment)
     }
-
     // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
     // внедрение фрагмента
     // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
@@ -46,7 +46,6 @@ export async function matter(address: Address): Promise<void> {
       ...(next.parentPlacementId ? { parentPlacementId: next.parentPlacementId } : {}),
       ...(next.viaReferenceId ? { viaReferenceId: next.viaReferenceId } : {}),
     })
-
     // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
     // постановка ссылок в очередь
     // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —

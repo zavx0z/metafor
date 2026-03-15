@@ -127,7 +127,7 @@ export function ingestFragment(
   fragment: LocalTopologyFragment,
   options: GlobalTopologyIngestOptions = {},
 ): GlobalTopologyIngestResult {
-  gravity$.setFragment(meta, fragment)
+  gravity$.fragments.set(meta, structuredClone(fragment))
   ensureObjectDefinitions(dark$, meta, fragment)
 
   const localPlacements = Object.values(fragment.placements).sort(

@@ -23,7 +23,7 @@ describe("dark - корневой мета", () => {
 
   describe("загрузка", () => {
     test("проверка мета в хранилище", () => {
-      expect(gravity$.getFragment(address), "мета не должен при инициализации быть в хранилище").toBeUndefined()
+      expect(gravity$.fragments.get(address), "мета не должен при инициализации быть в хранилище").toBeUndefined()
     })
     test("загрузка мета ast", async () => {
       ast = (await loadMetaAST("zavx0z/git" as Address)) as MetaAST
