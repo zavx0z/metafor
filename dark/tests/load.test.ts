@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import type { MetaAST } from "../metafor/ast/ast.t"
+import type { MetaAST } from "../../metafor/ast/ast.t"
 import type { Address } from "@dark/types/dark"
-import { loadMetaAST } from "./load"
-import reference from "../github/zavx0z/git/meta.json"
-import { HubFixture } from "../fixture/hub"
+import { loadMetaAST } from "../load"
+import reference from "../../github/zavx0z/git/meta.json"
+import { HubFixture } from "fixture/hub"
 
 const hub = new HubFixture("./github/")
 
@@ -27,7 +27,7 @@ describe("dark/load", () => {
   })
 
   test("load.ts остаётся single-schema loader и не экспортирует package orchestration", async () => {
-    const module = await import("./load")
+    const module = await import("../load")
     const ast = await loadMetaAST("zavx0z/git" as Address)
 
     expect(ast).toEqual(reference as MetaAST)
