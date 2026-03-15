@@ -1,5 +1,4 @@
 import type { DarkGravityStore } from "@dark/types"
-import { cloneFragment } from "./snapshot.ts"
 
 export const gravity$: DarkGravityStore = {
   fragments: new Map(),
@@ -9,7 +8,7 @@ export const gravity$: DarkGravityStore = {
   rootOccurrenceSeq: 0,
 
   setFragment(meta, fragment) {
-    const next = cloneFragment(fragment)
+    const next = structuredClone(fragment)
     this.fragments.set(meta, next)
     return next
   },

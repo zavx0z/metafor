@@ -5,13 +5,10 @@
  * экспортироваться из production API домена.
  */
 
-import type { DarkStoreSnapshot } from "@dark/types"
+import type { DarkStoreSnapshot, DarkGravityStoreSnapshot, StrongIndexesSnapshot } from "@dark/types"
 import { dark$ } from "../../store.ts"
 import { gravity$ } from "../../gravity/store.ts"
 import { strong$ } from "../../strong/store.ts"
-import { cloneDarkSnapshot } from "../../snapshot.ts"
-import { cloneGravitySnapshot } from "../../gravity/snapshot.ts"
-import { cloneStrongSnapshot } from "../../strong/snapshot.ts"
 
 /**
  * Сбрасывает dark$ в начальное состояние.
@@ -35,13 +32,6 @@ export function resetDark(): void {
   strong$.objectPlacementsIndex.clear()
   strong$.sourceMetaIndex.clear()
   strong$.metaSourceLookup.clear()
-}
-
-/**
- * Создаёт снимок dark$.
- */
-export function snapshotDark(): DarkStoreSnapshot {
-  return cloneDarkSnapshot(dark$)
 }
 
 /**
@@ -134,8 +124,14 @@ export function resetGravity(): void {
 /**
  * Создаёт снимок gravity$.
  */
-export function snapshotGravity() {
-  return cloneGravitySnapshot(gravity$)
+export function snapshotGravity(): DarkGravityStoreSnapshot {
+  return structuredClone({
+    fragments: gravity$.fragments,
+    nextPlacementSeq: gravity$.nextPlacementSeq,
+    nextLinkSeq: gravity$.nextLinkSeq,
+    nextReferenceSeq: gravity$.nextReferenceSeq,
+    rootOccurrenceSeq: gravity$.rootOccurrenceSeq,
+  })
 }
 
 /**
@@ -166,8 +162,14 @@ export function resetStrong(): void {
 /**
  * Создаёт снимок strong$.
  */
-export function snapshotStrong() {
-  return cloneStrongSnapshot(strong$)
+export function snapshotStrong(): StrongIndexesSnapshot {
+  return structuredClone({
+    placementAddressIndex: strong$.placementAddressIndex,
+    entanglementAddressIndex: strong$.entanglementAddressIndex,
+    objectPlacementsIndex: strong$.objectPlacementsIndex,
+    sourceMetaIndex: strong$.sourceMetaIndex,
+    metaSourceLookup: strong$.metaSourceLookup,
+  })
 }
 
 /**

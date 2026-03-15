@@ -46,13 +46,9 @@ Store может содержать методы для мутации и чте
 ```typescript
 export const store$: DomenPackageStore = {
   meta: new Map(),
-  
+
   setMeta(address: string, meta: MetaAST) {
     this.meta.set(address, meta)
-  },
-  
-  getMeta(address: string) {
-    return this.meta.get(address)
   },
 }
 ```

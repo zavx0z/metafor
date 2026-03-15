@@ -35,7 +35,8 @@
   "include": [
     "types/**/*.d.ts",
     "fixture/**/*.ts",
-    "**/*.ts"
+    "**/*.ts",
+    "tests"
   ],
   "exclude": [
     "**/dist-test/*",

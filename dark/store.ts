@@ -7,7 +7,6 @@ import type {
   GlobalTopologyPlacement,
   GlobalTopologyReference,
 } from "@dark/types"
-import { cloneStoredValue } from "./snapshot.ts"
 
 export const dark$: DarkStore = {
   meta: new Map(),
@@ -17,18 +16,8 @@ export const dark$: DarkStore = {
   references: new Map(),
   entanglements: new Map(),
 
-  setMeta(address: string, meta: MetaAST) {
-    const next = cloneStoredValue(meta)
-    this.meta.set(address, next)
-    return next
-  },
-
-  getMeta(address: string) {
-    return this.meta.get(address)
-  },
-
   setObject(id: string, object: GlobalTopologyObject) {
-    const next = cloneStoredValue(object)
+    const next = structuredClone(object)
     this.objects.set(id, next)
     return next
   },
@@ -42,7 +31,7 @@ export const dark$: DarkStore = {
   },
 
   setPlacement(id: string, placement: GlobalTopologyPlacement) {
-    const next = cloneStoredValue(placement)
+    const next = structuredClone(placement)
     this.placements.set(id, next)
     return next
   },
@@ -56,7 +45,7 @@ export const dark$: DarkStore = {
   },
 
   setLink(id: string, link: GlobalTopologyLink) {
-    const next = cloneStoredValue(link)
+    const next = structuredClone(link)
     this.links.set(id, next)
     return next
   },
@@ -70,7 +59,7 @@ export const dark$: DarkStore = {
   },
 
   setReference(id: string, reference: GlobalTopologyReference) {
-    const next = cloneStoredValue(reference)
+    const next = structuredClone(reference)
     this.references.set(id, next)
     return next
   },
@@ -84,7 +73,7 @@ export const dark$: DarkStore = {
   },
 
   setEntanglement(id: string, entanglement: GlobalTopologyEntanglement) {
-    const next = cloneStoredValue(entanglement)
+    const next = structuredClone(entanglement)
     this.entanglements.set(id, next)
     return next
   },

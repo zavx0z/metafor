@@ -13,8 +13,7 @@ import { projectDarkGraph, projectDarkGraphToBoundary, projectDarkGraphToBulk } 
 import { ingestFragment } from "../gravity/gravity.ts"
 import { gravity$ } from "../gravity/store.ts"
 import { dark$ } from "../store.ts"
-import { strong$ } from "../strong/store.ts"
-import { resetAll, snapshotDark } from "../tests/fixtures"
+import { resetAll } from "../tests/fixtures"
 
 describe("@dark/em — projection-only", () => {
   beforeEach(() => {
@@ -133,7 +132,14 @@ describe("@dark/em — projection-only", () => {
       const fragment = compileLocalTopologyFragment(meta)
       ingestFragment(dark$, gravity$, "em-immut/root", fragment, {})
 
-      const snapshotBefore = snapshotDark()
+      const snapshotBefore = structuredClone({
+        meta: dark$.meta,
+        objects: dark$.objects,
+        placements: dark$.placements,
+        links: dark$.links,
+        references: dark$.references,
+        entanglements: dark$.entanglements,
+      })
       const projection = projectDarkGraph(dark$, "boundary")
 
       // Изменить projection
@@ -147,7 +153,14 @@ describe("@dark/em — projection-only", () => {
         relation: "root",
       })
 
-      const snapshotAfter = snapshotDark()
+      const snapshotAfter = structuredClone({
+        meta: dark$.meta,
+        objects: dark$.objects,
+        placements: dark$.placements,
+        links: dark$.links,
+        references: dark$.references,
+        entanglements: dark$.entanglements,
+      })
 
       // Проверка что исходные данные не изменились
       expect(snapshotAfter.placements.size).toBe(snapshotBefore.placements.size)
@@ -180,7 +193,7 @@ describe("@dark/em — projection-only", () => {
       ingestFragment(dark$, gravity$, "em-meta/root", fragment, {})
 
       // Добавим meta в dark$.meta для корректной проекции
-      dark$.setMeta("em-meta/root", fragment as any)
+      dark$.meta.set("em-meta/root", structuredClone(fragment as any))
 
       const projection = projectDarkGraph(dark$, "boundary")
 

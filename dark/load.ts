@@ -27,9 +27,10 @@ export function resolveMetaTsPath(address: Address): string {
  * Не делает orchestration пакета Dark и не мутирует store.
  *
  * @param address — канонический адрес хаба для загрузки
- * @returns `ast` или `undefined` при ошибке загрузки
+ * @returns `ast`
+ * @throws если не удалось загрузить meta
  */
-export async function loadMetaAST(address: Address): Promise<MetaAST | undefined> {
+export async function loadMetaAST(address: Address): Promise<MetaAST> {
   const sourcePath = resolveMetaSource(address)
   try {
     const response = await fetch(sourcePath)
@@ -37,7 +38,6 @@ export async function loadMetaAST(address: Address): Promise<MetaAST | undefined
     return (await response.json()) as MetaAST
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.error(`Ошибка загрузки meta для "${sourcePath}": ${message}`)
-    return undefined
+    throw new Error(`Не удалось загрузить meta: ${resolveMetaTsPath(address)} — ${message}`)
   }
 }

@@ -3,7 +3,7 @@ import type { MetaAST } from "@metafor/ast"
 import type { Address } from "@dark/types/dark"
 import { MetaFor, compileLocalTopologyFragment } from "../metafor/dsl/metafor.ts"
 import { matter } from "./dark"
-import { resetAll, snapshotDark, resetDark, restoreDark } from "./tests/fixtures"
+import { resetAll, resetDark, restoreDark } from "./tests/fixtures"
 import {
   getEntanglementByAddress,
   getPlacementByAddress,
@@ -70,7 +70,14 @@ afterEach(() => {
 
 describe("dark/store", () => {
   test("dark$ хранит только meta и topology", () => {
-    const snapshot = snapshotDark()
+    const snapshot = structuredClone({
+      meta: dark$.meta,
+      objects: dark$.objects,
+      placements: dark$.placements,
+      links: dark$.links,
+      references: dark$.references,
+      entanglements: dark$.entanglements,
+    })
     expect(snapshot.meta).toBeInstanceOf(Map)
     expect(snapshot.placements).toBeInstanceOf(Map)
     expect(snapshot.references).toBeInstanceOf(Map)
@@ -173,7 +180,14 @@ describe("dark/store", () => {
     const fragment = compileLocalTopologyFragment(meta)
     const first = ingestFragment(dark$, gravity$, "restore-dark/root", fragment, {})
     const firstRoot = dark$.getPlacement(first.rootPlacementIds[0]!)!
-    const snapshot = snapshotDark()
+    const snapshot = structuredClone({
+      meta: dark$.meta,
+      objects: dark$.objects,
+      placements: dark$.placements,
+      links: dark$.links,
+      references: dark$.references,
+      entanglements: dark$.entanglements,
+    })
 
     resetDark()
     restoreDark(snapshot)

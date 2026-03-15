@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import type { Address } from "@dark/types/dark"
 import { HubFixture } from "../fixture/hub"
 import * as dark from "./dark"
-import { resetDark, snapshotDark } from "./tests/fixtures"
+import { resetDark } from "./tests/fixtures"
 import { dark$ } from "./store"
 
 const hub = new HubFixture("./github/")
@@ -24,7 +24,14 @@ describe("dark.matter", () => {
   test("загружает meta и строит topology", async () => {
     await dark.matter("zavx0z/git-error" as Address)
 
-    const snapshot = snapshotDark()
+    const snapshot = structuredClone({
+      meta: dark$.meta,
+      objects: dark$.objects,
+      placements: dark$.placements,
+      links: dark$.links,
+      references: dark$.references,
+      entanglements: dark$.entanglements,
+    })
     expect(snapshot).toMatchObject({
       meta: new Map([
         [

@@ -6,41 +6,9 @@ import { compileLocalTopologyFragment } from "@metafor/dsl/topology"
 import { loadMetaAST, resolveMetaTsPath } from "./load"
 import { dark$ } from "./store"
 
-/**
- * Гарантирует загрузку meta-схемы.
- *
- * @param metaAddress — адрес meta-схемы
- * @returns загруженная или существующая meta-схема
- */
-async function ensureMetaLoaded(metaAddress: Address): Promise<MetaAST> {
-  const existing = dark$.getMeta(metaAddress)
-  if (existing) return existing
-
-  const ast = await loadMetaAST(metaAddress)
-  if (!ast) throw new Error(`Не удалось загрузить meta: ${metaAddress}`)
-  dark$.setMeta(metaAddress, ast)
-  return ast
-}
-
-/**
- * Гарантирует наличие local topology fragment.
- *
- * @param metaAddress — адрес meta-схемы
- * @returns скомпилированный фрагмент топологии
- */
-async function ensureLocalFragment(metaAddress: Address): Promise<LocalTopologyFragment> {
-  const existing = gravity$.getFragment(metaAddress)
-  if (existing) return existing
-
-  const ast = await ensureMetaLoaded(metaAddress)
-  const sourcePath = resolveMetaTsPath(metaAddress)
-  try {
-    return gravity$.setFragment(metaAddress, compileLocalTopologyFragment(ast as LocalTopologyMetaLike))
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Ошибка компиляции topology для "${sourcePath}": ${message}`)
-  }
-}
+// //////////////////////////////////////////////////////////////////////////////
+// matter
+// //////////////////////////////////////////////////////////////////////////////
 
 /**
  * Загружает meta-схему по адресу и собирает скрытую топологию.
@@ -55,18 +23,44 @@ export async function matter(address: Address): Promise<void> {
 
   while (pending.length > 0) {
     const next = pending.shift()!
-    const fragment = await ensureLocalFragment(next.metaAddress)
+
+    // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
+    // получение фрагмента
+    // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
+    let ast = dark$.meta.get(next.metaAddress)
+    if (!ast) {
+      ast = await loadMetaAST(next.metaAddress)
+      dark$.meta.set(next.metaAddress, structuredClone(ast))
+    }
+
+    let fragment = gravity$.getFragment(next.metaAddress)
+    if (!fragment) {
+      const compiledTopology = compileLocalTopologyFragment(ast as LocalTopologyMetaLike)
+      fragment = gravity$.setFragment(next.metaAddress, compiledTopology)
+    }
+
+    // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
+    // внедрение фрагмента
+    // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
     const ingested = ingestFragment(dark$, gravity$, next.metaAddress, fragment, {
       ...(next.parentPlacementId ? { parentPlacementId: next.parentPlacementId } : {}),
       ...(next.viaReferenceId ? { viaReferenceId: next.viaReferenceId } : {}),
     })
 
+    // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
+    // постановка ссылок в очередь
+    // — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —
     for (const referenceId of ingested.referenceIds) {
       const reference = dark$.getReference(referenceId)
       if (!reference) continue
-      await ensureMetaLoaded(reference.src as Address)
+      const refMetaAddress = reference.src as Address
+      const existingRefMeta = dark$.meta.get(refMetaAddress)
+      if (!existingRefMeta) {
+        const refAst = await loadMetaAST(refMetaAddress)
+        dark$.meta.set(refMetaAddress, structuredClone(refAst))
+      }
       pending.push({
-        metaAddress: reference.src as Address,
+        metaAddress: refMetaAddress,
         parentPlacementId: reference.placementId,
         viaReferenceId: reference.id,
       })

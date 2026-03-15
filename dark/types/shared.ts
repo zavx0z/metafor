@@ -284,21 +284,6 @@ export interface DarkStoreSnapshot {
  */
 export interface DarkStore extends DarkStoreSnapshot {
   /**
-   * Сохраняет meta-схему по адресу.
-   * @param address — канонический адрес хаба
-   * @param meta — meta-схема AST
-   * @returns сохранённая meta-схема
-   */
-  setMeta(address: string, meta: MetaAST): MetaAST
-
-  /**
-   * Получает meta-схему по адресу.
-   * @param address — канонический адрес хаба
-   * @returns meta-схема или undefined
-   */
-  getMeta(address: string): MetaAST | undefined
-
-  /**
    * Сохраняет глобальный объект.
    * @param id — уникальный ID объекта
    * @param object — объект топологии

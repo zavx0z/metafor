@@ -47,7 +47,6 @@ import type { GravityStore, GlobalTopologyPlacement } from "@dark/types"
 // ❌ НЕПРАВИЛЬНО — пакет импортирует из домена через относительный путь
 // @dark/gravity/gravity.ts
 import { dark$ } from "../store.ts"
-import { cloneStoredValue } from "../snapshot.ts"
 ```
 
 **Принцип:** пакеты изолированы от домена, но могут использовать shared типы из `@{domain}/types`.
