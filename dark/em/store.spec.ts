@@ -35,7 +35,7 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment(dark$, gravity$, strong$, "em-projection/root", fragment, {})
+      ingestFragment(dark$, gravity$, "em-projection/root", fragment, {})
 
       const projection = projectDarkGraph(dark$, "boundary")
 
@@ -65,7 +65,7 @@ describe("@dark/em — projection-only", () => {
         throw new Error("axion object не собран")
       }
 
-      ingestFragment(dark$, gravity$, strong$, "em-axion/root", fragment, {})
+      ingestFragment(dark$, gravity$, "em-axion/root", fragment, {})
 
       const projection = projectDarkGraphToBoundary(dark$)
       const globalAxionObjectId = `em-axion/root#${axion.id}`
@@ -87,7 +87,7 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment(dark$, gravity$, strong$, "em-boundary/root", fragment, {})
+      ingestFragment(dark$, gravity$, "em-boundary/root", fragment, {})
 
       const projection = projectDarkGraphToBoundary(dark$)
 
@@ -108,7 +108,7 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment(dark$, gravity$, strong$, "em-bulk/root", fragment, {})
+      ingestFragment(dark$, gravity$, "em-bulk/root", fragment, {})
 
       const projection = projectDarkGraphToBulk(dark$)
 
@@ -131,7 +131,7 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment(dark$, gravity$, strong$, "em-immut/root", fragment, {})
+      ingestFragment(dark$, gravity$, "em-immut/root", fragment, {})
 
       const snapshotBefore = snapshotDark()
       const projection = projectDarkGraph(dark$, "boundary")
@@ -177,7 +177,7 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment(dark$, gravity$, strong$, "em-meta/root", fragment, {})
+      ingestFragment(dark$, gravity$, "em-meta/root", fragment, {})
 
       // Добавим meta в dark$.meta для корректной проекции
       dark$.setMeta("em-meta/root", fragment as any)

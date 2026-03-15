@@ -38,7 +38,7 @@ describe("@dark/weak — мутации topology", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = ingestFragment(dark$, gravity$, strong$, "remove-test/root", fragment, {})
+      const result = ingestFragment(dark$, gravity$, "remove-test/root", fragment, {})
 
       const rootPlacementId = result.rootPlacementIds[0]!
       const initialPlacements = dark$.placements.size
@@ -84,11 +84,11 @@ describe("@dark/weak — мутации topology", () => {
       const rootFragment = compileLocalTopologyFragment(rootMeta)
       const childFragment = compileLocalTopologyFragment(childMeta)
 
-      const rootResult = ingestFragment(dark$, gravity$, strong$, "remove-cascade/root", rootFragment, {})
+      const rootResult = ingestFragment(dark$, gravity$, "remove-cascade/root", rootFragment, {})
 
       // Ингест child
       const reference = dark$.getReference(rootResult.referenceIds[0]!)!
-      ingestFragment(dark$, gravity$, strong$, "child/cascade", childFragment, {
+      ingestFragment(dark$, gravity$, "child/cascade", childFragment, {
         parentPlacementId: reference.placementId,
         viaReferenceId: reference.id,
       })
@@ -143,7 +143,7 @@ describe("@dark/weak — мутации topology", () => {
       const fragmentV2 = compileLocalTopologyFragment(metaV2)
 
       // Ingest v1
-      const v1Result = ingestFragment(dark$, gravity$, strong$, "replace-test/meta", fragmentV1, {})
+      const v1Result = ingestFragment(dark$, gravity$, "replace-test/meta", fragmentV1, {})
       const initialPlacements = dark$.placements.size
 
       expect(initialPlacements).toBeGreaterThan(0)
@@ -194,7 +194,7 @@ describe("@dark/weak — мутации topology", () => {
       const childFragment = compileLocalTopologyFragment(childMeta)
 
       // Ingest parent
-      const parentResult = ingestFragment(dark$, gravity$, strong$, "parent-insert/meta", parentFragment, {})
+      const parentResult = ingestFragment(dark$, gravity$, "parent-insert/meta", parentFragment, {})
       const parentPlacementId = parentResult.rootPlacementIds[0]!
 
       const initialPlacements = dark$.placements.size
@@ -232,7 +232,7 @@ describe("@dark/weak — мутации topology", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = ingestFragment(dark$, gravity$, strong$, "remap-test/root", fragment, {})
+      const result = ingestFragment(dark$, gravity$, "remap-test/root", fragment, {})
 
       const rootPlacementId = result.rootPlacementIds[0]!
       const rootPlacement = dark$.getPlacement(rootPlacementId)!
@@ -287,11 +287,11 @@ describe("@dark/weak — мутации topology", () => {
       const childFragment = compileLocalTopologyFragment(childMeta)
 
       // Ingest root
-      const rootResult = ingestFragment(dark$, gravity$, strong$, "detach-root/meta", rootFragment, {})
+      const rootResult = ingestFragment(dark$, gravity$, "detach-root/meta", rootFragment, {})
 
       // Ingest child
       const reference = dark$.getReference(rootResult.referenceIds[0]!)!
-      ingestFragment(dark$, gravity$, strong$, "detach/child", childFragment, {
+      ingestFragment(dark$, gravity$, "detach/child", childFragment, {
         parentPlacementId: reference.placementId,
         viaReferenceId: reference.id,
       })
@@ -346,11 +346,11 @@ describe("@dark/weak — мутации topology", () => {
       const childFragment = compileLocalTopologyFragment(childMeta)
 
       // Ingest root
-      const rootResult = ingestFragment(dark$, gravity$, strong$, "move-root/meta", rootFragment, {})
+      const rootResult = ingestFragment(dark$, gravity$, "move-root/meta", rootFragment, {})
 
       // Ingest child
       const reference = dark$.getReference(rootResult.referenceIds[0]!)!
-      ingestFragment(dark$, gravity$, strong$, "move/child", childFragment, {
+      ingestFragment(dark$, gravity$, "move/child", childFragment, {
         parentPlacementId: reference.placementId,
         viaReferenceId: reference.id,
       })

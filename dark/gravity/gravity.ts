@@ -90,7 +90,7 @@ function ensureRootPrefix(dark$: DarkGravityStore, meta: string): string {
  * @param fragment — local topology fragment
  */
 function ensureObjectDefinitions(dark$: DarkStore, meta: string, fragment: LocalTopologyFragment): void {
-  for (const [localObjectId, definition] of Object.entries(fragment.objects as Record<string, any>)) {
+  for (const [localObjectId, definition] of Object.entries(fragment.objects ?? {})) {
     const objectId = makeObjectId(meta, localObjectId)
     if (dark$.getObject(objectId)) continue
 
@@ -115,7 +115,6 @@ function ensureObjectDefinitions(dark$: DarkStore, meta: string, fragment: Local
  *
  * @param dark$ — dark store для записи
  * @param gravity$ — gravity store для счётчиков
- * @param strong$ — strong indexes для индексации
  * @param meta — адрес meta-схемы
  * @param fragment — local topology fragment для вставки
  * @param options — опции вставки (parent, viaReference)
