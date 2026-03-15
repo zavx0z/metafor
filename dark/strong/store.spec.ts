@@ -16,12 +16,11 @@ import { dark$ } from "../store.ts"
 import { gravity$ } from "../gravity/store.ts"
 import { strong$ } from "./store.ts"
 import { indexPlacement } from "@dark/strong"
+import { resetAll, resetStrong, snapshotStrong, restoreStrong } from "../tests/fixtures"
 
 describe("@dark/strong — индексация и lookup", () => {
   beforeEach(() => {
-    dark$.reset()
-    gravity$.reset()
-    strong$.reset()
+    resetAll()
   })
 
   describe("placement address index", () => {
@@ -243,14 +242,14 @@ describe("@dark/strong — индексация и lookup", () => {
       expect(strong$.placementAddressIndex.size).toBeGreaterThan(0)
 
       // Сделать snapshot
-      const snapshot = strong$.snapshot()
+      const snapshot = snapshotStrong()
       expect(snapshot.placementAddressIndex.size).toBeGreaterThan(0)
 
       // Reset и restore
-      strong$.reset()
+      resetStrong()
       expect(strong$.placementAddressIndex.size).toBe(0)
 
-      strong$.restore(snapshot)
+      restoreStrong(snapshot)
       expect(strong$.placementAddressIndex.size).toBeGreaterThan(0)
     })
   })

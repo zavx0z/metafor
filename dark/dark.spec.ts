@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import type { Address } from "@dark/types/dark"
 import { HubFixture } from "../fixture/hub"
 import * as dark from "./dark"
+import { resetDark, snapshotDark } from "./tests/fixtures"
 import { dark$ } from "./store"
 
 const hub = new HubFixture("./github/")
@@ -11,19 +12,19 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
-  dark$.reset()
+  resetDark()
 })
 
 afterAll(async () => {
   await hub.teardown()
-  dark$.reset()
+  resetDark()
 })
 
 describe("dark.matter", () => {
   test("загружает meta и строит topology", async () => {
     await dark.matter("zavx0z/git-error" as Address)
 
-    const snapshot = dark$.snapshot()
+    const snapshot = snapshotDark()
     expect(snapshot).toMatchObject({
       meta: new Map([
         [

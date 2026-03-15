@@ -1,14 +1,13 @@
 import type { MetaAST } from "@metafor/ast"
 import type {
   DarkStore,
-  DarkStoreSnapshot,
   GlobalTopologyEntanglement,
   GlobalTopologyLink,
   GlobalTopologyObject,
   GlobalTopologyPlacement,
   GlobalTopologyReference,
 } from "@dark/types"
-import { cloneDarkSnapshot, cloneStoredValue } from "./snapshot.ts"
+import { cloneStoredValue } from "./snapshot.ts"
 
 export const dark$: DarkStore = {
   meta: new Map(),
@@ -17,29 +16,6 @@ export const dark$: DarkStore = {
   links: new Map(),
   references: new Map(),
   entanglements: new Map(),
-
-  reset() {
-    this.meta = new Map()
-    this.objects = new Map()
-    this.placements = new Map()
-    this.links = new Map()
-    this.references = new Map()
-    this.entanglements = new Map()
-  },
-
-  restore(snapshot: DarkStoreSnapshot) {
-    const next = cloneDarkSnapshot(snapshot)
-    this.meta = next.meta
-    this.objects = next.objects
-    this.placements = next.placements
-    this.links = next.links
-    this.references = next.references
-    this.entanglements = next.entanglements
-  },
-
-  snapshot() {
-    return cloneDarkSnapshot(this)
-  },
 
   setMeta(address: string, meta: MetaAST) {
     const next = cloneStoredValue(meta)

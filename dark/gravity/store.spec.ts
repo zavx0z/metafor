@@ -21,12 +21,11 @@ import { ingestFragment } from "./gravity.ts"
 import { dark$ } from "../store.ts"
 import { gravity$ } from "./store.ts"
 import { strong$ } from "../strong/store.ts"
+import { resetAll, resetGravity, snapshotGravity, restoreGravity } from "../tests/fixtures"
 
 describe("@dark/gravity — world assembly", () => {
   beforeEach(() => {
-    dark$.reset()
-    gravity$.reset()
-    strong$.reset()
+    resetAll()
   })
 
   describe("fragment ingest", () => {
@@ -362,13 +361,13 @@ describe("@dark/gravity — world assembly", () => {
       const fragment = compileLocalTopologyFragment(meta)
       ingestFragment(dark$, gravity$, strong$, "snapshot-gravity/root", fragment, {})
 
-      const snapshot = gravity$.snapshot()
+      const snapshot = snapshotGravity()
       expect(snapshot.fragments.size).toBeGreaterThan(0)
 
-      gravity$.reset()
+      resetGravity()
       expect(gravity$.fragments.size).toBe(0)
 
-      gravity$.restore(snapshot)
+      restoreGravity(snapshot)
       expect(gravity$.fragments.size).toBeGreaterThan(0)
     })
   })

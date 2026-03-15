@@ -14,12 +14,11 @@ import { ingestFragment } from "../gravity/gravity.ts"
 import { gravity$ } from "../gravity/store.ts"
 import { dark$ } from "../store.ts"
 import { strong$ } from "../strong/store.ts"
+import { resetAll, snapshotDark } from "../tests/fixtures"
 
 describe("@dark/em — projection-only", () => {
   beforeEach(() => {
-    dark$.reset()
-    gravity$.reset()
-    strong$.reset()
+    resetAll()
   })
 
   describe("projection", () => {
@@ -134,7 +133,7 @@ describe("@dark/em — projection-only", () => {
       const fragment = compileLocalTopologyFragment(meta)
       ingestFragment(dark$, gravity$, strong$, "em-immut/root", fragment, {})
 
-      const snapshotBefore = dark$.snapshot()
+      const snapshotBefore = snapshotDark()
       const projection = projectDarkGraph(dark$, "boundary")
 
       // Изменить projection
@@ -148,7 +147,7 @@ describe("@dark/em — projection-only", () => {
         relation: "root",
       })
 
-      const snapshotAfter = dark$.snapshot()
+      const snapshotAfter = snapshotDark()
 
       // Проверка что исходные данные не изменились
       expect(snapshotAfter.placements.size).toBe(snapshotBefore.placements.size)

@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import type { MetaAST } from "@metafor/ast"
 import type { Address } from "@dark/types/dark"
 import { MetaFor, compileLocalTopologyFragment } from "../metafor/dsl/metafor.ts"
-import { matter, resetDark, restoreDark, snapshotDark } from "./dark"
+import { matter } from "./dark"
+import { resetAll, snapshotDark, resetDark, restoreDark } from "./tests/fixtures"
 import {
   getEntanglementByAddress,
   getPlacementByAddress,
@@ -59,21 +60,17 @@ const rootAst: MetaAST = {
 }
 
 beforeEach(() => {
-  dark$.reset()
-  gravity$.reset()
-  strong$.reset()
+  resetAll()
 })
 
 afterEach(() => {
-  dark$.reset()
-  gravity$.reset()
-  strong$.reset()
+  resetAll()
   globalThis.fetch = originalFetch
 })
 
 describe("dark/store", () => {
   test("dark$ хранит только meta и topology", () => {
-    const snapshot = dark$.snapshot()
+    const snapshot = snapshotDark()
     expect(snapshot.meta).toBeInstanceOf(Map)
     expect(snapshot.placements).toBeInstanceOf(Map)
     expect(snapshot.references).toBeInstanceOf(Map)

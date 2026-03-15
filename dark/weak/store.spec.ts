@@ -17,12 +17,11 @@ import {
   removePlacementSubtree,
   replaceFragment,
 } from "./weak.ts"
+import { resetAll } from "../tests/fixtures"
 
 describe("@dark/weak — мутации topology", () => {
   beforeEach(() => {
-    dark$.reset()
-    gravity$.reset()
-    strong$.reset()
+    resetAll()
   })
 
   describe("removePlacementSubtree", () => {

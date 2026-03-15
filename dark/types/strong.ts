@@ -9,21 +9,6 @@ export type { GlobalTopologyMetaIndex, StrongIndexes, StrongIndexesSnapshot }
  * Хранит индексное промежуточное состояние для cohesion и lookup.
  */
 export interface DarkStrongStore extends StrongIndexes {
-  /** Сбрасывает все индексы в начальное состояние. */
-  reset(): void
-
-  /**
-   * Восстанавливает индексы из снимка.
-   * @param snapshot — снимок индексов для восстановления
-   */
-  restore(snapshot: StrongIndexesSnapshot): void
-
-  /**
-   * Создаёт глубокую копию текущих индексов.
-   * @returns снимок индексов
-   */
-  snapshot(): StrongIndexesSnapshot
-
   /**
    * Находит ID placement по адресу.
    */

@@ -1,106 +1,11 @@
 import type { MetaAST } from "@metafor/ast"
-import type { DarkStoreSnapshot } from "@dark/types"
 import type { Address } from "@dark/types/dark"
 import type { LocalTopologyFragment, LocalTopologyMetaLike } from "@metafor/dsl/types"
 import { gravity$, ingestFragment } from "@dark/gravity"
-import { strong$, rebuildStrongIndexes } from "@dark/strong"
+import { strong$ } from "@dark/strong"
 import { compileLocalTopologyFragment } from "@metafor/dsl/topology"
 import { loadMetaAST, resolveMetaTsPath } from "./load"
 import { dark$ } from "./store"
-
-/**
- * Находит следующее доступное число в последовательности ID.
- *
- * @param ids — коллекция существующих ID
- * @param prefix — префикс ID (например, "gp", "gl", "gr")
- * @returns следующее число в последовательности
- */
-function getNextSequence(ids: Iterable<string>, prefix: string): number {
-  let max = -1
-
-  for (const id of ids) {
-    const match = new RegExp(`^${prefix}(\\d+)$`).exec(id)
-    if (!match) continue
-
-    const value = Number(match[1])
-    if (Number.isFinite(value) && value > max) {
-      max = value
-    }
-  }
-
-  return max + 1
-}
-
-/**
- * Находит следующее доступное число для root occurrence.
- *
- * Анализирует адреса placements в формате `/w:{meta}-{n}/...`
- * и возвращает следующее свободное число.
- *
- * @returns следующее число для root occurrence
- */
-function getNextRootOccurrence(): number {
-  let max = -1
-
-  for (const placement of dark$.placements.values()) {
-    const match = /^\/w:[^/]+-(\d+)(?:\/|$)/.exec(placement.address)
-    if (!match) continue
-
-    const value = Number(match[1])
-    if (Number.isFinite(value) && value > max) {
-      max = value
-    }
-  }
-
-  return max + 1
-}
-
-/**
- * Перестраивает производное состояние dark state.
- *
- * Сбрасывает и пересобирает индексы `gravity$` и `strong$`
- * на основе текущего состояния `dark$`.
- */
-function rebuildDerivedDarkState(): void {
-  gravity$.reset()
-  strong$.reset()
-  rebuildStrongIndexes(dark$)
-
-  gravity$.nextPlacementSeq = getNextSequence(dark$.placements.keys(), "gp")
-  gravity$.nextLinkSeq = getNextSequence(dark$.links.keys(), "gl")
-  gravity$.nextReferenceSeq = getNextSequence(dark$.references.keys(), "gr")
-  gravity$.rootOccurrenceSeq = getNextRootOccurrence()
-}
-
-/**
- * Сбрасывает всё состояние dark, gravity и strong.
- *
- * Используется для полной очистки графа перед загрузкой нового.
- */
-export function resetDark(): void {
-  dark$.reset()
-  gravity$.reset()
-  strong$.reset()
-}
-
-/**
- * Восстанавливает состояние dark из снимка и перестраивает индексы.
- *
- * @param snapshot — снимок состояния для восстановления
- */
-export function restoreDark(snapshot: DarkStoreSnapshot): void {
-  dark$.restore(snapshot)
-  rebuildDerivedDarkState()
-}
-
-/**
- * Создаёт снимок текущего состояния dark.
- *
- * @returns глубокую копию состояния
- */
-export function snapshotDark(): DarkStoreSnapshot {
-  return dark$.snapshot()
-}
 
 /**
  * Сохраняет meta-схему по адресу в dark store.

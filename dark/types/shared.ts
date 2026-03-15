@@ -283,21 +283,6 @@ export interface DarkStoreSnapshot {
  * Хранит канонический graph state.
  */
 export interface DarkStore extends DarkStoreSnapshot {
-  /** Сбрасывает всё состояние в начальное. */
-  reset(): void
-
-  /**
-   * Восстанавливает состояние из снимка.
-   * @param snapshot — снимок состояния для восстановления
-   */
-  restore(snapshot: DarkStoreSnapshot): void
-
-  /**
-   * Создаёт глубокую копию текущего состояния.
-   * @returns снимок состояния
-   */
-  snapshot(): DarkStoreSnapshot
-
   /**
    * Сохраняет meta-схему по адресу.
    * @param address — канонический адрес хаба
@@ -447,21 +432,6 @@ export interface DarkGravityStoreSnapshot {
  * Хранит промежуточное состояние assembly-слоя gravity.
  */
 export interface DarkGravityStore extends DarkGravityStoreSnapshot {
-  /** Сбрасывает всё состояние в начальное. */
-  reset(): void
-
-  /**
-   * Восстанавливает состояние из снимка.
-   * @param snapshot — снимок состояния для восстановления
-   */
-  restore(snapshot: DarkGravityStoreSnapshot): void
-
-  /**
-   * Создаёт глубокую копию текущего состояния.
-   * @returns снимок состояния
-   */
-  snapshot(): DarkGravityStoreSnapshot
-
   /**
    * Сохраняет local topology fragment по meta.
    * @param meta — адрес meta-схемы
