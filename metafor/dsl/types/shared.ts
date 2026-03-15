@@ -48,6 +48,19 @@ export type {
   ReactionsSchema,
 } from "./reactions"
 
+/**
+ * Состояние приложения.
+ * Строковое представление текущего состояния.
+ *
+ * @group Шаблонизатор
+ * @example
+ * ```typescript
+ * const state: State = "loading" // "loading" | "ready" | "error"
+ * ```
+ */
+
+export type State = string
+
 export type {
   Superposition,
   Transitions,

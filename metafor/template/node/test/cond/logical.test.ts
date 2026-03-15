@@ -6,10 +6,13 @@ describe("логические операторы в условиях", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ showDetails: boolean }, { user: { name: string; isVerified: boolean } }>(
-        ({ html, fields, mass }) => html`
+      elements = parse<
+        { showDetails: { type: "boolean" } },
+        { user: { name: { type: "string" }; isVerified: { type: "boolean" } } }
+      >(
+        ({ html, value, mass }) => html`
           <div>
-            ${mass.user && fields.showDetails
+            ${mass.user && value.showDetails
               ? html`
                   <div class="user-profile">
                     <h2>${mass.user.name}</h2>
@@ -23,7 +26,7 @@ describe("логические операторы в условиях", () => {
                   </div>
                 `}
           </div>
-        `
+        `,
       )
     })
 
@@ -35,7 +38,7 @@ describe("логические операторы в условиях", () => {
           child: [
             {
               type: "cond",
-              data: ["/mass/user", "/fields/showDetails"],
+              data: ["/mass/user", "/value/showDetails"],
               expr: "_[0] && _[1]",
               child: [
                 {
@@ -117,10 +120,10 @@ describe("логические операторы в условиях", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ isAdmin: boolean }, { user: { role: string; isActive: boolean } }>(
-        ({ html, fields, mass }) => html`
+      elements = parse<{ isAdmin: { type: "boolean" } }, { user: { role: string; isActive: boolean } }>(
+        ({ html, value, mass }) => html`
           <div>
-            ${mass.user && mass.user.role === "admin" && fields.isAdmin
+            ${mass.user && mass.user.role === "admin" && value.isAdmin
               ? html`
                   <div class="admin-dashboard">
                     <h1>Admin Dashboard</h1>
@@ -140,7 +143,7 @@ describe("логические операторы в условиях", () => {
                   </div>
                 `}
           </div>
-        `
+        `,
       )
     })
 
@@ -152,7 +155,7 @@ describe("логические операторы в условиях", () => {
           child: [
             {
               type: "cond",
-              data: ["/mass/user", "/mass/user/role", "/fields/isAdmin"],
+              data: ["/mass/user", "/mass/user/role", "/value/isAdmin"],
               expr: '_[0] && _[1] === "admin" && _[2]',
               child: [
                 {

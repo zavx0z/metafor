@@ -13,7 +13,7 @@ describe("map соседствующие", () => {
         ({ html, mass }) => html`
           ${mass.list1.map(({ title }) => html` <div>${title}</div> `)}
           ${mass.list2.map(({ title }) => html` <div>${title}</div> `)}
-        `
+        `,
       )
     })
     it("data", () => {
@@ -55,30 +55,31 @@ describe("map соседствующие", () => {
   })
 
   describe("map соседствующий с map внутри элемента", () => {
-    type Context = {
-      categories: string[]
-    }
-    type Core = {
-      items: {
-        categoryId: number
-        title: string
-      }[]
-    }
     let elements: NodeType[]
     beforeAll(() => {
-      elements = parse<Context, Core>(
-        ({ html, fields, mass }) => html`
+      elements = parse<
+        {
+          categories: { type: "array"; required: true; default: [] }
+        },
+        {
+          items: {
+            categoryId: number
+            title: string
+          }[]
+        }
+      >(
+        ({ html, value, mass }) => html`
           <div class="dashboard">
-            ${fields.categories.map((cat) => html`<span class="category">${cat}</span>`)}
+            ${value.categories.map((cat) => html`<span class="category">${cat}</span>`)}
             ${mass.items.map(
               (item) => html`
                 <div class="item" data-category="${item.categoryId}">
                   <h4>${item.title}</h4>
                 </div>
-              `
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -92,7 +93,7 @@ describe("map соседствующие", () => {
           child: [
             {
               type: "map",
-              data: "/fields/categories",
+              data: "/value/categories",
               child: [
                 {
                   tag: "span",
@@ -162,7 +163,7 @@ describe("map соседствующие", () => {
               </div>
             </div>
           </div>
-        `
+        `,
       )
     })
     it("data", () => {

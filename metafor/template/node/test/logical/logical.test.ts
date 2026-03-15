@@ -6,8 +6,8 @@ describe("логические операторы", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ error: string }>(
-        ({ html, fields }) => html` <div>${fields.error && html`<span class="error">${fields.error}</span>`}</div> `
+      elements = parse<{ error: { type: "string" } }>(
+        ({ html, value }) => html` <div>${value.error && html`<span class="error">${value.error}</span>`}</div> `,
       )
     })
 
@@ -19,7 +19,7 @@ describe("логические операторы", () => {
           child: [
             {
               type: "log",
-              data: "/fields/error",
+              data: "/value/error",
               child: [
                 {
                   tag: "span",
@@ -30,7 +30,7 @@ describe("логические операторы", () => {
                   child: [
                     {
                       type: "text",
-                      data: "/fields/error",
+                      data: "/value/error",
                     },
                   ],
                 },
@@ -57,7 +57,7 @@ describe("логические операторы", () => {
               </div>
             `}
           </div>
-        `
+        `,
       )
     })
 
@@ -114,8 +114,8 @@ describe("логические операторы", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ isVisible: boolean; message: string }>(
-        ({ html, fields }) => html` <div>${fields.isVisible && html`<p>${fields.message}</p>`}</div> `
+      elements = parse<{ isVisible: { type: "boolean" }; message: { type: "string" } }>(
+        ({ html, value }) => html` <div>${value.isVisible && html`<p>${value.message}</p>`}</div> `,
       )
     })
 
@@ -127,7 +127,7 @@ describe("логические операторы", () => {
           child: [
             {
               type: "log",
-              data: "/fields/isVisible",
+              data: "/value/isVisible",
               child: [
                 {
                   tag: "p",
@@ -135,7 +135,7 @@ describe("логические операторы", () => {
                   child: [
                     {
                       type: "text",
-                      data: "/fields/message",
+                      data: "/value/message",
                     },
                   ],
                 },
@@ -151,8 +151,8 @@ describe("логические операторы", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ hasError: boolean }>(
-        ({ html, fields }) => html` <div>${fields.hasError && html`<br />`}</div> `
+      elements = parse<{ hasError: { type: "boolean" } }>(
+        ({ html, value }) => html` <div>${value.hasError && html`<br />`}</div> `,
       )
     })
 
@@ -164,7 +164,7 @@ describe("логические операторы", () => {
           child: [
             {
               type: "log",
-              data: "/fields/hasError",
+              data: "/value/hasError",
               child: [
                 {
                   tag: "br",

@@ -52,11 +52,11 @@ export default MetaFor("git", { desc: "Git — распределённая си
     ({ value, state, html }) => html`
       <meta-for
         src="zavx0z/git-${value.operation}"
-        context=${{
+        fields=${{
           operation: value.operation,
           args: value.args,
         }} />
-      ${state === "ошибка" && html` <meta-for src="zavx0z/git-error" context=${{ message: value.error }} /> `}
+      ${state === "ошибка" && html` <meta-for src="zavx0z/git-error" fields=${{ message: value.error }} /> `}
     `,
   )
   .bulk()

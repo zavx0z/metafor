@@ -31,11 +31,12 @@
  */
 import { createNode } from "./node"
 import type { NodeType } from "./node/index.t"
-import type { Params, Fields, Mass, State } from "./index.t"
 import type { NodeMeta } from "./node/meta.t"
 import type { NodeLogical } from "./node/logical.t"
 import type { NodeMap } from "./node/map.t"
 import { extractHtmlElements } from "./parser"
+import type { Mass, Schema, ViewDefinitionParams } from "@metafor/dsl"
+import type { State } from "@metafor/dsl/types"
 
 export type { NodeType, NodeMeta, NodeLogical, NodeMap }
 
@@ -59,8 +60,8 @@ export type { NodeType, NodeMeta, NodeLogical, NodeMap }
  * `)
  * ```
  */
-export const parse = <F extends Fields = Fields, M extends Mass = Mass, S extends State = State>(
-  template: (params: Params<F, M, S>) => void,
+export const parse = <F extends Schema = Schema, M extends Mass = Mass, S extends State = State>(
+  template: (params: ViewDefinitionParams<F, M, S>) => void,
 ): NodeType[] => {
   const mainHtml = extractMainHtmlBlock(template)
   const hierarchy = extractHtmlElements(mainHtml)
@@ -68,7 +69,7 @@ export const parse = <F extends Fields = Fields, M extends Mass = Mass, S extend
   return hierarchy.map((node) => createNode(node, context))
 }
 
-const extractMainHtmlBlock = (template: (params: Params<any, any, any>) => void): string => {
+const extractMainHtmlBlock = (template: (params: ViewDefinitionParams<any, any, any>) => void): string => {
   const src = Function.prototype.toString.call(template)
   const firstIndex = src.indexOf("html`")
   if (firstIndex === -1) throw new Error("функция template не содержит html`")

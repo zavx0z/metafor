@@ -9,7 +9,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
       elements = parse(({ html }) => html` <meta-for src="test/empty" fields=${{}} mass=${{}} /> `)
     })
     it("attributes", () => {
-      expect(elements, "при обработке пустых объектов не должен устанавливаться mass и fields").toEqual([
+      expect(elements, "при обработке пустых объектов не должен устанавливаться mass и value").toEqual([
         {
           tag: "meta-for",
           type: "meta",
@@ -18,7 +18,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
       ])
     })
     it("data", () => {
-      expect(elements, "fields и mass не должно быть в data").toEqual([
+      expect(elements, "value и mass не должно быть в data").toEqual([
         {
           tag: "meta-for",
           type: "meta",
@@ -33,17 +33,18 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
 
     beforeAll(() => {
       elements = parse<any, Core>(
-        ({ html, mass, fields }) => html`
+        ({ html, mass }) => html`
           <div>
             ${mass.items.map(
               (item) => html`
-                <meta-for src="test/item"
+                <meta-for
+                  src="test/item"
                   mass=${{ id: item.id, name: item.name, type: mass.type }}
                   fields=${{ status: item.status, active: item.active }} />
-              `
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
 
@@ -83,21 +84,23 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
 
     beforeAll(() => {
       elements = parse(
-        ({ html, mass, fields }) => html`
+        ({ html, value }) => html`
           <div>
-            ${fields.showMeta
+            ${value.showMeta
               ? html`
-                  <meta-for src="test/primary"
-                    mass=${{ id: fields.id, name: fields.name }}
+                  <meta-for
+                    src="test/primary"
+                    mass=${{ id: value.id, name: value.name }}
                     fields=${{ type: "primary", active: true }} />
                 `
               : html`
-                  <meta-for src="test/secondary"
+                  <meta-for
+                    src="test/secondary"
                     mass=${{ id: "default", name: "default" }}
                     fields=${{ type: "secondary", active: false }} />
                 `}
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -108,14 +111,14 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
           child: [
             {
               type: "cond",
-              data: "/fields/showMeta",
+              data: "/value/showMeta",
               child: [
                 {
                   tag: "meta-for",
                   type: "meta",
                   src: "test/primary",
                   mass: {
-                    data: ["/fields/id", "/fields/name"],
+                    data: ["/value/id", "/value/name"],
                     expr: "{ id: _[0], name: _[1] }",
                   },
                   fields: '{ type: "primary", active: true }',
@@ -141,13 +144,14 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
 
     beforeAll(() => {
       elements = parse<any, Core>(
-        ({ html, mass, fields }) => html`
+        ({ html, mass, value }) => html`
           <div>
-            ${fields.showList
+            ${value.showList
               ? html`
                   ${mass.items.map(
                     (item) => html`
-                      <meta-for src="test/list-item"
+                      <meta-for
+                        src="test/list-item"
                         mass=${{
                           id: item.id,
                           name: item.name,
@@ -159,16 +163,17 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                           active: item.active,
                           permissions: item.permissions,
                         }} />
-                    `
+                    `,
                   )}
                 `
               : html`
-                  <meta-for src="test/empty"
+                  <meta-for
+                    src="test/empty"
                     mass=${{ id: "empty", name: "empty" }}
                     fields=${{ type: "empty", active: false }} />
                 `}
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -179,7 +184,7 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
           child: [
             {
               type: "cond",
-              data: "/fields/showList",
+              data: "/value/showList",
               child: [
                 {
                   type: "map",
@@ -227,7 +232,8 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
               (item) => html`
                 ${item.isActive
                   ? html`
-                      <meta-for src="test/active"
+                      <meta-for
+                        src="test/active"
                         mass=${{
                           id: item.id,
                           name: item.name,
@@ -239,27 +245,29 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         }} />
                     `
                   : item.hasError
-                  ? html`
-                      <meta-for src="test/error"
-                        mass=${{
-                          id: item.id,
-                          name: item.name,
-                          type: "error",
-                        }}
-                        fields=${{
-                          status: "error",
-                          message: "Item has error",
-                        }} />
-                    `
-                  : html`
-                      <meta-for src="test/inactive"
-                        mass=${{ id: item.id, name: item.name, type: "inactive" }}
-                        fields=${{ status: "inactive" }} />
-                    `}
-              `
+                    ? html`
+                        <meta-for
+                          src="test/error"
+                          mass=${{
+                            id: item.id,
+                            name: item.name,
+                            type: "error",
+                          }}
+                          fields=${{
+                            status: "error",
+                            message: "Item has error",
+                          }} />
+                      `
+                    : html`
+                        <meta-for
+                          src="test/inactive"
+                          mass=${{ id: item.id, name: item.name, type: "inactive" }}
+                          fields=${{ status: "inactive" }} />
+                      `}
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
 
@@ -337,7 +345,8 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
             ${mass.users.map(
               (user) => html`
                 ${user.permissions.includes("admin")
-                  ? html`<meta-for src="test/admin"
+                  ? html`<meta-for
+                      src="test/admin"
                       mass=${{
                         id: user.id,
                         name: user.name,
@@ -357,48 +366,50 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                         canManage: true,
                       }} />`
                   : user.permissions.includes("moderator")
-                  ? html`<meta-for src="test/moderator"
-                      mass=${{
-                        id: user.id,
-                        name: user.name,
-                        type: "moderator",
-                        permissions: user.permissions,
-                        metadata: {
-                          level: "moderator",
-                          access: "limited",
-                          settings: user.settings,
-                        },
-                      }}
-                      fields=${{
-                        status: "moderator",
-                        active: user.isOnline,
-                        canEdit: true,
-                        canDelete: false,
-                        canManage: false,
-                      }} />`
-                  : html`<meta-for src="test/user"
-                      mass=${{
-                        id: user.id,
-                        name: user.name,
-                        type: "user",
-                        permissions: user.permissions,
-                        metadata: {
-                          level: "user",
-                          access: "basic",
-                          settings: user.settings,
-                        },
-                      }}
-                      fields=${{
-                        status: "user",
-                        active: user.isOnline,
-                        canEdit: false,
-                        canDelete: false,
-                        canManage: false,
-                      }} />`}
-              `
+                    ? html`<meta-for
+                        src="test/moderator"
+                        mass=${{
+                          id: user.id,
+                          name: user.name,
+                          type: "moderator",
+                          permissions: user.permissions,
+                          metadata: {
+                            level: "moderator",
+                            access: "limited",
+                            settings: user.settings,
+                          },
+                        }}
+                        fields=${{
+                          status: "moderator",
+                          active: user.isOnline,
+                          canEdit: true,
+                          canDelete: false,
+                          canManage: false,
+                        }} />`
+                    : html`<meta-for
+                        src="test/user"
+                        mass=${{
+                          id: user.id,
+                          name: user.name,
+                          type: "user",
+                          permissions: user.permissions,
+                          metadata: {
+                            level: "user",
+                            access: "basic",
+                            settings: user.settings,
+                          },
+                        }}
+                        fields=${{
+                          status: "user",
+                          active: user.isOnline,
+                          canEdit: false,
+                          canDelete: false,
+                          canManage: false,
+                        }} />`}
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
 
@@ -479,11 +490,12 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
 
     beforeAll(() => {
       elements = parse<any, Core>(
-        ({ html, mass, fields }) => html`
+        ({ html, mass }) => html`
           <div>
             ${mass.items.map(
               (item) => html`
-                <meta-for src="test/dynamic"
+                <meta-for
+                  src="test/dynamic"
                   mass=${{
                     id: item.id,
                     name: item.name,
@@ -507,10 +519,10 @@ describe("meta-компоненты с fields/mass в map и condition", () => {
                       updated: item.updated || item.lastModified,
                     },
                   }} />
-              `
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
     it("data", () => {

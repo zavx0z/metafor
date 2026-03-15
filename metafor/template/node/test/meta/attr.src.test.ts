@@ -115,4 +115,111 @@ describe("meta > src атрибут", () => {
       }).toThrow(/Невалидный src/)
     })
   })
+
+  describe("динамический src", () => {
+    test("src из mass", () => {
+      const result = parse(({ html, mass }) => {
+        html`<meta-for src="${mass.component}"></meta-for>`
+      })
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({
+        type: "meta",
+        tag: "meta-for",
+        src: {
+          data: "/mass/component",
+        },
+      })
+    })
+
+    test("src из value", () => {
+      const result = parse(({ html, value }) => {
+        html`<meta-for src="${value.src}"></meta-for>`
+      })
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({
+        type: "meta",
+        tag: "meta-for",
+        src: {
+          data: "/value/src",
+        },
+      })
+    })
+
+    test("src с динамическим выражением", () => {
+      const result = parse(({ html, mass }) => {
+        html`<meta-for src="${mass.type === "admin" ? "org/admin" : "org/user"}"></meta-for>`
+      })
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({
+        type: "meta",
+        tag: "meta-for",
+        src: {
+          data: "/mass/type",
+          expr: '${_[0] === "admin" ? "org/admin" : "org/user"}',
+        },
+      })
+    })
+
+    test("src с конкатенацией", () => {
+      const result = parse(({ html, mass }) => {
+        html`<meta-for src="${mass.org}/${mass.repo}"></meta-for>`
+      })
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({
+        type: "meta",
+        tag: "meta-for",
+        src: {
+          data: ["/mass/org", "/mass/repo"],
+          expr: "${_[0]}/${_[1]}",
+        },
+      })
+    })
+
+    test("src в map", () => {
+      const result = parse<any, { items: { src: { type: "string" } }[] }>(({ html, mass }) => {
+        html`${mass.items.map((item) => html`<meta-for src="${item.src}"></meta-for>`)}`
+      })
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({
+        type: "map",
+        data: "/mass/items",
+        child: [
+          {
+            type: "meta",
+            tag: "meta-for",
+            src: {
+              data: "[item]/src",
+            },
+          },
+        ],
+      })
+    })
+
+    test("src в condition", () => {
+      const result = parse(({ html, mass, value }) => {
+        html`${value.show
+          ? html`<meta-for src="${mass.src}"></meta-for>`
+          : html`<meta-for src="default/src"></meta-for>`}`
+      })
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({
+        type: "cond",
+        data: "/value/show",
+        child: [
+          {
+            type: "meta",
+            tag: "meta-for",
+            src: {
+              data: "/mass/src",
+            },
+          },
+          {
+            type: "meta",
+            tag: "meta-for",
+            src: "default/src",
+          },
+        ],
+      })
+    })
+  })
 })

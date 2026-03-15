@@ -3,29 +3,25 @@ import { parse, type NodeType } from "../../../index"
 
 describe("условия соседствующие", () => {
   describe("условие соседствующее с условием на верхнем уровне", () => {
-    type Context = {
-      flag1: boolean
-      flag2: boolean
-    }
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ flag1: boolean; flag2: boolean }, {}>(
-        ({ html, fields }) => html`
-          ${fields.flag1
+      elements = parse<{ flag1: { type: "boolean" }; flag2: { type: "boolean" } }, {}>(
+        ({ html, value }) => html`
+          ${value.flag1
             ? html`<div class="conditional1">Content 1</div>`
             : html`<div class="fallback1">No content 1</div>`}
-          ${fields.flag2
+          ${value.flag2
             ? html`<div class="conditional2">Content 2</div>`
             : html`<div class="fallback2">No content 2</div>`}
-        `
+        `,
       )
     })
     it("data", () => {
       expect(elements).toEqual([
         {
           type: "cond",
-          data: "/fields/flag1",
+          data: "/value/flag1",
           child: [
             {
               tag: "div",
@@ -57,7 +53,7 @@ describe("условия соседствующие", () => {
         },
         {
           type: "cond",
-          data: "/fields/flag2",
+          data: "/value/flag2",
           child: [
             {
               tag: "div",
@@ -95,17 +91,17 @@ describe("условия соседствующие", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ flag1: boolean; flag2: boolean }, {}>(
-        ({ html, fields }) => html`
+      elements = parse<{ flag1: { type: "boolean" }; flag2: { type: "boolean" } }, {}>(
+        ({ html, value }) => html`
           <div class="container">
-            ${fields.flag1
+            ${value.flag1
               ? html`<div class="conditional1">Content 1</div>`
               : html`<div class="fallback1">No content 1</div>`}
-            ${fields.flag2
+            ${value.flag2
               ? html`<div class="conditional2">Content 2</div>`
               : html`<div class="fallback2">No content 2</div>`}
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -119,7 +115,7 @@ describe("условия соседствующие", () => {
           child: [
             {
               type: "cond",
-              data: "/fields/flag1",
+              data: "/value/flag1",
               child: [
                 {
                   tag: "div",
@@ -151,7 +147,7 @@ describe("условия соседствующие", () => {
             },
             {
               type: "cond",
-              data: "/fields/flag2",
+              data: "/value/flag2",
               child: [
                 {
                   tag: "div",
@@ -191,24 +187,24 @@ describe("условия соседствующие", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ flag1: boolean; flag2: boolean; flag3: boolean }, {}>(
-        ({ html, fields }) => html`
+      elements = parse<{ flag1: { type: "boolean" }; flag2: { type: "boolean" }; flag3: { type: "boolean" } }, {}>(
+        ({ html, value }) => html`
           <div class="level1">
             <div class="level2">
               <div class="level3">
-                ${fields.flag1
+                ${value.flag1
                   ? html`<div class="conditional1">Content 1</div>`
                   : html`<div class="fallback1">No content 1</div>`}
-                ${fields.flag2
+                ${value.flag2
                   ? html`<div class="conditional2">Content 2</div>`
                   : html`<div class="fallback2">No content 2</div>`}
-                ${fields.flag3
+                ${value.flag3
                   ? html`<div class="conditional3">Content 3</div>`
                   : html`<div class="fallback3">No content 3</div>`}
               </div>
             </div>
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -236,7 +232,7 @@ describe("условия соседствующие", () => {
                   child: [
                     {
                       type: "cond",
-                      data: "/fields/flag1",
+                      data: "/value/flag1",
                       child: [
                         {
                           tag: "div",
@@ -268,7 +264,7 @@ describe("условия соседствующие", () => {
                     },
                     {
                       type: "cond",
-                      data: "/fields/flag2",
+                      data: "/value/flag2",
                       child: [
                         {
                           tag: "div",
@@ -300,7 +296,7 @@ describe("условия соседствующие", () => {
                     },
                     {
                       type: "cond",
-                      data: "/fields/flag3",
+                      data: "/value/flag3",
                       child: [
                         {
                           tag: "div",

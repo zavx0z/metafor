@@ -6,16 +6,19 @@ describe("text-formatting", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ name: string; title: string }, { items: { title: string }[] }>(
-        ({ html, fields, mass }) => html`
+      elements = parse<
+        { name: { type: "string" }; title: { type: "string" } },
+        { items: { title: { type: "string" } }[] }
+      >(
+        ({ html, value, mass }) => html`
           <div>
             <p>Hello World</p>
-            <span>${fields.name} - ${fields.title}</span>
-            <span>${fields.name} - ${mass.items.map((item) => item.title).join(", ")}</span>
+            <span>${value.name} - ${value.title}</span>
+            <span>${value.name} - ${mass.items.map((item) => item.title).join(", ")}</span>
             <div>Welcome to our site!</div>
-            <p>${fields.name} is ${fields.title}</p>
+            <p>${value.name} is ${value.title}</p>
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -40,7 +43,7 @@ describe("text-formatting", () => {
               child: [
                 {
                   type: "text",
-                  data: ["/fields/name", "/fields/title"],
+                  data: ["/value/name", "/value/title"],
                   expr: "${_[0]} - ${_[1]}",
                 },
               ],
@@ -51,7 +54,7 @@ describe("text-formatting", () => {
               child: [
                 {
                   type: "text",
-                  data: "/fields/name",
+                  data: "/value/name",
                   expr: "${_[0]} - ${_[0]}",
                 },
               ],
@@ -72,7 +75,7 @@ describe("text-formatting", () => {
               child: [
                 {
                   type: "text",
-                  data: ["/fields/name", "/fields/title"],
+                  data: ["/value/name", "/value/title"],
                   expr: "${_[0]} is ${_[1]}",
                 },
               ],

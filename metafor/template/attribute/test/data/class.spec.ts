@@ -62,8 +62,8 @@ describe("class атрибуты в data.ts", () => {
     describe("class в элементе с одним динамическим значением", () => {
       let elements: NodeType[]
       beforeAll(() => {
-        elements = parse<{ active: boolean }>(
-          ({ html, mass }) => html`<div class="${mass.active ? "active" : "inactive"}"></div>`
+        elements = parse<any, { active: { type: "boolean"; required: true; default: false } }>(
+          ({ html, mass }) => html`<div class="${mass.active ? "active" : "inactive"}"></div>`,
         )
       })
 
@@ -86,8 +86,8 @@ describe("class атрибуты в data.ts", () => {
     describe("class в элементе с одним динамическим значением без кавычек", () => {
       let elements: NodeType[]
       beforeAll(() => {
-        elements = parse<{ active: boolean }>(
-          ({ html, mass }) => html`<div class=${mass.active ? "active" : "inactive"}></div>`
+        elements = parse<any, { active: { type: "boolean"; required: true; default: false } }>(
+          ({ html, mass }) => html`<div class=${mass.active ? "active" : "inactive"}></div>`,
         )
       })
       it("data", () => {
@@ -109,10 +109,10 @@ describe("class атрибуты в data.ts", () => {
     describe("class в элементе с несколькими динамическими значениями", () => {
       let elements: NodeType[]
       beforeAll(() => {
-        elements = parse<{ active: boolean }>(
+        elements = parse<any, { active: { type: "boolean"; required: true; default: false } }>(
           ({ html, mass }) => html`
             <div class="${mass.active ? "active" : "inactive"} ${mass.active ? "active" : "inactive"}"></div>
-          `
+          `,
         )
       })
 
@@ -141,8 +141,8 @@ describe("class атрибуты в data.ts", () => {
     describe("class в элементе с операторами сравнения", () => {
       let elements: NodeType[]
       beforeAll(() => {
-        elements = parse<{ count: number }>(
-          ({ html, mass }) => html`<div class="${mass.count > 5 ? "large" : "small"}"></div>`
+        elements = parse<any, { count: number }>(
+          ({ html, mass }) => html`<div class="${mass.count > 5 ? "large" : "small"}"></div>`,
         )
       })
       it("data", () => {
@@ -164,8 +164,8 @@ describe("class атрибуты в data.ts", () => {
     describe("class в элементе с операторами равенства", () => {
       let elements: NodeType[]
       beforeAll(() => {
-        elements = parse<{ status: string }>(
-          ({ html, mass }) => html`<div class="${mass.status === "loading" ? "loading" : "ready"}"></div>`
+        elements = parse<any, { status: string }>(
+          ({ html, mass }) => html`<div class="${mass.status === "loading" ? "loading" : "ready"}"></div>`,
         )
       })
       it("data", () => {
@@ -188,9 +188,13 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ active: boolean; visible: boolean }>(
-          ({ html, mass }) => html`<div class="${mass.active && mass.visible ? "show" : "hide"}"></div>`
-        )
+        elements = parse<
+          any,
+          {
+            active: { type: "boolean"; required: true; default: false }
+            visible: { type: "boolean"; required: true; default: false }
+          }
+        >(({ html, mass }) => html`<div class="${mass.active && mass.visible ? "show" : "hide"}"></div>`)
       })
       it("data", () => {
         expect(elements).toEqual([
@@ -212,9 +216,13 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ error: boolean; warning: boolean }>(
-          ({ html, mass }) => html`<div class="${mass.error || mass.warning ? "alert" : "normal"}"></div>`
-        )
+        elements = parse<
+          any,
+          {
+            error: { type: "boolean"; required: true; default: false }
+            warning: { type: "boolean"; required: true; default: false }
+          }
+        >(({ html, mass }) => html`<div class="${mass.error || mass.warning ? "alert" : "normal"}"></div>`)
       })
       it("data", () => {
         expect(elements).toEqual([
@@ -236,8 +244,8 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ disabled: boolean }>(
-          ({ html, mass }) => html`<div class="${!mass.disabled ? "enabled" : "disabled"}"></div>`
+        elements = parse<any, { disabled: { type: "boolean"; required: true; default: false } }>(
+          ({ html, mass }) => html`<div class="${!mass.disabled ? "enabled" : "disabled"}"></div>`,
         )
       })
       it("data", () => {
@@ -260,7 +268,9 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ active: boolean }>(({ html, mass }) => html`<div class="${mass.active && "active"}"></div>`)
+        elements = parse<any, { active: { type: "boolean"; required: true; default: false } }>(
+          ({ html, mass }) => html`<div class="${mass.active && "active"}"></div>`,
+        )
       })
       it("data", () => {
         expect(elements).toEqual([
@@ -284,8 +294,8 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ active: boolean }>(
-          ({ html, mass }) => html`<div class="div-${mass.active ? "active" : "inactive"}"></div>`
+        elements = parse<any, { active: { type: "boolean"; required: true; default: false } }>(
+          ({ html, mass }) => html`<div class="div-${mass.active ? "active" : "inactive"}"></div>`,
         )
       })
       it("data", () => {
@@ -308,8 +318,8 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ active: boolean }>(
-          ({ html, mass }) => html`<div class="div-${mass.active ? "active" : "inactive"}"></div>`
+        elements = parse<any, { active: { type: "boolean"; required: true; default: false } }>(
+          ({ html, mass }) => html`<div class="div-${mass.active ? "active" : "inactive"}"></div>`,
         )
       })
 
@@ -333,10 +343,10 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ active: boolean }>(
+        elements = parse<any, { active: { type: "boolean"; required: true; default: false } }>(
           ({ html, mass }) =>
             html`<div
-              class="div-${mass.active ? "active" : "inactive"} div-${mass.active ? "active" : "inactive"}"></div>`
+              class="div-${mass.active ? "active" : "inactive"} div-${mass.active ? "active" : "inactive"}"></div>`,
         )
       })
       it("data", () => {
@@ -367,8 +377,8 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ active: boolean }>(
-          ({ html, mass }) => html`<div class="div-${mass.active ? "active" : "inactive"} visible"></div>`
+        elements = parse<any, { active: { type: "boolean"; required: true; default: false } }>(
+          ({ html, mass }) => html`<div class="div-${mass.active ? "active" : "inactive"} visible"></div>`,
         )
       })
       it("data", () => {
@@ -394,8 +404,8 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ active: boolean }>(
-          ({ html, mass }) => html`<div class="${mass.active ? "active" : "inactive"} visible"></div>`
+        elements = parse<any, { active: { type: "boolean"; required: true; default: false } }>(
+          ({ html, mass }) => html`<div class="${mass.active ? "active" : "inactive"} visible"></div>`,
         )
       })
       it("data", () => {
@@ -421,9 +431,15 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ active: boolean; type: string }>(
+        elements = parse<
+          any,
+          {
+            active: { type: "boolean"; required: true; default: false }
+            type: { type: "string"; required: true; default: "" }
+          }
+        >(
           ({ html, mass }) =>
-            html`<div class="static-value ${mass.active ? "active" : "inactive"} mixed-${mass.type}"></div>`
+            html`<div class="static-value ${mass.active ? "active" : "inactive"} mixed-${mass.type}"></div>`,
         )
       })
       it("data", () => {
@@ -453,9 +469,14 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ variant: string; size: string; theme: string }>(
-          ({ html, mass }) => html`<div class="btn-${mass.variant} text-${mass.size} bg-${mass.theme}"></div>`
-        )
+        elements = parse<
+          any,
+          {
+            variant: { type: "string"; required: true; default: "" }
+            size: { type: "string"; required: true; default: "" }
+            theme: { type: "string"; required: true; default: "" }
+          }
+        >(({ html, mass }) => html`<div class="btn-${mass.variant} text-${mass.size} bg-${mass.theme}"></div>`)
       })
       it("data", () => {
         expect(elements).toEqual([
@@ -487,10 +508,16 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ active: boolean; disabled: boolean }>(
+        elements = parse<
+          any,
+          {
+            active: { type: "boolean"; required: true; default: false }
+            disabled: { type: "boolean"; required: true; default: false }
+          }
+        >(
           ({ html, mass }) =>
             html`<div
-              class="base-class ${mass.active ? "active" : "inactive"} ${mass.disabled ? "disabled" : ""}"></div>`
+              class="base-class ${mass.active ? "active" : "inactive"} ${mass.disabled ? "disabled" : ""}"></div>`,
         )
       })
       it("data", () => {
@@ -520,8 +547,8 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ nested: boolean }>(
-          ({ html, mass }) => html`<div class="container ${mass.nested ? "nested" : "default"}"></div>`
+        elements = parse<any, { nested: { type: "boolean"; required: true; default: false } }>(
+          ({ html, mass }) => html`<div class="container ${mass.nested ? "nested" : "default"}"></div>`,
         )
       })
       it("data", () => {
@@ -547,9 +574,15 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ hidden: boolean; active: boolean }>(
+        elements = parse<
+          any,
+          {
+            hidden: { type: "boolean"; required: true; default: false }
+            active: { type: "boolean"; required: true; default: false }
+          }
+        >(
           ({ html, mass }) =>
-            html`<div class="visible ${mass.hidden ? "" : "show"} ${mass.active ? "active" : ""}"></div>`
+            html`<div class="visible ${mass.hidden ? "" : "show"} ${mass.active ? "active" : ""}"></div>`,
         )
       })
       it("data", () => {
@@ -579,8 +612,8 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<{ active: boolean }>(
-          ({ html, mass }) => html`<div class="static-value-${mass.active ? "active" : "inactive"}"></div>`
+        elements = parse<any, { active: { type: "boolean"; required: true; default: false } }>(
+          ({ html, mass }) => html`<div class="static-value-${mass.active ? "active" : "inactive"}"></div>`,
         )
       })
       it("data", () => {
@@ -603,9 +636,16 @@ describe("class атрибуты в data.ts", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse<any, { user: { id: string; role: string }; theme: string }>(
-          ({ html, mass }) => html`<div class="user-${mass.user.id}-${mass.user.role}-${mass.theme}"></div>`
-        )
+        elements = parse<
+          any,
+          {
+            user: {
+              id: { type: "string"; required: true; default: "" }
+              role: { type: "string"; required: true; default: "" }
+            }
+            theme: { type: "string"; required: true; default: "" }
+          }
+        >(({ html, mass }) => html`<div class="user-${mass.user.id}-${mass.user.role}-${mass.theme}"></div>`)
       })
       it("data", () => {
         expect(elements).toEqual([
@@ -630,16 +670,19 @@ describe("class атрибуты в data.ts", () => {
         elements = parse<
           any,
           {
-            user: { id: string; role: string }
-            theme: string
-            isActive: boolean
+            user: {
+              id: { type: "string"; required: true; default: "" }
+              role: { type: "string"; required: true; default: "" }
+            }
+            theme: { type: "string"; required: true; default: "" }
+            isActive: { type: "boolean"; required: true; default: false }
           }
         >(
           ({ html, mass }) =>
             html`<div
               class="user-${mass.user.id}-${mass.user.role}-${mass.theme}-${mass.isActive
                 ? "active"
-                : "inactive"}"></div>`
+                : "inactive"}"></div>`,
         )
       })
       it("data", () => {
@@ -661,9 +704,16 @@ describe("class атрибуты в data.ts", () => {
     describe("class в элементе с массивом классов со сложной строкой", () => {
       let elements: NodeType[]
       beforeAll(() => {
-        elements = parse<any, { user: { id: string; role: string }; theme: string }>(
-          ({ html, mass }) => html`<div class="base user-${mass.user.id}-${mass.user.role} theme-${mass.theme}"></div>`
-        )
+        elements = parse<
+          any,
+          {
+            user: {
+              id: { type: "string"; required: true; default: "" }
+              role: { type: "string"; required: true; default: "" }
+            }
+            theme: { type: "string"; required: true; default: "" }
+          }
+        >(({ html, mass }) => html`<div class="base user-${mass.user.id}-${mass.user.role} theme-${mass.theme}"></div>`)
       })
       it("data", () => {
         expect(elements).toEqual([
@@ -694,23 +744,25 @@ describe("class атрибуты в data.ts", () => {
         elements = parse<
           any,
           {
-            user: { id: string; role: string }
-            theme: string
-            isActive: boolean
-            isAdmin: boolean
+            user: {
+              id: { type: "string"; required: true; default: "" }
+              role: { type: "string"; required: true; default: "" }
+            }
+            theme: { type: "string"; required: true; default: "" }
+            isActive: { type: "boolean"; required: true; default: false }
+            isAdmin: { type: "boolean"; required: true; default: false }
           }
         >(
-          ({ html, mass }) =>
-            html`
-              <div
-                class="
-              base 
-              user-${mass.user.id} 
-              ${mass.isActive ? "active" : "inactive"} 
-              ${mass.isAdmin ? "admin" : "user"} 
+          ({ html, mass }) => html`
+            <div
+              class="
+              base
+              user-${mass.user.id}
+              ${mass.isActive ? "active" : "inactive"}
+              ${mass.isAdmin ? "admin" : "user"}
               theme-${mass.theme}
               "></div>
-            `
+          `,
         )
       })
       it("data", () => {
@@ -747,9 +799,10 @@ describe("class атрибуты в data.ts", () => {
   describe("постфикс с условием и статическими значениями", () => {
     let elements: NodeType[]
     beforeAll(() => {
-      elements = parse<{ status: boolean }>(
-        ({ html, fields }) => html`<div class="${fields.status ? "active" : "inactive"}-status">Status</div>`
-      )
+      elements = parse<
+        { status: { type: "boolean"; required: true; default: false } },
+        { status: { type: "boolean"; required: true; default: false } }
+      >(({ html, value }) => html`<div class="${value.status ? "active" : "inactive"}-status">Status</div>`)
     })
     it("data", () => {
       expect(elements, "суффикс с условием").toEqual([
@@ -758,7 +811,7 @@ describe("class атрибуты в data.ts", () => {
           type: "el",
           string: {
             class: {
-              data: "/fields/status",
+              data: "/value/status",
               expr: '${_[0] ? "active" : "inactive"}-status',
             },
           },

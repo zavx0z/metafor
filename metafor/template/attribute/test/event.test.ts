@@ -8,6 +8,7 @@ describe("event", () => {
       {
         tag: "meta-for",
         type: "meta",
+        src: "test/component",
         event: {
           onclick: "() => update({ selected: mass.id })",
         },
@@ -19,6 +20,7 @@ describe("event", () => {
       {
         tag: "meta-for",
         type: "meta",
+        src: "test/component",
         event: {
           onclick: {
             data: "/mass/id",

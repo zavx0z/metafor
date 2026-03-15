@@ -340,7 +340,7 @@ export type MetaForConfig = {
  *
  * // Передача данных дочернему актору
  * gravity: ({ value, html }) => html`
- *   <meta-for src="meta/child.js" fields=${{ data: value.value }}></meta-for>
+ *   <meta-for src="meta/child.js" fields=${{ data: value.data }}></meta-for>
  * `
  *
  * // Несколько акторов в иерархии
@@ -369,7 +369,7 @@ export type ViewDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Ma
    * @example
    * ```ts
    * gravity: ({ value, html }) => html`
-   *   <meta-for src="meta/child.js" fields=${{ value: value.data }}></meta-for>
+   *   <meta-for src="meta/child" fields=${{ value: value.data }}></meta-for>
    * `
    */
   value: Values<ɸ>

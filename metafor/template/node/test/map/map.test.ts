@@ -6,12 +6,12 @@ describe("map", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ list: string[] }>(
-        ({ html, fields }) => html`
+      elements = parse<{ list: { type: "array"; required: true; default: [] } }>(
+        ({ html, value }) => html`
           <ul>
-            ${fields.list.map((name) => html`<li>${name}</li>`)}
+            ${value.list.map((name) => html`<li>${name}</li>`)}
           </ul>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -22,7 +22,7 @@ describe("map", () => {
           child: [
             {
               type: "map",
-              data: "/fields/list",
+              data: "/value/list",
               child: [
                 {
                   tag: "li",
@@ -45,18 +45,17 @@ describe("map", () => {
   describe("простой map с несколькими детьми", () => {
     let elements: NodeType[]
     beforeAll(() => {
-      elements = parse<{ list: string[] }>(
-        ({ html, fields }) => html`
+      elements = parse<{ list: { type: "array"; required: true; default: [] } }>(
+        ({ html, value }) => html`
           <ul>
-            ${fields.list.map(
-              (name) =>
-                html`
-                  <li>${name}</li>
-                  <br />
-                `
+            ${value.list.map(
+              (name) => html`
+                <li>${name}</li>
+                <br />
+              `,
             )}
           </ul>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -67,7 +66,7 @@ describe("map", () => {
           child: [
             {
               type: "map",
-              data: "/fields/list",
+              data: "/value/list",
               child: [
                 {
                   tag: "li",
@@ -105,7 +104,7 @@ describe("map", () => {
               `
             )}
           </ul>
-        `
+        `,
         )
       })
       it("data", () => {
@@ -160,12 +159,12 @@ describe("map", () => {
     describe("map с индексом", () => {
       let elements: NodeType[]
       beforeAll(() => {
-        elements = parse<{ list: string[] }>(
-          ({ html, fields }) => html`
+        elements = parse<{ list: { type: "array"; required: true; default: [] } }>(
+          ({ html, value }) => html`
             <ul>
-              ${fields.list.map((_, i) => html`<li>${i % 2 ? html`<em>A</em>` : html`<strong>B</strong>`}</li>`)}
+              ${value.list.map((_, i) => html`<li>${i % 2 ? html`<em>A</em>` : html`<strong>B</strong>`}</li>`)}
             </ul>
-          `
+          `,
         )
       })
       it("data", () => {
@@ -176,7 +175,7 @@ describe("map", () => {
             child: [
               {
                 type: "map",
-                data: "/fields/list",
+                data: "/value/list",
                 child: [
                   {
                     tag: "li",
@@ -221,25 +220,25 @@ describe("map", () => {
     describe("map в условии", () => {
       let elements: NodeType[]
       beforeAll(() => {
-        elements = parse<{ flag: boolean }, { list: { title: string; nested: string[] }[] }>(
-          ({ html, mass, fields }) => html`
-            ${fields.flag
+        elements = parse<{ flag: { type: "boolean" } }, { list: { title: string; nested: string[] }[] }>(
+          ({ html, mass, value }) => html`
+            ${value.flag
               ? html`
                   <ul>
                     ${mass.list.map(
-                      ({ title, nested }) => html`<li>${title} ${nested.map((n) => html`<em>${n}</em>`)}</li>`
+                      ({ title, nested }) => html`<li>${title} ${nested.map((n) => html`<em>${n}</em>`)}</li>`,
                     )}
                   </ul>
                 `
               : html`<div>x</div>`}
-          `
+          `,
         )
       })
       it("data", () => {
         expect(elements).toEqual([
           {
             type: "cond",
-            data: "/fields/flag",
+            data: "/value/flag",
             child: [
               {
                 tag: "ul",
@@ -303,7 +302,7 @@ describe("map", () => {
           <ul>
             ${mass.list.map(({ title, nested }) => html`<li>${title} ${nested.map((n) => html`<em>${n}</em>`)}</li>`)}
           </ul>
-        `
+        `,
       )
     })
     it("data", () => {

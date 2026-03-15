@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeAll } from "bun:test"
 import { parse, type NodeType } from "../../../index"
 
-describe("fields/mass в атрибутах", () => {
+describe("value/mass в атрибутах", () => {
   describe("mass с динамическими значениями", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse(({ html, fields }) => html`<meta-for src="test/mass-dynamic" mass=${{ id: fields.id, name: fields.name }} />`)
+      elements = parse(
+        ({ html, value }) => html`<meta-for src="test/mass-dynamic" mass=${{ id: value.id, name: value.name }} />`,
+      )
     })
     it("data", () => {
       expect(elements).toEqual([
@@ -15,7 +17,7 @@ describe("fields/mass в атрибутах", () => {
           type: "meta",
           src: "test/mass-dynamic",
           mass: {
-            data: ["/fields/id", "/fields/name"],
+            data: ["/value/id", "/value/name"],
             expr: "{ id: _[0], name: _[1] }",
           },
         },
@@ -27,7 +29,7 @@ describe("fields/mass в атрибутах", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse(({ html, mass }) => html`<meta-for src="test/mass-static" mass=${{ id: "1", name: "2" }} />`)
+      elements = parse(({ html }) => html`<meta-for src="test/mass-static" mass=${{ id: "1", name: "2" }} />`)
     })
     it("data", () => {
       expect(elements).toEqual([
@@ -46,7 +48,9 @@ describe("fields/mass в атрибутах", () => {
 
     beforeAll(() => {
       elements = parse(
-        ({ html, mass, fields }) => html` <div><meta-for src="test/nested" fields=${{ id: fields.id, name: fields.name }} /></div> `,
+        ({ html, value }) => html`
+          <div><meta-for src="test/nested" fields=${{ id: value.id, name: value.name }} /></div>
+        `,
       )
     })
     it("data", () => {
@@ -60,7 +64,7 @@ describe("fields/mass в атрибутах", () => {
               type: "meta",
               src: "test/nested",
               fields: {
-                data: ["/fields/id", "/fields/name"],
+                data: ["/value/id", "/value/name"],
                 expr: "{ id: _[0], name: _[1] }",
               },
             },
@@ -70,11 +74,13 @@ describe("fields/mass в атрибутах", () => {
     })
   })
 
-  describe("fields", () => {
+  describe("value", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse(({ html, mass, fields }) => html`<meta-for src="test/fields" fields=${{ id: fields.id, name: fields.name }} />`)
+      elements = parse(
+        ({ html, value }) => html`<meta-for src="test/fields" fields=${{ id: value.id, name: value.name }} />`,
+      )
     })
     it("data", () => {
       expect(elements).toEqual([
@@ -83,7 +89,7 @@ describe("fields/mass в атрибутах", () => {
           type: "meta",
           src: "test/fields",
           fields: {
-            data: ["/fields/id", "/fields/name"],
+            data: ["/value/id", "/value/name"],
             expr: "{ id: _[0], name: _[1] }",
           },
         },
@@ -91,13 +97,16 @@ describe("fields/mass в атрибутах", () => {
     })
   })
 
-  describe("fields/mass", () => {
+  describe("value/mass", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
       elements = parse(
-        ({ html, fields }) => html`
-          <meta-for src="test/both" mass=${{ id: fields.id, name: fields.name }} fields=${{ id: fields.id, name: fields.name }} />
+        ({ html, value }) => html`
+          <meta-for
+            src="test/both"
+            mass=${{ id: value.id, name: value.name }}
+            fields=${{ id: value.id, name: value.name }} />
         `,
       )
     })
@@ -108,11 +117,11 @@ describe("fields/mass в атрибутах", () => {
           type: "meta",
           src: "test/both",
           mass: {
-            data: ["/fields/id", "/fields/name"],
+            data: ["/value/id", "/value/name"],
             expr: "{ id: _[0], name: _[1] }",
           },
           fields: {
-            data: ["/fields/id", "/fields/name"],
+            data: ["/value/id", "/value/name"],
             expr: "{ id: _[0], name: _[1] }",
           },
         },

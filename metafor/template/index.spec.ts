@@ -5,8 +5,12 @@ describe("parse", () => {
   it("параметры", () => {
     type state = "offline" | "online"
     // #region params
-    const result = parse<{ attempt: number }, { ice: { url: string }[] }, state>(
-      ({ html, fields, update, mass, state }) => html`
+    const result = parse<
+      { attempt: { type: "number"; default: 0; required: true } },
+      { ice: { url: { type: "string" } }[] },
+      state
+    >(
+      ({ html, value, update, mass, state }) => html`
         <h1>Config</h1>
         <ul>
           ${mass.ice.map((server) => html`<li>Url: ${server.url}</li>`)}
@@ -14,20 +18,20 @@ describe("parse", () => {
         <h1>State</h1>
         <p>${state}</p>
         ${state === "offline" &&
-        html` <button onclick=${() => update({ attempt: fields.attempt + 1 })}>Connect</button>`}
-      `
+        html` <button onclick=${() => update({ attempt: value.attempt + 1 })}>Connect</button>`}
+      `,
     )
     // #endregion params
     expect(result).toBeDefined()
   })
   it("парсит простой HTML с переменными", () => {
     const result = parse(
-      ({ html, fields }) => html`
-        <div class="${fields.userStatus}">
-          <h1>Hello ${fields.userName}!</h1>
-          <p>You have ${fields.messageCount} messages</p>
+      ({ html, value }) => html`
+        <div class="${value.userStatus}">
+          <h1>Hello ${value.userName}!</h1>
+          <p>You have ${value.messageCount} messages</p>
         </div>
-      `
+      `,
     )
 
     expect(result).toHaveLength(1)
@@ -54,11 +58,11 @@ describe("parse", () => {
 
   it("парсит HTML с map операциями", () => {
     const result = parse(
-      ({ html, fields }) => html`
+      ({ html, value }) => html`
         <ul>
-          ${fields.usersList}
+          ${value.usersList}
         </ul>
-      `
+      `,
     )
 
     expect(result).toHaveLength(1)
@@ -69,15 +73,15 @@ describe("parse", () => {
     const textNode = ul.child[0]
     expect(textNode).toMatchObject({
       type: "text",
-      data: "/fields/usersList",
+      data: "/value/usersList",
     })
   })
 
   it("парсит HTML с условиями", () => {
     const result = parse(
-      ({ html, fields }) => html`
-        <div>${fields.isAdmin ? html` <button>Admin Panel</button> ` : html` <span>Access denied</span> `}</div>
-      `
+      ({ html, value }) => html`
+        <div>${value.isAdmin ? html` <button>Admin Panel</button> ` : html` <span>Access denied</span> `}</div>
+      `,
     )
 
     expect(result).toHaveLength(1)
@@ -88,7 +92,7 @@ describe("parse", () => {
     const conditionNode = div.child[0]
     expect(conditionNode).toMatchObject({
       type: "cond",
-      data: "/fields/isAdmin",
+      data: "/value/isAdmin",
     })
 
     const trueBranch = conditionNode.child[0]
@@ -110,11 +114,9 @@ describe("parse", () => {
 
   it("парсит HTML с событиями и динамическими атрибутами", () => {
     const result = parse(
-      ({ html, fields }) => html`
-        <button class="${fields.isActive ? "active" : ""}" disabled="${!fields.canEdit}">
-          ${fields.buttonText}
-        </button>
-      `
+      ({ html, value }) => html`
+        <button class="${value.isActive ? "active" : ""}" disabled="${!value.canEdit}">${value.buttonText}</button>
+      `,
     )
 
     expect(result).toHaveLength(1)
@@ -125,29 +127,29 @@ describe("parse", () => {
     })
 
     expect(button.string.class).toMatchObject({
-      data: "/fields/isActive",
+      data: "/value/isActive",
       expr: '${_[0] ? "active" : ""}',
     })
 
     expect(button.string.disabled).toMatchObject({
-      data: "/fields/canEdit",
+      data: "/value/canEdit",
       expr: "${!_[0]}",
     })
 
     expect(button.child[0]).toMatchObject({
       type: "text",
-      data: "/fields/buttonText",
+      data: "/value/buttonText",
     })
   })
 
   it("парсит статический HTML без переменных", () => {
     const result = parse(
-      ({ html, fields }) => html`
+      ({ html }) => html`
         <div>
           <h1>Static Title</h1>
           <p>Static content</p>
         </div>
-      `
+      `,
     )
 
     expect(result).toHaveLength(1)
@@ -178,7 +180,7 @@ describe("parse", () => {
   })
 
   it("парсит вложенные map операции", () => {
-    const result = parse(({ html, fields }) => html` <div class="dashboard">${fields.departmentsList}</div> `)
+    const result = parse(({ html, value }) => html` <div class="dashboard">${value.departmentsList}</div> `)
 
     expect(result).toHaveLength(1)
     const dashboard = result[0] as any
@@ -188,7 +190,7 @@ describe("parse", () => {
     const textNode = dashboard.child[0]
     expect(textNode).toMatchObject({
       type: "text",
-      data: "/fields/departmentsList",
+      data: "/value/departmentsList",
     })
   })
 })

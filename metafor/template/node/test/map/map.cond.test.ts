@@ -3,25 +3,26 @@ import { parse, type NodeType } from "../../../index"
 
 describe("map с условиями", () => {
   describe("map соседствующий с map в условии на верхнем уровне", () => {
-    type Context = {
-      flag: boolean
-    }
-    type Core = {
-      list1: { title: string }[]
-      list2: { title: string }[]
-    }
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<Context, Core>(
-        ({ html, fields, mass }) => html`
+      elements = parse<
+        {
+          flag: { type: "boolean" }
+        },
+        {
+          list1: { title: string }[]
+          list2: { title: string }[]
+        }
+      >(
+        ({ html, value, mass }) => html`
           ${mass.list1.map(({ title }) => html`<div class="item1">${title}</div>`)}
-          ${fields.flag
+          ${value.flag
             ? html`<div class="conditional">
                 ${mass.list2.map(({ title }) => html`<div class="item2">${title}</div>`)}
               </div>`
             : html`<div class="fallback">No items</div>`}
-        `
+        `,
       )
     })
     it("data", () => {
@@ -47,7 +48,7 @@ describe("map с условиями", () => {
         },
         {
           type: "cond",
-          data: "/fields/flag",
+          data: "/value/flag",
           child: [
             {
               tag: "div",
@@ -97,27 +98,28 @@ describe("map с условиями", () => {
   })
 
   describe("map соседствующий с map в условии внутри элемента", () => {
-    type Context = {
-      flag: boolean
-    }
-    type Core = {
-      list1: { title: string }[]
-      list2: { title: string }[]
-    }
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<Context, Core>(
-        ({ html, fields, mass }) => html`
+      elements = parse<
+        {
+          flag: { type: "boolean" }
+        },
+        {
+          list1: { title: string }[]
+          list2: { title: string }[]
+        }
+      >(
+        ({ html, value, mass }) => html`
           <div class="container">
             ${mass.list1.map(({ title }) => html`<div class="item1">${title}</div>`)}
-            ${fields.flag
+            ${value.flag
               ? html`<div class="conditional">
                   ${mass.list2.map(({ title }) => html`<div class="item2">${title}</div>`)}
                 </div>`
               : html`<div class="fallback">No items</div>`}
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -147,7 +149,7 @@ describe("map с условиями", () => {
             },
             {
               type: "cond",
-              data: "/fields/flag",
+              data: "/value/flag",
               child: [
                 {
                   tag: "div",
@@ -202,28 +204,29 @@ describe("map с условиями", () => {
   })
 
   describe("map соседствующий с map в условии на глубоком уровне вложенности", () => {
-    type Context = {
-      flag: boolean
-      deepFlag: boolean
-    }
-    type Core = {
-      list1: { title: string }[]
-      list2: { title: string }[]
-      list3: { title: string }[]
-    }
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<Context, Core>(
-        ({ html, fields, mass }) => html`
+      elements = parse<
+        {
+          flag: { type: "boolean" }
+          deepFlag: { type: "boolean" }
+        },
+        {
+          list1: { title: string }[]
+          list2: { title: string }[]
+          list3: { title: string }[]
+        }
+      >(
+        ({ html, value, mass }) => html`
           <div class="level1">
             <div class="level2">
               <div class="level3">
                 ${mass.list1.map(({ title }) => html`<div class="item1">${title}</div>`)}
-                ${fields.flag
+                ${value.flag
                   ? html`<div class="conditional">
                       ${mass.list2.map(({ title }) => html`<div class="item2">${title}</div>`)}
-                      ${fields.deepFlag
+                      ${value.deepFlag
                         ? html`<div class="deep-conditional">
                             ${mass.list3.map(({ title }) => html`<div class="item3">${title}</div>`)}
                           </div>`
@@ -233,7 +236,7 @@ describe("map с условиями", () => {
               </div>
             </div>
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -271,7 +274,7 @@ describe("map с условиями", () => {
                     },
                     {
                       type: "cond",
-                      data: "/fields/flag",
+                      data: "/value/flag",
                       child: [
                         {
                           tag: "div",
@@ -298,7 +301,7 @@ describe("map с условиями", () => {
                             },
                             {
                               type: "cond",
-                              data: "/fields/deepFlag",
+                              data: "/value/deepFlag",
                               child: [
                                 {
                                   tag: "div",
@@ -386,14 +389,14 @@ describe("map с условиями", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ show: boolean }, { items: string[] }>(
-        ({ html, mass, fields }) => html`
+      elements = parse<{ show: { type: "boolean" } }, { items: string[] }>(
+        ({ html, mass, value }) => html`
           <div>
-            ${fields.show
+            ${value.show
               ? html` ${mass.items.map((item) => html`<div class="true-${item}"></div>`)}`
               : html` ${mass.items.map((item) => html`<div class="false-${item}"></div>`)}`}
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -404,7 +407,7 @@ describe("map с условиями", () => {
           child: [
             {
               type: "cond",
-              data: "/fields/show",
+              data: "/value/show",
               child: [
                 {
                   type: "map",

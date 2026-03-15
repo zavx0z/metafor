@@ -7,25 +7,24 @@ describe("text", () => {
     beforeAll(() => {
       elements = parse(
         // #region static
-        ({ html }) => html`Static text`
+        ({ html }) => html`Static text`,
         // #endregion static
       )
     })
     it("data", () => {
       expect(elements).toEqual(
         // #region expectStatic
-        [{ type: "text", value: "Static text" }]
+        [{ type: "text", value: "Static text" }],
         // #endregion expectStatic
       )
     })
   })
   describe("динамический", () => {
     let elements: NodeType[]
-    type Context = { dynamic: string }
     beforeAll(() => {
-      elements = parse<Context>(
+      elements = parse<{ dynamic: { type: "string", required: true, default: "" } }>(
         // #region dynamic
-        ({ html, fields }) => html`<p>${fields.dynamic}</p>`
+        ({ html, value }) => html`<p>${value.dynamic}</p>`,
         // #endregion dynamic
       )
     })
@@ -36,20 +35,20 @@ describe("text", () => {
           {
             tag: "p",
             type: "el",
-            child: [{ type: "text", data: "/fields/dynamic" }],
+            child: [{ type: "text", data: "/value/dynamic" }],
           },
-        ]
+        ],
         // #endregion expectDynamic
       )
     })
   })
   describe("смешанный", () => {
     let elements: NodeType[]
-    type Context = { family: string; name: string }
+    type Context = { family: { type: "string", required: true, default: "" }; name: { type: "string", required: true, default: "" } }
     beforeAll(() => {
       elements = parse<Context>(
         // #region mixed
-        ({ html, fields }) => html`<p>Hello, ${fields.family} ${fields.name}!</p>`
+        ({ html, value }) => html`<p>Hello, ${value.family} ${value.name}!</p>`,
         // #endregion mixed
       )
     })
@@ -63,24 +62,24 @@ describe("text", () => {
             child: [
               {
                 type: "text",
-                data: ["/fields/family", "/fields/name"],
+                data: ["/value/family", "/value/name"],
                 expr: "Hello, ${_[0]} ${_[1]}!",
               },
             ],
           },
-        ]
+        ],
         // #endregion expectMixed
       )
     })
   })
   describe("математический", () => {
     let elements: NodeType[]
-    type Context = { a: number; b: number }
+    type Context = { a: { type: "number" }; b: { type: "number" } }
 
     beforeAll(() => {
       elements = parse<Context>(
         //#region mathematical
-        ({ html, fields }) => html`<p>${fields.a + fields.b * 2}</p>`
+        ({ html, value }) => html`<p>${value.a + value.b * 2}</p>`,
         //#endregion mathematical
       )
     })
@@ -95,12 +94,12 @@ describe("text", () => {
             child: [
               {
                 type: "text",
-                data: ["/fields/a", "/fields/b"],
+                data: ["/value/a", "/value/b"],
                 expr: "${_[0] + _[1] * 2}",
               },
             ],
           },
-        ]
+        ],
         //#endregion expectMathematical
       )
     })
@@ -108,12 +107,12 @@ describe("text", () => {
 
   describe("тернарный", () => {
     let elements: NodeType[]
-    type Context = { flag: boolean }
+    type Context = { flag: { type: "boolean" } }
 
     beforeAll(() => {
       elements = parse<Context>(
         //#region ternary
-        ({ html, fields }) => html`<p>${fields.flag ? "Yes" : "No"}</p>`
+        ({ html, value }) => html`<p>${value.flag ? "Yes" : "No"}</p>`,
         //#endregion ternary
       )
     })
@@ -128,12 +127,12 @@ describe("text", () => {
             child: [
               {
                 type: "text",
-                data: "/fields/flag",
+                data: "/value/flag",
                 expr: '${_[0] ? "Yes" : "No"}',
               },
             ],
           },
-        ]
+        ],
         //#endregion expectTernary
       )
     })
@@ -141,12 +140,12 @@ describe("text", () => {
 
   describe("тернарный литерал", () => {
     let elements: NodeType[]
-    type Context = { name: string }
+    type Context = { name: { type: "string" } }
 
     beforeAll(() => {
       elements = parse<Context>(
         //#region ternaryLiteral
-        ({ html, fields }) => html`<p>${fields.name ? `Hi, ${fields.name}!` : ""}</p>`
+        ({ html, value }) => html`<p>${value.name ? `Hi, ${value.name}!` : ""}</p>`,
         //#endregion ternaryLiteral
       )
     })
@@ -161,12 +160,12 @@ describe("text", () => {
             child: [
               {
                 type: "text",
-                data: "/fields/name",
+                data: "/value/name",
                 expr: '${_[0] ? `Hi, ${_[0]}!` : ""}',
               },
             ],
           },
-        ]
+        ],
         //#endregion expectTernaryLiteral
       )
     })
@@ -174,12 +173,12 @@ describe("text", () => {
 
   describe("логический", () => {
     let elements: NodeType[]
-    type Context = { isOpen: boolean }
+    type Context = { isOpen: { type: "boolean" } }
 
     beforeAll(() => {
       elements = parse<Context>(
         //#region logical
-        ({ html, fields }) => html`<p class=${fields.isOpen && "open"}>${fields.isOpen && "Open"}</p>`
+        ({ html, value }) => html`<p class=${value.isOpen && "open"}>${value.isOpen && "Open"}</p>`,
         //#endregion logical
       )
     })
@@ -193,19 +192,19 @@ describe("text", () => {
             type: "el",
             string: {
               class: {
-                data: "/fields/isOpen",
+                data: "/value/isOpen",
                 expr: '${_[0] && "open"}',
               },
             },
             child: [
               {
                 type: "text",
-                data: "/fields/isOpen",
+                data: "/value/isOpen",
                 expr: '${_[0] && "Open"}',
               },
             ],
           },
-        ]
+        ],
         //#endregion expectLogical
       )
     })
@@ -213,12 +212,12 @@ describe("text", () => {
 
   describe("логический литерал", () => {
     let elements: NodeType[]
-    type Context = { last: string }
+    type Context = { last: { type: "string" } }
 
     beforeAll(() => {
       elements = parse<Context>(
         //#region logicalLiteral
-        ({ html, fields }) => html` <p>${fields.last && `last: ${fields.last}`}</p>`
+        ({ html, value }) => html` <p>${value.last && `last: ${value.last}`}</p>`,
         //#endregion logicalLiteral
       )
     })
@@ -232,24 +231,34 @@ describe("text", () => {
             child: [
               {
                 type: "text",
-                data: "/fields/last",
+                data: "/value/last",
                 expr: "${_[0] && `last: ${_[0]}`}",
               },
             ],
           },
-        ]
+        ],
         // #endregion expectLogicalLiteral
       )
     })
   })
   describe("методы", () => {
     let elements: NodeType[]
-    type Context = { name: string; email: string }
 
     beforeAll(() => {
-      elements = parse<Context>(
+      elements = parse<{
+        name: {
+          type: "string"
+          default: ""
+          required: true
+        }
+        email: {
+          type: "string"
+          default: ""
+          required: true
+        }
+      }>(
         //#region methods
-        ({ html, fields }) => html`<p>${fields.name.toUpperCase()} - ${fields.email.toLowerCase()}</p>`
+        ({ html, value }) => html`<p>${value.name.toUpperCase()} - ${value.email.toLowerCase()}</p>`,
         //#endregion methods
       )
     })
@@ -264,12 +273,12 @@ describe("text", () => {
             child: [
               {
                 type: "text",
-                data: ["/fields/name", "/fields/email"],
+                data: ["/value/name", "/value/email"],
                 expr: "${_[0].toUpperCase()} - ${_[1].toLowerCase()}",
               },
             ],
           },
-        ]
+        ],
         //#endregion expectMethods
       )
     })

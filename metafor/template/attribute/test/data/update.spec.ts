@@ -6,8 +6,8 @@ describe("update", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ name: string }>(
-        ({ html, update }) => html` <button onclick=${() => update({ name: "Jane Doe" })}>OK</button> `
+      elements = parse<{ name: { type: "string"; required: true; default: "" } }>(
+        ({ html, update }) => html` <button onclick=${() => update({ name: "Jane Doe" })}>OK</button> `,
       )
     })
     it("data", () => {
@@ -36,9 +36,14 @@ describe("update", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ name: string; age: number; active: boolean }>(
-        ({ html, update }) =>
-          html` <button onclick=${() => update({ name: "John", age: 25, active: true })}>Update</button> `
+      elements = parse<{
+        name: { type: "string"; required: true; default: "" }
+        age: { type: "number"; required: true; default: 0 }
+        active: { type: "boolean"; required: true; default: false }
+      }>(
+        ({ html, update }) => html`
+          <button onclick=${() => update({ name: "John", age: 25, active: true })}>Update</button>
+        `,
       )
     })
     it("data", () => {
@@ -67,8 +72,8 @@ describe("update", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ count: number }>(
-        ({ html, update, fields }) => html` <button onclick=${() => update({ count: fields.count + 1 })}>OK</button> `
+      elements = parse<{ count: { type: "number"; required: true; default: 0 } }>(
+        ({ html, update, value }) => html` <button onclick=${() => update({ count: value.count + 1 })}>OK</button> `,
       )
     })
     it("data", () => {
@@ -79,7 +84,7 @@ describe("update", () => {
           event: {
             onclick: {
               upd: "count",
-              data: "/fields/count",
+              data: "/value/count",
               expr: "() => update({ count: _[0] + 1 })",
             },
           },
@@ -94,17 +99,19 @@ describe("update", () => {
     })
   })
 
-  describe("функция обновления fields данными из mass и fields", () => {
+  describe("функция обновления value данными из mass и value", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ count: number; iteration: number }>(
-        ({ html, update, mass, fields }) =>
-          html`
-            <button onclick=${() => update({ count: mass.count + fields.count, iteration: fields.iteration + 1 })}>
-              OK
-            </button>
-          `
+      elements = parse<{
+        count: { type: "number"; required: true; default: 0 }
+        iteration: { type: "number"; required: true; default: 0 }
+      }>(
+        ({ html, update, mass, value }) => html`
+          <button onclick=${() => update({ count: mass.count + value.count, iteration: value.iteration + 1 })}>
+            OK
+          </button>
+        `,
       )
     })
 
@@ -116,7 +123,7 @@ describe("update", () => {
           event: {
             onclick: {
               upd: ["count", "iteration"],
-              data: ["/mass/count", "/fields/count", "/fields/iteration"],
+              data: ["/mass/count", "/value/count", "/value/iteration"],
               expr: "() => update({ count: _[0] + _[1], iteration: _[2] + 1 })",
             },
           },
@@ -131,24 +138,26 @@ describe("update", () => {
     })
   })
 
-  describe("функция обновления fields данными из mass и fields внутри массива вложенного в массив", () => {
+  describe("функция обновления value данными из mass и value внутри массива вложенного в массив", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
       elements = parse<
-        { count: number; iteration: number },
+        {
+          count: { type: "number"; required: true; default: 0 }
+          iteration: { type: "number"; required: true; default: 0 }
+        },
         { items: { count: number; iteration: number }[]; count: number; iteration: number }
       >(
-        ({ html, update, mass }) =>
-          html`
-            ${mass.items.map(
-              (item) => html`
-                <button onclick=${() => update({ count: mass.count + item.count, iteration: item.iteration + 1 })}>
-                  OK
-                </button>
-              `
-            )}
-          `
+        ({ html, update, mass }) => html`
+          ${mass.items.map(
+            (item) => html`
+              <button onclick=${() => update({ count: mass.count + item.count, iteration: item.iteration + 1 })}>
+                OK
+              </button>
+            `,
+          )}
+        `,
       )
     })
     it("data", () => {

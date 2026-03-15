@@ -6,13 +6,13 @@ describe("text", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ list: string[] }>(
+      elements = parse<{ list: { type: "array"; required: true; default: [] } }>(
         // #region itemValue
-        ({ html, fields }) => html`
+        ({ html, value }) => html`
           <ul>
-            ${fields.list.map((name) => html`<li>${name}</li>`)}
+            ${value.list.map((name) => html`<li>${name}</li>`)}
           </ul>
-        `
+        `,
         // #endregion itemValue
       )
     })
@@ -26,7 +26,7 @@ describe("text", () => {
             child: [
               {
                 type: "map",
-                data: "/fields/list",
+                data: "/value/list",
                 child: [
                   {
                     tag: "li",
@@ -42,7 +42,7 @@ describe("text", () => {
               },
             ],
           },
-        ]
+        ],
         // #endregion expectItemValue
       )
     })
@@ -57,7 +57,7 @@ describe("text", () => {
           <ul>
             ${mass.configs.map((config) => html`<li>${config.name} ${config.value}</li>`)}
           </ul>
-        `
+        `,
         // #endregion objectValues
       )
     })
@@ -88,7 +88,7 @@ describe("text", () => {
               },
             ],
           },
-        ]
+        ],
         // #endregion expectObjectValues
       )
     })
@@ -102,7 +102,7 @@ describe("text", () => {
           <ul>
             ${mass.configs.map(({ name, value }) => html`<li>${name} ${value}</li>`)}
           </ul>
-        `
+        `,
         // #endregion objectDestructValues
       )
     })
@@ -141,7 +141,7 @@ describe("text", () => {
       elements = parse<any, { posts: { author: { name: string; email: string } }[] }>(
         ({ html, mass }) => html`
           <div>${mass.posts.map((post) => html`<p>Author: ${post.author.name} (${post.author.email})</p>`)}</div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -181,7 +181,7 @@ describe("text", () => {
           <ul>
             ${mass.items.map((item) => html`<li>${item.isActive ? item.name : "Inactive"}</li>`)}
           </ul>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -221,7 +221,7 @@ describe("text", () => {
           <div>
             ${mass.products.map((product) => html`<p>${product.name}: $${product.price * product.quantity}</p>`)}
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -259,7 +259,7 @@ describe("text", () => {
       elements = parse<any, { users: { name: string; email: string }[] }>(
         ({ html, mass }) => html`
           <div>${mass.users.map((user) => html`<p>${user.name.toUpperCase()} - ${user.email.toLowerCase()}</p>`)}</div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -303,10 +303,10 @@ describe("text", () => {
                 <ul>
                   ${category.products.map((product) => html`<li>${product.name} - $${product.price}</li>`)}
                 </ul>
-              `
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -369,10 +369,10 @@ describe("text", () => {
             ${mass.items.map(
               (item) => html`
                 ${item.isVisible ? html`<p>${item.name}: ${item.description}</p>` : html`<p>Hidden item</p>`}
-              `
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
     it("data", () => {

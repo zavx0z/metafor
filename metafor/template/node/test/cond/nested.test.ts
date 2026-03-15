@@ -6,20 +6,20 @@ describe("вложенные условия", () => {
     let elements: NodeType[]
     beforeAll(() => {
       elements = parse<any, { flag1: boolean; flag2: boolean }>(
-        ({ html, fields }) => html`
-          ${fields.flag1
+        ({ html, value }) => html`
+          ${value.flag1
             ? html`<div class="flag1"></div>`
-            : fields.flag2
-            ? html`<div class="flag2"></div>`
-            : html`<div class="flag3"></div>`}
-        `
+            : value.flag2
+              ? html`<div class="flag2"></div>`
+              : html`<div class="flag3"></div>`}
+        `,
       )
     })
     it("data", () =>
       expect(elements).toEqual([
         {
           type: "cond",
-          data: "/fields/flag1",
+          data: "/value/flag1",
           child: [
             {
               tag: "div",
@@ -30,7 +30,7 @@ describe("вложенные условия", () => {
             },
             {
               type: "cond",
-              data: "/fields/flag2",
+              data: "/value/flag2",
               child: [
                 {
                   tag: "div",
@@ -56,10 +56,10 @@ describe("вложенные условия", () => {
     let elements: NodeType[]
     beforeAll(() => {
       elements = parse<any, { hasPermission: boolean; isAdmin: boolean }>(
-        ({ html, fields }) => html`
+        ({ html, value }) => html`
           <div>
-            ${fields.hasPermission
-              ? fields.isAdmin
+            ${value.hasPermission
+              ? value.isAdmin
                 ? html`
                     <div>
                       <button class="admin">Admin Action</button>
@@ -72,7 +72,7 @@ describe("вложенные условия", () => {
                   `
               : html`<div class="no-access">Access Denied</div>`}
           </div>
-        `
+        `,
       )
     })
     it("data", () =>
@@ -83,11 +83,11 @@ describe("вложенные условия", () => {
           child: [
             {
               type: "cond",
-              data: "/fields/hasPermission",
+              data: "/value/hasPermission",
               child: [
                 {
                   type: "cond",
-                  data: "/fields/isAdmin",
+                  data: "/value/isAdmin",
                   child: [
                     {
                       tag: "div",
@@ -138,17 +138,17 @@ describe("вложенные условия", () => {
     let elements: NodeType[]
     beforeAll(() => {
       elements = parse<any, { hasPermission: boolean; isAdmin: boolean; isSuperAdmin: boolean }>(
-        ({ html, fields }) => html`
+        ({ html, value }) => html`
           <div>
-            ${fields.hasPermission
-              ? fields.isAdmin
-                ? fields.isSuperAdmin
+            ${value.hasPermission
+              ? value.isAdmin
+                ? value.isSuperAdmin
                   ? html`<div class="super-admin">Super Admin Panel</div>`
                   : html`<div class="admin">Admin Panel</div>`
                 : html`<div class="user">User Panel</div>`
               : html`<div class="no-access">Access Denied</div>`}
           </div>
-        `
+        `,
       )
     })
     it("data", () =>
@@ -159,15 +159,15 @@ describe("вложенные условия", () => {
           child: [
             {
               type: "cond",
-              data: "/fields/hasPermission",
+              data: "/value/hasPermission",
               child: [
                 {
                   type: "cond",
-                  data: "/fields/isAdmin",
+                  data: "/value/isAdmin",
                   child: [
                     {
                       type: "cond",
-                      data: "/fields/isSuperAdmin",
+                      data: "/value/isSuperAdmin",
                       child: [
                         {
                           tag: "div",

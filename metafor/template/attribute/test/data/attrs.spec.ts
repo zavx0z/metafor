@@ -85,8 +85,8 @@ describe("атрибуты", () => {
   describe("условие в атрибуте", () => {
     let elements: NodeType[]
     beforeAll(() => {
-      elements = parse<{ flag: boolean }>(
-        ({ html, fields }) => html`<div title="${fields.flag ? "a > b" : "c < d"}"></div>`
+      elements = parse<{ flag: { type: "boolean"; required: true; default: false } }>(
+        ({ html, value }) => html`<div title="${value.flag ? "a > b" : "c < d"}"></div>`,
       )
     })
     it("data", () => {
@@ -96,20 +96,20 @@ describe("атрибуты", () => {
           type: "el",
           string: {
             title: {
-              data: "/fields/flag",
+              data: "/value/flag",
               expr: '${_[0] ? "a > b" : "c < d"}',
             },
           },
         },
-      ])  
+      ])
     })
   })
 
   describe("условие в аттрибуте без кавычек", () => {
     let elements: NodeType[]
     beforeAll(() => {
-      elements = parse<{ flag: boolean }>(
-        ({ html, fields }) => html`<div title=${fields.flag ? "a > b" : "c < d"}></div>`
+      elements = parse<{ flag: { type: "boolean"; required: true; default: false } }>(
+        ({ html, value }) => html`<div title=${value.flag ? "a > b" : "c < d"}></div>`,
       )
     })
     it("data", () => {
@@ -119,7 +119,7 @@ describe("атрибуты", () => {
           type: "el",
           string: {
             title: {
-              data: "/fields/flag",
+              data: "/value/flag",
               expr: '${_[0] ? "a > b" : "c < d"}',
             },
           },
@@ -131,9 +131,9 @@ describe("атрибуты", () => {
   describe("условие в аттрибуте с одинарными кавычками", () => {
     let elements: NodeType[]
     beforeAll(() => {
-      elements = parse<{ flag: boolean }>(
+      elements = parse<{ flag: { type: "boolean"; required: true; default: false } }>(
         // prettier-ignore
-        ({ html, fields }) => html`<div title='${fields.flag ? "a > b" : "c < d"}'></div>`
+        ({ html, value }) => html`<div title='${value.flag ? "a > b" : "c < d"}'></div>`,
       )
     })
     it("data", () => {
@@ -143,7 +143,7 @@ describe("атрибуты", () => {
           type: "el",
           string: {
             title: {
-              data: "/fields/flag",
+              data: "/value/flag",
               expr: '${_[0] ? "a > b" : "c < d"}',
             },
           },
@@ -156,7 +156,9 @@ describe("атрибуты", () => {
 describe("булевы атрибуты", () => {
   let elements: NodeType[]
   beforeAll(() => {
-    elements = parse<{ flag: boolean }>(({ html, fields }) => html`<button ${fields.flag && "disabled"}></button>`)
+    elements = parse<{ flag: { type: "boolean"; required: true; default: false } }>(
+      ({ html, value }) => html`<button ${value.flag && "disabled"}></button>`,
+    )
   })
   it("data", () => {
     expect(elements).toEqual([
@@ -165,7 +167,7 @@ describe("булевы атрибуты", () => {
         type: "el",
         boolean: {
           disabled: {
-            data: "/fields/flag",
+            data: "/value/flag",
           },
         },
       },
@@ -176,12 +178,20 @@ describe("булевы атрибуты", () => {
 describe("класс в map", () => {
   let elements: NodeType[]
   beforeAll(() => {
-    elements = parse<any, { items: { type: string; name: string }[] }>(
+    elements = parse<
+      any,
+      {
+        items: {
+          type: { type: "string"; required: true; default: "" }
+          name: { type: "string"; required: true; default: "" }
+        }[]
+      }
+    >(
       ({ html, mass }) => html`
         <ul>
           ${mass.items.map((item) => html`<li class="item-${item.type}" title="${item.name}">${item.name}</li>`)}
         </ul>
-      `
+      `,
     )
   })
   it("data", () => {
@@ -224,8 +234,8 @@ describe("класс в map", () => {
 describe("сложные условные атрибуты class", () => {
   let elements: NodeType[]
   beforeAll(() => {
-    elements = parse<{ active: boolean }>(
-      ({ html, mass }) => html`<div class="div-${mass.active ? "active" : "inactive"}">Content</div>`
+    elements = parse<{ active: { type: "boolean"; required: true; default: false } }>(
+      ({ html, mass }) => html`<div class="div-${mass.active ? "active" : "inactive"}">Content</div>`,
     )
   })
   it("data", () => {

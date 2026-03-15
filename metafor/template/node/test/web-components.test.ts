@@ -102,8 +102,8 @@ describe("web-components", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ userId: string; theme: string }>(
-        ({ html, fields }) => html`<user-profile id="${fields.userId}" theme="${fields.theme}"></user-profile>`
+      elements = parse<{ userId: { type: "string" }; theme: { type: "string" } }>(
+        ({ html, value }) => html`<user-profile id="${value.userId}" theme="${value.theme}"></user-profile>`
       )
     })
 
@@ -114,10 +114,10 @@ describe("web-components", () => {
           type: "el",
           string: {
             id: {
-              data: "/fields/userId",
+              data: "/value/userId",
             },
             theme: {
-              data: "/fields/theme",
+              data: "/value/theme",
             },
           },
         },
@@ -129,16 +129,16 @@ describe("web-components", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ isAdmin: boolean }>(
-        ({ html, fields }) =>
-          html`${fields.isAdmin ? html`<admin-panel></admin-panel>` : html`<user-panel></user-panel>`}`
+      elements = parse<{ isAdmin: { type: "boolean" } }>(
+        ({ html, value }) =>
+          html`${value.isAdmin ? html`<admin-panel></admin-panel>` : html`<user-panel></user-panel>`}`
       )
     })
     it("data", () => {
       expect(elements).toEqual([
         {
           type: "cond",
-          data: "/fields/isAdmin",
+          data: "/value/isAdmin",
           child: [
             {
               tag: "admin-panel",

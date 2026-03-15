@@ -6,9 +6,7 @@ describe("conditions", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse(
-        ({ html, fields }) => html` <div>${fields.cond ? html`<em>A</em>` : html`<span>b</span>`}</div> `
-      )
+      elements = parse(({ html, value }) => html` <div>${value.cond ? html`<em>A</em>` : html`<span>b</span>`}</div> `)
     })
     it("data", () => {
       expect(elements).toEqual([
@@ -18,7 +16,7 @@ describe("conditions", () => {
           child: [
             {
               type: "cond",
-              data: "/fields/cond",
+              data: "/value/cond",
               child: [
                 {
                   tag: "em",
@@ -53,13 +51,13 @@ describe("conditions", () => {
 
     beforeAll(() => {
       elements = parse(
-        ({ html, fields }) => html`
+        ({ html, value }) => html`
           <div>
             <header>Header</header>
-            ${fields.isActive ? html`<span>Active</span>` : html`<span>Inactive</span>`}
+            ${value.isActive ? html`<span>Active</span>` : html`<span>Inactive</span>`}
             <footer>Footer</footer>
           </div>
-        `
+        `,
       )
     })
 
@@ -81,7 +79,7 @@ describe("conditions", () => {
             },
             {
               type: "cond",
-              data: "/fields/isActive",
+              data: "/value/isActive",
               child: [
                 {
                   tag: "span",
@@ -126,8 +124,7 @@ describe("conditions", () => {
 
     beforeAll(() => {
       elements = parse(
-        ({ html, fields }) =>
-          html`<div>${fields.cond && fields.cond2 ? html`<em>A</em>` : html`<span>b</span>`}</div>`
+        ({ html, value }) => html`<div>${value.cond && value.cond2 ? html`<em>A</em>` : html`<span>b</span>`}</div>`,
       )
     })
 
@@ -139,7 +136,7 @@ describe("conditions", () => {
           child: [
             {
               type: "cond",
-              data: ["/fields/cond", "/fields/cond2"],
+              data: ["/value/cond", "/value/cond2"],
               expr: "_[0] && _[1]",
               child: [
                 {
@@ -165,9 +162,7 @@ describe("conditions", () => {
 
     beforeAll(() => {
       elements = parse(
-        ({ html, fields }) => html`
-          <div>${fields.cond === fields.cond2 ? html`<em>A</em>` : html`<span>b</span>`}</div>
-        `
+        ({ html, value }) => html` <div>${value.cond === value.cond2 ? html`<em>A</em>` : html`<span>b</span>`}</div> `,
       )
     })
     it("data", () => {
@@ -178,7 +173,7 @@ describe("conditions", () => {
           child: [
             {
               type: "cond",
-              data: ["/fields/cond", "/fields/cond2"],
+              data: ["/value/cond", "/value/cond2"],
               expr: "_[0] === _[1]",
               child: [
                 {
@@ -202,8 +197,8 @@ describe("conditions", () => {
   describe("логические операторы без тегов", () => {
     let elements: NodeType[]
     beforeAll(() => {
-      elements = parse<{ a: number; b: number; c: number; d: number }>(
-        ({ html, fields }) => html`${fields.a < fields.b && fields.c > fields.d ? "1" : "0"}`
+      elements = parse<{ a: { type: "number" }; b: { type: "number" }; c: { type: "number" }; d: { type: "number" } }>(
+        ({ html, value }) => html`${value.a < value.b && value.c > value.d ? "1" : "0"}`,
       )
     })
 
@@ -211,7 +206,7 @@ describe("conditions", () => {
       expect(elements).toEqual([
         {
           type: "text",
-          data: ["/fields/a", "/fields/b", "/fields/c", "/fields/d"],
+          data: ["/value/a", "/value/b", "/value/c", "/value/d"],
           expr: '${_[0] < _[1] && _[2] > _[3] ? "1" : "0"}',
         },
       ])
@@ -222,7 +217,7 @@ describe("conditions", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse(({ html, fields }) => html`<div>${fields.flag ? html`<br />` : html`<img src="x" />`}</div>`)
+      elements = parse(({ html, value }) => html`<div>${value.flag ? html`<br />` : html`<img src="x" />`}</div>`)
     })
 
     it("data", () => {
@@ -233,7 +228,7 @@ describe("conditions", () => {
           child: [
             {
               type: "cond",
-              data: "/fields/flag",
+              data: "/value/flag",
               child: [
                 {
                   tag: "br",
@@ -262,10 +257,10 @@ describe("conditions", () => {
         ({ html, mass }) => html`
           <div>
             ${mass.items.map((item) =>
-              item.show ? html`<div class="true-branch"></div>` : html`<div class="false-branch"></div>`
+              item.show ? html`<div class="true-branch"></div>` : html`<div class="false-branch"></div>`,
             )}
           </div>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -310,14 +305,14 @@ describe("conditions", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ list: string[] }>(
-        ({ html, fields }) => html`
+      elements = parse<{ list: { type: "array"; default: []; required: true } }>(
+        ({ html, value }) => html`
           <ul>
-            ${fields.list.map(
-              (_, i) => html` <li>${i % 2 ? html` <em>${"A"}</em> ` : html` <strong>${"B"}</strong>`}</li> `
+            ${value.list.map(
+              (_, i) => html` <li>${i % 2 ? html` <em>${"A"}</em> ` : html` <strong>${"B"}</strong>`}</li> `,
             )}
           </ul>
-        `
+        `,
       )
     })
     it("data", () => {
@@ -328,7 +323,7 @@ describe("conditions", () => {
           child: [
             {
               type: "map",
-              data: "/fields/list",
+              data: "/value/list",
               child: [
                 {
                   tag: "li",
@@ -375,15 +370,15 @@ describe("conditions", () => {
     let elements: NodeType[]
 
     beforeAll(() => {
-      elements = parse<{ a: number; b: number; c: number; d: number }>(
-        ({ html, fields }) => html`${fields.a < fields.b && fields.c > fields.d ? "1" : "0"}`
+      elements = parse<{ a: { type: "number" }; b: { type: "number" }; c: { type: "number" }; d: { type: "number" } }>(
+        ({ html, value }) => html`${value.a < value.b && value.c > value.d ? "1" : "0"}`,
       )
     })
     it("data", () => {
       expect(elements).toEqual([
         {
           type: "text",
-          data: ["/fields/a", "/fields/b", "/fields/c", "/fields/d"],
+          data: ["/value/a", "/value/b", "/value/c", "/value/d"],
           expr: '${_[0] < _[1] && _[2] > _[3] ? "1" : "0"}',
         },
       ])

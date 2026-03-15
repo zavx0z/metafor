@@ -7,16 +7,14 @@ describe("formatting", () => {
 
     beforeAll(() => {
       elements = parse<any, { flag: boolean }>(
-        ({ html, fields }) => html`
+        ({ html, value }) => html`
           <div>
-            <span class="${fields.flag ? "active" : "inactive"}">
-              Status: ${fields.flag ? "Active" : "Inactive"}</span
-            >
-            <p class="${fields.flag && fields.flag ? "double-active" : "not-active"}">
-              ${fields.flag ? "This is a very long text that should be formatted properly" : "Short text"}
+            <span class="${value.flag ? "active" : "inactive"}"> Status: ${value.flag ? "Active" : "Inactive"}</span>
+            <p class="${value.flag && value.flag ? "double-active" : "not-active"}">
+              ${value.flag ? "This is a very long text that should be formatted properly" : "Short text"}
             </p>
           </div>
-        `
+        `,
       )
     })
     it("проверяет структуру данных", () => {
@@ -89,17 +87,17 @@ describe("formatting", () => {
 
     beforeAll(() => {
       elements = parse<any, { theme: string; size: string }>(
-        ({ html, fields }) => html`
+        ({ html, value }) => html`
           <div>
-            <button class="btn ${fields.theme === "dark" ? "btn-dark" : "btn-light"} ${fields.size || "medium"}">
+            <button class="btn ${value.theme === "dark" ? "btn-dark" : "btn-light"} ${value.size || "medium"}">
               Click me
             </button>
             <input
               type="text"
-              class="input ${fields.theme === "dark" ? "input-dark" : "input-light"}"
-              placeholder="${fields.size === "large" ? "Enter large text here" : "Enter text here"}" />
+              class="input ${value.theme === "dark" ? "input-dark" : "input-light"}"
+              placeholder="${value.size === "large" ? "Enter large text here" : "Enter text here"}" />
           </div>
-        `
+        `,
       )
     })
 
@@ -128,7 +126,7 @@ describe("formatting", () => {
       const divElement = elements[0] as any
       const inputElement = divElement?.child?.[1] as any
       expect(inputElement?.string?.placeholder?.expr).toBe(
-        '${_[0] === "large" ? "Enter large text here" : "Enter text here"}'
+        '${_[0] === "large" ? "Enter large text here" : "Enter text here"}',
       )
     })
   })

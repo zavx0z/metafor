@@ -3,16 +3,14 @@ import { parse, type NodeType } from "../index"
 
 describe("логические операторы с условиями", () => {
   describe("&& &&", () => {
-    type Context = { isAdmin: boolean }
-    type Core = { user: { role: string } }
     let elements: NodeType[]
 
     beforeAll(() => {
       // prettier-ignore
       // #region parse
-      elements = parse<{ isAdmin: boolean }, { user: { role: string } }>(({ html, fields, mass }) => html`
+      elements = parse<{ isAdmin: { type: "boolean" } }, { user: { role: { type: "string" } } }>(({ html, value, mass }) => html`
           <div>
-            ${mass.user && fields.isAdmin && html`
+            ${mass.user && value.isAdmin && html`
               <div class="admin">Admin Panel</div>
             `}
           </div>
@@ -30,7 +28,7 @@ describe("логические операторы с условиями", () => 
             child: [
               {
                 type: "log",
-                data: ["/mass/user", "/fields/isAdmin"],
+                data: ["/mass/user", "/value/isAdmin"],
                 expr: "_[0] && _[1]",
                 child: [
                   {

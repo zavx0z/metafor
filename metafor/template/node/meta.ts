@@ -55,10 +55,10 @@ export const createNodeDataMeta = (
   }
 
   let result: NodeMeta = {
-    tag: node.tag,
-    type: "meta",
     src,
     ...basicAttrs,
+    tag: node.tag,
+    type: "meta",
     ...(node.child && { child: node.child.map((child) => createNode(child, context)) }),
   }
 

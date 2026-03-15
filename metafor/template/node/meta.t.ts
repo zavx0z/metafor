@@ -47,8 +47,8 @@ export interface NodeMeta extends Attributes {
 export interface PartAttrMeta extends AttrNodeElement {
   /** Тип узла */
   type: "meta"
-  /** src атрибут для meta-компонентов (hub-адрес вида owner/path) - опционален, т.к. изначально парсится в string */
-  src?: string
+  /** src атрибут для meta-компонентов (hub-адрес вида owner/path) - опционален, т.к. извлекается из string */
+  src?: ValueStatic | ValueDynamic | ValueVariable
   /** mass объекты */
   mass?: string
   /** fields объекты */

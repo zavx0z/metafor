@@ -15,10 +15,10 @@ describe("логические операторы в map", () => {
                   ${user.hasAvatar && html`<img src="/avatar/${user.name}.jpg" alt="${user.name}" />`}
                   <span>${user.name}</span>
                 </div>
-              `
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
 
@@ -97,10 +97,10 @@ describe("логические операторы в map", () => {
                     </div>
                   `}
                 </article>
-              `
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
 
@@ -192,10 +192,10 @@ describe("логические операторы в map", () => {
                   ${item.isNew && html`<span class="new-badge">NEW</span>`}
                   <span>${item.name}</span>
                 </li>
-              `
+              `,
             )}
           </ul>
-        `
+        `,
       )
     })
 
@@ -260,10 +260,10 @@ describe("логические операторы в map", () => {
 
     beforeAll(() => {
       elements = parse<
-        { showDetails: boolean },
+        { showDetails: { type: "boolean" } },
         { products: Array<{ name: string; price: number; inStock: boolean }> }
       >(
-        ({ html, mass, fields }) => html`
+        ({ html, mass, value }) => html`
           <div>
             ${mass.products.map(
               (product) => html`
@@ -271,7 +271,7 @@ describe("логические операторы в map", () => {
                   <h3>${product.name}</h3>
                   <p class="price">$${product.price}</p>
                   ${product.inStock &&
-                  fields.showDetails &&
+                  value.showDetails &&
                   html`
                     <div class="product-details">
                       <span class="stock-status">In Stock</span>
@@ -279,10 +279,10 @@ describe("логические операторы в map", () => {
                     </div>
                   `}
                 </div>
-              `
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
 
@@ -329,7 +329,7 @@ describe("логические операторы в map", () => {
                     },
                     {
                       type: "log",
-                      data: ["[item]/inStock", "[item]/fields/showDetails"],
+                      data: ["[item]/inStock", "[item]/value/showDetails"],
                       expr: "_[0] && _[1]",
                       child: [
                         {
@@ -392,10 +392,10 @@ describe("логические операторы в map", () => {
                   ${notification.isImportant && html`<span class="important">!</span>`}
                   <span class="message">${notification.message}</span>
                 </div>
-              `
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
 
@@ -479,10 +479,10 @@ describe("логические операторы в map", () => {
                     </ul>
                   `}
                 </div>
-              `
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
 

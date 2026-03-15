@@ -29,13 +29,13 @@ describe("boolean атрибуты", () => {
                       <article ${company.active && dept.active && "data-active"}>
                         Dept: ${company.id}-${dept.id}
                       </article>
-                    `
+                    `,
                   )}
                 </section>
-              `
+              `,
             )}
           </div>
-        `
+        `,
       )
     })
 
@@ -94,7 +94,7 @@ describe("boolean атрибуты", () => {
     let elements: NodeType[]
     beforeAll(() => {
       elements = parse<any, { visible: boolean }>(
-        ({ html, fields }) => html`<img src="https://example.com" ${fields.visible ? "visible" : "hidden"} />`
+        ({ html, value }) => html`<img src="https://example.com" ${value.visible ? "visible" : "hidden"} />`,
       )
     })
     it("data", () => {
@@ -107,10 +107,10 @@ describe("boolean атрибуты", () => {
           },
           boolean: {
             visible: {
-              data: "/fields/visible",
+              data: "/value/visible",
             },
             hidden: {
-              data: "/fields/visible",
+              data: "/value/visible",
               expr: "!_[0]",
             },
           },
