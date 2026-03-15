@@ -11,6 +11,6 @@ export default MetaFor("git-collaborate", { desc: "Git collaborate — кома�
   .reactions(() => [])
   .gravity(({ value, html }) => html`
       ${value.operation &&
-      html` <meta-for src="zavx0z/git-collaborate-${value.operation}" context=${{ args: value.args }} /> `}
+      html` <meta-for src="zavx0z/git-collaborate-${value.operation}" fields=${{ args: value.args }} /> `}
     `)
   .bulk()

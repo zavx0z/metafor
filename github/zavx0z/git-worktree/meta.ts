@@ -11,6 +11,6 @@ export default MetaFor("git-worktree", { desc: "Git worktree — управле�
   .reactions(() => [])
   .gravity(({ value, html }) => html`
       ${value.operation &&
-      html` <meta-for src="zavx0z/git-worktree-${value.operation}" context=${{ args: value.args }} /> `}
+      html` <meta-for src="zavx0z/git-worktree-${value.operation}" fields=${{ args: value.args }} /> `}
     `)
   .bulk()

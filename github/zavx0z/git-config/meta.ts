@@ -11,6 +11,6 @@ export default MetaFor("git-config", { desc: "Git config — конфигура�
   .reactions(() => [])
   .gravity(({ value, html }) => html`
       ${value.operation &&
-      html` <meta-for src="zavx0z/git-config-${value.operation}" context=${{ args: value.args }} /> `}
+      html` <meta-for src="zavx0z/git-config-${value.operation}" fields=${{ args: value.args }} /> `}
     `)
   .bulk()

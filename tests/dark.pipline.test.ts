@@ -108,17 +108,15 @@ describe("dark - корневой мета", () => {
         },
         gravity: [
           {
-            tag: "meta-for",
-            type: "meta",
             src: {
               data: "/value/operation",
               expr: "zavx0z/git-${_[0]}",
             },
-            string: {
-              context: {
-                data: ["/value/operation", "/value/args", "/operation", "/args"],
-                expr: "${{ _[2]: _[0], _[3]: _[1] }}",
-              },
+            tag: "meta-for",
+            type: "meta",
+            fields: {
+              data: ["/value/operation", "/value/args"],
+              expr: "{ operation: _[0], args: _[1] }",
             },
           },
           {
@@ -127,14 +125,12 @@ describe("dark - корневой мета", () => {
             expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
             child: [
               {
+                src: "zavx0z/git-error",
                 tag: "meta-for",
                 type: "meta",
-                src: "zavx0z/git-error",
-                string: {
-                  context: {
-                    data: ["/value/error", "/message"],
-                    expr: "${{ _[1]: _[0] }}",
-                  },
+                fields: {
+                  data: "/value/error",
+                  expr: "{ message: _[0] }",
                 },
               },
             ],

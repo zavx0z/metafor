@@ -15,6 +15,6 @@ export default MetaFor("git-history", {
   .reactions(() => [])
   .gravity(({ value, html }) => html`
       ${value.operation &&
-      html` <meta-for src="zavx0z/git-history-${value.operation}" context=${{ args: value.args }} /> `}
+      html` <meta-for src="zavx0z/git-history-${value.operation}" fields=${{ args: value.args }} /> `}
     `)
   .bulk()

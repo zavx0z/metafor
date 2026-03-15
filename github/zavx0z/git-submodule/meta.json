@@ -21,20 +21,15 @@
       "data": "/value/operation",
       "child": [
         {
+          "src": {
+            "data": "/value/operation",
+            "expr": "zavx0z/git-submodule-${_[0]}"
+          },
           "tag": "meta-for",
           "type": "meta",
-          "string": {
-            "src": {
-              "data": "/value/operation",
-              "expr": "zavx0z/git-submodule-${_[0]}"
-            },
-            "context": {
-              "data": [
-                "/value/args",
-                "/args"
-              ],
-              "expr": "${{ _[1]: _[0] }}"
-            }
+          "fields": {
+            "data": "/value/args",
+            "expr": "{ args: _[0] }"
           }
         }
       ]

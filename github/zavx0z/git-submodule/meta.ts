@@ -11,6 +11,6 @@ export default MetaFor("git-submodule", { desc: "Git submodule — управл�
   .reactions(() => [])
   .gravity(({ value, html }) => html`
       ${value.operation &&
-      html` <meta-for src="zavx0z/git-submodule-${value.operation}" context=${{ args: value.args }} /> `}
+      html` <meta-for src="zavx0z/git-submodule-${value.operation}" fields=${{ args: value.args }} /> `}
     `)
   .bulk()

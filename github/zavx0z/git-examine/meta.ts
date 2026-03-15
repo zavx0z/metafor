@@ -11,6 +11,6 @@ export default MetaFor("git-examine", { desc: "Git examine — команды п
   .reactions(() => [])
   .gravity(({ value, html }) => html`
       ${value.operation &&
-      html` <meta-for src="zavx0z/git-examine-${value.operation}" context=${{ args: value.args }} /> `}
+      html` <meta-for src="zavx0z/git-examine-${value.operation}" fields=${{ args: value.args }} /> `}
     `)
   .bulk()

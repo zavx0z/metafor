@@ -11,6 +11,6 @@ export default MetaFor("git-stash", { desc: "Git stash — отложенные 
   .reactions(() => [])
   .gravity(({ value, html }) => html`
       ${value.operation &&
-      html` <meta-for src="zavx0z/git-stash-${value.operation}" context=${{ args: value.args }} /> `}
+      html` <meta-for src="zavx0z/git-stash-${value.operation}" fields=${{ args: value.args }} /> `}
     `)
   .bulk()

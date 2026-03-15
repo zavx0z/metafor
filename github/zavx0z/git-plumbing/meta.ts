@@ -18,6 +18,6 @@ export default MetaFor("git-plumbing", { desc: "Git plumbing — низкоур�
   .reactions(() => [])
   .gravity(({ value, html }) => html`
       ${value.operation &&
-      html` <meta-for src="zavx0z/git-plumbing-${value.operation}" context=${{ args: value.args }} /> `}
+      html` <meta-for src="zavx0z/git-plumbing-${value.operation}" fields=${{ args: value.args }} /> `}
     `)
   .bulk()
