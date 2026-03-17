@@ -17,7 +17,6 @@ import type { MetaAST } from "@metafor/ast"
  *   particles: [
  *     {
  *       kind: "wimp",
- *       tag: "meta-for",
  *       src: {
  *         mode: "dynamic",
  *         basis: "/value/operation",
@@ -161,7 +160,6 @@ export type Binding<T = unknown> = StaticBinding<T> | DynamicBinding
  * ```ts
  * const particle: Wimp = {
  *   kind: "wimp",
- *   tag: "meta-for",
  *   src: {
  *     mode: "static",
  *     value: "zavx0z/git-error",
@@ -179,13 +177,6 @@ export type Wimp = {
    * Дискриминатор типа частицы.
    */
   kind: "wimp"
-
-  /**
-   * Имя meta-тега.
-   *
-   * Пока контракт фиксирован на `meta-for`.
-   */
-  tag: "meta-for"
 
   /**
    * Источник дочерней meta-сущности.
@@ -224,7 +215,6 @@ export type Wimp = {
  *   particles: [
  *     {
  *       kind: "wimp",
- *       tag: "meta-for",
  *       src: {
  *         mode: "static",
  *         value: "zavx0z/git-error",

@@ -50,12 +50,10 @@ describe("Wimp — допустимый контракт", () => {
   test("должен принимать статический src", () => {
     const particle: Wimp = {
       kind: "wimp",
-      tag: "meta-for",
       src: staticSrc("zavx0z/git-error"),
     }
 
     expect(particle.kind).toBe("wimp")
-    expect(particle.tag).toBe("meta-for")
     expect(particle.src.mode).toBe("static")
     if (particle.src.mode === "static") {
       expect(particle.src.value).toBe("zavx0z/git-error")
@@ -65,7 +63,6 @@ describe("Wimp — допустимый контракт", () => {
   test("должен принимать динамический src только от value", () => {
     const particle: Wimp = {
       kind: "wimp",
-      tag: "meta-for",
       src: dynamicSrc("/value/operation", "zavx0z/git-${_[0]}"),
     }
 
@@ -79,7 +76,6 @@ describe("Wimp — допустимый контракт", () => {
   test("должен принимать fields только от value", () => {
     const particle: Wimp = {
       kind: "wimp",
-      tag: "meta-for",
       src: staticSrc("zavx0z/git-error"),
       fields: fieldsBinding("/value/error", "{ message: _[0] }"),
     }
@@ -91,21 +87,9 @@ describe("Wimp — допустимый контракт", () => {
     }
   })
 
-  test("должен использовать только статический tag meta-for", () => {
-    const particle: Wimp = {
-      kind: "wimp",
-      tag: "meta-for",
-      src: staticSrc("zavx0z/git"),
-    }
-
-    expect(particle.tag).toBe("meta-for")
-    // tag не может быть изменён — это литеральный тип
-  })
-
   test("должен принимать fields с несколькими basis путями", () => {
     const particle: Wimp = {
       kind: "wimp",
-      tag: "meta-for",
       src: dynamicSrc(["/value/operation", "/value/args"], "{ src: _[0], args: _[1] }"),
       fields: fieldsBinding(["/value/operation", "/value/args"], "{ operation: _[0], args: _[1] }"),
     }
@@ -130,7 +114,6 @@ describe("Wimp — ограничения", () => {
     // @ts-expect-error — src обязателен
     const invalidParticle: Wimp = {
       kind: "wimp",
-      tag: "meta-for",
     }
 
     expect(invalidParticle.src).toBeUndefined()
@@ -163,7 +146,6 @@ describe("Wimp — ограничения", () => {
     // который не участвует в topology-формировании.
     const particle: Wimp = {
       kind: "wimp",
-      tag: "meta-for",
       src: staticSrc("zavx0z/git"),
       mass: { mode: "dynamic", basis: "/mass/config" },
     }
@@ -172,20 +154,6 @@ describe("Wimp — ограничения", () => {
     expect(particle.mass).toBeDefined()
     expect(particle.mass!.mode).toBe("dynamic")
     // mass не участвует в topology-контракте Wimp
-  })
-
-  test("не должен принимать динамический meta-tag", () => {
-    // tag — это литеральный тип "meta-for", не может быть динамическим
-    const particle: Wimp = {
-      kind: "wimp",
-      tag: "meta-for",
-      src: staticSrc("zavx0z/git"),
-    }
-
-    // TypeScript не позволит присвоить другое значение
-    expect(particle.tag).toBe("meta-for")
-    // @ts-expect-error — tag не может быть изменён
-    particle.tag = "other-tag"
   })
 
   test("не должен принимать невалидный hub-адрес в src", () => {
@@ -204,7 +172,6 @@ describe("Wimp — ограничения", () => {
 
     const validParticle: Wimp = {
       kind: "wimp",
-      tag: "meta-for",
       src: staticSrc("zavx0z/git"),
     }
 
@@ -253,21 +220,9 @@ describe("Wimp — нормализация", () => {
     })
   })
 
-  test("не должен терять tag при нормализации", () => {
-    const particle: Wimp = {
-      kind: "wimp",
-      tag: "meta-for",
-      src: staticSrc("zavx0z/git"),
-    }
-
-    // После любой нормализации tag должен сохраняться
-    expect(particle.tag).toBe("meta-for")
-  })
-
   test("должен сохранять expr при нормализации динамического binding", () => {
     const particle: Wimp = {
       kind: "wimp",
-      tag: "meta-for",
       src: dynamicSrc("/value/data", "transform(_[0])"),
     }
 
@@ -279,7 +234,6 @@ describe("Wimp — нормализация", () => {
   test("должен поддерживать fields без expr (прямая передача)", () => {
     const particle: Wimp = {
       kind: "wimp",
-      tag: "meta-for",
       src: staticSrc("zavx0z/git"),
       fields: { mode: "dynamic", basis: "/value/payload" },
     }
@@ -304,7 +258,6 @@ describe("Wimp — интеграция контракта", () => {
         data: "/value/operation",
         expr: "zavx0z/git-${_[0]}",
       },
-      tag: "meta-for",
       type: "meta",
       fields: {
         data: ["/value/operation", "/value/args"],
@@ -315,7 +268,6 @@ describe("Wimp — интеграция контракта", () => {
     // Нормализация в Wimp частицу
     const wimp: Wimp = {
       kind: "wimp",
-      tag: gravityNode.tag as "meta-for",
       src: {
         mode: "dynamic",
         basis: gravityNode.src.data,
@@ -329,7 +281,6 @@ describe("Wimp — интеграция контракта", () => {
     }
 
     expect(wimp.kind).toBe("wimp")
-    expect(wimp.tag).toBe("meta-for")
     expect(wimp.src.mode).toBe("dynamic")
     expect(wimp.fields).toBeDefined()
     expect(wimp.fields!.mode).toBe("dynamic")
@@ -339,7 +290,6 @@ describe("Wimp — интеграция контракта", () => {
     // Пример из meta.json: gravity[1].child[0] — это Wimp со статическим src
     const gravityNode = {
       src: "zavx0z/git-error",
-      tag: "meta-for",
       type: "meta",
       fields: {
         data: "/value/error",
@@ -350,7 +300,6 @@ describe("Wimp — интеграция контракта", () => {
     // Нормализация в Wimp частицу
     const wimp: Wimp = {
       kind: "wimp",
-      tag: gravityNode.tag as "meta-for",
       src: {
         mode: "static",
         value: gravityNode.src,
@@ -373,7 +322,6 @@ describe("Wimp — интеграция контракта", () => {
     // Wimp не имеет basis/expr для ветвления — это просто ссылка
     const wimp: Wimp = {
       kind: "wimp",
-      tag: "meta-for",
       src: staticSrc("zavx0z/git"),
     }
 
