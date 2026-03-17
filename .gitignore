@@ -15,3 +15,5 @@ public
 zavx0z.yaml
 old
 .ai
+.qwen/
+gha-creds-*.json

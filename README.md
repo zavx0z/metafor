@@ -24,8 +24,8 @@ MetaFor — это пространство документов и кода, в
 - [PHILOSOPHY.md](./docs/PHILOSOPHY.md) — философский смысл скрытого субстрата, границы фиксации и проявленного объёма,
 - [ONTOLOGY.md](./docs/ONTOLOGY.md) — онтологическое описание `Dark`, `Boundary` и `Bulk`,
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — архитектурная проекция трёхдоменной онтологии,
-- [TOPOLOGY.md](./docs/TOPOLOGY.md) — формализация скрытого слоя связности `Dark`: частицы `Wimp` / `Fuzzy` / `Macho` / `Axion`, их роли, адресация связности и адресация entanglement,
-- [PROTOCOL.md](./docs/PROTOCOL.md) — корневой протокольный слой MetaFor: `Boson`, `Impulse`, симметрия сил, topology-field/Higgs слой и навигация к детальным документам по `Gravity`, `Electromagnetism`, `Strong`, `Weak` и `Higgs`,
+- [TOPOLOGY.md](./docs/TOPOLOGY.md) — формализация скрытого слоя связности `Dark`: частицы `Wimp` / `Fuzzy` / `Macho` / `Axion`, их роли, адресация связности и адресация переплетения,
+- [PROTOCOL.md](./docs/PROTOCOL.md) — корневой протокольный слой MetaFor: `Boson`, `Impulse`, симметрия сил, слой topology-field/Higgs и навигация к детальным документам по `Gravity`, `Electromagnetism`, `Strong`, `Weak` и `Higgs`,
 - [DEVELOPMENT.md](./docs/DEVELOPMENT.md) — практический режим разработки до появления полноценных междоменных протоколов.
 
 ## Активный рабочий контур
@@ -73,10 +73,10 @@ Boundary -> Electromagnetism -> Bulk
 - силы (`Gravity`, `Electromagnetism`, `Strong`, `Weak`),
 - скрытая иерархия, память, зафиксированные состояния, структурированные изменения и эволюция модели,
 - сопряжённая пара сущностей (`Brane` и `Field`),
-- различие между обычными data-fields и topology-fields,
+- различие между обычными полями данных и полями topology,
 - состояния и переходы (`State`, `Transition`),
 - процесс и разворачивание действия (`Process`),
-- каналы сил и topology-change: `Graviton` для скрытой организации, `Photon` для переноса `State`, `Gluon` для изменения обычных `Field`, `Higgs boson` для изменения topology-fields, `W boson` и `Z boson` для перехода, `Impulse` как содержимое изменения,
+- каналы сил и изменение topology: `Graviton` для скрытой организации, `Photon` для переноса `State`, `Gluon` для изменения обычных `Field`, `Higgs boson` для изменения полей topology, `W boson` и `Z boson` для перехода, `Impulse` как содержимое изменения,
 - различение устойчивой идентичности и локального индекса (`Identity`, `Index`),
 - разные роли гравитации в `Dark`, `Boundary` и `Bulk`.
 
@@ -105,7 +105,7 @@ Topology отвечает на вопрос:
 - ответственность `meta` / template / DSL / `Dark`,
 - частицы связности `Wimp`, `Fuzzy`, `Macho`, `Axion`,
 - локальная нормализация связности (`NodeLogical(state|enum) -> Axion`, `NodeCondition(state|enum) -> Fuzzy`, `NodeMap(array) -> Macho`),
-- адресация topology и адресация entanglement на уровне topology.
+- адресация связности и адресация entanglement на уровне связности.
 
 ### Протокол
 
@@ -116,7 +116,7 @@ Topology отвечает на вопрос:
 
 - каналы сил и способы переноса,
 - `Boson`, `Photon`, `Gluon`, `Higgs boson`, `Graviton`, `W boson`, `Z boson`, `Impulse`,
-- детальные соответствия между состоянием, обычным полем, topology-field и каналом изменения.
+- детальные соответствия между состоянием, обычным полем, полем topology и каналом изменения.
 
 ### Разработка
 
@@ -135,14 +135,14 @@ Topology отвечает на вопрос:
 
 MetaFor различает два первичных рода полей:
 
-- data-fields,
-- topology-fields.
+- поля данных,
+- поля topology.
 
-`enum` и `array` принадлежат topology-fields по своей типовой природе.
-Это различие первично по отношению к конкретному AST-разворачиванию: `AST` применяет и раскрывает эти семантики, но не создаёт саму категорию.
-Формальная topology-модель, где эти поля становятся узлами выбора ветви и множественности, вынесена в [TOPOLOGY.md](./docs/TOPOLOGY.md).
+`enum` и `array` принадлежат полям topology по своей типовой природе.
+Это различие первично по отношению к конкретному разворачиванию AST: `AST` применяет и раскрывает эти семантики, но не создаёт саму категорию.
+Формальная модель topology, где эти поля становятся узлами выбора ветви и множественности, вынесена в [TOPOLOGY.md](./docs/TOPOLOGY.md).
 
-Topology-fields читаются как Higgs fields:
+Поля topology читаются как поля Higgs:
 
 - `enum` всегда задаёт выбор ветви,
 - `array` всегда задаёт множественность ветвей и их расширение.
@@ -151,7 +151,7 @@ Topology-fields читаются как Higgs fields:
 
 - `Photon` переносит `State`,
 - `Gluon` изменяет обычные значения `Field`,
-- `Higgs boson` изменяет topology-fields,
+- `Higgs boson` изменяет поля topology,
 - `Graviton` относится к скрытой структурной и геометрической организации.
 
 ## Базовый принцип
