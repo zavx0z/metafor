@@ -37,6 +37,19 @@ Each public document links to its English and Russian counterpart.
 - [Protocol](docs/PROTOCOL.md) explains forces, bosonic channels, and the transport form of change.
 - [Development](docs/DEVELOPMENT.md) records the current practical development mode before full inter-domain protocols exist.
 
+## Participation Paths
+
+### For learning and discussion
+
+If you want to better understand MetaFor, discuss its ideas, architecture, infrastructure, comparisons with physics, cosmology, neural networks, AGI, and related directions, or bring your own questions and proposals, use [Discussions](https://github.com/zavx0z/metafor/discussions).
+
+### For contribution and delivery
+
+If you want to define a concrete task, discuss a specific change, or join the practical work of the project, use [Issues](https://github.com/zavx0z/metafor/issues) and the active [Project](https://github.com/zavx0z/metafor/projects/2).
+
+- [Issues](https://github.com/zavx0z/metafor/issues) — for concrete tasks, problems, bug reports, changes, and expected result boundaries.
+- [Project](https://github.com/zavx0z/metafor/projects/2) — for current task state, priorities, and delivery flow.
+
 ## Development Entry
 
 MetaFor is organized as a Bun workspace repository.
