@@ -25,7 +25,7 @@ MetaFor — это пространство документов и кода, в
 - [ONTOLOGY.md](./docs/ONTOLOGY.md) — онтологическое описание `Dark`, `Boundary` и `Bulk`,
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — архитектурная проекция трёхдоменной онтологии,
 - [TOPOLOGY.md](./docs/TOPOLOGY.md) — формализация скрытого слоя связности `Dark`: частицы `Wimp` / `Fuzzy` / `Macho` / `Axion`, их роли, адресация связности и адресация переплетения,
-- [PROTOCOL.md](./docs/PROTOCOL.md) — корневой протокольный слой MetaFor: `Boson`, `Impulse`, симметрия сил, слой topology-field/Higgs и навигация к детальным документам по `Gravity`, `Electromagnetism`, `Strong`, `Weak` и `Higgs`,
+- [PROTOCOL.md](./docs/PROTOCOL.md) — корневой протокольный слой MetaFor: `Boson`, `Impulse`, симметрия сил, слой поля topology/Higgs и навигация к детальным документам по `Gravity`, `Electromagnetism`, `Strong`, `Weak` и `Higgs`,
 - [DEVELOPMENT.md](./docs/DEVELOPMENT.md) — практический режим разработки до появления полноценных междоменных протоколов.
 
 ## Активный рабочий контур
@@ -105,7 +105,7 @@ Topology отвечает на вопрос:
 - ответственность `meta` / template / DSL / `Dark`,
 - частицы связности `Wimp`, `Fuzzy`, `Macho`, `Axion`,
 - локальная нормализация связности (`NodeLogical(state|enum) -> Axion`, `NodeCondition(state|enum) -> Fuzzy`, `NodeMap(array) -> Macho`),
-- адресация связности и адресация entanglement на уровне связности.
+- адресация связности и адресация переплетения на уровне связности.
 
 ### Протокол
 
