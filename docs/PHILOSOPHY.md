@@ -1,192 +1,187 @@
-# Философия
+[README](../README.md) | **English** | [Русский](./PHILOSOPHY.ru.md)
 
-MetaFor начинается не с кода, не с API и не с структуры пакетов.
-Он начинается со способа смотреть на существование.
+# Philosophy
 
-Имя **MetaFor** содержит сразу два смысла.
+MetaFor does not begin with code, APIs, or package layout.
+It begins with a way of reading existence.
 
-Первый смысл — это **meta-for**.
-Это означает: мета-описание для всего, что существует.
-Для любой сущности, процесса, формы, структуры, явления, события, пространства, мира или системы существует мета-уровень описания.
+The name **MetaFor** carries two meanings at once.
 
-Второй смысл — это созвучие со словом **metaphor**.
-Это не игра слов ради эффекта.
-Это указание на сам метод.
-MetaFor использует метафору как инструмент приближения к устройству мира.
-Метафора здесь не украшение, а способ схватывать инварианты, которые проявляются в реальности, мышлении и коде.
+The first is **meta-for**:
+a meta-description for what exists.
+Every entity, process, form, structure, event, space, world, or system can have a meta-level description.
 
-## MetaFor как meta-for
+The second is its resonance with **metaphor**.
+This is not decorative wordplay.
+It points to the method itself.
+MetaFor uses metaphor as a disciplined way to approach the structure of reality.
 
-MetaFor исходит из того, что у существующего есть своё мета-описание.
+## MetaFor as meta-for
 
-Существующее — это не только вещь как объект.
-Это также:
+MetaFor starts from the assumption that what exists has a meta-description.
 
-- способ существования,
-- способ связи,
-- способ удержания формы,
-- способ изменения,
-- способ проявления,
-- способ различения и идентичности.
+Existence is not only an object.
+It also includes:
 
-MetaFor утверждает, что эти способы поддаются согласованному описанию.
+- a mode of existing,
+- a mode of relating,
+- a mode of holding form,
+- a mode of changing,
+- a mode of manifesting,
+- a mode of differentiation and identity.
 
-## MetaFor как metaphor
+MetaFor claims that these modes can be described coherently.
 
-MetaFor созвучен слову metaphor, потому что проект исходит из метафорического мышления как из серьёзного метода.
+## MetaFor as metaphor
 
-Метафора помогает увидеть общее между:
+MetaFor resonates with the word metaphor because the project treats metaphorical thinking as a serious method.
 
-- приложением,
-- миром,
-- пространством,
-- законом,
-- движением,
-- формой,
-- изменением,
-- и структурами вселенной.
+Metaphor helps expose common invariants between:
 
-MetaFor не утверждает, что код буквально воспроизводит физическую реальность.
-Но он утверждает, что физические и философские интуиции служат источником архитектурной и системной строгости.
+- application,
+- world,
+- space,
+- law,
+- movement,
+- form,
+- change,
+- the structures of the universe.
 
-## Мир, вселенная и закон
+MetaFor does not claim that code literally reproduces physical reality.
+It claims that physical and philosophical intuitions can serve as sources of architectural and systemic rigor.
 
-MetaFor обращён к миру, в котором мы живём, к пространству, в котором существует явление, и ко вселенной как к предельному образу организованной реальности.
+## World, universe, and law
 
-Физические законы, разные теории и философские модели важны здесь не как догма и не как буквальный шаблон реализации.
-Они важны как источники паттернов.
+MetaFor turns toward the world we live in, toward the space where phenomena occur, and toward the universe as a limiting image of organized reality.
 
-Они позволяют увидеть повторяющиеся мотивы:
+Physical laws, theories, and philosophical models matter here not as dogma and not as literal implementation templates.
+They matter as pattern sources.
 
-- скрытое и проявленное,
-- граница и объём,
-- геометрия и связь,
-- сила и взаимодействие,
-- топология и её перестройка,
-- структура и удержание,
-- переход и изменение,
-- проявление и наблюдаемость.
+They reveal recurring motifs:
 
-MetaFor работает именно с этими повторяющимися мотивами.
+- hidden and manifested,
+- boundary and volume,
+- geometry and relation,
+- force and interaction,
+- topology and its reconfiguration,
+- structure and retention,
+- transition and change,
+- manifestation and observability.
 
-## Дисциплина космологической метафоры
+MetaFor works with these recurring motifs.
 
-MetaFor использует космологию как источник структурной аналогии.
-Это не попытка буквально воспроизвести физику в коде и не реализационная догма.
+## The discipline of cosmological metaphor
 
-Здесь важны два образа:
+MetaFor uses cosmology as a source of structural analogy.
+This is not an attempt to reproduce physics literally in code and not an implementation dogma.
 
-- тёмная материя — метафора скрытого структурного субстрата, который не наблюдается напрямую, но формирует организацию мира,
-- тёмная энергия — метафора внутренней тенденции скрытого мира к расширению через структурированные изменения, зафиксированные состояния и эволюцию схем.
+Two images matter here:
 
-Это не буквальная космология.
-Это дисциплинированная метафора, которая помогает различать скрытое устройство, границу фиксации и проявленный объём.
+- dark matter as a metaphor for the hidden structural substrate that is not directly observed but organizes the world,
+- dark energy as a metaphor for the hidden world's tendency to expand through structured changes, fixed states, and schema evolution.
 
-## Dark, Boundary и Bulk как философские домены
+This is disciplined metaphor, not literal cosmology.
+Its purpose is to distinguish hidden organization, the boundary of fixation, and manifested volume.
 
-На философском уровне MetaFor различает три фундаментальных домена:
+## Dark, Boundary, and Bulk as philosophical domains
 
-- Dark
-- Boundary
-- Bulk
+At the philosophical level MetaFor distinguishes three fundamental domains:
 
-Это не кодовые директории и не технические слои.
-Это способы существования.
+- `Dark`
+- `Boundary`
+- `Bulk`
 
-**Dark** — скрытый субстрат структуры, памяти, иерархии и эволюции.
-Это область непроявленного и не доведённого до канонической границы.
+These are not code directories and not technical layers.
+They are modes of existence.
 
-**Boundary** — предел, фиксация, достижение границы, уплощение и приведение к определённости.
-Именно после этого уплощения `Field` читается как слой отпечатка и определённости формы.
+`Dark` is the hidden substrate of structure, memory, hierarchy, and evolution.
+`Boundary` is limit, fixation, flattening, and the attainment of determinacy.
+After flattening, `Field` is read as the imprint layer of form and determination.
+`Bulk` is volume, manifestation, unfolding, action, and phenomenality.
 
-**Bulk** — объём, проявление, разворачивание, действие и феноменальность.
+Their relation produces a fundamental tension:
 
-Их отношение образует фундаментальное напряжение:
+- between hidden causality and explicit form,
+- between limit and manifestation,
+- between latent organization and canonical fixation,
+- between surface and volume,
+- between fixation and unfolding,
+- between definition and lived form.
 
-- между скрытой причинностью и явной формой,
-- между пределом и проявлением,
-- между латентной организацией и канонической фиксацией,
-- между поверхностью и объёмом,
-- между фиксацией и разворачиванием,
-- между определением и проживанием формы.
+## The completeness of the three-domain model
 
-## Полнота трёхдоменной модели
+The pair `Boundary/Bulk` describes fixation and manifestation.
+The full MetaFor model also includes hidden structural causality.
+That role belongs to `Dark`.
 
-Пара `Boundary/Bulk` описывает фиксацию и проявление.
-Полная модель MetaFor включает также скрытую структурную причинность.
-Эту роль выполняет `Dark`.
+`Dark` gives philosophical place to:
 
-`Dark` задаёт философское место для:
+- hierarchy before fixation,
+- memory of form,
+- hidden historical continuity,
+- fixed states,
+- structured changes as the line of model evolution,
+- schema evolution.
 
-- иерархии, которая организует форму до её фиксации,
-- памяти формы,
-- скрытой исторической непрерывности,
-- зафиксированных состояний,
-- структурированных изменений как линии эволюции модели,
-- эволюции схем.
+The three-domain model yields a whole sequence of meaning:
 
-Трёхдоменная модель задаёт целостную последовательность смыслов:
+- hidden organization,
+- fixation on the boundary,
+- manifestation in volume and action.
 
-- скрытая организация,
-- фиксация на границе,
-- проявление в объёме и действии.
+## The philosophical triad
 
-## Философская триада
+Philosophically, the three-domain model can be read as:
 
-Трёхдоменная модель MetaFor философски читается как:
+- hidden substrate,
+- boundary of fixation,
+- manifested volume.
 
-- скрытый субстрат,
-- граница фиксации,
-- проявленный объём.
+This triad holds not only result and manifestation, but also the hidden structural cause of form.
 
-Эта триада удерживает не только результат и проявление, но и скрытую структурную причину формы.
-Она связывает скрытую организацию, фиксацию формы и проявленное существование в одну философскую модель.
+## Universal forces
 
-## Универсальные силы
+MetaFor also assumes that existence can be understood through universal operators of transformation.
+These operators appear as forces.
 
-MetaFor также исходит из того, что существование можно понимать через универсальные операторы преобразования.
-Эти операторы выражаются как силы.
+They matter not only as scientific terms, but as philosophical functions:
 
-Силы важны не только как научные термины, но и как философские функции мира:
+- what gives form,
+- what connects,
+- what holds,
+- what changes.
 
-- что задаёт форму,
-- что связывает,
-- что удерживает,
-- что изменяет.
+In the three-domain picture, the same force is read differently in each domain.
+This is especially visible in `Gravity`:
 
-Они повторяются в разных масштабах и потому становятся удобным основанием для мышления.
+- `Dark × Gravity` is hidden hierarchy and latent structure,
+- `Boundary × Gravity` is the geometry of flattening and boundary,
+- `Bulk × Gravity` is mass, volume, and manifested form.
 
-В трёхдоменной картине одна и та же сила читается по-разному.
-Особенно это видно на `Gravity`:
+MetaFor also distinguishes a special kind of reconfiguration:
 
-- `Dark × Gravity` — скрытая иерархия и латентная структура,
-- `Boundary × Gravity` — геометрия уплощения и границы,
-- `Bulk × Gravity` — масса, объём и проявленная форма.
+- ordinary data-fields belong to the layer of determination after flattening,
+- topology-fields belong to the hidden device of branching and multiplicity,
+- topology-fields are read as Higgs fields,
+- their change is neither state transport nor ordinary value change.
 
-Рядом с этим силовым чтением MetaFor различает и особый тип перестройки:
+Therefore:
 
-- обычные data-fields принадлежат слою определённости после уплощения,
-- topology-fields принадлежат скрытому устройству ветвления и множественности,
-- topology-fields читаются как Higgs fields,
-- их изменение не равно ни переносу `State`, ни обычному изменению значения.
+- `Photon` keeps the role of transporting `State`,
+- `Gluon` keeps the role of changing ordinary `Field` determination,
+- `Higgs boson` expresses topology-field reconfiguration,
+- `Dark` remains the hidden holder of the topology/gravity basis that makes these changes globally legible.
 
-Поэтому:
+## The purpose of MetaFor
 
-- `Photon` сохраняет роль переноса `State`,
-- `Gluon` сохраняет роль изменения обычной определённости `Field`,
-- `Higgs boson` выражает перестройку topology-fields,
-- `Dark` остаётся скрытым держателем той topology/gravity-основы, по которой такие перестройки становятся глобально различимыми.
+MetaFor serves as an ordered way of thinking about existence, structure, and manifestation.
 
-## Назначение MetaFor
+It starts from the claim that:
 
-MetaFor служит формой упорядоченного мышления о существовании, структуре и проявлении.
+- existence is describable through meta-structure,
+- metaphor can guide strict thought,
+- reality can be read through domains, forces, and entities,
+- reality has hidden organization, a fixable form, and manifested volume,
+- code can carry a world-model rather than act only as a technical solution.
 
-Он исходит из того, что:
-
-- существование описывается через мета-структуру,
-- метафора направляет строгую мысль,
-- реальность читается через домены, силы и сущности,
-- реальность имеет скрытую организацию, фиксируемую форму и проявленный объём,
-- код может быть носителем модели мира, а не только техническим решением.
-
-MetaFor удерживает смысл до того, как он распадается на случайную реализацию.
+MetaFor holds meaning before it collapses into arbitrary implementation.

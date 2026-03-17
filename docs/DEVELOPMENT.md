@@ -1,179 +1,160 @@
-# Разработка
+[README](../README.md) | **English** | [Русский](./DEVELOPMENT.ru.md)
 
-`DEVELOPMENT.md` фиксирует практический режим разработки MetaFor до появления полноценных междоменных протоколов.
-Этот документ не подменяет [ARCHITECTURE.md](./ARCHITECTURE.md) и не отменяет протокольный слой из [PROTOCOL.md](./PROTOCOL.md).
-Он нужен затем, чтобы не смешивать архитектурные инварианты с временной тактикой разработки.
+# Development
 
-## Назначение
+`DEVELOPMENT.md` records the practical development mode of MetaFor before full inter-domain protocols exist.
+It does not replace [Architecture](./ARCHITECTURE.md) and does not cancel the protocol layer described in [Protocol](./PROTOCOL.md).
+Its role is to keep architectural invariants distinct from temporary development tactics.
 
-MetaFor строится как трёхдоменная система:
+## Purpose
+
+MetaFor is built as a three-domain system:
 
 - `Dark`,
 - `Boundary`,
 - `Bulk`.
 
-Эти домены архитектурно изолированы.
-Они не должны мыслиться как внутренние слои одного runtime-модуля.
-Они должны мыслиться как отдельные домены, которые в зрелой форме могут жить в разных процессах и связываться только через протоколы.
+These domains are architecturally isolated.
+They must not be treated as internal layers of one runtime module.
+In mature form they may live in different processes and communicate only through protocols.
 
-Но до тех пор, пока основной функционал доменов не доведён и не проверен, преждевременная реализация междоменных каналов создаёт больше сложности, чем пользы.
+Until the main functionality of the domains is proven, premature transport channels create more complexity than value.
 
-Поэтому текущий режим разработки таков:
+The current development mode is therefore:
 
-- домены остаются изолированными,
-- production-код не получает прямых междоменных импортов,
-- сквозная проверка делается только в тестах,
-- относительные импорты между доменами допустимы только в тестах,
-- протоколы реализуются после того, как основной функционал доменов доказан и стабилизирован.
+- domains remain isolated,
+- production code gets no direct inter-domain imports,
+- end-to-end checks happen only in tests,
+- relative imports across domains are acceptable only in tests,
+- stable protocols are designed after the core domain logic is proven.
 
-## Архитектурный инвариант
+## Architectural invariant
 
-Нужно читать систему так:
+The system should be read as:
 
-- `Dark` — скрытый домен,
-- `Boundary` — домен фиксации и каноникализации,
-- `Bulk` — домен проявления и исполнения.
+- `Dark` as the hidden domain,
+- `Boundary` as the domain of fixation and canonicalization,
+- `Bulk` as the domain of manifestation and execution.
 
-Это не подпакеты одного общего runtime.
-Это не этапы одного линейного pipeline.
-Это не внутренние библиотеки друг для друга.
+These are not subpackages of one common runtime.
+They are not stages of one linear pipeline.
+They are not internal libraries for one another.
 
-Следовательно:
+Therefore:
 
-1. прямой рабочий импорт одного домена в другой запрещён,
-2. прямой вызов внутреннего API другого домена в production-коде запрещён,
-3. ни один домен не должен становиться transport shortcut для другого,
-4. междоменная связь должна оформляться только как протокольный канал,
-5. до появления такого канала домены дорабатываются по отдельности.
+1. direct production imports from one domain into another are forbidden,
+2. direct calls into another domain's internal API are forbidden in production code,
+3. no domain should become a transport shortcut for another,
+4. inter-domain communication must appear only as protocol channels,
+5. until such channels exist, the domains are finished separately.
 
-## Почему до протоколов проще без протоколов
+## Why it is simpler to avoid protocols before protocols
 
-Пока основной функционал ещё не доведён, протоколы слишком рано фиксируют внешний контракт.
-Если зафиксировать его до того, как сами домены проверены, возникает риск:
+When core functionality is still unstable, a protocol fixes an external contract too early.
+If that contract is fixed before the domains themselves are proven, the project risks:
 
-- зацементировать неправильную форму обмена,
-- усложнить отладку транспортным слоем,
-- скрыть реальную нехватку функционала внутри домена,
-- начать чинить канал вместо того, чтобы чинить сам домен,
-- получить лишнюю инфраструктурную сложность до того, как доказана доменная логика.
+- cementing the wrong exchange shape,
+- making debugging harder by adding transport noise,
+- hiding missing domain functionality behind an integration layer,
+- fixing the channel instead of fixing the domain,
+- introducing infrastructure complexity before the domain logic is defensible.
 
-Поэтому временно проще и правильнее:
+So the temporary order is:
 
-1. сначала довести `Dark`, `Boundary` и `Bulk` до минимально рабочего состояния по отдельности,
-2. затем проверить их совместимость в тестах,
-3. только после этого формализовать устойчивые каналы передачи данных.
+1. bring `Dark`, `Boundary`, and `Bulk` to a minimally working state separately,
+2. verify compatibility in tests,
+3. only then formalize durable transport channels.
 
-Это не отменяет протоколы как архитектурную цель.
-Это только означает, что протоколы не должны опережать проверку доменной логики.
+This does not reject protocols as an architectural goal.
+It only says protocols must not outrun validated domain logic.
 
-## Временный режим интеграционной разработки
+## Temporary integration mode
 
-До появления протоколов допустим только один способ сквозной проверки:
+Before protocols exist, only one end-to-end verification path is allowed:
 
-- интеграционные тесты,
-- относительные импорты между доменами только внутри тестов,
-- явная тестовая orchestration-сборка,
-- отсутствие междоменных импортов в production-коде.
+- integration tests,
+- relative imports across domains only inside tests,
+- explicit orchestration assembly for tests,
+- no inter-domain imports in production code.
 
-Все тесты используют `@github/zavx0z/git`:
+The repository currently uses `@github/zavx0z/git` as the shared place where such integration scenarios are exercised.
 
-- любые тесты импортируют домены через `@github/zavx0z/git`,
-- на этом репозитории отрабатывается интеграция всех доменов,
-- `@github/zavx0z/git` выступает как единый источник тестовых сценариев.
+The following is acceptable:
 
-То есть допустимо:
+- load `Dark` in a test,
+- prepare a `Boundary` scenario in the same test,
+- prepare a `Bulk` scenario in the same test,
+- prove that the same logic stays coherent across all three domains.
 
-- в тесте загрузить `Dark`,
-- в том же тесте подготовить сценарий для `Boundary`,
-- в том же тесте подготовить сценарий для `Bulk`,
-- проверить, что одна и та же логика согласованно проходит через все три домена.
+The following is not acceptable:
 
-Но недопустимо:
+- moving this temporary assembly into production code,
+- turning test assembly into a permanent architectural rule,
+- presenting direct imports as a normal communication path,
+- hiding the absence of a protocol behind internal neighbor calls.
 
-- переносить такую склейку в production-код,
-- делать тестовую склейку постоянным архитектурным правилом,
-- выдавать относительный импорт между доменами за нормальный способ связи,
-- маскировать отсутствие протокола прямым вызовом внутренностей соседнего домена.
+## Environment lifecycle and worker responsibility
 
-## Lifecycle среды и ответственность worker
+Since MetaFor domains should be thought of as isolated environments that may live in separate workers or processes, a full lifecycle reset is not an internal responsibility of the domain itself.
 
-Так как домены MetaFor должны мыслиться как изолированные среды, способные жить в отдельных worker/process, полный lifecycle их состояния не является внутренней ответственностью домена.
+This means:
 
-Это означает:
+- a domain store should not expose production-grade full reset operations,
+- snapshot and restore should not become the main production API of a domain,
+- domain restart should not be expressed as an internal runtime shortcut.
 
-- store домена не должен нести production-операции полного сброса,
-- store домена не должен нести production-операции snapshot/restore,
-- restart домена не должен выражаться как внутренний runtime API домена.
+If a clean restart is needed, it should happen at the outer execution environment:
 
-Если требуется полный сброс состояния или чистый перезапуск, это делается только на уровне внешней среды выполнения:
+- destroy the worker,
+- create a new worker,
+- start the domain again in a clean environment.
 
-- worker уничтожается,
-- создаётся новый worker,
-- домен стартует заново в чистой среде.
+Consequently, reset, clear, restore, and snapshot belong to test-only or harness-level infrastructure, not to the main production communication path.
 
-Следовательно, reset/clear/restore/snapshot относятся не к основной рабочей логике домена, а к test-only или harness-level инфраструктуре.
+## Practical rule
 
-Такие операции допустимы:
+Until real channels exist, the order should stay:
 
-- в `fixture/`,
-- в тестовой orchestration-обвязке,
-- во внешнем runtime/harness слое.
+1. a domain implements its own responsibility,
+2. the domain is tested on its own level,
+3. an integration test temporarily assembles the domains through relative imports,
+4. once the core functionality stabilizes, the protocol is formalized,
+5. the temporary assembly is removed or demoted to protocol verification.
 
-Но они не должны экспортироваться как основной production API домена и не должны становиться частью междоменной рабочей связи.
+## What this gives
 
-Иными словами:
+This development mode helps:
 
-- lifecycle store внутри worker управляется снаружи,
-- уничтожение состояния = уничтожение worker,
-- чистый запуск = новый worker,
-- а не внутренний reset домена.
+- preserve hard architectural isolation,
+- prevent temporary glue from becoming a permanent dependency,
+- validate core functionality faster,
+- localize errors more clearly,
+- avoid premature protocol design,
+- move to real channels only after the domain form becomes stable.
 
-## Практическое правило
+## The boundary of what is allowed
 
-До появления полноценных каналов нужно придерживаться такого порядка:
+### Allowed
 
-1. домен реализует собственную ответственность внутри себя,
-2. домен тестируется на собственном уровне,
-3. затем пишется интеграционный тест, который временно склеивает домены через относительные импорты,
-4. после стабилизации основного функционала формализуется протокол,
-5. тестовая склейка удаляется или уходит на уровень проверки протокола.
+- relative imports across domains in tests,
+- temporary orchestration glue in tests,
+- verification of a shared scenario without a formal transport layer.
 
-## Что это даёт
+### Not allowed
 
-Такой режим разработки позволяет:
+- direct production imports across domains,
+- exporting one domain's internals as another domain's API,
+- production assembly without a protocol,
+- turning the testing path into an architectural norm.
 
-- сохранить жёсткую архитектурную изоляцию,
-- не превращать временный код в постоянную междоменную зависимость,
-- быстрее проверять основной функционал,
-- легче локализовать ошибки,
-- не проектировать протокол раньше времени,
-- перейти к реальным каналам только после появления устойчивой доменной формы.
+## When to move to protocols
 
-## Граница допустимого
+Move to protocols only after:
 
-Нужно жёстко различать:
+1. the hidden functionality of `Dark` is stable,
+2. the fixation and state-computation functionality of `Boundary` is stable,
+3. the execution functionality of `Bulk` is stable,
+4. the end-to-end path is already proven in tests,
+5. the actual required channel is clear enough to formalize.
 
-### Допустимо
-
-- относительные импорты между доменами в тестах,
-- временная orchestration-склейка в тестах,
-- проверка общего сценария без оформленного transport layer.
-
-### Недопустимо
-
-- прямые рабочие импорты между доменами,
-- экспорт внутренностей одного домена как API другого домена,
-- production-склейка доменов без протокола,
-- превращение тестового пути в архитектурную норму.
-
-## Когда переходить к протоколам
-
-Переход к протоколам должен происходить не в начале, а после того, как:
-
-1. у `Dark` стабилизирован основной скрытый функционал,
-2. у `Boundary` стабилизирован основной функционал фиксации и вычисления состояния,
-3. у `Bulk` стабилизирован основной функционал исполнения,
-4. сквозной путь уже доказан тестами,
-5. стало ясно, какой именно канал действительно нужен между доменами.
-
-Только после этого транспортный слой перестаёт быть гаданием и становится оформлением уже проверенного контракта.
+Only then does the transport layer stop being speculation and become the expression of a validated contract.

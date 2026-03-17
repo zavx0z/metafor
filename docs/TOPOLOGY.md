@@ -1,126 +1,134 @@
+[README](../README.md) | **English** | [Русский](./TOPOLOGY.ru.md)
+
 # Topology
 
-`TOPOLOGY.md` фиксирует скрытую связность MetaFor в актуальном чтении: `Dark` описывается через частицы связности и нити связности, а не как отдельная «геометрия пространства».
+`TOPOLOGY.md` records hidden connectivity in the current MetaFor reading:
+`Dark` is described through connectivity particles and connectivity threads, not as an independent geometry of space.
 
-**Важно:** этот документ использует термин «topology» только как вспомогательный технический язык для описания связности `Dark`. Первичной концептуальной моделью остаётся модель частиц связности `Dark` с частицами `Wimp`, `Fuzzy`, `Macho`, `Axion`. Topology здесь — поддерживающий формализм, а не конкурирующая онтология.
+Important:
+this document uses the word "topology" only as a supporting technical language for the connectivity of `Dark`.
+The primary conceptual model remains the `Dark` connectivity-particle model with `Wimp`, `Fuzzy`, `Macho`, and `Axion`.
 
-## Назначение
+## Purpose
 
-Этот документ нужен, чтобы держать согласованность между `meta`, `Dark`, `Boundary` и `Bulk`.
-Он не вводит конкурирующую онтологию по отношению к [ONTOLOGY.md](./ONTOLOGY.md), а уточняет язык скрытой связности `Dark`.
+This document keeps coherence between `meta`, `Dark`, `Boundary`, and `Bulk`.
+It does not introduce a competing ontology relative to [Ontology](./ONTOLOGY.md); it sharpens the language of hidden connectivity in `Dark`.
 
-- `meta` — источник описания,
-- `Dark` — скрытый слой связности,
-- `Boundary` — граница уплощения и слой отпечатка,
-- `Bulk` — объёмное проявление и пространственная принадлежность.
+- `meta` is the source of description,
+- `Dark` is the hidden layer of connectivity,
+- `Boundary` is the flattening boundary and imprint layer,
+- `Bulk` is manifested volume and spatial belonging.
 
-`Dark` не является деревом времени исполнения, не сводится к `AST` и не тождественен итоговой форме `Boundary`/`Bulk`.
+`Dark` is not a runtime tree, is not reducible to `AST`, and is not identical to the final form of `Boundary` or `Bulk`.
 
-## Dark как слой связности
+## Dark as a connectivity layer
 
-`Dark` нужно читать как слой скрытой связности.
-Он содержит:
+`Dark` should be read as a layer of hidden connectivity.
+It contains:
 
-- частицы связности,
-- нити связности между частицами,
-- историческую непрерывность скрытой организации.
+- connectivity particles,
+- connectivity threads between particles,
+- historical continuity of hidden organization.
 
-Ключевой инвариант: **`Dark` не имеет пространства**.
-В `Dark` нет «сцены размещения» в смысле объёма; есть только связность и её правила.
+The key invariant is simple:
+**`Dark` has no space of its own.**
+It has connectivity and rules of connectivity, not a volumetric stage of placement.
 
-## Набор частиц Dark
+## The particle set of Dark
 
-Текущая модель использует четыре частицы связности:
+The current model uses four connectivity particles:
 
 - `Wimp`
 - `Fuzzy`
 - `Macho`
 - `Axion`
 
-Все четыре — частицы `Dark` и все четыре относятся к связности.
+All four are `Dark` particles and all four belong to connectivity.
 
 ### Wimp
 
-`Wimp` — частица статической связности.
-Она удерживает устойчивый опорный узел скрытой связности и выступает базовой точкой, вокруг которой наращиваются динамические связи.
+`Wimp` is a particle of static connectivity.
+It holds a stable support node of hidden connectivity and acts as the base point around which dynamic relations are built.
 
-`gravity` внутри `meta`-декларации описывает, как текущая `meta` связана с другими `Wimp`.
-Эти «другие `Wimp`» читаются как другие `meta`-декларации в общем скрытом контуре.
+Inside a `meta` declaration, `gravity` describes how the current `meta` connects to other `Wimp` supports.
+Those "other `Wimp`" are read as other `meta` declarations inside the common hidden contour.
 
 ### Fuzzy
 
-`Fuzzy` — частица динамической условной связности.
-Она выражает ветвление и выбор в зависимости от условий (в том числе на основе `state`/`enum`, когда это допустимо по локальным правилам нормализации).
+`Fuzzy` is a particle of dynamic conditional connectivity.
+It expresses branching and selection under conditions.
 
 ### Macho
 
-`Macho` — частица динамической множественной связности.
-Она выражает разворачивание множественности связей (например, в случаях природы поля topology `array`).
+`Macho` is a particle of dynamic multiple connectivity.
+It expresses the unfolding of multiple relations, for example when a topology field has the nature of `array`.
 
 ### Axion
 
-`Axion` — частица динамической логической связности.
-Она выражает логическую группировку и логические правила организации связи.
+`Axion` is a particle of dynamic logical connectivity.
+It expresses logical grouping and logical rules of organization.
 
-## Роли meta, DSL и Dark
+## The roles of meta, DSL, and Dark
 
-### meta / шаблон / gravity
+### meta / template / gravity
 
-`meta` задаёт исходное описание локальной формы связности.
-`gravity` в составе `meta` задаёт опорные связи текущей `meta` с другими `Wimp`-опорами.
+`meta` gives the original description of a local form of connectivity.
+`gravity` inside `meta` gives the supporting links from the current `meta` to other `Wimp` supports.
 
 ### DSL
 
-DSL выполняет локальную нормализацию описания в терминах частиц связности.
-Она не должна становиться глобальным оркестратором мира и не подменяет `Dark`.
+`DSL` performs local normalization of the description in terms of connectivity particles.
+It must not become the global orchestrator of the world and must not replace `Dark`.
 
 ### Dark
 
-`Dark` собирает и удерживает скрытую сеть связности из нормализованных локальных описаний.
-Он не является рендерером `Bulk` и не является вычислителем каноникализации `Boundary`.
+`Dark` gathers and holds the hidden network of connectivity from normalized local descriptions.
+It is neither the renderer of `Bulk` nor the canonicalizer of `Boundary`.
 
-## Адресация
+## Addressing
 
-Адресация в этом слое — это адресация **связности**, а не объектов времени исполнения.
+Addressing in this layer is the addressing of **connectivity**, not of runtime objects.
 
-Типизированные префиксы остаются уместными:
+Typed prefixes remain useful:
 
-- `w:` для `Wimp`,
-- `f:` для `Fuzzy`,
-- `m:` для `Macho`,
-- `a:` для `Axion`.
+- `w:` for `Wimp`,
+- `f:` for `Fuzzy`,
+- `m:` for `Macho`,
+- `a:` for `Axion`.
 
-Такой путь адресует позицию в скрытой сети связности и её конфигурацию, а не идентичность экземпляра времени исполнения.
+Such a path addresses a position in the hidden network of connectivity and its configuration, not a runtime instance identity.
 
-Адресация переплетения также должна учитывать путь связности, иначе невозможно различить разные конфигурации повторного использования одних и тех же опор.
+Entanglement addressing must also take the connectivity path into account.
+Otherwise different configurations that reuse the same supports become indistinguishable.
 
-## Отношение к Boundary и Bulk
+## Relation to Boundary and Bulk
 
-Кратко:
+In short:
 
-- `Dark` — связность без пространства,
-- `Boundary` — уплощение и фиксация отпечатка связности,
-- `Bulk` — объёмное проявление и пространственная принадлежность.
+- `Dark` is connectivity without space,
+- `Boundary` is flattening and fixation of the connectivity imprint,
+- `Bulk` is manifested volume and spatial belonging.
 
-Эта рамка намеренно краткая: она фиксирует согласованный минимум без преждевременной детализации спорных реализационных деталей.
+This frame is intentionally compact.
+It fixes a coherent minimum without prematurely detailing disputed implementation specifics.
 
-## Об устаревших терминах topology
+## On outdated topology terms
 
-Термины `LocalTopologyFragment` и `GlobalTopologyGraph` можно использовать как технические ярлыки уровня сборки,
-но они не должны подменять актуальную онтологию:
+Terms such as `LocalTopologyFragment` and `GlobalTopologyGraph` may still be used as technical labels at the assembly level,
+but they must not replace the current ontology:
 
-- первичен язык частиц связности `Dark`,
-- вторичны вспомогательные схемы сборки.
+- the language of `Dark` connectivity particles is primary,
+- supporting assembly schemes are secondary.
 
-## Краткий свод инвариантов
+## Short list of invariants
 
-1. `meta` — источник описания.
-2. `Dark` — скрытый слой связности без пространства.
-3. `Dark` содержит частицы и нити связности.
-4. `Wimp`, `Fuzzy`, `Macho`, `Axion` — частицы связности `Dark`.
-5. `Wimp` — статическая связность.
-6. `Fuzzy` — динамическая условная связность.
-7. `Macho` — динамическая множественная связность.
-8. `Axion` — динамическая логическая связность.
-9. `gravity` в `meta` описывает связь текущей `meta` с другими `Wimp`/другими `meta`.
-10. `Boundary` — граница уплощения и слой отпечатка; `Bulk` — объёмное проявление и пространственная принадлежность.
+1. `meta` is the source of description.
+2. `Dark` is the hidden layer of connectivity without space.
+3. `Dark` contains particles and threads of connectivity.
+4. `Wimp`, `Fuzzy`, `Macho`, and `Axion` are `Dark` connectivity particles.
+5. `Wimp` is static connectivity.
+6. `Fuzzy` is dynamic conditional connectivity.
+7. `Macho` is dynamic multiple connectivity.
+8. `Axion` is dynamic logical connectivity.
+9. `gravity` in `meta` describes the connection from the current `meta` to other `Wimp` / other `meta`.
+10. `Boundary` is the flattening boundary and imprint layer, while `Bulk` is manifested volume and spatial belonging.

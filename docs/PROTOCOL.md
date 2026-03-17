@@ -1,32 +1,34 @@
+[README](../README.md) | **English** | [Русский](./PROTOCOL.ru.md)
+
 # Protocol
 
-`PROTOCOL.md` является корневой точкой входа в протокольный слой MetaFor.
-Он задаёт общий строй сил, каналов и содержимого изменения.
-Детальные разборы отдельных сил и topology-field канала вынесены в [Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md), [Strong](./proto/strong.md), [Weak](./proto/weak.md) и [Higgs](./proto/higgs.md).
+`PROTOCOL.md` is the root entry point into the protocol layer of MetaFor.
+It gives the common order of forces, channels, and the transportable content of change.
+Detailed readings of separate forces and the topology-field channel are expanded in [Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md), [Strong](./proto/strong.md), [Weak](./proto/weak.md), and [Higgs](./proto/higgs.md).
 
-## Назначение
+## Purpose
 
-[ONTOLOGY.md](./ONTOLOGY.md) фиксирует, что существует в системе.
-[ARCHITECTURE.md](./ARCHITECTURE.md) фиксирует, как это выражается в кодовой проекции.
-Протокол фиксирует, как сила действует через канал и как изменение получает переносимую форму.
+[Ontology](./ONTOLOGY.md) defines what exists in the system.
+[Architecture](./ARCHITECTURE.md) defines how that ontology is projected into code.
+Protocol defines how force acts through a channel and how change receives a transportable form.
 
-Этот слой углубляет онтологию и архитектуру, но не перераспределяет их обязанности.
-Каноникализация, дедупликация, интернирование и уплотнение остаются за `Boundary × Strong`.
-Типовое различие между ordinary data-fields и topology-fields остаётся первичным и не определяется самим протоколом задним числом.
+This layer deepens ontology and architecture without redistributing their responsibilities.
+Canonicalization, deduplication, interning, and compaction remain the responsibility of `Boundary × Strong`.
+The distinction between ordinary data-fields and topology-fields remains primary and is not retroactively created by protocol.
 
-## Центральные различия
+## Central distinctions
 
-### Сила
+### Force
 
-Сила задаёт характер преобразования.
-Она не является переносимой единицей и не совпадает с содержимым изменения.
+Force defines the character of transformation.
+It is not the transportable unit and it is not identical to the content of change.
 
 ### Boson
 
-`Boson` является общим типом силового канала и переносимой единицы.
-Он не является силой.
+`Boson` is the common type of force-channel and transport unit.
+It is not itself a force.
 
-Подтипами `Boson` в протокольном слое MetaFor являются:
+The bosonic subtypes in MetaFor are:
 
 - `Graviton`,
 - `Photon`,
@@ -35,50 +37,50 @@
 - `W boson`,
 - `Z boson`.
 
-Каждый такой подтип принадлежит своей силе или отдельному topology-field каналу и не должен смешиваться с другими.
+Each subtype belongs to its own force or to the dedicated topology-field channel and must not collapse into the others.
 
 ### Impulse
 
-`Impulse` является содержимым изменения.
-Он не является силой, не является `Boson` и не является каналом.
+`Impulse` is the content of change.
+It is not a force, not a `Boson`, and not a channel.
 
-В архитектурной сериализуемой проекции `Impulse` может быть выражен как `JSON Patch`.
-Это не превращает его в переносчик.
+In the serializable architectural projection, `Impulse` may be expressed as `JSON Patch`.
+That does not turn it into the carrier itself.
 
-Протокольная связка читается так:
+The protocol relation is therefore:
 
-- сила задаёт характер преобразования,
-- `Boson` задаёт общий тип канала,
-- подтип `Boson` задаёт конкретный силовой канал,
-- `Impulse` задаёт содержимое изменения.
+- force defines the character of transformation,
+- `Boson` defines the general type of channel,
+- a bosonic subtype defines the concrete force-channel,
+- `Impulse` defines the content of change.
 
-## Типы полей
+## Field types
 
-Протокол различает:
+Protocol distinguishes:
 
 - ordinary data-fields,
 - topology-fields.
 
-`enum` и `array` относятся к topology-fields по своей типовой природе.
-Это не вывод из AST-формы постфактум, а первичная категория модели.
-`AST` только разворачивает уже существующую семантику.
+`enum` and `array` belong to topology-fields by their type nature.
+This is not an after-the-fact conclusion from AST shape.
+`AST` only unfolds a semantic distinction that already exists.
 
-Topology-fields в MetaFor читаются как Higgs fields:
+Topology-fields in MetaFor are read as Higgs fields:
 
-- `enum` всегда выражает topology selection,
-- `array` всегда выражает topology multiplicity / branch expansion.
+- `enum` always expresses topology selection,
+- `array` always expresses topology multiplicity or branch expansion.
 
-Ограничения topology-fields таковы:
+The restrictions for topology-fields are:
 
-- `array` не участвует в entanglement,
-- `array` не мутируется внешними реакциями,
-- `array` может меняться только внутренним процессом атома и только проходя через изменение `State`.
+- `array` does not participate in entanglement,
+- `array` is not mutated by external reactions,
+- `array` may change only through the atom's internal process and only by passing through a change of `State`.
 
-Формальная topology-модель, типизированная topology-адресация и topology-уровневая адресация entanglement вынесены в [TOPOLOGY.md](./TOPOLOGY.md), чтобы протокол не подменял архитектурную сборку скрытого мира.
+The formal topology model, typed topology addressing, and topology-level entanglement addressing live in [Topology](./TOPOLOGY.md) so protocol does not replace the hidden-world assembly model.
 
-## Глобальная симметрия
+## Global symmetry
 
-Протокольная симметрия MetaFor задаётся так:
+MetaFor protocol symmetry is:
 
 - `Gravity -> Graviton`
 - `Electromagnetism -> Photon`
@@ -86,62 +88,62 @@ Topology-fields в MetaFor читаются как Higgs fields:
 - `Higgs field change -> Higgs boson`
 - `Weak -> W boson / Z boson`
 
-Это соответствие должно читаться единообразно в онтологии, архитектуре и протоколе.
+This mapping should be read consistently across ontology, architecture, and protocol.
 
-## Силовые взаимодействия
+## Force interactions
 
 ### Gravity
 
-`Gravity` отвечает за скрытую организацию, адресуемость и внутреннюю геометрию.
-Её каналом является `Graviton`, который относится к внутреннему структурному протоколу, а не к наблюдаемому сигналу.
+`Gravity` is responsible for hidden organization, addressability, and inner geometry.
+Its channel is `Graviton`, which belongs to the internal structural protocol rather than to the observable signal layer.
 
-Подробный разбор вынесен в [Gravity](./proto/gravity.md).
+See [Gravity](./proto/gravity.md).
 
 ### Electromagnetism
 
-`Electromagnetism` отвечает за наблюдаемое распространение и перенос `State`.
-Её каналом является `Photon`, который приносит состояние в сигнальную, гранично-видимую и проявленную форму.
+`Electromagnetism` is responsible for observable propagation and the transport of `State`.
+Its channel is `Photon`, which brings state into a signaled, boundary-visible, and manifested form.
 
-Подробный разбор вынесен в [Electromagnetism](./proto/electromagnetism.md).
+See [Electromagnetism](./proto/electromagnetism.md).
 
 ### Strong
 
-`Strong` отвечает за удержание, сцепление, связность и устойчивость формы.
-Её каналом является `Gluon`, через который изменяются значения ordinary `Field`.
+`Strong` is responsible for retention, cohesion, connectivity, compaction, and form stability.
+Its channel is `Gluon`, through which ordinary `Field` values change.
 
-При этом `Gluon` не заменяет архитектурную роль `Boundary × Strong`.
-Каноникализация, дедупликация, интернирование и уплотнение остаются отдельной обязанностью границы.
-Глюонный октет и соответствия типам `Field` вынесены в [Strong](./proto/strong.md).
+`Gluon` does not replace the architectural role of `Boundary × Strong`.
+Canonicalization, deduplication, interning, and compaction remain boundary responsibilities.
+
+See [Strong](./proto/strong.md).
 
 ### Higgs
 
-`Higgs` в MetaFor обозначает topology-field change.
-Его каналом является `Higgs boson`, который изменяет topology-fields как Higgs fields.
+`Higgs` in MetaFor names topology-field change.
+Its channel is `Higgs boson`, which changes topology-fields as Higgs fields.
 
-Здесь важно различать:
+The distinction is:
 
-- `Photon` переносит `State`,
-- `Gluon` изменяет ordinary `Field`,
-- `Higgs boson` изменяет topology-fields,
-- `Graviton` удерживает скрытую организацию и геометрию.
+- `Photon` transports `State`,
+- `Gluon` changes ordinary `Field`,
+- `Higgs boson` changes topology-fields,
+- `Graviton` holds hidden organization and geometry.
 
-Подробный разбор вынесен в [Higgs](./proto/higgs.md).
+See [Higgs](./proto/higgs.md).
 
 ### Weak
 
-`Weak` отвечает за переход, прохождение, мутацию и медицию состояния.
-Её каналы — `W boson` и `Z boson`.
+`Weak` is responsible for transition, passage, mutation, and mediation of state.
+Its channels are `W boson` and `Z boson`.
 
-`W boson` относится к активному переходу.
-`Z boson` относится к нейтральной медиции и внутренней связке переходных состояний.
-Это не превращает `Weak` в сигнальный канал уровня `Photon`.
+`W boson` belongs to active transition.
+`Z boson` belongs to neutral mediation and the inner coupling of transitional states.
 
-Подробный разбор вынесен в [Weak](./proto/weak.md).
+See [Weak](./proto/weak.md).
 
-## Детальные документы
+## Detailed documents
 
-- [Gravity](./proto/gravity.md) — скрытая организация, адресуемость и внутренний геометрический протокол.
-- [Electromagnetism](./proto/electromagnetism.md) — наблюдаемое распространение, сигнал и перенос `State`.
-- [Strong](./proto/strong.md) — изменение значений ordinary `Field`, удержание формы и границы действия `Gluon`.
-- [Higgs](./proto/higgs.md) — topology-fields как Higgs fields, branch selection, branch multiplicity и `Higgs boson`.
-- [Weak](./proto/weak.md) — активный переход, нейтральная медиция и различие между `W boson` и `Z boson`.
+- [Gravity](./proto/gravity.md) covers hidden organization, addressability, and internal geometric protocol.
+- [Electromagnetism](./proto/electromagnetism.md) covers observable propagation, signal, and the transport of `State`.
+- [Strong](./proto/strong.md) covers ordinary `Field` updates, retention of form, and the action boundary of `Gluon`.
+- [Higgs](./proto/higgs.md) covers topology-fields as Higgs fields, branch selection, branch multiplicity, and `Higgs boson`.
+- [Weak](./proto/weak.md) covers active transition, neutral mediation, and the distinction between `W boson` and `Z boson`.

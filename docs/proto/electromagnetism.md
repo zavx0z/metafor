@@ -1,42 +1,44 @@
+[README](../../README.md) | [Protocol](../PROTOCOL.md) | **English** | [Русский](./electromagnetism.ru.md)
+
 # Electromagnetism
 
-`electromagnetism.md` разворачивает протокольное чтение `Electromagnetism`.
-Общие различения силы, `Boson`, подтипа канала и `Impulse` заданы в [корневом протоколе](../PROTOCOL.md).
+`electromagnetism.md` expands the protocol reading of `Electromagnetism`.
+The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root protocol](../PROTOCOL.md).
 
-## Сила и канал
+## Force and channel
 
-`Electromagnetism` отвечает за наблюдаемое распространение и перенос `State`.
-`Photon` является подтипом `Boson` и каналом `Electromagnetism`.
-Он переносит не значение поля вообще, а состояние в его явной, сигнальной и распространяемой форме.
+`Electromagnetism` is responsible for observable propagation and the transport of `State`.
+`Photon` is the `Boson` subtype and channel of `Electromagnetism`.
+It carries not field value in general, but state in its explicit, signal-bearing, and propagating form.
 
-Именно поэтому `Photon` относится к межкомпонентной связи, доставке состояния и проявляемому сигналу.
+That is why `Photon` belongs to inter-component relation, state delivery, and manifested signal.
 
-## Чтение по доменам
+## Reading by domain
 
 ### Dark
 
-- возможность вынесения состояния в наблюдаемое распространение,
-- связь скрытого состояния с его будущей явной проекцией,
-- подготовка состояния к сигнальному переносу.
+- possibility of exposing state into observable propagation,
+- relation between hidden state and its future explicit projection,
+- preparation of state for signal transport.
 
 ### Boundary
 
-- фиксация переноса `State` на границе,
-- сигнальная передача через контракт,
-- сериализуемая форма доставки состояния,
-- граница видимого прохождения изменения.
+- fixation of `State` transport on the boundary,
+- signal transfer through contract,
+- serializable form of state delivery,
+- boundary-visible passage of change.
 
 ### Bulk
 
-- приём `Photon`,
-- доставка состояния в событие, реакцию или действие,
-- распространение наблюдаемого сигнала,
-- связь активных частей системы через проявленный перенос.
+- reception of `Photon`,
+- delivery of state into event, reaction, or action,
+- propagation of observable signal,
+- relation of active system parts through manifested transport.
 
-## Протокольные различия
+## Protocol distinctions
 
-- `Electromagnetism` не является общим каналом всех сил.
-- `Photon` переносит `State`, но не подменяет изменение значений ordinary `Field` через `Gluon`.
-- `Photon` не является каналом topology-field change; это делает `Higgs boson`.
-- `Photon` не подменяет переходную логику `Weak`.
-- `Impulse` может сопровождать перенос состояния, но остаётся содержимым изменения, а не самим каналом.
+- `Electromagnetism` is not the common channel of all forces.
+- `Photon` transports `State`, but does not replace ordinary `Field` change through `Gluon`.
+- `Photon` is not the channel of topology-field change; `Higgs boson` does that.
+- `Photon` does not replace the transitional logic of `Weak`.
+- `Impulse` may accompany state transport, but it remains the content of change rather than the channel itself.

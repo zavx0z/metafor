@@ -1,93 +1,94 @@
+[README](../../README.md) | [Protocol](../PROTOCOL.md) | **English** | [Русский](./higgs.ru.md)
+
 # Higgs
 
-`higgs.md` разворачивает протокольное чтение topology-field change в MetaFor.
-Общие различения силы, `Boson`, подтипа канала и `Impulse` заданы в [корневом протоколе](../PROTOCOL.md).
+`higgs.md` expands the protocol reading of topology-field change in MetaFor.
+The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root protocol](../PROTOCOL.md).
 
-## Higgs fields и канал изменения
+## Higgs fields and the change channel
 
-В MetaFor topology-fields читаются как Higgs fields.
-Их изменение переносится через `Higgs boson`.
+In MetaFor, topology-fields are read as Higgs fields.
+Their change is carried through `Higgs boson`.
 
-Это изменение отлично от других каналов:
+This channel differs from the others:
 
-- `Photon` переносит `State`,
-- `Gluon` изменяет ordinary `Field`,
-- `Higgs boson` изменяет topology-fields,
-- `Graviton` удерживает скрытую организацию и геометрию.
+- `Photon` transports `State`,
+- `Gluon` changes ordinary `Field`,
+- `Higgs boson` changes topology-fields,
+- `Graviton` holds hidden organization and geometry.
 
-Topology-fields определяются типовой природой поля:
+Topology-fields are defined by type nature:
 
-- `enum` всегда задаёт branch selection,
-- `array` всегда задаёт branch multiplicity / branch expansion.
+- `enum` always gives branch selection,
+- `array` always gives branch multiplicity and branch expansion.
 
-Это различие первично по отношению к AST.
-AST лишь разворачивает topology semantics в конкретном контракте.
+This distinction is primary relative to AST.
+AST only unfolds topology semantics into a concrete contract.
 
-## Чтение по доменам
+## Reading by domain
 
 ### Dark
 
-- hidden topology как часть скрытого мира,
-- наблюдение глобальной topology reconfiguration,
-- удержание topology/gravity-непрерывности,
-- чтение структурных следствий `Higgs boson` без превращения `Dark` в runtime-оркестратор.
+- hidden topology as part of the hidden world,
+- observation of global topology reconfiguration,
+- retention of topology/gravity continuity,
+- reading structural consequences of `Higgs boson` without turning `Dark` into a runtime orchestrator.
 
 ### Boundary
 
-- каноническая фиксация topology selection,
-- каноническая фиксация branch multiplicity,
-- различение topology-field change и ordinary field update,
-- запрет внешней реактивной мутации `array`.
+- canonical fixation of topology selection,
+- canonical fixation of branch multiplicity,
+- distinction between topology-field change and ordinary field update,
+- prohibition of external reactive mutation of `array`.
 
 ### Bulk
 
-- проявленная structural reconfiguration,
-- разворачивание ветвей,
-- чтение атома как multiplicity после unfold,
-- наблюдаемая смена topology, а не просто значения в текущей ветви.
+- manifested structural reconfiguration,
+- unfolding of branches,
+- reading the atom as multiplicity after unfolding,
+- observable topology shift rather than simple value change inside the current branch.
 
-## Семантика topology-fields
+## Semantics of topology-fields
 
 ### `enum`
 
-`enum` всегда выражает выбор ветви.
-Это не просто ограниченный набор литералов, а topology selector:
+`enum` always expresses branch selection.
+It is not merely a bounded set of literals, but a topology selector:
 
-- какая ветвь мира допустима,
-- какой путь проявления активен,
-- какая конфигурация структуры должна существовать.
+- which branch of the world is admissible,
+- which path of manifestation is active,
+- which structural configuration must exist.
 
 ### `array`
 
-`array` всегда выражает множественность ветвей.
-Это не ordinary collection value, а branch expansion:
+`array` always expresses branch multiplicity.
+It is not an ordinary collection value, but branch expansion:
 
-- сколько ветвей должно существовать,
-- как атом разворачивается в множественность,
-- как единичная точка структуры становится составом ветвей.
+- how many branches should exist,
+- how an atom unfolds into multiplicity,
+- how one structural point becomes a composition of branches.
 
-Когда `array` раскрывается, атом становится multiplicity.
-Это предотвращает чтение массива как простой value-box внутри неизменной topology.
+When `array` unfolds, the atom becomes multiplicity.
+This prevents reading an array as a simple value-box inside unchanged topology.
 
-## Ограничения для `array`
+## Restrictions on `array`
 
-- `array` не участвует в entanglement,
-- `array` не мутируется внешними реакциями,
-- `array` может меняться только внутренним процессом самого атома,
-- такое изменение должно проходить через изменение `State`,
-- внешний мир может наблюдать результат topology change, но не должен напрямую вмешиваться в unfold topology.
+- `array` does not participate in entanglement,
+- `array` is not mutated by external reactions,
+- `array` may change only through the internal process of the atom itself,
+- that change must pass through a change of `State`,
+- the outer world may observe the result of topology change, but must not directly interfere in topology unfolding.
 
-Эти ограничения нужны, чтобы избежать неконтролируемого topology coupling.
-Если внешние реакции могли бы произвольно мутировать `array`, topology становилась бы побочным эффектом чужих сигналов, а не результатом собственной эволюции атома.
+These restrictions prevent uncontrolled topology coupling.
 
-## Глобальная наблюдаемость
+## Global observability
 
-Topology-field change имеет глобально наблюдаемые структурные последствия:
+Topology-field change has globally observable structural consequences:
 
-- `Higgs boson` меняет topology,
-- `Photon` продолжает переносить `State`,
-- `Graviton` удерживает ту скрытую геометрию, в которой topology change получает место,
-- `Dark` наблюдает структурные следствия изменений, приходящих через `Electromagnetism`, `Higgs field change` и `Gravity`.
+- `Higgs boson` changes topology,
+- `Photon` continues to transport `State`,
+- `Graviton` holds the hidden geometry in which topology change receives place,
+- `Dark` observes the structural consequences of changes arriving through `Electromagnetism`, Higgs-field change, and `Gravity`.
 
-Это не делает `Dark` runtime execution center.
-`Dark` остаётся hidden builder/holder topology и hidden observer их глобальной согласованности.
+This does not make `Dark` a runtime execution center.
+`Dark` remains the hidden builder and holder of topology together with the hidden observer of their global coherence.

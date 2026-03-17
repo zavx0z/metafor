@@ -1,128 +1,20 @@
-# Module Naming
+# Agent Guidance
 
-- Для всех модулей, кроме `index.ts`, реализация должна лежать в файле `{name}.ts`.
-- Типы этого модуля должны лежать в файле `{name}.t.ts`.
-- Оркестратор пакета должен называться по имени пакета.
-- В `index.ts` должны быть только экспорты.
+Before making code, architecture, or documentation changes, the agent must inspect the current project documentation.
 
-# Стандарты TSDoc
+## Required reading order
 
-TSDoc объясняет **почему** и **как использовать**, а не то, что уже очевидно из кода.
+1. Start with `README.md` or `README.ru.md` to understand the public entry surface and current project status.
+2. Read the relevant documents in `docs/` before changing semantics, architecture, or navigation.
+3. For architectural work, always review:
+   - `docs/ONTOLOGY.md` / `docs/ONTOLOGY.ru.md`
+   - `docs/ARCHITECTURE.md` / `docs/ARCHITECTURE.ru.md`
+   - `docs/PROTOCOL.md` / `docs/PROTOCOL.ru.md`
+   - `docs/DEVELOPMENT.md` / `docs/DEVELOPMENT.ru.md`
 
-## Назначение
+## Documentation discipline
 
-Используй TSDoc, чтобы документировать неявные связи, ограничения и намерение.
-
-## Когда применять
-
-Применяй это правило, когда пишешь или редактируешь TSDoc в TypeScript-файлах.
-
-## Требования
-
-Общие правила:
-
-- документируй неочевидное;
-- не пересказывай имена и сигнатуры;
-- держи комментарии привязанными к намерению, ограничениям и использованию;
-- не переводи идентификаторы на другой язык.
-
-Ссылки:
-
-| Цель                    | Формат                                               |
-| ----------------------- | ---------------------------------------------------- |
-| Путь пакета или модуля  | `` `@scope/pkg` ``                                   |
-| Тип                     | `{@link TypeName}`                                   |
-| Поле типа               | `{@link TypeName.field}`                             |
-| Поле внутри `@property` | ``@property field {@link Type.field + description}`` |
-
-Store-файлы документируются по слоям:
-
-1. `store.t.ts` — короткие однострочные комментарии полей в интерфейсе.
-2. `store.ts` — один заголовок над store-объектом с `@property`-записями.
-3. Поля внутри object literal store — без TSDoc-комментариев.
-
-Используй такую форму `store.ts`:
-
-```typescript
-/**
- * Короткое описание store.
- *
- * Заполняется в `@{domain}/orchestrator`, используется в `@{domain}/executor`.
- *
- * @property data {@link ModuleStore.data|description}
- * @property offset {@link ModuleStore.offset|description}
- *
- * @see {@link ModuleStore} — тип состояния
- */
-export const store: ModuleStore = {
-  data: null as unknown as Uint32Array,
-  offset: 0,
-}
-```
-
-Используй такую форму `store.t.ts`:
-
-```typescript
-/**
- * Состояние `@{domain}/store`.
- *
- * Хранит данные, используемые несколькими пакетами:
- * - {@link ModuleStore.data | data} — для инициализации
- * - {@link ModuleStore.offset | offset} — для операций
- */
-export interface ModuleStore {
-  /** Короткое описание поля. */
-  data: Uint32Array
-
-  /** Короткое описание поля. */
-  offset: number
-}
-```
-
-Для методов:
-
-- `@param` описывает формат, ограничение или роль, а не тип;
-- `@returns` описывает смысл, а не тип.
-
-## Запрещено
-
-Не:
-
-- используй `{@link}` для пакетов или путей модулей;
-- добавляй TSDoc к полям внутри store object literal;
-- подробно описывай одно и то же поле на нескольких уровнях документации;
-- пиши многострочные комментарии для полей интерфейса;
-- повторяй информацию о типе в `@param` или `@returns`.
-
-## Примеры
-
-Неправильно:
-
-```typescript
-export const store: Store = {
-  /** {@link Store.field|Описание поля}. */
-  field: "",
-}
-```
-
-Правильно:
-
-```typescript
-/**
- * Описание store.
- *
- * @property field {@link Store.field|Описание поля}
- */
-export const store: Store = {
-  field: "",
-}
-```
-
-## Чеклист
-
-- [ ] Комментарий объясняет что-то неочевидное
-- [ ] Пути пакетов используют литералы, а не `{@link}`
-- [ ] Поля store в `store.ts` документированы через `@property`
-- [ ] Store object literal не содержит TSDoc у полей
-- [ ] Комментарии полей интерфейса короткие
-- [ ] `@param` и `@returns` не повторяют типы
+- Treat the current `arch` documentation as the source of truth.
+- Do not replace `Dark`, `Boundary`, `Bulk`, `Field`, or protocol terminology with older framework-era terms.
+- Preserve bilingual navigation when changing the public documentation surface.
+- If documentation is edited, update both language versions immediately and keep them structurally mirrored.

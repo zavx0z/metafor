@@ -1,43 +1,45 @@
+[README](../../README.md) | [Protocol](../PROTOCOL.md) | **English** | [Русский](./gravity.ru.md)
+
 # Gravity
 
-`gravity.md` разворачивает протокольное чтение `Gravity`.
-Общие различения силы, `Boson`, подтипа канала и `Impulse` заданы в [корневом протоколе](../PROTOCOL.md).
+`gravity.md` expands the protocol reading of `Gravity`.
+The general distinction between force, `Boson`, channel subtype, and `Impulse` is defined in the [root protocol](../PROTOCOL.md).
 
-## Сила и канал
+## Force and channel
 
-`Gravity` отвечает за скрытую организацию, адресуемость и внутреннюю геометрию структуры.
-`Graviton` является подтипом `Boson` и каналом `Gravity`.
-Он не тождественен самой силе и не является наблюдаемым сигналом уровня `Photon`.
+`Gravity` is responsible for hidden organization, addressability, and the inner geometry of structure.
+`Graviton` is the `Boson` subtype and channel of `Gravity`.
+It is not identical to the force itself and it is not an observable signal on the level of `Photon`.
 
-Через `Graviton` удерживается та скрытая организация, в которой сущности получают место, связность и геометрическую различимость.
+Through `Graviton`, the hidden organization is maintained in which entities receive place, connectivity, and geometric distinguishability.
 
-## Чтение по доменам
+## Reading by domain
 
 ### Dark
 
-- скрытая иерархия,
-- внутренняя геометрия структуры,
-- адресуемость скрытого мира,
-- организация схем, версий и их преемственности.
+- hidden hierarchy,
+- inner geometry of structure,
+- addressability of the hidden world,
+- organization of schemas, versions, and their continuity.
 
 ### Boundary
 
-- следствия скрытой организации на границе,
-- геометрия `Boundary`,
-- индексное пространство,
-- форма адресуемого состояния.
+- consequences of hidden organization on the boundary,
+- geometry of `Boundary`,
+- index space,
+- form of addressable state.
 
 ### Bulk
 
-- проявленная топология,
-- геометрия акторов,
-- пространственная раскладка исполнения,
-- наблюдаемые следствия скрытой организации.
+- manifested topology,
+- geometry of actors,
+- spatial arrangement of execution,
+- observable consequences of hidden organization.
 
-## Протокольные различия
+## Protocol distinctions
 
-- `Gravity` не переносит `State` в наблюдаемой форме; это делает `Photon`.
-- `Gravity` не изменяет значения ordinary `Field`; это делает `Gluon`.
-- `Gravity` не изменяет topology-fields; это делает `Higgs boson`.
-- `Gravity` не проводит переход между состояниями; это делает `Weak` через `W boson` и `Z boson`.
-- `Gravity` задаёт ту скрытую организацию, в которой остальные изменения получают локализацию и связность.
+- `Gravity` does not transport `State` in observable form; `Photon` does that.
+- `Gravity` does not change ordinary `Field` values; `Gluon` does that.
+- `Gravity` does not change topology-fields; `Higgs boson` does that.
+- `Gravity` does not carry transition between states; `Weak` does that through `W boson` and `Z boson`.
+- `Gravity` gives the hidden organization in which the other changes receive localization and connectivity.
