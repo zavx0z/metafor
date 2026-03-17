@@ -4,17 +4,23 @@
 
 **MetaFor** is an open-source environment for common AGI (Artificial General Intelligence). It treats intelligence not as an isolated model in a flat interface, but as a **shared digital environment** where people, agents, interfaces, memory, applications, devices, space, and action can coexist.
 
+## Communication
+
+The user is Russian-speaking.
+When communicating directly with the user, prefer Russian and avoid unnecessary anglicisms in discussion.
+Preserve exact project terminology where needed, but choose clear Russian wording whenever possible.
+
 ### Core Philosophy
 
 MetaFor is built on the assumption that intelligence becomes real through participation in a world — through memory, interfaces, processes, devices, language, visual forms, and practical action.
 
 The architecture is organized around three fundamental **domains**:
 
-| Domain | Role | Key Characteristics |
-|--------|------|---------------------|
-| **Dark** | Hidden connectivity, memory, hierarchy, history, model evolution | Particles (`Wimp`, `Fuzzy`, `Macho`, `Axion`), connectivity threads, schema history, fixed states |
-| **Boundary** | Flattening, fixation, canonicalization, state computation | Imprint layer where connectivity receives addressable form as `Field` |
-| **Bulk** | Manifestation, execution, process, volume, spatial form | Volumetric manifestation, actors, processes, execution |
+| Domain       | Role                                                             | Key Characteristics                                                                               |
+| ------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Dark**     | Hidden connectivity, memory, hierarchy, history, model evolution | Particles (`Wimp`, `Fuzzy`, `Macho`, `Axion`), connectivity threads, schema history, fixed states |
+| **Boundary** | Flattening, fixation, canonicalization, state computation        | Imprint layer where connectivity receives addressable form as `Field`                             |
+| **Bulk**     | Manifestation, execution, process, volume, spatial form          | Volumetric manifestation, actors, processes, execution                                            |
 
 ### Key Architectural Invariants
 
@@ -25,18 +31,18 @@ The architecture is organized around three fundamental **domains**:
 
 ## Technology Stack
 
-| Category | Technology |
-|----------|------------|
-| **Runtime** | [Bun](https://bun.sh/) (JavaScript/TypeScript runtime) |
-| **Language** | TypeScript 5.9+ (ESNext, strict mode) |
-| **Package Manager** | Bun (workspaces) |
-| **Type Definitions** | `@types/bun`, `@types/node`, `@webgpu/types`, `bun-webgpu` |
-| **Documentation** | Markdown (with `markdownlint` validation) |
-| **API Documentation** | TypeDoc with module merging |
+| Category              | Technology                                                                   |
+| --------------------- | ---------------------------------------------------------------------------- |
+| **Runtime**           | [Bun](https://bun.sh/) (JavaScript/TypeScript runtime)                       |
+| **Language**          | TypeScript 5.9+ (ESNext, strict mode)                                        |
+| **Package Manager**   | Bun (workspaces)                                                             |
+| **Type Definitions**  | `@types/bun`, `@types/node`, `bun-webgpu`                                    |
+| **Documentation**     | Markdown (with `markdownlint` validation)                                    |
+| **API Documentation** | TypeDoc dependencies for internal code usage (without generated public docs) |
 
 ## Repository Structure
 
-```
+```text
 metafor/
 ├── dark/              # Dark domain: hidden connectivity, particles, threads
 │   ├── gravity/       # Schema loading, path formation, connectivity structure
@@ -79,15 +85,15 @@ bun install
 
 ### Development Commands
 
-| Command | Description |
-|---------|-------------|
-| `bun run dev` | Start development server (runs `@app/web dev`) |
-| `bun run build` | Build `@metafor/dsl` package |
-| `bun run typegen` | Generate types for `@metafor/dsl` |
-| `bun run space:build` | Build `metafor.ts` with sourcemaps |
-| `bun run lint:md` | Lint all Markdown files |
-| `bun run upd` | Update all dependencies to latest |
-| `bun run clear` | Clean all node_modules and rebuild |
+| Command               | Description                                    |
+| --------------------- | ---------------------------------------------- |
+| `bun run dev`         | Start development server (runs `@app/web dev`) |
+| `bun run build`       | Build `@metafor/dsl` package                   |
+| `bun run typegen`     | Generate types for `@metafor/dsl`              |
+| `bun run space:build` | Build `metafor.ts` with sourcemaps             |
+| `bun run lint:md`     | Lint all Markdown files                        |
+| `bun run upd`         | Update all dependencies to latest              |
+| `bun run clear`       | Clean all node_modules and rebuild             |
 
 ### Workspace-specific Commands
 
@@ -118,12 +124,12 @@ Always preserve the current `arch` branch terminology:
 
 ### Cross-Domain Import Rules
 
-| Context | Allowed? |
-|---------|----------|
-| Production code: direct imports across domains | ❌ Forbidden |
-| Test code: relative imports across domains | ✅ Allowed (for integration tests) |
-| Temporary test orchestration | ✅ Allowed |
-| Exporting one domain's internals as another's API | ❌ Forbidden |
+| Context                                           | Allowed?                          |
+| ------------------------------------------------- | --------------------------------- |
+| Production code: direct imports across domains    | ❌ Forbidden                       |
+| Test code: relative imports across domains        | ✅ Allowed (for integration tests) |
+| Temporary test orchestration                      | ✅ Allowed                         |
+| Exporting one domain's internals as another's API | ❌ Forbidden                       |
 
 ### Documentation Rules
 
@@ -131,6 +137,24 @@ Always preserve the current `arch` branch terminology:
 2. **Navigation Preservation**: Keep top-level language switches between counterparts
 3. **Small Edits**: Prefer small, verifiable edits over large conceptual rewrites
 4. **Terminology Consistency**: Do not reintroduce older `qTp` framing as replacement for current terminology
+
+### Commit Rules
+
+1. **Diff-Only Truth**: Treat the staged diff as the only source of truth for commit wording
+2. **Changed Lines Only**: Analyze only added and removed lines; full file context is only for locating the change
+3. **No Context Hallucination**: Do not describe code, classes, methods, or documents as changed if they are not touched in the diff
+4. **Split Concerns**: Prefer separate commits for separate concerns; documentation and agent-rule changes should be committed separately from production code and tests unless inseparable
+5. **Type Priority**: Classify changes in this order: `feat` -> `fix` -> `refactor` -> `type` -> `test` -> `docs`
+6. **Subject Format**: Build the commit subject as `[type/type] scope - description` and keep it within 72 characters when possible
+7. **Semantic Order**: If multiple types are present, keep the description in the same order as the types
+8. **MetaFor Scopes**: Prefer repository-native scopes such as `dark`, `boundary`, `bulk`, `metafor`, `app`, `docs`, `agents`, `tests`, `repo`
+9. **Config Classification**: Treat `package.json`, `bunfig.toml`, `tsconfig*`, scripts, and dependency updates as `refactor`-side changes unless the diff clearly introduces a feature or fixes a bug
+10. **Test Classification**: Treat `*.test.*` and `*.spec.*` changes as `test`; do not classify package or script changes as test fixes
+11. **Detailed Markdown Summary**: When a detailed commit summary is requested, emit only non-empty sections:
+    - `### Основные изменения:` for `feat`, `fix`, and behavior-relevant `type`
+    - `### Улучшения кода:` for `refactor`, config, scripts, and dependencies
+    - `### Исправления в тестах:` only when the diff touches `*.test.*` or `*.spec.*`
+12. **Actual Git Commit**: For the actual `git commit`, use the one-line subject unless an extended body is explicitly requested
 
 ### Code Style
 
@@ -155,12 +179,12 @@ Always preserve the current `arch` branch terminology:
 
 ### Four Universal Forces
 
-| Force | Channel (Boson) | Responsibility |
-|-------|-----------------|----------------|
-| **Gravity** | `Graviton` | Hidden organization, addressability, schema relations |
-| **Electromagnetism** | `Photon` | Observable propagation, state transport |
-| **Strong** | `Gluon` | Retention, cohesion, stability, ordinary field changes |
-| **Weak** | `W boson`, `Z boson` | Transition, mutation, transformation, state evolution |
+| Force                | Channel (Boson)      | Responsibility                                         |
+| -------------------- | -------------------- | ------------------------------------------------------ |
+| **Gravity**          | `Graviton`           | Hidden organization, addressability, schema relations  |
+| **Electromagnetism** | `Photon`             | Observable propagation, state transport                |
+| **Strong**           | `Gluon`              | Retention, cohesion, stability, ordinary field changes |
+| **Weak**             | `W boson`, `Z boson` | Transition, mutation, transformation, state evolution  |
 
 ### Topology-Fields (Higgs)
 
@@ -174,9 +198,9 @@ Topology-fields are distinct from ordinary data-fields:
 
 ### Identity vs Index
 
-| Concept | Purpose | Scope |
-|---------|---------|-------|
-| **UUID** | Stable identity | Persists across `Dark`, `Boundary`, `Bulk` |
+| Concept   | Purpose         | Scope                                           |
+| --------- | --------------- | ----------------------------------------------- |
+| **UUID**  | Stable identity | Persists across `Dark`, `Boundary`, `Bulk`      |
 | **Index** | Runtime address | Local geometric address in `Boundary` or `Bulk` |
 
 ## Current Project Status
@@ -194,14 +218,14 @@ Until full inter-domain protocols exist:
 
 ## Documentation Index
 
-| Document | Purpose |
-|----------|---------|
-| [PHILOSOPHY.md](docs/PHILOSOPHY.md) | Project worldview, role of metaphor as architectural discipline |
-| [ONTOLOGY.md](docs/ONTOLOGY.md) | What exists in MetaFor: domains, forces, entities |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Domain responsibilities, invariants, repository projection |
-| [TOPOLOGY.md](docs/TOPOLOGY.md) | Hidden connectivity in `Dark`: particles and threads |
-| [PROTOCOL.md](docs/PROTOCOL.md) | Forces, bosonic channels, transport form of change |
-| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Current practical development mode |
+| Document                                | Purpose                                                         |
+| --------------------------------------- | --------------------------------------------------------------- |
+| [PHILOSOPHY.md](docs/PHILOSOPHY.md)     | Project worldview, role of metaphor as architectural discipline |
+| [ONTOLOGY.md](docs/ONTOLOGY.md)         | What exists in MetaFor: domains, forces, entities               |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Domain responsibilities, invariants, repository projection      |
+| [TOPOLOGY.md](docs/TOPOLOGY.md)         | Hidden connectivity in `Dark`: particles and threads            |
+| [PROTOCOL.md](docs/PROTOCOL.md)         | Forces, bosonic channels, transport form of change              |
+| [DEVELOPMENT.md](docs/DEVELOPMENT.md)   | Current practical development mode                              |
 
 ## Contributing
 
