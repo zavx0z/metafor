@@ -66,6 +66,10 @@ MetaFor организован как Bun workspace-репозиторий.
 Правила вклада здесь намеренно минимальны и привязаны к текущему состоянию репозитория.
 Начните с [CONTRIBUTING.ru.md](CONTRIBUTING.ru.md).
 
+## Автор
+
+MetaFor — авторский долгосрочный проект Владимира Филипенко ([zavx0z](https://career.habr.com/zavx0z)).
+
 ## Лицензия
 
 MetaFor распространяется под лицензией [GNU Affero General Public License v3.0 or later](LICENSE).

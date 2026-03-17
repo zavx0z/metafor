@@ -66,6 +66,10 @@ When changing architecture or documentation, use the current `arch` terminology 
 Contribution guidance is intentionally minimal and tied to the repository as it exists today.
 Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Author
+
+MetaFor is an original long-term project created and developed by [Vladimir Filipenko (zavx0z)](https://career.habr.com/zavx0z).
+
 ## License
 
 MetaFor is licensed under [GNU Affero General Public License v3.0 or later](LICENSE).
