@@ -2,7 +2,7 @@
 
 # Development
 
-`DEVELOPMENT.md` records the practical development mode of MetaFor before full inter-domain protocols exist.
+This document records the practical development mode of MetaFor before full inter-domain protocols exist.
 It does not replace [Architecture](./ARCHITECTURE.md) and does not cancel the protocol layer described in [Protocol](./PROTOCOL.md).
 Its role is to keep architectural invariants distinct from temporary development tactics.
 

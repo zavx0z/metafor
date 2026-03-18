@@ -2,15 +2,15 @@
 
 # DAO
 
-This document explains why MetaFor needs a DAO layer and how that layer is supposed to work conceptually.
+This document explains why MetaFor needs a [DAO](https://ethereum.org/dao/) layer and how that layer is meant to work conceptually.
 It is not a smart-contract specification and not an implementation document.
 
 ## Why MetaFor Needs DAO
 
-MetaFor is conceived as a common environment for intelligence rather than as a closed product owned by one platform.
-If that environment is meant to include people, agents, AGI, applications, devices, and shared structure, then admission cannot remain a purely personal or purely corporate matter forever.
+MetaFor is conceived not as a closed product owned by one platform, but as a common space uniting our universe and digital reality.
+If that space is meant to include people, devices, the applications running on those devices, agents, [AGI](https://en.wikipedia.org/wiki/Artificial_general_intelligence), and shared structure, then admission cannot remain a purely personal or purely corporate matter forever.
 For MetaFor, this is not a secondary political theme.
-If AGI is to become real, ownership and governance belong to its final path rather than to an optional layer around it.
+When AGI becomes real, ownership and governance belong to its final path rather than to an optional layer around it.
 
 DAO appears here not as a fashionable token wrapper, but as a governance mechanism for a common space:
 
@@ -25,7 +25,7 @@ the DAO is needed because MetaFor is aimed at becoming a common space, and a com
 
 ## Why This Matters Materially
 
-Without such a layer, people risk being displaced from work and left without a livelihood while stronger intelligent systems are accumulated by states, corporations, and private platforms.
+Without such a layer, people risk being displaced from work and left without a livelihood while stronger intelligent systems accumulate under states, corporations, and private platforms.
 
 MetaFor takes the opposite direction.
 People should not remain outside the system that replaces them.
@@ -36,7 +36,7 @@ It is a way to preserve human agency, economic continuation, and collective legi
 
 ## Why TON
 
-The DAO concept for MetaFor is tied to TON as the long-term governance substrate because TON is the closest fit to MetaFor both architecturally and ideologically.
+The DAO concept for MetaFor is tied to [TON](https://ton.org/en/) as the long-term governance substrate because TON is the closest fit to MetaFor both architecturally and ideologically.
 The purpose of TON here is not branding.
 It is a public, verifiable, shared layer whose native parallelism, speed, and operational cost fit the direction of MetaFor much better than a slow, heavy, or purely symbolic governance shell.
 

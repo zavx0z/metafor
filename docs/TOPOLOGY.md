@@ -2,7 +2,7 @@
 
 # Topology
 
-`TOPOLOGY.md` records hidden connectivity in the current MetaFor reading:
+This document records hidden connectivity in the current MetaFor reading:
 `Dark` is described through connectivity particles and connectivity threads, not as an independent geometry of space.
 
 Important:

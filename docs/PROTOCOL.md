@@ -2,7 +2,7 @@
 
 # Protocol
 
-`PROTOCOL.md` is the root entry point into the protocol layer of MetaFor.
+This document is the root entry point into the protocol layer of MetaFor.
 It gives the common order of forces, channels, and the transportable content of change.
 Detailed readings of separate forces and the topology-field channel are expanded in [Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md), [Strong](./proto/strong.md), [Weak](./proto/weak.md), and [Higgs](./proto/higgs.md).
 

@@ -2,7 +2,7 @@
 
 # Ontology
 
-MetaFor ontology describes what exists in the system.
+This document fixes what exists in MetaFor before file layout and code projection.
 It does not begin with file layout and does not depend on the current physical location of modules.
 It fixes the primary reality that code merely projects.
 

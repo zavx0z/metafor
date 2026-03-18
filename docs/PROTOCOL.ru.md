@@ -2,7 +2,7 @@
 
 # Protocol
 
-`PROTOCOL.md` является корневой точкой входа в протокольный слой MetaFor.
+Этот документ является корневой точкой входа в протокольный слой MetaFor.
 Он задаёт общий строй сил, каналов и содержимого изменения.
 Детальные разборы отдельных сил и канала изменения полей topology вынесены в [Gravity](./proto/gravity.ru.md), [Electromagnetism](./proto/electromagnetism.ru.md), [Strong](./proto/strong.ru.md), [Weak](./proto/weak.ru.md) и [Higgs](./proto/higgs.ru.md).
 

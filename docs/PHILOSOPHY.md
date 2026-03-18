@@ -4,6 +4,7 @@
 
 MetaFor does not begin with code, APIs, or package layout.
 It begins with a way of reading existence.
+This document fixes that worldview.
 
 The name **MetaFor** carries two meanings at once.
 

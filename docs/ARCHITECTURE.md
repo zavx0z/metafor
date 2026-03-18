@@ -3,6 +3,7 @@
 # Architecture
 
 This document describes the architectural projection of MetaFor and fixes its invariants.
+It translates ontology into domain responsibilities and repository projection.
 Operational planning is outside the scope of this document.
 
 ## Rule of architectural reading
