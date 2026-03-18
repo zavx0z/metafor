@@ -89,8 +89,6 @@ type StepResult = {
   viaParticle: ParentContext["viaParticle"] | null
 }
 
-type MutableStepGraph = DarkGraph
-
 const hub = new HubFixture("./github/")
 
 beforeAll(async () => {
@@ -132,7 +130,7 @@ function getDynamicExpr(value: NodeMeta["fields"] | NodeMeta["mass"] | NodeMeta[
   return value && typeof value === "object" && "expr" in value ? value.expr : undefined
 }
 
-function createEmptyGraph(): MutableStepGraph {
+function createEmptyGraph(): DarkGraph {
   return {
     roots: new Set(),
     particles: new Map<ParticleID, DarkParticle>(),
@@ -141,7 +139,7 @@ function createEmptyGraph(): MutableStepGraph {
   }
 }
 
-function appendParticle(graph: MutableStepGraph, particle: StepParticle, parentId?: ParticleID): void {
+function appendParticle(graph: DarkGraph, particle: StepParticle, parentId?: ParticleID): void {
   graph.particles.set(particle.id, particle)
   if (parentId) {
     graph.parent.set(particle.id, parentId)
@@ -226,7 +224,7 @@ function collectTopologyDependencySeeds(ast: MetaAST, input: StepInput): DarkTop
 
 function collectBranchGraph(
   node: NodeLogical | NodeCondition,
-  graph: MutableStepGraph,
+  graph: DarkGraph,
   input: StepInput,
   continuations: StepContinuation[],
   parentId?: ParticleID,
