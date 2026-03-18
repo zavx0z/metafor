@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 
 import type { Binding } from "@dark/types"
 import type { Address } from "@dark/types/dark"
-import type { MetaAST } from "../metafor/ast/ast.t"
+import { convertMetaDSLToMetaAST, type MetaAST } from "../metafor/ast/index.ts"
+import { MetaFor } from "../metafor/dsl/metafor.ts"
 import { parse, type NodeCondition, type NodeLogical, type NodeMeta, type NodeType } from "../metafor/template/index.ts"
 
 import { HubFixture } from "fixture/hub"
@@ -11,6 +12,7 @@ import { loadMetaAST } from "../dark/load"
 type ParentContext = {
   metaAddress: Address
   viaParticle: "wimp" | "fuzzy" | "macho" | "axion"
+  knotId: string
 }
 
 type EntanglementContext = {
@@ -20,6 +22,7 @@ type EntanglementContext = {
 
 type StepInput = {
   metaAddress: Address
+  branchAddress: string
   parentContext: ParentContext | null
   entanglement: EntanglementContext | null
   viaParticle: ParentContext["viaParticle"] | null
@@ -40,25 +43,48 @@ type StepParticle =
       particles?: StepParticle[]
     }
 
+type StepGuard = {
+  kind: "fuzzy"
+  basis: string | string[]
+  expr?: string
+}
+
+type StepKnot = {
+  id: string
+  metaAddress: Address
+  branchAddress: string
+  parentKnotId: string | null
+  particles: StepParticle[]
+}
+
+type TopologyDependencySeed = {
+  knotId: string
+  field: string
+  fieldType: string
+  topologyKind: "enum" | "array"
+  sourcePath: string
+  participatesInEntanglement: false
+  mutableFromReaction: false
+  mutableDuringProcess: false
+}
+
 type StepContinuation =
   | {
       kind: "wimp-load"
       mode: "static"
+      fromKnotId: string
       metaAddress: string
       fields?: Binding<Record<string, unknown>>
       mass?: Binding<Record<string, unknown>>
       parentContext: ParentContext | null
       entanglement: EntanglementContext | null
       viaParticle: "wimp"
-      guard?: {
-        kind: "fuzzy"
-        basis: string | string[]
-        expr?: string
-      }
+      guard?: StepGuard
     }
   | {
       kind: "wimp-load"
       mode: "dynamic"
+      fromKnotId: string
       basis: string | string[]
       expr?: string
       fields?: Binding<Record<string, unknown>>
@@ -70,8 +96,10 @@ type StepContinuation =
 
 type StepResult = {
   metaAddress: Address
+  knot: StepKnot
   particles: StepParticle[]
   continuations: StepContinuation[]
+  dependencySeeds: TopologyDependencySeed[]
   parentContext: ParentContext | null
   entanglement: EntanglementContext | null
   viaParticle: ParentContext["viaParticle"] | null
@@ -103,6 +131,10 @@ function normalizeBinding(value: NodeMeta["fields"] | NodeMeta["mass"]): Binding
   }
 }
 
+function createKnotId(metaAddress: Address, branchAddress: string): string {
+  return `knot:${metaAddress}@${branchAddress}`
+}
+
 function normalizeStaticWimp(node: NodeMeta): Extract<StepParticle, { kind: "wimp" }> {
   if (typeof node.src !== "string") {
     throw new Error("Step: статический Wimp должен иметь строковый src")
@@ -132,16 +164,54 @@ function normalizeBranchFuzzy(node: NodeLogical | NodeCondition): Extract<StepPa
   }
 }
 
+function collectTopologyDependencySeeds(ast: MetaAST, knotId: string): TopologyDependencySeed[] {
+  return Object.entries(ast.fields).flatMap(([field, definition]) => {
+    if (definition.type.startsWith("enum<")) {
+      return [
+        {
+          knotId,
+          field,
+          fieldType: definition.type,
+          topologyKind: "enum" as const,
+          sourcePath: `/value/${field}`,
+          participatesInEntanglement: false as const,
+          mutableFromReaction: false as const,
+          mutableDuringProcess: false as const,
+        },
+      ]
+    }
+
+    if (definition.type.startsWith("array<")) {
+      return [
+        {
+          knotId,
+          field,
+          fieldType: definition.type,
+          topologyKind: "array" as const,
+          sourcePath: `/value/${field}`,
+          participatesInEntanglement: false as const,
+          mutableFromReaction: false as const,
+          mutableDuringProcess: false as const,
+        },
+      ]
+    }
+
+    return []
+  })
+}
+
 function collectStaticContinuations(
   node: NodeType,
   input: StepInput,
-  guard?: Extract<StepContinuation, { mode: "static" }>["guard"],
+  fromKnotId: string,
+  guard?: StepGuard,
 ): Extract<StepContinuation, { mode: "static" }>[] {
   if (node.type === "meta" && typeof node.src === "string") {
     return [
       {
         kind: "wimp-load",
         mode: "static",
+        fromKnotId,
         metaAddress: node.src,
         ...(node.fields ? { fields: normalizeBinding(node.fields) } : {}),
         ...(node.mass ? { mass: normalizeBinding(node.mass) } : {}),
@@ -159,16 +229,16 @@ function collectStaticContinuations(
       basis: node.data,
       ...(node.expr ? { expr: node.expr } : {}),
     }
-    return node.child.flatMap((child) => collectStaticContinuations(child, input, nestedGuard))
+    return node.child.flatMap((child) => collectStaticContinuations(child, input, fromKnotId, nestedGuard))
   }
 
   return []
 }
 
-async function processMetaStep(input: StepInput): Promise<StepResult> {
-  const ast = (await loadMetaAST(input.metaAddress)) as MetaAST
+function processLoadedMetaStep(ast: MetaAST, input: StepInput): StepResult {
   const particles: StepParticle[] = []
   const continuations: StepContinuation[] = []
+  const knotId = createKnotId(input.metaAddress, input.branchAddress)
 
   for (const node of ast.gravity ?? []) {
     if (node.type === "meta") {
@@ -178,6 +248,7 @@ async function processMetaStep(input: StepInput): Promise<StepResult> {
         continuations.push({
           kind: "wimp-load",
           mode: "static",
+          fromKnotId: knotId,
           metaAddress: wimp.src,
           ...(wimp.fields ? { fields: wimp.fields } : {}),
           ...(wimp.mass ? { mass: wimp.mass } : {}),
@@ -198,6 +269,7 @@ async function processMetaStep(input: StepInput): Promise<StepResult> {
       continuations.push({
         kind: "wimp-load",
         mode: "dynamic",
+        fromKnotId: knotId,
         basis: node.src.data,
         ...(node.src.expr ? { expr: node.src.expr } : {}),
         ...(node.fields ? { fields: normalizeBinding(node.fields) } : {}),
@@ -217,27 +289,74 @@ async function processMetaStep(input: StepInput): Promise<StepResult> {
         basis: node.data,
         ...(node.expr ? { expr: node.expr } : {}),
       }
-      continuations.push(...node.child.flatMap((child) => collectStaticContinuations(child, input, guard)))
+      continuations.push(...node.child.flatMap((child) => collectStaticContinuations(child, input, knotId, guard)))
     }
   }
 
   return {
     metaAddress: input.metaAddress,
+    knot: {
+      id: knotId,
+      metaAddress: input.metaAddress,
+      branchAddress: input.branchAddress,
+      parentKnotId: input.parentContext?.knotId ?? null,
+      particles,
+    },
     particles,
     continuations,
+    dependencySeeds: collectTopologyDependencySeeds(ast, knotId),
     parentContext: input.parentContext,
     entanglement: input.entanglement,
     viaParticle: input.viaParticle,
   }
 }
 
+async function processMetaStep(input: StepInput): Promise<StepResult> {
+  const ast = (await loadMetaAST(input.metaAddress)) as MetaAST
+  return processLoadedMetaStep(ast, input)
+}
+
+function createSyntheticTopologyMetaAst(): MetaAST {
+  const sourceText = `
+    const meta = MetaFor("test-topology")
+      .fields((field) => ({
+        operation: field.enum("single", "list").required("single"),
+        items: field.array.required<string>(["a", "b"]),
+        label: field.string.required("demo"),
+      }))
+  `
+
+  const meta = MetaFor("test-topology")
+    .fields((field) => ({
+      operation: field.enum("single", "list").required("single"),
+      items: field.array.required<string>(["a", "b"]),
+      label: field.string.required("demo"),
+    }))
+    .superposition({ idle: null })
+    .mass({})
+    .processes(() => ({}))
+    .reactions(() => [])
+    .gravity(
+      ({ html, value }) => html`
+        ${value.operation === "single"
+          ? html`<meta-for src="zavx0z/item-single" />`
+          : value.items.map((item) => html`<meta-for src="zavx0z/item" fields=${{ label: item }} />`)}
+      `,
+    )
+    .bulk()
+
+  return convertMetaDSLToMetaAST(meta as any, sourceText)
+}
+
 describe("Dark pipeline step — контракт одного шага", () => {
   test("должен принимать адрес текущей meta, контекст родителя и entanglement", async () => {
     const result = await processMetaStep({
       metaAddress: "zavx0z/git" as Address,
+      branchAddress: "root",
       parentContext: {
         metaAddress: "zavx0z/root" as Address,
         viaParticle: "wimp",
+        knotId: "knot:zavx0z/root@root",
       },
       entanglement: {
         id: "ent:root@w:0",
@@ -250,6 +369,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
     expect(result.parentContext).toEqual({
       metaAddress: "zavx0z/root",
       viaParticle: "wimp",
+      knotId: "knot:zavx0z/root@root",
     })
     expect(result.entanglement).toEqual({
       id: "ent:root@w:0",
@@ -261,6 +381,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
   test("должен за один шаг формировать частицы текущего уровня и continuation-данные", async () => {
     const result = await processMetaStep({
       metaAddress: "zavx0z/git" as Address,
+      branchAddress: "root",
       parentContext: null,
       entanglement: null,
       viaParticle: null,
@@ -296,6 +417,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
       {
         kind: "wimp-load",
         mode: "dynamic",
+        fromKnotId: "knot:zavx0z/git@root",
         basis: "/value/operation",
         expr: "zavx0z/git-${_[0]}",
         fields: {
@@ -310,6 +432,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
       {
         kind: "wimp-load",
         mode: "static",
+        fromKnotId: "knot:zavx0z/git@root",
         metaAddress: "zavx0z/git-error",
         fields: {
           mode: "dynamic",
@@ -328,9 +451,29 @@ describe("Dark pipeline step — контракт одного шага", () => 
     ])
   })
 
+  test("должен собирать knot отдельно от частиц и continuation", async () => {
+    const result = await processMetaStep({
+      metaAddress: "zavx0z/git" as Address,
+      branchAddress: "root",
+      parentContext: null,
+      entanglement: null,
+      viaParticle: null,
+    })
+
+    expect(result.knot).toEqual({
+      id: "knot:zavx0z/git@root",
+      metaAddress: "zavx0z/git",
+      branchAddress: "root",
+      parentKnotId: null,
+      particles: result.particles,
+    })
+    expect("dependencySeeds" in result.particles[0]!).toBe(false)
+  })
+
   test("должен вычислять continuation для динамического выбора следующего адреса Wimp", async () => {
     const result = await processMetaStep({
       metaAddress: "zavx0z/git" as Address,
+      branchAddress: "root",
       parentContext: null,
       entanglement: null,
       viaParticle: null,
@@ -343,6 +486,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
     expect(dynamicContinuation).toEqual({
       kind: "wimp-load",
       mode: "dynamic",
+      fromKnotId: "knot:zavx0z/git@root",
       basis: "/value/operation",
       expr: "zavx0z/git-${_[0]}",
       fields: {
@@ -359,9 +503,11 @@ describe("Dark pipeline step — контракт одного шага", () => 
   test("должен сохранять parentContext и entanglement во всех continuation-данных", async () => {
     const result = await processMetaStep({
       metaAddress: "zavx0z/git" as Address,
+      branchAddress: "root",
       parentContext: {
         metaAddress: "zavx0z/root" as Address,
         viaParticle: "fuzzy",
+        knotId: "knot:zavx0z/root@branch-0",
       },
       entanglement: {
         id: "ent:root@f:0",
@@ -374,15 +520,17 @@ describe("Dark pipeline step — контракт одного шага", () => 
       expect(continuation.parentContext).toEqual({
         metaAddress: "zavx0z/root",
         viaParticle: "fuzzy",
+        knotId: "knot:zavx0z/root@branch-0",
       })
       expect(continuation.entanglement).toEqual({
         id: "ent:root@f:0",
         inherited: true,
       })
     }
+    expect(result.knot.parentKnotId).toBe("knot:zavx0z/root@branch-0")
   })
 
-  test("должен уметь собирать continuation из value-based ternary как branch-переход", async () => {
+  test("должен собирать continuation из value-based ternary как branch-переход", () => {
     const [node] = parse(
       ({ html, value }) =>
         html`${value.role === "admin" ? html`<meta-for src="zavx0z/git-admin" />` : html`<meta-for src="zavx0z/git-user" />`}`,
@@ -406,5 +554,39 @@ describe("Dark pipeline step — контракт одного шага", () => 
         },
       ],
     })
+  })
+
+  test("должен выносить topology dependency seeds отдельно для enum/array полей", () => {
+    const ast = createSyntheticTopologyMetaAst()
+    const result = processLoadedMetaStep(ast, {
+      metaAddress: "zavx0z/test-topology" as Address,
+      branchAddress: "root",
+      parentContext: null,
+      entanglement: null,
+      viaParticle: null,
+    })
+
+    expect(result.dependencySeeds).toEqual([
+      {
+        knotId: "knot:zavx0z/test-topology@root",
+        field: "operation",
+        fieldType: "enum<string>",
+        topologyKind: "enum",
+        sourcePath: "/value/operation",
+        participatesInEntanglement: false,
+        mutableFromReaction: false,
+        mutableDuringProcess: false,
+      },
+      {
+        knotId: "knot:zavx0z/test-topology@root",
+        field: "items",
+        fieldType: "array<string>",
+        topologyKind: "array",
+        sourcePath: "/value/items",
+        participatesInEntanglement: false,
+        mutableFromReaction: false,
+        mutableDuringProcess: false,
+      },
+    ])
   })
 })

@@ -1,333 +1,249 @@
-import { describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 
-import type { Wimp, StaticBinding, DynamicBinding, Binding } from "@dark/types"
+import type { Address } from "@dark/types/dark"
+import type { Binding, Wimp } from "@dark/types"
+import { parse, type NodeMeta } from "../metafor/template/index.ts"
+
+import { HubFixture } from "fixture/hub"
+import { loadMetaAST } from "../dark/load"
+import type { MetaAST } from "../metafor/ast/ast.t"
 
 /**
  * Структура тестов для частицы Wimp.
  *
- * Wimp — это дочерняя meta-ссылка.
- * Здесь должны проверяться только ограничения и контракт формирования
- * частицы из dsl.gravity, а не весь dark pipeline.
+ * Wimp — это уже выбранная статическая связность.
+ * Он не выбирает ветвь и не вычисляет target,
+ * а только фиксирует конкретный адрес следующей meta.
  */
 
-// -----------------------------------------------------------------------------
-// Вспомогательные функции для тестов
-// -----------------------------------------------------------------------------
+const hub = new HubFixture("./github/")
 
-/**
- * Создаёт статический binding для src.
- */
-function staticSrc(value: string): StaticBinding<string> {
-  return { mode: "static", value }
+beforeAll(async () => {
+  await hub.setup()
+})
+
+afterAll(async () => {
+  await hub.teardown()
+})
+
+function normalizeBinding(value: NodeMeta["fields"] | NodeMeta["mass"]): Binding<Record<string, unknown>> | undefined {
+  if (!value) return undefined
+  if (typeof value === "string") {
+    return {
+      mode: "static",
+      value: value as unknown as Record<string, unknown>,
+    }
+  }
+
+  return {
+    mode: "dynamic",
+    basis: value.data,
+    ...(value.expr ? { expr: value.expr } : {}),
+  }
 }
 
 /**
- * Создаёт динамический binding для src.
+ * Нормализует meta-узел в Wimp только если src уже статичен.
  */
-function dynamicSrc(basis: string | string[], expr?: string): DynamicBinding {
-  return { mode: "dynamic", basis, ...(expr ? { expr } : {}) }
+function normalizeToWimp(gravityNode: NodeMeta): Wimp {
+  if (gravityNode?.src == null) {
+    throw new Error("Wimp: отсутствует src")
+  }
+
+  if (typeof gravityNode.src !== "string") {
+    throw new Error("Wimp: src должен быть уже статичным результатом выбора")
+  }
+
+  if (!isValidHubAddress(gravityNode.src)) {
+    throw new Error(`Wimp: невалидный hub-адрес в src (${gravityNode.src})`)
+  }
+
+  return {
+    kind: "wimp",
+    src: gravityNode.src,
+    ...(gravityNode.fields ? { fields: normalizeBinding(gravityNode.fields) } : {}),
+    ...(gravityNode.mass ? { mass: normalizeBinding(gravityNode.mass) } : {}),
+  }
 }
 
-/**
- * Создаёт binding для fields.
- */
-function fieldsBinding(basis: string | string[], expr?: string): Binding<Record<string, unknown>> {
-  return { mode: "dynamic", basis, ...(expr ? { expr } : {}) }
-}
-
-/**
- * Валидирует hub-адрес (простая проверка формата).
- */
 function isValidHubAddress(address: string): boolean {
-  return /^[\w-]+\/[\w-]+$/.test(address)
+  return /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_/-]+$/.test(address)
 }
 
-// -----------------------------------------------------------------------------
-// Допустимый контракт
-// -----------------------------------------------------------------------------
+describe("Wimp — загрузка реальных данных", () => {
+  let ast: MetaAST
 
-describe("Wimp — допустимый контракт", () => {
-  test("должен принимать статический src", () => {
-    const particle: Wimp = {
-      kind: "wimp",
-      src: staticSrc("zavx0z/git-error"),
-    }
-
-    expect(particle.kind).toBe("wimp")
-    expect(particle.src.mode).toBe("static")
-    if (particle.src.mode === "static") {
-      expect(particle.src.value).toBe("zavx0z/git-error")
-    }
+  beforeAll(async () => {
+    ast = (await loadMetaAST("zavx0z/git" as Address)) as MetaAST
   })
 
-  test("должен принимать динамический src только от value", () => {
-    const particle: Wimp = {
-      kind: "wimp",
-      src: dynamicSrc("/value/operation", "zavx0z/git-${_[0]}"),
-    }
+  test("gravity[0] содержит selector-узел с динамическим src, а не готовый Wimp", () => {
+    const gravityNode = ast.gravity?.[0] as NodeMeta
 
-    expect(particle.src.mode).toBe("dynamic")
-    if (particle.src.mode === "dynamic") {
-      expect(particle.src.basis).toBe("/value/operation")
-      expect(particle.src.expr).toBe("zavx0z/git-${_[0]}")
-    }
+    expect(gravityNode).toBeDefined()
+    expect(gravityNode?.type).toBe("meta")
+    expect(typeof gravityNode?.src).toBe("object")
   })
 
-  test("должен принимать fields только от value", () => {
-    const particle: Wimp = {
-      kind: "wimp",
-      src: staticSrc("zavx0z/git-error"),
-      fields: fieldsBinding("/value/error", "{ message: _[0] }"),
-    }
+  test("gravity[1].child[0] содержит статический Wimp-кандидат", () => {
+    const gravityNode = ast.gravity?.[1] as Extract<MetaAST["gravity"], NodeMeta[]>[number]
+    const childNode = gravityNode?.child?.[0] as NodeMeta
 
-    expect(particle.fields).toBeDefined()
-    if (particle.fields && particle.fields.mode === "dynamic") {
-      expect(particle.fields.basis).toBe("/value/error")
-      expect(particle.fields.expr).toBe("{ message: _[0] }")
-    }
-  })
-
-  test("должен принимать fields с несколькими basis путями", () => {
-    const particle: Wimp = {
-      kind: "wimp",
-      src: dynamicSrc(["/value/operation", "/value/args"], "{ src: _[0], args: _[1] }"),
-      fields: fieldsBinding(["/value/operation", "/value/args"], "{ operation: _[0], args: _[1] }"),
-    }
-
-    if (particle.src.mode === "dynamic") {
-      expect(Array.isArray(particle.src.basis)).toBe(true)
-      expect((particle.src.basis as string[]).length).toBe(2)
-    }
-    if (particle.fields && particle.fields.mode === "dynamic") {
-      expect(Array.isArray(particle.fields.basis)).toBe(true)
-      expect((particle.fields.basis as string[]).length).toBe(2)
-    }
+    expect(childNode).toBeDefined()
+    expect(childNode?.type).toBe("meta")
+    expect(typeof childNode?.src).toBe("string")
+    expect(childNode?.src).toBe("zavx0z/git-error")
   })
 })
 
-// -----------------------------------------------------------------------------
-// Ограничения
-// -----------------------------------------------------------------------------
+describe("Wimp — допустимый контракт", () => {
+  let ast: MetaAST
+
+  beforeAll(async () => {
+    ast = (await loadMetaAST("zavx0z/git" as Address)) as MetaAST
+  })
+
+  test("должен формировать Wimp только из уже статического src", () => {
+    const gravityNode = ast.gravity?.[1] as Extract<MetaAST["gravity"], NodeMeta[]>[number]
+    const childNode = gravityNode?.child?.[0] as NodeMeta
+    const wimp = normalizeToWimp(childNode)
+
+    expect(wimp).toEqual({
+      kind: "wimp",
+      src: "zavx0z/git-error",
+      fields: {
+        mode: "dynamic",
+        basis: "/value/error",
+        expr: "{ message: _[0] }",
+      },
+    })
+  })
+
+  test("должен читать fields как входящий binding-канал", () => {
+    const gravityNode = ast.gravity?.[1] as Extract<MetaAST["gravity"], NodeMeta[]>[number]
+    const childNode = gravityNode?.child?.[0] as NodeMeta
+    const wimp = normalizeToWimp(childNode)
+
+    expect(wimp.fields).toBeDefined()
+    if (wimp.fields && wimp.fields.mode === "dynamic") {
+      expect(wimp.fields.basis).toBe("/value/error")
+      expect(wimp.fields.expr).toBe("{ message: _[0] }")
+    }
+  })
+
+  test("должен читать mass как входящий binding-канал родителя", () => {
+    const [node] = parse(
+      ({ html, mass }) => html`<meta-for src="zavx0z/git-error" mass=${{ id: mass.id, role: mass.role }} />`,
+    )
+    const wimp = normalizeToWimp(node as NodeMeta)
+
+    expect(wimp.mass).toEqual({
+      mode: "dynamic",
+      basis: ["/mass/id", "/mass/role"],
+      expr: "{ id: _[0], role: _[1] }",
+    })
+  })
+
+  test("должен принимать статический hub-адрес с подпутём", () => {
+    const wimp = normalizeToWimp({
+      type: "meta",
+      tag: "meta-for",
+      src: "zavx0z/git/sub/path",
+    } as NodeMeta)
+
+    expect(wimp.src).toBe("zavx0z/git/sub/path")
+  })
+})
 
 describe("Wimp — ограничения", () => {
   test("не должен принимать отсутствующий src", () => {
-    // @ts-expect-error — src обязателен
-    const invalidParticle: Wimp = {
-      kind: "wimp",
+    const invalidNode = { type: "meta" }
+
+    expect(() => normalizeToWimp(invalidNode as NodeMeta)).toThrow("Wimp: отсутствует src")
+  })
+
+  test("не должен принимать src, зависящий от ordinary value", () => {
+    const invalidNode = {
+      type: "meta",
+      tag: "meta-for",
+      src: { data: "/value/operation", expr: "zavx0z/git-${_[0]}" },
     }
 
-    expect(invalidParticle.src).toBeUndefined()
+    expect(() => normalizeToWimp(invalidNode as NodeMeta)).toThrow("src должен быть уже статичным результатом выбора")
   })
 
-  test("не должен принимать src от mass (контракт)", () => {
-    // Контракт требует, чтобы dynamic src использовал basis от value,
-    // а не от mass. Это ограничение фиксируется в тестах для будущей валидации.
-    // На данном этапе валидация не реализована — только документирование контракта.
-    const invalidBasis = "/mass/items"
-
-    // Документирование ограничения: src не должен использовать mass как источник
-    expect(invalidBasis.startsWith("/mass")).toBe(true) // это нарушение контракта
-    // Будущая валидация должна отклонять basis, начинающиеся с /mass
-  })
-
-  test("не должен принимать fields от mass (контракт)", () => {
-    // Контракт требует, чтобы fields использовал basis от value,
-    // а не от mass. Это ограничение фиксируется в тестах для будущей валидации.
-    const invalidBasis = "/mass/data"
-
-    // Документирование ограничения: fields не должен использовать mass как источник
-    expect(invalidBasis.startsWith("/mass")).toBe(true) // это нарушение контракта
-    // Будущая валидация должна отклонять basis, начинающиеся с /mass
-  })
-
-  test("не должен принимать mass как topology payload", () => {
-    // Wimp может иметь mass binding, но mass не является topology payload.
-    // mass — это дополнительный payload для сложных данных,
-    // который не участвует в topology-формировании.
-    const particle: Wimp = {
-      kind: "wimp",
-      src: staticSrc("zavx0z/git"),
-      mass: { mode: "dynamic", basis: "/mass/config" },
+  test("не должен принимать src от mass", () => {
+    const invalidNode = {
+      type: "meta",
+      tag: "meta-for",
+      src: { data: "/mass/items", expr: "_[0]" },
     }
 
-    // mass допустим только как binding, не как прямой payload
-    expect(particle.mass).toBeDefined()
-    expect(particle.mass!.mode).toBe("dynamic")
-    // mass не участвует в topology-контракте Wimp
+    expect(() => normalizeToWimp(invalidNode as NodeMeta)).toThrow("src должен быть уже статичным результатом выбора")
   })
 
-  test("не должен принимать невалидный hub-адрес в src", () => {
-    const invalidAddresses = [
-      "",
-      "invalid",
-      "no-slash",
-      "/leading-slash",
-      "trailing-slash/",
-      "multiple/slashes/here",
-    ]
+  test("не должен выполнять выбор по selector field enum", async () => {
+    const ast = (await loadMetaAST("zavx0z/git" as Address)) as MetaAST
+    const selectorNode = ast.gravity?.[0] as NodeMeta
+
+    expect(() => normalizeToWimp(selectorNode)).toThrow("src должен быть уже статичным результатом выбора")
+  })
+
+  test("не должен принимать невалидный hub-адрес", () => {
+    const invalidAddresses = ["", "invalid", "no-slash", "/leading-slash", "trailing-slash/"]
 
     for (const address of invalidAddresses) {
-      expect(isValidHubAddress(address)).toBe(false)
-    }
-
-    const validParticle: Wimp = {
-      kind: "wimp",
-      src: staticSrc("zavx0z/git"),
-    }
-
-    if (validParticle.src.mode === "static") {
-      expect(isValidHubAddress(validParticle.src.value)).toBe(true)
+      const invalidNode = { type: "meta", tag: "meta-for", src: address }
+      expect(() => normalizeToWimp(invalidNode as NodeMeta)).toThrow("hub-адрес")
     }
   })
 })
-
-// -----------------------------------------------------------------------------
-// Нормализация
-// -----------------------------------------------------------------------------
-
-describe("Wimp — нормализация", () => {
-  test("должен нормализовать статический src в StaticBinding", () => {
-    const rawSrc = "zavx0z/git-error"
-    const normalized: StaticBinding<string> = staticSrc(rawSrc)
-
-    expect(normalized).toEqual({
-      mode: "static",
-      value: "zavx0z/git-error",
-    })
-  })
-
-  test("должен нормализовать динамический src в DynamicBinding", () => {
-    const rawBasis = "/value/operation"
-    const rawExpr = "zavx0z/git-${_[0]}"
-    const normalized: DynamicBinding = dynamicSrc(rawBasis, rawExpr)
-
-    expect(normalized).toEqual({
-      mode: "dynamic",
-      basis: "/value/operation",
-      expr: "zavx0z/git-${_[0]}",
-    })
-  })
-
-  test("должен нормализовать fields в Binding", () => {
-    const rawBasis = ["/value/operation", "/value/args"]
-    const rawExpr = "{ operation: _[0], args: _[1] }"
-    const normalized: Binding<Record<string, unknown>> = fieldsBinding(rawBasis, rawExpr)
-
-    expect(normalized).toEqual({
-      mode: "dynamic",
-      basis: ["/value/operation", "/value/args"],
-      expr: "{ operation: _[0], args: _[1] }",
-    })
-  })
-
-  test("должен сохранять expr при нормализации динамического binding", () => {
-    const particle: Wimp = {
-      kind: "wimp",
-      src: dynamicSrc("/value/data", "transform(_[0])"),
-    }
-
-    if (particle.src.mode === "dynamic") {
-      expect(particle.src.expr).toBe("transform(_[0])")
-    }
-  })
-
-  test("должен поддерживать fields без expr (прямая передача)", () => {
-    const particle: Wimp = {
-      kind: "wimp",
-      src: staticSrc("zavx0z/git"),
-      fields: { mode: "dynamic", basis: "/value/payload" },
-    }
-
-    expect(particle.fields).toBeDefined()
-    if (particle.fields && particle.fields.mode === "dynamic") {
-      expect(particle.fields.basis).toBe("/value/payload")
-      expect(particle.fields.expr).toBeUndefined()
-    }
-  })
-})
-
-// -----------------------------------------------------------------------------
-// Интеграционные проверки контракта
-// -----------------------------------------------------------------------------
 
 describe("Wimp — интеграция контракта", () => {
-  test("должен формировать валидную частицу из gravity DSL", () => {
-    // Пример из meta.json: gravity[0] — это Wimp с динамическим src и fields
-    const gravityNode = {
-      src: {
-        data: "/value/operation",
-        expr: "zavx0z/git-${_[0]}",
-      },
-      type: "meta",
-      fields: {
-        data: ["/value/operation", "/value/args"],
-        expr: "{ operation: _[0], args: _[1] }",
-      },
-    }
+  let ast: MetaAST
 
-    // Нормализация в Wimp частицу
-    const wimp: Wimp = {
-      kind: "wimp",
-      src: {
-        mode: "dynamic",
-        basis: gravityNode.src.data,
-        expr: gravityNode.src.expr,
-      },
-      fields: {
-        mode: "dynamic",
-        basis: gravityNode.fields.data,
-        expr: gravityNode.fields.expr,
-      },
-    }
-
-    expect(wimp.kind).toBe("wimp")
-    expect(wimp.src.mode).toBe("dynamic")
-    expect(wimp.fields).toBeDefined()
-    expect(wimp.fields!.mode).toBe("dynamic")
+  beforeAll(async () => {
+    ast = (await loadMetaAST("zavx0z/git" as Address)) as MetaAST
   })
 
-  test("должен формировать валидную частицу из статического gravity DSL", () => {
-    // Пример из meta.json: gravity[1].child[0] — это Wimp со статическим src
-    const gravityNode = {
+  test("не должен нормализовать selector-src из gravity[0] как Wimp", () => {
+    const gravityNode = ast.gravity?.[0] as NodeMeta
+
+    expect(() => normalizeToWimp(gravityNode)).toThrow("src должен быть уже статичным результатом выбора")
+  })
+
+  test("должен нормализовать вложенную meta-ссылку как статический Wimp", () => {
+    const gravityNode = ast.gravity?.[1] as Extract<MetaAST["gravity"], NodeMeta[]>[number]
+    const childNode = gravityNode?.child?.[0] as NodeMeta
+    const wimp = normalizeToWimp(childNode)
+
+    expect(wimp.kind).toBe("wimp")
+    expect(wimp.src).toBe("zavx0z/git-error")
+  })
+
+  test("не должен подменять собой Fuzzy/Macho/Axion-семантику", () => {
+    const wimp: Wimp = {
+      kind: "wimp",
       src: "zavx0z/git-error",
+    }
+
+    expect("basis" in wimp).toBe(false)
+    expect("expr" in wimp).toBe(false)
+    expect("particles" in wimp).toBe(false)
+  })
+
+  test("должен соответствовать уже выбранной статической связности из реального AST", () => {
+    const gravityNode = ast.gravity?.[1] as Extract<MetaAST["gravity"], NodeMeta[]>[number]
+    const childNode = gravityNode?.child?.[0] as NodeMeta
+
+    expect(childNode).toEqual({
+      src: "zavx0z/git-error",
+      tag: "meta-for",
       type: "meta",
       fields: {
         data: "/value/error",
         expr: "{ message: _[0] }",
       },
-    }
-
-    // Нормализация в Wimp частицу
-    const wimp: Wimp = {
-      kind: "wimp",
-      src: {
-        mode: "static",
-        value: gravityNode.src,
-      },
-      fields: {
-        mode: "dynamic",
-        basis: gravityNode.fields.data,
-        expr: gravityNode.fields.expr,
-      },
-    }
-
-    expect(wimp.kind).toBe("wimp")
-    expect(wimp.src.mode).toBe("static")
-    if (wimp.src.mode === "static") {
-      expect(wimp.src.value).toBe("zavx0z/git-error")
-    }
-  })
-
-  test("должен различать Wimp от Fuzzy по наличию basis/expr ветвления", () => {
-    // Wimp не имеет basis/expr для ветвления — это просто ссылка
-    const wimp: Wimp = {
-      kind: "wimp",
-      src: staticSrc("zavx0z/git"),
-    }
-
-    // У Wimp нет свойств basis/expr на уровне частицы
-    expect("basis" in wimp).toBe(false)
-    expect("expr" in wimp).toBe(false)
-    expect("particles" in wimp).toBe(false)
+    })
   })
 })
