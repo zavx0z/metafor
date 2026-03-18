@@ -9,7 +9,6 @@ import { parse, type NodeCondition } from "../metafor/template/index.ts"
 
 import {
   collectBranchGraph,
-  createEmptyGraph,
   getFuzzyByBasis,
   getWimpBySrc,
   processLoadedMetaStep,
@@ -18,6 +17,8 @@ import {
 } from "./pipeline.ts"
 import type { Address } from "@dark/types/dark"
 import type { WimpID } from "@dark/types"
+import { graph$ } from "./store.ts"
+import { resetGraph } from "./fixtures/index.ts"
 
 const hub = new HubFixture("./github/")
 
@@ -361,7 +362,8 @@ describe("Dark pipeline step — контракт одного шага", () => 
           : html`<meta-for src="zavx0z/git-user" />`}`,
     )
 
-    const graph = createEmptyGraph()
+    resetGraph()
+    const graph = graph$
     const continuations: StepContinuation[] = []
     const fuzzy = collectBranchGraph(
       node as NodeCondition,

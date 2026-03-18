@@ -2,12 +2,14 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import "fixture/test"
 
 import type { Address } from "@dark/types/dark"
-import type { Binding, DarkGraph, DarkParticle, Fuzzy, FuzzyID, ParticleID, Wimp, WimpID } from "@dark/types"
+import type { Binding, DarkGraph, Fuzzy, FuzzyID, ParticleID, Wimp, WimpID } from "@dark/types"
 import type { MetaAST } from "@metafor/ast"
 import { parse, type NodeCondition, type NodeLogical, type NodeMeta, type NodeType } from "../metafor/template/index.ts"
 
 import { HubFixture } from "fixture/hub"
 import { loadMetaAST } from "../dark/load"
+import { graph$ } from "./store.ts"
+import { resetGraph, snapshotGraph } from "./fixtures/index.ts"
 
 type GraphParticle = Wimp | Fuzzy
 
@@ -42,15 +44,6 @@ function normalizeBinding(value: NodeMeta["fields"] | NodeMeta["mass"]): Binding
   }
 }
 
-function createEmptyGraph(): DarkGraph {
-  return {
-    roots: new Set(),
-    particles: new Map<ParticleID, DarkParticle>(),
-    parent: new Map(),
-    meta: new Map(),
-  }
-}
-
 function createWimpId(): WimpID {
   return crypto.randomUUID()
 }
@@ -59,20 +52,22 @@ function createFuzzyId(): FuzzyID {
   return crypto.randomUUID()
 }
 
-function appendParticle(graph: DarkGraph, particle: GraphParticle, parentId?: ParticleID): void {
-  graph.particles.set(particle.id, particle)
+function appendParticle(graph: DarkGraph, particle: GraphParticle, parentId?: ParticleID): GraphParticle {
+  const stored = structuredClone(particle) as GraphParticle
+  graph.particles.set(stored.id, stored)
   if (parentId) {
-    graph.parent.set(particle.id, parentId)
+    graph.parent.set(stored.id, parentId)
     const parent = graph.particles.get(parentId)
     if (parent) {
-      parent.children.add(particle.id)
+      parent.children.add(stored.id)
     }
   } else {
-    graph.roots.add(particle.id)
+    graph.roots.add(stored.id)
   }
-  if (particle.kind === "wimp") {
-    graph.meta.set(particle.id, particle.src)
+  if (stored.kind === "wimp") {
+    graph.meta.set(stored.id, stored.src)
   }
+  return stored
 }
 
 function normalizeStaticWimp(node: NodeMeta): Wimp {
@@ -112,21 +107,19 @@ function validateFuzzyBasis(basis: string | string[]): void {
 function collectFuzzy(node: NodeLogical | NodeCondition, graph: DarkGraph, parentId?: ParticleID): Fuzzy {
   validateFuzzyBasis(node.data)
 
-  const result: Fuzzy = {
+  const result = appendParticle(graph, {
     id: createFuzzyId(),
     kind: "fuzzy",
     basis: node.data,
     children: new Set(),
-  }
+  }, parentId) as Fuzzy
   if (node.expr) {
     result.expr = node.expr
   }
-  appendParticle(graph, result, parentId)
 
   for (const child of node.child) {
     if (child.type === "meta") {
-      const wimp = normalizeStaticWimp(child)
-      appendParticle(graph, wimp, result.id)
+      appendParticle(graph, normalizeStaticWimp(child), result.id)
       continue
     }
     if (child.type === "log" || child.type === "cond") {
@@ -143,16 +136,12 @@ function collectFuzzy(node: NodeLogical | NodeCondition, graph: DarkGraph, paren
 }
 
 function normalizeToFuzzy(node: NodeLogical | NodeCondition): NormalizedFuzzyGraph {
-  const graph = createEmptyGraph()
+  resetGraph()
+  const graph = graph$
   const root = collectFuzzy(node, graph)
   return {
     root,
-    graph: {
-      roots: graph.roots,
-      particles: graph.particles,
-      parent: graph.parent,
-      meta: graph.meta,
-    },
+    graph: snapshotGraph(),
   }
 }
 
