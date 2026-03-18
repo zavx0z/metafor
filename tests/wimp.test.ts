@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import "fixture/test"
 
 import type { Address } from "@dark/types/dark"
 import type { Binding, Wimp, WimpID } from "@dark/types"
@@ -42,8 +43,8 @@ function normalizeBinding(value: NodeMeta["fields"] | NodeMeta["mass"]): Binding
   }
 }
 
-function createWimpId(src: string): WimpID {
-  return `wimp:${src}`
+function createWimpId(): WimpID {
+  return crypto.randomUUID()
 }
 
 /**
@@ -63,7 +64,7 @@ function normalizeToWimp(gravityNode: NodeMeta): Wimp {
   }
 
   const result: Wimp = {
-    id: createWimpId(gravityNode.src),
+    id: createWimpId(),
     kind: "wimp",
     src: gravityNode.src,
     children: new Set(),
@@ -121,16 +122,14 @@ describe("Wimp — допустимый контракт", () => {
     const childNode = gravityNode?.child?.[0] as NodeMeta
     const wimp = normalizeToWimp(childNode)
 
-    expect(wimp).toEqual({
-      id: "wimp:zavx0z/git-error",
-      kind: "wimp",
-      src: "zavx0z/git-error",
-      children: new Set(),
-      fields: {
-        mode: "dynamic",
-        basis: "/value/error",
-        expr: "{ message: _[0] }",
-      },
+    expect(wimp.id).toBeUUID()
+    expect(wimp.kind).toBe("wimp")
+    expect(wimp.src).toBe("zavx0z/git-error")
+    expect(wimp.children).toEqual(new Set())
+    expect(wimp.fields).toEqual({
+      mode: "dynamic",
+      basis: "/value/error",
+      expr: "{ message: _[0] }",
     })
   })
 
@@ -166,7 +165,7 @@ describe("Wimp — допустимый контракт", () => {
       src: "zavx0z/git/sub/path",
     } as NodeMeta)
 
-    expect(wimp.id).toBe("wimp:zavx0z/git/sub/path")
+    expect(wimp.id).toBeUUID()
     expect(wimp.src).toBe("zavx0z/git/sub/path")
   })
 })
@@ -239,7 +238,7 @@ describe("Wimp — интеграция контракта", () => {
 
   test("не должен подменять собой Fuzzy/Macho/Axion-семантику", () => {
     const wimp: Wimp = {
-      id: "wimp:zavx0z/git-error",
+      id: crypto.randomUUID(),
       kind: "wimp",
       src: "zavx0z/git-error",
       children: new Set(),

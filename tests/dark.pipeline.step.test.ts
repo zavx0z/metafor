@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import "fixture/test"
 
 import type {
   Binding,
@@ -88,9 +89,7 @@ type StepResult = {
   viaParticle: ParentContext["viaParticle"] | null
 }
 
-type MutableStepGraph = DarkGraph & {
-  nextSeq: number
-}
+type MutableStepGraph = DarkGraph
 
 const hub = new HubFixture("./github/")
 
@@ -121,18 +120,12 @@ function normalizeBinding(value: NodeMeta["fields"] | NodeMeta["mass"]): Binding
   return result
 }
 
-function createParticleId(graph: MutableStepGraph, metaAddress: Address, branchAddress: string): ParticleID {
-  const id = `particle:${metaAddress}@${branchAddress}:${graph.nextSeq}`
-  graph.nextSeq += 1
-  return id
+function createWimpId(): WimpID {
+  return crypto.randomUUID()
 }
 
-function createWimpId(graph: MutableStepGraph, metaAddress: Address, branchAddress: string): WimpID {
-  return createParticleId(graph, metaAddress, branchAddress)
-}
-
-function createFuzzyId(graph: MutableStepGraph, metaAddress: Address, branchAddress: string): FuzzyID {
-  return createParticleId(graph, metaAddress, branchAddress)
+function createFuzzyId(): FuzzyID {
+  return crypto.randomUUID()
 }
 
 function getDynamicExpr(value: NodeMeta["fields"] | NodeMeta["mass"] | NodeMeta["src"]): string | undefined {
@@ -145,7 +138,6 @@ function createEmptyGraph(): MutableStepGraph {
     particles: new Map<ParticleID, DarkParticle>(),
     parent: new Map(),
     meta: new Map(),
-    nextSeq: 0,
   }
 }
 
@@ -165,13 +157,13 @@ function appendParticle(graph: MutableStepGraph, particle: StepParticle, parentI
   }
 }
 
-function normalizeStaticWimp(node: NodeMeta, graph: MutableStepGraph, input: StepInput): StepWimpParticle {
+function normalizeStaticWimp(node: NodeMeta): StepWimpParticle {
   if (typeof node.src !== "string") {
     throw new Error("Step: статический Wimp должен иметь строковый src")
   }
 
   const result: StepWimpParticle = {
-    id: createWimpId(graph, input.metaAddress, input.branchAddress),
+    id: createWimpId(),
     kind: "wimp",
     src: node.src,
     children: new Set(),
@@ -187,9 +179,9 @@ function normalizeStaticWimp(node: NodeMeta, graph: MutableStepGraph, input: Ste
   return result
 }
 
-function normalizeFuzzy(node: NodeLogical | NodeCondition, graph: MutableStepGraph, input: StepInput): StepFuzzyParticle {
+function normalizeFuzzy(node: NodeLogical | NodeCondition): StepFuzzyParticle {
   const result: StepFuzzyParticle = {
-    id: createFuzzyId(graph, input.metaAddress, input.branchAddress),
+    id: createFuzzyId(),
     kind: "fuzzy",
     basis: node.data,
     children: new Set(),
@@ -239,7 +231,7 @@ function collectBranchGraph(
   continuations: StepContinuation[],
   parentId?: ParticleID,
 ): StepFuzzyParticle {
-  const fuzzy = normalizeFuzzy(node, graph, input)
+  const fuzzy = normalizeFuzzy(node)
   appendParticle(graph, fuzzy, parentId)
 
   const guard: StepGuard = {
@@ -253,7 +245,7 @@ function collectBranchGraph(
 
   for (const child of node.child) {
     if (child.type === "meta" && typeof child.src === "string") {
-      const wimp = normalizeStaticWimp(child, graph, input)
+      const wimp = normalizeStaticWimp(child)
       appendParticle(graph, wimp, fuzzy.id)
       const continuation: Extract<StepContinuation, { mode: "static" }> = {
         kind: "wimp-load",
@@ -286,7 +278,7 @@ function processLoadedMetaStep(ast: MetaAST, input: StepInput): StepResult {
   for (const node of ast.gravity ?? []) {
     if (node.type === "meta") {
       if (typeof node.src === "string") {
-        const wimp = normalizeStaticWimp(node, graph, input)
+        const wimp = normalizeStaticWimp(node)
         appendParticle(graph, wimp)
         const continuation: Extract<StepContinuation, { mode: "static" }> = {
           kind: "wimp-load",
@@ -304,7 +296,7 @@ function processLoadedMetaStep(ast: MetaAST, input: StepInput): StepResult {
       }
 
       const addressParticle: StepFuzzyParticle = {
-        id: createFuzzyId(graph, input.metaAddress, input.branchAddress),
+        id: createFuzzyId(),
         kind: "fuzzy",
         basis: node.src.data,
         children: new Set(),
@@ -367,6 +359,27 @@ async function processMetaStep(input: StepInput): Promise<StepResult> {
   return processLoadedMetaStep(ast, input)
 }
 
+function getFuzzyByBasis(graph: DarkGraph, basis: string | string[], expr?: string): Fuzzy {
+  const particle = [...graph.particles.values()].find(
+    (item): item is Fuzzy =>
+      item.kind === "fuzzy" &&
+      "basis" in item &&
+      JSON.stringify(item.basis) === JSON.stringify(basis) &&
+      "expr" in item &&
+      item.expr === expr,
+  )
+  if (!particle) throw new Error(`Fuzzy not found for basis: ${JSON.stringify(basis)}`)
+  return particle
+}
+
+function getWimpBySrc(graph: DarkGraph, src: string): Wimp {
+  const particle = [...graph.particles.values()].find(
+    (item): item is Wimp => item.kind === "wimp" && "src" in item && item.src === src,
+  )
+  if (!particle) throw new Error(`Wimp not found for src: ${src}`)
+  return particle
+}
+
 function createSyntheticTopologyMetaAst(): MetaAST {
   const sourceText = `
     const meta = MetaFor("test-topology")
@@ -407,7 +420,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
       parentContext: {
         metaAddress: "zavx0z/root" as Address,
         viaParticle: "wimp",
-        parentParticleId: "particle:zavx0z/root@root:0",
+        parentParticleId: crypto.randomUUID(),
       },
       entanglement: {
         id: "ent:root@w:0",
@@ -421,7 +434,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
     expect(result.parentContext).toEqual({
       metaAddress: "zavx0z/root",
       viaParticle: "wimp",
-      parentParticleId: "particle:zavx0z/root@root:0",
+      parentParticleId: result.parentContext!.parentParticleId,
     })
     expect(result.entanglement).toEqual({
       id: "ent:root@w:0",
@@ -439,57 +452,29 @@ describe("Dark pipeline step — контракт одного шага", () => 
       viaParticle: null,
     })
 
-    const selectorId = "particle:zavx0z/git@root:0"
-    const branchId = "particle:zavx0z/git@root:1"
-    const errorWimpId = "particle:zavx0z/git@root:2"
+    const selector = getFuzzyByBasis(result.graph, "/value/operation", "zavx0z/git-${_[0]}")
+    const branch = getFuzzyByBasis(result.graph, "/state", '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"')
+    const errorWimp = getWimpBySrc(result.graph, "zavx0z/git-error")
 
-    expect(result.graph).toEqual({
-      roots: new Set([selectorId, branchId]),
-      particles: new Map<ParticleID, StepParticle>([
-        [
-          selectorId,
-          {
-            id: selectorId,
-            kind: "fuzzy",
-            basis: "/value/operation",
-            expr: "zavx0z/git-${_[0]}",
-            children: new Set(),
-          },
-        ],
-        [
-          branchId,
-          {
-            id: branchId,
-            kind: "fuzzy",
-            basis: "/state",
-            expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
-            children: new Set([errorWimpId]),
-          },
-        ],
-        [
-          errorWimpId,
-          {
-            id: errorWimpId,
-            kind: "wimp",
-            src: "zavx0z/git-error",
-            fields: {
-              mode: "dynamic",
-              basis: "/value/error",
-              expr: "{ message: _[0] }",
-            },
-            children: new Set(),
-          },
-        ],
-      ]),
-      parent: new Map([[errorWimpId, branchId]]),
-      meta: new Map([[errorWimpId, "zavx0z/git-error"]]),
+    expect(selector.id).toBeUUID()
+    expect(branch.id).toBeUUID()
+    expect(errorWimp.id).toBeUUID()
+    expect(result.graph.roots).toEqual(new Set([selector.id, branch.id]))
+    expect(selector.children).toEqual(new Set())
+    expect(branch.children).toEqual(new Set([errorWimp.id]))
+    expect(result.graph.parent).toEqual(new Map([[errorWimp.id, branch.id]]))
+    expect(result.graph.meta).toEqual(new Map([[errorWimp.id, "zavx0z/git-error"]]))
+    expect(errorWimp.fields).toEqual({
+      mode: "dynamic",
+      basis: "/value/error",
+      expr: "{ message: _[0] }",
     })
 
     expect(result.continuations).toEqual([
       {
         kind: "wimp-load",
         mode: "dynamic",
-        fromParticleId: selectorId,
+        fromParticleId: selector.id,
         basis: "/value/operation",
         expr: "zavx0z/git-${_[0]}",
         fields: {
@@ -504,7 +489,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
       {
         kind: "wimp-load",
         mode: "static",
-        fromParticleId: errorWimpId,
+        fromParticleId: errorWimp.id,
         metaAddress: "zavx0z/git-error",
         fields: {
           mode: "dynamic",
@@ -515,7 +500,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
         entanglement: null,
         viaParticle: "wimp",
         guard: {
-          particleId: branchId,
+          particleId: branch.id,
           kind: "fuzzy",
           basis: "/state",
           expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
@@ -533,15 +518,15 @@ describe("Dark pipeline step — контракт одного шага", () => 
       viaParticle: null,
     })
 
-    const selectorId = "particle:zavx0z/git@root:0"
-    const branchId = "particle:zavx0z/git@root:1"
-    const errorWimpId = "particle:zavx0z/git@root:2"
+    const selector = getFuzzyByBasis(result.graph, "/value/operation", "zavx0z/git-${_[0]}")
+    const branch = getFuzzyByBasis(result.graph, "/state", '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"')
+    const errorWimp = getWimpBySrc(result.graph, "zavx0z/git-error")
 
-    expect(result.graph.roots).toEqual(new Set([selectorId, branchId]))
-    expect(result.graph.parent).toEqual(new Map([[errorWimpId, branchId]]))
-    expect(result.graph.meta).toEqual(new Map([[errorWimpId, "zavx0z/git-error"]]))
-    expect(result.graph.meta.has(selectorId)).toBe(false)
-    expect("field" in result.graph.particles.get(selectorId)!).toBe(false)
+    expect(result.graph.roots).toEqual(new Set([selector.id, branch.id]))
+    expect(result.graph.parent).toEqual(new Map([[errorWimp.id, branch.id]]))
+    expect(result.graph.meta).toEqual(new Map([[errorWimp.id, "zavx0z/git-error"]]))
+    expect(result.graph.meta.has(selector.id as WimpID)).toBe(false)
+    expect("field" in result.graph.particles.get(selector.id)!).toBe(false)
   })
 
   test("должен вычислять continuation для динамического выбора следующего адреса Wimp", async () => {
@@ -560,7 +545,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
     expect(dynamicContinuation).toEqual({
       kind: "wimp-load",
       mode: "dynamic",
-      fromParticleId: "particle:zavx0z/git@root:0",
+      fromParticleId: getFuzzyByBasis(result.graph, "/value/operation", "zavx0z/git-${_[0]}").id,
       basis: "/value/operation",
       expr: "zavx0z/git-${_[0]}",
       fields: {
@@ -581,7 +566,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
       parentContext: {
         metaAddress: "zavx0z/root" as Address,
         viaParticle: "fuzzy",
-        parentParticleId: "particle:zavx0z/root@branch-0:1",
+        parentParticleId: crypto.randomUUID(),
       },
       entanglement: {
         id: "ent:root@f:0",
@@ -594,20 +579,24 @@ describe("Dark pipeline step — контракт одного шага", () => 
       expect(continuation.parentContext).toEqual({
         metaAddress: "zavx0z/root",
         viaParticle: "fuzzy",
-        parentParticleId: "particle:zavx0z/root@branch-0:1",
+        parentParticleId: result.parentContext!.parentParticleId,
       })
       expect(continuation.entanglement).toEqual({
         id: "ent:root@f:0",
         inherited: true,
       })
     }
-    expect(result.graph.parent.get("particle:zavx0z/git@root:2")).toBe("particle:zavx0z/git@root:1")
+    const branch = getFuzzyByBasis(result.graph, "/state", '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"')
+    const errorWimp = getWimpBySrc(result.graph, "zavx0z/git-error")
+    expect(result.graph.parent.get(errorWimp.id)).toBe(branch.id)
   })
 
   test("должен собирать continuation из value-based ternary как graph-ветвление", () => {
     const [node] = parse(
       ({ html, value }) =>
-        html`${value.role === "admin" ? html`<meta-for src="zavx0z/git-admin" />` : html`<meta-for src="zavx0z/git-user" />`}`,
+        html`${value.role === "admin"
+          ? html`<meta-for src="zavx0z/git-admin" />`
+          : html`<meta-for src="zavx0z/git-user" />`}`,
     )
 
     const graph = createEmptyGraph()
@@ -625,30 +614,31 @@ describe("Dark pipeline step — контракт одного шага", () => 
       continuations,
     )
 
-    expect(fuzzy).toEqual({
-      id: "particle:zavx0z/git@role-check:0",
-      kind: "fuzzy",
-      basis: "/value/role",
-      expr: '_[0] === "admin"',
-      children: new Set(["particle:zavx0z/git@role-check:1", "particle:zavx0z/git@role-check:2"]),
-    })
+    const adminWimp = getWimpBySrc(graph, "zavx0z/git-admin")
+    const userWimp = getWimpBySrc(graph, "zavx0z/git-user")
+
+    expect(fuzzy.id).toBeUUID()
+    expect(fuzzy.kind).toBe("fuzzy")
+    expect(fuzzy.basis).toBe("/value/role")
+    expect(fuzzy.expr).toBe('_[0] === "admin"')
+    expect(fuzzy.children).toEqual(new Set([adminWimp.id, userWimp.id]))
     expect(graph.meta).toEqual(
       new Map([
-        ["particle:zavx0z/git@role-check:1", "zavx0z/git-admin"],
-        ["particle:zavx0z/git@role-check:2", "zavx0z/git-user"],
+        [adminWimp.id, "zavx0z/git-admin"],
+        [userWimp.id, "zavx0z/git-user"],
       ]),
     )
     expect(continuations).toEqual([
       {
         kind: "wimp-load",
         mode: "static",
-        fromParticleId: "particle:zavx0z/git@role-check:1",
+        fromParticleId: adminWimp.id,
         metaAddress: "zavx0z/git-admin",
         parentContext: null,
         entanglement: null,
         viaParticle: "wimp",
         guard: {
-          particleId: "particle:zavx0z/git@role-check:0",
+          particleId: fuzzy.id,
           kind: "fuzzy",
           basis: "/value/role",
           expr: '_[0] === "admin"',
@@ -657,13 +647,13 @@ describe("Dark pipeline step — контракт одного шага", () => 
       {
         kind: "wimp-load",
         mode: "static",
-        fromParticleId: "particle:zavx0z/git@role-check:2",
+        fromParticleId: userWimp.id,
         metaAddress: "zavx0z/git-user",
         parentContext: null,
         entanglement: null,
         viaParticle: "wimp",
         guard: {
-          particleId: "particle:zavx0z/git@role-check:0",
+          particleId: fuzzy.id,
           kind: "fuzzy",
           basis: "/value/role",
           expr: '_[0] === "admin"',

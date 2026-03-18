@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import "fixture/test"
 
 import type { Address } from "@dark/types/dark"
 import type { Binding, DarkGraph, DarkParticle, Fuzzy, FuzzyID, ParticleID, Wimp, WimpID } from "@dark/types"
@@ -7,10 +8,6 @@ import { parse, type NodeCondition, type NodeLogical, type NodeMeta, type NodeTy
 import { HubFixture } from "fixture/hub"
 import { loadMetaAST } from "../dark/load"
 import type { MetaAST } from "../metafor/ast/ast.t"
-
-type MutableGraph = DarkGraph & {
-  nextSeq: number
-}
 
 type GraphParticle = Wimp | Fuzzy
 
@@ -41,35 +38,28 @@ function normalizeBinding(value: NodeMeta["fields"] | NodeMeta["mass"]): Binding
   return {
     mode: "dynamic",
     basis: value.data,
-    ...(("expr" in value && value.expr) ? { expr: value.expr } : {}),
+    ...("expr" in value && value.expr ? { expr: value.expr } : {}),
   }
 }
 
-function createEmptyGraph(): MutableGraph {
+function createEmptyGraph(): DarkGraph {
   return {
     roots: new Set(),
     particles: new Map<ParticleID, DarkParticle>(),
     parent: new Map(),
     meta: new Map(),
-    nextSeq: 0,
   }
 }
 
-function createParticleId(graph: MutableGraph, scope: string): ParticleID {
-  const id = `particle:${scope}:${graph.nextSeq}`
-  graph.nextSeq += 1
-  return id
+function createWimpId(): WimpID {
+  return crypto.randomUUID()
 }
 
-function createWimpId(graph: MutableGraph, scope: string): WimpID {
-  return createParticleId(graph, scope)
+function createFuzzyId(): FuzzyID {
+  return crypto.randomUUID()
 }
 
-function createFuzzyId(graph: MutableGraph, scope: string): FuzzyID {
-  return createParticleId(graph, scope)
-}
-
-function appendParticle(graph: MutableGraph, particle: GraphParticle, parentId?: ParticleID): void {
+function appendParticle(graph: DarkGraph, particle: GraphParticle, parentId?: ParticleID): void {
   graph.particles.set(particle.id, particle)
   if (parentId) {
     graph.parent.set(particle.id, parentId)
@@ -85,13 +75,13 @@ function appendParticle(graph: MutableGraph, particle: GraphParticle, parentId?:
   }
 }
 
-function normalizeStaticWimp(node: NodeMeta, graph: MutableGraph, scope: string): Wimp {
+function normalizeStaticWimp(node: NodeMeta): Wimp {
   if (typeof node.src !== "string") {
     throw new Error("Fuzzy: дочерний Wimp должен иметь статический src")
   }
 
   const result: Wimp = {
-    id: createWimpId(graph, scope),
+    id: createWimpId(),
     kind: "wimp",
     src: node.src,
     children: new Set(),
@@ -119,11 +109,11 @@ function validateFuzzyBasis(basis: string | string[]): void {
   }
 }
 
-function collectFuzzy(node: NodeLogical | NodeCondition, graph: MutableGraph, scope: string, parentId?: ParticleID): Fuzzy {
+function collectFuzzy(node: NodeLogical | NodeCondition, graph: DarkGraph, parentId?: ParticleID): Fuzzy {
   validateFuzzyBasis(node.data)
 
   const result: Fuzzy = {
-    id: createFuzzyId(graph, scope),
+    id: createFuzzyId(),
     kind: "fuzzy",
     basis: node.data,
     children: new Set(),
@@ -135,12 +125,12 @@ function collectFuzzy(node: NodeLogical | NodeCondition, graph: MutableGraph, sc
 
   for (const child of node.child) {
     if (child.type === "meta") {
-      const wimp = normalizeStaticWimp(child, graph, scope)
+      const wimp = normalizeStaticWimp(child)
       appendParticle(graph, wimp, result.id)
       continue
     }
     if (child.type === "log" || child.type === "cond") {
-      collectFuzzy(child, graph, scope, result.id)
+      collectFuzzy(child, graph, result.id)
       continue
     }
     if (child.type === "map") {
@@ -152,9 +142,9 @@ function collectFuzzy(node: NodeLogical | NodeCondition, graph: MutableGraph, sc
   return result
 }
 
-function normalizeToFuzzy(node: NodeLogical | NodeCondition, scope = "fuzzy"): NormalizedFuzzyGraph {
+function normalizeToFuzzy(node: NodeLogical | NodeCondition): NormalizedFuzzyGraph {
   const graph = createEmptyGraph()
-  const root = collectFuzzy(node, graph, scope)
+  const root = collectFuzzy(node, graph)
   return {
     root,
     graph: {
@@ -166,6 +156,14 @@ function normalizeToFuzzy(node: NodeLogical | NodeCondition, scope = "fuzzy"): N
   }
 }
 
+function getWimpBySrc(graph: DarkGraph, src: string): Wimp {
+  const particle = [...graph.particles.values()].find(
+    (item): item is Wimp => item.kind === "wimp" && "src" in item && item.src === src,
+  )
+  if (!particle) throw new Error(`Wimp not found for src: ${src}`)
+  return particle
+}
+
 describe("Fuzzy — логическое ветвление", () => {
   let ast: MetaAST
 
@@ -175,17 +173,16 @@ describe("Fuzzy — логическое ветвление", () => {
 
   test("должен формироваться из логического условия по state", () => {
     const node = ast.gravity?.[1] as NodeLogical
-    const { root, graph } = normalizeToFuzzy(node, "git-state")
+    const { root, graph } = normalizeToFuzzy(node)
+    const errorWimp = getWimpBySrc(graph, "zavx0z/git-error")
 
-    expect(root).toEqual({
-      id: "particle:git-state:0",
-      kind: "fuzzy",
-      basis: "/state",
-      expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
-      children: new Set(["particle:git-state:1"]),
-    })
-    expect(graph.particles.get("particle:git-state:1") as Wimp).toEqual({
-      id: "particle:git-state:1",
+    expect(root.id).toBeUUID()
+    expect(root.kind).toBe("fuzzy")
+    expect(root.basis).toBe("/state")
+    expect(root.expr).toBe('_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"')
+    expect(root.children).toEqual(new Set([errorWimp.id]))
+    expect(errorWimp).toEqual({
+      id: errorWimp.id,
       kind: "wimp",
       src: "zavx0z/git-error",
       fields: {
@@ -195,29 +192,29 @@ describe("Fuzzy — логическое ветвление", () => {
       },
       children: new Set(),
     })
-    expect(graph.meta).toEqual(new Map([["particle:git-state:1", "zavx0z/git-error"]]))
+    expect(errorWimp.id).toBeUUID()
+    expect(graph.meta).toEqual(new Map([[errorWimp.id, "zavx0z/git-error"]]))
   })
 
   test("должен формироваться из логического условия по value", () => {
     const [node] = parse(({ html, value }) => html`${value.showMeta && html`<meta-for src="zavx0z/git-primary" />`}`)
-    const { root } = normalizeToFuzzy(node as NodeLogical, "show-meta")
+    const { root } = normalizeToFuzzy(node as NodeLogical)
 
-    expect(root).toEqual({
-      id: "particle:show-meta:0",
-      kind: "fuzzy",
-      basis: "/value/showMeta",
-      children: new Set(["particle:show-meta:1"]),
-    })
+    expect(root.id).toBeUUID()
+    expect(root.kind).toBe("fuzzy")
+    expect(root.basis).toBe("/value/showMeta")
+    expect(root.children.size).toBe(1)
   })
 
   test("должен сохранять дочерние частицы ветви", () => {
     const [node] = parse(({ html, value }) => html`${value.showMeta && html`<meta-for src="zavx0z/git-primary" />`}`)
-    const { root, graph } = normalizeToFuzzy(node as NodeLogical, "show-meta")
+    const { root, graph } = normalizeToFuzzy(node as NodeLogical)
+    const primaryWimp = getWimpBySrc(graph, "zavx0z/git-primary")
 
-    expect(root.children).toEqual(new Set(["particle:show-meta:1"]))
-    expect(graph.parent).toEqual(new Map([["particle:show-meta:1", "particle:show-meta:0"]]))
-    expect(graph.particles.get("particle:show-meta:1") as Wimp).toEqual({
-      id: "particle:show-meta:1",
+    expect(root.children).toEqual(new Set([primaryWimp.id]))
+    expect(graph.parent).toEqual(new Map([[primaryWimp.id, root.id]]))
+    expect(primaryWimp).toEqual({
+      id: primaryWimp.id,
       kind: "wimp",
       src: "zavx0z/git-primary",
       children: new Set(),
@@ -229,9 +226,11 @@ describe("Fuzzy — тернарное ветвление", () => {
   test("должен формироваться из ternary-условия", () => {
     const [node] = parse(
       ({ html, value }) =>
-        html`${value.role === "admin" ? html`<meta-for src="zavx0z/git-admin" />` : html`<meta-for src="zavx0z/git-user" />`}`,
+        html`${value.role === "admin"
+          ? html`<meta-for src="zavx0z/git-admin" />`
+          : html`<meta-for src="zavx0z/git-user" />`}`,
     )
-    const { root } = normalizeToFuzzy(node as NodeCondition, "role-check")
+    const { root } = normalizeToFuzzy(node as NodeCondition)
 
     expect(root.kind).toBe("fuzzy")
     expect(root.basis).toBe("/value/role")
@@ -241,12 +240,15 @@ describe("Fuzzy — тернарное ветвление", () => {
   test("должен сохранять true-ветвь", () => {
     const [node] = parse(
       ({ html, value }) =>
-        html`${value.role === "admin" ? html`<meta-for src="zavx0z/git-admin" />` : html`<meta-for src="zavx0z/git-user" />`}`,
+        html`${value.role === "admin"
+          ? html`<meta-for src="zavx0z/git-admin" />`
+          : html`<meta-for src="zavx0z/git-user" />`}`,
     )
-    const { graph } = normalizeToFuzzy(node as NodeCondition, "role-check")
+    const { graph } = normalizeToFuzzy(node as NodeCondition)
+    const adminWimp = getWimpBySrc(graph, "zavx0z/git-admin")
 
-    expect(graph.particles.get("particle:role-check:1") as Wimp).toEqual({
-      id: "particle:role-check:1",
+    expect(adminWimp).toEqual({
+      id: adminWimp.id,
       kind: "wimp",
       src: "zavx0z/git-admin",
       children: new Set(),
@@ -256,12 +258,15 @@ describe("Fuzzy — тернарное ветвление", () => {
   test("должен сохранять false-ветвь", () => {
     const [node] = parse(
       ({ html, value }) =>
-        html`${value.role === "admin" ? html`<meta-for src="zavx0z/git-admin" />` : html`<meta-for src="zavx0z/git-user" />`}`,
+        html`${value.role === "admin"
+          ? html`<meta-for src="zavx0z/git-admin" />`
+          : html`<meta-for src="zavx0z/git-user" />`}`,
     )
-    const { graph } = normalizeToFuzzy(node as NodeCondition, "role-check")
+    const { graph } = normalizeToFuzzy(node as NodeCondition)
+    const userWimp = getWimpBySrc(graph, "zavx0z/git-user")
 
-    expect(graph.particles.get("particle:role-check:2") as Wimp).toEqual({
-      id: "particle:role-check:2",
+    expect(userWimp).toEqual({
+      id: userWimp.id,
       kind: "wimp",
       src: "zavx0z/git-user",
       children: new Set(),
@@ -287,7 +292,10 @@ describe("Fuzzy — ограничения basis", () => {
 
   test("не должен принимать runtime-источники вне state/value", () => {
     const [root] = parse<any, { items: { active: boolean }[] }>(
-      ({ html, mass }) => html`${mass.items.map((item: { active: boolean }) => html`${item.active && html`<meta-for src="zavx0z/git-item" />`}`)}`,
+      ({ html, mass }) =>
+        html`${mass.items.map(
+          (item: { active: boolean }) => html`${item.active && html`<meta-for src="zavx0z/git-item" />`}`,
+        )}`,
     )
 
     const mapNode = root as Extract<NodeType, { type: "map" }>
@@ -301,14 +309,14 @@ describe("Fuzzy — нормализация", () => {
   test("должен нормализовать basis из state", async () => {
     const ast = (await loadMetaAST("zavx0z/git" as Address)) as MetaAST
     const node = ast.gravity?.[1] as NodeLogical
-    const { root } = normalizeToFuzzy(node, "git-state")
+    const { root } = normalizeToFuzzy(node)
 
     expect(root.basis).toBe("/state")
   })
 
   test("должен нормализовать basis из value", () => {
     const [node] = parse(({ html, value }) => html`${value.showMeta && html`<meta-for src="zavx0z/git-primary" />`}`)
-    const { root } = normalizeToFuzzy(node as NodeLogical, "show-meta")
+    const { root } = normalizeToFuzzy(node as NodeLogical)
 
     expect(root.basis).toBe("/value/showMeta")
   })
@@ -316,9 +324,11 @@ describe("Fuzzy — нормализация", () => {
   test("должен сохранять expr", () => {
     const [node] = parse(
       ({ html, value }) =>
-        html`${value.role === "admin" ? html`<meta-for src="zavx0z/git-admin" />` : html`<meta-for src="zavx0z/git-user" />`}`,
+        html`${value.role === "admin"
+          ? html`<meta-for src="zavx0z/git-admin" />`
+          : html`<meta-for src="zavx0z/git-user" />`}`,
     )
-    const { root } = normalizeToFuzzy(node as NodeCondition, "role-check")
+    const { root } = normalizeToFuzzy(node as NodeCondition)
 
     expect(root.expr).toBe('_[0] === "admin"')
   })
@@ -326,10 +336,11 @@ describe("Fuzzy — нормализация", () => {
   test("должен сохранять branch-семантику дочерних частиц", async () => {
     const ast = (await loadMetaAST("zavx0z/git" as Address)) as MetaAST
     const node = ast.gravity?.[1] as NodeLogical
-    const { graph } = normalizeToFuzzy(node, "git-state")
+    const { graph } = normalizeToFuzzy(node)
+    const errorWimp = getWimpBySrc(graph, "zavx0z/git-error")
 
-    expect(graph.particles.get("particle:git-state:1") as Wimp).toEqual({
-      id: "particle:git-state:1",
+    expect(errorWimp).toEqual({
+      id: errorWimp.id,
       kind: "wimp",
       src: "zavx0z/git-error",
       fields: {
