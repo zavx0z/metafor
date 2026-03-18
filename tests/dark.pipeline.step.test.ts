@@ -1,6 +1,17 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 
-import type { Binding, DynamicBinding } from "@dark/types"
+import type {
+  Binding,
+  DarkGraph,
+  DarkParticle,
+  DarkTopologyDependencySeed,
+  DynamicBinding,
+  FuzzyID,
+  Fuzzy,
+  ParticleID,
+  WimpID,
+  Wimp,
+} from "@dark/types"
 import type { Address } from "@dark/types/dark"
 import { convertMetaDSLToMetaAST, type MetaAST } from "../metafor/ast/index.ts"
 import { MetaFor } from "../metafor/dsl/metafor.ts"
@@ -13,7 +24,7 @@ import { loadMetaAST } from "../dark/load"
 type ParentContext = {
   metaAddress: Address
   viaParticle: "wimp" | "fuzzy" | "macho" | "axion"
-  knotId: string
+  parentParticleId: ParticleID
 }
 
 type EntanglementContext = {
@@ -29,60 +40,22 @@ type StepInput = {
   viaParticle: ParentContext["viaParticle"] | null
 }
 
-type StepWimpParticle = {
-  kind: "wimp"
-  src: string
-  fields?: Binding<Record<string, unknown>>
-  mass?: Binding<Record<string, unknown>>
-}
-
-type StepFuzzyAddressParticle = {
-  kind: "fuzzy"
-  role: "address"
-  basis: string | string[]
-  expr?: string
-}
-
-type StepFuzzyBranchParticle = {
-  kind: "fuzzy"
-  role: "branch"
-  basis: string | string[]
-  expr?: string
-  particles: StepParticle[]
-}
-
-type StepParticle = StepWimpParticle | StepFuzzyAddressParticle | StepFuzzyBranchParticle
+type StepWimpParticle = Wimp
+type StepFuzzyParticle = Fuzzy
+type StepParticle = Wimp | Fuzzy
 
 type StepGuard = {
+  particleId: FuzzyID
   kind: "fuzzy"
   basis: string | string[]
   expr?: string
-}
-
-type StepKnot = {
-  id: string
-  metaAddress: Address
-  branchAddress: string
-  parentKnotId: string | null
-  particles: StepParticle[]
-}
-
-type TopologyDependencySeed = {
-  knotId: string
-  field: string
-  fieldType: string
-  topologyKind: "enum" | "array"
-  sourcePath: string
-  participatesInEntanglement: false
-  mutableFromReaction: false
-  mutableDuringProcess: false
 }
 
 type StepContinuation =
   | {
       kind: "wimp-load"
       mode: "static"
-      fromKnotId: string
+      fromParticleId: WimpID
       metaAddress: string
       fields?: Binding<Record<string, unknown>>
       mass?: Binding<Record<string, unknown>>
@@ -94,7 +67,7 @@ type StepContinuation =
   | {
       kind: "wimp-load"
       mode: "dynamic"
-      fromKnotId: string
+      fromParticleId: FuzzyID
       basis: string | string[]
       expr?: string
       fields?: Binding<Record<string, unknown>>
@@ -106,13 +79,17 @@ type StepContinuation =
 
 type StepResult = {
   metaAddress: Address
-  knot: StepKnot
-  particles: StepParticle[]
+  branchAddress: string
+  graph: DarkGraph
   continuations: StepContinuation[]
-  dependencySeeds: TopologyDependencySeed[]
+  dependencySeeds: DarkTopologyDependencySeed[]
   parentContext: ParentContext | null
   entanglement: EntanglementContext | null
   viaParticle: ParentContext["viaParticle"] | null
+}
+
+type MutableStepGraph = DarkGraph & {
+  nextSeq: number
 }
 
 const hub = new HubFixture("./github/")
@@ -144,22 +121,60 @@ function normalizeBinding(value: NodeMeta["fields"] | NodeMeta["mass"]): Binding
   return result
 }
 
-function createKnotId(metaAddress: Address, branchAddress: string): string {
-  return `knot:${metaAddress}@${branchAddress}`
+function createParticleId(graph: MutableStepGraph, metaAddress: Address, branchAddress: string): ParticleID {
+  const id = `particle:${metaAddress}@${branchAddress}:${graph.nextSeq}`
+  graph.nextSeq += 1
+  return id
+}
+
+function createWimpId(graph: MutableStepGraph, metaAddress: Address, branchAddress: string): WimpID {
+  return createParticleId(graph, metaAddress, branchAddress)
+}
+
+function createFuzzyId(graph: MutableStepGraph, metaAddress: Address, branchAddress: string): FuzzyID {
+  return createParticleId(graph, metaAddress, branchAddress)
 }
 
 function getDynamicExpr(value: NodeMeta["fields"] | NodeMeta["mass"] | NodeMeta["src"]): string | undefined {
   return value && typeof value === "object" && "expr" in value ? value.expr : undefined
 }
 
-function normalizeStaticWimp(node: NodeMeta): StepWimpParticle {
+function createEmptyGraph(): MutableStepGraph {
+  return {
+    roots: new Set(),
+    particles: new Map<ParticleID, DarkParticle>(),
+    parent: new Map(),
+    meta: new Map(),
+    nextSeq: 0,
+  }
+}
+
+function appendParticle(graph: MutableStepGraph, particle: StepParticle, parentId?: ParticleID): void {
+  graph.particles.set(particle.id, particle)
+  if (parentId) {
+    graph.parent.set(particle.id, parentId)
+    const parent = graph.particles.get(parentId)
+    if (parent) {
+      parent.children.add(particle.id)
+    }
+  } else {
+    graph.roots.add(particle.id)
+  }
+  if (particle.kind === "wimp") {
+    graph.meta.set(particle.id, particle.src)
+  }
+}
+
+function normalizeStaticWimp(node: NodeMeta, graph: MutableStepGraph, input: StepInput): StepWimpParticle {
   if (typeof node.src !== "string") {
     throw new Error("Step: статический Wimp должен иметь строковый src")
   }
 
   const result: StepWimpParticle = {
+    id: createWimpId(graph, input.metaAddress, input.branchAddress),
     kind: "wimp",
     src: node.src,
+    children: new Set(),
   }
   if (node.fields) {
     const fields = normalizeBinding(node.fields)
@@ -172,23 +187,12 @@ function normalizeStaticWimp(node: NodeMeta): StepWimpParticle {
   return result
 }
 
-function normalizeBranchFuzzy(node: NodeLogical | NodeCondition): StepFuzzyBranchParticle {
-  const particles: StepParticle[] = []
-  for (const child of node.child) {
-    if (child.type === "meta" && typeof child.src === "string") {
-      particles.push(normalizeStaticWimp(child))
-      continue
-    }
-    if (child.type === "log" || child.type === "cond") {
-      particles.push(normalizeBranchFuzzy(child))
-    }
-  }
-
-  const result: StepFuzzyBranchParticle = {
+function normalizeFuzzy(node: NodeLogical | NodeCondition, graph: MutableStepGraph, input: StepInput): StepFuzzyParticle {
+  const result: StepFuzzyParticle = {
+    id: createFuzzyId(graph, input.metaAddress, input.branchAddress),
     kind: "fuzzy",
-    role: "branch",
     basis: node.data,
-    particles,
+    children: new Set(),
   }
   if (node.expr) {
     result.expr = node.expr
@@ -196,12 +200,13 @@ function normalizeBranchFuzzy(node: NodeLogical | NodeCondition): StepFuzzyBranc
   return result
 }
 
-function collectTopologyDependencySeeds(ast: MetaAST, knotId: string): TopologyDependencySeed[] {
-  const result: TopologyDependencySeed[] = []
+function collectTopologyDependencySeeds(ast: MetaAST, input: StepInput): DarkTopologyDependencySeed[] {
+  const result: DarkTopologyDependencySeed[] = []
   for (const [field, definition] of Object.entries(ast.fields)) {
     if (definition.type.startsWith("enum<")) {
       result.push({
-        knotId,
+        metaAddress: input.metaAddress,
+        branchAddress: input.branchAddress,
         field,
         fieldType: definition.type,
         topologyKind: "enum",
@@ -212,7 +217,8 @@ function collectTopologyDependencySeeds(ast: MetaAST, knotId: string): TopologyD
       })
     } else if (definition.type.startsWith("array<")) {
       result.push({
-        knotId,
+        metaAddress: input.metaAddress,
+        branchAddress: input.branchAddress,
         field,
         fieldType: definition.type,
         topologyKind: "array",
@@ -226,64 +232,66 @@ function collectTopologyDependencySeeds(ast: MetaAST, knotId: string): TopologyD
   return result
 }
 
-function collectStaticContinuations(
-  node: NodeType,
+function collectBranchGraph(
+  node: NodeLogical | NodeCondition,
+  graph: MutableStepGraph,
   input: StepInput,
-  fromKnotId: string,
-  guard?: StepGuard,
-): Extract<StepContinuation, { mode: "static" }>[] {
-  if (node.type === "meta" && typeof node.src === "string") {
-    const result: Extract<StepContinuation, { mode: "static" }> = {
-      kind: "wimp-load",
-      mode: "static",
-      fromKnotId,
-      metaAddress: node.src,
-      parentContext: input.parentContext,
-      entanglement: input.entanglement,
-      viaParticle: "wimp",
-    }
-    if (node.fields) {
-      const fields = normalizeBinding(node.fields)
-      if (fields) result.fields = fields
-    }
-    if (node.mass) {
-      const mass = normalizeBinding(node.mass)
-      if (mass) result.mass = mass
-    }
-    if (guard) {
-      result.guard = guard
-    }
-    return [result]
+  continuations: StepContinuation[],
+  parentId?: ParticleID,
+): StepFuzzyParticle {
+  const fuzzy = normalizeFuzzy(node, graph, input)
+  appendParticle(graph, fuzzy, parentId)
+
+  const guard: StepGuard = {
+    particleId: fuzzy.id,
+    kind: "fuzzy",
+    basis: node.data,
+  }
+  if (node.expr) {
+    guard.expr = node.expr
   }
 
-  if (node.type === "log" || node.type === "cond") {
-    const nestedGuard: StepGuard = {
-      kind: "fuzzy",
-      basis: node.data,
+  for (const child of node.child) {
+    if (child.type === "meta" && typeof child.src === "string") {
+      const wimp = normalizeStaticWimp(child, graph, input)
+      appendParticle(graph, wimp, fuzzy.id)
+      const continuation: Extract<StepContinuation, { mode: "static" }> = {
+        kind: "wimp-load",
+        mode: "static",
+        fromParticleId: wimp.id,
+        metaAddress: wimp.src,
+        parentContext: input.parentContext,
+        entanglement: input.entanglement,
+        viaParticle: "wimp",
+        guard,
+      }
+      if (wimp.fields) continuation.fields = wimp.fields
+      if (wimp.mass) continuation.mass = wimp.mass
+      continuations.push(continuation)
+      continue
     }
-    if (node.expr) {
-      nestedGuard.expr = node.expr
+
+    if (child.type === "log" || child.type === "cond") {
+      collectBranchGraph(child, graph, input, continuations, fuzzy.id)
     }
-    return node.child.flatMap((child) => collectStaticContinuations(child, input, fromKnotId, nestedGuard))
   }
 
-  return []
+  return fuzzy
 }
 
 function processLoadedMetaStep(ast: MetaAST, input: StepInput): StepResult {
-  const particles: StepParticle[] = []
+  const graph = createEmptyGraph()
   const continuations: StepContinuation[] = []
-  const knotId = createKnotId(input.metaAddress, input.branchAddress)
 
   for (const node of ast.gravity ?? []) {
     if (node.type === "meta") {
       if (typeof node.src === "string") {
-        const wimp = normalizeStaticWimp(node)
-        particles.push(wimp)
+        const wimp = normalizeStaticWimp(node, graph, input)
+        appendParticle(graph, wimp)
         const continuation: Extract<StepContinuation, { mode: "static" }> = {
           kind: "wimp-load",
           mode: "static",
-          fromKnotId: knotId,
+          fromParticleId: wimp.id,
           metaAddress: wimp.src,
           parentContext: input.parentContext,
           entanglement: input.entanglement,
@@ -295,21 +303,22 @@ function processLoadedMetaStep(ast: MetaAST, input: StepInput): StepResult {
         continue
       }
 
-      const addressParticle: StepFuzzyAddressParticle = {
+      const addressParticle: StepFuzzyParticle = {
+        id: createFuzzyId(graph, input.metaAddress, input.branchAddress),
         kind: "fuzzy",
-        role: "address",
         basis: node.src.data,
+        children: new Set(),
       }
       const srcExprAddr = getDynamicExpr(node.src as ValueDynamic)
       if (srcExprAddr) {
         addressParticle.expr = srcExprAddr
       }
-      particles.push(addressParticle)
+      appendParticle(graph, addressParticle)
 
       const dynamicContinuation: Extract<StepContinuation, { mode: "dynamic" }> = {
         kind: "wimp-load",
         mode: "dynamic",
-        fromKnotId: knotId,
+        fromParticleId: addressParticle.id,
         basis: node.src.data,
         parentContext: input.parentContext,
         entanglement: input.entanglement,
@@ -332,31 +341,21 @@ function processLoadedMetaStep(ast: MetaAST, input: StepInput): StepResult {
     }
 
     if (node.type === "log" || node.type === "cond") {
-      const fuzzy = normalizeBranchFuzzy(node)
-      particles.push(fuzzy)
-      const guard: StepGuard = {
-        kind: "fuzzy",
-        basis: node.data,
-      }
-      if (node.expr) {
-        guard.expr = node.expr
-      }
-      continuations.push(...node.child.flatMap((child) => collectStaticContinuations(child, input, knotId, guard)))
+      collectBranchGraph(node, graph, input, continuations)
     }
   }
 
   return {
     metaAddress: input.metaAddress,
-    knot: {
-      id: knotId,
-      metaAddress: input.metaAddress,
-      branchAddress: input.branchAddress,
-      parentKnotId: input.parentContext?.knotId ?? null,
-      particles,
+    branchAddress: input.branchAddress,
+    graph: {
+      roots: graph.roots,
+      particles: graph.particles,
+      parent: graph.parent,
+      meta: graph.meta,
     },
-    particles,
     continuations,
-    dependencySeeds: collectTopologyDependencySeeds(ast, knotId),
+    dependencySeeds: collectTopologyDependencySeeds(ast, input),
     parentContext: input.parentContext,
     entanglement: input.entanglement,
     viaParticle: input.viaParticle,
@@ -408,7 +407,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
       parentContext: {
         metaAddress: "zavx0z/root" as Address,
         viaParticle: "wimp",
-        knotId: "knot:zavx0z/root@root",
+        parentParticleId: "particle:zavx0z/root@root:0",
       },
       entanglement: {
         id: "ent:root@w:0",
@@ -418,10 +417,11 @@ describe("Dark pipeline step — контракт одного шага", () => 
     })
 
     expect(result.metaAddress).toBe("zavx0z/git")
+    expect(result.branchAddress).toBe("root")
     expect(result.parentContext).toEqual({
       metaAddress: "zavx0z/root",
       viaParticle: "wimp",
-      knotId: "knot:zavx0z/root@root",
+      parentParticleId: "particle:zavx0z/root@root:0",
     })
     expect(result.entanglement).toEqual({
       id: "ent:root@w:0",
@@ -439,20 +439,37 @@ describe("Dark pipeline step — контракт одного шага", () => 
       viaParticle: null,
     })
 
-    expect(result.particles).toEqual([
-      {
-        kind: "fuzzy",
-        role: "address",
-        basis: "/value/operation",
-        expr: "zavx0z/git-${_[0]}",
-      },
-      {
-        kind: "fuzzy",
-        role: "branch",
-        basis: "/state",
-        expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
-        particles: [
+    const selectorId = "particle:zavx0z/git@root:0"
+    const branchId = "particle:zavx0z/git@root:1"
+    const errorWimpId = "particle:zavx0z/git@root:2"
+
+    expect(result.graph).toEqual({
+      roots: new Set([selectorId, branchId]),
+      particles: new Map<ParticleID, StepParticle>([
+        [
+          selectorId,
           {
+            id: selectorId,
+            kind: "fuzzy",
+            basis: "/value/operation",
+            expr: "zavx0z/git-${_[0]}",
+            children: new Set(),
+          },
+        ],
+        [
+          branchId,
+          {
+            id: branchId,
+            kind: "fuzzy",
+            basis: "/state",
+            expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
+            children: new Set([errorWimpId]),
+          },
+        ],
+        [
+          errorWimpId,
+          {
+            id: errorWimpId,
             kind: "wimp",
             src: "zavx0z/git-error",
             fields: {
@@ -460,16 +477,19 @@ describe("Dark pipeline step — контракт одного шага", () => 
               basis: "/value/error",
               expr: "{ message: _[0] }",
             },
+            children: new Set(),
           },
         ],
-      },
-    ])
+      ]),
+      parent: new Map([[errorWimpId, branchId]]),
+      meta: new Map([[errorWimpId, "zavx0z/git-error"]]),
+    })
 
     expect(result.continuations).toEqual([
       {
         kind: "wimp-load",
         mode: "dynamic",
-        fromKnotId: "knot:zavx0z/git@root",
+        fromParticleId: selectorId,
         basis: "/value/operation",
         expr: "zavx0z/git-${_[0]}",
         fields: {
@@ -484,7 +504,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
       {
         kind: "wimp-load",
         mode: "static",
-        fromKnotId: "knot:zavx0z/git@root",
+        fromParticleId: errorWimpId,
         metaAddress: "zavx0z/git-error",
         fields: {
           mode: "dynamic",
@@ -495,6 +515,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
         entanglement: null,
         viaParticle: "wimp",
         guard: {
+          particleId: branchId,
           kind: "fuzzy",
           basis: "/state",
           expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
@@ -503,7 +524,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
     ])
   })
 
-  test("должен собирать knot отдельно от частиц и continuation", async () => {
+  test("должен собирать единый граф частиц без обязательного knot-объекта", async () => {
     const result = await processMetaStep({
       metaAddress: "zavx0z/git" as Address,
       branchAddress: "root",
@@ -512,14 +533,15 @@ describe("Dark pipeline step — контракт одного шага", () => 
       viaParticle: null,
     })
 
-    expect(result.knot).toEqual({
-      id: "knot:zavx0z/git@root",
-      metaAddress: "zavx0z/git",
-      branchAddress: "root",
-      parentKnotId: null,
-      particles: result.particles,
-    })
-    expect("dependencySeeds" in result.particles[0]!).toBe(false)
+    const selectorId = "particle:zavx0z/git@root:0"
+    const branchId = "particle:zavx0z/git@root:1"
+    const errorWimpId = "particle:zavx0z/git@root:2"
+
+    expect(result.graph.roots).toEqual(new Set([selectorId, branchId]))
+    expect(result.graph.parent).toEqual(new Map([[errorWimpId, branchId]]))
+    expect(result.graph.meta).toEqual(new Map([[errorWimpId, "zavx0z/git-error"]]))
+    expect(result.graph.meta.has(selectorId)).toBe(false)
+    expect("field" in result.graph.particles.get(selectorId)!).toBe(false)
   })
 
   test("должен вычислять continuation для динамического выбора следующего адреса Wimp", async () => {
@@ -538,7 +560,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
     expect(dynamicContinuation).toEqual({
       kind: "wimp-load",
       mode: "dynamic",
-      fromKnotId: "knot:zavx0z/git@root",
+      fromParticleId: "particle:zavx0z/git@root:0",
       basis: "/value/operation",
       expr: "zavx0z/git-${_[0]}",
       fields: {
@@ -559,7 +581,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
       parentContext: {
         metaAddress: "zavx0z/root" as Address,
         viaParticle: "fuzzy",
-        knotId: "knot:zavx0z/root@branch-0",
+        parentParticleId: "particle:zavx0z/root@branch-0:1",
       },
       entanglement: {
         id: "ent:root@f:0",
@@ -572,41 +594,82 @@ describe("Dark pipeline step — контракт одного шага", () => 
       expect(continuation.parentContext).toEqual({
         metaAddress: "zavx0z/root",
         viaParticle: "fuzzy",
-        knotId: "knot:zavx0z/root@branch-0",
+        parentParticleId: "particle:zavx0z/root@branch-0:1",
       })
       expect(continuation.entanglement).toEqual({
         id: "ent:root@f:0",
         inherited: true,
       })
     }
-    expect(result.knot.parentKnotId).toBe("knot:zavx0z/root@branch-0")
+    expect(result.graph.parent.get("particle:zavx0z/git@root:2")).toBe("particle:zavx0z/git@root:1")
   })
 
-  test("должен собирать continuation из value-based ternary как branch-переход", () => {
+  test("должен собирать continuation из value-based ternary как graph-ветвление", () => {
     const [node] = parse(
       ({ html, value }) =>
         html`${value.role === "admin" ? html`<meta-for src="zavx0z/git-admin" />` : html`<meta-for src="zavx0z/git-user" />`}`,
     )
 
-    const fuzzy = normalizeBranchFuzzy(node as NodeCondition)
+    const graph = createEmptyGraph()
+    const continuations: StepContinuation[] = []
+    const fuzzy = collectBranchGraph(
+      node as NodeCondition,
+      graph,
+      {
+        metaAddress: "zavx0z/git" as Address,
+        branchAddress: "role-check",
+        parentContext: null,
+        entanglement: null,
+        viaParticle: null,
+      },
+      continuations,
+    )
 
-    const expected: StepFuzzyBranchParticle = {
+    expect(fuzzy).toEqual({
+      id: "particle:zavx0z/git@role-check:0",
       kind: "fuzzy",
-      role: "branch",
       basis: "/value/role",
       expr: '_[0] === "admin"',
-      particles: [
-        {
-          kind: "wimp",
-          src: "zavx0z/git-admin",
+      children: new Set(["particle:zavx0z/git@role-check:1", "particle:zavx0z/git@role-check:2"]),
+    })
+    expect(graph.meta).toEqual(
+      new Map([
+        ["particle:zavx0z/git@role-check:1", "zavx0z/git-admin"],
+        ["particle:zavx0z/git@role-check:2", "zavx0z/git-user"],
+      ]),
+    )
+    expect(continuations).toEqual([
+      {
+        kind: "wimp-load",
+        mode: "static",
+        fromParticleId: "particle:zavx0z/git@role-check:1",
+        metaAddress: "zavx0z/git-admin",
+        parentContext: null,
+        entanglement: null,
+        viaParticle: "wimp",
+        guard: {
+          particleId: "particle:zavx0z/git@role-check:0",
+          kind: "fuzzy",
+          basis: "/value/role",
+          expr: '_[0] === "admin"',
         },
-        {
-          kind: "wimp",
-          src: "zavx0z/git-user",
+      },
+      {
+        kind: "wimp-load",
+        mode: "static",
+        fromParticleId: "particle:zavx0z/git@role-check:2",
+        metaAddress: "zavx0z/git-user",
+        parentContext: null,
+        entanglement: null,
+        viaParticle: "wimp",
+        guard: {
+          particleId: "particle:zavx0z/git@role-check:0",
+          kind: "fuzzy",
+          basis: "/value/role",
+          expr: '_[0] === "admin"',
         },
-      ],
-    }
-    expect(fuzzy).toEqual(expected)
+      },
+    ])
   })
 
   test("должен выносить topology dependency seeds отдельно для enum/array полей", () => {
@@ -621,7 +684,8 @@ describe("Dark pipeline step — контракт одного шага", () => 
 
     expect(result.dependencySeeds).toEqual([
       {
-        knotId: "knot:zavx0z/test-topology@root",
+        metaAddress: "zavx0z/test-topology",
+        branchAddress: "root",
         field: "operation",
         fieldType: "enum<string>",
         topologyKind: "enum",
@@ -631,7 +695,8 @@ describe("Dark pipeline step — контракт одного шага", () => 
         mutableDuringProcess: false,
       },
       {
-        knotId: "knot:zavx0z/test-topology@root",
+        metaAddress: "zavx0z/test-topology",
+        branchAddress: "root",
         field: "items",
         fieldType: "array<string>",
         topologyKind: "array",

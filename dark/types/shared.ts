@@ -1,54 +1,33 @@
 import type { MetaAST } from "@metafor/ast"
 
 /**
- * DarkMatter — нормализованное облако частиц для домена Dark.
+ * Базовый тип идентификатора частицы в скрытом графе `Dark`.
  *
- * Это входной формат для Dark-пайплайна после преобразования gravity
- * из DSL/template-представления в язык частиц тёмной материи.
- *
- * DarkMatter ещё не является глобальным графом Dark и не содержит
- * runtime-индексов, placement-id или stitched-структур.
- * Это чистое декларативное описание частиц и их вложенности.
- *
- * @example
- * ```ts
- * const matter: DarkMatter = {
- *   meta: "zavx0z/git",
- *   particles: [
- *     {
- *       kind: "wimp",
- *       src: "zavx0z/git-error",
- *       fields: {
- *         mode: "dynamic",
- *         basis: "/value/error",
- *         expr: "{ message: _[0] }",
- *       },
- *     },
- *   ],
- * }
- * ```
+ * Не фиксирует конкретную форму идентификатора как UUID.
+ * Это позволяет в дальнейшем перейти на адресные или иные схемы
+ * идентификации без смены доменного имени типа.
  */
-export type DarkMatter = {
-  /**
-   * Канонический hub-адрес текущей meta-сущности,
-   * из которой было получено данное облако частиц.
-   */
-  meta: string
-
-  /**
-   * Корневые частицы тёмной материи.
-   *
-   * Это ещё не flatten-boundary структура, а исходное облако частиц,
-   * которое Dark затем разворачивает в свой внутренний граф.
-   */
-  particles: DarkParticle[]
-}
+export type ParticleID = string
 
 /**
- * DarkParticle — объединение всех поддерживаемых типов частиц
- * тёмной материи в Dark-домене.
+ * Идентификатор частицы `Wimp`.
  */
-export type DarkParticle = Wimp | Fuzzy | Macho | Axion
+export type WimpID = ParticleID
+
+/**
+ * Идентификатор частицы `Fuzzy`.
+ */
+export type FuzzyID = ParticleID
+
+/**
+ * Идентификатор частицы `Macho`.
+ */
+export type MachoID = ParticleID
+
+/**
+ * Идентификатор частицы `Axion`.
+ */
+export type AxionID = ParticleID
 
 /**
  * StaticBinding — статическая привязка значения.
@@ -143,85 +122,73 @@ export type DynamicBinding = {
 export type Binding<T = unknown> = StaticBinding<T> | DynamicBinding
 
 /**
- * Wimp — частица слабого взаимодействия.
+ * Базовая частица скрытого графа `Dark`.
  *
- * Представляет дочернюю meta-сущность в gravity-облаке.
- * Именно Wimp задаёт ссылку на вложенную meta и payload,
- * который должен быть передан ей через fields и mass.
- *
- * Wimp не описывает runtime-instance и не содержит placement-информации.
- * Это только декларативная частица дочерней meta-связи.
- *
- * @example
- * ```ts
- * const particle: Wimp = {
- *   kind: "wimp",
- *   src: "zavx0z/git-error",
- *   fields: {
- *     mode: "dynamic",
- *     basis: "/value/error",
- *     expr: "{ message: _[0] }",
- *   },
- * }
- * ```
+ * Все конечные частицы живут в одном пространстве `id`
+ * и связываются через `children`.
  */
-export type Wimp = {
+export interface DarkParticle {
+  /**
+   * Уникальный ID частицы в скрытом графе.
+   */
+  id: ParticleID
+
+  /**
+   * Дискриминатор типа частицы.
+   */
+  kind: "wimp" | "fuzzy" | "macho" | "axion"
+
+  /**
+   * IDs дочерних частиц в общем графе.
+   */
+  children: Set<ParticleID>
+}
+
+/**
+ * Wimp — частица статической связности.
+ *
+ * Представляет уже выбранную статическую привязку к следующей `meta`
+ * и каналы передачи `fields`/`mass` от родителя.
+ */
+export interface Wimp extends DarkParticle {
+  /**
+   * ID частицы `Wimp`.
+   */
+  id: WimpID
+
   /**
    * Дискриминатор типа частицы.
    */
   kind: "wimp"
 
- /**
-  * Hub-адрес meta для инстанцирования.
-  *
-  * Фиксированный адрес meta-сущности.
-  * Не может быть динамическим — изменения meta-ссылок
-   * происходят через частицы более высокого уровня и шаг pipeline
-   * до появления конечного Wimp.
-   *
-   * @example "zavx0z/git"
+  /**
+   * Статический hub-адрес следующей `meta`.
    */
   src: string
 
   /**
    * Payload для fields инстанцируемой meta.
-   *
-   * Данные передаются от родительского контекста.
    */
   fields?: Binding<Record<string, unknown>>
 
   /**
    * Payload для mass инстанцируемой meta.
-   *
-   * Данные передаются от родительского контекста.
    */
   mass?: Binding<Record<string, unknown>>
 }
 
 /**
- * Fuzzy — частица ветвления и суперпозиции.
+ * Fuzzy — частица условной связности.
  *
- * Представляет узел выбора, зависящий от одного или нескольких basis.
- * Используется для условий, логических ветвей и прочих форм
- * неоднозначности, где дальнейшее облако частиц раскрывается
- * только при выполнении соответствующего условия.
- *
- * @example
- * ```ts
- * const particle: Fuzzy = {
- *   kind: "fuzzy",
- *   basis: ["/state"],
- *   expr: '_[0] === "ошибка"',
- *   particles: [
- *     {
- *       kind: "wimp",
- *       src: "zavx0z/git-error",
- *     },
- *   ],
- * }
- * ```
+ * Хранит basis/expr для выбора ветви, а сами дочерние связи
+ * задаются через `children` общего графа.
  */
-export type Fuzzy = {
+export interface Fuzzy extends DarkParticle {
+  /**
+   * ID частицы `Fuzzy`.
+   */
+  id: FuzzyID
+
   /**
    * Дискриминатор типа частицы.
    */
@@ -229,48 +196,24 @@ export type Fuzzy = {
 
   /**
    * Basis-пути, от которых зависит ветвление.
-   *
-   * В согласуемом контракте Fuzzy должен опираться на `state` / `value`.
-   * Источник множественности типа `array` относится к Macho, а не к Fuzzy.
    */
   basis: string | string[]
 
   /**
    * Выражение выбора ветви.
-   *
-   * Если отсутствует, Fuzzy может трактоваться как более общий
-   * контейнер суперпозиции без явного predicate-выражения.
    */
   expr?: string
-
-  /**
-   * Вложенные частицы, раскрывающиеся внутри данной ветви.
-   */
-  particles: DarkParticle[]
 }
 
 /**
  * Macho — частица множественности.
- *
- * Представляет расширение облака частиц по множественному basis,
- * например для map/array-подобных структур, где одна декларация
- * раскрывается в набор однотипных ветвей.
- *
- * @example
- * ```ts
- * .gravity(({ html, mass }) => html`
- *   ${mass.items.map(
- *     (item) => html`
- *       <meta-for
- *         src="zavx0z/item"
- *         fields=${{ id: item.id }}
- *       />
- *     `,
- *   )}
- * `)
- * ```
  */
-export type Macho = {
+export interface Macho extends DarkParticle {
+  /**
+   * ID частицы `Macho`.
+   */
+  id: MachoID
+
   /**
    * Дискриминатор типа частицы.
    */
@@ -280,35 +223,17 @@ export type Macho = {
    * Basis, задающий источник множественности.
    */
   basis: string
-
-  /**
-   * Вложенные частицы, которые должны быть раскрыты
-   * для каждого элемента множественности.
-   */
-  particles: DarkParticle[]
 }
 
 /**
- * Axion — лёгкая логическая частица-группировка.
- *
- * Используется как служебная структурная обёртка, когда необходимо
- * сохранить логическую группировку частиц без явной дочерней meta-ссылки.
- *
- * Axion не является boundary-формой и не должен трактоваться
- * как runtime-instance. Это чисто декларативный контейнер.
- *
- * @example
- * ```ts
- * .gravity(({ html, value }) => html`
- *   ${value.ready &&
- *   html`
- *     <meta-for src="zavx0z/header" />
- *     <meta-for src="zavx0z/content" />
- *   `}
- * `)
- * ```
+ * Axion — частица логической группировки.
  */
-export type Axion = {
+export interface Axion extends DarkParticle {
+  /**
+   * ID частицы `Axion`.
+   */
+  id: AxionID
+
   /**
    * Дискриминатор типа частицы.
    */
@@ -323,11 +248,98 @@ export type Axion = {
    * Выражение логической группировки или вычисления.
    */
   expr?: string
+}
+
+/**
+ * Минимальный скрытый граф частиц для `Dark`.
+ *
+ * Это не bulk/boundary-проекция и не runtime placement-graph.
+ * Здесь фиксируется только скрытая связность:
+ * - частицы по `id`,
+ * - направленные связи `parent -> child`,
+ * - отдельная привязка `Wimp -> meta`.
+ */
+export interface DarkGraph {
+  /**
+   * Корневые частицы текущего graph-fragment.
+   */
+  roots: Set<ParticleID>
 
   /**
-   * Вложенные частицы внутри логической группировки.
+   * Все частицы текущего fragment по ID.
    */
-  particles: DarkParticle[]
+  particles: Map<ParticleID, DarkParticle>
+
+  /**
+   * Обратная parent-связь для общего графа частиц.
+   */
+  parent: Map<ParticleID, ParticleID>
+
+  /**
+   * Привязка `Wimp`-частиц к конкретному `meta`-адресу.
+   */
+  meta: Map<WimpID, string>
+}
+
+/**
+ * Совместимое имя для graph-fragment текущей `meta`.
+ *
+ * Отдельного промежуточного particle-IR больше нет:
+ * `DarkMatter` читается как тот же минимальный graph fragment `Dark`.
+ */
+export type DarkMatter = DarkGraph
+
+/**
+ * Отдельное seed-описание topology-field зависимости.
+ *
+ * Используется вне самих частиц, чтобы быстро понимать,
+ * какие topology-переходы нужно перестраивать при изменениях состояния.
+ */
+export type DarkTopologyDependencySeed = {
+  /**
+   * Адрес `meta`, к которой относится topology-field.
+   */
+  metaAddress: string
+
+  /**
+   * Адрес ветви/контекста загрузки внутри текущего fragment.
+   */
+  branchAddress: string
+
+  /**
+   * Имя topology-поля.
+   */
+  field: string
+
+  /**
+   * Исходный DSL-тип поля.
+   */
+  fieldType: string
+
+  /**
+   * Вид topology-field.
+   */
+  topologyKind: "enum" | "array"
+
+  /**
+   * Канонический source path в value-space.
+   */
+  sourcePath: string
+
+  /**
+   * Topology-fields не участвуют в entanglement.
+   */
+  participatesInEntanglement: false
+
+  /**
+   * Topology-fields не должны мутироваться из reaction.
+   */
+  mutableFromReaction: false
+
+  /**
+   * Topology-fields не должны перестраиваться посреди процесса.
+   */
+  mutableDuringProcess: false
 }
 // -----------------------------------------------------------------------
 /**

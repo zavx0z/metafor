@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 
 import type { Address } from "@dark/types/dark"
-import type { Binding, Wimp } from "@dark/types"
+import type { Binding, Wimp, WimpID } from "@dark/types"
 import { parse, type NodeMeta } from "../metafor/template/index.ts"
 
 import { HubFixture } from "fixture/hub"
@@ -42,6 +42,10 @@ function normalizeBinding(value: NodeMeta["fields"] | NodeMeta["mass"]): Binding
   }
 }
 
+function createWimpId(src: string): WimpID {
+  return `wimp:${src}`
+}
+
 /**
  * Нормализует meta-узел в Wimp только если src уже статичен.
  */
@@ -59,8 +63,10 @@ function normalizeToWimp(gravityNode: NodeMeta): Wimp {
   }
 
   const result: Wimp = {
+    id: createWimpId(gravityNode.src),
     kind: "wimp",
     src: gravityNode.src,
+    children: new Set(),
   }
   if (gravityNode.fields) {
     const fields = normalizeBinding(gravityNode.fields)
@@ -116,8 +122,10 @@ describe("Wimp — допустимый контракт", () => {
     const wimp = normalizeToWimp(childNode)
 
     expect(wimp).toEqual({
+      id: "wimp:zavx0z/git-error",
       kind: "wimp",
       src: "zavx0z/git-error",
+      children: new Set(),
       fields: {
         mode: "dynamic",
         basis: "/value/error",
@@ -158,6 +166,7 @@ describe("Wimp — допустимый контракт", () => {
       src: "zavx0z/git/sub/path",
     } as NodeMeta)
 
+    expect(wimp.id).toBe("wimp:zavx0z/git/sub/path")
     expect(wimp.src).toBe("zavx0z/git/sub/path")
   })
 })
@@ -230,13 +239,16 @@ describe("Wimp — интеграция контракта", () => {
 
   test("не должен подменять собой Fuzzy/Macho/Axion-семантику", () => {
     const wimp: Wimp = {
+      id: "wimp:zavx0z/git-error",
       kind: "wimp",
       src: "zavx0z/git-error",
+      children: new Set(),
     }
 
     expect("basis" in wimp).toBe(false)
     expect("expr" in wimp).toBe(false)
     expect("particles" in wimp).toBe(false)
+    expect(wimp.children).toEqual(new Set())
   })
 
   test("должен соответствовать уже выбранной статической связности из реального AST", () => {
