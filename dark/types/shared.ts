@@ -302,11 +302,6 @@ export type DarkTopologyDependencySeed = {
   metaAddress: string
 
   /**
-   * Адрес ветви/контекста загрузки внутри текущего fragment.
-   */
-  branchAddress: string
-
-  /**
    * Имя topology-поля.
    */
   field: string

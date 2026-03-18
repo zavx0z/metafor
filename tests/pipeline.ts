@@ -14,10 +14,9 @@ import type { MetaAST } from "@metafor/ast"
 import type { ValueDynamic } from "../metafor/template/parser.t"
 import type { NodeCondition, NodeLogical, NodeMeta } from "@metafor/dsl"
 import { graph$ } from "./store.ts"
-import { resetGraph, snapshotGraph } from "./fixtures/index.ts"
+import { snapshotGraph } from "./fixtures/index.ts"
 
 export type ParentContext = {
-  metaAddress: Address
   viaParticle: "wimp" | "fuzzy" | "macho" | "axion"
   parentParticleId: ParticleID
 }
@@ -29,7 +28,6 @@ export type EntanglementContext = {
 
 export type StepInput = {
   metaAddress: Address
-  branchAddress: string
   parentContext: ParentContext | null
   entanglement: EntanglementContext | null
   viaParticle: ParentContext["viaParticle"] | null
@@ -74,7 +72,6 @@ export type StepContinuation =
 
 export type StepResult = {
   metaAddress: Address
-  branchAddress: string
   graph: DarkGraph
   continuations: StepContinuation[]
   dependencySeeds: DarkTopologyDependencySeed[]
@@ -112,31 +109,21 @@ export function createFuzzyId(): FuzzyID {
   return crypto.randomUUID()
 }
 
-export function getDynamicExpr(
-  value: NodeMeta["fields"] | NodeMeta["mass"] | NodeMeta["src"],
-): string | undefined {
+export function getDynamicExpr(value: NodeMeta["fields"] | NodeMeta["mass"] | NodeMeta["src"]): string | undefined {
   return value && typeof value === "object" && "expr" in value ? value.expr : undefined
 }
 
-export function appendParticle(
-  graph: DarkGraph,
-  particle: StepParticle,
-  parentId?: ParticleID,
-): StepParticle {
+export function appendParticle(graph: DarkGraph, particle: StepParticle, parentId?: ParticleID): StepParticle {
   const stored = structuredClone(particle) as StepParticle
   graph.particles.set(stored.id, stored)
   if (parentId) {
     graph.parent.set(stored.id, parentId)
     const parent = graph.particles.get(parentId)
-    if (parent) {
-      parent.children.add(stored.id)
-    }
+    if (parent) parent.children.add(stored.id)
   } else {
     graph.roots.add(stored.id)
   }
-  if (stored.kind === "wimp") {
-    graph.meta.set(stored.id, stored.src)
-  }
+  if (stored.kind === "wimp") graph.meta.set(stored.id, stored.src)
   return stored
 }
 
@@ -175,16 +162,12 @@ export function normalizeFuzzy(node: NodeLogical | NodeCondition): StepFuzzyPart
   return result
 }
 
-export function collectTopologyDependencySeeds(
-  ast: MetaAST,
-  input: StepInput,
-): DarkTopologyDependencySeed[] {
+export function collectTopologyDependencySeeds(ast: MetaAST, input: StepInput): DarkTopologyDependencySeed[] {
   const result: DarkTopologyDependencySeed[] = []
   for (const [field, definition] of Object.entries(ast.fields)) {
     if (definition.type.startsWith("enum<")) {
       result.push({
         metaAddress: input.metaAddress,
-        branchAddress: input.branchAddress,
         field,
         fieldType: definition.type,
         topologyKind: "enum",
@@ -196,7 +179,6 @@ export function collectTopologyDependencySeeds(
     } else if (definition.type.startsWith("array<")) {
       result.push({
         metaAddress: input.metaAddress,
-        branchAddress: input.branchAddress,
         field,
         fieldType: definition.type,
         topologyKind: "array",
@@ -256,14 +238,12 @@ export function collectBranchGraph(
 }
 
 export function processLoadedMetaStep(ast: MetaAST, input: StepInput): StepResult {
-  resetGraph()
-  const graph = graph$
   const continuations: StepContinuation[] = []
 
   for (const node of ast.gravity ?? []) {
     if (node.type === "meta") {
       if (typeof node.src === "string") {
-        const wimp = appendParticle(graph, normalizeStaticWimp(node)) as StepWimpParticle
+        const wimp = appendParticle(graph$, normalizeStaticWimp(node)) as StepWimpParticle
         const continuation: Extract<StepContinuation, { mode: "static" }> = {
           kind: "wimp-load",
           mode: "static",
@@ -279,7 +259,7 @@ export function processLoadedMetaStep(ast: MetaAST, input: StepInput): StepResul
         continue
       }
 
-      const addressParticle = appendParticle(graph, {
+      const addressParticle = appendParticle(graph$, {
         id: createFuzzyId(),
         kind: "fuzzy",
         basis: node.src.data,
@@ -300,9 +280,8 @@ export function processLoadedMetaStep(ast: MetaAST, input: StepInput): StepResul
         viaParticle: "fuzzy",
       }
       const srcExprDyn = getDynamicExpr(node.src as ValueDynamic)
-      if (srcExprDyn) {
-        dynamicContinuation.expr = srcExprDyn
-      }
+      if (srcExprDyn) dynamicContinuation.expr = srcExprDyn
+
       if (node.fields) {
         const fields = normalizeBinding(node.fields)
         if (fields) dynamicContinuation.fields = fields
@@ -316,13 +295,12 @@ export function processLoadedMetaStep(ast: MetaAST, input: StepInput): StepResul
     }
 
     if (node.type === "log" || node.type === "cond") {
-      collectBranchGraph(node, graph, input, continuations)
+      collectBranchGraph(node, graph$, input, continuations)
     }
   }
 
   return {
     metaAddress: input.metaAddress,
-    branchAddress: input.branchAddress,
     graph: snapshotGraph(),
     continuations,
     dependencySeeds: collectTopologyDependencySeeds(ast, input),
@@ -338,11 +316,7 @@ export async function processMetaStep(input: StepInput): Promise<StepResult> {
   return processLoadedMetaStep(ast, input)
 }
 
-export function getFuzzyByBasis(
-  graph: DarkGraph,
-  basis: string | string[],
-  expr?: string,
-): Fuzzy {
+export function getFuzzyByBasis(graph: DarkGraph, basis: string | string[], expr?: string): Fuzzy {
   const particle = [...graph.particles.values()].find(
     (item): item is Fuzzy =>
       item.kind === "fuzzy" &&

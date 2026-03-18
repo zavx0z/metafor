@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
 import "fixture/test"
 import { describeWithDeterministicIds } from "fixture/id"
 import { HubFixture } from "fixture/hub"
@@ -28,6 +28,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await hub.teardown()
+})
+
+beforeEach(() => {
+  resetGraph()
 })
 
 function createSyntheticTopologyMetaAst(): MetaAST {
@@ -70,9 +74,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
       test("должен принимать адрес текущей meta, контекст родителя и entanglement", async () => {
         const result = await processMetaStep({
           metaAddress: "zavx0z/git" as Address,
-          branchAddress: "root",
           parentContext: {
-            metaAddress: "zavx0z/root" as Address,
             viaParticle: "wimp",
             parentParticleId: crypto.randomUUID(),
           },
@@ -85,7 +87,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
 
         expect(result).toEqual({
           metaAddress: "zavx0z/git",
-          branchAddress: "root",
           graph: {
             roots: new Set(["fuzzy:operation-selector", "fuzzy:error-branch"]),
             particles: new Map([
@@ -134,7 +135,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
               fromParticleId: "fuzzy:operation-selector",
               basis: "/value/operation",
               parentContext: {
-                metaAddress: "zavx0z/root",
                 viaParticle: "wimp",
                 parentParticleId: "parent:wimp:root",
               },
@@ -156,7 +156,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
               fromParticleId: "wimp:git-error",
               metaAddress: "zavx0z/git-error",
               parentContext: {
-                metaAddress: "zavx0z/root",
                 viaParticle: "wimp",
                 parentParticleId: "parent:wimp:root",
               },
@@ -181,7 +180,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
           dependencySeeds: [
             {
               metaAddress: "zavx0z/git",
-              branchAddress: "root",
               field: "operation",
               fieldType: "enum<string>",
               topologyKind: "enum",
@@ -192,7 +190,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
             },
           ],
           parentContext: {
-            metaAddress: "zavx0z/root",
             viaParticle: "wimp",
             parentParticleId: "parent:wimp:root",
           },
@@ -209,7 +206,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
   test("должен за один шаг формировать частицы текущего уровня и continuation-данные", async () => {
     const result = await processMetaStep({
       metaAddress: "zavx0z/git" as Address,
-      branchAddress: "root",
       parentContext: null,
       entanglement: null,
       viaParticle: null,
@@ -275,7 +271,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
   test("должен собирать единый граф частиц без обязательного knot-объекта", async () => {
     const result = await processMetaStep({
       metaAddress: "zavx0z/git" as Address,
-      branchAddress: "root",
       parentContext: null,
       entanglement: null,
       viaParticle: null,
@@ -295,7 +290,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
   test("должен вычислять continuation для динамического выбора следующего адреса Wimp", async () => {
     const result = await processMetaStep({
       metaAddress: "zavx0z/git" as Address,
-      branchAddress: "root",
       parentContext: null,
       entanglement: null,
       viaParticle: null,
@@ -325,9 +319,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
   test("должен сохранять parentContext и entanglement во всех continuation-данных", async () => {
     const result = await processMetaStep({
       metaAddress: "zavx0z/git" as Address,
-      branchAddress: "root",
       parentContext: {
-        metaAddress: "zavx0z/root" as Address,
         viaParticle: "fuzzy",
         parentParticleId: crypto.randomUUID(),
       },
@@ -340,7 +332,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
 
     for (const continuation of result.continuations) {
       expect(continuation.parentContext).toEqual({
-        metaAddress: "zavx0z/root",
         viaParticle: "fuzzy",
         parentParticleId: result.parentContext!.parentParticleId,
       })
@@ -370,7 +361,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
       graph,
       {
         metaAddress: "zavx0z/git" as Address,
-        branchAddress: "role-check",
         parentContext: null,
         entanglement: null,
         viaParticle: null,
@@ -430,7 +420,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
     const ast = createSyntheticTopologyMetaAst()
     const result = processLoadedMetaStep(ast, {
       metaAddress: "zavx0z/test-topology" as Address,
-      branchAddress: "root",
       parentContext: null,
       entanglement: null,
       viaParticle: null,
@@ -439,7 +428,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
     expect(result.dependencySeeds).toEqual([
       {
         metaAddress: "zavx0z/test-topology",
-        branchAddress: "root",
         field: "operation",
         fieldType: "enum<string>",
         topologyKind: "enum",
@@ -450,7 +438,6 @@ describe("Dark pipeline step — контракт одного шага", () => 
       },
       {
         metaAddress: "zavx0z/test-topology",
-        branchAddress: "root",
         field: "items",
         fieldType: "array<string>",
         topologyKind: "array",
