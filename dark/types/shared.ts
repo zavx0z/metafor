@@ -17,15 +17,11 @@ import type { MetaAST } from "@metafor/ast"
  *   particles: [
  *     {
  *       kind: "wimp",
- *       src: {
- *         mode: "dynamic",
- *         basis: "/value/operation",
- *         expr: "zavx0z/git-${_[0]}",
- *       },
+ *       src: "zavx0z/git-error",
  *       fields: {
  *         mode: "dynamic",
- *         basis: ["/value/operation", "/value/args"],
- *         expr: "{ operation: _[0], args: _[1] }",
+ *         basis: "/value/error",
+ *         expr: "{ message: _[0] }",
  *       },
  *     },
  *   ],
@@ -160,10 +156,7 @@ export type Binding<T = unknown> = StaticBinding<T> | DynamicBinding
  * ```ts
  * const particle: Wimp = {
  *   kind: "wimp",
- *   src: {
- *     mode: "static",
- *     value: "zavx0z/git-error",
- *   },
+ *   src: "zavx0z/git-error",
  *   fields: {
  *     mode: "dynamic",
  *     basis: "/value/error",
@@ -178,22 +171,29 @@ export type Wimp = {
    */
   kind: "wimp"
 
-  /**
-   * Источник дочерней meta-сущности.
+ /**
+  * Hub-адрес meta для инстанцирования.
+  *
+  * Фиксированный адрес meta-сущности.
+  * Не может быть динамическим — изменения meta-ссылок
+   * происходят через частицы более высокого уровня и шаг pipeline
+   * до появления конечного Wimp.
    *
-   * Может быть:
-   * - статическим hub-адресом;
-   * - динамическим binding, собирающим hub-адрес из basis.
+   * @example "zavx0z/git"
    */
-  src: Binding<string>
+  src: string
 
   /**
-   * Payload для fields дочерней meta-сущности.
+   * Payload для fields инстанцируемой meta.
+   *
+   * Данные передаются от родительского контекста.
    */
   fields?: Binding<Record<string, unknown>>
 
   /**
-   * Payload для mass дочерней meta-сущности.
+   * Payload для mass инстанцируемой meta.
+   *
+   * Данные передаются от родительского контекста.
    */
   mass?: Binding<Record<string, unknown>>
 }
@@ -215,10 +215,7 @@ export type Wimp = {
  *   particles: [
  *     {
  *       kind: "wimp",
- *       src: {
- *         mode: "static",
- *         value: "zavx0z/git-error",
- *       },
+ *       src: "zavx0z/git-error",
  *     },
  *   ],
  * }
@@ -232,6 +229,9 @@ export type Fuzzy = {
 
   /**
    * Basis-пути, от которых зависит ветвление.
+   *
+   * В согласуемом контракте Fuzzy должен опираться на `state` / `value`.
+   * Источник множественности типа `array` относится к Macho, а не к Fuzzy.
    */
   basis: string | string[]
 
