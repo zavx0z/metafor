@@ -11,7 +11,7 @@ import type {
   Wimp,
 } from "@dark/types"
 import type { Address } from "@dark/types/dark"
-import type { MetaAST } from "../metafor/ast/ast.t"
+import type { MetaAST } from "@metafor/ast"
 import type { ValueDynamic } from "../metafor/template/parser.t"
 import type { NodeCondition, NodeLogical, NodeMeta } from "@metafor/dsl"
 

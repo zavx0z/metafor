@@ -2,8 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import "fixture/test"
 import { HubFixture } from "fixture/hub"
 
-import type { MetaAST } from "../metafor/ast/index.ts"
-import { convertMetaDSLToMetaAST } from "../metafor/ast/index.ts"
+import { convertMetaDSLToMetaAST, type MetaAST } from "@metafor/ast"
 import { MetaFor } from "../metafor/dsl/metafor.ts"
 import { parse, type NodeCondition, type NodeLogical } from "../metafor/template/index.ts"
 

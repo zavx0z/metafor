@@ -3,11 +3,11 @@ import "fixture/test"
 
 import type { Address } from "@dark/types/dark"
 import type { Binding, Wimp, WimpID } from "@dark/types"
+import type { MetaAST } from "@metafor/ast"
 import { parse, type NodeMeta } from "../metafor/template/index.ts"
 
 import { HubFixture } from "fixture/hub"
 import { loadMetaAST } from "../dark/load"
-import type { MetaAST } from "../metafor/ast/ast.t"
 
 /**
  * Структура тестов для частицы Wimp.

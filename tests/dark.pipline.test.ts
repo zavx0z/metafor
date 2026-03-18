@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 
 import type { Address } from "@dark/types/dark"
+import type { MetaAST } from "@metafor/ast"
 
 import reference from "../github/zavx0z/git/meta.json"
 import { HubFixture } from "fixture/hub"
 import { loadMetaAST } from "../dark/load"
-import type { MetaAST } from "../metafor/ast/ast.t"
 import { dark$, gravity$ } from "../dark"
 
 const hub = new HubFixture("./github/")

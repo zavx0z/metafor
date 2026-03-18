@@ -63,7 +63,7 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
 }
 
 /**
- * Преобразует MetaFor DSL в формат JSON для monad.
+ * Преобразует MetaFor DSL в JSON-формат для акторов.
  *
  * Извлекает все компоненты декларации:
  * - **fields** — схема полей с семантикой для ИИ
@@ -279,7 +279,7 @@ export function convertMetaDSLToMetaAST(meta: MetaDSLLike, sourceText?: string):
   // Собираем mass
   const massJson: Record<string, any> | undefined = meta.mass
 
-  // Возвращаем формат для monad
+  // Возвращаем формат для акторов
   return {
     name: meta.name,
     fields,
