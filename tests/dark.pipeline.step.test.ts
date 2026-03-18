@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import "fixture/test"
+import { describeWithDeterministicIds } from "fixture/id"
 import { HubFixture } from "fixture/hub"
 
 import { convertMetaDSLToMetaAST, type MetaAST } from "@metafor/ast"
 import { MetaFor } from "../metafor/dsl/metafor.ts"
-import { parse, type NodeCondition, type NodeLogical } from "../metafor/template/index.ts"
+import { parse, type NodeCondition } from "../metafor/template/index.ts"
 
 import {
   collectBranchGraph,
@@ -61,35 +62,148 @@ function createSyntheticTopologyMetaAst(): MetaAST {
 }
 
 describe("Dark pipeline step — контракт одного шага", () => {
-  test("должен принимать адрес текущей meta, контекст родителя и entanglement", async () => {
-    const result = await processMetaStep({
-      metaAddress: "zavx0z/git" as Address,
-      branchAddress: "root",
-      parentContext: {
-        metaAddress: "zavx0z/root" as Address,
-        viaParticle: "wimp",
-        parentParticleId: crypto.randomUUID(),
-      },
-      entanglement: {
-        id: "ent:root@w:0",
-        inherited: true,
-      },
-      viaParticle: "wimp",
-    })
+  describeWithDeterministicIds(
+    "с детерминированными id",
+    ["parent:wimp:root", "fuzzy:operation-selector", "fuzzy:error-branch", "wimp:git-error"],
+    () => {
+      test("должен принимать адрес текущей meta, контекст родителя и entanglement", async () => {
+        const result = await processMetaStep({
+          metaAddress: "zavx0z/git" as Address,
+          branchAddress: "root",
+          parentContext: {
+            metaAddress: "zavx0z/root" as Address,
+            viaParticle: "wimp",
+            parentParticleId: crypto.randomUUID(),
+          },
+          entanglement: {
+            id: "entanglement:test-0",
+            inherited: true,
+          },
+          viaParticle: "wimp",
+        })
 
-    expect(result.metaAddress).toBe("zavx0z/git")
-    expect(result.branchAddress).toBe("root")
-    expect(result.parentContext).toEqual({
-      metaAddress: "zavx0z/root",
-      viaParticle: "wimp",
-      parentParticleId: result.parentContext!.parentParticleId,
-    })
-    expect(result.entanglement).toEqual({
-      id: "ent:root@w:0",
-      inherited: true,
-    })
-    expect(result.viaParticle).toBe("wimp")
-  })
+        expect(result).toEqual({
+          metaAddress: "zavx0z/git",
+          branchAddress: "root",
+          graph: {
+            roots: new Set(["fuzzy:operation-selector", "fuzzy:error-branch"]),
+            particles: new Map([
+              [
+                "fuzzy:operation-selector",
+                {
+                  id: "fuzzy:operation-selector",
+                  kind: "fuzzy",
+                  basis: "/value/operation",
+                  children: new Set(),
+                  expr: "zavx0z/git-${_[0]}",
+                },
+              ],
+              [
+                "fuzzy:error-branch",
+                {
+                  id: "fuzzy:error-branch",
+                  kind: "fuzzy",
+                  basis: "/state",
+                  children: new Set(["wimp:git-error"]),
+                  expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
+                },
+              ],
+              [
+                "wimp:git-error",
+                {
+                  id: "wimp:git-error",
+                  kind: "wimp",
+                  src: "zavx0z/git-error",
+                  children: new Set(),
+                  fields: {
+                    mode: "dynamic",
+                    basis: "/value/error",
+                    expr: "{ message: _[0] }",
+                  },
+                },
+              ],
+            ]),
+            parent: new Map([["wimp:git-error", "fuzzy:error-branch"]]),
+            meta: new Map([["wimp:git-error", "zavx0z/git-error"]]),
+          },
+          continuations: [
+            {
+              kind: "wimp-load",
+              mode: "dynamic",
+              fromParticleId: "fuzzy:operation-selector",
+              basis: "/value/operation",
+              parentContext: {
+                metaAddress: "zavx0z/root",
+                viaParticle: "wimp",
+                parentParticleId: "parent:wimp:root",
+              },
+              entanglement: {
+                id: "entanglement:test-0",
+                inherited: true,
+              },
+              viaParticle: "fuzzy",
+              expr: "zavx0z/git-${_[0]}",
+              fields: {
+                mode: "dynamic",
+                basis: ["/value/operation", "/value/args"],
+                expr: "{ operation: _[0], args: _[1] }",
+              },
+            },
+            {
+              kind: "wimp-load",
+              mode: "static",
+              fromParticleId: "wimp:git-error",
+              metaAddress: "zavx0z/git-error",
+              parentContext: {
+                metaAddress: "zavx0z/root",
+                viaParticle: "wimp",
+                parentParticleId: "parent:wimp:root",
+              },
+              entanglement: {
+                id: "entanglement:test-0",
+                inherited: true,
+              },
+              viaParticle: "wimp",
+              guard: {
+                particleId: "fuzzy:error-branch",
+                kind: "fuzzy",
+                basis: "/state",
+                expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
+              },
+              fields: {
+                mode: "dynamic",
+                basis: "/value/error",
+                expr: "{ message: _[0] }",
+              },
+            },
+          ],
+          dependencySeeds: [
+            {
+              metaAddress: "zavx0z/git",
+              branchAddress: "root",
+              field: "operation",
+              fieldType: "enum<string>",
+              topologyKind: "enum",
+              sourcePath: "/value/operation",
+              participatesInEntanglement: false,
+              mutableFromReaction: false,
+              mutableDuringProcess: false,
+            },
+          ],
+          parentContext: {
+            metaAddress: "zavx0z/root",
+            viaParticle: "wimp",
+            parentParticleId: "parent:wimp:root",
+          },
+          entanglement: {
+            id: "entanglement:test-0",
+            inherited: true,
+          },
+          viaParticle: "wimp",                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+        })
+      })
+    },
+  )
 
   test("должен за один шаг формировать частицы текущего уровня и continuation-данные", async () => {
     const result = await processMetaStep({
@@ -217,7 +331,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
         parentParticleId: crypto.randomUUID(),
       },
       entanglement: {
-        id: "ent:root@f:0",
+        id: "entanglement:test-1",
         inherited: true,
       },
       viaParticle: "fuzzy",
@@ -230,7 +344,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
         parentParticleId: result.parentContext!.parentParticleId,
       })
       expect(continuation.entanglement).toEqual({
-        id: "ent:root@f:0",
+        id: "entanglement:test-1",
         inherited: true,
       })
     }

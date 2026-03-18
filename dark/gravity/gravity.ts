@@ -60,6 +60,18 @@ function makeReferenceId(dark$: DarkGravityStore): string {
 }
 
 /**
+ * Генерирует уникальный ID entanglement.
+ *
+ * @param dark$ — состояние gravity store
+ * @returns ID в формате `ge{n}`
+ */
+function makeEntanglementId(dark$: DarkGravityStore): string {
+  const id = `ge${dark$.nextEntanglementSeq}`
+  dark$.nextEntanglementSeq += 1
+  return id
+}
+
+/**
  * Очищает meta-строку от недопустимых символов.
  *
  * @param meta — исходная meta-строка
@@ -248,9 +260,10 @@ export function ingestFragment(
     }
 
     const objectId = makeObjectId(meta, seed.objectId)
+    const entanglementId = makeEntanglementId(gravity$)
     const entanglementAddress = `ent:${objectId}@${placement.address}`
     const entanglement: GlobalTopologyEntanglement = {
-      id: entanglementAddress,
+      id: entanglementId,
       meta,
       placementId,
       objectId,

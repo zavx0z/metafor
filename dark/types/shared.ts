@@ -460,7 +460,7 @@ export interface GlobalTopologyReference {
  * Связывает placement с набором references и data paths для cohesion.
  */
 export interface GlobalTopologyEntanglement {
-  /** Уникальный ID запутанности в формате `ent:objectId@address`. */
+  /** Уникальный ID запутанности, генерируемый отдельно от topology-address. */
   id: string
 
   /** Адрес meta-схемы, в которой определена запутанность. */
@@ -740,6 +740,9 @@ export interface DarkGravityStoreSnapshot {
 
   /** Счётчик для генерации ID ссылок. */
   nextReferenceSeq: number
+
+  /** Счётчик для генерации ID запутанностей. */
+  nextEntanglementSeq: number
 
   /** Счётчик для генерации root occurrence prefix. */
   rootOccurrenceSeq: number

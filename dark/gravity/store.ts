@@ -5,5 +5,6 @@ export const gravity$: DarkGravityStore = {
   nextPlacementSeq: 0,
   nextLinkSeq: 0,
   nextReferenceSeq: 0,
+  nextEntanglementSeq: 0,
   rootOccurrenceSeq: 0,
 }

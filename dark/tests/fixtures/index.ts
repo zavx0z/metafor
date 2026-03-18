@@ -25,6 +25,7 @@ export function resetDark(): void {
   gravity$.nextPlacementSeq = 0
   gravity$.nextLinkSeq = 0
   gravity$.nextReferenceSeq = 0
+  gravity$.nextEntanglementSeq = 0
   gravity$.rootOccurrenceSeq = 0
 
   strong$.placementAddressIndex.clear()
@@ -64,6 +65,7 @@ function rebuildDerivedDarkState(): void {
   gravity$.nextPlacementSeq = 0
   gravity$.nextLinkSeq = 0
   gravity$.nextReferenceSeq = 0
+  gravity$.nextEntanglementSeq = 0
   gravity$.rootOccurrenceSeq = 0
 
   strong$.placementAddressIndex.clear()
@@ -107,6 +109,7 @@ function rebuildDerivedDarkState(): void {
   gravity$.nextPlacementSeq = getNextSequence(dark$.placements.keys(), "gp")
   gravity$.nextLinkSeq = getNextSequence(dark$.links.keys(), "gl")
   gravity$.nextReferenceSeq = getNextSequence(dark$.references.keys(), "gr")
+  gravity$.nextEntanglementSeq = getNextSequence(dark$.entanglements.keys(), "ge")
   gravity$.rootOccurrenceSeq = getNextRootOccurrence()
 }
 
@@ -118,6 +121,7 @@ export function resetGravity(): void {
   gravity$.nextPlacementSeq = 0
   gravity$.nextLinkSeq = 0
   gravity$.nextReferenceSeq = 0
+  gravity$.nextEntanglementSeq = 0
   gravity$.rootOccurrenceSeq = 0
 }
 
@@ -130,6 +134,7 @@ export function snapshotGravity(): DarkGravityStoreSnapshot {
     nextPlacementSeq: gravity$.nextPlacementSeq,
     nextLinkSeq: gravity$.nextLinkSeq,
     nextReferenceSeq: gravity$.nextReferenceSeq,
+    nextEntanglementSeq: gravity$.nextEntanglementSeq,
     rootOccurrenceSeq: gravity$.rootOccurrenceSeq,
   })
 }
@@ -145,6 +150,7 @@ export function restoreGravity(snapshot: ReturnType<typeof snapshotGravity>): vo
   gravity$.nextPlacementSeq = snapshot.nextPlacementSeq
   gravity$.nextLinkSeq = snapshot.nextLinkSeq
   gravity$.nextReferenceSeq = snapshot.nextReferenceSeq
+  gravity$.nextEntanglementSeq = snapshot.nextEntanglementSeq
   gravity$.rootOccurrenceSeq = snapshot.rootOccurrenceSeq
 }
 
