@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 
-import type { Binding } from "@dark/types"
+import type { Binding, DynamicBinding } from "@dark/types"
 import type { Address } from "@dark/types/dark"
 import { convertMetaDSLToMetaAST, type MetaAST } from "../metafor/ast/index.ts"
 import { MetaFor } from "../metafor/dsl/metafor.ts"
 import { parse, type NodeCondition, type NodeLogical, type NodeMeta, type NodeType } from "../metafor/template/index.ts"
+import type { ValueDynamic } from "../metafor/template/parser.t"
 
 import { HubFixture } from "fixture/hub"
 import { loadMetaAST } from "../dark/load"
@@ -28,20 +29,29 @@ type StepInput = {
   viaParticle: ParentContext["viaParticle"] | null
 }
 
-type StepParticle =
-  | {
-      kind: "wimp"
-      src: string
-      fields?: Binding<Record<string, unknown>>
-      mass?: Binding<Record<string, unknown>>
-    }
-  | {
-      kind: "fuzzy"
-      role: "address" | "branch"
-      basis: string | string[]
-      expr?: string
-      particles?: StepParticle[]
-    }
+type StepWimpParticle = {
+  kind: "wimp"
+  src: string
+  fields?: Binding<Record<string, unknown>>
+  mass?: Binding<Record<string, unknown>>
+}
+
+type StepFuzzyAddressParticle = {
+  kind: "fuzzy"
+  role: "address"
+  basis: string | string[]
+  expr?: string
+}
+
+type StepFuzzyBranchParticle = {
+  kind: "fuzzy"
+  role: "branch"
+  basis: string | string[]
+  expr?: string
+  particles: StepParticle[]
+}
+
+type StepParticle = StepWimpParticle | StepFuzzyAddressParticle | StepFuzzyBranchParticle
 
 type StepGuard = {
   kind: "fuzzy"
@@ -124,80 +134,96 @@ function normalizeBinding(value: NodeMeta["fields"] | NodeMeta["mass"]): Binding
     }
   }
 
-  return {
+  const result: DynamicBinding = {
     mode: "dynamic",
     basis: value.data,
-    ...(value.expr ? { expr: value.expr } : {}),
   }
+  if ("expr" in value && value.expr) {
+    result.expr = value.expr
+  }
+  return result
 }
 
 function createKnotId(metaAddress: Address, branchAddress: string): string {
   return `knot:${metaAddress}@${branchAddress}`
 }
 
-function normalizeStaticWimp(node: NodeMeta): Extract<StepParticle, { kind: "wimp" }> {
+function getDynamicExpr(value: NodeMeta["fields"] | NodeMeta["mass"] | NodeMeta["src"]): string | undefined {
+  return value && typeof value === "object" && "expr" in value ? value.expr : undefined
+}
+
+function normalizeStaticWimp(node: NodeMeta): StepWimpParticle {
   if (typeof node.src !== "string") {
     throw new Error("Step: статический Wimp должен иметь строковый src")
   }
 
-  return {
+  const result: StepWimpParticle = {
     kind: "wimp",
     src: node.src,
-    ...(node.fields ? { fields: normalizeBinding(node.fields) } : {}),
-    ...(node.mass ? { mass: normalizeBinding(node.mass) } : {}),
   }
+  if (node.fields) {
+    const fields = normalizeBinding(node.fields)
+    if (fields) result.fields = fields
+  }
+  if (node.mass) {
+    const mass = normalizeBinding(node.mass)
+    if (mass) result.mass = mass
+  }
+  return result
 }
 
-function normalizeBranchFuzzy(node: NodeLogical | NodeCondition): Extract<StepParticle, { kind: "fuzzy"; role: "branch" }> {
-  const particles = node.child.flatMap((child) => {
-    if (child.type === "meta" && typeof child.src === "string") return [normalizeStaticWimp(child)]
-    if (child.type === "log" || child.type === "cond") return [normalizeBranchFuzzy(child)]
-    return []
-  })
+function normalizeBranchFuzzy(node: NodeLogical | NodeCondition): StepFuzzyBranchParticle {
+  const particles: StepParticle[] = []
+  for (const child of node.child) {
+    if (child.type === "meta" && typeof child.src === "string") {
+      particles.push(normalizeStaticWimp(child))
+      continue
+    }
+    if (child.type === "log" || child.type === "cond") {
+      particles.push(normalizeBranchFuzzy(child))
+    }
+  }
 
-  return {
+  const result: StepFuzzyBranchParticle = {
     kind: "fuzzy",
     role: "branch",
     basis: node.data,
-    ...(node.expr ? { expr: node.expr } : {}),
     particles,
   }
+  if (node.expr) {
+    result.expr = node.expr
+  }
+  return result
 }
 
 function collectTopologyDependencySeeds(ast: MetaAST, knotId: string): TopologyDependencySeed[] {
-  return Object.entries(ast.fields).flatMap(([field, definition]) => {
+  const result: TopologyDependencySeed[] = []
+  for (const [field, definition] of Object.entries(ast.fields)) {
     if (definition.type.startsWith("enum<")) {
-      return [
-        {
-          knotId,
-          field,
-          fieldType: definition.type,
-          topologyKind: "enum" as const,
-          sourcePath: `/value/${field}`,
-          participatesInEntanglement: false as const,
-          mutableFromReaction: false as const,
-          mutableDuringProcess: false as const,
-        },
-      ]
+      result.push({
+        knotId,
+        field,
+        fieldType: definition.type,
+        topologyKind: "enum",
+        sourcePath: `/value/${field}`,
+        participatesInEntanglement: false,
+        mutableFromReaction: false,
+        mutableDuringProcess: false,
+      })
+    } else if (definition.type.startsWith("array<")) {
+      result.push({
+        knotId,
+        field,
+        fieldType: definition.type,
+        topologyKind: "array",
+        sourcePath: `/value/${field}`,
+        participatesInEntanglement: false,
+        mutableFromReaction: false,
+        mutableDuringProcess: false,
+      })
     }
-
-    if (definition.type.startsWith("array<")) {
-      return [
-        {
-          knotId,
-          field,
-          fieldType: definition.type,
-          topologyKind: "array" as const,
-          sourcePath: `/value/${field}`,
-          participatesInEntanglement: false as const,
-          mutableFromReaction: false as const,
-          mutableDuringProcess: false as const,
-        },
-      ]
-    }
-
-    return []
-  })
+  }
+  return result
 }
 
 function collectStaticContinuations(
@@ -207,27 +233,36 @@ function collectStaticContinuations(
   guard?: StepGuard,
 ): Extract<StepContinuation, { mode: "static" }>[] {
   if (node.type === "meta" && typeof node.src === "string") {
-    return [
-      {
-        kind: "wimp-load",
-        mode: "static",
-        fromKnotId,
-        metaAddress: node.src,
-        ...(node.fields ? { fields: normalizeBinding(node.fields) } : {}),
-        ...(node.mass ? { mass: normalizeBinding(node.mass) } : {}),
-        parentContext: input.parentContext,
-        entanglement: input.entanglement,
-        viaParticle: "wimp",
-        ...(guard ? { guard } : {}),
-      },
-    ]
+    const result: Extract<StepContinuation, { mode: "static" }> = {
+      kind: "wimp-load",
+      mode: "static",
+      fromKnotId,
+      metaAddress: node.src,
+      parentContext: input.parentContext,
+      entanglement: input.entanglement,
+      viaParticle: "wimp",
+    }
+    if (node.fields) {
+      const fields = normalizeBinding(node.fields)
+      if (fields) result.fields = fields
+    }
+    if (node.mass) {
+      const mass = normalizeBinding(node.mass)
+      if (mass) result.mass = mass
+    }
+    if (guard) {
+      result.guard = guard
+    }
+    return [result]
   }
 
   if (node.type === "log" || node.type === "cond") {
-    const nestedGuard = {
-      kind: "fuzzy" as const,
+    const nestedGuard: StepGuard = {
+      kind: "fuzzy",
       basis: node.data,
-      ...(node.expr ? { expr: node.expr } : {}),
+    }
+    if (node.expr) {
+      nestedGuard.expr = node.expr
     }
     return node.child.flatMap((child) => collectStaticContinuations(child, input, fromKnotId, nestedGuard))
   }
@@ -245,49 +280,66 @@ function processLoadedMetaStep(ast: MetaAST, input: StepInput): StepResult {
       if (typeof node.src === "string") {
         const wimp = normalizeStaticWimp(node)
         particles.push(wimp)
-        continuations.push({
+        const continuation: Extract<StepContinuation, { mode: "static" }> = {
           kind: "wimp-load",
           mode: "static",
           fromKnotId: knotId,
           metaAddress: wimp.src,
-          ...(wimp.fields ? { fields: wimp.fields } : {}),
-          ...(wimp.mass ? { mass: wimp.mass } : {}),
           parentContext: input.parentContext,
           entanglement: input.entanglement,
           viaParticle: "wimp",
-        })
+        }
+        if (wimp.fields) continuation.fields = wimp.fields
+        if (wimp.mass) continuation.mass = wimp.mass
+        continuations.push(continuation)
         continue
       }
 
-      particles.push({
+      const addressParticle: StepFuzzyAddressParticle = {
         kind: "fuzzy",
         role: "address",
         basis: node.src.data,
-        ...(node.src.expr ? { expr: node.src.expr } : {}),
-      })
+      }
+      const srcExprAddr = getDynamicExpr(node.src as ValueDynamic)
+      if (srcExprAddr) {
+        addressParticle.expr = srcExprAddr
+      }
+      particles.push(addressParticle)
 
-      continuations.push({
+      const dynamicContinuation: Extract<StepContinuation, { mode: "dynamic" }> = {
         kind: "wimp-load",
         mode: "dynamic",
         fromKnotId: knotId,
         basis: node.src.data,
-        ...(node.src.expr ? { expr: node.src.expr } : {}),
-        ...(node.fields ? { fields: normalizeBinding(node.fields) } : {}),
-        ...(node.mass ? { mass: normalizeBinding(node.mass) } : {}),
         parentContext: input.parentContext,
         entanglement: input.entanglement,
         viaParticle: "fuzzy",
-      })
+      }
+      const srcExprDyn = getDynamicExpr(node.src as ValueDynamic)
+      if (srcExprDyn) {
+        dynamicContinuation.expr = srcExprDyn
+      }
+      if (node.fields) {
+        const fields = normalizeBinding(node.fields)
+        if (fields) dynamicContinuation.fields = fields
+      }
+      if (node.mass) {
+        const mass = normalizeBinding(node.mass)
+        if (mass) dynamicContinuation.mass = mass
+      }
+      continuations.push(dynamicContinuation)
       continue
     }
 
     if (node.type === "log" || node.type === "cond") {
       const fuzzy = normalizeBranchFuzzy(node)
       particles.push(fuzzy)
-      const guard = {
-        kind: "fuzzy" as const,
+      const guard: StepGuard = {
+        kind: "fuzzy",
         basis: node.data,
-        ...(node.expr ? { expr: node.expr } : {}),
+      }
+      if (node.expr) {
+        guard.expr = node.expr
       }
       continuations.push(...node.child.flatMap((child) => collectStaticContinuations(child, input, knotId, guard)))
     }
@@ -538,7 +590,7 @@ describe("Dark pipeline step — контракт одного шага", () => 
 
     const fuzzy = normalizeBranchFuzzy(node as NodeCondition)
 
-    expect(fuzzy).toEqual({
+    const expected: StepFuzzyBranchParticle = {
       kind: "fuzzy",
       role: "branch",
       basis: "/value/role",
@@ -553,7 +605,8 @@ describe("Dark pipeline step — контракт одного шага", () => 
           src: "zavx0z/git-user",
         },
       ],
-    })
+    }
+    expect(fuzzy).toEqual(expected)
   })
 
   test("должен выносить topology dependency seeds отдельно для enum/array полей", () => {

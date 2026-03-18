@@ -34,11 +34,12 @@ import type { NodeType } from "./node/index.t"
 import type { NodeMeta } from "./node/meta.t"
 import type { NodeLogical } from "./node/logical.t"
 import type { NodeMap } from "./node/map.t"
+import type { NodeCondition } from "./node/condition.t"
 import { extractHtmlElements } from "./parser"
 import type { Mass, Schema, ViewDefinitionParams } from "@metafor/dsl"
 import type { State } from "@metafor/dsl/types"
 
-export type { NodeType, NodeMeta, NodeLogical, NodeMap }
+export type { NodeType, NodeMeta, NodeLogical, NodeMap, NodeCondition }
 
 /**
  * Парсит HTML-шаблон и возвращает обогащенную иерархию с метаданными о путях к данным.

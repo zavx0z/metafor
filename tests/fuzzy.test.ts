@@ -30,7 +30,7 @@ function normalizeBinding(value: NodeMeta["fields"] | NodeMeta["mass"]): Binding
   return {
     mode: "dynamic",
     basis: value.data,
-    ...(value.expr ? { expr: value.expr } : {}),
+    ...(("expr" in value && value.expr) ? { expr: value.expr } : {}),
   }
 }
 
@@ -39,12 +39,19 @@ function normalizeStaticWimp(node: NodeMeta): Wimp {
     throw new Error("Fuzzy: дочерний Wimp должен иметь статический src")
   }
 
-  return {
+  const result: Wimp = {
     kind: "wimp",
     src: node.src,
-    ...(node.fields ? { fields: normalizeBinding(node.fields) } : {}),
-    ...(node.mass ? { mass: normalizeBinding(node.mass) } : {}),
   }
+  if (node.fields) {
+    const fields = normalizeBinding(node.fields)
+    if (fields) result.fields = fields
+  }
+  if (node.mass) {
+    const mass = normalizeBinding(node.mass)
+    if (mass) result.mass = mass
+  }
+  return result
 }
 
 function normalizeToFuzzy(node: NodeLogical | NodeCondition): Fuzzy {
@@ -184,7 +191,8 @@ describe("Fuzzy — ограничения basis", () => {
 
   test("не должен принимать array/multiple-источник как Fuzzy", () => {
     const [node] = parse(
-      ({ html, value, mass }) => html`${value.showList && mass.items.map((item) => html`<meta-for src="zavx0z/git-item" />`)}`,
+      ({ html, value, mass }) =>
+        html`${value.showList && mass.items.map((item: unknown) => html`<meta-for src="zavx0z/git-item" />`)}`,
     )
 
     expect(() => normalizeToFuzzy(node as NodeLogical)).toThrow("basis должен использовать только state/value")
@@ -192,7 +200,7 @@ describe("Fuzzy — ограничения basis", () => {
 
   test("не должен принимать runtime-источники вне state/value", () => {
     const [root] = parse<any, { items: { active: boolean }[] }>(
-      ({ html, mass }) => html`${mass.items.map((item) => html`${item.active && html`<meta-for src="zavx0z/git-item" />`}`)}`,
+      ({ html, mass }) => html`${mass.items.map((item: { active: boolean }) => html`${item.active && html`<meta-for src="zavx0z/git-item" />`}`)}`,
     )
 
     const mapNode = root as Extract<NodeType, { type: "map" }>

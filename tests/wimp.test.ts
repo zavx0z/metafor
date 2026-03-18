@@ -38,7 +38,7 @@ function normalizeBinding(value: NodeMeta["fields"] | NodeMeta["mass"]): Binding
   return {
     mode: "dynamic",
     basis: value.data,
-    ...(value.expr ? { expr: value.expr } : {}),
+    ...(("expr" in value && value.expr) ? { expr: value.expr } : {}),
   }
 }
 
@@ -58,12 +58,19 @@ function normalizeToWimp(gravityNode: NodeMeta): Wimp {
     throw new Error(`Wimp: невалидный hub-адрес в src (${gravityNode.src})`)
   }
 
-  return {
+  const result: Wimp = {
     kind: "wimp",
     src: gravityNode.src,
-    ...(gravityNode.fields ? { fields: normalizeBinding(gravityNode.fields) } : {}),
-    ...(gravityNode.mass ? { mass: normalizeBinding(gravityNode.mass) } : {}),
   }
+  if (gravityNode.fields) {
+    const fields = normalizeBinding(gravityNode.fields)
+    if (fields) result.fields = fields
+  }
+  if (gravityNode.mass) {
+    const mass = normalizeBinding(gravityNode.mass)
+    if (mass) result.mass = mass
+  }
+  return result
 }
 
 function isValidHubAddress(address: string): boolean {
@@ -86,7 +93,7 @@ describe("Wimp — загрузка реальных данных", () => {
   })
 
   test("gravity[1].child[0] содержит статический Wimp-кандидат", () => {
-    const gravityNode = ast.gravity?.[1] as Extract<MetaAST["gravity"], NodeMeta[]>[number]
+    const gravityNode = ast.gravity?.[1] as any
     const childNode = gravityNode?.child?.[0] as NodeMeta
 
     expect(childNode).toBeDefined()
@@ -104,7 +111,7 @@ describe("Wimp — допустимый контракт", () => {
   })
 
   test("должен формировать Wimp только из уже статического src", () => {
-    const gravityNode = ast.gravity?.[1] as Extract<MetaAST["gravity"], NodeMeta[]>[number]
+    const gravityNode = ast.gravity?.[1] as any
     const childNode = gravityNode?.child?.[0] as NodeMeta
     const wimp = normalizeToWimp(childNode)
 
@@ -120,7 +127,7 @@ describe("Wimp — допустимый контракт", () => {
   })
 
   test("должен читать fields как входящий binding-канал", () => {
-    const gravityNode = ast.gravity?.[1] as Extract<MetaAST["gravity"], NodeMeta[]>[number]
+    const gravityNode = ast.gravity?.[1] as any
     const childNode = gravityNode?.child?.[0] as NodeMeta
     const wimp = normalizeToWimp(childNode)
 
@@ -213,7 +220,7 @@ describe("Wimp — интеграция контракта", () => {
   })
 
   test("должен нормализовать вложенную meta-ссылку как статический Wimp", () => {
-    const gravityNode = ast.gravity?.[1] as Extract<MetaAST["gravity"], NodeMeta[]>[number]
+    const gravityNode = ast.gravity?.[1] as any
     const childNode = gravityNode?.child?.[0] as NodeMeta
     const wimp = normalizeToWimp(childNode)
 
@@ -233,7 +240,7 @@ describe("Wimp — интеграция контракта", () => {
   })
 
   test("должен соответствовать уже выбранной статической связности из реального AST", () => {
-    const gravityNode = ast.gravity?.[1] as Extract<MetaAST["gravity"], NodeMeta[]>[number]
+    const gravityNode = ast.gravity?.[1] as any
     const childNode = gravityNode?.child?.[0] as NodeMeta
 
     expect(childNode).toEqual({
