@@ -125,7 +125,7 @@ If you want to define a concrete task, discuss a specific change, or join the pr
 
 If you are approaching MetaFor as a repository contributor rather than as a first-time reader, continue with:
 
-- [Development](docs/DEVELOPMENT.md) for the current development mode and architectural constraints,
+- [Development](docs/DEVELOPMENT.md) for the fast technical entry, current development mode, and architectural constraints,
 - [Contributing](CONTRIBUTING.md) for contribution expectations and repository discipline.
 
 ## License

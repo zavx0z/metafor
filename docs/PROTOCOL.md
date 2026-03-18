@@ -70,8 +70,16 @@ Topology-fields in MetaFor are read as Higgs fields:
 - `enum` always expresses topology selection,
 - `array` always expresses topology multiplicity or branch expansion.
 
+Neither `enum` nor `array` should be read as an ordinary value field.
+Neither belongs to the ordinary field-update regime.
+Both change only as topology change through `Higgs boson`, not as ordinary value mutation.
+
 The restrictions for topology-fields are:
 
+- `enum` is not a generic bounded literal field,
+- `enum` changes as topology selection rather than ordinary value mutation,
+- `array` is not a generic mutable collection,
+- `array` changes as topology multiplicity rather than ordinary value mutation,
 - `array` does not participate in entanglement,
 - `array` is not mutated by external reactions,
 - `array` may change only through the atom's internal process and only by passing through a change of `State`.
@@ -94,7 +102,8 @@ This mapping should be read consistently across ontology, architecture, and prot
 
 ### Gravity
 
-`Gravity` is responsible for hidden organization, addressability, and inner geometry.
+`Gravity` is responsible for relation, localization invariants, addressability, and structural organization.
+Its `Dark` projection appears as hidden connectivity and inner geometry, its `Boundary` projection as flattening geometry and index space, and its `Bulk` projection as manifested arrangement and spatial localization.
 Its channel is `Graviton`, which belongs to the internal structural protocol rather than to the observable signal layer.
 
 See [Gravity](./proto/gravity.md).
@@ -126,7 +135,7 @@ The distinction is:
 - `Photon` transports `State`,
 - `Gluon` changes ordinary `Field`,
 - `Higgs boson` changes topology-fields,
-- `Graviton` holds hidden organization and geometry.
+- `Graviton` holds the relation and localization frame in which those changes receive place.
 
 See [Higgs](./proto/higgs.md).
 
@@ -142,7 +151,7 @@ See [Weak](./proto/weak.md).
 
 ## Detailed documents
 
-- [Gravity](./proto/gravity.md) covers hidden organization, addressability, and internal geometric protocol.
+- [Gravity](./proto/gravity.md) covers relation, localization invariants, addressability, and structural organization across domains.
 - [Electromagnetism](./proto/electromagnetism.md) covers observable propagation, signal, and the transport of `State`.
 - [Strong](./proto/strong.md) covers ordinary `Field` updates, retention of form, and the action boundary of `Gluon`.
 - [Higgs](./proto/higgs.md) covers topology-fields as Higgs fields, branch selection, branch multiplicity, and `Higgs boson`.

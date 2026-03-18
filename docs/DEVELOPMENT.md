@@ -6,6 +6,25 @@
 It does not replace [Architecture](./ARCHITECTURE.md) and does not cancel the protocol layer described in [Protocol](./PROTOCOL.md).
 Its role is to keep architectural invariants distinct from temporary development tactics.
 
+## Fast Technical Entry
+
+If you come to MetaFor as a developer first, keep this minimum model in view:
+
+- read the system as `Domain × Force × Entity`,
+- `Dark`, `Boundary`, and `Bulk` are parallel domains rather than runtime layers of one module,
+- `Gravity`, `Electromagnetism`, `Strong`, and `Weak` are universal forces expressed in every domain,
+- `gravity` is a relation and localization invariant across domains, not only hidden `Dark` connectivity,
+- `Boundary` is the flattening boundary and `Field` is the imprint layer after flattening,
+- `enum` and `array` are topology-fields and must not be treated as ordinary value fields.
+
+Recommended reading order for repository work:
+
+1. [Ontology](./ONTOLOGY.md)
+2. [Architecture](./ARCHITECTURE.md)
+3. [Protocol](./PROTOCOL.md)
+4. [Topology](./TOPOLOGY.md)
+5. then return to this document for the current development mode.
+
 ## Purpose
 
 MetaFor is built as a three-domain system:

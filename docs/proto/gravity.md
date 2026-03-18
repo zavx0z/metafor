@@ -7,18 +7,18 @@ The general distinction between force, `Boson`, channel subtype, and `Impulse` i
 
 ## Force and channel
 
-`Gravity` is responsible for hidden organization, addressability, and the inner geometry of structure.
+`Gravity` is responsible for relation, localization invariants, structural organization, and addressability.
 `Graviton` is the `Boson` subtype and channel of `Gravity`.
 It is not identical to the force itself and it is not an observable signal on the level of `Photon`.
 
-Through `Graviton`, the hidden organization is maintained in which entities receive place, connectivity, and geometric distinguishability.
+Through `Graviton`, entities receive locality, relation, connectivity, and geometric distinguishability.
 
 ## Reading by domain
 
 ### Dark
 
 - hidden hierarchy,
-- inner geometry of structure,
+- relation and localization invariants of hidden structure,
 - addressability of the hidden world,
 - organization of schemas, versions, and their continuity.
 
@@ -27,14 +27,14 @@ Through `Graviton`, the hidden organization is maintained in which entities rece
 - consequences of hidden organization on the boundary,
 - geometry of `Boundary`,
 - index space,
-- form of addressable state.
+- localization of addressable state.
 
 ### Bulk
 
-- manifested topology,
+- manifested structural arrangement,
 - geometry of actors,
 - spatial arrangement of execution,
-- observable consequences of hidden organization.
+- observable localization of manifested form.
 
 ## Protocol distinctions
 
@@ -42,4 +42,4 @@ Through `Graviton`, the hidden organization is maintained in which entities rece
 - `Gravity` does not change ordinary `Field` values; `Gluon` does that.
 - `Gravity` does not change topology-fields; `Higgs boson` does that.
 - `Gravity` does not carry transition between states; `Weak` does that through `W boson` and `Z boson`.
-- `Gravity` gives the hidden organization in which the other changes receive localization and connectivity.
+- `Gravity` gives the relational and localization frame in which the other changes receive place, addressability, and structural coherence.

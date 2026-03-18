@@ -79,8 +79,9 @@ The agreed mapping for ordinary data-fields is:
 Historically, `enum` and `array` could be read as special value forms.
 The current ontological distinction is stricter:
 
-- `enum` always gives branch selection,
-- `array` always gives branch multiplicity and branch expansion,
+- `enum` always gives branch selection and is not a generic bounded literal field,
+- `array` always gives branch multiplicity and branch expansion and is not a generic mutable collection,
+- neither `enum` nor `array` belongs to the ordinary field-update regime,
 - topology branch is not an ordinary value,
 - topology change must not be mixed with value change inside an already existing branch.
 

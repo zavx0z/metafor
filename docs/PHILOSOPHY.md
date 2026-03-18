@@ -170,7 +170,7 @@ Therefore:
 - `Photon` keeps the role of transporting `State`,
 - `Gluon` keeps the role of changing ordinary `Field` determination,
 - `Higgs boson` expresses topology-field reconfiguration,
-- `Dark` remains the hidden holder of the topology/gravity basis that makes these changes globally legible.
+- `Dark` remains the hidden holder of topology continuity and of the Dark projection of gravitational localization that makes these changes globally legible.
 
 ## The purpose of MetaFor
 

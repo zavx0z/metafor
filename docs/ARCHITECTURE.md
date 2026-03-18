@@ -62,6 +62,7 @@ This reading concerns architectural meaning, not a mandatory runtime stage order
 
 The distinction between ordinary data-fields and topology-fields is primary relative to AST:
 `enum` and `array` belong to topology by nature, while AST only unfolds the distinction into a serializable contract.
+They must not be treated as ordinary value fields.
 
 The hidden connectivity layer of `Dark`, including particles, threads, and addressing, is formalized separately in [Topology](./TOPOLOGY.md).
 
@@ -140,7 +141,7 @@ It is built as the volumetric manifestation of hidden `Dark` connectivity, but i
 Role:
 
 1. hidden hierarchy,
-2. the `Graviton` channel as the inner protocol of hidden organization,
+2. the `Graviton` channel as the inner protocol of relation and localization in hidden organization,
 3. schema organization,
 4. deep structural localization of hidden structure,
 5. geometry of hidden versions and their continuity.
@@ -149,7 +150,7 @@ Here belong:
 
 1. organization of the hidden network of schema connectivity, fixed states, and versions,
 2. latent hierarchy of the model,
-3. `Graviton` as the carrier of inner gravitational connectivity,
+3. `Graviton` as the carrier of the Dark projection of gravitational relations and localization invariants,
 4. structural distinguishability that must not be confused with runtime index.
 
 ### Dark × Higgs
@@ -159,16 +160,16 @@ Role:
 1. topology-fields as hidden Higgs fields,
 2. branch selection through `enum`,
 3. branch multiplicity and unfolding through `array`,
-4. globally observable hidden topology reconfiguration,
-5. coordination of topology change with hidden gravity.
+4. topology change as distinct from ordinary field mutation,
+5. coordination of topology change with the Dark projection of gravity.
 
 Here belong:
 
 1. the rules of topology-fields in hidden structure,
-2. the restrictions on `array` as inner multiplicity of branches,
+2. the restrictions on `enum` as topology selection and on `array` as inner multiplicity of branches,
 3. observation of global structural consequences of topology change,
 4. reading an atom as multiplicity once branches are unfolded,
-5. hidden retention of topology without turning `Dark` into a runtime orchestrator.
+5. hidden retention of topology and its localization frame without turning `Dark` into a runtime orchestrator.
 
 ### Dark × Strong
 
@@ -229,13 +230,14 @@ Role:
 Role:
 
 1. canonical fixation of topology-fields,
-2. branch selection through `enum`,
+2. topology selection through `enum`,
 3. branch multiplicity through `array`,
-4. prohibition of external reactive mutation of `array`,
-5. distinction between topology change and ordinary field update.
+4. rejection of the ordinary field-update regime for both `enum` and `array`,
+5. prohibition of external reactive mutation of `array`,
+6. distinction between topology change and ordinary field update.
 
 Architecturally this layer fixes the contract of topology-fields on the boundary.
-`Higgs boson` does not transport `State` and does not change ordinary `Field`; it determines which branch exists and how many branches must be manifested.
+`Higgs boson` does not transport `State` and does not change ordinary `Field`; it determines which branch exists and how many branches must be manifested as topology change rather than ordinary value mutation.
 
 ### Boundary × Weak
 
@@ -342,8 +344,11 @@ Architecturally, `Field` splits into:
 2. topology-fields.
 
 `enum` and `array` are topology-fields by type nature.
-`enum` always gives branch selection.
-`array` always gives branch multiplicity and branch unfolding.
+`enum` gives topology selection and is not a generic bounded literal field.
+`array` gives topology multiplicity and branch unfolding and is not a generic mutable collection.
+Neither `enum` nor `array` is an ordinary value field.
+Neither belongs to the ordinary field-update regime.
+Both change as topology change through `Higgs boson`, not as ordinary value mutation.
 `array` does not participate in entanglement, is not mutated by external reactions, and may change only through the atom's internal process by way of state change.
 
 ### State
@@ -393,8 +398,8 @@ It is not a force and does not coincide with `Impulse`.
 `Graviton` is the subtype of `Boson` that belongs to `Gravity`.
 
 1. `Graviton` is not identical to the force `Gravity`.
-2. It belongs to the hidden inner protocol of organization.
-3. In the architectural reading of `Dark`, hidden organization and addressability are primarily read through `Graviton`.
+2. It belongs to the structural protocol of relation, localization, and organization.
+3. In the architectural reading of `Dark`, hidden organization and addressability are one domain projection of `Graviton`, not the whole meaning of `Gravity`.
 4. Its consequences may be manifested, but it is not an observable event of the level of `Photon`.
 
 ### Gluon
@@ -457,7 +462,7 @@ At the same time:
 4. `State` transport goes through `Photon`,
 5. ordinary `Field` change goes through `Gluon`,
 6. topology-field change goes through `Higgs boson`,
-7. hidden organization is held through `Graviton`,
+7. relation and localization are held through `Graviton`,
 8. active transition goes through `W boson`,
 9. neutral mediation goes through `Z boson`.
 
@@ -507,7 +512,7 @@ This means:
 5. a common hidden basis does not permit direct runtime imports between domains,
 6. until protocols exist, inter-domain coherence is proven only in tests.
 
-At the same time `Dark` remains the hidden builder and holder of connectivity and gravity basis.
+At the same time `Dark` remains the hidden builder and holder of connectivity and of the Dark projection of gravitational relations and localization.
 It may observe global structural effects arriving through `Photon`, `Higgs boson`, and `Graviton`, but must not become the common execution center.
 
 ### Bulk <-> Boundary
@@ -522,7 +527,7 @@ The contract between them is:
 3. common ontological source in `Dark` does not mean shared runtime data ownership,
 4. `DSL` and `AST` are not passed from one lower domain to another as shared runtime ownership,
 5. crossing the boundary between `Bulk` and `Boundary` happens only through the force-channel that matches the character of change,
-6. `Photon` transports `State`, `Gluon` changes ordinary `Field`, `Higgs boson` changes topology-fields, `Graviton` holds the hidden organization protocol, `W boson` carries active transition, `Z boson` holds neutral mediation, and `Impulse` gives the content of that transfer,
+6. `Photon` transports `State`, `Gluon` changes ordinary `Field`, `Higgs boson` changes topology-fields, `Graviton` carries relation and localization protocol, `W boson` carries active transition, `Z boson` holds neutral mediation, and `Impulse` gives the content of that transfer,
 7. `Boundary` does not execute `Bulk` processes,
 8. `Bulk` is not the source of truth for `Boundary` state,
 9. direct production imports between them are forbidden,

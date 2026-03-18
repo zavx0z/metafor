@@ -15,12 +15,16 @@ This channel differs from the others:
 - `Photon` transports `State`,
 - `Gluon` changes ordinary `Field`,
 - `Higgs boson` changes topology-fields,
-- `Graviton` holds hidden organization and geometry.
+- `Graviton` holds the relation and localization frame in which topology change receives place.
 
 Topology-fields are defined by type nature:
 
 - `enum` always gives branch selection,
 - `array` always gives branch multiplicity and branch expansion.
+
+Neither `enum` nor `array` belongs to the ordinary field-update regime.
+Neither should be read as an ordinary value field.
+Both change only as topology change through `Higgs boson`, not as ordinary value mutation.
 
 This distinction is primary relative to AST.
 AST only unfolds topology semantics into a concrete contract.
@@ -53,7 +57,7 @@ AST only unfolds topology semantics into a concrete contract.
 ### `enum`
 
 `enum` always expresses branch selection.
-It is not merely a bounded set of literals, but a topology selector:
+It is not a generic bounded literal field, but a topology selector:
 
 - which branch of the world is admissible,
 - which path of manifestation is active,
@@ -62,7 +66,7 @@ It is not merely a bounded set of literals, but a topology selector:
 ### `array`
 
 `array` always expresses branch multiplicity.
-It is not an ordinary collection value, but branch expansion:
+It is not a generic mutable collection, but branch expansion:
 
 - how many branches should exist,
 - how an atom unfolds into multiplicity,
@@ -71,8 +75,10 @@ It is not an ordinary collection value, but branch expansion:
 When `array` unfolds, the atom becomes multiplicity.
 This prevents reading an array as a simple value-box inside unchanged topology.
 
-## Restrictions on `array`
+## Restrictions on topology-fields
 
+- `enum` is not patched as an ordinary value and changes only as topology selection,
+- `array` is not patched as an ordinary value and changes only as topology multiplicity,
 - `array` does not participate in entanglement,
 - `array` is not mutated by external reactions,
 - `array` may change only through the internal process of the atom itself,
@@ -87,8 +93,8 @@ Topology-field change has globally observable structural consequences:
 
 - `Higgs boson` changes topology,
 - `Photon` continues to transport `State`,
-- `Graviton` holds the hidden geometry in which topology change receives place,
+- `Graviton` holds the relation and localization frame in which topology change receives place,
 - `Dark` observes the structural consequences of changes arriving through `Electromagnetism`, Higgs-field change, and `Gravity`.
 
 This does not make `Dark` a runtime execution center.
-`Dark` remains the hidden builder and holder of topology together with the hidden observer of their global coherence.
+`Dark` remains the hidden holder of topology continuity together with the hidden observer of its global coherence.

@@ -83,8 +83,10 @@ Topology-fields are read as Higgs fields, and their change is carried through `H
 
 ### Gravity
 
-`Gravity` defines hidden organization of connectivity and rules of addressability.
-In a `meta` declaration, `gravity` describes how the current `meta` relates to other `meta` declarations, which in `Dark` are read as `Wimp` supports of static connectivity.
+`Gravity` defines relation, localization invariants, structural organization, and rules of addressability.
+In a `meta` declaration, `gravity` describes how the current `meta` is related and localized with respect to other `meta` declarations.
+In `Dark`, that relation is read through `Wimp` supports of static connectivity.
+In `Boundary` and `Bulk`, the same force is read through boundary geometry, indexability, and manifested spatial arrangement.
 Its channel is `Graviton`.
 
 ### Electromagnetism
@@ -141,6 +143,10 @@ Topology-fields in MetaFor are Higgs fields by nature:
 - `enum` is branch selection,
 - `array` is branch multiplicity and branch unfolding.
 
+Neither `enum` nor `array` should be read as an ordinary value field.
+Neither belongs to the ordinary field-update regime.
+Their change is topology change carried through `Higgs boson`, not ordinary value mutation.
+
 Hidden connectivity, `Wimp` / `Fuzzy` / `Macho` / `Axion`, connectivity addressing, and entanglement are formalized separately in [Topology](./TOPOLOGY.md).
 
 The remaining fields are ordinary data-fields and stay in the regime of ordinary inner value determination.
@@ -148,7 +154,9 @@ The remaining fields are ordinary data-fields and stay in the regime of ordinary
 Additional constraints for topology-fields are:
 
 - `enum` always expresses topology selection, not merely a bounded literal set,
-- `array` always expresses topology multiplicity, not an ordinary collection of independent values,
+- `enum` changes only as topology change and must not be patched as an ordinary value,
+- `array` always expresses topology multiplicity and branch unfolding, not an ordinary collection of independent values,
+- `array` changes only as topology change and must not be patched as an ordinary value,
 - `array` does not participate in entanglement,
 - `array` is not mutated by external reactions,
 - `array` changes only through the internal process of the atom and only by passing through `State`.
@@ -190,9 +198,9 @@ Each belongs to its own force or topology channel and must not be merged with th
 ### Graviton
 
 `Graviton` is the `Boson` subtype and channel of `Gravity`.
-It is not the force itself; it names the unit of the hidden internal protocol of organization.
+It is not the force itself; it names the unit of the internal protocol of relation, localization, and organization.
 
-- In `Dark`, it carries hidden structural determination.
+- In `Dark`, it carries hidden structural determination of relation and localization.
 - In `Boundary`, it is not directly observable and appears through consequences.
 - In `Bulk`, it also appears only through manifested consequences.
 
@@ -421,7 +429,7 @@ The canonical mapping is:
 
 This means:
 
-- `Graviton` holds hidden organization and geometry,
+- `Graviton` holds relation, localization, and geometry,
 - `Photon` transports `State`,
 - `Gluon` changes ordinary `Field` values,
 - `Higgs boson` changes topology-fields,
@@ -436,7 +444,7 @@ Ontologically, the reading is:
 - `Dark × Higgs` holds topology-fields and observes their global structural consequences,
 - `Boundary × Strong` retains canonicalization, deduplication, interning, and compaction,
 - `Bulk` manifests or executes delivered change,
-- `Gravity` gives the hidden organization and localization where change gets a place in `Boundary` and `Bulk`,
+- `Gravity` gives the relational and localization frame in which change receives place in `Dark`, `Boundary`, and `Bulk`,
 - `Dark` observes the global effects of `Electromagnetism`, Higgs change, and `Gravity` without becoming their execution center.
 
 See [Protocol](./PROTOCOL.md) and the detailed documents in [`docs/proto/`](./proto/).
