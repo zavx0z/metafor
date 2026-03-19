@@ -2,28 +2,44 @@
  * Типы для преобразования MetaFor DSL в JSON формат.
  *
  * @packageDocumentation
+ *
+ * Типы данных для сериализации и десериализации MetaFor DSL:
+ * - **MetaDSLLike** — исходный объект MetaFor из chain API
+ * - **MetaJson** — распарсенный процесс в формате JSON
+ * - **MetaAST** — полная AST-конфигурация для создания атома
+ * - **FieldDefinitionJson** — определение поля с семантикой для ИИ
+ * - **ReactionDefinitionJson** — определение реакции с фильтром и обработчиком
+ * - **ViewJson** — bulk-view конфигурация (CSS)
+ *
+ * Эти типы используются для хранения и передачи мета-конфигураций
+ * в сериализованном формате, сохраняя всю семантику для ИИ.
  */
 
 import type { NodeType, ReactionsSchema } from "@metafor/dsl"
+import type { Mass } from "@metafor/dsl/types"
 
 /**
  * Исходный объект MetaFor, полученный из chain API.
  * Содержит все компоненты мета-конфигурации.
+ *
+ * @remarks
+ * Используется как промежуточный формат между DSL и AST.
+ *
+ * @property fields — Схема полей с типами и значениями по умолчанию.
+ * @property superposition — Граф переходов состояний (суперпозиция).
+ * @property processes — Процессы с обработчиками action/success/error.
+ * @property reactions — Реакции на события других атомов.
+ * @property gravity — Gravity-конфигурация компонента.
+ * @property view — Bulk-view конфигурация.
+ * @property mass — Масса для сложных данных и зависимостей от среды.
  */
 export type MetaDSLLike = Record<string, any> & {
-  /** Схема полей с типами и значениями по умолчанию */
   fields?: Record<string, any>
-  /** Граф переходов состояний (суперпозиция) */
   superposition?: Record<string, any>
-  /** Процессы с обработчиками action/success/error */
   processes?: Record<string, any>
-  /** Реакции на события других атомов */
   reactions?: ReactionsSchema | null
-  /** Gravity-конфигурация компонента */
   gravity?: NodeType[]
-  /** Bulk-view конфигурация */
   view?: string
-  /** Масса для сложных данных и зависимостей от среды */
   mass?: Record<string, any>
 }
 
@@ -36,55 +52,49 @@ export type ArrayElementType = "string" | "number"
 /**
  * Распарсенный процесс в формате JSON.
  * Содержит строковые представления функций для десериализации.
+ *
+ * @remarks
+ * Используется для хранения процессов в сериализованном виде.
+ *
+ * @property type — Тип процесса: action или finally.
+ * @property label — Название процесса.
+ * @property desc — Описание процесса.
+ * @property action — Обработчик действия с исходным кодом и списком читаемых полей.
+ * @property success — Обработчик успеха с исходным кодом и списками полей.
+ * @property error — Обработчик ошибки с исходным кодом и списками полей.
+ * @property before — Обработчик before для destroy-процесса.
  */
 export interface MetaJson {
-  /** Тип процесса: action или finally */
   type: "action" | "finally"
-  /** Название процесса */
   label?: string
-  /** Описание процесса */
   desc?: string
-  /** Обработчик действия с исходным кодом и списком читаемых полей */
   action?: {
-    /** Исходный код функции (опционально для пустых функций-заглушек) */
     src?: string
-    /** Имя экспорта для импорта (например, "default", "commit", "process") */
     importSpecifier?: string
-    /** Значения полей, которые читаются */
     read?: string[]
   }
-  /** Обработчик успеха с исходным кодом и списками полей */
   success?: {
-    /** Исходный код функции */
     src: string
-    /** Значения полей, которые читаются */
     read?: string[]
-    /** Значения полей, которые записываются */
     write?: string[]
   }
-  /** Обработчик ошибки с исходным кодом и списками полей */
   error?: {
-    /** Исходный код функции */
     src: string
-    /** Значения полей, которые читаются */
     read?: string[]
-    /** Значения полей, которые записываются */
     write?: string[]
   }
-  /** Обработчик before для destroy-процесса */
   before?: {
-    /** Исходный код функции */
     src: string
-    /** Значения полей, которые читаются */
     read?: string[]
   }
 }
 
 /**
  * Представление bulk-view конфигурации в JSON формате.
+ *
+ * @property view — Сериализованные view-стили как CSS строка.
  */
 export interface ViewJson {
-  /** Сериализованные view-стили как CSS строка */
   view?: string
 }
 
@@ -143,89 +153,64 @@ export interface ViewJson {
  *   }
  * }
  * ```
+ *
+ * @property name — Название мета-конфигурации (из MetaFor("name")).
+ * @property fields — Схема полей с семантикой для ИИ.
+ * @property superposition — Граф переходов состояний (суперпозиция).
+ * @property processes — Процессы с обработчиками.
+ * @property reactions — Реакции на события других атомов.
+ * @property gravity — Gravity-конфигурация для иерархии акторов.
+ * @property bulk — Bulk-view конфигурация для BULK уровня.
+ * @property mass — Масса для сложных данных и зависимостей от среды.
  */
 export interface MetaAST {
-  /** Название мета-конфигурации (из MetaFor("name")) */
   name: string
-  /**
-   * Схема полей с семантикой для ИИ.
-   * Содержит типы, обязательность, метки и значения по умолчанию.
-   * Используется для валидации и генерации UI.
-   */
-  fields: Record<string, FieldDefinitionJson>
-  /**
-   * Граф переходов состояний (суперпозиция).
-   * Ключ — имя состояния, значение — карта переходов или null для терминальных состояний.
-   */
+  fields: Record<FieldKey, FieldDefinitionJson>
   superposition: Record<string, Record<string, any> | null>
-  /**
-   * Процессы с обработчиками.
-   * Содержит строковые представления функций для десериализации в runtime.
-   */
   processes?: Record<string, MetaJson>
-  /**
-   * Реакции на события других атомов.
-   * Содержит карту реакций и маппинг суперпозиций.
-   */
   reactions?: {
-    /** Карта реакций по ID */
     reactions: Record<string, ReactionDefinitionJson>
-    /** Маппинг суперпозиций в ID реакций */
     superposition: Record<string, string[]>
   }
-  /**
-   * Gravity-конфигурация для иерархии акторов.
-   * Содержит AST шаблона из DSL `.gravity(...)`.
-   */
   gravity?: NodeType[]
-  /**
-   * Bulk-view конфигурация для BULK уровня.
-   * Содержит только view (CSS).
-   */
   bulk?: ViewJson
-  /**
-   * Масса для сложных данных и зависимостей от среды.
-   * Используется для хранения объектов, массивов и других структур,
-   * которые не помещаются в простой контекст. Масса не сериализуется в Boundary.
-   */
-  mass?: Record<string, any>
+  mass?: Mass
 }
-
+export type FieldKey = string
 /**
  * Определение поля в формате JSON.
  * Содержит полную семантику для ИИ и валидации.
+ *
+ * @property type — Тип поля: string, number, boolean, array<T>, enum<T>.
+ * @property required — Обязательно ли поле (true для required).
+ * @property label — Метка поля для UI (из опций { label: "..." }).
+ * @property default — Значение по умолчанию для инициализации.
+ * @property values — Значения для enum полей.
  */
 export interface FieldDefinitionJson {
-  /** Тип поля: string, number, boolean, array<T>, enum<T> */
   type: string
-  /** Обязательно ли поле (true для required) */
   required?: boolean
-  /** Метка поля для UI (из опций { label: "..." }) */
   label?: string
-  /** Значение по умолчанию для инициализации */
   default?: any
-  /**
-   * Значения для enum полей.
-   * Массив строк или чисел в зависимости от типа enum.
-   */
   values?: string[] | number[]
 }
 
 /**
  * Определение реакции в формате JSON.
  * Содержит строковое представление фильтра и обработчика.
+ *
+ * @property label — Название реакции.
+ * @property desc — Описание реакции.
+ * @property cond — Исходный код функции фильтра.
+ * @property read — Поля контекста, которые читаются.
+ * @property write — Поля контекста, которые записываются.
+ * @property src — Исходный код функции обработчика (equal).
  */
 export interface ReactionDefinitionJson {
-  /** Название реакции */
   label: string
-  /** Описание реакции */
   desc?: string
-  /** Исходный код функции фильтра */
   cond: string
-  /** Поля контекста, которые читаются */
   read?: string[]
-  /** Поля контекста, которые записываются */
   write?: string[]
-  /** Исходный код функции обработчика (equal) */
   src: string
 }
