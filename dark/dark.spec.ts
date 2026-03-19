@@ -5,7 +5,7 @@ import { HubFixture, installDeterministicIds } from "fixture"
 import type { SRC } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
 
-import { Wimp } from "@dark/part"
+import { Axion, Fuzzy, Macho, Wimp } from "@dark/part"
 import { strong$, particleGenerator } from "@dark/strong"
 import { loadMetaAST } from "../dark/load"
 import { dark$ } from "./store"
@@ -157,30 +157,31 @@ describe("dark - корневой мета", () => {
     test("create ast generator", () => {
       if (!ref.matter) throw new Error("matter is undefined")
 
-      expect(Array.from(particleGenerator(ref.matter), ({ type }) => type)).toEqual(["meta", "log", "meta"])
+      expect(Array.from(particleGenerator(ref.matter, ref.fields), ({ particle }) => particle.constructor)).toEqual([
+        Fuzzy,
+        Axion,
+        Wimp,
+      ])
     })
 
     test("create dynamic particles", () => {
       if (!ref.matter) throw new Error("matter is undefined")
 
-      for (const node of particleGenerator(ref.matter)) {
-        switch (node.type) {
-          case "meta":
-            if (typeof node.src === "object") {
-              console.log("meta ", node)
-            }
-            break
-          case "log":
-            console.log("log ", node)
-            break
-          case "map":
-            console.log("map ", node)
-            break
-          default:
-            console.log("!!!!! ", node.type)
-            break
-        }
-      }
+      expect(Array.from(particleGenerator(ref.matter, ref.fields))).toEqual([
+        { particle: expect.any(Fuzzy), meta: {} },
+        { particle: expect.any(Axion), meta: {} },
+        { particle: expect.any(Wimp), meta: {} },
+      ])
+    })
+
+    test("particle generator uses breadth-first traversal", () => {
+      if (!ref.matter) throw new Error("matter is undefined")
+
+      expect(Array.from(particleGenerator(ref.matter, ref.fields), ({ particle }) => particle.constructor)).toEqual([
+        Fuzzy,
+        Axion,
+        Wimp,
+      ])
     })
     test("сохранение полей в strong$", () => {
       const fieldIds = ["operation-id", "error-id", "command-id", "args-id"]
