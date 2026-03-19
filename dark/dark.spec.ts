@@ -150,20 +150,15 @@ describe("dark - корневой мета", () => {
     test("сохранение мета в хранилище", () => {
       wimp = new Wimp({ src })
       dark$.particles.set(wimp.id, wimp)
-      
       if (ast.mass && Object.keys(ast.mass).length > 0) wimp.mass = ast.mass
-      expect(dark$).toEqual({
-        particles: new Map([[wimp.id, wimp]]),
-        parent: new Map(),
-      })
+
+      expect(dark$).toEqual({ particles: new Map([[wimp.id, wimp]]), parent: new Map() })
     })
     test("сохранение полей в strong$", () => {
       const fieldIds = ["operation-id", "error-id", "command-id", "args-id"]
       const restore = installDeterministicIds(fieldIds)
       try {
-        for (const [key, value] of Object.entries(ast.fields)) {
-          strong$.push(wimp.id, key, value)
-        }
+        for (const [key, value] of Object.entries(ast.fields)) strong$.push(wimp.id, key, value)
 
         expect({ fields: strong$.fields, keys: strong$.keys, wimp: strong$.wimp }).toEqual({
           fields: new Map([

@@ -1,5 +1,4 @@
 import type { AxionInit } from "@dark/types/part"
-
 import { BaseParticle } from "./part.ts"
 
 export class Axion extends BaseParticle {
@@ -16,5 +15,3 @@ export class Axion extends BaseParticle {
     }
   }
 }
-
-export type { AxionID } from "@dark/types"

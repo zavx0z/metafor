@@ -21,4 +21,3 @@ export class Wimp extends BaseParticle {
   }
 }
 
-export type { FieldID, WimpID } from "@dark/types"
