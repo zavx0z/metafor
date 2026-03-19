@@ -11,6 +11,8 @@ export interface ParticleBuild {
   meta: Record<string, never>
 }
 
+type LayerEntry = LayerNode | ParticleBuild
+
 type LayerNode = {
   node: NodeType
   parent: DarkParticle
@@ -22,11 +24,25 @@ const getFieldType = (path: string, fields?: FieldsAST): string | undefined => {
   return fields[path.slice("/value/".length)]?.type
 }
 
+const getFieldName = (path: string): string => {
+  if (path.startsWith("/value/")) return path.slice("/value/".length)
+  return path.split("/").at(-1) ?? path
+}
+
 const isEnumBoundMetaSrc = (node: NodeMeta, fields?: FieldsAST): boolean => {
   if (typeof node.src !== "object") return false
 
   const paths = Array.isArray(node.src.data) ? node.src.data : [node.src.data]
   return paths.length === 1 && getFieldType(paths[0]!, fields)?.startsWith("enum") === true
+}
+
+const createContinuationSrc = (node: NodeMeta): string => {
+  if (typeof node.src !== "object") return node.src
+
+  const paths = Array.isArray(node.src.data) ? node.src.data : [node.src.data]
+  const fieldName = getFieldName(paths[0]!)
+
+  return "expr" in node.src ? node.src.expr.replaceAll("_[0]", fieldName) : `\${${fieldName}}`
 }
 
 const createParticleBuild = (node: NodeType, parent: DarkParticle, fields?: FieldsAST): ParticleBuild | undefined => {
@@ -87,22 +103,43 @@ const createParticleBuild = (node: NodeType, parent: DarkParticle, fields?: Fiel
   }
 }
 
+const createContinuationBuild = (node: NodeMeta, parent: Fuzzy): ParticleBuild => ({
+  particle: new Wimp({
+    src: createContinuationSrc(node),
+    ...(node.fields !== undefined ? { fields: node.fields } : {}),
+    ...(node.mass !== undefined ? { mass: node.mass } : {}),
+  }),
+  parent,
+  meta: {},
+})
+
 export function* particleGenerator(
   root: Wimp,
   nodes: Iterable<NodeType>,
   fields?: FieldsAST,
 ): Generator<ParticleBuild[]> {
-  let level = Array.from(nodes, (node): LayerNode => ({ node, parent: root }))
+  let level = Array.from(nodes, (node): LayerEntry => ({ node, parent: root }))
 
   while (level.length > 0) {
     const builds: ParticleBuild[] = []
-    const nextLevel: LayerNode[] = []
+    const nextLevel: LayerEntry[] = []
 
     for (const item of level) {
+      if ("particle" in item) {
+        builds.push(item)
+        continue
+      }
+
       const build = createParticleBuild(item.node, item.parent, fields)
       const parent = build?.particle ?? item.parent
 
-      if (build) builds.push(build)
+      if (build) {
+        builds.push(build)
+
+        if (item.node.type === "meta" && typeof item.node.src === "object" && build.particle instanceof Fuzzy) {
+          nextLevel.push(createContinuationBuild(item.node, build.particle))
+        }
+      }
 
       if ("child" in item.node && Array.isArray(item.node.child)) {
         nextLevel.push(...item.node.child.map((node): LayerNode => ({ node, parent })))
