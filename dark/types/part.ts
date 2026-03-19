@@ -1,7 +1,7 @@
 import type { NodeMeta } from "@metafor/dsl"
 import type { Mass } from "@metafor/dsl/types/metafor"
 
-import type { ParticleID } from "./shared.ts"
+import type { DarkParticle, ParticleID } from "./shared.ts"
 
 export interface BaseParticleInit {
   children?: Iterable<ParticleID>
@@ -14,8 +14,8 @@ export interface WimpInit extends BaseParticleInit {
 }
 
 export interface FuzzyInit extends BaseParticleInit {
-  basis: string | string[]
-  expr?: string
+  value?: ParticleID | null
+  branch?: Iterable<[ParticleID, DarkParticle]>
 }
 
 export interface MachoInit extends BaseParticleInit {

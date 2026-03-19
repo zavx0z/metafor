@@ -63,23 +63,9 @@ const createParticleBuild = (node: NodeType, parent: DarkParticle, fields?: Fiel
         throw new Error("Dynamic meta src must be bound to a single enum field")
       }
 
-      return {
-        particle: new Fuzzy({
-          basis: node.src.data,
-          ...("expr" in node.src ? { expr: node.src.expr } : {}),
-        }),
-        parent,
-        meta: {},
-      }
+      return { particle: new Fuzzy(), parent, meta: {} }
     case "cond":
-      return {
-        particle: new Fuzzy({
-          basis: node.data,
-          ...("expr" in node && node.expr !== undefined ? { expr: node.expr } : {}),
-        }),
-        parent,
-        meta: {},
-      }
+      return { particle: new Fuzzy(), parent, meta: {} }
     case "log":
       return {
         particle: new Axion({

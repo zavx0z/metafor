@@ -193,6 +193,7 @@ describe("init", () => {
     fuzzy = firstLevel.value?.find((build: ParticleBuild) => build.particle instanceof Fuzzy)?.particle
     axion = firstLevel.value?.find((build: ParticleBuild) => build.particle instanceof Axion)?.particle
     expect(fuzzy, "на первом уровне должен материализоваться Fuzzy").toBeDefined()
+    expect(fuzzy?.value, "Fuzzy без выбранного enum значения должен быть пустым").toBeNull()
     expect(axion, "на первом уровне должен материализоваться Axion").toBeDefined()
   })
   test("генерация второго уровня", () => {

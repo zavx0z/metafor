@@ -1,4 +1,4 @@
-import { Wimp } from "@dark/part"
+import { Fuzzy, Wimp } from "@dark/part"
 import type { MetaAST } from "@metafor/ast"
 import { particleGenerator } from "@dark/gravity/gravity"
 import { dark$ } from "./store"
@@ -15,8 +15,10 @@ export const matterPipeline = (wimp: Wimp, ast: Pick<MetaAST, "matter" | "fields
   for (const layer of particleGenerator(wimp, ast.matter, ast.fields)) {
     for (const { particle, parent } of layer) {
       parent.children.add(particle.id)
+      if (parent instanceof Fuzzy) parent.branch.set(particle.id, particle)
       if (particle instanceof Wimp) {
         wimps.push(particle)
+        dark$.meta.set(particle.id, particle.src)
       }
       dark$.particles.set(particle.id, particle)
       dark$.parent.set(particle, parent)
