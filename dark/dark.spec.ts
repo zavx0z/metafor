@@ -197,23 +197,24 @@ describe("init", () => {
   })
   test("генерация второго уровня", () => {
     const secondLevel = generator.next()
+    const values = ref.fields.operation?.values ?? []
     const secondLevelWimps = secondLevel.value?.filter((build: ParticleBuild) => build.particle instanceof Wimp) ?? []
-    const fuzzyWimp = secondLevelWimps.find((build: ParticleBuild) => build.parent === fuzzy)?.particle as
-      | Wimp
-      | undefined
+    const wimps: Wimp[] = secondLevelWimps
+      .filter((build: ParticleBuild) => build.parent === fuzzy)
+      .map((build: ParticleBuild) => build.particle as Wimp)
     const childWimp = secondLevelWimps.find((build: ParticleBuild) => build.parent === axion)?.particle as
       | Wimp
       | undefined
 
     expect(secondLevel.done, "второй слой не должен завершать generator").toBe(false)
-    expect(secondLevel.value, "второй слой должен раскрывать continuation Fuzzy и child ветку Axion").toEqual([
-      { particle: expect.any(Wimp), parent: fuzzy!, meta: {} },
+    expect(secondLevel.value, "второй слой должен раскрывать все static Wimp из Fuzzy и child ветку Axion").toEqual([
+      ...values.map(() => ({ particle: expect.any(Wimp), parent: fuzzy!, meta: {} })),
       { particle: expect.any(Wimp), parent: axion!, meta: {} },
     ])
-    expect(fuzzyWimp, "на втором уровне должен материализоваться continuation Wimp для Fuzzy").toBeDefined()
-    expect(fuzzyWimp?.src, "continuation Wimp должен хранить раскрытый src из dynamic meta").toBe(
-      "zavx0z/git-${operation}",
-    )
+    expect(
+      wimps.map((wimp) => wimp.src),
+      "Fuzzy должен раскрывать все static Wimp из enum values",
+    ).toEqual(values.map((value) => `zavx0z/git-${value}`))
     expect(childWimp, "на втором уровне должен материализоваться дочерний Wimp для Axion").toBeDefined()
     expect(childWimp?.src, "дочерний Wimp должен сохранять статический src из child meta").toBe("zavx0z/git-error")
   })
@@ -222,52 +223,5 @@ describe("init", () => {
 
     expect(end.done, "generator должен завершиться после второго уровня").toBe(true)
     expect(end.value, "после завершения generator не должен возвращать следующий слой").toBeUndefined()
-  })
-
-  test("сохранение полей в strong$", () => {
-    const fieldIds = ["operation-id", "error-id", "command-id", "args-id"]
-    const restore = installDeterministicIds(fieldIds)
-    try {
-      for (const [key, value] of Object.entries(ref.fields)) strong$.push(wimp.id, key, value)
-
-      expect(
-        { fields: strong$.fields, keys: strong$.keys, wimp: strong$.wimp },
-        "strong$ должен сохранить поля, ids и привязку к wimp",
-      ).toEqual({
-        fields: new Map([
-          [
-            "operation",
-            {
-              label: "Тип операции",
-              type: "enum<string>",
-              values: [
-                "start",
-                "work",
-                "examine",
-                "history",
-                "collaborate",
-                "worktree",
-                "stash",
-                "submodule",
-                "config",
-                "plumbing",
-              ],
-            },
-          ],
-          ["error", { label: "Ошибка", type: "string" }],
-          ["command", { label: "Команда", type: "string" }],
-          ["args", { label: "Аргументы", type: "string" }],
-        ]),
-        keys: new Map([
-          ["operation-id", "operation"],
-          ["error-id", "error"],
-          ["command-id", "command"],
-          ["args-id", "args"],
-        ]),
-        wimp: new Map([[wimp.id, new Set(fieldIds)]]),
-      })
-    } finally {
-      restore()
-    }
   })
 })

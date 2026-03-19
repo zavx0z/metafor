@@ -9,6 +9,6 @@ export class Fuzzy extends BaseParticle {
   constructor(init: FuzzyInit) {
     super(init)
     this.basis = init.basis
-    this.expr = init.expr
+    if (init.expr) this.expr = init.expr
   }
 }
