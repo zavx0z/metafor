@@ -1,15 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
-
-import type { Address } from "@dark/types/dark"
-import type { FieldDefinitionJson, MetaAST } from "@metafor/ast"
+import type { FieldsAST, MetaAST } from "@metafor/ast"
 
 import reference from "../github/zavx0z/git/meta.json"
 import { HubFixture } from "fixture/hub"
 import { installDeterministicIds } from "fixture/id"
 import { loadMetaAST } from "../dark/load"
-import type { DarkStore, FieldID, Wimp, WimpID } from "@dark/types"
-import type { ValueDynamic, ValueVariable } from "@metafor/dsl"
+import type { ValueDynamic, ValueVariable, SRC } from "@metafor/dsl"
 import { strong$ } from "@dark/strong/store"
+import type { DarkStore, WimpID } from "@dark/types"
+import { Wimp } from "./part/Wimp"
 
 const hub = new HubFixture("./github/")
 beforeAll(async () => await hub.setup())
@@ -36,7 +35,7 @@ describe("dark - корневой мета", () => {
 
   describe("загрузка", () => {
     test("загрузка мета ast", async () => {
-      ast = (await loadMetaAST("zavx0z/git" as Address)) as MetaAST
+      ast = (await loadMetaAST("zavx0z/git" as SRC)) as MetaAST
       expect(ast).toEqual(reference as MetaAST)
       expect(ast).toEqual({
         name: "git",
@@ -160,7 +159,7 @@ describe("dark - корневой мета", () => {
       const restore = installDeterministicIds(fieldIds)
       try {
         for (const [key, value] of Object.entries(ast.fields)) {
-          strong$.push(wimpId, key as FieldID, value)
+          strong$.push(wimpId, key, value)
         }
 
         expect({ fields: strong$.fields, keys: strong$.keys, wimp: strong$.wimp }).toEqual({
@@ -201,29 +200,18 @@ describe("dark - корневой мета", () => {
       }
     })
     test("сохранение мета в хранилище", () => {
-      const wimp: Wimp = {
+      const wimp = new Wimp({
         id: wimpId,
-        kind: "wimp",
         src: address,
         children: [],
-      }
+      })
       if (ast.mass && Object.keys(ast.mass).length > 0) wimp.mass = ast.mass
 
       dark$.meta.set(address, wimpId)
       dark$.particles.set(wimp.id, wimp)
       expect(dark$).toEqual({
         meta: new Map([["zavx0z/git", wimpId]]),
-        particles: new Map([
-          [
-            wimpId,
-            {
-              id: wimpId,
-              kind: "wimp",
-              src: "zavx0z/git",
-              children: [],
-            },
-          ],
-        ]),
+        particles: new Map([[wimpId, wimp]]),
         parent: new Map(),
       })
     })
@@ -250,9 +238,9 @@ describe("dark - корневой мета", () => {
     })
   })
 })
-function createFuzzy(src: ValueDynamic | ValueVariable, fields: Record<FieldID, FieldDefinitionJson>) {
+function createFuzzy(src: ValueDynamic | ValueVariable, fields: FieldsAST) {
   if (typeof src.data === "string") {
-    const field = fields[src.data.split("/").at(-1) as FieldID]
+    const field = fields[src.data.split("/").at(-1) as keyof FieldsAST]
     console.log(field)
   }
 }

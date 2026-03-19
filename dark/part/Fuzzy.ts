@@ -1,14 +1,8 @@
-import { AbstractParticle, type AbstractParticleInit, type ParticleID } from "./Abstract.ts"
+import type { FuzzyInit } from "@dark/types/part"
 
-export type FuzzyID = ParticleID
-export type FuzzyInit = AbstractParticleInit & {
-  basis: string | string[]
-  expr?: string
-}
+import { BaseParticle } from "./part.ts"
 
-export class Fuzzy extends AbstractParticle {
-  readonly kind = "fuzzy" as const
-
+export class Fuzzy extends BaseParticle {
   basis: string | string[]
 
   expr: string | undefined
@@ -20,22 +14,6 @@ export class Fuzzy extends AbstractParticle {
       this.expr = expr
     }
   }
-
-  override toJSON(): {
-    id: FuzzyID
-    kind: "fuzzy"
-    children: string[]
-    basis: string | string[]
-    expr?: string
-  } {
-    const base = super.toJSON()
-
-    return {
-      id: base.id,
-      kind: "fuzzy",
-      children: base.children,
-      basis: this.basis,
-      ...(this.expr !== undefined ? { expr: this.expr } : {}),
-    }
-  }
 }
+
+export type { FuzzyID } from "@dark/types"

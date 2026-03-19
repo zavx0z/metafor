@@ -5,6 +5,8 @@ import type { ReactionsSchema } from "./reactions"
 import type { Superposition } from "./states"
 import type { ReactionsDeclaration } from "./reactions"
 
+export type SRC = string
+
 export type JsonPatch = {
   from?: string
   op: "add" | "remove" | "replace" | "move" | "test"

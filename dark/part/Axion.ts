@@ -1,16 +1,9 @@
-import { AbstractParticle, type AbstractParticleInit, type ParticleID } from "./Abstract.ts"
+import type { AxionInit } from "@dark/types/part"
 
-export type AxionID = ParticleID
-export type AxionInit = AbstractParticleInit & {
-  basis?: string | string[]
-  expr?: string
-}
+import { BaseParticle } from "./part.ts"
 
-export class Axion extends AbstractParticle {
-  readonly kind = "axion" as const
-
+export class Axion extends BaseParticle {
   basis: string | string[] | undefined
-
   expr: string | undefined
 
   constructor({ id, children = [], basis, expr }: AxionInit) {
@@ -22,22 +15,6 @@ export class Axion extends AbstractParticle {
       this.expr = expr
     }
   }
-
-  override toJSON(): {
-    id: AxionID
-    kind: "axion"
-    children: string[]
-    basis?: string | string[]
-    expr?: string
-  } {
-    const base = super.toJSON()
-
-    return {
-      id: base.id,
-      kind: "axion",
-      children: base.children,
-      ...(this.basis !== undefined ? { basis: this.basis } : {}),
-      ...(this.expr !== undefined ? { expr: this.expr } : {}),
-    }
-  }
 }
+
+export type { AxionID } from "@dark/types"

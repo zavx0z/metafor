@@ -10,6 +10,8 @@ export type {
   MetaJson,
   ViewJson,
   MetaAST,
+  FieldsAST,
   FieldDefinitionJson,
   ReactionDefinitionJson,
+  FieldKey,
 } from "./ast.t.ts"

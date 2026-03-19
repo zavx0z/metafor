@@ -1,22 +1,12 @@
-import type { Binding } from "@dark/types"
+import type { FieldsAST } from "@metafor/ast"
 import type { Mass } from "@metafor/dsl/types/metafor"
+import type { WimpInit } from "@dark/types/part"
 
-import { AbstractParticle, type AbstractParticleInit, type ParticleID } from "./Abstract.ts"
+import { BaseParticle } from "./part.ts"
 
-export type WimpID = ParticleID
-export type WimpInit = AbstractParticleInit & {
+export class Wimp extends BaseParticle {
   src: string
-  fields?: Binding<Record<string, unknown>>
-  mass?: Mass
-}
-
-export class Wimp extends AbstractParticle {
-  readonly kind = "wimp" as const
-
-  src: string
-
-  fields: Binding<Record<string, unknown>> | undefined
-
+  fields?: FieldsAST
   mass: Mass | undefined
 
   constructor({ id, children = [], src, fields, mass }: WimpInit) {
@@ -29,24 +19,6 @@ export class Wimp extends AbstractParticle {
       this.mass = mass
     }
   }
-
-  override toJSON(): {
-    id: WimpID
-    kind: "wimp"
-    children: string[]
-    src: string
-    fields?: Binding<Record<string, unknown>>
-    mass?: Mass
-  } {
-    const base = super.toJSON()
-
-    return {
-      id: base.id,
-      kind: "wimp",
-      children: base.children,
-      src: this.src,
-      ...(this.fields !== undefined ? { fields: this.fields } : {}),
-      ...(this.mass !== undefined ? { mass: this.mass } : {}),
-    }
-  }
 }
+
+export type { FieldID, WimpID } from "@dark/types"

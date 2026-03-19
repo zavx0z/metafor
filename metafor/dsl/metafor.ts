@@ -90,9 +90,18 @@ import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
 import { processesSchema, type ProcessesDeclaration, type ActionParams } from "./process"
 import { serializeStyle } from "./style"
 
-import type { MetaForConfig, MetaForFn, BulkDeclaration, GravityDeclaration, MetaDSL, Mass, Self } from "@metafor/dsl/types/metafor"
+import type {
+  MetaForConfig,
+  MetaForFn,
+  BulkDeclaration,
+  GravityDeclaration,
+  MetaDSL,
+  Mass,
+  Self,
+  SRC,
+} from "@metafor/dsl/types/metafor"
 
-export type { MetaForFn, MetaDSL, Self, Mass, Superposition, NodeMeta, NodeType, NodeLogical, ActionParams }
+export type { SRC, MetaForFn, MetaDSL, Self, Mass, Superposition, NodeMeta, NodeType, NodeLogical, ActionParams }
 
 export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc

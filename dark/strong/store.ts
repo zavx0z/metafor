@@ -1,5 +1,6 @@
-import type { FieldID, FieldKey, WimpID } from "@dark/types"
 import type { FieldDefinitionJson } from "@metafor/ast"
+import type { FieldKey } from "@metafor/ast"
+import type { FieldID, WimpID } from "@dark/types"
 
 export const strong$ = {
   fields: new Map<FieldKey, FieldDefinitionJson>(),

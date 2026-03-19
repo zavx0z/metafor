@@ -165,7 +165,7 @@ export interface ViewJson {
  */
 export interface MetaAST {
   name: string
-  fields: Record<FieldKey, FieldDefinitionJson>
+  fields: FieldsAST
   superposition: Record<string, Record<string, any> | null>
   processes?: Record<string, MetaJson>
   reactions?: {
@@ -177,6 +177,7 @@ export interface MetaAST {
   mass?: Mass
 }
 export type FieldKey = string
+export type FieldsAST = Record<FieldKey, FieldDefinitionJson>
 /**
  * Определение поля в формате JSON.
  * Содержит полную семантику для ИИ и валидации.

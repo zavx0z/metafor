@@ -1,23 +1,23 @@
 import type { MetaAST } from "@metafor/ast"
-import type { Address } from "@dark/types/dark"
+import type { SRC } from "@metafor/dsl"
 
 /**
- * Преобразует Address в путь к файлу для загрузки.
+ * Преобразует SRC в путь к файлу для загрузки.
  *
  * @param address — канонический адрес хаба
  * @returns путь к файлу для fetch в формате `/{address}/meta.json`
  */
-export function resolveMetaSource(address: Address): string {
+export function resolveMetaSource(address: SRC): string {
   return `/${address}/meta.json`
 }
 
 /**
- * Преобразует Address в путь к исходному .ts файлу.
+ * Преобразует SRC в путь к исходному .ts файлу.
  *
  * @param address — канонический адрес хаба
  * @returns путь к .ts файлу в формате `/{address}.ts`
  */
-export function resolveMetaTsPath(address: Address): string {
+export function resolveMetaTsPath(address: SRC): string {
   return `/${address}.ts`
 }
 
@@ -30,7 +30,7 @@ export function resolveMetaTsPath(address: Address): string {
  * @returns `ast`
  * @throws если не удалось загрузить meta
  */
-export async function loadMetaAST(address: Address): Promise<MetaAST> {
+export async function loadMetaAST(address: SRC): Promise<MetaAST> {
   const sourcePath = resolveMetaSource(address)
   try {
     const response = await fetch(sourcePath)

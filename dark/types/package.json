@@ -5,6 +5,7 @@
   "exports": {
     ".": "./shared.ts",
     "./shared": "./shared.ts",
+    "./part": "./part.ts",
     "./strong": "./strong.ts",
     "./weak": "./weak.ts",
     "./dark": "./dark.ts"
