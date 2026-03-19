@@ -15,9 +15,9 @@ beforeAll(async () => await hub.setup())
 afterAll(async () => await hub.teardown())
 
 const src = "zavx0z/git"
-describe("dark - корневой мета", () => {
-  let ast: MetaAST
+const ref = reference as MetaAST
 
+describe("dark - корневой мета", () => {
   beforeAll(() => {
     dark$.particles.clear()
     strong$.fields.clear()
@@ -25,10 +25,12 @@ describe("dark - корневой мета", () => {
     strong$.wimp.clear()
   })
 
-  describe("загрузка", () => {
-    test("загрузка мета ast", async () => {
+  describe("init", () => {
+    let ast: MetaAST
+
+    test("load", async () => {
       ast = (await loadMetaAST("zavx0z/git" as SRC)) as MetaAST
-      expect(ast).toEqual(reference as MetaAST)
+      expect(ast).toEqual(ref)
       expect(ast).toEqual({
         name: "git",
         fields: {
@@ -140,19 +142,45 @@ describe("dark - корневой мета", () => {
         mass: {},
       })
     })
+
     let wimp: Wimp
-    test("сохранение мета в хранилище", () => {
+
+    test("create wimp", () => {
       wimp = new Wimp({ src })
+
       dark$.particles.set(wimp.id, wimp)
-      if (ast.mass && Object.keys(ast.mass).length > 0) wimp.mass = ast.mass
+      if (ref.mass && Object.keys(ref.mass).length > 0) wimp.mass = ref.mass
 
       expect(dark$).toEqual({ particles: new Map([[wimp.id, wimp]]), parent: new Map() })
+    })
+
+    test("create dynamic particles", () => {
+      if (!ref.gravity) throw new Error("gravity is undefined")
+
+      for (const node of ref.gravity) {
+        switch (node.type) {
+          case "meta":
+            if (typeof node.src === "object") {
+              createFuzzy(node.src, ref.fields)
+            }
+            break
+          case "log":
+            console.log("log ", node)
+            break
+          case "map":
+            console.log("map ", node)
+            break
+          default:
+            console.log("!!!!! ", node.type)
+            break
+        }
+      }
     })
     test("сохранение полей в strong$", () => {
       const fieldIds = ["operation-id", "error-id", "command-id", "args-id"]
       const restore = installDeterministicIds(fieldIds)
       try {
-        for (const [key, value] of Object.entries(ast.fields)) strong$.push(wimp.id, key, value)
+        for (const [key, value] of Object.entries(ref.fields)) strong$.push(wimp.id, key, value)
 
         expect({ fields: strong$.fields, keys: strong$.keys, wimp: strong$.wimp }).toEqual({
           fields: new Map([
@@ -189,27 +217,6 @@ describe("dark - корневой мета", () => {
         })
       } finally {
         restore()
-      }
-    })
-    test("Обход gravity", () => {
-      if (!ast.gravity) return
-      for (const node of ast.gravity) {
-        switch (node.type) {
-          case "meta":
-            if (typeof node.src === "object") {
-              createFuzzy(node.src, ast.fields)
-            }
-            break
-          case "log":
-            console.log("log ", node)
-            break
-          case "map":
-            console.log("map ", node)
-            break
-          default:
-            console.log("!!!!! ", node.type)
-            break
-        }
       }
     })
   })
