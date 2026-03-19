@@ -1,9 +1,8 @@
-import type { MetaAST, FieldsAST } from "@metafor/ast"
+import type { FieldsAST } from "@metafor/ast"
 import type { NodeMeta, NodeType } from "@metafor/dsl"
 import type { DarkParticle } from "@dark/types"
 import { Axion, Fuzzy, Macho, Wimp } from "@dark/part"
 
-import { dark$ } from "../store.ts"
 
 export interface ParticleBuild {
   particle: DarkParticle
@@ -152,23 +151,4 @@ export function* particleGenerator(
   }
 }
 
-const storeParticle = (particle: DarkParticle, parent?: DarkParticle): void => {
-  dark$.particles.set(particle.id, particle)
 
-  if (parent) {
-    dark$.parent.set(particle, parent)
-    parent.children.add(particle.id)
-  }
-
-  if (particle instanceof Wimp) dark$.meta.set(particle.id, particle.src)
-}
-
-export const matterPipeline = (root: Wimp, ast: Pick<MetaAST, "matter" | "fields">): void => {
-  storeParticle(root)
-
-  if (!ast.matter) return
-
-  for (const layer of particleGenerator(root, ast.matter, ast.fields)) {
-    for (const build of layer) storeParticle(build.particle, build.parent)
-  }
-}

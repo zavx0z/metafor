@@ -1,1 +1,1 @@
-export { matterPipeline, particleGenerator } from "./gravity.ts"
+export { particleGenerator } from "./gravity.ts"

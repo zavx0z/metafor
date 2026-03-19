@@ -7,7 +7,7 @@ import type { MetaAST } from "@metafor/ast"
 
 import { Axion, Fuzzy, Wimp } from "@dark/part"
 import { strong$ } from "@dark/strong"
-import { matterPipeline, particleGenerator } from "@dark/gravity"
+import { particleGenerator } from "@dark/gravity"
 import { loadMetaAST } from "../dark/load"
 import { dark$ } from "./store"
 import type { ParticleBuild } from "@dark/gravity/gravity"
@@ -198,8 +198,12 @@ describe("init", () => {
   test("генерация второго уровня", () => {
     const secondLevel = generator.next()
     const secondLevelWimps = secondLevel.value?.filter((build: ParticleBuild) => build.particle instanceof Wimp) ?? []
-    const fuzzyWimp = secondLevelWimps.find((build: ParticleBuild) => build.parent === fuzzy)?.particle as Wimp | undefined
-    const childWimp = secondLevelWimps.find((build: ParticleBuild) => build.parent === axion)?.particle as Wimp | undefined
+    const fuzzyWimp = secondLevelWimps.find((build: ParticleBuild) => build.parent === fuzzy)?.particle as
+      | Wimp
+      | undefined
+    const childWimp = secondLevelWimps.find((build: ParticleBuild) => build.parent === axion)?.particle as
+      | Wimp
+      | undefined
 
     expect(secondLevel.done, "второй слой не должен завершать generator").toBe(false)
     expect(secondLevel.value, "второй слой должен раскрывать continuation Fuzzy и child ветку Axion").toEqual([
@@ -207,7 +211,9 @@ describe("init", () => {
       { particle: expect.any(Wimp), parent: axion!, meta: {} },
     ])
     expect(fuzzyWimp, "на втором уровне должен материализоваться continuation Wimp для Fuzzy").toBeDefined()
-    expect(fuzzyWimp?.src, "continuation Wimp должен хранить раскрытый src из dynamic meta").toBe("zavx0z/git-${operation}")
+    expect(fuzzyWimp?.src, "continuation Wimp должен хранить раскрытый src из dynamic meta").toBe(
+      "zavx0z/git-${operation}",
+    )
     expect(childWimp, "на втором уровне должен материализоваться дочерний Wimp для Axion").toBeDefined()
     expect(childWimp?.src, "дочерний Wimp должен сохранять статический src из child meta").toBe("zavx0z/git-error")
   })
@@ -217,43 +223,7 @@ describe("init", () => {
     expect(end.done, "generator должен завершиться после второго уровня").toBe(true)
     expect(end.value, "после завершения generator не должен возвращать следующий слой").toBeUndefined()
   })
-  test("matter pipeline сохраняет стабильное состояние графа для одного meta", () => {
-    dark$.meta.clear()
-    dark$.particles.clear()
-    dark$.parent = new WeakMap()
 
-    matterPipeline(wimp, ast)
-
-    const particles = Array.from(dark$.particles.values())
-    const fuzzy = particles.find((particle): particle is Fuzzy => particle instanceof Fuzzy)
-    const axion = particles.find((particle): particle is Axion => particle instanceof Axion)
-    const branchWimps = particles.filter((particle): particle is Wimp => particle instanceof Wimp && particle !== wimp)
-    const fuzzyWimp = branchWimps.find((particle) => dark$.parent.get(particle) === fuzzy)
-    const childWimp = branchWimps.find((particle) => dark$.parent.get(particle) === axion)
-
-    expect(fuzzy, "matterPipeline должен сохранить Fuzzy в store").toBeDefined()
-    expect(axion, "matterPipeline должен сохранить Axion в store").toBeDefined()
-    expect(fuzzyWimp, "matterPipeline должен сохранить continuation Wimp для Fuzzy").toBeDefined()
-    expect(childWimp, "matterPipeline должен сохранить дочерний Wimp в store").toBeDefined()
-
-    expect(dark$.particles.size, "store должен содержать root и четыре materialized particle").toBe(5)
-    expect(wimp.children, "root wimp должен ссылаться на Fuzzy и Axion").toEqual(new Set([fuzzy!.id, axion!.id]))
-    expect(fuzzy!.children, "Fuzzy должен ссылаться на continuation Wimp").toEqual(new Set([fuzzyWimp!.id]))
-    expect(axion!.children, "Axion должен ссылаться на дочерний Wimp").toEqual(new Set([childWimp!.id]))
-
-    expect(dark$.meta, "meta lookup должен содержать root и оба Wimp второго уровня").toEqual(
-      new Map([
-        [wimp.id, src],
-        [fuzzyWimp!.id, "zavx0z/git-${operation}"],
-        [childWimp!.id, "zavx0z/git-error"],
-      ]),
-    )
-
-    expect(dark$.parent.get(fuzzy!), "parent Fuzzy должен быть root wimp").toBe(wimp)
-    expect(dark$.parent.get(axion!), "parent Axion должен быть root wimp").toBe(wimp)
-    expect(dark$.parent.get(fuzzyWimp!), "parent continuation Wimp должен быть Fuzzy").toBe(fuzzy)
-    expect(dark$.parent.get(childWimp!), "parent дочернего Wimp должен быть Axion").toBe(axion)
-  })
   test("сохранение полей в strong$", () => {
     const fieldIds = ["operation-id", "error-id", "command-id", "args-id"]
     const restore = installDeterministicIds(fieldIds)
