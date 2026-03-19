@@ -45,15 +45,22 @@ const toParticleBuild = (node: NodeType, fields?: FieldsAST): ParticleBuild | un
   }
 }
 
-export function* particleGenerator(nodes: Iterable<NodeType>, fields?: FieldsAST): Generator<ParticleBuild> {
-  const queue = Array.from(nodes)
+export function* particleGenerator(nodes: Iterable<NodeType>, fields?: FieldsAST): Generator<ParticleBuild[]> {
+  let level = Array.from(nodes)
 
-  while (queue.length > 0) {
-    const node = queue.shift()!
-    const build = toParticleBuild(node, fields)
+  while (level.length > 0) {
+    const nextLevel: NodeType[] = []
+    const builds: ParticleBuild[] = []
 
-    if (build) yield build
+    for (const node of level) {
+      const build = toParticleBuild(node, fields)
+      if (build) builds.push(build)
 
-    if ("child" in node && Array.isArray(node.child)) queue.push(...node.child)
+      if ("child" in node && Array.isArray(node.child)) nextLevel.push(...node.child)
+    }
+
+    if (builds.length > 0) yield builds
+
+    level = nextLevel
   }
 }

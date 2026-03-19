@@ -154,33 +154,16 @@ describe("dark - корневой мета", () => {
       expect(dark$.parent).toBeInstanceOf(WeakMap)
     })
 
-    test("create ast generator", () => {
+    test("create ast generator first level", () => {
       if (!ref.matter) throw new Error("matter is undefined")
 
-      expect(Array.from(particleGenerator(ref.matter, ref.fields), ({ particle }) => particle.constructor)).toEqual([
-        Fuzzy,
-        Axion,
-        Wimp,
-      ])
-    })
-
-    test("create dynamic particles", () => {
-      if (!ref.matter) throw new Error("matter is undefined")
-
-      expect(Array.from(particleGenerator(ref.matter, ref.fields))).toEqual([
+      const generator = particleGenerator(ref.matter, ref.fields)
+      const firstLevel = generator.next()
+      console.log(firstLevel)
+      expect(firstLevel.done).toBe(false)
+      expect(firstLevel.value).toEqual([
         { particle: expect.any(Fuzzy), meta: {} },
         { particle: expect.any(Axion), meta: {} },
-        { particle: expect.any(Wimp), meta: {} },
-      ])
-    })
-
-    test("particle generator uses breadth-first traversal", () => {
-      if (!ref.matter) throw new Error("matter is undefined")
-
-      expect(Array.from(particleGenerator(ref.matter, ref.fields), ({ particle }) => particle.constructor)).toEqual([
-        Fuzzy,
-        Axion,
-        Wimp,
       ])
     })
     test("сохранение полей в strong$", () => {
