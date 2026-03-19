@@ -4,7 +4,9 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "@dark/part": "workspace:*",
     "@dark/types": "workspace:*",
-    "@dark/strong": "workspace:*"
+    "@metafor/ast": "workspace:*",
+    "@metafor/dsl": "workspace:*"
   }
 }

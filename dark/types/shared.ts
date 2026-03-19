@@ -10,6 +10,7 @@ export type AxionID = ParticleID
 export type DarkParticle = Wimp | Axion | Fuzzy | Macho
 
 export interface DarkStore {
+  meta: Map<WimpID, string>
   particles: Map<ParticleID, DarkParticle>
   parent: WeakMap<DarkParticle, DarkParticle>
 }
