@@ -7,9 +7,10 @@ import type { MetaAST } from "@metafor/ast"
 
 import { Axion, Fuzzy, Wimp } from "@dark/part"
 import { strong$ } from "@dark/strong"
-import { matterPipeline, particleGenerator } from "@dark/gravity"
+import { matterPipeline, particleGenerator} from "@dark/gravity"
 import { loadMetaAST } from "../dark/load"
 import { dark$ } from "./store"
+import type { ParticleBuild } from "@dark/gravity/gravity"
 
 const hub = new HubFixture("./github/")
 beforeAll(async () => await hub.setup())
@@ -115,6 +116,7 @@ describe("init", () => {
         },
       },
     })
+    expect(ast.mass, "mass должен быть пустым объектом").toEqual({})
     expect(ast.matter, "matter должен совпадать с fixture").toEqual([
       {
         src: {
@@ -145,7 +147,6 @@ describe("init", () => {
         ],
       },
     ])
-    expect(ast.mass, "mass должен быть пустым объектом").toEqual({})
   })
   let wimp: Wimp
   test("создание wimp", () => {
@@ -182,20 +183,20 @@ describe("init", () => {
   let axion: Axion | undefined
   test("генерация первого уровня", () => {
     const firstLevel = generator.next()
-    const fuzzy = firstLevel.value?.find((build) => build.particle instanceof Fuzzy)?.particle
+    const fuzzy = firstLevel.value?.find((build: ParticleBuild) => build.particle instanceof Fuzzy)?.particle
 
     expect(firstLevel.done, "первый слой не должен завершать generator").toBe(false)
     expect(firstLevel.value, "первый слой должен содержать Fuzzy и Axion с root wimp как parent").toEqual([
       { particle: expect.any(Fuzzy), parent: wimp, meta: {} },
       { particle: expect.any(Axion), parent: wimp, meta: {} },
     ])
-    axion = firstLevel.value?.find((build) => build.particle instanceof Axion)?.particle
+    axion = firstLevel.value?.find((build: ParticleBuild) => build.particle instanceof Axion)?.particle
     expect(fuzzy, "на первом уровне должен материализоваться Fuzzy").toBeDefined()
     expect(axion, "на первом уровне должен материализоваться Axion").toBeDefined()
   })
   test("генерация второго уровня", () => {
     const secondLevel = generator.next()
-    const childWimp = secondLevel.value?.find((build) => build.particle instanceof Wimp)?.particle
+    const childWimp = secondLevel.value?.find((build: ParticleBuild) => build.particle instanceof Wimp)?.particle
 
     expect(secondLevel.done, "второй слой не должен завершать generator").toBe(false)
     expect(secondLevel.value, "второй слой должен содержать дочерний Wimp с Axion как parent").toEqual([

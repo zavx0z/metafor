@@ -51,7 +51,7 @@ const createParticleBuild = (node: NodeType, parent: DarkParticle, fields?: Fiel
       return {
         particle: new Fuzzy({
           basis: node.src.data,
-          ...(node.src.expr !== undefined ? { expr: node.src.expr } : {}),
+          ...("expr" in node.src ? { expr: node.src.expr } : {}),
         }),
         parent,
         meta: {},
@@ -60,7 +60,7 @@ const createParticleBuild = (node: NodeType, parent: DarkParticle, fields?: Fiel
       return {
         particle: new Fuzzy({
           basis: node.data,
-          ...(node.expr !== undefined ? { expr: node.expr } : {}),
+          ...("expr" in node && node.expr !== undefined ? { expr: node.expr } : {}),
         }),
         parent,
         meta: {},
@@ -69,7 +69,7 @@ const createParticleBuild = (node: NodeType, parent: DarkParticle, fields?: Fiel
       return {
         particle: new Axion({
           basis: node.data,
-          ...(node.expr !== undefined ? { expr: node.expr } : {}),
+          ...("expr" in node && node.expr !== undefined ? { expr: node.expr } : {}),
         }),
         parent,
         meta: {},
