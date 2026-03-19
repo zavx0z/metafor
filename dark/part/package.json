@@ -1,0 +1,6 @@
+{
+  "name": "@dark/part",
+  "module": "index.ts",
+  "type": "module",
+  "private": true
+}
