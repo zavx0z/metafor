@@ -6,8 +6,8 @@ export abstract class BaseParticle {
 
   readonly children: Set<ParticleID>
 
-  protected constructor({ id, children = [] }: BaseParticleInit) {
-    this.id = id
+  protected constructor({ children = [] }: BaseParticleInit) {
+    this.id = crypto.randomUUID()
     this.children = new Set(children)
   }
 

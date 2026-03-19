@@ -9,8 +9,8 @@ export class Wimp extends BaseParticle {
   fields?: FieldsAST
   mass: Mass | undefined
 
-  constructor({ id, children = [], src, fields, mass }: WimpInit) {
-    super({ id, children })
+  constructor({ children = [], src, fields, mass }: WimpInit) {
+    super({ children })
     this.src = src
     if (fields !== undefined) {
       this.fields = fields

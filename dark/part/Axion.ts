@@ -6,8 +6,8 @@ export class Axion extends BaseParticle {
   basis: string | string[] | undefined
   expr: string | undefined
 
-  constructor({ id, children = [], basis, expr }: AxionInit) {
-    super({ id, children })
+  constructor({ children = [], basis, expr }: AxionInit) {
+    super({ children })
     if (basis !== undefined) {
       this.basis = basis
     }

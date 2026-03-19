@@ -15,17 +15,15 @@ beforeAll(async () => await hub.setup())
 afterAll(async () => await hub.teardown())
 
 const dark$: DarkStore = {
-  meta: new Map(),
   particles: new Map(),
   parent: new Map(),
 }
 
-const address = "zavx0z/git"
+const src = "zavx0z/git"
 describe("dark - корневой мета", () => {
   let ast: MetaAST
 
-  beforeEach(() => {
-    dark$.meta.clear()
+  beforeAll(() => {
     dark$.particles.clear()
     dark$.parent.clear()
     strong$.fields.clear()
@@ -148,18 +146,23 @@ describe("dark - корневой мета", () => {
         mass: {},
       })
     })
-    let wimpId: WimpID
-    test("сохранение связи wimp/meta", () => {
-      wimpId = crypto.randomUUID()
-      dark$.meta.set(address, wimpId)
-      expect(dark$.meta).toEqual(new Map([[address, wimpId]]))
+    let wimp: Wimp
+    test("сохранение мета в хранилище", () => {
+      wimp = new Wimp({ src })
+      dark$.particles.set(wimp.id, wimp)
+      
+      if (ast.mass && Object.keys(ast.mass).length > 0) wimp.mass = ast.mass
+      expect(dark$).toEqual({
+        particles: new Map([[wimp.id, wimp]]),
+        parent: new Map(),
+      })
     })
     test("сохранение полей в strong$", () => {
       const fieldIds = ["operation-id", "error-id", "command-id", "args-id"]
       const restore = installDeterministicIds(fieldIds)
       try {
         for (const [key, value] of Object.entries(ast.fields)) {
-          strong$.push(wimpId, key, value)
+          strong$.push(wimp.id, key, value)
         }
 
         expect({ fields: strong$.fields, keys: strong$.keys, wimp: strong$.wimp }).toEqual({
@@ -193,27 +196,11 @@ describe("dark - корневой мета", () => {
             ["command-id", "command"],
             ["args-id", "args"],
           ]),
-          wimp: new Map([[wimpId, new Set(fieldIds)]]),
+          wimp: new Map([[wimp.id, new Set(fieldIds)]]),
         })
       } finally {
         restore()
       }
-    })
-    test("сохранение мета в хранилище", () => {
-      const wimp = new Wimp({
-        id: wimpId,
-        src: address,
-        children: [],
-      })
-      if (ast.mass && Object.keys(ast.mass).length > 0) wimp.mass = ast.mass
-
-      dark$.meta.set(address, wimpId)
-      dark$.particles.set(wimp.id, wimp)
-      expect(dark$).toEqual({
-        meta: new Map([["zavx0z/git", wimpId]]),
-        particles: new Map([[wimpId, wimp]]),
-        parent: new Map(),
-      })
     })
     test("Обход gravity", () => {
       if (!ast.gravity) return

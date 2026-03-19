@@ -7,8 +7,8 @@ export class Fuzzy extends BaseParticle {
 
   expr: string | undefined
 
-  constructor({ id, children = [], basis, expr }: FuzzyInit) {
-    super({ id, children })
+  constructor({ children = [], basis, expr }: FuzzyInit) {
+    super({ children })
     this.basis = basis
     if (expr !== undefined) {
       this.expr = expr

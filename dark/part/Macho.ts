@@ -5,8 +5,8 @@ import { BaseParticle } from "./part.ts"
 export class Macho extends BaseParticle {
   basis: string
 
-  constructor({ id, children = [], basis }: MachoInit) {
-    super({ id, children })
+  constructor({ children = [], basis }: MachoInit) {
+    super({ children })
     this.basis = basis
   }
 }

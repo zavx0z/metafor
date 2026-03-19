@@ -1,5 +1,4 @@
 import type { Axion, Fuzzy, Macho, Wimp } from "../part"
-import type { SRC } from "@metafor/dsl"
 
 export type ParticleID = string
 export type FieldID = string
@@ -25,7 +24,6 @@ export type DarkParticle = Wimp | Axion | Fuzzy | Macho
  * @property meta — Привязка `Wimp`-частиц к конкретному `meta`-адресу.
  */
 export interface DarkStore {
-  meta: Map<WimpID, SRC>
   particles: Map<ParticleID, DarkParticle>
   parent: Map<ParticleID, ParticleID>
   // fields: Map<FieldID, DarkField>

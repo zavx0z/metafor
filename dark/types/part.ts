@@ -4,7 +4,6 @@ import type { Mass } from "@metafor/dsl/types/metafor"
 import type { ParticleID } from "./shared.ts"
 
 export interface BaseParticleInit {
-  id: ParticleID
   children?: Iterable<ParticleID>
 }
 
