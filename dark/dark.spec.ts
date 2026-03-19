@@ -211,6 +211,12 @@ describe("init", () => {
     expect(childWimp, "на втором уровне должен материализоваться дочерний Wimp для Axion").toBeDefined()
     expect(childWimp?.src, "дочерний Wimp должен сохранять статический src из child meta").toBe("zavx0z/git-error")
   })
+  test("завершение генератора", () => {
+    const end = generator.next()
+
+    expect(end.done, "generator должен завершиться после второго уровня").toBe(true)
+    expect(end.value, "после завершения generator не должен возвращать следующий слой").toBeUndefined()
+  })
   test("matter pipeline сохраняет стабильное состояние графа для одного meta", () => {
     dark$.meta.clear()
     dark$.particles.clear()
