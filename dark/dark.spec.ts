@@ -2,14 +2,13 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import reference from "../github/zavx0z/git/meta.json"
 import { HubFixture, installDeterministicIds } from "fixture"
 
-import type { ValueDynamic, ValueVariable, SRC, NodeType } from "@metafor/dsl"
-import type { FieldsAST, MetaAST } from "@metafor/ast"
+import type { SRC } from "@metafor/dsl"
+import type { MetaAST } from "@metafor/ast"
 
 import { Wimp } from "@dark/part"
-import { strong$ } from "@dark/strong"
+import { strong$, particleGenerator } from "@dark/strong"
 import { loadMetaAST } from "../dark/load"
 import { dark$ } from "./store"
-import type { DarkParticle } from "@dark/types"
 
 const hub = new HubFixture("./github/")
 beforeAll(async () => await hub.setup())
@@ -32,116 +31,115 @@ describe("dark - корневой мета", () => {
     test("load", async () => {
       ast = (await loadMetaAST("zavx0z/git" as SRC)) as MetaAST
       expect(ast).toEqual(ref)
-      expect(ast).toEqual({
-        name: "git",
-        fields: {
-          operation: {
-            type: "enum<string>",
-            label: "Тип операции",
-            values: [
-              "start",
-              "work",
-              "examine",
-              "history",
-              "collaborate",
-              "worktree",
-              "stash",
-              "submodule",
-              "config",
-              "plumbing",
-            ],
-          },
-          error: {
-            type: "string",
-            label: "Ошибка",
-          },
-          command: {
-            type: "string",
-            label: "Команда",
-          },
-          args: {
-            type: "string",
-            label: "Аргументы",
+      expect(Object.keys(ast).sort()).toEqual(["fields", "gravity", "mass", "name", "processes", "superposition"])
+      expect(ast.name).toBe("git")
+      expect(ast.fields).toEqual({
+        operation: {
+          type: "enum<string>",
+          label: "Тип операции",
+          values: [
+            "start",
+            "work",
+            "examine",
+            "history",
+            "collaborate",
+            "worktree",
+            "stash",
+            "submodule",
+            "config",
+            "plumbing",
+          ],
+        },
+        error: {
+          type: "string",
+          label: "Ошибка",
+        },
+        command: {
+          type: "string",
+          label: "Команда",
+        },
+        args: {
+          type: "string",
+          label: "Аргументы",
+        },
+      })
+      expect(ast.superposition).toEqual({
+        "получение команды": {
+          "определение операции": {
+            command: {
+              null: false,
+            },
           },
         },
-        superposition: {
-          "получение команды": {
-            "определение операции": {
-              command: {
-                null: false,
-              },
-            },
-          },
-          "определение операции": {
-            выполнение: {
-              operation: {
-                null: false,
-              },
-            },
-            ошибка: {
-              error: {
-                null: false,
-              },
-            },
-          },
+        "определение операции": {
           выполнение: {
-            "получение команды": {
-              operation: null,
+            operation: {
+              null: false,
             },
           },
           ошибка: {
-            "получение команды": {
-              error: null,
-            },
-          },
-        },
-        processes: {
-          "определение операции": {
-            type: "action",
-            action: {
-              read: ["command"],
-            },
-            success: {
-              src: '({ update, data }) => update(data, "s")',
-            },
             error: {
-              src: '({ update, error }) => update({ error: error.message }, "e")',
-              write: ["error"],
+              null: false,
             },
           },
         },
-        gravity: [
-          {
-            src: {
-              data: "/value/operation",
-              expr: "zavx0z/git-${_[0]}",
-            },
-            tag: "meta-for",
-            type: "meta",
-            fields: {
-              data: ["/value/operation", "/value/args"],
-              expr: "{ operation: _[0], args: _[1] }",
-            },
+        выполнение: {
+          "получение команды": {
+            operation: null,
           },
-          {
-            type: "log",
-            data: "/state",
-            expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
-            child: [
-              {
-                src: "zavx0z/git-error",
-                tag: "meta-for",
-                type: "meta",
-                fields: {
-                  data: "/value/error",
-                  expr: "{ message: _[0] }",
-                },
-              },
-            ],
+        },
+        ошибка: {
+          "получение команды": {
+            error: null,
           },
-        ],
-        mass: {},
+        },
       })
+      expect(ast.processes).toEqual({
+        "определение операции": {
+          type: "action",
+          action: {
+            read: ["command"],
+          },
+          success: {
+            src: '({ update, data }) => update(data, "s")',
+          },
+          error: {
+            src: '({ update, error }) => update({ error: error.message }, "e")',
+            write: ["error"],
+          },
+        },
+      })
+      expect(ast.gravity).toEqual([
+        {
+          src: {
+            data: "/value/operation",
+            expr: "zavx0z/git-${_[0]}",
+          },
+          tag: "meta-for",
+          type: "meta",
+          fields: {
+            data: ["/value/operation", "/value/args"],
+            expr: "{ operation: _[0], args: _[1] }",
+          },
+        },
+        {
+          type: "log",
+          data: "/state",
+          expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
+          child: [
+            {
+              src: "zavx0z/git-error",
+              tag: "meta-for",
+              type: "meta",
+              fields: {
+                data: "/value/error",
+                expr: "{ message: _[0] }",
+              },
+            },
+          ],
+        },
+      ])
+      expect(ast.mass).toEqual({})
     })
 
     let wimp: Wimp
@@ -152,17 +150,20 @@ describe("dark - корневой мета", () => {
       dark$.particles.set(wimp.id, wimp)
       if (ref.mass && Object.keys(ref.mass).length > 0) wimp.mass = ref.mass
 
-      expect(dark$).toEqual({ particles: new Map([[wimp.id, wimp]]), parent: new Map() })
+      expect(dark$.particles).toEqual(new Map([[wimp.id, wimp]]))
+      expect(dark$.parent).toBeInstanceOf(WeakMap)
     })
 
-    let particleGenerator: { next(): DarkParticle }
+    test("create ast generator", () => {
+      if (!ref.gravity) throw new Error("gravity is undefined")
 
-    test("create particle generator", () => {})
+      expect(Array.from(particleGenerator(ref.gravity), ({ type }) => type)).toEqual(["meta", "log", "meta"])
+    })
 
     test("create dynamic particles", () => {
       if (!ref.gravity) throw new Error("gravity is undefined")
 
-      for (const node of ref.gravity) {
+      for (const node of particleGenerator(ref.gravity)) {
         switch (node.type) {
           case "meta":
             if (typeof node.src === "object") {
@@ -226,9 +227,3 @@ describe("dark - корневой мета", () => {
     })
   })
 })
-// function createFuzzy(src: ValueDynamic | ValueVariable, fields: FieldsAST) {
-//   if (typeof src.data === "string") {
-//     const field = fields[src.data.split("/").at(-1) as keyof FieldsAST]
-//     console.log(field)
-//   }
-// }
