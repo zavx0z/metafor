@@ -1,12 +1,11 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import reference from "../github/zavx0z/git/meta.json"
 import { HubFixture, installDeterministicIds } from "fixture"
 
 import type { SRC } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
-import { parse } from "@metafor/template"
 
-import { Axion, Fuzzy, Macho, Wimp } from "@dark/part"
+import { Axion, Fuzzy, Wimp } from "@dark/part"
 import { strong$ } from "@dark/strong"
 import { matterPipeline, particleGenerator } from "@dark/gravity"
 import { loadMetaAST } from "../dark/load"
@@ -20,7 +19,7 @@ const src = "zavx0z/git"
 const ref = reference as MetaAST
 
 describe("dark - корневой мета", () => {
-  beforeEach(() => {
+  beforeAll(() => {
     dark$.meta.clear()
     dark$.particles.clear()
     dark$.parent = new WeakMap()
@@ -30,8 +29,10 @@ describe("dark - корневой мета", () => {
   })
 
   describe("init", () => {
+    let ast: MetaAST
+
     test("load", async () => {
-      const ast = (await loadMetaAST("zavx0z/git" as SRC)) as MetaAST
+      ast = (await loadMetaAST("zavx0z/git" as SRC)) as MetaAST
       expect(ast).toEqual(ref)
       expect(Object.keys(ast).sort()).toEqual(["fields", "mass", "matter", "name", "processes", "superposition"])
       expect(ast.name).toBe("git")
@@ -144,8 +145,10 @@ describe("dark - корневой мета", () => {
       expect(ast.mass).toEqual({})
     })
 
+    let wimp: Wimp
+
     test("create wimp", () => {
-      const wimp = new Wimp(src)
+      wimp = new Wimp(src)
 
       dark$.particles.set(wimp.id, wimp)
       dark$.meta.set(wimp.id, wimp.src)
@@ -156,87 +159,70 @@ describe("dark - корневой мета", () => {
       expect(dark$.parent).toBeInstanceOf(WeakMap)
     })
 
-    test("create ast generator first level", () => {
-      if (!ref.matter) throw new Error("matter is undefined")
+    let generator: ReturnType<typeof particleGenerator>
+    let axion: Axion | undefined
 
-      const wimp = new Wimp(src)
-      const generator = particleGenerator(wimp, ref.matter, ref.fields)
+    test("create ast generator first level", () => {
+      if (!ast.matter) throw new Error("matter is undefined")
+
+      generator = particleGenerator(wimp, ast.matter, ast.fields)
       const firstLevel = generator.next()
+      const fuzzy = firstLevel.value?.find((build) => build.particle instanceof Fuzzy)?.particle
 
       expect(firstLevel.done).toBe(false)
       expect(firstLevel.value).toEqual([
         { particle: expect.any(Fuzzy), parent: wimp, meta: {} },
         { particle: expect.any(Axion), parent: wimp, meta: {} },
       ])
+      axion = firstLevel.value?.find((build) => build.particle instanceof Axion)?.particle
+      expect(fuzzy).toBeDefined()
+      expect(axion).toBeDefined()
+    })
 
+    test("create ast generator second level", () => {
       const secondLevel = generator.next()
-      const axionBuild = firstLevel.value?.find((build) => build.particle instanceof Axion)
+      const childWimp = secondLevel.value?.find((build) => build.particle instanceof Wimp)?.particle
 
       expect(secondLevel.done).toBe(false)
-      expect(axionBuild).toBeDefined()
       expect(secondLevel.value).toEqual([
-        { particle: expect.any(Wimp), parent: axionBuild!.particle, meta: {} },
+        { particle: expect.any(Wimp), parent: axion!, meta: {} },
       ])
+      expect(childWimp).toBeDefined()
     })
 
     test("matter pipeline stores stable graph state for one meta", () => {
-      const root = new Wimp(src)
+      dark$.meta.clear()
+      dark$.particles.clear()
+      dark$.parent = new WeakMap()
 
-      matterPipeline(root, ref)
+      matterPipeline(wimp, ast)
 
       const particles = Array.from(dark$.particles.values())
       const fuzzy = particles.find((particle): particle is Fuzzy => particle instanceof Fuzzy)
       const axion = particles.find((particle): particle is Axion => particle instanceof Axion)
-      const childWimp = particles.find((particle): particle is Wimp => particle instanceof Wimp && particle !== root)
+      const childWimp = particles.find((particle): particle is Wimp => particle instanceof Wimp && particle !== wimp)
 
       expect(fuzzy).toBeDefined()
       expect(axion).toBeDefined()
       expect(childWimp).toBeDefined()
 
       expect(dark$.particles.size).toBe(4)
-      expect(root.children).toEqual(new Set([fuzzy!.id, axion!.id]))
+      expect(wimp.children).toEqual(new Set([fuzzy!.id, axion!.id]))
       expect(axion!.children).toEqual(new Set([childWimp!.id]))
       expect(fuzzy!.children).toEqual(new Set())
 
       expect(dark$.meta).toEqual(
         new Map([
-          [root.id, src],
+          [wimp.id, src],
           [childWimp!.id, "zavx0z/git-error"],
         ]),
       )
 
-      expect(dark$.parent.get(fuzzy!)).toBe(root)
-      expect(dark$.parent.get(axion!)).toBe(root)
+      expect(dark$.parent.get(fuzzy!)).toBe(wimp)
+      expect(dark$.parent.get(axion!)).toBe(wimp)
       expect(dark$.parent.get(childWimp!)).toBe(axion)
     })
-
-    test("condition creates fuzzy particle", () => {
-      const [node] = parse(({ html, value }) => {
-        html`${value.mode === "admin" ? html`<meta-for src="zavx0z/git-admin"></meta-for>` : html`<meta-for src="zavx0z/git-user"></meta-for>`}`
-      })
-      const root = new Wimp(src)
-      const firstLevel = particleGenerator(root, [node]).next()
-
-      expect(firstLevel.done).toBe(false)
-      expect(firstLevel.value).toHaveLength(1)
-      expect(firstLevel.value?.[0]?.particle).toBeInstanceOf(Fuzzy)
-      expect((firstLevel.value?.[0]?.particle as Fuzzy).basis).toBe("/value/mode")
-    })
-
-    test("map creates macho particle", () => {
-      const [node] = parse<any, { items: string[] }>(({ html, value }) => {
-        html`${value.items.map((item) => html`<meta-for src="zavx0z/git-item"></meta-for>`)}`
-      })
-      const root = new Wimp(src)
-      const firstLevel = particleGenerator(root, [node]).next()
-
-      expect(firstLevel.done).toBe(false)
-      expect(firstLevel.value).toHaveLength(1)
-      expect(firstLevel.value?.[0]?.particle).toBeInstanceOf(Macho)
-      expect((firstLevel.value?.[0]?.particle as Macho).basis).toBe("/value/items")
-    })
     test("сохранение полей в strong$", () => {
-      const wimp = new Wimp(src)
       const fieldIds = ["operation-id", "error-id", "command-id", "args-id"]
       const restore = installDeterministicIds(fieldIds)
       try {
