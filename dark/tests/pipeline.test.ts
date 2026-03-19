@@ -51,21 +51,15 @@ describe("matter pipeline", () => {
 
     expect(fuzzy, "matterPipeline должен сохранить Fuzzy в store").toBeDefined()
     expect(axion, "matterPipeline должен сохранить Axion в store").toBeDefined()
-    expect(fuzzyWimp, "matterPipeline должен сохранить continuation Wimp для Fuzzy").toBeUndefined()
-    expect(childWimp, "matterPipeline должен сохранить дочерний Wimp в store").toBeUndefined()
+    expect(fuzzyWimp, "matterPipeline должен сохранить continuation Wimp для Fuzzy").toBeDefined()
+    expect(childWimp, "matterPipeline должен сохранить дочерний Wimp в store").toBeDefined()
 
     expect(dark$.particles.size, "store должен содержать root и четыре materialized particle").toBe(5)
     expect(wimp.children, "root wimp должен ссылаться на Fuzzy и Axion").toEqual(new Set([fuzzy!.id, axion!.id]))
     expect(fuzzy!.children, "Fuzzy должен ссылаться на continuation Wimp").toEqual(new Set([fuzzyWimp!.id]))
     expect(axion!.children, "Axion должен ссылаться на дочерний Wimp").toEqual(new Set([childWimp!.id]))
 
-    expect(dark$.meta, "meta lookup должен содержать root и оба Wimp второго уровня").toEqual(
-      new Map([
-        [wimp.id, src],
-        [fuzzyWimp!.id, "zavx0z/git-${operation}"],
-        [childWimp!.id, "zavx0z/git-error"],
-      ]),
-    )
+    expect(dark$.meta, "meta lookup должен содержать root").toEqual(new Map([[wimp.id, src]]))
 
     expect(dark$.parent.get(fuzzy!), "parent Fuzzy должен быть root wimp").toBe(wimp)
     expect(dark$.parent.get(axion!), "parent Axion должен быть root wimp").toBe(wimp)

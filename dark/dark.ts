@@ -18,7 +18,7 @@ export const matterPipeline = (wimp: Wimp, ast: Pick<MetaAST, "matter" | "fields
       if (particle instanceof Wimp) {
         wimps.push(particle)
       }
-      dark$.particles.set(particle.id, parent)
+      dark$.particles.set(particle.id, particle)
       dark$.parent.set(particle, parent)
     }
   }
