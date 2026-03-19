@@ -1,8 +1,6 @@
-import type { DarkParticle, DarkStore, ParticleID, WimpID } from "@dark/types"
-import type { Address } from "@dark/types/dark"
+import type { DarkParticle, DarkStore, ParticleID } from "@dark/types"
 
 export const dark$: DarkStore = {
-  meta: new Map<WimpID, Address>(),
   particles: new Map<ParticleID, DarkParticle>(),
-  parent: new Map<ParticleID, ParticleID>(),
+  parent: new WeakMap<DarkParticle, DarkParticle>(),
 }

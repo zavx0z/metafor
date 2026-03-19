@@ -5,7 +5,7 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import {write, update} from "../boundary"
 import { GPU, weak$ } from "../weak"
-import { setupDevice } from "fixture/bunWebGPU"
+import { setupDevice } from "fixture"
 import { FieldType } from "../gravity"
 
 // ============================================================================

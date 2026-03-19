@@ -2,7 +2,7 @@
  * Тесты для типа STRING.
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
-import { setupDevice } from "fixture/bunWebGPU"
+import { setupDevice } from "fixture"
 import {write, update} from "../../boundary"
 import { GPU, weak$ } from "../../weak"
 import { FieldType, type Collapse } from "../../gravity"

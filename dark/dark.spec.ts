@@ -1,23 +1,18 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import reference from "../github/zavx0z/git/meta.json"
+import { HubFixture, installDeterministicIds } from "fixture"
+
+import type { ValueDynamic, ValueVariable, SRC } from "@metafor/dsl"
 import type { FieldsAST, MetaAST } from "@metafor/ast"
 
-import reference from "../github/zavx0z/git/meta.json"
-import { HubFixture } from "fixture/hub"
-import { installDeterministicIds } from "fixture/id"
+import { Wimp } from "@dark/part"
+import { strong$ } from "@dark/strong"
 import { loadMetaAST } from "../dark/load"
-import type { ValueDynamic, ValueVariable, SRC } from "@metafor/dsl"
-import { strong$ } from "@dark/strong/store"
-import type { DarkStore, WimpID } from "@dark/types"
-import { Wimp } from "./part/Wimp"
+import { dark$ } from "./store"
 
 const hub = new HubFixture("./github/")
 beforeAll(async () => await hub.setup())
 afterAll(async () => await hub.teardown())
-
-const dark$: DarkStore = {
-  particles: new Map(),
-  parent: new Map(),
-}
 
 const src = "zavx0z/git"
 describe("dark - корневой мета", () => {
@@ -25,7 +20,6 @@ describe("dark - корневой мета", () => {
 
   beforeAll(() => {
     dark$.particles.clear()
-    dark$.parent.clear()
     strong$.fields.clear()
     strong$.keys.clear()
     strong$.wimp.clear()
