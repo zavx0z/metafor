@@ -1,6 +1,5 @@
 import type { FieldsAST } from "@metafor/ast"
-import type { Mass } from "@metafor/dsl/types/metafor"
-import type { WimpInit } from "@dark/types/part"
+import type { SRC, Mass } from "@metafor/dsl"
 
 import { BaseParticle } from "./part.ts"
 
@@ -9,15 +8,8 @@ export class Wimp extends BaseParticle {
   fields?: FieldsAST
   mass: Mass | undefined
 
-  constructor({ children = [], src, fields, mass }: WimpInit) {
-    super({ children })
+  constructor(src: SRC) {
+    super()
     this.src = src
-    if (fields !== undefined) {
-      this.fields = fields
-    }
-    if (mass !== undefined) {
-      this.mass = mass
-    }
   }
 }
-

@@ -2,13 +2,14 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import reference from "../github/zavx0z/git/meta.json"
 import { HubFixture, installDeterministicIds } from "fixture"
 
-import type { ValueDynamic, ValueVariable, SRC } from "@metafor/dsl"
+import type { ValueDynamic, ValueVariable, SRC, NodeType } from "@metafor/dsl"
 import type { FieldsAST, MetaAST } from "@metafor/ast"
 
 import { Wimp } from "@dark/part"
 import { strong$ } from "@dark/strong"
 import { loadMetaAST } from "../dark/load"
 import { dark$ } from "./store"
+import type { DarkParticle } from "@dark/types"
 
 const hub = new HubFixture("./github/")
 beforeAll(async () => await hub.setup())
@@ -146,13 +147,17 @@ describe("dark - корневой мета", () => {
     let wimp: Wimp
 
     test("create wimp", () => {
-      wimp = new Wimp({ src })
+      wimp = new Wimp(src)
 
       dark$.particles.set(wimp.id, wimp)
       if (ref.mass && Object.keys(ref.mass).length > 0) wimp.mass = ref.mass
 
       expect(dark$).toEqual({ particles: new Map([[wimp.id, wimp]]), parent: new Map() })
     })
+
+    let particleGenerator: { next(): DarkParticle }
+
+    test("create particle generator", () => {})
 
     test("create dynamic particles", () => {
       if (!ref.gravity) throw new Error("gravity is undefined")
@@ -161,7 +166,7 @@ describe("dark - корневой мета", () => {
         switch (node.type) {
           case "meta":
             if (typeof node.src === "object") {
-              createFuzzy(node.src, ref.fields)
+              console.log("meta ", node)
             }
             break
           case "log":
@@ -221,9 +226,9 @@ describe("dark - корневой мета", () => {
     })
   })
 })
-function createFuzzy(src: ValueDynamic | ValueVariable, fields: FieldsAST) {
-  if (typeof src.data === "string") {
-    const field = fields[src.data.split("/").at(-1) as keyof FieldsAST]
-    console.log(field)
-  }
-}
+// function createFuzzy(src: ValueDynamic | ValueVariable, fields: FieldsAST) {
+//   if (typeof src.data === "string") {
+//     const field = fields[src.data.split("/").at(-1) as keyof FieldsAST]
+//     console.log(field)
+//   }
+// }
