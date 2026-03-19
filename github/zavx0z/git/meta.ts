@@ -48,7 +48,7 @@ export default MetaFor("git", { desc: "Git — распределённая си
       .error(({ update, error }) => update({ error: error.message })),
   }))
   .reactions(() => [])
-  .gravity(
+  .matter(
     ({ value, state, html }) => html`
       <meta-for
         src="zavx0z/git-${value.operation}"

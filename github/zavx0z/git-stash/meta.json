@@ -15,7 +15,7 @@
   },
   "superposition": {},
   "processes": {},
-  "gravity": [
+  "matter": [
     {
       "type": "log",
       "data": "/value/operation",

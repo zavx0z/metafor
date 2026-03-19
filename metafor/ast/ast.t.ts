@@ -29,7 +29,7 @@ import type { Mass } from "@metafor/dsl/types"
  * @property superposition — Граф переходов состояний (суперпозиция).
  * @property processes — Процессы с обработчиками action/success/error.
  * @property reactions — Реакции на события других атомов.
- * @property gravity — Gravity-конфигурация компонента.
+ * @property matter — Matter-конфигурация компонента.
  * @property view — Bulk-view конфигурация.
  * @property mass — Масса для сложных данных и зависимостей от среды.
  */
@@ -38,7 +38,7 @@ export type MetaDSLLike = Record<string, any> & {
   superposition?: Record<string, any>
   processes?: Record<string, any>
   reactions?: ReactionsSchema | null
-  gravity?: NodeType[]
+  matter?: NodeType[]
   view?: string
   mass?: Record<string, any>
 }
@@ -107,7 +107,7 @@ export interface ViewJson {
  * - **superposition** — граф переходов состояний
  * - **processes** — процессы с обработчиками (action/success/error)
  * - **reactions** — реакции на события других атомов
- * - **gravity** — иерархия акторов как AST
+ * - **matter** — иерархия акторов как AST
  * - **bulk** — bulk-view конфигурация для BULK уровня
  * - **mass** — масса для сложных данных и зависимостей от среды
  *
@@ -144,7 +144,7 @@ export interface ViewJson {
  *     "reactions": { ... },
  *     "superposition": { ... }
  *   },
- *   "gravity": [...],
+ *   "matter": [...],
  *   "bulk": {
  *     "view": ".container { color: blue; }"
  *   },
@@ -159,7 +159,7 @@ export interface ViewJson {
  * @property superposition — Граф переходов состояний (суперпозиция).
  * @property processes — Процессы с обработчиками.
  * @property reactions — Реакции на события других атомов.
- * @property gravity — Gravity-конфигурация для иерархии акторов.
+ * @property matter — Matter-конфигурация для иерархии акторов.
  * @property bulk — Bulk-view конфигурация для BULK уровня.
  * @property mass — Масса для сложных данных и зависимостей от среды.
  */
@@ -172,7 +172,7 @@ export interface MetaAST {
     reactions: Record<string, ReactionDefinitionJson>
     superposition: Record<string, string[]>
   }
-  gravity?: NodeType[]
+  matter?: NodeType[]
   bulk?: ViewJson
   mass?: Mass
 }

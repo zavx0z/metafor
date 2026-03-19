@@ -88,7 +88,7 @@
       ]
     }
   },
-  "gravity": [
+  "matter": [
     {
       "type": "log",
       "data": "/state",

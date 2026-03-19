@@ -69,7 +69,7 @@
  *         .equal(({ update }) => update({ isLoading: true }))
  *     ]
  *   ])
- *   .gravity(({ value, html, update }) => html`
+ *   .matter(({ value, html, update }) => html`
  *     <div>
  *       <h1>${value.userName}</h1>
  *       <button onclick=${() => update({ isLoading: true })}>
@@ -94,7 +94,7 @@ import type {
   MetaForConfig,
   MetaForFn,
   BulkDeclaration,
-  GravityDeclaration,
+  MatterDeclaration,
   MetaDSL,
   Mass,
   Self,
@@ -137,8 +137,8 @@ export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig
                       const reactions = reactionsSchema(reaction)
                       if (reactions) schema.reactions = reactions
                       return {
-                        gravity(gravity?: GravityDeclaration<ɸ, m, 𝛴>) {
-                          if (gravity) schema.gravity = parse(gravity as any)
+                        matter(matter?: MatterDeclaration<ɸ, m, 𝛴>) {
+                          if (matter) schema.matter = parse(matter as any)
                           return {
                             bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m> {
                               if (bulk && "view" in bulk) schema.view = serializeStyle(bulk.view as any)

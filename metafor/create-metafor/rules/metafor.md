@@ -11,13 +11,13 @@ export default MetaFor("<name>")
   .mass({})
   .processes((process, destroy) => ({}))
   .reactions((reaction) => [])
-  .gravity(({ state, value, html }) => html``)
+  .matter(({ state, value, html }) => html``)
   .bulk({
     view: ({ css }) => css``,
   })
 ```
 
-**Порядок вызовов:** `fields → superposition → mass → processes → reactions → gravity → bulk`
+**Порядок вызовов:** `fields → superposition → mass → processes → reactions → matter → bulk`
 
 ---
 
@@ -369,10 +369,10 @@ return { group: group as "start" | "work" | "examine" }
 
 ---
 
-## Gravity — иерархия акторов
+## Matter — иерархия акторов
 
 ```typescript
-.gravity(({ state, value, html }) => html`
+.matter(({ state, value, html }) => html`
   <meta-for
     src="zavx0z/git-${value.operation}"
     fields=${{ command: value.command, args: value.args }} />
@@ -398,10 +398,10 @@ return { group: group as "start" | "work" | "examine" }
 - Динамический `src` допустим только если он зависит от одного статического `enum`-поля
 - Не поднимай в topology branch-choice по `boolean`, `string`, `number` или `mass`
 
-**Topology-семантика в gravity:**
+**Topology-семантика в matter:**
 
 ```typescript
-.gravity(({ state, value, html }) => html`
+.matter(({ state, value, html }) => html`
   ${state === "готово" && html`<meta-for src="zavx0z/panel" />`}
   ${state === "загрузка"
     ? html`<meta-for src="zavx0z/spinner" />`
@@ -412,12 +412,12 @@ return { group: group as "start" | "work" | "examine" }
 `)
 
 // ❌ Нельзя: boolean не является topology basis
-.gravity(({ value, html }) => html`
+.matter(({ value, html }) => html`
   ${value.enabled ? html`<meta-for src="x" />` : html`<meta-for src="y" />`}
 `)
 
 // ❌ Нельзя: mass не является topology basis
-.gravity(({ mass, html }) => html`
+.matter(({ mass, html }) => html`
   ${mass.session ? html`<meta-for src="x" />` : html`<meta-for src="y" />`}
 `)
 ```
@@ -473,7 +473,7 @@ export default MetaFor("git")
       })
       .success(({ update }) => update({ operation: null })),
   }))
-  .gravity(({ state, value, html }) => html`
+  .matter(({ state, value, html }) => html`
     <meta-for src="zavx0z/git-${value.operation}" fields=${{ command: value.command }} />
     ${state === "ошибка" && html`
       <meta-for src="zavx0z/git-error" fields=${{ message: value.error }} />
@@ -615,7 +615,7 @@ github.com/otheruser/git-work/      # группа work от другого по
 Если выбор репозитория зависит от topology, basis должен быть только `state` или `enum`.
 
 ```typescript
-.gravity(({ value, html }) => html`
+.matter(({ value, html }) => html`
   ${value.operation === "start" && html`
     <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
   `}
@@ -672,7 +672,7 @@ export default MetaFor("git")
       })
       .success(({ update }) => update({ operation: null })),
   }))
-  .gravity(({ value, html }) => html`
+  .matter(({ value, html }) => html`
     ${value.operation === "start" && html`
       <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
     `}

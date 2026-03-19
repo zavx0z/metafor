@@ -65,7 +65,7 @@ export type Mass = Record<string, any>
 /**
  * MetaFor — фабрика для создания web-компонента-атома конечного автомата
  * @param name - имя атома (используется для создания тега `meta-${name}`)
- * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> gravity() -> bulk()
+ * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> matter() -> bulk()
  *
  * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
  * где name — это имя компонента, переданное в конструктор.
@@ -79,7 +79,7 @@ export type Mass = Record<string, any>
  * - `mass()` - настройка массы для сложных данных и зависимостей от среды
  * - `processes()` - определение процессов (действий)
  * - `reactions()` - определение реакций на события
- * - `gravity()` - определение иерархии акторов компонента
+ * - `matter()` - определение иерархии акторов компонента
  * - `bulk()` - определение bulk-view компонента
  *
  * @example
@@ -90,7 +90,7 @@ export type Mass = Record<string, any>
  *   .mass({ users: [] })
  *   .processes((process) => ({ load: process().action(...) }))
  *   .reactions((reaction) => [...])
- *   .gravity(({ value }) => html`<div>${value.name}</div>`)
+ *   .matter(({ value }) => html`<div>${value.name}</div>`)
  *   .bulk()
  * ```
  */
@@ -192,7 +192,7 @@ export type MetaForFn = (
            * Реакции связывают разные атомы в событийной архитектуре.
            *
            * @param reaction Функция (filter => декларация), где декларация — массив кортежей [string[], { update, filter, label }]
-           * @returns chain API для вызова .gravity(...)
+           * @returns chain API для вызова .matter(...)
            *
            * @example
            * ```typescript
@@ -217,9 +217,9 @@ export type MetaForFn = (
            */
           reactions(reaction?: ReactionsDeclaration<ɸ, 𝛴, m>): {
             /**
-             * Регистрирует gravity-функцию компонента и возвращает финальный bulk-этап.
+             * Регистрирует matter-функцию компонента и возвращает финальный bulk-этап.
              *
-             * @param gravity Функция gravity для иерархии акторов
+             * @param matter Функция matter для иерархии акторов
              * @returns chain API для вызова .bulk(...)
              *
              * @example
@@ -230,7 +230,7 @@ export type MetaForFn = (
              *   .mass(...)
              *   .processes(...)
              *   .reactions(...)
-             *   .gravity(({ value, html }) => html`<div>${value.label}</div>`)
+             *   .matter(({ value, html }) => html`<div>${value.label}</div>`)
              *   .bulk({
              *     view: ({ css }) => css`.container { color: blue; }`
              *   })
@@ -239,7 +239,7 @@ export type MetaForFn = (
              * document.body.innerHTML = `<meta-my-component></meta-my-component>`
              * ```
              */
-            gravity(gravity?: GravityDeclaration<ɸ, m, 𝛴>): {
+            matter(matter?: MatterDeclaration<ɸ, m, 𝛴>): {
               /**
                * Регистрирует bulk-view конфигурацию компонента и завершает конфигурацию.
                *
@@ -265,7 +265,7 @@ declare global {
   /**
    * MetaFor — фабрика для создания web-компонента-атома конечного автомата
    * @param name - имя атома (используется для создания тега `meta-${name}`)
-   * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> gravity() -> bulk()
+   * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> matter() -> bulk()
    *
    * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
    * где name — это имя компонента, переданное в конструктор.
@@ -280,7 +280,7 @@ declare global {
    * - `mass()` - настройка массы для сложных данных и зависимостей от среды
    * - `processes()` - определение процессов (действий)
    * - `reactions()` - определение реакций на события
-   * - `gravity()` - определение иерархии акторов компонента
+ * - `matter()` - определение иерархии акторов компонента
    * - `bulk()` - определение bulk-view компонента
    *
    * @example
@@ -291,7 +291,7 @@ declare global {
    *   .mass({ users: [] })
    *   .processes((process) => ({ load: process().action(...) }))
    *   .reactions((reaction) => [...])
-   *   .gravity(({ value }) => html`<div>${value.name}</div>`)
+ *   .matter(({ value }) => html`<div>${value.name}</div>`)
    *   .bulk()
    * ```
    */ // @ts-ignore
@@ -320,12 +320,12 @@ export type MetaForConfig = {
 }
 
 /**
- * Параметры функции gravity атома.
+ * Параметры функции matter атома.
  *
  * Предназначены для декларирования иерархии акторов через `<meta-for>`.
  *
  * ## API
- * - `state` — текущее состояние для условий gravity
+ * - `state` — текущее состояние для условий matter
  * - `html` — шаблонизация для `<meta-for>` элементов
  * - `value` — данные атома для передачи дочерним акторам
  * - `update` — функция обновления контекста
@@ -334,32 +334,32 @@ export type MetaForConfig = {
  * @example
  * ```ts
  * // Иерархия акторов на основе состояния
- * gravity: ({ state, html }) => html`
+ * matter: ({ state, html }) => html`
  *   ${state === "коммит" && html`<meta-for src="meta/status.js" fields=${{ message: "В процессе..." }}></meta-for>`}
  *   ${state === "завершено" && html`<meta-for src="meta/success.js" fields=${{ message: "Готово!" }}></meta-for>`}
  *   ${state === "ошибка" && html`<meta-for src="meta/error.js" fields=${{ error: "Ошибка" }}></meta-for>`}
  * `
  *
  * // Передача данных дочернему актору
- * gravity: ({ value, html }) => html`
+ * matter: ({ value, html }) => html`
  *   <meta-for src="meta/child.js" fields=${{ data: value.data }}></meta-for>
  * `
  *
  * // Несколько акторов в иерархии
- * gravity: ({ html }) => html`
+ * matter: ({ html }) => html`
  *   <meta-for src="meta/header.js"></meta-for>
  *   <meta-for src="meta/content.js"></meta-for>
  *   <meta-for src="meta/footer.js"></meta-for>
  * `
  * ```
  */
-export type ViewDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Mass, 𝛴 extends string = string> = {
+export type MatterDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Mass, 𝛴 extends string = string> = {
   /**
    * Функция для обновления контекста атома.
    * Используется в обработчиках событий для изменения состояния.
    * @example
    * ```ts
-   * gravity: ({ html, update }) => html`
+   * matter: ({ html, update }) => html`
    *   <button onclick=${() => update({ isLoading: true })}>Начать</button>
    * `
    */
@@ -370,7 +370,7 @@ export type ViewDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Ma
    * Используется для передачи данных дочерним акторам.
    * @example
    * ```ts
-   * gravity: ({ value, html }) => html`
+   * matter: ({ value, html }) => html`
    *   <meta-for src="meta/child" fields=${{ value: value.data }}></meta-for>
    * `
    */
@@ -383,10 +383,10 @@ export type ViewDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Ma
   mass: m
   /**
    * Текущее состояние автомата.
-   * Строка из `.superposition(...)`, используется для условий gravity.
+   * Строка из `.superposition(...)`, используется для условий matter.
    * @example
    * ```ts
-   * gravity: ({ state, html }) => html`
+   * matter: ({ state, html }) => html`
    *   ${state === "loading" && html`<meta-for src="meta/spinner.js"></meta-for>`}
    * `
    */
@@ -397,7 +397,7 @@ export type ViewDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Ma
    *
    * @example
    * ```ts
-   * gravity: ({ html }) => html`
+   * matter: ({ html }) => html`
    *   <meta-for src="meta/header.js"></meta-for>
    *   <meta-for src="meta/content.js"></meta-for>
    * `
@@ -411,10 +411,10 @@ export type ViewDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Ma
 }
 
 /**
- * Тип gravity-декларации для иерархии акторов.
+ * Тип matter-декларации для иерархии акторов.
  */
-export type GravityDeclaration<ɸ extends Schema, m extends Mass, 𝛴 extends string> = (
-  params: ViewDefinitionParams<ɸ, m, 𝛴>,
+export type MatterDeclaration<ɸ extends Schema, m extends Mass, 𝛴 extends string> = (
+  params: MatterDefinitionParams<ɸ, m, 𝛴>,
 ) => void
 
 /**
@@ -472,8 +472,8 @@ export interface MetaDSL<ɸ extends Schema = Schema, 𝛴 extends string = strin
   reactions?: ReactionsSchema
   /** Схема полей */
   fields: ɸ
-  /** Сериализованная gravity как ParseNode[] из @metafor/template */
-  gravity?: NodeType[]
+  /** Сериализованная matter как ParseNode[] из @metafor/template */
+  matter?: NodeType[]
   /** View-стили компонента */
   view?: string
   /** Масса */

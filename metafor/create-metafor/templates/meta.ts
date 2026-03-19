@@ -8,7 +8,7 @@ export default MetaFor("{{name}}", { desc: "{{description}}" })
   .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .gravity(({ value, mass, html }) => html``)
+  .matter(({ value, mass, html }) => html``)
   .bulk({
     view: ({ css }) => css``,
   })

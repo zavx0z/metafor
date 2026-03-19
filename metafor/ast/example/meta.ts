@@ -47,7 +47,7 @@ const meta = MetaFor("git")
         }),
     ],
   ])
-  .gravity(
+  .matter(
     ({ value, state, html }) =>
       html`${state === "коммит" && html`<meta-for src="meta/status.js" fields=${{ message: "Коммит в процессе...", src: value.src }}></meta-for>`}
         ${state === "завершено" && html`<meta-for src="meta/success.js" fields=${{ message: "Готово!", patches: value.patches }}></meta-for>`}

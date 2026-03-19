@@ -9,7 +9,7 @@ export default MetaFor("git-examine", { desc: "Git examine — команды п
   .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .gravity(({ value, html }) => html`
+  .matter(({ value, html }) => html`
       ${value.operation &&
       html` <meta-for src="zavx0z/git-examine-${value.operation}" fields=${{ args: value.args }} /> `}
     `)

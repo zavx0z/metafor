@@ -2,7 +2,7 @@
  * @packageDocumentation
  * Модуль для преобразования MetaFor DSL в MetaAST.
  *
- * Преобразует декларативное описание атома (fields, superposition, processes, reactions, gravity, bulk, mass)
+ * Преобразует декларативное описание атома (fields, superposition, processes, reactions, matter, bulk, mass)
  * в MetaAST-конфигурацию, которая используется для инициализации Dark store.
  */
 
@@ -70,7 +70,7 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * - **superposition** — граф переходов состояний
  * - **processes** — процессы с обработчиками (action/success/error/before)
  * - **reactions** — реакции на события других атомов
- * - **gravity** — иерархия акторов как AST
+ * - **matter** — иерархия акторов как AST
  * - **bulk** — bulk-view конфигурация для BULK уровня
  * - **mass** — масса для сложных данных и зависимостей от среды
  *
@@ -88,11 +88,11 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  *     коммит: process().action(({ value }) => {}).success(({ update }) => update({ src: "" }))
  *   }))
  *   .reactions()
- *   .gravity(({ value, html }) => html`<div>${value.src}</div>`)
+ *   .matter(({ value, html }) => html`<div>${value.src}</div>`)
  *   .bulk()
  *
  * const json = convertMetaDSLToMetaAST(meta, sourceCode)
- * // => { name: "git", fields: {...}, superposition: {...}, gravity: [...], bulk: {...}, mass: {...} }
+ * // => { name: "git", fields: {...}, superposition: {...}, matter: [...], bulk: {...}, mass: {...} }
  * ```
  */
 export function convertMetaDSLToMetaAST(meta: MetaDSLLike, sourceText?: string): MetaAST {
@@ -271,7 +271,7 @@ export function convertMetaDSLToMetaAST(meta: MetaDSLLike, sourceText?: string):
         }
       : undefined
 
-  const gravityJson = meta.gravity
+  const matterJson = meta.matter
 
   // Собираем bulk-view
   const bulkJson: ViewJson | undefined = meta.view ? { view: meta.view } : undefined
@@ -286,7 +286,7 @@ export function convertMetaDSLToMetaAST(meta: MetaDSLLike, sourceText?: string):
     superposition,
     ...(processesJson ? { processes: processesJson } : {}),
     ...(reactionsJson ? { reactions: reactionsJson } : {}),
-    ...(gravityJson ? { gravity: gravityJson } : {}),
+    ...(matterJson ? { matter: matterJson } : {}),
     ...(bulkJson ? { bulk: bulkJson } : {}),
     ...(massJson ? { mass: massJson } : {}),
   }

@@ -1,29 +1,35 @@
 {
-  "name": "git-work-sparse-checkout",
+  "name": "git-worktree",
   "fields": {
-    "error": {
+    "operation": {
+      "type": "enum<string>",
+      "label": "Тип операции",
+      "values": [
+        "worktree"
+      ]
+    },
+    "args": {
       "type": "string",
-      "label": "Ошибка"
+      "label": "Аргументы"
     }
   },
   "superposition": {},
   "processes": {},
-  "gravity": [
+  "matter": [
     {
       "type": "log",
-      "data": "/value/error",
+      "data": "/value/operation",
       "child": [
         {
-          "tag": "div",
-          "type": "el",
-          "child": [
-            {
-              "type": "text",
-              "data": "/value/error"
-            }
-          ],
-          "string": {
-            "class": "error"
+          "src": {
+            "data": "/value/operation",
+            "expr": "zavx0z/git-worktree-${_[0]}"
+          },
+          "tag": "meta-for",
+          "type": "meta",
+          "fields": {
+            "data": "/value/args",
+            "expr": "{ args: _[0] }"
           }
         }
       ]

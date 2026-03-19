@@ -8,7 +8,7 @@ export default MetaFor("git-work-restore", { desc: "Git work-restore — ком�
   .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .gravity(({ value, html }) => html`
+  .matter(({ value, html }) => html`
       ${value.error && html`<div class="error">${value.error}</div>`}
     `)
   .bulk()

@@ -31,7 +31,7 @@ describe("dark - корневой мета", () => {
     test("load", async () => {
       ast = (await loadMetaAST("zavx0z/git" as SRC)) as MetaAST
       expect(ast).toEqual(ref)
-      expect(Object.keys(ast).sort()).toEqual(["fields", "gravity", "mass", "name", "processes", "superposition"])
+      expect(Object.keys(ast).sort()).toEqual(["fields", "mass", "matter", "name", "processes", "superposition"])
       expect(ast.name).toBe("git")
       expect(ast.fields).toEqual({
         operation: {
@@ -109,7 +109,7 @@ describe("dark - корневой мета", () => {
           },
         },
       })
-      expect(ast.gravity).toEqual([
+      expect(ast.matter).toEqual([
         {
           src: {
             data: "/value/operation",
@@ -155,15 +155,15 @@ describe("dark - корневой мета", () => {
     })
 
     test("create ast generator", () => {
-      if (!ref.gravity) throw new Error("gravity is undefined")
+      if (!ref.matter) throw new Error("matter is undefined")
 
-      expect(Array.from(particleGenerator(ref.gravity), ({ type }) => type)).toEqual(["meta", "log", "meta"])
+      expect(Array.from(particleGenerator(ref.matter), ({ type }) => type)).toEqual(["meta", "log", "meta"])
     })
 
     test("create dynamic particles", () => {
-      if (!ref.gravity) throw new Error("gravity is undefined")
+      if (!ref.matter) throw new Error("matter is undefined")
 
-      for (const node of particleGenerator(ref.gravity)) {
+      for (const node of particleGenerator(ref.matter)) {
         switch (node.type) {
           case "meta":
             if (typeof node.src === "object") {

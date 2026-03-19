@@ -16,7 +16,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -56,7 +56,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any, sourceText)
@@ -75,7 +75,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -93,7 +93,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
@@ -110,7 +110,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -132,7 +132,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -155,7 +155,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
@@ -177,7 +177,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -205,7 +205,7 @@ describe("convertMetaDSLToMetaAST", () => {
         }),
       }))
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -231,7 +231,7 @@ describe("convertMetaDSLToMetaAST", () => {
             .equal(({ update }) => update({ name: "updated" })),
         ],
       ])
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -263,7 +263,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -299,7 +299,7 @@ describe("convertMetaDSLToMetaAST", () => {
           }),
       }))
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -334,7 +334,7 @@ describe("convertMetaDSLToMetaAST", () => {
         done: destroy({ label: "Cleanup", desc: "Очистка" }),
       }))
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -371,7 +371,7 @@ describe("convertMetaDSLToMetaAST", () => {
             }),
         ],
       ])
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -395,7 +395,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .mass()
       .processes()
       .reactions()
-      .gravity(
+      .matter(
         ({ value, state, html, update }) =>
           html`<div>
             <h1>${value.label}</h1>
@@ -416,10 +416,10 @@ describe("convertMetaDSLToMetaAST", () => {
 
     const result = convertMetaDSLToMetaAST(meta as any)
 
-    expect(result.gravity).toBeDefined()
+    expect(result.matter).toBeDefined()
     expect(result.bulk).toBeDefined()
-    expect(Array.isArray(result.gravity)).toBe(true)
-    const firstNode = result.gravity![0] as { tag: string }
+    expect(Array.isArray(result.matter)).toBe(true)
+    const firstNode = result.matter![0] as { tag: string }
     expect(firstNode.tag).toBe("div")
     expect(result.bulk!.view).toContain("div{padding:16px;")
     expect(result.bulk!.view).toContain("h1{color:blue;")
@@ -441,7 +441,7 @@ describe("convertMetaDSLToMetaAST", () => {
       })
       .processes()
       .reactions()
-      .gravity()
+      .matter()
       .bulk()
 
     const result = convertMetaDSLToMetaAST(meta as any)
@@ -478,7 +478,7 @@ describe("convertMetaDSLToMetaAST", () => {
             .equal(({ update }) => update({ count: 1 })),
         ],
       ])
-      .gravity(({ value, html }) => html`<div>${value.name}</div>`)
+      .matter(({ value, html }) => html`<div>${value.name}</div>`)
       .bulk({
         view: ({ css }) => css`div { color: red; }`,
       })
@@ -490,7 +490,7 @@ describe("convertMetaDSLToMetaAST", () => {
     expect(result.superposition).toBeDefined()
     expect(result.processes).toBeDefined()
     expect(result.reactions).toBeDefined()
-    expect(result.gravity).toBeDefined()
+    expect(result.matter).toBeDefined()
     expect(result.bulk).toBeDefined()
     expect(result.mass).toBeDefined()
   })

@@ -1,4 +1,4 @@
-import type { State, ViewDefinitionParams } from "@metafor/dsl/types"
+import type { State, MatterDefinitionParams } from "@metafor/dsl/types"
 import type { NodeType } from "./node/index.t"
 import type { Mass, Schema } from "@metafor/dsl"
 export type { NodeType }
@@ -23,5 +23,5 @@ export type { ValueStatic, ValueVariable, ValueDynamic } from "./parser.t"
  * @returns Массив узлов с полной структурой и метаданными о путях к данным
  */
 export declare function parse<F extends Schema = Schema, M extends Mass = Mass, S extends State = State>(
-  template: (params: ViewDefinitionParams<F, M, S>) => void,
+  template: (params: MatterDefinitionParams<F, M, S>) => void,
 ): NodeType[]

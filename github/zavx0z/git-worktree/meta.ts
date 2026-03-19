@@ -9,7 +9,7 @@ export default MetaFor("git-worktree", { desc: "Git worktree — управле�
   .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .gravity(({ value, html }) => html`
+  .matter(({ value, html }) => html`
       ${value.operation &&
       html` <meta-for src="zavx0z/git-worktree-${value.operation}" fields=${{ args: value.args }} /> `}
     `)

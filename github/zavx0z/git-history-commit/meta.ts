@@ -230,5 +230,5 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
     выполнено: destroy(),
   }))
   .reactions(() => [])
-  .gravity(({ value, html }) => html` ${value.error && html`<div class="error">${value.error}</div>`} `)
+  .matter(({ value, html }) => html` ${value.error && html`<div class="error">${value.error}</div>`} `)
   .bulk()

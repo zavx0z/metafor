@@ -9,7 +9,7 @@ export default MetaFor("git-config", { desc: "Git config — конфигура�
   .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .gravity(({ value, html }) => html`
+  .matter(({ value, html }) => html`
       ${value.operation &&
       html` <meta-for src="zavx0z/git-config-${value.operation}" fields=${{ args: value.args }} /> `}
     `)
