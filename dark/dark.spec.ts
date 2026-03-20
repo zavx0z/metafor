@@ -186,21 +186,24 @@ describe("init", () => {
   let axionSeed: AxionSeed | undefined
   test("генерация первого уровня metadata", () => {
     const firstLevel = generator.next()
+    const dynamicMeta = ref.matter?.[0]
+    const logicalMeta = ref.matter?.[1]
+    if (!dynamicMeta || dynamicMeta.type !== "meta") throw new Error("dynamic meta node is undefined")
+    if (!logicalMeta || logicalMeta.type !== "log") throw new Error("logical meta node is undefined")
 
     expect(firstLevel.done, "первый слой не должен завершать generator").toBe(false)
     expect(firstLevel.value, "первый слой должен содержать Fuzzy и Axion с root wimp как parent").toEqual([
-      { kind: "fuzzy", parent: wimp, meta: {} },
+      { kind: "fuzzy", node: dynamicMeta, parent: wimp, meta: {} },
       {
         kind: "axion",
-        basis: "/state",
-        expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
+        node: logicalMeta,
         parent: wimp,
         meta: {},
       },
     ])
     firstLayer = firstLevel.value
-    fuzzySeed = firstLevel.value?.find((seed): seed is FuzzySeed => seed.kind === "fuzzy")
-    axionSeed = firstLevel.value?.find((seed): seed is AxionSeed => seed.kind === "axion")
+    fuzzySeed = firstLevel.value?.find((seed: ParticleSeed): seed is FuzzySeed => seed.kind === "fuzzy")
+    axionSeed = firstLevel.value?.find((seed: ParticleSeed): seed is AxionSeed => seed.kind === "axion")
     expect(fuzzySeed, "на первом уровне должен появиться Fuzzy seed").toBeDefined()
     expect(axionSeed, "на первом уровне должен появиться Axion seed").toBeDefined()
   })
@@ -227,31 +230,34 @@ describe("init", () => {
     expect(fuzzy, "после materialization первого слоя должен появиться Fuzzy instance").toBeDefined()
     expect(fuzzy?.value, "Fuzzy без выбранного enum значения должен быть пустым").toBeNull()
     expect(axion, "после materialization первого слоя должен появиться Axion instance").toBeDefined()
+    expect(axion?.basis, "Axion должен получать basis из seed.node в strong").toBe("/state")
+    expect(axion?.expr, "Axion должен получать expr из seed.node в strong").toBe(
+      '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
+    )
   })
   let secondLayer: ParticleSeed[] | undefined
   test("генерация второго уровня metadata", () => {
     const secondLevel = generator.next()
     const values = ref.fields.operation?.values ?? []
+    const dynamicMeta = ref.matter?.[0]
+    const logicalMeta = ref.matter?.[1]
+    const childMeta = logicalMeta?.type === "log" ? logicalMeta.child?.[0] : undefined
+    if (!dynamicMeta || dynamicMeta.type !== "meta") throw new Error("dynamic meta node is undefined")
+    if (!childMeta || childMeta.type !== "meta") throw new Error("child meta node is undefined")
 
     expect(secondLevel.done, "второй слой не должен завершать generator").toBe(false)
     expect(secondLevel.value, "второй слой должен раскрывать все static Wimp из Fuzzy и child ветку Axion").toEqual([
       ...values.map((value) => ({
         kind: "wimp",
         src: `zavx0z/git-${value}`,
-        fields: {
-          data: ["/value/operation", "/value/args"],
-          expr: "{ operation: _[0], args: _[1] }",
-        },
+        node: dynamicMeta,
         parent: fuzzySeed!,
         meta: {},
       })),
       {
         kind: "wimp",
         src: "zavx0z/git-error",
-        fields: {
-          data: "/value/error",
-          expr: "{ message: _[0] }",
-        },
+        node: childMeta,
         parent: axionSeed!,
         meta: {},
       },
@@ -263,6 +269,11 @@ describe("init", () => {
 
     const secondBuilds = materializeParticleLayer(secondLayer, materialized)
     const values = ref.fields.operation?.values ?? []
+    const dynamicMeta = ref.matter?.[0]
+    const logicalMeta = ref.matter?.[1]
+    const childMeta = logicalMeta?.type === "log" ? logicalMeta.child?.[0] : undefined
+    if (!dynamicMeta || dynamicMeta.type !== "meta") throw new Error("dynamic meta node is undefined")
+    if (!childMeta || childMeta.type !== "meta") throw new Error("child meta node is undefined")
     const wimps = secondBuilds
       .filter((build): build is (typeof secondBuilds)[number] & { particle: Wimp } => build.particle instanceof Wimp)
       .filter((build) => build.parent === fuzzy)
@@ -290,8 +301,15 @@ describe("init", () => {
       wimps.map((wimp) => wimp.src),
       "Fuzzy должен раскрывать все static Wimp из enum values",
     ).toEqual(values.map((value) => `zavx0z/git-${value}`))
+    expect(
+      wimps.map((wimp) => wimp.fields),
+      "Wimp-ветви Fuzzy должны получать fields из seed.node уже в strong",
+    ).toEqual(values.map(() => dynamicMeta.fields))
     expect(childWimp, "на втором уровне должен материализоваться дочерний Wimp для Axion").toBeDefined()
     expect(childWimp?.src, "дочерний Wimp должен сохранять статический src из child meta").toBe("zavx0z/git-error")
+    expect(childWimp?.fields, "дочерний Wimp должен получать child fields из seed.node в strong").toEqual(
+      childMeta.fields,
+    )
   })
   test("завершение генератора", () => {
     const end = generator.next()

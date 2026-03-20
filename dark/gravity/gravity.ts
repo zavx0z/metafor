@@ -1,8 +1,12 @@
 import type { FieldsAST } from "@metafor/ast"
-import type { Mass, NodeMeta, NodeType } from "@metafor/dsl"
+import type { NodeMeta, NodeType } from "@metafor/dsl"
 import type { DarkParticle } from "@dark/types"
 
 export type SeedParent = DarkParticle | ParticleSeed
+type MetaNode = Extract<NodeType, { type: "meta" }>
+type ConditionNode = Extract<NodeType, { type: "cond" }>
+type LogicalNode = Extract<NodeType, { type: "log" }>
+type MapNode = Extract<NodeType, { type: "map" }>
 
 interface SeedBase {
   kind: "wimp" | "fuzzy" | "axion" | "macho"
@@ -13,23 +17,22 @@ interface SeedBase {
 export interface WimpSeed extends SeedBase {
   kind: "wimp"
   src: string
-  fields?: NodeMeta["fields"]
-  mass?: Mass | NodeMeta["mass"]
+  node: MetaNode
 }
 
 export interface FuzzySeed extends SeedBase {
   kind: "fuzzy"
+  node: MetaNode | ConditionNode
 }
 
 export interface AxionSeed extends SeedBase {
   kind: "axion"
-  basis?: string | string[]
-  expr?: string
+  node: LogicalNode
 }
 
 export interface MachoSeed extends SeedBase {
   kind: "macho"
-  basis: string
+  node: MapNode
 }
 
 export type ParticleSeed = WimpSeed | FuzzySeed | AxionSeed | MachoSeed
@@ -76,8 +79,7 @@ const createParticleSeed = (node: NodeType, parent: SeedParent, fields?: FieldsA
         return {
           kind: "wimp",
           src: node.src,
-          ...(node.fields !== undefined ? { fields: node.fields } : {}),
-          ...(node.mass !== undefined ? { mass: node.mass } : {}),
+          node,
           parent,
           meta: {},
         }
@@ -87,21 +89,20 @@ const createParticleSeed = (node: NodeType, parent: SeedParent, fields?: FieldsA
         throw new Error("Dynamic meta src must be bound to a single enum field")
       }
 
-      return { kind: "fuzzy", parent, meta: {} }
+      return { kind: "fuzzy", node, parent, meta: {} }
     case "cond":
-      return { kind: "fuzzy", parent, meta: {} }
+      return { kind: "fuzzy", node, parent, meta: {} }
     case "log":
       return {
         kind: "axion",
-        basis: node.data,
-        ...("expr" in node && node.expr !== undefined ? { expr: node.expr } : {}),
+        node,
         parent,
         meta: {},
       }
     case "map":
       return {
         kind: "macho",
-        basis: node.data,
+        node,
         parent,
         meta: {},
       }
@@ -119,8 +120,7 @@ const createContinuationSeeds = (node: NodeMeta, parent: FuzzySeed, fields?: Fie
   return values.map((value) => ({
     kind: "wimp",
     src: createContinuationSrc(node, value),
-    ...(node.fields !== undefined ? { fields: node.fields } : {}),
-    ...(node.mass !== undefined ? { mass: node.mass } : {}),
+    node,
     parent,
     meta: {},
   }))
@@ -138,7 +138,7 @@ export function* particleGenerator(
     const nextLevel: LayerEntry[] = []
 
     for (const item of level) {
-      if (!("node" in item)) {
+      if ("kind" in item) {
         seeds.push(item)
         continue
       }

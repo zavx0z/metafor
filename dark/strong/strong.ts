@@ -24,19 +24,19 @@ const materializeParticle = (seed: ParticleSeed): DarkParticle => {
     case "wimp":
       return new Wimp({
         src: seed.src,
-        ...(seed.fields !== undefined ? { fields: seed.fields } : {}),
-        ...(seed.mass !== undefined ? { mass: seed.mass } : {}),
+        ...(seed.node.fields !== undefined ? { fields: seed.node.fields } : {}),
+        ...(seed.node.mass !== undefined ? { mass: seed.node.mass } : {}),
       })
     case "fuzzy":
       return new Fuzzy()
     case "axion":
       return new Axion({
-        ...(seed.basis !== undefined ? { basis: seed.basis } : {}),
-        ...(seed.expr !== undefined ? { expr: seed.expr } : {}),
+        basis: seed.node.data,
+        ...(seed.node.expr !== undefined ? { expr: seed.node.expr } : {}),
       })
     case "macho":
       return new Macho({
-        basis: seed.basis,
+        basis: seed.node.data,
       })
   }
 }

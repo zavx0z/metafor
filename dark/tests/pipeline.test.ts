@@ -45,6 +45,12 @@ describe("matter pipeline", () => {
     if (!operation) throw new Error("operation field is undefined")
     const operationValues = operation.values
     if (!operationValues) throw new Error("operation values are undefined")
+    const dynamicMeta = ast.matter?.[0]
+    const logicalMeta = ast.matter?.[1]
+    const childMeta = logicalMeta?.type === "log" ? logicalMeta.child?.[0] : undefined
+    if (!dynamicMeta || dynamicMeta.type !== "meta") throw new Error("dynamic meta node is undefined")
+    if (!logicalMeta || logicalMeta.type !== "log") throw new Error("logical meta node is undefined")
+    if (!childMeta || childMeta.type !== "meta") throw new Error("child meta node is undefined")
 
     const particles = Array.from(dark$.particles.values())
     const fuzzy = particles.find((particle): particle is Fuzzy => particle instanceof Fuzzy)
@@ -56,9 +62,16 @@ describe("matter pipeline", () => {
     expect(fuzzy, "matterPipeline должен сохранить Fuzzy в store").toBeDefined()
     expect(fuzzy?.value, "Fuzzy без выбранного enum значения должен быть пустым").toBeNull()
     expect(axion, "matterPipeline должен сохранить Axion в store").toBeDefined()
+    expect(axion?.basis, "matterPipeline должен materialize basis Axion через strong").toBe(logicalMeta.data)
+    expect(axion?.expr, "matterPipeline должен materialize expr Axion через strong").toBe(logicalMeta.expr)
     expect(fuzzyBranchWimps, "matterPipeline должен сохранить все Wimp-ветви Fuzzy").toHaveLength(operationValues.length)
     expect(childWimp, "matterPipeline должен сохранить дочерний Wimp в store").toBeDefined()
     expect(wimps, "matterPipeline должен вернуть все materialized Wimp").toHaveLength(operationValues.length + 1)
+    expect(
+      fuzzyBranchWimps.map((particle) => particle.fields),
+      "matterPipeline должен materialize fields всех Wimp-ветвей Fuzzy через strong",
+    ).toEqual(operationValues.map(() => dynamicMeta.fields))
+    expect(childWimp?.fields, "matterPipeline должен materialize fields child Wimp через strong").toEqual(childMeta.fields)
 
     expect(dark$.particles.size, "store должен содержать root, Fuzzy, Axion и все Wimp-ветви").toBe(14)
     expect(wimp.children, "root wimp должен ссылаться на Fuzzy и Axion").toEqual(new Set([fuzzy!.id, axion!.id]))
