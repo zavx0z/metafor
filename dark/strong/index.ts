@@ -1,7 +1,6 @@
-export { BaseParticle } from "./part.ts"
 export { Axion } from "./Axion.ts"
 export { Fuzzy } from "./Fuzzy.ts"
 export { Macho } from "./Macho.ts"
 export { Wimp } from "./Wimp.ts"
-export {  materializeWimp } from "./strong.ts"
+export { resolveWimpContinuation } from "./strong.ts"
 export { resolveFieldValues } from "./fields.ts"

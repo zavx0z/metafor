@@ -1,15 +1,16 @@
 import type { NodeType } from "@metafor/dsl"
-import type { MatterEntry, MatterNodeEntry, MatterAST, MatterContinuationEntry } from "@dark/types/dark"
+import type {
+  MatterContinuation,
+  MatterContinuationEntry,
+  MatterEntry,
+  MatterLayerResult,
+  MatterNodeEntry,
+  MatterAST,
+  MatterWimpResult,
+} from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
 import { resolveContinuationSources } from "@dark/gravity"
-import {
-  Axion,
-  Fuzzy,
-  Macho,
-  Wimp,
-  materializeWimp,
-  resolveFieldValues,
-} from "@dark/strong"
+import { Axion, Fuzzy, Macho, resolveWimpContinuation, Wimp, resolveFieldValues } from "@dark/strong"
 import { dark$ } from "./store"
 
 /**
@@ -40,50 +41,55 @@ const appendChildEntries = (frontier: MatterEntry[], node: NodeType, parent: Dar
  *
  * На этом шаге dark:
  * - понимает, нужна ли частица для текущего узла;
- * - сразу вызывает `strong` для materialization;
+ * - materialize не-Wimp частицы текущей meta;
+ * - для meta-узлов создаёт пустые `Wimp` и continuation к ним;
  * - сразу делает wiring в `dark$`;
- * - сразу формирует continuation и child-ветви следующего frontier.
+ * - сразу формирует child-ветви следующего frontier и Wimp-результат текущего слоя.
  */
 const processMatterNode = (
   entry: MatterNodeEntry,
   ast: MatterAST,
   nextFrontier: MatterEntry[],
-): DarkParticle | undefined => {
+  wimps: MatterWimpResult[],
+): void => {
   switch (entry.node.type) {
     case "meta":
       if (typeof entry.node.src === "string") {
-        const wimp = materializeWimp(entry.node, entry.node.src, ast.fields)
+        const continuation = resolveWimpContinuation(entry.node, ast.fields)
+        const wimp = new Wimp(entry.node.src)
+        wimps.push([wimp, continuation])
         registerParticle(wimp, entry.parent)
         appendChildEntries(nextFrontier, entry.node, wimp)
-        return wimp
+        return
       }
 
       const fuzzy = new Fuzzy()
       registerParticle(fuzzy, entry.parent)
 
+      const continuation = resolveWimpContinuation(entry.node, ast.fields)
       for (const src of resolveContinuationSources(entry.node, ast.fields)) {
-        nextFrontier.push({ kind: "continuation", node: entry.node, parent: fuzzy, src })
+        nextFrontier.push({ kind: "continuation", node: entry.node, parent: fuzzy, src, continuation })
       }
 
       appendChildEntries(nextFrontier, entry.node, fuzzy)
-      return fuzzy
+      return
     case "cond": {
       const fuzzy = new Fuzzy()
       registerParticle(fuzzy, entry.parent)
       appendChildEntries(nextFrontier, entry.node, fuzzy)
-      return fuzzy
+      return
     }
     case "log": {
       const axion = new Axion()
       registerParticle(axion, entry.parent)
       appendChildEntries(nextFrontier, entry.node, axion)
-      return axion
+      return
     }
     case "map": {
       const macho = new Macho()
       registerParticle(macho, entry.parent)
       appendChildEntries(nextFrontier, entry.node, macho)
-      return macho
+      return
     }
     default:
       appendChildEntries(nextFrontier, entry.node, entry.parent)
@@ -92,22 +98,35 @@ const processMatterNode = (
 }
 
 /**
- * Обрабатывает continuation dynamic meta как уже выбранный `src` для нового Wimp.
- */
-const processContinuation = (entry: MatterContinuationEntry, ast: MatterAST, nextFrontier: MatterEntry[]): Wimp => {
-  const wimp = materializeWimp(entry.node, entry.src, ast.fields)
-  registerParticle(wimp, entry.parent)
-  appendChildEntries(nextFrontier, entry.node, wimp)
-  return wimp
-}
-
-/**
  * Явный layer-by-layer pipeline одной meta.
  *
- * Генератор возвращает не промежуточные `seed/build`, а уже реальные runtime-частицы
- * текущего слоя. По ним можно отследить ход прохода без восстановления скрытой модели.
+ * На первом `next()` pipeline инициализирует root `Wimp`, затем обрабатывает первый слой
+ * и yield-ит только те `Wimp`, которые были обнаружены именно на этом шаге.
+ *
+ * Остальные частицы (`Fuzzy`, `Axion`, `Macho`) не возвращаются наружу:
+ * вся их runtime-информация сразу складывается в `dark$`.
+ *
+ * Даже если на уровне не появился ни один новый `Wimp`, pipeline всё равно yield-ит
+ * пустой массив, чтобы снаружи не терялась граница между слоями прохода.
  */
-export function* matterGenerator(wimp: Wimp, ast: MatterAST): Generator<DarkParticle[]> {
+export function* matterPipeline(
+  wimp: Wimp,
+  ast: MatterAST,
+  continuation?: MatterContinuation,
+  parent?: DarkParticle,
+): Generator<MatterLayerResult, void> {
+  /**
+   * `Wimp` получает входные данные.
+   * Если continuation пришёл от родителя, он важнее локальных defaults текущей meta.
+   * Более сложное entanglement/merge поведение остаётся отдельным следующим шагом.
+   */
+  wimp.values = continuation?.values ?? resolveFieldValues(ast.fields)
+  wimp.mass = continuation?.mass ?? (ast.mass && Object.keys(ast.mass).length > 0 ? ast.mass : undefined)
+  dark$.particles.set(wimp.id, wimp)
+  dark$.meta.set(wimp.id, wimp.src)
+
+  if (parent) dark$.parent.set(wimp, parent)
+
   if (!ast.matter) return
 
   let frontier = Array.from(ast.matter, (node): MatterEntry => ({ kind: "node", node, parent: wimp }))
@@ -115,35 +134,27 @@ export function* matterGenerator(wimp: Wimp, ast: MatterAST): Generator<DarkPart
   while (frontier.length > 0) {
     const currentLayer = frontier
     const nextFrontier: MatterEntry[] = []
-    const particles: DarkParticle[] = []
+    const levelWimps: MatterLayerResult = []
 
     frontier = nextFrontier
 
     for (const entry of currentLayer) {
-      const particle =
-        entry.kind === "continuation"
-          ? processContinuation(entry, ast, nextFrontier)
-          : processMatterNode(entry, ast, nextFrontier)
-      if (particle) particles.push(particle)
+      if (entry.kind === "continuation") {
+        /**
+         * Обрабатывает continuation dynamic meta как уже выбранный `src` для нового Wimp.
+         * Сам `Wimp` здесь тоже остаётся пустым: continuation только прикладывается к нему
+         * позже, когда его собственная meta будет загружена и передана в `matterPipeline`.
+         */
+        const wimp = new Wimp(entry.src)
+        levelWimps.push([wimp, entry.continuation])
+        registerParticle(wimp, entry.parent)
+        appendChildEntries(nextFrontier, entry.node, wimp)
+        continue
+      }
+
+      processMatterNode(entry, ast, nextFrontier, levelWimps)
     }
 
-    if (particles.length > 0) yield particles
+    yield levelWimps
   }
-}
-
-export const matterPipeline = (wimp: Wimp, ast: MatterAST, parent?: Wimp): Wimp[] => {
-  wimp.values = resolveFieldValues(ast.fields)
-  dark$.particles.set(wimp.id, wimp)
-  dark$.meta.set(wimp.id, wimp.src)
-  if (parent) dark$.parent.set(wimp, parent)
-
-  const wimps: Wimp[] = []
-
-  for (const particles of matterGenerator(wimp, ast)) {
-    for (const particle of particles) {
-      if (particle instanceof Wimp) wimps.push(particle)
-    }
-  }
-
-  return wimps
 }
