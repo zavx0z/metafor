@@ -32,11 +32,12 @@ describe("Fuzzy", () => {
   })
 
   test("может хранить составную ветвь через Macho", () => {
-    const particle = new Macho({ basis: "items" })
+    const particle = new Macho()
     const fuzzy = new Fuzzy({
       branch: new Map([[particle.id, particle]]),
     })
 
+    expect((particle as any).basis, "Macho runtime contract не должен хранить template basis").toBeUndefined()
     expect(fuzzy.switch(particle.id), "switch должен возвращать Macho-ветвь").toBe(particle)
     expect(fuzzy.branch.get(particle.id), "branch должна хранить Macho как particle ветви").toBe(particle)
   })

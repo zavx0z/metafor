@@ -1,4 +1,6 @@
-import { describe } from "bun:test"
+import { describe, expect, test } from "bun:test"
+
+import { Macho } from "@dark/part"
 
 /**
  * Структура тестов для частицы Macho.
@@ -28,7 +30,12 @@ describe("Macho — ограничения типа элемента", () => {
 })
 
 describe("Macho — нормализация", () => {
-  // должен сохранять basis value-массива
+  test("не хранит template-shaped payload в runtime instance", () => {
+    const particle = new Macho()
+
+    expect((particle as any).basis, "Macho runtime contract не должен хранить template basis").toBeUndefined()
+  })
+
   // должен формировать branch expansion для дочерних частиц
   // не должен смешивать множественность с Wimp/Fuzzy-семантикой
 })

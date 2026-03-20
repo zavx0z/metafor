@@ -26,9 +26,7 @@ const materializeParticle = (seed: ParticleSeed): DarkParticle => {
     case "axion":
       return new Axion()
     case "macho":
-      return new Macho({
-        basis: seed.node.data,
-      })
+      return new Macho()
   }
 }
 
