@@ -1,13 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import type { SRC } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
 import { HubFixture } from "fixture"
 import reference from "../github/zavx0z/git/meta.json"
 
 import type { MatterWimpResult } from "@dark/types/dark"
 import { Axion, Fuzzy, Wimp } from "@dark/strong"
-import { matterPipeline } from "./dark.ts"
-import { loadMetaAST } from "./load.ts"
+import { matterMeta } from "./dark.ts"
 import { dark$ } from "./store"
 
 const hub = new HubFixture("./github/")
@@ -28,130 +26,9 @@ describe("zavx0z/git", () => {
   let rootResults: MatterWimpResult[] = []
 
   describe("zavx0z/git", () => {
-    let ast: MetaAST
     let rootFuzzy: Fuzzy
     let rootAxion: Axion
-    test("загрузка", async () => {
-      // Сначала фиксируем входную meta как эталон для последующего явного pipeline-прохода.
-      ast = (await loadMetaAST("zavx0z/git" as SRC)) as MetaAST
-      expect(ast, "loadMetaAST должен вернуть тот же MetaAST, что и ref").toEqual(ref)
-      expect(Object.keys(ast).sort(), "MetaAST должен содержать ожидаемые корневые ключи").toEqual([
-        "fields",
-        "mass",
-        "matter",
-        "name",
-        "processes",
-        "superposition",
-      ])
-      expect(ast.name, "имя меты должно совпадать с именем из ref").toBe("git")
-      expect(ast.fields, "fields должны совпадать с fixture").toEqual({
-        operation: {
-          type: "enum<string>",
-          label: "Тип операции",
-          values: [
-            "start",
-            "work",
-            "examine",
-            "history",
-            "collaborate",
-            "worktree",
-            "stash",
-            "submodule",
-            "config",
-            "plumbing",
-          ],
-        },
-        error: {
-          type: "string",
-          label: "Ошибка",
-        },
-        command: {
-          type: "string",
-          label: "Команда",
-        },
-        args: {
-          type: "string",
-          label: "Аргументы",
-        },
-      })
-      expect(ast.superposition, "superposition должен совпадать с fixture").toEqual({
-        "получение команды": {
-          "определение операции": {
-            command: {
-              null: false,
-            },
-          },
-        },
-        "определение операции": {
-          выполнение: {
-            operation: {
-              null: false,
-            },
-          },
-          ошибка: {
-            error: {
-              null: false,
-            },
-          },
-        },
-        выполнение: {
-          "получение команды": {
-            operation: null,
-          },
-        },
-        ошибка: {
-          "получение команды": {
-            error: null,
-          },
-        },
-      })
-      expect(ast.processes, "processes должны совпадать с fixture").toEqual({
-        "определение операции": {
-          type: "action",
-          action: {
-            read: ["command"],
-          },
-          success: {
-            src: '({ update, data }) => update(data, "s")',
-          },
-          error: {
-            src: '({ update, error }) => update({ error: error.message }, "e")',
-            write: ["error"],
-          },
-        },
-      })
-      expect(ast.mass, "mass должен быть пустым объектом").toEqual({})
-      expect(ast.matter, "matter должен совпадать с fixture").toEqual([
-        {
-          src: {
-            data: "/value/operation",
-            expr: "zavx0z/git-${_[0]}",
-          },
-          tag: "meta-for",
-          type: "meta",
-          fields: {
-            data: ["/value/operation", "/value/args"],
-            expr: "{ operation: _[0], args: _[1] }",
-          },
-        },
-        {
-          type: "log",
-          data: "/state",
-          expr: '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
-          child: [
-            {
-              src: "zavx0z/git-error",
-              tag: "meta-for",
-              type: "meta",
-              fields: {
-                data: "/value/error",
-                expr: "{ message: _[0] }",
-              },
-            },
-          ],
-        },
-      ])
-    })
+
     let wimp: Wimp
     test("создание wimp", () => {
       wimp = new Wimp(src)
@@ -161,20 +38,19 @@ describe("zavx0z/git", () => {
       expect(dark$.particles.size, "до первого шага pipeline root Wimp ещё не должен попасть в dark$.particles").toBe(0)
       expect(dark$.meta.size, "до первого шага pipeline meta lookup тоже должен быть пустым").toBe(0)
     })
-    let generator: ReturnType<typeof matterPipeline>
+    let generator: ReturnType<typeof matterMeta>
     test("создание генератора", () => {
       // Сам pipeline ещё ничего не делает до первого next.
-      generator = matterPipeline(wimp, ast)
+      generator = matterMeta(wimp)
 
       expect(generator, "generator должен быть создан").toBeDefined()
       expect(typeof generator.next, "generator должен иметь метод next").toBe("function")
-      expect(generator[Symbol.iterator], "generator должен быть итерируемым").toBeDefined()
       expect(wimp.values, "создание generator не должно преждевременно инициализировать root Wimp").toBeUndefined()
     })
-    test("обработка первого уровня", () => {
+    test("обработка первого уровня", async () => {
       // Первый next инициализирует root Wimp и проходит первый слой topology.
       // На этом уровне новых Wimp ещё нет, поэтому наружу возвращается пустой слой.
-      const firstLevel = generator.next()
+      const firstLevel = await generator.next()
       if (firstLevel.done) throw new Error("first level is done")
 
       const firstLayer = firstLevel.value
@@ -216,9 +92,9 @@ describe("zavx0z/git", () => {
       expect(dark$.parent.get(rootAxion), "parent Axion первого уровня должен быть root Wimp").toBe(wimp)
       expect(rootResults, "до второго слоя ещё не должно быть внешних Wimp-результатов").toEqual([])
     })
-    test("обработка второго уровня", () => {
+    test("обработка второго уровня", async () => {
       // Второй слой обнаруживает дочерние Wimp и сразу отдаёт пары [wimp, continuation].
-      const secondLevel = generator.next()
+      const secondLevel = await generator.next()
       const values = ref.fields.operation?.values ?? []
       if (secondLevel.done) throw new Error("second level is done")
 
@@ -252,7 +128,9 @@ describe("zavx0z/git", () => {
         "обнаруженные Wimp-ветви ещё не должны иметь mass",
       ).toBe(true)
       expect(childResult, "после второго уровня Axion должен получить дочерний Wimp в dark$").toBeDefined()
-      expect(childResult?.[0].src, "дочерний Wimp должен сохранять статический src из child meta").toBe("zavx0z/git-error")
+      expect(childResult?.[0].src, "дочерний Wimp должен сохранять статический src из child meta").toBe(
+        "zavx0z/git-error",
+      )
       expect(childResult?.[0].values, "дочерний Wimp тоже должен оставаться пустым до своей meta").toBeUndefined()
       expect(childResult?.[0].mass, "дочерний Wimp не должен получать mass до входа в свой pipeline").toBeUndefined()
       expect(childResult?.[1], "дочерний Wimp должен вернуть continuation для своей meta").toEqual({
@@ -274,8 +152,8 @@ describe("zavx0z/git", () => {
         "второй слой должен вернуть все обнаруженные Wimp текущей meta",
       ).toEqual([...values.map((value) => `zavx0z/git-${value}`), "zavx0z/git-error"])
     })
-    test("завершение генератора", () => {
-      const end = generator.next()
+    test("завершение генератора", async () => {
+      const end = await generator.next()
 
       expect(end.done, "generator должен завершиться после второго уровня").toBe(true)
       expect(end.value, "после завершения generator не должен возвращать дополнительный результат").toBeUndefined()
@@ -283,18 +161,14 @@ describe("zavx0z/git", () => {
   })
 
   describe("zavx0z/git-start", () => {
-    let ast: MetaAST
     let wimp: Wimp
     let continuation: MatterWimpResult[1]
-    let generator: ReturnType<typeof matterPipeline>
     let childFuzzy: Fuzzy
     let childResults: MatterWimpResult[] = []
-
     test("создание root wimp", () => {
       // Следующая meta берёт пустой Wimp и continuation, возвращённые родительским проходом.
-      const result = rootResults.find(([particle]) => particle.src === startSrc)
+      const result = rootResults[0]
       if (!result) throw new Error("git-start wimp is not found")
-
       ;[wimp, continuation] = result
 
       expect(wimp, "первый continuation Wimp из root meta должен существовать").toBeDefined()
@@ -308,34 +182,19 @@ describe("zavx0z/git", () => {
       expect(wimp.values, "до входа в дочернюю meta Wimp должен оставаться пустым").toBeUndefined()
       expect(wimp.mass, "до входа в дочернюю meta mass тоже не должен быть выставлен").toBeUndefined()
     })
-    test("загрузка", async () => {
-      ast = (await loadMetaAST(startSrc as SRC)) as MetaAST
-
-      expect(ast.name, "имя дочерней меты должно быть git-start").toBe("git-start")
-      expect(ast.fields, "fields дочерней меты должны быть загружены").toEqual({
-        operation: {
-          type: "enum<string>",
-          label: "Тип операции",
-          values: ["clone", "init"],
-        },
-        args: {
-          type: "string",
-          label: "Аргументы",
-        },
-      })
-    })
+    let generator: ReturnType<typeof matterMeta>
     test("создание генератора", () => {
-      // Дочерний pipeline тоже ничего не делает до первого next.
-      generator = matterPipeline(wimp, ast, continuation)
+      // Дочерний pipeline сам загрузит AST по wimp.src и ничего не делает до первого next.
+      generator = matterMeta(wimp, continuation)
 
       expect(generator, "generator для git-start должен быть создан").toBeDefined()
       expect(typeof generator.next, "generator для git-start должен иметь метод next").toBe("function")
       expect(wimp.values, "до первого next дочерний Wimp должен оставаться пустым").toBeUndefined()
     })
-    test("обработка первого уровня", () => {
+    test("обработка первого уровня", async () => {
       // На первом шаге дочерней meta continuation применяется к root Wimp,
       // а наружу всё равно возвращается пустой слой, потому что новых Wimp ещё нет.
-      const firstLevel = generator.next()
+      const firstLevel = await generator.next()
       if (firstLevel.done) throw new Error("first git-start level is done")
 
       const firstLayer = firstLevel.value
@@ -362,29 +221,26 @@ describe("zavx0z/git", () => {
       )
       expect(childResults, "на первом уровне git-start список continuation-пар ещё должен быть пустым").toEqual([])
     })
-    test("обработка второго уровня", () => {
+    test("обработка второго уровня", async () => {
       // На втором шаге дочерняя meta только обнаруживает свои дочерние Wimp-ветви.
-      const secondLevel = generator.next()
+      const secondLevel = await generator.next()
       if (secondLevel.done) throw new Error("second git-start level is done")
 
       const secondLayer = secondLevel.value
-      const values = ast.fields.operation?.values ?? []
       const branchResults = secondLayer.filter(([particle]) => dark$.parent.get(particle) === childFuzzy)
 
       expect(secondLevel.done, "второй слой git-start не должен завершать generator").toBe(false)
-      expect(secondLayer, "второй цикл git-start должен вернуть только continuation Wimp этого уровня").toHaveLength(
-        values.length,
-      )
+      expect(secondLayer, "второй цикл git-start должен вернуть только continuation Wimp этого уровня").toHaveLength(2)
 
       childResults = secondLayer
       expect(
         branchResults.map(([particle]) => particle.src),
         "после второго уровня git-start Fuzzy должен раскрыть все static Wimp из enum values",
-      ).toEqual(values.map((value) => `zavx0z/git-start-${value}`))
+      ).toEqual(["zavx0z/git-start-clone", "zavx0z/git-start-init"])
       expect(
         branchResults.map(([, nextContinuation]) => nextContinuation),
         "continuation git-start должен сохранять payload для следующего meta-уровня",
-      ).toEqual(values.map(() => ({ values: { args: null } })))
+      ).toEqual([{ values: { args: null } }, { values: { args: null } }])
       expect(
         branchResults.every(([particle]) => particle.values === undefined),
         "ветви git-start должны оставаться пустыми до своей meta",
@@ -399,7 +255,7 @@ describe("zavx0z/git", () => {
       expect(
         secondLayer.map(([particle]) => particle.src),
         "второй слой git-start должен вернуть все обнаруженные Wimp",
-      ).toEqual(values.map((value) => `zavx0z/git-start-${value}`))
+      ).toEqual(["zavx0z/git-start-clone", "zavx0z/git-start-init"])
       for (const [particle] of branchResults) {
         expect(dark$.particles.get(particle.id), "после записи Wimp git-start должен попасть в dark$.particles").toBe(
           particle,
@@ -407,11 +263,14 @@ describe("zavx0z/git", () => {
         expect(dark$.parent.get(particle), "после записи parent Wimp git-start должен быть сохранён").toBe(childFuzzy)
       }
     })
-    test("завершение генератора", () => {
-      const end = generator.next()
+    test("завершение генератора", async () => {
+      const end = await generator.next()
 
       expect(end.done, "generator git-start должен завершиться после второго уровня").toBe(true)
-      expect(end.value, "после завершения generator git-start не должен возвращать дополнительный результат").toBeUndefined()
+      expect(
+        end.value,
+        "после завершения generator git-start не должен возвращать дополнительный результат",
+      ).toBeUndefined()
     })
   })
 })

@@ -11,6 +11,7 @@ import type {
 import type { DarkParticle } from "@dark/types"
 import { resolveContinuationSources } from "@dark/gravity"
 import { Axion, Fuzzy, Macho, resolveWimpContinuation, Wimp, resolveFieldValues } from "@dark/strong"
+import { loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
 
 /**
@@ -109,12 +110,12 @@ const processMatterNode = (
  * Даже если на уровне не появился ни один новый `Wimp`, pipeline всё равно yield-ит
  * пустой массив, чтобы снаружи не терялась граница между слоями прохода.
  */
-export function* matterPipeline(
+export async function* matterMeta(
   wimp: Wimp,
-  ast: MatterAST,
   continuation?: MatterContinuation,
   parent?: DarkParticle,
-): Generator<MatterLayerResult, void> {
+): AsyncGenerator<MatterLayerResult, void> {
+  const ast = await loadMetaAST(wimp.src)
   /**
    * `Wimp` получает входные данные.
    * Если continuation пришёл от родителя, он важнее локальных defaults текущей meta.
@@ -152,7 +153,7 @@ export function* matterPipeline(
         continue
       }
 
-      processMatterNode(entry, ast, nextFrontier, levelWimps)
+      processMatterNode(entry, ast!, nextFrontier, levelWimps)
     }
 
     yield levelWimps
