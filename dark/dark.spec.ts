@@ -214,7 +214,7 @@ describe("init", () => {
     if (!firstLayer) throw new Error("first layer is undefined")
 
     materialized = new Map()
-    const firstBuilds = bindParticles(firstLayer, materialized)
+    const firstBuilds = bindParticles(firstLayer, materialized, ast.fields)
 
     expect(firstBuilds, "strong должен материализовать первый metadata-слой в Fuzzy и Axion").toEqual([
       { seed: fuzzySeed!, particle: expect.any(Fuzzy), parent: wimp, meta: {} },
@@ -265,7 +265,7 @@ describe("init", () => {
   test("материализация второго уровня", () => {
     if (!secondLayer) throw new Error("second layer is undefined")
 
-    const secondBuilds = bindParticles(secondLayer, materialized)
+    const secondBuilds = bindParticles(secondLayer, materialized, ast.fields)
     const values = ref.fields.operation?.values ?? []
     const dynamicMeta = ref.matter?.[0]
     const logicalMeta = ref.matter?.[1]
@@ -301,13 +301,13 @@ describe("init", () => {
     ).toEqual(values.map((value) => `zavx0z/git-${value}`))
     expect(
       wimps.map((wimp) => wimp.fields),
-      "Wimp-ветви Fuzzy должны получать fields из seed.node уже в strong",
-    ).toEqual(values.map(() => dynamicMeta.fields))
+      "Wimp-ветви Fuzzy должны получать вычисленные runtime fields из node.fields AST уже в strong",
+    ).toEqual(values.map(() => ({ operation: null, args: null })))
     expect(childWimp, "на втором уровне должен материализоваться дочерний Wimp для Axion").toBeDefined()
     expect(childWimp?.src, "дочерний Wimp должен сохранять статический src из child meta").toBe("zavx0z/git-error")
-    expect(childWimp?.fields, "дочерний Wimp должен получать child fields из seed.node в strong").toEqual(
-      childMeta.fields,
-    )
+    expect(childWimp?.fields, "дочерний Wimp должен получать вычисленные child fields из seed.node в strong").toEqual({
+      message: null,
+    })
   })
   test("завершение генератора", () => {
     const end = generator.next()

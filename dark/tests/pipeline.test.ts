@@ -59,6 +59,12 @@ describe("matter pipeline", () => {
     const fuzzyBranchWimps = branchWimps.filter((particle) => dark$.parent.get(particle) === fuzzy)
     const childWimp = branchWimps.find((particle) => dark$.parent.get(particle) === axion)
 
+    expect(wimp.fields, "root Wimp должен инициализировать runtime fields из MetaAST.fields").toEqual({
+      operation: null,
+      error: null,
+      command: null,
+      args: null,
+    })
     expect(fuzzy, "matterPipeline должен сохранить Fuzzy в store").toBeDefined()
     expect(fuzzy?.value, "Fuzzy без выбранного enum значения должен быть пустым").toBeNull()
     expect(axion, "matterPipeline должен сохранить Axion в store").toBeDefined()
@@ -69,9 +75,11 @@ describe("matter pipeline", () => {
     expect(wimps, "matterPipeline должен вернуть все materialized Wimp").toHaveLength(operationValues.length + 1)
     expect(
       fuzzyBranchWimps.map((particle) => particle.fields),
-      "matterPipeline должен materialize fields всех Wimp-ветвей Fuzzy через strong",
-    ).toEqual(operationValues.map(() => dynamicMeta.fields))
-    expect(childWimp?.fields, "matterPipeline должен materialize fields child Wimp через strong").toEqual(childMeta.fields)
+      "matterPipeline должен materialize runtime fields всех Wimp-ветвей Fuzzy через strong",
+    ).toEqual(operationValues.map(() => ({ operation: null, args: null })))
+    expect(childWimp?.fields, "matterPipeline должен materialize runtime fields child Wimp через strong").toEqual({
+      message: null,
+    })
 
     expect(dark$.particles.size, "store должен содержать root, Fuzzy, Axion и все Wimp-ветви").toBe(14)
     expect(wimp.children, "root wimp должен ссылаться на Fuzzy и Axion").toEqual(new Set([fuzzy!.id, axion!.id]))

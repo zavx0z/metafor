@@ -2,6 +2,8 @@ import type { DarkParticle, ParticleID } from "./shared.ts"
 import type { Mass } from "@metafor/dsl/types"
 import type { NodeMeta } from "@metafor/template"
 
+export type WimpFields = Record<string, unknown>
+
 /**
  * Базовая инициализация частицы.
  * @prop children Дочерние частицы по ID
@@ -19,7 +21,7 @@ export interface BaseParticleInit {
  */
 export interface WimpInit extends BaseParticleInit {
   src: string
-  fields?: NodeMeta["fields"]
+  fields?: WimpFields
   mass?: Mass | NodeMeta["mass"]
 }
 
