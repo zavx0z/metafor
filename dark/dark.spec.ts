@@ -7,6 +7,7 @@ import type { MetaAST } from "@metafor/ast"
 import type { DarkParticle } from "@dark/types"
 import type { AxionSeed, FuzzySeed, ParticleSeed } from "@dark/types/gravity"
 
+import { Dark } from "./index.ts"
 import { Axion, Fuzzy, Wimp } from "@dark/part"
 import { bindParticles, strong$ } from "@dark/strong"
 import { particleGenerator } from "@dark/gravity"
@@ -25,9 +26,10 @@ afterAll(async () => {
   await hub.teardown()
 })
 const src = "zavx0z/git"
+const startSrc = "zavx0z/git-start"
 const ref = reference as MetaAST
 
-describe("init", () => {
+describe("zavx0z/git", () => {
   let ast: MetaAST
   test("загрузка", async () => {
     ast = (await loadMetaAST("zavx0z/git" as SRC)) as MetaAST
@@ -314,5 +316,62 @@ describe("init", () => {
 
     expect(end.done, "generator должен завершиться после второго уровня").toBe(true)
     expect(end.value, "после завершения generator не должен возвращать следующий слой").toBeUndefined()
+  })
+})
+
+describe("zavx0z/git-start", () => {
+  test("верхний Dark pipeline проходит только по первой continuation-ветке", async () => {
+    dark$.meta.clear()
+    dark$.particles.clear()
+    dark$.parent = new WeakMap()
+
+    const chain = await Dark(startSrc as SRC)
+    const particles = Array.from(dark$.particles.values())
+    const root = particles.find((particle): particle is Wimp => particle instanceof Wimp && particle.src === startSrc)
+    const axion = particles.find((particle): particle is Axion => particle instanceof Axion && dark$.parent.get(particle) === root)
+    const fuzzy = particles.find((particle): particle is Fuzzy => particle instanceof Fuzzy && dark$.parent.get(particle) === axion)
+    const branchWimps = particles.filter((particle): particle is Wimp => particle instanceof Wimp && dark$.parent.get(particle) === fuzzy)
+    const firstWimp = branchWimps.find((particle) => particle.src === "zavx0z/git-start-clone")
+    const secondWimp = branchWimps.find((particle) => particle.src === "zavx0z/git-start-init")
+    const firstAxion = particles.find((particle): particle is Axion => particle instanceof Axion && dark$.parent.get(particle) === firstWimp)
+
+    expect(chain, "Dark должен вернуть корень и только первую continuation-ветку").toHaveLength(2)
+    expect(chain[0], "первым элементом chain должен быть root Wimp").toBe(root)
+    expect(chain[1], "вторым элементом chain должен быть первый Wimp из frontier").toBe(firstWimp)
+    expect(root, "root Wimp должен быть materialized").toBeDefined()
+    expect(fuzzy, "root meta должен материализовать Fuzzy").toBeDefined()
+    expect(axion, "root meta должен материализовать Axion").toBeDefined()
+    expect(firstWimp, "первая ветка должна быть materialized").toBeDefined()
+    expect(secondWimp, "вторая ветка root frontier должна остаться без собственной meta").toBeDefined()
+    expect(firstAxion, "первая ветка должна раскрыть собственный Axion").toBeDefined()
+
+    expect(root!.values, "root Wimp должен получить runtime values из MetaAST.fields").toEqual({
+      operation: null,
+      args: null,
+    })
+    expect(root!.children, "root Wimp должен ссылаться на Axion").toEqual(new Set([axion!.id]))
+    expect(axion!.children, "Axion должен ссылаться на root Fuzzy").toEqual(new Set([fuzzy!.id]))
+    expect(fuzzy!.branch.size, "root Fuzzy должен сохранить обе ветви операции").toBe(2)
+    expect(fuzzy!.children, "root Fuzzy должен ссылаться на обе continuation-ветви").toEqual(
+      new Set([firstWimp!.id, secondWimp!.id]),
+    )
+    expect(firstWimp!.values, "первая ветка должна получить runtime values своей meta").toEqual({
+      error: null,
+    })
+    expect(firstWimp!.children, "первая ветка должна раскрыть собственный child graph").toEqual(
+      new Set([firstAxion!.id]),
+    )
+    expect(secondWimp!.children, "вторая ветка пока не должна раскрывать собственную meta").toEqual(new Set())
+    expect(dark$.parent.get(firstWimp!), "parent первой ветки должен быть root Fuzzy").toBe(fuzzy)
+    expect(dark$.parent.get(secondWimp!), "parent второй ветки должен быть root Fuzzy").toBe(fuzzy)
+    expect(dark$.parent.get(firstAxion!), "parent Axion первой ветки должен быть самой continuation-веткой").toBe(firstWimp)
+    expect(dark$.particles.size, "pipeline должен продолжить graph через одну meta-грань").toBe(6)
+    expect(dark$.meta, "meta lookup должен содержать root и обе ветви первой frontier").toEqual(
+      new Map([
+        [root!.id, startSrc],
+        [firstWimp!.id, "zavx0z/git-start-clone"],
+        [secondWimp!.id, "zavx0z/git-start-init"],
+      ]),
+    )
   })
 })
