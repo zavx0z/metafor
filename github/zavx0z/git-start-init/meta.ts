@@ -8,7 +8,5 @@ export default MetaFor("git-start-init", { desc: "Git start-init — коман�
   .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .matter(({ value, html }) => html`
-      ${value.error && html`<div class="error">${value.error}</div>`}
-    `)
+  .matter()
   .bulk()

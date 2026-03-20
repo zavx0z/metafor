@@ -1,45 +1,12 @@
 {
-  "name": "git-history",
+  "name": "git-error",
   "fields": {
-    "operation": {
-      "type": "enum<string>",
-      "label": "Тип операции",
-      "values": [
-        "switch",
-        "checkout",
-        "commit",
-        "reset",
-        "revert",
-        "bisect",
-        "repair"
-      ]
-    },
-    "args": {
+    "error": {
       "type": "string",
-      "label": "Аргументы"
+      "label": "Ошибка"
     }
   },
   "superposition": {},
   "processes": {},
-  "matter": [
-    {
-      "type": "log",
-      "data": "/value/operation",
-      "child": [
-        {
-          "src": {
-            "data": "/value/operation",
-            "expr": "zavx0z/git-history-${_[0]}"
-          },
-          "tag": "meta-for",
-          "type": "meta",
-          "fields": {
-            "data": "/value/args",
-            "expr": "{ args: _[0] }"
-          }
-        }
-      ]
-    }
-  ],
   "mass": {}
 }
