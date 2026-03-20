@@ -42,7 +42,7 @@ const materializeParticle = (
   }
 }
 
-export const materializeParticleLayer = (
+export const bindParticles = (
   layer: ParticleSeed[],
   particles: Map<ParticleSeed, DarkParticle> = new Map(),
   fields?: FieldsAST,
