@@ -9,8 +9,13 @@ export default MetaFor("git-start", { desc: "Git start — команды нач
   .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .matter(({ value, html }) => html`
-      ${value.operation &&
-      html` <meta-for src="zavx0z/git-start-${value.operation}" fields=${{ args: value.args }} /> `}
-    `)
+  .matter(
+    ({ value, html }) => html`
+      <meta-for
+        src="zavx0z/git-start-${value.operation}"
+        fields=${{
+          args: value.args,
+        }} />
+    `,
+  )
   .bulk()

@@ -18,22 +18,16 @@
   "processes": {},
   "matter": [
     {
-      "type": "log",
-      "data": "/value/operation",
-      "child": [
-        {
-          "src": {
-            "data": "/value/operation",
-            "expr": "zavx0z/git-start-${_[0]}"
-          },
-          "tag": "meta-for",
-          "type": "meta",
-          "fields": {
-            "data": "/value/args",
-            "expr": "{ args: _[0] }"
-          }
-        }
-      ]
+      "src": {
+        "data": "/value/operation",
+        "expr": "zavx0z/git-start-${_[0]}"
+      },
+      "tag": "meta-for",
+      "type": "meta",
+      "fields": {
+        "data": "/value/args",
+        "expr": "{ args: _[0] }"
+      }
     }
   ],
   "mass": {}

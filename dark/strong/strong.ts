@@ -5,13 +5,14 @@ import type { ParticleBuild } from "@dark/types/strong"
 import type { WimpInit } from "@dark/types/part"
 import { Axion, Fuzzy, Macho, Wimp } from "@dark/part"
 import { createFieldValueResolvers, resolveNodeFieldValues } from "./fields.ts"
+import { strong$ } from "./store.ts"
 
 const isParticleSeed = (value: SeedParent): value is ParticleSeed => "kind" in value
 
-const resolveParent = (parent: SeedParent, particles: Map<ParticleSeed, DarkParticle>): DarkParticle => {
+const resolveParent = (parent: SeedParent): DarkParticle => {
   if (!isParticleSeed(parent)) return parent
 
-  const particle = particles.get(parent)
+  const particle = strong$.particles.get(parent)
   if (!particle) throw new Error(`Particle seed parent is not materialized: ${parent.kind}`)
   return particle
 }
@@ -42,19 +43,15 @@ const materializeParticle = (
   }
 }
 
-export const bindParticles = (
-  layer: ParticleSeed[],
-  particles: Map<ParticleSeed, DarkParticle> = new Map(),
-  fields?: FieldsAST,
-): ParticleBuild[] => {
+export const bindParticles = (layer: ParticleSeed[], fields?: FieldsAST): ParticleBuild[] => {
   const builds: ParticleBuild[] = []
   const fieldResolvers = fields ? createFieldValueResolvers(fields) : undefined
 
   for (const seed of layer) {
     const particle = materializeParticle(seed, fieldResolvers)
-    const parent = resolveParent(seed.parent, particles)
+    const parent = resolveParent(seed.parent)
 
-    particles.set(seed, particle)
+    strong$.particles.set(seed, particle)
     builds.push({ seed, particle, parent, meta: seed.meta })
   }
 
