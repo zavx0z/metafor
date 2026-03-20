@@ -1,4 +1,6 @@
-import { describe } from "bun:test"
+import { describe, expect, test } from "bun:test"
+
+import { Axion } from "@dark/part"
 
 /**
  * Структура тестов для частицы Axion.
@@ -8,6 +10,15 @@ import { describe } from "bun:test"
  */
 
 describe("Axion — логическая группировка", () => {
+  test("по умолчанию стартует как пустая grouping particle", () => {
+    const particle = new Axion()
+
+    expect(particle.children, "Axion по умолчанию должен иметь пустой children set").toEqual(new Set())
+    expect((particle as any).basis, "Axion runtime contract не должен хранить template basis").toBeUndefined()
+    expect((particle as any).expr, "Axion runtime contract не должен хранить template expr").toBeUndefined()
+    expect((particle as any).src, "Axion runtime contract не должен создавать собственный src").toBeUndefined()
+  })
+
   // должен группировать дочерние частицы без создания новой meta-ссылки
   // должен сохранять вложенность частиц
 })

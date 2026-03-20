@@ -3,6 +3,14 @@ import { describe, expect, test } from "bun:test"
 import { Fuzzy, Macho, Wimp } from "@dark/part"
 
 describe("Fuzzy", () => {
+  test("по умолчанию стартует в пустом runtime состоянии", () => {
+    const fuzzy = new Fuzzy()
+
+    expect(fuzzy.value, "Fuzzy по умолчанию не должен иметь активную ветвь").toBeNull()
+    expect(fuzzy.branch, "Fuzzy по умолчанию должен иметь пустой branch registry").toEqual(new Map())
+    expect(fuzzy.children, "Fuzzy по умолчанию должен иметь пустой children set").toEqual(new Set())
+  })
+
   test("хранит branch map и active value", () => {
     const first = new Wimp("zavx0z/git-start")
     const second = new Wimp("zavx0z/git-work")

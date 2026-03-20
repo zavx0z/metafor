@@ -7,6 +7,6 @@ export abstract class BaseParticle {
 
   protected constructor(init: BaseParticleInit = {}) {
     this.id = crypto.randomUUID()
-    this.children = new Set(init.children)
+    this.children = new Set(init.children ?? [])
   }
 }

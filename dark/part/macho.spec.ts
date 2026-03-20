@@ -30,6 +30,13 @@ describe("Macho — ограничения типа элемента", () => {
 })
 
 describe("Macho — нормализация", () => {
+  test("по умолчанию стартует как пустой multiplicity carrier", () => {
+    const particle = new Macho()
+
+    expect(particle.children, "Macho по умолчанию должен иметь пустой children set").toEqual(new Set())
+    expect((particle as any).basis, "Macho runtime contract не должен хранить template basis").toBeUndefined()
+  })
+
   test("не хранит template-shaped payload в runtime instance", () => {
     const particle = new Macho()
 

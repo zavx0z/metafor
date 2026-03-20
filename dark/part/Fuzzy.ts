@@ -10,7 +10,7 @@ export class Fuzzy extends BaseParticle {
   constructor(init: FuzzyInit = {}) {
     super(init)
     this.value = init.value ?? null
-    this.branch = new Map(init.branch)
+    this.branch = new Map(init.branch ?? [])
   }
 
   switch(value: ParticleID | null): DarkParticle | undefined {
