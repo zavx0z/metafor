@@ -1,6 +1,5 @@
 import type { FieldsAST } from "@metafor/ast"
-import type { NodeMeta, NodeType } from "@metafor/dsl"
-import type { FuzzySeed, ParticleSeed, SeedParent, WimpSeed } from "@dark/types/gravity"
+import type { NodeMeta } from "@metafor/dsl"
 
 const getFieldType = (path: string, fields?: FieldsAST): string | undefined => {
   if (!fields || !path.startsWith("/value/")) return
@@ -30,58 +29,18 @@ const createContinuationSrc = (node: NodeMeta, value: string | number): string =
   return String(new Function("_", `return \`${expr}\``)([value]))
 }
 
-// Gravity здесь остаётся только набором topology helpers: он переводит AST-узел в seed, но не владеет обходом.
-export const createParticleSeed = (node: NodeType, parent: SeedParent, fields?: FieldsAST): ParticleSeed | undefined => {
-  switch (node.type) {
-    case "meta":
-      if (typeof node.src === "string") {
-        return {
-          kind: "wimp",
-          src: node.src,
-          node,
-          parent,
-          meta: {},
-        }
-      }
-
-      if (!isEnumBoundMetaSrc(node, fields)) {
-        throw new Error("Dynamic meta src must be bound to a single enum field")
-      }
-
-      return { kind: "fuzzy", node, parent, meta: {} }
-    case "cond":
-      return { kind: "fuzzy", node, parent, meta: {} }
-    case "log":
-      return {
-        kind: "axion",
-        node,
-        parent,
-        meta: {},
-      }
-    case "map":
-      return {
-        kind: "macho",
-        node,
-        parent,
-        meta: {},
-      }
-    default:
-      return
-  }
-}
-
-// Continuation для enum-bound meta строятся отдельно, чтобы dark мог сам решать порядок следующего frontier.
-export const createContinuationSeeds = (node: NodeMeta, parent: FuzzySeed, fields?: FieldsAST): WimpSeed[] => {
+/**
+ * Вычисляет continuation `src` для dynamic meta, привязанной к enum field.
+ *
+ * Gravity здесь остаётся только topology helper-слоем:
+ * он умеет развернуть dynamic `src` в конкретные continuation-адреса,
+ * но не управляет traversal, frontier или parent wiring.
+ */
+export const resolveContinuationSources = (node: NodeMeta, fields?: FieldsAST): string[] => {
   if (typeof node.src !== "object") return []
 
   const paths = Array.isArray(node.src.data) ? node.src.data : [node.src.data]
   const values = getFieldValues(paths[0]!, fields)
 
-  return values.map((value) => ({
-    kind: "wimp",
-    src: createContinuationSrc(node, value),
-    node,
-    parent,
-    meta: {},
-  }))
+  return values.map((value) => createContinuationSrc(node, value))
 }

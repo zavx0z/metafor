@@ -1,32 +1,49 @@
 import { Fuzzy, Wimp } from "@dark/part"
 import type { MetaAST } from "@metafor/ast"
+import type { NodeMeta, NodeType } from "@metafor/dsl"
 import type { DarkParticle } from "@dark/types"
-import type { MatterNode, ParticleSeed, SeedParent } from "@dark/types/gravity"
-import type { ParticleBuild } from "@dark/types/strong"
-import { createContinuationSeeds, createParticleSeed } from "@dark/gravity"
-import { materializeParticles, resolveFieldValues } from "@dark/strong"
+import { resolveContinuationSources } from "@dark/gravity"
+import { materializeAxion, materializeFuzzy, materializeMacho, materializeWimp, resolveFieldValues } from "@dark/strong"
 import { dark$ } from "./store"
 
-// Для текущего one-meta прохода dark видит только matter и fields текущей meta.
-type MatterAST = Pick<MetaAST, "matter" | "fields">
-type MatterEntry = MatterNode | ParticleSeed
+/**
+ * Минимальный вход для текущего one-meta dark-прохода.
+ *
+ * На этом шаге pipeline использует только `matter` и `fields`
+ * уже загруженной `MetaAST`.
+ */
+export type MatterAST = Pick<MetaAST, "matter" | "fields">
 
-// Во frontier одновременно живут ещё не разобранные AST-узлы и уже подготовленные seed.
-const isParticleSeed = (value: MatterEntry | SeedParent): value is ParticleSeed => "kind" in value
-
-// Временное сопоставление seed -> particle остаётся локальным внутри dark-прохода.
-const resolveParent = (parent: SeedParent, particles: Map<ParticleSeed, DarkParticle>): DarkParticle => {
-  if (!isParticleSeed(parent)) return parent
-
-  const particle = particles.get(parent)
-  if (!particle) throw new Error(`Particle seed parent is not materialized: ${parent.kind}`)
-  return particle
+/**
+ * Локальная запись frontier для прямого one-meta traversal.
+ *
+ * Эта нормализация остаётся полностью внутренней для `dark` и не является
+ * архитектурным контрактом pipeline снаружи.
+ */
+interface MatterNodeEntry {
+  kind: "node"
+  node: NodeType
+  parent: DarkParticle
 }
 
-// Как только слой materialized, dark сразу фиксирует wiring в основном runtime store.
-const registerBuild = (build: ParticleBuild): void => {
-  const { particle, parent } = build
+/**
+ * Локальная continuation-запись для dynamic meta после materialization её Fuzzy-узла.
+ */
+interface MatterContinuationEntry {
+  kind: "continuation"
+  node: NodeMeta
+  parent: Fuzzy
+  src: string
+}
 
+type MatterEntry = MatterNodeEntry | MatterContinuationEntry
+
+const hasChildNodes = (node: NodeType): node is NodeType & { child: NodeType[] } => "child" in node && Array.isArray(node.child)
+
+/**
+ * Как только частица создана, dark сразу фиксирует её graph wiring в `dark$`.
+ */
+const registerParticle = (particle: DarkParticle, parent: DarkParticle): void => {
   parent.children.add(particle.id)
   if (parent instanceof Fuzzy) parent.branch.set(particle.id, particle)
 
@@ -38,37 +55,86 @@ const registerBuild = (build: ParticleBuild): void => {
   dark$.parent.set(particle, parent)
 }
 
-// Dark сам собирает следующий frontier: continuation из Fuzzy и child-ветви текущих узлов.
-const collectMatterLayer = (frontier: MatterEntry[], ast: MatterAST): { seeds: ParticleSeed[]; nextFrontier: MatterEntry[] } => {
-  const seeds: ParticleSeed[] = []
-  const nextFrontier: MatterEntry[] = []
-
-  for (const entry of frontier) {
-    if (isParticleSeed(entry)) {
-      seeds.push(entry)
-      continue
-    }
-
-    const seed = createParticleSeed(entry.node, entry.parent, ast.fields)
-    const parent = seed ?? entry.parent
-
-    if (seed) {
-      seeds.push(seed)
-
-      if (entry.node.type === "meta" && typeof entry.node.src === "object" && seed.kind === "fuzzy") {
-        nextFrontier.push(...createContinuationSeeds(entry.node, seed, ast.fields))
-      }
-    }
-
-    if ("child" in entry.node && Array.isArray(entry.node.child)) {
-      nextFrontier.push(...entry.node.child.map((node): MatterNode => ({ node, parent })))
-    }
-  }
-
-  return { seeds, nextFrontier }
+/**
+ * Дочерние topology-узлы всегда попадают в следующий frontier уже с реальным runtime parent.
+ */
+const appendChildEntries = (frontier: MatterEntry[], node: NodeType, parent: DarkParticle): void => {
+  if (!hasChildNodes(node)) return
+  frontier.push(...node.child.map((child): MatterNodeEntry => ({ kind: "node", node: child, parent })))
 }
 
-// Root Wimp регистрируется до обхода, потому что весь дальнейший one-meta pipeline строится относительно него.
+/**
+ * Обрабатывает обычный topology entry текущего слоя.
+ *
+ * На этом шаге dark:
+ * - понимает, нужна ли частица для текущего узла;
+ * - сразу вызывает `strong` для materialization;
+ * - сразу делает wiring в `dark$`;
+ * - сразу формирует continuation и child-ветви следующего frontier.
+ */
+const processMatterNode = (entry: MatterNodeEntry, ast: MatterAST, nextFrontier: MatterEntry[]): DarkParticle | undefined => {
+  switch (entry.node.type) {
+    case "meta":
+      if (typeof entry.node.src === "string") {
+        const wimp = materializeWimp(entry.node, entry.node.src, ast.fields)
+        registerParticle(wimp, entry.parent)
+        appendChildEntries(nextFrontier, entry.node, wimp)
+        return wimp
+      }
+
+      const fuzzy = materializeFuzzy()
+      registerParticle(fuzzy, entry.parent)
+
+      for (const src of resolveContinuationSources(entry.node, ast.fields)) {
+        nextFrontier.push({ kind: "continuation", node: entry.node, parent: fuzzy, src })
+      }
+
+      appendChildEntries(nextFrontier, entry.node, fuzzy)
+      return fuzzy
+    case "cond": {
+      const fuzzy = materializeFuzzy()
+      registerParticle(fuzzy, entry.parent)
+      appendChildEntries(nextFrontier, entry.node, fuzzy)
+      return fuzzy
+    }
+    case "log": {
+      const axion = materializeAxion()
+      registerParticle(axion, entry.parent)
+      appendChildEntries(nextFrontier, entry.node, axion)
+      return axion
+    }
+    case "map": {
+      const macho = materializeMacho()
+      registerParticle(macho, entry.parent)
+      appendChildEntries(nextFrontier, entry.node, macho)
+      return macho
+    }
+    default:
+      appendChildEntries(nextFrontier, entry.node, entry.parent)
+      return
+  }
+}
+
+/**
+ * Обрабатывает continuation dynamic meta как уже выбранный `src` для нового Wimp.
+ */
+const processContinuation = (
+  entry: MatterContinuationEntry,
+  ast: MatterAST,
+  nextFrontier: MatterEntry[],
+): Wimp => {
+  const wimp = materializeWimp(entry.node, entry.src, ast.fields)
+  registerParticle(wimp, entry.parent)
+  appendChildEntries(nextFrontier, entry.node, wimp)
+  return wimp
+}
+
+/**
+ * Регистрирует root Wimp до обхода.
+ *
+ * Это отдельный шаг текущего one-meta pipeline: после него `dark` уже знает точку входа,
+ * от которой будет строить весь локальный traversal.
+ */
 export const initializeMatterRoot = (wimp: Wimp, ast: MatterAST, parent?: Wimp): void => {
   wimp.values = resolveFieldValues(ast.fields)
   dark$.particles.set(wimp.id, wimp)
@@ -76,46 +142,44 @@ export const initializeMatterRoot = (wimp: Wimp, ast: MatterAST, parent?: Wimp):
   if (parent) dark$.parent.set(wimp, parent)
 }
 
-// Явный layer-by-layer pipeline одной meta: dark владеет traversal, а strong только materialization.
-export function* matterGenerator(wimp: Wimp, ast: MatterAST): Generator<ParticleBuild[]> {
+/**
+ * Явный layer-by-layer pipeline одной meta.
+ *
+ * Генератор возвращает не промежуточные `seed/build`, а уже реальные runtime-частицы
+ * текущего слоя. По ним можно отследить ход прохода без восстановления скрытой модели.
+ */
+export function* matterGenerator(wimp: Wimp, ast: MatterAST): Generator<DarkParticle[]> {
   if (!ast.matter) return
 
-  const materialized = new Map<ParticleSeed, DarkParticle>()
-  let frontier = Array.from(ast.matter, (node): MatterEntry => ({ node, parent: wimp }))
+  let frontier = Array.from(ast.matter, (node): MatterEntry => ({ kind: "node", node, parent: wimp }))
 
   while (frontier.length > 0) {
-    const { seeds, nextFrontier } = collectMatterLayer(frontier, ast)
+    const currentLayer = frontier
+    const nextFrontier: MatterEntry[] = []
+    const particles: DarkParticle[] = []
+
     frontier = nextFrontier
 
-    if (seeds.length === 0) continue
-
-    // Strong создаёт runtime instances, но не знает ничего о parent wiring текущего прохода.
-    const materializations = materializeParticles(seeds, ast.fields)
-    for (const materialization of materializations) {
-      materialized.set(materialization.seed, materialization.particle)
+    for (const entry of currentLayer) {
+      const particle =
+        entry.kind === "continuation" ? processContinuation(entry, ast, nextFrontier) : processMatterNode(entry, ast, nextFrontier)
+      if (particle) particles.push(particle)
     }
 
-    // После materialization dark сам восстанавливает parent по локальному build-state.
-    const builds = materializations.map<ParticleBuild>(({ seed, particle }) => ({
-      seed,
-      particle,
-      parent: resolveParent(seed.parent, materialized),
-      meta: seed.meta,
-    }))
-
-    for (const build of builds) registerBuild(build)
-    yield builds
+    if (particles.length > 0) yield particles
   }
 }
 
-// Обёртка над явным генератором для мест, где нужен готовый список дочерних Wimp.
+/**
+ * Обёртка над явным генератором для мест, где нужен готовый список дочерних Wimp.
+ */
 export const matterPipeline = (wimp: Wimp, ast: MatterAST, parent?: Wimp): Wimp[] => {
   initializeMatterRoot(wimp, ast, parent)
   const wimps: Wimp[] = []
 
-  for (const builds of matterGenerator(wimp, ast)) {
-    for (const build of builds) {
-      if (build.particle instanceof Wimp) wimps.push(build.particle)
+  for (const particles of matterGenerator(wimp, ast)) {
+    for (const particle of particles) {
+      if (particle instanceof Wimp) wimps.push(particle)
     }
   }
 
