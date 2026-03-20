@@ -1,6 +1,9 @@
 import { Fuzzy, Wimp } from "@dark/part"
 import type { MetaAST } from "@metafor/ast"
 import { particleGenerator } from "@dark/gravity/gravity"
+import type { DarkParticle } from "@dark/types"
+import type { ParticleSeed } from "@dark/gravity"
+import { materializeParticleLayer } from "@dark/strong"
 import { dark$ } from "./store"
 
 export const matterPipeline = (wimp: Wimp, ast: Pick<MetaAST, "matter" | "fields">, parent?: Wimp): Wimp[] => {
@@ -11,9 +14,10 @@ export const matterPipeline = (wimp: Wimp, ast: Pick<MetaAST, "matter" | "fields
   if (!ast.matter) return []
 
   const wimps: Wimp[] = []
+  const particles = new Map<ParticleSeed, DarkParticle>()
 
-  for (const layer of particleGenerator(wimp, ast.matter, ast.fields)) {
-    for (const { particle, parent } of layer) {
+  for (const seeds of particleGenerator(wimp, ast.matter, ast.fields)) {
+    for (const { particle, parent } of materializeParticleLayer(seeds, particles)) {
       parent.children.add(particle.id)
       if (parent instanceof Fuzzy) parent.branch.set(particle.id, particle)
       if (particle instanceof Wimp) {

@@ -1,19 +1,44 @@
 import type { FieldsAST } from "@metafor/ast"
-import type { NodeMeta, NodeType } from "@metafor/dsl"
+import type { Mass, NodeMeta, NodeType } from "@metafor/dsl"
 import type { DarkParticle } from "@dark/types"
-import { Axion, Fuzzy, Macho, Wimp } from "@dark/part"
 
-export interface ParticleBuild {
-  particle: DarkParticle
-  parent: DarkParticle
+export type SeedParent = DarkParticle | ParticleSeed
+
+interface SeedBase {
+  kind: "wimp" | "fuzzy" | "axion" | "macho"
+  parent: SeedParent
   meta: Record<string, never>
 }
 
-type LayerEntry = LayerNode | ParticleBuild
+export interface WimpSeed extends SeedBase {
+  kind: "wimp"
+  src: string
+  fields?: NodeMeta["fields"]
+  mass?: Mass | NodeMeta["mass"]
+}
+
+export interface FuzzySeed extends SeedBase {
+  kind: "fuzzy"
+}
+
+export interface AxionSeed extends SeedBase {
+  kind: "axion"
+  basis?: string | string[]
+  expr?: string
+}
+
+export interface MachoSeed extends SeedBase {
+  kind: "macho"
+  basis: string
+}
+
+export type ParticleSeed = WimpSeed | FuzzySeed | AxionSeed | MachoSeed
+
+type LayerEntry = LayerNode | ParticleSeed
 
 type LayerNode = {
   node: NodeType
-  parent: DarkParticle
+  parent: SeedParent
 }
 
 const getFieldType = (path: string, fields?: FieldsAST): string | undefined => {
@@ -44,16 +69,15 @@ const createContinuationSrc = (node: NodeMeta, value: string | number): string =
   return String(new Function("_", `return \`${expr}\``)([value]))
 }
 
-const createParticleBuild = (node: NodeType, parent: DarkParticle, fields?: FieldsAST): ParticleBuild | undefined => {
+const createParticleSeed = (node: NodeType, parent: SeedParent, fields?: FieldsAST): ParticleSeed | undefined => {
   switch (node.type) {
     case "meta":
       if (typeof node.src === "string") {
         return {
-          particle: new Wimp({
-            src: node.src,
-            ...(node.fields !== undefined ? { fields: node.fields } : {}),
-            ...(node.mass !== undefined ? { mass: node.mass } : {}),
-          }),
+          kind: "wimp",
+          src: node.src,
+          ...(node.fields !== undefined ? { fields: node.fields } : {}),
+          ...(node.mass !== undefined ? { mass: node.mass } : {}),
           parent,
           meta: {},
         }
@@ -63,23 +87,21 @@ const createParticleBuild = (node: NodeType, parent: DarkParticle, fields?: Fiel
         throw new Error("Dynamic meta src must be bound to a single enum field")
       }
 
-      return { particle: new Fuzzy(), parent, meta: {} }
+      return { kind: "fuzzy", parent, meta: {} }
     case "cond":
-      return { particle: new Fuzzy(), parent, meta: {} }
+      return { kind: "fuzzy", parent, meta: {} }
     case "log":
       return {
-        particle: new Axion({
-          basis: node.data,
-          ...("expr" in node && node.expr !== undefined ? { expr: node.expr } : {}),
-        }),
+        kind: "axion",
+        basis: node.data,
+        ...("expr" in node && node.expr !== undefined ? { expr: node.expr } : {}),
         parent,
         meta: {},
       }
     case "map":
       return {
-        particle: new Macho({
-          basis: node.data,
-        }),
+        kind: "macho",
+        basis: node.data,
         parent,
         meta: {},
       }
@@ -88,55 +110,47 @@ const createParticleBuild = (node: NodeType, parent: DarkParticle, fields?: Fiel
   }
 }
 
-const createContinuationBuilds = (node: NodeMeta, parent: Fuzzy, fields?: FieldsAST): ParticleBuild[] => {
+const createContinuationSeeds = (node: NodeMeta, parent: FuzzySeed, fields?: FieldsAST): WimpSeed[] => {
   if (typeof node.src !== "object") return []
 
   const paths = Array.isArray(node.src.data) ? node.src.data : [node.src.data]
   const values = getFieldValues(paths[0]!, fields)
-  const wimps: Wimp[] = []
 
-  for (const value of values) {
-    wimps.push(
-      new Wimp({
-        src: createContinuationSrc(node, value),
-        ...(node.fields !== undefined ? { fields: node.fields } : {}),
-        ...(node.mass !== undefined ? { mass: node.mass } : {}),
-      }),
-    )
-  }
-
-  return wimps.map((particle) => ({
-    particle,
+  return values.map((value) => ({
+    kind: "wimp",
+    src: createContinuationSrc(node, value),
+    ...(node.fields !== undefined ? { fields: node.fields } : {}),
+    ...(node.mass !== undefined ? { mass: node.mass } : {}),
     parent,
     meta: {},
   }))
 }
 
 export function* particleGenerator(
-  wimp: Wimp,
+  root: DarkParticle,
   nodes: Iterable<NodeType>,
   fields?: FieldsAST,
-): Generator<ParticleBuild[]> {
-  let level = Array.from(nodes, (node): LayerEntry => ({ node, parent: wimp }))
+): Generator<ParticleSeed[]> {
+  let level = Array.from(nodes, (node): LayerEntry => ({ node, parent: root }))
 
   while (level.length > 0) {
-    const builds: ParticleBuild[] = []
+    const seeds: ParticleSeed[] = []
     const nextLevel: LayerEntry[] = []
 
     for (const item of level) {
-      if ("particle" in item) {
-        builds.push(item)
+      if (!("node" in item)) {
+        seeds.push(item)
         continue
       }
 
-      const build = createParticleBuild(item.node, item.parent, fields)
-      const parent = build?.particle ?? item.parent
+      const seed = createParticleSeed(item.node, item.parent, fields)
+      const parent = seed ?? item.parent
 
-      if (build) {
-        builds.push(build)
+      if (seed) {
+        seeds.push(seed)
 
-        if (item.node.type === "meta" && typeof item.node.src === "object" && build.particle instanceof Fuzzy) {
-          nextLevel.push(...createContinuationBuilds(item.node, build.particle, fields))
+        if (item.node.type === "meta" && typeof item.node.src === "object" && seed.kind === "fuzzy") {
+          nextLevel.push(...createContinuationSeeds(item.node, seed, fields))
         }
       }
 
@@ -145,7 +159,7 @@ export function* particleGenerator(
       }
     }
 
-    if (builds.length > 0) yield builds
+    if (seeds.length > 0) yield seeds
 
     level = nextLevel
   }
