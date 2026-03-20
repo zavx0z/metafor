@@ -3,18 +3,14 @@ import type { MatterEntry, MatterNodeEntry, MatterAST, MatterContinuationEntry }
 import type { DarkParticle } from "@dark/types"
 import { resolveContinuationSources } from "@dark/gravity"
 import {
+  Axion,
   Fuzzy,
+  Macho,
   Wimp,
-  materializeAxion,
-  materializeFuzzy,
-  materializeMacho,
   materializeWimp,
   resolveFieldValues,
 } from "@dark/strong"
 import { dark$ } from "./store"
-
-const hasChildNodes = (node: NodeType): node is NodeType & { child: NodeType[] } =>
-  "child" in node && Array.isArray(node.child)
 
 /**
  * Как только частица создана, dark сразу фиксирует её graph wiring в `dark$`.
@@ -35,7 +31,7 @@ const registerParticle = (particle: DarkParticle, parent: DarkParticle): void =>
  * Дочерние topology-узлы всегда попадают в следующий frontier уже с реальным runtime parent.
  */
 const appendChildEntries = (frontier: MatterEntry[], node: NodeType, parent: DarkParticle): void => {
-  if (!hasChildNodes(node)) return
+  if (!("child" in node && Array.isArray(node.child))) return
   frontier.push(...node.child.map((child): MatterNodeEntry => ({ kind: "node", node: child, parent })))
 }
 
@@ -62,7 +58,7 @@ const processMatterNode = (
         return wimp
       }
 
-      const fuzzy = materializeFuzzy()
+      const fuzzy = new Fuzzy()
       registerParticle(fuzzy, entry.parent)
 
       for (const src of resolveContinuationSources(entry.node, ast.fields)) {
@@ -72,19 +68,19 @@ const processMatterNode = (
       appendChildEntries(nextFrontier, entry.node, fuzzy)
       return fuzzy
     case "cond": {
-      const fuzzy = materializeFuzzy()
+      const fuzzy = new Fuzzy()
       registerParticle(fuzzy, entry.parent)
       appendChildEntries(nextFrontier, entry.node, fuzzy)
       return fuzzy
     }
     case "log": {
-      const axion = materializeAxion()
+      const axion = new Axion()
       registerParticle(axion, entry.parent)
       appendChildEntries(nextFrontier, entry.node, axion)
       return axion
     }
     case "map": {
-      const macho = materializeMacho()
+      const macho = new Macho()
       registerParticle(macho, entry.parent)
       appendChildEntries(nextFrontier, entry.node, macho)
       return macho
@@ -103,19 +99,6 @@ const processContinuation = (entry: MatterContinuationEntry, ast: MatterAST, nex
   registerParticle(wimp, entry.parent)
   appendChildEntries(nextFrontier, entry.node, wimp)
   return wimp
-}
-
-/**
- * Регистрирует root Wimp до обхода.
- *
- * Это отдельный шаг текущего one-meta pipeline: после него `dark` уже знает точку входа,
- * от которой будет строить весь локальный traversal.
- */
-export const initializeMatterRoot = (wimp: Wimp, ast: MatterAST, parent?: Wimp): void => {
-  wimp.values = resolveFieldValues(ast.fields)
-  dark$.particles.set(wimp.id, wimp)
-  dark$.meta.set(wimp.id, wimp.src)
-  if (parent) dark$.parent.set(wimp, parent)
 }
 
 /**
@@ -148,11 +131,12 @@ export function* matterGenerator(wimp: Wimp, ast: MatterAST): Generator<DarkPart
   }
 }
 
-/**
- * Обёртка над явным генератором для мест, где нужен готовый список дочерних Wimp.
- */
 export const matterPipeline = (wimp: Wimp, ast: MatterAST, parent?: Wimp): Wimp[] => {
-  initializeMatterRoot(wimp, ast, parent)
+  wimp.values = resolveFieldValues(ast.fields)
+  dark$.particles.set(wimp.id, wimp)
+  dark$.meta.set(wimp.id, wimp.src)
+  if (parent) dark$.parent.set(wimp, parent)
+
   const wimps: Wimp[] = []
 
   for (const particles of matterGenerator(wimp, ast)) {

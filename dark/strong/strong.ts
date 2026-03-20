@@ -1,9 +1,6 @@
 import type { FieldsAST } from "@metafor/ast"
 import type { NodeMeta } from "@metafor/dsl"
 import type { WimpInit } from "@dark/types/strong"
-import { Axion } from "./Axion.ts"
-import { Fuzzy } from "./Fuzzy.ts"
-import { Macho } from "./Macho.ts"
 import { Wimp } from "./Wimp.ts"
 import { createFieldValueResolvers, resolveNodeFieldValues } from "./fields.ts"
 
@@ -30,24 +27,3 @@ export const materializeWimp = (node: NodeMeta, src: string, fields?: FieldsAST)
 
   return new Wimp(init)
 }
-
-/**
- * Создаёт пустую runtime Fuzzy.
- *
- * Решение о том, что в текущем проходе нужен именно `Fuzzy`, принимает `dark`.
- */
-export const materializeFuzzy = (): Fuzzy => new Fuzzy()
-
-/**
- * Создаёт пустую runtime Axion.
- *
- * Логика обхода и привязки дочерних ветвей остаётся на уровне `dark`.
- */
-export const materializeAxion = (): Axion => new Axion()
-
-/**
- * Создаёт пустую runtime Macho.
- *
- * Strong не знает, где эта частица окажется в graph wiring, и не пытается это решать.
- */
-export const materializeMacho = (): Macho => new Macho()

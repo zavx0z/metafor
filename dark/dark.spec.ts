@@ -4,8 +4,8 @@ import type { MetaAST } from "@metafor/ast"
 import { HubFixture } from "fixture"
 import reference from "../github/zavx0z/git/meta.json"
 
-import { Axion, Fuzzy, Wimp } from "@dark/strong"
-import { initializeMatterRoot, matterGenerator } from "./dark.ts"
+import { Axion, Fuzzy, resolveFieldValues, Wimp } from "@dark/strong"
+import { matterGenerator } from "./dark.ts"
 import { loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
 
@@ -155,7 +155,9 @@ describe("zavx0z/git", () => {
     test("создание wimp", () => {
       wimp = new Wimp(src)
       // Root Wimp регистрируется отдельно до запуска генератора, чтобы тест повторял реальный dark-проход.
-      initializeMatterRoot(wimp, ast)
+      wimp.values = resolveFieldValues(ast.fields)
+      dark$.particles.set(wimp.id, wimp)
+      dark$.meta.set(wimp.id, wimp.src)
 
       expect(dark$.particles, "корневой wimp должен быть сохранён в dark$.particles").toEqual(
         new Map([[wimp.id, wimp]]),
@@ -206,9 +208,10 @@ describe("zavx0z/git", () => {
       expect(rootAxion, "на первом уровне должен появиться Axion").toBeInstanceOf(Axion)
 
       for (const particle of firstLayer) {
-        expect(dark$.parent.get(particle), "на первом уровне каждая materialized частица должна быть привязана к root Wimp").toBe(
-          wimp,
-        )
+        expect(
+          dark$.parent.get(particle),
+          "на первом уровне каждая materialized частица должна быть привязана к root Wimp",
+        ).toBe(wimp)
 
         expect(
           dark$.particles.get(particle.id),
@@ -388,7 +391,9 @@ describe("zavx0z/git", () => {
       )
 
       for (const particle of secondLayer) {
-        expect(particle, "на втором уровне git-start каждая запись generator должна materialize Wimp").toBeInstanceOf(Wimp)
+        expect(particle, "на втором уровне git-start каждая запись generator должна materialize Wimp").toBeInstanceOf(
+          Wimp,
+        )
         childWimps.push(particle as Wimp)
 
         expect(dark$.particles.get(particle.id), "после записи Wimp git-start должен попасть в dark$.particles").toBe(
