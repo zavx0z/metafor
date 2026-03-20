@@ -82,16 +82,9 @@ export interface MachoSeed extends SeedBase {
 export type ParticleSeed = WimpSeed | FuzzySeed | AxionSeed | MachoSeed
 
 /**
- * Внутренний тип для слоя обхода в particleGenerator.
- * @prop node AST-узел
- * @prop parent Родительская сущность
+ * Узел matter, который может быть преобразован в seed.
  */
-export interface LayerNode {
+export interface MatterNode {
   node: NodeType
   parent: SeedParent
 }
-
-/**
- * Внутренний тип для слоя обхода в particleGenerator.
- */
-export type LayerEntry = LayerNode | ParticleSeed

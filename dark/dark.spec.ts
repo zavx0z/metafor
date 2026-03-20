@@ -6,8 +6,7 @@ import type { SRC } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
 
 import { Axion, Fuzzy, Wimp } from "@dark/part"
-import { bindParticles, resolveFieldValues, strong$ } from "@dark/strong"
-import { particleGenerator } from "@dark/gravity"
+import { initializeMatterRoot, matterGenerator } from "./dark.ts"
 import { loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
 
@@ -23,7 +22,6 @@ describe("zavx0z/git", () => {
     dark$.meta.clear()
     dark$.particles.clear()
     dark$.parent = new WeakMap()
-    strong$.reset()
     await hub.teardown()
   })
 
@@ -32,6 +30,7 @@ describe("zavx0z/git", () => {
   describe("zavx0z/git", () => {
     let ast: MetaAST
     test("загрузка", async () => {
+      // Сначала фиксируем входную meta как эталон для последующего явного pipeline-прохода.
       ast = (await loadMetaAST("zavx0z/git" as SRC)) as MetaAST
       expect(ast, "loadMetaAST должен вернуть тот же MetaAST, что и ref").toEqual(ref)
       expect(Object.keys(ast).sort(), "MetaAST должен содержать ожидаемые корневые ключи").toEqual([
@@ -154,10 +153,8 @@ describe("zavx0z/git", () => {
     let wimp: Wimp
     test("создание wimp", () => {
       wimp = new Wimp(src)
-      wimp.values = resolveFieldValues(ast.fields)
-
-      dark$.particles.set(wimp.id, wimp)
-      dark$.meta.set(wimp.id, wimp.src)
+      // Root Wimp регистрируется отдельно до запуска генератора, чтобы тест повторял реальный dark-проход.
+      initializeMatterRoot(wimp, ast)
 
       expect(dark$.particles, "корневой wimp должен быть сохранён в dark$.particles").toEqual(
         new Map([[wimp.id, wimp]]),
@@ -182,47 +179,42 @@ describe("zavx0z/git", () => {
 
       expect(massWimp.mass, "mass не должен присваиваться при пустом ref.mass").toBeUndefined()
     })
-    let generator: ReturnType<typeof particleGenerator>
+    let generator: ReturnType<typeof matterGenerator>
     test("создание генератора", () => {
-      if (!ast.matter) throw new Error("matter is undefined")
-
-      generator = particleGenerator(wimp, ast.matter, ast.fields)
-      strong$.reset()
+      // Генератор здесь и есть явная форма one-meta pipeline на уровне dark.
+      generator = matterGenerator(wimp, ast)
 
       expect(generator, "generator должен быть создан").toBeDefined()
       expect(typeof generator.next, "generator должен иметь метод next").toBe("function")
       expect(generator[Symbol.iterator], "generator должен быть итерируемым").toBeDefined()
     })
     test("обработка первого уровня", () => {
+      // Первый слой materialize служебные частицы текущей meta, но ещё не continuation Wimp.
       const firstLevel = generator.next()
       const dynamicMeta = ref.matter?.[0]
       const logicalMeta = ref.matter?.[1]
       if (!dynamicMeta || dynamicMeta.type !== "meta") throw new Error("dynamic meta node is undefined")
       if (!logicalMeta || logicalMeta.type !== "log") throw new Error("logical meta node is undefined")
+      if (firstLevel.done) throw new Error("first level is done")
+
+      const firstLayer = firstLevel.value
 
       expect(firstLevel.done, "первый слой не должен завершать generator").toBe(false)
-      expect(firstLevel.value, "первый цикл должен вернуть metadata Fuzzy и Axion с root Wimp как parent").toEqual([
-        { kind: "fuzzy", node: dynamicMeta, parent: wimp, meta: {} },
-        {
-          kind: "axion",
-          node: logicalMeta,
-          parent: wimp,
-          meta: {},
-        },
-      ])
+      expect(firstLayer.map(({ seed }) => seed), "первый цикл должен вернуть metadata Fuzzy и Axion с root Wimp как parent").toEqual(
+        [
+          { kind: "fuzzy", node: dynamicMeta, parent: wimp, meta: {} },
+          {
+            kind: "axion",
+            node: logicalMeta,
+            parent: wimp,
+            meta: {},
+          },
+        ],
+      )
 
-      for (const { particle, parent, seed } of bindParticles(firstLevel.value, ast.fields)) {
+      for (const { particle, parent, seed } of firstLayer) {
         expect(parent, "на первом уровне каждый materialized parent должен быть root Wimp").toBe(wimp)
         expect(seed.kind, "на первом уровне должны materialize только Fuzzy и Axion").toMatch(/^(fuzzy|axion)$/)
-
-        parent.children.add(particle.id)
-        if (parent instanceof Fuzzy) parent.branch.set(particle.id, particle)
-        if (particle instanceof Wimp) {
-          wimps.push(particle)
-          dark$.meta.set(particle.id, particle.src)
-        }
-        dark$.particles.set(particle.id, particle)
-        dark$.parent.set(particle, parent)
 
         expect(
           dark$.particles.get(particle.id),
@@ -262,6 +254,7 @@ describe("zavx0z/git", () => {
       expect(wimps, "на первом уровне не должно появляться новых Wimp continuation").toEqual([])
     })
     test("обработка второго уровня", () => {
+      // Второй слой раскрывает continuation из Fuzzy и child-ветку из логического узла.
       const secondLevel = generator.next()
       const values = ref.fields.operation?.values ?? []
       const dynamicMeta = ref.matter?.[0]
@@ -269,10 +262,13 @@ describe("zavx0z/git", () => {
       const childMeta = logicalMeta?.type === "log" ? logicalMeta.child?.[0] : undefined
       if (!dynamicMeta || dynamicMeta.type !== "meta") throw new Error("dynamic meta node is undefined")
       if (!childMeta || childMeta.type !== "meta") throw new Error("child meta node is undefined")
+      if (secondLevel.done) throw new Error("second level is done")
+
+      const secondLayer = secondLevel.value
 
       expect(secondLevel.done, "второй слой не должен завершать generator").toBe(false)
       expect(
-        secondLevel.value,
+        secondLayer.map(({ seed }) => seed),
         "второй слой должен раскрывать все static Wimp из Fuzzy и дочернюю ветку Axion",
       ).toEqual([
         ...values.map((value) =>
@@ -291,22 +287,14 @@ describe("zavx0z/git", () => {
         }),
       ])
 
-      for (const { particle, parent, seed } of bindParticles(secondLevel.value, ast.fields)) {
-        expect(particle, "на втором уровне каждая запись bindParticles должна materialize частицу").toBeInstanceOf(Wimp)
+      for (const { particle, parent, seed } of secondLayer) {
+        expect(particle, "на втором уровне каждая запись generator должна materialize частицу").toBeInstanceOf(Wimp)
         expect(seed.kind, "на втором уровне generator должен materialize только Wimp continuation").toBe("wimp")
         expect(
           parent instanceof Fuzzy || parent instanceof Axion,
           "на втором уровне parent каждой частицы должен быть либо Fuzzy, либо Axion",
         ).toBe(true)
-
-        parent.children.add(particle.id)
-        if (parent instanceof Fuzzy) parent.branch.set(particle.id, particle)
-        if (particle instanceof Wimp) {
-          wimps.push(particle)
-          dark$.meta.set(particle.id, particle.src)
-        }
-        dark$.particles.set(particle.id, particle)
-        dark$.parent.set(particle, parent)
+        if (particle instanceof Wimp) wimps.push(particle)
 
         expect(
           dark$.particles.get(particle.id),
@@ -375,10 +363,11 @@ describe("zavx0z/git", () => {
   describe("zavx0z/git-start", () => {
     let ast: MetaAST
     let wimp: Wimp
-    let generator: ReturnType<typeof particleGenerator>
+    let generator: ReturnType<typeof matterGenerator>
     const childWimps: Wimp[] = []
 
     test("создание root wimp", () => {
+      // Следующая meta берёт уже materialized Wimp из предыдущего dark-прохода.
       wimp = wimps[0]!
 
       expect(wimp, "первый continuation Wimp из root meta должен существовать").toBeDefined()
@@ -405,21 +394,23 @@ describe("zavx0z/git", () => {
       })
     })
     test("создание генератора", () => {
-      if (!ast.matter) throw new Error("matter is undefined")
-
-      generator = particleGenerator(wimp, ast.matter, ast.fields)
-      strong$.reset()
+      // Для дочерней meta форма остаётся такой же: dark снова управляет layer-by-layer обходом.
+      generator = matterGenerator(wimp, ast)
 
       expect(generator, "generator для git-start должен быть создан").toBeDefined()
       expect(typeof generator.next, "generator для git-start должен иметь метод next").toBe("function")
     })
     test("обработка первого уровня", () => {
+      // На первом шаге дочерней meta появляется только Fuzzy-контейнер для будущих ветвей.
       const firstLevel = generator.next()
       const dynamicMeta = ast.matter?.[0]
       if (!dynamicMeta || dynamicMeta.type !== "meta") throw new Error("dynamic meta node is undefined")
+      if (firstLevel.done) throw new Error("first git-start level is done")
+
+      const firstLayer = firstLevel.value
 
       expect(firstLevel.done, "первый слой git-start не должен завершать generator").toBe(false)
-      expect(firstLevel.value, "первый цикл git-start должен вернуть Fuzzy с root Wimp как parent").toEqual([
+      expect(firstLayer.map(({ seed }) => seed), "первый цикл git-start должен вернуть Fuzzy с root Wimp как parent").toEqual([
         {
           kind: "fuzzy",
           node: dynamicMeta,
@@ -428,18 +419,9 @@ describe("zavx0z/git", () => {
         },
       ])
 
-      for (const { particle, parent, seed } of bindParticles(firstLevel.value, ast.fields)) {
+      for (const { particle, parent, seed } of firstLayer) {
         expect(parent, "на первом уровне git-start parent должен быть root Wimp").toBe(wimp)
         expect(seed.kind, "на первом уровне git-start должен materialize только Fuzzy").toBe("fuzzy")
-
-        parent.children.add(particle.id)
-        if (parent instanceof Fuzzy) parent.branch.set(particle.id, particle)
-        if (particle instanceof Wimp) {
-          childWimps.push(particle)
-          dark$.meta.set(particle.id, particle.src)
-        }
-        dark$.particles.set(particle.id, particle)
-        dark$.parent.set(particle, parent)
 
         expect(dark$.particles.get(particle.id), "после записи Fuzzy git-start должен попасть в dark$.particles").toBe(
           particle,
@@ -458,12 +440,16 @@ describe("zavx0z/git", () => {
       expect(childWimps, "на первом уровне git-start новых Wimp continuation не должно появляться").toEqual([])
     })
     test("обработка второго уровня", () => {
+      // На втором шаге дочерняя meta раскрывает Wimp-ветви из enum continuation.
       const secondLevel = generator.next()
       const dynamicMeta = ast.matter?.[0]
       if (!dynamicMeta || dynamicMeta.type !== "meta") throw new Error("dynamic meta node is undefined")
+      if (secondLevel.done) throw new Error("second git-start level is done")
+
+      const secondLayer = secondLevel.value
 
       expect(secondLevel.done, "второй слой git-start не должен завершать generator").toBe(false)
-      expect(secondLevel.value, "второй цикл git-start должен раскрыть Wimp continuation из Fuzzy").toEqual([
+      expect(secondLayer.map(({ seed }) => seed), "второй цикл git-start должен раскрыть Wimp continuation из Fuzzy").toEqual([
         ...((ast.fields.operation?.values ?? []).map((value) =>
           expect.objectContaining({
             kind: "wimp",
@@ -474,21 +460,13 @@ describe("zavx0z/git", () => {
         )),
       ])
 
-      for (const { particle, parent, seed } of bindParticles(secondLevel.value, ast.fields)) {
-        expect(particle, "на втором уровне git-start каждая запись bindParticles должна materialize Wimp").toBeInstanceOf(
+      for (const { particle, parent, seed } of secondLayer) {
+        expect(particle, "на втором уровне git-start каждая запись generator должна materialize Wimp").toBeInstanceOf(
           Wimp,
         )
         expect(seed.kind, "на втором уровне git-start должен materialize только Wimp continuation").toBe("wimp")
         expect(parent, "на втором уровне git-start parent должен быть Fuzzy").toBeInstanceOf(Fuzzy)
-
-        parent.children.add(particle.id)
-        if (parent instanceof Fuzzy) parent.branch.set(particle.id, particle)
-        if (particle instanceof Wimp) {
-          childWimps.push(particle)
-          dark$.meta.set(particle.id, particle.src)
-        }
-        dark$.particles.set(particle.id, particle)
-        dark$.parent.set(particle, parent)
+        if (particle instanceof Wimp) childWimps.push(particle)
 
         expect(dark$.particles.get(particle.id), "после записи Wimp git-start должен попасть в dark$.particles").toBe(
           particle,

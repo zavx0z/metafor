@@ -2,6 +2,16 @@ import type { DarkParticle } from "./shared.ts"
 import type { ParticleSeed } from "./gravity.ts"
 
 /**
+ * Результат materialization seed без dark-level wiring.
+ * @prop seed Исходный seed
+ * @prop particle Созданная частица
+ */
+export interface ParticleMaterialization {
+  seed: ParticleSeed
+  particle: DarkParticle
+}
+
+/**
  * Результат материализации seed в частицу.
  * @prop seed Исходный seed
  * @prop particle Созданная частица

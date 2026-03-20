@@ -1,22 +1,12 @@
 import type { FieldsAST } from "@metafor/ast"
 import type { DarkParticle } from "@dark/types"
-import type { ParticleSeed, SeedParent } from "@dark/types/gravity"
-import type { ParticleBuild } from "@dark/types/strong"
+import type { ParticleSeed } from "@dark/types/gravity"
+import type { ParticleMaterialization } from "@dark/types/strong"
 import type { WimpInit } from "@dark/types/part"
 import { Axion, Fuzzy, Macho, Wimp } from "@dark/part"
 import { createFieldValueResolvers, resolveNodeFieldValues } from "./fields.ts"
-import { strong$ } from "./store.ts"
 
-const isParticleSeed = (value: SeedParent): value is ParticleSeed => "kind" in value
-
-const resolveParent = (parent: SeedParent): DarkParticle => {
-  if (!isParticleSeed(parent)) return parent
-
-  const particle = strong$.particles.get(parent)
-  if (!particle) throw new Error(`Particle seed parent is not materialized: ${parent.kind}`)
-  return particle
-}
-
+// Strong отвечает только за создание runtime particle и вычисление её локальных runtime values.
 const materializeParticle = (
   seed: ParticleSeed,
   fieldResolvers?: ReturnType<typeof createFieldValueResolvers>,
@@ -43,17 +33,15 @@ const materializeParticle = (
   }
 }
 
-export const bindParticles = (layer: ParticleSeed[], fields?: FieldsAST): ParticleBuild[] => {
-  const builds: ParticleBuild[] = []
+// Materialization слоя не трогает traversal и parent resolution: это остаётся обязанностью dark.
+export const materializeParticles = (layer: ParticleSeed[], fields?: FieldsAST): ParticleMaterialization[] => {
+  const materializations: ParticleMaterialization[] = []
   const fieldResolvers = fields ? createFieldValueResolvers(fields) : undefined
 
   for (const seed of layer) {
     const particle = materializeParticle(seed, fieldResolvers)
-    const parent = resolveParent(seed.parent)
-
-    strong$.particles.set(seed, particle)
-    builds.push({ seed, particle, parent, meta: seed.meta })
+    materializations.push({ seed, particle })
   }
 
-  return builds
+  return materializations
 }

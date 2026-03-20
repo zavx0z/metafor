@@ -1,7 +1,6 @@
 import type { FieldsAST } from "@metafor/ast"
 import type { NodeMeta, NodeType } from "@metafor/dsl"
-import type { DarkParticle } from "@dark/types"
-import type { FuzzySeed, LayerEntry, LayerNode, ParticleSeed, SeedParent, WimpSeed } from "@dark/types/gravity"
+import type { FuzzySeed, ParticleSeed, SeedParent, WimpSeed } from "@dark/types/gravity"
 
 const getFieldType = (path: string, fields?: FieldsAST): string | undefined => {
   if (!fields || !path.startsWith("/value/")) return
@@ -31,7 +30,8 @@ const createContinuationSrc = (node: NodeMeta, value: string | number): string =
   return String(new Function("_", `return \`${expr}\``)([value]))
 }
 
-const createParticleSeed = (node: NodeType, parent: SeedParent, fields?: FieldsAST): ParticleSeed | undefined => {
+// Gravity здесь остаётся только набором topology helpers: он переводит AST-узел в seed, но не владеет обходом.
+export const createParticleSeed = (node: NodeType, parent: SeedParent, fields?: FieldsAST): ParticleSeed | undefined => {
   switch (node.type) {
     case "meta":
       if (typeof node.src === "string") {
@@ -70,7 +70,8 @@ const createParticleSeed = (node: NodeType, parent: SeedParent, fields?: FieldsA
   }
 }
 
-const createContinuationSeeds = (node: NodeMeta, parent: FuzzySeed, fields?: FieldsAST): WimpSeed[] => {
+// Continuation для enum-bound meta строятся отдельно, чтобы dark мог сам решать порядок следующего frontier.
+export const createContinuationSeeds = (node: NodeMeta, parent: FuzzySeed, fields?: FieldsAST): WimpSeed[] => {
   if (typeof node.src !== "object") return []
 
   const paths = Array.isArray(node.src.data) ? node.src.data : [node.src.data]
@@ -83,43 +84,4 @@ const createContinuationSeeds = (node: NodeMeta, parent: FuzzySeed, fields?: Fie
     parent,
     meta: {},
   }))
-}
-
-export function* matterPropagator(
-  root: DarkParticle,
-  nodes: Iterable<NodeType>,
-  fields?: FieldsAST,
-): Generator<ParticleSeed[]> {
-  let level = Array.from(nodes, (node): LayerEntry => ({ node, parent: root }))
-
-  while (level.length > 0) {
-    const seeds: ParticleSeed[] = []
-    const nextLevel: LayerEntry[] = []
-
-    for (const item of level) {
-      if ("kind" in item) {
-        seeds.push(item)
-        continue
-      }
-
-      const seed = createParticleSeed(item.node, item.parent, fields)
-      const parent = seed ?? item.parent
-
-      if (seed) {
-        seeds.push(seed)
-
-        if (item.node.type === "meta" && typeof item.node.src === "object" && seed.kind === "fuzzy") {
-          nextLevel.push(...createContinuationSeeds(item.node, seed, fields))
-        }
-      }
-
-      if ("child" in item.node && Array.isArray(item.node.child)) {
-        nextLevel.push(...item.node.child.map((node): LayerNode => ({ node, parent })))
-      }
-    }
-
-    if (seeds.length > 0) yield seeds
-
-    level = nextLevel
-  }
 }
