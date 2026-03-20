@@ -22,6 +22,8 @@ It does not introduce a competing ontology relative to [Ontology](./ONTOLOGY.md)
 When this document speaks about `gravity`, it speaks only about the `Dark` projection of gravity.
 It does not redefine `Gravity` in full and does not assign the entire force to `Dark`.
 
+This must not be confused with `matter` in AST/`meta`, which is the local descriptive contract of hidden connectivity rather than the force itself.
+
 `Dark` is not a runtime tree, is not reducible to `AST`, and is not identical to the final form of `Boundary` or `Bulk`.
 
 ## Dark as a connectivity layer
@@ -53,8 +55,8 @@ All four are `Dark` particles and all four belong to connectivity.
 `Wimp` is a particle of static connectivity.
 It holds a stable support node of hidden connectivity and acts as the base point around which dynamic relations are built.
 
-Inside a `meta` declaration, `gravity` describes how the current `meta` relates and localizes with respect to other `meta`.
-In the `Dark` reading, those relations are resolved through other `Wimp` supports inside the common hidden contour.
+Inside a `meta` declaration, `matter` describes the local hidden connectivity of the current `meta` with respect to other `meta`.
+In the `Dark` reading, that connectivity is resolved through other `Wimp` supports inside the common hidden contour.
 
 ### Fuzzy
 
@@ -73,11 +75,11 @@ It expresses logical grouping and logical rules of organization.
 
 ## The roles of meta, DSL, and Dark
 
-### meta / template / gravity
+### meta / template / matter
 
 `meta` gives the original description of a local form of connectivity.
-`gravity` inside `meta` gives the local relation and localization invariants of the current `meta`.
-In this `Dark`-focused document, those invariants are read as supporting links to other `Wimp` supports.
+`matter` inside `meta` gives the local description of hidden connectivity of the current `meta`.
+In the `Dark` reading, this local `matter` description is unfolded into supporting links to other `Wimp` supports.
 
 ### DSL
 
@@ -134,5 +136,5 @@ but they must not replace the current ontology:
 6. `Fuzzy` is dynamic conditional connectivity.
 7. `Macho` is dynamic multiple connectivity.
 8. `Axion` is dynamic logical connectivity.
-9. `gravity` in `meta` describes the relation and localization of the current `meta` with respect to other `meta`; in the `Dark` reading this appears through other `Wimp` supports.
+9. `matter` in `meta` describes the local hidden connectivity of the current `meta` with respect to other `meta`; in the `Dark` reading this appears through other `Wimp` supports.
 10. `Boundary` is the flattening boundary and imprint layer, while `Bulk` is manifested volume and spatial belonging.
