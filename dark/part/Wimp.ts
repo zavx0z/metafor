@@ -1,11 +1,11 @@
 import type { NodeMeta, SRC, Mass } from "@metafor/dsl"
-import type { WimpFields, WimpInit } from "@dark/types/part"
+import type { WimpInit, WimpValues } from "@dark/types/part"
 
 import { BaseParticle } from "./part.ts"
 
 export class Wimp extends BaseParticle {
   src: string
-  fields?: WimpFields
+  values?: WimpValues
   mass: Mass | NodeMeta["mass"] | undefined
 
   constructor(src: SRC)
@@ -14,7 +14,7 @@ export class Wimp extends BaseParticle {
     const init = typeof src === "string" ? { src } : src
     super(init)
     this.src = init.src
-    this.fields = init.fields
+    if (init.values !== undefined) this.values = init.values
     this.mass = init.mass
   }
 }

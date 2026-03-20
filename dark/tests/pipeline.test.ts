@@ -59,7 +59,7 @@ describe("matter pipeline", () => {
     const fuzzyBranchWimps = branchWimps.filter((particle) => dark$.parent.get(particle) === fuzzy)
     const childWimp = branchWimps.find((particle) => dark$.parent.get(particle) === axion)
 
-    expect(wimp.fields, "root Wimp должен инициализировать runtime fields из MetaAST.fields").toEqual({
+    expect(wimp.values, "root Wimp должен инициализировать runtime values из MetaAST.fields").toEqual({
       operation: null,
       error: null,
       command: null,
@@ -74,10 +74,10 @@ describe("matter pipeline", () => {
     expect(childWimp, "matterPipeline должен сохранить дочерний Wimp в store").toBeDefined()
     expect(wimps, "matterPipeline должен вернуть все materialized Wimp").toHaveLength(operationValues.length + 1)
     expect(
-      fuzzyBranchWimps.map((particle) => particle.fields),
-      "matterPipeline должен materialize runtime fields всех Wimp-ветвей Fuzzy через strong",
+      fuzzyBranchWimps.map((particle) => particle.values),
+      "matterPipeline должен materialize runtime values всех Wimp-ветвей Fuzzy через strong",
     ).toEqual(operationValues.map(() => ({ operation: null, args: null })))
-    expect(childWimp?.fields, "matterPipeline должен materialize runtime fields child Wimp через strong").toEqual({
+    expect(childWimp?.values, "matterPipeline должен materialize runtime values child Wimp через strong").toEqual({
       message: null,
     })
 

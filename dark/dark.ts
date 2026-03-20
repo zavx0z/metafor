@@ -7,7 +7,7 @@ import { bindParticles, resolveFieldValues } from "@dark/strong"
 import { dark$ } from "./store"
 
 export const matterPipeline = (wimp: Wimp, ast: Pick<MetaAST, "matter" | "fields">, parent?: Wimp): Wimp[] => {
-  wimp.fields = resolveFieldValues(ast.fields)
+  wimp.values = resolveFieldValues(ast.fields)
   dark$.particles.set(wimp.id, wimp)
   dark$.meta.set(wimp.id, wimp.src)
   if (parent) dark$.parent.set(wimp, parent)

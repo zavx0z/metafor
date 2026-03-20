@@ -1,6 +1,6 @@
 import type { FieldDefinitionJson, FieldKey, FieldsAST } from "@metafor/ast"
 import type { NodeMeta } from "@metafor/dsl"
-import type { WimpFields } from "@dark/types/part"
+import type { WimpValues } from "@dark/types/part"
 
 export type FieldResolver = () => unknown
 export type FieldResolvers = Map<FieldKey, FieldResolver>
@@ -23,12 +23,12 @@ const resolveFieldPathValue = (path: string, resolvers: FieldResolvers): unknown
   return resolver()
 }
 
-const toFieldObject = (value: unknown): WimpFields => {
+const toFieldObject = (value: unknown): WimpValues => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Meta fields expression must resolve to an object")
   }
 
-  return structuredClone(value as WimpFields)
+  return structuredClone(value as WimpValues)
 }
 
 export const createFieldValueResolver = (key: FieldKey, field: FieldDefinitionJson): FieldResolver => {
@@ -48,7 +48,7 @@ export const createFieldValueResolver = (key: FieldKey, field: FieldDefinitionJs
 export const createFieldValueResolvers = (fields: FieldsAST): FieldResolvers =>
   new Map(Object.entries(fields).map(([key, field]) => [key, createFieldValueResolver(key, field)]))
 
-export const resolveFieldValues = (fields: FieldsAST): WimpFields => {
+export const resolveFieldValues = (fields: FieldsAST): WimpValues => {
   const resolvers = createFieldValueResolvers(fields)
 
   return Object.fromEntries(Array.from(resolvers, ([key, resolve]) => [key, resolve()]))
@@ -57,7 +57,7 @@ export const resolveFieldValues = (fields: FieldsAST): WimpFields => {
 export const resolveNodeFieldValues = (
   value: NodeMeta["fields"] | undefined,
   resolvers: FieldResolvers,
-): WimpFields | undefined => {
+): WimpValues | undefined => {
   if (value === undefined) return
 
   if (typeof value === "string") {

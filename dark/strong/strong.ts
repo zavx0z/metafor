@@ -2,6 +2,7 @@ import type { FieldsAST } from "@metafor/ast"
 import type { DarkParticle } from "@dark/types"
 import type { ParticleSeed, SeedParent } from "@dark/types/gravity"
 import type { ParticleBuild } from "@dark/types/strong"
+import type { WimpInit } from "@dark/types/part"
 import { Axion, Fuzzy, Macho, Wimp } from "@dark/part"
 import { createFieldValueResolvers, resolveNodeFieldValues } from "./fields.ts"
 
@@ -15,16 +16,23 @@ const resolveParent = (parent: SeedParent, particles: Map<ParticleSeed, DarkPart
   return particle
 }
 
-const materializeParticle = (seed: ParticleSeed, fieldResolvers?: ReturnType<typeof createFieldValueResolvers>): DarkParticle => {
+const materializeParticle = (
+  seed: ParticleSeed,
+  fieldResolvers?: ReturnType<typeof createFieldValueResolvers>,
+): DarkParticle => {
   switch (seed.kind) {
-    case "wimp":
-      return new Wimp({
-        src: seed.src,
-        ...(seed.node.fields !== undefined && fieldResolvers !== undefined
-          ? { fields: resolveNodeFieldValues(seed.node.fields, fieldResolvers) }
-          : {}),
-        ...(seed.node.mass !== undefined ? { mass: seed.node.mass } : {}),
-      })
+    case "wimp": {
+      const init: WimpInit = { src: seed.src }
+      const values =
+        seed.node.fields !== undefined && fieldResolvers !== undefined
+          ? resolveNodeFieldValues(seed.node.fields, fieldResolvers)
+          : undefined
+
+      if (values !== undefined) init.values = values
+      if (seed.node.mass !== undefined) init.mass = seed.node.mass
+
+      return new Wimp(init)
+    }
     case "fuzzy":
       return new Fuzzy()
     case "axion":
@@ -47,12 +55,7 @@ export const materializeParticleLayer = (
     const parent = resolveParent(seed.parent, particles)
 
     particles.set(seed, particle)
-    builds.push({
-      seed,
-      particle,
-      parent,
-      meta: seed.meta,
-    })
+    builds.push({ seed, particle, parent, meta: seed.meta })
   }
 
   return builds

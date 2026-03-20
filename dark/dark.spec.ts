@@ -300,12 +300,12 @@ describe("init", () => {
       "Fuzzy должен раскрывать все static Wimp из enum values",
     ).toEqual(values.map((value) => `zavx0z/git-${value}`))
     expect(
-      wimps.map((wimp) => wimp.fields),
-      "Wimp-ветви Fuzzy должны получать вычисленные runtime fields из node.fields AST уже в strong",
+      wimps.map((wimp) => wimp.values),
+      "Wimp-ветви Fuzzy должны получать вычисленные runtime values из node.fields AST уже в strong",
     ).toEqual(values.map(() => ({ operation: null, args: null })))
     expect(childWimp, "на втором уровне должен материализоваться дочерний Wimp для Axion").toBeDefined()
     expect(childWimp?.src, "дочерний Wimp должен сохранять статический src из child meta").toBe("zavx0z/git-error")
-    expect(childWimp?.fields, "дочерний Wimp должен получать вычисленные child fields из seed.node в strong").toEqual({
+    expect(childWimp?.values, "дочерний Wimp должен получать вычисленные child values из seed.node в strong").toEqual({
       message: null,
     })
   })
