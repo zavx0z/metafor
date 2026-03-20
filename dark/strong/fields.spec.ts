@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test"
-
 import { createFieldValueResolver, resolveFieldValues, resolveNodeFieldValues } from "./fields.ts"
 
 describe("strong field resolvers", () => {

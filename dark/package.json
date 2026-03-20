@@ -9,7 +9,6 @@
     "@dark/gravity": "workspace:*",
     "@dark/strong": "workspace:*",
     "@dark/weak": "workspace:*",
-    "@dark/em": "workspace:*",
-    "@dark/part": "workspace:*"
+    "@dark/em": "workspace:*"
   }
 }

@@ -1,4 +1,7 @@
-import type { Axion, Fuzzy, Macho, Wimp } from "../part"
+import type { Axion } from "../strong/Axion.ts"
+import type { Fuzzy } from "../strong/Fuzzy.ts"
+import type { Macho } from "../strong/Macho.ts"
+import type { Wimp } from "../strong/Wimp.ts"
 
 /** ID частицы. */
 export type ParticleID = string

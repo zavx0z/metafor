@@ -1,44 +1,20 @@
-import { Fuzzy, Wimp } from "@dark/part"
-import type { MetaAST } from "@metafor/ast"
-import type { NodeMeta, NodeType } from "@metafor/dsl"
+import type { NodeType } from "@metafor/dsl"
+import type { MatterEntry, MatterNodeEntry, MatterAST, MatterContinuationEntry } from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
 import { resolveContinuationSources } from "@dark/gravity"
-import { materializeAxion, materializeFuzzy, materializeMacho, materializeWimp, resolveFieldValues } from "@dark/strong"
+import {
+  Fuzzy,
+  Wimp,
+  materializeAxion,
+  materializeFuzzy,
+  materializeMacho,
+  materializeWimp,
+  resolveFieldValues,
+} from "@dark/strong"
 import { dark$ } from "./store"
 
-/**
- * Минимальный вход для текущего one-meta dark-прохода.
- *
- * На этом шаге pipeline использует только `matter` и `fields`
- * уже загруженной `MetaAST`.
- */
-export type MatterAST = Pick<MetaAST, "matter" | "fields">
-
-/**
- * Локальная запись frontier для прямого one-meta traversal.
- *
- * Эта нормализация остаётся полностью внутренней для `dark` и не является
- * архитектурным контрактом pipeline снаружи.
- */
-interface MatterNodeEntry {
-  kind: "node"
-  node: NodeType
-  parent: DarkParticle
-}
-
-/**
- * Локальная continuation-запись для dynamic meta после materialization её Fuzzy-узла.
- */
-interface MatterContinuationEntry {
-  kind: "continuation"
-  node: NodeMeta
-  parent: Fuzzy
-  src: string
-}
-
-type MatterEntry = MatterNodeEntry | MatterContinuationEntry
-
-const hasChildNodes = (node: NodeType): node is NodeType & { child: NodeType[] } => "child" in node && Array.isArray(node.child)
+const hasChildNodes = (node: NodeType): node is NodeType & { child: NodeType[] } =>
+  "child" in node && Array.isArray(node.child)
 
 /**
  * Как только частица создана, dark сразу фиксирует её graph wiring в `dark$`.
@@ -72,7 +48,11 @@ const appendChildEntries = (frontier: MatterEntry[], node: NodeType, parent: Dar
  * - сразу делает wiring в `dark$`;
  * - сразу формирует continuation и child-ветви следующего frontier.
  */
-const processMatterNode = (entry: MatterNodeEntry, ast: MatterAST, nextFrontier: MatterEntry[]): DarkParticle | undefined => {
+const processMatterNode = (
+  entry: MatterNodeEntry,
+  ast: MatterAST,
+  nextFrontier: MatterEntry[],
+): DarkParticle | undefined => {
   switch (entry.node.type) {
     case "meta":
       if (typeof entry.node.src === "string") {
@@ -118,11 +98,7 @@ const processMatterNode = (entry: MatterNodeEntry, ast: MatterAST, nextFrontier:
 /**
  * Обрабатывает continuation dynamic meta как уже выбранный `src` для нового Wimp.
  */
-const processContinuation = (
-  entry: MatterContinuationEntry,
-  ast: MatterAST,
-  nextFrontier: MatterEntry[],
-): Wimp => {
+const processContinuation = (entry: MatterContinuationEntry, ast: MatterAST, nextFrontier: MatterEntry[]): Wimp => {
   const wimp = materializeWimp(entry.node, entry.src, ast.fields)
   registerParticle(wimp, entry.parent)
   appendChildEntries(nextFrontier, entry.node, wimp)
@@ -162,7 +138,9 @@ export function* matterGenerator(wimp: Wimp, ast: MatterAST): Generator<DarkPart
 
     for (const entry of currentLayer) {
       const particle =
-        entry.kind === "continuation" ? processContinuation(entry, ast, nextFrontier) : processMatterNode(entry, ast, nextFrontier)
+        entry.kind === "continuation"
+          ? processContinuation(entry, ast, nextFrontier)
+          : processMatterNode(entry, ast, nextFrontier)
       if (particle) particles.push(particle)
     }
 

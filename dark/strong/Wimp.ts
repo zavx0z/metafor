@@ -1,6 +1,5 @@
-import type { NodeMeta, SRC, Mass } from "@metafor/dsl"
-import type { WimpInit, WimpValues } from "@dark/types/part"
-
+import type { Mass, NodeMeta, SRC } from "@metafor/dsl"
+import type { WimpInit, WimpValues } from "@dark/types/strong"
 import { BaseParticle } from "./part.ts"
 
 export class Wimp extends BaseParticle {

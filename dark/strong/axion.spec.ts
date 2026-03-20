@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test"
-
-import { Axion } from "@dark/part"
+import { Axion } from "@dark/strong"
 
 /**
  * Структура тестов для частицы Axion.

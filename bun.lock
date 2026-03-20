@@ -83,7 +83,6 @@
       "dependencies": {
         "@dark/em": "workspace:*",
         "@dark/gravity": "workspace:*",
-        "@dark/part": "workspace:*",
         "@dark/strong": "workspace:*",
         "@dark/types": "workspace:*",
         "@dark/weak": "workspace:*",
@@ -98,16 +97,15 @@
     "dark/gravity": {
       "name": "@dark/gravity",
       "dependencies": {
-        "@dark/strong": "workspace:*",
         "@dark/types": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
-    },
-    "dark/part": {
-      "name": "@dark/part",
     },
     "dark/strong": {
       "name": "@dark/strong",
       "dependencies": {
+        "@dark/gravity": "workspace:*",
         "@dark/types": "workspace:*",
       },
     },
@@ -346,8 +344,6 @@
     "@dark/em": ["@dark/em@workspace:dark/em"],
 
     "@dark/gravity": ["@dark/gravity@workspace:dark/gravity"],
-
-    "@dark/part": ["@dark/part@workspace:dark/part"],
 
     "@dark/strong": ["@dark/strong@workspace:dark/strong"],
 

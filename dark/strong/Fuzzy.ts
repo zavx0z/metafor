@@ -1,6 +1,5 @@
-import type { FuzzyInit } from "@dark/types/part"
 import type { DarkParticle, ParticleID } from "@dark/types"
-
+import type { FuzzyInit } from "@dark/types/strong"
 import { BaseParticle } from "./part.ts"
 
 export class Fuzzy extends BaseParticle {

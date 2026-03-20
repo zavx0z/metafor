@@ -1,6 +1,6 @@
 import type { FieldDefinitionJson, FieldKey, FieldsAST } from "@metafor/ast"
 import type { NodeMeta } from "@metafor/dsl"
-import type { WimpValues } from "@dark/types/part"
+import type { WimpValues } from "@dark/types/strong"
 
 export type FieldResolver = () => unknown
 export type FieldResolvers = Map<FieldKey, FieldResolver>

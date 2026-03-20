@@ -1,5 +1,5 @@
 import type { ParticleID } from "@dark/types"
-import type { BaseParticleInit } from "@dark/types/part"
+import type { BaseParticleInit } from "@dark/types/strong"
 
 export abstract class BaseParticle {
   readonly id: ParticleID

@@ -1,11 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import reference from "../github/zavx0z/git/meta.json"
-import { HubFixture } from "fixture"
-
 import type { SRC } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
+import { HubFixture } from "fixture"
+import reference from "../github/zavx0z/git/meta.json"
 
-import { Axion, Fuzzy, Wimp } from "@dark/part"
+import { Axion, Fuzzy, Wimp } from "@dark/strong"
 import { initializeMatterRoot, matterGenerator } from "./dark.ts"
 import { loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"

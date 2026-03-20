@@ -1,7 +1,10 @@
 import type { FieldsAST } from "@metafor/ast"
 import type { NodeMeta } from "@metafor/dsl"
-import type { WimpInit } from "@dark/types/part"
-import { Axion, Fuzzy, Macho, Wimp } from "@dark/part"
+import type { WimpInit } from "@dark/types/strong"
+import { Axion } from "./Axion.ts"
+import { Fuzzy } from "./Fuzzy.ts"
+import { Macho } from "./Macho.ts"
+import { Wimp } from "./Wimp.ts"
 import { createFieldValueResolvers, resolveNodeFieldValues } from "./fields.ts"
 
 /**
@@ -18,7 +21,9 @@ export const materializeWimp = (node: NodeMeta, src: string, fields?: FieldsAST)
   const fieldResolvers = fields ? createFieldValueResolvers(fields) : undefined
   const init: WimpInit = { src }
   const values =
-    node.fields !== undefined && fieldResolvers !== undefined ? resolveNodeFieldValues(node.fields, fieldResolvers) : undefined
+    node.fields !== undefined && fieldResolvers !== undefined
+      ? resolveNodeFieldValues(node.fields, fieldResolvers)
+      : undefined
 
   if (values !== undefined) init.values = values
   if (node.mass !== undefined) init.mass = node.mass

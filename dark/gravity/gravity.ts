@@ -1,23 +1,10 @@
 import type { FieldsAST } from "@metafor/ast"
 import type { NodeMeta } from "@metafor/dsl"
 
-const getFieldType = (path: string, fields?: FieldsAST): string | undefined => {
-  if (!fields || !path.startsWith("/value/")) return
-
-  return fields[path.slice("/value/".length)]?.type
-}
-
 const getFieldValues = (path: string, fields?: FieldsAST): Array<string | number> => {
   if (!fields || !path.startsWith("/value/")) return []
 
   return fields[path.slice("/value/".length)]?.values ?? []
-}
-
-const isEnumBoundMetaSrc = (node: NodeMeta, fields?: FieldsAST): boolean => {
-  if (typeof node.src !== "object") return false
-
-  const paths = Array.isArray(node.src.data) ? node.src.data : [node.src.data]
-  return paths.length === 1 && getFieldType(paths[0]!, fields)?.startsWith("enum") === true
 }
 
 const createContinuationSrc = (node: NodeMeta, value: string | number): string => {

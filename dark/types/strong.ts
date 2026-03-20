@@ -1,6 +1,6 @@
-import type { DarkParticle, ParticleID } from "./shared.ts"
 import type { Mass } from "@metafor/dsl/types"
 import type { NodeMeta } from "@metafor/template"
+import type { DarkParticle, ParticleID } from "./shared.ts"
 
 export type WimpValues = Record<string, unknown>
 

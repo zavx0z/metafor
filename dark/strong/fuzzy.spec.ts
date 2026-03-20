@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test"
-
-import { Fuzzy, Macho, Wimp } from "@dark/part"
+import { Fuzzy, Macho, Wimp } from "@dark/strong"
 
 describe("Fuzzy", () => {
   test("по умолчанию стартует в пустом runtime состоянии", () => {

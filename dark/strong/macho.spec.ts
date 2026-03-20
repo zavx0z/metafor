@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test"
-
-import { Macho } from "@dark/part"
+import { Macho } from "@dark/strong"
 
 /**
  * Структура тестов для частицы Macho.
