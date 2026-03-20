@@ -10,36 +10,25 @@ import { loadMetaAST } from "../load"
 import { dark$ } from "../store"
 
 const hub = new HubFixture("./github/")
-beforeAll(async () => await hub.setup())
-afterAll(async () => {
-  dark$.meta.clear()
-  dark$.particles.clear()
-  dark$.parent = new WeakMap()
-  await hub.teardown()
-})
 
 const src = "zavx0z/git"
 
 describe("matter pipeline", () => {
   let ast: MetaAST
   let wimp: Wimp
-
   beforeAll(async () => {
+    await hub.setup()
     ast = (await loadMetaAST("zavx0z/git" as SRC)) as MetaAST
     wimp = new Wimp(src)
   })
-
-  afterAll(() => {
+  afterAll(async () => {
     dark$.meta.clear()
     dark$.particles.clear()
     dark$.parent = new WeakMap()
+    await hub.teardown()
   })
 
   test("сохраняет стабильное состояние графа для одного meta", () => {
-    dark$.meta.clear()
-    dark$.particles.clear()
-    dark$.parent = new WeakMap()
-
     const wimps = matterPipeline(wimp, ast)
     const operation = ast.fields.operation
     if (!operation) throw new Error("operation field is undefined")
@@ -70,7 +59,9 @@ describe("matter pipeline", () => {
     expect(axion, "matterPipeline должен сохранить Axion в store").toBeDefined()
     expect((axion as any)?.basis, "matterPipeline не должен materialize basis в runtime Axion").toBeUndefined()
     expect((axion as any)?.expr, "matterPipeline не должен materialize expr в runtime Axion").toBeUndefined()
-    expect(fuzzyBranchWimps, "matterPipeline должен сохранить все Wimp-ветви Fuzzy").toHaveLength(operationValues.length)
+    expect(fuzzyBranchWimps, "matterPipeline должен сохранить все Wimp-ветви Fuzzy").toHaveLength(
+      operationValues.length,
+    )
     expect(childWimp, "matterPipeline должен сохранить дочерний Wimp в store").toBeDefined()
     expect(wimps, "matterPipeline должен вернуть все materialized Wimp").toHaveLength(operationValues.length + 1)
     expect(
