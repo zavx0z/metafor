@@ -1,13 +1,7 @@
 import type { DarkParticle } from "@dark/types"
-import type { ParticleSeed, SeedParent } from "@dark/gravity"
+import type { ParticleSeed, SeedParent } from "@dark/types/gravity"
+import type { ParticleBuild } from "@dark/types/strong"
 import { Axion, Fuzzy, Macho, Wimp } from "@dark/part"
-
-export interface ParticleBuild {
-  seed: ParticleSeed
-  particle: DarkParticle
-  parent: DarkParticle
-  meta: Record<string, never>
-}
 
 const isParticleSeed = (value: SeedParent): value is ParticleSeed => "kind" in value
 

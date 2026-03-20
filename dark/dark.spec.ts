@@ -5,10 +5,10 @@ import { HubFixture } from "fixture"
 import type { SRC } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
 import type { DarkParticle } from "@dark/types"
-import type { AxionSeed, FuzzySeed, ParticleSeed } from "@dark/gravity"
+import type { AxionSeed, FuzzySeed, ParticleSeed } from "@dark/types/gravity"
 
 import { Axion, Fuzzy, Wimp } from "@dark/part"
-import { materializeParticleLayer, strong$ } from "@dark/strong"
+import { bindParticles, strong$ } from "@dark/strong"
 import { particleGenerator } from "@dark/gravity"
 import { loadMetaAST } from "../dark/load"
 import { dark$ } from "./store"
@@ -214,7 +214,7 @@ describe("init", () => {
     if (!firstLayer) throw new Error("first layer is undefined")
 
     materialized = new Map()
-    const firstBuilds = materializeParticleLayer(firstLayer, materialized)
+    const firstBuilds = bindParticles(firstLayer, materialized)
 
     expect(firstBuilds, "strong должен материализовать первый metadata-слой в Fuzzy и Axion").toEqual([
       { seed: fuzzySeed!, particle: expect.any(Fuzzy), parent: wimp, meta: {} },
@@ -267,7 +267,7 @@ describe("init", () => {
   test("материализация второго уровня", () => {
     if (!secondLayer) throw new Error("second layer is undefined")
 
-    const secondBuilds = materializeParticleLayer(secondLayer, materialized)
+    const secondBuilds = bindParticles(secondLayer, materialized)
     const values = ref.fields.operation?.values ?? []
     const dynamicMeta = ref.matter?.[0]
     const logicalMeta = ref.matter?.[1]

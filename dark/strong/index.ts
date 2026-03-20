@@ -1,3 +1,3 @@
 export { strong$ } from "./store"
-export { materializeParticleLayer } from "./strong.ts"
-export type { ParticleBuild } from "./strong.ts"
+export { materializeParticleLayer as bindParticles } from "./strong.ts"
+export type { ParticleBuild } from "@dark/types/strong"

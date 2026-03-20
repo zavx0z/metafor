@@ -1,48 +1,7 @@
 import type { FieldsAST } from "@metafor/ast"
 import type { NodeMeta, NodeType } from "@metafor/dsl"
 import type { DarkParticle } from "@dark/types"
-
-export type SeedParent = DarkParticle | ParticleSeed
-type MetaNode = Extract<NodeType, { type: "meta" }>
-type ConditionNode = Extract<NodeType, { type: "cond" }>
-type LogicalNode = Extract<NodeType, { type: "log" }>
-type MapNode = Extract<NodeType, { type: "map" }>
-
-interface SeedBase {
-  kind: "wimp" | "fuzzy" | "axion" | "macho"
-  parent: SeedParent
-  meta: Record<string, never>
-}
-
-export interface WimpSeed extends SeedBase {
-  kind: "wimp"
-  src: string
-  node: MetaNode
-}
-
-export interface FuzzySeed extends SeedBase {
-  kind: "fuzzy"
-  node: MetaNode | ConditionNode
-}
-
-export interface AxionSeed extends SeedBase {
-  kind: "axion"
-  node: LogicalNode
-}
-
-export interface MachoSeed extends SeedBase {
-  kind: "macho"
-  node: MapNode
-}
-
-export type ParticleSeed = WimpSeed | FuzzySeed | AxionSeed | MachoSeed
-
-type LayerEntry = LayerNode | ParticleSeed
-
-type LayerNode = {
-  node: NodeType
-  parent: SeedParent
-}
+import type { FuzzySeed, LayerEntry, LayerNode, ParticleSeed, SeedParent, WimpSeed } from "@dark/types/gravity"
 
 const getFieldType = (path: string, fields?: FieldsAST): string | undefined => {
   if (!fields || !path.startsWith("/value/")) return
@@ -126,7 +85,7 @@ const createContinuationSeeds = (node: NodeMeta, parent: FuzzySeed, fields?: Fie
   }))
 }
 
-export function* particleGenerator(
+export function* matterPropagator(
   root: DarkParticle,
   nodes: Iterable<NodeType>,
   fields?: FieldsAST,

@@ -1,2 +1,2 @@
-export { particleGenerator } from "./gravity.ts"
-export type { AxionSeed, FuzzySeed, MachoSeed, ParticleSeed, SeedParent, WimpSeed } from "./gravity.ts"
+export { matterPropagator as particleGenerator } from "./gravity.ts"
+export type { AxionSeed, FuzzySeed, LayerEntry, LayerNode, MachoSeed, ParticleSeed, SeedParent, WimpSeed } from "@dark/types/gravity"

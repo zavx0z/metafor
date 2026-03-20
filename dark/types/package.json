@@ -6,6 +6,7 @@
     ".": "./shared.ts",
     "./shared": "./shared.ts",
     "./part": "./part.ts",
+    "./gravity": "./gravity.ts",
     "./strong": "./strong.ts",
     "./weak": "./weak.ts",
     "./dark": "./dark.ts"
