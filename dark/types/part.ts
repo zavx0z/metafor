@@ -1,7 +1,6 @@
-import type { NodeMeta } from "@metafor/dsl"
-import type { Mass } from "@metafor/dsl/types/metafor"
-
 import type { DarkParticle, ParticleID } from "./shared.ts"
+import type {NodeMeta} from "@metafor/template"
+import type {Mass} from "@metafor/dsl/types"
 
 /**
  * Базовая инициализация частицы.
@@ -46,11 +45,6 @@ export interface MachoInit extends BaseParticleInit {
 
 /**
  * Инициализация Axion.
- * @prop basis Базис (строка или массив строк)
- * @prop expr Выражение
  * @prop children Дочерние частицы по ID
  */
-export interface AxionInit extends BaseParticleInit {
-  basis?: string | string[]
-  expr?: string
-}
+export interface AxionInit extends BaseParticleInit {}

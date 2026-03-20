@@ -56,7 +56,14 @@ export default MetaFor("git", { desc: "Git — распределённая си
           operation: value.operation,
           args: value.args,
         }} />
-      ${state === "ошибка" && html` <meta-for src="zavx0z/git-error" fields=${{ message: value.error }} /> `}
+      ${state === "ошибка" &&
+      html`
+        <meta-for
+          src="zavx0z/git-error"
+          fields=${{
+            message: value.error,
+          }} />
+      `}
     `,
   )
   .bulk()

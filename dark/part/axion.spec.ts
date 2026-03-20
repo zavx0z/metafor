@@ -20,6 +20,6 @@ describe("Axion — ограничения роли", () => {
 
 describe("Axion — нормализация", () => {
   // должен сохранять relation группировки
-  // должен сохранять expr при наличии
+  // не должен хранить template-shaped basis/expr в runtime instance
   // не должен создавать собственный src
 })

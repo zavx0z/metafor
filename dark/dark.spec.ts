@@ -10,7 +10,7 @@ import type { AxionSeed, FuzzySeed, ParticleSeed } from "@dark/types/gravity"
 import { Axion, Fuzzy, Wimp } from "@dark/part"
 import { bindParticles, strong$ } from "@dark/strong"
 import { particleGenerator } from "@dark/gravity"
-import { loadMetaAST } from "../dark/load"
+import { loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
 
 const hub = new HubFixture("./github/")
@@ -230,10 +230,8 @@ describe("init", () => {
     expect(fuzzy, "после материализации первого слоя должен появиться Fuzzy instance").toBeDefined()
     expect(fuzzy?.value, "Fuzzy без выбранного enum значения должен быть пустым").toBeNull()
     expect(axion, "после материализации первого слоя должен появиться Axion instance").toBeDefined()
-    expect(axion?.basis, "Axion должен получать basis из seed.node в strong").toBe("/state")
-    expect(axion?.expr, "Axion должен получать expr из seed.node в strong").toBe(
-      '_[0] === "\\u043E\\u0448\\u0438\\u0431\\u043A\\u0430"',
-    )
+    expect((axion as any)?.basis, "Axion runtime contract не должен хранить basis").toBeUndefined()
+    expect((axion as any)?.expr, "Axion runtime contract не должен хранить expr").toBeUndefined()
   })
   let secondLayer: ParticleSeed[] | undefined
   test("генерация второго уровня metadata", () => {

@@ -1,4 +1,4 @@
-import type { NodeMeta, NodeType } from "@metafor/dsl"
+import type { NodeType } from "@metafor/dsl"
 import type { DarkParticle } from "./shared.ts"
 
 /**
