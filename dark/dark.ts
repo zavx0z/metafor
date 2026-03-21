@@ -124,8 +124,6 @@ export async function* matterMeta(
   dark$.particles.set(wimp.id, wimp)
   dark$.meta.set(wimp.id, wimp.src)
 
-  if (parent !== undefined) wimp.parent = parent
-
   if (!ast.matter) return
 
   let frontier = Array.from(ast.matter, (node): MatterEntry => ({ kind: "node", node, parent: wimp }))

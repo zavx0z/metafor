@@ -373,6 +373,7 @@ export type MatterDefinitionParams<ɸ extends Schema = Schema, m extends Mass = 
   /**
    * Функция для обновления контекста атома.
    * Используется в обработчиках событий для изменения состояния.
+   */
   update: Update<ɸ>
   /**
    * Текущие значения полей.

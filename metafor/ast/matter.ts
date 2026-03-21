@@ -81,14 +81,19 @@ const validateStaticSrc = (src: string, location: string): void => {
 }
 
 const validateDynamicSrc = (src: Exclude<NodeMeta["src"], string>, fields: FieldsAST, location: string): void => {
-  const paths = toPathList(src.data)
+  if (!src.data) {
+    throw new Error(
+      `Matter violation at "${location}": dynamic src must have data expression.`,
+    )
+  }
+  const paths = toPathList(src.data as string | string[])
   if (paths.length !== 1) {
     throw new Error(
       `Matter violation at "${location}": dynamic src must depend on exactly one enum field, received ${paths.length} paths.`,
     )
   }
 
-  validateBasisList(paths[0], fields, location, ["enum"], "dynamic src")
+  validateBasisList(paths[0]!, fields, location, ["enum"], "dynamic src")
 }
 
 const validateMetaNode = (node: NodeMeta, fields: FieldsAST, location: string): void => {

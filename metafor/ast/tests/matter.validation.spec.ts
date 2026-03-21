@@ -11,7 +11,7 @@ describe("matter validation", () => {
       }))
       .superposition({
         ожидание: {
-          готово: { mode: { null: false } },
+          готово: { mode: { notEq: "card" } },
         },
         готово: null,
       })
@@ -144,7 +144,7 @@ describe("matter validation", () => {
       .mass({})
       .processes()
       .reactions()
-      .matter(({ value, html }) => html`${value.title.map((item) => html`<meta-for src="demo/item" fields=${{ item }} />`)}`)
+      .matter(({ value, html }) => html`${(value.title as any).map((item: string) => html`<meta-for src="demo/item" fields=${{ item }} />`)}`)
       .bulk()
 
     expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
