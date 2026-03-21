@@ -9,12 +9,11 @@ let wimps: Wimp[]
 describe("dark$", () => {
   beforeAll(async () => {
     await hub.setup()
-    await matter(new Wimp("zavx0z/git"))
+    await matter(new Wimp({ src: "zavx0z/git", parent: null }))
   })
   afterAll(async () => {
     dark$.meta.clear()
     dark$.particles.clear()
-    dark$.parent = new WeakMap()
     await hub.teardown()
   })
 
@@ -58,21 +57,20 @@ describe("dark$", () => {
       const root = wimps.find((wimp) => wimp.src === "zavx0z/git")
 
       expect(root, "root Wimp должен присутствовать в списке Wimp").toBeDefined()
-      expect(dark$.parent.get(root!), "root Wimp не должен иметь parent").toBeUndefined()
+      expect(root!.parent, "root Wimp не должен иметь parent").toBeNull()
 
       for (const particle of particles) {
         if (particle === root) continue
 
-        const parent = dark$.parent.get(particle)
-
-        expect(parent, `particle ${particle.id} должен иметь parent`).toBeDefined()
+        const parent = particle.parent
+        if (!parent) throw new Error(`particle ${particle.id} должен иметь parent`)
         expect(
-          dark$.particles.has(parent!.id),
-          `parent particle ${parent!.id} должен быть сохранён в dark$.particles`,
+          dark$.particles.has(parent.id),
+          `parent particle ${parent.id} должен быть сохранён в dark$.particles`,
         ).toBe(true)
         expect(
-          parent!.children.has(particle.id),
-          `parent particle ${parent!.id} должен ссылаться на ${particle.id}`,
+          parent.children.has(particle.id),
+          `parent particle ${parent.id} должен ссылаться на ${particle.id}`,
         ).toBe(true)
       }
     })

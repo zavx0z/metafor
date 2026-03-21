@@ -1,6 +1,6 @@
 import type { NodeType, NodeMeta } from "@metafor/dsl"
-import type { MetaAST } from "../../metafor/ast/ast.t"
 import type { Fuzzy, Wimp } from "@dark/strong"
+import type { MetaAST } from "../../metafor/ast/ast.t"
 import type { DarkParticle } from "./shared"
 
 /**

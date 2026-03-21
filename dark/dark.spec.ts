@@ -19,7 +19,6 @@ describe("zavx0z/git", () => {
   afterAll(async () => {
     dark$.meta.clear()
     dark$.particles.clear()
-    dark$.parent = new WeakMap()
     await hub.teardown()
   })
 
@@ -31,7 +30,7 @@ describe("zavx0z/git", () => {
 
     let wimp: Wimp
     test("создание wimp", () => {
-      wimp = new Wimp(src)
+      wimp = new Wimp({ src, parent: null })
 
       expect(wimp.values, "до запуска pipeline root Wimp должен оставаться пустым").toBeUndefined()
       expect(wimp.mass, "до запуска pipeline root Wimp не должен иметь mass").toBeUndefined()
@@ -88,8 +87,8 @@ describe("zavx0z/git", () => {
       )
       expect(rootFuzzy.children, "на первом уровне Fuzzy ещё не должен иметь дочерних Wimp").toEqual(new Set())
       expect(rootAxion.children, "на первом уровне Axion ещё не должен иметь дочерних Wimp").toEqual(new Set())
-      expect(dark$.parent.get(rootFuzzy), "parent Fuzzy первого уровня должен быть root Wimp").toBe(wimp)
-      expect(dark$.parent.get(rootAxion), "parent Axion первого уровня должен быть root Wimp").toBe(wimp)
+      expect(rootFuzzy.parent, "parent Fuzzy первого уровня должен быть root Wimp").toBe(wimp)
+      expect(rootAxion.parent, "parent Axion первого уровня должен быть root Wimp").toBe(wimp)
       expect(rootResults, "до второго слоя ещё не должно быть внешних Wimp-результатов").toEqual([])
     })
     test("обработка второго уровня", async () => {
@@ -99,8 +98,8 @@ describe("zavx0z/git", () => {
       if (secondLevel.done) throw new Error("second level is done")
 
       const secondLayer = secondLevel.value
-      const branchResults = secondLayer.filter(([particle]) => dark$.parent.get(particle) === rootFuzzy)
-      const childResult = secondLayer.find(([particle]) => dark$.parent.get(particle) === rootAxion)
+      const branchResults = secondLayer.filter(([particle]) => particle.parent === rootFuzzy)
+      const childResult = secondLayer.find(([particle]) => particle.parent === rootAxion)
 
       rootResults = secondLayer
 
@@ -144,9 +143,9 @@ describe("zavx0z/git", () => {
         new Map([[wimp.id, src], ...secondLayer.map(([particle]) => [particle.id, particle.src] as const)]),
       )
       for (const [particle] of branchResults) {
-        expect(dark$.parent.get(particle), "parent каждой enum Wimp-ветви должен быть Fuzzy").toBe(rootFuzzy)
+        expect(particle.parent, "parent каждой enum Wimp-ветви должен быть Fuzzy").toBe(rootFuzzy)
       }
-      expect(dark$.parent.get(childResult![0]), "parent дочернего Wimp должен быть Axion").toBe(rootAxion)
+      expect(childResult![0].parent, "parent дочернего Wimp должен быть Axion").toBe(rootAxion)
       expect(
         secondLayer.map(([particle]) => particle.src),
         "второй слой должен вернуть все обнаруженные Wimp текущей meta",
@@ -211,7 +210,7 @@ describe("zavx0z/git", () => {
       expect(dark$.meta.get(wimp.id), "meta lookup должен продолжать хранить src дочернего Wimp").toBe(startSrc)
 
       childFuzzy = materialized.find(
-        (particle): particle is Fuzzy => particle instanceof Fuzzy && dark$.parent.get(particle) === wimp,
+        (particle): particle is Fuzzy => particle instanceof Fuzzy && particle.parent === wimp,
       )!
 
       expect(childFuzzy, "после первого уровня git-start в dark$ должен появиться Fuzzy").toBeInstanceOf(Fuzzy)
@@ -227,7 +226,7 @@ describe("zavx0z/git", () => {
       if (secondLevel.done) throw new Error("second git-start level is done")
 
       const secondLayer = secondLevel.value
-      const branchResults = secondLayer.filter(([particle]) => dark$.parent.get(particle) === childFuzzy)
+      const branchResults = secondLayer.filter(([particle]) => particle.parent === childFuzzy)
 
       expect(secondLevel.done, "второй слой git-start не должен завершать generator").toBe(false)
       expect(secondLayer, "второй цикл git-start должен вернуть только continuation Wimp этого уровня").toHaveLength(2)
@@ -260,7 +259,7 @@ describe("zavx0z/git", () => {
         expect(dark$.particles.get(particle.id), "после записи Wimp git-start должен попасть в dark$.particles").toBe(
           particle,
         )
-        expect(dark$.parent.get(particle), "после записи parent Wimp git-start должен быть сохранён").toBe(childFuzzy)
+        expect(particle.parent, "после записи parent Wimp git-start должен быть сохранён").toBe(childFuzzy)
       }
     })
     test("завершение генератора", async () => {

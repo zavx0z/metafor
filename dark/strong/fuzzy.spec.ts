@@ -8,11 +8,12 @@ describe("Fuzzy", () => {
     expect(fuzzy.value, "Fuzzy по умолчанию не должен иметь активную ветвь").toBeNull()
     expect(fuzzy.branch, "Fuzzy по умолчанию должен иметь пустой branch registry").toEqual(new Map())
     expect(fuzzy.children, "Fuzzy по умолчанию должен иметь пустой children set").toEqual(new Set())
+    expect(fuzzy.parent, "Fuzzy по умолчанию должен иметь явный null parent").toBeNull()
   })
 
   test("хранит branch map и active value", () => {
-    const first = new Wimp("zavx0z/git-start")
-    const second = new Wimp("zavx0z/git-work")
+    const first = new Wimp({ src: "zavx0z/git-start", parent: null })
+    const second = new Wimp({ src: "zavx0z/git-work", parent: null })
     const fuzzy = new Fuzzy({
       branch: new Map([
         [first.id, first],

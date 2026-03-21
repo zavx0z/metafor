@@ -13,6 +13,7 @@ describe("Axion — логическая группировка", () => {
     const particle = new Axion()
 
     expect(particle.children, "Axion по умолчанию должен иметь пустой children set").toEqual(new Set())
+    expect(particle.parent, "Axion по умолчанию должен иметь явный null parent").toBeNull()
     expect((particle as any).basis, "Axion runtime contract не должен хранить template basis").toBeUndefined()
     expect((particle as any).expr, "Axion runtime contract не должен хранить template expr").toBeUndefined()
     expect((particle as any).src, "Axion runtime contract не должен создавать собственный src").toBeUndefined()

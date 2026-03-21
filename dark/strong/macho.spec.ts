@@ -33,6 +33,7 @@ describe("Macho — нормализация", () => {
     const particle = new Macho()
 
     expect(particle.children, "Macho по умолчанию должен иметь пустой children set").toEqual(new Set())
+    expect(particle.parent, "Macho по умолчанию должен иметь явный null parent").toBeNull()
     expect((particle as any).basis, "Macho runtime contract не должен хранить template basis").toBeUndefined()
   })
 

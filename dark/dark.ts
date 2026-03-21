@@ -25,7 +25,6 @@ const registerParticle = (particle: DarkParticle, parent: DarkParticle): void =>
   }
 
   dark$.particles.set(particle.id, particle)
-  dark$.parent.set(particle, parent)
 }
 
 /**
@@ -56,14 +55,14 @@ const processMatterNode = (
     case "meta":
       if (typeof entry.node.src === "string") {
         const continuation = resolveWimpContinuation(entry.node, ast.fields)
-        const wimp = new Wimp(entry.node.src)
+        const wimp = new Wimp({ src: entry.node.src, parent: entry.parent })
         wimps.push([wimp, continuation])
         registerParticle(wimp, entry.parent)
         appendChildEntries(nextFrontier, entry.node, wimp)
         return
       }
 
-      const fuzzy = new Fuzzy()
+      const fuzzy = new Fuzzy({ parent: entry.parent })
       registerParticle(fuzzy, entry.parent)
 
       const continuation = resolveWimpContinuation(entry.node, ast.fields)
@@ -74,19 +73,19 @@ const processMatterNode = (
       appendChildEntries(nextFrontier, entry.node, fuzzy)
       return
     case "cond": {
-      const fuzzy = new Fuzzy()
+      const fuzzy = new Fuzzy({ parent: entry.parent })
       registerParticle(fuzzy, entry.parent)
       appendChildEntries(nextFrontier, entry.node, fuzzy)
       return
     }
     case "log": {
-      const axion = new Axion()
+      const axion = new Axion({ parent: entry.parent })
       registerParticle(axion, entry.parent)
       appendChildEntries(nextFrontier, entry.node, axion)
       return
     }
     case "map": {
-      const macho = new Macho()
+      const macho = new Macho({ parent: entry.parent })
       registerParticle(macho, entry.parent)
       appendChildEntries(nextFrontier, entry.node, macho)
       return
@@ -125,7 +124,7 @@ export async function* matterMeta(
   dark$.particles.set(wimp.id, wimp)
   dark$.meta.set(wimp.id, wimp.src)
 
-  if (parent) dark$.parent.set(wimp, parent)
+  if (parent !== undefined) wimp.parent = parent
 
   if (!ast.matter) return
 
@@ -145,7 +144,7 @@ export async function* matterMeta(
          * Сам `Wimp` здесь тоже остаётся пустым: continuation только прикладывается к нему
          * позже, когда его собственная meta будет загружена и передана в `matterPipeline`.
          */
-        const wimp = new Wimp(entry.src)
+        const wimp = new Wimp({ src: entry.src, parent: entry.parent })
         levelWimps.push([wimp, entry.continuation])
         registerParticle(wimp, entry.parent)
         appendChildEntries(nextFrontier, entry.node, wimp)

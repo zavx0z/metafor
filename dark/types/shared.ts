@@ -22,7 +22,7 @@ export type MachoID = ParticleID
 export type AxionID = ParticleID
 
 /**
- * Union-тип всех частиц Dark.
+ * Union-тип всех Dark-частиц.
  */
 export type DarkParticle = Wimp | Axion | Fuzzy | Macho
 
@@ -30,10 +30,8 @@ export type DarkParticle = Wimp | Axion | Fuzzy | Macho
  * Хранилище Dark-частиц.
  * @prop meta Map от WimpID к SRC-адресу
  * @prop particles Map от ParticleID к экземпляру частицы
- * @prop parent WeakMap от частицы к родительской частице
  */
 export interface DarkStore {
   meta: Map<WimpID, string>
   particles: Map<ParticleID, DarkParticle>
-  parent: WeakMap<DarkParticle, DarkParticle>
 }

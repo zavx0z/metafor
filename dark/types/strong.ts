@@ -7,9 +7,11 @@ export type WimpValues = Record<string, unknown>
 /**
  * Базовая инициализация частицы.
  * @prop children Дочерние частицы по ID
+ * @prop parent Родительская частица или `null` для корня
  */
 export interface BaseParticleInit {
   children?: Iterable<ParticleID>
+  parent?: DarkParticle | null
 }
 
 /**
