@@ -6,6 +6,9 @@
  * @remarks
  * Поля описывают boundary-схему, которую затем читает слабый слой.
  */
+
+import type { PreparedEntanglementProjection } from "@boundary/strong"
+
 /**
  * Определение типа поля для boundary-схемы.
  *
@@ -149,5 +152,5 @@ export interface Data {
    * Если не передана, Boundary не пытается самостоятельно выводить entanglement
    * из raw values и материализует только локальные поля.
    */
-  entanglement?: import("../strong/entangled.t").PreparedEntanglementProjection
+  entanglement?: PreparedEntanglementProjection
 }
