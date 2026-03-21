@@ -16,8 +16,8 @@ describe("Fuzzy", () => {
     const second = new Wimp({ src: "zavx0z/git-work", parent: null })
     const fuzzy = new Fuzzy({
       branch: new Map([
-        [first.id, first],
-        [second.id, second],
+        [first, first],
+        [second, second],
       ]),
     })
 
@@ -26,15 +26,15 @@ describe("Fuzzy", () => {
     expect(fuzzy.value, "активная ветвь по умолчанию не выбрана").toBeNull()
     expect(fuzzy.branch, "Fuzzy должен хранить branch map").toEqual(
       new Map([
-        [first.id, first],
-        [second.id, second],
+        [first, first],
+        [second, second],
       ]),
     )
 
-    expect(fuzzy.switch(first.id), "switch должен возвращать первую ветвь").toBe(first)
-    expect(fuzzy.value, "switch должен обновлять active value").toBe(first.id)
-    expect(fuzzy.switch(second.id), "switch должен возвращать вторую ветвь").toBe(second)
-    expect(fuzzy.value, "switch должен обновлять active value на вторую ветвь").toBe(second.id)
+    expect(fuzzy.switch(first), "switch должен возвращать первую ветвь").toBe(first)
+    expect(fuzzy.value, "switch должен обновлять active value").toBe(first)
+    expect(fuzzy.switch(second), "switch должен возвращать вторую ветвь").toBe(second)
+    expect(fuzzy.value, "switch должен обновлять active value на вторую ветвь").toBe(second)
     expect(fuzzy.switch(null), "switch(null) должен сбрасывать active value").toBeUndefined()
     expect(fuzzy.value, "switch(null) должен переводить Fuzzy в пустое состояние").toBeNull()
   })
@@ -42,11 +42,11 @@ describe("Fuzzy", () => {
   test("может хранить составную ветвь через Macho", () => {
     const particle = new Macho()
     const fuzzy = new Fuzzy({
-      branch: new Map([[particle.id, particle]]),
+      branch: new Map([[particle, particle]]),
     })
 
     expect((particle as any).basis, "Macho runtime contract не должен хранить template basis").toBeUndefined()
-    expect(fuzzy.switch(particle.id), "switch должен возвращать Macho-ветвь").toBe(particle)
-    expect(fuzzy.branch.get(particle.id), "branch должна хранить Macho как particle ветви").toBe(particle)
+    expect(fuzzy.switch(particle), "switch должен возвращать Macho-ветвь").toBe(particle)
+    expect(fuzzy.branch.get(particle), "branch должна хранить Macho как particle ветви").toBe(particle)
   })
 })

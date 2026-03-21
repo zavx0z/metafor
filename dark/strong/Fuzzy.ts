@@ -1,10 +1,10 @@
-import type { DarkParticle, ParticleID } from "@dark/types"
+import type { DarkParticle } from "@dark/types"
 import type { FuzzyInit } from "@dark/types/strong"
 import { BaseParticle } from "./part.ts"
 
 export class Fuzzy extends BaseParticle {
-  value: ParticleID | null
-  branch: Map<ParticleID, DarkParticle>
+  value: DarkParticle | null
+  branch: Map<DarkParticle, DarkParticle>
 
   constructor(init: FuzzyInit = {}) {
     super(init)
@@ -12,7 +12,7 @@ export class Fuzzy extends BaseParticle {
     this.branch = new Map(init.branch ?? [])
   }
 
-  switch(value: ParticleID | null): DarkParticle | undefined {
+  switch(value: DarkParticle | null): DarkParticle | undefined {
     this.value = value
     if (value === null) return
     return this.branch.get(value)

@@ -1,10 +1,9 @@
-import type { ParticleID } from "@dark/types"
 import type { DarkParticle } from "@dark/types"
 import type { BaseParticleInit } from "@dark/types/strong"
 
 export abstract class BaseParticle {
-  readonly id: ParticleID
-  readonly children: Set<ParticleID>
+  readonly id: string
+  readonly children: Set<DarkParticle>
   parent: DarkParticle | null
 
   protected constructor(init: BaseParticleInit = {}) {

@@ -83,7 +83,7 @@ describe("zavx0z/git", () => {
       expect((rootAxion as any)?.basis, "Axion runtime contract не должен хранить basis").toBeUndefined()
       expect((rootAxion as any)?.expr, "Axion runtime contract не должен хранить expr").toBeUndefined()
       expect(wimp.children, "root Wimp должен получить связи на Fuzzy и Axion первого уровня").toEqual(
-        new Set([rootFuzzy.id, rootAxion.id]),
+        new Set([rootFuzzy, rootAxion]),
       )
       expect(rootFuzzy.children, "на первом уровне Fuzzy ещё не должен иметь дочерних Wimp").toEqual(new Set())
       expect(rootAxion.children, "на первом уровне Axion ещё не должен иметь дочерних Wimp").toEqual(new Set())
@@ -136,9 +136,9 @@ describe("zavx0z/git", () => {
         values: { message: null },
       })
       expect(rootFuzzy.children, "Fuzzy должен содержать связи на все materialized Wimp-ветви").toEqual(
-        new Set(branchResults.map(([particle]) => particle.id)),
+        new Set(branchResults.map(([particle]) => particle)),
       )
-      expect(rootAxion.children, "Axion должен содержать связь на дочерний Wimp").toEqual(new Set([childResult![0].id]))
+      expect(rootAxion.children, "Axion должен содержать связь на дочерний Wimp").toEqual(new Set([childResult![0]]))
       expect(dark$.meta, "meta lookup после второго уровня должен содержать root и все materialized Wimp").toEqual(
         new Map([[wimp.id, src], ...secondLayer.map(([particle]) => [particle.id, particle.src] as const)]),
       )
@@ -214,7 +214,7 @@ describe("zavx0z/git", () => {
       )!
 
       expect(childFuzzy, "после первого уровня git-start в dark$ должен появиться Fuzzy").toBeInstanceOf(Fuzzy)
-      expect(wimp.children, "git-start Wimp должен получить связь на Fuzzy первого уровня").toContain(childFuzzy.id)
+      expect(wimp.children, "git-start Wimp должен получить связь на Fuzzy первого уровня").toContain(childFuzzy)
       expect(childFuzzy.children, "на первом уровне git-start Fuzzy ещё не должен иметь дочерних частиц").toEqual(
         new Set(),
       )
@@ -249,7 +249,7 @@ describe("zavx0z/git", () => {
         "ветви git-start не должны получать mass заранее",
       ).toBe(true)
       expect(childFuzzy.children, "Fuzzy git-start должен содержать связи на все materialized Wimp-ветви").toEqual(
-        new Set(branchResults.map(([particle]) => particle.id)),
+        new Set(branchResults.map(([particle]) => particle)),
       )
       expect(
         secondLayer.map(([particle]) => particle.src),

@@ -17,8 +17,8 @@ import { dark$ } from "./store"
  * Как только частица создана, dark сразу фиксирует её graph wiring в `dark$`.
  */
 const registerParticle = (particle: DarkParticle, parent: DarkParticle): void => {
-  parent.children.add(particle.id)
-  if (parent instanceof Fuzzy) parent.branch.set(particle.id, particle)
+  parent.children.add(particle)
+  if (parent instanceof Fuzzy) parent.branch.set(particle, particle)
 
   if (particle instanceof Wimp) {
     dark$.meta.set(particle.id, particle.src)

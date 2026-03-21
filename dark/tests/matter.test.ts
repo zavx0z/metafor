@@ -69,7 +69,7 @@ describe("dark$", () => {
           `parent particle ${parent.id} должен быть сохранён в dark$.particles`,
         ).toBe(true)
         expect(
-          parent.children.has(particle.id),
+          parent.children.has(particle),
           `parent particle ${parent.id} должен ссылаться на ${particle.id}`,
         ).toBe(true)
       }
