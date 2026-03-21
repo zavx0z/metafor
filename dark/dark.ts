@@ -1,8 +1,7 @@
 import type { NodeType } from "@metafor/dsl"
 import type {
-  MatterContinuation,
-  MatterContinuationEntry,
   MatterEntry,
+  MatterContinuation,
   MatterLayerResult,
   MatterNodeEntry,
   MatterAST,
@@ -13,6 +12,7 @@ import { resolveContinuationSources } from "@dark/gravity"
 import { Axion, Fuzzy, Macho, resolveWimpContinuation, Wimp, resolveFieldValues } from "@dark/strong"
 import { loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
+import type { SRC } from "../metafor/dsl/metafor.ts"
 
 /**
  * Как только частица создана, dark сразу фиксирует её graph wiring в `dark$`.
@@ -157,5 +157,16 @@ export async function* matterMeta(
     }
 
     yield levelWimps
+  }
+}
+let count = 0
+export async function matter(wimp: Wimp) {
+  count += 1
+  console.log(count, wimp.src)
+  const generator = matterMeta(wimp)
+  for await (const wimps of generator) {
+    for (const [wimp, continuation] of wimps) {
+      await matter(wimp)
+    }
   }
 }

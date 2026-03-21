@@ -389,19 +389,17 @@ describe("convertMetaDSLToMetaAST", () => {
   test("должен преобразовать view с render и style", () => {
     const meta = MetaFor("test")
       .fields((field) => ({
-        label: field.string.required("Test"),
+        mode: field.enum("header", "body").required("header"),
       }))
       .superposition({ idle: null })
       .mass()
       .processes()
       .reactions()
       .matter(
-        ({ value, state, html, update }) =>
-          html`<div>
-            <h1>${value.label}</h1>
-            <p>State: ${state}</p>
-            <button onclick=${() => update({ label: "Clicked" })}>Click</button>
-          </div>`,
+        ({ value, html }) =>
+          html`${value.mode === "header"
+            ? html`<meta-for src="demo/header" />`
+            : html`<meta-for src="demo/body" />`}`,
       )
       .bulk({
         view: ({ css }) => css`
@@ -419,8 +417,9 @@ describe("convertMetaDSLToMetaAST", () => {
     expect(result.matter).toBeDefined()
     expect(result.bulk).toBeDefined()
     expect(Array.isArray(result.matter)).toBe(true)
-    const firstNode = result.matter![0] as { tag: string }
-    expect(firstNode.tag).toBe("div")
+    const firstNode = result.matter![0] as { type: string; child: { tag: string }[] }
+    expect(firstNode.type).toBe("cond")
+    expect(firstNode.child[0]!.tag).toBe("meta-for")
     expect(result.bulk!.view).toContain("div{padding:16px;")
     expect(result.bulk!.view).toContain("h1{color:blue;")
   })
@@ -478,7 +477,7 @@ describe("convertMetaDSLToMetaAST", () => {
             .equal(({ update }) => update({ count: 1 })),
         ],
       ])
-      .matter(({ value, html }) => html`<div>${value.name}</div>`)
+      .matter(({ state, html }) => html`${state === "idle" && html`<meta-for src="demo/summary" />`}`)
       .bulk({
         view: ({ css }) => css`div { color: red; }`,
       })

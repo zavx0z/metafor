@@ -5,6 +5,7 @@
   "main": "index.ts",
   "private": true,
   "dependencies": {
+    "@metafor/ast": "workspace:*",
     "@dark/types": "workspace:*",
     "@dark/gravity": "workspace:*",
     "@dark/strong": "workspace:*",

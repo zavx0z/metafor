@@ -389,14 +389,18 @@ return { group: group as "start" | "work" | "examine" }
 
 **Правила:**
 
+- Matter описывает только иерархию акторов, а не локальную HTML-разметку
 - Теги `<meta-for>` самозакрывающиеся: `<meta-for src="..." />`
 - Поля передаются через атрибут `fields={{ ... }}`
 - Если fields === null, ничего не рендерится
 - Ошибки отображаются через отдельный актор
-- `&&` используй для логической группировки (`Axion`), а не для topology-выбора ветви
-- Тернарный `? :` в topology допустим только по `state` или `enum`
+- В сериализованном matter допустимы только topology-узлы: `meta`, `log`, `cond`, `map`
+- `&&` и тернарный `? :` допустимы только если их basis — `state` или `enum`
+- `map()` в matter допустим только по `array`-полю topology
 - Динамический `src` допустим только если он зависит от одного статического `enum`-поля
+- Если dynamic `src` уже зависит от `enum`, не оборачивай его в `value.mode && ...`: direct `<meta-for src="...${value.mode}" />` достаточно, `null` не должен материализовать актор `...-null`
 - Не поднимай в topology branch-choice по `boolean`, `string`, `number` или `mass`
+- Не рендери в matter `div`, `span`, `button`, текст и прочие HTML-элементы — это не акторы
 
 **Topology-семантика в matter:**
 
@@ -406,6 +410,7 @@ return { group: group as "start" | "work" | "examine" }
   ${state === "загрузка"
     ? html`<meta-for src="zavx0z/spinner" />`
     : html`<meta-for src="zavx0z/content" />`}
+  <meta-for src="zavx0z/git-${value.mode}" />
   ${value.mode === "card"
     ? html`<meta-for src="zavx0z/card" />`
     : html`<meta-for src="zavx0z/table" />`}
@@ -419,6 +424,16 @@ return { group: group as "start" | "work" | "examine" }
 // ❌ Нельзя: mass не является topology basis
 .matter(({ mass, html }) => html`
   ${mass.session ? html`<meta-for src="x" />` : html`<meta-for src="y" />`}
+`)
+
+// ❌ Нельзя: optional enum не нужно проверять через truthy/null guard
+.matter(({ value, html }) => html`
+  ${value.mode && html`<meta-for src="zavx0z/git-${value.mode}" />`}
+`)
+
+// ❌ Нельзя: HTML belongs to Bulk, not matter
+.matter(({ value, html }) => html`
+  <div>${value.title}</div>
 `)
 ```
 

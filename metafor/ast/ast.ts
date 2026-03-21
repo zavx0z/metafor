@@ -16,6 +16,7 @@ import type {
   FieldDefinitionJson,
   ReactionDefinitionJson,
 } from "./ast.t"
+import { validateMatterAST } from "./matter"
 
 /**
  * Валидирует путь к модулю действия.
@@ -88,7 +89,7 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  *     коммит: process().action(({ value }) => {}).success(({ update }) => update({ src: "" }))
  *   }))
  *   .reactions()
- *   .matter(({ value, html }) => html`<div>${value.src}</div>`)
+ *   .matter(({ state, html }) => html`${state === "коммит" && html`<meta-for src="demo/status" />`}`)
  *   .bulk()
  *
  * const json = convertMetaDSLToMetaAST(meta, sourceCode)
@@ -272,6 +273,7 @@ export function convertMetaDSLToMetaAST(meta: MetaDSLLike, sourceText?: string):
       : undefined
 
   const matterJson = meta.matter
+  validateMatterAST(matterJson, fields, meta.name)
 
   // Собираем bulk-view
   const bulkJson: ViewJson | undefined = meta.view ? { view: meta.view } : undefined

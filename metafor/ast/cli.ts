@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { watch } from "fs"
+import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { dirname, basename, join, isAbsolute } from "path"
 import { pathToFileURL } from "url"
 import { MetaFor } from "@metafor/dsl"
@@ -192,9 +193,10 @@ async function build(): Promise<boolean | string> {
     // Используем абсолютный путь к корню проекта (где находится dsl/build)
     const scriptDir = dirname(new URL(import.meta.url).pathname)
     const projectRoot = join(scriptDir, "..", "..")
-    const tempDir = join(projectRoot, "node_modules", ".metafor-build")
-    await Bun.$`mkdir -p ${tempDir}`
-    const tempFile = join(tempDir, `build-${Date.now()}.mjs`)
+    const tempRoot = join(projectRoot, "node_modules", ".metafor-build")
+    await mkdir(tempRoot, { recursive: true })
+    const tempRunDir = await mkdtemp(join(tempRoot, "build-"))
+    const tempFile = join(tempRunDir, "entry.mjs")
 
     // Генерируем код для временного файла
     const tempCode = `
@@ -237,9 +239,9 @@ async function build(): Promise<boolean | string> {
       stderr: "pipe",
     })
 
-    // Удаляем временный файл
+    // Удаляем временную директорию целиком, чтобы параллельные сборки не конфликтовали между собой.
     try {
-      await Bun.$`rm -f ${tempFile}`
+      await rm(tempRunDir, { recursive: true, force: true })
     } catch {
       // Игнорируем ошибки удаления
     }

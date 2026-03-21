@@ -82,15 +82,23 @@ export type Mass = Record<string, any>
  * - `matter()` - определение иерархии акторов компонента
  * - `bulk()` - определение bulk-view компонента
  *
+ * Для `matter` dynamic `src`, зависящий от `enum`, должен писаться напрямую:
+ * `<meta-for src="demo/${value.mode}" />`.
+ * Дополнительный `value.mode && ...` для защиты от `null` не нужен.
+ *
  * @example
  * ```typescript
  * const component = MetaFor("my-component")
- *   .fields((field) => ({ name: field.string.required("") }))
+ *   .fields((field) => ({ mode: field.enum("summary", "details").required("summary") }))
  *   .superposition({ idle: { loading: {} } })
  *   .mass({ users: [] })
  *   .processes((process) => ({ load: process().action(...) }))
  *   .reactions((reaction) => [...])
- *   .matter(({ value }) => html`<div>${value.name}</div>`)
+ *   .matter(({ value, html }) => html`
+ *     ${value.mode === "summary"
+ *       ? html`<meta-for src="demo/summary" />`
+ *       : html`<meta-for src="demo/details" />`}
+ *   `)
  *   .bulk()
  * ```
  */
@@ -230,7 +238,7 @@ export type MetaForFn = (
              *   .mass(...)
              *   .processes(...)
              *   .reactions(...)
-             *   .matter(({ value, html }) => html`<div>${value.label}</div>`)
+             *   .matter(({ state, html }) => html`${state === "idle" && html`<meta-for src="demo/panel" />`}`)
              *   .bulk({
              *     view: ({ css }) => css`.container { color: blue; }`
              *   })
@@ -286,12 +294,16 @@ declare global {
    * @example
    * ```typescript
    * const component = MetaFor("my-component")
-   *   .fields((field) => ({ name: field.string.required("") }))
+   *   .fields((field) => ({ mode: field.enum("summary", "details").required("summary") }))
    *   .superposition({ idle: { loading: {} } })
    *   .mass({ users: [] })
    *   .processes((process) => ({ load: process().action(...) }))
    *   .reactions((reaction) => [...])
- *   .matter(({ value }) => html`<div>${value.name}</div>`)
+   *   .matter(({ value, html }) => html`
+   *     ${value.mode === "summary"
+   *       ? html`<meta-for src="demo/summary" />`
+   *       : html`<meta-for src="demo/details" />`}
+   *   `)
    *   .bulk()
    * ```
    */ // @ts-ignore
@@ -331,25 +343,29 @@ export type MetaForConfig = {
  * - `update` — функция обновления контекста
  * - `mass` — масса для сложных данных и зависимостей от среды
  *
+ * Matter описывает только иерархию акторов.
+ * Выбор topology в matter допускается только по `state`, `enum` и `array`.
+ * Обычные HTML-элементы и текст должны жить вне matter.
+ *
  * @example
  * ```ts
  * // Иерархия акторов на основе состояния
  * matter: ({ state, html }) => html`
- *   ${state === "коммит" && html`<meta-for src="meta/status.js" fields=${{ message: "В процессе..." }}></meta-for>`}
- *   ${state === "завершено" && html`<meta-for src="meta/success.js" fields=${{ message: "Готово!" }}></meta-for>`}
- *   ${state === "ошибка" && html`<meta-for src="meta/error.js" fields=${{ error: "Ошибка" }}></meta-for>`}
+ *   ${state === "коммит" && html`<meta-for src="demo/status" fields=${{ message: "В процессе..." }} />`}
+ *   ${state === "завершено" && html`<meta-for src="demo/success" fields=${{ message: "Готово!" }} />`}
+ *   ${state === "ошибка" && html`<meta-for src="demo/error" fields=${{ message: "Ошибка" }} />`}
  * `
  *
  * // Передача данных дочернему актору
  * matter: ({ value, html }) => html`
- *   <meta-for src="meta/child.js" fields=${{ data: value.data }}></meta-for>
+ *   <meta-for src="demo/child" fields=${{ data: value.data }} />
  * `
  *
  * // Несколько акторов в иерархии
  * matter: ({ html }) => html`
- *   <meta-for src="meta/header.js"></meta-for>
- *   <meta-for src="meta/content.js"></meta-for>
- *   <meta-for src="meta/footer.js"></meta-for>
+ *   <meta-for src="demo/header" />
+ *   <meta-for src="demo/content" />
+ *   <meta-for src="demo/footer" />
  * `
  * ```
  */
@@ -357,12 +373,6 @@ export type MatterDefinitionParams<ɸ extends Schema = Schema, m extends Mass = 
   /**
    * Функция для обновления контекста атома.
    * Используется в обработчиках событий для изменения состояния.
-   * @example
-   * ```ts
-   * matter: ({ html, update }) => html`
-   *   <button onclick=${() => update({ isLoading: true })}>Начать</button>
-   * `
-   */
   update: Update<ɸ>
   /**
    * Текущие значения полей.
@@ -371,7 +381,7 @@ export type MatterDefinitionParams<ɸ extends Schema = Schema, m extends Mass = 
    * @example
    * ```ts
    * matter: ({ value, html }) => html`
-   *   <meta-for src="meta/child" fields=${{ value: value.data }}></meta-for>
+   *   <meta-for src="demo/child" fields=${{ value: value.data }} />
    * `
    */
   value: Values<ɸ>
@@ -387,7 +397,7 @@ export type MatterDefinitionParams<ɸ extends Schema = Schema, m extends Mass = 
    * @example
    * ```ts
    * matter: ({ state, html }) => html`
-   *   ${state === "loading" && html`<meta-for src="meta/spinner.js"></meta-for>`}
+   *   ${state === "loading" && html`<meta-for src="demo/spinner" />`}
    * `
    */
   state: 𝛴
@@ -398,8 +408,8 @@ export type MatterDefinitionParams<ɸ extends Schema = Schema, m extends Mass = 
    * @example
    * ```ts
    * matter: ({ html }) => html`
-   *   <meta-for src="meta/header.js"></meta-for>
-   *   <meta-for src="meta/content.js"></meta-for>
+   *   <meta-for src="demo/header" />
+   *   <meta-for src="demo/content" />
    * `
    * ```
    *

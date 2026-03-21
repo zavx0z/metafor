@@ -159,7 +159,8 @@ Additional constraints for topology-fields are:
 - `array` changes only as topology change and must not be patched as an ordinary value,
 - `array` does not participate in entanglement,
 - `array` is not mutated by external reactions,
-- `array` changes only through the internal process of the atom and only by passing through `State`.
+- `array` changes only through the internal process of the atom and only by passing through `State`,
+- `matter` may read topology only through `state`, `enum`, and `array`, and must not encode topology through ordinary HTML or text nodes.
 
 When `array` unfolds, the atom is no longer read as a single value-holder but as a multiplicity of branches.
 

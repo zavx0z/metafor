@@ -36,15 +36,12 @@
  * ```typescript
  * export default MetaFor("user-profile")
  *   .fields((field) => ({
+ *     mode: field.enum("summary", "details").required("summary"),
  *     userId: field.number.required(0),
- *     userName: field.string.required(""),
- *     isLoading: field.boolean.required(false),
  *   }))
  *   .superposition({
- *     idle: { loading: {} },
- *     loading: { success: {}, error: {} },
- *     success: { idle: {} },
- *     error: { idle: {} },
+ *     idle: { loaded: { mode: { null: false } } },
+ *     loaded: null,
  *   })
  *   .mass({ users: [] })
  *   .processes((process) => ({
@@ -53,9 +50,7 @@
  *         const response = await fetch(`/api/users/${value.userId}`)
  *         return await response.json()
  *       })
- *       .success(({ update, data }) => {
- *         update({ userName: data.name, isLoading: false })
- *       })
+ *       .success(({ update }) => update({ mode: "details" }))
  *   }))
  *   .reactions((reaction) => [
  *     [
@@ -66,16 +61,14 @@
  *           atom: self.atom.split("/")[1] || "",
  *           value: { gt: 0 }
  *         }))
- *         .equal(({ update }) => update({ isLoading: true }))
+ *         .equal(({ update }) => update({ mode: "details" }))
  *     ]
  *   ])
- *   .matter(({ value, html, update }) => html`
- *     <div>
- *       <h1>${value.userName}</h1>
- *       <button onclick=${() => update({ isLoading: true })}>
- *         Загрузить
- *       </button>
- *     </div>
+ *   .matter(({ state, value, html }) => html`
+ *     ${state === "idle" && html`<meta-for src="demo/user-spinner" />`}
+ *     ${value.mode === "summary"
+ *       ? html`<meta-for src="demo/user-summary" fields=${{ userId: value.userId }} />`
+ *       : html`<meta-for src="demo/user-details" fields=${{ userId: value.userId }} />`}
  *   `)
  *   .bulk()
  * ```

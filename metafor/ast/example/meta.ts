@@ -49,9 +49,9 @@ const meta = MetaFor("git")
   ])
   .matter(
     ({ value, state, html }) =>
-      html`${state === "коммит" && html`<meta-for src="meta/status.js" fields=${{ message: "Коммит в процессе...", src: value.src }}></meta-for>`}
-        ${state === "завершено" && html`<meta-for src="meta/success.js" fields=${{ message: "Готово!", patches: value.patches }}></meta-for>`}
-        ${state === "ошибка" && html`<meta-for src="meta/error.js" fields=${{ error: "Ошибка коммита" }}></meta-for>`}`,
+      html`${state === "коммит" && html`<meta-for src="demo/status" fields=${{ message: "Коммит в процессе...", src: value.src }} />`}
+        ${state === "завершено" && html`<meta-for src="demo/success" fields=${{ message: "Готово!", patches: value.patches }} />`}
+        ${state === "ошибка" && html`<meta-for src="demo/error" fields=${{ message: "Ошибка коммита" }} />`}`,
   )
   .bulk({
     view: ({ css }) => css``,

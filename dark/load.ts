@@ -1,4 +1,4 @@
-import type { MetaAST } from "@metafor/ast"
+import { validateMatterAST, type MetaAST } from "@metafor/ast"
 import type { SRC } from "@metafor/dsl"
 
 /**
@@ -35,7 +35,9 @@ export async function loadMetaAST(address: SRC): Promise<MetaAST> {
   try {
     const response = await fetch(sourcePath)
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-    return (await response.json()) as MetaAST
+    const ast = (await response.json()) as MetaAST
+    validateMatterAST(ast.matter, ast.fields, ast.name)
+    return ast
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(`Не удалось загрузить meta: ${resolveMetaTsPath(address)} — ${message}`)

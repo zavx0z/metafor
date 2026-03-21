@@ -172,6 +172,9 @@ Here belong:
 4. reading an atom as multiplicity once branches are unfolded,
 5. hidden retention of topology and its localization frame without turning `Dark` into a runtime orchestrator.
 
+In `matter`, this means the hidden graph may be expressed only through actor-topology nodes.
+`state`, `enum`, and `array` may shape `Wimp` / `Fuzzy` / `Macho` / `Axion` structure, while plain HTML and text do not belong to `Dark × Higgs`.
+
 ### Dark × Strong
 
 Role:

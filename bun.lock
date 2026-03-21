@@ -86,6 +86,7 @@
         "@dark/strong": "workspace:*",
         "@dark/types": "workspace:*",
         "@dark/weak": "workspace:*",
+        "@metafor/ast": "workspace:*",
       },
     },
     "dark/em": {
@@ -146,8 +147,56 @@
         "@metafor/dsl": "workspace:*",
       },
     },
+    "github/zavx0z/git-collaborate-fetch": {
+      "name": "@zavx0z/git-collaborate-fetch",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-collaborate-pull": {
+      "name": "@zavx0z/git-collaborate-pull",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-collaborate-push": {
+      "name": "@zavx0z/git-collaborate-push",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-collaborate-remote": {
+      "name": "@zavx0z/git-collaborate-remote",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
     "github/zavx0z/git-config": {
       "name": "@zavx0z/git-config",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-config-config": {
+      "name": "@zavx0z/git-config-config",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-config-help": {
+      "name": "@zavx0z/git-config-help",
       "version": "0.1.0",
       "devDependencies": {
         "@metafor/ast": "workspace:*",
@@ -170,8 +219,80 @@
         "@metafor/dsl": "workspace:*",
       },
     },
+    "github/zavx0z/git-examine-describe": {
+      "name": "@zavx0z/git-examine-describe",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-examine-diff": {
+      "name": "@zavx0z/git-examine-diff",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-examine-log": {
+      "name": "@zavx0z/git-examine-log",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-examine-range-diff": {
+      "name": "@zavx0z/git-examine-range-diff",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-examine-shortlog": {
+      "name": "@zavx0z/git-examine-shortlog",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-examine-show": {
+      "name": "@zavx0z/git-examine-show",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-examine-status": {
+      "name": "@zavx0z/git-examine-status",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
     "github/zavx0z/git-history": {
       "name": "@zavx0z/git-history",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-history-bisect": {
+      "name": "@zavx0z/git-history-bisect",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-history-checkout": {
+      "name": "@zavx0z/git-history-checkout",
       "version": "0.1.0",
       "devDependencies": {
         "@metafor/ast": "workspace:*",
@@ -186,8 +307,280 @@
         "@metafor/dsl": "workspace:*",
       },
     },
+    "github/zavx0z/git-history-repair": {
+      "name": "@zavx0z/git-history-repair",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-history-reset": {
+      "name": "@zavx0z/git-history-reset",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-history-revert": {
+      "name": "@zavx0z/git-history-revert",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-history-switch": {
+      "name": "@zavx0z/git-history-switch",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
     "github/zavx0z/git-plumbing": {
       "name": "@zavx0z/git-plumbing",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-cat-file": {
+      "name": "@zavx0z/git-plumbing-cat-file",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-check-attr": {
+      "name": "@zavx0z/git-plumbing-check-attr",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-check-ignore": {
+      "name": "@zavx0z/git-plumbing-check-ignore",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-check-mailmap": {
+      "name": "@zavx0z/git-plumbing-check-mailmap",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-commit-graph": {
+      "name": "@zavx0z/git-plumbing-commit-graph",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-commit-tree": {
+      "name": "@zavx0z/git-plumbing-commit-tree",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-count-objects": {
+      "name": "@zavx0z/git-plumbing-count-objects",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-diff-files": {
+      "name": "@zavx0z/git-plumbing-diff-files",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-diff-index": {
+      "name": "@zavx0z/git-plumbing-diff-index",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-diff-tree": {
+      "name": "@zavx0z/git-plumbing-diff-tree",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-fast-export": {
+      "name": "@zavx0z/git-plumbing-fast-export",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-fast-import": {
+      "name": "@zavx0z/git-plumbing-fast-import",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-filter-branch": {
+      "name": "@zavx0z/git-plumbing-filter-branch",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-fsck": {
+      "name": "@zavx0z/git-plumbing-fsck",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-gitfile": {
+      "name": "@zavx0z/git-plumbing-gitfile",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-hash-object": {
+      "name": "@zavx0z/git-plumbing-hash-object",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-mktree": {
+      "name": "@zavx0z/git-plumbing-mktree",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-multi-pack-index": {
+      "name": "@zavx0z/git-plumbing-multi-pack-index",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-prune": {
+      "name": "@zavx0z/git-plumbing-prune",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-reflog": {
+      "name": "@zavx0z/git-plumbing-reflog",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-rev-list": {
+      "name": "@zavx0z/git-plumbing-rev-list",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-rev-parse": {
+      "name": "@zavx0z/git-plumbing-rev-parse",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-show-ref": {
+      "name": "@zavx0z/git-plumbing-show-ref",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-symbolic-ref": {
+      "name": "@zavx0z/git-plumbing-symbolic-ref",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-unpack-objects": {
+      "name": "@zavx0z/git-plumbing-unpack-objects",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-update-index": {
+      "name": "@zavx0z/git-plumbing-update-index",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-update-ref": {
+      "name": "@zavx0z/git-plumbing-update-ref",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-verify-commit": {
+      "name": "@zavx0z/git-plumbing-verify-commit",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-verify-pack": {
+      "name": "@zavx0z/git-plumbing-verify-pack",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing-verify-tag": {
+      "name": "@zavx0z/git-plumbing-verify-tag",
       "version": "0.1.0",
       "devDependencies": {
         "@metafor/ast": "workspace:*",
@@ -226,8 +619,32 @@
         "@metafor/dsl": "workspace:*",
       },
     },
+    "github/zavx0z/git-stash-stash": {
+      "name": "@zavx0z/git-stash-stash",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
     "github/zavx0z/git-submodule": {
       "name": "@zavx0z/git-submodule",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-submodule-submodule": {
+      "name": "@zavx0z/git-submodule-submodule",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-work": {
+      "name": "@zavx0z/git-work",
       "version": "0.1.0",
       "devDependencies": {
         "@metafor/ast": "workspace:*",
@@ -283,6 +700,14 @@
     },
     "github/zavx0z/git-worktree": {
       "name": "@zavx0z/git-worktree",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-worktree-worktree": {
+      "name": "@zavx0z/git-worktree-worktree",
       "version": "0.1.0",
       "devDependencies": {
         "@metafor/ast": "workspace:*",
@@ -413,17 +838,115 @@
 
     "@zavx0z/git-collaborate": ["@zavx0z/git-collaborate@workspace:github/zavx0z/git-collaborate"],
 
+    "@zavx0z/git-collaborate-fetch": ["@zavx0z/git-collaborate-fetch@workspace:github/zavx0z/git-collaborate-fetch"],
+
+    "@zavx0z/git-collaborate-pull": ["@zavx0z/git-collaborate-pull@workspace:github/zavx0z/git-collaborate-pull"],
+
+    "@zavx0z/git-collaborate-push": ["@zavx0z/git-collaborate-push@workspace:github/zavx0z/git-collaborate-push"],
+
+    "@zavx0z/git-collaborate-remote": ["@zavx0z/git-collaborate-remote@workspace:github/zavx0z/git-collaborate-remote"],
+
     "@zavx0z/git-config": ["@zavx0z/git-config@workspace:github/zavx0z/git-config"],
+
+    "@zavx0z/git-config-config": ["@zavx0z/git-config-config@workspace:github/zavx0z/git-config-config"],
+
+    "@zavx0z/git-config-help": ["@zavx0z/git-config-help@workspace:github/zavx0z/git-config-help"],
 
     "@zavx0z/git-error": ["@zavx0z/git-error@workspace:github/zavx0z/git-error"],
 
     "@zavx0z/git-examine": ["@zavx0z/git-examine@workspace:github/zavx0z/git-examine"],
 
+    "@zavx0z/git-examine-describe": ["@zavx0z/git-examine-describe@workspace:github/zavx0z/git-examine-describe"],
+
+    "@zavx0z/git-examine-diff": ["@zavx0z/git-examine-diff@workspace:github/zavx0z/git-examine-diff"],
+
+    "@zavx0z/git-examine-log": ["@zavx0z/git-examine-log@workspace:github/zavx0z/git-examine-log"],
+
+    "@zavx0z/git-examine-range-diff": ["@zavx0z/git-examine-range-diff@workspace:github/zavx0z/git-examine-range-diff"],
+
+    "@zavx0z/git-examine-shortlog": ["@zavx0z/git-examine-shortlog@workspace:github/zavx0z/git-examine-shortlog"],
+
+    "@zavx0z/git-examine-show": ["@zavx0z/git-examine-show@workspace:github/zavx0z/git-examine-show"],
+
+    "@zavx0z/git-examine-status": ["@zavx0z/git-examine-status@workspace:github/zavx0z/git-examine-status"],
+
     "@zavx0z/git-history": ["@zavx0z/git-history@workspace:github/zavx0z/git-history"],
+
+    "@zavx0z/git-history-bisect": ["@zavx0z/git-history-bisect@workspace:github/zavx0z/git-history-bisect"],
+
+    "@zavx0z/git-history-checkout": ["@zavx0z/git-history-checkout@workspace:github/zavx0z/git-history-checkout"],
 
     "@zavx0z/git-history-commit": ["@zavx0z/git-history-commit@workspace:github/zavx0z/git-history-commit"],
 
+    "@zavx0z/git-history-repair": ["@zavx0z/git-history-repair@workspace:github/zavx0z/git-history-repair"],
+
+    "@zavx0z/git-history-reset": ["@zavx0z/git-history-reset@workspace:github/zavx0z/git-history-reset"],
+
+    "@zavx0z/git-history-revert": ["@zavx0z/git-history-revert@workspace:github/zavx0z/git-history-revert"],
+
+    "@zavx0z/git-history-switch": ["@zavx0z/git-history-switch@workspace:github/zavx0z/git-history-switch"],
+
     "@zavx0z/git-plumbing": ["@zavx0z/git-plumbing@workspace:github/zavx0z/git-plumbing"],
+
+    "@zavx0z/git-plumbing-cat-file": ["@zavx0z/git-plumbing-cat-file@workspace:github/zavx0z/git-plumbing-cat-file"],
+
+    "@zavx0z/git-plumbing-check-attr": ["@zavx0z/git-plumbing-check-attr@workspace:github/zavx0z/git-plumbing-check-attr"],
+
+    "@zavx0z/git-plumbing-check-ignore": ["@zavx0z/git-plumbing-check-ignore@workspace:github/zavx0z/git-plumbing-check-ignore"],
+
+    "@zavx0z/git-plumbing-check-mailmap": ["@zavx0z/git-plumbing-check-mailmap@workspace:github/zavx0z/git-plumbing-check-mailmap"],
+
+    "@zavx0z/git-plumbing-commit-graph": ["@zavx0z/git-plumbing-commit-graph@workspace:github/zavx0z/git-plumbing-commit-graph"],
+
+    "@zavx0z/git-plumbing-commit-tree": ["@zavx0z/git-plumbing-commit-tree@workspace:github/zavx0z/git-plumbing-commit-tree"],
+
+    "@zavx0z/git-plumbing-count-objects": ["@zavx0z/git-plumbing-count-objects@workspace:github/zavx0z/git-plumbing-count-objects"],
+
+    "@zavx0z/git-plumbing-diff-files": ["@zavx0z/git-plumbing-diff-files@workspace:github/zavx0z/git-plumbing-diff-files"],
+
+    "@zavx0z/git-plumbing-diff-index": ["@zavx0z/git-plumbing-diff-index@workspace:github/zavx0z/git-plumbing-diff-index"],
+
+    "@zavx0z/git-plumbing-diff-tree": ["@zavx0z/git-plumbing-diff-tree@workspace:github/zavx0z/git-plumbing-diff-tree"],
+
+    "@zavx0z/git-plumbing-fast-export": ["@zavx0z/git-plumbing-fast-export@workspace:github/zavx0z/git-plumbing-fast-export"],
+
+    "@zavx0z/git-plumbing-fast-import": ["@zavx0z/git-plumbing-fast-import@workspace:github/zavx0z/git-plumbing-fast-import"],
+
+    "@zavx0z/git-plumbing-filter-branch": ["@zavx0z/git-plumbing-filter-branch@workspace:github/zavx0z/git-plumbing-filter-branch"],
+
+    "@zavx0z/git-plumbing-fsck": ["@zavx0z/git-plumbing-fsck@workspace:github/zavx0z/git-plumbing-fsck"],
+
+    "@zavx0z/git-plumbing-gitfile": ["@zavx0z/git-plumbing-gitfile@workspace:github/zavx0z/git-plumbing-gitfile"],
+
+    "@zavx0z/git-plumbing-hash-object": ["@zavx0z/git-plumbing-hash-object@workspace:github/zavx0z/git-plumbing-hash-object"],
+
+    "@zavx0z/git-plumbing-mktree": ["@zavx0z/git-plumbing-mktree@workspace:github/zavx0z/git-plumbing-mktree"],
+
+    "@zavx0z/git-plumbing-multi-pack-index": ["@zavx0z/git-plumbing-multi-pack-index@workspace:github/zavx0z/git-plumbing-multi-pack-index"],
+
+    "@zavx0z/git-plumbing-prune": ["@zavx0z/git-plumbing-prune@workspace:github/zavx0z/git-plumbing-prune"],
+
+    "@zavx0z/git-plumbing-reflog": ["@zavx0z/git-plumbing-reflog@workspace:github/zavx0z/git-plumbing-reflog"],
+
+    "@zavx0z/git-plumbing-rev-list": ["@zavx0z/git-plumbing-rev-list@workspace:github/zavx0z/git-plumbing-rev-list"],
+
+    "@zavx0z/git-plumbing-rev-parse": ["@zavx0z/git-plumbing-rev-parse@workspace:github/zavx0z/git-plumbing-rev-parse"],
+
+    "@zavx0z/git-plumbing-show-ref": ["@zavx0z/git-plumbing-show-ref@workspace:github/zavx0z/git-plumbing-show-ref"],
+
+    "@zavx0z/git-plumbing-symbolic-ref": ["@zavx0z/git-plumbing-symbolic-ref@workspace:github/zavx0z/git-plumbing-symbolic-ref"],
+
+    "@zavx0z/git-plumbing-unpack-objects": ["@zavx0z/git-plumbing-unpack-objects@workspace:github/zavx0z/git-plumbing-unpack-objects"],
+
+    "@zavx0z/git-plumbing-update-index": ["@zavx0z/git-plumbing-update-index@workspace:github/zavx0z/git-plumbing-update-index"],
+
+    "@zavx0z/git-plumbing-update-ref": ["@zavx0z/git-plumbing-update-ref@workspace:github/zavx0z/git-plumbing-update-ref"],
+
+    "@zavx0z/git-plumbing-verify-commit": ["@zavx0z/git-plumbing-verify-commit@workspace:github/zavx0z/git-plumbing-verify-commit"],
+
+    "@zavx0z/git-plumbing-verify-pack": ["@zavx0z/git-plumbing-verify-pack@workspace:github/zavx0z/git-plumbing-verify-pack"],
+
+    "@zavx0z/git-plumbing-verify-tag": ["@zavx0z/git-plumbing-verify-tag@workspace:github/zavx0z/git-plumbing-verify-tag"],
 
     "@zavx0z/git-start": ["@zavx0z/git-start@workspace:github/zavx0z/git-start"],
 
@@ -433,7 +956,13 @@
 
     "@zavx0z/git-stash": ["@zavx0z/git-stash@workspace:github/zavx0z/git-stash"],
 
+    "@zavx0z/git-stash-stash": ["@zavx0z/git-stash-stash@workspace:github/zavx0z/git-stash-stash"],
+
     "@zavx0z/git-submodule": ["@zavx0z/git-submodule@workspace:github/zavx0z/git-submodule"],
+
+    "@zavx0z/git-submodule-submodule": ["@zavx0z/git-submodule-submodule@workspace:github/zavx0z/git-submodule-submodule"],
+
+    "@zavx0z/git-work": ["@zavx0z/git-work@workspace:github/zavx0z/git-work"],
 
     "@zavx0z/git-work-add": ["@zavx0z/git-work-add@workspace:github/zavx0z/git-work-add"],
 
@@ -448,6 +977,8 @@
     "@zavx0z/git-work-sparse-checkout": ["@zavx0z/git-work-sparse-checkout@workspace:github/zavx0z/git-work-sparse-checkout"],
 
     "@zavx0z/git-worktree": ["@zavx0z/git-worktree@workspace:github/zavx0z/git-worktree"],
+
+    "@zavx0z/git-worktree-worktree": ["@zavx0z/git-worktree-worktree@workspace:github/zavx0z/git-worktree-worktree"],
 
     "agent-base": ["agent-base@7.1.4", "https://registry.yarnpkg.com/agent-base/-/agent-base-7.1.4.tgz", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 
