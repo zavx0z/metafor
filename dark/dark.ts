@@ -1,5 +1,4 @@
 import type { NodeType } from "@metafor/dsl"
-import type { MetaAST } from "@metafor/ast"
 import type {
   MatterEntry,
   MatterContinuation,
@@ -10,12 +9,38 @@ import type {
 } from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
 import { resolveContinuationSources } from "@dark/gravity"
-import { Axion, Fuzzy, Macho, resolveWimpContinuation, Wimp, resolveFieldValues } from "@dark/strong"
+import { Axion, Fuzzy, Macho, materializeFields, resolveWimpContinuation, Wimp } from "@dark/strong"
 import { loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
 
 const cloneDefined = <T>(value: T | undefined): T | undefined =>
   value === undefined ? undefined : structuredClone(value)
+
+/**
+ * Клонирует временный continuation payload.
+ *
+ * Значения копируются, чтобы build-пакет не разделял mutable runtime data между ветвями,
+ * а `source`-ссылки сохраняются как объектные ссылки на уже materialized parent fields.
+ */
+const cloneContinuation = (continuation: MatterContinuation): MatterContinuation => {
+  const cloned: MatterContinuation = {}
+
+  if (continuation.fieldInits !== undefined) {
+    cloned.fieldInits = continuation.fieldInits.map((fieldInit) => {
+      const nextFieldInit: typeof fieldInit = {
+        key: fieldInit.key,
+        value: structuredClone(fieldInit.value),
+      }
+
+      if (fieldInit.source !== undefined) nextFieldInit.source = fieldInit.source
+      return nextFieldInit
+    })
+  }
+
+  if (continuation.mass !== undefined) cloned.mass = structuredClone(continuation.mass)
+
+  return cloned
+}
 
 /**
  * Как только частица создана, dark сразу фиксирует её graph wiring в `dark$`.
@@ -52,13 +77,14 @@ const appendChildEntries = (frontier: MatterEntry[], node: NodeType, parent: Dar
 const processMatterNode = (
   entry: MatterNodeEntry,
   ast: MatterAST,
+  fields: Wimp["fields"],
   nextFrontier: MatterEntry[],
   wimps: MatterWimpResult[],
 ): void => {
   switch (entry.node.type) {
     case "meta":
       if (typeof entry.node.src === "string") {
-        const continuation = resolveWimpContinuation(entry.node, ast.fields)
+        const continuation = cloneContinuation(resolveWimpContinuation(entry.node, fields))
         const wimp = new Wimp({ src: entry.node.src, parent: entry.parent })
         wimps.push([wimp, continuation])
         registerParticle(wimp, entry.parent)
@@ -69,9 +95,15 @@ const processMatterNode = (
       const fuzzy = new Fuzzy({ parent: entry.parent })
       registerParticle(fuzzy, entry.parent)
 
-      const continuation = resolveWimpContinuation(entry.node, ast.fields)
+      const continuation = resolveWimpContinuation(entry.node, fields)
       for (const src of resolveContinuationSources(entry.node, ast.fields)) {
-        nextFrontier.push({ kind: "continuation", node: entry.node, parent: fuzzy, src, continuation })
+        nextFrontier.push({
+          kind: "continuation",
+          node: entry.node,
+          parent: fuzzy,
+          src,
+          continuation: cloneContinuation(continuation),
+        })
       }
 
       appendChildEntries(nextFrontier, entry.node, fuzzy)
@@ -124,17 +156,16 @@ export async function* matterMeta(
    * через дочерние частицы и потому не остаётся отдельным локальным payload самой сущности.
    */
   wimp.name = ast.name
-  wimp.fields = structuredClone(ast.fields)
+  wimp.fields = materializeFields(wimp, ast.fields, continuation?.fieldInits)
   wimp.superposition = structuredClone(ast.superposition)
   wimp.processes = cloneDefined(ast.processes)
   wimp.reactions = cloneDefined(ast.reactions)
   wimp.bulk = cloneDefined(ast.bulk)
   /**
-   * `Wimp` получает входные данные.
-   * Если continuation пришёл от родителя, он важнее локальных defaults текущей meta.
+   * `Wimp` получает локальные ORM-поля.
+   * Если continuation пришёл от родителя, его `FieldInit` важнее локальных defaults текущей meta.
    * Более сложное entanglement/merge поведение остаётся отдельным следующим шагом.
    */
-  wimp.values = cloneDefined(continuation?.values) ?? resolveFieldValues(wimp.fields ?? ast.fields)
   wimp.mass =
     cloneDefined(continuation?.mass) ??
     (ast.mass && Object.keys(ast.mass).length > 0 ? structuredClone(ast.mass) : undefined)
@@ -143,6 +174,10 @@ export async function* matterMeta(
 
   if (!ast.matter) return
 
+  /**
+   * Frontier хранит только текущий слой traversal.
+   * Это важно: continuation остаётся временным build-механизмом и не оседает в `Wimp`.
+   */
   let frontier = Array.from(ast.matter, (node): MatterEntry => ({ kind: "node", node, parent: wimp }))
 
   while (frontier.length > 0) {
@@ -156,28 +191,31 @@ export async function* matterMeta(
       if (entry.kind === "continuation") {
         /**
          * Обрабатывает continuation dynamic meta как уже выбранный `src` для нового Wimp.
-         * Сам `Wimp` здесь тоже остаётся пустым: continuation только прикладывается к нему
+         * Сам `Wimp` здесь тоже остаётся пустым: build-пакет только прикладывается к нему
          * позже, когда его собственная meta будет загружена и передана в `matterPipeline`.
          */
         const wimp = new Wimp({ src: entry.src, parent: entry.parent })
-        levelWimps.push([wimp, entry.continuation])
+        levelWimps.push([wimp, cloneContinuation(entry.continuation)])
         registerParticle(wimp, entry.parent)
         appendChildEntries(nextFrontier, entry.node, wimp)
         continue
       }
 
-      processMatterNode(entry, ast!, nextFrontier, levelWimps)
+      processMatterNode(entry, ast, wimp.fields, nextFrontier, levelWimps)
     }
 
     yield levelWimps
   }
 }
 
-export async function matter(wimp: Wimp) {
-  const generator = matterMeta(wimp)
+/**
+ * Полностью materialize-ит `Wimp` и рекурсивно проходит все обнаруженные child meta.
+ */
+export async function matter(wimp: Wimp, continuation?: MatterContinuation) {
+  const generator = matterMeta(wimp, continuation)
   for await (const wimps of generator) {
-    for (const [wimp, continuation] of wimps) {
-      await matter(wimp)
+    for (const [childWimp, childContinuation] of wimps) {
+      await matter(childWimp, childContinuation)
     }
   }
 }

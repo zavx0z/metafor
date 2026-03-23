@@ -1,17 +1,30 @@
 import type { Mass, NodeMeta } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
-import type { WimpInit, WimpValues } from "@dark/types/strong"
+import type { WimpInit } from "@dark/types/strong"
 import { BaseParticle } from "./part.ts"
 
+/**
+ * Канонический meta-узел Dark object graph.
+ *
+ * `Wimp` хранит локальные AST-данные и materialized ORM-поля своей meta,
+ * а topology раскрывается через дочерние частицы в `children`.
+ */
 export class Wimp extends BaseParticle {
+  /** SRC-адрес загружаемой meta. */
   src: string
+  /** Локальное имя meta после загрузки AST. */
   name: MetaAST["name"] | undefined
-  fields: MetaAST["fields"] | undefined
+  /** Локальный object graph полей этой meta. */
+  fields: WimpInit["fields"]
+  /** Локальная схема переходов состояний. */
   superposition: MetaAST["superposition"] | undefined
+  /** Локальные процессы meta. */
   processes: MetaAST["processes"] | undefined
+  /** Локальные реакции meta. */
   reactions: MetaAST["reactions"] | undefined
+  /** Downstream bulk-описание meta. */
   bulk: MetaAST["bulk"] | undefined
-  values?: WimpValues
+  /** Runtime `mass`, принадлежащая этому `Wimp`. */
   mass: Mass | NodeMeta["mass"] | undefined
 
   constructor(init: WimpInit) {
@@ -23,7 +36,6 @@ export class Wimp extends BaseParticle {
     this.processes = init.processes
     this.reactions = init.reactions
     this.bulk = init.bulk
-    if (init.values !== undefined) this.values = init.values
     this.mass = init.mass
   }
 }

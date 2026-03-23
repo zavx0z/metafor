@@ -2,6 +2,7 @@ import type { NodeType, NodeMeta } from "@metafor/dsl"
 import type { Fuzzy, Wimp } from "@dark/strong"
 import type { MetaAST } from "../../metafor/ast/ast.t"
 import type { DarkParticle } from "./shared"
+import type { FieldInit } from "./strong.ts"
 
 /**
  * Минимальный вход для текущего one-meta dark-прохода.
@@ -12,13 +13,16 @@ import type { DarkParticle } from "./shared"
 export type MatterAST = Pick<MetaAST, "matter" | "fields" | "mass">
 
 /**
- * Continuation, который родительская meta передаёт обнаруженному дочернему `Wimp`.
+ * Временный build-пакет, который родительская meta передаёт обнаруженному дочернему `Wimp`.
  *
- * Сам `Wimp` при обнаружении ещё остаётся пустым. Этот payload применяется позже,
+ * Сам `Wimp` при обнаружении ещё остаётся пустым. Этот пакет применяется позже,
  * когда meta дочернего `Wimp` уже загружена и он передаётся в `matterPipeline`.
+ * После materialization он больше не является каноническим слоем хранения.
  */
 export interface MatterContinuation {
-  values?: Wimp["values"]
+  /** Временный build-пакет полей для materialization дочернего `Wimp`. */
+  fieldInits?: FieldInit[]
+  /** Временный payload `mass`, приходящий от родителя. */
   mass?: Wimp["mass"]
 }
 
@@ -42,6 +46,7 @@ export type MatterLayerResult = MatterWimpResult[]
  * архитектурным контрактом pipeline снаружи.
  */
 export interface MatterNodeEntry {
+  /** Обычный AST-узел текущего слоя. */
   kind: "node"
   node: NodeType
   parent: DarkParticle
@@ -50,10 +55,15 @@ export interface MatterNodeEntry {
  * Локальная continuation-запись для dynamic meta после materialization её Fuzzy-узла.
  */
 export interface MatterContinuationEntry {
+  /** Уже разрешённая continuation-ветвь dynamic meta. */
   kind: "continuation"
   node: NodeMeta
   parent: Fuzzy
   src: string
   continuation: MatterContinuation
 }
+
+/**
+ * Внутренний frontier entry текущего traversal-шага.
+ */
 export type MatterEntry = MatterNodeEntry | MatterContinuationEntry
