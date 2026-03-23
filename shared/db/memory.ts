@@ -15,7 +15,7 @@ import {
   getSharedDbFieldSource,
   getSharedDbFieldValue,
 } from "./db.ts"
-import type { SharedDbProjection, SharedDbTabularData } from "./db.t.ts"
+import type { SharedDbProjection, SharedDbRuntimeSeedData, SharedDbTabularData } from "./db.t.ts"
 
 /**
  * Открывает reference backend поверх in-memory shared/db snapshot.
@@ -43,6 +43,18 @@ export const openSharedDbMemoryBackend = (
 
     getRootBraneIndex() {
       return projection.rootBraneIndex
+    },
+
+    getRuntimeSeedData(): SharedDbRuntimeSeedData {
+      return {
+        entanglementBlocks: projection.entanglementBlocks.map((block) => structuredClone(block)),
+        entanglementBlockMembers: projection.entanglementBlockMembers.map((member) => structuredClone(member)),
+        entanglementFields: projection.entanglementFields.map((field) => structuredClone(field)),
+        entanglementFieldMembers: projection.entanglementFieldMembers.map((member) => structuredClone(member)),
+        stateSeedStates: projection.stateSeedStates.map((state) => structuredClone(state)),
+        stateSeedTransitions: projection.stateSeedTransitions.map((transition) => structuredClone(transition)),
+        stateSeedConditions: projection.stateSeedConditions.map((condition) => structuredClone(condition)),
+      }
     },
 
     reset() {

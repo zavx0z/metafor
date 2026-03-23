@@ -25,11 +25,19 @@ export type { SharedDbBackend, SharedDbBackendIndexSpec, SharedDbBackendTableNam
 export type { SharedDbSqliteBackendOptions } from "./sqlite.ts"
 export type {
   SharedDbBraneRecord,
+  SharedDbEntanglementSeedBlockMemberRecord,
+  SharedDbEntanglementSeedBlockRecord,
+  SharedDbEntanglementSeedFieldMemberRecord,
+  SharedDbEntanglementSeedFieldRecord,
   SharedDbFieldRecord,
   SharedDbFieldSchemaRecord,
   SharedDbFieldSourceRecord,
   SharedDbFieldValueRecord,
   SharedDbProjection,
   SharedDbProjectionIndexes,
+  SharedDbRuntimeSeedData,
+  SharedDbStateSeedConditionRecord,
+  SharedDbStateSeedStateRecord,
+  SharedDbStateSeedTransitionRecord,
   SharedDbTabularData,
 } from "./db.t.ts"

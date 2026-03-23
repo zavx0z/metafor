@@ -33,6 +33,14 @@ export const createSharedDbFixture = () => {
     mode: rootMode,
     items: rootItems,
   }
+  root.superposition = {
+    idle: {
+      ready: {
+        mode: "ready",
+      },
+    },
+    ready: null,
+  }
 
   const gate = new Fuzzy({ parent: root })
   root.children.add(gate)
@@ -67,6 +75,14 @@ export const createSharedDbFixture = () => {
     alias: childAlias,
     mode: childMode,
     items: childItems,
+  }
+  child.superposition = {
+    idle: {
+      ready: {
+        mode: "ready",
+      },
+    },
+    ready: null,
   }
 
   return {

@@ -52,7 +52,20 @@ describe("shared db sqlite backend", () => {
             .all() as Array<{ name: string }>
         ).map((row) => row.name)
 
-        expect(tables).toEqual(["branes", "field_sources", "field_values", "fields", "shared_db_meta"])
+        expect(tables).toEqual([
+          "branes",
+          "entanglement_seed_block_members",
+          "entanglement_seed_blocks",
+          "entanglement_seed_field_members",
+          "entanglement_seed_fields",
+          "field_sources",
+          "field_values",
+          "fields",
+          "shared_db_meta",
+          "state_seed_conditions",
+          "state_seed_states",
+          "state_seed_transitions",
+        ])
         expect(indexes).toEqual(sharedDbRequiredBackendIndexes.map((index) => index.name).sort())
       } finally {
         database.close()
@@ -77,6 +90,22 @@ describe("shared db sqlite backend", () => {
         expect(prepareSharedDbTabularData(readSharedDbProjection(reader))).toEqual(
           prepareSharedDbTabularData(projection),
         )
+        expect(reader.getRuntimeSeedData().stateSeedConditions).toEqual([
+          {
+            index: 0,
+            transitionSeedIndex: 0,
+            conditionIndex: 0,
+            darkFieldId: fixture.fields.rootMode.id,
+            condition: "ready",
+          },
+          {
+            index: 1,
+            transitionSeedIndex: 2,
+            conditionIndex: 0,
+            darkFieldId: fixture.fields.childMode.id,
+            condition: "ready",
+          },
+        ])
 
         reader.setFieldValue(3, "Alias via sqlite")
       } finally {

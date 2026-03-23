@@ -22,6 +22,7 @@ export const describeSharedDbBackendContract = (
 
       try {
         backend.writeProjection(projection)
+        const runtimeSeeds = backend.getRuntimeSeedData()
 
         expect(backend.requiredIndexes).toEqual(sharedDbRequiredBackendIndexes)
         expect(backend.getRootBraneIndex()).toBe(0)
@@ -33,6 +34,20 @@ export const describeSharedDbBackendContract = (
         expect(backend.getFieldValue(3)?.value).toBe("Root title")
         expect(backend.getFieldSource(3)).toEqual({ childFieldIndex: 3, parentFieldIndex: 0 })
         expect(backend.getDependentFields(0).map((field) => field.darkFieldId)).toEqual([fixture.fields.childAlias.id])
+        expect(runtimeSeeds.entanglementBlocks).toEqual([{ index: 0, key: "source-family:0,1" }])
+        expect(runtimeSeeds.entanglementFieldMembers.map((member) => member.darkFieldId)).toContain(
+          fixture.fields.childAlias.id,
+        )
+        expect(runtimeSeeds.stateSeedStates.map((state) => [state.ownerBraneIndex, state.name, state.initial])).toEqual([
+          [0, "idle", true],
+          [0, "ready", false],
+          [1, "idle", true],
+          [1, "ready", false],
+        ])
+        expect(runtimeSeeds.stateSeedConditions.map((condition) => condition.darkFieldId)).toEqual([
+          fixture.fields.rootMode.id,
+          fixture.fields.childMode.id,
+        ])
       } finally {
         backend.close()
       }

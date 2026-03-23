@@ -5,11 +5,23 @@ import type {
   SharedDbFieldSourceRecord,
   SharedDbFieldValueRecord,
   SharedDbProjection,
+  SharedDbRuntimeSeedData,
   SharedDbTabularData,
 } from "./db.t.ts"
 
 /** Имена канонических shared/db таблиц backend-слоя. */
-export type SharedDbBackendTableName = "branes" | "fields" | "field_values" | "field_sources"
+export type SharedDbBackendTableName =
+  | "branes"
+  | "fields"
+  | "field_values"
+  | "field_sources"
+  | "entanglement_seed_blocks"
+  | "entanglement_seed_block_members"
+  | "entanglement_seed_fields"
+  | "entanglement_seed_field_members"
+  | "state_seed_states"
+  | "state_seed_transitions"
+  | "state_seed_conditions"
 
 /**
  * Зафиксированная backend-индексация для минимального lookup API.
@@ -43,6 +55,13 @@ export interface SharedDbBackend {
 
   /** Возвращает индекс корневой браны канонического снимка. */
   getRootBraneIndex(): number
+
+  /**
+   * Возвращает bulk-срез runtime seeds.
+   *
+   * Seeds остаются flat DB-layer данными и не являются runtime-owned таблицами.
+   */
+  getRuntimeSeedData(): SharedDbRuntimeSeedData
 
   /** Сбрасывает backend к пустому каноническому состоянию. */
   reset(): void
