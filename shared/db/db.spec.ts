@@ -6,6 +6,7 @@ import {
   getSharedDbBraneFields,
   getSharedDbDependentFields,
   getSharedDbFieldByDarkId,
+  getSharedDbFieldByIndex,
   getSharedDbFieldByKey,
   getSharedDbFieldSource,
   getSharedDbFieldValue,
@@ -103,6 +104,7 @@ describe("shared db helper api", () => {
     expect(getSharedDbBraneByIndex(projection, 1)?.darkWimpId).toBe("child")
     expect(getSharedDbBraneByDarkId(projection, "root")?.index).toBe(0)
     expect(getSharedDbBraneFields(projection, 0).map((field) => field.key)).toEqual(["title", "mode", "items"])
+    expect(getSharedDbFieldByIndex(projection, 1)?.darkFieldId).toBe("root-mode")
     expect(getSharedDbFieldByDarkId(projection, "child-alias")?.ownerBraneIndex).toBe(1)
     expect(getSharedDbFieldByKey(projection, 1, "alias")?.darkFieldId).toBe("child-alias")
     expect(getSharedDbFieldValue(projection, 3)?.value).toBe("Root title")

@@ -104,23 +104,18 @@ export interface SharedDbFieldSourceRecord {
 }
 
 /**
- * Общая плоская DB-проекция из materialized `Dark`.
+ * Каноническая табличная форма хранения общей DB-проекции.
  *
- * Плоские массивы и индексы собираются один раз, чтобы downstream-код работал
- * с готовым DB-shaped снимком, а не повторно обходил объектный граф `Dark`.
+ * Это минимальный DB-shaped снимок, который backend обязан уметь хранить
+ * и полностью заменять без знания runtime-структур доменов.
  *
  * @property rootBraneIndex Индекс корневой браны, из которой началась проекция.
  * @property branes Плоская таблица materialized `Wimp`.
  * @property fields Плоская таблица объектных `Field`.
  * @property fieldValues Плоская таблица текущих значений полей.
  * @property fieldSources Плоская таблица direct ordinary source-связей.
- * @property braneIndexByDarkId Индекс `Dark Wimp.id -> braneIndex`.
- * @property fieldIndexByDarkId Индекс `Dark Field.id -> fieldIndex`.
- * @property fieldIndexByBraneAndKey Индекс поиска поля по паре `(braneIndex, fieldKey)`.
- * @property fieldSourceByChildFieldIndex Быстрый доступ `childFieldIndex -> source-link`.
- * @property dependentFieldIndexesByParentFieldIndex Обратный индекс зависимых полей.
  */
-export interface SharedDbProjection {
+export interface SharedDbTabularData {
   /** Индекс корневой браны, из которой началась проекция. */
   rootBraneIndex: number
   /** Плоская таблица materialized `Wimp`. */
@@ -131,6 +126,21 @@ export interface SharedDbProjection {
   fieldValues: SharedDbFieldValueRecord[]
   /** Плоская таблица direct ordinary source-связей. */
   fieldSources: SharedDbFieldSourceRecord[]
+}
+
+/**
+ * Производные индексы поверх канонической табличной формы.
+ *
+ * Эти структуры не являются частью backend-хранилища как такового, но могут
+ * материализоваться в памяти для быстрого индексного доступа.
+ *
+ * @property braneIndexByDarkId Индекс `Dark Wimp.id -> braneIndex`.
+ * @property fieldIndexByDarkId Индекс `Dark Field.id -> fieldIndex`.
+ * @property fieldIndexByBraneAndKey Индекс поиска поля по паре `(braneIndex, fieldKey)`.
+ * @property fieldSourceByChildFieldIndex Быстрый доступ `childFieldIndex -> source-link`.
+ * @property dependentFieldIndexesByParentFieldIndex Обратный индекс зависимых полей.
+ */
+export interface SharedDbProjectionIndexes {
   /** Индекс `Dark Wimp.id -> braneIndex`. */
   braneIndexByDarkId: Map<string, number>
   /** Индекс `Dark Field.id -> fieldIndex`. */
@@ -142,3 +152,11 @@ export interface SharedDbProjection {
   /** Обратный индекс зависимых полей. */
   dependentFieldIndexesByParentFieldIndex: Map<number, number[]>
 }
+
+/**
+ * Общая плоская DB-проекция из materialized `Dark`.
+ *
+ * Плоские массивы и индексы собираются один раз, чтобы downstream-код работал
+ * с готовым DB-shaped снимком, а не повторно обходил объектный граф `Dark`.
+ */
+export interface SharedDbProjection extends SharedDbTabularData, SharedDbProjectionIndexes {}

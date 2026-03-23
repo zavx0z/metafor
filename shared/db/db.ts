@@ -35,6 +35,18 @@ export const getSharedDbBraneByDarkId = (
 }
 
 /**
+ * Возвращает запись поля по индексу.
+ *
+ * @param projection Собранная DB-проекция.
+ * @param fieldIndex Индекс поля в плоской таблице.
+ * @returns Запись поля или `undefined`, если индекс не найден.
+ */
+export const getSharedDbFieldByIndex = (
+  projection: SharedDbProjection,
+  fieldIndex: number,
+): SharedDbFieldRecord | undefined => projection.fields[fieldIndex]
+
+/**
  * Возвращает запись поля по исходному `Dark Field.id`.
  *
  * @param projection Собранная DB-проекция.
