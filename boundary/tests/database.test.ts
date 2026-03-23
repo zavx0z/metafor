@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import { assembleSharedDbProjection } from "../../dark/db.ts"
-import { buildBoundaryDatabase, openBoundaryDatabase, prepareBoundaryDatabaseData } from "../database.ts"
+import { openSharedDbSqliteBackend } from "@shared/db"
+import {
+  buildBoundaryDatabase,
+  buildBoundaryDatabaseFromSharedDb,
+  openBoundaryDatabase,
+  prepareBoundaryDatabaseData,
+} from "../database.ts"
 import { createSharedDbFixture } from "../../dark/db.fixture.ts"
 
 describe("boundary database from shared db", () => {
@@ -56,5 +62,22 @@ describe("boundary database from shared db", () => {
 
     database.restore(prepared)
     expect(database.getFieldByKey(1, "alias")?.darkFieldId).toBe(fixture.fields.childAlias.id)
+  })
+
+  test("может загрузить boundary database напрямую из shared/db backend", () => {
+    const fixture = createSharedDbFixture()
+    const projection = assembleSharedDbProjection(fixture.root)
+    const backend = openSharedDbSqliteBackend()
+
+    try {
+      backend.writeProjection(projection)
+      const database = buildBoundaryDatabaseFromSharedDb(backend)
+
+      expect(database.getBraneByDarkId(fixture.child.id)?.index).toBe(1)
+      expect(database.getFieldByKey(1, "mode")?.darkFieldId).toBe(fixture.fields.childMode.id)
+      expect(database.getFieldSource(3)).toEqual({ childFieldIndex: 3, parentFieldIndex: 0 })
+    } finally {
+      backend.close()
+    }
   })
 })

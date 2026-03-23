@@ -25,9 +25,12 @@
 import { boundary$ } from "./store"
 import type { BoundaryFieldValueRecord, BoundaryStore } from "./store.t"
 import type { PreparedData } from "./boundary.t"
+import { prepareBoundaryStoreFromSharedDb } from "./database"
+import type { BoundarySharedDbRuntimeOptions } from "./database.t"
 import { flattenBoundaryData, validateData, type Data } from "@boundary/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData } from "@boundary/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
+import type { SharedDbBackend } from "@shared/db"
 
 let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null
@@ -43,7 +46,14 @@ export function prepareData(data: Data): PreparedData {
   return assembleStoredBoundaryData(flattenBoundaryData(data))
 }
 
-export async function write(data: Data): Promise<[number, number][]> {
+export function prepareSharedDbData(
+  backend: SharedDbBackend,
+  options: BoundarySharedDbRuntimeOptions = {},
+): PreparedData {
+  return prepareBoundaryStoreFromSharedDb(backend, options)
+}
+
+async function writePreparedData(prepared: PreparedData): Promise<[number, number][]> {
   const prevMutex = writeMutex
   let resolveMutex: (() => void) | undefined
   writeMutex = new Promise<void>((resolve) => {
@@ -55,17 +65,26 @@ export async function write(data: Data): Promise<[number, number][]> {
   }
 
   try {
-    validateData(data)
     boundary$.reset()
     weak$.reset()
-    const flattened = flattenBoundaryData(data)
-    const prepared = assembleStoredBoundaryData(flattened)
     boundary$.restore(prepared)
     await weakInit(boundary$)
     return []
   } finally {
     resolveMutex?.()
   }
+}
+
+export async function write(data: Data): Promise<[number, number][]> {
+  validateData(data)
+  return await writePreparedData(assembleStoredBoundaryData(flattenBoundaryData(data)))
+}
+
+export async function writeSharedDb(
+  backend: SharedDbBackend,
+  options: BoundarySharedDbRuntimeOptions = {},
+): Promise<[number, number][]> {
+  return await writePreparedData(prepareSharedDbData(backend, options))
 }
 
 function requireInitializedStore(store$: BoundaryStore): void {

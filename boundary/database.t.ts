@@ -1,4 +1,5 @@
 import type { FieldKey } from "@metafor/ast"
+import type { PreparedEntanglementProjection } from "@boundary/strong"
 
 /**
  * Снимок схемы поля внутри boundary-базы.
@@ -117,6 +118,17 @@ export interface BoundaryDatabaseData {
   fieldValues: BoundaryDatabaseFieldValueRecord[]
   /** Плоская таблица ordinary source-связей. */
   fieldSources: BoundaryDatabaseFieldSourceRecord[]
+}
+
+/**
+ * Дополнительные boundary-owned runtime-настройки для DB-fed materialization.
+ *
+ * Shared/db backend остаётся источником канонических табличных данных, а такие
+ * вещи как entanglement projection передаются только в Boundary runtime layer.
+ */
+export interface BoundarySharedDbRuntimeOptions {
+  /** Подготовленная boundary entanglement projection, если она уже есть. */
+  entanglement?: PreparedEntanglementProjection
 }
 
 /**
