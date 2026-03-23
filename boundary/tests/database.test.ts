@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { assembleSharedDbProjection } from "@shared/db"
+import { assembleSharedDbProjection } from "../../dark/db.ts"
 import { buildBoundaryDatabase, openBoundaryDatabase, prepareBoundaryDatabaseData } from "../database.ts"
-import { createSharedDbFixture } from "../../shared/db/test.fixture.ts"
+import { createSharedDbFixture } from "../../dark/db.fixture.ts"
 
 describe("boundary database from shared db", () => {
   test("строит собственную базу из shared db и не делает boundary владельцем общей проекции", () => {

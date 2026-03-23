@@ -4,12 +4,7 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./db": "./db.ts",
     "./types": "./db.t.ts"
   },
-  "private": true,
-  "dependencies": {
-    "@dark/strong": "workspace:*",
-    "@dark/types": "workspace:*"
-  }
+  "private": true
 }

@@ -15,7 +15,7 @@ If you come to MetaFor as a developer first, keep this minimum model in view:
 - `Gravity`, `Electromagnetism`, `Strong`, and `Weak` are universal forces expressed in every domain,
 - `gravity` is a relation and localization invariant across domains, not only hidden `Dark` connectivity,
 - `Boundary` is the flattening boundary and `Field` is the imprint layer after flattening,
-- `Dark` owns the domain ORM, `shared/orm` stays generic, and `shared/db` owns the flat DB-shaped shared projection,
+- `Dark` owns the domain ORM and the export of its object graph, `shared/orm` stays generic, and `shared/db` owns the flat DB-shaped shared data model,
 - `enum` and `array` are topology-fields and must not be treated as ordinary value fields,
 - `matter` is actor topology only: branch choice there may use only `state`, `enum`, and `array`, while HTML/text belong outside `matter`.
 

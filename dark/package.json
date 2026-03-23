@@ -10,6 +10,7 @@
     "@dark/gravity": "workspace:*",
     "@dark/strong": "workspace:*",
     "@dark/weak": "workspace:*",
-    "@dark/em": "workspace:*"
+    "@dark/em": "workspace:*",
+    "@shared/db": "workspace:*"
   }
 }

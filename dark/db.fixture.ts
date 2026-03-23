@@ -3,13 +3,6 @@ import { Field, Fuzzy, Wimp } from "@dark/strong"
 /**
  * Готовит небольшой materialized `Dark`-граф для тестов плоской DB-проекции.
  *
- * В графе есть:
- * - корневой `Wimp`,
- * - промежуточный `Fuzzy`,
- * - дочерний `Wimp`,
- * - ordinary source-связь `title -> alias`,
- * - topology-поля с заполненным `source`, которые не должны попасть в ordinary source-таблицу.
- *
  * @returns Тестовый граф и ссылки на ключевые поля.
  */
 export const createSharedDbFixture = () => {

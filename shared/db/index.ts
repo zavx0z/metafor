@@ -1,5 +1,4 @@
 export {
-  assembleSharedDbProjection,
   getSharedDbBraneByDarkId,
   getSharedDbBraneByIndex,
   getSharedDbBraneFields,

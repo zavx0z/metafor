@@ -88,6 +88,7 @@
         "@dark/types": "workspace:*",
         "@dark/weak": "workspace:*",
         "@metafor/ast": "workspace:*",
+        "@shared/db": "workspace:*",
       },
     },
     "dark/em": {
@@ -737,10 +738,6 @@
     },
     "shared/db": {
       "name": "@shared/db",
-      "dependencies": {
-        "@dark/strong": "workspace:*",
-        "@dark/types": "workspace:*",
-      },
     },
     "shared/orm": {
       "name": "@shared/orm",
