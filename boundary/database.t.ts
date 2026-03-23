@@ -1,5 +1,14 @@
 import type { FieldKey } from "@metafor/ast"
 import type { PreparedEntanglementProjection } from "@boundary/strong"
+import type {
+  SharedDbEntanglementSeedBlockMemberRecord,
+  SharedDbEntanglementSeedBlockRecord,
+  SharedDbEntanglementSeedFieldMemberRecord,
+  SharedDbEntanglementSeedFieldRecord,
+  SharedDbStateSeedConditionRecord,
+  SharedDbStateSeedStateRecord,
+  SharedDbStateSeedTransitionRecord,
+} from "@shared/db"
 
 /**
  * Снимок схемы поля внутри boundary-базы.
@@ -118,6 +127,20 @@ export interface BoundaryDatabaseData {
   fieldValues: BoundaryDatabaseFieldValueRecord[]
   /** Плоская таблица ordinary source-связей. */
   fieldSources: BoundaryDatabaseFieldSourceRecord[]
+  /** Flat entanglement seeds без boundary runtime materialization. */
+  entanglementBlocks: SharedDbEntanglementSeedBlockRecord[]
+  /** Membership-таблица `entanglement block -> brane`. */
+  entanglementBlockMembers: SharedDbEntanglementSeedBlockMemberRecord[]
+  /** Shared field seeds внутри entanglement blocks. */
+  entanglementFields: SharedDbEntanglementSeedFieldRecord[]
+  /** Membership-таблица `shared field seed -> darkFieldId`. */
+  entanglementFieldMembers: SharedDbEntanglementSeedFieldMemberRecord[]
+  /** Flat state graph seeds без boundary runtime tables. */
+  stateSeedStates: SharedDbStateSeedStateRecord[]
+  /** Flat state transition seeds без boundary runtime tables. */
+  stateSeedTransitions: SharedDbStateSeedTransitionRecord[]
+  /** Flat state condition seeds без boundary runtime tables. */
+  stateSeedConditions: SharedDbStateSeedConditionRecord[]
 }
 
 /**
@@ -127,7 +150,7 @@ export interface BoundaryDatabaseData {
  * вещи как entanglement projection передаются только в Boundary runtime layer.
  */
 export interface BoundarySharedDbRuntimeOptions {
-  /** Подготовленная boundary entanglement projection, если она уже есть. */
+  /** Явная boundary entanglement projection, если нужно переопределить DB-fed seeds. */
   entanglement?: PreparedEntanglementProjection
 }
 

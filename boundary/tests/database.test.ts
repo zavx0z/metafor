@@ -18,6 +18,8 @@ describe("boundary database from shared db", () => {
     expect(database.branes).toHaveLength(2)
     expect(database.fields).toHaveLength(6)
     expect(database.fieldSources).toHaveLength(1)
+    expect(database.entanglementFields).toHaveLength(3)
+    expect(database.stateSeedStates).toHaveLength(4)
 
     expect(database.branes).not.toBe(projection.branes)
     expect(database.fields[0]).not.toBe(projection.fields[0])
