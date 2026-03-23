@@ -3,22 +3,27 @@ import type { FieldObjectInit } from "@dark/types/strong"
 /**
  * Каноническая ORM-сущность поля внутри конкретного `Wimp`.
  *
- * Поле живёт не в глобальном store, а прямо в локальном object graph владельца.
+ * Поле живёт не в глобальном хранилище, а прямо в локальном объектном графе владельца.
  */
 export class Field {
-  /** Уникальный runtime-идентификатор field instance. */
+  /** Уникальный идентификатор экземпляра поля. */
   readonly id: string
   /** Локальный ключ поля в схеме владельца. */
   key: FieldObjectInit["key"]
   /** `Wimp`, которому принадлежит это поле. */
   owner: FieldObjectInit["owner"]
-  /** Локальная schema поля, закреплённая за владельцем. */
+  /** Локальная схема поля, закреплённая за владельцем. */
   schema: FieldObjectInit["schema"]
-  /** Текущее runtime-значение поля. */
+  /** Текущее значение поля. */
   value: unknown
-  /** Прямой ordinary-source link на field родителя, если он есть. */
+  /** Прямая ссылка на поле родителя, если такая связь есть. */
   source: Field | null
 
+  /**
+   * Создаёт локальное ORM-поле для конкретного `Wimp`.
+   *
+   * @param init Полная инициализация поля: ключ, владелец, схема, значение и необязательная ссылка на поле-источник.
+   */
   constructor(init: FieldObjectInit) {
     this.id = crypto.randomUUID()
     this.key = init.key

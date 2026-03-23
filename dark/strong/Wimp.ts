@@ -4,29 +4,34 @@ import type { WimpInit } from "@dark/types/strong"
 import { BaseParticle } from "./part.ts"
 
 /**
- * Канонический meta-узел Dark object graph.
+ * Канонический мета-узел объектного графа Dark.
  *
- * `Wimp` хранит локальные AST-данные и materialized ORM-поля своей meta,
- * а topology раскрывается через дочерние частицы в `children`.
+ * `Wimp` хранит локальные данные AST и собранные ORM-поля своей меты,
+ * а топология раскрывается через дочерние частицы в `children`.
  */
 export class Wimp extends BaseParticle {
-  /** SRC-адрес загружаемой meta. */
+  /** SRC-адрес загружаемой меты. */
   src: string
-  /** Локальное имя meta после загрузки AST. */
+  /** Локальное имя меты после загрузки AST. */
   name: MetaAST["name"] | undefined
-  /** Локальный object graph полей этой meta. */
+  /** Локальный объектный граф полей этой меты. */
   fields: WimpInit["fields"]
   /** Локальная схема переходов состояний. */
   superposition: MetaAST["superposition"] | undefined
-  /** Локальные процессы meta. */
+  /** Локальные процессы меты. */
   processes: MetaAST["processes"] | undefined
-  /** Локальные реакции meta. */
+  /** Локальные реакции меты. */
   reactions: MetaAST["reactions"] | undefined
-  /** Downstream bulk-описание meta. */
+  /** Описание `bulk`, передаваемое в следующий слой. */
   bulk: MetaAST["bulk"] | undefined
-  /** Runtime `mass`, принадлежащая этому `Wimp`. */
+  /** Значение `mass`, принадлежащее этому `Wimp`. */
   mass: Mass | NodeMeta["mass"] | undefined
 
+  /**
+   * Создаёт пустой или частично materialized `Wimp`.
+   *
+   * @param init Начальные данные `Wimp`: src, необязательные локальные данные меты и связь с родителем.
+   */
   constructor(init: WimpInit) {
     super(init)
     this.src = init.src

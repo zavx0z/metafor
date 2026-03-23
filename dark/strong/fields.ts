@@ -5,20 +5,20 @@ import type { Wimp } from "./Wimp.ts"
 import { Field } from "./Field.ts"
 
 /**
- * Ленивый resolver значения поля.
+ * Ленивый вычислитель значения поля.
  */
 export type FieldResolver = () => unknown
 
 /**
- * Набор resolvers по локальным ключам field schema.
+ * Набор вычислителей по локальным ключам схемы полей.
  */
 export type FieldResolvers = Map<FieldKey, FieldResolver>
 
 const hasOwn = (value: object, key: string): boolean => Object.prototype.hasOwnProperty.call(value, key)
 /**
  * Поддерживает только простой случай `{ childKey: _[index] }`,
- * потому что на этом шаге нам нужен лишь прямой ordinary field-link,
- * а не полноценный expression graph.
+ * потому что на этом шаге нам нужна лишь прямая связь поля родителя с полем ребёнка,
+ * а не полноценный граф выражений.
  */
 const DIRECT_FIELD_LINK_RE = /(?:^|,)\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*_\[(\d+)\]\s*(?=,|$)/g
 
@@ -47,10 +47,14 @@ const toFieldObject = (value: unknown): WimpValues => {
 }
 
 /**
- * Строит resolver стартового runtime значения для schema field.
+ * Строит вычислитель начального значения для поля из схемы.
  *
- * Правила здесь повторяют initialization-контракт meta:
+ * Правила здесь повторяют контракт инициализации меты:
  * `default` побеждает, `required` без `default` падает, optional стартует как `null`.
+ *
+ * @param key Локальный ключ поля в схеме.
+ * @param field Описание поля из `MetaAST.fields`.
+ * @returns Ленивую функцию, вычисляющую начальное значение поля.
  */
 export const createFieldValueResolver = (key: FieldKey, field: FieldDefinitionJson): FieldResolver => {
   if (hasOwn(field, "default")) {
@@ -66,19 +70,31 @@ export const createFieldValueResolver = (key: FieldKey, field: FieldDefinitionJs
   return () => null
 }
 
+/**
+ * Собирает набор начальных вычислителей для всей схемы полей.
+ *
+ * @param fields Полная схема полей конкретной меты.
+ * @returns Отображение `ключ поля -> вычислитель`, используемое для начальной инициализации значений.
+ */
 export const createFieldValueResolvers = (fields: FieldsAST): FieldResolvers =>
   new Map(Object.entries(fields).map(([key, field]) => [key, createFieldValueResolver(key, field)]))
 
 /**
- * Строит resolvers поверх уже materialized object fields конкретного `Wimp`.
+ * Строит вычислители поверх уже собранных объектных полей конкретного `Wimp`.
+ *
+ * @param fields Уже собранные локальные объектные поля `Wimp`.
+ * @returns Отображение `ключ поля -> вычислитель`, читающее текущие значения из `Field.value`.
  */
 export const createRuntimeFieldResolvers = (fields?: WimpFields): FieldResolvers =>
   new Map(Object.entries(fields ?? {}).map(([key, field]) => [key, () => structuredClone(field.value)]))
 
 /**
- * Вычисляет стартовые runtime values из schema fields без materialization `Field`.
+ * Вычисляет начальные значения из схемы полей без создания `Field`.
  *
- * Нужен как вспомогательный read-model helper и для тестов контрактов инициализации.
+ * Нужен как вспомогательная форма чтения и для тестов контрактов инициализации.
+ *
+ * @param fields Полная схема полей конкретной меты.
+ * @returns Уплощённый объект со значениями по правилам инициализации схемы.
  */
 export const resolveFieldValues = (fields: FieldsAST): WimpValues => {
   const resolvers = createFieldValueResolvers(fields)
@@ -87,7 +103,11 @@ export const resolveFieldValues = (fields: FieldsAST): WimpValues => {
 }
 
 /**
- * Вычисляет `node.fields` AST в плоский object payload.
+ * Преобразует `node.fields` из AST в плоский набор значений.
+ *
+ * @param value AST-описание `fields` у дочернего мета-узла.
+ * @param resolvers Источники значений, доступных в выражении `node.fields`.
+ * @returns Плоский набор значений для следующего шага подготовки полей.
  */
 export const resolveNodeFieldValues = (
   value: NodeMeta["fields"] | undefined,
@@ -110,8 +130,11 @@ export const resolveNodeFieldValues = (
 }
 
 /**
- * Ordinary fields могут участвовать в прямом `source`-linking.
- * Topology fields (`enum`, `array`) на этом шаге исключаются.
+ * Обычные поля могут участвовать в прямой связи по источнику.
+ * Топологические поля (`enum`, `array`) на этом шаге исключаются.
+ *
+ * @param field Схема конкретного поля.
+ * @returns `true`, если поле допустимо для прямой связи по источнику.
  */
 export const isOrdinaryFieldSchema = (field: FieldDefinitionJson): boolean =>
   !field.type.startsWith("enum<") && !field.type.startsWith("array<")
@@ -135,8 +158,8 @@ const resolveDirectFieldSources = (
     const sourceKey = path && extractFieldKey(path)
     const sourceField = sourceKey ? parentFields[sourceKey] : undefined
 
-    // Привязываем только прямую передачу parent field -> child field.
-    // Любая более сложная expression-семантика остаётся за пределами этого шага ORM.
+    // Привязываем только прямую передачу поля родителя в поле ребёнка.
+    // Любая более сложная семантика выражений остаётся за пределами этого шага ORM.
     if (key && sourceField && isOrdinaryFieldSchema(sourceField.schema)) {
       directSources.set(key, sourceField)
     }
@@ -149,8 +172,8 @@ const normalizeFieldInits = (fieldInits: FieldInit[] | undefined, fields: Fields
   const initMap = new Map<FieldKey, FieldInit>()
 
   for (const fieldInit of fieldInits ?? []) {
-    // Parent meta может передать build-поле, которого нет в schema дочернего `Wimp`.
-    // На этапе materialization такие init просто игнорируются, не превращаясь в runtime state.
+    // Родительская мета может передать описание поля, которого нет в схеме дочернего `Wimp`.
+    // На этапе сборки такие описания просто игнорируются и не попадают в итоговое состояние.
     if (!hasOwn(fields, fieldInit.key)) continue
 
     initMap.set(fieldInit.key, fieldInit)
@@ -167,7 +190,12 @@ const resolveFieldSource = (schema: FieldDefinitionJson, source: Field | null | 
 }
 
 /**
- * Materialize-ит локальные ORM-поля `Wimp` из schema и временного build-пакета `FieldInit`.
+ * Собирает локальные ORM-поля `Wimp` из схемы и временного набора описаний `FieldInit`.
+ *
+  * @param owner `Wimp`, которому будут принадлежать создаваемые `Field`.
+ * @param fields Полная схема полей собираемой меты.
+ * @param fieldInits Временный набор описаний полей, пришедший от родительского шага обхода.
+ * @returns Канонический локальный объектный граф полей конкретного `Wimp`.
  */
 export const materializeFields = (owner: Wimp, fields: FieldsAST, fieldInits?: FieldInit[]): WimpFields => {
   const initMap = normalizeFieldInits(fieldInits, fields)
@@ -184,7 +212,10 @@ export const materializeFields = (owner: Wimp, fields: FieldsAST, fieldInits?: F
 }
 
 /**
- * Читает object fields как плоский runtime values object.
+ * Читает объектные поля как плоский набор текущих значений.
+ *
+ * @param fields Локальный объектный граф полей `Wimp`.
+ * @returns Уплощённый объект со значениями `Field.value`.
  */
 export const readFieldValues = (fields?: WimpFields): WimpValues | undefined => {
   if (!fields) return
@@ -193,7 +224,11 @@ export const readFieldValues = (fields?: WimpFields): WimpValues | undefined => 
 }
 
 /**
- * Строит временный `FieldInit[]` из `node.fields` AST и parent object fields.
+ * Строит временный `FieldInit[]` из `node.fields` AST и полей родительского `Wimp`.
+ *
+ * @param value AST-описание `fields` у дочернего мета-узла.
+ * @param parentFields Уже собранные объектные поля родительского `Wimp`.
+ * @returns Временный набор описаний, который позже будет превращён в `childWimp.fields`.
  */
 export const resolveNodeFieldInits = (
   value: NodeMeta["fields"] | undefined,
@@ -212,8 +247,8 @@ export const resolveNodeFieldInits = (
   const paths = Array.isArray(value.data) ? value.data : [value.data]
   const directSources = resolveDirectFieldSources("expr" in value ? value.expr : undefined, paths, parentFields)
 
-  // Значение всегда вычисляется как обычный object payload, а `source` добавляется
-  // только там, где удалось доказать прямой ordinary-link без дополнительной graph-семантики.
+  // Значение всегда вычисляется как обычный набор данных, а `source` добавляется
+  // только там, где удалось доказать прямую связь без дополнительной семантики графа.
   return Object.entries(resolvedObject ?? {}).map(([key, fieldValue]) => {
     const source = directSources.get(key)
     return source ? { key, value: fieldValue, source } : { key, value: fieldValue }

@@ -17,10 +17,10 @@ const cloneDefined = <T>(value: T | undefined): T | undefined =>
   value === undefined ? undefined : structuredClone(value)
 
 /**
- * Клонирует временный continuation payload.
+ * Клонирует временный пакет данных для дочернего `Wimp`.
  *
- * Значения копируются, чтобы build-пакет не разделял mutable runtime data между ветвями,
- * а `source`-ссылки сохраняются как объектные ссылки на уже materialized parent fields.
+ * Значения копируются, чтобы временный пакет не разделял изменяемые данные между ветвями,
+ * а ссылки `source` сохранялись как объектные ссылки на уже собранные поля родителя.
  */
 const cloneContinuation = (continuation: MatterContinuation): MatterContinuation => {
   const cloned: MatterContinuation = {}
@@ -43,7 +43,7 @@ const cloneContinuation = (continuation: MatterContinuation): MatterContinuation
 }
 
 /**
- * Как только частица создана, dark сразу фиксирует её graph wiring в `dark$`.
+ * Как только частица создана, dark сразу фиксирует её связи в `dark$`.
  */
 const registerParticle = (particle: DarkParticle, parent: DarkParticle): void => {
   parent.children.add(particle)
@@ -57,7 +57,7 @@ const registerParticle = (particle: DarkParticle, parent: DarkParticle): void =>
 }
 
 /**
- * Дочерние topology-узлы всегда попадают в следующий frontier уже с реальным runtime parent.
+ * Дочерние топологические узлы всегда попадают в следующий шаг обхода уже с реальным родителем.
  */
 const appendChildEntries = (frontier: MatterEntry[], node: NodeType, parent: DarkParticle): void => {
   if (!("child" in node && Array.isArray(node.child))) return
@@ -65,14 +65,14 @@ const appendChildEntries = (frontier: MatterEntry[], node: NodeType, parent: Dar
 }
 
 /**
- * Обрабатывает обычный topology entry текущего слоя.
+ * Обрабатывает обычную запись текущего топологического слоя.
  *
  * На этом шаге dark:
  * - понимает, нужна ли частица для текущего узла;
- * - materialize не-Wimp частицы текущей meta;
- * - для meta-узлов создаёт пустые `Wimp` и continuation к ним;
+ * - создаёт не-Wimp частицы текущей меты;
+ * - для meta-узлов создаёт пустые `Wimp` и временные пакеты данных к ним;
  * - сразу делает wiring в `dark$`;
- * - сразу формирует child-ветви следующего frontier и Wimp-результат текущего слоя.
+ * - сразу формирует дочерние ветви следующего шага обхода и результат текущего слоя.
  */
 const processMatterNode = (
   entry: MatterNodeEntry,
@@ -133,16 +133,20 @@ const processMatterNode = (
 }
 
 /**
- * Явный layer-by-layer pipeline одной meta.
+ * Явный послойный проход одной меты.
  *
- * На первом `next()` pipeline инициализирует root `Wimp`, затем обрабатывает первый слой
+ * На первом `next()` генератор инициализирует корневой `Wimp`, затем обрабатывает первый слой
  * и yield-ит только те `Wimp`, которые были обнаружены именно на этом шаге.
  *
  * Остальные частицы (`Fuzzy`, `Axion`, `Macho`) не возвращаются наружу:
- * вся их runtime-информация сразу складывается в `dark$`.
+ * вся информация о них сразу складывается в `dark$`.
  *
  * Даже если на уровне не появился ни один новый `Wimp`, pipeline всё равно yield-ит
  * пустой массив, чтобы снаружи не терялась граница между слоями прохода.
+ *
+ * @param wimp Корневой `Wimp` текущей меты, который должен быть собран.
+ * @param continuation Временный пакет данных, пришедший от родительского шага обхода.
+ * @returns Асинхронный поток по слоям из обнаруженных дочерних `Wimp` и их временных пакетов данных.
  */
 export async function* matterMeta(
   wimp: Wimp,
@@ -152,8 +156,8 @@ export async function* matterMeta(
   /**
    * Локальные AST-данные живут внутри `Wimp`.
    *
-   * `matter` сюда сознательно не копируется: она уже materialize-ится в объектный граф
-   * через дочерние частицы и потому не остаётся отдельным локальным payload самой сущности.
+   * `matter` сюда сознательно не копируется: она уже раскладывается в объектный граф
+   * через дочерние частицы и потому не остаётся отдельным локальным набором данных самой сущности.
    */
   wimp.name = ast.name
   wimp.fields = materializeFields(wimp, ast.fields, continuation?.fieldInits)
@@ -163,8 +167,8 @@ export async function* matterMeta(
   wimp.bulk = cloneDefined(ast.bulk)
   /**
    * `Wimp` получает локальные ORM-поля.
-   * Если continuation пришёл от родителя, его `FieldInit` важнее локальных defaults текущей meta.
-   * Более сложное entanglement/merge поведение остаётся отдельным следующим шагом.
+   * Если временный пакет пришёл от родителя, его `FieldInit` важнее локальных `default` текущей меты.
+   * Более сложное объединение связанных полей остаётся отдельным следующим шагом.
    */
   wimp.mass =
     cloneDefined(continuation?.mass) ??
@@ -175,8 +179,8 @@ export async function* matterMeta(
   if (!ast.matter) return
 
   /**
-   * Frontier хранит только текущий слой traversal.
-   * Это важно: continuation остаётся временным build-механизмом и не оседает в `Wimp`.
+   * Очередь обхода хранит только текущий слой.
+   * Это важно: временный пакет данных остаётся переходным механизмом и не оседает в `Wimp`.
    */
   let frontier = Array.from(ast.matter, (node): MatterEntry => ({ kind: "node", node, parent: wimp }))
 
@@ -190,9 +194,9 @@ export async function* matterMeta(
     for (const entry of currentLayer) {
       if (entry.kind === "continuation") {
         /**
-         * Обрабатывает continuation dynamic meta как уже выбранный `src` для нового Wimp.
-         * Сам `Wimp` здесь тоже остаётся пустым: build-пакет только прикладывается к нему
-         * позже, когда его собственная meta будет загружена и передана в `matterPipeline`.
+         * Обрабатывает уже разрешённую динамическую мету как выбранный `src` для нового `Wimp`.
+         * Сам `Wimp` здесь тоже остаётся пустым: временный пакет данных применяется позже,
+         * когда загрузится его собственная мета.
          */
         const wimp = new Wimp({ src: entry.src, parent: entry.parent })
         levelWimps.push([wimp, cloneContinuation(entry.continuation)])
@@ -209,7 +213,11 @@ export async function* matterMeta(
 }
 
 /**
- * Полностью materialize-ит `Wimp` и рекурсивно проходит все обнаруженные child meta.
+ * Полностью собирает `Wimp` и рекурсивно проходит все обнаруженные дочерние меты.
+ *
+ * @param wimp Корневой `Wimp`, который нужно полностью собрать.
+ * @param continuation Временный пакет данных, который должен быть применён к этому `Wimp` перед обходом.
+ * @returns Promise, завершающийся после полного рекурсивного обхода и сборки дочерних мет.
  */
 export async function matter(wimp: Wimp, continuation?: MatterContinuation) {
   const generator = matterMeta(wimp, continuation)

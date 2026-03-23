@@ -4,7 +4,7 @@ import type { NodeMeta } from "@metafor/dsl"
 import { resolveContinuationSources } from "./gravity.ts"
 
 describe("resolveContinuationSources", () => {
-  test("optional enum dynamic src раскрывается только по enum values без null-ветви", () => {
+  test("динамический `src` по необязательному `enum` раскрывается только по значениям `enum` без ветви `null`", () => {
     const node: NodeMeta = {
       type: "meta",
       tag: "meta-for",

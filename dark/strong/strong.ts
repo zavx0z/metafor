@@ -4,23 +4,30 @@ import { Wimp } from "./Wimp.ts"
 import { resolveNodeFieldInits } from "./fields.ts"
 
 /**
- * Результат build-подготовки дочернего `Wimp`, вычисленный на стороне родителя.
+ * Результат подготовки дочернего `Wimp`, вычисленный на стороне родителя.
+ *
+ * @property fieldInits Временный набор описаний полей, который будет сразу превращён в `childWimp.fields`.
+ * @property mass Временное значение `mass` для дочернего `Wimp`.
  */
 export interface WimpContinuationBuild {
-  /** Временный набор field init, который будет сразу materialize-нут в child `Wimp.fields`. */
+  /** Временный набор описаний полей, который будет сразу превращён в `childWimp.fields`. */
   fieldInits?: FieldInit[]
-  /** Временный payload `mass` для child `Wimp`. */
+  /** Временное значение `mass` для дочернего `Wimp`. */
   mass?: Wimp["mass"]
 }
 
 /**
- * Вычисляет continuation для дочернего `Wimp`, приходящий от родительской meta.
+ * Готовит временный пакет данных для дочернего `Wimp`, который обнаружен в родительской мете.
  *
- * На этом шаге сам `Wimp` ещё остаётся пустым: continuation только сохраняет
- * временный build-пакет `FieldInit[]` и `mass`, которые будут применены позже
- * при загрузке meta схемы и передаче этого `Wimp` в `matterPipeline`.
+ * На этом шаге сам `Wimp` ещё остаётся пустым: функция только подготавливает
+ * временный набор описаний полей `FieldInit[]` и `mass`, которые будут применены позже,
+ * когда загрузится схема дочерней меты.
  *
- * Traversal, parent resolution и wiring в `dark$` сюда не входят.
+ * Сюда не входят обход дерева, привязка к родителю и запись в `dark$`.
+ *
+ * @param node AST-узел дочерней меты, найденный в `matter`.
+ * @param fields Уже собранные объектные поля родительского `Wimp`.
+ * @returns Временный пакет данных для будущей сборки дочернего `Wimp`.
  */
 export const resolveWimpContinuation = (
   node: NodeMeta,

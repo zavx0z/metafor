@@ -17,24 +17,24 @@ describe("dark$", () => {
     await hub.teardown()
   })
 
-  describe("particles", () => {
+  describe("частицы", () => {
     test("частицы созданы", () => expect(dark$.particles.size).toBeGreaterThan(0))
-    test("wimp присутствуют", () => {
+    test("Wimp присутствуют", () => {
       wimps = [...dark$.particles.values()].filter((particle) => particle instanceof Wimp)
       expect(wimps.length).toBeGreaterThan(0)
     })
     let fuzzy: Fuzzy[]
-    test("fuzzy присутствуют", () => {
+    test("Fuzzy присутствуют", () => {
       fuzzy = [...dark$.particles.values()].filter((particle) => particle instanceof Fuzzy)
       expect(fuzzy.length).toBeGreaterThan(0)
     })
     let axion: Axion[]
-    test("axion присутствуют", () => {
+    test("Axion присутствуют", () => {
       axion = [...dark$.particles.values()].filter((particle) => particle instanceof Axion)
       expect(axion.length).toBeGreaterThan(0)
     })
     let macho: Macho[]
-    test("macho отсутствуют", () => {
+    test("Macho отсутствуют", () => {
       macho = [...dark$.particles.values()].filter((particle) => particle instanceof Macho)
       expect(macho.length).toBe(0)
     })
@@ -44,33 +44,33 @@ describe("dark$", () => {
     })
   })
 
-  describe("meta", () => {
-    test("meta хранит все Wimp по src", () => {
+  describe("таблица мет", () => {
+    test("таблица мет хранит все Wimp по `src`", () => {
       expect(dark$.meta.size).toBe(wimps.length)
       expect(dark$.meta).toEqual(new Map(wimps.map((wimp) => [wimp.id, wimp.src] as const)))
     })
   })
 
-  describe("parent", () => {
-    test("parent хранит связи для всех не-root частиц", () => {
+  describe("родители", () => {
+    test("`parent` хранит связи для всех не-корневых частиц", () => {
       const particles = [...dark$.particles.values()]
       const root = wimps.find((wimp) => wimp.src === "zavx0z/git")
 
-      expect(root, "root Wimp должен присутствовать в списке Wimp").toBeDefined()
-      expect(root!.parent, "root Wimp не должен иметь parent").toBeNull()
+      expect(root, "корневой Wimp должен присутствовать в списке Wimp").toBeDefined()
+      expect(root!.parent, "корневой Wimp не должен иметь `parent`").toBeNull()
 
       for (const particle of particles) {
         if (particle === root) continue
 
         const parent = particle.parent
-        if (!parent) throw new Error(`particle ${particle.id} должен иметь parent`)
+        if (!parent) throw new Error(`частица ${particle.id} должна иметь parent`)
         expect(
           dark$.particles.has(parent.id),
-          `parent particle ${parent.id} должен быть сохранён в dark$.particles`,
+          `родительская частица ${parent.id} должна быть сохранена в dark$.particles`,
         ).toBe(true)
         expect(
           parent.children.has(particle),
-          `parent particle ${parent.id} должен ссылаться на ${particle.id}`,
+          `родительская частица ${parent.id} должна ссылаться на ${particle.id}`,
         ).toBe(true)
       }
     })

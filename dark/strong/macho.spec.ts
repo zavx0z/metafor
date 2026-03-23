@@ -10,16 +10,16 @@ import { Macho } from "@dark/strong"
  */
 
 describe("Macho — допустимая множественность", () => {
-  // должен принимать map только по value array
+  // должен принимать `map` только по массиву значений
   // должен принимать массив строк
   // должен принимать массив чисел
-  // должен принимать массив boolean
+  // должен принимать массив булевых значений
 })
 
 describe("Macho — ограничения источника", () => {
-  // не должен принимать map по mass
-  // не должен принимать map по state
-  // не должен принимать map по не-массиву
+  // не должен принимать `map` по `mass`
+  // не должен принимать `map` по `state`
+  // не должен принимать `map` по значению, которое не является массивом
 })
 
 describe("Macho — ограничения типа элемента", () => {
@@ -29,20 +29,20 @@ describe("Macho — ограничения типа элемента", () => {
 })
 
 describe("Macho — нормализация", () => {
-  test("по умолчанию стартует как пустой multiplicity carrier", () => {
+  test("по умолчанию стартует как пустая частица множественности", () => {
     const particle = new Macho()
 
-    expect(particle.children, "Macho по умолчанию должен иметь пустой children set").toEqual(new Set())
-    expect(particle.parent, "Macho по умолчанию должен иметь явный null parent").toBeNull()
-    expect((particle as any).basis, "Macho runtime contract не должен хранить template basis").toBeUndefined()
+    expect(particle.children, "Macho по умолчанию должен иметь пустой набор дочерних частиц").toEqual(new Set())
+    expect(particle.parent, "Macho по умолчанию должен иметь явный `null` в `parent`").toBeNull()
+    expect((particle as any).basis, "Macho не должен хранить шаблонный `basis`").toBeUndefined()
   })
 
-  test("не хранит template-shaped payload в runtime instance", () => {
+  test("не хранит шаблонные данные в рабочем экземпляре", () => {
     const particle = new Macho()
 
-    expect((particle as any).basis, "Macho runtime contract не должен хранить template basis").toBeUndefined()
+    expect((particle as any).basis, "Macho не должен хранить шаблонный `basis`").toBeUndefined()
   })
 
-  // должен формировать branch expansion для дочерних частиц
+  // должен разворачивать ветви для дочерних частиц
   // не должен смешивать множественность с Wimp/Fuzzy-семантикой
 })

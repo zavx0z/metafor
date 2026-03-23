@@ -9,17 +9,17 @@ import { Axion } from "@dark/strong"
  */
 
 describe("Axion — логическая группировка", () => {
-  test("по умолчанию стартует как пустая grouping particle", () => {
+  test("по умолчанию стартует как пустая частица группировки", () => {
     const particle = new Axion()
 
-    expect(particle.children, "Axion по умолчанию должен иметь пустой children set").toEqual(new Set())
-    expect(particle.parent, "Axion по умолчанию должен иметь явный null parent").toBeNull()
-    expect((particle as any).basis, "Axion runtime contract не должен хранить template basis").toBeUndefined()
-    expect((particle as any).expr, "Axion runtime contract не должен хранить template expr").toBeUndefined()
-    expect((particle as any).src, "Axion runtime contract не должен создавать собственный src").toBeUndefined()
+    expect(particle.children, "Axion по умолчанию должен иметь пустой набор дочерних частиц").toEqual(new Set())
+    expect(particle.parent, "Axion по умолчанию должен иметь явный `null` в `parent`").toBeNull()
+    expect((particle as any).basis, "Axion не должен хранить шаблонный `basis`").toBeUndefined()
+    expect((particle as any).expr, "Axion не должен хранить шаблонный `expr`").toBeUndefined()
+    expect((particle as any).src, "Axion не должен создавать собственный `src`").toBeUndefined()
   })
 
-  // должен группировать дочерние частицы без создания новой meta-ссылки
+  // должен группировать дочерние частицы без создания новой мета-ссылки
   // должен сохранять вложенность частиц
 })
 
@@ -30,7 +30,7 @@ describe("Axion — ограничения роли", () => {
 })
 
 describe("Axion — нормализация", () => {
-  // должен сохранять relation группировки
-  // не должен хранить template-shaped basis/expr в runtime instance
+  // должен сохранять связь группировки
+  // не должен хранить шаблонные basis/expr в рабочем экземпляре
   // не должен создавать собственный src
 })

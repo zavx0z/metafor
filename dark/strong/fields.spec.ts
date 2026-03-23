@@ -9,8 +9,8 @@ import {
   resolveNodeFieldValues,
 } from "./fields.ts"
 
-describe("strong field resolvers", () => {
-  test("сохраняют falsy default values из AST", () => {
+describe("вычислители полей strong", () => {
+  test("сохраняют ложные значения `default` из AST", () => {
     const values = resolveFieldValues({
       title: {
         type: "string",
@@ -36,7 +36,7 @@ describe("strong field resolvers", () => {
       },
     })
 
-    expect(values, "field resolvers должны сохранять сериализованные falsy/default значения как есть").toEqual({
+    expect(values, "вычислители полей должны сохранять сериализованные значения `default` как есть").toEqual({
       title: "",
       count: 0,
       active: false,
@@ -45,26 +45,26 @@ describe("strong field resolvers", () => {
     })
   })
 
-  test("ставят null для optional field без default", () => {
+  test("ставят `null` для необязательного поля без `default`", () => {
     const value = createFieldValueResolver("error", {
       type: "string",
     })()
 
-    expect(value, "optional field без default должен стартовать как null").toBeNull()
+    expect(value, "необязательное поле без `default` должно начинаться с `null`").toBeNull()
   })
 
-  test("падают на required field без default", () => {
+  test("падают на обязательном поле без `default`", () => {
     const resolve = createFieldValueResolver("command", {
       type: "string",
       required: true,
     })
 
-    expect(resolve, "required field без default должен падать явно").toThrow(
+    expect(resolve, "обязательное поле без `default` должно падать явно").toThrow(
       'Field "command" is required but has no default',
     )
   })
 
-  test("вычисляют continuation fields из node.fields AST", () => {
+  test("строят значения для временного пакета из `node.fields` AST", () => {
     const resolvers = new Map([
       ["operation", () => null],
       ["args", () => null],
@@ -86,23 +86,23 @@ describe("strong field resolvers", () => {
       resolvers,
     )
 
-    expect(values, "node.fields AST должен вычисляться в runtime object через field resolvers").toEqual({
+    expect(values, "`node.fields` AST должен превращаться в плоский объект через вычислители полей").toEqual({
       operation: null,
       args: null,
     })
-    expect(errorValues, "single field path должен вычисляться в runtime object через expr").toEqual({
+    expect(errorValues, "одиночный путь к полю должен превращаться в плоский объект через `expr`").toEqual({
       message: null,
     })
   })
 
-  test("materialize-ят объектные Field с owner, schema, value и source", () => {
+  test("собирают объектные `Field` с владельцем, схемой, значением и `source`", () => {
     const parent = new Wimp({ src: "zavx0z/git", parent: null })
     parent.fields = materializeFields(parent, {
       args: {
         type: "string",
       },
     })
-    if (!parent.fields?.args) throw new Error("args field is not found")
+    if (!parent.fields?.args) throw new Error("поле args не найдено")
     parent.fields.args.value = "--help"
 
     const child = new Wimp({ src: "zavx0z/git-start", parent: parent })
@@ -124,17 +124,17 @@ describe("strong field resolvers", () => {
     )
 
     expect(child.fields.args.owner, "Field должен знать владельца").toBe(child)
-    expect(child.fields.args.schema, "Field должен хранить schema").toEqual({ type: "string" })
-    expect(child.fields.args.value, "Field должен хранить runtime value").toBe("--help")
-    expect(child.fields.args.source, "ordinary field должен ссылаться на parent Field").toBe(parent.fields.args)
+    expect(child.fields.args.schema, "Field должен хранить схему").toEqual({ type: "string" })
+    expect(child.fields.args.value, "Field должен хранить текущее значение").toBe("--help")
+    expect(child.fields.args.source, "обычное поле должно ссылаться на поле родителя").toBe(parent.fields.args)
     expect(
       child.fields.operation.source,
-      "enum field не должен смешиваться с ordinary source-linking даже если init принёс source",
+      "поле `enum` не должно смешиваться с прямой связью по источнику, даже если `init` принёс `source`",
     ).toBeNull()
-    expect(readFieldValues(child.fields)).toEqual({ args: "--help", operation: null })
+  expect(readFieldValues(child.fields)).toEqual({ args: "--help", operation: null })
   })
 
-  test("resolveNodeFieldInits сохраняет direct source links только для ordinary fields", () => {
+  test("`resolveNodeFieldInits` сохраняет прямые ссылки на источник только для обычных полей", () => {
     const parent = new Wimp({ src: "zavx0z/git", parent: null })
     parent.fields = materializeFields(parent, {
       args: {
