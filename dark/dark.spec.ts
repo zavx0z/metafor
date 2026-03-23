@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import type { MetaAST } from "@metafor/ast"
 import { HubFixture } from "fixture"
 import reference from "../github/zavx0z/git/meta.json"
+import startReference from "../github/zavx0z/git-start/meta.json"
 
 import type { MatterWimpResult } from "@dark/types/dark"
 import { Axion, Fuzzy, Wimp } from "@dark/strong"
@@ -13,6 +14,7 @@ const hub = new HubFixture("./github/")
 const src = "zavx0z/git"
 const startSrc = "zavx0z/git-start"
 const ref = reference as MetaAST
+const startRef = startReference as MetaAST
 
 describe("zavx0z/git", () => {
   beforeAll(async () => await hub.setup())
@@ -63,8 +65,26 @@ describe("zavx0z/git", () => {
         command: null,
         args: null,
       })
+      expect(wimp.name, "root Wimp должен хранить локальное имя своей meta").toBe(ref.name)
+      expect(wimp.fields, "root Wimp должен хранить локальную fields-схему своей meta").toEqual(ref.fields)
+      expect(wimp.fields, "fields должны принадлежать самому Wimp, а не оставаться ссылкой на AST").not.toBe(ref.fields)
+      expect(
+        wimp.superposition,
+        "root Wimp должен хранить локальную superposition своей meta",
+      ).toEqual(ref.superposition)
+      expect(
+        wimp.superposition,
+        "superposition должна принадлежать самому Wimp, а не оставаться ссылкой на AST",
+      ).not.toBe(ref.superposition)
+      expect(wimp.processes, "root Wimp должен хранить локальные processes своей meta").toEqual(ref.processes)
+      expect(wimp.processes, "processes должны принадлежать самому Wimp, а не оставаться ссылкой на AST").not.toBe(
+        ref.processes,
+      )
+      expect(wimp.reactions, "если reactions в meta нет, Wimp не должен создавать её искусственно").toBeUndefined()
+      expect(wimp.bulk, "если bulk в meta нет, Wimp не должен создавать её искусственно").toBeUndefined()
       if (ref.mass && Object.keys(ref.mass).length > 0) {
         expect(wimp.mass, "mass должен присваиваться root Wimp при входе в pipeline").toEqual(ref.mass)
+        expect(wimp.mass, "mass тоже должна принадлежать самому Wimp, а не AST").not.toBe(ref.mass)
       } else {
         expect(wimp.mass, "при пустом ast.mass root Wimp не должен получать mass").toBeUndefined()
       }
@@ -125,6 +145,10 @@ describe("zavx0z/git", () => {
       expect(
         branchResults.every(([particle]) => particle.mass === undefined),
         "обнаруженные Wimp-ветви ещё не должны иметь mass",
+      ).toBe(true)
+      expect(
+        branchResults.every(([particle]) => particle.fields === undefined && particle.superposition === undefined),
+        "обнаруженные Wimp-ветви ещё не должны получать локальные AST-данные до загрузки своей meta",
       ).toBe(true)
       expect(childResult, "после второго уровня Axion должен получить дочерний Wimp в dark$").toBeDefined()
       expect(childResult?.[0].src, "дочерний Wimp должен сохранять статический src из child meta").toBe(
@@ -205,6 +229,13 @@ describe("zavx0z/git", () => {
         operation: null,
         args: null,
       })
+      expect(wimp.name, "дочерний Wimp должен хранить локальное имя своей meta").toBe(startRef.name)
+      expect(wimp.fields, "дочерний Wimp должен хранить локальную fields-схему своей meta").toEqual(startRef.fields)
+      expect(
+        wimp.superposition,
+        "дочерний Wimp должен хранить локальную superposition своей meta",
+      ).toEqual(startRef.superposition)
+      expect(wimp.processes, "дочерний Wimp должен хранить локальные processes своей meta").toEqual(startRef.processes)
       expect(wimp.mass, "при пустой mass дочерней meta root Wimp не должен получать mass").toBeUndefined()
       expect(dark$.particles.get(wimp.id), "дочерний root Wimp должен быть сохранён в dark$.particles").toBe(wimp)
       expect(dark$.meta.get(wimp.id), "meta lookup должен продолжать хранить src дочернего Wimp").toBe(startSrc)

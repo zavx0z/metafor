@@ -1,4 +1,5 @@
 import type { NodeType } from "@metafor/dsl"
+import type { MetaAST } from "@metafor/ast"
 import type {
   MatterEntry,
   MatterContinuation,
@@ -12,6 +13,9 @@ import { resolveContinuationSources } from "@dark/gravity"
 import { Axion, Fuzzy, Macho, resolveWimpContinuation, Wimp, resolveFieldValues } from "@dark/strong"
 import { loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
+
+const cloneDefined = <T>(value: T | undefined): T | undefined =>
+  value === undefined ? undefined : structuredClone(value)
 
 /**
  * Как только частица создана, dark сразу фиксирует её graph wiring в `dark$`.
@@ -111,16 +115,29 @@ const processMatterNode = (
 export async function* matterMeta(
   wimp: Wimp,
   continuation?: MatterContinuation,
-  parent?: DarkParticle,
 ): AsyncGenerator<MatterLayerResult, void> {
   const ast = await loadMetaAST(wimp.src)
+  /**
+   * Локальные AST-данные живут внутри `Wimp`.
+   *
+   * `matter` сюда сознательно не копируется: она уже materialize-ится в объектный граф
+   * через дочерние частицы и потому не остаётся отдельным локальным payload самой сущности.
+   */
+  wimp.name = ast.name
+  wimp.fields = structuredClone(ast.fields)
+  wimp.superposition = structuredClone(ast.superposition)
+  wimp.processes = cloneDefined(ast.processes)
+  wimp.reactions = cloneDefined(ast.reactions)
+  wimp.bulk = cloneDefined(ast.bulk)
   /**
    * `Wimp` получает входные данные.
    * Если continuation пришёл от родителя, он важнее локальных defaults текущей meta.
    * Более сложное entanglement/merge поведение остаётся отдельным следующим шагом.
    */
-  wimp.values = continuation?.values ?? resolveFieldValues(ast.fields)
-  wimp.mass = continuation?.mass ?? (ast.mass && Object.keys(ast.mass).length > 0 ? ast.mass : undefined)
+  wimp.values = cloneDefined(continuation?.values) ?? resolveFieldValues(wimp.fields ?? ast.fields)
+  wimp.mass =
+    cloneDefined(continuation?.mass) ??
+    (ast.mass && Object.keys(ast.mass).length > 0 ? structuredClone(ast.mass) : undefined)
   dark$.particles.set(wimp.id, wimp)
   dark$.meta.set(wimp.id, wimp.src)
 

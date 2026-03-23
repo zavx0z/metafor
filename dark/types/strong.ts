@@ -1,5 +1,6 @@
 import type { Mass } from "@metafor/dsl/types"
 import type { NodeMeta } from "@metafor/template"
+import type { MetaAST } from "@metafor/ast"
 import type { DarkParticle, ParticleID } from "./shared.ts"
 
 export type WimpValues = Record<string, unknown>
@@ -23,6 +24,12 @@ export interface BaseParticleInit {
  */
 export interface WimpInit extends BaseParticleInit {
   src: string
+  name?: MetaAST["name"]
+  fields?: MetaAST["fields"]
+  superposition?: MetaAST["superposition"]
+  processes?: MetaAST["processes"]
+  reactions?: MetaAST["reactions"]
+  bulk?: MetaAST["bulk"]
   values?: WimpValues
   mass?: Mass | NodeMeta["mass"]
 }
