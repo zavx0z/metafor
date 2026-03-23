@@ -31,6 +31,7 @@
         "@boundary/gravity": "workspace:*",
         "@boundary/strong": "workspace:*",
         "@boundary/weak": "workspace:*",
+        "@shared/orm": "workspace:*",
       },
     },
     "boundary/em": {
@@ -635,14 +636,6 @@
         "@metafor/dsl": "workspace:*",
       },
     },
-    "github/zavx0z/git-submodule-submodule": {
-      "name": "@zavx0z/git-submodule-submodule",
-      "version": "0.1.0",
-      "devDependencies": {
-        "@metafor/ast": "workspace:*",
-        "@metafor/dsl": "workspace:*",
-      },
-    },
     "github/zavx0z/git-work": {
       "name": "@zavx0z/git-work",
       "version": "0.1.0",
@@ -742,6 +735,13 @@
       "name": "@metafor/template",
       "version": "2.6.2",
     },
+    "shared/orm": {
+      "name": "@shared/orm",
+      "dependencies": {
+        "@dark/strong": "workspace:*",
+        "@dark/types": "workspace:*",
+      },
+    },
   },
   "packages": {
     "@app/web": ["@app/web@workspace:app/web"],
@@ -797,6 +797,8 @@
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
     "@puppeteer/browsers": ["@puppeteer/browsers@2.12.0", "https://registry.yarnpkg.com/@puppeteer/browsers/-/browsers-2.12.0.tgz", { "dependencies": { "debug": "^4.4.3", "extract-zip": "^2.0.1", "progress": "^2.0.3", "proxy-agent": "^6.5.0", "semver": "^7.7.3", "tar-fs": "^3.1.1", "yargs": "^17.7.2" }, "bin": { "browsers": "lib/cjs/main-cli.js" } }, "sha512-Xuq42yxcQJ54ti8ZHNzF5snFvtpgXzNToJ1bXUGQRaiO8t+B6UM8sTUJfvV+AJnqtkJU/7hdy6nbKyA12aHtRw=="],
+
+    "@shared/orm": ["@shared/orm@workspace:shared/orm"],
 
     "@shikijs/engine-oniguruma": ["@shikijs/engine-oniguruma@3.22.0", "https://registry.yarnpkg.com/@shikijs/engine-oniguruma/-/engine-oniguruma-3.22.0.tgz", { "dependencies": { "@shikijs/types": "3.22.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-DyXsOG0vGtNtl7ygvabHd7Mt5EY8gCNqR9Y7Lpbbd/PbJvgWrqaKzH1JW6H6qFkuUa8aCxoiYVv8/YfFljiQxA=="],
 
@@ -959,8 +961,6 @@
     "@zavx0z/git-stash-stash": ["@zavx0z/git-stash-stash@workspace:github/zavx0z/git-stash-stash"],
 
     "@zavx0z/git-submodule": ["@zavx0z/git-submodule@workspace:github/zavx0z/git-submodule"],
-
-    "@zavx0z/git-submodule-submodule": ["@zavx0z/git-submodule-submodule@workspace:github/zavx0z/git-submodule-submodule"],
 
     "@zavx0z/git-work": ["@zavx0z/git-work@workspace:github/zavx0z/git-work"],
 

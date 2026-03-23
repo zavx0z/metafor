@@ -1,0 +1,15 @@
+{
+  "name": "@shared/orm",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./orm": "./orm.ts",
+    "./types": "./orm.t.ts"
+  },
+  "private": true,
+  "dependencies": {
+    "@dark/strong": "workspace:*",
+    "@dark/types": "workspace:*"
+  }
+}

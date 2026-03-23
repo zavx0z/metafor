@@ -9,6 +9,7 @@
     "dark/*",
     "boundary",
     "boundary/*",
+    "shared/*",
     "bulk",
     "bulk/*",
     "metafor/*",
