@@ -20,7 +20,9 @@ export {
   getSharedDbFieldValue,
 } from "./db.ts"
 export { openSharedDbMemoryBackend } from "./memory.ts"
+export { initializeSharedDbSqliteSchema, openSharedDbSqliteBackend } from "./sqlite.ts"
 export type { SharedDbBackend, SharedDbBackendIndexSpec, SharedDbBackendTableName } from "./backend.t.ts"
+export type { SharedDbSqliteBackendOptions } from "./sqlite.ts"
 export type {
   SharedDbBraneRecord,
   SharedDbFieldRecord,
