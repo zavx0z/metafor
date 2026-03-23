@@ -1,19 +1,12 @@
-export {
-  assembleSharedOrmProjection,
-  getSharedOrmBraneByDarkId,
-  getSharedOrmBraneByIndex,
-  getSharedOrmBraneFields,
-  getSharedOrmDependentFields,
-  getSharedOrmFieldByDarkId,
-  getSharedOrmFieldByKey,
-  getSharedOrmFieldSource,
-  getSharedOrmFieldValue,
-} from "./orm.ts"
-export type {
-  SharedOrmBraneRecord,
-  SharedOrmFieldRecord,
-  SharedOrmFieldSchemaRecord,
-  SharedOrmFieldSourceRecord,
-  SharedOrmFieldValueRecord,
-  SharedOrmProjection,
-} from "./orm.t.ts"
+/**
+ * `@shared/orm` зарезервирован для общих ORM-абстракций, которые не принадлежат
+ * ни доменному объектному графу `Dark`, ни плоской DB-проекции.
+ *
+ * На текущем шаге пакет сознательно остаётся минимальным:
+ * - каноническая ORM домена живёт в `Dark`
+ * - плоские DB-shaped записи и их сборка живут в `@shared/db`
+ *
+ * @packageDocumentation
+ */
+
+export {}

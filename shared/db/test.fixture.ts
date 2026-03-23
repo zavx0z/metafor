@@ -1,7 +1,7 @@
 import { Field, Fuzzy, Wimp } from "@dark/strong"
 
 /**
- * Готовит небольшой materialized `Dark`-граф для тестов ORM-проекции.
+ * Готовит небольшой materialized `Dark`-граф для тестов плоской DB-проекции.
  *
  * В графе есть:
  * - корневой `Wimp`,
@@ -12,7 +12,7 @@ import { Field, Fuzzy, Wimp } from "@dark/strong"
  *
  * @returns Тестовый граф и ссылки на ключевые поля.
  */
-export const createSharedOrmFixture = () => {
+export const createSharedDbFixture = () => {
   const root = new Wimp({ src: "meta/root" })
   root.name = "root"
 

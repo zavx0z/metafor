@@ -2,18 +2,18 @@ import { Wimp } from "@dark/strong"
 import type { DarkParticle } from "@dark/types"
 import type { FieldKey } from "@metafor/ast"
 import type {
-  SharedOrmBraneRecord,
-  SharedOrmFieldRecord,
-  SharedOrmFieldSchemaRecord,
-  SharedOrmFieldSourceRecord,
-  SharedOrmFieldValueRecord,
-  SharedOrmProjection,
-} from "./orm.t.ts"
+  SharedDbBraneRecord,
+  SharedDbFieldRecord,
+  SharedDbFieldSchemaRecord,
+  SharedDbFieldSourceRecord,
+  SharedDbFieldValueRecord,
+  SharedDbProjection,
+} from "./db.t.ts"
 
 const isTopologyFieldType = (type: string): boolean => type.startsWith("enum<") || type.startsWith("array<")
-type SharedOrmInputField = NonNullable<Wimp["fields"]>[string]
+type SharedDbInputField = NonNullable<Wimp["fields"]>[string]
 
-const cloneFieldSchema = (schema: SharedOrmInputField["schema"]): SharedOrmFieldSchemaRecord => ({
+const cloneFieldSchema = (schema: SharedDbInputField["schema"]): SharedDbFieldSchemaRecord => ({
   type: schema.type,
   required: schema.required === true,
   topology: isTopologyFieldType(schema.type),
@@ -24,8 +24,8 @@ const cloneFieldSchema = (schema: SharedOrmInputField["schema"]): SharedOrmField
 /**
  * Собирает плоский список всех `Wimp`, достижимых от корня.
  *
- * Обход идёт по `children`, поэтому в ORM попадают только уже собранные частицы,
- * а промежуточные `Fuzzy` / `Macho` / `Axion` используются лишь как мосты к дочерним `Wimp`.
+ * Обход идёт по `children`, поэтому в плоскую DB-проекцию попадают только уже
+ * собранные частицы, а промежуточные topology-частицы служат мостами к дочерним `Wimp`.
  *
  * @param root Корневой materialized `Wimp`, от которого начинается проекция.
  * @returns Список `Wimp` в стабильном порядке обхода.
@@ -53,26 +53,26 @@ const collectReachableWimps = (root: Wimp): Wimp[] => {
 }
 
 /**
- * Строит общую ORM-проекцию из полностью materialized `Dark`-графа.
+ * Строит общую плоскую DB-проекцию из полностью materialized `Dark`-графа.
  *
- * Функция не меняет `Dark` и не превращает его в источник истины для плоских таблиц.
- * Она только один раз снимает индексный слепок с уже собранного объектного графа.
+ * Функция не меняет `Dark` и не делает плоскую проекцию новым источником истины.
+ * Она только один раз снимает табличный снимок с уже собранного объектного графа.
  *
  * @param root Корневой `Wimp` materialized `Dark`-графа.
- * @returns Плоская ORM-проекция с готовыми индексами для downstream-кода.
+ * @returns Плоская DB-проекция с готовыми индексами для downstream-кода.
  */
-export const assembleSharedOrmProjection = (root: Wimp): SharedOrmProjection => {
+export const assembleSharedDbProjection = (root: Wimp): SharedDbProjection => {
   const orderedWimps = collectReachableWimps(root)
-  const branes: SharedOrmBraneRecord[] = []
-  const fields: SharedOrmFieldRecord[] = []
-  const fieldValues: SharedOrmFieldValueRecord[] = []
-  const fieldSources: SharedOrmFieldSourceRecord[] = []
+  const branes: SharedDbBraneRecord[] = []
+  const fields: SharedDbFieldRecord[] = []
+  const fieldValues: SharedDbFieldValueRecord[] = []
+  const fieldSources: SharedDbFieldSourceRecord[] = []
   const braneIndexByDarkId = new Map<string, number>()
   const fieldIndexByDarkId = new Map<string, number>()
   const fieldIndexByBraneAndKey = new Map<number, Map<FieldKey, number>>()
-  const fieldSourceByChildFieldIndex: Array<SharedOrmFieldSourceRecord | undefined> = []
+  const fieldSourceByChildFieldIndex: Array<SharedDbFieldSourceRecord | undefined> = []
   const dependentFieldIndexesByParentFieldIndex = new Map<number, number[]>()
-  const fieldIndexByObject = new Map<SharedOrmInputField, number>()
+  const fieldIndexByObject = new Map<SharedDbInputField, number>()
 
   for (const wimp of orderedWimps) {
     const braneIndex = branes.length
@@ -82,7 +82,7 @@ export const assembleSharedOrmProjection = (root: Wimp): SharedOrmProjection => 
 
     for (const [key, field] of Object.entries(wimp.fields ?? {})) {
       const fieldIndex = fields.length
-      const fieldRecord: SharedOrmFieldRecord = {
+      const fieldRecord: SharedDbFieldRecord = {
         index: fieldIndex,
         darkFieldId: field.id,
         ownerBraneIndex: braneIndex,
@@ -127,7 +127,7 @@ export const assembleSharedOrmProjection = (root: Wimp): SharedOrmProjection => 
         continue
       }
 
-      const sourceRecord: SharedOrmFieldSourceRecord = {
+      const sourceRecord: SharedDbFieldSourceRecord = {
         childFieldIndex,
         parentFieldIndex,
       }
@@ -161,26 +161,26 @@ export const assembleSharedOrmProjection = (root: Wimp): SharedOrmProjection => 
 /**
  * Возвращает brane-запись по индексу.
  *
- * @param projection Собранная ORM-проекция.
+ * @param projection Собранная DB-проекция.
  * @param braneIndex Индекс браны в плоской таблице.
  * @returns Запись браны или `undefined`, если индекс не найден.
  */
-export const getSharedOrmBraneByIndex = (
-  projection: SharedOrmProjection,
+export const getSharedDbBraneByIndex = (
+  projection: SharedDbProjection,
   braneIndex: number,
-): SharedOrmBraneRecord | undefined => projection.branes[braneIndex]
+): SharedDbBraneRecord | undefined => projection.branes[braneIndex]
 
 /**
  * Возвращает brane-запись по исходному `Dark Wimp.id`.
  *
- * @param projection Собранная ORM-проекция.
+ * @param projection Собранная DB-проекция.
  * @param darkWimpId Идентификатор исходного `Dark Wimp`.
  * @returns Запись браны или `undefined`, если `Wimp` не был спроецирован.
  */
-export const getSharedOrmBraneByDarkId = (
-  projection: SharedOrmProjection,
+export const getSharedDbBraneByDarkId = (
+  projection: SharedDbProjection,
   darkWimpId: string,
-): SharedOrmBraneRecord | undefined => {
+): SharedDbBraneRecord | undefined => {
   const braneIndex = projection.braneIndexByDarkId.get(darkWimpId)
   return braneIndex === undefined ? undefined : projection.branes[braneIndex]
 }
@@ -188,14 +188,14 @@ export const getSharedOrmBraneByDarkId = (
 /**
  * Возвращает запись поля по исходному `Dark Field.id`.
  *
- * @param projection Собранная ORM-проекция.
+ * @param projection Собранная DB-проекция.
  * @param darkFieldId Идентификатор исходного объектного поля `Dark`.
  * @returns Запись поля или `undefined`, если поле не было спроецировано.
  */
-export const getSharedOrmFieldByDarkId = (
-  projection: SharedOrmProjection,
+export const getSharedDbFieldByDarkId = (
+  projection: SharedDbProjection,
   darkFieldId: string,
-): SharedOrmFieldRecord | undefined => {
+): SharedDbFieldRecord | undefined => {
   const fieldIndex = projection.fieldIndexByDarkId.get(darkFieldId)
   return fieldIndex === undefined ? undefined : projection.fields[fieldIndex]
 }
@@ -203,16 +203,16 @@ export const getSharedOrmFieldByDarkId = (
 /**
  * Возвращает запись поля по паре `(braneIndex, fieldKey)`.
  *
- * @param projection Собранная ORM-проекция.
+ * @param projection Собранная DB-проекция.
  * @param braneIndex Индекс браны-владельца.
  * @param fieldKey Локальный ключ поля внутри браны.
  * @returns Запись поля или `undefined`, если такого поля нет.
  */
-export const getSharedOrmFieldByKey = (
-  projection: SharedOrmProjection,
+export const getSharedDbFieldByKey = (
+  projection: SharedDbProjection,
   braneIndex: number,
   fieldKey: FieldKey,
-): SharedOrmFieldRecord | undefined => {
+): SharedDbFieldRecord | undefined => {
   const fieldIndex = projection.fieldIndexByBraneAndKey.get(braneIndex)?.get(fieldKey)
   return fieldIndex === undefined ? undefined : projection.fields[fieldIndex]
 }
@@ -223,38 +223,38 @@ export const getSharedOrmFieldByKey = (
  * Таблица значений выровнена по индексам поля, поэтому lookup не требует
  * дополнительных обходов или поисков по объектному графу `Dark`.
  *
- * @param projection Собранная ORM-проекция.
+ * @param projection Собранная DB-проекция.
  * @param fieldIndex Индекс поля в плоской таблице.
  * @returns Запись значения или `undefined`, если индекс не найден.
  */
-export const getSharedOrmFieldValue = (
-  projection: SharedOrmProjection,
+export const getSharedDbFieldValue = (
+  projection: SharedDbProjection,
   fieldIndex: number,
-): SharedOrmFieldValueRecord | undefined => projection.fieldValues[fieldIndex]
+): SharedDbFieldValueRecord | undefined => projection.fieldValues[fieldIndex]
 
 /**
  * Возвращает direct ordinary source-связь для дочернего поля.
  *
- * @param projection Собранная ORM-проекция.
+ * @param projection Собранная DB-проекция.
  * @param childFieldIndex Индекс дочернего поля.
  * @returns Source-связь или `undefined`, если её нет.
  */
-export const getSharedOrmFieldSource = (
-  projection: SharedOrmProjection,
+export const getSharedDbFieldSource = (
+  projection: SharedDbProjection,
   childFieldIndex: number,
-): SharedOrmFieldSourceRecord | undefined => projection.fieldSourceByChildFieldIndex[childFieldIndex]
+): SharedDbFieldSourceRecord | undefined => projection.fieldSourceByChildFieldIndex[childFieldIndex]
 
 /**
  * Возвращает зависимые поля для родительского поля-источника.
  *
- * @param projection Собранная ORM-проекция.
+ * @param projection Собранная DB-проекция.
  * @param parentFieldIndex Индекс родительского поля-источника.
  * @returns Список дочерних записей поля, зависящих от этого источника.
  */
-export const getSharedOrmDependentFields = (
-  projection: SharedOrmProjection,
+export const getSharedDbDependentFields = (
+  projection: SharedDbProjection,
   parentFieldIndex: number,
-): SharedOrmFieldRecord[] =>
+): SharedDbFieldRecord[] =>
   (projection.dependentFieldIndexesByParentFieldIndex.get(parentFieldIndex) ?? []).map(
     (fieldIndex) => projection.fields[fieldIndex]!,
   )
@@ -262,14 +262,14 @@ export const getSharedOrmDependentFields = (
 /**
  * Возвращает все поля, принадлежащие конкретной бране.
  *
- * @param projection Собранная ORM-проекция.
+ * @param projection Собранная DB-проекция.
  * @param braneIndex Индекс браны.
  * @returns Последовательный срез полей владельца.
  */
-export const getSharedOrmBraneFields = (
-  projection: SharedOrmProjection,
+export const getSharedDbBraneFields = (
+  projection: SharedDbProjection,
   braneIndex: number,
-): SharedOrmFieldRecord[] => {
+): SharedDbFieldRecord[] => {
   const brane = projection.branes[braneIndex]
   if (!brane) return []
 

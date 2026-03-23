@@ -1,5 +1,5 @@
 import type { FieldKey } from "@metafor/ast"
-import type { SharedOrmProjection } from "@shared/orm"
+import type { SharedDbFieldSchemaRecord, SharedDbProjection } from "@shared/db"
 import type {
   BoundaryDatabase,
   BoundaryDatabaseBraneRecord,
@@ -10,10 +10,8 @@ import type {
   BoundaryDatabaseFieldValueRecord,
 } from "./database.t.ts"
 
-type SharedOrmFieldSchema = SharedOrmProjection["fields"][number]["schema"]
-
 const cloneFieldSchema = (
-  schema: BoundaryDatabaseFieldSchemaRecord | SharedOrmFieldSchema,
+  schema: BoundaryDatabaseFieldSchemaRecord | SharedDbFieldSchemaRecord,
 ): BoundaryDatabaseFieldSchemaRecord => ({
   type: schema.type,
   required: schema.required,
@@ -95,15 +93,15 @@ const buildBoundaryDatabaseIndexes = (data: BoundaryDatabaseData) => {
 }
 
 /**
- * Подготавливает плоское состояние boundary-базы из общей ORM-проекции.
+ * Подготавливает плоское состояние boundary-базы из общей DB-проекции.
  *
- * Здесь Boundary явно потребляет shared ORM как входные данные сборки,
+ * Здесь Boundary явно потребляет shared DB как входные данные сборки,
  * но сам публичный контракт базы остаётся отдельным и не совпадает с shared API.
  *
- * @param projection Общая ORM-проекция, собранная из `Dark`.
+ * @param projection Общая DB-проекция, собранная из `Dark`.
  * @returns Собственное плоское состояние boundary-базы.
  */
-export const prepareBoundaryDatabaseData = (projection: SharedOrmProjection): BoundaryDatabaseData => ({
+export const prepareBoundaryDatabaseData = (projection: SharedDbProjection): BoundaryDatabaseData => ({
   rootBraneIndex: projection.rootBraneIndex,
   branes: projection.branes.map((brane): BoundaryDatabaseBraneRecord => ({
     index: brane.index,
@@ -134,7 +132,7 @@ export const prepareBoundaryDatabaseData = (projection: SharedOrmProjection): Bo
  * Открывает boundary-базу поверх уже подготовленного состояния.
  *
  * Handle хранит собственные копии таблиц и индексов, поэтому база остаётся отдельной
- * от shared ORM-проекции и может независимо обновляться и переоткрываться.
+ * от shared DB-проекции и может независимо обновляться и переоткрываться.
  *
  * @param data Подготовленное состояние базы. Если не передано, открывается пустая база.
  * @returns Открытый boundary-handle для индексного доступа и минимального управления.
@@ -239,10 +237,10 @@ export const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBou
 }
 
 /**
- * Строит boundary-базу напрямую из общей ORM-проекции.
+ * Строит boundary-базу напрямую из общей DB-проекции.
  *
- * @param projection Общая ORM-проекция, полученная из `Dark`.
+ * @param projection Общая DB-проекция, полученная из `Dark`.
  * @returns Открытый boundary-handle.
  */
-export const buildBoundaryDatabase = (projection: SharedOrmProjection): BoundaryDatabase =>
+export const buildBoundaryDatabase = (projection: SharedDbProjection): BoundaryDatabase =>
   openBoundaryDatabase(prepareBoundaryDatabaseData(projection))

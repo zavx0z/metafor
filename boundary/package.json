@@ -9,6 +9,6 @@
     "@boundary/strong": "workspace:*",
     "@boundary/weak": "workspace:*",
     "@boundary/em": "workspace:*",
-    "@shared/orm": "workspace:*"
+    "@shared/db": "workspace:*"
   }
 }

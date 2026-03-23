@@ -1,10 +1,10 @@
 import type { FieldKey } from "@metafor/ast"
 
 /**
- * Краткая схема поля, достаточная для общей ORM-проекции.
+ * Краткая схема поля, достаточная для общей плоской DB-проекции.
  *
- * Это не AST-узел и не объектное поле `Dark`, а снимок той части схемы,
- * которая нужна downstream-пакетам для стабильной индексной работы.
+ * Это снимок схемы поля из materialized `Dark`, пригодный для табличного чтения
+ * и индексного доступа в downstream-слоях.
  *
  * @property type Исходный тип поля из схемы `Dark`.
  * @property required Признак обязательного поля.
@@ -12,7 +12,7 @@ import type { FieldKey } from "@metafor/ast"
  * @property label Подпись поля, если она есть в схеме.
  * @property values Список допустимых значений, если схема его задаёт.
  */
-export interface SharedOrmFieldSchemaRecord {
+export interface SharedDbFieldSchemaRecord {
   /** Исходный тип поля из схемы `Dark`. */
   type: string
   /** Признак обязательного поля. */
@@ -26,7 +26,7 @@ export interface SharedOrmFieldSchemaRecord {
 }
 
 /**
- * Запись браны в общей ORM-проекции.
+ * Запись браны в общей плоской DB-проекции.
  *
  * Одна materialized `Wimp` даёт ровно одну brane-запись.
  *
@@ -37,7 +37,7 @@ export interface SharedOrmFieldSchemaRecord {
  * @property fieldOffset Смещение первого поля этой браны в общей таблице полей.
  * @property fieldCount Количество полей, принадлежащих бране.
  */
-export interface SharedOrmBraneRecord {
+export interface SharedDbBraneRecord {
   /** Стабильный индекс браны внутри плоской таблицы. */
   index: number
   /** Идентификатор исходного `Dark Wimp`. */
@@ -53,7 +53,7 @@ export interface SharedOrmBraneRecord {
 }
 
 /**
- * Запись поля в общей ORM-проекции.
+ * Запись поля в общей плоской DB-проекции.
  *
  * @property index Стабильный индекс поля внутри плоской таблицы.
  * @property darkFieldId Идентификатор исходного `Dark Field`.
@@ -61,7 +61,7 @@ export interface SharedOrmBraneRecord {
  * @property key Локальный ключ поля внутри владельца.
  * @property schema Краткий снимок схемы поля.
  */
-export interface SharedOrmFieldRecord {
+export interface SharedDbFieldRecord {
   /** Стабильный индекс поля внутри плоской таблицы. */
   index: number
   /** Идентификатор исходного `Dark Field`. */
@@ -71,7 +71,7 @@ export interface SharedOrmFieldRecord {
   /** Локальный ключ поля внутри владельца. */
   key: FieldKey
   /** Краткий снимок схемы поля. */
-  schema: SharedOrmFieldSchemaRecord
+  schema: SharedDbFieldSchemaRecord
 }
 
 /**
@@ -80,7 +80,7 @@ export interface SharedOrmFieldRecord {
  * @property fieldIndex Индекс поля в плоской таблице полей.
  * @property value Текущее значение поля из `Dark`.
  */
-export interface SharedOrmFieldValueRecord {
+export interface SharedDbFieldValueRecord {
   /** Индекс поля в плоской таблице полей. */
   fieldIndex: number
   /** Текущее значение поля из `Dark`. */
@@ -96,7 +96,7 @@ export interface SharedOrmFieldValueRecord {
  * @property childFieldIndex Индекс дочернего поля.
  * @property parentFieldIndex Индекс родительского поля-источника.
  */
-export interface SharedOrmFieldSourceRecord {
+export interface SharedDbFieldSourceRecord {
   /** Индекс дочернего поля. */
   childFieldIndex: number
   /** Индекс родительского поля-источника. */
@@ -104,10 +104,10 @@ export interface SharedOrmFieldSourceRecord {
 }
 
 /**
- * Общая ORM-проекция из materialized `Dark`.
+ * Общая плоская DB-проекция из materialized `Dark`.
  *
- * Плоские массивы остаются канонической формой этой проекции, а сопутствующие
- * индексы собираются сразу, чтобы downstream-код не ходил обратно по объектному графу.
+ * Плоские массивы и индексы собираются один раз, чтобы downstream-код работал
+ * с готовым DB-shaped снимком, а не повторно обходил объектный граф `Dark`.
  *
  * @property rootBraneIndex Индекс корневой браны, из которой началась проекция.
  * @property branes Плоская таблица materialized `Wimp`.
@@ -120,17 +120,17 @@ export interface SharedOrmFieldSourceRecord {
  * @property fieldSourceByChildFieldIndex Быстрый доступ `childFieldIndex -> source-link`.
  * @property dependentFieldIndexesByParentFieldIndex Обратный индекс зависимых полей.
  */
-export interface SharedOrmProjection {
+export interface SharedDbProjection {
   /** Индекс корневой браны, из которой началась проекция. */
   rootBraneIndex: number
   /** Плоская таблица materialized `Wimp`. */
-  branes: SharedOrmBraneRecord[]
+  branes: SharedDbBraneRecord[]
   /** Плоская таблица объектных `Field`. */
-  fields: SharedOrmFieldRecord[]
+  fields: SharedDbFieldRecord[]
   /** Плоская таблица текущих значений полей. */
-  fieldValues: SharedOrmFieldValueRecord[]
+  fieldValues: SharedDbFieldValueRecord[]
   /** Плоская таблица direct ordinary source-связей. */
-  fieldSources: SharedOrmFieldSourceRecord[]
+  fieldSources: SharedDbFieldSourceRecord[]
   /** Индекс `Dark Wimp.id -> braneIndex`. */
   braneIndexByDarkId: Map<string, number>
   /** Индекс `Dark Field.id -> fieldIndex`. */
@@ -138,7 +138,7 @@ export interface SharedOrmProjection {
   /** Индекс поиска поля по паре `(braneIndex, fieldKey)`. */
   fieldIndexByBraneAndKey: Map<number, Map<FieldKey, number>>
   /** Быстрый доступ `childFieldIndex -> source-link`. */
-  fieldSourceByChildFieldIndex: Array<SharedOrmFieldSourceRecord | undefined>
+  fieldSourceByChildFieldIndex: Array<SharedDbFieldSourceRecord | undefined>
   /** Обратный индекс зависимых полей. */
   dependentFieldIndexesByParentFieldIndex: Map<number, number[]>
 }

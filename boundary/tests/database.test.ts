@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { assembleSharedOrmProjection } from "@shared/orm"
+import { assembleSharedDbProjection } from "@shared/db"
 import { buildBoundaryDatabase, openBoundaryDatabase, prepareBoundaryDatabaseData } from "../database.ts"
-import { createSharedOrmFixture } from "../../shared/orm/test.fixture.ts"
+import { createSharedDbFixture } from "../../shared/db/test.fixture.ts"
 
-describe("boundary database from shared orm", () => {
-  test("строит собственную базу из shared orm и не делает boundary владельцем ORM-объектов", () => {
-    const fixture = createSharedOrmFixture()
-    const projection = assembleSharedOrmProjection(fixture.root)
+describe("boundary database from shared db", () => {
+  test("строит собственную базу из shared db и не делает boundary владельцем общей проекции", () => {
+    const fixture = createSharedDbFixture()
+    const projection = assembleSharedDbProjection(fixture.root)
     const database = buildBoundaryDatabase(projection)
 
     expect(database.branes).toHaveLength(2)
@@ -22,8 +22,8 @@ describe("boundary database from shared orm", () => {
   })
 
   test("публичный boundary API остаётся базо-ориентированным: индексный доступ, чтение source и обновление значений", () => {
-    const fixture = createSharedOrmFixture()
-    const projection = assembleSharedOrmProjection(fixture.root)
+    const fixture = createSharedDbFixture()
+    const projection = assembleSharedDbProjection(fixture.root)
     const database = buildBoundaryDatabase(projection)
 
     const childAlias = database.getFieldByKey(1, "alias")!
@@ -41,9 +41,9 @@ describe("boundary database from shared orm", () => {
     expect(projection.fieldValues[childAlias.index]?.value).toBe("Root title")
   })
 
-  test("prepare/open разделяют состояние базы и позволяют переоткрыть её без shared orm handle", () => {
-    const fixture = createSharedOrmFixture()
-    const projection = assembleSharedOrmProjection(fixture.root)
+  test("prepare/open разделяют состояние базы и позволяют переоткрыть её без shared db handle", () => {
+    const fixture = createSharedDbFixture()
+    const projection = assembleSharedDbProjection(fixture.root)
     const prepared = prepareBoundaryDatabaseData(projection)
     const database = openBoundaryDatabase(prepared)
 

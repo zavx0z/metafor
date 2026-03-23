@@ -70,6 +70,14 @@ The hidden connectivity layer of `Dark`, including particles, threads, and addre
 Ontologically, `Boundary` and `Bulk` share the same source in `Dark`, but technically each domain loads its own `DSL/AST` contracts and retains its own data ownership at runtime.
 Inter-domain interaction is distributed across force-channels and cannot be reduced to one `Electromagnetism` channel.
 
+Neutral shared packages may host reusable contracts or projections, but they must not become hidden owners of domain truth.
+At this stage:
+
+- `Dark` owns the canonical domain ORM and object graph,
+- `shared/orm` is reserved for generic ORM-level abstractions that are not yet owned by a specific domain,
+- `shared/db` owns flat DB-shaped records, indexes, and projection assembly built from materialized `Dark`,
+- `Boundary` consumes that DB-shaped shared data through its own database API and does not become the owner of the shared projection contract.
+
 ## Domains
 
 ### Dark
