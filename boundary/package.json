@@ -8,7 +8,6 @@
     "@boundary/gravity": "workspace:*",
     "@boundary/strong": "workspace:*",
     "@boundary/weak": "workspace:*",
-    "@boundary/em": "workspace:*",
     "@shared/db": "workspace:*"
   }
 }

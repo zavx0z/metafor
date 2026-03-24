@@ -1,9 +1,0 @@
-{
-  "name": "@boundary/em",
-  "type": "module",
-  "main": "index.ts",
-  "private": true,
-  "dependencies": {
-    "@boundary/strong": "workspace:*"
-  }
-}

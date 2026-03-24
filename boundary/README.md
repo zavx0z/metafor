@@ -5,14 +5,13 @@
 ## Слои
 
 - `boundary/gravity` раскладывает входную структуру в плоскую адресуемую форму.
-- `boundary/strong` собирает канонический store, дедупликацию, материализацию связности и восстановление snapshot.
+- `boundary/strong` собирает канонический store, дедупликацию и материализацию связности.
 - `boundary/weak` вычисляет переход состояния поверх канонического store.
-- `boundary/em` остаётся межграничной фасадной проекцией переноса boundary-снимков.
 
 ## Внутренняя проекция сил
 
 - `boundary/gravity` держит доменный оркестратор силы и подпакеты `condition`, `validate`, `numeric`.
-- `boundary/strong` держит доменный оркестратор силы и подпакеты `stored`, `string-table`, `entangled`, `snapshot`, `normalize`.
+- `boundary/strong` держит доменный оркестратор силы и подпакеты `stored`, `string-table`, `entangled`, `normalize`.
 - `boundary/weak` держит доменный оркестратор силы и подпакеты `runtime`, `program`, `encode`.
 
 ## Инварианты
@@ -38,7 +37,3 @@ import {
 
 `write()` записывает каноническую структуру, `update()` вычисляет следующий переход, `unlock()` снимает блокировку.
 Для `shared/db`-пути `add/remove` мутируют внутренний loaded fragment, а один `rebuildRuntime()` пересобирает derived runtime транзакционно.
-
-## Совместимость
-
-- [strong/dump/README.md](/Users/zavx0z/zavx0z/metafor/boundary/strong/dump/README.md) описывает dump-проекцию снимка внутри `strong`.

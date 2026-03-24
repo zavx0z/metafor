@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { openSharedDbMaterializationWriter, openSharedDbMemoryBackend } from "@shared/db"
 import { flattenBoundaryData, FieldType } from "../gravity"
 import { assembleStoredBoundaryData } from "../strong"
-import { serializeBoundaryState, deserializeBoundaryState } from "../em"
 import { weak$ } from "../weak"
-import { boundary$, update, write } from "../boundary"
+import { boundary$, addRuntimeWimpFromSharedDb, rebuildRuntime, removeRuntimeWimp, update, write } from "../boundary"
+import { createSharedDbFixture } from "../../dark/db.fixture.ts"
 import { resetBoundaryForTest } from "./test.helper"
 
 describe("boundary domain layers", () => {
@@ -60,28 +61,32 @@ describe("boundary domain layers", () => {
     expect(boundary$.states).toEqual([1])
   })
 
-  test("em сериализует и восстанавливает boundary-снимок", () => {
-    const snapshot = {
-      heap: new Uint32Array([1, 2, 3]),
-      bytecode: new Uint32Array([4, 5]),
-      bytecodeOffsets: new Uint32Array([0]),
-      states: new Uint32Array([1]),
-      stringRegistry: new Uint32Array([0]),
-      stringHeap: new Uint32Array([0]),
-      fields: [{ type: FieldType.F32 }],
-      metadata: {
-        arrayReserveSize: 0,
-        heapAllocOffset: 0,
-        braneBlockPtrs: [0],
-      },
+  test("shared/db путь живёт через loaded fragment и transactional rebuild, без dump/restore", async () => {
+    const fixture = createSharedDbFixture()
+    const backend = openSharedDbMemoryBackend()
+    const writer = openSharedDbMaterializationWriter(backend)
+
+    try {
+      fixture.root.save(writer)
+      fixture.child.save(writer)
+
+      await addRuntimeWimpFromSharedDb(backend, fixture.root.id)
+      expect(boundary$.branes).toEqual([])
+
+      await addRuntimeWimpFromSharedDb(backend, fixture.child.id)
+      expect(boundary$.branes).toEqual([])
+
+      await rebuildRuntime()
+      expect(boundary$.branes).toHaveLength(2)
+      expect(boundary$.sharedBlocks).toHaveLength(1)
+
+      removeRuntimeWimp(fixture.child.id)
+      await rebuildRuntime()
+
+      expect(boundary$.branes).toHaveLength(1)
+      expect(boundary$.sharedBlocks).toEqual([])
+    } finally {
+      backend.close()
     }
-
-    const encoded = serializeBoundaryState(snapshot)
-    const restored = deserializeBoundaryState(encoded)
-
-    expect(Array.from(restored.heap)).toEqual([1, 2, 3])
-    expect(Array.from(restored.bytecode)).toEqual([4, 5])
-    expect(restored.fields).toEqual([{ type: FieldType.F32 }])
-    expect(restored.metadata.braneBlockPtrs).toEqual([0])
   })
 })
