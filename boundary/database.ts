@@ -25,7 +25,6 @@ import type {
   BoundaryDatabaseStateSeedConditionRecord,
   BoundaryDatabaseStateSeedStateRecord,
   BoundaryDatabaseStateSeedTransitionRecord,
-  BoundaryRuntimePackage,
   BoundarySharedDbRuntimeOptions,
 } from "./database.t.ts"
 
@@ -894,11 +893,11 @@ const filterSharedDbDataForActiveRuntime = (rawData: SharedDbData): SharedDbData
   })
 }
 
-const mergeBoundaryRuntimePackages = (packages: Iterable<BoundaryRuntimePackage>): SharedDbData => {
+export const mergeBoundaryRuntimeFragments = (fragments: Iterable<SharedDbData>): SharedDbData => {
   const merged = createEmptySharedDbData()
 
-  for (const pkg of packages) {
-    const data = normalizeSharedDbData(pkg.data)
+  for (const fragment of fragments) {
+    const data = normalizeSharedDbData(fragment)
     upsertRowsById(merged.metas, data.metas)
     upsertRowsById(merged.metaFields, data.metaFields)
     upsertRowsById(merged.metaStates, data.metaStates)
@@ -928,14 +927,14 @@ const mergeBoundaryRuntimePackages = (packages: Iterable<BoundaryRuntimePackage>
   return filterSharedDbDataForActiveRuntime(merged)
 }
 
-export const prepareBoundaryRuntimePackage = (
+export const prepareBoundaryRuntimeFragment = (
   rawData: SharedDbData,
   wimpId: string,
-): BoundaryRuntimePackage => {
+): SharedDbData => {
   const data = normalizeSharedDbData(rawData)
   const wimp = data.wimps.find((row) => row.id === wimpId)
   if (!wimp) {
-    throw new Error(`Boundary runtime package missing wimp ${wimpId}`)
+    throw new Error(`Boundary runtime fragment missing wimp ${wimpId}`)
   }
   const wimpFieldById = new Map(data.wimpFields.map((row) => [row.id, row] as const))
   const packageWimpIds = new Set<string>([wimpId])
@@ -1056,63 +1055,69 @@ export const prepareBoundaryRuntimePackage = (
     })
   })
 
-  return {
-    wimpId,
-    data: filterSharedDbDataForActiveRuntime({
-      metas: packageMetas.map((row) => structuredClone(row)),
-      metaFields: packageMetaFields.map((row) => structuredClone(row)),
-      metaStates: packageMetaStates.map((row) => structuredClone(row)),
-      metaTransitions: packageMetaTransitions.map((row) => structuredClone(row)),
-      metaTransitionConditions: data.metaTransitionConditions
-        .filter((row) => packageMetaTransitionIds.has(row.ownerMetaTransitionId) && packageMetaFieldIds.has(row.metaFieldId))
-        .map((row) => structuredClone(row)),
-      metaProcesses: packageMetaProcesses.map((row) => structuredClone(row)),
-      metaProcessReads: data.metaProcessReads
-        .filter((row) => packageMetaProcessIds.has(row.ownerMetaProcessId) && packageMetaFieldIds.has(row.metaFieldId))
-        .map((row) => structuredClone(row)),
-      metaProcessWrites: data.metaProcessWrites
-        .filter((row) => packageMetaProcessIds.has(row.ownerMetaProcessId) && packageMetaFieldIds.has(row.metaFieldId))
-        .map((row) => structuredClone(row)),
-      metaReactions: packageMetaReactions.map((row) => structuredClone(row)),
-      metaReactionStates: data.metaReactionStates
-        .filter((row) => packageMetaReactionIds.has(row.ownerMetaReactionId) && packageMetaStateIds.has(row.metaStateId))
-        .map((row) => structuredClone(row)),
-      metaReactionReads: data.metaReactionReads
-        .filter((row) => packageMetaReactionIds.has(row.ownerMetaReactionId) && packageMetaFieldIds.has(row.metaFieldId))
-        .map((row) => structuredClone(row)),
-      metaReactionWrites: data.metaReactionWrites
-        .filter((row) => packageMetaReactionIds.has(row.ownerMetaReactionId) && packageMetaFieldIds.has(row.metaFieldId))
-        .map((row) => structuredClone(row)),
-      metaMatterNodes: data.metaMatterNodes.filter((row) => metaIds.has(row.ownerMetaId)).map((row) => structuredClone(row)),
-      metaMatterEdges: data.metaMatterEdges.filter((row) => metaIds.has(row.ownerMetaId)).map((row) => structuredClone(row)),
-      wimps: packageWimps.map((row) => structuredClone(row)),
-      wimpFields: data.wimpFields
-        .filter((row) => packageWimpIds.has(row.ownerWimpId))
-        .map((row) => structuredClone(row)),
-      wimpEdges: data.wimpEdges
-        .filter((row) => packageWimpIds.has(row.childWimpId) && (row.parentWimpId === null || packageWimpIds.has(row.parentWimpId)))
-        .map((row) => structuredClone(row)),
-      fieldValues: data.fieldValues
-        .filter((row) => packageFieldIds.has(row.ownerWimpFieldId))
-        .map((row) => structuredClone(row)),
-      fieldSources: data.fieldSources
-        .filter((row) => packageFieldIds.has(row.childWimpFieldId) && packageFieldIds.has(row.parentWimpFieldId))
-        .map((row) => structuredClone(row)),
-      wimpStates: data.wimpStates.filter((row) => packageWimpIds.has(row.ownerWimpId)).map((row) => structuredClone(row)),
-      entanglements: packageEntanglements,
-      entanglementMembers: packageEntanglementMembers,
-      entanglementFields: packageEntanglementFields,
-      entanglementFieldMembers: packageEntanglementFieldMembers,
-    }),
-  }
+  return filterSharedDbDataForActiveRuntime({
+    metas: packageMetas.map((row) => structuredClone(row)),
+    metaFields: packageMetaFields.map((row) => structuredClone(row)),
+    metaStates: packageMetaStates.map((row) => structuredClone(row)),
+    metaTransitions: packageMetaTransitions.map((row) => structuredClone(row)),
+    metaTransitionConditions: data.metaTransitionConditions
+      .filter((row) => packageMetaTransitionIds.has(row.ownerMetaTransitionId) && packageMetaFieldIds.has(row.metaFieldId))
+      .map((row) => structuredClone(row)),
+    metaProcesses: packageMetaProcesses.map((row) => structuredClone(row)),
+    metaProcessReads: data.metaProcessReads
+      .filter((row) => packageMetaProcessIds.has(row.ownerMetaProcessId) && packageMetaFieldIds.has(row.metaFieldId))
+      .map((row) => structuredClone(row)),
+    metaProcessWrites: data.metaProcessWrites
+      .filter((row) => packageMetaProcessIds.has(row.ownerMetaProcessId) && packageMetaFieldIds.has(row.metaFieldId))
+      .map((row) => structuredClone(row)),
+    metaReactions: packageMetaReactions.map((row) => structuredClone(row)),
+    metaReactionStates: data.metaReactionStates
+      .filter((row) => packageMetaReactionIds.has(row.ownerMetaReactionId) && packageMetaStateIds.has(row.metaStateId))
+      .map((row) => structuredClone(row)),
+    metaReactionReads: data.metaReactionReads
+      .filter((row) => packageMetaReactionIds.has(row.ownerMetaReactionId) && packageMetaFieldIds.has(row.metaFieldId))
+      .map((row) => structuredClone(row)),
+    metaReactionWrites: data.metaReactionWrites
+      .filter((row) => packageMetaReactionIds.has(row.ownerMetaReactionId) && packageMetaFieldIds.has(row.metaFieldId))
+      .map((row) => structuredClone(row)),
+    metaMatterNodes: data.metaMatterNodes.filter((row) => metaIds.has(row.ownerMetaId)).map((row) => structuredClone(row)),
+    metaMatterEdges: data.metaMatterEdges.filter((row) => metaIds.has(row.ownerMetaId)).map((row) => structuredClone(row)),
+    wimps: packageWimps.map((row) => structuredClone(row)),
+    wimpFields: data.wimpFields.filter((row) => packageWimpIds.has(row.ownerWimpId)).map((row) => structuredClone(row)),
+    wimpEdges: data.wimpEdges
+      .filter((row) => packageWimpIds.has(row.childWimpId) && (row.parentWimpId === null || packageWimpIds.has(row.parentWimpId)))
+      .map((row) => structuredClone(row)),
+    fieldValues: data.fieldValues
+      .filter((row) => packageFieldIds.has(row.ownerWimpFieldId))
+      .map((row) => structuredClone(row)),
+    fieldSources: data.fieldSources
+      .filter((row) => packageFieldIds.has(row.childWimpFieldId) && packageFieldIds.has(row.parentWimpFieldId))
+      .map((row) => structuredClone(row)),
+    wimpStates: data.wimpStates.filter((row) => packageWimpIds.has(row.ownerWimpId)).map((row) => structuredClone(row)),
+    entanglements: packageEntanglements,
+    entanglementMembers: packageEntanglementMembers,
+    entanglementFields: packageEntanglementFields,
+    entanglementFieldMembers: packageEntanglementFieldMembers,
+  })
 }
 
-export const prepareBoundaryRuntimePackages = (rawData: SharedDbData): BoundaryRuntimePackage[] => {
+export const prepareBoundaryRuntimeLoadedFragment = (
+  rawData: SharedDbData,
+  activeWimpIds?: Iterable<string>,
+): SharedDbData => {
   const data = normalizeSharedDbData(rawData)
 
-  return [...data.wimps]
-    .sort((left, right) => left.wimpOrder - right.wimpOrder)
-    .map((row) => prepareBoundaryRuntimePackage(data, row.id))
+  if (activeWimpIds === undefined) {
+    return filterSharedDbDataForActiveRuntime(data)
+  }
+
+  const requestedWimpIds = Array.from(new Set(activeWimpIds))
+
+  if (requestedWimpIds.length === 0) {
+    return createEmptySharedDbData()
+  }
+
+  return mergeBoundaryRuntimeFragments(requestedWimpIds.map((wimpId) => prepareBoundaryRuntimeFragment(data, wimpId)))
 }
 
 const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBoundaryDatabaseData()): BoundaryDatabase => {
@@ -1134,14 +1139,6 @@ const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBoundaryDa
     fieldIndexByBraneAndKey: new Map(),
     fieldSourceByChildFieldIndex: [],
     dependentFieldIndexesByParentFieldIndex: new Map(),
-
-    reset() {
-      assignState(createEmptyBoundaryDatabaseData())
-    },
-
-    restore(nextData) {
-      assignState(nextData)
-    },
 
     getBrane(braneIndex) {
       return this.branes[braneIndex]
@@ -1289,24 +1286,15 @@ export const prepareBoundaryRuntimeStore = (
   options: BoundarySharedDbRuntimeOptions = {},
 ): PreparedData => prepareBoundaryStoreFromDatabase(buildBoundaryDatabase(rawData), options)
 
-export const prepareBoundaryRuntimeDataFromPackages = (
-  packages: Iterable<BoundaryRuntimePackage>,
-  options: BoundarySharedDbRuntimeOptions = {},
-): Data => prepareBoundaryRuntimeData(mergeBoundaryRuntimePackages(packages), options)
-
-export const prepareBoundaryRuntimeStoreFromPackages = (
-  packages: Iterable<BoundaryRuntimePackage>,
-  options: BoundarySharedDbRuntimeOptions = {},
-): PreparedData => prepareBoundaryRuntimeStore(mergeBoundaryRuntimePackages(packages), options)
-
-export const prepareBoundaryRuntimePackageFromSharedDb = (
+export const prepareBoundaryRuntimeFragmentFromSharedDb = (
   backend: SharedDbBackend,
   wimpId: string,
-): BoundaryRuntimePackage => prepareBoundaryRuntimePackage(readSharedDbData(backend), wimpId)
+): SharedDbData => prepareBoundaryRuntimeFragment(readSharedDbData(backend), wimpId)
 
-export const prepareBoundaryRuntimePackagesFromSharedDb = (
+export const prepareBoundaryRuntimeLoadedFragmentFromSharedDb = (
   backend: SharedDbBackend,
-): BoundaryRuntimePackage[] => prepareBoundaryRuntimePackages(readSharedDbData(backend))
+  activeWimpIds?: Iterable<string>,
+): SharedDbData => prepareBoundaryRuntimeLoadedFragment(readSharedDbData(backend), activeWimpIds)
 
 export const prepareBoundaryRuntimeDataFromSharedDb = (
   backend: SharedDbBackend,

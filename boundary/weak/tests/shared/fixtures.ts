@@ -20,13 +20,6 @@ function clonePreparedStore(data: BoundaryData): BoundaryStore {
     transitions: data.transitions.map(t => ({ ...t })),
     conditions: data.conditions.map(c => ({ ...c })),
     states: [...data.states],
-
-    reset: () => {
-      throw new Error("reset not supported in isolated store")
-    },
-    restore: () => {
-      throw new Error("restore not supported in isolated store")
-    },
     getField(braneIndex: number, fieldIndex: number) {
       return this.getFieldLocation(braneIndex, fieldIndex)?.record
     },
@@ -224,8 +217,7 @@ export function createArrayFieldUpdateFixture() {
 }
 
 export function createBoundaryStore<T extends { store: BoundaryStore }>(fixture: T): BoundaryStore {
-  const { reset: _reset, restore: _restore, ...data } = fixture.store
-  return clonePreparedStore(data)
+  return clonePreparedStore(fixture.store)
 }
 
 export function createIsolatedStore<T extends { store: BoundaryStore }>(fixture: T): BoundaryStore {

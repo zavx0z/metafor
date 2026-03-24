@@ -25,10 +25,19 @@
 ## Публичный вход
 
 ```ts
-import { write, update, unlock, reset } from "@boundary"
+import {
+  write,
+  update,
+  unlock,
+  writeRuntimeFromSharedDb,
+  addRuntimeWimpFromSharedDb,
+  removeRuntimeWimp,
+  rebuildRuntime,
+} from "@boundary"
 ```
 
-`write()` записывает каноническую структуру, `update()` вычисляет следующий переход, `unlock()` снимает блокировку, `reset()` очищает домен.
+`write()` записывает каноническую структуру, `update()` вычисляет следующий переход, `unlock()` снимает блокировку.
+Для `shared/db`-пути `add/remove` мутируют внутренний loaded fragment, а один `rebuildRuntime()` пересобирает derived runtime транзакционно.
 
 ## Совместимость
 

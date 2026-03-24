@@ -12,9 +12,9 @@ import {
   prepareRuntimeFromSharedDb,
   rebuildRuntime,
   removeRuntimeWimp,
-  reset,
   writeRuntimeFromSharedDb,
 } from "../boundary.ts"
+import { resetBoundaryForTest } from "./test.helper"
 import { weak$ } from "../weak"
 
 const hub = new HubFixture("./github/")
@@ -50,8 +50,8 @@ describe("boundary runtime from shared/db backend", () => {
     await hub.setup()
   })
 
-  afterEach(() => {
-    reset()
+  afterEach(async () => {
+    await resetBoundaryForTest()
     resetDarkStore()
   })
 
@@ -100,25 +100,36 @@ describe("boundary runtime from shared/db backend", () => {
     }
   })
 
-  test("добавляет и удаляет runtime-пакеты Wimp поверх уже записанной shared/db", async () => {
+  test("add/remove мутируют loaded fragment, а один rebuild пересобирает derived runtime транзакционно", async () => {
     const { fixture, backend } = materializeFixtureToSharedDb()
 
     try {
       expect(listRuntimeWimpIds()).toEqual([])
+      expect(boundary$.branes).toEqual([])
 
       await addRuntimeWimpFromSharedDb(backend, fixture.root.id)
       expect(listRuntimeWimpIds()).toEqual([fixture.root.id])
-      expect(boundary$.branes).toHaveLength(1)
-      expect(boundary$.sharedBlocks).toEqual([])
+      expect(boundary$.branes).toEqual([])
+      expect(weak$.initialized).toBe(false)
 
       await addRuntimeWimpFromSharedDb(backend, fixture.child.id)
       expect(listRuntimeWimpIds()).toEqual([fixture.root.id, fixture.child.id])
+      expect(boundary$.branes).toEqual([])
+
+      const initialChanges = await rebuildRuntime()
+      expect(initialChanges).toEqual([])
+      expect(weak$.initialized).toBe(true)
       expect(boundary$.branes).toHaveLength(2)
       expect(boundary$.sharedBlocks).toHaveLength(1)
       expect(boundary$.braneSharedBlockRefs).toEqual([0, 0])
 
-      await removeRuntimeWimp(fixture.child.id)
+      removeRuntimeWimp(fixture.child.id)
       expect(listRuntimeWimpIds()).toEqual([fixture.root.id])
+      expect(boundary$.branes).toHaveLength(2)
+      expect(boundary$.sharedBlocks).toHaveLength(1)
+
+      const removalChanges = await rebuildRuntime()
+      expect(removalChanges).toEqual([])
       expect(boundary$.branes).toHaveLength(1)
       expect(boundary$.sharedBlocks).toEqual([])
     } finally {
@@ -126,36 +137,24 @@ describe("boundary runtime from shared/db backend", () => {
     }
   })
 
-  test("пересобирает runtime из уже загруженных runtime-пакетов без повторного чтения всей DB", async () => {
+  test("пересобирает runtime из уже загруженного loaded fragment без повторного чтения всей DB", async () => {
     const { fixture, backend } = materializeFixtureToSharedDb()
 
-    try {
-      await addRuntimeWimpFromSharedDb(backend, fixture.root.id)
-      await addRuntimeWimpFromSharedDb(backend, fixture.child.id)
+    await addRuntimeWimpFromSharedDb(backend, fixture.root.id)
+    await addRuntimeWimpFromSharedDb(backend, fixture.child.id)
 
-      const snapshot = {
-        branes: structuredClone(boundary$.branes),
-        fields: structuredClone(boundary$.fields),
-        sharedBlocks: structuredClone(boundary$.sharedBlocks),
-        sharedValues: structuredClone(boundary$.sharedValues),
-        braneSharedBlockRefs: structuredClone(boundary$.braneSharedBlockRefs),
-        stringTable: structuredClone(boundary$.stringTable),
-        states: structuredClone(boundary$.states),
-      }
+    backend.close()
 
-      backend.close()
+    await rebuildRuntime()
+    expect(boundary$.branes).toHaveLength(2)
+    expect(boundary$.sharedBlocks).toHaveLength(1)
 
-      const changes = await rebuildRuntime()
-      expect(changes).toEqual([])
-      expect(boundary$.branes).toEqual(snapshot.branes)
-      expect(boundary$.fields).toEqual(snapshot.fields)
-      expect(boundary$.sharedBlocks).toEqual(snapshot.sharedBlocks)
-      expect(boundary$.sharedValues).toEqual(snapshot.sharedValues)
-      expect(boundary$.braneSharedBlockRefs).toEqual(snapshot.braneSharedBlockRefs)
-      expect(boundary$.stringTable).toEqual(snapshot.stringTable)
-      expect(boundary$.states).toEqual(snapshot.states)
-    } finally {
-      backend.close()
-    }
+    removeRuntimeWimp(fixture.child.id)
+
+    const changes = await rebuildRuntime()
+    expect(changes).toEqual([])
+    expect(boundary$.branes).toHaveLength(1)
+    expect(boundary$.sharedBlocks).toEqual([])
+    expect(boundary$.states).toHaveLength(1)
   })
 })

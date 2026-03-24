@@ -3,11 +3,12 @@ import { flattenBoundaryData, FieldType } from "../gravity"
 import { assembleStoredBoundaryData } from "../strong"
 import { serializeBoundaryState, deserializeBoundaryState } from "../em"
 import { weak$ } from "../weak"
-import { boundary$, reset, update, write } from "../boundary"
+import { boundary$, update, write } from "../boundary"
+import { resetBoundaryForTest } from "./test.helper"
 
 describe("boundary domain layers", () => {
-  afterEach(() => {
-    reset()
+  afterEach(async () => {
+    await resetBoundaryForTest()
   })
 
   test("gravity и strong собирают канонический boundary-store", () => {

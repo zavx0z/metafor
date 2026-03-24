@@ -1,6 +1,5 @@
 import type { FieldKey } from "@metafor/ast"
 import type { PreparedEntanglementProjection } from "@boundary/strong"
-import type { SharedDbData } from "@shared/db"
 
 export interface BoundaryDatabaseFieldSchemaRecord {
   type: string
@@ -118,11 +117,6 @@ export interface BoundarySharedDbRuntimeOptions {
   entanglement?: PreparedEntanglementProjection
 }
 
-export interface BoundaryRuntimePackage {
-  wimpId: string
-  data: SharedDbData
-}
-
 export interface BoundaryDatabase extends BoundaryDatabaseData {
   braneIndexByWimpId: Map<string, number>
   fieldIndexByWimpFieldId: Map<string, number>
@@ -130,8 +124,6 @@ export interface BoundaryDatabase extends BoundaryDatabaseData {
   fieldSourceByChildFieldIndex: Array<BoundaryDatabaseFieldSourceRecord | undefined>
   dependentFieldIndexesByParentFieldIndex: Map<number, number[]>
 
-  reset(): void
-  restore(data: BoundaryDatabaseData): void
   getBrane(braneIndex: number): BoundaryDatabaseBraneRecord | undefined
   getBraneByWimpId(wimpId: string): BoundaryDatabaseBraneRecord | undefined
   getField(fieldIndex: number): BoundaryDatabaseFieldRecord | undefined

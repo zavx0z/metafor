@@ -104,12 +104,6 @@ export interface BoundaryData {
 }
 
 export interface BoundaryStore extends BoundaryData {
-  /** Сбрасывает store к пустому каноническому состоянию. */
-  reset(): void
-
-  /** Восстанавливает каноническое состояние целиком. */
-  restore(state: BoundaryData): void
-
   /** Возвращает запись поля браны независимо от local/shared размещения. */
   getField(braneIndex: number, fieldIndex: number): BoundaryFieldValueRecord | undefined
 
