@@ -18,7 +18,9 @@ describe("shared db tabular contract", () => {
 
     expect(Object.hasOwn(tabular, "braneIndexByDarkId")).toBe(false)
     expect(Object.hasOwn(tabular, "fieldIndexByDarkId")).toBe(false)
-    expect(tabular.rootBraneIndex).toBe(projection.rootBraneIndex)
+    expect(Object.hasOwn(tabular, "rootBraneIndex")).toBe(false)
+    expect(Object.hasOwn(tabular.branes[0]!, "fieldOffset")).toBe(false)
+    expect(Object.hasOwn(tabular.branes[0]!, "fieldCount")).toBe(false)
     expect(tabular.branes).toEqual(projection.branes)
     expect(tabular.fields).toEqual(projection.fields)
     expect(tabular.fieldValues).toEqual(projection.fieldValues)
@@ -26,6 +28,11 @@ describe("shared db tabular contract", () => {
     expect(tabular.entanglementBlocks).toEqual(projection.entanglementBlocks)
     expect(tabular.entanglementFields).toEqual(projection.entanglementFields)
     expect(tabular.stateSeedStates).toEqual(projection.stateSeedStates)
+    expect(rebuilt.rootBraneIndex).toBe(0)
+    expect(rebuilt.fieldWindowByBraneIndex).toEqual([
+      { fieldOffset: 0, fieldCount: 3 },
+      { fieldOffset: 3, fieldCount: 3 },
+    ])
     expect(rebuilt.braneIndexByDarkId.get(fixture.root.id)).toBe(0)
     expect(rebuilt.fieldIndexByDarkId.get(fixture.fields.childAlias.id)).toBe(3)
   })

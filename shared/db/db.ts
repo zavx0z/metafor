@@ -134,5 +134,8 @@ export const getSharedDbBraneFields = (
   const brane = projection.branes[braneIndex]
   if (!brane) return []
 
-  return projection.fields.slice(brane.fieldOffset, brane.fieldOffset + brane.fieldCount)
+  const fieldWindow = projection.fieldWindowByBraneIndex[braneIndex]
+  if (!fieldWindow) return []
+
+  return projection.fields.slice(fieldWindow.fieldOffset, fieldWindow.fieldOffset + fieldWindow.fieldCount)
 }

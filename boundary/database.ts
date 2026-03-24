@@ -467,14 +467,17 @@ const prepareBoundaryStateSeedGraph = (
  */
 export const prepareBoundaryDatabaseData = (projection: SharedDbProjection): BoundaryDatabaseData => ({
   rootBraneIndex: projection.rootBraneIndex,
-  branes: projection.branes.map((brane): BoundaryDatabaseBraneRecord => ({
-    index: brane.index,
-    darkWimpId: brane.darkWimpId,
-    src: brane.src,
-    ...(brane.name !== undefined ? { name: brane.name } : {}),
-    fieldOffset: brane.fieldOffset,
-    fieldCount: brane.fieldCount,
-  })),
+  branes: projection.branes.map((brane): BoundaryDatabaseBraneRecord => {
+    const fieldWindow = projection.fieldWindowByBraneIndex[brane.index] ?? { fieldOffset: 0, fieldCount: 0 }
+    return {
+      index: brane.index,
+      darkWimpId: brane.darkWimpId,
+      src: brane.src,
+      ...(brane.name !== undefined ? { name: brane.name } : {}),
+      fieldOffset: fieldWindow.fieldOffset,
+      fieldCount: fieldWindow.fieldCount,
+    }
+  }),
   fields: projection.fields.map((field): BoundaryDatabaseFieldRecord => ({
     index: field.index,
     darkFieldId: field.darkFieldId,

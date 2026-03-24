@@ -32,18 +32,11 @@ export interface SharedDbSqliteBackendOptions {
 const schemaSql = `
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS shared_db_meta (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  rootBraneIndex INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS branes (
   "index" INTEGER PRIMARY KEY,
   darkWimpId TEXT NOT NULL,
   src TEXT NOT NULL,
-  name TEXT,
-  fieldOffset INTEGER NOT NULL,
-  fieldCount INTEGER NOT NULL
+  name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS fields (
@@ -183,9 +176,7 @@ SELECT
   "index",
   darkWimpId,
   src,
-  name,
-  fieldOffset,
-  fieldCount
+  name
 FROM branes
 `
 
@@ -312,8 +303,6 @@ const mapBraneRow = (row: Record<string, unknown> | null): SharedDbBraneRecord |
     darkWimpId: String(row.darkWimpId),
     src: String(row.src),
     ...(row.name !== null && row.name !== undefined ? { name: String(row.name) } : {}),
-    fieldOffset: Number(row.fieldOffset),
-    fieldCount: Number(row.fieldCount),
   }
 }
 
@@ -439,10 +428,6 @@ const cloneRuntimeSeedData = (data: SharedDbRuntimeSeedData): SharedDbRuntimeSee
  */
 export const initializeSharedDbSqliteSchema = (database: Database): void => {
   database.exec(schemaSql)
-  database.query(
-    `INSERT INTO shared_db_meta(id, rootBraneIndex) VALUES (1, 0)
-     ON CONFLICT(id) DO NOTHING`,
-  ).run()
 }
 
 /**
@@ -456,11 +441,7 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
   initializeSharedDbSqliteSchema(database)
 
   const statements = {
-    selectRootBraneIndex: database.query(`SELECT rootBraneIndex FROM shared_db_meta WHERE id = 1`),
-    upsertRootBraneIndex: database.query(
-      `INSERT INTO shared_db_meta(id, rootBraneIndex) VALUES (1, ?)
-       ON CONFLICT(id) DO UPDATE SET rootBraneIndex = excluded.rootBraneIndex`,
-    ),
+    selectFirstBraneIndex: database.query(`SELECT "index" FROM branes ORDER BY "index" LIMIT 1`),
     clearStateSeedConditions: database.query(`DELETE FROM state_seed_conditions`),
     clearStateSeedTransitions: database.query(`DELETE FROM state_seed_transitions`),
     clearStateSeedStates: database.query(`DELETE FROM state_seed_states`),
@@ -473,18 +454,16 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
     clearFields: database.query(`DELETE FROM fields`),
     clearBranes: database.query(`DELETE FROM branes`),
     insertBrane: database.query(
-      `INSERT INTO branes("index", darkWimpId, src, name, fieldOffset, fieldCount)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO branes("index", darkWimpId, src, name)
+       VALUES (?, ?, ?, ?)`,
     ),
     upsertBrane: database.query(
-      `INSERT INTO branes("index", darkWimpId, src, name, fieldOffset, fieldCount)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO branes("index", darkWimpId, src, name)
+       VALUES (?, ?, ?, ?)
        ON CONFLICT("index") DO UPDATE SET
          darkWimpId = excluded.darkWimpId,
          src = excluded.src,
-         name = excluded.name,
-         fieldOffset = excluded.fieldOffset,
-         fieldCount = excluded.fieldCount`,
+         name = excluded.name`,
     ),
     insertField: database.query(
       `INSERT INTO fields("index", darkFieldId, ownerBraneIndex, "key", schemaType, schemaRequired, schemaTopology, schemaLabel, schemaValues)
@@ -611,7 +590,6 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
     statements.clearFieldValues.run()
     statements.clearFields.run()
     statements.clearBranes.run()
-    statements.upsertRootBraneIndex.run(normalized.rootBraneIndex)
 
     for (const brane of normalized.branes) {
       statements.insertBrane.run(
@@ -619,8 +597,6 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
         brane.darkWimpId,
         brane.src,
         brane.name ?? null,
-        brane.fieldOffset,
-        brane.fieldCount,
       )
     }
 
@@ -801,12 +777,14 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
     },
 
     getRootBraneIndex() {
-      const row = statements.selectRootBraneIndex.get() as Record<string, unknown> | null
-      return row ? Number(row.rootBraneIndex) : 0
+      const row = statements.selectFirstBraneIndex.get() as Record<string, unknown> | null
+      return row ? Number(row.index) : 0
     },
 
     setRootBraneIndex(braneIndex) {
-      statements.upsertRootBraneIndex.run(braneIndex)
+      if (braneIndex !== 0) {
+        throw new Error(`Shared DB root brane index is derived from brane order and currently fixed to 0, got ${braneIndex}`)
+      }
     },
 
     getRuntimeSeedData() {
@@ -831,8 +809,6 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
         brane.darkWimpId,
         brane.src,
         brane.name ?? null,
-        brane.fieldOffset,
-        brane.fieldCount,
       )
     },
 

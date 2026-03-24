@@ -328,7 +328,6 @@ export const createSharedDbProjectionFromWimpTraces = (orderedTraces: SharedDbWi
 
   for (const trace of traces) {
     const braneIndex = branes.length
-    const fieldOffset = fields.length
     const fieldLookup = new Map<FieldKey, number>()
     braneIndexByDarkId.set(trace.darkWimpId, braneIndex)
 
@@ -354,8 +353,6 @@ export const createSharedDbProjectionFromWimpTraces = (orderedTraces: SharedDbWi
       darkWimpId: trace.darkWimpId,
       src: trace.src,
       ...(trace.name !== undefined ? { name: trace.name } : {}),
-      fieldOffset,
-      fieldCount: fields.length - fieldOffset,
     })
     fieldIndexByBraneAndKey.set(braneIndex, fieldLookup)
   }
@@ -397,7 +394,6 @@ export const createSharedDbProjectionFromWimpTraces = (orderedTraces: SharedDbWi
   const stateSeeds = buildStateSeeds(traces, braneIndexByDarkId)
 
   return createSharedDbProjection({
-    rootBraneIndex: traces.length > 0 ? 0 : 0,
     branes,
     fields,
     fieldValues,

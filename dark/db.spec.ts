@@ -8,6 +8,10 @@ describe("dark shared db export", () => {
     const projection = assembleSharedDbProjection(fixture.root)
 
     expect(projection.rootBraneIndex).toBe(0)
+    expect(projection.fieldWindowByBraneIndex).toEqual([
+      { fieldOffset: 0, fieldCount: 3 },
+      { fieldOffset: 3, fieldCount: 3 },
+    ])
     expect(projection.branes).toHaveLength(2)
     expect(projection.fields).toHaveLength(6)
     expect(projection.fieldValues).toHaveLength(6)

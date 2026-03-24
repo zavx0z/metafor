@@ -61,12 +61,16 @@ describe("shared db sqlite backend", () => {
           "field_sources",
           "field_values",
           "fields",
-          "shared_db_meta",
           "state_seed_conditions",
           "state_seed_states",
           "state_seed_transitions",
         ])
         expect(indexes).toEqual(sharedDbRequiredBackendIndexes.map((index) => index.name).sort())
+
+        const braneColumns = (
+          database.query(`PRAGMA table_info(branes)`).all() as Array<{ name: string }>
+        ).map((row) => row.name)
+        expect(braneColumns).toEqual(["index", "darkWimpId", "src", "name"])
       } finally {
         database.close()
       }
@@ -87,9 +91,13 @@ describe("shared db sqlite backend", () => {
 
       const reader = openSharedDbSqliteBackend({ filename: temp.filename })
       try {
-        expect(prepareSharedDbTabularData(readSharedDbProjection(reader))).toEqual(
-          prepareSharedDbTabularData(projection),
-        )
+        const restored = readSharedDbProjection(reader)
+        expect(prepareSharedDbTabularData(restored)).toEqual(prepareSharedDbTabularData(projection))
+        expect(restored.rootBraneIndex).toBe(0)
+        expect(restored.fieldWindowByBraneIndex).toEqual([
+          { fieldOffset: 0, fieldCount: 3 },
+          { fieldOffset: 3, fieldCount: 3 },
+        ])
         expect(reader.getRuntimeSeedData().stateSeedConditions).toEqual([
           {
             index: 0,

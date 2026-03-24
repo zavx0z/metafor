@@ -55,8 +55,9 @@ export const openSharedDbMemoryBackend = (
     },
 
     setRootBraneIndex(braneIndex) {
-      tabular.rootBraneIndex = braneIndex
-      dirty = true
+      if (braneIndex !== 0) {
+        throw new Error(`Shared DB root brane index is derived in memory and currently fixed to 0, got ${braneIndex}`)
+      }
     },
 
     getRuntimeSeedData(): SharedDbRuntimeSeedData {

@@ -34,8 +34,6 @@ export interface SharedDbFieldSchemaRecord {
  * @property darkWimpId Идентификатор исходного `Dark Wimp`.
  * @property src SRC-адрес меты.
  * @property name Имя меты, если оно уже загружено в `Dark`.
- * @property fieldOffset Смещение первого поля этой браны в общей таблице полей.
- * @property fieldCount Количество полей, принадлежащих бране.
  */
 export interface SharedDbBraneRecord {
   /** Стабильный индекс браны внутри плоской таблицы. */
@@ -46,10 +44,6 @@ export interface SharedDbBraneRecord {
   src: string
   /** Имя меты, если оно уже загружено в `Dark`. */
   name?: string
-  /** Смещение первого поля этой браны в общей таблице полей. */
-  fieldOffset: number
-  /** Количество полей, принадлежащих бране. */
-  fieldCount: number
 }
 
 /**
@@ -296,15 +290,12 @@ export interface SharedDbRuntimeSeedData {
  * Это минимальный DB-shaped снимок, который backend обязан уметь хранить
  * и полностью заменять без знания runtime-структур доменов.
  *
- * @property rootBraneIndex Индекс корневой браны, из которой началась проекция.
  * @property branes Плоская таблица materialized `Wimp`.
  * @property fields Плоская таблица объектных `Field`.
  * @property fieldValues Плоская таблица текущих значений полей.
  * @property fieldSources Плоская таблица direct ordinary source-связей.
  */
 export interface SharedDbTabularData extends SharedDbRuntimeSeedData {
-  /** Индекс корневой браны, из которой началась проекция. */
-  rootBraneIndex: number
   /** Плоская таблица materialized `Wimp`. */
   branes: SharedDbBraneRecord[]
   /** Плоская таблица объектных `Field`. */
@@ -321,6 +312,8 @@ export interface SharedDbTabularData extends SharedDbRuntimeSeedData {
  * Эти структуры не являются частью backend-хранилища как такового, но могут
  * материализоваться в памяти для быстрого индексного доступа.
  *
+ * @property rootBraneIndex Индекс корневой браны, выведенный из упорядоченных brane rows.
+ * @property fieldWindowByBraneIndex Derived field range для последовательного чтения полей браны.
  * @property braneIndexByDarkId Индекс `Dark Wimp.id -> braneIndex`.
  * @property fieldIndexByDarkId Индекс `Dark Field.id -> fieldIndex`.
  * @property fieldIndexByBraneAndKey Индекс поиска поля по паре `(braneIndex, fieldKey)`.
@@ -328,6 +321,10 @@ export interface SharedDbTabularData extends SharedDbRuntimeSeedData {
  * @property dependentFieldIndexesByParentFieldIndex Обратный индекс зависимых полей.
  */
 export interface SharedDbProjectionIndexes {
+  /** Индекс корневой браны, выведенный из упорядоченных brane rows. */
+  rootBraneIndex: number
+  /** Derived field range для последовательного чтения полей браны. */
+  fieldWindowByBraneIndex: Array<{ fieldOffset: number; fieldCount: number }>
   /** Индекс `Dark Wimp.id -> braneIndex`. */
   braneIndexByDarkId: Map<string, number>
   /** Индекс `Dark Field.id -> fieldIndex`. */

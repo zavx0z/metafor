@@ -27,7 +27,7 @@ export const describeSharedDbBackendContract = (
         expect(backend.requiredIndexes).toEqual(sharedDbRequiredBackendIndexes)
         expect(backend.getRootBraneIndex()).toBe(0)
         expect(backend.getBrane(1)?.darkWimpId).toBe(fixture.child.id)
-        expect(backend.getBraneByDarkId(fixture.root.id)?.fieldCount).toBe(3)
+        expect(backend.getBraneByDarkId(fixture.root.id)?.src).toBe("meta/root")
         expect(backend.getField(3)?.darkFieldId).toBe(fixture.fields.childAlias.id)
         expect(backend.getFieldByDarkId(fixture.fields.rootTitle.id)?.ownerBraneIndex).toBe(0)
         expect(backend.getFieldByKey(1, "alias")?.darkFieldId).toBe(fixture.fields.childAlias.id)

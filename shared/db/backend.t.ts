@@ -53,11 +53,14 @@ export interface SharedDbBackend {
   /** Освобождает ресурсы backend-handle. */
   close(): void
 
-  /** Возвращает индекс корневой браны канонического снимка. */
+  /** Возвращает индекс корневой браны, восстановленный из упорядоченных brane rows. */
   getRootBraneIndex(): number
 
   /**
-   * Обновляет индекс корневой браны incremental materialization-пути.
+   * Принимает derived root brane incremental materialization-пути.
+   *
+   * Текущее shared/db storage его не персистит; backend может использовать вызов
+   * только для совместимости materialization writer-а и проверок инвариантов.
    *
    * @param braneIndex Индекс корневой браны.
    */

@@ -39,13 +39,11 @@ describe("dark -> shared/db file materialization", () => {
 
     const database = new Database(sqliteFilename, { readonly: true })
     try {
-      const rootMeta = database.query(`SELECT rootBraneIndex FROM shared_db_meta WHERE id = 1`).get() as {
-        rootBraneIndex: number
-      } | null
       const braneRows = database.query(`SELECT "index", src FROM branes ORDER BY "index"`).all() as Array<{
         index: number
         src: string
       }>
+      const braneColumns = database.query(`PRAGMA table_info(branes)`).all() as Array<{ name: string }>
       const fieldCountRow = database.query(`SELECT COUNT(*) AS count FROM fields`).get() as { count: number }
       const fieldValueCountRow = database.query(`SELECT COUNT(*) AS count FROM field_values`).get() as { count: number }
       const fieldSourceCountRow = database.query(`SELECT COUNT(*) AS count FROM field_sources`).get() as { count: number }
@@ -66,8 +64,9 @@ describe("dark -> shared/db file materialization", () => {
         )
         .get() as { parentFieldIndex: number } | null
 
-      expect(rootMeta?.rootBraneIndex).toBe(0)
+      expect(braneRows[0]?.index).toBe(0)
       expect(braneRows[0]?.src).toBe("zavx0z/git")
+      expect(braneColumns.map((column) => column.name)).toEqual(["index", "darkWimpId", "src", "name"])
       expect(braneRows.some((row) => row.src === "zavx0z/git-start")).toBe(true)
       expect(fieldCountRow.count).toBeGreaterThan(0)
       expect(fieldValueCountRow.count).toBe(fieldCountRow.count)

@@ -22,8 +22,6 @@ const cloneBrane = (brane: SharedDbBraneRecord): SharedDbBraneRecord => ({
   darkWimpId: brane.darkWimpId,
   src: brane.src,
   ...(brane.name !== undefined ? { name: brane.name } : {}),
-  fieldOffset: brane.fieldOffset,
-  fieldCount: brane.fieldCount,
 })
 
 const cloneField = (field: SharedDbFieldRecord): SharedDbFieldRecord => ({
@@ -130,7 +128,6 @@ const createEmptyRuntimeSeedData = (): SharedDbRuntimeSeedData => ({
 })
 
 const createEmptySharedDbTabularData = (): SharedDbTabularData => ({
-  rootBraneIndex: 0,
   branes: [],
   fields: [],
   fieldValues: [],
@@ -161,6 +158,43 @@ const requireSequentialOrdinals = (
 }
 
 const compareByIndex = <T extends { index: number }>(left: T, right: T): number => left.index - right.index
+
+const deriveSharedDbRootBraneIndex = (branes: SharedDbBraneRecord[]): number => (branes.length === 0 ? 0 : branes[0]!.index)
+
+const deriveSharedDbFieldWindows = (
+  branes: SharedDbBraneRecord[],
+  fields: SharedDbFieldRecord[],
+): Array<{ fieldOffset: number; fieldCount: number }> => {
+  const fieldWindowByBraneIndex = branes.map(() => ({ fieldOffset: fields.length, fieldCount: 0 }))
+  let cursor = 0
+
+  for (const brane of branes) {
+    const fieldOffset = cursor
+
+    while (cursor < fields.length) {
+      const field = fields[cursor]
+      if (!field) break
+      if (field.ownerBraneIndex !== brane.index) {
+        break
+      }
+      cursor += 1
+    }
+
+    fieldWindowByBraneIndex[brane.index] = {
+      fieldOffset,
+      fieldCount: cursor - fieldOffset,
+    }
+  }
+
+  if (cursor !== fields.length) {
+    const field = fields[cursor]
+    throw new Error(
+      `Fields must stay grouped by owner brane to derive in-memory field ranges; got field ${field?.index ?? cursor} for brane ${field?.ownerBraneIndex ?? "unknown"}`,
+    )
+  }
+
+  return fieldWindowByBraneIndex
+}
 
 /**
  * Зафиксированный набор backend-индексов для канонического shared/db lookup API.
@@ -222,20 +256,6 @@ export const normalizeSharedDbTabularData = (data: SharedDbTabularData): SharedD
   requireSequentialIndex("Brane", branes)
   requireSequentialIndex("Field", fields)
 
-  if (branes.length === 0) {
-    if (data.rootBraneIndex !== 0) {
-      throw new Error(`Root brane index out of range: ${data.rootBraneIndex}`)
-    }
-  } else if (data.rootBraneIndex < 0 || data.rootBraneIndex >= branes.length) {
-    throw new Error(`Root brane index out of range: ${data.rootBraneIndex}`)
-  }
-
-  branes.forEach((brane) => {
-    if (brane.fieldOffset < 0 || brane.fieldCount < 0 || brane.fieldOffset + brane.fieldCount > fields.length) {
-      throw new Error(`Brane ${brane.index} field window is out of range`)
-    }
-  })
-
   const fieldValues: Array<SharedDbFieldValueRecord | undefined> = new Array(fields.length)
   for (const fieldValue of data.fieldValues) {
     const field = fields[fieldValue.fieldIndex]
@@ -253,13 +273,12 @@ export const normalizeSharedDbTabularData = (data: SharedDbTabularData): SharedD
     if (!ownerBrane) {
       throw new Error(`Field ${fieldIndex} references unknown brane index: ${field.ownerBraneIndex}`)
     }
-    if (fieldIndex < ownerBrane.fieldOffset || fieldIndex >= ownerBrane.fieldOffset + ownerBrane.fieldCount) {
-      throw new Error(`Field ${fieldIndex} is outside owner brane ${ownerBrane.index} window`)
-    }
     if (!fieldValues[fieldIndex]) {
       throw new Error(`Field value missing for field index: ${fieldIndex}`)
     }
   })
+
+  deriveSharedDbFieldWindows(branes, fields)
 
   const fieldSources = data.fieldSources.map(cloneFieldSource).sort(
     (left, right) => left.childFieldIndex - right.childFieldIndex,
@@ -556,7 +575,6 @@ export const normalizeSharedDbTabularData = (data: SharedDbTabularData): SharedD
   }
 
   return {
-    rootBraneIndex: data.rootBraneIndex,
     branes,
     fields,
     fieldValues: fieldValues as SharedDbFieldValueRecord[],
@@ -581,6 +599,8 @@ export const buildSharedDbProjectionIndexes = (
   data: SharedDbTabularData,
 ): SharedDbProjectionIndexes => {
   const normalized = normalizeSharedDbTabularData(data)
+  const rootBraneIndex = deriveSharedDbRootBraneIndex(normalized.branes)
+  const fieldWindowByBraneIndex = deriveSharedDbFieldWindows(normalized.branes, normalized.fields)
   const braneIndexByDarkId = new Map<string, number>()
   const fieldIndexByDarkId = new Map<string, number>()
   const fieldIndexByBraneAndKey = new Map<number, Map<string, number>>()
@@ -622,6 +642,8 @@ export const buildSharedDbProjectionIndexes = (
   }
 
   return {
+    rootBraneIndex,
+    fieldWindowByBraneIndex,
     braneIndexByDarkId,
     fieldIndexByDarkId,
     fieldIndexByBraneAndKey: fieldIndexByBraneAndKey as SharedDbProjectionIndexes["fieldIndexByBraneAndKey"],
@@ -638,7 +660,6 @@ export const buildSharedDbProjectionIndexes = (
  */
 export const prepareSharedDbTabularData = (projection: SharedDbProjection): SharedDbTabularData =>
   normalizeSharedDbTabularData({
-    rootBraneIndex: projection.rootBraneIndex,
     branes: projection.branes,
     fields: projection.fields,
     fieldValues: projection.fieldValues,
@@ -704,7 +725,6 @@ export const readSharedDbTabularData = (backend: SharedDbBackend): SharedDbTabul
   const runtimeSeedData = backend.getRuntimeSeedData()
 
   return normalizeSharedDbTabularData({
-    rootBraneIndex: backend.getRootBraneIndex(),
     branes,
     fields,
     fieldValues,

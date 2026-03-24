@@ -14,8 +14,8 @@ import {
 
 const createProjection = (): SharedDbProjection => {
   const branes = [
-    { index: 0, darkWimpId: "root", src: "meta/root", name: "root", fieldOffset: 0, fieldCount: 3 },
-    { index: 1, darkWimpId: "child", src: "meta/child", name: "child", fieldOffset: 3, fieldCount: 3 },
+    { index: 0, darkWimpId: "root", src: "meta/root", name: "root" },
+    { index: 1, darkWimpId: "child", src: "meta/child", name: "child" },
   ] as SharedDbProjection["branes"]
 
   const fields = [
@@ -65,6 +65,10 @@ const createProjection = (): SharedDbProjection => {
 
   return {
     rootBraneIndex: 0,
+    fieldWindowByBraneIndex: [
+      { fieldOffset: 0, fieldCount: 3 },
+      { fieldOffset: 3, fieldCount: 3 },
+    ],
     branes,
     fields,
     fieldValues: [

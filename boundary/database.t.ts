@@ -41,8 +41,8 @@ export interface BoundaryDatabaseFieldSchemaRecord {
  * @property darkWimpId Идентификатор исходного `Dark Wimp`.
  * @property src SRC-адрес меты.
  * @property name Имя меты, если оно было материализовано.
- * @property fieldOffset Смещение первого поля браны.
- * @property fieldCount Количество полей браны.
+ * @property fieldOffset Derived смещение первого поля браны, восстановленное в памяти.
+ * @property fieldCount Derived количество полей браны, восстановленное в памяти.
  */
 export interface BoundaryDatabaseBraneRecord {
   /** Стабильный индекс браны. */
@@ -110,7 +110,7 @@ export interface BoundaryDatabaseFieldSourceRecord {
 /**
  * Плоское состояние boundary-базы.
  *
- * @property rootBraneIndex Индекс корневой браны исходной проекции.
+ * @property rootBraneIndex Derived индекс корневой браны исходной проекции.
  * @property branes Плоская таблица бран.
  * @property fields Плоская таблица полей.
  * @property fieldValues Плоская таблица текущих значений.
