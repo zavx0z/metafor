@@ -28,12 +28,20 @@ import type { SharedDbProjection, SharedDbRuntimeSeedData, SharedDbTabularData }
 export const openSharedDbMemoryBackend = (
   initialData: SharedDbTabularData | SharedDbProjection = createEmptySharedDbTabularSnapshot(),
 ): SharedDbBackend => {
-  let projection = createSharedDbProjection(
-    "braneIndexByDarkId" in initialData ? prepareSharedDbTabularData(initialData) : initialData,
-  )
+  let tabular = "braneIndexByDarkId" in initialData ? prepareSharedDbTabularData(initialData) : initialData
+  let projection = createSharedDbProjection(tabular)
+  let dirty = false
 
   const assignData = (data: SharedDbTabularData): void => {
+    tabular = structuredClone(data)
     projection = createSharedDbProjection(data)
+    dirty = false
+  }
+
+  const ensureProjection = (): void => {
+    if (!dirty) return
+    projection = createSharedDbProjection(tabular)
+    dirty = false
   }
 
   return {
@@ -42,10 +50,17 @@ export const openSharedDbMemoryBackend = (
     close() {},
 
     getRootBraneIndex() {
+      ensureProjection()
       return projection.rootBraneIndex
     },
 
+    setRootBraneIndex(braneIndex) {
+      tabular.rootBraneIndex = braneIndex
+      dirty = true
+    },
+
     getRuntimeSeedData(): SharedDbRuntimeSeedData {
+      ensureProjection()
       return {
         entanglementBlocks: projection.entanglementBlocks.map((block) => structuredClone(block)),
         entanglementBlockMembers: projection.entanglementBlockMembers.map((member) => structuredClone(member)),
@@ -69,61 +84,109 @@ export const openSharedDbMemoryBackend = (
       assignData(prepareSharedDbTabularData(nextProjection))
     },
 
+    upsertBrane(brane) {
+      tabular.branes[brane.index] = structuredClone(brane)
+      dirty = true
+    },
+
+    upsertField(field) {
+      tabular.fields[field.index] = structuredClone(field)
+      dirty = true
+    },
+
+    setFieldSource(childFieldIndex, parentFieldIndex) {
+      if (parentFieldIndex === null) {
+        tabular.fieldSources = tabular.fieldSources.filter((fieldSource) => fieldSource.childFieldIndex !== childFieldIndex)
+        dirty = true
+        return
+      }
+
+      const nextFieldSource = { childFieldIndex, parentFieldIndex }
+      const existingIndex = tabular.fieldSources.findIndex((fieldSource) => fieldSource.childFieldIndex === childFieldIndex)
+      if (existingIndex >= 0) {
+        tabular.fieldSources[existingIndex] = nextFieldSource
+      } else {
+        tabular.fieldSources.push(nextFieldSource)
+      }
+      dirty = true
+    },
+
+    replaceRuntimeSeedData(data) {
+      tabular.entanglementBlocks = data.entanglementBlocks.map((block) => structuredClone(block))
+      tabular.entanglementBlockMembers = data.entanglementBlockMembers.map((member) => structuredClone(member))
+      tabular.entanglementFields = data.entanglementFields.map((field) => structuredClone(field))
+      tabular.entanglementFieldMembers = data.entanglementFieldMembers.map((member) => structuredClone(member))
+      tabular.stateSeedStates = data.stateSeedStates.map((state) => structuredClone(state))
+      tabular.stateSeedTransitions = data.stateSeedTransitions.map((transition) => structuredClone(transition))
+      tabular.stateSeedConditions = data.stateSeedConditions.map((condition) => structuredClone(condition))
+      dirty = true
+    },
+
     getBrane(braneIndex) {
+      ensureProjection()
       const brane = getSharedDbBraneByIndex(projection, braneIndex)
       return brane ? structuredClone(brane) : undefined
     },
 
     getBraneByDarkId(darkWimpId) {
+      ensureProjection()
       const brane = getSharedDbBraneByDarkId(projection, darkWimpId)
       return brane ? structuredClone(brane) : undefined
     },
 
     getField(fieldIndex) {
+      ensureProjection()
       const field = getSharedDbFieldByIndex(projection, fieldIndex)
       return field ? structuredClone(field) : undefined
     },
 
     getFieldByDarkId(darkFieldId) {
+      ensureProjection()
       const field = getSharedDbFieldByDarkId(projection, darkFieldId)
       return field ? structuredClone(field) : undefined
     },
 
     getFieldByKey(braneIndex, fieldKey) {
+      ensureProjection()
       const field = getSharedDbFieldByKey(projection, braneIndex, fieldKey)
       return field ? structuredClone(field) : undefined
     },
 
     getFieldValue(fieldIndex) {
+      ensureProjection()
       const fieldValue = getSharedDbFieldValue(projection, fieldIndex)
       return fieldValue ? structuredClone(fieldValue) : undefined
     },
 
     getFieldSource(childFieldIndex) {
+      ensureProjection()
       const fieldSource = getSharedDbFieldSource(projection, childFieldIndex)
       return fieldSource ? structuredClone(fieldSource) : undefined
     },
 
     getDependentFields(parentFieldIndex) {
+      ensureProjection()
       return getSharedDbDependentFields(projection, parentFieldIndex).map((field) => structuredClone(field))
     },
 
     setFieldValue(fieldIndex, value) {
-      const field = getSharedDbFieldByIndex(projection, fieldIndex)
+      const field = tabular.fields[fieldIndex]
       if (!field) {
         throw new Error(`Field index out of range: ${fieldIndex}`)
       }
 
-      const existing = projection.fieldValues[fieldIndex]
+      const existing = tabular.fieldValues[fieldIndex]
       if (existing) {
         existing.value = structuredClone(value)
+        dirty = true
         return
       }
 
-      projection.fieldValues[fieldIndex] = {
+      tabular.fieldValues[fieldIndex] = {
         fieldIndex,
         value: structuredClone(value),
       }
+      dirty = true
     },
   }
 }

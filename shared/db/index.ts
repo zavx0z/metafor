@@ -8,6 +8,7 @@ export {
   readSharedDbTabularData,
   sharedDbRequiredBackendIndexes,
 } from "./backend.ts"
+export { createSharedDbProjectionFromWimpTraces, openSharedDbMaterializationWriter } from "./materialize.ts"
 export {
   getSharedDbBraneByDarkId,
   getSharedDbBraneByIndex,
@@ -41,3 +42,4 @@ export type {
   SharedDbStateSeedTransitionRecord,
   SharedDbTabularData,
 } from "./db.t.ts"
+export type { SharedDbMaterializationWriter, SharedDbWimpFieldTrace, SharedDbWimpTrace } from "./materialize.ts"

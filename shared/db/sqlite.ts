@@ -476,9 +476,32 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
       `INSERT INTO branes("index", darkWimpId, src, name, fieldOffset, fieldCount)
        VALUES (?, ?, ?, ?, ?, ?)`,
     ),
+    upsertBrane: database.query(
+      `INSERT INTO branes("index", darkWimpId, src, name, fieldOffset, fieldCount)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT("index") DO UPDATE SET
+         darkWimpId = excluded.darkWimpId,
+         src = excluded.src,
+         name = excluded.name,
+         fieldOffset = excluded.fieldOffset,
+         fieldCount = excluded.fieldCount`,
+    ),
     insertField: database.query(
       `INSERT INTO fields("index", darkFieldId, ownerBraneIndex, "key", schemaType, schemaRequired, schemaTopology, schemaLabel, schemaValues)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ),
+    upsertField: database.query(
+      `INSERT INTO fields("index", darkFieldId, ownerBraneIndex, "key", schemaType, schemaRequired, schemaTopology, schemaLabel, schemaValues)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT("index") DO UPDATE SET
+         darkFieldId = excluded.darkFieldId,
+         ownerBraneIndex = excluded.ownerBraneIndex,
+         "key" = excluded."key",
+         schemaType = excluded.schemaType,
+         schemaRequired = excluded.schemaRequired,
+         schemaTopology = excluded.schemaTopology,
+         schemaLabel = excluded.schemaLabel,
+         schemaValues = excluded.schemaValues`,
     ),
     insertFieldValue: database.query(
       `INSERT INTO field_values(fieldIndex, valueJson)
@@ -488,6 +511,12 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
       `INSERT INTO field_sources(childFieldIndex, parentFieldIndex)
        VALUES (?, ?)`,
     ),
+    upsertFieldSource: database.query(
+      `INSERT INTO field_sources(childFieldIndex, parentFieldIndex)
+       VALUES (?, ?)
+       ON CONFLICT(childFieldIndex) DO UPDATE SET parentFieldIndex = excluded.parentFieldIndex`,
+    ),
+    deleteFieldSource: database.query(`DELETE FROM field_sources WHERE childFieldIndex = ?`),
     insertEntanglementSeedBlock: database.query(
       `INSERT INTO entanglement_seed_blocks("index", "key")
        VALUES (?, ?)`,
@@ -686,6 +715,84 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
     }
   })
 
+  const replaceRuntimeSeedsTxn = database.transaction((data: SharedDbRuntimeSeedData) => {
+    statements.clearStateSeedConditions.run()
+    statements.clearStateSeedTransitions.run()
+    statements.clearStateSeedStates.run()
+    statements.clearEntanglementSeedFieldMembers.run()
+    statements.clearEntanglementSeedFields.run()
+    statements.clearEntanglementSeedBlockMembers.run()
+    statements.clearEntanglementSeedBlocks.run()
+
+    for (const block of data.entanglementBlocks) {
+      statements.insertEntanglementSeedBlock.run(block.index, block.key)
+    }
+
+    for (const member of data.entanglementBlockMembers) {
+      statements.insertEntanglementSeedBlockMember.run(
+        member.index,
+        member.blockIndex,
+        member.memberIndex,
+        member.braneIndex,
+      )
+    }
+
+    for (const seedField of data.entanglementFields) {
+      statements.insertEntanglementSeedField.run(
+        seedField.index,
+        seedField.blockIndex,
+        seedField.blockFieldIndex,
+        seedField.semanticKey,
+        seedField.fieldName,
+        seedField.provenance,
+        seedField.representativeDarkFieldId,
+        seedField.representativeBraneIndex,
+        serializeJson(seedField.payloadIds),
+        serializeJson(seedField.semanticKeys),
+      )
+    }
+
+    for (const member of data.entanglementFieldMembers) {
+      statements.insertEntanglementSeedFieldMember.run(
+        member.index,
+        member.entanglementFieldIndex,
+        member.memberIndex,
+        member.braneIndex,
+        member.darkFieldId,
+      )
+    }
+
+    for (const state of data.stateSeedStates) {
+      statements.insertStateSeedState.run(
+        state.index,
+        state.ownerBraneIndex,
+        state.stateIndex,
+        state.name,
+        Number(state.initial),
+      )
+    }
+
+    for (const transition of data.stateSeedTransitions) {
+      statements.insertStateSeedTransition.run(
+        transition.index,
+        transition.ownerBraneIndex,
+        transition.fromStateIndex,
+        transition.transitionIndex,
+        transition.targetStateIndex,
+      )
+    }
+
+    for (const condition of data.stateSeedConditions) {
+      statements.insertStateSeedCondition.run(
+        condition.index,
+        condition.transitionSeedIndex,
+        condition.conditionIndex,
+        condition.darkFieldId,
+        serializeJson(condition.condition),
+      )
+    }
+  })
+
   return {
     requiredIndexes: sharedDbRequiredBackendIndexes,
 
@@ -696,6 +803,10 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
     getRootBraneIndex() {
       const row = statements.selectRootBraneIndex.get() as Record<string, unknown> | null
       return row ? Number(row.rootBraneIndex) : 0
+    },
+
+    setRootBraneIndex(braneIndex) {
+      statements.upsertRootBraneIndex.run(braneIndex)
     },
 
     getRuntimeSeedData() {
@@ -712,6 +823,44 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
 
     writeProjection(projection: SharedDbProjection) {
       replaceAll(prepareSharedDbTabularData(projection))
+    },
+
+    upsertBrane(brane) {
+      statements.upsertBrane.run(
+        brane.index,
+        brane.darkWimpId,
+        brane.src,
+        brane.name ?? null,
+        brane.fieldOffset,
+        brane.fieldCount,
+      )
+    },
+
+    upsertField(field) {
+      statements.upsertField.run(
+        field.index,
+        field.darkFieldId,
+        field.ownerBraneIndex,
+        field.key,
+        field.schema.type,
+        Number(field.schema.required),
+        Number(field.schema.topology),
+        field.schema.label ?? null,
+        field.schema.values !== undefined ? serializeJson(field.schema.values) : null,
+      )
+    },
+
+    setFieldSource(childFieldIndex, parentFieldIndex) {
+      if (parentFieldIndex === null) {
+        statements.deleteFieldSource.run(childFieldIndex)
+        return
+      }
+
+      statements.upsertFieldSource.run(childFieldIndex, parentFieldIndex)
+    },
+
+    replaceRuntimeSeedData(data) {
+      replaceRuntimeSeedsTxn(data)
     },
 
     getBrane(braneIndex) {

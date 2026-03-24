@@ -57,6 +57,13 @@ export interface SharedDbBackend {
   getRootBraneIndex(): number
 
   /**
+   * Обновляет индекс корневой браны incremental materialization-пути.
+   *
+   * @param braneIndex Индекс корневой браны.
+   */
+  setRootBraneIndex(braneIndex: number): void
+
+  /**
    * Возвращает bulk-срез runtime seeds.
    *
    * Seeds остаются flat DB-layer данными и не являются runtime-owned таблицами.
@@ -79,6 +86,39 @@ export interface SharedDbBackend {
    * @param projection Собранная проекция из `Dark`.
    */
   writeProjection(projection: SharedDbProjection): void
+
+  /**
+   * Upsert-ит одну brane-запись в существующую shared/db схему.
+   *
+   * @param brane Запись браны.
+   */
+  upsertBrane(brane: SharedDbBraneRecord): void
+
+  /**
+   * Upsert-ит одну field-запись в существующую shared/db схему.
+   *
+   * @param field Запись поля.
+   */
+  upsertField(field: SharedDbFieldRecord): void
+
+  /**
+   * Устанавливает direct ordinary source-связь дочернего поля.
+   *
+   * `null` удаляет существующую связь для child field.
+   *
+   * @param childFieldIndex Индекс дочернего поля.
+   * @param parentFieldIndex Индекс родительского поля или `null`.
+   */
+  setFieldSource(childFieldIndex: number, parentFieldIndex: number | null): void
+
+  /**
+   * Полностью заменяет derived runtime seed-таблицы.
+   *
+   * Базовые brane/field/value данные при этом не пересоздаются.
+   *
+   * @param data Новый flat runtime seed-срез.
+   */
+  replaceRuntimeSeedData(data: SharedDbRuntimeSeedData): void
 
   /**
    * Возвращает brane-запись по индексу.
