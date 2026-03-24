@@ -3,9 +3,10 @@ import { describe, expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { assembleSharedDbData } from "../../dark/db.ts"
 import { createSharedDbFixture } from "../../dark/db.fixture.ts"
-import { readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
+import { normalizeSharedDbData, readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
+import { openSharedDbMemoryBackend } from "./memory.ts"
+import { openSharedDbMaterializationWriter } from "./materialize.ts"
 import { openSharedDbSqliteBackend } from "./sqlite.ts"
 
 const createTempSqliteTarget = (): { dir: string; filename: string } => {
@@ -14,6 +15,15 @@ const createTempSqliteTarget = (): { dir: string; filename: string } => {
     dir,
     filename: join(dir, "shared-db.sqlite"),
   }
+}
+
+const materializeFixture = (fixture = createSharedDbFixture(), backend = openSharedDbMemoryBackend()) => {
+  const writer = openSharedDbMaterializationWriter(backend)
+
+  fixture.root.save(writer)
+  fixture.child.save(writer)
+
+  return { fixture, backend }
 }
 
 describe("shared db sqlite backend", () => {
@@ -89,20 +99,20 @@ describe("shared db sqlite backend", () => {
     }
   })
 
-  test("сохраняет canonical relational data в file-backed SQLite и перечитывает её после повторного открытия", () => {
-    const fixture = createSharedDbFixture()
-    const data = assembleSharedDbData(fixture.root)
+  test("сохраняет canonical relational rows через row-group writes и перечитывает их после повторного открытия", () => {
     const temp = createTempSqliteTarget()
+    const fixture = createSharedDbFixture()
+    const { backend: expectedBackend } = materializeFixture(fixture)
 
     try {
       const writer = openSharedDbSqliteBackend({ filename: temp.filename })
-      writer.writeData(data)
+      materializeFixture(fixture, writer)
       writer.close()
 
       const reader = openSharedDbSqliteBackend({ filename: temp.filename })
       try {
         const restored = readSharedDbData(reader)
-        expect(restored).toEqual(data)
+        expect(normalizeSharedDbData(restored)).toEqual(normalizeSharedDbData(expectedBackend.readData()))
 
         reader.setFieldValue(fixture.fields.childAlias.id, "Alias via sqlite")
       } finally {
@@ -118,6 +128,7 @@ describe("shared db sqlite backend", () => {
         reopened.close()
       }
     } finally {
+      expectedBackend.close()
       rmSync(temp.dir, { recursive: true, force: true })
     }
   })

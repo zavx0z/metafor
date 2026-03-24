@@ -1,6 +1,7 @@
 import { Wimp } from "@dark/strong"
 import type { DarkParticle } from "@dark/types"
-import { createSharedDbDataFromWimpBundles, type SharedDbData } from "@shared/db"
+import type { SharedDbData } from "@shared/db"
+import { createSharedDbDataFromWimpBundles } from "../shared/db/materialize.ts"
 
 /**
  * Собирает плоский список всех `Wimp`, достижимых от корня.
@@ -33,10 +34,9 @@ const collectReachableWimps = (root: Wimp): Wimp[] => {
 }
 
 /**
- * Строит канонический relational shared/db snapshot из полностью materialized `Dark`-графа.
+ * Легаси-helper для сравнения canonical shared/db rows в тестах и отладке.
  *
- * Полный snapshot использует тот же Wimp-level bundle,
- * что и поэтапный materialization write path.
+ * Активный write path больше не строится через full snapshot assembly.
  */
 export const assembleSharedDbData = (root: Wimp): SharedDbData =>
   createSharedDbDataFromWimpBundles(collectReachableWimps(root).map((wimp) => wimp.toSharedDbBundle()))

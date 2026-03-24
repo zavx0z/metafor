@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test"
-import { assembleSharedDbData } from "../../dark/db.ts"
 import { createSharedDbFixture } from "../../dark/db.fixture.ts"
 import { openSharedDbMemoryBackend } from "./memory.ts"
 import { normalizeSharedDbData, readSharedDbData } from "./backend.ts"
@@ -48,7 +47,10 @@ describe("shared db materialization writer", () => {
         "Alias after resave",
       )
       expect(roundTrip.entanglementFieldMembers).toHaveLength(6)
-      expect(normalizeSharedDbData(roundTrip)).toEqual(normalizeSharedDbData(assembleSharedDbData(fixture.root)))
+      expect(normalizeSharedDbData(roundTrip)).toEqual(normalizeSharedDbData(createSharedDbDataFromWimpBundles([
+        fixture.root.toSharedDbBundle(),
+        fixture.child.toSharedDbBundle(),
+      ])))
     } finally {
       backend.close()
     }

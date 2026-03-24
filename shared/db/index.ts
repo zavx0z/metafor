@@ -1,5 +1,5 @@
 export { createEmptySharedDbData, normalizeSharedDbData, readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
-export { createSharedDbDataFromWimpBundles, openSharedDbMaterializationWriter } from "./materialize.ts"
+export { openSharedDbMaterializationWriter } from "./materialize.ts"
 export {
   getSharedDbDependentFieldSources,
   getSharedDbEntanglementById,

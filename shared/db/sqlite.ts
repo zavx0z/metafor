@@ -590,7 +590,7 @@ const readAllData = (database: Database): SharedDbData => ({
   })),
 })
 
-const writeAllData = (database: Database, rawData: SharedDbData): void => {
+const legacyWriteAllData = (database: Database, rawData: SharedDbData): void => {
   const data = normalizeSharedDbData(rawData)
 
   const insert = database.transaction(() => {
@@ -1125,10 +1125,6 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
 
     readData() {
       return normalizeSharedDbData(readAllData(database))
-    },
-
-    writeData(data) {
-      writeAllData(database, data)
     },
 
     writeMetaRows(rows) {

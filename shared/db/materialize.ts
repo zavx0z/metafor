@@ -703,10 +703,9 @@ const collectMetaRowsAndContexts = (orderedBundles: SharedDbWimpBundle[]): {
 }
 
 /**
- * Собирает канонический relational snapshot из fully-formed `Wimp` bundles.
+ * Helper для тестов и сравнений: собирает canonical relational data из fully-formed `Wimp` bundles.
  *
- * DB-shaped projection больше не считается persisted слоем; в snapshot попадают
- * только entity/relation tables с UUID identity.
+ * Это не storage API. Активная запись идёт через row-group writer.
  */
 export const createSharedDbDataFromWimpBundles = (orderedBundles: SharedDbWimpBundle[]): SharedDbData => {
   const bundles = orderedBundles.map(cloneWimpBundle)

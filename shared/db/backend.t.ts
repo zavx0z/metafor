@@ -103,7 +103,6 @@ export interface SharedDbBackend {
   close(): void
   reset(): void
   readData(): SharedDbData
-  writeData(data: SharedDbData): void
   /** Записывает весь meta-level canonical row group для одной меты. */
   writeMetaRows(rows: SharedDbMetaRows): void
   /** Записывает весь instance-level canonical row group для одного wimp. */

@@ -110,10 +110,6 @@ export const openSharedDbMemoryBackend = (initialData: SharedDbData = createEmpt
       return normalizeSharedDbData(data)
     },
 
-    writeData(nextData) {
-      data = normalizeSharedDbData(nextData)
-    },
-
     writeMetaRows(rows) {
       const nextData = normalizeSharedDbData(data)
       writeMetaRows(nextData, rows)
