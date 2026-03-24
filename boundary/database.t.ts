@@ -1,5 +1,6 @@
 import type { FieldKey } from "@metafor/ast"
 import type { PreparedEntanglementProjection } from "@boundary/strong"
+import type { SharedDbData } from "@shared/db"
 
 export interface BoundaryDatabaseFieldSchemaRecord {
   type: string
@@ -115,6 +116,11 @@ export interface BoundaryDatabaseData {
 
 export interface BoundarySharedDbRuntimeOptions {
   entanglement?: PreparedEntanglementProjection
+}
+
+export interface BoundaryRuntimePackage {
+  wimpId: string
+  data: SharedDbData
 }
 
 export interface BoundaryDatabase extends BoundaryDatabaseData {

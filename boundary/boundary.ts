@@ -6,6 +6,8 @@
  * ## Ответственность
  *
  * - `write()` — запись канонической boundary-структуры в доменный store
+ * - `addRuntimeWimpFromSharedDb()` / `removeRuntimeWimp()` — загрузка и удаление runtime-пакетов активного фрагмента
+ * - `rebuildRuntime()` — пересборка runtime из уже загруженных runtime-пакетов
  * - `update()` — обновление полей и вычисление следующего перехода
  * - `unlock()` — снятие блокировки с бран
  *
@@ -14,6 +16,10 @@
  * Boundary раскладывает уже подготовленную boundary-форму через
  * `@boundary/gravity`, собирает канонический store через `@boundary/strong`
  * и оркестрирует вычисление перехода через `@boundary/weak`.
+ *
+ * Поверх `shared/db` Boundary держит активный runtime-фрагмент:
+ * каноническая DB остаётся источником мира, а rebuild идёт уже из загруженных runtime-пакетов,
+ * а не из полного перечитывания базы как основного режима работы.
  *
  * Boundary НЕ содержит:
  * - source graph loading и primary addressing — это `@metafor/dark`
@@ -26,11 +32,14 @@ import { boundary$ } from "./store"
 import type { BoundaryFieldValueRecord, BoundaryStore } from "./store.t"
 import type { PreparedData } from "./boundary.t"
 import {
+  prepareBoundaryRuntimePackageFromSharedDb,
+  prepareBoundaryRuntimePackagesFromSharedDb,
   prepareBoundaryRuntimeData,
+  prepareBoundaryRuntimeDataFromPackages as prepareBoundaryRuntimeDataFromPackageSet,
   prepareBoundaryRuntimeStore,
-  prepareBoundaryRuntimeStoreFromSharedDb,
+  prepareBoundaryRuntimeStoreFromPackages as prepareBoundaryRuntimeStoreFromPackageSet,
 } from "./database"
-import type { BoundarySharedDbRuntimeOptions } from "./database.t"
+import type { BoundaryRuntimePackage, BoundarySharedDbRuntimeOptions } from "./database.t"
 import { flattenBoundaryData, validateData, type Data } from "@boundary/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData } from "@boundary/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
@@ -38,12 +47,14 @@ import type { SharedDbBackend, SharedDbData } from "@shared/db"
 
 let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null
+const runtimePackagesByWimpId = new Map<string, BoundaryRuntimePackage>()
 
 function reset(): void {
   boundary$.reset()
   writeMutex = null
   updateMutex = null
   weak$.reset()
+  runtimePackagesByWimpId.clear()
 }
 
 export function prepareData(data: Data): PreparedData {
@@ -64,11 +75,29 @@ export function prepareRuntimeStore(
   return prepareBoundaryRuntimeStore(data, options)
 }
 
+export function prepareRuntimeDataFromPackages(
+  packages: Iterable<BoundaryRuntimePackage>,
+  options: BoundarySharedDbRuntimeOptions = {},
+): Data {
+  return prepareBoundaryRuntimeDataFromPackageSet(packages, options)
+}
+
+export function prepareRuntimeStoreFromPackages(
+  packages: Iterable<BoundaryRuntimePackage>,
+  options: BoundarySharedDbRuntimeOptions = {},
+): PreparedData {
+  return prepareBoundaryRuntimeStoreFromPackageSet(packages, options)
+}
+
 export function prepareRuntimeFromSharedDb(
   backend: SharedDbBackend,
   options: BoundarySharedDbRuntimeOptions = {},
 ): PreparedData {
-  return prepareBoundaryRuntimeStoreFromSharedDb(backend, options)
+  return prepareBoundaryRuntimeStoreFromPackageSet(prepareBoundaryRuntimePackagesFromSharedDb(backend), options)
+}
+
+export function listRuntimeWimpIds(): string[] {
+  return [...runtimePackagesByWimpId.keys()]
 }
 
 async function writePreparedData(prepared: PreparedData): Promise<[number, number][]> {
@@ -102,7 +131,40 @@ export async function writeRuntimeFromSharedDb(
   backend: SharedDbBackend,
   options: BoundarySharedDbRuntimeOptions = {},
 ): Promise<[number, number][]> {
-  return await writePreparedData(prepareRuntimeFromSharedDb(backend, options))
+  const runtimePackages = prepareBoundaryRuntimePackagesFromSharedDb(backend)
+  const changes = await writePreparedData(prepareBoundaryRuntimeStoreFromPackageSet(runtimePackages, options))
+
+  runtimePackagesByWimpId.clear()
+  runtimePackages.forEach((pkg) => runtimePackagesByWimpId.set(pkg.wimpId, pkg))
+  return changes
+}
+
+export async function rebuildRuntime(
+  options: BoundarySharedDbRuntimeOptions = {},
+): Promise<[number, number][]> {
+  if (runtimePackagesByWimpId.size === 0) {
+    reset()
+    return []
+  }
+
+  return await writePreparedData(prepareBoundaryRuntimeStoreFromPackageSet(runtimePackagesByWimpId.values(), options))
+}
+
+export async function addRuntimeWimpFromSharedDb(
+  backend: SharedDbBackend,
+  wimpId: string,
+  options: BoundarySharedDbRuntimeOptions = {},
+): Promise<[number, number][]> {
+  runtimePackagesByWimpId.set(wimpId, prepareBoundaryRuntimePackageFromSharedDb(backend, wimpId))
+  return await rebuildRuntime(options)
+}
+
+export async function removeRuntimeWimp(
+  wimpId: string,
+  options: BoundarySharedDbRuntimeOptions = {},
+): Promise<[number, number][]> {
+  runtimePackagesByWimpId.delete(wimpId)
+  return await rebuildRuntime(options)
 }
 
 function requireInitializedStore(store$: BoundaryStore): void {

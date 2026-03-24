@@ -1,10 +1,20 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test"
 import { Wimp } from "@dark/strong"
-import { openSharedDbMaterializationWriter, openSharedDbSqliteBackend } from "@shared/db"
+import { openSharedDbMaterializationWriter, openSharedDbMemoryBackend, openSharedDbSqliteBackend } from "@shared/db"
 import { HubFixture } from "fixture"
 import { matter } from "../../dark/dark.ts"
+import { createSharedDbFixture } from "../../dark/db.fixture.ts"
 import { dark$ } from "../../dark/store.ts"
-import { boundary$, prepareRuntimeFromSharedDb, reset, writeRuntimeFromSharedDb } from "../boundary.ts"
+import {
+  addRuntimeWimpFromSharedDb,
+  boundary$,
+  listRuntimeWimpIds,
+  prepareRuntimeFromSharedDb,
+  rebuildRuntime,
+  removeRuntimeWimp,
+  reset,
+  writeRuntimeFromSharedDb,
+} from "../boundary.ts"
 import { weak$ } from "../weak"
 
 const hub = new HubFixture("./github/")
@@ -22,6 +32,17 @@ const materializeGithubWorldToSharedDb = async () => {
   await matter(new Wimp({ src: "zavx0z/git", parent: null }), undefined, { sharedDbWriter: writer })
 
   return backend
+}
+
+const materializeFixtureToSharedDb = () => {
+  const fixture = createSharedDbFixture()
+  const backend = openSharedDbMemoryBackend()
+  const writer = openSharedDbMaterializationWriter(backend)
+
+  fixture.root.save(writer)
+  fixture.child.save(writer)
+
+  return { fixture, backend }
 }
 
 describe("boundary runtime from shared/db backend", () => {
@@ -74,6 +95,65 @@ describe("boundary runtime from shared/db backend", () => {
       expect(boundary$.stringTable).toEqual(prepared.stringTable)
       expect(boundary$.sharedValues.length + boundary$.braneValues.length).toBeGreaterThan(0)
       expect(boundary$.sharedBlocks.length + boundary$.braneSharedBlockRefs.length).toBeGreaterThan(0)
+    } finally {
+      backend.close()
+    }
+  })
+
+  test("добавляет и удаляет runtime-пакеты Wimp поверх уже записанной shared/db", async () => {
+    const { fixture, backend } = materializeFixtureToSharedDb()
+
+    try {
+      expect(listRuntimeWimpIds()).toEqual([])
+
+      await addRuntimeWimpFromSharedDb(backend, fixture.root.id)
+      expect(listRuntimeWimpIds()).toEqual([fixture.root.id])
+      expect(boundary$.branes).toHaveLength(1)
+      expect(boundary$.sharedBlocks).toEqual([])
+
+      await addRuntimeWimpFromSharedDb(backend, fixture.child.id)
+      expect(listRuntimeWimpIds()).toEqual([fixture.root.id, fixture.child.id])
+      expect(boundary$.branes).toHaveLength(2)
+      expect(boundary$.sharedBlocks).toHaveLength(1)
+      expect(boundary$.braneSharedBlockRefs).toEqual([0, 0])
+
+      await removeRuntimeWimp(fixture.child.id)
+      expect(listRuntimeWimpIds()).toEqual([fixture.root.id])
+      expect(boundary$.branes).toHaveLength(1)
+      expect(boundary$.sharedBlocks).toEqual([])
+    } finally {
+      backend.close()
+    }
+  })
+
+  test("пересобирает runtime из уже загруженных runtime-пакетов без повторного чтения всей DB", async () => {
+    const { fixture, backend } = materializeFixtureToSharedDb()
+
+    try {
+      await addRuntimeWimpFromSharedDb(backend, fixture.root.id)
+      await addRuntimeWimpFromSharedDb(backend, fixture.child.id)
+
+      const snapshot = {
+        branes: structuredClone(boundary$.branes),
+        fields: structuredClone(boundary$.fields),
+        sharedBlocks: structuredClone(boundary$.sharedBlocks),
+        sharedValues: structuredClone(boundary$.sharedValues),
+        braneSharedBlockRefs: structuredClone(boundary$.braneSharedBlockRefs),
+        stringTable: structuredClone(boundary$.stringTable),
+        states: structuredClone(boundary$.states),
+      }
+
+      backend.close()
+
+      const changes = await rebuildRuntime()
+      expect(changes).toEqual([])
+      expect(boundary$.branes).toEqual(snapshot.branes)
+      expect(boundary$.fields).toEqual(snapshot.fields)
+      expect(boundary$.sharedBlocks).toEqual(snapshot.sharedBlocks)
+      expect(boundary$.sharedValues).toEqual(snapshot.sharedValues)
+      expect(boundary$.braneSharedBlockRefs).toEqual(snapshot.braneSharedBlockRefs)
+      expect(boundary$.stringTable).toEqual(snapshot.stringTable)
+      expect(boundary$.states).toEqual(snapshot.states)
     } finally {
       backend.close()
     }
