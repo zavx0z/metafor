@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite"
 import { createEmptySharedDbData, normalizeSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
-import type { SharedDbBackend } from "./backend.t.ts"
+import type { SharedDbBackend, SharedDbEntanglementRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
 import type { SharedDbData, SharedDbFieldSchemaRecord } from "./db.t.ts"
 
 export interface SharedDbSqliteBackendOptions {
@@ -818,6 +818,304 @@ const writeAllData = (database: Database, rawData: SharedDbData): void => {
   insert()
 }
 
+const upsertMetaRow = (database: Database, rows: SharedDbMetaRows): void => {
+  database.transaction(() => {
+    database
+      .query(
+        `INSERT INTO metas(id, src, name, bulkJson, massJson)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           src = excluded.src,
+           name = excluded.name,
+           bulkJson = excluded.bulkJson,
+           massJson = excluded.massJson`,
+      )
+      .run(
+        rows.meta.id,
+        rows.meta.src,
+        rows.meta.name ?? null,
+        rows.meta.bulk === undefined ? null : serializeJson(rows.meta.bulk),
+        rows.meta.mass === undefined ? null : serializeJson(rows.meta.mass),
+      )
+
+    database.query(`DELETE FROM meta_matter_edges WHERE ownerMetaId = ?`).run(rows.meta.id)
+    database.query(`DELETE FROM meta_matter_nodes WHERE ownerMetaId = ?`).run(rows.meta.id)
+    database
+      .query(`DELETE FROM meta_reaction_states WHERE ownerMetaReactionId IN (SELECT id FROM meta_reactions WHERE ownerMetaId = ?)`)
+      .run(rows.meta.id)
+    database
+      .query(`DELETE FROM meta_reaction_reads WHERE ownerMetaReactionId IN (SELECT id FROM meta_reactions WHERE ownerMetaId = ?)`)
+      .run(rows.meta.id)
+    database
+      .query(`DELETE FROM meta_reaction_writes WHERE ownerMetaReactionId IN (SELECT id FROM meta_reactions WHERE ownerMetaId = ?)`)
+      .run(rows.meta.id)
+    database.query(`DELETE FROM meta_reactions WHERE ownerMetaId = ?`).run(rows.meta.id)
+    database
+      .query(`DELETE FROM meta_process_reads WHERE ownerMetaProcessId IN (SELECT id FROM meta_processes WHERE ownerMetaId = ?)`)
+      .run(rows.meta.id)
+    database
+      .query(`DELETE FROM meta_process_writes WHERE ownerMetaProcessId IN (SELECT id FROM meta_processes WHERE ownerMetaId = ?)`)
+      .run(rows.meta.id)
+    database.query(`DELETE FROM meta_processes WHERE ownerMetaId = ?`).run(rows.meta.id)
+    database
+      .query(
+        `DELETE FROM meta_transition_conditions
+         WHERE ownerMetaTransitionId IN (
+           SELECT meta_transitions.id
+           FROM meta_transitions
+           INNER JOIN meta_states ON meta_states.id = meta_transitions.ownerMetaStateId
+           WHERE meta_states.ownerMetaId = ?
+         )`,
+      )
+      .run(rows.meta.id)
+    database
+      .query(`DELETE FROM meta_transitions WHERE ownerMetaStateId IN (SELECT id FROM meta_states WHERE ownerMetaId = ?)`)
+      .run(rows.meta.id)
+    database.query(`DELETE FROM meta_states WHERE ownerMetaId = ?`).run(rows.meta.id)
+    database.query(`DELETE FROM meta_fields WHERE ownerMetaId = ?`).run(rows.meta.id)
+
+    const insertMetaField = database.query(
+      `INSERT INTO meta_fields(id, ownerMetaId, fieldKey, fieldOrder, schemaType, schemaRequired, schemaTopology, schemaLabel, schemaValues)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    rows.fields.forEach((row) => {
+      insertMetaField.run(
+        row.id,
+        row.ownerMetaId,
+        row.fieldKey,
+        row.fieldOrder,
+        row.schema.type,
+        row.schema.required ? 1 : 0,
+        row.schema.topology ? 1 : 0,
+        row.schema.label ?? null,
+        row.schema.values === undefined ? null : serializeJson(row.schema.values),
+      )
+    })
+
+    const insertMetaState = database.query(
+      `INSERT INTO meta_states(id, ownerMetaId, stateName, stateOrder, initial) VALUES (?, ?, ?, ?, ?)`,
+    )
+    rows.states.forEach((row) => insertMetaState.run(row.id, row.ownerMetaId, row.stateName, row.stateOrder, row.initial ? 1 : 0))
+
+    const insertMetaTransition = database.query(
+      `INSERT INTO meta_transitions(id, ownerMetaStateId, targetMetaStateId, transitionOrder) VALUES (?, ?, ?, ?)`,
+    )
+    rows.transitions.forEach((row) =>
+      insertMetaTransition.run(row.id, row.ownerMetaStateId, row.targetMetaStateId, row.transitionOrder),
+    )
+
+    const insertMetaTransitionCondition = database.query(
+      `INSERT INTO meta_transition_conditions(id, ownerMetaTransitionId, metaFieldId, conditionOrder, conditionJson)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    rows.transitionConditions.forEach((row) =>
+      insertMetaTransitionCondition.run(
+        row.id,
+        row.ownerMetaTransitionId,
+        row.metaFieldId,
+        row.conditionOrder,
+        serializeJson(row.condition),
+      ),
+    )
+
+    const insertMetaProcess = database.query(
+      `INSERT INTO meta_processes(
+         id, ownerMetaId, processKey, processOrder, processKind, label, desc,
+         actionSrc, actionImportSpecifier, successSrc, errorSrc, beforeSrc
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    rows.processes.forEach((row) =>
+      insertMetaProcess.run(
+        row.id,
+        row.ownerMetaId,
+        row.processKey,
+        row.processOrder,
+        row.processKind,
+        row.label ?? null,
+        row.desc ?? null,
+        row.actionSrc ?? null,
+        row.actionImportSpecifier ?? null,
+        row.successSrc ?? null,
+        row.errorSrc ?? null,
+        row.beforeSrc ?? null,
+      ),
+    )
+
+    const insertMetaProcessRead = database.query(
+      `INSERT INTO meta_process_reads(id, ownerMetaProcessId, metaFieldId, phase, readOrder) VALUES (?, ?, ?, ?, ?)`,
+    )
+    rows.processReads.forEach((row) =>
+      insertMetaProcessRead.run(row.id, row.ownerMetaProcessId, row.metaFieldId, row.phase, row.readOrder),
+    )
+
+    const insertMetaProcessWrite = database.query(
+      `INSERT INTO meta_process_writes(id, ownerMetaProcessId, metaFieldId, phase, writeOrder) VALUES (?, ?, ?, ?, ?)`,
+    )
+    rows.processWrites.forEach((row) =>
+      insertMetaProcessWrite.run(row.id, row.ownerMetaProcessId, row.metaFieldId, row.phase, row.writeOrder),
+    )
+
+    const insertMetaReaction = database.query(
+      `INSERT INTO meta_reactions(id, ownerMetaId, reactionKey, reactionOrder, label, desc, cond, src)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    rows.reactions.forEach((row) =>
+      insertMetaReaction.run(
+        row.id,
+        row.ownerMetaId,
+        row.reactionKey,
+        row.reactionOrder,
+        row.label,
+        row.desc ?? null,
+        row.cond,
+        row.src,
+      ),
+    )
+
+    const insertMetaReactionState = database.query(
+      `INSERT INTO meta_reaction_states(id, ownerMetaReactionId, metaStateId, stateOrder) VALUES (?, ?, ?, ?)`,
+    )
+    rows.reactionStates.forEach((row) =>
+      insertMetaReactionState.run(row.id, row.ownerMetaReactionId, row.metaStateId, row.stateOrder),
+    )
+
+    const insertMetaReactionRead = database.query(
+      `INSERT INTO meta_reaction_reads(id, ownerMetaReactionId, metaFieldId, readOrder) VALUES (?, ?, ?, ?)`,
+    )
+    rows.reactionReads.forEach((row) =>
+      insertMetaReactionRead.run(row.id, row.ownerMetaReactionId, row.metaFieldId, row.readOrder),
+    )
+
+    const insertMetaReactionWrite = database.query(
+      `INSERT INTO meta_reaction_writes(id, ownerMetaReactionId, metaFieldId, writeOrder) VALUES (?, ?, ?, ?)`,
+    )
+    rows.reactionWrites.forEach((row) =>
+      insertMetaReactionWrite.run(row.id, row.ownerMetaReactionId, row.metaFieldId, row.writeOrder),
+    )
+
+    const insertMetaMatterNode = database.query(
+      `INSERT INTO meta_matter_nodes(id, ownerMetaId, nodeType, nodeOrder, payloadJson) VALUES (?, ?, ?, ?, ?)`,
+    )
+    rows.matterNodes.forEach((row) =>
+      insertMetaMatterNode.run(row.id, row.ownerMetaId, row.nodeType, row.nodeOrder, serializeJson(row.payload)),
+    )
+
+    const insertMetaMatterEdge = database.query(
+      `INSERT INTO meta_matter_edges(id, ownerMetaId, parentNodeId, childNodeId, edgeOrder) VALUES (?, ?, ?, ?, ?)`,
+    )
+    rows.matterEdges.forEach((row) =>
+      insertMetaMatterEdge.run(row.id, row.ownerMetaId, row.parentNodeId, row.childNodeId, row.edgeOrder),
+    )
+  })()
+}
+
+const upsertWimpRow = (database: Database, rows: SharedDbWimpRows): void => {
+  database.transaction(() => {
+    database
+      .query(
+        `INSERT INTO wimps(id, metaId, wimpOrder, massOverrideJson)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           metaId = excluded.metaId,
+           wimpOrder = excluded.wimpOrder,
+           massOverrideJson = excluded.massOverrideJson`,
+      )
+      .run(
+        rows.wimp.id,
+        rows.wimp.metaId,
+        rows.wimp.wimpOrder,
+        rows.wimp.massOverride === undefined ? null : serializeJson(rows.wimp.massOverride),
+      )
+
+    database.query(`DELETE FROM wimp_states WHERE ownerWimpId = ?`).run(rows.wimp.id)
+    database.query(`DELETE FROM wimp_fields WHERE ownerWimpId = ?`).run(rows.wimp.id)
+
+    const insertWimpField = database.query(
+      `INSERT INTO wimp_fields(id, ownerWimpId, metaFieldId, fieldOrder) VALUES (?, ?, ?, ?)`,
+    )
+    rows.fields.forEach((row) => insertWimpField.run(row.id, row.ownerWimpId, row.metaFieldId, row.fieldOrder))
+
+    const insertFieldValue = database.query(
+      `INSERT INTO field_values(id, ownerWimpFieldId, valueJson) VALUES (?, ?, ?)`,
+    )
+    rows.values.forEach((row) => insertFieldValue.run(row.id, row.ownerWimpFieldId, serializeJson(row.value)))
+
+    const insertFieldSource = database.query(
+      `INSERT INTO field_sources(id, childWimpFieldId, parentWimpFieldId) VALUES (?, ?, ?)`,
+    )
+    rows.sources.forEach((row) => insertFieldSource.run(row.id, row.childWimpFieldId, row.parentWimpFieldId))
+
+    database
+      .query(`INSERT INTO wimp_states(id, ownerWimpId, metaStateId) VALUES (?, ?, ?)`)
+      .run(rows.state.id, rows.state.ownerWimpId, rows.state.metaStateId)
+  })()
+}
+
+const replaceWimpEdgesInDatabase = (database: Database, rows: SharedDbData["wimpEdges"]): void => {
+  database.transaction(() => {
+    database.exec(`DELETE FROM wimp_edges`)
+    const insertWimpEdge = database.query(
+      `INSERT INTO wimp_edges(id, parentWimpId, childWimpId, edgeOrder) VALUES (?, ?, ?, ?)`,
+    )
+    rows.forEach((row) => insertWimpEdge.run(row.id, row.parentWimpId, row.childWimpId, row.edgeOrder))
+  })()
+}
+
+const replaceEntanglementRowsInDatabase = (database: Database, rows: SharedDbEntanglementRows): void => {
+  database.transaction(() => {
+    database.exec(`DELETE FROM entanglement_field_members`)
+    database.exec(`DELETE FROM entanglement_fields`)
+    database.exec(`DELETE FROM entanglement_members`)
+    database.exec(`DELETE FROM entanglements`)
+
+    const insertEntanglement = database.query(
+      `INSERT INTO entanglements(id, membershipKey, provenance) VALUES (?, ?, ?)`,
+    )
+    rows.entanglements.forEach((row) => insertEntanglement.run(row.id, row.membershipKey, row.provenance))
+
+    const insertEntanglementMember = database.query(
+      `INSERT INTO entanglement_members(id, ownerEntanglementId, wimpId, memberOrder) VALUES (?, ?, ?, ?)`,
+    )
+    rows.members.forEach((row) =>
+      insertEntanglementMember.run(row.id, row.ownerEntanglementId, row.wimpId, row.memberOrder),
+    )
+
+    const insertEntanglementField = database.query(
+      `INSERT INTO entanglement_fields(
+         id, ownerEntanglementId, fieldOrder, semanticKey, fieldName, provenance,
+         representativeWimpFieldId, payloadIdsJson, semanticKeysJson
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    rows.fields.forEach((row) =>
+      insertEntanglementField.run(
+        row.id,
+        row.ownerEntanglementId,
+        row.fieldOrder,
+        row.semanticKey,
+        row.fieldName,
+        row.provenance,
+        row.representativeWimpFieldId,
+        serializeJson(row.payloadIds),
+        serializeJson(row.semanticKeys),
+      ),
+    )
+
+    const insertEntanglementFieldMember = database.query(
+      `INSERT INTO entanglement_field_members(id, ownerEntanglementFieldId, ownerWimpId, wimpFieldId, memberOrder)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    rows.fieldMembers.forEach((row) =>
+      insertEntanglementFieldMember.run(
+        row.id,
+        row.ownerEntanglementFieldId,
+        row.ownerWimpId,
+        row.wimpFieldId,
+        row.memberOrder,
+      ),
+    )
+  })()
+}
+
 export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions = {}): SharedDbBackend => {
   const database = new Database(options.filename ?? ":memory:")
   initializeSharedDbSqliteSchema(database)
@@ -837,12 +1135,24 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
       return normalizeSharedDbData(readAllData(database))
     },
 
-    replaceData(data) {
+    writeData(data) {
       writeAllData(database, data)
     },
 
-    writeData(data) {
-      writeAllData(database, data)
+    writeMetaRows(rows) {
+      upsertMetaRow(database, rows)
+    },
+
+    writeWimpRows(rows) {
+      upsertWimpRow(database, rows)
+    },
+
+    replaceWimpEdges(rows) {
+      replaceWimpEdgesInDatabase(database, rows)
+    },
+
+    replaceEntanglementRows(rows) {
+      replaceEntanglementRowsInDatabase(database, rows)
     },
 
     setFieldValue(wimpFieldId, value) {

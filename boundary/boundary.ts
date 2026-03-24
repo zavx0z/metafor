@@ -25,12 +25,16 @@
 import { boundary$ } from "./store"
 import type { BoundaryFieldValueRecord, BoundaryStore } from "./store.t"
 import type { PreparedData } from "./boundary.t"
-import { prepareBoundaryStoreFromSharedDb } from "./database"
+import {
+  prepareBoundaryRuntimeData,
+  prepareBoundaryRuntimeStore,
+  prepareBoundaryRuntimeStoreFromSharedDb,
+} from "./database"
 import type { BoundarySharedDbRuntimeOptions } from "./database.t"
 import { flattenBoundaryData, validateData, type Data } from "@boundary/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData } from "@boundary/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
-import type { SharedDbBackend } from "@shared/db"
+import type { SharedDbBackend, SharedDbData } from "@shared/db"
 
 let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null
@@ -46,11 +50,25 @@ export function prepareData(data: Data): PreparedData {
   return assembleStoredBoundaryData(flattenBoundaryData(data))
 }
 
-export function prepareSharedDbData(
+export function prepareRuntimeData(
+  data: SharedDbData,
+  options: BoundarySharedDbRuntimeOptions = {},
+): Data {
+  return prepareBoundaryRuntimeData(data, options)
+}
+
+export function prepareRuntimeStore(
+  data: SharedDbData,
+  options: BoundarySharedDbRuntimeOptions = {},
+): PreparedData {
+  return prepareBoundaryRuntimeStore(data, options)
+}
+
+export function prepareRuntimeFromSharedDb(
   backend: SharedDbBackend,
   options: BoundarySharedDbRuntimeOptions = {},
 ): PreparedData {
-  return prepareBoundaryStoreFromSharedDb(backend, options)
+  return prepareBoundaryRuntimeStoreFromSharedDb(backend, options)
 }
 
 async function writePreparedData(prepared: PreparedData): Promise<[number, number][]> {
@@ -80,11 +98,11 @@ export async function write(data: Data): Promise<[number, number][]> {
   return await writePreparedData(assembleStoredBoundaryData(flattenBoundaryData(data)))
 }
 
-export async function writeSharedDb(
+export async function writeRuntimeFromSharedDb(
   backend: SharedDbBackend,
   options: BoundarySharedDbRuntimeOptions = {},
 ): Promise<[number, number][]> {
-  return await writePreparedData(prepareSharedDbData(backend, options))
+  return await writePreparedData(prepareRuntimeFromSharedDb(backend, options))
 }
 
 function requireInitializedStore(store$: BoundaryStore): void {
@@ -179,3 +197,4 @@ export type { PreparedData } from "./boundary.t"
 export { FieldType } from "./gravity"
 export { reset, boundary$ }
 export { flattenBoundaryData } from "./gravity"
+export { prepareRuntimeFromSharedDb as prepareSharedDbData, writeRuntimeFromSharedDb as writeSharedDb }

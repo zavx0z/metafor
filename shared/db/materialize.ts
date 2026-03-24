@@ -27,7 +27,7 @@ import type {
   SharedDbWimpRecord,
   SharedDbWimpStateRecord,
 } from "./db.t.ts"
-import type { SharedDbBackend } from "./backend.t.ts"
+import type { SharedDbBackend, SharedDbEntanglementRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
 import { createEmptySharedDbData, normalizeSharedDbData } from "./backend.ts"
 import { deriveUuid } from "./uuid.ts"
 
@@ -79,6 +79,10 @@ type MetaContext = {
 }
 
 type WimpFieldWithOwner = SharedDbWimpFieldBundle & { ownerWimpId: string }
+
+type MetaMaterializationState = {
+  nextMatterNodeOrder: number
+}
 
 const isTopologyFieldType = (type: string): boolean => type.startsWith("enum<") || type.startsWith("array<")
 
@@ -148,6 +152,7 @@ const appendMetaMatter = (
   data: SharedDbData,
   ownerMetaId: string,
   nodes: SharedDbMetaBundle["matter"],
+  state: MetaMaterializationState,
   parentNodeId: string | null = null,
   path: number[] = [],
 ): void => {
@@ -163,9 +168,10 @@ const appendMetaMatter = (
       id: nodeId,
       ownerMetaId,
       nodeType: String(node.type),
-      nodeOrder: data.metaMatterNodes.length,
+      nodeOrder: state.nextMatterNodeOrder,
       payload,
     })
+    state.nextMatterNodeOrder += 1
 
     data.metaMatterEdges.push({
       id: deriveUuid("meta-matter-edge", ownerMetaId, parentNodeId ?? "root", nodeId, edgeOrder),
@@ -176,7 +182,7 @@ const appendMetaMatter = (
     })
 
     if (Array.isArray(child) && child.length > 0) {
-      appendMetaMatter(data, ownerMetaId, child, nodeId, nextPath)
+      appendMetaMatter(data, ownerMetaId, child, state, nodeId, nextPath)
     }
   })
 }
@@ -304,9 +310,8 @@ const appendMetaReactions = (data: SharedDbData, meta: SharedDbMetaBundle, conte
   })
 }
 
-const ensureMetaContext = (data: SharedDbData, meta: SharedDbMetaBundle, cache: Map<string, MetaContext>): MetaContext => {
-  const existing = cache.get(meta.id)
-  if (existing) return existing
+const materializeMetaRows = (meta: SharedDbMetaBundle): { rows: SharedDbMetaRows; context: MetaContext } => {
+  const data = createEmptySharedDbData()
 
   data.metas.push({
     id: meta.id,
@@ -385,9 +390,27 @@ const ensureMetaContext = (data: SharedDbData, meta: SharedDbMetaBundle, cache: 
   const context: MetaContext = { fieldIdByKey, stateIdByName, initialStateId }
   appendMetaProcesses(data, meta, context)
   appendMetaReactions(data, meta, context)
-  appendMetaMatter(data, meta.id, meta.matter)
-  cache.set(meta.id, context)
-  return context
+  appendMetaMatter(data, meta.id, meta.matter, { nextMatterNodeOrder: 0 })
+
+  return {
+    rows: {
+      meta: data.metas[0]!,
+      fields: data.metaFields,
+      states: data.metaStates,
+      transitions: data.metaTransitions,
+      transitionConditions: data.metaTransitionConditions,
+      processes: data.metaProcesses,
+      processReads: data.metaProcessReads,
+      processWrites: data.metaProcessWrites,
+      reactions: data.metaReactions,
+      reactionStates: data.metaReactionStates,
+      reactionReads: data.metaReactionReads,
+      reactionWrites: data.metaReactionWrites,
+      matterNodes: data.metaMatterNodes,
+      matterEdges: data.metaMatterEdges,
+    },
+    context,
+  }
 }
 
 const resolveSourceRoot = (
@@ -497,6 +520,145 @@ const appendEntanglements = (
   }
 }
 
+const materializeWimpRows = (
+  bundle: SharedDbWimpBundle,
+  wimpOrder: number,
+  metaContext: MetaContext,
+): SharedDbWimpRows => {
+  const fields = bundle.fields
+    .slice()
+    .sort((left, right) => left.fieldOrder - right.fieldOrder)
+    .map((field): SharedDbWimpFieldRecord => {
+      const metaFieldId = metaContext.fieldIdByKey.get(field.key)
+      if (metaFieldId !== field.metaFieldId) {
+        throw new Error(
+          `Shared DB wimp field ${field.id} does not match meta field mapping for key '${field.key}' in meta ${bundle.meta.id}`,
+        )
+      }
+
+      return {
+        id: field.id,
+        ownerWimpId: bundle.id,
+        metaFieldId: field.metaFieldId,
+        fieldOrder: field.fieldOrder,
+      }
+    })
+
+  return {
+    wimp: {
+      id: bundle.id,
+      metaId: bundle.meta.id,
+      wimpOrder,
+      ...(bundle.massOverride !== undefined ? { massOverride: structuredClone(bundle.massOverride) } : {}),
+    },
+    fields,
+    values: bundle.fields.map((field): SharedDbFieldValueRecord => ({
+      id: deriveUuid("field-value", field.id),
+      ownerWimpFieldId: field.id,
+      value: structuredClone(field.value),
+    })),
+    sources: bundle.fields
+      .filter((field) => field.sourceWimpFieldId !== undefined)
+      .map((field): SharedDbFieldSourceRecord => ({
+        id: deriveUuid("field-source", field.id, field.sourceWimpFieldId!),
+        childWimpFieldId: field.id,
+        parentWimpFieldId: field.sourceWimpFieldId!,
+      })),
+    state: {
+      id: deriveUuid("wimp-state", bundle.id),
+      ownerWimpId: bundle.id,
+      metaStateId: metaContext.initialStateId,
+    },
+  }
+}
+
+const buildWimpEdges = (orderedBundles: SharedDbWimpBundle[]): SharedDbWimpEdgeRecord[] => {
+  const childBundlesByParentId = new Map<string | null, SharedDbWimpBundle[]>()
+  orderedBundles.forEach((bundle) => {
+    const key = bundle.parentWimpId ?? null
+    const children = childBundlesByParentId.get(key)
+    if (children) children.push(bundle)
+    else childBundlesByParentId.set(key, [bundle])
+  })
+
+  const edges: SharedDbWimpEdgeRecord[] = []
+  for (const [parentWimpId, childBundles] of childBundlesByParentId) {
+    childBundles.forEach((bundle, edgeOrder) => {
+      edges.push({
+        id: deriveUuid("wimp-edge", parentWimpId ?? "root", bundle.id),
+        parentWimpId,
+        childWimpId: bundle.id,
+        edgeOrder,
+      })
+    })
+  }
+
+  return edges
+}
+
+const buildEntanglementRows = (orderedBundles: SharedDbWimpBundle[]): SharedDbEntanglementRows => {
+  const data = createEmptySharedDbData()
+  appendEntanglements(data, orderedBundles)
+
+  return {
+    entanglements: data.entanglements,
+    members: data.entanglementMembers,
+    fields: data.entanglementFields,
+    fieldMembers: data.entanglementFieldMembers,
+  }
+}
+
+const applyMetaRowsToData = (data: SharedDbData, rows: SharedDbMetaRows): void => {
+  data.metas.push(structuredClone(rows.meta))
+  data.metaFields.push(...rows.fields.map((row) => structuredClone(row)))
+  data.metaStates.push(...rows.states.map((row) => structuredClone(row)))
+  data.metaTransitions.push(...rows.transitions.map((row) => structuredClone(row)))
+  data.metaTransitionConditions.push(...rows.transitionConditions.map((row) => structuredClone(row)))
+  data.metaProcesses.push(...rows.processes.map((row) => structuredClone(row)))
+  data.metaProcessReads.push(...rows.processReads.map((row) => structuredClone(row)))
+  data.metaProcessWrites.push(...rows.processWrites.map((row) => structuredClone(row)))
+  data.metaReactions.push(...rows.reactions.map((row) => structuredClone(row)))
+  data.metaReactionStates.push(...rows.reactionStates.map((row) => structuredClone(row)))
+  data.metaReactionReads.push(...rows.reactionReads.map((row) => structuredClone(row)))
+  data.metaReactionWrites.push(...rows.reactionWrites.map((row) => structuredClone(row)))
+  data.metaMatterNodes.push(...rows.matterNodes.map((row) => structuredClone(row)))
+  data.metaMatterEdges.push(...rows.matterEdges.map((row) => structuredClone(row)))
+}
+
+const applyWimpRowsToData = (data: SharedDbData, rows: SharedDbWimpRows): void => {
+  data.wimps.push(structuredClone(rows.wimp))
+  data.wimpFields.push(...rows.fields.map((row) => structuredClone(row)))
+  data.fieldValues.push(...rows.values.map((row) => structuredClone(row)))
+  data.fieldSources.push(...rows.sources.map((row) => structuredClone(row)))
+  data.wimpStates.push(structuredClone(rows.state))
+}
+
+const createMetaSignature = (meta: SharedDbMetaBundle): string => JSON.stringify(cloneMetaBundle(meta))
+
+const collectMetaWimpRows = (orderedBundles: SharedDbWimpBundle[]): {
+  metaRowsById: Map<string, SharedDbMetaRows>
+  metaContextById: Map<string, MetaContext>
+  wimpRows: SharedDbWimpRows[]
+} => {
+  const metaRowsById = new Map<string, SharedDbMetaRows>()
+  const metaContextById = new Map<string, MetaContext>()
+  const wimpRows: SharedDbWimpRows[] = []
+
+  orderedBundles.forEach((bundle, wimpOrder) => {
+    let metaContext = metaContextById.get(bundle.meta.id)
+    if (!metaContext) {
+      const { rows, context } = materializeMetaRows(bundle.meta)
+      metaRowsById.set(bundle.meta.id, rows)
+      metaContextById.set(bundle.meta.id, context)
+      metaContext = context
+    }
+
+    wimpRows.push(materializeWimpRows(bundle, wimpOrder, metaContext))
+  })
+
+  return { metaRowsById, metaContextById, wimpRows }
+}
+
 /**
  * Собирает канонический relational snapshot из fully-formed `Wimp` bundles.
  *
@@ -506,98 +668,77 @@ const appendEntanglements = (
 export const createSharedDbDataFromWimpBundles = (orderedBundles: SharedDbWimpBundle[]): SharedDbData => {
   const bundles = orderedBundles.map(cloneWimpBundle)
   const data = createEmptySharedDbData()
-  const metaContextById = new Map<string, MetaContext>()
+  const { metaRowsById, wimpRows } = collectMetaWimpRows(bundles)
 
-  bundles.forEach((bundle, wimpOrder) => {
-    const metaContext = ensureMetaContext(data, bundle.meta, metaContextById)
+  metaRowsById.forEach((rows) => applyMetaRowsToData(data, rows))
+  wimpRows.forEach((rows) => applyWimpRowsToData(data, rows))
+  data.wimpEdges = buildWimpEdges(bundles)
 
-    data.wimps.push({
-      id: bundle.id,
-      metaId: bundle.meta.id,
-      wimpOrder,
-      ...(bundle.massOverride !== undefined ? { massOverride: structuredClone(bundle.massOverride) } : {}),
-    })
-
-    bundle.fields
-      .slice()
-      .sort((left, right) => left.fieldOrder - right.fieldOrder)
-      .forEach((field) => {
-        const metaFieldId = metaContext.fieldIdByKey.get(field.key)
-        if (metaFieldId !== field.metaFieldId) {
-          throw new Error(
-            `Shared DB wimp field ${field.id} does not match meta field mapping for key '${field.key}' in meta ${bundle.meta.id}`,
-          )
-        }
-
-        data.wimpFields.push({
-          id: field.id,
-          ownerWimpId: bundle.id,
-          metaFieldId: field.metaFieldId,
-          fieldOrder: field.fieldOrder,
-        })
-
-        data.fieldValues.push({
-          id: deriveUuid("field-value", field.id),
-          ownerWimpFieldId: field.id,
-          value: structuredClone(field.value),
-        })
-
-        if (field.sourceWimpFieldId) {
-          data.fieldSources.push({
-            id: deriveUuid("field-source", field.id, field.sourceWimpFieldId),
-            childWimpFieldId: field.id,
-            parentWimpFieldId: field.sourceWimpFieldId,
-          })
-        }
-      })
-
-    data.wimpStates.push({
-      id: deriveUuid("wimp-state", bundle.id),
-      ownerWimpId: bundle.id,
-      metaStateId: metaContext.initialStateId,
-    })
-  })
-
-  const childBundlesByParentId = new Map<string | null, SharedDbWimpBundle[]>()
-  bundles.forEach((bundle) => {
-    const key = bundle.parentWimpId ?? null
-    const children = childBundlesByParentId.get(key)
-    if (children) {
-      children.push(bundle)
-    } else {
-      childBundlesByParentId.set(key, [bundle])
-    }
-  })
-
-  for (const [parentWimpId, childBundles] of childBundlesByParentId) {
-    childBundles.forEach((bundle, edgeOrder) => {
-      const edge: SharedDbWimpEdgeRecord = {
-        id: deriveUuid("wimp-edge", parentWimpId ?? "root", bundle.id),
-        parentWimpId,
-        childWimpId: bundle.id,
-        edgeOrder,
-      }
-      data.wimpEdges.push(edge)
-    })
-  }
-
-  appendEntanglements(data, bundles)
+  const entanglementRows = buildEntanglementRows(bundles)
+  data.entanglements = entanglementRows.entanglements
+  data.entanglementMembers = entanglementRows.members
+  data.entanglementFields = entanglementRows.fields
+  data.entanglementFieldMembers = entanglementRows.fieldMembers
   return normalizeSharedDbData(data)
 }
 
 /**
  * Открывает writer для поэтапной materialization-записи fully-formed `Wimp`.
  *
- * Writer хранит только временный CPU-side набор bundles и на каждом save
- * пере-перестраивает канонический relational snapshot, не сохраняя projection-таблицы.
+ * Writer хранит только временный CPU-side набор bundles и обновляет canonical table rows
+ * incrementally, без пересборки полного snapshot из исходного graph state.
  */
 export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): SharedDbMaterializationWriter => {
   const bundlesById = new Map<string, SharedDbWimpBundle>()
+  const metaSignatureById = new Map<string, string>()
 
   return {
     saveWimpBundle(bundle) {
       bundlesById.set(bundle.id, cloneWimpBundle(bundle))
-      backend.writeData(createSharedDbDataFromWimpBundles(Array.from(bundlesById.values())))
+      bundlesById.forEach((candidate, candidateId) => {
+        if (candidateId !== bundle.id && candidate.meta.id === bundle.meta.id) {
+          candidate.meta = cloneMetaBundle(bundle.meta)
+        }
+      })
+      const orderedBundles = Array.from(bundlesById.values())
+      const { metaRowsById, metaContextById } = collectMetaWimpRows(orderedBundles)
+      const nextMetaSignature = createMetaSignature(bundle.meta)
+      const previousMetaSignature = metaSignatureById.get(bundle.meta.id)
+
+      if (previousMetaSignature !== nextMetaSignature) {
+        const metaRows = metaRowsById.get(bundle.meta.id)
+        if (!metaRows) {
+          throw new Error(`Shared DB meta rows are missing for meta ${bundle.meta.id}`)
+        }
+
+        backend.writeMetaRows(metaRows)
+        metaSignatureById.set(bundle.meta.id, nextMetaSignature)
+
+        orderedBundles.forEach((candidate, wimpOrder) => {
+          if (candidate.meta.id !== bundle.meta.id) return
+
+          const metaContext = metaContextById.get(candidate.meta.id)
+          if (!metaContext) {
+            throw new Error(`Shared DB meta context is missing for meta ${candidate.meta.id}`)
+          }
+
+          backend.writeWimpRows(materializeWimpRows(candidate, wimpOrder, metaContext))
+        })
+      } else {
+        const wimpOrder = orderedBundles.findIndex((orderedBundle) => orderedBundle.id === bundle.id)
+        const metaContext = metaContextById.get(bundle.meta.id)
+        if (!metaContext) {
+          throw new Error(`Shared DB meta context is missing for meta ${bundle.meta.id}`)
+        }
+        if (wimpOrder < 0) {
+          throw new Error(`Shared DB writer cannot resolve saved wimp order for ${bundle.id}`)
+        }
+
+        backend.writeWimpRows(materializeWimpRows(bundle, wimpOrder, metaContext))
+      }
+
+      backend.replaceWimpEdges(buildWimpEdges(orderedBundles))
+      backend.replaceEntanglementRows(buildEntanglementRows(orderedBundles))
     },
   }
 }

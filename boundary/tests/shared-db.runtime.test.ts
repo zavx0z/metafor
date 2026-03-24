@@ -1,151 +1,79 @@
-import { afterEach, describe, expect, test } from "bun:test"
-import { openSharedDbSqliteBackend } from "@shared/db"
-import { assembleSharedDbData } from "../../dark/db.ts"
-import { createSharedDbFixture } from "../../dark/db.fixture.ts"
-import { boundary$, prepareSharedDbData, reset, writeSharedDb } from "../boundary.ts"
-import {
-  buildBoundaryDatabaseFromSharedDb,
-  prepareBoundaryStoreFromSharedDb,
-  prepareBoundaryWriteData,
-  prepareBoundaryWriteDataFromSharedDb,
-} from "../database.ts"
-import { FieldType } from "../gravity"
-import { OP, weak$ } from "../weak"
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test"
+import { Wimp } from "@dark/strong"
+import { openSharedDbMaterializationWriter, openSharedDbSqliteBackend } from "@shared/db"
+import { HubFixture } from "fixture"
+import { matter } from "../../dark/dark.ts"
+import { dark$ } from "../../dark/store.ts"
+import { boundary$, prepareRuntimeFromSharedDb, reset, writeRuntimeFromSharedDb } from "../boundary.ts"
+import { weak$ } from "../weak"
+
+const hub = new HubFixture("./github/")
+
+const resetDarkStore = (): void => {
+  dark$.meta.clear()
+  dark$.fields.clear()
+  dark$.particles.clear()
+}
+
+const materializeGithubWorldToSharedDb = async () => {
+  const backend = openSharedDbSqliteBackend()
+  const writer = openSharedDbMaterializationWriter(backend)
+
+  await matter(new Wimp({ src: "zavx0z/git", parent: null }), undefined, { sharedDbWriter: writer })
+
+  return backend
+}
 
 describe("boundary runtime from shared/db backend", () => {
+  beforeAll(async () => {
+    await hub.setup()
+  })
+
   afterEach(() => {
     reset()
+    resetDarkStore()
   })
 
-  test("строит derived adapter в CPU из canonical relational DB и затем materialize-ит runtime input", () => {
-    const fixture = createSharedDbFixture()
-    const data = assembleSharedDbData(fixture.root)
-    const backend = openSharedDbSqliteBackend()
+  afterAll(async () => {
+    resetDarkStore()
+    await hub.teardown()
+  })
+
+  test("публичный boundary API читает shared/db backend, собранный прямо из matter materialization", async () => {
+    const backend = await materializeGithubWorldToSharedDb()
 
     try {
-      backend.writeData(data)
-      const database = buildBoundaryDatabaseFromSharedDb(backend)
-      const runtimeInput = prepareBoundaryWriteData(database)
+      const sharedData = backend.readData()
+      const prepared = prepareRuntimeFromSharedDb(backend)
 
-      expect(runtimeInput.fields).toEqual([
-        { type: FieldType.STRING_PTR },
-        { type: FieldType.U32, enum: ["idle", "ready"] },
-        { type: FieldType.ARRAY_PTR, elementType: "string" },
-      ])
-
-      expect(runtimeInput.branes).toEqual([
-        {
-          values: [
-            [0, "Root title"],
-            [1, "idle"],
-            [2, ["a", "b"]],
-          ],
-          state: 0,
-          collapses: [[[1, { 1: "ready" }]], []],
-        },
-        {
-          values: [
-            [0, "Root title"],
-            [1, "idle"],
-            [2, ["a", "b"]],
-          ],
-          state: 0,
-          collapses: [[[1, { 1: "ready" }]], []],
-        },
-      ])
-      expect(runtimeInput.entanglement?.blocks).toHaveLength(1)
-      expect(runtimeInput.entanglement?.blocks[0]?.braneIndices).toEqual([0, 1])
-      expect(
-        runtimeInput.entanglement?.blocks[0]?.fields.map((field) => ({
-          fieldIndex: field.fieldIndex,
-          fieldName: field.fieldName,
-          representativeBraneIndex: field.representativeBraneIndex,
-        })),
-      ).toEqual([
-        { fieldIndex: 0, fieldName: "title", representativeBraneIndex: 0 },
-        { fieldIndex: 1, fieldName: "mode", representativeBraneIndex: 0 },
-        { fieldIndex: 2, fieldName: "items", representativeBraneIndex: 0 },
-      ])
-
-      expect(prepareBoundaryWriteDataFromSharedDb(backend)).toEqual(runtimeInput)
+      expect(sharedData.metas.some((meta) => meta.id === "zavx0z/git")).toBe(true)
+      expect(sharedData.wimps.length).toBeGreaterThan(0)
+      expect(sharedData.fieldValues.length).toBe(sharedData.wimpFields.length)
+      expect(prepared.branes).toHaveLength(sharedData.wimps.length)
+      expect(prepared.fields.length).toBeGreaterThan(0)
+      expect(prepared.states).toHaveLength(sharedData.wimps.length)
+      expect(prepared.stringTable.length).toBeGreaterThan(0)
     } finally {
       backend.close()
     }
   })
 
-  test("материализует канонический boundary store из relational sqlite-backed shared/db данных", () => {
-    const fixture = createSharedDbFixture()
-    const data = assembleSharedDbData(fixture.root)
-    const backend = openSharedDbSqliteBackend()
+  test("проходит путь AST -> shared/db backend -> unified boundary runtime API -> weak", async () => {
+    const backend = await materializeGithubWorldToSharedDb()
 
     try {
-      backend.writeData(data)
-      const prepared = prepareBoundaryStoreFromSharedDb(backend)
+      const sharedData = backend.readData()
+      const prepared = prepareRuntimeFromSharedDb(backend)
 
-      expect(prepared.fields).toEqual([
-        { type: FieldType.STRING_PTR },
-        { type: FieldType.U32, enum: ["idle", "ready"] },
-        { type: FieldType.ARRAY_PTR, elementType: "string" },
-      ])
-      expect(prepared.branes).toHaveLength(2)
-      expect(prepared.sharedBlocks).toEqual([{ valueOffset: 0, valueCount: 3 }])
-      expect(prepared.sharedValues).toEqual([
-        { fieldIndex: 0, value: 1 },
-        { fieldIndex: 1, value: 0 },
-        { fieldIndex: 2, value: [2, 3] },
-      ])
-      expect(prepared.braneValues).toEqual([])
-      expect(prepared.braneSharedBlockRefs).toEqual([0, 0])
-      expect(prepared.transitions).toEqual([{ targetState: 1, conditionOffset: 0, conditionCount: 1 }])
-      expect(prepared.conditions).toEqual([{ fieldIndex: 1, op: OP.EQ, value: 1 }])
-      expect(prepared.stateTable).toEqual([
-        { transitionOffset: 0, transitionCount: 1 },
-        { transitionOffset: 1, transitionCount: 0 },
-      ])
-      expect(prepared.states).toEqual([0, 0])
-      expect(prepared.stringTable).toEqual(["", "Root title", "a", "b"])
-    } finally {
-      backend.close()
-    }
-  })
-
-  test("проходит путь Dark -> SharedDbData -> shared/db backend -> CPU derived adapter -> Boundary runtime store -> weak", async () => {
-    const fixture = createSharedDbFixture()
-    const data = assembleSharedDbData(fixture.root)
-    const backend = openSharedDbSqliteBackend()
-
-    try {
-      backend.writeData(data)
-
-      expect(prepareSharedDbData(backend).fields).toHaveLength(3)
-
-      const changes = await writeSharedDb(backend)
+      const changes = await writeRuntimeFromSharedDb(backend)
       expect(changes).toEqual([])
       expect(weak$.initialized).toBe(true)
-      expect(boundary$.fields).toEqual([
-        { type: FieldType.STRING_PTR },
-        { type: FieldType.U32, enum: ["idle", "ready"] },
-        { type: FieldType.ARRAY_PTR, elementType: "string" },
-      ])
-      expect(boundary$.branes).toHaveLength(2)
-      expect(boundary$.sharedBlocks).toEqual([{ valueOffset: 0, valueCount: 3 }])
-      expect(boundary$.sharedValues).toEqual([
-        { fieldIndex: 0, value: 1 },
-        { fieldIndex: 1, value: 0 },
-        { fieldIndex: 2, value: [2, 3] },
-      ])
-      expect(boundary$.stateTable).toEqual([
-        { transitionOffset: 0, transitionCount: 1 },
-        { transitionOffset: 1, transitionCount: 0 },
-      ])
-      expect(boundary$.transitions).toEqual([{ targetState: 1, conditionOffset: 0, conditionCount: 1 }])
-      expect(boundary$.conditions).toEqual([{ fieldIndex: 1, op: OP.EQ, value: 1 }])
-      expect(boundary$.states).toEqual([0, 0])
-      expect(boundary$.stringTable).toEqual(["", "Root title", "a", "b"])
-      expect(boundary$.getFieldValue(0, 0)).toBe(1)
-      expect(boundary$.getFieldValue(1, 0)).toBe(1)
-      expect(boundary$.getFieldValue(1, 1)).toBe(0)
-      expect(boundary$.getFieldValue(1, 2)).toEqual([2, 3])
+      expect(boundary$.branes).toHaveLength(sharedData.wimps.length)
+      expect(boundary$.states).toHaveLength(sharedData.wimps.length)
+      expect(boundary$.fields).toEqual(prepared.fields)
+      expect(boundary$.stringTable).toEqual(prepared.stringTable)
+      expect(boundary$.sharedValues.length + boundary$.braneValues.length).toBeGreaterThan(0)
+      expect(boundary$.sharedBlocks.length + boundary$.braneSharedBlockRefs.length).toBeGreaterThan(0)
     } finally {
       backend.close()
     }

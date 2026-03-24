@@ -400,7 +400,7 @@ const prepareBoundaryStateSeedGraph = (
   }
 }
 
-export const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseData => {
+const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseData => {
   const data = normalizeSharedDbData(rawData)
   const metaById = new Map(data.metas.map((meta) => [meta.id, meta] as const))
   const metaFieldById = new Map(data.metaFields.map((field) => [field.id, field] as const))
@@ -697,10 +697,7 @@ export const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryData
   }
 }
 
-export const prepareBoundaryDatabaseDataFromSharedDb = (backend: SharedDbBackend): BoundaryDatabaseData =>
-  prepareBoundaryDatabaseData(readSharedDbData(backend))
-
-export const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBoundaryDatabaseData()): BoundaryDatabase => {
+const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBoundaryDatabaseData()): BoundaryDatabase => {
   const database: BoundaryDatabase = {
     rootBraneIndex: 0,
     branes: [],
@@ -812,13 +809,10 @@ export const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBou
   return database
 }
 
-export const buildBoundaryDatabase = (data: SharedDbData): BoundaryDatabase =>
+const buildBoundaryDatabase = (data: SharedDbData): BoundaryDatabase =>
   openBoundaryDatabase(prepareBoundaryDatabaseData(data))
 
-export const buildBoundaryDatabaseFromSharedDb = (backend: SharedDbBackend): BoundaryDatabase =>
-  openBoundaryDatabase(prepareBoundaryDatabaseDataFromSharedDb(backend))
-
-export const prepareBoundaryWriteData = (
+const prepareBoundaryWriteData = (
   database: BoundaryDatabase,
   options: BoundarySharedDbRuntimeOptions = {},
 ): Data => {
@@ -862,17 +856,27 @@ export const prepareBoundaryWriteData = (
   }
 }
 
-export const prepareBoundaryStoreFromDatabase = (
+const prepareBoundaryStoreFromDatabase = (
   database: BoundaryDatabase,
   options: BoundarySharedDbRuntimeOptions = {},
 ): PreparedData => assembleStoredBoundaryData(flattenBoundaryData(prepareBoundaryWriteData(database, options)))
 
-export const prepareBoundaryWriteDataFromSharedDb = (
-  backend: SharedDbBackend,
+export const prepareBoundaryRuntimeData = (
+  rawData: SharedDbData,
   options: BoundarySharedDbRuntimeOptions = {},
-): Data => prepareBoundaryWriteData(buildBoundaryDatabaseFromSharedDb(backend), options)
+): Data => prepareBoundaryWriteData(buildBoundaryDatabase(rawData), options)
 
-export const prepareBoundaryStoreFromSharedDb = (
+export const prepareBoundaryRuntimeStore = (
+  rawData: SharedDbData,
+  options: BoundarySharedDbRuntimeOptions = {},
+): PreparedData => prepareBoundaryStoreFromDatabase(buildBoundaryDatabase(rawData), options)
+
+export const prepareBoundaryRuntimeDataFromSharedDb = (
   backend: SharedDbBackend,
   options: BoundarySharedDbRuntimeOptions = {},
-): PreparedData => prepareBoundaryStoreFromDatabase(buildBoundaryDatabaseFromSharedDb(backend), options)
+): Data => prepareBoundaryRuntimeData(readSharedDbData(backend), options)
+
+export const prepareBoundaryRuntimeStoreFromSharedDb = (
+  backend: SharedDbBackend,
+  options: BoundarySharedDbRuntimeOptions = {},
+): PreparedData => prepareBoundaryRuntimeStore(readSharedDbData(backend), options)

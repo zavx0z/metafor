@@ -19,7 +19,7 @@ const materializeMetaFields = (
  * `Meta` владеет только meta-level содержимым и не хранит materialized particle graph.
  */
 export class Meta {
-  /** Уникальный идентификатор меты. */
+  /** Канонический идентификатор меты равен её `src`. */
   readonly id: string
   /** Канонический SRC-адрес меты. */
   readonly src: MetaInit["src"]
@@ -41,7 +41,7 @@ export class Meta {
   readonly mass: MetaInit["mass"]
 
   constructor(init: MetaInit) {
-    this.id = crypto.randomUUID()
+    this.id = init.src
     this.src = init.src
     this.name = init.name
     this.superposition = structuredClone(init.superposition)
