@@ -1,8 +1,8 @@
 import { Database } from "bun:sqlite"
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { existsSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { existsSync, mkdirSync, rmSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { Wimp } from "@dark/strong"
 import { openSharedDbMaterializationWriter, openSharedDbSqliteBackend } from "@shared/db"
 import { HubFixture } from "fixture"
@@ -10,7 +10,7 @@ import { matter } from "../dark.ts"
 import { dark$ } from "../store.ts"
 
 const hub = new HubFixture("./github/")
-const sqliteFilename = join(tmpdir(), "metafor-issue-52-materialized.sqlite")
+const sqliteFilename = join(dirname(fileURLToPath(import.meta.url)), "tmp", "metafor-issue-52-materialized.sqlite")
 
 describe("dark -> shared/db file materialization", () => {
   beforeAll(async () => {
@@ -25,6 +25,7 @@ describe("dark -> shared/db file materialization", () => {
   })
 
   test("полный dark-проход пишет существующую shared/db schema по мере завершения каждого Wimp и оставляет файловую SQLite-базу для прямого просмотра", async () => {
+    mkdirSync(dirname(sqliteFilename), { recursive: true })
     rmSync(sqliteFilename, { force: true })
 
     const backend = openSharedDbSqliteBackend({ filename: sqliteFilename })
