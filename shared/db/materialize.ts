@@ -878,35 +878,20 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
         }
       })
       const orderedBundles = Array.from(bundlesById.values())
-      const { metaRowsById, metaContextById } = collectMetaRowsAndContexts(orderedBundles)
+      const { rows: metaRows, context: metaContext } = materializeMetaRows(bundle.meta)
       const nextMetaSignature = createMetaSignature(bundle.meta)
       const previousMetaSignature = metaSignatureById.get(bundle.meta.id)
 
       if (previousMetaSignature !== nextMetaSignature) {
-        const metaRows = metaRowsById.get(bundle.meta.id)
-        if (!metaRows) {
-          throw new Error(`Shared DB meta rows are missing for meta ${bundle.meta.id}`)
-        }
-
         backend.writeMetaRows(metaRows)
         metaSignatureById.set(bundle.meta.id, nextMetaSignature)
 
-        orderedBundles.forEach((candidate, wimpOrder) => {
+        orderedBundles.forEach((candidate) => {
           if (candidate.meta.id !== bundle.meta.id) return
-
-          const metaContext = metaContextById.get(candidate.meta.id)
-          if (!metaContext) {
-            throw new Error(`Shared DB meta context is missing for meta ${candidate.meta.id}`)
-          }
 
           persistWimpBundle(candidate, metaContext)
         })
       } else {
-        const metaContext = metaContextById.get(bundle.meta.id)
-        if (!metaContext) {
-          throw new Error(`Shared DB meta context is missing for meta ${bundle.meta.id}`)
-        }
-
         persistWimpBundle(savedBundle, metaContext)
       }
     },
