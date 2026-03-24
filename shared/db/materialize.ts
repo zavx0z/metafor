@@ -69,6 +69,15 @@ export interface SharedDbWimpBundle {
 }
 
 export interface SharedDbMaterializationWriter {
+  /**
+   * Сохраняет meta-level bundle и подготавливает context для следующих instance-level записей.
+   */
+  saveMetaBundle(bundle: SharedDbMetaBundle): void
+  /**
+   * Сохраняет fully-formed `Wimp` bundle.
+   *
+   * Требует, чтобы `saveMetaBundle(bundle.meta)` уже был вызван для этой меты.
+   */
   saveWimpBundle(bundle: SharedDbWimpBundle): void
 }
 
@@ -729,6 +738,7 @@ export const createSharedDbDataFromWimpBundles = (orderedBundles: SharedDbWimpBu
 export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): SharedDbMaterializationWriter => {
   const bundlesById = new Map<string, SharedDbWimpBundle>()
   const metaSignatureById = new Map<string, string>()
+  const metaContextById = new Map<string, MetaContext>()
   const wimpOrderById = new Map<string, number>()
   const nextEdgeOrderByParentId = new Map<string | null, number>()
   const wimpEdgesByChildId = new Map<string, SharedDbWimpEdgeRecord>()
@@ -868,32 +878,54 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
     affectedFamilyIds.forEach((familyId) => syncEntanglementFamily(familyId))
   }
 
+  const syncMetaBundle = (
+    bundle: SharedDbMetaBundle,
+  ): {
+    changed: boolean
+    context: MetaContext
+  } => {
+    const savedMeta = cloneMetaBundle(bundle)
+    const { rows: metaRows, context: metaContext } = materializeMetaRows(savedMeta)
+    const nextMetaSignature = createMetaSignature(savedMeta)
+    const previousMetaSignature = metaSignatureById.get(savedMeta.id)
+
+    metaContextById.set(savedMeta.id, metaContext)
+    if (previousMetaSignature === nextMetaSignature) {
+      return { changed: false, context: metaContext }
+    }
+
+    backend.writeMetaRows(metaRows)
+    metaSignatureById.set(savedMeta.id, nextMetaSignature)
+    bundlesById.forEach((candidate) => {
+      if (candidate.meta.id === savedMeta.id) {
+        candidate.meta = cloneMetaBundle(savedMeta)
+      }
+    })
+
+    return { changed: true, context: metaContext }
+  }
+
   return {
+    saveMetaBundle(bundle) {
+      const { changed, context } = syncMetaBundle(bundle)
+      if (!changed) return
+
+      bundlesById.forEach((candidate) => {
+        if (candidate.meta.id === bundle.id) {
+          persistWimpBundle(candidate, context)
+        }
+      })
+    },
+
     saveWimpBundle(bundle) {
       const savedBundle = cloneWimpBundle(bundle)
       bundlesById.set(bundle.id, savedBundle)
-      bundlesById.forEach((candidate, candidateId) => {
-        if (candidateId !== bundle.id && candidate.meta.id === bundle.meta.id) {
-          candidate.meta = cloneMetaBundle(bundle.meta)
-        }
-      })
-      const orderedBundles = Array.from(bundlesById.values())
-      const { rows: metaRows, context: metaContext } = materializeMetaRows(bundle.meta)
-      const nextMetaSignature = createMetaSignature(bundle.meta)
-      const previousMetaSignature = metaSignatureById.get(bundle.meta.id)
-
-      if (previousMetaSignature !== nextMetaSignature) {
-        backend.writeMetaRows(metaRows)
-        metaSignatureById.set(bundle.meta.id, nextMetaSignature)
-
-        orderedBundles.forEach((candidate) => {
-          if (candidate.meta.id !== bundle.meta.id) return
-
-          persistWimpBundle(candidate, metaContext)
-        })
-      } else {
-        persistWimpBundle(savedBundle, metaContext)
+      const context = metaContextById.get(savedBundle.meta.id)
+      if (!context) {
+        throw new Error(`Shared DB meta ${savedBundle.meta.id} must be materialized before Wimp ${savedBundle.id}`)
       }
+
+      persistWimpBundle(savedBundle, context)
     },
   }
 }

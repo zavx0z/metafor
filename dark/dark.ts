@@ -184,6 +184,9 @@ export async function* matterMeta(
    * а instance-level поля materialize-ятся уже из `MetaField`.
    */
   wimp.meta = meta
+  if (options.sharedDbWriter) {
+    options.sharedDbWriter.saveMetaBundle(wimp.toSharedDbMetaBundle())
+  }
   wimp.fields = materializeFields(wimp, meta.fields, continuation?.fieldInits)
   /**
    * `Wimp` получает локальные ORM-поля.
@@ -193,7 +196,7 @@ export async function* matterMeta(
   wimp.mass = continuation?.mass
   dark$.particles.set(wimp.id, wimp)
   if (options.sharedDbWriter) {
-    wimp.save(options.sharedDbWriter)
+    options.sharedDbWriter.saveWimpBundle(wimp.toSharedDbBundle())
   }
 
   if (!ast.matter) return

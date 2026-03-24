@@ -1,7 +1,7 @@
 import type { Mass, NodeMeta } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
 import type { WimpInit } from "@dark/types/strong"
-import type { SharedDbMaterializationWriter, SharedDbWimpBundle } from "@shared/db"
+import type { SharedDbMaterializationWriter, SharedDbMetaBundle, SharedDbWimpBundle } from "@shared/db"
 import type { Meta } from "./Meta.ts"
 import { BaseParticle } from "./part.ts"
 
@@ -127,6 +127,32 @@ export class Wimp extends BaseParticle {
   }
 
   /**
+   * Строит canonical shared/db bundle meta-level описания текущего `Wimp`.
+   */
+  toSharedDbMetaBundle(): SharedDbMetaBundle {
+    if (!this.meta) {
+      throw new Error(`Wimp ${this.id} cannot build shared/db meta bundle before Meta is materialized`)
+    }
+
+    return {
+      id: this.meta.id,
+      src: this.meta.src,
+      ...(this.meta.name !== undefined ? { name: this.meta.name } : {}),
+      fields: Object.values(this.meta.fields).map((field) => ({
+        id: field.id,
+        key: field.key,
+        schema: cloneFieldSchema(field.schema),
+      })),
+      ...(this.meta.superposition !== undefined ? { superposition: cloneDefined(this.meta.superposition) } : {}),
+      ...(this.meta.processes !== undefined ? { processes: cloneDefined(this.meta.processes) } : {}),
+      ...(this.meta.reactions !== undefined ? { reactions: cloneDefined(this.meta.reactions) } : {}),
+      ...(this.meta.matter !== undefined ? { matter: cloneDefined(this.meta.matter) } : {}),
+      ...(this.meta.bulk !== undefined ? { bulk: cloneDefined(this.meta.bulk) } : {}),
+      ...(this.meta.mass !== undefined ? { mass: cloneDefined(this.meta.mass) } : {}),
+    }
+  }
+
+  /**
    * Строит canonical shared/db bundle текущего fully-formed `Wimp`.
    */
   toSharedDbBundle(): SharedDbWimpBundle {
@@ -140,22 +166,7 @@ export class Wimp extends BaseParticle {
     return {
       id: this.id,
       ...(this.getParentWimpId() !== undefined ? { parentWimpId: this.getParentWimpId() } : {}),
-      meta: {
-        id: this.meta.id,
-        src: this.meta.src,
-        ...(this.meta.name !== undefined ? { name: this.meta.name } : {}),
-        fields: Object.values(this.meta.fields).map((field) => ({
-          id: field.id,
-          key: field.key,
-          schema: cloneFieldSchema(field.schema),
-        })),
-        ...(this.meta.superposition !== undefined ? { superposition: cloneDefined(this.meta.superposition) } : {}),
-        ...(this.meta.processes !== undefined ? { processes: cloneDefined(this.meta.processes) } : {}),
-        ...(this.meta.reactions !== undefined ? { reactions: cloneDefined(this.meta.reactions) } : {}),
-        ...(this.meta.matter !== undefined ? { matter: cloneDefined(this.meta.matter) } : {}),
-        ...(this.meta.bulk !== undefined ? { bulk: cloneDefined(this.meta.bulk) } : {}),
-        ...(this.meta.mass !== undefined ? { mass: cloneDefined(this.meta.mass) } : {}),
-      },
+      meta: this.toSharedDbMetaBundle(),
       fields: Object.values(this.fields).map((field, fieldOrder) => ({
         id: field.id,
         metaFieldId: field.metaField.id,
@@ -173,6 +184,7 @@ export class Wimp extends BaseParticle {
    * Сохраняет текущий canonical shared/db bundle через унифицированный writer.
    */
   save(writer: SharedDbMaterializationWriter): void {
+    writer.saveMetaBundle(this.toSharedDbMetaBundle())
     writer.saveWimpBundle(this.toSharedDbBundle())
   }
 }

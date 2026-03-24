@@ -53,4 +53,50 @@ describe("shared db materialization writer", () => {
       backend.close()
     }
   })
+
+  test("saveWimpBundle требует предварительно materialized meta bundle той же меты", () => {
+    const fixture = createSharedDbFixture()
+    const backend = openSharedDbMemoryBackend()
+    const writer = openSharedDbMaterializationWriter(backend)
+
+    try {
+      expect(() => writer.saveWimpBundle(fixture.root.toSharedDbBundle())).toThrow(
+        `Shared DB meta ${fixture.root.meta!.id} must be materialized before Wimp ${fixture.root.id}`,
+      )
+    } finally {
+      backend.close()
+    }
+  })
+
+  test("meta bundle можно сохранить до Wimp и потом адресно обновлять без полной пересборки", () => {
+    const fixture = createSharedDbFixture()
+    const backend = openSharedDbMemoryBackend()
+    const writer = openSharedDbMaterializationWriter(backend)
+
+    try {
+      writer.saveMetaBundle(fixture.root.toSharedDbMetaBundle())
+      writer.saveMetaBundle(fixture.child.toSharedDbMetaBundle())
+
+      let roundTrip = readSharedDbData(backend)
+      expect(roundTrip.metas).toHaveLength(2)
+      expect(roundTrip.wimps).toHaveLength(0)
+
+      writer.saveWimpBundle(fixture.root.toSharedDbBundle())
+      writer.saveWimpBundle(fixture.child.toSharedDbBundle())
+
+      ;(fixture.root.meta as unknown as { name?: string }).name = "root-renamed"
+      writer.saveMetaBundle(fixture.root.toSharedDbMetaBundle())
+
+      roundTrip = readSharedDbData(backend)
+      const expected = createSharedDbDataFromWimpBundles([
+        fixture.root.toSharedDbBundle(),
+        fixture.child.toSharedDbBundle(),
+      ])
+
+      expect(roundTrip.metas.find((row) => row.id === fixture.root.meta!.id)?.name).toBe("root-renamed")
+      expect(normalizeSharedDbData(roundTrip)).toEqual(normalizeSharedDbData(expected))
+    } finally {
+      backend.close()
+    }
+  })
 })
