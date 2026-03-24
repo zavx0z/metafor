@@ -150,3 +150,7 @@ For direct contact:
 ## License
 
 MetaFor is licensed under [GNU Affero General Public License v3.0 or later](LICENSE).
+
+## Links
+
+[![Hypercommit](https://img.shields.io/badge/Hypercommit-DB2475)](https://hypercommit.com/metafor)
