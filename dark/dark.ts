@@ -9,12 +9,9 @@ import type {
 } from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
 import { resolveContinuationSources } from "@dark/gravity"
-import { Axion, Fuzzy, Macho, materializeFields, resolveWimpContinuation, Wimp } from "@dark/strong"
-import { loadMetaAST } from "./load.ts"
+import { Axion, Fuzzy, Macho, materializeFields, resolveWimpContinuation, type Meta, Wimp } from "@dark/strong"
+import { loadMeta, loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
-
-const cloneDefined = <T>(value: T | undefined): T | undefined =>
-  value === undefined ? undefined : structuredClone(value)
 
 /**
  * Клонирует временный пакет данных для дочернего `Wimp`.
@@ -48,12 +45,34 @@ const cloneContinuation = (continuation: MatterContinuation): MatterContinuation
 const registerParticle = (particle: DarkParticle, parent: DarkParticle): void => {
   parent.children.add(particle)
   if (parent instanceof Fuzzy) parent.branch.set(particle, particle)
+  dark$.particles.set(particle.id, particle)
+}
 
-  if (particle instanceof Wimp) {
-    dark$.meta.set(particle.id, particle.src)
+const findMetaBySrc = (src: string): Meta | undefined => {
+  for (const meta of dark$.meta.values()) {
+    if (meta.src === src) return meta
   }
 
-  dark$.particles.set(particle.id, particle)
+  return undefined
+}
+
+const registerMeta = (meta: Meta): Meta => {
+  const existing = findMetaBySrc(meta.src)
+  if (existing) return existing
+
+  dark$.meta.set(meta.id, meta)
+  for (const field of Object.values(meta.fields)) {
+    dark$.fields.set(field.id, field)
+  }
+
+  return meta
+}
+
+const resolveRegisteredMeta = async (src: string): Promise<Meta> => {
+  const existing = findMetaBySrc(src)
+  if (existing) return existing
+
+  return registerMeta(await loadMeta(src))
 }
 
 /**
@@ -152,29 +171,21 @@ export async function* matterMeta(
   wimp: Wimp,
   continuation?: MatterContinuation,
 ): AsyncGenerator<MatterLayerResult, void> {
-  const ast = await loadMetaAST(wimp.src)
+  const meta = await resolveRegisteredMeta(wimp.src)
+  const ast = await loadMetaAST(meta.src)
   /**
-   * Локальные AST-данные живут внутри `Wimp`.
-   *
-   * `matter` сюда сознательно не копируется: она уже раскладывается в объектный граф
-   * через дочерние частицы и потому не остаётся отдельным локальным набором данных самой сущности.
+   * `Wimp` получает ссылку на канонический `Meta`,
+   * а instance-level поля materialize-ятся уже из `MetaField`.
    */
-  wimp.name = ast.name
-  wimp.fields = materializeFields(wimp, ast.fields, continuation?.fieldInits)
-  wimp.superposition = structuredClone(ast.superposition)
-  wimp.processes = cloneDefined(ast.processes)
-  wimp.reactions = cloneDefined(ast.reactions)
-  wimp.bulk = cloneDefined(ast.bulk)
+  wimp.meta = meta
+  wimp.fields = materializeFields(wimp, meta.fields, continuation?.fieldInits)
   /**
    * `Wimp` получает локальные ORM-поля.
    * Если временный пакет пришёл от родителя, его `FieldInit` важнее локальных `default` текущей меты.
    * Более сложное объединение связанных полей остаётся отдельным следующим шагом.
    */
-  wimp.mass =
-    cloneDefined(continuation?.mass) ??
-    (ast.mass && Object.keys(ast.mass).length > 0 ? structuredClone(ast.mass) : undefined)
+  wimp.mass = continuation?.mass
   dark$.particles.set(wimp.id, wimp)
-  dark$.meta.set(wimp.id, wimp.src)
 
   if (!ast.matter) return
 

@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { Field, materializeFields, readFieldValues, Wimp } from "@dark/strong"
+import { Field, Meta, materializeFields, readFieldValues, Wimp } from "@dark/strong"
 
 describe("Wimp", () => {
   test("создаётся из `WimpInit`", () => {
     const wimp = new Wimp({ src: "zavx0z/git", parent: null })
 
+    expect(wimp.meta, "Wimp без materialized `Meta` должен хранить `null`").toBeNull()
     expect(wimp.src, "Wimp должен хранить `src`-адрес").toBe("zavx0z/git")
     expect(wimp.name, "Wimp без локальных данных AST не должен иметь `name`").toBeUndefined()
     expect(wimp.fields, "Wimp без локальных ORM-полей не должен иметь `fields`").toBeUndefined()
@@ -18,32 +19,42 @@ describe("Wimp", () => {
   })
 
   test("Wimp хранит локальные объектные поля `Field`", () => {
-    const wimp = new Wimp({
+    const meta = new Meta({
       src: "zavx0z/git-start",
-      parent: null,
       name: "git-start",
+      fieldSchemas: {
+        operation: {
+          type: "enum<string>",
+          values: ["clone", "init"],
+        },
+        args: {
+          type: "string",
+        },
+      },
       superposition: {},
       processes: {},
     })
-
-    wimp.fields = materializeFields(wimp, {
-      operation: {
-        type: "enum<string>",
-        values: ["clone", "init"],
-      },
-      args: {
-        type: "string",
-      },
+    const wimp = new Wimp({
+      src: meta.src,
+      meta,
+      parent: null,
     })
 
+    wimp.fields = materializeFields(wimp, meta.fields)
+
     expect(wimp.src, "Wimp должен хранить `src`-адрес").toBe("zavx0z/git-start")
+    expect(wimp.meta, "Wimp должен ссылаться на каноническую `Meta`").toBe(meta)
     expect(wimp.name, "Wimp должен хранить локальное имя меты").toBe("git-start")
     expect(wimp.fields?.operation, "Wimp должен собирать объектный `Field`").toBeInstanceOf(Field)
     expect(wimp.fields?.operation.owner, "Field должен знать своего владельца").toBe(wimp)
+    expect(wimp.fields?.operation.metaField, "Field должен ссылаться на канонический `MetaField`").toBe(meta.fields.operation)
     expect(wimp.fields?.operation.schema, "Field должен хранить схему поля").toEqual({
       type: "enum<string>",
       values: ["clone", "init"],
     })
+    expect(wimp.fields?.operation.schema, "schema должна читаться из `MetaField`, а не жить копией в instance field").toBe(
+      meta.fields.operation.schema,
+    )
     expect(wimp.fields?.operation.value, "Field должен хранить текущее значение").toBeNull()
     expect(wimp.fields?.operation.source, "локальное поле без связи с родителем должно иметь `source = null`").toBeNull()
     expect(readFieldValues(wimp.fields), "Wimp должен читать текущие значения из своих объектных полей").toEqual({

@@ -1,8 +1,8 @@
 import type { FieldDefinitionJson, FieldKey, FieldsAST } from "@metafor/ast"
 import type { NodeMeta } from "@metafor/dsl"
-import type { FieldInit, WimpFields, WimpValues } from "@dark/types/strong"
+import type { FieldInit, MetaFields, WimpFields, WimpValues } from "@dark/types/strong"
 import type { Wimp } from "./Wimp.ts"
-import { Field } from "./Field.ts"
+import { InstanceField } from "./Field.ts"
 
 /**
  * Ленивый вычислитель значения поля.
@@ -143,8 +143,8 @@ const resolveDirectFieldSources = (
   expr: string | undefined,
   paths: string[],
   parentFields?: WimpFields,
-): Map<FieldKey, Field> => {
-  const directSources = new Map<FieldKey, Field>()
+): Map<FieldKey, InstanceField> => {
+  const directSources = new Map<FieldKey, InstanceField>()
   if (!expr || !parentFields) return directSources
 
   const normalized = expr.trim()
@@ -168,7 +168,7 @@ const resolveDirectFieldSources = (
   return directSources
 }
 
-const normalizeFieldInits = (fieldInits: FieldInit[] | undefined, fields: FieldsAST): Map<FieldKey, FieldInit> => {
+const normalizeFieldInits = (fieldInits: FieldInit[] | undefined, fields: MetaFields): Map<FieldKey, FieldInit> => {
   const initMap = new Map<FieldKey, FieldInit>()
 
   for (const fieldInit of fieldInits ?? []) {
@@ -182,7 +182,10 @@ const normalizeFieldInits = (fieldInits: FieldInit[] | undefined, fields: Fields
   return initMap
 }
 
-const resolveFieldSource = (schema: FieldDefinitionJson, source: Field | null | undefined): Field | null => {
+const resolveFieldSource = (
+  schema: FieldDefinitionJson,
+  source: InstanceField | null | undefined,
+): InstanceField | null => {
   if (!source) return null
   if (!isOrdinaryFieldSchema(schema)) return null
   if (!isOrdinaryFieldSchema(source.schema)) return null
@@ -192,21 +195,22 @@ const resolveFieldSource = (schema: FieldDefinitionJson, source: Field | null | 
 /**
  * Собирает локальные ORM-поля `Wimp` из схемы и временного набора описаний `FieldInit`.
  *
-  * @param owner `Wimp`, которому будут принадлежать создаваемые `Field`.
- * @param fields Полная схема полей собираемой меты.
+ * @param owner `Wimp`, которому будут принадлежать создаваемые `Field`.
+ * @param fields Канонический набор `MetaField` собираемой меты.
  * @param fieldInits Временный набор описаний полей, пришедший от родительского шага обхода.
  * @returns Канонический локальный объектный граф полей конкретного `Wimp`.
  */
-export const materializeFields = (owner: Wimp, fields: FieldsAST, fieldInits?: FieldInit[]): WimpFields => {
+export const materializeFields = (owner: Wimp, fields: MetaFields, fieldInits?: FieldInit[]): WimpFields => {
   const initMap = normalizeFieldInits(fieldInits, fields)
 
   return Object.fromEntries(
-    Object.entries(fields).map(([key, schema]) => {
+    Object.entries(fields).map(([key, metaField]) => {
+      const schema = metaField.schema
       const fieldInit = initMap.get(key)
       const value = fieldInit ? fieldInit.value : createFieldValueResolver(key, schema)()
       const source = resolveFieldSource(schema, fieldInit?.source)
 
-      return [key, new Field({ key, owner, schema, value, source })]
+      return [key, new InstanceField({ owner, metaField, value, source })]
     }),
   )
 }

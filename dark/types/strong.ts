@@ -2,7 +2,9 @@ import type { FieldDefinitionJson, FieldKey, MetaAST } from "@metafor/ast"
 import type { Mass } from "@metafor/dsl/types"
 import type { NodeMeta } from "@metafor/template"
 import type { DarkParticle } from "./shared.ts"
-import type { Field } from "../strong/Field.ts"
+import type { InstanceField } from "../strong/Field.ts"
+import type { Meta } from "../strong/Meta.ts"
+import type { MetaField } from "../strong/MetaField.ts"
 import type { Wimp } from "../strong/Wimp.ts"
 
 /**
@@ -16,7 +18,12 @@ export type WimpValues = Record<string, unknown>
 /**
  * Локальный ORM-набор полей конкретного `Wimp`.
  */
-export type WimpFields = Record<FieldKey, Field>
+export type WimpFields = Record<FieldKey, InstanceField>
+
+/**
+ * Канонический набор meta-полей конкретной `Meta`.
+ */
+export type MetaFields = Record<FieldKey, MetaField>
 
 /**
  * Временное описание инициализации поля дочернего `Wimp`.
@@ -34,20 +41,70 @@ export interface FieldInit {
   /** Значение, которое должно быть записано в `Field.value`. */
   value: unknown
   /** Прямая ссылка на поле родителя для простого сценария связывания. */
-  source?: Field | null
+  source?: InstanceField | null
 }
 
 /**
- * Полная инициализация объектного `Field`.
+ * Полная инициализация instance-поля конкретного `Wimp`.
  *
- * @property owner Владелец поля в каноническом объектном графе.
- * @property schema Локальная схема поля, принадлежащая владельцу.
+ * @property owner Владелец поля в каноническом object graph частиц.
+ * @property metaField Каноническое meta-поле, на которое ссылается instance field.
  */
 export interface FieldObjectInit extends FieldInit {
-  /** Владелец поля в каноническом объектном графе. */
+  /** Владелец поля в каноническом object graph частиц. */
   owner: Wimp
-  /** Локальная схема поля, принадлежащая владельцу. */
+  /** Каноническое meta-поле, на которое ссылается instance field. */
+  metaField: MetaField
+}
+
+/**
+ * Инициализация meta-поля.
+ *
+ * @property ownerMeta Каноническая Meta-владелица этого поля.
+ * @property key Локальный ключ поля внутри схемы меты.
+ * @property schema Содержимое meta-поля.
+ */
+export interface MetaFieldInit {
+  /** Каноническая Meta-владелица этого поля. */
+  ownerMeta: Meta
+  /** Локальный ключ поля внутри схемы меты. */
+  key: FieldKey
+  /** Содержимое meta-поля. */
   schema: FieldDefinitionJson
+}
+
+/**
+ * Инициализация `Meta`.
+ *
+ * @property src Канонический SRC-адрес меты.
+ * @property name Локальное имя меты.
+ * @property fieldSchemas Плоская схема полей, из которой будет собран `MetaField`-граф.
+ * @property fields Готовый канонический граф meta-полей.
+ * @property superposition Схема переходов состояний меты.
+ * @property processes Описание процессов меты.
+ * @property reactions Описание реакций меты.
+ * @property bulk Описание bulk-секции меты.
+ * @property mass Канонический mass-слой меты.
+ */
+export interface MetaInit {
+  /** Канонический SRC-адрес меты. */
+  src: string
+  /** Локальное имя меты. */
+  name?: MetaAST["name"]
+  /** Плоская схема полей, из которой будет собран `MetaField`-граф. */
+  fieldSchemas?: Record<FieldKey, FieldDefinitionJson>
+  /** Готовый канонический граф meta-полей. */
+  fields?: MetaFields
+  /** Схема переходов состояний меты. */
+  superposition?: MetaAST["superposition"]
+  /** Описание процессов меты. */
+  processes?: MetaAST["processes"]
+  /** Описание реакций меты. */
+  reactions?: MetaAST["reactions"]
+  /** Описание bulk-секции меты. */
+  bulk?: MetaAST["bulk"]
+  /** Канонический mass-слой меты. */
+  mass?: Mass | NodeMeta["mass"]
 }
 
 /**
@@ -65,22 +122,14 @@ export interface BaseParticleInit {
  * Инициализация Wimp.
  *
  * @property src SRC-адрес меты, которую нужно собрать.
- * @property name Локальное имя меты, если оно уже известно.
+ * @property meta Каноническая Meta, если она уже materialized.
  * @property fields Локальные ORM-поля узла меты.
- * @property superposition Локальная схема переходов состояний.
- * @property processes Локальные процессы меты.
- * @property reactions Локальные реакции меты.
- * @property bulk Описание `bulk`, передаваемое в следующий слой.
- * @property mass Текущее значение `mass` узла меты.
+ * @property mass Instance-level override для `mass`, если он пришёл из родителя.
  */
 export interface WimpInit extends BaseParticleInit {
   src: string
-  name?: MetaAST["name"]
+  meta?: Meta | null
   fields?: WimpFields
-  superposition?: MetaAST["superposition"]
-  processes?: MetaAST["processes"]
-  reactions?: MetaAST["reactions"]
-  bulk?: MetaAST["bulk"]
   mass?: Mass | NodeMeta["mass"]
 }
 

@@ -1,46 +1,89 @@
 import type { Mass, NodeMeta } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
 import type { WimpInit } from "@dark/types/strong"
+import type { Meta } from "./Meta.ts"
 import { BaseParticle } from "./part.ts"
 
 /**
  * Канонический мета-узел объектного графа Dark.
  *
- * `Wimp` хранит локальные данные AST и собранные ORM-поля своей меты,
- * а топология раскрывается через дочерние частицы в `children`.
+ * `Wimp` остаётся полноценным particle-узлом связности,
+ * но meta-level данные получает по ссылке на канонический `Meta`.
  */
 export class Wimp extends BaseParticle {
-  /** SRC-адрес загружаемой меты. */
-  src: string
-  /** Локальное имя меты после загрузки AST. */
-  name: MetaAST["name"] | undefined
+  /** Внутренний SRC-адрес до привязки `Meta` либо для быстрого доступа после неё. */
+  private metaSrc: string
+  /** Каноническая `Meta`, описывающая этот `Wimp`. */
+  meta: Meta | null
   /** Локальный объектный граф полей этой меты. */
   fields: WimpInit["fields"]
-  /** Локальная схема переходов состояний. */
-  superposition: MetaAST["superposition"] | undefined
-  /** Локальные процессы меты. */
-  processes: MetaAST["processes"] | undefined
-  /** Локальные реакции меты. */
-  reactions: MetaAST["reactions"] | undefined
-  /** Описание `bulk`, передаваемое в следующий слой. */
-  bulk: MetaAST["bulk"] | undefined
-  /** Значение `mass`, принадлежащее этому `Wimp`. */
-  mass: Mass | NodeMeta["mass"] | undefined
+  /** Instance-level override для `mass`, если он пришёл не из meta-level source. */
+  private massOverride: Mass | NodeMeta["mass"] | undefined
 
   /**
    * Создаёт пустой или частично materialized `Wimp`.
    *
-   * @param init Начальные данные `Wimp`: src, необязательные локальные данные меты и связь с родителем.
+   * @param init Начальные данные `Wimp`: src, необязательная ссылка на `Meta`, локальные instance fields и связь с родителем.
    */
   constructor(init: WimpInit) {
     super(init)
-    this.src = init.src
-    this.name = init.name
+    this.metaSrc = init.meta?.src ?? init.src
+    this.meta = init.meta ?? null
     this.fields = init.fields
-    this.superposition = init.superposition
-    this.processes = init.processes
-    this.reactions = init.reactions
-    this.bulk = init.bulk
-    this.mass = init.mass
+    this.massOverride = init.mass
+  }
+
+  /**
+   * SRC остаётся удобным полем particle-level API, но source of truth живёт в `Meta`.
+   */
+  get src(): string {
+    return this.meta?.src ?? this.metaSrc
+  }
+
+  /**
+   * Удобный доступ к имени меты через `Meta`.
+   */
+  get name(): MetaAST["name"] | undefined {
+    return this.meta?.name
+  }
+
+  /**
+   * Удобный доступ к state schema через `Meta`.
+   */
+  get superposition(): MetaAST["superposition"] | undefined {
+    return this.meta?.superposition
+  }
+
+  /**
+   * Удобный доступ к processes через `Meta`.
+   */
+  get processes(): MetaAST["processes"] | undefined {
+    return this.meta?.processes
+  }
+
+  /**
+   * Удобный доступ к reactions через `Meta`.
+   */
+  get reactions(): MetaAST["reactions"] | undefined {
+    return this.meta?.reactions
+  }
+
+  /**
+   * Удобный доступ к bulk через `Meta`.
+   */
+  get bulk(): MetaAST["bulk"] | undefined {
+    return this.meta?.bulk
+  }
+
+  /**
+   * `mass` остаётся удобным API на уровне `Wimp`,
+   * но meta-level значение читается из `Meta`, а временный override остаётся particle-level.
+   */
+  get mass(): Mass | NodeMeta["mass"] | undefined {
+    return this.massOverride ?? this.meta?.mass
+  }
+
+  set mass(value: Mass | NodeMeta["mass"] | undefined) {
+    this.massOverride = value
   }
 }

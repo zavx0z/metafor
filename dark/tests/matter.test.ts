@@ -13,6 +13,7 @@ describe("dark$", () => {
   })
   afterAll(async () => {
     dark$.meta.clear()
+    dark$.fields.clear()
     dark$.particles.clear()
     await hub.teardown()
   })
@@ -44,10 +45,23 @@ describe("dark$", () => {
     })
   })
 
-  describe("таблица мет", () => {
-    test("таблица мет хранит все Wimp по `src`", () => {
-      expect(dark$.meta.size).toBe(wimps.length)
-      expect(dark$.meta).toEqual(new Map(wimps.map((wimp) => [wimp.id, wimp.src] as const)))
+  describe("таблицы meta ORM", () => {
+    test("dark$.meta хранит уникальные Meta по `src`, а не копии внутри каждого Wimp", () => {
+      const uniqueSrcs = new Set(wimps.map((wimp) => wimp.src))
+
+      expect(dark$.meta.size).toBe(uniqueSrcs.size)
+      expect(new Set([...dark$.meta.values()].map((meta) => meta.src))).toEqual(uniqueSrcs)
+      for (const wimp of wimps) {
+        expect(wimp.meta, `Wimp ${wimp.id} должен ссылаться на materialized Meta`).toBeDefined()
+        expect([...dark$.meta.values()].some((meta) => meta === wimp.meta)).toBe(true)
+      }
+    })
+
+    test("dark$.fields хранит канонические MetaField", () => {
+      const metaFields = [...dark$.meta.values()].flatMap((meta) => Object.values(meta.fields))
+
+      expect(dark$.fields.size).toBe(metaFields.length)
+      expect([...dark$.fields.values()]).toEqual(metaFields)
     })
   })
 

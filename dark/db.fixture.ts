@@ -1,4 +1,4 @@
-import { Field, Fuzzy, Wimp } from "@dark/strong"
+import { Fuzzy, Meta, Wimp, materializeFields } from "@dark/strong"
 
 /**
  * Готовит небольшой materialized `Dark`-граф для тестов плоской DB-проекции.
@@ -6,84 +6,65 @@ import { Field, Fuzzy, Wimp } from "@dark/strong"
  * @returns Тестовый граф и ссылки на ключевые поля.
  */
 export const createSharedDbFixture = () => {
-  const root = new Wimp({ src: "meta/root" })
-  root.name = "root"
-
-  const rootTitle = new Field({
-    key: "title",
-    owner: root,
-    schema: { type: "string", required: true, default: "", label: "Заголовок" },
-    value: "Root title",
-  })
-  const rootMode = new Field({
-    key: "mode",
-    owner: root,
-    schema: { type: "enum<string>", required: true, values: ["idle", "ready"], default: "idle" },
-    value: "idle",
-  })
-  const rootItems = new Field({
-    key: "items",
-    owner: root,
-    schema: { type: "array<string>", required: true, default: [] },
-    value: ["a", "b"],
-  })
-
-  root.fields = {
-    title: rootTitle,
-    mode: rootMode,
-    items: rootItems,
-  }
-  root.superposition = {
-    idle: {
-      ready: {
-        mode: "ready",
-      },
+  const rootMeta = new Meta({
+    src: "meta/root",
+    name: "root",
+    fieldSchemas: {
+      title: { type: "string", required: true, default: "", label: "Заголовок" },
+      mode: { type: "enum<string>", required: true, values: ["idle", "ready"], default: "idle" },
+      items: { type: "array<string>", required: true, default: [] },
     },
-    ready: null,
-  }
+    superposition: {
+      idle: {
+        ready: {
+          mode: "ready",
+        },
+      },
+      ready: null,
+    },
+  })
+
+  const root = new Wimp({ src: rootMeta.src, meta: rootMeta })
+  root.fields = materializeFields(root, rootMeta.fields)
+  const rootTitle = root.fields.title
+  const rootMode = root.fields.mode
+  const rootItems = root.fields.items
+  rootTitle.value = "Root title"
+  rootMode.value = "idle"
+  rootItems.value = ["a", "b"]
 
   const gate = new Fuzzy({ parent: root })
   root.children.add(gate)
 
-  const child = new Wimp({ src: "meta/child", parent: gate })
-  child.name = "child"
-  gate.children.add(child)
-
-  const childAlias = new Field({
-    key: "alias",
-    owner: child,
-    schema: { type: "string", required: true, default: "" },
-    value: "Root title",
-    source: rootTitle,
-  })
-  const childMode = new Field({
-    key: "mode",
-    owner: child,
-    schema: { type: "enum<string>", required: true, values: ["idle", "ready"], default: "idle" },
-    value: "idle",
-    source: rootMode,
-  })
-  const childItems = new Field({
-    key: "items",
-    owner: child,
-    schema: { type: "array<string>", required: true, default: [] },
-    value: ["a", "b"],
-    source: rootItems,
-  })
-
-  child.fields = {
-    alias: childAlias,
-    mode: childMode,
-    items: childItems,
-  }
-  child.superposition = {
-    idle: {
-      ready: {
-        mode: "ready",
-      },
+  const childMeta = new Meta({
+    src: "meta/child",
+    name: "child",
+    fieldSchemas: {
+      alias: { type: "string", required: true, default: "" },
+      mode: { type: "enum<string>", required: true, values: ["idle", "ready"], default: "idle" },
+      items: { type: "array<string>", required: true, default: [] },
     },
-    ready: null,
-  }
+    superposition: {
+      idle: {
+        ready: {
+          mode: "ready",
+        },
+      },
+      ready: null,
+    },
+  })
+  const child = new Wimp({ src: childMeta.src, meta: childMeta, parent: gate })
+  gate.children.add(child)
+  child.fields = materializeFields(child, childMeta.fields, [
+    { key: "alias", value: "Root title", source: rootTitle },
+    { key: "mode", value: "idle", source: rootMode },
+    { key: "items", value: ["a", "b"], source: rootItems },
+  ])
+  const childAlias = child.fields.alias
+  const childMode = child.fields.mode
+  const childItems = child.fields.items
+  childMode.source = rootMode
+  childItems.source = rootItems
 
   return {
     root,

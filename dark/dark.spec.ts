@@ -27,6 +27,7 @@ describe("zavx0z/git", () => {
   beforeAll(async () => await hub.setup())
   afterAll(async () => {
     dark$.meta.clear()
+    dark$.fields.clear()
     dark$.particles.clear()
     await hub.teardown()
   })
@@ -45,6 +46,7 @@ describe("zavx0z/git", () => {
       expect(rootWimp.mass, "до запуска прохода корневой Wimp не должен иметь `mass`").toBeUndefined()
       expect(dark$.particles.size, "до первого шага прохода корневой Wimp ещё не должен попасть в dark$.particles").toBe(0)
       expect(dark$.meta.size, "до первого шага прохода таблица мет тоже должна быть пустой").toBe(0)
+      expect(dark$.fields.size, "до первого шага таблица meta-полей тоже должна быть пустой").toBe(0)
     })
 
     let generator: ReturnType<typeof matterMeta>
@@ -71,13 +73,19 @@ describe("zavx0z/git", () => {
         command: null,
         args: null,
       })
+      expect(rootWimp.meta, "корневой Wimp должен ссылаться на materialized Meta").toBeDefined()
       expect(rootWimp.name, "корневой Wimp должен хранить локальное имя своей меты").toBe(ref.name)
       expect(Object.keys(rootWimp.fields ?? {}), "корневой Wimp должен хранить объектные поля для всех ключей схемы").toEqual(
         Object.keys(ref.fields),
       )
       expect(rootWimp.fields?.operation.owner, "каждое поле должно знать владельца").toBe(rootWimp)
       expect(rootWimp.fields?.operation.schema, "поле должно хранить свою схему").toEqual(ref.fields.operation)
-      expect(rootWimp.fields?.operation.schema, "схема поля должна принадлежать самому Wimp").not.toBe(ref.fields.operation)
+      expect(rootWimp.fields?.operation.schema, "схема поля не должна оставаться ссылкой на исходный AST").not.toBe(
+        ref.fields.operation,
+      )
+      expect(rootWimp.fields?.operation.metaField, "instance field должен ссылаться на канонический `MetaField`").toBe(
+        rootWimp.meta?.fields.operation,
+      )
       expect(rootWimp.fields?.command.value, "поле должно хранить текущее значение").toBeNull()
       expect(rootWimp.fields?.command.source, "локальное поле без родителя должно иметь `source = null`").toBeNull()
       expect(
@@ -108,9 +116,13 @@ describe("zavx0z/git", () => {
       expect(rootAxion, "на первом уровне должен появиться Axion").toBeInstanceOf(Axion)
       expect(dark$.particles.size, "после первого уровня в dark$ должны быть корневой Wimp, Fuzzy и Axion").toBe(3)
       expect(dark$.particles.get(rootWimp.id), "dark$ должен хранить корневой Wimp по `id`").toBe(rootWimp)
-      expect(dark$.meta, "таблица мет после первого уровня должна содержать только корневой Wimp").toEqual(
-        new Map([[rootWimp.id, src]]),
+      expect(dark$.meta, "таблица мет после первого уровня должна содержать только materialized Meta корня").toEqual(
+        new Map(rootWimp.meta ? [[rootWimp.meta.id, rootWimp.meta]] : []),
       )
+      expect(
+        dark$.fields.size,
+        "после первого уровня таблица meta-полей должна содержать каноническую схему только корневой меты",
+      ).toBe(Object.keys(ref.fields).length)
       expect(rootFuzzy.value, "Fuzzy без выбранного enum значения должен быть пустым").toBeNull()
       expect((rootAxion as any)?.basis, "Axion не должен хранить `basis`").toBeUndefined()
       expect((rootAxion as any)?.expr, "Axion не должен хранить `expr`").toBeUndefined()
@@ -181,9 +193,10 @@ describe("zavx0z/git", () => {
         new Set(branchResults.map(([particle]) => particle)),
       )
       expect(rootAxion.children, "Axion должен содержать связь на дочерний Wimp").toEqual(new Set([childResult![0]]))
-      expect(dark$.meta, "таблица мет после второго уровня должна содержать корень и все собранные Wimp").toEqual(
-        new Map([[rootWimp.id, src], ...secondLayer.map(([particle]) => [particle.id, particle.src] as const)]),
-      )
+      expect(
+        dark$.meta,
+        "обнаружение дочерних Wimp не должно создавать новые Meta до входа в их собственный materialization проход",
+      ).toEqual(new Map(rootWimp.meta ? [[rootWimp.meta.id, rootWimp.meta]] : []))
       for (const [particle] of branchResults) {
         expect(particle.parent, "`parent` каждой ветви Wimp из `enum` должен быть Fuzzy").toBe(rootFuzzy)
       }
@@ -247,6 +260,7 @@ describe("zavx0z/git", () => {
         operation: null,
         args: null,
       })
+      expect(startWimp.meta, "дочерний Wimp должен получить ссылку на materialized Meta").toBeDefined()
       expect(startWimp.name, "дочерний Wimp должен хранить локальное имя своей меты").toBe(startRef.name)
       expect(
         Object.keys(startWimp.fields ?? {}),
@@ -272,7 +286,10 @@ describe("zavx0z/git", () => {
       expect(dark$.particles.get(startWimp.id), "дочерний корневой Wimp должен быть сохранён в dark$.particles").toBe(
         startWimp,
       )
-      expect(dark$.meta.get(startWimp.id), "таблица мет должна продолжать хранить `src` дочернего Wimp").toBe(startSrc)
+      expect(
+        [...dark$.meta.values()].some((meta) => meta === startWimp.meta && meta.src === startSrc),
+        "таблица мет должна хранить materialized Meta дочернего Wimp отдельно от particle instance",
+      ).toBe(true)
 
       childFuzzy = materialized.find(
         (particle): particle is Fuzzy => particle instanceof Fuzzy && particle.parent === startWimp,

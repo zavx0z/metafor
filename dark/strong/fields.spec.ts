@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Wimp } from "@dark/strong"
+import { Meta, Wimp } from "@dark/strong"
 import {
   createFieldValueResolver,
   materializeFields,
@@ -10,6 +10,15 @@ import {
 } from "./fields.ts"
 
 describe("вычислители полей strong", () => {
+  const createMeta = (
+    src: string,
+    fieldSchemas: ConstructorParameters<typeof Meta>[0]["fieldSchemas"],
+  ) =>
+    new Meta({
+      src,
+      fieldSchemas,
+    })
+
   test("сохраняют ложные значения `default` из AST", () => {
     const values = resolveFieldValues({
       title: {
@@ -96,27 +105,29 @@ describe("вычислители полей strong", () => {
   })
 
   test("собирают объектные `Field` с владельцем, схемой, значением и `source`", () => {
-    const parent = new Wimp({ src: "zavx0z/git", parent: null })
-    parent.fields = materializeFields(parent, {
+    const parentMeta = createMeta("zavx0z/git", {
       args: {
         type: "string",
       },
     })
+    const parent = new Wimp({ src: parentMeta.src, meta: parentMeta, parent: null })
+    parent.fields = materializeFields(parent, parentMeta.fields)
     if (!parent.fields?.args) throw new Error("поле args не найдено")
     parent.fields.args.value = "--help"
 
-    const child = new Wimp({ src: "zavx0z/git-start", parent: parent })
+    const childMeta = createMeta("zavx0z/git-start", {
+      args: {
+        type: "string",
+      },
+      operation: {
+        type: "enum<string>",
+        values: ["clone", "init"],
+      },
+    })
+    const child = new Wimp({ src: childMeta.src, meta: childMeta, parent: parent })
     child.fields = materializeFields(
       child,
-      {
-        args: {
-          type: "string",
-        },
-        operation: {
-          type: "enum<string>",
-          values: ["clone", "init"],
-        },
-      },
+      childMeta.fields,
       [
         { key: "args", value: "--help", source: parent.fields.args },
         { key: "operation", value: null, source: parent.fields.args },
@@ -135,8 +146,7 @@ describe("вычислители полей strong", () => {
   })
 
   test("`resolveNodeFieldInits` сохраняет прямые ссылки на источник только для обычных полей", () => {
-    const parent = new Wimp({ src: "zavx0z/git", parent: null })
-    parent.fields = materializeFields(parent, {
+    const parentMeta = createMeta("zavx0z/git", {
       args: {
         type: "string",
       },
@@ -149,6 +159,8 @@ describe("вычислители полей strong", () => {
         default: [],
       },
     })
+    const parent = new Wimp({ src: parentMeta.src, meta: parentMeta, parent: null })
+    parent.fields = materializeFields(parent, parentMeta.fields)
 
     const ordinaryInits = resolveNodeFieldInits(
       {
