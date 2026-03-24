@@ -5,6 +5,7 @@
   "private": true,
   "dependencies": {
     "@dark/gravity": "workspace:*",
-    "@dark/types": "workspace:*"
+    "@dark/types": "workspace:*",
+    "@shared/db": "workspace:*"
   }
 }

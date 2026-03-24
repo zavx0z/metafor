@@ -1,8 +1,19 @@
 import type { Mass, NodeMeta } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
 import type { WimpInit } from "@dark/types/strong"
+import type { SharedDbMaterializationWriter, SharedDbWimpTrace } from "@shared/db"
 import type { Meta } from "./Meta.ts"
 import { BaseParticle } from "./part.ts"
+
+const isTopologyFieldType = (type: string): boolean => type.startsWith("enum<") || type.startsWith("array<")
+
+const cloneFieldSchema = (schema: NonNullable<Wimp["fields"]>[string]["schema"]) => ({
+  type: schema.type,
+  required: schema.required === true,
+  topology: isTopologyFieldType(schema.type),
+  ...(schema.label !== undefined ? { label: schema.label } : {}),
+  ...(schema.values !== undefined ? { values: structuredClone(schema.values) } : {}),
+})
 
 /**
  * Канонический мета-узел объектного графа Dark.
@@ -85,5 +96,38 @@ export class Wimp extends BaseParticle {
 
   set mass(value: Mass | NodeMeta["mass"] | undefined) {
     this.massOverride = value
+  }
+
+  /**
+   * Строит flat DB-shaped trace текущего fully-formed `Wimp`.
+   */
+  toSharedDbTrace(): SharedDbWimpTrace {
+    if (!this.meta) {
+      throw new Error(`Wimp ${this.id} cannot build shared/db trace before Meta is materialized`)
+    }
+    if (!this.fields) {
+      throw new Error(`Wimp ${this.id} cannot build shared/db trace before fields are materialized`)
+    }
+
+    return {
+      darkWimpId: this.id,
+      src: this.src,
+      ...(this.name !== undefined ? { name: this.name } : {}),
+      fields: Object.values(this.fields).map((field) => ({
+        darkFieldId: field.id,
+        key: field.key,
+        schema: cloneFieldSchema(field.schema),
+        value: structuredClone(field.value),
+        ...(field.source ? { sourceDarkFieldId: field.source.id } : {}),
+      })),
+      ...(this.superposition !== undefined ? { superposition: structuredClone(this.superposition) } : {}),
+    }
+  }
+
+  /**
+   * Сохраняет текущий DB-shaped trace через унифицированный shared/db writer.
+   */
+  save(writer: SharedDbMaterializationWriter): void {
+    writer.saveWimpTrace(this.toSharedDbTrace())
   }
 }

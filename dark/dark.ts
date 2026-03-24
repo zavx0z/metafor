@@ -9,9 +9,14 @@ import type {
 } from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
 import { resolveContinuationSources } from "@dark/gravity"
+import type { SharedDbMaterializationWriter } from "@shared/db"
 import { Axion, Fuzzy, Macho, materializeFields, resolveWimpContinuation, type Meta, Wimp } from "@dark/strong"
 import { loadMeta, loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
+
+interface MatterOptions {
+  sharedDbWriter?: SharedDbMaterializationWriter
+}
 
 /**
  * Клонирует временный пакет данных для дочернего `Wimp`.
@@ -170,6 +175,7 @@ const processMatterNode = (
 export async function* matterMeta(
   wimp: Wimp,
   continuation?: MatterContinuation,
+  options: MatterOptions = {},
 ): AsyncGenerator<MatterLayerResult, void> {
   const meta = await resolveRegisteredMeta(wimp.src)
   const ast = await loadMetaAST(meta.src)
@@ -186,6 +192,9 @@ export async function* matterMeta(
    */
   wimp.mass = continuation?.mass
   dark$.particles.set(wimp.id, wimp)
+  if (options.sharedDbWriter) {
+    wimp.save(options.sharedDbWriter)
+  }
 
   if (!ast.matter) return
 
@@ -230,11 +239,11 @@ export async function* matterMeta(
  * @param continuation Временный пакет данных, который должен быть применён к этому `Wimp` перед обходом.
  * @returns Promise, завершающийся после полного рекурсивного обхода и сборки дочерних мет.
  */
-export async function matter(wimp: Wimp, continuation?: MatterContinuation) {
-  const generator = matterMeta(wimp, continuation)
+export async function matter(wimp: Wimp, continuation?: MatterContinuation, options: MatterOptions = {}) {
+  const generator = matterMeta(wimp, continuation, options)
   for await (const wimps of generator) {
     for (const [childWimp, childContinuation] of wimps) {
-      await matter(childWimp, childContinuation)
+      await matter(childWimp, childContinuation, options)
     }
   }
 }
