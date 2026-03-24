@@ -1,773 +1,826 @@
 import { Database } from "bun:sqlite"
-import {
-  createEmptySharedDbTabularSnapshot,
-  normalizeSharedDbTabularData,
-  prepareSharedDbTabularData,
-  sharedDbRequiredBackendIndexes,
-} from "./backend.ts"
+import { createEmptySharedDbData, normalizeSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
 import type { SharedDbBackend } from "./backend.t.ts"
-import type {
-  SharedDbBraneRecord,
-  SharedDbEntanglementSeedBlockMemberRecord,
-  SharedDbEntanglementSeedBlockRecord,
-  SharedDbEntanglementSeedFieldMemberRecord,
-  SharedDbEntanglementSeedFieldRecord,
-  SharedDbFieldRecord,
-  SharedDbFieldSourceRecord,
-  SharedDbFieldValueRecord,
-  SharedDbProjection,
-  SharedDbRuntimeSeedData,
-  SharedDbStateSeedConditionRecord,
-  SharedDbStateSeedStateRecord,
-  SharedDbStateSeedTransitionRecord,
-  SharedDbTabularData,
-} from "./db.t.ts"
+import type { SharedDbData, SharedDbFieldSchemaRecord } from "./db.t.ts"
 
-/** Опции открытия SQLite backend для shared/db. */
 export interface SharedDbSqliteBackendOptions {
-  /** Путь к SQLite-файлу. По умолчанию используется `:memory:`. */
   filename?: string
 }
 
 const schemaSql = `
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS branes (
-  "index" INTEGER PRIMARY KEY,
-  darkWimpId TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS metas (
+  id TEXT PRIMARY KEY,
   src TEXT NOT NULL,
-  name TEXT
+  name TEXT,
+  bulkJson TEXT,
+  massJson TEXT
 );
 
-CREATE TABLE IF NOT EXISTS fields (
-  "index" INTEGER PRIMARY KEY,
-  darkFieldId TEXT NOT NULL,
-  ownerBraneIndex INTEGER NOT NULL,
-  "key" TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS meta_fields (
+  id TEXT PRIMARY KEY,
+  ownerMetaId TEXT NOT NULL,
+  fieldKey TEXT NOT NULL,
+  fieldOrder INTEGER NOT NULL,
   schemaType TEXT NOT NULL,
   schemaRequired INTEGER NOT NULL,
   schemaTopology INTEGER NOT NULL,
   schemaLabel TEXT,
   schemaValues TEXT,
-  FOREIGN KEY (ownerBraneIndex) REFERENCES branes("index") ON DELETE CASCADE
+  FOREIGN KEY (ownerMetaId) REFERENCES metas(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_states (
+  id TEXT PRIMARY KEY,
+  ownerMetaId TEXT NOT NULL,
+  stateName TEXT NOT NULL,
+  stateOrder INTEGER NOT NULL,
+  initial INTEGER NOT NULL,
+  FOREIGN KEY (ownerMetaId) REFERENCES metas(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_transitions (
+  id TEXT PRIMARY KEY,
+  ownerMetaStateId TEXT NOT NULL,
+  targetMetaStateId TEXT,
+  transitionOrder INTEGER NOT NULL,
+  FOREIGN KEY (ownerMetaStateId) REFERENCES meta_states(id) ON DELETE CASCADE,
+  FOREIGN KEY (targetMetaStateId) REFERENCES meta_states(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_transition_conditions (
+  id TEXT PRIMARY KEY,
+  ownerMetaTransitionId TEXT NOT NULL,
+  metaFieldId TEXT NOT NULL,
+  conditionOrder INTEGER NOT NULL,
+  conditionJson TEXT NOT NULL,
+  FOREIGN KEY (ownerMetaTransitionId) REFERENCES meta_transitions(id) ON DELETE CASCADE,
+  FOREIGN KEY (metaFieldId) REFERENCES meta_fields(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_processes (
+  id TEXT PRIMARY KEY,
+  ownerMetaId TEXT NOT NULL,
+  processKey TEXT NOT NULL,
+  processOrder INTEGER NOT NULL,
+  processKind TEXT NOT NULL,
+  label TEXT,
+  desc TEXT,
+  actionSrc TEXT,
+  actionImportSpecifier TEXT,
+  successSrc TEXT,
+  errorSrc TEXT,
+  beforeSrc TEXT,
+  FOREIGN KEY (ownerMetaId) REFERENCES metas(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_process_reads (
+  id TEXT PRIMARY KEY,
+  ownerMetaProcessId TEXT NOT NULL,
+  metaFieldId TEXT NOT NULL,
+  phase TEXT NOT NULL,
+  readOrder INTEGER NOT NULL,
+  FOREIGN KEY (ownerMetaProcessId) REFERENCES meta_processes(id) ON DELETE CASCADE,
+  FOREIGN KEY (metaFieldId) REFERENCES meta_fields(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_process_writes (
+  id TEXT PRIMARY KEY,
+  ownerMetaProcessId TEXT NOT NULL,
+  metaFieldId TEXT NOT NULL,
+  phase TEXT NOT NULL,
+  writeOrder INTEGER NOT NULL,
+  FOREIGN KEY (ownerMetaProcessId) REFERENCES meta_processes(id) ON DELETE CASCADE,
+  FOREIGN KEY (metaFieldId) REFERENCES meta_fields(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_reactions (
+  id TEXT PRIMARY KEY,
+  ownerMetaId TEXT NOT NULL,
+  reactionKey TEXT NOT NULL,
+  reactionOrder INTEGER NOT NULL,
+  label TEXT NOT NULL,
+  desc TEXT,
+  cond TEXT NOT NULL,
+  src TEXT NOT NULL,
+  FOREIGN KEY (ownerMetaId) REFERENCES metas(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_reaction_states (
+  id TEXT PRIMARY KEY,
+  ownerMetaReactionId TEXT NOT NULL,
+  metaStateId TEXT NOT NULL,
+  stateOrder INTEGER NOT NULL,
+  FOREIGN KEY (ownerMetaReactionId) REFERENCES meta_reactions(id) ON DELETE CASCADE,
+  FOREIGN KEY (metaStateId) REFERENCES meta_states(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_reaction_reads (
+  id TEXT PRIMARY KEY,
+  ownerMetaReactionId TEXT NOT NULL,
+  metaFieldId TEXT NOT NULL,
+  readOrder INTEGER NOT NULL,
+  FOREIGN KEY (ownerMetaReactionId) REFERENCES meta_reactions(id) ON DELETE CASCADE,
+  FOREIGN KEY (metaFieldId) REFERENCES meta_fields(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_reaction_writes (
+  id TEXT PRIMARY KEY,
+  ownerMetaReactionId TEXT NOT NULL,
+  metaFieldId TEXT NOT NULL,
+  writeOrder INTEGER NOT NULL,
+  FOREIGN KEY (ownerMetaReactionId) REFERENCES meta_reactions(id) ON DELETE CASCADE,
+  FOREIGN KEY (metaFieldId) REFERENCES meta_fields(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_matter_nodes (
+  id TEXT PRIMARY KEY,
+  ownerMetaId TEXT NOT NULL,
+  nodeType TEXT NOT NULL,
+  nodeOrder INTEGER NOT NULL,
+  payloadJson TEXT NOT NULL,
+  FOREIGN KEY (ownerMetaId) REFERENCES metas(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_matter_edges (
+  id TEXT PRIMARY KEY,
+  ownerMetaId TEXT NOT NULL,
+  parentNodeId TEXT,
+  childNodeId TEXT NOT NULL,
+  edgeOrder INTEGER NOT NULL,
+  FOREIGN KEY (ownerMetaId) REFERENCES metas(id) ON DELETE CASCADE,
+  FOREIGN KEY (parentNodeId) REFERENCES meta_matter_nodes(id) ON DELETE CASCADE,
+  FOREIGN KEY (childNodeId) REFERENCES meta_matter_nodes(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS wimps (
+  id TEXT PRIMARY KEY,
+  metaId TEXT NOT NULL,
+  wimpOrder INTEGER NOT NULL,
+  massOverrideJson TEXT,
+  FOREIGN KEY (metaId) REFERENCES metas(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS wimp_fields (
+  id TEXT PRIMARY KEY,
+  ownerWimpId TEXT NOT NULL,
+  metaFieldId TEXT NOT NULL,
+  fieldOrder INTEGER NOT NULL,
+  FOREIGN KEY (ownerWimpId) REFERENCES wimps(id) ON DELETE CASCADE,
+  FOREIGN KEY (metaFieldId) REFERENCES meta_fields(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS wimp_edges (
+  id TEXT PRIMARY KEY,
+  parentWimpId TEXT,
+  childWimpId TEXT NOT NULL,
+  edgeOrder INTEGER NOT NULL,
+  FOREIGN KEY (parentWimpId) REFERENCES wimps(id) ON DELETE CASCADE,
+  FOREIGN KEY (childWimpId) REFERENCES wimps(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS field_values (
-  fieldIndex INTEGER PRIMARY KEY,
+  id TEXT PRIMARY KEY,
+  ownerWimpFieldId TEXT NOT NULL,
   valueJson TEXT NOT NULL,
-  FOREIGN KEY (fieldIndex) REFERENCES fields("index") ON DELETE CASCADE
+  FOREIGN KEY (ownerWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS field_sources (
-  childFieldIndex INTEGER PRIMARY KEY,
-  parentFieldIndex INTEGER NOT NULL,
-  FOREIGN KEY (childFieldIndex) REFERENCES fields("index") ON DELETE CASCADE,
-  FOREIGN KEY (parentFieldIndex) REFERENCES fields("index") ON DELETE CASCADE
+  id TEXT PRIMARY KEY,
+  childWimpFieldId TEXT NOT NULL,
+  parentWimpFieldId TEXT NOT NULL,
+  FOREIGN KEY (childWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE,
+  FOREIGN KEY (parentWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS entanglement_seed_blocks (
-  "index" INTEGER PRIMARY KEY,
-  "key" TEXT NOT NULL
+CREATE TABLE IF NOT EXISTS wimp_states (
+  id TEXT PRIMARY KEY,
+  ownerWimpId TEXT NOT NULL,
+  metaStateId TEXT NOT NULL,
+  FOREIGN KEY (ownerWimpId) REFERENCES wimps(id) ON DELETE CASCADE,
+  FOREIGN KEY (metaStateId) REFERENCES meta_states(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS entanglement_seed_block_members (
-  "index" INTEGER PRIMARY KEY,
-  blockIndex INTEGER NOT NULL,
-  memberIndex INTEGER NOT NULL,
-  braneIndex INTEGER NOT NULL,
-  FOREIGN KEY (blockIndex) REFERENCES entanglement_seed_blocks("index") ON DELETE CASCADE,
-  FOREIGN KEY (braneIndex) REFERENCES branes("index") ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS entanglements (
+  id TEXT PRIMARY KEY,
+  membershipKey TEXT NOT NULL,
+  provenance TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS entanglement_seed_fields (
-  "index" INTEGER PRIMARY KEY,
-  blockIndex INTEGER NOT NULL,
-  blockFieldIndex INTEGER NOT NULL,
+CREATE TABLE IF NOT EXISTS entanglement_members (
+  id TEXT PRIMARY KEY,
+  ownerEntanglementId TEXT NOT NULL,
+  wimpId TEXT NOT NULL,
+  memberOrder INTEGER NOT NULL,
+  FOREIGN KEY (ownerEntanglementId) REFERENCES entanglements(id) ON DELETE CASCADE,
+  FOREIGN KEY (wimpId) REFERENCES wimps(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS entanglement_fields (
+  id TEXT PRIMARY KEY,
+  ownerEntanglementId TEXT NOT NULL,
+  fieldOrder INTEGER NOT NULL,
   semanticKey TEXT NOT NULL,
   fieldName TEXT NOT NULL,
   provenance TEXT NOT NULL,
-  representativeDarkFieldId TEXT NOT NULL,
-  representativeBraneIndex INTEGER NOT NULL,
+  representativeWimpFieldId TEXT NOT NULL,
   payloadIdsJson TEXT NOT NULL,
   semanticKeysJson TEXT NOT NULL,
-  FOREIGN KEY (blockIndex) REFERENCES entanglement_seed_blocks("index") ON DELETE CASCADE,
-  FOREIGN KEY (representativeDarkFieldId) REFERENCES fields(darkFieldId) ON DELETE CASCADE,
-  FOREIGN KEY (representativeBraneIndex) REFERENCES branes("index") ON DELETE CASCADE
+  FOREIGN KEY (ownerEntanglementId) REFERENCES entanglements(id) ON DELETE CASCADE,
+  FOREIGN KEY (representativeWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS entanglement_seed_field_members (
-  "index" INTEGER PRIMARY KEY,
-  entanglementFieldIndex INTEGER NOT NULL,
-  memberIndex INTEGER NOT NULL,
-  braneIndex INTEGER NOT NULL,
-  darkFieldId TEXT NOT NULL,
-  FOREIGN KEY (entanglementFieldIndex) REFERENCES entanglement_seed_fields("index") ON DELETE CASCADE,
-  FOREIGN KEY (braneIndex) REFERENCES branes("index") ON DELETE CASCADE,
-  FOREIGN KEY (darkFieldId) REFERENCES fields(darkFieldId) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS entanglement_field_members (
+  id TEXT PRIMARY KEY,
+  ownerEntanglementFieldId TEXT NOT NULL,
+  ownerWimpId TEXT NOT NULL,
+  wimpFieldId TEXT NOT NULL,
+  memberOrder INTEGER NOT NULL,
+  FOREIGN KEY (ownerEntanglementFieldId) REFERENCES entanglement_fields(id) ON DELETE CASCADE,
+  FOREIGN KEY (ownerWimpId) REFERENCES wimps(id) ON DELETE CASCADE,
+  FOREIGN KEY (wimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
 );
-
-CREATE TABLE IF NOT EXISTS state_seed_states (
-  "index" INTEGER PRIMARY KEY,
-  ownerBraneIndex INTEGER NOT NULL,
-  stateIndex INTEGER NOT NULL,
-  name TEXT NOT NULL,
-  initial INTEGER NOT NULL,
-  FOREIGN KEY (ownerBraneIndex) REFERENCES branes("index") ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS state_seed_transitions (
-  "index" INTEGER PRIMARY KEY,
-  ownerBraneIndex INTEGER NOT NULL,
-  fromStateIndex INTEGER NOT NULL,
-  transitionIndex INTEGER NOT NULL,
-  targetStateIndex INTEGER,
-  FOREIGN KEY (ownerBraneIndex) REFERENCES branes("index") ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS state_seed_conditions (
-  "index" INTEGER PRIMARY KEY,
-  transitionSeedIndex INTEGER NOT NULL,
-  conditionIndex INTEGER NOT NULL,
-  darkFieldId TEXT NOT NULL,
-  conditionJson TEXT NOT NULL,
-  FOREIGN KEY (transitionSeedIndex) REFERENCES state_seed_transitions("index") ON DELETE CASCADE,
-  FOREIGN KEY (darkFieldId) REFERENCES fields(darkFieldId) ON DELETE CASCADE
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS branes_by_dark_wimp_id
-  ON branes(darkWimpId);
-
-CREATE UNIQUE INDEX IF NOT EXISTS fields_by_dark_field_id
-  ON fields(darkFieldId);
-
-CREATE UNIQUE INDEX IF NOT EXISTS fields_by_owner_brane_and_key
-  ON fields(ownerBraneIndex, "key");
-
-CREATE UNIQUE INDEX IF NOT EXISTS field_values_by_field_index
-  ON field_values(fieldIndex);
-
-CREATE UNIQUE INDEX IF NOT EXISTS field_sources_by_child_field_index
-  ON field_sources(childFieldIndex);
-
-CREATE INDEX IF NOT EXISTS field_sources_by_parent_field_index
-  ON field_sources(parentFieldIndex);
-
-CREATE UNIQUE INDEX IF NOT EXISTS entanglement_seed_block_members_by_block_index
-  ON entanglement_seed_block_members(blockIndex, memberIndex);
-
-CREATE UNIQUE INDEX IF NOT EXISTS entanglement_seed_fields_by_block_index_and_block_field_index
-  ON entanglement_seed_fields(blockIndex, blockFieldIndex);
-
-CREATE UNIQUE INDEX IF NOT EXISTS entanglement_seed_field_members_by_entanglement_field_index_and_member_index
-  ON entanglement_seed_field_members(entanglementFieldIndex, memberIndex);
-
-CREATE UNIQUE INDEX IF NOT EXISTS state_seed_states_by_owner_brane_and_state_index
-  ON state_seed_states(ownerBraneIndex, stateIndex);
-
-CREATE UNIQUE INDEX IF NOT EXISTS state_seed_transitions_by_owner_brane_and_from_state_and_transition_index
-  ON state_seed_transitions(ownerBraneIndex, fromStateIndex, transitionIndex);
-
-CREATE UNIQUE INDEX IF NOT EXISTS state_seed_conditions_by_transition_seed_index_and_condition_index
-  ON state_seed_conditions(transitionSeedIndex, conditionIndex);
-`
-
-const braneSelectSql = `
-SELECT
-  "index",
-  darkWimpId,
-  src,
-  name
-FROM branes
-`
-
-const fieldSelectSql = `
-SELECT
-  "index",
-  darkFieldId,
-  ownerBraneIndex,
-  "key",
-  schemaType,
-  schemaRequired,
-  schemaTopology,
-  schemaLabel,
-  schemaValues
-FROM fields
-`
-
-const fieldValueSelectSql = `
-SELECT
-  fieldIndex,
-  valueJson
-FROM field_values
-`
-
-const fieldSourceSelectSql = `
-SELECT
-  childFieldIndex,
-  parentFieldIndex
-FROM field_sources
-`
-
-const entanglementSeedBlockSelectSql = `
-SELECT
-  "index",
-  "key"
-FROM entanglement_seed_blocks
-ORDER BY "index"
-`
-
-const entanglementSeedBlockMemberSelectSql = `
-SELECT
-  "index",
-  blockIndex,
-  memberIndex,
-  braneIndex
-FROM entanglement_seed_block_members
-ORDER BY "index"
-`
-
-const entanglementSeedFieldSelectSql = `
-SELECT
-  "index",
-  blockIndex,
-  blockFieldIndex,
-  semanticKey,
-  fieldName,
-  provenance,
-  representativeDarkFieldId,
-  representativeBraneIndex,
-  payloadIdsJson,
-  semanticKeysJson
-FROM entanglement_seed_fields
-ORDER BY "index"
-`
-
-const entanglementSeedFieldMemberSelectSql = `
-SELECT
-  "index",
-  entanglementFieldIndex,
-  memberIndex,
-  braneIndex,
-  darkFieldId
-FROM entanglement_seed_field_members
-ORDER BY "index"
-`
-
-const stateSeedStateSelectSql = `
-SELECT
-  "index",
-  ownerBraneIndex,
-  stateIndex,
-  name,
-  initial
-FROM state_seed_states
-ORDER BY "index"
-`
-
-const stateSeedTransitionSelectSql = `
-SELECT
-  "index",
-  ownerBraneIndex,
-  fromStateIndex,
-  transitionIndex,
-  targetStateIndex
-FROM state_seed_transitions
-ORDER BY "index"
-`
-
-const stateSeedConditionSelectSql = `
-SELECT
-  "index",
-  transitionSeedIndex,
-  conditionIndex,
-  darkFieldId,
-  conditionJson
-FROM state_seed_conditions
-ORDER BY "index"
 `
 
 const serializeJson = (value: unknown): string => {
   const json = JSON.stringify(value)
   if (json === undefined) {
-    throw new Error("Shared DB SQLite backend cannot store undefined values")
+    throw new Error("Shared DB SQLite backend cannot persist undefined values")
   }
   return json
 }
 
-const parseJson = <T>(json: string): T => JSON.parse(json) as T
+const parseJson = <T>(value: string | null): T | undefined => (value === null ? undefined : (JSON.parse(value) as T))
 
-const mapBraneRow = (row: Record<string, unknown> | null): SharedDbBraneRecord | undefined => {
-  if (!row) return undefined
-  return {
-    index: Number(row.index),
-    darkWimpId: String(row.darkWimpId),
-    src: String(row.src),
-    ...(row.name !== null && row.name !== undefined ? { name: String(row.name) } : {}),
-  }
-}
+const tableResetOrder = [
+  "entanglement_field_members",
+  "entanglement_fields",
+  "entanglement_members",
+  "entanglements",
+  "wimp_states",
+  "field_sources",
+  "field_values",
+  "wimp_edges",
+  "wimp_fields",
+  "wimps",
+  "meta_matter_edges",
+  "meta_matter_nodes",
+  "meta_reaction_writes",
+  "meta_reaction_reads",
+  "meta_reaction_states",
+  "meta_reactions",
+  "meta_process_writes",
+  "meta_process_reads",
+  "meta_processes",
+  "meta_transition_conditions",
+  "meta_transitions",
+  "meta_states",
+  "meta_fields",
+  "metas",
+] as const
 
-const mapFieldRow = (row: Record<string, unknown> | null): SharedDbFieldRecord | undefined => {
-  if (!row) return undefined
-  return {
-    index: Number(row.index),
-    darkFieldId: String(row.darkFieldId),
-    ownerBraneIndex: Number(row.ownerBraneIndex),
-    key: String(row.key),
-    schema: {
-      type: String(row.schemaType),
-      required: Boolean(row.schemaRequired),
-      topology: Boolean(row.schemaTopology),
-      ...(row.schemaLabel !== null && row.schemaLabel !== undefined ? { label: String(row.schemaLabel) } : {}),
-      ...(row.schemaValues !== null && row.schemaValues !== undefined
-        ? { values: parseJson<Array<string | number>>(String(row.schemaValues)) }
-        : {}),
-    },
-  }
-}
-
-const mapFieldValueRow = (row: Record<string, unknown> | null): SharedDbFieldValueRecord | undefined => {
-  if (!row) return undefined
-  return {
-    fieldIndex: Number(row.fieldIndex),
-    value: parseJson(String(row.valueJson)),
-  }
-}
-
-const mapFieldSourceRow = (row: Record<string, unknown> | null): SharedDbFieldSourceRecord | undefined => {
-  if (!row) return undefined
-  return {
-    childFieldIndex: Number(row.childFieldIndex),
-    parentFieldIndex: Number(row.parentFieldIndex),
-  }
-}
-
-const mapEntanglementSeedBlockRow = (
-  row: Record<string, unknown>,
-): SharedDbEntanglementSeedBlockRecord => ({
-  index: Number(row.index),
-  key: String(row.key),
+const readFieldSchema = (row: Record<string, unknown>): SharedDbFieldSchemaRecord => ({
+  type: String(row.schemaType),
+  required: Boolean(row.schemaRequired),
+  topology: Boolean(row.schemaTopology),
+  ...(row.schemaLabel !== null && row.schemaLabel !== undefined ? { label: String(row.schemaLabel) } : {}),
+  ...(row.schemaValues !== null && row.schemaValues !== undefined
+    ? { values: parseJson<Array<string | number>>(String(row.schemaValues)) }
+    : {}),
 })
 
-const mapEntanglementSeedBlockMemberRow = (
-  row: Record<string, unknown>,
-): SharedDbEntanglementSeedBlockMemberRecord => ({
-  index: Number(row.index),
-  blockIndex: Number(row.blockIndex),
-  memberIndex: Number(row.memberIndex),
-  braneIndex: Number(row.braneIndex),
-})
-
-const mapEntanglementSeedFieldRow = (
-  row: Record<string, unknown>,
-): SharedDbEntanglementSeedFieldRecord => ({
-  index: Number(row.index),
-  blockIndex: Number(row.blockIndex),
-  blockFieldIndex: Number(row.blockFieldIndex),
-  semanticKey: String(row.semanticKey),
-  fieldName: String(row.fieldName),
-  provenance: String(row.provenance),
-  representativeDarkFieldId: String(row.representativeDarkFieldId),
-  representativeBraneIndex: Number(row.representativeBraneIndex),
-  payloadIds: parseJson<string[]>(String(row.payloadIdsJson)),
-  semanticKeys: parseJson<string[]>(String(row.semanticKeysJson)),
-})
-
-const mapEntanglementSeedFieldMemberRow = (
-  row: Record<string, unknown>,
-): SharedDbEntanglementSeedFieldMemberRecord => ({
-  index: Number(row.index),
-  entanglementFieldIndex: Number(row.entanglementFieldIndex),
-  memberIndex: Number(row.memberIndex),
-  braneIndex: Number(row.braneIndex),
-  darkFieldId: String(row.darkFieldId),
-})
-
-const mapStateSeedStateRow = (row: Record<string, unknown>): SharedDbStateSeedStateRecord => ({
-  index: Number(row.index),
-  ownerBraneIndex: Number(row.ownerBraneIndex),
-  stateIndex: Number(row.stateIndex),
-  name: String(row.name),
-  initial: Boolean(row.initial),
-})
-
-const mapStateSeedTransitionRow = (
-  row: Record<string, unknown>,
-): SharedDbStateSeedTransitionRecord => ({
-  index: Number(row.index),
-  ownerBraneIndex: Number(row.ownerBraneIndex),
-  fromStateIndex: Number(row.fromStateIndex),
-  transitionIndex: Number(row.transitionIndex),
-  targetStateIndex:
-    row.targetStateIndex === null || row.targetStateIndex === undefined ? null : Number(row.targetStateIndex),
-})
-
-const mapStateSeedConditionRow = (
-  row: Record<string, unknown>,
-): SharedDbStateSeedConditionRecord => ({
-  index: Number(row.index),
-  transitionSeedIndex: Number(row.transitionSeedIndex),
-  conditionIndex: Number(row.conditionIndex),
-  darkFieldId: String(row.darkFieldId),
-  condition: parseJson(String(row.conditionJson)),
-})
-
-const cloneRuntimeSeedData = (data: SharedDbRuntimeSeedData): SharedDbRuntimeSeedData => ({
-  entanglementBlocks: data.entanglementBlocks.map((block) => structuredClone(block)),
-  entanglementBlockMembers: data.entanglementBlockMembers.map((member) => structuredClone(member)),
-  entanglementFields: data.entanglementFields.map((field) => structuredClone(field)),
-  entanglementFieldMembers: data.entanglementFieldMembers.map((member) => structuredClone(member)),
-  stateSeedStates: data.stateSeedStates.map((state) => structuredClone(state)),
-  stateSeedTransitions: data.stateSeedTransitions.map((transition) => structuredClone(transition)),
-  stateSeedConditions: data.stateSeedConditions.map((condition) => structuredClone(condition)),
-})
-
-/**
- * Создаёт и инициализирует SQLite-схему shared/db.
- *
- * @param database Открытая SQLite база.
- */
 export const initializeSharedDbSqliteSchema = (database: Database): void => {
   database.exec(schemaSql)
+
+  sharedDbRequiredBackendIndexes.forEach((index) => {
+    const unique = index.unique ? "UNIQUE " : ""
+    database.exec(`CREATE ${unique}INDEX IF NOT EXISTS ${index.name} ON ${index.table}(${index.columns.join(", ")})`)
+  })
 }
 
-/**
- * Открывает SQLite backend для канонического shared/db контракта.
- *
- * @param options Опции открытия. По умолчанию используется in-memory SQLite.
- * @returns Shared/db backend-handle поверх SQLite.
- */
+const resetDatabase = (database: Database): void => {
+  database.transaction(() => {
+    tableResetOrder.forEach((table) => {
+      database.exec(`DELETE FROM ${table}`)
+    })
+  })()
+}
+
+const readAllData = (database: Database): SharedDbData => ({
+  metas: (
+    database.query(`SELECT id, src, name, bulkJson, massJson FROM metas ORDER BY id`).all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    src: String(row.src),
+    ...(row.name !== null && row.name !== undefined ? { name: String(row.name) } : {}),
+    ...(row.bulkJson !== null && row.bulkJson !== undefined ? { bulk: parseJson(String(row.bulkJson)) } : {}),
+    ...(row.massJson !== null && row.massJson !== undefined ? { mass: parseJson(String(row.massJson)) } : {}),
+  })),
+  metaFields: (
+    database
+      .query(
+        `SELECT id, ownerMetaId, fieldKey, fieldOrder, schemaType, schemaRequired, schemaTopology, schemaLabel, schemaValues
+         FROM meta_fields
+         ORDER BY id`,
+      )
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaId: String(row.ownerMetaId),
+    fieldKey: String(row.fieldKey),
+    fieldOrder: Number(row.fieldOrder),
+    schema: readFieldSchema(row),
+  })),
+  metaStates: (
+    database
+      .query(`SELECT id, ownerMetaId, stateName, stateOrder, initial FROM meta_states ORDER BY id`)
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaId: String(row.ownerMetaId),
+    stateName: String(row.stateName),
+    stateOrder: Number(row.stateOrder),
+    initial: Boolean(row.initial),
+  })),
+  metaTransitions: (
+    database
+      .query(`SELECT id, ownerMetaStateId, targetMetaStateId, transitionOrder FROM meta_transitions ORDER BY id`)
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaStateId: String(row.ownerMetaStateId),
+    targetMetaStateId:
+      row.targetMetaStateId === null || row.targetMetaStateId === undefined ? null : String(row.targetMetaStateId),
+    transitionOrder: Number(row.transitionOrder),
+  })),
+  metaTransitionConditions: (
+    database
+      .query(
+        `SELECT id, ownerMetaTransitionId, metaFieldId, conditionOrder, conditionJson
+         FROM meta_transition_conditions
+         ORDER BY id`,
+      )
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaTransitionId: String(row.ownerMetaTransitionId),
+    metaFieldId: String(row.metaFieldId),
+    conditionOrder: Number(row.conditionOrder),
+    condition: parseJson(String(row.conditionJson)),
+  })),
+  metaProcesses: (
+    database
+      .query(
+        `SELECT id, ownerMetaId, processKey, processOrder, processKind, label, desc,
+                actionSrc, actionImportSpecifier, successSrc, errorSrc, beforeSrc
+         FROM meta_processes
+         ORDER BY id`,
+      )
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaId: String(row.ownerMetaId),
+    processKey: String(row.processKey),
+    processOrder: Number(row.processOrder),
+    processKind: row.processKind === "finally" ? "finally" : "action",
+    ...(row.label !== null && row.label !== undefined ? { label: String(row.label) } : {}),
+    ...(row.desc !== null && row.desc !== undefined ? { desc: String(row.desc) } : {}),
+    ...(row.actionSrc !== null && row.actionSrc !== undefined ? { actionSrc: String(row.actionSrc) } : {}),
+    ...(row.actionImportSpecifier !== null && row.actionImportSpecifier !== undefined
+      ? { actionImportSpecifier: String(row.actionImportSpecifier) }
+      : {}),
+    ...(row.successSrc !== null && row.successSrc !== undefined ? { successSrc: String(row.successSrc) } : {}),
+    ...(row.errorSrc !== null && row.errorSrc !== undefined ? { errorSrc: String(row.errorSrc) } : {}),
+    ...(row.beforeSrc !== null && row.beforeSrc !== undefined ? { beforeSrc: String(row.beforeSrc) } : {}),
+  })),
+  metaProcessReads: (
+    database
+      .query(`SELECT id, ownerMetaProcessId, metaFieldId, phase, readOrder FROM meta_process_reads ORDER BY id`)
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaProcessId: String(row.ownerMetaProcessId),
+    metaFieldId: String(row.metaFieldId),
+    phase: String(row.phase) as "action" | "success" | "error" | "before",
+    readOrder: Number(row.readOrder),
+  })),
+  metaProcessWrites: (
+    database
+      .query(`SELECT id, ownerMetaProcessId, metaFieldId, phase, writeOrder FROM meta_process_writes ORDER BY id`)
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaProcessId: String(row.ownerMetaProcessId),
+    metaFieldId: String(row.metaFieldId),
+    phase: String(row.phase) as "success" | "error",
+    writeOrder: Number(row.writeOrder),
+  })),
+  metaReactions: (
+    database
+      .query(
+        `SELECT id, ownerMetaId, reactionKey, reactionOrder, label, desc, cond, src
+         FROM meta_reactions
+         ORDER BY id`,
+      )
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaId: String(row.ownerMetaId),
+    reactionKey: String(row.reactionKey),
+    reactionOrder: Number(row.reactionOrder),
+    label: String(row.label),
+    ...(row.desc !== null && row.desc !== undefined ? { desc: String(row.desc) } : {}),
+    cond: String(row.cond),
+    src: String(row.src),
+  })),
+  metaReactionStates: (
+    database
+      .query(`SELECT id, ownerMetaReactionId, metaStateId, stateOrder FROM meta_reaction_states ORDER BY id`)
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaReactionId: String(row.ownerMetaReactionId),
+    metaStateId: String(row.metaStateId),
+    stateOrder: Number(row.stateOrder),
+  })),
+  metaReactionReads: (
+    database
+      .query(`SELECT id, ownerMetaReactionId, metaFieldId, readOrder FROM meta_reaction_reads ORDER BY id`)
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaReactionId: String(row.ownerMetaReactionId),
+    metaFieldId: String(row.metaFieldId),
+    readOrder: Number(row.readOrder),
+  })),
+  metaReactionWrites: (
+    database
+      .query(`SELECT id, ownerMetaReactionId, metaFieldId, writeOrder FROM meta_reaction_writes ORDER BY id`)
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaReactionId: String(row.ownerMetaReactionId),
+    metaFieldId: String(row.metaFieldId),
+    writeOrder: Number(row.writeOrder),
+  })),
+  metaMatterNodes: (
+    database
+      .query(`SELECT id, ownerMetaId, nodeType, nodeOrder, payloadJson FROM meta_matter_nodes ORDER BY id`)
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaId: String(row.ownerMetaId),
+    nodeType: String(row.nodeType),
+    nodeOrder: Number(row.nodeOrder),
+    payload: parseJson<Record<string, unknown>>(String(row.payloadJson)) ?? {},
+  })),
+  metaMatterEdges: (
+    database
+      .query(`SELECT id, ownerMetaId, parentNodeId, childNodeId, edgeOrder FROM meta_matter_edges ORDER BY id`)
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerMetaId: String(row.ownerMetaId),
+    parentNodeId: row.parentNodeId === null || row.parentNodeId === undefined ? null : String(row.parentNodeId),
+    childNodeId: String(row.childNodeId),
+    edgeOrder: Number(row.edgeOrder),
+  })),
+  wimps: (
+    database.query(`SELECT id, metaId, wimpOrder, massOverrideJson FROM wimps ORDER BY id`).all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    metaId: String(row.metaId),
+    wimpOrder: Number(row.wimpOrder),
+    ...(row.massOverrideJson !== null && row.massOverrideJson !== undefined
+      ? { massOverride: parseJson(String(row.massOverrideJson)) }
+      : {}),
+  })),
+  wimpFields: (
+    database.query(`SELECT id, ownerWimpId, metaFieldId, fieldOrder FROM wimp_fields ORDER BY id`).all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerWimpId: String(row.ownerWimpId),
+    metaFieldId: String(row.metaFieldId),
+    fieldOrder: Number(row.fieldOrder),
+  })),
+  wimpEdges: (
+    database.query(`SELECT id, parentWimpId, childWimpId, edgeOrder FROM wimp_edges ORDER BY id`).all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    parentWimpId: row.parentWimpId === null || row.parentWimpId === undefined ? null : String(row.parentWimpId),
+    childWimpId: String(row.childWimpId),
+    edgeOrder: Number(row.edgeOrder),
+  })),
+  fieldValues: (
+    database.query(`SELECT id, ownerWimpFieldId, valueJson FROM field_values ORDER BY id`).all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerWimpFieldId: String(row.ownerWimpFieldId),
+    value: parseJson(String(row.valueJson)),
+  })),
+  fieldSources: (
+    database
+      .query(`SELECT id, childWimpFieldId, parentWimpFieldId FROM field_sources ORDER BY id`)
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    childWimpFieldId: String(row.childWimpFieldId),
+    parentWimpFieldId: String(row.parentWimpFieldId),
+  })),
+  wimpStates: (
+    database.query(`SELECT id, ownerWimpId, metaStateId FROM wimp_states ORDER BY id`).all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerWimpId: String(row.ownerWimpId),
+    metaStateId: String(row.metaStateId),
+  })),
+  entanglements: (
+    database.query(`SELECT id, membershipKey, provenance FROM entanglements ORDER BY id`).all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    membershipKey: String(row.membershipKey),
+    provenance: String(row.provenance),
+  })),
+  entanglementMembers: (
+    database
+      .query(`SELECT id, ownerEntanglementId, wimpId, memberOrder FROM entanglement_members ORDER BY id`)
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerEntanglementId: String(row.ownerEntanglementId),
+    wimpId: String(row.wimpId),
+    memberOrder: Number(row.memberOrder),
+  })),
+  entanglementFields: (
+    database
+      .query(
+        `SELECT id, ownerEntanglementId, fieldOrder, semanticKey, fieldName, provenance,
+                representativeWimpFieldId, payloadIdsJson, semanticKeysJson
+         FROM entanglement_fields
+         ORDER BY id`,
+      )
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerEntanglementId: String(row.ownerEntanglementId),
+    fieldOrder: Number(row.fieldOrder),
+    semanticKey: String(row.semanticKey),
+    fieldName: String(row.fieldName),
+    provenance: String(row.provenance),
+    representativeWimpFieldId: String(row.representativeWimpFieldId),
+    payloadIds: parseJson<string[]>(String(row.payloadIdsJson)) ?? [],
+    semanticKeys: parseJson<string[]>(String(row.semanticKeysJson)) ?? [],
+  })),
+  entanglementFieldMembers: (
+    database
+      .query(
+        `SELECT id, ownerEntanglementFieldId, ownerWimpId, wimpFieldId, memberOrder
+         FROM entanglement_field_members
+         ORDER BY id`,
+      )
+      .all() as Array<Record<string, unknown>>
+  ).map((row) => ({
+    id: String(row.id),
+    ownerEntanglementFieldId: String(row.ownerEntanglementFieldId),
+    ownerWimpId: String(row.ownerWimpId),
+    wimpFieldId: String(row.wimpFieldId),
+    memberOrder: Number(row.memberOrder),
+  })),
+})
+
+const writeAllData = (database: Database, rawData: SharedDbData): void => {
+  const data = normalizeSharedDbData(rawData)
+
+  const insert = database.transaction(() => {
+    resetDatabase(database)
+
+    const insertMeta = database.query(
+      `INSERT INTO metas(id, src, name, bulkJson, massJson) VALUES (?, ?, ?, ?, ?)`,
+    )
+    data.metas.forEach((row) => {
+      insertMeta.run(row.id, row.src, row.name ?? null, row.bulk === undefined ? null : serializeJson(row.bulk), row.mass === undefined ? null : serializeJson(row.mass))
+    })
+
+    const insertMetaField = database.query(
+      `INSERT INTO meta_fields(id, ownerMetaId, fieldKey, fieldOrder, schemaType, schemaRequired, schemaTopology, schemaLabel, schemaValues)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    data.metaFields.forEach((row) => {
+      insertMetaField.run(
+        row.id,
+        row.ownerMetaId,
+        row.fieldKey,
+        row.fieldOrder,
+        row.schema.type,
+        row.schema.required ? 1 : 0,
+        row.schema.topology ? 1 : 0,
+        row.schema.label ?? null,
+        row.schema.values === undefined ? null : serializeJson(row.schema.values),
+      )
+    })
+
+    const insertMetaState = database.query(
+      `INSERT INTO meta_states(id, ownerMetaId, stateName, stateOrder, initial) VALUES (?, ?, ?, ?, ?)`,
+    )
+    data.metaStates.forEach((row) => insertMetaState.run(row.id, row.ownerMetaId, row.stateName, row.stateOrder, row.initial ? 1 : 0))
+
+    const insertMetaTransition = database.query(
+      `INSERT INTO meta_transitions(id, ownerMetaStateId, targetMetaStateId, transitionOrder) VALUES (?, ?, ?, ?)`,
+    )
+    data.metaTransitions.forEach((row) =>
+      insertMetaTransition.run(row.id, row.ownerMetaStateId, row.targetMetaStateId, row.transitionOrder),
+    )
+
+    const insertMetaTransitionCondition = database.query(
+      `INSERT INTO meta_transition_conditions(id, ownerMetaTransitionId, metaFieldId, conditionOrder, conditionJson)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    data.metaTransitionConditions.forEach((row) =>
+      insertMetaTransitionCondition.run(
+        row.id,
+        row.ownerMetaTransitionId,
+        row.metaFieldId,
+        row.conditionOrder,
+        serializeJson(row.condition),
+      ),
+    )
+
+    const insertMetaProcess = database.query(
+      `INSERT INTO meta_processes(
+         id, ownerMetaId, processKey, processOrder, processKind, label, desc,
+         actionSrc, actionImportSpecifier, successSrc, errorSrc, beforeSrc
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    data.metaProcesses.forEach((row) =>
+      insertMetaProcess.run(
+        row.id,
+        row.ownerMetaId,
+        row.processKey,
+        row.processOrder,
+        row.processKind,
+        row.label ?? null,
+        row.desc ?? null,
+        row.actionSrc ?? null,
+        row.actionImportSpecifier ?? null,
+        row.successSrc ?? null,
+        row.errorSrc ?? null,
+        row.beforeSrc ?? null,
+      ),
+    )
+
+    const insertMetaProcessRead = database.query(
+      `INSERT INTO meta_process_reads(id, ownerMetaProcessId, metaFieldId, phase, readOrder) VALUES (?, ?, ?, ?, ?)`,
+    )
+    data.metaProcessReads.forEach((row) =>
+      insertMetaProcessRead.run(row.id, row.ownerMetaProcessId, row.metaFieldId, row.phase, row.readOrder),
+    )
+
+    const insertMetaProcessWrite = database.query(
+      `INSERT INTO meta_process_writes(id, ownerMetaProcessId, metaFieldId, phase, writeOrder) VALUES (?, ?, ?, ?, ?)`,
+    )
+    data.metaProcessWrites.forEach((row) =>
+      insertMetaProcessWrite.run(row.id, row.ownerMetaProcessId, row.metaFieldId, row.phase, row.writeOrder),
+    )
+
+    const insertMetaReaction = database.query(
+      `INSERT INTO meta_reactions(id, ownerMetaId, reactionKey, reactionOrder, label, desc, cond, src)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    data.metaReactions.forEach((row) =>
+      insertMetaReaction.run(
+        row.id,
+        row.ownerMetaId,
+        row.reactionKey,
+        row.reactionOrder,
+        row.label,
+        row.desc ?? null,
+        row.cond,
+        row.src,
+      ),
+    )
+
+    const insertMetaReactionState = database.query(
+      `INSERT INTO meta_reaction_states(id, ownerMetaReactionId, metaStateId, stateOrder) VALUES (?, ?, ?, ?)`,
+    )
+    data.metaReactionStates.forEach((row) =>
+      insertMetaReactionState.run(row.id, row.ownerMetaReactionId, row.metaStateId, row.stateOrder),
+    )
+
+    const insertMetaReactionRead = database.query(
+      `INSERT INTO meta_reaction_reads(id, ownerMetaReactionId, metaFieldId, readOrder) VALUES (?, ?, ?, ?)`,
+    )
+    data.metaReactionReads.forEach((row) =>
+      insertMetaReactionRead.run(row.id, row.ownerMetaReactionId, row.metaFieldId, row.readOrder),
+    )
+
+    const insertMetaReactionWrite = database.query(
+      `INSERT INTO meta_reaction_writes(id, ownerMetaReactionId, metaFieldId, writeOrder) VALUES (?, ?, ?, ?)`,
+    )
+    data.metaReactionWrites.forEach((row) =>
+      insertMetaReactionWrite.run(row.id, row.ownerMetaReactionId, row.metaFieldId, row.writeOrder),
+    )
+
+    const insertMetaMatterNode = database.query(
+      `INSERT INTO meta_matter_nodes(id, ownerMetaId, nodeType, nodeOrder, payloadJson) VALUES (?, ?, ?, ?, ?)`,
+    )
+    data.metaMatterNodes.forEach((row) =>
+      insertMetaMatterNode.run(row.id, row.ownerMetaId, row.nodeType, row.nodeOrder, serializeJson(row.payload)),
+    )
+
+    const insertMetaMatterEdge = database.query(
+      `INSERT INTO meta_matter_edges(id, ownerMetaId, parentNodeId, childNodeId, edgeOrder) VALUES (?, ?, ?, ?, ?)`,
+    )
+    data.metaMatterEdges.forEach((row) =>
+      insertMetaMatterEdge.run(row.id, row.ownerMetaId, row.parentNodeId, row.childNodeId, row.edgeOrder),
+    )
+
+    const insertWimp = database.query(
+      `INSERT INTO wimps(id, metaId, wimpOrder, massOverrideJson) VALUES (?, ?, ?, ?)`,
+    )
+    data.wimps.forEach((row) =>
+      insertWimp.run(row.id, row.metaId, row.wimpOrder, row.massOverride === undefined ? null : serializeJson(row.massOverride)),
+    )
+
+    const insertWimpField = database.query(
+      `INSERT INTO wimp_fields(id, ownerWimpId, metaFieldId, fieldOrder) VALUES (?, ?, ?, ?)`,
+    )
+    data.wimpFields.forEach((row) => insertWimpField.run(row.id, row.ownerWimpId, row.metaFieldId, row.fieldOrder))
+
+    const insertWimpEdge = database.query(
+      `INSERT INTO wimp_edges(id, parentWimpId, childWimpId, edgeOrder) VALUES (?, ?, ?, ?)`,
+    )
+    data.wimpEdges.forEach((row) => insertWimpEdge.run(row.id, row.parentWimpId, row.childWimpId, row.edgeOrder))
+
+    const insertFieldValue = database.query(
+      `INSERT INTO field_values(id, ownerWimpFieldId, valueJson) VALUES (?, ?, ?)`,
+    )
+    data.fieldValues.forEach((row) => insertFieldValue.run(row.id, row.ownerWimpFieldId, serializeJson(row.value)))
+
+    const insertFieldSource = database.query(
+      `INSERT INTO field_sources(id, childWimpFieldId, parentWimpFieldId) VALUES (?, ?, ?)`,
+    )
+    data.fieldSources.forEach((row) => insertFieldSource.run(row.id, row.childWimpFieldId, row.parentWimpFieldId))
+
+    const insertWimpState = database.query(
+      `INSERT INTO wimp_states(id, ownerWimpId, metaStateId) VALUES (?, ?, ?)`,
+    )
+    data.wimpStates.forEach((row) => insertWimpState.run(row.id, row.ownerWimpId, row.metaStateId))
+
+    const insertEntanglement = database.query(
+      `INSERT INTO entanglements(id, membershipKey, provenance) VALUES (?, ?, ?)`,
+    )
+    data.entanglements.forEach((row) => insertEntanglement.run(row.id, row.membershipKey, row.provenance))
+
+    const insertEntanglementMember = database.query(
+      `INSERT INTO entanglement_members(id, ownerEntanglementId, wimpId, memberOrder) VALUES (?, ?, ?, ?)`,
+    )
+    data.entanglementMembers.forEach((row) =>
+      insertEntanglementMember.run(row.id, row.ownerEntanglementId, row.wimpId, row.memberOrder),
+    )
+
+    const insertEntanglementField = database.query(
+      `INSERT INTO entanglement_fields(
+         id, ownerEntanglementId, fieldOrder, semanticKey, fieldName, provenance,
+         representativeWimpFieldId, payloadIdsJson, semanticKeysJson
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    data.entanglementFields.forEach((row) =>
+      insertEntanglementField.run(
+        row.id,
+        row.ownerEntanglementId,
+        row.fieldOrder,
+        row.semanticKey,
+        row.fieldName,
+        row.provenance,
+        row.representativeWimpFieldId,
+        serializeJson(row.payloadIds),
+        serializeJson(row.semanticKeys),
+      ),
+    )
+
+    const insertEntanglementFieldMember = database.query(
+      `INSERT INTO entanglement_field_members(id, ownerEntanglementFieldId, ownerWimpId, wimpFieldId, memberOrder)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    data.entanglementFieldMembers.forEach((row) =>
+      insertEntanglementFieldMember.run(
+        row.id,
+        row.ownerEntanglementFieldId,
+        row.ownerWimpId,
+        row.wimpFieldId,
+        row.memberOrder,
+      ),
+    )
+  })
+
+  insert()
+}
+
 export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions = {}): SharedDbBackend => {
   const database = new Database(options.filename ?? ":memory:")
   initializeSharedDbSqliteSchema(database)
-
-  const statements = {
-    selectFirstBraneIndex: database.query(`SELECT "index" FROM branes ORDER BY "index" LIMIT 1`),
-    clearStateSeedConditions: database.query(`DELETE FROM state_seed_conditions`),
-    clearStateSeedTransitions: database.query(`DELETE FROM state_seed_transitions`),
-    clearStateSeedStates: database.query(`DELETE FROM state_seed_states`),
-    clearEntanglementSeedFieldMembers: database.query(`DELETE FROM entanglement_seed_field_members`),
-    clearEntanglementSeedFields: database.query(`DELETE FROM entanglement_seed_fields`),
-    clearEntanglementSeedBlockMembers: database.query(`DELETE FROM entanglement_seed_block_members`),
-    clearEntanglementSeedBlocks: database.query(`DELETE FROM entanglement_seed_blocks`),
-    clearFieldSources: database.query(`DELETE FROM field_sources`),
-    clearFieldValues: database.query(`DELETE FROM field_values`),
-    clearFields: database.query(`DELETE FROM fields`),
-    clearBranes: database.query(`DELETE FROM branes`),
-    insertBrane: database.query(
-      `INSERT INTO branes("index", darkWimpId, src, name)
-       VALUES (?, ?, ?, ?)`,
-    ),
-    upsertBrane: database.query(
-      `INSERT INTO branes("index", darkWimpId, src, name)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT("index") DO UPDATE SET
-         darkWimpId = excluded.darkWimpId,
-         src = excluded.src,
-         name = excluded.name`,
-    ),
-    insertField: database.query(
-      `INSERT INTO fields("index", darkFieldId, ownerBraneIndex, "key", schemaType, schemaRequired, schemaTopology, schemaLabel, schemaValues)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ),
-    upsertField: database.query(
-      `INSERT INTO fields("index", darkFieldId, ownerBraneIndex, "key", schemaType, schemaRequired, schemaTopology, schemaLabel, schemaValues)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT("index") DO UPDATE SET
-         darkFieldId = excluded.darkFieldId,
-         ownerBraneIndex = excluded.ownerBraneIndex,
-         "key" = excluded."key",
-         schemaType = excluded.schemaType,
-         schemaRequired = excluded.schemaRequired,
-         schemaTopology = excluded.schemaTopology,
-         schemaLabel = excluded.schemaLabel,
-         schemaValues = excluded.schemaValues`,
-    ),
-    insertFieldValue: database.query(
-      `INSERT INTO field_values(fieldIndex, valueJson)
-       VALUES (?, ?)`,
-    ),
-    insertFieldSource: database.query(
-      `INSERT INTO field_sources(childFieldIndex, parentFieldIndex)
-       VALUES (?, ?)`,
-    ),
-    upsertFieldSource: database.query(
-      `INSERT INTO field_sources(childFieldIndex, parentFieldIndex)
-       VALUES (?, ?)
-       ON CONFLICT(childFieldIndex) DO UPDATE SET parentFieldIndex = excluded.parentFieldIndex`,
-    ),
-    deleteFieldSource: database.query(`DELETE FROM field_sources WHERE childFieldIndex = ?`),
-    insertEntanglementSeedBlock: database.query(
-      `INSERT INTO entanglement_seed_blocks("index", "key")
-       VALUES (?, ?)`,
-    ),
-    insertEntanglementSeedBlockMember: database.query(
-      `INSERT INTO entanglement_seed_block_members("index", blockIndex, memberIndex, braneIndex)
-       VALUES (?, ?, ?, ?)`,
-    ),
-    insertEntanglementSeedField: database.query(
-      `INSERT INTO entanglement_seed_fields("index", blockIndex, blockFieldIndex, semanticKey, fieldName, provenance, representativeDarkFieldId, representativeBraneIndex, payloadIdsJson, semanticKeysJson)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ),
-    insertEntanglementSeedFieldMember: database.query(
-      `INSERT INTO entanglement_seed_field_members("index", entanglementFieldIndex, memberIndex, braneIndex, darkFieldId)
-       VALUES (?, ?, ?, ?, ?)`,
-    ),
-    insertStateSeedState: database.query(
-      `INSERT INTO state_seed_states("index", ownerBraneIndex, stateIndex, name, initial)
-       VALUES (?, ?, ?, ?, ?)`,
-    ),
-    insertStateSeedTransition: database.query(
-      `INSERT INTO state_seed_transitions("index", ownerBraneIndex, fromStateIndex, transitionIndex, targetStateIndex)
-       VALUES (?, ?, ?, ?, ?)`,
-    ),
-    insertStateSeedCondition: database.query(
-      `INSERT INTO state_seed_conditions("index", transitionSeedIndex, conditionIndex, darkFieldId, conditionJson)
-       VALUES (?, ?, ?, ?, ?)`,
-    ),
-    selectBraneByIndex: database.query(`${braneSelectSql} WHERE "index" = ?`),
-    selectBraneByDarkId: database.query(`${braneSelectSql} WHERE darkWimpId = ?`),
-    selectFieldByIndex: database.query(`${fieldSelectSql} WHERE "index" = ?`),
-    selectFieldByDarkId: database.query(`${fieldSelectSql} WHERE darkFieldId = ?`),
-    selectFieldByKey: database.query(`${fieldSelectSql} WHERE ownerBraneIndex = ? AND "key" = ?`),
-    selectFieldValueByIndex: database.query(`${fieldValueSelectSql} WHERE fieldIndex = ?`),
-    selectFieldSourceByChildIndex: database.query(`${fieldSourceSelectSql} WHERE childFieldIndex = ?`),
-    selectDependentFieldsByParentIndex: database.query(
-      `${fieldSelectSql}
-       INNER JOIN field_sources ON field_sources.childFieldIndex = fields."index"
-       WHERE field_sources.parentFieldIndex = ?
-       ORDER BY fields."index"`,
-    ),
-    selectAllEntanglementSeedBlocks: database.query(entanglementSeedBlockSelectSql),
-    selectAllEntanglementSeedBlockMembers: database.query(entanglementSeedBlockMemberSelectSql),
-    selectAllEntanglementSeedFields: database.query(entanglementSeedFieldSelectSql),
-    selectAllEntanglementSeedFieldMembers: database.query(entanglementSeedFieldMemberSelectSql),
-    selectAllStateSeedStates: database.query(stateSeedStateSelectSql),
-    selectAllStateSeedTransitions: database.query(stateSeedTransitionSelectSql),
-    selectAllStateSeedConditions: database.query(stateSeedConditionSelectSql),
-    ensureFieldExists: database.query(`SELECT 1 as present FROM fields WHERE "index" = ?`),
-    upsertFieldValue: database.query(
-      `INSERT INTO field_values(fieldIndex, valueJson)
-       VALUES (?, ?)
-       ON CONFLICT(fieldIndex) DO UPDATE SET valueJson = excluded.valueJson`,
-    ),
-  }
-
-  const readRuntimeSeedData = (): SharedDbRuntimeSeedData =>
-    cloneRuntimeSeedData({
-      entanglementBlocks: (
-        statements.selectAllEntanglementSeedBlocks.all() as Array<Record<string, unknown>>
-      ).map(mapEntanglementSeedBlockRow),
-      entanglementBlockMembers: (
-        statements.selectAllEntanglementSeedBlockMembers.all() as Array<Record<string, unknown>>
-      ).map(mapEntanglementSeedBlockMemberRow),
-      entanglementFields: (
-        statements.selectAllEntanglementSeedFields.all() as Array<Record<string, unknown>>
-      ).map(mapEntanglementSeedFieldRow),
-      entanglementFieldMembers: (
-        statements.selectAllEntanglementSeedFieldMembers.all() as Array<Record<string, unknown>>
-      ).map(mapEntanglementSeedFieldMemberRow),
-      stateSeedStates: (statements.selectAllStateSeedStates.all() as Array<Record<string, unknown>>).map(
-        mapStateSeedStateRow,
-      ),
-      stateSeedTransitions: (
-        statements.selectAllStateSeedTransitions.all() as Array<Record<string, unknown>>
-      ).map(mapStateSeedTransitionRow),
-      stateSeedConditions: (
-        statements.selectAllStateSeedConditions.all() as Array<Record<string, unknown>>
-      ).map(mapStateSeedConditionRow),
-    })
-
-  const replaceAll = database.transaction((data: SharedDbTabularData) => {
-    const normalized = normalizeSharedDbTabularData(data)
-    statements.clearStateSeedConditions.run()
-    statements.clearStateSeedTransitions.run()
-    statements.clearStateSeedStates.run()
-    statements.clearEntanglementSeedFieldMembers.run()
-    statements.clearEntanglementSeedFields.run()
-    statements.clearEntanglementSeedBlockMembers.run()
-    statements.clearEntanglementSeedBlocks.run()
-    statements.clearFieldSources.run()
-    statements.clearFieldValues.run()
-    statements.clearFields.run()
-    statements.clearBranes.run()
-
-    for (const brane of normalized.branes) {
-      statements.insertBrane.run(
-        brane.index,
-        brane.darkWimpId,
-        brane.src,
-        brane.name ?? null,
-      )
-    }
-
-    for (const field of normalized.fields) {
-      statements.insertField.run(
-        field.index,
-        field.darkFieldId,
-        field.ownerBraneIndex,
-        field.key,
-        field.schema.type,
-        Number(field.schema.required),
-        Number(field.schema.topology),
-        field.schema.label ?? null,
-        field.schema.values !== undefined ? serializeJson(field.schema.values) : null,
-      )
-    }
-
-    for (const fieldValue of normalized.fieldValues) {
-      statements.insertFieldValue.run(fieldValue.fieldIndex, serializeJson(fieldValue.value))
-    }
-
-    for (const fieldSource of normalized.fieldSources) {
-      statements.insertFieldSource.run(fieldSource.childFieldIndex, fieldSource.parentFieldIndex)
-    }
-
-    for (const block of normalized.entanglementBlocks) {
-      statements.insertEntanglementSeedBlock.run(block.index, block.key)
-    }
-
-    for (const member of normalized.entanglementBlockMembers) {
-      statements.insertEntanglementSeedBlockMember.run(
-        member.index,
-        member.blockIndex,
-        member.memberIndex,
-        member.braneIndex,
-      )
-    }
-
-    for (const seedField of normalized.entanglementFields) {
-      statements.insertEntanglementSeedField.run(
-        seedField.index,
-        seedField.blockIndex,
-        seedField.blockFieldIndex,
-        seedField.semanticKey,
-        seedField.fieldName,
-        seedField.provenance,
-        seedField.representativeDarkFieldId,
-        seedField.representativeBraneIndex,
-        serializeJson(seedField.payloadIds),
-        serializeJson(seedField.semanticKeys),
-      )
-    }
-
-    for (const member of normalized.entanglementFieldMembers) {
-      statements.insertEntanglementSeedFieldMember.run(
-        member.index,
-        member.entanglementFieldIndex,
-        member.memberIndex,
-        member.braneIndex,
-        member.darkFieldId,
-      )
-    }
-
-    for (const state of normalized.stateSeedStates) {
-      statements.insertStateSeedState.run(
-        state.index,
-        state.ownerBraneIndex,
-        state.stateIndex,
-        state.name,
-        Number(state.initial),
-      )
-    }
-
-    for (const transition of normalized.stateSeedTransitions) {
-      statements.insertStateSeedTransition.run(
-        transition.index,
-        transition.ownerBraneIndex,
-        transition.fromStateIndex,
-        transition.transitionIndex,
-        transition.targetStateIndex,
-      )
-    }
-
-    for (const condition of normalized.stateSeedConditions) {
-      statements.insertStateSeedCondition.run(
-        condition.index,
-        condition.transitionSeedIndex,
-        condition.conditionIndex,
-        condition.darkFieldId,
-        serializeJson(condition.condition),
-      )
-    }
-  })
-
-  const replaceRuntimeSeedsTxn = database.transaction((data: SharedDbRuntimeSeedData) => {
-    statements.clearStateSeedConditions.run()
-    statements.clearStateSeedTransitions.run()
-    statements.clearStateSeedStates.run()
-    statements.clearEntanglementSeedFieldMembers.run()
-    statements.clearEntanglementSeedFields.run()
-    statements.clearEntanglementSeedBlockMembers.run()
-    statements.clearEntanglementSeedBlocks.run()
-
-    for (const block of data.entanglementBlocks) {
-      statements.insertEntanglementSeedBlock.run(block.index, block.key)
-    }
-
-    for (const member of data.entanglementBlockMembers) {
-      statements.insertEntanglementSeedBlockMember.run(
-        member.index,
-        member.blockIndex,
-        member.memberIndex,
-        member.braneIndex,
-      )
-    }
-
-    for (const seedField of data.entanglementFields) {
-      statements.insertEntanglementSeedField.run(
-        seedField.index,
-        seedField.blockIndex,
-        seedField.blockFieldIndex,
-        seedField.semanticKey,
-        seedField.fieldName,
-        seedField.provenance,
-        seedField.representativeDarkFieldId,
-        seedField.representativeBraneIndex,
-        serializeJson(seedField.payloadIds),
-        serializeJson(seedField.semanticKeys),
-      )
-    }
-
-    for (const member of data.entanglementFieldMembers) {
-      statements.insertEntanglementSeedFieldMember.run(
-        member.index,
-        member.entanglementFieldIndex,
-        member.memberIndex,
-        member.braneIndex,
-        member.darkFieldId,
-      )
-    }
-
-    for (const state of data.stateSeedStates) {
-      statements.insertStateSeedState.run(
-        state.index,
-        state.ownerBraneIndex,
-        state.stateIndex,
-        state.name,
-        Number(state.initial),
-      )
-    }
-
-    for (const transition of data.stateSeedTransitions) {
-      statements.insertStateSeedTransition.run(
-        transition.index,
-        transition.ownerBraneIndex,
-        transition.fromStateIndex,
-        transition.transitionIndex,
-        transition.targetStateIndex,
-      )
-    }
-
-    for (const condition of data.stateSeedConditions) {
-      statements.insertStateSeedCondition.run(
-        condition.index,
-        condition.transitionSeedIndex,
-        condition.conditionIndex,
-        condition.darkFieldId,
-        serializeJson(condition.condition),
-      )
-    }
-  })
 
   return {
     requiredIndexes: sharedDbRequiredBackendIndexes,
@@ -776,112 +829,30 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
       database.close()
     },
 
-    getRootBraneIndex() {
-      const row = statements.selectFirstBraneIndex.get() as Record<string, unknown> | null
-      return row ? Number(row.index) : 0
-    },
-
-    setRootBraneIndex(braneIndex) {
-      if (braneIndex !== 0) {
-        throw new Error(`Shared DB root brane index is derived from brane order and currently fixed to 0, got ${braneIndex}`)
-      }
-    },
-
-    getRuntimeSeedData() {
-      return readRuntimeSeedData()
-    },
-
     reset() {
-      replaceAll(createEmptySharedDbTabularSnapshot())
+      resetDatabase(database)
+    },
+
+    readData() {
+      return normalizeSharedDbData(readAllData(database))
     },
 
     replaceData(data) {
-      replaceAll(data)
+      writeAllData(database, data)
     },
 
-    writeProjection(projection: SharedDbProjection) {
-      replaceAll(prepareSharedDbTabularData(projection))
+    writeData(data) {
+      writeAllData(database, data)
     },
 
-    upsertBrane(brane) {
-      statements.upsertBrane.run(
-        brane.index,
-        brane.darkWimpId,
-        brane.src,
-        brane.name ?? null,
-      )
-    },
+    setFieldValue(wimpFieldId, value) {
+      const result = database
+        .query(`UPDATE field_values SET valueJson = ? WHERE ownerWimpFieldId = ?`)
+        .run(serializeJson(value), wimpFieldId)
 
-    upsertField(field) {
-      statements.upsertField.run(
-        field.index,
-        field.darkFieldId,
-        field.ownerBraneIndex,
-        field.key,
-        field.schema.type,
-        Number(field.schema.required),
-        Number(field.schema.topology),
-        field.schema.label ?? null,
-        field.schema.values !== undefined ? serializeJson(field.schema.values) : null,
-      )
-    },
-
-    setFieldSource(childFieldIndex, parentFieldIndex) {
-      if (parentFieldIndex === null) {
-        statements.deleteFieldSource.run(childFieldIndex)
-        return
+      if (result.changes === 0) {
+        throw new Error(`Field value not found for wimp field ${wimpFieldId}`)
       }
-
-      statements.upsertFieldSource.run(childFieldIndex, parentFieldIndex)
-    },
-
-    replaceRuntimeSeedData(data) {
-      replaceRuntimeSeedsTxn(data)
-    },
-
-    getBrane(braneIndex) {
-      return mapBraneRow(statements.selectBraneByIndex.get(braneIndex) as Record<string, unknown> | null)
-    },
-
-    getBraneByDarkId(darkWimpId) {
-      return mapBraneRow(statements.selectBraneByDarkId.get(darkWimpId) as Record<string, unknown> | null)
-    },
-
-    getField(fieldIndex) {
-      return mapFieldRow(statements.selectFieldByIndex.get(fieldIndex) as Record<string, unknown> | null)
-    },
-
-    getFieldByDarkId(darkFieldId) {
-      return mapFieldRow(statements.selectFieldByDarkId.get(darkFieldId) as Record<string, unknown> | null)
-    },
-
-    getFieldByKey(braneIndex, fieldKey) {
-      return mapFieldRow(statements.selectFieldByKey.get(braneIndex, fieldKey) as Record<string, unknown> | null)
-    },
-
-    getFieldValue(fieldIndex) {
-      return mapFieldValueRow(statements.selectFieldValueByIndex.get(fieldIndex) as Record<string, unknown> | null)
-    },
-
-    getFieldSource(childFieldIndex) {
-      return mapFieldSourceRow(
-        statements.selectFieldSourceByChildIndex.get(childFieldIndex) as Record<string, unknown> | null,
-      )
-    },
-
-    getDependentFields(parentFieldIndex) {
-      return (
-        statements.selectDependentFieldsByParentIndex.all(parentFieldIndex) as Array<Record<string, unknown>>
-      ).map((row) => mapFieldRow(row)!)
-    },
-
-    setFieldValue(fieldIndex, value) {
-      const row = statements.ensureFieldExists.get(fieldIndex) as Record<string, unknown> | null
-      if (!row) {
-        throw new Error(`Field index out of range: ${fieldIndex}`)
-      }
-
-      statements.upsertFieldValue.run(fieldIndex, serializeJson(value))
     },
   }
 }

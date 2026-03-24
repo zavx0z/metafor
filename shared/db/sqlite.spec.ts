@@ -3,10 +3,9 @@ import { describe, expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { assembleSharedDbProjection } from "../../dark/db.ts"
+import { assembleSharedDbData } from "../../dark/db.ts"
 import { createSharedDbFixture } from "../../dark/db.fixture.ts"
-import { describeSharedDbBackendContract } from "./backend.contract.ts"
-import { prepareSharedDbTabularData, readSharedDbProjection, sharedDbRequiredBackendIndexes } from "./backend.ts"
+import { readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
 import { openSharedDbSqliteBackend } from "./sqlite.ts"
 
 const createTempSqliteTarget = (): { dir: string; filename: string } => {
@@ -17,10 +16,8 @@ const createTempSqliteTarget = (): { dir: string; filename: string } => {
   }
 }
 
-describeSharedDbBackendContract("shared db sqlite backend", () => openSharedDbSqliteBackend())
-
 describe("shared db sqlite backend", () => {
-  test("создаёт обязательную схему и SQL indexes", () => {
+  test("создаёт canonical relational schema и SQL indexes", () => {
     const temp = createTempSqliteTarget()
 
     try {
@@ -53,24 +50,37 @@ describe("shared db sqlite backend", () => {
         ).map((row) => row.name)
 
         expect(tables).toEqual([
-          "branes",
-          "entanglement_seed_block_members",
-          "entanglement_seed_blocks",
-          "entanglement_seed_field_members",
-          "entanglement_seed_fields",
+          "entanglement_field_members",
+          "entanglement_fields",
+          "entanglement_members",
+          "entanglements",
           "field_sources",
           "field_values",
-          "fields",
-          "state_seed_conditions",
-          "state_seed_states",
-          "state_seed_transitions",
+          "meta_fields",
+          "meta_matter_edges",
+          "meta_matter_nodes",
+          "meta_process_reads",
+          "meta_process_writes",
+          "meta_processes",
+          "meta_reaction_reads",
+          "meta_reaction_states",
+          "meta_reaction_writes",
+          "meta_reactions",
+          "meta_states",
+          "meta_transition_conditions",
+          "meta_transitions",
+          "metas",
+          "wimp_edges",
+          "wimp_fields",
+          "wimp_states",
+          "wimps",
         ])
         expect(indexes).toEqual(sharedDbRequiredBackendIndexes.map((index) => index.name).sort())
 
-        const braneColumns = (
-          database.query(`PRAGMA table_info(branes)`).all() as Array<{ name: string }>
+        const wimpColumns = (
+          database.query(`PRAGMA table_info(wimps)`).all() as Array<{ name: string }>
         ).map((row) => row.name)
-        expect(braneColumns).toEqual(["index", "darkWimpId", "src", "name"])
+        expect(wimpColumns).toEqual(["id", "metaId", "wimpOrder", "massOverrideJson"])
       } finally {
         database.close()
       }
@@ -79,50 +89,31 @@ describe("shared db sqlite backend", () => {
     }
   })
 
-  test("сохраняет projection в file-backed SQLite и читает её после повторного открытия", () => {
+  test("сохраняет canonical relational data в file-backed SQLite и перечитывает её после повторного открытия", () => {
     const fixture = createSharedDbFixture()
-    const projection = assembleSharedDbProjection(fixture.root)
+    const data = assembleSharedDbData(fixture.root)
     const temp = createTempSqliteTarget()
 
     try {
       const writer = openSharedDbSqliteBackend({ filename: temp.filename })
-      writer.writeProjection(projection)
+      writer.writeData(data)
       writer.close()
 
       const reader = openSharedDbSqliteBackend({ filename: temp.filename })
       try {
-        const restored = readSharedDbProjection(reader)
-        expect(prepareSharedDbTabularData(restored)).toEqual(prepareSharedDbTabularData(projection))
-        expect(restored.rootBraneIndex).toBe(0)
-        expect(restored.fieldWindowByBraneIndex).toEqual([
-          { fieldOffset: 0, fieldCount: 3 },
-          { fieldOffset: 3, fieldCount: 3 },
-        ])
-        expect(reader.getRuntimeSeedData().stateSeedConditions).toEqual([
-          {
-            index: 0,
-            transitionSeedIndex: 0,
-            conditionIndex: 0,
-            darkFieldId: fixture.fields.rootMode.id,
-            condition: "ready",
-          },
-          {
-            index: 1,
-            transitionSeedIndex: 2,
-            conditionIndex: 0,
-            darkFieldId: fixture.fields.childMode.id,
-            condition: "ready",
-          },
-        ])
+        const restored = readSharedDbData(reader)
+        expect(restored).toEqual(data)
 
-        reader.setFieldValue(3, "Alias via sqlite")
+        reader.setFieldValue(fixture.fields.childAlias.id, "Alias via sqlite")
       } finally {
         reader.close()
       }
 
       const reopened = openSharedDbSqliteBackend({ filename: temp.filename })
       try {
-        expect(reopened.getFieldValue(3)?.value).toBe("Alias via sqlite")
+        expect(
+          readSharedDbData(reopened).fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias.id)?.value,
+        ).toBe("Alias via sqlite")
       } finally {
         reopened.close()
       }

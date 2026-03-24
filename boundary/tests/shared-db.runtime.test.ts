@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { openSharedDbSqliteBackend } from "@shared/db"
-import { assembleSharedDbProjection } from "../../dark/db.ts"
+import { assembleSharedDbData } from "../../dark/db.ts"
 import { createSharedDbFixture } from "../../dark/db.fixture.ts"
 import { boundary$, prepareSharedDbData, reset, writeSharedDb } from "../boundary.ts"
 import {
@@ -17,13 +17,13 @@ describe("boundary runtime from shared/db backend", () => {
     reset()
   })
 
-  test("адаптирует DB-shaped данные в boundary runtime input через explicit DB-fed seeds без переноса runtime-semantics в shared/db", () => {
+  test("строит derived adapter в CPU из canonical relational DB и затем materialize-ит runtime input", () => {
     const fixture = createSharedDbFixture()
-    const projection = assembleSharedDbProjection(fixture.root)
+    const data = assembleSharedDbData(fixture.root)
     const backend = openSharedDbSqliteBackend()
 
     try {
-      backend.writeProjection(projection)
+      backend.writeData(data)
       const database = buildBoundaryDatabaseFromSharedDb(backend)
       const runtimeInput = prepareBoundaryWriteData(database)
 
@@ -41,7 +41,7 @@ describe("boundary runtime from shared/db backend", () => {
             [2, ["a", "b"]],
           ],
           state: 0,
-          collapses: [[[1, { 1: "ready" }]], [null]],
+          collapses: [[[1, { 1: "ready" }]], []],
         },
         {
           values: [
@@ -50,16 +50,18 @@ describe("boundary runtime from shared/db backend", () => {
             [2, ["a", "b"]],
           ],
           state: 0,
-          collapses: [[[1, { 1: "ready" }]], [null]],
+          collapses: [[[1, { 1: "ready" }]], []],
         },
       ])
       expect(runtimeInput.entanglement?.blocks).toHaveLength(1)
       expect(runtimeInput.entanglement?.blocks[0]?.braneIndices).toEqual([0, 1])
-      expect(runtimeInput.entanglement?.blocks[0]?.fields.map((field) => ({
-        fieldIndex: field.fieldIndex,
-        fieldName: field.fieldName,
-        representativeBraneIndex: field.representativeBraneIndex,
-      }))).toEqual([
+      expect(
+        runtimeInput.entanglement?.blocks[0]?.fields.map((field) => ({
+          fieldIndex: field.fieldIndex,
+          fieldName: field.fieldName,
+          representativeBraneIndex: field.representativeBraneIndex,
+        })),
+      ).toEqual([
         { fieldIndex: 0, fieldName: "title", representativeBraneIndex: 0 },
         { fieldIndex: 1, fieldName: "mode", representativeBraneIndex: 0 },
         { fieldIndex: 2, fieldName: "items", representativeBraneIndex: 0 },
@@ -71,13 +73,13 @@ describe("boundary runtime from shared/db backend", () => {
     }
   })
 
-  test("материализует канонический boundary store из sqlite-backed shared/db данных", () => {
+  test("материализует канонический boundary store из relational sqlite-backed shared/db данных", () => {
     const fixture = createSharedDbFixture()
-    const projection = assembleSharedDbProjection(fixture.root)
+    const data = assembleSharedDbData(fixture.root)
     const backend = openSharedDbSqliteBackend()
 
     try {
-      backend.writeProjection(projection)
+      backend.writeData(data)
       const prepared = prepareBoundaryStoreFromSharedDb(backend)
 
       expect(prepared.fields).toEqual([
@@ -107,13 +109,13 @@ describe("boundary runtime from shared/db backend", () => {
     }
   })
 
-  test("проходит путь Dark -> SharedDbProjection -> shared/db backend -> Boundary runtime store -> weak", async () => {
+  test("проходит путь Dark -> SharedDbData -> shared/db backend -> CPU derived adapter -> Boundary runtime store -> weak", async () => {
     const fixture = createSharedDbFixture()
-    const projection = assembleSharedDbProjection(fixture.root)
+    const data = assembleSharedDbData(fixture.root)
     const backend = openSharedDbSqliteBackend()
 
     try {
-      backend.writeProjection(projection)
+      backend.writeData(data)
 
       expect(prepareSharedDbData(backend).fields).toHaveLength(3)
 

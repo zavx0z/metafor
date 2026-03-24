@@ -1,6 +1,6 @@
 import { Wimp } from "@dark/strong"
 import type { DarkParticle } from "@dark/types"
-import { createSharedDbProjectionFromWimpTraces, type SharedDbProjection } from "@shared/db"
+import { createSharedDbDataFromWimpBundles, type SharedDbData } from "@shared/db"
 
 /**
  * Собирает плоский список всех `Wimp`, достижимых от корня.
@@ -10,11 +10,11 @@ import { createSharedDbProjectionFromWimpTraces, type SharedDbProjection } from 
  */
 const collectReachableWimps = (root: Wimp): Wimp[] => {
   const ordered: Wimp[] = []
-  const queue: DarkParticle[] = [root]
+  const stack: DarkParticle[] = [root]
   const seenParticleIds = new Set<string>()
 
-  while (queue.length > 0) {
-    const particle = queue.shift()
+  while (stack.length > 0) {
+    const particle = stack.pop()
     if (!particle || seenParticleIds.has(particle.id)) continue
     seenParticleIds.add(particle.id)
 
@@ -22,8 +22,10 @@ const collectReachableWimps = (root: Wimp): Wimp[] => {
       ordered.push(particle)
     }
 
-    for (const child of particle.children) {
-      queue.push(child)
+    const children = Array.from(particle.children)
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      const child = children[index]
+      if (child) stack.push(child)
     }
   }
 
@@ -31,10 +33,10 @@ const collectReachableWimps = (root: Wimp): Wimp[] => {
 }
 
 /**
- * Строит общую плоскую DB-проекцию из полностью materialized `Dark`-графа.
+ * Строит канонический relational shared/db snapshot из полностью materialized `Dark`-графа.
  *
- * Полный snapshot теперь использует тот же Wimp-level DB-shaped trace,
- * что и новый поэтапный materialization write path.
+ * Полный snapshot использует тот же Wimp-level bundle,
+ * что и поэтапный materialization write path.
  */
-export const assembleSharedDbProjection = (root: Wimp): SharedDbProjection =>
-  createSharedDbProjectionFromWimpTraces(collectReachableWimps(root).map((wimp) => wimp.toSharedDbTrace()))
+export const assembleSharedDbData = (root: Wimp): SharedDbData =>
+  createSharedDbDataFromWimpBundles(collectReachableWimps(root).map((wimp) => wimp.toSharedDbBundle()))

@@ -1,263 +1,138 @@
 import type { FieldKey } from "@metafor/ast"
 import type { PreparedEntanglementProjection } from "@boundary/strong"
-import type {
-  SharedDbEntanglementSeedBlockMemberRecord,
-  SharedDbEntanglementSeedBlockRecord,
-  SharedDbEntanglementSeedFieldMemberRecord,
-  SharedDbEntanglementSeedFieldRecord,
-  SharedDbStateSeedConditionRecord,
-  SharedDbStateSeedStateRecord,
-  SharedDbStateSeedTransitionRecord,
-} from "@shared/db"
 
-/**
- * Снимок схемы поля внутри boundary-базы.
- *
- * Это уже не shared ORM-контракт, а собственная запись слоя доступа к базе.
- *
- * @property type Исходный тип поля.
- * @property required Признак обязательного поля.
- * @property topology Признак topology-поля.
- * @property label Подпись поля, если она была в схеме.
- * @property values Список допустимых значений, если он был в схеме.
- */
 export interface BoundaryDatabaseFieldSchemaRecord {
-  /** Исходный тип поля. */
   type: string
-  /** Признак обязательного поля. */
   required: boolean
-  /** Признак topology-поля. */
   topology: boolean
-  /** Подпись поля, если она была в схеме. */
   label?: string
-  /** Список допустимых значений, если он был в схеме. */
   values?: Array<string | number>
 }
 
-/**
- * Запись браны в boundary-базе.
- *
- * @property index Стабильный индекс браны.
- * @property darkWimpId Идентификатор исходного `Dark Wimp`.
- * @property src SRC-адрес меты.
- * @property name Имя меты, если оно было материализовано.
- * @property fieldOffset Derived смещение первого поля браны, восстановленное в памяти.
- * @property fieldCount Derived количество полей браны, восстановленное в памяти.
- */
 export interface BoundaryDatabaseBraneRecord {
-  /** Стабильный индекс браны. */
   index: number
-  /** Идентификатор исходного `Dark Wimp`. */
-  darkWimpId: string
-  /** SRC-адрес меты. */
+  wimpId: string
+  metaId: string
   src: string
-  /** Имя меты, если оно было материализовано. */
   name?: string
-  /** Смещение первого поля браны. */
   fieldOffset: number
-  /** Количество полей браны. */
   fieldCount: number
 }
 
-/**
- * Запись поля в boundary-базе.
- *
- * @property index Стабильный индекс поля.
- * @property darkFieldId Идентификатор исходного `Dark Field`.
- * @property ownerBraneIndex Индекс браны-владельца.
- * @property key Ключ поля внутри браны.
- * @property schema Краткий снимок схемы поля.
- */
 export interface BoundaryDatabaseFieldRecord {
-  /** Стабильный индекс поля. */
   index: number
-  /** Идентификатор исходного `Dark Field`. */
-  darkFieldId: string
-  /** Индекс браны-владельца. */
+  wimpFieldId: string
+  metaFieldId: string
   ownerBraneIndex: number
-  /** Ключ поля внутри браны. */
   key: FieldKey
-  /** Краткий снимок схемы поля. */
   schema: BoundaryDatabaseFieldSchemaRecord
 }
 
-/**
- * Запись текущего значения поля в boundary-базе.
- *
- * @property fieldIndex Индекс поля.
- * @property value Текущее значение поля.
- */
 export interface BoundaryDatabaseFieldValueRecord {
-  /** Индекс поля. */
   fieldIndex: number
-  /** Текущее значение поля. */
+  wimpFieldId: string
   value: unknown
 }
 
-/**
- * Прямая source-связь между полями в boundary-базе.
- *
- * @property childFieldIndex Индекс дочернего поля.
- * @property parentFieldIndex Индекс поля-источника.
- */
 export interface BoundaryDatabaseFieldSourceRecord {
-  /** Индекс дочернего поля. */
+  id: string
   childFieldIndex: number
-  /** Индекс поля-источника. */
   parentFieldIndex: number
 }
 
-/**
- * Плоское состояние boundary-базы.
- *
- * @property rootBraneIndex Derived индекс корневой браны исходной проекции.
- * @property branes Плоская таблица бран.
- * @property fields Плоская таблица полей.
- * @property fieldValues Плоская таблица текущих значений.
- * @property fieldSources Плоская таблица ordinary source-связей.
- */
-export interface BoundaryDatabaseData {
-  /** Индекс корневой браны исходной проекции. */
-  rootBraneIndex: number
-  /** Плоская таблица бран. */
-  branes: BoundaryDatabaseBraneRecord[]
-  /** Плоская таблица полей. */
-  fields: BoundaryDatabaseFieldRecord[]
-  /** Плоская таблица текущих значений. */
-  fieldValues: BoundaryDatabaseFieldValueRecord[]
-  /** Плоская таблица ordinary source-связей. */
-  fieldSources: BoundaryDatabaseFieldSourceRecord[]
-  /** Flat entanglement seeds без boundary runtime materialization. */
-  entanglementBlocks: SharedDbEntanglementSeedBlockRecord[]
-  /** Membership-таблица `entanglement block -> brane`. */
-  entanglementBlockMembers: SharedDbEntanglementSeedBlockMemberRecord[]
-  /** Shared field seeds внутри entanglement blocks. */
-  entanglementFields: SharedDbEntanglementSeedFieldRecord[]
-  /** Membership-таблица `shared field seed -> darkFieldId`. */
-  entanglementFieldMembers: SharedDbEntanglementSeedFieldMemberRecord[]
-  /** Flat state graph seeds без boundary runtime tables. */
-  stateSeedStates: SharedDbStateSeedStateRecord[]
-  /** Flat state transition seeds без boundary runtime tables. */
-  stateSeedTransitions: SharedDbStateSeedTransitionRecord[]
-  /** Flat state condition seeds без boundary runtime tables. */
-  stateSeedConditions: SharedDbStateSeedConditionRecord[]
+export interface BoundaryDatabaseEntanglementBlockRecord {
+  index: number
+  entanglementId: string
+  key: string
 }
 
-/**
- * Дополнительные boundary-owned runtime-настройки для DB-fed materialization.
- *
- * Shared/db backend остаётся источником канонических табличных данных, а такие
- * вещи как entanglement projection передаются только в Boundary runtime layer.
- */
+export interface BoundaryDatabaseEntanglementBlockMemberRecord {
+  index: number
+  blockIndex: number
+  memberIndex: number
+  braneIndex: number
+}
+
+export interface BoundaryDatabaseEntanglementFieldRecord {
+  index: number
+  blockIndex: number
+  blockFieldIndex: number
+  semanticKey: string
+  fieldName: string
+  representativeBraneIndex: number
+  representativeFieldIndex: number
+  payloadIds: string[]
+  semanticKeys: string[]
+}
+
+export interface BoundaryDatabaseEntanglementFieldMemberRecord {
+  index: number
+  entanglementFieldIndex: number
+  memberIndex: number
+  braneIndex: number
+  fieldIndex: number
+}
+
+export interface BoundaryDatabaseStateSeedStateRecord {
+  index: number
+  ownerBraneIndex: number
+  stateIndex: number
+  metaStateId: string
+  name: string
+  initial: boolean
+}
+
+export interface BoundaryDatabaseStateSeedTransitionRecord {
+  index: number
+  ownerBraneIndex: number
+  fromStateIndex: number
+  transitionIndex: number
+  targetStateIndex: number | null
+}
+
+export interface BoundaryDatabaseStateSeedConditionRecord {
+  index: number
+  transitionSeedIndex: number
+  conditionIndex: number
+  fieldIndex: number
+  condition: unknown
+}
+
+export interface BoundaryDatabaseData {
+  rootBraneIndex: number
+  branes: BoundaryDatabaseBraneRecord[]
+  fields: BoundaryDatabaseFieldRecord[]
+  fieldValues: BoundaryDatabaseFieldValueRecord[]
+  fieldSources: BoundaryDatabaseFieldSourceRecord[]
+  entanglementBlocks: BoundaryDatabaseEntanglementBlockRecord[]
+  entanglementBlockMembers: BoundaryDatabaseEntanglementBlockMemberRecord[]
+  entanglementFields: BoundaryDatabaseEntanglementFieldRecord[]
+  entanglementFieldMembers: BoundaryDatabaseEntanglementFieldMemberRecord[]
+  stateSeedStates: BoundaryDatabaseStateSeedStateRecord[]
+  stateSeedTransitions: BoundaryDatabaseStateSeedTransitionRecord[]
+  stateSeedConditions: BoundaryDatabaseStateSeedConditionRecord[]
+}
+
 export interface BoundarySharedDbRuntimeOptions {
-  /** Явная boundary entanglement projection, если нужно переопределить DB-fed seeds. */
   entanglement?: PreparedEntanglementProjection
 }
 
-/**
- * Открытая boundary-база с готовыми индексами и операциями доступа.
- *
- * Публичный API остаётся базо-ориентированным: handle работает с индексами,
- * таблицами и записями базы, а не возвращает наружу объектную модель `Dark`.
- *
- * @property braneIndexByDarkId Индекс `Dark Wimp.id -> braneIndex`.
- * @property fieldIndexByDarkId Индекс `Dark Field.id -> fieldIndex`.
- * @property fieldIndexByBraneAndKey Индекс поиска поля по паре `(braneIndex, fieldKey)`.
- * @property fieldSourceByChildFieldIndex Быстрый доступ `childFieldIndex -> source-link`.
- * @property dependentFieldIndexesByParentFieldIndex Обратный индекс зависимых полей.
- */
 export interface BoundaryDatabase extends BoundaryDatabaseData {
-  /** Индекс `Dark Wimp.id -> braneIndex`. */
-  braneIndexByDarkId: Map<string, number>
-  /** Индекс `Dark Field.id -> fieldIndex`. */
-  fieldIndexByDarkId: Map<string, number>
-  /** Индекс поиска поля по паре `(braneIndex, fieldKey)`. */
+  braneIndexByWimpId: Map<string, number>
+  fieldIndexByWimpFieldId: Map<string, number>
   fieldIndexByBraneAndKey: Map<number, Map<FieldKey, number>>
-  /** Быстрый доступ `childFieldIndex -> source-link`. */
   fieldSourceByChildFieldIndex: Array<BoundaryDatabaseFieldSourceRecord | undefined>
-  /** Обратный индекс зависимых полей. */
   dependentFieldIndexesByParentFieldIndex: Map<number, number[]>
 
-  /** Сбрасывает базу к пустому состоянию. */
   reset(): void
-
-  /**
-   * Полностью заменяет состояние базы готовыми данными.
-   *
-   * @param data Новое плоское состояние базы.
-   */
   restore(data: BoundaryDatabaseData): void
-
-  /**
-   * Возвращает brane-запись по индексу.
-   *
-   * @param braneIndex Индекс браны.
-   * @returns Запись браны или `undefined`, если индекс не найден.
-   */
   getBrane(braneIndex: number): BoundaryDatabaseBraneRecord | undefined
-
-  /**
-   * Возвращает brane-запись по исходному `Dark Wimp.id`.
-   *
-   * @param darkWimpId Идентификатор исходного `Dark Wimp`.
-   * @returns Запись браны или `undefined`, если `Wimp` не был загружен в базу.
-   */
-  getBraneByDarkId(darkWimpId: string): BoundaryDatabaseBraneRecord | undefined
-
-  /**
-   * Возвращает запись поля по индексу.
-   *
-   * @param fieldIndex Индекс поля.
-   * @returns Запись поля или `undefined`, если индекс не найден.
-   */
+  getBraneByWimpId(wimpId: string): BoundaryDatabaseBraneRecord | undefined
   getField(fieldIndex: number): BoundaryDatabaseFieldRecord | undefined
-
-  /**
-   * Возвращает запись поля по исходному `Dark Field.id`.
-   *
-   * @param darkFieldId Идентификатор исходного `Dark Field`.
-   * @returns Запись поля или `undefined`, если поле не найдено.
-   */
-  getFieldByDarkId(darkFieldId: string): BoundaryDatabaseFieldRecord | undefined
-
-  /**
-   * Возвращает запись поля по паре `(braneIndex, fieldKey)`.
-   *
-   * @param braneIndex Индекс браны-владельца.
-   * @param fieldKey Ключ поля внутри браны.
-   * @returns Запись поля или `undefined`, если поле не найдено.
-   */
+  getFieldByWimpFieldId(wimpFieldId: string): BoundaryDatabaseFieldRecord | undefined
   getFieldByKey(braneIndex: number, fieldKey: FieldKey): BoundaryDatabaseFieldRecord | undefined
-
-  /**
-   * Возвращает запись текущего значения поля.
-   *
-   * @param fieldIndex Индекс поля.
-   * @returns Запись значения или `undefined`, если индекс не найден.
-   */
   getFieldValue(fieldIndex: number): BoundaryDatabaseFieldValueRecord | undefined
-
-  /**
-   * Возвращает direct ordinary source-связь дочернего поля.
-   *
-   * @param childFieldIndex Индекс дочернего поля.
-   * @returns Source-связь или `undefined`, если её нет.
-   */
   getFieldSource(childFieldIndex: number): BoundaryDatabaseFieldSourceRecord | undefined
-
-  /**
-   * Возвращает все зависимые дочерние поля для данного источника.
-   *
-   * @param parentFieldIndex Индекс поля-источника.
-   * @returns Список записей зависимых полей.
-   */
   getDependentFields(parentFieldIndex: number): BoundaryDatabaseFieldRecord[]
-
-  /**
-   * Обновляет текущее значение поля внутри базы.
-   *
-   * @param fieldIndex Индекс поля.
-   * @param value Новое значение поля.
-   */
   setFieldValue(fieldIndex: number, value: unknown): void
 }

@@ -39,41 +39,50 @@ describe("dark -> shared/db file materialization", () => {
 
     const database = new Database(sqliteFilename, { readonly: true })
     try {
-      const braneRows = database.query(`SELECT "index", src FROM branes ORDER BY "index"`).all() as Array<{
-        index: number
+      const wimpRows = database.query(`SELECT id, metaId, wimpOrder FROM wimps ORDER BY wimpOrder`).all() as Array<{
+        id: string
+        metaId: string
+        wimpOrder: number
+      }>
+      const metaRows = database.query(`SELECT id, src FROM metas ORDER BY src`).all() as Array<{
+        id: string
         src: string
       }>
-      const braneColumns = database.query(`PRAGMA table_info(branes)`).all() as Array<{ name: string }>
-      const fieldCountRow = database.query(`SELECT COUNT(*) AS count FROM fields`).get() as { count: number }
+      const wimpColumns = database.query(`PRAGMA table_info(wimps)`).all() as Array<{ name: string }>
+      const metaFieldCountRow = database.query(`SELECT COUNT(*) AS count FROM meta_fields`).get() as { count: number }
+      const wimpFieldCountRow = database.query(`SELECT COUNT(*) AS count FROM wimp_fields`).get() as { count: number }
       const fieldValueCountRow = database.query(`SELECT COUNT(*) AS count FROM field_values`).get() as { count: number }
       const fieldSourceCountRow = database.query(`SELECT COUNT(*) AS count FROM field_sources`).get() as { count: number }
       const entanglementFieldCountRow = database
-        .query(`SELECT COUNT(*) AS count FROM entanglement_seed_fields`)
+        .query(`SELECT COUNT(*) AS count FROM entanglement_fields`)
         .get() as { count: number }
-      const stateSeedStateCountRow = database.query(`SELECT COUNT(*) AS count FROM state_seed_states`).get() as {
+      const metaStateCountRow = database.query(`SELECT COUNT(*) AS count FROM meta_states`).get() as {
         count: number
       }
       const startArgsSourceRow = database
         .query(
-          `SELECT field_sources.parentFieldIndex AS parentFieldIndex
+          `SELECT field_sources.parentWimpFieldId AS parentWimpFieldId
            FROM field_sources
-           INNER JOIN fields AS child_field ON child_field."index" = field_sources.childFieldIndex
-           INNER JOIN branes AS child_brane ON child_brane."index" = child_field.ownerBraneIndex
-           WHERE child_brane.src = 'zavx0z/git-start'
-             AND child_field."key" = 'args'`,
+           INNER JOIN wimp_fields AS child_field ON child_field.id = field_sources.childWimpFieldId
+           INNER JOIN wimps AS child_wimp ON child_wimp.id = child_field.ownerWimpId
+           INNER JOIN metas AS child_meta ON child_meta.id = child_wimp.metaId
+           INNER JOIN meta_fields AS child_meta_field ON child_meta_field.id = child_field.metaFieldId
+           WHERE child_meta.src = 'zavx0z/git-start'
+             AND child_meta_field.fieldKey = 'args'`,
         )
-        .get() as { parentFieldIndex: number } | null
+        .get() as { parentWimpFieldId: string } | null
 
-      expect(braneRows[0]?.index).toBe(0)
-      expect(braneRows[0]?.src).toBe("zavx0z/git")
-      expect(braneColumns.map((column) => column.name)).toEqual(["index", "darkWimpId", "src", "name"])
-      expect(braneRows.some((row) => row.src === "zavx0z/git-start")).toBe(true)
-      expect(fieldCountRow.count).toBeGreaterThan(0)
-      expect(fieldValueCountRow.count).toBe(fieldCountRow.count)
+      expect(wimpRows[0]?.wimpOrder).toBe(0)
+      expect(metaRows.some((row) => row.src === "zavx0z/git")).toBe(true)
+      expect(metaRows.some((row) => row.src === "zavx0z/git-start")).toBe(true)
+      expect(wimpColumns.map((column) => column.name)).toEqual(["id", "metaId", "wimpOrder", "massOverrideJson"])
+      expect(metaFieldCountRow.count).toBeGreaterThan(0)
+      expect(wimpFieldCountRow.count).toBeGreaterThan(0)
+      expect(fieldValueCountRow.count).toBe(wimpFieldCountRow.count)
       expect(fieldSourceCountRow.count).toBeGreaterThan(0)
       expect(entanglementFieldCountRow.count).toBeGreaterThan(0)
-      expect(stateSeedStateCountRow.count).toBeGreaterThan(0)
-      expect(startArgsSourceRow?.parentFieldIndex).toBeGreaterThanOrEqual(0)
+      expect(metaStateCountRow.count).toBeGreaterThan(0)
+      expect(typeof startArgsSourceRow?.parentWimpFieldId).toBe("string")
     } finally {
       database.close()
     }

@@ -1,69 +1,84 @@
-import type { FieldKey, MetaAST } from "@metafor/ast"
-import { createSharedDbProjection } from "./backend.ts"
-import type { SharedDbBackend } from "./backend.t.ts"
+import type { FieldKey, MetaAST, MetaJson, ReactionDefinitionJson } from "@metafor/ast"
 import type {
-  SharedDbEntanglementSeedBlockMemberRecord,
-  SharedDbEntanglementSeedBlockRecord,
-  SharedDbEntanglementSeedFieldMemberRecord,
-  SharedDbEntanglementSeedFieldRecord,
-  SharedDbFieldRecord,
+  SharedDbData,
+  SharedDbEntanglementFieldMemberRecord,
+  SharedDbEntanglementFieldRecord,
+  SharedDbEntanglementMemberRecord,
+  SharedDbEntanglementRecord,
   SharedDbFieldSchemaRecord,
   SharedDbFieldSourceRecord,
   SharedDbFieldValueRecord,
-  SharedDbProjection,
-  SharedDbRuntimeSeedData,
-  SharedDbStateSeedConditionRecord,
-  SharedDbStateSeedStateRecord,
-  SharedDbStateSeedTransitionRecord,
+  SharedDbMetaFieldRecord,
+  SharedDbMetaMatterEdgeRecord,
+  SharedDbMetaMatterNodeRecord,
+  SharedDbMetaProcessReadRecord,
+  SharedDbMetaProcessRecord,
+  SharedDbMetaProcessWriteRecord,
+  SharedDbMetaReactionReadRecord,
+  SharedDbMetaReactionRecord,
+  SharedDbMetaReactionStateRecord,
+  SharedDbMetaReactionWriteRecord,
+  SharedDbMetaRecord,
+  SharedDbMetaStateRecord,
+  SharedDbMetaTransitionConditionRecord,
+  SharedDbMetaTransitionRecord,
+  SharedDbWimpEdgeRecord,
+  SharedDbWimpFieldRecord,
+  SharedDbWimpRecord,
+  SharedDbWimpStateRecord,
 } from "./db.t.ts"
+import type { SharedDbBackend } from "./backend.t.ts"
+import { createEmptySharedDbData, normalizeSharedDbData } from "./backend.ts"
+import { deriveUuid } from "./uuid.ts"
 
-/**
- * Flat DB-shaped trace instance-поля одного materialized `Wimp`.
- *
- * Это ещё не backend-таблицы, а промежуточный shared/db-след,
- * который можно агрегировать в проекцию или писать поэтапно.
- */
-export interface SharedDbWimpFieldTrace {
-  /** Идентификатор исходного instance-field из `Dark`. */
-  darkFieldId: string
-  /** Локальный ключ поля внутри `Wimp`. */
+export interface SharedDbMetaFieldBundle {
+  id: string
   key: FieldKey
-  /** Flat-снимок схемы поля. */
   schema: SharedDbFieldSchemaRecord
-  /** Текущее значение поля. */
-  value: unknown
-  /** Идентификатор прямого `source` поля, если он есть. */
-  sourceDarkFieldId?: string
 }
 
-/**
- * Flat DB-shaped trace одного fully-formed `Wimp`.
- */
-export interface SharedDbWimpTrace {
-  /** Идентификатор `Dark Wimp`. */
-  darkWimpId: string
-  /** SRC меты. */
+export interface SharedDbMetaBundle {
+  id: string
   src: string
-  /** Имя меты, если оно уже materialized. */
   name?: string
-  /** Flat DB-shaped след instance-полей. */
-  fields: SharedDbWimpFieldTrace[]
-  /** Upstream superposition для state seed materialization. */
+  fields: SharedDbMetaFieldBundle[]
   superposition?: MetaAST["superposition"]
+  processes?: MetaAST["processes"]
+  reactions?: MetaAST["reactions"]
+  matter?: MetaAST["matter"]
+  bulk?: MetaAST["bulk"]
+  mass?: MetaAST["mass"]
 }
 
-/**
- * Унифицированный shared/db writer для поэтапной materialization-записи `Wimp`.
- *
- * ORM не знает про backend-детали и передаёт только свой текущий DB-shaped trace.
- */
+export interface SharedDbWimpFieldBundle {
+  id: string
+  metaFieldId: string
+  fieldOrder: number
+  key: FieldKey
+  schema: SharedDbFieldSchemaRecord
+  value: unknown
+  sourceWimpFieldId?: string
+}
+
+export interface SharedDbWimpBundle {
+  id: string
+  parentWimpId?: string
+  meta: SharedDbMetaBundle
+  fields: SharedDbWimpFieldBundle[]
+  massOverride?: unknown
+}
+
 export interface SharedDbMaterializationWriter {
-  /** Сохраняет текущий DB-shaped trace одного fully-formed `Wimp`. */
-  saveWimpTrace(trace: SharedDbWimpTrace): void
+  saveWimpBundle(bundle: SharedDbWimpBundle): void
 }
 
-type TraceFieldWithOwner = SharedDbWimpFieldTrace & { ownerDarkWimpId: string }
-type NamedSuperposition = NonNullable<SharedDbWimpTrace["superposition"]>
+type MetaContext = {
+  fieldIdByKey: Map<FieldKey, string>
+  stateIdByName: Map<string, string>
+  initialStateId: string
+}
+
+type WimpFieldWithOwner = SharedDbWimpFieldBundle & { ownerWimpId: string }
 
 const isTopologyFieldType = (type: string): boolean => type.startsWith("enum<") || type.startsWith("array<")
 
@@ -75,32 +90,316 @@ const cloneFieldSchema = (schema: SharedDbFieldSchemaRecord): SharedDbFieldSchem
   ...(schema.values !== undefined ? { values: structuredClone(schema.values) } : {}),
 })
 
-const cloneWimpFieldTrace = (field: SharedDbWimpFieldTrace): SharedDbWimpFieldTrace => ({
-  darkFieldId: field.darkFieldId,
+const cloneMetaFieldBundle = (field: SharedDbMetaFieldBundle): SharedDbMetaFieldBundle => ({
+  id: field.id,
+  key: field.key,
+  schema: cloneFieldSchema(field.schema),
+})
+
+const cloneMetaBundle = (meta: SharedDbMetaBundle): SharedDbMetaBundle => ({
+  id: meta.id,
+  src: meta.src,
+  ...(meta.name !== undefined ? { name: meta.name } : {}),
+  fields: meta.fields.map(cloneMetaFieldBundle),
+  ...(meta.superposition !== undefined ? { superposition: structuredClone(meta.superposition) } : {}),
+  ...(meta.processes !== undefined ? { processes: structuredClone(meta.processes) } : {}),
+  ...(meta.reactions !== undefined ? { reactions: structuredClone(meta.reactions) } : {}),
+  ...(meta.matter !== undefined ? { matter: structuredClone(meta.matter) } : {}),
+  ...(meta.bulk !== undefined ? { bulk: structuredClone(meta.bulk) } : {}),
+  ...(meta.mass !== undefined ? { mass: structuredClone(meta.mass) } : {}),
+})
+
+const cloneWimpFieldBundle = (field: SharedDbWimpFieldBundle): SharedDbWimpFieldBundle => ({
+  id: field.id,
+  metaFieldId: field.metaFieldId,
+  fieldOrder: field.fieldOrder,
   key: field.key,
   schema: cloneFieldSchema(field.schema),
   value: structuredClone(field.value),
-  ...(field.sourceDarkFieldId !== undefined ? { sourceDarkFieldId: field.sourceDarkFieldId } : {}),
+  ...(field.sourceWimpFieldId !== undefined ? { sourceWimpFieldId: field.sourceWimpFieldId } : {}),
 })
 
-const cloneWimpTrace = (trace: SharedDbWimpTrace): SharedDbWimpTrace => ({
-  darkWimpId: trace.darkWimpId,
-  src: trace.src,
-  ...(trace.name !== undefined ? { name: trace.name } : {}),
-  fields: trace.fields.map(cloneWimpFieldTrace),
-  ...(trace.superposition !== undefined ? { superposition: structuredClone(trace.superposition) } : {}),
+const cloneWimpBundle = (bundle: SharedDbWimpBundle): SharedDbWimpBundle => ({
+  id: bundle.id,
+  ...(bundle.parentWimpId !== undefined ? { parentWimpId: bundle.parentWimpId } : {}),
+  meta: cloneMetaBundle(bundle.meta),
+  fields: bundle.fields.map(cloneWimpFieldBundle),
+  ...(bundle.massOverride !== undefined ? { massOverride: structuredClone(bundle.massOverride) } : {}),
 })
+
+const createDefaultSuperposition = (): NonNullable<SharedDbMetaBundle["superposition"]> => ({
+  default: null,
+})
+
+const resolveMetaStateGraph = (meta: SharedDbMetaBundle): NonNullable<SharedDbMetaBundle["superposition"]> =>
+  meta.superposition && Object.keys(meta.superposition).length > 0
+    ? structuredClone(meta.superposition)
+    : createDefaultSuperposition()
+
+const requireMetaFieldId = (context: MetaContext, ownerMetaId: string, fieldKey: FieldKey): string => {
+  const metaFieldId = context.fieldIdByKey.get(fieldKey)
+  if (!metaFieldId) {
+    throw new Error(`Shared DB meta ${ownerMetaId} references unknown field key '${fieldKey}'`)
+  }
+  return metaFieldId
+}
+
+const appendMetaMatter = (
+  data: SharedDbData,
+  ownerMetaId: string,
+  nodes: SharedDbMetaBundle["matter"],
+  parentNodeId: string | null = null,
+  path: number[] = [],
+): void => {
+  if (!nodes) return
+
+  nodes.forEach((rawNode, edgeOrder) => {
+    const node = structuredClone(rawNode)
+    const nextPath = [...path, edgeOrder]
+    const nodeId = deriveUuid("meta-matter-node", ownerMetaId, nextPath.join("."))
+    const { child, ...payload } = node as Record<string, unknown> & { child?: SharedDbMetaBundle["matter"] }
+
+    data.metaMatterNodes.push({
+      id: nodeId,
+      ownerMetaId,
+      nodeType: String(node.type),
+      nodeOrder: data.metaMatterNodes.length,
+      payload,
+    })
+
+    data.metaMatterEdges.push({
+      id: deriveUuid("meta-matter-edge", ownerMetaId, parentNodeId ?? "root", nodeId, edgeOrder),
+      ownerMetaId,
+      parentNodeId,
+      childNodeId: nodeId,
+      edgeOrder,
+    })
+
+    if (Array.isArray(child) && child.length > 0) {
+      appendMetaMatter(data, ownerMetaId, child, nodeId, nextPath)
+    }
+  })
+}
+
+const appendMetaProcesses = (data: SharedDbData, meta: SharedDbMetaBundle, context: MetaContext): void => {
+  const processes = Object.entries(meta.processes ?? {})
+
+  processes.forEach(([processKey, process], processOrder) => {
+    const record: SharedDbMetaProcessRecord = {
+      id: deriveUuid("meta-process", meta.id, processKey, processOrder),
+      ownerMetaId: meta.id,
+      processKey,
+      processOrder,
+      processKind: process.type,
+      ...(process.label !== undefined ? { label: process.label } : {}),
+      ...(process.desc !== undefined ? { desc: process.desc } : {}),
+      ...(process.action?.src !== undefined ? { actionSrc: process.action.src } : {}),
+      ...(process.action?.importSpecifier !== undefined ? { actionImportSpecifier: process.action.importSpecifier } : {}),
+      ...(process.success?.src !== undefined ? { successSrc: process.success.src } : {}),
+      ...(process.error?.src !== undefined ? { errorSrc: process.error.src } : {}),
+      ...(process.before?.src !== undefined ? { beforeSrc: process.before.src } : {}),
+    }
+
+    data.metaProcesses.push(record)
+
+    const appendReads = (phase: SharedDbMetaProcessReadRecord["phase"], reads: MetaJson[keyof MetaJson] | undefined): void => {
+      if (!reads || typeof reads !== "object" || !("read" in reads) || !Array.isArray(reads.read)) return
+
+      reads.read.forEach((fieldKey, readOrder) => {
+        data.metaProcessReads.push({
+          id: deriveUuid("meta-process-read", record.id, phase, fieldKey, readOrder),
+          ownerMetaProcessId: record.id,
+          metaFieldId: requireMetaFieldId(context, meta.id, fieldKey),
+          phase,
+          readOrder,
+        })
+      })
+    }
+
+    const appendWrites = (
+      phase: SharedDbMetaProcessWriteRecord["phase"],
+      writes: MetaJson[keyof MetaJson] | undefined,
+    ): void => {
+      if (!writes || typeof writes !== "object" || !("write" in writes) || !Array.isArray(writes.write)) return
+
+      writes.write.forEach((fieldKey, writeOrder) => {
+        data.metaProcessWrites.push({
+          id: deriveUuid("meta-process-write", record.id, phase, fieldKey, writeOrder),
+          ownerMetaProcessId: record.id,
+          metaFieldId: requireMetaFieldId(context, meta.id, fieldKey),
+          phase,
+          writeOrder,
+        })
+      })
+    }
+
+    appendReads("action", process.action)
+    appendReads("success", process.success)
+    appendReads("error", process.error)
+    appendReads("before", process.before)
+    appendWrites("success", process.success)
+    appendWrites("error", process.error)
+  })
+}
+
+const appendMetaReactions = (data: SharedDbData, meta: SharedDbMetaBundle, context: MetaContext): void => {
+  if (!meta.reactions) return
+
+  const reactionDefinitions = Object.entries(meta.reactions.reactions ?? {})
+  const reactionIdByKey = new Map<string, string>()
+
+  reactionDefinitions.forEach(([reactionKey, reaction], reactionOrder) => {
+    const record: SharedDbMetaReactionRecord = {
+      id: deriveUuid("meta-reaction", meta.id, reactionKey, reactionOrder),
+      ownerMetaId: meta.id,
+      reactionKey,
+      reactionOrder,
+      label: reaction.label,
+      cond: reaction.cond,
+      src: reaction.src,
+      ...(reaction.desc !== undefined ? { desc: reaction.desc } : {}),
+    }
+
+    reactionIdByKey.set(reactionKey, record.id)
+    data.metaReactions.push(record)
+
+    reaction.read?.forEach((fieldKey, readOrder) => {
+      data.metaReactionReads.push({
+        id: deriveUuid("meta-reaction-read", record.id, fieldKey, readOrder),
+        ownerMetaReactionId: record.id,
+        metaFieldId: requireMetaFieldId(context, meta.id, fieldKey),
+        readOrder,
+      })
+    })
+
+    reaction.write?.forEach((fieldKey, writeOrder) => {
+      data.metaReactionWrites.push({
+        id: deriveUuid("meta-reaction-write", record.id, fieldKey, writeOrder),
+        ownerMetaReactionId: record.id,
+        metaFieldId: requireMetaFieldId(context, meta.id, fieldKey),
+        writeOrder,
+      })
+    })
+  })
+
+  Object.entries(meta.reactions.superposition ?? {}).forEach(([stateName, reactionKeys]) => {
+    const metaStateId = context.stateIdByName.get(stateName)
+    if (!metaStateId) {
+      throw new Error(`Shared DB meta ${meta.id} reaction state '${stateName}' is not defined in superposition`)
+    }
+
+    reactionKeys.forEach((reactionKey, stateOrder) => {
+      const reactionId = reactionIdByKey.get(reactionKey)
+      if (!reactionId) {
+        throw new Error(`Shared DB meta ${meta.id} reaction '${reactionKey}' is not declared`)
+      }
+
+      data.metaReactionStates.push({
+        id: deriveUuid("meta-reaction-state", reactionId, metaStateId, stateOrder),
+        ownerMetaReactionId: reactionId,
+        metaStateId,
+        stateOrder,
+      })
+    })
+  })
+}
+
+const ensureMetaContext = (data: SharedDbData, meta: SharedDbMetaBundle, cache: Map<string, MetaContext>): MetaContext => {
+  const existing = cache.get(meta.id)
+  if (existing) return existing
+
+  data.metas.push({
+    id: meta.id,
+    src: meta.src,
+    ...(meta.name !== undefined ? { name: meta.name } : {}),
+    ...(meta.bulk !== undefined ? { bulk: structuredClone(meta.bulk) } : {}),
+    ...(meta.mass !== undefined ? { mass: structuredClone(meta.mass) } : {}),
+  })
+
+  const fieldIdByKey = new Map<FieldKey, string>()
+  meta.fields.forEach((field, fieldOrder) => {
+    const record: SharedDbMetaFieldRecord = {
+      id: field.id,
+      ownerMetaId: meta.id,
+      fieldKey: field.key,
+      fieldOrder,
+      schema: cloneFieldSchema(field.schema),
+    }
+    data.metaFields.push(record)
+    fieldIdByKey.set(field.key, field.id)
+  })
+
+  const stateIdByName = new Map<string, string>()
+  const superposition = resolveMetaStateGraph(meta)
+  Object.keys(superposition).forEach((stateName, stateOrder) => {
+    const record: SharedDbMetaStateRecord = {
+      id: deriveUuid("meta-state", meta.id, stateName, stateOrder),
+      ownerMetaId: meta.id,
+      stateName,
+      stateOrder,
+      initial: stateOrder === 0,
+    }
+    data.metaStates.push(record)
+    stateIdByName.set(stateName, record.id)
+  })
+
+  Object.entries(superposition).forEach(([stateName, transitions]) => {
+    const ownerMetaStateId = stateIdByName.get(stateName)
+    if (!ownerMetaStateId) {
+      throw new Error(`Shared DB meta ${meta.id} state '${stateName}' is missing after normalization`)
+    }
+
+    if (transitions === null) return
+
+    Object.entries(transitions).forEach(([targetStateName, conditions], transitionOrder) => {
+      const targetMetaStateId = stateIdByName.get(targetStateName) ?? null
+      if (!targetMetaStateId) {
+        throw new Error(`Shared DB meta ${meta.id} transition target '${targetStateName}' is not declared`)
+      }
+
+      const transitionRecord: SharedDbMetaTransitionRecord = {
+        id: deriveUuid("meta-transition", ownerMetaStateId, targetMetaStateId, transitionOrder),
+        ownerMetaStateId,
+        targetMetaStateId,
+        transitionOrder,
+      }
+      data.metaTransitions.push(transitionRecord)
+
+      Object.entries(conditions ?? {}).forEach(([fieldKey, condition], conditionOrder) => {
+        data.metaTransitionConditions.push({
+          id: deriveUuid("meta-transition-condition", transitionRecord.id, fieldKey, conditionOrder),
+          ownerMetaTransitionId: transitionRecord.id,
+          metaFieldId: requireMetaFieldId({ fieldIdByKey, stateIdByName, initialStateId: "" }, meta.id, fieldKey),
+          conditionOrder,
+          condition: structuredClone(condition),
+        })
+      })
+    })
+  })
+
+  const initialStateId = data.metaStates.find((state) => state.ownerMetaId === meta.id && state.initial)?.id
+  if (!initialStateId) {
+    throw new Error(`Shared DB meta ${meta.id} has no initial state`)
+  }
+
+  const context: MetaContext = { fieldIdByKey, stateIdByName, initialStateId }
+  appendMetaProcesses(data, meta, context)
+  appendMetaReactions(data, meta, context)
+  appendMetaMatter(data, meta.id, meta.matter)
+  cache.set(meta.id, context)
+  return context
+}
 
 const resolveSourceRoot = (
-  field: TraceFieldWithOwner,
-  fieldByDarkId: Map<string, TraceFieldWithOwner>,
-): TraceFieldWithOwner => {
+  field: WimpFieldWithOwner,
+  fieldById: Map<string, WimpFieldWithOwner>,
+): WimpFieldWithOwner => {
   let current = field
   const seen = new Set<string>()
 
-  while (current.sourceDarkFieldId && !seen.has(current.darkFieldId)) {
-    seen.add(current.darkFieldId)
-    const parent = fieldByDarkId.get(current.sourceDarkFieldId)
+  while (current.sourceWimpFieldId && !seen.has(current.id)) {
+    seen.add(current.id)
+    const parent = fieldById.get(current.sourceWimpFieldId)
     if (!parent) break
     current = parent
   }
@@ -108,368 +407,197 @@ const resolveSourceRoot = (
   return current
 }
 
-const createDefaultSuperposition = (): NamedSuperposition => ({
-  default: null,
-})
-
-const buildEntanglementSeeds = (
-  traces: SharedDbWimpTrace[],
-  braneIndexByDarkId: Map<string, number>,
-): Pick<
-  SharedDbRuntimeSeedData,
-  "entanglementBlocks" | "entanglementBlockMembers" | "entanglementFields" | "entanglementFieldMembers"
-> => {
-  const traceFields = traces.flatMap((trace) =>
-    trace.fields.map((field) => ({
-      ...cloneWimpFieldTrace(field),
-      ownerDarkWimpId: trace.darkWimpId,
+const appendEntanglements = (
+  data: SharedDbData,
+  orderedBundles: SharedDbWimpBundle[],
+): void => {
+  const wimpOrderById = new Map(orderedBundles.map((bundle, wimpOrder) => [bundle.id, wimpOrder] as const))
+  const allFields = orderedBundles.flatMap((bundle) =>
+    bundle.fields.map((field) => ({
+      ...cloneWimpFieldBundle(field),
+      ownerWimpId: bundle.id,
     })),
   )
-  const fieldByDarkId = new Map(traceFields.map((field) => [field.darkFieldId, field] as const))
-  const familyMembersByRootDarkFieldId = new Map<string, TraceFieldWithOwner[]>()
+  const fieldById = new Map(allFields.map((field) => [field.id, field] as const))
+  const familyMembersByRootFieldId = new Map<string, WimpFieldWithOwner[]>()
 
-  for (const field of traceFields) {
-    const rootField = resolveSourceRoot(field, fieldByDarkId)
-    const family = familyMembersByRootDarkFieldId.get(rootField.darkFieldId)
+  for (const field of allFields) {
+    const rootField = resolveSourceRoot(field, fieldById)
+    const family = familyMembersByRootFieldId.get(rootField.id)
     if (family) {
       family.push(field)
     } else {
-      familyMembersByRootDarkFieldId.set(rootField.darkFieldId, [field])
+      familyMembersByRootFieldId.set(rootField.id, [field])
     }
   }
 
-  const entanglementBlocks: SharedDbEntanglementSeedBlockRecord[] = []
-  const entanglementBlockMembers: SharedDbEntanglementSeedBlockMemberRecord[] = []
-  const entanglementFields: SharedDbEntanglementSeedFieldRecord[] = []
-  const entanglementFieldMembers: SharedDbEntanglementSeedFieldMemberRecord[] = []
-  const blockIndexByMembershipKey = new Map<string, number>()
+  const entanglementIdByMembershipKey = new Map<string, string>()
 
-  for (const [rootDarkFieldId, rawMembers] of familyMembersByRootDarkFieldId) {
-    const members = Array.from(new Map(rawMembers.map((field) => [field.darkFieldId, field])).values())
-      .map((field) => {
-        const braneIndex = braneIndexByDarkId.get(field.ownerDarkWimpId)
-        if (braneIndex === undefined) {
-          throw new Error(`Shared DB entanglement seed references unknown brane for field ${field.darkFieldId}`)
-        }
-        return { field, braneIndex }
-      })
-      .sort((left, right) => left.braneIndex - right.braneIndex || left.field.key.localeCompare(right.field.key))
+  for (const [rootFieldId, rawMembers] of familyMembersByRootFieldId) {
+    const members = Array.from(new Map(rawMembers.map((field) => [field.id, field] as const)).values()).sort(
+      (left, right) =>
+        (wimpOrderById.get(left.ownerWimpId) ?? Number.MAX_SAFE_INTEGER) -
+          (wimpOrderById.get(right.ownerWimpId) ?? Number.MAX_SAFE_INTEGER) || left.fieldOrder - right.fieldOrder,
+    )
 
-    const braneIndices = Array.from(new Set(members.map((member) => member.braneIndex))).sort((left, right) => left - right)
-    if (braneIndices.length < 2 || members.length !== braneIndices.length) {
+    const distinctWimpIds = Array.from(new Set(members.map((member) => member.ownerWimpId)))
+    if (distinctWimpIds.length < 2 || members.length !== distinctWimpIds.length) {
       continue
     }
 
-    const representative = members.find((member) => member.field.darkFieldId === rootDarkFieldId) ?? members[0]
+    const representative = members.find((member) => member.id === rootFieldId) ?? members[0]
     if (!representative) continue
 
-    const membershipKey = braneIndices.join(",")
-    let blockIndex = blockIndexByMembershipKey.get(membershipKey)
-    if (blockIndex === undefined) {
-      blockIndex = entanglementBlocks.length
-      blockIndexByMembershipKey.set(membershipKey, blockIndex)
-      entanglementBlocks.push({
-        index: blockIndex,
-        key: `source-family:${membershipKey}`,
+    const membershipKey = distinctWimpIds.join(",")
+    let entanglementId = entanglementIdByMembershipKey.get(membershipKey)
+
+    if (!entanglementId) {
+      entanglementId = deriveUuid("entanglement", membershipKey)
+      entanglementIdByMembershipKey.set(membershipKey, entanglementId)
+      data.entanglements.push({
+        id: entanglementId,
+        membershipKey,
+        provenance: "wimp-field-source-family",
       })
-      braneIndices.forEach((braneIndex, memberIndex) => {
-        entanglementBlockMembers.push({
-          index: entanglementBlockMembers.length,
-          blockIndex,
-          memberIndex,
-          braneIndex,
+
+      distinctWimpIds.forEach((wimpId, memberOrder) => {
+        data.entanglementMembers.push({
+          id: deriveUuid("entanglement-member", entanglementId, wimpId, memberOrder),
+          ownerEntanglementId: entanglementId,
+          wimpId,
+          memberOrder,
         })
       })
     }
 
-    const blockFieldIndex = entanglementFields.filter((field) => field.blockIndex === blockIndex).length
-    const semanticKeys = Array.from(new Set([representative.field.key, ...members.map((member) => member.field.key)])).sort()
-    const payloadIds = members.map((member) => member.field.darkFieldId).sort()
+    const fieldOrder = data.entanglementFields.filter((field) => field.ownerEntanglementId === entanglementId).length
+    const entanglementFieldId = deriveUuid("entanglement-field", entanglementId, rootFieldId)
 
-    entanglementFields.push({
-      index: entanglementFields.length,
-      blockIndex,
-      blockFieldIndex,
-      semanticKey: representative.field.darkFieldId,
-      fieldName: representative.field.key,
-      provenance: "dark-source-family",
-      representativeDarkFieldId: representative.field.darkFieldId,
-      representativeBraneIndex: representative.braneIndex,
-      payloadIds,
-      semanticKeys,
+    data.entanglementFields.push({
+      id: entanglementFieldId,
+      ownerEntanglementId: entanglementId,
+      fieldOrder,
+      semanticKey: representative.id,
+      fieldName: representative.key,
+      provenance: "wimp-field-source-family",
+      representativeWimpFieldId: representative.id,
+      payloadIds: members.map((member) => member.id).sort(),
+      semanticKeys: Array.from(new Set(members.map((member) => member.metaFieldId))).sort(),
     })
 
-    const entanglementFieldIndex = entanglementFields.length - 1
-    members.forEach((member, memberIndex) => {
-      entanglementFieldMembers.push({
-        index: entanglementFieldMembers.length,
-        entanglementFieldIndex,
-        memberIndex,
-        braneIndex: member.braneIndex,
-        darkFieldId: member.field.darkFieldId,
+    members.forEach((member, memberOrder) => {
+      data.entanglementFieldMembers.push({
+        id: deriveUuid("entanglement-field-member", entanglementFieldId, member.id, memberOrder),
+        ownerEntanglementFieldId: entanglementFieldId,
+        ownerWimpId: member.ownerWimpId,
+        wimpFieldId: member.id,
+        memberOrder,
       })
     })
-  }
-
-  return {
-    entanglementBlocks,
-    entanglementBlockMembers,
-    entanglementFields,
-    entanglementFieldMembers,
-  }
-}
-
-const buildStateSeeds = (
-  traces: SharedDbWimpTrace[],
-  braneIndexByDarkId: Map<string, number>,
-): Pick<SharedDbRuntimeSeedData, "stateSeedStates" | "stateSeedTransitions" | "stateSeedConditions"> => {
-  const stateSeedStates: SharedDbStateSeedStateRecord[] = []
-  const stateSeedTransitions: SharedDbStateSeedTransitionRecord[] = []
-  const stateSeedConditions: SharedDbStateSeedConditionRecord[] = []
-
-  for (const trace of traces) {
-    const ownerBraneIndex = braneIndexByDarkId.get(trace.darkWimpId)
-    if (ownerBraneIndex === undefined) {
-      throw new Error(`Shared DB state seed references unknown brane for Wimp ${trace.darkWimpId}`)
-    }
-
-    const namedSuperposition =
-      trace.superposition && Object.keys(trace.superposition).length > 0
-        ? (structuredClone(trace.superposition) as NamedSuperposition)
-        : createDefaultSuperposition()
-
-    const stateNames = Object.keys(namedSuperposition)
-    const stateIndexByName = new Map<string, number>()
-    const fieldByKey = new Map(trace.fields.map((field) => [field.key, field] as const))
-
-    stateNames.forEach((stateName, stateIndex) => {
-      stateIndexByName.set(stateName, stateIndex)
-      stateSeedStates.push({
-        index: stateSeedStates.length,
-        ownerBraneIndex,
-        stateIndex,
-        name: stateName,
-        initial: stateIndex === 0,
-      })
-    })
-
-    stateNames.forEach((stateName, fromStateIndex) => {
-      const transitions = namedSuperposition[stateName]
-      if (transitions === null) {
-        stateSeedTransitions.push({
-          index: stateSeedTransitions.length,
-          ownerBraneIndex,
-          fromStateIndex,
-          transitionIndex: 0,
-          targetStateIndex: null,
-        })
-        return
-      }
-
-      Object.entries(transitions).forEach(([targetStateName, conditions], transitionIndex) => {
-        const targetStateIndex = stateIndexByName.get(targetStateName)
-        if (targetStateIndex === undefined) {
-          throw new Error(`Unknown state '${targetStateName}' in superposition of Wimp ${trace.darkWimpId}`)
-        }
-
-        stateSeedTransitions.push({
-          index: stateSeedTransitions.length,
-          ownerBraneIndex,
-          fromStateIndex,
-          transitionIndex,
-          targetStateIndex,
-        })
-
-        if (conditions === null) {
-          return
-        }
-
-        Object.entries(conditions).forEach(([fieldKey, condition], conditionIndex) => {
-          const field = fieldByKey.get(fieldKey)
-          if (!field) {
-            throw new Error(`State seed field '${fieldKey}' not found in Wimp ${trace.darkWimpId}`)
-          }
-
-          stateSeedConditions.push({
-            index: stateSeedConditions.length,
-            transitionSeedIndex: stateSeedTransitions.length - 1,
-            conditionIndex,
-            darkFieldId: field.darkFieldId,
-            condition: structuredClone(condition),
-          })
-        })
-      })
-    })
-  }
-
-  return {
-    stateSeedStates,
-    stateSeedTransitions,
-    stateSeedConditions,
   }
 }
 
 /**
- * Собирает каноническую shared/db projection из ordered Wimp traces.
+ * Собирает канонический relational snapshot из fully-formed `Wimp` bundles.
  *
- * Порядок traces задаёт индексное пространство brane/field записей для текущего materialization-пути.
+ * DB-shaped projection больше не считается persisted слоем; в snapshot попадают
+ * только entity/relation tables с UUID identity.
  */
-export const createSharedDbProjectionFromWimpTraces = (orderedTraces: SharedDbWimpTrace[]): SharedDbProjection => {
-  const traces = orderedTraces.map(cloneWimpTrace)
-  const branes: SharedDbProjection["branes"] = []
-  const fields: SharedDbFieldRecord[] = []
-  const fieldValues: SharedDbFieldValueRecord[] = []
-  const fieldSources: SharedDbFieldSourceRecord[] = []
-  const braneIndexByDarkId = new Map<string, number>()
-  const fieldIndexByDarkId = new Map<string, number>()
-  const fieldIndexByBraneAndKey = new Map<number, Map<FieldKey, number>>()
-  const fieldSourceByChildFieldIndex: Array<SharedDbFieldSourceRecord | undefined> = []
-  const dependentFieldIndexesByParentFieldIndex = new Map<number, number[]>()
+export const createSharedDbDataFromWimpBundles = (orderedBundles: SharedDbWimpBundle[]): SharedDbData => {
+  const bundles = orderedBundles.map(cloneWimpBundle)
+  const data = createEmptySharedDbData()
+  const metaContextById = new Map<string, MetaContext>()
 
-  for (const trace of traces) {
-    const braneIndex = branes.length
-    const fieldLookup = new Map<FieldKey, number>()
-    braneIndexByDarkId.set(trace.darkWimpId, braneIndex)
+  bundles.forEach((bundle, wimpOrder) => {
+    const metaContext = ensureMetaContext(data, bundle.meta, metaContextById)
 
-    for (const field of trace.fields) {
-      const fieldIndex = fields.length
-      fields.push({
-        index: fieldIndex,
-        darkFieldId: field.darkFieldId,
-        ownerBraneIndex: braneIndex,
-        key: field.key,
-        schema: cloneFieldSchema(field.schema),
-      })
-      fieldValues.push({
-        fieldIndex,
-        value: structuredClone(field.value),
-      })
-      fieldIndexByDarkId.set(field.darkFieldId, fieldIndex)
-      fieldLookup.set(field.key, fieldIndex)
-    }
-
-    branes.push({
-      index: braneIndex,
-      darkWimpId: trace.darkWimpId,
-      src: trace.src,
-      ...(trace.name !== undefined ? { name: trace.name } : {}),
+    data.wimps.push({
+      id: bundle.id,
+      metaId: bundle.meta.id,
+      wimpOrder,
+      ...(bundle.massOverride !== undefined ? { massOverride: structuredClone(bundle.massOverride) } : {}),
     })
-    fieldIndexByBraneAndKey.set(braneIndex, fieldLookup)
-  }
 
-  for (const trace of traces) {
-    for (const field of trace.fields) {
-      if (!field.sourceDarkFieldId) continue
+    bundle.fields
+      .slice()
+      .sort((left, right) => left.fieldOrder - right.fieldOrder)
+      .forEach((field) => {
+        const metaFieldId = metaContext.fieldIdByKey.get(field.key)
+        if (metaFieldId !== field.metaFieldId) {
+          throw new Error(
+            `Shared DB wimp field ${field.id} does not match meta field mapping for key '${field.key}' in meta ${bundle.meta.id}`,
+          )
+        }
 
-      const childFieldIndex = fieldIndexByDarkId.get(field.darkFieldId)
-      const parentFieldIndex = fieldIndexByDarkId.get(field.sourceDarkFieldId)
-      const parentField = parentFieldIndex !== undefined ? fields[parentFieldIndex] : undefined
-      if (
-        childFieldIndex === undefined ||
-        parentFieldIndex === undefined ||
-        !parentField ||
-        isTopologyFieldType(field.schema.type) ||
-        isTopologyFieldType(parentField.schema.type)
-      ) {
-        continue
-      }
+        data.wimpFields.push({
+          id: field.id,
+          ownerWimpId: bundle.id,
+          metaFieldId: field.metaFieldId,
+          fieldOrder: field.fieldOrder,
+        })
 
-      const sourceRecord: SharedDbFieldSourceRecord = {
-        childFieldIndex,
-        parentFieldIndex,
-      }
-      fieldSources.push(sourceRecord)
-      fieldSourceByChildFieldIndex[childFieldIndex] = sourceRecord
+        data.fieldValues.push({
+          id: deriveUuid("field-value", field.id),
+          ownerWimpFieldId: field.id,
+          value: structuredClone(field.value),
+        })
 
-      const dependents = dependentFieldIndexesByParentFieldIndex.get(parentFieldIndex)
-      if (dependents) {
-        dependents.push(childFieldIndex)
-      } else {
-        dependentFieldIndexesByParentFieldIndex.set(parentFieldIndex, [childFieldIndex])
-      }
-    }
-  }
+        if (field.sourceWimpFieldId) {
+          data.fieldSources.push({
+            id: deriveUuid("field-source", field.id, field.sourceWimpFieldId),
+            childWimpFieldId: field.id,
+            parentWimpFieldId: field.sourceWimpFieldId,
+          })
+        }
+      })
 
-  const entanglementSeeds = buildEntanglementSeeds(traces, braneIndexByDarkId)
-  const stateSeeds = buildStateSeeds(traces, braneIndexByDarkId)
-
-  return createSharedDbProjection({
-    branes,
-    fields,
-    fieldValues,
-    fieldSources,
-    ...entanglementSeeds,
-    ...stateSeeds,
+    data.wimpStates.push({
+      id: deriveUuid("wimp-state", bundle.id),
+      ownerWimpId: bundle.id,
+      metaStateId: metaContext.initialStateId,
+    })
   })
+
+  const childBundlesByParentId = new Map<string | null, SharedDbWimpBundle[]>()
+  bundles.forEach((bundle) => {
+    const key = bundle.parentWimpId ?? null
+    const children = childBundlesByParentId.get(key)
+    if (children) {
+      children.push(bundle)
+    } else {
+      childBundlesByParentId.set(key, [bundle])
+    }
+  })
+
+  for (const [parentWimpId, childBundles] of childBundlesByParentId) {
+    childBundles.forEach((bundle, edgeOrder) => {
+      const edge: SharedDbWimpEdgeRecord = {
+        id: deriveUuid("wimp-edge", parentWimpId ?? "root", bundle.id),
+        parentWimpId,
+        childWimpId: bundle.id,
+        edgeOrder,
+      }
+      data.wimpEdges.push(edge)
+    })
+  }
+
+  appendEntanglements(data, bundles)
+  return normalizeSharedDbData(data)
 }
 
-const cloneRuntimeSeedData = (projection: SharedDbProjection): SharedDbRuntimeSeedData => ({
-  entanglementBlocks: projection.entanglementBlocks.map((block) => structuredClone(block)),
-  entanglementBlockMembers: projection.entanglementBlockMembers.map((member) => structuredClone(member)),
-  entanglementFields: projection.entanglementFields.map((field) => structuredClone(field)),
-  entanglementFieldMembers: projection.entanglementFieldMembers.map((member) => structuredClone(member)),
-  stateSeedStates: projection.stateSeedStates.map((state) => structuredClone(state)),
-  stateSeedTransitions: projection.stateSeedTransitions.map((transition) => structuredClone(transition)),
-  stateSeedConditions: projection.stateSeedConditions.map((condition) => structuredClone(condition)),
-})
-
 /**
- * Открывает shared/db materialization writer поверх backend.
+ * Открывает writer для поэтапной materialization-записи fully-formed `Wimp`.
  *
- * Writer пишет в существующую schema по мере завершения `Wimp`,
- * но backend-детали остаются внутри shared/db.
+ * Writer хранит только временный CPU-side набор bundles и на каждом save
+ * пере-перестраивает канонический relational snapshot, не сохраняя projection-таблицы.
  */
 export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): SharedDbMaterializationWriter => {
-  const traceOrder: string[] = []
-  const traceByDarkWimpId = new Map<string, SharedDbWimpTrace>()
+  const bundlesById = new Map<string, SharedDbWimpBundle>()
 
   return {
-    saveWimpTrace(trace) {
-      const nextTrace = cloneWimpTrace(trace)
-
-      if (!traceByDarkWimpId.has(nextTrace.darkWimpId)) {
-        traceOrder.push(nextTrace.darkWimpId)
-      }
-      traceByDarkWimpId.set(nextTrace.darkWimpId, nextTrace)
-
-      const projection = createSharedDbProjectionFromWimpTraces(
-        traceOrder.map((darkWimpId) => traceByDarkWimpId.get(darkWimpId)!),
-      )
-
-      backend.setRootBraneIndex(projection.rootBraneIndex)
-
-      const braneIndex = projection.braneIndexByDarkId.get(nextTrace.darkWimpId)
-      if (braneIndex === undefined) {
-        throw new Error(`Shared DB materialization cannot resolve brane for Wimp ${nextTrace.darkWimpId}`)
-      }
-
-      const brane = projection.branes[braneIndex]
-      if (!brane) {
-        throw new Error(`Shared DB materialization cannot read brane row ${braneIndex}`)
-      }
-
-      backend.upsertBrane(brane)
-
-      for (const fieldTrace of nextTrace.fields) {
-        const fieldIndex = projection.fieldIndexByDarkId.get(fieldTrace.darkFieldId)
-        if (fieldIndex === undefined) {
-          throw new Error(`Shared DB materialization cannot resolve field ${fieldTrace.darkFieldId}`)
-        }
-
-        const fieldRecord = projection.fields[fieldIndex]
-        const fieldValue = projection.fieldValues[fieldIndex]
-        if (!fieldRecord || !fieldValue) {
-          throw new Error(`Shared DB materialization cannot read field row ${fieldIndex}`)
-        }
-
-        backend.upsertField(fieldRecord)
-        backend.setFieldValue(fieldIndex, fieldValue.value)
-
-        const sourceRecord = projection.fieldSourceByChildFieldIndex[fieldIndex]
-        backend.setFieldSource(fieldIndex, sourceRecord ? sourceRecord.parentFieldIndex : null)
-      }
-
-      backend.replaceRuntimeSeedData(cloneRuntimeSeedData(projection))
+    saveWimpBundle(bundle) {
+      bundlesById.set(bundle.id, cloneWimpBundle(bundle))
+      backend.writeData(createSharedDbDataFromWimpBundles(Array.from(bundlesById.values())))
     },
   }
 }

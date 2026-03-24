@@ -83,6 +83,7 @@ export interface MetaFieldInit {
  * @property superposition Схема переходов состояний меты.
  * @property processes Описание процессов меты.
  * @property reactions Описание реакций меты.
+ * @property matter Описание topology declaration меты.
  * @property bulk Описание bulk-секции меты.
  * @property mass Канонический mass-слой меты.
  */
@@ -101,6 +102,8 @@ export interface MetaInit {
   processes?: MetaAST["processes"]
   /** Описание реакций меты. */
   reactions?: MetaAST["reactions"]
+  /** Описание topology declaration меты. */
+  matter?: MetaAST["matter"]
   /** Описание bulk-секции меты. */
   bulk?: MetaAST["bulk"]
   /** Канонический mass-слой меты. */

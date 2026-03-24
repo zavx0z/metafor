@@ -1,756 +1,531 @@
 import type { SharedDbBackend, SharedDbBackendIndexSpec } from "./backend.t.ts"
 import type {
-  SharedDbBraneRecord,
-  SharedDbEntanglementSeedBlockMemberRecord,
-  SharedDbEntanglementSeedBlockRecord,
-  SharedDbEntanglementSeedFieldMemberRecord,
-  SharedDbEntanglementSeedFieldRecord,
-  SharedDbFieldRecord,
+  SharedDbData,
+  SharedDbEntanglementFieldMemberRecord,
+  SharedDbEntanglementFieldRecord,
+  SharedDbEntanglementMemberRecord,
+  SharedDbEntanglementRecord,
   SharedDbFieldSourceRecord,
   SharedDbFieldValueRecord,
-  SharedDbProjection,
-  SharedDbProjectionIndexes,
-  SharedDbRuntimeSeedData,
-  SharedDbStateSeedConditionRecord,
-  SharedDbStateSeedStateRecord,
-  SharedDbStateSeedTransitionRecord,
-  SharedDbTabularData,
+  SharedDbMetaFieldRecord,
+  SharedDbMetaMatterEdgeRecord,
+  SharedDbMetaMatterNodeRecord,
+  SharedDbMetaProcessReadRecord,
+  SharedDbMetaProcessRecord,
+  SharedDbMetaProcessWriteRecord,
+  SharedDbMetaReactionReadRecord,
+  SharedDbMetaReactionRecord,
+  SharedDbMetaReactionStateRecord,
+  SharedDbMetaReactionWriteRecord,
+  SharedDbMetaRecord,
+  SharedDbMetaStateRecord,
+  SharedDbMetaTransitionConditionRecord,
+  SharedDbMetaTransitionRecord,
+  SharedDbWimpEdgeRecord,
+  SharedDbWimpFieldRecord,
+  SharedDbWimpRecord,
+  SharedDbWimpStateRecord,
 } from "./db.t.ts"
 
-const cloneBrane = (brane: SharedDbBraneRecord): SharedDbBraneRecord => ({
-  index: brane.index,
-  darkWimpId: brane.darkWimpId,
-  src: brane.src,
-  ...(brane.name !== undefined ? { name: brane.name } : {}),
-})
+const cloneRows = <T>(rows: T[]): T[] => rows.map((row) => structuredClone(row))
 
-const cloneField = (field: SharedDbFieldRecord): SharedDbFieldRecord => ({
-  index: field.index,
-  darkFieldId: field.darkFieldId,
-  ownerBraneIndex: field.ownerBraneIndex,
-  key: field.key,
-  schema: {
-    type: field.schema.type,
-    required: field.schema.required,
-    topology: field.schema.topology,
-    ...(field.schema.label !== undefined ? { label: field.schema.label } : {}),
-    ...(field.schema.values !== undefined ? { values: structuredClone(field.schema.values) } : {}),
-  },
-})
+const compareById = <T extends { id: string }>(left: T, right: T): number => left.id.localeCompare(right.id)
 
-const cloneFieldValue = (fieldValue: SharedDbFieldValueRecord): SharedDbFieldValueRecord => ({
-  fieldIndex: fieldValue.fieldIndex,
-  value: structuredClone(fieldValue.value),
-})
-
-const cloneFieldSource = (fieldSource: SharedDbFieldSourceRecord): SharedDbFieldSourceRecord => ({
-  childFieldIndex: fieldSource.childFieldIndex,
-  parentFieldIndex: fieldSource.parentFieldIndex,
-})
-
-const cloneEntanglementBlock = (
-  block: SharedDbEntanglementSeedBlockRecord,
-): SharedDbEntanglementSeedBlockRecord => ({
-  index: block.index,
-  key: block.key,
-})
-
-const cloneEntanglementBlockMember = (
-  member: SharedDbEntanglementSeedBlockMemberRecord,
-): SharedDbEntanglementSeedBlockMemberRecord => ({
-  index: member.index,
-  blockIndex: member.blockIndex,
-  memberIndex: member.memberIndex,
-  braneIndex: member.braneIndex,
-})
-
-const cloneEntanglementField = (
-  field: SharedDbEntanglementSeedFieldRecord,
-): SharedDbEntanglementSeedFieldRecord => ({
-  index: field.index,
-  blockIndex: field.blockIndex,
-  blockFieldIndex: field.blockFieldIndex,
-  semanticKey: field.semanticKey,
-  fieldName: field.fieldName,
-  provenance: field.provenance,
-  representativeDarkFieldId: field.representativeDarkFieldId,
-  representativeBraneIndex: field.representativeBraneIndex,
-  payloadIds: structuredClone(field.payloadIds),
-  semanticKeys: structuredClone(field.semanticKeys),
-})
-
-const cloneEntanglementFieldMember = (
-  member: SharedDbEntanglementSeedFieldMemberRecord,
-): SharedDbEntanglementSeedFieldMemberRecord => ({
-  index: member.index,
-  entanglementFieldIndex: member.entanglementFieldIndex,
-  memberIndex: member.memberIndex,
-  braneIndex: member.braneIndex,
-  darkFieldId: member.darkFieldId,
-})
-
-const cloneStateSeedState = (state: SharedDbStateSeedStateRecord): SharedDbStateSeedStateRecord => ({
-  index: state.index,
-  ownerBraneIndex: state.ownerBraneIndex,
-  stateIndex: state.stateIndex,
-  name: state.name,
-  initial: state.initial,
-})
-
-const cloneStateSeedTransition = (
-  transition: SharedDbStateSeedTransitionRecord,
-): SharedDbStateSeedTransitionRecord => ({
-  index: transition.index,
-  ownerBraneIndex: transition.ownerBraneIndex,
-  fromStateIndex: transition.fromStateIndex,
-  transitionIndex: transition.transitionIndex,
-  targetStateIndex: transition.targetStateIndex,
-})
-
-const cloneStateSeedCondition = (
-  condition: SharedDbStateSeedConditionRecord,
-): SharedDbStateSeedConditionRecord => ({
-  index: condition.index,
-  transitionSeedIndex: condition.transitionSeedIndex,
-  conditionIndex: condition.conditionIndex,
-  darkFieldId: condition.darkFieldId,
-  condition: structuredClone(condition.condition),
-})
-
-const createEmptyRuntimeSeedData = (): SharedDbRuntimeSeedData => ({
-  entanglementBlocks: [],
-  entanglementBlockMembers: [],
-  entanglementFields: [],
-  entanglementFieldMembers: [],
-  stateSeedStates: [],
-  stateSeedTransitions: [],
-  stateSeedConditions: [],
-})
-
-const createEmptySharedDbTabularData = (): SharedDbTabularData => ({
-  branes: [],
-  fields: [],
-  fieldValues: [],
-  fieldSources: [],
-  ...createEmptyRuntimeSeedData(),
-})
-
-const requireSequentialIndex = (
-  entityName: string,
-  records: Array<{ index: number }>,
-): void => {
-  records.forEach((record, expectedIndex) => {
-    if (record.index !== expectedIndex) {
-      throw new Error(`${entityName} index mismatch: expected ${expectedIndex}, got ${record.index}`)
+const requireUniqueIds = <T extends { id: string }>(name: string, rows: T[]): void => {
+  const ids = new Set<string>()
+  rows.forEach((row) => {
+    if (ids.has(row.id)) {
+      throw new Error(`Duplicate ${name} id: ${row.id}`)
     }
+    ids.add(row.id)
   })
 }
 
-const requireSequentialOrdinals = (
-  entityName: string,
-  records: Array<{ ordinal: number }>,
-): void => {
-  records.forEach((record, expectedOrdinal) => {
-    if (record.ordinal !== expectedOrdinal) {
-      throw new Error(`${entityName} ordinal mismatch: expected ${expectedOrdinal}, got ${record.ordinal}`)
+const requireUniqueKey = <T>(name: string, rows: T[], selectKey: (row: T) => string): void => {
+  const seen = new Set<string>()
+  rows.forEach((row) => {
+    const key = selectKey(row)
+    if (seen.has(key)) {
+      throw new Error(`Duplicate ${name} key: ${key}`)
     }
+    seen.add(key)
   })
 }
 
-const compareByIndex = <T extends { index: number }>(left: T, right: T): number => left.index - right.index
-
-const deriveSharedDbRootBraneIndex = (branes: SharedDbBraneRecord[]): number => (branes.length === 0 ? 0 : branes[0]!.index)
-
-const deriveSharedDbFieldWindows = (
-  branes: SharedDbBraneRecord[],
-  fields: SharedDbFieldRecord[],
-): Array<{ fieldOffset: number; fieldCount: number }> => {
-  const fieldWindowByBraneIndex = branes.map(() => ({ fieldOffset: fields.length, fieldCount: 0 }))
-  let cursor = 0
-
-  for (const brane of branes) {
-    const fieldOffset = cursor
-
-    while (cursor < fields.length) {
-      const field = fields[cursor]
-      if (!field) break
-      if (field.ownerBraneIndex !== brane.index) {
-        break
-      }
-      cursor += 1
-    }
-
-    fieldWindowByBraneIndex[brane.index] = {
-      fieldOffset,
-      fieldCount: cursor - fieldOffset,
-    }
+const requireReference = (
+  entityName: string,
+  entityId: string,
+  foreignName: string,
+  foreignId: string | null | undefined,
+  knownIds: Set<string>,
+): void => {
+  if (!foreignId) {
+    throw new Error(`${entityName} ${entityId} references empty ${foreignName}`)
   }
-
-  if (cursor !== fields.length) {
-    const field = fields[cursor]
-    throw new Error(
-      `Fields must stay grouped by owner brane to derive in-memory field ranges; got field ${field?.index ?? cursor} for brane ${field?.ownerBraneIndex ?? "unknown"}`,
-    )
+  if (!knownIds.has(foreignId)) {
+    throw new Error(`${entityName} ${entityId} references unknown ${foreignName}: ${foreignId}`)
   }
-
-  return fieldWindowByBraneIndex
 }
 
-/**
- * Зафиксированный набор backend-индексов для канонического shared/db lookup API.
- */
 export const sharedDbRequiredBackendIndexes: readonly SharedDbBackendIndexSpec[] = [
-  { name: "branes_by_dark_wimp_id", table: "branes", columns: ["darkWimpId"], unique: true },
-  { name: "fields_by_dark_field_id", table: "fields", columns: ["darkFieldId"], unique: true },
-  { name: "fields_by_owner_brane_and_key", table: "fields", columns: ["ownerBraneIndex", "key"], unique: true },
-  { name: "field_values_by_field_index", table: "field_values", columns: ["fieldIndex"], unique: true },
-  { name: "field_sources_by_child_field_index", table: "field_sources", columns: ["childFieldIndex"], unique: true },
-  { name: "field_sources_by_parent_field_index", table: "field_sources", columns: ["parentFieldIndex"], unique: false },
+  { name: "metas_by_src", table: "metas", columns: ["src"], unique: true },
+  { name: "meta_fields_by_owner_and_field_key", table: "meta_fields", columns: ["ownerMetaId", "fieldKey"], unique: true },
+  { name: "meta_fields_by_owner_and_field_order", table: "meta_fields", columns: ["ownerMetaId", "fieldOrder"], unique: true },
+  { name: "meta_states_by_owner_and_state_name", table: "meta_states", columns: ["ownerMetaId", "stateName"], unique: true },
+  { name: "meta_states_by_owner_and_state_order", table: "meta_states", columns: ["ownerMetaId", "stateOrder"], unique: true },
+  { name: "meta_transitions_by_owner_state_and_order", table: "meta_transitions", columns: ["ownerMetaStateId", "transitionOrder"], unique: true },
   {
-    name: "entanglement_seed_block_members_by_block_index",
-    table: "entanglement_seed_block_members",
-    columns: ["blockIndex", "memberIndex"],
+    name: "meta_transition_conditions_by_owner_transition_and_order",
+    table: "meta_transition_conditions",
+    columns: ["ownerMetaTransitionId", "conditionOrder"],
+    unique: true,
+  },
+  { name: "meta_processes_by_owner_and_process_key", table: "meta_processes", columns: ["ownerMetaId", "processKey"], unique: true },
+  {
+    name: "meta_processes_by_owner_and_process_order",
+    table: "meta_processes",
+    columns: ["ownerMetaId", "processOrder"],
     unique: true,
   },
   {
-    name: "entanglement_seed_fields_by_block_index_and_block_field_index",
-    table: "entanglement_seed_fields",
-    columns: ["blockIndex", "blockFieldIndex"],
+    name: "meta_process_reads_by_process_phase_and_order",
+    table: "meta_process_reads",
+    columns: ["ownerMetaProcessId", "phase", "readOrder"],
     unique: true,
   },
   {
-    name: "entanglement_seed_field_members_by_entanglement_field_index_and_member_index",
-    table: "entanglement_seed_field_members",
-    columns: ["entanglementFieldIndex", "memberIndex"],
+    name: "meta_process_writes_by_process_phase_and_order",
+    table: "meta_process_writes",
+    columns: ["ownerMetaProcessId", "phase", "writeOrder"],
+    unique: true,
+  },
+  { name: "meta_reactions_by_owner_and_reaction_key", table: "meta_reactions", columns: ["ownerMetaId", "reactionKey"], unique: true },
+  {
+    name: "meta_reactions_by_owner_and_reaction_order",
+    table: "meta_reactions",
+    columns: ["ownerMetaId", "reactionOrder"],
     unique: true,
   },
   {
-    name: "state_seed_states_by_owner_brane_and_state_index",
-    table: "state_seed_states",
-    columns: ["ownerBraneIndex", "stateIndex"],
+    name: "meta_reaction_states_by_reaction_and_state",
+    table: "meta_reaction_states",
+    columns: ["ownerMetaReactionId", "metaStateId"],
+    unique: true,
+  },
+  { name: "meta_reaction_reads_by_reaction_and_order", table: "meta_reaction_reads", columns: ["ownerMetaReactionId", "readOrder"], unique: true },
+  {
+    name: "meta_reaction_writes_by_reaction_and_order",
+    table: "meta_reaction_writes",
+    columns: ["ownerMetaReactionId", "writeOrder"],
+    unique: true,
+  },
+  { name: "meta_matter_nodes_by_owner_and_order", table: "meta_matter_nodes", columns: ["ownerMetaId", "nodeOrder"], unique: true },
+  {
+    name: "meta_matter_edges_by_parent_and_edge_order",
+    table: "meta_matter_edges",
+    columns: ["parentNodeId", "edgeOrder"],
+    unique: true,
+  },
+  { name: "wimps_by_wimp_order", table: "wimps", columns: ["wimpOrder"], unique: true },
+  { name: "wimps_by_meta_id", table: "wimps", columns: ["metaId"], unique: false },
+  { name: "wimp_fields_by_owner_and_meta_field", table: "wimp_fields", columns: ["ownerWimpId", "metaFieldId"], unique: true },
+  { name: "wimp_fields_by_owner_and_field_order", table: "wimp_fields", columns: ["ownerWimpId", "fieldOrder"], unique: true },
+  { name: "wimp_edges_by_child", table: "wimp_edges", columns: ["childWimpId"], unique: true },
+  { name: "wimp_edges_by_parent_and_order", table: "wimp_edges", columns: ["parentWimpId", "edgeOrder"], unique: true },
+  { name: "field_values_by_owner_wimp_field", table: "field_values", columns: ["ownerWimpFieldId"], unique: true },
+  { name: "field_sources_by_child_wimp_field", table: "field_sources", columns: ["childWimpFieldId"], unique: true },
+  { name: "field_sources_by_parent_wimp_field", table: "field_sources", columns: ["parentWimpFieldId"], unique: false },
+  { name: "wimp_states_by_owner", table: "wimp_states", columns: ["ownerWimpId"], unique: true },
+  { name: "entanglements_by_membership_key", table: "entanglements", columns: ["membershipKey"], unique: true },
+  {
+    name: "entanglement_members_by_owner_and_order",
+    table: "entanglement_members",
+    columns: ["ownerEntanglementId", "memberOrder"],
     unique: true,
   },
   {
-    name: "state_seed_transitions_by_owner_brane_and_from_state_and_transition_index",
-    table: "state_seed_transitions",
-    columns: ["ownerBraneIndex", "fromStateIndex", "transitionIndex"],
+    name: "entanglement_fields_by_owner_and_order",
+    table: "entanglement_fields",
+    columns: ["ownerEntanglementId", "fieldOrder"],
     unique: true,
   },
   {
-    name: "state_seed_conditions_by_transition_seed_index_and_condition_index",
-    table: "state_seed_conditions",
-    columns: ["transitionSeedIndex", "conditionIndex"],
+    name: "entanglement_field_members_by_owner_and_order",
+    table: "entanglement_field_members",
+    columns: ["ownerEntanglementFieldId", "memberOrder"],
     unique: true,
   },
 ] as const
 
-/**
- * Нормализует и проверяет канонический табличный снимок shared/db.
- *
- * @param data Табличная форма для хранения или восстановления.
- * @returns Нормализованный и склонированный табличный снимок.
- */
-export const normalizeSharedDbTabularData = (data: SharedDbTabularData): SharedDbTabularData => {
-  const branes = data.branes.map(cloneBrane).sort(compareByIndex)
-  const fields = data.fields.map(cloneField).sort(compareByIndex)
-  requireSequentialIndex("Brane", branes)
-  requireSequentialIndex("Field", fields)
+export const createEmptySharedDbData = (): SharedDbData => ({
+  metas: [],
+  metaFields: [],
+  metaStates: [],
+  metaTransitions: [],
+  metaTransitionConditions: [],
+  metaProcesses: [],
+  metaProcessReads: [],
+  metaProcessWrites: [],
+  metaReactions: [],
+  metaReactionStates: [],
+  metaReactionReads: [],
+  metaReactionWrites: [],
+  metaMatterNodes: [],
+  metaMatterEdges: [],
+  wimps: [],
+  wimpFields: [],
+  wimpEdges: [],
+  fieldValues: [],
+  fieldSources: [],
+  wimpStates: [],
+  entanglements: [],
+  entanglementMembers: [],
+  entanglementFields: [],
+  entanglementFieldMembers: [],
+})
 
-  const fieldValues: Array<SharedDbFieldValueRecord | undefined> = new Array(fields.length)
-  for (const fieldValue of data.fieldValues) {
-    const field = fields[fieldValue.fieldIndex]
-    if (!field) {
-      throw new Error(`Field value references unknown field index: ${fieldValue.fieldIndex}`)
-    }
-    if (fieldValues[fieldValue.fieldIndex]) {
-      throw new Error(`Duplicate field value for field index: ${fieldValue.fieldIndex}`)
-    }
-    fieldValues[fieldValue.fieldIndex] = cloneFieldValue(fieldValue)
-  }
+const normalizeMetaRecords = (rows: SharedDbMetaRecord[]): SharedDbMetaRecord[] => cloneRows(rows).sort(compareById)
+const normalizeMetaFieldRecords = (rows: SharedDbMetaFieldRecord[]): SharedDbMetaFieldRecord[] => cloneRows(rows).sort(compareById)
+const normalizeMetaStateRecords = (rows: SharedDbMetaStateRecord[]): SharedDbMetaStateRecord[] => cloneRows(rows).sort(compareById)
+const normalizeMetaTransitionRecords = (rows: SharedDbMetaTransitionRecord[]): SharedDbMetaTransitionRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeMetaTransitionConditionRecords = (
+  rows: SharedDbMetaTransitionConditionRecord[],
+): SharedDbMetaTransitionConditionRecord[] => cloneRows(rows).sort(compareById)
+const normalizeMetaProcessRecords = (rows: SharedDbMetaProcessRecord[]): SharedDbMetaProcessRecord[] => cloneRows(rows).sort(compareById)
+const normalizeMetaProcessReadRecords = (rows: SharedDbMetaProcessReadRecord[]): SharedDbMetaProcessReadRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeMetaProcessWriteRecords = (rows: SharedDbMetaProcessWriteRecord[]): SharedDbMetaProcessWriteRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeMetaReactionRecords = (rows: SharedDbMetaReactionRecord[]): SharedDbMetaReactionRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeMetaReactionStateRecords = (rows: SharedDbMetaReactionStateRecord[]): SharedDbMetaReactionStateRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeMetaReactionReadRecords = (rows: SharedDbMetaReactionReadRecord[]): SharedDbMetaReactionReadRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeMetaReactionWriteRecords = (rows: SharedDbMetaReactionWriteRecord[]): SharedDbMetaReactionWriteRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeMetaMatterNodeRecords = (rows: SharedDbMetaMatterNodeRecord[]): SharedDbMetaMatterNodeRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeMetaMatterEdgeRecords = (rows: SharedDbMetaMatterEdgeRecord[]): SharedDbMetaMatterEdgeRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeWimpRecords = (rows: SharedDbWimpRecord[]): SharedDbWimpRecord[] => cloneRows(rows).sort(compareById)
+const normalizeWimpFieldRecords = (rows: SharedDbWimpFieldRecord[]): SharedDbWimpFieldRecord[] => cloneRows(rows).sort(compareById)
+const normalizeWimpEdgeRecords = (rows: SharedDbWimpEdgeRecord[]): SharedDbWimpEdgeRecord[] => cloneRows(rows).sort(compareById)
+const normalizeFieldValueRecords = (rows: SharedDbFieldValueRecord[]): SharedDbFieldValueRecord[] => cloneRows(rows).sort(compareById)
+const normalizeFieldSourceRecords = (rows: SharedDbFieldSourceRecord[]): SharedDbFieldSourceRecord[] => cloneRows(rows).sort(compareById)
+const normalizeWimpStateRecords = (rows: SharedDbWimpStateRecord[]): SharedDbWimpStateRecord[] => cloneRows(rows).sort(compareById)
+const normalizeEntanglementRecords = (rows: SharedDbEntanglementRecord[]): SharedDbEntanglementRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeEntanglementMemberRecords = (rows: SharedDbEntanglementMemberRecord[]): SharedDbEntanglementMemberRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeEntanglementFieldRecords = (rows: SharedDbEntanglementFieldRecord[]): SharedDbEntanglementFieldRecord[] =>
+  cloneRows(rows).sort(compareById)
+const normalizeEntanglementFieldMemberRecords = (
+  rows: SharedDbEntanglementFieldMemberRecord[],
+): SharedDbEntanglementFieldMemberRecord[] => cloneRows(rows).sort(compareById)
 
-  fields.forEach((field, fieldIndex) => {
-    const ownerBrane = branes[field.ownerBraneIndex]
-    if (!ownerBrane) {
-      throw new Error(`Field ${fieldIndex} references unknown brane index: ${field.ownerBraneIndex}`)
-    }
-    if (!fieldValues[fieldIndex]) {
-      throw new Error(`Field value missing for field index: ${fieldIndex}`)
-    }
-  })
+export const normalizeSharedDbData = (data: SharedDbData): SharedDbData => {
+  const metas = normalizeMetaRecords(data.metas)
+  const metaFields = normalizeMetaFieldRecords(data.metaFields)
+  const metaStates = normalizeMetaStateRecords(data.metaStates)
+  const metaTransitions = normalizeMetaTransitionRecords(data.metaTransitions)
+  const metaTransitionConditions = normalizeMetaTransitionConditionRecords(data.metaTransitionConditions)
+  const metaProcesses = normalizeMetaProcessRecords(data.metaProcesses)
+  const metaProcessReads = normalizeMetaProcessReadRecords(data.metaProcessReads)
+  const metaProcessWrites = normalizeMetaProcessWriteRecords(data.metaProcessWrites)
+  const metaReactions = normalizeMetaReactionRecords(data.metaReactions)
+  const metaReactionStates = normalizeMetaReactionStateRecords(data.metaReactionStates)
+  const metaReactionReads = normalizeMetaReactionReadRecords(data.metaReactionReads)
+  const metaReactionWrites = normalizeMetaReactionWriteRecords(data.metaReactionWrites)
+  const metaMatterNodes = normalizeMetaMatterNodeRecords(data.metaMatterNodes)
+  const metaMatterEdges = normalizeMetaMatterEdgeRecords(data.metaMatterEdges)
+  const wimps = normalizeWimpRecords(data.wimps)
+  const wimpFields = normalizeWimpFieldRecords(data.wimpFields)
+  const wimpEdges = normalizeWimpEdgeRecords(data.wimpEdges)
+  const fieldValues = normalizeFieldValueRecords(data.fieldValues)
+  const fieldSources = normalizeFieldSourceRecords(data.fieldSources)
+  const wimpStates = normalizeWimpStateRecords(data.wimpStates)
+  const entanglements = normalizeEntanglementRecords(data.entanglements)
+  const entanglementMembers = normalizeEntanglementMemberRecords(data.entanglementMembers)
+  const entanglementFields = normalizeEntanglementFieldRecords(data.entanglementFields)
+  const entanglementFieldMembers = normalizeEntanglementFieldMemberRecords(data.entanglementFieldMembers)
 
-  deriveSharedDbFieldWindows(branes, fields)
+  requireUniqueIds("meta", metas)
+  requireUniqueIds("meta_field", metaFields)
+  requireUniqueIds("meta_state", metaStates)
+  requireUniqueIds("meta_transition", metaTransitions)
+  requireUniqueIds("meta_transition_condition", metaTransitionConditions)
+  requireUniqueIds("meta_process", metaProcesses)
+  requireUniqueIds("meta_process_read", metaProcessReads)
+  requireUniqueIds("meta_process_write", metaProcessWrites)
+  requireUniqueIds("meta_reaction", metaReactions)
+  requireUniqueIds("meta_reaction_state", metaReactionStates)
+  requireUniqueIds("meta_reaction_read", metaReactionReads)
+  requireUniqueIds("meta_reaction_write", metaReactionWrites)
+  requireUniqueIds("meta_matter_node", metaMatterNodes)
+  requireUniqueIds("meta_matter_edge", metaMatterEdges)
+  requireUniqueIds("wimp", wimps)
+  requireUniqueIds("wimp_field", wimpFields)
+  requireUniqueIds("wimp_edge", wimpEdges)
+  requireUniqueIds("field_value", fieldValues)
+  requireUniqueIds("field_source", fieldSources)
+  requireUniqueIds("wimp_state", wimpStates)
+  requireUniqueIds("entanglement", entanglements)
+  requireUniqueIds("entanglement_member", entanglementMembers)
+  requireUniqueIds("entanglement_field", entanglementFields)
+  requireUniqueIds("entanglement_field_member", entanglementFieldMembers)
 
-  const fieldSources = data.fieldSources.map(cloneFieldSource).sort(
-    (left, right) => left.childFieldIndex - right.childFieldIndex,
+  const metaIds = new Set(metas.map((row) => row.id))
+  const metaFieldIds = new Set(metaFields.map((row) => row.id))
+  const metaStateIds = new Set(metaStates.map((row) => row.id))
+  const metaTransitionIds = new Set(metaTransitions.map((row) => row.id))
+  const metaProcessIds = new Set(metaProcesses.map((row) => row.id))
+  const metaReactionIds = new Set(metaReactions.map((row) => row.id))
+  const metaMatterNodeIds = new Set(metaMatterNodes.map((row) => row.id))
+  const wimpIds = new Set(wimps.map((row) => row.id))
+  const wimpFieldIds = new Set(wimpFields.map((row) => row.id))
+  const entanglementIds = new Set(entanglements.map((row) => row.id))
+  const entanglementFieldIds = new Set(entanglementFields.map((row) => row.id))
+
+  requireUniqueKey("meta src", metas, (row) => row.src)
+  requireUniqueKey("meta field owner/key", metaFields, (row) => `${row.ownerMetaId}:${row.fieldKey}`)
+  requireUniqueKey("meta field owner/order", metaFields, (row) => `${row.ownerMetaId}:${row.fieldOrder}`)
+  requireUniqueKey("meta state owner/name", metaStates, (row) => `${row.ownerMetaId}:${row.stateName}`)
+  requireUniqueKey("meta state owner/order", metaStates, (row) => `${row.ownerMetaId}:${row.stateOrder}`)
+  requireUniqueKey("meta transition owner/order", metaTransitions, (row) => `${row.ownerMetaStateId}:${row.transitionOrder}`)
+  requireUniqueKey(
+    "meta transition condition owner/order",
+    metaTransitionConditions,
+    (row) => `${row.ownerMetaTransitionId}:${row.conditionOrder}`,
   )
-  const seenChildFieldIndexes = new Set<number>()
-  for (const fieldSource of fieldSources) {
-    if (!fields[fieldSource.childFieldIndex]) {
-      throw new Error(`Field source references unknown child field index: ${fieldSource.childFieldIndex}`)
-    }
-    if (!fields[fieldSource.parentFieldIndex]) {
-      throw new Error(`Field source references unknown parent field index: ${fieldSource.parentFieldIndex}`)
-    }
-    if (seenChildFieldIndexes.has(fieldSource.childFieldIndex)) {
-      throw new Error(`Duplicate field source for child field index: ${fieldSource.childFieldIndex}`)
-    }
-    seenChildFieldIndexes.add(fieldSource.childFieldIndex)
-  }
-
-  const fieldByDarkId = new Map<string, SharedDbFieldRecord>()
-  fields.forEach((field) => {
-    if (fieldByDarkId.has(field.darkFieldId)) {
-      throw new Error(`Duplicate field dark id: ${field.darkFieldId}`)
-    }
-    fieldByDarkId.set(field.darkFieldId, field)
-  })
-
-  const entanglementBlocks = data.entanglementBlocks.map(cloneEntanglementBlock).sort(compareByIndex)
-  const entanglementBlockMembers = data.entanglementBlockMembers.map(cloneEntanglementBlockMember).sort(compareByIndex)
-  const entanglementFields = data.entanglementFields.map(cloneEntanglementField).sort(compareByIndex)
-  const entanglementFieldMembers = data.entanglementFieldMembers.map(cloneEntanglementFieldMember).sort(compareByIndex)
-  const stateSeedStates = data.stateSeedStates.map(cloneStateSeedState).sort(compareByIndex)
-  const stateSeedTransitions = data.stateSeedTransitions.map(cloneStateSeedTransition).sort(compareByIndex)
-  const stateSeedConditions = data.stateSeedConditions.map(cloneStateSeedCondition).sort(compareByIndex)
-
-  requireSequentialIndex("Entanglement block", entanglementBlocks)
-  requireSequentialIndex("Entanglement block member", entanglementBlockMembers)
-  requireSequentialIndex("Entanglement field", entanglementFields)
-  requireSequentialIndex("Entanglement field member", entanglementFieldMembers)
-  requireSequentialIndex("State seed state", stateSeedStates)
-  requireSequentialIndex("State seed transition", stateSeedTransitions)
-  requireSequentialIndex("State seed condition", stateSeedConditions)
-
-  const entanglementBlockByIndex = new Map<number, SharedDbEntanglementSeedBlockRecord>()
-  const entanglementBlockMembersByBlockIndex = new Map<number, SharedDbEntanglementSeedBlockMemberRecord[]>()
-  for (const block of entanglementBlocks) {
-    if (entanglementBlockByIndex.has(block.index)) {
-      throw new Error(`Duplicate entanglement block index: ${block.index}`)
-    }
-    entanglementBlockByIndex.set(block.index, block)
-  }
-
-  for (const member of entanglementBlockMembers) {
-    if (!entanglementBlockByIndex.has(member.blockIndex)) {
-      throw new Error(`Entanglement block member references unknown block index: ${member.blockIndex}`)
-    }
-    if (!branes[member.braneIndex]) {
-      throw new Error(`Entanglement block member references unknown brane index: ${member.braneIndex}`)
-    }
-
-    const blockMembers = entanglementBlockMembersByBlockIndex.get(member.blockIndex) ?? []
-    if (blockMembers.some((candidate) => candidate.memberIndex === member.memberIndex)) {
-      throw new Error(
-        `Duplicate entanglement block member ordinal ${member.memberIndex} in block ${member.blockIndex}`,
-      )
-    }
-    if (blockMembers.some((candidate) => candidate.braneIndex === member.braneIndex)) {
-      throw new Error(`Duplicate brane ${member.braneIndex} in entanglement block ${member.blockIndex}`)
-    }
-    blockMembers.push(member)
-    entanglementBlockMembersByBlockIndex.set(member.blockIndex, blockMembers)
-  }
-
-  entanglementBlocks.forEach((block) => {
-    const members = (entanglementBlockMembersByBlockIndex.get(block.index) ?? [])
-      .map((member) => ({ ordinal: member.memberIndex }))
-      .sort((left, right) => left.ordinal - right.ordinal)
-    if (members.length < 2) {
-      throw new Error(`Entanglement block ${block.index} requires at least 2 branes`)
-    }
-    requireSequentialOrdinals(`Entanglement block ${block.index} membership`, members)
-  })
-
-  const entanglementFieldByIndex = new Map<number, SharedDbEntanglementSeedFieldRecord>()
-  const entanglementFieldsByBlockIndex = new Map<number, SharedDbEntanglementSeedFieldRecord[]>()
-  for (const seedField of entanglementFields) {
-    if (!entanglementBlockByIndex.has(seedField.blockIndex)) {
-      throw new Error(`Entanglement field references unknown block index: ${seedField.blockIndex}`)
-    }
-    const representativeField = fieldByDarkId.get(seedField.representativeDarkFieldId)
-    if (!representativeField) {
-      throw new Error(`Entanglement field references unknown representative field: ${seedField.representativeDarkFieldId}`)
-    }
-    if (representativeField.ownerBraneIndex !== seedField.representativeBraneIndex) {
-      throw new Error(
-        `Entanglement field representative brane mismatch for field ${seedField.representativeDarkFieldId}`,
-      )
-    }
-
-    const blockMembers = entanglementBlockMembersByBlockIndex.get(seedField.blockIndex) ?? []
-    if (!blockMembers.some((member) => member.braneIndex === seedField.representativeBraneIndex)) {
-      throw new Error(
-        `Entanglement field representative brane ${seedField.representativeBraneIndex} is outside block ${seedField.blockIndex}`,
-      )
-    }
-
-    const fieldsInBlock = entanglementFieldsByBlockIndex.get(seedField.blockIndex) ?? []
-    if (fieldsInBlock.some((candidate) => candidate.blockFieldIndex === seedField.blockFieldIndex)) {
-      throw new Error(
-        `Duplicate entanglement field ordinal ${seedField.blockFieldIndex} in block ${seedField.blockIndex}`,
-      )
-    }
-    fieldsInBlock.push(seedField)
-    entanglementFieldsByBlockIndex.set(seedField.blockIndex, fieldsInBlock)
-    entanglementFieldByIndex.set(seedField.index, seedField)
-  }
-
-  entanglementBlocks.forEach((block) => {
-    const fieldsInBlock = (entanglementFieldsByBlockIndex.get(block.index) ?? [])
-      .map((seedField) => ({ ordinal: seedField.blockFieldIndex }))
-      .sort((left, right) => left.ordinal - right.ordinal)
-    if (fieldsInBlock.length === 0) {
-      throw new Error(`Entanglement block ${block.index} requires at least 1 shared field seed`)
-    }
-    requireSequentialOrdinals(`Entanglement block ${block.index} fields`, fieldsInBlock)
-  })
-
-  const entanglementFieldMembersByFieldIndex = new Map<number, SharedDbEntanglementSeedFieldMemberRecord[]>()
-  for (const member of entanglementFieldMembers) {
-    const seedField = entanglementFieldByIndex.get(member.entanglementFieldIndex)
-    if (!seedField) {
-      throw new Error(`Entanglement field member references unknown seed field: ${member.entanglementFieldIndex}`)
-    }
-
-    const field = fieldByDarkId.get(member.darkFieldId)
-    if (!field) {
-      throw new Error(`Entanglement field member references unknown darkFieldId: ${member.darkFieldId}`)
-    }
-    if (field.ownerBraneIndex !== member.braneIndex) {
-      throw new Error(`Entanglement field member brane mismatch for field ${member.darkFieldId}`)
-    }
-    if (!(entanglementBlockMembersByBlockIndex.get(seedField.blockIndex) ?? []).some((item) => item.braneIndex === member.braneIndex)) {
-      throw new Error(
-        `Entanglement field member brane ${member.braneIndex} is outside block ${seedField.blockIndex}`,
-      )
-    }
-
-    const members = entanglementFieldMembersByFieldIndex.get(member.entanglementFieldIndex) ?? []
-    if (members.some((candidate) => candidate.memberIndex === member.memberIndex)) {
-      throw new Error(
-        `Duplicate entanglement field member ordinal ${member.memberIndex} in seed field ${member.entanglementFieldIndex}`,
-      )
-    }
-    if (members.some((candidate) => candidate.braneIndex === member.braneIndex)) {
-      throw new Error(
-        `Duplicate entanglement field member brane ${member.braneIndex} in seed field ${member.entanglementFieldIndex}`,
-      )
-    }
-    members.push(member)
-    entanglementFieldMembersByFieldIndex.set(member.entanglementFieldIndex, members)
-  }
-
-  for (const seedField of entanglementFields) {
-    const members = (entanglementFieldMembersByFieldIndex.get(seedField.index) ?? []).sort(
-      (left, right) => left.memberIndex - right.memberIndex,
-    )
-    if (members.length < 2) {
-      throw new Error(`Entanglement seed field ${seedField.index} requires at least 2 members`)
-    }
-    requireSequentialOrdinals(
-      `Entanglement seed field ${seedField.index} membership`,
-      members.map((member) => ({ ordinal: member.memberIndex })),
-    )
-    if (!members.some((member) => member.darkFieldId === seedField.representativeDarkFieldId)) {
-      throw new Error(
-        `Entanglement seed field ${seedField.index} representative field is not part of membership`,
-      )
-    }
-
-    const blockBraneIndices = (entanglementBlockMembersByBlockIndex.get(seedField.blockIndex) ?? [])
-      .map((member) => member.braneIndex)
-      .sort((left, right) => left - right)
-    const memberBraneIndices = members.map((member) => member.braneIndex).sort((left, right) => left - right)
-    if (JSON.stringify(blockBraneIndices) !== JSON.stringify(memberBraneIndices)) {
-      throw new Error(`Entanglement seed field ${seedField.index} membership does not match block membership`)
-    }
-  }
-
-  const stateSeedsByBraneIndex = new Map<number, SharedDbStateSeedStateRecord[]>()
-  for (const state of stateSeedStates) {
-    if (!branes[state.ownerBraneIndex]) {
-      throw new Error(`State seed references unknown brane index: ${state.ownerBraneIndex}`)
-    }
-    const states = stateSeedsByBraneIndex.get(state.ownerBraneIndex) ?? []
-    if (states.some((candidate) => candidate.stateIndex === state.stateIndex)) {
-      throw new Error(
-        `Duplicate state seed index ${state.stateIndex} for brane ${state.ownerBraneIndex}`,
-      )
-    }
-    states.push(state)
-    stateSeedsByBraneIndex.set(state.ownerBraneIndex, states)
-  }
-
-  branes.forEach((brane) => {
-    const states = (stateSeedsByBraneIndex.get(brane.index) ?? []).sort((left, right) => left.stateIndex - right.stateIndex)
-    if (states.length === 0) {
-      throw new Error(`State seeds missing for brane ${brane.index}`)
-    }
-    requireSequentialOrdinals(
-      `State seeds for brane ${brane.index}`,
-      states.map((state) => ({ ordinal: state.stateIndex })),
-    )
-    const initialCount = states.filter((state) => state.initial).length
-    if (initialCount !== 1) {
-      throw new Error(`Brane ${brane.index} must have exactly 1 initial state seed`)
-    }
-  })
-
-  const stateSeedTransitionByIndex = new Map<number, SharedDbStateSeedTransitionRecord>()
-  const stateSeedTransitionsByState = new Map<string, SharedDbStateSeedTransitionRecord[]>()
-  for (const transition of stateSeedTransitions) {
-    const states = stateSeedsByBraneIndex.get(transition.ownerBraneIndex) ?? []
-    if (!states.some((state) => state.stateIndex === transition.fromStateIndex)) {
-      throw new Error(
-        `State seed transition references unknown from-state ${transition.fromStateIndex} for brane ${transition.ownerBraneIndex}`,
-      )
-    }
-    if (
-      transition.targetStateIndex !== null &&
-      !states.some((state) => state.stateIndex === transition.targetStateIndex)
-    ) {
-      throw new Error(
-        `State seed transition references unknown target-state ${transition.targetStateIndex} for brane ${transition.ownerBraneIndex}`,
-      )
-    }
-
-    const key = `${transition.ownerBraneIndex}:${transition.fromStateIndex}`
-    const transitions = stateSeedTransitionsByState.get(key) ?? []
-    if (transitions.some((candidate) => candidate.transitionIndex === transition.transitionIndex)) {
-      throw new Error(
-        `Duplicate state seed transition ordinal ${transition.transitionIndex} for brane ${transition.ownerBraneIndex} state ${transition.fromStateIndex}`,
-      )
-    }
-    transitions.push(transition)
-    stateSeedTransitionsByState.set(key, transitions)
-    stateSeedTransitionByIndex.set(transition.index, transition)
-  }
-
-  for (const [key, transitions] of stateSeedTransitionsByState) {
-    requireSequentialOrdinals(
-      `State seed transitions for ${key}`,
-      transitions
-        .map((transition) => ({ ordinal: transition.transitionIndex }))
-        .sort((left, right) => left.ordinal - right.ordinal),
-    )
-  }
-
-  const stateSeedConditionsByTransitionIndex = new Map<number, SharedDbStateSeedConditionRecord[]>()
-  for (const condition of stateSeedConditions) {
-    const transition = stateSeedTransitionByIndex.get(condition.transitionSeedIndex)
-    if (!transition) {
-      throw new Error(`State seed condition references unknown transition: ${condition.transitionSeedIndex}`)
-    }
-    if (transition.targetStateIndex === null) {
-      throw new Error(`Terminal state seed transition ${transition.index} cannot have conditions`)
-    }
-
-    const field = fieldByDarkId.get(condition.darkFieldId)
-    if (!field) {
-      throw new Error(`State seed condition references unknown darkFieldId: ${condition.darkFieldId}`)
-    }
-    if (field.ownerBraneIndex !== transition.ownerBraneIndex) {
-      throw new Error(
-        `State seed condition field ${condition.darkFieldId} does not belong to brane ${transition.ownerBraneIndex}`,
-      )
-    }
-
-    const conditions = stateSeedConditionsByTransitionIndex.get(condition.transitionSeedIndex) ?? []
-    if (conditions.some((candidate) => candidate.conditionIndex === condition.conditionIndex)) {
-      throw new Error(
-        `Duplicate state seed condition ordinal ${condition.conditionIndex} for transition ${condition.transitionSeedIndex}`,
-      )
-    }
-    conditions.push(condition)
-    stateSeedConditionsByTransitionIndex.set(condition.transitionSeedIndex, conditions)
-  }
-
-  for (const [transitionIndex, conditions] of stateSeedConditionsByTransitionIndex) {
-    requireSequentialOrdinals(
-      `State seed conditions for transition ${transitionIndex}`,
-      conditions
-        .map((condition) => ({ ordinal: condition.conditionIndex }))
-        .sort((left, right) => left.ordinal - right.ordinal),
-    )
-  }
-
-  return {
-    branes,
-    fields,
-    fieldValues: fieldValues as SharedDbFieldValueRecord[],
-    fieldSources,
-    entanglementBlocks,
-    entanglementBlockMembers,
-    entanglementFields,
+  requireUniqueKey("meta process owner/key", metaProcesses, (row) => `${row.ownerMetaId}:${row.processKey}`)
+  requireUniqueKey("meta process owner/order", metaProcesses, (row) => `${row.ownerMetaId}:${row.processOrder}`)
+  requireUniqueKey("meta reaction owner/key", metaReactions, (row) => `${row.ownerMetaId}:${row.reactionKey}`)
+  requireUniqueKey("meta reaction owner/order", metaReactions, (row) => `${row.ownerMetaId}:${row.reactionOrder}`)
+  requireUniqueKey("wimp order", wimps, (row) => String(row.wimpOrder))
+  requireUniqueKey("wimp field owner/meta field", wimpFields, (row) => `${row.ownerWimpId}:${row.metaFieldId}`)
+  requireUniqueKey("wimp field owner/order", wimpFields, (row) => `${row.ownerWimpId}:${row.fieldOrder}`)
+  requireUniqueKey("wimp edge child", wimpEdges, (row) => row.childWimpId)
+  requireUniqueKey("field value owner", fieldValues, (row) => row.ownerWimpFieldId)
+  requireUniqueKey("field source child", fieldSources, (row) => row.childWimpFieldId)
+  requireUniqueKey("wimp state owner", wimpStates, (row) => row.ownerWimpId)
+  requireUniqueKey("entanglement membership", entanglements, (row) => row.membershipKey)
+  requireUniqueKey("entanglement member owner/order", entanglementMembers, (row) => `${row.ownerEntanglementId}:${row.memberOrder}`)
+  requireUniqueKey("entanglement field owner/order", entanglementFields, (row) => `${row.ownerEntanglementId}:${row.fieldOrder}`)
+  requireUniqueKey(
+    "entanglement field member owner/order",
     entanglementFieldMembers,
-    stateSeedStates,
-    stateSeedTransitions,
-    stateSeedConditions,
-  }
-}
+    (row) => `${row.ownerEntanglementFieldId}:${row.memberOrder}`,
+  )
 
-/**
- * Строит производные индексы поверх канонической табличной формы.
- *
- * @param data Канонический табличный снимок.
- * @returns Производные индексы проекции.
- */
-export const buildSharedDbProjectionIndexes = (
-  data: SharedDbTabularData,
-): SharedDbProjectionIndexes => {
-  const normalized = normalizeSharedDbTabularData(data)
-  const rootBraneIndex = deriveSharedDbRootBraneIndex(normalized.branes)
-  const fieldWindowByBraneIndex = deriveSharedDbFieldWindows(normalized.branes, normalized.fields)
-  const braneIndexByDarkId = new Map<string, number>()
-  const fieldIndexByDarkId = new Map<string, number>()
-  const fieldIndexByBraneAndKey = new Map<number, Map<string, number>>()
-  const fieldSourceByChildFieldIndex: Array<SharedDbFieldSourceRecord | undefined> = []
-  const dependentFieldIndexesByParentFieldIndex = new Map<number, number[]>()
-
-  for (const brane of normalized.branes) {
-    if (braneIndexByDarkId.has(brane.darkWimpId)) {
-      throw new Error(`Duplicate brane dark id: ${brane.darkWimpId}`)
+  metaFields.forEach((row) => requireReference("meta_field", row.id, "ownerMetaId", row.ownerMetaId, metaIds))
+  metaStates.forEach((row) => requireReference("meta_state", row.id, "ownerMetaId", row.ownerMetaId, metaIds))
+  metaTransitions.forEach((row) => {
+    requireReference("meta_transition", row.id, "ownerMetaStateId", row.ownerMetaStateId, metaStateIds)
+    if (row.targetMetaStateId !== null) {
+      requireReference("meta_transition", row.id, "targetMetaStateId", row.targetMetaStateId, metaStateIds)
     }
-    braneIndexByDarkId.set(brane.darkWimpId, brane.index)
-    fieldIndexByBraneAndKey.set(brane.index, new Map())
-  }
-
-  for (const field of normalized.fields) {
-    if (fieldIndexByDarkId.has(field.darkFieldId)) {
-      throw new Error(`Duplicate field dark id: ${field.darkFieldId}`)
+  })
+  metaTransitionConditions.forEach((row) => {
+    requireReference("meta_transition_condition", row.id, "ownerMetaTransitionId", row.ownerMetaTransitionId, metaTransitionIds)
+    requireReference("meta_transition_condition", row.id, "metaFieldId", row.metaFieldId, metaFieldIds)
+  })
+  metaProcesses.forEach((row) => requireReference("meta_process", row.id, "ownerMetaId", row.ownerMetaId, metaIds))
+  metaProcessReads.forEach((row) => {
+    requireReference("meta_process_read", row.id, "ownerMetaProcessId", row.ownerMetaProcessId, metaProcessIds)
+    requireReference("meta_process_read", row.id, "metaFieldId", row.metaFieldId, metaFieldIds)
+  })
+  metaProcessWrites.forEach((row) => {
+    requireReference("meta_process_write", row.id, "ownerMetaProcessId", row.ownerMetaProcessId, metaProcessIds)
+    requireReference("meta_process_write", row.id, "metaFieldId", row.metaFieldId, metaFieldIds)
+  })
+  metaReactions.forEach((row) => requireReference("meta_reaction", row.id, "ownerMetaId", row.ownerMetaId, metaIds))
+  metaReactionStates.forEach((row) => {
+    requireReference("meta_reaction_state", row.id, "ownerMetaReactionId", row.ownerMetaReactionId, metaReactionIds)
+    requireReference("meta_reaction_state", row.id, "metaStateId", row.metaStateId, metaStateIds)
+  })
+  metaReactionReads.forEach((row) => {
+    requireReference("meta_reaction_read", row.id, "ownerMetaReactionId", row.ownerMetaReactionId, metaReactionIds)
+    requireReference("meta_reaction_read", row.id, "metaFieldId", row.metaFieldId, metaFieldIds)
+  })
+  metaReactionWrites.forEach((row) => {
+    requireReference("meta_reaction_write", row.id, "ownerMetaReactionId", row.ownerMetaReactionId, metaReactionIds)
+    requireReference("meta_reaction_write", row.id, "metaFieldId", row.metaFieldId, metaFieldIds)
+  })
+  metaMatterNodes.forEach((row) => requireReference("meta_matter_node", row.id, "ownerMetaId", row.ownerMetaId, metaIds))
+  metaMatterEdges.forEach((row) => {
+    requireReference("meta_matter_edge", row.id, "ownerMetaId", row.ownerMetaId, metaIds)
+    if (row.parentNodeId !== null) {
+      requireReference("meta_matter_edge", row.id, "parentNodeId", row.parentNodeId, metaMatterNodeIds)
     }
-    fieldIndexByDarkId.set(field.darkFieldId, field.index)
-
-    const fieldLookup = fieldIndexByBraneAndKey.get(field.ownerBraneIndex)
-    if (!fieldLookup) {
-      throw new Error(`Field ${field.index} references unknown brane index: ${field.ownerBraneIndex}`)
+    requireReference("meta_matter_edge", row.id, "childNodeId", row.childNodeId, metaMatterNodeIds)
+  })
+  wimps.forEach((row) => requireReference("wimp", row.id, "metaId", row.metaId, metaIds))
+  wimpFields.forEach((row) => {
+    requireReference("wimp_field", row.id, "ownerWimpId", row.ownerWimpId, wimpIds)
+    requireReference("wimp_field", row.id, "metaFieldId", row.metaFieldId, metaFieldIds)
+  })
+  wimpEdges.forEach((row) => {
+    requireReference("wimp_edge", row.id, "childWimpId", row.childWimpId, wimpIds)
+    if (row.parentWimpId !== null) {
+      requireReference("wimp_edge", row.id, "parentWimpId", row.parentWimpId, wimpIds)
     }
-    if (fieldLookup.has(field.key)) {
-      throw new Error(`Duplicate field key '${field.key}' for brane ${field.ownerBraneIndex}`)
-    }
-    fieldLookup.set(field.key, field.index)
-  }
-
-  for (const fieldSource of normalized.fieldSources) {
-    fieldSourceByChildFieldIndex[fieldSource.childFieldIndex] = cloneFieldSource(fieldSource)
-    const dependents = dependentFieldIndexesByParentFieldIndex.get(fieldSource.parentFieldIndex)
-    if (dependents) {
-      dependents.push(fieldSource.childFieldIndex)
-    } else {
-      dependentFieldIndexesByParentFieldIndex.set(fieldSource.parentFieldIndex, [fieldSource.childFieldIndex])
-    }
-  }
-
-  return {
-    rootBraneIndex,
-    fieldWindowByBraneIndex,
-    braneIndexByDarkId,
-    fieldIndexByDarkId,
-    fieldIndexByBraneAndKey: fieldIndexByBraneAndKey as SharedDbProjectionIndexes["fieldIndexByBraneAndKey"],
-    fieldSourceByChildFieldIndex,
-    dependentFieldIndexesByParentFieldIndex,
-  }
-}
-
-/**
- * Отбрасывает derived indexes и возвращает канонический tabular snapshot.
- *
- * @param projection Проекция с индексами.
- * @returns Канонический табличный снимок для backend-хранения.
- */
-export const prepareSharedDbTabularData = (projection: SharedDbProjection): SharedDbTabularData =>
-  normalizeSharedDbTabularData({
-    branes: projection.branes,
-    fields: projection.fields,
-    fieldValues: projection.fieldValues,
-    fieldSources: projection.fieldSources,
-    entanglementBlocks: projection.entanglementBlocks,
-    entanglementBlockMembers: projection.entanglementBlockMembers,
-    entanglementFields: projection.entanglementFields,
-    entanglementFieldMembers: projection.entanglementFieldMembers,
-    stateSeedStates: projection.stateSeedStates,
-    stateSeedTransitions: projection.stateSeedTransitions,
-    stateSeedConditions: projection.stateSeedConditions,
+  })
+  fieldValues.forEach((row) => requireReference("field_value", row.id, "ownerWimpFieldId", row.ownerWimpFieldId, wimpFieldIds))
+  fieldSources.forEach((row) => {
+    requireReference("field_source", row.id, "childWimpFieldId", row.childWimpFieldId, wimpFieldIds)
+    requireReference("field_source", row.id, "parentWimpFieldId", row.parentWimpFieldId, wimpFieldIds)
+  })
+  wimpStates.forEach((row) => {
+    requireReference("wimp_state", row.id, "ownerWimpId", row.ownerWimpId, wimpIds)
+    requireReference("wimp_state", row.id, "metaStateId", row.metaStateId, metaStateIds)
+  })
+  entanglementMembers.forEach((row) => {
+    requireReference("entanglement_member", row.id, "ownerEntanglementId", row.ownerEntanglementId, entanglementIds)
+    requireReference("entanglement_member", row.id, "wimpId", row.wimpId, wimpIds)
+  })
+  entanglementFields.forEach((row) => {
+    requireReference("entanglement_field", row.id, "ownerEntanglementId", row.ownerEntanglementId, entanglementIds)
+    requireReference("entanglement_field", row.id, "representativeWimpFieldId", row.representativeWimpFieldId, wimpFieldIds)
+  })
+  entanglementFieldMembers.forEach((row) => {
+    requireReference("entanglement_field_member", row.id, "ownerEntanglementFieldId", row.ownerEntanglementFieldId, entanglementFieldIds)
+    requireReference("entanglement_field_member", row.id, "ownerWimpId", row.ownerWimpId, wimpIds)
+    requireReference("entanglement_field_member", row.id, "wimpFieldId", row.wimpFieldId, wimpFieldIds)
   })
 
-/**
- * Материализует полную shared/db проекцию из канонической табличной формы.
- *
- * @param data Канонический tabular snapshot.
- * @returns Полная проекция с производными индексами.
- */
-export const createSharedDbProjection = (data: SharedDbTabularData): SharedDbProjection => {
-  const normalized = normalizeSharedDbTabularData(data)
+  const metaFieldById = new Map(metaFields.map((row) => [row.id, row] as const))
+  const metaStateById = new Map(metaStates.map((row) => [row.id, row] as const))
+  const metaTransitionById = new Map(metaTransitions.map((row) => [row.id, row] as const))
+  const metaProcessById = new Map(metaProcesses.map((row) => [row.id, row] as const))
+  const metaReactionById = new Map(metaReactions.map((row) => [row.id, row] as const))
+  const wimpById = new Map(wimps.map((row) => [row.id, row] as const))
+  const wimpFieldById = new Map(wimpFields.map((row) => [row.id, row] as const))
+  const entanglementById = new Map(entanglements.map((row) => [row.id, row] as const))
+  const entanglementFieldById = new Map(entanglementFields.map((row) => [row.id, row] as const))
+
+  const initialStateCountByMeta = new Map<string, number>()
+  metaStates.forEach((state) => {
+    if (state.initial) {
+      initialStateCountByMeta.set(state.ownerMetaId, (initialStateCountByMeta.get(state.ownerMetaId) ?? 0) + 1)
+    }
+  })
+  metas.forEach((meta) => {
+    const initialCount = initialStateCountByMeta.get(meta.id) ?? 0
+    if (initialCount !== 1) {
+      throw new Error(`Meta ${meta.id} must have exactly one initial state, got ${initialCount}`)
+    }
+  })
+
+  metaTransitionConditions.forEach((row) => {
+    const transition = metaTransitionById.get(row.ownerMetaTransitionId)!
+    const ownerState = metaStateById.get(transition.ownerMetaStateId)!
+    const metaField = metaFieldById.get(row.metaFieldId)!
+    if (ownerState.ownerMetaId !== metaField.ownerMetaId) {
+      throw new Error(`Transition condition ${row.id} crosses meta boundary`)
+    }
+  })
+
+  metaProcessReads.forEach((row) => {
+    const process = metaProcessById.get(row.ownerMetaProcessId)!
+    const metaField = metaFieldById.get(row.metaFieldId)!
+    if (process.ownerMetaId !== metaField.ownerMetaId) {
+      throw new Error(`Process read ${row.id} crosses meta boundary`)
+    }
+  })
+  metaProcessWrites.forEach((row) => {
+    const process = metaProcessById.get(row.ownerMetaProcessId)!
+    const metaField = metaFieldById.get(row.metaFieldId)!
+    if (process.ownerMetaId !== metaField.ownerMetaId) {
+      throw new Error(`Process write ${row.id} crosses meta boundary`)
+    }
+  })
+  metaReactionStates.forEach((row) => {
+    const reaction = metaReactionById.get(row.ownerMetaReactionId)!
+    const state = metaStateById.get(row.metaStateId)!
+    if (reaction.ownerMetaId !== state.ownerMetaId) {
+      throw new Error(`Reaction state ${row.id} crosses meta boundary`)
+    }
+  })
+  metaReactionReads.forEach((row) => {
+    const reaction = metaReactionById.get(row.ownerMetaReactionId)!
+    const metaField = metaFieldById.get(row.metaFieldId)!
+    if (reaction.ownerMetaId !== metaField.ownerMetaId) {
+      throw new Error(`Reaction read ${row.id} crosses meta boundary`)
+    }
+  })
+  metaReactionWrites.forEach((row) => {
+    const reaction = metaReactionById.get(row.ownerMetaReactionId)!
+    const metaField = metaFieldById.get(row.metaFieldId)!
+    if (reaction.ownerMetaId !== metaField.ownerMetaId) {
+      throw new Error(`Reaction write ${row.id} crosses meta boundary`)
+    }
+  })
+  wimpFields.forEach((row) => {
+    const wimp = wimpById.get(row.ownerWimpId)!
+    const metaField = metaFieldById.get(row.metaFieldId)!
+    if (wimp.metaId !== metaField.ownerMetaId) {
+      throw new Error(`Wimp field ${row.id} references meta field from another meta`)
+    }
+  })
+  wimpStates.forEach((row) => {
+    const wimp = wimpById.get(row.ownerWimpId)!
+    const metaState = metaStateById.get(row.metaStateId)!
+    if (wimp.metaId !== metaState.ownerMetaId) {
+      throw new Error(`Wimp state ${row.id} references state from another meta`)
+    }
+  })
+  entanglementMembers.forEach((row) => {
+    if (!entanglementById.has(row.ownerEntanglementId)) {
+      throw new Error(`Entanglement member ${row.id} references unknown entanglement`)
+    }
+  })
+  entanglementFields.forEach((row) => {
+    const representativeField = wimpFieldById.get(row.representativeWimpFieldId)!
+    const entanglement = entanglementById.get(row.ownerEntanglementId)!
+    if (!entanglement.membershipKey.split(",").includes(representativeField.ownerWimpId)) {
+      throw new Error(`Entanglement field ${row.id} representative field is outside entanglement membership`)
+    }
+  })
+  entanglementFieldMembers.forEach((row) => {
+    const wimpField = wimpFieldById.get(row.wimpFieldId)!
+    if (wimpField.ownerWimpId !== row.ownerWimpId) {
+      throw new Error(`Entanglement field member ${row.id} has mismatched ownerWimpId`)
+    }
+    const entanglementField = entanglementFieldById.get(row.ownerEntanglementFieldId)!
+    const entanglement = entanglementById.get(entanglementField.ownerEntanglementId)!
+    if (!entanglement.membershipKey.split(",").includes(row.ownerWimpId)) {
+      throw new Error(`Entanglement field member ${row.id} is outside entanglement membership`)
+    }
+  })
+
   return {
-    ...normalized,
-    ...buildSharedDbProjectionIndexes(normalized),
-  }
-}
-
-/**
- * Полностью вычитывает каноническую tabular форму через backend API.
- *
- * @param backend Открытый shared/db backend.
- * @returns Канонический табличный снимок.
- */
-export const readSharedDbTabularData = (backend: SharedDbBackend): SharedDbTabularData => {
-  const branes: SharedDbBraneRecord[] = []
-  for (let braneIndex = 0; ; braneIndex += 1) {
-    const brane = backend.getBrane(braneIndex)
-    if (!brane) break
-    branes.push(cloneBrane(brane))
-  }
-
-  const fields: SharedDbFieldRecord[] = []
-  const fieldValues: SharedDbFieldValueRecord[] = []
-  const fieldSources: SharedDbFieldSourceRecord[] = []
-
-  for (let fieldIndex = 0; ; fieldIndex += 1) {
-    const field = backend.getField(fieldIndex)
-    if (!field) break
-    fields.push(cloneField(field))
-
-    const fieldValue = backend.getFieldValue(fieldIndex)
-    if (!fieldValue) {
-      throw new Error(`Field value missing in backend for field index: ${fieldIndex}`)
-    }
-    fieldValues.push(cloneFieldValue(fieldValue))
-
-    const fieldSource = backend.getFieldSource(fieldIndex)
-    if (fieldSource) {
-      fieldSources.push(cloneFieldSource(fieldSource))
-    }
-  }
-
-  const runtimeSeedData = backend.getRuntimeSeedData()
-
-  return normalizeSharedDbTabularData({
-    branes,
-    fields,
+    metas,
+    metaFields,
+    metaStates,
+    metaTransitions,
+    metaTransitionConditions,
+    metaProcesses,
+    metaProcessReads,
+    metaProcessWrites,
+    metaReactions,
+    metaReactionStates,
+    metaReactionReads,
+    metaReactionWrites,
+    metaMatterNodes,
+    metaMatterEdges,
+    wimps,
+    wimpFields,
+    wimpEdges,
     fieldValues,
     fieldSources,
-    entanglementBlocks: runtimeSeedData.entanglementBlocks,
-    entanglementBlockMembers: runtimeSeedData.entanglementBlockMembers,
-    entanglementFields: runtimeSeedData.entanglementFields,
-    entanglementFieldMembers: runtimeSeedData.entanglementFieldMembers,
-    stateSeedStates: runtimeSeedData.stateSeedStates,
-    stateSeedTransitions: runtimeSeedData.stateSeedTransitions,
-    stateSeedConditions: runtimeSeedData.stateSeedConditions,
-  })
+    wimpStates,
+    entanglements,
+    entanglementMembers,
+    entanglementFields,
+    entanglementFieldMembers,
+  }
 }
 
-/**
- * Полностью вычитывает shared/db проекцию через backend API.
- *
- * @param backend Открытый shared/db backend.
- * @returns Полная проекция с derived indexes.
- */
-export const readSharedDbProjection = (backend: SharedDbBackend): SharedDbProjection =>
-  createSharedDbProjection(readSharedDbTabularData(backend))
-
-/**
- * Пустой канонический снимок для backend reset/open по умолчанию.
- *
- * @returns Пустая табличная форма shared/db.
- */
-export const createEmptySharedDbTabularSnapshot = (): SharedDbTabularData => createEmptySharedDbTabularData()
+export const readSharedDbData = (backend: SharedDbBackend): SharedDbData => normalizeSharedDbData(backend.readData())

@@ -1,7 +1,7 @@
 import type { Mass, NodeMeta } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
 import type { WimpInit } from "@dark/types/strong"
-import type { SharedDbMaterializationWriter, SharedDbWimpTrace } from "@shared/db"
+import type { SharedDbMaterializationWriter, SharedDbWimpBundle } from "@shared/db"
 import type { Meta } from "./Meta.ts"
 import { BaseParticle } from "./part.ts"
 
@@ -14,6 +14,9 @@ const cloneFieldSchema = (schema: NonNullable<Wimp["fields"]>[string]["schema"])
   ...(schema.label !== undefined ? { label: schema.label } : {}),
   ...(schema.values !== undefined ? { values: structuredClone(schema.values) } : {}),
 })
+
+const cloneDefined = <T>(value: T | undefined): T | undefined =>
+  value === undefined ? undefined : structuredClone(value)
 
 /**
  * Канонический мета-узел объектного графа Dark.
@@ -80,6 +83,13 @@ export class Wimp extends BaseParticle {
   }
 
   /**
+   * Удобный доступ к matter declaration через `Meta`.
+   */
+  get matter(): MetaAST["matter"] | undefined {
+    return this.meta?.matter
+  }
+
+  /**
    * Удобный доступ к bulk через `Meta`.
    */
   get bulk(): MetaAST["bulk"] | undefined {
@@ -99,35 +109,70 @@ export class Wimp extends BaseParticle {
   }
 
   /**
-   * Строит flat DB-shaped trace текущего fully-formed `Wimp`.
+   * Instance-level override `mass`, если он задан отдельно от `Meta`.
    */
-  toSharedDbTrace(): SharedDbWimpTrace {
+  get instanceMassOverride(): Mass | NodeMeta["mass"] | undefined {
+    return cloneDefined(this.massOverride)
+  }
+
+  private getParentWimpId(): string | undefined {
+    let current = this.parent
+
+    while (current) {
+      if (current instanceof Wimp) return current.id
+      current = current.parent
+    }
+
+    return undefined
+  }
+
+  /**
+   * Строит canonical shared/db bundle текущего fully-formed `Wimp`.
+   */
+  toSharedDbBundle(): SharedDbWimpBundle {
     if (!this.meta) {
-      throw new Error(`Wimp ${this.id} cannot build shared/db trace before Meta is materialized`)
+      throw new Error(`Wimp ${this.id} cannot build shared/db bundle before Meta is materialized`)
     }
     if (!this.fields) {
-      throw new Error(`Wimp ${this.id} cannot build shared/db trace before fields are materialized`)
+      throw new Error(`Wimp ${this.id} cannot build shared/db bundle before fields are materialized`)
     }
 
     return {
-      darkWimpId: this.id,
-      src: this.src,
-      ...(this.name !== undefined ? { name: this.name } : {}),
-      fields: Object.values(this.fields).map((field) => ({
-        darkFieldId: field.id,
+      id: this.id,
+      ...(this.getParentWimpId() !== undefined ? { parentWimpId: this.getParentWimpId() } : {}),
+      meta: {
+        id: this.meta.id,
+        src: this.meta.src,
+        ...(this.meta.name !== undefined ? { name: this.meta.name } : {}),
+        fields: Object.values(this.meta.fields).map((field) => ({
+          id: field.id,
+          key: field.key,
+          schema: cloneFieldSchema(field.schema),
+        })),
+        ...(this.meta.superposition !== undefined ? { superposition: cloneDefined(this.meta.superposition) } : {}),
+        ...(this.meta.processes !== undefined ? { processes: cloneDefined(this.meta.processes) } : {}),
+        ...(this.meta.reactions !== undefined ? { reactions: cloneDefined(this.meta.reactions) } : {}),
+        ...(this.meta.matter !== undefined ? { matter: cloneDefined(this.meta.matter) } : {}),
+        ...(this.meta.bulk !== undefined ? { bulk: cloneDefined(this.meta.bulk) } : {}),
+        ...(this.meta.mass !== undefined ? { mass: cloneDefined(this.meta.mass) } : {}),
+      },
+      fields: Object.values(this.fields).map((field, fieldOrder) => ({
+        id: field.id,
+        metaFieldId: field.metaField.id,
+        fieldOrder,
         key: field.key,
         schema: cloneFieldSchema(field.schema),
         value: structuredClone(field.value),
-        ...(field.source ? { sourceDarkFieldId: field.source.id } : {}),
+        ...(field.source ? { sourceWimpFieldId: field.source.id } : {}),
       })),
-      ...(this.superposition !== undefined ? { superposition: structuredClone(this.superposition) } : {}),
+      ...(this.massOverride !== undefined ? { massOverride: cloneDefined(this.massOverride) } : {}),
     }
   }
 
   /**
-   * Сохраняет текущий DB-shaped trace через унифицированный shared/db writer.
+   * Сохраняет текущий canonical shared/db bundle через унифицированный writer.
    */
   save(writer: SharedDbMaterializationWriter): void {
-    writer.saveWimpTrace(this.toSharedDbTrace())
+    writer.saveWimpBundle(this.toSharedDbBundle())
   }
 }

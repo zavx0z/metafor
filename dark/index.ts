@@ -1,1 +1,1 @@
-export { assembleSharedDbProjection } from "./db.ts"
+export { assembleSharedDbData } from "./db.ts"

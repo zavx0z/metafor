@@ -33,6 +33,8 @@ export class Meta {
   readonly processes: MetaAST["processes"] | undefined
   /** Канонические реакции меты. */
   readonly reactions: MetaAST["reactions"] | undefined
+  /** Каноническое topology/matter-описание меты. */
+  readonly matter: MetaAST["matter"] | undefined
   /** Канонический bulk-слой меты. */
   readonly bulk: MetaAST["bulk"] | undefined
   /** Канонический mass-слой меты. */
@@ -45,6 +47,7 @@ export class Meta {
     this.superposition = structuredClone(init.superposition)
     this.processes = cloneDefined(init.processes)
     this.reactions = cloneDefined(init.reactions)
+    this.matter = cloneDefined(init.matter)
     this.bulk = cloneDefined(init.bulk)
     this.mass = cloneDefined(init.mass)
     this.fields = init.fields ?? materializeMetaFields(this, init.fieldSchemas)

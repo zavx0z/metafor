@@ -1,141 +1,71 @@
-import type { FieldKey } from "@metafor/ast"
 import type {
-  SharedDbBraneRecord,
-  SharedDbFieldRecord,
+  SharedDbData,
+  SharedDbEntanglementFieldMemberRecord,
+  SharedDbEntanglementFieldRecord,
+  SharedDbEntanglementMemberRecord,
+  SharedDbEntanglementRecord,
   SharedDbFieldSourceRecord,
   SharedDbFieldValueRecord,
-  SharedDbProjection,
+  SharedDbMetaFieldRecord,
+  SharedDbMetaRecord,
+  SharedDbWimpFieldRecord,
+  SharedDbWimpRecord,
 } from "./db.t.ts"
 
-/**
- * Возвращает brane-запись по индексу.
- *
- * @param projection Собранная DB-проекция.
- * @param braneIndex Индекс браны в плоской таблице.
- * @returns Запись браны или `undefined`, если индекс не найден.
- */
-export const getSharedDbBraneByIndex = (
-  projection: SharedDbProjection,
-  braneIndex: number,
-): SharedDbBraneRecord | undefined => projection.branes[braneIndex]
+export const getSharedDbMetaById = (data: SharedDbData, metaId: string): SharedDbMetaRecord | undefined =>
+  data.metas.find((meta) => meta.id === metaId)
 
-/**
- * Возвращает brane-запись по исходному `Dark Wimp.id`.
- *
- * @param projection Собранная DB-проекция.
- * @param darkWimpId Идентификатор исходного `Dark Wimp`.
- * @returns Запись браны или `undefined`, если `Wimp` не был спроецирован.
- */
-export const getSharedDbBraneByDarkId = (
-  projection: SharedDbProjection,
-  darkWimpId: string,
-): SharedDbBraneRecord | undefined => {
-  const braneIndex = projection.braneIndexByDarkId.get(darkWimpId)
-  return braneIndex === undefined ? undefined : projection.branes[braneIndex]
-}
+export const getSharedDbMetaFields = (data: SharedDbData, metaId: string): SharedDbMetaFieldRecord[] =>
+  data.metaFields
+    .filter((field) => field.ownerMetaId === metaId)
+    .sort((left, right) => left.fieldOrder - right.fieldOrder)
 
-/**
- * Возвращает запись поля по индексу.
- *
- * @param projection Собранная DB-проекция.
- * @param fieldIndex Индекс поля в плоской таблице.
- * @returns Запись поля или `undefined`, если индекс не найден.
- */
-export const getSharedDbFieldByIndex = (
-  projection: SharedDbProjection,
-  fieldIndex: number,
-): SharedDbFieldRecord | undefined => projection.fields[fieldIndex]
+export const getSharedDbWimpById = (data: SharedDbData, wimpId: string): SharedDbWimpRecord | undefined =>
+  data.wimps.find((wimp) => wimp.id === wimpId)
 
-/**
- * Возвращает запись поля по исходному `Dark Field.id`.
- *
- * @param projection Собранная DB-проекция.
- * @param darkFieldId Идентификатор исходного объектного поля `Dark`.
- * @returns Запись поля или `undefined`, если поле не было спроецировано.
- */
-export const getSharedDbFieldByDarkId = (
-  projection: SharedDbProjection,
-  darkFieldId: string,
-): SharedDbFieldRecord | undefined => {
-  const fieldIndex = projection.fieldIndexByDarkId.get(darkFieldId)
-  return fieldIndex === undefined ? undefined : projection.fields[fieldIndex]
-}
+export const getSharedDbWimpFields = (data: SharedDbData, wimpId: string): SharedDbWimpFieldRecord[] =>
+  data.wimpFields
+    .filter((field) => field.ownerWimpId === wimpId)
+    .sort((left, right) => left.fieldOrder - right.fieldOrder)
 
-/**
- * Возвращает запись поля по паре `(braneIndex, fieldKey)`.
- *
- * @param projection Собранная DB-проекция.
- * @param braneIndex Индекс браны-владельца.
- * @param fieldKey Локальный ключ поля внутри браны.
- * @returns Запись поля или `undefined`, если такого поля нет.
- */
-export const getSharedDbFieldByKey = (
-  projection: SharedDbProjection,
-  braneIndex: number,
-  fieldKey: FieldKey,
-): SharedDbFieldRecord | undefined => {
-  const fieldIndex = projection.fieldIndexByBraneAndKey.get(braneIndex)?.get(fieldKey)
-  return fieldIndex === undefined ? undefined : projection.fields[fieldIndex]
-}
+export const getSharedDbFieldValue = (data: SharedDbData, wimpFieldId: string): SharedDbFieldValueRecord | undefined =>
+  data.fieldValues.find((row) => row.ownerWimpFieldId === wimpFieldId)
 
-/**
- * Возвращает запись текущего значения поля.
- *
- * Таблица значений выровнена по индексам поля, поэтому lookup не требует
- * дополнительных обходов или поисков по объектному графу `Dark`.
- *
- * @param projection Собранная DB-проекция.
- * @param fieldIndex Индекс поля в плоской таблице.
- * @returns Запись значения или `undefined`, если индекс не найден.
- */
-export const getSharedDbFieldValue = (
-  projection: SharedDbProjection,
-  fieldIndex: number,
-): SharedDbFieldValueRecord | undefined => projection.fieldValues[fieldIndex]
-
-/**
- * Возвращает direct ordinary source-связь для дочернего поля.
- *
- * @param projection Собранная DB-проекция.
- * @param childFieldIndex Индекс дочернего поля.
- * @returns Source-связь или `undefined`, если её нет.
- */
 export const getSharedDbFieldSource = (
-  projection: SharedDbProjection,
-  childFieldIndex: number,
-): SharedDbFieldSourceRecord | undefined => projection.fieldSourceByChildFieldIndex[childFieldIndex]
+  data: SharedDbData,
+  childWimpFieldId: string,
+): SharedDbFieldSourceRecord | undefined => data.fieldSources.find((row) => row.childWimpFieldId === childWimpFieldId)
 
-/**
- * Возвращает зависимые поля для родительского поля-источника.
- *
- * @param projection Собранная DB-проекция.
- * @param parentFieldIndex Индекс родительского поля-источника.
- * @returns Список дочерних записей поля, зависящих от этого источника.
- */
-export const getSharedDbDependentFields = (
-  projection: SharedDbProjection,
-  parentFieldIndex: number,
-): SharedDbFieldRecord[] =>
-  (projection.dependentFieldIndexesByParentFieldIndex.get(parentFieldIndex) ?? []).map(
-    (fieldIndex) => projection.fields[fieldIndex]!,
-  )
+export const getSharedDbDependentFieldSources = (
+  data: SharedDbData,
+  parentWimpFieldId: string,
+): SharedDbFieldSourceRecord[] => data.fieldSources.filter((row) => row.parentWimpFieldId === parentWimpFieldId)
 
-/**
- * Возвращает все поля, принадлежащие конкретной бране.
- *
- * @param projection Собранная DB-проекция.
- * @param braneIndex Индекс браны.
- * @returns Последовательный срез полей владельца.
- */
-export const getSharedDbBraneFields = (
-  projection: SharedDbProjection,
-  braneIndex: number,
-): SharedDbFieldRecord[] => {
-  const brane = projection.branes[braneIndex]
-  if (!brane) return []
+export const getSharedDbEntanglementById = (
+  data: SharedDbData,
+  entanglementId: string,
+): SharedDbEntanglementRecord | undefined => data.entanglements.find((row) => row.id === entanglementId)
 
-  const fieldWindow = projection.fieldWindowByBraneIndex[braneIndex]
-  if (!fieldWindow) return []
+export const getSharedDbEntanglementMembers = (
+  data: SharedDbData,
+  entanglementId: string,
+): SharedDbEntanglementMemberRecord[] =>
+  data.entanglementMembers
+    .filter((row) => row.ownerEntanglementId === entanglementId)
+    .sort((left, right) => left.memberOrder - right.memberOrder)
 
-  return projection.fields.slice(fieldWindow.fieldOffset, fieldWindow.fieldOffset + fieldWindow.fieldCount)
-}
+export const getSharedDbEntanglementFields = (
+  data: SharedDbData,
+  entanglementId: string,
+): SharedDbEntanglementFieldRecord[] =>
+  data.entanglementFields
+    .filter((row) => row.ownerEntanglementId === entanglementId)
+    .sort((left, right) => left.fieldOrder - right.fieldOrder)
+
+export const getSharedDbEntanglementFieldMembers = (
+  data: SharedDbData,
+  entanglementFieldId: string,
+): SharedDbEntanglementFieldMemberRecord[] =>
+  data.entanglementFieldMembers
+    .filter((row) => row.ownerEntanglementFieldId === entanglementFieldId)
+    .sort((left, right) => left.memberOrder - right.memberOrder)

@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test"
+import { assembleSharedDbData } from "../../dark/db.ts"
 import { createSharedDbFixture } from "../../dark/db.fixture.ts"
 import { openSharedDbMemoryBackend } from "./memory.ts"
-import { prepareSharedDbTabularData, readSharedDbProjection } from "./backend.ts"
-import { createSharedDbProjectionFromWimpTraces, openSharedDbMaterializationWriter } from "./materialize.ts"
+import { normalizeSharedDbData, readSharedDbData } from "./backend.ts"
+import { createSharedDbDataFromWimpBundles, openSharedDbMaterializationWriter } from "./materialize.ts"
 
 describe("shared db materialization writer", () => {
-  test("сохраняет DB-shaped след fully-formed Wimp в существующую shared/db схему", () => {
+  test("сохраняет canonical relational snapshot по мере завершения Wimp", () => {
     const fixture = createSharedDbFixture()
     const backend = openSharedDbMemoryBackend()
     const writer = openSharedDbMaterializationWriter(backend)
@@ -14,24 +15,22 @@ describe("shared db materialization writer", () => {
       fixture.root.save(writer)
       fixture.child.save(writer)
 
-      const roundTrip = readSharedDbProjection(backend)
-      const expected = createSharedDbProjectionFromWimpTraces([
-        fixture.root.toSharedDbTrace(),
-        fixture.child.toSharedDbTrace(),
+      const roundTrip = readSharedDbData(backend)
+      const expected = createSharedDbDataFromWimpBundles([
+        fixture.root.toSharedDbBundle(),
+        fixture.child.toSharedDbBundle(),
       ])
 
-      expect(prepareSharedDbTabularData(roundTrip)).toEqual(prepareSharedDbTabularData(expected))
-      expect(backend.getFieldSource(3)).toEqual({ childFieldIndex: 3, parentFieldIndex: 0 })
-      expect(backend.getRuntimeSeedData().stateSeedConditions.map((condition) => condition.darkFieldId)).toEqual([
-        fixture.fields.rootMode.id,
-        fixture.fields.childMode.id,
-      ])
+      expect(normalizeSharedDbData(roundTrip)).toEqual(normalizeSharedDbData(expected))
+      expect(roundTrip.fieldSources.map((row) => row.childWimpFieldId).sort()).toEqual(
+        [fixture.fields.childAlias.id, fixture.fields.childItems.id, fixture.fields.childMode.id].sort(),
+      )
     } finally {
       backend.close()
     }
   })
 
-  test("повторное сохранение того же Wimp не создаёт дублей в shared/db", () => {
+  test("повторное сохранение того же Wimp обновляет canonical row data без дублей", () => {
     const fixture = createSharedDbFixture()
     const backend = openSharedDbMemoryBackend()
     const writer = openSharedDbMaterializationWriter(backend)
@@ -42,19 +41,14 @@ describe("shared db materialization writer", () => {
       fixture.child.fields.alias.value = "Alias after resave"
       fixture.child.save(writer)
 
-      const roundTrip = readSharedDbProjection(backend)
-
-      expect(roundTrip.branes).toHaveLength(2)
-      expect(roundTrip.fields).toHaveLength(6)
-      expect(roundTrip.fieldValues[3]?.value).toBe("Alias after resave")
-      expect(roundTrip.entanglementFieldMembers.map((member) => member.darkFieldId)).toEqual([
-        fixture.fields.rootTitle.id,
-        fixture.fields.childAlias.id,
-        fixture.fields.rootMode.id,
-        fixture.fields.childMode.id,
-        fixture.fields.rootItems.id,
-        fixture.fields.childItems.id,
-      ])
+      const roundTrip = readSharedDbData(backend)
+      expect(roundTrip.wimps).toHaveLength(2)
+      expect(roundTrip.wimpFields).toHaveLength(6)
+      expect(roundTrip.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias.id)?.value).toBe(
+        "Alias after resave",
+      )
+      expect(roundTrip.entanglementFieldMembers).toHaveLength(6)
+      expect(normalizeSharedDbData(roundTrip)).toEqual(normalizeSharedDbData(assembleSharedDbData(fixture.root)))
     } finally {
       backend.close()
     }

@@ -1,9 +1,10 @@
 import type { FieldKey } from "@metafor/ast"
 import {
-  readSharedDbProjection,
+  normalizeSharedDbData,
+  readSharedDbData,
   type SharedDbBackend,
+  type SharedDbData,
   type SharedDbFieldSchemaRecord,
-  type SharedDbProjection,
 } from "@shared/db"
 import { FieldType, flattenBoundaryData, type Data, type Field } from "@boundary/gravity"
 import { assembleStoredBoundaryData, type PreparedEntanglementProjection } from "@boundary/strong"
@@ -12,10 +13,17 @@ import type {
   BoundaryDatabase,
   BoundaryDatabaseBraneRecord,
   BoundaryDatabaseData,
+  BoundaryDatabaseEntanglementBlockMemberRecord,
+  BoundaryDatabaseEntanglementBlockRecord,
+  BoundaryDatabaseEntanglementFieldMemberRecord,
+  BoundaryDatabaseEntanglementFieldRecord,
   BoundaryDatabaseFieldRecord,
   BoundaryDatabaseFieldSchemaRecord,
   BoundaryDatabaseFieldSourceRecord,
   BoundaryDatabaseFieldValueRecord,
+  BoundaryDatabaseStateSeedConditionRecord,
+  BoundaryDatabaseStateSeedStateRecord,
+  BoundaryDatabaseStateSeedTransitionRecord,
   BoundarySharedDbRuntimeOptions,
 } from "./database.t.ts"
 
@@ -46,58 +54,57 @@ const createEmptyBoundaryDatabaseData = (): BoundaryDatabaseData => ({
 
 const cloneBoundaryDatabaseData = (data: BoundaryDatabaseData): BoundaryDatabaseData => ({
   rootBraneIndex: data.rootBraneIndex,
-  branes: data.branes.map((brane): BoundaryDatabaseBraneRecord => ({
-    index: brane.index,
-    darkWimpId: brane.darkWimpId,
-    src: brane.src,
-    ...(brane.name !== undefined ? { name: brane.name } : {}),
-    fieldOffset: brane.fieldOffset,
-    fieldCount: brane.fieldCount,
-  })),
+  branes: data.branes.map((brane): BoundaryDatabaseBraneRecord => structuredClone(brane)),
   fields: data.fields.map((field): BoundaryDatabaseFieldRecord => ({
-    index: field.index,
-    darkFieldId: field.darkFieldId,
-    ownerBraneIndex: field.ownerBraneIndex,
-    key: field.key,
+    ...field,
     schema: cloneFieldSchema(field.schema),
   })),
   fieldValues: data.fieldValues.map((fieldValue): BoundaryDatabaseFieldValueRecord => ({
-    fieldIndex: fieldValue.fieldIndex,
+    ...fieldValue,
     value: structuredClone(fieldValue.value),
   })),
-  fieldSources: data.fieldSources.map((fieldSource): BoundaryDatabaseFieldSourceRecord => ({
-    childFieldIndex: fieldSource.childFieldIndex,
-    parentFieldIndex: fieldSource.parentFieldIndex,
+  fieldSources: data.fieldSources.map((fieldSource): BoundaryDatabaseFieldSourceRecord => structuredClone(fieldSource)),
+  entanglementBlocks: data.entanglementBlocks.map((block): BoundaryDatabaseEntanglementBlockRecord => structuredClone(block)),
+  entanglementBlockMembers: data.entanglementBlockMembers.map(
+    (member): BoundaryDatabaseEntanglementBlockMemberRecord => structuredClone(member),
+  ),
+  entanglementFields: data.entanglementFields.map((field): BoundaryDatabaseEntanglementFieldRecord => ({
+    ...field,
+    payloadIds: structuredClone(field.payloadIds),
+    semanticKeys: structuredClone(field.semanticKeys),
   })),
-  entanglementBlocks: data.entanglementBlocks.map((block) => structuredClone(block)),
-  entanglementBlockMembers: data.entanglementBlockMembers.map((member) => structuredClone(member)),
-  entanglementFields: data.entanglementFields.map((field) => structuredClone(field)),
-  entanglementFieldMembers: data.entanglementFieldMembers.map((member) => structuredClone(member)),
-  stateSeedStates: data.stateSeedStates.map((state) => structuredClone(state)),
-  stateSeedTransitions: data.stateSeedTransitions.map((transition) => structuredClone(transition)),
-  stateSeedConditions: data.stateSeedConditions.map((condition) => structuredClone(condition)),
+  entanglementFieldMembers: data.entanglementFieldMembers.map(
+    (member): BoundaryDatabaseEntanglementFieldMemberRecord => structuredClone(member),
+  ),
+  stateSeedStates: data.stateSeedStates.map((state): BoundaryDatabaseStateSeedStateRecord => structuredClone(state)),
+  stateSeedTransitions: data.stateSeedTransitions.map(
+    (transition): BoundaryDatabaseStateSeedTransitionRecord => structuredClone(transition),
+  ),
+  stateSeedConditions: data.stateSeedConditions.map((condition): BoundaryDatabaseStateSeedConditionRecord => ({
+    ...condition,
+    condition: structuredClone(condition.condition),
+  })),
 })
 
 const buildBoundaryDatabaseIndexes = (data: BoundaryDatabaseData) => {
-  const braneIndexByDarkId = new Map<string, number>()
-  const fieldIndexByDarkId = new Map<string, number>()
+  const braneIndexByWimpId = new Map<string, number>()
+  const fieldIndexByWimpFieldId = new Map<string, number>()
   const fieldIndexByBraneAndKey = new Map<number, Map<FieldKey, number>>()
   const fieldSourceByChildFieldIndex: Array<BoundaryDatabaseFieldSourceRecord | undefined> = []
   const dependentFieldIndexesByParentFieldIndex = new Map<number, number[]>()
 
   for (const brane of data.branes) {
-    braneIndexByDarkId.set(brane.darkWimpId, brane.index)
+    braneIndexByWimpId.set(brane.wimpId, brane.index)
     fieldIndexByBraneAndKey.set(brane.index, new Map())
   }
 
   for (const field of data.fields) {
-    fieldIndexByDarkId.set(field.darkFieldId, field.index)
+    fieldIndexByWimpFieldId.set(field.wimpFieldId, field.index)
     fieldIndexByBraneAndKey.get(field.ownerBraneIndex)?.set(field.key, field.index)
   }
 
   for (const fieldSource of data.fieldSources) {
     fieldSourceByChildFieldIndex[fieldSource.childFieldIndex] = fieldSource
-
     const dependents = dependentFieldIndexesByParentFieldIndex.get(fieldSource.parentFieldIndex)
     if (dependents) {
       dependents.push(fieldSource.childFieldIndex)
@@ -107,8 +114,8 @@ const buildBoundaryDatabaseIndexes = (data: BoundaryDatabaseData) => {
   }
 
   return {
-    braneIndexByDarkId,
-    fieldIndexByDarkId,
+    braneIndexByWimpId,
+    fieldIndexByWimpFieldId,
     fieldIndexByBraneAndKey,
     fieldSourceByChildFieldIndex,
     dependentFieldIndexesByParentFieldIndex,
@@ -146,40 +153,20 @@ const createSeedRuntimeFieldSignature = (semanticKey: string, field: BoundaryDat
 const mapBoundaryDatabaseFieldToRuntimeField = (field: BoundaryDatabaseFieldRecord): Field => {
   const { type, values } = field.schema
 
-  if (type === "string") {
-    return { type: FieldType.STRING_PTR }
-  }
-
-  if (type === "number") {
-    return { type: FieldType.F32 }
-  }
-
-  if (type === "boolean") {
-    return { type: FieldType.BOOL }
-  }
+  if (type === "string") return { type: FieldType.STRING_PTR }
+  if (type === "number") return { type: FieldType.F32 }
+  if (type === "boolean") return { type: FieldType.BOOL }
 
   if (type.startsWith("enum<")) {
     if (!values) {
       throw new Error(`Boundary runtime field '${field.key}' is missing enum values`)
     }
-
-    return {
-      type: FieldType.U32,
-      enum: structuredClone(values),
-    }
+    return { type: FieldType.U32, enum: structuredClone(values) }
   }
 
-  if (type === "array<string>") {
-    return { type: FieldType.ARRAY_PTR, elementType: "string" }
-  }
-
-  if (type === "array<number>") {
-    return { type: FieldType.ARRAY_PTR, elementType: "number" }
-  }
-
-  if (type === "array<boolean>") {
-    return { type: FieldType.ARRAY_PTR, elementType: "boolean" }
-  }
+  if (type === "array<string>") return { type: FieldType.ARRAY_PTR, elementType: "string" }
+  if (type === "array<number>") return { type: FieldType.ARRAY_PTR, elementType: "number" }
+  if (type === "array<boolean>") return { type: FieldType.ARRAY_PTR, elementType: "boolean" }
 
   throw new Error(`Unsupported shared/db field type for Boundary runtime: ${type}`)
 }
@@ -199,11 +186,8 @@ const groupEntanglementBlockMembers = (database: BoundaryDatabase) => {
   const grouped = new Map<number, typeof database.entanglementBlockMembers>()
   for (const member of database.entanglementBlockMembers) {
     const members = grouped.get(member.blockIndex)
-    if (members) {
-      members.push(member)
-    } else {
-      grouped.set(member.blockIndex, [member])
-    }
+    if (members) members.push(member)
+    else grouped.set(member.blockIndex, [member])
   }
   for (const members of grouped.values()) {
     members.sort((left, right) => left.memberIndex - right.memberIndex)
@@ -213,13 +197,10 @@ const groupEntanglementBlockMembers = (database: BoundaryDatabase) => {
 
 const groupEntanglementFields = (database: BoundaryDatabase) => {
   const grouped = new Map<number, typeof database.entanglementFields>()
-  for (const seedField of database.entanglementFields) {
-    const fields = grouped.get(seedField.blockIndex)
-    if (fields) {
-      fields.push(seedField)
-    } else {
-      grouped.set(seedField.blockIndex, [seedField])
-    }
+  for (const field of database.entanglementFields) {
+    const fields = grouped.get(field.blockIndex)
+    if (fields) fields.push(field)
+    else grouped.set(field.blockIndex, [field])
   }
   for (const fields of grouped.values()) {
     fields.sort((left, right) => left.blockFieldIndex - right.blockFieldIndex)
@@ -231,11 +212,8 @@ const groupEntanglementFieldMembers = (database: BoundaryDatabase) => {
   const grouped = new Map<number, typeof database.entanglementFieldMembers>()
   for (const member of database.entanglementFieldMembers) {
     const members = grouped.get(member.entanglementFieldIndex)
-    if (members) {
-      members.push(member)
-    } else {
-      grouped.set(member.entanglementFieldIndex, [member])
-    }
+    if (members) members.push(member)
+    else grouped.set(member.entanglementFieldIndex, [member])
   }
   for (const members of grouped.values()) {
     members.sort((left, right) => left.memberIndex - right.memberIndex)
@@ -247,11 +225,8 @@ const groupStateSeedStates = (database: BoundaryDatabase) => {
   const grouped = new Map<number, typeof database.stateSeedStates>()
   for (const state of database.stateSeedStates) {
     const states = grouped.get(state.ownerBraneIndex)
-    if (states) {
-      states.push(state)
-    } else {
-      grouped.set(state.ownerBraneIndex, [state])
-    }
+    if (states) states.push(state)
+    else grouped.set(state.ownerBraneIndex, [state])
   }
   for (const states of grouped.values()) {
     states.sort((left, right) => left.stateIndex - right.stateIndex)
@@ -264,11 +239,8 @@ const groupStateSeedTransitions = (database: BoundaryDatabase) => {
   for (const transition of database.stateSeedTransitions) {
     const key = `${transition.ownerBraneIndex}:${transition.fromStateIndex}`
     const transitions = grouped.get(key)
-    if (transitions) {
-      transitions.push(transition)
-    } else {
-      grouped.set(key, [transition])
-    }
+    if (transitions) transitions.push(transition)
+    else grouped.set(key, [transition])
   }
   for (const transitions of grouped.values()) {
     transitions.sort((left, right) => left.transitionIndex - right.transitionIndex)
@@ -280,11 +252,8 @@ const groupStateSeedConditions = (database: BoundaryDatabase) => {
   const grouped = new Map<number, typeof database.stateSeedConditions>()
   for (const condition of database.stateSeedConditions) {
     const conditions = grouped.get(condition.transitionSeedIndex)
-    if (conditions) {
-      conditions.push(condition)
-    } else {
-      grouped.set(condition.transitionSeedIndex, [condition])
-    }
+    if (conditions) conditions.push(condition)
+    else grouped.set(condition.transitionSeedIndex, [condition])
   }
   for (const conditions of grouped.values()) {
     conditions.sort((left, right) => left.conditionIndex - right.conditionIndex)
@@ -300,9 +269,7 @@ const buildBoundaryRuntimeFieldRegistry = (database: BoundaryDatabase) => {
 
   const ensureRuntimeField = (signature: string, field: BoundaryDatabaseFieldRecord): number => {
     const existing = runtimeFieldIndexBySignature.get(signature)
-    if (existing !== undefined) {
-      return existing
-    }
+    if (existing !== undefined) return existing
 
     const runtimeFieldIndex = runtimeFields.length
     runtimeFields.push(cloneRuntimeField(mapBoundaryDatabaseFieldToRuntimeField(field)))
@@ -311,9 +278,9 @@ const buildBoundaryRuntimeFieldRegistry = (database: BoundaryDatabase) => {
   }
 
   for (const seedField of [...database.entanglementFields].sort((left, right) => left.index - right.index)) {
-    const representativeField = database.getFieldByDarkId(seedField.representativeDarkFieldId)
+    const representativeField = database.getField(seedField.representativeFieldIndex)
     if (!representativeField) {
-      throw new Error(`Boundary runtime seed representative field missing: ${seedField.representativeDarkFieldId}`)
+      throw new Error(`Boundary runtime seed representative field missing: ${seedField.representativeFieldIndex}`)
     }
 
     const runtimeFieldIndex = ensureRuntimeField(
@@ -322,40 +289,28 @@ const buildBoundaryRuntimeFieldRegistry = (database: BoundaryDatabase) => {
     )
 
     for (const member of entanglementFieldMembers.get(seedField.index) ?? []) {
-      const field = database.getFieldByDarkId(member.darkFieldId)
-      if (!field) {
-        throw new Error(`Boundary runtime seed member field missing: ${member.darkFieldId}`)
-      }
-      const existing = runtimeFieldIndexByDbFieldIndex[field.index]
+      const existing = runtimeFieldIndexByDbFieldIndex[member.fieldIndex]
       if (existing !== undefined && existing !== runtimeFieldIndex) {
-        throw new Error(`Boundary runtime field index mismatch for DB field ${field.index}`)
+        throw new Error(`Boundary runtime field index mismatch for DB field ${member.fieldIndex}`)
       }
-      runtimeFieldIndexByDbFieldIndex[field.index] = runtimeFieldIndex
+      runtimeFieldIndexByDbFieldIndex[member.fieldIndex] = runtimeFieldIndex
     }
   }
 
   for (const field of database.fields) {
-    if (runtimeFieldIndexByDbFieldIndex[field.index] !== undefined) {
-      continue
-    }
-
+    if (runtimeFieldIndexByDbFieldIndex[field.index] !== undefined) continue
     const runtimeFieldIndex = ensureRuntimeField(createLocalRuntimeFieldSignature(field), field)
     runtimeFieldIndexByDbFieldIndex[field.index] = runtimeFieldIndex
   }
 
-  return {
-    runtimeFields,
-    runtimeFieldIndexByDbFieldIndex,
-  }
+  return { runtimeFields, runtimeFieldIndexByDbFieldIndex }
 }
 
 const prepareBoundaryEntanglementProjection = (
   database: BoundaryDatabase,
   runtimeFieldIndexByDbFieldIndex: number[],
 ): PreparedEntanglementProjection | undefined => {
-  if (database.entanglementBlocks.length === 0) {
-    return undefined
-  }
+  if (database.entanglementBlocks.length === 0) return undefined
 
   const blockMembers = groupEntanglementBlockMembers(database)
   const blockFields = groupEntanglementFields(database)
@@ -368,23 +323,19 @@ const prepareBoundaryEntanglementProjection = (
         key: block.key,
         braneIndices: (blockMembers.get(block.index) ?? []).map((member) => member.braneIndex),
         fields: (blockFields.get(block.index) ?? []).map((seedField) => {
-          const representativeField = database.getFieldByDarkId(seedField.representativeDarkFieldId)
+          const representativeField = database.getField(seedField.representativeFieldIndex)
           if (!representativeField) {
-            throw new Error(`Boundary runtime entanglement representative field missing: ${seedField.representativeDarkFieldId}`)
+            throw new Error(`Boundary runtime entanglement representative field missing: ${seedField.representativeFieldIndex}`)
           }
 
           const runtimeFieldIndex = runtimeFieldIndexByDbFieldIndex[representativeField.index]
           if (runtimeFieldIndex === undefined) {
-            throw new Error(`Boundary runtime field index missing for representative DB field ${representativeField.index}`)
+            throw new Error(`Boundary runtime field index missing for DB field ${representativeField.index}`)
           }
 
           for (const member of fieldMembers.get(seedField.index) ?? []) {
-            const field = database.getFieldByDarkId(member.darkFieldId)
-            if (!field) {
-              throw new Error(`Boundary runtime entanglement member field missing: ${member.darkFieldId}`)
-            }
-            if (runtimeFieldIndexByDbFieldIndex[field.index] !== runtimeFieldIndex) {
-              throw new Error(`Boundary runtime entanglement member ${field.index} resolves to different runtime field`)
+            if (runtimeFieldIndexByDbFieldIndex[member.fieldIndex] !== runtimeFieldIndex) {
+              throw new Error(`Boundary runtime entanglement member ${member.fieldIndex} resolves to different runtime field`)
             }
           }
 
@@ -423,22 +374,15 @@ const prepareBoundaryStateSeedGraph = (
     collapses: states.map((state) => {
       const transitions = transitionSeeds.get(`${braneIndex}:${state.stateIndex}`) ?? []
       return transitions.map((transition) => {
-        if (transition.targetStateIndex === null) {
-          return null
-        }
+        if (transition.targetStateIndex === null) return null
 
         const rawConditions = conditionSeeds.get(transition.index) ?? []
         const conditions: Record<number, unknown> = {}
 
         rawConditions.forEach((condition) => {
-          const dbFieldIndex = database.fieldIndexByDarkId.get(condition.darkFieldId)
-          if (dbFieldIndex === undefined) {
-            throw new Error(`Boundary state seed condition field missing: ${condition.darkFieldId}`)
-          }
-
-          const runtimeFieldIndex = runtimeFieldIndexByDbFieldIndex[dbFieldIndex]
+          const runtimeFieldIndex = runtimeFieldIndexByDbFieldIndex[condition.fieldIndex]
           if (runtimeFieldIndex === undefined) {
-            throw new Error(`Boundary runtime field missing for DB field ${dbFieldIndex}`)
+            throw new Error(`Boundary runtime field missing for DB field ${condition.fieldIndex}`)
           }
 
           if (Object.prototype.hasOwnProperty.call(conditions, runtimeFieldIndex)) {
@@ -456,70 +400,306 @@ const prepareBoundaryStateSeedGraph = (
   }
 }
 
-/**
- * Подготавливает плоское состояние boundary-базы из общей DB-проекции.
- *
- * Здесь Boundary явно потребляет shared DB как входные данные сборки,
- * но сам публичный контракт базы остаётся отдельным и не совпадает с shared API.
- *
- * @param projection Общая DB-проекция, собранная из `Dark`.
- * @returns Собственное плоское состояние boundary-базы.
- */
-export const prepareBoundaryDatabaseData = (projection: SharedDbProjection): BoundaryDatabaseData => ({
-  rootBraneIndex: projection.rootBraneIndex,
-  branes: projection.branes.map((brane): BoundaryDatabaseBraneRecord => {
-    const fieldWindow = projection.fieldWindowByBraneIndex[brane.index] ?? { fieldOffset: 0, fieldCount: 0 }
-    return {
-      index: brane.index,
-      darkWimpId: brane.darkWimpId,
-      src: brane.src,
-      ...(brane.name !== undefined ? { name: brane.name } : {}),
-      fieldOffset: fieldWindow.fieldOffset,
-      fieldCount: fieldWindow.fieldCount,
+export const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseData => {
+  const data = normalizeSharedDbData(rawData)
+  const metaById = new Map(data.metas.map((meta) => [meta.id, meta] as const))
+  const metaFieldById = new Map(data.metaFields.map((field) => [field.id, field] as const))
+  const metaStatesByMetaId = new Map<string, typeof data.metaStates>()
+  const metaTransitionsByStateId = new Map<string, typeof data.metaTransitions>()
+  const metaTransitionConditionsByTransitionId = new Map<string, typeof data.metaTransitionConditions>()
+  const wimpFieldsByWimpId = new Map<string, typeof data.wimpFields>()
+  const fieldValueByWimpFieldId = new Map(data.fieldValues.map((row) => [row.ownerWimpFieldId, row] as const))
+  const wimpStateByWimpId = new Map(data.wimpStates.map((row) => [row.ownerWimpId, row] as const))
+  const entanglementMembersByEntanglementId = new Map<string, typeof data.entanglementMembers>()
+  const entanglementFieldsByEntanglementId = new Map<string, typeof data.entanglementFields>()
+  const entanglementFieldMembersByFieldId = new Map<string, typeof data.entanglementFieldMembers>()
+
+  data.metaStates.forEach((state) => {
+    const states = metaStatesByMetaId.get(state.ownerMetaId)
+    if (states) states.push(state)
+    else metaStatesByMetaId.set(state.ownerMetaId, [state])
+  })
+  data.metaTransitions.forEach((transition) => {
+    const transitions = metaTransitionsByStateId.get(transition.ownerMetaStateId)
+    if (transitions) transitions.push(transition)
+    else metaTransitionsByStateId.set(transition.ownerMetaStateId, [transition])
+  })
+  data.metaTransitionConditions.forEach((condition) => {
+    const conditions = metaTransitionConditionsByTransitionId.get(condition.ownerMetaTransitionId)
+    if (conditions) conditions.push(condition)
+    else metaTransitionConditionsByTransitionId.set(condition.ownerMetaTransitionId, [condition])
+  })
+  data.wimpFields.forEach((field) => {
+    const fields = wimpFieldsByWimpId.get(field.ownerWimpId)
+    if (fields) fields.push(field)
+    else wimpFieldsByWimpId.set(field.ownerWimpId, [field])
+  })
+  data.entanglementMembers.forEach((member) => {
+    const members = entanglementMembersByEntanglementId.get(member.ownerEntanglementId)
+    if (members) members.push(member)
+    else entanglementMembersByEntanglementId.set(member.ownerEntanglementId, [member])
+  })
+  data.entanglementFields.forEach((field) => {
+    const fields = entanglementFieldsByEntanglementId.get(field.ownerEntanglementId)
+    if (fields) fields.push(field)
+    else entanglementFieldsByEntanglementId.set(field.ownerEntanglementId, [field])
+  })
+  data.entanglementFieldMembers.forEach((member) => {
+    const members = entanglementFieldMembersByFieldId.get(member.ownerEntanglementFieldId)
+    if (members) members.push(member)
+    else entanglementFieldMembersByFieldId.set(member.ownerEntanglementFieldId, [member])
+  })
+
+  for (const states of metaStatesByMetaId.values()) {
+    states.sort((left, right) => left.stateOrder - right.stateOrder)
+  }
+  for (const transitions of metaTransitionsByStateId.values()) {
+    transitions.sort((left, right) => left.transitionOrder - right.transitionOrder)
+  }
+  for (const conditions of metaTransitionConditionsByTransitionId.values()) {
+    conditions.sort((left, right) => left.conditionOrder - right.conditionOrder)
+  }
+  for (const fields of wimpFieldsByWimpId.values()) {
+    fields.sort((left, right) => left.fieldOrder - right.fieldOrder)
+  }
+  for (const members of entanglementMembersByEntanglementId.values()) {
+    members.sort((left, right) => left.memberOrder - right.memberOrder)
+  }
+  for (const fields of entanglementFieldsByEntanglementId.values()) {
+    fields.sort((left, right) => left.fieldOrder - right.fieldOrder)
+  }
+  for (const members of entanglementFieldMembersByFieldId.values()) {
+    members.sort((left, right) => left.memberOrder - right.memberOrder)
+  }
+
+  const orderedWimps = [...data.wimps].sort((left, right) => left.wimpOrder - right.wimpOrder)
+  const braneIndexByWimpId = new Map<string, number>()
+  const fieldIndexByWimpFieldId = new Map<string, number>()
+  const metaFieldIdToWimpFieldIdByWimpId = new Map<string, Map<string, string>>()
+  const branes: BoundaryDatabaseBraneRecord[] = []
+  const fields: BoundaryDatabaseFieldRecord[] = []
+  const fieldValues: BoundaryDatabaseFieldValueRecord[] = []
+
+  orderedWimps.forEach((wimp, braneIndex) => {
+    const meta = metaById.get(wimp.metaId)
+    if (!meta) {
+      throw new Error(`Boundary database missing meta ${wimp.metaId} for wimp ${wimp.id}`)
     }
-  }),
-  fields: projection.fields.map((field): BoundaryDatabaseFieldRecord => ({
-    index: field.index,
-    darkFieldId: field.darkFieldId,
-    ownerBraneIndex: field.ownerBraneIndex,
-    key: field.key,
-    schema: cloneFieldSchema(field.schema),
-  })),
-  fieldValues: projection.fieldValues.map((fieldValue): BoundaryDatabaseFieldValueRecord => ({
-    fieldIndex: fieldValue.fieldIndex,
-    value: structuredClone(fieldValue.value),
-  })),
-  fieldSources: projection.fieldSources.map((fieldSource): BoundaryDatabaseFieldSourceRecord => ({
-    childFieldIndex: fieldSource.childFieldIndex,
-    parentFieldIndex: fieldSource.parentFieldIndex,
-  })),
-  entanglementBlocks: projection.entanglementBlocks.map((block) => structuredClone(block)),
-  entanglementBlockMembers: projection.entanglementBlockMembers.map((member) => structuredClone(member)),
-  entanglementFields: projection.entanglementFields.map((field) => structuredClone(field)),
-  entanglementFieldMembers: projection.entanglementFieldMembers.map((member) => structuredClone(member)),
-  stateSeedStates: projection.stateSeedStates.map((state) => structuredClone(state)),
-  stateSeedTransitions: projection.stateSeedTransitions.map((transition) => structuredClone(transition)),
-  stateSeedConditions: projection.stateSeedConditions.map((condition) => structuredClone(condition)),
-})
 
-/**
- * Подготавливает boundary-базу напрямую из shared/db backend API.
- *
- * @param backend Shared/db backend-handle.
- * @returns Собственное плоское состояние boundary-базы.
- */
+    braneIndexByWimpId.set(wimp.id, braneIndex)
+    const wimpFields = wimpFieldsByWimpId.get(wimp.id) ?? []
+    const fieldOffset = fields.length
+    const wimpFieldIdsByMetaFieldId = new Map<string, string>()
+
+    wimpFields.forEach((wimpField) => {
+      const metaField = metaFieldById.get(wimpField.metaFieldId)
+      if (!metaField) {
+        throw new Error(`Boundary database missing meta field ${wimpField.metaFieldId} for wimp field ${wimpField.id}`)
+      }
+
+      const fieldIndex = fields.length
+      fieldIndexByWimpFieldId.set(wimpField.id, fieldIndex)
+      wimpFieldIdsByMetaFieldId.set(wimpField.metaFieldId, wimpField.id)
+
+      fields.push({
+        index: fieldIndex,
+        wimpFieldId: wimpField.id,
+        metaFieldId: metaField.id,
+        ownerBraneIndex: braneIndex,
+        key: metaField.fieldKey,
+        schema: cloneFieldSchema(metaField.schema),
+      })
+
+      const value = fieldValueByWimpFieldId.get(wimpField.id)
+      if (!value) {
+        throw new Error(`Boundary database missing field value for wimp field ${wimpField.id}`)
+      }
+
+      fieldValues.push({
+        fieldIndex,
+        wimpFieldId: wimpField.id,
+        value: structuredClone(value.value),
+      })
+    })
+
+    metaFieldIdToWimpFieldIdByWimpId.set(wimp.id, wimpFieldIdsByMetaFieldId)
+    branes.push({
+      index: braneIndex,
+      wimpId: wimp.id,
+      metaId: wimp.metaId,
+      src: meta.src,
+      ...(meta.name !== undefined ? { name: meta.name } : {}),
+      fieldOffset,
+      fieldCount: wimpFields.length,
+    })
+  })
+
+  const fieldSources: BoundaryDatabaseFieldSourceRecord[] = data.fieldSources
+    .map((source) => {
+      const childFieldIndex = fieldIndexByWimpFieldId.get(source.childWimpFieldId)
+      const parentFieldIndex = fieldIndexByWimpFieldId.get(source.parentWimpFieldId)
+      if (childFieldIndex === undefined || parentFieldIndex === undefined) {
+        throw new Error(`Boundary database cannot resolve field source ${source.id}`)
+      }
+      return {
+        id: source.id,
+        childFieldIndex,
+        parentFieldIndex,
+      }
+    })
+    .sort((left, right) => left.childFieldIndex - right.childFieldIndex)
+
+  const entanglementBlocks: BoundaryDatabaseEntanglementBlockRecord[] = []
+  const entanglementBlockMembers: BoundaryDatabaseEntanglementBlockMemberRecord[] = []
+  const entanglementFields: BoundaryDatabaseEntanglementFieldRecord[] = []
+  const entanglementFieldMembers: BoundaryDatabaseEntanglementFieldMemberRecord[] = []
+
+  ;[...data.entanglements]
+    .sort((left, right) => left.membershipKey.localeCompare(right.membershipKey))
+    .forEach((entanglement, blockIndex) => {
+      entanglementBlocks.push({
+        index: blockIndex,
+        entanglementId: entanglement.id,
+        key: entanglement.membershipKey,
+      })
+
+      ;(entanglementMembersByEntanglementId.get(entanglement.id) ?? []).forEach((member) => {
+        const braneIndex = braneIndexByWimpId.get(member.wimpId)
+        if (braneIndex === undefined) {
+          throw new Error(`Boundary database cannot resolve entanglement member wimp ${member.wimpId}`)
+        }
+
+        entanglementBlockMembers.push({
+          index: entanglementBlockMembers.length,
+          blockIndex,
+          memberIndex: member.memberOrder,
+          braneIndex,
+        })
+      })
+
+      ;(entanglementFieldsByEntanglementId.get(entanglement.id) ?? []).forEach((seedField) => {
+        const representativeFieldIndex = fieldIndexByWimpFieldId.get(seedField.representativeWimpFieldId)
+        if (representativeFieldIndex === undefined) {
+          throw new Error(`Boundary database cannot resolve entanglement representative field ${seedField.representativeWimpFieldId}`)
+        }
+
+        const representativeBraneIndex = fields[representativeFieldIndex]?.ownerBraneIndex
+        if (representativeBraneIndex === undefined) {
+          throw new Error(`Boundary database cannot resolve representative brane for field ${seedField.representativeWimpFieldId}`)
+        }
+
+        const entanglementFieldIndex = entanglementFields.length
+        entanglementFields.push({
+          index: entanglementFieldIndex,
+          blockIndex,
+          blockFieldIndex: seedField.fieldOrder,
+          semanticKey: seedField.semanticKey,
+          fieldName: seedField.fieldName,
+          representativeBraneIndex,
+          representativeFieldIndex,
+          payloadIds: structuredClone(seedField.payloadIds),
+          semanticKeys: structuredClone(seedField.semanticKeys),
+        })
+
+        ;(entanglementFieldMembersByFieldId.get(seedField.id) ?? []).forEach((member) => {
+          const fieldIndex = fieldIndexByWimpFieldId.get(member.wimpFieldId)
+          const braneIndex = braneIndexByWimpId.get(member.ownerWimpId)
+          if (fieldIndex === undefined || braneIndex === undefined) {
+            throw new Error(`Boundary database cannot resolve entanglement field member ${member.id}`)
+          }
+
+          entanglementFieldMembers.push({
+            index: entanglementFieldMembers.length,
+            entanglementFieldIndex,
+            memberIndex: member.memberOrder,
+            braneIndex,
+            fieldIndex,
+          })
+        })
+      })
+    })
+
+  const stateSeedStates: BoundaryDatabaseStateSeedStateRecord[] = []
+  const stateSeedTransitions: BoundaryDatabaseStateSeedTransitionRecord[] = []
+  const stateSeedConditions: BoundaryDatabaseStateSeedConditionRecord[] = []
+
+  orderedWimps.forEach((wimp) => {
+    const braneIndex = braneIndexByWimpId.get(wimp.id)
+    if (braneIndex === undefined) {
+      throw new Error(`Boundary database missing brane index for wimp ${wimp.id}`)
+    }
+
+    const metaStates = metaStatesByMetaId.get(wimp.metaId) ?? []
+    const currentWimpState = wimpStateByWimpId.get(wimp.id)
+    const metaStateIndexById = new Map(metaStates.map((state, stateIndex) => [state.id, stateIndex] as const))
+
+    metaStates.forEach((state, stateIndex) => {
+      stateSeedStates.push({
+        index: stateSeedStates.length,
+        ownerBraneIndex: braneIndex,
+        stateIndex,
+        metaStateId: state.id,
+        name: state.stateName,
+        initial: currentWimpState ? currentWimpState.metaStateId === state.id : state.initial,
+      })
+    })
+
+    metaStates.forEach((state, fromStateIndex) => {
+      const transitions = metaTransitionsByStateId.get(state.id) ?? []
+      transitions.forEach((transition) => {
+        const transitionSeedIndex = stateSeedTransitions.length
+        stateSeedTransitions.push({
+          index: transitionSeedIndex,
+          ownerBraneIndex: braneIndex,
+          fromStateIndex,
+          transitionIndex: transition.transitionOrder,
+          targetStateIndex:
+            transition.targetMetaStateId === null ? null : (metaStateIndexById.get(transition.targetMetaStateId) ?? null),
+        })
+
+        ;(metaTransitionConditionsByTransitionId.get(transition.id) ?? []).forEach((condition) => {
+          const wimpFieldId = metaFieldIdToWimpFieldIdByWimpId.get(wimp.id)?.get(condition.metaFieldId)
+          const fieldIndex = wimpFieldId === undefined ? undefined : fieldIndexByWimpFieldId.get(wimpFieldId)
+          if (fieldIndex === undefined) {
+            throw new Error(`Boundary database cannot resolve state condition field for meta field ${condition.metaFieldId}`)
+          }
+
+          stateSeedConditions.push({
+            index: stateSeedConditions.length,
+            transitionSeedIndex,
+            conditionIndex: condition.conditionOrder,
+            fieldIndex,
+            condition: structuredClone(condition.condition),
+          })
+        })
+      })
+    })
+  })
+
+  const rootWimpId =
+    [...data.wimpEdges]
+      .filter((edge) => edge.parentWimpId === null)
+      .sort((left, right) => left.edgeOrder - right.edgeOrder)[0]?.childWimpId ?? orderedWimps[0]?.id
+
+  return {
+    rootBraneIndex: rootWimpId ? (braneIndexByWimpId.get(rootWimpId) ?? 0) : 0,
+    branes,
+    fields,
+    fieldValues,
+    fieldSources,
+    entanglementBlocks,
+    entanglementBlockMembers,
+    entanglementFields,
+    entanglementFieldMembers,
+    stateSeedStates,
+    stateSeedTransitions,
+    stateSeedConditions,
+  }
+}
+
 export const prepareBoundaryDatabaseDataFromSharedDb = (backend: SharedDbBackend): BoundaryDatabaseData =>
-  prepareBoundaryDatabaseData(readSharedDbProjection(backend))
+  prepareBoundaryDatabaseData(readSharedDbData(backend))
 
-/**
- * Открывает boundary-базу поверх уже подготовленного состояния.
- *
- * Handle хранит собственные копии таблиц и индексов, поэтому база остаётся отдельной
- * от shared DB-проекции и может независимо обновляться и переоткрываться.
- *
- * @param data Подготовленное состояние базы. Если не передано, открывается пустая база.
- * @returns Открытый boundary-handle для индексного доступа и минимального управления.
- */
 export const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBoundaryDatabaseData()): BoundaryDatabase => {
   const database: BoundaryDatabase = {
     rootBraneIndex: 0,
@@ -534,8 +714,8 @@ export const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBou
     stateSeedStates: [],
     stateSeedTransitions: [],
     stateSeedConditions: [],
-    braneIndexByDarkId: new Map(),
-    fieldIndexByDarkId: new Map(),
+    braneIndexByWimpId: new Map(),
+    fieldIndexByWimpFieldId: new Map(),
     fieldIndexByBraneAndKey: new Map(),
     fieldSourceByChildFieldIndex: [],
     dependentFieldIndexesByParentFieldIndex: new Map(),
@@ -552,8 +732,8 @@ export const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBou
       return this.branes[braneIndex]
     },
 
-    getBraneByDarkId(darkWimpId) {
-      const braneIndex = this.braneIndexByDarkId.get(darkWimpId)
+    getBraneByWimpId(wimpId) {
+      const braneIndex = this.braneIndexByWimpId.get(wimpId)
       return braneIndex === undefined ? undefined : this.branes[braneIndex]
     },
 
@@ -561,8 +741,8 @@ export const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBou
       return this.fields[fieldIndex]
     },
 
-    getFieldByDarkId(darkFieldId) {
-      const fieldIndex = this.fieldIndexByDarkId.get(darkFieldId)
+    getFieldByWimpFieldId(wimpFieldId) {
+      const fieldIndex = this.fieldIndexByWimpFieldId.get(wimpFieldId)
       return fieldIndex === undefined ? undefined : this.fields[fieldIndex]
     },
 
@@ -587,9 +767,7 @@ export const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBou
 
     setFieldValue(fieldIndex, value) {
       const field = this.fields[fieldIndex]
-      if (!field) {
-        throw new Error(`Field index out of range: ${fieldIndex}`)
-      }
+      if (!field) throw new Error(`Field index out of range: ${fieldIndex}`)
 
       const nextValue = structuredClone(value)
       const existing = this.fieldValues[fieldIndex]
@@ -600,7 +778,8 @@ export const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBou
       }
 
       this.fieldValues[fieldIndex] = {
-        fieldIndex: field.index,
+        fieldIndex,
+        wimpFieldId: field.wimpFieldId,
         value: nextValue,
       }
     },
@@ -622,8 +801,8 @@ export const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBou
     database.stateSeedStates = cloned.stateSeedStates
     database.stateSeedTransitions = cloned.stateSeedTransitions
     database.stateSeedConditions = cloned.stateSeedConditions
-    database.braneIndexByDarkId = indexes.braneIndexByDarkId
-    database.fieldIndexByDarkId = indexes.fieldIndexByDarkId
+    database.braneIndexByWimpId = indexes.braneIndexByWimpId
+    database.fieldIndexByWimpFieldId = indexes.fieldIndexByWimpFieldId
     database.fieldIndexByBraneAndKey = indexes.fieldIndexByBraneAndKey
     database.fieldSourceByChildFieldIndex = indexes.fieldSourceByChildFieldIndex
     database.dependentFieldIndexesByParentFieldIndex = indexes.dependentFieldIndexesByParentFieldIndex
@@ -633,34 +812,12 @@ export const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBou
   return database
 }
 
-/**
- * Строит boundary-базу напрямую из общей DB-проекции.
- *
- * @param projection Общая DB-проекция, полученная из `Dark`.
- * @returns Открытый boundary-handle.
- */
-export const buildBoundaryDatabase = (projection: SharedDbProjection): BoundaryDatabase =>
-  openBoundaryDatabase(prepareBoundaryDatabaseData(projection))
+export const buildBoundaryDatabase = (data: SharedDbData): BoundaryDatabase =>
+  openBoundaryDatabase(prepareBoundaryDatabaseData(data))
 
-/**
- * Строит boundary-базу напрямую из shared/db backend.
- *
- * @param backend Shared/db backend-handle.
- * @returns Открытый boundary-handle.
- */
 export const buildBoundaryDatabaseFromSharedDb = (backend: SharedDbBackend): BoundaryDatabase =>
   openBoundaryDatabase(prepareBoundaryDatabaseDataFromSharedDb(backend))
 
-/**
- * Адаптирует boundary-базу в Boundary runtime input, сохраняя runtime materialization в Boundary.
- *
- * Shared/db остаётся источником табличных данных, а Boundary здесь отдельно
- * собирает runtime field registry, shared/local layout и state graph из DB-fed seeds.
- *
- * @param database Boundary-база, уже загруженная из shared/db.
- * @param options Boundary-owned runtime options.
- * @returns Boundary input-структура для существующего gravity/strong pipeline.
- */
 export const prepareBoundaryWriteData = (
   database: BoundaryDatabase,
   options: BoundarySharedDbRuntimeOptions = {},
@@ -692,10 +849,10 @@ export const prepareBoundaryWriteData = (
               throw new Error(`Boundary runtime field index missing for DB field ${field.index}`)
             }
 
-            return [
-              runtimeFieldIndex,
-              structuredClone(requireBoundaryDatabaseFieldValue(database, field.index).value),
-            ] as [number, unknown]
+            return [runtimeFieldIndex, structuredClone(requireBoundaryDatabaseFieldValue(database, field.index).value)] as [
+              number,
+              unknown,
+            ]
           }),
         state: stateGraph.state,
         collapses: stateGraph.collapses,
@@ -705,37 +862,16 @@ export const prepareBoundaryWriteData = (
   }
 }
 
-/**
- * Готовит канонический Boundary store из boundary-базы, загруженной из shared/db.
- *
- * @param database Boundary-база, построенная на shared/db данных.
- * @param options Boundary-owned runtime options.
- * @returns Канонический prepared Boundary store.
- */
 export const prepareBoundaryStoreFromDatabase = (
   database: BoundaryDatabase,
   options: BoundarySharedDbRuntimeOptions = {},
 ): PreparedData => assembleStoredBoundaryData(flattenBoundaryData(prepareBoundaryWriteData(database, options)))
 
-/**
- * Готовит Boundary runtime input напрямую из shared/db backend.
- *
- * @param backend Shared/db backend-handle.
- * @param options Boundary-owned runtime options.
- * @returns Boundary input-структура для текущего runtime pipeline.
- */
 export const prepareBoundaryWriteDataFromSharedDb = (
   backend: SharedDbBackend,
   options: BoundarySharedDbRuntimeOptions = {},
 ): Data => prepareBoundaryWriteData(buildBoundaryDatabaseFromSharedDb(backend), options)
 
-/**
- * Готовит канонический Boundary store напрямую из shared/db backend.
- *
- * @param backend Shared/db backend-handle.
- * @param options Boundary-owned runtime options.
- * @returns Канонический prepared Boundary store.
- */
 export const prepareBoundaryStoreFromSharedDb = (
   backend: SharedDbBackend,
   options: BoundarySharedDbRuntimeOptions = {},

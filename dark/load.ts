@@ -54,7 +54,8 @@ export async function loadMetaAST(address: SRC): Promise<MetaAST> {
 /**
  * Materialize-ит канонический `Meta` object model из AST.
  *
- * `matter` здесь намеренно не оседает в `Meta`: topology materialization остаётся задачей `Particles ORM`.
+ * `Meta` хранит декларативный `matter` как часть meta-level source of truth,
+ * а materialization topology-графа всё ещё остаётся задачей `Particles ORM`.
  */
 export async function loadMeta(address: SRC): Promise<Meta> {
   const ast = await loadMetaAST(address)
@@ -66,6 +67,7 @@ export async function loadMeta(address: SRC): Promise<Meta> {
     superposition: ast.superposition,
     processes: ast.processes,
     reactions: ast.reactions,
+    matter: ast.matter,
     bulk: ast.bulk,
     mass: ast.mass && Object.keys(ast.mass).length > 0 ? structuredClone(ast.mass) : undefined,
   })

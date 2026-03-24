@@ -22,6 +22,50 @@ export const createSharedDbFixture = () => {
       },
       ready: null,
     },
+    processes: {
+      idle: {
+        type: "action",
+        action: {
+          src: "({ value }) => value",
+          read: ["title"],
+        },
+        success: {
+          src: "({ update }) => update({ mode: 'ready' })",
+          write: ["mode"],
+        },
+      },
+    },
+    reactions: {
+      reactions: {
+        sync: {
+          label: "sync",
+          cond: "() => true",
+          read: ["title"],
+          write: ["mode"],
+          src: "() => null",
+        },
+      },
+      superposition: {
+        idle: ["sync"],
+      },
+    },
+    matter: [
+      {
+        type: "meta",
+        tag: "meta-for",
+        src: "meta/nested",
+        fields: {
+          data: "/value/title",
+          expr: "{ title: _[0] }",
+        },
+      },
+      {
+        type: "log",
+        data: "/value/mode",
+        expr: '_[0] === "ready"',
+        child: [],
+      },
+    ],
   })
 
   const root = new Wimp({ src: rootMeta.src, meta: rootMeta })
@@ -51,6 +95,15 @@ export const createSharedDbFixture = () => {
         },
       },
       ready: null,
+    },
+    processes: {
+      idle: {
+        type: "finally",
+        before: {
+          src: "() => null",
+          read: ["alias"],
+        },
+      },
     },
   })
   const child = new Wimp({ src: childMeta.src, meta: childMeta, parent: gate })
