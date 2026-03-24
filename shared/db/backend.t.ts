@@ -84,10 +84,10 @@ export interface SharedDbWimpRows {
   state: SharedDbWimpStateRecord
 }
 
-export interface SharedDbEntanglementRows {
-  entanglements: SharedDbEntanglementRecord[]
+export interface SharedDbEntanglementFamilyRows {
+  entanglement: SharedDbEntanglementRecord
   members: SharedDbEntanglementMemberRecord[]
-  fields: SharedDbEntanglementFieldRecord[]
+  field: SharedDbEntanglementFieldRecord
   fieldMembers: SharedDbEntanglementFieldMemberRecord[]
 }
 
@@ -108,9 +108,11 @@ export interface SharedDbBackend {
   writeMetaRows(rows: SharedDbMetaRows): void
   /** Записывает весь instance-level canonical row group для одного wimp. */
   writeWimpRows(rows: SharedDbWimpRows): void
-  /** Полностью заменяет structural `wimp_edges` snapshot текущего materialization-прохода. */
-  replaceWimpEdges(rows: SharedDbWimpEdgeRecord[]): void
-  /** Полностью заменяет текущий canonical entanglement snapshot. */
-  replaceEntanglementRows(rows: SharedDbEntanglementRows): void
+  /** Записывает structural parent/child relation для одного wimp. */
+  writeWimpEdge(row: SharedDbWimpEdgeRecord): void
+  /** Удаляет одну canonical entanglement-family, если она локально опустела. */
+  deleteEntanglementFamily(entanglementId: string): void
+  /** Записывает одну canonical source-family entanglement без глобального rebuild. */
+  writeEntanglementFamily(rows: SharedDbEntanglementFamilyRows): void
   setFieldValue(wimpFieldId: string, value: unknown): void
 }

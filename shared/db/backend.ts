@@ -136,7 +136,7 @@ export const sharedDbRequiredBackendIndexes: readonly SharedDbBackendIndexSpec[]
   { name: "field_sources_by_child_wimp_field", table: "field_sources", columns: ["childWimpFieldId"], unique: true },
   { name: "field_sources_by_parent_wimp_field", table: "field_sources", columns: ["parentWimpFieldId"], unique: false },
   { name: "wimp_states_by_owner", table: "wimp_states", columns: ["ownerWimpId"], unique: true },
-  { name: "entanglements_by_membership_key", table: "entanglements", columns: ["membershipKey"], unique: true },
+  { name: "entanglements_by_membership_key", table: "entanglements", columns: ["membershipKey"], unique: false },
   {
     name: "entanglement_members_by_owner_and_order",
     table: "entanglement_members",
@@ -310,7 +310,6 @@ export const normalizeSharedDbData = (data: SharedDbData): SharedDbData => {
   requireUniqueKey("field value owner", fieldValues, (row) => row.ownerWimpFieldId)
   requireUniqueKey("field source child", fieldSources, (row) => row.childWimpFieldId)
   requireUniqueKey("wimp state owner", wimpStates, (row) => row.ownerWimpId)
-  requireUniqueKey("entanglement membership", entanglements, (row) => row.membershipKey)
   requireUniqueKey("entanglement member owner/order", entanglementMembers, (row) => `${row.ownerEntanglementId}:${row.memberOrder}`)
   requireUniqueKey("entanglement field owner/order", entanglementFields, (row) => `${row.ownerEntanglementId}:${row.fieldOrder}`)
   requireUniqueKey(

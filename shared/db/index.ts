@@ -19,7 +19,7 @@ export type {
   SharedDbBackend,
   SharedDbBackendIndexSpec,
   SharedDbBackendTableName,
-  SharedDbEntanglementRows,
+  SharedDbEntanglementFamilyRows,
   SharedDbMetaRows,
   SharedDbWimpRows,
 } from "./backend.t.ts"

@@ -554,16 +554,55 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
   const entanglementFields: BoundaryDatabaseEntanglementFieldRecord[] = []
   const entanglementFieldMembers: BoundaryDatabaseEntanglementFieldMemberRecord[] = []
 
-  ;[...data.entanglements]
-    .sort((left, right) => left.membershipKey.localeCompare(right.membershipKey))
-    .forEach((entanglement, blockIndex) => {
+  const entanglementFamiliesByMembershipKey = new Map<
+    string,
+    Array<{
+      entanglement: (typeof data.entanglements)[number]
+      members: (typeof data.entanglementMembers)
+      seedField: (typeof data.entanglementFields)[number]
+      fieldMembers: (typeof data.entanglementFieldMembers)
+    }>
+  >()
+
+  ;[...data.entanglements].forEach((entanglement) => {
+    const members = entanglementMembersByEntanglementId.get(entanglement.id) ?? []
+    const seedField = (entanglementFieldsByEntanglementId.get(entanglement.id) ?? [])[0]
+    const fieldMembers = seedField ? (entanglementFieldMembersByFieldId.get(seedField.id) ?? []) : []
+    const distinctFieldMemberWimpIds = new Set(fieldMembers.map((member) => member.ownerWimpId))
+
+    if (!seedField || members.length < 2) return
+    if (fieldMembers.length !== members.length) return
+    if (distinctFieldMemberWimpIds.size !== members.length) return
+
+    const families = entanglementFamiliesByMembershipKey.get(entanglement.membershipKey)
+    const family = { entanglement, members, seedField, fieldMembers }
+    if (families) families.push(family)
+    else entanglementFamiliesByMembershipKey.set(entanglement.membershipKey, [family])
+  })
+
+  Array.from(entanglementFamiliesByMembershipKey.entries())
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    .forEach(([membershipKey, families], blockIndex) => {
+      const orderedFamilies = [...families].sort((left, right) => {
+        const leftRepresentativeFieldIndex =
+          fieldIndexByWimpFieldId.get(left.seedField.representativeWimpFieldId) ?? Number.MAX_SAFE_INTEGER
+        const rightRepresentativeFieldIndex =
+          fieldIndexByWimpFieldId.get(right.seedField.representativeWimpFieldId) ?? Number.MAX_SAFE_INTEGER
+
+        return (
+          leftRepresentativeFieldIndex - rightRepresentativeFieldIndex ||
+          left.seedField.fieldName.localeCompare(right.seedField.fieldName)
+        )
+      })
+      const blockMembers = orderedFamilies[0]?.members ?? []
+
       entanglementBlocks.push({
         index: blockIndex,
-        entanglementId: entanglement.id,
-        key: entanglement.membershipKey,
+        entanglementId: orderedFamilies[0]!.entanglement.id,
+        key: membershipKey,
       })
 
-      ;(entanglementMembersByEntanglementId.get(entanglement.id) ?? []).forEach((member) => {
+      blockMembers.forEach((member) => {
         const braneIndex = braneIndexByWimpId.get(member.wimpId)
         if (braneIndex === undefined) {
           throw new Error(`Boundary database cannot resolve entanglement member wimp ${member.wimpId}`)
@@ -577,7 +616,7 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
         })
       })
 
-      ;(entanglementFieldsByEntanglementId.get(entanglement.id) ?? []).forEach((seedField) => {
+      orderedFamilies.forEach(({ seedField, fieldMembers }, blockFieldIndex) => {
         const representativeFieldIndex = fieldIndexByWimpFieldId.get(seedField.representativeWimpFieldId)
         if (representativeFieldIndex === undefined) {
           throw new Error(`Boundary database cannot resolve entanglement representative field ${seedField.representativeWimpFieldId}`)
@@ -592,7 +631,7 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
         entanglementFields.push({
           index: entanglementFieldIndex,
           blockIndex,
-          blockFieldIndex: seedField.fieldOrder,
+          blockFieldIndex,
           semanticKey: seedField.semanticKey,
           fieldName: seedField.fieldName,
           representativeBraneIndex,
@@ -601,7 +640,7 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
           semanticKeys: structuredClone(seedField.semanticKeys),
         })
 
-        ;(entanglementFieldMembersByFieldId.get(seedField.id) ?? []).forEach((member) => {
+        fieldMembers.forEach((member) => {
           const fieldIndex = fieldIndexByWimpFieldId.get(member.wimpFieldId)
           const braneIndex = braneIndexByWimpId.get(member.ownerWimpId)
           if (fieldIndex === undefined || braneIndex === undefined) {

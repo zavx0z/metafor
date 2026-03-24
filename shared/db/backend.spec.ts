@@ -32,8 +32,8 @@ describe("shared db canonical relational data", () => {
     expect(data.fieldValues).toHaveLength(6)
     expect(data.fieldSources).toHaveLength(3)
     expect(data.wimpStates).toHaveLength(2)
-    expect(data.entanglements).toHaveLength(1)
-    expect(data.entanglementMembers).toHaveLength(2)
+    expect(data.entanglements).toHaveLength(3)
+    expect(data.entanglementMembers).toHaveLength(6)
     expect(data.entanglementFields).toHaveLength(3)
     expect(data.entanglementFieldMembers).toHaveLength(6)
 

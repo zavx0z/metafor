@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite"
 import { createEmptySharedDbData, normalizeSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
-import type { SharedDbBackend, SharedDbEntanglementRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
+import type { SharedDbBackend, SharedDbEntanglementFamilyRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
 import type { SharedDbData, SharedDbFieldSchemaRecord } from "./db.t.ts"
 
 export interface SharedDbSqliteBackendOptions {
@@ -1051,34 +1051,36 @@ const upsertWimpRow = (database: Database, rows: SharedDbWimpRows): void => {
   })()
 }
 
-const replaceWimpEdgesInDatabase = (database: Database, rows: SharedDbData["wimpEdges"]): void => {
-  database.transaction(() => {
-    database.exec(`DELETE FROM wimp_edges`)
-    const insertWimpEdge = database.query(
-      `INSERT INTO wimp_edges(id, parentWimpId, childWimpId, edgeOrder) VALUES (?, ?, ?, ?)`,
+const writeWimpEdgeInDatabase = (database: Database, row: SharedDbData["wimpEdges"][number]): void => {
+  database
+    .query(
+      `INSERT INTO wimp_edges(id, parentWimpId, childWimpId, edgeOrder)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(childWimpId) DO UPDATE SET
+         id = excluded.id,
+         parentWimpId = excluded.parentWimpId,
+         edgeOrder = excluded.edgeOrder`,
     )
-    rows.forEach((row) => insertWimpEdge.run(row.id, row.parentWimpId, row.childWimpId, row.edgeOrder))
-  })()
+    .run(row.id, row.parentWimpId, row.childWimpId, row.edgeOrder)
 }
 
-const replaceEntanglementRowsInDatabase = (database: Database, rows: SharedDbEntanglementRows): void => {
+const deleteEntanglementFamilyInDatabase = (database: Database, entanglementId: string): void => {
+  database.query(`DELETE FROM entanglements WHERE id = ?`).run(entanglementId)
+}
+
+const writeEntanglementFamilyInDatabase = (database: Database, rows: SharedDbEntanglementFamilyRows): void => {
   database.transaction(() => {
-    database.exec(`DELETE FROM entanglement_field_members`)
-    database.exec(`DELETE FROM entanglement_fields`)
-    database.exec(`DELETE FROM entanglement_members`)
-    database.exec(`DELETE FROM entanglements`)
+    deleteEntanglementFamilyInDatabase(database, rows.entanglement.id)
 
     const insertEntanglement = database.query(
       `INSERT INTO entanglements(id, membershipKey, provenance) VALUES (?, ?, ?)`,
     )
-    rows.entanglements.forEach((row) => insertEntanglement.run(row.id, row.membershipKey, row.provenance))
+    insertEntanglement.run(rows.entanglement.id, rows.entanglement.membershipKey, rows.entanglement.provenance)
 
     const insertEntanglementMember = database.query(
       `INSERT INTO entanglement_members(id, ownerEntanglementId, wimpId, memberOrder) VALUES (?, ?, ?, ?)`,
     )
-    rows.members.forEach((row) =>
-      insertEntanglementMember.run(row.id, row.ownerEntanglementId, row.wimpId, row.memberOrder),
-    )
+    rows.members.forEach((row) => insertEntanglementMember.run(row.id, row.ownerEntanglementId, row.wimpId, row.memberOrder))
 
     const insertEntanglementField = database.query(
       `INSERT INTO entanglement_fields(
@@ -1086,33 +1088,23 @@ const replaceEntanglementRowsInDatabase = (database: Database, rows: SharedDbEnt
          representativeWimpFieldId, payloadIdsJson, semanticKeysJson
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    rows.fields.forEach((row) =>
-      insertEntanglementField.run(
-        row.id,
-        row.ownerEntanglementId,
-        row.fieldOrder,
-        row.semanticKey,
-        row.fieldName,
-        row.provenance,
-        row.representativeWimpFieldId,
-        serializeJson(row.payloadIds),
-        serializeJson(row.semanticKeys),
-      ),
+    insertEntanglementField.run(
+      rows.field.id,
+      rows.field.ownerEntanglementId,
+      rows.field.fieldOrder,
+      rows.field.semanticKey,
+      rows.field.fieldName,
+      rows.field.provenance,
+      rows.field.representativeWimpFieldId,
+      serializeJson(rows.field.payloadIds),
+      serializeJson(rows.field.semanticKeys),
     )
 
     const insertEntanglementFieldMember = database.query(
       `INSERT INTO entanglement_field_members(id, ownerEntanglementFieldId, ownerWimpId, wimpFieldId, memberOrder)
        VALUES (?, ?, ?, ?, ?)`,
     )
-    rows.fieldMembers.forEach((row) =>
-      insertEntanglementFieldMember.run(
-        row.id,
-        row.ownerEntanglementFieldId,
-        row.ownerWimpId,
-        row.wimpFieldId,
-        row.memberOrder,
-      ),
-    )
+    rows.fieldMembers.forEach((row) => insertEntanglementFieldMember.run(row.id, row.ownerEntanglementFieldId, row.ownerWimpId, row.wimpFieldId, row.memberOrder))
   })()
 }
 
@@ -1147,12 +1139,16 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
       upsertWimpRow(database, rows)
     },
 
-    replaceWimpEdges(rows) {
-      replaceWimpEdgesInDatabase(database, rows)
+    writeWimpEdge(row) {
+      writeWimpEdgeInDatabase(database, row)
     },
 
-    replaceEntanglementRows(rows) {
-      replaceEntanglementRowsInDatabase(database, rows)
+    deleteEntanglementFamily(entanglementId) {
+      deleteEntanglementFamilyInDatabase(database, entanglementId)
+    },
+
+    writeEntanglementFamily(rows) {
+      writeEntanglementFamilyInDatabase(database, rows)
     },
 
     setFieldValue(wimpFieldId, value) {

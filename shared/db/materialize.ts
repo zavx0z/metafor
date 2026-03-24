@@ -27,7 +27,7 @@ import type {
   SharedDbWimpRecord,
   SharedDbWimpStateRecord,
 } from "./db.t.ts"
-import type { SharedDbBackend, SharedDbEntanglementRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
+import type { SharedDbBackend, SharedDbEntanglementFamilyRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
 import { createEmptySharedDbData, normalizeSharedDbData } from "./backend.ts"
 import { deriveUuid } from "./uuid.ts"
 
@@ -82,6 +82,23 @@ type WimpFieldWithOwner = SharedDbWimpFieldBundle & { ownerWimpId: string }
 
 type MetaMaterializationState = {
   nextMatterNodeOrder: number
+}
+
+type SavedFieldState = {
+  id: string
+  ownerWimpId: string
+  metaFieldId: string
+  key: FieldKey
+  fieldOrder: number
+  rootFieldId: string
+  sourceWimpFieldId?: string
+}
+
+type EntanglementFamilyState = {
+  rootFieldId: string
+  representativeFieldId: string
+  representativeFieldName: FieldKey
+  members: SavedFieldState[]
 }
 
 const isTopologyFieldType = (type: string): boolean => type.startsWith("enum<") || type.startsWith("array<")
@@ -430,6 +447,66 @@ const resolveSourceRoot = (
   return current
 }
 
+const createEntanglementId = (rootFieldId: string): string => deriveUuid("entanglement-family", rootFieldId)
+
+const createEntanglementFieldId = (rootFieldId: string): string => deriveUuid("entanglement-family-field", rootFieldId)
+
+const materializeEntanglementFamilyRows = (
+  rootFieldId: string,
+  representative: Pick<WimpFieldWithOwner | SavedFieldState, "id" | "key">,
+  rawMembers: Array<WimpFieldWithOwner | SavedFieldState>,
+  wimpOrderById: Map<string, number>,
+): SharedDbEntanglementFamilyRows => {
+  const members = Array.from(new Map(rawMembers.map((field) => [field.id, field] as const)).values()).sort(
+    (left, right) =>
+      (wimpOrderById.get(left.ownerWimpId) ?? Number.MAX_SAFE_INTEGER) -
+        (wimpOrderById.get(right.ownerWimpId) ?? Number.MAX_SAFE_INTEGER) || left.fieldOrder - right.fieldOrder,
+  )
+
+  const distinctWimpIds = Array.from(new Set(members.map((member) => member.ownerWimpId)))
+  const entanglementId = createEntanglementId(rootFieldId)
+  const entanglementFieldId = createEntanglementFieldId(rootFieldId)
+
+  return {
+    entanglement: {
+      id: entanglementId,
+      membershipKey: distinctWimpIds.join(","),
+      provenance: "wimp-field-source-family",
+    },
+    members: distinctWimpIds.map((wimpId, memberOrder) => ({
+      id: deriveUuid("entanglement-member", entanglementId, wimpId, memberOrder),
+      ownerEntanglementId: entanglementId,
+      wimpId,
+      memberOrder,
+    })),
+    field: {
+      id: entanglementFieldId,
+      ownerEntanglementId: entanglementId,
+      fieldOrder: 0,
+      semanticKey: representative.id,
+      fieldName: representative.key,
+      provenance: "wimp-field-source-family",
+      representativeWimpFieldId: representative.id,
+      payloadIds: members.map((member) => member.id).sort(),
+      semanticKeys: Array.from(new Set(members.map((member) => member.metaFieldId))).sort(),
+    },
+    fieldMembers: members.map((member, memberOrder) => ({
+      id: deriveUuid("entanglement-field-member", entanglementFieldId, member.id, memberOrder),
+      ownerEntanglementFieldId: entanglementFieldId,
+      ownerWimpId: member.ownerWimpId,
+      wimpFieldId: member.id,
+      memberOrder,
+    })),
+  }
+}
+
+const applyEntanglementFamilyRowsToData = (data: SharedDbData, rows: SharedDbEntanglementFamilyRows): void => {
+  data.entanglements.push(structuredClone(rows.entanglement))
+  data.entanglementMembers.push(...rows.members.map((row) => structuredClone(row)))
+  data.entanglementFields.push(structuredClone(rows.field))
+  data.entanglementFieldMembers.push(...rows.fieldMembers.map((row) => structuredClone(row)))
+}
+
 const appendEntanglements = (
   data: SharedDbData,
   orderedBundles: SharedDbWimpBundle[],
@@ -454,69 +531,14 @@ const appendEntanglements = (
     }
   }
 
-  const entanglementIdByMembershipKey = new Map<string, string>()
-
   for (const [rootFieldId, rawMembers] of familyMembersByRootFieldId) {
-    const members = Array.from(new Map(rawMembers.map((field) => [field.id, field] as const)).values()).sort(
-      (left, right) =>
-        (wimpOrderById.get(left.ownerWimpId) ?? Number.MAX_SAFE_INTEGER) -
-          (wimpOrderById.get(right.ownerWimpId) ?? Number.MAX_SAFE_INTEGER) || left.fieldOrder - right.fieldOrder,
-    )
-
-    const distinctWimpIds = Array.from(new Set(members.map((member) => member.ownerWimpId)))
-    if (distinctWimpIds.length < 2 || members.length !== distinctWimpIds.length) {
-      continue
-    }
-
-    const representative = members.find((member) => member.id === rootFieldId) ?? members[0]
+    const representative = rawMembers.find((member) => member.id === rootFieldId) ?? rawMembers[0]
     if (!representative) continue
 
-    const membershipKey = distinctWimpIds.join(",")
-    let entanglementId = entanglementIdByMembershipKey.get(membershipKey)
-
-    if (!entanglementId) {
-      entanglementId = deriveUuid("entanglement", membershipKey)
-      entanglementIdByMembershipKey.set(membershipKey, entanglementId)
-      data.entanglements.push({
-        id: entanglementId,
-        membershipKey,
-        provenance: "wimp-field-source-family",
-      })
-
-      distinctWimpIds.forEach((wimpId, memberOrder) => {
-        data.entanglementMembers.push({
-          id: deriveUuid("entanglement-member", entanglementId, wimpId, memberOrder),
-          ownerEntanglementId: entanglementId,
-          wimpId,
-          memberOrder,
-        })
-      })
-    }
-
-    const fieldOrder = data.entanglementFields.filter((field) => field.ownerEntanglementId === entanglementId).length
-    const entanglementFieldId = deriveUuid("entanglement-field", entanglementId, rootFieldId)
-
-    data.entanglementFields.push({
-      id: entanglementFieldId,
-      ownerEntanglementId: entanglementId,
-      fieldOrder,
-      semanticKey: representative.id,
-      fieldName: representative.key,
-      provenance: "wimp-field-source-family",
-      representativeWimpFieldId: representative.id,
-      payloadIds: members.map((member) => member.id).sort(),
-      semanticKeys: Array.from(new Set(members.map((member) => member.metaFieldId))).sort(),
-    })
-
-    members.forEach((member, memberOrder) => {
-      data.entanglementFieldMembers.push({
-        id: deriveUuid("entanglement-field-member", entanglementFieldId, member.id, memberOrder),
-        ownerEntanglementFieldId: entanglementFieldId,
-        ownerWimpId: member.ownerWimpId,
-        wimpFieldId: member.id,
-        memberOrder,
-      })
-    })
+    applyEntanglementFamilyRowsToData(
+      data,
+      materializeEntanglementFamilyRows(rootFieldId, representative, rawMembers, wimpOrderById),
+    )
   }
 }
 
@@ -596,16 +618,32 @@ const buildWimpEdges = (orderedBundles: SharedDbWimpBundle[]): SharedDbWimpEdgeR
   return edges
 }
 
-const buildEntanglementRows = (orderedBundles: SharedDbWimpBundle[]): SharedDbEntanglementRows => {
-  const data = createEmptySharedDbData()
-  appendEntanglements(data, orderedBundles)
+const buildEntanglementFamilies = (orderedBundles: SharedDbWimpBundle[]): SharedDbEntanglementFamilyRows[] => {
+  const wimpOrderById = new Map(orderedBundles.map((bundle, wimpOrder) => [bundle.id, wimpOrder] as const))
+  const allFields = orderedBundles.flatMap((bundle) =>
+    bundle.fields.map((field) => ({
+      ...cloneWimpFieldBundle(field),
+      ownerWimpId: bundle.id,
+    })),
+  )
+  const fieldById = new Map(allFields.map((field) => [field.id, field] as const))
+  const familyMembersByRootFieldId = new Map<string, WimpFieldWithOwner[]>()
 
-  return {
-    entanglements: data.entanglements,
-    members: data.entanglementMembers,
-    fields: data.entanglementFields,
-    fieldMembers: data.entanglementFieldMembers,
+  for (const field of allFields) {
+    const rootField = resolveSourceRoot(field, fieldById)
+    const family = familyMembersByRootFieldId.get(rootField.id)
+    if (family) family.push(field)
+    else familyMembersByRootFieldId.set(rootField.id, [field])
   }
+
+  return Array.from(familyMembersByRootFieldId.entries()).map(([rootFieldId, rawMembers]) => {
+    const representative = rawMembers.find((member) => member.id === rootFieldId) ?? rawMembers[0]
+    if (!representative) {
+      throw new Error(`Shared DB entanglement family ${rootFieldId} has no representative field`)
+    }
+
+    return materializeEntanglementFamilyRows(rootFieldId, representative, rawMembers, wimpOrderById)
+  })
 }
 
 const applyMetaRowsToData = (data: SharedDbData, rows: SharedDbMetaRows): void => {
@@ -635,16 +673,14 @@ const applyWimpRowsToData = (data: SharedDbData, rows: SharedDbWimpRows): void =
 
 const createMetaSignature = (meta: SharedDbMetaBundle): string => JSON.stringify(cloneMetaBundle(meta))
 
-const collectMetaWimpRows = (orderedBundles: SharedDbWimpBundle[]): {
+const collectMetaRowsAndContexts = (orderedBundles: SharedDbWimpBundle[]): {
   metaRowsById: Map<string, SharedDbMetaRows>
   metaContextById: Map<string, MetaContext>
-  wimpRows: SharedDbWimpRows[]
 } => {
   const metaRowsById = new Map<string, SharedDbMetaRows>()
   const metaContextById = new Map<string, MetaContext>()
-  const wimpRows: SharedDbWimpRows[] = []
 
-  orderedBundles.forEach((bundle, wimpOrder) => {
+  orderedBundles.forEach((bundle) => {
     let metaContext = metaContextById.get(bundle.meta.id)
     if (!metaContext) {
       const { rows, context } = materializeMetaRows(bundle.meta)
@@ -652,11 +688,9 @@ const collectMetaWimpRows = (orderedBundles: SharedDbWimpBundle[]): {
       metaContextById.set(bundle.meta.id, context)
       metaContext = context
     }
-
-    wimpRows.push(materializeWimpRows(bundle, wimpOrder, metaContext))
   })
 
-  return { metaRowsById, metaContextById, wimpRows }
+  return { metaRowsById, metaContextById }
 }
 
 /**
@@ -668,17 +702,21 @@ const collectMetaWimpRows = (orderedBundles: SharedDbWimpBundle[]): {
 export const createSharedDbDataFromWimpBundles = (orderedBundles: SharedDbWimpBundle[]): SharedDbData => {
   const bundles = orderedBundles.map(cloneWimpBundle)
   const data = createEmptySharedDbData()
-  const { metaRowsById, wimpRows } = collectMetaWimpRows(bundles)
+  const { metaRowsById, metaContextById } = collectMetaRowsAndContexts(bundles)
 
   metaRowsById.forEach((rows) => applyMetaRowsToData(data, rows))
-  wimpRows.forEach((rows) => applyWimpRowsToData(data, rows))
-  data.wimpEdges = buildWimpEdges(bundles)
 
-  const entanglementRows = buildEntanglementRows(bundles)
-  data.entanglements = entanglementRows.entanglements
-  data.entanglementMembers = entanglementRows.members
-  data.entanglementFields = entanglementRows.fields
-  data.entanglementFieldMembers = entanglementRows.fieldMembers
+  bundles.forEach((bundle, wimpOrder) => {
+    const metaContext = metaContextById.get(bundle.meta.id)
+    if (!metaContext) {
+      throw new Error(`Shared DB meta context is missing for meta ${bundle.meta.id}`)
+    }
+
+    applyWimpRowsToData(data, materializeWimpRows(bundle, wimpOrder, metaContext))
+  })
+
+  data.wimpEdges = buildWimpEdges(bundles)
+  buildEntanglementFamilies(bundles).forEach((rows) => applyEntanglementFamilyRowsToData(data, rows))
   return normalizeSharedDbData(data)
 }
 
@@ -691,17 +729,156 @@ export const createSharedDbDataFromWimpBundles = (orderedBundles: SharedDbWimpBu
 export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): SharedDbMaterializationWriter => {
   const bundlesById = new Map<string, SharedDbWimpBundle>()
   const metaSignatureById = new Map<string, string>()
+  const wimpOrderById = new Map<string, number>()
+  const nextEdgeOrderByParentId = new Map<string | null, number>()
+  const wimpEdgesByChildId = new Map<string, SharedDbWimpEdgeRecord>()
+  const savedFieldIdsByWimpId = new Map<string, string[]>()
+  const savedFieldsById = new Map<string, SavedFieldState>()
+  const entanglementFamiliesByRootFieldId = new Map<string, EntanglementFamilyState>()
+
+  const ensureWimpOrder = (wimpId: string): number => {
+    const existing = wimpOrderById.get(wimpId)
+    if (existing !== undefined) return existing
+
+    const nextOrder = wimpOrderById.size
+    wimpOrderById.set(wimpId, nextOrder)
+    return nextOrder
+  }
+
+  const writeWimpEdge = (bundle: SharedDbWimpBundle): void => {
+    const existing = wimpEdgesByChildId.get(bundle.id)
+    if (existing) {
+      backend.writeWimpEdge(existing)
+      return
+    }
+
+    const parentWimpId = bundle.parentWimpId ?? null
+    const parentKey = parentWimpId ?? null
+    const nextOrder = nextEdgeOrderByParentId.get(parentKey) ?? 0
+    const edge: SharedDbWimpEdgeRecord = {
+      id: deriveUuid("wimp-edge", parentWimpId ?? "root", bundle.id),
+      parentWimpId,
+      childWimpId: bundle.id,
+      edgeOrder: nextOrder,
+    }
+
+    nextEdgeOrderByParentId.set(parentKey, nextOrder + 1)
+    wimpEdgesByChildId.set(bundle.id, edge)
+    backend.writeWimpEdge(edge)
+  }
+
+  const syncEntanglementFamily = (rootFieldId: string): void => {
+    const family = entanglementFamiliesByRootFieldId.get(rootFieldId)
+    const entanglementId = createEntanglementId(rootFieldId)
+    if (!family || family.members.length === 0) {
+      backend.deleteEntanglementFamily(entanglementId)
+      return
+    }
+
+    backend.writeEntanglementFamily(
+      materializeEntanglementFamilyRows(rootFieldId, {
+        id: family.representativeFieldId,
+        key: family.representativeFieldName,
+      }, family.members, wimpOrderById),
+    )
+  }
+
+  const removeSavedField = (fieldId: string): string | undefined => {
+    const field = savedFieldsById.get(fieldId)
+    if (!field) return undefined
+
+    savedFieldsById.delete(fieldId)
+    const family = entanglementFamiliesByRootFieldId.get(field.rootFieldId)
+    if (!family) return field.rootFieldId
+
+    family.members = family.members.filter((member) => member.id !== field.id)
+    if (family.members.length === 0) {
+      entanglementFamiliesByRootFieldId.delete(field.rootFieldId)
+    } else if (family.representativeFieldId === field.id) {
+      const nextRepresentative = family.members.find((member) => member.id === field.rootFieldId) ?? family.members[0]
+      if (nextRepresentative) {
+        family.representativeFieldId = nextRepresentative.id
+        family.representativeFieldName = nextRepresentative.key
+      }
+    }
+
+    return field.rootFieldId
+  }
+
+  const addSavedField = (bundle: SharedDbWimpBundle, field: SharedDbWimpFieldBundle): string => {
+    const parentField = field.sourceWimpFieldId ? savedFieldsById.get(field.sourceWimpFieldId) : undefined
+    if (field.sourceWimpFieldId && !parentField) {
+      throw new Error(`Shared DB entanglement source field ${field.sourceWimpFieldId} is not materialized yet`)
+    }
+
+    const rootFieldId = parentField?.rootFieldId ?? field.id
+    const savedField: SavedFieldState = {
+      id: field.id,
+      ownerWimpId: bundle.id,
+      metaFieldId: field.metaFieldId,
+      key: field.key,
+      fieldOrder: field.fieldOrder,
+      rootFieldId,
+      ...(field.sourceWimpFieldId !== undefined ? { sourceWimpFieldId: field.sourceWimpFieldId } : {}),
+    }
+
+    savedFieldsById.set(savedField.id, savedField)
+
+    const family =
+      entanglementFamiliesByRootFieldId.get(rootFieldId) ??
+      {
+        rootFieldId,
+        representativeFieldId: rootFieldId,
+        representativeFieldName: field.key,
+        members: [],
+      }
+
+    family.members = family.members.filter((member) => member.id !== savedField.id)
+    family.members.push(savedField)
+    if (savedField.id === rootFieldId) {
+      family.representativeFieldId = savedField.id
+      family.representativeFieldName = savedField.key
+    }
+
+    entanglementFamiliesByRootFieldId.set(rootFieldId, family)
+    return rootFieldId
+  }
+
+  const persistWimpBundle = (bundle: SharedDbWimpBundle, metaContext: MetaContext): void => {
+    const affectedFamilyIds = new Set<string>()
+    const previousFieldIds = savedFieldIdsByWimpId.get(bundle.id) ?? []
+
+    previousFieldIds.forEach((fieldId) => {
+      const familyId = removeSavedField(fieldId)
+      if (familyId) affectedFamilyIds.add(familyId)
+    })
+
+    const orderedFields = bundle.fields.slice().sort((left, right) => left.fieldOrder - right.fieldOrder)
+    savedFieldIdsByWimpId.set(bundle.id, orderedFields.map((field) => field.id))
+    orderedFields.forEach((field) => {
+      affectedFamilyIds.add(addSavedField(bundle, field))
+    })
+
+    const wimpOrder = ensureWimpOrder(bundle.id)
+    backend.writeWimpRows(materializeWimpRows(bundle, wimpOrder, metaContext))
+    if (!previousFieldIds.length) {
+      writeWimpEdge(bundle)
+    }
+
+    affectedFamilyIds.forEach((familyId) => syncEntanglementFamily(familyId))
+  }
 
   return {
     saveWimpBundle(bundle) {
-      bundlesById.set(bundle.id, cloneWimpBundle(bundle))
+      const savedBundle = cloneWimpBundle(bundle)
+      bundlesById.set(bundle.id, savedBundle)
       bundlesById.forEach((candidate, candidateId) => {
         if (candidateId !== bundle.id && candidate.meta.id === bundle.meta.id) {
           candidate.meta = cloneMetaBundle(bundle.meta)
         }
       })
       const orderedBundles = Array.from(bundlesById.values())
-      const { metaRowsById, metaContextById } = collectMetaWimpRows(orderedBundles)
+      const { metaRowsById, metaContextById } = collectMetaRowsAndContexts(orderedBundles)
       const nextMetaSignature = createMetaSignature(bundle.meta)
       const previousMetaSignature = metaSignatureById.get(bundle.meta.id)
 
@@ -722,23 +899,16 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
             throw new Error(`Shared DB meta context is missing for meta ${candidate.meta.id}`)
           }
 
-          backend.writeWimpRows(materializeWimpRows(candidate, wimpOrder, metaContext))
+          persistWimpBundle(candidate, metaContext)
         })
       } else {
-        const wimpOrder = orderedBundles.findIndex((orderedBundle) => orderedBundle.id === bundle.id)
         const metaContext = metaContextById.get(bundle.meta.id)
         if (!metaContext) {
           throw new Error(`Shared DB meta context is missing for meta ${bundle.meta.id}`)
         }
-        if (wimpOrder < 0) {
-          throw new Error(`Shared DB writer cannot resolve saved wimp order for ${bundle.id}`)
-        }
 
-        backend.writeWimpRows(materializeWimpRows(bundle, wimpOrder, metaContext))
+        persistWimpBundle(savedBundle, metaContext)
       }
-
-      backend.replaceWimpEdges(buildWimpEdges(orderedBundles))
-      backend.replaceEntanglementRows(buildEntanglementRows(orderedBundles))
     },
   }
 }

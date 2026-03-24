@@ -26,8 +26,9 @@ describe("dark -> shared db relational export", () => {
     const fixture = createSharedDbFixture()
     const data = assembleSharedDbData(fixture.root)
 
-    expect(data.entanglements).toHaveLength(1)
-    expect(data.entanglementMembers.map((member) => member.wimpId).sort()).toEqual([fixture.root.id, fixture.child.id].sort())
+    expect(data.entanglements).toHaveLength(3)
+    expect(data.entanglementMembers).toHaveLength(6)
+    expect(data.entanglementFields.map((field) => field.fieldName).sort()).toEqual(["items", "mode", "title"])
     expect(data.entanglementFieldMembers.map((member) => member.wimpFieldId).sort()).toEqual(
       [
         fixture.fields.rootTitle.id,

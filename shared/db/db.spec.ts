@@ -36,15 +36,16 @@ describe("shared db relational read helpers", () => {
       fixture.fields.childMode.id,
     ])
 
-    const entanglement = data.entanglements[0]!
-    expect(getSharedDbEntanglementMembers(data, entanglement.id).map((member) => member.wimpId)).toEqual([
+    expect(data.entanglements).toHaveLength(3)
+
+    const titleFamily = data.entanglementFields.find((field) => field.fieldName === "title")
+    expect(titleFamily).toBeDefined()
+    expect(getSharedDbEntanglementMembers(data, titleFamily!.ownerEntanglementId).map((member) => member.wimpId)).toEqual([
       fixture.root.id,
       fixture.child.id,
     ])
-    expect(getSharedDbEntanglementFields(data, entanglement.id).map((field) => field.fieldName)).toEqual([
+    expect(getSharedDbEntanglementFields(data, titleFamily!.ownerEntanglementId).map((field) => field.fieldName)).toEqual([
       "title",
-      "mode",
-      "items",
     ])
   })
 })

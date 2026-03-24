@@ -1,5 +1,5 @@
 import { createEmptySharedDbData, normalizeSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
-import type { SharedDbBackend, SharedDbEntanglementRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
+import type { SharedDbBackend, SharedDbEntanglementFamilyRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
 import type { SharedDbData } from "./db.t.ts"
 
 const upsertRowById = <T extends { id: string }>(rows: T[], row: T): void => {
@@ -68,15 +68,30 @@ const writeWimpRows = (data: SharedDbData, rows: SharedDbWimpRows): void => {
   upsertRowById(data.wimpStates, structuredClone(rows.state))
 }
 
-const replaceWimpEdges = (data: SharedDbData, rows: { id: string; parentWimpId: string | null; childWimpId: string; edgeOrder: number }[]): void => {
-  data.wimpEdges = rows.map((row) => structuredClone(row))
+const writeWimpEdge = (
+  data: SharedDbData,
+  row: { id: string; parentWimpId: string | null; childWimpId: string; edgeOrder: number },
+): void => {
+  removeRowsByPredicate(data.wimpEdges, (existing) => existing.childWimpId === row.childWimpId)
+  upsertRowById(data.wimpEdges, structuredClone(row))
 }
 
-const replaceEntanglementRows = (data: SharedDbData, rows: SharedDbEntanglementRows): void => {
-  data.entanglements = rows.entanglements.map((row) => structuredClone(row))
-  data.entanglementMembers = rows.members.map((row) => structuredClone(row))
-  data.entanglementFields = rows.fields.map((row) => structuredClone(row))
-  data.entanglementFieldMembers = rows.fieldMembers.map((row) => structuredClone(row))
+const deleteEntanglementFamily = (data: SharedDbData, entanglementId: string): void => {
+  removeRowsByPredicate(data.entanglementFieldMembers, (row) =>
+    data.entanglementFields.some((field) => field.id === row.ownerEntanglementFieldId && field.ownerEntanglementId === entanglementId),
+  )
+  removeRowsByPredicate(data.entanglementFields, (row) => row.ownerEntanglementId === entanglementId)
+  removeRowsByPredicate(data.entanglementMembers, (row) => row.ownerEntanglementId === entanglementId)
+  removeRowsByPredicate(data.entanglements, (row) => row.id === entanglementId)
+}
+
+const writeEntanglementFamily = (data: SharedDbData, rows: SharedDbEntanglementFamilyRows): void => {
+  deleteEntanglementFamily(data, rows.entanglement.id)
+
+  upsertRowById(data.entanglements, structuredClone(rows.entanglement))
+  rows.members.forEach((row) => upsertRowById(data.entanglementMembers, structuredClone(row)))
+  upsertRowById(data.entanglementFields, structuredClone(rows.field))
+  rows.fieldMembers.forEach((row) => upsertRowById(data.entanglementFieldMembers, structuredClone(row)))
 }
 
 export const openSharedDbMemoryBackend = (initialData: SharedDbData = createEmptySharedDbData()): SharedDbBackend => {
@@ -111,15 +126,21 @@ export const openSharedDbMemoryBackend = (initialData: SharedDbData = createEmpt
       data = normalizeSharedDbData(nextData)
     },
 
-    replaceWimpEdges(rows) {
+    writeWimpEdge(row) {
       const nextData = normalizeSharedDbData(data)
-      replaceWimpEdges(nextData, rows)
+      writeWimpEdge(nextData, row)
       data = normalizeSharedDbData(nextData)
     },
 
-    replaceEntanglementRows(rows) {
+    deleteEntanglementFamily(entanglementId) {
       const nextData = normalizeSharedDbData(data)
-      replaceEntanglementRows(nextData, rows)
+      deleteEntanglementFamily(nextData, entanglementId)
+      data = normalizeSharedDbData(nextData)
+    },
+
+    writeEntanglementFamily(rows) {
+      const nextData = normalizeSharedDbData(data)
+      writeEntanglementFamily(nextData, rows)
       data = normalizeSharedDbData(nextData)
     },
 
