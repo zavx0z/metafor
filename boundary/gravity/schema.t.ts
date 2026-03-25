@@ -137,7 +137,8 @@ export interface Brane {
  *       state: 0,
  *       collapses: [[[1, { 0: { gt: 50 } }]], [null]]
  *     }
- *   ]
+ *   ],
+ *   stateNames: [["idle", "running", "stopped"]]
  * }
  * ```
  */
@@ -153,4 +154,9 @@ export interface Data {
    * из raw values и материализует только локальные поля.
    */
   entanglement?: PreparedEntanglementProjection
+  /**
+   * Имена состояний для каждой браны.
+   * stateNames[braneIndex][stateIndex] = имя состояния.
+   */
+  stateNames?: string[][]
 }

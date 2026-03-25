@@ -10,7 +10,7 @@ import type { FlattenedBoundaryInput } from "./flattened.t"
 export function flattenBoundaryData(data: Data): FlattenedBoundaryInput {
   return {
     fields: [...(data.fields ?? [])],
-    branes: (data.branes ?? []).map((brane) => ({
+    branes: (data.branes ?? []).map((brane, braneIndex) => ({
       values: brane.values.map(([fieldIndex, value]) => [fieldIndex, value] as [number, BraneValue]),
       state: brane.state,
       transitions: brane.collapses.map((stateTransitions) =>
@@ -26,6 +26,7 @@ export function flattenBoundaryData(data: Data): FlattenedBoundaryInput {
               },
         ),
       ),
+      stateNames: data.stateNames?.[braneIndex] ?? [],
     })),
     ...(data.entanglement !== undefined ? { entanglement: data.entanglement } : {}),
   }

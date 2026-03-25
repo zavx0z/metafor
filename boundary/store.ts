@@ -42,6 +42,7 @@ export const boundary$: BoundaryStore = {
   transitions: [],
   conditions: [],
   states: [],
+  stateNames: [],
 
   getField(braneIndex: number, fieldIndex: number): BoundaryFieldValueRecord | undefined {
     const location = this.getFieldLocation(braneIndex, fieldIndex)
@@ -97,5 +98,13 @@ export const boundary$: BoundaryStore = {
     }
 
     return this.stateTable[brane.stateOffset + stateIndex]
+  },
+
+  getStateName(braneIndex: number, stateIndex: number): string | undefined {
+    const braneStateNames = this.stateNames[braneIndex]
+    if (!braneStateNames || stateIndex < 0 || stateIndex >= braneStateNames.length) {
+      return undefined
+    }
+    return braneStateNames[stateIndex]
   },
 }

@@ -30,8 +30,8 @@ export interface PhotonMessage {
   boson: "photon"
   source: ProtocolDomain
   target: ProtocolTarget
-  uuid: string
-  state: number
+  value: string
+  path: string
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null
@@ -65,5 +65,5 @@ export const isPhotonMessage = (value: unknown): value is PhotonMessage => {
   if (value.boson !== "photon") return false
   if (value.source !== "dark" && value.source !== "boundary") return false
   if (value.target !== "dark" && value.target !== "boundary" && value.target !== "broadcast") return false
-  return typeof value.uuid === "string" && typeof value.state === "number"
+  return typeof value.value === "string" && typeof value.path === "string"
 }

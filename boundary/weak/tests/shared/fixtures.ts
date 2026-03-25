@@ -20,6 +20,7 @@ function clonePreparedStore(data: BoundaryData): BoundaryStore {
     transitions: data.transitions.map(t => ({ ...t })),
     conditions: data.conditions.map(c => ({ ...c })),
     states: [...data.states],
+    stateNames: data.stateNames?.map(sn => [...sn]) ?? [],
     getField(braneIndex: number, fieldIndex: number) {
       return this.getFieldLocation(braneIndex, fieldIndex)?.record
     },
@@ -71,6 +72,13 @@ function clonePreparedStore(data: BoundaryData): BoundaryStore {
         return undefined
       }
       return this.stateTable[brane.stateOffset + stateIndex]
+    },
+    getStateName(braneIndex: number, stateIndex: number) {
+      const braneStateNames = this.stateNames[braneIndex]
+      if (!braneStateNames || stateIndex < 0 || stateIndex >= braneStateNames.length) {
+        return undefined
+      }
+      return braneStateNames[stateIndex]
     },
   }
   return cloned

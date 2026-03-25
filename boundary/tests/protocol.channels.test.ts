@@ -138,8 +138,8 @@ describe("boundary <-> dark protocol channels", () => {
         boson: string
         source: string
         target: string
-        uuid: string
-        state: number
+        value: string
+        path: string
       }>
       stateByUuid: Record<string, number>
     }>(`
@@ -155,6 +155,9 @@ describe("boundary <-> dark protocol channels", () => {
         boundary$,
         closeBoundaryProtocolChannels,
       } = await import("./boundary/boundary.ts")
+      const { isPhotonMessage } = await import("@shared/protocol")
+
+      type PhotonMessage = Awaited<typeof import("@shared/protocol")>["PhotonMessage"]
 
       const nextTick = async () => {
         await Promise.resolve()
@@ -171,7 +174,7 @@ describe("boundary <-> dark protocol channels", () => {
       fixture.root.save(writer)
       fixture.child.save(writer)
 
-      const received = []
+      const received: PhotonMessage[] = []
       const subscription = subscribeDarkPhotons((message) => {
         received.push(message)
       }, { channelName: photonChannelName })
@@ -184,11 +187,11 @@ describe("boundary <-> dark protocol channels", () => {
         const changes = await update([[gravity$.getBraneIndex(fixture.root.id), [[1, "ready"]]]])
         await nextTick()
 
-        const stateByUuid = Object.fromEntries(
-          received.map((message) => [message.uuid, boundary$.states[gravity$.getBraneIndex(message.uuid)]])
+        const stateByPath = Object.fromEntries(
+          received.map((message) => [message.path, boundary$.states[gravity$.getBraneIndex(message.path)]])
         )
 
-        console.log(JSON.stringify({ changes, messages: darkPhoton$.messages, stateByUuid }))
+        console.log(JSON.stringify({ changes, messages: received, stateByPath }))
       } finally {
         subscription.close()
         backend.close()
@@ -205,10 +208,10 @@ describe("boundary <-> dark protocol channels", () => {
       expect(message.boson).toBe("photon")
       expect(message.source).toBe("boundary")
       expect(message.target).toBe("dark")
-      expect(typeof message.uuid).toBe("string")
-      expect(typeof message.state).toBe("number")
+      expect(typeof message.value).toBe("string")
+      expect(typeof message.path).toBe("string")
       expect((message as Record<string, unknown>).braneIndex).toBeUndefined()
-      expect(result.stateByUuid[message.uuid]).toBe(message.state)
+      expect((message as Record<string, unknown>).state).toBeUndefined()
     }
   })
 })

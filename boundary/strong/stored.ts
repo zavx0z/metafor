@@ -241,5 +241,6 @@ export function assembleStoredBoundaryData(flattened: FlattenedBoundaryInput): B
     transitions,
     conditions,
     states: flattened.branes.map((brane) => brane.state),
+    stateNames: flattened.branes.map((brane) => brane.stateNames),
   }
 }

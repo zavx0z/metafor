@@ -102,6 +102,12 @@ export interface BoundaryData {
 
   /** Снимок runtime-состояний, который слабый слой пишет обратно в канонический store. */
   states: number[]
+
+  /**
+   * Имена состояний для каждой браны.
+   * stateNames[braneIndex][stateIndex] = имя состояния.
+   */
+  stateNames: string[][]
 }
 
 export interface BoundaryStore extends BoundaryData {
@@ -116,4 +122,7 @@ export interface BoundaryStore extends BoundaryData {
 
   /** Возвращает запись состояния внутри state graph конкретной браны. */
   getState(braneIndex: number, stateIndex: number): BoundaryStateRecord | undefined
+
+  /** Возвращает имя состояния для данной браны и индекса состояния. */
+  getStateName(braneIndex: number, stateIndex: number): string | undefined
 }

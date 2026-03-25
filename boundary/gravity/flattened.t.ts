@@ -23,6 +23,7 @@ export interface FlattenedBraneInput {
   values: [number, BraneValue][]
   state: number
   transitions: FlattenedTransition[][]
+  stateNames: string[]
 }
 
 /** Уплощённый boundary-вход, который передаётся в strong для сборки store. */

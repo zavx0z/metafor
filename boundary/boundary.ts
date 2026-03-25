@@ -84,6 +84,7 @@ const createEmptyPreparedData = (): PreparedData => ({
   transitions: [],
   conditions: [],
   states: [],
+  stateNames: [],
 })
 
 const applyPreparedData = (prepared: PreparedData): void => {
@@ -98,6 +99,7 @@ const applyPreparedData = (prepared: PreparedData): void => {
   boundary$.transitions = prepared.transitions
   boundary$.conditions = prepared.conditions
   boundary$.states = prepared.states
+  boundary$.stateNames = prepared.stateNames
 }
 
 const collectRuntimeWimpIdsInBraneOrder = (fragment: SharedDbData): string[] =>
@@ -137,9 +139,12 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
   if (changes.length === 0) return
   const channel = getElectromagnetismChannel()
 
-  for (const [braneIndex, state] of changes) {
+  for (const [braneIndex, stateIndex] of changes) {
     const uuid = gravity$.getWimpId(braneIndex)
     if (!uuid) continue
+
+    const stateName = boundary$.getStateName(braneIndex, stateIndex)
+    if (!stateName) continue
 
     const message: PhotonMessage = {
       protocol: METAFOR_PROTOCOL_KIND,
@@ -147,8 +152,8 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
       boson: "photon",
       source: "boundary",
       target: "dark",
-      uuid,
-      state,
+      value: stateName,
+      path: uuid,
     }
     channel.postMessage(message)
   }
@@ -300,13 +305,14 @@ export function subscribeBoundaryGravityBroadcast(
 
   let queue = Promise.resolve()
 
-  channel.onmessage = (event: MessageEvent<unknown>) => {
+  channel.onmessage = (event: MessageEvent) => {
     if (!isGravitonMessage(event.data)) return
-    if (event.data.source !== "dark") return
-    if (event.data.target !== "boundary" && event.data.target !== "broadcast") return
+    const message = event.data
+    if (message.source !== "dark") return
+    if (message.target !== "boundary" && message.target !== "broadcast") return
 
     queue = queue.then(async () => {
-      for (const patch of event.data.patches) {
+      for (const patch of message.patches) {
         await applyStructuralPatchFromSharedDb(backend, patch, runtimeOptions)
       }
     })

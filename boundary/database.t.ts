@@ -60,6 +60,7 @@ export interface BoundaryDatabaseEntanglementFieldMemberRecord {
 export interface BoundaryDatabaseStateSeedStateRecord {
   ownerBraneIndex: number
   stateIndex: number
+  stateName: string
   initial: boolean
 }
 

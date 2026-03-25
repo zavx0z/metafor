@@ -13,7 +13,6 @@ import {
   listRuntimeWimpIds,
   prepareRuntimeFromSharedDb,
   rebuildRuntime,
-  removeRuntimeWimp,
   unlock,
   update,
   writeRuntimeFromSharedDb,

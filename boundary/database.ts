@@ -580,6 +580,7 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
       stateSeedStates.push({
         ownerBraneIndex: braneIndex,
         stateIndex,
+        stateName: state.stateName,
         initial: currentWimpState ? currentWimpState.metaStateId === state.id : state.initial,
       })
     })
@@ -1005,6 +1006,12 @@ const prepareBoundaryWriteData = (
   const conditionSeeds = groupStateSeedConditions(data)
   const entanglement = options.entanglement ?? prepareBoundaryEntanglementProjection(data, runtimeFieldIndexByDbFieldIndex)
 
+  const stateNames: string[][] = []
+  for (let braneIndex = 0; braneIndex < data.branes.length; braneIndex++) {
+    const braneStateSeeds = stateSeeds.get(braneIndex) ?? []
+    stateNames[braneIndex] = braneStateSeeds.map((seed) => seed.stateName)
+  }
+
   return {
     fields: runtimeFields,
     branes: data.branes.map((brane) => {
@@ -1034,6 +1041,7 @@ const prepareBoundaryWriteData = (
         collapses: stateGraph.collapses,
       }
     }),
+    stateNames,
     ...(entanglement !== undefined ? { entanglement: structuredClone(entanglement) } : {}),
   }
 }
