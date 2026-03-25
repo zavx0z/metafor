@@ -6,6 +6,7 @@
   "dependencies": {
     "@dark/types": "workspace:*",
     "@metafor/ast": "workspace:*",
-    "@metafor/dsl": "workspace:*"
+    "@metafor/dsl": "workspace:*",
+    "@shared/protocol": "workspace:*"
   }
 }

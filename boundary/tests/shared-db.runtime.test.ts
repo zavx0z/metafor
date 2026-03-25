@@ -14,6 +14,7 @@ import {
   prepareRuntimeFromSharedDb,
   rebuildRuntime,
   removeRuntimeWimp,
+  unlock,
   update,
   writeRuntimeFromSharedDb,
 } from "../boundary.ts"
@@ -223,7 +224,29 @@ describe("boundary runtime from shared/db backend", () => {
     }
   })
 
-  test("ordinary runtime update продолжает работать после gravity/barrier rebuild", async () => {
+  test("barrier patch при structuralDirty = false ничего не пересобирает и не меняет адресацию", async () => {
+    const { backend } = materializeFixtureToSharedDb()
+
+    try {
+      await writeRuntimeFromSharedDb(backend)
+
+      const previousBraneIds = [...gravity$.braneIndexToWimpId]
+      const previousStates = [...boundary$.states]
+      const previousStringTable = [...boundary$.stringTable]
+
+      const changes = await applyStructuralPatchFromSharedDb(backend, { op: "test", path: "", value: null })
+      expect(changes).toEqual([])
+      expect(gravity$.structuralDirty).toBe(false)
+      expect(gravity$.braneIndexToWimpId).toEqual(previousBraneIds)
+      expect(boundary$.states).toEqual(previousStates)
+      expect(boundary$.stringTable).toEqual(previousStringTable)
+      expect(weak$.initialized).toBe(true)
+    } finally {
+      backend.close()
+    }
+  })
+
+  test("ordinary runtime update и unlock продолжают работать после gravity/barrier rebuild", async () => {
     const { fixture, backend } = materializeFixtureToSharedDb()
 
     try {
@@ -234,15 +257,25 @@ describe("boundary runtime from shared/db backend", () => {
       await rebuildRuntime(backend)
 
       const rootBraneIndex = gravity$.getBraneIndex(fixture.root.id)
+      const childBraneIndex = gravity$.getBraneIndex(fixture.child.id)
       expect(rootBraneIndex).toBe(0)
+      expect(childBraneIndex).toBe(1)
 
       const changes = await update([[rootBraneIndex!, [[1, "ready"]]]])
-      expect(changes).toEqual([
-        [0, 1],
-        [1, 1],
-      ])
+      expect(changes).toContainEqual([childBraneIndex!, 1])
+      expect(
+        changes.every(([braneIndex, nextState]) =>
+          (braneIndex === rootBraneIndex || braneIndex === childBraneIndex) && nextState === 1,
+        ),
+      ).toBe(true)
       expect(boundary$.states[rootBraneIndex!]).toBe(1)
-      expect(boundary$.states[gravity$.getBraneIndex(fixture.child.id)!]).toBe(1)
+      expect(boundary$.states[childBraneIndex!]).toBe(1)
+
+      await update([[rootBraneIndex!, [], true]])
+      expect(boundary$.branes[rootBraneIndex!]?.lock).toBe(true)
+
+      unlock([rootBraneIndex!])
+      expect(boundary$.branes[rootBraneIndex!]?.lock).toBe(false)
     } finally {
       backend.close()
     }

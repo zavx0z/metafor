@@ -27,17 +27,11 @@
       "name": "@metafor/boundary",
       "version": "0.0.1",
       "dependencies": {
-        "@boundary/em": "workspace:*",
         "@boundary/gravity": "workspace:*",
         "@boundary/strong": "workspace:*",
         "@boundary/weak": "workspace:*",
         "@shared/db": "workspace:*",
-      },
-    },
-    "boundary/em": {
-      "name": "@boundary/em",
-      "dependencies": {
-        "@boundary/strong": "workspace:*",
+        "@shared/protocol": "workspace:*",
       },
     },
     "boundary/gravity": {
@@ -95,6 +89,7 @@
       "name": "@dark/em",
       "dependencies": {
         "@dark/types": "workspace:*",
+        "@shared/protocol": "workspace:*",
       },
     },
     "dark/gravity": {
@@ -103,6 +98,7 @@
         "@dark/types": "workspace:*",
         "@metafor/ast": "workspace:*",
         "@metafor/dsl": "workspace:*",
+        "@shared/protocol": "workspace:*",
       },
     },
     "dark/strong": {
@@ -110,6 +106,7 @@
       "dependencies": {
         "@dark/gravity": "workspace:*",
         "@dark/types": "workspace:*",
+        "@shared/db": "workspace:*",
       },
     },
     "dark/types": {
@@ -739,8 +736,8 @@
     "shared/db": {
       "name": "@shared/db",
     },
-    "shared/orm": {
-      "name": "@shared/orm",
+    "shared/protocol": {
+      "name": "@shared/protocol",
     },
   },
   "packages": {
@@ -749,8 +746,6 @@
     "@babel/code-frame": ["@babel/code-frame@7.29.0", "https://registry.yarnpkg.com/@babel/code-frame/-/code-frame-7.29.0.tgz", { "dependencies": { "@babel/helper-validator-identifier": "^7.28.5", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw=="],
 
     "@babel/helper-validator-identifier": ["@babel/helper-validator-identifier@7.28.5", "https://registry.yarnpkg.com/@babel/helper-validator-identifier/-/helper-validator-identifier-7.28.5.tgz", {}, "sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q=="],
-
-    "@boundary/em": ["@boundary/em@workspace:boundary/em"],
 
     "@boundary/gravity": ["@boundary/gravity@workspace:boundary/gravity"],
 
@@ -800,7 +795,7 @@
 
     "@shared/db": ["@shared/db@workspace:shared/db"],
 
-    "@shared/orm": ["@shared/orm@workspace:shared/orm"],
+    "@shared/protocol": ["@shared/protocol@workspace:shared/protocol"],
 
     "@shikijs/engine-oniguruma": ["@shikijs/engine-oniguruma@3.22.0", "https://registry.yarnpkg.com/@shikijs/engine-oniguruma/-/engine-oniguruma-3.22.0.tgz", { "dependencies": { "@shikijs/types": "3.22.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-DyXsOG0vGtNtl7ygvabHd7Mt5EY8gCNqR9Y7Lpbbd/PbJvgWrqaKzH1JW6H6qFkuUa8aCxoiYVv8/YfFljiQxA=="],
 

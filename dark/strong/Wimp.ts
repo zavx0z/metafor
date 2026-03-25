@@ -1,6 +1,7 @@
 import type { Mass, NodeMeta } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
 import type { WimpInit } from "@dark/types/strong"
+import type { DarkGravityProtocol } from "@dark/gravity"
 import type { SharedDbMaterializationWriter, SharedDbMetaBundle, SharedDbWimpBundle, SharedDbWimpFieldBundle } from "@shared/db"
 import type { Meta } from "./Meta.ts"
 import { BaseParticle } from "./part.ts"
@@ -197,8 +198,9 @@ export class Wimp extends BaseParticle {
   /**
    * Сохраняет текущий canonical shared/db bundle через унифицированный writer.
    */
-  save(writer: SharedDbMaterializationWriter): void {
+  save(writer: SharedDbMaterializationWriter, gravityProtocol?: DarkGravityProtocol): void {
     writer.saveMetaBundle(this.toSharedDbMetaBundle())
     writer.saveWimpBundle(this.toSharedDbBundle())
+    gravityProtocol?.emitAdd(this.id)
   }
 }

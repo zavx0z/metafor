@@ -47,17 +47,29 @@ import { flattenBoundaryData, validateData, type Data } from "@boundary/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData } from "@boundary/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import { createEmptySharedDbData, type SharedDbBackend, type SharedDbData } from "@shared/db"
+import {
+  isGravitonMessage,
+  METAFOR_PROTOCOL_KIND,
+  openElectromagnetismBroadcastChannel,
+  openGravityBroadcastChannel,
+  type GravityProtocolPatch,
+  type PhotonMessage,
+  type ProtocolChannelOptions,
+} from "@shared/protocol"
 
-export interface BoundaryStructuralPatch {
-  op: "add" | "remove" | "test"
-  path: string
-  value?: unknown
+export type BoundaryStructuralPatch = GravityProtocolPatch
+
+export interface BoundaryGravityBroadcastSubscription {
+  flush(): Promise<void>
+  close(): Promise<void>
 }
 
 let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null
 /** Последний успешно materialized runtime-fragment, соответствующий текущему `boundary$`. */
 let loadedRuntimeFragment: SharedDbData = createEmptySharedDbData()
+let electromagnetismChannel: BroadcastChannel | null = null
+let electromagnetismChannelName: string | undefined
 const WIMP_PATCH_PATH_PREFIX = "/wimp/"
 
 const createEmptyPreparedData = (): PreparedData => ({
@@ -114,14 +126,44 @@ const clearLoadedRuntimeState = (): void => {
   clearGravityComposition()
 }
 
+const getElectromagnetismChannel = (): BroadcastChannel => {
+  electromagnetismChannel ??= openElectromagnetismBroadcastChannel(
+    electromagnetismChannelName === undefined ? {} : { channelName: electromagnetismChannelName },
+  )
+  return electromagnetismChannel
+}
+
+const publishPhotonChanges = (changes: [number, number][]): void => {
+  if (changes.length === 0) return
+  const channel = getElectromagnetismChannel()
+
+  for (const [braneIndex, state] of changes) {
+    const uuid = gravity$.getWimpId(braneIndex)
+    if (!uuid) continue
+
+    const message: PhotonMessage = {
+      protocol: METAFOR_PROTOCOL_KIND,
+      channel: "electromagnetism",
+      boson: "photon",
+      source: "boundary",
+      target: "dark",
+      uuid,
+      state,
+    }
+    channel.postMessage(message)
+  }
+}
+
 const addRuntimeWimpToGravity = (wimpId: string): void => {
   if (gravity$.hasWimp(wimpId)) return
+  // Composition меняется сразу, но maps остаются от последнего materialized runtime до barrier rebuild.
   gravity$.activeWimpIds = [...gravity$.activeWimpIds, wimpId]
   gravity$.structuralDirty = true
 }
 
 const removeRuntimeWimpFromGravity = (wimpId: string): void => {
   if (!gravity$.hasWimp(wimpId)) return
+  // Composition меняется сразу, но maps остаются от последнего materialized runtime до barrier rebuild.
   gravity$.activeWimpIds = gravity$.activeWimpIds.filter((candidate) => candidate !== wimpId)
   gravity$.structuralDirty = true
 }
@@ -151,6 +193,8 @@ const rebuildRuntimeFromFragment = async (
 ): Promise<[number, number][]> => {
   const prepared = fragment.wimps.length === 0 ? createEmptyPreparedData() : prepareBoundaryRuntimeStore(fragment, options)
   const changes = await writePreparedData(prepared)
+  // Пока rebuild не завершился успешно, gravity maps продолжают описывать
+  // предыдущее materialized runtime. Обновляем fragment и addressing только здесь.
   loadedRuntimeFragment = fragment
   refreshGravityAddressing(fragment)
   gravity$.structuralDirty = false
@@ -236,11 +280,55 @@ export async function rebuildRuntime(
   options: BoundarySharedDbRuntimeOptions = {},
 ): Promise<[number, number][]> {
   if (!gravity$.structuralDirty) {
+    // Barrier без structural изменений не трогает materialized runtime и addressing.
     return []
   }
 
   const nextFragment = prepareBoundaryRuntimeLoadedFragmentFromSharedDb(backend, gravity$.activeWimpIds)
   return await rebuildRuntimeFromFragment(nextFragment, options)
+}
+
+export function subscribeBoundaryGravityBroadcast(
+  backend: SharedDbBackend,
+  options: ProtocolChannelOptions & BoundarySharedDbRuntimeOptions = {},
+): BoundaryGravityBroadcastSubscription {
+  const channel = openGravityBroadcastChannel(options)
+  const runtimeOptions: BoundarySharedDbRuntimeOptions = {}
+  if (options.entanglement !== undefined) {
+    runtimeOptions.entanglement = options.entanglement
+  }
+
+  let queue = Promise.resolve()
+
+  channel.onmessage = (event: MessageEvent<unknown>) => {
+    if (!isGravitonMessage(event.data)) return
+    if (event.data.source !== "dark") return
+    if (event.data.target !== "boundary" && event.data.target !== "broadcast") return
+
+    queue = queue.then(async () => {
+      for (const patch of event.data.patches) {
+        await applyStructuralPatchFromSharedDb(backend, patch, runtimeOptions)
+      }
+    })
+  }
+
+  const flush = async (): Promise<void> => {
+    for (;;) {
+      const pending = queue
+      await Promise.resolve()
+      await Bun.sleep(0)
+      await pending
+      if (pending === queue) return
+    }
+  }
+
+  return {
+    flush,
+    async close() {
+      channel.close()
+      await flush()
+    },
+  }
 }
 
 export function addRuntimeWimp(wimpId: string): void {
@@ -339,7 +427,9 @@ export async function update(
     }
 
     weakHeapUpdate(weakUpdates)
-    return await weakRunStep()
+    const changes = await weakRunStep()
+    publishPhotonChanges(changes)
+    return changes
   } finally {
     resolveMutex?.()
   }
@@ -359,6 +449,17 @@ export function unlock(indexes: number[]): void {
   }
 
   weakHeapUpdate(weakUpdates)
+}
+
+export function closeBoundaryProtocolChannels(): void {
+  electromagnetismChannel?.close()
+  electromagnetismChannel = null
+  electromagnetismChannelName = undefined
+}
+
+export function configureBoundaryElectromagnetismBroadcast(options: ProtocolChannelOptions = {}): void {
+  closeBoundaryProtocolChannels()
+  electromagnetismChannelName = options.channelName
 }
 
 export type { PreparedData } from "./boundary.t"

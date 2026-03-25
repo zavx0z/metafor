@@ -8,7 +8,7 @@ import type {
   MatterWimpResult,
 } from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
-import { resolveContinuationSources } from "@dark/gravity"
+import { resolveContinuationSources, type DarkGravityProtocol } from "@dark/gravity"
 import type { SharedDbMaterializationWriter } from "@shared/db"
 import { Axion, Fuzzy, Macho, materializeFields, resolveWimpContinuation, type Meta, Wimp } from "@dark/strong"
 import { loadMeta, loadMetaAST } from "./load.ts"
@@ -16,6 +16,8 @@ import { dark$ } from "./store"
 
 interface MatterOptions {
   sharedDbWriter?: SharedDbMaterializationWriter
+  gravityProtocol?: DarkGravityProtocol
+  suppressGravityBarrier?: boolean
 }
 
 /**
@@ -197,6 +199,7 @@ export async function* matterMeta(
   dark$.particles.set(wimp.id, wimp)
   if (options.sharedDbWriter) {
     options.sharedDbWriter.saveWimpBundle(wimp.toSharedDbBundle())
+    options.gravityProtocol?.emitAdd(wimp.id)
   }
 
   if (!ast.matter) return
@@ -243,10 +246,19 @@ export async function* matterMeta(
  * @returns Promise, завершающийся после полного рекурсивного обхода и сборки дочерних мет.
  */
 export async function matter(wimp: Wimp, continuation?: MatterContinuation, options: MatterOptions = {}) {
+  const shouldEmitGravityBarrier = options.gravityProtocol !== undefined && options.suppressGravityBarrier !== true
+  const nestedOptions =
+    shouldEmitGravityBarrier && options.gravityProtocol
+      ? { ...options, suppressGravityBarrier: true }
+      : options
   const generator = matterMeta(wimp, continuation, options)
   for await (const wimps of generator) {
     for (const [childWimp, childContinuation] of wimps) {
-      await matter(childWimp, childContinuation, options)
+      await matter(childWimp, childContinuation, nestedOptions)
     }
+  }
+
+  if (shouldEmitGravityBarrier) {
+    options.gravityProtocol?.emitBarrier()
   }
 }

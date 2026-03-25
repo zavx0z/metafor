@@ -4,6 +4,7 @@
   "main": "index.ts",
   "private": true,
   "dependencies": {
-    "@dark/types": "workspace:*"
+    "@dark/types": "workspace:*",
+    "@shared/protocol": "workspace:*"
   }
 }
