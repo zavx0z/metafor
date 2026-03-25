@@ -20,7 +20,7 @@ describe("shared db materialization writer", () => {
 
       expect(normalizeSharedDbData(roundTrip)).toEqual(normalizeSharedDbData(expected))
       expect(roundTrip.fieldSources.map((row) => row.childWimpFieldId).sort()).toEqual(
-        [fixture.fields.childAlias.id, fixture.fields.childItems.id, fixture.fields.childMode.id].sort(),
+        [fixture.fields.childAlias!.id, fixture.fields.childItems!.id, fixture.fields.childMode!.id].sort(),
       )
     } finally {
       backend.close()
@@ -35,13 +35,13 @@ describe("shared db materialization writer", () => {
     try {
       fixture.root.save(writer)
       fixture.child.save(writer)
-      fixture.child.fields.alias.value = "Alias after resave"
+      fixture.child.fields!.alias!.value = "Alias after resave"
       fixture.child.save(writer)
 
       const roundTrip = readSharedDbData(backend)
       expect(roundTrip.wimps).toHaveLength(2)
       expect(roundTrip.wimpFields).toHaveLength(6)
-      expect(roundTrip.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias.id)?.value).toBe(
+      expect(roundTrip.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value).toBe(
         "Alias after resave",
       )
       expect(roundTrip.entanglementFieldMembers).toHaveLength(6)

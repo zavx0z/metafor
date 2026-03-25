@@ -12,12 +12,12 @@ describe("dark -> shared db debug assembly helper", () => {
     expect(data.wimps.map((wimp) => wimp.id)).toEqual([fixture.child.id, fixture.root.id].sort())
     expect(data.wimpFields.map((field) => field.id)).toEqual(
       [
-        fixture.fields.rootTitle.id,
-        fixture.fields.rootMode.id,
-        fixture.fields.rootItems.id,
-        fixture.fields.childAlias.id,
-        fixture.fields.childMode.id,
-        fixture.fields.childItems.id,
+        fixture.fields.rootTitle!.id,
+        fixture.fields.rootMode!.id,
+        fixture.fields.rootItems!.id,
+        fixture.fields.childAlias!.id,
+        fixture.fields.childMode!.id,
+        fixture.fields.childItems!.id,
       ].sort(),
     )
   })
@@ -31,17 +31,17 @@ describe("dark -> shared db debug assembly helper", () => {
     expect(data.entanglementFields.map((field) => field.fieldName).sort()).toEqual(["items", "mode", "title"])
     expect(data.entanglementFieldMembers.map((member) => member.wimpFieldId).sort()).toEqual(
       [
-        fixture.fields.rootTitle.id,
-        fixture.fields.rootMode.id,
-        fixture.fields.rootItems.id,
-        fixture.fields.childAlias.id,
-        fixture.fields.childMode.id,
-        fixture.fields.childItems.id,
+        fixture.fields.rootTitle!.id,
+        fixture.fields.rootMode!.id,
+        fixture.fields.rootItems!.id,
+        fixture.fields.childAlias!.id,
+        fixture.fields.childMode!.id,
+        fixture.fields.childItems!.id,
       ].sort(),
     )
     expect(data.metaStates.map((state) => state.stateName).sort()).toEqual(["idle", "idle", "ready", "ready"])
     expect(data.metaTransitionConditions.map((condition) => condition.metaFieldId).sort()).toEqual(
-      [fixture.root.meta!.fields.mode.id, fixture.child.meta!.fields.mode.id].sort(),
+      [fixture.root.meta!.fields.mode!.id, fixture.child.meta!.fields.mode!.id].sort(),
     )
   })
 })

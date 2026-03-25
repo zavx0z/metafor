@@ -9,6 +9,8 @@ import type { FieldObjectInit } from "@dark/types/strong"
 export class InstanceField {
   /** Уникальный идентификатор экземпляра поля. */
   readonly id: string
+  /** Локальный ключ поля в схеме. */
+  readonly key: FieldObjectInit["key"]
   /** `Wimp`, которому принадлежит это поле. */
   readonly owner: FieldObjectInit["owner"]
   /** Каноническое meta-поле, описывающее это instance field. */
@@ -21,21 +23,15 @@ export class InstanceField {
   /**
    * Создаёт instance-level ORM-поле для конкретного `Wimp`.
    *
-   * @param init Полная инициализация поля: владелец, meta-field, значение и необязательная ссылка на поле-источник.
+   * @param init Полная инициализация поля: ключ, владелец, meta-field, значение и необязательная ссылка на поле-источник.
    */
   constructor(init: FieldObjectInit) {
     this.id = crypto.randomUUID()
+    this.key = init.key
     this.owner = init.owner
     this.metaField = init.metaField
     this.value = structuredClone(init.value)
     this.source = init.source ?? null
-  }
-
-  /**
-   * Удобный ORM-доступ к локальному ключу через `MetaField`.
-   */
-  get key() {
-    return this.metaField.key
   }
 
   /**

@@ -47,10 +47,13 @@ export interface FieldInit {
 /**
  * Полная инициализация instance-поля конкретного `Wimp`.
  *
+ * @property key Локальный ключ поля в схеме.
  * @property owner Владелец поля в каноническом object graph частиц.
  * @property metaField Каноническое meta-поле, на которое ссылается instance field.
  */
 export interface FieldObjectInit extends FieldInit {
+  /** Локальный ключ поля в схеме. */
+  key: FieldKey
   /** Владелец поля в каноническом object graph частиц. */
   owner: Wimp
   /** Каноническое meta-поле, на которое ссылается instance field. */

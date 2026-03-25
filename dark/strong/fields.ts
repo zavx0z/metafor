@@ -210,7 +210,7 @@ export const materializeFields = (owner: Wimp, fields: MetaFields, fieldInits?: 
       const value = fieldInit ? fieldInit.value : createFieldValueResolver(key, schema)()
       const source = resolveFieldSource(schema, fieldInit?.source)
 
-      return [key, new InstanceField({ owner, metaField, value, source })]
+      return [key, new InstanceField({ key, owner, metaField, value, source })]
     }),
   )
 }

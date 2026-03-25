@@ -1,7 +1,7 @@
 import type { Mass, NodeMeta } from "@metafor/dsl"
 import type { MetaAST } from "@metafor/ast"
 import type { WimpInit } from "@dark/types/strong"
-import type { SharedDbMaterializationWriter, SharedDbMetaBundle, SharedDbWimpBundle } from "@shared/db"
+import type { SharedDbMaterializationWriter, SharedDbMetaBundle, SharedDbWimpBundle, SharedDbWimpFieldBundle } from "@shared/db"
 import type { Meta } from "./Meta.ts"
 import { BaseParticle } from "./part.ts"
 
@@ -15,8 +15,12 @@ const cloneFieldSchema = (schema: NonNullable<Wimp["fields"]>[string]["schema"])
   ...(schema.values !== undefined ? { values: structuredClone(schema.values) } : {}),
 })
 
-const cloneDefined = <T>(value: T | undefined): T | undefined =>
-  value === undefined ? undefined : structuredClone(value)
+const cloneDefinedValue = <T>(value: T | undefined): T => {
+  if (value === undefined) {
+    throw new Error("Cannot clone undefined value in exactOptionalPropertyTypes context")
+  }
+  return structuredClone(value)
+}
 
 /**
  * Канонический мета-узел объектного графа Dark.
@@ -112,7 +116,7 @@ export class Wimp extends BaseParticle {
    * Instance-level override `mass`, если он задан отдельно от `Meta`.
    */
   get instanceMassOverride(): Mass | NodeMeta["mass"] | undefined {
-    return cloneDefined(this.massOverride)
+    return this.massOverride === undefined ? undefined : structuredClone(this.massOverride)
   }
 
   private getParentWimpId(): string | undefined {
@@ -134,22 +138,25 @@ export class Wimp extends BaseParticle {
       throw new Error(`Wimp ${this.id} cannot build shared/db meta bundle before Meta is materialized`)
     }
 
-    return {
+    const result: SharedDbMetaBundle = {
       id: this.meta.id,
       src: this.meta.src,
-      ...(this.meta.name !== undefined ? { name: this.meta.name } : {}),
       fields: Object.values(this.meta.fields).map((field) => ({
         id: field.id,
         key: field.key,
         schema: cloneFieldSchema(field.schema),
       })),
-      ...(this.meta.superposition !== undefined ? { superposition: cloneDefined(this.meta.superposition) } : {}),
-      ...(this.meta.processes !== undefined ? { processes: cloneDefined(this.meta.processes) } : {}),
-      ...(this.meta.reactions !== undefined ? { reactions: cloneDefined(this.meta.reactions) } : {}),
-      ...(this.meta.matter !== undefined ? { matter: cloneDefined(this.meta.matter) } : {}),
-      ...(this.meta.bulk !== undefined ? { bulk: cloneDefined(this.meta.bulk) } : {}),
-      ...(this.meta.mass !== undefined ? { mass: cloneDefined(this.meta.mass) } : {}),
     }
+
+    if (this.meta.name !== undefined) result.name = cloneDefinedValue(this.meta.name)
+    if (this.meta.superposition !== undefined) result.superposition = cloneDefinedValue(this.meta.superposition)
+    if (this.meta.processes !== undefined) result.processes = cloneDefinedValue(this.meta.processes)
+    if (this.meta.reactions !== undefined) result.reactions = cloneDefinedValue(this.meta.reactions)
+    if (this.meta.matter !== undefined) result.matter = cloneDefinedValue(this.meta.matter)
+    if (this.meta.bulk !== undefined) result.bulk = cloneDefinedValue(this.meta.bulk)
+    if (this.meta.mass !== undefined) result.mass = this.meta.mass as Mass
+
+    return result
   }
 
   /**
@@ -163,21 +170,28 @@ export class Wimp extends BaseParticle {
       throw new Error(`Wimp ${this.id} cannot build shared/db bundle before fields are materialized`)
     }
 
-    return {
+    const result: SharedDbWimpBundle = {
       id: this.id,
-      ...(this.getParentWimpId() !== undefined ? { parentWimpId: this.getParentWimpId() } : {}),
       meta: this.toSharedDbMetaBundle(),
-      fields: Object.values(this.fields).map((field, fieldOrder) => ({
-        id: field.id,
-        metaFieldId: field.metaField.id,
-        fieldOrder,
-        key: field.key,
-        schema: cloneFieldSchema(field.schema),
-        value: structuredClone(field.value),
-        ...(field.source ? { sourceWimpFieldId: field.source.id } : {}),
-      })),
-      ...(this.massOverride !== undefined ? { massOverride: cloneDefined(this.massOverride) } : {}),
+      fields: Object.values(this.fields).map((field, fieldOrder) => {
+        const fieldBundle: SharedDbWimpFieldBundle = {
+          id: field.id,
+          metaFieldId: field.metaField.id,
+          fieldOrder,
+          key: field.key,
+          schema: cloneFieldSchema(field.schema),
+          value: structuredClone(field.value),
+        }
+        if (field.source) fieldBundle.sourceWimpFieldId = field.source.id
+        return fieldBundle
+      }),
     }
+
+    const parentWimpId = this.getParentWimpId()
+    if (parentWimpId !== undefined) result.parentWimpId = parentWimpId
+    if (this.massOverride !== undefined) result.massOverride = cloneDefinedValue(this.massOverride)
+
+    return result
   }
 
   /**

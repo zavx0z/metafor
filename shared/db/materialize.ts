@@ -1,4 +1,5 @@
 import type { FieldKey, MetaAST, MetaJson } from "@metafor/ast"
+import type { Mass } from "@metafor/dsl"
 import type {
   SharedDbData,
   SharedDbFieldSchemaRecord,
@@ -39,7 +40,7 @@ export interface SharedDbMetaBundle {
   reactions?: MetaAST["reactions"]
   matter?: MetaAST["matter"]
   bulk?: MetaAST["bulk"]
-  mass?: MetaAST["mass"]
+  mass?: MetaAST["mass"] | Mass
 }
 
 export interface SharedDbWimpFieldBundle {
@@ -178,7 +179,7 @@ const appendMetaMatter = (
     const node = structuredClone(rawNode)
     const nextPath = [...path, edgeOrder]
     const nodeId = deriveUuid("meta-matter-node", ownerMetaId, nextPath.join("."))
-    const { child, ...payload } = node as Record<string, unknown> & { child?: SharedDbMetaBundle["matter"] }
+    const { child, ...payload } = node as unknown as { child?: SharedDbMetaBundle["matter"] | undefined }
 
     data.metaMatterNodes.push({
       id: nodeId,

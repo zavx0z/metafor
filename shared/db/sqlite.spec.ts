@@ -114,7 +114,7 @@ describe("shared db sqlite backend", () => {
         const restored = readSharedDbData(reader)
         expect(normalizeSharedDbData(restored)).toEqual(normalizeSharedDbData(expected))
 
-        reader.setFieldValue(fixture.fields.childAlias.id, "Alias via sqlite")
+        reader.setFieldValue(fixture.fields.childAlias!.id, "Alias via sqlite")
       } finally {
         reader.close()
       }
@@ -122,7 +122,7 @@ describe("shared db sqlite backend", () => {
       const reopened = openSharedDbSqliteBackend({ filename: temp.filename })
       try {
         expect(
-          readSharedDbData(reopened).fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias.id)?.value,
+          readSharedDbData(reopened).fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value,
         ).toBe("Alias via sqlite")
       } finally {
         reopened.close()

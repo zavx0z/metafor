@@ -70,9 +70,9 @@ export const createSharedDbFixture = () => {
 
   const root = new Wimp({ src: rootMeta.src, meta: rootMeta })
   root.fields = materializeFields(root, rootMeta.fields)
-  const rootTitle = root.fields.title
-  const rootMode = root.fields.mode
-  const rootItems = root.fields.items
+  const rootTitle = root.fields.title!
+  const rootMode = root.fields.mode!
+  const rootItems = root.fields.items!
   rootTitle.value = "Root title"
   rootMode.value = "idle"
   rootItems.value = ["a", "b"]
@@ -113,9 +113,9 @@ export const createSharedDbFixture = () => {
     { key: "mode", value: "idle", source: rootMode },
     { key: "items", value: ["a", "b"], source: rootItems },
   ])
-  const childAlias = child.fields.alias
-  const childMode = child.fields.mode
-  const childItems = child.fields.items
+  const childAlias = child.fields.alias!
+  const childMode = child.fields.mode!
+  const childItems = child.fields.items!
   childMode.source = rootMode
   childItems.source = rootItems
 

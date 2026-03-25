@@ -6,7 +6,7 @@ import {
   type SharedDbData,
   type SharedDbFieldSchemaRecord,
 } from "@shared/db"
-import { FieldType, flattenBoundaryData, type Data, type Field } from "@boundary/gravity"
+import { FieldType, flattenBoundaryData, type BraneValue, type Collapse, type Data, type Field } from "@boundary/gravity"
 import { assembleStoredBoundaryData, type PreparedEntanglementProjection } from "@boundary/strong"
 import type { PreparedData } from "./boundary.t.ts"
 import type {
@@ -287,7 +287,7 @@ const prepareBoundaryStateSeedGraph = (
   stateSeeds: ReturnType<typeof groupStateSeedStates>,
   transitionSeeds: ReturnType<typeof groupStateSeedTransitions>,
   conditionSeeds: ReturnType<typeof groupStateSeedConditions>,
-): { state: number; collapses: Data["branes"][number]["collapses"] } => {
+): { state: number; collapses: Collapse[][] } => {
   const states = stateSeeds.get(braneIndex) ?? []
   if (states.length === 0) {
     throw new Error(`Boundary state seeds missing for brane ${braneIndex}`)
@@ -706,10 +706,10 @@ const filterSharedDbDataForActiveRuntime = (rawData: SharedDbData): SharedDbData
     else entanglementFieldMembersByFieldId.set(row.ownerEntanglementFieldId, [row])
   })
 
-  const entanglements = []
-  const entanglementMembers = []
-  const entanglementFields = []
-  const entanglementFieldMembers = []
+  const entanglements: typeof data.entanglements = []
+  const entanglementMembers: typeof data.entanglementMembers = []
+  const entanglementFields: typeof data.entanglementFields = []
+  const entanglementFieldMembers: typeof data.entanglementFieldMembers = []
 
   data.entanglements.forEach((row) => {
     const members = entanglementMembersById.get(row.id) ?? []
@@ -893,10 +893,10 @@ export const prepareBoundaryRuntimeFragment = (
     else packageEntanglementFieldMembersByFieldId.set(row.ownerEntanglementFieldId, [row])
   })
 
-  const packageEntanglements = []
-  const packageEntanglementMembers = []
-  const packageEntanglementFields = []
-  const packageEntanglementFieldMembers = []
+  const packageEntanglements: typeof data.entanglements = []
+  const packageEntanglementMembers: typeof data.entanglementMembers = []
+  const packageEntanglementFields: typeof data.entanglementFields = []
+  const packageEntanglementFieldMembers: typeof data.entanglementFieldMembers = []
 
   data.entanglements.forEach((row) => {
     const members = packageEntanglementMembersById.get(row.id) ?? []
@@ -1027,9 +1027,9 @@ const prepareBoundaryWriteData = (
 
             return [runtimeFieldIndex, structuredClone(requireBoundaryDatabaseFieldValue(data, field.index).value)] as [
               number,
-              unknown,
+              BraneValue,
             ]
-          }),
+          }) as [number, BraneValue][],
         state: stateGraph.state,
         collapses: stateGraph.collapses,
       }

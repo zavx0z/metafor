@@ -78,16 +78,16 @@ describe("zavx0z/git", () => {
       expect(Object.keys(rootWimp.fields ?? {}), "корневой Wimp должен хранить объектные поля для всех ключей схемы").toEqual(
         Object.keys(ref.fields),
       )
-      expect(rootWimp.fields?.operation.owner, "каждое поле должно знать владельца").toBe(rootWimp)
-      expect(rootWimp.fields?.operation.schema, "поле должно хранить свою схему").toEqual(ref.fields.operation)
-      expect(rootWimp.fields?.operation.schema, "схема поля не должна оставаться ссылкой на исходный AST").not.toBe(
-        ref.fields.operation,
+      expect(rootWimp.fields!.operation!.owner, "каждое поле должно знать владельца").toBe(rootWimp)
+      expect(rootWimp.fields!.operation!.schema, "поле должно хранить свою схему").toEqual(ref.fields.operation!)
+      expect(rootWimp.fields!.operation!.schema, "схема поля не должна оставаться ссылкой на исходный AST").not.toBe(
+        ref.fields.operation!,
       )
-      expect(rootWimp.fields?.operation.metaField, "instance field должен ссылаться на канонический `MetaField`").toBe(
-        rootWimp.meta?.fields.operation,
+      expect(rootWimp.fields!.operation!.metaField, "instance field должен ссылаться на канонический `MetaField`").toBe(
+        rootWimp.meta!.fields.operation!,
       )
-      expect(rootWimp.fields?.command.value, "поле должно хранить текущее значение").toBeNull()
-      expect(rootWimp.fields?.command.source, "локальное поле без родителя должно иметь `source = null`").toBeNull()
+      expect(rootWimp.fields!.command!.value, "поле должно хранить текущее значение").toBeNull()
+      expect(rootWimp.fields!.command!.source, "локальное поле без родителя должно иметь `source = null`").toBeNull()
       expect(
         rootWimp.superposition,
         "корневой Wimp должен хранить локальную `superposition` своей меты",
@@ -168,7 +168,7 @@ describe("zavx0z/git", () => {
           "поле `enum` не должно участвовать в прямой связи по источнику даже внутри временного пакета",
         ).toBeUndefined()
         expect(findFieldInit(continuation, "args")?.source, "обычное поле должно ссылаться на поле родителя").toBe(
-          rootWimp.fields?.args,
+          rootWimp.fields!.args,
         )
       }
       expect(
@@ -188,7 +188,7 @@ describe("zavx0z/git", () => {
       expect(readFieldInitValues(childResult?.[1].fieldInits), "дочерний Wimp должен вернуть набор `FieldInit` для своей меты").toEqual(
         { message: null },
       )
-      expect(findFieldInit(childResult![1], "message")?.source).toBe(rootWimp.fields?.error)
+      expect(findFieldInit(childResult![1], "message")?.source).toBe(rootWimp.fields!.error)
       expect(rootFuzzy.children, "Fuzzy должен содержать связи на все собранные ветви Wimp").toEqual(
         new Set(branchResults.map(([particle]) => particle)),
       )
@@ -231,7 +231,7 @@ describe("zavx0z/git", () => {
       expect(startContinuation, "Wimp git-start должен прийти вместе с набором описаний полей от родителя").toEqual({
         fieldInits: [
           { key: "operation", value: null },
-          { key: "args", value: null, source: rootWimp.fields?.args },
+          { key: "args", value: null, source: rootWimp.fields!.args! },
         ],
       })
       expect(startWimp.fields, "до входа в дочернюю мету Wimp должен оставаться пустым").toBeUndefined()
@@ -266,13 +266,13 @@ describe("zavx0z/git", () => {
         Object.keys(startWimp.fields ?? {}),
         "дочерний Wimp должен собирать собственный объектный набор полей",
       ).toEqual(Object.keys(startRef.fields))
-      expect(startWimp.fields?.operation.schema).toEqual(startRef.fields.operation)
-      expect(startWimp.fields?.args.owner, "поле дочернего Wimp должно знать владельца").toBe(startWimp)
-      expect(startWimp.fields?.args.source, "обычное поле должно ссылаться на поле родительского Wimp").toBe(
-        rootWimp.fields?.args,
+      expect(startWimp.fields!.operation!.schema).toEqual(startRef.fields.operation!)
+      expect(startWimp.fields!.args!.owner, "поле дочернего Wimp должно знать владельца").toBe(startWimp)
+      expect(startWimp.fields!.args!.source, "обычное поле должно ссылаться на поле родительского Wimp").toBe(
+        rootWimp.fields!.args!,
       )
       expect(
-        startWimp.fields?.operation.source,
+        startWimp.fields!.operation!.source,
         "топологическое поле `enum` не должно смешиваться с прямой связью по источнику",
       ).toBeNull()
       expect(
@@ -335,7 +335,7 @@ describe("zavx0z/git", () => {
         "временный пакет git-start должен сохранять `FieldInit` для следующего уровня меты",
       ).toEqual([{ args: null }, { args: null }])
       for (const [, nextContinuation] of branchResults) {
-        expect(findFieldInit(nextContinuation, "args")?.source).toBe(startWimp.fields?.args)
+        expect(findFieldInit(nextContinuation, "args")?.source).toBe(startWimp.fields!.args)
       }
       expect(
         branchResults.every(([particle]) => particle.fields === undefined),

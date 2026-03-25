@@ -45,18 +45,18 @@ describe("Wimp", () => {
     expect(wimp.src, "Wimp должен хранить `src`-адрес").toBe("zavx0z/git-start")
     expect(wimp.meta, "Wimp должен ссылаться на каноническую `Meta`").toBe(meta)
     expect(wimp.name, "Wimp должен хранить локальное имя меты").toBe("git-start")
-    expect(wimp.fields?.operation, "Wimp должен собирать объектный `Field`").toBeInstanceOf(Field)
-    expect(wimp.fields?.operation.owner, "Field должен знать своего владельца").toBe(wimp)
-    expect(wimp.fields?.operation.metaField, "Field должен ссылаться на канонический `MetaField`").toBe(meta.fields.operation)
-    expect(wimp.fields?.operation.schema, "Field должен хранить схему поля").toEqual({
+    expect(wimp.fields!.operation, "Wimp должен собирать объектный `Field`").toBeInstanceOf(Field)
+    expect(wimp.fields!.operation!.owner, "Field должен знать своего владельца").toBe(wimp)
+    expect(wimp.fields!.operation!.metaField, "Field должен ссылаться на канонический `MetaField`").toBe(meta.fields.operation!)
+    expect(wimp.fields!.operation!.schema, "Field должен хранить схему поля").toEqual({
       type: "enum<string>",
       values: ["clone", "init"],
     })
-    expect(wimp.fields?.operation.schema, "schema должна читаться из `MetaField`, а не жить копией в instance field").toBe(
-      meta.fields.operation.schema,
+    expect(wimp.fields!.operation!.schema, "schema должна читаться из `MetaField`, а не жить копией в instance field").toBe(
+      meta.fields.operation!.schema,
     )
-    expect(wimp.fields?.operation.value, "Field должен хранить текущее значение").toBeNull()
-    expect(wimp.fields?.operation.source, "локальное поле без связи с родителем должно иметь `source = null`").toBeNull()
+    expect(wimp.fields!.operation!.value, "Field должен хранить текущее значение").toBeNull()
+    expect(wimp.fields!.operation!.source, "локальное поле без связи с родителем должно иметь `source = null`").toBeNull()
     expect(readFieldValues(wimp.fields), "Wimp должен читать текущие значения из своих объектных полей").toEqual({
       operation: null,
       args: null,

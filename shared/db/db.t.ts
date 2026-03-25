@@ -1,4 +1,5 @@
 import type { FieldKey, MetaAST } from "@metafor/ast"
+import type { Mass } from "@metafor/dsl"
 
 /**
  * Краткий снимок схемы поля для канонической relational DB.
@@ -18,7 +19,7 @@ export interface SharedDbMetaRecord {
   src: string
   name?: string
   bulk?: MetaAST["bulk"]
-  mass?: MetaAST["mass"]
+  mass?: MetaAST["mass"] | Mass
 }
 
 export interface SharedDbMetaFieldRecord {

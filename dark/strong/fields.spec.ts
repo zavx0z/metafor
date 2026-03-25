@@ -12,7 +12,7 @@ import {
 describe("вычислители полей strong", () => {
   const createMeta = (
     src: string,
-    fieldSchemas: ConstructorParameters<typeof Meta>[0]["fieldSchemas"],
+    fieldSchemas: NonNullable<ConstructorParameters<typeof Meta>[0]["fieldSchemas"]>,
   ) =>
     new Meta({
       src,
@@ -129,17 +129,17 @@ describe("вычислители полей strong", () => {
       child,
       childMeta.fields,
       [
-        { key: "args", value: "--help", source: parent.fields.args },
-        { key: "operation", value: null, source: parent.fields.args },
+        { key: "args", value: "--help", source: parent.fields.args! },
+        { key: "operation", value: null, source: parent.fields.args! },
       ],
     )
 
-    expect(child.fields.args.owner, "Field должен знать владельца").toBe(child)
-    expect(child.fields.args.schema, "Field должен хранить схему").toEqual({ type: "string" })
-    expect(child.fields.args.value, "Field должен хранить текущее значение").toBe("--help")
-    expect(child.fields.args.source, "обычное поле должно ссылаться на поле родителя").toBe(parent.fields.args)
+    expect(child.fields!.args!.owner, "Field должен знать владельца").toBe(child)
+    expect(child.fields!.args!.schema, "Field должен хранить схему").toEqual({ type: "string" })
+    expect(child.fields!.args!.value, "Field должен хранить текущее значение").toBe("--help")
+    expect(child.fields!.args!.source, "обычное поле должно ссылаться на поле родителя").toBe(parent.fields!.args)
     expect(
-      child.fields.operation.source,
+      child.fields!.operation!.source,
       "поле `enum` не должно смешиваться с прямой связью по источнику, даже если `init` принёс `source`",
     ).toBeNull()
   expect(readFieldValues(child.fields)).toEqual({ args: "--help", operation: null })
@@ -178,7 +178,7 @@ describe("вычислители полей strong", () => {
     )
 
     expect(ordinaryInits?.find((fieldInit) => fieldInit.key === "operation")?.source).toBeUndefined()
-    expect(ordinaryInits?.find((fieldInit) => fieldInit.key === "args")?.source).toBe(parent.fields.args)
+    expect(ordinaryInits?.find((fieldInit) => fieldInit.key === "args")?.source).toBe(parent.fields!.args)
     expect(arrayInits?.find((fieldInit) => fieldInit.key === "items")?.source).toBeUndefined()
   })
 })

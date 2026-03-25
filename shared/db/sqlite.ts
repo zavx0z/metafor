@@ -281,15 +281,27 @@ const tableResetOrder = [
   "metas",
 ] as const
 
-const readFieldSchema = (row: Record<string, unknown>): SharedDbFieldSchemaRecord => ({
-  type: String(row.schemaType),
-  required: Boolean(row.schemaRequired),
-  topology: Boolean(row.schemaTopology),
-  ...(row.schemaLabel !== null && row.schemaLabel !== undefined ? { label: String(row.schemaLabel) } : {}),
-  ...(row.schemaValues !== null && row.schemaValues !== undefined
-    ? { values: parseJson<Array<string | number>>(String(row.schemaValues)) }
-    : {}),
-})
+const readFieldSchema = (row: Record<string, unknown>): SharedDbFieldSchemaRecord => {
+  const base: SharedDbFieldSchemaRecord = {
+    type: String(row.schemaType),
+    required: Boolean(row.schemaRequired),
+    topology: Boolean(row.schemaTopology),
+  }
+
+  if (row.schemaLabel !== null && row.schemaLabel !== undefined) {
+    base.label = String(row.schemaLabel)
+  }
+
+  const schemaValues = row.schemaValues !== null && row.schemaValues !== undefined
+    ? parseJson<Array<string | number>>(String(row.schemaValues))
+    : undefined
+
+  if (schemaValues !== undefined) {
+    base.values = schemaValues
+  }
+
+  return base
+}
 
 export const initializeSharedDbSqliteSchema = (database: Database): void => {
   database.exec(schemaSql)
