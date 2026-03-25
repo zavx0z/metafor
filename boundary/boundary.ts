@@ -145,6 +145,18 @@ const isEmptyBarrierValue = (value: unknown): boolean => {
   return Object.keys(value).length === 0
 }
 
+const rebuildRuntimeFromFragment = async (
+  fragment: SharedDbData,
+  options: BoundarySharedDbRuntimeOptions,
+): Promise<[number, number][]> => {
+  const prepared = fragment.wimps.length === 0 ? createEmptyPreparedData() : prepareBoundaryRuntimeStore(fragment, options)
+  const changes = await writePreparedData(prepared)
+  loadedRuntimeFragment = fragment
+  refreshGravityAddressing(fragment)
+  gravity$.structuralDirty = false
+  return changes
+}
+
 export function prepareData(data: Data): PreparedData {
   return assembleStoredBoundaryData(flattenBoundaryData(data))
 }
@@ -202,6 +214,10 @@ async function writePreparedData(prepared: PreparedData): Promise<[number, numbe
 
 export async function write(data: Data): Promise<[number, number][]> {
   validateData(data)
+  /**
+   * `write(data)` остаётся отдельным bootstrap/bypass path и не порождает UUID-composition.
+   * Для такого режима `gravity$` очищается, а materialized runtime пишется напрямую.
+   */
   clearLoadedRuntimeState()
   return await writePreparedData(assembleStoredBoundaryData(flattenBoundaryData(data)))
 }
@@ -210,8 +226,9 @@ export async function writeRuntimeFromSharedDb(
   backend: SharedDbBackend,
   options: BoundarySharedDbRuntimeOptions = {},
 ): Promise<[number, number][]> {
-  replaceGravityComposition(collectRuntimeWimpIdsInBraneOrder(prepareBoundaryRuntimeLoadedFragmentFromSharedDb(backend)))
-  return await rebuildRuntime(backend, options)
+  const fragment = prepareBoundaryRuntimeLoadedFragmentFromSharedDb(backend)
+  replaceGravityComposition(collectRuntimeWimpIdsInBraneOrder(fragment))
+  return await rebuildRuntimeFromFragment(fragment, options)
 }
 
 export async function rebuildRuntime(
@@ -223,12 +240,7 @@ export async function rebuildRuntime(
   }
 
   const nextFragment = prepareBoundaryRuntimeLoadedFragmentFromSharedDb(backend, gravity$.activeWimpIds)
-  const prepared = nextFragment.wimps.length === 0 ? createEmptyPreparedData() : prepareBoundaryRuntimeStore(nextFragment, options)
-  const changes = await writePreparedData(prepared)
-  loadedRuntimeFragment = nextFragment
-  refreshGravityAddressing(nextFragment)
-  gravity$.structuralDirty = false
-  return changes
+  return await rebuildRuntimeFromFragment(nextFragment, options)
 }
 
 export function addRuntimeWimp(wimpId: string): void {

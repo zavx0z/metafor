@@ -28,6 +28,17 @@ const resetDarkStore = (): void => {
   dark$.particles.clear()
 }
 
+const normalizeRuntimeFields = (fields: typeof boundary$.fields): string[] =>
+  fields
+    .map((field) =>
+      JSON.stringify({
+        type: field.type,
+        elementType: field.elementType ?? null,
+        enum: field.enum ?? null,
+      }),
+    )
+    .sort()
+
 const materializeGithubWorldToSharedDb = async () => {
   const backend = openSharedDbSqliteBackend()
   const writer = openSharedDbMaterializationWriter(backend)
@@ -123,7 +134,7 @@ describe("boundary runtime from shared/db backend", () => {
       expect(boundary$.branes).toHaveLength(sharedData.wimps.length)
       expect(gravity$.braneIndexToWimpId).toHaveLength(sharedData.wimps.length)
       expect(boundary$.states).toHaveLength(sharedData.wimps.length)
-      expect(boundary$.fields).toHaveLength(prepared.fields.length)
+      expect(normalizeRuntimeFields(boundary$.fields)).toEqual(normalizeRuntimeFields(prepared.fields))
       expect(boundary$.stringTable).toEqual(prepared.stringTable)
       expect(boundary$.sharedValues.length + boundary$.braneValues.length).toBeGreaterThan(0)
       expect(boundary$.sharedBlocks.length + boundary$.braneSharedBlockRefs.length).toBeGreaterThan(0)
@@ -172,6 +183,8 @@ describe("boundary runtime from shared/db backend", () => {
       expect(removeChildChanges).toEqual([])
       expect(listRuntimeWimpIds()).toEqual([fixture.root.id])
       expect(gravity$.structuralDirty).toBe(true)
+      expect(gravity$.getBraneIndex(fixture.child.id)).toBe(1)
+      expect(gravity$.getWimpId(1)).toBe(fixture.child.id)
       expect(boundary$.branes).toHaveLength(2)
       expect(boundary$.sharedBlocks).toHaveLength(1)
 

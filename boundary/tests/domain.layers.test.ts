@@ -55,6 +55,8 @@ describe("boundary domain layers", () => {
 
     expect(boundary$.fields).toHaveLength(1)
     expect(weak$.initialized).toBe(true)
+    expect(gravity$.activeWimpIds).toEqual([])
+    expect(gravity$.structuralDirty).toBe(false)
 
     const changes = await update([[0, [[0, 20]]]])
     expect(changes).toEqual([[0, 1]])

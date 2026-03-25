@@ -16,8 +16,8 @@
 
 ## Инварианты
 
-- [gravity.store.ts](/Users/zavx0z/zavx0z/metafor/boundary/gravity.store.ts) — долгоживущий composition/addressing слой.
-- [store.ts](/Users/zavx0z/zavx0z/metafor/boundary/store.ts) — derived materialized runtime store.
+- [`gravity.store.ts`](./gravity.store.ts) — долгоживущий composition/addressing слой.
+- [`store.ts`](./store.ts) — derived materialized runtime store.
 - Слабый слой не владеет доменным store и не становится второй истиной.
 - CPU и GPU остаются backend-адаптерами внутри `Boundary × Weak`.
 - Межслойные производные формы не подменяют каноническую boundary-форму.
@@ -39,5 +39,6 @@ import {
 ```
 
 `write()` записывает каноническую структуру, `update()` вычисляет следующий переход, `unlock()` снимает блокировку.
+`write(data)` остаётся отдельным bootstrap/bypass path и сознательно очищает `gravity$`, потому что в этом режиме нет UUID-composition из `shared/db`.
 Для `shared/db`-пути `add/remove` мутируют `gravity$`, а `test ""` barrier через `applyStructuralPatchFromSharedDb(...)`
 или явный `rebuildRuntime(backend)` пересобирает `boundary$` и обновляет `uuid <-> braneIndex`.

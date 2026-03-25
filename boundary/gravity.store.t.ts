@@ -4,10 +4,20 @@ export interface BoundaryGravityStore {
   /** Целевая активная UUID-композиция для следующего/текущего runtime rebuild. */
   activeWimpIds: string[]
 
-  /** Актуальное отображение UUID -> runtime braneIndex после последнего успешного rebuild. */
+  /**
+   * Актуальное отображение UUID -> runtime braneIndex после последнего успешного rebuild.
+   *
+   * Пока `structuralDirty = true`, это соответствие всё ещё относится к
+   * последнему materialized `boundary$`, а не к новой целевой composition.
+   */
   wimpIdToBraneIndex: Map<string, number>
 
-  /** Актуальное отображение runtime braneIndex -> UUID после последнего успешного rebuild. */
+  /**
+   * Актуальное отображение runtime braneIndex -> UUID после последнего успешного rebuild.
+   *
+   * Пока `structuralDirty = true`, это соответствие всё ещё относится к
+   * последнему materialized `boundary$`, а не к новой целевой composition.
+   */
   braneIndexToWimpId: string[]
 
   /**
