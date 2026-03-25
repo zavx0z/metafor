@@ -1,17 +1,20 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test"
-import { Wimp } from "@dark/strong"
+import { materializeFields, Meta, Wimp } from "@dark/strong"
 import { openSharedDbMaterializationWriter, openSharedDbSqliteBackend } from "@shared/db"
 import { HubFixture } from "fixture"
 import { matter } from "../../dark/dark.ts"
 import { createSharedDbFixture } from "fixture/db.fixture.ts"
 import { dark$ } from "../../dark/store.ts"
 import {
-  addRuntimeWimpFromSharedDb,
+  addRuntimeWimp,
+  applyStructuralPatchFromSharedDb,
   boundary$,
+  gravity$,
   listRuntimeWimpIds,
   prepareRuntimeFromSharedDb,
   rebuildRuntime,
   removeRuntimeWimp,
+  update,
   writeRuntimeFromSharedDb,
 } from "../boundary.ts"
 import { resetBoundaryForTest } from "./test.helper"
@@ -43,6 +46,33 @@ const materializeFixtureToSharedDb = () => {
   fixture.child.save(writer)
 
   return { fixture, backend }
+}
+
+const materializeIndependentRootsToSharedDb = () => {
+  const meta = new Meta({
+    src: "meta/runtime-index-shift",
+    fieldSchemas: {
+      title: { type: "string", required: true, default: "" },
+    },
+  })
+  const createRoot = (title: string) => {
+    const wimp = new Wimp({ src: meta.src, meta, parent: null })
+    wimp.fields = materializeFields(wimp, meta.fields)
+    wimp.fields.title!.value = title
+    return wimp
+  }
+
+  const alpha = createRoot("alpha")
+  const beta = createRoot("beta")
+  const gamma = createRoot("gamma")
+  const backend = openSharedDbSqliteBackend()
+  const writer = openSharedDbMaterializationWriter(backend)
+
+  alpha.save(writer)
+  beta.save(writer)
+  gamma.save(writer)
+
+  return { backend, wimps: { alpha, beta, gamma } }
 }
 
 describe("boundary runtime from shared/db backend", () => {
@@ -89,9 +119,11 @@ describe("boundary runtime from shared/db backend", () => {
       const changes = await writeRuntimeFromSharedDb(backend)
       expect(changes).toEqual([])
       expect(weak$.initialized).toBe(true)
+      expect(gravity$.structuralDirty).toBe(false)
       expect(boundary$.branes).toHaveLength(sharedData.wimps.length)
+      expect(gravity$.braneIndexToWimpId).toHaveLength(sharedData.wimps.length)
       expect(boundary$.states).toHaveLength(sharedData.wimps.length)
-      expect(boundary$.fields).toEqual(prepared.fields)
+      expect(boundary$.fields).toHaveLength(prepared.fields.length)
       expect(boundary$.stringTable).toEqual(prepared.stringTable)
       expect(boundary$.sharedValues.length + boundary$.braneValues.length).toBeGreaterThan(0)
       expect(boundary$.sharedBlocks.length + boundary$.braneSharedBlockRefs.length).toBeGreaterThan(0)
@@ -100,61 +132,106 @@ describe("boundary runtime from shared/db backend", () => {
     }
   })
 
-  test("add/remove мутируют loaded fragment, а один rebuild пересобирает derived runtime транзакционно", async () => {
+  test("structural add/remove сначала мутируют gravity$, а barrier patch потом пересобирает boundary$", async () => {
     const { fixture, backend } = materializeFixtureToSharedDb()
 
     try {
       expect(listRuntimeWimpIds()).toEqual([])
       expect(boundary$.branes).toEqual([])
+      expect(gravity$.wimpIdToBraneIndex.size).toBe(0)
 
-      await addRuntimeWimpFromSharedDb(backend, fixture.root.id)
+      const addRootChanges = await applyStructuralPatchFromSharedDb(backend, { op: "add", path: `/wimp/${fixture.root.id}` })
+      expect(addRootChanges).toEqual([])
       expect(listRuntimeWimpIds()).toEqual([fixture.root.id])
+      expect(gravity$.structuralDirty).toBe(true)
       expect(boundary$.branes).toEqual([])
       expect(weak$.initialized).toBe(false)
 
-      await addRuntimeWimpFromSharedDb(backend, fixture.child.id)
+      const addChildChanges = await applyStructuralPatchFromSharedDb(backend, { op: "add", path: `/wimp/${fixture.child.id}` })
+      expect(addChildChanges).toEqual([])
       expect(listRuntimeWimpIds()).toEqual([fixture.root.id, fixture.child.id])
+      expect(gravity$.structuralDirty).toBe(true)
       expect(boundary$.branes).toEqual([])
 
-      const initialChanges = await rebuildRuntime()
+      const initialChanges = await applyStructuralPatchFromSharedDb(backend, { op: "test", path: "", value: {} })
       expect(initialChanges).toEqual([])
       expect(weak$.initialized).toBe(true)
+      expect(gravity$.structuralDirty).toBe(false)
       expect(boundary$.branes).toHaveLength(2)
+      expect(gravity$.getBraneIndex(fixture.root.id)).toBe(0)
+      expect(gravity$.getBraneIndex(fixture.child.id)).toBe(1)
+      expect(gravity$.getWimpId(0)).toBe(fixture.root.id)
+      expect(gravity$.getWimpId(1)).toBe(fixture.child.id)
       expect(boundary$.sharedBlocks).toHaveLength(1)
       expect(boundary$.braneSharedBlockRefs).toEqual([0, 0])
 
-      removeRuntimeWimp(fixture.child.id)
+      const removeChildChanges = await applyStructuralPatchFromSharedDb(backend, {
+        op: "remove",
+        path: `/wimp/${fixture.child.id}`,
+      })
+      expect(removeChildChanges).toEqual([])
       expect(listRuntimeWimpIds()).toEqual([fixture.root.id])
+      expect(gravity$.structuralDirty).toBe(true)
       expect(boundary$.branes).toHaveLength(2)
       expect(boundary$.sharedBlocks).toHaveLength(1)
 
-      const removalChanges = await rebuildRuntime()
+      const removalChanges = await applyStructuralPatchFromSharedDb(backend, { op: "test", path: "", value: null })
       expect(removalChanges).toEqual([])
+      expect(gravity$.structuralDirty).toBe(false)
       expect(boundary$.branes).toHaveLength(1)
+      expect(gravity$.getBraneIndex(fixture.root.id)).toBe(0)
+      expect(gravity$.getBraneIndex(fixture.child.id)).toBeUndefined()
       expect(boundary$.sharedBlocks).toEqual([])
     } finally {
       backend.close()
     }
   })
 
-  test("пересобирает runtime из уже загруженного loaded fragment без повторного чтения всей DB", async () => {
+  test("uuid остаётся стабильным, а braneIndex может измениться после следующего rebuild", async () => {
+    const { backend, wimps } = materializeIndependentRootsToSharedDb()
+
+    try {
+      await applyStructuralPatchFromSharedDb(backend, { op: "add", path: `/wimp/${wimps.beta.id}` })
+      await applyStructuralPatchFromSharedDb(backend, { op: "add", path: `/wimp/${wimps.gamma.id}` })
+      await applyStructuralPatchFromSharedDb(backend, { op: "test", path: "", value: "" })
+
+      expect(boundary$.branes).toHaveLength(2)
+      expect(gravity$.getBraneIndex(wimps.beta.id)).toBe(0)
+      expect(gravity$.getBraneIndex(wimps.gamma.id)).toBe(1)
+
+      await applyStructuralPatchFromSharedDb(backend, { op: "remove", path: `/wimp/${wimps.beta.id}` })
+      await applyStructuralPatchFromSharedDb(backend, { op: "test", path: "", value: {} })
+
+      expect(boundary$.branes).toHaveLength(1)
+      expect(gravity$.getBraneIndex(wimps.gamma.id)).toBe(0)
+      expect(gravity$.getWimpId(0)).toBe(wimps.gamma.id)
+    } finally {
+      backend.close()
+    }
+  })
+
+  test("ordinary runtime update продолжает работать после gravity/barrier rebuild", async () => {
     const { fixture, backend } = materializeFixtureToSharedDb()
 
-    await addRuntimeWimpFromSharedDb(backend, fixture.root.id)
-    await addRuntimeWimpFromSharedDb(backend, fixture.child.id)
+    try {
+      addRuntimeWimp(fixture.root.id)
+      addRuntimeWimp(fixture.child.id)
 
-    backend.close()
+      expect(boundary$.branes).toEqual([])
+      await rebuildRuntime(backend)
 
-    await rebuildRuntime()
-    expect(boundary$.branes).toHaveLength(2)
-    expect(boundary$.sharedBlocks).toHaveLength(1)
+      const rootBraneIndex = gravity$.getBraneIndex(fixture.root.id)
+      expect(rootBraneIndex).toBe(0)
 
-    removeRuntimeWimp(fixture.child.id)
-
-    const changes = await rebuildRuntime()
-    expect(changes).toEqual([])
-    expect(boundary$.branes).toHaveLength(1)
-    expect(boundary$.sharedBlocks).toEqual([])
-    expect(boundary$.states).toHaveLength(1)
+      const changes = await update([[rootBraneIndex!, [[1, "ready"]]]])
+      expect(changes).toEqual([
+        [0, 1],
+        [1, 1],
+      ])
+      expect(boundary$.states[rootBraneIndex!]).toBe(1)
+      expect(boundary$.states[gravity$.getBraneIndex(fixture.child.id)!]).toBe(1)
+    } finally {
+      backend.close()
+    }
   })
 })

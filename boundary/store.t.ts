@@ -62,9 +62,10 @@ export type BoundaryFieldStorageLocation =
   | { scope: "shared"; blockIndex: number; record: BoundaryFieldValueRecord }
 
 /**
- * Каноническое глобальное хранилище Boundary.
+ * Производное materialized-хранилище Boundary.
  *
- * Это единственный источник истины для слабого вычислительного слоя.
+ * Для слабого вычислительного слоя это рабочий источник истины, но UUID-композиция
+ * и `uuid <-> braneIndex` адресация живут отдельно в `gravity$`.
  * Store остаётся плоским, индексным и читаемым в JS и не хранит packed
  * execution layout как каноническую форму.
  */

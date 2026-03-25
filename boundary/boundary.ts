@@ -6,8 +6,10 @@
  * ## Ответственность
  *
  * - `write()` — запись канонической boundary-структуры в доменный store
- * - `addRuntimeWimpFromSharedDb()` / `removeRuntimeWimp()` — мутация загруженного runtime-фрагмента
- * - `rebuildRuntime()` — транзакционная пересборка derived runtime из текущего загруженного фрагмента
+ * - `gravity$` — долгоживущая UUID-композиция и адресация runtime
+ * - `addRuntimeWimp()` / `removeRuntimeWimp()` — мутация composition-слоя без немедленного rebuild
+ * - `applyStructuralPatchFromSharedDb()` — обработка UUID-addressed structural patch и barrier
+ * - `rebuildRuntime()` — транзакционная пересборка derived runtime из текущей composition в `gravity$`
  * - `update()` — обновление полей и вычисление следующего перехода
  * - `unlock()` — снятие блокировки с бран
  *
@@ -17,10 +19,11 @@
  * `@boundary/gravity`, собирает канонический store через `@boundary/strong`
  * и оркестрирует вычисление перехода через `@boundary/weak`.
  *
- * Поверх `shared/db` Boundary держит внутренний loaded fragment:
- * каноническая DB остаётся источником мира, а `Boundary` хранит живой
- * активный runtime scope и пересобирает derived runtime уже из него, без
- * внешнего package-cache и без повторного полного чтения DB на каждом rebuild.
+ * Поверх `shared/db` Boundary держит два разных слоя:
+ * - `gravity$` — composition/addressing слой, который владеет UUID-набором и
+ *   текущим соответствием `uuid <-> braneIndex`,
+ * - `boundary$` — derived materialized runtime store, который пересобирается
+ *   только на structural barrier.
  *
  * Boundary НЕ содержит:
  * - source graph loading и primary addressing — это `@metafor/dark`
@@ -29,14 +32,12 @@
  * - вычисление перехода и backend-адаптеры — это `@boundary/weak`
  */
 
+import { gravity$ } from "./gravity.store"
 import { boundary$ } from "./store"
 import type { BoundaryFieldValueRecord, BoundaryStore } from "./store.t"
 import type { PreparedData } from "./boundary.t"
 import {
-  mergeBoundaryRuntimeFragments,
   prepareBoundaryRuntimeData,
-  prepareBoundaryRuntimeFragmentFromSharedDb,
-  prepareBoundaryRuntimeLoadedFragment,
   prepareBoundaryRuntimeLoadedFragmentFromSharedDb,
   prepareBoundaryRuntimeStore,
   prepareBoundaryRuntimeStoreFromSharedDb,
@@ -47,11 +48,17 @@ import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundary
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import { createEmptySharedDbData, type SharedDbBackend, type SharedDbData } from "@shared/db"
 
+export interface BoundaryStructuralPatch {
+  op: "add" | "remove" | "test"
+  path: string
+  value?: unknown
+}
+
 let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null
+/** Последний успешно materialized runtime-fragment, соответствующий текущему `boundary$`. */
 let loadedRuntimeFragment: SharedDbData = createEmptySharedDbData()
-const activeRuntimeWimpIds = new Set<string>()
-let runtimeStructureDirty = false
+const WIMP_PATCH_PATH_PREFIX = "/wimp/"
 
 const createEmptyPreparedData = (): PreparedData => ({
   fields: [],
@@ -81,21 +88,61 @@ const applyPreparedData = (prepared: PreparedData): void => {
   boundary$.states = prepared.states
 }
 
-const clearLoadedRuntimeFragment = (): void => {
-  loadedRuntimeFragment = createEmptySharedDbData()
-  activeRuntimeWimpIds.clear()
-  runtimeStructureDirty = false
+const collectRuntimeWimpIdsInBraneOrder = (fragment: SharedDbData): string[] =>
+  [...fragment.wimps].sort((left, right) => left.wimpOrder - right.wimpOrder).map((row) => row.id)
+
+const clearGravityComposition = (): void => {
+  gravity$.activeWimpIds = []
+  gravity$.wimpIdToBraneIndex.clear()
+  gravity$.braneIndexToWimpId = []
+  gravity$.structuralDirty = false
 }
 
-const replaceLoadedRuntimeFragment = (nextFragment: SharedDbData): void => {
-  loadedRuntimeFragment = nextFragment
-  activeRuntimeWimpIds.clear()
+const replaceGravityComposition = (wimpIds: Iterable<string>): void => {
+  gravity$.activeWimpIds = Array.from(new Set(wimpIds))
+  gravity$.structuralDirty = true
+}
 
-  nextFragment.wimps.forEach((row) => {
-    activeRuntimeWimpIds.add(row.id)
-  })
+const refreshGravityAddressing = (fragment: SharedDbData): void => {
+  const orderedWimpIds = collectRuntimeWimpIdsInBraneOrder(fragment)
+  gravity$.wimpIdToBraneIndex = new Map(orderedWimpIds.map((wimpId, braneIndex) => [wimpId, braneIndex] as const))
+  gravity$.braneIndexToWimpId = orderedWimpIds
+}
 
-  runtimeStructureDirty = true
+const clearLoadedRuntimeState = (): void => {
+  loadedRuntimeFragment = createEmptySharedDbData()
+  clearGravityComposition()
+}
+
+const addRuntimeWimpToGravity = (wimpId: string): void => {
+  if (gravity$.hasWimp(wimpId)) return
+  gravity$.activeWimpIds = [...gravity$.activeWimpIds, wimpId]
+  gravity$.structuralDirty = true
+}
+
+const removeRuntimeWimpFromGravity = (wimpId: string): void => {
+  if (!gravity$.hasWimp(wimpId)) return
+  gravity$.activeWimpIds = gravity$.activeWimpIds.filter((candidate) => candidate !== wimpId)
+  gravity$.structuralDirty = true
+}
+
+const requireWimpPatchId = (path: string): string => {
+  if (!path.startsWith(WIMP_PATCH_PATH_PREFIX)) {
+    throw new Error(`Unsupported Boundary structural patch path: ${path}`)
+  }
+
+  const wimpId = path.slice(WIMP_PATCH_PATH_PREFIX.length)
+  if (!wimpId) {
+    throw new Error(`Boundary structural patch path is missing wimp uuid: ${path}`)
+  }
+
+  return wimpId
+}
+
+const isEmptyBarrierValue = (value: unknown): boolean => {
+  if (value === undefined || value === null || value === "") return true
+  if (typeof value !== "object") return false
+  return Object.keys(value).length === 0
 }
 
 export function prepareData(data: Data): PreparedData {
@@ -124,7 +171,7 @@ export function prepareRuntimeFromSharedDb(
 }
 
 export function listRuntimeWimpIds(): string[] {
-  return [...activeRuntimeWimpIds]
+  return [...gravity$.activeWimpIds]
 }
 
 async function writePreparedData(prepared: PreparedData): Promise<[number, number][]> {
@@ -155,7 +202,7 @@ async function writePreparedData(prepared: PreparedData): Promise<[number, numbe
 
 export async function write(data: Data): Promise<[number, number][]> {
   validateData(data)
-  clearLoadedRuntimeFragment()
+  clearLoadedRuntimeState()
   return await writePreparedData(assembleStoredBoundaryData(flattenBoundaryData(data)))
 }
 
@@ -163,46 +210,55 @@ export async function writeRuntimeFromSharedDb(
   backend: SharedDbBackend,
   options: BoundarySharedDbRuntimeOptions = {},
 ): Promise<[number, number][]> {
-  replaceLoadedRuntimeFragment(prepareBoundaryRuntimeLoadedFragmentFromSharedDb(backend))
-  return await rebuildRuntime(options)
+  replaceGravityComposition(collectRuntimeWimpIdsInBraneOrder(prepareBoundaryRuntimeLoadedFragmentFromSharedDb(backend)))
+  return await rebuildRuntime(backend, options)
 }
 
 export async function rebuildRuntime(
+  backend: SharedDbBackend,
   options: BoundarySharedDbRuntimeOptions = {},
 ): Promise<[number, number][]> {
-  if (!runtimeStructureDirty) {
+  if (!gravity$.structuralDirty) {
     return []
   }
 
-  const prepared =
-    loadedRuntimeFragment.wimps.length === 0 ? createEmptyPreparedData() : prepareBoundaryRuntimeStore(loadedRuntimeFragment, options)
+  const nextFragment = prepareBoundaryRuntimeLoadedFragmentFromSharedDb(backend, gravity$.activeWimpIds)
+  const prepared = nextFragment.wimps.length === 0 ? createEmptyPreparedData() : prepareBoundaryRuntimeStore(nextFragment, options)
   const changes = await writePreparedData(prepared)
-  runtimeStructureDirty = false
+  loadedRuntimeFragment = nextFragment
+  refreshGravityAddressing(nextFragment)
+  gravity$.structuralDirty = false
   return changes
 }
 
-export async function addRuntimeWimpFromSharedDb(
-  backend: SharedDbBackend,
-  wimpId: string,
-): Promise<void> {
-  activeRuntimeWimpIds.add(wimpId)
-  loadedRuntimeFragment = mergeBoundaryRuntimeFragments([
-    loadedRuntimeFragment,
-    prepareBoundaryRuntimeFragmentFromSharedDb(backend, wimpId),
-  ])
-  runtimeStructureDirty = true
+export function addRuntimeWimp(wimpId: string): void {
+  addRuntimeWimpToGravity(wimpId)
 }
 
 export function removeRuntimeWimp(wimpId: string): void {
-  if (!activeRuntimeWimpIds.delete(wimpId)) {
-    return
+  removeRuntimeWimpFromGravity(wimpId)
+}
+
+export async function applyStructuralPatchFromSharedDb(
+  backend: SharedDbBackend,
+  patch: BoundaryStructuralPatch,
+  options: BoundarySharedDbRuntimeOptions = {},
+): Promise<[number, number][]> {
+  if (patch.op === "add") {
+    addRuntimeWimpToGravity(requireWimpPatchId(patch.path))
+    return []
   }
 
-  loadedRuntimeFragment =
-    activeRuntimeWimpIds.size === 0
-      ? createEmptySharedDbData()
-      : prepareBoundaryRuntimeLoadedFragment(loadedRuntimeFragment, activeRuntimeWimpIds)
-  runtimeStructureDirty = true
+  if (patch.op === "remove") {
+    removeRuntimeWimpFromGravity(requireWimpPatchId(patch.path))
+    return []
+  }
+
+  if (patch.op === "test" && patch.path === "" && isEmptyBarrierValue(patch.value)) {
+    return await rebuildRuntime(backend, options)
+  }
+
+  throw new Error(`Unsupported Boundary structural patch: ${patch.op} ${patch.path}`)
 }
 
 function requireInitializedStore(store$: BoundaryStore): void {
@@ -294,6 +350,8 @@ export function unlock(indexes: number[]): void {
 }
 
 export type { PreparedData } from "./boundary.t"
+export type { BoundaryGravityStore } from "./gravity.store.t"
 export { FieldType } from "./gravity"
+export { gravity$ }
 export { boundary$ }
 export { flattenBoundaryData } from "./gravity"

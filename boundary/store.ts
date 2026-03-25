@@ -1,7 +1,8 @@
 /**
- * `@boundary/boundary/store` — канонический глобальный store Boundary.
+ * `@boundary/boundary/store` — derived materialized runtime store Boundary.
  *
- * Заполняется в `@boundary/boundary`, читается слабым вычислительным слоем.
+ * Заполняется в `@boundary/boundary` после rebuild из `gravity$`,
+ * читается слабым вычислительным слоем.
  *
  * @property fields {@link BoundaryStore.fields|каноническая схема полей}
  * @property stringTable {@link BoundaryStore.stringTable|дедуплицированная таблица строк}

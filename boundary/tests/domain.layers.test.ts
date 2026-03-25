@@ -3,7 +3,7 @@ import { openSharedDbMaterializationWriter, openSharedDbSqliteBackend } from "@s
 import { flattenBoundaryData, FieldType } from "../gravity"
 import { assembleStoredBoundaryData } from "../strong"
 import { weak$ } from "../weak"
-import { boundary$, addRuntimeWimpFromSharedDb, rebuildRuntime, removeRuntimeWimp, update, write } from "../boundary"
+import { boundary$, addRuntimeWimp, gravity$, rebuildRuntime, removeRuntimeWimp, update, write } from "../boundary"
 import { createSharedDbFixture } from "fixture/db.fixture.ts"
 import { resetBoundaryForTest } from "./test.helper"
 
@@ -61,7 +61,7 @@ describe("boundary domain layers", () => {
     expect(boundary$.states).toEqual([1])
   })
 
-  test("shared/db путь живёт через loaded fragment и transactional rebuild, без dump/restore", async () => {
+  test("shared/db путь живёт через gravity composition и transactional rebuild, без dump/restore", async () => {
     const fixture = createSharedDbFixture()
     const backend = openSharedDbSqliteBackend()
     const writer = openSharedDbMaterializationWriter(backend)
@@ -70,18 +70,19 @@ describe("boundary domain layers", () => {
       fixture.root.save(writer)
       fixture.child.save(writer)
 
-      await addRuntimeWimpFromSharedDb(backend, fixture.root.id)
+      addRuntimeWimp(fixture.root.id)
+      expect(boundary$.branes).toEqual([])
+      expect(gravity$.structuralDirty).toBe(true)
+
+      addRuntimeWimp(fixture.child.id)
       expect(boundary$.branes).toEqual([])
 
-      await addRuntimeWimpFromSharedDb(backend, fixture.child.id)
-      expect(boundary$.branes).toEqual([])
-
-      await rebuildRuntime()
+      await rebuildRuntime(backend)
       expect(boundary$.branes).toHaveLength(2)
       expect(boundary$.sharedBlocks).toHaveLength(1)
 
       removeRuntimeWimp(fixture.child.id)
-      await rebuildRuntime()
+      await rebuildRuntime(backend)
 
       expect(boundary$.branes).toHaveLength(1)
       expect(boundary$.sharedBlocks).toEqual([])
