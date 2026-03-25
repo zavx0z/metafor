@@ -6,17 +6,17 @@ import { openSharedDbMaterializationWriter } from "./materialize.ts"
 import { openSharedDbSqliteBackend } from "./sqlite.ts"
 
 describe("shared db materialization writer", () => {
-  test("сохраняет canonical relational rows по мере завершения Wimp", () => {
+  test("сохраняет canonical relational rows по мере завершения Wimp", async () => {
     const fixture = createSharedDbFixture()
     const backend = openSharedDbSqliteBackend()
     const writer = openSharedDbMaterializationWriter(backend)
 
     try {
-      fixture.root.save(writer)
-      fixture.child.save(writer)
+      await fixture.root.save(writer)
+      await fixture.child.save(writer)
 
       const roundTrip = readSharedDbData(backend)
-      const expected = assembleSharedDbData(fixture.root)
+      const expected = await assembleSharedDbData(fixture.root)
 
       expect(normalizeSharedDbData(roundTrip)).toEqual(normalizeSharedDbData(expected))
       expect(roundTrip.fieldSources.map((row) => row.childWimpFieldId).sort()).toEqual(
@@ -27,16 +27,16 @@ describe("shared db materialization writer", () => {
     }
   })
 
-  test("повторное сохранение того же Wimp обновляет canonical row data без дублей", () => {
+  test("повторное сохранение того же Wimp обновляет canonical row data без дублей", async () => {
     const fixture = createSharedDbFixture()
     const backend = openSharedDbSqliteBackend()
     const writer = openSharedDbMaterializationWriter(backend)
 
     try {
-      fixture.root.save(writer)
-      fixture.child.save(writer)
+      await fixture.root.save(writer)
+      await fixture.child.save(writer)
       fixture.child.fields!.alias!.value = "Alias after resave"
-      fixture.child.save(writer)
+      await fixture.child.save(writer)
 
       const roundTrip = readSharedDbData(backend)
       expect(roundTrip.wimps).toHaveLength(2)
@@ -53,13 +53,13 @@ describe("shared db materialization writer", () => {
     }
   })
 
-  test("saveWimpBundle требует предварительно materialized meta bundle той же меты", () => {
+  test("saveWimpBundle требует предварительно materialized meta bundle той же меты", async () => {
     const fixture = createSharedDbFixture()
     const backend = openSharedDbSqliteBackend()
     const writer = openSharedDbMaterializationWriter(backend)
 
     try {
-      expect(() => writer.saveWimpBundle(fixture.root.toSharedDbBundle())).toThrow(
+      await expect(writer.saveWimpBundle(fixture.root.toSharedDbBundle())).rejects.toThrow(
         `Shared DB meta ${fixture.root.meta!.id} must be materialized before Wimp ${fixture.root.id}`,
       )
     } finally {
@@ -67,24 +67,24 @@ describe("shared db materialization writer", () => {
     }
   })
 
-  test("meta bundle можно сохранить до Wimp и потом адресно обновлять без полной пересборки", () => {
+  test("meta bundle можно сохранить до Wimp и потом адресно обновлять без полной пересборки", async () => {
     const fixture = createSharedDbFixture()
     const backend = openSharedDbSqliteBackend()
     const writer = openSharedDbMaterializationWriter(backend)
 
     try {
-      writer.saveMetaBundle(fixture.root.toSharedDbMetaBundle())
-      writer.saveMetaBundle(fixture.child.toSharedDbMetaBundle())
+      await writer.saveMetaBundle(fixture.root.toSharedDbMetaBundle())
+      await writer.saveMetaBundle(fixture.child.toSharedDbMetaBundle())
 
       let roundTrip = readSharedDbData(backend)
       expect(roundTrip.metas).toHaveLength(2)
       expect(roundTrip.wimps).toHaveLength(0)
 
-      writer.saveWimpBundle(fixture.root.toSharedDbBundle())
-      writer.saveWimpBundle(fixture.child.toSharedDbBundle())
+      await writer.saveWimpBundle(fixture.root.toSharedDbBundle())
+      await writer.saveWimpBundle(fixture.child.toSharedDbBundle())
 
       ;(fixture.root.meta as unknown as { name?: string }).name = "root-renamed"
-      writer.saveMetaBundle(fixture.root.toSharedDbMetaBundle())
+      await writer.saveMetaBundle(fixture.root.toSharedDbMetaBundle())
 
       roundTrip = readSharedDbData(backend)
       expect(roundTrip.metas.find((row) => row.id === fixture.root.meta!.id)?.name).toBe("root-renamed")

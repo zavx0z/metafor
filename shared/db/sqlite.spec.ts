@@ -17,11 +17,11 @@ const createTempSqliteTarget = (): { dir: string; filename: string } => {
   }
 }
 
-const materializeFixture = (fixture = createSharedDbFixture(), backend = openSharedDbSqliteBackend()) => {
+const materializeFixture = async (fixture = createSharedDbFixture(), backend = openSharedDbSqliteBackend()) => {
   const writer = openSharedDbMaterializationWriter(backend)
 
-  fixture.root.save(writer)
-  fixture.child.save(writer)
+  await fixture.root.save(writer)
+  await fixture.child.save(writer)
 
   return { fixture, backend }
 }
@@ -99,14 +99,14 @@ describe("shared db sqlite backend", () => {
     }
   })
 
-  test("сохраняет canonical relational rows через row-group writes и перечитывает их после повторного открытия", () => {
+  test("сохраняет canonical relational rows через row-group writes и перечитывает их после повторного открытия", async () => {
     const temp = createTempSqliteTarget()
     const fixture = createSharedDbFixture()
-    const expected = assembleSharedDbData(fixture.root)
+    const expected = await assembleSharedDbData(fixture.root)
 
     try {
       const writer = openSharedDbSqliteBackend({ filename: temp.filename })
-      materializeFixture(fixture, writer)
+      await materializeFixture(fixture, writer)
       writer.close()
 
       const reader = openSharedDbSqliteBackend({ filename: temp.filename })
@@ -114,7 +114,7 @@ describe("shared db sqlite backend", () => {
         const restored = readSharedDbData(reader)
         expect(normalizeSharedDbData(restored)).toEqual(normalizeSharedDbData(expected))
 
-        reader.setFieldValue(fixture.fields.childAlias!.id, "Alias via sqlite")
+        await reader.setFieldValue(fixture.fields.childAlias!.id, "Alias via sqlite")
       } finally {
         reader.close()
       }

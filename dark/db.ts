@@ -38,14 +38,14 @@ const collectReachableWimps = (root: Wimp): Wimp[] => {
  * Helper использует тот же row-group writer, что и активный storage flow, чтобы
  * не поддерживать второй путь materialization ради тестов.
  */
-export const assembleSharedDbData = (root: Wimp): SharedDbData => {
+export const assembleSharedDbData = async (root: Wimp): Promise<SharedDbData> => {
   const backend = openSharedDbSqliteBackend()
   const writer = openSharedDbMaterializationWriter(backend)
 
   try {
-    collectReachableWimps(root).forEach((wimp) => {
-      wimp.save(writer)
-    })
+    for (const wimp of collectReachableWimps(root)) {
+      await wimp.save(writer)
+    }
 
     return backend.readData()
   } finally {

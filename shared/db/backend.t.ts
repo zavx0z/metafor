@@ -91,6 +91,8 @@ export interface SharedDbEntanglementFamilyRows {
   fieldMembers: SharedDbEntanglementFieldMemberRecord[]
 }
 
+export type SharedDbBackendAwaitable<T> = T | Promise<T>
+
 /**
  * Минимальный backend-контракт канонической relational DB.
  *
@@ -100,18 +102,39 @@ export interface SharedDbEntanglementFamilyRows {
 export interface SharedDbBackend {
   readonly requiredIndexes: readonly SharedDbBackendIndexSpec[]
 
-  close(): void
-  reset(): void
+  /**
+   * Full dump / debug / bootstrap path.
+   *
+   * Это не основной operational API backend-а: полный снимок остаётся
+   * режимом для round-trip проверки, bootstrap и общей CPU-side проекции.
+   */
+  close(): SharedDbBackendAwaitable<void>
+  reset(): SharedDbBackendAwaitable<void>
+  flush(): Promise<void>
   readData(): SharedDbData
+
+  /**
+   * Operational addressable read path.
+   *
+   * Эти методы должны читать только затронутые row groups и relation rows,
+   * а не требовать полного `readData()` как основной способ работы.
+   */
+  readMetaRows(metaId: string): Promise<SharedDbMetaRows | null>
+  readWimpRows(wimpId: string): Promise<SharedDbWimpRows | null>
+  readWimpEdge(childWimpId: string): Promise<SharedDbWimpEdgeRecord | null>
+  readFieldValue(wimpFieldId: string): Promise<SharedDbFieldValueRecord | null>
+  readFieldSource(childWimpFieldId: string): Promise<SharedDbFieldSourceRecord | null>
+  readEntanglementFamily(entanglementId: string): Promise<SharedDbEntanglementFamilyRows | null>
+
   /** Записывает весь meta-level canonical row group для одной меты. */
-  writeMetaRows(rows: SharedDbMetaRows): void
+  writeMetaRows(rows: SharedDbMetaRows): SharedDbBackendAwaitable<void>
   /** Записывает весь instance-level canonical row group для одного wimp. */
-  writeWimpRows(rows: SharedDbWimpRows): void
+  writeWimpRows(rows: SharedDbWimpRows): SharedDbBackendAwaitable<void>
   /** Записывает structural parent/child relation для одного wimp. */
-  writeWimpEdge(row: SharedDbWimpEdgeRecord): void
+  writeWimpEdge(row: SharedDbWimpEdgeRecord): SharedDbBackendAwaitable<void>
   /** Удаляет одну canonical entanglement-family, если она локально опустела. */
-  deleteEntanglementFamily(entanglementId: string): void
+  deleteEntanglementFamily(entanglementId: string): SharedDbBackendAwaitable<void>
   /** Записывает одну canonical source-family entanglement без глобального rebuild. */
-  writeEntanglementFamily(rows: SharedDbEntanglementFamilyRows): void
-  setFieldValue(wimpFieldId: string, value: unknown): void
+  writeEntanglementFamily(rows: SharedDbEntanglementFamilyRows): SharedDbBackendAwaitable<void>
+  setFieldValue(wimpFieldId: string, value: unknown): SharedDbBackendAwaitable<void>
 }

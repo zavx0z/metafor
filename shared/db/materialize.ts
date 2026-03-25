@@ -65,13 +65,13 @@ export interface SharedDbMaterializationWriter {
   /**
    * Сохраняет meta-level bundle и подготавливает context для следующих instance-level записей.
    */
-  saveMetaBundle(bundle: SharedDbMetaBundle): void
+  saveMetaBundle(bundle: SharedDbMetaBundle): Promise<void>
   /**
    * Сохраняет fully-formed `Wimp` bundle.
    *
    * Требует, чтобы `saveMetaBundle(bundle.meta)` уже был вызван для этой меты.
    */
-  saveWimpBundle(bundle: SharedDbWimpBundle): void
+  saveWimpBundle(bundle: SharedDbWimpBundle): Promise<void>
 }
 
 type MetaContext = {
@@ -589,10 +589,10 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
     return nextOrder
   }
 
-  const writeWimpEdge = (bundle: SharedDbWimpBundle): void => {
+  const writeWimpEdge = async (bundle: SharedDbWimpBundle): Promise<void> => {
     const existing = wimpEdgesByChildId.get(bundle.id)
     if (existing) {
-      backend.writeWimpEdge(existing)
+      await backend.writeWimpEdge(existing)
       return
     }
 
@@ -608,18 +608,18 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
 
     nextEdgeOrderByParentId.set(parentKey, nextOrder + 1)
     wimpEdgesByChildId.set(bundle.id, edge)
-    backend.writeWimpEdge(edge)
+    await backend.writeWimpEdge(edge)
   }
 
-  const syncEntanglementFamily = (rootFieldId: string): void => {
+  const syncEntanglementFamily = async (rootFieldId: string): Promise<void> => {
     const family = entanglementFamiliesByRootFieldId.get(rootFieldId)
     const entanglementId = createEntanglementId(rootFieldId)
     if (!family || family.members.length === 0) {
-      backend.deleteEntanglementFamily(entanglementId)
+      await backend.deleteEntanglementFamily(entanglementId)
       return
     }
 
-    backend.writeEntanglementFamily(
+    await backend.writeEntanglementFamily(
       materializeEntanglementFamilyRows(
         rootFieldId,
         {
@@ -691,7 +691,7 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
     return rootFieldId
   }
 
-  const persistWimpBundle = (bundle: SharedDbWimpBundle, metaContext: MetaContext): void => {
+  const persistWimpBundle = async (bundle: SharedDbWimpBundle, metaContext: MetaContext): Promise<void> => {
     const affectedFamilyIds = new Set<string>()
     const previousFieldIds = savedFieldIdsByWimpId.get(bundle.id) ?? []
 
@@ -710,20 +710,22 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
     })
 
     const wimpOrder = ensureWimpOrder(bundle.id)
-    backend.writeWimpRows(materializeWimpRows(bundle, wimpOrder, metaContext))
+    await backend.writeWimpRows(materializeWimpRows(bundle, wimpOrder, metaContext))
     if (!previousFieldIds.length) {
-      writeWimpEdge(bundle)
+      await writeWimpEdge(bundle)
     }
 
-    affectedFamilyIds.forEach((familyId) => syncEntanglementFamily(familyId))
+    for (const familyId of affectedFamilyIds) {
+      await syncEntanglementFamily(familyId)
+    }
   }
 
-  const syncMetaBundle = (
+  const syncMetaBundle = async (
     bundle: SharedDbMetaBundle,
-  ): {
+  ): Promise<{
     changed: boolean
     context: MetaContext
-  } => {
+  }> => {
     const savedMeta = cloneMetaBundle(bundle)
     const { rows: metaRows, context: metaContext } = materializeMetaRows(savedMeta)
     const nextMetaSignature = createMetaSignature(savedMeta)
@@ -734,7 +736,7 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
       return { changed: false, context: metaContext }
     }
 
-    backend.writeMetaRows(metaRows)
+    await backend.writeMetaRows(metaRows)
     metaSignatureById.set(savedMeta.id, nextMetaSignature)
     bundlesById.forEach((candidate) => {
       if (candidate.meta.id === savedMeta.id) {
@@ -746,18 +748,18 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
   }
 
   return {
-    saveMetaBundle(bundle) {
-      const { changed, context } = syncMetaBundle(bundle)
+    async saveMetaBundle(bundle) {
+      const { changed, context } = await syncMetaBundle(bundle)
       if (!changed) return
 
-      bundlesById.forEach((candidate) => {
+      for (const candidate of bundlesById.values()) {
         if (candidate.meta.id === bundle.id) {
-          persistWimpBundle(candidate, context)
+          await persistWimpBundle(candidate, context)
         }
-      })
+      }
     },
 
-    saveWimpBundle(bundle) {
+    async saveWimpBundle(bundle) {
       const savedBundle = cloneWimpBundle(bundle)
       bundlesById.set(bundle.id, savedBundle)
       const context = metaContextById.get(savedBundle.meta.id)
@@ -765,7 +767,7 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
         throw new Error(`Shared DB meta ${savedBundle.meta.id} must be materialized before Wimp ${savedBundle.id}`)
       }
 
-      persistWimpBundle(savedBundle, context)
+      await persistWimpBundle(savedBundle, context)
     },
   }
 }

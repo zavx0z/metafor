@@ -69,17 +69,27 @@ const requireReference = (
 
 export const sharedDbRequiredBackendIndexes: readonly SharedDbBackendIndexSpec[] = [
   { name: "metas_by_src", table: "metas", columns: ["src"], unique: true },
+  { name: "meta_fields_by_owner_meta", table: "meta_fields", columns: ["ownerMetaId"], unique: false },
   { name: "meta_fields_by_owner_and_field_key", table: "meta_fields", columns: ["ownerMetaId", "fieldKey"], unique: true },
   { name: "meta_fields_by_owner_and_field_order", table: "meta_fields", columns: ["ownerMetaId", "fieldOrder"], unique: true },
+  { name: "meta_states_by_owner_meta", table: "meta_states", columns: ["ownerMetaId"], unique: false },
   { name: "meta_states_by_owner_and_state_name", table: "meta_states", columns: ["ownerMetaId", "stateName"], unique: true },
   { name: "meta_states_by_owner_and_state_order", table: "meta_states", columns: ["ownerMetaId", "stateOrder"], unique: true },
+  { name: "meta_transitions_by_owner_state", table: "meta_transitions", columns: ["ownerMetaStateId"], unique: false },
   { name: "meta_transitions_by_owner_state_and_order", table: "meta_transitions", columns: ["ownerMetaStateId", "transitionOrder"], unique: true },
+  {
+    name: "meta_transition_conditions_by_owner_transition",
+    table: "meta_transition_conditions",
+    columns: ["ownerMetaTransitionId"],
+    unique: false,
+  },
   {
     name: "meta_transition_conditions_by_owner_transition_and_order",
     table: "meta_transition_conditions",
     columns: ["ownerMetaTransitionId", "conditionOrder"],
     unique: true,
   },
+  { name: "meta_processes_by_owner_meta", table: "meta_processes", columns: ["ownerMetaId"], unique: false },
   { name: "meta_processes_by_owner_and_process_key", table: "meta_processes", columns: ["ownerMetaId", "processKey"], unique: true },
   {
     name: "meta_processes_by_owner_and_process_order",
@@ -88,10 +98,22 @@ export const sharedDbRequiredBackendIndexes: readonly SharedDbBackendIndexSpec[]
     unique: true,
   },
   {
+    name: "meta_process_reads_by_owner_process",
+    table: "meta_process_reads",
+    columns: ["ownerMetaProcessId"],
+    unique: false,
+  },
+  {
     name: "meta_process_reads_by_process_phase_and_order",
     table: "meta_process_reads",
     columns: ["ownerMetaProcessId", "phase", "readOrder"],
     unique: true,
+  },
+  {
+    name: "meta_process_writes_by_owner_process",
+    table: "meta_process_writes",
+    columns: ["ownerMetaProcessId"],
+    unique: false,
   },
   {
     name: "meta_process_writes_by_process_phase_and_order",
@@ -99,6 +121,7 @@ export const sharedDbRequiredBackendIndexes: readonly SharedDbBackendIndexSpec[]
     columns: ["ownerMetaProcessId", "phase", "writeOrder"],
     unique: true,
   },
+  { name: "meta_reactions_by_owner_meta", table: "meta_reactions", columns: ["ownerMetaId"], unique: false },
   { name: "meta_reactions_by_owner_and_reaction_key", table: "meta_reactions", columns: ["ownerMetaId", "reactionKey"], unique: true },
   {
     name: "meta_reactions_by_owner_and_reaction_order",
@@ -107,19 +130,39 @@ export const sharedDbRequiredBackendIndexes: readonly SharedDbBackendIndexSpec[]
     unique: true,
   },
   {
+    name: "meta_reaction_states_by_owner_reaction",
+    table: "meta_reaction_states",
+    columns: ["ownerMetaReactionId"],
+    unique: false,
+  },
+  {
     name: "meta_reaction_states_by_reaction_and_state",
     table: "meta_reaction_states",
     columns: ["ownerMetaReactionId", "metaStateId"],
     unique: true,
   },
+  {
+    name: "meta_reaction_reads_by_owner_reaction",
+    table: "meta_reaction_reads",
+    columns: ["ownerMetaReactionId"],
+    unique: false,
+  },
   { name: "meta_reaction_reads_by_reaction_and_order", table: "meta_reaction_reads", columns: ["ownerMetaReactionId", "readOrder"], unique: true },
+  {
+    name: "meta_reaction_writes_by_owner_reaction",
+    table: "meta_reaction_writes",
+    columns: ["ownerMetaReactionId"],
+    unique: false,
+  },
   {
     name: "meta_reaction_writes_by_reaction_and_order",
     table: "meta_reaction_writes",
     columns: ["ownerMetaReactionId", "writeOrder"],
     unique: true,
   },
+  { name: "meta_matter_nodes_by_owner_meta", table: "meta_matter_nodes", columns: ["ownerMetaId"], unique: false },
   { name: "meta_matter_nodes_by_owner_and_order", table: "meta_matter_nodes", columns: ["ownerMetaId", "nodeOrder"], unique: true },
+  { name: "meta_matter_edges_by_owner_meta", table: "meta_matter_edges", columns: ["ownerMetaId"], unique: false },
   {
     name: "meta_matter_edges_by_parent_and_edge_order",
     table: "meta_matter_edges",
@@ -128,6 +171,7 @@ export const sharedDbRequiredBackendIndexes: readonly SharedDbBackendIndexSpec[]
   },
   { name: "wimps_by_wimp_order", table: "wimps", columns: ["wimpOrder"], unique: true },
   { name: "wimps_by_meta_id", table: "wimps", columns: ["metaId"], unique: false },
+  { name: "wimp_fields_by_owner_wimp", table: "wimp_fields", columns: ["ownerWimpId"], unique: false },
   { name: "wimp_fields_by_owner_and_meta_field", table: "wimp_fields", columns: ["ownerWimpId", "metaFieldId"], unique: true },
   { name: "wimp_fields_by_owner_and_field_order", table: "wimp_fields", columns: ["ownerWimpId", "fieldOrder"], unique: true },
   { name: "wimp_edges_by_child", table: "wimp_edges", columns: ["childWimpId"], unique: true },
@@ -138,16 +182,34 @@ export const sharedDbRequiredBackendIndexes: readonly SharedDbBackendIndexSpec[]
   { name: "wimp_states_by_owner", table: "wimp_states", columns: ["ownerWimpId"], unique: true },
   { name: "entanglements_by_membership_key", table: "entanglements", columns: ["membershipKey"], unique: false },
   {
+    name: "entanglement_members_by_owner_entanglement",
+    table: "entanglement_members",
+    columns: ["ownerEntanglementId"],
+    unique: false,
+  },
+  {
     name: "entanglement_members_by_owner_and_order",
     table: "entanglement_members",
     columns: ["ownerEntanglementId", "memberOrder"],
     unique: true,
   },
   {
+    name: "entanglement_fields_by_owner_entanglement",
+    table: "entanglement_fields",
+    columns: ["ownerEntanglementId"],
+    unique: false,
+  },
+  {
     name: "entanglement_fields_by_owner_and_order",
     table: "entanglement_fields",
     columns: ["ownerEntanglementId", "fieldOrder"],
     unique: true,
+  },
+  {
+    name: "entanglement_field_members_by_owner_field",
+    table: "entanglement_field_members",
+    columns: ["ownerEntanglementFieldId"],
+    unique: false,
   },
   {
     name: "entanglement_field_members_by_owner_and_order",
@@ -528,3 +590,80 @@ export const normalizeSharedDbData = (data: SharedDbData): SharedDbData => {
 }
 
 export const readSharedDbData = (backend: SharedDbBackend): SharedDbData => normalizeSharedDbData(backend.readData())
+
+export const selectSharedDbMetaRows = (data: SharedDbData, metaId: string) => {
+  const meta = data.metas.find((row) => row.id === metaId)
+  if (!meta) return null
+
+  const states = data.metaStates.filter((row) => row.ownerMetaId === metaId)
+  const stateIds = new Set(states.map((row) => row.id))
+  const transitions = data.metaTransitions.filter((row) => stateIds.has(row.ownerMetaStateId))
+  const transitionIds = new Set(transitions.map((row) => row.id))
+  const processes = data.metaProcesses.filter((row) => row.ownerMetaId === metaId)
+  const processIds = new Set(processes.map((row) => row.id))
+  const reactions = data.metaReactions.filter((row) => row.ownerMetaId === metaId)
+  const reactionIds = new Set(reactions.map((row) => row.id))
+
+  return {
+    meta,
+    fields: data.metaFields.filter((row) => row.ownerMetaId === metaId),
+    states,
+    transitions,
+    transitionConditions: data.metaTransitionConditions.filter((row) => transitionIds.has(row.ownerMetaTransitionId)),
+    processes,
+    processReads: data.metaProcessReads.filter((row) => processIds.has(row.ownerMetaProcessId)),
+    processWrites: data.metaProcessWrites.filter((row) => processIds.has(row.ownerMetaProcessId)),
+    reactions,
+    reactionStates: data.metaReactionStates.filter((row) => reactionIds.has(row.ownerMetaReactionId)),
+    reactionReads: data.metaReactionReads.filter((row) => reactionIds.has(row.ownerMetaReactionId)),
+    reactionWrites: data.metaReactionWrites.filter((row) => reactionIds.has(row.ownerMetaReactionId)),
+    matterNodes: data.metaMatterNodes.filter((row) => row.ownerMetaId === metaId),
+    matterEdges: data.metaMatterEdges.filter((row) => row.ownerMetaId === metaId),
+  }
+}
+
+export const selectSharedDbWimpRows = (data: SharedDbData, wimpId: string) => {
+  const wimp = data.wimps.find((row) => row.id === wimpId)
+  if (!wimp) return null
+
+  const fields = data.wimpFields.filter((row) => row.ownerWimpId === wimpId)
+  const fieldIds = new Set(fields.map((row) => row.id))
+  const state = data.wimpStates.find((row) => row.ownerWimpId === wimpId)
+  if (!state) {
+    throw new Error(`Wimp ${wimpId} is missing wimp_state row`)
+  }
+
+  return {
+    wimp,
+    fields,
+    values: data.fieldValues.filter((row) => fieldIds.has(row.ownerWimpFieldId)),
+    sources: data.fieldSources.filter((row) => fieldIds.has(row.childWimpFieldId)),
+    state,
+  }
+}
+
+export const selectSharedDbWimpEdge = (data: SharedDbData, childWimpId: string) =>
+  data.wimpEdges.find((row) => row.childWimpId === childWimpId) ?? null
+
+export const selectSharedDbFieldValue = (data: SharedDbData, wimpFieldId: string) =>
+  data.fieldValues.find((row) => row.ownerWimpFieldId === wimpFieldId) ?? null
+
+export const selectSharedDbFieldSource = (data: SharedDbData, childWimpFieldId: string) =>
+  data.fieldSources.find((row) => row.childWimpFieldId === childWimpFieldId) ?? null
+
+export const selectSharedDbEntanglementFamilyRows = (data: SharedDbData, entanglementId: string) => {
+  const entanglement = data.entanglements.find((row) => row.id === entanglementId)
+  if (!entanglement) return null
+
+  const field = data.entanglementFields.find((row) => row.ownerEntanglementId === entanglementId)
+  if (!field) {
+    throw new Error(`Entanglement ${entanglementId} is missing entanglement_field rows`)
+  }
+
+  return {
+    entanglement,
+    members: data.entanglementMembers.filter((row) => row.ownerEntanglementId === entanglementId),
+    field,
+    fieldMembers: data.entanglementFieldMembers.filter((row) => row.ownerEntanglementFieldId === field.id),
+  }
+}

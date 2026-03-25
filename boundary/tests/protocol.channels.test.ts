@@ -56,8 +56,8 @@ describe("boundary <-> dark protocol channels", () => {
       const boundaryGravity = subscribeBoundaryGravityBroadcast(backend, { channelName })
 
       try {
-        fixture.root.save(writer, gravityProtocol)
-        fixture.child.save(writer, gravityProtocol)
+        await fixture.root.save(writer, gravityProtocol)
+        await fixture.child.save(writer, gravityProtocol)
         await nextTick()
         await boundaryGravity.flush()
 
@@ -171,8 +171,8 @@ describe("boundary <-> dark protocol channels", () => {
       const fixture = createSharedDbFixture()
       const backend = openSharedDbSqliteBackend()
       const writer = openSharedDbMaterializationWriter(backend)
-      fixture.root.save(writer)
-      fixture.child.save(writer)
+      await fixture.root.save(writer)
+      await fixture.child.save(writer)
 
       const received: PhotonMessage[] = []
       const subscription = subscribeDarkPhotons((message) => {

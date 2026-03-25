@@ -48,18 +48,18 @@ const materializeGithubWorldToSharedDb = async () => {
   return backend
 }
 
-const materializeFixtureToSharedDb = () => {
+const materializeFixtureToSharedDb = async () => {
   const fixture = createSharedDbFixture()
   const backend = openSharedDbSqliteBackend()
   const writer = openSharedDbMaterializationWriter(backend)
 
-  fixture.root.save(writer)
-  fixture.child.save(writer)
+  await fixture.root.save(writer)
+  await fixture.child.save(writer)
 
   return { fixture, backend }
 }
 
-const materializeIndependentRootsToSharedDb = () => {
+const materializeIndependentRootsToSharedDb = async () => {
   const meta = new Meta({
     src: "meta/runtime-index-shift",
     fieldSchemas: {
@@ -79,9 +79,9 @@ const materializeIndependentRootsToSharedDb = () => {
   const backend = openSharedDbSqliteBackend()
   const writer = openSharedDbMaterializationWriter(backend)
 
-  alpha.save(writer)
-  beta.save(writer)
-  gamma.save(writer)
+  await alpha.save(writer)
+  await beta.save(writer)
+  await gamma.save(writer)
 
   return { backend, wimps: { alpha, beta, gamma } }
 }
@@ -144,7 +144,7 @@ describe("boundary runtime from shared/db backend", () => {
   })
 
   test("structural add/remove сначала мутируют gravity$, а barrier patch потом пересобирает boundary$", async () => {
-    const { fixture, backend } = materializeFixtureToSharedDb()
+    const { fixture, backend } = await materializeFixtureToSharedDb()
 
     try {
       expect(listRuntimeWimpIds()).toEqual([])
@@ -201,7 +201,7 @@ describe("boundary runtime from shared/db backend", () => {
   })
 
   test("uuid остаётся стабильным, а braneIndex может измениться после следующего rebuild", async () => {
-    const { backend, wimps } = materializeIndependentRootsToSharedDb()
+    const { backend, wimps } = await materializeIndependentRootsToSharedDb()
 
     try {
       await applyStructuralPatchFromSharedDb(backend, { op: "add", path: `/wimp/${wimps.beta.id}` })
@@ -224,7 +224,7 @@ describe("boundary runtime from shared/db backend", () => {
   })
 
   test("barrier patch при structuralDirty = false ничего не пересобирает и не меняет адресацию", async () => {
-    const { backend } = materializeFixtureToSharedDb()
+    const { backend } = await materializeFixtureToSharedDb()
 
     try {
       await writeRuntimeFromSharedDb(backend)
@@ -246,7 +246,7 @@ describe("boundary runtime from shared/db backend", () => {
   })
 
   test("ordinary runtime update и unlock продолжают работать после gravity/barrier rebuild", async () => {
-    const { fixture, backend } = materializeFixtureToSharedDb()
+    const { fixture, backend } = await materializeFixtureToSharedDb()
 
     try {
       addRuntimeWimp(fixture.root.id)

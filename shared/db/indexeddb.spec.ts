@@ -55,13 +55,13 @@ describe("shared db indexeddb backend", () => {
   test("сохраняет canonical relational rows через row-group writes и перечитывает их после повторного открытия", async () => {
     const target = createIndexedDbTarget()
     const fixture = createSharedDbFixture()
-    const expected = assembleSharedDbData(fixture.root)
+    const expected = await assembleSharedDbData(fixture.root)
 
     const writer = await openSharedDbIndexedDbBackend(target)
     try {
       const materializer = openSharedDbMaterializationWriter(writer)
-      fixture.root.save(materializer)
-      fixture.child.save(materializer)
+      await fixture.root.save(materializer)
+      await fixture.child.save(materializer)
       await writer.flush()
     } finally {
       writer.close()
@@ -72,7 +72,7 @@ describe("shared db indexeddb backend", () => {
       const restored = readSharedDbData(reader)
       expect(normalizeSharedDbData(restored)).toEqual(normalizeSharedDbData(expected))
 
-      reader.setFieldValue(fixture.fields.childAlias!.id, "Alias via indexeddb")
+      await reader.setFieldValue(fixture.fields.childAlias!.id, "Alias via indexeddb")
       await reader.flush()
     } finally {
       reader.close()

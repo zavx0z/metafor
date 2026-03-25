@@ -6,20 +6,20 @@ import { prepareRuntimeData, prepareRuntimeStore } from "../boundary.ts"
 import { FieldType } from "../gravity"
 import { OP } from "../weak"
 
-const materializeFixture = () => {
+const materializeFixture = async () => {
   const fixture = createSharedDbFixture()
   const backend = openSharedDbSqliteBackend()
   const writer = openSharedDbMaterializationWriter(backend)
 
-  fixture.root.save(writer)
-  fixture.child.save(writer)
+  await fixture.root.save(writer)
+  await fixture.child.save(writer)
 
   return { fixture, backend }
 }
 
 describe("boundary runtime projection from shared db data", () => {
-  test("проецирует canonical shared/db data напрямую в boundary runtime input", () => {
-    const { fixture, backend } = materializeFixture()
+  test("проецирует canonical shared/db data напрямую в boundary runtime input", async () => {
+    const { fixture, backend } = await materializeFixture()
 
     try {
       const runtimeInput = prepareRuntimeData(backend.readData())
@@ -85,8 +85,8 @@ describe("boundary runtime projection from shared db data", () => {
     }
   })
 
-  test("собирает prepared boundary store из canonical shared/db data", () => {
-    const { backend } = materializeFixture()
+  test("собирает prepared boundary store из canonical shared/db data", async () => {
+    const { backend } = await materializeFixture()
 
     try {
       const prepared = prepareRuntimeStore(backend.readData())

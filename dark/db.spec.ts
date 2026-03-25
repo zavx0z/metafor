@@ -3,9 +3,9 @@ import { assembleSharedDbData } from "./db.ts"
 import { createSharedDbFixture } from "fixture/db.fixture.ts"
 
 describe("dark -> shared db debug assembly helper", () => {
-  test("собирает canonical relational data для сравнения и отладки", () => {
+  test("собирает canonical relational data для сравнения и отладки", async () => {
     const fixture = createSharedDbFixture()
-    const data = assembleSharedDbData(fixture.root)
+    const data = await assembleSharedDbData(fixture.root)
 
     expect(data.metas.map((meta) => meta.src).sort()).toEqual(["meta/child", "meta/root"])
     expect(data.metaFields.map((field) => field.fieldKey).sort()).toEqual(["alias", "items", "items", "mode", "mode", "title"])
@@ -22,9 +22,9 @@ describe("dark -> shared db debug assembly helper", () => {
     )
   })
 
-  test("включает entanglement relations и state graph relations как канонические связи, а не runtime tables", () => {
+  test("включает entanglement relations и state graph relations как канонические связи, а не runtime tables", async () => {
     const fixture = createSharedDbFixture()
-    const data = assembleSharedDbData(fixture.root)
+    const data = await assembleSharedDbData(fixture.root)
 
     expect(data.entanglements).toHaveLength(3)
     expect(data.entanglementMembers).toHaveLength(6)

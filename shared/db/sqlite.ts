@@ -1,7 +1,34 @@
 import { Database } from "bun:sqlite"
 import { createEmptySharedDbData, normalizeSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
 import type { SharedDbBackend, SharedDbEntanglementFamilyRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
-import type { SharedDbData, SharedDbFieldSchemaRecord } from "./db.t.ts"
+import type {
+  SharedDbData,
+  SharedDbEntanglementFieldMemberRecord,
+  SharedDbEntanglementFieldRecord,
+  SharedDbEntanglementMemberRecord,
+  SharedDbEntanglementRecord,
+  SharedDbFieldSchemaRecord,
+  SharedDbFieldSourceRecord,
+  SharedDbFieldValueRecord,
+  SharedDbMetaFieldRecord,
+  SharedDbMetaMatterEdgeRecord,
+  SharedDbMetaMatterNodeRecord,
+  SharedDbMetaProcessReadRecord,
+  SharedDbMetaProcessRecord,
+  SharedDbMetaProcessWriteRecord,
+  SharedDbMetaReactionReadRecord,
+  SharedDbMetaReactionRecord,
+  SharedDbMetaReactionStateRecord,
+  SharedDbMetaReactionWriteRecord,
+  SharedDbMetaRecord,
+  SharedDbMetaStateRecord,
+  SharedDbMetaTransitionConditionRecord,
+  SharedDbMetaTransitionRecord,
+  SharedDbWimpEdgeRecord,
+  SharedDbWimpFieldRecord,
+  SharedDbWimpRecord,
+  SharedDbWimpStateRecord,
+} from "./db.t.ts"
 
 export interface SharedDbSqliteBackendOptions {
   filename?: string
@@ -254,6 +281,10 @@ const serializeJson = (value: unknown): string => {
 
 const parseJson = <T>(value: string | null): T | undefined => (value === null ? undefined : (JSON.parse(value) as T))
 
+const compareById = <T extends { id: string }>(left: T, right: T): number => left.id.localeCompare(right.id)
+
+const sortRowsById = <T extends { id: string }>(rows: T[]): T[] => rows.sort(compareById)
+
 const tableResetOrder = [
   "entanglement_field_members",
   "entanglement_fields",
@@ -302,6 +333,218 @@ const readFieldSchema = (row: Record<string, unknown>): SharedDbFieldSchemaRecor
 
   return base
 }
+
+const queryRow = <T>(
+  database: Database,
+  sql: string,
+  params: unknown[],
+  mapRow: (row: Record<string, unknown>) => T,
+): T | null => {
+  const row = database.query(sql).get(...params) as Record<string, unknown> | null
+  return row ? mapRow(row) : null
+}
+
+const queryRows = <T>(
+  database: Database,
+  sql: string,
+  params: unknown[],
+  mapRow: (row: Record<string, unknown>) => T,
+): T[] => (database.query(sql).all(...params) as Array<Record<string, unknown>>).map(mapRow)
+
+const readMetaRecordRow = (row: Record<string, unknown>): SharedDbMetaRecord => ({
+  id: String(row.id),
+  src: String(row.src),
+  ...(row.name !== null && row.name !== undefined ? { name: String(row.name) } : {}),
+  ...(row.bulkJson !== null && row.bulkJson !== undefined ? { bulk: parseJson(String(row.bulkJson)) } : {}),
+  ...(row.massJson !== null && row.massJson !== undefined ? { mass: parseJson(String(row.massJson)) } : {}),
+})
+
+const readMetaFieldRecordRow = (row: Record<string, unknown>): SharedDbMetaFieldRecord => ({
+  id: String(row.id),
+  ownerMetaId: String(row.ownerMetaId),
+  fieldKey: String(row.fieldKey),
+  fieldOrder: Number(row.fieldOrder),
+  schema: readFieldSchema(row),
+})
+
+const readMetaStateRecordRow = (row: Record<string, unknown>): SharedDbMetaStateRecord => ({
+  id: String(row.id),
+  ownerMetaId: String(row.ownerMetaId),
+  stateName: String(row.stateName),
+  stateOrder: Number(row.stateOrder),
+  initial: Boolean(row.initial),
+})
+
+const readMetaTransitionRecordRow = (row: Record<string, unknown>): SharedDbMetaTransitionRecord => ({
+  id: String(row.id),
+  ownerMetaStateId: String(row.ownerMetaStateId),
+  targetMetaStateId:
+    row.targetMetaStateId === null || row.targetMetaStateId === undefined ? null : String(row.targetMetaStateId),
+  transitionOrder: Number(row.transitionOrder),
+})
+
+const readMetaTransitionConditionRecordRow = (row: Record<string, unknown>): SharedDbMetaTransitionConditionRecord => ({
+  id: String(row.id),
+  ownerMetaTransitionId: String(row.ownerMetaTransitionId),
+  metaFieldId: String(row.metaFieldId),
+  conditionOrder: Number(row.conditionOrder),
+  condition: parseJson(String(row.conditionJson)),
+})
+
+const readMetaProcessRecordRow = (row: Record<string, unknown>): SharedDbMetaProcessRecord => ({
+  id: String(row.id),
+  ownerMetaId: String(row.ownerMetaId),
+  processKey: String(row.processKey),
+  processOrder: Number(row.processOrder),
+  processKind: row.processKind === "finally" ? "finally" : "action",
+  ...(row.label !== null && row.label !== undefined ? { label: String(row.label) } : {}),
+  ...(row.desc !== null && row.desc !== undefined ? { desc: String(row.desc) } : {}),
+  ...(row.actionSrc !== null && row.actionSrc !== undefined ? { actionSrc: String(row.actionSrc) } : {}),
+  ...(row.actionImportSpecifier !== null && row.actionImportSpecifier !== undefined
+    ? { actionImportSpecifier: String(row.actionImportSpecifier) }
+    : {}),
+  ...(row.successSrc !== null && row.successSrc !== undefined ? { successSrc: String(row.successSrc) } : {}),
+  ...(row.errorSrc !== null && row.errorSrc !== undefined ? { errorSrc: String(row.errorSrc) } : {}),
+  ...(row.beforeSrc !== null && row.beforeSrc !== undefined ? { beforeSrc: String(row.beforeSrc) } : {}),
+})
+
+const readMetaProcessReadRecordRow = (row: Record<string, unknown>): SharedDbMetaProcessReadRecord => ({
+  id: String(row.id),
+  ownerMetaProcessId: String(row.ownerMetaProcessId),
+  metaFieldId: String(row.metaFieldId),
+  phase: String(row.phase) as "action" | "success" | "error" | "before",
+  readOrder: Number(row.readOrder),
+})
+
+const readMetaProcessWriteRecordRow = (row: Record<string, unknown>): SharedDbMetaProcessWriteRecord => ({
+  id: String(row.id),
+  ownerMetaProcessId: String(row.ownerMetaProcessId),
+  metaFieldId: String(row.metaFieldId),
+  phase: String(row.phase) as "success" | "error",
+  writeOrder: Number(row.writeOrder),
+})
+
+const readMetaReactionRecordRow = (row: Record<string, unknown>): SharedDbMetaReactionRecord => ({
+  id: String(row.id),
+  ownerMetaId: String(row.ownerMetaId),
+  reactionKey: String(row.reactionKey),
+  reactionOrder: Number(row.reactionOrder),
+  label: String(row.label),
+  ...(row.desc !== null && row.desc !== undefined ? { desc: String(row.desc) } : {}),
+  cond: String(row.cond),
+  src: String(row.src),
+})
+
+const readMetaReactionStateRecordRow = (row: Record<string, unknown>): SharedDbMetaReactionStateRecord => ({
+  id: String(row.id),
+  ownerMetaReactionId: String(row.ownerMetaReactionId),
+  metaStateId: String(row.metaStateId),
+  stateOrder: Number(row.stateOrder),
+})
+
+const readMetaReactionReadRecordRow = (row: Record<string, unknown>): SharedDbMetaReactionReadRecord => ({
+  id: String(row.id),
+  ownerMetaReactionId: String(row.ownerMetaReactionId),
+  metaFieldId: String(row.metaFieldId),
+  readOrder: Number(row.readOrder),
+})
+
+const readMetaReactionWriteRecordRow = (row: Record<string, unknown>): SharedDbMetaReactionWriteRecord => ({
+  id: String(row.id),
+  ownerMetaReactionId: String(row.ownerMetaReactionId),
+  metaFieldId: String(row.metaFieldId),
+  writeOrder: Number(row.writeOrder),
+})
+
+const readMetaMatterNodeRecordRow = (row: Record<string, unknown>): SharedDbMetaMatterNodeRecord => ({
+  id: String(row.id),
+  ownerMetaId: String(row.ownerMetaId),
+  nodeType: String(row.nodeType),
+  nodeOrder: Number(row.nodeOrder),
+  payload: parseJson<Record<string, unknown>>(String(row.payloadJson)) ?? {},
+})
+
+const readMetaMatterEdgeRecordRow = (row: Record<string, unknown>): SharedDbMetaMatterEdgeRecord => ({
+  id: String(row.id),
+  ownerMetaId: String(row.ownerMetaId),
+  parentNodeId: row.parentNodeId === null || row.parentNodeId === undefined ? null : String(row.parentNodeId),
+  childNodeId: String(row.childNodeId),
+  edgeOrder: Number(row.edgeOrder),
+})
+
+const readWimpRecordRow = (row: Record<string, unknown>): SharedDbWimpRecord => ({
+  id: String(row.id),
+  metaId: String(row.metaId),
+  wimpOrder: Number(row.wimpOrder),
+  ...(row.massOverrideJson !== null && row.massOverrideJson !== undefined
+    ? { massOverride: parseJson(String(row.massOverrideJson)) }
+    : {}),
+})
+
+const readWimpFieldRecordRow = (row: Record<string, unknown>): SharedDbWimpFieldRecord => ({
+  id: String(row.id),
+  ownerWimpId: String(row.ownerWimpId),
+  metaFieldId: String(row.metaFieldId),
+  fieldOrder: Number(row.fieldOrder),
+})
+
+const readWimpEdgeRecordRow = (row: Record<string, unknown>): SharedDbWimpEdgeRecord => ({
+  id: String(row.id),
+  parentWimpId: row.parentWimpId === null || row.parentWimpId === undefined ? null : String(row.parentWimpId),
+  childWimpId: String(row.childWimpId),
+  edgeOrder: Number(row.edgeOrder),
+})
+
+const readFieldValueRecordRow = (row: Record<string, unknown>): SharedDbFieldValueRecord => ({
+  id: String(row.id),
+  ownerWimpFieldId: String(row.ownerWimpFieldId),
+  value: parseJson(String(row.valueJson)),
+})
+
+const readFieldSourceRecordRow = (row: Record<string, unknown>): SharedDbFieldSourceRecord => ({
+  id: String(row.id),
+  childWimpFieldId: String(row.childWimpFieldId),
+  parentWimpFieldId: String(row.parentWimpFieldId),
+})
+
+const readWimpStateRecordRow = (row: Record<string, unknown>): SharedDbWimpStateRecord => ({
+  id: String(row.id),
+  ownerWimpId: String(row.ownerWimpId),
+  metaStateId: String(row.metaStateId),
+})
+
+const readEntanglementRecordRow = (row: Record<string, unknown>): SharedDbEntanglementRecord => ({
+  id: String(row.id),
+  membershipKey: String(row.membershipKey),
+  provenance: String(row.provenance),
+})
+
+const readEntanglementMemberRecordRow = (row: Record<string, unknown>): SharedDbEntanglementMemberRecord => ({
+  id: String(row.id),
+  ownerEntanglementId: String(row.ownerEntanglementId),
+  wimpId: String(row.wimpId),
+  memberOrder: Number(row.memberOrder),
+})
+
+const readEntanglementFieldRecordRow = (row: Record<string, unknown>): SharedDbEntanglementFieldRecord => ({
+  id: String(row.id),
+  ownerEntanglementId: String(row.ownerEntanglementId),
+  fieldOrder: Number(row.fieldOrder),
+  semanticKey: String(row.semanticKey),
+  fieldName: String(row.fieldName),
+  provenance: String(row.provenance),
+  representativeWimpFieldId: String(row.representativeWimpFieldId),
+  payloadIds: parseJson<string[]>(String(row.payloadIdsJson)) ?? [],
+  semanticKeys: parseJson<string[]>(String(row.semanticKeysJson)) ?? [],
+})
+
+const readEntanglementFieldMemberRecordRow = (row: Record<string, unknown>): SharedDbEntanglementFieldMemberRecord => ({
+  id: String(row.id),
+  ownerEntanglementFieldId: String(row.ownerEntanglementFieldId),
+  ownerWimpId: String(row.ownerWimpId),
+  wimpFieldId: String(row.wimpFieldId),
+  memberOrder: Number(row.memberOrder),
+})
 
 export const initializeSharedDbSqliteSchema = (database: Database): void => {
   database.exec(schemaSql)
@@ -601,6 +844,333 @@ const readAllData = (database: Database): SharedDbData => ({
     memberOrder: Number(row.memberOrder),
   })),
 })
+
+const readMetaRowsFromDatabase = (database: Database, metaId: string): SharedDbMetaRows | null => {
+  const meta = queryRow(
+    database,
+    `SELECT id, src, name, bulkJson, massJson FROM metas WHERE id = ?`,
+    [metaId],
+    readMetaRecordRow,
+  )
+  if (!meta) return null
+
+  const fields = queryRows(
+    database,
+    `SELECT id, ownerMetaId, fieldKey, fieldOrder, schemaType, schemaRequired, schemaTopology, schemaLabel, schemaValues
+     FROM meta_fields
+     WHERE ownerMetaId = ?
+     ORDER BY id`,
+    [metaId],
+    readMetaFieldRecordRow,
+  )
+  const states = queryRows(
+    database,
+    `SELECT id, ownerMetaId, stateName, stateOrder, initial
+     FROM meta_states
+     WHERE ownerMetaId = ?
+     ORDER BY id`,
+    [metaId],
+    readMetaStateRecordRow,
+  )
+  const transitions = sortRowsById(
+    states.flatMap((state) =>
+      queryRows(
+        database,
+        `SELECT id, ownerMetaStateId, targetMetaStateId, transitionOrder
+         FROM meta_transitions
+         WHERE ownerMetaStateId = ?
+         ORDER BY id`,
+        [state.id],
+        readMetaTransitionRecordRow,
+      ),
+    ),
+  )
+  const transitionConditions = sortRowsById(
+    transitions.flatMap((transition) =>
+      queryRows(
+        database,
+        `SELECT id, ownerMetaTransitionId, metaFieldId, conditionOrder, conditionJson
+         FROM meta_transition_conditions
+         WHERE ownerMetaTransitionId = ?
+         ORDER BY id`,
+        [transition.id],
+        readMetaTransitionConditionRecordRow,
+      ),
+    ),
+  )
+  const processes = queryRows(
+    database,
+    `SELECT id, ownerMetaId, processKey, processOrder, processKind, label, desc,
+            actionSrc, actionImportSpecifier, successSrc, errorSrc, beforeSrc
+     FROM meta_processes
+     WHERE ownerMetaId = ?
+     ORDER BY id`,
+    [metaId],
+    readMetaProcessRecordRow,
+  )
+  const processReads = sortRowsById(
+    processes.flatMap((process) =>
+      queryRows(
+        database,
+        `SELECT id, ownerMetaProcessId, metaFieldId, phase, readOrder
+         FROM meta_process_reads
+         WHERE ownerMetaProcessId = ?
+         ORDER BY id`,
+        [process.id],
+        readMetaProcessReadRecordRow,
+      ),
+    ),
+  )
+  const processWrites = sortRowsById(
+    processes.flatMap((process) =>
+      queryRows(
+        database,
+        `SELECT id, ownerMetaProcessId, metaFieldId, phase, writeOrder
+         FROM meta_process_writes
+         WHERE ownerMetaProcessId = ?
+         ORDER BY id`,
+        [process.id],
+        readMetaProcessWriteRecordRow,
+      ),
+    ),
+  )
+  const reactions = queryRows(
+    database,
+    `SELECT id, ownerMetaId, reactionKey, reactionOrder, label, desc, cond, src
+     FROM meta_reactions
+     WHERE ownerMetaId = ?
+     ORDER BY id`,
+    [metaId],
+    readMetaReactionRecordRow,
+  )
+  const reactionStates = sortRowsById(
+    reactions.flatMap((reaction) =>
+      queryRows(
+        database,
+        `SELECT id, ownerMetaReactionId, metaStateId, stateOrder
+         FROM meta_reaction_states
+         WHERE ownerMetaReactionId = ?
+         ORDER BY id`,
+        [reaction.id],
+        readMetaReactionStateRecordRow,
+      ),
+    ),
+  )
+  const reactionReads = sortRowsById(
+    reactions.flatMap((reaction) =>
+      queryRows(
+        database,
+        `SELECT id, ownerMetaReactionId, metaFieldId, readOrder
+         FROM meta_reaction_reads
+         WHERE ownerMetaReactionId = ?
+         ORDER BY id`,
+        [reaction.id],
+        readMetaReactionReadRecordRow,
+      ),
+    ),
+  )
+  const reactionWrites = sortRowsById(
+    reactions.flatMap((reaction) =>
+      queryRows(
+        database,
+        `SELECT id, ownerMetaReactionId, metaFieldId, writeOrder
+         FROM meta_reaction_writes
+         WHERE ownerMetaReactionId = ?
+         ORDER BY id`,
+        [reaction.id],
+        readMetaReactionWriteRecordRow,
+      ),
+    ),
+  )
+  const matterNodes = queryRows(
+    database,
+    `SELECT id, ownerMetaId, nodeType, nodeOrder, payloadJson
+     FROM meta_matter_nodes
+     WHERE ownerMetaId = ?
+     ORDER BY id`,
+    [metaId],
+    readMetaMatterNodeRecordRow,
+  )
+  const matterEdges = queryRows(
+    database,
+    `SELECT id, ownerMetaId, parentNodeId, childNodeId, edgeOrder
+     FROM meta_matter_edges
+     WHERE ownerMetaId = ?
+     ORDER BY id`,
+    [metaId],
+    readMetaMatterEdgeRecordRow,
+  )
+
+  return {
+    meta,
+    fields,
+    states,
+    transitions,
+    transitionConditions,
+    processes,
+    processReads,
+    processWrites,
+    reactions,
+    reactionStates,
+    reactionReads,
+    reactionWrites,
+    matterNodes,
+    matterEdges,
+  }
+}
+
+const readWimpRowsFromDatabase = (database: Database, wimpId: string): SharedDbWimpRows | null => {
+  const wimp = queryRow(
+    database,
+    `SELECT id, metaId, wimpOrder, massOverrideJson
+     FROM wimps
+     WHERE id = ?`,
+    [wimpId],
+    readWimpRecordRow,
+  )
+  if (!wimp) return null
+
+  const fields = queryRows(
+    database,
+    `SELECT id, ownerWimpId, metaFieldId, fieldOrder
+     FROM wimp_fields
+     WHERE ownerWimpId = ?
+     ORDER BY id`,
+    [wimpId],
+    readWimpFieldRecordRow,
+  )
+  const values = sortRowsById(
+    fields.flatMap((field) =>
+      queryRows(
+        database,
+        `SELECT id, ownerWimpFieldId, valueJson
+         FROM field_values
+         WHERE ownerWimpFieldId = ?
+         ORDER BY id`,
+        [field.id],
+        readFieldValueRecordRow,
+      ),
+    ),
+  )
+  const sources = sortRowsById(
+    fields.flatMap((field) =>
+      queryRows(
+        database,
+        `SELECT id, childWimpFieldId, parentWimpFieldId
+         FROM field_sources
+         WHERE childWimpFieldId = ?
+         ORDER BY id`,
+        [field.id],
+        readFieldSourceRecordRow,
+      ),
+    ),
+  )
+  const state = queryRow(
+    database,
+    `SELECT id, ownerWimpId, metaStateId
+     FROM wimp_states
+     WHERE ownerWimpId = ?`,
+    [wimpId],
+    readWimpStateRecordRow,
+  )
+  if (!state) {
+    throw new Error(`Wimp ${wimpId} is missing wimp_state row`)
+  }
+
+  return {
+    wimp,
+    fields,
+    values,
+    sources,
+    state,
+  }
+}
+
+const readWimpEdgeFromDatabase = (database: Database, childWimpId: string): SharedDbWimpEdgeRecord | null =>
+  queryRow(
+    database,
+    `SELECT id, parentWimpId, childWimpId, edgeOrder
+     FROM wimp_edges
+     WHERE childWimpId = ?`,
+    [childWimpId],
+    readWimpEdgeRecordRow,
+  )
+
+const readFieldValueFromDatabase = (database: Database, wimpFieldId: string): SharedDbFieldValueRecord | null =>
+  queryRow(
+    database,
+    `SELECT id, ownerWimpFieldId, valueJson
+     FROM field_values
+     WHERE ownerWimpFieldId = ?`,
+    [wimpFieldId],
+    readFieldValueRecordRow,
+  )
+
+const readFieldSourceFromDatabase = (database: Database, childWimpFieldId: string): SharedDbFieldSourceRecord | null =>
+  queryRow(
+    database,
+    `SELECT id, childWimpFieldId, parentWimpFieldId
+     FROM field_sources
+     WHERE childWimpFieldId = ?`,
+    [childWimpFieldId],
+    readFieldSourceRecordRow,
+  )
+
+const readEntanglementFamilyFromDatabase = (
+  database: Database,
+  entanglementId: string,
+): SharedDbEntanglementFamilyRows | null => {
+  const entanglement = queryRow(
+    database,
+    `SELECT id, membershipKey, provenance
+     FROM entanglements
+     WHERE id = ?`,
+    [entanglementId],
+    readEntanglementRecordRow,
+  )
+  if (!entanglement) return null
+
+  const members = queryRows(
+    database,
+    `SELECT id, ownerEntanglementId, wimpId, memberOrder
+     FROM entanglement_members
+     WHERE ownerEntanglementId = ?
+     ORDER BY id`,
+    [entanglementId],
+    readEntanglementMemberRecordRow,
+  )
+  const fields = queryRows(
+    database,
+    `SELECT id, ownerEntanglementId, fieldOrder, semanticKey, fieldName, provenance,
+            representativeWimpFieldId, payloadIdsJson, semanticKeysJson
+     FROM entanglement_fields
+     WHERE ownerEntanglementId = ?
+     ORDER BY id`,
+    [entanglementId],
+    readEntanglementFieldRecordRow,
+  )
+  const field = fields[0]
+  if (!field) {
+    throw new Error(`Entanglement ${entanglementId} is missing entanglement_field rows`)
+  }
+
+  const fieldMembers = queryRows(
+    database,
+    `SELECT id, ownerEntanglementFieldId, ownerWimpId, wimpFieldId, memberOrder
+     FROM entanglement_field_members
+     WHERE ownerEntanglementFieldId = ?
+     ORDER BY id`,
+    [field.id],
+    readEntanglementFieldMemberRecordRow,
+  )
+
+  return {
+    entanglement,
+    members,
+    field,
+    fieldMembers,
+  }
+}
 
 const upsertMetaRow = (database: Database, rows: SharedDbMetaRows): void => {
   database.transaction(() => {
@@ -907,8 +1477,36 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
       resetDatabase(database)
     },
 
+    async flush() {
+      await Promise.resolve()
+    },
+
     readData() {
       return normalizeSharedDbData(readAllData(database))
+    },
+
+    async readMetaRows(metaId) {
+      return readMetaRowsFromDatabase(database, metaId)
+    },
+
+    async readWimpRows(wimpId) {
+      return readWimpRowsFromDatabase(database, wimpId)
+    },
+
+    async readWimpEdge(childWimpId) {
+      return readWimpEdgeFromDatabase(database, childWimpId)
+    },
+
+    async readFieldValue(wimpFieldId) {
+      return readFieldValueFromDatabase(database, wimpFieldId)
+    },
+
+    async readFieldSource(childWimpFieldId) {
+      return readFieldSourceFromDatabase(database, childWimpFieldId)
+    },
+
+    async readEntanglementFamily(entanglementId) {
+      return readEntanglementFamilyFromDatabase(database, entanglementId)
     },
 
     writeMetaRows(rows) {

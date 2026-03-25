@@ -69,8 +69,8 @@ describe("boundary domain layers", () => {
     const writer = openSharedDbMaterializationWriter(backend)
 
     try {
-      fixture.root.save(writer)
-      fixture.child.save(writer)
+      await fixture.root.save(writer)
+      await fixture.child.save(writer)
 
       addRuntimeWimp(fixture.root.id)
       expect(boundary$.branes).toEqual([])

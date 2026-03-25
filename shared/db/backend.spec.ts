@@ -5,14 +5,14 @@ import { openSharedDbMaterializationWriter } from "./materialize.ts"
 import { openSharedDbSqliteBackend } from "./sqlite.ts"
 
 describe("shared db canonical relational data", () => {
-  test("materializes only entity and relation tables through row-group writes", () => {
+  test("materializes only entity and relation tables through row-group writes", async () => {
     const fixture = createSharedDbFixture()
     const backend = openSharedDbSqliteBackend()
     const writer = openSharedDbMaterializationWriter(backend)
 
     try {
-      fixture.root.save(writer)
-      fixture.child.save(writer)
+      await fixture.root.save(writer)
+      await fixture.child.save(writer)
 
       const data = normalizeSharedDbData(backend.readData())
 

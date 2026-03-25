@@ -198,9 +198,9 @@ export class Wimp extends BaseParticle {
   /**
    * Сохраняет текущий canonical shared/db bundle через унифицированный writer.
    */
-  save(writer: SharedDbMaterializationWriter, gravityProtocol?: DarkGravityProtocol): void {
-    writer.saveMetaBundle(this.toSharedDbMetaBundle())
-    writer.saveWimpBundle(this.toSharedDbBundle())
+  async save(writer: SharedDbMaterializationWriter, gravityProtocol?: DarkGravityProtocol): Promise<void> {
+    await writer.saveMetaBundle(this.toSharedDbMetaBundle())
+    await writer.saveWimpBundle(this.toSharedDbBundle())
     gravityProtocol?.emitAdd(this.id)
   }
 }

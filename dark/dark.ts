@@ -187,7 +187,7 @@ export async function* matterMeta(
    */
   wimp.meta = meta
   if (options.sharedDbWriter) {
-    options.sharedDbWriter.saveMetaBundle(wimp.toSharedDbMetaBundle())
+    await options.sharedDbWriter.saveMetaBundle(wimp.toSharedDbMetaBundle())
   }
   wimp.fields = materializeFields(wimp, meta.fields, continuation?.fieldInits)
   /**
@@ -198,7 +198,7 @@ export async function* matterMeta(
   wimp.mass = continuation?.mass
   dark$.particles.set(wimp.id, wimp)
   if (options.sharedDbWriter) {
-    options.sharedDbWriter.saveWimpBundle(wimp.toSharedDbBundle())
+    await options.sharedDbWriter.saveWimpBundle(wimp.toSharedDbBundle())
     options.gravityProtocol?.emitAdd(wimp.id)
   }
 
