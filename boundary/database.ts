@@ -1,4 +1,3 @@
-import type { FieldKey } from "@metafor/ast"
 import {
   createEmptySharedDbData,
   normalizeSharedDbData,
@@ -11,7 +10,6 @@ import { FieldType, flattenBoundaryData, type Data, type Field } from "@boundary
 import { assembleStoredBoundaryData, type PreparedEntanglementProjection } from "@boundary/strong"
 import type { PreparedData } from "./boundary.t.ts"
 import type {
-  BoundaryDatabase,
   BoundaryDatabaseBraneRecord,
   BoundaryDatabaseData,
   BoundaryDatabaseEntanglementBlockMemberRecord,
@@ -20,7 +18,6 @@ import type {
   BoundaryDatabaseEntanglementFieldRecord,
   BoundaryDatabaseFieldRecord,
   BoundaryDatabaseFieldSchemaRecord,
-  BoundaryDatabaseFieldSourceRecord,
   BoundaryDatabaseFieldValueRecord,
   BoundaryDatabaseStateSeedConditionRecord,
   BoundaryDatabaseStateSeedStateRecord,
@@ -54,91 +51,6 @@ const cloneFieldSchema = (
   ...(schema.label !== undefined ? { label: schema.label } : {}),
   ...(schema.values !== undefined ? { values: structuredClone(schema.values) } : {}),
 })
-
-const createEmptyBoundaryDatabaseData = (): BoundaryDatabaseData => ({
-  rootBraneIndex: 0,
-  branes: [],
-  fields: [],
-  fieldValues: [],
-  fieldSources: [],
-  entanglementBlocks: [],
-  entanglementBlockMembers: [],
-  entanglementFields: [],
-  entanglementFieldMembers: [],
-  stateSeedStates: [],
-  stateSeedTransitions: [],
-  stateSeedConditions: [],
-})
-
-const cloneBoundaryDatabaseData = (data: BoundaryDatabaseData): BoundaryDatabaseData => ({
-  rootBraneIndex: data.rootBraneIndex,
-  branes: data.branes.map((brane): BoundaryDatabaseBraneRecord => structuredClone(brane)),
-  fields: data.fields.map((field): BoundaryDatabaseFieldRecord => ({
-    ...field,
-    schema: cloneFieldSchema(field.schema),
-  })),
-  fieldValues: data.fieldValues.map((fieldValue): BoundaryDatabaseFieldValueRecord => ({
-    ...fieldValue,
-    value: structuredClone(fieldValue.value),
-  })),
-  fieldSources: data.fieldSources.map((fieldSource): BoundaryDatabaseFieldSourceRecord => structuredClone(fieldSource)),
-  entanglementBlocks: data.entanglementBlocks.map((block): BoundaryDatabaseEntanglementBlockRecord => structuredClone(block)),
-  entanglementBlockMembers: data.entanglementBlockMembers.map(
-    (member): BoundaryDatabaseEntanglementBlockMemberRecord => structuredClone(member),
-  ),
-  entanglementFields: data.entanglementFields.map((field): BoundaryDatabaseEntanglementFieldRecord => ({
-    ...field,
-    payloadIds: structuredClone(field.payloadIds),
-    semanticKeys: structuredClone(field.semanticKeys),
-  })),
-  entanglementFieldMembers: data.entanglementFieldMembers.map(
-    (member): BoundaryDatabaseEntanglementFieldMemberRecord => structuredClone(member),
-  ),
-  stateSeedStates: data.stateSeedStates.map((state): BoundaryDatabaseStateSeedStateRecord => structuredClone(state)),
-  stateSeedTransitions: data.stateSeedTransitions.map(
-    (transition): BoundaryDatabaseStateSeedTransitionRecord => structuredClone(transition),
-  ),
-  stateSeedConditions: data.stateSeedConditions.map((condition): BoundaryDatabaseStateSeedConditionRecord => ({
-    ...condition,
-    condition: structuredClone(condition.condition),
-  })),
-})
-
-const buildBoundaryDatabaseIndexes = (data: BoundaryDatabaseData) => {
-  const braneIndexByWimpId = new Map<string, number>()
-  const fieldIndexByWimpFieldId = new Map<string, number>()
-  const fieldIndexByBraneAndKey = new Map<number, Map<FieldKey, number>>()
-  const fieldSourceByChildFieldIndex: Array<BoundaryDatabaseFieldSourceRecord | undefined> = []
-  const dependentFieldIndexesByParentFieldIndex = new Map<number, number[]>()
-
-  for (const brane of data.branes) {
-    braneIndexByWimpId.set(brane.wimpId, brane.index)
-    fieldIndexByBraneAndKey.set(brane.index, new Map())
-  }
-
-  for (const field of data.fields) {
-    fieldIndexByWimpFieldId.set(field.wimpFieldId, field.index)
-    fieldIndexByBraneAndKey.get(field.ownerBraneIndex)?.set(field.key, field.index)
-  }
-
-  for (const fieldSource of data.fieldSources) {
-    fieldSourceByChildFieldIndex[fieldSource.childFieldIndex] = fieldSource
-    const dependents = dependentFieldIndexesByParentFieldIndex.get(fieldSource.parentFieldIndex)
-    if (dependents) {
-      dependents.push(fieldSource.childFieldIndex)
-    } else {
-      dependentFieldIndexesByParentFieldIndex.set(fieldSource.parentFieldIndex, [fieldSource.childFieldIndex])
-    }
-  }
-
-  return {
-    braneIndexByWimpId,
-    fieldIndexByWimpFieldId,
-    fieldIndexByBraneAndKey,
-    fieldSourceByChildFieldIndex,
-    dependentFieldIndexesByParentFieldIndex,
-  }
-}
 
 const cloneRuntimeField = (field: Field): Field => ({
   type: field.type,
@@ -190,19 +102,19 @@ const mapBoundaryDatabaseFieldToRuntimeField = (field: BoundaryDatabaseFieldReco
 }
 
 const requireBoundaryDatabaseFieldValue = (
-  database: BoundaryDatabase,
+  data: BoundaryDatabaseData,
   fieldIndex: number,
 ): BoundaryDatabaseFieldValueRecord => {
-  const fieldValue = database.getFieldValue(fieldIndex)
+  const fieldValue = data.fieldValues[fieldIndex]
   if (!fieldValue) {
     throw new Error(`Boundary database field value missing for field index: ${fieldIndex}`)
   }
   return fieldValue
 }
 
-const groupEntanglementBlockMembers = (database: BoundaryDatabase) => {
-  const grouped = new Map<number, typeof database.entanglementBlockMembers>()
-  for (const member of database.entanglementBlockMembers) {
+const groupEntanglementBlockMembers = (data: BoundaryDatabaseData) => {
+  const grouped = new Map<number, typeof data.entanglementBlockMembers>()
+  for (const member of data.entanglementBlockMembers) {
     const members = grouped.get(member.blockIndex)
     if (members) members.push(member)
     else grouped.set(member.blockIndex, [member])
@@ -213,9 +125,9 @@ const groupEntanglementBlockMembers = (database: BoundaryDatabase) => {
   return grouped
 }
 
-const groupEntanglementFields = (database: BoundaryDatabase) => {
-  const grouped = new Map<number, typeof database.entanglementFields>()
-  for (const field of database.entanglementFields) {
+const groupEntanglementFields = (data: BoundaryDatabaseData) => {
+  const grouped = new Map<number, typeof data.entanglementFields>()
+  for (const field of data.entanglementFields) {
     const fields = grouped.get(field.blockIndex)
     if (fields) fields.push(field)
     else grouped.set(field.blockIndex, [field])
@@ -226,9 +138,9 @@ const groupEntanglementFields = (database: BoundaryDatabase) => {
   return grouped
 }
 
-const groupEntanglementFieldMembers = (database: BoundaryDatabase) => {
-  const grouped = new Map<number, typeof database.entanglementFieldMembers>()
-  for (const member of database.entanglementFieldMembers) {
+const groupEntanglementFieldMembers = (data: BoundaryDatabaseData) => {
+  const grouped = new Map<number, typeof data.entanglementFieldMembers>()
+  for (const member of data.entanglementFieldMembers) {
     const members = grouped.get(member.entanglementFieldIndex)
     if (members) members.push(member)
     else grouped.set(member.entanglementFieldIndex, [member])
@@ -239,9 +151,9 @@ const groupEntanglementFieldMembers = (database: BoundaryDatabase) => {
   return grouped
 }
 
-const groupStateSeedStates = (database: BoundaryDatabase) => {
-  const grouped = new Map<number, typeof database.stateSeedStates>()
-  for (const state of database.stateSeedStates) {
+const groupStateSeedStates = (data: BoundaryDatabaseData) => {
+  const grouped = new Map<number, typeof data.stateSeedStates>()
+  for (const state of data.stateSeedStates) {
     const states = grouped.get(state.ownerBraneIndex)
     if (states) states.push(state)
     else grouped.set(state.ownerBraneIndex, [state])
@@ -252,9 +164,9 @@ const groupStateSeedStates = (database: BoundaryDatabase) => {
   return grouped
 }
 
-const groupStateSeedTransitions = (database: BoundaryDatabase) => {
-  const grouped = new Map<string, typeof database.stateSeedTransitions>()
-  for (const transition of database.stateSeedTransitions) {
+const groupStateSeedTransitions = (data: BoundaryDatabaseData) => {
+  const grouped = new Map<string, typeof data.stateSeedTransitions>()
+  for (const transition of data.stateSeedTransitions) {
     const key = `${transition.ownerBraneIndex}:${transition.fromStateIndex}`
     const transitions = grouped.get(key)
     if (transitions) transitions.push(transition)
@@ -266,9 +178,9 @@ const groupStateSeedTransitions = (database: BoundaryDatabase) => {
   return grouped
 }
 
-const groupStateSeedConditions = (database: BoundaryDatabase) => {
-  const grouped = new Map<number, typeof database.stateSeedConditions>()
-  for (const condition of database.stateSeedConditions) {
+const groupStateSeedConditions = (data: BoundaryDatabaseData) => {
+  const grouped = new Map<number, typeof data.stateSeedConditions>()
+  for (const condition of data.stateSeedConditions) {
     const conditions = grouped.get(condition.transitionSeedIndex)
     if (conditions) conditions.push(condition)
     else grouped.set(condition.transitionSeedIndex, [condition])
@@ -279,11 +191,11 @@ const groupStateSeedConditions = (database: BoundaryDatabase) => {
   return grouped
 }
 
-const buildBoundaryRuntimeFieldRegistry = (database: BoundaryDatabase) => {
+const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
   const runtimeFields: Field[] = []
   const runtimeFieldIndexByDbFieldIndex: number[] = []
   const runtimeFieldIndexBySignature = new Map<string, number>()
-  const entanglementFieldMembers = groupEntanglementFieldMembers(database)
+  const entanglementFieldMembers = groupEntanglementFieldMembers(data)
 
   const ensureRuntimeField = (signature: string, field: BoundaryDatabaseFieldRecord): number => {
     const existing = runtimeFieldIndexBySignature.get(signature)
@@ -295,8 +207,8 @@ const buildBoundaryRuntimeFieldRegistry = (database: BoundaryDatabase) => {
     return runtimeFieldIndex
   }
 
-  for (const seedField of [...database.entanglementFields].sort((left, right) => left.index - right.index)) {
-    const representativeField = database.getField(seedField.representativeFieldIndex)
+  for (const seedField of [...data.entanglementFields].sort((left, right) => left.index - right.index)) {
+    const representativeField = data.fields[seedField.representativeFieldIndex]
     if (!representativeField) {
       throw new Error(`Boundary runtime seed representative field missing: ${seedField.representativeFieldIndex}`)
     }
@@ -315,7 +227,7 @@ const buildBoundaryRuntimeFieldRegistry = (database: BoundaryDatabase) => {
     }
   }
 
-  for (const field of database.fields) {
+  for (const field of data.fields) {
     if (runtimeFieldIndexByDbFieldIndex[field.index] !== undefined) continue
     const runtimeFieldIndex = ensureRuntimeField(createLocalRuntimeFieldSignature(field), field)
     runtimeFieldIndexByDbFieldIndex[field.index] = runtimeFieldIndex
@@ -325,23 +237,23 @@ const buildBoundaryRuntimeFieldRegistry = (database: BoundaryDatabase) => {
 }
 
 const prepareBoundaryEntanglementProjection = (
-  database: BoundaryDatabase,
+  data: BoundaryDatabaseData,
   runtimeFieldIndexByDbFieldIndex: number[],
 ): PreparedEntanglementProjection | undefined => {
-  if (database.entanglementBlocks.length === 0) return undefined
+  if (data.entanglementBlocks.length === 0) return undefined
 
-  const blockMembers = groupEntanglementBlockMembers(database)
-  const blockFields = groupEntanglementFields(database)
-  const fieldMembers = groupEntanglementFieldMembers(database)
+  const blockMembers = groupEntanglementBlockMembers(data)
+  const blockFields = groupEntanglementFields(data)
+  const fieldMembers = groupEntanglementFieldMembers(data)
 
   return {
-    blocks: [...database.entanglementBlocks]
+    blocks: [...data.entanglementBlocks]
       .sort((left, right) => left.index - right.index)
       .map((block) => ({
         key: block.key,
         braneIndices: (blockMembers.get(block.index) ?? []).map((member) => member.braneIndex),
         fields: (blockFields.get(block.index) ?? []).map((seedField) => {
-          const representativeField = database.getField(seedField.representativeFieldIndex)
+          const representativeField = data.fields[seedField.representativeFieldIndex]
           if (!representativeField) {
             throw new Error(`Boundary runtime entanglement representative field missing: ${seedField.representativeFieldIndex}`)
           }
@@ -370,7 +282,6 @@ const prepareBoundaryEntanglementProjection = (
 }
 
 const prepareBoundaryStateSeedGraph = (
-  database: BoundaryDatabase,
   braneIndex: number,
   runtimeFieldIndexByDbFieldIndex: number[],
   stateSeeds: ReturnType<typeof groupStateSeedStates>,
@@ -521,8 +432,6 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
 
       fields.push({
         index: fieldIndex,
-        wimpFieldId: wimpField.id,
-        metaFieldId: metaField.id,
         ownerBraneIndex: braneIndex,
         key: metaField.fieldKey,
         schema: cloneFieldSchema(metaField.schema),
@@ -535,7 +444,6 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
 
       fieldValues.push({
         fieldIndex,
-        wimpFieldId: wimpField.id,
         value: structuredClone(value.value),
       })
     })
@@ -543,29 +451,10 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
     metaFieldIdToWimpFieldIdByWimpId.set(wimp.id, wimpFieldIdsByMetaFieldId)
     branes.push({
       index: braneIndex,
-      wimpId: wimp.id,
-      metaId: wimp.metaId,
-      src: meta.src,
-      ...(meta.name !== undefined ? { name: meta.name } : {}),
       fieldOffset,
       fieldCount: wimpFields.length,
     })
   })
-
-  const fieldSources: BoundaryDatabaseFieldSourceRecord[] = data.fieldSources
-    .map((source) => {
-      const childFieldIndex = fieldIndexByWimpFieldId.get(source.childWimpFieldId)
-      const parentFieldIndex = fieldIndexByWimpFieldId.get(source.parentWimpFieldId)
-      if (childFieldIndex === undefined || parentFieldIndex === undefined) {
-        throw new Error(`Boundary database cannot resolve field source ${source.id}`)
-      }
-      return {
-        id: source.id,
-        childFieldIndex,
-        parentFieldIndex,
-      }
-    })
-    .sort((left, right) => left.childFieldIndex - right.childFieldIndex)
 
   const entanglementBlocks: BoundaryDatabaseEntanglementBlockRecord[] = []
   const entanglementBlockMembers: BoundaryDatabaseEntanglementBlockMemberRecord[] = []
@@ -616,7 +505,6 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
 
       entanglementBlocks.push({
         index: blockIndex,
-        entanglementId: orderedFamilies[0]!.entanglement.id,
         key: membershipKey,
       })
 
@@ -627,7 +515,6 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
         }
 
         entanglementBlockMembers.push({
-          index: entanglementBlockMembers.length,
           blockIndex,
           memberIndex: member.memberOrder,
           braneIndex,
@@ -666,7 +553,6 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
           }
 
           entanglementFieldMembers.push({
-            index: entanglementFieldMembers.length,
             entanglementFieldIndex,
             memberIndex: member.memberOrder,
             braneIndex,
@@ -692,11 +578,8 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
 
     metaStates.forEach((state, stateIndex) => {
       stateSeedStates.push({
-        index: stateSeedStates.length,
         ownerBraneIndex: braneIndex,
         stateIndex,
-        metaStateId: state.id,
-        name: state.stateName,
         initial: currentWimpState ? currentWimpState.metaStateId === state.id : state.initial,
       })
     })
@@ -722,7 +605,6 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
           }
 
           stateSeedConditions.push({
-            index: stateSeedConditions.length,
             transitionSeedIndex,
             conditionIndex: condition.conditionOrder,
             fieldIndex,
@@ -733,17 +615,10 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
     })
   })
 
-  const rootWimpId =
-    [...data.wimpEdges]
-      .filter((edge) => edge.parentWimpId === null)
-      .sort((left, right) => left.edgeOrder - right.edgeOrder)[0]?.childWimpId ?? orderedWimps[0]?.id
-
   return {
-    rootBraneIndex: rootWimpId ? (braneIndexByWimpId.get(rootWimpId) ?? 0) : 0,
     branes,
     fields,
     fieldValues,
-    fieldSources,
     entanglementBlocks,
     entanglementBlockMembers,
     entanglementFields,
@@ -1120,128 +995,20 @@ export const prepareBoundaryRuntimeLoadedFragment = (
   return mergeBoundaryRuntimeFragments(requestedWimpIds.map((wimpId) => prepareBoundaryRuntimeFragment(data, wimpId)))
 }
 
-const openBoundaryDatabase = (data: BoundaryDatabaseData = createEmptyBoundaryDatabaseData()): BoundaryDatabase => {
-  const database: BoundaryDatabase = {
-    rootBraneIndex: 0,
-    branes: [],
-    fields: [],
-    fieldValues: [],
-    fieldSources: [],
-    entanglementBlocks: [],
-    entanglementBlockMembers: [],
-    entanglementFields: [],
-    entanglementFieldMembers: [],
-    stateSeedStates: [],
-    stateSeedTransitions: [],
-    stateSeedConditions: [],
-    braneIndexByWimpId: new Map(),
-    fieldIndexByWimpFieldId: new Map(),
-    fieldIndexByBraneAndKey: new Map(),
-    fieldSourceByChildFieldIndex: [],
-    dependentFieldIndexesByParentFieldIndex: new Map(),
-
-    getBrane(braneIndex) {
-      return this.branes[braneIndex]
-    },
-
-    getBraneByWimpId(wimpId) {
-      const braneIndex = this.braneIndexByWimpId.get(wimpId)
-      return braneIndex === undefined ? undefined : this.branes[braneIndex]
-    },
-
-    getField(fieldIndex) {
-      return this.fields[fieldIndex]
-    },
-
-    getFieldByWimpFieldId(wimpFieldId) {
-      const fieldIndex = this.fieldIndexByWimpFieldId.get(wimpFieldId)
-      return fieldIndex === undefined ? undefined : this.fields[fieldIndex]
-    },
-
-    getFieldByKey(braneIndex, fieldKey) {
-      const fieldIndex = this.fieldIndexByBraneAndKey.get(braneIndex)?.get(fieldKey)
-      return fieldIndex === undefined ? undefined : this.fields[fieldIndex]
-    },
-
-    getFieldValue(fieldIndex) {
-      return this.fieldValues[fieldIndex]
-    },
-
-    getFieldSource(childFieldIndex) {
-      return this.fieldSourceByChildFieldIndex[childFieldIndex]
-    },
-
-    getDependentFields(parentFieldIndex) {
-      return (this.dependentFieldIndexesByParentFieldIndex.get(parentFieldIndex) ?? []).map(
-        (fieldIndex) => this.fields[fieldIndex]!,
-      )
-    },
-
-    setFieldValue(fieldIndex, value) {
-      const field = this.fields[fieldIndex]
-      if (!field) throw new Error(`Field index out of range: ${fieldIndex}`)
-
-      const nextValue = structuredClone(value)
-      const existing = this.fieldValues[fieldIndex]
-
-      if (existing) {
-        existing.value = nextValue
-        return
-      }
-
-      this.fieldValues[fieldIndex] = {
-        fieldIndex,
-        wimpFieldId: field.wimpFieldId,
-        value: nextValue,
-      }
-    },
-  }
-
-  const assignState = (nextData: BoundaryDatabaseData): void => {
-    const cloned = cloneBoundaryDatabaseData(nextData)
-    const indexes = buildBoundaryDatabaseIndexes(cloned)
-
-    database.rootBraneIndex = cloned.rootBraneIndex
-    database.branes = cloned.branes
-    database.fields = cloned.fields
-    database.fieldValues = cloned.fieldValues
-    database.fieldSources = cloned.fieldSources
-    database.entanglementBlocks = cloned.entanglementBlocks
-    database.entanglementBlockMembers = cloned.entanglementBlockMembers
-    database.entanglementFields = cloned.entanglementFields
-    database.entanglementFieldMembers = cloned.entanglementFieldMembers
-    database.stateSeedStates = cloned.stateSeedStates
-    database.stateSeedTransitions = cloned.stateSeedTransitions
-    database.stateSeedConditions = cloned.stateSeedConditions
-    database.braneIndexByWimpId = indexes.braneIndexByWimpId
-    database.fieldIndexByWimpFieldId = indexes.fieldIndexByWimpFieldId
-    database.fieldIndexByBraneAndKey = indexes.fieldIndexByBraneAndKey
-    database.fieldSourceByChildFieldIndex = indexes.fieldSourceByChildFieldIndex
-    database.dependentFieldIndexesByParentFieldIndex = indexes.dependentFieldIndexesByParentFieldIndex
-  }
-
-  assignState(data)
-  return database
-}
-
-const buildBoundaryDatabase = (data: SharedDbData): BoundaryDatabase =>
-  openBoundaryDatabase(prepareBoundaryDatabaseData(data))
-
 const prepareBoundaryWriteData = (
-  database: BoundaryDatabase,
+  data: BoundaryDatabaseData,
   options: BoundarySharedDbRuntimeOptions = {},
 ): Data => {
-  const { runtimeFields, runtimeFieldIndexByDbFieldIndex } = buildBoundaryRuntimeFieldRegistry(database)
-  const stateSeeds = groupStateSeedStates(database)
-  const transitionSeeds = groupStateSeedTransitions(database)
-  const conditionSeeds = groupStateSeedConditions(database)
-  const entanglement = options.entanglement ?? prepareBoundaryEntanglementProjection(database, runtimeFieldIndexByDbFieldIndex)
+  const { runtimeFields, runtimeFieldIndexByDbFieldIndex } = buildBoundaryRuntimeFieldRegistry(data)
+  const stateSeeds = groupStateSeedStates(data)
+  const transitionSeeds = groupStateSeedTransitions(data)
+  const conditionSeeds = groupStateSeedConditions(data)
+  const entanglement = options.entanglement ?? prepareBoundaryEntanglementProjection(data, runtimeFieldIndexByDbFieldIndex)
 
   return {
     fields: runtimeFields,
-    branes: database.branes.map((brane) => {
+    branes: data.branes.map((brane) => {
       const stateGraph = prepareBoundaryStateSeedGraph(
-        database,
         brane.index,
         runtimeFieldIndexByDbFieldIndex,
         stateSeeds,
@@ -1250,7 +1017,7 @@ const prepareBoundaryWriteData = (
       )
 
       return {
-        values: database.fields
+        values: data.fields
           .slice(brane.fieldOffset, brane.fieldOffset + brane.fieldCount)
           .map((field) => {
             const runtimeFieldIndex = runtimeFieldIndexByDbFieldIndex[field.index]
@@ -1258,7 +1025,7 @@ const prepareBoundaryWriteData = (
               throw new Error(`Boundary runtime field index missing for DB field ${field.index}`)
             }
 
-            return [runtimeFieldIndex, structuredClone(requireBoundaryDatabaseFieldValue(database, field.index).value)] as [
+            return [runtimeFieldIndex, structuredClone(requireBoundaryDatabaseFieldValue(data, field.index).value)] as [
               number,
               unknown,
             ]
@@ -1272,19 +1039,19 @@ const prepareBoundaryWriteData = (
 }
 
 const prepareBoundaryStoreFromDatabase = (
-  database: BoundaryDatabase,
+  data: BoundaryDatabaseData,
   options: BoundarySharedDbRuntimeOptions = {},
-): PreparedData => assembleStoredBoundaryData(flattenBoundaryData(prepareBoundaryWriteData(database, options)))
+): PreparedData => assembleStoredBoundaryData(flattenBoundaryData(prepareBoundaryWriteData(data, options)))
 
 export const prepareBoundaryRuntimeData = (
   rawData: SharedDbData,
   options: BoundarySharedDbRuntimeOptions = {},
-): Data => prepareBoundaryWriteData(buildBoundaryDatabase(rawData), options)
+): Data => prepareBoundaryWriteData(prepareBoundaryDatabaseData(rawData), options)
 
 export const prepareBoundaryRuntimeStore = (
   rawData: SharedDbData,
   options: BoundarySharedDbRuntimeOptions = {},
-): PreparedData => prepareBoundaryStoreFromDatabase(buildBoundaryDatabase(rawData), options)
+): PreparedData => prepareBoundaryStoreFromDatabase(prepareBoundaryDatabaseData(rawData), options)
 
 export const prepareBoundaryRuntimeFragmentFromSharedDb = (
   backend: SharedDbBackend,
@@ -1295,11 +1062,6 @@ export const prepareBoundaryRuntimeLoadedFragmentFromSharedDb = (
   backend: SharedDbBackend,
   activeWimpIds?: Iterable<string>,
 ): SharedDbData => prepareBoundaryRuntimeLoadedFragment(readSharedDbData(backend), activeWimpIds)
-
-export const prepareBoundaryRuntimeDataFromSharedDb = (
-  backend: SharedDbBackend,
-  options: BoundarySharedDbRuntimeOptions = {},
-): Data => prepareBoundaryRuntimeData(readSharedDbData(backend), options)
 
 export const prepareBoundaryRuntimeStoreFromSharedDb = (
   backend: SharedDbBackend,

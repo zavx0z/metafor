@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { createSharedDbFixture } from "../../dark/db.fixture.ts"
-import { openSharedDbMemoryBackend } from "./memory.ts"
+import { createSharedDbFixture } from "fixture/db.fixture.ts"
 import { normalizeSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
 import { openSharedDbMaterializationWriter } from "./materialize.ts"
+import { openSharedDbSqliteBackend } from "./sqlite.ts"
 
 describe("shared db canonical relational data", () => {
   test("materializes only entity and relation tables through row-group writes", () => {
     const fixture = createSharedDbFixture()
-    const backend = openSharedDbMemoryBackend()
+    const backend = openSharedDbSqliteBackend()
     const writer = openSharedDbMaterializationWriter(backend)
 
     try {

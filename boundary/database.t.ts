@@ -11,18 +11,12 @@ export interface BoundaryDatabaseFieldSchemaRecord {
 
 export interface BoundaryDatabaseBraneRecord {
   index: number
-  wimpId: string
-  metaId: string
-  src: string
-  name?: string
   fieldOffset: number
   fieldCount: number
 }
 
 export interface BoundaryDatabaseFieldRecord {
   index: number
-  wimpFieldId: string
-  metaFieldId: string
   ownerBraneIndex: number
   key: FieldKey
   schema: BoundaryDatabaseFieldSchemaRecord
@@ -30,24 +24,15 @@ export interface BoundaryDatabaseFieldRecord {
 
 export interface BoundaryDatabaseFieldValueRecord {
   fieldIndex: number
-  wimpFieldId: string
   value: unknown
-}
-
-export interface BoundaryDatabaseFieldSourceRecord {
-  id: string
-  childFieldIndex: number
-  parentFieldIndex: number
 }
 
 export interface BoundaryDatabaseEntanglementBlockRecord {
   index: number
-  entanglementId: string
   key: string
 }
 
 export interface BoundaryDatabaseEntanglementBlockMemberRecord {
-  index: number
   blockIndex: number
   memberIndex: number
   braneIndex: number
@@ -66,7 +51,6 @@ export interface BoundaryDatabaseEntanglementFieldRecord {
 }
 
 export interface BoundaryDatabaseEntanglementFieldMemberRecord {
-  index: number
   entanglementFieldIndex: number
   memberIndex: number
   braneIndex: number
@@ -74,11 +58,8 @@ export interface BoundaryDatabaseEntanglementFieldMemberRecord {
 }
 
 export interface BoundaryDatabaseStateSeedStateRecord {
-  index: number
   ownerBraneIndex: number
   stateIndex: number
-  metaStateId: string
-  name: string
   initial: boolean
 }
 
@@ -91,7 +72,6 @@ export interface BoundaryDatabaseStateSeedTransitionRecord {
 }
 
 export interface BoundaryDatabaseStateSeedConditionRecord {
-  index: number
   transitionSeedIndex: number
   conditionIndex: number
   fieldIndex: number
@@ -99,11 +79,9 @@ export interface BoundaryDatabaseStateSeedConditionRecord {
 }
 
 export interface BoundaryDatabaseData {
-  rootBraneIndex: number
   branes: BoundaryDatabaseBraneRecord[]
   fields: BoundaryDatabaseFieldRecord[]
   fieldValues: BoundaryDatabaseFieldValueRecord[]
-  fieldSources: BoundaryDatabaseFieldSourceRecord[]
   entanglementBlocks: BoundaryDatabaseEntanglementBlockRecord[]
   entanglementBlockMembers: BoundaryDatabaseEntanglementBlockMemberRecord[]
   entanglementFields: BoundaryDatabaseEntanglementFieldRecord[]
@@ -115,22 +93,4 @@ export interface BoundaryDatabaseData {
 
 export interface BoundarySharedDbRuntimeOptions {
   entanglement?: PreparedEntanglementProjection
-}
-
-export interface BoundaryDatabase extends BoundaryDatabaseData {
-  braneIndexByWimpId: Map<string, number>
-  fieldIndexByWimpFieldId: Map<string, number>
-  fieldIndexByBraneAndKey: Map<number, Map<FieldKey, number>>
-  fieldSourceByChildFieldIndex: Array<BoundaryDatabaseFieldSourceRecord | undefined>
-  dependentFieldIndexesByParentFieldIndex: Map<number, number[]>
-
-  getBrane(braneIndex: number): BoundaryDatabaseBraneRecord | undefined
-  getBraneByWimpId(wimpId: string): BoundaryDatabaseBraneRecord | undefined
-  getField(fieldIndex: number): BoundaryDatabaseFieldRecord | undefined
-  getFieldByWimpFieldId(wimpFieldId: string): BoundaryDatabaseFieldRecord | undefined
-  getFieldByKey(braneIndex: number, fieldKey: FieldKey): BoundaryDatabaseFieldRecord | undefined
-  getFieldValue(fieldIndex: number): BoundaryDatabaseFieldValueRecord | undefined
-  getFieldSource(childFieldIndex: number): BoundaryDatabaseFieldSourceRecord | undefined
-  getDependentFields(parentFieldIndex: number): BoundaryDatabaseFieldRecord[]
-  setFieldValue(fieldIndex: number, value: unknown): void
 }

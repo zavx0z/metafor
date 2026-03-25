@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { assembleSharedDbData } from "./db.ts"
-import { createSharedDbFixture } from "./db.fixture.ts"
+import { createSharedDbFixture } from "fixture/db.fixture.ts"
 
-describe("dark -> shared db legacy snapshot helper", () => {
+describe("dark -> shared db debug assembly helper", () => {
   test("собирает canonical relational data для сравнения и отладки", () => {
     const fixture = createSharedDbFixture()
     const data = assembleSharedDbData(fixture.root)

@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test"
-import { createSharedDbFixture } from "../../dark/db.fixture.ts"
-import { openSharedDbMemoryBackend } from "../../shared/db/memory.ts"
+import { createSharedDbFixture } from "fixture/db.fixture.ts"
 import { openSharedDbMaterializationWriter } from "../../shared/db/materialize.ts"
+import { openSharedDbSqliteBackend } from "../../shared/db/sqlite.ts"
 import { prepareRuntimeData, prepareRuntimeStore } from "../boundary.ts"
 import { FieldType } from "../gravity"
 import { OP } from "../weak"
 
 const materializeFixture = () => {
   const fixture = createSharedDbFixture()
-  const backend = openSharedDbMemoryBackend()
+  const backend = openSharedDbSqliteBackend()
   const writer = openSharedDbMaterializationWriter(backend)
 
   fixture.root.save(writer)

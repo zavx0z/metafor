@@ -1,34 +1,26 @@
-import type { FieldKey, MetaAST, MetaJson, ReactionDefinitionJson } from "@metafor/ast"
+import type { FieldKey, MetaAST, MetaJson } from "@metafor/ast"
 import type {
   SharedDbData,
-  SharedDbEntanglementFieldMemberRecord,
-  SharedDbEntanglementFieldRecord,
-  SharedDbEntanglementMemberRecord,
-  SharedDbEntanglementRecord,
   SharedDbFieldSchemaRecord,
   SharedDbFieldSourceRecord,
   SharedDbFieldValueRecord,
   SharedDbMetaFieldRecord,
-  SharedDbMetaMatterEdgeRecord,
-  SharedDbMetaMatterNodeRecord,
   SharedDbMetaProcessReadRecord,
   SharedDbMetaProcessRecord,
   SharedDbMetaProcessWriteRecord,
-  SharedDbMetaReactionReadRecord,
   SharedDbMetaReactionRecord,
-  SharedDbMetaReactionStateRecord,
-  SharedDbMetaReactionWriteRecord,
-  SharedDbMetaRecord,
   SharedDbMetaStateRecord,
-  SharedDbMetaTransitionConditionRecord,
   SharedDbMetaTransitionRecord,
   SharedDbWimpEdgeRecord,
   SharedDbWimpFieldRecord,
-  SharedDbWimpRecord,
-  SharedDbWimpStateRecord,
 } from "./db.t.ts"
-import type { SharedDbBackend, SharedDbEntanglementFamilyRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
-import { createEmptySharedDbData, normalizeSharedDbData } from "./backend.ts"
+import type {
+  SharedDbBackend,
+  SharedDbEntanglementFamilyRows,
+  SharedDbMetaRows,
+  SharedDbWimpRows,
+} from "./backend.t.ts"
+import { createEmptySharedDbData } from "./backend.ts"
 import { deriveUuid } from "./uuid.ts"
 
 export interface SharedDbMetaFieldBundle {
@@ -109,8 +101,6 @@ type EntanglementFamilyState = {
   representativeFieldName: FieldKey
   members: SavedFieldState[]
 }
-
-const isTopologyFieldType = (type: string): boolean => type.startsWith("enum<") || type.startsWith("array<")
 
 const cloneFieldSchema = (schema: SharedDbFieldSchemaRecord): SharedDbFieldSchemaRecord => ({
   type: schema.type,
@@ -226,7 +216,9 @@ const appendMetaProcesses = (data: SharedDbData, meta: SharedDbMetaBundle, conte
       ...(process.label !== undefined ? { label: process.label } : {}),
       ...(process.desc !== undefined ? { desc: process.desc } : {}),
       ...(process.action?.src !== undefined ? { actionSrc: process.action.src } : {}),
-      ...(process.action?.importSpecifier !== undefined ? { actionImportSpecifier: process.action.importSpecifier } : {}),
+      ...(process.action?.importSpecifier !== undefined
+        ? { actionImportSpecifier: process.action.importSpecifier }
+        : {}),
       ...(process.success?.src !== undefined ? { successSrc: process.success.src } : {}),
       ...(process.error?.src !== undefined ? { errorSrc: process.error.src } : {}),
       ...(process.before?.src !== undefined ? { beforeSrc: process.before.src } : {}),
@@ -234,7 +226,10 @@ const appendMetaProcesses = (data: SharedDbData, meta: SharedDbMetaBundle, conte
 
     data.metaProcesses.push(record)
 
-    const appendReads = (phase: SharedDbMetaProcessReadRecord["phase"], reads: MetaJson[keyof MetaJson] | undefined): void => {
+    const appendReads = (
+      phase: SharedDbMetaProcessReadRecord["phase"],
+      reads: MetaJson[keyof MetaJson] | undefined,
+    ): void => {
       if (!reads || typeof reads !== "object" || !("read" in reads) || !Array.isArray(reads.read)) return
 
       reads.read.forEach((fieldKey, readOrder) => {
@@ -509,48 +504,6 @@ const materializeEntanglementFamilyRows = (
   }
 }
 
-const applyEntanglementFamilyRowsToData = (data: SharedDbData, rows: SharedDbEntanglementFamilyRows): void => {
-  data.entanglements.push(structuredClone(rows.entanglement))
-  data.entanglementMembers.push(...rows.members.map((row) => structuredClone(row)))
-  data.entanglementFields.push(structuredClone(rows.field))
-  data.entanglementFieldMembers.push(...rows.fieldMembers.map((row) => structuredClone(row)))
-}
-
-const appendEntanglements = (
-  data: SharedDbData,
-  orderedBundles: SharedDbWimpBundle[],
-): void => {
-  const wimpOrderById = new Map(orderedBundles.map((bundle, wimpOrder) => [bundle.id, wimpOrder] as const))
-  const allFields = orderedBundles.flatMap((bundle) =>
-    bundle.fields.map((field) => ({
-      ...cloneWimpFieldBundle(field),
-      ownerWimpId: bundle.id,
-    })),
-  )
-  const fieldById = new Map(allFields.map((field) => [field.id, field] as const))
-  const familyMembersByRootFieldId = new Map<string, WimpFieldWithOwner[]>()
-
-  for (const field of allFields) {
-    const rootField = resolveSourceRoot(field, fieldById)
-    const family = familyMembersByRootFieldId.get(rootField.id)
-    if (family) {
-      family.push(field)
-    } else {
-      familyMembersByRootFieldId.set(rootField.id, [field])
-    }
-  }
-
-  for (const [rootFieldId, rawMembers] of familyMembersByRootFieldId) {
-    const representative = rawMembers.find((member) => member.id === rootFieldId) ?? rawMembers[0]
-    if (!representative) continue
-
-    applyEntanglementFamilyRowsToData(
-      data,
-      materializeEntanglementFamilyRows(rootFieldId, representative, rawMembers, wimpOrderById),
-    )
-  }
-}
-
 const materializeWimpRows = (
   bundle: SharedDbWimpBundle,
   wimpOrder: number,
@@ -583,18 +536,22 @@ const materializeWimpRows = (
       ...(bundle.massOverride !== undefined ? { massOverride: structuredClone(bundle.massOverride) } : {}),
     },
     fields,
-    values: bundle.fields.map((field): SharedDbFieldValueRecord => ({
-      id: deriveUuid("field-value", field.id),
-      ownerWimpFieldId: field.id,
-      value: structuredClone(field.value),
-    })),
+    values: bundle.fields.map(
+      (field): SharedDbFieldValueRecord => ({
+        id: deriveUuid("field-value", field.id),
+        ownerWimpFieldId: field.id,
+        value: structuredClone(field.value),
+      }),
+    ),
     sources: bundle.fields
       .filter((field) => field.sourceWimpFieldId !== undefined)
-      .map((field): SharedDbFieldSourceRecord => ({
-        id: deriveUuid("field-source", field.id, field.sourceWimpFieldId!),
-        childWimpFieldId: field.id,
-        parentWimpFieldId: field.sourceWimpFieldId!,
-      })),
+      .map(
+        (field): SharedDbFieldSourceRecord => ({
+          id: deriveUuid("field-source", field.id, field.sourceWimpFieldId!),
+          childWimpFieldId: field.id,
+          parentWimpFieldId: field.sourceWimpFieldId!,
+        }),
+      ),
     state: {
       id: deriveUuid("wimp-state", bundle.id),
       ownerWimpId: bundle.id,
@@ -603,136 +560,13 @@ const materializeWimpRows = (
   }
 }
 
-const buildWimpEdges = (orderedBundles: SharedDbWimpBundle[]): SharedDbWimpEdgeRecord[] => {
-  const childBundlesByParentId = new Map<string | null, SharedDbWimpBundle[]>()
-  orderedBundles.forEach((bundle) => {
-    const key = bundle.parentWimpId ?? null
-    const children = childBundlesByParentId.get(key)
-    if (children) children.push(bundle)
-    else childBundlesByParentId.set(key, [bundle])
-  })
-
-  const edges: SharedDbWimpEdgeRecord[] = []
-  for (const [parentWimpId, childBundles] of childBundlesByParentId) {
-    childBundles.forEach((bundle, edgeOrder) => {
-      edges.push({
-        id: deriveUuid("wimp-edge", parentWimpId ?? "root", bundle.id),
-        parentWimpId,
-        childWimpId: bundle.id,
-        edgeOrder,
-      })
-    })
-  }
-
-  return edges
-}
-
-const buildEntanglementFamilies = (orderedBundles: SharedDbWimpBundle[]): SharedDbEntanglementFamilyRows[] => {
-  const wimpOrderById = new Map(orderedBundles.map((bundle, wimpOrder) => [bundle.id, wimpOrder] as const))
-  const allFields = orderedBundles.flatMap((bundle) =>
-    bundle.fields.map((field) => ({
-      ...cloneWimpFieldBundle(field),
-      ownerWimpId: bundle.id,
-    })),
-  )
-  const fieldById = new Map(allFields.map((field) => [field.id, field] as const))
-  const familyMembersByRootFieldId = new Map<string, WimpFieldWithOwner[]>()
-
-  for (const field of allFields) {
-    const rootField = resolveSourceRoot(field, fieldById)
-    const family = familyMembersByRootFieldId.get(rootField.id)
-    if (family) family.push(field)
-    else familyMembersByRootFieldId.set(rootField.id, [field])
-  }
-
-  return Array.from(familyMembersByRootFieldId.entries()).map(([rootFieldId, rawMembers]) => {
-    const representative = rawMembers.find((member) => member.id === rootFieldId) ?? rawMembers[0]
-    if (!representative) {
-      throw new Error(`Shared DB entanglement family ${rootFieldId} has no representative field`)
-    }
-
-    return materializeEntanglementFamilyRows(rootFieldId, representative, rawMembers, wimpOrderById)
-  })
-}
-
-const applyMetaRowsToData = (data: SharedDbData, rows: SharedDbMetaRows): void => {
-  data.metas.push(structuredClone(rows.meta))
-  data.metaFields.push(...rows.fields.map((row) => structuredClone(row)))
-  data.metaStates.push(...rows.states.map((row) => structuredClone(row)))
-  data.metaTransitions.push(...rows.transitions.map((row) => structuredClone(row)))
-  data.metaTransitionConditions.push(...rows.transitionConditions.map((row) => structuredClone(row)))
-  data.metaProcesses.push(...rows.processes.map((row) => structuredClone(row)))
-  data.metaProcessReads.push(...rows.processReads.map((row) => structuredClone(row)))
-  data.metaProcessWrites.push(...rows.processWrites.map((row) => structuredClone(row)))
-  data.metaReactions.push(...rows.reactions.map((row) => structuredClone(row)))
-  data.metaReactionStates.push(...rows.reactionStates.map((row) => structuredClone(row)))
-  data.metaReactionReads.push(...rows.reactionReads.map((row) => structuredClone(row)))
-  data.metaReactionWrites.push(...rows.reactionWrites.map((row) => structuredClone(row)))
-  data.metaMatterNodes.push(...rows.matterNodes.map((row) => structuredClone(row)))
-  data.metaMatterEdges.push(...rows.matterEdges.map((row) => structuredClone(row)))
-}
-
-const applyWimpRowsToData = (data: SharedDbData, rows: SharedDbWimpRows): void => {
-  data.wimps.push(structuredClone(rows.wimp))
-  data.wimpFields.push(...rows.fields.map((row) => structuredClone(row)))
-  data.fieldValues.push(...rows.values.map((row) => structuredClone(row)))
-  data.fieldSources.push(...rows.sources.map((row) => structuredClone(row)))
-  data.wimpStates.push(structuredClone(rows.state))
-}
-
 const createMetaSignature = (meta: SharedDbMetaBundle): string => JSON.stringify(cloneMetaBundle(meta))
-
-const collectMetaRowsAndContexts = (orderedBundles: SharedDbWimpBundle[]): {
-  metaRowsById: Map<string, SharedDbMetaRows>
-  metaContextById: Map<string, MetaContext>
-} => {
-  const metaRowsById = new Map<string, SharedDbMetaRows>()
-  const metaContextById = new Map<string, MetaContext>()
-
-  orderedBundles.forEach((bundle) => {
-    let metaContext = metaContextById.get(bundle.meta.id)
-    if (!metaContext) {
-      const { rows, context } = materializeMetaRows(bundle.meta)
-      metaRowsById.set(bundle.meta.id, rows)
-      metaContextById.set(bundle.meta.id, context)
-      metaContext = context
-    }
-  })
-
-  return { metaRowsById, metaContextById }
-}
-
-/**
- * Helper для тестов и сравнений: собирает canonical relational data из fully-formed `Wimp` bundles.
- *
- * Это не storage API. Активная запись идёт через row-group writer.
- */
-export const createSharedDbDataFromWimpBundles = (orderedBundles: SharedDbWimpBundle[]): SharedDbData => {
-  const bundles = orderedBundles.map(cloneWimpBundle)
-  const data = createEmptySharedDbData()
-  const { metaRowsById, metaContextById } = collectMetaRowsAndContexts(bundles)
-
-  metaRowsById.forEach((rows) => applyMetaRowsToData(data, rows))
-
-  bundles.forEach((bundle, wimpOrder) => {
-    const metaContext = metaContextById.get(bundle.meta.id)
-    if (!metaContext) {
-      throw new Error(`Shared DB meta context is missing for meta ${bundle.meta.id}`)
-    }
-
-    applyWimpRowsToData(data, materializeWimpRows(bundle, wimpOrder, metaContext))
-  })
-
-  data.wimpEdges = buildWimpEdges(bundles)
-  buildEntanglementFamilies(bundles).forEach((rows) => applyEntanglementFamilyRowsToData(data, rows))
-  return normalizeSharedDbData(data)
-}
 
 /**
  * Открывает writer для поэтапной materialization-записи fully-formed `Wimp`.
  *
- * Writer хранит только временный CPU-side набор bundles и обновляет canonical table rows
- * incrementally, без пересборки полного snapshot из исходного graph state.
+ * Writer хранит только локальный CPU-side context, который нужен для адресной
+ * синхронизации row-groups и source-family entanglement без отдельного snapshot path.
  */
 export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): SharedDbMaterializationWriter => {
   const bundlesById = new Map<string, SharedDbWimpBundle>()
@@ -785,10 +619,15 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
     }
 
     backend.writeEntanglementFamily(
-      materializeEntanglementFamilyRows(rootFieldId, {
-        id: family.representativeFieldId,
-        key: family.representativeFieldName,
-      }, family.members, wimpOrderById),
+      materializeEntanglementFamilyRows(
+        rootFieldId,
+        {
+          id: family.representativeFieldId,
+          key: family.representativeFieldName,
+        },
+        family.members,
+        wimpOrderById,
+      ),
     )
   }
 
@@ -833,14 +672,12 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
 
     savedFieldsById.set(savedField.id, savedField)
 
-    const family =
-      entanglementFamiliesByRootFieldId.get(rootFieldId) ??
-      {
-        rootFieldId,
-        representativeFieldId: rootFieldId,
-        representativeFieldName: field.key,
-        members: [],
-      }
+    const family = entanglementFamiliesByRootFieldId.get(rootFieldId) ?? {
+      rootFieldId,
+      representativeFieldId: rootFieldId,
+      representativeFieldName: field.key,
+      members: [],
+    }
 
     family.members = family.members.filter((member) => member.id !== savedField.id)
     family.members.push(savedField)
@@ -863,7 +700,10 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
     })
 
     const orderedFields = bundle.fields.slice().sort((left, right) => left.fieldOrder - right.fieldOrder)
-    savedFieldIdsByWimpId.set(bundle.id, orderedFields.map((field) => field.id))
+    savedFieldIdsByWimpId.set(
+      bundle.id,
+      orderedFields.map((field) => field.id),
+    )
     orderedFields.forEach((field) => {
       affectedFamilyIds.add(addSavedField(bundle, field))
     })

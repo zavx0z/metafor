@@ -1,19 +1,5 @@
 export { createEmptySharedDbData, normalizeSharedDbData, readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
 export { openSharedDbMaterializationWriter } from "./materialize.ts"
-export {
-  getSharedDbDependentFieldSources,
-  getSharedDbEntanglementById,
-  getSharedDbEntanglementFieldMembers,
-  getSharedDbEntanglementFields,
-  getSharedDbEntanglementMembers,
-  getSharedDbFieldSource,
-  getSharedDbFieldValue,
-  getSharedDbMetaById,
-  getSharedDbMetaFields,
-  getSharedDbWimpById,
-  getSharedDbWimpFields,
-} from "./db.ts"
-export { openSharedDbMemoryBackend } from "./memory.ts"
 export { initializeSharedDbSqliteSchema, openSharedDbSqliteBackend } from "./sqlite.ts"
 export type {
   SharedDbBackend,

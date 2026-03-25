@@ -297,4 +297,3 @@ export type { PreparedData } from "./boundary.t"
 export { FieldType } from "./gravity"
 export { boundary$ }
 export { flattenBoundaryData } from "./gravity"
-export { prepareRuntimeFromSharedDb as prepareSharedDbData, writeRuntimeFromSharedDb as writeSharedDb }

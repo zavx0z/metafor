@@ -204,7 +204,7 @@ export interface SharedDbEntanglementFieldMemberRecord {
 }
 
 /**
- * Канонический relational snapshot shared/db.
+ * Канонический relational dataset shared/db.
  *
  * В persisted слое хранятся только сущности и отношения.
  * Любые derived projection/index-space структуры строятся уже после чтения в CPU memory.

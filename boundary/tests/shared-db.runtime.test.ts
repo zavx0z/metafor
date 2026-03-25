@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test"
 import { Wimp } from "@dark/strong"
-import { openSharedDbMaterializationWriter, openSharedDbMemoryBackend, openSharedDbSqliteBackend } from "@shared/db"
+import { openSharedDbMaterializationWriter, openSharedDbSqliteBackend } from "@shared/db"
 import { HubFixture } from "fixture"
 import { matter } from "../../dark/dark.ts"
-import { createSharedDbFixture } from "../../dark/db.fixture.ts"
+import { createSharedDbFixture } from "fixture/db.fixture.ts"
 import { dark$ } from "../../dark/store.ts"
 import {
   addRuntimeWimpFromSharedDb,
@@ -36,7 +36,7 @@ const materializeGithubWorldToSharedDb = async () => {
 
 const materializeFixtureToSharedDb = () => {
   const fixture = createSharedDbFixture()
-  const backend = openSharedDbMemoryBackend()
+  const backend = openSharedDbSqliteBackend()
   const writer = openSharedDbMaterializationWriter(backend)
 
   fixture.root.save(writer)

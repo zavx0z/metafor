@@ -1,13 +1,14 @@
 import { describe, expect, test } from "bun:test"
-import { createSharedDbFixture } from "../../dark/db.fixture.ts"
-import { openSharedDbMemoryBackend } from "./memory.ts"
+import { assembleSharedDbData } from "../../dark/db.ts"
+import { createSharedDbFixture } from "fixture/db.fixture.ts"
 import { normalizeSharedDbData, readSharedDbData } from "./backend.ts"
-import { createSharedDbDataFromWimpBundles, openSharedDbMaterializationWriter } from "./materialize.ts"
+import { openSharedDbMaterializationWriter } from "./materialize.ts"
+import { openSharedDbSqliteBackend } from "./sqlite.ts"
 
 describe("shared db materialization writer", () => {
-  test("сохраняет canonical relational snapshot по мере завершения Wimp", () => {
+  test("сохраняет canonical relational rows по мере завершения Wimp", () => {
     const fixture = createSharedDbFixture()
-    const backend = openSharedDbMemoryBackend()
+    const backend = openSharedDbSqliteBackend()
     const writer = openSharedDbMaterializationWriter(backend)
 
     try {
@@ -15,10 +16,7 @@ describe("shared db materialization writer", () => {
       fixture.child.save(writer)
 
       const roundTrip = readSharedDbData(backend)
-      const expected = createSharedDbDataFromWimpBundles([
-        fixture.root.toSharedDbBundle(),
-        fixture.child.toSharedDbBundle(),
-      ])
+      const expected = assembleSharedDbData(fixture.root)
 
       expect(normalizeSharedDbData(roundTrip)).toEqual(normalizeSharedDbData(expected))
       expect(roundTrip.fieldSources.map((row) => row.childWimpFieldId).sort()).toEqual(
@@ -31,7 +29,7 @@ describe("shared db materialization writer", () => {
 
   test("повторное сохранение того же Wimp обновляет canonical row data без дублей", () => {
     const fixture = createSharedDbFixture()
-    const backend = openSharedDbMemoryBackend()
+    const backend = openSharedDbSqliteBackend()
     const writer = openSharedDbMaterializationWriter(backend)
 
     try {
@@ -47,10 +45,9 @@ describe("shared db materialization writer", () => {
         "Alias after resave",
       )
       expect(roundTrip.entanglementFieldMembers).toHaveLength(6)
-      expect(normalizeSharedDbData(roundTrip)).toEqual(normalizeSharedDbData(createSharedDbDataFromWimpBundles([
-        fixture.root.toSharedDbBundle(),
-        fixture.child.toSharedDbBundle(),
-      ])))
+      expect(roundTrip.entanglements).toHaveLength(3)
+      expect(roundTrip.entanglementMembers).toHaveLength(6)
+      expect(roundTrip.entanglementFields.map((row) => row.fieldName).sort()).toEqual(["items", "mode", "title"])
     } finally {
       backend.close()
     }
@@ -58,7 +55,7 @@ describe("shared db materialization writer", () => {
 
   test("saveWimpBundle требует предварительно materialized meta bundle той же меты", () => {
     const fixture = createSharedDbFixture()
-    const backend = openSharedDbMemoryBackend()
+    const backend = openSharedDbSqliteBackend()
     const writer = openSharedDbMaterializationWriter(backend)
 
     try {
@@ -72,7 +69,7 @@ describe("shared db materialization writer", () => {
 
   test("meta bundle можно сохранить до Wimp и потом адресно обновлять без полной пересборки", () => {
     const fixture = createSharedDbFixture()
-    const backend = openSharedDbMemoryBackend()
+    const backend = openSharedDbSqliteBackend()
     const writer = openSharedDbMaterializationWriter(backend)
 
     try {
@@ -90,13 +87,10 @@ describe("shared db materialization writer", () => {
       writer.saveMetaBundle(fixture.root.toSharedDbMetaBundle())
 
       roundTrip = readSharedDbData(backend)
-      const expected = createSharedDbDataFromWimpBundles([
-        fixture.root.toSharedDbBundle(),
-        fixture.child.toSharedDbBundle(),
-      ])
-
       expect(roundTrip.metas.find((row) => row.id === fixture.root.meta!.id)?.name).toBe("root-renamed")
-      expect(normalizeSharedDbData(roundTrip)).toEqual(normalizeSharedDbData(expected))
+      expect(roundTrip.wimps).toHaveLength(2)
+      expect(roundTrip.metaFields).toHaveLength(6)
+      expect(roundTrip.entanglementFields.map((row) => row.fieldName).sort()).toEqual(["items", "mode", "title"])
     } finally {
       backend.close()
     }
