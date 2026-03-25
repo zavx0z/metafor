@@ -96,6 +96,15 @@ describe("shared db backend parity", () => {
 
       expect(await sqlite.readWimpRows(fixture.child.id)).toEqual(await indexeddb.readWimpRows(fixture.child.id))
 
+      const rootReadyStateId = (await sqlite.readMetaRows(fixture.root.meta!.id))?.states.find((row) => row.stateName === "ready")?.id
+      expect(rootReadyStateId).toBeDefined()
+
+      await sqlite.setWimpState(fixture.root.id, rootReadyStateId!)
+      await indexeddb.setWimpState(fixture.root.id, rootReadyStateId!)
+      await indexeddb.flush()
+
+      expect(await sqlite.readWimpRows(fixture.root.id)).toEqual(await indexeddb.readWimpRows(fixture.root.id))
+
       await sqlite.setFieldValue(fixture.fields.childAlias!.id, "Alias via backend update")
       await indexeddb.setFieldValue(fixture.fields.childAlias!.id, "Alias via backend update")
       await indexeddb.flush()
@@ -154,6 +163,11 @@ describe("shared db backend parity", () => {
 
         await initial.sqlite.setFieldValue(fixture.fields.childAlias!.id, "Alias via backend update")
         await initial.indexeddb.setFieldValue(fixture.fields.childAlias!.id, "Alias via backend update")
+
+        const rootReadyStateId = (await initial.sqlite.readMetaRows(fixture.root.meta!.id))?.states.find((row) => row.stateName === "ready")?.id
+        expect(rootReadyStateId).toBeDefined()
+        await initial.sqlite.setWimpState(fixture.root.id, rootReadyStateId!)
+        await initial.indexeddb.setWimpState(fixture.root.id, rootReadyStateId!)
 
         const family = await initial.sqlite.readEntanglementFamily(rootEntanglementId)
         expect(family).not.toBeNull()

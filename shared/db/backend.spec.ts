@@ -68,4 +68,24 @@ describe("shared db canonical relational data", () => {
     expect(sharedDbRequiredBackendIndexes.some((index) => index.columns.includes("darkFieldId"))).toBe(false)
     expect(sharedDbRequiredBackendIndexes.some((index) => index.columns.includes("braneIndex"))).toBe(false)
   })
+
+  test("setWimpState обновляет canonical wimp_state row", async () => {
+    const fixture = createSharedDbFixture()
+    const backend = openSharedDbSqliteBackend()
+    const writer = openSharedDbMaterializationWriter(backend)
+
+    try {
+      await fixture.root.save(writer)
+      const readyStateId = backend.readData().metaStates.find(
+        (row) => row.ownerMetaId === fixture.root.meta!.id && row.stateName === "ready",
+      )?.id
+      expect(readyStateId).toBeDefined()
+
+      await backend.setWimpState(fixture.root.id, readyStateId!)
+
+      expect(backend.readData().wimpStates.find((row) => row.ownerWimpId === fixture.root.id)?.metaStateId).toBe(readyStateId)
+    } finally {
+      backend.close()
+    }
+  })
 })

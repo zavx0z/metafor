@@ -19,6 +19,7 @@ import type {
   BoundaryDatabaseFieldRecord,
   BoundaryDatabaseFieldSchemaRecord,
   BoundaryDatabaseFieldValueRecord,
+  BoundaryRuntimeWriteContext,
   BoundaryDatabaseStateSeedConditionRecord,
   BoundaryDatabaseStateSeedStateRecord,
   BoundaryDatabaseStateSeedTransitionRecord,
@@ -194,6 +195,7 @@ const groupStateSeedConditions = (data: BoundaryDatabaseData) => {
 const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
   const runtimeFields: Field[] = []
   const runtimeFieldIndexByDbFieldIndex: number[] = []
+  const runtimeFieldIndexToWimpFieldIds: string[][] = []
   const runtimeFieldIndexBySignature = new Map<string, number>()
   const entanglementFieldMembers = groupEntanglementFieldMembers(data)
 
@@ -204,6 +206,7 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
     const runtimeFieldIndex = runtimeFields.length
     runtimeFields.push(cloneRuntimeField(mapBoundaryDatabaseFieldToRuntimeField(field)))
     runtimeFieldIndexBySignature.set(signature, runtimeFieldIndex)
+    runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] = []
     return runtimeFieldIndex
   }
 
@@ -217,6 +220,11 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
       createSeedRuntimeFieldSignature(seedField.semanticKey, representativeField),
       representativeField,
     )
+    const seedRuntimeFieldIds = runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] ?? []
+    if (!seedRuntimeFieldIds.includes(representativeField.wimpFieldId)) {
+      seedRuntimeFieldIds.push(representativeField.wimpFieldId)
+    }
+    runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] = seedRuntimeFieldIds
 
     for (const member of entanglementFieldMembers.get(seedField.index) ?? []) {
       const existing = runtimeFieldIndexByDbFieldIndex[member.fieldIndex]
@@ -224,6 +232,15 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
         throw new Error(`Boundary runtime field index mismatch for DB field ${member.fieldIndex}`)
       }
       runtimeFieldIndexByDbFieldIndex[member.fieldIndex] = runtimeFieldIndex
+      const runtimeFieldIds = runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] ?? []
+      const wimpFieldId = data.fields[member.fieldIndex]?.wimpFieldId
+      if (!wimpFieldId) {
+        throw new Error(`Boundary runtime field missing Wimp field id for DB field ${member.fieldIndex}`)
+      }
+      if (!runtimeFieldIds.includes(wimpFieldId)) {
+        runtimeFieldIds.push(wimpFieldId)
+      }
+      runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] = runtimeFieldIds
     }
   }
 
@@ -231,9 +248,14 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
     if (runtimeFieldIndexByDbFieldIndex[field.index] !== undefined) continue
     const runtimeFieldIndex = ensureRuntimeField(createLocalRuntimeFieldSignature(field), field)
     runtimeFieldIndexByDbFieldIndex[field.index] = runtimeFieldIndex
+    const runtimeFieldIds = runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] ?? []
+    if (!runtimeFieldIds.includes(field.wimpFieldId)) {
+      runtimeFieldIds.push(field.wimpFieldId)
+    }
+    runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] = runtimeFieldIds
   }
 
-  return { runtimeFields, runtimeFieldIndexByDbFieldIndex }
+  return { runtimeFields, runtimeFieldIndexByDbFieldIndex, runtimeFieldIndexToWimpFieldIds }
 }
 
 const prepareBoundaryEntanglementProjection = (
@@ -433,6 +455,7 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
       fields.push({
         index: fieldIndex,
         ownerBraneIndex: braneIndex,
+        wimpFieldId: wimpField.id,
         key: metaField.fieldKey,
         schema: cloneFieldSchema(metaField.schema),
       })
@@ -580,6 +603,7 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
       stateSeedStates.push({
         ownerBraneIndex: braneIndex,
         stateIndex,
+        metaStateId: state.id,
         stateName: state.stateName,
         initial: currentWimpState ? currentWimpState.metaStateId === state.id : state.initial,
       })
@@ -627,6 +651,25 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
     stateSeedStates,
     stateSeedTransitions,
     stateSeedConditions,
+  }
+}
+
+export const prepareBoundaryRuntimeWriteContext = (
+  rawData: SharedDbData,
+): BoundaryRuntimeWriteContext => {
+  const data = prepareBoundaryDatabaseData(rawData)
+  const { runtimeFieldIndexToWimpFieldIds } = buildBoundaryRuntimeFieldRegistry(data)
+  const stateMetaStateIdsByBraneIndex: string[][] = []
+
+  for (const state of data.stateSeedStates) {
+    const braneStateIds = stateMetaStateIdsByBraneIndex[state.ownerBraneIndex] ?? []
+    braneStateIds[state.stateIndex] = state.metaStateId
+    stateMetaStateIdsByBraneIndex[state.ownerBraneIndex] = braneStateIds
+  }
+
+  return {
+    fieldIdsByRuntimeFieldIndex: Array.from(runtimeFieldIndexToWimpFieldIds, (ids) => [...(ids ?? [])]),
+    stateMetaStateIdsByBraneIndex: Array.from(stateMetaStateIdsByBraneIndex, (ids) => [...(ids ?? [])]),
   }
 }
 

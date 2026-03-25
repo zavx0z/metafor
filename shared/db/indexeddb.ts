@@ -800,6 +800,20 @@ const setFieldValueInIndexedDb = async (database: IDBDatabase, wimpFieldId: stri
   await completeTransaction(transaction)
 }
 
+const setWimpStateInIndexedDb = async (database: IDBDatabase, wimpId: string, metaStateId: string): Promise<void> => {
+  const existing = await readStoreRowByIndex<SharedDbWimpStateRecord>(database, "wimp_states", "wimp_states_by_owner", wimpId)
+  if (!existing) {
+    throw new Error(`Wimp state not found for wimp ${wimpId}`)
+  }
+
+  const transaction = database.transaction("wimp_states", "readwrite")
+  putRow(transaction.objectStore("wimp_states"), {
+    ...existing,
+    metaStateId,
+  })
+  await completeTransaction(transaction)
+}
+
 const readFullDumpSnapshotFromIndexedDb = async (database: IDBDatabase): Promise<SharedDbData> =>
   await readAllIndexedDbData(database)
 
@@ -952,6 +966,12 @@ export const openSharedDbIndexedDbBackend = async (
     setFieldValue(wimpFieldId, value) {
       return enqueueWrite(async () => {
         await setFieldValueInIndexedDb(database, wimpFieldId, value)
+      })
+    },
+
+    setWimpState(wimpId, metaStateId) {
+      return enqueueWrite(async () => {
+        await setWimpStateInIndexedDb(database, wimpId, metaStateId)
       })
     },
   }

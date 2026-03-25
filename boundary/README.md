@@ -38,7 +38,7 @@ import {
 } from "@boundary"
 ```
 
-`write()` записывает каноническую структуру, `update()` вычисляет следующий переход, `unlock()` снимает блокировку.
+`write()` записывает каноническую структуру, `update()` вычисляет следующий переход и, когда Boundary загружен из `shared/db`, пишет изменившиеся canonical `field_values`/`wimp_states` обратно в тот же backend, `unlock()` снимает блокировку.
 `write(data)` остаётся отдельным bootstrap/bypass path и сознательно очищает `gravity$`, потому что в этом режиме нет UUID-composition из `shared/db`.
 Для `shared/db`-пути `add/remove` мутируют `gravity$`, а `test ""` barrier через `applyStructuralPatchFromSharedDb(...)`
 или явный `rebuildRuntime(backend)` пересобирает `boundary$` и обновляет `uuid <-> braneIndex`.

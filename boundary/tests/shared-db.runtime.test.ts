@@ -270,6 +270,24 @@ describe("boundary runtime from shared/db backend", () => {
       expect(boundary$.states[rootBraneIndex!]).toBe(1)
       expect(boundary$.states[childBraneIndex!]).toBe(1)
 
+      const persisted = backend.readData()
+      const rootReadyStateId = persisted.metaStates.find(
+        (row) => row.ownerMetaId === fixture.root.meta!.id && row.stateName === "ready",
+      )?.id
+      const childReadyStateId = persisted.metaStates.find(
+        (row) => row.ownerMetaId === fixture.child.meta!.id && row.stateName === "ready",
+      )?.id
+      expect(rootReadyStateId).toBeDefined()
+      expect(childReadyStateId).toBeDefined()
+      expect(persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.rootMode!.id)?.value).toBe(1)
+      expect(persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childMode!.id)?.value).toBe(1)
+      expect(persisted.wimpStates.find((row) => row.ownerWimpId === fixture.root.id)?.metaStateId).toBe(rootReadyStateId)
+      expect(persisted.wimpStates.find((row) => row.ownerWimpId === fixture.child.id)?.metaStateId).toBe(childReadyStateId)
+
+      await writeRuntimeFromSharedDb(backend)
+      expect(boundary$.states[rootBraneIndex!]).toBe(1)
+      expect(boundary$.states[childBraneIndex!]).toBe(1)
+
       await update([[rootBraneIndex!, [], true]])
       expect(boundary$.branes[rootBraneIndex!]?.lock).toBe(true)
 

@@ -10,7 +10,7 @@
  * - `addRuntimeWimp()` / `removeRuntimeWimp()` — мутация composition-слоя без немедленного rebuild
  * - `applyStructuralPatchFromSharedDb()` — обработка UUID-addressed structural patch и barrier
  * - `rebuildRuntime()` — транзакционная пересборка derived runtime из текущей composition в `gravity$`
- * - `update()` — обновление полей и вычисление следующего перехода
+ * - `update()` — обновление полей, вычисление следующего перехода и write-back в bound shared/db backend
  * - `unlock()` — снятие блокировки с бран
  *
  * ## Архитектура
@@ -40,12 +40,14 @@ import {
   prepareBoundaryRuntimeData,
   prepareBoundaryRuntimeLoadedFragmentFromSharedDb,
   prepareBoundaryRuntimeStore,
+  prepareBoundaryRuntimeWriteContext,
   prepareBoundaryRuntimeStoreFromSharedDb,
 } from "./database"
-import type { BoundarySharedDbRuntimeOptions } from "./database.t"
+import type { BoundaryRuntimeWriteContext, BoundarySharedDbRuntimeOptions } from "./database.t"
 import { flattenBoundaryData, validateData, type Data } from "@boundary/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData } from "@boundary/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
+import type { WeakHeapUpdate } from "./weak/weak.t"
 import { createEmptySharedDbData, type SharedDbBackend, type SharedDbData } from "@shared/db"
 import {
   isGravitonMessage,
@@ -68,6 +70,8 @@ let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null
 /** Последний успешно materialized runtime-fragment, соответствующий текущему `boundary$`. */
 let loadedRuntimeFragment: SharedDbData = createEmptySharedDbData()
+let activeSharedDbBackend: SharedDbBackend | null = null
+let activeRuntimeWriteContext: BoundaryRuntimeWriteContext | null = null
 let electromagnetismChannel: BroadcastChannel | null = null
 let electromagnetismChannelName: string | undefined
 const WIMP_PATCH_PATH_PREFIX = "/wimp/"
@@ -126,6 +130,18 @@ const refreshGravityAddressing = (fragment: SharedDbData): void => {
 const clearLoadedRuntimeState = (): void => {
   loadedRuntimeFragment = createEmptySharedDbData()
   clearGravityComposition()
+  activeSharedDbBackend = null
+  activeRuntimeWriteContext = null
+}
+
+const bindRuntimePersistence = (backend: SharedDbBackend, fragment: SharedDbData): void => {
+  activeSharedDbBackend = backend
+  activeRuntimeWriteContext = prepareBoundaryRuntimeWriteContext(fragment)
+}
+
+const clearRuntimePersistence = (): void => {
+  activeSharedDbBackend = null
+  activeRuntimeWriteContext = null
 }
 
 const getElectromagnetismChannel = (): BroadcastChannel => {
@@ -202,8 +218,51 @@ const rebuildRuntimeFromFragment = async (
   // предыдущее materialized runtime. Обновляем fragment и addressing только здесь.
   loadedRuntimeFragment = fragment
   refreshGravityAddressing(fragment)
+  activeRuntimeWriteContext = prepareBoundaryRuntimeWriteContext(fragment)
   gravity$.structuralDirty = false
   return changes
+}
+
+const persistRuntimeChanges = async (changes: [number, number][], weakUpdates: WeakHeapUpdate[]): Promise<void> => {
+  const backend = activeSharedDbBackend
+  const writeContext = activeRuntimeWriteContext
+  if (!backend || !writeContext) return
+
+  const nextFieldValues = new Map<number, unknown>()
+  const nextStateByBraneIndex = new Map<number, number>()
+
+  for (const update of weakUpdates) {
+    if (update.kind === "field") {
+      const value = boundary$.getFieldValue(update.braneIndex, update.fieldIndex)
+      if (value !== undefined) {
+        nextFieldValues.set(update.fieldIndex, structuredClone(value))
+      }
+    }
+  }
+
+  for (const [braneIndex, stateIndex] of changes) {
+    nextStateByBraneIndex.set(braneIndex, stateIndex)
+  }
+
+  for (const [runtimeFieldIndex, value] of nextFieldValues.entries()) {
+    const wimpFieldIds = writeContext.fieldIdsByRuntimeFieldIndex[runtimeFieldIndex] ?? []
+    if (wimpFieldIds.length === 0) {
+      throw new Error(`Boundary runtime persistence missing canonical field mapping for runtime field ${runtimeFieldIndex}`)
+    }
+    await Promise.all(wimpFieldIds.map((wimpFieldId) => backend.setFieldValue(wimpFieldId, value)))
+  }
+
+  for (const [braneIndex, stateIndex] of nextStateByBraneIndex.entries()) {
+    const wimpId = gravity$.getWimpId(braneIndex)
+    const metaStateId = writeContext.stateMetaStateIdsByBraneIndex[braneIndex]?.[stateIndex]
+    if (!wimpId) {
+      throw new Error(`Boundary runtime persistence missing UUID mapping for brane ${braneIndex}`)
+    }
+    if (!metaStateId) {
+      throw new Error(`Boundary runtime persistence missing canonical state mapping for brane ${braneIndex} state ${stateIndex}`)
+    }
+    await backend.setWimpState(wimpId, metaStateId)
+  }
 }
 
 export function prepareData(data: Data): PreparedData {
@@ -277,6 +336,7 @@ export async function writeRuntimeFromSharedDb(
 ): Promise<[number, number][]> {
   const fragment = prepareBoundaryRuntimeLoadedFragmentFromSharedDb(backend)
   replaceGravityComposition(collectRuntimeWimpIdsInBraneOrder(fragment))
+  bindRuntimePersistence(backend, fragment)
   return await rebuildRuntimeFromFragment(fragment, options)
 }
 
@@ -290,6 +350,7 @@ export async function rebuildRuntime(
   }
 
   const nextFragment = prepareBoundaryRuntimeLoadedFragmentFromSharedDb(backend, gravity$.activeWimpIds)
+  bindRuntimePersistence(backend, nextFragment)
   return await rebuildRuntimeFromFragment(nextFragment, options)
 }
 
@@ -434,6 +495,7 @@ export async function update(
 
     weakHeapUpdate(weakUpdates)
     const changes = await weakRunStep()
+    await persistRuntimeChanges(changes, weakUpdates)
     publishPhotonChanges(changes)
     return changes
   } finally {
@@ -461,6 +523,10 @@ export function closeBoundaryProtocolChannels(): void {
   electromagnetismChannel?.close()
   electromagnetismChannel = null
   electromagnetismChannelName = undefined
+}
+
+export function clearBoundaryRuntimePersistence(): void {
+  clearRuntimePersistence()
 }
 
 export function configureBoundaryElectromagnetismBroadcast(options: ProtocolChannelOptions = {}): void {

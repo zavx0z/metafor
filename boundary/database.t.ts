@@ -18,6 +18,7 @@ export interface BoundaryDatabaseBraneRecord {
 export interface BoundaryDatabaseFieldRecord {
   index: number
   ownerBraneIndex: number
+  wimpFieldId: string
   key: FieldKey
   schema: BoundaryDatabaseFieldSchemaRecord
 }
@@ -60,6 +61,7 @@ export interface BoundaryDatabaseEntanglementFieldMemberRecord {
 export interface BoundaryDatabaseStateSeedStateRecord {
   ownerBraneIndex: number
   stateIndex: number
+  metaStateId: string
   stateName: string
   initial: boolean
 }
@@ -94,4 +96,9 @@ export interface BoundaryDatabaseData {
 
 export interface BoundarySharedDbRuntimeOptions {
   entanglement?: PreparedEntanglementProjection
+}
+
+export interface BoundaryRuntimeWriteContext {
+  fieldIdsByRuntimeFieldIndex: string[][]
+  stateMetaStateIdsByBraneIndex: string[][]
 }

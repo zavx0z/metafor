@@ -140,4 +140,5 @@ export interface SharedDbBackend {
   /** Записывает одну canonical source-family entanglement без глобального rebuild. */
   writeEntanglementFamily(rows: SharedDbEntanglementFamilyRows): SharedDbBackendAwaitable<void>
   setFieldValue(wimpFieldId: string, value: unknown): SharedDbBackendAwaitable<void>
+  setWimpState(wimpId: string, metaStateId: string): SharedDbBackendAwaitable<void>
 }

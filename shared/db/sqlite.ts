@@ -1538,5 +1538,13 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
         throw new Error(`Field value not found for wimp field ${wimpFieldId}`)
       }
     },
+
+    setWimpState(wimpId, metaStateId) {
+      const result = database.query(`UPDATE wimp_states SET metaStateId = ? WHERE ownerWimpId = ?`).run(metaStateId, wimpId)
+
+      if (result.changes === 0) {
+        throw new Error(`Wimp state not found for wimp ${wimpId}`)
+      }
+    },
   }
 }
