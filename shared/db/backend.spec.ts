@@ -60,6 +60,8 @@ describe("shared db canonical relational data", () => {
         { name: "meta_fields_by_owner_and_field_key", table: "meta_fields", columns: ["ownerMetaId", "fieldKey"], unique: true },
         { name: "wimp_fields_by_owner_and_meta_field", table: "wimp_fields", columns: ["ownerWimpId", "metaFieldId"], unique: true },
         { name: "field_values_by_owner_wimp_field", table: "field_values", columns: ["ownerWimpFieldId"], unique: true },
+        { name: "meta_matter_edges_by_parent_and_edge_order", table: "meta_matter_edges", columns: ["parentNodeId", "edgeOrder"], unique: false },
+        { name: "wimp_edges_by_parent_and_order", table: "wimp_edges", columns: ["parentWimpId", "edgeOrder"], unique: false },
       ]),
     )
     expect(sharedDbRequiredBackendIndexes.some((index) => index.columns.includes("darkWimpId"))).toBe(false)

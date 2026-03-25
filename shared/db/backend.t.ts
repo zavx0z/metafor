@@ -107,6 +107,9 @@ export interface SharedDbBackend {
    *
    * Это не основной operational API backend-а: полный снимок остаётся
    * режимом для round-trip проверки, bootstrap и общей CPU-side проекции.
+   *
+   * Для async backend-ов вроде `IndexedDB` этот dump должен отражать уже
+   * persisted backend state, а не локально мутируемый shadow-cache.
    */
   close(): SharedDbBackendAwaitable<void>
   reset(): SharedDbBackendAwaitable<void>

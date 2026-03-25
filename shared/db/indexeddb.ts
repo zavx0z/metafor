@@ -69,10 +69,6 @@ const indexedDbTableConfigs = [
 ] as const satisfies ReadonlyArray<{ table: SharedDbBackendTableName; dataKey: keyof SharedDbData }>
 
 const indexedDbTableNames = indexedDbTableConfigs.map((config) => config.table)
-const indexedDbIndexUniqueBlacklist = new Set([
-  "meta_matter_edges_by_parent_and_edge_order",
-  "wimp_edges_by_parent_and_order",
-])
 
 const metaStoreNames = [
   "metas",
@@ -146,7 +142,7 @@ const openIndexedDb = async (
             if (store.indexNames.contains(index.name)) return
             const keyPath = index.columns.length === 1 ? index.columns[0]! : [...index.columns]
             store.createIndex(index.name, keyPath, {
-              unique: index.unique && !indexedDbIndexUniqueBlacklist.has(index.name),
+              unique: index.unique,
             })
           })
       })
@@ -237,110 +233,6 @@ const deleteRowsById = <T extends { id: string }>(store: IDBObjectStore, rows: r
   rows.forEach((row) => {
     store.delete(row.id)
   })
-}
-
-const replaceById = <T extends { id: string }>(rows: T[], nextRow: T): T[] => [
-  ...rows.filter((row) => row.id !== nextRow.id),
-  cloneRow(nextRow),
-]
-
-const removeMetaRowsFromCache = (data: SharedDbData, ownerMetaId: string): void => {
-  const metaStateIds = new Set(data.metaStates.filter((row) => row.ownerMetaId === ownerMetaId).map((row) => row.id))
-  const metaTransitionIds = new Set(
-    data.metaTransitions.filter((row) => metaStateIds.has(row.ownerMetaStateId)).map((row) => row.id),
-  )
-  const metaProcessIds = new Set(data.metaProcesses.filter((row) => row.ownerMetaId === ownerMetaId).map((row) => row.id))
-  const metaReactionIds = new Set(data.metaReactions.filter((row) => row.ownerMetaId === ownerMetaId).map((row) => row.id))
-
-  data.metas = data.metas.filter((row) => row.id !== ownerMetaId)
-  data.metaFields = data.metaFields.filter((row) => row.ownerMetaId !== ownerMetaId)
-  data.metaStates = data.metaStates.filter((row) => row.ownerMetaId !== ownerMetaId)
-  data.metaTransitions = data.metaTransitions.filter((row) => !metaStateIds.has(row.ownerMetaStateId))
-  data.metaTransitionConditions = data.metaTransitionConditions.filter(
-    (row) => !metaTransitionIds.has(row.ownerMetaTransitionId),
-  )
-  data.metaProcesses = data.metaProcesses.filter((row) => row.ownerMetaId !== ownerMetaId)
-  data.metaProcessReads = data.metaProcessReads.filter((row) => !metaProcessIds.has(row.ownerMetaProcessId))
-  data.metaProcessWrites = data.metaProcessWrites.filter((row) => !metaProcessIds.has(row.ownerMetaProcessId))
-  data.metaReactions = data.metaReactions.filter((row) => row.ownerMetaId !== ownerMetaId)
-  data.metaReactionStates = data.metaReactionStates.filter((row) => !metaReactionIds.has(row.ownerMetaReactionId))
-  data.metaReactionReads = data.metaReactionReads.filter((row) => !metaReactionIds.has(row.ownerMetaReactionId))
-  data.metaReactionWrites = data.metaReactionWrites.filter((row) => !metaReactionIds.has(row.ownerMetaReactionId))
-  data.metaMatterNodes = data.metaMatterNodes.filter((row) => row.ownerMetaId !== ownerMetaId)
-  data.metaMatterEdges = data.metaMatterEdges.filter((row) => row.ownerMetaId !== ownerMetaId)
-}
-
-const applyMetaRowsToCache = (data: SharedDbData, rows: SharedDbMetaRows): void => {
-  removeMetaRowsFromCache(data, rows.meta.id)
-  data.metas = replaceById(data.metas, rows.meta)
-  data.metaFields.push(...cloneRows(rows.fields))
-  data.metaStates.push(...cloneRows(rows.states))
-  data.metaTransitions.push(...cloneRows(rows.transitions))
-  data.metaTransitionConditions.push(...cloneRows(rows.transitionConditions))
-  data.metaProcesses.push(...cloneRows(rows.processes))
-  data.metaProcessReads.push(...cloneRows(rows.processReads))
-  data.metaProcessWrites.push(...cloneRows(rows.processWrites))
-  data.metaReactions.push(...cloneRows(rows.reactions))
-  data.metaReactionStates.push(...cloneRows(rows.reactionStates))
-  data.metaReactionReads.push(...cloneRows(rows.reactionReads))
-  data.metaReactionWrites.push(...cloneRows(rows.reactionWrites))
-  data.metaMatterNodes.push(...cloneRows(rows.matterNodes))
-  data.metaMatterEdges.push(...cloneRows(rows.matterEdges))
-}
-
-const removeWimpRowsFromCache = (data: SharedDbData, ownerWimpId: string): void => {
-  const wimpFieldIds = new Set(data.wimpFields.filter((row) => row.ownerWimpId === ownerWimpId).map((row) => row.id))
-
-  data.wimps = data.wimps.filter((row) => row.id !== ownerWimpId)
-  data.wimpFields = data.wimpFields.filter((row) => row.ownerWimpId !== ownerWimpId)
-  data.fieldValues = data.fieldValues.filter((row) => !wimpFieldIds.has(row.ownerWimpFieldId))
-  data.fieldSources = data.fieldSources.filter(
-    (row) => !wimpFieldIds.has(row.childWimpFieldId) && !wimpFieldIds.has(row.parentWimpFieldId),
-  )
-  data.wimpStates = data.wimpStates.filter((row) => row.ownerWimpId !== ownerWimpId)
-}
-
-const applyWimpRowsToCache = (data: SharedDbData, rows: SharedDbWimpRows): void => {
-  removeWimpRowsFromCache(data, rows.wimp.id)
-  data.wimps = replaceById(data.wimps, rows.wimp)
-  data.wimpFields.push(...cloneRows(rows.fields))
-  data.fieldValues.push(...cloneRows(rows.values))
-  data.fieldSources.push(...cloneRows(rows.sources))
-  data.wimpStates = replaceById(data.wimpStates, rows.state)
-}
-
-const applyWimpEdgeToCache = (data: SharedDbData, row: SharedDbWimpEdgeRecord): void => {
-  data.wimpEdges = [...data.wimpEdges.filter((candidate) => candidate.childWimpId !== row.childWimpId), cloneRow(row)]
-}
-
-const removeEntanglementFamilyFromCache = (data: SharedDbData, entanglementId: string): void => {
-  const entanglementFieldIds = new Set(
-    data.entanglementFields.filter((row) => row.ownerEntanglementId === entanglementId).map((row) => row.id),
-  )
-
-  data.entanglements = data.entanglements.filter((row) => row.id !== entanglementId)
-  data.entanglementMembers = data.entanglementMembers.filter((row) => row.ownerEntanglementId !== entanglementId)
-  data.entanglementFields = data.entanglementFields.filter((row) => row.ownerEntanglementId !== entanglementId)
-  data.entanglementFieldMembers = data.entanglementFieldMembers.filter(
-    (row) => !entanglementFieldIds.has(row.ownerEntanglementFieldId),
-  )
-}
-
-const applyEntanglementFamilyToCache = (data: SharedDbData, rows: SharedDbEntanglementFamilyRows): void => {
-  removeEntanglementFamilyFromCache(data, rows.entanglement.id)
-  data.entanglements = replaceById(data.entanglements, rows.entanglement)
-  data.entanglementMembers.push(...cloneRows(rows.members))
-  data.entanglementFields = replaceById(data.entanglementFields, rows.field)
-  data.entanglementFieldMembers.push(...cloneRows(rows.fieldMembers))
-}
-
-const setFieldValueInCache = (data: SharedDbData, wimpFieldId: string, value: unknown): void => {
-  const row = data.fieldValues.find((candidate) => candidate.ownerWimpFieldId === wimpFieldId)
-  if (!row) {
-    throw new Error(`Field value not found for wimp field ${wimpFieldId}`)
-  }
-
-  row.value = structuredClone(value)
 }
 
 const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string): Promise<SharedDbMetaRows | null> => {
@@ -908,6 +800,9 @@ const setFieldValueInIndexedDb = async (database: IDBDatabase, wimpFieldId: stri
   await completeTransaction(transaction)
 }
 
+const readFullDumpSnapshotFromIndexedDb = async (database: IDBDatabase): Promise<SharedDbData> =>
+  await readAllIndexedDbData(database)
+
 export const openSharedDbIndexedDbBackend = async (
   options: SharedDbIndexedDbBackendOptions = {},
 ): Promise<SharedDbIndexedDbBackend> => {
@@ -918,7 +813,13 @@ export const openSharedDbIndexedDbBackend = async (
     options.version ?? DEFAULT_INDEXED_DB_VERSION,
   )
 
-  let cache = await readAllIndexedDbData(database)
+  /**
+   * Full dump snapshot для sync `readData()`.
+   *
+   * Это не mutable mirror row-cache: snapshot каждый раз перечитывается
+   * из уже persisted IndexedDB state после успешной write-операции.
+   */
+  let fullDumpSnapshot = await readFullDumpSnapshotFromIndexedDb(database)
   let pendingWriteQueue = Promise.resolve()
   let closed = false
 
@@ -928,9 +829,16 @@ export const openSharedDbIndexedDbBackend = async (
     }
   }
 
+  const refreshFullDumpSnapshot = async (): Promise<void> => {
+    fullDumpSnapshot = await readFullDumpSnapshotFromIndexedDb(database)
+  }
+
   const enqueueWrite = (operation: () => Promise<void>): Promise<void> => {
     assertOpen()
-    const writePromise = pendingWriteQueue.then(operation)
+    const writePromise = pendingWriteQueue.then(async () => {
+      await operation()
+      await refreshFullDumpSnapshot()
+    })
     pendingWriteQueue = writePromise.then(() => undefined, () => undefined)
     return writePromise
   }
@@ -953,7 +861,6 @@ export const openSharedDbIndexedDbBackend = async (
           transaction.objectStore(table).clear()
         })
         await completeTransaction(transaction)
-        cache = createEmptySharedDbData()
       })
     },
 
@@ -963,7 +870,7 @@ export const openSharedDbIndexedDbBackend = async (
 
     readData() {
       assertOpen()
-      return normalizeSharedDbData(cache)
+      return normalizeSharedDbData(fullDumpSnapshot)
     },
 
     async readMetaRows(metaId) {
@@ -1015,42 +922,36 @@ export const openSharedDbIndexedDbBackend = async (
     writeMetaRows(rows) {
       return enqueueWrite(async () => {
         await replaceMetaRowsInIndexedDb(database, rows)
-        applyMetaRowsToCache(cache, rows)
       })
     },
 
     writeWimpRows(rows) {
       return enqueueWrite(async () => {
         await replaceWimpRowsInIndexedDb(database, rows)
-        applyWimpRowsToCache(cache, rows)
       })
     },
 
     writeWimpEdge(row) {
       return enqueueWrite(async () => {
         await replaceWimpEdgeInIndexedDb(database, row)
-        applyWimpEdgeToCache(cache, row)
       })
     },
 
     deleteEntanglementFamily(entanglementId) {
       return enqueueWrite(async () => {
         await deleteEntanglementFamilyInIndexedDb(database, entanglementId)
-        removeEntanglementFamilyFromCache(cache, entanglementId)
       })
     },
 
     writeEntanglementFamily(rows) {
       return enqueueWrite(async () => {
         await replaceEntanglementFamilyInIndexedDb(database, rows)
-        applyEntanglementFamilyToCache(cache, rows)
       })
     },
 
     setFieldValue(wimpFieldId, value) {
       return enqueueWrite(async () => {
         await setFieldValueInIndexedDb(database, wimpFieldId, value)
-        setFieldValueInCache(cache, wimpFieldId, value)
       })
     },
   }

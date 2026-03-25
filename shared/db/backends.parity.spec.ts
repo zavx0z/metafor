@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import { IDBFactory } from "fake-indexeddb"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { createSharedDbFixture } from "fixture/db.fixture.ts"
+import { normalizeSharedDbData } from "./backend.ts"
 import { openSharedDbIndexedDbBackend } from "./indexeddb.ts"
 import { openSharedDbMaterializationWriter } from "./materialize.ts"
 import { openSharedDbSqliteBackend } from "./sqlite.ts"
@@ -15,6 +19,25 @@ const createParityBackends = async () => {
 
   return { sqlite, indexeddb }
 }
+
+const createPersistentParityTarget = () => {
+  const dir = mkdtempSync(join(tmpdir(), "metafor-shared-db-parity-"))
+
+  return {
+    dir,
+    sqliteFilename: join(dir, "shared-db.sqlite"),
+    indexedDb: new IDBFactory(),
+    databaseName: `metafor-shared-db-parity-${crypto.randomUUID()}`,
+  }
+}
+
+const openPersistentParityBackends = async (target: ReturnType<typeof createPersistentParityTarget>) => ({
+  sqlite: openSharedDbSqliteBackend({ filename: target.sqliteFilename }),
+  indexeddb: await openSharedDbIndexedDbBackend({
+    indexedDb: target.indexedDb,
+    databaseName: target.databaseName,
+  }),
+})
 
 describe("shared db backend parity", () => {
   test("SQLite и IndexedDB читают одинаковые addressable row groups после одной materialization sequence", async () => {
@@ -102,6 +125,76 @@ describe("shared db backend parity", () => {
       await indexeddb.flush()
       sqlite.close()
       indexeddb.close()
+    }
+  })
+
+  test("SQLite и IndexedDB совпадают по full backend state после operational writes, reopen и reset", async () => {
+    const target = createPersistentParityTarget()
+    const fixture = createSharedDbFixture()
+    const rootEntanglementId = deriveUuid("entanglement-family", fixture.fields.rootTitle!.id)
+
+    try {
+      const initial = await openPersistentParityBackends(target)
+      const sqliteWriter = openSharedDbMaterializationWriter(initial.sqlite)
+      const indexeddbWriter = openSharedDbMaterializationWriter(initial.indexeddb)
+
+      try {
+        await fixture.root.save(sqliteWriter)
+        await fixture.child.save(sqliteWriter)
+        await fixture.root.save(indexeddbWriter)
+        await fixture.child.save(indexeddbWriter)
+
+        fixture.child.fields!.alias!.value = "Alias after first resave"
+        await fixture.child.save(sqliteWriter)
+        await fixture.child.save(indexeddbWriter)
+
+        fixture.child.fields!.alias!.value = "Alias after second resave"
+        await fixture.child.save(sqliteWriter)
+        await fixture.child.save(indexeddbWriter)
+
+        await initial.sqlite.setFieldValue(fixture.fields.childAlias!.id, "Alias via backend update")
+        await initial.indexeddb.setFieldValue(fixture.fields.childAlias!.id, "Alias via backend update")
+
+        const family = await initial.sqlite.readEntanglementFamily(rootEntanglementId)
+        expect(family).not.toBeNull()
+
+        await initial.sqlite.deleteEntanglementFamily(rootEntanglementId)
+        await initial.indexeddb.deleteEntanglementFamily(rootEntanglementId)
+        await initial.sqlite.writeEntanglementFamily(family!)
+        await initial.indexeddb.writeEntanglementFamily(family!)
+        await initial.indexeddb.flush()
+
+        expect(normalizeSharedDbData(initial.sqlite.readData())).toEqual(
+          normalizeSharedDbData(initial.indexeddb.readData()),
+        )
+      } finally {
+        await initial.indexeddb.flush()
+        initial.sqlite.close()
+        initial.indexeddb.close()
+      }
+
+      const reopened = await openPersistentParityBackends(target)
+      try {
+        expect(normalizeSharedDbData(reopened.sqlite.readData())).toEqual(normalizeSharedDbData(reopened.indexeddb.readData()))
+        expect(await reopened.sqlite.readWimpRows(fixture.child.id)).toEqual(await reopened.indexeddb.readWimpRows(fixture.child.id))
+        expect(await reopened.sqlite.readFieldValue(fixture.fields.childAlias!.id)).toEqual(
+          await reopened.indexeddb.readFieldValue(fixture.fields.childAlias!.id),
+        )
+
+        await reopened.sqlite.reset()
+        await reopened.indexeddb.reset()
+        await reopened.indexeddb.flush()
+
+        expect(normalizeSharedDbData(reopened.sqlite.readData())).toEqual(normalizeSharedDbData(reopened.indexeddb.readData()))
+        expect(reopened.sqlite.readData().wimps).toEqual([])
+        expect(reopened.indexeddb.readData().wimps).toEqual([])
+      } finally {
+        await reopened.indexeddb.flush()
+        reopened.sqlite.close()
+        reopened.indexeddb.close()
+      }
+    } finally {
+      rmSync(target.dir, { recursive: true, force: true })
     }
   })
 })
