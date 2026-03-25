@@ -1,8 +1,14 @@
 import {
+  METAFOR_PROTOCOL_KIND,
   isPhotonMessage,
   openElectromagnetismBroadcastChannel,
+  openGluonBroadcastChannel,
+  openHiggsBroadcastChannel,
   type PhotonMessage,
   type ProtocolChannelOptions,
+  type GluonMessage,
+  type HiggsMessage,
+  type ValueProtocolPatch,
 } from "@shared/protocol"
 
 export interface DarkPhotonStore {
@@ -10,6 +16,14 @@ export interface DarkPhotonStore {
 }
 
 export interface DarkPhotonSubscription {
+  close(): void
+}
+
+export interface DarkElectromagnetismProtocol {
+  emitGluonPatches(patches: ValueProtocolPatch[]): void
+  emitHiggsPatches(patches: ValueProtocolPatch[]): void
+  emitGluonReplace(wimpFieldId: string, value: unknown): void
+  emitHiggsReplace(wimpFieldId: string, value: unknown): void
   close(): void
 }
 
@@ -42,4 +56,52 @@ export const subscribeDarkPhotons = (
   }
 }
 
-export type { PhotonMessage, ProtocolChannelOptions } from "@shared/protocol"
+const createFieldBosonMessage = (
+  kind: "gluon" | "higgs",
+  patches: ValueProtocolPatch[],
+): GluonMessage | HiggsMessage => ({
+  protocol: METAFOR_PROTOCOL_KIND,
+  channel: kind,
+  boson: kind,
+  source: "dark",
+  target: "boundary",
+  patches,
+})
+
+export const createDarkElectromagnetismProtocol = (
+  options: { gluonChannelName?: string; higgsChannelName?: string } = {},
+): DarkElectromagnetismProtocol => {
+  const gluon = openGluonBroadcastChannel(
+    options.gluonChannelName === undefined ? {} : { channelName: options.gluonChannelName },
+  )
+  const higgs = openHiggsBroadcastChannel(
+    options.higgsChannelName === undefined ? {} : { channelName: options.higgsChannelName },
+  )
+
+  return {
+    emitGluonPatches(patches) {
+      if (patches.length === 0) return
+      gluon.postMessage(createFieldBosonMessage("gluon", patches))
+    },
+
+    emitHiggsPatches(patches) {
+      if (patches.length === 0) return
+      higgs.postMessage(createFieldBosonMessage("higgs", patches))
+    },
+
+    emitGluonReplace(wimpFieldId, value) {
+      gluon.postMessage(createFieldBosonMessage("gluon", [{ op: "replace", path: `/field/${wimpFieldId}`, value }]))
+    },
+
+    emitHiggsReplace(wimpFieldId, value) {
+      higgs.postMessage(createFieldBosonMessage("higgs", [{ op: "replace", path: `/field/${wimpFieldId}`, value }]))
+    },
+
+    close() {
+      gluon.close()
+      higgs.close()
+    },
+  }
+}
+
+export type { PhotonMessage, ProtocolChannelOptions, ValueProtocolPatch, GluonMessage, HiggsMessage } from "@shared/protocol"

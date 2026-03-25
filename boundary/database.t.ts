@@ -98,7 +98,10 @@ export interface BoundarySharedDbRuntimeOptions {
   entanglement?: PreparedEntanglementProjection
 }
 
-export interface BoundaryRuntimeWriteContext {
-  fieldIdsByRuntimeFieldIndex: string[][]
+export interface BoundaryRuntimeForceData {
+  runtimeFieldIndexByWimpFieldId: Map<string, number>
+  wimpFieldIdsByRuntimeFieldIndex: string[][]
+  braneIndexByWimpFieldId: Map<string, number>
+  topologyWimpFieldIds: Set<string>
   stateMetaStateIdsByBraneIndex: string[][]
 }

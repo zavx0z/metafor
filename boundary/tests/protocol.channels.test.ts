@@ -214,4 +214,75 @@ describe("boundary <-> dark protocol channels", () => {
       expect((message as Record<string, unknown>).state).toBeUndefined()
     }
   })
+
+  test("Boundary принимает UUID-addressed Gluon и Higgs patches через отдельные JSON Patch каналы", async () => {
+    const result = await runProtocolScenario<{
+      aliasValue: unknown
+      modeValue: unknown
+      rootState: number
+      rootWimpStateId?: string
+    }>(`
+      const { createSharedDbFixture } = await import("./fixture/db.fixture.ts")
+      const { openSharedDbSqliteBackend, openSharedDbMaterializationWriter } = await import("@shared/db")
+      const { createDarkElectromagnetismProtocol } = await import("@dark/em")
+      const {
+        writeRuntimeFromSharedDb,
+        subscribeBoundaryGluonBroadcast,
+        subscribeBoundaryHiggsBroadcast,
+        gravity$,
+        boundary$,
+        closeBoundaryProtocolChannels,
+      } = await import("./boundary/boundary.ts")
+
+      const nextTick = async () => {
+        await Promise.resolve()
+        await Bun.sleep(0)
+      }
+
+      const fixture = createSharedDbFixture()
+      const backend = openSharedDbSqliteBackend()
+      const writer = openSharedDbMaterializationWriter(backend)
+      await fixture.root.save(writer)
+      await fixture.child.save(writer)
+      await writeRuntimeFromSharedDb(backend)
+
+      const gluonChannelName = "metafor.gluon.test." + crypto.randomUUID()
+      const higgsChannelName = "metafor.higgs.test." + crypto.randomUUID()
+      const protocol = createDarkElectromagnetismProtocol({ gluonChannelName, higgsChannelName })
+      const gluon = subscribeBoundaryGluonBroadcast({ channelName: gluonChannelName })
+      const higgs = subscribeBoundaryHiggsBroadcast({ channelName: higgsChannelName })
+
+      try {
+        protocol.emitGluonReplace(fixture.fields.childAlias!.id, "Alias via gluon")
+        protocol.emitHiggsReplace(fixture.fields.rootMode!.id, "ready")
+        await nextTick()
+        await gluon.flush()
+        await higgs.flush()
+
+        const rootBraneIndex = gravity$.getBraneIndex(fixture.root.id)
+        const persisted = backend.readData()
+        const rootReadyStateId = persisted.metaStates.find(
+          (row) => row.ownerMetaId === fixture.root.meta!.id && row.stateName === "ready",
+        )?.id
+
+        console.log(JSON.stringify({
+          aliasValue: persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value,
+          modeValue: persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.rootMode!.id)?.value,
+          rootState: boundary$.states[rootBraneIndex],
+          rootWimpStateId: persisted.wimpStates.find((row) => row.ownerWimpId === fixture.root.id)?.metaStateId,
+        }))
+      } finally {
+        await gluon.close()
+        await higgs.close()
+        protocol.close()
+        backend.close()
+        closeBoundaryProtocolChannels()
+      }
+    `)
+
+    expect(result.aliasValue).toBe("Alias via gluon")
+    expect(result.modeValue).toBe("ready")
+    expect(result.rootState).toBe(1)
+    expect(result.rootWimpStateId).toBeDefined()
+  })
 })

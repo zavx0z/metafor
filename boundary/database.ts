@@ -19,7 +19,7 @@ import type {
   BoundaryDatabaseFieldRecord,
   BoundaryDatabaseFieldSchemaRecord,
   BoundaryDatabaseFieldValueRecord,
-  BoundaryRuntimeWriteContext,
+  BoundaryRuntimeForceData,
   BoundaryDatabaseStateSeedConditionRecord,
   BoundaryDatabaseStateSeedStateRecord,
   BoundaryDatabaseStateSeedTransitionRecord,
@@ -654,12 +654,28 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
   }
 }
 
-export const prepareBoundaryRuntimeWriteContext = (
+export const prepareBoundaryRuntimeForceData = (
   rawData: SharedDbData,
-): BoundaryRuntimeWriteContext => {
+): BoundaryRuntimeForceData => {
   const data = prepareBoundaryDatabaseData(rawData)
-  const { runtimeFieldIndexToWimpFieldIds } = buildBoundaryRuntimeFieldRegistry(data)
+  const { runtimeFieldIndexByDbFieldIndex, runtimeFieldIndexToWimpFieldIds } = buildBoundaryRuntimeFieldRegistry(data)
+  const runtimeFieldIndexByWimpFieldId = new Map<string, number>()
+  const braneIndexByWimpFieldId = new Map<string, number>()
+  const topologyWimpFieldIds = new Set<string>()
   const stateMetaStateIdsByBraneIndex: string[][] = []
+
+  for (const field of data.fields) {
+    const runtimeFieldIndex = runtimeFieldIndexByDbFieldIndex[field.index]
+    if (runtimeFieldIndex === undefined) {
+      throw new Error(`Boundary runtime force data missing runtime field index for DB field ${field.index}`)
+    }
+
+    runtimeFieldIndexByWimpFieldId.set(field.wimpFieldId, runtimeFieldIndex)
+    braneIndexByWimpFieldId.set(field.wimpFieldId, field.ownerBraneIndex)
+    if (field.schema.topology) {
+      topologyWimpFieldIds.add(field.wimpFieldId)
+    }
+  }
 
   for (const state of data.stateSeedStates) {
     const braneStateIds = stateMetaStateIdsByBraneIndex[state.ownerBraneIndex] ?? []
@@ -668,7 +684,10 @@ export const prepareBoundaryRuntimeWriteContext = (
   }
 
   return {
-    fieldIdsByRuntimeFieldIndex: Array.from(runtimeFieldIndexToWimpFieldIds, (ids) => [...(ids ?? [])]),
+    runtimeFieldIndexByWimpFieldId,
+    wimpFieldIdsByRuntimeFieldIndex: Array.from(runtimeFieldIndexToWimpFieldIds, (ids) => [...(ids ?? [])]),
+    braneIndexByWimpFieldId,
+    topologyWimpFieldIds,
     stateMetaStateIdsByBraneIndex: Array.from(stateMetaStateIdsByBraneIndex, (ids) => [...(ids ?? [])]),
   }
 }

@@ -38,25 +38,31 @@ import type { BoundaryFieldValueRecord, BoundaryStore } from "./store.t"
 import type { PreparedData } from "./boundary.t"
 import {
   prepareBoundaryRuntimeData,
+  prepareBoundaryRuntimeForceData,
   prepareBoundaryRuntimeLoadedFragmentFromSharedDb,
   prepareBoundaryRuntimeStore,
-  prepareBoundaryRuntimeWriteContext,
   prepareBoundaryRuntimeStoreFromSharedDb,
 } from "./database"
-import type { BoundaryRuntimeWriteContext, BoundarySharedDbRuntimeOptions } from "./database.t"
+import type { BoundarySharedDbRuntimeOptions } from "./database.t"
 import { flattenBoundaryData, validateData, type Data } from "@boundary/gravity"
-import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData } from "@boundary/strong"
+import { FieldType } from "@boundary/gravity"
+import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData, strong$ } from "@boundary/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import type { WeakHeapUpdate } from "./weak/weak.t"
 import { createEmptySharedDbData, type SharedDbBackend, type SharedDbData } from "@shared/db"
 import {
+  isGluonMessage,
   isGravitonMessage,
+  isHiggsMessage,
   METAFOR_PROTOCOL_KIND,
   openElectromagnetismBroadcastChannel,
+  openGluonBroadcastChannel,
   openGravityBroadcastChannel,
+  openHiggsBroadcastChannel,
   type GravityProtocolPatch,
   type PhotonMessage,
   type ProtocolChannelOptions,
+  type ValueProtocolPatch,
 } from "@shared/protocol"
 
 export type BoundaryStructuralPatch = GravityProtocolPatch
@@ -66,15 +72,24 @@ export interface BoundaryGravityBroadcastSubscription {
   close(): Promise<void>
 }
 
+export interface BoundaryValueBroadcastSubscription {
+  flush(): Promise<void>
+  close(): Promise<void>
+}
+
 let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null
 /** Последний успешно materialized runtime-fragment, соответствующий текущему `boundary$`. */
 let loadedRuntimeFragment: SharedDbData = createEmptySharedDbData()
 let activeSharedDbBackend: SharedDbBackend | null = null
-let activeRuntimeWriteContext: BoundaryRuntimeWriteContext | null = null
 let electromagnetismChannel: BroadcastChannel | null = null
 let electromagnetismChannelName: string | undefined
+let gluonChannel: BroadcastChannel | null = null
+let gluonChannelName: string | undefined
+let higgsChannel: BroadcastChannel | null = null
+let higgsChannelName: string | undefined
 const WIMP_PATCH_PATH_PREFIX = "/wimp/"
+const FIELD_PATCH_PATH_PREFIX = "/field/"
 
 const createEmptyPreparedData = (): PreparedData => ({
   fields: [],
@@ -131,17 +146,12 @@ const clearLoadedRuntimeState = (): void => {
   loadedRuntimeFragment = createEmptySharedDbData()
   clearGravityComposition()
   activeSharedDbBackend = null
-  activeRuntimeWriteContext = null
+  strong$.reset()
+  weak$.stateMetaStateIdsByBraneIndex = []
 }
 
 const bindRuntimePersistence = (backend: SharedDbBackend, fragment: SharedDbData): void => {
   activeSharedDbBackend = backend
-  activeRuntimeWriteContext = prepareBoundaryRuntimeWriteContext(fragment)
-}
-
-const clearRuntimePersistence = (): void => {
-  activeSharedDbBackend = null
-  activeRuntimeWriteContext = null
 }
 
 const getElectromagnetismChannel = (): BroadcastChannel => {
@@ -173,6 +183,41 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     }
     channel.postMessage(message)
   }
+}
+
+const denormalizeRuntimeValue = (runtimeFieldIndex: number, value: unknown): unknown => {
+  const field = boundary$.fields[runtimeFieldIndex]
+  if (!field) {
+    throw new Error(`Boundary runtime field not defined: ${runtimeFieldIndex}`)
+  }
+
+  if (field.enum) {
+    if (typeof value !== "number") {
+      throw new Error(`Boundary enum field ${runtimeFieldIndex} must be encoded as number`)
+    }
+    return structuredClone(field.enum[value] ?? value)
+  }
+
+  if (field.type === FieldType.STRING_PTR) {
+    if (typeof value !== "number") {
+      throw new Error(`Boundary string field ${runtimeFieldIndex} must be encoded as string-table index`)
+    }
+    return boundary$.stringTable[value] ?? ""
+  }
+
+  if (field.type === FieldType.ARRAY_PTR && field.elementType === "string") {
+    if (!Array.isArray(value)) {
+      throw new Error(`Boundary string array field ${runtimeFieldIndex} must be encoded as array`)
+    }
+    return value.map((item) => {
+      if (typeof item !== "number") {
+        throw new Error(`Boundary string array field ${runtimeFieldIndex} must contain string-table indexes`)
+      }
+      return boundary$.stringTable[item] ?? ""
+    })
+  }
+
+  return structuredClone(value)
 }
 
 const addRuntimeWimpToGravity = (wimpId: string): void => {
@@ -208,6 +253,28 @@ const isEmptyBarrierValue = (value: unknown): boolean => {
   return Object.keys(value).length === 0
 }
 
+const requireFieldPatchId = (path: string): string => {
+  if (!path.startsWith(FIELD_PATCH_PATH_PREFIX)) {
+    throw new Error(`Unsupported Boundary field patch path: ${path}`)
+  }
+
+  const wimpFieldId = path.slice(FIELD_PATCH_PATH_PREFIX.length)
+  if (!wimpFieldId) {
+    throw new Error(`Boundary field patch path is missing field uuid: ${path}`)
+  }
+
+  return wimpFieldId
+}
+
+const applyRuntimeForceData = (fragment: SharedDbData): void => {
+  const forceData = prepareBoundaryRuntimeForceData(fragment)
+  strong$.runtimeFieldIndexByWimpFieldId = forceData.runtimeFieldIndexByWimpFieldId
+  strong$.wimpFieldIdsByRuntimeFieldIndex = forceData.wimpFieldIdsByRuntimeFieldIndex
+  strong$.braneIndexByWimpFieldId = forceData.braneIndexByWimpFieldId
+  strong$.topologyWimpFieldIds = forceData.topologyWimpFieldIds
+  weak$.stateMetaStateIdsByBraneIndex = forceData.stateMetaStateIdsByBraneIndex
+}
+
 const rebuildRuntimeFromFragment = async (
   fragment: SharedDbData,
   options: BoundarySharedDbRuntimeOptions,
@@ -218,15 +285,14 @@ const rebuildRuntimeFromFragment = async (
   // предыдущее materialized runtime. Обновляем fragment и addressing только здесь.
   loadedRuntimeFragment = fragment
   refreshGravityAddressing(fragment)
-  activeRuntimeWriteContext = prepareBoundaryRuntimeWriteContext(fragment)
+  applyRuntimeForceData(fragment)
   gravity$.structuralDirty = false
   return changes
 }
 
 const persistRuntimeChanges = async (changes: [number, number][], weakUpdates: WeakHeapUpdate[]): Promise<void> => {
   const backend = activeSharedDbBackend
-  const writeContext = activeRuntimeWriteContext
-  if (!backend || !writeContext) return
+  if (!backend) return
 
   const nextFieldValues = new Map<number, unknown>()
   const nextStateByBraneIndex = new Map<number, number>()
@@ -235,7 +301,7 @@ const persistRuntimeChanges = async (changes: [number, number][], weakUpdates: W
     if (update.kind === "field") {
       const value = boundary$.getFieldValue(update.braneIndex, update.fieldIndex)
       if (value !== undefined) {
-        nextFieldValues.set(update.fieldIndex, structuredClone(value))
+        nextFieldValues.set(update.fieldIndex, denormalizeRuntimeValue(update.fieldIndex, value))
       }
     }
   }
@@ -245,7 +311,7 @@ const persistRuntimeChanges = async (changes: [number, number][], weakUpdates: W
   }
 
   for (const [runtimeFieldIndex, value] of nextFieldValues.entries()) {
-    const wimpFieldIds = writeContext.fieldIdsByRuntimeFieldIndex[runtimeFieldIndex] ?? []
+    const wimpFieldIds = strong$.wimpFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] ?? []
     if (wimpFieldIds.length === 0) {
       throw new Error(`Boundary runtime persistence missing canonical field mapping for runtime field ${runtimeFieldIndex}`)
     }
@@ -254,7 +320,7 @@ const persistRuntimeChanges = async (changes: [number, number][], weakUpdates: W
 
   for (const [braneIndex, stateIndex] of nextStateByBraneIndex.entries()) {
     const wimpId = gravity$.getWimpId(braneIndex)
-    const metaStateId = writeContext.stateMetaStateIdsByBraneIndex[braneIndex]?.[stateIndex]
+    const metaStateId = weak$.stateMetaStateIdsByBraneIndex[braneIndex]?.[stateIndex]
     if (!wimpId) {
       throw new Error(`Boundary runtime persistence missing UUID mapping for brane ${braneIndex}`)
     }
@@ -503,6 +569,103 @@ export async function update(
   }
 }
 
+export async function setValues(values: Record<string, unknown>): Promise<[number, number][]> {
+  const groupedUpdates = new Map<number, Array<[number, unknown]>>()
+
+  for (const [wimpFieldId, value] of Object.entries(values)) {
+    const braneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
+    const runtimeFieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimpFieldId)
+
+    if (braneIndex === undefined) {
+      throw new Error(`Boundary UUID field is not materialized in current runtime: ${wimpFieldId}`)
+    }
+    if (runtimeFieldIndex === undefined) {
+      throw new Error(`Boundary runtime field index is missing for UUID field: ${wimpFieldId}`)
+    }
+
+    const fieldUpdates = groupedUpdates.get(braneIndex)
+    if (fieldUpdates) {
+      fieldUpdates.push([runtimeFieldIndex, value])
+    } else {
+      groupedUpdates.set(braneIndex, [[runtimeFieldIndex, value]])
+    }
+  }
+
+  return await update(Array.from(groupedUpdates, ([braneIndex, fieldUpdates]) => [braneIndex, fieldUpdates]))
+}
+
+const applyValuePatches = async (
+  patches: ValueProtocolPatch[],
+  kind: "gluon" | "higgs",
+): Promise<[number, number][]> => {
+  const values: Record<string, unknown> = {}
+
+  for (const patch of patches) {
+    const wimpFieldId = requireFieldPatchId(patch.path)
+    const isTopology = strong$.topologyWimpFieldIds.has(wimpFieldId)
+
+    if (kind === "gluon" && isTopology) {
+      throw new Error(`Gluon patch cannot target topology field ${wimpFieldId}`)
+    }
+    if (kind === "higgs" && !isTopology) {
+      throw new Error(`Higgs patch must target topology field ${wimpFieldId}`)
+    }
+
+    values[wimpFieldId] = patch.value
+  }
+
+  return await setValues(values)
+}
+
+const subscribeBoundaryValueBroadcast = (
+  kind: "gluon" | "higgs",
+  options: ProtocolChannelOptions = {},
+): BoundaryValueBroadcastSubscription => {
+  const channel = kind === "gluon" ? openGluonBroadcastChannel(options) : openHiggsBroadcastChannel(options)
+  let queue = Promise.resolve()
+
+  channel.onmessage = (event: MessageEvent) => {
+    const message = event.data
+    const accepted =
+      kind === "gluon"
+        ? isGluonMessage(message) && (message.source === "dark" || message.source === "boundary")
+        : isHiggsMessage(message) && (message.source === "dark" || message.source === "boundary")
+
+    if (!accepted) return
+    if (message.target !== "boundary" && message.target !== "broadcast") return
+
+    queue = queue.then(async () => {
+      await applyValuePatches(message.patches, kind)
+    })
+  }
+
+  const flush = async (): Promise<void> => {
+    for (;;) {
+      const pending = queue
+      await Promise.resolve()
+      await Bun.sleep(0)
+      await pending
+      if (pending === queue) return
+    }
+  }
+
+  return {
+    flush,
+    async close() {
+      channel.close()
+      await flush()
+    },
+  }
+}
+
+export function subscribeBoundaryGluonBroadcast(options: ProtocolChannelOptions = {}): BoundaryValueBroadcastSubscription {
+  return subscribeBoundaryValueBroadcast("gluon", options)
+}
+
+export function subscribeBoundaryHiggsBroadcast(options: ProtocolChannelOptions = {}): BoundaryValueBroadcastSubscription {
+  return subscribeBoundaryValueBroadcast("higgs", options)
+}
+
 export function unlock(indexes: number[]): void {
   requireInitializedStore(boundary$)
   const weakUpdates: Array<{ kind: "lock"; braneIndex: number; value: boolean }> = []
@@ -523,10 +686,12 @@ export function closeBoundaryProtocolChannels(): void {
   electromagnetismChannel?.close()
   electromagnetismChannel = null
   electromagnetismChannelName = undefined
-}
-
-export function clearBoundaryRuntimePersistence(): void {
-  clearRuntimePersistence()
+  gluonChannel?.close()
+  gluonChannel = null
+  gluonChannelName = undefined
+  higgsChannel?.close()
+  higgsChannel = null
+  higgsChannelName = undefined
 }
 
 export function configureBoundaryElectromagnetismBroadcast(options: ProtocolChannelOptions = {}): void {
@@ -534,9 +699,22 @@ export function configureBoundaryElectromagnetismBroadcast(options: ProtocolChan
   electromagnetismChannelName = options.channelName
 }
 
+export function configureBoundaryGluonBroadcast(options: ProtocolChannelOptions = {}): void {
+  gluonChannel?.close()
+  gluonChannel = null
+  gluonChannelName = options.channelName
+}
+
+export function configureBoundaryHiggsBroadcast(options: ProtocolChannelOptions = {}): void {
+  higgsChannel?.close()
+  higgsChannel = null
+  higgsChannelName = options.channelName
+}
+
 export type { PreparedData } from "./boundary.t"
 export type { BoundaryGravityStore } from "./gravity.store.t"
 export { FieldType } from "./gravity"
 export { gravity$ }
 export { boundary$ }
+export { strong$ }
 export { flattenBoundaryData } from "./gravity"

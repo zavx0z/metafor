@@ -13,6 +13,8 @@ import {
   listRuntimeWimpIds,
   prepareRuntimeFromSharedDb,
   rebuildRuntime,
+  setValues,
+  strong$,
   unlock,
   update,
   writeRuntimeFromSharedDb,
@@ -279,8 +281,8 @@ describe("boundary runtime from shared/db backend", () => {
       )?.id
       expect(rootReadyStateId).toBeDefined()
       expect(childReadyStateId).toBeDefined()
-      expect(persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.rootMode!.id)?.value).toBe(1)
-      expect(persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childMode!.id)?.value).toBe(1)
+      expect(persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.rootMode!.id)?.value).toBe("ready")
+      expect(persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childMode!.id)?.value).toBe("ready")
       expect(persisted.wimpStates.find((row) => row.ownerWimpId === fixture.root.id)?.metaStateId).toBe(rootReadyStateId)
       expect(persisted.wimpStates.find((row) => row.ownerWimpId === fixture.child.id)?.metaStateId).toBe(childReadyStateId)
 
@@ -293,6 +295,30 @@ describe("boundary runtime from shared/db backend", () => {
 
       unlock([rootBraneIndex!])
       expect(boundary$.branes[rootBraneIndex!]?.lock).toBe(false)
+    } finally {
+      backend.close()
+    }
+  })
+
+  test("setValues принимает UUID-addressed field updates и резолвит их через strong$", async () => {
+    const { fixture, backend } = await materializeFixtureToSharedDb()
+
+    try {
+      await writeRuntimeFromSharedDb(backend)
+
+      expect(strong$.runtimeFieldIndexByWimpFieldId.get(fixture.fields.childAlias!.id)).toBeDefined()
+      expect(strong$.braneIndexByWimpFieldId.get(fixture.fields.childAlias!.id)).toBeDefined()
+
+      const changes = await setValues({
+        [fixture.fields.childAlias!.id]: "Alias via UUID field",
+        [fixture.fields.rootMode!.id]: "ready",
+      })
+
+      expect(Array.isArray(changes)).toBe(true)
+      expect(backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value).toBe(
+        "Alias via UUID field",
+      )
+      expect(backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.rootMode!.id)?.value).toBe("ready")
     } finally {
       backend.close()
     }

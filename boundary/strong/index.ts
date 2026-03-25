@@ -9,6 +9,8 @@ import type { FlattenedBoundaryInput } from "@boundary/gravity"
 import { createStoredStringInterner } from "./string-table"
 import type { StoredStringTable } from "./string-table.t"
 import { normalizeFieldValue } from "./normalize"
+import { strong$ } from "./store"
+import type { BoundaryStrongStore } from "./store.t"
 import type { PreparedData } from "../boundary.t"
 
 export {
@@ -16,11 +18,13 @@ export {
   createStoredStringInterner,
   materializeEntanglement,
   normalizeFieldValue,
+  strong$,
 }
 export type {
   FlattenedBoundaryInput,
   PreparedEntanglementProjection,
   StoredStringTable,
+  BoundaryStrongStore,
   PreparedData,
 }
 export { FieldType } from "@boundary/gravity"

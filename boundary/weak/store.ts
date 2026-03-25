@@ -8,6 +8,7 @@ export const weak$: WeakStore = {
   initialized: false,
   mode: "cpu",
   boundary$: null,
+  stateMetaStateIdsByBraneIndex: [],
 
   reset() {
     if (this.runtime) {
@@ -18,5 +19,6 @@ export const weak$: WeakStore = {
     this.initialized = false
     this.mode = "cpu"
     this.boundary$ = null
+    this.stateMetaStateIdsByBraneIndex = []
   },
 }

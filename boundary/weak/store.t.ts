@@ -25,6 +25,9 @@ export interface WeakStore {
   /** Ссылка на канонический Boundary store, который слабый слой читает и синхронизирует. */
   boundary$: BoundaryStore | null
 
+  /** Каноническая адресация состояний materialized runtime: `brane/stateIndex -> metaStateId`. */
+  stateMetaStateIdsByBraneIndex: string[][]
+
   /** Сбрасывает локальное runtime-состояние слабой силы. */
   reset(): void
 }

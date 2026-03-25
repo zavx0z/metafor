@@ -1,5 +1,5 @@
 import { openSharedDbSqliteBackend } from "@shared/db"
-import { clearBoundaryRuntimePersistence, closeBoundaryProtocolChannels, writeRuntimeFromSharedDb } from "../boundary"
+import { closeBoundaryProtocolChannels, writeRuntimeFromSharedDb } from "../boundary"
 
 export async function resetBoundaryForTest(): Promise<void> {
   closeBoundaryProtocolChannels()
@@ -9,6 +9,5 @@ export async function resetBoundaryForTest(): Promise<void> {
     await writeRuntimeFromSharedDb(backend)
   } finally {
     backend.close()
-    clearBoundaryRuntimePersistence()
   }
 }
