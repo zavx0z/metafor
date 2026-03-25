@@ -2,5 +2,8 @@
   "name": "@bulk/em",
   "type": "module",
   "main": "index.ts",
+  "dependencies": {
+    "@shared/protocol": "workspace:*"
+  },
   "private": true
 }

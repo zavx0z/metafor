@@ -39,6 +39,7 @@ import {
   applyStructuralPatchFromSharedDb,
   subscribeBoundaryGluonBroadcast,
   subscribeBoundaryHiggsBroadcast,
+  subscribeBoundaryWeakResultBroadcast,
 } from "@boundary"
 ```
 
@@ -47,3 +48,4 @@ import {
 Для `shared/db`-пути `add/remove` мутируют `gravity$`, а `test ""` barrier через `applyStructuralPatchFromSharedDb(...)`
 или явный `rebuildRuntime(backend)` пересобирает `boundary$` и обновляет `uuid <-> braneIndex`.
 UUID field addressing и topology/ordinary field routing живут в `strong$`, а `brane/stateIndex -> metaStateId` для write-back живёт в `weak$`.
+Существующая `lock/unlock` семантика Boundary остаётся как была. `Photon` публикуется как broadcast observable-state signal, `Z` остаётся coordination-каналом исполнителей в `Bulk`, а `W` возвращает один result envelope обратно в `Boundary`; `subscribeBoundaryWeakResultBroadcast()` принимает этот пакет, применяет все UUID field patches за один проход и только потом снимает `lock`.

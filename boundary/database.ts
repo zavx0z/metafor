@@ -657,12 +657,19 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
 export const prepareBoundaryRuntimeForceData = (
   rawData: SharedDbData,
 ): BoundaryRuntimeForceData => {
-  const data = prepareBoundaryDatabaseData(rawData)
+  const normalizedData = normalizeSharedDbData(rawData)
+  const data = prepareBoundaryDatabaseData(normalizedData)
   const { runtimeFieldIndexByDbFieldIndex, runtimeFieldIndexToWimpFieldIds } = buildBoundaryRuntimeFieldRegistry(data)
+  const orderedWimps = [...normalizedData.wimps].sort((left, right) => left.wimpOrder - right.wimpOrder)
+  const metaIdByBraneIndex = orderedWimps.map((row) => row.metaId)
+  const processIdByMetaIdAndStateName = new Map(
+    normalizedData.metaProcesses.map((process) => [`${process.ownerMetaId}:${process.processKey}`, process.id] as const),
+  )
   const runtimeFieldIndexByWimpFieldId = new Map<string, number>()
   const braneIndexByWimpFieldId = new Map<string, number>()
   const topologyWimpFieldIds = new Set<string>()
   const stateMetaStateIdsByBraneIndex: string[][] = []
+  const stateProcessIdsByBraneIndex: Array<Array<string | undefined>> = []
 
   for (const field of data.fields) {
     const runtimeFieldIndex = runtimeFieldIndexByDbFieldIndex[field.index]
@@ -681,6 +688,14 @@ export const prepareBoundaryRuntimeForceData = (
     const braneStateIds = stateMetaStateIdsByBraneIndex[state.ownerBraneIndex] ?? []
     braneStateIds[state.stateIndex] = state.metaStateId
     stateMetaStateIdsByBraneIndex[state.ownerBraneIndex] = braneStateIds
+
+    const metaId = metaIdByBraneIndex[state.ownerBraneIndex]
+    const processId = metaId === undefined ? undefined : processIdByMetaIdAndStateName.get(`${metaId}:${state.stateName}`)
+    if (processId !== undefined) {
+      const braneProcessIds = stateProcessIdsByBraneIndex[state.ownerBraneIndex] ?? []
+      braneProcessIds[state.stateIndex] = processId
+      stateProcessIdsByBraneIndex[state.ownerBraneIndex] = braneProcessIds
+    }
   }
 
   return {
@@ -689,6 +704,7 @@ export const prepareBoundaryRuntimeForceData = (
     braneIndexByWimpFieldId,
     topologyWimpFieldIds,
     stateMetaStateIdsByBraneIndex: Array.from(stateMetaStateIdsByBraneIndex, (ids) => [...(ids ?? [])]),
+    stateProcessIdsByBraneIndex: Array.from(stateProcessIdsByBraneIndex, (ids) => [...(ids ?? [])]),
   }
 }
 

@@ -11,6 +11,7 @@
  * - `applyStructuralPatchFromSharedDb()` — обработка UUID-addressed structural patch и barrier
  * - `rebuildRuntime()` — транзакционная пересборка derived runtime из текущей composition в `gravity$`
  * - `update()` — обновление полей, вычисление следующего перехода и write-back в bound shared/db backend
+ * - `applyWeakResultPacket()` / `subscribeBoundaryWeakResultBroadcast()` — приём единого W-result envelope и unlock после apply
  * - `unlock()` — снятие блокировки с бран
  *
  * ## Архитектура
@@ -54,15 +55,18 @@ import {
   isGluonMessage,
   isGravitonMessage,
   isHiggsMessage,
+  isWMessage,
   METAFOR_PROTOCOL_KIND,
   openElectromagnetismBroadcastChannel,
   openGluonBroadcastChannel,
   openGravityBroadcastChannel,
   openHiggsBroadcastChannel,
+  openWeakWBroadcastChannel,
   type GravityProtocolPatch,
   type PhotonMessage,
   type ProtocolChannelOptions,
   type ValueProtocolPatch,
+  type WMessage,
 } from "@shared/protocol"
 
 export type BoundaryStructuralPatch = GravityProtocolPatch
@@ -73,6 +77,11 @@ export interface BoundaryGravityBroadcastSubscription {
 }
 
 export interface BoundaryValueBroadcastSubscription {
+  flush(): Promise<void>
+  close(): Promise<void>
+}
+
+export interface BoundaryWeakBroadcastSubscription {
   flush(): Promise<void>
   close(): Promise<void>
 }
@@ -148,6 +157,7 @@ const clearLoadedRuntimeState = (): void => {
   activeSharedDbBackend = null
   strong$.reset()
   weak$.stateMetaStateIdsByBraneIndex = []
+  weak$.stateProcessIdsByBraneIndex = []
 }
 
 const bindRuntimePersistence = (backend: SharedDbBackend, fragment: SharedDbData): void => {
@@ -177,7 +187,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
       channel: "electromagnetism",
       boson: "photon",
       source: "boundary",
-      target: "dark",
+      target: "broadcast",
       value: stateName,
       path: uuid,
     }
@@ -273,6 +283,13 @@ const applyRuntimeForceData = (fragment: SharedDbData): void => {
   strong$.braneIndexByWimpFieldId = forceData.braneIndexByWimpFieldId
   strong$.topologyWimpFieldIds = forceData.topologyWimpFieldIds
   weak$.stateMetaStateIdsByBraneIndex = forceData.stateMetaStateIdsByBraneIndex
+  weak$.stateProcessIdsByBraneIndex = forceData.stateProcessIdsByBraneIndex
+}
+
+const getCurrentBraneProcessId = (braneIndex: number): string | undefined => {
+  const stateIndex = boundary$.states[braneIndex]
+  if (stateIndex === undefined) return undefined
+  return weak$.stateProcessIdsByBraneIndex[braneIndex]?.[stateIndex]
 }
 
 const rebuildRuntimeFromFragment = async (
@@ -617,6 +634,53 @@ const applyValuePatches = async (
   return await setValues(values)
 }
 
+export async function applyWeakResultPacket(message: WMessage): Promise<[number, number][]> {
+  requireInitializedStore(boundary$)
+
+  const braneIndex = gravity$.getBraneIndex(message.wimpId)
+  if (braneIndex === undefined) {
+    throw new Error(`Boundary weak result targets non-materialized wimp: ${message.wimpId}`)
+  }
+
+  const brane = boundary$.branes[braneIndex]
+  if (!brane) {
+    throw new Error(`Boundary weak result targets missing brane: ${braneIndex}`)
+  }
+  if (!brane.lock) {
+    throw new Error(`Boundary weak result requires locked brane for wimp ${message.wimpId}`)
+  }
+
+  const activeProcessId = getCurrentBraneProcessId(braneIndex)
+  if (!activeProcessId) {
+    throw new Error(`Boundary weak result requires process-bound state for wimp ${message.wimpId}`)
+  }
+  if (activeProcessId !== message.processId) {
+    throw new Error(
+      `Boundary weak result process mismatch for wimp ${message.wimpId}: expected ${activeProcessId}, got ${message.processId}`,
+    )
+  }
+
+  const values: Record<string, unknown> = {}
+
+  for (const patch of message.patches) {
+    const wimpFieldId = requireFieldPatchId(patch.path)
+    const ownerBraneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
+    if (ownerBraneIndex === undefined) {
+      throw new Error(`Boundary weak result field is not materialized: ${wimpFieldId}`)
+    }
+    if (ownerBraneIndex !== braneIndex) {
+      throw new Error(
+        `Boundary weak result field ${wimpFieldId} belongs to brane ${ownerBraneIndex}, expected ${braneIndex}`,
+      )
+    }
+    values[wimpFieldId] = patch.value
+  }
+
+  const changes = Object.keys(values).length === 0 ? [] : await setValues(values)
+  unlock([braneIndex])
+  return changes
+}
+
 const subscribeBoundaryValueBroadcast = (
   kind: "gluon" | "higgs",
   options: ProtocolChannelOptions = {},
@@ -664,6 +728,42 @@ export function subscribeBoundaryGluonBroadcast(options: ProtocolChannelOptions 
 
 export function subscribeBoundaryHiggsBroadcast(options: ProtocolChannelOptions = {}): BoundaryValueBroadcastSubscription {
   return subscribeBoundaryValueBroadcast("higgs", options)
+}
+
+export function subscribeBoundaryWeakResultBroadcast(
+  options: ProtocolChannelOptions = {},
+): BoundaryWeakBroadcastSubscription {
+  const channel = openWeakWBroadcastChannel(options)
+  let queue = Promise.resolve()
+
+  channel.onmessage = (event: MessageEvent) => {
+    const message = event.data
+    if (!isWMessage(message)) return
+    if (message.source !== "bulk") return
+    if (message.target !== "boundary" && message.target !== "broadcast") return
+
+    queue = queue.then(async () => {
+      await applyWeakResultPacket(message)
+    })
+  }
+
+  const flush = async (): Promise<void> => {
+    for (;;) {
+      const pending = queue
+      await Promise.resolve()
+      await Bun.sleep(0)
+      await pending
+      if (pending === queue) return
+    }
+  }
+
+  return {
+    flush,
+    async close() {
+      channel.close()
+      await flush()
+    },
+  }
 }
 
 export function unlock(indexes: number[]): void {

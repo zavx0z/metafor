@@ -207,12 +207,204 @@ describe("boundary <-> dark protocol channels", () => {
       expect(message.channel).toBe("electromagnetism")
       expect(message.boson).toBe("photon")
       expect(message.source).toBe("boundary")
-      expect(message.target).toBe("dark")
+      expect(message.target).toBe("broadcast")
       expect(typeof message.value).toBe("string")
       expect(typeof message.path).toBe("string")
       expect((message as Record<string, unknown>).braneIndex).toBeUndefined()
       expect((message as Record<string, unknown>).state).toBeUndefined()
     }
+  })
+
+  test("process-state поднимает boundary lock, Bulk координируется через Z и завершает процесс через единый W packet", async () => {
+    const result = await runProtocolScenario<{
+      photons: Array<{ path: string; value: string; target: string }>
+      coordination: Array<{ wimpId: string; processId: string; coordination: string; executorId?: string }>
+      rawW?: { boson: string; wimpId: string; processId: string; patchCount: number; hasBraneIndex: boolean }
+      beforeResult: { lock: boolean; state: number; output: unknown; processId?: string }
+      afterResult: { lock: boolean; state: number; output: unknown; persistedOutput: unknown }
+    }>(`
+      const { Meta, Wimp, materializeFields } = await import("@dark/strong")
+      const { openSharedDbSqliteBackend, openSharedDbMaterializationWriter } = await import("@shared/db")
+      const {
+        boundary$,
+        closeBoundaryProtocolChannels,
+        configureBoundaryElectromagnetismBroadcast,
+        gravity$,
+        strong$,
+        subscribeBoundaryWeakResultBroadcast,
+        writeRuntimeFromSharedDb,
+        setValues,
+      } = await import("./boundary/boundary.ts")
+      const { createBulkWeakProtocol, subscribeBulkPhotons, subscribeBulkWeakCoordination } = await import("./bulk/em/index.ts")
+      const { openWeakWBroadcastChannel, isWMessage } = await import("@shared/protocol")
+
+      const nextTick = async () => {
+        await Promise.resolve()
+        await Bun.sleep(0)
+      }
+
+      const waitFor = async (predicate) => {
+        for (let attempt = 0; attempt < 50; attempt += 1) {
+          if (predicate()) return
+          await nextTick()
+          await boundaryWeak.flush()
+        }
+        throw new Error("Weak process protocol scenario timed out")
+      }
+
+      const meta = new Meta({
+        src: "meta/process-protocol",
+        fieldSchemas: {
+          mode: { type: "enum<string>", required: true, values: ["idle", "pending"], default: "idle" },
+          output: { type: "string", required: true, default: "" },
+        },
+        superposition: {
+          idle: {
+            pending: {
+              mode: "pending",
+            },
+          },
+          pending: null,
+        },
+        processes: {
+          pending: {
+            type: "action",
+            action: {
+              src: "() => null",
+              read: ["mode"],
+            },
+            success: {
+              src: "({ update }) => update({ output: 'done' })",
+              write: ["output"],
+            },
+            error: {
+              src: "({ update }) => update({ output: 'error' })",
+              write: ["output"],
+            },
+          },
+        },
+      })
+
+      const wimp = new Wimp({ src: meta.src, meta, parent: null })
+      wimp.fields = materializeFields(wimp, meta.fields)
+      wimp.fields.mode.value = "idle"
+      wimp.fields.output.value = ""
+
+      const backend = openSharedDbSqliteBackend()
+      const writer = openSharedDbMaterializationWriter(backend)
+      await wimp.save(writer)
+      await writeRuntimeFromSharedDb(backend)
+
+      const photonChannelName = "metafor.process.photon." + crypto.randomUUID()
+      const zChannelName = "metafor.process.z." + crypto.randomUUID()
+      const wChannelName = "metafor.process.w." + crypto.randomUUID()
+      configureBoundaryElectromagnetismBroadcast({ channelName: photonChannelName })
+
+      const photons = []
+      const coordination = []
+      const photonSubscription = subscribeBulkPhotons((message) => {
+        photons.push({ path: message.path, value: message.value, target: message.target })
+      }, { channelName: photonChannelName })
+      const coordinationSubscription = subscribeBulkWeakCoordination((message) => {
+        coordination.push({
+          wimpId: message.wimpId,
+          processId: message.processId,
+          coordination: message.coordination,
+          ...(message.executorId !== undefined ? { executorId: message.executorId } : {}),
+        })
+      }, { channelName: zChannelName })
+      const boundaryWeak = subscribeBoundaryWeakResultBroadcast({ channelName: wChannelName })
+      const protocol = createBulkWeakProtocol({ zChannelName, wChannelName })
+      const rawWChannel = openWeakWBroadcastChannel({ channelName: wChannelName })
+
+      let rawW
+      rawWChannel.onmessage = (event) => {
+        if (!isWMessage(event.data)) return
+        rawW = {
+          boson: event.data.boson,
+          wimpId: event.data.wimpId,
+          processId: event.data.processId,
+          patchCount: event.data.patches.length,
+          hasBraneIndex: Object.prototype.hasOwnProperty.call(event.data, "braneIndex"),
+        }
+      }
+
+      try {
+        const processId = backend.readData().metaProcesses.find((row) => row.ownerMetaId === meta.id && row.processKey === "pending")?.id
+        if (!processId) {
+          throw new Error("Process id is missing for pending state")
+        }
+
+        await setValues({ [wimp.fields.mode.id]: "pending" })
+        await waitFor(() => photons.length === 1)
+
+        const braneIndex = gravity$.getBraneIndex(wimp.id)
+        if (braneIndex === undefined) {
+          throw new Error("Brane index is missing for process runtime test")
+        }
+        const outputFieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimp.fields.output.id)
+        if (outputFieldIndex === undefined) {
+          throw new Error("Runtime output field index is missing for process runtime test")
+        }
+
+        const outputValueBefore = boundary$.getField(braneIndex, outputFieldIndex)?.value
+        const beforeResult = {
+          lock: boundary$.branes[braneIndex]?.lock ?? false,
+          state: boundary$.states[braneIndex] ?? -1,
+          output: typeof outputValueBefore === "number" ? boundary$.stringTable[outputValueBefore] : outputValueBefore,
+          processId,
+        }
+
+        protocol.emitZClaim(wimp.id, processId, "worker-1")
+        await waitFor(() => coordination.length === 1)
+
+        protocol.emitWSuccessValues(wimp.id, processId, { [wimp.fields.output.id]: "done" })
+        await waitFor(() => (boundary$.branes[braneIndex]?.lock ?? true) === false && rawW !== undefined)
+
+        const outputValueAfter = boundary$.getField(braneIndex, outputFieldIndex)?.value
+        const afterResult = {
+          lock: boundary$.branes[braneIndex]?.lock ?? true,
+          state: boundary$.states[braneIndex] ?? -1,
+          output: typeof outputValueAfter === "number" ? boundary$.stringTable[outputValueAfter] : outputValueAfter,
+          persistedOutput: backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === wimp.fields.output.id)?.value,
+        }
+
+        console.log(JSON.stringify({ photons, coordination, rawW, beforeResult, afterResult }))
+      } finally {
+        rawWChannel.close()
+        await boundaryWeak.close()
+        coordinationSubscription.close()
+        photonSubscription.close()
+        protocol.close()
+        backend.close()
+        closeBoundaryProtocolChannels()
+      }
+    `)
+
+    expect(result.photons).toEqual([{ path: expect.any(String), value: "pending", target: "broadcast" }])
+    expect(result.photons[0]?.path).toBe(result.rawW?.wimpId)
+    expect(result.beforeResult.lock).toBe(true)
+    expect(result.beforeResult.state).toBe(1)
+    expect(result.beforeResult.output).toBe("")
+    expect(result.coordination).toEqual([
+      {
+        wimpId: result.rawW?.wimpId ?? "",
+        processId: result.beforeResult.processId!,
+        coordination: "claim",
+        executorId: "worker-1",
+      },
+    ])
+    expect(result.rawW).toEqual({
+      boson: "w+",
+      wimpId: result.photons[0]!.path,
+      processId: result.beforeResult.processId!,
+      patchCount: 1,
+      hasBraneIndex: false,
+    })
+    expect(result.afterResult.lock).toBe(false)
+    expect(result.afterResult.state).toBe(1)
+    expect(result.afterResult.output).toBe("done")
+    expect(result.afterResult.persistedOutput).toBe("done")
   })
 
   test("Boundary принимает UUID-addressed Gluon и Higgs patches через отдельные JSON Patch каналы", async () => {

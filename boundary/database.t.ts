@@ -104,4 +104,5 @@ export interface BoundaryRuntimeForceData {
   braneIndexByWimpFieldId: Map<string, number>
   topologyWimpFieldIds: Set<string>
   stateMetaStateIdsByBraneIndex: string[][]
+  stateProcessIdsByBraneIndex: Array<Array<string | undefined>>
 }
