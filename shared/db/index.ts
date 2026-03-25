@@ -1,5 +1,6 @@
 export { createEmptySharedDbData, normalizeSharedDbData, readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
 export { openSharedDbMaterializationWriter } from "./materialize.ts"
+export { inspectSharedDbIndexedDbSchema, openSharedDbIndexedDbBackend } from "./indexeddb.ts"
 export { initializeSharedDbSqliteSchema, openSharedDbSqliteBackend } from "./sqlite.ts"
 export type {
   SharedDbBackend,
@@ -10,6 +11,7 @@ export type {
   SharedDbWimpRows,
 } from "./backend.t.ts"
 export type { SharedDbSqliteBackendOptions } from "./sqlite.ts"
+export type { SharedDbIndexedDbBackend, SharedDbIndexedDbBackendOptions } from "./indexeddb.ts"
 export type {
   SharedDbData,
   SharedDbEntanglementFieldMemberRecord,
