@@ -33,7 +33,7 @@
  * - вычисление перехода и backend-адаптеры — это `@boundary/weak`
  */
 
-import { gravity$ } from "./gravity.store"
+import { gravity$ } from "@boundary/gravity/store.ts"
 import { boundary$ } from "./store"
 import type { BoundaryFieldValueRecord, BoundaryStore } from "./store.t"
 import type { PreparedData } from "./boundary.t"

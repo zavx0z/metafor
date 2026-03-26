@@ -1,3 +1,4 @@
+
 /** Типы для `@boundary/boundary/gravity.store`. */
 
 export interface BoundaryGravityStore {
