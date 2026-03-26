@@ -1,4 +1,3 @@
-export const METAFOR_PROTOCOL_KIND = "metafor"
 export const GRAVITY_BROADCAST_CHANNEL = "metafor.gravity"
 export const ELECTROMAGNETISM_BROADCAST_CHANNEL = "metafor.electromagnetism"
 export const GLUON_BROADCAST_CHANNEL = "metafor.gluon"
@@ -20,7 +19,6 @@ export interface GravityProtocolPatch {
 }
 
 export interface GravitonMessage {
-  protocol: typeof METAFOR_PROTOCOL_KIND
   channel: "gravity"
   boson: "graviton"
   source: ProtocolDomain
@@ -29,7 +27,6 @@ export interface GravitonMessage {
 }
 
 export interface PhotonMessage {
-  protocol: typeof METAFOR_PROTOCOL_KIND
   channel: "electromagnetism"
   boson: "photon"
   source: ProtocolDomain
@@ -45,7 +42,6 @@ export interface ValueProtocolPatch {
 }
 
 export interface GluonMessage {
-  protocol: typeof METAFOR_PROTOCOL_KIND
   channel: "gluon"
   boson: "gluon"
   source: ProtocolDomain
@@ -54,7 +50,6 @@ export interface GluonMessage {
 }
 
 export interface HiggsMessage {
-  protocol: typeof METAFOR_PROTOCOL_KIND
   channel: "higgs"
   boson: "higgs"
   source: ProtocolDomain
@@ -65,7 +60,6 @@ export interface HiggsMessage {
 export type WeakCoordinationKind = "claim" | "accept" | "reject" | "release"
 
 export interface ZMessage {
-  protocol: typeof METAFOR_PROTOCOL_KIND
   channel: "weak-z"
   boson: "z"
   source: ProtocolDomain
@@ -77,7 +71,6 @@ export interface ZMessage {
 }
 
 export interface WMessage {
-  protocol: typeof METAFOR_PROTOCOL_KIND
   channel: "weak-w"
   boson: "w+" | "w-"
   source: ProtocolDomain
@@ -96,9 +89,8 @@ const hasProtocolEnvelope = (
   value: unknown,
   channel: string,
   boson: string,
-): value is Record<string, unknown> & { protocol: typeof METAFOR_PROTOCOL_KIND; channel: string; boson: string } => {
+): value is Record<string, unknown> & { channel: string; boson: string } => {
   if (!isRecord(value)) return false
-  if (value.protocol !== METAFOR_PROTOCOL_KIND) return false
   if (value.channel !== channel) return false
   if (value.boson !== boson) return false
   if (!isProtocolDomain(value.source)) return false

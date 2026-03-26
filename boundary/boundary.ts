@@ -56,7 +56,6 @@ import {
   isGravitonMessage,
   isHiggsMessage,
   isWMessage,
-  METAFOR_PROTOCOL_KIND,
   openElectromagnetismBroadcastChannel,
   openGluonBroadcastChannel,
   openGravityBroadcastChannel,
@@ -267,7 +266,6 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     if (!stateName) continue
 
     const message: PhotonMessage = {
-      protocol: METAFOR_PROTOCOL_KIND,
       channel: "electromagnetism",
       boson: "photon",
       source: "boundary",

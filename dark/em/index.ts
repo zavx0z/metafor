@@ -1,5 +1,4 @@
 import {
-  METAFOR_PROTOCOL_KIND,
   isPhotonMessage,
   openElectromagnetismBroadcastChannel,
   openGluonBroadcastChannel,
@@ -66,7 +65,6 @@ const createFieldBosonMessage = (
 ): GluonMessage | HiggsMessage =>
   kind === "gluon"
     ? {
-        protocol: METAFOR_PROTOCOL_KIND,
         channel: "gluon",
         boson: "gluon",
         source: "dark",
@@ -74,7 +72,6 @@ const createFieldBosonMessage = (
         patches,
       }
     : {
-        protocol: METAFOR_PROTOCOL_KIND,
         channel: "higgs",
         boson: "higgs",
         source: "dark",

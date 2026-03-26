@@ -1,34 +1,15 @@
 import {
-  METAFOR_PROTOCOL_KIND,
-  openGravityBroadcastChannel,
-  openElectromagnetismBroadcastChannel,
-  openGluonBroadcastChannel,
-  openHiggsBroadcastChannel,
-  openWeakWBroadcastChannel,
-  openWeakZBroadcastChannel,
   isGravitonMessage,
   isPhotonMessage,
   isGluonMessage,
   isHiggsMessage,
   isZMessage,
   isWMessage,
-  type GravitonMessage,
-  type PhotonMessage,
-  type GluonMessage,
-  type HiggsMessage,
-  type ZMessage,
-  type WMessage,
 } from "../../shared/protocol"
-
-type ProtocolMessage = GravitonMessage | PhotonMessage | GluonMessage | HiggsMessage | ZMessage | WMessage
 
 interface LogEntry {
   timestamp: number
-  channel: string
-  boson: string
-  source: string
-  target: string
-  payload: ProtocolMessage
+  message: unknown
   isValid: boolean
 }
 
@@ -55,21 +36,11 @@ const serializePayload = (payload: unknown): string => {
   }
 }
 
-const createLogEntry = (channel: string, data: unknown): LogEntry => {
-  const isValid = typeof data === "object" && data !== null && "protocol" in data && "boson" in data && "source" in data && "target" in data
-
-  const entry: LogEntry = {
-    timestamp: Date.now(),
-    channel,
-    boson: isValid && typeof data === "object" && data !== null && "boson" in data ? String(data.boson) : "unknown",
-    source: isValid && typeof data === "object" && data !== null && "source" in data ? String(data.source) : "unknown",
-    target: isValid && typeof data === "object" && data !== null && "target" in data ? String(data.target) : "unknown",
-    payload: isValid ? (data as ProtocolMessage) : (data as ProtocolMessage),
-    isValid,
-  }
-
-  return entry
-}
+const createLogEntry = (data: unknown, isValid: boolean): LogEntry => ({
+  timestamp: Date.now(),
+  message: data,
+  isValid,
+})
 
 const formatTimestamp = (timestamp: number): string => {
   const date = new Date(timestamp)
@@ -84,33 +55,31 @@ const renderLogEntry = (entry: LogEntry): string => {
   return `
     <div class="log-entry ${validityClass}">
       <span class="log-time">${time}</span>
-      <span class="log-channel">${entry.channel}</span>
-      <span class="log-boson">${entry.boson}</span>
-      <span class="log-source">${entry.source}</span>
-      <span class="log-target">${entry.target}</span>
       <span class="log-marker">${validityMarker}</span>
-      <pre class="log-payload">${serializePayload(entry.payload)}</pre>
+      <pre class="log-payload">${serializePayload(entry.message)}</pre>
     </div>
   `
 }
 
 const updateLogUI = () => {
   if (!logContainer) return
-  logContainer.innerHTML = logEntries.map(renderLogEntry).join("")
+  const content = logContainer.querySelector("#protocol-log-content")
+  if (!content) return
+  content.innerHTML = logEntries.map(renderLogEntry).join("")
   logContainer.scrollTop = logContainer.scrollHeight
 }
 
-const addLogEntry = (channel: string, data: unknown) => {
-  const entry = createLogEntry(channel, data)
+const addLogEntry = (channel: string, data: unknown, isValid: boolean) => {
+  const entry = createLogEntry(data, isValid)
 
   logEntries.push(entry)
   if (logEntries.length > MAX_LOG_ENTRIES) {
     logEntries = logEntries.slice(-MAX_LOG_ENTRIES)
   }
 
-  console.log(`[Protocol:${channel}]`, entry.boson, `from ${entry.source} to ${entry.target}`, entry.payload)
-  if (!entry.isValid) {
-    console.warn(`[Protocol:${channel}] Invalid message structure:`, data)
+  console.log(`[Protocol:${channel}]`, data)
+  if (!isValid) {
+    console.warn(`[Protocol:${channel}] Invalid message:`, data)
   }
 
   updateLogUI()
@@ -121,11 +90,8 @@ const setupChannelListener = (channelName: string, validator: (data: unknown) =>
 
   channel.onmessage = (event) => {
     const data = event.data
-    if (validator(data)) {
-      addLogEntry(channelName, data)
-    } else {
-      addLogEntry(channelName, data)
-    }
+    const isValid = validator(data)
+    addLogEntry(channelName, data, isValid)
   }
 
   return channel
@@ -180,8 +146,8 @@ const createLogContainer = (): HTMLElement => {
       }
       .log-entry {
         display: grid;
-        grid-template-columns: 80px 1fr 60px 50px 50px 20px;
-        gap: 4px;
+        grid-template-columns: 80px 20px 1fr;
+        gap: 8px;
         padding: 4px 0;
         border-bottom: 1px solid #161b22;
         align-items: start;
@@ -199,26 +165,12 @@ const createLogContainer = (): HTMLElement => {
       .log-time {
         color: #8b949e;
       }
-      .log-channel {
-        color: #58a6ff;
-        font-weight: bold;
-      }
-      .log-boson {
-        color: #d2a8ff;
-      }
-      .log-source {
-        color: #7ee787;
-      }
-      .log-target {
-        color: #ffa657;
-      }
       .log-marker {
         text-align: center;
         font-weight: bold;
       }
       .log-payload {
-        grid-column: 1 / -1;
-        margin: 4px 0 0 0;
+        margin: 0;
         padding: 4px;
         background: #0a0f14;
         border-radius: 3px;

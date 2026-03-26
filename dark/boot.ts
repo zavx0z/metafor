@@ -1,6 +1,6 @@
 import { matter, matterMeta } from "./dark.ts"
 import { Wimp } from "./strong/index.ts"
-import { METAFOR_PROTOCOL_KIND, type GravitonMessage, GRAVITY_BROADCAST_CHANNEL } from "@shared/protocol"
+import { type GravitonMessage, GRAVITY_BROADCAST_CHANNEL } from "@shared/protocol"
 import { openSharedDbMaterializationWriter, type SharedDbBackend } from "../shared/db/core.ts"
 import {
   ELECTROMAGNETISM_BROADCAST_CHANNEL,
@@ -33,7 +33,6 @@ const emitGravityPatch = (channel: BroadcastChannel, patches: GravitonMessage["p
   if (patches.length === 0) return
 
   channel.postMessage({
-    protocol: METAFOR_PROTOCOL_KIND,
     channel: "gravity",
     boson: "graviton",
     source: "dark",

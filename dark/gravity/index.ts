@@ -1,5 +1,4 @@
 import {
-  METAFOR_PROTOCOL_KIND,
   openGravityBroadcastChannel,
   type GravityProtocolPatch,
   type GravitonMessage,
@@ -15,7 +14,6 @@ export interface DarkGravityProtocol {
 }
 
 const createDarkGravitonMessage = (patches: GravityProtocolPatch[]): GravitonMessage => ({
-  protocol: METAFOR_PROTOCOL_KIND,
   channel: "gravity",
   boson: "graviton",
   source: "dark",

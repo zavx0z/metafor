@@ -203,7 +203,6 @@ describe("boundary <-> dark protocol channels", () => {
     expect(result.messages).toHaveLength(result.changes.length)
 
     for (const message of result.messages) {
-      expect(message.protocol).toBe("metafor")
       expect(message.channel).toBe("electromagnetism")
       expect(message.boson).toBe("photon")
       expect(message.source).toBe("boundary")

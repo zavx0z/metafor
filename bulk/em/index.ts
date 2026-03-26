@@ -1,5 +1,4 @@
 import {
-  METAFOR_PROTOCOL_KIND,
   isPhotonMessage,
   isZMessage,
   openElectromagnetismBroadcastChannel,
@@ -69,7 +68,6 @@ const createBulkZMessage = (
   processId: string,
   executorId?: string,
 ): ZMessage => ({
-  protocol: METAFOR_PROTOCOL_KIND,
   channel: "weak-z",
   boson: "z",
   source: "bulk",
@@ -86,7 +84,6 @@ const createBulkWMessage = (
   processId: string,
   patches: ValueProtocolPatch[],
 ): WMessage => ({
-  protocol: METAFOR_PROTOCOL_KIND,
   channel: "weak-w",
   boson,
   source: "bulk",
