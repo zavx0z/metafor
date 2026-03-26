@@ -1,9 +1,9 @@
 import { Database } from "bun:sqlite"
 import { describe, expect, test } from "bun:test"
-import { readdir, readFile } from "node:fs/promises"
-import { join, relative } from "node:path"
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
+import { dirname, join, relative } from "node:path"
 import { parseDslModuleToDb } from "@metafor/dsl-parse"
-import { emitDslModuleFromDb, formatTypeScriptSource } from "./index.ts"
+import { emitDslModuleFromDb, formatTypeScriptSource } from "@metafor/dsl-emit"
 
 const collectMetaFiles = async (root: string): Promise<string[]> => {
   const entries = await readdir(root, { withFileTypes: true })
@@ -53,19 +53,31 @@ const describeMismatch = (expected: string, actual: string) => {
 }
 
 describe("dsl authoring round-trip", () => {
-  test("matches the formatted github/zavx0z corpus byte-for-byte", async () => {
+  test("matches the formatted github/zavx0z corpus byte-for-byte and saves per-module artifacts", async () => {
     const corpusRoot = join(process.cwd(), "github", "zavx0z")
+    const artifactsRoot = join(process.cwd(), "tests", "tmp", "dsl-roundtrip")
     const metaFiles = await collectMetaFiles(corpusRoot)
-    const db = new Database(":memory:")
-    const formattedInputs = new Map<string, string>()
+    const failures: string[] = []
 
-    try {
-      for (const metaPath of metaFiles) {
-        const moduleKey = relative(process.cwd(), metaPath)
+    await rm(artifactsRoot, { recursive: true, force: true })
+    await mkdir(artifactsRoot, { recursive: true })
+
+    for (const metaPath of metaFiles) {
+      const moduleKey = relative(process.cwd(), metaPath)
+      const artifactBase = join(artifactsRoot, moduleKey.replace(/\.ts$/, ""))
+      const dbPath = join(artifactBase, "authoring.sqlite")
+      const inputPath = join(artifactBase, "formatted-input.ts")
+      const outputPath = join(artifactBase, "emitted.ts")
+
+      await mkdir(dirname(dbPath), { recursive: true })
+
+      const db = new Database(dbPath)
+
+      try {
         const sourceText = await readFile(metaPath, "utf8")
         const formattedInput = await formatTypeScriptSource(sourceText, metaPath)
+        await writeFile(inputPath, formattedInput, "utf8")
 
-        formattedInputs.set(moduleKey, formattedInput)
         parseDslModuleToDb({
           db,
           sourceText: formattedInput,
@@ -73,17 +85,6 @@ describe("dsl authoring round-trip", () => {
           sourcePath: moduleKey,
           filename: metaPath,
         })
-      }
-
-      const failures: string[] = []
-
-      for (const metaPath of metaFiles) {
-        const moduleKey = relative(process.cwd(), metaPath)
-        const expected = formattedInputs.get(moduleKey)
-        if (!expected) {
-          failures.push(`${moduleKey}: missing formatted input snapshot`)
-          continue
-        }
 
         const emitted = await emitDslModuleFromDb({
           db,
@@ -91,15 +92,19 @@ describe("dsl authoring round-trip", () => {
           filepath: metaPath,
         })
         const formattedOutput = await formatTypeScriptSource(emitted, metaPath)
+        await writeFile(outputPath, formattedOutput, "utf8")
 
-        if (expected !== formattedOutput) {
-          failures.push(`${moduleKey}: ${describeMismatch(expected, formattedOutput)}`)
+        if (formattedInput !== formattedOutput) {
+          failures.push(`${moduleKey}: ${describeMismatch(formattedInput, formattedOutput)}`)
         }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        failures.push(`${moduleKey}: ${message}`)
+      } finally {
+        db.close()
       }
-
-      expect(failures).toEqual([])
-    } finally {
-      db.close()
     }
+
+    expect(failures).toEqual([])
   })
 })

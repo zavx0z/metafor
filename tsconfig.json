@@ -44,6 +44,7 @@
     "**/docs/**/*",
     "*/dist/**/*",
     "*/node_modules/**/*",
+    "tests/tmp/**/*",
     ".idea/**/*",
     ".cursor/**/*",
     ".vscode/**/*",

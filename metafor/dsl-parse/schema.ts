@@ -11,6 +11,14 @@ export type DslBodyKind =
   | "arrow-array"
   | "optional-expression"
 
+export type DslFieldKind = "string" | "boolean" | "number" | "enum"
+
+export type DslFieldModifierKind = "optional" | "required" | null
+
+export type DslStateEntryKind = "transition" | "comment"
+
+export type DslProcessKind = "process" | "destroy"
+
 export interface DslModuleRow {
   moduleKey: string
   sourcePath: string | null
@@ -31,21 +39,39 @@ export interface DslFieldRow {
   moduleKey: string
   fieldOrder: number
   fieldKey: string
-  fieldSource: string
+  fieldKind: DslFieldKind
+  enumValuesJson: string | null
+  modifierKind: DslFieldModifierKind
+  modifierArgSource: string | null
 }
 
 export interface DslStateRow {
   moduleKey: string
   stateOrder: number
   stateName: string
-  stateSource: string
+}
+
+export interface DslStateEntryRow {
+  moduleKey: string
+  stateOrder: number
+  entryOrder: number
+  entryKind: DslStateEntryKind
+  targetState: string | null
+  conditionSource: string | null
+  commentSource: string | null
 }
 
 export interface DslProcessRow {
   moduleKey: string
   processOrder: number
   processKey: string
-  processSource: string
+  processKind: DslProcessKind
+  gapBefore: number
+  configSource: string | null
+  actionSource: string | null
+  successSource: string | null
+  errorSource: string | null
+  beforeSource: string | null
 }
 
 export interface DslReactionRow {
@@ -87,7 +113,10 @@ CREATE TABLE IF NOT EXISTS dsl_fields (
   moduleKey TEXT NOT NULL,
   fieldOrder INTEGER NOT NULL,
   fieldKey TEXT NOT NULL,
-  fieldSource TEXT NOT NULL,
+  fieldKind TEXT NOT NULL,
+  enumValuesJson TEXT,
+  modifierKind TEXT,
+  modifierArgSource TEXT,
   PRIMARY KEY (moduleKey, fieldOrder),
   FOREIGN KEY (moduleKey) REFERENCES dsl_modules(moduleKey) ON DELETE CASCADE
 );
@@ -96,16 +125,33 @@ CREATE TABLE IF NOT EXISTS dsl_states (
   moduleKey TEXT NOT NULL,
   stateOrder INTEGER NOT NULL,
   stateName TEXT NOT NULL,
-  stateSource TEXT NOT NULL,
   PRIMARY KEY (moduleKey, stateOrder),
   FOREIGN KEY (moduleKey) REFERENCES dsl_modules(moduleKey) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dsl_state_entries (
+  moduleKey TEXT NOT NULL,
+  stateOrder INTEGER NOT NULL,
+  entryOrder INTEGER NOT NULL,
+  entryKind TEXT NOT NULL,
+  targetState TEXT,
+  conditionSource TEXT,
+  commentSource TEXT,
+  PRIMARY KEY (moduleKey, stateOrder, entryOrder),
+  FOREIGN KEY (moduleKey, stateOrder) REFERENCES dsl_states(moduleKey, stateOrder) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS dsl_processes (
   moduleKey TEXT NOT NULL,
   processOrder INTEGER NOT NULL,
   processKey TEXT NOT NULL,
-  processSource TEXT NOT NULL,
+  processKind TEXT NOT NULL,
+  gapBefore INTEGER NOT NULL,
+  configSource TEXT,
+  actionSource TEXT,
+  successSource TEXT,
+  errorSource TEXT,
+  beforeSource TEXT,
   PRIMARY KEY (moduleKey, processOrder),
   FOREIGN KEY (moduleKey) REFERENCES dsl_modules(moduleKey) ON DELETE CASCADE
 );
