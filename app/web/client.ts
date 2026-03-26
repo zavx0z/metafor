@@ -1,4 +1,5 @@
 import "../../bulk"
+import { initProtocolLogger } from "./protocol-logger"
 
 const darkWorkerUrl = new URL("../../dark/web.ts", import.meta.url)
 darkWorkerUrl.searchParams.set("src", "github/zavx0z/git")
@@ -13,3 +14,5 @@ new Worker(new URL("../../boundary/web.ts", import.meta.url), {
   name: "boundary",
   type: "module",
 })
+
+initProtocolLogger()
