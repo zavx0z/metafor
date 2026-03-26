@@ -20,20 +20,10 @@ export interface MetaRow {
   id: 1
   name: string
   configMultiline: boolean | null
-}
-
-export interface MetaConfigEntryRow {
-  position: number
-}
-
-export interface MetaDescRow {
-  position: number
-  value: string
-}
-
-export interface MetaDevRow {
-  position: number
-  value: boolean
+  desc: string | null
+  descPosition: number | null
+  dev: boolean | null
+  devPosition: number | null
 }
 
 export interface SectionRow {
@@ -46,62 +36,35 @@ export interface FieldRow {
   id: number
   position: number
   name: string
-}
-
-export interface StringFieldRow {
-  fieldId: number
-}
-
-export interface NumberFieldRow {
-  fieldId: number
-}
-
-export interface BooleanFieldRow {
-  fieldId: number
-}
-
-export interface ArrayFieldRow {
-  fieldId: number
-}
-
-export interface EnumFieldRow {
-  fieldId: number
-}
-
-export interface OptionalFieldRow {
-  fieldId: number
+  type: FieldType
+  required: boolean | null
   label: string | null
 }
 
-export interface RequiredFieldRow {
-  fieldId: number
-  label: string | null
-}
-
-export interface RequiredDefaultRow {
+export interface FieldDefaultRow {
   fieldId: number
 }
 
-export interface RequiredStringDefaultRow {
+export interface StringFieldDefaultRow {
   fieldId: number
   value: string
 }
 
-export interface RequiredNumberDefaultRow {
+export interface NumberFieldDefaultRow {
   fieldId: number
   value: string
 }
 
-export interface RequiredBooleanDefaultRow {
+export interface BooleanFieldDefaultRow {
   fieldId: number
   value: boolean
 }
 
-export interface RequiredArrayDefaultRow {
+export interface ArrayFieldDefaultRow {
   fieldId: number
 }
 
-export interface RequiredEnumDefaultRow {
+export interface EnumFieldDefaultRow {
   fieldId: number
   variantPosition: number
 }
@@ -129,11 +92,6 @@ export interface StateRow {
   name: string
 }
 
-export interface StateEntryRow {
-  stateId: number
-  position: number
-}
-
 export interface TransitionCommentRow {
   id: number
   stateId: number
@@ -152,50 +110,21 @@ export interface ConditionRow {
   transitionId: number
   position: number
   fieldId: number
-}
-
-export interface NullConditionRow {
-  transitionId: number
-  position: number
-  value: boolean
+  nullValue: boolean
 }
 
 export interface ProcessRow {
   id: number
   position: number
   name: string
+  builder: ProcessBuilder
   gapBefore: number
   configMultiline: boolean | null
-}
-
-export interface ActionProcessRow {
-  processId: number
-}
-
-export interface DestroyProcessRow {
-  processId: number
-}
-
-export interface ProcessConfigEntryRow {
-  processId: number
-  position: number
-}
-
-export interface ProcessLabelRow {
-  processId: number
-  position: number
-  value: string
-}
-
-export interface ProcessDescRow {
-  processId: number
-  position: number
-  value: string
-}
-
-export interface ProcessEnvListRow {
-  processId: number
-  position: number
+  label: string | null
+  labelPosition: number | null
+  desc: string | null
+  descPosition: number | null
+  envPosition: number | null
 }
 
 export interface ProcessEnvRow {
@@ -204,32 +133,10 @@ export interface ProcessEnvRow {
   env: ProcessEnv
 }
 
-export interface ProcessHandlerEntryRow {
+export interface ProcessHandlerRow {
   processId: number
   position: number
-}
-
-export interface ProcessActionRow {
-  processId: number
-  position: number
-  code: string
-}
-
-export interface ProcessSuccessRow {
-  processId: number
-  position: number
-  code: string
-}
-
-export interface ProcessErrorRow {
-  processId: number
-  position: number
-  code: string
-}
-
-export interface DestroyBeforeRow {
-  processId: number
-  position: number
+  step: ProcessStep
   code: string
 }
 
@@ -245,23 +152,14 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS meta (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   name TEXT NOT NULL,
-  configMultiline INTEGER CHECK (configMultiline IN (0, 1) OR configMultiline IS NULL)
-);
-
-CREATE TABLE IF NOT EXISTS meta_config_entries (
-  position INTEGER PRIMARY KEY CHECK (position >= 0)
-);
-
-CREATE TABLE IF NOT EXISTS meta_descs (
-  position INTEGER PRIMARY KEY CHECK (position >= 0),
-  value TEXT NOT NULL,
-  FOREIGN KEY (position) REFERENCES meta_config_entries(position) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS meta_devs (
-  position INTEGER PRIMARY KEY CHECK (position >= 0),
-  value INTEGER NOT NULL CHECK (value IN (0, 1)),
-  FOREIGN KEY (position) REFERENCES meta_config_entries(position) ON DELETE CASCADE
+  configMultiline INTEGER CHECK (configMultiline IN (0, 1) OR configMultiline IS NULL),
+  desc TEXT,
+  descPosition INTEGER CHECK (descPosition >= 0 OR descPosition IS NULL),
+  dev INTEGER CHECK (dev IN (0, 1) OR dev IS NULL),
+  devPosition INTEGER CHECK (devPosition >= 0 OR devPosition IS NULL),
+  CHECK ((desc IS NULL) = (descPosition IS NULL)),
+  CHECK ((dev IS NULL) = (devPosition IS NULL)),
+  CHECK (descPosition IS NULL OR devPosition IS NULL OR descPosition <> devPosition)
 );
 
 CREATE TABLE IF NOT EXISTS sections (
@@ -273,83 +171,45 @@ CREATE TABLE IF NOT EXISTS sections (
 CREATE TABLE IF NOT EXISTS fields (
   id INTEGER PRIMARY KEY,
   position INTEGER NOT NULL UNIQUE CHECK (position >= 0),
-  name TEXT NOT NULL UNIQUE
+  name TEXT NOT NULL UNIQUE,
+  type TEXT NOT NULL CHECK (type IN ('string', 'boolean', 'number', 'array', 'enum')),
+  required INTEGER CHECK (required IN (0, 1) OR required IS NULL),
+  label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS string_fields (
+CREATE TABLE IF NOT EXISTS field_defaults (
   fieldId INTEGER PRIMARY KEY,
   FOREIGN KEY (fieldId) REFERENCES fields(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS number_fields (
-  fieldId INTEGER PRIMARY KEY,
-  FOREIGN KEY (fieldId) REFERENCES fields(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS boolean_fields (
-  fieldId INTEGER PRIMARY KEY,
-  FOREIGN KEY (fieldId) REFERENCES fields(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS array_fields (
-  fieldId INTEGER PRIMARY KEY,
-  FOREIGN KEY (fieldId) REFERENCES fields(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS enum_fields (
-  fieldId INTEGER PRIMARY KEY,
-  FOREIGN KEY (fieldId) REFERENCES fields(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS optional_fields (
-  fieldId INTEGER PRIMARY KEY,
-  label TEXT,
-  FOREIGN KEY (fieldId) REFERENCES fields(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS required_fields (
-  fieldId INTEGER PRIMARY KEY,
-  label TEXT,
-  FOREIGN KEY (fieldId) REFERENCES fields(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS required_defaults (
-  fieldId INTEGER PRIMARY KEY,
-  FOREIGN KEY (fieldId) REFERENCES required_fields(fieldId) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS required_string_defaults (
+CREATE TABLE IF NOT EXISTS string_field_defaults (
   fieldId INTEGER PRIMARY KEY,
   value TEXT NOT NULL,
-  FOREIGN KEY (fieldId) REFERENCES required_defaults(fieldId) ON DELETE CASCADE,
-  FOREIGN KEY (fieldId) REFERENCES string_fields(fieldId) ON DELETE CASCADE
+  FOREIGN KEY (fieldId) REFERENCES field_defaults(fieldId) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS required_number_defaults (
+CREATE TABLE IF NOT EXISTS number_field_defaults (
   fieldId INTEGER PRIMARY KEY,
   value TEXT NOT NULL,
-  FOREIGN KEY (fieldId) REFERENCES required_defaults(fieldId) ON DELETE CASCADE,
-  FOREIGN KEY (fieldId) REFERENCES number_fields(fieldId) ON DELETE CASCADE
+  FOREIGN KEY (fieldId) REFERENCES field_defaults(fieldId) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS required_boolean_defaults (
+CREATE TABLE IF NOT EXISTS boolean_field_defaults (
   fieldId INTEGER PRIMARY KEY,
   value INTEGER NOT NULL CHECK (value IN (0, 1)),
-  FOREIGN KEY (fieldId) REFERENCES required_defaults(fieldId) ON DELETE CASCADE,
-  FOREIGN KEY (fieldId) REFERENCES boolean_fields(fieldId) ON DELETE CASCADE
+  FOREIGN KEY (fieldId) REFERENCES field_defaults(fieldId) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS required_array_defaults (
+CREATE TABLE IF NOT EXISTS array_field_defaults (
   fieldId INTEGER PRIMARY KEY,
-  FOREIGN KEY (fieldId) REFERENCES required_defaults(fieldId) ON DELETE CASCADE,
-  FOREIGN KEY (fieldId) REFERENCES array_fields(fieldId) ON DELETE CASCADE
+  FOREIGN KEY (fieldId) REFERENCES field_defaults(fieldId) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS enum_variants (
   fieldId INTEGER NOT NULL,
   position INTEGER NOT NULL CHECK (position >= 0),
   PRIMARY KEY (fieldId, position),
-  FOREIGN KEY (fieldId) REFERENCES enum_fields(fieldId) ON DELETE CASCADE
+  FOREIGN KEY (fieldId) REFERENCES fields(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS enum_text_variants (
@@ -368,11 +228,10 @@ CREATE TABLE IF NOT EXISTS enum_number_variants (
   FOREIGN KEY (fieldId, position) REFERENCES enum_variants(fieldId, position) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS required_enum_defaults (
+CREATE TABLE IF NOT EXISTS enum_field_defaults (
   fieldId INTEGER PRIMARY KEY,
   variantPosition INTEGER NOT NULL CHECK (variantPosition >= 0),
-  FOREIGN KEY (fieldId) REFERENCES required_defaults(fieldId) ON DELETE CASCADE,
-  FOREIGN KEY (fieldId) REFERENCES enum_fields(fieldId) ON DELETE CASCADE,
+  FOREIGN KEY (fieldId) REFERENCES field_defaults(fieldId) ON DELETE CASCADE,
   FOREIGN KEY (fieldId, variantPosition) REFERENCES enum_variants(fieldId, position) ON DELETE CASCADE
 );
 
@@ -382,20 +241,13 @@ CREATE TABLE IF NOT EXISTS states (
   name TEXT NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS state_entries (
-  stateId INTEGER NOT NULL,
-  position INTEGER NOT NULL CHECK (position >= 0),
-  PRIMARY KEY (stateId, position),
-  FOREIGN KEY (stateId) REFERENCES states(id) ON DELETE CASCADE
-);
-
 CREATE TABLE IF NOT EXISTS transition_comments (
   id INTEGER PRIMARY KEY,
   stateId INTEGER NOT NULL,
   position INTEGER NOT NULL CHECK (position >= 0),
   text TEXT NOT NULL,
   UNIQUE (stateId, position),
-  FOREIGN KEY (stateId, position) REFERENCES state_entries(stateId, position) ON DELETE CASCADE
+  FOREIGN KEY (stateId) REFERENCES states(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS transitions (
@@ -404,7 +256,7 @@ CREATE TABLE IF NOT EXISTS transitions (
   targetStateId INTEGER NOT NULL,
   position INTEGER NOT NULL CHECK (position >= 0),
   UNIQUE (stateId, position),
-  FOREIGN KEY (stateId, position) REFERENCES state_entries(stateId, position) ON DELETE CASCADE,
+  FOREIGN KEY (stateId) REFERENCES states(id) ON DELETE CASCADE,
   FOREIGN KEY (targetStateId) REFERENCES states(id) ON DELETE CASCADE
 );
 
@@ -412,62 +264,29 @@ CREATE TABLE IF NOT EXISTS conditions (
   transitionId INTEGER NOT NULL,
   position INTEGER NOT NULL CHECK (position >= 0),
   fieldId INTEGER NOT NULL,
+  nullValue INTEGER NOT NULL CHECK (nullValue IN (0, 1)),
   PRIMARY KEY (transitionId, position),
   FOREIGN KEY (transitionId) REFERENCES transitions(id) ON DELETE CASCADE,
   FOREIGN KEY (fieldId) REFERENCES fields(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS null_conditions (
-  transitionId INTEGER NOT NULL,
-  position INTEGER NOT NULL CHECK (position >= 0),
-  value INTEGER NOT NULL CHECK (value IN (0, 1)),
-  PRIMARY KEY (transitionId, position),
-  FOREIGN KEY (transitionId, position) REFERENCES conditions(transitionId, position) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS processes (
   id INTEGER PRIMARY KEY,
   position INTEGER NOT NULL UNIQUE CHECK (position >= 0),
   name TEXT NOT NULL UNIQUE,
+  builder TEXT NOT NULL CHECK (builder IN ('process', 'destroy')),
   gapBefore INTEGER NOT NULL CHECK (gapBefore >= 0),
-  configMultiline INTEGER CHECK (configMultiline IN (0, 1) OR configMultiline IS NULL)
-);
-
-CREATE TABLE IF NOT EXISTS action_processes (
-  processId INTEGER PRIMARY KEY,
-  FOREIGN KEY (processId) REFERENCES processes(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS destroy_processes (
-  processId INTEGER PRIMARY KEY,
-  FOREIGN KEY (processId) REFERENCES processes(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS process_config_entries (
-  processId INTEGER NOT NULL,
-  position INTEGER NOT NULL CHECK (position >= 0),
-  PRIMARY KEY (processId, position),
-  FOREIGN KEY (processId) REFERENCES processes(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS process_labels (
-  processId INTEGER PRIMARY KEY,
-  position INTEGER NOT NULL CHECK (position >= 0),
-  value TEXT NOT NULL,
-  FOREIGN KEY (processId, position) REFERENCES process_config_entries(processId, position) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS process_descs (
-  processId INTEGER PRIMARY KEY,
-  position INTEGER NOT NULL CHECK (position >= 0),
-  value TEXT NOT NULL,
-  FOREIGN KEY (processId, position) REFERENCES process_config_entries(processId, position) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS process_env_lists (
-  processId INTEGER PRIMARY KEY,
-  position INTEGER NOT NULL CHECK (position >= 0),
-  FOREIGN KEY (processId, position) REFERENCES process_config_entries(processId, position) ON DELETE CASCADE
+  configMultiline INTEGER CHECK (configMultiline IN (0, 1) OR configMultiline IS NULL),
+  label TEXT,
+  labelPosition INTEGER CHECK (labelPosition >= 0 OR labelPosition IS NULL),
+  desc TEXT,
+  descPosition INTEGER CHECK (descPosition >= 0 OR descPosition IS NULL),
+  envPosition INTEGER CHECK (envPosition >= 0 OR envPosition IS NULL),
+  CHECK ((label IS NULL) = (labelPosition IS NULL)),
+  CHECK ((desc IS NULL) = (descPosition IS NULL)),
+  CHECK (labelPosition IS NULL OR descPosition IS NULL OR labelPosition <> descPosition),
+  CHECK (labelPosition IS NULL OR envPosition IS NULL OR labelPosition <> envPosition),
+  CHECK (descPosition IS NULL OR envPosition IS NULL OR descPosition <> envPosition)
 );
 
 CREATE TABLE IF NOT EXISTS process_envs (
@@ -475,46 +294,17 @@ CREATE TABLE IF NOT EXISTS process_envs (
   position INTEGER NOT NULL CHECK (position >= 0),
   env TEXT NOT NULL CHECK (env IN ('browser', 'node', 'worker', 'server', 'any')),
   PRIMARY KEY (processId, position),
-  FOREIGN KEY (processId) REFERENCES process_env_lists(processId) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS process_handler_entries (
-  processId INTEGER NOT NULL,
-  position INTEGER NOT NULL CHECK (position >= 0),
-  PRIMARY KEY (processId, position),
   FOREIGN KEY (processId) REFERENCES processes(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS process_actions (
-  processId INTEGER PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS process_handlers (
+  processId INTEGER NOT NULL,
   position INTEGER NOT NULL CHECK (position >= 0),
+  step TEXT NOT NULL CHECK (step IN ('action', 'success', 'error', 'before')),
   code TEXT NOT NULL,
-  FOREIGN KEY (processId) REFERENCES action_processes(processId) ON DELETE CASCADE,
-  FOREIGN KEY (processId, position) REFERENCES process_handler_entries(processId, position) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS process_successes (
-  processId INTEGER PRIMARY KEY,
-  position INTEGER NOT NULL CHECK (position >= 0),
-  code TEXT NOT NULL,
-  FOREIGN KEY (processId) REFERENCES action_processes(processId) ON DELETE CASCADE,
-  FOREIGN KEY (processId, position) REFERENCES process_handler_entries(processId, position) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS process_errors (
-  processId INTEGER PRIMARY KEY,
-  position INTEGER NOT NULL CHECK (position >= 0),
-  code TEXT NOT NULL,
-  FOREIGN KEY (processId) REFERENCES action_processes(processId) ON DELETE CASCADE,
-  FOREIGN KEY (processId, position) REFERENCES process_handler_entries(processId, position) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS destroy_befores (
-  processId INTEGER PRIMARY KEY,
-  position INTEGER NOT NULL CHECK (position >= 0),
-  code TEXT NOT NULL,
-  FOREIGN KEY (processId) REFERENCES destroy_processes(processId) ON DELETE CASCADE,
-  FOREIGN KEY (processId, position) REFERENCES process_handler_entries(processId, position) ON DELETE CASCADE
+  PRIMARY KEY (processId, position),
+  UNIQUE (processId, step),
+  FOREIGN KEY (processId) REFERENCES processes(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS reactions (

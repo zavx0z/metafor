@@ -120,11 +120,6 @@ const renderCompactObjectLiteral = (memberSources: string[]) => {
   return `{ ${memberSources.join(", ")} }`
 }
 
-const pickSingle = <T>(matches: T[], message: string): T => {
-  if (matches.length !== 1) throw new Error(message)
-  return matches[0] as T
-}
-
 const keyByProcessAndPosition = (processId: number, position: number) => `${processId}:${position}`
 
 const renderMetaConfig = (metaRow: EmittedMeta) => {
@@ -405,7 +400,7 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
   const metaBase = getRequiredRow(
     options.db
       .query(
-        `SELECT name, configMultiline
+        `SELECT name, configMultiline, desc, descPosition, dev, devPosition
          FROM meta
          WHERE id = 1`,
       )
@@ -413,44 +408,22 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
       | {
           name: string
           configMultiline: number | null
+          desc: string | null
+          descPosition: number | null
+          dev: number | null
+          devPosition: number | null
         }
       | undefined,
     "The database does not contain a parsed MetaFor module",
   )
 
-  const metaDesc = options.db
-    .query(
-      `SELECT position, value
-       FROM meta_descs
-       ORDER BY position`,
-    )
-    .get() as
-    | {
-        position: number
-        value: string
-      }
-    | undefined
-
-  const metaDev = options.db
-    .query(
-      `SELECT position, value
-       FROM meta_devs
-       ORDER BY position`,
-    )
-    .get() as
-    | {
-        position: number
-        value: number
-      }
-    | undefined
-
   const metaRow: EmittedMeta = {
     name: metaBase.name,
     configMultiline: metaBase.configMultiline === null ? null : Boolean(metaBase.configMultiline),
-    desc: metaDesc?.value ?? null,
-    descPosition: metaDesc?.position ?? null,
-    dev: metaDev ? Boolean(metaDev.value) : null,
-    devPosition: metaDev?.position ?? null,
+    desc: metaBase.desc,
+    descPosition: metaBase.descPosition,
+    dev: metaBase.dev === null ? null : Boolean(metaBase.dev),
+    devPosition: metaBase.devPosition,
   }
 
   const sectionRows = options.db
@@ -460,9 +433,9 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
     )
     .all() as SectionRow[]
 
-  const fieldBases = options.db
+  const fieldRowsRaw = options.db
     .query(
-      `SELECT id, position, name
+      `SELECT id, position, name, type, required, label
        FROM fields
        ORDER BY position`,
     )
@@ -470,86 +443,72 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
       id: number
       position: number
       name: string
+      type: FieldType
+      required: number | null
+      label: string | null
     }>
 
-  const queryFieldIdSet = (table: string) =>
-    new Set<number>(
-      (
-        options.db
-          .query(`SELECT fieldId FROM ${table}`)
-          .all() as Array<{ fieldId: number }>
-      ).map((row) => row.fieldId),
-    )
-
-  const stringFieldIds = queryFieldIdSet("string_fields")
-  const numberFieldIds = queryFieldIdSet("number_fields")
-  const booleanFieldIds = queryFieldIdSet("boolean_fields")
-  const arrayFieldIds = queryFieldIdSet("array_fields")
-  const enumFieldIds = queryFieldIdSet("enum_fields")
-
-  const optionalFields = new Map(
+  const fieldDefaultIds = new Set<number>(
     (
       options.db
         .query(
-          `SELECT fieldId, label
-           FROM optional_fields`,
+          `SELECT fieldId
+           FROM field_defaults`,
         )
-        .all() as Array<{ fieldId: number; label: string | null }>
-    ).map((row) => [row.fieldId, row.label]),
+        .all() as Array<{ fieldId: number }>
+    ).map((row) => row.fieldId),
   )
 
-  const requiredFields = new Map(
-    (
-      options.db
-        .query(
-          `SELECT fieldId, label
-           FROM required_fields`,
-        )
-        .all() as Array<{ fieldId: number; label: string | null }>
-    ).map((row) => [row.fieldId, row.label]),
-  )
-
-  const requiredStringDefaults = new Map(
+  const stringFieldDefaults = new Map(
     (
       options.db
         .query(
           `SELECT fieldId, value
-           FROM required_string_defaults`,
+           FROM string_field_defaults`,
         )
         .all() as Array<{ fieldId: number; value: string }>
     ).map((row) => [row.fieldId, row.value]),
   )
 
-  const requiredNumberDefaults = new Map(
+  const numberFieldDefaults = new Map(
     (
       options.db
         .query(
           `SELECT fieldId, value
-           FROM required_number_defaults`,
+           FROM number_field_defaults`,
         )
         .all() as Array<{ fieldId: number; value: string }>
     ).map((row) => [row.fieldId, row.value]),
   )
 
-  const requiredBooleanDefaults = new Map(
+  const booleanFieldDefaults = new Map(
     (
       options.db
         .query(
           `SELECT fieldId, value
-           FROM required_boolean_defaults`,
+           FROM boolean_field_defaults`,
         )
         .all() as Array<{ fieldId: number; value: number }>
     ).map((row) => [row.fieldId, Boolean(row.value)]),
   )
 
-  const requiredArrayDefaults = queryFieldIdSet("required_array_defaults")
-  const requiredDefaultIds = queryFieldIdSet("required_defaults")
-  const requiredEnumDefaults = new Map(
+  const arrayFieldDefaultIds = new Set<number>(
+    (
+      options.db
+        .query(
+          `SELECT fieldId
+           FROM array_field_defaults`,
+        )
+        .all() as Array<{ fieldId: number }>
+    ).map((row) => row.fieldId),
+  )
+
+  const enumFieldDefaults = new Map(
     (
       options.db
         .query(
           `SELECT fieldId, variantPosition
-           FROM required_enum_defaults`,
+           FROM enum_field_defaults`,
         )
         .all() as Array<{ fieldId: number; variantPosition: number }>
     ).map((row) => [row.fieldId, row.variantPosition]),
@@ -604,69 +563,52 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
     enumVariantsByFieldId.set(enumVariantBase.fieldId, list)
   }
 
-  const fieldRows = fieldBases.map((fieldBase) => {
-    const type = pickSingle<FieldType>(
-      [
-        stringFieldIds.has(fieldBase.id) ? "string" : null,
-        numberFieldIds.has(fieldBase.id) ? "number" : null,
-        booleanFieldIds.has(fieldBase.id) ? "boolean" : null,
-        arrayFieldIds.has(fieldBase.id) ? "array" : null,
-        enumFieldIds.has(fieldBase.id) ? "enum" : null,
-      ].filter(Boolean) as FieldType[],
-      `Field ${fieldBase.name} must have exactly one type subtype row`,
-    )
-
-    const presenceMatches = [
-      optionalFields.has(fieldBase.id) ? "optional" : null,
-      requiredFields.has(fieldBase.id) ? "required" : null,
-    ].filter(Boolean) as Exclude<FieldPresence, null>[]
-
-    if (presenceMatches.length > 1) {
-      throw new Error(`Field ${fieldBase.name} has conflicting optional/required subtype rows`)
-    }
-
-    const presence = (presenceMatches[0] ?? null) as FieldPresence
-    const label = presence === "optional" ? (optionalFields.get(fieldBase.id) ?? null) : presence === "required" ? (requiredFields.get(fieldBase.id) ?? null) : null
-
+  const fieldRows = fieldRowsRaw.map((fieldRow) => {
+    const presence = fieldRow.required === null ? null : fieldRow.required === 1 ? "required" : "optional"
     let defaultType: LiteralType | null = null
     let defaultText: string | null = null
     let defaultNumber: string | null = null
     let defaultBoolean: boolean | null = null
 
     if (presence === "required") {
-      if (!requiredDefaultIds.has(fieldBase.id)) {
-        throw new Error(`Required field ${fieldBase.name} is missing its required_defaults base row`)
+      if (!fieldDefaultIds.has(fieldRow.id)) {
+        throw new Error(`Required field ${fieldRow.name} is missing its field_defaults row`)
       }
 
       const matches = [
-        requiredStringDefaults.has(fieldBase.id) ? "string" : null,
-        requiredNumberDefaults.has(fieldBase.id) ? "number" : null,
-        requiredBooleanDefaults.has(fieldBase.id) ? "boolean" : null,
-        requiredArrayDefaults.has(fieldBase.id) ? "array" : null,
-        requiredEnumDefaults.has(fieldBase.id) ? "enum" : null,
+        stringFieldDefaults.has(fieldRow.id) ? "string" : null,
+        numberFieldDefaults.has(fieldRow.id) ? "number" : null,
+        booleanFieldDefaults.has(fieldRow.id) ? "boolean" : null,
+        arrayFieldDefaultIds.has(fieldRow.id) ? "array" : null,
+        enumFieldDefaults.has(fieldRow.id) ? "enum" : null,
       ].filter(Boolean) as Array<LiteralType | "enum">
 
       if (matches.length !== 1) {
-        throw new Error(`Required field ${fieldBase.name} must have exactly one default subtype row`)
+        throw new Error(`Required field ${fieldRow.name} must have exactly one default subtype row`)
       }
 
       const match = matches[0]
       if (match === "string") {
+        if (fieldRow.type !== "string") throw new Error(`Field ${fieldRow.name} has a string default but type ${fieldRow.type}`)
         defaultType = "string"
-        defaultText = requiredStringDefaults.get(fieldBase.id) ?? null
+        defaultText = stringFieldDefaults.get(fieldRow.id) ?? null
       } else if (match === "number") {
+        if (fieldRow.type !== "number") throw new Error(`Field ${fieldRow.name} has a number default but type ${fieldRow.type}`)
         defaultType = "number"
-        defaultNumber = requiredNumberDefaults.get(fieldBase.id) ?? null
+        defaultNumber = numberFieldDefaults.get(fieldRow.id) ?? null
       } else if (match === "boolean") {
+        if (fieldRow.type !== "boolean") throw new Error(`Field ${fieldRow.name} has a boolean default but type ${fieldRow.type}`)
         defaultType = "boolean"
-        defaultBoolean = requiredBooleanDefaults.get(fieldBase.id) ?? null
+        defaultBoolean = booleanFieldDefaults.get(fieldRow.id) ?? null
       } else if (match === "array") {
+        if (fieldRow.type !== "array") throw new Error(`Field ${fieldRow.name} has an array default but type ${fieldRow.type}`)
         defaultType = "array"
       } else {
-        const variantPosition = requiredEnumDefaults.get(fieldBase.id)
-        const enumVariant = (enumVariantsByFieldId.get(fieldBase.id) ?? []).find((variant) => variant.position === variantPosition)
+        if (fieldRow.type !== "enum") throw new Error(`Field ${fieldRow.name} has an enum default but type ${fieldRow.type}`)
+        const variantPosition = enumFieldDefaults.get(fieldRow.id)
+        const enumVariant = (enumVariantsByFieldId.get(fieldRow.id) ?? []).find((variant) => variant.position === variantPosition)
         if (!enumVariant) {
-          throw new Error(`Required enum default for field ${fieldBase.name} does not reference an existing enum variant`)
+          throw new Error(`Required enum default for field ${fieldRow.name} does not reference an existing enum variant`)
         }
 
         if (enumVariant.textValue !== null) {
@@ -680,12 +622,12 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
     }
 
     return {
-      id: fieldBase.id,
-      position: fieldBase.position,
-      name: fieldBase.name,
-      type,
+      id: fieldRow.id,
+      position: fieldRow.position,
+      name: fieldRow.name,
+      type: fieldRow.type,
       presence,
-      label,
+      label: fieldRow.label,
       defaultType,
       defaultText,
       defaultNumber,
@@ -721,7 +663,7 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
 
   const conditionBases = options.db
     .query(
-      `SELECT transitionId, position, fieldId
+      `SELECT transitionId, position, fieldId, nullValue
        FROM conditions
        ORDER BY transitionId, position`,
     )
@@ -729,36 +671,21 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
       transitionId: number
       position: number
       fieldId: number
+      nullValue: number
     }>
 
-  const nullConditions = new Map(
-    (
-      options.db
-        .query(
-          `SELECT transitionId, position, value
-           FROM null_conditions`,
-        )
-        .all() as Array<{ transitionId: number; position: number; value: number }>
-    ).map((row) => [keyByProcessAndPosition(row.transitionId, row.position), Boolean(row.value)]),
-  )
-
   const conditionRows = conditionBases.map((conditionBase) => {
-    const key = keyByProcessAndPosition(conditionBase.transitionId, conditionBase.position)
-    if (!nullConditions.has(key)) {
-      throw new Error(`Condition ${conditionBase.transitionId}:${conditionBase.position} is missing its null_conditions subtype row`)
-    }
-
     return {
       transitionId: conditionBase.transitionId,
       position: conditionBase.position,
       fieldId: conditionBase.fieldId,
-      nullValue: Boolean(nullConditions.get(key)),
+      nullValue: Boolean(conditionBase.nullValue),
     } satisfies EmittedCondition
   })
 
   const processBases = options.db
     .query(
-      `SELECT id, position, name, gapBefore, configMultiline
+      `SELECT id, position, name, builder, gapBefore, configMultiline, label, labelPosition, desc, descPosition, envPosition
        FROM processes
        ORDER BY position`,
     )
@@ -766,64 +693,15 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
       id: number
       position: number
       name: string
+      builder: ProcessBuilder
       gapBefore: number
       configMultiline: number | null
+      label: string | null
+      labelPosition: number | null
+      desc: string | null
+      descPosition: number | null
+      envPosition: number | null
     }>
-
-  const actionProcessIds = new Set<number>(
-    (
-      options.db
-        .query(
-          `SELECT processId
-           FROM action_processes`,
-        )
-        .all() as Array<{ processId: number }>
-    ).map((row) => row.processId),
-  )
-
-  const destroyProcessIds = new Set<number>(
-    (
-      options.db
-        .query(
-          `SELECT processId
-           FROM destroy_processes`,
-        )
-        .all() as Array<{ processId: number }>
-    ).map((row) => row.processId),
-  )
-
-  const processLabels = new Map(
-    (
-      options.db
-        .query(
-          `SELECT processId, position, value
-           FROM process_labels`,
-        )
-        .all() as Array<{ processId: number; position: number; value: string }>
-    ).map((row) => [row.processId, row]),
-  )
-
-  const processDescs = new Map(
-    (
-      options.db
-        .query(
-          `SELECT processId, position, value
-           FROM process_descs`,
-        )
-        .all() as Array<{ processId: number; position: number; value: string }>
-    ).map((row) => [row.processId, row]),
-  )
-
-  const processEnvLists = new Map(
-    (
-      options.db
-        .query(
-          `SELECT processId, position
-           FROM process_env_lists`,
-        )
-        .all() as Array<{ processId: number; position: number }>
-    ).map((row) => [row.processId, row.position]),
-  )
 
   const processEnvRows = options.db
     .query(
@@ -833,104 +711,79 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
     )
     .all() as ProcessEnvRow[]
 
-  const actionHandlers = (
-    options.db
-      .query(
-        `SELECT processId, position, code
-         FROM process_actions`,
-      )
-      .all() as Array<{ processId: number; position: number; code: string }>
-  ).map(
-    (row) =>
-      ({
-        processId: row.processId,
-        position: row.position,
-        step: "action",
-        code: row.code,
-      }) satisfies EmittedProcessHandler,
-  )
-
-  const successHandlers = (
-    options.db
-      .query(
-        `SELECT processId, position, code
-         FROM process_successes`,
-      )
-      .all() as Array<{ processId: number; position: number; code: string }>
-  ).map(
-    (row) =>
-      ({
-        processId: row.processId,
-        position: row.position,
-        step: "success",
-        code: row.code,
-      }) satisfies EmittedProcessHandler,
-  )
-
-  const errorHandlers = (
-    options.db
-      .query(
-        `SELECT processId, position, code
-         FROM process_errors`,
-      )
-      .all() as Array<{ processId: number; position: number; code: string }>
-  ).map(
-    (row) =>
-      ({
-        processId: row.processId,
-        position: row.position,
-        step: "error",
-        code: row.code,
-      }) satisfies EmittedProcessHandler,
-  )
-
-  const beforeHandlers = (
-    options.db
-      .query(
-        `SELECT processId, position, code
-         FROM destroy_befores`,
-      )
-      .all() as Array<{ processId: number; position: number; code: string }>
-  ).map(
-    (row) =>
-      ({
-        processId: row.processId,
-        position: row.position,
-        step: "before",
-        code: row.code,
-      }) satisfies EmittedProcessHandler,
-  )
-
-  const processHandlerRows = [...actionHandlers, ...successHandlers, ...errorHandlers, ...beforeHandlers].sort((left, right) =>
-    left.processId === right.processId ? left.position - right.position : left.processId - right.processId,
-  )
+  const processHandlerRows = options.db
+    .query(
+      `SELECT processId, position, step, code
+       FROM process_handlers
+       ORDER BY processId, position`,
+    )
+    .all() as EmittedProcessHandler[]
 
   const processRows = processBases.map((processBase) => {
-    const builder = pickSingle<ProcessBuilder>(
-      [
-        actionProcessIds.has(processBase.id) ? "process" : null,
-        destroyProcessIds.has(processBase.id) ? "destroy" : null,
-      ].filter(Boolean) as ProcessBuilder[],
-      `Process ${processBase.name} must have exactly one builder subtype row`,
-    )
+    const handlers = processHandlerRows.filter((processHandlerRow) => processHandlerRow.processId === processBase.id)
+    if (processBase.builder === "process" && handlers.some((handler) => handler.step === "before")) {
+      throw new Error(`Process ${processBase.name} cannot contain before(...) handlers`)
+    }
 
-    const labelRow = processLabels.get(processBase.id)
-    const descRow = processDescs.get(processBase.id)
+    if (processBase.builder === "destroy" && handlers.some((handler) => handler.step !== "before")) {
+      throw new Error(`Destroy process ${processBase.name} can only contain before(...) handlers`)
+    }
 
     return {
       id: processBase.id,
       position: processBase.position,
       name: processBase.name,
-      builder,
+      builder: processBase.builder,
       gapBefore: processBase.gapBefore,
       configMultiline: processBase.configMultiline === null ? null : Boolean(processBase.configMultiline),
-      label: labelRow?.value ?? null,
-      labelPosition: labelRow?.position ?? null,
-      desc: descRow?.value ?? null,
-      descPosition: descRow?.position ?? null,
-      envPosition: processEnvLists.get(processBase.id) ?? null,
+      label: processBase.label,
+      labelPosition: processBase.labelPosition,
+      desc: processBase.desc,
+      descPosition: processBase.descPosition,
+      envPosition: processBase.envPosition,
     } satisfies EmittedProcess
   })
+
+  for (const fieldRow of fieldRows) {
+    if (fieldRow.type !== "enum" && (enumVariantsByFieldId.get(fieldRow.id)?.length ?? 0) > 0) {
+      throw new Error(`Field ${fieldRow.name} has enum variants but type ${fieldRow.type}`)
+    }
+  }
+
+  const statePositionsByStateId = new Map<number, Set<number>>()
+  for (const transitionCommentRow of transitionCommentRows) {
+    const positions = statePositionsByStateId.get(transitionCommentRow.stateId) ?? new Set<number>()
+    if (positions.has(transitionCommentRow.position)) {
+      throw new Error(`State ${transitionCommentRow.stateId} contains duplicate member position ${transitionCommentRow.position}`)
+    }
+    positions.add(transitionCommentRow.position)
+    statePositionsByStateId.set(transitionCommentRow.stateId, positions)
+  }
+  for (const transitionRow of transitionRows) {
+    const positions = statePositionsByStateId.get(transitionRow.stateId) ?? new Set<number>()
+    if (positions.has(transitionRow.position)) {
+      throw new Error(`State ${transitionRow.stateId} contains duplicate member position ${transitionRow.position}`)
+    }
+    positions.add(transitionRow.position)
+    statePositionsByStateId.set(transitionRow.stateId, positions)
+  }
+
+  for (const fieldDefaultId of fieldDefaultIds) {
+    const fieldRow = fieldRows.find((candidate) => candidate.id === fieldDefaultId)
+    if (!fieldRow) {
+      throw new Error(`field_defaults references unknown field ${fieldDefaultId}`)
+    }
+
+    if (fieldRow.presence !== "required") {
+      throw new Error(`field_defaults references non-required field ${fieldRow.name}`)
+    }
+  }
+
+  for (const fieldRow of fieldRows) {
+    if (fieldRow.presence !== "required" && fieldDefaultIds.has(fieldRow.id)) {
+      throw new Error(`Optional field ${fieldRow.name} cannot have a persisted default row`)
+    }
+  }
 
   const reactionRows = options.db
     .query(
