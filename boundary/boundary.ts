@@ -269,7 +269,6 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
       channel: "electromagnetism",
       boson: "photon",
       source: "boundary",
-      target: "broadcast",
       value: stateName,
       path: uuid,
     }
@@ -519,7 +518,6 @@ export function subscribeBoundaryGravityBroadcast(
   return createQueuedSubscription(openGravityBroadcastChannel(options), async (message) => {
     if (!isGravitonMessage(message)) return
     if (message.source !== "dark") return
-    if (message.target !== "boundary" && message.target !== "broadcast") return
 
     for (const patch of message.patches) {
       await applyStructuralPatchFromSharedDb(backend, patch, runtimeOptions)
@@ -700,14 +698,12 @@ const subscribeBoundaryValueBroadcast = (
     if (kind === "gluon") {
       if (!isGluonMessage(message)) return
       if (message.source !== "dark" && message.source !== "boundary") return
-      if (message.target !== "boundary" && message.target !== "broadcast") return
       await applyValuePatches(message.patches, kind)
       return
     }
 
     if (!isHiggsMessage(message)) return
     if (message.source !== "dark" && message.source !== "boundary") return
-    if (message.target !== "boundary" && message.target !== "broadcast") return
     await applyValuePatches(message.patches, kind)
   })
 }
@@ -726,7 +722,6 @@ export function subscribeBoundaryWeakResultBroadcast(
   return createQueuedSubscription(openWeakWBroadcastChannel(options), async (message) => {
     if (!isWMessage(message)) return
     if (message.source !== "bulk") return
-    if (message.target !== "boundary" && message.target !== "broadcast") return
 
     await applyWeakResultPacket(message)
   })

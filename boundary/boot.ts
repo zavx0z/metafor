@@ -59,7 +59,6 @@ export const bootBoundaryDomain = (openDb: OpenBoundaryDb): void => {
     const message = event.data
     if (!isGravitonMessage(message)) return
     if (message.source !== "dark") return
-    if (message.target !== "boundary" && message.target !== "broadcast") return
 
     enqueue(async () => {
       const backend = await db
@@ -72,7 +71,6 @@ export const bootBoundaryDomain = (openDb: OpenBoundaryDb): void => {
   gluon.onmessage = (event: MessageEvent<unknown>) => {
     const message = event.data
     if (!isGluonMessage(message)) return
-    if (message.target !== "boundary" && message.target !== "broadcast") return
 
     enqueue(async () => await applyValuePatches(message.patches))
   }
@@ -80,7 +78,6 @@ export const bootBoundaryDomain = (openDb: OpenBoundaryDb): void => {
   higgs.onmessage = (event: MessageEvent<unknown>) => {
     const message = event.data
     if (!isHiggsMessage(message)) return
-    if (message.target !== "boundary" && message.target !== "broadcast") return
 
     enqueue(async () => await applyValuePatches(message.patches))
   }
@@ -89,7 +86,6 @@ export const bootBoundaryDomain = (openDb: OpenBoundaryDb): void => {
     const message = event.data
     if (!isWMessage(message)) return
     if (message.source !== "bulk") return
-    if (message.target !== "boundary" && message.target !== "broadcast") return
 
     enqueue(async () => {
       await applyWeakResultPacket(message)

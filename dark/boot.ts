@@ -36,7 +36,6 @@ const emitGravityPatch = (channel: BroadcastChannel, patches: GravitonMessage["p
     channel: "gravity",
     boson: "graviton",
     source: "dark",
-    target: "boundary",
     patches,
   } satisfies GravitonMessage)
 }

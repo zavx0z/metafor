@@ -17,7 +17,6 @@ const createDarkGravitonMessage = (patches: GravityProtocolPatch[]): GravitonMes
   channel: "gravity",
   boson: "graviton",
   source: "dark",
-  target: "boundary",
   patches,
 })
 

@@ -133,11 +133,9 @@ describe("boundary <-> dark protocol channels", () => {
     const result = await runProtocolScenario<{
       changes: Array<[number, number]>
       messages: Array<{
-        protocol: string
         channel: string
         boson: string
         source: string
-        target: string
         value: string
         path: string
       }>
@@ -206,7 +204,6 @@ describe("boundary <-> dark protocol channels", () => {
       expect(message.channel).toBe("electromagnetism")
       expect(message.boson).toBe("photon")
       expect(message.source).toBe("boundary")
-      expect(message.target).toBe("broadcast")
       expect(typeof message.value).toBe("string")
       expect(typeof message.path).toBe("string")
       expect((message as Record<string, unknown>).braneIndex).toBeUndefined()
@@ -216,7 +213,7 @@ describe("boundary <-> dark protocol channels", () => {
 
   test("process-state поднимает boundary lock, Bulk координируется через Z и завершает процесс через единый W packet", async () => {
     const result = await runProtocolScenario<{
-      photons: Array<{ path: string; value: string; target: string }>
+      photons: Array<{ path: string; value: string }>
       coordination: Array<{ wimpId: string; processId: string; coordination: string; executorId?: string }>
       rawW?: { boson: string; wimpId: string; processId: string; patchCount: number; hasBraneIndex: boolean }
       beforeResult: { lock: boolean; state: number; output: unknown; processId?: string }
@@ -302,7 +299,7 @@ describe("boundary <-> dark protocol channels", () => {
       const photons = []
       const coordination = []
       const photonSubscription = subscribeBulkPhotons((message) => {
-        photons.push({ path: message.path, value: message.value, target: message.target })
+        photons.push({ path: message.path, value: message.value })
       }, { channelName: photonChannelName })
       const coordinationSubscription = subscribeBulkWeakCoordination((message) => {
         coordination.push({
@@ -380,7 +377,7 @@ describe("boundary <-> dark protocol channels", () => {
       }
     `)
 
-    expect(result.photons).toEqual([{ path: expect.any(String), value: "pending", target: "broadcast" }])
+    expect(result.photons).toEqual([{ path: expect.any(String), value: "pending" }])
     expect(result.photons[0]?.path).toBe(result.rawW?.wimpId)
     expect(result.beforeResult.lock).toBe(true)
     expect(result.beforeResult.state).toBe(1)

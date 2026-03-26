@@ -71,7 +71,6 @@ const createBulkZMessage = (
   channel: "weak-z",
   boson: "z",
   source: "bulk",
-  target: "broadcast",
   wimpId,
   processId,
   coordination,
@@ -87,7 +86,6 @@ const createBulkWMessage = (
   channel: "weak-w",
   boson,
   source: "bulk",
-  target: "boundary",
   wimpId,
   processId,
   patches,
@@ -99,7 +97,6 @@ export const subscribeBulkPhotons = (
 ): BulkPhotonSubscription => {
   return createSubscription(openElectromagnetismBroadcastChannel(options), (message) => {
     if (!isPhotonMessage(message)) return
-    if (message.target !== "bulk" && message.target !== "broadcast") return
     listener?.(message)
   })
 }
@@ -110,7 +107,6 @@ export const subscribeBulkWeakCoordination = (
 ): BulkWeakCoordinationSubscription => {
   return createSubscription(openWeakZBroadcastChannel(options), (message) => {
     if (!isZMessage(message)) return
-    if (message.target !== "bulk" && message.target !== "broadcast") return
     listener?.(message)
   })
 }

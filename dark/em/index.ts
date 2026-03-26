@@ -46,7 +46,6 @@ export const subscribeDarkPhotons = (
   channel.onmessage = (event: MessageEvent<unknown>) => {
     const message = event.data
     if (!isPhotonMessage(message)) return
-    if (message.target !== "dark" && message.target !== "broadcast") return
 
     darkPhoton$.messages.push(message)
     listener?.(message)
@@ -68,14 +67,12 @@ const createFieldBosonMessage = (
         channel: "gluon",
         boson: "gluon",
         source: "dark",
-        target: "boundary",
         patches,
       }
     : {
         channel: "higgs",
         boson: "higgs",
         source: "dark",
-        target: "boundary",
         patches,
       }
 

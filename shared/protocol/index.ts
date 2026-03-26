@@ -6,7 +6,6 @@ export const WEAK_W_BROADCAST_CHANNEL = "metafor.weak.w"
 export const WEAK_Z_BROADCAST_CHANNEL = "metafor.weak.z"
 
 export type ProtocolDomain = "dark" | "boundary" | "bulk"
-export type ProtocolTarget = ProtocolDomain | "broadcast"
 
 export interface ProtocolChannelOptions {
   channelName?: string
@@ -22,7 +21,6 @@ export interface GravitonMessage {
   channel: "gravity"
   boson: "graviton"
   source: ProtocolDomain
-  target: ProtocolTarget
   patches: GravityProtocolPatch[]
 }
 
@@ -30,7 +28,6 @@ export interface PhotonMessage {
   channel: "electromagnetism"
   boson: "photon"
   source: ProtocolDomain
-  target: ProtocolTarget
   value: string
   path: string
 }
@@ -45,7 +42,6 @@ export interface GluonMessage {
   channel: "gluon"
   boson: "gluon"
   source: ProtocolDomain
-  target: ProtocolTarget
   patches: ValueProtocolPatch[]
 }
 
@@ -53,7 +49,6 @@ export interface HiggsMessage {
   channel: "higgs"
   boson: "higgs"
   source: ProtocolDomain
-  target: ProtocolTarget
   patches: ValueProtocolPatch[]
 }
 
@@ -63,7 +58,6 @@ export interface ZMessage {
   channel: "weak-z"
   boson: "z"
   source: ProtocolDomain
-  target: ProtocolTarget
   wimpId: string
   processId: string
   coordination: WeakCoordinationKind
@@ -74,7 +68,6 @@ export interface WMessage {
   channel: "weak-w"
   boson: "w+" | "w-"
   source: ProtocolDomain
-  target: ProtocolTarget
   wimpId: string
   processId: string
   patches: ValueProtocolPatch[]
@@ -83,7 +76,6 @@ export interface WMessage {
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null
 const isProtocolDomain = (value: unknown): value is ProtocolDomain =>
   value === "dark" || value === "boundary" || value === "bulk"
-const isProtocolTarget = (value: unknown): value is ProtocolTarget => value === "broadcast" || isProtocolDomain(value)
 
 const hasProtocolEnvelope = (
   value: unknown,
@@ -93,8 +85,7 @@ const hasProtocolEnvelope = (
   if (!isRecord(value)) return false
   if (value.channel !== channel) return false
   if (value.boson !== boson) return false
-  if (!isProtocolDomain(value.source)) return false
-  return isProtocolTarget(value.target)
+  return isProtocolDomain(value.source)
 }
 
 const openProtocolBroadcastChannel = (defaultChannelName: string, options: ProtocolChannelOptions = {}): BroadcastChannel =>
