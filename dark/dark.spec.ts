@@ -9,7 +9,7 @@ import { Axion, Fuzzy, readFieldValues, Wimp } from "@dark/strong"
 import { matterMeta } from "./dark.ts"
 import { dark$ } from "./store"
 
-const hub = new HubFixture("./github/")
+const hub = new HubFixture()
 
 const src = "zavx0z/git"
 const startSrc = "zavx0z/git-start"

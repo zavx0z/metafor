@@ -3,7 +3,7 @@ import { matter } from "../dark"
 import { HubFixture } from "fixture"
 import { dark$ } from "../store"
 import { Axion, Fuzzy, Macho, Wimp } from "@dark/strong"
-const hub = new HubFixture("./github/")
+const hub = new HubFixture()
 let wimps: Wimp[]
 
 describe("dark$", () => {

@@ -4,7 +4,7 @@ import { matter } from "./dark.ts"
 import { Wimp } from "@dark/strong"
 import { dark$ } from "./store.ts"
 
-const hub = new HubFixture("./github/")
+const hub = new HubFixture("./")
 
 describe("meta normalization", () => {
   beforeAll(async () => {

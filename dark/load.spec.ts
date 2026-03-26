@@ -5,7 +5,7 @@ import reference from "../github/zavx0z/git/meta.json"
 
 import { loadMetaAST } from "./load.ts"
 
-const hub = new HubFixture("./github/")
+const hub = new HubFixture()
 
 describe("loadMetaAST", () => {
   beforeAll(async () => await hub.setup())

@@ -31,7 +31,7 @@ export class HubFixture {
   private server: Bun.Server<any> | undefined
   private readonly nativeFetch = globalThis.fetch
 
-  constructor(private readonly rootDirectory: string) {}
+  constructor(private readonly rootDirectory: string = "./") {}
 
   async setup(): Promise<void> {
     if (this.server) return

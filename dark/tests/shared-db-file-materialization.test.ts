@@ -9,7 +9,7 @@ import { HubFixture } from "fixture"
 import { matter } from "../dark.ts"
 import { dark$ } from "../store.ts"
 
-const hub = new HubFixture("./github/")
+const hub = new HubFixture()
 const sqliteFilename = join(dirname(fileURLToPath(import.meta.url)), "tmp", "metafor-issue-52-materialized.sqlite")
 
 describe("dark -> shared/db file materialization", () => {

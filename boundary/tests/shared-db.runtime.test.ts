@@ -22,7 +22,7 @@ import {
 import { resetBoundaryForTest } from "./test.helper"
 import { weak$ } from "../weak"
 
-const hub = new HubFixture("./github/")
+const hub = new HubFixture()
 
 const resetDarkStore = (): void => {
   dark$.meta.clear()
