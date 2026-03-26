@@ -1,5 +1,9 @@
 
-/** Типы для `@boundary/boundary/gravity.store`. */
+/**
+ * Типы для @boundary/gravity/store.
+ *
+ * @packageDocumentation
+ */
 
 export interface BoundaryGravityStore {
   /** Целевая активная UUID-композиция для следующего/текущего runtime rebuild. */

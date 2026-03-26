@@ -2,7 +2,7 @@ import { validateMatterAST, type MetaAST } from "@metafor/ast"
 import type { SRC } from "@metafor/dsl"
 import { Meta } from "@dark/strong"
 
-const metaAstCache = new Map<SRC, MetaAST>()
+const HUB = "github/"
 
 /**
  * Преобразует SRC в путь к файлу для загрузки.
@@ -34,16 +34,13 @@ export function resolveMetaTsPath(address: SRC): string {
  * @throws если не удалось загрузить meta
  */
 export async function loadMetaAST(address: SRC): Promise<MetaAST> {
-  const cached = metaAstCache.get(address)
-  if (cached) return cached
-
+  address = HUB + address
   const sourcePath = resolveMetaSource(address)
   try {
     const response = await fetch(sourcePath)
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     const ast = (await response.json()) as MetaAST
     validateMatterAST(ast.matter, ast.fields, ast.name)
-    metaAstCache.set(address, ast)
     return ast
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

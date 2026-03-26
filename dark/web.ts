@@ -6,4 +6,4 @@ import { openSharedDbMaterializationWriter } from "../shared/db/core.ts"
 const db = await openSharedDbIndexedDbBackend({ databaseName: "metafor-web" })
 const writer = openSharedDbMaterializationWriter(db)
 
-await matter(new Wimp({ src: "github/zavx0z/git", parent: null }), undefined, { sharedDbWriter: writer })
+await matter(new Wimp({ src: "zavx0z/git", parent: null }), undefined, { sharedDbWriter: writer })

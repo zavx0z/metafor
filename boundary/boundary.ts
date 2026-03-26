@@ -759,7 +759,7 @@ export function configureBoundaryElectromagnetismBroadcast(options: ProtocolChan
 }
 
 export type { PreparedData } from "./boundary.t"
-export type { BoundaryGravityStore } from "./gravity.store.t"
+export type { BoundaryGravityStore } from "./gravity/store.t"
 export { FieldType } from "./gravity"
 export { gravity$ }
 export { boundary$ }
