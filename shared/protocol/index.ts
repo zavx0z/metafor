@@ -88,17 +88,16 @@ const hasProtocolEnvelope = (
   return isProtocolDomain(value.source)
 }
 
-const openProtocolBroadcastChannel = (defaultChannelName: string, options: ProtocolChannelOptions = {}): BroadcastChannel =>
-  new BroadcastChannel(options.channelName ?? defaultChannelName)
+const openProtocolBroadcastChannel = (
+  defaultChannelName: string,
+  options: ProtocolChannelOptions = {},
+): BroadcastChannel => new BroadcastChannel(options.channelName ?? defaultChannelName)
 
 const isGravityPatch = (value: unknown): value is GravityProtocolPatch => {
   if (!isRecord(value)) return false
   if (value.op !== "add" && value.op !== "remove" && value.op !== "test") return false
   return typeof value.path === "string"
 }
-
-export const openGravityBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
-  openProtocolBroadcastChannel(GRAVITY_BROADCAST_CHANNEL, options)
 
 export const openElectromagnetismBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
   openProtocolBroadcastChannel(ELECTROMAGNETISM_BROADCAST_CHANNEL, options)

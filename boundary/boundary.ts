@@ -58,7 +58,6 @@ import {
   isWMessage,
   openElectromagnetismBroadcastChannel,
   openGluonBroadcastChannel,
-  openGravityBroadcastChannel,
   openHiggsBroadcastChannel,
   openWeakWBroadcastChannel,
   type GravityProtocolPatch,
@@ -67,6 +66,7 @@ import {
   type ValueProtocolPatch,
   type WMessage,
 } from "@shared/protocol"
+import { gravityCH } from "@boundary/gravity/channel.ts"
 
 export type BoundaryStructuralPatch = GravityProtocolPatch
 
@@ -224,10 +224,7 @@ const requireRuntimeFieldAddress = (wimpFieldId: string): [braneIndex: number, r
   return [braneIndex, runtimeFieldIndex]
 }
 
-const collectPatchedValues = (
-  patches: ValueProtocolPatch[],
-  kind: "gluon" | "higgs",
-): Record<string, unknown> => {
+const collectPatchedValues = (patches: ValueProtocolPatch[], kind: "gluon" | "higgs"): Record<string, unknown> => {
   const values: Record<string, unknown> = {}
 
   for (const patch of patches) {
@@ -377,7 +374,8 @@ const rebuildRuntimeFromFragment = async (
   fragment: SharedDbData,
   options: BoundarySharedDbRuntimeOptions,
 ): Promise<[number, number][]> => {
-  const prepared = fragment.wimps.length === 0 ? createEmptyPreparedData() : prepareBoundaryRuntimeStore(fragment, options)
+  const prepared =
+    fragment.wimps.length === 0 ? createEmptyPreparedData() : prepareBoundaryRuntimeStore(fragment, options)
   const changes = await writePreparedData(prepared)
   // Пока rebuild не завершился успешно, gravity maps продолжают описывать
   // предыдущее materialized runtime. Обновляем fragment и addressing только здесь.
@@ -411,7 +409,9 @@ const persistRuntimeChanges = async (changes: [number, number][], weakUpdates: W
   for (const [runtimeFieldIndex, value] of nextFieldValues.entries()) {
     const wimpFieldIds = strong$.wimpFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] ?? []
     if (wimpFieldIds.length === 0) {
-      throw new Error(`Boundary runtime persistence missing canonical field mapping for runtime field ${runtimeFieldIndex}`)
+      throw new Error(
+        `Boundary runtime persistence missing canonical field mapping for runtime field ${runtimeFieldIndex}`,
+      )
     }
     await Promise.all(wimpFieldIds.map((wimpFieldId) => backend.setFieldValue(wimpFieldId, value)))
   }
@@ -423,7 +423,9 @@ const persistRuntimeChanges = async (changes: [number, number][], weakUpdates: W
       throw new Error(`Boundary runtime persistence missing UUID mapping for brane ${braneIndex}`)
     }
     if (!metaStateId) {
-      throw new Error(`Boundary runtime persistence missing canonical state mapping for brane ${braneIndex} state ${stateIndex}`)
+      throw new Error(
+        `Boundary runtime persistence missing canonical state mapping for brane ${braneIndex} state ${stateIndex}`,
+      )
     }
     await backend.setWimpState(wimpId, metaStateId)
   }
@@ -433,17 +435,11 @@ export function prepareData(data: Data): PreparedData {
   return assembleStoredBoundaryData(flattenBoundaryData(data))
 }
 
-export function prepareRuntimeData(
-  data: SharedDbData,
-  options: BoundarySharedDbRuntimeOptions = {},
-): Data {
+export function prepareRuntimeData(data: SharedDbData, options: BoundarySharedDbRuntimeOptions = {}): Data {
   return prepareBoundaryRuntimeData(data, options)
 }
 
-export function prepareRuntimeStore(
-  data: SharedDbData,
-  options: BoundarySharedDbRuntimeOptions = {},
-): PreparedData {
+export function prepareRuntimeStore(data: SharedDbData, options: BoundarySharedDbRuntimeOptions = {}): PreparedData {
   return prepareBoundaryRuntimeStore(data, options)
 }
 
@@ -501,7 +497,10 @@ export async function rebuildRuntime(
     return []
   }
 
-  const nextFragment = await prepareBoundaryRuntimeLoadedFragmentFromSharedDbOperational(backend, gravity$.activeWimpIds)
+  const nextFragment = await prepareBoundaryRuntimeLoadedFragmentFromSharedDbOperational(
+    backend,
+    gravity$.activeWimpIds,
+  )
   bindRuntimePersistence(backend)
   return await rebuildRuntimeFromFragment(nextFragment, options)
 }
@@ -515,7 +514,7 @@ export function subscribeBoundaryGravityBroadcast(
     runtimeOptions.entanglement = options.entanglement
   }
 
-  return createQueuedSubscription(openGravityBroadcastChannel(options), async (message) => {
+  return createQueuedSubscription(gravityCH, async (message) => {
     if (!isGravitonMessage(message)) return
     if (message.source !== "dark") return
 
@@ -708,11 +707,15 @@ const subscribeBoundaryValueBroadcast = (
   })
 }
 
-export function subscribeBoundaryGluonBroadcast(options: ProtocolChannelOptions = {}): BoundaryValueBroadcastSubscription {
+export function subscribeBoundaryGluonBroadcast(
+  options: ProtocolChannelOptions = {},
+): BoundaryValueBroadcastSubscription {
   return subscribeBoundaryValueBroadcast("gluon", options)
 }
 
-export function subscribeBoundaryHiggsBroadcast(options: ProtocolChannelOptions = {}): BoundaryValueBroadcastSubscription {
+export function subscribeBoundaryHiggsBroadcast(
+  options: ProtocolChannelOptions = {},
+): BoundaryValueBroadcastSubscription {
   return subscribeBoundaryValueBroadcast("higgs", options)
 }
 

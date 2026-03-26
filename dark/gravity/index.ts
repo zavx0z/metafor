@@ -1,9 +1,5 @@
-import {
-  openGravityBroadcastChannel,
-  type GravityProtocolPatch,
-  type GravitonMessage,
-  type ProtocolChannelOptions,
-} from "@shared/protocol"
+import { type GravityProtocolPatch, type GravitonMessage, type ProtocolChannelOptions } from "@shared/protocol"
+import { gravityCH } from "./channel.ts"
 
 export interface DarkGravityProtocol {
   emitPatches(patches: GravityProtocolPatch[]): void
@@ -21,10 +17,9 @@ const createDarkGravitonMessage = (patches: GravityProtocolPatch[]): GravitonMes
 })
 
 export const createDarkGravityProtocol = (options: ProtocolChannelOptions = {}): DarkGravityProtocol => {
-  const channel = openGravityBroadcastChannel(options)
   const emitPatches = (patches: GravityProtocolPatch[]): void => {
     if (patches.length === 0) return
-    channel.postMessage(createDarkGravitonMessage(patches))
+    gravityCH.postMessage(createDarkGravitonMessage(patches))
   }
 
   return {
@@ -43,7 +38,7 @@ export const createDarkGravityProtocol = (options: ProtocolChannelOptions = {}):
     },
 
     close() {
-      channel.close()
+      gravityCH.close()
     },
   }
 }

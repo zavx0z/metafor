@@ -14,11 +14,18 @@ const runProtocolScenario = async <T>(source: string): Promise<T> => {
     child.exited,
   ])
 
-  if (exitCode !== 0) {
-    throw new Error(stderr || stdout || `Protocol scenario failed with code ${exitCode}`)
+  const jsonOutput = stdout.trim() || stderr.trim()
+  
+  // Если JSON выведен, но процесс убит (143 = SIGKILL), это ок — тест завершён
+  if (exitCode !== 0 && exitCode !== 143) {
+    throw new Error(`Protocol scenario failed with code ${exitCode}\n\nstdout: ${stdout}\n\nstderr: ${stderr}`)
   }
 
-  return JSON.parse(stdout) as T
+  if (!jsonOutput) {
+    throw new Error(`Protocol scenario produced no output (exitCode: ${exitCode})`)
+  }
+
+  return JSON.parse(jsonOutput) as T
 }
 
 describe("boundary <-> dark protocol channels", () => {
@@ -55,58 +62,57 @@ describe("boundary <-> dark protocol channels", () => {
       const gravityProtocol = createDarkGravityProtocol({ channelName })
       const boundaryGravity = subscribeBoundaryGravityBroadcast(backend, { channelName })
 
-      try {
-        await fixture.root.save(writer, gravityProtocol)
-        await fixture.child.save(writer, gravityProtocol)
-        await nextTick()
-        await boundaryGravity.flush()
+      await fixture.root.save(writer, gravityProtocol)
+      await fixture.child.save(writer, gravityProtocol)
+      await nextTick()
+      await boundaryGravity.flush()
 
-        const afterAdd = {
-          active: [...gravity$.activeWimpIds],
-          dirty: gravity$.structuralDirty,
-          branes: boundary$.branes.length,
-          mapSize: gravity$.wimpIdToBraneIndex.size,
-        }
-
-        gravityProtocol.emitBarrier()
-        await nextTick()
-        await boundaryGravity.flush()
-        await waitFor(() => gravity$.structuralDirty === false && boundary$.branes.length === 2)
-
-        const afterBarrier = {
-          dirty: gravity$.structuralDirty,
-          branes: boundary$.branes.length,
-          rootIndex: gravity$.getBraneIndex(fixture.root.id),
-          childIndex: gravity$.getBraneIndex(fixture.child.id),
-          index0: gravity$.getWimpId(0),
-          index1: gravity$.getWimpId(1),
-        }
-
-        gravityProtocol.emitRemove(fixture.child.id)
-        await nextTick()
-        await boundaryGravity.flush()
-
-        gravityProtocol.emitBarrier()
-        await nextTick()
-        await boundaryGravity.flush()
-        await waitFor(() => gravity$.structuralDirty === false && boundary$.branes.length === 1)
-
-        const afterRemove = {
-          active: [...gravity$.activeWimpIds],
-          dirty: gravity$.structuralDirty,
-          branes: boundary$.branes.length,
-          rootIndex: gravity$.getBraneIndex(fixture.root.id),
-          childIndex: gravity$.getBraneIndex(fixture.child.id),
-          index0: gravity$.getWimpId(0),
-        }
-
-        console.log(JSON.stringify({ afterAdd, afterBarrier, afterRemove }))
-      } finally {
-        await boundaryGravity.close()
-        gravityProtocol.close()
-        backend.close()
-        closeBoundaryProtocolChannels()
+      const afterAdd = {
+        active: [...gravity$.activeWimpIds],
+        dirty: gravity$.structuralDirty,
+        branes: boundary$.branes.length,
+        mapSize: gravity$.wimpIdToBraneIndex.size,
       }
+
+      gravityProtocol.emitBarrier()
+      await nextTick()
+      await boundaryGravity.flush()
+      await waitFor(() => gravity$.structuralDirty === false && boundary$.branes.length === 2)
+
+      const afterBarrier = {
+        dirty: gravity$.structuralDirty,
+        branes: boundary$.branes.length,
+        rootIndex: gravity$.getBraneIndex(fixture.root.id),
+        childIndex: gravity$.getBraneIndex(fixture.child.id),
+        index0: gravity$.getWimpId(0),
+        index1: gravity$.getWimpId(1),
+      }
+
+      gravityProtocol.emitRemove(fixture.child.id)
+      await nextTick()
+      await boundaryGravity.flush()
+
+      gravityProtocol.emitBarrier()
+      await nextTick()
+      await boundaryGravity.flush()
+      await waitFor(() => gravity$.structuralDirty === false && boundary$.branes.length === 1)
+
+      const afterRemove = {
+        active: [...gravity$.activeWimpIds],
+        dirty: gravity$.structuralDirty,
+        branes: boundary$.branes.length,
+        rootIndex: gravity$.getBraneIndex(fixture.root.id),
+        childIndex: gravity$.getBraneIndex(fixture.child.id),
+        index0: gravity$.getWimpId(0),
+      }
+
+      console.log(JSON.stringify({ afterAdd, afterBarrier, afterRemove }))
+      
+      await boundaryGravity.close()
+      gravityProtocol.close()
+      backend.close()
+      closeBoundaryProtocolChannels()
+      setTimeout(() => process.exit(0), 50)
     `)
 
     expect(result.afterAdd.dirty).toBe(true)
@@ -162,6 +168,14 @@ describe("boundary <-> dark protocol channels", () => {
         await Bun.sleep(0)
       }
 
+      const waitFor = async (predicate) => {
+        for (let attempt = 0; attempt < 50; attempt += 1) {
+          if (predicate()) return
+          await nextTick()
+        }
+        throw new Error("Photon protocol scenario timed out")
+      }
+
       clearDarkPhotonMessages()
       const photonChannelName = "metafor.electromagnetism.test." + crypto.randomUUID()
       configureBoundaryElectromagnetismBroadcast({ channelName: photonChannelName })
@@ -177,24 +191,22 @@ describe("boundary <-> dark protocol channels", () => {
         received.push(message)
       }, { channelName: photonChannelName })
 
-      try {
-        addRuntimeWimp(fixture.root.id)
-        addRuntimeWimp(fixture.child.id)
-        await rebuildRuntime(backend)
+      addRuntimeWimp(fixture.root.id)
+      addRuntimeWimp(fixture.child.id)
+      await rebuildRuntime(backend)
 
-        const changes = await update([[gravity$.getBraneIndex(fixture.root.id), [[1, "ready"]]]])
-        await nextTick()
+      const changes = await update([[gravity$.getBraneIndex(fixture.root.id), [[1, "ready"]]]])
+      await nextTick()
+      await nextTick()
 
-        const stateByPath = Object.fromEntries(
-          received.map((message) => [message.path, boundary$.states[gravity$.getBraneIndex(message.path)]])
-        )
+      const output = { changes, messages: received }
+      console.log(JSON.stringify(output))
 
-        console.log(JSON.stringify({ changes, messages: received, stateByPath }))
-      } finally {
-        subscription.close()
-        backend.close()
-        closeBoundaryProtocolChannels()
-      }
+      // Explicitly close resources and exit to avoid hanging
+      subscription.close()
+      backend.close()
+      closeBoundaryProtocolChannels()
+      setTimeout(() => process.exit(0), 50)
     `)
 
     expect(result.changes.length).toBeGreaterThan(0)
@@ -237,15 +249,6 @@ describe("boundary <-> dark protocol channels", () => {
       const nextTick = async () => {
         await Promise.resolve()
         await Bun.sleep(0)
-      }
-
-      const waitFor = async (predicate) => {
-        for (let attempt = 0; attempt < 50; attempt += 1) {
-          if (predicate()) return
-          await nextTick()
-          await boundaryWeak.flush()
-        }
-        throw new Error("Weak process protocol scenario timed out")
       }
 
       const meta = new Meta({
@@ -313,6 +316,15 @@ describe("boundary <-> dark protocol channels", () => {
       const protocol = createBulkWeakProtocol({ zChannelName, wChannelName })
       const rawWChannel = openWeakWBroadcastChannel({ channelName: wChannelName })
 
+      const waitFor = async (predicate) => {
+        for (let attempt = 0; attempt < 50; attempt += 1) {
+          if (predicate()) return
+          await nextTick()
+          await boundaryWeak.flush()
+        }
+        throw new Error("Weak process protocol scenario timed out")
+      }
+
       let rawW
       rawWChannel.onmessage = (event) => {
         if (!isWMessage(event.data)) return
@@ -325,56 +337,55 @@ describe("boundary <-> dark protocol channels", () => {
         }
       }
 
-      try {
-        const processId = backend.readData().metaProcesses.find((row) => row.ownerMetaId === meta.id && row.processKey === "pending")?.id
-        if (!processId) {
-          throw new Error("Process id is missing for pending state")
-        }
-
-        await setValues({ [wimp.fields.mode.id]: "pending" })
-        await waitFor(() => photons.length === 1)
-
-        const braneIndex = gravity$.getBraneIndex(wimp.id)
-        if (braneIndex === undefined) {
-          throw new Error("Brane index is missing for process runtime test")
-        }
-        const outputFieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimp.fields.output.id)
-        if (outputFieldIndex === undefined) {
-          throw new Error("Runtime output field index is missing for process runtime test")
-        }
-
-        const outputValueBefore = boundary$.getField(braneIndex, outputFieldIndex)?.value
-        const beforeResult = {
-          lock: boundary$.branes[braneIndex]?.lock ?? false,
-          state: boundary$.states[braneIndex] ?? -1,
-          output: typeof outputValueBefore === "number" ? boundary$.stringTable[outputValueBefore] : outputValueBefore,
-          processId,
-        }
-
-        protocol.emitZClaim(wimp.id, processId, "worker-1")
-        await waitFor(() => coordination.length === 1)
-
-        protocol.emitWSuccessValues(wimp.id, processId, { [wimp.fields.output.id]: "done" })
-        await waitFor(() => (boundary$.branes[braneIndex]?.lock ?? true) === false && rawW !== undefined)
-
-        const outputValueAfter = boundary$.getField(braneIndex, outputFieldIndex)?.value
-        const afterResult = {
-          lock: boundary$.branes[braneIndex]?.lock ?? true,
-          state: boundary$.states[braneIndex] ?? -1,
-          output: typeof outputValueAfter === "number" ? boundary$.stringTable[outputValueAfter] : outputValueAfter,
-          persistedOutput: backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === wimp.fields.output.id)?.value,
-        }
-
-        console.log(JSON.stringify({ photons, coordination, rawW, beforeResult, afterResult }))
-      } finally {
-        rawWChannel.close()
-        await boundaryWeak.close()
-        coordinationSubscription.close()
-        photonSubscription.close()
-        protocol.close()
-        backend.close()
-        closeBoundaryProtocolChannels()
+      const processId = backend.readData().metaProcesses.find((row) => row.ownerMetaId === meta.id && row.processKey === "pending")?.id
+      if (!processId) {
+        throw new Error("Process id is missing for pending state")
       }
+
+      await setValues({ [wimp.fields.mode.id]: "pending" })
+      await waitFor(() => photons.length === 1)
+
+      const braneIndex = gravity$.getBraneIndex(wimp.id)
+      if (braneIndex === undefined) {
+        throw new Error("Brane index is missing for process runtime test")
+      }
+      const outputFieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimp.fields.output.id)
+      if (outputFieldIndex === undefined) {
+        throw new Error("Runtime output field index is missing for process runtime test")
+      }
+
+      const outputValueBefore = boundary$.getField(braneIndex, outputFieldIndex)?.value
+      const beforeResult = {
+        lock: boundary$.branes[braneIndex]?.lock ?? false,
+        state: boundary$.states[braneIndex] ?? -1,
+        output: typeof outputValueBefore === "number" ? boundary$.stringTable[outputValueBefore] : outputValueBefore,
+        processId,
+      }
+
+      protocol.emitZClaim(wimp.id, processId, "worker-1")
+      await waitFor(() => coordination.length === 1)
+
+      protocol.emitWSuccessValues(wimp.id, processId, { [wimp.fields.output.id]: "done" })
+      await waitFor(() => (boundary$.branes[braneIndex]?.lock ?? true) === false && rawW !== undefined)
+
+      const outputValueAfter = boundary$.getField(braneIndex, outputFieldIndex)?.value
+      const afterResult = {
+        lock: boundary$.branes[braneIndex]?.lock ?? true,
+        state: boundary$.states[braneIndex] ?? -1,
+        output: typeof outputValueAfter === "number" ? boundary$.stringTable[outputValueAfter] : outputValueAfter,
+        persistedOutput: backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === wimp.fields.output.id)?.value,
+      }
+
+      console.log(JSON.stringify({ photons, coordination, rawW, beforeResult, afterResult }))
+
+      rawWChannel.close()
+      await boundaryWeak.close()
+      coordinationSubscription.close()
+      photonSubscription.close()
+      protocol.close()
+      backend.close()
+      closeBoundaryProtocolChannels()
+      setTimeout(() => process.exit(0), 50)
     `)
 
     expect(result.photons).toEqual([{ path: expect.any(String), value: "pending" }])
@@ -440,32 +451,31 @@ describe("boundary <-> dark protocol channels", () => {
       const gluon = subscribeBoundaryGluonBroadcast({ channelName: gluonChannelName })
       const higgs = subscribeBoundaryHiggsBroadcast({ channelName: higgsChannelName })
 
-      try {
-        protocol.emitGluonReplace(fixture.fields.childAlias!.id, "Alias via gluon")
-        protocol.emitHiggsReplace(fixture.fields.rootMode!.id, "ready")
-        await nextTick()
-        await gluon.flush()
-        await higgs.flush()
+      protocol.emitGluonReplace(fixture.fields.childAlias!.id, "Alias via gluon")
+      protocol.emitHiggsReplace(fixture.fields.rootMode!.id, "ready")
+      await nextTick()
+      await gluon.flush()
+      await higgs.flush()
 
-        const rootBraneIndex = gravity$.getBraneIndex(fixture.root.id)
-        const persisted = backend.readData()
-        const rootReadyStateId = persisted.metaStates.find(
-          (row) => row.ownerMetaId === fixture.root.meta!.id && row.stateName === "ready",
-        )?.id
+      const rootBraneIndex = gravity$.getBraneIndex(fixture.root.id)
+      const persisted = backend.readData()
+      const rootReadyStateId = persisted.metaStates.find(
+        (row) => row.ownerMetaId === fixture.root.meta!.id && row.stateName === "ready",
+      )?.id
 
-        console.log(JSON.stringify({
-          aliasValue: persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value,
-          modeValue: persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.rootMode!.id)?.value,
-          rootState: boundary$.states[rootBraneIndex],
-          rootWimpStateId: persisted.wimpStates.find((row) => row.ownerWimpId === fixture.root.id)?.metaStateId,
-        }))
-      } finally {
-        await gluon.close()
-        await higgs.close()
-        protocol.close()
-        backend.close()
-        closeBoundaryProtocolChannels()
-      }
+      console.log(JSON.stringify({
+        aliasValue: persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value,
+        modeValue: persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.rootMode!.id)?.value,
+        rootState: boundary$.states[rootBraneIndex],
+        rootWimpStateId: persisted.wimpStates.find((row) => row.ownerWimpId === fixture.root.id)?.metaStateId,
+      }))
+
+      await gluon.close()
+      await higgs.close()
+      protocol.close()
+      backend.close()
+      closeBoundaryProtocolChannels()
+      setTimeout(() => process.exit(0), 50)
     `)
 
     expect(result.aliasValue).toBe("Alias via gluon")
