@@ -53,7 +53,8 @@ export async function ensureGPUDevice(): Promise<GPUDevice | null> {
  * Определяет режим слабой силы по конфигурации и доступности среды.
  */
 export async function resolveWeakMode(): Promise<WeakMode> {
-  const configured = (process.env.METAFOR_WEAK_BACKEND ?? "cpu").toLowerCase() as WeakBackendPreference
+  const maybeProcess = globalThis as { process?: { env?: Record<string, string | undefined> } }
+  const configured = (maybeProcess.process?.env?.METAFOR_WEAK_BACKEND ?? "cpu").toLowerCase() as WeakBackendPreference
 
   if (configured === "gpu") {
     const device = await ensureGPUDevice()

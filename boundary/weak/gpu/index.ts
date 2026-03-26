@@ -52,7 +52,7 @@ export class GPUWeakRuntime implements WeakRuntime {
   private context: GpuRuntimeContext
   private readonly store$: BoundaryStore
   private lastStates: number[]
-  private pending: Promise<unknown> = Promise.resolve()
+  private pending: Promise<void> = Promise.resolve()
 
   private constructor(context: GpuRuntimeContext, store$: BoundaryStore) {
     this.context = context
@@ -66,7 +66,7 @@ export class GPUWeakRuntime implements WeakRuntime {
   }
 
   step(): void {
-    void this.enqueue(() =>
+    this.schedule(() =>
       runGpuStep(
         this.context.device,
         this.context.pipeline,
@@ -102,7 +102,7 @@ export class GPUWeakRuntime implements WeakRuntime {
    * производные буферы.
    */
   heapUpdate(updates: WeakHeapUpdate[]): void {
-    void this.enqueue(() => {
+    this.schedule(() => {
       if (updates.length === 0) {
         return
       }
@@ -120,7 +120,7 @@ export class GPUWeakRuntime implements WeakRuntime {
 
   clear(): void {
     this.lastStates = []
-    void this.enqueue(() => destroyContext(this.context))
+    this.schedule(() => destroyContext(this.context))
   }
 
   private enqueue<T>(task: () => Promise<T> | T): Promise<T> {
@@ -130,6 +130,13 @@ export class GPUWeakRuntime implements WeakRuntime {
       () => undefined,
     )
     return scheduled
+  }
+
+  private schedule(task: () => Promise<void> | void): void {
+    this.pending = this.pending.then(() => enqueueGpuOperation(task)).then(
+      () => undefined,
+      () => undefined,
+    )
   }
 
   private syncStringBuffers(): void {

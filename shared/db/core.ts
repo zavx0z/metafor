@@ -1,0 +1,45 @@
+export { createEmptySharedDbData, normalizeSharedDbData, readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
+export { createSharedDbEntanglementFamilyId, openSharedDbMaterializationWriter } from "./materialize.ts"
+export type {
+  SharedDbBackend,
+  SharedDbBackendIndexSpec,
+  SharedDbBackendTableName,
+  SharedDbEntanglementFamilyRows,
+  SharedDbMetaRows,
+  SharedDbWimpRows,
+} from "./backend.t.ts"
+export type {
+  SharedDbData,
+  SharedDbEntanglementFieldMemberRecord,
+  SharedDbEntanglementFieldRecord,
+  SharedDbEntanglementMemberRecord,
+  SharedDbEntanglementRecord,
+  SharedDbFieldSchemaRecord,
+  SharedDbFieldSourceRecord,
+  SharedDbFieldValueRecord,
+  SharedDbMetaFieldRecord,
+  SharedDbMetaMatterEdgeRecord,
+  SharedDbMetaMatterNodeRecord,
+  SharedDbMetaProcessReadRecord,
+  SharedDbMetaProcessRecord,
+  SharedDbMetaProcessWriteRecord,
+  SharedDbMetaReactionReadRecord,
+  SharedDbMetaReactionRecord,
+  SharedDbMetaReactionStateRecord,
+  SharedDbMetaReactionWriteRecord,
+  SharedDbMetaRecord,
+  SharedDbMetaStateRecord,
+  SharedDbMetaTransitionConditionRecord,
+  SharedDbMetaTransitionRecord,
+  SharedDbWimpEdgeRecord,
+  SharedDbWimpFieldRecord,
+  SharedDbWimpRecord,
+  SharedDbWimpStateRecord,
+} from "./db.t.ts"
+export type {
+  SharedDbMaterializationWriter,
+  SharedDbMetaBundle,
+  SharedDbMetaFieldBundle,
+  SharedDbWimpBundle,
+  SharedDbWimpFieldBundle,
+} from "./materialize.ts"

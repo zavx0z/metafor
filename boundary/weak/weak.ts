@@ -3,20 +3,29 @@ import type { BoundaryStore } from "../store.t"
 import { createWeakRuntime } from "./factory"
 import { weak$ } from "./store"
 
+const runWeakOperation = async <T>(task: () => Promise<T>): Promise<T> => {
+  const prev = weak$.operationMutex
+  let release: (() => void) | undefined
+  weak$.operationMutex = new Promise<void>((resolve) => {
+    release = resolve
+  })
+
+  if (prev) {
+    await prev
+  }
+
+  try {
+    return await task()
+  } finally {
+    release?.()
+  }
+}
+
 /**
  * Инициализирует слабый runtime и фиксирует выбранную среду.
  */
 export async function weakInit(store$: BoundaryStore): Promise<void> {
-  if (weak$.operationMutex) {
-    await weak$.operationMutex
-  }
-
-  let resolveMutex: (() => void) | undefined
-  weak$.operationMutex = new Promise<void>((resolve) => {
-    resolveMutex = resolve
-  })
-
-  try {
+  await runWeakOperation(async () => {
     weak$.reset()
     const selected = await createWeakRuntime(store$)
     weak$.initialized = true
@@ -28,9 +37,7 @@ export async function weakInit(store$: BoundaryStore): Promise<void> {
     if (snapshot) {
       store$.states = snapshot
     }
-  } finally {
-    resolveMutex?.()
-  }
+  })
 }
 
 /**

@@ -452,7 +452,9 @@ const resolveSourceRoot = (
   return current
 }
 
-const createEntanglementId = (rootFieldId: string): string => deriveUuid("entanglement-family", rootFieldId)
+export const createSharedDbEntanglementFamilyId = (rootFieldId: string): string =>
+  deriveUuid("entanglement-family", rootFieldId)
+const createEntanglementId = createSharedDbEntanglementFamilyId
 
 const createEntanglementFieldId = (rootFieldId: string): string => deriveUuid("entanglement-family-field", rootFieldId)
 

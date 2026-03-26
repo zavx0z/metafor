@@ -35,6 +35,9 @@ export const clearDarkPhotonMessages = (): void => {
   darkPhoton$.messages = []
 }
 
+const channelOptions = (channelName?: string): ProtocolChannelOptions =>
+  channelName === undefined ? {} : { channelName }
+
 export const subscribeDarkPhotons = (
   listener?: (message: PhotonMessage) => void,
   options: ProtocolChannelOptions = {},
@@ -42,11 +45,12 @@ export const subscribeDarkPhotons = (
   const channel = openElectromagnetismBroadcastChannel(options)
 
   channel.onmessage = (event: MessageEvent<unknown>) => {
-    if (!isPhotonMessage(event.data)) return
-    if (event.data.target !== "dark" && event.data.target !== "broadcast") return
+    const message = event.data
+    if (!isPhotonMessage(message)) return
+    if (message.target !== "dark" && message.target !== "broadcast") return
 
-    darkPhoton$.messages = [...darkPhoton$.messages, event.data]
-    listener?.(event.data)
+    darkPhoton$.messages.push(message)
+    listener?.(message)
   }
 
   return {
@@ -59,42 +63,54 @@ export const subscribeDarkPhotons = (
 const createFieldBosonMessage = (
   kind: "gluon" | "higgs",
   patches: ValueProtocolPatch[],
-): GluonMessage | HiggsMessage => ({
-  protocol: METAFOR_PROTOCOL_KIND,
-  channel: kind,
-  boson: kind,
-  source: "dark",
-  target: "boundary",
-  patches,
+): GluonMessage | HiggsMessage =>
+  kind === "gluon"
+    ? {
+        protocol: METAFOR_PROTOCOL_KIND,
+        channel: "gluon",
+        boson: "gluon",
+        source: "dark",
+        target: "boundary",
+        patches,
+      }
+    : {
+        protocol: METAFOR_PROTOCOL_KIND,
+        channel: "higgs",
+        boson: "higgs",
+        source: "dark",
+        target: "boundary",
+        patches,
+      }
+
+const createReplacePatch = (wimpFieldId: string, value: unknown): ValueProtocolPatch => ({
+  op: "replace",
+  path: `/field/${wimpFieldId}`,
+  value,
 })
 
 export const createDarkElectromagnetismProtocol = (
   options: { gluonChannelName?: string; higgsChannelName?: string } = {},
 ): DarkElectromagnetismProtocol => {
-  const gluon = openGluonBroadcastChannel(
-    options.gluonChannelName === undefined ? {} : { channelName: options.gluonChannelName },
-  )
-  const higgs = openHiggsBroadcastChannel(
-    options.higgsChannelName === undefined ? {} : { channelName: options.higgsChannelName },
-  )
+  const gluon = openGluonBroadcastChannel(channelOptions(options.gluonChannelName))
+  const higgs = openHiggsBroadcastChannel(channelOptions(options.higgsChannelName))
+  const emitGluonPatches = (patches: ValueProtocolPatch[]): void => {
+    if (patches.length === 0) return
+    gluon.postMessage(createFieldBosonMessage("gluon", patches))
+  }
+  const emitHiggsPatches = (patches: ValueProtocolPatch[]): void => {
+    if (patches.length === 0) return
+    higgs.postMessage(createFieldBosonMessage("higgs", patches))
+  }
 
   return {
-    emitGluonPatches(patches) {
-      if (patches.length === 0) return
-      gluon.postMessage(createFieldBosonMessage("gluon", patches))
-    },
-
-    emitHiggsPatches(patches) {
-      if (patches.length === 0) return
-      higgs.postMessage(createFieldBosonMessage("higgs", patches))
-    },
-
+    emitGluonPatches,
+    emitHiggsPatches,
     emitGluonReplace(wimpFieldId, value) {
-      gluon.postMessage(createFieldBosonMessage("gluon", [{ op: "replace", path: `/field/${wimpFieldId}`, value }]))
+      emitGluonPatches([createReplacePatch(wimpFieldId, value)])
     },
 
     emitHiggsReplace(wimpFieldId, value) {
-      higgs.postMessage(createFieldBosonMessage("higgs", [{ op: "replace", path: `/field/${wimpFieldId}`, value }]))
+      emitHiggsPatches([createReplacePatch(wimpFieldId, value)])
     },
 
     close() {

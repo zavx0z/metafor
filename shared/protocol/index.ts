@@ -88,6 +88,25 @@ export interface WMessage {
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null
+const isProtocolDomain = (value: unknown): value is ProtocolDomain =>
+  value === "dark" || value === "boundary" || value === "bulk"
+const isProtocolTarget = (value: unknown): value is ProtocolTarget => value === "broadcast" || isProtocolDomain(value)
+
+const hasProtocolEnvelope = (
+  value: unknown,
+  channel: string,
+  boson: string,
+): value is Record<string, unknown> & { protocol: typeof METAFOR_PROTOCOL_KIND; channel: string; boson: string } => {
+  if (!isRecord(value)) return false
+  if (value.protocol !== METAFOR_PROTOCOL_KIND) return false
+  if (value.channel !== channel) return false
+  if (value.boson !== boson) return false
+  if (!isProtocolDomain(value.source)) return false
+  return isProtocolTarget(value.target)
+}
+
+const openProtocolBroadcastChannel = (defaultChannelName: string, options: ProtocolChannelOptions = {}): BroadcastChannel =>
+  new BroadcastChannel(options.channelName ?? defaultChannelName)
 
 const isGravityPatch = (value: unknown): value is GravityProtocolPatch => {
   if (!isRecord(value)) return false
@@ -96,22 +115,22 @@ const isGravityPatch = (value: unknown): value is GravityProtocolPatch => {
 }
 
 export const openGravityBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
-  new BroadcastChannel(options.channelName ?? GRAVITY_BROADCAST_CHANNEL)
+  openProtocolBroadcastChannel(GRAVITY_BROADCAST_CHANNEL, options)
 
 export const openElectromagnetismBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
-  new BroadcastChannel(options.channelName ?? ELECTROMAGNETISM_BROADCAST_CHANNEL)
+  openProtocolBroadcastChannel(ELECTROMAGNETISM_BROADCAST_CHANNEL, options)
 
 export const openGluonBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
-  new BroadcastChannel(options.channelName ?? GLUON_BROADCAST_CHANNEL)
+  openProtocolBroadcastChannel(GLUON_BROADCAST_CHANNEL, options)
 
 export const openHiggsBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
-  new BroadcastChannel(options.channelName ?? HIGGS_BROADCAST_CHANNEL)
+  openProtocolBroadcastChannel(HIGGS_BROADCAST_CHANNEL, options)
 
 export const openWeakWBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
-  new BroadcastChannel(options.channelName ?? WEAK_W_BROADCAST_CHANNEL)
+  openProtocolBroadcastChannel(WEAK_W_BROADCAST_CHANNEL, options)
 
 export const openWeakZBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
-  new BroadcastChannel(options.channelName ?? WEAK_Z_BROADCAST_CHANNEL)
+  openProtocolBroadcastChannel(WEAK_Z_BROADCAST_CHANNEL, options)
 
 const isValueProtocolPatch = (value: unknown): value is ValueProtocolPatch => {
   if (!isRecord(value)) return false
@@ -122,60 +141,27 @@ const isWeakCoordinationKind = (value: unknown): value is WeakCoordinationKind =
   value === "claim" || value === "accept" || value === "reject" || value === "release"
 
 export const isGravitonMessage = (value: unknown): value is GravitonMessage => {
-  if (!isRecord(value)) return false
-  if (value.protocol !== METAFOR_PROTOCOL_KIND) return false
-  if (value.channel !== "gravity") return false
-  if (value.boson !== "graviton") return false
-  if (value.source !== "dark" && value.source !== "boundary" && value.source !== "bulk") return false
-  if (value.target !== "dark" && value.target !== "boundary" && value.target !== "bulk" && value.target !== "broadcast") {
-    return false
-  }
+  if (!hasProtocolEnvelope(value, "gravity", "graviton")) return false
   return Array.isArray(value.patches) && value.patches.every(isGravityPatch)
 }
 
 export const isPhotonMessage = (value: unknown): value is PhotonMessage => {
-  if (!isRecord(value)) return false
-  if (value.protocol !== METAFOR_PROTOCOL_KIND) return false
-  if (value.channel !== "electromagnetism") return false
-  if (value.boson !== "photon") return false
-  if (value.source !== "dark" && value.source !== "boundary" && value.source !== "bulk") return false
-  if (value.target !== "dark" && value.target !== "boundary" && value.target !== "bulk" && value.target !== "broadcast") {
-    return false
-  }
+  if (!hasProtocolEnvelope(value, "electromagnetism", "photon")) return false
   return typeof value.value === "string" && typeof value.path === "string"
 }
 
 export const isGluonMessage = (value: unknown): value is GluonMessage => {
-  if (!isRecord(value)) return false
-  if (value.protocol !== METAFOR_PROTOCOL_KIND) return false
-  if (value.channel !== "gluon") return false
-  if (value.boson !== "gluon") return false
-  if (value.source !== "dark" && value.source !== "boundary" && value.source !== "bulk") return false
-  if (value.target !== "dark" && value.target !== "boundary" && value.target !== "bulk" && value.target !== "broadcast") {
-    return false
-  }
+  if (!hasProtocolEnvelope(value, "gluon", "gluon")) return false
   return Array.isArray(value.patches) && value.patches.every(isValueProtocolPatch)
 }
 
 export const isHiggsMessage = (value: unknown): value is HiggsMessage => {
-  if (!isRecord(value)) return false
-  if (value.protocol !== METAFOR_PROTOCOL_KIND) return false
-  if (value.channel !== "higgs") return false
-  if (value.boson !== "higgs") return false
-  if (value.source !== "dark" && value.source !== "boundary" && value.source !== "bulk") return false
-  if (value.target !== "dark" && value.target !== "boundary" && value.target !== "bulk" && value.target !== "broadcast") return false
+  if (!hasProtocolEnvelope(value, "higgs", "higgs")) return false
   return Array.isArray(value.patches) && value.patches.every(isValueProtocolPatch)
 }
 
 export const isZMessage = (value: unknown): value is ZMessage => {
-  if (!isRecord(value)) return false
-  if (value.protocol !== METAFOR_PROTOCOL_KIND) return false
-  if (value.channel !== "weak-z") return false
-  if (value.boson !== "z") return false
-  if (value.source !== "dark" && value.source !== "boundary" && value.source !== "bulk") return false
-  if (value.target !== "dark" && value.target !== "boundary" && value.target !== "bulk" && value.target !== "broadcast") {
-    return false
-  }
+  if (!hasProtocolEnvelope(value, "weak-z", "z")) return false
   if (typeof value.wimpId !== "string" || typeof value.processId !== "string") return false
   if (!isWeakCoordinationKind(value.coordination)) return false
   return value.executorId === undefined || typeof value.executorId === "string"
@@ -183,13 +169,8 @@ export const isZMessage = (value: unknown): value is ZMessage => {
 
 export const isWMessage = (value: unknown): value is WMessage => {
   if (!isRecord(value)) return false
-  if (value.protocol !== METAFOR_PROTOCOL_KIND) return false
-  if (value.channel !== "weak-w") return false
   if (value.boson !== "w+" && value.boson !== "w-") return false
-  if (value.source !== "dark" && value.source !== "boundary" && value.source !== "bulk") return false
-  if (value.target !== "dark" && value.target !== "boundary" && value.target !== "bulk" && value.target !== "broadcast") {
-    return false
-  }
+  if (!hasProtocolEnvelope(value, "weak-w", value.boson)) return false
   if (typeof value.wimpId !== "string" || typeof value.processId !== "string") return false
   return Array.isArray(value.patches) && value.patches.every(isValueProtocolPatch)
 }

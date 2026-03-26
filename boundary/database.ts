@@ -1,11 +1,18 @@
 import {
+  createSharedDbEntanglementFamilyId,
   createEmptySharedDbData,
   normalizeSharedDbData,
   readSharedDbData,
   type SharedDbBackend,
   type SharedDbData,
+  type SharedDbEntanglementFamilyRows,
   type SharedDbFieldSchemaRecord,
-} from "@shared/db"
+  type SharedDbFieldSourceRecord,
+  type SharedDbMetaRows,
+  type SharedDbWimpEdgeRecord,
+  type SharedDbWimpFieldRecord,
+  type SharedDbWimpRows,
+} from "../shared/db/core.ts"
 import { FieldType, flattenBoundaryData, type BraneValue, type Collapse, type Data, type Field } from "@boundary/gravity"
 import { assembleStoredBoundaryData, type PreparedEntanglementProjection } from "@boundary/strong"
 import type { PreparedData } from "./boundary.t.ts"
@@ -42,6 +49,362 @@ const upsertRowsById = <T extends { id: string }>(target: T[], rows: T[]): void 
     target[existingIndex] = nextRow
   })
 }
+
+const mergeSharedDbRows = (target: SharedDbData, data: SharedDbData): void => {
+  upsertRowsById(target.metas, data.metas)
+  upsertRowsById(target.metaFields, data.metaFields)
+  upsertRowsById(target.metaStates, data.metaStates)
+  upsertRowsById(target.metaTransitions, data.metaTransitions)
+  upsertRowsById(target.metaTransitionConditions, data.metaTransitionConditions)
+  upsertRowsById(target.metaProcesses, data.metaProcesses)
+  upsertRowsById(target.metaProcessReads, data.metaProcessReads)
+  upsertRowsById(target.metaProcessWrites, data.metaProcessWrites)
+  upsertRowsById(target.metaReactions, data.metaReactions)
+  upsertRowsById(target.metaReactionStates, data.metaReactionStates)
+  upsertRowsById(target.metaReactionReads, data.metaReactionReads)
+  upsertRowsById(target.metaReactionWrites, data.metaReactionWrites)
+  upsertRowsById(target.metaMatterNodes, data.metaMatterNodes)
+  upsertRowsById(target.metaMatterEdges, data.metaMatterEdges)
+  upsertRowsById(target.wimps, data.wimps)
+  upsertRowsById(target.wimpFields, data.wimpFields)
+  upsertRowsById(target.wimpEdges, data.wimpEdges)
+  upsertRowsById(target.fieldValues, data.fieldValues)
+  upsertRowsById(target.fieldSources, data.fieldSources)
+  upsertRowsById(target.wimpStates, data.wimpStates)
+  upsertRowsById(target.entanglements, data.entanglements)
+  upsertRowsById(target.entanglementMembers, data.entanglementMembers)
+  upsertRowsById(target.entanglementFields, data.entanglementFields)
+  upsertRowsById(target.entanglementFieldMembers, data.entanglementFieldMembers)
+}
+
+const appendMetaRows = (target: SharedDbData, rows: SharedDbMetaRows): void => {
+  upsertRowsById(target.metas, [rows.meta])
+  upsertRowsById(target.metaFields, rows.fields)
+  upsertRowsById(target.metaStates, rows.states)
+  upsertRowsById(target.metaTransitions, rows.transitions)
+  upsertRowsById(target.metaTransitionConditions, rows.transitionConditions)
+  upsertRowsById(target.metaProcesses, rows.processes)
+  upsertRowsById(target.metaProcessReads, rows.processReads)
+  upsertRowsById(target.metaProcessWrites, rows.processWrites)
+  upsertRowsById(target.metaReactions, rows.reactions)
+  upsertRowsById(target.metaReactionStates, rows.reactionStates)
+  upsertRowsById(target.metaReactionReads, rows.reactionReads)
+  upsertRowsById(target.metaReactionWrites, rows.reactionWrites)
+  upsertRowsById(target.metaMatterNodes, rows.matterNodes)
+  upsertRowsById(target.metaMatterEdges, rows.matterEdges)
+}
+
+const appendWimpRows = (target: SharedDbData, rows: SharedDbWimpRows): void => {
+  upsertRowsById(target.wimps, [rows.wimp])
+  upsertRowsById(target.wimpFields, rows.fields)
+  upsertRowsById(target.fieldValues, rows.values)
+  upsertRowsById(target.fieldSources, rows.sources)
+  upsertRowsById(target.wimpStates, [rows.state])
+}
+
+const appendEntanglementFamily = (target: SharedDbData, family: SharedDbEntanglementFamilyRows): void => {
+  upsertRowsById(target.entanglements, [family.entanglement])
+  upsertRowsById(target.entanglementMembers, family.members)
+  upsertRowsById(target.entanglementFields, [family.field])
+  upsertRowsById(target.entanglementFieldMembers, family.fieldMembers)
+}
+
+const requireCached = <T>(value: T | undefined, message: string): T => {
+  if (value === undefined) {
+    throw new Error(message)
+  }
+  return value
+}
+
+type BoundaryRuntimeOperationalCache = {
+  entanglementFamilyById: Map<string, SharedDbEntanglementFamilyRows | null>
+  fieldSourceByChildId: Map<string, SharedDbFieldSourceRecord | null>
+  metaRowsById: Map<string, SharedDbMetaRows>
+  wimpEdgeByChildId: Map<string, SharedDbWimpEdgeRecord | null>
+  wimpFieldById: Map<string, SharedDbWimpFieldRecord>
+  wimpRowsById: Map<string, SharedDbWimpRows>
+}
+
+type BoundaryRuntimeEntanglementIndex = {
+  fieldMembersByFieldId: Map<string, SharedDbData["entanglementFieldMembers"]>
+  fieldsByEntanglementId: Map<string, SharedDbData["entanglementFields"]>
+  membersByEntanglementId: Map<string, SharedDbData["entanglementMembers"]>
+}
+
+type BoundaryRuntimeFragmentScope = {
+  entanglementIds: Set<string>
+  metaFieldIds: Set<string>
+  metaIds: Set<string>
+  metaProcessIds: Set<string>
+  metaReactionIds: Set<string>
+  metaStateIds: Set<string>
+  metaTransitionIds: Set<string>
+  packageFieldIds: Set<string>
+  packageWimpIds: Set<string>
+}
+
+const createBoundaryRuntimeOperationalCache = (): BoundaryRuntimeOperationalCache => ({
+  entanglementFamilyById: new Map(),
+  fieldSourceByChildId: new Map(),
+  metaRowsById: new Map(),
+  wimpEdgeByChildId: new Map(),
+  wimpFieldById: new Map(),
+  wimpRowsById: new Map(),
+})
+
+const createBoundaryRuntimeEntanglementIndex = (data: SharedDbData): BoundaryRuntimeEntanglementIndex => {
+  const fieldMembersByFieldId = new Map<string, SharedDbData["entanglementFieldMembers"]>()
+  const fieldsByEntanglementId = new Map<string, SharedDbData["entanglementFields"]>()
+  const membersByEntanglementId = new Map<string, SharedDbData["entanglementMembers"]>()
+
+  data.entanglementMembers.forEach((row) => {
+    const members = membersByEntanglementId.get(row.ownerEntanglementId)
+    if (members) members.push(row)
+    else membersByEntanglementId.set(row.ownerEntanglementId, [row])
+  })
+  data.entanglementFields.forEach((row) => {
+    const fields = fieldsByEntanglementId.get(row.ownerEntanglementId)
+    if (fields) fields.push(row)
+    else fieldsByEntanglementId.set(row.ownerEntanglementId, [row])
+  })
+  data.entanglementFieldMembers.forEach((row) => {
+    const members = fieldMembersByFieldId.get(row.ownerEntanglementFieldId)
+    if (members) members.push(row)
+    else fieldMembersByFieldId.set(row.ownerEntanglementFieldId, [row])
+  })
+
+  return {
+    fieldMembersByFieldId,
+    fieldsByEntanglementId,
+    membersByEntanglementId,
+  }
+}
+
+const collectBoundaryRuntimeFragmentScope = (
+  data: SharedDbData,
+  wimpId: string,
+): BoundaryRuntimeFragmentScope => {
+  const wimp = data.wimps.find((row) => row.id === wimpId)
+  if (!wimp) {
+    throw new Error(`Boundary runtime fragment missing wimp ${wimpId}`)
+  }
+
+  const wimpFieldById = new Map(data.wimpFields.map((row) => [row.id, row] as const))
+  const packageWimpIds = new Set<string>([wimpId])
+  const entanglementIds = new Set<string>()
+
+  let changed = true
+  while (changed) {
+    changed = false
+    const packageFieldIds = new Set(
+      data.wimpFields.filter((row) => packageWimpIds.has(row.ownerWimpId)).map((row) => row.id),
+    )
+
+    data.fieldSources.forEach((row) => {
+      if (!packageFieldIds.has(row.childWimpFieldId)) return
+
+      const parentOwnerWimpId = wimpFieldById.get(row.parentWimpFieldId)?.ownerWimpId
+      if (!parentOwnerWimpId || packageWimpIds.has(parentOwnerWimpId)) return
+
+      packageWimpIds.add(parentOwnerWimpId)
+      changed = true
+    })
+
+    const touchedFieldIds = new Set<string>()
+
+    data.entanglementMembers.forEach((row) => {
+      if (packageWimpIds.has(row.wimpId)) entanglementIds.add(row.ownerEntanglementId)
+    })
+    data.entanglementFields.forEach((row) => {
+      if (packageFieldIds.has(row.representativeWimpFieldId)) {
+        entanglementIds.add(row.ownerEntanglementId)
+      }
+    })
+    data.entanglementFieldMembers.forEach((row) => {
+      if (packageWimpIds.has(row.ownerWimpId) || packageFieldIds.has(row.wimpFieldId)) {
+        touchedFieldIds.add(row.ownerEntanglementFieldId)
+      }
+    })
+    touchedFieldIds.forEach((fieldId) => {
+      const entanglementField = data.entanglementFields.find((row) => row.id === fieldId)
+      if (entanglementField) entanglementIds.add(entanglementField.ownerEntanglementId)
+    })
+  }
+
+  const packageWimps = data.wimps.filter((row) => packageWimpIds.has(row.id))
+  const metaIds = new Set(packageWimps.map((row) => row.metaId))
+  const metaFieldIds = new Set(data.metaFields.filter((row) => metaIds.has(row.ownerMetaId)).map((row) => row.id))
+  const metaStateIds = new Set(data.metaStates.filter((row) => metaIds.has(row.ownerMetaId)).map((row) => row.id))
+  const metaTransitionIds = new Set(
+    data.metaTransitions
+      .filter(
+        (row) =>
+          metaStateIds.has(row.ownerMetaStateId) &&
+          (row.targetMetaStateId === null || metaStateIds.has(row.targetMetaStateId)),
+      )
+      .map((row) => row.id),
+  )
+  const metaProcessIds = new Set(data.metaProcesses.filter((row) => metaIds.has(row.ownerMetaId)).map((row) => row.id))
+  const metaReactionIds = new Set(data.metaReactions.filter((row) => metaIds.has(row.ownerMetaId)).map((row) => row.id))
+  const packageFieldIds = new Set(
+    data.wimpFields.filter((row) => packageWimpIds.has(row.ownerWimpId)).map((row) => row.id),
+  )
+
+  return {
+    entanglementIds,
+    metaFieldIds,
+    metaIds,
+    metaProcessIds,
+    metaReactionIds,
+    metaStateIds,
+    metaTransitionIds,
+    packageFieldIds,
+    packageWimpIds,
+  }
+}
+
+const collectBoundaryRuntimeEntanglementRows = (
+  data: SharedDbData,
+  scope: BoundaryRuntimeFragmentScope,
+  entanglementIndex: BoundaryRuntimeEntanglementIndex,
+): Pick<SharedDbData, "entanglements" | "entanglementMembers" | "entanglementFields" | "entanglementFieldMembers"> => {
+  const entanglements: SharedDbData["entanglements"] = []
+  const entanglementMembers: SharedDbData["entanglementMembers"] = []
+  const entanglementFields: SharedDbData["entanglementFields"] = []
+  const entanglementFieldMembers: SharedDbData["entanglementFieldMembers"] = []
+
+  data.entanglements.forEach((row) => {
+    const members = entanglementIndex.membersByEntanglementId.get(row.id) ?? []
+    const fieldsForEntanglement = entanglementIndex.fieldsByEntanglementId.get(row.id) ?? []
+
+    if (!scope.entanglementIds.has(row.id)) return
+    if (members.length < 2) return
+    if (!members.every((member) => scope.packageWimpIds.has(member.wimpId))) return
+
+    const validFields = fieldsForEntanglement.filter((field) => {
+      const fieldMembers = entanglementIndex.fieldMembersByFieldId.get(field.id) ?? []
+
+      return (
+        scope.packageFieldIds.has(field.representativeWimpFieldId) &&
+        fieldMembers.length === members.length &&
+        fieldMembers.every(
+          (member) => scope.packageWimpIds.has(member.ownerWimpId) && scope.packageFieldIds.has(member.wimpFieldId),
+        )
+      )
+    })
+
+    if (validFields.length === 0) return
+
+    entanglements.push(structuredClone(row))
+    entanglementMembers.push(...members.map((member) => structuredClone(member)))
+    entanglementFields.push(...validFields.map((field) => structuredClone(field)))
+    validFields.forEach((field) => {
+      entanglementFieldMembers.push(
+        ...(entanglementIndex.fieldMembersByFieldId.get(field.id) ?? []).map((member) => structuredClone(member)),
+      )
+    })
+  })
+
+  return {
+    entanglements,
+    entanglementMembers,
+    entanglementFields,
+    entanglementFieldMembers,
+  }
+}
+
+const collectBoundaryRuntimeMetaRows = (
+  data: SharedDbData,
+  scope: BoundaryRuntimeFragmentScope,
+): Pick<
+  SharedDbData,
+  | "metas"
+  | "metaFields"
+  | "metaStates"
+  | "metaTransitions"
+  | "metaTransitionConditions"
+  | "metaProcesses"
+  | "metaProcessReads"
+  | "metaProcessWrites"
+  | "metaReactions"
+  | "metaReactionStates"
+  | "metaReactionReads"
+  | "metaReactionWrites"
+  | "metaMatterNodes"
+  | "metaMatterEdges"
+> => ({
+  metas: data.metas.filter((row) => scope.metaIds.has(row.id)).map((row) => structuredClone(row)),
+  metaFields: data.metaFields.filter((row) => scope.metaIds.has(row.ownerMetaId)).map((row) => structuredClone(row)),
+  metaStates: data.metaStates.filter((row) => scope.metaIds.has(row.ownerMetaId)).map((row) => structuredClone(row)),
+  metaTransitions: data.metaTransitions
+    .filter(
+      (row) =>
+        scope.metaStateIds.has(row.ownerMetaStateId) &&
+        (row.targetMetaStateId === null || scope.metaStateIds.has(row.targetMetaStateId)),
+    )
+    .map((row) => structuredClone(row)),
+  metaTransitionConditions: data.metaTransitionConditions
+    .filter(
+      (row) =>
+        scope.metaTransitionIds.has(row.ownerMetaTransitionId) && scope.metaFieldIds.has(row.metaFieldId),
+    )
+    .map((row) => structuredClone(row)),
+  metaProcesses: data.metaProcesses
+    .filter((row) => scope.metaProcessIds.has(row.id))
+    .map((row) => structuredClone(row)),
+  metaProcessReads: data.metaProcessReads
+    .filter((row) => scope.metaProcessIds.has(row.ownerMetaProcessId) && scope.metaFieldIds.has(row.metaFieldId))
+    .map((row) => structuredClone(row)),
+  metaProcessWrites: data.metaProcessWrites
+    .filter((row) => scope.metaProcessIds.has(row.ownerMetaProcessId) && scope.metaFieldIds.has(row.metaFieldId))
+    .map((row) => structuredClone(row)),
+  metaReactions: data.metaReactions
+    .filter((row) => scope.metaReactionIds.has(row.id))
+    .map((row) => structuredClone(row)),
+  metaReactionStates: data.metaReactionStates
+    .filter((row) => scope.metaReactionIds.has(row.ownerMetaReactionId) && scope.metaStateIds.has(row.metaStateId))
+    .map((row) => structuredClone(row)),
+  metaReactionReads: data.metaReactionReads
+    .filter((row) => scope.metaReactionIds.has(row.ownerMetaReactionId) && scope.metaFieldIds.has(row.metaFieldId))
+    .map((row) => structuredClone(row)),
+  metaReactionWrites: data.metaReactionWrites
+    .filter((row) => scope.metaReactionIds.has(row.ownerMetaReactionId) && scope.metaFieldIds.has(row.metaFieldId))
+    .map((row) => structuredClone(row)),
+  metaMatterNodes: data.metaMatterNodes
+    .filter((row) => scope.metaIds.has(row.ownerMetaId))
+    .map((row) => structuredClone(row)),
+  metaMatterEdges: data.metaMatterEdges
+    .filter((row) => scope.metaIds.has(row.ownerMetaId))
+    .map((row) => structuredClone(row)),
+})
+
+const collectBoundaryRuntimeWimpRows = (
+  data: SharedDbData,
+  scope: BoundaryRuntimeFragmentScope,
+): Pick<SharedDbData, "wimps" | "wimpFields" | "wimpEdges" | "fieldValues" | "fieldSources" | "wimpStates"> => ({
+  wimps: data.wimps.filter((row) => scope.packageWimpIds.has(row.id)).map((row) => structuredClone(row)),
+  wimpFields: data.wimpFields
+    .filter((row) => scope.packageWimpIds.has(row.ownerWimpId))
+    .map((row) => structuredClone(row)),
+  wimpEdges: data.wimpEdges
+    .filter(
+      (row) =>
+        scope.packageWimpIds.has(row.childWimpId) &&
+        (row.parentWimpId === null || scope.packageWimpIds.has(row.parentWimpId)),
+    )
+    .map((row) => structuredClone(row)),
+  fieldValues: data.fieldValues
+    .filter((row) => scope.packageFieldIds.has(row.ownerWimpFieldId))
+    .map((row) => structuredClone(row)),
+  fieldSources: data.fieldSources
+    .filter(
+      (row) => scope.packageFieldIds.has(row.childWimpFieldId) && scope.packageFieldIds.has(row.parentWimpFieldId),
+    )
+    .map((row) => structuredClone(row)),
+  wimpStates: data.wimpStates
+    .filter((row) => scope.packageWimpIds.has(row.ownerWimpId))
+    .map((row) => structuredClone(row)),
+})
 
 const cloneFieldSchema = (
   schema: BoundaryDatabaseFieldSchemaRecord | SharedDbFieldSchemaRecord,
@@ -232,7 +595,7 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
         throw new Error(`Boundary runtime field index mismatch for DB field ${member.fieldIndex}`)
       }
       runtimeFieldIndexByDbFieldIndex[member.fieldIndex] = runtimeFieldIndex
-      const runtimeFieldIds = runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] ?? []
+      const runtimeFieldIds: string[] = runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] ?? []
       const wimpFieldId = data.fields[member.fieldIndex]?.wimpFieldId
       if (!wimpFieldId) {
         throw new Error(`Boundary runtime field missing Wimp field id for DB field ${member.fieldIndex}`)
@@ -248,7 +611,7 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
     if (runtimeFieldIndexByDbFieldIndex[field.index] !== undefined) continue
     const runtimeFieldIndex = ensureRuntimeField(createLocalRuntimeFieldSignature(field), field)
     runtimeFieldIndexByDbFieldIndex[field.index] = runtimeFieldIndex
-    const runtimeFieldIds = runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] ?? []
+    const runtimeFieldIds: string[] = runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] ?? []
     if (!runtimeFieldIds.includes(field.wimpFieldId)) {
       runtimeFieldIds.push(field.wimpFieldId)
     }
@@ -847,215 +1210,283 @@ const filterSharedDbDataForActiveRuntime = (rawData: SharedDbData): SharedDbData
   })
 }
 
-export const mergeBoundaryRuntimeFragments = (fragments: Iterable<SharedDbData>): SharedDbData => {
+const mergeBoundaryRuntimeFragments = (fragments: Iterable<SharedDbData>): SharedDbData => {
   const merged = createEmptySharedDbData()
 
   for (const fragment of fragments) {
-    const data = normalizeSharedDbData(fragment)
-    upsertRowsById(merged.metas, data.metas)
-    upsertRowsById(merged.metaFields, data.metaFields)
-    upsertRowsById(merged.metaStates, data.metaStates)
-    upsertRowsById(merged.metaTransitions, data.metaTransitions)
-    upsertRowsById(merged.metaTransitionConditions, data.metaTransitionConditions)
-    upsertRowsById(merged.metaProcesses, data.metaProcesses)
-    upsertRowsById(merged.metaProcessReads, data.metaProcessReads)
-    upsertRowsById(merged.metaProcessWrites, data.metaProcessWrites)
-    upsertRowsById(merged.metaReactions, data.metaReactions)
-    upsertRowsById(merged.metaReactionStates, data.metaReactionStates)
-    upsertRowsById(merged.metaReactionReads, data.metaReactionReads)
-    upsertRowsById(merged.metaReactionWrites, data.metaReactionWrites)
-    upsertRowsById(merged.metaMatterNodes, data.metaMatterNodes)
-    upsertRowsById(merged.metaMatterEdges, data.metaMatterEdges)
-    upsertRowsById(merged.wimps, data.wimps)
-    upsertRowsById(merged.wimpFields, data.wimpFields)
-    upsertRowsById(merged.wimpEdges, data.wimpEdges)
-    upsertRowsById(merged.fieldValues, data.fieldValues)
-    upsertRowsById(merged.fieldSources, data.fieldSources)
-    upsertRowsById(merged.wimpStates, data.wimpStates)
-    upsertRowsById(merged.entanglements, data.entanglements)
-    upsertRowsById(merged.entanglementMembers, data.entanglementMembers)
-    upsertRowsById(merged.entanglementFields, data.entanglementFields)
-    upsertRowsById(merged.entanglementFieldMembers, data.entanglementFieldMembers)
+    mergeSharedDbRows(merged, normalizeSharedDbData(fragment))
   }
 
   return filterSharedDbDataForActiveRuntime(merged)
 }
 
-export const prepareBoundaryRuntimeFragment = (
+const ensureBoundaryRuntimeMetaRows = async (
+  backend: SharedDbBackend,
+  cache: BoundaryRuntimeOperationalCache,
+  metaId: string,
+): Promise<SharedDbMetaRows> => {
+  const cached = cache.metaRowsById.get(metaId)
+  if (cached) return cached
+
+  const rows = await backend.readMetaRows(metaId)
+  if (!rows) {
+    throw new Error(`Boundary runtime fragment missing meta ${metaId}`)
+  }
+
+  cache.metaRowsById.set(metaId, rows)
+  return rows
+}
+
+const ensureBoundaryRuntimeWimpRows = async (
+  backend: SharedDbBackend,
+  cache: BoundaryRuntimeOperationalCache,
+  wimpId: string,
+): Promise<SharedDbWimpRows> => {
+  const cached = cache.wimpRowsById.get(wimpId)
+  if (cached) return cached
+
+  const rows = await backend.readWimpRows(wimpId)
+  if (!rows) {
+    throw new Error(`Boundary runtime fragment missing wimp ${wimpId}`)
+  }
+
+  cache.wimpRowsById.set(wimpId, rows)
+  rows.fields.forEach((field) => {
+    cache.wimpFieldById.set(field.id, field)
+  })
+  rows.sources.forEach((source) => {
+    cache.fieldSourceByChildId.set(source.childWimpFieldId, source)
+  })
+  return rows
+}
+
+const ensureBoundaryRuntimeWimpField = async (
+  backend: SharedDbBackend,
+  cache: BoundaryRuntimeOperationalCache,
+  wimpFieldId: string,
+): Promise<SharedDbWimpFieldRecord> => {
+  const cached = cache.wimpFieldById.get(wimpFieldId)
+  if (cached) return cached
+
+  const field = await backend.readWimpField(wimpFieldId)
+  if (!field) {
+    throw new Error(`Boundary runtime fragment missing wimp field ${wimpFieldId}`)
+  }
+
+  cache.wimpFieldById.set(wimpFieldId, field)
+  return field
+}
+
+const ensureBoundaryRuntimeFieldSource = async (
+  backend: SharedDbBackend,
+  cache: BoundaryRuntimeOperationalCache,
+  childWimpFieldId: string,
+): Promise<SharedDbFieldSourceRecord | null> => {
+  if (cache.fieldSourceByChildId.has(childWimpFieldId)) {
+    return cache.fieldSourceByChildId.get(childWimpFieldId) ?? null
+  }
+
+  const source = await backend.readFieldSource(childWimpFieldId)
+  cache.fieldSourceByChildId.set(childWimpFieldId, source)
+  return source
+}
+
+const ensureBoundaryRuntimeWimpEdge = async (
+  backend: SharedDbBackend,
+  cache: BoundaryRuntimeOperationalCache,
+  childWimpId: string,
+): Promise<SharedDbWimpEdgeRecord | null> => {
+  if (cache.wimpEdgeByChildId.has(childWimpId)) {
+    return cache.wimpEdgeByChildId.get(childWimpId) ?? null
+  }
+
+  const edge = await backend.readWimpEdge(childWimpId)
+  cache.wimpEdgeByChildId.set(childWimpId, edge)
+  return edge
+}
+
+const ensureBoundaryRuntimeEntanglementFamily = async (
+  backend: SharedDbBackend,
+  cache: BoundaryRuntimeOperationalCache,
+  entanglementId: string,
+): Promise<SharedDbEntanglementFamilyRows | null> => {
+  if (cache.entanglementFamilyById.has(entanglementId)) {
+    return cache.entanglementFamilyById.get(entanglementId) ?? null
+  }
+
+  const family = await backend.readEntanglementFamily(entanglementId)
+  cache.entanglementFamilyById.set(entanglementId, family)
+  return family
+}
+
+const resolveBoundaryRuntimeRootFieldId = async (
+  backend: SharedDbBackend,
+  cache: BoundaryRuntimeOperationalCache,
+  wimpFieldId: string,
+): Promise<string> => {
+  let currentFieldId = wimpFieldId
+  const visited = new Set<string>()
+
+  for (;;) {
+    if (visited.has(currentFieldId)) {
+      throw new Error(`Boundary runtime fragment detected cyclic field_sources at ${currentFieldId}`)
+    }
+    visited.add(currentFieldId)
+
+    const source = await ensureBoundaryRuntimeFieldSource(backend, cache, currentFieldId)
+    if (!source) return currentFieldId
+    currentFieldId = source.parentWimpFieldId
+  }
+}
+
+const collectOperationalPackageWimpIds = async (
+  backend: SharedDbBackend,
+  cache: BoundaryRuntimeOperationalCache,
+  rootWimpId: string,
+): Promise<Set<string>> => {
+  const wimpIds = new Set<string>([rootWimpId])
+  const queue = [rootWimpId]
+
+  while (queue.length > 0) {
+    const nextWimpId = queue.shift()
+    if (!nextWimpId) continue
+
+    const rows = await ensureBoundaryRuntimeWimpRows(backend, cache, nextWimpId)
+    await ensureBoundaryRuntimeMetaRows(backend, cache, rows.wimp.metaId)
+    await ensureBoundaryRuntimeWimpEdge(backend, cache, nextWimpId)
+
+    for (const source of rows.sources) {
+      const parentField = await ensureBoundaryRuntimeWimpField(backend, cache, source.parentWimpFieldId)
+      if (wimpIds.has(parentField.ownerWimpId)) continue
+      wimpIds.add(parentField.ownerWimpId)
+      queue.push(parentField.ownerWimpId)
+    }
+  }
+
+  return wimpIds
+}
+
+const appendOperationalPackageRows = (
+  fragment: SharedDbData,
+  cache: BoundaryRuntimeOperationalCache,
+  packageWimpIds: Set<string>,
+): void => {
+  for (const packageWimpId of packageWimpIds) {
+    const rows = requireCached(cache.wimpRowsById.get(packageWimpId), `Boundary runtime fragment cache missing wimp ${packageWimpId}`)
+    const metaRows = requireCached(
+      cache.metaRowsById.get(rows.wimp.metaId),
+      `Boundary runtime fragment cache missing meta ${rows.wimp.metaId}`,
+    )
+
+    appendMetaRows(fragment, metaRows)
+    appendWimpRows(fragment, rows)
+
+    const edge = cache.wimpEdgeByChildId.get(packageWimpId)
+    if (edge && (edge.parentWimpId === null || packageWimpIds.has(edge.parentWimpId))) {
+      upsertRowsById(fragment.wimpEdges, [edge])
+    }
+  }
+}
+
+const collectOperationalEntanglementIds = async (
+  backend: SharedDbBackend,
+  cache: BoundaryRuntimeOperationalCache,
+  fragment: SharedDbData,
+): Promise<Set<string>> => {
+  const entanglementIds = new Set<string>()
+
+  for (const field of fragment.wimpFields) {
+    const rootFieldId = await resolveBoundaryRuntimeRootFieldId(backend, cache, field.id)
+    entanglementIds.add(createSharedDbEntanglementFamilyId(rootFieldId))
+  }
+
+  return entanglementIds
+}
+
+const appendOperationalEntanglements = async (
+  fragment: SharedDbData,
+  backend: SharedDbBackend,
+  cache: BoundaryRuntimeOperationalCache,
+  packageWimpIds: Set<string>,
+  entanglementIds: Set<string>,
+): Promise<void> => {
+  const packageFieldIds = new Set(fragment.wimpFields.map((field) => field.id))
+
+  for (const entanglementId of entanglementIds) {
+    const family = await ensureBoundaryRuntimeEntanglementFamily(backend, cache, entanglementId)
+    if (!family) continue
+    if (family.members.length < 2) continue
+    if (!family.members.every((member) => packageWimpIds.has(member.wimpId))) continue
+    if (!packageFieldIds.has(family.field.representativeWimpFieldId)) continue
+    if (
+      !family.fieldMembers.every(
+        (member) => packageWimpIds.has(member.ownerWimpId) && packageFieldIds.has(member.wimpFieldId),
+      )
+    ) {
+      continue
+    }
+
+    appendEntanglementFamily(fragment, family)
+  }
+}
+
+const prepareBoundaryRuntimeFragmentFromOperationalCache = async (
+  backend: SharedDbBackend,
+  cache: BoundaryRuntimeOperationalCache,
+  wimpId: string,
+): Promise<SharedDbData> => {
+  const fragment = createEmptySharedDbData()
+  const packageWimpIds = await collectOperationalPackageWimpIds(backend, cache, wimpId)
+
+  appendOperationalPackageRows(fragment, cache, packageWimpIds)
+  await appendOperationalEntanglements(
+    fragment,
+    backend,
+    cache,
+    packageWimpIds,
+    await collectOperationalEntanglementIds(backend, cache, fragment),
+  )
+
+  return filterSharedDbDataForActiveRuntime(fragment)
+}
+
+export const prepareBoundaryRuntimeLoadedFragmentFromSharedDbOperational = async (
+  backend: SharedDbBackend,
+  activeWimpIds?: Iterable<string>,
+): Promise<SharedDbData> => {
+  const requestedWimpIds =
+    activeWimpIds === undefined ? await backend.listWimpIds() : Array.from(new Set(activeWimpIds))
+
+  if (requestedWimpIds.length === 0) {
+    return createEmptySharedDbData()
+  }
+
+  const cache = createBoundaryRuntimeOperationalCache()
+  const fragments = await Promise.all(
+    requestedWimpIds.map((wimpId) => prepareBoundaryRuntimeFragmentFromOperationalCache(backend, cache, wimpId)),
+  )
+  return mergeBoundaryRuntimeFragments(fragments)
+}
+
+const prepareBoundaryRuntimeFragment = (
   rawData: SharedDbData,
   wimpId: string,
 ): SharedDbData => {
   const data = normalizeSharedDbData(rawData)
-  const wimp = data.wimps.find((row) => row.id === wimpId)
-  if (!wimp) {
-    throw new Error(`Boundary runtime fragment missing wimp ${wimpId}`)
-  }
-  const wimpFieldById = new Map(data.wimpFields.map((row) => [row.id, row] as const))
-  const packageWimpIds = new Set<string>([wimpId])
-  const entanglementIds = new Set<string>()
-
-  let changed = true
-  while (changed) {
-    changed = false
-    const packageFieldIds = new Set(
-      data.wimpFields.filter((row) => packageWimpIds.has(row.ownerWimpId)).map((row) => row.id),
-    )
-
-    data.fieldSources.forEach((row) => {
-      if (!packageFieldIds.has(row.childWimpFieldId)) return
-
-      const parentOwnerWimpId = wimpFieldById.get(row.parentWimpFieldId)?.ownerWimpId
-
-      if (!parentOwnerWimpId || packageWimpIds.has(parentOwnerWimpId)) return
-      packageWimpIds.add(parentOwnerWimpId)
-      changed = true
-    })
-
-    const touchedEntanglementFieldIds = new Set<string>()
-
-    data.entanglementMembers.forEach((row) => {
-      if (packageWimpIds.has(row.wimpId)) entanglementIds.add(row.ownerEntanglementId)
-    })
-    data.entanglementFields.forEach((row) => {
-      if (packageFieldIds.has(row.representativeWimpFieldId)) {
-        entanglementIds.add(row.ownerEntanglementId)
-      }
-    })
-    data.entanglementFieldMembers.forEach((row) => {
-      if (packageWimpIds.has(row.ownerWimpId) || packageFieldIds.has(row.wimpFieldId)) {
-        touchedEntanglementFieldIds.add(row.ownerEntanglementFieldId)
-      }
-    })
-    touchedEntanglementFieldIds.forEach((fieldId) => {
-      const entanglementField = data.entanglementFields.find((row) => row.id === fieldId)
-      if (entanglementField) entanglementIds.add(entanglementField.ownerEntanglementId)
-    })
-  }
-
-  const packageWimps = data.wimps.filter((row) => packageWimpIds.has(row.id))
-  const metaIds = new Set(packageWimps.map((row) => row.metaId))
-  const packageMetas = data.metas.filter((row) => metaIds.has(row.id))
-  const packageMetaFields = data.metaFields.filter((row) => metaIds.has(row.ownerMetaId))
-  const packageMetaFieldIds = new Set(packageMetaFields.map((row) => row.id))
-  const packageMetaStates = data.metaStates.filter((row) => metaIds.has(row.ownerMetaId))
-  const packageMetaStateIds = new Set(packageMetaStates.map((row) => row.id))
-  const packageMetaTransitions = data.metaTransitions.filter(
-    (row) =>
-      packageMetaStateIds.has(row.ownerMetaStateId) &&
-      (row.targetMetaStateId === null || packageMetaStateIds.has(row.targetMetaStateId)),
-  )
-  const packageMetaTransitionIds = new Set(packageMetaTransitions.map((row) => row.id))
-  const packageMetaProcesses = data.metaProcesses.filter((row) => metaIds.has(row.ownerMetaId))
-  const packageMetaProcessIds = new Set(packageMetaProcesses.map((row) => row.id))
-  const packageMetaReactions = data.metaReactions.filter((row) => metaIds.has(row.ownerMetaId))
-  const packageMetaReactionIds = new Set(packageMetaReactions.map((row) => row.id))
-  const packageFieldIds = new Set(
-    data.wimpFields.filter((row) => packageWimpIds.has(row.ownerWimpId)).map((row) => row.id),
-  )
-  const packageEntanglementMembersById = new Map<string, typeof data.entanglementMembers>()
-  const packageEntanglementFieldsById = new Map<string, typeof data.entanglementFields>()
-  const packageEntanglementFieldMembersByFieldId = new Map<string, typeof data.entanglementFieldMembers>()
-
-  data.entanglementMembers.forEach((row) => {
-    const members = packageEntanglementMembersById.get(row.ownerEntanglementId)
-    if (members) members.push(row)
-    else packageEntanglementMembersById.set(row.ownerEntanglementId, [row])
-  })
-  data.entanglementFields.forEach((row) => {
-    const fields = packageEntanglementFieldsById.get(row.ownerEntanglementId)
-    if (fields) fields.push(row)
-    else packageEntanglementFieldsById.set(row.ownerEntanglementId, [row])
-  })
-  data.entanglementFieldMembers.forEach((row) => {
-    const members = packageEntanglementFieldMembersByFieldId.get(row.ownerEntanglementFieldId)
-    if (members) members.push(row)
-    else packageEntanglementFieldMembersByFieldId.set(row.ownerEntanglementFieldId, [row])
-  })
-
-  const packageEntanglements: typeof data.entanglements = []
-  const packageEntanglementMembers: typeof data.entanglementMembers = []
-  const packageEntanglementFields: typeof data.entanglementFields = []
-  const packageEntanglementFieldMembers: typeof data.entanglementFieldMembers = []
-
-  data.entanglements.forEach((row) => {
-    const members = packageEntanglementMembersById.get(row.id) ?? []
-    const fieldsForEntanglement = packageEntanglementFieldsById.get(row.id) ?? []
-
-    if (!entanglementIds.has(row.id)) return
-    if (members.length < 2) return
-    if (!members.every((member) => packageWimpIds.has(member.wimpId))) return
-
-    const validFields = fieldsForEntanglement.filter((field) => {
-      const fieldMembers = packageEntanglementFieldMembersByFieldId.get(field.id) ?? []
-
-      return (
-        packageFieldIds.has(field.representativeWimpFieldId) &&
-        fieldMembers.length === members.length &&
-        fieldMembers.every(
-          (member) => packageWimpIds.has(member.ownerWimpId) && packageFieldIds.has(member.wimpFieldId),
-        )
-      )
-    })
-
-    if (validFields.length === 0) return
-
-    packageEntanglements.push(structuredClone(row))
-    packageEntanglementMembers.push(...members.map((member) => structuredClone(member)))
-    packageEntanglementFields.push(...validFields.map((field) => structuredClone(field)))
-    validFields.forEach((field) => {
-      packageEntanglementFieldMembers.push(
-        ...(packageEntanglementFieldMembersByFieldId.get(field.id) ?? []).map((member) => structuredClone(member)),
-      )
-    })
-  })
+  const entanglementIndex = createBoundaryRuntimeEntanglementIndex(data)
+  const scope = collectBoundaryRuntimeFragmentScope(data, wimpId)
+  const metaRows = collectBoundaryRuntimeMetaRows(data, scope)
+  const wimpRows = collectBoundaryRuntimeWimpRows(data, scope)
+  const entanglementRows = collectBoundaryRuntimeEntanglementRows(data, scope, entanglementIndex)
 
   return filterSharedDbDataForActiveRuntime({
-    metas: packageMetas.map((row) => structuredClone(row)),
-    metaFields: packageMetaFields.map((row) => structuredClone(row)),
-    metaStates: packageMetaStates.map((row) => structuredClone(row)),
-    metaTransitions: packageMetaTransitions.map((row) => structuredClone(row)),
-    metaTransitionConditions: data.metaTransitionConditions
-      .filter((row) => packageMetaTransitionIds.has(row.ownerMetaTransitionId) && packageMetaFieldIds.has(row.metaFieldId))
-      .map((row) => structuredClone(row)),
-    metaProcesses: packageMetaProcesses.map((row) => structuredClone(row)),
-    metaProcessReads: data.metaProcessReads
-      .filter((row) => packageMetaProcessIds.has(row.ownerMetaProcessId) && packageMetaFieldIds.has(row.metaFieldId))
-      .map((row) => structuredClone(row)),
-    metaProcessWrites: data.metaProcessWrites
-      .filter((row) => packageMetaProcessIds.has(row.ownerMetaProcessId) && packageMetaFieldIds.has(row.metaFieldId))
-      .map((row) => structuredClone(row)),
-    metaReactions: packageMetaReactions.map((row) => structuredClone(row)),
-    metaReactionStates: data.metaReactionStates
-      .filter((row) => packageMetaReactionIds.has(row.ownerMetaReactionId) && packageMetaStateIds.has(row.metaStateId))
-      .map((row) => structuredClone(row)),
-    metaReactionReads: data.metaReactionReads
-      .filter((row) => packageMetaReactionIds.has(row.ownerMetaReactionId) && packageMetaFieldIds.has(row.metaFieldId))
-      .map((row) => structuredClone(row)),
-    metaReactionWrites: data.metaReactionWrites
-      .filter((row) => packageMetaReactionIds.has(row.ownerMetaReactionId) && packageMetaFieldIds.has(row.metaFieldId))
-      .map((row) => structuredClone(row)),
-    metaMatterNodes: data.metaMatterNodes.filter((row) => metaIds.has(row.ownerMetaId)).map((row) => structuredClone(row)),
-    metaMatterEdges: data.metaMatterEdges.filter((row) => metaIds.has(row.ownerMetaId)).map((row) => structuredClone(row)),
-    wimps: packageWimps.map((row) => structuredClone(row)),
-    wimpFields: data.wimpFields.filter((row) => packageWimpIds.has(row.ownerWimpId)).map((row) => structuredClone(row)),
-    wimpEdges: data.wimpEdges
-      .filter((row) => packageWimpIds.has(row.childWimpId) && (row.parentWimpId === null || packageWimpIds.has(row.parentWimpId)))
-      .map((row) => structuredClone(row)),
-    fieldValues: data.fieldValues
-      .filter((row) => packageFieldIds.has(row.ownerWimpFieldId))
-      .map((row) => structuredClone(row)),
-    fieldSources: data.fieldSources
-      .filter((row) => packageFieldIds.has(row.childWimpFieldId) && packageFieldIds.has(row.parentWimpFieldId))
-      .map((row) => structuredClone(row)),
-    wimpStates: data.wimpStates.filter((row) => packageWimpIds.has(row.ownerWimpId)).map((row) => structuredClone(row)),
-    entanglements: packageEntanglements,
-    entanglementMembers: packageEntanglementMembers,
-    entanglementFields: packageEntanglementFields,
-    entanglementFieldMembers: packageEntanglementFieldMembers,
+    ...metaRows,
+    ...wimpRows,
+    ...entanglementRows,
   })
 }
 
-export const prepareBoundaryRuntimeLoadedFragment = (
+const prepareBoundaryRuntimeLoadedFragment = (
   rawData: SharedDbData,
   activeWimpIds?: Iterable<string>,
 ): SharedDbData => {
@@ -1139,12 +1570,12 @@ export const prepareBoundaryRuntimeStore = (
   options: BoundarySharedDbRuntimeOptions = {},
 ): PreparedData => prepareBoundaryStoreFromDatabase(prepareBoundaryDatabaseData(rawData), options)
 
-export const prepareBoundaryRuntimeFragmentFromSharedDb = (
+const prepareBoundaryRuntimeFragmentFromSharedDb = (
   backend: SharedDbBackend,
   wimpId: string,
 ): SharedDbData => prepareBoundaryRuntimeFragment(readSharedDbData(backend), wimpId)
 
-export const prepareBoundaryRuntimeLoadedFragmentFromSharedDb = (
+const prepareBoundaryRuntimeLoadedFragmentFromSharedDb = (
   backend: SharedDbBackend,
   activeWimpIds?: Iterable<string>,
 ): SharedDbData => prepareBoundaryRuntimeLoadedFragment(readSharedDbData(backend), activeWimpIds)

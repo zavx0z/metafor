@@ -212,8 +212,14 @@ const readAllIndexedDbData = async (database: IDBDatabase): Promise<SharedDbData
   await completeTransaction(transaction)
 
   const data = createEmptySharedDbData()
+  const assignRows = <Key extends keyof SharedDbData>(key: Key, rows: SharedDbData[Key]): void => {
+    data[key] = rows
+  }
   indexedDbTableConfigs.forEach((config) => {
-    data[config.dataKey] = cloneRows((requests.get(config.dataKey)?.result ?? []) as SharedDbData[typeof config.dataKey])
+    const rows = (requests.get(config.dataKey)?.result ?? []).map((row) => structuredClone(row)) as SharedDbData[
+      typeof config.dataKey
+    ]
+    assignRows(config.dataKey, rows)
   })
 
   return normalizeSharedDbData(data)
@@ -428,6 +434,21 @@ const readWimpRowsFromIndexedDb = async (database: IDBDatabase, wimpId: string):
     state,
   }
 }
+
+const listWimpIdsFromIndexedDb = async (database: IDBDatabase): Promise<string[]> => {
+  const transaction = database.transaction("wimps", "readonly")
+  const request = transaction.objectStore("wimps").getAll()
+  const [result] = await Promise.all([resolveRequest(request), completeTransaction(transaction)])
+  return ((result ?? []) as SharedDbWimpRecord[])
+    .map(cloneRow)
+    .sort((left, right) => left.wimpOrder - right.wimpOrder || left.id.localeCompare(right.id))
+    .map((row) => row.id)
+}
+
+const readWimpFieldFromIndexedDb = async (
+  database: IDBDatabase,
+  wimpFieldId: string,
+): Promise<SharedDbWimpFieldRecord | null> => readStoreRow<SharedDbWimpFieldRecord>(database, "wimp_fields", wimpFieldId)
 
 const readEntanglementFamilyFromIndexedDb = async (
   database: IDBDatabase,
@@ -863,7 +884,7 @@ export const openSharedDbIndexedDbBackend = async (
     close() {
       if (closed) return
       closed = true
-      void pendingWriteQueue.finally(() => {
+      pendingWriteQueue.finally(() => {
         database.close()
       })
     },
@@ -893,10 +914,22 @@ export const openSharedDbIndexedDbBackend = async (
       return readMetaRowsFromIndexedDb(database, metaId)
     },
 
+    async listWimpIds() {
+      assertOpen()
+      await pendingWriteQueue
+      return listWimpIdsFromIndexedDb(database)
+    },
+
     async readWimpRows(wimpId) {
       assertOpen()
       await pendingWriteQueue
       return readWimpRowsFromIndexedDb(database, wimpId)
+    },
+
+    async readWimpField(wimpFieldId) {
+      assertOpen()
+      await pendingWriteQueue
+      return readWimpFieldFromIndexedDb(database, wimpFieldId)
     },
 
     async readWimpEdge(childWimpId) {

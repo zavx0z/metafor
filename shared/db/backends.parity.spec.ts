@@ -54,10 +54,14 @@ describe("shared db backend parity", () => {
       await fixture.child.save(indexeddbWriter)
       await indexeddb.flush()
 
+      expect(await sqlite.listWimpIds()).toEqual(await indexeddb.listWimpIds())
       expect(await sqlite.readMetaRows(fixture.root.meta!.id)).toEqual(await indexeddb.readMetaRows(fixture.root.meta!.id))
       expect(await sqlite.readMetaRows(fixture.child.meta!.id)).toEqual(await indexeddb.readMetaRows(fixture.child.meta!.id))
       expect(await sqlite.readWimpRows(fixture.root.id)).toEqual(await indexeddb.readWimpRows(fixture.root.id))
       expect(await sqlite.readWimpRows(fixture.child.id)).toEqual(await indexeddb.readWimpRows(fixture.child.id))
+      expect(await sqlite.readWimpField(fixture.fields.childAlias!.id)).toEqual(
+        await indexeddb.readWimpField(fixture.fields.childAlias!.id),
+      )
       expect(await sqlite.readWimpEdge(fixture.child.id)).toEqual(await indexeddb.readWimpEdge(fixture.child.id))
       expect(await sqlite.readFieldValue(fixture.fields.childAlias!.id)).toEqual(
         await indexeddb.readFieldValue(fixture.fields.childAlias!.id),

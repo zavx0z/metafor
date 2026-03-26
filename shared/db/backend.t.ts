@@ -123,7 +123,9 @@ export interface SharedDbBackend {
    * а не требовать полного `readData()` как основной способ работы.
    */
   readMetaRows(metaId: string): Promise<SharedDbMetaRows | null>
+  listWimpIds(): Promise<string[]>
   readWimpRows(wimpId: string): Promise<SharedDbWimpRows | null>
+  readWimpField(wimpFieldId: string): Promise<SharedDbWimpFieldRecord | null>
   readWimpEdge(childWimpId: string): Promise<SharedDbWimpEdgeRecord | null>
   readFieldValue(wimpFieldId: string): Promise<SharedDbFieldValueRecord | null>
   readFieldSource(childWimpFieldId: string): Promise<SharedDbFieldSourceRecord | null>

@@ -2,18 +2,22 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <title>MetaFor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MetaFor Web</title>
     <style>
       body {
-        background: #111;
-        color: #eee;
-        font-family: monospace;
-        padding: 20px;
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #0a0f14;
+        color: #e6eef7;
+        font: 14px/1.5 "IBM Plex Mono", Menlo, monospace;
       }
     </style>
-    <script type="module" src="./client.ts"></script>
   </head>
   <body>
-    <h1>MetaFor</h1>
+    <div>`dark` и `boundary` запущены как Web Workers.</div>
+    <script type="module" src="./client.ts"></script>
   </body>
 </html>

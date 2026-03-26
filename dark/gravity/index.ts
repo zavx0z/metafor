@@ -25,23 +25,24 @@ const createDarkGravitonMessage = (patches: GravityProtocolPatch[]): GravitonMes
 
 export const createDarkGravityProtocol = (options: ProtocolChannelOptions = {}): DarkGravityProtocol => {
   const channel = openGravityBroadcastChannel(options)
+  const emitPatches = (patches: GravityProtocolPatch[]): void => {
+    if (patches.length === 0) return
+    channel.postMessage(createDarkGravitonMessage(patches))
+  }
 
   return {
-    emitPatches(patches) {
-      if (patches.length === 0) return
-      channel.postMessage(createDarkGravitonMessage(patches))
-    },
+    emitPatches,
 
     emitAdd(wimpId) {
-      channel.postMessage(createDarkGravitonMessage([{ op: "add", path: `/wimp/${wimpId}` }]))
+      emitPatches([{ op: "add", path: `/wimp/${wimpId}` }])
     },
 
     emitRemove(wimpId) {
-      channel.postMessage(createDarkGravitonMessage([{ op: "remove", path: `/wimp/${wimpId}` }]))
+      emitPatches([{ op: "remove", path: `/wimp/${wimpId}` }])
     },
 
     emitBarrier(value = null) {
-      channel.postMessage(createDarkGravitonMessage([{ op: "test", path: "", value }]))
+      emitPatches([{ op: "test", path: "", value }])
     },
 
     close() {

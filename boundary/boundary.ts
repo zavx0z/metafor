@@ -40,7 +40,7 @@ import type { PreparedData } from "./boundary.t"
 import {
   prepareBoundaryRuntimeData,
   prepareBoundaryRuntimeForceData,
-  prepareBoundaryRuntimeLoadedFragmentFromSharedDb,
+  prepareBoundaryRuntimeLoadedFragmentFromSharedDbOperational,
   prepareBoundaryRuntimeStore,
   prepareBoundaryRuntimeStoreFromSharedDb,
 } from "./database"
@@ -50,7 +50,7 @@ import { FieldType } from "@boundary/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData, strong$ } from "@boundary/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import type { WeakHeapUpdate } from "./weak/weak.t"
-import { createEmptySharedDbData, type SharedDbBackend, type SharedDbData } from "@shared/db"
+import { createEmptySharedDbData, type SharedDbBackend, type SharedDbData } from "../shared/db/core.ts"
 import {
   isGluonMessage,
   isGravitonMessage,
@@ -71,34 +71,81 @@ import {
 
 export type BoundaryStructuralPatch = GravityProtocolPatch
 
-export interface BoundaryGravityBroadcastSubscription {
+export interface BoundaryBroadcastSubscription {
   flush(): Promise<void>
   close(): Promise<void>
 }
 
-export interface BoundaryValueBroadcastSubscription {
-  flush(): Promise<void>
-  close(): Promise<void>
+export type BoundaryGravityBroadcastSubscription = BoundaryBroadcastSubscription
+export type BoundaryValueBroadcastSubscription = BoundaryBroadcastSubscription
+export type BoundaryWeakBroadcastSubscription = BoundaryBroadcastSubscription
+
+type AsyncGate = {
+  pending: null | Promise<void>
 }
 
-export interface BoundaryWeakBroadcastSubscription {
-  flush(): Promise<void>
-  close(): Promise<void>
-}
-
-let writeMutex: Promise<void> | null = null
-let updateMutex: Promise<void> | null = null
+const writeGate: AsyncGate = { pending: null }
+const updateGate: AsyncGate = { pending: null }
 /** Последний успешно materialized runtime-fragment, соответствующий текущему `boundary$`. */
 let loadedRuntimeFragment: SharedDbData = createEmptySharedDbData()
 let activeSharedDbBackend: SharedDbBackend | null = null
 let electromagnetismChannel: BroadcastChannel | null = null
 let electromagnetismChannelName: string | undefined
-let gluonChannel: BroadcastChannel | null = null
-let gluonChannelName: string | undefined
-let higgsChannel: BroadcastChannel | null = null
-let higgsChannelName: string | undefined
 const WIMP_PATCH_PATH_PREFIX = "/wimp/"
 const FIELD_PATCH_PATH_PREFIX = "/field/"
+const nextTask = async (): Promise<void> =>
+  await new Promise((resolve) => {
+    setTimeout(resolve, 0)
+  })
+
+const drainQueue = async (getQueue: () => Promise<void>): Promise<void> => {
+  for (;;) {
+    const pending = getQueue()
+    await Promise.resolve()
+    await nextTask()
+    await pending
+    if (pending === getQueue()) return
+  }
+}
+
+const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise<T> => {
+  const prev = gate.pending
+  let release: (() => void) | undefined
+  gate.pending = new Promise<void>((resolve) => {
+    release = resolve
+  })
+
+  if (prev) {
+    await prev
+  }
+
+  try {
+    return await task()
+  } finally {
+    release?.()
+  }
+}
+
+const createQueuedSubscription = (
+  channel: BroadcastChannel,
+  onMessage: (message: unknown) => Promise<void> | void,
+): BoundaryBroadcastSubscription => {
+  let queue = Promise.resolve()
+
+  channel.onmessage = (event: MessageEvent) => {
+    queue = queue.then(async () => {
+      await onMessage(event.data)
+    })
+  }
+
+  return {
+    flush: async () => await drainQueue(() => queue),
+    async close() {
+      channel.close()
+      await drainQueue(() => queue)
+    },
+  }
+}
 
 const createEmptyPreparedData = (): PreparedData => ({
   fields: [],
@@ -160,8 +207,45 @@ const clearLoadedRuntimeState = (): void => {
   weak$.stateProcessIdsByBraneIndex = []
 }
 
-const bindRuntimePersistence = (backend: SharedDbBackend, fragment: SharedDbData): void => {
+const bindRuntimePersistence = (backend: SharedDbBackend): void => {
   activeSharedDbBackend = backend
+}
+
+const requireRuntimeFieldAddress = (wimpFieldId: string): [braneIndex: number, runtimeFieldIndex: number] => {
+  const braneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
+  const runtimeFieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimpFieldId)
+
+  if (braneIndex === undefined) {
+    throw new Error(`Boundary UUID field is not materialized in current runtime: ${wimpFieldId}`)
+  }
+  if (runtimeFieldIndex === undefined) {
+    throw new Error(`Boundary runtime field index is missing for UUID field: ${wimpFieldId}`)
+  }
+
+  return [braneIndex, runtimeFieldIndex]
+}
+
+const collectPatchedValues = (
+  patches: ValueProtocolPatch[],
+  kind: "gluon" | "higgs",
+): Record<string, unknown> => {
+  const values: Record<string, unknown> = {}
+
+  for (const patch of patches) {
+    const wimpFieldId = requireFieldPatchId(patch.path)
+    const isTopology = strong$.topologyWimpFieldIds.has(wimpFieldId)
+
+    if (kind === "gluon" && isTopology) {
+      throw new Error(`Gluon patch cannot target topology field ${wimpFieldId}`)
+    }
+    if (kind === "higgs" && !isTopology) {
+      throw new Error(`Higgs patch must target topology field ${wimpFieldId}`)
+    }
+
+    values[wimpFieldId] = patch.value
+  }
+
+  return values
 }
 
 const getElectromagnetismChannel = (): BroadcastChannel => {
@@ -378,17 +462,7 @@ export function listRuntimeWimpIds(): string[] {
 }
 
 async function writePreparedData(prepared: PreparedData): Promise<[number, number][]> {
-  const prevMutex = writeMutex
-  let resolveMutex: (() => void) | undefined
-  writeMutex = new Promise<void>((resolve) => {
-    resolveMutex = resolve
-  })
-
-  if (prevMutex) {
-    await prevMutex
-  }
-
-  try {
+  return await runExclusive(writeGate, async () => {
     weak$.reset()
     applyPreparedData(prepared)
 
@@ -398,9 +472,7 @@ async function writePreparedData(prepared: PreparedData): Promise<[number, numbe
 
     await weakInit(boundary$)
     return []
-  } finally {
-    resolveMutex?.()
-  }
+  })
 }
 
 export async function write(data: Data): Promise<[number, number][]> {
@@ -417,9 +489,9 @@ export async function writeRuntimeFromSharedDb(
   backend: SharedDbBackend,
   options: BoundarySharedDbRuntimeOptions = {},
 ): Promise<[number, number][]> {
-  const fragment = prepareBoundaryRuntimeLoadedFragmentFromSharedDb(backend)
+  const fragment = await prepareBoundaryRuntimeLoadedFragmentFromSharedDbOperational(backend)
   replaceGravityComposition(collectRuntimeWimpIdsInBraneOrder(fragment))
-  bindRuntimePersistence(backend, fragment)
+  bindRuntimePersistence(backend)
   return await rebuildRuntimeFromFragment(fragment, options)
 }
 
@@ -432,8 +504,8 @@ export async function rebuildRuntime(
     return []
   }
 
-  const nextFragment = prepareBoundaryRuntimeLoadedFragmentFromSharedDb(backend, gravity$.activeWimpIds)
-  bindRuntimePersistence(backend, nextFragment)
+  const nextFragment = await prepareBoundaryRuntimeLoadedFragmentFromSharedDbOperational(backend, gravity$.activeWimpIds)
+  bindRuntimePersistence(backend)
   return await rebuildRuntimeFromFragment(nextFragment, options)
 }
 
@@ -441,44 +513,20 @@ export function subscribeBoundaryGravityBroadcast(
   backend: SharedDbBackend,
   options: ProtocolChannelOptions & BoundarySharedDbRuntimeOptions = {},
 ): BoundaryGravityBroadcastSubscription {
-  const channel = openGravityBroadcastChannel(options)
   const runtimeOptions: BoundarySharedDbRuntimeOptions = {}
   if (options.entanglement !== undefined) {
     runtimeOptions.entanglement = options.entanglement
   }
 
-  let queue = Promise.resolve()
-
-  channel.onmessage = (event: MessageEvent) => {
-    if (!isGravitonMessage(event.data)) return
-    const message = event.data
+  return createQueuedSubscription(openGravityBroadcastChannel(options), async (message) => {
+    if (!isGravitonMessage(message)) return
     if (message.source !== "dark") return
     if (message.target !== "boundary" && message.target !== "broadcast") return
 
-    queue = queue.then(async () => {
-      for (const patch of message.patches) {
-        await applyStructuralPatchFromSharedDb(backend, patch, runtimeOptions)
-      }
-    })
-  }
-
-  const flush = async (): Promise<void> => {
-    for (;;) {
-      const pending = queue
-      await Promise.resolve()
-      await Bun.sleep(0)
-      await pending
-      if (pending === queue) return
+    for (const patch of message.patches) {
+      await applyStructuralPatchFromSharedDb(backend, patch, runtimeOptions)
     }
-  }
-
-  return {
-    flush,
-    async close() {
-      channel.close()
-      await flush()
-    },
-  }
+  })
 }
 
 export function addRuntimeWimp(wimpId: string): void {
@@ -537,17 +585,7 @@ function findMutableFieldRecord(
 export async function update(
   updates: Array<[braneIndex: number, fieldUpdates: Array<[fieldIndex: number, value: unknown]>, lock?: boolean]>,
 ): Promise<[number, number][]> {
-  const prevMutex = updateMutex
-  let resolveMutex: (() => void) | undefined
-  updateMutex = new Promise<void>((resolve) => {
-    resolveMutex = resolve
-  })
-
-  if (prevMutex) {
-    await prevMutex
-  }
-
-  try {
+  return await runExclusive(updateGate, async () => {
     requireInitializedStore(boundary$)
     const stringInterner = createStoredStringInterner(boundary$.stringTable)
     const weakUpdates: Array<
@@ -581,24 +619,14 @@ export async function update(
     await persistRuntimeChanges(changes, weakUpdates)
     publishPhotonChanges(changes)
     return changes
-  } finally {
-    resolveMutex?.()
-  }
+  })
 }
 
 export async function setValues(values: Record<string, unknown>): Promise<[number, number][]> {
   const groupedUpdates = new Map<number, Array<[number, unknown]>>()
 
   for (const [wimpFieldId, value] of Object.entries(values)) {
-    const braneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
-    const runtimeFieldIndex = strong$.runtimeFieldIndexByWimpFieldId.get(wimpFieldId)
-
-    if (braneIndex === undefined) {
-      throw new Error(`Boundary UUID field is not materialized in current runtime: ${wimpFieldId}`)
-    }
-    if (runtimeFieldIndex === undefined) {
-      throw new Error(`Boundary runtime field index is missing for UUID field: ${wimpFieldId}`)
-    }
+    const [braneIndex, runtimeFieldIndex] = requireRuntimeFieldAddress(wimpFieldId)
 
     const fieldUpdates = groupedUpdates.get(braneIndex)
     if (fieldUpdates) {
@@ -615,23 +643,7 @@ const applyValuePatches = async (
   patches: ValueProtocolPatch[],
   kind: "gluon" | "higgs",
 ): Promise<[number, number][]> => {
-  const values: Record<string, unknown> = {}
-
-  for (const patch of patches) {
-    const wimpFieldId = requireFieldPatchId(patch.path)
-    const isTopology = strong$.topologyWimpFieldIds.has(wimpFieldId)
-
-    if (kind === "gluon" && isTopology) {
-      throw new Error(`Gluon patch cannot target topology field ${wimpFieldId}`)
-    }
-    if (kind === "higgs" && !isTopology) {
-      throw new Error(`Higgs patch must target topology field ${wimpFieldId}`)
-    }
-
-    values[wimpFieldId] = patch.value
-  }
-
-  return await setValues(values)
+  return await setValues(collectPatchedValues(patches, kind))
 }
 
 export async function applyWeakResultPacket(message: WMessage): Promise<[number, number][]> {
@@ -686,40 +698,20 @@ const subscribeBoundaryValueBroadcast = (
   options: ProtocolChannelOptions = {},
 ): BoundaryValueBroadcastSubscription => {
   const channel = kind === "gluon" ? openGluonBroadcastChannel(options) : openHiggsBroadcastChannel(options)
-  let queue = Promise.resolve()
-
-  channel.onmessage = (event: MessageEvent) => {
-    const message = event.data
-    const accepted =
-      kind === "gluon"
-        ? isGluonMessage(message) && (message.source === "dark" || message.source === "boundary")
-        : isHiggsMessage(message) && (message.source === "dark" || message.source === "boundary")
-
-    if (!accepted) return
-    if (message.target !== "boundary" && message.target !== "broadcast") return
-
-    queue = queue.then(async () => {
+  return createQueuedSubscription(channel, async (message) => {
+    if (kind === "gluon") {
+      if (!isGluonMessage(message)) return
+      if (message.source !== "dark" && message.source !== "boundary") return
+      if (message.target !== "boundary" && message.target !== "broadcast") return
       await applyValuePatches(message.patches, kind)
-    })
-  }
-
-  const flush = async (): Promise<void> => {
-    for (;;) {
-      const pending = queue
-      await Promise.resolve()
-      await Bun.sleep(0)
-      await pending
-      if (pending === queue) return
+      return
     }
-  }
 
-  return {
-    flush,
-    async close() {
-      channel.close()
-      await flush()
-    },
-  }
+    if (!isHiggsMessage(message)) return
+    if (message.source !== "dark" && message.source !== "boundary") return
+    if (message.target !== "boundary" && message.target !== "broadcast") return
+    await applyValuePatches(message.patches, kind)
+  })
 }
 
 export function subscribeBoundaryGluonBroadcast(options: ProtocolChannelOptions = {}): BoundaryValueBroadcastSubscription {
@@ -733,37 +725,13 @@ export function subscribeBoundaryHiggsBroadcast(options: ProtocolChannelOptions 
 export function subscribeBoundaryWeakResultBroadcast(
   options: ProtocolChannelOptions = {},
 ): BoundaryWeakBroadcastSubscription {
-  const channel = openWeakWBroadcastChannel(options)
-  let queue = Promise.resolve()
-
-  channel.onmessage = (event: MessageEvent) => {
-    const message = event.data
+  return createQueuedSubscription(openWeakWBroadcastChannel(options), async (message) => {
     if (!isWMessage(message)) return
     if (message.source !== "bulk") return
     if (message.target !== "boundary" && message.target !== "broadcast") return
 
-    queue = queue.then(async () => {
-      await applyWeakResultPacket(message)
-    })
-  }
-
-  const flush = async (): Promise<void> => {
-    for (;;) {
-      const pending = queue
-      await Promise.resolve()
-      await Bun.sleep(0)
-      await pending
-      if (pending === queue) return
-    }
-  }
-
-  return {
-    flush,
-    async close() {
-      channel.close()
-      await flush()
-    },
-  }
+    await applyWeakResultPacket(message)
+  })
 }
 
 export function unlock(indexes: number[]): void {
@@ -786,29 +754,12 @@ export function closeBoundaryProtocolChannels(): void {
   electromagnetismChannel?.close()
   electromagnetismChannel = null
   electromagnetismChannelName = undefined
-  gluonChannel?.close()
-  gluonChannel = null
-  gluonChannelName = undefined
-  higgsChannel?.close()
-  higgsChannel = null
-  higgsChannelName = undefined
 }
 
 export function configureBoundaryElectromagnetismBroadcast(options: ProtocolChannelOptions = {}): void {
-  closeBoundaryProtocolChannels()
+  electromagnetismChannel?.close()
+  electromagnetismChannel = null
   electromagnetismChannelName = options.channelName
-}
-
-export function configureBoundaryGluonBroadcast(options: ProtocolChannelOptions = {}): void {
-  gluonChannel?.close()
-  gluonChannel = null
-  gluonChannelName = options.channelName
-}
-
-export function configureBoundaryHiggsBroadcast(options: ProtocolChannelOptions = {}): void {
-  higgsChannel?.close()
-  higgsChannel = null
-  higgsChannelName = options.channelName
 }
 
 export type { PreparedData } from "./boundary.t"

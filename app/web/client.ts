@@ -1,4 +1,11 @@
-// import { loadDSL } from "@metafor/bulk"
+import "../../bulk"
 
-// const HUB_DIRECTORY = "/github/"
-// await loadDSL(HUB_DIRECTORY + "zavx0z/git")
+new Worker(new URL("../../dark/web.ts", import.meta.url), {
+  name: "dark",
+  type: "module",
+})
+
+new Worker(new URL("../../boundary/web.ts", import.meta.url), {
+  name: "boundary",
+  type: "module",
+})

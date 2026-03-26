@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite"
+import { Database, type SQLQueryBindings } from "bun:sqlite"
 import { createEmptySharedDbData, normalizeSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
 import type { SharedDbBackend, SharedDbEntanglementFamilyRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
 import type {
@@ -337,7 +337,7 @@ const readFieldSchema = (row: Record<string, unknown>): SharedDbFieldSchemaRecor
 const queryRow = <T>(
   database: Database,
   sql: string,
-  params: unknown[],
+  params: SQLQueryBindings[],
   mapRow: (row: Record<string, unknown>) => T,
 ): T | null => {
   const row = database.query(sql).get(...params) as Record<string, unknown> | null
@@ -347,7 +347,7 @@ const queryRow = <T>(
 const queryRows = <T>(
   database: Database,
   sql: string,
-  params: unknown[],
+  params: SQLQueryBindings[],
   mapRow: (row: Record<string, unknown>) => T,
 ): T[] => (database.query(sql).all(...params) as Array<Record<string, unknown>>).map(mapRow)
 
@@ -1086,6 +1086,26 @@ const readWimpRowsFromDatabase = (database: Database, wimpId: string): SharedDbW
   }
 }
 
+const listWimpIdsFromDatabase = (database: Database): string[] =>
+  queryRows(
+    database,
+    `SELECT id
+     FROM wimps
+     ORDER BY wimpOrder, id`,
+    [],
+    (row) => String((row as Record<string, unknown>).id),
+  )
+
+const readWimpFieldFromDatabase = (database: Database, wimpFieldId: string): SharedDbWimpFieldRecord | null =>
+  queryRow(
+    database,
+    `SELECT id, ownerWimpId, metaFieldId, fieldOrder
+     FROM wimp_fields
+     WHERE id = ?`,
+    [wimpFieldId],
+    readWimpFieldRecordRow,
+  )
+
 const readWimpEdgeFromDatabase = (database: Database, childWimpId: string): SharedDbWimpEdgeRecord | null =>
   queryRow(
     database,
@@ -1477,9 +1497,7 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
       resetDatabase(database)
     },
 
-    async flush() {
-      await Promise.resolve()
-    },
+    async flush() {},
 
     readData() {
       return normalizeSharedDbData(readAllData(database))
@@ -1489,8 +1507,16 @@ export const openSharedDbSqliteBackend = (options: SharedDbSqliteBackendOptions 
       return readMetaRowsFromDatabase(database, metaId)
     },
 
+    async listWimpIds() {
+      return listWimpIdsFromDatabase(database)
+    },
+
     async readWimpRows(wimpId) {
       return readWimpRowsFromDatabase(database, wimpId)
+    },
+
+    async readWimpField(wimpFieldId) {
+      return readWimpFieldFromDatabase(database, wimpFieldId)
     },
 
     async readWimpEdge(childWimpId) {

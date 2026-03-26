@@ -18,5 +18,5 @@ export type {
   SharedDbWimpFieldBundle,
   SharedDbWimpRows,
 } from "./core.ts"
-export { initializeSharedDbSqliteSchema, openSharedDbSqliteBackend } from "./sqlite.ts"
-export type { SharedDbSqliteBackendOptions } from "./sqlite.ts"
+export { inspectSharedDbIndexedDbSchema, openSharedDbIndexedDbBackend } from "./indexeddb.ts"
+export type { SharedDbIndexedDbBackend, SharedDbIndexedDbBackendOptions } from "./indexeddb.ts"

@@ -13,13 +13,12 @@ import {
   type ZMessage,
 } from "@shared/protocol"
 
-export interface BulkPhotonSubscription {
+export interface BulkSubscription {
   close(): void
 }
 
-export interface BulkWeakCoordinationSubscription {
-  close(): void
-}
+export type BulkPhotonSubscription = BulkSubscription
+export type BulkWeakCoordinationSubscription = BulkSubscription
 
 export interface BulkWeakProtocolOptions {
   zChannelName?: string
@@ -37,6 +36,24 @@ export interface BulkWeakProtocol {
   emitWSuccessValues(wimpId: string, processId: string, values?: Record<string, unknown>): void
   emitWErrorValues(wimpId: string, processId: string, values?: Record<string, unknown>): void
   close(): void
+}
+
+const channelOptions = (channelName?: string): ProtocolChannelOptions =>
+  channelName === undefined ? {} : { channelName }
+
+const createSubscription = (
+  channel: BroadcastChannel,
+  onMessage: (message: unknown) => void,
+): BulkSubscription => {
+  channel.onmessage = (event: MessageEvent<unknown>) => {
+    onMessage(event.data)
+  }
+
+  return {
+    close() {
+      channel.close()
+    },
+  }
 }
 
 const createWeakResultFieldPatches = (values: Record<string, unknown>): ValueProtocolPatch[] =>
@@ -83,83 +100,75 @@ export const subscribeBulkPhotons = (
   listener?: (message: PhotonMessage) => void,
   options: ProtocolChannelOptions = {},
 ): BulkPhotonSubscription => {
-  const channel = openElectromagnetismBroadcastChannel(options)
-
-  channel.onmessage = (event: MessageEvent<unknown>) => {
-    if (!isPhotonMessage(event.data)) return
-    if (event.data.target !== "bulk" && event.data.target !== "broadcast") return
-    listener?.(event.data)
-  }
-
-  return {
-    close() {
-      channel.close()
-    },
-  }
+  return createSubscription(openElectromagnetismBroadcastChannel(options), (message) => {
+    if (!isPhotonMessage(message)) return
+    if (message.target !== "bulk" && message.target !== "broadcast") return
+    listener?.(message)
+  })
 }
 
 export const subscribeBulkWeakCoordination = (
   listener?: (message: ZMessage) => void,
   options: ProtocolChannelOptions = {},
 ): BulkWeakCoordinationSubscription => {
-  const channel = openWeakZBroadcastChannel(options)
-
-  channel.onmessage = (event: MessageEvent<unknown>) => {
-    if (!isZMessage(event.data)) return
-    if (event.data.target !== "bulk" && event.data.target !== "broadcast") return
-    listener?.(event.data)
-  }
-
-  return {
-    close() {
-      channel.close()
-    },
-  }
+  return createSubscription(openWeakZBroadcastChannel(options), (message) => {
+    if (!isZMessage(message)) return
+    if (message.target !== "bulk" && message.target !== "broadcast") return
+    listener?.(message)
+  })
 }
 
 export const createBulkWeakProtocol = (options: BulkWeakProtocolOptions = {}): BulkWeakProtocol => {
-  const zChannel = openWeakZBroadcastChannel(
-    options.zChannelName === undefined ? {} : { channelName: options.zChannelName },
-  )
-  const wChannel = openWeakWBroadcastChannel(
-    options.wChannelName === undefined ? {} : { channelName: options.wChannelName },
-  )
+  const zChannel = openWeakZBroadcastChannel(channelOptions(options.zChannelName))
+  const wChannel = openWeakWBroadcastChannel(channelOptions(options.wChannelName))
+  const emitZ = (
+    coordination: WeakCoordinationKind,
+    wimpId: string,
+    processId: string,
+    executorId?: string,
+  ): void => {
+    zChannel.postMessage(createBulkZMessage(coordination, wimpId, processId, executorId))
+  }
+  const emitW = (boson: "w+" | "w-", wimpId: string, processId: string, patches: ValueProtocolPatch[]): void => {
+    wChannel.postMessage(createBulkWMessage(boson, wimpId, processId, patches))
+  }
+  const emitWValues = (boson: "w+" | "w-", wimpId: string, processId: string, values: Record<string, unknown>): void => {
+    emitW(boson, wimpId, processId, createWeakResultFieldPatches(values))
+  }
 
   return {
-    emitZ(coordination, wimpId, processId, executorId) {
-      zChannel.postMessage(createBulkZMessage(coordination, wimpId, processId, executorId))
-    },
+    emitZ,
 
     emitZClaim(wimpId, processId, executorId) {
-      zChannel.postMessage(createBulkZMessage("claim", wimpId, processId, executorId))
+      emitZ("claim", wimpId, processId, executorId)
     },
 
     emitZAccept(wimpId, processId, executorId) {
-      zChannel.postMessage(createBulkZMessage("accept", wimpId, processId, executorId))
+      emitZ("accept", wimpId, processId, executorId)
     },
 
     emitZReject(wimpId, processId, executorId) {
-      zChannel.postMessage(createBulkZMessage("reject", wimpId, processId, executorId))
+      emitZ("reject", wimpId, processId, executorId)
     },
 
     emitZRelease(wimpId, processId, executorId) {
-      zChannel.postMessage(createBulkZMessage("release", wimpId, processId, executorId))
+      emitZ("release", wimpId, processId, executorId)
     },
 
     emitWSuccessPatches(wimpId, processId, patches = []) {
-      wChannel.postMessage(createBulkWMessage("w+", wimpId, processId, patches))
+      emitW("w+", wimpId, processId, patches)
     },
 
     emitWErrorPatches(wimpId, processId, patches = []) {
-      wChannel.postMessage(createBulkWMessage("w-", wimpId, processId, patches))
+      emitW("w-", wimpId, processId, patches)
     },
 
     emitWSuccessValues(wimpId, processId, values = {}) {
-      wChannel.postMessage(createBulkWMessage("w+", wimpId, processId, createWeakResultFieldPatches(values)))
+      emitWValues("w+", wimpId, processId, values)
     },
 
     emitWErrorValues(wimpId, processId, values = {}) {
-      wChannel.postMessage(createBulkWMessage("w-", wimpId, processId, createWeakResultFieldPatches(values)))
+      emitWValues("w-", wimpId, processId, values)
     },
 
     close() {

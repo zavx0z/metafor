@@ -1,9 +1,6 @@
 {
   "name": "@app/web",
   "private": true,
-  "devDependencies": {
-    "@metafor/bulk": "workspace:*"
-  },
   "scripts": {
     "dev": "bun server"
   }
