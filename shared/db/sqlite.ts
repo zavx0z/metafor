@@ -1,5 +1,5 @@
 import { Database, type SQLQueryBindings } from "bun:sqlite"
-import { createEmptySharedDbData, normalizeSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
+import { normalizeSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
 import type { SharedDbBackend, SharedDbEntanglementFamilyRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
 import type {
   SharedDbData,

@@ -3,7 +3,10 @@
   "type": "module",
   "main": "index.ts",
   "exports": {
-    ".": "./index.ts",
+    ".": {
+      "import": "./index.ts",
+      "types": "./types"
+    },
     "./browser": "./browser.ts",
     "./core": "./core.ts",
     "./types": "./db.t.ts"

@@ -2,6 +2,6 @@
   "name": "@app/web",
   "private": true,
   "scripts": {
-    "dev": "bun server"
+    "dev": "bun server --hot"
   }
 }

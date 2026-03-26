@@ -18,5 +18,5 @@ export type {
   SharedDbWimpFieldBundle,
   SharedDbWimpRows,
 } from "./core.ts"
-export { inspectSharedDbIndexedDbSchema, openSharedDbIndexedDbBackend } from "./indexeddb.ts"
-export type { SharedDbIndexedDbBackend, SharedDbIndexedDbBackendOptions } from "./indexeddb.ts"
+export { inspectSharedDbIndexedDbSchema, openSharedDbIndexedDbBackend } from "./idb.ts"
+export type { SharedDbIndexedDbBackend, SharedDbIndexedDbBackendOptions } from "./idb.ts"

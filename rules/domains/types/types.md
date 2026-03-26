@@ -8,7 +8,7 @@
 
 ## Структура `@{domain}/types`
 
-```
+``` text
 {domain}/types/
 ├── package.json      # exports: корень = shared.ts
 ├── shared.ts         # shared types (корневой экспорт)
