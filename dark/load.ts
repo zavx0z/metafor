@@ -47,7 +47,7 @@ export async function loadMetaAST(address: SRC): Promise<MetaAST> {
     return ast
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Не удалось загрузить meta: ${resolveMetaTsPath(address)} — ${message}`)
+    throw new Error(`Не удалось загрузить meta: ${sourcePath} — ${message}`)
   }
 }
 

@@ -1,7 +1,7 @@
 import { bootDarkDomain } from "./boot.ts"
 import { openSharedDbSqliteBackend } from "../shared/db/index.ts"
 
-bootDarkDomain(() =>
+await bootDarkDomain(() =>
   openSharedDbSqliteBackend({
     filename: "metafor-server.sqlite",
   }),
