@@ -3,18 +3,12 @@ import * as ts from "typescript"
 import {
   ensureRoundTripSchema,
   sectionOrder,
-  type ConditionRow,
-  type EnumVariantRow,
   type FieldPresence,
-  type FieldRow,
   type FieldType,
   type LiteralType,
-  type MetaRow,
   type ProcessBuilder,
   type ProcessEnv,
   type ProcessEnvRow,
-  type ProcessHandlerRow,
-  type ProcessRow,
   type ProcessStep,
   type ReactionRow,
   type SectionName,
@@ -28,18 +22,12 @@ export {
   ensureRoundTripSchema,
   roundTripSchemaSql,
   sectionOrder,
-  type ConditionRow,
-  type EnumVariantRow,
   type FieldPresence,
-  type FieldRow,
   type FieldType,
   type LiteralType,
-  type MetaRow,
   type ProcessBuilder,
   type ProcessEnv,
   type ProcessEnvRow,
-  type ProcessHandlerRow,
-  type ProcessRow,
   type ProcessStep,
   type ReactionRow,
   type SectionName,
@@ -56,7 +44,11 @@ export interface ParseDslModuleToDbOptions {
   filename?: string
 }
 
-export interface ParseDslModuleToDbResult extends MetaRow {}
+export interface ParseDslModuleToDbResult {
+  name: string
+  desc: string | null
+  dev: boolean | null
+}
 
 interface ChainStep {
   name: SectionName
@@ -77,7 +69,7 @@ interface ParsedFieldShape {
   defaultText: string | null
   defaultNumber: string | null
   defaultBoolean: boolean | null
-  enumVariants: Array<Pick<EnumVariantRow, "textValue" | "numberValue">>
+  enumVariants: ParsedEnumVariantValue[]
 }
 
 interface ParsedProcessShape {
@@ -89,7 +81,7 @@ interface ParsedProcessShape {
   descPosition: number | null
   envPosition: number | null
   envs: ProcessEnv[]
-  handlers: Array<Pick<ProcessHandlerRow, "position" | "step" | "code">>
+  handlers: ParsedPendingProcessHandler[]
 }
 
 interface PendingTransition {
@@ -97,7 +89,74 @@ interface PendingTransition {
   stateId: number
   targetStateName: string
   position: number
-  conditions: Array<Omit<ConditionRow, "transitionId">>
+  conditions: ParsedConditionRow[]
+}
+
+interface ParsedMeta {
+  name: string
+  configMultiline: boolean | null
+  desc: string | null
+  descPosition: number | null
+  dev: boolean | null
+  devPosition: number | null
+}
+
+interface ParsedEnumVariantValue {
+  textValue: string | null
+  numberValue: string | null
+}
+
+interface ParsedFieldRow {
+  id: number
+  position: number
+  name: string
+  type: FieldType
+  presence: FieldPresence
+  label: string | null
+  defaultType: LiteralType | null
+  defaultText: string | null
+  defaultNumber: string | null
+  defaultBoolean: boolean | null
+}
+
+interface ParsedEnumVariantRow {
+  fieldId: number
+  position: number
+  textValue: string | null
+  numberValue: string | null
+}
+
+interface ParsedConditionRow {
+  position: number
+  fieldId: number
+  nullValue: boolean
+}
+
+interface ParsedProcessRow {
+  id: number
+  position: number
+  name: string
+  builder: ProcessBuilder
+  gapBefore: number
+  configMultiline: boolean | null
+  label: string | null
+  labelPosition: number | null
+  desc: string | null
+  descPosition: number | null
+  envPosition: number | null
+}
+
+interface ParsedProcessHandlerRow {
+  processId: number
+  position: number
+  step: ProcessStep
+  code: string
+}
+
+interface ParsedPendingProcessHandler {
+  position: number
+  step: ProcessStep
+  code: string
 }
 
 const printer = ts.createPrinter({
@@ -288,7 +347,7 @@ const getCanonicalExportAssignment = (sourceFile: ts.SourceFile) => {
 const parseMetaConfig = (
   node: ts.Expression | undefined,
   sourceFile: ts.SourceFile,
-): Pick<MetaRow, "configMultiline" | "desc" | "descPosition" | "dev" | "devPosition"> => {
+): Pick<ParsedMeta, "configMultiline" | "desc" | "descPosition" | "dev" | "devPosition"> => {
   if (!node) {
     return {
       configMultiline: null,
@@ -409,15 +468,6 @@ const parseLiteralValue = (
     }
   }
 
-  if (node.kind === ts.SyntaxKind.NullKeyword) {
-    return {
-      defaultType: "null",
-      defaultText: null,
-      defaultNumber: null,
-      defaultBoolean: null,
-    }
-  }
-
   if (ts.isArrayLiteralExpression(node) && node.elements.length === 0) {
     return {
       defaultType: "array",
@@ -430,7 +480,7 @@ const parseLiteralValue = (
   throw new Error(`Unsupported field default literal: ${getSourceText(expression, sourceFile)}`)
 }
 
-const parseEnumVariant = (expression: ts.Expression, sourceFile: ts.SourceFile): Pick<EnumVariantRow, "textValue" | "numberValue"> => {
+const parseEnumVariant = (expression: ts.Expression, sourceFile: ts.SourceFile): ParsedEnumVariantValue => {
   const node = unwrapParenthesized(expression)
   if (ts.isStringLiteralLike(node)) {
     return {
@@ -546,7 +596,7 @@ const parseConditions = (
   initializer: ts.Expression,
   fieldIdByName: Map<string, number>,
   sourceFile: ts.SourceFile,
-): Array<Omit<ConditionRow, "transitionId">> => {
+): ParsedConditionRow[] => {
   const expression = unwrapParenthesized(initializer)
   if (!ts.isObjectLiteralExpression(expression)) {
     throw new Error(`Transition conditions must be an object literal, received ${getSourceText(initializer, sourceFile)}`)
@@ -720,7 +770,7 @@ const parseProcessInitializer = (
   }
 
   const config = parseProcessConfig(current.arguments[0], sourceFile)
-  const handlers: Array<Pick<ProcessHandlerRow, "position" | "step" | "code">> = []
+  const handlers: ParsedPendingProcessHandler[] = []
   const seenSteps = new Set<ProcessStep>()
 
   for (const [position, stepCall] of stepCalls.entries()) {
@@ -729,6 +779,14 @@ const parseProcessInitializer = (
     }
 
     seenSteps.add(stepCall.step)
+
+    if (builder === "process" && stepCall.step === "before") {
+      throw new Error("process() does not support before(...)")
+    }
+
+    if (builder === "destroy" && stepCall.step !== "before") {
+      throw new Error(`destroy() only supports before(...), received ${stepCall.step}(...)`)
+    }
 
     if (stepCall.call.arguments.length !== 1 || !stepCall.call.arguments[0]) {
       throw new Error(`Process step ${stepCall.step} expects exactly one handler`)
@@ -779,20 +837,20 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
     throw new Error("MetaFor first argument must be a string literal")
   }
 
-  const metaRow: MetaRow = {
+  const metaRow: ParsedMeta = {
     name: metaNameNode.text,
     ...parseMetaConfig(metaConfigNode, sourceFile),
   }
 
   const sectionRows: SectionRow[] = []
-  const fieldRows: FieldRow[] = []
-  const enumVariantRows: EnumVariantRow[] = []
+  const fieldRows: ParsedFieldRow[] = []
+  const enumVariantRows: ParsedEnumVariantRow[] = []
   const stateRows: StateRow[] = []
   const transitionCommentRows: TransitionCommentRow[] = []
   const pendingTransitions: PendingTransition[] = []
-  const processRows: ProcessRow[] = []
+  const processRows: ParsedProcessRow[] = []
   const processEnvRows: ProcessEnvRow[] = []
-  const processHandlerRows: ProcessHandlerRow[] = []
+  const processHandlerRows: ParsedProcessHandlerRow[] = []
   const reactionRows: ReactionRow[] = []
   const fieldIdByName = new Map<string, number>()
 
@@ -994,7 +1052,7 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
 
   const stateIdByName = new Map(stateRows.map((stateRow) => [stateRow.name, stateRow.id]))
   const transitionRows: TransitionRow[] = []
-  const conditionRows: ConditionRow[] = []
+  const conditionRows: Array<{ transitionId: number; position: number; fieldId: number; nullValue: boolean }> = []
 
   for (const pendingTransition of pendingTransitions) {
     const targetStateId = stateIdByName.get(pendingTransition.targetStateName)
@@ -1019,35 +1077,107 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
     }
   }
 
+  const getEnumDefaultVariantPosition = (fieldRow: ParsedFieldRow) => {
+    if (fieldRow.type !== "enum") {
+      throw new Error(`Enum default lookup is only valid for enum fields, received ${fieldRow.name}`)
+    }
+
+    const enumVariants = enumVariantRows.filter((enumVariantRow) => enumVariantRow.fieldId === fieldRow.id)
+    if (fieldRow.defaultType === "string") {
+      const variant = enumVariants.find((enumVariantRow) => enumVariantRow.textValue === fieldRow.defaultText)
+      if (!variant) throw new Error(`Required enum default is not present in enum variants for field ${fieldRow.name}`)
+      return variant.position
+    }
+
+    if (fieldRow.defaultType === "number") {
+      const variant = enumVariants.find((enumVariantRow) => enumVariantRow.numberValue === fieldRow.defaultNumber)
+      if (!variant) throw new Error(`Required enum default is not present in enum variants for field ${fieldRow.name}`)
+      return variant.position
+    }
+
+    throw new Error(`Unsupported required enum default for field ${fieldRow.name}`)
+  }
+
   const writeAll = options.db.transaction(() => {
     options.db.exec(`
+      DELETE FROM destroy_befores;
+      DELETE FROM process_errors;
+      DELETE FROM process_successes;
+      DELETE FROM process_actions;
+      DELETE FROM process_handler_entries;
+      DELETE FROM process_envs;
+      DELETE FROM process_env_lists;
+      DELETE FROM process_descs;
+      DELETE FROM process_labels;
+      DELETE FROM process_config_entries;
+      DELETE FROM destroy_processes;
+      DELETE FROM action_processes;
+      DELETE FROM null_conditions;
       DELETE FROM conditions;
       DELETE FROM transitions;
       DELETE FROM transition_comments;
+      DELETE FROM state_entries;
       DELETE FROM states;
+      DELETE FROM required_enum_defaults;
+      DELETE FROM enum_number_variants;
+      DELETE FROM enum_text_variants;
       DELETE FROM enum_variants;
+      DELETE FROM required_array_defaults;
+      DELETE FROM required_boolean_defaults;
+      DELETE FROM required_number_defaults;
+      DELETE FROM required_string_defaults;
+      DELETE FROM required_defaults;
+      DELETE FROM required_fields;
+      DELETE FROM optional_fields;
+      DELETE FROM enum_fields;
+      DELETE FROM array_fields;
+      DELETE FROM boolean_fields;
+      DELETE FROM number_fields;
+      DELETE FROM string_fields;
       DELETE FROM fields;
-      DELETE FROM process_handlers;
-      DELETE FROM process_envs;
       DELETE FROM processes;
       DELETE FROM reactions;
       DELETE FROM sections;
+      DELETE FROM meta_devs;
+      DELETE FROM meta_descs;
+      DELETE FROM meta_config_entries;
       DELETE FROM meta;
     `)
 
     options.db
       .query(
-        `INSERT INTO meta (id, name, configMultiline, desc, descPosition, dev, devPosition)
-         VALUES (1, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO meta (id, name, configMultiline)
+         VALUES (1, ?, ?)`,
       )
       .run(
         metaRow.name,
         metaRow.configMultiline === null ? null : Number(metaRow.configMultiline),
-        metaRow.desc,
-        metaRow.descPosition,
-        metaRow.dev === null ? null : Number(metaRow.dev),
-        metaRow.devPosition,
       )
+
+    const insertMetaConfigEntry = options.db.query(
+      `INSERT INTO meta_config_entries (position)
+       VALUES (?)`,
+    )
+
+    if (metaRow.desc !== null && metaRow.descPosition !== null) {
+      insertMetaConfigEntry.run(metaRow.descPosition)
+      options.db
+        .query(
+          `INSERT INTO meta_descs (position, value)
+           VALUES (?, ?)`,
+        )
+        .run(metaRow.descPosition, metaRow.desc)
+    }
+
+    if (metaRow.dev !== null && metaRow.devPosition !== null) {
+      insertMetaConfigEntry.run(metaRow.devPosition)
+      options.db
+        .query(
+          `INSERT INTO meta_devs (position, value)
+           VALUES (?, ?)`,
+        )
+        .run(metaRow.devPosition, Number(metaRow.dev))
+    }
 
     const insertSection = options.db.query(
       `INSERT INTO sections (name, params, code)
@@ -1058,35 +1188,129 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
     }
 
     const insertField = options.db.query(
-      `INSERT INTO fields (id, position, name, type, presence, label, defaultType, defaultText, defaultNumber, defaultBoolean)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO fields (id, position, name)
+       VALUES (?, ?, ?)`,
     )
+    const insertStringField = options.db.query(`INSERT INTO string_fields (fieldId) VALUES (?)`)
+    const insertNumberField = options.db.query(`INSERT INTO number_fields (fieldId) VALUES (?)`)
+    const insertBooleanField = options.db.query(`INSERT INTO boolean_fields (fieldId) VALUES (?)`)
+    const insertArrayField = options.db.query(`INSERT INTO array_fields (fieldId) VALUES (?)`)
+    const insertEnumField = options.db.query(`INSERT INTO enum_fields (fieldId) VALUES (?)`)
+    const insertOptionalField = options.db.query(`INSERT INTO optional_fields (fieldId, label) VALUES (?, ?)`)
+    const insertRequiredField = options.db.query(`INSERT INTO required_fields (fieldId, label) VALUES (?, ?)`)
+    const insertRequiredDefault = options.db.query(`INSERT INTO required_defaults (fieldId) VALUES (?)`)
+    const insertRequiredStringDefault = options.db.query(`INSERT INTO required_string_defaults (fieldId, value) VALUES (?, ?)`)
+    const insertRequiredNumberDefault = options.db.query(`INSERT INTO required_number_defaults (fieldId, value) VALUES (?, ?)`)
+    const insertRequiredBooleanDefault = options.db.query(`INSERT INTO required_boolean_defaults (fieldId, value) VALUES (?, ?)`)
+    const insertRequiredArrayDefault = options.db.query(`INSERT INTO required_array_defaults (fieldId) VALUES (?)`)
+    const insertRequiredEnumDefault = options.db.query(
+      `INSERT INTO required_enum_defaults (fieldId, variantPosition)
+       VALUES (?, ?)`,
+    )
+    const requiredEnumDefaultRows: Array<{ fieldId: number; variantPosition: number }> = []
     for (const fieldRow of fieldRows) {
-      insertField.run(
-        fieldRow.id,
-        fieldRow.position,
-        fieldRow.name,
-        fieldRow.type,
-        fieldRow.presence,
-        fieldRow.label,
-        fieldRow.defaultType,
-        fieldRow.defaultText,
-        fieldRow.defaultNumber,
-        fieldRow.defaultBoolean === null ? null : Number(fieldRow.defaultBoolean),
-      )
+      insertField.run(fieldRow.id, fieldRow.position, fieldRow.name)
+
+      switch (fieldRow.type) {
+        case "string":
+          insertStringField.run(fieldRow.id)
+          break
+        case "number":
+          insertNumberField.run(fieldRow.id)
+          break
+        case "boolean":
+          insertBooleanField.run(fieldRow.id)
+          break
+        case "array":
+          insertArrayField.run(fieldRow.id)
+          break
+        case "enum":
+          insertEnumField.run(fieldRow.id)
+          break
+      }
+
+      if (fieldRow.presence === "optional") {
+        insertOptionalField.run(fieldRow.id, fieldRow.label)
+        continue
+      }
+
+      if (fieldRow.presence !== "required") continue
+
+      insertRequiredField.run(fieldRow.id, fieldRow.label)
+      insertRequiredDefault.run(fieldRow.id)
+
+      switch (fieldRow.type) {
+        case "string":
+          if (fieldRow.defaultType !== "string" || fieldRow.defaultText === null) {
+            throw new Error(`Required string field ${fieldRow.name} must have a string default`)
+          }
+
+          insertRequiredStringDefault.run(fieldRow.id, fieldRow.defaultText)
+          break
+        case "number":
+          if (fieldRow.defaultType !== "number" || fieldRow.defaultNumber === null) {
+            throw new Error(`Required number field ${fieldRow.name} must have a number default`)
+          }
+
+          insertRequiredNumberDefault.run(fieldRow.id, fieldRow.defaultNumber)
+          break
+        case "boolean":
+          if (fieldRow.defaultType !== "boolean" || fieldRow.defaultBoolean === null) {
+            throw new Error(`Required boolean field ${fieldRow.name} must have a boolean default`)
+          }
+
+          insertRequiredBooleanDefault.run(fieldRow.id, Number(fieldRow.defaultBoolean))
+          break
+        case "array":
+          if (fieldRow.defaultType !== "array") {
+            throw new Error(`Required array field ${fieldRow.name} must have an empty array default`)
+          }
+
+          insertRequiredArrayDefault.run(fieldRow.id)
+          break
+        case "enum":
+          requiredEnumDefaultRows.push({
+            fieldId: fieldRow.id,
+            variantPosition: getEnumDefaultVariantPosition(fieldRow),
+          })
+          break
+      }
     }
 
     const insertEnumVariant = options.db.query(
-      `INSERT INTO enum_variants (fieldId, position, textValue, numberValue)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO enum_variants (fieldId, position)
+       VALUES (?, ?)`,
+    )
+    const insertEnumTextVariant = options.db.query(
+      `INSERT INTO enum_text_variants (fieldId, position, value)
+       VALUES (?, ?, ?)`,
+    )
+    const insertEnumNumberVariant = options.db.query(
+      `INSERT INTO enum_number_variants (fieldId, position, value)
+       VALUES (?, ?, ?)`,
     )
     for (const enumVariantRow of enumVariantRows) {
-      insertEnumVariant.run(enumVariantRow.fieldId, enumVariantRow.position, enumVariantRow.textValue, enumVariantRow.numberValue)
+      insertEnumVariant.run(enumVariantRow.fieldId, enumVariantRow.position)
+      if (enumVariantRow.textValue !== null) {
+        insertEnumTextVariant.run(enumVariantRow.fieldId, enumVariantRow.position, enumVariantRow.textValue)
+      } else if (enumVariantRow.numberValue !== null) {
+        insertEnumNumberVariant.run(enumVariantRow.fieldId, enumVariantRow.position, enumVariantRow.numberValue)
+      } else {
+        throw new Error(`Enum variant ${enumVariantRow.fieldId}:${enumVariantRow.position} has no typed value`)
+      }
+    }
+
+    for (const requiredEnumDefaultRow of requiredEnumDefaultRows) {
+      insertRequiredEnumDefault.run(requiredEnumDefaultRow.fieldId, requiredEnumDefaultRow.variantPosition)
     }
 
     const insertState = options.db.query(
       `INSERT INTO states (id, position, name)
        VALUES (?, ?, ?)`,
+    )
+    const insertStateEntry = options.db.query(
+      `INSERT INTO state_entries (stateId, position)
+       VALUES (?, ?)`,
     )
     for (const stateRow of stateRows) {
       insertState.run(stateRow.id, stateRow.position, stateRow.name)
@@ -1097,6 +1321,7 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
        VALUES (?, ?, ?, ?)`,
     )
     for (const transitionCommentRow of transitionCommentRows) {
+      insertStateEntry.run(transitionCommentRow.stateId, transitionCommentRow.position)
       insertTransitionComment.run(
         transitionCommentRow.id,
         transitionCommentRow.stateId,
@@ -1110,35 +1335,65 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
        VALUES (?, ?, ?, ?)`,
     )
     for (const transitionRow of transitionRows) {
+      insertStateEntry.run(transitionRow.stateId, transitionRow.position)
       insertTransition.run(transitionRow.id, transitionRow.stateId, transitionRow.targetStateId, transitionRow.position)
     }
 
     const insertCondition = options.db.query(
-      `INSERT INTO conditions (transitionId, position, fieldId, nullValue)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO conditions (transitionId, position, fieldId)
+       VALUES (?, ?, ?)`,
+    )
+    const insertNullCondition = options.db.query(
+      `INSERT INTO null_conditions (transitionId, position, value)
+       VALUES (?, ?, ?)`,
     )
     for (const conditionRow of conditionRows) {
-      insertCondition.run(conditionRow.transitionId, conditionRow.position, conditionRow.fieldId, Number(conditionRow.nullValue))
+      insertCondition.run(conditionRow.transitionId, conditionRow.position, conditionRow.fieldId)
+      insertNullCondition.run(conditionRow.transitionId, conditionRow.position, Number(conditionRow.nullValue))
     }
 
     const insertProcess = options.db.query(
-      `INSERT INTO processes (id, position, name, builder, gapBefore, configMultiline, label, labelPosition, desc, descPosition, envPosition)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO processes (id, position, name, gapBefore, configMultiline)
+       VALUES (?, ?, ?, ?, ?)`,
     )
+    const insertActionProcess = options.db.query(`INSERT INTO action_processes (processId) VALUES (?)`)
+    const insertDestroyProcess = options.db.query(`INSERT INTO destroy_processes (processId) VALUES (?)`)
+    const insertProcessConfigEntry = options.db.query(
+      `INSERT INTO process_config_entries (processId, position)
+       VALUES (?, ?)`,
+    )
+    const insertProcessLabel = options.db.query(`INSERT INTO process_labels (processId, position, value) VALUES (?, ?, ?)`)
+    const insertProcessDesc = options.db.query(`INSERT INTO process_descs (processId, position, value) VALUES (?, ?, ?)`)
+    const insertProcessEnvList = options.db.query(`INSERT INTO process_env_lists (processId, position) VALUES (?, ?)`)
     for (const processRow of processRows) {
       insertProcess.run(
         processRow.id,
         processRow.position,
         processRow.name,
-        processRow.builder,
         processRow.gapBefore,
         processRow.configMultiline === null ? null : Number(processRow.configMultiline),
-        processRow.label,
-        processRow.labelPosition,
-        processRow.desc,
-        processRow.descPosition,
-        processRow.envPosition,
       )
+
+      if (processRow.builder === "process") {
+        insertActionProcess.run(processRow.id)
+      } else {
+        insertDestroyProcess.run(processRow.id)
+      }
+
+      if (processRow.label !== null && processRow.labelPosition !== null) {
+        insertProcessConfigEntry.run(processRow.id, processRow.labelPosition)
+        insertProcessLabel.run(processRow.id, processRow.labelPosition, processRow.label)
+      }
+
+      if (processRow.desc !== null && processRow.descPosition !== null) {
+        insertProcessConfigEntry.run(processRow.id, processRow.descPosition)
+        insertProcessDesc.run(processRow.id, processRow.descPosition, processRow.desc)
+      }
+
+      if (processRow.envPosition !== null) {
+        insertProcessConfigEntry.run(processRow.id, processRow.envPosition)
+        insertProcessEnvList.run(processRow.id, processRow.envPosition)
+      }
     }
 
     const insertProcessEnv = options.db.query(
@@ -1149,12 +1404,42 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
       insertProcessEnv.run(processEnvRow.processId, processEnvRow.position, processEnvRow.env)
     }
 
-    const insertProcessHandler = options.db.query(
-      `INSERT INTO process_handlers (processId, position, step, code)
-       VALUES (?, ?, ?, ?)`,
+    const insertProcessAction = options.db.query(
+      `INSERT INTO process_actions (processId, position, code)
+       VALUES (?, ?, ?)`,
+    )
+    const insertProcessHandlerEntry = options.db.query(
+      `INSERT INTO process_handler_entries (processId, position)
+       VALUES (?, ?)`,
+    )
+    const insertProcessSuccess = options.db.query(
+      `INSERT INTO process_successes (processId, position, code)
+       VALUES (?, ?, ?)`,
+    )
+    const insertProcessError = options.db.query(
+      `INSERT INTO process_errors (processId, position, code)
+       VALUES (?, ?, ?)`,
+    )
+    const insertDestroyBefore = options.db.query(
+      `INSERT INTO destroy_befores (processId, position, code)
+       VALUES (?, ?, ?)`,
     )
     for (const processHandlerRow of processHandlerRows) {
-      insertProcessHandler.run(processHandlerRow.processId, processHandlerRow.position, processHandlerRow.step, processHandlerRow.code)
+      insertProcessHandlerEntry.run(processHandlerRow.processId, processHandlerRow.position)
+      switch (processHandlerRow.step) {
+        case "action":
+          insertProcessAction.run(processHandlerRow.processId, processHandlerRow.position, processHandlerRow.code)
+          break
+        case "success":
+          insertProcessSuccess.run(processHandlerRow.processId, processHandlerRow.position, processHandlerRow.code)
+          break
+        case "error":
+          insertProcessError.run(processHandlerRow.processId, processHandlerRow.position, processHandlerRow.code)
+          break
+        case "before":
+          insertDestroyBefore.run(processHandlerRow.processId, processHandlerRow.position, processHandlerRow.code)
+          break
+      }
     }
 
     const insertReaction = options.db.query(
@@ -1167,5 +1452,9 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
   })
 
   writeAll()
-  return metaRow
+  return {
+    name: metaRow.name,
+    desc: metaRow.desc,
+    dev: metaRow.dev,
+  }
 }
