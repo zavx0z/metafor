@@ -5,13 +5,13 @@
     "": {
       "name": "metafor",
       "devDependencies": {
-        "@types/bun": "^1.3.10",
-        "@types/node": "^25.3.4",
-        "bun-webgpu": "^0.1.5",
+        "@types/bun": "^1.3.11",
+        "@types/node": "^25.5.0",
+        "bun-webgpu": "^0.1.6",
         "dts-bundle-generator": "^9.5.1",
-        "fake-indexeddb": "^6.2.4",
+        "fake-indexeddb": "^6.2.5",
         "markdownlint-cli2": "^0.21.0",
-        "typedoc": "^0.28.17",
+        "typedoc": "^0.28.18",
         "typedoc-plugin-merge-modules": "^7.0.0",
       },
       "peerDependencies": {
@@ -730,6 +730,20 @@
         "@zavx0z/context": "^2.3.0",
       },
     },
+    "metafor/dsl-emit": {
+      "name": "@metafor/dsl-emit",
+      "dependencies": {
+        "@metafor/dsl-parse": "workspace:*",
+        "prettier": "^3.6.2",
+        "typescript": "^5.9.3",
+      },
+    },
+    "metafor/dsl-parse": {
+      "name": "@metafor/dsl-parse",
+      "dependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
     "metafor/template": {
       "name": "@metafor/template",
       "version": "2.6.2",
@@ -783,6 +797,10 @@
     "@metafor/dark": ["@metafor/dark@workspace:dark"],
 
     "@metafor/dsl": ["@metafor/dsl@workspace:metafor/dsl"],
+
+    "@metafor/dsl-emit": ["@metafor/dsl-emit@workspace:metafor/dsl-emit"],
+
+    "@metafor/dsl-parse": ["@metafor/dsl-parse@workspace:metafor/dsl-parse"],
 
     "@metafor/template": ["@metafor/template@workspace:metafor/template"],
 
@@ -1249,6 +1267,8 @@
     "picocolors": ["picocolors@1.1.1", "https://registry.yarnpkg.com/picocolors/-/picocolors-1.1.1.tgz", {}, "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="],
 
     "picomatch": ["picomatch@2.3.1", "", {}, "sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA=="],
+
+    "prettier": ["prettier@3.8.1", "", { "bin": { "prettier": "bin/prettier.cjs" } }, "sha512-UOnG6LftzbdaHZcKoPFtOcCKztrQ57WkHDeRD9t/PTQtmT0NHSeWWepj6pS0z/N7+08BHFDQVUrfmfMRcZwbMg=="],
 
     "progress": ["progress@2.0.3", "https://registry.yarnpkg.com/progress/-/progress-2.0.3.tgz", {}, "sha512-7PiHtLll5LdnKIMw100I+8xJXR5gW2QwWYkT6iJva0bXitZKa/XMrSbdmg3r2Xnaidz9Qumd0VPaMrZlF9V9sA=="],
 
