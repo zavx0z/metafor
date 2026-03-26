@@ -8,11 +8,12 @@ import type {
   MatterWimpResult,
 } from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
-import { resolveContinuationSources, type DarkGravityProtocol } from "@dark/gravity"
+import { type DarkGravityProtocol } from "@dark/gravity/channel.ts"
 import type { SharedDbMaterializationWriter } from "@shared/db"
 import { Axion, Fuzzy, Macho, materializeFields, resolveWimpContinuation, type Meta, Wimp } from "@dark/strong"
 import { loadMeta, loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
+import { resolveContinuationSources } from "@dark/gravity/gravity.ts"
 
 interface MatterOptions {
   sharedDbWriter?: SharedDbMaterializationWriter

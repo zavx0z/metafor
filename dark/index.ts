@@ -12,5 +12,3 @@ export type {
   ProtocolChannelOptions,
   ValueProtocolPatch,
 } from "./em/index.ts"
-export { createDarkGravityProtocol, resolveContinuationSources } from "./gravity/index.ts"
-export type { DarkGravityProtocol, GravityProtocolPatch, GravitonMessage } from "./gravity/index.ts"
