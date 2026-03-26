@@ -1,174 +1,231 @@
 import type { Database } from "bun:sqlite"
 
-export const dslSectionOrder = ["fields", "superposition", "mass", "processes", "reactions", "matter", "bulk"] as const
+export const sectionOrder = ["fields", "superposition", "mass", "processes", "reactions", "matter", "bulk"] as const
 
-export type DslSectionName = (typeof dslSectionOrder)[number]
+export type SectionName = (typeof sectionOrder)[number]
 
-export type DslBodyKind =
-  | "arrow-object"
-  | "object"
-  | "expression"
-  | "arrow-array"
-  | "optional-expression"
+export type FieldType = "string" | "boolean" | "number" | "array" | "enum"
 
-export type DslFieldKind = "string" | "boolean" | "number" | "enum"
+export type FieldPresence = "optional" | "required" | null
 
-export type DslFieldModifierKind = "optional" | "required" | null
+export type LiteralType = "string" | "number" | "boolean" | "array" | "null"
 
-export type DslStateEntryKind = "transition" | "comment"
+export type ProcessBuilder = "process" | "destroy"
 
-export type DslProcessKind = "process" | "destroy"
+export type ProcessEnv = "browser" | "node" | "worker" | "server" | "any"
 
-export interface DslModuleRow {
-  moduleKey: string
-  sourcePath: string | null
-  metaName: string
-  metaConfigSource: string | null
+export type ProcessStep = "action" | "success" | "error" | "before"
+
+export interface MetaRow {
+  name: string
+  configMultiline: boolean | null
+  desc: string | null
+  descPosition: number | null
+  dev: boolean | null
+  devPosition: number | null
 }
 
-export interface DslSectionRow {
-  moduleKey: string
-  sectionName: DslSectionName
-  sectionOrder: number
-  bodyKind: DslBodyKind
-  paramsSource: string | null
-  argumentSource: string | null
+export interface SectionRow {
+  name: SectionName
+  params: string | null
+  code: string | null
 }
 
-export interface DslFieldRow {
-  moduleKey: string
-  fieldOrder: number
-  fieldKey: string
-  fieldKind: DslFieldKind
-  enumValuesJson: string | null
-  modifierKind: DslFieldModifierKind
-  modifierArgSource: string | null
+export interface FieldRow {
+  id: number
+  position: number
+  name: string
+  type: FieldType
+  presence: FieldPresence
+  label: string | null
+  defaultType: LiteralType | null
+  defaultText: string | null
+  defaultNumber: string | null
+  defaultBoolean: boolean | null
 }
 
-export interface DslStateRow {
-  moduleKey: string
-  stateOrder: number
-  stateName: string
+export interface EnumVariantRow {
+  fieldId: number
+  position: number
+  textValue: string | null
+  numberValue: string | null
 }
 
-export interface DslStateEntryRow {
-  moduleKey: string
-  stateOrder: number
-  entryOrder: number
-  entryKind: DslStateEntryKind
-  targetState: string | null
-  conditionSource: string | null
-  commentSource: string | null
+export interface StateRow {
+  id: number
+  position: number
+  name: string
 }
 
-export interface DslProcessRow {
-  moduleKey: string
-  processOrder: number
-  processKey: string
-  processKind: DslProcessKind
+export interface TransitionCommentRow {
+  id: number
+  stateId: number
+  position: number
+  text: string
+}
+
+export interface TransitionRow {
+  id: number
+  stateId: number
+  targetStateId: number
+  position: number
+}
+
+export interface ConditionRow {
+  transitionId: number
+  position: number
+  fieldId: number
+  nullValue: boolean
+}
+
+export interface ProcessRow {
+  id: number
+  position: number
+  name: string
+  builder: ProcessBuilder
   gapBefore: number
-  configSource: string | null
-  actionSource: string | null
-  successSource: string | null
-  errorSource: string | null
-  beforeSource: string | null
+  configMultiline: boolean | null
+  label: string | null
+  labelPosition: number | null
+  desc: string | null
+  descPosition: number | null
+  envPosition: number | null
 }
 
-export interface DslReactionRow {
-  moduleKey: string
-  reactionOrder: number
-  reactionSource: string
+export interface ProcessEnvRow {
+  processId: number
+  position: number
+  env: ProcessEnv
 }
 
-export const dslRoundTripSchemaSql = `
+export interface ProcessHandlerRow {
+  processId: number
+  position: number
+  step: ProcessStep
+  code: string
+}
+
+export interface ReactionRow {
+  id: number
+  position: number
+  code: string
+}
+
+export const roundTripSchemaSql = `
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS dsl_modules (
-  moduleKey TEXT PRIMARY KEY,
-  sourcePath TEXT,
-  metaName TEXT NOT NULL,
-  metaConfigSource TEXT
+CREATE TABLE IF NOT EXISTS meta (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  name TEXT NOT NULL,
+  configMultiline INTEGER,
+  desc TEXT,
+  descPosition INTEGER,
+  dev INTEGER,
+  devPosition INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS dsl_imports (
-  moduleKey TEXT NOT NULL,
-  importOrder INTEGER NOT NULL,
-  importSource TEXT NOT NULL,
-  PRIMARY KEY (moduleKey, importOrder),
-  FOREIGN KEY (moduleKey) REFERENCES dsl_modules(moduleKey) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS sections (
+  name TEXT PRIMARY KEY,
+  params TEXT,
+  code TEXT
 );
 
-CREATE TABLE IF NOT EXISTS dsl_sections (
-  moduleKey TEXT NOT NULL,
-  sectionName TEXT NOT NULL,
-  sectionOrder INTEGER NOT NULL,
-  bodyKind TEXT NOT NULL,
-  paramsSource TEXT,
-  argumentSource TEXT,
-  PRIMARY KEY (moduleKey, sectionName),
-  FOREIGN KEY (moduleKey) REFERENCES dsl_modules(moduleKey) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS fields (
+  id INTEGER PRIMARY KEY,
+  position INTEGER NOT NULL UNIQUE,
+  name TEXT NOT NULL UNIQUE,
+  type TEXT NOT NULL,
+  presence TEXT,
+  label TEXT,
+  defaultType TEXT,
+  defaultText TEXT,
+  defaultNumber TEXT,
+  defaultBoolean INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS dsl_fields (
-  moduleKey TEXT NOT NULL,
-  fieldOrder INTEGER NOT NULL,
-  fieldKey TEXT NOT NULL,
-  fieldKind TEXT NOT NULL,
-  enumValuesJson TEXT,
-  modifierKind TEXT,
-  modifierArgSource TEXT,
-  PRIMARY KEY (moduleKey, fieldOrder),
-  FOREIGN KEY (moduleKey) REFERENCES dsl_modules(moduleKey) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS enum_variants (
+  fieldId INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  textValue TEXT,
+  numberValue TEXT,
+  PRIMARY KEY (fieldId, position),
+  FOREIGN KEY (fieldId) REFERENCES fields(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS dsl_states (
-  moduleKey TEXT NOT NULL,
-  stateOrder INTEGER NOT NULL,
-  stateName TEXT NOT NULL,
-  PRIMARY KEY (moduleKey, stateOrder),
-  FOREIGN KEY (moduleKey) REFERENCES dsl_modules(moduleKey) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS states (
+  id INTEGER PRIMARY KEY,
+  position INTEGER NOT NULL UNIQUE,
+  name TEXT NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS dsl_state_entries (
-  moduleKey TEXT NOT NULL,
-  stateOrder INTEGER NOT NULL,
-  entryOrder INTEGER NOT NULL,
-  entryKind TEXT NOT NULL,
-  targetState TEXT,
-  conditionSource TEXT,
-  commentSource TEXT,
-  PRIMARY KEY (moduleKey, stateOrder, entryOrder),
-  FOREIGN KEY (moduleKey, stateOrder) REFERENCES dsl_states(moduleKey, stateOrder) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS transition_comments (
+  id INTEGER PRIMARY KEY,
+  stateId INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  UNIQUE (stateId, position),
+  FOREIGN KEY (stateId) REFERENCES states(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS dsl_processes (
-  moduleKey TEXT NOT NULL,
-  processOrder INTEGER NOT NULL,
-  processKey TEXT NOT NULL,
-  processKind TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS transitions (
+  id INTEGER PRIMARY KEY,
+  stateId INTEGER NOT NULL,
+  targetStateId INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  UNIQUE (stateId, position),
+  FOREIGN KEY (stateId) REFERENCES states(id) ON DELETE CASCADE,
+  FOREIGN KEY (targetStateId) REFERENCES states(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS conditions (
+  transitionId INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  fieldId INTEGER NOT NULL,
+  nullValue INTEGER NOT NULL,
+  PRIMARY KEY (transitionId, position),
+  FOREIGN KEY (transitionId) REFERENCES transitions(id) ON DELETE CASCADE,
+  FOREIGN KEY (fieldId) REFERENCES fields(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS processes (
+  id INTEGER PRIMARY KEY,
+  position INTEGER NOT NULL UNIQUE,
+  name TEXT NOT NULL UNIQUE,
+  builder TEXT NOT NULL,
   gapBefore INTEGER NOT NULL,
-  configSource TEXT,
-  actionSource TEXT,
-  successSource TEXT,
-  errorSource TEXT,
-  beforeSource TEXT,
-  PRIMARY KEY (moduleKey, processOrder),
-  FOREIGN KEY (moduleKey) REFERENCES dsl_modules(moduleKey) ON DELETE CASCADE
+  configMultiline INTEGER,
+  label TEXT,
+  labelPosition INTEGER,
+  desc TEXT,
+  descPosition INTEGER,
+  envPosition INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS dsl_reactions (
-  moduleKey TEXT NOT NULL,
-  reactionOrder INTEGER NOT NULL,
-  reactionSource TEXT NOT NULL,
-  PRIMARY KEY (moduleKey, reactionOrder),
-  FOREIGN KEY (moduleKey) REFERENCES dsl_modules(moduleKey) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS process_envs (
+  processId INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  env TEXT NOT NULL,
+  PRIMARY KEY (processId, position),
+  FOREIGN KEY (processId) REFERENCES processes(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS dsl_fields_by_key ON dsl_fields (moduleKey, fieldKey);
-CREATE INDEX IF NOT EXISTS dsl_states_by_name ON dsl_states (moduleKey, stateName);
-CREATE INDEX IF NOT EXISTS dsl_processes_by_key ON dsl_processes (moduleKey, processKey);
+CREATE TABLE IF NOT EXISTS process_handlers (
+  processId INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  step TEXT NOT NULL,
+  code TEXT NOT NULL,
+  PRIMARY KEY (processId, step),
+  UNIQUE (processId, position),
+  FOREIGN KEY (processId) REFERENCES processes(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS reactions (
+  id INTEGER PRIMARY KEY,
+  position INTEGER NOT NULL UNIQUE,
+  code TEXT NOT NULL
+);
 `
 
-export const ensureDslRoundTripSchema = (database: Database) => {
-  database.exec(dslRoundTripSchemaSql)
+export const ensureRoundTripSchema = (database: Database) => {
+  database.exec(roundTripSchemaSql)
 }

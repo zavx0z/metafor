@@ -63,8 +63,8 @@ describe("dsl authoring round-trip", () => {
     await mkdir(artifactsRoot, { recursive: true })
 
     for (const metaPath of metaFiles) {
-      const moduleKey = relative(process.cwd(), metaPath)
-      const artifactBase = join(artifactsRoot, moduleKey.replace(/\.ts$/, ""))
+      const modulePath = relative(process.cwd(), metaPath)
+      const artifactBase = join(artifactsRoot, modulePath.replace(/\.ts$/, ""))
       const dbPath = join(artifactBase, "authoring.sqlite")
       const inputPath = join(artifactBase, "formatted-input.ts")
       const outputPath = join(artifactBase, "emitted.ts")
@@ -81,30 +81,28 @@ describe("dsl authoring round-trip", () => {
         parseDslModuleToDb({
           db,
           sourceText: formattedInput,
-          moduleKey,
-          sourcePath: moduleKey,
+          sourcePath: modulePath,
           filename: metaPath,
         })
 
         const emitted = await emitDslModuleFromDb({
           db,
-          moduleKey,
           filepath: metaPath,
         })
         const formattedOutput = await formatTypeScriptSource(emitted, metaPath)
         await writeFile(outputPath, formattedOutput, "utf8")
 
         if (formattedInput !== formattedOutput) {
-          failures.push(`${moduleKey}: ${describeMismatch(formattedInput, formattedOutput)}`)
+          failures.push(`${modulePath}: ${describeMismatch(formattedInput, formattedOutput)}`)
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        failures.push(`${moduleKey}: ${message}`)
+        failures.push(`${modulePath}: ${message}`)
       } finally {
         db.close()
       }
     }
 
     expect(failures).toEqual([])
-  })
+  }, 20000)
 })

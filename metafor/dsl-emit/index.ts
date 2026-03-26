@@ -2,19 +2,24 @@ import type { Database } from "bun:sqlite"
 import * as prettier from "prettier"
 import * as ts from "typescript"
 import {
-  ensureDslRoundTripSchema,
-  type DslFieldRow,
-  type DslProcessRow,
-  type DslReactionRow,
-  type DslSectionName,
-  type DslSectionRow,
-  type DslStateEntryRow,
-  type DslStateRow,
+  ensureRoundTripSchema,
+  type ConditionRow,
+  type EnumVariantRow,
+  type FieldRow,
+  type MetaRow,
+  type ProcessEnvRow,
+  type ProcessHandlerRow,
+  type ProcessRow,
+  type ReactionRow,
+  type SectionName,
+  type SectionRow,
+  type StateRow,
+  type TransitionCommentRow,
+  type TransitionRow,
 } from "@metafor/dsl-parse"
 
 export interface EmitDslModuleFromDbOptions {
   db: Database
-  moduleKey: string
   format?: boolean
   filepath?: string
 }
@@ -34,13 +39,12 @@ const indentBlock = (source: string, spaces: number) => {
 
 const identifierPattern = /^[$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*$/u
 
-const renderPropertyName = (name: string) =>
-  identifierPattern.test(name) ? name : JSON.stringify(name)
+const renderPropertyName = (name: string) => (identifierPattern.test(name) ? name : JSON.stringify(name))
 
-const wrapArrowParams = (paramsSource: string | null) => `(${paramsSource ?? ""})`
+const wrapArrowParams = (params: string | null) => `(${params ?? ""})`
 
-const parseParameterNames = (paramsSource: string | null) =>
-  (paramsSource ?? "")
+const parseParameterNames = (params: string | null) =>
+  (params ?? "")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean)
@@ -55,71 +59,245 @@ const renderArrayLiteral = (elementSources: string[]) => {
   return `[\n${elementSources.map((elementSource) => indentBlock(elementSource, 2)).join("\n")}\n]`
 }
 
-const renderFieldProperty = (fieldRow: DslFieldRow, fieldFactoryName: string) => {
-  let source =
-    fieldRow.fieldKind === "enum"
-      ? `${fieldFactoryName}.enum(${JSON.parse(fieldRow.enumValuesJson ?? "[]").map((value: string) => JSON.stringify(value)).join(", ")})`
-      : `${fieldFactoryName}.${fieldRow.fieldKind}`
-
-  if (fieldRow.modifierKind) {
-    source += fieldRow.modifierArgSource === null ? `.${fieldRow.modifierKind}()` : `.${fieldRow.modifierKind}(${fieldRow.modifierArgSource})`
-  }
-
-  return `${renderPropertyName(fieldRow.fieldKey)}: ${source},`
+const renderCompactObjectLiteral = (memberSources: string[]) => {
+  if (memberSources.length === 0) return "{}"
+  return `{ ${memberSources.join(", ")} }`
 }
 
-const renderStateProperty = (stateRow: DslStateRow, entries: DslStateEntryRow[]) => {
-  if (entries.length === 0) {
-    return `${renderPropertyName(stateRow.stateName)}: {},`
+const renderMetaConfig = (metaRow: MetaRow) => {
+  const members: Array<{ position: number; code: string }> = []
+  if (metaRow.descPosition !== null && metaRow.desc !== null) {
+    members.push({
+      position: metaRow.descPosition,
+      code: `desc: ${JSON.stringify(metaRow.desc)}`,
+    })
   }
 
-  const entrySources = entries.map((entry) => {
-    if (entry.entryKind === "comment") {
-      return entry.commentSource ?? ""
+  if (metaRow.devPosition !== null && metaRow.dev !== null) {
+    members.push({
+      position: metaRow.devPosition,
+      code: `dev: ${metaRow.dev ? "true" : "false"}`,
+    })
+  }
+
+  if (members.length === 0) return null
+  members.sort((left, right) => left.position - right.position)
+  return metaRow.configMultiline ? renderObjectLiteral(members.map((member) => `${member.code},`)) : renderCompactObjectLiteral(members.map((member) => member.code))
+}
+
+const renderFieldDefault = (fieldRow: FieldRow) => {
+  switch (fieldRow.defaultType) {
+    case "string":
+      return JSON.stringify(fieldRow.defaultText ?? "")
+    case "number":
+      return fieldRow.defaultNumber ?? "0"
+    case "boolean":
+      return fieldRow.defaultBoolean ? "true" : "false"
+    case "array":
+      return "[]"
+    case "null":
+      return "null"
+    case null:
+      throw new Error(`Missing default literal for required field ${fieldRow.name}`)
+  }
+}
+
+const renderFieldProperty = (fieldRow: FieldRow, enumVariants: EnumVariantRow[], fieldFactoryName: string) => {
+  const enumSource = enumVariants
+    .map((variant) => (variant.textValue !== null ? JSON.stringify(variant.textValue) : (variant.numberValue ?? "0")))
+    .join(", ")
+
+  let source = fieldRow.type === "enum" ? `${fieldFactoryName}.enum(${enumSource})` : `${fieldFactoryName}.${fieldRow.type}`
+  if (fieldRow.presence === "optional") {
+    source += fieldRow.label === null ? ".optional()" : `.optional({ label: ${JSON.stringify(fieldRow.label)} })`
+  }
+
+  if (fieldRow.presence === "required") {
+    const args = [renderFieldDefault(fieldRow)]
+    if (fieldRow.label !== null) {
+      args.push(`{ label: ${JSON.stringify(fieldRow.label)} }`)
     }
 
-    return `${renderPropertyName(entry.targetState ?? "")}: ${entry.conditionSource ?? "{}"},`
-  })
-
-  return `${renderPropertyName(stateRow.stateName)}: {\n${indentBlock(entrySources.join("\n"), 2)}\n},`
-}
-
-const renderProcessProperty = (processRow: DslProcessRow, processName: string, destroyName: string | undefined) => {
-  const builderName = processRow.processKind === "process" ? processName : destroyName
-  if (!builderName) {
-    throw new Error(`Missing destroy builder parameter for process ${processRow.processKey}`)
+    source += `.required(${args.join(", ")})`
   }
 
-  let source = `${renderPropertyName(processRow.processKey)}: ${builderName}(${processRow.configSource ?? ""})`
-  if (processRow.actionSource) source += `.action(${processRow.actionSource})`
-  if (processRow.successSource) source += `.success(${processRow.successSource})`
-  if (processRow.errorSource) source += `.error(${processRow.errorSource})`
-  if (processRow.beforeSource) source += `.before(${processRow.beforeSource})`
-  return `${source},`
+  return `${renderPropertyName(fieldRow.name)}: ${source},`
 }
 
-const renderFieldsArgument = (sectionRow: DslSectionRow, fieldRows: DslFieldRow[]) => {
-  const [fieldFactoryName = "field"] = parseParameterNames(sectionRow.paramsSource)
-  if (fieldRows.length === 0) return `${wrapArrowParams(sectionRow.paramsSource)} => ({})`
-  return `${wrapArrowParams(sectionRow.paramsSource)} => (${renderObjectLiteral(fieldRows.map((fieldRow) => renderFieldProperty(fieldRow, fieldFactoryName)))})`
-}
+const renderFieldsArgument = (sectionRow: SectionRow, fieldRows: FieldRow[], enumVariantRows: EnumVariantRow[]) => {
+  const [fieldFactoryName = "field"] = parseParameterNames(sectionRow.params)
+  if (fieldRows.length === 0) return `${wrapArrowParams(sectionRow.params)} => ({})`
 
-const renderSuperpositionArgument = (stateRows: DslStateRow[], stateEntryRows: DslStateEntryRow[]) => {
-  const stateEntries = new Map<number, DslStateEntryRow[]>()
-  for (const stateEntryRow of stateEntryRows) {
-    const list = stateEntries.get(stateEntryRow.stateOrder) ?? []
-    list.push(stateEntryRow)
-    stateEntries.set(stateEntryRow.stateOrder, list)
+  const enumVariantsByFieldId = new Map<number, EnumVariantRow[]>()
+  for (const enumVariantRow of enumVariantRows) {
+    const list = enumVariantsByFieldId.get(enumVariantRow.fieldId) ?? []
+    list.push(enumVariantRow)
+    enumVariantsByFieldId.set(enumVariantRow.fieldId, list)
   }
 
-  return renderObjectLiteral(
-    stateRows.map((stateRow) => renderStateProperty(stateRow, stateEntries.get(stateRow.stateOrder) ?? [])),
+  return `${wrapArrowParams(sectionRow.params)} => (${renderObjectLiteral(
+    fieldRows.map((fieldRow) => renderFieldProperty(fieldRow, enumVariantsByFieldId.get(fieldRow.id) ?? [], fieldFactoryName)),
+  )})`
+}
+
+const renderTransitionConditions = (conditions: ConditionRow[], fieldsById: Map<number, FieldRow>) => {
+  if (conditions.length === 0) return "{}"
+
+  return renderCompactObjectLiteral(
+    conditions.map((conditionRow) => {
+      const fieldRow = getRequiredRow(fieldsById.get(conditionRow.fieldId), `Unknown field id in conditions: ${conditionRow.fieldId}`)
+      const conditionSource = conditionRow.nullValue ? "null" : "{ null: false }"
+      return `${renderPropertyName(fieldRow.name)}: ${conditionSource}`
+    }),
   )
 }
 
-const renderProcessesArgument = (sectionRow: DslSectionRow, processRows: DslProcessRow[]) => {
-  const [processName = "process", destroyName] = parseParameterNames(sectionRow.paramsSource)
-  if (processRows.length === 0) return `${wrapArrowParams(sectionRow.paramsSource)} => ({})`
+const renderStateProperty = (
+  stateRow: StateRow,
+  transitionCommentRows: TransitionCommentRow[],
+  transitionRows: TransitionRow[],
+  conditionsByTransitionId: Map<number, ConditionRow[]>,
+  statesById: Map<number, StateRow>,
+  fieldsById: Map<number, FieldRow>,
+) => {
+  const items = [
+    ...transitionCommentRows.map((transitionCommentRow) => ({
+      position: transitionCommentRow.position,
+      source: transitionCommentRow.text,
+    })),
+    ...transitionRows.map((transitionRow) => ({
+      position: transitionRow.position,
+      source: `${renderPropertyName(getRequiredRow(statesById.get(transitionRow.targetStateId), `Unknown state id: ${transitionRow.targetStateId}`).name)}: ${renderTransitionConditions(
+        conditionsByTransitionId.get(transitionRow.id) ?? [],
+        fieldsById,
+      )},`,
+    })),
+  ].sort((left, right) => left.position - right.position)
+
+  if (items.length === 0) {
+    return `${renderPropertyName(stateRow.name)}: {},`
+  }
+
+  return `${renderPropertyName(stateRow.name)}: {\n${indentBlock(items.map((item) => item.source).join("\n"), 2)}\n},`
+}
+
+const renderSuperpositionArgument = (
+  stateRows: StateRow[],
+  transitionCommentRows: TransitionCommentRow[],
+  transitionRows: TransitionRow[],
+  conditionRows: ConditionRow[],
+  fieldRows: FieldRow[],
+) => {
+  const transitionCommentsByStateId = new Map<number, TransitionCommentRow[]>()
+  for (const transitionCommentRow of transitionCommentRows) {
+    const list = transitionCommentsByStateId.get(transitionCommentRow.stateId) ?? []
+    list.push(transitionCommentRow)
+    transitionCommentsByStateId.set(transitionCommentRow.stateId, list)
+  }
+
+  const transitionsByStateId = new Map<number, TransitionRow[]>()
+  for (const transitionRow of transitionRows) {
+    const list = transitionsByStateId.get(transitionRow.stateId) ?? []
+    list.push(transitionRow)
+    transitionsByStateId.set(transitionRow.stateId, list)
+  }
+
+  const conditionsByTransitionId = new Map<number, ConditionRow[]>()
+  for (const conditionRow of conditionRows) {
+    const list = conditionsByTransitionId.get(conditionRow.transitionId) ?? []
+    list.push(conditionRow)
+    conditionsByTransitionId.set(conditionRow.transitionId, list)
+  }
+
+  const statesById = new Map(stateRows.map((stateRow) => [stateRow.id, stateRow]))
+  const fieldsById = new Map(fieldRows.map((fieldRow) => [fieldRow.id, fieldRow]))
+
+  return renderObjectLiteral(
+    stateRows.map((stateRow) =>
+      renderStateProperty(
+        stateRow,
+        transitionCommentsByStateId.get(stateRow.id) ?? [],
+        transitionsByStateId.get(stateRow.id) ?? [],
+        conditionsByTransitionId,
+        statesById,
+        fieldsById,
+      ),
+    ),
+  )
+}
+
+const renderProcessConfig = (processRow: ProcessRow, processEnvRows: ProcessEnvRow[]) => {
+  const members: Array<{ position: number; code: string }> = []
+  if (processRow.labelPosition !== null && processRow.label !== null) {
+    members.push({
+      position: processRow.labelPosition,
+      code: `label: ${JSON.stringify(processRow.label)}`,
+    })
+  }
+
+  if (processRow.descPosition !== null && processRow.desc !== null) {
+    members.push({
+      position: processRow.descPosition,
+      code: `desc: ${JSON.stringify(processRow.desc)}`,
+    })
+  }
+
+  if (processRow.envPosition !== null) {
+    members.push({
+      position: processRow.envPosition,
+      code: `env: [${processEnvRows.map((processEnvRow) => JSON.stringify(processEnvRow.env)).join(", ")}]`,
+    })
+  }
+
+  if (members.length === 0) return ""
+  members.sort((left, right) => left.position - right.position)
+  return processRow.configMultiline
+    ? renderObjectLiteral(members.map((member) => `${member.code},`))
+    : renderCompactObjectLiteral(members.map((member) => member.code))
+}
+
+const renderProcessProperty = (
+  processRow: ProcessRow,
+  processEnvRows: ProcessEnvRow[],
+  processHandlerRows: ProcessHandlerRow[],
+  processName: string,
+  destroyName: string | undefined,
+) => {
+  const builderName = processRow.builder === "process" ? processName : destroyName
+  if (!builderName) {
+    throw new Error(`Missing destroy builder parameter for process ${processRow.name}`)
+  }
+
+  let source = `${renderPropertyName(processRow.name)}: ${builderName}(${renderProcessConfig(processRow, processEnvRows)})`
+  for (const processHandlerRow of processHandlerRows) {
+    source += `.${processHandlerRow.step}(${processHandlerRow.code})`
+  }
+
+  return `${source},`
+}
+
+const renderProcessesArgument = (
+  sectionRow: SectionRow,
+  processRows: ProcessRow[],
+  processEnvRows: ProcessEnvRow[],
+  processHandlerRows: ProcessHandlerRow[],
+) => {
+  const [processName = "process", destroyName] = parseParameterNames(sectionRow.params)
+  if (processRows.length === 0) return `${wrapArrowParams(sectionRow.params)} => ({})`
+
+  const processEnvsByProcessId = new Map<number, ProcessEnvRow[]>()
+  for (const processEnvRow of processEnvRows) {
+    const list = processEnvsByProcessId.get(processEnvRow.processId) ?? []
+    list.push(processEnvRow)
+    processEnvsByProcessId.set(processEnvRow.processId, list)
+  }
+
+  const processHandlersByProcessId = new Map<number, ProcessHandlerRow[]>()
+  for (const processHandlerRow of processHandlerRows) {
+    const list = processHandlersByProcessId.get(processHandlerRow.processId) ?? []
+    list.push(processHandlerRow)
+    processHandlersByProcessId.set(processHandlerRow.processId, list)
+  }
 
   let body = ""
   for (const [index, processRow] of processRows.entries()) {
@@ -127,14 +305,23 @@ const renderProcessesArgument = (sectionRow: DslSectionRow, processRows: DslProc
       body += "\n".repeat(Math.max(1, processRow.gapBefore + 1))
     }
 
-    body += indentBlock(renderProcessProperty(processRow, processName, destroyName), 2)
+    body += indentBlock(
+      renderProcessProperty(
+        processRow,
+        processEnvsByProcessId.get(processRow.id) ?? [],
+        processHandlersByProcessId.get(processRow.id) ?? [],
+        processName,
+        destroyName,
+      ),
+      2,
+    )
   }
 
-  return `${wrapArrowParams(sectionRow.paramsSource)} => ({\n${body}\n})`
+  return `${wrapArrowParams(sectionRow.params)} => ({\n${body}\n})`
 }
 
-const renderReactionsArgument = (sectionRow: DslSectionRow, reactionRows: DslReactionRow[]) =>
-  `${wrapArrowParams(sectionRow.paramsSource)} => ${renderArrayLiteral(reactionRows.map((reactionRow) => `${reactionRow.reactionSource},`))}`
+const renderReactionsArgument = (sectionRow: SectionRow, reactionRows: ReactionRow[]) =>
+  `${wrapArrowParams(sectionRow.params)} => ${renderArrayLiteral(reactionRows.map((reactionRow) => `${reactionRow.code},`))}`
 
 const formatDiagnostic = (diagnostic: ts.Diagnostic, sourceFile: ts.SourceFile) => {
   const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")
@@ -161,123 +348,180 @@ export const formatTypeScriptSource = async (source: string, filepath: string) =
   })
 }
 
-const renderSectionCall = (sectionName: DslSectionName, argumentSource: string | null) =>
-  argumentSource === null ? `  .${sectionName}()` : `  .${sectionName}(${argumentSource})`
+const renderSectionCall = (sectionName: SectionName, code: string | null) =>
+  code === null ? `  .${sectionName}()` : `  .${sectionName}(${code})`
 
 export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) => {
-  ensureDslRoundTripSchema(options.db)
+  ensureRoundTripSchema(options.db)
 
-  const moduleRow = getRequiredRow(
+  const metaRowData = getRequiredRow(
     options.db
       .query(
-        `SELECT moduleKey, sourcePath, metaName, metaConfigSource
-         FROM dsl_modules
-         WHERE moduleKey = ?`,
+        `SELECT name, configMultiline, desc, descPosition, dev, devPosition
+         FROM meta
+         WHERE id = 1`,
       )
-      .get(options.moduleKey) as
+      .get() as
       | {
-          moduleKey: string
-          sourcePath: string | null
-          metaName: string
-          metaConfigSource: string | null
+          name: string
+          configMultiline: number | null
+          desc: string | null
+          descPosition: number | null
+          dev: number | null
+          devPosition: number | null
         }
       | undefined,
-    `Unknown module key: ${options.moduleKey}`,
+    "The database does not contain a parsed MetaFor module",
   )
 
-  const importRows = options.db
-    .query(
-      `SELECT importSource
-       FROM dsl_imports
-       WHERE moduleKey = ?
-       ORDER BY importOrder`,
-    )
-    .all(options.moduleKey) as Array<{ importSource: string }>
+  const metaRow: MetaRow = {
+    name: metaRowData.name,
+    configMultiline: metaRowData.configMultiline === null ? null : Boolean(metaRowData.configMultiline),
+    desc: metaRowData.desc,
+    descPosition: metaRowData.descPosition,
+    dev: metaRowData.dev === null ? null : Boolean(metaRowData.dev),
+    devPosition: metaRowData.devPosition,
+  }
 
   const sectionRows = options.db
     .query(
-      `SELECT moduleKey, sectionName, sectionOrder, bodyKind, paramsSource, argumentSource
-       FROM dsl_sections
-       WHERE moduleKey = ?
-       ORDER BY sectionOrder`,
+      `SELECT name, params, code
+       FROM sections`,
     )
-    .all(options.moduleKey) as DslSectionRow[]
+    .all() as SectionRow[]
 
-  const fieldRows = options.db
+  const fieldRowsRaw = options.db
     .query(
-      `SELECT moduleKey, fieldOrder, fieldKey, fieldKind, enumValuesJson, modifierKind, modifierArgSource
-       FROM dsl_fields
-       WHERE moduleKey = ?
-       ORDER BY fieldOrder`,
+      `SELECT id, position, name, type, presence, label, defaultType, defaultText, defaultNumber, defaultBoolean
+       FROM fields
+       ORDER BY position`,
     )
-    .all(options.moduleKey) as DslFieldRow[]
+    .all() as Array<
+      Omit<FieldRow, "defaultBoolean"> & {
+        defaultBoolean: number | null
+      }
+    >
+
+  const fieldRows = fieldRowsRaw.map((row) => ({
+    ...row,
+    defaultBoolean: row.defaultBoolean === null ? null : Boolean(row.defaultBoolean),
+  })) as FieldRow[]
+
+  const enumVariantRows = options.db
+    .query(
+      `SELECT fieldId, position, textValue, numberValue
+       FROM enum_variants
+       ORDER BY fieldId, position`,
+    )
+    .all() as EnumVariantRow[]
 
   const stateRows = options.db
     .query(
-      `SELECT moduleKey, stateOrder, stateName
-       FROM dsl_states
-       WHERE moduleKey = ?
-       ORDER BY stateOrder`,
+      `SELECT id, position, name
+       FROM states
+       ORDER BY position`,
     )
-    .all(options.moduleKey) as DslStateRow[]
+    .all() as StateRow[]
 
-  const stateEntryRows = options.db
+  const transitionCommentRows = options.db
     .query(
-      `SELECT moduleKey, stateOrder, entryOrder, entryKind, targetState, conditionSource, commentSource
-       FROM dsl_state_entries
-       WHERE moduleKey = ?
-       ORDER BY stateOrder, entryOrder`,
+      `SELECT id, stateId, position, text
+       FROM transition_comments
+       ORDER BY stateId, position`,
     )
-    .all(options.moduleKey) as DslStateEntryRow[]
+    .all() as TransitionCommentRow[]
 
-  const processRows = options.db
+  const transitionRows = options.db
     .query(
-      `SELECT moduleKey, processOrder, processKey, processKind, gapBefore, configSource, actionSource, successSource, errorSource, beforeSource
-       FROM dsl_processes
-       WHERE moduleKey = ?
-       ORDER BY processOrder`,
+      `SELECT id, stateId, targetStateId, position
+       FROM transitions
+       ORDER BY stateId, position`,
     )
-    .all(options.moduleKey) as DslProcessRow[]
+    .all() as TransitionRow[]
+
+  const conditionRowsRaw = options.db
+    .query(
+      `SELECT transitionId, position, fieldId, nullValue
+       FROM conditions
+       ORDER BY transitionId, position`,
+    )
+    .all() as Array<
+      Omit<ConditionRow, "nullValue"> & {
+        nullValue: number
+      }
+    >
+
+  const conditionRows = conditionRowsRaw.map((row) => ({
+    ...row,
+    nullValue: Boolean(row.nullValue),
+  })) as ConditionRow[]
+
+  const processRowsRaw = options.db
+    .query(
+      `SELECT id, position, name, builder, gapBefore, configMultiline, label, labelPosition, desc, descPosition, envPosition
+       FROM processes
+       ORDER BY position`,
+    )
+    .all() as Array<
+      Omit<ProcessRow, "configMultiline"> & {
+        configMultiline: number | null
+      }
+    >
+
+  const processRows = processRowsRaw.map((row) => ({
+    ...row,
+    configMultiline: row.configMultiline === null ? null : Boolean(row.configMultiline),
+  })) as ProcessRow[]
+
+  const processEnvRows = options.db
+    .query(
+      `SELECT processId, position, env
+       FROM process_envs
+       ORDER BY processId, position`,
+    )
+    .all() as ProcessEnvRow[]
+
+  const processHandlerRows = options.db
+    .query(
+      `SELECT processId, position, step, code
+       FROM process_handlers
+       ORDER BY processId, position`,
+    )
+    .all() as ProcessHandlerRow[]
 
   const reactionRows = options.db
     .query(
-      `SELECT moduleKey, reactionOrder, reactionSource
-       FROM dsl_reactions
-       WHERE moduleKey = ?
-       ORDER BY reactionOrder`,
+      `SELECT id, position, code
+       FROM reactions
+       ORDER BY position`,
     )
-    .all(options.moduleKey) as DslReactionRow[]
+    .all() as ReactionRow[]
 
-  const sections = new Map(sectionRows.map((row) => [row.sectionName, row]))
-  const getSection = (sectionName: DslSectionName) =>
-    getRequiredRow(sections.get(sectionName), `Missing ${sectionName} section for ${options.moduleKey}`)
+  const sections = new Map(sectionRows.map((sectionRow) => [sectionRow.name, sectionRow]))
+  const getSection = (sectionName: SectionName) => getRequiredRow(sections.get(sectionName), `Missing ${sectionName} section in the database`)
 
   const fieldsSection = getSection("fields")
-  const superpositionSection = getSection("superposition")
   const massSection = getSection("mass")
   const processesSection = getSection("processes")
   const reactionsSection = getSection("reactions")
   const matterSection = getSection("matter")
   const bulkSection = getSection("bulk")
 
-  const metaArgs = [JSON.stringify(moduleRow.metaName)]
-  if (moduleRow.metaConfigSource) metaArgs.push(moduleRow.metaConfigSource)
+  const metaArgs = [JSON.stringify(metaRow.name)]
+  const metaConfig = renderMetaConfig(metaRow)
+  if (metaConfig !== null) metaArgs.push(metaConfig)
 
-  let source = ""
-  if (importRows.length > 0) {
-    source += `${importRows.map((row) => row.importSource).join("\n")}\n\n`
-  }
-
+  let source = 'import { MetaFor } from "@metafor/dsl"\n\n'
   source += `export default MetaFor(${metaArgs.join(", ")})`
-  source += `\n${renderSectionCall("fields", renderFieldsArgument(fieldsSection, fieldRows))}`
-  source += `\n${renderSectionCall("superposition", renderSuperpositionArgument(stateRows, stateEntryRows))}`
-  source += `\n${renderSectionCall("mass", massSection.argumentSource)}`
-  source += `\n${renderSectionCall("processes", renderProcessesArgument(processesSection, processRows))}`
+  source += `\n${renderSectionCall("fields", renderFieldsArgument(fieldsSection, fieldRows, enumVariantRows))}`
+  source += `\n${renderSectionCall("superposition", renderSuperpositionArgument(stateRows, transitionCommentRows, transitionRows, conditionRows, fieldRows))}`
+  source += `\n${renderSectionCall("mass", massSection.code)}`
+  source += `\n${renderSectionCall("processes", renderProcessesArgument(processesSection, processRows, processEnvRows, processHandlerRows))}`
   source += `\n${renderSectionCall("reactions", renderReactionsArgument(reactionsSection, reactionRows))}`
-  source += `\n${renderSectionCall("matter", matterSection.argumentSource)}`
-  source += `\n${renderSectionCall("bulk", bulkSection.argumentSource)}\n`
+  source += `\n${renderSectionCall("matter", matterSection.code)}`
+  source += `\n${renderSectionCall("bulk", bulkSection.code)}\n`
 
-  const filepath = options.filepath ?? moduleRow.sourcePath ?? `${moduleRow.metaName}.ts`
+  const filepath = options.filepath ?? `${metaRow.name}.ts`
   validateTypeScriptModule(source, filepath)
 
   if (!options.format) return source
