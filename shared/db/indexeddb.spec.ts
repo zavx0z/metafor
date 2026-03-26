@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import { IDBFactory } from "fake-indexeddb"
-import { assembleSharedDbData } from "../../dark/db.ts"
-import { createSharedDbFixture } from "fixture/db.fixture.ts"
-import { normalizeSharedDbData, readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
-import { inspectSharedDbIndexedDbSchema, openSharedDbIndexedDbBackend } from "./indexeddb.ts"
-import { openSharedDbMaterializationWriter } from "./materialize.ts"
+import { createSharedDbFixture } from "fixture/db.fixture"
+import { normalizeSharedDbData, readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend"
+import { inspectSharedDbIndexedDbSchema, openSharedDbIndexedDbBackend } from "./indexeddb"
+import { openSharedDbMaterializationWriter } from "./materialize"
+import { assembleSharedDbData } from "fixture/dark"
 
 const createIndexedDbTarget = () => ({
   indexedDb: new IDBFactory(),

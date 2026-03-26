@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { assembleSharedDbData } from "./db.ts"
+import { assembleSharedDbData } from "fixture/dark"
 import { createSharedDbFixture } from "fixture/db.fixture.ts"
 
 describe("dark -> shared db debug assembly helper", () => {

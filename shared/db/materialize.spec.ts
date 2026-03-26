@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
-import { assembleSharedDbData } from "../../dark/db.ts"
 import { createSharedDbFixture } from "fixture/db.fixture.ts"
 import { normalizeSharedDbData, readSharedDbData } from "./backend.ts"
 import { openSharedDbMaterializationWriter } from "./materialize.ts"
 import { openSharedDbSqliteBackend } from "./sqlite.ts"
+import { assembleSharedDbData } from "fixture/dark.ts"
 
 describe("shared db materialization writer", () => {
   test("сохраняет canonical relational rows по мере завершения Wimp", async () => {

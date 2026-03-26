@@ -3,11 +3,11 @@ import { describe, expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { assembleSharedDbData } from "../../dark/db.ts"
 import { createSharedDbFixture } from "fixture/db.fixture.ts"
 import { normalizeSharedDbData, readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
 import { openSharedDbMaterializationWriter } from "./materialize.ts"
 import { openSharedDbSqliteBackend } from "./sqlite.ts"
+import { assembleSharedDbData } from "fixture/dark.ts"
 
 const createTempSqliteTarget = (): { dir: string; filename: string } => {
   const dir = mkdtempSync(join(tmpdir(), "metafor-shared-db-"))
