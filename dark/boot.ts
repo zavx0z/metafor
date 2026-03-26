@@ -1,12 +1,8 @@
 import { matter, matterMeta } from "./dark.ts"
 import { Wimp } from "./strong/index.ts"
-import { type GravitonMessage, GRAVITY_BROADCAST_CHANNEL } from "@shared/protocol"
 import { openSharedDbMaterializationWriter, type SharedDbBackend } from "../shared/db/core.ts"
-import {
-  ELECTROMAGNETISM_BROADCAST_CHANNEL,
-  GLUON_BROADCAST_CHANNEL,
-  HIGGS_BROADCAST_CHANNEL,
-} from "@shared/protocol"
+import { ELECTROMAGNETISM_BROADCAST_CHANNEL, GLUON_BROADCAST_CHANNEL, HIGGS_BROADCAST_CHANNEL } from "@shared/protocol"
+import { gravityCH } from "@dark/gravity/channel.ts"
 
 export type OpenDarkDb = () => Promise<SharedDbBackend> | SharedDbBackend
 export interface DarkDomainInit {
@@ -29,21 +25,10 @@ const darkWorker = globalThis as typeof globalThis & {
   __metaforDarkRuntime?: DarkWorkerRuntime
 }
 
-const emitGravityPatch = (channel: BroadcastChannel, patches: GravitonMessage["patches"]): void => {
-  if (patches.length === 0) return
-
-  channel.postMessage({
-    channel: "gravity",
-    boson: "graviton",
-    source: "dark",
-    patches,
-  } satisfies GravitonMessage)
-}
-
 export const bootDarkDomain = async (openDb: OpenDarkDb, init: DarkDomainInit = {}): Promise<void> => {
   const runtime: DarkWorkerRuntime = {
     db: Promise.resolve(openDb()),
-    gravity: new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL),
+    gravity: gravityCH,
     photon: new BroadcastChannel(ELECTROMAGNETISM_BROADCAST_CHANNEL),
     gluon: new BroadcastChannel(GLUON_BROADCAST_CHANNEL),
     higgs: new BroadcastChannel(HIGGS_BROADCAST_CHANNEL),
@@ -67,22 +52,5 @@ export const bootDarkDomain = async (openDb: OpenDarkDb, init: DarkDomainInit = 
   const writer = openSharedDbMaterializationWriter(db)
   const root = new Wimp({ src: init.rootSrc, parent: null })
 
-  await matter(root, undefined, {
-    sharedDbWriter: writer,
-    gravityProtocol: {
-      emitPatches(patches) {
-        emitGravityPatch(runtime.gravity, patches)
-      },
-      emitAdd(wimpId) {
-        emitGravityPatch(runtime.gravity, [{ op: "add", path: `/wimp/${wimpId}` }])
-      },
-      emitRemove(wimpId) {
-        emitGravityPatch(runtime.gravity, [{ op: "remove", path: `/wimp/${wimpId}` }])
-      },
-      emitBarrier(value = null) {
-        emitGravityPatch(runtime.gravity, [{ op: "test", path: "", value }])
-      },
-      close() {},
-    },
-  })
+  await matter(root, undefined, { sharedDbWriter: writer })
 }

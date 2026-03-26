@@ -8,7 +8,7 @@ import type {
   MatterWimpResult,
 } from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
-import { type DarkGravityProtocol } from "@dark/gravity/channel.ts"
+import { emitAdd, emitBarrier } from "@dark/gravity/channel.ts"
 import type { SharedDbMaterializationWriter } from "@shared/db"
 import { Axion, Fuzzy, Macho, materializeFields, resolveWimpContinuation, type Meta, Wimp } from "@dark/strong"
 import { loadMeta, loadMetaAST } from "./load.ts"
@@ -17,7 +17,6 @@ import { resolveContinuationSources } from "@dark/gravity/gravity.ts"
 
 interface MatterOptions {
   sharedDbWriter?: SharedDbMaterializationWriter
-  gravityProtocol?: DarkGravityProtocol
   suppressGravityBarrier?: boolean
 }
 
@@ -200,7 +199,7 @@ export async function* matterMeta(
   dark$.particles.set(wimp.id, wimp)
   if (options.sharedDbWriter) {
     await options.sharedDbWriter.saveWimpBundle(wimp.toSharedDbBundle())
-    options.gravityProtocol?.emitAdd(wimp.id)
+    emitAdd(wimp.id)
   }
 
   if (!ast.matter) return
@@ -247,11 +246,8 @@ export async function* matterMeta(
  * @returns Promise, завершающийся после полного рекурсивного обхода и сборки дочерних мет.
  */
 export async function matter(wimp: Wimp, continuation?: MatterContinuation, options: MatterOptions = {}) {
-  const shouldEmitGravityBarrier = options.gravityProtocol !== undefined && options.suppressGravityBarrier !== true
-  const nestedOptions =
-    shouldEmitGravityBarrier && options.gravityProtocol
-      ? { ...options, suppressGravityBarrier: true }
-      : options
+  const shouldEmitGravityBarrier = options.suppressGravityBarrier !== true
+  const nestedOptions = shouldEmitGravityBarrier ? { ...options, suppressGravityBarrier: true } : options
   const generator = matterMeta(wimp, continuation, options)
   for await (const wimps of generator) {
     for (const [childWimp, childContinuation] of wimps) {
@@ -260,6 +256,6 @@ export async function matter(wimp: Wimp, continuation?: MatterContinuation, opti
   }
 
   if (shouldEmitGravityBarrier) {
-    options.gravityProtocol?.emitBarrier()
+    emitBarrier()
   }
 }

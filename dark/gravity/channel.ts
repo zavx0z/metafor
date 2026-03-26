@@ -29,3 +29,6 @@ export function emitAdd(wimpId: string) {
 export function emitRemove(wimpId: string) {
   emitPatches([{ op: "remove", path: `/wimp/${wimpId}` }])
 }
+export function emitBarrier(value = null) {
+  emitPatches([{ op: "test", path: "", value }])
+}
