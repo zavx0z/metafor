@@ -58,23 +58,155 @@ describe("sqlite ddl", () => {
           .query(
             `INSERT INTO field(
               id,
-            meta_src,
-            key,
-            position,
-            type,
-            required,
-            identifier,
-            data_source
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              meta_src,
+              key,
+              type,
+              required,
+              identifier,
+              data_source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
           )
-          .run(1, "alpha/meta", "items", 0, "array<string>", 1, 1, "items"),
+          .run(1, "alpha/meta", "items", "array<string>", 1, 1, "items"),
       ).toThrow()
     } finally {
       database.close()
     }
   })
 
-  test("удерживает process shape и same-meta ссылки", () => {
+  test("нормализует array defaults поэлементно и enum defaults через stable variant id", () => {
+    const database = openDatabase()
+
+    try {
+      database.query(`INSERT INTO meta(src) VALUES (?)`).run("alpha/meta")
+
+      database
+        .query(
+          `INSERT INTO field(id, meta_src, key, type, required)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(1, "alpha/meta", "items", "array<string>", 1)
+
+      database
+        .query(
+          `INSERT INTO field(id, meta_src, key, type, required)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(2, "alpha/meta", "status", "enum<string>", 1)
+
+      database
+        .query(
+          `INSERT INTO field(id, meta_src, key, type, required)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(3, "alpha/meta", "fallback_status", "enum<string>", 1)
+
+      database
+        .query(
+          `INSERT INTO field_array_default(field_id, meta_src, field_type)
+           VALUES (?, ?, ?)`,
+        )
+        .run(1, "alpha/meta", "array<string>")
+
+      database
+        .query(
+          `INSERT INTO field_array_default_item(id, field_id, meta_src, field_type, position)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(100, 1, "alpha/meta", "array<string>", 0)
+
+      database
+        .query(
+          `INSERT INTO field_array_string_default_item(item_id, field_id, meta_src, item_value)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(100, 1, "alpha/meta", "draft")
+
+      database
+        .query(
+          `INSERT INTO field_array_default_item(id, field_id, meta_src, field_type, position)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(101, 1, "alpha/meta", "array<string>", 1)
+
+      database
+        .query(
+          `INSERT INTO field_array_string_default_item(item_id, field_id, meta_src, item_value)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(101, 1, "alpha/meta", "published")
+
+      expect(() =>
+        database
+          .query(
+            `INSERT INTO field_array_number_default_item(item_id, field_id, meta_src, item_value)
+             VALUES (?, ?, ?, ?)`,
+          )
+          .run(100, 1, "alpha/meta", 1),
+      ).toThrow()
+
+      database
+        .query(
+          `INSERT INTO field_enum_variant(id, field_id, meta_src, field_type)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(200, 2, "alpha/meta", "enum<string>")
+
+      database
+        .query(
+          `INSERT INTO field_enum_string_variant(variant_id, field_id, meta_src, item_value)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(200, 2, "alpha/meta", "draft")
+
+      database
+        .query(
+          `INSERT INTO field_enum_variant(id, field_id, meta_src, field_type)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(201, 2, "alpha/meta", "enum<string>")
+
+      database
+        .query(
+          `INSERT INTO field_enum_string_variant(variant_id, field_id, meta_src, item_value)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(201, 2, "alpha/meta", "published")
+
+      database
+        .query(
+          `INSERT INTO field_enum_default(field_id, meta_src, field_type, variant_id)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(2, "alpha/meta", "enum<string>", 201)
+
+      database
+        .query(
+          `INSERT INTO field_enum_variant(id, field_id, meta_src, field_type)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(300, 3, "alpha/meta", "enum<string>")
+
+      database
+        .query(
+          `INSERT INTO field_enum_string_variant(variant_id, field_id, meta_src, item_value)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(300, 3, "alpha/meta", "archived")
+
+      expect(() =>
+        database
+          .query(
+            `INSERT INTO field_enum_default(field_id, meta_src, field_type, variant_id)
+             VALUES (?, ?, ?, ?)`,
+          )
+          .run(3, "alpha/meta", "enum<string>", 201),
+      ).toThrow()
+    } finally {
+      database.close()
+    }
+  })
+
+  test("удерживает process subtype-таблицы и same-meta ссылки", () => {
     const database = openDatabase()
 
     try {
@@ -82,95 +214,99 @@ describe("sqlite ddl", () => {
 
       database
         .query(
-          `INSERT INTO field(id, meta_src, key, position, type, required)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO field(id, meta_src, key, type, required)
+           VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(10, "alpha/meta", "title", 0, "string", 1)
+        .run(10, "alpha/meta", "title", "string", 1)
 
       database
         .query(
-          `INSERT INTO field(id, meta_src, key, position, type, required)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO field(id, meta_src, key, type, required)
+           VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(20, "beta/meta", "title", 0, "string", 1)
+        .run(20, "beta/meta", "title", "string", 1)
+
+      database
+        .query(
+          `INSERT INTO process(id, meta_src, key, type)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(2, "alpha/meta", "destroy", "finally")
+
+      database
+        .query(
+          `INSERT INTO process_finally(process_id, meta_src, before_src)
+           VALUES (?, ?, ?)`,
+        )
+        .run(2, "alpha/meta", "() => {}")
+
+      database
+        .query(
+          `INSERT INTO process(id, meta_src, key, type)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(3, "alpha/meta", "load", "action")
+
+      database
+        .query(
+          `INSERT INTO process_action(process_id, meta_src, action_src)
+           VALUES (?, ?, ?)`,
+        )
+        .run(3, "alpha/meta", "./actions/load.ts")
 
       expect(() =>
         database
           .query(
-            `INSERT INTO process(
-              id,
-              meta_src,
-              key,
-              position,
-              type,
-              action_src,
-              before_src
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO process_action(process_id, meta_src, action_src)
+             VALUES (?, ?, ?)`,
           )
-          .run(1, "alpha/meta", "destroy", 0, "finally", "./actions/remove.ts", "() => {}"),
+          .run(2, "alpha/meta", "./actions/remove.ts"),
       ).toThrow()
 
       database
         .query(
-        `INSERT INTO process(
-            id,
-            meta_src,
-            key,
-            position,
-            type,
-            before_src
-          ) VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO process_action_read(meta_src, process_id, field_id, phase)
+           VALUES (?, ?, ?, ?)`,
         )
-        .run(2, "alpha/meta", "destroy", 0, "finally", "() => {}")
+        .run("alpha/meta", 3, 10, "action")
 
       database
         .query(
-        `INSERT INTO process(
-            id,
-            meta_src,
-            key,
-            position,
-            type,
-            action_src
-          ) VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO process_action_write(meta_src, process_id, field_id, phase)
+           VALUES (?, ?, ?, ?)`,
         )
-        .run(3, "alpha/meta", "load", 1, "action", "./actions/load.ts")
+        .run("alpha/meta", 3, 10, "success")
+
+      database
+        .query(
+          `INSERT INTO process_finally_read(meta_src, process_id, field_id)
+           VALUES (?, ?, ?)`,
+        )
+        .run("alpha/meta", 2, 10)
 
       expect(() =>
         database
           .query(
-            `INSERT INTO process_read(
-              meta_src,
-              process_id,
-              type,
-              field_id,
-              phase,
-              position
-            ) VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO process_finally_read(meta_src, process_id, field_id)
+             VALUES (?, ?, ?)`,
           )
-          .run("alpha/meta", 2, "finally", 10, "action", 0),
+          .run("alpha/meta", 3, 10),
       ).toThrow()
 
       expect(() =>
         database
           .query(
-            `INSERT INTO process_read(
-              meta_src,
-              process_id,
-              type,
-              field_id,
-              phase,
-              position
-            ) VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO process_action_read(meta_src, process_id, field_id, phase)
+             VALUES (?, ?, ?, ?)`,
           )
-          .run("alpha/meta", 3, "action", 20, "action", 0),
+          .run("alpha/meta", 3, 20, "action"),
       ).toThrow()
     } finally {
       database.close()
     }
   })
 
-  test("удерживает нормализованные particles и режет невозможные shape", () => {
+  test("удерживает нормализованные particles и fuzzy subtype shape", () => {
     const database = openDatabase()
 
     try {
@@ -199,10 +335,17 @@ describe("sqlite ddl", () => {
 
       database
         .query(
-          `INSERT INTO fuzzy(id, meta_src, kind, data)
-           VALUES (?, ?, ?, ?)`,
+          `INSERT INTO fuzzy(id, meta_src, kind)
+           VALUES (?, ?, ?)`,
         )
-        .run(2, "alpha/meta", "condition", JSON.stringify("/state"))
+        .run(2, "alpha/meta", "condition")
+
+      database
+        .query(
+          `INSERT INTO fuzzy_condition(fuzzy_id, meta_src, data)
+           VALUES (?, ?, ?)`,
+        )
+        .run(2, "alpha/meta", JSON.stringify("/state"))
 
       database
         .query(
@@ -241,13 +384,19 @@ describe("sqlite ddl", () => {
 
       database
         .query(
-          `INSERT INTO fuzzy(id, meta_src, kind, src, fields, mass)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO fuzzy(id, meta_src, kind)
+           VALUES (?, ?, ?)`,
+        )
+        .run(5, "alpha/meta", "meta")
+
+      database
+        .query(
+          `INSERT INTO fuzzy_meta(fuzzy_id, meta_src, src, fields, mass)
+           VALUES (?, ?, ?, ?, ?)`,
         )
         .run(
           5,
           "alpha/meta",
-          "meta",
           JSON.stringify({ data: "/fields/operation" }),
           JSON.stringify({ target: "_[0]" }),
           JSON.stringify({ scope: "nested" }),
@@ -265,19 +414,19 @@ describe("sqlite ddl", () => {
       expect(() =>
         database
           .query(
-            `INSERT INTO fuzzy(id, meta_src, kind, src)
-             VALUES (?, ?, ?, ?)`,
+            `INSERT INTO fuzzy_meta(fuzzy_id, meta_src, src)
+             VALUES (?, ?, ?)`,
           )
-          .run(3, "alpha/meta", "meta", JSON.stringify({ data: "/fields/operation" })),
+          .run(2, "alpha/meta", JSON.stringify({ data: "/fields/operation" })),
       ).toThrow()
 
       expect(() =>
         database
           .query(
-            `INSERT INTO fuzzy(id, meta_src, kind, data, fields)
-             VALUES (?, ?, ?, ?, ?)`,
+            `INSERT INTO fuzzy_condition(fuzzy_id, meta_src, data)
+             VALUES (?, ?, ?)`,
           )
-          .run(2, "alpha/meta", "condition", JSON.stringify("/state"), JSON.stringify({ leaked: true })),
+          .run(5, "alpha/meta", JSON.stringify("/state")),
       ).toThrow()
     } finally {
       database.close()
