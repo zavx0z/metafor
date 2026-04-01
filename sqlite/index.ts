@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs"
 export const metaforDslTableNames = [
   "meta",
   "field",
+  "field_default",
   "field_string_default",
   "field_number_default",
   "field_boolean_default",
@@ -40,10 +41,6 @@ export const metaforDslTableNames = [
 
 export const metaforDslIndexNames = [
   "field_by_meta_src",
-  "field_array_default_by_meta_src",
-  "field_array_default_item_by_meta_src",
-  "field_enum_variant_by_meta_src",
-  "field_enum_default_by_meta_src",
   "state_by_meta_src",
   "transition_by_meta_src",
   "condition_by_meta_src",
