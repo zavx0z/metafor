@@ -1,7 +1,7 @@
 import type { Schema, Values } from "@zavx0z/context"
-import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction, ReactionFilterConditions } from "@metafor/dsl/types/reactions"
+import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction, ReactionFilterConditions } from "./reactions.t"
 import { extractFields, normalizeFunctionString, updateAppendArg } from "./action"
-import { Initiator, type Mass, type Self } from "@metafor/dsl/types/metafor"
+import { Initiator, type Mass, type Self } from "./metafor.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 
 export const reactionsSchema = <ɸ extends Schema, 𝛴 extends string, m extends Mass = {}>(

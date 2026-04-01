@@ -1,6 +1,7 @@
-import type { State, MatterDefinitionParams } from "@metafor/dsl/types"
+import type { Schema } from "@zavx0z/context"
+import type { Mass, MatterDefinitionParams } from "../dsl/metafor.t"
+import type { State } from "../dsl/states.t"
 import type { NodeType } from "./node/index.t"
-import type { Mass, Schema } from "@metafor/dsl"
 export type { NodeType }
 export type { NodeMeta } from "./node/meta.t"
 export type { NodeCondition } from "./node/condition.t"

@@ -1,7 +1,7 @@
 import { test, describe, expect } from "bun:test"
 import { processesSchema } from "./process.js"
 import { contextSchema } from "@zavx0z/context"
-import type { ProcessesDeclaration } from "@metafor/dsl/types"
+import type { ProcessesDeclaration } from "./process.t"
 
 describe("ESM-процессы", () => {
   describe("Валидная структура action", () => {

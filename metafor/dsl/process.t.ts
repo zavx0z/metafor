@@ -1,29 +1,6 @@
-import type { Schema, Update, Values } from "@zavx0z/context"
-import type { Mass, Self } from "./metafor"
-
-/**
- * Параметры для action
- * @template ɸ - схема полей автомата
- * @template m - тип массы автомата
- */
-export type ActionParams<ɸ extends Schema, m extends Mass> = {
-  /**
-   * Декларация полей (схема, тип, валидатор).
-   * Используется для валидации и доступа к типам полей.
-   */
-  field: ɸ
-  /**
-   * Значения полей (текущие данные).
-   *
-   * **field** — декларация поля (схема, тип, валидатор).
-   * **value** — текущее значение поля (данные).
-   */
-  value: Values<ɸ>
-  /** Масса */
-  mass: m
-  /** Полный идентификатор атома */
-  self: Self
-}
+import type { Schema, Update } from "@zavx0z/context"
+import type { ActionParams } from "./action.t"
+import type { Mass } from "./metafor.t"
 
 /**
  * Конфигурация одного процесса

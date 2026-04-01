@@ -1,6 +1,7 @@
 import type { Schema } from "@zavx0z/context"
-import type { Mass } from "@metafor/dsl/types/metafor"
-import type { ReactionAction } from "@metafor/dsl/types/reactions"
+import type { ActionFieldUsage, ActionStructureValidationResult } from "./action.t"
+import type { Mass } from "./metafor.t"
+import type { ReactionAction } from "./reactions.t"
 
 const PATTERN_UPDATE = /\bupdate\s*\(\s*({[\s\S]*?})\s*\)/g
 const PATTERN_ARROW = /^\s*(\([^)]+\))\s*=>/
@@ -80,7 +81,7 @@ export function normalizeFunctionString(funcString: string): string {
  * // => { read: ['name', 'age'], write: ['status'] }
  * ```
  */
-export function parseFunction(fn: Function, allowWrite: boolean = true) {
+export function parseFunction(fn: Function, allowWrite: boolean = true): ActionFieldUsage {
   const code = fn.toString()
   const read = new Set<string>()
   const write = new Set<string>()
@@ -129,7 +130,9 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
 /**
  * Анализирует функцию update для извлечения полей
  */
-export function extractFields<ɸ extends Schema, 𝛴 extends string, m extends Mass>(reaction: ReactionAction<ɸ, 𝛴, m>) {
+export function extractFields<ɸ extends Schema, 𝛴 extends string, m extends Mass>(
+  reaction: ReactionAction<ɸ, 𝛴, m>
+): ActionFieldUsage {
   const updateStr = reaction.toString()
   const read: string[] = []
   const write: string[] = []
@@ -337,7 +340,7 @@ export function extractImportSpecifier(fn: Function): string | null {
  * // => { valid: false, error: "..." }
  * ```
  */
-export function validateActionStructure(fn: Function): { valid: boolean; error?: string } {
+export function validateActionStructure(fn: Function): ActionStructureValidationResult {
   const code = fn.toString()
 
   // Удаление комментариев и нормализация

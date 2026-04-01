@@ -42,8 +42,6 @@ export const metaforDslTableNames = [
 export const metaforDslIndexNames = [
   "field_by_meta_src",
   "state_by_meta_src",
-  "transition_by_meta_src",
-  "condition_by_meta_src",
   "process_by_meta_src",
   "process_action_by_meta_src",
   "process_finally_by_meta_src",

@@ -76,25 +76,84 @@
  * @packageDocumentation
  */
 import { contextSchema, type Schema, type Types as Fields } from "@zavx0z/context"
-import { parse, type NodeLogical, type NodeMeta, type NodeType } from "../template/index.ts"
+import { parse } from "../template/index.ts"
 
 import { validateNoUnconditionalCycles, type Superposition } from "./states"
 import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
-import { processesSchema, type ProcessesDeclaration, type ActionParams } from "./process"
+import { processesSchema, type ProcessesDeclaration } from "./process"
 import { serializeStyle } from "./style"
 
 import type {
   MetaForConfig,
-  MetaForFn,
   BulkDeclaration,
   MatterDeclaration,
   MetaDSL,
   Mass,
-  Self,
-  SRC,
-} from "@metafor/dsl/types/metafor"
+  MetaForFn,
+} from "./metafor.t"
 
-export type { SRC, MetaForFn, MetaDSL, Self, Mass, Superposition, NodeMeta, NodeType, NodeLogical, ActionParams }
+export type {
+  ActionParams,
+  ActionFieldUsage,
+  ActionStructureValidationResult,
+} from "./action.t"
+export type {
+  SRC,
+  MetaForFn,
+  MetaForConfig,
+  MetaDSL,
+  BulkDeclaration,
+  MatterDeclaration,
+  MatterDefinitionParams,
+  Mass,
+  Self,
+  Initiator,
+  JsonPatch,
+} from "./metafor.t"
+export type {
+  Process,
+  ActionChain,
+  DestroyChain,
+  DestroyConfig,
+  ExecutionEnv,
+  ParsedActionHandler,
+  ParsedDestroy,
+  ParsedHandler,
+  ParsedProcess,
+  ProcessChain,
+  ProcessConfig,
+  ProcessesDeclaration,
+  ProcessesSchema,
+  ProcessType,
+} from "./process.t"
+export type {
+  Reaction,
+  ReactionAction,
+  ReactionFilterConditions,
+  ReactionParams,
+  ReactionsChainResult,
+  ReactionsDeclaration,
+  ReactionsSchema,
+} from "./reactions.t"
+export type {
+  State,
+  Superposition,
+  Transitions,
+  Wave,
+  Condition,
+  ConditionOptional,
+  CondBooleanRequired,
+  CondBooleanOptional,
+  CondEnumRequired,
+  CondEnumOptional,
+  CondStringRequired,
+  CondStringOptional,
+  CondNumberRequired,
+  CondNumberOptional,
+  CondArrayRequired,
+  CondArrayOptional,
+} from "./states.t"
+export type { NodeMeta, NodeType, NodeLogical, NodeMap, NodeCondition } from "../template/index.ts"
 
 export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc

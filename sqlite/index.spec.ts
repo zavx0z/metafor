@@ -86,6 +86,25 @@ describe("sqlite ddl", () => {
     }
   })
 
+  test("держит transition и condition в ownership-модели без meta_src колонок", () => {
+    const database = openDatabase()
+
+    try {
+      const transitionColumns = (
+        database.query(`PRAGMA table_info(transition)`).all() as Array<{ name: string }>
+      ).map((row) => row.name)
+
+      const conditionColumns = (
+        database.query(`PRAGMA table_info(condition)`).all() as Array<{ name: string }>
+      ).map((row) => row.name)
+
+      expect(transitionColumns).toEqual(["id", "from_state_id", "to_state_id", "position"])
+      expect(conditionColumns).toEqual(["transition_id", "field_id", "condition_json"])
+    } finally {
+      database.close()
+    }
+  })
+
   test("режет невалидные field defaults и держит типизацию в child-таблицах через parent field", () => {
     const database = openDatabase()
 
@@ -386,7 +405,7 @@ describe("sqlite ddl", () => {
     }
   })
 
-  test("сохраняет same-meta инвариант после перехода на single-id foreign keys", () => {
+  test("сохраняет same-meta инвариант после controlled ownership-step для transition и condition", () => {
     const database = openDatabase()
 
     try {
@@ -423,10 +442,10 @@ describe("sqlite ddl", () => {
       expect(() =>
         database
           .query(
-            `INSERT INTO transition(id, meta_src, from_state_id, to_state_id, position)
-             VALUES (?, ?, ?, ?, ?)`,
+            `INSERT INTO transition(id, from_state_id, to_state_id, position)
+             VALUES (?, ?, ?, ?)`,
           )
-          .run(100, "alpha/meta", 10, 20, 0),
+          .run(100, 10, 20, 0),
       ).toThrow()
 
       database
@@ -438,18 +457,18 @@ describe("sqlite ddl", () => {
 
       database
         .query(
-          `INSERT INTO transition(id, meta_src, from_state_id, to_state_id, position)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO transition(id, from_state_id, to_state_id, position)
+           VALUES (?, ?, ?, ?)`,
         )
-        .run(101, "alpha/meta", 10, 11, 0)
+        .run(101, 10, 11, 0)
 
       expect(() =>
         database
           .query(
-            `INSERT INTO condition(meta_src, transition_id, field_id, condition_json)
-             VALUES (?, ?, ?, ?)`,
+            `INSERT INTO condition(transition_id, field_id, condition_json)
+             VALUES (?, ?, ?)`,
           )
-          .run("alpha/meta", 101, 2, JSON.stringify({ eq: "x" })),
+          .run(101, 2, JSON.stringify({ eq: "x" })),
       ).toThrow()
 
       database

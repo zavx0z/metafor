@@ -15,8 +15,7 @@
  * в сериализованном формате, сохраняя всю семантику для ИИ.
  */
 
-import type { NodeType, ReactionsSchema } from "@metafor/dsl"
-import type { Mass } from "@metafor/dsl/types"
+import type { Mass, NodeType, ReactionsSchema } from "@metafor/dsl"
 
 /**
  * Исходный объект MetaFor, полученный из chain API.

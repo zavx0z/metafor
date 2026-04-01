@@ -1,4 +1,10 @@
 import type { Schema, SchemaType, Values } from "@zavx0z/context"
+
+/**
+ * Состояние приложения.
+ * Строковое представление текущего состояния.
+ */
+export type State = string
 /**
  * # Условия для булевых значений (required)
 

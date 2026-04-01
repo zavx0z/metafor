@@ -1,9 +1,9 @@
 import type { Schema, Types, Update, Values } from "@zavx0z/context"
-import type { ProcessesDeclaration, ProcessesSchema } from "./process"
+import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import type { NodeType } from "@metafor/template"
-import type { ReactionsSchema } from "./reactions"
-import type { Superposition } from "./states"
-import type { ReactionsDeclaration } from "./reactions"
+import type { ReactionsSchema } from "./reactions.t"
+import type { Superposition } from "./states.t"
+import type { ReactionsDeclaration } from "./reactions.t"
 
 export type SRC = string
 
@@ -151,7 +151,6 @@ export type MetaForFn = (
        * Масса накапливается в процессе исполнения и определяет локализацию процесса.
        * Mass доступен во всех процессах и реакциях.
        *
-       * @param massBuilder - функция, возвращающая mass объект, или сам mass объект
        * @returns chain API для вызова .processes(...)
        *
        * @example
@@ -168,6 +167,7 @@ export type MetaForFn = (
        *   cache: new Map()
        * })
        * ```
+       * @param mass
        */
       mass<m extends Mass>(
         mass?: m,

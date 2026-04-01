@@ -1,11 +1,20 @@
-import type { Schema } from "@zavx0z/context"
-import { ProcessType, type DestroyConfig, type ProcessConfig, type ExecutionEnv, type ActionParams } from "@metafor/dsl/types/process"
-import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema, Process } from "@metafor/dsl/types/process"
-import { destroyAppendArg, normalizeFunctionString, parseFunction, updateAppendArg, extractModuleSrc, extractImportSpecifier, validateActionStructure } from "./action"
-import { Initiator, type Mass } from "@metafor/dsl/types/metafor"
+import type {Schema} from "@zavx0z/context"
+import type {ActionParams} from "./action.t"
+import {ProcessType, type DestroyConfig, type ProcessConfig, type ExecutionEnv} from "./process.t"
+import type {ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema, Process} from "./process.t"
+import {
+  destroyAppendArg,
+  normalizeFunctionString,
+  parseFunction,
+  updateAppendArg,
+  extractModuleSrc,
+  extractImportSpecifier,
+  validateActionStructure
+} from "./action"
+import {Initiator, type Mass} from "./metafor.t"
 
 
-export type { ProcessesDeclaration, ProcessesSchema, ActionParams }
+export type {ProcessesDeclaration, ProcessesSchema, ActionParams}
 
 /**
  * Парсит процесс и извлекает информацию о всех обработчиках.
@@ -51,7 +60,7 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
 
   // Extract module path from import()
   const modulePath = extractModuleSrc(process.action as Function)
-  
+
   // Extract import specifier (например, "default", "commit", "process")
   const importSpecifier = extractImportSpecifier(process.action as Function)
 
@@ -60,16 +69,16 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
     const parsed = parseFunction(process.action as Function, false)
     result.action = {
       src: modulePath,
-      ...(importSpecifier ? { importSpecifier } : {}),
-      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+      ...(importSpecifier ? {importSpecifier} : {}),
+      ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
     }
   } else {
     // Пустая функция-заглушка — src = ""
     const parsed = parseFunction(process.action as Function, false)
     result.action = {
       src: "",
-      ...(importSpecifier ? { importSpecifier } : {}),
-      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+      ...(importSpecifier ? {importSpecifier} : {}),
+      ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
     }
   }
 
@@ -78,8 +87,8 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
     const src = normalizeFunctionString(updateAppendArg(process.success.toString(), `"${Initiator.Success}"`))
     result.success = {
       src,
-      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
-      ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
+      ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
+      ...(parsed.write.length > 0 ? {write: parsed.write} : {}),
     }
   }
   if (process.error) {
@@ -87,8 +96,8 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
     const src = normalizeFunctionString(updateAppendArg(process.error.toString(), `"${Initiator.Error}"`))
     result.error = {
       src,
-      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
-      ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
+      ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
+      ...(parsed.write.length > 0 ? {write: parsed.write} : {}),
     }
   }
   return result
@@ -114,8 +123,8 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
  * }
  * const result = getSnapshotProcesses(processes)
  * // => {
- * //   loadUser: { label: "loadUser", action: { read: ['id'] } },
- * //   saveData: { action: { read: [], write: ['saved'] } }
+ * // loadUser: { label: "loadUser", action: { read: ['id'] } },
+ * // saveData: { action: { read: [], write: ['saved'] } }
  * // }
  * ```
  * @param processes - конфигурация процессов
@@ -196,16 +205,16 @@ export const processesSchema = <ɸ extends Schema, 𝛴 extends string, m extend
         const chain = chains[key] as any
         if ("getResult" in chain && typeof chain.getResult === "function") {
           const chainResult = chain.getResult()
-          const parsed = chainResult.before ? parseFunction(chainResult.before, false) : { read: [] }
+          const parsed = chainResult.before ? parseFunction(chainResult.before, false) : {read: []}
           result[key] = {
             type: ProcessType.FINALLY,
             before: {
               src: chainResult.before ? normalizeFunctionString(chainResult.before.toString()) : "() => {}",
-              ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+              ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
             },
-            ...(chainResult.label ? { label: chainResult.label } : {}),
-            ...(chainResult.desc ? { desc: chainResult.desc } : {}),
-            ...(chainResult.env ? { env: chainResult.env } : {}),
+            ...(chainResult.label ? {label: chainResult.label} : {}),
+            ...(chainResult.desc ? {desc: chainResult.desc} : {}),
+            ...(chainResult.env ? {env: chainResult.env} : {}),
           }
         }
       } else {

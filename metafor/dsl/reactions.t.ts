@@ -1,6 +1,6 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { Condition, ConditionOptional, CondNumberRequired, CondStringRequired } from "./states"
-import type { JsonPatch, Mass, Self } from "./metafor"
+import type { Condition, ConditionOptional, CondNumberRequired, CondStringRequired } from "./states.t"
+import type { JsonPatch, Mass, Self } from "./metafor.t"
 
 export type ReactionParams = {
   meta: string
