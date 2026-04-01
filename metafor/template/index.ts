@@ -36,7 +36,7 @@ import type { NodeLogical } from "./node/logical.t"
 import type { NodeMap } from "./node/map.t"
 import type { NodeCondition } from "./node/condition.t"
 import { extractHtmlElements } from "./parser"
-import type { Schema } from "@zavx0z/context"
+import type { Schema } from "../dsl/fields.t"
 import type { Mass, MatterDefinitionParams } from "../dsl/metafor.t"
 import type { State } from "../dsl/states.t"
 
@@ -62,8 +62,8 @@ export type { NodeType, NodeMeta, NodeLogical, NodeMap, NodeCondition }
  * `)
  * ```
  */
-export const parse = <F extends Schema = Schema, M extends Mass = Mass, S extends State = State>(
-  template: (params: MatterDefinitionParams<F, M, S>) => void,
+export const parse = <ɸ extends Schema = Schema, m extends Mass = Mass, 𝛴 extends State = State>(
+  template: (params: MatterDefinitionParams<ɸ, m, 𝛴>) => void,
 ): NodeType[] => {
   const mainHtml = extractMainHtmlBlock(template)
   const hierarchy = extractHtmlElements(mainHtml)

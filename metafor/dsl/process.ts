@@ -1,7 +1,7 @@
-import type {Schema} from "@zavx0z/context"
-import type {ActionParams} from "./action.t"
-import {ProcessType, type DestroyConfig, type ProcessConfig, type ExecutionEnv} from "./process.t"
-import type {ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema, Process} from "./process.t"
+import type { Schema } from "./fields.t"
+import type { ActionParams } from "./action.t"
+import { ProcessType, type DestroyConfig, type ProcessConfig, type ExecutionEnv } from "./process.t"
+import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema, Process } from "./process.t"
 import {
   destroyAppendArg,
   normalizeFunctionString,
@@ -9,12 +9,9 @@ import {
   updateAppendArg,
   extractModuleSrc,
   extractImportSpecifier,
-  validateActionStructure
+  validateActionStructure,
 } from "./action"
-import {Initiator, type Mass} from "./metafor.t"
-
-
-export type {ProcessesDeclaration, ProcessesSchema, ActionParams}
+import { Initiator, type Mass } from "./metafor.t"
 
 /**
  * Парсит процесс и извлекает информацию о всех обработчиках.
@@ -69,16 +66,16 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
     const parsed = parseFunction(process.action as Function, false)
     result.action = {
       src: modulePath,
-      ...(importSpecifier ? {importSpecifier} : {}),
-      ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
+      ...(importSpecifier ? { importSpecifier } : {}),
+      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
     }
   } else {
     // Пустая функция-заглушка — src = ""
     const parsed = parseFunction(process.action as Function, false)
     result.action = {
       src: "",
-      ...(importSpecifier ? {importSpecifier} : {}),
-      ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
+      ...(importSpecifier ? { importSpecifier } : {}),
+      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
     }
   }
 
@@ -87,8 +84,8 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
     const src = normalizeFunctionString(updateAppendArg(process.success.toString(), `"${Initiator.Success}"`))
     result.success = {
       src,
-      ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
-      ...(parsed.write.length > 0 ? {write: parsed.write} : {}),
+      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+      ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
     }
   }
   if (process.error) {
@@ -96,8 +93,8 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
     const src = normalizeFunctionString(updateAppendArg(process.error.toString(), `"${Initiator.Error}"`))
     result.error = {
       src,
-      ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
-      ...(parsed.write.length > 0 ? {write: parsed.write} : {}),
+      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+      ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
     }
   }
   return result
@@ -109,15 +106,15 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
  * Анализирует конфигурацию, где каждое свойство содержит цепочку действий,
  * и возвращает объект с распарсенными процессами.
  *
- * @template C - схема контекста
- * @template S - строковые ключи процессов
- * @template I - тип ядра
+ * @template ɸ - схема контекста
+ * @template 𝛴 - строковые ключи процессов
+ * @template m - тип массы
  * @param processes - конфигурация процессов
  * @returns объект с распарсенными процессами
  *
  * @example
  * ```ts
- * const processes: ProcessesDeclaration<C, S, M> = (process) => ({
+ * const processes: ProcessesDeclaration<ɸ, 𝛴, m> = (process) => ({
  *   loadUser: process({ label: "loadUser" }).action(({ value }) => fetch(`/users/${value.id}`)),
  *   saveData: process().action(({ value, update }) => update({ saved: true }))
  * }

@@ -1,4 +1,4 @@
-import type { Schema } from "@zavx0z/context"
+import type { Schema } from "./fields.t"
 import type { ActionFieldUsage, ActionStructureValidationResult } from "./action.t"
 import type { Mass } from "./metafor.t"
 import type { ReactionAction } from "./reactions.t"

@@ -1,4 +1,4 @@
-import type { Schema, Values } from "@zavx0z/context"
+import type { Schema, Values } from "./fields.t"
 import type { Mass, Self } from "./metafor.t"
 
 /**

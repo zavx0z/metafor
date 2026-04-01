@@ -1,4 +1,4 @@
-import type { Schema, Update } from "@zavx0z/context"
+import type { Schema, Update } from "./fields.t"
 import type { ActionParams } from "./action.t"
 import type { Mass } from "./metafor.t"
 

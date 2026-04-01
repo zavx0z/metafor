@@ -1,12 +1,12 @@
 import { test, describe, expect } from "bun:test"
 import { processesSchema } from "./process.js"
-import { contextSchema } from "@zavx0z/context"
+import { fieldSchema } from "./fields.ts"
 import type { ProcessesDeclaration } from "./process.t"
 
 describe("ESM-процессы", () => {
   describe("Валидная структура action", () => {
     test("процесс с import и return", () => {
-      const schema = contextSchema((field) => ({
+      const schema = fieldSchema((field) => ({
         foo: field.string.required("a"),
         bar: field.number.required(0),
       }))
@@ -30,7 +30,7 @@ describe("ESM-процессы", () => {
     })
 
     test("процесс с конфигурацией env", () => {
-      const schema = contextSchema((field) => ({
+      const schema = fieldSchema((field) => ({
         data: field.string.required(""),
       }))
 
@@ -57,7 +57,7 @@ describe("ESM-процессы", () => {
     })
 
     test("несколько процессов с разными модулями", () => {
-      const schema = contextSchema((field) => ({
+      const schema = fieldSchema((field) => ({
         url: field.string.required(""),
         id: field.number.required(0),
       }))
@@ -91,7 +91,7 @@ describe("ESM-процессы", () => {
 
   describe("Невалидная структура action", () => {
     test("ошибка при отсутствии import", () => {
-      const schema = contextSchema((field) => ({
+      const schema = fieldSchema((field) => ({
         foo: field.string.required("a"),
       }))
 
@@ -103,7 +103,7 @@ describe("ESM-процессы", () => {
     })
 
     test("ошибка при отсутствии return", () => {
-      const schema = contextSchema((field) => ({
+      const schema = fieldSchema((field) => ({
         foo: field.string.required("a"),
       }))
 
@@ -136,7 +136,7 @@ describe("ESM-процессы", () => {
 
   describe("destroy-процессы с env", () => {
     test("destroy с конфигурацией env", () => {
-      const schema = contextSchema((field) => ({
+      const schema = fieldSchema((field) => ({
         cleanup: field.boolean.required(false),
       }))
 
@@ -166,7 +166,7 @@ describe("ESM-процессы", () => {
 
 describe("parseChainsObject — ESM actions", () => {
   test("action, success, error варианты", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     type C = typeof schema
     type S = "onlyAction" | "onlySuccess" | "onlyError" | "allHandlers"
 
@@ -218,14 +218,14 @@ describe("parseChainsObject — ESM actions", () => {
   })
 
   test("пустой объект", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a") }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a") }))
     const actions: ProcessesDeclaration<typeof schema, never, {}> = (process) => ({})
     const snapshot = processesSchema(actions)
     expect(snapshot, "пустой объект возвращает пустой объект").toEqual({})
   })
 
   test("один процесс", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a") }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a") }))
     const actions: ProcessesDeclaration<typeof schema, "single", {}> = (process) => ({
       single: process().action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
@@ -240,7 +240,7 @@ describe("parseChainsObject — ESM actions", () => {
   })
 
   test("несколько процессов", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "first" | "second", {}> = (process) => ({
       first: process().action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
@@ -263,7 +263,7 @@ describe("parseChainsObject — ESM actions", () => {
   })
 
   test("процессы с разными типами возвращаемых значений", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "string" | "number" | "object", {}> = (process) => ({
       string: process().action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
@@ -291,7 +291,7 @@ describe("parseChainsObject — ESM actions", () => {
   })
 
   test("процессы с async функциями и разными модулями", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a") }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a") }))
     const actions: ProcessesDeclaration<typeof schema, "async", {}> = (process) => ({
       async: process().action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
@@ -305,7 +305,7 @@ describe("parseChainsObject — ESM actions", () => {
   })
 
   test("процессы с success и error обработчиками", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "withHandlers", {}> = (process) => ({
       withHandlers: process()
         .action(async ({ value }) => {
@@ -324,7 +324,7 @@ describe("parseChainsObject — ESM actions", () => {
   })
 
   test("процессы с label и desc", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a") }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a") }))
     const actions: ProcessesDeclaration<typeof schema, "withMeta", {}> = (process) => ({
       withMeta: process({ label: "test_process", desc: "Test process description" }).action(
         async ({ value }) => {
@@ -342,7 +342,7 @@ describe("parseChainsObject — ESM actions", () => {
   })
 
   test("извлечение пути модуля из action", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "moduleTest", {}> = (process) => ({
       moduleTest: process().action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
@@ -355,7 +355,7 @@ describe("parseChainsObject — ESM actions", () => {
   })
 
   test("сохранение строкового представления success/error обработчиков", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const successFn = ({ update, data }: any) => update({ result: data })
     const errorFn = ({ update, error }: any) => update({ error: error.message })
 
@@ -383,7 +383,7 @@ describe("parseChainsObject — ESM actions", () => {
 
 describe("parseChain — несколько chain", () => {
   test("корректно парсит объект с несколькими chain", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "first" | "second", {}> = (process) => ({
       first: process({ label: "Первый процесс", desc: "Обрабатывает foo" })
         .action(async ({ value }) => {
@@ -412,7 +412,7 @@ describe("parseChain — несколько chain", () => {
   })
 
   test("смешанные типы процессов", () => {
-    const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
+    const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "simple" | "complex" | "async", {}> = (process) => ({
       simple: process().action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
@@ -445,7 +445,7 @@ describe("parseChain — несколько chain", () => {
   })
 
   test("destroy процессы", () => {
-    const schema = contextSchema((field) => ({
+    const schema = fieldSchema((field) => ({
       foo: field.string.required("a"),
       bar: field.number.required(0),
       cleanup: field.boolean.required(false),

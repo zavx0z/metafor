@@ -1,10 +1,10 @@
 import { test, expect, describe } from "bun:test"
 
-import { contextSchema } from "@zavx0z/context"
+import { fieldSchema } from "./fields"
 import { reactionsSchema } from "./reactions"
 
 describe("схема реакций", () => {
-  const schema = contextSchema((field) => ({
+  const schema = fieldSchema((field) => ({
     value: field.number.required(0),
     name: field.string.required(""),
     isActive: field.boolean.required(false),

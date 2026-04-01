@@ -1,6 +1,5 @@
-import type { Schema } from "@zavx0z/context"
+import type { Schema } from "./fields.t"
 import type { Superposition } from "./states.t"
-export type { Superposition }
 
 /**
  * Проверяет, что в конфигурации состояний нет циклов безусловных переходов.

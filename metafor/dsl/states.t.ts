@@ -1,4 +1,4 @@
-import type { Schema, SchemaType, Values } from "@zavx0z/context"
+import type { Schema, SchemaType, Values } from "./fields.t"
 
 /**
  * Состояние приложения.

@@ -75,12 +75,16 @@
  *
  * @packageDocumentation
  */
-import { contextSchema, type Schema, type Types as Fields } from "@zavx0z/context"
+import { fieldSchema } from "./fields.ts"
+import type { Schema, Types as Fields } from "./fields.t.ts"
 import { parse } from "../template/index.ts"
 
-import { validateNoUnconditionalCycles, type Superposition } from "./states"
-import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
-import { processesSchema, type ProcessesDeclaration } from "./process"
+import { validateNoUnconditionalCycles } from "./states"
+import type { Superposition } from "./states.t"
+import { reactionsSchema } from "./reactions"
+import type { ReactionsDeclaration } from "./reactions.t"
+import { processesSchema } from "./process"
+import type { ProcessesDeclaration } from "./process.t"
 import { serializeStyle } from "./style"
 
 import type {
@@ -92,75 +96,12 @@ import type {
   MetaForFn,
 } from "./metafor.t"
 
-export type {
-  ActionParams,
-  ActionFieldUsage,
-  ActionStructureValidationResult,
-} from "./action.t"
-export type {
-  SRC,
-  MetaForFn,
-  MetaForConfig,
-  MetaDSL,
-  BulkDeclaration,
-  MatterDeclaration,
-  MatterDefinitionParams,
-  Mass,
-  Self,
-  Initiator,
-  JsonPatch,
-} from "./metafor.t"
-export type {
-  Process,
-  ActionChain,
-  DestroyChain,
-  DestroyConfig,
-  ExecutionEnv,
-  ParsedActionHandler,
-  ParsedDestroy,
-  ParsedHandler,
-  ParsedProcess,
-  ProcessChain,
-  ProcessConfig,
-  ProcessesDeclaration,
-  ProcessesSchema,
-  ProcessType,
-} from "./process.t"
-export type {
-  Reaction,
-  ReactionAction,
-  ReactionFilterConditions,
-  ReactionParams,
-  ReactionsChainResult,
-  ReactionsDeclaration,
-  ReactionsSchema,
-} from "./reactions.t"
-export type {
-  State,
-  Superposition,
-  Transitions,
-  Wave,
-  Condition,
-  ConditionOptional,
-  CondBooleanRequired,
-  CondBooleanOptional,
-  CondEnumRequired,
-  CondEnumOptional,
-  CondStringRequired,
-  CondStringOptional,
-  CondNumberRequired,
-  CondNumberOptional,
-  CondArrayRequired,
-  CondArrayOptional,
-} from "./states.t"
-export type { NodeMeta, NodeType, NodeLogical, NodeMap, NodeCondition } from "../template/index.ts"
-
 export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
   const dev = config?.dev ?? globalThis.DEV ?? false
   return {
     fields<ɸ extends Schema>(schema: (field: Fields) => ɸ) {
-      const fields = contextSchema(schema)
+      const fields = fieldSchema(schema)
       return {
         superposition<𝛴 extends string>(superposition: Superposition<𝛴, ɸ>) {
           validateNoUnconditionalCycles(superposition)

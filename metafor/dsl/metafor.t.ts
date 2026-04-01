@@ -1,4 +1,4 @@
-import type { Schema, Types, Update, Values } from "@zavx0z/context"
+import type { Schema, Types, Update, Values } from "./fields.t"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import type { NodeType } from "@metafor/template"
 import type { ReactionsSchema } from "./reactions.t"
@@ -456,9 +456,9 @@ export interface BulkDeclaration {
  * Определяет полную структуру компонента включая поля, суперпозицию,
  * процессы, реакции и массу. Используется для создания атомов.
  *
- * @template C - Тип полей (схема полей)
- * @template S - Тип состояний (строковые литералы)
- * @template M - Тип массы (объект для сложных данных и зависимостей от среды)
+ * @template ɸ - Тип полей (схема полей)
+ * @template 𝛴 - Тип состояний (строковые литералы)
+ * @template m - Тип массы (объект для сложных данных и зависимостей от среды)
  *
  * @example
  * ```typescript

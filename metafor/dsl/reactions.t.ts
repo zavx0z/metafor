@@ -1,4 +1,4 @@
-import type { Schema, Update, Values } from "@zavx0z/context"
+import type { Schema, Update, Values } from "./fields.t"
 import type { Condition, ConditionOptional, CondNumberRequired, CondStringRequired } from "./states.t"
 import type { JsonPatch, Mass, Self } from "./metafor.t"
 
@@ -513,9 +513,9 @@ export type ReactionsSchema = {
  * Вызывается когда реакция срабатывает и фильтр прошел успешно.
  * Получает все необходимые данные для обработки события.
  *
- * @template C - схема контекста
- * @template S - строковые ключи состояний
- * @template Mass - тип mass объекта
+ * @template ɸ - схема контекста
+ * @template 𝛴 - строковые ключи состояний
+ * @template m - тип mass объекта
  *
  * @includeExample ./react/test/reactions.basic.spec.ts
  * @includeExample ./react/test/reactions.execution.spec.ts

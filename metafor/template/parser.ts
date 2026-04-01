@@ -1201,12 +1201,9 @@ export const enrichWithData = (
 ): NodeType[] => {
   return hierarchy.map((node) => createNode(node, context))
 }
-// ============================================================================
-// HELPER FUNCTIONS FOR CODE REUSE
-// ============================================================================
+
 /**
  * Защищает строковые литералы от замены переменных.
- * Переиспользуемая функция для устранения дублирования.
  */
 const protectStringLiterals = (expr: string): { protectedExpr: string; stringLiterals: string[] } => {
   const stringLiterals: string[] = []
