@@ -5,6 +5,7 @@
   "type": "module",
   "private": false,
   "workspaces": [
+    "sqlite",
     "dark",
     "dark/*",
     "boundary",

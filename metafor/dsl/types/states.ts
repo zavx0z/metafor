@@ -11,8 +11,6 @@ import type { Schema, SchemaType, Values } from "@zavx0z/context"
    | eq         | boolean | Равно указанному булеву значению   |
    | notEq      | boolean | Не равно указанному булеву значению|
    | logicalEq  | boolean | Логическое равенство               |
-
-   @includeExample ./state/test/conditions.boolean.spec.ts
    */
 export type CondBooleanRequired =
   | boolean
@@ -167,8 +165,6 @@ export type CondEnumOptional<E extends readonly (string | number)[]> =
    | notEndsWith   | string  | Не заканчивается на указанную строку|
    | length        | number \| { min?: number; max?: number } | Длина строки |
    | between       | [string, string] | Должно быть между двумя строками |
-
-   @includeExample ./state/test/conditions.string.spec.ts
    */
 export type CondStringRequired =
   | string
@@ -295,8 +291,6 @@ export type CondStringOptional =
    | notLt      | number  | Не меньше указанного числа         |
    | notLte     | number  | Не меньше или равно указанному числу|
    | between    | [number, number] | Должно быть между двумя числами |
-
-   @includeExample ./state/test/conditions.number.spec.ts
    */
 export type CondNumberRequired =
   | number
