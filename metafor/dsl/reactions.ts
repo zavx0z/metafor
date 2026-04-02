@@ -1,9 +1,9 @@
-import type { Schema, Values } from "./fields.t"
+import type { Fields, Values } from "./fields.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction, ReactionFilterConditions } from "./reactions.t"
 import { extractFields, normalizeFunctionString, updateAppendArg } from "./action"
 import { Initiator, type Mass, type Self } from "./metafor.t"
 
-export const reactionsSchema = <ɸ extends Schema, 𝛴 extends string, m extends Mass = {}>(
+export const reactionsSchema = <ɸ extends Fields, 𝛴 extends string, m extends Mass = {}>(
   builder: ReactionsDeclaration<ɸ, 𝛴, m>
 ): ReactionsSchema | null => {
   const reactions: Record<string, any> = {}

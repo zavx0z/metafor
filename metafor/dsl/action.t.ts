@@ -1,10 +1,10 @@
-import type { Schema, Values } from "./fields.t"
+import type { Fields, Values } from "./fields.t"
 import type { Mass, Self } from "./metafor.t"
 
 /**
  * Параметры для action.
  */
-export type ActionParams<ɸ extends Schema, m extends Mass> = {
+export type ActionParams<ɸ extends Fields, m extends Mass> = {
   /**
    * Декларация полей (схема, тип, валидатор).
    * Используется для валидации и доступа к типам полей.

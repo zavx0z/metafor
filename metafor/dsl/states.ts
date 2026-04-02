@@ -1,4 +1,4 @@
-import type { Schema } from "./fields.t"
+import type { Fields } from "./fields.t"
 import type { Superposition } from "./states.t"
 
 /**
@@ -25,7 +25,7 @@ import type { Superposition } from "./states.t"
  * ```
  */
 
-export function validateNoUnconditionalCycles<𝛴 extends string, ɸ extends Schema>(states: Superposition<𝛴, ɸ>) {
+export function validateNoUnconditionalCycles<𝛴 extends string, ɸ extends Fields>(states: Superposition<𝛴, ɸ>) {
   // Строим граф только по безусловным переходам (условия: {}, null, undefined)
   const graph: Record<string, string[]> = {}
   for (const [from, transitions] of Object.entries(states)) {

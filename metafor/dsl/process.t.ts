@@ -1,4 +1,4 @@
-import type { Schema, Update } from "./fields.t"
+import type { Fields, Update } from "./fields.t"
 import type { ActionParams } from "./action.t"
 import type { Mass } from "./metafor.t"
 
@@ -30,7 +30,7 @@ import type { Mass } from "./metafor.t"
  * }
  * ```
  */
-export type Process<ɸ extends Schema = Schema, m extends Mass = Mass, Res = any> = {
+export type Process<ɸ extends Fields = Fields, m extends Mass = Mass, Res = any> = {
   type: ProcessType.ACTION | ProcessType.FINALLY
   /** Основная функция процесса */
   action: (params: ActionParams<ɸ, m>) => Res | Promise<Res>
@@ -66,7 +66,7 @@ export type Process<ɸ extends Schema = Schema, m extends Mass = Mass, Res = any
  * chain.getResult() // { action, success, error, label?, desc? }
  * ```
  */
-export type ProcessChain<ɸ extends Schema, m extends Mass> = {
+export type ProcessChain<ɸ extends Fields, m extends Mass> = {
   /**
    * Добавляет основную функцию процесса.
    *
@@ -117,7 +117,7 @@ export type ProcessChain<ɸ extends Schema, m extends Mass> = {
  * @param process - фабрика для создания цепочки ProcessChain
  * @returns объект, где ключи — имена процессов, а значения — цепочки ActionChain
  */
-export type ProcessesDeclaration<ɸ extends Schema = Schema, 𝛴 extends string = string, m extends Mass = Mass> = (
+export type ProcessesDeclaration<ɸ extends Fields = Fields, 𝛴 extends string = string, m extends Mass = Mass> = (
   process: (config?: ProcessConfig) => ProcessChain<ɸ, m>,
   destroy: (config?: DestroyConfig) => DestroyChain<ɸ, m>,
 ) => Partial<Record<𝛴, ActionChain<ɸ, m, any> | DestroyChain<ɸ, m>>>
@@ -232,7 +232,7 @@ export interface ProcessConfig extends BaseProcessConfig {
 /**
  * Специальный тип для destroy-процессов
  */
-export type DestroyChain<ɸ extends Schema = Schema, m extends Mass = Mass> = {
+export type DestroyChain<ɸ extends Fields = Fields, m extends Mass = Mass> = {
   before: (handler: ({ mass }: { mass: m }) => void | Promise<void>) => DestroyChain<ɸ, m>
 }
 
@@ -256,7 +256,7 @@ export type DestroyChain<ɸ extends Schema = Schema, m extends Mass = Mass> = {
  * chain.getResult() // { action, success, error }
  * ```
  */
-export type ActionChain<ɸ extends Schema, m extends Mass, Res> = {
+export type ActionChain<ɸ extends Fields, m extends Mass, Res> = {
   /**
    * Основная функция процесса, вызывается автоматом.
    *

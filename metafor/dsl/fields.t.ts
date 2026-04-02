@@ -1,7 +1,7 @@
 /**
  * Описание одного поля схемы MetaFor.
  */
-interface SchemaTypeBase<
+interface FieldTypeBase<
   N extends "string" | "number" | "boolean" | "array" | "enum",
   R extends boolean = false,
   V extends readonly (string | number)[] | never = never,
@@ -14,28 +14,28 @@ interface SchemaTypeBase<
   data?: string
 }
 
-export type SchemaType<
+export type FieldType<
   N extends "string" | "number" | "boolean" | "array" | "enum",
   R extends boolean = false,
   D extends unknown = undefined,
   V extends readonly (string | number)[] | never = never,
-> = [D] extends [undefined] ? SchemaTypeBase<N, R, V> & { default?: D } : SchemaTypeBase<N, R, V> & { default: D }
+> = [D] extends [undefined] ? FieldTypeBase<N, R, V> & { default?: D } : FieldTypeBase<N, R, V> & { default: D }
 
-export type Schema = Record<
+export type Fields = Record<
   string,
-  | SchemaType<"string", true | false, undefined>
-  | SchemaType<"string", true | false, string>
-  | SchemaType<"boolean", true | false, undefined>
-  | SchemaType<"boolean", true | false, boolean>
-  | SchemaType<"number", true | false, undefined>
-  | SchemaType<"number", true | false, number>
-  | SchemaType<"array", true | false, undefined>
-  | SchemaType<"array", true | false, (string | number | boolean)[]>
-  | SchemaType<"enum", true | false, undefined, readonly (string | number)[]>
-  | SchemaType<"enum", true | false, string | number, readonly (string | number)[]>
+  | FieldType<"string", true | false, undefined>
+  | FieldType<"string", true | false, string>
+  | FieldType<"boolean", true | false, undefined>
+  | FieldType<"boolean", true | false, boolean>
+  | FieldType<"number", true | false, undefined>
+  | FieldType<"number", true | false, number>
+  | FieldType<"array", true | false, undefined>
+  | FieldType<"array", true | false, (string | number | boolean)[]>
+  | FieldType<"enum", true | false, undefined, readonly (string | number)[]>
+  | FieldType<"enum", true | false, string | number, readonly (string | number)[]>
 >
 
-export type ExtractValue<E> = E extends SchemaType<infer N, infer R, infer D, infer V>
+export type Value<E> = E extends FieldType<infer N, infer R, infer D, infer V>
   ? N extends "enum"
     ? R extends true
       ? V extends readonly (string | number)[]
@@ -61,43 +61,47 @@ export type ExtractValue<E> = E extends SchemaType<infer N, infer R, infer D, in
             : never
   : never
 
-export type Values<ɸ extends Schema> = { [K in keyof ɸ]: ExtractValue<ɸ[K]> }
+export type Values<ɸ extends Fields> = { [K in keyof ɸ]: Value<ɸ[K]> }
 
-export type Update<ɸ extends Schema> = (values: Partial<Values<ɸ>>) => Partial<Values<ɸ>>
+export type Update<ɸ extends Fields> = (values: Partial<Values<ɸ>>) => Partial<Values<ɸ>>
 
-export type Types = {
-  string: TypePrimitive<string, "string">
-  number: TypePrimitive<number, "number">
-  boolean: TypePrimitive<boolean, "boolean">
-  array: TypeArray
-  enum: TypeEnum
+export type Field = {
+  string: FieldPrimitive<string, "string">
+  number: FieldPrimitive<number, "number">
+  boolean: FieldPrimitive<boolean, "boolean">
+  array: FieldArray
+  enum: FieldEnum
 }
 
-export interface TypePrimitive<T extends string | number | boolean, N extends "string" | "number" | "boolean"> {
-  optional(options?: { label?: string }): SchemaType<N, false>
-  optional<D extends T>(defaultValue?: D, options?: { label?: string }): SchemaType<N, false, D>
-  required: <D extends T>(defaultValue: D, options?: { label?: string; id?: true }) => SchemaType<N, true, D>
+export interface FieldPrimitive<T extends string | number | boolean, N extends "string" | "number" | "boolean"> {
+  optional(options?: { label?: string }): FieldType<N, false>
+
+  optional<D extends T>(defaultValue?: D, options?: { label?: string }): FieldType<N, false, D>
+
+  required: <D extends T>(defaultValue: D, options?: { label?: string; id?: true }) => FieldType<N, true, D>
 }
 
-export type TypeArray = {
+export type FieldArray = {
   optional: {
-    (options?: { label?: string; data?: string }): SchemaType<"array", false>
+    (options?: { label?: string; data?: string }): FieldType<"array", false>
     <D extends (string | number | boolean)[]>(
       defaultValue?: D,
       options?: { label?: string; data?: string },
-    ): SchemaType<"array", false, D>
+    ): FieldType<"array", false, D>
   }
   required: <D extends string | number | boolean>(
     defaultValue: D[],
     options?: { label?: string; data?: string },
-  ) => SchemaType<"array", true, D[]>
+  ) => FieldType<"array", true, D[]>
 }
 
-export type TypeEnum = <const V extends readonly (string | number)[]>(...values: V) => {
-  optional(options?: { label?: string }): SchemaType<"enum", false, undefined, V>
-  optional<D extends V[number] | undefined>(defaultValue?: D, options?: { label?: string }): SchemaType<"enum", false, D, V>
+export type FieldEnum = <const V extends readonly (string | number)[]>(...values: V) => {
+  optional(options?: { label?: string }): FieldType<"enum", false, undefined, V>
+  optional<D extends V[number] | undefined>(defaultValue?: D, options?: {
+    label?: string
+  }): FieldType<"enum", false, D, V>
   required: <D extends V[number]>(
     defaultValue: D,
     options?: { label?: string; id?: true },
-  ) => SchemaType<"enum", true, D, V>
+  ) => FieldType<"enum", true, D, V>
 }

@@ -1,4 +1,4 @@
-import type { Schema, SchemaType, Values } from "./fields.t"
+import type { Fields, FieldType, Values } from "./fields.t"
 
 /**
  * Состояние приложения.
@@ -545,15 +545,15 @@ export type ConditionOptional<T> = T extends boolean
 /**
  * Условие контекстного поля
  */
-export type Wave<ɸ extends Schema = Schema> = {
-  [K in keyof Partial<ɸ>]: ɸ[K] extends SchemaType<any, true, any, any>
+export type Wave<ɸ extends Fields = Fields> = {
+  [K in keyof Partial<ɸ>]: ɸ[K] extends FieldType<any, true, any, any>
     ? Condition<Values<ɸ>[K]>
     : ConditionOptional<Values<ɸ>[K]>
 }
 /**
  * Состояние в которое можно перейти с условиями
  */
-export type Transitions<To extends string = string, ɸ extends Schema = Schema> = {
+export type Transitions<To extends string = string, ɸ extends Fields = Fields> = {
   [K in To]?: Wave<ɸ>
 }
-export type Superposition<𝛴 extends string = string, ɸ extends Schema = Schema> = Record<𝛴, Transitions<𝛴, ɸ> | null>
+export type Superposition<𝛴 extends string = string, ɸ extends Fields = Fields> = Record<𝛴, Transitions<𝛴, ɸ> | null>

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { fieldSchema } from "../../fields.ts"
-import type { SchemaType, Update, Values } from "../../fields.t.ts"
+import type { FieldType, Update, Values } from "../../fields.t.ts"
 
 describe("field typing", () => {
   test("сохраняет инференс SchemaType, Values и Update", () => {
@@ -13,7 +13,7 @@ describe("field typing", () => {
       mode: field.enum("idle", "done").optional(),
     }))
 
-    const nameField: SchemaType<"string", true, string> = schema.name
+    const nameField: FieldType<"string", true, string> = schema.name
     const values: Values<typeof schema> = {
       name: "meta",
       age: null,

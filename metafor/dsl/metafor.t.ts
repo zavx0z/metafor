@@ -1,4 +1,4 @@
-import type { Schema, Types, Update, Values } from "./fields.t"
+import type { Fields, Field, Update, Values } from "./fields.t"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import type { NodeType } from "@metafor/template"
 import type { ReactionsSchema } from "./reactions.t"
@@ -125,8 +125,8 @@ export type MetaForFn = (
    * }))
    * ```
    */
-  fields<ɸ extends Schema>(
-    schema: (field: Types) => ɸ,
+  fields<ɸ extends Fields>(
+    schema: (field: Field) => ɸ,
   ): {
     /**
      * Регистрирует суперпозицию переходов автомата между состояниями.
@@ -369,7 +369,7 @@ export type MetaForConfig = {
  * `
  * ```
  */
-export type MatterDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Mass, 𝛴 extends string = string> = {
+export type MatterDefinitionParams<ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends string = string> = {
   /**
    * Функция для обновления контекста атома.
    * Используется в обработчиках событий для изменения состояния.
@@ -424,7 +424,7 @@ export type MatterDefinitionParams<ɸ extends Schema = Schema, m extends Mass = 
 /**
  * Тип matter-декларации для иерархии акторов.
  */
-export type MatterDeclaration<ɸ extends Schema, m extends Mass, 𝛴 extends string> = (
+export type MatterDeclaration<ɸ extends Fields, m extends Mass, 𝛴 extends string> = (
   params: MatterDefinitionParams<ɸ, m, 𝛴>,
 ) => void
 
@@ -470,7 +470,7 @@ export interface BulkDeclaration {
  * }
  * ```
  */
-export interface MetaDSL<ɸ extends Schema = Schema, 𝛴 extends string = string, m extends Mass = {}> {
+export interface MetaDSL<ɸ extends Fields = Fields, 𝛴 extends string = string, m extends Mass = {}> {
   /** Название компонента */
   name: string
   /** Описание компонента */

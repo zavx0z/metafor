@@ -75,17 +75,17 @@
  *
  * @packageDocumentation
  */
-import { fieldSchema } from "./fields.ts"
-import type { Schema, Types as Fields } from "./fields.t.ts"
-import { parse } from "../template/index.ts"
+import {fieldSchema} from "./fields.ts"
+import type {Fields, Field} from "./fields.t.ts"
+import {parse} from "../template/index.ts"
 
-import { validateNoUnconditionalCycles } from "./states"
-import type { Superposition } from "./states.t"
-import { reactionsSchema } from "./reactions"
-import type { ReactionsDeclaration } from "./reactions.t"
-import { processesSchema } from "./process"
-import type { ProcessesDeclaration } from "./process.t"
-import { serializeStyle } from "./style"
+import {validateNoUnconditionalCycles} from "./states"
+import type {Superposition} from "./states.t"
+import {reactionsSchema} from "./reactions"
+import type {ReactionsDeclaration} from "./reactions.t"
+import {processesSchema} from "./process"
+import type {ProcessesDeclaration} from "./process.t"
+import {serializeStyle} from "./style"
 
 import type {
   MetaForConfig,
@@ -100,7 +100,7 @@ export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig
   const desc = config?.desc
   const dev = config?.dev ?? globalThis.DEV ?? false
   return {
-    fields<ɸ extends Schema>(schema: (field: Fields) => ɸ) {
+    fields<ɸ extends Fields>(schema: (field: Field) => ɸ) {
       const fields = fieldSchema(schema)
       return {
         superposition<𝛴 extends string>(superposition: Superposition<𝛴, ɸ>) {

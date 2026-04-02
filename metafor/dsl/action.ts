@@ -1,4 +1,4 @@
-import type { Schema } from "./fields.t"
+import type { Fields } from "./fields.t"
 import type { ActionFieldUsage, ActionStructureValidationResult } from "./action.t"
 import type { Mass } from "./metafor.t"
 import type { ReactionAction } from "./reactions.t"
@@ -130,7 +130,7 @@ export function parseFunction(fn: Function, allowWrite: boolean = true): ActionF
 /**
  * Анализирует функцию update для извлечения полей
  */
-export function extractFields<ɸ extends Schema, 𝛴 extends string, m extends Mass>(
+export function extractFields<ɸ extends Fields, 𝛴 extends string, m extends Mass>(
   reaction: ReactionAction<ɸ, 𝛴, m>
 ): ActionFieldUsage {
   const updateStr = reaction.toString()

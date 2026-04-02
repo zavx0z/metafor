@@ -1,4 +1,4 @@
-import type { Schema, Types } from "./fields.t"
+import type { Fields, Field } from "./fields.t"
 
 function createPrimitiveType<TName extends "string" | "number" | "boolean">(type: TName) {
   return {
@@ -74,12 +74,12 @@ export const field = {
     },
     { type: "enum" },
   ),
-} satisfies Types
+} satisfies Field
 
 /**
  * Создаёт нормализованную схему полей MetaFor.
  */
-export function fieldSchema<ɸ extends Schema>(schema: (field: Types) => ɸ): ɸ {
+export function fieldSchema<ɸ extends Fields>(schema: (field: Field) => ɸ): ɸ {
   const raw = schema(field)
   const out = {} as ɸ
   for (const key in raw) {

@@ -1,4 +1,4 @@
-import type { Schema } from "../dsl/fields.t"
+import type { Fields } from "../dsl/fields.t"
 import type { Mass, MatterDefinitionParams } from "../dsl/metafor.t"
 import type { State } from "../dsl/states.t"
 import type { NodeType } from "./node/index.t"
@@ -23,6 +23,6 @@ export type { ValueStatic, ValueVariable, ValueDynamic } from "./parser.t"
  * @param template - Функция шаблонизатора, которая принимает параметры { html, fields, mass, state, update }
  * @returns Массив узлов с полной структурой и метаданными о путях к данным
  */
-export declare function parse<ɸ extends Schema = Schema, m extends Mass = Mass, 𝛴 extends State = State>(
+export declare function parse<ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends State = State>(
   template: (params: MatterDefinitionParams<ɸ, m, 𝛴>) => void,
 ): NodeType[]

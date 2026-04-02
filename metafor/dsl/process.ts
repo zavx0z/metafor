@@ -1,4 +1,4 @@
-import type { Schema } from "./fields.t"
+import type { Fields } from "./fields.t"
 import type { ActionParams } from "./action.t"
 import { ProcessType, type DestroyConfig, type ProcessConfig, type ExecutionEnv } from "./process.t"
 import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema, Process } from "./process.t"
@@ -42,7 +42,7 @@ import { Initiator, type Mass } from "./metafor.t"
  * // }
  * ```
  */
-export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(process: Process<ɸ, m, Res>): ParsedProcess {
+export function parseProcess<ɸ extends Fields, m extends Mass, Res = any>(process: Process<ɸ, m, Res>): ParsedProcess {
   const result: ParsedProcess = {} as ParsedProcess
   result.type = ProcessType.ACTION
   if (process.label) result.label = process.label
@@ -127,7 +127,7 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
  * @param processes - конфигурация процессов
  * @returns объект с распарсенными процессами
  */
-export const processesSchema = <ɸ extends Schema, 𝛴 extends string, m extends Mass>(
+export const processesSchema = <ɸ extends Fields, 𝛴 extends string, m extends Mass>(
   processes: ProcessesDeclaration<ɸ, 𝛴, m>
 ): ProcessesSchema => {
   // Вызываем processesDeclaration с mock process и destroy

@@ -1,4 +1,4 @@
-import type { Schema, Update, Values } from "./fields.t"
+import type { Fields, Update, Values } from "./fields.t"
 import type { Condition, ConditionOptional, CondNumberRequired, CondStringRequired } from "./states.t"
 import type { JsonPatch, Mass, Self } from "./metafor.t"
 
@@ -363,7 +363,7 @@ export type ReactionFilterConditions = {
  * }
  * ```
  */
-export type Reaction<ɸ extends Schema, 𝛴 extends string, m extends Mass> = {
+export type Reaction<ɸ extends Fields, 𝛴 extends string, m extends Mass> = {
   /** Название реакции для документации */
   label: string
   /** Описание реакции для документации */
@@ -398,7 +398,7 @@ export type Reaction<ɸ extends Schema, 𝛴 extends string, m extends Mass> = {
  * ```
  */
 
-export type ReactionsDeclaration<ɸ extends Schema, 𝛴 extends string, m extends Mass> = (
+export type ReactionsDeclaration<ɸ extends Fields, 𝛴 extends string, m extends Mass> = (
   reaction: (config?: {
     /** Название реакции */
     label?: string
@@ -542,7 +542,7 @@ export type ReactionsSchema = {
  * ```
  */
 
-export type ReactionAction<ɸ extends Schema, 𝛴 extends string, m extends Mass> = (args: {
+export type ReactionAction<ɸ extends Fields, 𝛴 extends string, m extends Mass> = (args: {
   /** Функция для обновления полей */
   update: Update<ɸ>
   /** Текущие значения полей */
@@ -563,7 +563,7 @@ export type ReactionAction<ɸ extends Schema, 𝛴 extends string, m extends Mas
   self: Self
 }) => void /** Результат цепочки реакций */
 
-export type ReactionsChainResult<ɸ extends Schema, 𝛴 extends string, m extends Mass> = [
+export type ReactionsChainResult<ɸ extends Fields, 𝛴 extends string, m extends Mass> = [
   𝛴[],
   Reaction<ɸ, 𝛴, m> & {
     /**
