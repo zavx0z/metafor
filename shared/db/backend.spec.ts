@@ -56,7 +56,7 @@ describe("shared db canonical relational data", () => {
   test("фиксирует новую backend-index спецификацию поверх UUID/FK ontology, а не projection keys", () => {
     expect(sharedDbRequiredBackendIndexes).toEqual(
       expect.arrayContaining([
-        { name: "metas_by_src", table: "metas", columns: ["src"], unique: true },
+        { name: "metas_by", table: "metas", columns: ["src"], unique: true },
         { name: "meta_fields_by_owner_and_field_key", table: "meta_fields", columns: ["ownerMetaId", "fieldKey"], unique: true },
         { name: "wimp_fields_by_owner_and_meta_field", table: "wimp_fields", columns: ["ownerWimpId", "metaFieldId"], unique: true },
         { name: "field_values_by_owner_wimp_field", table: "field_values", columns: ["ownerWimpFieldId"], unique: true },

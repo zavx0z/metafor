@@ -68,7 +68,7 @@ const requireReference = (
 }
 
 export const sharedDbRequiredBackendIndexes: readonly SharedDbBackendIndexSpec[] = [
-  { name: "metas_by_src", table: "metas", columns: ["src"], unique: true },
+  { name: "metas_by", table: "metas", columns: ["src"], unique: true },
   { name: "meta_fields_by_owner_meta", table: "meta_fields", columns: ["ownerMetaId"], unique: false },
   { name: "meta_fields_by_owner_and_field_key", table: "meta_fields", columns: ["ownerMetaId", "fieldKey"], unique: true },
   { name: "meta_fields_by_owner_and_field_order", table: "meta_fields", columns: ["ownerMetaId", "fieldOrder"], unique: true },
