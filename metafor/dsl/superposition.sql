@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS condition_predicate
     subject_kind    TEXT    NOT NULL CHECK (subject_kind IN ('value', 'length')),
     operator        TEXT    NOT NULL CHECK (
         operator IN
-        ('eq', 'neq', 'gt', 'lt', 'gte', 'lte', 'in', 'not_in', 'include', 'not_include', 'length', 'is_empty')
+        ('eq', 'neq', 'gt', 'lt', 'gte', 'lte', 'in', 'not_in', 'include', 'not_include', 'is_empty')
         ),
     value_kind      TEXT    NOT NULL CHECK (value_kind IN ('null', 'boolean', 'number', 'string', 'enum', 'list')),
     value_boolean   INTEGER CHECK (value_boolean IS NULL OR value_boolean IN (0, 1)),
@@ -49,14 +49,11 @@ CREATE TABLE IF NOT EXISTS condition_predicate
     value_variant   TEXT,
     UNIQUE (condition, predicate_order),
     FOREIGN KEY (condition) REFERENCES condition (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (value_variant) REFERENCES field_enum_variant (uuid) ON DELETE SET NULL,
+    FOREIGN KEY (value_variant) REFERENCES field_enum_variant (uuid) ON DELETE CASCADE,
     CHECK (
-        (subject_kind = 'length' AND operator IN ('eq', 'neq', 'gt', 'lt', 'gte', 'lte', 'length') AND (
-            (operator = 'length' AND value_kind = 'number' AND value_number IS NOT NULL AND value_boolean IS NULL AND
-             value_text IS NULL AND value_variant IS NULL) OR
-            (operator <> 'length' AND value_kind = 'number' AND value_number IS NOT NULL AND value_boolean IS NULL AND
-             value_text IS NULL AND value_variant IS NULL)
-            )) OR
+        (subject_kind = 'length' AND operator IN ('eq', 'neq', 'gt', 'lt', 'gte', 'lte') AND
+         value_kind = 'number' AND value_number IS NOT NULL AND value_boolean IS NULL AND
+         value_text IS NULL AND value_variant IS NULL) OR
         (subject_kind = 'value' AND (
             (operator IN ('eq', 'neq', 'gt', 'lt', 'gte', 'lte') AND (
                 (value_kind = 'null' AND value_boolean IS NULL AND value_number IS NULL AND value_text IS NULL AND
@@ -101,7 +98,7 @@ CREATE TABLE IF NOT EXISTS condition_list_item
     value_variant TEXT,
     PRIMARY KEY (predicate, item_order),
     FOREIGN KEY (predicate) REFERENCES condition_predicate (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (value_variant) REFERENCES field_enum_variant (uuid) ON DELETE SET NULL,
+    FOREIGN KEY (value_variant) REFERENCES field_enum_variant (uuid) ON DELETE CASCADE,
     CHECK (
         (value_kind = 'null' AND value_boolean IS NULL AND value_number IS NULL AND value_text IS NULL AND
          value_variant IS NULL) OR

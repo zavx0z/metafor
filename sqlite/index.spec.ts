@@ -347,6 +347,15 @@ describe("sqlite ddl", () => {
         )
         .run("predicate:tags:length", "condition:tags", 0, "length", "gte", "number", 2)
 
+      expect(() =>
+        database
+          .query(
+            `INSERT INTO condition_predicate(uuid, condition, predicate_order, subject_kind, operator, value_kind, value_number)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run("predicate:tags:length-op", "condition:tags", 2, "length", "length", "number", 2),
+      ).toThrow()
+
       database
         .query(
           `INSERT INTO condition_predicate(uuid, condition, predicate_order, subject_kind, operator, value_kind, value_text)
@@ -388,6 +397,20 @@ describe("sqlite ddl", () => {
            VALUES (?, ?, ?, ?)`,
         )
         .run("predicate:status:in", 1, "enum", "variant:closed")
+
+      database
+        .query(`DELETE FROM field_enum_variant WHERE uuid = ?`)
+        .run("variant:closed")
+
+      const predicateAfterEnumDelete = (
+        database.query(`SELECT COUNT(*) as count FROM condition_predicate WHERE uuid = ?`).get("predicate:status:in") as { count: number }
+      )
+      const listItemAfterEnumDelete = (
+        database.query(`SELECT COUNT(*) as count FROM condition_list_item WHERE predicate = ?`).get("predicate:status:in") as { count: number }
+      )
+
+      expect(predicateAfterEnumDelete.count).toBe(1)
+      expect(listItemAfterEnumDelete.count).toBe(1)
 
       database
         .query(
@@ -442,7 +465,7 @@ describe("sqlite ddl", () => {
       expect(processActionCount.count).toBe(1)
       expect(conditionCount.count).toBe(2)
       expect(predicateCount.count).toBe(4)
-      expect(listItemCount.count).toBe(2)
+      expect(listItemCount.count).toBe(1)
       expect(reactionWriteCount.count).toBe(1)
     } finally {
       database.close()
