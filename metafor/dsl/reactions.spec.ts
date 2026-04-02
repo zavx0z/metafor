@@ -105,7 +105,7 @@ describe("схема реакций", () => {
     const reaction = snapshot.reactions[reactionId]!
 
     expect(reaction.src, "сохранено строковое представление функции equal").toContain(
-      updateFn.toString().replace(/\}\)$/, "")
+      updateFn.toString().replace(/}\)$/, "")
     )
     expect(reaction.read, "прочитаны поля контекста").toEqual(["value"])
     expect(reaction.write, "записаны поля контекста").toEqual(["value"])

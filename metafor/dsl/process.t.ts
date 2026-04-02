@@ -1,6 +1,7 @@
 import type { Fields, Update } from "./fields.t"
 import type { ActionParams } from "./action.t"
 import type { Mass } from "./metafor.t"
+import type { DestroyChain, DestroyConfig, ParsedDestroy } from "./finally.t"
 
 /**
  * Конфигурация одного процесса
@@ -31,7 +32,7 @@ import type { Mass } from "./metafor.t"
  * ```
  */
 export type Process<ɸ extends Fields = Fields, m extends Mass = Mass, Res = any> = {
-  type: ProcessType.ACTION | ProcessType.FINALLY
+  type: ProcessType.ACTION
   /** Основная функция процесса */
   action: (params: ActionParams<ɸ, m>) => Res | Promise<Res>
   /** Обработчик успешного завершения */
@@ -171,21 +172,6 @@ export type ParsedProcess = {
   error?: ParsedHandler
 }
 /**
- * Распарсенный процесс с обработчиками.
- * Содержит обработчики для действия, успеха и ошибки.
- */
-export type ParsedDestroy = {
-  type: ProcessType.FINALLY
-  /** Название процесса */
-  label?: string
-  /** Описание процесса */
-  desc?: string
-  /** Среды исполнения процесса */
-  env?: ExecutionEnv[]
-  before: ParsedActionHandler
-}
-
-/**
  * Схема процессов
  * Объект с распарсенными процессами
  */
@@ -203,11 +189,6 @@ interface BaseProcessConfig {
  * Определяют, где может выполняться данный процесс.
  */
 export type ExecutionEnv = "browser" | "node" | "worker" | "server" | "any"
-
-export interface DestroyConfig extends BaseProcessConfig {
-  /** Среды исполнения процесса */
-  env?: ExecutionEnv[]
-}
 
 export interface ProcessConfig extends BaseProcessConfig {
   /**
@@ -227,13 +208,6 @@ export interface ProcessConfig extends BaseProcessConfig {
    * ```
    */
   env?: ExecutionEnv[]
-}
-
-/**
- * Специальный тип для destroy-процессов
- */
-export type DestroyChain<ɸ extends Fields = Fields, m extends Mass = Mass> = {
-  before: (handler: ({ mass }: { mass: m }) => void | Promise<void>) => DestroyChain<ɸ, m>
 }
 
 /**

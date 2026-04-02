@@ -19,7 +19,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.name).toBe("test")
     expect(result.fields.name).toEqual({
@@ -59,7 +59,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any, sourceText)
+    const result = convertMetaDSLToMetaAST(meta, sourceText)
 
     expect(result.fields.tags!.type).toBe("array<string>")
     expect(result.fields.numbers!.type).toBe("array<number>")
@@ -78,7 +78,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.fields.tags!.type).toBe("array<string>")
     expect(result.fields.numbers!.type).toBe("array<number>")
@@ -96,8 +96,8 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
-      "Не удалось вывести тип элементов массива для компоненты 'items'"
+    expect(() => convertMetaDSLToMetaAST(meta)).toThrow(
+      "Не удалось вывести тип элементов массива для компоненты 'items'",
     )
   })
 
@@ -113,7 +113,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.fields.status).toEqual({
       type: "enum<string>",
@@ -135,7 +135,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.fields.level).toEqual({
       type: "enum<number>",
@@ -158,8 +158,8 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
-      "Не удалось вывести тип значений enum для компоненты 'status'"
+    expect(() => convertMetaDSLToMetaAST(meta)).toThrow(
+      "Не удалось вывести тип значений enum для компоненты 'status'",
     )
   })
 
@@ -180,7 +180,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.superposition).toEqual({
       idle: { loading: {} },
@@ -199,7 +199,6 @@ describe("convertMetaDSLToMetaAST", () => {
       .mass()
       .processes((process) => ({
         idle: process().action(async ({ value }) => {
-          // @ts-ignore - mock module for testing
           const mod = await import("./mock-action.ts")
           return mod.default(value)
         }),
@@ -208,7 +207,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.processes).toBeDefined()
     expect(result.processes!.idle).toBeDefined()
@@ -234,7 +233,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.reactions).toBeDefined()
     expect(result.reactions!.reactions).toBeDefined()
@@ -247,8 +246,8 @@ describe("convertMetaDSLToMetaAST", () => {
       superposition: { idle: null },
     }
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
-      "fields не найден или не является объектом"
+    expect(() => convertMetaDSLToMetaAST(meta)).toThrow(
+      "fields не найден или не является объектом",
     )
   })
 
@@ -266,7 +265,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.fields).toEqual({
       name: { type: "string", required: true, default: "" },
@@ -286,7 +285,6 @@ describe("convertMetaDSLToMetaAST", () => {
         idle: process({ label: "Test Process", desc: "Описание процесса" })
           // @ts-ignore
           .action(async ({ value }) => {
-            // @ts-ignore - mock module for testing
             const mod = await import("./mock-action.ts")
             return mod.default({ result: value.value * 2 })
           })
@@ -302,7 +300,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.processes).toBeDefined()
     expect(result.processes!.idle).toEqual({
@@ -337,7 +335,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.processes!.done).toEqual({
       type: "finally",
@@ -374,7 +372,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.reactions).toBeDefined()
     const reaction = result.reactions!.reactions["0"]
@@ -412,7 +410,7 @@ describe("convertMetaDSLToMetaAST", () => {
         `,
       })
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.matter).toBeDefined()
     expect(result.bulk).toBeDefined()
@@ -443,7 +441,7 @@ describe("convertMetaDSLToMetaAST", () => {
       .matter()
       .bulk()
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.mass).toBeDefined()
     expect(result.mass!.history).toEqual([])
@@ -482,7 +480,7 @@ describe("convertMetaDSLToMetaAST", () => {
         view: ({ css }) => css`div { color: red; }`,
       })
 
-    const result = convertMetaDSLToMetaAST(meta as any)
+    const result = convertMetaDSLToMetaAST(meta)
 
     expect(result.name).toBe("complete")
     expect(result.fields).toBeDefined()

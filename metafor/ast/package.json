@@ -9,10 +9,6 @@
     ".": {
       "import": "./index.ts",
       "types": "./index.ts"
-    },
-    "./dsl": {
-      "import": "./dsl.ts",
-      "types": "./dsl.ts"
     }
   },
   "bin": {

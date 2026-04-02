@@ -27,7 +27,7 @@ describe("matter validation", () => {
       )
       .bulk()
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).not.toThrow()
+    expect(() => convertMetaDSLToMetaAST(meta)).not.toThrow()
   })
 
   test("разрешает direct dynamic src по optional enum без null-guard", () => {
@@ -43,7 +43,7 @@ describe("matter validation", () => {
       .matter(({ value, html }) => html`<meta-for src="demo/${value.operation}" fields=${{ args: value.args }} />`)
       .bulk()
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).not.toThrow()
+    expect(() => convertMetaDSLToMetaAST(meta)).not.toThrow()
   })
 
   test("запрещает HTML элементы в matter", () => {
@@ -58,7 +58,7 @@ describe("matter validation", () => {
       .matter(({ value, html }) => html`<div>${value.name}</div>`)
       .bulk()
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
+    expect(() => convertMetaDSLToMetaAST(meta)).toThrow(
       'Matter violation at "invalid-html.matter[0]": HTML element <div> is not allowed in matter.',
     )
   })
@@ -75,7 +75,7 @@ describe("matter validation", () => {
       .matter(({ value, html }) => html`${value.name}`)
       .bulk()
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
+    expect(() => convertMetaDSLToMetaAST(meta)).toThrow(
       'Matter violation at "invalid-text.matter[0]": text nodes are not allowed in matter.',
     )
   })
@@ -92,7 +92,7 @@ describe("matter validation", () => {
       .matter(({ value, html }) => html`${value.error && html`<meta-for src="demo/error" />`}`)
       .bulk()
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
+    expect(() => convertMetaDSLToMetaAST(meta)).toThrow(
       'Matter violation at "invalid-string-branch.matter[0]": logical branch uses field "error" of type "string".',
     )
   })
@@ -109,7 +109,7 @@ describe("matter validation", () => {
       .matter(({ value, html }) => html`${value.operation && html`<meta-for src="demo/${value.operation}" />`}`)
       .bulk()
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
+    expect(() => convertMetaDSLToMetaAST(meta)).toThrow(
       'Matter violation at "invalid-enum-null-guard.matter[0]": enum field "operation" must not be used as a null-guard for its own dynamic src.',
     )
   })
@@ -130,7 +130,7 @@ describe("matter validation", () => {
       .matter(({ mass, html }) => html`${mass.session.active ? html`<meta-for src="demo/panel" />` : html`<meta-for src="demo/fallback" />`}`)
       .bulk()
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
+    expect(() => convertMetaDSLToMetaAST(meta)).toThrow(
       'Matter violation at "invalid-mass-branch.matter[0]": conditional branch uses mass path "/mass/session/active".',
     )
   })
@@ -144,10 +144,12 @@ describe("matter validation", () => {
       .mass({})
       .processes()
       .reactions()
-      .matter(({ value, html }) => html`${(value.title as any).map((item: string) => html`<meta-for src="demo/item" fields=${{ item }} />`)}`)
+      .matter(({ value, html }) =>
+        html`${(value.title as unknown as string[]).map((item: string) => html`<meta-for src="demo/item" fields=${{ item }} />`)}`
+      )
       .bulk()
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
+    expect(() => convertMetaDSLToMetaAST(meta)).toThrow(
       'Matter violation at "invalid-map-basis.matter[0]": map branch uses field "title" of type "string".',
     )
   })
@@ -164,7 +166,7 @@ describe("matter validation", () => {
       .matter(({ value, html }) => html`<meta-for src="${value.target}" />`)
       .bulk()
 
-    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
+    expect(() => convertMetaDSLToMetaAST(meta)).toThrow(
       'Matter violation at "invalid-dynamic-src.matter[0].src": dynamic src uses field "target" of type "string".',
     )
   })

@@ -4,10 +4,9 @@
  */
 
 export { convertMetaDSLToMetaAST, extractArrayElementTypesFromSource } from "./ast.ts"
-export { validateMatterAST } from "../dsl/matter.ts"
 export type {
-  MetaDSLLike,
   ArrayElementType,
+  MetaDSLLike,
   MetaJson,
   ViewJson,
   MetaAST,
@@ -15,4 +14,4 @@ export type {
   FieldDefinitionJson,
   ReactionDefinitionJson,
   FieldKey,
-} from "./ast.t.ts"
+} from "./ast.t"

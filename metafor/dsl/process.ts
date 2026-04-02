@@ -1,17 +1,70 @@
-import type { Fields } from "./fields.t"
 import type { ActionParams } from "./action.t"
-import { ProcessType, type DestroyConfig, type ProcessConfig, type ExecutionEnv } from "./process.t"
-import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema, Process } from "./process.t"
 import {
-  destroyAppendArg,
+  extractImportSpecifier,
+  extractModuleSrc,
   normalizeFunctionString,
   parseFunction,
   updateAppendArg,
-  extractModuleSrc,
-  extractImportSpecifier,
   validateActionStructure,
 } from "./action"
+import { createFinallyChain, isFinallyChain, parseFinally } from "./finally"
+import type { Fields } from "./fields.t"
 import { Initiator, type Mass } from "./metafor.t"
+import {
+  ProcessType,
+  type ActionChain,
+  type ParsedProcess,
+  type Process,
+  type ProcessChain,
+  type ProcessConfig,
+  type ProcessesDeclaration,
+  type ProcessesSchema,
+} from "./process.t"
+
+type ProcessChainResult<ɸ extends Fields, m extends Mass, Res> = ActionChain<ɸ, m, Res> & {
+  readonly type: ProcessType.ACTION
+  getResult: () => Process<ɸ, m, Res>
+}
+
+type ProcessChainLike<ɸ extends Fields, m extends Mass> = {
+  readonly type: ProcessType.ACTION
+  getResult: () => Process<ɸ, m, unknown>
+}
+
+const createProcessChain = <ɸ extends Fields, m extends Mass>(config?: ProcessConfig): ProcessChain<ɸ, m> => ({
+  action: <Res>(fn: (params: ActionParams<ɸ, m>) => Res | Promise<Res>): ProcessChainResult<ɸ, m, Res> => {
+    const result: Process<ɸ, m, Res> = {
+      type: ProcessType.ACTION,
+      action: fn,
+      ...(config?.label ? { label: config.label } : {}),
+      ...(config?.desc ? { desc: config.desc } : {}),
+      ...(config?.env ? { env: config.env } : {}),
+    }
+
+    const chain: ProcessChainResult<ɸ, m, Res> = {
+      type: ProcessType.ACTION,
+      action: fn,
+      success: (handler) => {
+        result.success = handler
+        return chain
+      },
+      error: (handler) => {
+        result.error = handler
+        return chain
+      },
+      getResult: () => result,
+    }
+
+    return chain
+  },
+})
+
+const isProcessChain = <ɸ extends Fields, m extends Mass>(value: unknown): value is ProcessChainLike<ɸ, m> => {
+  if (!value || typeof value !== "object") return false
+
+  const candidate = value as { type?: unknown; getResult?: unknown }
+  return candidate.type === ProcessType.ACTION && typeof candidate.getResult === "function"
+}
 
 /**
  * Парсит процесс и извлекает информацию о всех обработчиках.
@@ -23,64 +76,31 @@ import { Initiator, type Mass } from "./metafor.t"
  * @param process - Объект процесса с обработчиками
  * @returns Распарсенный процесс с информацией о полях, путём к модулю action и именем экспорта
  * @throws Error если структура action функции не соответствует требованиям
- *
- * @example
- * ```ts
- * const process = {
- *   action: async ({ value }) => {
- *     const mod = await import("./actions/loader.ts")
- *     return mod.default(value)
- *   },
- *   success: ({ update, data }) => update({ result: data }),
- *   error: ({ update, error }) => update({ error: error.message })
- * }
- * const result = parseProcess(process)
- * // => {
- * //   action: { src: "./actions/loader.ts", importSpecifier: "default", read: ['value'] },
- * //   success: { read: [], write: ['result'], src: '({ update, data }) => update({ result: data }, "s")' },
- * //   error: { read: [], write: ['error'], src: '({ update, error }) => update({ error: error.message }, "e")' }
- * // }
- * ```
  */
 export function parseProcess<ɸ extends Fields, m extends Mass, Res = any>(process: Process<ɸ, m, Res>): ParsedProcess {
-  const result: ParsedProcess = {} as ParsedProcess
-  result.type = ProcessType.ACTION
-  if (process.label) result.label = process.label
-  if (process.desc) result.desc = process.desc
-  if (process.env) result.env = process.env
-
-  // Validate action structure
-  const validation = validateActionStructure(process.action as Function)
+  const validation = validateActionStructure(process.action)
   if (!validation.valid) {
     throw new Error(`Невалидная структура action: ${validation.error}`)
   }
 
-  // Extract module path from import()
-  const modulePath = extractModuleSrc(process.action as Function)
+  const modulePath = extractModuleSrc(process.action)
+  const importSpecifier = extractImportSpecifier(process.action)
+  const parsedAction = parseFunction(process.action, false)
 
-  // Extract import specifier (например, "default", "commit", "process")
-  const importSpecifier = extractImportSpecifier(process.action as Function)
-
-  // Для пустых функций (заглушек) modulePath может отсутствовать
-  if (modulePath) {
-    const parsed = parseFunction(process.action as Function, false)
-    result.action = {
-      src: modulePath,
+  const result: ParsedProcess = {
+    type: ProcessType.ACTION,
+    action: {
+      src: modulePath ?? "",
       ...(importSpecifier ? { importSpecifier } : {}),
-      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
-    }
-  } else {
-    // Пустая функция-заглушка — src = ""
-    const parsed = parseFunction(process.action as Function, false)
-    result.action = {
-      src: "",
-      ...(importSpecifier ? { importSpecifier } : {}),
-      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
-    }
+      ...(parsedAction.read.length > 0 ? { read: parsedAction.read } : {}),
+    },
+    ...(process.label ? { label: process.label } : {}),
+    ...(process.desc ? { desc: process.desc } : {}),
+    ...(process.env ? { env: process.env } : {}),
   }
 
   if (process.success) {
-    const parsed = parseFunction(process.success as Function, true)
+    const parsed = parseFunction(process.success, true)
     const src = normalizeFunctionString(updateAppendArg(process.success.toString(), `"${Initiator.Success}"`))
     result.success = {
       src,
@@ -88,8 +108,9 @@ export function parseProcess<ɸ extends Fields, m extends Mass, Res = any>(proce
       ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
     }
   }
+
   if (process.error) {
-    const parsed = parseFunction(process.error as Function)
+    const parsed = parseFunction(process.error)
     const src = normalizeFunctionString(updateAppendArg(process.error.toString(), `"${Initiator.Error}"`))
     result.error = {
       src,
@@ -97,6 +118,7 @@ export function parseProcess<ɸ extends Fields, m extends Mass, Res = any>(proce
       ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
     }
   }
+
   return result
 }
 
@@ -105,130 +127,25 @@ export function parseProcess<ɸ extends Fields, m extends Mass, Res = any>(proce
  *
  * Анализирует конфигурацию, где каждое свойство содержит цепочку действий,
  * и возвращает объект с распарсенными процессами.
- *
- * @template ɸ - схема контекста
- * @template 𝛴 - строковые ключи процессов
- * @template m - тип массы
- * @param processes - конфигурация процессов
- * @returns объект с распарсенными процессами
- *
- * @example
- * ```ts
- * const processes: ProcessesDeclaration<ɸ, 𝛴, m> = (process) => ({
- *   loadUser: process({ label: "loadUser" }).action(({ value }) => fetch(`/users/${value.id}`)),
- *   saveData: process().action(({ value, update }) => update({ saved: true }))
- * }
- * const result = getSnapshotProcesses(processes)
- * // => {
- * // loadUser: { label: "loadUser", action: { read: ['id'] } },
- * // saveData: { action: { read: [], write: ['saved'] } }
- * // }
- * ```
- * @param processes - конфигурация процессов
- * @returns объект с распарсенными процессами
  */
 export const processesSchema = <ɸ extends Fields, 𝛴 extends string, m extends Mass>(
-  processes: ProcessesDeclaration<ɸ, 𝛴, m>
+  processes: ProcessesDeclaration<ɸ, 𝛴, m>,
 ): ProcessesSchema => {
-  // Вызываем processesDeclaration с mock process и destroy
-  const chains = processes(
-    (config?: ProcessConfig) => {
-      const chain: any = {
-        type: ProcessType.ACTION,
-        label: config?.label,
-        desc: config?.desc,
-        env: config?.env,
-        _successHandler: undefined,
-        _errorHandler: undefined,
-        action: (fn: any) => {
-          chain.action = fn
-          return chain as any
-        },
-        success: (handler: any) => {
-          chain._successHandler = handler
-          return chain
-        },
-        error: (handler: any) => {
-          chain._errorHandler = handler
-          return chain
-        },
-        getResult: () => {
-          const result: any = {
-            action: chain.action,
-          }
-          if (chain._successHandler) result.success = chain._successHandler
-          if (chain._errorHandler) result.error = chain._errorHandler
-          if (chain.label) result.label = chain.label
-          if (chain.desc) result.desc = chain.desc
-          if (chain.env) result.env = chain.env
-          return result
-        },
-      }
-      return chain
-    },
-    (config?: DestroyConfig) => {
-      const chain: any = {
-        type: ProcessType.FINALLY,
-        label: config?.label,
-        desc: config?.desc,
-        env: config?.env,
-        _beforeHandler: undefined,
-        before: (fn: any) => {
-          chain._beforeHandler = fn
-          return chain
-        },
-        getResult: () => {
-          const result: any = {
-            type: ProcessType.FINALLY,
-          }
-          if (chain._beforeHandler) result.before = chain._beforeHandler
-          if (chain.label) result.label = chain.label
-          if (chain.desc) result.desc = chain.desc
-          if (chain.env) result.env = chain.env
-          return result
-        },
-      }
-      return chain
-    }
-  )
+  const chains = processes(createProcessChain, createFinallyChain)
+  const result: ProcessesSchema = {}
 
-  // Парсим каждый chain
-  const result: Record<string, ParsedProcess | ParsedDestroy> = {}
-  for (const key in chains) {
-    if (chains[key]) {
-      // Проверяем, является ли это destroy-процессом
-      if ((chains[key] as any).type === ProcessType.FINALLY) {
-        // Это destroy-процесс, используем getResult()
-        const chain = chains[key] as any
-        if ("getResult" in chain && typeof chain.getResult === "function") {
-          const chainResult = chain.getResult()
-          const parsed = chainResult.before ? parseFunction(chainResult.before, false) : {read: []}
-          result[key] = {
-            type: ProcessType.FINALLY,
-            before: {
-              src: chainResult.before ? normalizeFunctionString(chainResult.before.toString()) : "() => {}",
-              ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
-            },
-            ...(chainResult.label ? {label: chainResult.label} : {}),
-            ...(chainResult.desc ? {desc: chainResult.desc} : {}),
-            ...(chainResult.env ? {env: chainResult.env} : {}),
-          }
-        }
-      } else {
-        // Обычный процесс
-        if ("getResult" in chains[key] && typeof chains[key].getResult === "function") {
-          const parsedProcess = parseProcess(chains[key].getResult())
-          // Add env from chain if present
-          const chainEnv = (chains[key] as any).env
-          if (chainEnv) {
-            parsedProcess.env = chainEnv
-          }
-          result[key] = parsedProcess
-        }
-      }
+  for (const [key, chain] of Object.entries(chains)) {
+    if (!chain) continue
+
+    if (isFinallyChain<ɸ, m>(chain)) {
+      result[key] = parseFinally(chain.getResult())
+      continue
+    }
+
+    if (isProcessChain<ɸ, m>(chain)) {
+      result[key] = parseProcess(chain.getResult())
     }
   }
 
-  if (Object.keys(result).length === 0) return {}
   return result
 }

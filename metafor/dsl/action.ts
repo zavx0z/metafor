@@ -352,8 +352,8 @@ export function validateActionStructure(fn: Function): ActionStructureValidation
   // Проверка на пустую функцию-заглушку
   // Пустое тело: () => {} или () => ({})
   const isEmptyStub =
-    /^\s*\([^)]*\)\s*=>\s*\{\s*\}\s*$/.test(normalizedCode) ||
-    /^\s*\([^)]*\)\s*=>\s*\(\{\}\)\s*$/.test(normalizedCode)
+    /^\s*\([^)]*\)\s*=>\s*\{\s*}\s*$/.test(normalizedCode) ||
+    /^\s*\([^)]*\)\s*=>\s*\(\{}\)\s*$/.test(normalizedCode)
 
   if (isEmptyStub) {
     return { valid: true }
