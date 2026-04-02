@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { Schema, Values, Mass, Self } from "@metafor/dsl"
+import type { Fields, Values, Mass, Self } from "@metafor/dsl"
 
 /**
  * Конфигурация процесса для загрузки.
@@ -24,7 +24,7 @@ export interface ProcessConfig {
  * @template m - Тип массы атома
  * @template Res - Тип возвращаемого значения
  */
-export type ActionFn<ɸ extends Schema, m extends Mass, Res> = (params: {
+export type ActionFn<ɸ extends Fields, m extends Mass, Res> = (params: {
   self: Self
   field: ɸ
   value: Values<ɸ>

@@ -83,8 +83,8 @@ describe("схема реакций", () => {
     expect(reaction.write, "реакция должна иметь write").toEqual(["value"])
     expect(reaction.src, "реакция должна иметь src").toEqual(expect.any(String))
 
-    // Проверяем структуру states
-    expect(snapshot.superposition, "states должен быть объектом").toEqual({
+    // Проверяем структуру superposition
+    expect(snapshot.superposition, "superposition должен быть объектом").toEqual({
       idle: [reactionId],
     })
   })

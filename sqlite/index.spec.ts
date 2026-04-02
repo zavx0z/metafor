@@ -77,12 +77,20 @@ describe("sqlite ddl", () => {
         database.query(`PRAGMA table_info(field_enum_default)`).all() as Array<{ name: string }>
       ).map((row) => row.name)
 
-      const stateColumns = (database.query(`PRAGMA table_info(state)`).all() as Array<{ name: string }>).map((row) => row.name)
+      const superpositionColumns = (
+        database.query(`PRAGMA table_info(superposition)`).all() as Array<{ name: string }>
+      ).map((row) => row.name)
       const transitionColumns = (
         database.query(`PRAGMA table_info(transition)`).all() as Array<{ name: string }>
       ).map((row) => row.name)
       const conditionColumns = (
         database.query(`PRAGMA table_info(condition)`).all() as Array<{ name: string }>
+      ).map((row) => row.name)
+      const conditionPredicateColumns = (
+        database.query(`PRAGMA table_info(condition_predicate)`).all() as Array<{ name: string }>
+      ).map((row) => row.name)
+      const conditionListItemColumns = (
+        database.query(`PRAGMA table_info(condition_list_item)`).all() as Array<{ name: string }>
       ).map((row) => row.name)
 
       const processEnvColumns = (
@@ -94,8 +102,8 @@ describe("sqlite ddl", () => {
       const processFinallyColumns = (
         database.query(`PRAGMA table_info(process_finally)`).all() as Array<{ name: string }>
       ).map((row) => row.name)
-      const reactionStateColumns = (
-        database.query(`PRAGMA table_info(reaction_state)`).all() as Array<{ name: string }>
+      const reactionSuperpositionColumns = (
+        database.query(`PRAGMA table_info(reaction_superposition)`).all() as Array<{ name: string }>
       ).map((row) => row.name)
 
       const matterEdgeColumns = (
@@ -117,14 +125,35 @@ describe("sqlite ddl", () => {
       expect(fieldEnumVariantColumns).toEqual(["uuid", "field", "position"])
       expect(fieldEnumDefaultColumns).toEqual(["field", "variant"])
 
-      expect(stateColumns).toEqual(["uuid", "meta", "name", "position"])
-      expect(transitionColumns).toEqual(["uuid", "from_state", "to_state", "position"])
-      expect(conditionColumns).toEqual(["transition", "field", "condition_json"])
+      expect(superpositionColumns).toEqual(["uuid", "meta", "name", "position"])
+      expect(transitionColumns).toEqual(["uuid", "from_superposition", "to_superposition", "position"])
+      expect(conditionColumns).toEqual(["uuid", "transition", "field", "position"])
+      expect(conditionPredicateColumns).toEqual([
+        "uuid",
+        "condition",
+        "predicate_order",
+        "subject_kind",
+        "operator",
+        "value_kind",
+        "value_boolean",
+        "value_number",
+        "value_text",
+        "value_variant",
+      ])
+      expect(conditionListItemColumns).toEqual([
+        "predicate",
+        "item_order",
+        "value_kind",
+        "value_boolean",
+        "value_number",
+        "value_text",
+        "value_variant",
+      ])
 
       expect(processEnvColumns).toEqual(["process", "env"])
       expect(processActionColumns).toEqual(["process", "action", "action_import_specifier", "success", "error"])
       expect(processFinallyColumns).toEqual(["process", "before"])
-      expect(reactionStateColumns).toEqual(["reaction", "state"])
+      expect(reactionSuperpositionColumns).toEqual(["reaction", "superposition"])
 
       expect(matterEdgeColumns).toEqual(["uuid", "root_meta", "parent_node", "child_node", "edge_slot", "edge_order"])
       expect(matterMetaColumns).toEqual(["node", "src_binding", "fields_binding", "mass_binding"])
@@ -257,31 +286,108 @@ describe("sqlite ddl", () => {
 
       database
         .query(
-          `INSERT INTO state(uuid, meta, name, position)
+          `INSERT INTO field(uuid, meta, key, type, required)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run("field:beta:tags", "beta/meta", "tags", "array<string>", 1)
+
+      database
+        .query(
+          `INSERT INTO field(uuid, meta, key, type, required)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run("field:beta:status", "beta/meta", "status", "enum<string>", 1)
+
+      database
+        .query(
+          `INSERT INTO field_enum_variant(uuid, field, position)
+           VALUES (?, ?, ?)`,
+        )
+        .run("variant:open", "field:beta:status", 0)
+
+      database
+        .query(
+          `INSERT INTO field_enum_variant(uuid, field, position)
+           VALUES (?, ?, ?)`,
+        )
+        .run("variant:closed", "field:beta:status", 1)
+
+      database
+        .query(
+          `INSERT INTO superposition(uuid, meta, name, position)
            VALUES (?, ?, ?, ?)`,
         )
         .run("state:alpha", "alpha/meta", "idle", 0)
 
       database
         .query(
-          `INSERT INTO state(uuid, meta, name, position)
+          `INSERT INTO superposition(uuid, meta, name, position)
            VALUES (?, ?, ?, ?)`,
         )
         .run("state:beta", "beta/meta", "idle", 0)
 
       database
         .query(
-          `INSERT INTO transition(uuid, from_state, to_state, position)
+          `INSERT INTO transition(uuid, from_superposition, to_superposition, position)
            VALUES (?, ?, ?, ?)`,
         )
         .run("transition:cross", "state:alpha", "state:beta", 0)
 
       database
         .query(
-          `INSERT INTO condition(transition, field, condition_json)
-           VALUES (?, ?, ?)`,
+          `INSERT INTO condition(uuid, transition, field, position)
+           VALUES (?, ?, ?, ?)`,
         )
-        .run("transition:cross", "field:beta:title", JSON.stringify({ eq: "x" }))
+        .run("condition:tags", "transition:cross", "field:beta:tags", 0)
+
+      database
+        .query(
+          `INSERT INTO condition_predicate(uuid, condition, predicate_order, subject_kind, operator, value_kind, value_number)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run("predicate:tags:length", "condition:tags", 0, "length", "gte", "number", 2)
+
+      database
+        .query(
+          `INSERT INTO condition_predicate(uuid, condition, predicate_order, subject_kind, operator, value_kind, value_text)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run("predicate:tags:include", "condition:tags", 1, "value", "include", "string", "urgent")
+
+      database
+        .query(
+          `INSERT INTO condition(uuid, transition, field, position)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run("condition:status", "transition:cross", "field:beta:status", 1)
+
+      database
+        .query(
+          `INSERT INTO condition_predicate(uuid, condition, predicate_order, subject_kind, operator, value_kind, value_variant)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run("predicate:status:eq", "condition:status", 0, "value", "eq", "enum", "variant:open")
+
+      database
+        .query(
+          `INSERT INTO condition_predicate(uuid, condition, predicate_order, subject_kind, operator, value_kind)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run("predicate:status:in", "condition:status", 1, "value", "in", "list")
+
+      database
+        .query(
+          `INSERT INTO condition_list_item(predicate, item_order, value_kind, value_variant)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run("predicate:status:in", 0, "enum", "variant:open")
+
+      database
+        .query(
+          `INSERT INTO condition_list_item(predicate, item_order, value_kind, value_variant)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run("predicate:status:in", 1, "enum", "variant:closed")
 
       database
         .query(
@@ -313,7 +419,7 @@ describe("sqlite ddl", () => {
 
       database
         .query(
-          `INSERT INTO reaction_state(reaction, state)
+          `INSERT INTO reaction_superposition(reaction, superposition)
            VALUES (?, ?)`,
         )
         .run("reaction:alpha", "state:beta")
@@ -330,7 +436,13 @@ describe("sqlite ddl", () => {
       const reactionWriteCount = database.query(`SELECT COUNT(*) as count FROM reaction_write`).get() as { count: number }
 
       expect(transitionCount.count).toBe(1)
+      const conditionCount = database.query(`SELECT COUNT(*) as count FROM condition`).get() as { count: number }
+      const predicateCount = database.query(`SELECT COUNT(*) as count FROM condition_predicate`).get() as { count: number }
+      const listItemCount = database.query(`SELECT COUNT(*) as count FROM condition_list_item`).get() as { count: number }
       expect(processActionCount.count).toBe(1)
+      expect(conditionCount.count).toBe(2)
+      expect(predicateCount.count).toBe(4)
+      expect(listItemCount.count).toBe(2)
       expect(reactionWriteCount.count).toBe(1)
     } finally {
       database.close()

@@ -1,7 +1,7 @@
 import type { Fields } from "../dsl/fields.t"
 import type { MatterDefinitionParams } from "../dsl/matter.t"
 import type { Mass } from "../dsl/metafor.t"
-import type { State } from "../dsl/states.t"
+import type { State } from "../dsl/superposition.t"
 import type { NodeType } from "./node/index.t"
 export type { NodeType }
 export type { NodeMeta } from "./node/meta.t"

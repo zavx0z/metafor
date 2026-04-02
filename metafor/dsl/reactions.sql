@@ -11,13 +11,13 @@ CREATE TABLE IF NOT EXISTS reaction
     FOREIGN KEY (meta) REFERENCES meta (src) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS reaction_state
+CREATE TABLE IF NOT EXISTS reaction_superposition
 (
-    reaction TEXT NOT NULL CHECK (length(trim(reaction)) > 0),
-    state    TEXT NOT NULL CHECK (length(trim(state)) > 0),
-    PRIMARY KEY (reaction, state),
+    reaction      TEXT NOT NULL CHECK (length(trim(reaction)) > 0),
+    superposition TEXT NOT NULL CHECK (length(trim(superposition)) > 0),
+    PRIMARY KEY (reaction, superposition),
     FOREIGN KEY (reaction) REFERENCES reaction (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (state) REFERENCES state (uuid) ON DELETE CASCADE
+    FOREIGN KEY (superposition) REFERENCES superposition (uuid) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS reaction_read
@@ -41,8 +41,8 @@ CREATE TABLE IF NOT EXISTS reaction_write
 CREATE INDEX IF NOT EXISTS reaction_by_meta
     ON reaction (meta);
 
-CREATE INDEX IF NOT EXISTS reaction_state_by_reaction
-    ON reaction_state (reaction);
+CREATE INDEX IF NOT EXISTS reaction_superposition_by_reaction
+    ON reaction_superposition (reaction);
 
 CREATE INDEX IF NOT EXISTS reaction_read_by_reaction
     ON reaction_read (reaction);

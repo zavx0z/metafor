@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
 import * as prettier from "prettier"
-import * as ts from "typescript"
+import ts from "typescript"
 import {
   ensureRoundTripSchema,
   type FieldPresence,
@@ -12,8 +12,8 @@ import {
   type ReactionRow,
   type SectionName,
   type SectionRow,
-  type StateRow,
-  type TransitionCommentRow,
+  type SuperpositionRow,
+  type SuperpositionCommentRow,
   type TransitionRow,
 } from "@metafor/dsl-parse"
 
@@ -204,51 +204,51 @@ const renderTransitionConditions = (conditions: EmittedCondition[], fieldsById: 
   )
 }
 
-const renderStateProperty = (
-  stateRow: StateRow,
-  transitionCommentRows: TransitionCommentRow[],
+const renderSuperpositionProperty = (
+  superpositionRow: SuperpositionRow,
+  superpositionCommentRows: SuperpositionCommentRow[],
   transitionRows: TransitionRow[],
   conditionsByTransitionId: Map<number, EmittedCondition[]>,
-  statesById: Map<number, StateRow>,
+  superpositionsById: Map<number, SuperpositionRow>,
   fieldsById: Map<number, EmittedField>,
 ) => {
   const items = [
-    ...transitionCommentRows.map((transitionCommentRow) => ({
-      position: transitionCommentRow.position,
-      source: transitionCommentRow.text,
+    ...superpositionCommentRows.map((superpositionCommentRow) => ({
+      position: superpositionCommentRow.position,
+      source: superpositionCommentRow.text,
     })),
     ...transitionRows.map((transitionRow) => ({
       position: transitionRow.position,
-      source: `${renderPropertyName(getRequiredRow(statesById.get(transitionRow.targetStateId), `Unknown state id: ${transitionRow.targetStateId}`).name)}: ${renderTransitionConditions(
+      source: `${renderPropertyName(getRequiredRow(superpositionsById.get(transitionRow.targetSuperpositionId), `Unknown superposition id: ${transitionRow.targetSuperpositionId}`).name)}: ${renderTransitionConditions(
         conditionsByTransitionId.get(transitionRow.id) ?? [],
         fieldsById,
       )},`,
     })),
   ].sort((left, right) => left.position - right.position)
 
-  if (items.length === 0) return `${renderPropertyName(stateRow.name)}: {},`
-  return `${renderPropertyName(stateRow.name)}: {\n${indentBlock(items.map((item) => item.source).join("\n"), 2)}\n},`
+  if (items.length === 0) return `${renderPropertyName(superpositionRow.name)}: {},`
+  return `${renderPropertyName(superpositionRow.name)}: {\n${indentBlock(items.map((item) => item.source).join("\n"), 2)}\n},`
 }
 
 const renderSuperpositionArgument = (
-  stateRows: StateRow[],
-  transitionCommentRows: TransitionCommentRow[],
+  superpositionRows: SuperpositionRow[],
+  superpositionCommentRows: SuperpositionCommentRow[],
   transitionRows: TransitionRow[],
   conditionRows: EmittedCondition[],
   fieldRows: EmittedField[],
 ) => {
-  const transitionCommentsByStateId = new Map<number, TransitionCommentRow[]>()
-  for (const transitionCommentRow of transitionCommentRows) {
-    const list = transitionCommentsByStateId.get(transitionCommentRow.stateId) ?? []
-    list.push(transitionCommentRow)
-    transitionCommentsByStateId.set(transitionCommentRow.stateId, list)
+  const superpositionCommentsBySuperpositionId = new Map<number, SuperpositionCommentRow[]>()
+  for (const superpositionCommentRow of superpositionCommentRows) {
+    const list = superpositionCommentsBySuperpositionId.get(superpositionCommentRow.superpositionId) ?? []
+    list.push(superpositionCommentRow)
+    superpositionCommentsBySuperpositionId.set(superpositionCommentRow.superpositionId, list)
   }
 
-  const transitionsByStateId = new Map<number, TransitionRow[]>()
+  const transitionsBySuperpositionId = new Map<number, TransitionRow[]>()
   for (const transitionRow of transitionRows) {
-    const list = transitionsByStateId.get(transitionRow.stateId) ?? []
+    const list = transitionsBySuperpositionId.get(transitionRow.superpositionId) ?? []
     list.push(transitionRow)
-    transitionsByStateId.set(transitionRow.stateId, list)
+    transitionsBySuperpositionId.set(transitionRow.superpositionId, list)
   }
 
   const conditionsByTransitionId = new Map<number, EmittedCondition[]>()
@@ -258,17 +258,17 @@ const renderSuperpositionArgument = (
     conditionsByTransitionId.set(conditionRow.transitionId, list)
   }
 
-  const statesById = new Map(stateRows.map((stateRow) => [stateRow.id, stateRow]))
+  const superpositionsById = new Map(superpositionRows.map((superpositionRow) => [superpositionRow.id, superpositionRow]))
   const fieldsById = new Map(fieldRows.map((fieldRow) => [fieldRow.id, fieldRow]))
 
   return renderObjectLiteral(
-    stateRows.map((stateRow) =>
-      renderStateProperty(
-        stateRow,
-        transitionCommentsByStateId.get(stateRow.id) ?? [],
-        transitionsByStateId.get(stateRow.id) ?? [],
+    superpositionRows.map((superpositionRow) =>
+      renderSuperpositionProperty(
+        superpositionRow,
+        superpositionCommentsBySuperpositionId.get(superpositionRow.id) ?? [],
+        transitionsBySuperpositionId.get(superpositionRow.id) ?? [],
         conditionsByTransitionId,
-        statesById,
+        superpositionsById,
         fieldsById,
       ),
     ),
@@ -637,27 +637,27 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
 
   const enumVariantRows = fieldRows.flatMap((fieldRow) => enumVariantsByFieldId.get(fieldRow.id) ?? [])
 
-  const stateRows = options.db
+  const superpositionRows = options.db
     .query(
       `SELECT id, position, name
-       FROM states
+       FROM superposition
        ORDER BY position`,
     )
-    .all() as StateRow[]
+    .all() as SuperpositionRow[]
 
-  const transitionCommentRows = options.db
+  const superpositionCommentRows = options.db
     .query(
-      `SELECT id, stateId, position, text
-       FROM transition_comments
-       ORDER BY stateId, position`,
+      `SELECT id, superpositionId, position, text
+       FROM superposition_comments
+       ORDER BY superpositionId, position`,
     )
-    .all() as TransitionCommentRow[]
+    .all() as SuperpositionCommentRow[]
 
   const transitionRows = options.db
     .query(
-      `SELECT id, stateId, targetStateId, position
+      `SELECT id, superpositionId, targetSuperpositionId, position
        FROM transitions
-       ORDER BY stateId, position`,
+       ORDER BY superpositionId, position`,
     )
     .all() as TransitionRow[]
 
@@ -750,22 +750,22 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
     }
   }
 
-  const statePositionsByStateId = new Map<number, Set<number>>()
-  for (const transitionCommentRow of transitionCommentRows) {
-    const positions = statePositionsByStateId.get(transitionCommentRow.stateId) ?? new Set<number>()
-    if (positions.has(transitionCommentRow.position)) {
-      throw new Error(`State ${transitionCommentRow.stateId} contains duplicate member position ${transitionCommentRow.position}`)
+  const superpositionPositionsBySuperpositionId = new Map<number, Set<number>>()
+  for (const superpositionCommentRow of superpositionCommentRows) {
+    const positions = superpositionPositionsBySuperpositionId.get(superpositionCommentRow.superpositionId) ?? new Set<number>()
+    if (positions.has(superpositionCommentRow.position)) {
+      throw new Error(`Superposition ${superpositionCommentRow.superpositionId} contains duplicate member position ${superpositionCommentRow.position}`)
     }
-    positions.add(transitionCommentRow.position)
-    statePositionsByStateId.set(transitionCommentRow.stateId, positions)
+    positions.add(superpositionCommentRow.position)
+    superpositionPositionsBySuperpositionId.set(superpositionCommentRow.superpositionId, positions)
   }
   for (const transitionRow of transitionRows) {
-    const positions = statePositionsByStateId.get(transitionRow.stateId) ?? new Set<number>()
+    const positions = superpositionPositionsBySuperpositionId.get(transitionRow.superpositionId) ?? new Set<number>()
     if (positions.has(transitionRow.position)) {
-      throw new Error(`State ${transitionRow.stateId} contains duplicate member position ${transitionRow.position}`)
+      throw new Error(`Superposition ${transitionRow.superpositionId} contains duplicate member position ${transitionRow.position}`)
     }
     positions.add(transitionRow.position)
-    statePositionsByStateId.set(transitionRow.stateId, positions)
+    superpositionPositionsBySuperpositionId.set(transitionRow.superpositionId, positions)
   }
 
   for (const fieldDefaultId of fieldDefaultIds) {
@@ -810,7 +810,7 @@ export const emitDslModuleFromDb = async (options: EmitDslModuleFromDbOptions) =
   let source = 'import { MetaFor } from "@metafor/dsl"\n\n'
   source += `export default MetaFor(${metaArgs.join(", ")})`
   source += `\n${renderSectionCall("fields", renderFieldsArgument(fieldsSection, fieldRows, enumVariantRows))}`
-  source += `\n${renderSectionCall("superposition", renderSuperpositionArgument(stateRows, transitionCommentRows, transitionRows, conditionRows, fieldRows))}`
+  source += `\n${renderSectionCall("superposition", renderSuperpositionArgument(superpositionRows, superpositionCommentRows, transitionRows, conditionRows, fieldRows))}`
   source += `\n${renderSectionCall("mass", massSection.code)}`
   source += `\n${renderSectionCall("processes", renderProcessesArgument(processesSection, processRows, processEnvRows, processHandlerRows))}`
   source += `\n${renderSectionCall("reactions", renderReactionsArgument(reactionsSection, reactionRows))}`

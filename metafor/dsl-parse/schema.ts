@@ -86,23 +86,23 @@ export interface EnumNumberVariantRow {
   value: string
 }
 
-export interface StateRow {
+export interface SuperpositionRow {
   id: number
   position: number
   name: string
 }
 
-export interface TransitionCommentRow {
+export interface SuperpositionCommentRow {
   id: number
-  stateId: number
+  superpositionId: number
   position: number
   text: string
 }
 
 export interface TransitionRow {
   id: number
-  stateId: number
-  targetStateId: number
+  superpositionId: number
+  targetSuperpositionId: number
   position: number
 }
 
@@ -235,29 +235,29 @@ CREATE TABLE IF NOT EXISTS enum_field_defaults (
   FOREIGN KEY (fieldId, variantPosition) REFERENCES enum_variants(fieldId, position) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS states (
+CREATE TABLE IF NOT EXISTS superposition (
   id INTEGER PRIMARY KEY,
   position INTEGER NOT NULL UNIQUE CHECK (position >= 0),
   name TEXT NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS transition_comments (
+CREATE TABLE IF NOT EXISTS superposition_comments (
   id INTEGER PRIMARY KEY,
-  stateId INTEGER NOT NULL,
+  superpositionId INTEGER NOT NULL,
   position INTEGER NOT NULL CHECK (position >= 0),
   text TEXT NOT NULL,
-  UNIQUE (stateId, position),
-  FOREIGN KEY (stateId) REFERENCES states(id) ON DELETE CASCADE
+  UNIQUE (superpositionId, position),
+  FOREIGN KEY (superpositionId) REFERENCES superposition(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS transitions (
   id INTEGER PRIMARY KEY,
-  stateId INTEGER NOT NULL,
-  targetStateId INTEGER NOT NULL,
+  superpositionId INTEGER NOT NULL,
+  targetSuperpositionId INTEGER NOT NULL,
   position INTEGER NOT NULL CHECK (position >= 0),
-  UNIQUE (stateId, position),
-  FOREIGN KEY (stateId) REFERENCES states(id) ON DELETE CASCADE,
-  FOREIGN KEY (targetStateId) REFERENCES states(id) ON DELETE CASCADE
+  UNIQUE (superpositionId, position),
+  FOREIGN KEY (superpositionId) REFERENCES superposition(id) ON DELETE CASCADE,
+  FOREIGN KEY (targetSuperpositionId) REFERENCES superposition(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS conditions (

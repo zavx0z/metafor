@@ -6,7 +6,7 @@
  *
  * @packageDocumentation
  */
-import type { Mass, Schema } from "@metafor/dsl"
+  import type { Mass, Fields } from "@metafor/dsl"
 import type { ProcessConfig, ActionFn } from "./load.t"
 
 /**
@@ -28,7 +28,7 @@ import type { ProcessConfig, ActionFn } from "./load.t"
  * const actionFn = await loadAction("./actions/loader.ts")
  * ```
  */
-export async function loadAction<ɸ extends Schema, m extends Mass>(
+export async function loadAction<ɸ extends Fields, m extends Mass>(
   config: ProcessConfig | string,
 ): Promise<ActionFn<ɸ, m, any>> {
   // Нормализация конфигурации

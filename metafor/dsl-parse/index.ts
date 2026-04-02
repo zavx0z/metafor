@@ -13,8 +13,8 @@ import {
   type ReactionRow,
   type SectionName,
   type SectionRow,
-  type StateRow,
-  type TransitionCommentRow,
+  type SuperpositionRow,
+  type SuperpositionCommentRow,
   type TransitionRow,
 } from "./schema.ts"
 
@@ -32,8 +32,8 @@ export {
   type ReactionRow,
   type SectionName,
   type SectionRow,
-  type StateRow,
-  type TransitionCommentRow,
+  type SuperpositionRow,
+  type SuperpositionCommentRow,
   type TransitionRow,
 } from "./schema.ts"
 
@@ -86,8 +86,8 @@ interface ParsedProcessShape {
 
 interface PendingTransition {
   id: number
-  stateId: number
-  targetStateName: string
+  superpositionId: number
+  targetSuperpositionName: string
   position: number
   conditions: ParsedConditionRow[]
 }
@@ -845,8 +845,8 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
   const sectionRows: SectionRow[] = []
   const fieldRows: ParsedFieldRow[] = []
   const enumVariantRows: ParsedEnumVariantRow[] = []
-  const stateRows: StateRow[] = []
-  const transitionCommentRows: TransitionCommentRow[] = []
+  const superpositionRows: SuperpositionRow[] = []
+  const superpositionCommentRows: SuperpositionCommentRow[] = []
   const pendingTransitions: PendingTransition[] = []
   const processRows: ParsedProcessRow[] = []
   const processEnvRows: ProcessEnvRow[] = []
@@ -909,31 +909,31 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
 
       pushSection("superposition", null, null)
 
-      for (const [statePosition, property] of body.properties.entries()) {
+      for (const [superpositionPosition, property] of body.properties.entries()) {
         if (!ts.isPropertyAssignment(property)) throw new Error("superposition body must contain property assignments only")
 
-        const stateId = statePosition + 1
-        stateRows.push({
-          id: stateId,
-          position: statePosition,
+        const superpositionId = superpositionPosition + 1
+        superpositionRows.push({
+          id: superpositionId,
+          position: superpositionPosition,
           name: getPropertyNameText(property.name, sourceFile),
         })
 
-        const stateBody = unwrapParenthesized(property.initializer)
-        if (!ts.isObjectLiteralExpression(stateBody)) {
-          throw new Error(`State ${getPropertyNameText(property.name, sourceFile)} must be an object literal`)
+        const superpositionBody = unwrapParenthesized(property.initializer)
+        if (!ts.isObjectLiteralExpression(superpositionBody)) {
+          throw new Error(`Superposition ${getPropertyNameText(property.name, sourceFile)} must be an object literal`)
         }
 
         let memberPosition = 0
-        for (const transitionProperty of stateBody.properties) {
+        for (const transitionProperty of superpositionBody.properties) {
           if (!ts.isPropertyAssignment(transitionProperty)) {
-            throw new Error("State bodies must contain property assignments only")
+            throw new Error("Superposition bodies must contain property assignments only")
           }
 
           for (const commentSource of getLeadingCommentSources(transitionProperty, sourceFile)) {
-            transitionCommentRows.push({
-              id: transitionCommentRows.length + 1,
-              stateId,
+            superpositionCommentRows.push({
+              id: superpositionCommentRows.length + 1,
+              superpositionId,
               position: memberPosition++,
               text: commentSource,
             })
@@ -941,8 +941,8 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
 
           pendingTransitions.push({
             id: pendingTransitions.length + 1,
-            stateId,
-            targetStateName: getPropertyNameText(transitionProperty.name, sourceFile),
+            superpositionId,
+            targetSuperpositionName: getPropertyNameText(transitionProperty.name, sourceFile),
             position: memberPosition++,
             conditions: parseConditions(transitionProperty.initializer, fieldIdByName, sourceFile),
           })
@@ -1050,20 +1050,20 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
     }
   }
 
-  const stateIdByName = new Map(stateRows.map((stateRow) => [stateRow.name, stateRow.id]))
+  const superpositionIdByName = new Map(superpositionRows.map((superpositionRow) => [superpositionRow.name, superpositionRow.id]))
   const transitionRows: TransitionRow[] = []
   const conditionRows: Array<{ transitionId: number; position: number; fieldId: number; nullValue: boolean }> = []
 
   for (const pendingTransition of pendingTransitions) {
-    const targetStateId = stateIdByName.get(pendingTransition.targetStateName)
-    if (targetStateId === undefined) {
-      throw new Error(`Unknown target state in superposition: ${pendingTransition.targetStateName}`)
+    const targetSuperpositionId = superpositionIdByName.get(pendingTransition.targetSuperpositionName)
+    if (targetSuperpositionId === undefined) {
+      throw new Error(`Unknown target superposition in superposition: ${pendingTransition.targetSuperpositionName}`)
     }
 
     transitionRows.push({
       id: pendingTransition.id,
-      stateId: pendingTransition.stateId,
-      targetStateId,
+      superpositionId: pendingTransition.superpositionId,
+      targetSuperpositionId,
       position: pendingTransition.position,
     })
 
@@ -1104,8 +1104,8 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
       DELETE FROM process_envs;
       DELETE FROM conditions;
       DELETE FROM transitions;
-      DELETE FROM transition_comments;
-      DELETE FROM states;
+      DELETE FROM superposition_comments;
+      DELETE FROM superposition;
       DELETE FROM enum_field_defaults;
       DELETE FROM enum_number_variants;
       DELETE FROM enum_text_variants;
@@ -1237,33 +1237,38 @@ export const parseDslModuleToDb = (options: ParseDslModuleToDbOptions): ParseDsl
       insertEnumFieldDefault.run(requiredEnumDefaultRow.fieldId, requiredEnumDefaultRow.variantPosition)
     }
 
-    const insertState = options.db.query(
-      `INSERT INTO states (id, position, name)
+    const insertSuperposition = options.db.query(
+      `INSERT INTO superposition (id, position, name)
        VALUES (?, ?, ?)`,
     )
-    for (const stateRow of stateRows) {
-      insertState.run(stateRow.id, stateRow.position, stateRow.name)
+    for (const superpositionRow of superpositionRows) {
+      insertSuperposition.run(superpositionRow.id, superpositionRow.position, superpositionRow.name)
     }
 
-    const insertTransitionComment = options.db.query(
-      `INSERT INTO transition_comments (id, stateId, position, text)
+    const insertSuperpositionComment = options.db.query(
+      `INSERT INTO superposition_comments (id, superpositionId, position, text)
        VALUES (?, ?, ?, ?)`,
     )
-    for (const transitionCommentRow of transitionCommentRows) {
-      insertTransitionComment.run(
-        transitionCommentRow.id,
-        transitionCommentRow.stateId,
-        transitionCommentRow.position,
-        transitionCommentRow.text,
+    for (const superpositionCommentRow of superpositionCommentRows) {
+      insertSuperpositionComment.run(
+        superpositionCommentRow.id,
+        superpositionCommentRow.superpositionId,
+        superpositionCommentRow.position,
+        superpositionCommentRow.text,
       )
     }
 
     const insertTransition = options.db.query(
-      `INSERT INTO transitions (id, stateId, targetStateId, position)
+      `INSERT INTO transitions (id, superpositionId, targetSuperpositionId, position)
        VALUES (?, ?, ?, ?)`,
     )
     for (const transitionRow of transitionRows) {
-      insertTransition.run(transitionRow.id, transitionRow.stateId, transitionRow.targetStateId, transitionRow.position)
+      insertTransition.run(
+        transitionRow.id,
+        transitionRow.superpositionId,
+        transitionRow.targetSuperpositionId,
+        transitionRow.position,
+      )
     }
 
     const insertCondition = options.db.query(

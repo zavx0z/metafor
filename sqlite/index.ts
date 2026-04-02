@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite"
 import metaforSchemaSql from "../metafor/dsl/metafor.sql" with { type: "text" }
 import fieldsSchemaSql from "../metafor/dsl/fields.sql" with { type: "text" }
-import statesSchemaSql from "../metafor/dsl/states.sql" with { type: "text" }
+import superpositionSchemaSql from "../metafor/dsl/superposition.sql" with { type: "text" }
 import processSchemaSql from "../metafor/dsl/process.sql" with { type: "text" }
 import actionSchemaSql from "../metafor/dsl/action.sql" with { type: "text" }
 import finallySchemaSql from "../metafor/dsl/finally.sql" with { type: "text" }
@@ -23,9 +23,11 @@ export const metaforDslTableNames = [
   "field_enum_string_variant",
   "field_enum_number_variant",
   "field_enum_default",
-  "state",
+  "superposition",
   "transition",
   "condition",
+  "condition_predicate",
+  "condition_list_item",
   "process",
   "process_action",
   "process_finally",
@@ -34,7 +36,7 @@ export const metaforDslTableNames = [
   "process_action_write",
   "process_finally_read",
   "reaction",
-  "reaction_state",
+  "reaction_superposition",
   "reaction_read",
   "reaction_write",
   "matter_node",
@@ -54,14 +56,17 @@ export const metaforDslTableNames = [
 
 export const metaforDslIndexNames = [
   "field_by_meta",
-  "state_by_meta",
+  "superposition_by_meta",
+  "condition_by_transition",
+  "condition_predicate_by_condition",
+  "condition_list_item_by_predicate",
   "process_by_meta",
   "process_env_by_process",
   "process_action_read_by_process",
   "process_action_write_by_process",
   "process_finally_read_by_process",
   "reaction_by_meta",
-  "reaction_state_by_reaction",
+  "reaction_superposition_by_reaction",
   "reaction_read_by_reaction",
   "reaction_write_by_reaction",
   "matter_root_order",
@@ -80,7 +85,7 @@ export type MetaforDslDatabase = Pick<Database, "run">
 const metaforDslSchemaSqlModules = [
   metaforSchemaSql,
   fieldsSchemaSql,
-  statesSchemaSql,
+  superpositionSchemaSql,
   processSchemaSql,
   actionSchemaSql,
   finallySchemaSql,

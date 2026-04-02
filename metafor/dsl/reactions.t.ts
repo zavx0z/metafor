@@ -1,5 +1,5 @@
 import type { Fields, Update, Values } from "./fields.t"
-import type { Condition, ConditionOptional, CondNumberRequired, CondStringRequired } from "./states.t"
+import type { Condition, ConditionOptional, CondNumberRequired, CondStringRequired } from "./superposition.t"
 import type { JsonPatch, Mass, Self } from "./metafor.t"
 
 export type ReactionParams = {

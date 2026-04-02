@@ -1,6 +1,6 @@
 import type { Fields, Update, Values } from "./fields.t"
 import type { Mass } from "./metafor.t"
-import type { State } from "./states.t"
+import type { State } from "./superposition.t"
 import type { NodeType as TemplateNodeType } from "../template/node/index.t"
 import type { NodeMeta as TemplateNodeMeta } from "../template/node/meta.t"
 import type { NodeCondition as TemplateNodeCondition } from "../template/node/condition.t"

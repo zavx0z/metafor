@@ -163,7 +163,7 @@ describe("convertMetaDSLToMetaAST", () => {
     )
   })
 
-  test("должен преобразовать states в superposition", () => {
+  test("должен преобразовать superposition без legacy naming", () => {
     const meta = MetaFor("test")
       .fields((field) => ({
         name: field.string.required(""),

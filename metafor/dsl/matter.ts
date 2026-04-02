@@ -2,7 +2,7 @@ import { parse } from "../template/index.ts"
 import type { Fields } from "./fields.t"
 import type { MatterAST, MatterDeclaration, MatterFields, NodeCondition, NodeLogical, NodeMeta, NodeType } from "./matter.t"
 import type { Mass } from "./metafor.t"
-import type { State } from "./states.t"
+import type { State } from "./superposition.t"
 
 type TopologyBasis = "state" | "enum" | "array" | "ordinary" | "mass" | "unknown"
 

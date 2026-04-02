@@ -2,7 +2,7 @@ import type { Fields, Field, Update, Values } from "./fields.t"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import type { MatterAST, MatterDeclaration } from "./matter.t"
 import type { ReactionsSchema } from "./reactions.t"
-import type { Superposition } from "./states.t"
+import type { Superposition } from "./superposition.t"
 import type { ReactionsDeclaration } from "./reactions.t"
 
 export type SRC = string

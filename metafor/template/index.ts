@@ -39,7 +39,7 @@ import { extractHtmlElements } from "./parser"
 import type { Fields } from "../dsl/fields.t"
 import type { MatterDefinitionParams } from "../dsl/matter.t"
 import type { Mass } from "../dsl/metafor.t"
-import type { State } from "../dsl/states.t"
+import type { State } from "../dsl/superposition.t"
 
 export type { NodeType, NodeMeta, NodeLogical, NodeMap, NodeCondition }
 

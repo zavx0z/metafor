@@ -1,34 +1,34 @@
 import type { Fields } from "./fields.t"
-import type { Superposition } from "./states.t"
+import type { Superposition } from "./superposition.t"
 
 /**
- * Проверяет, что в конфигурации состояний нет циклов безусловных переходов.
+ * Проверяет, что в конфигурации superposition нет циклов безусловных переходов.
  * Если цикл найден — выбрасывает ошибку с пояснением.
  *
  * @example
  * ```typescript
  * // Корректная конфигурация без циклов
- * const validStates = {
+ * const validSuperposition = {
  *   anonymous: { loading: {} },
  *   loading: {}
  * }
- * validateNoUnconditionalCycles(validStates)
+ * validateNoUnconditionalCycles(validSuperposition)
  * // => не выбрасывает ошибку
  *
  * // Конфигурация с циклом
- * const cyclicStates = {
+ * const cyclicSuperposition = {
  *   anonymous: { loading: {} },
  *   loading: { anonymous: {} }
  * }
- * validateNoUnconditionalCycles(cyclicStates)
+ * validateNoUnconditionalCycles(cyclicSuperposition)
  * // => Error: Обнаружен цикл безусловных переходов
  * ```
  */
 
-export function validateNoUnconditionalCycles<𝛴 extends string, ɸ extends Fields>(states: Superposition<𝛴, ɸ>) {
+export function validateNoUnconditionalCycles<𝛴 extends string, ɸ extends Fields>(superposition: Superposition<𝛴, ɸ>) {
   // Строим граф только по безусловным переходам (условия: {}, null, undefined)
   const graph: Record<string, string[]> = {}
-  for (const [from, transitions] of Object.entries(states)) {
+  for (const [from, transitions] of Object.entries(superposition)) {
     graph[from] = []
     for (const [to, cond] of Object.entries(transitions || {})) {
       // Если условие отсутствует или пустое — считаем безусловным переходом
@@ -59,7 +59,7 @@ export function validateNoUnconditionalCycles<𝛴 extends string, ɸ extends Fi
   for (const node of Object.keys(graph)) {
     if (hasCycle(node, visited, new Set())) {
       throw new Error(
-        `В конфигурации состояний обнаружен цикл безусловных переходов (например, "${node}"). Добавьте условия для выхода из цикла.`
+        `В конфигурации superposition обнаружен цикл безусловных переходов (например, "${node}"). Добавьте условия для выхода из цикла.`
       )
     }
   }
