@@ -1,44 +1,62 @@
 CREATE TABLE IF NOT EXISTS process_finally
 (
-    process_id INTEGER PRIMARY KEY,
-    meta_src   TEXT NOT NULL,
-    type       TEXT NOT NULL DEFAULT 'finally' CHECK (type = 'finally'),
-    before_src TEXT NOT NULL,
-    UNIQUE (process_id, meta_src, type),
-    FOREIGN KEY (process_id, meta_src, type) REFERENCES process (id, meta_src, type) ON DELETE CASCADE
+    process_uuid TEXT PRIMARY KEY CHECK (length(trim(process_uuid)) > 0),
+    before_src   TEXT NOT NULL,
+    FOREIGN KEY (process_uuid) REFERENCES process (uuid) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS process_finally_read
 (
-    meta_src   TEXT    NOT NULL,
-    process_id INTEGER NOT NULL,
-    type       TEXT    NOT NULL DEFAULT 'finally' CHECK (type = 'finally'),
-    field_id   INTEGER NOT NULL,
-    PRIMARY KEY (process_id, field_id),
-    FOREIGN KEY (process_id, meta_src, type) REFERENCES process_finally (process_id, meta_src, type) ON DELETE CASCADE,
-    FOREIGN KEY (field_id) REFERENCES field (id) ON DELETE CASCADE
+    process_uuid TEXT NOT NULL CHECK (length(trim(process_uuid)) > 0),
+    field_uuid   TEXT NOT NULL CHECK (length(trim(field_uuid)) > 0),
+    PRIMARY KEY (process_uuid, field_uuid),
+    FOREIGN KEY (process_uuid) REFERENCES process_finally (process_uuid) ON DELETE CASCADE,
+    FOREIGN KEY (field_uuid) REFERENCES field (uuid) ON DELETE CASCADE
 );
+
+CREATE TRIGGER IF NOT EXISTS process_finally_requires_finally_process_insert
+    BEFORE INSERT
+    ON process_finally
+    FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'process_finally requires process.type = finally')
+    WHERE COALESCE((SELECT type FROM process WHERE uuid = NEW.process_uuid), '') <> 'finally';
+END;
+
+CREATE TRIGGER IF NOT EXISTS process_finally_requires_finally_process_update
+    BEFORE UPDATE OF process_uuid
+    ON process_finally
+    FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'process_finally requires process.type = finally')
+    WHERE COALESCE((SELECT type FROM process WHERE uuid = NEW.process_uuid), '') <> 'finally';
+END;
 
 CREATE TRIGGER IF NOT EXISTS process_finally_read_requires_same_meta_field_insert
     BEFORE INSERT
     ON process_finally_read
     FOR EACH ROW
 BEGIN
-    SELECT RAISE(ABORT, 'process_finally_read.field_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM field WHERE id = NEW.field_id), '') <> NEW.meta_src;
+    SELECT RAISE(ABORT, 'process_finally_read.field_uuid must belong to the same meta')
+    WHERE COALESCE((SELECT process.meta_src
+                    FROM process
+                             JOIN process_finally ON process_finally.process_uuid = process.uuid
+                    WHERE process_finally.process_uuid = NEW.process_uuid), '')
+              <> COALESCE((SELECT meta_src FROM field WHERE uuid = NEW.field_uuid), '');
 END;
 
 CREATE TRIGGER IF NOT EXISTS process_finally_read_requires_same_meta_field_update
-    BEFORE UPDATE OF meta_src, field_id
+    BEFORE UPDATE OF process_uuid, field_uuid
     ON process_finally_read
     FOR EACH ROW
 BEGIN
-    SELECT RAISE(ABORT, 'process_finally_read.field_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM field WHERE id = NEW.field_id), '') <> NEW.meta_src;
+    SELECT RAISE(ABORT, 'process_finally_read.field_uuid must belong to the same meta')
+    WHERE COALESCE((SELECT process.meta_src
+                    FROM process
+                             JOIN process_finally ON process_finally.process_uuid = process.uuid
+                    WHERE process_finally.process_uuid = NEW.process_uuid), '')
+              <> COALESCE((SELECT meta_src FROM field WHERE uuid = NEW.field_uuid), '');
 END;
 
-CREATE INDEX IF NOT EXISTS process_finally_by_meta_src
-    ON process_finally (meta_src);
-
-CREATE INDEX IF NOT EXISTS process_finally_read_by_meta_src
-    ON process_finally_read (meta_src);
+CREATE INDEX IF NOT EXISTS process_finally_read_by_process_uuid
+    ON process_finally_read (process_uuid);

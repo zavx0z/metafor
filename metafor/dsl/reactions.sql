@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS reaction
 (
-    id            INTEGER PRIMARY KEY,
+    uuid          TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
     meta_src      TEXT NOT NULL,
     key           TEXT NOT NULL CHECK (length(trim(key)) > 0),
     label         TEXT NOT NULL,
@@ -13,32 +13,29 @@ CREATE TABLE IF NOT EXISTS reaction
 
 CREATE TABLE IF NOT EXISTS reaction_state
 (
-    meta_src    TEXT    NOT NULL,
-    reaction_id INTEGER NOT NULL,
-    state_id    INTEGER NOT NULL,
-    PRIMARY KEY (reaction_id, state_id),
-    FOREIGN KEY (reaction_id) REFERENCES reaction (id) ON DELETE CASCADE,
-    FOREIGN KEY (state_id) REFERENCES state (id) ON DELETE CASCADE
+    reaction_uuid TEXT NOT NULL CHECK (length(trim(reaction_uuid)) > 0),
+    state_uuid    TEXT NOT NULL CHECK (length(trim(state_uuid)) > 0),
+    PRIMARY KEY (reaction_uuid, state_uuid),
+    FOREIGN KEY (reaction_uuid) REFERENCES reaction (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (state_uuid) REFERENCES state (uuid) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS reaction_read
 (
-    meta_src    TEXT    NOT NULL,
-    reaction_id INTEGER NOT NULL,
-    field_id    INTEGER NOT NULL,
-    PRIMARY KEY (reaction_id, field_id),
-    FOREIGN KEY (reaction_id) REFERENCES reaction (id) ON DELETE CASCADE,
-    FOREIGN KEY (field_id) REFERENCES field (id) ON DELETE CASCADE
+    reaction_uuid TEXT NOT NULL CHECK (length(trim(reaction_uuid)) > 0),
+    field_uuid    TEXT NOT NULL CHECK (length(trim(field_uuid)) > 0),
+    PRIMARY KEY (reaction_uuid, field_uuid),
+    FOREIGN KEY (reaction_uuid) REFERENCES reaction (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (field_uuid) REFERENCES field (uuid) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS reaction_write
 (
-    meta_src    TEXT    NOT NULL,
-    reaction_id INTEGER NOT NULL,
-    field_id    INTEGER NOT NULL,
-    PRIMARY KEY (reaction_id, field_id),
-    FOREIGN KEY (reaction_id) REFERENCES reaction (id) ON DELETE CASCADE,
-    FOREIGN KEY (field_id) REFERENCES field (id) ON DELETE CASCADE
+    reaction_uuid TEXT NOT NULL CHECK (length(trim(reaction_uuid)) > 0),
+    field_uuid    TEXT NOT NULL CHECK (length(trim(field_uuid)) > 0),
+    PRIMARY KEY (reaction_uuid, field_uuid),
+    FOREIGN KEY (reaction_uuid) REFERENCES reaction (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (field_uuid) REFERENCES field (uuid) ON DELETE CASCADE
 );
 
 CREATE TRIGGER IF NOT EXISTS reaction_state_requires_same_meta_refs_insert
@@ -46,23 +43,19 @@ CREATE TRIGGER IF NOT EXISTS reaction_state_requires_same_meta_refs_insert
     ON reaction_state
     FOR EACH ROW
 BEGIN
-    SELECT RAISE(ABORT, 'reaction_state.reaction_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM reaction WHERE id = NEW.reaction_id), '') <> NEW.meta_src;
-
-    SELECT RAISE(ABORT, 'reaction_state.state_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM state WHERE id = NEW.state_id), '') <> NEW.meta_src;
+    SELECT RAISE(ABORT, 'reaction_state refs must belong to the same meta')
+    WHERE COALESCE((SELECT meta_src FROM reaction WHERE uuid = NEW.reaction_uuid), '')
+              <> COALESCE((SELECT meta_src FROM state WHERE uuid = NEW.state_uuid), '');
 END;
 
 CREATE TRIGGER IF NOT EXISTS reaction_state_requires_same_meta_refs_update
-    BEFORE UPDATE OF meta_src, reaction_id, state_id
+    BEFORE UPDATE OF reaction_uuid, state_uuid
     ON reaction_state
     FOR EACH ROW
 BEGIN
-    SELECT RAISE(ABORT, 'reaction_state.reaction_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM reaction WHERE id = NEW.reaction_id), '') <> NEW.meta_src;
-
-    SELECT RAISE(ABORT, 'reaction_state.state_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM state WHERE id = NEW.state_id), '') <> NEW.meta_src;
+    SELECT RAISE(ABORT, 'reaction_state refs must belong to the same meta')
+    WHERE COALESCE((SELECT meta_src FROM reaction WHERE uuid = NEW.reaction_uuid), '')
+              <> COALESCE((SELECT meta_src FROM state WHERE uuid = NEW.state_uuid), '');
 END;
 
 CREATE TRIGGER IF NOT EXISTS reaction_read_requires_same_meta_refs_insert
@@ -70,23 +63,19 @@ CREATE TRIGGER IF NOT EXISTS reaction_read_requires_same_meta_refs_insert
     ON reaction_read
     FOR EACH ROW
 BEGIN
-    SELECT RAISE(ABORT, 'reaction_read.reaction_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM reaction WHERE id = NEW.reaction_id), '') <> NEW.meta_src;
-
-    SELECT RAISE(ABORT, 'reaction_read.field_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM field WHERE id = NEW.field_id), '') <> NEW.meta_src;
+    SELECT RAISE(ABORT, 'reaction_read refs must belong to the same meta')
+    WHERE COALESCE((SELECT meta_src FROM reaction WHERE uuid = NEW.reaction_uuid), '')
+              <> COALESCE((SELECT meta_src FROM field WHERE uuid = NEW.field_uuid), '');
 END;
 
 CREATE TRIGGER IF NOT EXISTS reaction_read_requires_same_meta_refs_update
-    BEFORE UPDATE OF meta_src, reaction_id, field_id
+    BEFORE UPDATE OF reaction_uuid, field_uuid
     ON reaction_read
     FOR EACH ROW
 BEGIN
-    SELECT RAISE(ABORT, 'reaction_read.reaction_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM reaction WHERE id = NEW.reaction_id), '') <> NEW.meta_src;
-
-    SELECT RAISE(ABORT, 'reaction_read.field_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM field WHERE id = NEW.field_id), '') <> NEW.meta_src;
+    SELECT RAISE(ABORT, 'reaction_read refs must belong to the same meta')
+    WHERE COALESCE((SELECT meta_src FROM reaction WHERE uuid = NEW.reaction_uuid), '')
+              <> COALESCE((SELECT meta_src FROM field WHERE uuid = NEW.field_uuid), '');
 END;
 
 CREATE TRIGGER IF NOT EXISTS reaction_write_requires_same_meta_refs_insert
@@ -94,33 +83,29 @@ CREATE TRIGGER IF NOT EXISTS reaction_write_requires_same_meta_refs_insert
     ON reaction_write
     FOR EACH ROW
 BEGIN
-    SELECT RAISE(ABORT, 'reaction_write.reaction_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM reaction WHERE id = NEW.reaction_id), '') <> NEW.meta_src;
-
-    SELECT RAISE(ABORT, 'reaction_write.field_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM field WHERE id = NEW.field_id), '') <> NEW.meta_src;
+    SELECT RAISE(ABORT, 'reaction_write refs must belong to the same meta')
+    WHERE COALESCE((SELECT meta_src FROM reaction WHERE uuid = NEW.reaction_uuid), '')
+              <> COALESCE((SELECT meta_src FROM field WHERE uuid = NEW.field_uuid), '');
 END;
 
 CREATE TRIGGER IF NOT EXISTS reaction_write_requires_same_meta_refs_update
-    BEFORE UPDATE OF meta_src, reaction_id, field_id
+    BEFORE UPDATE OF reaction_uuid, field_uuid
     ON reaction_write
     FOR EACH ROW
 BEGIN
-    SELECT RAISE(ABORT, 'reaction_write.reaction_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM reaction WHERE id = NEW.reaction_id), '') <> NEW.meta_src;
-
-    SELECT RAISE(ABORT, 'reaction_write.field_id must belong to the same meta')
-    WHERE COALESCE((SELECT meta_src FROM field WHERE id = NEW.field_id), '') <> NEW.meta_src;
+    SELECT RAISE(ABORT, 'reaction_write refs must belong to the same meta')
+    WHERE COALESCE((SELECT meta_src FROM reaction WHERE uuid = NEW.reaction_uuid), '')
+              <> COALESCE((SELECT meta_src FROM field WHERE uuid = NEW.field_uuid), '');
 END;
 
 CREATE INDEX IF NOT EXISTS reaction_by_meta_src
     ON reaction (meta_src);
 
-CREATE INDEX IF NOT EXISTS reaction_state_by_meta_src
-    ON reaction_state (meta_src);
+CREATE INDEX IF NOT EXISTS reaction_state_by_reaction_uuid
+    ON reaction_state (reaction_uuid);
 
-CREATE INDEX IF NOT EXISTS reaction_read_by_meta_src
-    ON reaction_read (meta_src);
+CREATE INDEX IF NOT EXISTS reaction_read_by_reaction_uuid
+    ON reaction_read (reaction_uuid);
 
-CREATE INDEX IF NOT EXISTS reaction_write_by_meta_src
-    ON reaction_write (meta_src);
+CREATE INDEX IF NOT EXISTS reaction_write_by_reaction_uuid
+    ON reaction_write (reaction_uuid);
