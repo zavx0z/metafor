@@ -3,6 +3,7 @@ import metaforSchemaSql from "../metafor/dsl/metafor.sql" with { type: "text" }
 import fieldsSchemaSql from "../metafor/dsl/fields.sql" with { type: "text" }
 import statesSchemaSql from "../metafor/dsl/states.sql" with { type: "text" }
 import processSchemaSql from "../metafor/dsl/process.sql" with { type: "text" }
+import actionSchemaSql from "../metafor/dsl/action.sql" with { type: "text" }
 import finallySchemaSql from "../metafor/dsl/finally.sql" with { type: "text" }
 import reactionsSchemaSql from "../metafor/dsl/reactions.sql" with { type: "text" }
 import matterSchemaSql from "../metafor/dsl/matter.sql" with { type: "text" }
@@ -72,6 +73,7 @@ const metaforDslSchemaSqlModules = [
   fieldsSchemaSql,
   statesSchemaSql,
   processSchemaSql,
+  actionSchemaSql,
   finallySchemaSql,
   reactionsSchemaSql,
   matterSchemaSql,
