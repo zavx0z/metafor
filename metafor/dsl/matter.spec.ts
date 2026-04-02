@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { MetaFor } from "../../dsl/metafor.ts"
-import { convertMetaDSLToMetaAST } from "../index.ts"
+import { MetaFor } from "./metafor.ts"
+import { convertMetaDSLToMetaAST } from "../ast/index.ts"
 
 describe("matter validation", () => {
   test("разрешает topology в matter только через state, enum и array", () => {

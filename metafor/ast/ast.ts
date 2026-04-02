@@ -16,7 +16,7 @@ import type {
   FieldDefinitionJson,
   ReactionDefinitionJson,
 } from "./ast.t"
-import { validateMatterAST } from "./matter"
+import { validateMatterAST } from "../dsl/matter.ts"
 
 /**
  * Валидирует путь к модулю действия.

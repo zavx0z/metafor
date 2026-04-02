@@ -4,7 +4,7 @@
  */
 
 export { convertMetaDSLToMetaAST, extractArrayElementTypesFromSource } from "./ast.ts"
-export { validateMatterAST } from "./matter.ts"
+export { validateMatterAST } from "../dsl/matter.ts"
 export type {
   MetaDSLLike,
   ArrayElementType,

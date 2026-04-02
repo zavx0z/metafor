@@ -13,7 +13,7 @@ const openDatabase = (): Database => {
 }
 
 describe("sqlite ddl", () => {
-  test("создаёт meta-level таблицы и индексы из ddl.sql", () => {
+  test("создаёт meta-level таблицы и индексы из sql-модулей dsl", () => {
     const database = openDatabase()
 
     try {

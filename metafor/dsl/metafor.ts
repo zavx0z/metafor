@@ -75,22 +75,22 @@
  *
  * @packageDocumentation
  */
-import {fieldSchema} from "./fields.ts"
-import type {Fields, Field} from "./fields.t.ts"
-import {parse} from "../template/index.ts"
+import { fieldSchema } from "./fields.ts"
+import type { Fields, Field } from "./fields.t.ts"
+import { parseMatter } from "./matter.ts"
 
-import {validateNoUnconditionalCycles} from "./states"
-import type {Superposition} from "./states.t"
-import {reactionsSchema} from "./reactions"
-import type {ReactionsDeclaration} from "./reactions.t"
-import {processesSchema} from "./process"
-import type {ProcessesDeclaration} from "./process.t"
-import {serializeStyle} from "./style"
+import { validateNoUnconditionalCycles } from "./states"
+import type { Superposition } from "./states.t"
+import { reactionsSchema } from "./reactions"
+import type { ReactionsDeclaration } from "./reactions.t"
+import { processesSchema } from "./process"
+import type { ProcessesDeclaration } from "./process.t"
+import { serializeStyle } from "./style"
+import type { MatterDeclaration } from "./matter.t"
 
 import type {
   MetaForConfig,
   BulkDeclaration,
-  MatterDeclaration,
   MetaDSL,
   Mass,
   MetaForFn,
@@ -131,7 +131,7 @@ export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig
                       if (reactions) schema.reactions = reactions
                       return {
                         matter(matter?: MatterDeclaration<ɸ, m, 𝛴>) {
-                          if (matter) schema.matter = parse(matter as any)
+                          if (matter) schema.matter = parseMatter(matter)
                           return {
                             bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m> {
                               if (bulk && "view" in bulk) schema.view = serializeStyle(bulk.view as any)

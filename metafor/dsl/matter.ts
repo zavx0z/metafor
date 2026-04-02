@@ -1,7 +1,9 @@
-import type { NodeType, NodeMeta, NodeCondition, NodeLogical, NodeMap } from "@metafor/dsl"
-import type { FieldsAST, MetaAST } from "./ast.t"
+import { parse } from "../template/index.ts"
+import type { Fields } from "./fields.t"
+import type { MatterAST, MatterDeclaration, MatterFields, NodeCondition, NodeLogical, NodeMeta, NodeType } from "./matter.t"
+import type { Mass } from "./metafor.t"
+import type { State } from "./states.t"
 
-type MatterNode = NodeMeta | NodeCondition | NodeLogical | NodeMap
 type TopologyBasis = "state" | "enum" | "array" | "ordinary" | "mass" | "unknown"
 
 const HUB_ADDRESS_RE = /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_/-]+$/
@@ -16,7 +18,7 @@ const extractFieldKey = (path: string): string | undefined => {
   return key || undefined
 }
 
-const resolveTopologyBasis = (path: string, fields: FieldsAST): TopologyBasis => {
+const resolveTopologyBasis = (path: string, fields: MatterFields): TopologyBasis => {
   if (path === "/state") return "state"
   if (path.startsWith("/mass/")) return "mass"
 
@@ -31,7 +33,7 @@ const resolveTopologyBasis = (path: string, fields: FieldsAST): TopologyBasis =>
   return "ordinary"
 }
 
-const describeBasis = (path: string, fields: FieldsAST): string => {
+const describeBasis = (path: string, fields: MatterFields): string => {
   const basis = resolveTopologyBasis(path, fields)
   if (basis === "state") return 'state "/state"'
   if (basis === "mass") return `mass path "${path}"`
@@ -54,7 +56,7 @@ const toSinglePath = (value: string | string[]): string | undefined => {
 
 const validateBasisList = (
   paths: string | string[],
-  fields: FieldsAST,
+  fields: MatterFields,
   location: string,
   allowed: TopologyBasis[],
   usage: string,
@@ -80,11 +82,9 @@ const validateStaticSrc = (src: string, location: string): void => {
   }
 }
 
-const validateDynamicSrc = (src: Exclude<NodeMeta["src"], string>, fields: FieldsAST, location: string): void => {
+const validateDynamicSrc = (src: Exclude<NodeMeta["src"], string>, fields: MatterFields, location: string): void => {
   if (!src.data) {
-    throw new Error(
-      `Matter violation at "${location}": dynamic src must have data expression.`,
-    )
+    throw new Error(`Matter violation at "${location}": dynamic src must have data expression.`)
   }
   const paths = toPathList(src.data as string | string[])
   if (paths.length !== 1) {
@@ -96,7 +96,7 @@ const validateDynamicSrc = (src: Exclude<NodeMeta["src"], string>, fields: Field
   validateBasisList(paths[0]!, fields, location, ["enum"], "dynamic src")
 }
 
-const validateMetaNode = (node: NodeMeta, fields: FieldsAST, location: string): void => {
+const validateMetaNode = (node: NodeMeta, fields: MatterFields, location: string): void => {
   if (node.tag !== "meta-for") {
     throw new Error(
       `Matter violation at "${location}": only <meta-for /> is allowed in matter, received <${node.tag}>.`,
@@ -113,7 +113,7 @@ const validateMetaNode = (node: NodeMeta, fields: FieldsAST, location: string): 
 
 const validateRedundantEnumNullGuard = (
   node: NodeLogical | NodeCondition,
-  fields: FieldsAST,
+  fields: MatterFields,
   location: string,
 ): void => {
   const basisPath = toSinglePath(node.data)
@@ -135,7 +135,7 @@ const validateRedundantEnumNullGuard = (
   )
 }
 
-const validateNode = (node: NodeType, fields: FieldsAST, location: string): void => {
+const validateNode = (node: NodeType, fields: MatterFields, location: string): void => {
   switch (node.type) {
     case "meta":
       validateMetaNode(node, fields, location)
@@ -168,7 +168,11 @@ const validateNode = (node: NodeType, fields: FieldsAST, location: string): void
   }
 }
 
-export function validateMatterAST(matter: MetaAST["matter"], fields: FieldsAST, metaName?: string): void {
+export const parseMatter = <ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends State = State>(
+  matter: MatterDeclaration<ɸ, m, 𝛴>,
+): MatterAST => parse(matter)
+
+export function validateMatterAST(matter: MatterAST | undefined, fields: MatterFields, metaName?: string): void {
   if (!matter) return
 
   matter.forEach((node, index) => {

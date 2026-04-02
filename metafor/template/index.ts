@@ -37,7 +37,8 @@ import type { NodeMap } from "./node/map.t"
 import type { NodeCondition } from "./node/condition.t"
 import { extractHtmlElements } from "./parser"
 import type { Fields } from "../dsl/fields.t"
-import type { Mass, MatterDefinitionParams } from "../dsl/metafor.t"
+import type { MatterDefinitionParams } from "../dsl/matter.t"
+import type { Mass } from "../dsl/metafor.t"
 import type { State } from "../dsl/states.t"
 
 export type { NodeType, NodeMeta, NodeLogical, NodeMap, NodeCondition }

@@ -1,6 +1,6 @@
 import type { Fields, Field, Update, Values } from "./fields.t"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
-import type { NodeType } from "@metafor/template"
+import type { MatterAST, MatterDeclaration } from "./matter.t"
 import type { ReactionsSchema } from "./reactions.t"
 import type { Superposition } from "./states.t"
 import type { ReactionsDeclaration } from "./reactions.t"
@@ -369,65 +369,6 @@ export type MetaForConfig = {
  * `
  * ```
  */
-export type MatterDefinitionParams<ɸ extends Fields = Fields, m extends Mass = Mass, 𝛴 extends string = string> = {
-  /**
-   * Функция для обновления контекста атома.
-   * Используется в обработчиках событий для изменения состояния.
-   */
-  update: Update<ɸ>
-  /**
-   * Текущие значения полей.
-   * Содержит все значения полей, определённых в `.fields(...)`.
-   * Используется для передачи данных дочерним акторам.
-   * @example
-   * ```ts
-   * matter: ({ value, html }) => html`
-   *   <meta-for src="demo/child" fields=${{ value: value.data }} />
-   * `
-   */
-  value: Values<ɸ>
-  /**
-   * Масса атома для сложных данных и зависимостей от среды.
-   * Содержит объекты, массивы и структуры, которые не помещаются в контекст.
-   * Масса определяет локализацию процесса и не сериализуется в Boundary.
-   */
-  mass: m
-  /**
-   * Текущее состояние автомата.
-   * Строка из `.superposition(...)`, используется для условий matter.
-   * @example
-   * ```ts
-   * matter: ({ state, html }) => html`
-   *   ${state === "loading" && html`<meta-for src="demo/spinner" />`}
-   * `
-   */
-  state: 𝛴
-  /**
-   * Функция шаблонизации для создания HTML.
-   * Используется для декларирования иерархии акторов через `<meta-for>`.
-   *
-   * @example
-   * ```ts
-   * matter: ({ html }) => html`
-   *   <meta-for src="demo/header" />
-   *   <meta-for src="demo/content" />
-   * `
-   * ```
-   *
-   * @remarks
-   * Атрибут `src` задаёт hub-адрес вида `owner/path` — канонический идентификатор meta-сущности,
-   * который loader резолвит в `owner/path/meta.json`.
-   */
-  html: (strings: TemplateStringsArray, ...values: any[]) => void
-}
-
-/**
- * Тип matter-декларации для иерархии акторов.
- */
-export type MatterDeclaration<ɸ extends Fields, m extends Mass, 𝛴 extends string> = (
-  params: MatterDefinitionParams<ɸ, m, 𝛴>,
-) => void
-
 /**
  * Конфигурация для bulk-компонента.
  *
@@ -484,7 +425,7 @@ export interface MetaDSL<ɸ extends Fields = Fields, 𝛴 extends string = strin
   /** Схема полей */
   fields: ɸ
   /** Сериализованная matter как ParseNode[] из @metafor/template */
-  matter?: NodeType[]
+  matter?: MatterAST
   /** View-стили компонента */
   view?: string
   /** Масса */

@@ -1,5 +1,10 @@
 import type { Database } from "bun:sqlite"
-import { readFileSync } from "node:fs"
+import metaforSchemaSql from "../metafor/dsl/metafor.sql" with { type: "text" }
+import fieldsSchemaSql from "../metafor/dsl/fields.sql" with { type: "text" }
+import statesSchemaSql from "../metafor/dsl/states.sql" with { type: "text" }
+import processSchemaSql from "../metafor/dsl/process.sql" with { type: "text" }
+import reactionsSchemaSql from "../metafor/dsl/reactions.sql" with { type: "text" }
+import matterSchemaSql from "../metafor/dsl/matter.sql" with { type: "text" }
 
 export const metaforDslTableNames = [
   "meta",
@@ -61,8 +66,16 @@ export const metaforDslIndexNames = [
 
 export type MetaforDslDatabase = Pick<Database, "run">
 
-export const metaforDslSchemaSqlFile = new URL("./ddl.sql", import.meta.url)
-export const metaforDslSchemaSql = readFileSync(metaforDslSchemaSqlFile, "utf8").trim()
+const metaforDslSchemaSqlModules = [
+  metaforSchemaSql,
+  fieldsSchemaSql,
+  statesSchemaSql,
+  processSchemaSql,
+  reactionsSchemaSql,
+  matterSchemaSql,
+] as const
+
+export const metaforDslSchemaSql = metaforDslSchemaSqlModules.map((sql) => sql.trim()).filter(Boolean).join("\n\n").trim()
 
 export const initializeMetaforDslSqliteSchema = (database: MetaforDslDatabase): void => {
   database.run("PRAGMA foreign_keys = ON;")

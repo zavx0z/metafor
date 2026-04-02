@@ -1,8 +1,0 @@
-{
-  "extends": "../../../../tsconfig.json",
-  "include": [
-    "../../field.ts",
-    "../../metafor/dsl/field.t.ts",
-    "./**/*.ts"
-  ]
-}
