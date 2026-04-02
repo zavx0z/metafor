@@ -489,46 +489,46 @@ describe("sqlite ddl", () => {
 
       database
         .query(
-          `INSERT INTO particle(id, meta_src, parent_id, position, type)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO matter_node(id, meta_src, node_kind, tag)
+           VALUES (?, ?, ?, ?)`,
         )
-        .run(300, "alpha/meta", null, 0, "wimp")
+        .run(300, "alpha/meta", "meta", "meta-for")
 
       database
         .query(
-          `INSERT INTO wimp(id, meta_src, src)
-           VALUES (?, ?, ?)`,
+          `INSERT INTO matter_node(id, meta_src, node_kind, tag)
+           VALUES (?, ?, ?, ?)`,
         )
-        .run(300, "alpha/meta", "alpha/root")
+        .run(400, "beta/meta", "meta", "meta-for")
 
       database
         .query(
-          `INSERT INTO particle(id, meta_src, parent_id, position, type)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO matter_edge(id, meta_src, parent_node_id, child_node_id, edge_slot, edge_order)
+           VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run(400, "beta/meta", null, 0, "wimp")
+        .run(500, "alpha/meta", null, 300, "root", 0)
 
       database
         .query(
-          `INSERT INTO wimp(id, meta_src, src)
-           VALUES (?, ?, ?)`,
+          `INSERT INTO matter_edge(id, meta_src, parent_node_id, child_node_id, edge_slot, edge_order)
+           VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run(400, "beta/meta", "beta/root")
+        .run(600, "beta/meta", null, 400, "root", 0)
 
       expect(() =>
         database
           .query(
-            `INSERT INTO particle(id, meta_src, parent_id, position, type)
-             VALUES (?, ?, ?, ?, ?)`,
+            `INSERT INTO matter_edge(id, meta_src, parent_node_id, child_node_id, edge_slot, edge_order)
+             VALUES (?, ?, ?, ?, ?, ?)`,
           )
-          .run(301, "alpha/meta", 400, 1, "macho"),
+          .run(700, "alpha/meta", 300, 400, "child", 0),
       ).toThrow()
     } finally {
       database.close()
     }
   })
 
-  test("удерживает нормализованные particles и fuzzy subtype shape", () => {
+  test("удерживает matter AST shape с typed bindings и зависимостями без потери", () => {
     const database = openDatabase()
 
     try {
@@ -536,119 +536,538 @@ describe("sqlite ddl", () => {
 
       database
         .query(
-          `INSERT INTO particle(id, meta_src, parent_id, position, type)
+          `INSERT INTO field(id, meta_src, key, type, required)
            VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(1, "alpha/meta", null, 0, "wimp")
+        .run(1, "alpha/meta", "title", "string", 1)
 
       database
         .query(
-          `INSERT INTO wimp(id, meta_src, src)
-           VALUES (?, ?, ?)`,
-        )
-        .run(1, "alpha/meta", "alpha/child")
-
-      database
-        .query(
-          `INSERT INTO particle(id, meta_src, parent_id, position, type)
+          `INSERT INTO field(id, meta_src, key, type, required)
            VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(2, "alpha/meta", 1, 0, "fuzzy")
+        .run(2, "alpha/meta", "active", "boolean", 1)
 
       database
         .query(
-          `INSERT INTO fuzzy(id, meta_src, kind)
-           VALUES (?, ?, ?)`,
-        )
-        .run(2, "alpha/meta", "condition")
-
-      database
-        .query(
-          `INSERT INTO fuzzy_condition(fuzzy_id, meta_src, data)
-           VALUES (?, ?, ?)`,
-        )
-        .run(2, "alpha/meta", JSON.stringify("/state"))
-
-      database
-        .query(
-          `INSERT INTO particle(id, meta_src, parent_id, position, type)
+          `INSERT INTO matter_binding(id, meta_src, binding_kind, literal_kind, literal_text)
            VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(3, "alpha/meta", 2, 0, "axion")
+        .run(10, "alpha/meta", "static", "text", "alpha/root")
 
       database
         .query(
-          `INSERT INTO axion(id, meta_src, data)
+          `INSERT INTO matter_binding(id, meta_src, binding_kind, expr)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(11, "alpha/meta", "dynamic", "{ title: _[0], active: _[1] }")
+
+      database
+        .query(
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(11, "alpha/meta", 0, "/value/title")
+
+      database
+        .query(
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(11, "alpha/meta", 1, "/value/active")
+
+      database
+        .query(
+          `INSERT INTO matter_binding(id, meta_src, binding_kind, expr)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(12, "alpha/meta", "dynamic", "{ owner: _[0], enabled: _[1] }")
+
+      database
+        .query(
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(12, "alpha/meta", 0, "/mass/owner")
+
+      database
+        .query(
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(12, "alpha/meta", 1, "/mass/enabled")
+
+      database
+        .query(
+          `INSERT INTO matter_binding(id, meta_src, binding_kind)
            VALUES (?, ?, ?)`,
         )
-        .run(3, "alpha/meta", JSON.stringify("/state"))
+        .run(13, "alpha/meta", "variable")
 
       database
         .query(
-          `INSERT INTO particle(id, meta_src, parent_id, position, type)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
         )
-        .run(4, "alpha/meta", 1, 1, "macho")
+        .run(13, "alpha/meta", 0, "/state")
 
       database
         .query(
-          `INSERT INTO macho(id, meta_src, data)
+          `INSERT INTO matter_binding(id, meta_src, binding_kind, expr)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(14, "alpha/meta", "dynamic", "${_[0]} && ${_[1]}")
+
+      database
+        .query(
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(14, "alpha/meta", 0, "/value/active")
+
+      database
+        .query(
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(14, "alpha/meta", 1, "/mass/is-enabled")
+
+      database
+        .query(
+          `INSERT INTO matter_binding(id, meta_src, binding_kind)
            VALUES (?, ?, ?)`,
         )
-        .run(4, "alpha/meta", "/fields/items")
+        .run(15, "alpha/meta", "variable")
 
       database
         .query(
-          `INSERT INTO particle(id, meta_src, parent_id, position, type)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
         )
-        .run(5, "alpha/meta", 1, 2, "fuzzy")
+        .run(15, "alpha/meta", 0, "/mass/items")
 
       database
         .query(
-          `INSERT INTO fuzzy(id, meta_src, kind)
+          `INSERT INTO matter_binding(id, meta_src, binding_kind)
            VALUES (?, ?, ?)`,
         )
-        .run(5, "alpha/meta", "meta")
+        .run(16, "alpha/meta", "variable")
 
       database
         .query(
-          `INSERT INTO fuzzy_meta(fuzzy_id, meta_src, src, fields, mass)
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(16, "alpha/meta", 0, "/value/title")
+
+      database
+        .query(
+          `INSERT INTO matter_binding(id, meta_src, binding_kind, literal_kind, literal_boolean)
            VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(
-          5,
-          "alpha/meta",
-          JSON.stringify({ data: "/fields/operation" }),
-          JSON.stringify({ target: "_[0]" }),
-          JSON.stringify({ scope: "nested" }),
+        .run(17, "alpha/meta", "static", "boolean", 1)
+
+      database
+        .query(
+          `INSERT INTO matter_binding(id, meta_src, binding_kind, literal_kind, literal_text)
+           VALUES (?, ?, ?, ?, ?)`,
         )
+        .run(18, "alpha/meta", "static", "text", "card")
+
+      database
+        .query(
+          `INSERT INTO matter_binding(id, meta_src, binding_kind, expr)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(19, "alpha/meta", "dynamic", "${_[0]} ? 'active' : 'idle'")
+
+      database
+        .query(
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(19, "alpha/meta", 0, "/value/active")
+
+      database
+        .query(
+          `INSERT INTO matter_binding(id, meta_src, binding_kind, expr)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(20, "alpha/meta", "dynamic", "${_[0]} ? 'green' : 'red'")
+
+      database
+        .query(
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(20, "alpha/meta", 0, "/value/active")
+
+      database
+        .query(
+          `INSERT INTO matter_binding(id, meta_src, binding_kind, expr)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(21, "alpha/meta", "dynamic", "(event) => _[0](event)")
+
+      database
+        .query(
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(21, "alpha/meta", 0, "/mass/handleClick")
+
+      database
+        .query(
+          `INSERT INTO matter_binding(id, meta_src, binding_kind)
+           VALUES (?, ?, ?)`,
+        )
+        .run(22, "alpha/meta", "variable")
+
+      database
+        .query(
+          `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(22, "alpha/meta", 0, "[item]/src")
+
+      database
+        .query(
+          `INSERT INTO matter_binding(id, meta_src, binding_kind, literal_kind, literal_text)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(23, "alpha/meta", "static", "text", '{ role: "item" }')
+
+      database
+        .query(
+          `INSERT INTO matter_node(id, meta_src, node_kind, tag)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(100, "alpha/meta", "cond", null)
+
+      database
+        .query(
+          `INSERT INTO matter_node(id, meta_src, node_kind, tag)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(101, "alpha/meta", "meta", "meta-for")
+
+      database
+        .query(
+          `INSERT INTO matter_node(id, meta_src, node_kind, tag)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(102, "alpha/meta", "log", null)
+
+      database
+        .query(
+          `INSERT INTO matter_node(id, meta_src, node_kind, tag)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(103, "alpha/meta", "map", null)
+
+      database
+        .query(
+          `INSERT INTO matter_node(id, meta_src, node_kind, tag)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(104, "alpha/meta", "meta", "meta-for")
+
+      database
+        .query(
+          `INSERT INTO matter_condition(node_id, meta_src, predicate_binding_id)
+           VALUES (?, ?, ?)`,
+        )
+        .run(100, "alpha/meta", 13)
+
+      database
+        .query(
+          `INSERT INTO matter_meta(node_id, meta_src, src_binding_id, fields_binding_id, mass_binding_id)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(101, "alpha/meta", 10, 11, 12)
+
+      database
+        .query(
+          `INSERT INTO matter_logical(node_id, meta_src, predicate_binding_id)
+           VALUES (?, ?, ?)`,
+        )
+        .run(102, "alpha/meta", 14)
+
+      database
+        .query(
+          `INSERT INTO matter_map(node_id, meta_src, collection_binding_id)
+           VALUES (?, ?, ?)`,
+        )
+        .run(103, "alpha/meta", 15)
+
+      database
+        .query(
+          `INSERT INTO matter_meta(node_id, meta_src, src_binding_id, fields_binding_id)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(104, "alpha/meta", 22, 23)
+
+      database
+        .query(
+          `INSERT INTO matter_edge(id, meta_src, parent_node_id, child_node_id, edge_slot, edge_order)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(200, "alpha/meta", null, 100, "root", 0)
+
+      database
+        .query(
+          `INSERT INTO matter_edge(id, meta_src, parent_node_id, child_node_id, edge_slot, edge_order)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(201, "alpha/meta", 100, 101, "then", 0)
+
+      database
+        .query(
+          `INSERT INTO matter_edge(id, meta_src, parent_node_id, child_node_id, edge_slot, edge_order)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(202, "alpha/meta", 100, 102, "else", 1)
+
+      database
+        .query(
+          `INSERT INTO matter_edge(id, meta_src, parent_node_id, child_node_id, edge_slot, edge_order)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(203, "alpha/meta", 102, 103, "child", 0)
+
+      database
+        .query(
+          `INSERT INTO matter_edge(id, meta_src, parent_node_id, child_node_id, edge_slot, edge_order)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(204, "alpha/meta", 103, 104, "child", 0)
+
+      database
+        .query(
+          `INSERT INTO matter_attr(id, meta_src, owner_node_id, attr_family, attr_name)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(300, "alpha/meta", 101, "string", "title")
+
+      database
+        .query(
+          `INSERT INTO matter_attr_binding(owner_attr_id, meta_src, attr_family, binding_id)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(300, "alpha/meta", "string", 16)
+
+      database
+        .query(
+          `INSERT INTO matter_attr(id, meta_src, owner_node_id, attr_family, attr_name)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(301, "alpha/meta", 101, "boolean", "hidden")
+
+      database
+        .query(
+          `INSERT INTO matter_attr_binding(owner_attr_id, meta_src, attr_family, binding_id)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(301, "alpha/meta", "boolean", 17)
+
+      database
+        .query(
+          `INSERT INTO matter_attr(id, meta_src, owner_node_id, attr_family, attr_name)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(302, "alpha/meta", 101, "array", "class")
+
+      database
+        .query(
+          `INSERT INTO matter_attr_part(owner_attr_id, meta_src, part_order, binding_id)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(302, "alpha/meta", 0, 18)
+
+      database
+        .query(
+          `INSERT INTO matter_attr_part(owner_attr_id, meta_src, part_order, binding_id)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(302, "alpha/meta", 1, 19)
+
+      database
+        .query(
+          `INSERT INTO matter_attr(id, meta_src, owner_node_id, attr_family, attr_name)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(303, "alpha/meta", 101, "style", "style")
+
+      database
+        .query(
+          `INSERT INTO matter_style_prop(owner_attr_id, meta_src, prop_name, binding_id)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(303, "alpha/meta", "backgroundColor", 20)
+
+      database
+        .query(
+          `INSERT INTO matter_attr(id, meta_src, owner_node_id, attr_family, attr_name)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(304, "alpha/meta", 101, "event", "onclick")
+
+      database
+        .query(
+          `INSERT INTO matter_attr_binding(owner_attr_id, meta_src, attr_family, binding_id)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(304, "alpha/meta", "event", 21)
+
+      database
+        .query(
+          `INSERT INTO matter_event_update(owner_attr_id, meta_src, update_order, field_key)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(304, "alpha/meta", 0, "title")
+
+      database
+        .query(
+          `INSERT INTO matter_event_update(owner_attr_id, meta_src, update_order, field_key)
+           VALUES (?, ?, ?, ?)`,
+        )
+        .run(304, "alpha/meta", 1, "active")
+
+      const nodes = (
+        database
+          .query(
+            `SELECT id, node_kind, tag
+             FROM matter_node
+             ORDER BY id`,
+          )
+          .all() as Array<{ id: number; node_kind: string; tag: string | null }>
+      )
+
+      const edges = (
+        database
+          .query(
+            `SELECT parent_node_id, child_node_id, edge_slot, edge_order
+             FROM matter_edge
+             ORDER BY id`,
+          )
+          .all() as Array<{
+            parent_node_id: number | null
+            child_node_id: number
+            edge_slot: string
+            edge_order: number
+          }>
+      )
+
+      const deps = (
+        database
+          .query(
+            `SELECT binding_id, dep_order, path
+             FROM matter_binding_dep
+             ORDER BY binding_id, dep_order`,
+          )
+          .all() as Array<{ binding_id: number; dep_order: number; path: string }>
+      )
+
+      const eventUpdates = (
+        database
+          .query(
+            `SELECT update_order, field_key
+             FROM matter_event_update
+             WHERE owner_attr_id = ?
+             ORDER BY update_order`,
+          )
+          .all(304) as Array<{ update_order: number; field_key: string }>
+      )
+
+      expect(nodes).toEqual([
+        { id: 100, node_kind: "cond", tag: null },
+        { id: 101, node_kind: "meta", tag: "meta-for" },
+        { id: 102, node_kind: "log", tag: null },
+        { id: 103, node_kind: "map", tag: null },
+        { id: 104, node_kind: "meta", tag: "meta-for" },
+      ])
+
+      expect(edges).toEqual([
+        { parent_node_id: null, child_node_id: 100, edge_slot: "root", edge_order: 0 },
+        { parent_node_id: 100, child_node_id: 101, edge_slot: "then", edge_order: 0 },
+        { parent_node_id: 100, child_node_id: 102, edge_slot: "else", edge_order: 1 },
+        { parent_node_id: 102, child_node_id: 103, edge_slot: "child", edge_order: 0 },
+        { parent_node_id: 103, child_node_id: 104, edge_slot: "child", edge_order: 0 },
+      ])
+
+      expect(deps).toEqual([
+        { binding_id: 11, dep_order: 0, path: "/value/title" },
+        { binding_id: 11, dep_order: 1, path: "/value/active" },
+        { binding_id: 12, dep_order: 0, path: "/mass/owner" },
+        { binding_id: 12, dep_order: 1, path: "/mass/enabled" },
+        { binding_id: 13, dep_order: 0, path: "/state" },
+        { binding_id: 14, dep_order: 0, path: "/value/active" },
+        { binding_id: 14, dep_order: 1, path: "/mass/is-enabled" },
+        { binding_id: 15, dep_order: 0, path: "/mass/items" },
+        { binding_id: 16, dep_order: 0, path: "/value/title" },
+        { binding_id: 19, dep_order: 0, path: "/value/active" },
+        { binding_id: 20, dep_order: 0, path: "/value/active" },
+        { binding_id: 21, dep_order: 0, path: "/mass/handleClick" },
+        { binding_id: 22, dep_order: 0, path: "[item]/src" },
+      ])
+
+      expect(eventUpdates).toEqual([
+        { update_order: 0, field_key: "title" },
+        { update_order: 1, field_key: "active" },
+      ])
 
       expect(() =>
         database
           .query(
-            `INSERT INTO particle(id, meta_src, parent_id, position, type)
+            `INSERT INTO matter_edge(id, meta_src, parent_node_id, child_node_id, edge_slot, edge_order)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+          )
+          .run(205, "alpha/meta", 100, 104, "child", 2),
+      ).toThrow()
+
+      expect(() =>
+        database
+          .query(
+            `INSERT INTO matter_edge(id, meta_src, parent_node_id, child_node_id, edge_slot, edge_order)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+          )
+          .run(206, "alpha/meta", 100, 104, "then", 2),
+      ).toThrow()
+
+      expect(() =>
+        database
+          .query(
+            `INSERT INTO matter_attr(id, meta_src, owner_node_id, attr_family, attr_name)
              VALUES (?, ?, ?, ?, ?)`,
           )
-          .run(6, "alpha/meta", null, 0, "wimp"),
+          .run(305, "alpha/meta", 100, "string", "invalid"),
       ).toThrow()
 
       expect(() =>
         database
           .query(
-            `INSERT INTO fuzzy_meta(fuzzy_id, meta_src, src)
-             VALUES (?, ?, ?)`,
+            `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+             VALUES (?, ?, ?, ?)`,
           )
-          .run(2, "alpha/meta", JSON.stringify({ data: "/fields/operation" })),
+          .run(10, "alpha/meta", 0, "/value/forbidden"),
       ).toThrow()
 
       expect(() =>
         database
           .query(
-            `INSERT INTO fuzzy_condition(fuzzy_id, meta_src, data)
-             VALUES (?, ?, ?)`,
+            `INSERT INTO matter_binding_dep(binding_id, meta_src, dep_order, path)
+             VALUES (?, ?, ?, ?)`,
           )
-          .run(5, "alpha/meta", JSON.stringify("/state")),
+          .run(13, "alpha/meta", 1, "/value/second"),
+      ).toThrow()
+
+      expect(() =>
+        database
+          .query(
+            `INSERT INTO matter_event_update(owner_attr_id, meta_src, update_order, field_key)
+             VALUES (?, ?, ?, ?)`,
+          )
+          .run(304, "alpha/meta", 2, "missing"),
       ).toThrow()
     } finally {
       database.close()
