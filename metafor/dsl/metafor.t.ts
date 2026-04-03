@@ -2,7 +2,7 @@ import type { Fields, Field, Update, Values } from "./fields.t"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import type { MatterAST, MatterDeclaration } from "./matter.t"
 import type { ReactionsSchema } from "./reactions.t"
-import type { Superposition } from "./superposition.t"
+import type { Superposition, SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.t"
 import type { ReactionsDeclaration } from "./reactions.t"
 
 export type SRC = string
@@ -92,7 +92,7 @@ export type Mass = Record<string, any>
  *   .fields((field) => ({ mode: field.enum("summary", "details").required("summary") }))
  *   .superposition({ idle: { loading: {} } })
  *   .mass({ users: [] })
- *   .processes((process) => ({ load: process().action(...) }))
+ *   .processes((process) => [process("loading").action(...)])
  *   .reactions((reaction) => [...])
  *   .matter(({ value, html }) => html`
  *     ${value.mode === "summary"
@@ -141,8 +141,9 @@ export type MetaForFn = (
      * ```
      * @returns chain API для вызова .mass(...)
      */
-    superposition<𝛴 extends string>(
-      superposition: Superposition<𝛴, ɸ>,
+    superposition<const ψ extends Record<string, unknown>>(
+      superposition: ψ,
+      ..._check: SuperpositionInputCheck<ɸ, ψ>
     ): {
       /**
        * Регистрирует mass объект для автомата.
@@ -176,22 +177,22 @@ export type MetaForFn = (
          * Регистрирует процессы автомата для нужных состояний.
          *
          * @param process Функция, принимающая process — фабрику chain API для описания процессов.
-         * Возвращает объект, где ключ — имя суперпозиции (только для тех, где нужны процессы), а значение — chain-объект с обработчиками.
+         * Возвращает массив процессов или destroy-хуков, где superposition привязывается прямо в `process(state, ...)` / `destroy(state, ...)`.
          *
          * Пример:
          * ```ts
-         * .processes(process => ({
-         *   guest: process({ label: "guest_process", desc: "Процесс для гостя" })
+         * .processes(process => [
+         *   process("guest", { label: "guest_process", desc: "Процесс для гостя" })
          *     .action(({ value }) => { ... })
          *     .success(({ update, data }) => update({ ... }))
          *     .error(({ update, error }) => update({ ... })),
          *   // для других суперпозиций можно не указывать процесс, если он не требуется
-         * }))
+         * ])
          * ```
          *
-         * @returns Объект с процессами только для нужных суперпозиций
+         * @returns Массив процессов и destroy-хуков только для нужных суперпозиций
          */
-        processes(process?: ProcessesDeclaration<ɸ, 𝛴, m>): {
+        processes(process?: ProcessesDeclaration<ɸ, SuperpositionStateKeys<ψ>, m, ψ>): {
           /**
            * Регистрирует карту реакций для автомата.
            *
@@ -223,7 +224,7 @@ export type MetaForFn = (
            * // Вместо этого используйте процессы и их success/error обработчики
            * ```
            */
-          reactions(reaction?: ReactionsDeclaration<ɸ, 𝛴, m>): {
+          reactions(reaction?: ReactionsDeclaration<ɸ, SuperpositionStateKeys<ψ>, m>): {
             /**
              * Регистрирует matter-функцию компонента и возвращает финальный bulk-этап.
              *
@@ -247,14 +248,14 @@ export type MetaForFn = (
              * document.body.innerHTML = `<meta-my-component></meta-my-component>`
              * ```
              */
-            matter(matter?: MatterDeclaration<ɸ, m, 𝛴>): {
+            matter(matter?: MatterDeclaration<ɸ, m, SuperpositionStateKeys<ψ>>): {
               /**
                * Регистрирует bulk-view конфигурацию компонента и завершает конфигурацию.
                *
                * @param bulk Конфигурация bulk-view
                * @returns Компонент для создания элемента с тегом `meta-${name}`
                */
-              bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m>
+              bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, SuperpositionStateKeys<ψ>, m>
             }
           }
         }
@@ -297,7 +298,7 @@ declare global {
    *   .fields((field) => ({ mode: field.enum("summary", "details").required("summary") }))
    *   .superposition({ idle: { loading: {} } })
    *   .mass({ users: [] })
-   *   .processes((process) => ({ load: process().action(...) }))
+   *   .processes((process) => [process("loading").action(...)])
    *   .reactions((reaction) => [...])
    *   .matter(({ value, html }) => html`
    *     ${value.mode === "summary"

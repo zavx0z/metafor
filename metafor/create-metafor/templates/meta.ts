@@ -6,7 +6,7 @@ export default MetaFor("{{name}}", { desc: "{{description}}" })
   }))
   .superposition({})
   .mass({})
-  .processes(() => ({}))
+  .processes(() => [])
   .reactions(() => [])
   .matter(({ value, mass, html }) => html``)
   .bulk({

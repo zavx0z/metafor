@@ -5,14 +5,37 @@ import type { ProcessesDeclaration } from "./process.t"
 
 describe("ESM-процессы", () => {
   describe("Валидная структура action", () => {
+    test("процесс в массиве с явной superposition", () => {
+      const schema = fieldSchema((field) => ({
+        foo: field.string.required("a"),
+        bar: field.number.required(0),
+      }))
+
+      const actions: ProcessesDeclaration<typeof schema, "ready", {}> = (process) => [
+        process("ready", { label: "array_process", env: ["any"] })
+          .action(async ({ value }) => {
+            // @ts-expect-error — тестовый импорт
+            const mod = await import("./mock-action.ts")
+            return mod.default(value.foo)
+          })
+          .success(({ update, data }) => update({ foo: data })),
+      ]
+
+      const snapshot = processesSchema(actions)
+      expect(snapshot.ready).toBeDefined()
+      expect((snapshot.ready as any).action.src).toBe("./mock-action.ts")
+      expect(snapshot.ready!.label).toBe("array_process")
+      expect(snapshot.ready!.env).toEqual(["any"])
+    })
+
     test("процесс с import и return", () => {
       const schema = fieldSchema((field) => ({
         foo: field.string.required("a"),
         bar: field.number.required(0),
       }))
 
-      const actions: ProcessesDeclaration<typeof schema, "valid", {}> = (process) => ({
-        valid: process()
+      const actions: ProcessesDeclaration<typeof schema, "valid", {}> = (process) => [
+        process("valid")
           .action(async ({ value }) => {
             // @ts-expect-error — тестовый импорт
             const mod = await import("./mock-action.ts")
@@ -20,7 +43,7 @@ describe("ESM-процессы", () => {
           })
           .success(({ update, data }) => update({ foo: data }))
           .error(({ update, error }) => update({ bar: 1 })),
-      })
+      ]
 
       const snapshot = processesSchema(actions)
       expect(snapshot.valid).toBeDefined()
@@ -34,8 +57,8 @@ describe("ESM-процессы", () => {
         data: field.string.required(""),
       }))
 
-      const actions: ProcessesDeclaration<typeof schema, "withEnv", {}> = (process) => ({
-        withEnv: process({
+      const actions: ProcessesDeclaration<typeof schema, "withEnv", {}> = (process) => [
+        process("withEnv", {
           label: "env_process",
           desc: "Процесс с конфигурацией окружения",
           env: ["browser", "node"],
@@ -46,7 +69,7 @@ describe("ESM-процессы", () => {
             return mod.default({ value })
           })
           .success(({ update, data }) => update({ data: data })),
-      })
+      ]
 
       const snapshot = processesSchema(actions)
       expect(snapshot.withEnv).toBeDefined()
@@ -62,22 +85,22 @@ describe("ESM-процессы", () => {
         id: field.number.required(0),
       }))
 
-      const actions: ProcessesDeclaration<typeof schema, "load" | "save", {}> = (process) => ({
-        load: process({ label: "Загрузка данных" })
+      const actions: ProcessesDeclaration<typeof schema, "load" | "save", {}> = (process) => [
+        process("load", { label: "Загрузка данных" })
           .action(async ({ value }) => {
             // @ts-expect-error — тестовый импорт
             const loader = await import("./actions/loader.ts")
             return loader.default({ value })
           })
           .success(({ update, data }) => update({ url: data.url })),
-        save: process({ label: "Сохранение данных" })
+        process("save", { label: "Сохранение данных" })
           .action(async ({ value }) => {
             // @ts-expect-error — тестовый импорт
             const saver = await import("./actions/saver.ts")
             return saver.default({ value })
           })
           .error(({ update, error }) => update({ id: 0 })),
-      })
+      ]
 
       const snapshot = processesSchema(actions)
       expect(snapshot.load).toBeDefined()
@@ -95,9 +118,9 @@ describe("ESM-процессы", () => {
         foo: field.string.required("a"),
       }))
 
-      const actions: ProcessesDeclaration<typeof schema, "invalid", {}> = (process) => ({
-        invalid: process().action(({ value }) => value.foo),
-      })
+      const actions: ProcessesDeclaration<typeof schema, "invalid", {}> = (process) => [
+        process("invalid").action(({ value }) => value.foo),
+      ]
 
       expect(() => processesSchema(actions)).toThrow("Невалидная структура action")
     })
@@ -107,14 +130,14 @@ describe("ESM-процессы", () => {
         foo: field.string.required("a"),
       }))
 
-      const actions: ProcessesDeclaration<typeof schema, "invalid", {}> = (process) => ({
-        invalid: process().action(async ({ value }) => {
+      const actions: ProcessesDeclaration<typeof schema, "invalid", {}> = (process) => [
+        process("invalid").action(async ({ value }) => {
           // @ts-expect-error — тестовый импорт
           const mod = await import("./mock.ts")
           mod.process(value)
           // Нет return
         }),
-      })
+      ]
 
       expect(() => processesSchema(actions)).toThrow("Невалидная структура action")
     })
@@ -136,33 +159,33 @@ describe("ESM-процессы", () => {
 
 })
 
-describe("parseChainsObject — ESM actions", () => {
+describe("parseChainsArray — ESM actions", () => {
   test("action, success, error варианты", () => {
     const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     type C = typeof schema
     type S = "onlyAction" | "onlySuccess" | "onlyError" | "allHandlers"
 
-    const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
-      onlyAction: process().action(async ({ value }) => {
+    const actions: ProcessesDeclaration<C, S, {}> = (process) => [
+      process("onlyAction").action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./mock-action.ts")
         return mod.default(value)
       }),
-      onlySuccess: process()
+      process("onlySuccess")
         .action(async ({ value }) => {
           // @ts-expect-error — тестовый импорт
           const mod = await import("./mock-action.ts")
           return mod.default(value)
         })
         .success(({ update, data }) => update({ foo: data })),
-      onlyError: process()
+      process("onlyError")
         .action(async ({ value }) => {
           // @ts-expect-error — тестовый импорт
           const mod = await import("./mock-action.ts")
           return mod.default(value)
         })
         .error(({ update, error }) => update({ bar: 1 })),
-      allHandlers: process()
+      process("allHandlers")
         .action(async ({ value }) => {
           // @ts-expect-error — тестовый импорт
           const mod = await import("./mock-action.ts")
@@ -170,7 +193,7 @@ describe("parseChainsObject — ESM actions", () => {
         })
         .success(({ update, data }) => update({ foo: data }))
         .error(({ update, error }) => update({ bar: 2 })),
-    })
+    ]
     const snapshot = processesSchema(actions)
 
     expect(snapshot.onlyAction).toBeDefined()
@@ -189,22 +212,22 @@ describe("parseChainsObject — ESM actions", () => {
     expect((snapshot.allHandlers as any).error.src).toContain("update({ bar: 2 }")
   })
 
-  test("пустой объект", () => {
+  test("пустой массив", () => {
     const schema = fieldSchema((field) => ({ foo: field.string.required("a") }))
-    const actions: ProcessesDeclaration<typeof schema, never, {}> = (process) => ({})
+    const actions: ProcessesDeclaration<typeof schema, never, {}> = () => []
     const snapshot = processesSchema(actions)
-    expect(snapshot, "пустой объект возвращает пустой объект").toEqual({})
+    expect(snapshot, "пустой массив возвращает пустую схему").toEqual({})
   })
 
   test("один процесс", () => {
     const schema = fieldSchema((field) => ({ foo: field.string.required("a") }))
-    const actions: ProcessesDeclaration<typeof schema, "single", {}> = (process) => ({
-      single: process().action(async ({ value }) => {
+    const actions: ProcessesDeclaration<typeof schema, "single", {}> = (process) => [
+      process("single").action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./mock-action.ts")
         return mod.default(value)
       }),
-    })
+    ]
     const snapshot = processesSchema(actions)
     expect(snapshot.single).toBeDefined()
     expect((snapshot.single!.type as string)).toBe("action")
@@ -213,18 +236,18 @@ describe("parseChainsObject — ESM actions", () => {
 
   test("несколько процессов", () => {
     const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
-    const actions: ProcessesDeclaration<typeof schema, "first" | "second", {}> = (process) => ({
-      first: process().action(async ({ value }) => {
+    const actions: ProcessesDeclaration<typeof schema, "first" | "second", {}> = (process) => [
+      process("first").action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./mock-action.ts")
         return mod.default(value.foo)
       }),
-      second: process().action(async ({ value }) => {
+      process("second").action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./mock-action.ts")
         return mod.default(value.bar)
       }),
-    })
+    ]
     const snapshot = processesSchema(actions)
     expect(snapshot.first).toBeDefined()
     expect(snapshot.second).toBeDefined()
@@ -236,23 +259,23 @@ describe("parseChainsObject — ESM actions", () => {
 
   test("процессы с разными типами возвращаемых значений", () => {
     const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
-    const actions: ProcessesDeclaration<typeof schema, "string" | "number" | "object", {}> = (process) => ({
-      string: process().action(async ({ value }) => {
+    const actions: ProcessesDeclaration<typeof schema, "string" | "number" | "object", {}> = (process) => [
+      process("string").action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./mock-action.ts")
         return mod.default(value.foo)
       }),
-      number: process().action(async ({ value }) => {
+      process("number").action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./mock-action.ts")
         return mod.default(value.bar)
       }),
-      object: process().action(async ({ value }) => {
+      process("object").action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./mock-action.ts")
         return mod.default({ foo: value.foo, bar: value.bar })
       }),
-    })
+    ]
     const snapshot = processesSchema(actions)
     expect(snapshot.string).toBeDefined()
     expect(snapshot.number).toBeDefined()
@@ -264,13 +287,13 @@ describe("parseChainsObject — ESM actions", () => {
 
   test("процессы с async функциями и разными модулями", () => {
     const schema = fieldSchema((field) => ({ foo: field.string.required("a") }))
-    const actions: ProcessesDeclaration<typeof schema, "async", {}> = (process) => ({
-      async: process().action(async ({ value }) => {
+    const actions: ProcessesDeclaration<typeof schema, "async", {}> = (process) => [
+      process("async").action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./actions/loader.ts")
         return mod.default(value)
       }),
-    })
+    ]
     const snapshot = processesSchema(actions)
     expect(snapshot.async).toBeDefined()
     expect((snapshot.async as any).action.src).toBe("./actions/loader.ts")
@@ -278,8 +301,8 @@ describe("parseChainsObject — ESM actions", () => {
 
   test("процессы с success и error обработчиками", () => {
     const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
-    const actions: ProcessesDeclaration<typeof schema, "withHandlers", {}> = (process) => ({
-      withHandlers: process()
+    const actions: ProcessesDeclaration<typeof schema, "withHandlers", {}> = (process) => [
+      process("withHandlers")
         .action(async ({ value }) => {
           // @ts-expect-error — тестовый импорт
           const mod = await import("./mock-action.ts")
@@ -287,7 +310,7 @@ describe("parseChainsObject — ESM actions", () => {
         })
         .success(({ update, data }) => update({ foo: data }))
         .error(({ update, error }) => update({ bar: 42 })),
-    })
+    ]
     const snapshot = processesSchema(actions)
     expect(snapshot.withHandlers).toBeDefined()
     expect((snapshot.withHandlers as any).action.src).toBe("./mock-action.ts")
@@ -297,15 +320,15 @@ describe("parseChainsObject — ESM actions", () => {
 
   test("процессы с label и desc", () => {
     const schema = fieldSchema((field) => ({ foo: field.string.required("a") }))
-    const actions: ProcessesDeclaration<typeof schema, "withMeta", {}> = (process) => ({
-      withMeta: process({ label: "test_process", desc: "Test process description" }).action(
+    const actions: ProcessesDeclaration<typeof schema, "withMeta", {}> = (process) => [
+      process("withMeta", { label: "test_process", desc: "Test process description" }).action(
         async ({ value }) => {
           // @ts-expect-error — тестовый импорт
           const mod = await import("./mock-action.ts")
           return mod.default(value)
         }
       ),
-    })
+    ]
     const snapshot = processesSchema(actions)
     expect(snapshot.withMeta).toBeDefined()
     expect(snapshot.withMeta!.label).toBe("test_process")
@@ -315,13 +338,13 @@ describe("parseChainsObject — ESM actions", () => {
 
   test("извлечение пути модуля из action", () => {
     const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
-    const actions: ProcessesDeclaration<typeof schema, "moduleTest", {}> = (process) => ({
-      moduleTest: process().action(async ({ value }) => {
+    const actions: ProcessesDeclaration<typeof schema, "moduleTest", {}> = (process) => [
+      process("moduleTest").action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./actions/processor.ts")
         return mod.default(value)
       }),
-    })
+    ]
     const snapshot = processesSchema(actions)
     expect((snapshot?.moduleTest as any)?.action?.src, "путь к модулю извлечён").toBe("./actions/processor.ts")
   })
@@ -331,8 +354,8 @@ describe("parseChainsObject — ESM actions", () => {
     const successFn = ({ update, data }: any) => update({ result: data })
     const errorFn = ({ update, error }: any) => update({ error: error.message })
 
-    const actions: ProcessesDeclaration<typeof schema, "allHandlersTest", {}> = (process) => ({
-      allHandlersTest: process()
+    const actions: ProcessesDeclaration<typeof schema, "allHandlersTest", {}> = (process) => [
+      process("allHandlersTest")
         .action(async ({ value }) => {
           // @ts-expect-error — тестовый импорт
           const mod = await import("./mock-action.ts")
@@ -340,7 +363,7 @@ describe("parseChainsObject — ESM actions", () => {
         })
         .success(successFn)
         .error(errorFn),
-    })
+    ]
     const snapshot = processesSchema(actions)
 
     expect((snapshot?.allHandlersTest as any)?.action?.src, "путь к модулю action").toBe("./mock-action.ts")
@@ -354,24 +377,24 @@ describe("parseChainsObject — ESM actions", () => {
 })
 
 describe("parseChain — несколько chain", () => {
-  test("корректно парсит объект с несколькими chain", () => {
+  test("корректно парсит массив с несколькими chain", () => {
     const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
-    const actions: ProcessesDeclaration<typeof schema, "first" | "second", {}> = (process) => ({
-      first: process({ label: "Первый процесс", desc: "Обрабатывает foo" })
+    const actions: ProcessesDeclaration<typeof schema, "first" | "second", {}> = (process) => [
+      process("first", { label: "Первый процесс", desc: "Обрабатывает foo" })
         .action(async ({ value }) => {
           // @ts-expect-error — тестовый импорт
           const mod = await import("./actions/loader.ts")
           return mod.default({ foo: value.foo })
         })
         .success(({ update, data }) => update({ foo: data.foo })),
-      second: process({ label: "Второй процесс", desc: "Обрабатывает bar" })
+      process("second", { label: "Второй процесс", desc: "Обрабатывает bar" })
         .action(async ({ value }) => {
           // @ts-expect-error — тестовый импорт
           const mod = await import("./actions/saver.ts")
           return mod.default({ bar: value.bar })
         })
         .error(({ update, error }) => update({ bar: 42 })),
-    })
+    ]
     const snapshot = processesSchema(actions)
     expect(snapshot.first).toBeDefined()
     expect(snapshot.second).toBeDefined()
@@ -385,13 +408,13 @@ describe("parseChain — несколько chain", () => {
 
   test("смешанные типы процессов", () => {
     const schema = fieldSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
-    const actions: ProcessesDeclaration<typeof schema, "simple" | "complex" | "async", {}> = (process) => ({
-      simple: process().action(async ({ value }) => {
+    const actions: ProcessesDeclaration<typeof schema, "simple" | "complex" | "async", {}> = (process) => [
+      process("simple").action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./mock-action.ts")
         return mod.default(value.foo)
       }),
-      complex: process()
+      process("complex")
         .action(async ({ value }) => {
           // @ts-expect-error — тестовый импорт
           const mod = await import("./actions/processor.ts")
@@ -399,12 +422,12 @@ describe("parseChain — несколько chain", () => {
         })
         .success(({ update, data }) => update({ foo: data.foo }))
         .error(({ update, error }) => update({ bar: 0 })),
-      async: process().action(async ({ value }) => {
+      process("async").action(async ({ value }) => {
         // @ts-expect-error — тестовый импорт
         const mod = await import("./actions/loader.ts")
         return mod.default(value)
       }),
-    })
+    ]
     const snapshot = processesSchema(actions)
     expect(snapshot.simple).toBeDefined()
     expect(snapshot.complex).toBeDefined()

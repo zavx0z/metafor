@@ -44,14 +44,14 @@
  *     loaded: null,
  *   })
  *   .mass({ users: [] })
- *   .processes((process) => ({
- *     loadUser: process()
+ *   .processes((process) => [
+ *     process("loading")
  *       .action(async ({ value }) => {
  *         const response = await fetch(`/api/users/${value.userId}`)
  *         return await response.json()
  *       })
  *       .success(({ update }) => update({ mode: "details" }))
- *   }))
+ *   ])
  *   .reactions((reaction) => [
  *     [
  *       ["idle"],
@@ -80,7 +80,7 @@ import type { Fields, Field } from "./fields.t.ts"
 import { parseMatter } from "./matter.ts"
 
 import { validateNoUnconditionalCycles } from "./superposition"
-import type { Superposition } from "./superposition.t"
+import type { SuperpositionInput, SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.t"
 import { reactionsSchema } from "./reactions"
 import type { ReactionsDeclaration } from "./reactions.t"
 import { processesSchema } from "./process"
@@ -103,26 +103,31 @@ export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig
     fields<ɸ extends Fields>(schema: (field: Field) => ɸ) {
       const fields = fieldSchema(schema)
       return {
-        superposition<𝛴 extends string>(superposition: Superposition<𝛴, ɸ>) {
-          validateNoUnconditionalCycles(superposition)
-          const symbolKeys = Object.getOwnPropertySymbols(superposition)
+        superposition<const ψ extends Record<string, unknown>>(
+          superposition: ψ,
+          ..._check: SuperpositionInputCheck<ɸ, ψ>
+        ) {
+          type 𝛴 = SuperpositionStateKeys<ψ>
+          const normalizedSuperposition = superposition as SuperpositionInput<ɸ, ψ>
+          validateNoUnconditionalCycles(normalizedSuperposition)
+          const symbolKeys = Object.getOwnPropertySymbols(normalizedSuperposition)
           const undefinedSymbol = symbolKeys.find((key) => String(key) === "Symbol()")
-          const undefinedValue = superposition[undefinedSymbol as unknown as 𝛴]
+          const undefinedValue = normalizedSuperposition[undefinedSymbol as unknown as 𝛴]
           if (undefinedValue) {
-            superposition["$undef$" as 𝛴] = undefinedValue
-            delete superposition[undefinedSymbol as unknown as 𝛴]
+            normalizedSuperposition["$undef$" as 𝛴] = undefinedValue
+            delete normalizedSuperposition[undefinedSymbol as unknown as 𝛴]
           }
           return {
             mass<m extends Mass>(mass?: m) {
               const schema: MetaDSL<ɸ, 𝛴, m> = {
                 name,
-                superposition,
+                superposition: normalizedSuperposition,
                 fields: fields,
                 mass: mass || ({} as m),
               }
               if (desc) schema.desc = desc
               return {
-                processes(process: ProcessesDeclaration<ɸ, 𝛴, m> = () => ({})) {
+                processes(process: ProcessesDeclaration<ɸ, 𝛴, m, ψ> = () => []) {
                   const processes = processesSchema(process)
                   if (processes) schema.processes = processes
                   return {

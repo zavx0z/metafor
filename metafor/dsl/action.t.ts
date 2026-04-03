@@ -4,7 +4,7 @@ import type { Mass, Self } from "./metafor.t"
 /**
  * Параметры для action.
  */
-export type ActionParams<ɸ extends Fields, m extends Mass> = {
+export type ActionParams<ɸ extends Fields, m extends Mass, v = Values<ɸ>> = {
   /**
    * Декларация полей (схема, тип, валидатор).
    * Используется для валидации и доступа к типам полей.
@@ -13,7 +13,7 @@ export type ActionParams<ɸ extends Fields, m extends Mass> = {
   /**
    * Текущие значения полей.
    */
-  value: Values<ɸ>
+  value: v
   /** Масса */
   mass: m
   /** Полный идентификатор атома */

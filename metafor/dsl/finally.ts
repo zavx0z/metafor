@@ -6,7 +6,7 @@ import type { ExecutionEnv } from "./process.t"
 
 type FinallyBeforeHandler<m extends Mass> = ({ mass }: { mass: m }) => void | Promise<void>
 
-type FinallyResult<m extends Mass> = {
+type FinallyInput<m extends Mass> = {
   type: ParsedFinally["type"]
   label?: string
   desc?: string
@@ -14,24 +14,38 @@ type FinallyResult<m extends Mass> = {
   before?: FinallyBeforeHandler<m>
 }
 
-export type FinallyChainResult<ɸ extends Fields = Fields, m extends Mass = Mass> = FinallyChain<ɸ, m> & {
+type FinallyRuntimeResult<m extends Mass, s extends string = string> = FinallyInput<m> & {
+  state: s
+}
+
+export type FinallyChainResult<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string> = FinallyChain<
+  ɸ,
+  m,
+  s
+> & {
   readonly type: ParsedFinally["type"]
-  getResult: () => FinallyResult<m>
+  getResult: () => FinallyRuntimeResult<m, s>
 }
 
 const FINALLY_TYPE: ParsedFinally["type"] = "finally"
 
-export const createFinallyChain = <ɸ extends Fields = Fields, m extends Mass = Mass>(
+export function createFinallyChain<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string>(
+  state: s,
   config?: FinallyConfig,
-): FinallyChainResult<ɸ, m> => {
-  const result: FinallyResult<m> = {
+): FinallyChainResult<ɸ, m, s>
+export function createFinallyChain<ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string>(
+  state: s,
+  config?: FinallyConfig,
+): FinallyChainResult<ɸ, m, s> {
+  const result: FinallyRuntimeResult<m, s> = {
     type: FINALLY_TYPE,
+    state,
     ...(config?.label ? { label: config.label } : {}),
     ...(config?.desc ? { desc: config.desc } : {}),
     ...(config?.env ? { env: config.env } : {}),
   }
 
-  const chain: FinallyChainResult<ɸ, m> = {
+  const chain: FinallyChainResult<ɸ, m, s> = {
     type: FINALLY_TYPE,
     before: (handler) => {
       result.before = handler
@@ -43,7 +57,7 @@ export const createFinallyChain = <ɸ extends Fields = Fields, m extends Mass = 
   return chain
 }
 
-export const parseFinally = <m extends Mass = Mass>(process: FinallyResult<m>): ParsedFinally => {
+export const parseFinally = <m extends Mass = Mass>(process: FinallyInput<m>): ParsedFinally => {
   const parsed = process.before ? parseFunction(process.before, false) : { read: [] }
 
   return {
@@ -58,9 +72,9 @@ export const parseFinally = <m extends Mass = Mass>(process: FinallyResult<m>): 
   }
 }
 
-export const isFinallyChain = <ɸ extends Fields = Fields, m extends Mass = Mass>(
+export const isFinallyChain = <ɸ extends Fields = Fields, m extends Mass = Mass, s extends string = string>(
   value: unknown,
-): value is FinallyChainResult<ɸ, m> => {
+): value is FinallyChainResult<ɸ, m, s> => {
   if (!value || typeof value !== "object") return false
 
   const candidate = value as { type?: unknown; getResult?: unknown }

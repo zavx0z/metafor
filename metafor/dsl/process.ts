@@ -7,8 +7,9 @@ import {
   updateAppendArg,
   validateActionStructure,
 } from "./action"
+import type { DestroyConfig } from "./finally.t"
 import { createFinallyChain, isFinallyChain, parseFinally } from "./finally"
-import type { Fields } from "./fields.t"
+import type { Fields, Values } from "./fields.t"
 import { Initiator, type Mass } from "./metafor.t"
 import {
   ProcessType,
@@ -18,48 +19,70 @@ import {
   type ProcessChain,
   type ProcessConfig,
   type ProcessesDeclaration,
+  type ProcessesList,
   type ProcessesSchema,
 } from "./process.t"
 
-type ProcessChainResult<ɸ extends Fields, m extends Mass, Res> = ActionChain<ɸ, m, Res> & {
+type ProcessChainResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string> = ActionChain<
+  ɸ,
+  m,
+  Res,
+  v,
+  s
+> & {
   readonly type: ProcessType.ACTION
-  getResult: () => Process<ɸ, m, Res>
+  getResult: () => Process<ɸ, m, Res, v, s>
 }
 
-type ProcessChainLike<ɸ extends Fields, m extends Mass> = {
-  readonly type: ProcessType.ACTION
-  getResult: () => Process<ɸ, m, unknown>
+type ProcessRuntimeResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string> = Process<ɸ, m, Res, v, s> & {
+  state: s
 }
 
-const createProcessChain = <ɸ extends Fields, m extends Mass>(config?: ProcessConfig): ProcessChain<ɸ, m> => ({
-  action: <Res>(fn: (params: ActionParams<ɸ, m>) => Res | Promise<Res>): ProcessChainResult<ɸ, m, Res> => {
-    const result: Process<ɸ, m, Res> = {
-      type: ProcessType.ACTION,
-      action: fn,
-      ...(config?.label ? { label: config.label } : {}),
-      ...(config?.desc ? { desc: config.desc } : {}),
-      ...(config?.env ? { env: config.env } : {}),
-    }
+type ProcessChainLike<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string> = {
+  readonly type: ProcessType.ACTION
+  getResult: () => ProcessRuntimeResult<ɸ, m, unknown, v, s>
+}
 
-    const chain: ProcessChainResult<ɸ, m, Res> = {
-      type: ProcessType.ACTION,
-      action: fn,
-      success: (handler) => {
-        result.success = handler
-        return chain
-      },
-      error: (handler) => {
-        result.error = handler
-        return chain
-      },
-      getResult: () => result,
-    }
+export function createProcessChain<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string>(
+  state: s,
+  config?: ProcessConfig,
+): ProcessChain<ɸ, m, v, s>
+export function createProcessChain<ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string>(
+  state: s,
+  config?: ProcessConfig,
+): ProcessChain<ɸ, m, v, s> {
+  return {
+    action: <Res>(fn: (params: ActionParams<ɸ, m, v>) => Res | Promise<Res>): ProcessChainResult<ɸ, m, Res, v, s> => {
+      const result: ProcessRuntimeResult<ɸ, m, Res, v, s> = {
+        type: ProcessType.ACTION,
+        state,
+        action: fn,
+        ...(config?.label ? { label: config.label } : {}),
+        ...(config?.desc ? { desc: config.desc } : {}),
+        ...(config?.env ? { env: config.env } : {}),
+      }
 
-    return chain
-  },
-})
+      const chain: ProcessChainResult<ɸ, m, Res, v, s> = {
+        type: ProcessType.ACTION,
+        success: (handler) => {
+          result.success = handler
+          return chain
+        },
+        error: (handler) => {
+          result.error = handler
+          return chain
+        },
+        getResult: () => result,
+      }
 
-const isProcessChain = <ɸ extends Fields, m extends Mass>(value: unknown): value is ProcessChainLike<ɸ, m> => {
+      return chain
+    },
+  }
+}
+
+const isProcessChain = <ɸ extends Fields, m extends Mass, v extends Values<ɸ> = Values<ɸ>, s extends string = string>(
+  value: unknown,
+): value is ProcessChainLike<ɸ, m, v, s> => {
   if (!value || typeof value !== "object") return false
 
   const candidate = value as { type?: unknown; getResult?: unknown }
@@ -77,7 +100,9 @@ const isProcessChain = <ɸ extends Fields, m extends Mass>(value: unknown): valu
  * @returns Распарсенный процесс с информацией о полях, путём к модулю action и именем экспорта
  * @throws Error если структура action функции не соответствует требованиям
  */
-export function parseProcess<ɸ extends Fields, m extends Mass, Res = any>(process: Process<ɸ, m, Res>): ParsedProcess {
+export function parseProcess<ɸ extends Fields, m extends Mass, Res = any, v extends Values<ɸ> = Values<ɸ>, s extends string = string>(
+  process: Process<ɸ, m, Res, v, s>,
+): ParsedProcess {
   const validation = validateActionStructure(process.action)
   if (!validation.valid) {
     throw new Error(`Невалидная структура action: ${validation.error}`)
@@ -128,22 +153,46 @@ export function parseProcess<ɸ extends Fields, m extends Mass, Res = any>(proce
  * Анализирует конфигурацию, где каждое свойство содержит цепочку действий,
  * и возвращает объект с распарсенными процессами.
  */
-export const processesSchema = <ɸ extends Fields, 𝛴 extends string, m extends Mass>(
-  processes: ProcessesDeclaration<ɸ, 𝛴, m>,
+export const processesSchema = <
+  ɸ extends Fields,
+  𝛴 extends string,
+  m extends Mass,
+  ψ = never,
+>(
+  processes: ProcessesDeclaration<ɸ, 𝛴, m, ψ>,
 ): ProcessesSchema => {
-  const chains = processes(createProcessChain, createFinallyChain)
+  const processFactory: Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[0] = ((state: string, config?: ProcessConfig) =>
+    createProcessChain<ɸ, m, Values<ɸ>, string>(state, config)) as Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[0]
+  const destroyFactory: Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[1] = ((state: string, config?: DestroyConfig) =>
+    createFinallyChain<ɸ, m, string>(state, config)) as Parameters<ProcessesDeclaration<ɸ, 𝛴, m, ψ>>[1]
+  const chains = processes(processFactory, destroyFactory)
   const result: ProcessesSchema = {}
 
-  for (const [key, chain] of Object.entries(chains)) {
-    if (!chain) continue
+  const assignParsedChain = (key: string, chain: unknown) => {
+    if (result[key]) {
+      throw new Error(`Процесс для суперпозиции "${key}" уже определен`)
+    }
 
     if (isFinallyChain<ɸ, m>(chain)) {
       result[key] = parseFinally(chain.getResult())
-      continue
+      return
     }
 
     if (isProcessChain<ɸ, m>(chain)) {
       result[key] = parseProcess(chain.getResult())
+    }
+  }
+
+  for (const chain of chains as ProcessesList<ɸ, 𝛴, m, ψ>) {
+    if (!chain) continue
+
+    if (isFinallyChain<ɸ, m>(chain)) {
+      assignParsedChain(chain.getResult().state, chain)
+      continue
+    }
+
+    if (isProcessChain<ɸ, m>(chain)) {
+      assignParsedChain(chain.getResult().state, chain)
     }
   }
 

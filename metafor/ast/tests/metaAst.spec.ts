@@ -197,12 +197,12 @@ describe("convertMetaDSLToMetaAST", () => {
       }))
       .superposition({ idle: null })
       .mass()
-      .processes((process) => ({
-        idle: process().action(async ({ value }) => {
+      .processes((process) => [
+        process("idle").action(async ({ value }) => {
           const mod = await import("./mock-action.ts")
           return mod.default(value)
         }),
-      }))
+      ])
       .reactions()
       .matter()
       .bulk()
@@ -281,8 +281,8 @@ describe("convertMetaDSLToMetaAST", () => {
       }))
       .superposition({ idle: { done: {} }, done: null })
       .mass()
-      .processes((process) => ({
-        idle: process({ label: "Test Process", desc: "Описание процесса" })
+      .processes((process) => [
+        process("idle", { label: "Test Process", desc: "Описание процесса" })
           // @ts-ignore
           .action(async ({ value }) => {
             const mod = await import("./mock-action.ts")
@@ -295,7 +295,7 @@ describe("convertMetaDSLToMetaAST", () => {
             update({ value: 0 })
             console.error("Error:", error.message)
           }),
-      }))
+      ])
       .reactions()
       .matter()
       .bulk()
@@ -328,9 +328,9 @@ describe("convertMetaDSLToMetaAST", () => {
       }))
       .superposition({ idle: { done: {} }, done: null })
       .mass()
-      .processes((process, destroy) => ({
-        done: destroy({ label: "Cleanup", desc: "Очистка" }),
-      }))
+      .processes((process, destroy) => [
+        destroy("done", { label: "Cleanup", desc: "Очистка" }),
+      ])
       .reactions()
       .matter()
       .bulk()
@@ -459,14 +459,14 @@ describe("convertMetaDSLToMetaAST", () => {
       }))
       .superposition({ idle: { done: {} }, done: null })
       .mass({ data: [] as string[] })
-      .processes((process) => ({
-        idle: process({ label: "Process" })
+      .processes((process) => [
+        process("idle", { label: "Process" })
           .action(async ({ value }) => {
             const mod = await import("./mock-action.ts")
             return mod.default(value.count)
           })
           .success(({ update, data }) => update({ count: data as number })),
-      }))
+      ])
       .reactions((reaction) => [
         [
           ["idle"],

@@ -5,20 +5,42 @@ import { processesSchema } from "./process.js"
 import type { ProcessesDeclaration } from "./process.t"
 
 describe("finally-процессы", () => {
+  test("destroy в массиве с явной superposition", () => {
+    const schema = fieldSchema((field) => ({
+      cleanup: field.boolean.required(false),
+    }))
+
+    const actions: ProcessesDeclaration<typeof schema, "cleanup", { cleanup: boolean }> = (process, destroy) => [
+      destroy("cleanup", {
+        label: "Очистка",
+        desc: "Очистка ресурсов",
+        env: ["node"],
+      }).before(({ mass }) => {
+        mass.cleanup = true
+      }),
+    ]
+
+    const snapshot = processesSchema(actions)
+    expect(snapshot.cleanup).toBeDefined()
+    expect((snapshot.cleanup!.type as string)).toBe("finally")
+    expect(snapshot.cleanup!.label).toBe("Очистка")
+    expect(snapshot.cleanup!.env).toEqual(["node"])
+  })
+
   test("destroy с конфигурацией env", () => {
     const schema = fieldSchema((field) => ({
       cleanup: field.boolean.required(false),
     }))
 
-    const actions: ProcessesDeclaration<typeof schema, "cleanup", { cleanup: boolean }> = (process, destroy) => ({
-      cleanup: destroy({
+    const actions: ProcessesDeclaration<typeof schema, "cleanup", { cleanup: boolean }> = (process, destroy) => [
+      destroy("cleanup", {
         label: "Очистка",
         desc: "Очистка ресурсов",
         env: ["node", "worker"],
       }).before(({ mass }) => {
         mass.cleanup = true
       }),
-    })
+    ]
 
     const snapshot = processesSchema(actions)
     expect(snapshot.cleanup).toBeDefined()
@@ -40,18 +62,18 @@ describe("finally-процессы", () => {
       typeof schema,
       "cleanup" | "finalize" | "simple" | "nonRecursive",
       { cleanup: boolean; bar: number }
-    > = (process, destroy) => ({
-      cleanup: destroy({ label: "Очистка ресурсов", desc: "Удаляет временные данные" }).before(({ mass }) => {
+    > = (process, destroy) => [
+      destroy("cleanup", { label: "Очистка ресурсов", desc: "Удаляет временные данные" }).before(({ mass }) => {
         mass.cleanup = true
       }),
-      finalize: destroy({ label: "Финализация" }).before(({ mass }) => {
+      destroy("finalize", { label: "Финализация" }).before(({ mass }) => {
         mass.bar = 999
       }),
-      simple: destroy({ label: "Простое удаление" }),
-      nonRecursive: destroy({ label: "Не рекурсивное удаление" }).before(({ mass }) => {
+      destroy("simple", { label: "Простое удаление" }),
+      destroy("nonRecursive", { label: "Не рекурсивное удаление" }).before(({ mass }) => {
         mass.bar = 0
       }),
-    })
+    ]
 
     const snapshot = processesSchema(actions)
 

@@ -9,7 +9,7 @@ export default MetaFor("<name>")
   .fields((field) => ({}))
   .superposition({})
   .mass({})
-  .processes((process, destroy) => ({}))
+  .processes((process, destroy) => [])
   .reactions((reaction) => [])
   .matter(({ state, value, html }) => html``)
   .bulk({
@@ -153,21 +153,21 @@ export default MetaFor("<name>")
 **Process:**
 
 ```typescript
-.processes((process) => ({
-  "определение операции": process()
+.processes((process) => [
+  process("определение операции")
     .action(async ({ mass, value }) => {
       const mod = await import("./actions/detectOperation.ts")
       return mod.default({ mass, value })
     })
     .success(({ update, data }) => update(data))
     .error(({ update, error }) => update({ error: error.message })),
-  "выполнение": process()
+  process("выполнение")
     .action(async () => {
       const mod = await import("./actions/execute.ts")
       return mod.default()
     })
     .success(({ update }) => update({ operation: null })),
-}))
+])
 ```
 
 ---
@@ -197,8 +197,8 @@ export default MetaFor("<name>")
 **Пример:**
 
 ```typescript
-.processes((process) => ({
-  "загрузка": process()
+.processes((process) => [
+  process("загрузка")
     .action(async ({ value }) => {
       const mod = await import("./actions/fetchData.ts")
       return mod.default({ value })
@@ -207,7 +207,7 @@ export default MetaFor("<name>")
       update({ data })  // Финальное обновление
       // ✅ Теперь проверятся триггеры
     }),
-}))
+])
 ```
 
 **Принцип:** Process — атомарная операция. Все обновления полей внутри process накапливаются, и только после завершения (success/error) проверяются триггеры переходов.
@@ -231,7 +231,7 @@ export default MetaFor("<name>")
 
 ---
 
-## Processes — process(action/success/error) destroy
+## Processes — process(state, action/success/error) destroy(state)
 
 **Параметры process:**
 
@@ -293,15 +293,15 @@ export default async function action({
 ### Пример в meta.ts
 
 ```typescript
-.processes((process, destroy) => ({
-  loading: process({ label: "Загрузка", env: ["browser", "node"] })
+.processes((process, destroy) => [
+  process("loading", { label: "Загрузка", env: ["browser", "node"] })
     .action(async ({ value }) => {
       const mod = await import("./actions/fetchUser.ts")
       return mod.default({ value })
     })
     .success(({ update, data }) => update({ name: data.name }))
     .error(({ update, error }) => update({ error: error.message })),
-}))
+])
 ```
 
 **Примечание:** `success` и `error` обработчики остаются inline в DSL. Только `action` выносится в отдельный модуль.
@@ -318,13 +318,13 @@ export default async function action({
 
 ```typescript
 // Только браузер
-process({ env: ["browser"] })
+process("loading", { env: ["browser"] })
 
 // Браузер и NodeType.js
-process({ env: ["browser", "node"] })
+process("loading", { env: ["browser", "node"] })
 
 // Любая среда
-process({ env: ["any"] })
+process("loading", { env: ["any"] })
 ```
 
 **Типизация возвращаемого значения:**
@@ -344,7 +344,7 @@ return { group: group as "start" | "work" | "examine" }
 Если процессов нет:
 
 ```typescript
-.processes((process, destroy) => ({}))
+.processes((process, destroy) => [])
 ```
 
 ---
@@ -473,21 +473,21 @@ export default MetaFor("git")
       examine: /^(show|status|diff)$/,
     },
   })
-  .processes((process) => ({
-    "определение операции": process()
+  .processes((process) => [
+    process("определение операции")
       .action(async ({ mass, value }) => {
         const mod = await import("./actions/detectOperation.ts")
         return mod.default({ mass, value })
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
-    "выполнение": process()
+    process("выполнение")
       .action(async () => {
         const mod = await import("./actions/execute.ts")
         return mod.default()
       })
       .success(({ update }) => update({ operation: null })),
-  }))
+  ])
   .matter(({ state, value, html }) => html`
     <meta-for src="zavx0z/git-${value.operation}" fields=${{ command: value.command }} />
     ${state === "ошибка" && html`
@@ -566,14 +566,14 @@ export default MetaFor("git")
       work: /^(add|mv|restore)$/,
     },
   })
-  .processes((process) => ({
-    "определение операции": process()
+  .processes((process) => [
+    process("определение операции")
       .action(async ({ mass, value }) => {
         const mod = await import("./actions/detectOperation.ts")
         return mod.default({ mass, value })
       })
       .success(({ update, data }) => update(data))
-  }))
+  ])
 ```
 
 **Правило:** Все данные, функции, паттерны — только внутри `.mass()`, `.processes()`, `.fields()` **или в отдельных action-модулях**.
@@ -672,21 +672,21 @@ export default MetaFor("git")
       work: /^(add|mv|restore)$/,
     },
   })
-  .processes((process) => ({
-    "определение операции": process()
+  .processes((process) => [
+    process("определение операции")
       .action(async ({ mass, value }) => {
         const mod = await import("./actions/detectOperation.ts")
         return mod.default({ mass, value })
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
-    "выполнение": process()
+    process("выполнение")
       .action(async () => {
         const mod = await import("./actions/execute.ts")
         return mod.default()
       })
       .success(({ update }) => update({ operation: null })),
-  }))
+  ])
   .matter(({ value, html }) => html`
     ${value.operation === "start" && html`
       <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />

@@ -22,12 +22,12 @@ bun create metafor auth
 
 ## Опции
 
-| Option | Description | Default |
-| ------ | ----------- | ------- |
-| `-n, --name <name>` | Имя Мета | positional argument |
-| `-d, --desc <desc>` | Описание Мета | `"MetaFor {name}"` |
-| `--dir <dir>` | Директория для создания | `.` |
-| `-l, --lang <lang>` | Язык вывода (ru\|en) | автодетект |
+| Option              | Description             | Default             |
+|---------------------|-------------------------|---------------------|
+| `-n, --name <name>` | Имя Мета                | positional argument |
+| `-d, --desc <desc>` | Описание Мета           | `"MetaFor {name}"`  |
+| `--dir <dir>`       | Директория для создания | `.`                 |
+| `-l, --lang <lang>` | Язык вывода (ru\|en)    | автодетект          |
 
 ## Примеры
 

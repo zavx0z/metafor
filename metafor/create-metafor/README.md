@@ -22,12 +22,12 @@ Creates a Meta with basic error handling template.
 
 ## Options
 
-| Option | Description | Default |
-| ------ | ----------- | ------- |
-| `-n, --name <name>` | Meta name | positional argument |
-| `-d, --desc <desc>` | Meta description | `"MetaFor {name}"` |
-| `--dir <dir>` | Output directory | `.` |
-| `-l, --lang <lang>` | Output language (ru\|en) | auto-detect |
+| Option              | Description              | Default             |
+|---------------------|--------------------------|---------------------|
+| `-n, --name <name>` | Meta name                | positional argument |
+| `-d, --desc <desc>` | Meta description         | `"MetaFor {name}"`  |
+| `--dir <dir>`       | Output directory         | `.`                 |
+| `-l, --lang <lang>` | Output language (ru\|en) | auto-detect         |
 
 ## Examples
 

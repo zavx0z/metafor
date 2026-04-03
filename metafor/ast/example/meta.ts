@@ -18,8 +18,8 @@ const meta = MetaFor("git")
     history: [] as string[],
     lastError: null as string | null,
   })
-  .processes((process, destroy) => ({
-    коммит: process({ label: "Коммит", desc: "Процесс коммита изменений" })
+  .processes((process, destroy) => [
+    process("коммит", { label: "Коммит", desc: "Процесс коммита изменений" })
       .action(async ({ field, value, mass, self }) => {
         const mod = await import("./actions/commit.ts")
         return mod.default({ field, value, mass, self })
@@ -31,8 +31,8 @@ const meta = MetaFor("git")
         update({ isLoading: false })
         console.error("Ошибка коммита:", error.message)
       }),
-    завершено: destroy({ label: "Завершено", desc: "Очистка после завершения" }),
-  }))
+    destroy("завершено", { label: "Завершено", desc: "Очистка после завершения" }),
+  ])
   .reactions((reaction) => [
     [
       ["коммит"],

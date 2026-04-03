@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { access, readdir, readFile, rm, writeFile } from "node:fs/promises"
-import { dirname, join } from "node:path"
+import { access, readdir, readFile } from "node:fs/promises"
+import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 import type { MetaDSLLike } from "../ast.t"
 import { convertMetaDSLToMetaAST } from "../index.ts"
 
 const IGNORED_ROOTS = ["metafor/template/", "metafor/create-metafor/templates/"]
-const DSL_SOURCE_PATH = join(process.cwd(), "metafor/dsl/index.ts")
 
 const collectMetaFiles = async (root: string): Promise<string[]> => {
   const entries = await readdir(root, { withFileTypes: true })
@@ -30,21 +29,10 @@ const collectMetaFiles = async (root: string): Promise<string[]> => {
   return metaFiles
 }
 
-const rewriteMetaSourceForTest = (sourceText: string): string => {
-  return sourceText.replaceAll(/(["'])@metafor\/dsl\1/g, JSON.stringify(DSL_SOURCE_PATH))
-}
-
-const importMetaModuleForTest = async (metaPath: string, sourceText: string, cacheKey: number): Promise<MetaDSLLike> => {
-  const tempPath = join(dirname(metaPath), `.repo-meta.${process.pid}.${cacheKey}.ts`)
-
-  try {
-    await writeFile(tempPath, rewriteMetaSourceForTest(sourceText), "utf8")
-    const moduleUrl = `${pathToFileURL(tempPath).href}?t=${cacheKey}`
-    const module = (await import(moduleUrl)) as { default: MetaDSLLike }
-    return module.default
-  } finally {
-    await rm(tempPath, { force: true })
-  }
+const importMetaModuleForTest = async (metaPath: string, cacheKey: number): Promise<MetaDSLLike> => {
+  const moduleUrl = `${pathToFileURL(metaPath).href}?t=${cacheKey}`
+  const module = (await import(moduleUrl)) as { default: MetaDSLLike }
+  return module.default
 }
 
 describe("repository meta sources", () => {
@@ -62,7 +50,7 @@ describe("repository meta sources", () => {
 
       try {
         const sourceText = await readFile(metaPath, "utf8")
-        const meta = await importMetaModuleForTest(metaPath, sourceText, counter++)
+        const meta = await importMetaModuleForTest(metaPath, counter++)
         convertMetaDSLToMetaAST(meta, sourceText)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)

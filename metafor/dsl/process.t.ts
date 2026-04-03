@@ -1,7 +1,67 @@
-import type { Fields, Update } from "./fields.t"
+import type { Fields, Update, Values } from "./fields.t"
 import type { ActionParams } from "./action.t"
 import type { Mass } from "./metafor.t"
 import type { DestroyChain, DestroyConfig, ParsedDestroy } from "./finally.t"
+import type { SuperpositionProcessValue } from "./superposition.t"
+
+declare const ProcessStateBrand: unique symbol
+
+type ProcessStateMarker<s extends string> = {
+  readonly [ProcessStateBrand]?: s
+}
+
+type ProcessFactory<
+  ɸ extends Fields,
+  𝛴 extends string,
+  m extends Mass,
+  ψ,
+> = {
+  <S extends 𝛴>(state: S, config?: ProcessConfig): ProcessChain<ɸ, m, SuperpositionProcessValue<ɸ, ψ, S>, S>
+}
+
+type DestroyFactory<
+  ɸ extends Fields,
+  𝛴 extends string,
+  m extends Mass,
+> = {
+  <S extends 𝛴>(state: S, config?: DestroyConfig): DestroyChain<ɸ, m, S>
+}
+
+export type Process<
+  ɸ extends Fields = Fields,
+  m extends Mass = Mass,
+  Res = any,
+  v extends Values<ɸ> = Values<ɸ>,
+  s extends string = string,
+> = ProcessStateMarker<s> & {
+  type: ProcessType.ACTION
+  action: (params: ActionParams<ɸ, m, v>) => Res | Promise<Res>
+  success?: (params: { update: Update<ɸ>; data: Res }) => void
+  error?: (params: { update: Update<ɸ>; error: Error }) => void
+  label?: string
+  desc?: string
+  env?: ExecutionEnv[]
+}
+
+export type ProcessChain<
+  ɸ extends Fields,
+  m extends Mass,
+  v extends Values<ɸ> = Values<ɸ>,
+  s extends string = string,
+> = {
+  action: <Res>(fn: (params: ActionParams<ɸ, m, v>) => Res | Promise<Res>) => ActionChainByState<s, ɸ, m, Res, v>
+}
+
+type ActionChainByState<
+  s extends string,
+  ɸ extends Fields,
+  m extends Mass,
+  Res,
+  v,
+> = ProcessStateMarker<s> & {
+  success: (handler: (params: { update: Update<ɸ>; data: Res }) => void) => ActionChainByState<s, ɸ, m, Res, v>
+  error: (handler: (params: { update: Update<ɸ>; error: Error }) => void) => ActionChainByState<s, ɸ, m, Res, v>
+}
 
 /**
  * Конфигурация одного процесса
@@ -31,22 +91,6 @@ import type { DestroyChain, DestroyConfig, ParsedDestroy } from "./finally.t"
  * }
  * ```
  */
-export type Process<ɸ extends Fields = Fields, m extends Mass = Mass, Res = any> = {
-  type: ProcessType.ACTION
-  /** Основная функция процесса */
-  action: (params: ActionParams<ɸ, m>) => Res | Promise<Res>
-  /** Обработчик успешного завершения */
-  success?: (params: { update: Update<ɸ>; data: Res }) => void
-  /** Обработчик ошибки */
-  error?: (params: { update: Update<ɸ>; error: Error }) => void
-  /** Название процесса для документации */
-  label?: string
-  /** Описание процесса для документации */
-  desc?: string
-  /** Среды исполнения процесса */
-  env?: ExecutionEnv[]
-}
-
 /**
  * Chain API для создания процесса с опциональными параметрами label и desc.
  * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
@@ -56,7 +100,7 @@ export type Process<ɸ extends Fields = Fields, m extends Mass = Mass, Res = any
  *
  * @example
  * ```typescript
- * const chain = process({
+ * const chain = process("loading", {
  *   label: "my_process",
  *   desc: "Описание процесса"
  * })
@@ -67,45 +111,18 @@ export type Process<ɸ extends Fields = Fields, m extends Mass = Mass, Res = any
  * chain.getResult() // { action, success, error, label?, desc? }
  * ```
  */
-export type ProcessChain<ɸ extends Fields, m extends Mass> = {
-  /**
-   * Добавляет основную функцию процесса.
-   *
-   * Функция может быть как синхронной, так и асинхронной.
-   * При выбросе исключения вызывается обработчик error.
-   * При успешном выполнении вызывается обработчик success.
-   *
-   * @param fn - функция процесса, вызываемая автоматом
-   * @returns цепочку для дальнейшего конфигурирования
-   *
-   * @example
-   * ```typescript
-   * // Синхронная функция
-   * .action(({ value }) => {
-   *   if (!value.email) {
-   *     throw new Error('Email обязателен')
-   *   }
-   *   return { isValid: true }
-   * })
-   *
-   * // Асинхронная функция
-   * .action(async ({ value }) => {
-   *   const response = await fetch('/api/data', {
-   *     method: 'POST',
-   *     body: JSON.stringify(value)
-   *   })
-   *   return await response.json()
-   * })
-   *
-   * // Предпочтительный формат action с Promise
-   * .action(({ value, mass }) => new Promise((resolve, reject) => {
-   *   // асинхронная логика
-   *   resolve({ success: true })
-   * }))
-   * ```
-   */
-  action: <Res>(fn: (params: ActionParams<ɸ, m>) => Res | Promise<Res>) => ActionChain<ɸ, m, Res>
-}
+export type ProcessesList<
+  ɸ extends Fields = Fields,
+  𝛴 extends string = string,
+  m extends Mass = Mass,
+  ψ = never,
+> = readonly (
+  | {
+      [S in 𝛴]:
+        | ActionChain<ɸ, m, any, SuperpositionProcessValue<ɸ, ψ, S>, S>
+        | DestroyChain<ɸ, m, S>
+    }[𝛴]
+)[]
 
 /**
  * Тип билдера для декларации набора процессов автомата.
@@ -116,12 +133,17 @@ export type ProcessChain<ɸ extends Fields, m extends Mass> = {
  * @template 𝛴 - строковые ключи состояний/процессов
  * @template m - тип mass объекта
  * @param process - фабрика для создания цепочки ProcessChain
- * @returns объект, где ключи — имена процессов, а значения — цепочки ActionChain
+ * @returns массив state-bound chain-элементов
  */
-export type ProcessesDeclaration<ɸ extends Fields = Fields, 𝛴 extends string = string, m extends Mass = Mass> = (
-  process: (config?: ProcessConfig) => ProcessChain<ɸ, m>,
-  destroy: (config?: DestroyConfig) => DestroyChain<ɸ, m>,
-) => Partial<Record<𝛴, ActionChain<ɸ, m, any> | DestroyChain<ɸ, m>>>
+export type ProcessesDeclaration<
+  ɸ extends Fields = Fields,
+  𝛴 extends string = string,
+  m extends Mass = Mass,
+  ψ = never,
+> = (
+  process: ProcessFactory<ɸ, 𝛴, m, ψ>,
+  destroy: DestroyFactory<ɸ, 𝛴, m>,
+) => ProcessesList<ɸ, 𝛴, m, ψ>
 
 /**
  * Обработчик действия процесса.
@@ -198,13 +220,13 @@ export interface ProcessConfig extends BaseProcessConfig {
    * @example
    * ```typescript
    * // Процесс выполняется только в браузере
-   * process({ env: ['browser'] })
+   * process("loading", { env: ['browser'] })
    *
    * // Процесс выполняется в браузере и node
-   * process({ env: ['browser', 'node'] })
+   * process("loading", { env: ['browser', 'node'] })
    *
    * // Процесс выполняется в любой среде
-   * process({ env: ['any'] })
+   * process("loading", { env: ['any'] })
    * ```
    */
   env?: ExecutionEnv[]
@@ -230,125 +252,10 @@ export interface ProcessConfig extends BaseProcessConfig {
  * chain.getResult() // { action, success, error }
  * ```
  */
-export type ActionChain<ɸ extends Fields, m extends Mass, Res> = {
-  /**
-   * Основная функция процесса, вызывается автоматом.
-   *
-   * Получает полный набор параметров для выполнения процесса и должна вернуть результат или выбросить исключение.
-   *
-   * @param params - объект с параметрами процесса:
-   *   - `value` - текущие значения полей атома
-   *   - `mass` - масса атома для сложных данных и зависимостей от среды
-   *   - `schema` - схема полей для валидации и установки значений по умолчанию
-   *   - `self` - полный идентификатор атома
-   *   - `destroy` - функция для уничтожения атома
-   * @returns результат процесса (может быть промисом)
-   *
-   * @example
-   * ```typescript
-   * action: ({ value, mass, schema, self, destroy }) => {
-   *   // Доступ к полям
-   *   console.log(value.email, value.password)
-   *
-   *   // Доступ к массе
-   *   mass.users.push({ name: value.name })
-   *
-   *   // Доступ к схеме для валидации
-   *   const isValid = schema.email.validate(value.email)
-   *
-   *   // destroy() доступен для уничтожения атома
-   *   // self.meta, self.atom, self.path доступны
-   *
-   *   // Возврат результата
-   *   return { userId: 123, token: "abc" }
-   * }
-   * ```
-   */
-  action: (params: ActionParams<ɸ, m>) => Res | Promise<Res>
-
-  /**
-   * Добавляет обработчик успешного завершения процесса.
-   *
-   * Вызывается когда action завершился успешно (не выбросил исключение).
-   * Получает функцию update для изменения контекста и данные от action.
-   *
-   * **ВАЖНО: success обработчик должен быть синхронным.**
-   * Асинхронные операции выполняйте только в action функциях.
-   * Для последовательных асинхронных операций создавайте отдельные процессы.
-   *
-   * @param handler - функция, вызываемая при успехе (получает update и data)
-   * @returns цепочку для дальнейшего конфигурирования
-   *
-   * @example
-   * ```typescript
-   * // Предпочтительный формат success/error
-   * .success(({ update, data }) => update({ status: data.status }))
-   * .error(({ update, error }) => update({ status: "error", error: error.message }))
-   *
-   * // Расширенный формат
-   * .success(({ update, data }) => {
-   *   // Обновляем контекст данными от action
-   *   update({
-   *     userId: data.userId,
-   *     token: data.token,
-   *     isAuthenticated: true,
-   *     error: ""
-   *   })
-   * })
-   * ```
-   */
-  success: (handler: (params: { update: Update<ɸ>; data: Res }) => void) => ActionChain<ɸ, m, Res>
-
-  /**
-   * Добавляет обработчик ошибки выполнения процесса.
-   *
-   * Вызывается когда action выбросил исключение.
-   * Получает функцию update для изменения контекста и объект ошибки.
-   *
-   * **ВАЖНО: error обработчик должен быть синхронным.**
-   * Асинхронные операции выполняйте только в action функциях.
-   * Для последовательных асинхронных операций создавайте отдельные процессы.
-   *
-   * @param handler - функция, вызываемая при ошибке (получает update и error типа Error)
-   * @returns цепочку для дальнейшего конфигурирования
-   *
-   * @example
-   * ```typescript
-   * // Предпочтительный формат success/error
-   * .success(({ update, data }) => update({ status: data.status }))
-   * .error(({ update, error }) => update({ status: "error", error: error.message }))
-   *
-   * // Расширенный формат
-   * .error(({ update, error }) => {
-   *   // Обрабатываем ошибку
-   *   update({
-   *     error: error.message,
-   *     isAuthenticated: false,
-   *     isLoading: false
-   *   })
-   * })
-   * ```
-   */
-  error: (handler: (params: { update: Update<ɸ>; error: Error }) => void) => ActionChain<ɸ, m, Res>
-
-  /**
-   * Возвращает итоговый объект конфигурации процесса для автомата.
-   *
-   * Содержит все обработчики и метаданные процесса.
-   *
-   * @returns объект с action, success, error, label и desc (если заданы)
-   *
-   * @example
-   * ```typescript
-   * const processConfig = chain.getResult()
-   * // {
-   * //   action: Function,
-   * //   success: Function,
-   * //   error: Function,
-   * //   label: "Авторизация",
-   * //   desc: "Процесс входа пользователя"
-   * // }
-   * ```
-   */
-  getResult: () => Process<ɸ, m, Res>
-}
+export type ActionChain<
+  ɸ extends Fields,
+  m extends Mass,
+  Res,
+  v extends Values<ɸ> = Values<ɸ>,
+  s extends string = string,
+> = ActionChainByState<s, ɸ, m, Res, v>

@@ -557,3 +557,48 @@ export type Transitions<To extends string = string, ɸ extends Fields = Fields> 
   [K in To]?: Wave<ɸ>
 }
 export type Superposition<𝛴 extends string = string, ɸ extends Fields = Fields> = Record<𝛴, Transitions<𝛴, ɸ> | null>
+
+export type SuperpositionStateKeys<ψ> = Extract<keyof ψ, string>
+
+export type SuperpositionInput<ɸ extends Fields, ψ extends Record<string, unknown>> = ψ & Superposition<SuperpositionStateKeys<ψ>, ɸ>
+
+export type SuperpositionInputCheck<ɸ extends Fields, ψ extends Record<string, unknown>> =
+  ψ extends Superposition<SuperpositionStateKeys<ψ>, ɸ> ? [] : [superposition: Superposition<SuperpositionStateKeys<ψ>, ɸ>]
+
+type IncomingTransitionWave<ψ, Target extends string> = {
+  [From in SuperpositionStateKeys<ψ>]:
+    ψ[From] extends null
+      ? never
+      : Target extends Extract<keyof ψ[From], string>
+        ? ψ[From][Target]
+        : never
+}[SuperpositionStateKeys<ψ>]
+
+type RefineNullability<Value, Guard> = Guard extends null
+  ? Extract<Value, null | undefined>
+  : Guard extends { null: infer NullFlag }
+    ? NullFlag extends true
+      ? Extract<Value, null | undefined>
+      : NullFlag extends false
+        ? NonNullable<Value>
+        : Value
+    : Value
+
+type ApplyIncomingWaveRefinement<ɸ extends Fields, GuardWave> = GuardWave extends object
+  ? {
+      [K in keyof Values<ɸ>]: K extends keyof GuardWave ? RefineNullability<Values<ɸ>[K], GuardWave[K]> : Values<ɸ>[K]
+    }
+  : Values<ɸ>
+
+export type SuperpositionProcessValue<ɸ extends Fields, ψ, Target extends string> =
+  [Target] extends [never]
+    ? Values<ɸ>
+    : [ψ] extends [never]
+      ? Values<ɸ>
+      : [IncomingTransitionWave<ψ, Target>] extends [never]
+        ? Values<ɸ>
+        : IncomingTransitionWave<ψ, Target> extends infer GuardWave
+          ? GuardWave extends unknown
+            ? ApplyIncomingWaveRefinement<ɸ, GuardWave>
+            : never
+          : Values<ɸ>
