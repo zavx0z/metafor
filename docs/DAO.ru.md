@@ -1,4 +1,4 @@
-[README](../README.ru.md) | [English](./DAO.md) | **Русский**
+[README](README.ru.md) | [English](./DAO.md) | **Русский**
 
 # DAO
 

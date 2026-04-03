@@ -1,4 +1,4 @@
-[README](../README.ru.md) | [English](./ARCHITECTURE.md) | **Русский**
+[README](README.ru.md) | [English](./ARCHITECTURE.md) | **Русский**
 
 # Архитектура
 

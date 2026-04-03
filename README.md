@@ -4,7 +4,7 @@
   <img src="shared/img/metafor.gif" alt="MetaFor animated overview" width="444" />
 </div>
 
-**English** | [Русский](README.ru.md)
+**English** | [Русский](docs/README.ru.md)
 
 **MetaFor is a space of digital consciousness extending our universe.**
 
@@ -138,7 +138,7 @@ If you want to define a concrete task, discuss a specific change, or join the pr
 If you are approaching MetaFor as a repository contributor rather than as a first-time reader, continue with:
 
 - [Development](docs/DEVELOPMENT.md) for the fast technical entry, current development mode, and architectural constraints,
-- [Contributing](CONTRIBUTING.md) for contribution expectations and repository discipline.
+- [Contributing](docs/CONTRIBUTING.md) for contribution expectations and repository discipline.
 
 ## Contact
 

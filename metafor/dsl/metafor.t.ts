@@ -111,7 +111,7 @@ export type MetaForFn = (
    *
    * Поля содержат только простые типы данных. Сложные объекты храните в mass.
    *
-   * @param schema Функция, принимающая field и возвращающая объект-схему полей
+   * @param fields Функция, принимающая field и возвращающая объект-схему полей
    * @returns chain API для вызова .superposition(...)
    *
    * @example
@@ -126,7 +126,7 @@ export type MetaForFn = (
    * ```
    */
   fields<ɸ extends Fields>(
-    schema: (field: Field) => ɸ,
+    fields: (field: Field) => ɸ,
   ): {
     /**
      * Регистрирует суперпозицию переходов автомата между состояниями.

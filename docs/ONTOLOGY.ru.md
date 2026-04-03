@@ -1,4 +1,4 @@
-[README](../README.ru.md) | [English](./ONTOLOGY.md) | **Русский**
+[README](README.ru.md) | [English](./ONTOLOGY.md) | **Русский**
 
 # Онтология
 

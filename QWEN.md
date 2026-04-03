@@ -250,7 +250,7 @@ Before contributing:
 4. Explain architectural intent in plain language
 5. Link relevant documents when changes depend on ontology/architecture
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidance.
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for detailed guidance.
 
 ## License
 

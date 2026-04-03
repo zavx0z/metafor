@@ -1,4 +1,4 @@
-[README](../../README.ru.md) | [Протокол](../PROTOCOL.ru.md) | [English](./strong.md) | **Русский**
+[README](../README.ru.md) | [Протокол](../PROTOCOL.ru.md) | [English](./strong.md) | **Русский**
 
 # Strong
 

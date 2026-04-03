@@ -1,4 +1,4 @@
-[README](../README.ru.md) | [English](./TOPOLOGY.md) | **Русский**
+[README](README.ru.md) | [English](./TOPOLOGY.md) | **Русский**
 
 # Topology
 

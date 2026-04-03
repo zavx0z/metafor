@@ -6,7 +6,7 @@ MetaFor is still in an architectural formation stage, so contribution should sta
 
 ## Before You Change Anything
 
-- Read the relevant document in [`docs/`](docs/), especially [Ontology](docs/ONTOLOGY.md), [Architecture](docs/ARCHITECTURE.md), and [Development](docs/DEVELOPMENT.md).
+- Read the relevant document in [`docs/`](docs/), especially [Ontology](ONTOLOGY.md), [Architecture](ARCHITECTURE.md), and [Development](DEVELOPMENT.md).
 - Preserve the current `arch` terminology: `Dark`, `Boundary`, `Bulk`, `Field`, `Brane`, protocol channels, and the distinction between ordinary fields and topology fields.
 - Do not reintroduce older `qTp` framing as a semantic replacement for the current branch.
 

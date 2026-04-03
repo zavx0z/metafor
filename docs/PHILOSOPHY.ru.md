@@ -1,4 +1,4 @@
-[README](../README.ru.md) | [English](./PHILOSOPHY.md) | **Русский**
+[README](README.ru.md) | [English](./PHILOSOPHY.md) | **Русский**
 
 # Философия
 

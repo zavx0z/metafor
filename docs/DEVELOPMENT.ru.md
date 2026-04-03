@@ -1,4 +1,4 @@
-[README](../README.ru.md) | [English](./DEVELOPMENT.md) | **Русский**
+[README](README.ru.md) | [English](./DEVELOPMENT.md) | **Русский**
 
 # Разработка
 
