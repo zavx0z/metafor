@@ -1,5 +1,6 @@
 {
   "name": "create-metafor",
+  "description": "Meta for...",
   "version": "1.0.41",
   "author": "zavx0z",
   "repository": {
@@ -8,10 +9,10 @@
     "directory": "create-metafor"
   },
   "main": "dist/cli.js",
+  "types": "./index.ts",
   "bin": {
     "create-metafor": "dist/cli.js"
   },
-  "description": "Meta for...",
   "engines": {
     "node": ">=18",
     "bun": ">=1.0.0"
