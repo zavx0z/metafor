@@ -1,0 +1,53 @@
+import { constants, Database } from "bun:sqlite"
+import { join, isAbsolute, dirname } from "node:path"
+import { unlinkSync, existsSync } from "node:fs"
+import { fileURLToPath } from "node:url"
+import { initializeMetaforDslSqliteSchema, exportMetaToSqlite } from "../../pkg/sqlite/index.ts"
+import type { MetaDSL } from "../../metafor.t.ts"
+
+/**
+ * Фикстура для экспорта MetaDSL в SQLite базу данных.
+ *
+ * @param meta - Объект MetaDSL атома.
+ * @param dbPath - Путь к файлу базы данных. По умолчанию "meta.sqlite" рядом с вызывающим тестом.
+ */
+export function createMetaforSqliteFixture(meta: MetaDSL, dbPath = "meta.sqlite") {
+  let finalPath = dbPath
+
+  if (!isAbsolute(dbPath)) {
+    // Попробуем найти директорию вызывающего файла через стек
+    const stack = new Error().stack
+    const lines = stack?.split("\n")
+    if (lines && lines.length >= 3) {
+      // line 0: Error
+      // line 1: createMetaforSqliteFixture (это мы)
+      // line 2: caller (это тест)
+      const callerLine = lines[2]!
+      const match = callerLine.match(/(?:at\s+)?(?:.+\s+\()?(.*):(\d+):(\d+)\)?/)
+      if (match && match[1]) {
+        let callerFile = match[1]
+        if (callerFile.startsWith("file://")) {
+          callerFile = fileURLToPath(callerFile)
+        }
+        finalPath = join(dirname(callerFile), dbPath)
+      }
+    }
+  }
+
+  const absolutePath = isAbsolute(finalPath) ? finalPath : join(process.cwd(), finalPath)
+
+  if (existsSync(absolutePath)) {
+    unlinkSync(absolutePath)
+  }
+
+  const db = new Database(absolutePath, { strict: true })
+  db.run("PRAGMA journal_mode = WAL;")
+  try {
+    initializeMetaforDslSqliteSchema(db)
+    exportMetaToSqlite(db, meta)
+  } finally {
+    db.fileControl(constants.SQLITE_FCNTL_PERSIST_WAL, 0)
+    db.run("PRAGMA wal_checkpoint(TRUNCATE);")
+    db.close()
+  }
+}
