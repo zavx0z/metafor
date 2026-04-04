@@ -33,7 +33,7 @@
     "explorer.fileNesting.patterns": {
         "tsconfig.json": "tsconfig.*.json",
         "package.json": "package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lock, bun.lockb, bunfig.toml, .npmrc",
-        "*.ts": "${capture}.t.ts, ${capture}.spec.ts, ${capture}.md, ${capture}.styled.ts, ${capture}.sql",
+        "*.ts": "${capture}.t.ts, ${capture}.spec.ts, ${capture}.md, ${capture}.styled.ts, ${capture}.sql, ${capture}.sqlite",
         "*.js": "${capture}.js.map, ${capture}.min.js, ${capture}.html, ${capture}.sql",
         "*.md": "${capture}.ru.md"
     },
