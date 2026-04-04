@@ -50,7 +50,7 @@ import { FieldType } from "@boundary/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData, strong$ } from "@boundary/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import type { WeakHeapUpdate } from "./weak/weak.t"
-import { createEmptySharedDbData, type SharedDbBackend, type SharedDbData } from "../shared/db/core.ts"
+import { createEmptySharedDbData, type SharedDbBackend, type SharedDbData } from "../pkg/db/core.ts"
 import {
   isGluonMessage,
   isGravitonMessage,
@@ -65,7 +65,7 @@ import {
   type ProtocolChannelOptions,
   type ValueProtocolPatch,
   type WMessage,
-} from "@shared/protocol"
+} from "pkg/protocol"
 import { gravityCH } from "@boundary/gravity/channel.ts"
 
 export type BoundaryStructuralPatch = GravityProtocolPatch

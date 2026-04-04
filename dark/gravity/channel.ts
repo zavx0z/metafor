@@ -1,4 +1,4 @@
-import { GRAVITY_BROADCAST_CHANNEL, type GravitonMessage, type GravityProtocolPatch } from "@shared/protocol"
+import { GRAVITY_BROADCAST_CHANNEL, type GravitonMessage, type GravityProtocolPatch } from "pkg/protocol"
 
 export const gravityCH = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
 

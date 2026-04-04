@@ -12,7 +12,7 @@ import {
   type SharedDbWimpEdgeRecord,
   type SharedDbWimpFieldRecord,
   type SharedDbWimpRows,
-} from "../shared/db/core.ts"
+} from "../pkg/db/core.ts"
 import { FieldType, flattenBoundaryData, type BraneValue, type Collapse, type Data, type Field } from "@boundary/gravity"
 import { assembleStoredBoundaryData, type PreparedEntanglementProjection } from "@boundary/strong"
 import type { PreparedData } from "./boundary.t.ts"

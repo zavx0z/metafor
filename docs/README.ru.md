@@ -1,7 +1,7 @@
 # MetaFor
 
 <div align="center">
-  <img src="../shared/img/metafor.gif" alt="Анимированный обзор MetaFor" width="444" />
+  <img src="img/metafor.gif" alt="Анимированный обзор MetaFor" width="444" />
 </div>
 
 [English](../README.md) | **Русский**

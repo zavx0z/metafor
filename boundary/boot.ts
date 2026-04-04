@@ -1,5 +1,5 @@
 import { applyStructuralPatchFromSharedDb, applyWeakResultPacket, setValues } from "./boundary.ts"
-import type { SharedDbBackend } from "../shared/db/core.ts"
+import type { SharedDbBackend } from "../pkg/db/core.ts"
 import {
   GLUON_BROADCAST_CHANNEL,
   GRAVITY_BROADCAST_CHANNEL,
@@ -9,7 +9,7 @@ import {
   isHiggsMessage,
   isWMessage,
   WEAK_W_BROADCAST_CHANNEL,
-} from "@shared/protocol"
+} from "pkg/protocol"
 
 export type OpenBoundaryDb = () => Promise<SharedDbBackend> | SharedDbBackend
 

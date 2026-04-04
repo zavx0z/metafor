@@ -10,7 +10,7 @@ import {
   type WeakCoordinationKind,
   type WMessage,
   type ZMessage,
-} from "@shared/protocol"
+} from "pkg/protocol"
 
 export interface BulkSubscription {
   close(): void
@@ -171,4 +171,4 @@ export const createBulkWeakProtocol = (options: BulkWeakProtocolOptions = {}): B
   }
 }
 
-export type { PhotonMessage, ProtocolChannelOptions, ValueProtocolPatch, WeakCoordinationKind, WMessage, ZMessage } from "@shared/protocol"
+export type { PhotonMessage, ProtocolChannelOptions, ValueProtocolPatch, WeakCoordinationKind, WMessage, ZMessage } from "pkg/protocol"

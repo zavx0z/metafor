@@ -8,7 +8,7 @@ import {
   type GluonMessage,
   type HiggsMessage,
   type ValueProtocolPatch,
-} from "@shared/protocol"
+} from "pkg/protocol"
 
 export interface DarkPhotonStore {
   messages: PhotonMessage[]
@@ -114,4 +114,4 @@ export const createDarkElectromagnetismProtocol = (
   }
 }
 
-export type { PhotonMessage, ProtocolChannelOptions, ValueProtocolPatch, GluonMessage, HiggsMessage } from "@shared/protocol"
+export type { PhotonMessage, ProtocolChannelOptions, ValueProtocolPatch, GluonMessage, HiggsMessage } from "pkg/protocol"

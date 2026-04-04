@@ -589,22 +589,12 @@
       "name": "@zavx0z/git-worktree-worktree",
       "version": "0.1.0",
     },
-    "metafor/create-metafor": {
-      "name": "create-metafor",
-      "version": "1.0.41",
-      "bin": {
-        "create-metafor": "dist/cli.js",
-      },
-    },
-    "metafor/template": {
-      "name": "@metafor/template",
-      "version": "2.6.2",
+    "pkg/sqlite": {
+      "name": "sqlite",
     },
   },
   "packages": {
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
-
-    "@metafor/template": ["@metafor/template@workspace:metafor/template"],
 
     "@person/human": ["@person/human@workspace:github/person/human"],
 
@@ -940,8 +930,6 @@
 
     "color-name": ["color-name@1.1.4", "https://registry.yarnpkg.com/color-name/-/color-name-1.1.4.tgz", {}, "sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA=="],
 
-    "create-metafor": ["create-metafor@workspace:metafor/create-metafor"],
-
     "dts-bundle-generator": ["dts-bundle-generator@9.5.1", "https://registry.yarnpkg.com/dts-bundle-generator/-/dts-bundle-generator-9.5.1.tgz", { "dependencies": { "typescript": ">=5.0.2", "yargs": "^17.6.0" }, "bin": { "dts-bundle-generator": "dist/bin/dts-bundle-generator.js" } }, "sha512-DxpJOb2FNnEyOzMkG11sxO2dmxPjthoVWxfKqWYJ/bI/rT1rvTMktF5EKjAYrRZu6Z6t3NhOUZ0sZ5ZXevOfbA=="],
 
     "emoji-regex": ["emoji-regex@8.0.0", "https://registry.yarnpkg.com/emoji-regex/-/emoji-regex-8.0.0.tgz", {}, "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="],
@@ -969,6 +957,8 @@
     "punycode.js": ["punycode.js@2.3.1", "https://registry.yarnpkg.com/punycode.js/-/punycode.js-2.3.1.tgz", {}, "sha512-uxFIHU0YlHYhDQtV4R9J6a52SLx28BCjT+4ieh7IGbgwVJWO+km431c4yRlREUAsAmt/uMjQUyQHNEPf0M39CA=="],
 
     "require-directory": ["require-directory@2.1.1", "https://registry.yarnpkg.com/require-directory/-/require-directory-2.1.1.tgz", {}, "sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q=="],
+
+    "sqlite": ["sqlite@workspace:pkg/sqlite"],
 
     "string-width": ["string-width@4.2.3", "https://registry.yarnpkg.com/string-width/-/string-width-4.2.3.tgz", { "dependencies": { "emoji-regex": "^8.0.0", "is-fullwidth-code-point": "^3.0.0", "strip-ansi": "^6.0.1" } }, "sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g=="],
 
