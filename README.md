@@ -149,4 +149,4 @@ For direct contact:
 
 ## License
 
-MetaFor is licensed under [GNU Affero General Public License v3.0 or later](LICENSE).
+MetaFor is licensed under [GNU Affero General Public License v3.0 or later](docs/LICENSE).

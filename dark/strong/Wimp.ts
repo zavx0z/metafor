@@ -1,4 +1,4 @@
-import type { Mass, NodeMeta } from "@metafor/dsl"
+import type { Mass, NodeMeta } from "index.ts"
 import type { MetaAST } from "@metafor/ast"
 import type { WimpInit } from "@dark/types/strong"
 import type { DarkGravityProtocol } from "@dark/gravity/channel.ts"

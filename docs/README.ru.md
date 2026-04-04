@@ -149,4 +149,4 @@ MetaFor находится в стадии открытого архитекту
 
 ## Лицензия
 
-MetaFor распространяется под лицензией [GNU Affero General Public License v3.0 or later](../LICENSE).
+MetaFor распространяется под лицензией [GNU Affero General Public License v3.0 or later](LICENSE).

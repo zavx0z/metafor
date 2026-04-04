@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { Self } from "@metafor/dsl"
+import type { Self } from "index.ts"
 
 /**
  * Параметры для выполнения действия.

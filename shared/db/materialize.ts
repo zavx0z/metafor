@@ -1,5 +1,5 @@
 import type { FieldKey, MetaAST, MetaJson } from "@metafor/ast"
-import type { Mass } from "@metafor/dsl"
+import type { Mass } from "index.ts"
 import type {
   SharedDbData,
   SharedDbFieldSchemaRecord,

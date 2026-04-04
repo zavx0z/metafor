@@ -1,5 +1,5 @@
 import type { MetaAST } from "@metafor/ast"
-import { validateMatterAST, type SRC } from "@metafor/dsl"
+import { validateMatterAST, type SRC } from "index.ts"
 import { Meta } from "@dark/strong"
 
 const HUB = "github/"

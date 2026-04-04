@@ -1,5 +1,5 @@
 import type { FieldKey, MetaAST } from "@metafor/ast"
-import type { Mass } from "@metafor/dsl"
+import type { Mass } from "index.ts"
 
 /**
  * Краткий снимок схемы поля для канонической relational DB.

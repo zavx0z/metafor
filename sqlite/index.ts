@@ -1,12 +1,12 @@
 import type { Database } from "bun:sqlite"
-import metaforSchemaSql from "../metafor/dsl/metafor.sql" with { type: "text" }
-import fieldsSchemaSql from "../metafor/dsl/fields.sql" with { type: "text" }
-import superpositionSchemaSql from "../metafor/dsl/superposition.sql" with { type: "text" }
-import processSchemaSql from "../metafor/dsl/process.sql" with { type: "text" }
-import actionSchemaSql from "../metafor/dsl/action.sql" with { type: "text" }
-import finallySchemaSql from "../metafor/dsl/finally.sql" with { type: "text" }
-import reactionsSchemaSql from "../metafor/dsl/reactions.sql" with { type: "text" }
-import matterSchemaSql from "../metafor/dsl/matter.sql" with { type: "text" }
+import metaforSchemaSql from "../metafor.sql" with { type: "text" }
+import fieldsSchemaSql from "../fields.sql" with { type: "text" }
+import superpositionSchemaSql from "../superposition.sql" with { type: "text" }
+import processSchemaSql from "../process.sql" with { type: "text" }
+import actionSchemaSql from "../action.sql" with { type: "text" }
+import finallySchemaSql from "../finally.sql" with { type: "text" }
+import reactionsSchemaSql from "../reactions.sql" with { type: "text" }
+import matterSchemaSql from "../matter.sql" with { type: "text" }
 
 export const metaforDslTableNames = [
   "meta",

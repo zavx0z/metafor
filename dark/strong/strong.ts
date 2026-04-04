@@ -1,4 +1,4 @@
-import type { NodeMeta } from "@metafor/dsl"
+import type { NodeMeta } from "index.ts"
 import type { FieldInit, WimpFields } from "@dark/types/strong"
 import { Wimp } from "./Wimp.ts"
 import { resolveNodeFieldInits } from "./fields.ts"

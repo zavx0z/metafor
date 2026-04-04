@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { FieldsAST } from "@metafor/ast"
-import type { NodeMeta } from "@metafor/dsl"
+import type { NodeMeta } from "index.ts"
 import { resolveContinuationSources } from "./gravity.ts"
 
 describe("resolveContinuationSources", () => {

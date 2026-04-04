@@ -1,5 +1,5 @@
 import type { MetaAST } from "@metafor/ast"
-import type { NodeMeta, NodeType } from "@metafor/dsl"
+import type { NodeMeta, NodeType } from "index.ts"
 import type { Fuzzy, Wimp } from "@dark/strong"
 import type { DarkParticle } from "./shared"
 import type { FieldInit } from "./strong.ts"

@@ -36,10 +36,10 @@ import type { NodeLogical } from "./node/logical.t"
 import type { NodeMap } from "./node/map.t"
 import type { NodeCondition } from "./node/condition.t"
 import { extractHtmlElements } from "./parser"
-import type { Fields } from "../dsl/fields.t"
-import type { MatterDefinitionParams } from "../dsl/matter.t"
-import type { Mass } from "../dsl/metafor.t"
-import type { State } from "../dsl/superposition.t"
+import type { Fields } from "../../fields.t.ts"
+import type { MatterDefinitionParams } from "../../matter.t.ts"
+import type { Mass } from "../../metafor.t.ts"
+import type { State } from "../../superposition.t.ts"
 
 export type { NodeType, NodeMeta, NodeLogical, NodeMap, NodeCondition }
 

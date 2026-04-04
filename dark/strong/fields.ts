@@ -1,5 +1,5 @@
 import type { FieldDefinitionJson, FieldKey, FieldsAST } from "@metafor/ast"
-import type { NodeMeta } from "@metafor/dsl"
+import type { NodeMeta } from "index.ts"
 import type { FieldInit, MetaFields, WimpFields, WimpValues } from "@dark/types/strong"
 import type { Wimp } from "./Wimp.ts"
 import { InstanceField } from "./Field.ts"

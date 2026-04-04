@@ -1,5 +1,5 @@
 import type { FieldsAST } from "@metafor/ast"
-import type { NodeMeta } from "@metafor/dsl"
+import type { NodeMeta } from "index.ts"
 
 const getFieldValues = (path: string, fields?: FieldsAST): Array<string | number> => {
   if (!fields || !path.startsWith("/value/")) return []

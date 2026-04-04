@@ -6,7 +6,7 @@
  *
  * @packageDocumentation
  */
-  import type { Mass, Fields } from "@metafor/dsl"
+  import type { Mass, Fields } from "index.ts"
 import type { ProcessConfig, ActionFn } from "./load.t"
 
 /**

@@ -1,4 +1,4 @@
-import type { NodeType } from "@metafor/dsl"
+import type { NodeType } from "index.ts"
 import type {
   MatterEntry,
   MatterContinuation,
