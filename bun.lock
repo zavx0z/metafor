@@ -602,9 +602,15 @@
     "pkg/sqlite": {
       "name": "sqlite",
     },
+    "pkg/template": {
+      "name": "@metafor/template",
+      "version": "2.6.2",
+    },
   },
   "packages": {
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
+
+    "@metafor/template": ["@metafor/template@workspace:pkg/template"],
 
     "@person/human": ["@person/human@workspace:github/person/human"],
 

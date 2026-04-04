@@ -88,16 +88,9 @@ import type { ProcessesDeclaration } from "./process.t.ts"
 import { serializeStyle } from "./style.ts"
 import type { MatterDeclaration } from "./matter.t.ts"
 
-import type {
-  MetaForConfig,
-  BulkDeclaration,
-  MetaDSL,
-  BulkSchema,
-  Mass,
-  MetaForFn,
-} from "./metafor.t.ts"
+import type { MetaForConfig, BulkDeclaration, MetaDSL, BulkSchema, Mass } from "./metafor.t.ts"
 
-export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig) {
+globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
   const dev = config?.dev ?? globalThis.DEV ?? false
   return {
@@ -140,7 +133,8 @@ export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig
                           if (matter) schema.matter = parseMatter(matter)
                           return {
                             bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m> {
-                              if (bulk && "view" in bulk) schema.bulk = { view: serializeStyle(bulk.view as any) } as BulkSchema
+                              if (bulk && "view" in bulk)
+                                schema.bulk = { view: serializeStyle(bulk.view as any) } as BulkSchema
                               validateMatter(schema.matter, schema.fields, schema.name)
                               return schema
                             },
@@ -158,5 +152,4 @@ export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig
     },
   }
 }
-
-globalThis.MetaFor = MetaFor
+export const MetaFor = globalThis.MetaFor

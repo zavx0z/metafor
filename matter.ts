@@ -1,4 +1,4 @@
-import { parse } from "@metafor/template/index.ts"
+import { parse } from "@metafor/template"
 import type { Fields } from "./fields.t.ts"
 import type { MatterDeclaration, MatterFields, MatterSchema, NodeCondition, NodeLogical, NodeMeta, NodeType } from "./matter.t.ts"
 import type { Mass } from "./metafor.t.ts"

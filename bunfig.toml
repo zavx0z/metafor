@@ -1,3 +1,7 @@
 telemetry = false
+
 [console]
 depth = 22
+
+[test]
+preload = ["create-metafor"]

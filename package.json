@@ -12,6 +12,7 @@
   },
   "workspaces": [
     "pkg/sqlite",
+    "pkg/template",
     "create-metafor",
     "github/**/*"
   ],
