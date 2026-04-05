@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { Fields, Values, Mass, Self } from "index.ts"
+import type { Fields, Values, Mass, Self } from "../../index.ts"
 
 /**
  * Конфигурация процесса для загрузки.

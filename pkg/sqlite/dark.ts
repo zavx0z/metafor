@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
 import type { MetaDSL, ParsedDestroy, ParsedProcess, ReactionsSchema } from "../.."
-import type { MatterBindingValue, MatterParticlePlan } from "@dark/types/dark"
+import type { MatterBindingValue, MatterParticlePlan, MatterRelationBindingValue } from "@dark/types/dark"
 import type { MetaInit } from "@dark/types/strong"
 
 type FieldRow = {
@@ -88,6 +88,8 @@ export interface DarkMetaParticleModel {
   meta: MetaInit
   particles: MatterParticlePlan[]
 }
+
+type MetaFieldSchema = NonNullable<MetaDSL["fields"]>[string]
 
 const hasKeys = (value: object): boolean => Object.keys(value).length > 0
 const toMaybeArray = (values: string[]): string | string[] => (values.length === 1 ? values[0]! : values)
@@ -238,7 +240,7 @@ export const readFields = (
   for (const row of fieldRows) {
     fieldKeys.set(row.uuid, row.key)
 
-    const field: Record<string, unknown> = { type: row.type }
+    const field = { type: row.type } as unknown as MetaFieldSchema
     if (row.required === 1) field.required = true
     if (row.label !== null) field.label = row.label
 
@@ -254,7 +256,7 @@ export const readFields = (
       field.values = enumValues.get(row.uuid) ?? []
     }
 
-    fields[row.key] = field as NonNullable<MetaDSL["fields"]>[string]
+    fields[row.key] = field
   }
 
   return { fields, fieldKeys, enumVariants }
@@ -292,7 +294,7 @@ export const readSuperposition = (
     if (!fromName || !toName) continue
 
     const conditionSet: Record<string, unknown> = {}
-    superposition[fromName]![toName] = conditionSet
+    ;(superposition[fromName] as Record<string, unknown>)[toName] = conditionSet
     transitions.set(row.uuid, conditionSet)
   }
 
@@ -515,7 +517,7 @@ export const readProcesses = (
       if (row.desc !== null) process.desc = row.desc
 
       const envs = envsByProcess.get(row.uuid)
-      if (envs && envs.length > 0) process.env = envs as ParsedDestroy["env"]
+      if (envs && envs.length > 0) process.env = envs as NonNullable<ParsedDestroy["env"]>
       processes[row.key] = process
       continue
     }
@@ -535,29 +537,34 @@ export const readProcesses = (
     if (actionRow.action_import_specifier !== null) {
       process.action.importSpecifier = actionRow.action_import_specifier
     }
-    if ((reads.action ?? []).length > 0) process.action.read = reads.action
+    const actionReads = reads.action
+    if (actionReads && actionReads.length > 0) process.action.read = actionReads
 
     if (actionRow.success !== null) {
       process.success = {
         src: actionRow.success,
       }
-      if ((reads.success ?? []).length > 0) process.success.read = reads.success
-      if ((writes.success ?? []).length > 0) process.success.write = writes.success
+      const successReads = reads.success
+      const successWrites = writes.success
+      if (successReads && successReads.length > 0) process.success.read = successReads
+      if (successWrites && successWrites.length > 0) process.success.write = successWrites
     }
 
     if (actionRow.error !== null) {
       process.error = {
         src: actionRow.error,
       }
-      if ((reads.error ?? []).length > 0) process.error.read = reads.error
-      if ((writes.error ?? []).length > 0) process.error.write = writes.error
+      const errorReads = reads.error
+      const errorWrites = writes.error
+      if (errorReads && errorReads.length > 0) process.error.read = errorReads
+      if (errorWrites && errorWrites.length > 0) process.error.write = errorWrites
     }
 
     if (row.label !== null) process.label = row.label
     if (row.desc !== null) process.desc = row.desc
 
     const envs = envsByProcess.get(row.uuid)
-    if (envs && envs.length > 0) process.env = envs as ParsedProcess["env"]
+    if (envs && envs.length > 0) process.env = envs as NonNullable<ParsedProcess["env"]>
 
     processes[row.key] = process
   }
@@ -741,17 +748,20 @@ const readParticleBindings = (db: Database, src: string) => {
     bindingDeps.set(row.binding, deps)
   }
 
-  const cache = new Map<string, MatterBindingValue | undefined>()
-  const readBinding = (bindingId: string | null | undefined): MatterBindingValue | undefined => {
+  const cache = new Map<string, MatterRelationBindingValue | undefined>()
+  const readBinding = (bindingId: string | null | undefined): MatterRelationBindingValue | undefined => {
     if (!bindingId) return
     if (cache.has(bindingId)) return cache.get(bindingId)
 
     const row = bindingRows.get(bindingId)
     if (!row) return
 
-    let value: MatterBindingValue | undefined
+    let value: MatterRelationBindingValue | undefined
     if (row.binding_kind === "static") {
-      value = row.literal_kind === "boolean" ? row.literal_boolean === 1 : row.literal_text ?? ""
+      if (row.literal_kind === "boolean") {
+        throw new Error(`Boolean matter binding "${bindingId}" is not supported in particle relation runtime`)
+      }
+      value = row.literal_text ?? ""
     } else {
       const deps = bindingDeps.get(bindingId) ?? []
       value = row.expr !== null ? { ...(deps.length > 0 ? { data: toMaybeArray(deps) } : {}), expr: row.expr } : { data: toMaybeArray(deps) }
@@ -771,7 +781,7 @@ const buildParticleModel = (
   fuzzyRows: Map<string, FuzzyParticleRow>,
   axionRows: Map<string, AxionParticleRow>,
   machoRows: Map<string, MachoParticleRow>,
-  readBinding: (bindingId: string | null | undefined) => MatterBindingValue | undefined,
+  readBinding: (bindingId: string | null | undefined) => MatterRelationBindingValue | undefined,
 ): MatterParticlePlan => {
   const children = (rowsByParent.get(row.uuid) ?? []).map((child) =>
     buildParticleModel(child, rowsByParent, wimpRows, fuzzyRows, axionRows, machoRows, readBinding),
@@ -780,12 +790,14 @@ const buildParticleModel = (
   if (row.particle_kind === "wimp") {
     const wimpRow = wimpRows.get(row.uuid)
     if (!wimpRow) throw new Error(`Wimp particle row "${row.uuid}" is not found in canonical SQLite projection`)
+    const fieldsBinding = wimpRow.fields_binding !== null ? readBinding(wimpRow.fields_binding) : undefined
+    const massBinding = wimpRow.mass_binding !== null ? readBinding(wimpRow.mass_binding) : undefined
 
     return {
       kind: "wimp",
       src: wimpRow.src,
-      ...(wimpRow.fields_binding !== null ? { fieldsBinding: readBinding(wimpRow.fields_binding) } : {}),
-      ...(wimpRow.mass_binding !== null ? { massBinding: readBinding(wimpRow.mass_binding) } : {}),
+      ...(fieldsBinding !== undefined ? { fieldsBinding } : {}),
+      ...(massBinding !== undefined ? { massBinding } : {}),
       ...(children.length > 0 ? { children } : {}),
     }
   }
@@ -793,11 +805,13 @@ const buildParticleModel = (
   if (row.particle_kind === "fuzzy") {
     const fuzzyRow = fuzzyRows.get(row.uuid)
     if (!fuzzyRow) throw new Error(`Fuzzy particle row "${row.uuid}" is not found in canonical SQLite projection`)
+    const predicateBinding =
+      fuzzyRow.predicate_binding !== null ? readBinding(fuzzyRow.predicate_binding) : undefined
 
     return {
       kind: "fuzzy",
       fuzzyKind: fuzzyRow.fuzzy_kind,
-      ...(fuzzyRow.predicate_binding !== null ? { predicateBinding: readBinding(fuzzyRow.predicate_binding) } : {}),
+      ...(predicateBinding !== undefined ? { predicateBinding } : {}),
       ...(children.length > 0 ? { children } : {}),
     }
   }
@@ -921,54 +935,4 @@ export const readDarkParticleModel = (db: Database, src: string): DarkMetaPartic
       buildParticleModel(row, rowsByParent, wimpRows, fuzzyRows, axionRows, machoRows, readBinding),
     ),
   }
-}
-
-export function readDarkBundle(db: Database, src: string): MetaDSL {
-  const metaRow = db.query(
-    `SELECT src, name, desc, view_css, has_processes, has_reactions, has_matter
-     FROM meta
-     WHERE src = ?`,
-  ).get(src) as
-    | {
-        src: string
-        name: string | null
-        desc: string | null
-        view_css: string | null
-        has_processes: number
-        has_reactions: number
-        has_matter: number
-      }
-    | null
-
-  if (!metaRow) {
-    throw new Error(`Canonical meta "${src}" is not found in SQLite`)
-  }
-
-  const { fields, fieldKeys, enumVariants } = readFields(db, src)
-  const superposition = readSuperposition(db, src, enumVariants)
-  const processes = readProcesses(db, src, fieldKeys)
-  const reactions = readReactions(db, src, fieldKeys)
-  const mass = readMass(db, src)
-
-  const bundle: MetaDSL = {
-    name: metaRow.name ?? src.split("/").pop() ?? src,
-    fields,
-  }
-
-  if (metaRow.desc !== null) bundle.desc = metaRow.desc
-  if (metaRow.view_css !== null) bundle.bulk = { view: metaRow.view_css }
-  if (mass !== undefined) bundle.mass = mass
-  if (superposition !== undefined) bundle.superposition = superposition
-  if (metaRow.has_processes === 1 || processes !== undefined) bundle.processes = processes ?? {}
-  if (metaRow.has_reactions === 1 || (reactions !== undefined && (hasKeys(reactions.reactions) || hasKeys(reactions.superposition)))) {
-    bundle.reactions = reactions ?? { reactions: {}, superposition: {} }
-  }
-  if (metaRow.has_matter === 1) {
-    bundle.matter = []
-  }
-
-  if (bundle.superposition === undefined) bundle.superposition = {}
-  if (bundle.mass === undefined) bundle.mass = {}
-
-  return bundle
 }

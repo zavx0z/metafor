@@ -111,8 +111,8 @@ const processMatterParticle = (
       const continuation = cloneContinuation(
         resolveWimpContinuation(
           {
-            fieldsBinding: entry.plan.fieldsBinding,
-            massBinding: entry.plan.massBinding,
+            ...(entry.plan.fieldsBinding !== undefined ? { fieldsBinding: entry.plan.fieldsBinding } : {}),
+            ...(entry.plan.massBinding !== undefined ? { massBinding: entry.plan.massBinding } : {}),
           },
           fields,
         ),
@@ -194,6 +194,7 @@ export async function* matterMeta(
  *
  * @param wimp Корневой `Wimp`, который нужно полностью собрать.
  * @param continuation Временный пакет данных, который должен быть применён к этому `Wimp` перед обходом.
+ * @param options
  * @returns Promise, завершающийся после полного рекурсивного обхода и сборки дочерних мет.
  */
 export async function matter(wimp: Wimp, continuation?: MatterContinuation, options: MatterOptions = {}) {

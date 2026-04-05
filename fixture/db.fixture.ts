@@ -11,8 +11,8 @@ export const createSharedDbFixture = () => {
     name: "root",
     fieldSchemas: {
       title: { type: "string", required: true, default: "", label: "Заголовок" },
-      mode: { type: "enum<string>", required: true, values: ["idle", "ready"], default: "idle" },
-      items: { type: "array<string>", required: true, default: [] },
+      mode: { type: "enum", required: true, values: ["idle", "ready"], default: "idle" },
+      items: { type: "array", required: true, default: [] },
     },
     superposition: {
       idle: {
@@ -85,8 +85,8 @@ export const createSharedDbFixture = () => {
     name: "child",
     fieldSchemas: {
       alias: { type: "string", required: true, default: "" },
-      mode: { type: "enum<string>", required: true, values: ["idle", "ready"], default: "idle" },
-      items: { type: "array<string>", required: true, default: [] },
+      mode: { type: "enum", required: true, values: ["idle", "ready"], default: "idle" },
+      items: { type: "array", required: true, default: [] },
     },
     superposition: {
       idle: {

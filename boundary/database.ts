@@ -422,7 +422,18 @@ const cloneRuntimeField = (field: Field): Field => ({
   ...(field.enum !== undefined ? { enum: structuredClone(field.enum) } : {}),
 })
 
-const createLocalRuntimeFieldSignature = (field: BoundaryDatabaseFieldRecord): string =>
+const inferBoundaryArrayElementType = (sampleValue: unknown): NonNullable<Field["elementType"]> => {
+  if (Array.isArray(sampleValue)) {
+    const firstValue = sampleValue.find((value) => value !== null && value !== undefined)
+    if (typeof firstValue === "string") return "string"
+    if (typeof firstValue === "boolean") return "boolean"
+    if (typeof firstValue === "number") return "number"
+  }
+
+  return "number"
+}
+
+const createLocalRuntimeFieldSignature = (field: BoundaryDatabaseFieldRecord, sampleValue: unknown): string =>
   JSON.stringify({
     scope: "local",
     key: field.key,
@@ -431,9 +442,14 @@ const createLocalRuntimeFieldSignature = (field: BoundaryDatabaseFieldRecord): s
     topology: field.schema.topology,
     label: field.schema.label ?? null,
     values: field.schema.values ?? null,
+    arrayElementType: field.schema.type === "array" ? inferBoundaryArrayElementType(sampleValue) : null,
   })
 
-const createSeedRuntimeFieldSignature = (semanticKey: string, field: BoundaryDatabaseFieldRecord): string =>
+const createSeedRuntimeFieldSignature = (
+  semanticKey: string,
+  field: BoundaryDatabaseFieldRecord,
+  sampleValue: unknown,
+): string =>
   JSON.stringify({
     scope: "seed",
     semanticKey,
@@ -442,9 +458,10 @@ const createSeedRuntimeFieldSignature = (semanticKey: string, field: BoundaryDat
     topology: field.schema.topology,
     label: field.schema.label ?? null,
     values: field.schema.values ?? null,
+    arrayElementType: field.schema.type === "array" ? inferBoundaryArrayElementType(sampleValue) : null,
   })
 
-const mapBoundaryDatabaseFieldToRuntimeField = (field: BoundaryDatabaseFieldRecord): Field => {
+const mapBoundaryDatabaseFieldToRuntimeField = (field: BoundaryDatabaseFieldRecord, sampleValue: unknown): Field => {
   const { type, values } = field.schema
 
   if (type === "string") return { type: FieldType.STRING_PTR }
@@ -455,9 +472,10 @@ const mapBoundaryDatabaseFieldToRuntimeField = (field: BoundaryDatabaseFieldReco
     if (!values) {
       throw new Error(`Boundary runtime field '${field.key}' is missing enum values`)
     }
-    return { type: FieldType.U32, enum: structuredClone(values) }
+    return { type: FieldType.U32, enum: [...values] }
   }
 
+  if (type === "array") return { type: FieldType.ARRAY_PTR, elementType: inferBoundaryArrayElementType(sampleValue) }
   if (type === "array<string>") return { type: FieldType.ARRAY_PTR, elementType: "string" }
   if (type === "array<number>") return { type: FieldType.ARRAY_PTR, elementType: "number" }
   if (type === "array<boolean>") return { type: FieldType.ARRAY_PTR, elementType: "boolean" }
@@ -562,12 +580,12 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
   const runtimeFieldIndexBySignature = new Map<string, number>()
   const entanglementFieldMembers = groupEntanglementFieldMembers(data)
 
-  const ensureRuntimeField = (signature: string, field: BoundaryDatabaseFieldRecord): number => {
+  const ensureRuntimeField = (signature: string, field: BoundaryDatabaseFieldRecord, sampleValue: unknown): number => {
     const existing = runtimeFieldIndexBySignature.get(signature)
     if (existing !== undefined) return existing
 
     const runtimeFieldIndex = runtimeFields.length
-    runtimeFields.push(cloneRuntimeField(mapBoundaryDatabaseFieldToRuntimeField(field)))
+    runtimeFields.push(cloneRuntimeField(mapBoundaryDatabaseFieldToRuntimeField(field, sampleValue)))
     runtimeFieldIndexBySignature.set(signature, runtimeFieldIndex)
     runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] = []
     return runtimeFieldIndex
@@ -578,10 +596,12 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
     if (!representativeField) {
       throw new Error(`Boundary runtime seed representative field missing: ${seedField.representativeFieldIndex}`)
     }
+    const representativeValue = requireBoundaryDatabaseFieldValue(data, representativeField.index).value
 
     const runtimeFieldIndex = ensureRuntimeField(
-      createSeedRuntimeFieldSignature(seedField.semanticKey, representativeField),
+      createSeedRuntimeFieldSignature(seedField.semanticKey, representativeField, representativeValue),
       representativeField,
+      representativeValue,
     )
     const seedRuntimeFieldIds = runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] ?? []
     if (!seedRuntimeFieldIds.includes(representativeField.wimpFieldId)) {
@@ -609,7 +629,8 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
 
   for (const field of data.fields) {
     if (runtimeFieldIndexByDbFieldIndex[field.index] !== undefined) continue
-    const runtimeFieldIndex = ensureRuntimeField(createLocalRuntimeFieldSignature(field), field)
+    const fieldValue = requireBoundaryDatabaseFieldValue(data, field.index).value
+    const runtimeFieldIndex = ensureRuntimeField(createLocalRuntimeFieldSignature(field, fieldValue), field, fieldValue)
     runtimeFieldIndexByDbFieldIndex[field.index] = runtimeFieldIndex
     const runtimeFieldIds: string[] = runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] ?? []
     if (!runtimeFieldIds.includes(field.wimpFieldId)) {

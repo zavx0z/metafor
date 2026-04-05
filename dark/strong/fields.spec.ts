@@ -35,11 +35,11 @@ describe("вычислители полей strong", () => {
         default: false,
       },
       items: {
-        type: "array<string>",
+        type: "array",
         default: [],
       },
       mode: {
-        type: "enum<string>",
+        type: "enum",
         values: ["a", "b"],
         default: "a",
       },
@@ -120,7 +120,7 @@ describe("вычислители полей strong", () => {
         type: "string",
       },
       operation: {
-        type: "enum<string>",
+        type: "enum",
         values: ["clone", "init"],
       },
     })
@@ -151,11 +151,11 @@ describe("вычислители полей strong", () => {
         type: "string",
       },
       operation: {
-        type: "enum<string>",
+        type: "enum",
         values: ["clone", "init"],
       },
       items: {
-        type: "array<string>",
+        type: "array",
         default: [],
       },
     })

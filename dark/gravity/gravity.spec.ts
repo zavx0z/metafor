@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { FieldsAST } from "@metafor/ast"
-import type { NodeMeta } from "index.ts"
+import type { NodeMeta } from "../../index.ts"
 import { resolveContinuationSources } from "./gravity.ts"
 
 describe("resolveContinuationSources", () => {
@@ -16,7 +16,7 @@ describe("resolveContinuationSources", () => {
 
     const fields: FieldsAST = {
       operation: {
-        type: "enum<string>",
+        type: "enum",
         label: "Тип операции",
         values: ["switch", "checkout", "commit"],
       },

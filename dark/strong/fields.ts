@@ -13,8 +13,10 @@ export type FieldResolver = () => unknown
  * Набор вычислителей по локальным ключам схемы полей.
  */
 export type FieldResolvers = Map<FieldKey, FieldResolver>
+type BindingObject = Exclude<MatterBindingValue, string | boolean>
 
 const hasOwn = (value: object, key: string): boolean => Object.prototype.hasOwnProperty.call(value, key)
+const isBindingObject = (value: MatterBindingValue): value is BindingObject => typeof value === "object" && value !== null
 /**
  * Поддерживает только простой случай `{ childKey: _[index] }`,
  * потому что на этом шаге нам нужна лишь прямая связь поля родителя с полем ребёнка,
@@ -118,11 +120,14 @@ export const resolveNodeFieldValues = (
   if (typeof value === "string") {
     return toFieldObject(evaluateAstExpression(value, []))
   }
+  if (!isBindingObject(value)) {
+    throw new Error("Meta fields binding must be a string or object relation")
+  }
 
-  const paths = Array.isArray(value.data) ? value.data : [value.data]
+  const paths = (Array.isArray(value.data) ? value.data : [value.data]).filter((path): path is string => typeof path === "string")
   const values = paths.map((path) => resolveFieldPathValue(path, resolvers))
 
-  if ("expr" in value) {
+  if (value.expr !== undefined) {
     return toFieldObject(evaluateAstExpression(value.expr, values))
   }
 
@@ -249,10 +254,13 @@ export const resolveNodeFieldInits = (
       value: fieldValue,
     }))
   }
+  if (!isBindingObject(value)) {
+    throw new Error("Meta fields binding must be a string or object relation")
+  }
 
   const resolvedObject = resolveNodeFieldValues(value, createRuntimeFieldResolvers(parentFields))
-  const paths = Array.isArray(value.data) ? value.data : [value.data]
-  const directSources = resolveDirectFieldSources("expr" in value ? value.expr : undefined, paths, parentFields)
+  const paths = (Array.isArray(value.data) ? value.data : [value.data]).filter((path): path is string => typeof path === "string")
+  const directSources = resolveDirectFieldSources(value.expr, paths, parentFields)
 
   // Значение всегда вычисляется как обычный набор данных, а `source` добавляется
   // только там, где удалось доказать прямую связь без дополнительной семантики графа.

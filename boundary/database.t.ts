@@ -6,7 +6,7 @@ export interface BoundaryDatabaseFieldSchemaRecord {
   required: boolean
   topology: boolean
   label?: string
-  values?: Array<string | number>
+  values?: readonly (string | number)[]
 }
 
 export interface BoundaryDatabaseBraneRecord {

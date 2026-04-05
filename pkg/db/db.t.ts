@@ -1,5 +1,5 @@
 import type { FieldKey, MetaAST } from "@metafor/ast"
-import type { Mass } from "index.ts"
+import type { Mass } from "../../index.ts"
 
 /**
  * Краткий снимок схемы поля для канонической relational DB.
@@ -11,7 +11,7 @@ export interface SharedDbFieldSchemaRecord {
   required: boolean
   topology: boolean
   label?: string
-  values?: Array<string | number>
+  values?: readonly (string | number)[]
 }
 
 export interface SharedDbMetaRecord {

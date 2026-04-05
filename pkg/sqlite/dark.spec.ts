@@ -3,7 +3,7 @@ import type { Database } from "bun:sqlite"
 import type { MetaDSL } from "../.."
 import gitMeta from "../../github/zavx0z/git/meta.ts"
 import { relation, getMetaDB } from "./index.ts"
-import { readDarkBundle, readDarkParticleModel } from "./dark.ts"
+import { readDarkParticleModel } from "./dark.ts"
 
 const richMeta: MetaDSL = {
   name: "rich",
@@ -225,31 +225,28 @@ describe("sqlite dark bundle", () => {
     db.close()
   })
 
-  test("читает канонический bundle meta-level данных для существующей git meta после relation()", () => {
+  test("читает particle-centric runtime model для существующей git meta после relation()", () => {
     relation(db, gitMeta, "zavx0z/git")
 
-    const bundle = readDarkBundle(db, "zavx0z/git")
+    const projection = readDarkParticleModel(db, "zavx0z/git")
 
-    expect(bundle.fields).toEqual(gitMeta.fields)
-    expect(bundle.superposition).toEqual(gitMeta.superposition)
-    expect(bundle.processes).toEqual(gitMeta.processes)
-    expect(bundle.mass).toEqual(gitMeta.mass)
-    expect(bundle.matter).toEqual([])
+    expect(projection.meta.fieldSchemas).toEqual(gitMeta.fields)
+    expect(projection.meta.superposition).toEqual(gitMeta.superposition)
+    expect(projection.meta.processes).toEqual(gitMeta.processes)
+    expect(projection.meta.mass).toBeUndefined()
+    expect(projection.particles.map((particle) => particle.kind)).toEqual(["fuzzy", "axion"])
   })
 
   test("сохраняет particle-centric matter write-side и даёт тонкий ORM loader поверх реляционных rows", () => {
     relation(db, richMeta, "owner/rich")
 
-    const bundle = readDarkBundle(db, "owner/rich")
     const projection = readDarkParticleModel(db, "owner/rich")
 
-    expect(bundle.fields).toEqual(richMeta.fields)
-    expect(bundle.superposition).toEqual(richMeta.superposition)
-    expect(bundle.processes).toEqual(richMeta.processes)
-    expect(bundle.reactions).toEqual(richMeta.reactions)
-    expect(bundle.matter).toEqual([])
-    expect(bundle.mass).toEqual(richMeta.mass)
-    expect(bundle.desc).toBe(richMeta.desc)
+    expect(projection.meta.fieldSchemas).toEqual(richMeta.fields)
+    expect(projection.meta.superposition).toEqual(richMeta.superposition)
+    expect(projection.meta.processes).toEqual(richMeta.processes)
+    expect(projection.meta.reactions).toEqual(richMeta.reactions)
+    expect(projection.meta.mass).toEqual(richMeta.mass)
     expect(projection.particles.map((particle) => particle.kind)).toEqual(["wimp", "fuzzy", "axion"])
 
     const processActionCount = db.query(`SELECT COUNT(*) AS count FROM process_action`).get() as { count: number }
@@ -278,13 +275,13 @@ describe("sqlite dark bundle", () => {
   test("не теряет явно объявленные пустые processes/reactions/matter", () => {
     relation(db, explicitEmptyMeta, "owner/empty")
 
-    const bundle = readDarkBundle(db, "owner/empty")
+    const projection = readDarkParticleModel(db, "owner/empty")
 
-    expect(bundle.processes).toEqual({})
-    expect(bundle.reactions).toEqual({
+    expect(projection.meta.processes).toEqual({})
+    expect(projection.meta.reactions).toEqual({
       reactions: {},
       superposition: {},
     })
-    expect(bundle.matter).toEqual([])
+    expect(projection.particles).toEqual([])
   })
 })

@@ -179,7 +179,7 @@ export enum ProcessType {
  * Содержит обработчики для действия, успеха и ошибки.
  */
 export type ParsedProcess = {
-  type: ProcessType.ACTION
+  type: ProcessType.ACTION | "action"
   /** Название процесса */
   label?: string
   /** Описание процесса */

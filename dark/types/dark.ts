@@ -10,30 +10,32 @@ export type MatterBindingValue =
       expr?: string
     }
 
+export type MatterRelationBindingValue = Exclude<MatterBindingValue, boolean>
+
 export interface MatterParticleWimpPlan {
   kind: "wimp"
   src: string
-  fieldsBinding?: MatterBindingValue
-  massBinding?: MatterBindingValue
+  fieldsBinding?: MatterRelationBindingValue
+  massBinding?: MatterRelationBindingValue
   children?: MatterParticlePlan[]
 }
 
 export interface MatterParticleFuzzyPlan {
   kind: "fuzzy"
   fuzzyKind: "dynamic-meta" | "cond"
-  predicateBinding?: MatterBindingValue
+  predicateBinding?: MatterRelationBindingValue
   children?: MatterParticlePlan[]
 }
 
 export interface MatterParticleAxionPlan {
   kind: "axion"
-  predicateBinding: MatterBindingValue
+  predicateBinding: MatterRelationBindingValue
   children?: MatterParticlePlan[]
 }
 
 export interface MatterParticleMachoPlan {
   kind: "macho"
-  collectionBinding: MatterBindingValue
+  collectionBinding: MatterRelationBindingValue
   children?: MatterParticlePlan[]
 }
 

@@ -6,7 +6,7 @@
  *
  * @packageDocumentation
  */
-  import type { Mass, Fields } from "index.ts"
+import type { Mass, Fields } from "../../index.ts"
 import type { ProcessConfig, ActionFn } from "./load.t"
 
 /**

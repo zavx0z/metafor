@@ -1,5 +1,5 @@
 import type { FieldKey, MetaAST, MetaJson } from "@metafor/ast"
-import type { Mass } from "index.ts"
+import type { Mass } from "../../index.ts"
 import type {
   SharedDbData,
   SharedDbFieldSchemaRecord,
@@ -208,30 +208,12 @@ const appendMetaProcesses = (data: SharedDbData, meta: SharedDbMetaBundle, conte
   const processes = Object.entries(meta.processes ?? {})
 
   processes.forEach(([processKey, process], processOrder) => {
-    const record: SharedDbMetaProcessRecord = {
-      id: deriveUuid("meta-process", meta.id, processKey, processOrder),
-      ownerMetaId: meta.id,
-      processKey,
-      processOrder,
-      processKind: process.type,
-      ...(process.label !== undefined ? { label: process.label } : {}),
-      ...(process.desc !== undefined ? { desc: process.desc } : {}),
-      ...(process.action?.src !== undefined ? { actionSrc: process.action.src } : {}),
-      ...(process.action?.importSpecifier !== undefined
-        ? { actionImportSpecifier: process.action.importSpecifier }
-        : {}),
-      ...(process.success?.src !== undefined ? { successSrc: process.success.src } : {}),
-      ...(process.error?.src !== undefined ? { errorSrc: process.error.src } : {}),
-      ...(process.before?.src !== undefined ? { beforeSrc: process.before.src } : {}),
-    }
-
-    data.metaProcesses.push(record)
-
     const appendReads = (
+      record: SharedDbMetaProcessRecord,
       phase: SharedDbMetaProcessReadRecord["phase"],
-      reads: MetaJson[keyof MetaJson] | undefined,
+      reads: { read?: string[] } | undefined,
     ): void => {
-      if (!reads || typeof reads !== "object" || !("read" in reads) || !Array.isArray(reads.read)) return
+      if (!Array.isArray(reads?.read)) return
 
       reads.read.forEach((fieldKey, readOrder) => {
         data.metaProcessReads.push({
@@ -245,10 +227,11 @@ const appendMetaProcesses = (data: SharedDbData, meta: SharedDbMetaBundle, conte
     }
 
     const appendWrites = (
+      record: SharedDbMetaProcessRecord,
       phase: SharedDbMetaProcessWriteRecord["phase"],
-      writes: MetaJson[keyof MetaJson] | undefined,
+      writes: { write?: string[] } | undefined,
     ): void => {
-      if (!writes || typeof writes !== "object" || !("write" in writes) || !Array.isArray(writes.write)) return
+      if (!Array.isArray(writes?.write)) return
 
       writes.write.forEach((fieldKey, writeOrder) => {
         data.metaProcessWrites.push({
@@ -261,12 +244,43 @@ const appendMetaProcesses = (data: SharedDbData, meta: SharedDbMetaBundle, conte
       })
     }
 
-    appendReads("action", process.action)
-    appendReads("success", process.success)
-    appendReads("error", process.error)
-    appendReads("before", process.before)
-    appendWrites("success", process.success)
-    appendWrites("error", process.error)
+    if (process.type !== "finally") {
+      const record: SharedDbMetaProcessRecord = {
+        id: deriveUuid("meta-process", meta.id, processKey, processOrder),
+        ownerMetaId: meta.id,
+        processKey,
+        processOrder,
+        processKind: "action",
+        ...(process.label !== undefined ? { label: process.label } : {}),
+        ...(process.desc !== undefined ? { desc: process.desc } : {}),
+        actionSrc: process.action.src,
+        ...(process.action.importSpecifier !== undefined ? { actionImportSpecifier: process.action.importSpecifier } : {}),
+        ...(process.success?.src !== undefined ? { successSrc: process.success.src } : {}),
+        ...(process.error?.src !== undefined ? { errorSrc: process.error.src } : {}),
+      }
+
+      data.metaProcesses.push(record)
+      appendReads(record, "action", process.action)
+      appendReads(record, "success", process.success)
+      appendReads(record, "error", process.error)
+      appendWrites(record, "success", process.success)
+      appendWrites(record, "error", process.error)
+      return
+    }
+
+    const record: SharedDbMetaProcessRecord = {
+      id: deriveUuid("meta-process", meta.id, processKey, processOrder),
+      ownerMetaId: meta.id,
+      processKey,
+      processOrder,
+      processKind: "finally",
+      ...(process.label !== undefined ? { label: process.label } : {}),
+      ...(process.desc !== undefined ? { desc: process.desc } : {}),
+      beforeSrc: process.before.src,
+    }
+
+    data.metaProcesses.push(record)
+    appendReads(record, "before", process.before)
   })
 }
 

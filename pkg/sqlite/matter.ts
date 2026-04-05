@@ -1,9 +1,8 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL, MatterSchema, NodeType } from "../.."
+import type { MetaDSL, NodeType } from "../.."
 
 type BindingValue =
   | string
-  | boolean
   | {
       data?: string | string[]
       expr?: string
@@ -26,13 +25,6 @@ const insertBinding = (db: Database, src: string, value: BindingValue | undefine
     db.query(
       "INSERT INTO matter_binding (uuid, meta, binding_kind, literal_kind, literal_text) VALUES (?, ?, ?, ?, ?)",
     ).run(uuid, src, "static", "text", value)
-    return uuid
-  }
-
-  if (typeof value === "boolean") {
-    db.query(
-      "INSERT INTO matter_binding (uuid, meta, binding_kind, literal_kind, literal_boolean) VALUES (?, ?, ?, ?, ?)",
-    ).run(uuid, src, "static", "boolean", value ? 1 : 0)
     return uuid
   }
 
@@ -82,12 +74,12 @@ const resolveMatterEnumValues = (meta: MetaDSL, path: string): Array<string | nu
   const fieldKey = path.slice("/value/".length)
   const field = meta.fields?.[fieldKey]
   if (!field || field.type !== "enum") return []
-  return field.values ?? []
+  return [...(field.values ?? [])]
 }
 
 const resolveDynamicMetaSrcs = (
   meta: MetaDSL,
-  value: Exclude<BindingValue, string | boolean> | undefined,
+  value: Exclude<BindingValue, string> | undefined,
 ): string[] => {
   if (!value || typeof value !== "object") return []
 
@@ -276,8 +268,8 @@ export function relationMatter(
 ): void {
   if (!meta.matter) return
 
-  const matter = meta.matter as MatterSchema
-  matter.forEach((node, index) => {
+  const matter = meta.matter ?? []
+  matter.forEach((node: NodeType, index: number) => {
     projectParticleNode(db, meta, src, node, null, "root", index)
   })
 }

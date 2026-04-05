@@ -1,4 +1,4 @@
-import type { MatterBindingValue } from "@dark/types/dark"
+import type { MatterRelationBindingValue } from "@dark/types/dark"
 import type { FieldInit, WimpFields } from "@dark/types/strong"
 import { Wimp } from "./Wimp.ts"
 import { resolveNodeFieldInits } from "./fields.ts"
@@ -17,8 +17,8 @@ export interface WimpContinuationBuild {
 }
 
 export interface WimpContinuationTemplate {
-  fieldsBinding?: MatterBindingValue
-  massBinding?: MatterBindingValue
+  fieldsBinding?: MatterRelationBindingValue
+  massBinding?: MatterRelationBindingValue
 }
 
 /**

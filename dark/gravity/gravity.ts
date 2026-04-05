@@ -1,10 +1,10 @@
 import type { FieldsAST } from "@metafor/ast"
-import type { NodeMeta } from "index.ts"
+import type { NodeMeta } from "../../index.ts"
 
 const getFieldValues = (path: string, fields?: FieldsAST): Array<string | number> => {
   if (!fields || !path.startsWith("/value/")) return []
 
-  return fields[path.slice("/value/".length)]?.values ?? []
+  return [...(fields[path.slice("/value/".length)]?.values ?? [])]
 }
 
 const createContinuationSrc = (node: NodeMeta, value: string | number): string => {

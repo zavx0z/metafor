@@ -24,7 +24,7 @@ describe("Wimp", () => {
       name: "git-start",
       fieldSchemas: {
         operation: {
-          type: "enum<string>",
+          type: "enum",
           values: ["clone", "init"],
         },
         args: {
@@ -49,7 +49,7 @@ describe("Wimp", () => {
     expect(wimp.fields!.operation!.owner, "Field должен знать своего владельца").toBe(wimp)
     expect(wimp.fields!.operation!.metaField, "Field должен ссылаться на канонический `MetaField`").toBe(meta.fields.operation!)
     expect(wimp.fields!.operation!.schema, "Field должен хранить схему поля").toEqual({
-      type: "enum<string>",
+      type: "enum",
       values: ["clone", "init"],
     })
     expect(wimp.fields!.operation!.schema, "schema должна читаться из `MetaField`, а не жить копией в instance field").toBe(
