@@ -3,22 +3,22 @@ import { describe, expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createSharedDbFixture } from "fixture/db.fixture.ts"
-import { normalizeSharedDbData, readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
-import { openSharedDbMaterializationWriter } from "./materialize.ts"
-import { openSharedDbSqliteBackend } from "./sqlite.ts"
-import { assembleSharedDbData } from "fixture/dark.ts"
+import { createDbFixture } from "fixture/db.fixture.ts"
+import { normalizeDbData, readDbData, dbRequiredBackendIndexes } from "./backend.ts"
+import { openDbMaterializationWriter } from "./materialize.ts"
+import { openDbSqliteBackend } from "./sqlite.ts"
+import { assembleDbData } from "fixture/dark.ts"
 
 const createTempSqliteTarget = (): { dir: string; filename: string } => {
-  const dir = mkdtempSync(join(tmpdir(), "metafor-shared-db-"))
+  const dir = mkdtempSync(join(tmpdir(), "metafor-db-"))
   return {
     dir,
-    filename: join(dir, "shared-db.sqlite"),
+    filename: join(dir, "db.sqlite"),
   }
 }
 
-const materializeFixture = async (fixture = createSharedDbFixture(), backend = openSharedDbSqliteBackend()) => {
-  const writer = openSharedDbMaterializationWriter(backend)
+const materializeFixture = async (fixture = createDbFixture(), backend = openDbSqliteBackend()) => {
+  const writer = openDbMaterializationWriter(backend)
 
   await fixture.root.save(writer)
   await fixture.child.save(writer)
@@ -26,12 +26,12 @@ const materializeFixture = async (fixture = createSharedDbFixture(), backend = o
   return { fixture, backend }
 }
 
-describe("shared db sqlite backend", () => {
+describe("db sqlite backend", () => {
   test("создаёт canonical relational schema и SQL indexes", () => {
     const temp = createTempSqliteTarget()
 
     try {
-      const backend = openSharedDbSqliteBackend({ filename: temp.filename })
+      const backend = openDbSqliteBackend({ filename: temp.filename })
       backend.close()
 
       const database = new Database(temp.filename, { readonly: true })
@@ -85,7 +85,7 @@ describe("shared db sqlite backend", () => {
           "wimp_states",
           "wimps",
         ])
-        expect(indexes).toEqual(sharedDbRequiredBackendIndexes.map((index) => index.name).sort())
+        expect(indexes).toEqual(dbRequiredBackendIndexes.map((index) => index.name).sort())
 
         const wimpColumns = (
           database.query(`PRAGMA table_info(wimps)`).all() as Array<{ name: string }>
@@ -101,28 +101,28 @@ describe("shared db sqlite backend", () => {
 
   test("сохраняет canonical relational rows через row-group writes и перечитывает их после повторного открытия", async () => {
     const temp = createTempSqliteTarget()
-    const fixture = createSharedDbFixture()
-    const expected = await assembleSharedDbData(fixture.root)
+    const fixture = createDbFixture()
+    const expected = await assembleDbData(fixture.root)
 
     try {
-      const writer = openSharedDbSqliteBackend({ filename: temp.filename })
+      const writer = openDbSqliteBackend({ filename: temp.filename })
       await materializeFixture(fixture, writer)
       writer.close()
 
-      const reader = openSharedDbSqliteBackend({ filename: temp.filename })
+      const reader = openDbSqliteBackend({ filename: temp.filename })
       try {
-        const restored = readSharedDbData(reader)
-        expect(normalizeSharedDbData(restored)).toEqual(normalizeSharedDbData(expected))
+        const restored = readDbData(reader)
+        expect(normalizeDbData(restored)).toEqual(normalizeDbData(expected))
 
         await reader.setFieldValue(fixture.fields.childAlias!.id, "Alias via sqlite")
       } finally {
         reader.close()
       }
 
-      const reopened = openSharedDbSqliteBackend({ filename: temp.filename })
+      const reopened = openDbSqliteBackend({ filename: temp.filename })
       try {
         expect(
-          readSharedDbData(reopened).fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value,
+          readDbData(reopened).fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value,
         ).toBe("Alias via sqlite")
       } finally {
         reopened.close()

@@ -1,8 +1,8 @@
 import { bootBoundaryDomain } from "./boot.ts"
-import { openSharedDbIndexedDbBackend } from "../pkg/db/browser.ts"
+import { openDbIndexedDbBackend } from "../pkg/db/browser.ts"
 
 bootBoundaryDomain(() =>
-  openSharedDbIndexedDbBackend({
+  openDbIndexedDbBackend({
     databaseName: "metafor-web",
   }),
 )

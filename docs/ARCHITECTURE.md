@@ -75,8 +75,8 @@ At this stage:
 
 - `Dark` owns the canonical domain ORM and object graph,
 - `shared/orm` is reserved for generic ORM-level abstractions that are not yet owned by a specific domain,
-- `shared/db` owns the canonical relational DB model and DB helper API,
-- `Dark` owns the export of its object graph into canonical `SharedDbData`,
+- `pkg/db` owns the canonical relational DB model and DB helper API,
+- `Dark` owns the export of its object graph into canonical `DbData`,
 - CPU-side derived adapters, lookups, grouping, projections, and runtime preparation are rebuilt in memory after reading the relational DB,
 - `Boundary` consumes that canonical DB data through its own derived database API and does not become the owner of the shared DB contract.
 

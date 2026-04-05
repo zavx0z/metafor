@@ -1,22 +1,22 @@
 export {
-  createEmptySharedDbData,
-  createSharedDbEntanglementFamilyId,
-  normalizeSharedDbData,
-  openSharedDbMaterializationWriter,
-  readSharedDbData,
-  sharedDbRequiredBackendIndexes,
+  createEmptyDbData,
+  createDbEntanglementFamilyId,
+  dbRequiredBackendIndexes,
+  normalizeDbData,
+  openDbMaterializationWriter,
+  readDbData,
 } from "./core.ts"
 export type {
-  SharedDbBackend,
-  SharedDbData,
-  SharedDbEntanglementFamilyRows,
-  SharedDbMaterializationWriter,
-  SharedDbMetaBundle,
-  SharedDbMetaFieldBundle,
-  SharedDbMetaRows,
-  SharedDbWimpBundle,
-  SharedDbWimpFieldBundle,
-  SharedDbWimpRows,
+  DbBackend,
+  DbData,
+  DbEntanglementFamilyRows,
+  DbMaterializationWriter,
+  DbMetaBundle,
+  DbMetaFieldBundle,
+  DbMetaRows,
+  DbWimpBundle,
+  DbWimpFieldBundle,
+  DbWimpRows,
 } from "./core.ts"
-export { initializeSharedDbSqliteSchema, openSharedDbSqliteBackend } from "./sqlite.ts"
-export type { SharedDbSqliteBackendOptions } from "./sqlite.ts"
+export { initializeDbSqliteSchema, openDbSqliteBackend } from "./sqlite.ts"
+export type { DbSqliteBackendOptions } from "./sqlite.ts"

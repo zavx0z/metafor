@@ -1,11 +1,11 @@
 import { Wimp } from "@dark/strong"
 import type { DarkParticle } from "@dark/types"
-import { openSharedDbMaterializationWriter, openSharedDbSqliteBackend, type SharedDbData } from "@shared/db"
+import { openDbMaterializationWriter, openDbSqliteBackend, type DbData } from "../pkg/db/index.ts"
 
 /**
  * Собирает плоский список всех `Wimp`, достижимых от корня.
  *
- * Обход идёт по `children`, поэтому в shared/db попадают только уже materialized
+ * Обход идёт по `children`, поэтому в DB попадают только уже materialized
  * частицы, а topology-частицы служат мостами к дочерним `Wimp`.
  */
 const collectReachableWimps = (root: Wimp): Wimp[] => {
@@ -33,14 +33,14 @@ const collectReachableWimps = (root: Wimp): Wimp[] => {
 }
 
 /**
- * Легаси-helper для сравнения canonical shared/db rows в тестах и отладке.
+ * Легаси-helper для сравнения canonical DB rows в тестах и отладке.
  *
  * Helper использует тот же row-group writer, что и активный storage flow, чтобы
  * не поддерживать второй путь materialization ради тестов.
  */
-export const assembleSharedDbData = async (root: Wimp): Promise<SharedDbData> => {
-  const backend = openSharedDbSqliteBackend()
-  const writer = openSharedDbMaterializationWriter(backend)
+export const assembleDbData = async (root: Wimp): Promise<DbData> => {
+  const backend = openDbSqliteBackend()
+  const writer = openDbMaterializationWriter(backend)
 
   try {
     for (const wimp of collectReachableWimps(root)) {

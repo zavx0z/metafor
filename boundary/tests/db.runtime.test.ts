@@ -1,23 +1,23 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test"
 import { materializeFields, Meta, Wimp } from "@dark/strong"
-import { openSharedDbMaterializationWriter, openSharedDbSqliteBackend } from "@shared/db"
+import { openDbMaterializationWriter, openDbSqliteBackend } from "../../pkg/db/index.ts"
 import { HubFixture } from "fixture"
 import { matter } from "../../dark/index.ts"
-import { createSharedDbFixture } from "fixture/db.fixture.ts"
+import { createDbFixture } from "fixture/db.fixture.ts"
 import { dark$ } from "../../dark/store.ts"
 import {
   addRuntimeWimp,
-  applyStructuralPatchFromSharedDb,
+  applyStructuralPatchFromDb,
   boundary$,
   gravity$,
   listRuntimeWimpIds,
-  prepareRuntimeFromSharedDb,
+  prepareRuntimeFromDb,
   rebuildRuntime,
   setValues,
   strong$,
   unlock,
   update,
-  writeRuntimeFromSharedDb,
+  writeRuntimeFromDb,
 } from "../boundary.ts"
 import { resetBoundaryForTest } from "./test.helper"
 import { weak$ } from "../weak"
@@ -41,19 +41,19 @@ const normalizeRuntimeFields = (fields: typeof boundary$.fields): string[] =>
     )
     .sort()
 
-const materializeGithubWorldToSharedDb = async () => {
-  const backend = openSharedDbSqliteBackend()
-  const writer = openSharedDbMaterializationWriter(backend)
+const materializeGithubWorldToDb = async () => {
+  const backend = openDbSqliteBackend()
+  const writer = openDbMaterializationWriter(backend)
 
-  await matter(new Wimp({ src: "zavx0z/git", parent: null }), undefined, { sharedDbWriter: writer })
+  await matter(new Wimp({ src: "zavx0z/git", parent: null }), undefined, { dbWriter: writer })
 
   return backend
 }
 
-const materializeFixtureToSharedDb = async () => {
-  const fixture = createSharedDbFixture()
-  const backend = openSharedDbSqliteBackend()
-  const writer = openSharedDbMaterializationWriter(backend)
+const materializeFixtureToDb = async () => {
+  const fixture = createDbFixture()
+  const backend = openDbSqliteBackend()
+  const writer = openDbMaterializationWriter(backend)
 
   await fixture.root.save(writer)
   await fixture.child.save(writer)
@@ -61,7 +61,7 @@ const materializeFixtureToSharedDb = async () => {
   return { fixture, backend }
 }
 
-const materializeIndependentRootsToSharedDb = async () => {
+const materializeIndependentRootsToDb = async () => {
   const meta = new Meta({
     src: "meta/runtime-index-shift",
     fieldSchemas: {
@@ -78,8 +78,8 @@ const materializeIndependentRootsToSharedDb = async () => {
   const alpha = createRoot("alpha")
   const beta = createRoot("beta")
   const gamma = createRoot("gamma")
-  const backend = openSharedDbSqliteBackend()
-  const writer = openSharedDbMaterializationWriter(backend)
+  const backend = openDbSqliteBackend()
+  const writer = openDbMaterializationWriter(backend)
 
   await alpha.save(writer)
   await beta.save(writer)
@@ -88,7 +88,7 @@ const materializeIndependentRootsToSharedDb = async () => {
   return { backend, wimps: { alpha, beta, gamma } }
 }
 
-describe("boundary runtime from shared/db backend", () => {
+describe("boundary runtime from db backend", () => {
   beforeAll(async () => {
     await hub.setup()
   })
@@ -103,12 +103,12 @@ describe("boundary runtime from shared/db backend", () => {
     await hub.teardown()
   })
 
-  test("публичный boundary API читает shared/db backend, собранный прямо из matter materialization", async () => {
-    const backend = await materializeGithubWorldToSharedDb()
+  test("публичный boundary API читает db backend, собранный прямо из matter materialization", async () => {
+    const backend = await materializeGithubWorldToDb()
 
     try {
       const sharedData = backend.readData()
-      const prepared = prepareRuntimeFromSharedDb(backend)
+      const prepared = prepareRuntimeFromDb(backend)
 
       expect(sharedData.metas.some((meta) => meta.id === "zavx0z/git")).toBe(true)
       expect(sharedData.wimps.length).toBeGreaterThan(0)
@@ -122,14 +122,14 @@ describe("boundary runtime from shared/db backend", () => {
     }
   })
 
-  test("проходит путь AST -> shared/db backend -> unified boundary runtime API -> weak", async () => {
-    const backend = await materializeGithubWorldToSharedDb()
+  test("проходит путь AST -> db backend -> unified boundary runtime API -> weak", async () => {
+    const backend = await materializeGithubWorldToDb()
 
     try {
       const sharedData = backend.readData()
-      const prepared = prepareRuntimeFromSharedDb(backend)
+      const prepared = prepareRuntimeFromDb(backend)
 
-      const changes = await writeRuntimeFromSharedDb(backend)
+      const changes = await writeRuntimeFromDb(backend)
       expect(changes).toEqual([])
       expect(weak$.initialized).toBe(true)
       expect(gravity$.structuralDirty).toBe(false)
@@ -146,27 +146,27 @@ describe("boundary runtime from shared/db backend", () => {
   })
 
   test("structural add/remove сначала мутируют gravity$, а barrier patch потом пересобирает boundary$", async () => {
-    const { fixture, backend } = await materializeFixtureToSharedDb()
+    const { fixture, backend } = await materializeFixtureToDb()
 
     try {
       expect(listRuntimeWimpIds()).toEqual([])
       expect(boundary$.branes).toEqual([])
       expect(gravity$.wimpIdToBraneIndex.size).toBe(0)
 
-      const addRootChanges = await applyStructuralPatchFromSharedDb(backend, { op: "add", path: `/wimp/${fixture.root.id}` })
+      const addRootChanges = await applyStructuralPatchFromDb(backend, { op: "add", path: `/wimp/${fixture.root.id}` })
       expect(addRootChanges).toEqual([])
       expect(listRuntimeWimpIds()).toEqual([fixture.root.id])
       expect(gravity$.structuralDirty).toBe(true)
       expect(boundary$.branes).toEqual([])
       expect(weak$.initialized).toBe(false)
 
-      const addChildChanges = await applyStructuralPatchFromSharedDb(backend, { op: "add", path: `/wimp/${fixture.child.id}` })
+      const addChildChanges = await applyStructuralPatchFromDb(backend, { op: "add", path: `/wimp/${fixture.child.id}` })
       expect(addChildChanges).toEqual([])
       expect(listRuntimeWimpIds()).toEqual([fixture.root.id, fixture.child.id])
       expect(gravity$.structuralDirty).toBe(true)
       expect(boundary$.branes).toEqual([])
 
-      const initialChanges = await applyStructuralPatchFromSharedDb(backend, { op: "test", path: "", value: {} })
+      const initialChanges = await applyStructuralPatchFromDb(backend, { op: "test", path: "", value: {} })
       expect(initialChanges).toEqual([])
       expect(weak$.initialized).toBe(true)
       expect(gravity$.structuralDirty).toBe(false)
@@ -178,7 +178,7 @@ describe("boundary runtime from shared/db backend", () => {
       expect(boundary$.sharedBlocks).toHaveLength(1)
       expect(boundary$.braneSharedBlockRefs).toEqual([0, 0])
 
-      const removeChildChanges = await applyStructuralPatchFromSharedDb(backend, {
+      const removeChildChanges = await applyStructuralPatchFromDb(backend, {
         op: "remove",
         path: `/wimp/${fixture.child.id}`,
       })
@@ -190,7 +190,7 @@ describe("boundary runtime from shared/db backend", () => {
       expect(boundary$.branes).toHaveLength(2)
       expect(boundary$.sharedBlocks).toHaveLength(1)
 
-      const removalChanges = await applyStructuralPatchFromSharedDb(backend, { op: "test", path: "", value: null })
+      const removalChanges = await applyStructuralPatchFromDb(backend, { op: "test", path: "", value: null })
       expect(removalChanges).toEqual([])
       expect(gravity$.structuralDirty).toBe(false)
       expect(boundary$.branes).toHaveLength(1)
@@ -203,19 +203,19 @@ describe("boundary runtime from shared/db backend", () => {
   })
 
   test("uuid остаётся стабильным, а braneIndex может измениться после следующего rebuild", async () => {
-    const { backend, wimps } = await materializeIndependentRootsToSharedDb()
+    const { backend, wimps } = await materializeIndependentRootsToDb()
 
     try {
-      await applyStructuralPatchFromSharedDb(backend, { op: "add", path: `/wimp/${wimps.beta.id}` })
-      await applyStructuralPatchFromSharedDb(backend, { op: "add", path: `/wimp/${wimps.gamma.id}` })
-      await applyStructuralPatchFromSharedDb(backend, { op: "test", path: "", value: "" })
+      await applyStructuralPatchFromDb(backend, { op: "add", path: `/wimp/${wimps.beta.id}` })
+      await applyStructuralPatchFromDb(backend, { op: "add", path: `/wimp/${wimps.gamma.id}` })
+      await applyStructuralPatchFromDb(backend, { op: "test", path: "", value: "" })
 
       expect(boundary$.branes).toHaveLength(2)
       expect(gravity$.getBraneIndex(wimps.beta.id)).toBe(0)
       expect(gravity$.getBraneIndex(wimps.gamma.id)).toBe(1)
 
-      await applyStructuralPatchFromSharedDb(backend, { op: "remove", path: `/wimp/${wimps.beta.id}` })
-      await applyStructuralPatchFromSharedDb(backend, { op: "test", path: "", value: {} })
+      await applyStructuralPatchFromDb(backend, { op: "remove", path: `/wimp/${wimps.beta.id}` })
+      await applyStructuralPatchFromDb(backend, { op: "test", path: "", value: {} })
 
       expect(boundary$.branes).toHaveLength(1)
       expect(gravity$.getBraneIndex(wimps.gamma.id)).toBe(0)
@@ -226,16 +226,16 @@ describe("boundary runtime from shared/db backend", () => {
   })
 
   test("barrier patch при structuralDirty = false ничего не пересобирает и не меняет адресацию", async () => {
-    const { backend } = await materializeFixtureToSharedDb()
+    const { backend } = await materializeFixtureToDb()
 
     try {
-      await writeRuntimeFromSharedDb(backend)
+      await writeRuntimeFromDb(backend)
 
       const previousBraneIds = [...gravity$.braneIndexToWimpId]
       const previousStates = [...boundary$.states]
       const previousStringTable = [...boundary$.stringTable]
 
-      const changes = await applyStructuralPatchFromSharedDb(backend, { op: "test", path: "", value: null })
+      const changes = await applyStructuralPatchFromDb(backend, { op: "test", path: "", value: null })
       expect(changes).toEqual([])
       expect(gravity$.structuralDirty).toBe(false)
       expect(gravity$.braneIndexToWimpId).toEqual(previousBraneIds)
@@ -248,7 +248,7 @@ describe("boundary runtime from shared/db backend", () => {
   })
 
   test("ordinary runtime update и unlock продолжают работать после gravity/barrier rebuild", async () => {
-    const { fixture, backend } = await materializeFixtureToSharedDb()
+    const { fixture, backend } = await materializeFixtureToDb()
 
     try {
       addRuntimeWimp(fixture.root.id)
@@ -286,7 +286,7 @@ describe("boundary runtime from shared/db backend", () => {
       expect(persisted.wimpStates.find((row) => row.ownerWimpId === fixture.root.id)?.metaStateId).toBe(rootReadyStateId)
       expect(persisted.wimpStates.find((row) => row.ownerWimpId === fixture.child.id)?.metaStateId).toBe(childReadyStateId)
 
-      await writeRuntimeFromSharedDb(backend)
+      await writeRuntimeFromDb(backend)
       expect(boundary$.states[rootBraneIndex!]).toBe(1)
       expect(boundary$.states[childBraneIndex!]).toBe(1)
 
@@ -301,10 +301,10 @@ describe("boundary runtime from shared/db backend", () => {
   })
 
   test("setValues принимает UUID-addressed field updates и резолвит их через strong$", async () => {
-    const { fixture, backend } = await materializeFixtureToSharedDb()
+    const { fixture, backend } = await materializeFixtureToDb()
 
     try {
-      await writeRuntimeFromSharedDb(backend)
+      await writeRuntimeFromDb(backend)
 
       expect(strong$.runtimeFieldIndexByWimpFieldId.get(fixture.fields.childAlias!.id)).toBeDefined()
       expect(strong$.braneIndexByWimpFieldId.get(fixture.fields.childAlias!.id)).toBeDefined()

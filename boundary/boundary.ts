@@ -8,9 +8,9 @@
  * - `write()` — запись канонической boundary-структуры в доменный store
  * - `gravity$` — долгоживущая UUID-композиция и адресация runtime
  * - `addRuntimeWimp()` / `removeRuntimeWimp()` — мутация composition-слоя без немедленного rebuild
- * - `applyStructuralPatchFromSharedDb()` — обработка UUID-addressed structural patch и barrier
+ * - `applyStructuralPatchFromDb()` — обработка UUID-addressed structural patch и barrier
  * - `rebuildRuntime()` — транзакционная пересборка derived runtime из текущей composition в `gravity$`
- * - `update()` — обновление полей, вычисление следующего перехода и write-back в bound shared/db backend
+ * - `update()` — обновление полей, вычисление следующего перехода и write-back в bound DB backend
  * - `applyWeakResultPacket()` / `subscribeBoundaryWeakResultBroadcast()` — приём единого W-result envelope и unlock после apply
  * - `unlock()` — снятие блокировки с бран
  *
@@ -20,7 +20,7 @@
  * `@boundary/gravity`, собирает канонический store через `@boundary/strong`
  * и оркестрирует вычисление перехода через `@boundary/weak`.
  *
- * Поверх `shared/db` Boundary держит два разных слоя:
+ * Поверх DB Boundary держит два разных слоя:
  * - `gravity$` — composition/addressing слой, который владеет UUID-набором и
  *   текущим соответствием `uuid <-> braneIndex`,
  * - `boundary$` — derived materialized runtime store, который пересобирается
@@ -40,17 +40,17 @@ import type { PreparedData } from "./boundary.t"
 import {
   prepareBoundaryRuntimeData,
   prepareBoundaryRuntimeForceData,
-  prepareBoundaryRuntimeLoadedFragmentFromSharedDbOperational,
+  prepareBoundaryRuntimeLoadedFragmentFromDbOperational,
   prepareBoundaryRuntimeStore,
-  prepareBoundaryRuntimeStoreFromSharedDb,
+  prepareBoundaryRuntimeStoreFromDb,
 } from "./database"
-import type { BoundarySharedDbRuntimeOptions } from "./database.t"
+import type { BoundaryDbRuntimeOptions } from "./database.t"
 import { flattenBoundaryData, validateData, type Data } from "@boundary/gravity"
 import { FieldType } from "@boundary/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData, strong$ } from "@boundary/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import type { WeakHeapUpdate } from "./weak/weak.t"
-import { createEmptySharedDbData, type SharedDbBackend, type SharedDbData } from "../pkg/db/core.ts"
+import { createEmptyDbData, type DbBackend, type DbData } from "../pkg/db/core.ts"
 import {
   isGluonMessage,
   isGravitonMessage,
@@ -86,8 +86,8 @@ type AsyncGate = {
 const writeGate: AsyncGate = { pending: null }
 const updateGate: AsyncGate = { pending: null }
 /** Последний успешно materialized runtime-fragment, соответствующий текущему `boundary$`. */
-let loadedRuntimeFragment: SharedDbData = createEmptySharedDbData()
-let activeSharedDbBackend: SharedDbBackend | null = null
+let loadedRuntimeFragment: DbData = createEmptyDbData()
+let activeDbBackend: DbBackend | null = null
 let electromagnetismChannel: BroadcastChannel | null = null
 let electromagnetismChannelName: string | undefined
 const WIMP_PATCH_PATH_PREFIX = "/wimp/"
@@ -176,7 +176,7 @@ const applyPreparedData = (prepared: PreparedData): void => {
   boundary$.stateNames = prepared.stateNames
 }
 
-const collectRuntimeWimpIdsInBraneOrder = (fragment: SharedDbData): string[] =>
+const collectRuntimeWimpIdsInBraneOrder = (fragment: DbData): string[] =>
   [...fragment.wimps].sort((left, right) => left.wimpOrder - right.wimpOrder).map((row) => row.id)
 
 const clearGravityComposition = (): void => {
@@ -191,23 +191,23 @@ const replaceGravityComposition = (wimpIds: Iterable<string>): void => {
   gravity$.structuralDirty = true
 }
 
-const refreshGravityAddressing = (fragment: SharedDbData): void => {
+const refreshGravityAddressing = (fragment: DbData): void => {
   const orderedWimpIds = collectRuntimeWimpIdsInBraneOrder(fragment)
   gravity$.wimpIdToBraneIndex = new Map(orderedWimpIds.map((wimpId, braneIndex) => [wimpId, braneIndex] as const))
   gravity$.braneIndexToWimpId = orderedWimpIds
 }
 
 const clearLoadedRuntimeState = (): void => {
-  loadedRuntimeFragment = createEmptySharedDbData()
+  loadedRuntimeFragment = createEmptyDbData()
   clearGravityComposition()
-  activeSharedDbBackend = null
+  activeDbBackend = null
   strong$.reset()
   weak$.stateMetaStateIdsByBraneIndex = []
   weak$.stateProcessIdsByBraneIndex = []
 }
 
-const bindRuntimePersistence = (backend: SharedDbBackend): void => {
-  activeSharedDbBackend = backend
+const bindRuntimePersistence = (backend: DbBackend): void => {
+  activeDbBackend = backend
 }
 
 const requireRuntimeFieldAddress = (wimpFieldId: string): [braneIndex: number, runtimeFieldIndex: number] => {
@@ -354,7 +354,7 @@ const requireFieldPatchId = (path: string): string => {
   return wimpFieldId
 }
 
-const applyRuntimeForceData = (fragment: SharedDbData): void => {
+const applyRuntimeForceData = (fragment: DbData): void => {
   const forceData = prepareBoundaryRuntimeForceData(fragment)
   strong$.runtimeFieldIndexByWimpFieldId = forceData.runtimeFieldIndexByWimpFieldId
   strong$.wimpFieldIdsByRuntimeFieldIndex = forceData.wimpFieldIdsByRuntimeFieldIndex
@@ -371,8 +371,8 @@ const getCurrentBraneProcessId = (braneIndex: number): string | undefined => {
 }
 
 const rebuildRuntimeFromFragment = async (
-  fragment: SharedDbData,
-  options: BoundarySharedDbRuntimeOptions,
+  fragment: DbData,
+  options: BoundaryDbRuntimeOptions,
 ): Promise<[number, number][]> => {
   const prepared =
     fragment.wimps.length === 0 ? createEmptyPreparedData() : prepareBoundaryRuntimeStore(fragment, options)
@@ -387,7 +387,7 @@ const rebuildRuntimeFromFragment = async (
 }
 
 const persistRuntimeChanges = async (changes: [number, number][], weakUpdates: WeakHeapUpdate[]): Promise<void> => {
-  const backend = activeSharedDbBackend
+  const backend = activeDbBackend
   if (!backend) return
 
   const nextFieldValues = new Map<number, unknown>()
@@ -435,19 +435,19 @@ export function prepareData(data: Data): PreparedData {
   return assembleStoredBoundaryData(flattenBoundaryData(data))
 }
 
-export function prepareRuntimeData(data: SharedDbData, options: BoundarySharedDbRuntimeOptions = {}): Data {
+export function prepareRuntimeData(data: DbData, options: BoundaryDbRuntimeOptions = {}): Data {
   return prepareBoundaryRuntimeData(data, options)
 }
 
-export function prepareRuntimeStore(data: SharedDbData, options: BoundarySharedDbRuntimeOptions = {}): PreparedData {
+export function prepareRuntimeStore(data: DbData, options: BoundaryDbRuntimeOptions = {}): PreparedData {
   return prepareBoundaryRuntimeStore(data, options)
 }
 
-export function prepareRuntimeFromSharedDb(
-  backend: SharedDbBackend,
-  options: BoundarySharedDbRuntimeOptions = {},
+export function prepareRuntimeFromDb(
+  backend: DbBackend,
+  options: BoundaryDbRuntimeOptions = {},
 ): PreparedData {
-  return prepareBoundaryRuntimeStoreFromSharedDb(backend, options)
+  return prepareBoundaryRuntimeStoreFromDb(backend, options)
 }
 
 export function listRuntimeWimpIds(): string[] {
@@ -478,26 +478,26 @@ export async function write(data: Data): Promise<[number, number][]> {
   return await writePreparedData(assembleStoredBoundaryData(flattenBoundaryData(data)))
 }
 
-export async function writeRuntimeFromSharedDb(
-  backend: SharedDbBackend,
-  options: BoundarySharedDbRuntimeOptions = {},
+export async function writeRuntimeFromDb(
+  backend: DbBackend,
+  options: BoundaryDbRuntimeOptions = {},
 ): Promise<[number, number][]> {
-  const fragment = await prepareBoundaryRuntimeLoadedFragmentFromSharedDbOperational(backend)
+  const fragment = await prepareBoundaryRuntimeLoadedFragmentFromDbOperational(backend)
   replaceGravityComposition(collectRuntimeWimpIdsInBraneOrder(fragment))
   bindRuntimePersistence(backend)
   return await rebuildRuntimeFromFragment(fragment, options)
 }
 
 export async function rebuildRuntime(
-  backend: SharedDbBackend,
-  options: BoundarySharedDbRuntimeOptions = {},
+  backend: DbBackend,
+  options: BoundaryDbRuntimeOptions = {},
 ): Promise<[number, number][]> {
   if (!gravity$.structuralDirty) {
     // Barrier без structural изменений не трогает materialized runtime и addressing.
     return []
   }
 
-  const nextFragment = await prepareBoundaryRuntimeLoadedFragmentFromSharedDbOperational(
+  const nextFragment = await prepareBoundaryRuntimeLoadedFragmentFromDbOperational(
     backend,
     gravity$.activeWimpIds,
   )
@@ -506,10 +506,10 @@ export async function rebuildRuntime(
 }
 
 export function subscribeBoundaryGravityBroadcast(
-  backend: SharedDbBackend,
-  options: ProtocolChannelOptions & BoundarySharedDbRuntimeOptions = {},
+  backend: DbBackend,
+  options: ProtocolChannelOptions & BoundaryDbRuntimeOptions = {},
 ): BoundaryGravityBroadcastSubscription {
-  const runtimeOptions: BoundarySharedDbRuntimeOptions = {}
+  const runtimeOptions: BoundaryDbRuntimeOptions = {}
   if (options.entanglement !== undefined) {
     runtimeOptions.entanglement = options.entanglement
   }
@@ -519,7 +519,7 @@ export function subscribeBoundaryGravityBroadcast(
     if (message.source !== "dark") return
 
     for (const patch of message.patches) {
-      await applyStructuralPatchFromSharedDb(backend, patch, runtimeOptions)
+      await applyStructuralPatchFromDb(backend, patch, runtimeOptions)
     }
   })
 }
@@ -532,10 +532,10 @@ export function removeRuntimeWimp(wimpId: string): void {
   removeRuntimeWimpFromGravity(wimpId)
 }
 
-export async function applyStructuralPatchFromSharedDb(
-  backend: SharedDbBackend,
+export async function applyStructuralPatchFromDb(
+  backend: DbBackend,
   patch: BoundaryStructuralPatch,
-  options: BoundarySharedDbRuntimeOptions = {},
+  options: BoundaryDbRuntimeOptions = {},
 ): Promise<[number, number][]> {
   if (patch.op === "add") {
     addRuntimeWimpToGravity(requireWimpPatchId(patch.path))

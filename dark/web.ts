@@ -1,9 +1,9 @@
-import { openSharedDbIndexedDbBackend } from "../pkg/db/browser.ts"
+import { openDbIndexedDbBackend } from "../pkg/db/browser.ts"
 import { matter } from "./index.ts"
 import { Wimp } from "./strong/index.ts"
-import { openSharedDbMaterializationWriter } from "../pkg/db/core.ts"
+import { openDbMaterializationWriter } from "../pkg/db/core.ts"
 
-const db = await openSharedDbIndexedDbBackend({ databaseName: "metafor-web" })
-const writer = openSharedDbMaterializationWriter(db)
+const db = await openDbIndexedDbBackend({ databaseName: "metafor-web" })
+const writer = openDbMaterializationWriter(db)
 
-await matter(new Wimp({ src: "zavx0z/git", parent: null }), undefined, { sharedDbWriter: writer })
+await matter(new Wimp({ src: "zavx0z/git", parent: null }), undefined, { dbWriter: writer })

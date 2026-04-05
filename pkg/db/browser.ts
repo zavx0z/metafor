@@ -1,22 +1,22 @@
 export {
-  createEmptySharedDbData,
-  createSharedDbEntanglementFamilyId,
-  normalizeSharedDbData,
-  openSharedDbMaterializationWriter,
-  readSharedDbData,
-  sharedDbRequiredBackendIndexes,
+  createEmptyDbData,
+  createDbEntanglementFamilyId,
+  dbRequiredBackendIndexes,
+  normalizeDbData,
+  openDbMaterializationWriter,
+  readDbData,
 } from "./core.ts"
 export type {
-  SharedDbBackend,
-  SharedDbData,
-  SharedDbEntanglementFamilyRows,
-  SharedDbMaterializationWriter,
-  SharedDbMetaBundle,
-  SharedDbMetaFieldBundle,
-  SharedDbMetaRows,
-  SharedDbWimpBundle,
-  SharedDbWimpFieldBundle,
-  SharedDbWimpRows,
+  DbBackend,
+  DbData,
+  DbEntanglementFamilyRows,
+  DbMaterializationWriter,
+  DbMetaBundle,
+  DbMetaFieldBundle,
+  DbMetaRows,
+  DbWimpBundle,
+  DbWimpFieldBundle,
+  DbWimpRows,
 } from "./core.ts"
-export { inspectSharedDbIndexedDbSchema, openSharedDbIndexedDbBackend } from "./idb.ts"
-export type { SharedDbIndexedDbBackend, SharedDbIndexedDbBackendOptions } from "./idb.ts"
+export { inspectDbIndexedDbSchema, openDbIndexedDbBackend } from "./idb.ts"
+export type { DbIndexedDbBackend, DbIndexedDbBackendOptions } from "./idb.ts"

@@ -6,7 +6,7 @@ import type { Mass } from "../../index.ts"
  *
  * Схема живёт на meta-level и затем переиспользуется instance-level сущностями через FK.
  */
-export interface SharedDbFieldSchemaRecord {
+export interface DbFieldSchemaRecord {
   type: string
   required: boolean
   topology: boolean
@@ -14,7 +14,7 @@ export interface SharedDbFieldSchemaRecord {
   values?: readonly (string | number)[]
 }
 
-export interface SharedDbMetaRecord {
+export interface DbMetaRecord {
   id: string
   src: string
   name?: string
@@ -22,15 +22,15 @@ export interface SharedDbMetaRecord {
   mass?: MetaAST["mass"] | Mass
 }
 
-export interface SharedDbMetaFieldRecord {
+export interface DbMetaFieldRecord {
   id: string
   ownerMetaId: string
   fieldKey: FieldKey
   fieldOrder: number
-  schema: SharedDbFieldSchemaRecord
+  schema: DbFieldSchemaRecord
 }
 
-export interface SharedDbMetaStateRecord {
+export interface DbMetaStateRecord {
   id: string
   ownerMetaId: string
   stateName: string
@@ -38,14 +38,14 @@ export interface SharedDbMetaStateRecord {
   initial: boolean
 }
 
-export interface SharedDbMetaTransitionRecord {
+export interface DbMetaTransitionRecord {
   id: string
   ownerMetaStateId: string
   targetMetaStateId: string | null
   transitionOrder: number
 }
 
-export interface SharedDbMetaTransitionConditionRecord {
+export interface DbMetaTransitionConditionRecord {
   id: string
   ownerMetaTransitionId: string
   metaFieldId: string
@@ -53,7 +53,7 @@ export interface SharedDbMetaTransitionConditionRecord {
   condition: unknown
 }
 
-export interface SharedDbMetaProcessRecord {
+export interface DbMetaProcessRecord {
   id: string
   ownerMetaId: string
   processKey: string
@@ -68,7 +68,7 @@ export interface SharedDbMetaProcessRecord {
   beforeSrc?: string
 }
 
-export interface SharedDbMetaProcessReadRecord {
+export interface DbMetaProcessReadRecord {
   id: string
   ownerMetaProcessId: string
   metaFieldId: string
@@ -76,7 +76,7 @@ export interface SharedDbMetaProcessReadRecord {
   readOrder: number
 }
 
-export interface SharedDbMetaProcessWriteRecord {
+export interface DbMetaProcessWriteRecord {
   id: string
   ownerMetaProcessId: string
   metaFieldId: string
@@ -84,7 +84,7 @@ export interface SharedDbMetaProcessWriteRecord {
   writeOrder: number
 }
 
-export interface SharedDbMetaReactionRecord {
+export interface DbMetaReactionRecord {
   id: string
   ownerMetaId: string
   reactionKey: string
@@ -95,28 +95,28 @@ export interface SharedDbMetaReactionRecord {
   src: string
 }
 
-export interface SharedDbMetaReactionStateRecord {
+export interface DbMetaReactionStateRecord {
   id: string
   ownerMetaReactionId: string
   metaStateId: string
   stateOrder: number
 }
 
-export interface SharedDbMetaReactionReadRecord {
+export interface DbMetaReactionReadRecord {
   id: string
   ownerMetaReactionId: string
   metaFieldId: string
   readOrder: number
 }
 
-export interface SharedDbMetaReactionWriteRecord {
+export interface DbMetaReactionWriteRecord {
   id: string
   ownerMetaReactionId: string
   metaFieldId: string
   writeOrder: number
 }
 
-export interface SharedDbMetaMatterNodeRecord {
+export interface DbMetaMatterNodeRecord {
   id: string
   ownerMetaId: string
   nodeType: string
@@ -124,7 +124,7 @@ export interface SharedDbMetaMatterNodeRecord {
   payload: Record<string, unknown>
 }
 
-export interface SharedDbMetaMatterEdgeRecord {
+export interface DbMetaMatterEdgeRecord {
   id: string
   ownerMetaId: string
   parentNodeId: string | null
@@ -132,59 +132,59 @@ export interface SharedDbMetaMatterEdgeRecord {
   edgeOrder: number
 }
 
-export interface SharedDbWimpRecord {
+export interface DbWimpRecord {
   id: string
   metaId: string
   wimpOrder: number
   massOverride?: unknown
 }
 
-export interface SharedDbWimpFieldRecord {
+export interface DbWimpFieldRecord {
   id: string
   ownerWimpId: string
   metaFieldId: string
   fieldOrder: number
 }
 
-export interface SharedDbWimpEdgeRecord {
+export interface DbWimpEdgeRecord {
   id: string
   parentWimpId: string | null
   childWimpId: string
   edgeOrder: number
 }
 
-export interface SharedDbFieldValueRecord {
+export interface DbFieldValueRecord {
   id: string
   ownerWimpFieldId: string
   value: unknown
 }
 
-export interface SharedDbFieldSourceRecord {
+export interface DbFieldSourceRecord {
   id: string
   childWimpFieldId: string
   parentWimpFieldId: string
 }
 
-export interface SharedDbWimpStateRecord {
+export interface DbWimpStateRecord {
   id: string
   ownerWimpId: string
   metaStateId: string
 }
 
-export interface SharedDbEntanglementRecord {
+export interface DbEntanglementRecord {
   id: string
   membershipKey: string
   provenance: string
 }
 
-export interface SharedDbEntanglementMemberRecord {
+export interface DbEntanglementMemberRecord {
   id: string
   ownerEntanglementId: string
   wimpId: string
   memberOrder: number
 }
 
-export interface SharedDbEntanglementFieldRecord {
+export interface DbEntanglementFieldRecord {
   id: string
   ownerEntanglementId: string
   fieldOrder: number
@@ -196,7 +196,7 @@ export interface SharedDbEntanglementFieldRecord {
   semanticKeys: string[]
 }
 
-export interface SharedDbEntanglementFieldMemberRecord {
+export interface DbEntanglementFieldMemberRecord {
   id: string
   ownerEntanglementFieldId: string
   ownerWimpId: string
@@ -205,34 +205,34 @@ export interface SharedDbEntanglementFieldMemberRecord {
 }
 
 /**
- * Канонический relational dataset shared/db.
+ * Канонический relational dataset DB-layer.
  *
  * В persisted слое хранятся только сущности и отношения.
  * Любые derived projection/index-space структуры строятся уже после чтения в CPU memory.
  */
-export interface SharedDbData {
-  metas: SharedDbMetaRecord[]
-  metaFields: SharedDbMetaFieldRecord[]
-  metaStates: SharedDbMetaStateRecord[]
-  metaTransitions: SharedDbMetaTransitionRecord[]
-  metaTransitionConditions: SharedDbMetaTransitionConditionRecord[]
-  metaProcesses: SharedDbMetaProcessRecord[]
-  metaProcessReads: SharedDbMetaProcessReadRecord[]
-  metaProcessWrites: SharedDbMetaProcessWriteRecord[]
-  metaReactions: SharedDbMetaReactionRecord[]
-  metaReactionStates: SharedDbMetaReactionStateRecord[]
-  metaReactionReads: SharedDbMetaReactionReadRecord[]
-  metaReactionWrites: SharedDbMetaReactionWriteRecord[]
-  metaMatterNodes: SharedDbMetaMatterNodeRecord[]
-  metaMatterEdges: SharedDbMetaMatterEdgeRecord[]
-  wimps: SharedDbWimpRecord[]
-  wimpFields: SharedDbWimpFieldRecord[]
-  wimpEdges: SharedDbWimpEdgeRecord[]
-  fieldValues: SharedDbFieldValueRecord[]
-  fieldSources: SharedDbFieldSourceRecord[]
-  wimpStates: SharedDbWimpStateRecord[]
-  entanglements: SharedDbEntanglementRecord[]
-  entanglementMembers: SharedDbEntanglementMemberRecord[]
-  entanglementFields: SharedDbEntanglementFieldRecord[]
-  entanglementFieldMembers: SharedDbEntanglementFieldMemberRecord[]
+export interface DbData {
+  metas: DbMetaRecord[]
+  metaFields: DbMetaFieldRecord[]
+  metaStates: DbMetaStateRecord[]
+  metaTransitions: DbMetaTransitionRecord[]
+  metaTransitionConditions: DbMetaTransitionConditionRecord[]
+  metaProcesses: DbMetaProcessRecord[]
+  metaProcessReads: DbMetaProcessReadRecord[]
+  metaProcessWrites: DbMetaProcessWriteRecord[]
+  metaReactions: DbMetaReactionRecord[]
+  metaReactionStates: DbMetaReactionStateRecord[]
+  metaReactionReads: DbMetaReactionReadRecord[]
+  metaReactionWrites: DbMetaReactionWriteRecord[]
+  metaMatterNodes: DbMetaMatterNodeRecord[]
+  metaMatterEdges: DbMetaMatterEdgeRecord[]
+  wimps: DbWimpRecord[]
+  wimpFields: DbWimpFieldRecord[]
+  wimpEdges: DbWimpEdgeRecord[]
+  fieldValues: DbFieldValueRecord[]
+  fieldSources: DbFieldSourceRecord[]
+  wimpStates: DbWimpStateRecord[]
+  entanglements: DbEntanglementRecord[]
+  entanglementMembers: DbEntanglementMemberRecord[]
+  entanglementFields: DbEntanglementFieldRecord[]
+  entanglementFieldMembers: DbEntanglementFieldMemberRecord[]
 }

@@ -1,9 +1,9 @@
-import { openSharedDbIndexedDbBackend } from "@shared/db/browser"
+import { openDbIndexedDbBackend } from "../../pkg/db/browser.ts"
 import "../../bulk"
 import { initProtocolLogger } from "./protocol-logger"
 initProtocolLogger()
 
-const db = await openSharedDbIndexedDbBackend({ databaseName: "metafor-web" })
+const db = await openDbIndexedDbBackend({ databaseName: "metafor-web" })
 await db.reset()
 
 new Worker("dark.js", {

@@ -1,23 +1,23 @@
 import { describe, expect, test } from "bun:test"
 import { IDBFactory } from "fake-indexeddb"
-import { createSharedDbFixture } from "fixture/db.fixture.ts"
-import { normalizeSharedDbData, readSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
-import { inspectSharedDbIndexedDbSchema, openSharedDbIndexedDbBackend } from "./idb.ts"
-import { openSharedDbMaterializationWriter } from "./materialize.ts"
-import { assembleSharedDbData } from "fixture/dark.ts"
+import { createDbFixture } from "fixture/db.fixture.ts"
+import { normalizeDbData, readDbData, dbRequiredBackendIndexes } from "./backend.ts"
+import { inspectDbIndexedDbSchema, openDbIndexedDbBackend } from "./idb.ts"
+import { openDbMaterializationWriter } from "./materialize.ts"
+import { assembleDbData } from "fixture/dark.ts"
 
 const createIndexedDbTarget = () => ({
   indexedDb: new IDBFactory(),
-  databaseName: `metafor-shared-db-${crypto.randomUUID()}`,
+  databaseName: `metafor-db-${crypto.randomUUID()}`,
 })
 
-describe("shared db indexeddb backend", () => {
+describe("db indexeddb backend", () => {
   test("создаёт canonical relational stores и indexes поверх того же backend-контракта", async () => {
     const target = createIndexedDbTarget()
-    const backend = await openSharedDbIndexedDbBackend(target)
+    const backend = await openDbIndexedDbBackend(target)
 
     try {
-      const schema = await inspectSharedDbIndexedDbSchema(target)
+      const schema = await inspectDbIndexedDbSchema(target)
       expect(schema.map((entry) => entry.store)).toEqual([
         "metas",
         "meta_fields",
@@ -46,7 +46,7 @@ describe("shared db indexeddb backend", () => {
       ])
 
       const allIndexes = schema.flatMap((entry) => entry.indexes)
-      expect(allIndexes).toEqual(expect.arrayContaining(sharedDbRequiredBackendIndexes.map((index) => index.name)))
+      expect(allIndexes).toEqual(expect.arrayContaining(dbRequiredBackendIndexes.map((index) => index.name)))
     } finally {
       backend.close()
     }
@@ -54,12 +54,12 @@ describe("shared db indexeddb backend", () => {
 
   test("сохраняет canonical relational rows через row-group writes и перечитывает их после повторного открытия", async () => {
     const target = createIndexedDbTarget()
-    const fixture = createSharedDbFixture()
-    const expected = await assembleSharedDbData(fixture.root)
+    const fixture = createDbFixture()
+    const expected = await assembleDbData(fixture.root)
 
-    const writer = await openSharedDbIndexedDbBackend(target)
+    const writer = await openDbIndexedDbBackend(target)
     try {
-      const materializer = openSharedDbMaterializationWriter(writer)
+      const materializer = openDbMaterializationWriter(writer)
       await fixture.root.save(materializer)
       await fixture.child.save(materializer)
       await writer.flush()
@@ -67,10 +67,10 @@ describe("shared db indexeddb backend", () => {
       writer.close()
     }
 
-    const reader = await openSharedDbIndexedDbBackend(target)
+    const reader = await openDbIndexedDbBackend(target)
     try {
-      const restored = readSharedDbData(reader)
-      expect(normalizeSharedDbData(restored)).toEqual(normalizeSharedDbData(expected))
+      const restored = readDbData(reader)
+      expect(normalizeDbData(restored)).toEqual(normalizeDbData(expected))
 
       await reader.setFieldValue(fixture.fields.childAlias!.id, "Alias via indexeddb")
       await reader.flush()
@@ -78,10 +78,10 @@ describe("shared db indexeddb backend", () => {
       reader.close()
     }
 
-    const reopened = await openSharedDbIndexedDbBackend(target)
+    const reopened = await openDbIndexedDbBackend(target)
     try {
       expect(
-        readSharedDbData(reopened).fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value,
+        readDbData(reopened).fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value,
       ).toBe("Alias via indexeddb")
     } finally {
       reopened.close()

@@ -1,7 +1,7 @@
 export {
   FieldType,
   addRuntimeWimp,
-  applyStructuralPatchFromSharedDb,
+  applyStructuralPatchFromDb,
   applyWeakResultPacket,
   boundary$,
   closeBoundaryProtocolChannels,
@@ -11,7 +11,7 @@ export {
   listRuntimeWimpIds,
   prepareData,
   prepareRuntimeData,
-  prepareRuntimeFromSharedDb,
+  prepareRuntimeFromDb,
   prepareRuntimeStore,
   rebuildRuntime,
   removeRuntimeWimp,
@@ -24,7 +24,7 @@ export {
   unlock,
   update,
   write,
-  writeRuntimeFromSharedDb,
+  writeRuntimeFromDb,
 } from "./boundary.ts"
 export type {
   BoundaryBroadcastSubscription,

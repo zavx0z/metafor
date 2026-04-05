@@ -2,7 +2,7 @@ import type { Mass, NodeMeta } from "../../index.ts"
 import type { MetaAST } from "@metafor/ast"
 import type { WimpInit } from "@dark/types/strong"
 import type { DarkGravityProtocol } from "@dark/gravity/channel.ts"
-import type { SharedDbMaterializationWriter, SharedDbMetaBundle, SharedDbWimpBundle, SharedDbWimpFieldBundle } from "@shared/db"
+import type { DbMaterializationWriter, DbMetaBundle, DbWimpBundle, DbWimpFieldBundle } from "../../pkg/db/core.ts"
 import type { Meta } from "./Meta.ts"
 import { BaseParticle } from "./part.ts"
 
@@ -133,14 +133,14 @@ export class Wimp extends BaseParticle {
   }
 
   /**
-   * Строит canonical shared/db bundle meta-level описания текущего `Wimp`.
+   * Строит canonical DB bundle meta-level описания текущего `Wimp`.
    */
-  toSharedDbMetaBundle(): SharedDbMetaBundle {
+  toDbMetaBundle(): DbMetaBundle {
     if (!this.meta) {
-      throw new Error(`Wimp ${this.id} cannot build shared/db meta bundle before Meta is materialized`)
+      throw new Error(`Wimp ${this.id} cannot build DB meta bundle before Meta is materialized`)
     }
 
-    const result: SharedDbMetaBundle = {
+    const result: DbMetaBundle = {
       id: this.meta.id,
       src: this.meta.src,
       fields: Object.values(this.meta.fields).map((field) => ({
@@ -162,21 +162,21 @@ export class Wimp extends BaseParticle {
   }
 
   /**
-   * Строит canonical shared/db bundle текущего fully-formed `Wimp`.
+   * Строит canonical DB bundle текущего fully-formed `Wimp`.
    */
-  toSharedDbBundle(): SharedDbWimpBundle {
+  toDbBundle(): DbWimpBundle {
     if (!this.meta) {
-      throw new Error(`Wimp ${this.id} cannot build shared/db bundle before Meta is materialized`)
+      throw new Error(`Wimp ${this.id} cannot build DB bundle before Meta is materialized`)
     }
     if (!this.fields) {
-      throw new Error(`Wimp ${this.id} cannot build shared/db bundle before fields are materialized`)
+      throw new Error(`Wimp ${this.id} cannot build DB bundle before fields are materialized`)
     }
 
-    const result: SharedDbWimpBundle = {
+    const result: DbWimpBundle = {
       id: this.id,
-      meta: this.toSharedDbMetaBundle(),
+      meta: this.toDbMetaBundle(),
       fields: Object.values(this.fields).map((field, fieldOrder) => {
-        const fieldBundle: SharedDbWimpFieldBundle = {
+        const fieldBundle: DbWimpFieldBundle = {
           id: field.id,
           metaFieldId: field.metaField.id,
           fieldOrder,
@@ -197,11 +197,11 @@ export class Wimp extends BaseParticle {
   }
 
   /**
-   * Сохраняет текущий canonical shared/db bundle через унифицированный writer.
+   * Сохраняет текущий canonical DB bundle через унифицированный writer.
    */
-  async save(writer: SharedDbMaterializationWriter, gravityProtocol?: DarkGravityProtocol): Promise<void> {
-    await writer.saveMetaBundle(this.toSharedDbMetaBundle())
-    await writer.saveWimpBundle(this.toSharedDbBundle())
+  async save(writer: DbMaterializationWriter, gravityProtocol?: DarkGravityProtocol): Promise<void> {
+    await writer.saveMetaBundle(this.toDbMetaBundle())
+    await writer.saveWimpBundle(this.toDbBundle())
     gravityProtocol?.emitAdd(this.id)
   }
 }

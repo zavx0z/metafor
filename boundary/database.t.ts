@@ -94,7 +94,7 @@ export interface BoundaryDatabaseData {
   stateSeedConditions: BoundaryDatabaseStateSeedConditionRecord[]
 }
 
-export interface BoundarySharedDbRuntimeOptions {
+export interface BoundaryDbRuntimeOptions {
   entanglement?: PreparedEntanglementProjection
 }
 

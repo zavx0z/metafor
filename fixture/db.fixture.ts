@@ -5,7 +5,7 @@ import { Fuzzy, Meta, Wimp, materializeFields } from "@dark/strong"
  *
  * @returns Тестовый граф и ссылки на ключевые поля.
  */
-export const createSharedDbFixture = () => {
+export const createDbFixture = () => {
   const rootMeta = new Meta({
     src: "meta/root",
     name: "root",
@@ -75,7 +75,7 @@ export const createSharedDbFixture = () => {
   const rootItems = root.fields.items!
   rootTitle.value = "Root title"
   rootMode.value = "idle"
-  rootItems.value = ["a", "b"]
+  rootItems.value = [1, 2]
 
   const gate = new Fuzzy({ parent: root })
   root.children.add(gate)
@@ -111,7 +111,7 @@ export const createSharedDbFixture = () => {
   child.fields = materializeFields(child, childMeta.fields, [
     { key: "alias", value: "Root title", source: rootTitle },
     { key: "mode", value: "idle", source: rootMode },
-    { key: "items", value: ["a", "b"], source: rootItems },
+    { key: "items", value: [1, 2], source: rootItems },
   ])
   const childAlias = child.fields.alias!
   const childMode = child.fields.mode!

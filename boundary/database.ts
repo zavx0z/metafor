@@ -1,17 +1,17 @@
 import {
-  createSharedDbEntanglementFamilyId,
-  createEmptySharedDbData,
-  normalizeSharedDbData,
-  readSharedDbData,
-  type SharedDbBackend,
-  type SharedDbData,
-  type SharedDbEntanglementFamilyRows,
-  type SharedDbFieldSchemaRecord,
-  type SharedDbFieldSourceRecord,
-  type SharedDbMetaRows,
-  type SharedDbWimpEdgeRecord,
-  type SharedDbWimpFieldRecord,
-  type SharedDbWimpRows,
+  createDbEntanglementFamilyId,
+  createEmptyDbData,
+  normalizeDbData,
+  readDbData,
+  type DbBackend,
+  type DbData,
+  type DbEntanglementFamilyRows,
+  type DbFieldSchemaRecord,
+  type DbFieldSourceRecord,
+  type DbMetaRows,
+  type DbWimpEdgeRecord,
+  type DbWimpFieldRecord,
+  type DbWimpRows,
 } from "../pkg/db/core.ts"
 import { FieldType, flattenBoundaryData, type BraneValue, type Collapse, type Data, type Field } from "@boundary/gravity"
 import { assembleStoredBoundaryData, type PreparedEntanglementProjection } from "@boundary/strong"
@@ -30,7 +30,7 @@ import type {
   BoundaryDatabaseStateSeedConditionRecord,
   BoundaryDatabaseStateSeedStateRecord,
   BoundaryDatabaseStateSeedTransitionRecord,
-  BoundarySharedDbRuntimeOptions,
+  BoundaryDbRuntimeOptions,
 } from "./database.t.ts"
 
 const upsertRowsById = <T extends { id: string }>(target: T[], rows: T[]): void => {
@@ -50,7 +50,7 @@ const upsertRowsById = <T extends { id: string }>(target: T[], rows: T[]): void 
   })
 }
 
-const mergeSharedDbRows = (target: SharedDbData, data: SharedDbData): void => {
+const mergeDbRows = (target: DbData, data: DbData): void => {
   upsertRowsById(target.metas, data.metas)
   upsertRowsById(target.metaFields, data.metaFields)
   upsertRowsById(target.metaStates, data.metaStates)
@@ -77,7 +77,7 @@ const mergeSharedDbRows = (target: SharedDbData, data: SharedDbData): void => {
   upsertRowsById(target.entanglementFieldMembers, data.entanglementFieldMembers)
 }
 
-const appendMetaRows = (target: SharedDbData, rows: SharedDbMetaRows): void => {
+const appendMetaRows = (target: DbData, rows: DbMetaRows): void => {
   upsertRowsById(target.metas, [rows.meta])
   upsertRowsById(target.metaFields, rows.fields)
   upsertRowsById(target.metaStates, rows.states)
@@ -94,7 +94,7 @@ const appendMetaRows = (target: SharedDbData, rows: SharedDbMetaRows): void => {
   upsertRowsById(target.metaMatterEdges, rows.matterEdges)
 }
 
-const appendWimpRows = (target: SharedDbData, rows: SharedDbWimpRows): void => {
+const appendWimpRows = (target: DbData, rows: DbWimpRows): void => {
   upsertRowsById(target.wimps, [rows.wimp])
   upsertRowsById(target.wimpFields, rows.fields)
   upsertRowsById(target.fieldValues, rows.values)
@@ -102,7 +102,7 @@ const appendWimpRows = (target: SharedDbData, rows: SharedDbWimpRows): void => {
   upsertRowsById(target.wimpStates, [rows.state])
 }
 
-const appendEntanglementFamily = (target: SharedDbData, family: SharedDbEntanglementFamilyRows): void => {
+const appendEntanglementFamily = (target: DbData, family: DbEntanglementFamilyRows): void => {
   upsertRowsById(target.entanglements, [family.entanglement])
   upsertRowsById(target.entanglementMembers, family.members)
   upsertRowsById(target.entanglementFields, [family.field])
@@ -117,18 +117,18 @@ const requireCached = <T>(value: T | undefined, message: string): T => {
 }
 
 type BoundaryRuntimeOperationalCache = {
-  entanglementFamilyById: Map<string, SharedDbEntanglementFamilyRows | null>
-  fieldSourceByChildId: Map<string, SharedDbFieldSourceRecord | null>
-  metaRowsById: Map<string, SharedDbMetaRows>
-  wimpEdgeByChildId: Map<string, SharedDbWimpEdgeRecord | null>
-  wimpFieldById: Map<string, SharedDbWimpFieldRecord>
-  wimpRowsById: Map<string, SharedDbWimpRows>
+  entanglementFamilyById: Map<string, DbEntanglementFamilyRows | null>
+  fieldSourceByChildId: Map<string, DbFieldSourceRecord | null>
+  metaRowsById: Map<string, DbMetaRows>
+  wimpEdgeByChildId: Map<string, DbWimpEdgeRecord | null>
+  wimpFieldById: Map<string, DbWimpFieldRecord>
+  wimpRowsById: Map<string, DbWimpRows>
 }
 
 type BoundaryRuntimeEntanglementIndex = {
-  fieldMembersByFieldId: Map<string, SharedDbData["entanglementFieldMembers"]>
-  fieldsByEntanglementId: Map<string, SharedDbData["entanglementFields"]>
-  membersByEntanglementId: Map<string, SharedDbData["entanglementMembers"]>
+  fieldMembersByFieldId: Map<string, DbData["entanglementFieldMembers"]>
+  fieldsByEntanglementId: Map<string, DbData["entanglementFields"]>
+  membersByEntanglementId: Map<string, DbData["entanglementMembers"]>
 }
 
 type BoundaryRuntimeFragmentScope = {
@@ -152,10 +152,10 @@ const createBoundaryRuntimeOperationalCache = (): BoundaryRuntimeOperationalCach
   wimpRowsById: new Map(),
 })
 
-const createBoundaryRuntimeEntanglementIndex = (data: SharedDbData): BoundaryRuntimeEntanglementIndex => {
-  const fieldMembersByFieldId = new Map<string, SharedDbData["entanglementFieldMembers"]>()
-  const fieldsByEntanglementId = new Map<string, SharedDbData["entanglementFields"]>()
-  const membersByEntanglementId = new Map<string, SharedDbData["entanglementMembers"]>()
+const createBoundaryRuntimeEntanglementIndex = (data: DbData): BoundaryRuntimeEntanglementIndex => {
+  const fieldMembersByFieldId = new Map<string, DbData["entanglementFieldMembers"]>()
+  const fieldsByEntanglementId = new Map<string, DbData["entanglementFields"]>()
+  const membersByEntanglementId = new Map<string, DbData["entanglementMembers"]>()
 
   data.entanglementMembers.forEach((row) => {
     const members = membersByEntanglementId.get(row.ownerEntanglementId)
@@ -181,7 +181,7 @@ const createBoundaryRuntimeEntanglementIndex = (data: SharedDbData): BoundaryRun
 }
 
 const collectBoundaryRuntimeFragmentScope = (
-  data: SharedDbData,
+  data: DbData,
   wimpId: string,
 ): BoundaryRuntimeFragmentScope => {
   const wimp = data.wimps.find((row) => row.id === wimpId)
@@ -264,14 +264,14 @@ const collectBoundaryRuntimeFragmentScope = (
 }
 
 const collectBoundaryRuntimeEntanglementRows = (
-  data: SharedDbData,
+  data: DbData,
   scope: BoundaryRuntimeFragmentScope,
   entanglementIndex: BoundaryRuntimeEntanglementIndex,
-): Pick<SharedDbData, "entanglements" | "entanglementMembers" | "entanglementFields" | "entanglementFieldMembers"> => {
-  const entanglements: SharedDbData["entanglements"] = []
-  const entanglementMembers: SharedDbData["entanglementMembers"] = []
-  const entanglementFields: SharedDbData["entanglementFields"] = []
-  const entanglementFieldMembers: SharedDbData["entanglementFieldMembers"] = []
+): Pick<DbData, "entanglements" | "entanglementMembers" | "entanglementFields" | "entanglementFieldMembers"> => {
+  const entanglements: DbData["entanglements"] = []
+  const entanglementMembers: DbData["entanglementMembers"] = []
+  const entanglementFields: DbData["entanglementFields"] = []
+  const entanglementFieldMembers: DbData["entanglementFieldMembers"] = []
 
   data.entanglements.forEach((row) => {
     const members = entanglementIndex.membersByEntanglementId.get(row.id) ?? []
@@ -314,10 +314,10 @@ const collectBoundaryRuntimeEntanglementRows = (
 }
 
 const collectBoundaryRuntimeMetaRows = (
-  data: SharedDbData,
+  data: DbData,
   scope: BoundaryRuntimeFragmentScope,
 ): Pick<
-  SharedDbData,
+  DbData,
   | "metas"
   | "metaFields"
   | "metaStates"
@@ -379,9 +379,9 @@ const collectBoundaryRuntimeMetaRows = (
 })
 
 const collectBoundaryRuntimeWimpRows = (
-  data: SharedDbData,
+  data: DbData,
   scope: BoundaryRuntimeFragmentScope,
-): Pick<SharedDbData, "wimps" | "wimpFields" | "wimpEdges" | "fieldValues" | "fieldSources" | "wimpStates"> => ({
+): Pick<DbData, "wimps" | "wimpFields" | "wimpEdges" | "fieldValues" | "fieldSources" | "wimpStates"> => ({
   wimps: data.wimps.filter((row) => scope.packageWimpIds.has(row.id)).map((row) => structuredClone(row)),
   wimpFields: data.wimpFields
     .filter((row) => scope.packageWimpIds.has(row.ownerWimpId))
@@ -407,7 +407,7 @@ const collectBoundaryRuntimeWimpRows = (
 })
 
 const cloneFieldSchema = (
-  schema: BoundaryDatabaseFieldSchemaRecord | SharedDbFieldSchemaRecord,
+  schema: BoundaryDatabaseFieldSchemaRecord | DbFieldSchemaRecord,
 ): BoundaryDatabaseFieldSchemaRecord => ({
   type: schema.type,
   required: schema.required,
@@ -422,18 +422,7 @@ const cloneRuntimeField = (field: Field): Field => ({
   ...(field.enum !== undefined ? { enum: structuredClone(field.enum) } : {}),
 })
 
-const inferBoundaryArrayElementType = (sampleValue: unknown): NonNullable<Field["elementType"]> => {
-  if (Array.isArray(sampleValue)) {
-    const firstValue = sampleValue.find((value) => value !== null && value !== undefined)
-    if (typeof firstValue === "string") return "string"
-    if (typeof firstValue === "boolean") return "boolean"
-    if (typeof firstValue === "number") return "number"
-  }
-
-  return "number"
-}
-
-const createLocalRuntimeFieldSignature = (field: BoundaryDatabaseFieldRecord, sampleValue: unknown): string =>
+const createLocalRuntimeFieldSignature = (field: BoundaryDatabaseFieldRecord): string =>
   JSON.stringify({
     scope: "local",
     key: field.key,
@@ -442,14 +431,9 @@ const createLocalRuntimeFieldSignature = (field: BoundaryDatabaseFieldRecord, sa
     topology: field.schema.topology,
     label: field.schema.label ?? null,
     values: field.schema.values ?? null,
-    arrayElementType: field.schema.type === "array" ? inferBoundaryArrayElementType(sampleValue) : null,
   })
 
-const createSeedRuntimeFieldSignature = (
-  semanticKey: string,
-  field: BoundaryDatabaseFieldRecord,
-  sampleValue: unknown,
-): string =>
+const createSeedRuntimeFieldSignature = (semanticKey: string, field: BoundaryDatabaseFieldRecord): string =>
   JSON.stringify({
     scope: "seed",
     semanticKey,
@@ -458,10 +442,9 @@ const createSeedRuntimeFieldSignature = (
     topology: field.schema.topology,
     label: field.schema.label ?? null,
     values: field.schema.values ?? null,
-    arrayElementType: field.schema.type === "array" ? inferBoundaryArrayElementType(sampleValue) : null,
   })
 
-const mapBoundaryDatabaseFieldToRuntimeField = (field: BoundaryDatabaseFieldRecord, sampleValue: unknown): Field => {
+const mapBoundaryDatabaseFieldToRuntimeField = (field: BoundaryDatabaseFieldRecord): Field => {
   const { type, values } = field.schema
 
   if (type === "string") return { type: FieldType.STRING_PTR }
@@ -475,12 +458,9 @@ const mapBoundaryDatabaseFieldToRuntimeField = (field: BoundaryDatabaseFieldReco
     return { type: FieldType.U32, enum: [...values] }
   }
 
-  if (type === "array") return { type: FieldType.ARRAY_PTR, elementType: inferBoundaryArrayElementType(sampleValue) }
-  if (type === "array<string>") return { type: FieldType.ARRAY_PTR, elementType: "string" }
-  if (type === "array<number>") return { type: FieldType.ARRAY_PTR, elementType: "number" }
-  if (type === "array<boolean>") return { type: FieldType.ARRAY_PTR, elementType: "boolean" }
+  if (type === "array") return { type: FieldType.ARRAY_PTR, elementType: "number" }
 
-  throw new Error(`Unsupported shared/db field type for Boundary runtime: ${type}`)
+  throw new Error(`Unsupported DB field type for Boundary runtime: ${type}`)
 }
 
 const requireBoundaryDatabaseFieldValue = (
@@ -580,12 +560,12 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
   const runtimeFieldIndexBySignature = new Map<string, number>()
   const entanglementFieldMembers = groupEntanglementFieldMembers(data)
 
-  const ensureRuntimeField = (signature: string, field: BoundaryDatabaseFieldRecord, sampleValue: unknown): number => {
+  const ensureRuntimeField = (signature: string, field: BoundaryDatabaseFieldRecord): number => {
     const existing = runtimeFieldIndexBySignature.get(signature)
     if (existing !== undefined) return existing
 
     const runtimeFieldIndex = runtimeFields.length
-    runtimeFields.push(cloneRuntimeField(mapBoundaryDatabaseFieldToRuntimeField(field, sampleValue)))
+    runtimeFields.push(cloneRuntimeField(mapBoundaryDatabaseFieldToRuntimeField(field)))
     runtimeFieldIndexBySignature.set(signature, runtimeFieldIndex)
     runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] = []
     return runtimeFieldIndex
@@ -596,12 +576,9 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
     if (!representativeField) {
       throw new Error(`Boundary runtime seed representative field missing: ${seedField.representativeFieldIndex}`)
     }
-    const representativeValue = requireBoundaryDatabaseFieldValue(data, representativeField.index).value
-
     const runtimeFieldIndex = ensureRuntimeField(
-      createSeedRuntimeFieldSignature(seedField.semanticKey, representativeField, representativeValue),
+      createSeedRuntimeFieldSignature(seedField.semanticKey, representativeField),
       representativeField,
-      representativeValue,
     )
     const seedRuntimeFieldIds = runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] ?? []
     if (!seedRuntimeFieldIds.includes(representativeField.wimpFieldId)) {
@@ -629,8 +606,7 @@ const buildBoundaryRuntimeFieldRegistry = (data: BoundaryDatabaseData) => {
 
   for (const field of data.fields) {
     if (runtimeFieldIndexByDbFieldIndex[field.index] !== undefined) continue
-    const fieldValue = requireBoundaryDatabaseFieldValue(data, field.index).value
-    const runtimeFieldIndex = ensureRuntimeField(createLocalRuntimeFieldSignature(field, fieldValue), field, fieldValue)
+    const runtimeFieldIndex = ensureRuntimeField(createLocalRuntimeFieldSignature(field), field)
     runtimeFieldIndexByDbFieldIndex[field.index] = runtimeFieldIndex
     const runtimeFieldIds: string[] = runtimeFieldIndexToWimpFieldIds[runtimeFieldIndex] ?? []
     if (!runtimeFieldIds.includes(field.wimpFieldId)) {
@@ -735,8 +711,8 @@ const prepareBoundaryStateSeedGraph = (
   }
 }
 
-const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseData => {
-  const data = normalizeSharedDbData(rawData)
+const prepareBoundaryDatabaseData = (rawData: DbData): BoundaryDatabaseData => {
+  const data = normalizeDbData(rawData)
   const metaById = new Map(data.metas.map((meta) => [meta.id, meta] as const))
   const metaFieldById = new Map(data.metaFields.map((field) => [field.id, field] as const))
   const metaStatesByMetaId = new Map<string, typeof data.metaStates>()
@@ -1039,9 +1015,9 @@ const prepareBoundaryDatabaseData = (rawData: SharedDbData): BoundaryDatabaseDat
 }
 
 export const prepareBoundaryRuntimeForceData = (
-  rawData: SharedDbData,
+  rawData: DbData,
 ): BoundaryRuntimeForceData => {
-  const normalizedData = normalizeSharedDbData(rawData)
+  const normalizedData = normalizeDbData(rawData)
   const data = prepareBoundaryDatabaseData(normalizedData)
   const { runtimeFieldIndexByDbFieldIndex, runtimeFieldIndexToWimpFieldIds } = buildBoundaryRuntimeFieldRegistry(data)
   const orderedWimps = [...normalizedData.wimps].sort((left, right) => left.wimpOrder - right.wimpOrder)
@@ -1092,8 +1068,8 @@ export const prepareBoundaryRuntimeForceData = (
   }
 }
 
-const filterSharedDbDataForActiveRuntime = (rawData: SharedDbData): SharedDbData => {
-  const data = normalizeSharedDbData(rawData)
+const filterDbDataForActiveRuntime = (rawData: DbData): DbData => {
+  const data = normalizeDbData(rawData)
   const wimps = [...data.wimps]
   const wimpIds = new Set(wimps.map((row) => row.id))
   const metaIds = new Set(wimps.map((row) => row.metaId))
@@ -1203,7 +1179,7 @@ const filterSharedDbDataForActiveRuntime = (rawData: SharedDbData): SharedDbData
     })
   })
 
-  return normalizeSharedDbData({
+  return normalizeDbData({
     metas,
     metaFields,
     metaStates,
@@ -1231,21 +1207,21 @@ const filterSharedDbDataForActiveRuntime = (rawData: SharedDbData): SharedDbData
   })
 }
 
-const mergeBoundaryRuntimeFragments = (fragments: Iterable<SharedDbData>): SharedDbData => {
-  const merged = createEmptySharedDbData()
+const mergeBoundaryRuntimeFragments = (fragments: Iterable<DbData>): DbData => {
+  const merged = createEmptyDbData()
 
   for (const fragment of fragments) {
-    mergeSharedDbRows(merged, normalizeSharedDbData(fragment))
+    mergeDbRows(merged, normalizeDbData(fragment))
   }
 
-  return filterSharedDbDataForActiveRuntime(merged)
+  return filterDbDataForActiveRuntime(merged)
 }
 
 const ensureBoundaryRuntimeMetaRows = async (
-  backend: SharedDbBackend,
+  backend: DbBackend,
   cache: BoundaryRuntimeOperationalCache,
   metaId: string,
-): Promise<SharedDbMetaRows> => {
+): Promise<DbMetaRows> => {
   const cached = cache.metaRowsById.get(metaId)
   if (cached) return cached
 
@@ -1259,10 +1235,10 @@ const ensureBoundaryRuntimeMetaRows = async (
 }
 
 const ensureBoundaryRuntimeWimpRows = async (
-  backend: SharedDbBackend,
+  backend: DbBackend,
   cache: BoundaryRuntimeOperationalCache,
   wimpId: string,
-): Promise<SharedDbWimpRows> => {
+): Promise<DbWimpRows> => {
   const cached = cache.wimpRowsById.get(wimpId)
   if (cached) return cached
 
@@ -1282,10 +1258,10 @@ const ensureBoundaryRuntimeWimpRows = async (
 }
 
 const ensureBoundaryRuntimeWimpField = async (
-  backend: SharedDbBackend,
+  backend: DbBackend,
   cache: BoundaryRuntimeOperationalCache,
   wimpFieldId: string,
-): Promise<SharedDbWimpFieldRecord> => {
+): Promise<DbWimpFieldRecord> => {
   const cached = cache.wimpFieldById.get(wimpFieldId)
   if (cached) return cached
 
@@ -1299,10 +1275,10 @@ const ensureBoundaryRuntimeWimpField = async (
 }
 
 const ensureBoundaryRuntimeFieldSource = async (
-  backend: SharedDbBackend,
+  backend: DbBackend,
   cache: BoundaryRuntimeOperationalCache,
   childWimpFieldId: string,
-): Promise<SharedDbFieldSourceRecord | null> => {
+): Promise<DbFieldSourceRecord | null> => {
   if (cache.fieldSourceByChildId.has(childWimpFieldId)) {
     return cache.fieldSourceByChildId.get(childWimpFieldId) ?? null
   }
@@ -1313,10 +1289,10 @@ const ensureBoundaryRuntimeFieldSource = async (
 }
 
 const ensureBoundaryRuntimeWimpEdge = async (
-  backend: SharedDbBackend,
+  backend: DbBackend,
   cache: BoundaryRuntimeOperationalCache,
   childWimpId: string,
-): Promise<SharedDbWimpEdgeRecord | null> => {
+): Promise<DbWimpEdgeRecord | null> => {
   if (cache.wimpEdgeByChildId.has(childWimpId)) {
     return cache.wimpEdgeByChildId.get(childWimpId) ?? null
   }
@@ -1327,10 +1303,10 @@ const ensureBoundaryRuntimeWimpEdge = async (
 }
 
 const ensureBoundaryRuntimeEntanglementFamily = async (
-  backend: SharedDbBackend,
+  backend: DbBackend,
   cache: BoundaryRuntimeOperationalCache,
   entanglementId: string,
-): Promise<SharedDbEntanglementFamilyRows | null> => {
+): Promise<DbEntanglementFamilyRows | null> => {
   if (cache.entanglementFamilyById.has(entanglementId)) {
     return cache.entanglementFamilyById.get(entanglementId) ?? null
   }
@@ -1341,7 +1317,7 @@ const ensureBoundaryRuntimeEntanglementFamily = async (
 }
 
 const resolveBoundaryRuntimeRootFieldId = async (
-  backend: SharedDbBackend,
+  backend: DbBackend,
   cache: BoundaryRuntimeOperationalCache,
   wimpFieldId: string,
 ): Promise<string> => {
@@ -1361,7 +1337,7 @@ const resolveBoundaryRuntimeRootFieldId = async (
 }
 
 const collectOperationalPackageWimpIds = async (
-  backend: SharedDbBackend,
+  backend: DbBackend,
   cache: BoundaryRuntimeOperationalCache,
   rootWimpId: string,
 ): Promise<Set<string>> => {
@@ -1388,7 +1364,7 @@ const collectOperationalPackageWimpIds = async (
 }
 
 const appendOperationalPackageRows = (
-  fragment: SharedDbData,
+  fragment: DbData,
   cache: BoundaryRuntimeOperationalCache,
   packageWimpIds: Set<string>,
 ): void => {
@@ -1410,23 +1386,23 @@ const appendOperationalPackageRows = (
 }
 
 const collectOperationalEntanglementIds = async (
-  backend: SharedDbBackend,
+  backend: DbBackend,
   cache: BoundaryRuntimeOperationalCache,
-  fragment: SharedDbData,
+  fragment: DbData,
 ): Promise<Set<string>> => {
   const entanglementIds = new Set<string>()
 
   for (const field of fragment.wimpFields) {
     const rootFieldId = await resolveBoundaryRuntimeRootFieldId(backend, cache, field.id)
-    entanglementIds.add(createSharedDbEntanglementFamilyId(rootFieldId))
+    entanglementIds.add(createDbEntanglementFamilyId(rootFieldId))
   }
 
   return entanglementIds
 }
 
 const appendOperationalEntanglements = async (
-  fragment: SharedDbData,
-  backend: SharedDbBackend,
+  fragment: DbData,
+  backend: DbBackend,
   cache: BoundaryRuntimeOperationalCache,
   packageWimpIds: Set<string>,
   entanglementIds: Set<string>,
@@ -1452,11 +1428,11 @@ const appendOperationalEntanglements = async (
 }
 
 const prepareBoundaryRuntimeFragmentFromOperationalCache = async (
-  backend: SharedDbBackend,
+  backend: DbBackend,
   cache: BoundaryRuntimeOperationalCache,
   wimpId: string,
-): Promise<SharedDbData> => {
-  const fragment = createEmptySharedDbData()
+): Promise<DbData> => {
+  const fragment = createEmptyDbData()
   const packageWimpIds = await collectOperationalPackageWimpIds(backend, cache, wimpId)
 
   appendOperationalPackageRows(fragment, cache, packageWimpIds)
@@ -1468,18 +1444,18 @@ const prepareBoundaryRuntimeFragmentFromOperationalCache = async (
     await collectOperationalEntanglementIds(backend, cache, fragment),
   )
 
-  return filterSharedDbDataForActiveRuntime(fragment)
+  return filterDbDataForActiveRuntime(fragment)
 }
 
-export const prepareBoundaryRuntimeLoadedFragmentFromSharedDbOperational = async (
-  backend: SharedDbBackend,
+export const prepareBoundaryRuntimeLoadedFragmentFromDbOperational = async (
+  backend: DbBackend,
   activeWimpIds?: Iterable<string>,
-): Promise<SharedDbData> => {
+): Promise<DbData> => {
   const requestedWimpIds =
     activeWimpIds === undefined ? await backend.listWimpIds() : Array.from(new Set(activeWimpIds))
 
   if (requestedWimpIds.length === 0) {
-    return createEmptySharedDbData()
+    return createEmptyDbData()
   }
 
   const cache = createBoundaryRuntimeOperationalCache()
@@ -1490,17 +1466,17 @@ export const prepareBoundaryRuntimeLoadedFragmentFromSharedDbOperational = async
 }
 
 const prepareBoundaryRuntimeFragment = (
-  rawData: SharedDbData,
+  rawData: DbData,
   wimpId: string,
-): SharedDbData => {
-  const data = normalizeSharedDbData(rawData)
+): DbData => {
+  const data = normalizeDbData(rawData)
   const entanglementIndex = createBoundaryRuntimeEntanglementIndex(data)
   const scope = collectBoundaryRuntimeFragmentScope(data, wimpId)
   const metaRows = collectBoundaryRuntimeMetaRows(data, scope)
   const wimpRows = collectBoundaryRuntimeWimpRows(data, scope)
   const entanglementRows = collectBoundaryRuntimeEntanglementRows(data, scope, entanglementIndex)
 
-  return filterSharedDbDataForActiveRuntime({
+  return filterDbDataForActiveRuntime({
     ...metaRows,
     ...wimpRows,
     ...entanglementRows,
@@ -1508,19 +1484,19 @@ const prepareBoundaryRuntimeFragment = (
 }
 
 const prepareBoundaryRuntimeLoadedFragment = (
-  rawData: SharedDbData,
+  rawData: DbData,
   activeWimpIds?: Iterable<string>,
-): SharedDbData => {
-  const data = normalizeSharedDbData(rawData)
+): DbData => {
+  const data = normalizeDbData(rawData)
 
   if (activeWimpIds === undefined) {
-    return filterSharedDbDataForActiveRuntime(data)
+    return filterDbDataForActiveRuntime(data)
   }
 
   const requestedWimpIds = Array.from(new Set(activeWimpIds))
 
   if (requestedWimpIds.length === 0) {
-    return createEmptySharedDbData()
+    return createEmptyDbData()
   }
 
   return mergeBoundaryRuntimeFragments(requestedWimpIds.map((wimpId) => prepareBoundaryRuntimeFragment(data, wimpId)))
@@ -1528,7 +1504,7 @@ const prepareBoundaryRuntimeLoadedFragment = (
 
 const prepareBoundaryWriteData = (
   data: BoundaryDatabaseData,
-  options: BoundarySharedDbRuntimeOptions = {},
+  options: BoundaryDbRuntimeOptions = {},
 ): Data => {
   const { runtimeFields, runtimeFieldIndexByDbFieldIndex } = buildBoundaryRuntimeFieldRegistry(data)
   const stateSeeds = groupStateSeedStates(data)
@@ -1578,30 +1554,30 @@ const prepareBoundaryWriteData = (
 
 const prepareBoundaryStoreFromDatabase = (
   data: BoundaryDatabaseData,
-  options: BoundarySharedDbRuntimeOptions = {},
+  options: BoundaryDbRuntimeOptions = {},
 ): PreparedData => assembleStoredBoundaryData(flattenBoundaryData(prepareBoundaryWriteData(data, options)))
 
 export const prepareBoundaryRuntimeData = (
-  rawData: SharedDbData,
-  options: BoundarySharedDbRuntimeOptions = {},
+  rawData: DbData,
+  options: BoundaryDbRuntimeOptions = {},
 ): Data => prepareBoundaryWriteData(prepareBoundaryDatabaseData(rawData), options)
 
 export const prepareBoundaryRuntimeStore = (
-  rawData: SharedDbData,
-  options: BoundarySharedDbRuntimeOptions = {},
+  rawData: DbData,
+  options: BoundaryDbRuntimeOptions = {},
 ): PreparedData => prepareBoundaryStoreFromDatabase(prepareBoundaryDatabaseData(rawData), options)
 
-const prepareBoundaryRuntimeFragmentFromSharedDb = (
-  backend: SharedDbBackend,
+const prepareBoundaryRuntimeFragmentFromDb = (
+  backend: DbBackend,
   wimpId: string,
-): SharedDbData => prepareBoundaryRuntimeFragment(readSharedDbData(backend), wimpId)
+): DbData => prepareBoundaryRuntimeFragment(readDbData(backend), wimpId)
 
-const prepareBoundaryRuntimeLoadedFragmentFromSharedDb = (
-  backend: SharedDbBackend,
+const prepareBoundaryRuntimeLoadedFragmentFromDb = (
+  backend: DbBackend,
   activeWimpIds?: Iterable<string>,
-): SharedDbData => prepareBoundaryRuntimeLoadedFragment(readSharedDbData(backend), activeWimpIds)
+): DbData => prepareBoundaryRuntimeLoadedFragment(readDbData(backend), activeWimpIds)
 
-export const prepareBoundaryRuntimeStoreFromSharedDb = (
-  backend: SharedDbBackend,
-  options: BoundarySharedDbRuntimeOptions = {},
-): PreparedData => prepareBoundaryRuntimeStore(readSharedDbData(backend), options)
+export const prepareBoundaryRuntimeStoreFromDb = (
+  backend: DbBackend,
+  options: BoundaryDbRuntimeOptions = {},
+): PreparedData => prepareBoundaryRuntimeStore(readDbData(backend), options)

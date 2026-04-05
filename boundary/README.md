@@ -32,20 +32,20 @@ import {
   setValues,
   update,
   unlock,
-  writeRuntimeFromSharedDb,
+  writeRuntimeFromDb,
   addRuntimeWimp,
   removeRuntimeWimp,
   rebuildRuntime,
-  applyStructuralPatchFromSharedDb,
+  applyStructuralPatchFromDb,
   subscribeBoundaryGluonBroadcast,
   subscribeBoundaryHiggsBroadcast,
   subscribeBoundaryWeakResultBroadcast,
 } from "@boundary"
 ```
 
-`write()` записывает каноническую структуру. `setValues()` — внешний UUID-addressed intake для ordinary/topology field updates. `update()` остаётся runtime-функцией по индексам уже materialized слоя. Когда Boundary загружен из `shared/db`, runtime write-back пишет изменившиеся canonical `field_values`/`wimp_states` обратно в тот же backend. `unlock()` снимает блокировку.
-`write(data)` остаётся отдельным bootstrap/bypass path и сознательно очищает `gravity$`, потому что в этом режиме нет UUID-composition из `shared/db`.
-Для `shared/db`-пути `add/remove` мутируют `gravity$`, а `test ""` barrier через `applyStructuralPatchFromSharedDb(...)`
+`write()` записывает каноническую структуру. `setValues()` — внешний UUID-addressed intake для ordinary/topology field updates. `update()` остаётся runtime-функцией по индексам уже materialized слоя. Когда Boundary загружен из DB, runtime write-back пишет изменившиеся canonical `field_values`/`wimp_states` обратно в тот же backend. `unlock()` снимает блокировку.
+`write(data)` остаётся отдельным bootstrap/bypass path и сознательно очищает `gravity$`, потому что в этом режиме нет UUID-composition из DB.
+Для DB-пути `add/remove` мутируют `gravity$`, а `test ""` barrier через `applyStructuralPatchFromDb(...)`
 или явный `rebuildRuntime(backend)` пересобирает `boundary$` и обновляет `uuid <-> braneIndex`.
 UUID field addressing и topology/ordinary field routing живут в `strong$`, а `brane/stateIndex -> metaStateId` для write-back живёт в `weak$`.
 Существующая `lock/unlock` семантика Boundary остаётся как была. `Photon` публикуется как broadcast observable-state signal, `Z` остаётся coordination-каналом исполнителей в `Bulk`, а `W` возвращает один result envelope обратно в `Boundary`; `subscribeBoundaryWeakResultBroadcast()` принимает этот пакет, применяет все UUID field patches за один проход и только потом снимает `lock`.

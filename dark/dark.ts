@@ -1,13 +1,14 @@
 import type { MatterContinuation, MatterEntry, MatterLayerResult, MatterParticlePlan, MatterWimpResult } from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
 import { emitAdd, emitBarrier } from "@dark/gravity/channel.ts"
-import type { SharedDbMaterializationWriter } from "@shared/db"
+import type { DbMaterializationWriter } from "@metafor/db"
 import { Axion, Fuzzy, Macho, materializeFields, Meta, resolveWimpContinuation, Wimp } from "@dark/strong"
 import { readDarkParticleModel } from "../pkg/sqlite/dark.ts"
+import { ensureMetaCanonicalized } from "./load.ts"
 import { dark$ } from "./store"
 
 interface MatterOptions {
-  sharedDbWriter?: SharedDbMaterializationWriter
+  dbWriter?: DbMaterializationWriter
   suppressGravityBarrier?: boolean
   sqliteDb?: unknown
 }
@@ -159,14 +160,14 @@ export async function* matterMeta(
   const meta = registerMeta(runtimeMeta.meta)
 
   wimp.meta = meta
-  if (options.sharedDbWriter) {
-    await options.sharedDbWriter.saveMetaBundle(wimp.toSharedDbMetaBundle())
+  if (options.dbWriter) {
+    await options.dbWriter.saveMetaBundle(wimp.toDbMetaBundle())
   }
   wimp.fields = materializeFields(wimp, meta.fields, continuation?.fieldInits)
   wimp.mass = continuation?.mass
   dark$.particles.set(wimp.id, wimp)
-  if (options.sharedDbWriter) {
-    await options.sharedDbWriter.saveWimpBundle(wimp.toSharedDbBundle())
+  if (options.dbWriter) {
+    await options.dbWriter.saveWimpBundle(wimp.toDbBundle())
     emitAdd(wimp.id)
   }
 
@@ -190,23 +191,31 @@ export async function* matterMeta(
 }
 
 /**
- * Полностью собирает `Wimp` и рекурсивно проходит все обнаруженные дочерние меты.
+ * Публичный entrypoint Dark.
  *
- * @param wimp Корневой `Wimp`, который нужно полностью собрать.
- * @param continuation Временный пакет данных, который должен быть применён к этому `Wimp` перед обходом.
- * @param options
- * @returns Promise, завершающийся после полного рекурсивного обхода и сборки дочерних мет.
+ * `matter()` отвечает за outer orchestration:
+ * - canonicalize одной meta через load/sqlite boundary,
+ * - вызвать single-meta `matterMeta()`,
+ * - рекурсивно пройти дочерние `Wimp`,
+ * - один раз опубликовать barrier на верхнем вызове.
  */
-export async function matter(wimp: Wimp, continuation?: MatterContinuation, options: MatterOptions = {}) {
-  if (!options.sqliteDb) {
-    throw new Error(
-      `Dark runtime requires prepared SQLite / ORM context for "${wimp.src}"; use load-layer orchestration before calling dark.matter`,
-    )
+export async function matter(
+  wimp: Wimp,
+  continuation?: MatterContinuation,
+  options: MatterOptions = {},
+): Promise<void> {
+  const sqlite = options.sqliteDb ? { db: options.sqliteDb } : await ensureMetaCanonicalized(wimp.src)
+  if (!sqlite) {
+    throw new Error(`Canonical SQLite context is unavailable for "${wimp.src}"`)
   }
 
   const shouldEmitGravityBarrier = options.suppressGravityBarrier !== true
   const nestedOptions = shouldEmitGravityBarrier ? { ...options, suppressGravityBarrier: true } : options
-  const generator = matterMeta(wimp, continuation, options)
+  const generator = matterMeta(wimp, continuation, {
+    ...options,
+    sqliteDb: sqlite.db,
+  })
+
   for await (const wimps of generator) {
     for (const [childWimp, childContinuation] of wimps) {
       await matter(childWimp, childContinuation, nestedOptions)

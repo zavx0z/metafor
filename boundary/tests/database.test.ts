@@ -1,15 +1,15 @@
 import { describe, expect, test } from "bun:test"
-import { createSharedDbFixture } from "fixture/db.fixture.ts"
-import { openSharedDbMaterializationWriter } from "../../pkg/db/materialize.ts"
-import { openSharedDbSqliteBackend } from "../../pkg/db/sqlite.ts"
+import { createDbFixture } from "fixture/db.fixture.ts"
+import { openDbMaterializationWriter } from "../../pkg/db/materialize.ts"
+import { openDbSqliteBackend } from "../../pkg/db/sqlite.ts"
 import { prepareRuntimeData, prepareRuntimeStore } from "../boundary.ts"
 import { FieldType } from "../gravity"
 import { OP } from "../weak"
 
 const materializeFixture = async () => {
-  const fixture = createSharedDbFixture()
-  const backend = openSharedDbSqliteBackend()
-  const writer = openSharedDbMaterializationWriter(backend)
+  const fixture = createDbFixture()
+  const backend = openDbSqliteBackend()
+  const writer = openDbMaterializationWriter(backend)
 
   await fixture.root.save(writer)
   await fixture.child.save(writer)
@@ -17,8 +17,8 @@ const materializeFixture = async () => {
   return { fixture, backend }
 }
 
-describe("boundary runtime projection from shared db data", () => {
-  test("проецирует canonical shared/db data напрямую в boundary runtime input", async () => {
+describe("boundary runtime projection from db data", () => {
+  test("проецирует canonical db data напрямую в boundary runtime input", async () => {
     const { fixture, backend } = await materializeFixture()
 
     try {
@@ -27,7 +27,7 @@ describe("boundary runtime projection from shared db data", () => {
       expect(runtimeInput.fields).toEqual([
         { type: FieldType.STRING_PTR },
         { type: FieldType.U32, enum: ["idle", "ready"] },
-        { type: FieldType.ARRAY_PTR, elementType: "string" },
+        { type: FieldType.ARRAY_PTR, elementType: "number" },
       ])
 
       expect(runtimeInput.branes).toEqual([
@@ -35,7 +35,7 @@ describe("boundary runtime projection from shared db data", () => {
           values: [
             [0, "Root title"],
             [1, "idle"],
-            [2, ["a", "b"]],
+            [2, [1, 2]],
           ],
           state: 0,
           collapses: [[[1, { 1: "ready" }]], []],
@@ -44,7 +44,7 @@ describe("boundary runtime projection from shared db data", () => {
           values: [
             [0, "Root title"],
             [1, "idle"],
-            [2, ["a", "b"]],
+            [2, [1, 2]],
           ],
           state: 0,
           collapses: [[[1, { 1: "ready" }]], []],
@@ -85,7 +85,7 @@ describe("boundary runtime projection from shared db data", () => {
     }
   })
 
-  test("собирает prepared boundary store из canonical shared/db data", async () => {
+  test("собирает prepared boundary store из canonical db data", async () => {
     const { backend } = await materializeFixture()
 
     try {
@@ -94,14 +94,14 @@ describe("boundary runtime projection from shared db data", () => {
       expect(prepared.fields).toEqual([
         { type: FieldType.STRING_PTR },
         { type: FieldType.U32, enum: ["idle", "ready"] },
-        { type: FieldType.ARRAY_PTR, elementType: "string" },
+        { type: FieldType.ARRAY_PTR, elementType: "number" },
       ])
       expect(prepared.branes).toHaveLength(2)
       expect(prepared.sharedBlocks).toEqual([{ valueOffset: 0, valueCount: 3 }])
       expect(prepared.sharedValues).toEqual([
         { fieldIndex: 0, value: 1 },
         { fieldIndex: 1, value: 0 },
-        { fieldIndex: 2, value: [2, 3] },
+        { fieldIndex: 2, value: [1, 2] },
       ])
       expect(prepared.braneValues).toEqual([])
       expect(prepared.braneSharedBlockRefs).toEqual([0, 0])
@@ -112,7 +112,7 @@ describe("boundary runtime projection from shared db data", () => {
         { transitionOffset: 1, transitionCount: 0 },
       ])
       expect(prepared.states).toEqual([0, 0])
-      expect(prepared.stringTable).toEqual(["", "Root title", "a", "b"])
+      expect(prepared.stringTable).toEqual(["", "Root title"])
     } finally {
       backend.close()
     }

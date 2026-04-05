@@ -1,40 +1,40 @@
 import type { FieldKey, MetaAST, MetaJson } from "@metafor/ast"
 import type { Mass } from "../../index.ts"
 import type {
-  SharedDbData,
-  SharedDbFieldSchemaRecord,
-  SharedDbFieldSourceRecord,
-  SharedDbFieldValueRecord,
-  SharedDbMetaFieldRecord,
-  SharedDbMetaProcessReadRecord,
-  SharedDbMetaProcessRecord,
-  SharedDbMetaProcessWriteRecord,
-  SharedDbMetaReactionRecord,
-  SharedDbMetaStateRecord,
-  SharedDbMetaTransitionRecord,
-  SharedDbWimpEdgeRecord,
-  SharedDbWimpFieldRecord,
+  DbData,
+  DbFieldSchemaRecord,
+  DbFieldSourceRecord,
+  DbFieldValueRecord,
+  DbMetaFieldRecord,
+  DbMetaProcessReadRecord,
+  DbMetaProcessRecord,
+  DbMetaProcessWriteRecord,
+  DbMetaReactionRecord,
+  DbMetaStateRecord,
+  DbMetaTransitionRecord,
+  DbWimpEdgeRecord,
+  DbWimpFieldRecord,
 } from "./db.t.ts"
 import type {
-  SharedDbBackend,
-  SharedDbEntanglementFamilyRows,
-  SharedDbMetaRows,
-  SharedDbWimpRows,
+  DbBackend,
+  DbEntanglementFamilyRows,
+  DbMetaRows,
+  DbWimpRows,
 } from "./backend.t.ts"
-import { createEmptySharedDbData } from "./backend.ts"
+import { createEmptyDbData } from "./backend.ts"
 import { deriveUuid } from "./uuid.ts"
 
-export interface SharedDbMetaFieldBundle {
+export interface DbMetaFieldBundle {
   id: string
   key: FieldKey
-  schema: SharedDbFieldSchemaRecord
+  schema: DbFieldSchemaRecord
 }
 
-export interface SharedDbMetaBundle {
+export interface DbMetaBundle {
   id: string
   src: string
   name?: string
-  fields: SharedDbMetaFieldBundle[]
+  fields: DbMetaFieldBundle[]
   superposition?: MetaAST["superposition"]
   processes?: MetaAST["processes"]
   reactions?: MetaAST["reactions"]
@@ -43,35 +43,35 @@ export interface SharedDbMetaBundle {
   mass?: MetaAST["mass"] | Mass
 }
 
-export interface SharedDbWimpFieldBundle {
+export interface DbWimpFieldBundle {
   id: string
   metaFieldId: string
   fieldOrder: number
   key: FieldKey
-  schema: SharedDbFieldSchemaRecord
+  schema: DbFieldSchemaRecord
   value: unknown
   sourceWimpFieldId?: string
 }
 
-export interface SharedDbWimpBundle {
+export interface DbWimpBundle {
   id: string
   parentWimpId?: string
-  meta: SharedDbMetaBundle
-  fields: SharedDbWimpFieldBundle[]
+  meta: DbMetaBundle
+  fields: DbWimpFieldBundle[]
   massOverride?: unknown
 }
 
-export interface SharedDbMaterializationWriter {
+export interface DbMaterializationWriter {
   /**
    * Сохраняет meta-level bundle и подготавливает context для следующих instance-level записей.
    */
-  saveMetaBundle(bundle: SharedDbMetaBundle): Promise<void>
+  saveMetaBundle(bundle: DbMetaBundle): Promise<void>
   /**
    * Сохраняет fully-formed `Wimp` bundle.
    *
    * Требует, чтобы `saveMetaBundle(bundle.meta)` уже был вызван для этой меты.
    */
-  saveWimpBundle(bundle: SharedDbWimpBundle): Promise<void>
+  saveWimpBundle(bundle: DbWimpBundle): Promise<void>
 }
 
 type MetaContext = {
@@ -80,7 +80,7 @@ type MetaContext = {
   initialStateId: string
 }
 
-type WimpFieldWithOwner = SharedDbWimpFieldBundle & { ownerWimpId: string }
+type WimpFieldWithOwner = DbWimpFieldBundle & { ownerWimpId: string }
 
 type MetaMaterializationState = {
   nextMatterNodeOrder: number
@@ -103,7 +103,7 @@ type EntanglementFamilyState = {
   members: SavedFieldState[]
 }
 
-const cloneFieldSchema = (schema: SharedDbFieldSchemaRecord): SharedDbFieldSchemaRecord => ({
+const cloneFieldSchema = (schema: DbFieldSchemaRecord): DbFieldSchemaRecord => ({
   type: schema.type,
   required: schema.required,
   topology: schema.topology,
@@ -111,13 +111,13 @@ const cloneFieldSchema = (schema: SharedDbFieldSchemaRecord): SharedDbFieldSchem
   ...(schema.values !== undefined ? { values: structuredClone(schema.values) } : {}),
 })
 
-const cloneMetaFieldBundle = (field: SharedDbMetaFieldBundle): SharedDbMetaFieldBundle => ({
+const cloneMetaFieldBundle = (field: DbMetaFieldBundle): DbMetaFieldBundle => ({
   id: field.id,
   key: field.key,
   schema: cloneFieldSchema(field.schema),
 })
 
-const cloneMetaBundle = (meta: SharedDbMetaBundle): SharedDbMetaBundle => ({
+const cloneMetaBundle = (meta: DbMetaBundle): DbMetaBundle => ({
   id: meta.id,
   src: meta.src,
   ...(meta.name !== undefined ? { name: meta.name } : {}),
@@ -130,7 +130,7 @@ const cloneMetaBundle = (meta: SharedDbMetaBundle): SharedDbMetaBundle => ({
   ...(meta.mass !== undefined ? { mass: structuredClone(meta.mass) } : {}),
 })
 
-const cloneWimpFieldBundle = (field: SharedDbWimpFieldBundle): SharedDbWimpFieldBundle => ({
+const cloneWimpFieldBundle = (field: DbWimpFieldBundle): DbWimpFieldBundle => ({
   id: field.id,
   metaFieldId: field.metaFieldId,
   fieldOrder: field.fieldOrder,
@@ -140,7 +140,7 @@ const cloneWimpFieldBundle = (field: SharedDbWimpFieldBundle): SharedDbWimpField
   ...(field.sourceWimpFieldId !== undefined ? { sourceWimpFieldId: field.sourceWimpFieldId } : {}),
 })
 
-const cloneWimpBundle = (bundle: SharedDbWimpBundle): SharedDbWimpBundle => ({
+const cloneWimpBundle = (bundle: DbWimpBundle): DbWimpBundle => ({
   id: bundle.id,
   ...(bundle.parentWimpId !== undefined ? { parentWimpId: bundle.parentWimpId } : {}),
   meta: cloneMetaBundle(bundle.meta),
@@ -148,11 +148,11 @@ const cloneWimpBundle = (bundle: SharedDbWimpBundle): SharedDbWimpBundle => ({
   ...(bundle.massOverride !== undefined ? { massOverride: structuredClone(bundle.massOverride) } : {}),
 })
 
-const createDefaultSuperposition = (): NonNullable<SharedDbMetaBundle["superposition"]> => ({
+const createDefaultSuperposition = (): NonNullable<DbMetaBundle["superposition"]> => ({
   default: null,
 })
 
-const resolveMetaStateGraph = (meta: SharedDbMetaBundle): NonNullable<SharedDbMetaBundle["superposition"]> =>
+const resolveMetaStateGraph = (meta: DbMetaBundle): NonNullable<DbMetaBundle["superposition"]> =>
   meta.superposition && Object.keys(meta.superposition).length > 0
     ? structuredClone(meta.superposition)
     : createDefaultSuperposition()
@@ -160,15 +160,15 @@ const resolveMetaStateGraph = (meta: SharedDbMetaBundle): NonNullable<SharedDbMe
 const requireMetaFieldId = (context: MetaContext, ownerMetaId: string, fieldKey: FieldKey): string => {
   const metaFieldId = context.fieldIdByKey.get(fieldKey)
   if (!metaFieldId) {
-    throw new Error(`Shared DB meta ${ownerMetaId} references unknown field key '${fieldKey}'`)
+    throw new Error(`DB meta ${ownerMetaId} references unknown field key '${fieldKey}'`)
   }
   return metaFieldId
 }
 
 const appendMetaMatter = (
-  data: SharedDbData,
+  data: DbData,
   ownerMetaId: string,
-  nodes: SharedDbMetaBundle["matter"],
+  nodes: DbMetaBundle["matter"],
   state: MetaMaterializationState,
   parentNodeId: string | null = null,
   path: number[] = [],
@@ -179,7 +179,7 @@ const appendMetaMatter = (
     const node = structuredClone(rawNode)
     const nextPath = [...path, edgeOrder]
     const nodeId = deriveUuid("meta-matter-node", ownerMetaId, nextPath.join("."))
-    const { child, ...payload } = node as unknown as { child?: SharedDbMetaBundle["matter"] | undefined }
+    const { child, ...payload } = node as unknown as { child?: DbMetaBundle["matter"] | undefined }
 
     data.metaMatterNodes.push({
       id: nodeId,
@@ -204,13 +204,13 @@ const appendMetaMatter = (
   })
 }
 
-const appendMetaProcesses = (data: SharedDbData, meta: SharedDbMetaBundle, context: MetaContext): void => {
+const appendMetaProcesses = (data: DbData, meta: DbMetaBundle, context: MetaContext): void => {
   const processes = Object.entries(meta.processes ?? {})
 
   processes.forEach(([processKey, process], processOrder) => {
     const appendReads = (
-      record: SharedDbMetaProcessRecord,
-      phase: SharedDbMetaProcessReadRecord["phase"],
+      record: DbMetaProcessRecord,
+      phase: DbMetaProcessReadRecord["phase"],
       reads: { read?: string[] } | undefined,
     ): void => {
       if (!Array.isArray(reads?.read)) return
@@ -227,8 +227,8 @@ const appendMetaProcesses = (data: SharedDbData, meta: SharedDbMetaBundle, conte
     }
 
     const appendWrites = (
-      record: SharedDbMetaProcessRecord,
-      phase: SharedDbMetaProcessWriteRecord["phase"],
+      record: DbMetaProcessRecord,
+      phase: DbMetaProcessWriteRecord["phase"],
       writes: { write?: string[] } | undefined,
     ): void => {
       if (!Array.isArray(writes?.write)) return
@@ -245,7 +245,7 @@ const appendMetaProcesses = (data: SharedDbData, meta: SharedDbMetaBundle, conte
     }
 
     if (process.type !== "finally") {
-      const record: SharedDbMetaProcessRecord = {
+      const record: DbMetaProcessRecord = {
         id: deriveUuid("meta-process", meta.id, processKey, processOrder),
         ownerMetaId: meta.id,
         processKey,
@@ -268,7 +268,7 @@ const appendMetaProcesses = (data: SharedDbData, meta: SharedDbMetaBundle, conte
       return
     }
 
-    const record: SharedDbMetaProcessRecord = {
+    const record: DbMetaProcessRecord = {
       id: deriveUuid("meta-process", meta.id, processKey, processOrder),
       ownerMetaId: meta.id,
       processKey,
@@ -284,14 +284,14 @@ const appendMetaProcesses = (data: SharedDbData, meta: SharedDbMetaBundle, conte
   })
 }
 
-const appendMetaReactions = (data: SharedDbData, meta: SharedDbMetaBundle, context: MetaContext): void => {
+const appendMetaReactions = (data: DbData, meta: DbMetaBundle, context: MetaContext): void => {
   if (!meta.reactions) return
 
   const reactionDefinitions = Object.entries(meta.reactions.reactions ?? {})
   const reactionIdByKey = new Map<string, string>()
 
   reactionDefinitions.forEach(([reactionKey, reaction], reactionOrder) => {
-    const record: SharedDbMetaReactionRecord = {
+    const record: DbMetaReactionRecord = {
       id: deriveUuid("meta-reaction", meta.id, reactionKey, reactionOrder),
       ownerMetaId: meta.id,
       reactionKey,
@@ -327,13 +327,13 @@ const appendMetaReactions = (data: SharedDbData, meta: SharedDbMetaBundle, conte
   Object.entries(meta.reactions.superposition ?? {}).forEach(([stateName, reactionKeys]) => {
     const metaStateId = context.stateIdByName.get(stateName)
     if (!metaStateId) {
-      throw new Error(`Shared DB meta ${meta.id} reaction state '${stateName}' is not defined in superposition`)
+      throw new Error(`DB meta ${meta.id} reaction state '${stateName}' is not defined in superposition`)
     }
 
     reactionKeys.forEach((reactionKey, stateOrder) => {
       const reactionId = reactionIdByKey.get(reactionKey)
       if (!reactionId) {
-        throw new Error(`Shared DB meta ${meta.id} reaction '${reactionKey}' is not declared`)
+        throw new Error(`DB meta ${meta.id} reaction '${reactionKey}' is not declared`)
       }
 
       data.metaReactionStates.push({
@@ -346,8 +346,8 @@ const appendMetaReactions = (data: SharedDbData, meta: SharedDbMetaBundle, conte
   })
 }
 
-const materializeMetaRows = (meta: SharedDbMetaBundle): { rows: SharedDbMetaRows; context: MetaContext } => {
-  const data = createEmptySharedDbData()
+const materializeMetaRows = (meta: DbMetaBundle): { rows: DbMetaRows; context: MetaContext } => {
+  const data = createEmptyDbData()
 
   data.metas.push({
     id: meta.id,
@@ -359,7 +359,7 @@ const materializeMetaRows = (meta: SharedDbMetaBundle): { rows: SharedDbMetaRows
 
   const fieldIdByKey = new Map<FieldKey, string>()
   meta.fields.forEach((field, fieldOrder) => {
-    const record: SharedDbMetaFieldRecord = {
+    const record: DbMetaFieldRecord = {
       id: field.id,
       ownerMetaId: meta.id,
       fieldKey: field.key,
@@ -373,7 +373,7 @@ const materializeMetaRows = (meta: SharedDbMetaBundle): { rows: SharedDbMetaRows
   const stateIdByName = new Map<string, string>()
   const superposition = resolveMetaStateGraph(meta)
   Object.keys(superposition).forEach((stateName, stateOrder) => {
-    const record: SharedDbMetaStateRecord = {
+    const record: DbMetaStateRecord = {
       id: deriveUuid("meta-state", meta.id, stateName, stateOrder),
       ownerMetaId: meta.id,
       stateName,
@@ -387,7 +387,7 @@ const materializeMetaRows = (meta: SharedDbMetaBundle): { rows: SharedDbMetaRows
   Object.entries(superposition).forEach(([stateName, transitions]) => {
     const ownerMetaStateId = stateIdByName.get(stateName)
     if (!ownerMetaStateId) {
-      throw new Error(`Shared DB meta ${meta.id} state '${stateName}' is missing after normalization`)
+      throw new Error(`DB meta ${meta.id} state '${stateName}' is missing after normalization`)
     }
 
     if (transitions === null) return
@@ -395,10 +395,10 @@ const materializeMetaRows = (meta: SharedDbMetaBundle): { rows: SharedDbMetaRows
     Object.entries(transitions).forEach(([targetStateName, conditions], transitionOrder) => {
       const targetMetaStateId = stateIdByName.get(targetStateName) ?? null
       if (!targetMetaStateId) {
-        throw new Error(`Shared DB meta ${meta.id} transition target '${targetStateName}' is not declared`)
+        throw new Error(`DB meta ${meta.id} transition target '${targetStateName}' is not declared`)
       }
 
-      const transitionRecord: SharedDbMetaTransitionRecord = {
+      const transitionRecord: DbMetaTransitionRecord = {
         id: deriveUuid("meta-transition", ownerMetaStateId, targetMetaStateId, transitionOrder),
         ownerMetaStateId,
         targetMetaStateId,
@@ -420,7 +420,7 @@ const materializeMetaRows = (meta: SharedDbMetaBundle): { rows: SharedDbMetaRows
 
   const initialStateId = data.metaStates.find((state) => state.ownerMetaId === meta.id && state.initial)?.id
   if (!initialStateId) {
-    throw new Error(`Shared DB meta ${meta.id} has no initial state`)
+    throw new Error(`DB meta ${meta.id} has no initial state`)
   }
 
   const context: MetaContext = { fieldIdByKey, stateIdByName, initialStateId }
@@ -466,9 +466,9 @@ const resolveSourceRoot = (
   return current
 }
 
-export const createSharedDbEntanglementFamilyId = (rootFieldId: string): string =>
+export const createDbEntanglementFamilyId = (rootFieldId: string): string =>
   deriveUuid("entanglement-family", rootFieldId)
-const createEntanglementId = createSharedDbEntanglementFamilyId
+const createEntanglementId = createDbEntanglementFamilyId
 
 const createEntanglementFieldId = (rootFieldId: string): string => deriveUuid("entanglement-family-field", rootFieldId)
 
@@ -477,7 +477,7 @@ const materializeEntanglementFamilyRows = (
   representative: Pick<WimpFieldWithOwner | SavedFieldState, "id" | "key">,
   rawMembers: Array<WimpFieldWithOwner | SavedFieldState>,
   wimpOrderById: Map<string, number>,
-): SharedDbEntanglementFamilyRows => {
+): DbEntanglementFamilyRows => {
   const members = Array.from(new Map(rawMembers.map((field) => [field.id, field] as const)).values()).sort(
     (left, right) =>
       (wimpOrderById.get(left.ownerWimpId) ?? Number.MAX_SAFE_INTEGER) -
@@ -522,18 +522,18 @@ const materializeEntanglementFamilyRows = (
 }
 
 const materializeWimpRows = (
-  bundle: SharedDbWimpBundle,
+  bundle: DbWimpBundle,
   wimpOrder: number,
   metaContext: MetaContext,
-): SharedDbWimpRows => {
+): DbWimpRows => {
   const fields = bundle.fields
     .slice()
     .sort((left, right) => left.fieldOrder - right.fieldOrder)
-    .map((field): SharedDbWimpFieldRecord => {
+    .map((field): DbWimpFieldRecord => {
       const metaFieldId = metaContext.fieldIdByKey.get(field.key)
       if (metaFieldId !== field.metaFieldId) {
         throw new Error(
-          `Shared DB wimp field ${field.id} does not match meta field mapping for key '${field.key}' in meta ${bundle.meta.id}`,
+          `DB wimp field ${field.id} does not match meta field mapping for key '${field.key}' in meta ${bundle.meta.id}`,
         )
       }
 
@@ -554,7 +554,7 @@ const materializeWimpRows = (
     },
     fields,
     values: bundle.fields.map(
-      (field): SharedDbFieldValueRecord => ({
+      (field): DbFieldValueRecord => ({
         id: deriveUuid("field-value", field.id),
         ownerWimpFieldId: field.id,
         value: structuredClone(field.value),
@@ -563,7 +563,7 @@ const materializeWimpRows = (
     sources: bundle.fields
       .filter((field) => field.sourceWimpFieldId !== undefined)
       .map(
-        (field): SharedDbFieldSourceRecord => ({
+        (field): DbFieldSourceRecord => ({
           id: deriveUuid("field-source", field.id, field.sourceWimpFieldId!),
           childWimpFieldId: field.id,
           parentWimpFieldId: field.sourceWimpFieldId!,
@@ -577,7 +577,7 @@ const materializeWimpRows = (
   }
 }
 
-const createMetaSignature = (meta: SharedDbMetaBundle): string => JSON.stringify(cloneMetaBundle(meta))
+const createMetaSignature = (meta: DbMetaBundle): string => JSON.stringify(cloneMetaBundle(meta))
 
 /**
  * Открывает writer для поэтапной materialization-записи fully-formed `Wimp`.
@@ -585,13 +585,13 @@ const createMetaSignature = (meta: SharedDbMetaBundle): string => JSON.stringify
  * Writer хранит только локальный CPU-side context, который нужен для адресной
  * синхронизации row-groups и source-family entanglement без отдельного snapshot path.
  */
-export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): SharedDbMaterializationWriter => {
-  const bundlesById = new Map<string, SharedDbWimpBundle>()
+export const openDbMaterializationWriter = (backend: DbBackend): DbMaterializationWriter => {
+  const bundlesById = new Map<string, DbWimpBundle>()
   const metaSignatureById = new Map<string, string>()
   const metaContextById = new Map<string, MetaContext>()
   const wimpOrderById = new Map<string, number>()
   const nextEdgeOrderByParentId = new Map<string | null, number>()
-  const wimpEdgesByChildId = new Map<string, SharedDbWimpEdgeRecord>()
+  const wimpEdgesByChildId = new Map<string, DbWimpEdgeRecord>()
   const savedFieldIdsByWimpId = new Map<string, string[]>()
   const savedFieldsById = new Map<string, SavedFieldState>()
   const entanglementFamiliesByRootFieldId = new Map<string, EntanglementFamilyState>()
@@ -605,7 +605,7 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
     return nextOrder
   }
 
-  const writeWimpEdge = async (bundle: SharedDbWimpBundle): Promise<void> => {
+  const writeWimpEdge = async (bundle: DbWimpBundle): Promise<void> => {
     const existing = wimpEdgesByChildId.get(bundle.id)
     if (existing) {
       await backend.writeWimpEdge(existing)
@@ -615,7 +615,7 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
     const parentWimpId = bundle.parentWimpId ?? null
     const parentKey = parentWimpId ?? null
     const nextOrder = nextEdgeOrderByParentId.get(parentKey) ?? 0
-    const edge: SharedDbWimpEdgeRecord = {
+    const edge: DbWimpEdgeRecord = {
       id: deriveUuid("wimp-edge", parentWimpId ?? "root", bundle.id),
       parentWimpId,
       childWimpId: bundle.id,
@@ -670,10 +670,10 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
     return field.rootFieldId
   }
 
-  const addSavedField = (bundle: SharedDbWimpBundle, field: SharedDbWimpFieldBundle): string => {
+  const addSavedField = (bundle: DbWimpBundle, field: DbWimpFieldBundle): string => {
     const parentField = field.sourceWimpFieldId ? savedFieldsById.get(field.sourceWimpFieldId) : undefined
     if (field.sourceWimpFieldId && !parentField) {
-      throw new Error(`Shared DB entanglement source field ${field.sourceWimpFieldId} is not materialized yet`)
+      throw new Error(`DB entanglement source field ${field.sourceWimpFieldId} is not materialized yet`)
     }
 
     const rootFieldId = parentField?.rootFieldId ?? field.id
@@ -707,7 +707,7 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
     return rootFieldId
   }
 
-  const persistWimpBundle = async (bundle: SharedDbWimpBundle, metaContext: MetaContext): Promise<void> => {
+  const persistWimpBundle = async (bundle: DbWimpBundle, metaContext: MetaContext): Promise<void> => {
     const affectedFamilyIds = new Set<string>()
     const previousFieldIds = savedFieldIdsByWimpId.get(bundle.id) ?? []
 
@@ -737,7 +737,7 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
   }
 
   const syncMetaBundle = async (
-    bundle: SharedDbMetaBundle,
+    bundle: DbMetaBundle,
   ): Promise<{
     changed: boolean
     context: MetaContext
@@ -780,7 +780,7 @@ export const openSharedDbMaterializationWriter = (backend: SharedDbBackend): Sha
       bundlesById.set(bundle.id, savedBundle)
       const context = metaContextById.get(savedBundle.meta.id)
       if (!context) {
-        throw new Error(`Shared DB meta ${savedBundle.meta.id} must be materialized before Wimp ${savedBundle.id}`)
+        throw new Error(`DB meta ${savedBundle.meta.id} must be materialized before Wimp ${savedBundle.id}`)
       }
 
       await persistWimpBundle(savedBundle, context)

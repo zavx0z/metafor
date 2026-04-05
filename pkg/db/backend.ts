@@ -1,30 +1,30 @@
-import type { SharedDbBackend, SharedDbBackendIndexSpec } from "./backend.t.ts"
+import type { DbBackend, DbBackendIndexSpec } from "./backend.t.ts"
 import type {
-  SharedDbData,
-  SharedDbEntanglementFieldMemberRecord,
-  SharedDbEntanglementFieldRecord,
-  SharedDbEntanglementMemberRecord,
-  SharedDbEntanglementRecord,
-  SharedDbFieldSourceRecord,
-  SharedDbFieldValueRecord,
-  SharedDbMetaFieldRecord,
-  SharedDbMetaMatterEdgeRecord,
-  SharedDbMetaMatterNodeRecord,
-  SharedDbMetaProcessReadRecord,
-  SharedDbMetaProcessRecord,
-  SharedDbMetaProcessWriteRecord,
-  SharedDbMetaReactionReadRecord,
-  SharedDbMetaReactionRecord,
-  SharedDbMetaReactionStateRecord,
-  SharedDbMetaReactionWriteRecord,
-  SharedDbMetaRecord,
-  SharedDbMetaStateRecord,
-  SharedDbMetaTransitionConditionRecord,
-  SharedDbMetaTransitionRecord,
-  SharedDbWimpEdgeRecord,
-  SharedDbWimpFieldRecord,
-  SharedDbWimpRecord,
-  SharedDbWimpStateRecord,
+  DbData,
+  DbEntanglementFieldMemberRecord,
+  DbEntanglementFieldRecord,
+  DbEntanglementMemberRecord,
+  DbEntanglementRecord,
+  DbFieldSourceRecord,
+  DbFieldValueRecord,
+  DbMetaFieldRecord,
+  DbMetaMatterEdgeRecord,
+  DbMetaMatterNodeRecord,
+  DbMetaProcessReadRecord,
+  DbMetaProcessRecord,
+  DbMetaProcessWriteRecord,
+  DbMetaReactionReadRecord,
+  DbMetaReactionRecord,
+  DbMetaReactionStateRecord,
+  DbMetaReactionWriteRecord,
+  DbMetaRecord,
+  DbMetaStateRecord,
+  DbMetaTransitionConditionRecord,
+  DbMetaTransitionRecord,
+  DbWimpEdgeRecord,
+  DbWimpFieldRecord,
+  DbWimpRecord,
+  DbWimpStateRecord,
 } from "./db.t.ts"
 
 const cloneRows = <T>(rows: T[]): T[] => rows.map((row) => structuredClone(row))
@@ -67,7 +67,7 @@ const requireReference = (
   }
 }
 
-export const sharedDbRequiredBackendIndexes: readonly SharedDbBackendIndexSpec[] = [
+export const dbRequiredBackendIndexes: readonly DbBackendIndexSpec[] = [
   { name: "metas_by", table: "metas", columns: ["src"], unique: true },
   { name: "meta_fields_by_owner_meta", table: "meta_fields", columns: ["ownerMetaId"], unique: false },
   { name: "meta_fields_by_owner_and_field_key", table: "meta_fields", columns: ["ownerMetaId", "fieldKey"], unique: true },
@@ -219,7 +219,7 @@ export const sharedDbRequiredBackendIndexes: readonly SharedDbBackendIndexSpec[]
   },
 ] as const
 
-export const createEmptySharedDbData = (): SharedDbData => ({
+export const createEmptyDbData = (): DbData => ({
   metas: [],
   metaFields: [],
   metaStates: [],
@@ -246,48 +246,48 @@ export const createEmptySharedDbData = (): SharedDbData => ({
   entanglementFieldMembers: [],
 })
 
-const normalizeMetaRecords = (rows: SharedDbMetaRecord[]): SharedDbMetaRecord[] => cloneRows(rows).sort(compareById)
-const normalizeMetaFieldRecords = (rows: SharedDbMetaFieldRecord[]): SharedDbMetaFieldRecord[] => cloneRows(rows).sort(compareById)
-const normalizeMetaStateRecords = (rows: SharedDbMetaStateRecord[]): SharedDbMetaStateRecord[] => cloneRows(rows).sort(compareById)
-const normalizeMetaTransitionRecords = (rows: SharedDbMetaTransitionRecord[]): SharedDbMetaTransitionRecord[] =>
+const normalizeMetaRecords = (rows: DbMetaRecord[]): DbMetaRecord[] => cloneRows(rows).sort(compareById)
+const normalizeMetaFieldRecords = (rows: DbMetaFieldRecord[]): DbMetaFieldRecord[] => cloneRows(rows).sort(compareById)
+const normalizeMetaStateRecords = (rows: DbMetaStateRecord[]): DbMetaStateRecord[] => cloneRows(rows).sort(compareById)
+const normalizeMetaTransitionRecords = (rows: DbMetaTransitionRecord[]): DbMetaTransitionRecord[] =>
   cloneRows(rows).sort(compareById)
 const normalizeMetaTransitionConditionRecords = (
-  rows: SharedDbMetaTransitionConditionRecord[],
-): SharedDbMetaTransitionConditionRecord[] => cloneRows(rows).sort(compareById)
-const normalizeMetaProcessRecords = (rows: SharedDbMetaProcessRecord[]): SharedDbMetaProcessRecord[] => cloneRows(rows).sort(compareById)
-const normalizeMetaProcessReadRecords = (rows: SharedDbMetaProcessReadRecord[]): SharedDbMetaProcessReadRecord[] =>
+  rows: DbMetaTransitionConditionRecord[],
+): DbMetaTransitionConditionRecord[] => cloneRows(rows).sort(compareById)
+const normalizeMetaProcessRecords = (rows: DbMetaProcessRecord[]): DbMetaProcessRecord[] => cloneRows(rows).sort(compareById)
+const normalizeMetaProcessReadRecords = (rows: DbMetaProcessReadRecord[]): DbMetaProcessReadRecord[] =>
   cloneRows(rows).sort(compareById)
-const normalizeMetaProcessWriteRecords = (rows: SharedDbMetaProcessWriteRecord[]): SharedDbMetaProcessWriteRecord[] =>
+const normalizeMetaProcessWriteRecords = (rows: DbMetaProcessWriteRecord[]): DbMetaProcessWriteRecord[] =>
   cloneRows(rows).sort(compareById)
-const normalizeMetaReactionRecords = (rows: SharedDbMetaReactionRecord[]): SharedDbMetaReactionRecord[] =>
+const normalizeMetaReactionRecords = (rows: DbMetaReactionRecord[]): DbMetaReactionRecord[] =>
   cloneRows(rows).sort(compareById)
-const normalizeMetaReactionStateRecords = (rows: SharedDbMetaReactionStateRecord[]): SharedDbMetaReactionStateRecord[] =>
+const normalizeMetaReactionStateRecords = (rows: DbMetaReactionStateRecord[]): DbMetaReactionStateRecord[] =>
   cloneRows(rows).sort(compareById)
-const normalizeMetaReactionReadRecords = (rows: SharedDbMetaReactionReadRecord[]): SharedDbMetaReactionReadRecord[] =>
+const normalizeMetaReactionReadRecords = (rows: DbMetaReactionReadRecord[]): DbMetaReactionReadRecord[] =>
   cloneRows(rows).sort(compareById)
-const normalizeMetaReactionWriteRecords = (rows: SharedDbMetaReactionWriteRecord[]): SharedDbMetaReactionWriteRecord[] =>
+const normalizeMetaReactionWriteRecords = (rows: DbMetaReactionWriteRecord[]): DbMetaReactionWriteRecord[] =>
   cloneRows(rows).sort(compareById)
-const normalizeMetaMatterNodeRecords = (rows: SharedDbMetaMatterNodeRecord[]): SharedDbMetaMatterNodeRecord[] =>
+const normalizeMetaMatterNodeRecords = (rows: DbMetaMatterNodeRecord[]): DbMetaMatterNodeRecord[] =>
   cloneRows(rows).sort(compareById)
-const normalizeMetaMatterEdgeRecords = (rows: SharedDbMetaMatterEdgeRecord[]): SharedDbMetaMatterEdgeRecord[] =>
+const normalizeMetaMatterEdgeRecords = (rows: DbMetaMatterEdgeRecord[]): DbMetaMatterEdgeRecord[] =>
   cloneRows(rows).sort(compareById)
-const normalizeWimpRecords = (rows: SharedDbWimpRecord[]): SharedDbWimpRecord[] => cloneRows(rows).sort(compareById)
-const normalizeWimpFieldRecords = (rows: SharedDbWimpFieldRecord[]): SharedDbWimpFieldRecord[] => cloneRows(rows).sort(compareById)
-const normalizeWimpEdgeRecords = (rows: SharedDbWimpEdgeRecord[]): SharedDbWimpEdgeRecord[] => cloneRows(rows).sort(compareById)
-const normalizeFieldValueRecords = (rows: SharedDbFieldValueRecord[]): SharedDbFieldValueRecord[] => cloneRows(rows).sort(compareById)
-const normalizeFieldSourceRecords = (rows: SharedDbFieldSourceRecord[]): SharedDbFieldSourceRecord[] => cloneRows(rows).sort(compareById)
-const normalizeWimpStateRecords = (rows: SharedDbWimpStateRecord[]): SharedDbWimpStateRecord[] => cloneRows(rows).sort(compareById)
-const normalizeEntanglementRecords = (rows: SharedDbEntanglementRecord[]): SharedDbEntanglementRecord[] =>
+const normalizeWimpRecords = (rows: DbWimpRecord[]): DbWimpRecord[] => cloneRows(rows).sort(compareById)
+const normalizeWimpFieldRecords = (rows: DbWimpFieldRecord[]): DbWimpFieldRecord[] => cloneRows(rows).sort(compareById)
+const normalizeWimpEdgeRecords = (rows: DbWimpEdgeRecord[]): DbWimpEdgeRecord[] => cloneRows(rows).sort(compareById)
+const normalizeFieldValueRecords = (rows: DbFieldValueRecord[]): DbFieldValueRecord[] => cloneRows(rows).sort(compareById)
+const normalizeFieldSourceRecords = (rows: DbFieldSourceRecord[]): DbFieldSourceRecord[] => cloneRows(rows).sort(compareById)
+const normalizeWimpStateRecords = (rows: DbWimpStateRecord[]): DbWimpStateRecord[] => cloneRows(rows).sort(compareById)
+const normalizeEntanglementRecords = (rows: DbEntanglementRecord[]): DbEntanglementRecord[] =>
   cloneRows(rows).sort(compareById)
-const normalizeEntanglementMemberRecords = (rows: SharedDbEntanglementMemberRecord[]): SharedDbEntanglementMemberRecord[] =>
+const normalizeEntanglementMemberRecords = (rows: DbEntanglementMemberRecord[]): DbEntanglementMemberRecord[] =>
   cloneRows(rows).sort(compareById)
-const normalizeEntanglementFieldRecords = (rows: SharedDbEntanglementFieldRecord[]): SharedDbEntanglementFieldRecord[] =>
+const normalizeEntanglementFieldRecords = (rows: DbEntanglementFieldRecord[]): DbEntanglementFieldRecord[] =>
   cloneRows(rows).sort(compareById)
 const normalizeEntanglementFieldMemberRecords = (
-  rows: SharedDbEntanglementFieldMemberRecord[],
-): SharedDbEntanglementFieldMemberRecord[] => cloneRows(rows).sort(compareById)
+  rows: DbEntanglementFieldMemberRecord[],
+): DbEntanglementFieldMemberRecord[] => cloneRows(rows).sort(compareById)
 
-export const normalizeSharedDbData = (data: SharedDbData): SharedDbData => {
+export const normalizeDbData = (data: DbData): DbData => {
   const metas = normalizeMetaRecords(data.metas)
   const metaFields = normalizeMetaFieldRecords(data.metaFields)
   const metaStates = normalizeMetaStateRecords(data.metaStates)
@@ -589,9 +589,9 @@ export const normalizeSharedDbData = (data: SharedDbData): SharedDbData => {
   }
 }
 
-export const readSharedDbData = (backend: SharedDbBackend): SharedDbData => normalizeSharedDbData(backend.readData())
+export const readDbData = (backend: DbBackend): DbData => normalizeDbData(backend.readData())
 
-export const selectSharedDbMetaRows = (data: SharedDbData, metaId: string) => {
+export const selectDbMetaRows = (data: DbData, metaId: string) => {
   const meta = data.metas.find((row) => row.id === metaId)
   if (!meta) return null
 
@@ -622,7 +622,7 @@ export const selectSharedDbMetaRows = (data: SharedDbData, metaId: string) => {
   }
 }
 
-export const selectSharedDbWimpRows = (data: SharedDbData, wimpId: string) => {
+export const selectDbWimpRows = (data: DbData, wimpId: string) => {
   const wimp = data.wimps.find((row) => row.id === wimpId)
   if (!wimp) return null
 
@@ -642,16 +642,16 @@ export const selectSharedDbWimpRows = (data: SharedDbData, wimpId: string) => {
   }
 }
 
-export const selectSharedDbWimpEdge = (data: SharedDbData, childWimpId: string) =>
+export const selectDbWimpEdge = (data: DbData, childWimpId: string) =>
   data.wimpEdges.find((row) => row.childWimpId === childWimpId) ?? null
 
-export const selectSharedDbFieldValue = (data: SharedDbData, wimpFieldId: string) =>
+export const selectDbFieldValue = (data: DbData, wimpFieldId: string) =>
   data.fieldValues.find((row) => row.ownerWimpFieldId === wimpFieldId) ?? null
 
-export const selectSharedDbFieldSource = (data: SharedDbData, childWimpFieldId: string) =>
+export const selectDbFieldSource = (data: DbData, childWimpFieldId: string) =>
   data.fieldSources.find((row) => row.childWimpFieldId === childWimpFieldId) ?? null
 
-export const selectSharedDbEntanglementFamilyRows = (data: SharedDbData, entanglementId: string) => {
+export const selectDbEntanglementFamilyRows = (data: DbData, entanglementId: string) => {
   const entanglement = data.entanglements.find((row) => row.id === entanglementId)
   if (!entanglement) return null
 

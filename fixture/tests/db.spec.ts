@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { assembleSharedDbData } from "fixture/dark"
-import { createSharedDbFixture } from "fixture/db.fixture.ts"
+import { assembleDbData } from "fixture/dark"
+import { createDbFixture } from "fixture/db.fixture.ts"
 
-describe("dark -> shared db debug assembly helper", () => {
+describe("dark -> db debug assembly helper", () => {
   test("собирает canonical relational data для сравнения и отладки", async () => {
-    const fixture = createSharedDbFixture()
-    const data = await assembleSharedDbData(fixture.root)
+    const fixture = createDbFixture()
+    const data = await assembleDbData(fixture.root)
 
     expect(data.metas.map((meta) => meta.src).sort()).toEqual(["meta/child", "meta/root"])
     expect(data.metaFields.map((field) => field.fieldKey).sort()).toEqual(["alias", "items", "items", "mode", "mode", "title"])
@@ -23,8 +23,8 @@ describe("dark -> shared db debug assembly helper", () => {
   })
 
   test("включает entanglement relations и state graph relations как канонические связи, а не runtime tables", async () => {
-    const fixture = createSharedDbFixture()
-    const data = await assembleSharedDbData(fixture.root)
+    const fixture = createDbFixture()
+    const data = await assembleDbData(fixture.root)
 
     expect(data.entanglements).toHaveLength(3)
     expect(data.entanglementMembers).toHaveLength(6)

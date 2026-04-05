@@ -6,6 +6,6 @@
   "dependencies": {
     "@dark/gravity": "workspace:*",
     "@dark/types": "workspace:*",
-    "@shared/db": "workspace:*"
+    "@metafor/db": "workspace:*"
   }
 }

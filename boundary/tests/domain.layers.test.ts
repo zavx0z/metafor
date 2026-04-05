@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { openSharedDbMaterializationWriter, openSharedDbSqliteBackend } from "@shared/db"
+import { openDbMaterializationWriter, openDbSqliteBackend } from "../../pkg/db/index.ts"
 import { flattenBoundaryData, FieldType } from "../gravity"
 import { assembleStoredBoundaryData } from "../strong"
 import { weak$ } from "../weak"
 import { boundary$, addRuntimeWimp, gravity$, rebuildRuntime, removeRuntimeWimp, update, write } from "../boundary"
-import { createSharedDbFixture } from "fixture/db.fixture.ts"
+import { createDbFixture } from "fixture/db.fixture.ts"
 import { resetBoundaryForTest } from "./test.helper"
 
 describe("boundary domain layers", () => {
@@ -63,10 +63,10 @@ describe("boundary domain layers", () => {
     expect(boundary$.states).toEqual([1])
   })
 
-  test("shared/db путь живёт через gravity composition и transactional rebuild, без dump/restore", async () => {
-    const fixture = createSharedDbFixture()
-    const backend = openSharedDbSqliteBackend()
-    const writer = openSharedDbMaterializationWriter(backend)
+  test("db путь живёт через gravity composition и transactional rebuild, без dump/restore", async () => {
+    const fixture = createDbFixture()
+    const backend = openDbSqliteBackend()
+    const writer = openDbMaterializationWriter(backend)
 
     try {
       await fixture.root.save(writer)

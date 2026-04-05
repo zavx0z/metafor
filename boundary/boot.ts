@@ -1,5 +1,5 @@
-import { applyStructuralPatchFromSharedDb, applyWeakResultPacket, setValues } from "./boundary.ts"
-import type { SharedDbBackend } from "../pkg/db/core.ts"
+import { applyStructuralPatchFromDb, applyWeakResultPacket, setValues } from "./boundary.ts"
+import type { DbBackend } from "../pkg/db/core.ts"
 import {
   GLUON_BROADCAST_CHANNEL,
   GRAVITY_BROADCAST_CHANNEL,
@@ -11,10 +11,10 @@ import {
   WEAK_W_BROADCAST_CHANNEL,
 } from "@shared/protocol"
 
-export type OpenBoundaryDb = () => Promise<SharedDbBackend> | SharedDbBackend
+export type OpenBoundaryDb = () => Promise<DbBackend> | DbBackend
 
 type BoundaryWorkerRuntime = {
-  db: Promise<SharedDbBackend>
+  db: Promise<DbBackend>
   gravity: BroadcastChannel
   gluon: BroadcastChannel
   higgs: BroadcastChannel
@@ -63,7 +63,7 @@ export const bootBoundaryDomain = (openDb: OpenBoundaryDb): void => {
     enqueue(async () => {
       const backend = await db
       for (const patch of message.patches) {
-        await applyStructuralPatchFromSharedDb(backend, patch)
+        await applyStructuralPatchFromDb(backend, patch)
       }
     })
   }

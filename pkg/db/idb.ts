@@ -1,44 +1,44 @@
-import { createEmptySharedDbData, normalizeSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
-import type { SharedDbBackend, SharedDbBackendTableName, SharedDbEntanglementFamilyRows, SharedDbMetaRows, SharedDbWimpRows } from "./backend.t.ts"
+import { createEmptyDbData, normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
+import type { DbBackend, DbBackendTableName, DbEntanglementFamilyRows, DbMetaRows, DbWimpRows } from "./backend.t.ts"
 import type {
-  SharedDbData,
-  SharedDbEntanglementFieldMemberRecord,
-  SharedDbEntanglementFieldRecord,
-  SharedDbEntanglementMemberRecord,
-  SharedDbEntanglementRecord,
-  SharedDbFieldSourceRecord,
-  SharedDbFieldValueRecord,
-  SharedDbMetaFieldRecord,
-  SharedDbMetaMatterEdgeRecord,
-  SharedDbMetaMatterNodeRecord,
-  SharedDbMetaProcessReadRecord,
-  SharedDbMetaProcessRecord,
-  SharedDbMetaProcessWriteRecord,
-  SharedDbMetaReactionReadRecord,
-  SharedDbMetaReactionRecord,
-  SharedDbMetaReactionStateRecord,
-  SharedDbMetaReactionWriteRecord,
-  SharedDbMetaRecord,
-  SharedDbMetaStateRecord,
-  SharedDbMetaTransitionConditionRecord,
-  SharedDbMetaTransitionRecord,
-  SharedDbWimpEdgeRecord,
-  SharedDbWimpFieldRecord,
-  SharedDbWimpRecord,
-  SharedDbWimpStateRecord,
+  DbData,
+  DbEntanglementFieldMemberRecord,
+  DbEntanglementFieldRecord,
+  DbEntanglementMemberRecord,
+  DbEntanglementRecord,
+  DbFieldSourceRecord,
+  DbFieldValueRecord,
+  DbMetaFieldRecord,
+  DbMetaMatterEdgeRecord,
+  DbMetaMatterNodeRecord,
+  DbMetaProcessReadRecord,
+  DbMetaProcessRecord,
+  DbMetaProcessWriteRecord,
+  DbMetaReactionReadRecord,
+  DbMetaReactionRecord,
+  DbMetaReactionStateRecord,
+  DbMetaReactionWriteRecord,
+  DbMetaRecord,
+  DbMetaStateRecord,
+  DbMetaTransitionConditionRecord,
+  DbMetaTransitionRecord,
+  DbWimpEdgeRecord,
+  DbWimpFieldRecord,
+  DbWimpRecord,
+  DbWimpStateRecord,
 } from "./db.t.ts"
 
-export interface SharedDbIndexedDbBackendOptions {
+export interface DbIndexedDbBackendOptions {
   databaseName?: string
   version?: number
   indexedDb?: IDBFactory
 }
 
-export interface SharedDbIndexedDbBackend extends SharedDbBackend {
+export interface DbIndexedDbBackend extends DbBackend {
   flush(): Promise<void>
 }
 
-const DEFAULT_INDEXED_DB_NAME = "metafor-shared-db"
+const DEFAULT_INDEXED_DB_NAME = "metafor-db"
 const DEFAULT_INDEXED_DB_VERSION = 1
 
 const indexedDbTableConfigs = [
@@ -66,7 +66,7 @@ const indexedDbTableConfigs = [
   { table: "entanglement_members", dataKey: "entanglementMembers" },
   { table: "entanglement_fields", dataKey: "entanglementFields" },
   { table: "entanglement_field_members", dataKey: "entanglementFieldMembers" },
-] as const satisfies ReadonlyArray<{ table: SharedDbBackendTableName; dataKey: keyof SharedDbData }>
+] as const satisfies ReadonlyArray<{ table: DbBackendTableName; dataKey: keyof DbData }>
 
 const indexedDbTableNames = indexedDbTableConfigs.map((config) => config.table)
 
@@ -85,7 +85,7 @@ const metaStoreNames = [
   "meta_reaction_writes",
   "meta_matter_nodes",
   "meta_matter_edges",
-] as const satisfies readonly SharedDbBackendTableName[]
+] as const satisfies readonly DbBackendTableName[]
 
 const wimpStoreNames = [
   "wimps",
@@ -94,14 +94,14 @@ const wimpStoreNames = [
   "field_sources",
   "wimp_states",
   "wimp_edges",
-] as const satisfies readonly SharedDbBackendTableName[]
+] as const satisfies readonly DbBackendTableName[]
 
 const entanglementStoreNames = [
   "entanglements",
   "entanglement_members",
   "entanglement_fields",
   "entanglement_field_members",
-] as const satisfies readonly SharedDbBackendTableName[]
+] as const satisfies readonly DbBackendTableName[]
 
 const cloneRow = <T>(row: T): T => structuredClone(row)
 const cloneRows = <T>(rows: readonly T[]): T[] => rows.map(cloneRow)
@@ -110,7 +110,7 @@ const sortRowsById = <T extends { id: string }>(rows: T[]): T[] => rows.sort(com
 const dedupeRowsById = <T extends { id: string }>(rows: readonly T[]): T[] =>
   Array.from(new Map(rows.map((row) => [row.id, cloneRow(row)] as const)).values())
 
-const getIndexedDbFactory = (options: SharedDbIndexedDbBackendOptions): IDBFactory => {
+const getIndexedDbFactory = (options: DbIndexedDbBackendOptions): IDBFactory => {
   if (options.indexedDb) return options.indexedDb
 
   if (typeof indexedDB === "undefined") {
@@ -136,7 +136,7 @@ const openIndexedDb = async (
           ? request.transaction!.objectStore(config.table)
           : database.createObjectStore(config.table, { keyPath: "id" })
 
-        sharedDbRequiredBackendIndexes
+        dbRequiredBackendIndexes
           .filter((index) => index.table === config.table)
           .forEach((index) => {
             if (store.indexNames.contains(index.name)) return
@@ -167,7 +167,7 @@ const completeTransaction = async (transaction: IDBTransaction): Promise<void> =
 
 const readStoreRow = async <T>(
   database: IDBDatabase,
-  storeName: SharedDbBackendTableName,
+  storeName: DbBackendTableName,
   key: string,
 ): Promise<T | null> => {
   const transaction = database.transaction(storeName, "readonly")
@@ -178,7 +178,7 @@ const readStoreRow = async <T>(
 
 const readStoreRowByIndex = async <T>(
   database: IDBDatabase,
-  storeName: SharedDbBackendTableName,
+  storeName: DbBackendTableName,
   indexName: string,
   key: string,
 ): Promise<T | null> => {
@@ -191,7 +191,7 @@ const readStoreRowByIndex = async <T>(
 
 const readStoreRowsByIndex = async <T extends { id: string }>(
   database: IDBDatabase,
-  storeName: SharedDbBackendTableName,
+  storeName: DbBackendTableName,
   indexName: string,
   key: string,
 ): Promise<T[]> => {
@@ -201,9 +201,9 @@ const readStoreRowsByIndex = async <T extends { id: string }>(
   return sortRowsById(cloneRows((result ?? []) as T[]))
 }
 
-const readAllIndexedDbData = async (database: IDBDatabase): Promise<SharedDbData> => {
+const readAllIndexedDbData = async (database: IDBDatabase): Promise<DbData> => {
   const transaction = database.transaction(indexedDbTableNames, "readonly")
-  const requests = new Map<keyof SharedDbData, IDBRequest<unknown[]>>()
+  const requests = new Map<keyof DbData, IDBRequest<unknown[]>>()
 
   indexedDbTableConfigs.forEach((config) => {
     requests.set(config.dataKey, transaction.objectStore(config.table).getAll())
@@ -211,18 +211,18 @@ const readAllIndexedDbData = async (database: IDBDatabase): Promise<SharedDbData
 
   await completeTransaction(transaction)
 
-  const data = createEmptySharedDbData()
-  const assignRows = <Key extends keyof SharedDbData>(key: Key, rows: SharedDbData[Key]): void => {
+  const data = createEmptyDbData()
+  const assignRows = <Key extends keyof DbData>(key: Key, rows: DbData[Key]): void => {
     data[key] = rows
   }
   indexedDbTableConfigs.forEach((config) => {
-    const rows = (requests.get(config.dataKey)?.result ?? []).map((row) => structuredClone(row)) as SharedDbData[
+    const rows = (requests.get(config.dataKey)?.result ?? []).map((row) => structuredClone(row)) as DbData[
       typeof config.dataKey
     ]
     assignRows(config.dataKey, rows)
   })
 
-  return normalizeSharedDbData(data)
+  return normalizeDbData(data)
 }
 
 const putRow = <T>(store: IDBObjectStore, row: T): void => {
@@ -241,17 +241,17 @@ const deleteRowsById = <T extends { id: string }>(store: IDBObjectStore, rows: r
   })
 }
 
-const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string): Promise<SharedDbMetaRows | null> => {
-  const meta = await readStoreRow<SharedDbMetaRecord>(database, "metas", metaId)
+const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string): Promise<DbMetaRows | null> => {
+  const meta = await readStoreRow<DbMetaRecord>(database, "metas", metaId)
   if (!meta) return null
 
-  const fields = await readStoreRowsByIndex<SharedDbMetaFieldRecord>(database, "meta_fields", "meta_fields_by_owner_meta", metaId)
-  const states = await readStoreRowsByIndex<SharedDbMetaStateRecord>(database, "meta_states", "meta_states_by_owner_meta", metaId)
+  const fields = await readStoreRowsByIndex<DbMetaFieldRecord>(database, "meta_fields", "meta_fields_by_owner_meta", metaId)
+  const states = await readStoreRowsByIndex<DbMetaStateRecord>(database, "meta_states", "meta_states_by_owner_meta", metaId)
   const transitions = sortRowsById(
     (
       await Promise.all(
         states.map((state) =>
-          readStoreRowsByIndex<SharedDbMetaTransitionRecord>(
+          readStoreRowsByIndex<DbMetaTransitionRecord>(
             database,
             "meta_transitions",
             "meta_transitions_by_owner_state",
@@ -265,7 +265,7 @@ const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string):
     (
       await Promise.all(
         transitions.map((transition) =>
-          readStoreRowsByIndex<SharedDbMetaTransitionConditionRecord>(
+          readStoreRowsByIndex<DbMetaTransitionConditionRecord>(
             database,
             "meta_transition_conditions",
             "meta_transition_conditions_by_owner_transition",
@@ -275,7 +275,7 @@ const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string):
       )
     ).flat(),
   )
-  const processes = await readStoreRowsByIndex<SharedDbMetaProcessRecord>(
+  const processes = await readStoreRowsByIndex<DbMetaProcessRecord>(
     database,
     "meta_processes",
     "meta_processes_by_owner_meta",
@@ -285,7 +285,7 @@ const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string):
     (
       await Promise.all(
         processes.map((process) =>
-          readStoreRowsByIndex<SharedDbMetaProcessReadRecord>(
+          readStoreRowsByIndex<DbMetaProcessReadRecord>(
             database,
             "meta_process_reads",
             "meta_process_reads_by_owner_process",
@@ -299,7 +299,7 @@ const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string):
     (
       await Promise.all(
         processes.map((process) =>
-          readStoreRowsByIndex<SharedDbMetaProcessWriteRecord>(
+          readStoreRowsByIndex<DbMetaProcessWriteRecord>(
             database,
             "meta_process_writes",
             "meta_process_writes_by_owner_process",
@@ -309,7 +309,7 @@ const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string):
       )
     ).flat(),
   )
-  const reactions = await readStoreRowsByIndex<SharedDbMetaReactionRecord>(
+  const reactions = await readStoreRowsByIndex<DbMetaReactionRecord>(
     database,
     "meta_reactions",
     "meta_reactions_by_owner_meta",
@@ -319,7 +319,7 @@ const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string):
     (
       await Promise.all(
         reactions.map((reaction) =>
-          readStoreRowsByIndex<SharedDbMetaReactionStateRecord>(
+          readStoreRowsByIndex<DbMetaReactionStateRecord>(
             database,
             "meta_reaction_states",
             "meta_reaction_states_by_owner_reaction",
@@ -333,7 +333,7 @@ const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string):
     (
       await Promise.all(
         reactions.map((reaction) =>
-          readStoreRowsByIndex<SharedDbMetaReactionReadRecord>(
+          readStoreRowsByIndex<DbMetaReactionReadRecord>(
             database,
             "meta_reaction_reads",
             "meta_reaction_reads_by_owner_reaction",
@@ -347,7 +347,7 @@ const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string):
     (
       await Promise.all(
         reactions.map((reaction) =>
-          readStoreRowsByIndex<SharedDbMetaReactionWriteRecord>(
+          readStoreRowsByIndex<DbMetaReactionWriteRecord>(
             database,
             "meta_reaction_writes",
             "meta_reaction_writes_by_owner_reaction",
@@ -357,13 +357,13 @@ const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string):
       )
     ).flat(),
   )
-  const matterNodes = await readStoreRowsByIndex<SharedDbMetaMatterNodeRecord>(
+  const matterNodes = await readStoreRowsByIndex<DbMetaMatterNodeRecord>(
     database,
     "meta_matter_nodes",
     "meta_matter_nodes_by_owner_meta",
     metaId,
   )
-  const matterEdges = await readStoreRowsByIndex<SharedDbMetaMatterEdgeRecord>(
+  const matterEdges = await readStoreRowsByIndex<DbMetaMatterEdgeRecord>(
     database,
     "meta_matter_edges",
     "meta_matter_edges_by_owner_meta",
@@ -388,16 +388,16 @@ const readMetaRowsFromIndexedDb = async (database: IDBDatabase, metaId: string):
   }
 }
 
-const readWimpRowsFromIndexedDb = async (database: IDBDatabase, wimpId: string): Promise<SharedDbWimpRows | null> => {
-  const wimp = await readStoreRow<SharedDbWimpRecord>(database, "wimps", wimpId)
+const readWimpRowsFromIndexedDb = async (database: IDBDatabase, wimpId: string): Promise<DbWimpRows | null> => {
+  const wimp = await readStoreRow<DbWimpRecord>(database, "wimps", wimpId)
   if (!wimp) return null
 
-  const fields = await readStoreRowsByIndex<SharedDbWimpFieldRecord>(database, "wimp_fields", "wimp_fields_by_owner_wimp", wimpId)
+  const fields = await readStoreRowsByIndex<DbWimpFieldRecord>(database, "wimp_fields", "wimp_fields_by_owner_wimp", wimpId)
   const values = sortRowsById(
     (
       await Promise.all(
         fields.map((field) =>
-          readStoreRowsByIndex<SharedDbFieldValueRecord>(
+          readStoreRowsByIndex<DbFieldValueRecord>(
             database,
             "field_values",
             "field_values_by_owner_wimp_field",
@@ -411,7 +411,7 @@ const readWimpRowsFromIndexedDb = async (database: IDBDatabase, wimpId: string):
     (
       await Promise.all(
         fields.map((field) =>
-          readStoreRowsByIndex<SharedDbFieldSourceRecord>(
+          readStoreRowsByIndex<DbFieldSourceRecord>(
             database,
             "field_sources",
             "field_sources_by_child_wimp_field",
@@ -421,7 +421,7 @@ const readWimpRowsFromIndexedDb = async (database: IDBDatabase, wimpId: string):
       )
     ).flat(),
   )
-  const state = await readStoreRowByIndex<SharedDbWimpStateRecord>(database, "wimp_states", "wimp_states_by_owner", wimpId)
+  const state = await readStoreRowByIndex<DbWimpStateRecord>(database, "wimp_states", "wimp_states_by_owner", wimpId)
   if (!state) {
     throw new Error(`Wimp ${wimpId} is missing wimp_state row`)
   }
@@ -439,7 +439,7 @@ const listWimpIdsFromIndexedDb = async (database: IDBDatabase): Promise<string[]
   const transaction = database.transaction("wimps", "readonly")
   const request = transaction.objectStore("wimps").getAll()
   const [result] = await Promise.all([resolveRequest(request), completeTransaction(transaction)])
-  return ((result ?? []) as SharedDbWimpRecord[])
+  return ((result ?? []) as DbWimpRecord[])
     .map(cloneRow)
     .sort((left, right) => left.wimpOrder - right.wimpOrder || left.id.localeCompare(right.id))
     .map((row) => row.id)
@@ -448,22 +448,22 @@ const listWimpIdsFromIndexedDb = async (database: IDBDatabase): Promise<string[]
 const readWimpFieldFromIndexedDb = async (
   database: IDBDatabase,
   wimpFieldId: string,
-): Promise<SharedDbWimpFieldRecord | null> => readStoreRow<SharedDbWimpFieldRecord>(database, "wimp_fields", wimpFieldId)
+): Promise<DbWimpFieldRecord | null> => readStoreRow<DbWimpFieldRecord>(database, "wimp_fields", wimpFieldId)
 
 const readEntanglementFamilyFromIndexedDb = async (
   database: IDBDatabase,
   entanglementId: string,
-): Promise<SharedDbEntanglementFamilyRows | null> => {
-  const entanglement = await readStoreRow<SharedDbEntanglementRecord>(database, "entanglements", entanglementId)
+): Promise<DbEntanglementFamilyRows | null> => {
+  const entanglement = await readStoreRow<DbEntanglementRecord>(database, "entanglements", entanglementId)
   if (!entanglement) return null
 
-  const members = await readStoreRowsByIndex<SharedDbEntanglementMemberRecord>(
+  const members = await readStoreRowsByIndex<DbEntanglementMemberRecord>(
     database,
     "entanglement_members",
     "entanglement_members_by_owner_entanglement",
     entanglementId,
   )
-  const fields = await readStoreRowsByIndex<SharedDbEntanglementFieldRecord>(
+  const fields = await readStoreRowsByIndex<DbEntanglementFieldRecord>(
     database,
     "entanglement_fields",
     "entanglement_fields_by_owner_entanglement",
@@ -473,7 +473,7 @@ const readEntanglementFamilyFromIndexedDb = async (
   if (!field) {
     throw new Error(`Entanglement ${entanglementId} is missing entanglement_field rows`)
   }
-  const fieldMembers = await readStoreRowsByIndex<SharedDbEntanglementFieldMemberRecord>(
+  const fieldMembers = await readStoreRowsByIndex<DbEntanglementFieldMemberRecord>(
     database,
     "entanglement_field_members",
     "entanglement_field_members_by_owner_field",
@@ -488,14 +488,14 @@ const readEntanglementFamilyFromIndexedDb = async (
   }
 }
 
-const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbMetaRows): Promise<void> => {
-  const existingFields = await readStoreRowsByIndex<SharedDbMetaFieldRecord>(database, "meta_fields", "meta_fields_by_owner_meta", rows.meta.id)
-  const existingStates = await readStoreRowsByIndex<SharedDbMetaStateRecord>(database, "meta_states", "meta_states_by_owner_meta", rows.meta.id)
+const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: DbMetaRows): Promise<void> => {
+  const existingFields = await readStoreRowsByIndex<DbMetaFieldRecord>(database, "meta_fields", "meta_fields_by_owner_meta", rows.meta.id)
+  const existingStates = await readStoreRowsByIndex<DbMetaStateRecord>(database, "meta_states", "meta_states_by_owner_meta", rows.meta.id)
   const existingTransitions = sortRowsById(
     (
       await Promise.all(
         existingStates.map((state) =>
-          readStoreRowsByIndex<SharedDbMetaTransitionRecord>(
+          readStoreRowsByIndex<DbMetaTransitionRecord>(
             database,
             "meta_transitions",
             "meta_transitions_by_owner_state",
@@ -509,7 +509,7 @@ const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbM
     (
       await Promise.all(
         existingTransitions.map((transition) =>
-          readStoreRowsByIndex<SharedDbMetaTransitionConditionRecord>(
+          readStoreRowsByIndex<DbMetaTransitionConditionRecord>(
             database,
             "meta_transition_conditions",
             "meta_transition_conditions_by_owner_transition",
@@ -519,7 +519,7 @@ const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbM
       )
     ).flat(),
   )
-  const existingProcesses = await readStoreRowsByIndex<SharedDbMetaProcessRecord>(
+  const existingProcesses = await readStoreRowsByIndex<DbMetaProcessRecord>(
     database,
     "meta_processes",
     "meta_processes_by_owner_meta",
@@ -529,7 +529,7 @@ const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbM
     (
       await Promise.all(
         existingProcesses.map((process) =>
-          readStoreRowsByIndex<SharedDbMetaProcessReadRecord>(
+          readStoreRowsByIndex<DbMetaProcessReadRecord>(
             database,
             "meta_process_reads",
             "meta_process_reads_by_owner_process",
@@ -543,7 +543,7 @@ const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbM
     (
       await Promise.all(
         existingProcesses.map((process) =>
-          readStoreRowsByIndex<SharedDbMetaProcessWriteRecord>(
+          readStoreRowsByIndex<DbMetaProcessWriteRecord>(
             database,
             "meta_process_writes",
             "meta_process_writes_by_owner_process",
@@ -553,7 +553,7 @@ const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbM
       )
     ).flat(),
   )
-  const existingReactions = await readStoreRowsByIndex<SharedDbMetaReactionRecord>(
+  const existingReactions = await readStoreRowsByIndex<DbMetaReactionRecord>(
     database,
     "meta_reactions",
     "meta_reactions_by_owner_meta",
@@ -563,7 +563,7 @@ const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbM
     (
       await Promise.all(
         existingReactions.map((reaction) =>
-          readStoreRowsByIndex<SharedDbMetaReactionStateRecord>(
+          readStoreRowsByIndex<DbMetaReactionStateRecord>(
             database,
             "meta_reaction_states",
             "meta_reaction_states_by_owner_reaction",
@@ -577,7 +577,7 @@ const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbM
     (
       await Promise.all(
         existingReactions.map((reaction) =>
-          readStoreRowsByIndex<SharedDbMetaReactionReadRecord>(
+          readStoreRowsByIndex<DbMetaReactionReadRecord>(
             database,
             "meta_reaction_reads",
             "meta_reaction_reads_by_owner_reaction",
@@ -591,7 +591,7 @@ const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbM
     (
       await Promise.all(
         existingReactions.map((reaction) =>
-          readStoreRowsByIndex<SharedDbMetaReactionWriteRecord>(
+          readStoreRowsByIndex<DbMetaReactionWriteRecord>(
             database,
             "meta_reaction_writes",
             "meta_reaction_writes_by_owner_reaction",
@@ -601,13 +601,13 @@ const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbM
       )
     ).flat(),
   )
-  const existingMatterNodes = await readStoreRowsByIndex<SharedDbMetaMatterNodeRecord>(
+  const existingMatterNodes = await readStoreRowsByIndex<DbMetaMatterNodeRecord>(
     database,
     "meta_matter_nodes",
     "meta_matter_nodes_by_owner_meta",
     rows.meta.id,
   )
-  const existingMatterEdges = await readStoreRowsByIndex<SharedDbMetaMatterEdgeRecord>(
+  const existingMatterEdges = await readStoreRowsByIndex<DbMetaMatterEdgeRecord>(
     database,
     "meta_matter_edges",
     "meta_matter_edges_by_owner_meta",
@@ -648,13 +648,13 @@ const replaceMetaRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbM
   await completeTransaction(transaction)
 }
 
-const replaceWimpRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbWimpRows): Promise<void> => {
-  const existingFields = await readStoreRowsByIndex<SharedDbWimpFieldRecord>(database, "wimp_fields", "wimp_fields_by_owner_wimp", rows.wimp.id)
+const replaceWimpRowsInIndexedDb = async (database: IDBDatabase, rows: DbWimpRows): Promise<void> => {
+  const existingFields = await readStoreRowsByIndex<DbWimpFieldRecord>(database, "wimp_fields", "wimp_fields_by_owner_wimp", rows.wimp.id)
   const existingValues = sortRowsById(
     (
       await Promise.all(
         existingFields.map((field) =>
-          readStoreRowsByIndex<SharedDbFieldValueRecord>(
+          readStoreRowsByIndex<DbFieldValueRecord>(
             database,
             "field_values",
             "field_values_by_owner_wimp_field",
@@ -668,7 +668,7 @@ const replaceWimpRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbW
     (
       await Promise.all(
         existingFields.map((field) =>
-          readStoreRowsByIndex<SharedDbFieldSourceRecord>(
+          readStoreRowsByIndex<DbFieldSourceRecord>(
             database,
             "field_sources",
             "field_sources_by_child_wimp_field",
@@ -682,7 +682,7 @@ const replaceWimpRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbW
     (
       await Promise.all(
         existingFields.map((field) =>
-          readStoreRowsByIndex<SharedDbFieldSourceRecord>(
+          readStoreRowsByIndex<DbFieldSourceRecord>(
             database,
             "field_sources",
             "field_sources_by_parent_wimp_field",
@@ -693,7 +693,7 @@ const replaceWimpRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbW
     ).flat(),
   )
   const existingSources = dedupeRowsById([...existingChildSources, ...existingParentSources])
-  const existingState = await readStoreRowByIndex<SharedDbWimpStateRecord>(database, "wimp_states", "wimp_states_by_owner", rows.wimp.id)
+  const existingState = await readStoreRowByIndex<DbWimpStateRecord>(database, "wimp_states", "wimp_states_by_owner", rows.wimp.id)
 
   const transaction = database.transaction(wimpStoreNames, "readwrite")
 
@@ -713,8 +713,8 @@ const replaceWimpRowsInIndexedDb = async (database: IDBDatabase, rows: SharedDbW
   await completeTransaction(transaction)
 }
 
-const replaceWimpEdgeInIndexedDb = async (database: IDBDatabase, row: SharedDbWimpEdgeRecord): Promise<void> => {
-  const existing = await readStoreRowByIndex<SharedDbWimpEdgeRecord>(database, "wimp_edges", "wimp_edges_by_child", row.childWimpId)
+const replaceWimpEdgeInIndexedDb = async (database: IDBDatabase, row: DbWimpEdgeRecord): Promise<void> => {
+  const existing = await readStoreRowByIndex<DbWimpEdgeRecord>(database, "wimp_edges", "wimp_edges_by_child", row.childWimpId)
   const transaction = database.transaction("wimp_edges", "readwrite")
   const store = transaction.objectStore("wimp_edges")
 
@@ -730,19 +730,19 @@ const readExistingEntanglementFamily = async (
   database: IDBDatabase,
   entanglementId: string,
 ): Promise<{
-  entanglement: SharedDbEntanglementRecord | null
-  members: SharedDbEntanglementMemberRecord[]
-  fields: SharedDbEntanglementFieldRecord[]
-  fieldMembers: SharedDbEntanglementFieldMemberRecord[]
+  entanglement: DbEntanglementRecord | null
+  members: DbEntanglementMemberRecord[]
+  fields: DbEntanglementFieldRecord[]
+  fieldMembers: DbEntanglementFieldMemberRecord[]
 }> => {
-  const entanglement = await readStoreRow<SharedDbEntanglementRecord>(database, "entanglements", entanglementId)
-  const members = await readStoreRowsByIndex<SharedDbEntanglementMemberRecord>(
+  const entanglement = await readStoreRow<DbEntanglementRecord>(database, "entanglements", entanglementId)
+  const members = await readStoreRowsByIndex<DbEntanglementMemberRecord>(
     database,
     "entanglement_members",
     "entanglement_members_by_owner_entanglement",
     entanglementId,
   )
-  const fields = await readStoreRowsByIndex<SharedDbEntanglementFieldRecord>(
+  const fields = await readStoreRowsByIndex<DbEntanglementFieldRecord>(
     database,
     "entanglement_fields",
     "entanglement_fields_by_owner_entanglement",
@@ -752,7 +752,7 @@ const readExistingEntanglementFamily = async (
     (
       await Promise.all(
         fields.map((field) =>
-          readStoreRowsByIndex<SharedDbEntanglementFieldMemberRecord>(
+          readStoreRowsByIndex<DbEntanglementFieldMemberRecord>(
             database,
             "entanglement_field_members",
             "entanglement_field_members_by_owner_field",
@@ -782,7 +782,7 @@ const deleteEntanglementFamilyInIndexedDb = async (database: IDBDatabase, entang
 
 const replaceEntanglementFamilyInIndexedDb = async (
   database: IDBDatabase,
-  rows: SharedDbEntanglementFamilyRows,
+  rows: DbEntanglementFamilyRows,
 ): Promise<void> => {
   const existing = await readExistingEntanglementFamily(database, rows.entanglement.id)
   const transaction = database.transaction(entanglementStoreNames, "readwrite")
@@ -803,7 +803,7 @@ const replaceEntanglementFamilyInIndexedDb = async (
 }
 
 const setFieldValueInIndexedDb = async (database: IDBDatabase, wimpFieldId: string, value: unknown): Promise<void> => {
-  const existing = await readStoreRowByIndex<SharedDbFieldValueRecord>(
+  const existing = await readStoreRowByIndex<DbFieldValueRecord>(
     database,
     "field_values",
     "field_values_by_owner_wimp_field",
@@ -822,7 +822,7 @@ const setFieldValueInIndexedDb = async (database: IDBDatabase, wimpFieldId: stri
 }
 
 const setWimpStateInIndexedDb = async (database: IDBDatabase, wimpId: string, metaStateId: string): Promise<void> => {
-  const existing = await readStoreRowByIndex<SharedDbWimpStateRecord>(database, "wimp_states", "wimp_states_by_owner", wimpId)
+  const existing = await readStoreRowByIndex<DbWimpStateRecord>(database, "wimp_states", "wimp_states_by_owner", wimpId)
   if (!existing) {
     throw new Error(`Wimp state not found for wimp ${wimpId}`)
   }
@@ -835,12 +835,12 @@ const setWimpStateInIndexedDb = async (database: IDBDatabase, wimpId: string, me
   await completeTransaction(transaction)
 }
 
-const readFullDumpSnapshotFromIndexedDb = async (database: IDBDatabase): Promise<SharedDbData> =>
+const readFullDumpSnapshotFromIndexedDb = async (database: IDBDatabase): Promise<DbData> =>
   await readAllIndexedDbData(database)
 
-export const openSharedDbIndexedDbBackend = async (
-  options: SharedDbIndexedDbBackendOptions = {},
-): Promise<SharedDbIndexedDbBackend> => {
+export const openDbIndexedDbBackend = async (
+  options: DbIndexedDbBackendOptions = {},
+): Promise<DbIndexedDbBackend> => {
   const factory = getIndexedDbFactory(options)
   const database = await openIndexedDb(
     factory,
@@ -879,7 +879,7 @@ export const openSharedDbIndexedDbBackend = async (
   }
 
   return {
-    requiredIndexes: sharedDbRequiredBackendIndexes,
+    requiredIndexes: dbRequiredBackendIndexes,
 
     close() {
       if (closed) return
@@ -905,7 +905,7 @@ export const openSharedDbIndexedDbBackend = async (
 
     readData() {
       assertOpen()
-      return normalizeSharedDbData(fullDumpSnapshot)
+      return normalizeDbData(fullDumpSnapshot)
     },
 
     async readMetaRows(metaId) {
@@ -935,13 +935,13 @@ export const openSharedDbIndexedDbBackend = async (
     async readWimpEdge(childWimpId) {
       assertOpen()
       await pendingWriteQueue
-      return readStoreRowByIndex<SharedDbWimpEdgeRecord>(database, "wimp_edges", "wimp_edges_by_child", childWimpId)
+      return readStoreRowByIndex<DbWimpEdgeRecord>(database, "wimp_edges", "wimp_edges_by_child", childWimpId)
     },
 
     async readFieldValue(wimpFieldId) {
       assertOpen()
       await pendingWriteQueue
-      return readStoreRowByIndex<SharedDbFieldValueRecord>(
+      return readStoreRowByIndex<DbFieldValueRecord>(
         database,
         "field_values",
         "field_values_by_owner_wimp_field",
@@ -952,7 +952,7 @@ export const openSharedDbIndexedDbBackend = async (
     async readFieldSource(childWimpFieldId) {
       assertOpen()
       await pendingWriteQueue
-      return readStoreRowByIndex<SharedDbFieldSourceRecord>(
+      return readStoreRowByIndex<DbFieldSourceRecord>(
         database,
         "field_sources",
         "field_sources_by_child_wimp_field",
@@ -1010,9 +1010,9 @@ export const openSharedDbIndexedDbBackend = async (
   }
 }
 
-export const inspectSharedDbIndexedDbSchema = async (
-  options: SharedDbIndexedDbBackendOptions = {},
-): Promise<Array<{ store: SharedDbBackendTableName; indexes: string[] }>> => {
+export const inspectDbIndexedDbSchema = async (
+  options: DbIndexedDbBackendOptions = {},
+): Promise<Array<{ store: DbBackendTableName; indexes: string[] }>> => {
   const factory = getIndexedDbFactory(options)
   const database = await openIndexedDb(
     factory,

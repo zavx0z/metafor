@@ -1,20 +1,20 @@
 import { describe, expect, test } from "bun:test"
-import { createSharedDbFixture } from "fixture/db.fixture.ts"
-import { normalizeSharedDbData, sharedDbRequiredBackendIndexes } from "./backend.ts"
-import { openSharedDbMaterializationWriter } from "./materialize.ts"
-import { openSharedDbSqliteBackend } from "./sqlite.ts"
+import { createDbFixture } from "fixture/db.fixture.ts"
+import { normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
+import { openDbMaterializationWriter } from "./materialize.ts"
+import { openDbSqliteBackend } from "./sqlite.ts"
 
-describe("shared db canonical relational data", () => {
+describe("db canonical relational data", () => {
   test("materializes only entity and relation tables through row-group writes", async () => {
-    const fixture = createSharedDbFixture()
-    const backend = openSharedDbSqliteBackend()
-    const writer = openSharedDbMaterializationWriter(backend)
+    const fixture = createDbFixture()
+    const backend = openDbSqliteBackend()
+    const writer = openDbMaterializationWriter(backend)
 
     try {
       await fixture.root.save(writer)
       await fixture.child.save(writer)
 
-      const data = normalizeSharedDbData(backend.readData())
+      const data = normalizeDbData(backend.readData())
 
       expect(Object.hasOwn(data, "braneIndexByDarkId")).toBe(false)
       expect(Object.hasOwn(data, "fieldIndexByDarkId")).toBe(false)
@@ -54,7 +54,7 @@ describe("shared db canonical relational data", () => {
   })
 
   test("фиксирует новую backend-index спецификацию поверх UUID/FK ontology, а не projection keys", () => {
-    expect(sharedDbRequiredBackendIndexes).toEqual(
+    expect(dbRequiredBackendIndexes).toEqual(
       expect.arrayContaining([
         { name: "metas_by", table: "metas", columns: ["src"], unique: true },
         { name: "meta_fields_by_owner_and_field_key", table: "meta_fields", columns: ["ownerMetaId", "fieldKey"], unique: true },
@@ -64,15 +64,15 @@ describe("shared db canonical relational data", () => {
         { name: "wimp_edges_by_parent_and_order", table: "wimp_edges", columns: ["parentWimpId", "edgeOrder"], unique: false },
       ]),
     )
-    expect(sharedDbRequiredBackendIndexes.some((index) => index.columns.includes("darkWimpId"))).toBe(false)
-    expect(sharedDbRequiredBackendIndexes.some((index) => index.columns.includes("darkFieldId"))).toBe(false)
-    expect(sharedDbRequiredBackendIndexes.some((index) => index.columns.includes("braneIndex"))).toBe(false)
+    expect(dbRequiredBackendIndexes.some((index) => index.columns.includes("darkWimpId"))).toBe(false)
+    expect(dbRequiredBackendIndexes.some((index) => index.columns.includes("darkFieldId"))).toBe(false)
+    expect(dbRequiredBackendIndexes.some((index) => index.columns.includes("braneIndex"))).toBe(false)
   })
 
   test("setWimpState обновляет canonical wimp_state row", async () => {
-    const fixture = createSharedDbFixture()
-    const backend = openSharedDbSqliteBackend()
-    const writer = openSharedDbMaterializationWriter(backend)
+    const fixture = createDbFixture()
+    const backend = openDbSqliteBackend()
+    const writer = openDbMaterializationWriter(backend)
 
     try {
       await fixture.root.save(writer)
