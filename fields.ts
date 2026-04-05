@@ -32,13 +32,13 @@ export function fieldSchema<ɸ extends Fields>(schema: (field: Field) => ɸ): ɸ
           optional(defaultOrOptions?: T[number] | { label?: string }, maybeOptions?: { label?: string }) {
             const hasDefault = defaultOrOptions !== undefined && typeof defaultOrOptions !== "object"
             const options = (hasDefault ? maybeOptions : (defaultOrOptions as { label?: string })) || {}
-            const base: any = {type: "enum" as const, ...values}
+            const base: any = {type: "enum" as const, values}
             if (hasDefault) base.default = defaultOrOptions
             if (options.label !== undefined) base.label = options.label
             return base
           },
           required(defaultValue: T[number], options: { label?: string; id?: true } = {}) {
-            const base: any = {type: "enum" as const, required: true, default: defaultValue, ...values}
+            const base: any = {type: "enum" as const, required: true, default: defaultValue, values}
             if (options.label !== undefined) base.label = options.label
             if (options.id === true) base.id = true
             return base
