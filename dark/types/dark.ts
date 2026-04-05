@@ -1,16 +1,47 @@
-import type { MetaAST } from "@metafor/ast"
-import type { NodeMeta, NodeType } from "index.ts"
-import type { Fuzzy, Wimp } from "@dark/strong"
+import type { Wimp } from "@dark/strong"
 import type { DarkParticle } from "./shared"
 import type { FieldInit } from "./strong.ts"
 
-/**
- * Минимальный вход для текущего one-meta dark-прохода.
- *
- * На этом шаге проход использует только `matter`, `fields` и `mass`
- * уже загруженной `MetaAST`.
- */
-export type MatterAST = Pick<MetaAST, "matter" | "fields" | "mass">
+export type MatterBindingValue =
+  | string
+  | boolean
+  | {
+      data?: string | string[]
+      expr?: string
+    }
+
+export interface MatterParticleWimpPlan {
+  kind: "wimp"
+  src: string
+  fieldsBinding?: MatterBindingValue
+  massBinding?: MatterBindingValue
+  children?: MatterParticlePlan[]
+}
+
+export interface MatterParticleFuzzyPlan {
+  kind: "fuzzy"
+  fuzzyKind: "dynamic-meta" | "cond"
+  predicateBinding?: MatterBindingValue
+  children?: MatterParticlePlan[]
+}
+
+export interface MatterParticleAxionPlan {
+  kind: "axion"
+  predicateBinding: MatterBindingValue
+  children?: MatterParticlePlan[]
+}
+
+export interface MatterParticleMachoPlan {
+  kind: "macho"
+  collectionBinding: MatterBindingValue
+  children?: MatterParticlePlan[]
+}
+
+export type MatterParticlePlan =
+  | MatterParticleWimpPlan
+  | MatterParticleFuzzyPlan
+  | MatterParticleAxionPlan
+  | MatterParticleMachoPlan
 
 /**
  * Временный пакет данных, который родительская мета передаёт обнаруженному дочернему `Wimp`.
@@ -43,40 +74,9 @@ export type MatterWimpResult = [wimp: Wimp, continuation: MatterContinuation]
 export type MatterLayerResult = MatterWimpResult[]
 
 /**
- * Локальная запись очереди обхода для прямого one-meta traversal.
- *
- * Эта нормализация остаётся полностью внутренней для `dark` и не является
- * внешним архитектурным контрактом.
- *
- * @property kind Дискриминатор обычного AST-узла.
- * @property node Текущий топологический узел AST.
- * @property parent Уже собранный родитель для этого узла.
- */
-export interface MatterNodeEntry {
-  /** Обычный AST-узел текущего слоя. */
-  kind: "node"
-  node: NodeType
-  parent: DarkParticle
-}
-/**
- * Локальная запись временного пакета для динамической меты после создания её `Fuzzy`-узла.
- *
- * @property kind Дискриминатор уже разрешённой ветви.
- * @property node Исходный динамический meta-узел AST.
- * @property parent Runtime `Fuzzy`, владеющий ветвлением.
- * @property src Уже вычисленный адрес дочерней меты.
- * @property continuation Временный пакет данных для будущего дочернего `Wimp`.
- */
-export interface MatterContinuationEntry {
-  /** Уже разрешённая ветвь динамической меты. */
-  kind: "continuation"
-  node: NodeMeta
-  parent: Fuzzy
-  src: string
-  continuation: MatterContinuation
-}
-
-/**
  * Внутренняя запись очереди текущего шага обхода.
  */
-export type MatterEntry = MatterNodeEntry | MatterContinuationEntry
+export interface MatterEntry {
+  plan: MatterParticlePlan
+  parent: DarkParticle
+}

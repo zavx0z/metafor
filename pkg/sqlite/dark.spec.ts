@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import type { Database } from "bun:sqlite"
 import type { MetaDSL } from "../.."
 import gitMeta from "../../github/zavx0z/git/meta.ts"
+import { readDarkMetaParticles } from "../../dark/sqlite.ts"
 import { relation, getMetaDB } from "./index.ts"
 import { readDarkBundle } from "./dark.ts"
 
@@ -225,52 +226,54 @@ describe("sqlite dark bundle", () => {
     db.close()
   })
 
-  test("читает канонический bundle для существующей git meta после relation()", () => {
+  test("читает канонический bundle meta-level данных для существующей git meta после relation()", () => {
     relation(db, gitMeta, "zavx0z/git")
 
     const bundle = readDarkBundle(db, "zavx0z/git")
 
-    expect(bundle).toEqual(gitMeta)
+    expect(bundle.fields).toEqual(gitMeta.fields)
+    expect(bundle.superposition).toEqual(gitMeta.superposition)
+    expect(bundle.processes).toEqual(gitMeta.processes)
+    expect(bundle.mass).toEqual(gitMeta.mass)
+    expect(bundle.matter).toEqual([])
   })
 
-  test("сохраняет полный matter/process write-side и читает его обратно как canonical bundle", () => {
+  test("сохраняет particle-centric matter write-side и даёт тонкий ORM loader поверх реляционных rows", () => {
     relation(db, richMeta, "owner/rich")
 
     const bundle = readDarkBundle(db, "owner/rich")
+    const projection = readDarkMetaParticles(db, "owner/rich")
 
     expect(bundle.fields).toEqual(richMeta.fields)
     expect(bundle.superposition).toEqual(richMeta.superposition)
     expect(bundle.processes).toEqual(richMeta.processes)
     expect(bundle.reactions).toEqual(richMeta.reactions)
-    expect(bundle.matter).toEqual(richMeta.matter)
+    expect(bundle.matter).toEqual([])
     expect(bundle.mass).toEqual(richMeta.mass)
     expect(bundle.desc).toBe(richMeta.desc)
+    expect(projection.particles.map((particle) => particle.kind)).toEqual(["wimp", "fuzzy", "axion"])
 
     const processActionCount = db.query(`SELECT COUNT(*) AS count FROM process_action`).get() as { count: number }
     const processActionReadCount = db.query(`SELECT COUNT(*) AS count FROM process_action_read`).get() as { count: number }
     const processActionWriteCount = db.query(`SELECT COUNT(*) AS count FROM process_action_write`).get() as { count: number }
     const processFinallyCount = db.query(`SELECT COUNT(*) AS count FROM process_finally`).get() as { count: number }
     const processFinallyReadCount = db.query(`SELECT COUNT(*) AS count FROM process_finally_read`).get() as { count: number }
-    const matterConditionCount = db.query(`SELECT COUNT(*) AS count FROM matter_condition`).get() as { count: number }
-    const matterLogicalCount = db.query(`SELECT COUNT(*) AS count FROM matter_logical`).get() as { count: number }
-    const matterMapCount = db.query(`SELECT COUNT(*) AS count FROM matter_map`).get() as { count: number }
-    const matterAttrCount = db.query(`SELECT COUNT(*) AS count FROM matter_attr`).get() as { count: number }
-    const matterAttrPartCount = db.query(`SELECT COUNT(*) AS count FROM matter_attr_part`).get() as { count: number }
-    const matterStylePropCount = db.query(`SELECT COUNT(*) AS count FROM matter_style_prop`).get() as { count: number }
-    const matterEventUpdateCount = db.query(`SELECT COUNT(*) AS count FROM matter_event_update`).get() as { count: number }
+    const matterParticleCount = db.query(`SELECT COUNT(*) AS count FROM matter_particle`).get() as { count: number }
+    const matterParticleWimpCount = db.query(`SELECT COUNT(*) AS count FROM matter_particle_wimp`).get() as { count: number }
+    const matterParticleFuzzyCount = db.query(`SELECT COUNT(*) AS count FROM matter_particle_fuzzy`).get() as { count: number }
+    const matterParticleAxionCount = db.query(`SELECT COUNT(*) AS count FROM matter_particle_axion`).get() as { count: number }
+    const matterParticleMachoCount = db.query(`SELECT COUNT(*) AS count FROM matter_particle_macho`).get() as { count: number }
 
     expect(processActionCount.count).toBe(1)
     expect(processActionReadCount.count).toBe(3)
     expect(processActionWriteCount.count).toBe(2)
     expect(processFinallyCount.count).toBe(1)
     expect(processFinallyReadCount.count).toBe(1)
-    expect(matterConditionCount.count).toBe(1)
-    expect(matterLogicalCount.count).toBe(1)
-    expect(matterMapCount.count).toBe(1)
-    expect(matterAttrCount.count).toBe(6)
-    expect(matterAttrPartCount.count).toBe(3)
-    expect(matterStylePropCount.count).toBe(2)
-    expect(matterEventUpdateCount.count).toBe(1)
+    expect(matterParticleCount.count).toBe(10)
+    expect(matterParticleWimpCount.count).toBe(6)
+    expect(matterParticleFuzzyCount.count).toBe(2)
+    expect(matterParticleAxionCount.count).toBe(1)
+    expect(matterParticleMachoCount.count).toBe(1)
   })
 
   test("не теряет явно объявленные пустые processes/reactions/matter", () => {

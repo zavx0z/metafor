@@ -1,26 +1,22 @@
 import type { MetaDSL, NodeType } from "index.ts"
-import type {
-  MatterEntry,
-  MatterContinuation,
-  MatterLayerResult,
-  MatterNodeEntry,
-  MatterAST,
-  MatterWimpResult,
-} from "@dark/types/dark"
+import type { MatterContinuation, MatterEntry, MatterLayerResult, MatterParticlePlan, MatterWimpResult } from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
 import { emitAdd, emitBarrier } from "@dark/gravity/channel.ts"
 import type { SharedDbMaterializationWriter } from "@shared/db"
 import { Axion, Fuzzy, Macho, materializeFields, Meta, resolveWimpContinuation, Wimp } from "@dark/strong"
 import { ensureMetaCanonicalized, loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
-import { resolveContinuationSources } from "@dark/gravity/gravity.ts"
+import { readDarkMetaParticles } from "./sqlite.ts"
 
 interface MatterOptions {
   sharedDbWriter?: SharedDbMaterializationWriter
   suppressGravityBarrier?: boolean
 }
 
-type CanonicalMatterBundle = MetaDSL & MatterAST & { src: string }
+interface RuntimeMetaMaterialization {
+  meta: Meta
+  particles: MatterParticlePlan[]
+}
 
 /**
  * Клонирует временный пакет данных для дочернего `Wimp`.
@@ -80,118 +76,193 @@ const registerMeta = (meta: Meta): Meta => {
 const toMetaMass = (mass: MetaDSL["mass"] | undefined): MetaDSL["mass"] | undefined =>
   mass && Object.keys(mass).length > 0 ? structuredClone(mass) : undefined
 
-const createMetaFromBundle = (bundle: CanonicalMatterBundle): Meta =>
-  new Meta({
-    src: bundle.src,
-    name: bundle.name,
-    fieldSchemas: bundle.fields,
-    superposition: bundle.superposition,
-    processes: bundle.processes,
-    reactions: bundle.reactions,
-    matter: bundle.matter,
-    bulk: bundle.bulk,
-    mass: toMetaMass(bundle.mass),
-  })
+const createContinuationSrc = (expr: string | undefined, value: string | number): string => {
+  if (!expr) return String(value)
 
-const createBundleFromAst = (src: string, ast: MetaDSL): CanonicalMatterBundle => ({
-  src,
-  name: ast.name,
-  desc: ast.desc,
-  fields: ast.fields,
-  superposition: ast.superposition,
-  processes: ast.processes,
-  reactions: ast.reactions,
-  matter: ast.matter,
-  bulk: ast.bulk,
-  mass: ast.mass,
-})
+  const escaped = expr.replaceAll("\\", "\\\\").replaceAll("`", "\\`")
+  return String(new Function("_", `return \`${escaped}\``)([value]))
+}
 
-const readCanonicalBundle = async (src: string): Promise<CanonicalMatterBundle> => {
-  const sqlite = await ensureMetaCanonicalized(src)
-  if (sqlite) {
-    const { readDarkBundle } = await import("../pkg/sqlite/dark.ts")
-    return {
-      src,
-      ...readDarkBundle(sqlite.db as any, src),
+const resolveAstMetaBranchSrcs = (ast: MetaDSL, value: Exclude<MetaDSL["matter"], undefined>[number] extends infer T ? T : never): string[] => {
+  const node = value as { src: string | { data?: string | string[]; expr?: string } }
+  if (typeof node.src === "string") return [node.src]
+  if (!node.src || typeof node.src !== "object") return []
+
+  const paths =
+    "data" in node.src && node.src.data !== undefined ? (Array.isArray(node.src.data) ? node.src.data : [node.src.data]) : []
+  const firstPath = paths[0]
+  if (!firstPath || !firstPath.startsWith("/value/")) return []
+
+  const fieldKey = firstPath.slice("/value/".length)
+  const field = ast.fields?.[fieldKey]
+  if (!field || field.type !== "enum") return []
+
+  return (field.values ?? []).map((variant) => createContinuationSrc(node.src.expr, variant))
+}
+
+const projectAstChildren = (ast: MetaDSL, children: NodeType[] | undefined): MatterParticlePlan[] | undefined => {
+  if (!Array.isArray(children) || children.length === 0) return
+  return children.flatMap((child) => projectAstNode(ast, child))
+}
+
+const projectAstNode = (ast: MetaDSL, node: NodeType): MatterParticlePlan[] => {
+  if (node.type === "meta") {
+    const metaNode = node as {
+      src: string | { data?: string | string[]; expr?: string }
+      child?: NodeType[]
+    } & {
+      fields?: { data?: string | string[]; expr?: string } | string | boolean
+      mass?: { data?: string | string[]; expr?: string } | string | boolean
     }
+    const childPlans = projectAstChildren(ast, metaNode.child)
+
+    if (typeof metaNode.src === "string") {
+      return [
+        {
+          kind: "wimp",
+          src: metaNode.src,
+          ...(metaNode.fields !== undefined ? { fieldsBinding: metaNode.fields } : {}),
+          ...(metaNode.mass !== undefined ? { massBinding: metaNode.mass } : {}),
+          ...(childPlans ? { children: childPlans } : {}),
+        },
+      ]
+    }
+
+    return [
+      {
+        kind: "fuzzy",
+        fuzzyKind: "dynamic-meta",
+        children: resolveAstMetaBranchSrcs(ast, node).map((src) => ({
+          kind: "wimp",
+          src,
+          ...(metaNode.fields !== undefined ? { fieldsBinding: metaNode.fields } : {}),
+          ...(metaNode.mass !== undefined ? { massBinding: metaNode.mass } : {}),
+          ...(childPlans ? { children: childPlans } : {}),
+        })),
+      },
+    ]
   }
 
-  return createBundleFromAst(src, await loadMetaAST(src))
+  if (node.type === "cond") {
+    const conditionNode = node as { data: string | string[]; expr?: string; child?: NodeType[] }
+    const thenPlans = conditionNode.child?.[0] ? projectAstNode(ast, conditionNode.child[0]) : []
+    const elsePlans = conditionNode.child?.[1] ? projectAstNode(ast, conditionNode.child[1]) : []
+    return [
+      {
+        kind: "fuzzy",
+        fuzzyKind: "cond",
+        predicateBinding: conditionNode.expr !== undefined ? { data: conditionNode.data, expr: conditionNode.expr } : { data: conditionNode.data },
+        ...(thenPlans.length > 0 || elsePlans.length > 0 ? { children: [...thenPlans, ...elsePlans] } : {}),
+      },
+    ]
+  }
+
+  if (node.type === "log") {
+    const logicalNode = node as { data: string | string[]; expr?: string; child?: NodeType[] }
+    const childPlans = projectAstChildren(ast, logicalNode.child)
+    return [
+      {
+        kind: "axion",
+        predicateBinding: logicalNode.expr !== undefined ? { data: logicalNode.data, expr: logicalNode.expr } : { data: logicalNode.data },
+        ...(childPlans ? { children: childPlans } : {}),
+      },
+    ]
+  }
+
+  if (node.type === "map") {
+    const mapNode = node as { data: string; child?: NodeType[] }
+    const childPlans = projectAstChildren(ast, mapNode.child)
+    return [
+      {
+        kind: "macho",
+        collectionBinding: { data: mapNode.data },
+        ...(childPlans ? { children: childPlans } : {}),
+      },
+    ]
+  }
+
+  return []
+}
+
+const createAstRuntimeMeta = (src: string, ast: MetaDSL): RuntimeMetaMaterialization => ({
+  meta: new Meta({
+    src,
+    name: ast.name,
+    fieldSchemas: ast.fields,
+    superposition: ast.superposition,
+    processes: ast.processes,
+    reactions: ast.reactions,
+    matter: ast.matter,
+    bulk: ast.bulk,
+    mass: toMetaMass(ast.mass),
+  }),
+  particles: (ast.matter ?? []).flatMap((node) => projectAstNode(ast, node)),
+})
+
+const readRuntimeMeta = async (src: string): Promise<RuntimeMetaMaterialization> => {
+  const sqlite = await ensureMetaCanonicalized(src)
+  if (sqlite) {
+    return readDarkMetaParticles(sqlite.db as any, src)
+  }
+
+  return createAstRuntimeMeta(src, await loadMetaAST(src))
 }
 
 /**
  * Дочерние топологические узлы всегда попадают в следующий шаг обхода уже с реальным родителем.
  */
-const appendChildEntries = (frontier: MatterEntry[], node: NodeType, parent: DarkParticle): void => {
-  if (!("child" in node && Array.isArray(node.child))) return
-  frontier.push(...node.child.map((child): MatterNodeEntry => ({ kind: "node", node: child, parent })))
+const appendChildEntries = (frontier: MatterEntry[], plan: MatterParticlePlan, parent: DarkParticle): void => {
+  if (!Array.isArray(plan.children) || plan.children.length === 0) return
+  frontier.push(...plan.children.map((child) => ({ plan: child, parent })))
 }
 
 /**
  * Обрабатывает обычную запись текущего топологического слоя.
  *
- * На этом шаге dark:
- * - понимает, нужна ли частица для текущего узла;
- * - создаёт не-Wimp частицы текущей меты;
- * - для meta-узлов создаёт пустые `Wimp` и временные пакеты данных к ним;
- * - сразу делает wiring в `dark$`;
- * - сразу формирует дочерние ветви следующего шага обхода и результат текущего слоя.
+ * На этом шаге dark больше не распознаёт topology по AST-ноду:
+ * он просто materialize-ит уже подготовленные particle rows из canonical SQLite-слоя.
  */
-const processMatterNode = (
-  entry: MatterNodeEntry,
-  ast: MatterAST,
+const processMatterParticle = (
+  entry: MatterEntry,
   fields: Wimp["fields"],
   nextFrontier: MatterEntry[],
   wimps: MatterWimpResult[],
 ): void => {
-  switch (entry.node.type) {
-    case "meta":
-      if (typeof entry.node.src === "string") {
-        const continuation = cloneContinuation(resolveWimpContinuation(entry.node, fields))
-        const wimp = new Wimp({ src: entry.node.src, parent: entry.parent })
-        wimps.push([wimp, continuation])
-        registerParticle(wimp, entry.parent)
-        appendChildEntries(nextFrontier, entry.node, wimp)
-        return
-      }
-
-      const fuzzy = new Fuzzy({ parent: entry.parent })
-      registerParticle(fuzzy, entry.parent)
-
-      const continuation = resolveWimpContinuation(entry.node, fields)
-      for (const src of resolveContinuationSources(entry.node, ast.fields)) {
-        nextFrontier.push({
-          kind: "continuation",
-          node: entry.node,
-          parent: fuzzy,
-          src,
-          continuation: cloneContinuation(continuation),
-        })
-      }
-
-      appendChildEntries(nextFrontier, entry.node, fuzzy)
-      return
-    case "cond": {
-      const fuzzy = new Fuzzy({ parent: entry.parent })
-      registerParticle(fuzzy, entry.parent)
-      appendChildEntries(nextFrontier, entry.node, fuzzy)
+  switch (entry.plan.kind) {
+    case "wimp": {
+      const continuation = cloneContinuation(
+        resolveWimpContinuation(
+          {
+            fieldsBinding: entry.plan.fieldsBinding,
+            massBinding: entry.plan.massBinding,
+          },
+          fields,
+        ),
+      )
+      const wimp = new Wimp({ src: entry.plan.src, parent: entry.parent })
+      wimps.push([wimp, continuation])
+      registerParticle(wimp, entry.parent)
+      appendChildEntries(nextFrontier, entry.plan, wimp)
       return
     }
-    case "log": {
+    case "fuzzy": {
+      const fuzzy = new Fuzzy({ parent: entry.parent })
+      registerParticle(fuzzy, entry.parent)
+      appendChildEntries(nextFrontier, entry.plan, fuzzy)
+      return
+    }
+    case "axion": {
       const axion = new Axion({ parent: entry.parent })
       registerParticle(axion, entry.parent)
-      appendChildEntries(nextFrontier, entry.node, axion)
+      appendChildEntries(nextFrontier, entry.plan, axion)
       return
     }
-    case "map": {
+    case "macho": {
       const macho = new Macho({ parent: entry.parent })
       registerParticle(macho, entry.parent)
-      appendChildEntries(nextFrontier, entry.node, macho)
+      appendChildEntries(nextFrontier, entry.plan, macho)
       return
     }
-    default:
-      appendChildEntries(nextFrontier, entry.node, entry.parent)
-      return
   }
 }
 
@@ -199,39 +270,21 @@ const processMatterNode = (
  * Явный послойный проход одной меты.
  *
  * На первом `next()` генератор инициализирует корневой `Wimp`, затем обрабатывает первый слой
- * и yield-ит только те `Wimp`, которые были обнаружены именно на этом шаге.
- *
- * Остальные частицы (`Fuzzy`, `Axion`, `Macho`) не возвращаются наружу:
- * вся информация о них сразу складывается в `dark$`.
- *
- * Даже если на уровне не появился ни один новый `Wimp`, pipeline всё равно yield-ит
- * пустой массив, чтобы снаружи не терялась граница между слоями прохода.
- *
- * @param wimp Корневой `Wimp` текущей меты, который должен быть собран.
- * @param continuation Временный пакет данных, пришедший от родительского шага обхода.
- * @returns Асинхронный поток по слоям из обнаруженных дочерних `Wimp` и их временных пакетов данных.
+ * уже подготовленного particle-plan и yield-ит только те `Wimp`, которые были обнаружены именно на этом шаге.
  */
 export async function* matterMeta(
   wimp: Wimp,
   continuation?: MatterContinuation,
   options: MatterOptions = {},
 ): AsyncGenerator<MatterLayerResult, void> {
-  const bundle = await readCanonicalBundle(wimp.src)
-  const meta = registerMeta(createMetaFromBundle(bundle))
-  /**
-   * `Wimp` получает ссылку на канонический `Meta`,
-   * а instance-level поля materialize-ятся уже из `MetaField`.
-   */
+  const runtimeMeta = await readRuntimeMeta(wimp.src)
+  const meta = registerMeta(runtimeMeta.meta)
+
   wimp.meta = meta
   if (options.sharedDbWriter) {
     await options.sharedDbWriter.saveMetaBundle(wimp.toSharedDbMetaBundle())
   }
   wimp.fields = materializeFields(wimp, meta.fields, continuation?.fieldInits)
-  /**
-   * `Wimp` получает локальные ORM-поля.
-   * Если временный пакет пришёл от родителя, его `FieldInit` важнее локальных `default` текущей меты.
-   * Более сложное объединение связанных полей остаётся отдельным следующим шагом.
-   */
   wimp.mass = continuation?.mass
   dark$.particles.set(wimp.id, wimp)
   if (options.sharedDbWriter) {
@@ -239,13 +292,9 @@ export async function* matterMeta(
     emitAdd(wimp.id)
   }
 
-  if (!bundle.matter) return
+  if (runtimeMeta.particles.length === 0) return
 
-  /**
-   * Очередь обхода хранит только текущий слой.
-   * Это важно: временный пакет данных остаётся переходным механизмом и не оседает в `Wimp`.
-   */
-  let frontier = Array.from(bundle.matter, (node): MatterEntry => ({ kind: "node", node, parent: wimp }))
+  let frontier = runtimeMeta.particles.map((plan): MatterEntry => ({ plan, parent: wimp }))
 
   while (frontier.length > 0) {
     const currentLayer = frontier
@@ -255,20 +304,7 @@ export async function* matterMeta(
     frontier = nextFrontier
 
     for (const entry of currentLayer) {
-      if (entry.kind === "continuation") {
-        /**
-         * Обрабатывает уже разрешённую динамическую мету как выбранный `src` для нового `Wimp`.
-         * Сам `Wimp` здесь тоже остаётся пустым: временный пакет данных применяется позже,
-         * когда загрузится его собственная мета.
-         */
-        const wimp = new Wimp({ src: entry.src, parent: entry.parent })
-        levelWimps.push([wimp, cloneContinuation(entry.continuation)])
-        registerParticle(wimp, entry.parent)
-        appendChildEntries(nextFrontier, entry.node, wimp)
-        continue
-      }
-
-      processMatterNode(entry, bundle, wimp.fields, nextFrontier, levelWimps)
+      processMatterParticle(entry, wimp.fields, nextFrontier, levelWimps)
     }
 
     yield levelWimps

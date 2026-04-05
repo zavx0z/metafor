@@ -9,6 +9,9 @@ type BindingValue =
       expr?: string
     }
 
+type ParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
+type EdgeSlot = "root" | "child" | "then" | "else" | "branch"
+
 const toBindingPaths = (value: BindingValue): string[] => {
   if (!value || typeof value !== "object" || !("data" in value) || value.data === undefined) return []
   return Array.isArray(value.data) ? value.data : [value.data]
@@ -50,174 +53,231 @@ const insertBinding = (db: Database, src: string, value: BindingValue | undefine
   return uuid
 }
 
-const insertEventUpdates = (
+const insertParticle = (
   db: Database,
-  attrUuid: string,
-  updates: string | string[] | undefined,
-  fieldUuids: Map<string, string>,
+  metaSrc: string,
+  particleKind: ParticleKind,
+  parentParticle: string | null,
+  edgeSlot: EdgeSlot,
+  particleOrder: number,
+): string => {
+  const particleUuid = crypto.randomUUID()
+  db.query(
+    `INSERT INTO matter_particle (uuid, meta, parent_particle, particle_kind, edge_slot, particle_order)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(particleUuid, metaSrc, parentParticle, particleKind, edgeSlot, particleOrder)
+  return particleUuid
+}
+
+const createContinuationSrc = (expr: string | undefined, value: string | number): string => {
+  if (!expr) return String(value)
+
+  const escaped = expr.replaceAll("\\", "\\\\").replaceAll("`", "\\`")
+  return String(new Function("_", `return \`${escaped}\``)([value]))
+}
+
+const resolveMatterEnumValues = (meta: MetaDSL, path: string): Array<string | number> => {
+  if (!path.startsWith("/value/")) return []
+
+  const fieldKey = path.slice("/value/".length)
+  const field = meta.fields?.[fieldKey]
+  if (!field || field.type !== "enum") return []
+  return field.values ?? []
+}
+
+const resolveDynamicMetaSrcs = (
+  meta: MetaDSL,
+  value: Exclude<BindingValue, string | boolean> | undefined,
+): string[] => {
+  if (!value || typeof value !== "object") return []
+
+  const paths = toBindingPaths(value)
+  const firstPath = paths[0]
+  if (!firstPath) return []
+
+  return resolveMatterEnumValues(meta, firstPath).map((variant) => createContinuationSrc(value.expr, variant))
+}
+
+const insertWimpParticle = (
+  db: Database,
+  metaSrc: string,
+  parentParticle: string | null,
+  edgeSlot: EdgeSlot,
+  particleOrder: number,
+  wimpSrc: string,
+  fieldsBinding: string | undefined,
+  massBinding: string | undefined,
+): string => {
+  const particleUuid = insertParticle(db, metaSrc, "wimp", parentParticle, edgeSlot, particleOrder)
+  db.query(
+    `INSERT INTO matter_particle_wimp (particle, src, fields_binding, mass_binding)
+     VALUES (?, ?, ?, ?)`,
+  ).run(particleUuid, wimpSrc, fieldsBinding ?? null, massBinding ?? null)
+  return particleUuid
+}
+
+const insertCondFuzzyParticle = (
+  db: Database,
+  metaSrc: string,
+  parentParticle: string | null,
+  edgeSlot: EdgeSlot,
+  particleOrder: number,
+  predicateBinding: string,
+): string => {
+  const particleUuid = insertParticle(db, metaSrc, "fuzzy", parentParticle, edgeSlot, particleOrder)
+  db.query(
+    `INSERT INTO matter_particle_fuzzy (particle, fuzzy_kind, predicate_binding)
+     VALUES (?, ?, ?)`,
+  ).run(particleUuid, "cond", predicateBinding)
+  return particleUuid
+}
+
+const insertDynamicMetaFuzzyParticle = (
+  db: Database,
+  metaSrc: string,
+  parentParticle: string | null,
+  edgeSlot: EdgeSlot,
+  particleOrder: number,
+): string => {
+  const particleUuid = insertParticle(db, metaSrc, "fuzzy", parentParticle, edgeSlot, particleOrder)
+  db.query(
+    `INSERT INTO matter_particle_fuzzy (particle, fuzzy_kind, predicate_binding)
+     VALUES (?, ?, ?)`,
+  ).run(particleUuid, "dynamic-meta", null)
+  return particleUuid
+}
+
+const projectParticleChildren = (
+  db: Database,
+  meta: MetaDSL,
+  metaSrc: string,
+  children: NodeType[] | undefined,
+  parentParticle: string,
 ): void => {
-  const keys = updates === undefined ? [] : Array.isArray(updates) ? updates : [updates]
-
-  keys.forEach((fieldKey, index) => {
-    const fieldUuid = fieldUuids.get(fieldKey)
-    if (!fieldUuid) return
-
-    db.query("INSERT INTO matter_event_update (attr, update_order, field) VALUES (?, ?, ?)")
-      .run(attrUuid, index, fieldUuid)
+  if (!Array.isArray(children) || children.length === 0) return
+  children.forEach((child, index) => {
+    projectParticleNode(db, meta, metaSrc, child, parentParticle, "child", index)
   })
 }
 
-const insertNodeAttributes = (
+const projectParticleNode = (
   db: Database,
-  src: string,
-  nodeUuid: string,
-  node: Record<string, unknown>,
-  fieldUuids: Map<string, string>,
+  meta: MetaDSL,
+  metaSrc: string,
+  node: NodeType,
+  parentParticle: string | null,
+  edgeSlot: EdgeSlot,
+  particleOrder: number,
 ): void => {
-  const stringAttrs = node.string as Record<string, BindingValue> | undefined
-  for (const [attrName, value] of Object.entries(stringAttrs ?? {})) {
-    const attrUuid = crypto.randomUUID()
-    const bindingUuid = insertBinding(db, src, value)
-    if (!bindingUuid) continue
-
-    db.query("INSERT INTO matter_attr (uuid, owner_node, attr_family, attr_name) VALUES (?, ?, ?, ?)")
-      .run(attrUuid, nodeUuid, "string", attrName)
-    db.query("INSERT INTO matter_attr_binding (attr, binding) VALUES (?, ?)").run(attrUuid, bindingUuid)
+  if (!["meta", "cond", "log", "map"].includes(node.type)) {
+    throw new Error(`Unsupported matter node type "${node.type}" for canonical SQLite particle relation`)
   }
 
-  const booleanAttrs = node.boolean as Record<string, BindingValue> | undefined
-  for (const [attrName, value] of Object.entries(booleanAttrs ?? {})) {
-    const attrUuid = crypto.randomUUID()
-    const bindingUuid = insertBinding(db, src, value)
-    if (!bindingUuid) continue
-
-    db.query("INSERT INTO matter_attr (uuid, owner_node, attr_family, attr_name) VALUES (?, ?, ?, ?)")
-      .run(attrUuid, nodeUuid, "boolean", attrName)
-    db.query("INSERT INTO matter_attr_binding (attr, binding) VALUES (?, ?)").run(attrUuid, bindingUuid)
-  }
-
-  const arrayAttrs = node.array as Record<string, BindingValue[]> | undefined
-  for (const [attrName, value] of Object.entries(arrayAttrs ?? {})) {
-    const attrUuid = crypto.randomUUID()
-    db.query("INSERT INTO matter_attr (uuid, owner_node, attr_family, attr_name) VALUES (?, ?, ?, ?)")
-      .run(attrUuid, nodeUuid, "array", attrName)
-
-    value.forEach((part, index) => {
-      const bindingUuid = insertBinding(db, src, part)
-      if (!bindingUuid) return
-
-      db.query("INSERT INTO matter_attr_part (attr, part_order, binding) VALUES (?, ?, ?)")
-        .run(attrUuid, index, bindingUuid)
-    })
-  }
-
-  const styleAttrs = node.style as Record<string, BindingValue> | undefined
-  if (styleAttrs && Object.keys(styleAttrs).length > 0) {
-    const attrUuid = crypto.randomUUID()
-    db.query("INSERT INTO matter_attr (uuid, owner_node, attr_family, attr_name) VALUES (?, ?, ?, ?)")
-      .run(attrUuid, nodeUuid, "style", "style")
-
-    for (const [propName, value] of Object.entries(styleAttrs)) {
-      const bindingUuid = insertBinding(db, src, value)
-      if (!bindingUuid) continue
-
-      db.query("INSERT INTO matter_style_prop (attr, prop_name, binding) VALUES (?, ?, ?)")
-        .run(attrUuid, propName, bindingUuid)
+  if (node.type === "meta") {
+    const metaNode = node as {
+      src: BindingValue
+      fields?: BindingValue
+      mass?: BindingValue
+      child?: NodeType[]
     }
+    const fieldsBinding = insertBinding(db, metaSrc, metaNode.fields)
+    const massBinding = insertBinding(db, metaSrc, metaNode.mass)
+
+    if (typeof metaNode.src === "string") {
+      const wimpParticle = insertWimpParticle(
+        db,
+        metaSrc,
+        parentParticle,
+        edgeSlot,
+        particleOrder,
+        metaNode.src,
+        fieldsBinding,
+        massBinding,
+      )
+      projectParticleChildren(db, meta, metaSrc, metaNode.child, wimpParticle)
+      return
+    }
+
+    const fuzzyParticle = insertDynamicMetaFuzzyParticle(db, metaSrc, parentParticle, edgeSlot, particleOrder)
+    resolveDynamicMetaSrcs(meta, metaNode.src).forEach((resolvedSrc, branchOrder) => {
+      const branchWimp = insertWimpParticle(
+        db,
+        metaSrc,
+        fuzzyParticle,
+        "branch",
+        branchOrder,
+        resolvedSrc,
+        fieldsBinding,
+        massBinding,
+      )
+      projectParticleChildren(db, meta, metaSrc, metaNode.child, branchWimp)
+    })
+    return
   }
 
-  const eventAttrs = node.event as Record<string, { upd?: string | string[]; data?: string | string[]; expr?: string }> | undefined
-  for (const [attrName, value] of Object.entries(eventAttrs ?? {})) {
-    const attrUuid = crypto.randomUUID()
-    const bindingUuid = insertBinding(
+  if (node.type === "cond") {
+    const conditionNode = node as { data: string | string[]; expr?: string; child?: NodeType[] }
+    const predicateBinding = insertBinding(
       db,
-      src,
-      value.expr !== undefined ? { ...(value.data !== undefined ? { data: value.data } : {}), expr: value.expr } : { data: value.data },
+      metaSrc,
+      conditionNode.expr !== undefined ? { data: conditionNode.data, expr: conditionNode.expr } : { data: conditionNode.data },
     )
-    if (!bindingUuid) continue
+    if (!predicateBinding) {
+      throw new Error(`Condition particle for meta "${metaSrc}" requires predicate binding`)
+    }
 
-    db.query("INSERT INTO matter_attr (uuid, owner_node, attr_family, attr_name) VALUES (?, ?, ?, ?)")
-      .run(attrUuid, nodeUuid, "event", attrName)
-    db.query("INSERT INTO matter_attr_binding (attr, binding) VALUES (?, ?)").run(attrUuid, bindingUuid)
-    insertEventUpdates(db, attrUuid, value.upd, fieldUuids)
+    const fuzzyParticle = insertCondFuzzyParticle(db, metaSrc, parentParticle, edgeSlot, particleOrder, predicateBinding)
+    if (Array.isArray(conditionNode.child)) {
+      if (conditionNode.child[0]) projectParticleNode(db, meta, metaSrc, conditionNode.child[0], fuzzyParticle, "then", 0)
+      if (conditionNode.child[1]) projectParticleNode(db, meta, metaSrc, conditionNode.child[1], fuzzyParticle, "else", 1)
+    }
+    return
   }
+
+  if (node.type === "log") {
+    const logicalNode = node as { data: string | string[]; expr?: string; child?: NodeType[] }
+    const predicateBinding = insertBinding(
+      db,
+      metaSrc,
+      logicalNode.expr !== undefined ? { data: logicalNode.data, expr: logicalNode.expr } : { data: logicalNode.data },
+    )
+    if (!predicateBinding) {
+      throw new Error(`Logical particle for meta "${metaSrc}" requires predicate binding`)
+    }
+
+    const axionParticle = insertParticle(db, metaSrc, "axion", parentParticle, edgeSlot, particleOrder)
+    db.query(
+      `INSERT INTO matter_particle_axion (particle, predicate_binding)
+       VALUES (?, ?)`,
+    ).run(axionParticle, predicateBinding)
+    projectParticleChildren(db, meta, metaSrc, logicalNode.child, axionParticle)
+    return
+  }
+
+  const mapNode = node as { data: string; child?: NodeType[] }
+  const collectionBinding = insertBinding(db, metaSrc, { data: mapNode.data })
+  if (!collectionBinding) {
+    throw new Error(`Map particle for meta "${metaSrc}" requires collection binding`)
+  }
+
+  const machoParticle = insertParticle(db, metaSrc, "macho", parentParticle, edgeSlot, particleOrder)
+  db.query(
+    `INSERT INTO matter_particle_macho (particle, collection_binding)
+     VALUES (?, ?)`,
+  ).run(machoParticle, collectionBinding)
+  projectParticleChildren(db, meta, metaSrc, mapNode.child, machoParticle)
 }
 
 export function relationMatter(
   db: Database,
   meta: MetaDSL,
   src: string,
-  fieldUuids: Map<string, string>,
+  _fieldUuids: Map<string, string>,
 ): void {
   if (!meta.matter) return
 
-  const ms = meta.matter as MatterSchema
-
-  const processNode = (node: NodeType, parentNodeUuid: string | null, slot: string, order: number) => {
-    if (!["meta", "cond", "log", "map"].includes(node.type)) {
-      throw new Error(`Unsupported matter node type "${node.type}" for canonical SQLite relation`)
-    }
-
-    const nodeUuid = crypto.randomUUID()
-    db.query("INSERT INTO matter_node (uuid, meta, node_kind, tag) VALUES (?, ?, ?, ?)")
-      .run(nodeUuid, src, node.type, (node as any).tag || null)
-
-    const edgeUuid = crypto.randomUUID()
-    db.query(
-      "INSERT INTO matter_edge (uuid, root_meta, parent_node, child_node, edge_slot, edge_order) VALUES (?, ?, ?, ?, ?, ?)",
-    ).run(edgeUuid, parentNodeUuid ? null : src, parentNodeUuid, nodeUuid, slot, order)
-
-    if (node.type === "meta") {
-      const n = node as any
-      const srcBindingUuid = insertBinding(db, src, n.src)
-      const fieldsBindingUuid = insertBinding(db, src, n.fields)
-      const massBindingUuid = insertBinding(db, src, n.mass)
-      db.query("INSERT INTO matter_meta (node, src_binding, fields_binding, mass_binding) VALUES (?, ?, ?, ?)")
-        .run(nodeUuid, srcBindingUuid, fieldsBindingUuid || null, massBindingUuid || null)
-      insertNodeAttributes(db, src, nodeUuid, n, fieldUuids)
-    }
-
-    if (node.type === "cond") {
-      const n = node as any
-      const predicateBindingUuid = insertBinding(
-        db,
-        src,
-        n.expr !== undefined ? { data: n.data, expr: n.expr } : { data: n.data },
-      )
-      db.query("INSERT INTO matter_condition (node, predicate_binding) VALUES (?, ?)")
-        .run(nodeUuid, predicateBindingUuid)
-
-      if (Array.isArray(n.child)) {
-        if (n.child[0]) processNode(n.child[0], nodeUuid, "then", 0)
-        if (n.child[1]) processNode(n.child[1], nodeUuid, "else", 1)
-      }
-      return
-    }
-
-    if (node.type === "log") {
-      const n = node as any
-      const predicateBindingUuid = insertBinding(
-        db,
-        src,
-        n.expr !== undefined ? { data: n.data, expr: n.expr } : { data: n.data },
-      )
-      db.query("INSERT INTO matter_logical (node, predicate_binding) VALUES (?, ?)")
-        .run(nodeUuid, predicateBindingUuid)
-    }
-
-    if (node.type === "map") {
-      const n = node as any
-      const collectionBindingUuid = insertBinding(db, src, { data: n.data })
-      db.query("INSERT INTO matter_map (node, collection_binding) VALUES (?, ?)")
-        .run(nodeUuid, collectionBindingUuid)
-    }
-
-    if ("child" in node && Array.isArray(node.child) && node.child.length > 0) {
-      node.child.forEach((child, i) => {
-        processNode(child, nodeUuid, "child", i)
-      })
-    }
-  }
-
-  ms.forEach((node, i) => processNode(node, null, "root", i))
+  const matter = meta.matter as MatterSchema
+  matter.forEach((node, index) => {
+    projectParticleNode(db, meta, src, node, null, "root", index)
+  })
 }

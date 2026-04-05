@@ -1,4 +1,4 @@
-import type { NodeMeta } from "index.ts"
+import type { MatterBindingValue } from "@dark/types/dark"
 import type { FieldInit, WimpFields } from "@dark/types/strong"
 import { Wimp } from "./Wimp.ts"
 import { resolveNodeFieldInits } from "./fields.ts"
@@ -16,6 +16,11 @@ export interface WimpContinuationBuild {
   mass?: Wimp["mass"]
 }
 
+export interface WimpContinuationTemplate {
+  fieldsBinding?: MatterBindingValue
+  massBinding?: MatterBindingValue
+}
+
 /**
  * Готовит временный пакет данных для дочернего `Wimp`, который обнаружен в родительской мете.
  *
@@ -30,14 +35,14 @@ export interface WimpContinuationBuild {
  * @returns Временный пакет данных для будущей сборки дочернего `Wimp`.
  */
 export const resolveWimpContinuation = (
-  node: NodeMeta,
+  node: WimpContinuationTemplate,
   fields?: WimpFields,
 ): WimpContinuationBuild => {
-  const fieldInits = node.fields !== undefined ? resolveNodeFieldInits(node.fields, fields) : undefined
+  const fieldInits = node.fieldsBinding !== undefined ? resolveNodeFieldInits(node.fieldsBinding, fields) : undefined
   const continuation: WimpContinuationBuild = {}
 
   if (fieldInits !== undefined) continuation.fieldInits = fieldInits
-  if (node.mass !== undefined) continuation.mass = node.mass
+  if (node.massBinding !== undefined) continuation.mass = node.massBinding
 
   return continuation
 }

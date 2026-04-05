@@ -54,6 +54,7 @@ describe("sqlite ddl", () => {
 
   test("держит entity-таблицы на uuid и child/subtype tables без parent-derived дублей", () => {
     const metaColumns = (db.query(`PRAGMA table_info(meta)`).all() as Array<{ name: string }>).map((row) => row.name)
+    const metaMassColumns = (db.query(`PRAGMA table_info(meta_mass_value)`).all() as Array<{ name: string }>).map((row) => row.name)
     const fieldColumns = (db.query(`PRAGMA table_info(field)`).all() as Array<{ name: string }>).map((row) => row.name)
     const fieldDefaultColumns = (
       db.query(`PRAGMA table_info(field_default)`).all() as Array<{ name: string }>
@@ -97,17 +98,20 @@ describe("sqlite ddl", () => {
       db.query(`PRAGMA table_info(reaction_superposition)`).all() as Array<{ name: string }>
     ).map((row) => row.name)
 
-    const matterEdgeColumns = (
-      db.query(`PRAGMA table_info(matter_edge)`).all() as Array<{ name: string }>
+    const matterParticleColumns = (
+      db.query(`PRAGMA table_info(matter_particle)`).all() as Array<{ name: string }>
     ).map((row) => row.name)
-    const matterMetaColumns = (
-      db.query(`PRAGMA table_info(matter_meta)`).all() as Array<{ name: string }>
+    const matterParticleWimpColumns = (
+      db.query(`PRAGMA table_info(matter_particle_wimp)`).all() as Array<{ name: string }>
     ).map((row) => row.name)
-    const matterAttrColumns = (
-      db.query(`PRAGMA table_info(matter_attr)`).all() as Array<{ name: string }>
+    const matterParticleFuzzyColumns = (
+      db.query(`PRAGMA table_info(matter_particle_fuzzy)`).all() as Array<{ name: string }>
     ).map((row) => row.name)
-    const matterEventUpdateColumns = (
-      db.query(`PRAGMA table_info(matter_event_update)`).all() as Array<{ name: string }>
+    const matterParticleAxionColumns = (
+      db.query(`PRAGMA table_info(matter_particle_axion)`).all() as Array<{ name: string }>
+    ).map((row) => row.name)
+    const matterParticleMachoColumns = (
+      db.query(`PRAGMA table_info(matter_particle_macho)`).all() as Array<{ name: string }>
     ).map((row) => row.name)
 
     expect(metaColumns).toEqual([
@@ -115,10 +119,20 @@ describe("sqlite ddl", () => {
       "name",
       "desc",
       "view_css",
-      "mass_source",
       "has_processes",
       "has_reactions",
       "has_matter",
+    ])
+    expect(metaMassColumns).toEqual([
+      "uuid",
+      "meta",
+      "parent_value",
+      "value_kind",
+      "entry_key",
+      "entry_order",
+      "text_value",
+      "number_value",
+      "boolean_value",
     ])
     expect(fieldColumns).toEqual(["uuid", "meta", "key", "type", "required", "label"])
     expect(fieldDefaultColumns).toEqual(["field"])
@@ -156,14 +170,43 @@ describe("sqlite ddl", () => {
     expect(processFinallyColumns).toEqual(["process", "before"])
     expect(reactionSuperpositionColumns).toEqual(["reaction", "superposition"])
 
-    expect(matterEdgeColumns).toEqual(["uuid", "root_meta", "parent_node", "child_node", "edge_slot", "edge_order"])
-    expect(matterMetaColumns).toEqual(["node", "src_binding", "fields_binding", "mass_binding"])
-    expect(matterAttrColumns).toEqual(["uuid", "owner_node", "attr_family", "attr_name"])
-    expect(matterEventUpdateColumns).toEqual(["attr", "update_order", "field"])
+    expect(matterParticleColumns).toEqual(["uuid", "meta", "parent_particle", "particle_kind", "edge_slot", "particle_order"])
+    expect(matterParticleWimpColumns).toEqual(["particle", "src", "fields_binding", "mass_binding"])
+    expect(matterParticleFuzzyColumns).toEqual(["particle", "fuzzy_kind", "predicate_binding"])
+    expect(matterParticleAxionColumns).toEqual(["particle", "predicate_binding"])
+    expect(matterParticleMachoColumns).toEqual(["particle", "collection_binding"])
   })
 
   test("держит только structural constraints через FK UNIQUE CHECK", () => {
     db.query(`INSERT INTO meta(src) VALUES (?)`).run("alpha/meta")
+
+    db.query(
+        `INSERT INTO meta_mass_value(uuid, meta, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run("mass:root", "alpha/meta", null, "object", null, null, null, null, null)
+
+    expect(() =>
+      db.query(
+          `INSERT INTO meta_mass_value(uuid, meta, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run("mass:root:dup", "alpha/meta", null, "object", null, null, null, null, null),
+    ).toThrow()
+
+    db.query(
+        `INSERT INTO meta_mass_value(uuid, meta, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run("mass:title", "alpha/meta", "mass:root", "string", "title", null, "draft", null, null)
+
+    expect(() =>
+      db.query(
+          `INSERT INTO meta_mass_value(uuid, meta, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run("mass:title:dup", "alpha/meta", "mass:root", "string", "title", null, "copy", null, null),
+    ).toThrow()
 
     db.query(
         `INSERT INTO field(uuid, meta, key, type, required)
@@ -422,26 +465,14 @@ describe("sqlite ddl", () => {
     expect(reactionWriteCount.count).toBe(1)
   })
 
-  test("хранит matter как structural rows без semantic trigger-guards", () => {
+  test("хранит particle projection matter как structural rows без semantic trigger-guards", () => {
     db.query(`INSERT INTO meta(src) VALUES (?), (?)`).run("alpha/meta", "beta/meta")
-
-    db.query(
-        `INSERT INTO field(uuid, meta, key, type, required)
-         VALUES (?, ?, ?, ?, ?)`,
-      )
-      .run("field:alpha:title", "alpha/meta", "title", "string", 1)
-
-    db.query(
-        `INSERT INTO field(uuid, meta, key, type, required)
-         VALUES (?, ?, ?, ?, ?)`,
-      )
-      .run("field:beta:title", "beta/meta", "title", "string", 1)
 
     db.query(
         `INSERT INTO matter_binding(uuid, meta, binding_kind, literal_kind, literal_text)
          VALUES (?, ?, ?, ?, ?)`,
       )
-      .run("binding:src", "alpha/meta", "static", "text", "alpha/root")
+      .run("binding:src", "beta/meta", "static", "text", "beta/root")
 
     db.query(
         `INSERT INTO matter_binding(uuid, meta, binding_kind)
@@ -450,73 +481,57 @@ describe("sqlite ddl", () => {
       .run("binding:predicate", "beta/meta", "variable")
 
     db.query(
-        `INSERT INTO matter_node(uuid, meta, node_kind, tag)
-         VALUES (?, ?, ?, ?)`,
-      )
-      .run("node:alpha:cond", "alpha/meta", "cond", null)
-
-    db.query(
-        `INSERT INTO matter_node(uuid, meta, node_kind, tag)
-         VALUES (?, ?, ?, ?)`,
-      )
-      .run("node:beta:meta", "beta/meta", "meta", "meta-for")
-
-    db.query(
-        `INSERT INTO matter_condition(node, predicate_binding)
-         VALUES (?, ?)`,
-      )
-      .run("node:alpha:cond", "binding:predicate")
-
-    db.query(
-        `INSERT INTO matter_edge(uuid, root_meta, parent_node, child_node, edge_slot, edge_order)
+        `INSERT INTO matter_particle(uuid, meta, parent_particle, particle_kind, edge_slot, particle_order)
          VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run("edge:root", "alpha/meta", null, "node:alpha:cond", "root", 0)
+      .run("particle:alpha:fuzzy", "alpha/meta", null, "fuzzy", "root", 0)
 
     db.query(
-        `INSERT INTO matter_edge(uuid, root_meta, parent_node, child_node, edge_slot, edge_order)
+        `INSERT INTO matter_particle(uuid, meta, parent_particle, particle_kind, edge_slot, particle_order)
          VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run("edge:cross", null, "node:alpha:cond", "node:beta:meta", "child", 0)
+      .run("particle:beta:wimp", "beta/meta", "particle:alpha:fuzzy", "wimp", "child", 0)
 
     db.query(
-        `INSERT INTO matter_attr(uuid, owner_node, attr_family, attr_name)
-         VALUES (?, ?, ?, ?)`,
-      )
-      .run("attr:event", "node:alpha:cond", "event", "onclick")
-
-    db.query(
-        `INSERT INTO matter_attr_binding(attr, binding)
-         VALUES (?, ?)`,
-      )
-      .run("attr:event", "binding:src")
-
-    db.query(
-        `INSERT INTO matter_event_update(attr, update_order, field)
+        `INSERT INTO matter_particle_fuzzy(particle, fuzzy_kind, predicate_binding)
          VALUES (?, ?, ?)`,
       )
-      .run("attr:event", 0, "field:beta:title")
+      .run("particle:alpha:fuzzy", "cond", "binding:predicate")
+
+    db.query(
+        `INSERT INTO matter_particle_wimp(particle, src, fields_binding, mass_binding)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run("particle:beta:wimp", "beta/root", "binding:src", null)
 
     expect(() =>
       db.query(
-          `INSERT INTO matter_edge(uuid, root_meta, parent_node, child_node, edge_slot, edge_order)
+          `INSERT INTO matter_particle(uuid, meta, parent_particle, particle_kind, edge_slot, particle_order)
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run("edge:bad-check", null, null, "node:beta:meta", "root", 1),
+        .run("particle:bad-check", "beta/meta", null, "wimp", "child", 1),
     ).toThrow()
+
+    db.query(
+        `INSERT INTO matter_particle(uuid, meta, parent_particle, particle_kind, edge_slot, particle_order)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run("particle:alpha:then", "alpha/meta", "particle:alpha:fuzzy", "wimp", "then", 0)
 
     expect(() =>
       db.query(
-          `INSERT INTO matter_edge(uuid, root_meta, parent_node, child_node, edge_slot, edge_order)
+          `INSERT INTO matter_particle(uuid, meta, parent_particle, particle_kind, edge_slot, particle_order)
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run("edge:dup-child", "beta/meta", null, "node:beta:meta", "root", 0),
+        .run("particle:alpha:then-dup", "alpha/meta", "particle:alpha:fuzzy", "wimp", "then", 1),
     ).toThrow()
 
-    const edgeCount = db.query(`SELECT COUNT(*) as count FROM matter_edge`).get() as { count: number }
-    const attrCount = db.query(`SELECT COUNT(*) as count FROM matter_attr`).get() as { count: number }
+    const particleCount = db.query(`SELECT COUNT(*) as count FROM matter_particle`).get() as { count: number }
+    const fuzzyCount = db.query(`SELECT COUNT(*) as count FROM matter_particle_fuzzy`).get() as { count: number }
+    const wimpCount = db.query(`SELECT COUNT(*) as count FROM matter_particle_wimp`).get() as { count: number }
 
-    expect(edgeCount.count).toBe(2)
-    expect(attrCount.count).toBe(1)
+    expect(particleCount.count).toBe(3)
+    expect(fuzzyCount.count).toBe(1)
+    expect(wimpCount.count).toBe(1)
   })
 })

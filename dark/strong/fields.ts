@@ -1,5 +1,5 @@
 import type { FieldDefinitionJson, FieldKey, FieldsAST } from "@metafor/ast"
-import type { NodeMeta } from "index.ts"
+import type { MatterBindingValue } from "@dark/types/dark"
 import type { FieldInit, MetaFields, WimpFields, WimpValues } from "@dark/types/strong"
 import type { Wimp } from "./Wimp.ts"
 import { InstanceField } from "./Field.ts"
@@ -110,7 +110,7 @@ export const resolveFieldValues = (fields: FieldsAST): WimpValues => {
  * @returns Плоский набор значений для следующего шага подготовки полей.
  */
 export const resolveNodeFieldValues = (
-  value: NodeMeta["fields"] | undefined,
+  value: MatterBindingValue | undefined,
   resolvers: FieldResolvers,
 ): WimpValues | undefined => {
   if (value === undefined) return
@@ -238,7 +238,7 @@ export const readFieldValues = (fields?: WimpFields): WimpValues | undefined => 
  * @returns Временный набор описаний, который позже будет превращён в `childWimp.fields`.
  */
 export const resolveNodeFieldInits = (
-  value: NodeMeta["fields"] | undefined,
+  value: MatterBindingValue | undefined,
   parentFields?: WimpFields,
 ): FieldInit[] | undefined => {
   if (value === undefined) return

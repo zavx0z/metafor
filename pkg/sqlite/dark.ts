@@ -21,36 +21,16 @@ type PredicateRow = {
   value_variant: string | null
 }
 
-type BindingRow = {
+type MetaMassValueRow = {
   uuid: string
-  binding_kind: "static" | "variable" | "dynamic"
-  literal_kind: "text" | "boolean" | null
-  literal_text: string | null
-  literal_boolean: number | null
-  expr: string | null
+  parent_value: string | null
+  value_kind: "object" | "array" | "string" | "number" | "boolean" | "null"
+  entry_key: string | null
+  entry_order: number | null
+  text_value: string | null
+  number_value: number | null
+  boolean_value: number | null
 }
-
-type MatterNodeRow = {
-  uuid: string
-  node_kind: "meta" | "cond" | "log" | "map"
-  tag: string | null
-}
-
-type MatterEdgeRow = {
-  parent_node: string | null
-  child_node: string
-  edge_slot: "root" | "child" | "then" | "else"
-  edge_order: number
-}
-
-type MatterAttrRow = {
-  uuid: string
-  owner_node: string
-  attr_family: "string" | "boolean" | "array" | "style" | "event"
-  attr_name: string
-}
-
-const toMaybeArray = (values: string[]): string | string[] => (values.length === 1 ? values[0]! : values)
 
 const hasKeys = (value: object): boolean => Object.keys(value).length > 0
 
@@ -90,7 +70,7 @@ const decodeOperatorKey = (operator: string): string => {
   }
 }
 
-const readFields = (
+export const readFields = (
   db: Database,
   src: string,
 ): {
@@ -215,7 +195,7 @@ const readFields = (
   return { fields, fieldKeys, enumVariants }
 }
 
-const readSuperposition = (
+export const readSuperposition = (
   db: Database,
   src: string,
   enumVariants: Map<string, string>,
@@ -345,7 +325,7 @@ const readSuperposition = (
   return superposition
 }
 
-const readProcesses = (
+export const readProcesses = (
   db: Database,
   src: string,
   fieldKeys: Map<string, string>,
@@ -520,7 +500,7 @@ const readProcesses = (
   return processes
 }
 
-const readReactions = (
+export const readReactions = (
   db: Database,
   src: string,
   fieldKeys: Map<string, string>,
@@ -618,324 +598,62 @@ const readReactions = (
   return reactions
 }
 
-const readMatter = (
-  db: Database,
-  src: string,
-): NonNullable<MetaDSL["matter"]> | undefined => {
-  const nodeRows = db.query(`SELECT uuid, node_kind, tag FROM matter_node WHERE meta = ? ORDER BY rowid`).all(src) as MatterNodeRow[]
-  if (nodeRows.length === 0) return
-
-  const nodeById = new Map(nodeRows.map((row) => [row.uuid, row]))
-  const edgeRows = db.query(
-    `SELECT parent_node, child_node, edge_slot, edge_order
-     FROM matter_edge
-     WHERE root_meta = ? OR parent_node IN (SELECT uuid FROM matter_node WHERE meta = ?)
-     ORDER BY edge_order`,
-  ).all(src, src) as MatterEdgeRow[]
-
-  const rootEdges = edgeRows.filter((row) => row.parent_node === null && row.edge_slot === "root")
-  const childEdges = new Map<string, MatterEdgeRow[]>()
-  for (const row of edgeRows) {
-    if (!row.parent_node) continue
-    const rows = childEdges.get(row.parent_node) ?? []
-    rows.push(row)
-    childEdges.set(row.parent_node, rows)
+const compareMassRows = (left: MetaMassValueRow, right: MetaMassValueRow): number => {
+  if (left.entry_order !== null || right.entry_order !== null) {
+    return (left.entry_order ?? 0) - (right.entry_order ?? 0)
   }
 
-  const metaRows = new Map(
-    (
-      db.query(
-        `SELECT node, src_binding, fields_binding, mass_binding
-         FROM matter_meta
-         WHERE node IN (SELECT uuid FROM matter_node WHERE meta = ?)`,
-      ).all(src) as Array<{ node: string; src_binding: string; fields_binding: string | null; mass_binding: string | null }>
-    ).map((row) => [row.node, row]),
-  )
+  return (left.entry_key ?? "").localeCompare(right.entry_key ?? "")
+}
 
-  const conditionRows = new Map(
-    (
-      db.query(
-        `SELECT node, predicate_binding
-         FROM matter_condition
-         WHERE node IN (SELECT uuid FROM matter_node WHERE meta = ?)`,
-      ).all(src) as Array<{ node: string; predicate_binding: string }>
-    ).map((row) => [row.node, row]),
-  )
-
-  const logicalRows = new Map(
-    (
-      db.query(
-        `SELECT node, predicate_binding
-         FROM matter_logical
-         WHERE node IN (SELECT uuid FROM matter_node WHERE meta = ?)`,
-      ).all(src) as Array<{ node: string; predicate_binding: string }>
-    ).map((row) => [row.node, row]),
-  )
-
-  const mapRows = new Map(
-    (
-      db.query(
-        `SELECT node, collection_binding
-         FROM matter_map
-         WHERE node IN (SELECT uuid FROM matter_node WHERE meta = ?)`,
-      ).all(src) as Array<{ node: string; collection_binding: string }>
-    ).map((row) => [row.node, row]),
-  )
-
-  const attrRows = db.query(
-    `SELECT uuid, owner_node, attr_family, attr_name
-     FROM matter_attr
-     WHERE owner_node IN (SELECT uuid FROM matter_node WHERE meta = ?)
-     ORDER BY rowid`,
-  ).all(src) as MatterAttrRow[]
-
-  const attrBindings = new Map(
-    (
-      db.query(
-        `SELECT matter_attr_binding.attr AS attr, matter_attr_binding.binding AS binding
-         FROM matter_attr_binding
-         INNER JOIN matter_attr ON matter_attr.uuid = matter_attr_binding.attr
-         INNER JOIN matter_node ON matter_node.uuid = matter_attr.owner_node
-         WHERE matter_node.meta = ?`,
-      ).all(src) as Array<{ attr: string; binding: string }>
-    ).map((row) => [row.attr, row.binding]),
-  )
-
-  const attrPartRows = db.query(
-    `SELECT matter_attr_part.attr AS attr, matter_attr_part.part_order AS part_order, matter_attr_part.binding AS binding
-     FROM matter_attr_part
-     INNER JOIN matter_attr ON matter_attr.uuid = matter_attr_part.attr
-     INNER JOIN matter_node ON matter_node.uuid = matter_attr.owner_node
-     WHERE matter_node.meta = ?
-     ORDER BY matter_attr_part.part_order`,
-  ).all(src) as Array<{ attr: string; part_order: number; binding: string }>
-
-  const styleRows = db.query(
-    `SELECT matter_style_prop.attr AS attr, matter_style_prop.prop_name AS prop_name, matter_style_prop.binding AS binding
-     FROM matter_style_prop
-     INNER JOIN matter_attr ON matter_attr.uuid = matter_style_prop.attr
-     INNER JOIN matter_node ON matter_node.uuid = matter_attr.owner_node
-     WHERE matter_node.meta = ?
-     ORDER BY matter_style_prop.rowid`,
-  ).all(src) as Array<{ attr: string; prop_name: string; binding: string }>
-
-  const eventUpdateRows = db.query(
-    `SELECT matter_event_update.attr AS attr, matter_event_update.update_order AS update_order, field.key AS field_key
-     FROM matter_event_update
-     INNER JOIN matter_attr ON matter_attr.uuid = matter_event_update.attr
-     INNER JOIN matter_node ON matter_node.uuid = matter_attr.owner_node
-     INNER JOIN field ON field.uuid = matter_event_update.field
-     WHERE matter_node.meta = ?
-     ORDER BY matter_event_update.update_order`,
-  ).all(src) as Array<{ attr: string; update_order: number; field_key: string }>
-
-  const bindingRows = new Map(
-    (
-      db.query(
-        `SELECT uuid, binding_kind, literal_kind, literal_text, literal_boolean, expr
-         FROM matter_binding
-         WHERE meta = ?`,
-      ).all(src) as BindingRow[]
-    ).map((row) => [row.uuid, row]),
-  )
-
-  const bindingDepRows = db.query(
-    `SELECT binding, dep_order, path
-     FROM matter_binding_dep
-     WHERE binding IN (SELECT uuid FROM matter_binding WHERE meta = ?)
-     ORDER BY dep_order`,
-  ).all(src) as Array<{ binding: string; dep_order: number; path: string }>
-
-  const bindingDeps = new Map<string, string[]>()
-  for (const row of bindingDepRows) {
-    const deps = bindingDeps.get(row.binding) ?? []
-    deps.push(row.path)
-    bindingDeps.set(row.binding, deps)
+const decodeMassValue = (
+  row: MetaMassValueRow,
+  childrenByParent: Map<string, MetaMassValueRow[]>,
+): unknown => {
+  if (row.value_kind === "object") {
+    return Object.fromEntries(
+      (childrenByParent.get(row.uuid) ?? [])
+        .sort(compareMassRows)
+        .map((child) => [child.entry_key ?? "", decodeMassValue(child, childrenByParent)]),
+    )
   }
 
-  const bindingCache = new Map<string, unknown>()
-  const readBinding = (bindingId: string | null | undefined): unknown => {
-    if (!bindingId) return undefined
-    const cached = bindingCache.get(bindingId)
-    if (cached !== undefined) return cached
-
-    const row = bindingRows.get(bindingId)
-    if (!row) return undefined
-
-    let value: unknown
-    if (row.binding_kind === "static") {
-      value = row.literal_kind === "boolean" ? row.literal_boolean === 1 : row.literal_text ?? ""
-    } else {
-      const deps = bindingDeps.get(bindingId) ?? []
-      if (row.binding_kind === "dynamic") {
-        value = row.expr !== null ? { ...(deps.length > 0 ? { data: toMaybeArray(deps) } : {}), expr: row.expr } : undefined
-      } else {
-        value = { data: toMaybeArray(deps) }
-      }
-    }
-
-    bindingCache.set(bindingId, value)
-    return value
+  if (row.value_kind === "array") {
+    return (childrenByParent.get(row.uuid) ?? []).sort(compareMassRows).map((child) => decodeMassValue(child, childrenByParent))
   }
 
-  const attrParts = new Map<string, unknown[]>()
-  for (const row of attrPartRows) {
-    const parts = attrParts.get(row.attr) ?? []
-    parts.push(readBinding(row.binding))
-    attrParts.set(row.attr, parts)
+  if (row.value_kind === "string") return row.text_value ?? ""
+  if (row.value_kind === "number") return row.number_value ?? 0
+  if (row.value_kind === "boolean") return row.boolean_value === 1
+  return null
+}
+
+export const readMass = (db: Database, src: string): MetaDSL["mass"] | undefined => {
+  const rows = db.query(
+    `SELECT uuid, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value
+     FROM meta_mass_value
+     WHERE meta = ?
+     ORDER BY CASE WHEN parent_value IS NULL THEN 0 ELSE 1 END, entry_order, entry_key, rowid`,
+  ).all(src) as MetaMassValueRow[]
+
+  const root = rows.find((row) => row.parent_value === null)
+  if (!root) return
+
+  const childrenByParent = new Map<string, MetaMassValueRow[]>()
+  for (const row of rows) {
+    if (row.parent_value === null) continue
+
+    const children = childrenByParent.get(row.parent_value) ?? []
+    children.push(row)
+    childrenByParent.set(row.parent_value, children)
   }
 
-  const styleProps = new Map<string, Record<string, unknown>>()
-  for (const row of styleRows) {
-    const style = styleProps.get(row.attr) ?? {}
-    style[row.prop_name] = readBinding(row.binding)
-    styleProps.set(row.attr, style)
-  }
-
-  const eventUpdates = new Map<string, string[]>()
-  for (const row of eventUpdateRows) {
-    const updates = eventUpdates.get(row.attr) ?? []
-    updates.push(row.field_key)
-    eventUpdates.set(row.attr, updates)
-  }
-
-  const attrsByNode = new Map<string, Record<string, unknown>>()
-  for (const row of attrRows) {
-    const container = attrsByNode.get(row.owner_node) ?? {}
-
-    if (row.attr_family === "string" || row.attr_family === "boolean") {
-      const family = (container[row.attr_family] as Record<string, unknown> | undefined) ?? {}
-      family[row.attr_name] = readBinding(attrBindings.get(row.uuid))
-      container[row.attr_family] = family
-    }
-
-    if (row.attr_family === "array") {
-      const family = (container.array as Record<string, unknown[]> | undefined) ?? {}
-      family[row.attr_name] = attrParts.get(row.uuid) ?? []
-      container.array = family
-    }
-
-    if (row.attr_family === "style") {
-      container.style = styleProps.get(row.uuid) ?? {}
-    }
-
-    if (row.attr_family === "event") {
-      const family = (container.event as Record<string, Record<string, unknown>> | undefined) ?? {}
-      const binding = readBinding(attrBindings.get(row.uuid))
-      const eventValue =
-        binding && typeof binding === "object" ? { ...(binding as Record<string, unknown>) } : { expr: String(binding ?? "") }
-
-      const updates = eventUpdates.get(row.uuid) ?? []
-      if (updates.length === 1) eventValue.upd = updates[0]
-      if (updates.length > 1) eventValue.upd = updates
-
-      family[row.attr_name] = eventValue
-      container.event = family
-    }
-
-    attrsByNode.set(row.owner_node, container)
-  }
-
-  const buildNode = (nodeId: string): NonNullable<MetaDSL["matter"]>[number] => {
-    const row = nodeById.get(nodeId)
-    if (!row) {
-      throw new Error(`Matter node "${nodeId}" is not found in canonical SQLite projection`)
-    }
-
-    const attrs = attrsByNode.get(nodeId) ?? {}
-
-    if (row.node_kind === "meta") {
-      const metaRow = metaRows.get(nodeId)
-      if (!metaRow) throw new Error(`Matter meta row is missing for node "${nodeId}"`)
-
-      const node: Record<string, unknown> = {
-        type: "meta",
-        tag: row.tag ?? "meta-for",
-        src: readBinding(metaRow.src_binding),
-        ...attrs,
-      }
-
-      const fields = readBinding(metaRow.fields_binding)
-      const mass = readBinding(metaRow.mass_binding)
-      if (fields !== undefined) node.fields = fields
-      if (mass !== undefined) node.mass = mass
-
-      const children = (childEdges.get(nodeId) ?? [])
-        .filter((edge) => edge.edge_slot === "child")
-        .sort((left, right) => left.edge_order - right.edge_order)
-        .map((edge) => buildNode(edge.child_node))
-      if (children.length > 0) node.child = children
-
-      return node as NonNullable<MetaDSL["matter"]>[number]
-    }
-
-    if (row.node_kind === "cond") {
-      const conditionRow = conditionRows.get(nodeId)
-      if (!conditionRow) throw new Error(`Matter condition row is missing for node "${nodeId}"`)
-      const binding = readBinding(conditionRow.predicate_binding) as { data: string | string[]; expr?: string }
-      const node: Record<string, unknown> = {
-        type: "cond",
-        data: binding.data,
-      }
-      if (binding.expr !== undefined) node.expr = binding.expr
-
-      const children = (childEdges.get(nodeId) ?? []).sort((left, right) => left.edge_order - right.edge_order)
-      const ordered = children
-        .filter((edge) => edge.edge_slot === "then" || edge.edge_slot === "else")
-        .sort((left, right) => {
-          if (left.edge_slot === right.edge_slot) return left.edge_order - right.edge_order
-          return left.edge_slot === "then" ? -1 : 1
-        })
-        .map((edge) => buildNode(edge.child_node))
-      node.child = ordered
-
-      return node as NonNullable<MetaDSL["matter"]>[number]
-    }
-
-    if (row.node_kind === "log") {
-      const logicalRow = logicalRows.get(nodeId)
-      if (!logicalRow) throw new Error(`Matter logical row is missing for node "${nodeId}"`)
-      const binding = readBinding(logicalRow.predicate_binding) as { data: string | string[]; expr?: string }
-      const node: Record<string, unknown> = {
-        type: "log",
-        data: binding.data,
-      }
-      if (binding.expr !== undefined) node.expr = binding.expr
-
-      const children = (childEdges.get(nodeId) ?? [])
-        .filter((edge) => edge.edge_slot === "child")
-        .sort((left, right) => left.edge_order - right.edge_order)
-        .map((edge) => buildNode(edge.child_node))
-      node.child = children
-
-      return node as NonNullable<MetaDSL["matter"]>[number]
-    }
-
-    const mapRow = mapRows.get(nodeId)
-    if (!mapRow) throw new Error(`Matter map row is missing for node "${nodeId}"`)
-    const binding = readBinding(mapRow.collection_binding) as { data: string }
-    const node: Record<string, unknown> = {
-      type: "map",
-      data: binding.data,
-    }
-
-    const children = (childEdges.get(nodeId) ?? [])
-      .filter((edge) => edge.edge_slot === "child")
-      .sort((left, right) => left.edge_order - right.edge_order)
-      .map((edge) => buildNode(edge.child_node))
-    node.child = children
-
-    return node as NonNullable<MetaDSL["matter"]>[number]
-  }
-
-  return rootEdges
-    .sort((left, right) => left.edge_order - right.edge_order)
-    .map((edge) => buildNode(edge.child_node))
+  return decodeMassValue(root, childrenByParent) as MetaDSL["mass"]
 }
 
 export function readDarkBundle(db: Database, src: string): MetaDSL {
   const metaRow = db.query(
-    `SELECT src, name, desc, view_css, mass_source, has_processes, has_reactions, has_matter
+    `SELECT src, name, desc, view_css, has_processes, has_reactions, has_matter
      FROM meta
      WHERE src = ?`,
   ).get(src) as
@@ -944,7 +662,6 @@ export function readDarkBundle(db: Database, src: string): MetaDSL {
         name: string | null
         desc: string | null
         view_css: string | null
-        mass_source: string | null
         has_processes: number
         has_reactions: number
         has_matter: number
@@ -959,7 +676,7 @@ export function readDarkBundle(db: Database, src: string): MetaDSL {
   const superposition = readSuperposition(db, src, enumVariants)
   const processes = readProcesses(db, src, fieldKeys)
   const reactions = readReactions(db, src, fieldKeys)
-  const matter = readMatter(db, src)
+  const mass = readMass(db, src)
 
   const bundle: MetaDSL = {
     name: metaRow.name ?? src.split("/").pop() ?? src,
@@ -968,15 +685,15 @@ export function readDarkBundle(db: Database, src: string): MetaDSL {
 
   if (metaRow.desc !== null) bundle.desc = metaRow.desc
   if (metaRow.view_css !== null) bundle.bulk = { view: metaRow.view_css }
-  if (metaRow.mass_source !== null) {
-    bundle.mass = JSON.parse(metaRow.mass_source) as MetaDSL["mass"]
-  }
+  if (mass !== undefined) bundle.mass = mass
   if (superposition !== undefined) bundle.superposition = superposition
   if (metaRow.has_processes === 1 || processes !== undefined) bundle.processes = processes ?? {}
   if (metaRow.has_reactions === 1 || (reactions !== undefined && (hasKeys(reactions.reactions) || hasKeys(reactions.superposition)))) {
     bundle.reactions = reactions ?? { reactions: {}, superposition: {} }
   }
-  if (metaRow.has_matter === 1 || matter !== undefined) bundle.matter = matter ?? []
+  if (metaRow.has_matter === 1) {
+    bundle.matter = []
+  }
 
   if (bundle.superposition === undefined) bundle.superposition = {}
   if (bundle.mass === undefined) bundle.mass = {}

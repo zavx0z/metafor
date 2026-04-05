@@ -1,49 +1,3 @@
-CREATE TABLE IF NOT EXISTS matter_node
-(
-    uuid      TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    meta      TEXT NOT NULL,
-    node_kind TEXT NOT NULL CHECK (node_kind IN ('meta', 'cond', 'log', 'map')),
-    tag       TEXT,
-    FOREIGN KEY (meta) REFERENCES meta (src) ON DELETE CASCADE,
-    CHECK (
-        (node_kind = 'meta' AND tag IS NOT NULL AND length(trim(tag)) > 0) OR
-        (node_kind IN ('cond', 'log', 'map') AND tag IS NULL)
-        )
-);
-
-CREATE TABLE IF NOT EXISTS matter_edge
-(
-    uuid        TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    root_meta   TEXT,
-    parent_node TEXT,
-    child_node  TEXT    NOT NULL CHECK (length(trim(child_node)) > 0),
-    edge_slot   TEXT    NOT NULL CHECK (edge_slot IN ('root', 'child', 'then', 'else')),
-    edge_order  INTEGER NOT NULL CHECK (edge_order >= 0),
-    UNIQUE (child_node),
-    FOREIGN KEY (root_meta) REFERENCES meta (src) ON DELETE CASCADE,
-    FOREIGN KEY (parent_node) REFERENCES matter_node (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (child_node) REFERENCES matter_node (uuid) ON DELETE CASCADE,
-    CHECK (
-        (parent_node IS NULL AND root_meta IS NOT NULL AND edge_slot = 'root') OR
-        (parent_node IS NOT NULL AND root_meta IS NULL AND edge_slot IN ('child', 'then', 'else'))
-        )
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS matter_root_order
-    ON matter_edge (root_meta, edge_order)
-    WHERE root_meta IS NOT NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS matter_child_order
-    ON matter_edge (parent_node, edge_order)
-    WHERE edge_slot = 'child';
-
-CREATE UNIQUE INDEX IF NOT EXISTS matter_cond_branch_slot
-    ON matter_edge (parent_node, edge_slot)
-    WHERE edge_slot IN ('then', 'else');
-
-CREATE INDEX IF NOT EXISTS matter_edge_by_parent_node
-    ON matter_edge (parent_node);
-
 CREATE TABLE IF NOT EXISTS matter_binding
 (
     uuid            TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
@@ -75,101 +29,82 @@ CREATE TABLE IF NOT EXISTS matter_binding_dep
     FOREIGN KEY (binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS matter_node_by_meta
-    ON matter_node (meta);
-
 CREATE INDEX IF NOT EXISTS matter_binding_by_meta
     ON matter_binding (meta);
 
 CREATE INDEX IF NOT EXISTS matter_binding_dep_by_binding
     ON matter_binding_dep (binding);
 
-CREATE TABLE IF NOT EXISTS matter_meta
+CREATE TABLE IF NOT EXISTS matter_particle
 (
-    node           TEXT PRIMARY KEY CHECK (length(trim(node)) > 0),
-    src_binding    TEXT NOT NULL CHECK (length(trim(src_binding)) > 0),
+    uuid            TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
+    meta            TEXT    NOT NULL,
+    parent_particle TEXT,
+    particle_kind   TEXT    NOT NULL CHECK (particle_kind IN ('wimp', 'fuzzy', 'axion', 'macho')),
+    edge_slot       TEXT    NOT NULL CHECK (edge_slot IN ('root', 'child', 'then', 'else', 'branch')),
+    particle_order  INTEGER NOT NULL CHECK (particle_order >= 0),
+    FOREIGN KEY (meta) REFERENCES meta (src) ON DELETE CASCADE,
+    FOREIGN KEY (parent_particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
+    CHECK (
+        (parent_particle IS NULL AND edge_slot = 'root') OR
+        (parent_particle IS NOT NULL AND edge_slot IN ('child', 'then', 'else', 'branch'))
+        )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS matter_root_particle_order
+    ON matter_particle (meta, particle_order)
+    WHERE parent_particle IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS matter_particle_child_order
+    ON matter_particle (parent_particle, edge_slot, particle_order)
+    WHERE parent_particle IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS matter_particle_branch_slot
+    ON matter_particle (parent_particle, edge_slot)
+    WHERE edge_slot IN ('then', 'else');
+
+CREATE INDEX IF NOT EXISTS matter_particle_by_meta
+    ON matter_particle (meta);
+
+CREATE INDEX IF NOT EXISTS matter_particle_by_parent
+    ON matter_particle (parent_particle);
+
+CREATE TABLE IF NOT EXISTS matter_particle_wimp
+(
+    particle       TEXT PRIMARY KEY CHECK (length(trim(particle)) > 0),
+    src            TEXT NOT NULL CHECK (length(trim(src)) > 0),
     fields_binding TEXT,
     mass_binding   TEXT,
-    FOREIGN KEY (node) REFERENCES matter_node (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (src_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
     FOREIGN KEY (fields_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE,
     FOREIGN KEY (mass_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS matter_condition
+CREATE TABLE IF NOT EXISTS matter_particle_fuzzy
 (
-    node              TEXT PRIMARY KEY CHECK (length(trim(node)) > 0),
+    particle          TEXT PRIMARY KEY CHECK (length(trim(particle)) > 0),
+    fuzzy_kind        TEXT NOT NULL CHECK (fuzzy_kind IN ('dynamic-meta', 'cond')),
+    predicate_binding TEXT,
+    FOREIGN KEY (particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (predicate_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE,
+    CHECK (
+        (fuzzy_kind = 'dynamic-meta' AND predicate_binding IS NULL) OR
+        (fuzzy_kind = 'cond' AND predicate_binding IS NOT NULL)
+        )
+);
+
+CREATE TABLE IF NOT EXISTS matter_particle_axion
+(
+    particle          TEXT PRIMARY KEY CHECK (length(trim(particle)) > 0),
     predicate_binding TEXT NOT NULL CHECK (length(trim(predicate_binding)) > 0),
-    FOREIGN KEY (node) REFERENCES matter_node (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
     FOREIGN KEY (predicate_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS matter_logical
+CREATE TABLE IF NOT EXISTS matter_particle_macho
 (
-    node              TEXT PRIMARY KEY CHECK (length(trim(node)) > 0),
-    predicate_binding TEXT NOT NULL CHECK (length(trim(predicate_binding)) > 0),
-    FOREIGN KEY (node) REFERENCES matter_node (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (predicate_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS matter_map
-(
-    node               TEXT PRIMARY KEY CHECK (length(trim(node)) > 0),
+    particle           TEXT PRIMARY KEY CHECK (length(trim(particle)) > 0),
     collection_binding TEXT NOT NULL CHECK (length(trim(collection_binding)) > 0),
-    FOREIGN KEY (node) REFERENCES matter_node (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
     FOREIGN KEY (collection_binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
 );
-
-CREATE TABLE IF NOT EXISTS matter_attr
-(
-    uuid        TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    owner_node  TEXT NOT NULL CHECK (length(trim(owner_node)) > 0),
-    attr_family TEXT NOT NULL CHECK (attr_family IN ('string', 'boolean', 'array', 'style', 'event')),
-    attr_name   TEXT NOT NULL CHECK (length(trim(attr_name)) > 0),
-    UNIQUE (owner_node, attr_family, attr_name),
-    FOREIGN KEY (owner_node) REFERENCES matter_node (uuid) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS matter_attr_binding
-(
-    attr    TEXT PRIMARY KEY CHECK (length(trim(attr)) > 0),
-    binding TEXT NOT NULL CHECK (length(trim(binding)) > 0),
-    FOREIGN KEY (attr) REFERENCES matter_attr (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS matter_attr_part
-(
-    attr       TEXT    NOT NULL CHECK (length(trim(attr)) > 0),
-    part_order INTEGER NOT NULL CHECK (part_order >= 0),
-    binding    TEXT    NOT NULL CHECK (length(trim(binding)) > 0),
-    PRIMARY KEY (attr, part_order),
-    FOREIGN KEY (attr) REFERENCES matter_attr (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS matter_style_prop
-(
-    attr      TEXT NOT NULL CHECK (length(trim(attr)) > 0),
-    prop_name TEXT NOT NULL CHECK (length(trim(prop_name)) > 0),
-    binding   TEXT NOT NULL CHECK (length(trim(binding)) > 0),
-    PRIMARY KEY (attr, prop_name),
-    FOREIGN KEY (attr) REFERENCES matter_attr (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS matter_event_update
-(
-    attr         TEXT    NOT NULL CHECK (length(trim(attr)) > 0),
-    update_order INTEGER NOT NULL CHECK (update_order >= 0),
-    field        TEXT    NOT NULL CHECK (length(trim(field)) > 0),
-    PRIMARY KEY (attr, update_order),
-    FOREIGN KEY (attr) REFERENCES matter_attr (uuid) ON DELETE CASCADE,
-    FOREIGN KEY (field) REFERENCES field (uuid) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS matter_attr_by_owner_node
-    ON matter_attr (owner_node, attr_family);
-
-CREATE INDEX IF NOT EXISTS matter_event_update_by_attr
-    ON matter_event_update (attr);
