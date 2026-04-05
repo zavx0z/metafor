@@ -2,9 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import type { Database } from "bun:sqlite"
 import type { MetaDSL } from "../.."
 import gitMeta from "../../github/zavx0z/git/meta.ts"
-import { readDarkMetaParticles } from "../../dark/sqlite.ts"
 import { relation, getMetaDB } from "./index.ts"
-import { readDarkBundle } from "./dark.ts"
+import { readDarkBundle, readDarkParticleModel } from "./dark.ts"
 
 const richMeta: MetaDSL = {
   name: "rich",
@@ -242,7 +241,7 @@ describe("sqlite dark bundle", () => {
     relation(db, richMeta, "owner/rich")
 
     const bundle = readDarkBundle(db, "owner/rich")
-    const projection = readDarkMetaParticles(db, "owner/rich")
+    const projection = readDarkParticleModel(db, "owner/rich")
 
     expect(bundle.fields).toEqual(richMeta.fields)
     expect(bundle.superposition).toEqual(richMeta.superposition)

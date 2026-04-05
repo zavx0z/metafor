@@ -1,12 +1,11 @@
-import type { MetaDSL, NodeType } from "index.ts"
 import type { MatterContinuation, MatterEntry, MatterLayerResult, MatterParticlePlan, MatterWimpResult } from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
 import { emitAdd, emitBarrier } from "@dark/gravity/channel.ts"
 import type { SharedDbMaterializationWriter } from "@shared/db"
 import { Axion, Fuzzy, Macho, materializeFields, Meta, resolveWimpContinuation, Wimp } from "@dark/strong"
-import { ensureMetaCanonicalized, loadMetaAST } from "./load.ts"
+import { readDarkParticleModel } from "../pkg/sqlite/dark.ts"
+import { ensureMetaCanonicalized } from "./load.ts"
 import { dark$ } from "./store"
-import { readDarkMetaParticles } from "./sqlite.ts"
 
 interface MatterOptions {
   sharedDbWriter?: SharedDbMaterializationWriter
@@ -73,139 +72,19 @@ const registerMeta = (meta: Meta): Meta => {
   return meta
 }
 
-const toMetaMass = (mass: MetaDSL["mass"] | undefined): MetaDSL["mass"] | undefined =>
-  mass && Object.keys(mass).length > 0 ? structuredClone(mass) : undefined
-
-const createContinuationSrc = (expr: string | undefined, value: string | number): string => {
-  if (!expr) return String(value)
-
-  const escaped = expr.replaceAll("\\", "\\\\").replaceAll("`", "\\`")
-  return String(new Function("_", `return \`${escaped}\``)([value]))
-}
-
-const resolveAstMetaBranchSrcs = (ast: MetaDSL, value: Exclude<MetaDSL["matter"], undefined>[number] extends infer T ? T : never): string[] => {
-  const node = value as { src: string | { data?: string | string[]; expr?: string } }
-  if (typeof node.src === "string") return [node.src]
-  if (!node.src || typeof node.src !== "object") return []
-
-  const paths =
-    "data" in node.src && node.src.data !== undefined ? (Array.isArray(node.src.data) ? node.src.data : [node.src.data]) : []
-  const firstPath = paths[0]
-  if (!firstPath || !firstPath.startsWith("/value/")) return []
-
-  const fieldKey = firstPath.slice("/value/".length)
-  const field = ast.fields?.[fieldKey]
-  if (!field || field.type !== "enum") return []
-
-  return (field.values ?? []).map((variant) => createContinuationSrc(node.src.expr, variant))
-}
-
-const projectAstChildren = (ast: MetaDSL, children: NodeType[] | undefined): MatterParticlePlan[] | undefined => {
-  if (!Array.isArray(children) || children.length === 0) return
-  return children.flatMap((child) => projectAstNode(ast, child))
-}
-
-const projectAstNode = (ast: MetaDSL, node: NodeType): MatterParticlePlan[] => {
-  if (node.type === "meta") {
-    const metaNode = node as {
-      src: string | { data?: string | string[]; expr?: string }
-      child?: NodeType[]
-    } & {
-      fields?: { data?: string | string[]; expr?: string } | string | boolean
-      mass?: { data?: string | string[]; expr?: string } | string | boolean
-    }
-    const childPlans = projectAstChildren(ast, metaNode.child)
-
-    if (typeof metaNode.src === "string") {
-      return [
-        {
-          kind: "wimp",
-          src: metaNode.src,
-          ...(metaNode.fields !== undefined ? { fieldsBinding: metaNode.fields } : {}),
-          ...(metaNode.mass !== undefined ? { massBinding: metaNode.mass } : {}),
-          ...(childPlans ? { children: childPlans } : {}),
-        },
-      ]
-    }
-
-    return [
-      {
-        kind: "fuzzy",
-        fuzzyKind: "dynamic-meta",
-        children: resolveAstMetaBranchSrcs(ast, node).map((src) => ({
-          kind: "wimp",
-          src,
-          ...(metaNode.fields !== undefined ? { fieldsBinding: metaNode.fields } : {}),
-          ...(metaNode.mass !== undefined ? { massBinding: metaNode.mass } : {}),
-          ...(childPlans ? { children: childPlans } : {}),
-        })),
-      },
-    ]
-  }
-
-  if (node.type === "cond") {
-    const conditionNode = node as { data: string | string[]; expr?: string; child?: NodeType[] }
-    const thenPlans = conditionNode.child?.[0] ? projectAstNode(ast, conditionNode.child[0]) : []
-    const elsePlans = conditionNode.child?.[1] ? projectAstNode(ast, conditionNode.child[1]) : []
-    return [
-      {
-        kind: "fuzzy",
-        fuzzyKind: "cond",
-        predicateBinding: conditionNode.expr !== undefined ? { data: conditionNode.data, expr: conditionNode.expr } : { data: conditionNode.data },
-        ...(thenPlans.length > 0 || elsePlans.length > 0 ? { children: [...thenPlans, ...elsePlans] } : {}),
-      },
-    ]
-  }
-
-  if (node.type === "log") {
-    const logicalNode = node as { data: string | string[]; expr?: string; child?: NodeType[] }
-    const childPlans = projectAstChildren(ast, logicalNode.child)
-    return [
-      {
-        kind: "axion",
-        predicateBinding: logicalNode.expr !== undefined ? { data: logicalNode.data, expr: logicalNode.expr } : { data: logicalNode.data },
-        ...(childPlans ? { children: childPlans } : {}),
-      },
-    ]
-  }
-
-  if (node.type === "map") {
-    const mapNode = node as { data: string; child?: NodeType[] }
-    const childPlans = projectAstChildren(ast, mapNode.child)
-    return [
-      {
-        kind: "macho",
-        collectionBinding: { data: mapNode.data },
-        ...(childPlans ? { children: childPlans } : {}),
-      },
-    ]
-  }
-
-  return []
-}
-
-const createAstRuntimeMeta = (src: string, ast: MetaDSL): RuntimeMetaMaterialization => ({
-  meta: new Meta({
-    src,
-    name: ast.name,
-    fieldSchemas: ast.fields,
-    superposition: ast.superposition,
-    processes: ast.processes,
-    reactions: ast.reactions,
-    matter: ast.matter,
-    bulk: ast.bulk,
-    mass: toMetaMass(ast.mass),
-  }),
-  particles: (ast.matter ?? []).flatMap((node) => projectAstNode(ast, node)),
-})
-
 const readRuntimeMeta = async (src: string): Promise<RuntimeMetaMaterialization> => {
   const sqlite = await ensureMetaCanonicalized(src)
-  if (sqlite) {
-    return readDarkMetaParticles(sqlite.db as any, src)
+  if (!sqlite) {
+    throw new Error(
+      `Dark runtime requires canonical SQLite relation for "${src}"; AST fallback is removed, so meta must be canonicalized via load -> relation first`,
+    )
   }
 
-  return createAstRuntimeMeta(src, await loadMetaAST(src))
+  const particleModel = readDarkParticleModel(sqlite.db as any, src)
+  return {
+    meta: new Meta(particleModel.meta),
+    particles: particleModel.particles,
+  }
 }
 
 /**
