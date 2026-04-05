@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test"
 import { HubFixture } from "fixture"
 import { matter } from "./dark.ts"
+import { resetCanonicalMetaContext } from "./load.ts"
 import { Wimp } from "@dark/strong"
 import { dark$ } from "./store.ts"
 
@@ -18,6 +19,7 @@ describe("meta normalization", () => {
   })
 
   afterAll(async () => {
+    resetCanonicalMetaContext()
     await hub.teardown()
   })
 

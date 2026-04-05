@@ -137,7 +137,10 @@ export const resolveNodeFieldValues = (
  * @returns `true`, если поле допустимо для прямой связи по источнику.
  */
 export const isOrdinaryFieldSchema = (field: FieldDefinitionJson): boolean =>
-  !field.type.startsWith("enum<") && !field.type.startsWith("array<")
+  field.type !== "enum" &&
+  field.type !== "array" &&
+  !field.type.startsWith("enum<") &&
+  !field.type.startsWith("array<")
 
 const resolveDirectFieldSources = (
   expr: string | undefined,

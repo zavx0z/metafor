@@ -41,9 +41,18 @@ export function relationSuperposition(
           db.query("INSERT INTO condition (uuid, transition, field, position) VALUES (?, ?, ?, ?)")
             .run(condUuid, transitionUuid, fieldUuid, condPos++)
 
-          if (predicate && typeof predicate === "object") {
+          const normalizedPredicate =
+            predicate === null
+              ? { null: true }
+              : typeof predicate === "boolean" || typeof predicate === "number" || typeof predicate === "string"
+                ? { eq: predicate }
+                : predicate && typeof predicate === "object"
+                  ? predicate
+                  : undefined
+
+          if (normalizedPredicate && typeof normalizedPredicate === "object") {
             let predOrder = 0
-            for (const [op, val] of Object.entries(predicate)) {
+            for (const [op, val] of Object.entries(normalizedPredicate)) {
               const predUuid = crypto.randomUUID()
               let operator = op
               let valueKind = "null"
@@ -51,6 +60,8 @@ export function relationSuperposition(
               let valueNumber: number | null = null
               let valueText: string | null = null
               let valueVariant: string | null = null
+
+              if (op === "notEq") operator = "neq"
 
               if (op === "null") {
                 operator = val === false ? "neq" : "eq"

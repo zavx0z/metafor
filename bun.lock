@@ -17,11 +17,114 @@
         "typescript": "^6.0.2",
       },
     },
+    "app/web": {
+      "name": "@app/web",
+    },
+    "boundary": {
+      "name": "@metafor/boundary",
+      "version": "0.0.1",
+      "dependencies": {
+        "@boundary/gravity": "workspace:*",
+        "@boundary/strong": "workspace:*",
+        "@boundary/weak": "workspace:*",
+        "@shared/db": "workspace:*",
+        "@shared/protocol": "workspace:*",
+      },
+    },
+    "boundary/gravity": {
+      "name": "@boundary/gravity",
+    },
+    "boundary/strong": {
+      "name": "@boundary/strong",
+      "dependencies": {
+        "@boundary/gravity": "workspace:*",
+      },
+    },
+    "boundary/weak": {
+      "name": "@boundary/weak",
+      "dependencies": {
+        "@boundary/gravity": "workspace:*",
+        "@boundary/strong": "workspace:*",
+      },
+    },
+    "bulk": {
+      "name": "@metafor/bulk",
+      "version": "0.0.1",
+      "dependencies": {
+        "@bulk/em": "workspace:*",
+        "@bulk/gravity": "workspace:*",
+        "@bulk/strong": "workspace:*",
+        "@bulk/weak": "workspace:*",
+      },
+    },
+    "bulk/em": {
+      "name": "@bulk/em",
+      "dependencies": {
+        "@shared/protocol": "workspace:*",
+      },
+    },
+    "bulk/gravity": {
+      "name": "@bulk/gravity",
+    },
+    "bulk/strong": {
+      "name": "@bulk/strong",
+    },
+    "bulk/weak": {
+      "name": "@bulk/weak",
+    },
     "create-metafor": {
       "name": "create-metafor",
       "version": "1.0.41",
       "bin": {
         "create-metafor": "dist/cli.js",
+      },
+    },
+    "dark": {
+      "name": "@metafor/dark",
+      "version": "0.0.1",
+      "dependencies": {
+        "@dark/em": "workspace:*",
+        "@dark/gravity": "workspace:*",
+        "@dark/strong": "workspace:*",
+        "@dark/types": "workspace:*",
+        "@dark/weak": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@shared/db": "workspace:*",
+      },
+    },
+    "dark/em": {
+      "name": "@dark/em",
+      "dependencies": {
+        "@dark/types": "workspace:*",
+        "@shared/protocol": "workspace:*",
+      },
+    },
+    "dark/gravity": {
+      "name": "@dark/gravity",
+      "dependencies": {
+        "@dark/types": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
+        "@shared/protocol": "workspace:*",
+      },
+    },
+    "dark/strong": {
+      "name": "@dark/strong",
+      "dependencies": {
+        "@dark/gravity": "workspace:*",
+        "@dark/types": "workspace:*",
+        "@shared/db": "workspace:*",
+      },
+    },
+    "dark/types": {
+      "name": "@dark/types",
+    },
+    "dark/weak": {
+      "name": "@dark/weak",
+      "dependencies": {
+        "@dark/gravity": "workspace:*",
+        "@dark/strong": "workspace:*",
+        "@dark/types": "workspace:*",
       },
     },
     "fixture": {
@@ -609,6 +712,18 @@
       "name": "@zavx0z/git-worktree-worktree",
       "version": "0.1.0",
     },
+    "pkg/ast": {
+      "name": "@metafor/ast",
+    },
+    "pkg/db": {
+      "name": "@shared/db",
+    },
+    "pkg/dsl": {
+      "name": "@metafor/dsl",
+    },
+    "pkg/protocol": {
+      "name": "@shared/protocol",
+    },
     "pkg/sqlite": {
       "name": "@pkg/sqlite",
     },
@@ -618,11 +733,47 @@
     },
   },
   "packages": {
+    "@app/web": ["@app/web@workspace:app/web"],
+
     "@babel/code-frame": ["@babel/code-frame@7.29.0", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.28.5", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw=="],
 
     "@babel/helper-validator-identifier": ["@babel/helper-validator-identifier@7.28.5", "", {}, "sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q=="],
 
+    "@boundary/gravity": ["@boundary/gravity@workspace:boundary/gravity"],
+
+    "@boundary/strong": ["@boundary/strong@workspace:boundary/strong"],
+
+    "@boundary/weak": ["@boundary/weak@workspace:boundary/weak"],
+
+    "@bulk/em": ["@bulk/em@workspace:bulk/em"],
+
+    "@bulk/gravity": ["@bulk/gravity@workspace:bulk/gravity"],
+
+    "@bulk/strong": ["@bulk/strong@workspace:bulk/strong"],
+
+    "@bulk/weak": ["@bulk/weak@workspace:bulk/weak"],
+
+    "@dark/em": ["@dark/em@workspace:dark/em"],
+
+    "@dark/gravity": ["@dark/gravity@workspace:dark/gravity"],
+
+    "@dark/strong": ["@dark/strong@workspace:dark/strong"],
+
+    "@dark/types": ["@dark/types@workspace:dark/types"],
+
+    "@dark/weak": ["@dark/weak@workspace:dark/weak"],
+
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
+
+    "@metafor/ast": ["@metafor/ast@workspace:pkg/ast"],
+
+    "@metafor/boundary": ["@metafor/boundary@workspace:boundary"],
+
+    "@metafor/bulk": ["@metafor/bulk@workspace:bulk"],
+
+    "@metafor/dark": ["@metafor/dark@workspace:dark"],
+
+    "@metafor/dsl": ["@metafor/dsl@workspace:pkg/dsl"],
 
     "@metafor/template": ["@metafor/template@workspace:pkg/template"],
 
@@ -771,6 +922,10 @@
     "@pkg/sqlite": ["@pkg/sqlite@workspace:pkg/sqlite"],
 
     "@puppeteer/browsers": ["@puppeteer/browsers@2.13.0", "", { "dependencies": { "debug": "^4.4.3", "extract-zip": "^2.0.1", "progress": "^2.0.3", "proxy-agent": "^6.5.0", "semver": "^7.7.4", "tar-fs": "^3.1.1", "yargs": "^17.7.2" }, "bin": { "browsers": "lib/cjs/main-cli.js" } }, "sha512-46BZJYJjc/WwmKjsvDFykHtXrtomsCIrwYQPOP7VfMJoZY2bsDF9oROBABR3paDjDcmkUye1Pb1BqdcdiipaWA=="],
+
+    "@shared/db": ["@shared/db@workspace:pkg/db"],
+
+    "@shared/protocol": ["@shared/protocol@workspace:pkg/protocol"],
 
     "@shikijs/engine-oniguruma": ["@shikijs/engine-oniguruma@3.23.0", "", { "dependencies": { "@shikijs/types": "3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-1nWINwKXxKKLqPibT5f4pAFLej9oZzQTsby8942OTlsJzOBZ0MWKiwzMsd+jhzu8YPCHAswGnnN1YtQfirL35g=="],
 

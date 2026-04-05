@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import type { MetaAST } from "@metafor/ast"
 import { HubFixture } from "fixture"
-import reference from "../github/zavx0z/git/meta.json"
-import startReference from "../github/zavx0z/git-start/meta.json"
+import reference from "../github/zavx0z/git/meta.ts"
+import startReference from "../github/zavx0z/git-start/meta.ts"
 
 import type { MatterWimpResult } from "@dark/types/dark"
 import { Axion, Fuzzy, readFieldValues, Wimp } from "@dark/strong"
 import { matterMeta } from "./dark.ts"
+import { resetCanonicalMetaContext } from "./load.ts"
 import { dark$ } from "./store"
 
 const hub = new HubFixture()
@@ -29,6 +30,7 @@ describe("zavx0z/git", () => {
     dark$.meta.clear()
     dark$.fields.clear()
     dark$.particles.clear()
+    resetCanonicalMetaContext()
     await hub.teardown()
   })
 

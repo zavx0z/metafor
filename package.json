@@ -11,10 +11,16 @@
     }
   },
   "workspaces": [
-    "pkg/sqlite",
-    "pkg/template",
+    "pkg/**/*",
     "fixture",
     "create-metafor",
+    "dark",
+    "dark/**/*",
+    "boundary",
+    "boundary/**/*",
+    "bulk",
+    "bulk/**/*",
+    "app/**/*",
     "github/**/*"
   ],
   "devDependencies": {

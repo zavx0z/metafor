@@ -1,4 +1,4 @@
-import type { NodeType } from "index.ts"
+import type { MetaDSL, NodeType } from "index.ts"
 import type {
   MatterEntry,
   MatterContinuation,
@@ -10,8 +10,8 @@ import type {
 import type { DarkParticle } from "@dark/types"
 import { emitAdd, emitBarrier } from "@dark/gravity/channel.ts"
 import type { SharedDbMaterializationWriter } from "@shared/db"
-import { Axion, Fuzzy, Macho, materializeFields, resolveWimpContinuation, type Meta, Wimp } from "@dark/strong"
-import { loadMeta, loadMetaAST } from "./load.ts"
+import { Axion, Fuzzy, Macho, materializeFields, Meta, resolveWimpContinuation, Wimp } from "@dark/strong"
+import { ensureMetaCanonicalized, loadMetaAST } from "./load.ts"
 import { dark$ } from "./store"
 import { resolveContinuationSources } from "@dark/gravity/gravity.ts"
 
@@ -19,6 +19,8 @@ interface MatterOptions {
   sharedDbWriter?: SharedDbMaterializationWriter
   suppressGravityBarrier?: boolean
 }
+
+type CanonicalMatterBundle = MetaDSL & MatterAST & { src: string }
 
 /**
  * Клонирует временный пакет данных для дочернего `Wimp`.
@@ -75,11 +77,46 @@ const registerMeta = (meta: Meta): Meta => {
   return meta
 }
 
-const resolveRegisteredMeta = async (src: string): Promise<Meta> => {
-  const existing = findMetaBySrc(src)
-  if (existing) return existing
+const toMetaMass = (mass: MetaDSL["mass"] | undefined): MetaDSL["mass"] | undefined =>
+  mass && Object.keys(mass).length > 0 ? structuredClone(mass) : undefined
 
-  return registerMeta(await loadMeta(src))
+const createMetaFromBundle = (bundle: CanonicalMatterBundle): Meta =>
+  new Meta({
+    src: bundle.src,
+    name: bundle.name,
+    fieldSchemas: bundle.fields,
+    superposition: bundle.superposition,
+    processes: bundle.processes,
+    reactions: bundle.reactions,
+    matter: bundle.matter,
+    bulk: bundle.bulk,
+    mass: toMetaMass(bundle.mass),
+  })
+
+const createBundleFromAst = (src: string, ast: MetaDSL): CanonicalMatterBundle => ({
+  src,
+  name: ast.name,
+  desc: ast.desc,
+  fields: ast.fields,
+  superposition: ast.superposition,
+  processes: ast.processes,
+  reactions: ast.reactions,
+  matter: ast.matter,
+  bulk: ast.bulk,
+  mass: ast.mass,
+})
+
+const readCanonicalBundle = async (src: string): Promise<CanonicalMatterBundle> => {
+  const sqlite = await ensureMetaCanonicalized(src)
+  if (sqlite) {
+    const { readDarkBundle } = await import("../pkg/sqlite/dark.ts")
+    return {
+      src,
+      ...readDarkBundle(sqlite.db as any, src),
+    }
+  }
+
+  return createBundleFromAst(src, await loadMetaAST(src))
 }
 
 /**
@@ -179,8 +216,8 @@ export async function* matterMeta(
   continuation?: MatterContinuation,
   options: MatterOptions = {},
 ): AsyncGenerator<MatterLayerResult, void> {
-  const meta = await resolveRegisteredMeta(wimp.src)
-  const ast = await loadMetaAST(meta.src)
+  const bundle = await readCanonicalBundle(wimp.src)
+  const meta = registerMeta(createMetaFromBundle(bundle))
   /**
    * `Wimp` получает ссылку на канонический `Meta`,
    * а instance-level поля materialize-ятся уже из `MetaField`.
@@ -202,13 +239,13 @@ export async function* matterMeta(
     emitAdd(wimp.id)
   }
 
-  if (!ast.matter) return
+  if (!bundle.matter) return
 
   /**
    * Очередь обхода хранит только текущий слой.
    * Это важно: временный пакет данных остаётся переходным механизмом и не оседает в `Wimp`.
    */
-  let frontier = Array.from(ast.matter, (node): MatterEntry => ({ kind: "node", node, parent: wimp }))
+  let frontier = Array.from(bundle.matter, (node): MatterEntry => ({ kind: "node", node, parent: wimp }))
 
   while (frontier.length > 0) {
     const currentLayer = frontier
@@ -231,7 +268,7 @@ export async function* matterMeta(
         continue
       }
 
-      processMatterNode(entry, ast, wimp.fields, nextFrontier, levelWimps)
+      processMatterNode(entry, bundle, wimp.fields, nextFrontier, levelWimps)
     }
 
     yield levelWimps

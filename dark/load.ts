@@ -2,6 +2,12 @@ import type {MetaDSL, SRC} from ".."
 import {Meta} from "./strong"
 
 const HUB = "github/"
+let canonicalMetaContext:
+  | {
+      db: unknown
+      loaded: Set<string>
+    }
+  | undefined
 
 /**
  * Преобразует SRC в путь к файлу для загрузки.
@@ -23,6 +29,15 @@ export function resolveMetaTsPath(address: SRC): string {
   return `/${address}.ts`
 }
 
+const resolveHubMetaSource = (address: SRC): string => resolveMetaSource(HUB + address)
+
+const resolveLocalMetaModuleUrl = (address: SRC): string => new URL(`../${HUB}${address}/meta.ts`, import.meta.url).href
+
+const loadMetaFromModule = async (address: SRC): Promise<MetaDSL> => {
+  const module = await import(resolveLocalMetaModuleUrl(address))
+  return structuredClone((module.default ?? module) as MetaDSL)
+}
+
 /**
  * Загружает MetaAST из файла.
  *
@@ -33,8 +48,17 @@ export function resolveMetaTsPath(address: SRC): string {
  * @throws если не удалось загрузить meta
  */
 export async function loadMetaAST(address: SRC): Promise<MetaDSL> {
-  address = HUB + address
-  const sourcePath = resolveMetaSource(address)
+  if (typeof Bun !== "undefined") {
+    try {
+      return await loadMetaFromModule(address)
+    } catch (error) {
+      const sourcePath = resolveLocalMetaModuleUrl(address)
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Не удалось загрузить meta: ${sourcePath} — ${message}`)
+    }
+  }
+
+  const sourcePath = resolveHubMetaSource(address)
   try {
     const response = await fetch(sourcePath)
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -43,6 +67,40 @@ export async function loadMetaAST(address: SRC): Promise<MetaDSL> {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(`Не удалось загрузить meta: ${sourcePath} — ${message}`)
   }
+}
+
+/**
+ * Загружает одну meta и фиксирует её каноническую реляционную форму
+ * в общем in-memory SQLite-слое для верхнего dark-прохода.
+ */
+export async function ensureMetaCanonicalized(address: SRC): Promise<{ db: unknown } | null> {
+  if (typeof Bun === "undefined") return null
+
+  if (!canonicalMetaContext) {
+    const { getMetaDB } = await import("../pkg/sqlite/index.ts")
+    canonicalMetaContext = {
+      db: getMetaDB(":memory:"),
+      loaded: new Set<string>(),
+    }
+  }
+
+  if (!canonicalMetaContext.loaded.has(address)) {
+    const { relation } = await import("../pkg/sqlite/index.ts")
+    const ast = await loadMetaAST(address)
+    relation(canonicalMetaContext.db as any, ast, address)
+    canonicalMetaContext.loaded.add(address)
+  }
+
+  return { db: canonicalMetaContext.db }
+}
+
+export function resetCanonicalMetaContext(): void {
+  const current = canonicalMetaContext
+  canonicalMetaContext = undefined
+
+  if (!current?.db || typeof current.db !== "object") return
+  const close = (current.db as { close?: (throwOnError?: boolean) => void }).close
+  if (typeof close === "function") close.call(current.db, false)
 }
 
 /**

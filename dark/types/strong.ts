@@ -1,6 +1,6 @@
 import type { FieldDefinitionJson, FieldKey, MetaAST } from "@metafor/ast"
 import type { Mass } from "index.ts"
-import type { NodeMeta } from "pkg/template"
+import type { NodeMeta } from "@metafor/template"
 import type { DarkParticle } from "./shared.ts"
 import type { InstanceField } from "../strong/Field.ts"
 import type { Meta } from "../strong/Meta.ts"

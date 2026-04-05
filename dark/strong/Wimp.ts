@@ -6,7 +6,8 @@ import type { SharedDbMaterializationWriter, SharedDbMetaBundle, SharedDbWimpBun
 import type { Meta } from "./Meta.ts"
 import { BaseParticle } from "./part.ts"
 
-const isTopologyFieldType = (type: string): boolean => type.startsWith("enum<") || type.startsWith("array<")
+const isTopologyFieldType = (type: string): boolean =>
+  type === "enum" || type === "array" || type.startsWith("enum<") || type.startsWith("array<")
 
 const cloneFieldSchema = (schema: NonNullable<Wimp["fields"]>[string]["schema"]) => ({
   type: schema.type,

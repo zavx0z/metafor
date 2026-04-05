@@ -19,8 +19,8 @@ export function relation(db: Database, meta: MetaDSL, src: string): void {
     relationMetafor(db, meta, src)
     const fieldUuids = relationFields(db, meta, src)
     const stateUuids = relationSuperposition(db, meta, src, fieldUuids)
-    relationProcess(db, meta, src)
+    relationProcess(db, meta, src, fieldUuids)
     relationReactions(db, meta, src, fieldUuids, stateUuids)
-    relationMatter(db, meta, src)
+    relationMatter(db, meta, src, fieldUuids)
   })()
 }

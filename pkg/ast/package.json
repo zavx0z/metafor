@@ -1,0 +1,9 @@
+{
+  "name": "@metafor/ast",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "private": true
+}

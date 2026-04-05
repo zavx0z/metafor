@@ -23,7 +23,6 @@ export function relationFields(db: Database, meta: MetaDSL, src: string): Map<st
         db.query("INSERT INTO field_boolean_default (field, default_value) VALUES (?, ?)")
           .run(uuid, def.default ? 1 : 0)
       } else if (def.type === "array" && Array.isArray(def.default)) {
-        db.query("INSERT INTO field_array_default (field) VALUES (?)").run(uuid)
         ;(def.default as any[]).forEach((val, i) => {
           const itemUuid = crypto.randomUUID()
           db.query("INSERT INTO field_array_default_item (uuid, field, position, item_value) VALUES (?, ?, ?, ?)")

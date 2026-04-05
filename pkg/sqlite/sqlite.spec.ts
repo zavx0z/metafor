@@ -53,6 +53,7 @@ describe("sqlite ddl", () => {
   })
 
   test("держит entity-таблицы на uuid и child/subtype tables без parent-derived дублей", () => {
+    const metaColumns = (db.query(`PRAGMA table_info(meta)`).all() as Array<{ name: string }>).map((row) => row.name)
     const fieldColumns = (db.query(`PRAGMA table_info(field)`).all() as Array<{ name: string }>).map((row) => row.name)
     const fieldDefaultColumns = (
       db.query(`PRAGMA table_info(field_default)`).all() as Array<{ name: string }>
@@ -109,6 +110,16 @@ describe("sqlite ddl", () => {
       db.query(`PRAGMA table_info(matter_event_update)`).all() as Array<{ name: string }>
     ).map((row) => row.name)
 
+    expect(metaColumns).toEqual([
+      "src",
+      "name",
+      "desc",
+      "view_css",
+      "mass_source",
+      "has_processes",
+      "has_reactions",
+      "has_matter",
+    ])
     expect(fieldColumns).toEqual(["uuid", "meta", "key", "type", "required", "label"])
     expect(fieldDefaultColumns).toEqual(["field"])
     expect(fieldArrayItemColumns).toEqual(["uuid", "field", "position", "item_value"])

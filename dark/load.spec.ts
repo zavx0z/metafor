@@ -1,19 +1,23 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { HubFixture } from "fixture"
 import reference from "../github/zavx0z/git/meta.ts"
-import { loadMetaAST } from "./load.ts"
+import { loadMetaAST, resetCanonicalMetaContext } from "./load.ts"
 
 const hub = new HubFixture()
 
 describe("loadMetaAST", () => {
   beforeAll(async () => await hub.setup())
-  afterAll(async () => await hub.teardown())
+  afterAll(async () => {
+    resetCanonicalMetaContext()
+    await hub.teardown()
+  })
 
   test("загружает MetaAST из файла", async () => {
     const dsl = await loadMetaAST("zavx0z/git")
 
     expect(dsl, "loadMetaAST должен вернуть тот же MetaAST, что и ref").toEqual(reference)
     expect(Object.keys(dsl).sort(), "MetaAST должен содержать ожидаемые корневые ключи").toEqual([
+      "desc",
       "fields",
       "mass",
       "matter",
