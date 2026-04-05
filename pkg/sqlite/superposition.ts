@@ -1,0 +1,95 @@
+import type { Database } from "bun:sqlite"
+import type { MetaDSL } from "../.."
+
+export function relationSuperposition(
+  db: Database,
+  meta: MetaDSL,
+  src: string,
+  fieldUuids: Map<string, string>,
+): Map<string, string> {
+  const stateUuids = new Map<string, string>()
+  const states = Object.keys(meta.superposition)
+
+  // 1. States
+  states.forEach((name, i) => {
+    const uuid = `state:${src}:${name}`
+    stateUuids.set(name, uuid)
+    db.query("INSERT INTO superposition (uuid, meta, name, position) VALUES (?, ?, ?, ?)")
+      .run(uuid, src, name, i)
+  })
+
+  // 2. Transitions & Conditions
+  let transitionCounter = 0
+  for (const [fromName, transitions] of Object.entries(meta.superposition)) {
+    if (!transitions) continue
+    const fromUuid = stateUuids.get(fromName)!
+
+    let transitionPos = 0
+    for (const [toName, cond] of Object.entries(transitions as Record<string, any>)) {
+      const toUuid = stateUuids.get(toName)!
+      const transitionUuid = `transition:${src}:${transitionCounter++}`
+
+      db.query("INSERT INTO transition (uuid, from_superposition, to_superposition, position) VALUES (?, ?, ?, ?)")
+        .run(transitionUuid, fromUuid, toUuid, transitionPos++)
+
+      if (cond && typeof cond === "object") {
+        let condPos = 0
+        for (const [fieldKey, predicate] of Object.entries(cond)) {
+          const fieldUuid = fieldUuids.get(fieldKey)
+          if (!fieldUuid) continue
+
+          const condUuid = `condition:${transitionUuid}:${fieldKey}`
+          db.query("INSERT INTO condition (uuid, transition, field, position) VALUES (?, ?, ?, ?)")
+            .run(condUuid, transitionUuid, fieldUuid, condPos++)
+
+          if (predicate && typeof predicate === "object") {
+            let predOrder = 0
+            for (const [op, val] of Object.entries(predicate)) {
+              const predUuid = `predicate:${condUuid}:${predOrder}`
+              let operator = op
+              let valueKind = "null"
+              let valueBoolean: number | null = null
+              let valueNumber: number | null = null
+              let valueText: string | null = null
+              let valueVariant: string | null = null
+
+              if (op === "null") {
+                operator = val === false ? "neq" : "eq"
+                valueKind = "null"
+              } else if (typeof val === "boolean") {
+                valueKind = "boolean"
+                valueBoolean = val ? 1 : 0
+              } else if (typeof val === "number") {
+                valueKind = "number"
+                valueNumber = val
+              } else if (typeof val === "string") {
+                valueKind = "string"
+                valueText = val
+              }
+
+              db.query(
+                `INSERT INTO condition_predicate (uuid, condition, predicate_order, subject_kind, operator,
+                                                  value_kind, value_boolean, value_number, value_text,
+                                                  value_variant)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              ).run(
+                predUuid,
+                condUuid,
+                predOrder++,
+                "value",
+                operator,
+                valueKind,
+                valueBoolean,
+                valueNumber,
+                valueText,
+                valueVariant,
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return stateUuids
+}

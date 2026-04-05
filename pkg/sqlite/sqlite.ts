@@ -15,11 +15,8 @@ export const metaforDslTableNames = [
   "field_string_default",
   "field_number_default",
   "field_boolean_default",
-  "field_array_default",
   "field_array_default_item",
-  "field_array_number_default_item",
   "field_enum_variant",
-  "field_enum_string_variant",
   "field_enum_default",
   "superposition",
   "transition",
@@ -106,18 +103,18 @@ export const metaforDslSchemaSql = metaforDslSchemaSqlModules
  * @returns Открытый экземпляр Database с инициализированной схемой.
  */
 export function getMetaDB(path: string): Database {
-  const database = new Database(path, { strict: true, create: true })
+  const db = new Database(path, { strict: true, create: true })
 
-  database.run("PRAGMA foreign_keys = ON;")
-  database.run("PRAGMA journal_mode = WAL;")
-  database.run(metaforDslSchemaSql)
+  db.run("PRAGMA foreign_keys = ON;")
+  db.run("PRAGMA journal_mode = WAL;")
+  db.run(metaforDslSchemaSql)
 
-  const originalClose = database.close.bind(database)
-  database.close = (throwOnError?: boolean) => {
-    database.fileControl(constants.SQLITE_FCNTL_PERSIST_WAL, 0)
-    database.run("PRAGMA wal_checkpoint(TRUNCATE);")
+  const originalClose = db.close.bind(db)
+  db.close = (throwOnError?: boolean) => {
+    db.fileControl(constants.SQLITE_FCNTL_PERSIST_WAL, 0)
+    db.run("PRAGMA wal_checkpoint(TRUNCATE);")
     return originalClose(throwOnError)
   }
 
-  return database
+  return db
 }
