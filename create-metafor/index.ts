@@ -1,5 +1,6 @@
 export {MetaFor} from "../metafor.ts"
 export {validateMatter} from "../matter.ts"
+export {createMetaforSqliteFixture} from "./fixture/index.ts"
 
 export type {ActionParams} from "../action.t.ts"
 export type {Fields, Values, Value} from "../fields.t.ts"

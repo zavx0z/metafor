@@ -1,27 +1,23 @@
-import { constants, Database } from "bun:sqlite"
+import { Database } from "bun:sqlite"
 import { join, isAbsolute, dirname } from "node:path"
 import { unlinkSync, existsSync } from "node:fs"
 import { fileURLToPath } from "node:url"
-import { initializeMetaforDslSqliteSchema, relation } from "../../pkg/sqlite/index.ts"
-import type { MetaDSL } from "../../metafor.t.ts"
+import { initializeMetaforDslSqliteSchema } from "../../pkg/sqlite/index.ts"
 
 /**
- * Фикстура для экспорта MetaDSL в SQLite базу данных.
+ * Фикстура для подготовки SQLite базы данных MetaDSL.
+ * Создает файл базы данных и инициализирует в нем схему Metafor.
  *
- * @param meta - Объект MetaDSL атома.
  * @param dbPath - Путь к файлу базы данных. По умолчанию "meta.sqlite" рядом с вызывающим тестом.
+ * @returns Открытый экземпляр Database с инициализированной схемой и расширенным методом close().
  */
-export function createMetaforSqliteFixture(meta: MetaDSL, dbPath = "meta.sqlite") {
+export function createMetaforSqliteFixture(dbPath = "meta.sqlite") {
   let finalPath = dbPath
 
   if (!isAbsolute(dbPath)) {
-    // Попробуем найти директорию вызывающего файла через стек
     const stack = new Error().stack
     const lines = stack?.split("\n")
     if (lines && lines.length >= 3) {
-      // line 0: Error
-      // line 1: createMetaforSqliteFixture (это мы)
-      // line 2: caller (это тест)
       const callerLine = lines[2]!
       const match = callerLine.match(/(?:at\s+)?(?:.+\s+\()?(.*):(\d+):(\d+)\)?/)
       if (match && match[1]) {
@@ -41,13 +37,6 @@ export function createMetaforSqliteFixture(meta: MetaDSL, dbPath = "meta.sqlite"
   }
 
   const db = new Database(absolutePath, { strict: true })
-  db.run("PRAGMA journal_mode = WAL;")
-  try {
-    initializeMetaforDslSqliteSchema(db)
-    relation(db, meta)
-  } finally {
-    db.fileControl(constants.SQLITE_FCNTL_PERSIST_WAL, 0)
-    db.run("PRAGMA wal_checkpoint(TRUNCATE);")
-    db.close()
-  }
+  initializeMetaforDslSqliteSchema(db)
+  return db
 }

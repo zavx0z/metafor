@@ -1,16 +1,16 @@
-import type {Database} from "bun:sqlite"
-import type {MetaDSL} from "../../metafor.t.ts"
-import type {ParsedProcess} from "../../process.t.ts"
-import type {ReactionsSchema} from "../../reactions.t.ts"
-import type {MatterSchema, NodeType} from "../../matter.t.ts"
-import metaforSchemaSql from "../../metafor.sql" with {type: "text"}
-import fieldsSchemaSql from "../../fields.sql" with {type: "text"}
-import superpositionSchemaSql from "../../superposition.sql" with {type: "text"}
-import processSchemaSql from "../../process.sql" with {type: "text"}
-import actionSchemaSql from "../../action.sql" with {type: "text"}
-import finallySchemaSql from "../../finally.sql" with {type: "text"}
-import reactionsSchemaSql from "../../reactions.sql" with {type: "text"}
-import matterSchemaSql from "../../matter.sql" with {type: "text"}
+import type { Database } from "bun:sqlite"
+import type { MetaDSL } from "../../metafor.t.ts"
+import type { ParsedProcess } from "../../process.t.ts"
+import type { ReactionsSchema } from "../../reactions.t.ts"
+import type { MatterSchema, NodeType } from "../../matter.t.ts"
+import metaforSchemaSql from "../../metafor.sql" with { type: "text" }
+import fieldsSchemaSql from "../../fields.sql" with { type: "text" }
+import superpositionSchemaSql from "../../superposition.sql" with { type: "text" }
+import processSchemaSql from "../../process.sql" with { type: "text" }
+import actionSchemaSql from "../../action.sql" with { type: "text" }
+import finallySchemaSql from "../../finally.sql" with { type: "text" }
+import reactionsSchemaSql from "../../reactions.sql" with { type: "text" }
+import matterSchemaSql from "../../matter.sql" with { type: "text" }
 
 export const metaforDslTableNames = [
   "meta",
@@ -84,7 +84,7 @@ export const metaforDslIndexNames = [
   "matter_event_update_by_attr",
 ] as const
 
-export type MetaforDslDatabase = Pick<Database, "run">
+export type MetaforDslDatabase = Pick<Database, "run" | "close" | "fileControl">
 
 const metaforDslSchemaSqlModules = [
   metaforSchemaSql,
@@ -103,10 +103,19 @@ export const metaforDslSchemaSql = metaforDslSchemaSqlModules
   .join("\n\n")
   .trim()
 
-export const initializeMetaforDslSqliteSchema = (database: MetaforDslDatabase): void => {
+export const SQLITE_FCNTL_PERSIST_WAL = 10
+
+export const initializeMetaforDslSqliteSchema = (database: Database): void => {
   database.run("PRAGMA foreign_keys = ON;")
   database.run("PRAGMA journal_mode = WAL;")
   database.run(metaforDslSchemaSql)
+
+  const originalClose = database.close.bind(database)
+  database.close = (throwOnError?: boolean) => {
+    database.fileControl(SQLITE_FCNTL_PERSIST_WAL, 0)
+    database.run("PRAGMA wal_checkpoint(TRUNCATE);")
+    return originalClose(throwOnError)
+  }
 }
 
 export function relation(database: Database, meta: MetaDSL): void {
