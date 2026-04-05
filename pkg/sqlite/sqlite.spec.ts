@@ -1,10 +1,6 @@
 import { Database } from "bun:sqlite"
 import { describe, expect, test } from "bun:test"
-import {
-  initializeMetaforDslSqliteSchema,
-  metaforDslIndexNames,
-  metaforDslTableNames,
-} from "./index.ts"
+import {initializeMetaforDslSqliteSchema, metaforDslIndexNames, metaforDslTableNames} from "./sqlite.ts"
 
 const openDatabase = (): Database => {
   const database = new Database(":memory:")

@@ -1,12 +1,10 @@
-import { Database } from "bun:sqlite"
 import { join, isAbsolute, dirname } from "node:path"
 import { unlinkSync, existsSync } from "node:fs"
 import { fileURLToPath } from "node:url"
-import { initializeMetaforDslSqliteSchema } from "../../pkg/sqlite/index.ts"
+import { getMetaDB } from "../../pkg/sqlite/index.ts"
 
 /**
  * Фикстура для подготовки SQLite базы данных MetaDSL.
- * Создает файл базы данных и инициализирует в нем схему Metafor.
  *
  * @param dbPath - Путь к файлу базы данных. По умолчанию "meta.sqlite" рядом с вызывающим тестом.
  * @returns Открытый экземпляр Database с инициализированной схемой и расширенным методом close().
@@ -36,7 +34,5 @@ export function createMetaforSqliteFixture(dbPath = "meta.sqlite") {
     unlinkSync(absolutePath)
   }
 
-  const db = new Database(absolutePath, { strict: true })
-  initializeMetaforDslSqliteSchema(db)
-  return db
+  return getMetaDB(absolutePath)
 }
