@@ -118,21 +118,21 @@ export const initializeMetaforDslSqliteSchema = (database: Database): void => {
   }
 }
 
-export function relation(database: Database, meta: MetaDSL): void {
+export function relation(database: Database, meta: MetaDSL, src: string): void {
   database.transaction(() => {
     // 1. Meta
     database
       .query("INSERT INTO meta (src, name, desc, view_css) VALUES (?, ?, ?, ?)")
-      .run(meta.name, meta.name, meta.desc || null, meta.bulk?.view || null)
+      .run(src, meta.name, meta.desc || null, meta.bulk?.view || null)
 
     // 2. Fields
     const fieldUuids = new Map<string, string>()
     for (const [key, def] of Object.entries(meta.fields)) {
-      const uuid = `field:${meta.name}:${key}`
+      const uuid = `field:${src}:${key}`
       fieldUuids.set(key, uuid)
       database
         .query("INSERT INTO field (uuid, meta, key, type, required, label) VALUES (?, ?, ?, ?, ?, ?)")
-        .run(uuid, meta.name, key, def.type, def.required ? 1 : 0, def.label || null)
+        .run(uuid, src, key, def.type, def.required ? 1 : 0, def.label || null)
 
       if ("default" in def && def.default !== undefined) {
         database.query("INSERT INTO field_default (field) VALUES (?)").run(uuid)
@@ -190,11 +190,11 @@ export function relation(database: Database, meta: MetaDSL): void {
     const stateUuids = new Map<string, string>()
     const states = Object.keys(meta.superposition)
     states.forEach((name, i) => {
-      const uuid = `state:${meta.name}:${name}`
+      const uuid = `state:${src}:${name}`
       stateUuids.set(name, uuid)
       database
         .query("INSERT INTO superposition (uuid, meta, name, position) VALUES (?, ?, ?, ?)")
-        .run(uuid, meta.name, name, i)
+        .run(uuid, src, name, i)
     })
 
     // 4. Transitions & Conditions
@@ -206,7 +206,7 @@ export function relation(database: Database, meta: MetaDSL): void {
       let transitionPos = 0
       for (const [toName, cond] of Object.entries(transitions as Record<string, any>)) {
         const toUuid = stateUuids.get(toName)!
-        const transitionUuid = `transition:${meta.name}:${transitionCounter++}`
+        const transitionUuid = `transition:${src}:${transitionCounter++}`
 
         database
           .query("INSERT INTO transition (uuid, from_superposition, to_superposition, position) VALUES (?, ?, ?, ?)")
@@ -277,11 +277,11 @@ export function relation(database: Database, meta: MetaDSL): void {
     // 5. Processes
     if (meta.processes) {
       Object.entries(meta.processes).forEach(([state, p]) => {
-        const uuid = `process:${meta.name}:${state}`
+        const uuid = `process:${src}:${state}`
         const pp = p as ParsedProcess
         database
           .query("INSERT INTO process (uuid, meta, key, type, label, desc) VALUES (?, ?, ?, ?, ?, ?)")
-          .run(uuid, meta.name, state, pp.type || "action", pp.label || null, pp.desc || null)
+          .run(uuid, src, state, pp.type || "action", pp.label || null, pp.desc || null)
 
         if (pp.env) {
           pp.env.forEach((env) => {
@@ -295,10 +295,10 @@ export function relation(database: Database, meta: MetaDSL): void {
     if (meta.reactions) {
       const rs = meta.reactions as ReactionsSchema
       for (const [id, r] of Object.entries(rs.reactions)) {
-        const uuid = `reaction:${meta.name}:${id}`
+        const uuid = `reaction:${src}:${id}`
         database
           .query("INSERT INTO reaction (uuid, meta, key, label, desc, cond_source, update_source) VALUES (?, ?, ?, ?, ?, ?, ?)")
-          .run(uuid, meta.name, id, r.label, r.desc || null, r.cond, r.src)
+          .run(uuid, src, id, r.label, r.desc || null, r.cond, r.src)
 
         if (r.read) {
           r.read.forEach((fieldKey) => {
@@ -322,7 +322,7 @@ export function relation(database: Database, meta: MetaDSL): void {
         const stateUuid = stateUuids.get(state)
         if (stateUuid) {
           reactionIds.forEach((id) => {
-            const reactionUuid = `reaction:${meta.name}:${id}`
+            const reactionUuid = `reaction:${src}:${id}`
             database
               .query("INSERT INTO reaction_superposition (reaction, superposition) VALUES (?, ?)")
               .run(reactionUuid, stateUuid)
@@ -340,24 +340,24 @@ export function relation(database: Database, meta: MetaDSL): void {
       let attrCounter = 0
 
       const processNode = (node: NodeType, parentNodeUuid: string | null, slot: string, order: number) => {
-        const nodeUuid = `node:${meta.name}:${nodeCounter++}`
+        const nodeUuid = `node:${src}:${nodeCounter++}`
         database
           .query("INSERT INTO matter_node (uuid, meta, node_kind, tag) VALUES (?, ?, ?, ?)")
-          .run(nodeUuid, meta.name, node.type, (node as any).tag || null)
+          .run(nodeUuid, src, node.type, (node as any).tag || null)
 
-        const edgeUuid = `edge:${meta.name}:${edgeCounter++}`
+        const edgeUuid = `edge:${src}:${edgeCounter++}`
         database
           .query(
             "INSERT INTO matter_edge (uuid, root_meta, parent_node, child_node, edge_slot, edge_order) VALUES (?, ?, ?, ?, ?, ?)",
           )
-          .run(edgeUuid, parentNodeUuid ? null : meta.name, parentNodeUuid, nodeUuid, slot, order)
+          .run(edgeUuid, parentNodeUuid ? null : src, parentNodeUuid, nodeUuid, slot, order)
 
         if (node.type === "meta") {
           const n = node as any
-          const srcBindingUuid = `binding:${meta.name}:${bindingCounter++}`
+          const srcBindingUuid = `binding:${src}:${bindingCounter++}`
           database
             .query("INSERT INTO matter_binding (uuid, meta, binding_kind, literal_kind, literal_text) VALUES (?, ?, ?, ?, ?)")
-            .run(srcBindingUuid, meta.name, "static", "text", typeof n.src === "string" ? n.src : n.src.data)
+            .run(srcBindingUuid, src, "static", "text", typeof n.src === "string" ? n.src : n.src.data)
 
           database
             .query("INSERT INTO matter_meta (node, src_binding) VALUES (?, ?)")
