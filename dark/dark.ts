@@ -4,12 +4,12 @@ import { emitAdd, emitBarrier } from "@dark/gravity/channel.ts"
 import type { SharedDbMaterializationWriter } from "@shared/db"
 import { Axion, Fuzzy, Macho, materializeFields, Meta, resolveWimpContinuation, Wimp } from "@dark/strong"
 import { readDarkParticleModel } from "../pkg/sqlite/dark.ts"
-import { ensureMetaCanonicalized } from "./load.ts"
 import { dark$ } from "./store"
 
 interface MatterOptions {
   sharedDbWriter?: SharedDbMaterializationWriter
   suppressGravityBarrier?: boolean
+  sqliteDb?: unknown
 }
 
 interface RuntimeMetaMaterialization {
@@ -72,15 +72,14 @@ const registerMeta = (meta: Meta): Meta => {
   return meta
 }
 
-const readRuntimeMeta = async (src: string): Promise<RuntimeMetaMaterialization> => {
-  const sqlite = await ensureMetaCanonicalized(src)
-  if (!sqlite) {
+const readRuntimeMeta = async (src: string, sqliteDb: unknown): Promise<RuntimeMetaMaterialization> => {
+  if (!sqliteDb) {
     throw new Error(
-      `Dark runtime requires canonical SQLite relation for "${src}"; AST fallback is removed, so meta must be canonicalized via load -> relation first`,
+      `Dark runtime requires prepared SQLite / ORM context for "${src}"; canonicalization must happen in load before dark traversal`,
     )
   }
 
-  const particleModel = readDarkParticleModel(sqlite.db as any, src)
+  const particleModel = readDarkParticleModel(sqliteDb as any, src)
   return {
     meta: new Meta(particleModel.meta),
     particles: particleModel.particles,
@@ -156,7 +155,7 @@ export async function* matterMeta(
   continuation?: MatterContinuation,
   options: MatterOptions = {},
 ): AsyncGenerator<MatterLayerResult, void> {
-  const runtimeMeta = await readRuntimeMeta(wimp.src)
+  const runtimeMeta = await readRuntimeMeta(wimp.src, options.sqliteDb)
   const meta = registerMeta(runtimeMeta.meta)
 
   wimp.meta = meta
@@ -198,6 +197,12 @@ export async function* matterMeta(
  * @returns Promise, завершающийся после полного рекурсивного обхода и сборки дочерних мет.
  */
 export async function matter(wimp: Wimp, continuation?: MatterContinuation, options: MatterOptions = {}) {
+  if (!options.sqliteDb) {
+    throw new Error(
+      `Dark runtime requires prepared SQLite / ORM context for "${wimp.src}"; use load-layer orchestration before calling dark.matter`,
+    )
+  }
+
   const shouldEmitGravityBarrier = options.suppressGravityBarrier !== true
   const nestedOptions = shouldEmitGravityBarrier ? { ...options, suppressGravityBarrier: true } : options
   const generator = matterMeta(wimp, continuation, options)

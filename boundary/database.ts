@@ -451,7 +451,7 @@ const mapBoundaryDatabaseFieldToRuntimeField = (field: BoundaryDatabaseFieldReco
   if (type === "number") return { type: FieldType.F32 }
   if (type === "boolean") return { type: FieldType.BOOL }
 
-  if (type.startsWith("enum<")) {
+  if (type === "enum" || type.startsWith("enum<")) {
     if (!values) {
       throw new Error(`Boundary runtime field '${field.key}' is missing enum values`)
     }

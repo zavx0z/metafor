@@ -70,8 +70,10 @@ export async function loadMetaAST(address: SRC): Promise<MetaDSL> {
 }
 
 /**
- * Загружает одну meta и фиксирует её каноническую реляционную форму
- * в общем in-memory SQLite-слое для верхнего dark-прохода.
+ * Загружает и канонизирует ровно одну meta в общем in-memory SQLite-контексте.
+ *
+ * Дальнейшая orchestration обхода дочерних meta должна жить выше `load`,
+ * а не внутри этого модуля.
  */
 export async function ensureMetaCanonicalized(address: SRC): Promise<{ db: unknown } | null> {
   if (typeof Bun === "undefined") return null

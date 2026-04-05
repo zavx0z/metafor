@@ -9,7 +9,7 @@ import {
   isHiggsMessage,
   isWMessage,
   WEAK_W_BROADCAST_CHANNEL,
-} from "pkg/protocol"
+} from "@shared/protocol"
 
 export type OpenBoundaryDb = () => Promise<SharedDbBackend> | SharedDbBackend
 

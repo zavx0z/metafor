@@ -5,7 +5,7 @@ import {
   isHiggsMessage,
   isZMessage,
   isWMessage,
-} from "../../pkg/protocol"
+} from "@shared/protocol"
 
 interface LogEntry {
   timestamp: number

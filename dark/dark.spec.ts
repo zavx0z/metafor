@@ -7,7 +7,7 @@ import startReference from "../github/zavx0z/git-start/meta.ts"
 import type { MatterWimpResult } from "@dark/types/dark"
 import { Axion, Fuzzy, readFieldValues, Wimp } from "@dark/strong"
 import { matterMeta } from "./dark.ts"
-import { resetCanonicalMetaContext } from "./load.ts"
+import { ensureMetaCanonicalized, resetCanonicalMetaContext } from "./load.ts"
 import { dark$ } from "./store"
 
 const hub = new HubFixture()
@@ -25,7 +25,14 @@ const findFieldInit = (continuation: MatterWimpResult[1], key: string) =>
   continuation.fieldInits?.find((fieldInit) => fieldInit.key === key)
 
 describe("zavx0z/git", () => {
-  beforeAll(async () => await hub.setup())
+  let sqliteDb: unknown
+
+  beforeAll(async () => {
+    await hub.setup()
+    const sqlite = await ensureMetaCanonicalized(src)
+    await ensureMetaCanonicalized(startSrc)
+    sqliteDb = sqlite?.db
+  })
   afterAll(async () => {
     dark$.meta.clear()
     dark$.fields.clear()
@@ -53,7 +60,7 @@ describe("zavx0z/git", () => {
 
     let generator: ReturnType<typeof matterMeta>
     test("создание генератора", () => {
-      generator = matterMeta(rootWimp)
+      generator = matterMeta(rootWimp, undefined, { sqliteDb })
 
       expect(generator, "генератор должен быть создан").toBeDefined()
       expect(typeof generator.next, "генератор должен иметь метод `next`").toBe("function")
@@ -242,7 +249,7 @@ describe("zavx0z/git", () => {
 
     let generator: ReturnType<typeof matterMeta>
     test("создание генератора", () => {
-      generator = matterMeta(startWimp, startContinuation)
+      generator = matterMeta(startWimp, startContinuation, { sqliteDb })
 
       expect(generator, "генератор для git-start должен быть создан").toBeDefined()
       expect(typeof generator.next, "генератор для git-start должен иметь метод `next`").toBe("function")

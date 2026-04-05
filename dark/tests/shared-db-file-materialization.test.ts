@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url"
 import { Wimp } from "@dark/strong"
 import { openSharedDbMaterializationWriter, openSharedDbSqliteBackend } from "@shared/db"
 import { HubFixture } from "fixture"
-import { matter } from "../dark.ts"
+import { matter } from "../pipeline.ts"
 import { dark$ } from "../store.ts"
 
 const hub = new HubFixture()

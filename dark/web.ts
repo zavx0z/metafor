@@ -1,5 +1,5 @@
 import { openSharedDbIndexedDbBackend } from "../pkg/db/browser.ts"
-import { matter } from "./dark.ts"
+import { matter } from "./pipeline.ts"
 import { Wimp } from "./strong/index.ts"
 import { openSharedDbMaterializationWriter } from "../pkg/db/core.ts"
 

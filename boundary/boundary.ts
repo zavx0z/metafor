@@ -65,7 +65,7 @@ import {
   type ProtocolChannelOptions,
   type ValueProtocolPatch,
   type WMessage,
-} from "pkg/protocol"
+} from "@shared/protocol"
 import { gravityCH } from "@boundary/gravity/channel.ts"
 
 export type BoundaryStructuralPatch = GravityProtocolPatch
