@@ -5,7 +5,7 @@ export function relationFields(db: Database, meta: MetaDSL, src: string): Map<st
   const fieldUuids = new Map<string, string>()
 
   for (const [key, def] of Object.entries(meta.fields)) {
-    const uuid = `field:${src}:${key}`
+    const uuid = crypto.randomUUID()
     fieldUuids.set(key, uuid)
 
     db.query("INSERT INTO field (uuid, meta, key, type, required, label) VALUES (?, ?, ?, ?, ?, ?)")
@@ -22,25 +22,27 @@ export function relationFields(db: Database, meta: MetaDSL, src: string): Map<st
       } else if (def.type === "boolean") {
         db.query("INSERT INTO field_boolean_default (field, default_value) VALUES (?, ?)")
           .run(uuid, def.default ? 1 : 0)
-      } else if (def.type === "array") {
-        ;(def.default as number[]).forEach((val, i) => {
-          db.query("INSERT INTO field_array_default_item (field, position, item_value) VALUES (?, ?, ?)")
-            .run(uuid, i, val)
+      } else if (def.type === "array" && Array.isArray(def.default)) {
+        db.query("INSERT INTO field_array_default (field) VALUES (?)").run(uuid)
+        ;(def.default as any[]).forEach((val, i) => {
+          const itemUuid = crypto.randomUUID()
+          db.query("INSERT INTO field_array_default_item (uuid, field, position, item_value) VALUES (?, ?, ?, ?)")
+            .run(itemUuid, uuid, i, String(val))
         })
       }
     }
 
     if (def.type === "enum" && "values" in def && Array.isArray(def.values)) {
-      const variantUuids = new Map<string, string>()
-      def.values.forEach((val: string, i: number) => {
-        const variantUuid = `variant:${uuid}:${val}`
+      const variantUuids = new Map<string | number, string>()
+      def.values.forEach((val: string | number, i: number) => {
+        const variantUuid = crypto.randomUUID()
         variantUuids.set(val, variantUuid)
         db.query("INSERT INTO field_enum_variant (uuid, field, position, item_value) VALUES (?, ?, ?, ?)")
-          .run(variantUuid, uuid, i, val)
+          .run(variantUuid, uuid, i, String(val))
       })
 
       if ("default" in def && def.default !== undefined) {
-        const variantUuid = variantUuids.get(def.default as string)
+        const variantUuid = variantUuids.get(def.default as string | number)
         if (variantUuid) {
           db.query("INSERT INTO field_enum_default (field, variant) VALUES (?, ?)").run(uuid, variantUuid)
         }

@@ -12,14 +12,13 @@ export function relationSuperposition(
 
   // 1. States
   states.forEach((name, i) => {
-    const uuid = `state:${src}:${name}`
+    const uuid = crypto.randomUUID()
     stateUuids.set(name, uuid)
     db.query("INSERT INTO superposition (uuid, meta, name, position) VALUES (?, ?, ?, ?)")
       .run(uuid, src, name, i)
   })
 
   // 2. Transitions & Conditions
-  let transitionCounter = 0
   for (const [fromName, transitions] of Object.entries(meta.superposition)) {
     if (!transitions) continue
     const fromUuid = stateUuids.get(fromName)!
@@ -27,7 +26,7 @@ export function relationSuperposition(
     let transitionPos = 0
     for (const [toName, cond] of Object.entries(transitions as Record<string, any>)) {
       const toUuid = stateUuids.get(toName)!
-      const transitionUuid = `transition:${src}:${transitionCounter++}`
+      const transitionUuid = crypto.randomUUID()
 
       db.query("INSERT INTO transition (uuid, from_superposition, to_superposition, position) VALUES (?, ?, ?, ?)")
         .run(transitionUuid, fromUuid, toUuid, transitionPos++)
@@ -38,14 +37,14 @@ export function relationSuperposition(
           const fieldUuid = fieldUuids.get(fieldKey)
           if (!fieldUuid) continue
 
-          const condUuid = `condition:${transitionUuid}:${fieldKey}`
+          const condUuid = crypto.randomUUID()
           db.query("INSERT INTO condition (uuid, transition, field, position) VALUES (?, ?, ?, ?)")
             .run(condUuid, transitionUuid, fieldUuid, condPos++)
 
           if (predicate && typeof predicate === "object") {
             let predOrder = 0
             for (const [op, val] of Object.entries(predicate)) {
-              const predUuid = `predicate:${condUuid}:${predOrder}`
+              const predUuid = crypto.randomUUID()
               let operator = op
               let valueKind = "null"
               let valueBoolean: number | null = null

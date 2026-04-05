@@ -111,7 +111,7 @@ describe("sqlite ddl", () => {
 
     expect(fieldColumns).toEqual(["uuid", "meta", "key", "type", "required", "label"])
     expect(fieldDefaultColumns).toEqual(["field"])
-    expect(fieldArrayItemColumns).toEqual(["field", "position", "item_value"])
+    expect(fieldArrayItemColumns).toEqual(["uuid", "field", "position", "item_value"])
     expect(fieldEnumVariantColumns).toEqual(["uuid", "field", "position", "item_value"])
     expect(fieldEnumDefaultColumns).toEqual(["field", "variant"])
 
@@ -192,17 +192,17 @@ describe("sqlite ddl", () => {
     db.query(`INSERT INTO field_default(field) VALUES (?)`).run("field:items")
 
     db.query(
-        `INSERT INTO field_array_default_item(field, position, item_value)
-         VALUES (?, ?, ?)`,
+        `INSERT INTO field_array_default_item(uuid, field, position, item_value)
+         VALUES (?, ?, ?, ?)`,
       )
-      .run("field:items", 0, 10)
+      .run(crypto.randomUUID(), "field:items", 0, "10")
 
     expect(() =>
       db.query(
-          `INSERT INTO field_array_default_item(field, position, item_value)
-           VALUES (?, ?, ?)`,
+          `INSERT INTO field_array_default_item(uuid, field, position, item_value)
+           VALUES (?, ?, ?, ?)`,
         )
-        .run("field:items", 0, 20),
+        .run(crypto.randomUUID(), "field:items", 0, "20"),
     ).toThrow()
 
     db.query(

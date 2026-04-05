@@ -12,7 +12,7 @@ export function relationReactions(
 
   const rs = meta.reactions as ReactionsSchema
   for (const [id, r] of Object.entries(rs.reactions)) {
-    const uuid = `reaction:${src}:${id}`
+    const uuid = crypto.randomUUID()
     db.query("INSERT INTO reaction (uuid, meta, key, label, desc, cond_source, update_source) VALUES (?, ?, ?, ?, ?, ?, ?)")
       .run(uuid, src, id, r.label, r.desc || null, r.cond, r.src)
 
@@ -32,16 +32,16 @@ export function relationReactions(
         }
       })
     }
-  }
 
-  for (const [state, reactionIds] of Object.entries(rs.superposition)) {
-    const stateUuid = stateUuids.get(state)
-    if (stateUuid) {
-      reactionIds.forEach((id) => {
-        const reactionUuid = `reaction:${src}:${id}`
-        db.query("INSERT INTO reaction_superposition (reaction, superposition) VALUES (?, ?)")
-          .run(reactionUuid, stateUuid)
-      })
+    // Reaction Superpositions
+    for (const [state, reactionIds] of Object.entries(rs.superposition)) {
+      if (reactionIds.includes(id)) {
+        const stateUuid = stateUuids.get(state)
+        if (stateUuid) {
+          db.query("INSERT INTO reaction_superposition (reaction, superposition) VALUES (?, ?)")
+            .run(uuid, stateUuid)
+        }
+      }
     }
   }
 }
