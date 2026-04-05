@@ -23,13 +23,13 @@ export type FieldType<
 
 export type Fields = Record<
   string,
-  | FieldType<"string", true | false, undefined>
+  | FieldType<"string", true | false>
   | FieldType<"string", true | false, string>
-  | FieldType<"boolean", true | false, undefined>
+  | FieldType<"boolean", true | false>
   | FieldType<"boolean", true | false, boolean>
-  | FieldType<"number", true | false, undefined>
+  | FieldType<"number", true | false>
   | FieldType<"number", true | false, number>
-  | FieldType<"array", true | false, undefined>
+  | FieldType<"array", true | false>
   | FieldType<"array", true | false, number[]>
   | FieldType<"enum", true | false, undefined, readonly string[]>
   | FieldType<"enum", true | false, string, readonly string[]>
@@ -44,8 +44,8 @@ export type Value<E> = E extends FieldType<infer N, infer R, infer D, infer V>
       : (V extends readonly string[] ? V[number] : D) | null
     : N extends "array"
       ? R extends true
-        ? D
-        : D | null
+        ? number[]
+        : number[] | null
       : N extends "string"
         ? R extends true
           ? string
@@ -74,7 +74,7 @@ export type Field = {
 }
 
 export interface FieldPrimitive<T extends string | number | boolean, N extends "string" | "number" | "boolean"> {
-  optional(options?: { label?: string }): FieldType<N, false>
+  optional(options?: { label?: string }): FieldType<N>
 
   optional<D extends T>(defaultValue?: D, options?: { label?: string }): FieldType<N, false, D>
 
@@ -83,16 +83,16 @@ export interface FieldPrimitive<T extends string | number | boolean, N extends "
 
 export type FieldArray = {
   optional: {
-    (options?: { label?: string; data?: string }): FieldType<"array", false>
-    <D extends number[]>(
-      defaultValue?: D,
+    (options?: { label?: string; data?: string }): FieldType<"array">
+    (
+      defaultValue?: number[],
       options?: { label?: string; data?: string },
-    ): FieldType<"array", false, D>
+    ): FieldType<"array", false, number[]>
   }
-  required: <D extends number[]>(
-    defaultValue: D,
+  required: (
+    defaultValue: number[],
     options?: { label?: string; data?: string },
-  ) => FieldType<"array", true, D>
+  ) => FieldType<"array", true, number[]>
 }
 
 export type FieldEnum = <const V extends readonly [string, ...string[]]>(...values: V) => {
