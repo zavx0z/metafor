@@ -1,5 +1,5 @@
 import { openSharedDbSqliteBackend } from "../pkg/db/index.ts"
-import { matter } from "./pipeline.ts"
+import { matter } from "./index.ts"
 import { Wimp } from "./strong/index.ts"
 import { openSharedDbMaterializationWriter } from "../pkg/db/core.ts"
 

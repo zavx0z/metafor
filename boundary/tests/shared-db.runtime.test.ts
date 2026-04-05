@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test
 import { materializeFields, Meta, Wimp } from "@dark/strong"
 import { openSharedDbMaterializationWriter, openSharedDbSqliteBackend } from "@shared/db"
 import { HubFixture } from "fixture"
-import { matter } from "../../dark/pipeline.ts"
+import { matter } from "../../dark/index.ts"
 import { createSharedDbFixture } from "fixture/db.fixture.ts"
 import { dark$ } from "../../dark/store.ts"
 import {

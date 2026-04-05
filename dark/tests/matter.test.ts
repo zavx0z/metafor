@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { matter } from "../pipeline.ts"
+import { matter } from "../index.ts"
 import { HubFixture } from "fixture"
 import { dark$ } from "../store"
 import { Axion, Fuzzy, Macho, Wimp } from "@dark/strong"
