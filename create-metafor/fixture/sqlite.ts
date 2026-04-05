@@ -2,7 +2,7 @@ import { constants, Database } from "bun:sqlite"
 import { join, isAbsolute, dirname } from "node:path"
 import { unlinkSync, existsSync } from "node:fs"
 import { fileURLToPath } from "node:url"
-import { initializeMetaforDslSqliteSchema, exportMetaToSqlite } from "../../pkg/sqlite/index.ts"
+import { initializeMetaforDslSqliteSchema, relation } from "../../pkg/sqlite/index.ts"
 import type { MetaDSL } from "../../metafor.t.ts"
 
 /**
@@ -44,7 +44,7 @@ export function createMetaforSqliteFixture(meta: MetaDSL, dbPath = "meta.sqlite"
   db.run("PRAGMA journal_mode = WAL;")
   try {
     initializeMetaforDslSqliteSchema(db)
-    exportMetaToSqlite(db, meta)
+    relation(db, meta)
   } finally {
     db.fileControl(constants.SQLITE_FCNTL_PERSIST_WAL, 0)
     db.run("PRAGMA wal_checkpoint(TRUNCATE);")

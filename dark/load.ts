@@ -1,6 +1,5 @@
-import type { MetaAST } from "@metafor/ast"
-import { validateMatterAST, type SRC } from "index.ts"
-import { Meta } from "@dark/strong"
+import type {MetaDSL, SRC} from ".."
+import {Meta} from "./strong"
 
 const HUB = "github/"
 
@@ -33,15 +32,13 @@ export function resolveMetaTsPath(address: SRC): string {
  * @returns `ast`
  * @throws если не удалось загрузить meta
  */
-export async function loadMetaAST(address: SRC): Promise<MetaAST> {
+export async function loadMetaAST(address: SRC): Promise<MetaDSL> {
   address = HUB + address
   const sourcePath = resolveMetaSource(address)
   try {
     const response = await fetch(sourcePath)
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-    const ast = (await response.json()) as MetaAST
-    validateMatterAST(ast.matter, ast.fields, ast.name)
-    return ast
+    return (await response.json()) as MetaDSL
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(`Не удалось загрузить meta: ${sourcePath} — ${message}`)

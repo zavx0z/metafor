@@ -1,16 +1,16 @@
-import type { Database } from "bun:sqlite"
-import type { MetaDSL } from "../../metafor.t.ts"
-import type { ParsedProcess } from "../../process.t.ts"
-import type { ReactionsSchema } from "../../reactions.t.ts"
-import type { MatterSchema, NodeType } from "../../matter.t.ts"
-import metaforSchemaSql from "../../metafor.sql" with { type: "text" }
-import fieldsSchemaSql from "../../fields.sql" with { type: "text" }
-import superpositionSchemaSql from "../../superposition.sql" with { type: "text" }
-import processSchemaSql from "../../process.sql" with { type: "text" }
-import actionSchemaSql from "../../action.sql" with { type: "text" }
-import finallySchemaSql from "../../finally.sql" with { type: "text" }
-import reactionsSchemaSql from "../../reactions.sql" with { type: "text" }
-import matterSchemaSql from "../../matter.sql" with { type: "text" }
+import type {Database} from "bun:sqlite"
+import type {MetaDSL} from "../../metafor.t.ts"
+import type {ParsedProcess} from "../../process.t.ts"
+import type {ReactionsSchema} from "../../reactions.t.ts"
+import type {MatterSchema, NodeType} from "../../matter.t.ts"
+import metaforSchemaSql from "../../metafor.sql" with {type: "text"}
+import fieldsSchemaSql from "../../fields.sql" with {type: "text"}
+import superpositionSchemaSql from "../../superposition.sql" with {type: "text"}
+import processSchemaSql from "../../process.sql" with {type: "text"}
+import actionSchemaSql from "../../action.sql" with {type: "text"}
+import finallySchemaSql from "../../finally.sql" with {type: "text"}
+import reactionsSchemaSql from "../../reactions.sql" with {type: "text"}
+import matterSchemaSql from "../../matter.sql" with {type: "text"}
 
 export const metaforDslTableNames = [
   "meta",
@@ -109,7 +109,7 @@ export const initializeMetaforDslSqliteSchema = (database: MetaforDslDatabase): 
   database.run(metaforDslSchemaSql)
 }
 
-export function exportMetaToSqlite(database: Database, meta: MetaDSL): void {
+export function relation(database: Database, meta: MetaDSL): void {
   database.transaction(() => {
     // 1. Meta
     database
@@ -241,7 +241,9 @@ export function exportMetaToSqlite(database: Database, meta: MetaDSL): void {
 
                 database
                   .query(
-                    `INSERT INTO condition_predicate (uuid, condition, predicate_order, subject_kind, operator, value_kind, value_boolean, value_number, value_text, value_variant)
+                    `INSERT INTO condition_predicate (uuid, condition, predicate_order, subject_kind, operator,
+                                                      value_kind, value_boolean, value_number, value_text,
+                                                      value_variant)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                   )
                   .run(
@@ -353,7 +355,7 @@ export function exportMetaToSqlite(database: Database, meta: MetaDSL): void {
             .run(nodeUuid, srcBindingUuid)
         }
 
-        if (node.child) {
+        if ("child" in node && node.child.length) {
           node.child.forEach((child, i) => {
             processNode(child, nodeUuid, node.type === "map" ? "child" : "child", i)
           })
