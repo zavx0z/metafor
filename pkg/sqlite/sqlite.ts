@@ -17,11 +17,9 @@ export const metaforDslTableNames = [
   "field_boolean_default",
   "field_array_default",
   "field_array_default_item",
-  "field_array_string_default_item",
   "field_array_number_default_item",
   "field_enum_variant",
   "field_enum_string_variant",
-  "field_enum_number_variant",
   "field_enum_default",
   "superposition",
   "transition",
@@ -98,11 +96,17 @@ export const metaforDslSchemaSql = metaforDslSchemaSqlModules
   .trim()
 
 /**
- * Открывает базу данных SQLite по указанному пути, инициализирует схему Metafor DSL
- * и расширяет метод close() для корректного сброса WAL.
+ * Открывает или создает базу данных SQLite по указанному пути.
+ *
+ * Если файл базы данных уже существует, он будет открыт. Если нет — создан новый.
+ * После открытия применяет DDL схему Metafor DSL (`CREATE TABLE IF NOT EXISTS`).
+ * Также расширяет метод `close()` для корректного сброса WAL-логов и удаления временных файлов.
+ *
+ * @param path - Путь к файлу базы данных.
+ * @returns Открытый экземпляр Database с инициализированной схемой.
  */
 export function getMetaDB(path: string): Database {
-  const database = new Database(path, { strict: true })
+  const database = new Database(path, { strict: true, create: true })
 
   database.run("PRAGMA foreign_keys = ON;")
   database.run("PRAGMA journal_mode = WAL;")

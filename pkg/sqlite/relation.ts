@@ -2,14 +2,11 @@ import type {Database} from "bun:sqlite"
 import type {MetaDSL, NodeType, ParsedProcess, ReactionsSchema} from "../.."
 import type {MatterSchema} from "../../matter.t.ts"
 
-export function relation(database: Database, meta: MetaDSL, src: string): void {
-  database.transaction(() => {
-    // 0. Clean up existing data for this src to allow overwrite (Cascade will handle the rest)
-    database.query("DELETE FROM meta WHERE src = ?").run(src)
-
+export function relation(db: Database, meta: MetaDSL, src: string): void {
+  db.transaction(() => {
     // 1. Meta
-    database
-      .query("INSERT INTO meta (src, name, desc, view_css) VALUES (?, ?, ?, ?)")
+    db.query("INSERT INTO meta (src, name, desc, view_css) VALUES (?, ?, ?, ?)")
+
       .run(src, meta.name, meta.desc || null, meta.bulk?.view || null)
 
     // 2. Fields
@@ -17,34 +14,42 @@ export function relation(database: Database, meta: MetaDSL, src: string): void {
     for (const [key, def] of Object.entries(meta.fields)) {
       const uuid = `field:${src}:${key}`
       fieldUuids.set(key, uuid)
-      database
-        .query("INSERT INTO field (uuid, meta, key, type, required, label) VALUES (?, ?, ?, ?, ?, ?)")
-        .run(uuid, src, key, def.type, def.required ? 1 : 0, def.label || null)
+      db.query("INSERT INTO field (uuid, meta, key, type, required, label) VALUES (?, ?, ?, ?, ?, ?)").run(
+        uuid,
+        src,
+        key,
+        def.type,
+        def.required ? 1 : 0,
+        def.label || null,
+      )
 
       if ("default" in def && def.default !== undefined) {
-        database.query("INSERT INTO field_default (field) VALUES (?)").run(uuid)
+        db.query("INSERT INTO field_default (field) VALUES (?)").run(uuid)
         if (def.type === "string") {
-          database
-            .query("INSERT INTO field_string_default (field, default_value) VALUES (?, ?)")
-            .run(uuid, def.default as string)
+          db.query("INSERT INTO field_string_default (field, default_value) VALUES (?, ?)").run(
+            uuid,
+            def.default as string,
+          )
         } else if (def.type === "number") {
-          database
-            .query("INSERT INTO field_number_default (field, default_value) VALUES (?, ?)")
-            .run(uuid, def.default as number)
+          db.query("INSERT INTO field_number_default (field, default_value) VALUES (?, ?)").run(
+            uuid,
+            def.default as number,
+          )
         } else if (def.type === "boolean") {
-          database
-            .query("INSERT INTO field_boolean_default (field, default_value) VALUES (?, ?)")
-            .run(uuid, def.default ? 1 : 0)
+          db.query("INSERT INTO field_boolean_default (field, default_value) VALUES (?, ?)").run(
+            uuid,
+            def.default ? 1 : 0,
+          )
         } else if (def.type === "array") {
-          database.query("INSERT INTO field_array_default (field) VALUES (?)").run(uuid)
+          db.query("INSERT INTO field_array_default (field) VALUES (?)").run(uuid)
           ;(def.default as number[]).forEach((val, i) => {
             const itemUuid = `item:${uuid}:${i}`
-            database
-              .query("INSERT INTO field_array_default_item (uuid, field, position) VALUES (?, ?, ?)")
-              .run(itemUuid, uuid, i)
-            database
-              .query("INSERT INTO field_array_number_default_item (item, item_value) VALUES (?, ?)")
-              .run(itemUuid, val)
+            db.query("INSERT INTO field_array_default_item (uuid, field, position) VALUES (?, ?, ?)").run(
+              itemUuid,
+              uuid,
+              i,
+            )
+            db.query("INSERT INTO field_array_number_default_item (item, item_value) VALUES (?, ?)").run(itemUuid, val)
           })
         }
       }
@@ -54,20 +59,16 @@ export function relation(database: Database, meta: MetaDSL, src: string): void {
         def.values.forEach((val: string | number, i: number) => {
           const variantUuid = `variant:${uuid}:${val}`
           variantUuids.set(val, variantUuid)
-          database
-            .query("INSERT INTO field_enum_variant (uuid, field, position) VALUES (?, ?, ?)")
-            .run(variantUuid, uuid, i)
+          db.query("INSERT INTO field_enum_variant (uuid, field, position) VALUES (?, ?, ?)").run(variantUuid, uuid, i)
           if (typeof val === "string") {
-            database
-              .query("INSERT INTO field_enum_string_variant (variant, item_value) VALUES (?, ?)")
-              .run(variantUuid, val)
+            db.query("INSERT INTO field_enum_string_variant (variant, item_value) VALUES (?, ?)").run(variantUuid, val)
           }
         })
 
         if ("default" in def && def.default !== undefined) {
           const variantUuid = variantUuids.get(def.default as string | number)
           if (variantUuid) {
-            database.query("INSERT INTO field_enum_default (field, variant) VALUES (?, ?)").run(uuid, variantUuid)
+            db.query("INSERT INTO field_enum_default (field, variant) VALUES (?, ?)").run(uuid, variantUuid)
           }
         }
       }
@@ -79,9 +80,7 @@ export function relation(database: Database, meta: MetaDSL, src: string): void {
     states.forEach((name, i) => {
       const uuid = `state:${src}:${name}`
       stateUuids.set(name, uuid)
-      database
-        .query("INSERT INTO superposition (uuid, meta, name, position) VALUES (?, ?, ?, ?)")
-        .run(uuid, src, name, i)
+      db.query("INSERT INTO superposition (uuid, meta, name, position) VALUES (?, ?, ?, ?)").run(uuid, src, name, i)
     })
 
     // 4. Transitions & Conditions
@@ -95,9 +94,9 @@ export function relation(database: Database, meta: MetaDSL, src: string): void {
         const toUuid = stateUuids.get(toName)!
         const transitionUuid = `transition:${src}:${transitionCounter++}`
 
-        database
-          .query("INSERT INTO transition (uuid, from_superposition, to_superposition, position) VALUES (?, ?, ?, ?)")
-          .run(transitionUuid, fromUuid, toUuid, transitionPos++)
+        db.query(
+          "INSERT INTO transition (uuid, from_superposition, to_superposition, position) VALUES (?, ?, ?, ?)",
+        ).run(transitionUuid, fromUuid, toUuid, transitionPos++)
 
         if (cond && typeof cond === "object") {
           let condPos = 0
@@ -106,9 +105,12 @@ export function relation(database: Database, meta: MetaDSL, src: string): void {
             if (!fieldUuid) continue
 
             const condUuid = `condition:${transitionUuid}:${fieldKey}`
-            database
-              .query("INSERT INTO condition (uuid, transition, field, position) VALUES (?, ?, ?, ?)")
-              .run(condUuid, transitionUuid, fieldUuid, condPos++)
+            db.query("INSERT INTO condition (uuid, transition, field, position) VALUES (?, ?, ?, ?)").run(
+              condUuid,
+              transitionUuid,
+              fieldUuid,
+              condPos++,
+            )
 
             if (predicate && typeof predicate === "object") {
               let predOrder = 0
@@ -135,25 +137,23 @@ export function relation(database: Database, meta: MetaDSL, src: string): void {
                   valueText = val
                 }
 
-                database
-                  .query(
-                    `INSERT INTO condition_predicate (uuid, condition, predicate_order, subject_kind, operator,
-                                                      value_kind, value_boolean, value_number, value_text,
-                                                      value_variant)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                  )
-                  .run(
-                    predUuid,
-                    condUuid,
-                    predOrder++,
-                    "value",
-                    operator,
-                    valueKind,
-                    valueBoolean,
-                    valueNumber,
-                    valueText,
-                    valueVariant,
-                  )
+                db.query(
+                  `INSERT INTO condition_predicate (uuid, condition, predicate_order, subject_kind, operator,
+                                                    value_kind, value_boolean, value_number, value_text,
+                                                    value_variant)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ).run(
+                  predUuid,
+                  condUuid,
+                  predOrder++,
+                  "value",
+                  operator,
+                  valueKind,
+                  valueBoolean,
+                  valueNumber,
+                  valueText,
+                  valueVariant,
+                )
               }
             }
           }
@@ -166,13 +166,18 @@ export function relation(database: Database, meta: MetaDSL, src: string): void {
       Object.entries(meta.processes).forEach(([state, p]) => {
         const uuid = `process:${src}:${state}`
         const pp = p as ParsedProcess
-        database
-          .query("INSERT INTO process (uuid, meta, key, type, label, desc) VALUES (?, ?, ?, ?, ?, ?)")
-          .run(uuid, src, state, pp.type || "action", pp.label || null, pp.desc || null)
+        db.query("INSERT INTO process (uuid, meta, key, type, label, desc) VALUES (?, ?, ?, ?, ?, ?)").run(
+          uuid,
+          src,
+          state,
+          pp.type || "action",
+          pp.label || null,
+          pp.desc || null,
+        )
 
         if (pp.env) {
           pp.env.forEach((env) => {
-            database.query("INSERT INTO process_env (process, env) VALUES (?, ?)").run(uuid, env)
+            db.query("INSERT INTO process_env (process, env) VALUES (?, ?)").run(uuid, env)
           })
         }
       })
@@ -183,15 +188,15 @@ export function relation(database: Database, meta: MetaDSL, src: string): void {
       const rs = meta.reactions as ReactionsSchema
       for (const [id, r] of Object.entries(rs.reactions)) {
         const uuid = `reaction:${src}:${id}`
-        database
-          .query("INSERT INTO reaction (uuid, meta, key, label, desc, cond_source, update_source) VALUES (?, ?, ?, ?, ?, ?, ?)")
-          .run(uuid, src, id, r.label, r.desc || null, r.cond, r.src)
+        db.query(
+          "INSERT INTO reaction (uuid, meta, key, label, desc, cond_source, update_source) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ).run(uuid, src, id, r.label, r.desc || null, r.cond, r.src)
 
         if (r.read) {
           r.read.forEach((fieldKey) => {
             const fieldUuid = fieldUuids.get(fieldKey)
             if (fieldUuid) {
-              database.query("INSERT INTO reaction_read (reaction, field) VALUES (?, ?)").run(uuid, fieldUuid)
+              db.query("INSERT INTO reaction_read (reaction, field) VALUES (?, ?)").run(uuid, fieldUuid)
             }
           })
         }
@@ -199,7 +204,7 @@ export function relation(database: Database, meta: MetaDSL, src: string): void {
           r.write.forEach((fieldKey) => {
             const fieldUuid = fieldUuids.get(fieldKey)
             if (fieldUuid) {
-              database.query("INSERT INTO reaction_write (reaction, field) VALUES (?, ?)").run(uuid, fieldUuid)
+              db.query("INSERT INTO reaction_write (reaction, field) VALUES (?, ?)").run(uuid, fieldUuid)
             }
           })
         }
@@ -210,9 +215,10 @@ export function relation(database: Database, meta: MetaDSL, src: string): void {
         if (stateUuid) {
           reactionIds.forEach((id) => {
             const reactionUuid = `reaction:${src}:${id}`
-            database
-              .query("INSERT INTO reaction_superposition (reaction, superposition) VALUES (?, ?)")
-              .run(reactionUuid, stateUuid)
+            db.query("INSERT INTO reaction_superposition (reaction, superposition) VALUES (?, ?)").run(
+              reactionUuid,
+              stateUuid,
+            )
           })
         }
       }
@@ -227,27 +233,26 @@ export function relation(database: Database, meta: MetaDSL, src: string): void {
 
       const processNode = (node: NodeType, parentNodeUuid: string | null, slot: string, order: number) => {
         const nodeUuid = `node:${src}:${nodeCounter++}`
-        database
-          .query("INSERT INTO matter_node (uuid, meta, node_kind, tag) VALUES (?, ?, ?, ?)")
-          .run(nodeUuid, src, node.type, (node as any).tag || null)
+        db.query("INSERT INTO matter_node (uuid, meta, node_kind, tag) VALUES (?, ?, ?, ?)").run(
+          nodeUuid,
+          src,
+          node.type,
+          (node as any).tag || null,
+        )
 
         const edgeUuid = `edge:${src}:${edgeCounter++}`
-        database
-          .query(
-            "INSERT INTO matter_edge (uuid, root_meta, parent_node, child_node, edge_slot, edge_order) VALUES (?, ?, ?, ?, ?, ?)",
-          )
-          .run(edgeUuid, parentNodeUuid ? null : src, parentNodeUuid, nodeUuid, slot, order)
+        db.query(
+          "INSERT INTO matter_edge (uuid, root_meta, parent_node, child_node, edge_slot, edge_order) VALUES (?, ?, ?, ?, ?, ?)",
+        ).run(edgeUuid, parentNodeUuid ? null : src, parentNodeUuid, nodeUuid, slot, order)
 
         if (node.type === "meta") {
           const n = node as any
           const srcBindingUuid = `binding:${src}:${bindingCounter++}`
-          database
-            .query("INSERT INTO matter_binding (uuid, meta, binding_kind, literal_kind, literal_text) VALUES (?, ?, ?, ?, ?)")
-            .run(srcBindingUuid, src, "static", "text", typeof n.src === "string" ? n.src : n.src.data)
+          db.query(
+            "INSERT INTO matter_binding (uuid, meta, binding_kind, literal_kind, literal_text) VALUES (?, ?, ?, ?, ?)",
+          ).run(srcBindingUuid, src, "static", "text", typeof n.src === "string" ? n.src : n.src.data)
 
-          database
-            .query("INSERT INTO matter_meta (node, src_binding) VALUES (?, ?)")
-            .run(nodeUuid, srcBindingUuid)
+          db.query("INSERT INTO matter_meta (node, src_binding) VALUES (?, ?)").run(nodeUuid, srcBindingUuid)
         }
 
         if ("child" in node && node.child.length) {
