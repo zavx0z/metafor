@@ -1,5 +1,11 @@
 import {matter} from "./dark"
 import {Wimp} from "./strong"
+import {MetaFor} from "../metafor"
+
+// Гарантируем наличие MetaFor в глобальном контексте для DSL файлов
+if (typeof globalThis !== "undefined") {
+  ;(globalThis as any).MetaFor = MetaFor
+}
 
 if (typeof self !== "undefined" && "postMessage" in self) {
   self.onmessage = async (event: MessageEvent<{ src?: string }>) => {

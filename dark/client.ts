@@ -1,13 +1,13 @@
-const btn = document.getElementById('matter') as HTMLButtonElement;
-const input = document.getElementById('src') as HTMLInputElement;
-const status = document.getElementById('status') as HTMLDivElement;
+const btn = document.getElementById('matter') as HTMLButtonElement
+const input = document.getElementById('src') as HTMLInputElement
+const status = document.getElementById('status') as HTMLDivElement
 
-const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+const socket = new WebSocket(`${protocol}//${window.location.host}/ws`)
 
 socket.onopen = () => {
-  status.innerText = 'Connected, waiting for ready...';
-};
+  status.innerText = 'Connected, waiting for ready...'
+}
 
 socket.onmessage = (event) => {
   const data = JSON.parse(event.data);
@@ -16,21 +16,25 @@ socket.onmessage = (event) => {
       btn.disabled = false;
       status.innerText = 'Ready';
     } else if (data.status === 'started') {
-      status.innerText = `Processing ${data.src}...`;
+      status.innerText = `Processing ${data.src}...\n`;
     } else if (data.status === 'done') {
-      status.innerText = `Successfully completed: ${data.src}`;
+      status.innerText += `\nSuccessfully completed: ${data.src}`;
     } else if (data.status === 'error') {
-      status.innerText = `Error processing ${data.src}: ${data.error}`;
+      status.innerText += `\nError processing ${data.src}: ${data.error}`;
     }
+  } else if (data.type === 'log') {
+    status.innerText += `\n${data.message}`;
+    // Автоматическая прокрутка вниз
+    window.scrollTo(0, document.body.scrollHeight);
   }
 };
 
 socket.onclose = () => {
-  btn.disabled = true;
-  status.innerText = 'Disconnected from server';
-};
+  btn.disabled = true
+  status.innerText = 'Disconnected from server'
+}
 
 btn.onclick = () => {
-  const src = input.value;
-  socket.send(JSON.stringify({ type: 'matter', src }));
-};
+  const src = input.value
+  socket.send(JSON.stringify({type: 'matter', src}))
+}

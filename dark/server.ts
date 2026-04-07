@@ -1,14 +1,13 @@
 import {serve} from "bun"
 import indexHtml from "./index.html"
 
-const dark = new Worker("./dark.ts")
+const dark = new Worker("./index.ts")
 
 const server = serve({
   port: 4444,
   routes: {
     // Автоматическая сборка и отдача фронтенда
     "/": indexHtml,
-
     // Обработка WebSocket апгрейда через эндпоинт
     "/ws": {
       GET(req, server) {

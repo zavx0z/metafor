@@ -48,6 +48,13 @@ const cloneContinuation = (continuation: MatterContinuation): MatterContinuation
  * Как только частица создана, dark сразу фиксирует её связи в `dark$`.
  */
 const registerParticle = (particle: DarkParticle, parent: DarkParticle): void => {
+  const info = `[dark] register particle: ${particle.constructor.name} (id: ${particle.id.slice(0, 8)}) -> parent: ${parent.constructor.name}`
+  console.log(info)
+  
+  if (typeof self !== "undefined" && "postMessage" in self) {
+    self.postMessage({ type: "log", message: info })
+  }
+
   parent.children.add(particle)
   if (parent instanceof Fuzzy) parent.branch.set(particle, particle)
   dark$.particles.set(particle.id, particle)
