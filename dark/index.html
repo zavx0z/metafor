@@ -2,9 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Dark</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dark Matter Fullstack</title>
+  <style>
+    body { 
+      font-family: sans-serif; 
+      padding: 2rem; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 1rem; 
+      max-width: 400px; 
+      background-color: #121212; 
+      color: #e0e0e0; 
+    }
+    input { 
+      padding: 0.75rem; 
+      background-color: #1e1e1e; 
+      border: 1px solid #333; 
+      color: #fff; 
+      border-radius: 4px; 
+      outline: none;
+    }
+    input:focus { border-color: #555; }
+    button { 
+      padding: 0.75rem; 
+      cursor: pointer; 
+      background-color: #ffffff; 
+      color: #000; 
+      border: none; 
+      border-radius: 4px; 
+      font-weight: bold; 
+      transition: opacity 0.2s;
+    }
+    button:disabled { 
+      background-color: #2a2a2a; 
+      color: #555; 
+      cursor: not-allowed; 
+    }
+    button:hover:not(:disabled) { opacity: 0.9; }
+    #status { 
+      font-size: 0.85rem; 
+      color: #888; 
+      white-space: pre-wrap; 
+      padding: 0.5rem;
+      border-left: 2px solid #333;
+    }
+  </style>
 </head>
 <body>
+  <input type="text" id="src" value="zavx0z/git" placeholder="src (e.g. zavx0z/git)">
+  <button id="matter" disabled>matter</button>
+  <div id="status">Connecting...</div>
 
+  <!-- Bun автоматически найдет этот файл, скомпилирует TS и подключит бандл -->
+  <script src="./client.ts" type="module"></script>
 </body>
 </html>

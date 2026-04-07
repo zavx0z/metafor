@@ -5,11 +5,13 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./boot": "./boot.ts",
     "./server": "./server.ts",
     "./web": "./web.ts"
   },
   "private": true,
+  "scripts": {
+    "serve": "bun server --hot"
+  },
   "dependencies": {
     "@metafor/ast": "workspace:*",
     "@dark/types": "workspace:*",
