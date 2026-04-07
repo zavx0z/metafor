@@ -4,7 +4,7 @@ import { emitAdd, emitBarrier } from "@dark/gravity/channel.ts"
 import type { DbMaterializationWriter } from "@metafor/db"
 import { Axion, Fuzzy, Macho, materializeFields, Meta, resolveWimpContinuation, Wimp } from "@dark/strong"
 import { readDarkParticleModel } from "../pkg/sqlite/dark.ts"
-import { ensureMetaCanonicalized } from "./load.ts"
+import { loadMeta } from "./load.ts"
 import { dark$ } from "./store"
 
 interface MatterOptions {
@@ -204,7 +204,7 @@ export async function matter(
   continuation?: MatterContinuation,
   options: MatterOptions = {},
 ): Promise<void> {
-  const sqlite = options.sqliteDb ? { db: options.sqliteDb } : await ensureMetaCanonicalized(wimp.src)
+  const sqlite = options.sqliteDb ? { db: options.sqliteDb } : await loadMeta(wimp.src)
   if (!sqlite) {
     throw new Error(`Canonical SQLite context is unavailable for "${wimp.src}"`)
   }

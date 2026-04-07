@@ -7,8 +7,9 @@ import startReference from "../github/zavx0z/git-start/meta.ts"
 import type { MatterWimpResult } from "@dark/types/dark"
 import { Axion, Fuzzy, readFieldValues, Wimp } from "@dark/strong"
 import { matterMeta } from "./dark.ts"
-import { ensureMetaCanonicalized, resetCanonicalMetaContext } from "./load.ts"
+import { loadMeta } from "./load.ts"
 import { dark$ } from "./store"
+import { resetDarkLoadContext } from "./tests/test.helper.ts"
 
 const hub = new HubFixture()
 
@@ -29,15 +30,15 @@ describe("zavx0z/git", () => {
 
   beforeAll(async () => {
     await hub.setup()
-    const sqlite = await ensureMetaCanonicalized(src)
-    await ensureMetaCanonicalized(startSrc)
+    const sqlite = await loadMeta(src)
+    await loadMeta(startSrc)
     sqliteDb = sqlite?.db
   })
   afterAll(async () => {
     dark$.meta.clear()
     dark$.fields.clear()
     dark$.particles.clear()
-    resetCanonicalMetaContext()
+    resetDarkLoadContext()
     await hub.teardown()
   })
 

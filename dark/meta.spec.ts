@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test"
 import { HubFixture } from "fixture"
 import { matter } from "./index.ts"
-import { resetCanonicalMetaContext } from "./load.ts"
 import { Wimp } from "@dark/strong"
 import { dark$ } from "./store.ts"
+import { resetDarkLoadContext } from "./tests/test.helper.ts"
 
 const hub = new HubFixture("./")
 
@@ -19,7 +19,7 @@ describe("meta normalization", () => {
   })
 
   afterAll(async () => {
-    resetCanonicalMetaContext()
+    resetDarkLoadContext()
     await hub.teardown()
   })
 

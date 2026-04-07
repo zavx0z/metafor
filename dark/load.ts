@@ -1,13 +1,7 @@
-import type {MetaDSL, SRC} from ".."
-import {Meta} from "./strong"
+import type { MetaDSL, SRC } from ".."
+import { getMetaDbContext } from "./load.context.ts"
 
 const HUB = "github/"
-let canonicalMetaContext:
-  | {
-      db: unknown
-      loaded: Set<string>
-    }
-  | undefined
 
 /**
  * Преобразует SRC в путь к файлу для загрузки.
@@ -15,7 +9,7 @@ let canonicalMetaContext:
  * @param address — канонический адрес хаба
  * @returns путь к файлу для fetch в формате `/{address}/meta.json`
  */
-export function resolveMetaSource(address: SRC): string {
+function resolveMetaSource(address: SRC): string {
   return `/${address}/meta.json`
 }
 
@@ -25,7 +19,7 @@ export function resolveMetaSource(address: SRC): string {
  * @param address — канонический адрес хаба
  * @returns путь к .ts файлу в формате `/{address}.ts`
  */
-export function resolveMetaTsPath(address: SRC): string {
+function resolveMetaTsPath(address: SRC): string {
   return `/${address}.ts`
 }
 
@@ -39,15 +33,15 @@ const loadMetaFromModule = async (address: SRC): Promise<MetaDSL> => {
 }
 
 /**
- * Загружает MetaAST из файла.
+ * Внутренне читает DSL meta из файла.
  *
  * Не делает orchestration пакета Dark и не мутирует store.
  *
  * @param address — канонический адрес хаба для загрузки
- * @returns `ast`
+ * @returns `dsl`
  * @throws если не удалось загрузить meta
  */
-export async function loadMetaAST(address: SRC): Promise<MetaDSL> {
+const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
   if (typeof Bun !== "undefined") {
     try {
       return await loadMetaFromModule(address)
@@ -75,54 +69,16 @@ export async function loadMetaAST(address: SRC): Promise<MetaDSL> {
  * Дальнейшая orchestration обхода дочерних meta должна жить выше `load`,
  * а не внутри этого модуля.
  */
-export async function ensureMetaCanonicalized(address: SRC): Promise<{ db: unknown } | null> {
-  if (typeof Bun === "undefined") return null
+export async function loadMeta(address: SRC): Promise<{ db: unknown } | null> {
+  const metaDbContext = await getMetaDbContext()
+  if (!metaDbContext) return null
 
-  if (!canonicalMetaContext) {
-    const { getMetaDB } = await import("../pkg/sqlite/index.ts")
-    canonicalMetaContext = {
-      db: getMetaDB(":memory:"),
-      loaded: new Set<string>(),
-    }
-  }
-
-  if (!canonicalMetaContext.loaded.has(address)) {
+  if (!metaDbContext.loaded.has(address)) {
     const { relation } = await import("../pkg/sqlite/index.ts")
-    const ast = await loadMetaAST(address)
-    relation(canonicalMetaContext.db as any, ast, address)
-    canonicalMetaContext.loaded.add(address)
+    const dsl = await readMetaDsl(address)
+    relation(metaDbContext.db as any, dsl, address)
+    metaDbContext.loaded.add(address)
   }
 
-  return { db: canonicalMetaContext.db }
-}
-
-export function resetCanonicalMetaContext(): void {
-  const current = canonicalMetaContext
-  canonicalMetaContext = undefined
-
-  if (!current?.db || typeof current.db !== "object") return
-  const close = (current.db as { close?: (throwOnError?: boolean) => void }).close
-  if (typeof close === "function") close.call(current.db, false)
-}
-
-/**
- * Materialize-ит канонический `Meta` object model из AST.
- *
- * `Meta` хранит декларативный `matter` как часть meta-level source of truth,
- * а materialization topology-графа всё ещё остаётся задачей `Particles ORM`.
- */
-export async function loadMeta(address: SRC): Promise<Meta> {
-  const ast = await loadMetaAST(address)
-
-  return new Meta({
-    src: address,
-    name: ast.name,
-    fieldSchemas: ast.fields,
-    superposition: ast.superposition,
-    processes: ast.processes,
-    reactions: ast.reactions,
-    matter: ast.matter,
-    bulk: ast.bulk,
-    mass: ast.mass && Object.keys(ast.mass).length > 0 ? structuredClone(ast.mass) : undefined,
-  })
+  return { db: metaDbContext.db }
 }
