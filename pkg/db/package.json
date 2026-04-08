@@ -9,6 +9,7 @@
     },
     "./browser": "./browser.ts",
     "./core": "./core.ts",
+    "./instance": "./instance.ts",
     "./types": "./db.t.ts"
   },
   "private": true

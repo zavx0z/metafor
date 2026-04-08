@@ -1,4 +1,11 @@
 export { createEmptyDbData, normalizeDbData, readDbData, dbRequiredBackendIndexes } from "./backend.ts"
+export {
+  initializeDbInstanceSqliteSchema,
+  openDbInstanceSqlite,
+  readDbWorldSnapshot,
+  resetDbInstanceSqlite,
+  writeDbWorldSnapshot,
+} from "./instance.ts"
 export { createDbEntanglementFamilyId, openDbMaterializationWriter } from "./materialize.ts"
 export type {
   DbBackend,
@@ -8,6 +15,12 @@ export type {
   DbMetaRows,
   DbWimpRows,
 } from "./backend.t.ts"
+export type {
+  DbFieldOrbitSnapshot,
+  DbParticleKind,
+  DbParticleShellSnapshot,
+  DbWorldSnapshot,
+} from "./instance.t.ts"
 export type {
   DbData,
   DbEntanglementFieldMemberRecord,

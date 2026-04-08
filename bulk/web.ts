@@ -1,213 +1,274 @@
+import type { DbFieldOrbitSnapshot, DbParticleShellSnapshot, DbWorldSnapshot } from "../pkg/db/index.ts"
 import {
+	BufferAttribute,
+	BufferGeometry,
 	Color,
-	Mesh,
-	MeshBasicMaterial,
+	GridHelper,
+	LineGlowMaterial,
+	LineSegments,
+	Object3D,
+	Renderer,
 	Scene,
 	SphereGeometry,
 	TorusGeometry,
-	Vector3,
 	ViewPoint,
-	WebGPURenderer,
-} from "../vendor/web-gpu-engine/src/WebGPUEngine.ts"
+} from "@metafor/engine"
 
-type BulkWorkerInitMessage = {
-	type: "init"
-	canvas: OffscreenCanvas
-	width: number
+export interface BulkViewportStats {
+	fieldCount: number
+	rootSrc?: string
+	shellCount: number
+}
+
+export interface BulkViewportController {
+	dispose(): void
+	handleProtocol(_channel: string, _message: unknown): void
+	setSize(width: number, height: number): void
+	setSnapshot(snapshot: DbWorldSnapshot): void
+}
+
+type BulkViewportOptions = {
+	canvas: HTMLCanvasElement
 	height: number
-}
-
-type BulkWorkerResizeMessage = {
-	type: "resize"
+	onStats?: (stats: BulkViewportStats) => void
 	width: number
-	height: number
 }
 
-type BulkWorkerProtocolMessage = {
-	type: "protocol"
-	channel: string
-	message: unknown
-}
-
-type BulkWorkerMessage = BulkWorkerInitMessage | BulkWorkerResizeMessage | BulkWorkerProtocolMessage
-
-type BulkWorkerScope = typeof globalThis & {
-	onmessage: ((event: MessageEvent<BulkWorkerMessage>) => void) | null
-	postMessage(message: unknown): void
-	requestAnimationFrame?: (callback: FrameRequestCallback) => number
-	cancelAnimationFrame?: (handle: number) => void
-}
-
-const bulkWorker = globalThis as BulkWorkerScope
-const requestNextFrame =
-	typeof bulkWorker.requestAnimationFrame === "function"
-		? bulkWorker.requestAnimationFrame.bind(bulkWorker)
-		: (callback: FrameRequestCallback) =>
-				setTimeout(() => callback(performance.now()), 16) as unknown as number
-const cancelNextFrame =
-	typeof bulkWorker.cancelAnimationFrame === "function"
-		? bulkWorker.cancelAnimationFrame.bind(bulkWorker)
-		: (handle: number) => clearTimeout(handle)
-
-let renderer: WebGPURenderer | null = null
-let scene: Scene | null = null
-let viewPoint: ViewPoint | null = null
-let torus: Mesh | null = null
-let sphereAlpha: Mesh | null = null
-let sphereBeta: Mesh | null = null
-let logicalWidth = 1
-let logicalHeight = 1
-let gravityExcitation = 0
-let gravityAddCount = 0
-let torusMaterial: MeshBasicMaterial | null = null
-let sphereAlphaMaterial: MeshBasicMaterial | null = null
-let sphereBetaMaterial: MeshBasicMaterial | null = null
-
+const ROOT_BACKGROUND = new Color(0.035, 0.05, 0.075)
 const TORUS_RADIUS = 0.2
 const TORUS_TUBE = 0.14
-const SPHERE_RADIUS = 0.14
-const TORUS_CENTER_Z = 1
+const GRID_SIZE = 8
+const GRID_DIVISIONS = 16
+const VIEWPOINT_POSITION = { x: 2, y: -1.5, z: 1.5 }
+const VIEWPOINT_TARGET = { x: 0, y: 0, z: 1 }
+const GRID_CENTER_COLOR = 0x444444
+const GRID_COLOR = 0x888888
+const WORKSPACE_BASE_Z = 1
 
-const rgbaColor = (r: number, g: number, b: number, a: number): Color =>
-	new Color((r / 255) * a, (g / 255) * a, (b / 255) * a)
+const torusWireframeCache = new Map<string, BufferGeometry>()
+const sphereWireframeCache = new Map<string, BufferGeometry>()
 
-const blendColor = (base: Color, highlight: Color, t: number): Color =>
-	new Color(
-		base.r + (highlight.r - base.r) * t,
-		base.g + (highlight.g - base.g) * t,
-		base.b + (highlight.b - base.b) * t,
+const createColor = (r: number, g: number, b: number): Color => new Color(r, g, b)
+
+const createWireframeGeometry = (geometry: BufferGeometry): BufferGeometry => {
+	const indices = geometry.index?.array
+	const positions = geometry.attributes.position?.array
+	if (!indices || !positions) {
+		throw new Error("Wireframe geometry requires indexed position data")
+	}
+
+	const lines: number[] = []
+	for (let i = 0; i < indices.length; i += 3) {
+		const a = Number(indices[i]!) * 3
+		const b = Number(indices[i + 1]!) * 3
+		const c = Number(indices[i + 2]!) * 3
+
+		lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
+		lines.push(positions[b]!, positions[b + 1]!, positions[b + 2]!)
+		lines.push(positions[b]!, positions[b + 1]!, positions[b + 2]!)
+		lines.push(positions[c]!, positions[c + 1]!, positions[c + 2]!)
+		lines.push(positions[c]!, positions[c + 1]!, positions[c + 2]!)
+		lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
+	}
+
+	const wireframeGeometry = new BufferGeometry()
+	wireframeGeometry.setAttribute("position", new BufferAttribute(new Float32Array(lines), 3))
+	return wireframeGeometry
+}
+
+const getTorusWireframeGeometry = (radius: number, tube: number): BufferGeometry => {
+	const key = `${radius}:${tube}`
+	const cached = torusWireframeCache.get(key)
+	if (cached) return cached
+
+	const wireframe = createWireframeGeometry(
+		new TorusGeometry({
+			radius,
+			tube,
+		}),
 	)
-
-const updateSize = (width: number, height: number): void => {
-	logicalWidth = Math.max(1, Math.floor(width))
-	logicalHeight = Math.max(1, Math.floor(height))
-
-	if (!renderer || !viewPoint) return
-
-	renderer.setSize(logicalWidth, logicalHeight)
-	viewPoint.setAspectRatio(logicalWidth / logicalHeight)
-	renderScene()
+	torusWireframeCache.set(key, wireframe)
+	return wireframe
 }
 
-const renderScene = (): void => {
-	if (!renderer || !scene || !viewPoint || !torus || !sphereAlpha || !sphereBeta) return
-	torus.updateMatrix()
-	sphereAlpha.updateMatrix()
-	sphereBeta.updateMatrix()
-	renderer.render(scene, viewPoint)
+const getSphereWireframeGeometry = (radius: number): BufferGeometry => {
+	const key = String(radius)
+	const cached = sphereWireframeCache.get(key)
+	if (cached) return cached
+
+	const wireframe = createWireframeGeometry(
+		new SphereGeometry({
+			radius,
+		}),
+	)
+	sphereWireframeCache.set(key, wireframe)
+	return wireframe
 }
 
-const handleProtocol = (message: unknown): void => {
-	if (!message || typeof message !== "object") return
-	const patches = (message as { patches?: unknown }).patches
-	if (!Array.isArray(patches)) return
-
-	const addCount = patches.filter(
-		(patch) =>
-			patch &&
-			typeof patch === "object" &&
-			(patch as { op?: unknown }).op === "add" &&
-			typeof (patch as { path?: unknown }).path === "string",
-	).length
-
-	if (addCount === 0) return
-
-	gravityAddCount += addCount
-	gravityExcitation = Math.min(gravityExcitation + addCount * 1.5, 24)
-	if (torusMaterial && sphereAlphaMaterial && sphereBetaMaterial) {
-		const heat = Math.min(1, gravityExcitation / 12)
-		torusMaterial.color = blendColor(rgbaColor(104, 109, 251, 0.54), rgbaColor(255, 189, 115, 0.72), heat)
-		sphereAlphaMaterial.color = blendColor(rgbaColor(252, 70, 70, 0.8), rgbaColor(255, 230, 138, 0.9), heat)
-		sphereBetaMaterial.color = blendColor(rgbaColor(70, 252, 70, 0.8), rgbaColor(114, 219, 255, 0.9), heat)
-		renderScene()
-	}
-
-	bulkWorker.postMessage({
-		type: "bulk-stats",
-		gravityAddCount,
+const createShellMaterial = (shell: DbParticleShellSnapshot): LineGlowMaterial =>
+	new LineGlowMaterial({
+		color: createColor(shell.colorR, shell.colorG, shell.colorB),
+		glowIntensity: shell.kind === "wimp" ? 1.4 : 1.15,
+		glowColor: new Color(1, 1, 1, 0.12),
+		opacity: 0.9,
 	})
+
+const createFieldMaterial = (orbit: DbFieldOrbitSnapshot): LineGlowMaterial =>
+	new LineGlowMaterial({
+		color: createColor(orbit.colorR, orbit.colorG, orbit.colorB),
+		glowIntensity: 1,
+		glowColor: new Color(1, 1, 1, 0.1),
+		opacity: 0.85,
+	})
+
+const createFieldNode = (orbit: DbFieldOrbitSnapshot): LineSegments => {
+	const sphere = new LineSegments(
+		getSphereWireframeGeometry(orbit.sphereRadius),
+		createFieldMaterial(orbit),
+	)
+	sphere.position.set(orbit.localX, orbit.localY, orbit.localZ)
+	sphere.updateMatrix()
+	return sphere
 }
 
-const initRenderer = async (message: BulkWorkerInitMessage): Promise<void> => {
-	renderer = new WebGPURenderer()
-	await renderer.init({ canvas: message.canvas })
-	if (!renderer.canvas) {
-		throw new Error("Не удалось инициализировать WebGPU canvas в bulk worker")
+const createShellNode = (
+	shell: DbParticleShellSnapshot,
+	childrenByParentId: Map<string | null, DbParticleShellSnapshot[]>,
+	fieldsByParticleId: Map<string, DbFieldOrbitSnapshot[]>,
+): Object3D => {
+	const container = new Object3D()
+	container.position.set(shell.localX, shell.localY, shell.localZ)
+	container.scale.set(shell.shellScale, shell.shellScale, shell.shellScale)
+	container.updateMatrix()
+
+	const torus = new LineSegments(
+		getTorusWireframeGeometry(shell.shellRadius || TORUS_RADIUS, shell.shellTube || TORUS_TUBE),
+		createShellMaterial(shell),
+	)
+	torus.updateMatrix()
+	container.add(torus)
+
+	for (const field of fieldsByParticleId.get(shell.particleId) ?? []) {
+		container.add(createFieldNode(field))
 	}
 
-	renderer.setSize(message.width, message.height)
-	scene = new Scene()
-	scene.background = new Color(0.1, 0.1, 0.1)
-	viewPoint = new ViewPoint({
-		element: renderer.canvas,
+	for (const child of childrenByParentId.get(shell.particleId) ?? []) {
+		container.add(createShellNode(child, childrenByParentId, fieldsByParticleId))
+	}
+
+	return container
+}
+
+const createWorkspaceGrid = (): GridHelper => {
+	const grid = new GridHelper(GRID_SIZE, GRID_DIVISIONS, GRID_CENTER_COLOR, GRID_COLOR)
+	grid.updateMatrix()
+	return grid
+}
+
+const createSceneFromSnapshot = (snapshot: DbWorldSnapshot): Scene => {
+	const nextScene = new Scene()
+	nextScene.background = ROOT_BACKGROUND.clone()
+
+	const childrenByParentId = new Map<string | null, DbParticleShellSnapshot[]>()
+	const fieldsByParticleId = new Map<string, DbFieldOrbitSnapshot[]>()
+
+	for (const shell of snapshot.particles) {
+		const children = childrenByParentId.get(shell.parentParticleId) ?? []
+		children.push(shell)
+		childrenByParentId.set(shell.parentParticleId, children)
+	}
+
+	for (const group of childrenByParentId.values()) {
+		group.sort((left, right) => left.shellOrder - right.shellOrder || left.particleId.localeCompare(right.particleId))
+	}
+
+	for (const orbit of snapshot.fields) {
+		const fields = fieldsByParticleId.get(orbit.particleId) ?? []
+		fields.push(orbit)
+		fieldsByParticleId.set(orbit.particleId, fields)
+	}
+
+	for (const group of fieldsByParticleId.values()) {
+		group.sort((left, right) => left.fieldOrder - right.fieldOrder || left.id.localeCompare(right.id))
+	}
+
+	const workspace = new Object3D()
+	workspace.position.set(0, 0, WORKSPACE_BASE_Z)
+	workspace.updateMatrix()
+
+	for (const root of childrenByParentId.get(null) ?? []) {
+		workspace.add(createShellNode(root, childrenByParentId, fieldsByParticleId))
+	}
+
+	nextScene.add(createWorkspaceGrid())
+	nextScene.add(workspace)
+
+	return nextScene
+}
+
+const createEmptyScene = (): Scene => {
+	const nextScene = new Scene()
+	nextScene.background = ROOT_BACKGROUND.clone()
+	nextScene.add(createWorkspaceGrid())
+	return nextScene
+}
+
+export const createBulkViewport = async (options: BulkViewportOptions): Promise<BulkViewportController> => {
+	const renderer = new Renderer()
+	await renderer.init(options.canvas)
+	if (!renderer.canvas) {
+		throw new Error("Не удалось инициализировать WebGPU canvas в bulk viewport")
+	}
+
+	renderer.setPixelRatio(window.devicePixelRatio || 1)
+	renderer.setSize(options.width, options.height)
+
+	let scene = createEmptyScene()
+
+	const viewPoint = new ViewPoint({
+		element: options.canvas,
 		fov: (2 * Math.PI) / 5,
 		near: 0.1,
-		far: 1000,
+		far: 100,
+		position: VIEWPOINT_POSITION,
+		target: VIEWPOINT_TARGET,
 	})
-	viewPoint.setAspectRatio(message.width / message.height)
+	viewPoint.setAspectRatio(options.width / options.height)
 
-	torusMaterial = new MeshBasicMaterial({
-		color: rgbaColor(104, 109, 251, 0.54),
-		wireframe: true,
-	})
-	torus = new Mesh(
-		new TorusGeometry({ radius: TORUS_RADIUS, tube: TORUS_TUBE }),
-		torusMaterial,
-	)
-	torus.position.set(0, 0, TORUS_CENTER_Z)
+	let disposed = false
+	let frameHandle = 0
 
-	sphereAlphaMaterial = new MeshBasicMaterial({
-		color: rgbaColor(252, 70, 70, 0.8),
-		wireframe: true,
-	})
-	sphereAlpha = new Mesh(
-		new SphereGeometry({ radius: SPHERE_RADIUS }),
-		sphereAlphaMaterial,
-	)
-	sphereAlpha.position.set(TORUS_RADIUS, 0, TORUS_CENTER_Z)
+	const animate = (): void => {
+		if (disposed) return
+		frameHandle = requestAnimationFrame(animate)
+		scene.updateWorldMatrix()
+		renderer.render(scene, viewPoint)
+	}
 
-	sphereBetaMaterial = new MeshBasicMaterial({
-		color: rgbaColor(70, 252, 70, 0.8),
-		wireframe: true,
-	})
-	sphereBeta = new Mesh(
-		new SphereGeometry({ radius: SPHERE_RADIUS }),
-		sphereBetaMaterial,
-	)
-	sphereBeta.position.set(-TORUS_RADIUS, 0, TORUS_CENTER_Z)
+	animate()
 
-	scene.add(torus)
-	scene.add(sphereAlpha)
-	scene.add(sphereBeta)
-
-	gravityExcitation = 0
-	gravityAddCount = 0
-	updateSize(message.width, message.height)
-	renderScene()
-	bulkWorker.postMessage({ type: "worker-status", worker: "bulk", status: "ready" })
-}
-
-bulkWorker.onmessage = (event: MessageEvent<BulkWorkerMessage>) => {
-	const message = event.data
-
-	if (message.type === "init") {
-		void initRenderer(message).catch((error) => {
-			bulkWorker.postMessage({
-				type: "worker-status",
-				worker: "bulk",
-				status: "error",
-				error: error instanceof Error ? error.message : String(error),
+	return {
+		dispose() {
+			disposed = true
+			cancelAnimationFrame(frameHandle)
+			viewPoint.dispose()
+		},
+		handleProtocol(_channel: string, _message: unknown) {
+			return
+		},
+		setSize(width: number, height: number) {
+			renderer.setPixelRatio(window.devicePixelRatio || 1)
+			renderer.setSize(width, height)
+			viewPoint.setAspectRatio(width / height)
+		},
+		setSnapshot(snapshot: DbWorldSnapshot) {
+			scene = createSceneFromSnapshot(snapshot)
+			scene.updateWorldMatrix()
+			options.onStats?.({
+				rootSrc: snapshot.rootSrc,
+				shellCount: snapshot.particles.length,
+				fieldCount: snapshot.fields.length,
 			})
-		})
-		return
-	}
-
-	if (message.type === "resize") {
-		updateSize(message.width, message.height)
-		return
-	}
-
-	if (message.type === "protocol") {
-		handleProtocol(message.message)
+		},
 	}
 }

@@ -1,6 +1,7 @@
 import { build, file, serve } from "bun"
 import { mkdirSync, rmSync } from "node:fs"
 import { dirname, join, normalize } from "node:path"
+import type { DbWorldSnapshot } from "../../pkg/db/index.ts"
 import {
 	ELECTROMAGNETISM_BROADCAST_CHANNEL,
 	GLUON_BROADCAST_CHANNEL,
@@ -19,6 +20,7 @@ import {
 const ROOT = normalize(join(import.meta.dir, "../../"))
 const APP_CHANNEL = "app-web"
 const APP_DB_FILENAME = join(ROOT, "app/web/tmp/metafor-app.sqlite")
+const APP_INSTANCE_DB_FILENAME = join(ROOT, "app/web/tmp/metafor-instance.sqlite")
 const DEFAULT_PORT = 3000
 const configuredPort = Number(Bun.env.PORT ?? DEFAULT_PORT)
 const APP_PORT = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : DEFAULT_PORT
@@ -37,6 +39,12 @@ type WorkerStatusMessage = {
 type WorkerLogMessage = {
 	type: "log"
 	message: unknown
+}
+
+type InstanceSnapshotMessage = {
+	type: "instance-snapshot"
+	src: string
+	snapshot: DbWorldSnapshot
 }
 
 type ClientMaterializeMessage = {
@@ -69,6 +77,9 @@ const resetAppRuntimeFiles = (): void => {
 	rmSync(APP_DB_FILENAME, { force: true })
 	rmSync(`${APP_DB_FILENAME}-shm`, { force: true })
 	rmSync(`${APP_DB_FILENAME}-wal`, { force: true })
+	rmSync(APP_INSTANCE_DB_FILENAME, { force: true })
+	rmSync(`${APP_INSTANCE_DB_FILENAME}-shm`, { force: true })
+	rmSync(`${APP_INSTANCE_DB_FILENAME}-wal`, { force: true })
 }
 
 const publish = (payload: unknown): void => {
@@ -122,6 +133,12 @@ const attachWorker = (
 			if (data && typeof data === "object" && (data as { type?: unknown }).type === "log") {
 				const message = data as WorkerLogMessage
 				publish({ type: "log", worker: workerName, message: message.message })
+				return
+			}
+
+			if (data && typeof data === "object" && (data as { type?: unknown }).type === "instance-snapshot") {
+				const message = data as InstanceSnapshotMessage
+				publish(message)
 			}
 		}
 
@@ -230,6 +247,7 @@ const server = serve({
 					type: "materialize",
 					src: payload?.src || "zavx0z/git",
 					dbFilename: APP_DB_FILENAME,
+					instanceDbFilename: APP_INSTANCE_DB_FILENAME,
 				})
 			})()
 		},

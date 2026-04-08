@@ -5,6 +5,8 @@ import {
 	setConnectionStatus,
 	setWorkerStatus,
 } from "./protocol-logger.ts"
+import type { DbWorldSnapshot } from "../../pkg/db/index.ts"
+import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web.ts"
 
 type WorkerStatusMessage = {
 	type: "worker-status"
@@ -20,6 +22,12 @@ type ProtocolMessage = {
 	message: unknown
 }
 
+type InstanceSnapshotMessage = {
+	type: "instance-snapshot"
+	src: string
+	snapshot: DbWorldSnapshot
+}
+
 type SnapshotMessage = {
 	type: "snapshot"
 	workers: Record<string, "idle" | "ready" | "started" | "done" | "error">
@@ -30,18 +38,6 @@ type LogMessage = {
 	worker: string
 	message: unknown
 }
-
-type BulkWorkerMessage =
-	| {
-			type: "worker-status"
-			worker: "bulk"
-			status: "ready" | "error"
-			error?: string
-	  }
-	| {
-			type: "bulk-stats"
-			gravityAddCount: number
-	  }
 
 const toWorkerMeta = (meta: {
 	src: string | undefined
@@ -60,66 +56,44 @@ const srcInput = document.getElementById("src-input") as HTMLInputElement
 const submitButton = document.getElementById("materialize-btn") as HTMLButtonElement
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
+let bulkViewport: BulkViewportController | null = null
 
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
 const socket = new WebSocket(`${protocol}//${window.location.host}/ws`)
-const bulkWorker = new Worker("/bulk.js", {
-	name: "bulk",
-	type: "module",
-})
 
-const postBulkSize = (width: number, height: number): void => {
-	bulkWorker.postMessage({
-		type: "resize",
-		width,
-		height,
-	})
+const updateBulkStats = (stats: BulkViewportStats): void => {
+	const rootSrc = stats.rootSrc ? `${stats.rootSrc}: ` : ""
+	bulkCounter.textContent = `${rootSrc}${stats.shellCount} shells / ${stats.fieldCount} fields`
 }
 
-if ("transferControlToOffscreen" in bulkCanvas) {
-	const offscreen = bulkCanvas.transferControlToOffscreen()
+const initBulkViewport = async (): Promise<void> => {
 	const rect = bulkCanvas.getBoundingClientRect()
-	const pixelRatio = window.devicePixelRatio || 1
-
-	bulkWorker.postMessage(
-		{
-			type: "init",
-			canvas: offscreen,
-			width: Math.max(1, Math.floor(rect.width * pixelRatio)),
-			height: Math.max(1, Math.floor(rect.height * pixelRatio)),
-		},
-		[offscreen],
-	)
+	bulkViewport = await createBulkViewport({
+		canvas: bulkCanvas,
+		width: Math.max(1, Math.floor(rect.width)),
+		height: Math.max(1, Math.floor(rect.height)),
+		onStats: updateBulkStats,
+	})
+	setWorkerStatus("bulk", "ready")
 
 	const resizeObserver = new ResizeObserver((entries) => {
 		const entry = entries[0]
-		if (!entry) return
+		if (!entry || !bulkViewport) return
 
-		const nextPixelRatio = window.devicePixelRatio || 1
-		postBulkSize(
-			Math.max(1, Math.floor(entry.contentRect.width * nextPixelRatio)),
-			Math.max(1, Math.floor(entry.contentRect.height * nextPixelRatio)),
+		bulkViewport.setSize(
+			Math.max(1, Math.floor(entry.contentRect.width)),
+			Math.max(1, Math.floor(entry.contentRect.height)),
 		)
 	})
 
 	resizeObserver.observe(bulkCanvas)
-} else {
+}
+
+void initBulkViewport().catch((error) => {
 	setWorkerStatus("bulk", "error", {
-		error: "OffscreenCanvas недоступен в этом браузере.",
+		error: error instanceof Error ? error.message : String(error),
 	})
-}
-
-bulkWorker.onmessage = (event: MessageEvent<BulkWorkerMessage>) => {
-	const message = event.data
-	if (message.type === "worker-status") {
-		setWorkerStatus("bulk", message.status, toWorkerMeta({ src: undefined, error: message.error }))
-		return
-	}
-
-	if (message.type === "bulk-stats") {
-		bulkCounter.textContent = `${message.gravityAddCount} gravity add patches`
-	}
-}
+})
 
 socket.onopen = () => {
 	setConnectionStatus(true)
@@ -132,7 +106,12 @@ socket.onclose = () => {
 }
 
 socket.onmessage = (event) => {
-	const message = JSON.parse(String(event.data)) as WorkerStatusMessage | ProtocolMessage | SnapshotMessage | LogMessage
+	const message = JSON.parse(String(event.data)) as
+		| WorkerStatusMessage
+		| ProtocolMessage
+		| SnapshotMessage
+		| LogMessage
+		| InstanceSnapshotMessage
 
 	if (message.type === "snapshot") {
 		for (const [worker, status] of Object.entries(message.workers)) {
@@ -153,7 +132,18 @@ socket.onmessage = (event) => {
 
 	if (message.type === "protocol") {
 		appendProtocolMessage(message.channel, message.message)
-		bulkWorker.postMessage(message)
+		bulkViewport?.handleProtocol(message.channel, message.message)
+		return
+	}
+
+	if (message.type === "instance-snapshot") {
+		appendWorkerLog("dark", {
+			type: "instance-snapshot",
+			src: message.src,
+			shells: message.snapshot.particles.length,
+			fields: message.snapshot.fields.length,
+		})
+		bulkViewport?.setSnapshot(message.snapshot)
 		return
 	}
 

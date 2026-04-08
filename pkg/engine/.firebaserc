@@ -1,0 +1,17 @@
+{
+  "projects": {
+    "default": "your-project-id" 
+  },
+  "targets": {
+    "your-project-id": {
+      "hosting": {
+        "app": [
+          "your-project-id"
+        ],
+        "docs": [
+          "your-project-id-docs"
+        ]
+      }
+    }
+  }
+}

@@ -281,8 +281,8 @@
         </div>
 
         <p class="lead">
-          `dark` и `boundary` идут в отдельных Bun worker’ах, а `bulk` крутит OffscreenCanvas-сцену в browser worker’е и
-          реагирует на structural patches.
+          `dark` и `boundary` идут в отдельных Bun worker’ах, а `bulk` держит viewport и WebGPU-сцену на main thread,
+          materialize-я nested particle shells и field orbits из instance snapshot.
         </p>
 
         <section class="panel">
@@ -308,7 +308,7 @@
           <h2>Signals</h2>
           <div class="meta-row">
             <span id="protocol-counter" data-count="0">0 protocol messages</span>
-            <span id="bulk-counter">0 gravity add patches</span>
+            <span id="bulk-counter">0 shells / 0 fields</span>
           </div>
         </section>
 
@@ -326,8 +326,8 @@
         <canvas id="bulk-canvas"></canvas>
         <div class="canvas-overlay">
           <h2>Bulk Scene</h2>
-          <p>Torus + 2 spheres wiggle in worker-space.</p>
-          <span>Gravity `add` patches increase excitation amplitude.</span>
+          <p>Wireframe torus-shells materialize nested dark particles.</p>
+          <span>Ordinary meta fields appear as inner spheres on local 3D orbits.</span>
         </div>
       </section>
     </main>
