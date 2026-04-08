@@ -41,7 +41,7 @@ const loadMetaFromModule = async (address: SRC): Promise<MetaDSL> => {
  * @returns `dsl`
  * @throws если не удалось загрузить meta
  */
-const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
+export const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
   if (typeof Bun !== "undefined") {
     try {
       return await loadMetaFromModule(address)

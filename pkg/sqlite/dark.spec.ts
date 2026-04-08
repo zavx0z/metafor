@@ -214,7 +214,7 @@ const explicitEmptyMeta: MetaDSL = {
   matter: [],
 }
 
-describe("sqlite dark bundle", () => {
+describe("sqlite dark particle model", () => {
   let db: Database
 
   beforeEach(() => {

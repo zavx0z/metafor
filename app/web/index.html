@@ -5,19 +5,332 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MetaFor Web</title>
     <style>
+      :root {
+        --bg: #09111a;
+        --panel: rgba(11, 21, 33, 0.78);
+        --panel-strong: rgba(17, 29, 44, 0.94);
+        --line: rgba(163, 188, 214, 0.18);
+        --text: #edf4fb;
+        --muted: #90a4b8;
+        --accent: #7cd4ff;
+        --accent-warm: #ff9b72;
+        --ok: #8ce99a;
+        --error: #ff7f7f;
+        --offline: #7e8b98;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
         min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(124, 212, 255, 0.16), transparent 28%),
+          radial-gradient(circle at 85% 20%, rgba(255, 155, 114, 0.12), transparent 24%),
+          linear-gradient(180deg, #08111a 0%, #050b12 100%);
+        color: var(--text);
+        font: 14px/1.5 "IBM Plex Sans", "Segoe UI", sans-serif;
+      }
+
+      main {
+        min-height: 100vh;
         display: grid;
-        place-items: center;
-        background: #0a0f14;
-        color: #e6eef7;
-        font: 14px/1.5 "IBM Plex Mono", Menlo, monospace;
+        grid-template-columns: minmax(320px, 420px) 1fr;
+      }
+
+      aside {
+        border-right: 1px solid var(--line);
+        background: var(--panel);
+        backdrop-filter: blur(24px);
+        padding: 28px 22px 22px;
+        display: grid;
+        grid-template-rows: auto auto auto 1fr;
+        gap: 18px;
+      }
+
+      .eyebrow {
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font: 12px/1.2 "IBM Plex Mono", monospace;
+      }
+
+      h1 {
+        margin: 6px 0 0;
+        font: 700 34px/1 "Space Grotesk", "IBM Plex Sans", sans-serif;
+        letter-spacing: -0.03em;
+      }
+
+      .lead {
+        margin: 0;
+        color: var(--muted);
+        max-width: 28rem;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        background: var(--panel-strong);
+        border-radius: 18px;
+        padding: 16px;
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+      }
+
+      .panel h2 {
+        margin: 0 0 12px;
+        font: 600 13px/1.2 "IBM Plex Mono", monospace;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      form {
+        display: grid;
+        gap: 10px;
+      }
+
+      label {
+        font: 600 12px/1.2 "IBM Plex Mono", monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+      }
+
+      input,
+      button {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 13px 14px;
+        background: rgba(7, 15, 24, 0.86);
+        color: var(--text);
+        font: inherit;
+      }
+
+      input:focus,
+      button:focus {
+        outline: 2px solid rgba(124, 212, 255, 0.45);
+        outline-offset: 1px;
+      }
+
+      button {
+        cursor: pointer;
+        background: linear-gradient(135deg, rgba(124, 212, 255, 0.22), rgba(255, 155, 114, 0.16));
+        font-weight: 700;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .status-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .badge {
+        display: block;
+        border-radius: 999px;
+        padding: 10px 12px;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--muted);
+        font: 600 12px/1.2 "IBM Plex Mono", monospace;
+        letter-spacing: 0.02em;
+      }
+
+      .badge[data-tone="ready"],
+      .badge[data-tone="done"],
+      .badge[data-tone="online"] {
+        color: var(--ok);
+        background: rgba(140, 233, 154, 0.1);
+      }
+
+      .badge[data-tone="started"] {
+        color: var(--accent);
+        background: rgba(124, 212, 255, 0.1);
+      }
+
+      .badge[data-tone="error"] {
+        color: var(--error);
+        background: rgba(255, 127, 127, 0.1);
+      }
+
+      .badge[data-tone="offline"],
+      .badge[data-tone="idle"] {
+        color: var(--offline);
+      }
+
+      .meta-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--muted);
+        font: 600 12px/1.4 "IBM Plex Mono", monospace;
+      }
+
+      #protocol-log-content {
+        display: grid;
+        gap: 10px;
+        max-height: 34vh;
+        overflow: auto;
+      }
+
+      .log-entry {
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 14px;
+        padding: 10px 12px;
+        background: rgba(5, 10, 16, 0.72);
+      }
+
+      .log-entry.error {
+        border-color: rgba(255, 127, 127, 0.24);
+      }
+
+      .log-meta {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 8px;
+        color: var(--accent);
+        font: 600 11px/1.2 "IBM Plex Mono", monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .log-entry pre {
+        margin: 0;
+        color: var(--muted);
+        white-space: pre-wrap;
+        word-break: break-word;
+        font: 12px/1.45 "IBM Plex Mono", monospace;
+      }
+
+      .canvas-shell {
+        position: relative;
+        overflow: hidden;
+        min-height: 100vh;
+      }
+
+      .canvas-shell::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(135deg, rgba(124, 212, 255, 0.06), transparent 30%),
+          radial-gradient(circle at 70% 30%, rgba(255, 155, 114, 0.14), transparent 20%);
+        pointer-events: none;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100vh;
+      }
+
+      .canvas-overlay {
+        position: absolute;
+        top: 22px;
+        right: 22px;
+        border: 1px solid var(--line);
+        background: rgba(5, 11, 18, 0.7);
+        border-radius: 16px;
+        padding: 12px 14px;
+        min-width: 240px;
+        backdrop-filter: blur(20px);
+      }
+
+      .canvas-overlay h2 {
+        margin: 0 0 8px;
+        font: 600 12px/1.2 "IBM Plex Mono", monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--accent-warm);
+      }
+
+      .canvas-overlay p,
+      .canvas-overlay span {
+        margin: 0;
+        color: var(--muted);
+        font: 12px/1.5 "IBM Plex Mono", monospace;
+      }
+
+      @media (max-width: 960px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+
+        aside {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .canvas-shell,
+        canvas {
+          min-height: 56vh;
+          height: 56vh;
+        }
       }
     </style>
   </head>
   <body>
-    <div>`dark` и `boundary` запущены как Web Workers.</div>
+    <main>
+      <aside>
+        <div>
+          <div class="eyebrow">MetaFor Runtime</div>
+          <h1>Workers + SQLite + WebGPU</h1>
+        </div>
+
+        <p class="lead">
+          `dark` и `boundary` идут в отдельных Bun worker’ах, а `bulk` крутит OffscreenCanvas-сцену в browser worker’е и
+          реагирует на structural patches.
+        </p>
+
+        <section class="panel">
+          <h2>Materialize</h2>
+          <form id="control-form">
+            <label for="src-input">Root SRC</label>
+            <input id="src-input" value="zavx0z/git" spellcheck="false" autocomplete="off" />
+            <button id="materialize-btn" type="submit" disabled>Run Dark Traversal</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h2>Workers</h2>
+          <div class="status-grid">
+            <span id="connection-badge" class="badge" data-tone="offline">socket offline</span>
+            <span id="worker-dark" class="badge" data-tone="idle">dark: idle</span>
+            <span id="worker-boundary" class="badge" data-tone="idle">boundary: idle</span>
+            <span id="worker-bulk" class="badge" data-tone="idle">bulk: idle</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Signals</h2>
+          <div class="meta-row">
+            <span id="protocol-counter" data-count="0">0 protocol messages</span>
+            <span id="bulk-counter">0 gravity add patches</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Protocol Log</h2>
+          <div class="meta-row" style="margin-bottom: 10px">
+            <span>server-side broadcast mirror</span>
+            <button id="clear-log-btn" type="button">Clear</button>
+          </div>
+          <div id="protocol-log-content"></div>
+        </section>
+      </aside>
+
+      <section class="canvas-shell">
+        <canvas id="bulk-canvas"></canvas>
+        <div class="canvas-overlay">
+          <h2>Bulk Scene</h2>
+          <p>Torus + 2 spheres wiggle in worker-space.</p>
+          <span>Gravity `add` patches increase excitation amplitude.</span>
+        </div>
+      </section>
+    </main>
     <script type="module" src="/client.js"></script>
   </body>
 </html>

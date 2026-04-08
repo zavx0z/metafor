@@ -458,6 +458,8 @@ const mapBoundaryDatabaseFieldToRuntimeField = (field: BoundaryDatabaseFieldReco
     return { type: FieldType.U32, enum: [...values] }
   }
 
+  // SQLite/runtime projection keeps topology arrays canonical and numeric.
+  // Never infer element type back from current field values.
   if (type === "array") return { type: FieldType.ARRAY_PTR, elementType: "number" }
 
   throw new Error(`Unsupported DB field type for Boundary runtime: ${type}`)

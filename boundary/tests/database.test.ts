@@ -117,4 +117,34 @@ describe("boundary runtime projection from db data", () => {
       backend.close()
     }
   })
+
+  test("array runtime schema не выводится обратно из текущего sample value", async () => {
+    const { backend } = await materializeFixture()
+
+    try {
+      const mutated = structuredClone(backend.readData())
+      const arrayMetaFieldIds = new Set(
+        mutated.metaFields.filter((row) => row.schema.type === "array").map((row) => row.id),
+      )
+      const arrayWimpFieldIds = new Set(
+        mutated.wimpFields.filter((row) => arrayMetaFieldIds.has(row.metaFieldId)).map((row) => row.id),
+      )
+
+      mutated.fieldValues = mutated.fieldValues.map((row) =>
+        arrayWimpFieldIds.has(row.ownerWimpFieldId) ? { ...row, value: ["alpha", "beta"] } : row,
+      )
+
+      const runtimeInput = prepareRuntimeData(mutated)
+
+      expect(runtimeInput.fields).toEqual([
+        { type: FieldType.STRING_PTR },
+        { type: FieldType.U32, enum: ["idle", "ready"] },
+        { type: FieldType.ARRAY_PTR, elementType: "number" },
+      ])
+      expect(runtimeInput.branes?.[0]?.values[2]).toEqual([2, ["alpha", "beta"]])
+      expect(runtimeInput.branes?.[1]?.values[2]).toEqual([2, ["alpha", "beta"]])
+    } finally {
+      backend.close()
+    }
+  })
 })
