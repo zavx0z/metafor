@@ -8,8 +8,9 @@ import {
 import type { DbWorldSnapshot } from "../../pkg/db/index.ts"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web.ts"
 import {
-	DEFAULT_APP_WEB_LAYOUT_SETTINGS,
-	DEFAULT_APP_WEB_RENDER_SETTINGS,
+	APP_WEB_LAYOUT_SETTING_KEYS,
+	APP_WEB_RENDER_SETTING_KEYS,
+	APP_WEB_SETTINGS_BY_KEY,
 	type AppWebLayoutSettings,
 	type AppWebRenderSettings,
 } from "./settings.ts"
@@ -70,6 +71,7 @@ const detailDensityInput = document.getElementById("detail-density-input") as HT
 const detailLevelInput = document.getElementById("detail-level-input") as HTMLInputElement
 const levelSizeInput = document.getElementById("level-size-input") as HTMLInputElement
 const rootInnerDiameterInput = document.getElementById("root-inner-diameter-input") as HTMLInputElement
+const torusCrossRingRotationInput = document.getElementById("torus-cross-ring-rotation-input") as HTMLInputElement
 const submitButton = document.getElementById("materialize-btn") as HTMLButtonElement
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
@@ -89,29 +91,52 @@ const parsePositiveNumber = (input: HTMLInputElement, fallback: number): number 
 	return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
+const parseFiniteNumber = (input: HTMLInputElement, fallback: number): number => {
+	const value = Number(input.value)
+	return Number.isFinite(value) ? value : fallback
+}
+
+const settingInputs = {
+	detailDensityFactor: detailDensityInput,
+	detailLevelMultiplier: detailLevelInput,
+	levelSizeMultiplier: levelSizeInput,
+	rootInnerDiameterMm: rootInnerDiameterInput,
+	torusCrossRingRotationDeg: torusCrossRingRotationInput,
+} as const
+
+const applySettingUiMetadata = (): void => {
+	for (const [key, input] of Object.entries(settingInputs) as Array<
+		[keyof typeof settingInputs, HTMLInputElement]
+	>) {
+		const config = APP_WEB_SETTINGS_BY_KEY[key]
+		const field = document.querySelector(`[data-setting-key="${key}"]`) as HTMLElement | null
+		const comment = field?.querySelector(".setting-comment") as HTMLParagraphElement | null
+		if (comment) comment.textContent = config.description
+		if (config.step !== undefined) input.step = String(config.step)
+		if (config.min !== undefined) input.min = String(config.min)
+		if (!input.value) input.value = String(config.defaultValue)
+	}
+}
+
+const readSettingValue = (key: keyof typeof settingInputs): number => {
+	const input = settingInputs[key]
+	const fallback = APP_WEB_SETTINGS_BY_KEY[key].defaultValue
+	return key === "torusCrossRingRotationDeg"
+		? parseFiniteNumber(input, fallback)
+		: parsePositiveNumber(input, fallback)
+}
+
+applySettingUiMetadata()
+
 const createMaterializePayload = (): ClientMaterializePayload => ({
 	type: "materialize",
 	src: srcInput.value.trim() || "zavx0z/git",
-	layoutSettings: {
-		levelSizeMultiplier: parsePositiveNumber(
-			levelSizeInput,
-			DEFAULT_APP_WEB_LAYOUT_SETTINGS.levelSizeMultiplier,
-		),
-		rootInnerDiameterMm: parsePositiveNumber(
-			rootInnerDiameterInput,
-			DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootInnerDiameterMm,
-		),
-	},
-	renderSettings: {
-		detailDensityFactor: parsePositiveNumber(
-			detailDensityInput,
-			DEFAULT_APP_WEB_RENDER_SETTINGS.detailDensityFactor,
-		),
-		detailLevelMultiplier: parsePositiveNumber(
-			detailLevelInput,
-			DEFAULT_APP_WEB_RENDER_SETTINGS.detailLevelMultiplier,
-		),
-	},
+	layoutSettings: Object.fromEntries(
+		APP_WEB_LAYOUT_SETTING_KEYS.map((key) => [key, readSettingValue(key)]),
+	) as Partial<AppWebLayoutSettings>,
+	renderSettings: Object.fromEntries(
+		APP_WEB_RENDER_SETTING_KEYS.map((key) => [key, readSettingValue(key)]),
+	) as Partial<AppWebRenderSettings>,
 })
 
 const initBulkViewport = async (): Promise<void> => {
@@ -122,7 +147,9 @@ const initBulkViewport = async (): Promise<void> => {
 		height: Math.max(1, Math.floor(rect.height)),
 		onStats: updateBulkStats,
 	})
-	bulkViewport.setRenderSettings(createMaterializePayload().renderSettings)
+	const initialPayload = createMaterializePayload()
+	bulkViewport.setLayoutSettings(initialPayload.layoutSettings)
+	bulkViewport.setRenderSettings(initialPayload.renderSettings)
 	setWorkerStatus("bulk", "ready")
 
 	const resizeObserver = new ResizeObserver((entries) => {
@@ -151,6 +178,7 @@ socket.onopen = () => {
 		initialMaterializationRequested = true
 		submitButton.disabled = true
 		const payload = createMaterializePayload()
+		bulkViewport?.setLayoutSettings(payload.layoutSettings)
 		bulkViewport?.setRenderSettings(payload.renderSettings)
 		socket.send(JSON.stringify(payload))
 	}
@@ -212,6 +240,7 @@ form.addEventListener("submit", (event) => {
 	event.preventDefault()
 	submitButton.disabled = true
 	const payload = createMaterializePayload()
+	bulkViewport?.setLayoutSettings(payload.layoutSettings)
 	bulkViewport?.setRenderSettings(payload.renderSettings)
 	socket.send(JSON.stringify(payload))
 })

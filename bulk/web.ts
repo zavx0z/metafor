@@ -1,6 +1,9 @@
 import type { DbFieldOrbitSnapshot, DbFieldValueKind, DbParticleShellSnapshot, DbWorldSnapshot } from "../pkg/db/index.ts"
 import {
+	DEFAULT_APP_WEB_LAYOUT_SETTINGS,
 	DEFAULT_APP_WEB_RENDER_SETTINGS,
+	normalizeAppWebLayoutSettings,
+	type AppWebLayoutSettings,
 	normalizeAppWebRenderSettings,
 	type AppWebRenderSettings,
 } from "../app/web/settings.ts"
@@ -19,15 +22,18 @@ import {
 	ViewPoint,
 } from "@metafor/engine"
 
+/** Краткая статистика текущего snapshot-а, которую viewport отдаёт в UI. */
 export interface BulkViewportStats {
 	fieldCount: number
 	rootSrc?: string
 	shellCount: number
 }
 
+/** Публичный API bulk viewport для `app/web`. */
 export interface BulkViewportController {
 	dispose(): void
 	handleProtocol(_channel: string, _message: unknown): void
+	setLayoutSettings(settings: Partial<AppWebLayoutSettings>): void
 	setRenderSettings(settings: Partial<AppWebRenderSettings>): void
 	setSize(width: number, height: number): void
 	setSnapshot(snapshot: DbWorldSnapshot): void
@@ -40,7 +46,7 @@ type BulkViewportOptions = {
 	width: number
 }
 
-// Engine contract for MetaFor visualization: Z-up, 1 world unit = 1 mm.
+// Контракт движка для визуализации MetaFor: `Z-up`, `1 world unit = 1 mm`.
 const ROOT_BACKGROUND = new Color(0.035, 0.05, 0.075)
 const TORUS_RADIUS = 200
 const TORUS_TUBE = 140
@@ -75,6 +81,7 @@ const SPHERE_MAX_HEIGHT_SEGMENTS = 48
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
+let activeLayoutSettings: AppWebLayoutSettings = { ...DEFAULT_APP_WEB_LAYOUT_SETTINGS }
 let activeRenderSettings: AppWebRenderSettings = { ...DEFAULT_APP_WEB_RENDER_SETTINGS }
 
 const getDepthDetailMultiplier = (depth: number): number => {
@@ -161,46 +168,43 @@ const createWireframeGeometry = (geometry: BufferGeometry): BufferGeometry => {
 	return wireframeGeometry
 }
 
+const toRadians = (degrees: number): number => (degrees * Math.PI) / 180
+
+const sampleTorusPoint = (radius: number, tube: number, u: number, v: number): [number, number, number] => [
+	(radius + tube * Math.cos(v)) * Math.cos(u),
+	(radius + tube * Math.cos(v)) * Math.sin(u),
+	tube * Math.sin(v),
+]
+
 const createQuadTorusWireframeGeometry = (
 	radius: number,
 	tube: number,
 	radialSegments: number,
 	tubularSegments: number,
 ): BufferGeometry => {
-	const positions: number[] = []
-	for (let j = 0; j <= radialSegments; j += 1) {
-		for (let i = 0; i <= tubularSegments; i += 1) {
-			const u = (i / tubularSegments) * Math.PI * 2
-			const v = (j / radialSegments) * Math.PI * 2
-			const x = (radius + tube * Math.cos(v)) * Math.cos(u)
-			const y = (radius + tube * Math.cos(v)) * Math.sin(u)
-			const z = tube * Math.sin(v)
-			positions.push(x, y, z)
-		}
-	}
-
-	const rowSize = tubularSegments + 1
 	const lines: number[] = []
-	const pushVertex = (index: number): void => {
-		const offset = index * 3
-		lines.push(positions[offset]!, positions[offset + 1]!, positions[offset + 2]!)
+	const pushPoint = (point: [number, number, number]): void => {
+		lines.push(point[0], point[1], point[2])
 	}
+	const crossRingRotationRad = toRadians(activeLayoutSettings.torusCrossRingRotationDeg)
 
 	for (let j = 0; j <= radialSegments; j += 1) {
+		const v = (j / radialSegments) * Math.PI * 2
 		for (let i = 0; i < tubularSegments; i += 1) {
-			const a = j * rowSize + i
-			const b = a + 1
-			pushVertex(a)
-			pushVertex(b)
+			const uA = (i / tubularSegments) * Math.PI * 2
+			const uB = ((i + 1) / tubularSegments) * Math.PI * 2
+			pushPoint(sampleTorusPoint(radius, tube, uA, v))
+			pushPoint(sampleTorusPoint(radius, tube, uB, v))
 		}
 	}
 
 	for (let j = 0; j < radialSegments; j += 1) {
 		for (let i = 0; i <= tubularSegments; i += 1) {
-			const a = j * rowSize + i
-			const b = a + rowSize
-			pushVertex(a)
-			pushVertex(b)
+			const u = crossRingRotationRad + (i / tubularSegments) * Math.PI * 2
+			const vA = (j / radialSegments) * Math.PI * 2
+			const vB = ((j + 1) / radialSegments) * Math.PI * 2
+			pushPoint(sampleTorusPoint(radius, tube, u, vA))
+			pushPoint(sampleTorusPoint(radius, tube, u, vB))
 		}
 	}
 
@@ -211,7 +215,7 @@ const createQuadTorusWireframeGeometry = (
 
 const getTorusWireframeGeometry = (radius: number, tube: number, depth: number): BufferGeometry => {
 	const detail = getTorusDetail(radius, tube, depth)
-	const key = `${radius}:${tube}:${detail.radialSegments}:${detail.tubularSegments}`
+	const key = `${radius}:${tube}:${detail.radialSegments}:${detail.tubularSegments}:${activeLayoutSettings.torusCrossRingRotationDeg}`
 	const cached = torusWireframeCache.get(key)
 	if (cached) return cached
 
@@ -374,6 +378,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	renderer.setPixelRatio(window.devicePixelRatio || 1)
 	renderer.setSize(options.width, options.height)
 	activeRenderSettings = normalizeAppWebRenderSettings(activeRenderSettings)
+	activeLayoutSettings = normalizeAppWebLayoutSettings(activeLayoutSettings)
 
 	let scene = createEmptyScene()
 	let snapshot: DbWorldSnapshot | null = null
@@ -408,6 +413,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		},
 		handleProtocol(_channel: string, _message: unknown) {
 			return
+		},
+		setLayoutSettings(settings: Partial<AppWebLayoutSettings>) {
+			activeLayoutSettings = normalizeAppWebLayoutSettings(settings)
+			if (snapshot) {
+				scene = createSceneFromSnapshot(snapshot)
+				scene.updateWorldMatrix()
+			}
 		},
 		setRenderSettings(settings: Partial<AppWebRenderSettings>) {
 			activeRenderSettings = normalizeAppWebRenderSettings(settings)

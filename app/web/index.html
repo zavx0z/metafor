@@ -96,6 +96,11 @@
         gap: 10px;
       }
 
+      .setting-field {
+        display: grid;
+        gap: 6px;
+      }
+
       .settings-grid .full {
         grid-column: 1 / -1;
       }
@@ -105,6 +110,12 @@
         text-transform: uppercase;
         letter-spacing: 0.12em;
         color: var(--muted);
+      }
+
+      .setting-comment {
+        margin: 0;
+        color: var(--muted);
+        font: 12px/1.4 "IBM Plex Sans", "Segoe UI", sans-serif;
       }
 
       input,
@@ -301,21 +312,30 @@
             <label for="src-input">Root SRC</label>
             <input id="src-input" value="zavx0z/git" spellcheck="false" autocomplete="off" />
             <div class="settings-grid">
-              <div>
+              <div class="setting-field" data-setting-key="detailDensityFactor">
                 <label for="detail-density-input">Detail Overall</label>
                 <input id="detail-density-input" type="number" step="0.05" min="0.05" value="2" />
+                <p class="setting-comment"></p>
               </div>
-              <div>
+              <div class="setting-field" data-setting-key="detailLevelMultiplier">
                 <label for="detail-level-input">Detail Per Level</label>
                 <input id="detail-level-input" type="number" step="0.05" min="0.5" value="1.5" />
+                <p class="setting-comment"></p>
               </div>
-              <div>
+              <div class="setting-field" data-setting-key="levelSizeMultiplier">
                 <label for="level-size-input">Size Per Level</label>
                 <input id="level-size-input" type="number" step="0.1" min="1.1" value="4" />
+                <p class="setting-comment"></p>
               </div>
-              <div class="full">
+              <div class="setting-field" data-setting-key="torusCrossRingRotationDeg">
+                <label for="torus-cross-ring-rotation-input">Torus Cross Ring Rotation Deg</label>
+                <input id="torus-cross-ring-rotation-input" type="number" step="1" value="0" />
+                <p class="setting-comment"></p>
+              </div>
+              <div class="setting-field full" data-setting-key="rootInnerDiameterMm">
                 <label for="root-inner-diameter-input">Root Inner Diameter Mm</label>
                 <input id="root-inner-diameter-input" type="number" step="10" min="10" value="1000" />
+                <p class="setting-comment"></p>
               </div>
             </div>
             <button id="materialize-btn" type="submit" disabled>Run Dark Traversal</button>

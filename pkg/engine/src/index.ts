@@ -36,7 +36,6 @@
  */
 
 export * from "./core/Object3D"
-export * from "./contract"
 export * from "./core/BufferGeometry"
 export * from "./geometries/PlaneGeometry"
 export * from "./geometries/SphereGeometry"

@@ -1,7 +1,3 @@
-export const ENGINE_UP_AXIS: "z"
-export const ENGINE_LENGTH_UNIT: "mm"
-export const ENGINE_WORLD_UNIT_SCALE_MM: 1
-
 export interface ViewPointParameters {
   element: HTMLElement
   fov?: number

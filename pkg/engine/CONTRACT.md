@@ -1,8 +1,13 @@
-# Engine Contract
+# Контракт движка
 
-- Up axis: `z`
-- Length unit: `mm`
-- World scale: `1 world unit = 1 mm`
+- Верхняя ось: `z`
+- Единица длины: `mm`
+- Масштаб мира: `1 world unit = 1 mm`
 
-For `MetaFor` visualization, `app/web`, `bulk`, and layout snapshot code must pass positions, radii, diameters, camera distances, and grid sizes in millimeters.
+Для визуализации `MetaFor` слои `app/web`, `bulk` и код layout snapshot должны передавать позиции, радиусы, диаметры, дистанции камеры и размеры grid в миллиметрах.
 
+Это означает:
+
+- `pkg/db` хранит snapshot уже в `Z-up` и в миллиметрах;
+- `bulk` не должен заново переводить оси или единицы;
+- любые адаптации под renderer должны жить внутри engine-layer, а не в application scene.

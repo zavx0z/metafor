@@ -11,14 +11,20 @@ import {
   type AppWebLayoutSettings,
 } from "../settings.ts"
 
+/** Радиус самой глубокой видимой field-sphere в shell-first сцене, в миллиметрах. */
 export const DEEPEST_FIELD_SPHERE_RADIUS_MM = 50
+/** Канонический внешний диаметр root-shell, в миллиметрах. */
 export const DEFAULT_ROOT_OUTER_DIAMETER_MM = 4000
+/** Обратно совместимый алиас для миллиметрового радиуса deepest sphere. */
 export const DEEPEST_FIELD_SPHERE_RADIUS = DEEPEST_FIELD_SPHERE_RADIUS_MM
+/** Обратно совместимый алиас для миллиметрового внешнего диаметра root-shell. */
 export const DEFAULT_ROOT_OUTER_DIAMETER = DEFAULT_ROOT_OUTER_DIAMETER_MM
 
 const ORBIT_ITEM_SPACING_FACTOR = 1.12
+/** Базовый внутренний диаметр root-тора в миллиметрах, общий с UI-настройками `app/web`. */
 export const DEFAULT_ROOT_INNER_DIAMETER_MM = DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootInnerDiameterMm
 
+/** Входной дескриптор ordinary field до shell-materialization в instance snapshot. */
 export interface DbWorldFieldDescriptor {
   id: string
   fieldKey: string
@@ -30,6 +36,7 @@ export interface DbWorldFieldDescriptor {
   colorB: number
 }
 
+/** Входной дескриптор particle-дерева до геометрической раскладки shell/orbit. */
 export interface DbWorldParticleDescriptor {
   particleId: string
   kind: DbParticleKind
@@ -499,6 +506,14 @@ const flattenShellNode = (
   })
 }
 
+/**
+ * Совместимый shim для старых вызовов.
+ *
+ * Top-down закон раскладки теперь полностью разрешается в
+ * {@link createDbWorldSnapshotFromParticleDescriptors} и
+ * {@link scaleDbWorldSnapshotToRootOuterDiameter}. Локальный post-scale по поддереву
+ * здесь больше не выполняется, потому что он ломает одинаковый размер shell-ов на одном depth.
+ */
 export const enforceRootShellLayoutSettings = (
   snapshot: DbWorldSnapshot,
   _settings: Partial<AppWebLayoutSettings> = {},
@@ -510,6 +525,16 @@ export const enforceRootShellLayoutSettings = (
   }
 }
 
+/**
+ * Строит planar `pkg/db` world snapshot из семантического particle-дерева.
+ *
+ * Закон раскладки:
+ * - сцена остаётся в `Z-up`
+ * - размеры shell-ов задаются сверху вниз от root-уровня вглубь
+ * - все shell-ы на одном depth имеют одинаковый внешний размер
+ * - ordinary fields materialize-ятся как сферы peer-level размера
+ * - orbit packing сначала пытается уложить всё в один ring, затем делит на несколько равномерно распределённых ring-ов
+ */
 export const createDbWorldSnapshotFromParticleDescriptors = (
   rootSrc: string,
   roots: DbWorldParticleDescriptor[],
@@ -552,6 +577,12 @@ export const createDbWorldSnapshotFromParticleDescriptors = (
   }
 }
 
+/**
+ * Равномерно масштабирует snapshot так, чтобы главный root-shell сохранял фиксированный внешний диаметр.
+ *
+ * Масштаб применяется глобально ко всему snapshot-у. Локальные subtree-коррекции не выполняются,
+ * поэтому одинаковый размер shell-ов на одном depth сохраняется.
+ */
 export const scaleDbWorldSnapshotToRootOuterDiameter = (
   snapshot: DbWorldSnapshot,
   targetOuterDiameter: number = DEFAULT_ROOT_OUTER_DIAMETER_MM,
