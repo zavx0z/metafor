@@ -7,6 +7,12 @@ import {
 } from "./protocol-logger.ts"
 import type { DbWorldSnapshot } from "../../pkg/db/index.ts"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web.ts"
+import {
+	DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+	DEFAULT_APP_WEB_RENDER_SETTINGS,
+	type AppWebLayoutSettings,
+	type AppWebRenderSettings,
+} from "./settings.ts"
 
 type WorkerStatusMessage = {
 	type: "worker-status"
@@ -26,6 +32,13 @@ type InstanceSnapshotMessage = {
 	type: "instance-snapshot"
 	src: string
 	snapshot: DbWorldSnapshot
+}
+
+type ClientMaterializePayload = {
+	type: "materialize"
+	src: string
+	layoutSettings: Partial<AppWebLayoutSettings>
+	renderSettings: Partial<AppWebRenderSettings>
 }
 
 type SnapshotMessage = {
@@ -53,10 +66,15 @@ initProtocolLogger()
 
 const form = document.getElementById("control-form") as HTMLFormElement
 const srcInput = document.getElementById("src-input") as HTMLInputElement
+const detailDensityInput = document.getElementById("detail-density-input") as HTMLInputElement
+const detailLevelInput = document.getElementById("detail-level-input") as HTMLInputElement
+const levelSizeInput = document.getElementById("level-size-input") as HTMLInputElement
+const rootInnerDiameterInput = document.getElementById("root-inner-diameter-input") as HTMLInputElement
 const submitButton = document.getElementById("materialize-btn") as HTMLButtonElement
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
 let bulkViewport: BulkViewportController | null = null
+let initialMaterializationRequested = false
 
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
 const socket = new WebSocket(`${protocol}//${window.location.host}/ws`)
@@ -66,6 +84,36 @@ const updateBulkStats = (stats: BulkViewportStats): void => {
 	bulkCounter.textContent = `${rootSrc}${stats.shellCount} shells / ${stats.fieldCount} fields`
 }
 
+const parsePositiveNumber = (input: HTMLInputElement, fallback: number): number => {
+	const value = Number(input.value)
+	return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+const createMaterializePayload = (): ClientMaterializePayload => ({
+	type: "materialize",
+	src: srcInput.value.trim() || "zavx0z/git",
+	layoutSettings: {
+		levelSizeMultiplier: parsePositiveNumber(
+			levelSizeInput,
+			DEFAULT_APP_WEB_LAYOUT_SETTINGS.levelSizeMultiplier,
+		),
+		rootInnerDiameterMm: parsePositiveNumber(
+			rootInnerDiameterInput,
+			DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootInnerDiameterMm,
+		),
+	},
+	renderSettings: {
+		detailDensityFactor: parsePositiveNumber(
+			detailDensityInput,
+			DEFAULT_APP_WEB_RENDER_SETTINGS.detailDensityFactor,
+		),
+		detailLevelMultiplier: parsePositiveNumber(
+			detailLevelInput,
+			DEFAULT_APP_WEB_RENDER_SETTINGS.detailLevelMultiplier,
+		),
+	},
+})
+
 const initBulkViewport = async (): Promise<void> => {
 	const rect = bulkCanvas.getBoundingClientRect()
 	bulkViewport = await createBulkViewport({
@@ -74,6 +122,7 @@ const initBulkViewport = async (): Promise<void> => {
 		height: Math.max(1, Math.floor(rect.height)),
 		onStats: updateBulkStats,
 	})
+	bulkViewport.setRenderSettings(createMaterializePayload().renderSettings)
 	setWorkerStatus("bulk", "ready")
 
 	const resizeObserver = new ResizeObserver((entries) => {
@@ -98,6 +147,13 @@ void initBulkViewport().catch((error) => {
 socket.onopen = () => {
 	setConnectionStatus(true)
 	submitButton.disabled = false
+	if (!initialMaterializationRequested) {
+		initialMaterializationRequested = true
+		submitButton.disabled = true
+		const payload = createMaterializePayload()
+		bulkViewport?.setRenderSettings(payload.renderSettings)
+		socket.send(JSON.stringify(payload))
+	}
 }
 
 socket.onclose = () => {
@@ -155,10 +211,7 @@ socket.onmessage = (event) => {
 form.addEventListener("submit", (event) => {
 	event.preventDefault()
 	submitButton.disabled = true
-	socket.send(
-		JSON.stringify({
-			type: "materialize",
-			src: srcInput.value.trim() || "zavx0z/git",
-		}),
-	)
+	const payload = createMaterializePayload()
+	bulkViewport?.setRenderSettings(payload.renderSettings)
+	socket.send(JSON.stringify(payload))
 })

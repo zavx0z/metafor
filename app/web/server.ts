@@ -2,6 +2,7 @@ import { build, file, serve } from "bun"
 import { mkdirSync, rmSync } from "node:fs"
 import { dirname, join, normalize } from "node:path"
 import type { DbWorldSnapshot } from "../../pkg/db/index.ts"
+import type { AppWebLayoutSettings, AppWebRenderSettings } from "./settings.ts"
 import {
 	ELECTROMAGNETISM_BROADCAST_CHANNEL,
 	GLUON_BROADCAST_CHANNEL,
@@ -50,6 +51,8 @@ type InstanceSnapshotMessage = {
 type ClientMaterializeMessage = {
 	type: "materialize"
 	src: string
+	layoutSettings?: Partial<AppWebLayoutSettings>
+	renderSettings?: Partial<AppWebRenderSettings>
 }
 
 type AppRuntime = {
@@ -248,6 +251,7 @@ const server = serve({
 					src: payload?.src || "zavx0z/git",
 					dbFilename: APP_DB_FILENAME,
 					instanceDbFilename: APP_INSTANCE_DB_FILENAME,
+					layoutSettings: payload.layoutSettings,
 				})
 			})()
 		},

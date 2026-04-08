@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite"
-import type { DbFieldOrbitSnapshot, DbParticleShellSnapshot, DbWorldSnapshot } from "./instance.t.ts"
+import type { DbFieldOrbitSnapshot, DbFieldValueKind, DbParticleShellSnapshot, DbWorldSnapshot } from "./instance.t.ts"
 
 export interface DbInstanceSqliteOptions {
   filename?: string
@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS db_field_orbit (
   field_key TEXT NOT NULL,
   field_label TEXT NOT NULL,
   field_order INTEGER NOT NULL CHECK (field_order >= 0),
+  value_kind TEXT NOT NULL CHECK (value_kind IN ('number', 'text', 'bool', 'other')),
   value_text TEXT,
   local_x REAL NOT NULL,
   local_y REAL NOT NULL,
@@ -108,6 +109,7 @@ const insertFieldOrbit = (db: Database, rootSrc: string, orbit: DbFieldOrbitSnap
       field_key,
       field_label,
       field_order,
+      value_kind,
       value_text,
       local_x,
       local_y,
@@ -116,7 +118,7 @@ const insertFieldOrbit = (db: Database, rootSrc: string, orbit: DbFieldOrbitSnap
       color_r,
       color_g,
       color_b
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     orbit.id,
     rootSrc,
@@ -124,6 +126,7 @@ const insertFieldOrbit = (db: Database, rootSrc: string, orbit: DbFieldOrbitSnap
     orbit.fieldKey,
     orbit.fieldLabel,
     orbit.fieldOrder,
+    orbit.fieldValueKind,
     orbit.valueText,
     orbit.localX,
     orbit.localY,
@@ -137,6 +140,14 @@ const insertFieldOrbit = (db: Database, rootSrc: string, orbit: DbFieldOrbitSnap
 
 export const initializeDbInstanceSqliteSchema = (db: Database): void => {
   db.exec(schemaSql)
+
+  const fieldOrbitColumns = db
+    .query(`PRAGMA table_info(db_field_orbit)`)
+    .all() as Array<{ name: string }>
+
+  if (!fieldOrbitColumns.some((column) => column.name === "value_kind")) {
+    db.exec(`ALTER TABLE db_field_orbit ADD COLUMN value_kind TEXT NOT NULL DEFAULT 'other';`)
+  }
 }
 
 export const openDbInstanceSqlite = (options: DbInstanceSqliteOptions = {}): Database => {
@@ -245,6 +256,7 @@ export const readDbWorldSnapshot = (db: Database, rootSrc: string): DbWorldSnaps
          field_key,
          field_label,
          field_order,
+         value_kind,
          value_text,
          local_x,
          local_y,
@@ -262,6 +274,7 @@ export const readDbWorldSnapshot = (db: Database, rootSrc: string): DbWorldSnaps
       field_key: string
       field_label: string
       field_order: number
+      value_kind: DbFieldValueKind
       value_text: string | null
       local_x: number
       local_y: number
@@ -277,6 +290,7 @@ export const readDbWorldSnapshot = (db: Database, rootSrc: string): DbWorldSnaps
       fieldKey: row.field_key,
       fieldLabel: row.field_label,
       fieldOrder: row.field_order,
+      fieldValueKind: row.value_kind,
       valueText: row.value_text,
       localX: row.local_x,
       localY: row.local_y,

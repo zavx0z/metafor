@@ -45,20 +45,22 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-  let distance = distance(in.worldPosition, sceneUniforms.cameraPosition);
+  let distanceMm = distance(in.worldPosition, sceneUniforms.cameraPosition);
+  let fadeDistanceMm = 5000.0;
+  let normalizedDistance = distanceMm / fadeDistanceMm;
   
   // Базовое затухание для обычных линий
-  let baseFade = exp(-0.5 * distance);
+  let baseFade = exp(-0.5 * normalizedDistance);
   
   // Эффект свечения: затухание намного медленнее
-  let glowFade = exp(-0.5 * distance / perObject.glowIntensity);
+  let glowFade = exp(-0.5 * normalizedDistance / perObject.glowIntensity);
   
   // Смешиваем базовое затухание и свечение в зависимости от интенсивности
   let finalFade = mix(baseFade, glowFade, min(perObject.glowIntensity * 0.5, 1.0));
   
   // Используем цвет свечения если он задан, иначе цвет вершины
   let glowColor = perObject.glowColor;
-  let useGlowColor = glowColor.a > 0.5; // Увеличиваем порог для надежности
+  let useGlowColor = glowColor.a > 0.0;
   let finalColor = select(in.vertexColor.rgb, glowColor.rgb, useGlowColor);
   
   return vec4<f32>(finalColor * finalFade, in.vertexColor.a * finalFade);

@@ -1,4 +1,5 @@
 export type DbParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
+export type DbFieldValueKind = "number" | "text" | "bool" | "other"
 
 export interface DbParticleShellSnapshot {
   particleId: string
@@ -26,6 +27,7 @@ export interface DbFieldOrbitSnapshot {
   fieldKey: string
   fieldLabel: string
   fieldOrder: number
+  fieldValueKind: DbFieldValueKind
   valueText: string | null
   localX: number
   localY: number

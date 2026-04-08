@@ -133,6 +133,67 @@
 
 Текущая архитектура уже даёт для этого основу.
 
+### Runtime-контур проявления
+
+Для текущего этапа важно фиксировать не только доменные роли, но и реальный путь данных.
+
+Сейчас правильный контур должен мыслиться так:
+
+1. `Dark` materialize-ит одну `meta` и её hidden particle-дерево.
+2. После завершения `matter(...)` получается уже не AST-картинка, а runtime-дерево частиц.
+3. Это дерево раскладывается в отдельную `pkg/db` instance-level базу как world snapshot.
+4. `Boundary` и `Bulk` читают уже не hidden source, а этот instance-level relational snapshot.
+5. UI и worker-оркестрация в `app/web` только доставляют snapshot и protocol events, не создавая новую истину поверх него.
+
+Это важно потому, что:
+
+- hidden truth остаётся в `Dark` и его canonical SQLite relation,
+- visible world snapshot фиксируется в `pkg/db`,
+- `Boundary` и `Bulk` дальше работают как разные проекции одной и той же instance-level world-form.
+
+Именно `pkg/db` в этом контуре должен стать bridge-layer между hidden materialization и визуальными/исполнительными слоями.
+
+### Первая геометрия должна быть shell-first
+
+До связей, force-traces и entanglement визуализация должна начинаться с простой читаемой shell-геометрии.
+
+Первое чтение мира:
+
+- `Wimp` — wireframe torus-shell,
+- `Fuzzy` — wireframe torus-shell,
+- `Axion` — wireframe torus-shell,
+- `Macho` — wireframe torus-shell,
+- ordinary non-topology fields — wireframe spheres внутри parent-shell на своих орбитах.
+
+Из этого следуют жёсткие правила:
+
+- topology fields не должны смешиваться с ordinary field spheres,
+- links и traces не должны появляться раньше самих shell carriers,
+- child-shell должны жить внутри parent-shell как вложенные world-carriers,
+- ordinary fields должны читаться как локальные imprint-points внутри конкретного carrier.
+
+То есть первый видимый мир это не граф линий, а вложенная shell-структура.
+
+### Z-up workspace как обязательный контракт
+
+Вся world-scene должна удерживаться в `Z-up`.
+
+Это означает:
+
+- пол и grid лежат в плоскости `XY`,
+- высота выражается по `Z`,
+- camera / viewport / scene objects не должны заново переводить оси в `Bulk`,
+- если где-то нужна адаптация под WebGPU renderer, она должна жить внутри engine layer, а не в application scene.
+
+Для чтения мира человеком baseline такой:
+
+- наблюдатель смотрит на пространство как на рабочую физическую площадку,
+- мир читается не сверху, а с человеческого first-person уровня,
+- shell-объекты лежат над полом и читаются как manipulable world carriers,
+- grid не декоративный, а задаёт физическую опорную плоскость будущей среды инструментов.
+
+Иначе говоря, viewport нужен не как arbitrary orbit-camera, а как точка входа в рабочее пространство агента и человека.
+
 ### gravity$
 
 `gravity$` держит composition/addressing слой.
@@ -151,6 +212,15 @@
 - какие поля и состояния реально показываются,
 - какое текущее распределение значений уже materialized,
 - какой snapshot мира может быть отдан в UI или `Bulk`.
+
+Но важно различать два snapshot-слоя:
+
+- `boundary$` — boundary-readable runtime state matrix,
+- `pkg/db` instance snapshot — visible world arrangement для `Boundary/Bulk`.
+
+Они связаны, но не тождественны.
+`boundary$` отвечает за stateful and computable reading,
+а instance snapshot отвечает за адресуемую manifestable geometry.
 
 ### strong$
 
@@ -192,6 +262,17 @@
 - агент как actor,
 - tool invocations как наблюдаемые изменения world-state.
 
+На практике это значит, что после shell-first стадии следующей визуализируемой сущностью должен быть не abstract chatbot,
+а наблюдаемый actor/tool layer:
+
+- агент,
+- чат,
+- git,
+- screenshots,
+- tool invocation history.
+
+То есть пользователь должен видеть не только геометрию мира, но и как агент входит в этот мир и изменяет его.
+
 ## Как должен мыслиться будущий рефакторинг
 
 Если следующий шаг требует рефакторинга, он должен облегчать такие вещи:
@@ -226,3 +307,20 @@
 1. сначала сделать миры видимыми,
 2. потом сделать видимыми инструментальные действия,
 3. потом сделать видимой межмировую связность.
+
+## Следующий практический этап
+
+Чтобы следующий рефакторинг был правильным, ближайший implementation-order должен быть таким:
+
+1. завершить shell-first instance snapshot в `pkg/db`,
+2. стабилизировать `Bulk` viewport и workspace как `Z-up` physical scene,
+3. сделать читаемым один локальный мир без связей,
+4. после этого добавить visual layer для agent/chat/tool actions,
+5. и только затем выводить links, entanglement traces и межмировую координацию.
+
+Это даёт строгую очередность:
+
+- сначала carriers,
+- потом fields,
+- потом actors and tools,
+- потом relations.

@@ -1,3 +1,7 @@
+export const ENGINE_UP_AXIS: "z"
+export const ENGINE_LENGTH_UNIT: "mm"
+export const ENGINE_WORLD_UNIT_SCALE_MM: 1
+
 export interface ViewPointParameters {
   element: HTMLElement
   fov?: number
@@ -62,6 +66,8 @@ export class Object3D {
   position: Vector3
   scale: Vector3
   children: Object3D[]
+  visible: boolean
+  frustumCulled: boolean
   add(child: Object3D): void
   updateMatrix(): void
   updateWorldMatrix(force?: boolean): void
@@ -105,4 +111,8 @@ export class LineSegments extends Object3D {
 
 export class GridHelper extends LineSegments {
   constructor(size?: number, divisions?: number, colorCenterLine?: number, colorGrid?: number)
+}
+
+export class AxesHelper extends LineSegments {
+  constructor(size?: number)
 }

@@ -496,13 +496,15 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-  let distance = distance(in.worldPosition, sceneUniforms.cameraPosition);
+  let distanceMm = distance(in.worldPosition, sceneUniforms.cameraPosition);
+  let fadeDistanceMm = 5000.0;
+  let normalizedDistance = distanceMm / fadeDistanceMm;
 
   // Базовое затухание для обычных линий
-  let baseFade = exp(-0.5 * distance);
+  let baseFade = exp(-0.5 * normalizedDistance);
 
   // Эффект свечения: затухание намного медленнее
-  let glowFade = exp(-0.5 * distance / in.glowIntensity);
+  let glowFade = exp(-0.5 * normalizedDistance / in.glowIntensity);
 
   // Смешиваем базовое затухание и свечение в зависимости от интенсивности
   let finalFade = mix(baseFade, glowFade, min(in.glowIntensity * 0.5, 1.0));

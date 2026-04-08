@@ -10,6 +10,7 @@
  * * **+X** — вправо
  * * **+Y** — вглубь
  * * **+Z** — вверх
+ * * **Единицы длины** — миллиметры
  * * **Clip Space** — глубина [0, 1] (WebGPU стандарт)
  *
  * ## Ключевые отличия от `three.js`
@@ -35,6 +36,7 @@
  */
 
 export * from "./core/Object3D"
+export * from "./contract"
 export * from "./core/BufferGeometry"
 export * from "./geometries/PlaneGeometry"
 export * from "./geometries/SphereGeometry"
@@ -51,6 +53,7 @@ export * from "./loaders/GLTFLoader"
 export * from "./materials"
 export * from "./math/Color"
 export * from "./helpers/GridHelper"
+export * from "./helpers/AxesHelper"
 export * from "./lights/Light"
 export * from "./text/TrueTypeFont"
 export * from "./objects/Line"

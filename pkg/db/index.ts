@@ -16,6 +16,7 @@ export type {
   DbData,
   DbEntanglementFamilyRows,
   DbFieldOrbitSnapshot,
+  DbFieldValueKind,
   DbMaterializationWriter,
   DbMetaBundle,
   DbMetaFieldBundle,

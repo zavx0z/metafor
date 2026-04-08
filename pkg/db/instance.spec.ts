@@ -55,6 +55,7 @@ describe("pkg/db instance sqlite", () => {
           fieldKey: "command",
           fieldLabel: "Команда",
           fieldOrder: 0,
+          fieldValueKind: "text",
           valueText: "git status",
           localX: 0.08,
           localY: 0,

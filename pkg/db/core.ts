@@ -17,6 +17,7 @@ export type {
 } from "./backend.t.ts"
 export type {
   DbFieldOrbitSnapshot,
+  DbFieldValueKind,
   DbParticleKind,
   DbParticleShellSnapshot,
   DbWorldSnapshot,
