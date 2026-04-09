@@ -35,7 +35,7 @@ const createParticle = (
 })
 
 describe("app/web instance layout", () => {
-	test("строит planar nested layout top-down в мм и фиксирует deepest sphere radius в 50 мм", () => {
+	test("строит planar nested layout top-down в мм и уменьшает sphere-контракт вместе с depth", () => {
 		const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
 			createParticle("root", [
 				createParticle("child", [
@@ -105,6 +105,43 @@ describe("app/web instance layout", () => {
 		)
 	})
 
+	test("масштабирует sphere-контракт вместе с расширением torus уровня", () => {
+		const compact = createDbWorldSnapshotFromParticleDescriptors("compact", [
+			createParticle("root", [], ["field-a"]),
+		], { rootSphereRadiusMm: 400 })
+		const expanded = createDbWorldSnapshotFromParticleDescriptors("expanded", [
+			createParticle("root", [
+				createParticle("child-a", [], ["leaf-a"]),
+				createParticle("child-b", [], ["leaf-b"]),
+				createParticle("child-c", [], ["leaf-c"]),
+				createParticle("child-d", [], ["leaf-d"]),
+				createParticle("child-e", [], ["leaf-e"]),
+				createParticle("child-f", [], ["leaf-f"]),
+				createParticle("child-g", [], ["leaf-g"]),
+				createParticle("child-h", [], ["leaf-h"]),
+			], ["field-a", "field-b", "field-c", "field-d"]),
+		], { rootSphereRadiusMm: 400 })
+
+		const compactRoot = compact.particles.find((particle) => particle.particleId === "root")
+		const expandedRoot = expanded.particles.find((particle) => particle.particleId === "root")
+		const compactField = compact.fields.find((field) => field.id === "field-a")
+		const expandedField = expanded.fields.find((field) => field.id === "field-a")
+
+		expect(compactRoot).toBeDefined()
+		expect(expandedRoot).toBeDefined()
+		expect(compactField).toBeDefined()
+		expect(expandedField).toBeDefined()
+
+		const compactOuterDiameter = ((compactRoot?.shellRadius ?? 0) + (compactRoot?.shellTube ?? 0)) * 2
+		const expandedOuterDiameter = ((expandedRoot?.shellRadius ?? 0) + (expandedRoot?.shellTube ?? 0)) * 2
+		expect(expandedOuterDiameter).toBeGreaterThan(compactOuterDiameter)
+		expect(expandedField?.sphereRadius).toBeGreaterThan(compactField?.sphereRadius ?? 0)
+		expect((expandedField?.sphereRadius ?? 0) / (compactField?.sphereRadius ?? 1)).toBeCloseTo(
+			expandedOuterDiameter / compactOuterDiameter,
+			6,
+		)
+	})
+
 	test("одна орбита распределяется по центру доступной толщины тора", () => {
 		const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
 			createParticle("root", [], ["field-a", "field-b", "field-c"]),
@@ -130,7 +167,7 @@ describe("app/web instance layout", () => {
 				"f21", "f22", "f23", "f24", "f25", "f26", "f27", "f28", "f29", "f30",
 				"f31", "f32", "f33", "f34", "f35", "f36", "f37", "f38", "f39", "f40",
 			]),
-		], { rootSphereRadiusMm: 1200 })
+		], { rootSphereRadiusMm: 280 })
 
 		const fields = snapshot.fields
 			.filter((field) => field.particleId === "root")
@@ -159,8 +196,8 @@ describe("app/web instance layout", () => {
 		const middleGap = secondRingRadius - secondRingExtent - (firstRingRadius + firstRingExtent)
 		const outerGap = outerRadius - (lastRingRadius + lastRingExtent)
 
-		expect(innerGap).toBeCloseTo(middleGap, 5)
-		expect(innerGap).toBeCloseTo(outerGap, 5)
+		expect(middleGap).toBeCloseTo(outerGap, 5)
+		expect(innerGap).toBeGreaterThan(middleGap)
 	})
 
 	test("уважает корневой внутренний диаметр тора в мм", () => {
@@ -219,7 +256,7 @@ describe("app/web instance layout", () => {
 		)
 	})
 
-	test("уменьшает размер сфер по тем же уровням, что и torus layout", () => {
+	test("держит единый sphere-контракт относительно outer diameter уровня", () => {
 		const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
 			createParticle("root", [
 				createParticle("child-a", [], ["leaf-a"]),
@@ -229,14 +266,24 @@ describe("app/web instance layout", () => {
 
 		const field = snapshot.fields.find((orbit) => orbit.id === "field-a")
 		const leaf = snapshot.fields.find((orbit) => orbit.id === "leaf-a")
+		const root = snapshot.particles.find((particle) => particle.particleId === "root")
+		const child = snapshot.particles.find((particle) => particle.particleId === "child-a")
 
 		expect(field).toBeDefined()
 		expect(leaf).toBeDefined()
-		expect(field?.sphereRadius).toBeCloseTo(200, 6)
-		expect(leaf?.sphereRadius).toBeCloseTo(100, 6)
+		expect(root).toBeDefined()
+		expect(child).toBeDefined()
+
+		const rootOuterDiameter = ((root?.shellRadius ?? 0) + (root?.shellTube ?? 0)) * 2
+		const childOuterDiameter = ((child?.shellRadius ?? 0) + (child?.shellTube ?? 0)) * 2
+		const rootSphereRatio = ((field?.sphereRadius ?? 0) * 2) / rootOuterDiameter
+		const childSphereRatio = ((leaf?.sphereRadius ?? 0) * 2) / childOuterDiameter
+
+		expect(rootSphereRatio).toBeCloseTo(childSphereRatio, 6)
+		expect(rootSphereRatio).toBeCloseTo(appWebLayoutConfig.snapshot.nestingCoefficient, 6)
 	})
 
-	test("распределяет объекты по орбитам по емкости окружности, а не фиксированными пачками", () => {
+	test("после добавления орбиты перераспределяет объекты по кольцам равномерно", () => {
 		const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
 			createParticle("root", [], [
 				"f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
@@ -244,7 +291,7 @@ describe("app/web instance layout", () => {
 				"f21", "f22", "f23", "f24", "f25", "f26", "f27", "f28",
 				"f29", "f30", "f31", "f32", "f33", "f34", "f35", "f36",
 			]),
-		], { rootSphereRadiusMm: 1200 })
+		], { rootSphereRadiusMm: 280 })
 
 		const ringCounts = [...snapshot.fields]
 			.filter((field) => field.particleId === "root")
@@ -259,7 +306,7 @@ describe("app/web instance layout", () => {
 			.map((entry) => entry[1])
 
 		expect(counts.length).toBeGreaterThan(1)
-		expect(counts[0]).toBeLessThan(counts[1] ?? 0)
+		expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1)
 	})
 
 	test("сначала пытается уложить все элементы на одну орбиту внутри доступного родительского диаметра", () => {
@@ -385,6 +432,37 @@ describe("app/web instance layout", () => {
 		expect((depthOne[0]?.shellRadius ?? 0) + (depthOne[0]?.shellTube ?? 0)).toBeCloseTo(
 			(depthOne[1]?.shellRadius ?? 0) + (depthOne[1]?.shellTube ?? 0),
 			6,
+		)
+	})
+
+	test("после нормализации nested torus реагирует на Размер по уровням даже при плотном parent", () => {
+		const createDenseSnapshot = (levelSizeMultiplier: number) =>
+			scaleDbWorldSnapshotToRootOuterDiameter(
+				createDbWorldSnapshotFromParticleDescriptors("root", [
+					createParticle("root", [
+						createParticle("child-a", [], ["leaf-a", "leaf-b"]),
+						createParticle("child-b", [], ["leaf-c", "leaf-d"]),
+						createParticle("child-c", [], ["leaf-e", "leaf-f"]),
+						createParticle("child-d", [], ["leaf-g", "leaf-h"]),
+						createParticle("child-e", [], ["leaf-i", "leaf-j"]),
+						createParticle("child-f", [], ["leaf-k", "leaf-l"]),
+						createParticle("child-g", [], ["leaf-m", "leaf-n"]),
+						createParticle("child-h", [], ["leaf-o", "leaf-p"]),
+					], ["root-field-a", "root-field-b"]),
+				], { levelSizeMultiplier }),
+				undefined,
+				{ levelSizeMultiplier },
+			)
+
+		const compact = createDenseSnapshot(3)
+		const wide = createDenseSnapshot(1.5)
+		const compactChild = compact.particles.find((particle) => particle.particleId === "child-a")
+		const wideChild = wide.particles.find((particle) => particle.particleId === "child-a")
+
+		expect(compactChild).toBeDefined()
+		expect(wideChild).toBeDefined()
+		expect(((wideChild?.shellRadius ?? 0) + (wideChild?.shellTube ?? 0)) * 2).toBeGreaterThan(
+			((compactChild?.shellRadius ?? 0) + (compactChild?.shellTube ?? 0)) * 2,
 		)
 	})
 

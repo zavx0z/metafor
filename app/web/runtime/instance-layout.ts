@@ -107,42 +107,86 @@ const cloneDescriptorField = (
 interface OrbitRing {
   items: OrbitItem[]
   maxExtent: number
+  minRadius: number
   radius: number
 }
 
-const measurePlacedExtent = (rings: OrbitRing[]): number =>
-  rings.reduce((max, ring) => Math.max(max, ring.radius + ring.maxExtent), 0)
-
-const getMaxRingCapacity = (radius: number, maxExtent: number): number => {
-  if (maxExtent <= 0 || radius <= 0) return 1
-
-  const normalizedExtent = (maxExtent * snapshotLayoutConfig.orbitItemSpacingFactor) / radius
-  if (normalizedExtent >= 1) return 1
-
-  return Math.max(1, Math.floor(Math.PI / Math.asin(normalizedExtent)))
-}
-
-const getSingleRingRadius = (items: OrbitItem[], startBoundary: number): number => {
-  if (items.length === 0) return startBoundary
+const getRingMinRadius = (items: OrbitItem[], paddingMm: number): number => {
+  if (items.length === 0) return 0
 
   const maxExtent = Math.max(...items.map((item) => item.extent))
-  const totalArcLength = items.reduce(
-    (sum, item) => sum + item.extent * 2 * snapshotLayoutConfig.orbitItemSpacingFactor,
-    0,
-  )
+  if (items.length === 1) return maxExtent
+
+  const totalArcLength =
+    items.reduce((sum, item) => sum + item.extent * 2, 0) + items.length * paddingMm
   const circumferenceRadius = totalArcLength / (Math.PI * 2)
   const angularRadius =
-    items.length <= 1
-      ? startBoundary + maxExtent
-      : (maxExtent * snapshotLayoutConfig.orbitItemSpacingFactor) / Math.max(Math.sin(Math.PI / items.length), 0.1)
+    (maxExtent * 2 + paddingMm) / (2 * Math.max(Math.sin(Math.PI / items.length), 1e-6))
 
-  return Math.max(startBoundary + maxExtent, circumferenceRadius, angularRadius)
+  return Math.max(maxExtent, circumferenceRadius, angularRadius)
+}
+
+const createOrbitRingsForCount = (
+  items: OrbitItem[],
+  orbitCount: number,
+  paddingMm: number,
+): OrbitRing[] => {
+  const buckets = Array.from({ length: orbitCount }, () => [] as OrbitItem[])
+
+  items.forEach((item, index) => {
+    buckets[index % orbitCount]!.push(item)
+  })
+
+  return buckets
+    .filter((bucket) => bucket.length > 0)
+    .map((bucket) => ({
+      items: bucket,
+      maxExtent: Math.max(...bucket.map((item) => item.extent)),
+      minRadius: getRingMinRadius(bucket, paddingMm),
+      radius: 0,
+    }))
+}
+
+const resolveOrbitRingBoundaries = (
+  rings: OrbitRing[],
+  innerBoundary: number,
+  paddingMm: number,
+): number => {
+  let previousOuterBoundary = innerBoundary + paddingMm
+
+  for (const ring of rings) {
+    ring.radius = Math.max(previousOuterBoundary + ring.maxExtent, ring.minRadius)
+    previousOuterBoundary = ring.radius + ring.maxExtent + paddingMm
+  }
+
+  return previousOuterBoundary
+}
+
+const distributeOrbitSlack = (
+  rings: OrbitRing[],
+  maxOuterBoundary: number,
+  paddingMm: number,
+): void => {
+  if (rings.length === 0) return
+
+  const lastRing = rings[rings.length - 1]
+  if (!lastRing) return
+
+  const usedOuterBoundary = lastRing.radius + lastRing.maxExtent + paddingMm
+  const slack = maxOuterBoundary - usedOuterBoundary
+  if (slack <= 1e-6) return
+
+  const extraGap = slack / (rings.length + 1)
+  rings.forEach((ring, index) => {
+    ring.radius += extraGap * (index + 1)
+  })
 }
 
 const buildOrbitRings = (
   items: OrbitItem[],
   options: {
     maxOuterBoundary?: number
+    paddingMm?: number
     startInnerBoundary?: number
     startOuterBoundary?: number
   } = {},
@@ -150,45 +194,28 @@ const buildOrbitRings = (
   if (items.length === 0) return []
 
   const sorted = [...items].sort((left, right) => right.extent - left.extent)
-  const startBoundary = options.startOuterBoundary ?? options.startInnerBoundary ?? 0
-  const singleRingRadius = getSingleRingRadius(sorted, startBoundary)
-  const singleRingMaxExtent = Math.max(...sorted.map((item) => item.extent))
-  if (
-    options.maxOuterBoundary !== undefined &&
-    singleRingRadius + singleRingMaxExtent <= options.maxOuterBoundary + 1e-6
-  ) {
-    return [
-      {
-        items: sorted,
-        maxExtent: singleRingMaxExtent,
-        radius: singleRingRadius,
-      },
-    ]
+  const paddingMm = Math.max(0, options.paddingMm ?? 0)
+  const startBoundary = options.startInnerBoundary ?? options.startOuterBoundary ?? 0
+
+  if (options.maxOuterBoundary === undefined) {
+    const singleOrbit = createOrbitRingsForCount(sorted, 1, paddingMm)
+    resolveOrbitRingBoundaries(singleOrbit, startBoundary, paddingMm)
+    return singleOrbit
   }
 
-  const rings: OrbitRing[] = []
-  let cursor = 0
-  let previousOuterBoundary = startBoundary
+  let fallback: OrbitRing[] = []
+  for (let orbitCount = 1; orbitCount <= sorted.length; orbitCount += 1) {
+    const rings = createOrbitRingsForCount(sorted, orbitCount, paddingMm)
+    const requiredOuterBoundary = resolveOrbitRingBoundaries(rings, startBoundary, paddingMm)
+    fallback = rings
 
-  while (cursor < sorted.length) {
-    const remainingItems = sorted.length - cursor
-    const seedExtent = sorted[cursor]?.extent ?? 0
-    const radius = previousOuterBoundary + seedExtent
-    const capacity = Math.max(1, getMaxRingCapacity(radius, seedExtent))
-    const ringItems = sorted.slice(cursor, cursor + Math.min(remainingItems, capacity))
-    const maxExtent = Math.max(...ringItems.map((item) => item.extent))
-
-    rings.push({
-      items: ringItems,
-      maxExtent,
-      radius,
-    })
-
-    previousOuterBoundary = radius + maxExtent
-    cursor += ringItems.length
+    if (requiredOuterBoundary <= options.maxOuterBoundary + 1e-6) {
+      distributeOrbitSlack(rings, options.maxOuterBoundary, paddingMm)
+      return rings
+    }
   }
 
-  return rings
+  return fallback
 }
 
 const positionOrbitRing = (ring: OrbitRing): void => {
@@ -213,57 +240,40 @@ const positionOrbitRing = (ring: OrbitRing): void => {
   })
 }
 
-const distributeOrbitRingsAcrossTube = (
-  rings: OrbitRing[],
-  innerBoundary: number,
-  outerBoundary: number,
-): void => {
-  if (rings.length === 0) return
-
-  const availableWidth = outerBoundary - innerBoundary
-  const occupiedWidth = rings.reduce((sum, ring) => sum + ring.maxExtent * 2, 0)
-  if (availableWidth <= occupiedWidth) return
-
-  const gap = (availableWidth - occupiedWidth) / (rings.length + 1)
-  let cursor = innerBoundary + gap
-
-  for (const ring of rings) {
-    ring.radius = cursor + ring.maxExtent
-    cursor = ring.radius + ring.maxExtent + gap
-  }
-}
-
 const placeOrbitItemsFromInnerBoundary = (
   items: OrbitItem[],
   options: {
     maxOuterBoundary?: number
+    paddingMm?: number
     startInnerBoundary?: number
     startOuterBoundary?: number
   } = {},
 ): { innerBoundary: number; outerBoundary: number } => {
   const rings = buildOrbitRings(items, options)
   if (rings.length === 0) {
-    const start = options.startOuterBoundary ?? 0
+    const start = options.startOuterBoundary ?? options.startInnerBoundary ?? 0
     return { innerBoundary: start, outerBoundary: start }
   }
 
   const [firstRing] = rings
   if (!firstRing) {
-    const start = options.startOuterBoundary ?? 0
+    const start = options.startOuterBoundary ?? options.startInnerBoundary ?? 0
     return { innerBoundary: start, outerBoundary: start }
   }
 
-  if (options.startInnerBoundary !== undefined && options.maxOuterBoundary !== undefined) {
-    distributeOrbitRingsAcrossTube(rings, options.startInnerBoundary, options.maxOuterBoundary)
-  }
+  const paddingMm = Math.max(0, options.paddingMm ?? 0)
+  const lastRing = rings[rings.length - 1]
 
   for (const ring of rings) {
     positionOrbitRing(ring)
   }
 
   return {
-    innerBoundary: firstRing.radius - firstRing.maxExtent,
-    outerBoundary: measurePlacedExtent(rings),
+    innerBoundary: firstRing.radius - firstRing.maxExtent - paddingMm,
+    outerBoundary:
+      lastRing !== undefined
+        ? lastRing.radius + lastRing.maxExtent + paddingMm
+        : firstRing.radius + firstRing.maxExtent + paddingMm,
   }
 }
 
@@ -291,6 +301,7 @@ const collectNodesByDepth = (
 const createOuterRequirementOrbitItems = (
   node: ShellDescriptorNode,
   settings: AppWebLayoutSettings,
+  outerRadiusMm: number,
   outerByDepth: Map<number, number>,
 ): OrbitItem[] => {
   const childOrbitItems: OrbitItem[] = node.children.map((child) => ({
@@ -323,7 +334,7 @@ const createOuterRequirementOrbitItems = (
       getLevelMetrics(child.depthFromRoot, settings).canonicalOuterRadiusMm,
   }))
 
-  const fieldRadius = getLevelMetrics(node.depthFromRoot, settings).fieldSphereRadiusMm
+  const fieldRadius = getLevelMetrics(node.depthFromRoot, settings, { outerRadiusMm }).fieldSphereRadiusMm
   const fieldOrbitItems: OrbitItem[] = node.descriptor.fields.map((field) => ({
     kind: "field",
     field: cloneDescriptorField(node.descriptor, field, fieldRadius),
@@ -351,14 +362,16 @@ const resolveOuterRadiusByDepth = (
 
     for (let iteration = 0; iteration < 32; iteration += 1) {
       let nextOuter = resolvedOuter
-      const innerRadius = getLevelMetrics(depth, settings, { outerRadiusMm: resolvedOuter }).innerRadiusMm
+      const levelMetrics = getLevelMetrics(depth, settings, { outerRadiusMm: resolvedOuter })
+      const innerRadius = levelMetrics.innerRadiusMm
 
       for (const node of nodes) {
-        const orbitItems = createOuterRequirementOrbitItems(node, settings, outerByDepth)
+        const orbitItems = createOuterRequirementOrbitItems(node, settings, resolvedOuter, outerByDepth)
         if (orbitItems.length === 0) continue
 
         const packed = placeOrbitItemsFromInnerBoundary(orbitItems, {
           maxOuterBoundary: resolvedOuter,
+          paddingMm: levelMetrics.paddingMm,
           startInnerBoundary: innerRadius,
         })
         nextOuter = Math.max(nextOuter, packed.outerBoundary)
@@ -384,7 +397,12 @@ const materializeCanonicalShellNode = (
   )
   const depthFromRoot = node.depthFromRoot
   const descriptor = node.descriptor
-  const sphereRadius = getLevelMetrics(depthFromRoot, settings).fieldSphereRadiusMm
+  const levelMetrics = getLevelMetrics(depthFromRoot, settings, {
+    outerRadiusMm:
+      outerByDepth.get(depthFromRoot) ??
+      getLevelMetrics(depthFromRoot, settings).canonicalOuterRadiusMm,
+  })
+  const sphereRadius = levelMetrics.fieldSphereRadiusMm
   const fields: LayoutFieldNode[] = descriptor.fields.map((field) =>
     cloneDescriptorField(descriptor, field, sphereRadius),
   )
@@ -402,16 +420,13 @@ const materializeCanonicalShellNode = (
     })),
   ]
 
-  const levelMetrics = getLevelMetrics(depthFromRoot, settings, {
-    outerRadiusMm:
-      outerByDepth.get(depthFromRoot) ?? getLevelMetrics(depthFromRoot, settings).canonicalOuterRadiusMm,
-  })
   const outerRadius = levelMetrics.outerRadiusMm
   const innerRadius = levelMetrics.innerRadiusMm
 
   if (orbitItems.length > 0) {
     placeOrbitItemsFromInnerBoundary(orbitItems, {
       maxOuterBoundary: outerRadius,
+      paddingMm: levelMetrics.paddingMm,
       startInnerBoundary: innerRadius,
     })
   }
@@ -606,6 +621,10 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
   }
 
   const resolvedSettings = normalizeAppWebLayoutSettings(settings)
+  const getParticleOuterRadius = (particle: DbParticleShellSnapshot): number =>
+    particle.shellRadius + particle.shellTube
+  const shouldAdjustShellSizes = settings.levelSizeMultiplier !== undefined
+
   const particlesById = new Map(
     scaledSnapshot.particles.map((particle) => [particle.particleId, particle]),
   )
@@ -619,10 +638,185 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
     childrenByParentId.set(particle.parentParticleId, children)
   }
 
+  const currentOuterByDepth = scaledSnapshot.particles.reduce((acc, particle) => {
+    acc.set(particle.depth, Math.max(acc.get(particle.depth) ?? 0, getParticleOuterRadius(particle)))
+    return acc
+  }, new Map<number, number>())
+
+  const targetOuterByDepth = new Map<number, number>()
+  for (const [depth, currentOuterRadius] of currentOuterByDepth.entries()) {
+    targetOuterByDepth.set(depth, currentOuterRadius)
+  }
+
+  const canFitChildOuterRadius = (
+    parentDepth: number,
+    parentOuterRadius: number,
+    childCount: number,
+    fieldCount: number,
+    childOuterRadius: number,
+  ): boolean => {
+    const parentMetrics = getLevelMetrics(parentDepth, resolvedSettings, {
+      outerRadiusMm: parentOuterRadius,
+      rootOuterDiameterMm: targetOuterDiameter,
+    })
+    const orbitItems: OrbitItem[] = [
+      ...Array.from({ length: childCount }, (_, index) => ({
+        kind: "shell" as const,
+        shell: {
+          particleId: `fit-shell-${parentDepth}-${index}`,
+          kind: "wimp",
+          src: null,
+          metaSrc: null,
+          label: "",
+          localX: 0,
+          localY: 0,
+          localZ: 0,
+          shellScale: 1,
+          shellRadius: childOuterRadius / 2,
+          shellTube: childOuterRadius / 2,
+          colorR: 0,
+          colorG: 0,
+          colorB: 0,
+          children: [],
+          fields: [],
+          depthFromRoot: parentDepth + 1,
+          innerRadius: 0,
+          outerRadius: childOuterRadius,
+        } satisfies LayoutShellNode,
+        extent: childOuterRadius,
+      })),
+      ...Array.from({ length: fieldCount }, (_, index) => ({
+        kind: "field" as const,
+        field: {
+          id: `fit-field-${parentDepth}-${index}`,
+          particleId: `fit-parent-${parentDepth}`,
+          fieldKey: "",
+          fieldLabel: "",
+          fieldOrder: index,
+          fieldValueKind: "other" as const,
+          valueText: null,
+          localX: 0,
+          localY: 0,
+          localZ: 0,
+          sphereRadius: parentMetrics.fieldSphereRadiusMm,
+          colorR: 0,
+          colorG: 0,
+          colorB: 0,
+          extent: parentMetrics.fieldSphereRadiusMm,
+        } satisfies LayoutFieldNode,
+        extent: parentMetrics.fieldSphereRadiusMm,
+      })),
+    ]
+
+    const packed = placeOrbitItemsFromInnerBoundary(orbitItems, {
+      maxOuterBoundary: parentOuterRadius,
+      paddingMm: parentMetrics.paddingMm,
+      startInnerBoundary: parentMetrics.innerRadiusMm,
+    })
+    return packed.outerBoundary <= parentOuterRadius + 1e-6
+  }
+
+  const resolveFittingChildOuterRadius = (
+    parentDepth: number,
+    parentOuterRadius: number,
+    childCount: number,
+    fieldCount: number,
+    minOuterRadius: number,
+    targetOuterRadius: number,
+  ): number => {
+    if (childCount === 0 || targetOuterRadius <= minOuterRadius) return minOuterRadius
+    if (canFitChildOuterRadius(parentDepth, parentOuterRadius, childCount, fieldCount, targetOuterRadius)) {
+      return targetOuterRadius
+    }
+
+    let low = minOuterRadius
+    let high = targetOuterRadius
+    for (let iteration = 0; iteration < 24; iteration += 1) {
+      const middle = (low + high) / 2
+      if (canFitChildOuterRadius(parentDepth, parentOuterRadius, childCount, fieldCount, middle)) low = middle
+      else high = middle
+    }
+
+    return low
+  }
+
+  const depths = [...targetOuterByDepth.keys()].sort((left, right) => left - right)
+  if (shouldAdjustShellSizes) {
+    for (let iteration = 0; iteration < 12; iteration += 1) {
+      let changed = false
+
+      for (const depth of depths) {
+        const childDepth = depth + 1
+        const currentChildOuterRadius = currentOuterByDepth.get(childDepth)
+        if (currentChildOuterRadius === undefined) continue
+
+        const parentOuterRadius = targetOuterByDepth.get(depth) ?? currentOuterByDepth.get(depth) ?? 0
+        if (parentOuterRadius <= 0) continue
+
+        const parentMetrics = getLevelMetrics(depth, resolvedSettings, {
+          outerRadiusMm: parentOuterRadius,
+          rootOuterDiameterMm: targetOuterDiameter,
+        })
+        const canonicalChildOuterRadius = getLevelMetrics(childDepth, resolvedSettings, {
+          rootOuterDiameterMm: targetOuterDiameter,
+        }).canonicalOuterRadiusMm
+        const desiredChildOuterRadius = Math.max(
+          currentChildOuterRadius,
+          Math.min(
+            canonicalChildOuterRadius,
+            parentMetrics.workingThicknessMm / (2 * resolvedSettings.levelSizeMultiplier),
+          ),
+        )
+
+        let cappedOuterRadius = desiredChildOuterRadius
+        for (const parent of scaledSnapshot.particles.filter((particle) => particle.depth === depth)) {
+          const childParticles = childrenByParentId.get(parent.particleId) ?? []
+          if (childParticles.length === 0) continue
+
+          const childFields = fieldsByParticleId.get(parent.particleId) ?? []
+          cappedOuterRadius = Math.min(
+            cappedOuterRadius,
+            resolveFittingChildOuterRadius(
+              depth,
+              parentOuterRadius,
+              childParticles.length,
+              childFields.length,
+              currentChildOuterRadius,
+              cappedOuterRadius,
+            ),
+          )
+        }
+
+        const previousOuterRadius = targetOuterByDepth.get(childDepth) ?? currentChildOuterRadius
+        if (Math.abs(previousOuterRadius - cappedOuterRadius) > 1e-6) {
+          targetOuterByDepth.set(childDepth, Math.max(currentChildOuterRadius, cappedOuterRadius))
+          changed = true
+        }
+      }
+
+      if (!changed) break
+    }
+
+    for (const particle of scaledSnapshot.particles) {
+      const targetOuterRadius = targetOuterByDepth.get(particle.depth)
+      if (targetOuterRadius === undefined) continue
+      const levelMetrics = getLevelMetrics(particle.depth, resolvedSettings, {
+        outerRadiusMm: targetOuterRadius,
+        rootOuterDiameterMm: targetOuterDiameter,
+      })
+      particle.shellRadius = levelMetrics.shellRadiusMm
+      particle.shellTube = levelMetrics.shellTubeMm
+    }
+  }
+
+  fieldsByParticleId.clear()
+
   for (const field of scaledSnapshot.fields) {
     const parent = particlesById.get(field.particleId)
     if (!parent) continue
+    const parentOuterRadius = getParticleOuterRadius(parent)
     field.sphereRadius = getLevelMetrics(parent.depth, resolvedSettings, {
+      outerRadiusMm: parentOuterRadius,
       rootOuterDiameterMm: targetOuterDiameter,
     }).fieldSphereRadiusMm
     const fields = fieldsByParticleId.get(field.particleId) ?? []
@@ -632,10 +826,11 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
 
   const reflowShell = (particle: DbParticleShellSnapshot): void => {
     const outerRadius = particle.shellRadius + particle.shellTube
-    const innerRadius = getLevelMetrics(particle.depth, resolvedSettings, {
+    const levelMetrics = getLevelMetrics(particle.depth, resolvedSettings, {
       outerRadiusMm: outerRadius,
       rootOuterDiameterMm: targetOuterDiameter,
-    }).innerRadiusMm
+    })
+    const innerRadius = levelMetrics.innerRadiusMm
     const childParticles = childrenByParentId.get(particle.particleId) ?? []
     const childFields = fieldsByParticleId.get(particle.particleId) ?? []
 
@@ -687,6 +882,7 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
     if (orbitItems.length > 0) {
       placeOrbitItemsFromInnerBoundary(orbitItems, {
         maxOuterBoundary: outerRadius,
+        paddingMm: levelMetrics.paddingMm,
         startInnerBoundary: innerRadius,
       })
     }

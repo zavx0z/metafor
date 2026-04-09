@@ -20,6 +20,17 @@ describe("app/web level law", () => {
     })
 
     expect(root.outerRadiusMm).toBeCloseTo(appWebLayoutConfig.snapshot.rootOuterDiameterMm / 2, 6)
+    expect(root.outerDiameterMm).toBeCloseTo(root.outerRadiusMm * 2, 6)
+    expect(root.innerDiameterMm).toBeCloseTo(DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootInnerDiameterMm, 6)
+    expect(root.thicknessMm).toBeCloseTo((root.outerDiameterMm - root.innerDiameterMm) / 2, 6)
+    expect(root.workingThicknessMm).toBeCloseTo(root.thicknessMm - root.paddingMm * 2, 6)
+    expect(root.maxObjectDiameterMm).toBeCloseTo(
+      root.outerDiameterMm * root.nestingCoefficient,
+      6,
+    )
+    expect(root.sphereDiameterMm).toBeGreaterThanOrEqual(root.sphereMinDiameterMm)
+    expect(root.sphereDiameterMm).toBeLessThanOrEqual(root.sphereMaxDiameterMm)
+    expect(root.fieldSphereRadiusMm * 2).toBeCloseTo(root.sphereDiameterMm, 6)
     expect(child.outerRadiusMm).toBeCloseTo(root.outerRadiusMm / DEFAULT_APP_WEB_LAYOUT_SETTINGS.levelSizeMultiplier, 6)
     expect(child.fieldSphereRadiusMm).toBeCloseTo(
       root.fieldSphereRadiusMm / DEFAULT_APP_WEB_LAYOUT_SETTINGS.levelSizeMultiplier,
@@ -59,6 +70,14 @@ describe("app/web level law", () => {
     expect(metrics.outerRadiusMm).toBe(777)
     expect(metrics.innerRadiusMm / metrics.outerRadiusMm).toBeCloseTo(
       DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootInnerDiameterMm / appWebLayoutConfig.snapshot.rootOuterDiameterMm,
+      6,
+    )
+    expect(metrics.maxObjectDiameterMm).toBeCloseTo(
+      metrics.outerDiameterMm * metrics.nestingCoefficient,
+      6,
+    )
+    expect(metrics.paddingMm).toBeCloseTo(
+      metrics.maxObjectDiameterMm * (metrics.packingDensityCoefficient - 1),
       6,
     )
     expect(metrics.shellRadiusMm + metrics.shellTubeMm).toBeCloseTo(metrics.outerRadiusMm, 6)

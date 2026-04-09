@@ -12,17 +12,28 @@ export interface AppWebLevelMetrics {
   depth: number
   detailMultiplier: number | null
   fieldSphereRadiusMm: number
+  innerDiameterMm: number
   innerRadiusMm: number
   isLabelVisible: boolean
   labelFontSizeMm: number | null
   labelSurfaceOffsetMm: number | null
+  maxObjectDiameterMm: number
+  nestingCoefficient: number
+  outerDiameterMm: number
   outerRadiusMm: number
+  packingDensityCoefficient: number
+  paddingMm: number
   shellRadiusMm: number
   shellTubeMm: number
+  sphereDiameterMm: number
   sphereHeightSegments: number | null
+  sphereMaxDiameterMm: number
+  sphereMinDiameterMm: number
   sphereWidthSegments: number | null
+  thicknessMm: number
   torusRadialSegments: number | null
   torusTubularSegments: number | null
+  workingThicknessMm: number
 }
 
 /** Входные параметры единого расчёта уровня. */
@@ -46,11 +57,30 @@ export const resolveAppWebLevelMetrics = ({
   const depthSizeScale = Math.pow(layoutSettings.levelSizeMultiplier, normalizedDepth)
   const canonicalOuterRadiusMm = Math.max(0.001, rootOuterDiameterMm / 2 / depthSizeScale)
   const resolvedOuterRadiusMm = outerRadiusMm ?? canonicalOuterRadiusMm
+  const outerDiameterMm = resolvedOuterRadiusMm * 2
   const innerDiameterRatio = layoutSettings.rootInnerDiameterMm / rootOuterDiameterMm
-  const innerRadiusMm = Math.min(resolvedOuterRadiusMm * 0.9, resolvedOuterRadiusMm * innerDiameterRatio)
-  const shellRadiusMm = (resolvedOuterRadiusMm + innerRadiusMm) / 2
-  const shellTubeMm = (resolvedOuterRadiusMm - innerRadiusMm) / 2
-  const fieldSphereRadiusMm = Math.max(0.001, layoutSettings.rootSphereRadiusMm / 2 / depthSizeScale)
+  const innerDiameterMm = Math.min(outerDiameterMm * 0.9, outerDiameterMm * innerDiameterRatio)
+  const innerRadiusMm = innerDiameterMm / 2
+  const thicknessMm = Math.max(0.001, (outerDiameterMm - innerDiameterMm) / 2)
+  const shellTubeMm = thicknessMm / 2
+  const shellRadiusMm = innerRadiusMm + shellTubeMm
+  const nestingCoefficient = appWebLayoutConfig.snapshot.nestingCoefficient
+  const maxObjectDiameterMm = Math.max(0.001, outerDiameterMm * nestingCoefficient)
+  const sphereMinDiameterMm = maxObjectDiameterMm * appWebLayoutConfig.snapshot.sphereMinScaleFactor
+  const sphereMaxDiameterMm = maxObjectDiameterMm
+  const rootMaxObjectDiameterMm = rootOuterDiameterMm * nestingCoefficient
+  const sphereScaleFactor = Math.min(
+    1,
+    Math.max(
+      appWebLayoutConfig.snapshot.sphereMinScaleFactor,
+      layoutSettings.rootSphereRadiusMm / rootMaxObjectDiameterMm,
+    ),
+  )
+  const sphereDiameterMm = maxObjectDiameterMm * sphereScaleFactor
+  const fieldSphereRadiusMm = sphereDiameterMm / 2
+  const packingDensityCoefficient = appWebLayoutConfig.snapshot.packingDensityCoefficient
+  const paddingMm = Math.max(0, maxObjectDiameterMm * (packingDensityCoefficient - 1))
+  const workingThicknessMm = Math.max(0.001, thicknessMm - paddingMm * 2)
 
   const isLabelVisible = renderSettings ? normalizedDepth + 1 <= renderSettings.labelVisibleLevels : false
   const labelFontSizeMm = renderSettings
@@ -86,16 +116,27 @@ export const resolveAppWebLevelMetrics = ({
     depth: normalizedDepth,
     detailMultiplier,
     fieldSphereRadiusMm,
+    innerDiameterMm,
     innerRadiusMm,
     isLabelVisible,
     labelFontSizeMm,
     labelSurfaceOffsetMm,
+    maxObjectDiameterMm,
+    nestingCoefficient,
+    outerDiameterMm,
     outerRadiusMm: resolvedOuterRadiusMm,
+    packingDensityCoefficient,
+    paddingMm,
     shellRadiusMm,
     shellTubeMm,
+    sphereDiameterMm,
     sphereHeightSegments,
+    sphereMaxDiameterMm,
+    sphereMinDiameterMm,
     sphereWidthSegments,
+    thicknessMm,
     torusRadialSegments,
     torusTubularSegments,
+    workingThicknessMm,
   }
 }

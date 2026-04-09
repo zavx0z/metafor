@@ -14,6 +14,7 @@ import {
 	type AppWebLayoutSettings,
 	type AppWebRenderSettings,
 } from "./settings.ts"
+import { loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings } from "./ui-settings-idb.ts"
 
 type WorkerStatusMessage = {
 	type: "worker-status"
@@ -123,6 +124,11 @@ const settingInputs = {
 	wireframeOpacity: wireframeOpacityInput,
 } as const
 
+type SettingInputKey = keyof typeof settingInputs
+
+const settingValueElements: Partial<Record<SettingInputKey, HTMLSpanElement | null>> = {}
+let persistUiSettingsTimer: ReturnType<typeof setTimeout> | null = null
+
 const closeAllSettingTooltips = (): void => {
 	for (const field of document.querySelectorAll<HTMLElement>(".setting-field[data-tooltip-open='true']")) {
 		delete field.dataset.tooltipOpen
@@ -137,9 +143,80 @@ const formatSettingValue = (rawValue: string, step?: number): string => {
 	return String(Number(value.toFixed(2)))
 }
 
+const updateSettingValuePreview = (key: SettingInputKey): void => {
+	const value = settingValueElements[key]
+	if (!value) return
+	value.textContent = formatSettingValue(settingInputs[key].value, APP_WEB_SETTINGS_BY_KEY[key].step)
+}
+
+const readSettingValue = (key: SettingInputKey): AppWebLayoutSettings[keyof AppWebLayoutSettings] | AppWebRenderSettings[keyof AppWebRenderSettings] => {
+	const input = settingInputs[key]
+	const config = APP_WEB_SETTINGS_BY_KEY[key]
+	const fallback = config.defaultValue
+	if (key === "labelSurfaceOffsetMm") return parseNonNegativeNumber(input, fallback)
+	if (key === "torusCrossRingRotationDeg") return parseFiniteNumber(input, fallback)
+	return parsePositiveNumber(input, fallback)
+}
+
+const createUiSettingsSnapshot = (): {
+	layoutSettings: Partial<AppWebLayoutSettings>
+	renderSettings: Partial<AppWebRenderSettings>
+} => ({
+	layoutSettings: Object.fromEntries(
+		APP_WEB_LAYOUT_SETTING_KEYS.map((key) => [key, readSettingValue(key)]),
+	) as Partial<AppWebLayoutSettings>,
+	renderSettings: Object.fromEntries(
+		APP_WEB_RENDER_SETTING_KEYS.map((key) => [key, readSettingValue(key)]),
+	) as Partial<AppWebRenderSettings>,
+})
+
+const persistUiSettings = async (): Promise<void> => {
+	await savePersistedAppWebUiSettings(createUiSettingsSnapshot())
+}
+
+const schedulePersistUiSettings = (): void => {
+	if (persistUiSettingsTimer !== null) clearTimeout(persistUiSettingsTimer)
+	persistUiSettingsTimer = setTimeout(() => {
+		persistUiSettingsTimer = null
+		void persistUiSettings().catch((error) => {
+			console.error("ui settings persist error:", error)
+		})
+	}, 120)
+}
+
+const flushPersistUiSettings = (): void => {
+	if (persistUiSettingsTimer !== null) {
+		clearTimeout(persistUiSettingsTimer)
+		persistUiSettingsTimer = null
+	}
+
+	void persistUiSettings().catch((error) => {
+		console.error("ui settings persist error:", error)
+	})
+}
+
+const applyPersistedSettingValue = (key: SettingInputKey, value: number | undefined): void => {
+	if (!Number.isFinite(value)) return
+	settingInputs[key].value = String(value)
+	updateSettingValuePreview(key)
+}
+
+const hydratePersistedUiSettings = async (): Promise<void> => {
+	const snapshot = await loadPersistedAppWebUiSettings()
+	if (!snapshot) return
+
+	for (const key of APP_WEB_LAYOUT_SETTING_KEYS) {
+		applyPersistedSettingValue(key, snapshot.layoutSettings[key])
+	}
+
+	for (const key of APP_WEB_RENDER_SETTING_KEYS) {
+		applyPersistedSettingValue(key, snapshot.renderSettings[key])
+	}
+}
+
 const applySettingUiMetadata = (): void => {
 	for (const [key, input] of Object.entries(settingInputs) as Array<
-		[keyof typeof settingInputs, HTMLInputElement]
+		[SettingInputKey, HTMLInputElement]
 	>) {
 		const config = APP_WEB_SETTINGS_BY_KEY[key]
 		const field = document.querySelector(`[data-setting-key="${key}"]`) as HTMLElement | null
@@ -182,9 +259,11 @@ const applySettingUiMetadata = (): void => {
 		if (config.min !== undefined) input.min = String(config.min)
 		if (config.max !== undefined) input.max = String(config.max)
 		if (!input.value) input.value = String(config.defaultValue)
-		if (value) value.textContent = formatSettingValue(input.value, config.step)
+		settingValueElements[key] = value
+		updateSettingValuePreview(key)
 		input.addEventListener("input", () => {
-			if (value) value.textContent = formatSettingValue(input.value, config.step)
+			updateSettingValuePreview(key)
+			schedulePersistUiSettings()
 		})
 	}
 }
@@ -193,29 +272,20 @@ document.addEventListener("click", () => {
 	closeAllSettingTooltips()
 })
 
-const readSettingValue = (key: keyof typeof settingInputs): AppWebLayoutSettings[keyof AppWebLayoutSettings] | AppWebRenderSettings[keyof AppWebRenderSettings] => {
-	const input = settingInputs[key]
-	const config = APP_WEB_SETTINGS_BY_KEY[key]
-	const fallback = config.defaultValue
-	if (key === "labelSurfaceOffsetMm") return parseNonNegativeNumber(input, fallback)
-	if (key === "torusCrossRingRotationDeg") return parseFiniteNumber(input, fallback)
-	return parsePositiveNumber(input, fallback)
-}
-
 applySettingUiMetadata()
+
+const persistedUiSettingsReady = hydratePersistedUiSettings().catch((error) => {
+	console.error("ui settings hydrate error:", error)
+})
 
 const createMaterializePayload = (): ClientMaterializePayload => ({
 	type: "materialize",
 	src: srcInput.value.trim() || "zavx0z/git",
-	layoutSettings: Object.fromEntries(
-		APP_WEB_LAYOUT_SETTING_KEYS.map((key) => [key, readSettingValue(key)]),
-	) as Partial<AppWebLayoutSettings>,
-	renderSettings: Object.fromEntries(
-		APP_WEB_RENDER_SETTING_KEYS.map((key) => [key, readSettingValue(key)]),
-	) as Partial<AppWebRenderSettings>,
+	...createUiSettingsSnapshot(),
 })
 
 const initBulkViewport = async (): Promise<void> => {
+	await persistedUiSettingsReady
 	const rect = bulkCanvas.getBoundingClientRect()
 	bulkViewport = await createBulkViewport({
 		canvas: bulkCanvas,
@@ -244,7 +314,8 @@ void initBulkViewport().catch((error) => {
 	console.error("bulk init error:", error)
 })
 
-socket.onopen = () => {
+socket.onopen = async () => {
+	await persistedUiSettingsReady
 	submitButton.disabled = false
 	if (!initialMaterializationRequested) {
 		initialMaterializationRequested = true
@@ -285,6 +356,7 @@ form.addEventListener("submit", (event) => {
 	event.preventDefault()
 	submitButton.disabled = true
 	const payload = createMaterializePayload()
+	flushPersistUiSettings()
 	bulkViewport?.setLayoutSettings(payload.layoutSettings)
 	bulkViewport?.setRenderSettings(payload.renderSettings)
 	socket.send(JSON.stringify(payload))

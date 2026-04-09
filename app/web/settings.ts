@@ -4,7 +4,7 @@ export interface AppWebLayoutSettings {
   levelSizeMultiplier: number
   /** Внутренний диаметр root-тора в миллиметрах. То же отношение переносится на внутренние уровни. */
   rootInnerDiameterMm: number
-  /** Диаметр сферы поля на root-уровне в миллиметрах. */
+  /** Диаметр peer-sphere на root-уровне в миллиметрах в пределах level-contract. */
   rootSphereRadiusMm: number
   /** Наклон продольных линий тора в градусах относительно базовой раскладки. */
   torusCrossRingRotationDeg: number
@@ -34,8 +34,10 @@ export interface AppWebRenderSettings {
 export interface AppWebLayoutConfig {
   snapshot: {
     deepestFieldSphereRadiusMm: number
-    orbitItemSpacingFactor: number
+    nestingCoefficient: number
+    packingDensityCoefficient: number
     rootOuterDiameterMm: number
+    sphereMinScaleFactor: number
   }
   viewport: {
     axesSizeMm: number
@@ -100,14 +102,16 @@ export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = {
 export const appWebLayoutConfig: AppWebLayoutConfig = {
   snapshot: {
     deepestFieldSphereRadiusMm: 50,
-    orbitItemSpacingFactor: 1.12,
+    nestingCoefficient: 0.1,
+    packingDensityCoefficient: 1.12,
     rootOuterDiameterMm: 4000,
+    sphereMinScaleFactor: 0.5,
   },
   viewport: {
     axesSizeMm: 1000,
     camera: {
       fovRad: (2 * Math.PI) / 5,
-      near: 10,
+      near: 1,
       far: 100000,
       position: { x: 3975.6752784123818, y: -2981.756458809286, z: 1650 },
       target: { x: 0, y: 0, z: 1100 },

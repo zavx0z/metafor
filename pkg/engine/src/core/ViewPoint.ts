@@ -72,7 +72,7 @@ export interface ViewPointParameters {
  * | **Вращение** | ЛКМ + Движение | Trackball-вращение через кватернионы (без Gimbal Lock). |
  * | **Панорамирование** | ПКМ + Движение | Сдвиг вдоль векторов камеры. |
  * | **Панорамирование** | Колесо мыши | Сдвиг по X/Y. |
- * | **Масштаб** | Ctrl + Колесо | Динамический зум, зависящий от расстояния до цели. |
+ * | **Масштаб** | Ctrl + Колесо | Гибридный зум: динамический вдали и с минимальным world-step вблизи цели. |
  *
  * ### Тач-устройства (Смартфоны, Планшеты)
  * | Действие | Ввод пользователя |
@@ -378,8 +378,14 @@ export class ViewPoint {
 
   private handleZoom(delta: number) {
     const offset = new Vector3().subVectors(this.position, this.target)
+    const currentRadius = offset.length()
     const scale = Math.pow(0.95, delta * 0.05)
-    const newRadius = Math.max(0.1, offset.length() * scale)
+    const scaledRadius = currentRadius * scale
+    const scaledDelta = currentRadius - scaledRadius
+    const minZoomDistance = Math.max(0.001, Math.min(0.1, this.near * 0.02))
+    const minimumRadiusDelta = Math.max(0.01, this.near * 0.2 * Math.abs(delta) * 0.01)
+    const radiusDelta = Math.sign(scaledDelta) * Math.max(Math.abs(scaledDelta), minimumRadiusDelta)
+    const newRadius = Math.max(minZoomDistance, currentRadius - radiusDelta)
 
     offset.normalize().multiplyScalar(newRadius)
 

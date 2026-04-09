@@ -13,7 +13,6 @@ import {
 	BufferAttribute,
 	BufferGeometry,
 	Color,
-	AxesHelper,
 	GridHelper,
 	LineGlowMaterial,
 	LineSegments,
@@ -475,14 +474,6 @@ const createWorkspaceGrid = (): GridHelper => {
 	return grid
 }
 
-const createWorkspaceAxes = (): AxesHelper => {
-	const axes = new AxesHelper(getViewportConfig().axesSizeMm)
-	axes.position.z = getWorkspaceBaseZ()
-	axes.frustumCulled = false
-	axes.updateMatrix()
-	return axes
-}
-
 type SceneBuildResult = {
 	labelTrackers: SurfaceLabelTracker[]
 	scene: Scene
@@ -533,7 +524,6 @@ const createSceneFromSnapshot = (snapshot: DbWorldSnapshot, font: TrueTypeFont |
 	}
 
 	nextScene.add(createWorkspaceGrid())
-	nextScene.add(createWorkspaceAxes())
 	nextScene.add(workspace)
 
 	return { scene: nextScene, labelTrackers, workspace }
@@ -543,7 +533,6 @@ const createEmptyScene = (): SceneBuildResult => {
 	const nextScene = new Scene()
 	nextScene.background = ROOT_BACKGROUND.clone()
 	nextScene.add(createWorkspaceGrid())
-	nextScene.add(createWorkspaceAxes())
 	return { scene: nextScene, labelTrackers: [], workspace: null }
 }
 
