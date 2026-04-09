@@ -304,7 +304,8 @@ const createShellMaterial = (shell: DbParticleShellSnapshot): LineGlowMaterial =
 		color: THEME_PRIMARY.clone(),
 		glowIntensity: shell.kind === "wimp" ? 1.4 : 1.15,
 		glowColor: THEME_PRIMARY_GLOW.clone(),
-		opacity: 0.9,
+		opacity: activeRenderSettings.wireframeOpacity,
+		transparent: true,
 	})
 
 const createFieldMaterial = (orbit: DbFieldOrbitSnapshot): LineGlowMaterial => {
@@ -313,7 +314,8 @@ const createFieldMaterial = (orbit: DbFieldOrbitSnapshot): LineGlowMaterial => {
 		color: theme.color.clone(),
 		glowIntensity: 1,
 		glowColor: theme.glowColor.clone(),
-		opacity: 0.85,
+		opacity: activeRenderSettings.wireframeOpacity * 0.95,
+		transparent: true,
 	})
 }
 

@@ -43,6 +43,10 @@ describe("app/web level law", () => {
     expect(root.torusTubularSegments).toBeGreaterThan(0)
     expect(root.sphereWidthSegments).toBeGreaterThan(0)
     expect(root.sphereHeightSegments).toBeGreaterThan(0)
+
+    // Проверяем наличие wireframeOpacity в DEFAULT_APP_WEB_RENDER_SETTINGS через resolve
+    expect(DEFAULT_APP_WEB_RENDER_SETTINGS.wireframeOpacity).toBeDefined()
+    expect(DEFAULT_APP_WEB_RENDER_SETTINGS.wireframeOpacity).toBeGreaterThan(0)
   })
 
   test("при расширении outer radius сохраняет тот же закон inner ratio и shell geometry", () => {

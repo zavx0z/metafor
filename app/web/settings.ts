@@ -26,6 +26,8 @@ export interface AppWebRenderSettings {
   torusRadialSegments: number
   /** Количество сегментов (сглаженность) одного кольца тора. */
   torusTubularSegments: number
+  /** Прозрачность wireframe-сетки (0..1). */
+  wireframeOpacity: number
 }
 
 /** Нередактируемый layout-контракт `app/web`: базовые размеры snapshot-а и посадка viewport. */
@@ -144,6 +146,8 @@ export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
   torusRadialSegments: 12,
   // Базовая сглаженность (сегменты) одного кольца тора.
   torusTubularSegments: 12,
+  // Прозрачность wireframe-сетки.
+  wireframeOpacity: 0.9,
 }
 
 /** Классификация настроек `app/web` по ключам. Используется UI и runtime-слоями как единая карта. */
@@ -225,6 +229,17 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     max: 96,
     step: 1,
   },
+  // Прозрачность wireframe-сетки.
+  wireframeOpacity: {
+    group: "detail",
+    section: "render",
+    label: "Прозрачность сетки",
+    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.wireframeOpacity,
+    description: "Задает общую прозрачность для всех wireframe-объектов (shell и сферы).",
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
   // Масштаб уменьшения shell-ов от root вглубь иерархии.
   levelSizeMultiplier: {
     group: "geometry",
@@ -271,6 +286,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
   },
 }
 
+
 /** Список layout-ключей, которые должны уходить в `dark` и layout-law snapshot-а. */
 export const APP_WEB_LAYOUT_SETTING_KEYS = [
   "levelSizeMultiplier",
@@ -288,6 +304,7 @@ export const APP_WEB_RENDER_SETTING_KEYS = [
   "labelSurfaceOffsetMm",
   "torusRadialSegments",
   "torusTubularSegments",
+  "wireframeOpacity",
 ] as const satisfies readonly AppWebRenderSettingKey[]
 
 /**
@@ -352,4 +369,8 @@ export const normalizeAppWebRenderSettings = (
     Number.isFinite(settings.torusTubularSegments) && (settings.torusTubularSegments ?? 0) > 0
       ? Math.max(3, Math.round(settings.torusTubularSegments!))
       : DEFAULT_APP_WEB_RENDER_SETTINGS.torusTubularSegments,
+  wireframeOpacity:
+    Number.isFinite(settings.wireframeOpacity) && (settings.wireframeOpacity ?? 0) >= 0
+      ? Math.max(0, Math.min(1, settings.wireframeOpacity!))
+      : DEFAULT_APP_WEB_RENDER_SETTINGS.wireframeOpacity,
 })

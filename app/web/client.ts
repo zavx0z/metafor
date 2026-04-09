@@ -78,6 +78,7 @@ const rootSphereRadiusInput = document.getElementById("root-sphere-radius-input"
 const torusCrossRingRotationInput = document.getElementById("torus-cross-ring-rotation-input") as HTMLInputElement
 const torusRadialSegmentsInput = document.getElementById("torus-radial-segments-input") as HTMLInputElement
 const torusTubularSegmentsInput = document.getElementById("torus-tubular-segments-input") as HTMLInputElement
+const wireframeOpacityInput = document.getElementById("wireframe-opacity-input") as HTMLInputElement
 const submitButton = document.getElementById("materialize-btn") as HTMLButtonElement
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
@@ -119,6 +120,7 @@ const settingInputs = {
 	torusCrossRingRotationDeg: torusCrossRingRotationInput,
 	torusRadialSegments: torusRadialSegmentsInput,
 	torusTubularSegments: torusTubularSegmentsInput,
+	wireframeOpacity: wireframeOpacityInput,
 } as const
 
 const closeAllSettingTooltips = (): void => {

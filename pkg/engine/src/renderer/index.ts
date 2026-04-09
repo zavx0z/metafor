@@ -422,7 +422,7 @@ export class Renderer {
       },
       primitive: { topology: "line-list" },
       depthStencil: {
-        depthWriteEnabled: false, // Отключаем запись глубины для полупрозрачных линий
+        depthWriteEnabled: true, // Включаем запись глубины для придания объема
         depthCompare: "less",
         format: "depth24plus-stencil8",
       },
