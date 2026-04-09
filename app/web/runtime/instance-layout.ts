@@ -622,7 +622,9 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
   for (const field of scaledSnapshot.fields) {
     const parent = particlesById.get(field.particleId)
     if (!parent) continue
-    field.sphereRadius = getLevelMetrics(parent.depth, resolvedSettings).fieldSphereRadiusMm
+    field.sphereRadius = getLevelMetrics(parent.depth, resolvedSettings, {
+      rootOuterDiameterMm: targetOuterDiameter,
+    }).fieldSphereRadiusMm
     const fields = fieldsByParticleId.get(field.particleId) ?? []
     fields.push(field)
     fieldsByParticleId.set(field.particleId, fields)
@@ -632,6 +634,7 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
     const outerRadius = particle.shellRadius + particle.shellTube
     const innerRadius = getLevelMetrics(particle.depth, resolvedSettings, {
       outerRadiusMm: outerRadius,
+      rootOuterDiameterMm: targetOuterDiameter,
     }).innerRadiusMm
     const childParticles = childrenByParentId.get(particle.particleId) ?? []
     const childFields = fieldsByParticleId.get(particle.particleId) ?? []

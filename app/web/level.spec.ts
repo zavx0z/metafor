@@ -33,6 +33,12 @@ describe("app/web level law", () => {
       (root.detailMultiplier ?? 0) / DEFAULT_APP_WEB_RENDER_SETTINGS.detailLevelMultiplier,
       6,
     )
+
+    expect(root.isLabelVisible).toBe(true)
+    expect(root.torusRadialSegments).toBeGreaterThan(0)
+    expect(root.torusTubularSegments).toBeGreaterThan(0)
+    expect(root.sphereWidthSegments).toBeGreaterThan(0)
+    expect(root.sphereHeightSegments).toBeGreaterThan(0)
   })
 
   test("при расширении outer radius сохраняет тот же закон inner ratio и shell geometry", () => {

@@ -62,13 +62,6 @@ const THEME_TERTIARY = new Color(191 / 255, 200 / 255, 209 / 255)
 const THEME_TERTIARY_GLOW = new Color(229 / 255, 233 / 255, 237 / 255, 0.12)
 const THEME_WARNING = new Color(255 / 255, 209 / 255, 117 / 255)
 const THEME_WARNING_GLOW = new Color(255 / 255, 244 / 255, 221 / 255, 0.12)
-const TORUS_BASE_DETAIL_SIZE = 500
-const TORUS_MAX_SEGMENTS = 96
-const SPHERE_BASE_DETAIL_SIZE = 100
-const SPHERE_BASE_WIDTH_SEGMENTS = 8
-const SPHERE_BASE_HEIGHT_SEGMENTS = 6
-const SPHERE_MAX_WIDTH_SEGMENTS = 64
-const SPHERE_MAX_HEIGHT_SEGMENTS = 48
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
@@ -93,45 +86,25 @@ const getLevelMetrics = (depth: number) =>
 		renderSettings: activeRenderSettings,
 	})
 
-const isLabelDepthVisible = (depth: number): boolean => depth + 1 <= activeRenderSettings.labelVisibleLevels
+const isLabelDepthVisible = (depth: number): boolean => getLevelMetrics(depth).isLabelVisible
 
 const getTorusDetail = (
 	_radius: number,
 	_tube: number,
 	depth: number,
 ): { radialSegments: number; tubularSegments: number } => {
-	const multiplier = getLevelMetrics(depth).detailMultiplier ?? activeRenderSettings.detailDensityFactor
+	const metrics = getLevelMetrics(depth)
 	return {
-		radialSegments: Math.max(
-			3,
-			Math.round(
-				Math.min(activeRenderSettings.torusRadialSegments * multiplier, TORUS_MAX_SEGMENTS),
-			),
-		),
-		tubularSegments: Math.max(
-			3,
-			Math.round(
-				Math.min(activeRenderSettings.torusTubularSegments * multiplier, TORUS_MAX_SEGMENTS),
-			),
-		),
+		radialSegments: metrics.torusRadialSegments ?? 3,
+		tubularSegments: metrics.torusTubularSegments ?? 3,
 	}
 }
 
 const getSphereDetail = (_radius: number, depth: number): { widthSegments: number; heightSegments: number } => {
-	const multiplier = getLevelMetrics(depth).detailMultiplier ?? activeRenderSettings.detailDensityFactor
+	const metrics = getLevelMetrics(depth)
 	return {
-		widthSegments: Math.max(
-			3,
-			Math.round(
-				Math.min(SPHERE_BASE_WIDTH_SEGMENTS * multiplier, SPHERE_MAX_WIDTH_SEGMENTS),
-			),
-		),
-		heightSegments: Math.max(
-			2,
-			Math.round(
-				Math.min(SPHERE_BASE_HEIGHT_SEGMENTS * multiplier, SPHERE_MAX_HEIGHT_SEGMENTS),
-			),
-		),
+		widthSegments: metrics.sphereWidthSegments ?? 3,
+		heightSegments: metrics.sphereHeightSegments ?? 2,
 	}
 }
 
