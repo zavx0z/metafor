@@ -8,7 +8,7 @@ import {
 	writeDbWorldSnapshot,
 } from "../../../pkg/db/index.ts"
 import type { DbFieldValueKind, DbParticleKind, DbWorldSnapshot } from "../../../pkg/db/index.ts"
-import { readDarkParticleModel } from "../../../pkg/sqlite/dark.ts"
+import { readDarkParticleModel, type DarkMetaParticleModel } from "../../../pkg/sqlite/dark.ts"
 import { getMetaDB, relation } from "../../../pkg/sqlite/index.ts"
 import { matter } from "../../../dark/dark.ts"
 import { readMetaDsl } from "../../../dark/load.ts"
@@ -38,13 +38,6 @@ type DarkWorkerScope = typeof globalThis & {
 }
 
 const darkWorker = globalThis as DarkWorkerScope
-
-const particleKindOrder: Record<DbParticleKind, number> = {
-	wimp: 0,
-	fuzzy: 1,
-	axion: 2,
-	macho: 3,
-}
 
 const particleColorByKind: Record<DbParticleKind, { r: number; g: number; b: number }> = {
   wimp: { r: 0.42, g: 0.45, b: 0.98 },
@@ -98,18 +91,6 @@ const detectParticleKind = (particle: DarkParticle): DbParticleKind => {
 	return "macho"
 }
 
-const compareParticles = (left: DarkParticle, right: DarkParticle): number => {
-	const leftKind = detectParticleKind(left)
-	const rightKind = detectParticleKind(right)
-	if (particleKindOrder[leftKind] !== particleKindOrder[rightKind]) {
-		return particleKindOrder[leftKind] - particleKindOrder[rightKind]
-	}
-
-	const leftLabel = left instanceof Wimp ? left.src : `${leftKind}:${left.id}`
-	const rightLabel = right instanceof Wimp ? right.src : `${rightKind}:${right.id}`
-	return leftLabel.localeCompare(rightLabel)
-}
-
 const formatFieldValue = (value: unknown): string | null => {
 	if (value === undefined || value === null) return null
 	if (typeof value === "string") return value
@@ -126,54 +107,159 @@ const detectFieldValueKind = (type: string): DbFieldValueKind => {
 	return "other"
 }
 
-const createParticleDescriptor = (particle: DarkParticle): DbWorldParticleDescriptor => {
+const toBindingPaths = (binding: unknown): string[] => {
+	if (!binding) return []
+	if (typeof binding === "string") return binding.startsWith("/") ? [binding] : []
+	if (typeof binding !== "object") return []
+
+	const data = "data" in binding ? binding.data : undefined
+	if (typeof data === "string") return [data]
+	return Array.isArray(data) ? data.filter((path): path is string => typeof path === "string") : []
+}
+
+const extractTopologyFieldKey = (path: string): string | null => {
+	const prefix = path.startsWith("/value/")
+		? "/value/"
+		: path.startsWith("/fields/")
+			? "/fields/"
+			: path.startsWith("/mass/")
+				? "/mass/"
+				: null
+	if (!prefix) return null
+
+	const [fieldKey] = path
+		.slice(prefix.length)
+		.split("/")
+		.filter((segment) => segment.length > 0)
+	if (!fieldKey || fieldKey.startsWith("[")) return null
+	return fieldKey
+}
+
+const resolveTopologyFieldLabel = (ownerWimp: Wimp, plan: MatterParticlePlan | undefined): string | null => {
+	if (!plan || plan.kind === "wimp") return null
+
+	const binding =
+		plan.kind === "macho"
+			? plan.collectionBinding
+			: plan.kind === "axion"
+				? plan.predicateBinding
+				: plan.predicateBinding
+
+	for (const path of toBindingPaths(binding)) {
+		const fieldKey = extractTopologyFieldKey(path)
+		if (!fieldKey) continue
+
+		const fieldSchema = ownerWimp.meta?.fields[fieldKey]?.schema
+		if (fieldSchema) return fieldSchema.label ?? fieldKey
+		return fieldKey
+	}
+
+	return null
+}
+
+const createFieldDescriptors = (particle: Wimp): DbWorldParticleDescriptor["fields"] =>
+	Object.values(particle.fields ?? {})
+		.filter((field) => !isTopologyFieldType(field.schema.type))
+		.map((field) => {
+			const fieldValueKind = detectFieldValueKind(field.schema.type)
+			const fieldColor = fieldColorByKind[fieldValueKind]
+			return {
+				id: field.id,
+				fieldKey: field.key,
+				fieldLabel: field.schema.label ?? field.key,
+				fieldValueKind,
+				valueText: formatFieldValue(field.value),
+				colorR: fieldColor.r,
+				colorG: fieldColor.g,
+				colorB: fieldColor.b,
+			}
+		})
+
+const createRuntimeParticleDescriptor = (
+	particle: DarkParticle,
+	particleModelsBySrc: Map<string, DarkMetaParticleModel>,
+	ownerWimp: Wimp,
+	plan?: MatterParticlePlan,
+): DbWorldParticleDescriptor => {
 	const kind = detectParticleKind(particle)
 	const color = particleColorByKind[kind]
-	const label = particle instanceof Wimp ? particle.src : kind
 
-	const fields =
-		particle instanceof Wimp && particle.fields
-			? Object.values(particle.fields)
-					.filter((field) => !isTopologyFieldType(field.schema.type))
-					.map((field) => {
-						const fieldValueKind = detectFieldValueKind(field.schema.type)
-						const fieldColor = fieldColorByKind[fieldValueKind]
-						return {
-							id: field.id,
-							fieldKey: field.key,
-							fieldLabel: field.schema.label ?? field.key,
-							fieldValueKind,
-							valueText: formatFieldValue(field.value),
-							colorR: fieldColor.r,
-							colorG: fieldColor.g,
-							colorB: fieldColor.b,
-						}
-					})
-			: []
+	if (particle instanceof Wimp) {
+		const particleModel = particleModelsBySrc.get(particle.src)
+		const continuationPlans = Array.isArray(plan?.children) ? plan.children : []
+		const ownPlans = particleModel?.particles ?? []
+		const actualChildren = [...particle.children]
+		const continuationCount = Math.min(continuationPlans.length, actualChildren.length)
+		const continuationChildren = actualChildren.slice(0, continuationCount)
+		const ownChildren = actualChildren.slice(continuationCount)
 
+		return {
+			particleId: particle.id,
+			kind,
+			src: particle.src,
+			metaSrc: particle.meta?.src ?? particle.src,
+			label: typeof particle.name === "string" ? particle.name : particle.src,
+			colorR: color.r,
+			colorG: color.g,
+			colorB: color.b,
+			fields: createFieldDescriptors(particle),
+			children: [
+				...continuationChildren.map((child, index) =>
+					createRuntimeParticleDescriptor(child, particleModelsBySrc, particle, continuationPlans[index]),
+				),
+				...ownChildren.map((child, index) =>
+					createRuntimeParticleDescriptor(child, particleModelsBySrc, particle, ownPlans[index]),
+				),
+			],
+		}
+	}
+
+	const topologyPlans = Array.isArray(plan?.children) ? plan.children : []
 	return {
 		particleId: particle.id,
 		kind,
-		src: particle instanceof Wimp ? particle.src : null,
-		metaSrc: particle instanceof Wimp ? particle.meta?.src ?? particle.src : null,
-		label,
+		src: null,
+		metaSrc: null,
+		label: resolveTopologyFieldLabel(ownerWimp, plan) ?? kind,
 		colorR: color.r,
 		colorG: color.g,
 		colorB: color.b,
-		fields,
-		children: [...particle.children].sort(compareParticles).map(createParticleDescriptor),
+		fields: [],
+		children: [...particle.children].map((child, index) =>
+			createRuntimeParticleDescriptor(child, particleModelsBySrc, ownerWimp, topologyPlans[index]),
+		),
 	}
 }
 
-const createDbWorldSnapshot = (rootSrc: string, layoutSettings: Partial<AppWebLayoutSettings> = {}): DbWorldSnapshot => {
-	const roots = [...dark$.particles.values()].filter((particle) => particle.parent === null).sort(compareParticles)
+const createDbWorldSnapshot = (
+	rootSrc: string,
+	particleModelsBySrc: Map<string, DarkMetaParticleModel>,
+	layoutSettings: Partial<AppWebLayoutSettings> = {},
+): DbWorldSnapshot => {
+	const roots = [...dark$.particles.values()].filter((particle) => particle.parent === null)
 	return scaleDbWorldSnapshotToRootOuterDiameter(
-		createDbWorldSnapshotFromParticleDescriptors(rootSrc, roots.map(createParticleDescriptor), layoutSettings),
+		createDbWorldSnapshotFromParticleDescriptors(
+			rootSrc,
+			roots.map((particle) => {
+				if (!(particle instanceof Wimp)) {
+					throw new Error(`Root particle "${particle.id}" must be Wimp to build instance snapshot`)
+				}
+				return createRuntimeParticleDescriptor(particle, particleModelsBySrc, particle)
+			}),
+			layoutSettings,
+		),
 	)
 }
 
-const canonicalizeMetaGraph = async (dbFilename: string, rootSrc: string): Promise<ReturnType<typeof getMetaDB>> => {
+const canonicalizeMetaGraph = async (
+	dbFilename: string,
+	rootSrc: string,
+): Promise<{
+	metaDb: ReturnType<typeof getMetaDB>
+	particleModelsBySrc: Map<string, DarkMetaParticleModel>
+}> => {
 	const metaDb = getMetaDB(dbFilename)
+	const particleModelsBySrc = new Map<string, DarkMetaParticleModel>()
 	const loaded = new Set<string>()
 	const queue = [rootSrc]
 
@@ -186,12 +272,13 @@ const canonicalizeMetaGraph = async (dbFilename: string, rootSrc: string): Promi
 		loaded.add(src)
 
 		const particleModel = readDarkParticleModel(metaDb, src)
+		particleModelsBySrc.set(src, particleModel)
 		for (const childSrc of collectChildMetaSrcs(particleModel.particles)) {
 			if (!loaded.has(childSrc)) queue.push(childSrc)
 		}
 	}
 
-	return metaDb
+	return { metaDb, particleModelsBySrc }
 }
 
 darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "ready" })
@@ -211,7 +298,8 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage>) => {
 			resetDarkRuntime()
 			backend = openDbSqliteBackend({ filename: dbFilename })
 			await backend.reset()
-			metaDb = await canonicalizeMetaGraph(dbFilename, src)
+			const canonicalized = await canonicalizeMetaGraph(dbFilename, src)
+			metaDb = canonicalized.metaDb
 			instanceDb = openDbInstanceSqlite({ filename: instanceDbFilename })
 			resetDbInstanceSqlite(instanceDb)
 
@@ -219,7 +307,7 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage>) => {
 			await matter(new Wimp({ src, parent: null }), undefined, { dbWriter: writer, sqliteDb: metaDb })
 			await backend.flush()
 
-			const snapshot = createDbWorldSnapshot(src, layoutSettings)
+			const snapshot = createDbWorldSnapshot(src, canonicalized.particleModelsBySrc, layoutSettings)
 			writeDbWorldSnapshot(instanceDb, snapshot)
 			darkWorker.postMessage({
 				type: "instance-snapshot",

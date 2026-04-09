@@ -4,7 +4,7 @@ export interface AppWebLayoutSettings {
   levelSizeMultiplier: number
   /** Внутренний диаметр root-тора в миллиметрах. То же отношение переносится на внутренние уровни. */
   rootInnerDiameterMm: number
-  /** Фазовый поворот поперечных колец тора в градусах. */
+  /** Наклон продольных линий тора в градусах относительно базовой раскладки. */
   torusCrossRingRotationDeg: number
 }
 
@@ -14,6 +14,12 @@ export interface AppWebRenderSettings {
   detailDensityFactor: number
   /** Ослабление детализации на каждый уровень внутрь. Должен быть `> 0`. */
   detailLevelMultiplier: number
+  /** Сколько уровней иерархии подписей показывать, начиная от root-уровня. */
+  labelVisibleLevels: number
+  /** Размер подписи у shell/sphere в миллиметрах. */
+  labelFontSizeMm: number
+  /** Отступ подписи от поверхности объекта в миллиметрах. */
+  labelSurfaceOffsetMm: number
 }
 
 /** Нередактируемый layout-контракт `app/web`: базовые размеры snapshot-а и посадка viewport. */
@@ -69,11 +75,11 @@ export interface AppWebNumericSettingConfig {
 /** Базовый top-down закон размеров для root-shell и внутренних уровней. */
 export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = {
   // Во сколько раз каждый следующий вложенный уровень меньше предыдущего.
-  levelSizeMultiplier: 4,
+  levelSizeMultiplier: 2,
   // Размер отверстия root-тора в миллиметрах.
   rootInnerDiameterMm: 1000,
-  // Начальный угол поворота поперечных колец тора.
-  torusCrossRingRotationDeg: 0,
+  // Наклон продольных линий тора по поверхности.
+  torusCrossRingRotationDeg: 44,
 }
 
 /** Единый layout-контракт `app/web`, из которого `instance-layout` и `bulk` читают базовую геометрию. */
@@ -116,6 +122,12 @@ export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
   detailDensityFactor: 2,
   // Насколько быстро детализация уменьшается на каждом внутреннем уровне.
   detailLevelMultiplier: 1.5,
+  // Сколько уровней подписей показывать от root внутрь.
+  labelVisibleLevels: 2,
+  // Размер текста подписей на поверхности объектов.
+  labelFontSizeMm: 120,
+  // Насколько подпись вынесена от поверхности наружу.
+  labelSurfaceOffsetMm: 40,
 }
 
 /** Классификация настроек `app/web` по ключам. Используется UI и runtime-слоями как единая карта. */
@@ -138,6 +150,33 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     min: 0.5,
     step: 0.05,
   },
+  // Сколько уровней подписей рендерить от root-уровня внутрь.
+  labelVisibleLevels: {
+    section: "render",
+    label: "Label Visible Levels",
+    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelVisibleLevels,
+    description: "Ограничивает глубину показа подписей, начиная от корневого уровня.",
+    min: 1,
+    step: 1,
+  },
+  // Размер шрифта для подписей торов и сфер.
+  labelFontSizeMm: {
+    section: "render",
+    label: "Label Font Size Mm",
+    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelFontSizeMm,
+    description: "Задает размер шрифта подписей на торах и сферах.",
+    min: 1,
+    step: 1,
+  },
+  // Отступ текста от поверхности объекта наружу.
+  labelSurfaceOffsetMm: {
+    section: "render",
+    label: "Label Surface Offset Mm",
+    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelSurfaceOffsetMm,
+    description: "Отодвигает подпись от поверхности объекта, чтобы текст не врезался в wireframe.",
+    min: 0,
+    step: 1,
+  },
   // Масштаб уменьшения shell-ов от root вглубь иерархии.
   levelSizeMultiplier: {
     section: "layout",
@@ -156,12 +195,12 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     min: 10,
     step: 10,
   },
-  // Поворот поперечных колец wireframe-тора по фазе.
+  // Наклон продольных линий тора без вывода их с поверхности тора.
   torusCrossRingRotationDeg: {
     section: "layout",
-    label: "Torus Cross Ring Rotation Deg",
+    label: "Torus Longitudinal Tilt Deg",
     defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.torusCrossRingRotationDeg,
-    description: "Поворачивает поперечные кольца wireframe-тора на заданный угол.",
+    description: "Наклоняет продольные линии тора, не деформируя их по высоте вне поверхности.",
     step: 1,
   },
 }
@@ -177,6 +216,9 @@ export const APP_WEB_LAYOUT_SETTING_KEYS = [
 export const APP_WEB_RENDER_SETTING_KEYS = [
   "detailDensityFactor",
   "detailLevelMultiplier",
+  "labelVisibleLevels",
+  "labelFontSizeMm",
+  "labelSurfaceOffsetMm",
 ] as const satisfies readonly AppWebRenderSettingKey[]
 
 /**
@@ -217,4 +259,16 @@ export const normalizeAppWebRenderSettings = (
     Number.isFinite(settings.detailLevelMultiplier) && (settings.detailLevelMultiplier ?? 0) > 0
       ? settings.detailLevelMultiplier!
       : DEFAULT_APP_WEB_RENDER_SETTINGS.detailLevelMultiplier,
+  labelVisibleLevels:
+    Number.isFinite(settings.labelVisibleLevels) && (settings.labelVisibleLevels ?? 0) > 0
+      ? Math.max(1, Math.round(settings.labelVisibleLevels!))
+      : DEFAULT_APP_WEB_RENDER_SETTINGS.labelVisibleLevels,
+  labelFontSizeMm:
+    Number.isFinite(settings.labelFontSizeMm) && (settings.labelFontSizeMm ?? 0) > 0
+      ? settings.labelFontSizeMm!
+      : DEFAULT_APP_WEB_RENDER_SETTINGS.labelFontSizeMm,
+  labelSurfaceOffsetMm:
+    Number.isFinite(settings.labelSurfaceOffsetMm) && (settings.labelSurfaceOffsetMm ?? 0) >= 0
+      ? settings.labelSurfaceOffsetMm!
+      : DEFAULT_APP_WEB_RENDER_SETTINGS.labelSurfaceOffsetMm,
 })

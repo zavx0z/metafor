@@ -1,5 +1,6 @@
 import type { DbFieldOrbitSnapshot, DbFieldValueKind, DbParticleShellSnapshot, DbWorldSnapshot } from "../pkg/db/index.ts"
 import {
+	appWebLayoutConfig,
 	DEFAULT_APP_WEB_LAYOUT_SETTINGS,
 	DEFAULT_APP_WEB_RENDER_SETTINGS,
 	normalizeAppWebLayoutSettings,
@@ -19,6 +20,10 @@ import {
 	Renderer,
 	Scene,
 	SphereGeometry,
+	Text,
+	TextMaterial,
+	TrueTypeFont,
+	Vector3,
 	ViewPoint,
 } from "@metafor/engine"
 
@@ -46,21 +51,7 @@ type BulkViewportOptions = {
 	width: number
 }
 
-// Контракт движка для визуализации MetaFor: `Z-up`, `1 world unit = 1 mm`.
 const ROOT_BACKGROUND = new Color(0.035, 0.05, 0.075)
-const TORUS_RADIUS = 200
-const TORUS_TUBE = 140
-const GRID_SIZE = 8000
-const GRID_DIVISIONS = 16
-const AXES_SIZE = 1000
-const FLOOR_Z_MM = 0
-const ELBOW_Z_MM = 1100
-const EYE_Z_MM = 1650
-const VIEWPOINT_POSITION = { x: 3975.6752784123818, y: -2981.756458809286, z: EYE_Z_MM }
-const VIEWPOINT_TARGET = { x: 0, y: 0, z: ELBOW_Z_MM }
-const GRID_CENTER_COLOR = 0x444444
-const GRID_COLOR = 0x888888
-const WORKSPACE_BASE_Z = ELBOW_Z_MM
 const THEME_PRIMARY = new Color(135 / 255, 206 / 255, 235 / 255)
 const THEME_PRIMARY_GLOW = new Color(225 / 255, 243 / 255, 250 / 255, 0.14)
 const THEME_SECONDARY = new Color(71 / 255, 189 / 255, 116 / 255)
@@ -84,10 +75,31 @@ const sphereWireframeCache = new Map<string, BufferGeometry>()
 let activeLayoutSettings: AppWebLayoutSettings = { ...DEFAULT_APP_WEB_LAYOUT_SETTINGS }
 let activeRenderSettings: AppWebRenderSettings = { ...DEFAULT_APP_WEB_RENDER_SETTINGS }
 
+type SurfaceLabelTracker = {
+	labelNode: Object3D
+	localX: number
+	localY: number
+}
+
+const getViewportConfig = () => appWebLayoutConfig.viewport
+const getShellFallback = () => getViewportConfig().shellFallbackMm
+const getWorkspaceBaseZ = (): number => getViewportConfig().levelsMm.elbow
+const getFloorZ = (): number => getViewportConfig().levelsMm.floor
+
 const getDepthDetailMultiplier = (depth: number): number => {
 	if (!Number.isFinite(depth) || depth <= 0) return 1
 	return 1 / Math.pow(activeRenderSettings.detailLevelMultiplier, depth)
 }
+
+const getLabelFontSizeMm = (depth: number): number => {
+	if (!Number.isFinite(depth) || depth <= 0) return activeRenderSettings.labelFontSizeMm
+	return Math.max(
+		1,
+		activeRenderSettings.labelFontSizeMm / Math.pow(activeLayoutSettings.levelSizeMultiplier, depth),
+	)
+}
+
+const isLabelDepthVisible = (depth: number): boolean => depth + 1 <= activeRenderSettings.labelVisibleLevels
 
 const getTorusDetail = (
 	_radius: number,
@@ -142,6 +154,74 @@ const getFieldThemeColor = (fieldValueKind: DbFieldValueKind): { color: Color; g
 	}
 }
 
+const normalizeLabelText = (value: string | null | undefined): string | null => {
+	if (typeof value !== "string") return null
+	const text = value.trim()
+	return text.length > 0 ? text : null
+}
+
+const getGeometryPositionArray = (geometry: BufferGeometry): Float32Array | null => {
+	const positions = geometry.attributes.position?.array
+	return positions instanceof Float32Array ? positions : null
+}
+
+const wrapTextGeometryAroundEquator = (geometry: BufferGeometry, curveRadius: number): void => {
+	const positions = getGeometryPositionArray(geometry)
+	if (!positions || positions.length === 0) return
+
+	let minX = Number.POSITIVE_INFINITY
+	let maxX = Number.NEGATIVE_INFINITY
+	let minY = Number.POSITIVE_INFINITY
+	let maxY = Number.NEGATIVE_INFINITY
+
+	for (let index = 0; index < positions.length; index += 3) {
+		const x = positions[index] ?? 0
+		const y = positions[index + 1] ?? 0
+		if (x < minX) minX = x
+		if (x > maxX) maxX = x
+		if (y < minY) minY = y
+		if (y > maxY) maxY = y
+	}
+
+	const centerX = (minX + maxX) / 2
+	const centerY = (minY + maxY) / 2
+	const safeRadius = Math.max(curveRadius, 1)
+
+	for (let index = 0; index < positions.length; index += 3) {
+		const arcOffset = (positions[index] ?? 0) - centerX
+		const verticalOffset = (positions[index + 1] ?? 0) - centerY
+		const angle = arcOffset / safeRadius
+
+		positions[index] = Math.cos(angle) * safeRadius
+		positions[index + 1] = Math.sin(angle) * safeRadius
+		positions[index + 2] = verticalOffset
+	}
+}
+
+const createSurfaceLabelNode = (
+	text: string,
+	font: TrueTypeFont,
+	depth: number,
+	curveRadius: number,
+	color: Color,
+): Object3D => {
+	const label = new Text(
+		text,
+		font,
+		getLabelFontSizeMm(depth),
+		new TextMaterial({ color: color.clone() }),
+	)
+	wrapTextGeometryAroundEquator(label.stencilGeometry, curveRadius)
+	wrapTextGeometryAroundEquator(label.coverGeometry, curveRadius)
+	label.frustumCulled = false
+	label.updateMatrix()
+
+	const container = new Object3D()
+	container.add(label)
+	container.updateMatrix()
+	return container
+}
+
 const createWireframeGeometry = (geometry: BufferGeometry): BufferGeometry => {
 	const indices = geometry.index?.array
 	const positions = geometry.attributes.position?.array
@@ -168,13 +248,27 @@ const createWireframeGeometry = (geometry: BufferGeometry): BufferGeometry => {
 	return wireframeGeometry
 }
 
-const toRadians = (degrees: number): number => (degrees * Math.PI) / 180
-
 const sampleTorusPoint = (radius: number, tube: number, u: number, v: number): [number, number, number] => [
 	(radius + tube * Math.cos(v)) * Math.cos(u),
 	(radius + tube * Math.cos(v)) * Math.sin(u),
 	tube * Math.sin(v),
 ]
+
+const wrapAngle = (angle: number): number => {
+	const tau = Math.PI * 2
+	const wrapped = angle % tau
+	return wrapped >= 0 ? wrapped : wrapped + tau
+}
+
+const sampleTiltedLongitudinalPoint = (
+	radius: number,
+	tube: number,
+	baseV: number,
+	u: number,
+	twistTurns: number,
+): [number, number, number] => {
+	return sampleTorusPoint(radius, tube, u, wrapAngle(baseV + u * twistTurns))
+}
 
 const createQuadTorusWireframeGeometry = (
 	radius: number,
@@ -186,25 +280,17 @@ const createQuadTorusWireframeGeometry = (
 	const pushPoint = (point: [number, number, number]): void => {
 		lines.push(point[0], point[1], point[2])
 	}
-	const crossRingRotationRad = toRadians(activeLayoutSettings.torusCrossRingRotationDeg)
+	const longitudinalTurnCount = Math.round(
+		(radialSegments * activeLayoutSettings.torusCrossRingRotationDeg) / 360,
+	)
 
-	for (let j = 0; j <= radialSegments; j += 1) {
-		const v = (j / radialSegments) * Math.PI * 2
+	for (let j = 0; j < radialSegments; j += 1) {
+		const baseV = (j / radialSegments) * Math.PI * 2
 		for (let i = 0; i < tubularSegments; i += 1) {
 			const uA = (i / tubularSegments) * Math.PI * 2
 			const uB = ((i + 1) / tubularSegments) * Math.PI * 2
-			pushPoint(sampleTorusPoint(radius, tube, uA, v))
-			pushPoint(sampleTorusPoint(radius, tube, uB, v))
-		}
-	}
-
-	for (let j = 0; j < radialSegments; j += 1) {
-		for (let i = 0; i <= tubularSegments; i += 1) {
-			const u = crossRingRotationRad + (i / tubularSegments) * Math.PI * 2
-			const vA = (j / radialSegments) * Math.PI * 2
-			const vB = ((j + 1) / radialSegments) * Math.PI * 2
-			pushPoint(sampleTorusPoint(radius, tube, u, vA))
-			pushPoint(sampleTorusPoint(radius, tube, u, vB))
+			pushPoint(sampleTiltedLongitudinalPoint(radius, tube, baseV, uA, longitudinalTurnCount))
+			pushPoint(sampleTiltedLongitudinalPoint(radius, tube, baseV, uB, longitudinalTurnCount))
 		}
 	}
 
@@ -264,61 +350,166 @@ const createFieldMaterial = (orbit: DbFieldOrbitSnapshot): LineGlowMaterial => {
 	})
 }
 
-const createFieldNode = (orbit: DbFieldOrbitSnapshot, depth: number): LineSegments => {
+type SceneBuildContext = {
+	childrenByParentId: Map<string | null, DbParticleShellSnapshot[]>
+	fieldsByParticleId: Map<string, DbFieldOrbitSnapshot[]>
+	font: TrueTypeFont | null
+	labelTrackers: SurfaceLabelTracker[]
+	workspace: Object3D
+}
+
+const attachFieldLabel = (
+	context: SceneBuildContext,
+	orbit: DbFieldOrbitSnapshot,
+	orbitDepth: number,
+	absoluteX: number,
+	absoluteY: number,
+	absoluteZ: number,
+): void => {
+	if (!context.font) return
+	if (!isLabelDepthVisible(orbitDepth)) return
+
+	const labelText = normalizeLabelText(orbit.fieldLabel) ?? normalizeLabelText(orbit.fieldKey)
+	if (!labelText) return
+
+	const theme = getFieldThemeColor(orbit.fieldValueKind)
+	const surfaceAnchorRadiusMm = orbit.sphereRadius + activeRenderSettings.labelSurfaceOffsetMm
+	const labelNode = createSurfaceLabelNode(
+		labelText,
+		context.font,
+		orbitDepth,
+		surfaceAnchorRadiusMm,
+		theme.color,
+	)
+	labelNode.position.set(absoluteX, absoluteY, absoluteZ)
+	labelNode.frustumCulled = false
+	labelNode.updateMatrix()
+	context.workspace.add(labelNode)
+	context.labelTrackers.push({
+		labelNode,
+		localX: absoluteX,
+		localY: absoluteY,
+	})
+}
+
+const createFieldNode = (
+	orbit: DbFieldOrbitSnapshot,
+	depth: number,
+	absoluteX: number,
+	absoluteY: number,
+	absoluteZ: number,
+	context: SceneBuildContext,
+): LineSegments => {
 	const sphere = new LineSegments(
 		getSphereWireframeGeometry(orbit.sphereRadius, depth),
 		createFieldMaterial(orbit),
 	)
 	sphere.position.set(orbit.localX, orbit.localY, orbit.localZ)
 	sphere.updateMatrix()
+	attachFieldLabel(context, orbit, depth, absoluteX, absoluteY, absoluteZ)
 	return sphere
+}
+
+const attachShellLabel = (
+	context: SceneBuildContext,
+	shell: DbParticleShellSnapshot,
+	absoluteX: number,
+	absoluteY: number,
+	absoluteZ: number,
+): void => {
+	if (!context.font) return
+	if (!isLabelDepthVisible(shell.depth)) return
+
+	const labelText = normalizeLabelText(shell.label)
+	if (!labelText) return
+
+	const surfaceAnchorRadiusMm =
+		shell.shellRadius + shell.shellTube + activeRenderSettings.labelSurfaceOffsetMm
+	const labelNode = createSurfaceLabelNode(
+		labelText,
+		context.font,
+		shell.depth,
+		surfaceAnchorRadiusMm,
+		THEME_PRIMARY,
+	)
+	labelNode.position.set(absoluteX, absoluteY, absoluteZ)
+	labelNode.frustumCulled = false
+	labelNode.updateMatrix()
+	context.workspace.add(labelNode)
+	context.labelTrackers.push({
+		labelNode,
+		localX: absoluteX,
+		localY: absoluteY,
+	})
 }
 
 const createShellNode = (
 	shell: DbParticleShellSnapshot,
-	childrenByParentId: Map<string | null, DbParticleShellSnapshot[]>,
-	fieldsByParticleId: Map<string, DbFieldOrbitSnapshot[]>,
+	context: SceneBuildContext,
+	parentX: number,
+	parentY: number,
+	parentZ: number,
 ): Object3D => {
+	const absoluteX = parentX + shell.localX
+	const absoluteY = parentY + shell.localY
+	const absoluteZ = parentZ + shell.localZ
 	const container = new Object3D()
 	container.position.set(shell.localX, shell.localY, shell.localZ)
 	container.scale.set(shell.shellScale, shell.shellScale, shell.shellScale)
 	container.updateMatrix()
 
 	const torus = new LineSegments(
-		getTorusWireframeGeometry(shell.shellRadius || TORUS_RADIUS, shell.shellTube || TORUS_TUBE, shell.depth),
+		getTorusWireframeGeometry(
+			shell.shellRadius || getShellFallback().radius,
+			shell.shellTube || getShellFallback().tube,
+			shell.depth,
+		),
 		createShellMaterial(shell),
 	)
 	torus.updateMatrix()
 	container.add(torus)
+	attachShellLabel(context, shell, absoluteX, absoluteY, absoluteZ)
 
-	for (const field of fieldsByParticleId.get(shell.particleId) ?? []) {
-		container.add(createFieldNode(field, shell.depth + 1))
+	for (const field of context.fieldsByParticleId.get(shell.particleId) ?? []) {
+		container.add(createFieldNode(field, shell.depth + 1, absoluteX + field.localX, absoluteY + field.localY, absoluteZ + field.localZ, context))
 	}
 
-	for (const child of childrenByParentId.get(shell.particleId) ?? []) {
-		container.add(createShellNode(child, childrenByParentId, fieldsByParticleId))
+	for (const child of context.childrenByParentId.get(shell.particleId) ?? []) {
+		container.add(createShellNode(child, context, absoluteX, absoluteY, absoluteZ))
 	}
 
 	return container
 }
 
 const createWorkspaceGrid = (): GridHelper => {
-	const grid = new GridHelper(GRID_SIZE, GRID_DIVISIONS, GRID_CENTER_COLOR, GRID_COLOR)
-	grid.position.z = FLOOR_Z_MM
+	const gridConfig = getViewportConfig().grid
+	const grid = new GridHelper(
+		gridConfig.sizeMm,
+		gridConfig.divisions,
+		gridConfig.centerColorHex,
+		gridConfig.colorHex,
+	)
+	grid.position.z = getFloorZ()
 	grid.frustumCulled = false
 	grid.updateMatrix()
 	return grid
 }
 
 const createWorkspaceAxes = (): AxesHelper => {
-	const axes = new AxesHelper(AXES_SIZE)
-	axes.position.z = WORKSPACE_BASE_Z
+	const axes = new AxesHelper(getViewportConfig().axesSizeMm)
+	axes.position.z = getWorkspaceBaseZ()
 	axes.frustumCulled = false
 	axes.updateMatrix()
 	return axes
 }
 
-const createSceneFromSnapshot = (snapshot: DbWorldSnapshot): Scene => {
+type SceneBuildResult = {
+	labelTrackers: SurfaceLabelTracker[]
+	scene: Scene
+	workspace: Object3D | null
+}
+
+const createSceneFromSnapshot = (snapshot: DbWorldSnapshot, font: TrueTypeFont | null): SceneBuildResult => {
 	const nextScene = new Scene()
 	nextScene.background = ROOT_BACKGROUND.clone()
 
@@ -346,26 +537,34 @@ const createSceneFromSnapshot = (snapshot: DbWorldSnapshot): Scene => {
 	}
 
 	const workspace = new Object3D()
-	workspace.position.set(0, 0, WORKSPACE_BASE_Z)
+	workspace.position.set(0, 0, getWorkspaceBaseZ())
 	workspace.updateMatrix()
+	const labelTrackers: SurfaceLabelTracker[] = []
+	const buildContext: SceneBuildContext = {
+		childrenByParentId,
+		fieldsByParticleId,
+		font,
+		labelTrackers,
+		workspace,
+	}
 
 	for (const root of childrenByParentId.get(null) ?? []) {
-		workspace.add(createShellNode(root, childrenByParentId, fieldsByParticleId))
+		workspace.add(createShellNode(root, buildContext, 0, 0, 0))
 	}
 
 	nextScene.add(createWorkspaceGrid())
 	nextScene.add(createWorkspaceAxes())
 	nextScene.add(workspace)
 
-	return nextScene
+	return { scene: nextScene, labelTrackers, workspace }
 }
 
-const createEmptyScene = (): Scene => {
+const createEmptyScene = (): SceneBuildResult => {
 	const nextScene = new Scene()
 	nextScene.background = ROOT_BACKGROUND.clone()
 	nextScene.add(createWorkspaceGrid())
 	nextScene.add(createWorkspaceAxes())
-	return nextScene
+	return { scene: nextScene, labelTrackers: [], workspace: null }
 }
 
 export const createBulkViewport = async (options: BulkViewportOptions): Promise<BulkViewportController> => {
@@ -379,19 +578,48 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	renderer.setSize(options.width, options.height)
 	activeRenderSettings = normalizeAppWebRenderSettings(activeRenderSettings)
 	activeLayoutSettings = normalizeAppWebLayoutSettings(activeLayoutSettings)
+	const labelFont = await TrueTypeFont.fromUrl("/engine-static/JetBrainsMono-Bold.ttf").catch(() => null)
 
-	let scene = createEmptyScene()
+	let sceneState = createEmptyScene()
+	let scene = sceneState.scene
+	let labelTrackers = sceneState.labelTrackers
+	let workspace = sceneState.workspace
 	let snapshot: DbWorldSnapshot | null = null
+	const viewportConfig = getViewportConfig()
 
 	const viewPoint = new ViewPoint({
 		element: options.canvas,
-		fov: (2 * Math.PI) / 5,
-		near: 10,
-		far: 100000,
-		position: VIEWPOINT_POSITION,
-		target: VIEWPOINT_TARGET,
+		fov: viewportConfig.camera.fovRad,
+		near: viewportConfig.camera.near,
+		far: viewportConfig.camera.far,
+		position: viewportConfig.camera.position,
+		target: viewportConfig.camera.target,
 	})
 	viewPoint.setAspectRatio(options.width / options.height)
+
+	const rebuildScene = (): void => {
+		sceneState = snapshot ? createSceneFromSnapshot(snapshot, labelFont) : createEmptyScene()
+		scene = sceneState.scene
+		labelTrackers = sceneState.labelTrackers
+		workspace = sceneState.workspace
+		scene.updateWorldMatrix()
+	}
+
+	const updateLabelTrackers = (): void => {
+		if (!workspace) return
+		const cameraLocal = new Vector3(
+			viewPoint.position.x - workspace.position.x,
+			viewPoint.position.y - workspace.position.y,
+			viewPoint.position.z - workspace.position.z,
+		)
+		for (const tracker of labelTrackers) {
+			const deltaX = cameraLocal.x - tracker.localX
+			const deltaY = cameraLocal.y - tracker.localY
+			if (Math.hypot(deltaX, deltaY) <= 1e-6) continue
+			tracker.labelNode.rotation.z = Math.atan2(deltaY, deltaX)
+			tracker.labelNode.updateMatrix()
+		}
+	}
 
 	let disposed = false
 	let frameHandle = 0
@@ -399,6 +627,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const animate = (): void => {
 		if (disposed) return
 		frameHandle = requestAnimationFrame(animate)
+		updateLabelTrackers()
 		scene.updateWorldMatrix()
 		renderer.render(scene, viewPoint)
 	}
@@ -416,17 +645,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		},
 		setLayoutSettings(settings: Partial<AppWebLayoutSettings>) {
 			activeLayoutSettings = normalizeAppWebLayoutSettings(settings)
-			if (snapshot) {
-				scene = createSceneFromSnapshot(snapshot)
-				scene.updateWorldMatrix()
-			}
+			torusWireframeCache.clear()
+			rebuildScene()
 		},
 		setRenderSettings(settings: Partial<AppWebRenderSettings>) {
 			activeRenderSettings = normalizeAppWebRenderSettings(settings)
-			if (snapshot) {
-				scene = createSceneFromSnapshot(snapshot)
-				scene.updateWorldMatrix()
-			}
+			torusWireframeCache.clear()
+			sphereWireframeCache.clear()
+			rebuildScene()
 		},
 		setSize(width: number, height: number) {
 			renderer.setPixelRatio(window.devicePixelRatio || 1)
@@ -435,8 +661,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		},
 		setSnapshot(nextSnapshot: DbWorldSnapshot) {
 			snapshot = nextSnapshot
-			scene = createSceneFromSnapshot(nextSnapshot)
-			scene.updateWorldMatrix()
+			rebuildScene()
 			options.onStats?.({
 				rootSrc: nextSnapshot.rootSrc,
 				shellCount: nextSnapshot.particles.length,

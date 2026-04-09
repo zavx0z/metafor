@@ -1091,6 +1091,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     this.geometryCache.delete(geometry)
   }
 
+  private createAndUploadBuffer(
+    typedArray: ArrayBufferView,
+    usage: GPUBufferUsageFlags,
+  ): GPUBuffer {
+    if (!this.device) throw new Error("Device not initialized")
+
+    const buffer = this.device.createBuffer({
+      size: (typedArray.byteLength + 3) & ~3,
+      usage: usage | GPUBufferUsage.COPY_DST,
+    })
+    this.device.queue.writeBuffer(buffer, 0, typedArray)
+    return buffer
+  }
+
   private updateSceneUniforms(lights: LightItem[], viewMatrix: Matrix4): void {
     if (!this.device || !this.sceneUniformBuffer) return
 
@@ -1163,81 +1177,59 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (!this.device) throw new Error("Device not initialized")
 
-    const positionBuffer = this.device.createBuffer({
-      size: (geometry.attributes.position.array.byteLength + 3) & ~3,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: true,
-    })
-    new Float32Array(positionBuffer.getMappedRange()).set(geometry.attributes.position.array)
-    positionBuffer.unmap()
+    const positionBuffer = this.createAndUploadBuffer(
+      geometry.attributes.position.array as ArrayBufferView,
+      GPUBufferUsage.VERTEX,
+    )
 
     let normalBuffer: GPUBuffer | undefined
     if (geometry.attributes.normal) {
-      normalBuffer = this.device.createBuffer({
-        size: (geometry.attributes.normal.array.byteLength + 3) & ~3,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        mappedAtCreation: true,
-      })
-      new Float32Array(normalBuffer.getMappedRange()).set(geometry.attributes.normal.array)
-      normalBuffer.unmap()
+      normalBuffer = this.createAndUploadBuffer(
+        geometry.attributes.normal.array as ArrayBufferView,
+        GPUBufferUsage.VERTEX,
+      )
     }
 
     let skinIndexBuffer: GPUBuffer | undefined
     if (geometry.attributes.skinIndex && geometry.attributes.skinIndex.array.length > 0) {
-      skinIndexBuffer = this.device.createBuffer({
-        size: (geometry.attributes.skinIndex.array.byteLength + 3) & ~3,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        mappedAtCreation: true,
-      })
-      const SourceTypedArray = geometry.attributes.skinIndex.array.constructor as any
-      new SourceTypedArray(skinIndexBuffer.getMappedRange()).set(geometry.attributes.skinIndex.array as any)
-      skinIndexBuffer.unmap()
+      skinIndexBuffer = this.createAndUploadBuffer(
+        geometry.attributes.skinIndex.array as ArrayBufferView,
+        GPUBufferUsage.VERTEX,
+      )
     }
 
     let skinWeightBuffer: GPUBuffer | undefined
     if (geometry.attributes.skinWeight && geometry.attributes.skinWeight.array.length > 0) {
-      skinWeightBuffer = this.device.createBuffer({
-        size: (geometry.attributes.skinWeight.array.byteLength + 3) & ~3,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        mappedAtCreation: true,
-      })
-      new Float32Array(skinWeightBuffer.getMappedRange()).set(geometry.attributes.skinWeight.array)
-      skinWeightBuffer.unmap()
+      skinWeightBuffer = this.createAndUploadBuffer(
+        geometry.attributes.skinWeight.array as ArrayBufferView,
+        GPUBufferUsage.VERTEX,
+      )
     }
 
     // Для WireframeInstancedMesh создаем буфер для данных инстансов (матрица + параметры материала)
     let instanceBuffer: GPUBuffer | undefined
     if (geometry.attributes.instanceBuffer && geometry.attributes.instanceBuffer.array.length > 0) {
-      instanceBuffer = this.device.createBuffer({
-        size: (geometry.attributes.instanceBuffer.array.byteLength + 3) & ~3,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        mappedAtCreation: true,
-      })
-      new Float32Array(instanceBuffer.getMappedRange()).set(geometry.attributes.instanceBuffer.array)
-      instanceBuffer.unmap()
+      instanceBuffer = this.createAndUploadBuffer(
+        geometry.attributes.instanceBuffer.array as ArrayBufferView,
+        GPUBufferUsage.VERTEX,
+      )
     }
 
     // Для обратной совместимости: если есть старый атрибут instanceMatrix, создаем из него instanceBuffer
     let instanceMatrixBuffer: GPUBuffer | undefined
     if (geometry.attributes.instanceMatrix && geometry.attributes.instanceMatrix.array.length > 0) {
-      instanceMatrixBuffer = this.device.createBuffer({
-        size: (geometry.attributes.instanceMatrix.array.byteLength + 3) & ~3,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        mappedAtCreation: true,
-      })
-      new Float32Array(instanceMatrixBuffer.getMappedRange()).set(geometry.attributes.instanceMatrix.array)
-      instanceMatrixBuffer.unmap()
+      instanceMatrixBuffer = this.createAndUploadBuffer(
+        geometry.attributes.instanceMatrix.array as ArrayBufferView,
+        GPUBufferUsage.VERTEX,
+      )
     }
 
     let colorBuffer: GPUBuffer | undefined
     if (geometry.attributes.color) {
-      colorBuffer = this.device.createBuffer({
-        size: (geometry.attributes.color.array.byteLength + 3) & ~3,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        mappedAtCreation: true,
-      })
-      new Float32Array(colorBuffer.getMappedRange()).set(geometry.attributes.color.array)
-      colorBuffer.unmap()
+      colorBuffer = this.createAndUploadBuffer(
+        geometry.attributes.color.array as ArrayBufferView,
+        GPUBufferUsage.VERTEX,
+      )
     } else {
       // Для линий создаем буфер цвета, заполненный единицами (белый цвет)
       const vertexCount = geometry.attributes.position.count
@@ -1245,25 +1237,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       for (let i = 0; i < vertexCount * 3; i++) {
         defaultColors[i] = 1.0
       }
-      colorBuffer = this.device.createBuffer({
-        size: (defaultColors.byteLength + 3) & ~3,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        mappedAtCreation: true,
-      })
-      new Float32Array(colorBuffer.getMappedRange()).set(defaultColors)
-      colorBuffer.unmap()
+      colorBuffer = this.createAndUploadBuffer(defaultColors, GPUBufferUsage.VERTEX)
     }
 
     let indexBuffer: GPUBuffer | undefined
     if (geometry.index) {
-      const TypedArray = geometry.index.array.constructor as typeof Uint16Array | typeof Uint32Array
-      indexBuffer = this.device.createBuffer({
-        size: (geometry.index.array.byteLength + 3) & ~3,
-        usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-        mappedAtCreation: true,
-      })
-      new TypedArray(indexBuffer.getMappedRange()).set(geometry.index.array)
-      indexBuffer.unmap()
+      indexBuffer = this.createAndUploadBuffer(
+        geometry.index.array as ArrayBufferView,
+        GPUBufferUsage.INDEX,
+      )
     }
 
     const buffers: GeometryBuffers = {

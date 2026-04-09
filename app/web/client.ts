@@ -69,6 +69,9 @@ const form = document.getElementById("control-form") as HTMLFormElement
 const srcInput = document.getElementById("src-input") as HTMLInputElement
 const detailDensityInput = document.getElementById("detail-density-input") as HTMLInputElement
 const detailLevelInput = document.getElementById("detail-level-input") as HTMLInputElement
+const labelVisibleLevelsInput = document.getElementById("label-visible-levels-input") as HTMLInputElement
+const labelFontSizeInput = document.getElementById("label-font-size-input") as HTMLInputElement
+const labelSurfaceOffsetInput = document.getElementById("label-surface-offset-input") as HTMLInputElement
 const levelSizeInput = document.getElementById("level-size-input") as HTMLInputElement
 const rootInnerDiameterInput = document.getElementById("root-inner-diameter-input") as HTMLInputElement
 const torusCrossRingRotationInput = document.getElementById("torus-cross-ring-rotation-input") as HTMLInputElement
@@ -96,9 +99,17 @@ const parseFiniteNumber = (input: HTMLInputElement, fallback: number): number =>
 	return Number.isFinite(value) ? value : fallback
 }
 
+const parseNonNegativeNumber = (input: HTMLInputElement, fallback: number): number => {
+	const value = Number(input.value)
+	return Number.isFinite(value) && value >= 0 ? value : fallback
+}
+
 const settingInputs = {
 	detailDensityFactor: detailDensityInput,
 	detailLevelMultiplier: detailLevelInput,
+	labelVisibleLevels: labelVisibleLevelsInput,
+	labelFontSizeMm: labelFontSizeInput,
+	labelSurfaceOffsetMm: labelSurfaceOffsetInput,
 	levelSizeMultiplier: levelSizeInput,
 	rootInnerDiameterMm: rootInnerDiameterInput,
 	torusCrossRingRotationDeg: torusCrossRingRotationInput,
@@ -118,12 +129,13 @@ const applySettingUiMetadata = (): void => {
 	}
 }
 
-const readSettingValue = (key: keyof typeof settingInputs): number => {
+const readSettingValue = (key: keyof typeof settingInputs): AppWebLayoutSettings[keyof AppWebLayoutSettings] | AppWebRenderSettings[keyof AppWebRenderSettings] => {
 	const input = settingInputs[key]
-	const fallback = APP_WEB_SETTINGS_BY_KEY[key].defaultValue
-	return key === "torusCrossRingRotationDeg"
-		? parseFiniteNumber(input, fallback)
-		: parsePositiveNumber(input, fallback)
+	const config = APP_WEB_SETTINGS_BY_KEY[key]
+	const fallback = config.defaultValue
+	if (key === "labelSurfaceOffsetMm") return parseNonNegativeNumber(input, fallback)
+	if (key === "torusCrossRingRotationDeg") return parseFiniteNumber(input, fallback)
+	return parsePositiveNumber(input, fallback)
 }
 
 applySettingUiMetadata()

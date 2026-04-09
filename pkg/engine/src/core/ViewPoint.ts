@@ -139,6 +139,16 @@ export class ViewPoint {
     this.update()
   }
 
+  /**
+   * Возвращает текущую точку фокуса камеры.
+   *
+   * Нужна внешним слоям, которые хотят привязывать UI-объекты
+   * к экранной окружности вокруг наблюдаемого объекта.
+   */
+  public getTarget(): Vector3 {
+    return this.target
+  }
+
   public setAspectRatio(aspect: number): void {
     if (aspect <= 0) return
     this.aspect = aspect

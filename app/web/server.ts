@@ -217,6 +217,7 @@ const server = serve({
 		"/": () => new Response(file(join(import.meta.dir, "index.html"))),
 		"/client.js": async () => await buildEntrypoint(join(import.meta.dir, "client.ts")),
 		"/bulk.js": async () => await buildEntrypoint(join(ROOT, "bulk/web.ts")),
+		"/engine-static/JetBrainsMono-Bold.ttf": () => new Response(file(join(ROOT, "pkg/engine/static/JetBrainsMono-Bold.ttf"))),
 		"/ws": {
 			GET(req, wsServer) {
 				if (wsServer.upgrade(req)) return

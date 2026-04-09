@@ -6,23 +6,12 @@ import type {
   DbWorldSnapshot,
 } from "../../../pkg/db/index.ts"
 import {
-  DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+  appWebLayoutConfig,
   normalizeAppWebLayoutSettings,
   type AppWebLayoutSettings,
 } from "../settings.ts"
 
-/** Радиус самой глубокой видимой field-sphere в shell-first сцене, в миллиметрах. */
-export const DEEPEST_FIELD_SPHERE_RADIUS_MM = 50
-/** Канонический внешний диаметр root-shell, в миллиметрах. */
-export const DEFAULT_ROOT_OUTER_DIAMETER_MM = 4000
-/** Обратно совместимый алиас для миллиметрового радиуса deepest sphere. */
-export const DEEPEST_FIELD_SPHERE_RADIUS = DEEPEST_FIELD_SPHERE_RADIUS_MM
-/** Обратно совместимый алиас для миллиметрового внешнего диаметра root-shell. */
-export const DEFAULT_ROOT_OUTER_DIAMETER = DEFAULT_ROOT_OUTER_DIAMETER_MM
-
-const ORBIT_ITEM_SPACING_FACTOR = 1.12
-/** Базовый внутренний диаметр root-тора в миллиметрах, общий с UI-настройками `app/web`. */
-export const DEFAULT_ROOT_INNER_DIAMETER_MM = DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootInnerDiameterMm
+const snapshotLayoutConfig = appWebLayoutConfig.snapshot
 
 /** Входной дескриптор ordinary field до shell-materialization в instance snapshot. */
 export interface DbWorldFieldDescriptor {
@@ -83,14 +72,14 @@ type OrbitItem =
 const getCanonicalOuterRadius = (
   depthFromRoot: number,
   settings: AppWebLayoutSettings,
-  rootOuterDiameter: number = DEFAULT_ROOT_OUTER_DIAMETER_MM,
+  rootOuterDiameter: number = snapshotLayoutConfig.rootOuterDiameterMm,
 ): number => Math.max(0.001, rootOuterDiameter / 2 / Math.pow(settings.levelSizeMultiplier, depthFromRoot))
 
 const getInnerRadiusFromOuterRadius = (
   outerRadius: number,
   settings: AppWebLayoutSettings,
 ): number => {
-  const innerDiameterRatio = settings.rootInnerDiameterMm / DEFAULT_ROOT_OUTER_DIAMETER_MM
+  const innerDiameterRatio = settings.rootInnerDiameterMm / snapshotLayoutConfig.rootOuterDiameterMm
   return Math.min(outerRadius * 0.9, outerRadius * innerDiameterRatio)
 }
 
@@ -98,10 +87,10 @@ const getPeerLevelOuterRadius = (
   depthFromRoot: number,
   settings: AppWebLayoutSettings,
   outerByDepth?: Map<number, number>,
-  rootOuterDiameter: number = DEFAULT_ROOT_OUTER_DIAMETER_MM,
+  rootOuterDiameter: number = snapshotLayoutConfig.rootOuterDiameterMm,
 ): number =>
   Math.max(
-    DEEPEST_FIELD_SPHERE_RADIUS_MM,
+    snapshotLayoutConfig.deepestFieldSphereRadiusMm,
     outerByDepth?.get(depthFromRoot + 1) ?? getCanonicalOuterRadius(depthFromRoot + 1, settings, rootOuterDiameter),
   )
 
@@ -139,7 +128,7 @@ const measurePlacedExtent = (rings: OrbitRing[]): number =>
 const getMaxRingCapacity = (radius: number, maxExtent: number): number => {
   if (maxExtent <= 0 || radius <= 0) return 1
 
-  const normalizedExtent = (maxExtent * ORBIT_ITEM_SPACING_FACTOR) / radius
+  const normalizedExtent = (maxExtent * snapshotLayoutConfig.orbitItemSpacingFactor) / radius
   if (normalizedExtent >= 1) return 1
 
   return Math.max(1, Math.floor(Math.PI / Math.asin(normalizedExtent)))
@@ -149,12 +138,15 @@ const getSingleRingRadius = (items: OrbitItem[], startBoundary: number): number 
   if (items.length === 0) return startBoundary
 
   const maxExtent = Math.max(...items.map((item) => item.extent))
-  const totalArcLength = items.reduce((sum, item) => sum + item.extent * 2 * ORBIT_ITEM_SPACING_FACTOR, 0)
+  const totalArcLength = items.reduce(
+    (sum, item) => sum + item.extent * 2 * snapshotLayoutConfig.orbitItemSpacingFactor,
+    0,
+  )
   const circumferenceRadius = totalArcLength / (Math.PI * 2)
   const angularRadius =
     items.length <= 1
       ? startBoundary + maxExtent
-      : (maxExtent * ORBIT_ITEM_SPACING_FACTOR) / Math.max(Math.sin(Math.PI / items.length), 0.1)
+      : (maxExtent * snapshotLayoutConfig.orbitItemSpacingFactor) / Math.max(Math.sin(Math.PI / items.length), 0.1)
 
   return Math.max(startBoundary + maxExtent, circumferenceRadius, angularRadius)
 }
@@ -585,7 +577,7 @@ export const createDbWorldSnapshotFromParticleDescriptors = (
  */
 export const scaleDbWorldSnapshotToRootOuterDiameter = (
   snapshot: DbWorldSnapshot,
-  targetOuterDiameter: number = DEFAULT_ROOT_OUTER_DIAMETER_MM,
+  targetOuterDiameter: number = snapshotLayoutConfig.rootOuterDiameterMm,
 ): DbWorldSnapshot => {
   const rootOuterRadius = snapshot.particles
     .filter((particle) => particle.parentParticleId === null)

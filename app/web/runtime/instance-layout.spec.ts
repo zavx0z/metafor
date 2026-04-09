@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test"
 import {
 	createDbWorldSnapshotFromParticleDescriptors,
 	scaleDbWorldSnapshotToRootOuterDiameter,
-	DEFAULT_ROOT_OUTER_DIAMETER_MM,
 	type DbWorldParticleDescriptor,
 } from "./instance-layout.ts"
+import { appWebLayoutConfig } from "../settings.ts"
 
 const createField = (id: string) => ({
 	id,
@@ -313,7 +313,10 @@ describe("app/web instance layout", () => {
 		const normalized = scaleDbWorldSnapshotToRootOuterDiameter(raw)
 		const root = normalized.particles.find((particle) => particle.parentParticleId === null)
 		expect(root).toBeDefined()
-		expect(((root?.shellRadius ?? 0) + (root?.shellTube ?? 0)) * 2).toBeCloseTo(DEFAULT_ROOT_OUTER_DIAMETER_MM, 6)
+		expect(((root?.shellRadius ?? 0) + (root?.shellTube ?? 0)) * 2).toBeCloseTo(
+			appWebLayoutConfig.snapshot.rootOuterDiameterMm,
+			6,
+		)
 	})
 
 	test("сохраняет root inner diameter после нормализации внешнего диаметра", () => {
@@ -329,7 +332,10 @@ describe("app/web instance layout", () => {
 
 		expect(root).toBeDefined()
 		expect(((root?.shellRadius ?? 0) - (root?.shellTube ?? 0)) * 2).toBeCloseTo(1800, 6)
-		expect(((root?.shellRadius ?? 0) + (root?.shellTube ?? 0)) * 2).toBeCloseTo(DEFAULT_ROOT_OUTER_DIAMETER_MM, 6)
+		expect(((root?.shellRadius ?? 0) + (root?.shellTube ?? 0)) * 2).toBeCloseTo(
+			appWebLayoutConfig.snapshot.rootOuterDiameterMm,
+			6,
+		)
 	})
 
 	test("держит одинаковый inner ratio для shell-ов после нормализации", () => {
@@ -354,7 +360,7 @@ describe("app/web instance layout", () => {
 		})
 
 		for (const ratio of ratios) {
-			expect(ratio).toBeCloseTo(1200 / DEFAULT_ROOT_OUTER_DIAMETER_MM, 6)
+			expect(ratio).toBeCloseTo(1200 / appWebLayoutConfig.snapshot.rootOuterDiameterMm, 6)
 		}
 	})
 
