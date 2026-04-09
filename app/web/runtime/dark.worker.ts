@@ -248,6 +248,8 @@ const createDbWorldSnapshot = (
 			}),
 			layoutSettings,
 		),
+		undefined,
+		layoutSettings,
 	)
 }
 

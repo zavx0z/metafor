@@ -4,6 +4,8 @@ export interface AppWebLayoutSettings {
   levelSizeMultiplier: number
   /** Внутренний диаметр root-тора в миллиметрах. То же отношение переносится на внутренние уровни. */
   rootInnerDiameterMm: number
+  /** Диаметр сферы поля на root-уровне в миллиметрах. */
+  rootSphereRadiusMm: number
   /** Наклон продольных линий тора в градусах относительно базовой раскладки. */
   torusCrossRingRotationDeg: number
 }
@@ -61,6 +63,7 @@ export interface AppWebLayoutConfig {
 }
 
 export type AppWebSettingSection = "layout" | "render"
+export type AppWebSettingGroup = "detail" | "geometry" | "labels" | "torus"
 export type AppWebLayoutSettingKey = keyof AppWebLayoutSettings
 export type AppWebRenderSettingKey = keyof AppWebRenderSettings
 export type AppWebSettingKey = AppWebLayoutSettingKey | AppWebRenderSettingKey
@@ -70,21 +73,26 @@ export interface AppWebNumericSettingConfig {
   defaultValue: number
   /** Короткое пояснение для пользователя, которое показывается рядом с настройкой. */
   description: string
+  group: AppWebSettingGroup
   label: string
+  max?: number
   min?: number
   section: AppWebSettingSection
   step?: number
 }
 
-/** Базовый top-down закон размеров для root-shell и внутренних уровней. */
+/** Базовый топ-даун закон размеров для root-shell и внутренних уровней. */
 export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = {
   // Во сколько раз каждый следующий вложенный уровень меньше предыдущего.
   levelSizeMultiplier: 2,
   // Размер отверстия root-тора в миллиметрах.
   rootInnerDiameterMm: 1000,
+  // Диаметр сферы поля на root-уровне.
+  rootSphereRadiusMm: 200,
   // Наклон продольных линий тора по поверхности.
   torusCrossRingRotationDeg: 44,
 }
+
 
 /** Единый layout-контракт `app/web`, из которого `instance-layout` и `bulk` читают базовую геометрию. */
 export const appWebLayoutConfig: AppWebLayoutConfig = {
@@ -142,91 +150,123 @@ export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
 export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSettingConfig> = {
   // Базовая детализация wireframe у root-уровня.
   detailDensityFactor: {
+    group: "detail",
     section: "render",
-    label: "Detail Overall",
+    label: "Детализация root",
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.detailDensityFactor,
     description: "Задает базовую плотность wireframe-сетки для корневого уровня.",
     min: 0.05,
+    max: 6,
     step: 0.05,
   },
   // Ослабление детализации на каждом следующем уровне внутрь.
   detailLevelMultiplier: {
+    group: "detail",
     section: "render",
-    label: "Detail Per Level",
+    label: "Детализация внутрь",
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.detailLevelMultiplier,
     description: "Уменьшает детализацию на каждом следующем вложенном уровне.",
     min: 0.5,
+    max: 3,
     step: 0.05,
   },
   // Сколько уровней подписей рендерить от root-уровня внутрь.
   labelVisibleLevels: {
+    group: "labels",
     section: "render",
-    label: "Label Visible Levels",
+    label: "Глубина подписей",
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelVisibleLevels,
     description: "Ограничивает глубину показа подписей, начиная от корневого уровня.",
     min: 1,
+    max: 8,
     step: 1,
   },
   // Размер шрифта для подписей торов и сфер.
   labelFontSizeMm: {
+    group: "labels",
     section: "render",
-    label: "Label Font Size Mm",
+    label: "Размер шрифта, мм",
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelFontSizeMm,
     description: "Задает размер шрифта подписей на торах и сферах.",
     min: 1,
+    max: 400,
     step: 1,
   },
   // Отступ текста от поверхности объекта наружу.
   labelSurfaceOffsetMm: {
+    group: "labels",
     section: "render",
-    label: "Label Surface Offset Mm",
+    label: "Отступ подписи, мм",
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelSurfaceOffsetMm,
     description: "Отодвигает подпись от поверхности объекта, чтобы текст не врезался в wireframe.",
     min: 0,
+    max: 300,
     step: 1,
   },
   // Количество колец (линий) тора.
   torusRadialSegments: {
+    group: "torus",
     section: "render",
-    label: "Torus Rings Count",
+    label: "Число линий тора",
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.torusRadialSegments,
     description: "Задает количество продольных колец (линий) тора.",
     min: 3,
+    max: 64,
     step: 1,
   },
   // Сглаженность (сегменты) одного кольца тора.
   torusTubularSegments: {
+    group: "torus",
     section: "render",
-    label: "Torus Rings Smoothness",
+    label: "Сглаженность линий",
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.torusTubularSegments,
     description: "Задает количество сегментов в каждом кольце тора.",
     min: 3,
+    max: 96,
     step: 1,
   },
   // Масштаб уменьшения shell-ов от root вглубь иерархии.
   levelSizeMultiplier: {
+    group: "geometry",
     section: "layout",
-    label: "Size Per Level",
+    label: "Размер по уровням",
     defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.levelSizeMultiplier,
     description: "Показывает, во сколько раз каждый внутренний уровень меньше предыдущего.",
     min: 1.1,
+    max: 4,
     step: 0.1,
   },
   // Внутренний диаметр root-тора и базовое отношение отверстия для внутренних уровней.
   rootInnerDiameterMm: {
+    group: "geometry",
     section: "layout",
-    label: "Root Inner Diameter Mm",
+    label: "Внутренний диаметр root, мм",
     defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootInnerDiameterMm,
     description: "Определяет размер отверстия root-тора и то же соотношение для внутренних уровней.",
     min: 10,
+    max: 3900,
+    step: 10,
+  },
+  // Радиус сферы поля на root-уровне.
+  rootSphereRadiusMm: {
+    group: "geometry",
+    section: "layout",
+    label: "Размер root-сферы, мм",
+    defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootSphereRadiusMm,
+    description: "Задает диаметр сфер полей на корневом уровне и пропорционально уменьшает их вглубь.",
+    min: 10,
+    max: appWebLayoutConfig.snapshot.rootOuterDiameterMm,
     step: 10,
   },
   // Наклон продольных линий тора без вывода их с поверхности тора.
   torusCrossRingRotationDeg: {
+    group: "torus",
     section: "layout",
-    label: "Torus Longitudinal Tilt Deg",
+    label: "Наклон линий тора, град",
     defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.torusCrossRingRotationDeg,
     description: "Наклоняет продольные линии тора, не деформируя их по высоте вне поверхности.",
+    min: -180,
+    max: 180,
     step: 1,
   },
 }
@@ -235,6 +275,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
 export const APP_WEB_LAYOUT_SETTING_KEYS = [
   "levelSizeMultiplier",
   "rootInnerDiameterMm",
+  "rootSphereRadiusMm",
   "torusCrossRingRotationDeg",
 ] as const satisfies readonly AppWebLayoutSettingKey[]
 
@@ -265,6 +306,10 @@ export const normalizeAppWebLayoutSettings = (
     Number.isFinite(settings.rootInnerDiameterMm) && (settings.rootInnerDiameterMm ?? 0) > 0
       ? settings.rootInnerDiameterMm!
       : DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootInnerDiameterMm,
+  rootSphereRadiusMm:
+    Number.isFinite(settings.rootSphereRadiusMm) && (settings.rootSphereRadiusMm ?? 0) > 0
+      ? Math.min(settings.rootSphereRadiusMm!, appWebLayoutConfig.snapshot.rootOuterDiameterMm)
+      : DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootSphereRadiusMm,
   torusCrossRingRotationDeg:
     Number.isFinite(settings.torusCrossRingRotationDeg)
       ? settings.torusCrossRingRotationDeg!

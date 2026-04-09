@@ -37,17 +37,18 @@
       main {
         min-height: 100vh;
         display: grid;
-        grid-template-columns: minmax(320px, 420px) 1fr;
+        grid-template-columns: minmax(280px, 360px) 1fr;
       }
 
       aside {
         border-right: 1px solid var(--line);
         background: var(--panel);
         backdrop-filter: blur(24px);
-        padding: 28px 22px 22px;
-        display: grid;
-        grid-template-rows: auto auto auto 1fr;
-        gap: 18px;
+        padding: 16px 14px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow-y: auto;
       }
 
       .eyebrow {
@@ -72,14 +73,14 @@
       .panel {
         border: 1px solid var(--line);
         background: var(--panel-strong);
-        border-radius: 18px;
-        padding: 16px;
+        border-radius: 14px;
+        padding: 12px;
         box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
       }
 
       .panel h2 {
-        margin: 0 0 12px;
-        font: 600 13px/1.2 "IBM Plex Mono", monospace;
+        margin: 0 0 10px;
+        font: 600 11px/1.2 "IBM Plex Mono", monospace;
         letter-spacing: 0.14em;
         text-transform: uppercase;
         color: var(--muted);
@@ -87,42 +88,110 @@
 
       form {
         display: grid;
+        gap: 12px;
+      }
+
+      .settings-cards {
+        display: grid;
         gap: 10px;
       }
 
-      .settings-grid {
+      .settings-card {
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(5, 10, 16, 0.52);
+      }
+
+      .settings-card h3 {
+        margin: 0 0 8px;
+        color: var(--accent);
+        font: 600 11px/1.2 "IBM Plex Mono", monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .settings-group {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+        gap: 8px;
       }
 
       .setting-field {
         display: grid;
         gap: 6px;
+        position: relative;
       }
 
-      .settings-grid .full {
-        grid-column: 1 / -1;
+      .setting-label-row {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        align-items: center;
+        gap: 8px;
       }
 
-      label {
-        font: 600 12px/1.2 "IBM Plex Mono", monospace;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
+      label,
+      .setting-label-text {
+        font: 600 11px/1.2 "IBM Plex Mono", monospace;
         color: var(--muted);
       }
 
-      .setting-comment {
-        margin: 0;
-        color: var(--muted);
-        font: 12px/1.4 "IBM Plex Sans", "Segoe UI", sans-serif;
+      .setting-value {
+        min-width: 42px;
+        text-align: right;
+        color: var(--text);
+        font: 600 11px/1.2 "IBM Plex Mono", monospace;
+      }
+
+      .setting-help {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        display: inline-grid;
+        place-items: center;
+        border: 1px solid var(--line);
+        padding: 0;
+        background: rgba(7, 15, 24, 0.92);
+        color: var(--accent);
+        font: 700 11px/1 "IBM Plex Mono", monospace;
+        cursor: help;
+        user-select: none;
+      }
+
+      .setting-tooltip {
+        position: absolute;
+        top: calc(100% + 4px);
+        right: 0;
+        z-index: 20;
+        display: none;
+        width: min(240px, 75vw);
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(5, 11, 18, 0.96);
+        color: var(--text);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+        font: 12px/1.35 "IBM Plex Sans", "Segoe UI", sans-serif;
+      }
+
+      .setting-help:hover + .setting-tooltip,
+      .setting-help:focus-visible + .setting-tooltip,
+      .setting-field[data-tooltip-open="true"] .setting-tooltip {
+        display: block;
+      }
+
+      .setting-range {
+        width: 100%;
+        accent-color: var(--accent);
+        padding: 0;
+        border: 0;
+        background: transparent;
       }
 
       input,
       button {
         border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 13px 14px;
+        border-radius: 10px;
+        padding: 10px 12px;
         background: rgba(7, 15, 24, 0.86);
         color: var(--text);
         font: inherit;
@@ -188,6 +257,11 @@
         gap: 12px;
         color: var(--muted);
         font: 600 12px/1.4 "IBM Plex Mono", monospace;
+      }
+
+      .source-row {
+        display: grid;
+        gap: 8px;
       }
 
       #protocol-log-content {
@@ -296,112 +370,141 @@
   <body>
     <main>
       <aside>
-        <div>
-          <div class="eyebrow">MetaFor Runtime</div>
-          <h1>Workers + SQLite + WebGPU</h1>
-        </div>
-
-        <p class="lead">
-          `dark` и `boundary` идут в отдельных Bun worker’ах, а `bulk` держит viewport и WebGPU-сцену на main thread,
-          materialize-я nested particle shells и field orbits из instance snapshot.
-        </p>
-
         <section class="panel">
-          <h2>Materialize</h2>
+          <h2>Источник</h2>
           <form id="control-form">
-            <label for="src-input">Root SRC</label>
-            <input id="src-input" value="zavx0z/git" spellcheck="false" autocomplete="off" />
-            <div class="settings-grid">
-              <div class="setting-field" data-setting-key="detailDensityFactor">
-                <label for="detail-density-input">Detail Overall</label>
-                <input id="detail-density-input" type="number" step="0.05" min="0.05" value="2" />
-                <p class="setting-comment"></p>
-              </div>
-              <div class="setting-field" data-setting-key="detailLevelMultiplier">
-                <label for="detail-level-input">Detail Per Level</label>
-                <input id="detail-level-input" type="number" step="0.05" min="0.5" value="1.5" />
-                <p class="setting-comment"></p>
-              </div>
-              <div class="setting-field full" data-setting-key="labelVisibleLevels">
-                <label for="label-visible-levels-input">Label Visible Levels</label>
-                <input id="label-visible-levels-input" type="number" step="1" min="1" value="2" />
-                <p class="setting-comment"></p>
-              </div>
-              <div class="setting-field full" data-setting-key="labelFontSizeMm">
-                <label for="label-font-size-input">Label Font Size Mm</label>
-                <input id="label-font-size-input" type="number" step="1" min="1" value="120" />
-                <p class="setting-comment"></p>
-              </div>
-              <div class="setting-field" data-setting-key="labelSurfaceOffsetMm">
-                <label for="label-surface-offset-input">Label Surface Offset Mm</label>
-                <input id="label-surface-offset-input" type="number" step="1" min="0" value="40" />
-                <p class="setting-comment"></p>
-              </div>
-              <div class="setting-field" data-setting-key="levelSizeMultiplier">
-                <label for="level-size-input">Size Per Level</label>
-                <input id="level-size-input" type="number" step="0.1" min="1.1" value="2" />
-                <p class="setting-comment"></p>
-              </div>
-              <div class="setting-field" data-setting-key="torusCrossRingRotationDeg">
-                <label for="torus-cross-ring-rotation-input">Torus Longitudinal Tilt Deg</label>
-                <input id="torus-cross-ring-rotation-input" type="number" step="1" value="44" />
-                <p class="setting-comment"></p>
-              </div>
-              <div class="setting-field" data-setting-key="torusRadialSegments">
-                <label for="torus-radial-segments-input">Torus Rings Count</label>
-                <input id="torus-radial-segments-input" type="number" step="1" min="3" value="12" />
-                <p class="setting-comment"></p>
-              </div>
-              <div class="setting-field" data-setting-key="torusTubularSegments">
-                <label for="torus-tubular-segments-input">Torus Rings Smoothness</label>
-                <input id="torus-tubular-segments-input" type="number" step="1" min="3" value="12" />
-                <p class="setting-comment"></p>
-              </div>
-              <div class="setting-field full" data-setting-key="rootInnerDiameterMm">
-                <label for="root-inner-diameter-input">Root Inner Diameter Mm</label>
-                <input id="root-inner-diameter-input" type="number" step="10" min="10" value="1000" />
-                <p class="setting-comment"></p>
-              </div>
+            <div class="source-row">
+              <label for="src-input">Root SRC</label>
+              <input id="src-input" value="zavx0z/git" spellcheck="false" autocomplete="off" />
+              <button id="materialize-btn" type="submit" disabled>Пересчитать сцену</button>
             </div>
-            <button id="materialize-btn" type="submit" disabled>Run Dark Traversal</button>
+
+            <div class="settings-cards">
+              <section class="settings-card">
+                <h3>Геометрия</h3>
+                <div class="settings-group">
+                  <div class="setting-field" data-setting-key="levelSizeMultiplier">
+                    <div class="setting-label-row">
+                      <label for="level-size-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="level-size-input" type="range" step="0.1" min="1.1" max="4" value="2" />
+                  </div>
+                  <div class="setting-field" data-setting-key="rootInnerDiameterMm">
+                    <div class="setting-label-row">
+                      <label for="root-inner-diameter-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="root-inner-diameter-input" type="range" step="10" min="10" max="3900" value="1000" />
+                  </div>
+                  <div class="setting-field" data-setting-key="rootSphereRadiusMm">
+                    <div class="setting-label-row">
+                      <label for="root-sphere-radius-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="root-sphere-radius-input" type="range" step="10" min="10" max="4000" value="200" />
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-card">
+                <h3>Тор</h3>
+                <div class="settings-group">
+                  <div class="setting-field" data-setting-key="torusCrossRingRotationDeg">
+                    <div class="setting-label-row">
+                      <label for="torus-cross-ring-rotation-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="torus-cross-ring-rotation-input" type="range" step="1" min="-180" max="180" value="44" />
+                  </div>
+                  <div class="setting-field" data-setting-key="torusRadialSegments">
+                    <div class="setting-label-row">
+                      <label for="torus-radial-segments-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="torus-radial-segments-input" type="range" step="1" min="3" max="64" value="12" />
+                  </div>
+                  <div class="setting-field" data-setting-key="torusTubularSegments">
+                    <div class="setting-label-row">
+                      <label for="torus-tubular-segments-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="torus-tubular-segments-input" type="range" step="1" min="3" max="96" value="12" />
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-card">
+                <h3>Подписи</h3>
+                <div class="settings-group">
+                  <div class="setting-field" data-setting-key="labelVisibleLevels">
+                    <div class="setting-label-row">
+                      <label for="label-visible-levels-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="label-visible-levels-input" type="range" step="1" min="1" max="8" value="2" />
+                  </div>
+                  <div class="setting-field" data-setting-key="labelFontSizeMm">
+                    <div class="setting-label-row">
+                      <label for="label-font-size-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="label-font-size-input" type="range" step="1" min="1" max="400" value="120" />
+                  </div>
+                  <div class="setting-field" data-setting-key="labelSurfaceOffsetMm">
+                    <div class="setting-label-row">
+                      <label for="label-surface-offset-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="label-surface-offset-input" type="range" step="1" min="0" max="300" value="40" />
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-card">
+                <h3>Детализация</h3>
+                <div class="settings-group">
+                  <div class="setting-field" data-setting-key="detailDensityFactor">
+                    <div class="setting-label-row">
+                      <label for="detail-density-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="detail-density-input" type="range" step="0.05" min="0.05" max="6" value="2" />
+                  </div>
+                  <div class="setting-field" data-setting-key="detailLevelMultiplier">
+                    <div class="setting-label-row">
+                      <label for="detail-level-input" class="setting-label-text"></label>
+                      <span class="setting-value" data-setting-value></span>
+                      <button class="setting-help" type="button">!</button>
+                    </div>
+                    <input class="setting-range" id="detail-level-input" type="range" step="0.05" min="0.5" max="3" value="1.5" />
+                  </div>
+                </div>
+              </section>
+            </div>
           </form>
         </section>
 
         <section class="panel">
-          <h2>Workers</h2>
-          <div class="status-grid">
-            <span id="connection-badge" class="badge" data-tone="offline">socket offline</span>
-            <span id="worker-dark" class="badge" data-tone="idle">dark: idle</span>
-            <span id="worker-boundary" class="badge" data-tone="idle">boundary: idle</span>
-            <span id="worker-bulk" class="badge" data-tone="idle">bulk: idle</span>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2>Signals</h2>
+          <h2>Сцена</h2>
           <div class="meta-row">
-            <span id="protocol-counter" data-count="0">0 protocol messages</span>
-            <span id="bulk-counter">0 shells / 0 fields</span>
+             <span id="bulk-counter">0 shells / 0 fields</span>
           </div>
-        </section>
-
-        <section class="panel">
-          <h2>Protocol Log</h2>
-          <div class="meta-row" style="margin-bottom: 10px">
-            <span>server-side broadcast mirror</span>
-            <button id="clear-log-btn" type="button">Clear</button>
-          </div>
-          <div id="protocol-log-content"></div>
         </section>
       </aside>
 
       <section class="canvas-shell">
         <canvas id="bulk-canvas"></canvas>
-        <div class="canvas-overlay">
-          <h2>Bulk Scene</h2>
-          <p>Wireframe torus-shells materialize nested dark particles.</p>
-          <span>Ordinary meta fields appear as inner spheres on local planar orbits.</span>
-        </div>
       </section>
     </main>
     <script type="module" src="/client.js"></script>

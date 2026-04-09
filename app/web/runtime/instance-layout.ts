@@ -86,13 +86,8 @@ const getInnerRadiusFromOuterRadius = (
 const getPeerLevelOuterRadius = (
   depthFromRoot: number,
   settings: AppWebLayoutSettings,
-  outerByDepth?: Map<number, number>,
-  rootOuterDiameter: number = snapshotLayoutConfig.rootOuterDiameterMm,
 ): number =>
-  Math.max(
-    snapshotLayoutConfig.deepestFieldSphereRadiusMm,
-    outerByDepth?.get(depthFromRoot + 1) ?? getCanonicalOuterRadius(depthFromRoot + 1, settings, rootOuterDiameter),
-  )
+  settings.rootSphereRadiusMm / 2 / Math.pow(settings.levelSizeMultiplier, depthFromRoot)
 
 const cloneDescriptorField = (
   descriptor: DbWorldParticleDescriptor,
@@ -331,7 +326,7 @@ const createOuterRequirementOrbitItems = (
     extent: outerByDepth.get(child.depthFromRoot) ?? getCanonicalOuterRadius(child.depthFromRoot, settings),
   }))
 
-  const fieldRadius = getPeerLevelOuterRadius(node.depthFromRoot, settings, outerByDepth)
+  const fieldRadius = getPeerLevelOuterRadius(node.depthFromRoot, settings)
   const fieldOrbitItems: OrbitItem[] = node.descriptor.fields.map((field) => ({
     kind: "field",
     field: cloneDescriptorField(node.descriptor, field, fieldRadius),
@@ -392,7 +387,7 @@ const materializeCanonicalShellNode = (
   )
   const depthFromRoot = node.depthFromRoot
   const descriptor = node.descriptor
-  const sphereRadius = getPeerLevelOuterRadius(depthFromRoot, settings, outerByDepth)
+  const sphereRadius = getPeerLevelOuterRadius(depthFromRoot, settings)
   const fields: LayoutFieldNode[] = descriptor.fields.map((field) =>
     cloneDescriptorField(descriptor, field, sphereRadius),
   )
@@ -578,6 +573,7 @@ export const createDbWorldSnapshotFromParticleDescriptors = (
 export const scaleDbWorldSnapshotToRootOuterDiameter = (
   snapshot: DbWorldSnapshot,
   targetOuterDiameter: number = snapshotLayoutConfig.rootOuterDiameterMm,
+  settings: Partial<AppWebLayoutSettings> = {},
 ): DbWorldSnapshot => {
   const rootOuterRadius = snapshot.particles
     .filter((particle) => particle.parentParticleId === null)
@@ -592,7 +588,7 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
     return snapshot
   }
 
-  return {
+  const scaledSnapshot: DbWorldSnapshot = {
     rootSrc: snapshot.rootSrc,
     particles: snapshot.particles.map((particle) => ({
       ...particle,
@@ -610,4 +606,109 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
       sphereRadius: field.sphereRadius * scale,
     })),
   }
+
+  const resolvedSettings = normalizeAppWebLayoutSettings(settings)
+  const particlesById = new Map(
+    scaledSnapshot.particles.map((particle) => [particle.particleId, particle]),
+  )
+  const childrenByParentId = new Map<string, DbParticleShellSnapshot[]>()
+  const fieldsByParticleId = new Map<string, DbFieldOrbitSnapshot[]>()
+
+  for (const particle of scaledSnapshot.particles) {
+    if (!particle.parentParticleId) continue
+    const children = childrenByParentId.get(particle.parentParticleId) ?? []
+    children.push(particle)
+    childrenByParentId.set(particle.parentParticleId, children)
+  }
+
+  for (const field of scaledSnapshot.fields) {
+    const parent = particlesById.get(field.particleId)
+    if (!parent) continue
+    field.sphereRadius = getPeerLevelOuterRadius(parent.depth, resolvedSettings)
+    const fields = fieldsByParticleId.get(field.particleId) ?? []
+    fields.push(field)
+    fieldsByParticleId.set(field.particleId, fields)
+  }
+
+  const reflowShell = (particle: DbParticleShellSnapshot): void => {
+    const outerRadius = particle.shellRadius + particle.shellTube
+    const innerRadius = particle.shellRadius - particle.shellTube
+    const childParticles = childrenByParentId.get(particle.particleId) ?? []
+    const childFields = fieldsByParticleId.get(particle.particleId) ?? []
+
+    const shellRefs = childParticles.map((child) => ({
+      source: child,
+      shell: {
+        particleId: child.particleId,
+        kind: child.kind,
+        src: child.src,
+        metaSrc: child.metaSrc,
+        label: child.label,
+        localX: child.localX,
+        localY: child.localY,
+        localZ: child.localZ,
+        shellScale: child.shellScale,
+        shellRadius: child.shellRadius,
+        shellTube: child.shellTube,
+        colorR: child.colorR,
+        colorG: child.colorG,
+        colorB: child.colorB,
+        children: [],
+        fields: [],
+        depthFromRoot: child.depth,
+        innerRadius: child.shellRadius - child.shellTube,
+        outerRadius: child.shellRadius + child.shellTube,
+      } satisfies LayoutShellNode,
+    }))
+    const fieldRefs = childFields.map((field) => ({
+      source: field,
+      field: {
+        ...field,
+        extent: field.sphereRadius,
+      } satisfies LayoutFieldNode,
+    }))
+
+    const orbitItems: OrbitItem[] = [
+      ...shellRefs.map(({ shell }) => ({
+        kind: "shell" as const,
+        shell,
+        extent: shell.outerRadius,
+      })),
+      ...fieldRefs.map(({ field }) => ({
+        kind: "field" as const,
+        field,
+        extent: field.extent,
+      })),
+    ]
+
+    if (orbitItems.length > 0) {
+      placeOrbitItemsFromInnerBoundary(orbitItems, {
+        maxOuterBoundary: outerRadius,
+        startInnerBoundary: innerRadius,
+      })
+    }
+
+    for (const { source, shell } of shellRefs) {
+      source.localX = shell.localX
+      source.localY = shell.localY
+      source.localZ = shell.localZ
+    }
+
+    for (const { source, field } of fieldRefs) {
+      source.localX = field.localX
+      source.localY = field.localY
+      source.localZ = field.localZ
+      source.sphereRadius = field.sphereRadius
+    }
+
+    for (const child of childParticles) {
+      reflowShell(child)
+    }
+  }
+
+  for (const root of scaledSnapshot.particles.filter((particle) => particle.parentParticleId === null)) {
+    reflowShell(root)
+  }
+
+  return scaledSnapshot
 }

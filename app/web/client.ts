@@ -74,6 +74,7 @@ const labelFontSizeInput = document.getElementById("label-font-size-input") as H
 const labelSurfaceOffsetInput = document.getElementById("label-surface-offset-input") as HTMLInputElement
 const levelSizeInput = document.getElementById("level-size-input") as HTMLInputElement
 const rootInnerDiameterInput = document.getElementById("root-inner-diameter-input") as HTMLInputElement
+const rootSphereRadiusInput = document.getElementById("root-sphere-radius-input") as HTMLInputElement
 const torusCrossRingRotationInput = document.getElementById("torus-cross-ring-rotation-input") as HTMLInputElement
 const torusRadialSegmentsInput = document.getElementById("torus-radial-segments-input") as HTMLInputElement
 const torusTubularSegmentsInput = document.getElementById("torus-tubular-segments-input") as HTMLInputElement
@@ -114,10 +115,25 @@ const settingInputs = {
 	labelSurfaceOffsetMm: labelSurfaceOffsetInput,
 	levelSizeMultiplier: levelSizeInput,
 	rootInnerDiameterMm: rootInnerDiameterInput,
+	rootSphereRadiusMm: rootSphereRadiusInput,
 	torusCrossRingRotationDeg: torusCrossRingRotationInput,
 	torusRadialSegments: torusRadialSegmentsInput,
 	torusTubularSegments: torusTubularSegmentsInput,
 } as const
+
+const closeAllSettingTooltips = (): void => {
+	for (const field of document.querySelectorAll<HTMLElement>(".setting-field[data-tooltip-open='true']")) {
+		delete field.dataset.tooltipOpen
+	}
+}
+
+const formatSettingValue = (rawValue: string, step?: number): string => {
+	const value = Number(rawValue)
+	if (!Number.isFinite(value)) return rawValue
+	if (!Number.isFinite(step) || step === undefined) return String(value)
+	if (Math.abs(step - Math.round(step)) < 1e-9) return String(Math.round(value))
+	return String(Number(value.toFixed(2)))
+}
 
 const applySettingUiMetadata = (): void => {
 	for (const [key, input] of Object.entries(settingInputs) as Array<
@@ -125,13 +141,55 @@ const applySettingUiMetadata = (): void => {
 	>) {
 		const config = APP_WEB_SETTINGS_BY_KEY[key]
 		const field = document.querySelector(`[data-setting-key="${key}"]`) as HTMLElement | null
-		const comment = field?.querySelector(".setting-comment") as HTMLParagraphElement | null
-		if (comment) comment.textContent = config.description
+		const label = field?.querySelector(".setting-label-text") as HTMLLabelElement | null
+		const help = field?.querySelector(".setting-help") as HTMLButtonElement | null
+		const value = field?.querySelector("[data-setting-value]") as HTMLSpanElement | null
+		let tooltip = field?.querySelector(".setting-tooltip") as HTMLDivElement | null
+		if (label) label.textContent = config.label
+		if (help) {
+			help.type = "button"
+			help.textContent = "!"
+			help.setAttribute("aria-label", config.description)
+			help.setAttribute("aria-expanded", "false")
+			if (!tooltip) {
+				tooltip = document.createElement("div")
+				tooltip.className = "setting-tooltip"
+				help.insertAdjacentElement("afterend", tooltip)
+			}
+			tooltip.textContent = config.description
+			if (!help.dataset.tooltipBound && field) {
+				const openTooltip = (): void => {
+					closeAllSettingTooltips()
+					field.dataset.tooltipOpen = "true"
+					help.setAttribute("aria-expanded", "true")
+				}
+				const closeTooltip = (): void => {
+					delete field.dataset.tooltipOpen
+					help.setAttribute("aria-expanded", "false")
+				}
+				help.addEventListener("click", (event) => {
+					event.stopPropagation()
+					if (field.dataset.tooltipOpen === "true") closeTooltip()
+					else openTooltip()
+				})
+				help.addEventListener("blur", closeTooltip)
+				help.dataset.tooltipBound = "true"
+			}
+		}
 		if (config.step !== undefined) input.step = String(config.step)
 		if (config.min !== undefined) input.min = String(config.min)
+		if (config.max !== undefined) input.max = String(config.max)
 		if (!input.value) input.value = String(config.defaultValue)
+		if (value) value.textContent = formatSettingValue(input.value, config.step)
+		input.addEventListener("input", () => {
+			if (value) value.textContent = formatSettingValue(input.value, config.step)
+		})
 	}
 }
+
+document.addEventListener("click", () => {
+	closeAllSettingTooltips()
+})
 
 const readSettingValue = (key: keyof typeof settingInputs): AppWebLayoutSettings[keyof AppWebLayoutSettings] | AppWebRenderSettings[keyof AppWebRenderSettings] => {
 	const input = settingInputs[key]
@@ -166,7 +224,6 @@ const initBulkViewport = async (): Promise<void> => {
 	const initialPayload = createMaterializePayload()
 	bulkViewport.setLayoutSettings(initialPayload.layoutSettings)
 	bulkViewport.setRenderSettings(initialPayload.renderSettings)
-	setWorkerStatus("bulk", "ready")
 
 	const resizeObserver = new ResizeObserver((entries) => {
 		const entry = entries[0]
@@ -182,13 +239,10 @@ const initBulkViewport = async (): Promise<void> => {
 }
 
 void initBulkViewport().catch((error) => {
-	setWorkerStatus("bulk", "error", {
-		error: error instanceof Error ? error.message : String(error),
-	})
+	console.error("bulk init error:", error)
 })
 
 socket.onopen = () => {
-	setConnectionStatus(true)
 	submitButton.disabled = false
 	if (!initialMaterializationRequested) {
 		initialMaterializationRequested = true
@@ -201,29 +255,13 @@ socket.onopen = () => {
 }
 
 socket.onclose = () => {
-	setConnectionStatus(false)
 	submitButton.disabled = true
 }
 
 socket.onmessage = (event) => {
-	const message = JSON.parse(String(event.data)) as
-		| WorkerStatusMessage
-		| ProtocolMessage
-		| SnapshotMessage
-		| LogMessage
-		| InstanceSnapshotMessage
-
-	if (message.type === "snapshot") {
-		for (const [worker, status] of Object.entries(message.workers)) {
-			if (worker === "dark" || worker === "boundary") {
-				setWorkerStatus(worker, status)
-			}
-		}
-		return
-	}
+	const message = JSON.parse(String(event.data)) as any
 
 	if (message.type === "worker-status") {
-		setWorkerStatus(message.worker, message.status, toWorkerMeta({ src: message.src, error: message.error }))
 		if (message.worker === "dark" && (message.status === "done" || message.status === "error")) {
 			submitButton.disabled = socket.readyState !== WebSocket.OPEN
 		}
@@ -231,24 +269,13 @@ socket.onmessage = (event) => {
 	}
 
 	if (message.type === "protocol") {
-		appendProtocolMessage(message.channel, message.message)
 		bulkViewport?.handleProtocol(message.channel, message.message)
 		return
 	}
 
 	if (message.type === "instance-snapshot") {
-		appendWorkerLog("dark", {
-			type: "instance-snapshot",
-			src: message.src,
-			shells: message.snapshot.particles.length,
-			fields: message.snapshot.fields.length,
-		})
 		bulkViewport?.setSnapshot(message.snapshot)
 		return
-	}
-
-	if (message.type === "log") {
-		appendWorkerLog(message.worker, message.message)
 	}
 }
 

@@ -127,8 +127,10 @@ describe("app/web instance layout", () => {
 			createParticle("root", [], [
 				"f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
 				"f11", "f12", "f13", "f14", "f15", "f16", "f17", "f18", "f19", "f20",
+				"f21", "f22", "f23", "f24", "f25", "f26", "f27", "f28", "f29", "f30",
+				"f31", "f32", "f33", "f34", "f35", "f36", "f37", "f38", "f39", "f40",
 			]),
-		])
+		], { rootSphereRadiusMm: 1200 })
 
 		const fields = snapshot.fields
 			.filter((field) => field.particleId === "root")
@@ -217,20 +219,21 @@ describe("app/web instance layout", () => {
 		)
 	})
 
-	test("держит поля-сферы равными по размеру торам их уровня", () => {
+	test("уменьшает размер сфер по тем же уровням, что и torus layout", () => {
 		const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
 			createParticle("root", [
 				createParticle("child-a", [], ["leaf-a"]),
 				createParticle("child-b", [], ["leaf-b"]),
 			], ["field-a", "field-b"]),
-		])
+		], { rootSphereRadiusMm: 400, levelSizeMultiplier: 2 })
 
-		const child = snapshot.particles.find((particle) => particle.particleId === "child-a")
 		const field = snapshot.fields.find((orbit) => orbit.id === "field-a")
+		const leaf = snapshot.fields.find((orbit) => orbit.id === "leaf-a")
 
-		expect(child).toBeDefined()
 		expect(field).toBeDefined()
-		expect(field?.sphereRadius).toBeCloseTo((child?.shellRadius ?? 0) + (child?.shellTube ?? 0), 6)
+		expect(leaf).toBeDefined()
+		expect(field?.sphereRadius).toBeCloseTo(200, 6)
+		expect(leaf?.sphereRadius).toBeCloseTo(100, 6)
 	})
 
 	test("распределяет объекты по орбитам по емкости окружности, а не фиксированными пачками", () => {
@@ -239,8 +242,9 @@ describe("app/web instance layout", () => {
 				"f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
 				"f11", "f12", "f13", "f14", "f15", "f16", "f17", "f18", "f19", "f20",
 				"f21", "f22", "f23", "f24", "f25", "f26", "f27", "f28",
+				"f29", "f30", "f31", "f32", "f33", "f34", "f35", "f36",
 			]),
-		])
+		], { rootSphereRadiusMm: 1200 })
 
 		const ringCounts = [...snapshot.fields]
 			.filter((field) => field.particleId === "root")
