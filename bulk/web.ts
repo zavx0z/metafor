@@ -17,6 +17,7 @@ import {
 	LineGlowMaterial,
 	LineSegments,
 	Object3D,
+	Quaternion,
 	Renderer,
 	Scene,
 	SphereGeometry,
@@ -403,6 +404,17 @@ const createFieldNode = (
 		createFieldMaterial(orbit),
 	)
 	sphere.position.set(orbit.localX, orbit.localY, orbit.localZ)
+
+	// 1. Полюса в SphereGeometry на оси Y. Поворачиваем на 90° по X, чтобы они смотрели в World Z.
+	const qBase = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
+
+	// 2. Наклоняем сферу вокруг радиальной оси тора (которая проходит через центр сферы)
+	const tiltRad = (-activeLayoutSettings.torusCrossRingRotationDeg * Math.PI) / 180
+	const u = Math.atan2(orbit.localY, orbit.localX)
+	const radialAxis = new Vector3(Math.cos(u), Math.sin(u), 0)
+	const qTilt = new Quaternion().setFromAxisAngle(radialAxis, tiltRad)
+
+	sphere.quaternion.multiplyQuaternions(qTilt, qBase)
 	sphere.updateMatrix()
 	attachFieldLabel(context, orbit, depth, absoluteX, absoluteY, absoluteZ)
 	return sphere

@@ -66,10 +66,30 @@ export class BufferGeometry {
   setIndex(index: BufferAttribute): this
 }
 
+export class Quaternion {
+  x: number
+  y: number
+  z: number
+  w: number
+  constructor(x?: number, y?: number, z?: number, w?: number)
+  setFromAxisAngle(axis: Vector3, angle: number): this
+  multiplyQuaternions(a: Quaternion, b: Quaternion): this
+}
+
+export class Matrix4 {
+  elements: Float32Array
+  constructor()
+  identity(): this
+  copy(m: Matrix4): this
+  multiply(m: Matrix4): this
+  invert(): this
+}
+
 export class Object3D {
   name: string
   position: Vector3
   rotation: Vector3
+  quaternion: Quaternion
   scale: Vector3
   children: Object3D[]
   visible: boolean
