@@ -29,6 +29,10 @@ describe("app/web level law", () => {
       (root.labelFontSizeMm ?? 0) / DEFAULT_APP_WEB_LAYOUT_SETTINGS.levelSizeMultiplier,
       6,
     )
+    expect(child.labelSurfaceOffsetMm).toBeCloseTo(
+      (root.labelSurfaceOffsetMm ?? 0) / DEFAULT_APP_WEB_LAYOUT_SETTINGS.levelSizeMultiplier,
+      6,
+    )
     expect(child.detailMultiplier).toBeCloseTo(
       (root.detailMultiplier ?? 0) / DEFAULT_APP_WEB_RENDER_SETTINGS.detailLevelMultiplier,
       6,

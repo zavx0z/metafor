@@ -340,7 +340,7 @@ const attachFieldLabel = (
 	if (!labelText) return
 
 	const theme = getFieldThemeColor(orbit.fieldValueKind)
-	const surfaceAnchorRadiusMm = orbit.sphereRadius + activeRenderSettings.labelSurfaceOffsetMm
+	const surfaceAnchorRadiusMm = orbit.sphereRadius + (getLevelMetrics(orbitDepth).labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm)
 	const labelNode = createSurfaceLabelNode(
 		labelText,
 		context.font,
@@ -402,7 +402,7 @@ const attachShellLabel = (
 	if (!labelText) return
 
 	const surfaceAnchorRadiusMm =
-		shell.shellRadius + shell.shellTube + activeRenderSettings.labelSurfaceOffsetMm
+		shell.shellRadius + shell.shellTube + (getLevelMetrics(shell.depth).labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm)
 	const labelNode = createSurfaceLabelNode(
 		labelText,
 		context.font,

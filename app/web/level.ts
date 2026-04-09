@@ -15,6 +15,7 @@ export interface AppWebLevelMetrics {
   innerRadiusMm: number
   isLabelVisible: boolean
   labelFontSizeMm: number | null
+  labelSurfaceOffsetMm: number | null
   outerRadiusMm: number
   shellRadiusMm: number
   shellTubeMm: number
@@ -56,6 +57,10 @@ export const resolveAppWebLevelMetrics = ({
     ? Math.max(1, renderSettings.labelFontSizeMm / depthSizeScale)
     : null
 
+  const labelSurfaceOffsetMm = renderSettings
+    ? renderSettings.labelSurfaceOffsetMm / depthSizeScale
+    : null
+
   const detailMultiplier = renderSettings
     ? renderSettings.detailDensityFactor / Math.pow(renderSettings.detailLevelMultiplier, normalizedDepth)
     : null
@@ -84,6 +89,7 @@ export const resolveAppWebLevelMetrics = ({
     innerRadiusMm,
     isLabelVisible,
     labelFontSizeMm,
+    labelSurfaceOffsetMm,
     outerRadiusMm: resolvedOuterRadiusMm,
     shellRadiusMm,
     shellTubeMm,
