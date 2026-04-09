@@ -20,6 +20,10 @@ export interface AppWebRenderSettings {
   labelFontSizeMm: number
   /** Отступ подписи от поверхности объекта в миллиметрах. */
   labelSurfaceOffsetMm: number
+  /** Количество продольных колец (линий) тора. */
+  torusRadialSegments: number
+  /** Количество сегментов (сглаженность) одного кольца тора. */
+  torusTubularSegments: number
 }
 
 /** Нередактируемый layout-контракт `app/web`: базовые размеры snapshot-а и посадка viewport. */
@@ -128,6 +132,10 @@ export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
   labelFontSizeMm: 120,
   // Насколько подпись вынесена от поверхности наружу.
   labelSurfaceOffsetMm: 40,
+  // Базовое количество колец тора.
+  torusRadialSegments: 12,
+  // Базовая сглаженность (сегменты) одного кольца тора.
+  torusTubularSegments: 12,
 }
 
 /** Классификация настроек `app/web` по ключам. Используется UI и runtime-слоями как единая карта. */
@@ -177,6 +185,24 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     min: 0,
     step: 1,
   },
+  // Количество колец (линий) тора.
+  torusRadialSegments: {
+    section: "render",
+    label: "Torus Rings Count",
+    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.torusRadialSegments,
+    description: "Задает количество продольных колец (линий) тора.",
+    min: 3,
+    step: 1,
+  },
+  // Сглаженность (сегменты) одного кольца тора.
+  torusTubularSegments: {
+    section: "render",
+    label: "Torus Rings Smoothness",
+    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.torusTubularSegments,
+    description: "Задает количество сегментов в каждом кольце тора.",
+    min: 3,
+    step: 1,
+  },
   // Масштаб уменьшения shell-ов от root вглубь иерархии.
   levelSizeMultiplier: {
     section: "layout",
@@ -219,6 +245,8 @@ export const APP_WEB_RENDER_SETTING_KEYS = [
   "labelVisibleLevels",
   "labelFontSizeMm",
   "labelSurfaceOffsetMm",
+  "torusRadialSegments",
+  "torusTubularSegments",
 ] as const satisfies readonly AppWebRenderSettingKey[]
 
 /**
@@ -271,4 +299,12 @@ export const normalizeAppWebRenderSettings = (
     Number.isFinite(settings.labelSurfaceOffsetMm) && (settings.labelSurfaceOffsetMm ?? 0) >= 0
       ? settings.labelSurfaceOffsetMm!
       : DEFAULT_APP_WEB_RENDER_SETTINGS.labelSurfaceOffsetMm,
+  torusRadialSegments:
+    Number.isFinite(settings.torusRadialSegments) && (settings.torusRadialSegments ?? 0) > 0
+      ? Math.max(3, Math.round(settings.torusRadialSegments!))
+      : DEFAULT_APP_WEB_RENDER_SETTINGS.torusRadialSegments,
+  torusTubularSegments:
+    Number.isFinite(settings.torusTubularSegments) && (settings.torusTubularSegments ?? 0) > 0
+      ? Math.max(3, Math.round(settings.torusTubularSegments!))
+      : DEFAULT_APP_WEB_RENDER_SETTINGS.torusTubularSegments,
 })

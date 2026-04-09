@@ -61,8 +61,6 @@ const THEME_TERTIARY_GLOW = new Color(229 / 255, 233 / 255, 237 / 255, 0.12)
 const THEME_WARNING = new Color(255 / 255, 209 / 255, 117 / 255)
 const THEME_WARNING_GLOW = new Color(255 / 255, 244 / 255, 221 / 255, 0.12)
 const TORUS_BASE_DETAIL_SIZE = 500
-const TORUS_BASE_RADIAL_SEGMENTS = 12
-const TORUS_BASE_TUBULAR_SEGMENTS = 12
 const TORUS_MAX_SEGMENTS = 96
 const SPHERE_BASE_DETAIL_SIZE = 100
 const SPHERE_BASE_WIDTH_SEGMENTS = 8
@@ -111,13 +109,13 @@ const getTorusDetail = (
 		radialSegments: Math.max(
 			3,
 			Math.round(
-				Math.min(TORUS_BASE_RADIAL_SEGMENTS * multiplier, TORUS_MAX_SEGMENTS),
+				Math.min(activeRenderSettings.torusRadialSegments * multiplier, TORUS_MAX_SEGMENTS),
 			),
 		),
 		tubularSegments: Math.max(
 			3,
 			Math.round(
-				Math.min(TORUS_BASE_TUBULAR_SEGMENTS * multiplier, TORUS_MAX_SEGMENTS),
+				Math.min(activeRenderSettings.torusTubularSegments * multiplier, TORUS_MAX_SEGMENTS),
 			),
 		),
 	}

@@ -75,6 +75,8 @@ const labelSurfaceOffsetInput = document.getElementById("label-surface-offset-in
 const levelSizeInput = document.getElementById("level-size-input") as HTMLInputElement
 const rootInnerDiameterInput = document.getElementById("root-inner-diameter-input") as HTMLInputElement
 const torusCrossRingRotationInput = document.getElementById("torus-cross-ring-rotation-input") as HTMLInputElement
+const torusRadialSegmentsInput = document.getElementById("torus-radial-segments-input") as HTMLInputElement
+const torusTubularSegmentsInput = document.getElementById("torus-tubular-segments-input") as HTMLInputElement
 const submitButton = document.getElementById("materialize-btn") as HTMLButtonElement
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
@@ -113,6 +115,8 @@ const settingInputs = {
 	levelSizeMultiplier: levelSizeInput,
 	rootInnerDiameterMm: rootInnerDiameterInput,
 	torusCrossRingRotationDeg: torusCrossRingRotationInput,
+	torusRadialSegments: torusRadialSegmentsInput,
+	torusTubularSegments: torusTubularSegmentsInput,
 } as const
 
 const applySettingUiMetadata = (): void => {
