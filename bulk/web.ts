@@ -8,6 +8,7 @@ import {
 	normalizeAppWebRenderSettings,
 	type AppWebRenderSettings,
 } from "../app/web/settings.ts"
+import { resolveAppWebLevelMetrics } from "../app/web/level.ts"
 import {
 	BufferAttribute,
 	BufferGeometry,
@@ -85,18 +86,12 @@ const getShellFallback = () => getViewportConfig().shellFallbackMm
 const getWorkspaceBaseZ = (): number => getViewportConfig().levelsMm.elbow
 const getFloorZ = (): number => getViewportConfig().levelsMm.floor
 
-const getDepthDetailMultiplier = (depth: number): number => {
-	if (!Number.isFinite(depth) || depth <= 0) return 1
-	return 1 / Math.pow(activeRenderSettings.detailLevelMultiplier, depth)
-}
-
-const getLabelFontSizeMm = (depth: number): number => {
-	if (!Number.isFinite(depth) || depth <= 0) return activeRenderSettings.labelFontSizeMm
-	return Math.max(
-		1,
-		activeRenderSettings.labelFontSizeMm / Math.pow(activeLayoutSettings.levelSizeMultiplier, depth),
-	)
-}
+const getLevelMetrics = (depth: number) =>
+	resolveAppWebLevelMetrics({
+		depth,
+		layoutSettings: activeLayoutSettings,
+		renderSettings: activeRenderSettings,
+	})
 
 const isLabelDepthVisible = (depth: number): boolean => depth + 1 <= activeRenderSettings.labelVisibleLevels
 
@@ -105,7 +100,7 @@ const getTorusDetail = (
 	_tube: number,
 	depth: number,
 ): { radialSegments: number; tubularSegments: number } => {
-	const multiplier = activeRenderSettings.detailDensityFactor * getDepthDetailMultiplier(depth)
+	const multiplier = getLevelMetrics(depth).detailMultiplier ?? activeRenderSettings.detailDensityFactor
 	return {
 		radialSegments: Math.max(
 			3,
@@ -123,7 +118,7 @@ const getTorusDetail = (
 }
 
 const getSphereDetail = (_radius: number, depth: number): { widthSegments: number; heightSegments: number } => {
-	const multiplier = activeRenderSettings.detailDensityFactor * getDepthDetailMultiplier(depth)
+	const multiplier = getLevelMetrics(depth).detailMultiplier ?? activeRenderSettings.detailDensityFactor
 	return {
 		widthSegments: Math.max(
 			3,
@@ -207,7 +202,7 @@ const createSurfaceLabelNode = (
 	const label = new Text(
 		text,
 		font,
-		getLabelFontSizeMm(depth),
+		getLevelMetrics(depth).labelFontSizeMm ?? activeRenderSettings.labelFontSizeMm,
 		new TextMaterial({ color: color.clone() }),
 	)
 	wrapTextGeometryAroundEquator(label.stencilGeometry, curveRadius)
