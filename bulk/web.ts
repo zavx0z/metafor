@@ -82,6 +82,8 @@ const REMOVAL_FADE_MS = 150
 const REMOVAL_SCALE_MULTIPLIER = 0.9
 const LABEL_FADE_IN_MS = 120
 const LABEL_INITIAL_SCALE = 0.94
+const MAX_UV_LABEL_SPAN_RAD = Math.PI * 0.55
+const MIN_UV_LABEL_FIT_SCALE = 0.12
 const FOCUS_POSITION_SMOOTHING_MS = 130
 const FOCUS_TARGET_SMOOTHING_MS = 115
 const FOCUS_ANCHOR_SMOOTHING_MS = 150
@@ -145,6 +147,7 @@ type SurfaceLabelVisual = {
 	container: Object3D
 	initialCoverPositions: Float32Array
 	initialStencilPositions: Float32Array
+	maxTextWidth: number
 	material: TextMaterial
 	stencilCenter: TextGeometryCenter
 	textNode: Text
@@ -160,6 +163,7 @@ type LabelRenderRecord = {
 	initialStencilPositions: Float32Array
 	key: string
 	kind: "shell" | "field"
+	maxTextWidth: number
 	material: TextMaterial
 	offset: number
 	shellRadius: number
@@ -195,6 +199,7 @@ type FadingLabelRemovalRecord = {
 type TextGeometryCenter = {
 	centerX: number
 	centerY: number
+	width: number
 }
 
 const getViewportConfig = () => appWebLayoutConfig.viewport
@@ -308,11 +313,19 @@ const resolveTextGeometryCenter = (
 	return {
 		centerX: (minX + maxX) / 2,
 		centerY: (minY + maxY) / 2,
+		width: Math.max(0, maxX - minX),
 	}
 }
 
 const markGeometryPositionsDirty = (geometry: BufferGeometry): void => {
 	if (geometry.attributes.position) geometry.attributes.position.needsUpdate = true
+}
+
+const resolveUvLabelFitScale = (baseCurveRadius: number, maxTextWidth: number): number => {
+	if (!(maxTextWidth > 0)) return 1
+	const safeBaseRadius = Math.max(Math.abs(baseCurveRadius), 10)
+	const maxArcWidth = safeBaseRadius * MAX_UV_LABEL_SPAN_RAD
+	return Math.max(MIN_UV_LABEL_FIT_SCALE, Math.min(1, maxArcWidth / maxTextWidth))
 }
 
 const projectTextGeometryOntoSphere = (
@@ -322,6 +335,7 @@ const projectTextGeometryOntoSphere = (
 	radius: number,
 	baseCosLatitude: number,
 	baseSinLatitude: number,
+	fitScale: number,
 ): void => {
 	const positions = getGeometryPositionArray(geometry)
 	if (!positions || positions.length === 0) return
@@ -330,8 +344,8 @@ const projectTextGeometryOntoSphere = (
 	const baseParallelRadius = Math.max(Math.abs(safeRadius * baseCosLatitude), 10)
 
 	for (let index = 0; index < initialPositions.length; index += 3) {
-		const arcOffset = (initialPositions[index] ?? 0) - center.centerX
-		const verticalOffset = (initialPositions[index + 1] ?? 0) - center.centerY
+		const arcOffset = ((initialPositions[index] ?? 0) - center.centerX) * fitScale
+		const verticalOffset = ((initialPositions[index + 1] ?? 0) - center.centerY) * fitScale
 		const deltaLongitude = arcOffset / baseParallelRadius
 		const deltaLatitude = verticalOffset / safeRadius
 		const sinDeltaLongitude = Math.sin(deltaLongitude)
@@ -360,6 +374,7 @@ const projectTextGeometryOntoTorus = (
 	minorRadius: number,
 	baseCosLatitude: number,
 	baseSinLatitude: number,
+	fitScale: number,
 ): void => {
 	const positions = getGeometryPositionArray(geometry)
 	if (!positions || positions.length === 0) return
@@ -370,8 +385,8 @@ const projectTextGeometryOntoTorus = (
 	const safeCenterCircleRadius = Math.max(Math.abs(centerCircleRadius), 10)
 
 	for (let index = 0; index < initialPositions.length; index += 3) {
-		const arcOffset = (initialPositions[index] ?? 0) - center.centerX
-		const verticalOffset = (initialPositions[index + 1] ?? 0) - center.centerY
+		const arcOffset = ((initialPositions[index] ?? 0) - center.centerX) * fitScale
+		const verticalOffset = ((initialPositions[index + 1] ?? 0) - center.centerY) * fitScale
 		const deltaU = arcOffset / safeCenterCircleRadius
 		const deltaV = verticalOffset / safeMinorRadius
 		const sinDeltaU = Math.sin(deltaU)
@@ -398,9 +413,11 @@ const applySurfaceLabelProjection = (
 	initialCoverPositions: Float32Array,
 	stencilCenter: TextGeometryCenter,
 	coverCenter: TextGeometryCenter,
+	maxTextWidth: number,
 	projection: SurfaceLabelProjection,
 ): void => {
 	if (projection.kind === "sphere") {
+		const fitScale = resolveUvLabelFitScale(projection.radius * projection.baseCosLatitude, maxTextWidth)
 		projectTextGeometryOntoSphere(
 			textNode.stencilGeometry,
 			initialStencilPositions,
@@ -408,6 +425,7 @@ const applySurfaceLabelProjection = (
 			projection.radius,
 			projection.baseCosLatitude,
 			projection.baseSinLatitude,
+			fitScale,
 		)
 		projectTextGeometryOntoSphere(
 			textNode.coverGeometry,
@@ -416,10 +434,15 @@ const applySurfaceLabelProjection = (
 			projection.radius,
 			projection.baseCosLatitude,
 			projection.baseSinLatitude,
+			fitScale,
 		)
 		return
 	}
 
+	const fitScale = resolveUvLabelFitScale(
+		projection.majorRadius + projection.minorRadius * projection.baseCosLatitude,
+		maxTextWidth,
+	)
 	projectTextGeometryOntoTorus(
 		textNode.stencilGeometry,
 		initialStencilPositions,
@@ -428,6 +451,7 @@ const applySurfaceLabelProjection = (
 		projection.minorRadius,
 		projection.baseCosLatitude,
 		projection.baseSinLatitude,
+		fitScale,
 	)
 	projectTextGeometryOntoTorus(
 		textNode.coverGeometry,
@@ -437,6 +461,7 @@ const applySurfaceLabelProjection = (
 		projection.minorRadius,
 		projection.baseCosLatitude,
 		projection.baseSinLatitude,
+		fitScale,
 	)
 }
 
@@ -455,8 +480,8 @@ const createSurfaceLabelNode = (
 	)
 	const initialStencilPositions = new Float32Array(getGeometryPositionArray(label.stencilGeometry) ?? [])
 	const initialCoverPositions = new Float32Array(getGeometryPositionArray(label.coverGeometry) ?? [])
-	const stencilCenter = resolveTextGeometryCenter(initialStencilPositions) ?? { centerX: 0, centerY: 0 }
-	const coverCenter = resolveTextGeometryCenter(initialCoverPositions) ?? { centerX: 0, centerY: 0 }
+	const stencilCenter = resolveTextGeometryCenter(initialStencilPositions) ?? { centerX: 0, centerY: 0, width: 0 }
+	const coverCenter = resolveTextGeometryCenter(initialCoverPositions) ?? { centerX: 0, centerY: 0, width: 0 }
 	label.frustumCulled = false
 	label.updateMatrix()
 
@@ -468,6 +493,7 @@ const createSurfaceLabelNode = (
 		container,
 		initialCoverPositions,
 		initialStencilPositions,
+		maxTextWidth: Math.max(stencilCenter.width, coverCenter.width),
 		material: label.material,
 		stencilCenter,
 		textNode: label,
@@ -1092,6 +1118,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				initialStencilPositions: visual.initialStencilPositions,
 				key: spec.key,
 				kind: spec.kind,
+				maxTextWidth: visual.maxTextWidth,
 				material: visual.material,
 				offset: spec.offset,
 				shellRadius: spec.shellRadius,
@@ -1125,6 +1152,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		existing.coverCenter = visual.coverCenter
 		existing.initialCoverPositions = visual.initialCoverPositions
 		existing.initialStencilPositions = visual.initialStencilPositions
+		existing.maxTextWidth = visual.maxTextWidth
 		existing.material = visual.material
 		existing.signature = signature
 		existing.container.add(visual.container)
@@ -1702,6 +1730,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				tracker.initialCoverPositions,
 				tracker.stencilCenter,
 				tracker.coverCenter,
+				tracker.maxTextWidth,
 				projection,
 			)
 
