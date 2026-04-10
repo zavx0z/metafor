@@ -178,11 +178,12 @@ const getShellFallback = () => getViewportConfig().shellFallbackMm
 const getWorkspaceBaseZ = (): number => getViewportConfig().levelsMm.elbow
 const getFloorZ = (): number => getViewportConfig().levelsMm.floor
 
-const getLevelMetrics = (depth: number) =>
+const getLevelMetrics = (depth: number, outerRadiusMm?: number) =>
 	resolveAppWebLevelMetrics({
 		depth,
 		layoutSettings: activeLayoutSettings,
 		renderSettings: activeRenderSettings,
+		outerRadiusMm,
 	})
 
 const isLabelDepthVisible = (depth: number): boolean => getLevelMetrics(depth).isLabelVisible
@@ -281,11 +282,12 @@ const createSurfaceLabelNode = (
 	depth: number,
 	curveRadius: number,
 	color: Color,
+	radius: number,
 ): SurfaceLabelVisual => {
 	const label = new Text(
 		text,
 		font,
-		getLevelMetrics(depth).labelFontSizeMm ?? activeRenderSettings.labelFontSizeMm,
+		getLevelMetrics(depth, radius).labelFontSizeMm ?? activeRenderSettings.labelFontSizeMm,
 		new TextMaterial({ color: color.clone(), opacity: 1 }),
 	)
 	wrapTextGeometryAroundEquator(label.stencilGeometry, curveRadius)
@@ -812,16 +814,19 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(REMOVAL_FADE_MS + 32)
 	}
 
-	const buildLabelSignature = (spec: LabelSpec): string =>
-		[
+	const buildLabelSignature = (spec: LabelSpec, radius: number): string => {
+		const metrics = getLevelMetrics(spec.depth, radius)
+		return [
 			spec.text,
 			spec.depth,
-			spec.curveRadius.toFixed(4),
+			radius.toFixed(4),
 			spec.color.r.toFixed(4),
 			spec.color.g.toFixed(4),
 			spec.color.b.toFixed(4),
-			(getLevelMetrics(spec.depth).labelFontSizeMm ?? activeRenderSettings.labelFontSizeMm).toFixed(4),
+			(metrics.labelFontSizeMm ?? activeRenderSettings.labelFontSizeMm).toFixed(6),
+			(metrics.labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm).toFixed(6),
 		].join(":")
+	}
 
 	const createShellLabelSpec = (record: ShellRenderRecord): LabelSpec | null => {
 		if (!labelFont) return null
@@ -829,13 +834,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const text = normalizeLabelText(record.snapshot.label)
 		if (!text) return null
 
+		const shellOuterRadiusMm = record.snapshot.shellRadius + record.snapshot.shellTube
+		const metrics = getLevelMetrics(record.snapshot.depth, shellOuterRadiusMm)
+
 		return {
 			anchorObject: record.container,
 			color: THEME_PRIMARY.clone(),
-			curveRadius:
-				record.snapshot.shellRadius +
-				record.snapshot.shellTube +
-				(getLevelMetrics(record.snapshot.depth).labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm),
+			curveRadius: shellOuterRadiusMm + (metrics.labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm),
 			depth: record.snapshot.depth,
 			key: `shell:${record.snapshot.particleId}`,
 			text,
@@ -849,12 +854,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			normalizeLabelText(record.snapshot.fieldLabel) ?? normalizeLabelText(record.snapshot.fieldKey)
 		if (!text) return null
 
+		const sphereRadiusMm = record.snapshot.sphereRadius
+		const metrics = getLevelMetrics(record.depth, sphereRadiusMm)
+
 		return {
 			anchorObject: record.node,
 			color: getFieldThemeColor(record.snapshot.fieldValueKind).color.clone(),
-			curveRadius:
-				record.snapshot.sphereRadius +
-				(getLevelMetrics(record.depth).labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm),
+			curveRadius: sphereRadiusMm + (metrics.labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm),
 			depth: record.depth,
 			key: `field:${record.snapshot.id}`,
 			text,
@@ -876,12 +882,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(REMOVAL_FADE_MS + 32)
 	}
 
-	const upsertLabelRecord = (spec: LabelSpec): void => {
-		const signature = buildLabelSignature(spec)
+	const upsertLabelRecord = (spec: LabelSpec, radius: number): void => {
+		const signature = buildLabelSignature(spec, radius)
 		const existing = labelRecords.get(spec.key)
 		if (!existing) {
 			const container = new Object3D()
-			const visual = createSurfaceLabelNode(spec.text, labelFont!, spec.depth, spec.curveRadius, spec.color)
+			const visual = createSurfaceLabelNode(spec.text, labelFont!, spec.depth, spec.curveRadius, spec.color, radius)
 			container.add(visual.container)
 			container.frustumCulled = false
 			container.scale.set(LABEL_INITIAL_SCALE, LABEL_INITIAL_SCALE, LABEL_INITIAL_SCALE)
@@ -910,7 +916,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			child.parent = null
 		}
 		existing.container.children = []
-		const visual = createSurfaceLabelNode(spec.text, labelFont!, spec.depth, spec.curveRadius, spec.color)
+		const visual = createSurfaceLabelNode(spec.text, labelFont!, spec.depth, spec.curveRadius, spec.color, radius)
 		visual.material.opacity = currentOpacity
 		existing.material = visual.material
 		existing.signature = signature
@@ -932,7 +938,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const spec = createShellLabelSpec(record)
 			if (!spec) continue
 			nextLabelKeys.add(spec.key)
-			upsertLabelRecord(spec)
+			upsertLabelRecord(spec, record.snapshot.shellRadius + record.snapshot.shellTube)
 		}
 
 		for (const record of [...fieldRecords.values()].sort(
@@ -944,7 +950,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const spec = createFieldLabelSpec(record)
 			if (!spec) continue
 			nextLabelKeys.add(spec.key)
-			upsertLabelRecord(spec)
+			upsertLabelRecord(spec, record.snapshot.sphereRadius)
 		}
 
 		for (const key of [...labelRecords.keys()]) {
@@ -1505,6 +1511,19 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	document.addEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 	document.addEventListener("mouseup", wakeRenderFromDocumentMouseUp)
 
+	const calculateActiveDepth = (): number => {
+		const cameraPos = viewPoint.position
+		let bestDepth = -1
+		for (const record of shellRecords.values()) {
+			const dist = cameraPos.distanceTo(record.pickTarget.center)
+			// Скрываем надпись только когда камера вошла внутрь сферы объекта
+			if (dist < record.pickTarget.outerRadius) {
+				bestDepth = Math.max(bestDepth, record.snapshot.depth)
+			}
+		}
+		return bestDepth
+	}
+
 	const animate = (timestamp: number): void => {
 		if (disposed) return
 		frameHandle = 0
@@ -1514,6 +1533,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const hasPendingMotion = updateAnimatedRecords(deltaMs)
 		updateSceneWorldState()
 		applyNavigationFrame(deltaMs)
+
+		const nextBaseDepth = calculateActiveDepth()
+		if (nextBaseDepth !== activeRenderSettings.baseDepth) {
+			activeRenderSettings.baseDepth = nextBaseDepth
+			syncLabelRecords()
+		}
+
 		updateLabelTrackers()
 		scene.updateWorldMatrix()
 		renderer.render(scene, viewPoint)
@@ -1556,9 +1582,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			refreshSceneForSettings()
 		},
 		setRenderSettings(settings: Partial<AppWebRenderSettings>) {
+			const nextBaseDepth = settings.baseDepth !== undefined ? settings.baseDepth : activeRenderSettings.baseDepth
 			activeRenderSettings = normalizeAppWebRenderSettings({
 				...activeRenderSettings,
 				...settings,
+				baseDepth: nextBaseDepth,
 			})
 			torusWireframeCache.clear()
 			sphereWireframeCache.clear()

@@ -16,6 +16,8 @@ export interface AppWebRenderSettings {
   detailLevelMultiplier: number
   /** Сколько уровней иерархии подписей показывать, начиная от root-уровня. */
   labelVisibleLevels: number
+  /** Текущий базовый уровень (глубина) viewport-а для отсчёта видимости. */
+  baseDepth: number
   /** Размер подписи у shell/sphere в миллиметрах. */
   labelFontSizeMm: number
   /** Отступ подписи от поверхности объекта в миллиметрах. */
@@ -140,6 +142,8 @@ export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
   detailLevelMultiplier: 1.5,
   // Сколько уровней подписей показывать от root внутрь.
   labelVisibleLevels: 2,
+  // Базовый уровень viewport для отсчёта видимости (0 = root).
+  baseDepth: 0,
   // Размер текста подписей на поверхности объектов.
   labelFontSizeMm: 120,
   // Насколько подпись вынесена от поверхности наружу.
@@ -353,6 +357,10 @@ export const normalizeAppWebRenderSettings = (
     Number.isFinite(settings.labelVisibleLevels) && (settings.labelVisibleLevels ?? 0) > 0
       ? Math.max(1, Math.round(settings.labelVisibleLevels!))
       : DEFAULT_APP_WEB_RENDER_SETTINGS.labelVisibleLevels,
+  baseDepth:
+    Number.isFinite(settings.baseDepth) && (settings.baseDepth ?? -1) >= -1
+      ? Math.floor(settings.baseDepth!)
+      : DEFAULT_APP_WEB_RENDER_SETTINGS.baseDepth,
   labelFontSizeMm:
     Number.isFinite(settings.labelFontSizeMm) && (settings.labelFontSizeMm ?? 0) > 0
       ? settings.labelFontSizeMm!

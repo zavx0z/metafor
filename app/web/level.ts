@@ -82,13 +82,19 @@ export const resolveAppWebLevelMetrics = ({
   const paddingMm = Math.max(0, maxObjectDiameterMm * (packingDensityCoefficient - 1))
   const workingThicknessMm = Math.max(0.001, thicknessMm - paddingMm * 2)
 
-  const isLabelVisible = renderSettings ? normalizedDepth + 1 <= renderSettings.labelVisibleLevels : false
+  const isLabelVisible = renderSettings
+    ? normalizedDepth > renderSettings.baseDepth &&
+      normalizedDepth <= renderSettings.baseDepth + renderSettings.labelVisibleLevels
+    : false
+
+  const labelScale = resolvedOuterRadiusMm / (rootOuterDiameterMm / 2)
+
   const labelFontSizeMm = renderSettings
-    ? Math.max(1, renderSettings.labelFontSizeMm / depthSizeScale)
+    ? Math.max(1e-6, renderSettings.labelFontSizeMm * labelScale)
     : null
 
   const labelSurfaceOffsetMm = renderSettings
-    ? renderSettings.labelSurfaceOffsetMm / depthSizeScale
+    ? renderSettings.labelSurfaceOffsetMm * labelScale
     : null
 
   const detailMultiplier = renderSettings
