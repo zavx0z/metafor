@@ -87,7 +87,7 @@ const DEFAULT_RETENTION_HIT_PADDING_MM = 44
 const DEFAULT_FOCUS_SURFACE_CLEARANCE_MM = 4
 const DEFAULT_HOVER_TRANSITION_DELAY_MS = 72
 const DEFAULT_HOVER_SCORE_HYSTERESIS_PX = 6
-const DEFAULT_DEEPER_TARGET_SCORE_TOLERANCE_PX = 1.5
+const DEFAULT_DEEPER_TARGET_SCORE_TOLERANCE_PX = 4.0
 const FALLBACK_VIEW_DIRECTION = new Vector3(0.72, -0.54, 0.42).normalize()
 
 const resolveRaySphereDistanceRange = (
@@ -309,7 +309,7 @@ export const resolveBulkHoverPriorityTarget = ({
     )
 
     if (descendantDistance !== null && descendantDistance > 0) {
-      if (bestCandidate.score < currentCandidate.score) {
+      if (bestCandidate.score <= currentCandidate.score + 0.5) {
         return bestCandidate.target
       }
       return currentCandidate.target
