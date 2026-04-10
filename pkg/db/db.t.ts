@@ -63,6 +63,7 @@ export interface DbMetaProcessRecord {
   desc?: string
   actionSrc?: string
   actionImportSpecifier?: string
+  actionWrapperSrc?: string
   successSrc?: string
   errorSrc?: string
   beforeSrc?: string

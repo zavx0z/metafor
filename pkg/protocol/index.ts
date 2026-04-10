@@ -5,7 +5,7 @@ export const HIGGS_BROADCAST_CHANNEL = "metafor.higgs"
 export const WEAK_W_BROADCAST_CHANNEL = "metafor.weak.w"
 export const WEAK_Z_BROADCAST_CHANNEL = "metafor.weak.z"
 
-export type ProtocolDomain = "dark" | "boundary" | "bulk"
+export type ProtocolDomain = "dark" | "boundary" | "bulk" | "app"
 
 export interface ProtocolChannelOptions {
   channelName?: string
@@ -75,7 +75,7 @@ export interface WMessage {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null
 const isProtocolDomain = (value: unknown): value is ProtocolDomain =>
-  value === "dark" || value === "boundary" || value === "bulk"
+  value === "dark" || value === "boundary" || value === "bulk" || value === "app"
 
 const hasProtocolEnvelope = (
   value: unknown,

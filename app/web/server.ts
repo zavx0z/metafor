@@ -10,12 +10,17 @@ import {
 	HIGGS_BROADCAST_CHANNEL,
 	WEAK_W_BROADCAST_CHANNEL,
 	WEAK_Z_BROADCAST_CHANNEL,
+	openGluonBroadcastChannel,
+	openHiggsBroadcastChannel,
 	isGluonMessage,
 	isGravitonMessage,
 	isHiggsMessage,
 	isPhotonMessage,
 	isWMessage,
 	isZMessage,
+	type GluonMessage,
+	type HiggsMessage,
+	type ValueProtocolPatch,
 } from "@shared/protocol"
 
 const ROOT = normalize(join(import.meta.dir, "../../"))
@@ -25,7 +30,7 @@ const DEFAULT_PORT = 3000
 const configuredPort = Number(Bun.env.PORT ?? DEFAULT_PORT)
 const APP_PORT = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : DEFAULT_PORT
 
-type WorkerName = "dark" | "boundary"
+type WorkerName = "dark" | "boundary" | "bulk"
 type WorkerStatus = "idle" | "ready" | "started" | "done" | "error"
 
 type WorkerStatusMessage = {
@@ -59,7 +64,14 @@ type ClientRelayoutMessage = {
 	layoutSettings?: Partial<AppWebLayoutSettings>
 }
 
+type ClientProtocolBridgeMessage = {
+	type: "protocol"
+	channel: "gluon" | "higgs"
+	patches: ValueProtocolPatch[]
+}
+
 type AppRuntime = {
+	bulk: Worker
 	boundary: Worker
 	dark: Worker
 }
@@ -70,12 +82,17 @@ const buildEntrypoint = async (entrypoint: string): Promise<Response> =>
 	})
 
 const workerStates: Record<WorkerName, WorkerStatus> = {
+	bulk: "idle",
 	dark: "idle",
 	boundary: "idle",
 }
 
 let runtime: AppRuntime | null = null
 let runtimeLock: Promise<AppRuntime> | null = null
+const protocolInputs = {
+	gluon: openGluonBroadcastChannel(),
+	higgs: openHiggsBroadcastChannel(),
+} as const
 
 const workerEntry = (relativePath: string): string => join(ROOT, relativePath)
 
@@ -108,6 +125,43 @@ const toWorkerMeta = (meta: {
 	if (meta.error !== undefined) nextMeta.error = meta.error
 	return nextMeta
 }
+
+const isValueProtocolPatch = (value: unknown): value is ValueProtocolPatch => {
+	if (!value || typeof value !== "object") return false
+	const patch = value as { op?: unknown; path?: unknown; value?: unknown }
+	return patch.op === "replace" && typeof patch.path === "string" && "value" in patch
+}
+
+const isClientProtocolBridgeMessage = (value: unknown): value is ClientProtocolBridgeMessage => {
+	if (!value || typeof value !== "object") return false
+	const message = value as {
+		type?: unknown
+		channel?: unknown
+		patches?: unknown
+	}
+
+	return (
+		message.type === "protocol" &&
+		(message.channel === "gluon" || message.channel === "higgs") &&
+		Array.isArray(message.patches) &&
+		message.patches.every(isValueProtocolPatch)
+	)
+}
+
+const createProtocolBridgeMessage = (payload: ClientProtocolBridgeMessage): GluonMessage | HiggsMessage =>
+	payload.channel === "gluon"
+		? {
+				channel: "gluon",
+				boson: "gluon",
+				source: "app",
+				patches: payload.patches,
+			}
+		: {
+				channel: "higgs",
+				boson: "higgs",
+				source: "app",
+				patches: payload.patches,
+			}
 
 const attachWorker = (
 	workerName: WorkerName,
@@ -157,7 +211,9 @@ const attachWorker = (
 const terminateRuntime = (): void => {
 	runtime?.dark.terminate()
 	runtime?.boundary.terminate()
+	runtime?.bulk.terminate()
 	runtime = null
+	updateWorkerStatus("bulk", "idle")
 	updateWorkerStatus("dark", "idle")
 	updateWorkerStatus("boundary", "idle")
 }
@@ -173,12 +229,19 @@ const createRuntime = async (): Promise<AppRuntime> => {
 	boundary.postMessage({ type: "boot", dbFilename: APP_DB_FILENAME })
 	await boundaryReady
 
+	const bulk = new Worker(workerEntry("app/web/runtime/bulk.worker.ts"), {
+		name: "bulk",
+	})
+	const bulkReady = attachWorker("bulk", bulk)
+	bulk.postMessage({ type: "boot", dbFilename: APP_DB_FILENAME })
+	await bulkReady
+
 	const dark = new Worker(workerEntry("app/web/runtime/dark.worker.ts"), {
 		name: "dark",
 	})
 	await attachWorker("dark", dark)
 
-	runtime = { boundary, dark }
+	runtime = { bulk, boundary, dark }
 	return runtime
 }
 
@@ -246,22 +309,37 @@ const server = serve({
 			)
 		},
 		message(_ws, message) {
-			let payload: ClientMaterializeMessage | ClientRelayoutMessage | null = null
+			let payload: ClientMaterializeMessage | ClientRelayoutMessage | ClientProtocolBridgeMessage | null = null
 			try {
-				payload = JSON.parse(String(message)) as ClientMaterializeMessage | ClientRelayoutMessage
+				payload = JSON.parse(String(message)) as
+					| ClientMaterializeMessage
+					| ClientRelayoutMessage
+					| ClientProtocolBridgeMessage
 			} catch {
 				return
 			}
 
-			if (
-				!payload ||
-				(payload.type !== "materialize" && payload.type !== "relayout") ||
-				typeof payload.src !== "string"
-			) {
+			if (!payload || typeof payload !== "object" || typeof payload.type !== "string") {
 				return
 			}
 
 			void (async () => {
+				if (isClientProtocolBridgeMessage(payload)) {
+					await getOrCreateRuntime()
+					const protocolMessage = createProtocolBridgeMessage(payload)
+
+					if (payload.channel === "gluon") {
+						protocolInputs.gluon.postMessage(protocolMessage)
+					} else {
+						protocolInputs.higgs.postMessage(protocolMessage)
+					}
+					return
+				}
+
+				if (typeof payload.src !== "string" || (payload.type !== "materialize" && payload.type !== "relayout")) {
+					return
+				}
+
 				if (payload.type === "materialize") {
 					const currentRuntime = await recreateRuntime()
 					currentRuntime.dark.postMessage({

@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test"
-import { materializeFields, Meta, Wimp } from "@dark/strong"
+import { Fuzzy, materializeFields, Meta, Wimp } from "@dark/strong"
 import { openDbMaterializationWriter, openDbSqliteBackend } from "../../pkg/db/index.ts"
 import { HubFixture } from "fixture"
 import { matter } from "../../dark/index.ts"
@@ -7,6 +7,7 @@ import { createDbFixture } from "fixture/db.fixture.ts"
 import { dark$ } from "../../dark/store.ts"
 import {
   addRuntimeWimp,
+  applyWeakResultPacket,
   applyStructuralPatchFromDb,
   boundary$,
   gravity$,
@@ -86,6 +87,140 @@ const materializeIndependentRootsToDb = async () => {
   await gamma.save(writer)
 
   return { backend, wimps: { alpha, beta, gamma } }
+}
+
+const materializeProcessFlowFixtureToDb = async () => {
+  const meta = new Meta({
+    src: "meta/process-flow",
+    fieldSchemas: {
+      trigger: { type: "boolean", required: true, default: false },
+    },
+    superposition: {
+      idle: {
+        processing: {
+          trigger: true,
+        },
+      },
+      processing: {
+        done: {},
+      },
+      done: null,
+    },
+    processes: {
+      processing: {
+        type: "action",
+        action: {
+          src: "./noop.ts",
+        },
+      },
+    },
+  })
+
+  const root = new Wimp({ src: meta.src, meta, parent: null })
+  root.fields = materializeFields(root, meta.fields)
+  root.fields.trigger!.value = false
+
+  const backend = openDbSqliteBackend()
+  const writer = openDbMaterializationWriter(backend)
+  await root.save(writer)
+
+  return { backend, meta, root }
+}
+
+const materializeProcessRetriggerFixtureToDb = async () => {
+  const meta = new Meta({
+    src: "meta/process-retrigger",
+    fieldSchemas: {
+      approved: { type: "boolean", required: true, default: false },
+      payload: { type: "string", required: false, default: null },
+    },
+    superposition: {
+      processing: {
+        done: {
+          approved: true,
+        },
+      },
+      done: null,
+    },
+    processes: {
+      processing: {
+        type: "action",
+        action: {
+          src: "./noop.ts",
+        },
+      },
+    },
+  })
+
+  const root = new Wimp({ src: meta.src, meta, parent: null })
+  root.fields = materializeFields(root, meta.fields)
+  root.fields.approved!.value = false
+  root.fields.payload!.value = null
+
+  const backend = openDbSqliteBackend()
+  const writer = openDbMaterializationWriter(backend)
+  await root.save(writer)
+
+  return { backend, meta, root }
+}
+
+const materializeCrossBraneProcessRetriggerFixtureToDb = async () => {
+  const rootMeta = new Meta({
+    src: "meta/process-retrigger-root",
+    fieldSchemas: {
+      payload: { type: "string", required: false, default: null },
+    },
+    superposition: {
+      processing: null,
+    },
+    processes: {
+      processing: {
+        type: "action",
+        action: {
+          src: "./noop.ts",
+        },
+      },
+    },
+  })
+
+  const childMeta = new Meta({
+    src: "meta/process-retrigger-child",
+    fieldSchemas: {
+      payload: { type: "string", required: false, default: null },
+    },
+    superposition: {
+      processing: null,
+    },
+    processes: {
+      processing: {
+        type: "action",
+        action: {
+          src: "./noop.ts",
+        },
+      },
+    },
+  })
+
+  const root = new Wimp({ src: rootMeta.src, meta: rootMeta, parent: null })
+  root.fields = materializeFields(root, rootMeta.fields)
+  root.fields.payload!.value = null
+
+  const gate = new Fuzzy({ parent: root })
+  root.children.add(gate)
+
+  const child = new Wimp({ src: childMeta.src, meta: childMeta, parent: gate })
+  gate.children.add(child)
+  child.fields = materializeFields(child, childMeta.fields, [
+    { key: "payload", value: null, source: root.fields.payload! },
+  ])
+  child.fields.payload!.source = root.fields.payload!
+
+  const backend = openDbSqliteBackend()
+  const writer = openDbMaterializationWriter(backend)
+  await root.save(writer)
+  await child.save(writer)
+
+  return { backend, rootMeta, childMeta, root, child }
 }
 
 describe("boundary runtime from db backend", () => {
@@ -319,6 +454,138 @@ describe("boundary runtime from db backend", () => {
         "Alias via UUID field",
       )
       expect(backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.rootMode!.id)?.value).toBe("ready")
+    } finally {
+      backend.close()
+    }
+  })
+
+  test("process-bound state автоматически берет lock, а W-result снимает его и доводит переход до следующего state", async () => {
+    const { backend, meta, root } = await materializeProcessFlowFixtureToDb()
+
+    try {
+      await writeRuntimeFromDb(backend)
+
+      const braneIndex = gravity$.getBraneIndex(root.id)
+      expect(braneIndex).toBe(0)
+
+      const enterProcessChanges = await update([[braneIndex!, [[0, true]]]])
+      expect(enterProcessChanges).toContainEqual([braneIndex!, 1])
+      expect(boundary$.states[braneIndex!]).toBe(1)
+      expect(boundary$.branes[braneIndex!]?.lock).toBe(true)
+
+      const processId = backend.readData().metaProcesses.find(
+        (row) => row.ownerMetaId === meta.id && row.processKey === "processing",
+      )?.id
+      expect(processId).toBeDefined()
+
+      const weakResultChanges = await applyWeakResultPacket({
+        channel: "weak-w",
+        boson: "w+",
+        source: "bulk",
+        wimpId: root.id,
+        processId: processId!,
+        patches: [],
+      })
+
+      expect(weakResultChanges).toContainEqual([braneIndex!, 2])
+      expect(boundary$.states[braneIndex!]).toBe(2)
+      expect(boundary$.branes[braneIndex!]?.lock).toBe(false)
+    } finally {
+      backend.close()
+    }
+  })
+
+  test("setValues retrigger-ит текущий process-state даже без смены state", async () => {
+    const { backend, meta, root } = await materializeProcessRetriggerFixtureToDb()
+
+    try {
+      await writeRuntimeFromDb(backend)
+
+      const braneIndex = gravity$.getBraneIndex(root.id)
+      expect(braneIndex).toBe(0)
+      expect(boundary$.states[braneIndex!]).toBe(0)
+      expect(boundary$.branes[braneIndex!]?.lock).toBe(false)
+
+      const changes = await setValues({
+        [root.fields.payload!.id]: "payload via UUID",
+      })
+
+      expect(changes).toEqual([])
+      expect(boundary$.states[braneIndex!]).toBe(0)
+      expect(boundary$.branes[braneIndex!]?.lock).toBe(true)
+      expect(backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === root.fields.payload!.id)?.value).toBe(
+        "payload via UUID",
+      )
+
+      const processId = backend.readData().metaProcesses.find(
+        (row) => row.ownerMetaId === meta.id && row.processKey === "processing",
+      )?.id
+      expect(processId).toBeDefined()
+
+      const weakResultChanges = await applyWeakResultPacket({
+        channel: "weak-w",
+        boson: "w+",
+        source: "bulk",
+        wimpId: root.id,
+        processId: processId!,
+        patches: [],
+      })
+
+      expect(weakResultChanges).toEqual([])
+      expect(boundary$.states[braneIndex!]).toBe(0)
+      expect(boundary$.branes[braneIndex!]?.lock).toBe(false)
+    } finally {
+      backend.close()
+    }
+  })
+
+  test("W-result retrigger-ит другие process-state браны, затронутые shared/source field", async () => {
+    const { backend, rootMeta, root, child } = await materializeCrossBraneProcessRetriggerFixtureToDb()
+
+    try {
+      await writeRuntimeFromDb(backend)
+
+      const rootBraneIndex = gravity$.getBraneIndex(root.id)
+      const childBraneIndex = gravity$.getBraneIndex(child.id)
+      expect(rootBraneIndex).toBe(0)
+      expect(childBraneIndex).toBe(1)
+      expect(boundary$.states[rootBraneIndex!]).toBe(0)
+      expect(boundary$.states[childBraneIndex!]).toBe(0)
+      expect(boundary$.branes[rootBraneIndex!]?.lock).toBe(false)
+      expect(boundary$.branes[childBraneIndex!]?.lock).toBe(false)
+
+      const rootProcessId = backend.readData().metaProcesses.find(
+        (row) => row.ownerMetaId === rootMeta.id && row.processKey === "processing",
+      )?.id
+      expect(rootProcessId).toBeDefined()
+
+      await update([[rootBraneIndex!, [], true]])
+      expect(boundary$.branes[rootBraneIndex!]?.lock).toBe(true)
+
+      const weakResultChanges = await applyWeakResultPacket({
+        channel: "weak-w",
+        boson: "w+",
+        source: "bulk",
+        wimpId: root.id,
+        processId: rootProcessId!,
+        patches: [
+          {
+            op: "replace",
+            path: `/field/${root.fields.payload!.id}`,
+            value: "shared payload",
+          },
+        ],
+      })
+
+      expect(weakResultChanges).toEqual([])
+      expect(boundary$.branes[rootBraneIndex!]?.lock).toBe(false)
+      expect(boundary$.branes[childBraneIndex!]?.lock).toBe(true)
+      expect(backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === root.fields.payload!.id)?.value).toBe(
+        "shared payload",
+      )
+      expect(backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === child.fields.payload!.id)?.value).toBe(
+        "shared payload",
+      )
     } finally {
       backend.close()
     }

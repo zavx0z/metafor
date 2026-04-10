@@ -166,7 +166,14 @@ describe("sqlite ddl", () => {
     ])
 
     expect(processEnvColumns).toEqual(["process", "env"])
-    expect(processActionColumns).toEqual(["process", "action", "action_import_specifier", "success", "error"])
+    expect(processActionColumns).toEqual([
+      "process",
+      "action",
+      "action_import_specifier",
+      "action_wrapper_src",
+      "success",
+      "error",
+    ])
     expect(processFinallyColumns).toEqual(["process", "before"])
     expect(reactionSuperpositionColumns).toEqual(["reaction", "superposition"])
 

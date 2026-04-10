@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS process_action
     process                 TEXT PRIMARY KEY CHECK (length(trim(process)) > 0),
     action                  TEXT NOT NULL,
     action_import_specifier TEXT,
+    action_wrapper_src      TEXT,
     success                 TEXT,
     error                   TEXT,
     CHECK (action IS NOT NULL OR action_import_specifier IS NULL),

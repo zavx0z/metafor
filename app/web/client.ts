@@ -18,7 +18,7 @@ import { loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings } from "./
 
 type WorkerStatusMessage = {
 	type: "worker-status"
-	worker: "dark" | "boundary"
+	worker: "dark" | "boundary" | "bulk"
 	status: "idle" | "ready" | "started" | "done" | "error"
 	src?: string
 	error?: string

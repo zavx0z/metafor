@@ -422,13 +422,14 @@ export const readProcesses = (
   const actionRows = new Map(
     (
       db.query(
-        `SELECT process, action, action_import_specifier, success, error
+        `SELECT process, action, action_import_specifier, action_wrapper_src, success, error
          FROM process_action
          WHERE process IN (SELECT uuid FROM process WHERE meta = ?)`,
       ).all(src) as Array<{
         process: string
         action: string
         action_import_specifier: string | null
+        action_wrapper_src: string | null
         success: string | null
         error: string | null
       }>
@@ -536,6 +537,9 @@ export const readProcesses = (
 
     if (actionRow.action_import_specifier !== null) {
       process.action.importSpecifier = actionRow.action_import_specifier
+    }
+    if (actionRow.action_wrapper_src !== null) {
+      process.action.wrapperSrc = actionRow.action_wrapper_src
     }
     const actionReads = reads.action
     if (actionReads && actionReads.length > 0) process.action.read = actionReads

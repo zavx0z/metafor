@@ -53,6 +53,16 @@ describe("parseCondition — парсинг условий", () => {
     expect(result).toEqual([{ op: OP.EQ, val: 50 }])
   })
 
+  test("должен парсить условие null=true как EQ null", () => {
+    const result = parseCondition({ null: true })
+    expect(result).toEqual([{ op: OP.EQ, val: null }])
+  })
+
+  test("должен парсить условие null=false как NEQ null", () => {
+    const result = parseCondition({ null: false })
+    expect(result).toEqual([{ op: OP.NEQ, val: null }])
+  })
+
   test("должен парсить условие neq", () => {
     const result = parseCondition({ neq: 50 })
     expect(result).toEqual([{ op: OP.NEQ, val: 50 }])

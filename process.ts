@@ -117,6 +117,7 @@ export function parseProcess<ɸ extends Fields, m extends Mass, Res = any, v ext
     action: {
       src: modulePath ?? "",
       ...(importSpecifier ? { importSpecifier } : {}),
+      wrapperSrc: normalizeFunctionString(process.action.toString()),
       ...(parsedAction.read.length > 0 ? { read: parsedAction.read } : {}),
     },
     ...(process.label ? { label: process.label } : {}),

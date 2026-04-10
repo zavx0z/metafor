@@ -9,6 +9,7 @@ import {
   createLockedBraneFixture,
   createFieldUpdateFixture,
   createIsolatedStore,
+  createNullableStringPresenceFixture,
   setBraneFieldValue,
 } from "./shared/fixtures"
 
@@ -115,5 +116,19 @@ describe("CPU runtime — scenario tests", () => {
 
     expect(changes1).toHaveLength(1)
     expect(changes2).toHaveLength(0)
+  })
+
+  test("null=false для optional string срабатывает только после появления значения", async () => {
+    const store = createIsolatedStore(createNullableStringPresenceFixture())
+    const runtime = new CPUWeakRuntime(store)
+
+    runtime.step()
+    expect(await runtime.readChanges()).toEqual([])
+
+    setBraneFieldValue(store, 0, 0, "hi")
+    runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
+    runtime.step()
+
+    expect(await runtime.readChanges()).toEqual([[0, 1]])
   })
 })

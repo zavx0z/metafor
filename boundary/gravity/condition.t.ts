@@ -52,6 +52,8 @@ export type ScalarValue = number | boolean | string | null
  * ```
  */
 export interface ConditionOperators {
+  /** Явная проверка `null`/`non-null`: `true` => значение должно быть null, `false` => должно быть не null. */
+  null?: boolean
   /** Равно (`==`) */
   eq?: ScalarValue
   /** Не равно (`!=`) */

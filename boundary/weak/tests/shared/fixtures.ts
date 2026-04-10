@@ -205,6 +205,25 @@ export function createStringFieldUpdateFixture() {
   return { fields, store }
 }
 
+export function createNullableStringPresenceFixture() {
+  const fields: Field[] = [{ type: FieldType.STRING_PTR }]
+  const store = createBaseStore({
+    fields,
+    branes: [
+      {
+        values: [[0, null]],
+        state: 0,
+        collapses: [
+          [[1, { 0: { null: false } }]],
+          [null],
+        ],
+      },
+    ],
+  })
+
+  return { fields, store }
+}
+
 export function createArrayFieldUpdateFixture() {
   const fields: Field[] = [{ type: FieldType.ARRAY_PTR, elementType: "number" }]
   const store = createBaseStore({

@@ -154,6 +154,8 @@ export type ParsedActionHandler = {
   src: string
   /** Имя экспорта для импорта (например, "default", "commit", "process") */
   importSpecifier?: string
+  /** Строковое представление исходного wrapper-action для server/runtime исполнения */
+  wrapperSrc?: string
   /** Список полей контекста, которые читаются в обработчике */
   read?: string[]
 }

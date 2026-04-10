@@ -273,6 +273,23 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
   }
 }
 
+const syncProcessLocksForChanges = (changes: [number, number][]): void => {
+  const weakUpdates: Array<{ kind: "lock"; braneIndex: number; value: boolean }> = []
+
+  for (const [braneIndex, stateIndex] of changes) {
+    const shouldLock = weak$.stateProcessIdsByBraneIndex[braneIndex]?.[stateIndex] !== undefined
+    const brane = boundary$.branes[braneIndex]
+    if (!brane || brane.lock === shouldLock) continue
+
+    brane.lock = shouldLock
+    weakUpdates.push({ kind: "lock", braneIndex, value: shouldLock })
+  }
+
+  if (weakUpdates.length > 0) {
+    weakHeapUpdate(weakUpdates)
+  }
+}
+
 const denormalizeRuntimeValue = (runtimeFieldIndex: number, value: unknown): unknown => {
   const field = boundary$.fields[runtimeFieldIndex]
   if (!field) {
@@ -429,6 +446,8 @@ const persistRuntimeChanges = async (changes: [number, number][], weakUpdates: W
     }
     await backend.setWimpState(wimpId, metaStateId)
   }
+
+  await backend.flush()
 }
 
 export function prepareData(data: Data): PreparedData {
@@ -452,6 +471,34 @@ export function prepareRuntimeFromDb(
 
 export function listRuntimeWimpIds(): string[] {
   return [...gravity$.activeWimpIds]
+}
+
+type BoundaryUpdateOptions = {
+  retriggerProcessStates?: boolean
+  skipProcessRetriggerBraneIndexes?: Iterable<number>
+}
+
+const collectProcessStateRetriggers = (
+  updatedBraneIndexes: Iterable<number>,
+  changes: [number, number][],
+  skipBraneIndexes: Iterable<number> = [],
+): [number, number][] => {
+  const changedBraneIndexes = new Set(changes.map(([braneIndex]) => braneIndex))
+  const skippedBraneIndexes = new Set(skipBraneIndexes)
+  const retriggers: [number, number][] = []
+
+  for (const braneIndex of updatedBraneIndexes) {
+    if (changedBraneIndexes.has(braneIndex)) continue
+    if (skippedBraneIndexes.has(braneIndex)) continue
+
+    const stateIndex = boundary$.states[braneIndex]
+    if (stateIndex === undefined) continue
+    if (weak$.stateProcessIdsByBraneIndex[braneIndex]?.[stateIndex] === undefined) continue
+
+    retriggers.push([braneIndex, stateIndex])
+  }
+
+  return retriggers
 }
 
 async function writePreparedData(prepared: PreparedData): Promise<[number, number][]> {
@@ -579,6 +626,7 @@ function findMutableFieldRecord(
 
 export async function update(
   updates: Array<[braneIndex: number, fieldUpdates: Array<[fieldIndex: number, value: unknown]>, lock?: boolean]>,
+  options: BoundaryUpdateOptions = {},
 ): Promise<[number, number][]> {
   return await runExclusive(updateGate, async () => {
     requireInitializedStore(boundary$)
@@ -586,6 +634,7 @@ export async function update(
     const weakUpdates: Array<
       { kind: "field"; braneIndex: number; fieldIndex: number } | { kind: "lock"; braneIndex: number; value: boolean }
     > = []
+    const affectedBraneIndexes = new Set<number>()
 
     for (const [braneIndex, fieldUpdates, lock] of updates) {
       const brane = boundary$.branes[braneIndex]
@@ -606,13 +655,35 @@ export async function update(
         const record = findMutableFieldRecord(boundary$, braneIndex, fieldIndex)
         record.value = normalizeFieldValue(value, field, stringInterner)
         weakUpdates.push({ kind: "field", braneIndex, fieldIndex })
+        affectedBraneIndexes.add(braneIndex)
+
+        // Runtime field may be shared across multiple UUID-addressed fields via source/entanglement.
+        for (const wimpFieldId of strong$.wimpFieldIdsByRuntimeFieldIndex[fieldIndex] ?? []) {
+          const affectedBraneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
+          if (affectedBraneIndex !== undefined) {
+            affectedBraneIndexes.add(affectedBraneIndex)
+          }
+        }
       }
     }
 
     weakHeapUpdate(weakUpdates)
     const changes = await weakRunStep()
+    const photonTargets =
+      options.retriggerProcessStates === false
+        ? changes
+        : [
+            ...changes,
+            ...collectProcessStateRetriggers(
+              affectedBraneIndexes,
+              changes,
+              options.skipProcessRetriggerBraneIndexes,
+            ),
+          ]
+
+    syncProcessLocksForChanges(photonTargets)
     await persistRuntimeChanges(changes, weakUpdates)
-    publishPhotonChanges(changes)
+    publishPhotonChanges(photonTargets)
     return changes
   })
 }
@@ -667,11 +738,11 @@ export async function applyWeakResultPacket(message: WMessage): Promise<[number,
     )
   }
 
-  const values: Record<string, unknown> = {}
+  const fieldUpdates: Array<[fieldIndex: number, value: unknown]> = []
 
   for (const patch of message.patches) {
     const wimpFieldId = requireFieldPatchId(patch.path)
-    const ownerBraneIndex = strong$.braneIndexByWimpFieldId.get(wimpFieldId)
+    const [ownerBraneIndex, runtimeFieldIndex] = requireRuntimeFieldAddress(wimpFieldId)
     if (ownerBraneIndex === undefined) {
       throw new Error(`Boundary weak result field is not materialized: ${wimpFieldId}`)
     }
@@ -680,12 +751,12 @@ export async function applyWeakResultPacket(message: WMessage): Promise<[number,
         `Boundary weak result field ${wimpFieldId} belongs to brane ${ownerBraneIndex}, expected ${braneIndex}`,
       )
     }
-    values[wimpFieldId] = patch.value
+    fieldUpdates.push([runtimeFieldIndex, patch.value])
   }
 
-  const changes = Object.keys(values).length === 0 ? [] : await setValues(values)
-  unlock([braneIndex])
-  return changes
+  return await update([[braneIndex, fieldUpdates, false]], {
+    skipProcessRetriggerBraneIndexes: [braneIndex],
+  })
 }
 
 const subscribeBoundaryValueBroadcast = (

@@ -36,6 +36,9 @@ export function parseCondition(cond: ConditionValue): ParsedCheck[] {
   for (const [k, v] of Object.entries(cond)) {
     const value = v as ScalarValue
     switch (k) {
+      case "null":
+        checks.push({ op: v === true ? OP.EQ : OP.NEQ, val: null })
+        break
       case "eq":
         checks.push({ op: OP.EQ, val: value })
         break

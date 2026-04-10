@@ -6,6 +6,25 @@ function getNavigatorGpu(): MaybeGpuNavigator["gpu"] | undefined {
   return maybeNavigator?.gpu
 }
 
+let bunWebGpuBootstrap: Promise<void> | null = null
+
+async function ensureBunWebGpuGlobals(): Promise<void> {
+  if (getNavigatorGpu()) return
+  if (typeof Bun === "undefined") return
+
+  if (!bunWebGpuBootstrap) {
+    bunWebGpuBootstrap = (async () => {
+      const module = await import("bun-webgpu")
+      module.setupGlobals()
+    })().catch((error) => {
+      bunWebGpuBootstrap = null
+      throw error
+    })
+  }
+
+  await bunWebGpuBootstrap
+}
+
 /**
  * Глобальное GPU-устройство для boundary.
  * В тестах может устанавливаться напрямую: `GPU._device = ...`.
@@ -30,6 +49,14 @@ export const GPU = {
 export async function ensureGPUDevice(): Promise<GPUDevice | null> {
   if (GPU._device) {
     return GPU._device
+  }
+
+  if (!getNavigatorGpu()) {
+    try {
+      await ensureBunWebGpuGlobals()
+    } catch {
+      return null
+    }
   }
 
   const gpu = getNavigatorGpu()

@@ -34,6 +34,8 @@ export interface DbSqliteBackendOptions {
   filename?: string
 }
 
+const isFileBackedSqlite = (filename: string | undefined): boolean => filename !== undefined && filename !== ":memory:"
+
 const schemaSql = `
 PRAGMA foreign_keys = ON;
 
@@ -96,6 +98,7 @@ CREATE TABLE IF NOT EXISTS meta_processes (
   desc TEXT,
   actionSrc TEXT,
   actionImportSpecifier TEXT,
+  actionWrapperSrc TEXT,
   successSrc TEXT,
   errorSrc TEXT,
   beforeSrc TEXT,
@@ -403,6 +406,9 @@ const readMetaProcessRecordRow = (row: Record<string, unknown>): DbMetaProcessRe
   ...(row.actionImportSpecifier !== null && row.actionImportSpecifier !== undefined
     ? { actionImportSpecifier: String(row.actionImportSpecifier) }
     : {}),
+  ...(row.actionWrapperSrc !== null && row.actionWrapperSrc !== undefined
+    ? { actionWrapperSrc: String(row.actionWrapperSrc) }
+    : {}),
   ...(row.successSrc !== null && row.successSrc !== undefined ? { successSrc: String(row.successSrc) } : {}),
   ...(row.errorSrc !== null && row.errorSrc !== undefined ? { errorSrc: String(row.errorSrc) } : {}),
   ...(row.beforeSrc !== null && row.beforeSrc !== undefined ? { beforeSrc: String(row.beforeSrc) } : {}),
@@ -629,7 +635,7 @@ const readAllData = (database: Database): DbData => ({
     database
       .query(
         `SELECT id, ownerMetaId, processKey, processOrder, processKind, label, desc,
-                actionSrc, actionImportSpecifier, successSrc, errorSrc, beforeSrc
+                actionSrc, actionImportSpecifier, actionWrapperSrc, successSrc, errorSrc, beforeSrc
          FROM meta_processes
          ORDER BY id`,
       )
@@ -645,6 +651,9 @@ const readAllData = (database: Database): DbData => ({
     ...(row.actionSrc !== null && row.actionSrc !== undefined ? { actionSrc: String(row.actionSrc) } : {}),
     ...(row.actionImportSpecifier !== null && row.actionImportSpecifier !== undefined
       ? { actionImportSpecifier: String(row.actionImportSpecifier) }
+      : {}),
+    ...(row.actionWrapperSrc !== null && row.actionWrapperSrc !== undefined
+      ? { actionWrapperSrc: String(row.actionWrapperSrc) }
       : {}),
     ...(row.successSrc !== null && row.successSrc !== undefined ? { successSrc: String(row.successSrc) } : {}),
     ...(row.errorSrc !== null && row.errorSrc !== undefined ? { errorSrc: String(row.errorSrc) } : {}),
@@ -901,7 +910,7 @@ const readMetaRowsFromDatabase = (database: Database, metaId: string): DbMetaRow
   const processes = queryRows(
     database,
     `SELECT id, ownerMetaId, processKey, processOrder, processKind, label, desc,
-            actionSrc, actionImportSpecifier, successSrc, errorSrc, beforeSrc
+            actionSrc, actionImportSpecifier, actionWrapperSrc, successSrc, errorSrc, beforeSrc
      FROM meta_processes
      WHERE ownerMetaId = ?
      ORDER BY id`,
@@ -1295,8 +1304,8 @@ const upsertMetaRow = (database: Database, rows: DbMetaRows): void => {
     const insertMetaProcess = database.query(
       `INSERT INTO meta_processes(
          id, ownerMetaId, processKey, processOrder, processKind, label, desc,
-         actionSrc, actionImportSpecifier, successSrc, errorSrc, beforeSrc
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         actionSrc, actionImportSpecifier, actionWrapperSrc, successSrc, errorSrc, beforeSrc
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     rows.processes.forEach((row) =>
       insertMetaProcess.run(
@@ -1309,6 +1318,7 @@ const upsertMetaRow = (database: Database, rows: DbMetaRows): void => {
         row.desc ?? null,
         row.actionSrc ?? null,
         row.actionImportSpecifier ?? null,
+        row.actionWrapperSrc ?? null,
         row.successSrc ?? null,
         row.errorSrc ?? null,
         row.beforeSrc ?? null,
@@ -1483,7 +1493,16 @@ const writeEntanglementFamilyInDatabase = (database: Database, rows: DbEntanglem
 }
 
 export const openDbSqliteBackend = (options: DbSqliteBackendOptions = {}): DbBackend => {
-  const database = new Database(options.filename ?? ":memory:")
+  const filename = options.filename ?? ":memory:"
+  const database = new Database(filename)
+  const fileBacked = isFileBackedSqlite(filename)
+
+  if (fileBacked) {
+    database.exec("PRAGMA journal_mode = WAL;")
+    database.exec("PRAGMA synchronous = NORMAL;")
+    database.exec("PRAGMA busy_timeout = 5000;")
+  }
+
   initializeDbSqliteSchema(database)
 
   return {
@@ -1497,7 +1516,10 @@ export const openDbSqliteBackend = (options: DbSqliteBackendOptions = {}): DbBac
       resetDatabase(database)
     },
 
-    async flush() {},
+    async flush() {
+      if (!fileBacked) return
+      database.exec("PRAGMA wal_checkpoint(PASSIVE);")
+    },
 
     readData() {
       return normalizeDbData(readAllData(database))

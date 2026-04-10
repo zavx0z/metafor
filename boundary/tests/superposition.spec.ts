@@ -67,6 +67,19 @@ describe("compileConditions — компиляция условий", () => {
     expect(result.heap[1]).toBe(new Uint32Array(new Float32Array([0]).buffer)[0])
     expect(result.heap[2]).toBe(new Uint32Array(new Float32Array([2]).buffer)[0])
   })
+
+  test("должен компилировать null=false в реальную инструкцию", () => {
+    const fields = [{ type: FieldType.STRING_PTR }]
+    const result = compileConditions({ 0: { null: false } }, fields)
+
+    expect(result.instructions).toHaveLength(1)
+    expect(result.instructions[0]).toMatchObject({
+      fieldType: 3,
+      fieldIndex: 0,
+      op: OP.NEQ,
+      valEncoded: 0,
+    })
+  })
 })
 
 describe("compileSuperposition — компиляция суперпозиции", () => {

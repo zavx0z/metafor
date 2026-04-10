@@ -6,6 +6,7 @@ import {
   createIsolatedStore,
   createLockedBraneFixture,
   createMultipleBranesFixture,
+  createNullableStringPresenceFixture,
   createSimpleBraneFixture,
   normalizeChanges,
   setBraneFieldValue,
@@ -218,6 +219,34 @@ describe("CPU/GPU parity — canonical cases", () => {
       const cpuChanges = await cpuRuntime.readChanges()
       const gpuChanges = await gpuRuntime.readChanges()
       expect(normalizeChanges(gpuChanges)).toEqual(normalizeChanges(cpuChanges))
+    } finally {
+      cpuRuntime.clear()
+    }
+  })
+
+  test("null=false string transition parity", async () => {
+    const fixture = createNullableStringPresenceFixture()
+    const pair = await createRuntimePair(fixture)
+    if (!pair) return
+
+    const { cpuRuntime, gpuRuntime, cpuStore, gpuStore } = pair
+    try {
+      cpuRuntime.step()
+      gpuRuntime.step()
+      expect(await cpuRuntime.readChanges()).toEqual([])
+      expect(await gpuRuntime.readChanges()).toEqual([])
+
+      setBraneFieldValue(cpuStore, 0, 0, "hi")
+      setBraneFieldValue(gpuStore, 0, 0, "hi")
+      gpuRuntime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
+
+      cpuRuntime.step()
+      gpuRuntime.step()
+
+      const cpuChanges = await cpuRuntime.readChanges()
+      const gpuChanges = await gpuRuntime.readChanges()
+      expect(normalizeChanges(gpuChanges)).toEqual(normalizeChanges(cpuChanges))
+      expect(cpuChanges).toEqual([[0, 1]])
     } finally {
       cpuRuntime.clear()
     }

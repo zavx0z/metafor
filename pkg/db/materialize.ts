@@ -255,6 +255,7 @@ const appendMetaProcesses = (data: DbData, meta: DbMetaBundle, context: MetaCont
         ...(process.desc !== undefined ? { desc: process.desc } : {}),
         actionSrc: process.action.src,
         ...(process.action.importSpecifier !== undefined ? { actionImportSpecifier: process.action.importSpecifier } : {}),
+        ...(process.action.wrapperSrc !== undefined ? { actionWrapperSrc: process.action.wrapperSrc } : {}),
         ...(process.success?.src !== undefined ? { successSrc: process.success.src } : {}),
         ...(process.error?.src !== undefined ? { errorSrc: process.error.src } : {}),
       }

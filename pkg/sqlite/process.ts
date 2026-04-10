@@ -69,12 +69,13 @@ export function relationProcess(
     }
 
     db.query(
-      `INSERT INTO process_action (process, action, action_import_specifier, success, error)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO process_action (process, action, action_import_specifier, action_wrapper_src, success, error)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     ).run(
       uuid,
       process.action.src,
       process.action.importSpecifier || null,
+      process.action.wrapperSrc || null,
       process.success?.src || null,
       process.error?.src || null,
     )
