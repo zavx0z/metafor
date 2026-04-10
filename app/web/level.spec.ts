@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import {
+  resolveAppWebCanonicalLevelMetrics,
   resolveAppWebLevelMetrics,
+  resolveAppWebLevelScale,
   resolveAppWebOuterRadiusFromFieldSphereRadius,
 } from "./level.ts"
 import {
@@ -58,6 +60,31 @@ describe("app/web level law", () => {
     expect(root.torusTubularSegments).toBeGreaterThan(0)
     expect(root.sphereWidthSegments).toBeGreaterThan(0)
     expect(root.sphereHeightSegments).toBeGreaterThan(0)
+  })
+
+  test("явно разделяет level-scale и surface-scale", () => {
+    const canonical = resolveAppWebCanonicalLevelMetrics({
+      depth: 2,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      renderSettings: DEFAULT_APP_WEB_RENDER_SETTINGS,
+    })
+    const expanded = resolveAppWebLevelMetrics({
+      depth: 2,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      outerRadiusMm: canonical.outerRadiusMm * 1.5,
+      renderSettings: DEFAULT_APP_WEB_RENDER_SETTINGS,
+    })
+
+    expect(canonical.levelScale).toBeCloseTo(
+      resolveAppWebLevelScale(2, DEFAULT_APP_WEB_LAYOUT_SETTINGS),
+      6,
+    )
+    expect(canonical.surfaceScale).toBeCloseTo(1, 6)
+    expect(expanded.levelScale).toBeCloseTo(canonical.levelScale, 6)
+    expect(expanded.surfaceScale).toBeCloseTo(1.5, 6)
+    expect(expanded.fieldSphereRadiusMm).toBeCloseTo(canonical.fieldSphereRadiusMm * 1.5, 6)
+    expect(expanded.paddingMm).toBeCloseTo(canonical.paddingMm * 1.5, 6)
+    expect(expanded.labelFontSizeMm).toBeCloseTo(canonical.labelFontSizeMm ?? 0, 6)
   })
 
   test("управляет видимостью подписей через скользящее окно baseDepth", () => {
@@ -144,6 +171,24 @@ describe("app/web level law", () => {
     )
     expect(metrics.shellRadiusMm + metrics.shellTubeMm).toBeCloseTo(metrics.outerRadiusMm, 6)
     expect(metrics.shellRadiusMm - metrics.shellTubeMm).toBeCloseTo(metrics.innerRadiusMm, 6)
+  })
+
+  test("уменьшает шрифт подписи только по depth, а не по локально раздутому outer radius", () => {
+    const canonical = resolveAppWebLevelMetrics({
+      depth: 2,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      renderSettings: DEFAULT_APP_WEB_RENDER_SETTINGS,
+    })
+    const expanded = resolveAppWebLevelMetrics({
+      depth: 2,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      outerRadiusMm: 777,
+      renderSettings: DEFAULT_APP_WEB_RENDER_SETTINGS,
+    })
+
+    expect(expanded.outerRadiusMm).toBe(777)
+    expect(expanded.labelFontSizeMm).toBeCloseTo(canonical.labelFontSizeMm ?? 0, 6)
+    expect(expanded.labelSurfaceOffsetMm).not.toBeCloseTo(canonical.labelSurfaceOffsetMm ?? 0, 6)
   })
 
   test("восстанавливает outer radius уровня по радиусу peer field-сферы", () => {

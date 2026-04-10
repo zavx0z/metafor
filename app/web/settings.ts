@@ -200,7 +200,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     label: "Размер шрифта, мм",
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelFontSizeMm,
     description: "Задает размер шрифта подписей на торах и сферах.",
-    min: 222,
+    min: 1,
     max: 1000,
     step: 1,
   },
@@ -212,7 +212,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelSurfaceOffsetMm,
     description: "Отодвигает подпись от поверхности объекта, чтобы текст не врезался в wireframe.",
     min: 0,
-    max: 300,
+    max: 1000,
     step: 1,
   },
   // Базовый уровень viewport для отсчёта видимости.
@@ -234,7 +234,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.torusRadialSegments,
     description: "Задает количество продольных колец (линий) тора.",
     min: 3,
-    max: 64,
+    max: 128,
     step: 1,
   },
   // Сглаженность (сегменты) одного кольца тора.
@@ -245,7 +245,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.torusTubularSegments,
     description: "Задает количество сегментов в каждом кольце тора.",
     min: 3,
-    max: 96,
+    max: 128,
     step: 1,
   },
   // Прозрачность wireframe-сетки.

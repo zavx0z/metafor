@@ -9,6 +9,7 @@ import {
 	type AppWebRenderSettings,
 } from "../app/web/settings.ts"
 import {
+	resolveAppWebCanonicalLevelMetrics,
 	resolveAppWebLevelMetrics,
 	resolveAppWebOuterRadiusFromFieldSphereRadius,
 } from "../app/web/level.ts"
@@ -214,7 +215,14 @@ const getShellFallback = () => getViewportConfig().shellFallbackMm
 const getWorkspaceBaseZ = (): number => getViewportConfig().levelsMm.elbow
 const getFloorZ = (): number => getViewportConfig().levelsMm.floor
 
-const getLevelMetrics = (depth: number, outerRadiusMm?: number) =>
+const getCanonicalLevelMetrics = (depth: number) =>
+	resolveAppWebCanonicalLevelMetrics({
+		depth,
+		layoutSettings: activeLayoutSettings,
+		renderSettings: activeRenderSettings,
+	})
+
+const getResolvedLevelMetrics = (depth: number, outerRadiusMm?: number) =>
 	resolveAppWebLevelMetrics({
 		depth,
 		layoutSettings: activeLayoutSettings,
@@ -222,14 +230,14 @@ const getLevelMetrics = (depth: number, outerRadiusMm?: number) =>
 		...(outerRadiusMm !== undefined && { outerRadiusMm }),
 	})
 
-const isLabelDepthVisible = (depth: number): boolean => getLevelMetrics(depth).isLabelVisible
+const isLabelDepthVisible = (depth: number): boolean => getCanonicalLevelMetrics(depth).isLabelVisible
 
 const getTorusDetail = (
 	_radius: number,
 	_tube: number,
 	depth: number,
 ): { radialSegments: number; tubularSegments: number } => {
-	const metrics = getLevelMetrics(depth)
+	const metrics = getCanonicalLevelMetrics(depth)
 	return {
 		radialSegments: metrics.torusRadialSegments ?? 3,
 		tubularSegments: metrics.torusTubularSegments ?? 3,
@@ -237,7 +245,7 @@ const getTorusDetail = (
 }
 
 const getSphereDetail = (_radius: number, depth: number): { widthSegments: number; heightSegments: number } => {
-	const metrics = getLevelMetrics(depth)
+	const metrics = getCanonicalLevelMetrics(depth)
 	return {
 		widthSegments: metrics.sphereWidthSegments ?? 3,
 		heightSegments: metrics.sphereHeightSegments ?? 2,
@@ -339,16 +347,9 @@ const resolveSurfaceLabelTextScale = (spec: LabelSpec, maxTextWidth: number): nu
 
 const resolveFieldPeerLevelMetrics = (
 	record: FieldRenderRecord,
-	parentShellRecord: ShellRenderRecord | undefined,
+	_parentShellRecord: ShellRenderRecord | undefined,
 ): { metricDepth: number; metricRadius: number } => {
-	if (parentShellRecord) {
-		return {
-			metricDepth: parentShellRecord.snapshot.depth,
-			metricRadius: parentShellRecord.snapshot.shellRadius + parentShellRecord.snapshot.shellTube,
-		}
-	}
-
-	const metricDepth = Math.max(0, record.depth - 1)
+	const metricDepth = record.depth
 	return {
 		metricDepth,
 		metricRadius: resolveAppWebOuterRadiusFromFieldSphereRadius({
@@ -514,7 +515,7 @@ const createSurfaceLabelNode = (
 	font: TrueTypeFont,
 ): SurfaceLabelVisual => {
 	const baseFontSize =
-		getLevelMetrics(spec.metricDepth, spec.metricRadius).labelFontSizeMm ?? activeRenderSettings.labelFontSizeMm
+		getCanonicalLevelMetrics(spec.metricDepth).labelFontSizeMm ?? activeRenderSettings.labelFontSizeMm
 	const createLabel = (fontSize: number): Text =>
 		new Text(
 			spec.text,
@@ -1078,7 +1079,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const buildLabelSignature = (spec: LabelSpec): string => {
-		const metrics = getLevelMetrics(spec.metricDepth, spec.metricRadius)
+		const canonicalMetrics = getCanonicalLevelMetrics(spec.metricDepth)
+		const surfaceMetrics = getResolvedLevelMetrics(spec.metricDepth, spec.metricRadius)
 		return [
 			spec.text,
 			spec.depth,
@@ -1091,8 +1093,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			spec.color.r.toFixed(4),
 			spec.color.g.toFixed(4),
 			spec.color.b.toFixed(4),
-			(metrics.labelFontSizeMm ?? activeRenderSettings.labelFontSizeMm).toFixed(6),
-			(metrics.labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm).toFixed(6),
+			(canonicalMetrics.labelFontSizeMm ?? activeRenderSettings.labelFontSizeMm).toFixed(6),
+			(surfaceMetrics.labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm).toFixed(6),
 		].join(":")
 	}
 
@@ -1103,7 +1105,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (!text) return null
 
 		const metricRadius = record.snapshot.shellRadius + record.snapshot.shellTube
-		const metrics = getLevelMetrics(record.snapshot.depth, metricRadius)
+		const metrics = getResolvedLevelMetrics(record.snapshot.depth, metricRadius)
 
 		return {
 			anchorObject: record.container,
@@ -1131,7 +1133,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const sphereRadiusMm = record.snapshot.sphereRadius
 		const parentShellRecord = shellRecords.get(record.parentParticleId)
 		const { metricDepth, metricRadius } = resolveFieldPeerLevelMetrics(record, parentShellRecord)
-		const metrics = getLevelMetrics(metricDepth, metricRadius)
+		const metrics = getResolvedLevelMetrics(metricDepth, metricRadius)
 
 		return {
 			anchorObject: record.node,
