@@ -6,10 +6,10 @@
   "private": true,
   "main": "index.ts",
   "module": "index.ts",
-  "types": "index.d.ts",
+  "types": "index.ts",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
+      "types": "./index.ts",
       "default": "./index.ts"
     }
   },

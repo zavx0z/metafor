@@ -161,10 +161,10 @@ export class Color {
       return this
     }
 
-    const r = parseFloat(matches[1])
-    const g = parseFloat(matches[2])
-    const b = parseFloat(matches[3])
-    const a = parseFloat(matches[4])
+    const r = parseFloat(matches[1]!)
+    const g = parseFloat(matches[2]!)
+    const b = parseFloat(matches[3]!)
+    const a = parseFloat(matches[4]!)
 
     // Нормализуем значения RGB, если они больше 1
     const normalize = (value: number) => value > 1 ? value / 255 : value

@@ -70,7 +70,7 @@ export class TorusGeometry extends BufferGeometry {
   }
 
   public override toWireframe(): BufferGeometry {
-    const positions = this.attributes.position.array
+    const positions = this.attributes.position!.array!
     const radialSegments = this.radialSegments
     const tubularSegments = this.tubularSegments
     const lines: number[] = []
@@ -84,15 +84,15 @@ export class TorusGeometry extends BufferGeometry {
         // Tubular line (around the tube)
         if (i < tubularSegments) {
           const b = getIndex(j, i + 1)
-          lines.push(positions[a], positions[a + 1], positions[a + 2])
-          lines.push(positions[b], positions[b + 1], positions[b + 2])
+          lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
+          lines.push(positions[b]!, positions[b + 1]!, positions[b + 2]!)
         }
 
         // Radial line (around the torus)
         if (j < radialSegments) {
           const c = getIndex(j + 1, i)
-          lines.push(positions[a], positions[a + 1], positions[a + 2])
-          lines.push(positions[c], positions[c + 1], positions[c + 2])
+          lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
+          lines.push(positions[c]!, positions[c + 1]!, positions[c + 2]!)
         }
       }
     }

@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry } from "../core/BufferGeometry"
-import { Vector3 } from "../math/Vector3"
+import { Vector3 } from "../math"
 
 interface BoxGeometryParameters {
   width?: number
@@ -65,8 +65,7 @@ export class BoxGeometry extends BufferGeometry {
 
           vector.set(u, v, w)
           vector.multiplyScalar(depthHalf)
-          vector.addScaledVector(new Vector3(1, 0, 0), x * udir)
-          vector.addScaledVector(new Vector3(0, 1, 0), y * vdir)
+          vector.add(new Vector3(x * udir, y * vdir, 0))
 
           vertices.push(vector.x, vector.y, vector.z)
 

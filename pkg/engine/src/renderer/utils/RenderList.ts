@@ -4,12 +4,9 @@ import { InstancedMesh } from "../../core/InstancedMesh"
 import { LineSegments } from "../../objects/LineSegments"
 import { Text } from "../../objects/Text"
 import { Light } from "../../lights/Light"
-import { Matrix4 } from "../../math/Matrix4"
 import { SkinnedMesh } from "../../core/SkinnedMesh"
 import { WireframeInstancedMesh } from "../../core/WireframeInstancedMesh";
-import { Frustum } from "../../math/Frustum";
-import { Sphere } from "../../math/Sphere";
-import { Vector3 } from "../../math/Vector3";
+import { Matrix4, Frustum, Sphere, Vector3 } from "../../math";
 
 const _sphere = new Sphere();
 

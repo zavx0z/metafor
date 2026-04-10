@@ -1,6 +1,4 @@
-import { Matrix4 } from "../math/Matrix4"
-import { Quaternion } from "../math/Quaternion"
-import { Vector3 } from "../math/Vector3"
+import { Matrix4, Quaternion, Vector3 } from "../math"
 
 /**
  * Параметры для создания точки обзора.
@@ -260,17 +258,17 @@ export class ViewPoint {
       case 1: // Начало вращения
         this.isPanning = false
         this.isRotating = true
-        this.lastX = touches[0].clientX
-        this.lastY = touches[0].clientY
+        this.lastX = touches[0]!.clientX
+        this.lastY = touches[0]!.clientY
         break
       case 2: // Начало панорамирования/зума
         this.isRotating = false
         this.isPanning = true
-        const dx = touches[0].clientX - touches[1].clientX
-        const dy = touches[0].clientY - touches[1].clientY
+        const dx = touches[0]!.clientX - touches[1]!.clientX
+        const dy = touches[0]!.clientY - touches[1]!.clientY
         this.lastTouchDistance = Math.sqrt(dx * dx + dy * dy)
-        this.lastX = (touches[0].clientX + touches[1].clientX) / 2
-        this.lastY = (touches[0].clientY + touches[1].clientY) / 2
+        this.lastX = (touches[0]!.clientX + touches[1]!.clientX) / 2
+        this.lastY = (touches[0]!.clientY + touches[1]!.clientY) / 2
         break
       default:
         this.isRotating = false
@@ -283,16 +281,16 @@ export class ViewPoint {
     const touches = event.touches
 
     if (touches.length === 1 && this.isRotating) {
-      const deltaX = touches[0].clientX - this.lastX
-      const deltaY = touches[0].clientY - this.lastY
+      const deltaX = touches[0]!.clientX - this.lastX
+      const deltaY = touches[0]!.clientY - this.lastY
       this.handleRotation(deltaX, deltaY)
-      this.lastX = touches[0].clientX
-      this.lastY = touches[0].clientY
+      this.lastX = touches[0]!.clientX
+      this.lastY = touches[0]!.clientY
       this.update()
     } else if (touches.length === 2 && this.isPanning) {
       // Зум
-      const dx = touches[0].clientX - touches[1].clientX
-      const dy = touches[0].clientY - touches[1].clientY
+      const dx = touches[0]!.clientX - touches[1]!.clientX
+      const dy = touches[0]!.clientY - touches[1]!.clientY
       const currentTouchDistance = Math.sqrt(dx * dx + dy * dy)
       if (this.lastTouchDistance !== null) {
         const deltaDistance = currentTouchDistance - this.lastTouchDistance
@@ -301,8 +299,8 @@ export class ViewPoint {
       this.lastTouchDistance = currentTouchDistance
 
       // Панорамирование
-      const currentMidX = (touches[0].clientX + touches[1].clientX) / 2
-      const currentMidY = (touches[0].clientY + touches[1].clientY) / 2
+      const currentMidX = (touches[0]!.clientX + touches[1]!.clientX) / 2
+      const currentMidY = (touches[0]!.clientY + touches[1]!.clientY) / 2
       const deltaX = currentMidX - this.lastX
       const deltaY = currentMidY - this.lastY
       // Для тачскринов инвертируем панорамирование, чтобы создать эффект "перетаскивания"
@@ -334,17 +332,17 @@ export class ViewPoint {
       // Переключаемся на вращение и обновляем точку отсчета,
       // чтобы предотвратить "прыжок" камеры.
       this.isRotating = true
-      this.lastX = touches[0].clientX
-      this.lastY = touches[0].clientY
+      this.lastX = touches[0]!.clientX
+      this.lastY = touches[0]!.clientY
     } else if (touches.length === 2) {
       // Обрабатываем случай, когда было 3+ пальца и осталось 2
       this.isRotating = false
       this.isPanning = true
-      const dx = touches[0].clientX - touches[1].clientX
-      const dy = touches[0].clientY - touches[1].clientY
+      const dx = touches[0]!.clientX - touches[1]!.clientX
+      const dy = touches[0]!.clientY - touches[1]!.clientY
       this.lastTouchDistance = Math.sqrt(dx * dx + dy * dy)
-      this.lastX = (touches[0].clientX + touches[1].clientX) / 2
-      this.lastY = (touches[0].clientY + touches[1].clientY) / 2
+      this.lastX = (touches[0]!.clientX + touches[1]!.clientX) / 2
+      this.lastY = (touches[0]!.clientY + touches[1]!.clientY) / 2
     }
   }
 

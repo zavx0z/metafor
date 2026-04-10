@@ -1,8 +1,6 @@
-import { Ray } from "../math/Ray"
-import { Vector3 } from "../math/Vector3"
+import { Ray, Vector3, Matrix4 } from "../math"
 import { ViewPoint } from "./ViewPoint"
 import { Object3D } from "./Object3D"
-import { Matrix4 } from "../math/Matrix4"
 
 export interface Intersection {
   distance: number

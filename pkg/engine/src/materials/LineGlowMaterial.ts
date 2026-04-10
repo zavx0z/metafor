@@ -1,5 +1,5 @@
-import { Color } from "../math/Color"
-import { LineBasicMaterial, LineBasicMaterialParameters } from "./LineBasicMaterial"
+import { Color } from "../math"
+import { LineBasicMaterial, type LineBasicMaterialParameters } from "./LineBasicMaterial"
 
 /**
  * Параметры для создания {@link LineGlowMaterial}.

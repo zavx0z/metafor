@@ -392,7 +392,7 @@ form.addEventListener("submit", (event) => {
 
 	const needsMaterialize = !lastAppliedSceneState || lastAppliedSceneState.src !== payload.src
 	const needsRelayout =
-		!needsMaterialize && !areLayoutSettingsEqual(lastAppliedSceneState.layoutSettings, payload.layoutSettings)
+		!needsMaterialize && lastAppliedSceneState && !areLayoutSettingsEqual(lastAppliedSceneState.layoutSettings, payload.layoutSettings)
 	if (!needsMaterialize && !needsRelayout) return
 
 	submitButton.disabled = true

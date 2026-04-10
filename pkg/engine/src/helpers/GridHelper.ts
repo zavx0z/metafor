@@ -2,7 +2,7 @@ import { LineSegments } from "../objects/LineSegments"
 import { LineBasicMaterial } from "../materials/LineBasicMaterial"
 import { BufferAttribute } from "../core/BufferAttribute"
 import { BufferGeometry } from "../core/BufferGeometry"
-import { Color } from "../math/Color"
+import { Color } from "../math"
 
 /**
  * Генерирует процедурную сетку, похожую на сетку в Blender.

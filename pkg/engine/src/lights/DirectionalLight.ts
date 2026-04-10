@@ -1,6 +1,6 @@
 import { Light } from "./Light"
 import { Object3D } from "../core/Object3D"
-import { Color } from "../math/Color"
+import { Color } from "../math"
 
 /**
  * Направленный источник света.

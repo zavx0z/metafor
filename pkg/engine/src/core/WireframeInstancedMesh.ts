@@ -1,11 +1,8 @@
-import { BufferGeometry, BufferAttribute } from "./BufferGeometry"
-import { Object3D } from "./Object3D"
-import { Vector3 } from "../math/Vector3"
-import { LineGlowMaterial } from "../materials/LineGlowMaterial"
-import { Color } from "../math/Color"
-import { Raycaster, Intersection } from "./Raycaster"
-import { Matrix4 } from "../math/Matrix4"
-import { Sphere } from "../math/Sphere"
+import {BufferAttribute, BufferGeometry} from "./BufferGeometry"
+import {Object3D} from "./Object3D"
+import {Vector3, Color, Matrix4, Sphere} from "../math"
+import {LineGlowMaterial} from "../materials"
+import {type Intersection, Raycaster} from "./Raycaster"
 
 export class WireframeInstancedMesh extends Object3D {
   public readonly isWireframeInstancedMesh: true = true
@@ -132,7 +129,7 @@ export class WireframeInstancedMesh extends Object3D {
   }
 
   private updateMaterialParamsAt(index: number): void {
-    const material = Array.isArray(this.material) ? this.material[index] : this.material
+    const material = Array.isArray(this.material) ? this.material[index]! : this.material
     const offset = index * 9
 
     // Цвет материала (4 floats: rgba)
@@ -186,7 +183,7 @@ export class WireframeInstancedMesh extends Object3D {
     }
   }
 
-  public raycast(raycaster: Raycaster, intersects: Intersection[]): void {
+  public override raycast(raycaster: Raycaster, intersects: Intersection[]): void {
     if (this.geometry.boundingSphere === null) this.geometry.computeBoundingSphere()
     const baseSphere = this.geometry.boundingSphere!
     const matrixWorld = this.matrixWorld

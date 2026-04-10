@@ -1,11 +1,8 @@
 import { Object3D } from "./Object3D"
 import { BufferGeometry } from "./BufferGeometry"
-import { Material } from "../materials/Material"
-import { Raycaster, Intersection } from "./Raycaster"
-import { Matrix4 } from "../math/Matrix4"
-import { Ray } from "../math/Ray"
-import { Sphere } from "../math/Sphere"
-import { Vector3 } from "../math/Vector3"
+import { Material } from "../materials"
+import { Raycaster, type Intersection } from "./Raycaster"
+import { Matrix4, Ray, Sphere, Vector3 } from "../math"
 
 /**
  * Базовый объект сцены, представляющий 3D-модель.
@@ -51,7 +48,7 @@ export class Mesh extends Object3D {
     this.material = material
   }
 
-  public raycast(raycaster: Raycaster, intersects: Intersection[]): void {
+  public override raycast(raycaster: Raycaster, intersects: Intersection[]): void {
     const geometry = this.geometry
     const material = this.material
     const matrixWorld = this.matrixWorld

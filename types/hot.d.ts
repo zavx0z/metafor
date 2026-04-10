@@ -1,7 +1,3 @@
-declare module "*.wgsl" {
-  const value: string
-  export default value
-}
 /**
  * Расширяет стандартный интерфейс ImportMeta, добавляя поддержку
  * для API горячей замены модулей (HMR), предоставляемого Bun.

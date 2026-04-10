@@ -166,8 +166,8 @@ export class Text extends Object3D {
             maxX = -Infinity,
             maxY = -Infinity
           for (let i = 0; i < poly.points.length; i += 2) {
-            const x = poly.points[i]
-            const y = poly.points[i + 1]
+            const x = poly.points[i]!
+            const y = poly.points[i + 1]!
             if (x < minX) minX = x
             if (y < minY) minY = y
             if (x > maxX) maxX = x
@@ -194,12 +194,12 @@ export class Text extends Object3D {
       const stencilPos = cachedGeo.stencil.attributes.position?.array as Float32Array
       if (stencilPos) {
         for (let i = 0; i < stencilPos.length; i += 2) {
-          allStencilVerts.push(stencilPos[i] * scale + penX, stencilPos[i + 1] * scale, 0)
+          allStencilVerts.push(stencilPos[i]! * scale + penX, stencilPos[i + 1]! * scale, 0)
         }
         const stencilIndices = cachedGeo.stencil.index?.array as Uint32Array
         if (stencilIndices) {
           for (let i = 0; i < stencilIndices.length; i++) {
-            allStencilIndices.push(stencilIndices[i] + currentStencilVertexOffset)
+            allStencilIndices.push(stencilIndices[i]! + currentStencilVertexOffset)
           }
         }
       }
@@ -208,12 +208,12 @@ export class Text extends Object3D {
       const coverPos = cachedGeo.cover.attributes.position?.array as Float32Array
       if (coverPos) {
         for (let i = 0; i < coverPos.length; i += 2) {
-          allCoverVerts.push(coverPos[i] * scale + penX, coverPos[i + 1] * scale, 0)
+          allCoverVerts.push(coverPos[i]! * scale + penX, coverPos[i + 1]! * scale, 0)
         }
         const coverIndices = cachedGeo.cover.index?.array as Uint32Array
         if (coverIndices) {
           for (let i = 0; i < coverIndices.length; i++) {
-            allCoverIndices.push(coverIndices[i] + currentCoverVertexOffset)
+            allCoverIndices.push(coverIndices[i]! + currentCoverVertexOffset)
           }
         }
       }

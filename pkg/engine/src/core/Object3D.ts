@@ -1,7 +1,5 @@
-import { Matrix4 } from "../math/Matrix4"
-import { Quaternion } from "../math/Quaternion"
-import { Vector3 } from "../math/Vector3"
-import { Raycaster, Intersection } from "./Raycaster"
+import { Matrix4, Quaternion, Vector3 } from "../math"
+import { Raycaster, type Intersection } from "./Raycaster"
 import type { LayoutProps } from '../layout/LayoutTypes';
 
 /**

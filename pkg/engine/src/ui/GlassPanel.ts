@@ -3,7 +3,7 @@ import { Mesh } from "../core/Mesh";
 import { PlaneGeometry } from "../geometries/PlaneGeometry";
 import { GlassMaterial } from "../materials/GlassMaterial";
 import { LayoutProps } from "../layout/LayoutTypes";
-import { Color } from "../math/Color";
+import { Color } from "../math";
 
 export class GlassPanel extends Object3D {
     public layout: LayoutProps;

@@ -1,5 +1,5 @@
-import { Color } from "../math/Color"
-import { Material, MaterialParameters } from "./Material"
+import { Color } from "../math"
+import { Material, type MaterialParameters } from "./Material"
 
 /**
  * Параметры для создания {@link MeshLambertMaterial}.

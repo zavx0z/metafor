@@ -34,7 +34,7 @@ export class AnimationMixer {
 
   public update(deltaTime: number): void {
     for (let i = 0; i < this.actions.length; i++) {
-      this.actions[i].update(deltaTime)
+      this.actions[i]!.update(deltaTime)
     }
   }
 }

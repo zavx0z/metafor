@@ -1,28 +1,3 @@
 {
-  "compilerOptions": {
-    "lib": [
-      "ESNext",
-      "DOM" // Добавляем типы для работы с браузером (document, window и т.д.)
-    ],
-    "module": "ESNext",
-    "target": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "noEmit": true,
-    "allowJs": true,
-    // Указываем, что корень проекта содержит и исходники, и примеры
-    "rootDir": ".",
-    // Подключаем типы WebGPU
-    "types": [
-      "@webgpu/types"
-    ]
-  },
-  // Включаем в проверку и движок, и примеры
-  "include": [
-    "src",
-    "examples/*",
-    "global.d.ts"
-  ]
+  "extends": "../../tsconfig.json"
 }

@@ -1,16 +1,13 @@
 import { Object3D } from "../core/Object3D"
 import { Scene } from "../scenes/Scene"
-import { Vector3 } from "../math/Vector3"
+import { Vector3, Color, Matrix4, Quaternion } from "../math"
 import { Mesh } from "../core/Mesh"
-import { BufferAttribute, BufferGeometry, TypedArray } from "../core/BufferGeometry"
+import { BufferAttribute, BufferGeometry, type TypedArray } from "../core/BufferGeometry"
 import { MeshLambertMaterial } from "../materials/MeshLambertMaterial"
-import { Color } from "../math/Color"
 import { SkinnedMesh } from "../core/SkinnedMesh"
 import { Skeleton } from "../animation/Skeleton"
-import { Matrix4 } from "../math/Matrix4"
 import { AnimationClip } from "../animation/AnimationClip"
 import { KeyframeTrack } from "../animation/KeyframeTrack"
-import { Quaternion } from "../math/Quaternion"
 
 // --- GLTF Constants ---
 const GLB_MAGIC = 0x46546c67 // "glTF" в ASCII
@@ -170,7 +167,7 @@ export class GLTFLoader {
     this.assignSkeletonsToMeshes(nodes, skeletons, gltf)
 
     if (gltf.scene !== undefined && gltf.scenes) {
-      const sceneDef = gltf.scenes[gltf.scene]
+      const sceneDef = gltf.scenes[gltf.scene]!
       for (const nodeIndex of sceneDef.nodes) {
         const node = nodes[nodeIndex]
         if (node) {
@@ -251,12 +248,16 @@ export class GLTFLoader {
     const materials: MeshLambertMaterial[] = []
     if (gltf.materials) {
       for (const mat of gltf.materials) {
-        let color
+        let color: Color | undefined
         if (mat.pbrMetallicRoughness?.baseColorFactor) {
           const [r, g, b] = mat.pbrMetallicRoughness.baseColorFactor
           color = new Color(r, g, b)
         }
-        materials.push(new MeshLambertMaterial({ color }))
+        if (color !== undefined) {
+          materials.push(new MeshLambertMaterial({ color }))
+        } else {
+          materials.push(new MeshLambertMaterial())
+        }
       }
     }
     return materials
@@ -271,7 +272,7 @@ export class GLTFLoader {
     if (!gltf.nodes) return []
 
     for (let i = 0; i < gltf.nodes.length; i++) {
-      const nodeDef = gltf.nodes[i]
+      const nodeDef = gltf.nodes[i]!
       const node = new Object3D()
       node.name = nodeDef.name || `node_${i}`
 
@@ -292,10 +293,10 @@ export class GLTFLoader {
       }
 
       if (nodeDef.mesh !== undefined) {
-        const meshDef = gltf.meshes![nodeDef.mesh]
+        const meshDef = gltf.meshes![nodeDef.mesh]!
         for (const primitive of meshDef.primitives) {
           const geometry = this.parseGeometry(gltf, primitive, buffers)
-          const material = primitive.material !== undefined ? materials[primitive.material] : new MeshLambertMaterial()
+          const material = primitive.material !== undefined ? materials[primitive.material]! : new MeshLambertMaterial()
           const mesh = new Mesh(geometry, material)
           mesh.name = meshDef.name || `mesh_${nodeDef.mesh}`
           node.add(mesh)
@@ -306,7 +307,7 @@ export class GLTFLoader {
 
     // Build hierarchy
     for (let i = 0; i < gltf.nodes.length; i++) {
-      const nodeDef = gltf.nodes[i]
+      const nodeDef = gltf.nodes[i]!
       const parent = nodes[i]
       if (nodeDef.children) {
         for (const childIndex of nodeDef.children) {
@@ -328,12 +329,12 @@ export class GLTFLoader {
     for (const skinDef of gltf.skins) {
       const bones: Object3D[] = []
       for (const jointIndex of skinDef.joints) {
-        bones.push(nodes[jointIndex])
+        bones.push(nodes[jointIndex]!)
       }
 
       let boneInverses: Matrix4[] = []
       if (skinDef.inverseBindMatrices !== undefined) {
-        const accessor = gltf.accessors![skinDef.inverseBindMatrices]
+        const accessor = gltf.accessors![skinDef.inverseBindMatrices]!
         const data = this.getAccessorData(gltf, accessor, buffers) as Float32Array
         for (let i = 0; i < data.length; i += 16) {
           const matrix = new Matrix4()
@@ -352,11 +353,11 @@ export class GLTFLoader {
     if (!gltf.nodes) return;
 
     for (let i = 0; i < gltf.nodes.length; i++) {
-      const nodeDef = gltf.nodes[i]
+      const nodeDef = gltf.nodes[i]!
       if (nodeDef.skin === undefined || nodeDef.mesh === undefined) continue;
 
       const node = nodes[i]
-      const skeleton = skeletons[nodeDef.skin]
+      const skeleton = skeletons[nodeDef.skin]!
       if (!node || !skeleton) continue;
 
       node.traverse((child) => {
@@ -365,7 +366,7 @@ export class GLTFLoader {
             if(parent) {
                 const index = parent.children.indexOf(child);
                 if(index !== -1) {
-                    const skinnedMesh = new SkinnedMesh(child.geometry, child.material, skeleton);
+                    const skinnedMesh = new SkinnedMesh(child.geometry, child.material!, skeleton);
                     skinnedMesh.name = child.name;
                     parent.children[index] = skinnedMesh;
                     skinnedMesh.parent = parent;
@@ -386,8 +387,8 @@ export class GLTFLoader {
         const sampler = animDef.samplers[channel.sampler]
         if (!sampler || sampler.interpolation !== 'LINEAR') continue
 
-        const times = this.getAccessorData(gltf, gltf.accessors![sampler.input], buffers) as Float32Array
-        let values = this.getAccessorData(gltf, gltf.accessors![sampler.output], buffers) as Float32Array
+        const times = this.getAccessorData(gltf, gltf.accessors![sampler.input]!, buffers) as Float32Array
+        let values = this.getAccessorData(gltf, gltf.accessors![sampler.output]!, buffers) as Float32Array
 
         const nodeIndex = channel.target.node
         const nodeName = gltf.nodes?.[nodeIndex]?.name || `node_${nodeIndex}`
@@ -411,7 +412,7 @@ export class GLTFLoader {
     const geometry = new BufferGeometry()
 
     for (const [attributeName, accessorIndex] of Object.entries(primitive.attributes)) {
-      const accessor = gltf.accessors![accessorIndex]
+      const accessor = gltf.accessors![accessorIndex]!
       const data = this.getAccessorData(gltf, accessor, buffers)
       const itemSize = this.getItemSize(accessor.type)
       let bufferName: string;
@@ -426,16 +427,16 @@ export class GLTFLoader {
             finalData = new Uint16Array(data);
           }
           break;
-        case 'WEIGHTS_0': 
-          bufferName = 'skinWeight'; 
+        case 'WEIGHTS_0':
+          bufferName = 'skinWeight';
           if (data instanceof Uint8Array) {
             finalData = new Float32Array(data.length);
             const s = 1.0 / 255.0;
-            for (let i = 0; i < data.length; i++) finalData[i] = data[i] * s;
+            for (let i = 0; i < data.length; i++) finalData[i] = data[i]! * s;
           } else if (data instanceof Uint16Array) {
             finalData = new Float32Array(data.length);
             const s = 1.0 / 65535.0;
-            for (let i = 0; i < data.length; i++) finalData[i] = data[i] * s;
+            for (let i = 0; i < data.length; i++) finalData[i] = data[i]! * s;
           }
           break;
         default: continue;
@@ -445,7 +446,7 @@ export class GLTFLoader {
     }
 
     if (primitive.indices !== undefined) {
-      const accessor = gltf.accessors![primitive.indices]
+      const accessor = gltf.accessors![primitive.indices]!
       const data = this.getAccessorData(gltf, accessor, buffers)
       geometry.setIndex(new BufferAttribute(data, 1))
     }
@@ -458,8 +459,8 @@ export class GLTFLoader {
   }
 
   private getAccessorData(gltf: GLTF, accessor: GLTFAccessor, buffers: ArrayBuffer[]): TypedArray {
-    const bufferView = gltf.bufferViews![accessor.bufferView!]
-    const buffer = buffers[bufferView.buffer]
+    const bufferView = gltf.bufferViews![accessor.bufferView!]!
+    const buffer = buffers[bufferView.buffer]!
     const componentType = accessor.componentType
     const TypedArray = this.getTypedArray(componentType)
     const itemSize = this.getItemSize(accessor.type)
