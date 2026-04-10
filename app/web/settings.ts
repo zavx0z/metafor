@@ -200,8 +200,8 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     label: "Размер шрифта, мм",
     defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.labelFontSizeMm,
     description: "Задает размер шрифта подписей на торах и сферах.",
-    min: 1,
-    max: 400,
+    min: 222,
+    max: 1000,
     step: 1,
   },
   // Отступ текста от поверхности объекта наружу.
