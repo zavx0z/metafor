@@ -8,6 +8,9 @@ interface SphereGeometryParameters {
 }
 
 export class SphereGeometry extends BufferGeometry {
+  public readonly widthSegments: number
+  public readonly heightSegments: number
+
   constructor(parameters: SphereGeometryParameters = {}) {
     super()
     const {
@@ -23,6 +26,9 @@ export class SphereGeometry extends BufferGeometry {
 
     const widthSegs = Math.max(3, Math.floor(widthSegments))
     const heightSegs = Math.max(2, Math.floor(heightSegments))
+
+    this.widthSegments = widthSegs
+    this.heightSegments = heightSegs
 
     const vertices: number[] = []
     const normals: number[] = []
@@ -75,5 +81,38 @@ export class SphereGeometry extends BufferGeometry {
     this.setAttribute("position", new BufferAttribute(new Float32Array(vertices), 3))
     this.setAttribute("normal", new BufferAttribute(new Float32Array(normals), 3))
     this.setAttribute("uv", new BufferAttribute(new Float32Array(uvs), 2))
+  }
+
+  public override toWireframe(): BufferGeometry {
+    const positions = this.attributes.position.array
+    const widthSegs = this.widthSegments
+    const heightSegs = this.heightSegments
+    const lines: number[] = []
+
+    const getIndex = (iy: number, ix: number) => (iy * (widthSegs + 1) + ix) * 3
+
+    for (let iy = 0; iy <= heightSegs; iy++) {
+      for (let ix = 0; ix <= widthSegs; ix++) {
+        const a = getIndex(iy, ix)
+
+        // Horizontal line
+        if (ix < widthSegs) {
+          const b = getIndex(iy, ix + 1)
+          lines.push(positions[a], positions[a + 1], positions[a + 2])
+          lines.push(positions[b], positions[b + 1], positions[b + 2])
+        }
+
+        // Vertical line
+        if (iy < heightSegs) {
+          const c = getIndex(iy + 1, ix)
+          lines.push(positions[a], positions[a + 1], positions[a + 2])
+          lines.push(positions[c], positions[c + 1], positions[c + 2])
+        }
+      }
+    }
+
+    const wireframeGeometry = new BufferGeometry()
+    wireframeGeometry.setAttribute("position", new BufferAttribute(new Float32Array(lines), 3))
+    return wireframeGeometry
   }
 }

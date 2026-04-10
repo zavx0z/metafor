@@ -59,4 +59,20 @@ describe("ViewPoint zoom", () => {
 
     expect(getRadius(viewPoint)).toBeLessThan(0.1)
   })
+
+  test("выравнивает горизонт по мировой оси Z для программной навигации", () => {
+    const viewPoint = new ViewPoint({
+      element: createElementStub(),
+      near: 1,
+      position: { x: 0.2, y: -0.2, z: 0.2 },
+      target: { x: 0, y: 0, z: 0 },
+    })
+
+    ;(viewPoint as unknown as { handleRotation(deltaX: number, deltaY: number): void }).handleRotation(0, 40)
+    expect(viewPoint.getUp().z).toBeLessThan(0.999)
+
+    viewPoint.alignUpToWorldZ()
+
+    expect(viewPoint.getUp()).toEqual(new Vector3(0, 0, 1))
+  })
 })

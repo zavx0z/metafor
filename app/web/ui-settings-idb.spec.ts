@@ -22,11 +22,11 @@ describe("app/web ui settings indexeddb", () => {
         layoutSettings: {
           levelSizeMultiplier: 1.6,
           rootInnerDiameterMm: 1440,
-          torusCrossRingRotationDeg: -33,
         },
         renderSettings: {
           detailDensityFactor: 2.4,
           labelVisibleLevels: 5,
+          torusCrossRingRotationDeg: -33,
           wireframeOpacity: 0.42,
         },
       },
@@ -37,11 +37,11 @@ describe("app/web ui settings indexeddb", () => {
       layoutSettings: {
         levelSizeMultiplier: 1.6,
         rootInnerDiameterMm: 1440,
-        torusCrossRingRotationDeg: -33,
       },
       renderSettings: {
         detailDensityFactor: 2.4,
         labelVisibleLevels: 5,
+        torusCrossRingRotationDeg: -33,
         wireframeOpacity: 0.42,
       },
     })

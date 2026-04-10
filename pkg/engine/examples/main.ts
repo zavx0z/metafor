@@ -228,30 +228,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.error("Критическая ошибка при создании текста:", e)
   }
 
-  function createWireframeGeometry(geometry: BufferGeometry): BufferGeometry {
-    const indices = geometry.index!.array
-    const positions = geometry.attributes.position.array
-    const lines = []
-    for (let i = 0; i < indices.length; i += 3) {
-      const a = indices[i] * 3
-      const b = indices[i + 1] * 3
-      const c = indices[i + 2] * 3
-      lines.push(positions[a], positions[a + 1], positions[a + 2])
-      lines.push(positions[b], positions[b + 1], positions[b + 2])
-      lines.push(positions[b], positions[b + 1], positions[b + 2])
-      lines.push(positions[c], positions[c + 1], positions[c + 2])
-      lines.push(positions[c], positions[c + 1], positions[c + 2])
-      lines.push(positions[a], positions[a + 1], positions[a + 2])
-    }
-    const wireframeGeometry = new BufferGeometry()
-    wireframeGeometry.setAttribute("position", new BufferAttribute(new Float32Array(lines), 3))
-    return wireframeGeometry
-  }
-
   const sphereGeometry = new SphereGeometry({ radius: 0.14 })
-  const sphereWireframe = createWireframeGeometry(sphereGeometry)
+  const sphereWireframe = sphereGeometry.toWireframe()
   const torusGeometry = new TorusGeometry({ radius: 0.2, tube: 0.14 })
-  const torusWireframe = createWireframeGeometry(torusGeometry)
+  const torusWireframe = torusGeometry.toWireframe()
 
   const torus = new LineSegments(
     torusWireframe,

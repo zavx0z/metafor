@@ -82,8 +82,10 @@ const REMOVAL_FADE_MS = 150
 const REMOVAL_SCALE_MULTIPLIER = 0.9
 const LABEL_FADE_IN_MS = 120
 const LABEL_INITIAL_SCALE = 0.94
-const FOCUS_POSITION_SMOOTHING_MS = 105
-const FOCUS_TARGET_SMOOTHING_MS = 90
+const FOCUS_POSITION_SMOOTHING_MS = 130
+const FOCUS_TARGET_SMOOTHING_MS = 115
+const FOCUS_ANCHOR_SMOOTHING_MS = 150
+const FOCUS_RADIUS_SMOOTHING_MS = 170
 const FOCUS_SETTLE_DISTANCE_MM = 0.35
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
@@ -102,6 +104,8 @@ type HoverablePickTarget = BulkPickTarget & {
 type ViewNavigationState = {
 	fallbackFocusRadius: number
 	fallbackTarget: Vector3
+	smoothedFocusRadius: number
+	smoothedTarget: Vector3
 	targetKey: string | null
 }
 
@@ -298,32 +302,6 @@ const createSurfaceLabelNode = (
 	}
 }
 
-const createWireframeGeometry = (geometry: BufferGeometry): BufferGeometry => {
-	const indices = geometry.index?.array
-	const positions = geometry.attributes.position?.array
-	if (!indices || !positions) {
-		throw new Error("Wireframe geometry requires indexed position data")
-	}
-
-	const lines: number[] = []
-	for (let i = 0; i < indices.length; i += 3) {
-		const a = Number(indices[i]!) * 3
-		const b = Number(indices[i + 1]!) * 3
-		const c = Number(indices[i + 2]!) * 3
-
-		lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
-		lines.push(positions[b]!, positions[b + 1]!, positions[b + 2]!)
-		lines.push(positions[b]!, positions[b + 1]!, positions[b + 2]!)
-		lines.push(positions[c]!, positions[c + 1]!, positions[c + 2]!)
-		lines.push(positions[c]!, positions[c + 1]!, positions[c + 2]!)
-		lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
-	}
-
-	const wireframeGeometry = new BufferGeometry()
-	wireframeGeometry.setAttribute("position", new BufferAttribute(new Float32Array(lines), 3))
-	return wireframeGeometry
-}
-
 const sampleTorusPoint = (radius: number, tube: number, u: number, v: number): [number, number, number] => [
 	(radius + tube * Math.cos(v)) * Math.cos(u),
 	(radius + tube * Math.cos(v)) * Math.sin(u),
@@ -357,7 +335,7 @@ const createQuadTorusWireframeGeometry = (
 		lines.push(point[0], point[1], point[2])
 	}
 	const longitudinalTurnCount = Math.round(
-		(radialSegments * activeLayoutSettings.torusCrossRingRotationDeg) / 360,
+		(radialSegments * activeRenderSettings.torusCrossRingRotationDeg) / 360,
 	)
 
 	for (let j = 0; j < radialSegments; j += 1) {
@@ -377,7 +355,7 @@ const createQuadTorusWireframeGeometry = (
 
 const getTorusWireframeGeometry = (radius: number, tube: number, depth: number): BufferGeometry => {
 	const detail = getTorusDetail(radius, tube, depth)
-	const key = `${radius}:${tube}:${detail.radialSegments}:${detail.tubularSegments}:${activeLayoutSettings.torusCrossRingRotationDeg}`
+	const key = `${radius}:${tube}:${detail.radialSegments}:${detail.tubularSegments}:${activeRenderSettings.torusCrossRingRotationDeg}`
 	const cached = torusWireframeCache.get(key)
 	if (cached) return cached
 
@@ -397,13 +375,11 @@ const getSphereWireframeGeometry = (radius: number, depth: number): BufferGeomet
 	const cached = sphereWireframeCache.get(key)
 	if (cached) return cached
 
-	const wireframe = createWireframeGeometry(
-		new SphereGeometry({
-			radius,
-			widthSegments: detail.widthSegments,
-			heightSegments: detail.heightSegments,
-		}),
-	)
+	const wireframe = new SphereGeometry({
+		radius,
+		widthSegments: detail.widthSegments,
+		heightSegments: detail.heightSegments,
+	}).toWireframe()
 	sphereWireframeCache.set(key, wireframe)
 	return wireframe
 }
@@ -581,7 +557,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const refreshFieldRecordOrientation = (record: FieldRenderRecord): void => {
 		const qBase = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
-		const tiltRad = (-activeLayoutSettings.torusCrossRingRotationDeg * Math.PI) / 180
+		const tiltRad = (-activeRenderSettings.torusCrossRingRotationDeg * Math.PI) / 180
 		const u = Math.atan2(record.snapshot.localY, record.snapshot.localX)
 		const radialAxis = new Vector3(Math.cos(u), Math.sin(u), 0)
 		const qTilt = new Quaternion().setFromAxisAngle(radialAxis, tiltRad)
@@ -1123,7 +1099,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (!centerPoint) return null
 
 		const cameraForward = viewPoint.getTarget().clone().sub(viewPoint.position).normalize()
-		const cameraRight = cameraForward.clone().cross(viewPoint.up).normalize()
+		const cameraRight = cameraForward.clone().cross(viewPoint.getUp()).normalize()
 		const cameraUp = cameraRight.clone().cross(cameraForward).normalize()
 		if (cameraRight.length() <= 1e-6 || cameraUp.length() <= 1e-6) return null
 
@@ -1170,7 +1146,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		navigationState = null
 	}
 
-	const resolveNavigationFocusTarget = (): { focusRadius: number; target: Vector3 } | null => {
+	const resolveNavigationFocusTarget = (deltaMs: number): { focusRadius: number; target: Vector3 } | null => {
 		if (!navigationState) return null
 
 		if (navigationState.targetKey) {
@@ -1181,9 +1157,30 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			}
 		}
 
+		const anchorFactor = computeLerpFactor(deltaMs, FOCUS_ANCHOR_SMOOTHING_MS)
+		navigationState.smoothedTarget.set(
+			mixScalar(navigationState.smoothedTarget.x, navigationState.fallbackTarget.x, anchorFactor),
+			mixScalar(navigationState.smoothedTarget.y, navigationState.fallbackTarget.y, anchorFactor),
+			mixScalar(navigationState.smoothedTarget.z, navigationState.fallbackTarget.z, anchorFactor),
+		)
+		if (navigationState.smoothedTarget.distanceTo(navigationState.fallbackTarget) <= 0.01) {
+			navigationState.smoothedTarget.copy(navigationState.fallbackTarget)
+		}
+
+		const radiusFactor = computeLerpFactor(deltaMs, FOCUS_RADIUS_SMOOTHING_MS)
+		const nextFocusRadius = mixScalar(
+			navigationState.smoothedFocusRadius,
+			navigationState.fallbackFocusRadius,
+			radiusFactor,
+		)
+		navigationState.smoothedFocusRadius =
+			Math.abs(nextFocusRadius - navigationState.fallbackFocusRadius) <= 0.01
+				? navigationState.fallbackFocusRadius
+				: nextFocusRadius
+
 		return {
-			focusRadius: navigationState.fallbackFocusRadius,
-			target: navigationState.fallbackTarget,
+			focusRadius: navigationState.smoothedFocusRadius,
+			target: navigationState.smoothedTarget,
 		}
 	}
 
@@ -1258,8 +1255,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const applyNavigationFrame = (deltaMs: number): void => {
 		if (!navigationState) return
+		viewPoint.alignUpToWorldZ()
 
-		const nextFocus = resolveNavigationFocusTarget()
+		const nextFocus = resolveNavigationFocusTarget(deltaMs)
 		if (!nextFocus) {
 			navigationState = null
 			return
@@ -1296,9 +1294,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const focusTarget = (target: HoverablePickTarget): void => {
+		viewPoint.alignUpToWorldZ()
+		viewPoint.update()
 		navigationState = {
 			fallbackFocusRadius: target.outerRadius,
 			fallbackTarget: target.center.clone(),
+			smoothedFocusRadius: target.outerRadius,
+			smoothedTarget: target.center.clone(),
 			targetKey: getPickTargetKey(target),
 		}
 		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
@@ -1545,13 +1547,19 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			return
 		},
 		setLayoutSettings(settings: Partial<AppWebLayoutSettings>) {
-			activeLayoutSettings = normalizeAppWebLayoutSettings(settings)
+			activeLayoutSettings = normalizeAppWebLayoutSettings({
+				...activeLayoutSettings,
+				...settings,
+			})
 			torusWireframeCache.clear()
 			sphereWireframeCache.clear()
 			refreshSceneForSettings()
 		},
 		setRenderSettings(settings: Partial<AppWebRenderSettings>) {
-			activeRenderSettings = normalizeAppWebRenderSettings(settings)
+			activeRenderSettings = normalizeAppWebRenderSettings({
+				...activeRenderSettings,
+				...settings,
+			})
 			torusWireframeCache.clear()
 			sphereWireframeCache.clear()
 			refreshSceneForSettings()

@@ -2,7 +2,7 @@ import { build, file, serve } from "bun"
 import { mkdirSync, rmSync } from "node:fs"
 import { dirname, join, normalize } from "node:path"
 import type { DbWorldSnapshot } from "../../pkg/db/index.ts"
-import type { AppWebLayoutSettings, AppWebRenderSettings } from "./settings.ts"
+import type { AppWebLayoutSettings } from "./settings.ts"
 import {
 	ELECTROMAGNETISM_BROADCAST_CHANNEL,
 	GLUON_BROADCAST_CHANNEL,
@@ -21,7 +21,6 @@ import {
 const ROOT = normalize(join(import.meta.dir, "../../"))
 const APP_CHANNEL = "app-web"
 const APP_DB_FILENAME = join(ROOT, "app/web/tmp/metafor-app.sqlite")
-const APP_INSTANCE_DB_FILENAME = join(ROOT, "app/web/tmp/metafor-instance.sqlite")
 const DEFAULT_PORT = 3000
 const configuredPort = Number(Bun.env.PORT ?? DEFAULT_PORT)
 const APP_PORT = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : DEFAULT_PORT
@@ -52,7 +51,12 @@ type ClientMaterializeMessage = {
 	type: "materialize"
 	src: string
 	layoutSettings?: Partial<AppWebLayoutSettings>
-	renderSettings?: Partial<AppWebRenderSettings>
+}
+
+type ClientRelayoutMessage = {
+	type: "relayout"
+	src: string
+	layoutSettings?: Partial<AppWebLayoutSettings>
 }
 
 type AppRuntime = {
@@ -80,9 +84,6 @@ const resetAppRuntimeFiles = (): void => {
 	rmSync(APP_DB_FILENAME, { force: true })
 	rmSync(`${APP_DB_FILENAME}-shm`, { force: true })
 	rmSync(`${APP_DB_FILENAME}-wal`, { force: true })
-	rmSync(APP_INSTANCE_DB_FILENAME, { force: true })
-	rmSync(`${APP_INSTANCE_DB_FILENAME}-shm`, { force: true })
-	rmSync(`${APP_INSTANCE_DB_FILENAME}-wal`, { force: true })
 }
 
 const publish = (payload: unknown): void => {
@@ -190,6 +191,15 @@ const recreateRuntime = async (): Promise<AppRuntime> => {
 	return await runtimeLock
 }
 
+const getOrCreateRuntime = async (): Promise<AppRuntime> => {
+	if (runtime) return runtime
+	if (runtimeLock) return await runtimeLock
+	runtimeLock = createRuntime().finally(() => {
+		runtimeLock = null
+	})
+	return await runtimeLock
+}
+
 const protocolMirrors = [
 	{ key: "gravity", channelName: GRAVITY_BROADCAST_CHANNEL, validator: isGravitonMessage },
 	{ key: "electromagnetism", channelName: ELECTROMAGNETISM_BROADCAST_CHANNEL, validator: isPhotonMessage },
@@ -236,22 +246,37 @@ const server = serve({
 			)
 		},
 		message(_ws, message) {
-			let payload: ClientMaterializeMessage | null = null
+			let payload: ClientMaterializeMessage | ClientRelayoutMessage | null = null
 			try {
-				payload = JSON.parse(String(message)) as ClientMaterializeMessage
+				payload = JSON.parse(String(message)) as ClientMaterializeMessage | ClientRelayoutMessage
 			} catch {
 				return
 			}
 
-			if (!payload || payload.type !== "materialize" || typeof payload.src !== "string") return
+			if (
+				!payload ||
+				(payload.type !== "materialize" && payload.type !== "relayout") ||
+				typeof payload.src !== "string"
+			) {
+				return
+			}
 
 			void (async () => {
-				const currentRuntime = await recreateRuntime()
+				if (payload.type === "materialize") {
+					const currentRuntime = await recreateRuntime()
+					currentRuntime.dark.postMessage({
+						type: "materialize",
+						src: payload.src || "zavx0z/git",
+						dbFilename: APP_DB_FILENAME,
+						layoutSettings: payload.layoutSettings,
+					})
+					return
+				}
+
+				const currentRuntime = await getOrCreateRuntime()
 				currentRuntime.dark.postMessage({
-					type: "materialize",
-					src: payload?.src || "zavx0z/git",
-					dbFilename: APP_DB_FILENAME,
-					instanceDbFilename: APP_INSTANCE_DB_FILENAME,
+					type: "relayout",
+					src: payload.src || "zavx0z/git",
 					layoutSettings: payload.layoutSettings,
 				})
 			})()

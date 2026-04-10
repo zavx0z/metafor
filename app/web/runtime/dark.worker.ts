@@ -1,11 +1,7 @@
 import { MetaFor } from "../../../metafor.ts"
 import {
-	openDbInstanceSqlite,
 	openDbMaterializationWriter,
 	openDbSqliteBackend,
-	readDbWorldSnapshot,
-	resetDbInstanceSqlite,
-	writeDbWorldSnapshot,
 } from "../../../pkg/db/index.ts"
 import type { DbFieldValueKind, DbParticleKind, DbWorldSnapshot } from "../../../pkg/db/index.ts"
 import { readDarkParticleModel, type DarkMetaParticleModel } from "../../../pkg/sqlite/dark.ts"
@@ -28,12 +24,17 @@ type MaterializeMessage = {
 	type: "materialize"
 	src: string
 	dbFilename: string
-	instanceDbFilename: string
+	layoutSettings?: Partial<AppWebLayoutSettings>
+}
+
+type RelayoutMessage = {
+	type: "relayout"
+	src: string
 	layoutSettings?: Partial<AppWebLayoutSettings>
 }
 
 type DarkWorkerScope = typeof globalThis & {
-	onmessage: ((event: MessageEvent<MaterializeMessage>) => void) | null
+	onmessage: ((event: MessageEvent<MaterializeMessage | RelayoutMessage>) => void) | null
 	postMessage(message: unknown): void
 }
 
@@ -233,19 +234,13 @@ const createRuntimeParticleDescriptor = (
 
 const createDbWorldSnapshot = (
 	rootSrc: string,
-	particleModelsBySrc: Map<string, DarkMetaParticleModel>,
+	descriptorRoots: DbWorldParticleDescriptor[],
 	layoutSettings: Partial<AppWebLayoutSettings> = {},
 ): DbWorldSnapshot => {
-	const roots = [...dark$.particles.values()].filter((particle) => particle.parent === null)
 	return scaleDbWorldSnapshotToRootOuterDiameter(
 		createDbWorldSnapshotFromParticleDescriptors(
 			rootSrc,
-			roots.map((particle) => {
-				if (!(particle instanceof Wimp)) {
-					throw new Error(`Root particle "${particle.id}" must be Wimp to build instance snapshot`)
-				}
-				return createRuntimeParticleDescriptor(particle, particleModelsBySrc, particle)
-			}),
+			descriptorRoots,
 			layoutSettings,
 		),
 		undefined,
@@ -253,20 +248,47 @@ const createDbWorldSnapshot = (
 	)
 }
 
+const cloneFieldDescriptor = (
+	field: DbWorldParticleDescriptor["fields"][number],
+): DbWorldParticleDescriptor["fields"][number] => ({ ...field })
+
+const cloneParticleDescriptor = (descriptor: DbWorldParticleDescriptor): DbWorldParticleDescriptor => ({
+	...descriptor,
+	fields: descriptor.fields.map((field) => cloneFieldDescriptor(field)),
+	children: descriptor.children.map((child) => cloneParticleDescriptor(child)),
+})
+
+const createRuntimeParticleDescriptors = (
+	particleModelsBySrc: Map<string, DarkMetaParticleModel>,
+): DbWorldParticleDescriptor[] =>
+	[...dark$.particles.values()]
+		.filter((particle) => particle.parent === null)
+		.map((particle) => {
+			if (!(particle instanceof Wimp)) {
+				throw new Error(`Root particle "${particle.id}" must be Wimp to build instance snapshot`)
+			}
+			return createRuntimeParticleDescriptor(particle, particleModelsBySrc, particle)
+		})
+
 const publishInstanceSnapshot = (
 	src: string,
-	instanceDb: ReturnType<typeof openDbInstanceSqlite>,
-	particleModelsBySrc: Map<string, DarkMetaParticleModel>,
+	descriptorRoots: DbWorldParticleDescriptor[],
 	layoutSettings: Partial<AppWebLayoutSettings> = {},
 ): void => {
-	const snapshot = createDbWorldSnapshot(src, particleModelsBySrc, layoutSettings)
-	writeDbWorldSnapshot(instanceDb, snapshot)
+	const snapshot = createDbWorldSnapshot(
+		src,
+		descriptorRoots.map((descriptor) => cloneParticleDescriptor(descriptor)),
+		layoutSettings,
+	)
 	darkWorker.postMessage({
 		type: "instance-snapshot",
 		src,
-		snapshot: readDbWorldSnapshot(instanceDb, src),
+		snapshot,
 	})
 }
+
+let currentRootSrc: string | null = null
+let currentDescriptorRoots: DbWorldParticleDescriptor[] = []
 
 const canonicalizeMetaGraph = async (
 	dbFilename: string,
@@ -300,30 +322,59 @@ const canonicalizeMetaGraph = async (
 
 darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "ready" })
 
-darkWorker.onmessage = (event: MessageEvent<MaterializeMessage>) => {
+darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage>) => {
 	const message = event.data
+	if (message.type === "relayout") {
+		void (async () => {
+			const { src, layoutSettings } = message
+			darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "started", src })
+
+			try {
+				if (!currentRootSrc || currentDescriptorRoots.length === 0) {
+					throw new Error("Cannot relayout before initial materialization")
+				}
+				if (src !== currentRootSrc) {
+					throw new Error(`Relayout source mismatch: expected "${currentRootSrc}", got "${src}"`)
+				}
+
+				publishInstanceSnapshot(src, currentDescriptorRoots, layoutSettings)
+				darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "done", src })
+			} catch (error) {
+				darkWorker.postMessage({
+					type: "worker-status",
+					worker: "dark",
+					status: "error",
+					src,
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+		})()
+		return
+	}
+
 	if (message.type !== "materialize") return
 
 	void (async () => {
-			const { src, dbFilename, instanceDbFilename, layoutSettings } = message
+			const { src, dbFilename, layoutSettings } = message
 		darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "started", src })
 
 		let backend: ReturnType<typeof openDbSqliteBackend> | null = null
 		let metaDb: ReturnType<typeof getMetaDB> | null = null
-		let instanceDb: ReturnType<typeof openDbInstanceSqlite> | null = null
 		try {
 			resetDarkRuntime()
+			currentRootSrc = null
+			currentDescriptorRoots = []
 			backend = openDbSqliteBackend({ filename: dbFilename })
 			await backend.reset()
 			const canonicalized = await canonicalizeMetaGraph(dbFilename, src)
 			metaDb = canonicalized.metaDb
-			instanceDb = openDbInstanceSqlite({ filename: instanceDbFilename })
-			resetDbInstanceSqlite(instanceDb)
 
 			const writer = openDbMaterializationWriter(backend)
 			const emitSnapshot = (): void => {
-				if (!instanceDb) return
-				publishInstanceSnapshot(src, instanceDb, canonicalized.particleModelsBySrc, layoutSettings)
+				const descriptorRoots = createRuntimeParticleDescriptors(canonicalized.particleModelsBySrc)
+				currentRootSrc = src
+				currentDescriptorRoots = descriptorRoots.map((descriptor) => cloneParticleDescriptor(descriptor))
+				publishInstanceSnapshot(src, currentDescriptorRoots, layoutSettings)
 			}
 			await matter(new Wimp({ src, parent: null }), undefined, {
 				dbWriter: writer,
@@ -345,7 +396,6 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage>) => {
 		} finally {
 			resetDarkRuntime()
 			metaDb?.close()
-			instanceDb?.close()
 			await backend?.close()
 		}
 	})()

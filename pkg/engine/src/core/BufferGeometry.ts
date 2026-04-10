@@ -86,6 +86,32 @@ export class BufferGeometry {
     return this
   }
 
+  public toWireframe(): BufferGeometry {
+    const indices = this.index?.array
+    const positions = this.attributes.position?.array
+    if (!indices || !positions) {
+      throw new Error("Wireframe geometry requires indexed position data")
+    }
+
+    const lines: number[] = []
+    for (let i = 0; i < indices.length; i += 3) {
+      const a = Number(indices[i]!) * 3
+      const b = Number(indices[i + 1]!) * 3
+      const c = Number(indices[i + 2]!) * 3
+
+      lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
+      lines.push(positions[b]!, positions[b + 1]!, positions[b + 2]!)
+      lines.push(positions[b]!, positions[b + 1]!, positions[b + 2]!)
+      lines.push(positions[c]!, positions[c + 1]!, positions[c + 2]!)
+      lines.push(positions[c]!, positions[c + 1]!, positions[c + 2]!)
+      lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
+    }
+
+    const wireframeGeometry = new BufferGeometry()
+    wireframeGeometry.setAttribute("position", new BufferAttribute(new Float32Array(lines), 3))
+    return wireframeGeometry
+  }
+
   /**
    * Генерирует нормали вершин на основе геометрии.
    *

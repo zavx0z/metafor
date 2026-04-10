@@ -149,6 +149,27 @@ export class ViewPoint {
     return this.target
   }
 
+  /**
+   * Возвращает текущий вектор "вверх" камеры.
+   *
+   * Нужен внешним слоям, которые хотят сохранить горизонт
+   * или корректно оценить экранную проекцию объектов.
+   */
+  public getUp(): Vector3 {
+    return this.up
+  }
+
+  /**
+   * Выравнивает горизонт камеры по мировой оси Z.
+   *
+   * Это полезно для программной навигации по сцене, когда
+   * нужно сохранить ровный горизонт и не переносить roll
+   * из trackball-вращения в автоматический подлёт.
+   */
+  public alignUpToWorldZ(): void {
+    this.up.set(0, 0, 1)
+  }
+
   public setAspectRatio(aspect: number): void {
     if (aspect <= 0) return
     this.aspect = aspect

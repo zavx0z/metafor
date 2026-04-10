@@ -6,8 +6,6 @@ export interface AppWebLayoutSettings {
   rootInnerDiameterMm: number
   /** Диаметр peer-sphere на root-уровне в миллиметрах в пределах level-contract. */
   rootSphereRadiusMm: number
-  /** Наклон продольных линий тора в градусах относительно базовой раскладки. */
-  torusCrossRingRotationDeg: number
 }
 
 /** Настройки плотности wireframe-детализации для WebGPU viewport. */
@@ -22,6 +20,8 @@ export interface AppWebRenderSettings {
   labelFontSizeMm: number
   /** Отступ подписи от поверхности объекта в миллиметрах. */
   labelSurfaceOffsetMm: number
+  /** Наклон продольных линий тора в градусах относительно базовой раскладки. */
+  torusCrossRingRotationDeg: number
   /** Количество продольных колец (линий) тора. */
   torusRadialSegments: number
   /** Количество сегментов (сглаженность) одного кольца тора. */
@@ -93,8 +93,6 @@ export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = {
   rootInnerDiameterMm: 1000,
   // Диаметр сферы поля на root-уровне.
   rootSphereRadiusMm: 200,
-  // Наклон продольных линий тора по поверхности.
-  torusCrossRingRotationDeg: 44,
 }
 
 
@@ -146,6 +144,8 @@ export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
   labelFontSizeMm: 120,
   // Насколько подпись вынесена от поверхности наружу.
   labelSurfaceOffsetMm: 40,
+  // Наклон продольных линий тора по поверхности.
+  torusCrossRingRotationDeg: 44,
   // Базовое количество колец тора.
   torusRadialSegments: 12,
   // Базовая сглаженность (сегменты) одного кольца тора.
@@ -280,9 +280,9 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
   // Наклон продольных линий тора без вывода их с поверхности тора.
   torusCrossRingRotationDeg: {
     group: "torus",
-    section: "layout",
+    section: "render",
     label: "Наклон линий тора, град",
-    defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.torusCrossRingRotationDeg,
+    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.torusCrossRingRotationDeg,
     description: "Наклоняет продольные линии тора, не деформируя их по высоте вне поверхности.",
     min: -180,
     max: 180,
@@ -296,7 +296,6 @@ export const APP_WEB_LAYOUT_SETTING_KEYS = [
   "levelSizeMultiplier",
   "rootInnerDiameterMm",
   "rootSphereRadiusMm",
-  "torusCrossRingRotationDeg",
 ] as const satisfies readonly AppWebLayoutSettingKey[]
 
 /** Список render-ключей, которые должны применяться только в WebGPU viewport. */
@@ -306,6 +305,7 @@ export const APP_WEB_RENDER_SETTING_KEYS = [
   "labelVisibleLevels",
   "labelFontSizeMm",
   "labelSurfaceOffsetMm",
+  "torusCrossRingRotationDeg",
   "torusRadialSegments",
   "torusTubularSegments",
   "wireframeOpacity",
@@ -331,10 +331,6 @@ export const normalizeAppWebLayoutSettings = (
     Number.isFinite(settings.rootSphereRadiusMm) && (settings.rootSphereRadiusMm ?? 0) > 0
       ? Math.min(settings.rootSphereRadiusMm!, appWebLayoutConfig.snapshot.rootOuterDiameterMm)
       : DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootSphereRadiusMm,
-  torusCrossRingRotationDeg:
-    Number.isFinite(settings.torusCrossRingRotationDeg)
-      ? settings.torusCrossRingRotationDeg!
-      : DEFAULT_APP_WEB_LAYOUT_SETTINGS.torusCrossRingRotationDeg,
 })
 
 /**
@@ -365,6 +361,10 @@ export const normalizeAppWebRenderSettings = (
     Number.isFinite(settings.labelSurfaceOffsetMm) && (settings.labelSurfaceOffsetMm ?? 0) >= 0
       ? settings.labelSurfaceOffsetMm!
       : DEFAULT_APP_WEB_RENDER_SETTINGS.labelSurfaceOffsetMm,
+  torusCrossRingRotationDeg:
+    Number.isFinite(settings.torusCrossRingRotationDeg)
+      ? settings.torusCrossRingRotationDeg!
+      : DEFAULT_APP_WEB_RENDER_SETTINGS.torusCrossRingRotationDeg,
   torusRadialSegments:
     Number.isFinite(settings.torusRadialSegments) && (settings.torusRadialSegments ?? 0) > 0
       ? Math.max(3, Math.round(settings.torusRadialSegments!))

@@ -40,7 +40,12 @@ type ClientMaterializePayload = {
 	type: "materialize"
 	src: string
 	layoutSettings: Partial<AppWebLayoutSettings>
-	renderSettings: Partial<AppWebRenderSettings>
+}
+
+type ClientRelayoutPayload = {
+	type: "relayout"
+	src: string
+	layoutSettings: Partial<AppWebLayoutSettings>
 }
 
 type SnapshotMessage = {
@@ -128,6 +133,8 @@ type SettingInputKey = keyof typeof settingInputs
 
 const settingValueElements: Partial<Record<SettingInputKey, HTMLSpanElement | null>> = {}
 let persistUiSettingsTimer: ReturnType<typeof setTimeout> | null = null
+let lastAppliedSceneState: { layoutSettings: Partial<AppWebLayoutSettings>; src: string } | null = null
+let pendingSceneState: { layoutSettings: Partial<AppWebLayoutSettings>; src: string } | null = null
 
 const closeAllSettingTooltips = (): void => {
 	for (const field of document.querySelectorAll<HTMLElement>(".setting-field[data-tooltip-open='true']")) {
@@ -169,6 +176,14 @@ const createUiSettingsSnapshot = (): {
 		APP_WEB_RENDER_SETTING_KEYS.map((key) => [key, readSettingValue(key)]),
 	) as Partial<AppWebRenderSettings>,
 })
+
+const areLayoutSettingsEqual = (
+	left: Partial<AppWebLayoutSettings> | null,
+	right: Partial<AppWebLayoutSettings> | null,
+): boolean => {
+	if (!left || !right) return false
+	return APP_WEB_LAYOUT_SETTING_KEYS.every((key) => left[key] === right[key])
+}
 
 const persistUiSettings = async (): Promise<void> => {
 	await savePersistedAppWebUiSettings(createUiSettingsSnapshot())
@@ -264,6 +279,9 @@ const applySettingUiMetadata = (): void => {
 		input.addEventListener("input", () => {
 			updateSettingValuePreview(key)
 			schedulePersistUiSettings()
+			if (config.section === "render") {
+				bulkViewport?.setRenderSettings(createUiSettingsSnapshot().renderSettings)
+			}
 		})
 	}
 }
@@ -281,7 +299,7 @@ const persistedUiSettingsReady = hydratePersistedUiSettings().catch((error) => {
 const createMaterializePayload = (): ClientMaterializePayload => ({
 	type: "materialize",
 	src: srcInput.value.trim() || "zavx0z/git",
-	...createUiSettingsSnapshot(),
+	layoutSettings: createUiSettingsSnapshot().layoutSettings,
 })
 
 const initBulkViewport = async (): Promise<void> => {
@@ -295,7 +313,7 @@ const initBulkViewport = async (): Promise<void> => {
 	})
 	const initialPayload = createMaterializePayload()
 	bulkViewport.setLayoutSettings(initialPayload.layoutSettings)
-	bulkViewport.setRenderSettings(initialPayload.renderSettings)
+	bulkViewport.setRenderSettings(createUiSettingsSnapshot().renderSettings)
 
 	const resizeObserver = new ResizeObserver((entries) => {
 		const entry = entries[0]
@@ -321,8 +339,13 @@ socket.onopen = async () => {
 		initialMaterializationRequested = true
 		submitButton.disabled = true
 		const payload = createMaterializePayload()
+		const { renderSettings } = createUiSettingsSnapshot()
 		bulkViewport?.setLayoutSettings(payload.layoutSettings)
-		bulkViewport?.setRenderSettings(payload.renderSettings)
+		bulkViewport?.setRenderSettings(renderSettings)
+		pendingSceneState = {
+			src: payload.src,
+			layoutSettings: payload.layoutSettings,
+		}
 		socket.send(JSON.stringify(payload))
 	}
 }
@@ -335,6 +358,9 @@ socket.onmessage = (event) => {
 	const message = JSON.parse(String(event.data)) as any
 
 	if (message.type === "worker-status") {
+		if (message.worker === "dark" && message.status === "error") {
+			pendingSceneState = null
+		}
 		if (message.worker === "dark" && (message.status === "done" || message.status === "error")) {
 			submitButton.disabled = socket.readyState !== WebSocket.OPEN
 		}
@@ -347,6 +373,10 @@ socket.onmessage = (event) => {
 	}
 
 	if (message.type === "instance-snapshot") {
+		if (pendingSceneState && pendingSceneState.src === message.src) {
+			lastAppliedSceneState = pendingSceneState
+			pendingSceneState = null
+		}
 		bulkViewport?.setSnapshot(message.snapshot)
 		return
 	}
@@ -354,10 +384,29 @@ socket.onmessage = (event) => {
 
 form.addEventListener("submit", (event) => {
 	event.preventDefault()
-	submitButton.disabled = true
 	const payload = createMaterializePayload()
+	const { renderSettings } = createUiSettingsSnapshot()
 	flushPersistUiSettings()
 	bulkViewport?.setLayoutSettings(payload.layoutSettings)
-	bulkViewport?.setRenderSettings(payload.renderSettings)
-	socket.send(JSON.stringify(payload))
+	bulkViewport?.setRenderSettings(renderSettings)
+
+	const needsMaterialize = !lastAppliedSceneState || lastAppliedSceneState.src !== payload.src
+	const needsRelayout =
+		!needsMaterialize && !areLayoutSettingsEqual(lastAppliedSceneState.layoutSettings, payload.layoutSettings)
+	if (!needsMaterialize && !needsRelayout) return
+
+	submitButton.disabled = true
+	pendingSceneState = {
+		src: payload.src,
+		layoutSettings: payload.layoutSettings,
+	}
+
+	const scenePayload: ClientMaterializePayload | ClientRelayoutPayload = needsMaterialize
+		? payload
+		: {
+			type: "relayout",
+			src: payload.src,
+			layoutSettings: payload.layoutSettings,
+		}
+	socket.send(JSON.stringify(scenePayload))
 })

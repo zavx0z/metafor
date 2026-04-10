@@ -15,6 +15,9 @@ interface TorusGeometryParameters {
  * @see https://threejs.org/docs/#api/en/geometries/TorusGeometry
  */
 export class TorusGeometry extends BufferGeometry {
+  public readonly radialSegments: number
+  public readonly tubularSegments: number
+
   /**
    * @param parameters - Параметры для создания геометрии тора.
    * @param parameters.radius - Радиус тора от центра до центра "трубы". **Ограничение:** > 0.
@@ -30,6 +33,9 @@ export class TorusGeometry extends BufferGeometry {
     super()
 
     const { radius = 0.5, tube = 0.2, radialSegments = 12, tubularSegments = 12 } = parameters
+
+    this.radialSegments = radialSegments
+    this.tubularSegments = tubularSegments
 
     const vertices: number[] = []
     const indices: number[] = []
@@ -61,5 +67,38 @@ export class TorusGeometry extends BufferGeometry {
 
     this.setIndex(new BufferAttribute(new Uint16Array(indices), 1))
     this.setAttribute("position", new BufferAttribute(new Float32Array(vertices), 3))
+  }
+
+  public override toWireframe(): BufferGeometry {
+    const positions = this.attributes.position.array
+    const radialSegments = this.radialSegments
+    const tubularSegments = this.tubularSegments
+    const lines: number[] = []
+
+    const getIndex = (j: number, i: number) => (j * (tubularSegments + 1) + i) * 3
+
+    for (let j = 0; j <= radialSegments; j++) {
+      for (let i = 0; i <= tubularSegments; i++) {
+        const a = getIndex(j, i)
+
+        // Tubular line (around the tube)
+        if (i < tubularSegments) {
+          const b = getIndex(j, i + 1)
+          lines.push(positions[a], positions[a + 1], positions[a + 2])
+          lines.push(positions[b], positions[b + 1], positions[b + 2])
+        }
+
+        // Radial line (around the torus)
+        if (j < radialSegments) {
+          const c = getIndex(j + 1, i)
+          lines.push(positions[a], positions[a + 1], positions[a + 2])
+          lines.push(positions[c], positions[c + 1], positions[c + 2])
+        }
+      }
+    }
+
+    const wireframeGeometry = new BufferGeometry()
+    wireframeGeometry.setAttribute("position", new BufferAttribute(new Float32Array(lines), 3))
+    return wireframeGeometry
   }
 }
