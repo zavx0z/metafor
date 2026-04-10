@@ -309,11 +309,12 @@ export const resolveBulkHoverPriorityTarget = ({
     )
 
     if (descendantDistance !== null && descendantDistance > 0) {
-      if (bestCandidate.score <= currentCandidate.score + 0.5) {
-        return bestCandidate.target
-      }
-      return currentCandidate.target
+      return bestCandidate.target
     }
+  }
+
+  if (bestCandidate.target.depth > currentCandidate.target.depth) {
+    return bestCandidate.target
   }
 
   if (currentCandidate.score <= bestCandidate.score + hysteresisPx) return currentCandidate.target

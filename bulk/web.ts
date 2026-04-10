@@ -151,16 +151,25 @@ type LabelRenderRecord = {
 	currentOpacity: number
 	currentScale: number
 	key: string
+	kind: "shell" | "field"
 	material: TextMaterial
+	offset: number
+	shellRadius: number
+	shellTube: number
 	signature: string
+	sphereRadius: number
 }
 
 type LabelSpec = {
 	anchorObject: Object3D
 	color: Color
-	curveRadius: number
 	depth: number
 	key: string
+	kind: "shell" | "field"
+	offset: number
+	shellRadius: number
+	shellTube: number
+	sphereRadius: number
 	text: string
 }
 
@@ -270,9 +279,10 @@ const wrapTextGeometryAroundEquator = (geometry: BufferGeometry, curveRadius: nu
 		const verticalOffset = (positions[index + 1] ?? 0) - centerY
 		const angle = arcOffset / safeRadius
 
-		positions[index] = Math.cos(angle) * safeRadius
-		positions[index + 1] = Math.sin(angle) * safeRadius
-		positions[index + 2] = verticalOffset
+		positions[index] = Math.sin(angle) * safeRadius
+		positions[index + 1] = verticalOffset
+		// (Math.cos(angle) - 1) смещает дугу так, чтобы центр (angle=0) был в Z=0
+		positions[index + 2] = (Math.cos(angle) - 1) * safeRadius
 	}
 }
 
@@ -444,7 +454,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const labelsLayer = new Object3D()
 	labelsLayer.frustumCulled = false
 	labelsLayer.updateMatrix()
-	workspace.add(labelsLayer)
+	scene.add(labelsLayer)
 
 	let pickTargets: HoverablePickTarget[] = []
 	let hoveredPickTarget: HoverablePickTarget | null = null
@@ -840,9 +850,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return {
 			anchorObject: record.container,
 			color: THEME_PRIMARY.clone(),
-			curveRadius: shellOuterRadiusMm + (metrics.labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm),
 			depth: record.snapshot.depth,
 			key: `shell:${record.snapshot.particleId}`,
+			kind: "shell",
+			offset: metrics.labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm,
+			shellRadius: record.snapshot.shellRadius,
+			shellTube: record.snapshot.shellTube,
+			sphereRadius: 0,
 			text,
 		}
 	}
@@ -860,9 +874,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return {
 			anchorObject: record.node,
 			color: getFieldThemeColor(record.snapshot.fieldValueKind).color.clone(),
-			curveRadius: sphereRadiusMm + (metrics.labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm),
 			depth: record.depth,
 			key: `field:${record.snapshot.id}`,
+			kind: "field",
+			offset: metrics.labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm,
+			shellRadius: 0,
+			shellTube: 0,
+			sphereRadius: sphereRadiusMm,
 			text,
 		}
 	}
@@ -885,9 +903,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const upsertLabelRecord = (spec: LabelSpec, radius: number): void => {
 		const signature = buildLabelSignature(spec, radius)
 		const existing = labelRecords.get(spec.key)
+		const curveRadius = spec.kind === "shell" 
+			? spec.shellRadius + spec.shellTube + spec.offset
+			: spec.sphereRadius + spec.offset
+
 		if (!existing) {
 			const container = new Object3D()
-			const visual = createSurfaceLabelNode(spec.text, labelFont!, spec.depth, spec.curveRadius, spec.color, radius)
+			const visual = createSurfaceLabelNode(spec.text, labelFont!, spec.depth, curveRadius, spec.color, radius)
 			container.add(visual.container)
 			container.frustumCulled = false
 			container.scale.set(LABEL_INITIAL_SCALE, LABEL_INITIAL_SCALE, LABEL_INITIAL_SCALE)
@@ -900,14 +922,25 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				currentOpacity: 0,
 				currentScale: LABEL_INITIAL_SCALE,
 				key: spec.key,
+				kind: spec.kind,
 				material: visual.material,
+				offset: spec.offset,
+				shellRadius: spec.shellRadius,
+				shellTube: spec.shellTube,
 				signature,
+				sphereRadius: spec.sphereRadius,
 			})
 			requestRenderLoop(LABEL_FADE_IN_MS + 32)
 			return
 		}
 
 		existing.anchorObject = spec.anchorObject
+		existing.kind = spec.kind
+		existing.offset = spec.offset
+		existing.shellRadius = spec.shellRadius
+		existing.shellTube = spec.shellTube
+		existing.sphereRadius = spec.sphereRadius
+
 		if (existing.signature === signature) return
 
 		const currentOpacity = existing.currentOpacity
@@ -916,7 +949,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			child.parent = null
 		}
 		existing.container.children = []
-		const visual = createSurfaceLabelNode(spec.text, labelFont!, spec.depth, spec.curveRadius, spec.color, radius)
+		const visual = createSurfaceLabelNode(spec.text, labelFont!, spec.depth, curveRadius, spec.color, radius)
 		visual.material.opacity = currentOpacity
 		existing.material = visual.material
 		existing.signature = signature
@@ -1414,23 +1447,58 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const updateLabelTrackers = (): void => {
-		const cameraLocal = new Vector3(
-			viewPoint.position.x - workspace.position.x,
-			viewPoint.position.y - workspace.position.y,
-			viewPoint.position.z - workspace.position.z,
-		)
+		const cameraPos = viewPoint.position
+		const worldUp = new Vector3(0, 0, 1)
 
 		for (const tracker of labelRecords.values()) {
 			readObjectWorldPosition(tracker.anchorObject, reusableWorldPosition)
-			const localX = reusableWorldPosition.x - workspace.position.x
-			const localY = reusableWorldPosition.y - workspace.position.y
-			const localZ = reusableWorldPosition.z - workspace.position.z
-			tracker.container.position.set(localX, localY, localZ)
-			const deltaX = cameraLocal.x - localX
-			const deltaY = cameraLocal.y - localY
-			if (Math.hypot(deltaX, deltaY) > 1e-6) {
-				tracker.container.rotation.z = Math.atan2(deltaY, deltaX)
+			
+			let normal = new Vector3()
+			let right = new Vector3()
+			let labelPos = new Vector3()
+
+			if (tracker.kind === "shell") {
+				// Вектор от центра тора к камере
+				const toCamera = cameraPos.clone().sub(reusableWorldPosition)
+				// Направление основного радиуса (в плоскости XY)
+				const majorDir = new Vector3(toCamera.x, toCamera.y, 0).normalize()
+				if (majorDir.length() < 1e-6) majorDir.set(1, 0, 0)
+				
+				// Центр "трубы" под камерой
+				const tubeCenter = reusableWorldPosition.clone().add(majorDir.clone().multiplyScalar(tracker.shellRadius))
+				
+				// Нормаль от центра трубы к камере
+				normal.copy(cameraPos).sub(tubeCenter).normalize()
+				// Позиция на поверхности трубы с учетом отступа
+				labelPos.copy(tubeCenter).add(normal.clone().multiplyScalar(tracker.shellTube + tracker.offset))
+				
+				// Вектор "вправо" (касательная к основной окружности бублика)
+				right.set(-majorDir.y, majorDir.x, 0).normalize()
+			} else {
+				// Для сферы всё как раньше
+				normal.copy(cameraPos).sub(reusableWorldPosition).normalize()
+				labelPos.copy(reusableWorldPosition).add(normal.clone().multiplyScalar(tracker.sphereRadius + tracker.offset))
+				
+				right.copy(worldUp).cross(normal)
+				if (right.length() < 1e-6) right.set(1, 0, 0).cross(normal)
+				right.normalize()
 			}
+
+			// Вектор "вверх" (перпендикулярен нормали и направлению "вправо")
+			const up = normal.clone().cross(right).normalize()
+
+			// Устанавливаем позицию
+			tracker.container.position.copy(labelPos)
+			
+			// Строим ориентацию из базиса
+			const matrix = new Matrix4()
+			const e = matrix.elements
+			e[0] = right.x; e[1] = right.y; e[2] = right.z; e[3] = 0
+			e[4] = up.x;    e[5] = up.y;    e[6] = up.z;    e[7] = 0
+			e[8] = normal.x; e[9] = normal.y; e[10] = normal.z; e[11] = 0
+			e[12] = 0;      e[13] = 0;      e[14] = 0;      e[15] = 1
+			
+			tracker.container.quaternion.setFromRotationMatrix(matrix)
 			tracker.container.updateMatrix()
 		}
 	}
