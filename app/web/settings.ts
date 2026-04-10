@@ -215,6 +215,17 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     max: 300,
     step: 1,
   },
+  // Базовый уровень viewport для отсчёта видимости.
+  baseDepth: {
+    group: "detail",
+    section: "render",
+    label: "Базовая глубина",
+    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.baseDepth,
+    description: "Текущий базовый уровень viewport для отсчёта видимости (0 = root, -1 = все уровни).",
+    min: -1,
+    max: 16,
+    step: 1,
+  },
   // Количество колец (линий) тора.
   torusRadialSegments: {
     group: "torus",

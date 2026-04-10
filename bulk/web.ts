@@ -183,7 +183,7 @@ const getLevelMetrics = (depth: number, outerRadiusMm?: number) =>
 		depth,
 		layoutSettings: activeLayoutSettings,
 		renderSettings: activeRenderSettings,
-		outerRadiusMm,
+		...(outerRadiusMm !== undefined && { outerRadiusMm }),
 	})
 
 const isLabelDepthVisible = (depth: number): boolean => getLevelMetrics(depth).isLabelVisible
