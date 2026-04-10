@@ -1,33 +1,24 @@
-import { Scene } from "../scenes/Scene"
-import { ViewPoint } from "../core/ViewPoint"
-import { Mesh } from "../core/Mesh"
-import { InstancedMesh } from "../core/InstancedMesh"
-import { SkinnedMesh } from "../core/SkinnedMesh"
-import { BufferGeometry } from "../core/BufferGeometry"
-import { WireframeInstancedMesh } from "../core/WireframeInstancedMesh"
-import { MeshBasicMaterial } from "../materials/MeshBasicMaterial"
-import { MeshLambertMaterial } from "../materials/MeshLambertMaterial"
-import { Matrix4 } from "../math/Matrix4"
-import { LineSegments } from "../objects/LineSegments"
-import { LineBasicMaterial } from "../materials/LineBasicMaterial"
-import { LineGlowMaterial } from "../materials/LineGlowMaterial"
-import { Vector3 } from "../math/Vector3"
-import { Text } from "../objects/Text"
-import { TextMaterial } from "../materials/TextMaterial"
-import { Frustum } from "../math/Frustum"
-import { Object3D } from "../core/Object3D"
-import { UIDisplay } from "../ui/UIDisplay"
-import meshStaticWGSL from "./shaders/mesh_static.wgsl" with { type: "text" };
-import meshSkinnedWGSL from "./shaders/mesh_skinned.wgsl" with { type: "text" };
-import meshInstancedWGSL from "./shaders/mesh_instanced.wgsl" with { type: "text" };
-import blurWGSL from "./shaders/blur.wgsl" with { type: "text" };
-import glassWGSL from "./shaders/glass.wgsl" with { type: "text" };
+import {Scene} from "../scenes/Scene"
+import {ViewPoint} from "../core/ViewPoint"
+import {Mesh} from "../core/Mesh"
+import {InstancedMesh} from "../core/InstancedMesh"
+import {SkinnedMesh} from "../core/SkinnedMesh"
+import {BufferGeometry} from "../core/BufferGeometry"
+import {WireframeInstancedMesh} from "../core/WireframeInstancedMesh"
+import {LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, TextMaterial} from "../materials"
+import {Matrix4, Vector3, Frustum} from "../math"
+import {LineSegments} from "../objects/LineSegments"
+import {Text} from "../objects/Text"
+import {Object3D} from "../core/Object3D"
+import meshStaticWGSL from "./shaders/mesh_static.wgsl" with {type: "text"}
+import meshSkinnedWGSL from "./shaders/mesh_skinned.wgsl" with {type: "text"}
+import meshInstancedWGSL from "./shaders/mesh_instanced.wgsl" with {type: "text"}
+import blurWGSL from "./shaders/blur.wgsl" with {type: "text"}
 
-import lineShaderCode from "./shaders/line.wgsl" with { type: "text" };
-import textShaderCode from "./shaders/text.wgsl" with { type: "text" };
-import { Light } from "../lights/Light";
-import { collectSceneObjects, LightItem, RenderItem } from "./utils/RenderList"
-import { GlassMaterial } from "../materials/GlassMaterial";
+import lineShaderCode from "./shaders/line.wgsl" with {type: "text"}
+import textShaderCode from "./shaders/text.wgsl" with {type: "text"}
+import {collectSceneObjects, type LightItem, type RenderItem} from "./utils/RenderList"
+import {GlassMaterial} from "../materials/GlassMaterial"
 
 // --- Константы для uniform-буферов ---
 const UNIFORM_ALIGNMENT = 256
@@ -75,7 +66,7 @@ export class Renderer {
   private instancedLinePipeline: GPURenderPipeline | null = null
   private textStencilPipeline: GPURenderPipeline | null = null
   private textCoverPipeline: GPURenderPipeline | null = null
-  
+
   // --- Compute ресурсы для размытия ---
   private blurComputePipelineHorizontal: GPUComputePipeline | null = null
   private blurComputePipelineVertical: GPUComputePipeline | null = null
@@ -98,14 +89,14 @@ export class Renderer {
   private pixelRatio = 1
   private frustum: Frustum = new Frustum()
   public canvas: HTMLCanvasElement | null = null
-  
+
   // --- Offscreen текстуры для многопроходного рендеринга ---
   private offscreenTexture: GPUTexture | null = null
   private offscreenResolvedTexture: GPUTexture | null = null
   private blurredIntermediateTexture: GPUTexture | null = null
   private finalBlurredTexture: GPUTexture | null = null
   private offscreenDepthTexture: GPUTexture | null = null
-  
+
   // Для отслеживания изменений размера canvas
   private lastCanvasWidth: number = 0
   private lastCanvasHeight: number = 0
@@ -116,32 +107,32 @@ export class Renderer {
    * @throws Error Если браузер не поддерживает WebGPU или не удалось получить адаптер.
    */
   public async init(canvas?: HTMLCanvasElement): Promise<void> {
-    if (!navigator.gpu) throw new Error("WebGPU не поддерживается браузером.");
+    if (!navigator.gpu) throw new Error("WebGPU не поддерживается браузером.")
 
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) throw new Error("Не удалось получить WebGPU адаптер.");
+    const adapter = await navigator.gpu.requestAdapter()
+    if (!adapter) throw new Error("Не удалось получить WebGPU адаптер.")
 
-    this.device = await adapter.requestDevice();
+    this.device = await adapter.requestDevice()
 
-    this.canvas = canvas || document.createElement("canvas");
-    this.context = this.canvas.getContext("webgpu");
-    if (!this.context) throw new Error("Не удалось получить WebGPU контекст.");
+    this.canvas = canvas || document.createElement("canvas")
+    this.context = this.canvas.getContext("webgpu")
+    if (!this.context) throw new Error("Не удалось получить WebGPU контекст.")
 
-    this.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+    this.presentationFormat = navigator.gpu.getPreferredCanvasFormat()
     this.context.configure({
       device: this.device,
       format: this.presentationFormat,
       alphaMode: 'premultiplied',
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-    });
+    })
 
-    await this.setupPipelines();
-    await this.setupComputePipelines();
+    await this.setupPipelines()
+    await this.setupComputePipelines()
   }
 
   private async setupComputePipelines(): Promise<void> {
     if (!this.device || !this.blurShaderModule) return
-    
+
     // Создаем пайплайн для горизонтального размытия
     this.blurComputePipelineHorizontal = this.device.createComputePipeline({
       layout: 'auto',
@@ -150,7 +141,7 @@ export class Renderer {
         entryPoint: 'blur_horizontal'
       }
     })
-    
+
     // Создаем пайплайн для вертикального размытия
     this.blurComputePipelineVertical = this.device.createComputePipeline({
       layout: 'auto',
@@ -190,12 +181,12 @@ export class Renderer {
         {
           binding: 0,
           visibility: GPUShaderStage.VERTEX,
-          buffer: { type: "uniform" },
+          buffer: {type: "uniform"},
         },
         {
           binding: 1,
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-          buffer: { type: "uniform" },
+          buffer: {type: "uniform"},
         },
       ],
     })
@@ -203,8 +194,8 @@ export class Renderer {
     this.globalBindGroup = this.device.createBindGroup({
       layout: globalBindGroupLayout,
       entries: [
-        { binding: 0, resource: { buffer: this.globalUniformBuffer } },
-        { binding: 1, resource: { buffer: this.sceneUniformBuffer } },
+        {binding: 0, resource: {buffer: this.globalUniformBuffer}},
+        {binding: 1, resource: {buffer: this.sceneUniformBuffer}},
       ],
     })
 
@@ -213,12 +204,12 @@ export class Renderer {
         {
           binding: 0,
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-          buffer: { type: "uniform", hasDynamicOffset: true },
+          buffer: {type: "uniform", hasDynamicOffset: true},
         },
         {
           binding: 1, // for skinning
           visibility: GPUShaderStage.VERTEX,
-          buffer: { type: "uniform", hasDynamicOffset: true },
+          buffer: {type: "uniform", hasDynamicOffset: true},
         },
       ],
     })
@@ -272,9 +263,9 @@ export class Renderer {
         entryPoint: "vs_main",
         buffers: [
           // position
-          { arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }] },
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
           // normal
-          { arrayStride: 12, attributes: [{ shaderLocation: 1, offset: 0, format: "float32x3" }] },
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
         ],
       },
       fragment: {
@@ -296,13 +287,13 @@ export class Renderer {
           },
         }],
       },
-      primitive: { topology: "triangle-list", cullMode: "none" },
+      primitive: {topology: "triangle-list", cullMode: "none"},
       depthStencil: {
         depthWriteEnabled: true,
         depthCompare: "less",
         format: "depth24plus-stencil8",
       },
-      multisample: { count: this.sampleCount },
+      multisample: {count: this.sampleCount},
     })
 
     // --- Pipeline для Instanced Meshes ---
@@ -313,18 +304,18 @@ export class Renderer {
         entryPoint: "vs_main",
         buffers: [
           // position
-          { arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }] },
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
           // normal
-          { arrayStride: 12, attributes: [{ shaderLocation: 1, offset: 0, format: "float32x3" }] },
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
           // instance matrix (4 vec4)
           {
             arrayStride: 64,
             stepMode: "instance",
             attributes: [
-              { shaderLocation: 2, offset: 0, format: "float32x4" },
-              { shaderLocation: 3, offset: 16, format: "float32x4" },
-              { shaderLocation: 4, offset: 32, format: "float32x4" },
-              { shaderLocation: 5, offset: 48, format: "float32x4" },
+              {shaderLocation: 2, offset: 0, format: "float32x4"},
+              {shaderLocation: 3, offset: 16, format: "float32x4"},
+              {shaderLocation: 4, offset: 32, format: "float32x4"},
+              {shaderLocation: 5, offset: 48, format: "float32x4"},
             ],
           },
         ],
@@ -332,15 +323,15 @@ export class Renderer {
       fragment: {
         module: instancedShaderModule,
         entryPoint: "fs_main",
-        targets: [{ format: this.presentationFormat }],
+        targets: [{format: this.presentationFormat}],
       },
-      primitive: { topology: "triangle-list", cullMode: "none" },
+      primitive: {topology: "triangle-list", cullMode: "none"},
       depthStencil: {
         depthWriteEnabled: true,
         depthCompare: "less",
         format: "depth24plus-stencil8",
       },
-      multisample: { count: this.sampleCount },
+      multisample: {count: this.sampleCount},
     })
 
     // --- Pipeline для Skinned Meshes ---
@@ -351,13 +342,13 @@ export class Renderer {
         entryPoint: "vs_main",
         buffers: [
           // position
-          { arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }] },
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
           // normal
-          { arrayStride: 12, attributes: [{ shaderLocation: 1, offset: 0, format: "float32x3" }] },
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
           // skinIndex
-          { arrayStride: 8, attributes: [{ shaderLocation: 2, offset: 0, format: "uint16x4" }] },
+          {arrayStride: 8, attributes: [{shaderLocation: 2, offset: 0, format: "uint16x4"}]},
           // skinWeight
-          { arrayStride: 16, attributes: [{ shaderLocation: 3, offset: 0, format: "float32x4" }] },
+          {arrayStride: 16, attributes: [{shaderLocation: 3, offset: 0, format: "float32x4"}]},
         ],
       },
       fragment: {
@@ -379,13 +370,13 @@ export class Renderer {
           }
         }],
       },
-      primitive: { topology: "triangle-list", cullMode: "none" },
+      primitive: {topology: "triangle-list", cullMode: "none"},
       depthStencil: {
         depthWriteEnabled: true,
         depthCompare: "less",
         format: "depth24plus-stencil8",
       },
-      multisample: { count: this.sampleCount },
+      multisample: {count: this.sampleCount},
     })
 
     // --- Pipeline для Lines ---
@@ -395,8 +386,8 @@ export class Renderer {
         module: lineShaderModule,
         entryPoint: "vs_main",
         buffers: [
-          { arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }] },
-          { arrayStride: 12, attributes: [{ shaderLocation: 1, offset: 0, format: "float32x3" }] },
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
         ],
       },
       fragment: {
@@ -420,13 +411,13 @@ export class Renderer {
           },
         ],
       },
-      primitive: { topology: "line-list" },
+      primitive: {topology: "line-list"},
       depthStencil: {
         depthWriteEnabled: true, // Включаем запись глубины для придания объема
         depthCompare: "less",
         format: "depth24plus-stencil8",
       },
-      multisample: { count: this.sampleCount },
+      multisample: {count: this.sampleCount},
     })
 
     // --- Pipeline для Instanced Lines ---
@@ -531,23 +522,23 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         entryPoint: "vs_main",
         buffers: [
           // position
-          { arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }] },
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
           // color (базовый цвет вершин)
-          { arrayStride: 12, attributes: [{ shaderLocation: 1, offset: 0, format: "float32x3" }] },
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
           // instance buffer (матрица 16 floats + параметры материала 9 floats = 25 floats = 100 байт)
           {
             arrayStride: 100, // 25 * 4 байта
             stepMode: "instance",
             attributes: [
               // Матрица инстанса (16 floats)
-              { shaderLocation: 2, offset: 0, format: "float32x4" },
-              { shaderLocation: 3, offset: 16, format: "float32x4" },
-              { shaderLocation: 4, offset: 32, format: "float32x4" },
-              { shaderLocation: 5, offset: 48, format: "float32x4" },
+              {shaderLocation: 2, offset: 0, format: "float32x4"},
+              {shaderLocation: 3, offset: 16, format: "float32x4"},
+              {shaderLocation: 4, offset: 32, format: "float32x4"},
+              {shaderLocation: 5, offset: 48, format: "float32x4"},
               // Параметры материала (9 floats)
-              { shaderLocation: 6, offset: 64, format: "float32x4" }, // color (rgba)
-              { shaderLocation: 7, offset: 80, format: "float32" }, // glowIntensity
-              { shaderLocation: 8, offset: 84, format: "float32x4" }, // glowColor (rgba)
+              {shaderLocation: 6, offset: 64, format: "float32x4"}, // color (rgba)
+              {shaderLocation: 7, offset: 80, format: "float32"}, // glowIntensity
+              {shaderLocation: 8, offset: 84, format: "float32x4"}, // glowColor (rgba)
             ],
           },
         ],
@@ -573,13 +564,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           },
         ],
       },
-      primitive: { topology: "line-list" },
+      primitive: {topology: "line-list"},
       depthStencil: {
         depthWriteEnabled: false,
         depthCompare: "less",
         format: "depth24plus-stencil8",
       },
-      multisample: { count: this.sampleCount },
+      multisample: {count: this.sampleCount},
     })
 
     // --- Pipelines для Text ---
@@ -588,22 +579,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       vertex: {
         module: textShaderModule,
         entryPoint: "vs_main",
-        buffers: [{ arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }] }],
+        buffers: [{arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]}],
       },
       fragment: {
         module: textShaderModule,
         entryPoint: "fs_stencil",
-        targets: [{ format: this.presentationFormat, writeMask: 0 }],
+        targets: [{format: this.presentationFormat, writeMask: 0}],
       },
-      primitive: { topology: "triangle-list", cullMode: "none" },
+      primitive: {topology: "triangle-list", cullMode: "none"},
       depthStencil: {
         depthWriteEnabled: false,
         depthCompare: "less",
         format: "depth24plus-stencil8",
-        stencilFront: { compare: "always", failOp: "keep", depthFailOp: "keep", passOp: "increment-wrap" },
-        stencilBack: { compare: "always", failOp: "keep", depthFailOp: "keep", passOp: "decrement-wrap" },
+        stencilFront: {compare: "always", failOp: "keep", depthFailOp: "keep", passOp: "increment-wrap"},
+        stencilBack: {compare: "always", failOp: "keep", depthFailOp: "keep", passOp: "decrement-wrap"},
       },
-      multisample: { count: this.sampleCount },
+      multisample: {count: this.sampleCount},
     })
 
     this.textCoverPipeline = await this.device.createRenderPipelineAsync({
@@ -611,22 +602,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       vertex: {
         module: textShaderModule,
         entryPoint: "vs_main",
-        buffers: [{ arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" }] }],
+        buffers: [{arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]}],
       },
       fragment: {
         module: textShaderModule,
         entryPoint: "fs_cover",
-        targets: [{ format: this.presentationFormat }],
+        targets: [{format: this.presentationFormat}],
       },
-      primitive: { topology: "triangle-list", cullMode: "none" },
+      primitive: {topology: "triangle-list", cullMode: "none"},
       depthStencil: {
         depthWriteEnabled: false,
         depthCompare: "less",
         format: "depth24plus-stencil8",
-        stencilFront: { compare: "not-equal", failOp: "keep", depthFailOp: "keep", passOp: "keep" },
-        stencilBack: { compare: "not-equal", failOp: "keep", depthFailOp: "keep", passOp: "keep" },
+        stencilFront: {compare: "not-equal", failOp: "keep", depthFailOp: "keep", passOp: "keep"},
+        stencilBack: {compare: "not-equal", failOp: "keep", depthFailOp: "keep", passOp: "keep"},
       },
-      multisample: { count: this.sampleCount },
+      multisample: {count: this.sampleCount},
     })
   }
 
@@ -643,29 +634,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   private updateOffscreenTextures(): void {
     if (!this.device || !this.canvas || !this.presentationFormat) return
-    
+
     const width = this.canvas.width
     const height = this.canvas.height
-    
+
     if (width === this.lastCanvasWidth && height === this.lastCanvasHeight) {
       return
     }
-    
+
     this.lastCanvasWidth = width
     this.lastCanvasHeight = height
-    
-    const textureUsage = GPUTextureUsage.RENDER_ATTACHMENT | 
-                         GPUTextureUsage.TEXTURE_BINDING | 
-                         GPUTextureUsage.STORAGE_BINDING |
-                         GPUTextureUsage.COPY_SRC
-    
+
+    const textureUsage = GPUTextureUsage.RENDER_ATTACHMENT |
+      GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.STORAGE_BINDING |
+      GPUTextureUsage.COPY_SRC
+
     // Освобождаем старые текстуры
     this.offscreenTexture?.destroy()
     this.offscreenResolvedTexture?.destroy()
     this.offscreenDepthTexture?.destroy()
     this.blurredIntermediateTexture?.destroy()
     this.finalBlurredTexture?.destroy()
-    
+
     // Мультисемплинговая текстура для offscreen-рендеринга
     this.offscreenTexture = this.device.createTexture({
       size: [width, height],
@@ -673,16 +664,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
       sampleCount: 4,
     })
-    
+
     // Разрешенная (односэмпловая) текстура для compute-шейдеров
     this.offscreenResolvedTexture = this.device.createTexture({
       size: [width, height],
       format: 'rgba8unorm',
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | 
-             GPUTextureUsage.TEXTURE_BINDING | 
-             GPUTextureUsage.COPY_SRC,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT |
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.COPY_SRC,
     })
-    
+
     // Текстура глубины для offscreen-пасса
     this.offscreenDepthTexture = this.device.createTexture({
       size: [width, height],
@@ -690,30 +681,30 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
       sampleCount: 4,
     })
-    
+
     // Текстуры для размытия
     this.blurredIntermediateTexture = this.device.createTexture({
       size: [width, height],
       format: 'rgba8unorm',
       usage: GPUTextureUsage.TEXTURE_BINDING |
-             GPUTextureUsage.STORAGE_BINDING |
-             GPUTextureUsage.COPY_SRC,
+        GPUTextureUsage.STORAGE_BINDING |
+        GPUTextureUsage.COPY_SRC,
     })
     this.finalBlurredTexture = this.device.createTexture({
       size: [width, height],
       format: 'rgba8unorm',
       usage: GPUTextureUsage.TEXTURE_BINDING |
-             GPUTextureUsage.STORAGE_BINDING |
-             GPUTextureUsage.COPY_SRC,
+        GPUTextureUsage.STORAGE_BINDING |
+        GPUTextureUsage.COPY_SRC,
     })
   }
 
   private collectSceneObjectsByType(
     renderList: RenderItem[]
-  ): { 
-    glassObjects: RenderItem[], 
-    regularObjects: RenderItem[], 
-    uiObjects: RenderItem[] 
+  ): {
+    glassObjects: RenderItem[],
+    regularObjects: RenderItem[],
+    uiObjects: RenderItem[]
   } {
     // Функция для проверки, является ли объект или любой из его родителей UIDisplay
     const isUIDisplayOrChildOfUIDisplay = (obj: Object3D): boolean => {
@@ -727,9 +718,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     return {
-      glassObjects: renderList.filter(item => item.object.material?.isGlassMaterial === true),
-      regularObjects: renderList.filter(item => 
-        !item.object.material?.isGlassMaterial && 
+      glassObjects: renderList.filter(item => (item.object.material as any)?.isGlassMaterial === true),
+      regularObjects: renderList.filter(item =>
+        !(item.object.material as any)?.isGlassMaterial &&
         !isUIDisplayOrChildOfUIDisplay(item.object)
       ),
       uiObjects: renderList.filter(item => isUIDisplayOrChildOfUIDisplay(item.object))
@@ -743,15 +734,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     horizontal: boolean
   ): void {
     if (!this.device || !this.blurComputePipelineHorizontal || !this.blurComputePipelineVertical) return
-    
+
     const computePass = commandEncoder.beginComputePass()
-    
-    const pipeline = horizontal 
-      ? this.blurComputePipelineHorizontal 
+
+    const pipeline = horizontal
+      ? this.blurComputePipelineHorizontal
       : this.blurComputePipelineVertical
-    
+
     computePass.setPipeline(pipeline)
-    
+
     // Создаем bind group для передачи текстур в шейдер
     const bindGroup = this.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
@@ -766,13 +757,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
       ]
     })
-    
+
     computePass.setBindGroup(0, bindGroup)
-    
+
     // Вычисляем количество workgroup
-    const width = this.canvas.width
-    const height = this.canvas.height
-    
+    const width = this.canvas!.width
+    const height = this.canvas!.height
+
     if (horizontal) {
       const workgroupCountX = Math.ceil(width / 64)
       computePass.dispatchWorkgroups(workgroupCountX, height)
@@ -780,7 +771,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       const workgroupCountY = Math.ceil(height / 64)
       computePass.dispatchWorkgroups(width, workgroupCountY)
     }
-    
+
     computePass.end()
   }
 
@@ -814,7 +805,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     const allLights: LightItem[] = []
     collectSceneObjects(scene, allRenderItems, allLights, this.frustum)
 
-    const { glassObjects, regularObjects, uiObjects } = this.collectSceneObjectsByType(allRenderItems)
+    const {glassObjects, regularObjects, uiObjects} = this.collectSceneObjectsByType(allRenderItems)
 
     // Update uniform buffers once for all objects.
     this.updateSceneUniforms(allLights, viewPoint.viewMatrix)
@@ -854,7 +845,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.applyBlur(commandEncoder, this.offscreenResolvedTexture, this.blurredIntermediateTexture, true)
       this.applyBlur(commandEncoder, this.blurredIntermediateTexture, this.finalBlurredTexture, false)
     }
-    
+
     // --- Pass 3: Final Render Pass ---
     const renderPassDescriptor: GPURenderPassDescriptor = {
       colorAttachments: [
@@ -863,7 +854,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           resolveTarget: textureView,
           loadOp: "clear",
           storeOp: "store",
-          clearValue: scene.background.toArray(),
+          clearValue: scene.background.toArray() as unknown as GPUColor,
         },
       ],
       depthStencilAttachment: {
@@ -878,14 +869,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor)
     passEncoder.setBindGroup(0, this.globalBindGroup!)
-    
+
     // Рендерим обычные объекты
-    this.renderObjectList(passEncoder, regularObjects, allRenderItems);
+    this.renderObjectList(passEncoder, regularObjects, allRenderItems)
     // Рендерим стеклянные объекты (пока как обычные, но с прозрачностью)
-    this.renderObjectList(passEncoder, glassObjects, allRenderItems);
+    this.renderObjectList(passEncoder, glassObjects, allRenderItems)
     // Рендерим UI объекты
-    this.renderObjectList(passEncoder, uiObjects, allRenderItems);
-    
+    this.renderObjectList(passEncoder, uiObjects, allRenderItems)
+
     passEncoder.end()
     this.device.queue.submit([commandEncoder.finish()])
   }
@@ -898,10 +889,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     for (let i = 0; i < objects.length; i++) {
       const item = objects[i]
-      if (!item) continue;
+      if (!item) continue
       const dynamicOffset = i * PER_OBJECT_DATA_SIZE
       const offsetFloats = dynamicOffset / 4
-      
+
       switch (item.type) {
         case "static-mesh":
           this.updateMeshData(item.object as Mesh, item.worldMatrix, offsetFloats)
@@ -927,15 +918,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   }
 
   private updateSkinnedMeshData(mesh: SkinnedMesh, worldMatrix: Matrix4, offsetFloats: number): void {
-    this.updateMeshData(mesh, worldMatrix, offsetFloats);
-    const dynamicOffset = offsetFloats * 4;
-    const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE;
-    this.perObjectDataCPU!.set(mesh.skeleton.boneMatrices, boneMatricesOffset / 4);
+    this.updateMeshData(mesh, worldMatrix, offsetFloats)
+    const dynamicOffset = offsetFloats * 4
+    const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
+    this.perObjectDataCPU!.set(mesh.skeleton.boneMatrices, boneMatricesOffset / 4)
   }
 
   private updateMeshData(mesh: Mesh, worldMatrix: Matrix4, offsetFloats: number): void {
     const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
-    if (!material.visible) return
+    if (!material || !material.visible) return
 
     const normalMatrix = new Matrix4().copy(worldMatrix).invert().transpose()
 
@@ -944,22 +935,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (material instanceof MeshBasicMaterial || material instanceof MeshLambertMaterial) {
       this.perObjectDataCPU!.set(material.color.toArray(), offsetFloats + 32)
-    } else if (material instanceof GlassMaterial) {
-      this.perObjectDataCPU!.set(material.tintColor.toArray(), offsetFloats + 32)
+    } else if ((material as any).isGlassMaterial) {
+      this.perObjectDataCPU!.set((material as GlassMaterial).tintColor.toArray(), offsetFloats + 32)
     }
   }
 
   private updateInstancedMeshData(mesh: InstancedMesh, worldMatrix: Matrix4, offsetFloats: number): void {
     const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
-    if (!material.visible) return
+    if (!material!.visible) return
 
     const normalMatrix = new Matrix4().copy(worldMatrix).invert().transpose()
 
     this.perObjectDataCPU!.set(worldMatrix.elements, offsetFloats)
     this.perObjectDataCPU!.set(normalMatrix.elements, offsetFloats + 16)
 
-    if (material instanceof MeshBasicMaterial || material instanceof MeshLambertMaterial) {
-      this.perObjectDataCPU!.set([...material.color.toArray(), 1.0], offsetFloats + 32)
+    if (material! instanceof MeshBasicMaterial || material! instanceof MeshLambertMaterial) {
+      this.perObjectDataCPU!.set([...material!.color.toArray(), 1.0], offsetFloats + 32)
     }
   }
 
@@ -1126,21 +1117,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Вычисляем позицию камеры в мировых координатах из viewMatrix
     // cameraPosition = -transpose(rotationPart) * translationPart
     const te = viewMatrix.elements
-    const tx = te[12]
-    const ty = te[13]
-    const tz = te[14]
+    const tx = te[12]!
+    const ty = te[13]!
+    const tz = te[14]!
     const cameraPosition = new Vector3(
-      -(te[0] * tx + te[1] * ty + te[2] * tz),
-      -(te[4] * tx + te[5] * ty + te[6] * tz),
-      -(te[8] * tx + te[9] * ty + te[10] * tz),
+      -(te[0]! * tx + te[1]! * ty + te[2]! * tz),
+      -(te[4]! * tx + te[5]! * ty + te[6]! * tz),
+      -(te[8]! * tx + te[9]! * ty + te[10]! * tz),
     )
     // Записываем cameraPosition после lights (36 + 4*32 = 164)
     // 36 + 4*32 = 164 байта, что соответствует 41 элементу float32 (164/4 = 41)
     float32View.set([cameraPosition.x, cameraPosition.y, cameraPosition.z], 41)
 
     const lightsArrayOffset = 36
-    for (let i = 0; i < uint32View[32]; i++) {
-      const lightItem = lights[i]
+    for (let i = 0; i < uint32View[32]!; i++) {
+      const lightItem = lights[i]!
       const light = lightItem.light
       const worldLightPos = new Vector3(
         lightItem.worldMatrix.elements[12],
@@ -1182,7 +1173,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (!this.device) throw new Error("Device not initialized")
 
     const positionBuffer = this.createAndUploadBuffer(
-      geometry.attributes.position.array as ArrayBufferView,
+      geometry.attributes.position!.array as ArrayBufferView,
       GPUBufferUsage.VERTEX,
     )
 
@@ -1236,7 +1227,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       )
     } else {
       // Для линий создаем буфер цвета, заполненный единицами (белый цвет)
-      const vertexCount = geometry.attributes.position.count
+      const vertexCount = geometry.attributes.position!.count
       const defaultColors = new Float32Array(vertexCount * 3)
       for (let i = 0; i < vertexCount * 3; i++) {
         defaultColors[i] = 1.0
@@ -1254,14 +1245,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     const buffers: GeometryBuffers = {
       positionBuffer,
-      normalBuffer,
       colorBuffer,
-      indexBuffer,
-      skinIndexBuffer,
-      skinWeightBuffer,
-      instanceMatrixBuffer,
-      instanceBuffer,
     }
+    if (normalBuffer) buffers.normalBuffer = normalBuffer
+    if (indexBuffer) buffers.indexBuffer = indexBuffer
+    if (skinIndexBuffer) buffers.skinIndexBuffer = skinIndexBuffer
+    if (skinWeightBuffer) buffers.skinWeightBuffer = skinWeightBuffer
+    if (instanceMatrixBuffer) buffers.instanceMatrixBuffer = instanceMatrixBuffer
+    if (instanceBuffer) buffers.instanceBuffer = instanceBuffer
 
     this.geometryCache.set(geometry, buffers)
     return buffers
@@ -1275,15 +1266,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   ): void {
     if (!this.device || !this.perObjectUniformBuffer || !this.perObjectBindGroup) return
     const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
-    if (!material.visible) return
+    if (!material!.visible) return
 
-    const isSkinned = (mesh as SkinnedMesh).isSkinnedMesh;
+    const isSkinned = (mesh as SkinnedMesh).isSkinnedMesh
     const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
     const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
 
     if (passEncoder) {
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
-      const { positionBuffer, normalBuffer, indexBuffer, skinIndexBuffer, skinWeightBuffer } =
+      const {positionBuffer, normalBuffer, indexBuffer, skinIndexBuffer, skinWeightBuffer} =
         this.getOrCreateGeometryBuffers(mesh.geometry)
 
       passEncoder.setVertexBuffer(0, positionBuffer)
@@ -1301,7 +1292,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         passEncoder.setIndexBuffer(indexBuffer, indexFormat)
         passEncoder.drawIndexed(mesh.geometry.index!.count)
       } else {
-        passEncoder.draw(mesh.geometry.attributes.position.count)
+        passEncoder.draw(mesh.geometry.attributes.position!.count)
       }
     }
   }
@@ -1314,7 +1305,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   ): void {
     if (!this.device || !this.perObjectUniformBuffer || !this.perObjectBindGroup || !this.perObjectDataCPU) return
     const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
-    if (!material.visible) return
+    if (!material!.visible) return
 
     const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
     const offsetFloats = dynamicOffset / 4
@@ -1332,7 +1323,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
 
-      const { positionBuffer, normalBuffer, indexBuffer, instanceMatrixBuffer } = this.getOrCreateGeometryBuffers(
+      const {positionBuffer, normalBuffer, indexBuffer, instanceMatrixBuffer} = this.getOrCreateGeometryBuffers(
         mesh.geometry,
       )
 
@@ -1351,7 +1342,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         passEncoder.setIndexBuffer(indexBuffer, indexFormat)
         passEncoder.drawIndexed(mesh.geometry.index!.count, mesh.count)
       } else {
-        passEncoder.draw(mesh.geometry.attributes.position.count, mesh.count)
+        passEncoder.draw(mesh.geometry.attributes.position!.count, mesh.count)
       }
     }
   }
@@ -1403,11 +1394,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (passEncoder) {
       const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
-      const { positionBuffer, colorBuffer } = this.getOrCreateGeometryBuffers(lines.geometry)
+      const {positionBuffer, colorBuffer} = this.getOrCreateGeometryBuffers(lines.geometry)
 
       passEncoder.setVertexBuffer(0, positionBuffer)
       passEncoder.setVertexBuffer(1, colorBuffer || positionBuffer)
-      passEncoder.draw(lines.geometry.attributes.position.count)
+      passEncoder.draw(lines.geometry.attributes.position!.count)
     }
   }
 
@@ -1437,14 +1428,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (passEncoder) {
       const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
-      const { positionBuffer, colorBuffer, instanceBuffer } = this.getOrCreateGeometryBuffers(lines.geometry)
+      const {positionBuffer, colorBuffer, instanceBuffer} = this.getOrCreateGeometryBuffers(lines.geometry)
 
       passEncoder.setVertexBuffer(0, positionBuffer)
       passEncoder.setVertexBuffer(1, colorBuffer || positionBuffer)
       if (instanceBuffer) {
         passEncoder.setVertexBuffer(2, instanceBuffer)
       }
-      passEncoder.draw(lines.geometry.attributes.position.count, lines.count)
+      passEncoder.draw(lines.geometry.attributes.position!.count, lines.count)
     }
   }
 
@@ -1469,7 +1460,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (passEncoder) {
       const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
-      const { positionBuffer, indexBuffer } = this.getOrCreateGeometryBuffers(geometry)
+      const {positionBuffer, indexBuffer} = this.getOrCreateGeometryBuffers(geometry)
 
       passEncoder.setVertexBuffer(0, positionBuffer)
       const indexFormat = geometry.index.array instanceof Uint32Array ? "uint32" : "uint16"
@@ -1490,7 +1481,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       if (this.depthTexture) this.depthTexture.destroy()
       if (this.multisampleTexture) this.multisampleTexture.destroy()
 
-      const size = { width: this.canvas.width, height: this.canvas.height }
+      const size = {width: this.canvas.width, height: this.canvas.height}
 
       this.depthTexture = this.device.createTexture({
         size,

@@ -390,7 +390,6 @@ const createShellMaterial = (shell: DbParticleShellSnapshot): LineGlowMaterial =
 		glowIntensity: shell.kind === "wimp" ? 1.4 : 1.15,
 		glowColor: THEME_PRIMARY_GLOW.clone(),
 		opacity: activeRenderSettings.wireframeOpacity,
-		transparent: true,
 	})
 
 const createFieldMaterial = (orbit: DbFieldOrbitSnapshot): LineGlowMaterial => {
@@ -400,7 +399,6 @@ const createFieldMaterial = (orbit: DbFieldOrbitSnapshot): LineGlowMaterial => {
 		glowIntensity: 1,
 		glowColor: theme.glowColor.clone(),
 		opacity: activeRenderSettings.wireframeOpacity * 0.95,
-		transparent: true,
 	})
 }
 
@@ -733,7 +731,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		existing.snapshot = { ...shell }
 		existing.baseShellScale = shell.shellScale
 		existing.targetLocalPosition.set(shell.localX, shell.localY, shell.localZ)
-		existing.pickTarget.parentParticleId = shell.parentParticleId
+		if (existing.pickTarget.kind === "shell") {
+			existing.pickTarget.parentParticleId = shell.parentParticleId
+		}
 		existing.pickTarget.depth = shell.depth
 
 		if (geometryChanged && nextLocalOuterRadius > 1e-6) {
@@ -1124,10 +1124,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				reusableWorldScale,
 			)
 			record.pickTarget.center.copy(reusableWorldPosition)
-			record.pickTarget.shellRadius = record.snapshot.shellRadius * reusableWorldScale.x
-			record.pickTarget.shellTube = record.snapshot.shellTube * reusableWorldScale.x
-			record.pickTarget.outerRadius =
-				(record.snapshot.shellRadius + record.snapshot.shellTube) * reusableWorldScale.x
+			if (record.pickTarget.kind === "shell") {
+				record.pickTarget.shellRadius = record.snapshot.shellRadius * reusableWorldScale.x
+				record.pickTarget.shellTube = record.snapshot.shellTube * reusableWorldScale.x
+				record.pickTarget.outerRadius =
+					(record.snapshot.shellRadius + record.snapshot.shellTube) * reusableWorldScale.x
+			}
 		}
 
 		for (const record of fieldRecords.values()) {
@@ -1137,8 +1139,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				reusableWorldScale,
 			)
 			record.pickTarget.center.copy(reusableWorldPosition)
-			record.pickTarget.sphereRadius = record.snapshot.sphereRadius * reusableWorldScale.x
-			record.pickTarget.outerRadius = record.pickTarget.sphereRadius
+			if (record.pickTarget.kind === "field") {
+				record.pickTarget.sphereRadius = record.snapshot.sphereRadius * reusableWorldScale.x
+				record.pickTarget.outerRadius = record.pickTarget.sphereRadius
+			}
 		}
 	}
 
@@ -1150,7 +1154,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (!navigationState) return null
 
 		if (navigationState.targetKey) {
-			const liveTarget = pickTargets.find((target) => getPickTargetKey(target) === navigationState.targetKey) ?? null
+			const liveTarget = pickTargets.find((target) => getPickTargetKey(target) === navigationState!.targetKey) ?? null
 			if (liveTarget) {
 				navigationState.fallbackTarget.copy(liveTarget.center)
 				navigationState.fallbackFocusRadius = liveTarget.outerRadius
@@ -1346,7 +1350,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (fadingRemovalRecords.length > 0) {
 			const now = performance.now()
 			for (let index = fadingRemovalRecords.length - 1; index >= 0; index -= 1) {
-				const record = fadingRemovalRecords[index]
+				const record = fadingRemovalRecords[index]!
 				const linearProgress = Math.min(1, Math.max(0, (now - record.startedAtMs) / record.durationMs))
 				const progress = easeOutCubic(linearProgress)
 				const fadeScale = mixScalar(1, REMOVAL_SCALE_MULTIPLIER, progress)
@@ -1380,7 +1384,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (fadingLabelRemovalRecords.length > 0) {
 			const now = performance.now()
 			for (let index = fadingLabelRemovalRecords.length - 1; index >= 0; index -= 1) {
-				const record = fadingLabelRemovalRecords[index]
+				const record = fadingLabelRemovalRecords[index]!
 				const linearProgress = Math.min(1, Math.max(0, (now - record.startedAtMs) / record.durationMs))
 				const progress = easeOutCubic(linearProgress)
 				const fadeScale = mixScalar(1, REMOVAL_SCALE_MULTIPLIER, progress)

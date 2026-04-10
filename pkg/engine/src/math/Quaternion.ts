@@ -53,10 +53,10 @@ export class Quaternion {
   }
 
   public fromArray( array: ArrayLike<number>, offset: number = 0 ): this {
-		this.x = array[ offset ];
-		this.y = array[ offset + 1 ];
-		this.z = array[ offset + 2 ];
-		this.w = array[ offset + 3 ];
+		this.x = array[ offset ]!;
+		this.y = array[ offset + 1 ]!;
+		this.z = array[ offset + 2 ]!;
+		this.w = array[ offset + 3 ]!;
 		return this;
 	}
 
@@ -97,15 +97,15 @@ export class Quaternion {
    */
   public setFromRotationMatrix(m: Matrix4): this {
     const te = m.elements,
-      m11 = te[0],
-      m12 = te[4],
-      m13 = te[8],
-      m21 = te[1],
-      m22 = te[5],
-      m23 = te[9],
-      m31 = te[2],
-      m32 = te[6],
-      m33 = te[10],
+      m11 = te[0]!,
+      m12 = te[4]!,
+      m13 = te[8]!,
+      m21 = te[1]!,
+      m22 = te[5]!,
+      m23 = te[9]!,
+      m31 = te[2]!,
+      m32 = te[6]!,
+      m33 = te[10]!,
       trace = m11 + m22 + m33;
     if (trace > 0) {
       const s = 0.5 / Math.sqrt(trace + 1.0);

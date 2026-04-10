@@ -52,12 +52,12 @@ export class Matrix4 {
 		const te = this.elements
 		let tmp
 
-		tmp = te[1]; te[1] = te[4]; te[4] = tmp
-		tmp = te[2]; te[2] = te[8]; te[8] = tmp
-		tmp = te[6]; te[6] = te[9]; te[9] = tmp
-		tmp = te[3]; te[3] = te[12]; te[12] = tmp
-		tmp = te[7]; te[7] = te[13]; te[13] = tmp
-		tmp = te[11]; te[11] = te[14]; te[14] = tmp
+		tmp = te[1]!; te[1] = te[4]!; te[4] = tmp
+		tmp = te[2]!; te[2] = te[8]!; te[8] = tmp
+		tmp = te[6]!; te[6] = te[9]!; te[9] = tmp
+		tmp = te[3]!; te[3] = te[12]!; te[12] = tmp
+		tmp = te[7]!; te[7] = te[13]!; te[13] = tmp
+		tmp = te[11]!; te[11] = te[14]!; te[14] = tmp
 
 		return this
 	}
@@ -85,15 +85,15 @@ export class Matrix4 {
 		const be = b.elements
 		const te = this.elements
 
-		const a11 = ae[0], a12 = ae[4], a13 = ae[8], a14 = ae[12]
-		const a21 = ae[1], a22 = ae[5], a23 = ae[9], a24 = ae[13]
-		const a31 = ae[2], a32 = ae[6], a33 = ae[10], a34 = ae[14]
-		const a41 = ae[3], a42 = ae[7], a43 = ae[11], a44 = ae[15]
+		const a11 = ae[0]!, a12 = ae[4]!, a13 = ae[8]!, a14 = ae[12]!
+		const a21 = ae[1]!, a22 = ae[5]!, a23 = ae[9]!, a24 = ae[13]!
+		const a31 = ae[2]!, a32 = ae[6]!, a33 = ae[10]!, a34 = ae[14]!
+		const a41 = ae[3]!, a42 = ae[7]!, a43 = ae[11]!, a44 = ae[15]!
 
-		const b11 = be[0], b12 = be[4], b13 = be[8], b14 = be[12]
-		const b21 = be[1], b22 = be[5], b23 = be[9], b24 = be[13]
-		const b31 = be[2], b32 = be[6], b33 = be[10], b34 = be[14]
-		const b41 = be[3], b42 = be[7], b43 = be[11], b44 = be[15]
+		const b11 = be[0]!, b12 = be[4]!, b13 = be[8]!, b14 = be[12]!
+		const b21 = be[1]!, b22 = be[5]!, b23 = be[9]!, b24 = be[13]!
+		const b31 = be[2]!, b32 = be[6]!, b33 = be[10]!, b34 = be[14]!
+		const b41 = be[3]!, b42 = be[7]!, b43 = be[11]!, b44 = be[15]!
 
 		te[0] = a11 * b11 + a12 * b21 + a13 * b31 + a14 * b41
 		te[4] = a11 * b12 + a12 * b22 + a13 * b32 + a14 * b42
@@ -123,10 +123,10 @@ export class Matrix4 {
 	 */
 	public invert(): this {
 		const te = this.elements
-		const n11 = te[0], n21 = te[1], n31 = te[2], n41 = te[3]
-		const n12 = te[4], n22 = te[5], n32 = te[6], n42 = te[7]
-		const n13 = te[8], n23 = te[9], n33 = te[10], n43 = te[11]
-		const n14 = te[12], n24 = te[13], n34 = te[14], n44 = te[15]
+		const n11 = te[0]!, n21 = te[1]!, n31 = te[2]!, n41 = te[3]!
+		const n12 = te[4]!, n22 = te[5]!, n32 = te[6]!, n42 = te[7]!
+		const n13 = te[8]!, n23 = te[9]!, n33 = te[10]!, n43 = te[11]!
+		const n14 = te[12]!, n24 = te[13]!, n34 = te[14]!, n44 = te[15]!
 
 		const t11 = n23 * n34 * n42 - n24 * n33 * n42 + n24 * n32 * n43 - n22 * n34 * n43 - n23 * n32 * n44 + n22 * n33 * n44
 		const t12 = n14 * n33 * n42 - n13 * n34 * n42 - n14 * n32 * n43 + n12 * n34 * n43 + n13 * n32 * n44 - n12 * n33 * n44
@@ -269,16 +269,16 @@ export class Matrix4 {
   public decompose(position: Vector3, quaternion: Quaternion, scale: Vector3): void {
     const te = this.elements
 
-    let sx = new Vector3(te[0], te[1], te[2]).length()
-    const sy = new Vector3(te[4], te[5], te[6]).length()
-    const sz = new Vector3(te[8], te[9], te[10]).length()
+    let sx = new Vector3(te[0]!, te[1]!, te[2]!).length()
+    const sy = new Vector3(te[4]!, te[5]!, te[6]!).length()
+    const sz = new Vector3(te[8]!, te[9]!, te[10]!).length()
 
     const det = this.determinant()
     if (det < 0) sx = -sx
 
-    position.x = te[12]
-    position.y = te[13]
-    position.z = te[14]
+    position.x = te[12]!
+    position.y = te[13]!
+    position.z = te[14]!
 
     const matrix = new Matrix4().copy(this)
 
@@ -286,17 +286,17 @@ export class Matrix4 {
     const invSY = 1 / sy
     const invSZ = 1 / sz
 
-    matrix.elements[0] *= invSX
-    matrix.elements[1] *= invSX
-    matrix.elements[2] *= invSX
+    matrix.elements[0]! *= invSX
+    matrix.elements[1]! *= invSX
+    matrix.elements[2]! *= invSX
 
-    matrix.elements[4] *= invSY
-    matrix.elements[5] *= invSY
-    matrix.elements[6] *= invSY
+    matrix.elements[4]! *= invSY
+    matrix.elements[5]! *= invSY
+    matrix.elements[6]! *= invSY
 
-    matrix.elements[8] *= invSZ
-    matrix.elements[9] *= invSZ
-    matrix.elements[10] *= invSZ
+    matrix.elements[8]! *= invSZ
+    matrix.elements[9]! *= invSZ
+    matrix.elements[10]! *= invSZ
 
     quaternion.setFromRotationMatrix(matrix)
 
@@ -330,19 +330,19 @@ export class Matrix4 {
 
     // Умножаем текущую матрицу на матрицу масштабирования
     // Масштабируем каждый столбец матрицы
-    te[0] *= x; te[1] *= x; te[2] *= x; te[3] *= x
-    te[4] *= y; te[5] *= y; te[6] *= y; te[7] *= y
-    te[8] *= z; te[9] *= z; te[10] *= z; te[11] *= z
+    te[0]! *= x; te[1]! *= x; te[2]! *= x; te[3]! *= x
+    te[4]! *= y; te[5]! *= y; te[6]! *= y; te[7]! *= y
+    te[8]! *= z; te[9]! *= z; te[10]! *= z; te[11]! *= z
 
     return this
   }
 
   public determinant(): number {
     const te = this.elements
-    const n11 = te[0], n12 = te[4], n13 = te[8], n14 = te[12]
-    const n21 = te[1], n22 = te[5], n23 = te[9], n24 = te[13]
-    const n31 = te[2], n32 = te[6], n33 = te[10], n34 = te[14]
-    const n41 = te[3], n42 = te[7], n43 = te[11], n44 = te[15]
+    const n11 = te[0]!, n12 = te[4]!, n13 = te[8]!, n14 = te[12]!
+    const n21 = te[1]!, n22 = te[5]!, n23 = te[9]!, n24 = te[13]!
+    const n31 = te[2]!, n32 = te[6]!, n33 = te[10]!, n34 = te[14]!
+    const n41 = te[3]!, n42 = te[7]!, n43 = te[11]!, n44 = te[15]!
 
     return (
       n41 * (+n14 * n23 * n32 - n13 * n24 * n32 - n14 * n22 * n33 + n12 * n24 * n33 + n13 * n22 * n34 - n12 * n23 * n34) +
@@ -354,9 +354,9 @@ export class Matrix4 {
 
   public getMaxScaleOnAxis(): number {
     const te = this.elements
-    const scaleXSq = te[0] * te[0] + te[1] * te[1] + te[2] * te[2]
-    const scaleYSq = te[4] * te[4] + te[5] * te[5] + te[6] * te[6]
-    const scaleZSq = te[8] * te[8] + te[9] * te[9] + te[10] * te[10]
+    const scaleXSq = te[0]! * te[0]! + te[1]! * te[1]! + te[2]! * te[2]!
+    const scaleYSq = te[4]! * te[4]! + te[5]! * te[5]! + te[6]! * te[6]!
+    const scaleZSq = te[8]! * te[8]! + te[9]! * te[9]! + te[10]! * te[10]!
     return Math.sqrt(Math.max(scaleXSq, scaleYSq, scaleZSq))
   }
 }

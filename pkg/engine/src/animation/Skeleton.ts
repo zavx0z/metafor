@@ -1,4 +1,4 @@
-import { Matrix4 } from "../math/Matrix4"
+import { Matrix4 } from "../math"
 import { Object3D } from "../core/Object3D"
 
 export class Skeleton {
@@ -14,8 +14,8 @@ export class Skeleton {
 
   public update(): void {
     for (let i = 0; i < this.bones.length; i++) {
-      const bone = this.bones[i]
-      const matrix = new Matrix4().multiplyMatrices(bone.matrixWorld, this.boneInverses[i])
+      const bone = this.bones[i]!
+      const matrix = new Matrix4().multiplyMatrices(bone.matrixWorld, this.boneInverses[i]!)
       this.boneMatrices.set(matrix.elements, i * 16)
     }
   }

@@ -6,8 +6,8 @@ import { LineSegments } from "../objects/LineSegments"
 import { LineBasicMaterial } from "../materials/LineBasicMaterial"
 import { BufferGeometry, BufferAttribute } from "../core/BufferGeometry"
 import { Line } from "../objects/Line"
-import { Color } from "../math/Color"
-import { LayoutProps } from "../layout/LayoutTypes"
+import { Color } from "../math"
+import { type LayoutProps } from "../layout/LayoutTypes"
 
 export interface UIDisplayParameters {
   width: number // Физическая ширина в метрах

@@ -1,9 +1,7 @@
 import { BufferGeometry, BufferAttribute } from "./BufferGeometry"
-import { Material } from "../materials/Material"
+import { Material } from "../materials"
 import { Mesh } from "./Mesh"
-import { Matrix4 } from "../math/Matrix4"
-import { Quaternion } from "../math/Quaternion"
-import { Vector3 } from "../math/Vector3"
+import { Matrix4, Quaternion, Vector3 } from "../math"
 
 export class InstancedMesh extends Mesh {
   public readonly isInstancedMesh: true = true
@@ -69,20 +67,20 @@ export class InstancedMesh extends Mesh {
     tempMatrix.makeRotationFromQuaternion(quaternion)
     
     const offset = index * 16
-    const te = tempMatrix.elements
-    
+    const te = tempMatrix.elements!
+
     // Копируем только вращательную часть (3x3)
-    this.instanceMatrix[offset] = te[0]
-    this.instanceMatrix[offset + 1] = te[1]
-    this.instanceMatrix[offset + 2] = te[2]
-    
-    this.instanceMatrix[offset + 4] = te[4]
-    this.instanceMatrix[offset + 5] = te[5]
-    this.instanceMatrix[offset + 6] = te[6]
-    
-    this.instanceMatrix[offset + 8] = te[8]
-    this.instanceMatrix[offset + 9] = te[9]
-    this.instanceMatrix[offset + 10] = te[10]
+    this.instanceMatrix![offset] = te[0]!
+    this.instanceMatrix![offset + 1] = te[1]!
+    this.instanceMatrix![offset + 2] = te[2]!
+
+    this.instanceMatrix![offset + 4] = te[4]!
+    this.instanceMatrix![offset + 5] = te[5]!
+    this.instanceMatrix![offset + 6] = te[6]!
+
+    this.instanceMatrix![offset + 8] = te[8]!
+    this.instanceMatrix![offset + 9] = te[9]!
+    this.instanceMatrix![offset + 10] = te[10]!
   }
 
   public setScaleAt(index: number, scale: Vector3): void {
@@ -91,18 +89,18 @@ export class InstancedMesh extends Mesh {
     }
     
     const offset = index * 16
-    
+
     // Масштабируем вращательную часть матрицы
-    this.instanceMatrix[offset] *= scale.x
-    this.instanceMatrix[offset + 1] *= scale.x
-    this.instanceMatrix[offset + 2] *= scale.x
-    
-    this.instanceMatrix[offset + 4] *= scale.y
-    this.instanceMatrix[offset + 5] *= scale.y
-    this.instanceMatrix[offset + 6] *= scale.y
-    
-    this.instanceMatrix[offset + 8] *= scale.z
-    this.instanceMatrix[offset + 9] *= scale.z
-    this.instanceMatrix[offset + 10] *= scale.z
+    this.instanceMatrix![offset] = this.instanceMatrix![offset]! * scale.x
+    this.instanceMatrix![offset + 1] = this.instanceMatrix![offset + 1]! * scale.x
+    this.instanceMatrix![offset + 2] = this.instanceMatrix![offset + 2]! * scale.x
+
+    this.instanceMatrix![offset + 4] = this.instanceMatrix![offset + 4]! * scale.y
+    this.instanceMatrix![offset + 5] = this.instanceMatrix![offset + 5]! * scale.y
+    this.instanceMatrix![offset + 6] = this.instanceMatrix![offset + 6]! * scale.y
+
+    this.instanceMatrix![offset + 8] = this.instanceMatrix![offset + 8]! * scale.z
+    this.instanceMatrix![offset + 9] = this.instanceMatrix![offset + 9]! * scale.z
+    this.instanceMatrix![offset + 10] = this.instanceMatrix![offset + 10]! * scale.z
   }
 }

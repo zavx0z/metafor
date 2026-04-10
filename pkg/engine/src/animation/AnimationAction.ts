@@ -1,8 +1,7 @@
 import { AnimationClip } from "./AnimationClip"
 import { AnimationMixer } from "./AnimationMixer"
 import { KeyframeTrack } from "./KeyframeTrack"
-import { Quaternion } from "../math/Quaternion"
-import { Vector3 } from "../math/Vector3"
+import { Quaternion, Vector3 } from "../math"
 
 // Вспомогательные типы для прототипов
 declare module "../math/Vector3" {
@@ -72,8 +71,8 @@ export class AnimationAction {
       if (prevIndex === nextIndex) {
         this.applyValue(node, track, prevIndex)
       } else {
-        const prevTime = times[prevIndex]
-        const nextTime = times[nextIndex]
+        const prevTime = times[prevIndex]!
+        const nextTime = times[nextIndex]!
         const t = (this.time - prevTime) / (nextTime - prevTime)
         this.interpolateAndApply(node, track, prevIndex, nextIndex, t)
       }
@@ -88,7 +87,7 @@ export class AnimationAction {
     while (low < high) {
       // Bitwise shift is faster than Math.floor
       const mid = (low + high + 1) >>> 1
-      if (times[mid] <= time) {
+      if (times[mid]! <= time) {
         low = mid
       } else {
         high = mid - 1

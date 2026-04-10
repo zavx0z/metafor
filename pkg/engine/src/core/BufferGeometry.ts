@@ -1,5 +1,4 @@
-import { Vector3 } from "../math/Vector3"
-import { Sphere } from "../math/Sphere"
+import { Vector3, Sphere } from "../math"
 
 /**
  * Типы TypedArray, которые можно использовать в BufferAttribute.
@@ -156,9 +155,9 @@ export class BufferGeometry {
 
     // Итерация по треугольникам
     for (let i = 0, il = index.count; i < il; i += 3) {
-      const vA = indices[i + 0]
-      const vB = indices[i + 1]
-      const vC = indices[i + 2]
+      const vA = indices[i + 0]!
+      const vB = indices[i + 1]!
+      const vC = indices[i + 2]!
 
       pA.fromArray(positions, vA * 3)
       pB.fromArray(positions, vB * 3)
@@ -172,17 +171,17 @@ export class BufferGeometry {
       // Складывая их, мы автоматически получаем Area Weighted Average.
       cb.cross(ab)
 
-      normals[vA * 3] += cb.x
-      normals[vA * 3 + 1] += cb.y
-      normals[vA * 3 + 2] += cb.z
+      normals[vA * 3]! += cb.x
+      normals[vA * 3 + 1]! += cb.y
+      normals[vA * 3 + 2]! += cb.z
 
-      normals[vB * 3] += cb.x
-      normals[vB * 3 + 1] += cb.y
-      normals[vB * 3 + 2] += cb.z
+      normals[vB * 3]! += cb.x
+      normals[vB * 3 + 1]! += cb.y
+      normals[vB * 3 + 2]! += cb.z
 
-      normals[vC * 3] += cb.x
-      normals[vC * 3 + 1] += cb.y
-      normals[vC * 3 + 2] += cb.z
+      normals[vC * 3]! += cb.x
+      normals[vC * 3 + 1]! += cb.y
+      normals[vC * 3 + 2]! += cb.z
     }
 
     this.normalizeNormals(normalAttribute)
@@ -219,9 +218,9 @@ export class BufferGeometry {
 
       // 1. Calculate Bounding Box
       for (let i = 0; i < position.count; i++) {
-        const x = array[i * 3]
-        const y = array[i * 3 + 1]
-        const z = array[i * 3 + 2]
+        const x = array[i * 3]!
+        const y = array[i * 3 + 1]!
+        const z = array[i * 3 + 2]!
         if (x < minX) minX = x; if (x > maxX) maxX = x
         if (y < minY) minY = y; if (y > maxY) maxY = y
         if (z < minZ) minZ = z; if (z > maxZ) maxZ = z
@@ -232,9 +231,9 @@ export class BufferGeometry {
       // 2. Calculate Radius
       let maxRadiusSq = 0
       for (let i = 0; i < position.count; i++) {
-        const x = array[i * 3]
-        const y = array[i * 3 + 1]
-        const z = array[i * 3 + 2]
+        const x = array[i * 3]!
+        const y = array[i * 3 + 1]!
+        const z = array[i * 3 + 2]!
         const dx = x - center.x
         const dy = y - center.y
         const dz = z - center.z

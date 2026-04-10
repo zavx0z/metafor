@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry } from "../core/BufferGeometry"
-import { Vector3 } from "../math/Vector3"
+import { Vector3 } from "../math"
 
 interface SphereGeometryParameters {
   radius?: number
@@ -64,10 +64,10 @@ export class SphereGeometry extends BufferGeometry {
     // Генерация индексов
     for (let iy = 0; iy < heightSegs; iy++) {
       for (let ix = 0; ix < widthSegs; ix++) {
-        const a = grid[iy][ix + 1]
-        const b = grid[iy][ix]
-        const c = grid[iy + 1][ix]
-        const d = grid[iy + 1][ix + 1]
+        const a = grid[iy]![ix + 1]!
+        const b = grid[iy]![ix]!
+        const c = grid[iy + 1]![ix]!
+        const d = grid[iy + 1]![ix + 1]!
         if (iy !== 0) {
           indices.push(a, b, d)
         }
@@ -84,7 +84,7 @@ export class SphereGeometry extends BufferGeometry {
   }
 
   public override toWireframe(): BufferGeometry {
-    const positions = this.attributes.position.array
+    const positions = this.attributes.position!.array!
     const widthSegs = this.widthSegments
     const heightSegs = this.heightSegments
     const lines: number[] = []
@@ -98,15 +98,15 @@ export class SphereGeometry extends BufferGeometry {
         // Horizontal line
         if (ix < widthSegs) {
           const b = getIndex(iy, ix + 1)
-          lines.push(positions[a], positions[a + 1], positions[a + 2])
-          lines.push(positions[b], positions[b + 1], positions[b + 2])
+          lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
+          lines.push(positions[b]!, positions[b + 1]!, positions[b + 2]!)
         }
 
         // Vertical line
         if (iy < heightSegs) {
           const c = getIndex(iy + 1, ix)
-          lines.push(positions[a], positions[a + 1], positions[a + 2])
-          lines.push(positions[c], positions[c + 1], positions[c + 2])
+          lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
+          lines.push(positions[c]!, positions[c + 1]!, positions[c + 2]!)
         }
       }
     }
