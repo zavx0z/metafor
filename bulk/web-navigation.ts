@@ -84,7 +84,8 @@ export type BulkHoverDirection = -1 | 0 | 1
 
 const DEFAULT_HIT_PADDING_MM = 32
 const DEFAULT_RETENTION_HIT_PADDING_MM = 44
-const DEFAULT_FOCUS_SURFACE_CLEARANCE_MM = 4
+const DEFAULT_FOCUS_MIN_SURFACE_CLEARANCE_MM = 2.5
+const DEFAULT_FOCUS_SURFACE_CLEARANCE_RATIO = 0.4
 const DEFAULT_HOVER_TRANSITION_DELAY_MS = 72
 const DEFAULT_HOVER_SCORE_HYSTERESIS_PX = 6
 const DEFAULT_DEEPER_TARGET_SCORE_TOLERANCE_PX = 4.0
@@ -309,11 +310,12 @@ export const resolveBulkHoverPriorityTarget = ({
     )
 
     if (descendantDistance !== null && descendantDistance > 0) {
-      if (bestCandidate.score <= currentCandidate.score + 0.5) {
-        return bestCandidate.target
-      }
-      return currentCandidate.target
+      return bestCandidate.target
     }
+  }
+
+  if (bestCandidate.target.depth > currentCandidate.target.depth) {
+    return bestCandidate.target
   }
 
   if (currentCandidate.score <= bestCandidate.score + hysteresisPx) return currentCandidate.target
@@ -419,10 +421,12 @@ export const resolveBulkViewportFocusPose = ({
 }: ResolveBulkViewportFocusPoseOptions): BulkViewportFocusPose => {
   const direction = currentPosition.clone().sub(currentTarget)
   const safeDirection = direction.length() > 1e-6 ? direction.normalize() : FALLBACK_VIEW_DIRECTION.clone()
-  const safeFocusRadius = Math.max(1, focusRadius)
+  const safeFocusRadius = Math.max(1e-3, focusRadius)
   const safeHalfFov = Math.max(0.1, fovRad / 2)
   const framingDistance = (safeFocusRadius * 1.25) / Math.tan(safeHalfFov)
-  const surfaceClearanceDistance = safeFocusRadius + DEFAULT_FOCUS_SURFACE_CLEARANCE_MM
+  const surfaceClearanceDistance =
+    safeFocusRadius +
+    Math.max(DEFAULT_FOCUS_MIN_SURFACE_CLEARANCE_MM, safeFocusRadius * DEFAULT_FOCUS_SURFACE_CLEARANCE_RATIO)
   const focusDistance = Math.max(
     surfaceClearanceDistance,
     framingDistance,

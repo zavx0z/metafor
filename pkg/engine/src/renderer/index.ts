@@ -1167,6 +1167,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         geometry.attributes.instanceBuffer.needsUpdate = false
       }
 
+      // Проверяем, нужно ли обновить буфер позиций
+      if (
+        geometry.attributes.position &&
+        geometry.attributes.position.needsUpdate &&
+        buffers.positionBuffer
+      ) {
+        this.device!.queue.writeBuffer(
+          buffers.positionBuffer,
+          0,
+          geometry.attributes.position.array as any,
+        )
+        geometry.attributes.position.needsUpdate = false
+      }
+
       return buffers
     }
 

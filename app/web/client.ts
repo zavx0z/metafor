@@ -240,6 +240,11 @@ const applySettingUiMetadata = (): void => {
 		const value = field?.querySelector("[data-setting-value]") as HTMLSpanElement | null
 		let tooltip = field?.querySelector(".setting-tooltip") as HTMLDivElement | null
 		if (label) label.textContent = config.label
+		if (input) {
+			if (config.min !== undefined) input.min = String(config.min)
+			if (config.max !== undefined) input.max = String(config.max)
+			if (config.step !== undefined) input.step = String(config.step)
+		}
 		if (help) {
 			help.type = "button"
 			help.textContent = "!"
