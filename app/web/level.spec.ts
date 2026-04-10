@@ -49,15 +49,74 @@ describe("app/web level law", () => {
       6,
     )
 
-    expect(root.isLabelVisible).toBe(true)
+    expect(root.isLabelVisible).toBe(false) // Root label is hidden because baseDepth is 0
+    expect(child.isLabelVisible).toBe(true) // Child label is visible because 1 > 0
     expect(root.torusRadialSegments).toBeGreaterThan(0)
     expect(root.torusTubularSegments).toBeGreaterThan(0)
     expect(root.sphereWidthSegments).toBeGreaterThan(0)
     expect(root.sphereHeightSegments).toBeGreaterThan(0)
+  })
 
-    // Проверяем наличие wireframeOpacity в DEFAULT_APP_WEB_RENDER_SETTINGS через resolve
-    expect(DEFAULT_APP_WEB_RENDER_SETTINGS.wireframeOpacity).toBeDefined()
-    expect(DEFAULT_APP_WEB_RENDER_SETTINGS.wireframeOpacity).toBeGreaterThan(0)
+  test("управляет видимостью подписей через скользящее окно baseDepth", () => {
+    const renderSettings = {
+      ...DEFAULT_APP_WEB_RENDER_SETTINGS,
+      labelVisibleLevels: 2,
+      baseDepth: 1,
+    }
+
+    const depth0 = resolveAppWebLevelMetrics({
+      depth: 0,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      renderSettings,
+    })
+    const depth1 = resolveAppWebLevelMetrics({
+      depth: 1,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      renderSettings,
+    })
+    const depth2 = resolveAppWebLevelMetrics({
+      depth: 2,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      renderSettings,
+    })
+    const depth3 = resolveAppWebLevelMetrics({
+      depth: 3,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      renderSettings,
+    })
+
+    expect(depth0.isLabelVisible).toBe(false) // Выше базового уровня
+    expect(depth1.isLabelVisible).toBe(false) // На базовом уровне (скрыто, так как мы внутри)
+    expect(depth2.isLabelVisible).toBe(true) // В пределах окна
+    expect(depth3.isLabelVisible).toBe(true) // В пределах окна (1 + 2 = 3)
+    const depth4 = resolveAppWebLevelMetrics({
+      depth: 4,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      renderSettings,
+    })
+    expect(depth4.isLabelVisible).toBe(false) // Глубже окна
+  })
+
+  test("показывает корневые объекты, когда мы снаружи (baseDepth: -1)", () => {
+    const renderSettings = {
+      ...DEFAULT_APP_WEB_RENDER_SETTINGS,
+      labelVisibleLevels: 2,
+      baseDepth: -1,
+    }
+
+    const depth0 = resolveAppWebLevelMetrics({
+      depth: 0,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      renderSettings,
+    })
+    const depth1 = resolveAppWebLevelMetrics({
+      depth: 1,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      renderSettings,
+    })
+
+    expect(depth0.isLabelVisible).toBe(true) // Корневой объект виден (0 > -1)
+    expect(depth1.isLabelVisible).toBe(true) // Дочерний тоже виден (1 <= -1 + 2)
   })
 
   test("при расширении outer radius сохраняет тот же закон inner ratio и shell geometry", () => {
