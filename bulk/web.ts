@@ -141,14 +141,18 @@ type FadingRemovalRecord = {
 }
 
 type SurfaceLabelVisual = {
+	coverCenter: TextGeometryCenter
 	container: Object3D
 	initialCoverPositions: Float32Array
 	initialStencilPositions: Float32Array
 	material: TextMaterial
+	stencilCenter: TextGeometryCenter
+	textNode: Text
 }
 
 type LabelRenderRecord = {
 	anchorObject: Object3D
+	coverCenter: TextGeometryCenter
 	container: Object3D
 	currentOpacity: number
 	currentScale: number
@@ -162,6 +166,8 @@ type LabelRenderRecord = {
 	shellTube: number
 	signature: string
 	sphereRadius: number
+	stencilCenter: TextGeometryCenter
+	textNode: Text
 }
 
 type LabelSpec = {
@@ -184,6 +190,11 @@ type FadingLabelRemovalRecord = {
 	material: TextMaterial
 	object: Object3D
 	startedAtMs: number
+}
+
+type TextGeometryCenter = {
+	centerX: number
+	centerY: number
 }
 
 const getViewportConfig = () => appWebLayoutConfig.viewport
@@ -273,7 +284,7 @@ type SurfaceLabelProjection =
 
 const resolveTextGeometryCenter = (
 	initialPositions: Float32Array,
-): { centerX: number; centerY: number } | null => {
+): TextGeometryCenter | null => {
 	if (initialPositions.length === 0) return null
 
 	let minX = Number.POSITIVE_INFINITY
@@ -307,13 +318,13 @@ const markGeometryPositionsDirty = (geometry: BufferGeometry): void => {
 const projectTextGeometryOntoSphere = (
 	geometry: BufferGeometry,
 	initialPositions: Float32Array,
+	center: TextGeometryCenter,
 	radius: number,
 	baseCosLatitude: number,
 	baseSinLatitude: number,
 ): void => {
 	const positions = getGeometryPositionArray(geometry)
-	const center = resolveTextGeometryCenter(initialPositions)
-	if (!positions || positions.length === 0 || !center) return
+	if (!positions || positions.length === 0) return
 
 	const safeRadius = Math.max(radius, 1e-6)
 	const baseParallelRadius = Math.max(Math.abs(safeRadius * baseCosLatitude), 10)
@@ -344,14 +355,14 @@ const projectTextGeometryOntoSphere = (
 const projectTextGeometryOntoTorus = (
 	geometry: BufferGeometry,
 	initialPositions: Float32Array,
+	center: TextGeometryCenter,
 	majorRadius: number,
 	minorRadius: number,
 	baseCosLatitude: number,
 	baseSinLatitude: number,
 ): void => {
 	const positions = getGeometryPositionArray(geometry)
-	const center = resolveTextGeometryCenter(initialPositions)
-	if (!positions || positions.length === 0 || !center) return
+	if (!positions || positions.length === 0) return
 
 	const safeMajorRadius = Math.max(majorRadius, 1e-6)
 	const safeMinorRadius = Math.max(minorRadius, 1e-6)
@@ -381,59 +392,52 @@ const projectTextGeometryOntoTorus = (
 	markGeometryPositionsDirty(geometry)
 }
 
-const wrapSurfaceLabelGeometry = (
-	root: Object3D,
+const applySurfaceLabelProjection = (
+	textNode: Text,
 	initialStencilPositions: Float32Array,
 	initialCoverPositions: Float32Array,
+	stencilCenter: TextGeometryCenter,
+	coverCenter: TextGeometryCenter,
 	projection: SurfaceLabelProjection,
 ): void => {
-	root.traverse((node) => {
-		const surfaceTextNode = node as Object3D & {
-			coverGeometry?: BufferGeometry
-			stencilGeometry?: BufferGeometry
-		}
+	if (projection.kind === "sphere") {
+		projectTextGeometryOntoSphere(
+			textNode.stencilGeometry,
+			initialStencilPositions,
+			stencilCenter,
+			projection.radius,
+			projection.baseCosLatitude,
+			projection.baseSinLatitude,
+		)
+		projectTextGeometryOntoSphere(
+			textNode.coverGeometry,
+			initialCoverPositions,
+			coverCenter,
+			projection.radius,
+			projection.baseCosLatitude,
+			projection.baseSinLatitude,
+		)
+		return
+	}
 
-		if (surfaceTextNode.stencilGeometry) {
-			if (projection.kind === "sphere") {
-				projectTextGeometryOntoSphere(
-					surfaceTextNode.stencilGeometry,
-					initialStencilPositions,
-					projection.radius,
-					projection.baseCosLatitude,
-					projection.baseSinLatitude,
-				)
-			} else {
-				projectTextGeometryOntoTorus(
-					surfaceTextNode.stencilGeometry,
-					initialStencilPositions,
-					projection.majorRadius,
-					projection.minorRadius,
-					projection.baseCosLatitude,
-					projection.baseSinLatitude,
-				)
-			}
-		}
-		if (surfaceTextNode.coverGeometry) {
-			if (projection.kind === "sphere") {
-				projectTextGeometryOntoSphere(
-					surfaceTextNode.coverGeometry,
-					initialCoverPositions,
-					projection.radius,
-					projection.baseCosLatitude,
-					projection.baseSinLatitude,
-				)
-			} else {
-				projectTextGeometryOntoTorus(
-					surfaceTextNode.coverGeometry,
-					initialCoverPositions,
-					projection.majorRadius,
-					projection.minorRadius,
-					projection.baseCosLatitude,
-					projection.baseSinLatitude,
-				)
-			}
-		}
-	})
+	projectTextGeometryOntoTorus(
+		textNode.stencilGeometry,
+		initialStencilPositions,
+		stencilCenter,
+		projection.majorRadius,
+		projection.minorRadius,
+		projection.baseCosLatitude,
+		projection.baseSinLatitude,
+	)
+	projectTextGeometryOntoTorus(
+		textNode.coverGeometry,
+		initialCoverPositions,
+		coverCenter,
+		projection.majorRadius,
+		projection.minorRadius,
+		projection.baseCosLatitude,
+		projection.baseSinLatitude,
+	)
 }
 
 const createSurfaceLabelNode = (
@@ -451,6 +455,8 @@ const createSurfaceLabelNode = (
 	)
 	const initialStencilPositions = new Float32Array(getGeometryPositionArray(label.stencilGeometry) ?? [])
 	const initialCoverPositions = new Float32Array(getGeometryPositionArray(label.coverGeometry) ?? [])
+	const stencilCenter = resolveTextGeometryCenter(initialStencilPositions) ?? { centerX: 0, centerY: 0 }
+	const coverCenter = resolveTextGeometryCenter(initialCoverPositions) ?? { centerX: 0, centerY: 0 }
 	label.frustumCulled = false
 	label.updateMatrix()
 
@@ -458,10 +464,13 @@ const createSurfaceLabelNode = (
 	container.add(label)
 	container.updateMatrix()
 	return {
+		coverCenter,
 		container,
 		initialCoverPositions,
 		initialStencilPositions,
 		material: label.material,
+		stencilCenter,
+		textNode: label,
 	}
 }
 
@@ -629,6 +638,15 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const reusableWorldPosition = new Vector3()
 	const reusableWorldScale = new Vector3()
 	const reusableWorldQuaternion = new Quaternion()
+	const reusableLabelNormal = new Vector3()
+	const reusableLabelRight = new Vector3()
+	const reusableLabelPos = new Vector3()
+	const reusableLabelUp = new Vector3()
+	const reusableLabelToCamera = new Vector3()
+	const reusableMajorDir = new Vector3()
+	const reusableTubeCenter = new Vector3()
+	const reusableScaledOffset = new Vector3()
+	const reusableLabelMatrix = new Matrix4()
 
 	const viewPoint = new ViewPoint({
 		element: options.canvas,
@@ -1066,6 +1084,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			labelsLayer.add(container)
 			labelRecords.set(spec.key, {
 				anchorObject: spec.anchorObject,
+				coverCenter: visual.coverCenter,
 				container,
 				currentOpacity: 0,
 				currentScale: LABEL_INITIAL_SCALE,
@@ -1079,6 +1098,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				shellTube: spec.shellTube,
 				signature,
 				sphereRadius: spec.sphereRadius,
+				stencilCenter: visual.stencilCenter,
+				textNode: visual.textNode,
 			})
 			requestRenderLoop(LABEL_FADE_IN_MS + 32)
 			return
@@ -1101,11 +1122,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		existing.container.children = []
 		const visual = createSurfaceLabelNode(spec.text, labelFont!, spec.depth, spec.color, radius)
 		visual.material.opacity = currentOpacity
+		existing.coverCenter = visual.coverCenter
 		existing.initialCoverPositions = visual.initialCoverPositions
 		existing.initialStencilPositions = visual.initialStencilPositions
 		existing.material = visual.material
 		existing.signature = signature
 		existing.container.add(visual.container)
+		existing.stencilCenter = visual.stencilCenter
+		existing.textNode = visual.textNode
 		existing.currentScale = currentScale
 		existing.container.scale.set(currentScale, currentScale, currentScale)
 		existing.container.updateMatrix()
@@ -1600,30 +1624,32 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const updateLabelTrackers = (): void => {
 		const cameraPos = viewPoint.position
-		const worldUp = new Vector3(0, 0, 1)
 
 		for (const tracker of labelRecords.values()) {
 			readObjectWorldPosition(tracker.anchorObject, reusableWorldPosition)
-			
-			let normal = new Vector3()
-			let right = new Vector3()
-			let labelPos = new Vector3()
+			const normal = reusableLabelNormal
+			const right = reusableLabelRight
+			const labelPos = reusableLabelPos
 			let projection: SurfaceLabelProjection
 
 			if (tracker.kind === "shell") {
 				// Вектор от центра тора к камере
-				const toCamera = cameraPos.clone().sub(reusableWorldPosition)
+				const toCamera = reusableLabelToCamera.copy(cameraPos).sub(reusableWorldPosition)
 				// Направление основного радиуса (в плоскости XY)
-				const majorDir = new Vector3(toCamera.x, toCamera.y, 0).normalize()
+				const majorDir = reusableMajorDir.set(toCamera.x, toCamera.y, 0).normalize()
 				if (majorDir.length() < 1e-6) majorDir.set(1, 0, 0)
 				
 				// Центр "трубы" под камерой
-				const tubeCenter = reusableWorldPosition.clone().add(majorDir.clone().multiplyScalar(tracker.shellRadius))
+				const tubeCenter = reusableTubeCenter.copy(reusableWorldPosition).add(
+					reusableScaledOffset.copy(majorDir).multiplyScalar(tracker.shellRadius),
+				)
 				
 				// Нормаль от центра трубы к камере
 				normal.copy(cameraPos).sub(tubeCenter).normalize()
 				// Позиция на поверхности трубы с учетом отступа
-				labelPos.copy(tubeCenter).add(normal.clone().multiplyScalar(tracker.shellTube + tracker.offset))
+				labelPos.copy(tubeCenter).add(
+					reusableScaledOffset.copy(normal).multiplyScalar(tracker.shellTube + tracker.offset),
+				)
 				
 				// Вектор "вправо" (касательная к основной окружности бублика)
 				right.set(-majorDir.y, majorDir.x, 0).normalize()
@@ -1638,9 +1664,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			} else {
 				// Для сферы строим локальные параллели/меридианы относительно мировой оси Z.
 				normal.copy(cameraPos).sub(reusableWorldPosition).normalize()
-				labelPos.copy(reusableWorldPosition).add(normal.clone().multiplyScalar(tracker.sphereRadius + tracker.offset))
+				labelPos.copy(reusableWorldPosition).add(
+					reusableScaledOffset.copy(normal).multiplyScalar(tracker.sphereRadius + tracker.offset),
+				)
 				
-				right.copy(worldUp).cross(normal)
+				right.set(0, 0, 1).cross(normal)
 				if (right.length() < 1e-6) right.set(1, 0, 0).cross(normal)
 				right.normalize()
 
@@ -1653,13 +1681,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			}
 
 			// Вектор "вверх" (перпендикулярен нормали и направлению "вправо")
-			const up = normal.clone().cross(right).normalize()
+			const up = reusableLabelUp.crossVectors(normal, right).normalize()
 
 			// Устанавливаем позицию
 			tracker.container.position.copy(labelPos)
 			
 			// Строим ориентацию из базиса
-			const matrix = new Matrix4()
+			const matrix = reusableLabelMatrix
 			const e = matrix.elements
 			e[0] = right.x; e[1] = right.y; e[2] = right.z; e[3] = 0
 			e[4] = up.x;    e[5] = up.y;    e[6] = up.z;    e[7] = 0
@@ -1667,15 +1695,15 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			e[12] = 0;      e[13] = 0;      e[14] = 0;      e[15] = 1
 			
 			tracker.container.quaternion.setFromRotationMatrix(matrix)
-			
-			for (const child of tracker.container.children) {
-				wrapSurfaceLabelGeometry(
-					child,
-					tracker.initialStencilPositions,
-					tracker.initialCoverPositions,
-					projection,
-				)
-			}
+
+			applySurfaceLabelProjection(
+				tracker.textNode,
+				tracker.initialStencilPositions,
+				tracker.initialCoverPositions,
+				tracker.stencilCenter,
+				tracker.coverCenter,
+				projection,
+			)
 
 			tracker.container.updateMatrix()
 		}
