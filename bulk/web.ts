@@ -82,6 +82,9 @@ const REMOVAL_FADE_MS = 150
 const REMOVAL_SCALE_MULTIPLIER = 0.9
 const LABEL_FADE_IN_MS = 120
 const LABEL_INITIAL_SCALE = 0.94
+const FOCUS_POSITION_SMOOTHING_MS = 105
+const FOCUS_TARGET_SMOOTHING_MS = 90
+const FOCUS_SETTLE_DISTANCE_MM = 0.35
 
 const torusWireframeCache = new Map<string, BufferGeometry>()
 const sphereWireframeCache = new Map<string, BufferGeometry>()
@@ -97,12 +100,9 @@ type HoverablePickTarget = BulkPickTarget & {
 }
 
 type ViewNavigationState = {
-	durationMs: number
-	fromPosition: Vector3
-	fromTarget: Vector3
-	startedAtMs: number
-	toPosition: Vector3
-	toTarget: Vector3
+	fallbackFocusRadius: number
+	fallbackTarget: Vector3
+	targetKey: string | null
 }
 
 type ShellRenderRecord = {
@@ -531,7 +531,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		else target.material.glowColor = THEME_WARNING_GLOW.clone()
 	}
 
-	const getPickTargetKey = (target: HoverablePickTarget | null): string | null => {
+	const getPickTargetKey = (target: BulkPickTarget | null): string | null => {
 		if (!target) return null
 		return target.kind === "field" ? `field:${target.fieldId}` : `shell:${target.particleId}`
 	}
@@ -1166,6 +1166,27 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 	}
 
+	const cancelNavigation = (): void => {
+		navigationState = null
+	}
+
+	const resolveNavigationFocusTarget = (): { focusRadius: number; target: Vector3 } | null => {
+		if (!navigationState) return null
+
+		if (navigationState.targetKey) {
+			const liveTarget = pickTargets.find((target) => getPickTargetKey(target) === navigationState.targetKey) ?? null
+			if (liveTarget) {
+				navigationState.fallbackTarget.copy(liveTarget.center)
+				navigationState.fallbackFocusRadius = liveTarget.outerRadius
+			}
+		}
+
+		return {
+			focusRadius: navigationState.fallbackFocusRadius,
+			target: navigationState.fallbackTarget,
+		}
+	}
+
 	const resolvePickTargetHoverScore = (
 		target: HoverablePickTarget,
 		clientX: number,
@@ -1235,47 +1256,52 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return null
 	}
 
-	const applyNavigationFrame = (timestamp: number): void => {
+	const applyNavigationFrame = (deltaMs: number): void => {
 		if (!navigationState) return
 
-		const linearProgress = Math.min(
-			1,
-			Math.max(0, (timestamp - navigationState.startedAtMs) / navigationState.durationMs),
-		)
-		const progress = easeOutCubic(linearProgress)
-		viewPoint.position.set(
-			mixScalar(navigationState.fromPosition.x, navigationState.toPosition.x, progress),
-			mixScalar(navigationState.fromPosition.y, navigationState.toPosition.y, progress),
-			mixScalar(navigationState.fromPosition.z, navigationState.toPosition.z, progress),
-		)
-		viewPoint.getTarget().set(
-			mixScalar(navigationState.fromTarget.x, navigationState.toTarget.x, progress),
-			mixScalar(navigationState.fromTarget.y, navigationState.toTarget.y, progress),
-			mixScalar(navigationState.fromTarget.z, navigationState.toTarget.z, progress),
-		)
-		viewPoint.update()
+		const nextFocus = resolveNavigationFocusTarget()
+		if (!nextFocus) {
+			navigationState = null
+			return
+		}
 
-		if (linearProgress >= 1) navigationState = null
-	}
-
-	const focusTarget = (target: BulkPickTarget): void => {
 		const nextPose = resolveBulkViewportFocusPose({
 			currentPosition: viewPoint.position,
 			currentTarget: viewPoint.getTarget(),
-			nextTarget: target.center,
-			focusRadius: target.outerRadius,
+			nextTarget: nextFocus.target,
+			focusRadius: nextFocus.focusRadius,
 			fovRad: viewPoint.fov,
 		})
-
-		navigationState = {
-			startedAtMs: performance.now(),
-			durationMs: 320,
-			fromPosition: viewPoint.position.clone(),
-			fromTarget: viewPoint.getTarget().clone(),
-			toPosition: nextPose.position,
-			toTarget: nextPose.target,
+		const positionFactor = computeLerpFactor(deltaMs, FOCUS_POSITION_SMOOTHING_MS)
+		const targetFactor = computeLerpFactor(deltaMs, FOCUS_TARGET_SMOOTHING_MS)
+		const currentTarget = viewPoint.getTarget()
+		viewPoint.position.set(
+			mixScalar(viewPoint.position.x, nextPose.position.x, positionFactor),
+			mixScalar(viewPoint.position.y, nextPose.position.y, positionFactor),
+			mixScalar(viewPoint.position.z, nextPose.position.z, positionFactor),
+		)
+		currentTarget.set(
+			mixScalar(currentTarget.x, nextPose.target.x, targetFactor),
+			mixScalar(currentTarget.y, nextPose.target.y, targetFactor),
+			mixScalar(currentTarget.z, nextPose.target.z, targetFactor),
+		)
+		const positionSettled = viewPoint.position.distanceTo(nextPose.position) <= FOCUS_SETTLE_DISTANCE_MM
+		const targetSettled = currentTarget.distanceTo(nextPose.target) <= FOCUS_SETTLE_DISTANCE_MM
+		if (positionSettled && targetSettled) {
+			viewPoint.position.copy(nextPose.position)
+			currentTarget.copy(nextPose.target)
+			navigationState = null
 		}
-		requestRenderLoop(navigationState.durationMs + 32)
+		viewPoint.update()
+	}
+
+	const focusTarget = (target: HoverablePickTarget): void => {
+		navigationState = {
+			fallbackFocusRadius: target.outerRadius,
+			fallbackTarget: target.center.clone(),
+			targetKey: getPickTargetKey(target),
+		}
+		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
 	}
 
 	const updateAnimatedRecords = (deltaMs: number): boolean => {
@@ -1398,6 +1424,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const handleCanvasMouseDown = (event: MouseEvent): void => {
+		cancelNavigation()
 		if (event.button !== 0) return
 		isPrimaryPointerDown = true
 		pointerDownX = event.clientX
@@ -1441,10 +1468,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const wakeRenderFromCanvasWheel = (): void => {
+		cancelNavigation()
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
 	const wakeRenderFromCanvasTouch = (): void => {
+		cancelNavigation()
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
@@ -1480,9 +1509,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const deltaMs = lastAnimationTimestamp > 0 ? timestamp - lastAnimationTimestamp : 16
 		lastAnimationTimestamp = timestamp
 
-		applyNavigationFrame(timestamp)
 		const hasPendingMotion = updateAnimatedRecords(deltaMs)
 		updateSceneWorldState()
+		applyNavigationFrame(deltaMs)
 		updateLabelTrackers()
 		scene.updateWorldMatrix()
 		renderer.render(scene, viewPoint)
