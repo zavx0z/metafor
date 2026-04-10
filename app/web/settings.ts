@@ -139,7 +139,7 @@ export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
   // Базовая плотность wireframe-сетки у root-уровня.
   detailDensityFactor: 2,
   // Насколько быстро детализация уменьшается на каждом внутреннем уровне.
-  detailLevelMultiplier: 1.5,
+  detailLevelMultiplier: 1.22,
   // Сколько уровней подписей показывать от root внутрь.
   labelVisibleLevels: 2,
   // Базовый уровень viewport для отсчёта видимости (0 = root).
@@ -151,9 +151,9 @@ export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
   // Наклон продольных линий тора по поверхности.
   torusCrossRingRotationDeg: 44,
   // Базовое количество колец тора.
-  torusRadialSegments: 12,
+  torusRadialSegments: 16,
   // Базовая сглаженность (сегменты) одного кольца тора.
-  torusTubularSegments: 12,
+  torusTubularSegments: 16,
   // Прозрачность wireframe-сетки.
   wireframeOpacity: 0.9,
 }

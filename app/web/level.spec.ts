@@ -161,4 +161,25 @@ describe("app/web level law", () => {
 
     expect(restoredOuterRadiusMm).toBeCloseTo(metrics.outerRadiusMm, 6)
   })
+
+  test("сохраняет достаточную детализацию на 5 и 6 уровнях", () => {
+    const depth5 = resolveAppWebLevelMetrics({
+      depth: 5,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      renderSettings: DEFAULT_APP_WEB_RENDER_SETTINGS,
+    })
+    const depth6 = resolveAppWebLevelMetrics({
+      depth: 6,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      renderSettings: DEFAULT_APP_WEB_RENDER_SETTINGS,
+    })
+
+    // При SPHERE_BASE_WIDTH_SEGMENTS = 16 и detailLevelMultiplier = 1.22
+    // На 5 уровне: 16 * 2 / 1.22^5 = 32 / 2.7 = 11.85 (округление до 12)
+    // На 6 уровне: 16 * 2 / 1.22^6 = 32 / 3.3 = 9.7 (округление до 10)
+    expect(depth5.sphereWidthSegments).toBeGreaterThanOrEqual(10)
+    expect(depth6.sphereWidthSegments).toBeGreaterThanOrEqual(8)
+    expect(depth5.torusRadialSegments).toBeGreaterThanOrEqual(10)
+    expect(depth6.torusRadialSegments).toBeGreaterThanOrEqual(8)
+  })
 })

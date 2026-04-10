@@ -1,8 +1,8 @@
 import { appWebLayoutConfig, type AppWebLayoutSettings, type AppWebRenderSettings } from "./settings.ts"
 
 const TORUS_MAX_SEGMENTS = 96
-const SPHERE_BASE_WIDTH_SEGMENTS = 8
-const SPHERE_BASE_HEIGHT_SEGMENTS = 6
+const SPHERE_BASE_WIDTH_SEGMENTS = 16
+const SPHERE_BASE_HEIGHT_SEGMENTS = 12
 const SPHERE_MAX_WIDTH_SEGMENTS = 64
 const SPHERE_MAX_HEIGHT_SEGMENTS = 48
 

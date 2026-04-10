@@ -86,7 +86,7 @@ const REMOVAL_SCALE_MULTIPLIER = 0.9
 const LABEL_FADE_IN_MS = 120
 const LABEL_INITIAL_SCALE = 0.94
 const MAX_UV_LABEL_SPAN_RAD = Math.PI * 0.8
-const MIN_UV_LABEL_HEIGHT_FIT_SCALE = 0.65
+const MIN_UV_LABEL_HEIGHT_FIT_SCALE = 0.05
 const MIN_UV_LABEL_FIT_SCALE = 0.12
 const MIN_SURFACE_LABEL_TEXT_SCALE = 0.2
 const FOCUS_POSITION_SMOOTHING_MS = 130
@@ -333,7 +333,7 @@ const resolveSurfaceLabelTextScale = (spec: LabelSpec, maxTextWidth: number): nu
 	const surfaceCurveRadius = spec.kind === "shell"
 		? Math.max(Math.abs(spec.shellRadius - (spec.shellTube + spec.offset)), 1e-6)
 		: Math.max(spec.sphereRadius + spec.offset, 1e-6)
-	const maxSurfaceTextWidth = Math.max(1, surfaceCurveRadius * MAX_UV_LABEL_SPAN_RAD)
+	const maxSurfaceTextWidth = Math.max(1e-6, surfaceCurveRadius * MAX_UV_LABEL_SPAN_RAD)
 	return Math.max(MIN_SURFACE_LABEL_TEXT_SCALE, Math.min(1, maxSurfaceTextWidth / maxTextWidth))
 }
 
@@ -361,13 +361,13 @@ const resolveFieldPeerLevelMetrics = (
 
 const resolveUvLabelFitScale = (baseCurveRadius: number, maxTextWidth: number): number => {
 	if (!(maxTextWidth > 0)) return 1
-	const safeBaseRadius = Math.max(Math.abs(baseCurveRadius), 10)
+	const safeBaseRadius = Math.max(Math.abs(baseCurveRadius), 0.1)
 	const maxArcWidth = safeBaseRadius * MAX_UV_LABEL_SPAN_RAD
 	return Math.max(MIN_UV_LABEL_FIT_SCALE, Math.min(1, maxArcWidth / maxTextWidth))
 }
 
 const resolveUvLabelHeightFitScale = (fitScale: number): number => {
-	return Math.max(MIN_UV_LABEL_HEIGHT_FIT_SCALE, Math.min(1, Math.sqrt(Math.max(fitScale, 0))))
+	return Math.max(MIN_UV_LABEL_HEIGHT_FIT_SCALE, Math.min(1, fitScale))
 }
 
 const projectTextGeometryOntoSphere = (
@@ -383,7 +383,7 @@ const projectTextGeometryOntoSphere = (
 	if (!positions || positions.length === 0) return
 
 	const safeRadius = Math.max(radius, 1e-6)
-	const baseParallelRadius = Math.max(Math.abs(safeRadius * baseCosLatitude), 10)
+	const baseParallelRadius = Math.max(Math.abs(safeRadius * baseCosLatitude), 1e-6)
 	const heightFitScale = resolveUvLabelHeightFitScale(fitScale)
 
 	for (let index = 0; index < initialPositions.length; index += 3) {
@@ -425,7 +425,7 @@ const projectTextGeometryOntoTorus = (
 	const safeMajorRadius = Math.max(majorRadius, 1e-6)
 	const safeMinorRadius = Math.max(minorRadius, 1e-6)
 	const centerCircleRadius = Math.max(safeMajorRadius + safeMinorRadius * baseCosLatitude, 1e-6)
-	const safeCenterCircleRadius = Math.max(Math.abs(centerCircleRadius), 10)
+	const safeCenterCircleRadius = Math.max(Math.abs(centerCircleRadius), 1e-6)
 	const heightFitScale = resolveUvLabelHeightFitScale(fitScale)
 
 	for (let index = 0; index < initialPositions.length; index += 3) {
