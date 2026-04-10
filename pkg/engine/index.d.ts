@@ -151,6 +151,7 @@ export class Renderer {
   setPixelRatio(value: number): void
   setSize(width: number, height: number): void
   render(scene: Scene, viewPoint: ViewPoint): void
+  invalidateGeometry(geometry: BufferGeometry): void
 }
 
 export class SphereGeometry extends BufferGeometry {
