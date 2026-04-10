@@ -9,6 +9,7 @@ import { dark$ } from "./store"
 
 interface MatterOptions {
   dbWriter?: DbMaterializationWriter
+  onMaterializedStep?: (step: MatterMaterializationStep) => Promise<void> | void
   suppressGravityBarrier?: boolean
   sqliteDb?: unknown
 }
@@ -16,6 +17,12 @@ interface MatterOptions {
 interface RuntimeMetaMaterialization {
   meta: Meta
   particles: MatterParticlePlan[]
+}
+
+export interface MatterMaterializationStep {
+  kind: "layer" | "root"
+  layerWimps: MatterLayerResult
+  wimp: Wimp
 }
 
 /**
@@ -177,6 +184,11 @@ export async function* matterMeta(
     await options.dbWriter.saveWimpBundle(wimp.toDbBundle())
     emitAdd(wimp.id)
   }
+  await options.onMaterializedStep?.({
+    kind: "root",
+    layerWimps: [],
+    wimp,
+  })
 
   if (runtimeMeta.particles.length === 0) return
 
@@ -193,6 +205,11 @@ export async function* matterMeta(
       processMatterParticle(entry, wimp.fields, nextFrontier, levelWimps)
     }
 
+    await options.onMaterializedStep?.({
+      kind: "layer",
+      layerWimps: levelWimps,
+      wimp,
+    })
     yield levelWimps
   }
 }

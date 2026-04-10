@@ -1003,7 +1003,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   private updateTextData(text: Text, worldMatrix: Matrix4, offsetFloats: number, isStencil: boolean): void {
     this.perObjectDataCPU!.set(worldMatrix.elements, offsetFloats)
     if (!isStencil) {
-      this.perObjectDataCPU!.set([...(text.material as TextMaterial).color.toArray(), 1.0], offsetFloats + 32)
+      const material = text.material as TextMaterial
+      this.perObjectDataCPU!.set(
+        [material.color.r, material.color.g, material.color.b, material.color.a * material.opacity],
+        offsetFloats + 32,
+      )
     }
   }
 

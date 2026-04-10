@@ -253,6 +253,21 @@ const createDbWorldSnapshot = (
 	)
 }
 
+const publishInstanceSnapshot = (
+	src: string,
+	instanceDb: ReturnType<typeof openDbInstanceSqlite>,
+	particleModelsBySrc: Map<string, DarkMetaParticleModel>,
+	layoutSettings: Partial<AppWebLayoutSettings> = {},
+): void => {
+	const snapshot = createDbWorldSnapshot(src, particleModelsBySrc, layoutSettings)
+	writeDbWorldSnapshot(instanceDb, snapshot)
+	darkWorker.postMessage({
+		type: "instance-snapshot",
+		src,
+		snapshot: readDbWorldSnapshot(instanceDb, src),
+	})
+}
+
 const canonicalizeMetaGraph = async (
 	dbFilename: string,
 	rootSrc: string,
@@ -306,16 +321,17 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage>) => {
 			resetDbInstanceSqlite(instanceDb)
 
 			const writer = openDbMaterializationWriter(backend)
-			await matter(new Wimp({ src, parent: null }), undefined, { dbWriter: writer, sqliteDb: metaDb })
-			await backend.flush()
-
-			const snapshot = createDbWorldSnapshot(src, canonicalized.particleModelsBySrc, layoutSettings)
-			writeDbWorldSnapshot(instanceDb, snapshot)
-			darkWorker.postMessage({
-				type: "instance-snapshot",
-				src,
-				snapshot: readDbWorldSnapshot(instanceDb, src),
+			const emitSnapshot = (): void => {
+				if (!instanceDb) return
+				publishInstanceSnapshot(src, instanceDb, canonicalized.particleModelsBySrc, layoutSettings)
+			}
+			await matter(new Wimp({ src, parent: null }), undefined, {
+				dbWriter: writer,
+				sqliteDb: metaDb,
+				onMaterializedStep: emitSnapshot,
 			})
+			await backend.flush()
+			emitSnapshot()
 
 			darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "done", src })
 		} catch (error) {

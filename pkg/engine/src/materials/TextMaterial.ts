@@ -10,6 +10,11 @@ export interface TextMaterialParameters extends MaterialParameters {
    * @default 0xffffff
    */
   color?: number | Color
+  /**
+   * Прозрачность текста.
+   * @default 1.0
+   */
+  opacity?: number
 }
 
 /**
@@ -19,6 +24,8 @@ export class TextMaterial extends Material {
   public readonly isTextMaterial: true = true
   /** @default new Color(0xffffff) */
   public color: Color
+  /** @default 1.0 */
+  public opacity: number
 
   /**
    * @param parameters - Параметры материала.
@@ -26,5 +33,6 @@ export class TextMaterial extends Material {
   constructor(parameters: TextMaterialParameters = {}) {
     super(parameters)
     this.color = new Color(parameters.color ?? 0xffffff)
+    this.opacity = parameters.opacity ?? 1.0
   }
 }
