@@ -615,4 +615,18 @@ describe("bulk web navigation", () => {
     expect(focusDistance).toBeLessThan(25)
     expect(focusDistance).toBeGreaterThan(14)
   })
+
+  test("для микротаргета уменьшает surface clearance пропорционально размеру", () => {
+    const pose = resolveBulkViewportFocusPose({
+      currentPosition: new Vector3(0, -60, 40),
+      currentTarget: new Vector3(0, 0, 0),
+      nextTarget: new Vector3(2, 1, 0),
+      focusRadius: 0.5,
+      fovRad: (2 * Math.PI) / 5,
+    })
+
+    const focusDistance = pose.position.distanceTo(pose.target)
+    expect(focusDistance).toBeLessThan(3.2)
+    expect(focusDistance).toBeGreaterThan(2.9)
+  })
 })

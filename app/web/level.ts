@@ -45,6 +45,13 @@ export interface ResolveAppWebLevelMetricsOptions {
   rootOuterDiameterMm?: number
 }
 
+export interface ResolveAppWebOuterRadiusFromFieldSphereRadiusOptions {
+  depth: number
+  fieldSphereRadiusMm: number
+  layoutSettings: AppWebLayoutSettings
+  rootOuterDiameterMm?: number
+}
+
 /** Вычисляет единый набор параметров одного уровня по top-down закону настроек. */
 export const resolveAppWebLevelMetrics = ({
   depth,
@@ -145,4 +152,25 @@ export const resolveAppWebLevelMetrics = ({
     torusTubularSegments,
     workingThicknessMm,
   }
+}
+
+/** Восстанавливает внешний радиус depth-уровня по радиусу peer field-сферы того же уровня. */
+export const resolveAppWebOuterRadiusFromFieldSphereRadius = ({
+  depth,
+  fieldSphereRadiusMm,
+  layoutSettings,
+  rootOuterDiameterMm = appWebLayoutConfig.snapshot.rootOuterDiameterMm,
+}: ResolveAppWebOuterRadiusFromFieldSphereRadiusOptions): number => {
+  const safeFieldSphereRadiusMm = Math.max(0, fieldSphereRadiusMm)
+  if (!(safeFieldSphereRadiusMm > 0)) return 0
+
+  const canonicalMetrics = resolveAppWebLevelMetrics({
+    depth,
+    layoutSettings,
+    rootOuterDiameterMm,
+  })
+  const fieldToOuterRadiusRatio = canonicalMetrics.fieldSphereRadiusMm / canonicalMetrics.outerRadiusMm
+  if (!(fieldToOuterRadiusRatio > 1e-6)) return safeFieldSphereRadiusMm
+
+  return safeFieldSphereRadiusMm / fieldToOuterRadiusRatio
 }

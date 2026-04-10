@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { resolveAppWebLevelMetrics } from "./level.ts"
+import {
+  resolveAppWebLevelMetrics,
+  resolveAppWebOuterRadiusFromFieldSphereRadius,
+} from "./level.ts"
 import {
   DEFAULT_APP_WEB_LAYOUT_SETTINGS,
   DEFAULT_APP_WEB_RENDER_SETTINGS,
@@ -141,5 +144,21 @@ describe("app/web level law", () => {
     )
     expect(metrics.shellRadiusMm + metrics.shellTubeMm).toBeCloseTo(metrics.outerRadiusMm, 6)
     expect(metrics.shellRadiusMm - metrics.shellTubeMm).toBeCloseTo(metrics.innerRadiusMm, 6)
+  })
+
+  test("восстанавливает outer radius уровня по радиусу peer field-сферы", () => {
+    const metrics = resolveAppWebLevelMetrics({
+      depth: 3,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+      outerRadiusMm: 777,
+    })
+
+    const restoredOuterRadiusMm = resolveAppWebOuterRadiusFromFieldSphereRadius({
+      depth: 3,
+      fieldSphereRadiusMm: metrics.fieldSphereRadiusMm,
+      layoutSettings: DEFAULT_APP_WEB_LAYOUT_SETTINGS,
+    })
+
+    expect(restoredOuterRadiusMm).toBeCloseTo(metrics.outerRadiusMm, 6)
   })
 })

@@ -8,7 +8,10 @@ import {
 	normalizeAppWebRenderSettings,
 	type AppWebRenderSettings,
 } from "../app/web/settings.ts"
-import { resolveAppWebLevelMetrics } from "../app/web/level.ts"
+import {
+	resolveAppWebLevelMetrics,
+	resolveAppWebOuterRadiusFromFieldSphereRadius,
+} from "../app/web/level.ts"
 import {
 	BufferAttribute,
 	BufferGeometry,
@@ -82,8 +85,10 @@ const REMOVAL_FADE_MS = 150
 const REMOVAL_SCALE_MULTIPLIER = 0.9
 const LABEL_FADE_IN_MS = 120
 const LABEL_INITIAL_SCALE = 0.94
-const MAX_UV_LABEL_SPAN_RAD = Math.PI * 0.55
+const MAX_UV_LABEL_SPAN_RAD = Math.PI * 0.8
+const MIN_UV_LABEL_HEIGHT_FIT_SCALE = 0.65
 const MIN_UV_LABEL_FIT_SCALE = 0.12
+const MIN_SURFACE_LABEL_TEXT_SCALE = 0.2
 const FOCUS_POSITION_SMOOTHING_MS = 130
 const FOCUS_TARGET_SMOOTHING_MS = 115
 const FOCUS_ANCHOR_SMOOTHING_MS = 150
@@ -180,6 +185,8 @@ type LabelSpec = {
 	depth: number
 	key: string
 	kind: "shell" | "field"
+	metricDepth: number
+	metricRadius: number
 	offset: number
 	shellRadius: number
 	shellTube: number
@@ -321,11 +328,46 @@ const markGeometryPositionsDirty = (geometry: BufferGeometry): void => {
 	if (geometry.attributes.position) geometry.attributes.position.needsUpdate = true
 }
 
+const resolveSurfaceLabelTextScale = (spec: LabelSpec, maxTextWidth: number): number => {
+	if (!(maxTextWidth > 0)) return 1
+	const surfaceCurveRadius = spec.kind === "shell"
+		? Math.max(Math.abs(spec.shellRadius - (spec.shellTube + spec.offset)), 1e-6)
+		: Math.max(spec.sphereRadius + spec.offset, 1e-6)
+	const maxSurfaceTextWidth = Math.max(1, surfaceCurveRadius * MAX_UV_LABEL_SPAN_RAD)
+	return Math.max(MIN_SURFACE_LABEL_TEXT_SCALE, Math.min(1, maxSurfaceTextWidth / maxTextWidth))
+}
+
+const resolveFieldPeerLevelMetrics = (
+	record: FieldRenderRecord,
+	parentShellRecord: ShellRenderRecord | undefined,
+): { metricDepth: number; metricRadius: number } => {
+	if (parentShellRecord) {
+		return {
+			metricDepth: parentShellRecord.snapshot.depth,
+			metricRadius: parentShellRecord.snapshot.shellRadius + parentShellRecord.snapshot.shellTube,
+		}
+	}
+
+	const metricDepth = Math.max(0, record.depth - 1)
+	return {
+		metricDepth,
+		metricRadius: resolveAppWebOuterRadiusFromFieldSphereRadius({
+			depth: metricDepth,
+			fieldSphereRadiusMm: record.snapshot.sphereRadius,
+			layoutSettings: activeLayoutSettings,
+		}),
+	}
+}
+
 const resolveUvLabelFitScale = (baseCurveRadius: number, maxTextWidth: number): number => {
 	if (!(maxTextWidth > 0)) return 1
 	const safeBaseRadius = Math.max(Math.abs(baseCurveRadius), 10)
 	const maxArcWidth = safeBaseRadius * MAX_UV_LABEL_SPAN_RAD
 	return Math.max(MIN_UV_LABEL_FIT_SCALE, Math.min(1, maxArcWidth / maxTextWidth))
+}
+
+const resolveUvLabelHeightFitScale = (fitScale: number): number => {
+	return Math.max(MIN_UV_LABEL_HEIGHT_FIT_SCALE, Math.min(1, Math.sqrt(Math.max(fitScale, 0))))
 }
 
 const projectTextGeometryOntoSphere = (
@@ -342,10 +384,11 @@ const projectTextGeometryOntoSphere = (
 
 	const safeRadius = Math.max(radius, 1e-6)
 	const baseParallelRadius = Math.max(Math.abs(safeRadius * baseCosLatitude), 10)
+	const heightFitScale = resolveUvLabelHeightFitScale(fitScale)
 
 	for (let index = 0; index < initialPositions.length; index += 3) {
 		const arcOffset = ((initialPositions[index] ?? 0) - center.centerX) * fitScale
-		const verticalOffset = ((initialPositions[index + 1] ?? 0) - center.centerY) * fitScale
+		const verticalOffset = ((initialPositions[index + 1] ?? 0) - center.centerY) * heightFitScale
 		const deltaLongitude = arcOffset / baseParallelRadius
 		const deltaLatitude = verticalOffset / safeRadius
 		const sinDeltaLongitude = Math.sin(deltaLongitude)
@@ -383,10 +426,11 @@ const projectTextGeometryOntoTorus = (
 	const safeMinorRadius = Math.max(minorRadius, 1e-6)
 	const centerCircleRadius = Math.max(safeMajorRadius + safeMinorRadius * baseCosLatitude, 1e-6)
 	const safeCenterCircleRadius = Math.max(Math.abs(centerCircleRadius), 10)
+	const heightFitScale = resolveUvLabelHeightFitScale(fitScale)
 
 	for (let index = 0; index < initialPositions.length; index += 3) {
 		const arcOffset = ((initialPositions[index] ?? 0) - center.centerX) * fitScale
-		const verticalOffset = ((initialPositions[index + 1] ?? 0) - center.centerY) * fitScale
+		const verticalOffset = ((initialPositions[index + 1] ?? 0) - center.centerY) * heightFitScale
 		const deltaU = arcOffset / safeCenterCircleRadius
 		const deltaV = verticalOffset / safeMinorRadius
 		const sinDeltaU = Math.sin(deltaU)
@@ -466,22 +510,36 @@ const applySurfaceLabelProjection = (
 }
 
 const createSurfaceLabelNode = (
-	text: string,
+	spec: LabelSpec,
 	font: TrueTypeFont,
-	depth: number,
-	color: Color,
-	radius: number,
 ): SurfaceLabelVisual => {
-	const label = new Text(
-		text,
-		font,
-		getLevelMetrics(depth, radius).labelFontSizeMm ?? activeRenderSettings.labelFontSizeMm,
-		new TextMaterial({ color: color.clone(), opacity: 1 }),
-	)
-	const initialStencilPositions = new Float32Array(getGeometryPositionArray(label.stencilGeometry) ?? [])
-	const initialCoverPositions = new Float32Array(getGeometryPositionArray(label.coverGeometry) ?? [])
-	const stencilCenter = resolveTextGeometryCenter(initialStencilPositions) ?? { centerX: 0, centerY: 0, width: 0 }
-	const coverCenter = resolveTextGeometryCenter(initialCoverPositions) ?? { centerX: 0, centerY: 0, width: 0 }
+	const baseFontSize =
+		getLevelMetrics(spec.metricDepth, spec.metricRadius).labelFontSizeMm ?? activeRenderSettings.labelFontSizeMm
+	const createLabel = (fontSize: number): Text =>
+		new Text(
+			spec.text,
+			font,
+			fontSize,
+			new TextMaterial({ color: spec.color.clone(), opacity: 1 }),
+		)
+
+	let label = createLabel(baseFontSize)
+	let initialStencilPositions = new Float32Array(getGeometryPositionArray(label.stencilGeometry) ?? [])
+	let initialCoverPositions = new Float32Array(getGeometryPositionArray(label.coverGeometry) ?? [])
+	let stencilCenter = resolveTextGeometryCenter(initialStencilPositions) ?? { centerX: 0, centerY: 0, width: 0 }
+	let coverCenter = resolveTextGeometryCenter(initialCoverPositions) ?? { centerX: 0, centerY: 0, width: 0 }
+	let maxTextWidth = Math.max(stencilCenter.width, coverCenter.width)
+	const surfaceTextScale = resolveSurfaceLabelTextScale(spec, maxTextWidth)
+
+	if (surfaceTextScale < 0.999) {
+		label = createLabel(baseFontSize * surfaceTextScale)
+		initialStencilPositions = new Float32Array(getGeometryPositionArray(label.stencilGeometry) ?? [])
+		initialCoverPositions = new Float32Array(getGeometryPositionArray(label.coverGeometry) ?? [])
+		stencilCenter = resolveTextGeometryCenter(initialStencilPositions) ?? { centerX: 0, centerY: 0, width: 0 }
+		coverCenter = resolveTextGeometryCenter(initialCoverPositions) ?? { centerX: 0, centerY: 0, width: 0 }
+		maxTextWidth = Math.max(stencilCenter.width, coverCenter.width)
+	}
+
 	label.frustumCulled = false
 	label.updateMatrix()
 
@@ -493,7 +551,7 @@ const createSurfaceLabelNode = (
 		container,
 		initialCoverPositions,
 		initialStencilPositions,
-		maxTextWidth: Math.max(stencilCenter.width, coverCenter.width),
+		maxTextWidth,
 		material: label.material,
 		stencilCenter,
 		textNode: label,
@@ -1019,12 +1077,17 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(REMOVAL_FADE_MS + 32)
 	}
 
-	const buildLabelSignature = (spec: LabelSpec, radius: number): string => {
-		const metrics = getLevelMetrics(spec.depth, radius)
+	const buildLabelSignature = (spec: LabelSpec): string => {
+		const metrics = getLevelMetrics(spec.metricDepth, spec.metricRadius)
 		return [
 			spec.text,
 			spec.depth,
-			radius.toFixed(4),
+			spec.metricDepth,
+			spec.metricRadius.toFixed(4),
+			spec.shellRadius.toFixed(4),
+			spec.shellTube.toFixed(4),
+			spec.sphereRadius.toFixed(4),
+			spec.offset.toFixed(4),
 			spec.color.r.toFixed(4),
 			spec.color.g.toFixed(4),
 			spec.color.b.toFixed(4),
@@ -1039,8 +1102,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const text = normalizeLabelText(record.snapshot.label)
 		if (!text) return null
 
-		const shellOuterRadiusMm = record.snapshot.shellRadius + record.snapshot.shellTube
-		const metrics = getLevelMetrics(record.snapshot.depth, shellOuterRadiusMm)
+		const metricRadius = record.snapshot.shellRadius + record.snapshot.shellTube
+		const metrics = getLevelMetrics(record.snapshot.depth, metricRadius)
 
 		return {
 			anchorObject: record.container,
@@ -1048,6 +1111,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			depth: record.snapshot.depth,
 			key: `shell:${record.snapshot.particleId}`,
 			kind: "shell",
+			metricDepth: record.snapshot.depth,
+			metricRadius,
 			offset: metrics.labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm,
 			shellRadius: record.snapshot.shellRadius,
 			shellTube: record.snapshot.shellTube,
@@ -1064,7 +1129,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (!text) return null
 
 		const sphereRadiusMm = record.snapshot.sphereRadius
-		const metrics = getLevelMetrics(record.depth, sphereRadiusMm)
+		const parentShellRecord = shellRecords.get(record.parentParticleId)
+		const { metricDepth, metricRadius } = resolveFieldPeerLevelMetrics(record, parentShellRecord)
+		const metrics = getLevelMetrics(metricDepth, metricRadius)
 
 		return {
 			anchorObject: record.node,
@@ -1072,6 +1139,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			depth: record.depth,
 			key: `field:${record.snapshot.id}`,
 			kind: "field",
+			metricDepth,
+			metricRadius,
 			offset: metrics.labelSurfaceOffsetMm ?? activeRenderSettings.labelSurfaceOffsetMm,
 			shellRadius: 0,
 			shellTube: 0,
@@ -1095,13 +1164,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(REMOVAL_FADE_MS + 32)
 	}
 
-	const upsertLabelRecord = (spec: LabelSpec, radius: number): void => {
-		const signature = buildLabelSignature(spec, radius)
+	const upsertLabelRecord = (spec: LabelSpec): void => {
+		const signature = buildLabelSignature(spec)
 		const existing = labelRecords.get(spec.key)
 
 		if (!existing) {
 			const container = new Object3D()
-			const visual = createSurfaceLabelNode(spec.text, labelFont!, spec.depth, spec.color, radius)
+			const visual = createSurfaceLabelNode(spec, labelFont!)
 			container.add(visual.container)
 			container.frustumCulled = false
 			container.scale.set(LABEL_INITIAL_SCALE, LABEL_INITIAL_SCALE, LABEL_INITIAL_SCALE)
@@ -1147,7 +1216,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			child.parent = null
 		}
 		existing.container.children = []
-		const visual = createSurfaceLabelNode(spec.text, labelFont!, spec.depth, spec.color, radius)
+		const visual = createSurfaceLabelNode(spec, labelFont!)
 		visual.material.opacity = currentOpacity
 		existing.coverCenter = visual.coverCenter
 		existing.initialCoverPositions = visual.initialCoverPositions
@@ -1175,7 +1244,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const spec = createShellLabelSpec(record)
 			if (!spec) continue
 			nextLabelKeys.add(spec.key)
-			upsertLabelRecord(spec, record.snapshot.shellRadius + record.snapshot.shellTube)
+			upsertLabelRecord(spec)
 		}
 
 		for (const record of [...fieldRecords.values()].sort(
@@ -1187,7 +1256,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const spec = createFieldLabelSpec(record)
 			if (!spec) continue
 			nextLabelKeys.add(spec.key)
-			upsertLabelRecord(spec, record.snapshot.sphereRadius)
+			upsertLabelRecord(spec)
 		}
 
 		for (const key of [...labelRecords.keys()]) {
@@ -1654,7 +1723,16 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const cameraPos = viewPoint.position
 
 		for (const tracker of labelRecords.values()) {
-			readObjectWorldPosition(tracker.anchorObject, reusableWorldPosition)
+			tracker.anchorObject.matrixWorld.decompose(
+				reusableWorldPosition,
+				reusableWorldQuaternion,
+				reusableWorldScale,
+			)
+			const worldScale = Math.max(Math.abs(reusableWorldScale.x), 1e-6)
+			const shellRadius = tracker.shellRadius * worldScale
+			const shellTube = tracker.shellTube * worldScale
+			const sphereRadius = tracker.sphereRadius * worldScale
+			const offset = tracker.offset * worldScale
 			const normal = reusableLabelNormal
 			const right = reusableLabelRight
 			const labelPos = reusableLabelPos
@@ -1669,14 +1747,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				
 				// Центр "трубы" под камерой
 				const tubeCenter = reusableTubeCenter.copy(reusableWorldPosition).add(
-					reusableScaledOffset.copy(majorDir).multiplyScalar(tracker.shellRadius),
+					reusableScaledOffset.copy(majorDir).multiplyScalar(shellRadius),
 				)
 				
 				// Нормаль от центра трубы к камере
 				normal.copy(cameraPos).sub(tubeCenter).normalize()
 				// Позиция на поверхности трубы с учетом отступа
 				labelPos.copy(tubeCenter).add(
-					reusableScaledOffset.copy(normal).multiplyScalar(tracker.shellTube + tracker.offset),
+					reusableScaledOffset.copy(normal).multiplyScalar(shellTube + offset),
 				)
 				
 				// Вектор "вправо" (касательная к основной окружности бублика)
@@ -1686,14 +1764,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					baseCosLatitude: Math.max(-1, Math.min(1, normal.dot(majorDir))),
 					baseSinLatitude: Math.max(-1, Math.min(1, normal.z)),
 					kind: "torus",
-					majorRadius: tracker.shellRadius,
-					minorRadius: tracker.shellTube + tracker.offset,
+					majorRadius: shellRadius,
+					minorRadius: shellTube + offset,
 				}
 			} else {
 				// Для сферы строим локальные параллели/меридианы относительно мировой оси Z.
 				normal.copy(cameraPos).sub(reusableWorldPosition).normalize()
 				labelPos.copy(reusableWorldPosition).add(
-					reusableScaledOffset.copy(normal).multiplyScalar(tracker.sphereRadius + tracker.offset),
+					reusableScaledOffset.copy(normal).multiplyScalar(sphereRadius + offset),
 				)
 				
 				right.set(0, 0, 1).cross(normal)
@@ -1704,7 +1782,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					baseCosLatitude: Math.max(0, Math.hypot(normal.x, normal.y)),
 					baseSinLatitude: Math.max(-1, Math.min(1, normal.z)),
 					kind: "sphere",
-					radius: tracker.sphereRadius + tracker.offset,
+					radius: sphereRadius + offset,
 				}
 			}
 
@@ -1821,13 +1899,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const calculateActiveDepth = (): number => {
 		const cameraPos = viewPoint.position
 		let bestDepth = -1
+
 		for (const record of shellRecords.values()) {
 			const dist = cameraPos.distanceTo(record.pickTarget.center)
-			// Увеличиваем порог до 1.3, чтобы объект скрывался заранее при входе
 			if (dist < record.pickTarget.outerRadius * 1.3) {
 				bestDepth = Math.max(bestDepth, record.snapshot.depth)
 			}
 		}
+
 		return bestDepth
 	}
 
