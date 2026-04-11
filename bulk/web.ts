@@ -41,6 +41,7 @@ import {
 	type BulkPickTarget,
 	type BulkHoverPriorityCandidate,
 } from "./web-navigation"
+import { resolveSurfaceLabelTextScale } from "./surface-label"
 
 /** Краткая статистика текущего snapshot-а, которую viewport отдаёт в UI. */
 export interface BulkViewportStats {
@@ -336,15 +337,6 @@ const markGeometryPositionsDirty = (geometry: BufferGeometry): void => {
 	if (geometry.attributes.position) geometry.attributes.position.needsUpdate = true
 }
 
-const resolveSurfaceLabelTextScale = (spec: LabelSpec, maxTextWidth: number): number => {
-	if (!(maxTextWidth > 0)) return 1
-	const surfaceCurveRadius = spec.kind === "shell"
-		? Math.max(Math.abs(spec.shellRadius - (spec.shellTube + spec.offset)), 1e-6)
-		: Math.max(spec.sphereRadius + spec.offset, 1e-6)
-	const maxSurfaceTextWidth = Math.max(1e-6, surfaceCurveRadius * MAX_UV_LABEL_SPAN_RAD)
-	return Math.max(MIN_SURFACE_LABEL_TEXT_SCALE, Math.min(1, maxSurfaceTextWidth / maxTextWidth))
-}
-
 const resolveFieldPeerLevelMetrics = (
 	record: FieldRenderRecord,
 	_parentShellRecord: ShellRenderRecord | undefined,
@@ -530,7 +522,10 @@ const createSurfaceLabelNode = (
 	let stencilCenter = resolveTextGeometryCenter(initialStencilPositions) ?? { centerX: 0, centerY: 0, width: 0 }
 	let coverCenter = resolveTextGeometryCenter(initialCoverPositions) ?? { centerX: 0, centerY: 0, width: 0 }
 	let maxTextWidth = Math.max(stencilCenter.width, coverCenter.width)
-	const surfaceTextScale = resolveSurfaceLabelTextScale(spec, maxTextWidth)
+	const surfaceTextScale = resolveSurfaceLabelTextScale(spec, maxTextWidth, {
+		maxUvLabelSpanRad: MAX_UV_LABEL_SPAN_RAD,
+		minScale: MIN_SURFACE_LABEL_TEXT_SCALE,
+	})
 
 	if (surfaceTextScale < 0.999) {
 		label = createLabel(baseFontSize * surfaceTextScale)
