@@ -17,6 +17,7 @@ import blurWGSL from "./shaders/blur.wgsl" with {type: "text"}
 
 import lineShaderCode from "./shaders/line.wgsl" with {type: "text"}
 import textShaderCode from "./shaders/text.wgsl" with {type: "text"}
+import {TEXT_COVER_FACE_STATE, TEXT_STENCIL_BACK_FACE_STATE, TEXT_STENCIL_FACE_STATE} from "./text-stencil"
 import {collectSceneObjects, type LightItem, type RenderItem} from "./utils/RenderList"
 import {GlassMaterial} from "../materials/GlassMaterial"
 
@@ -591,8 +592,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         depthWriteEnabled: false,
         depthCompare: "less",
         format: "depth24plus-stencil8",
-        stencilFront: {compare: "always", failOp: "keep", depthFailOp: "keep", passOp: "increment-wrap"},
-        stencilBack: {compare: "always", failOp: "keep", depthFailOp: "keep", passOp: "decrement-wrap"},
+        stencilFront: TEXT_STENCIL_FACE_STATE,
+        stencilBack: TEXT_STENCIL_BACK_FACE_STATE,
       },
       multisample: {count: this.sampleCount},
     })
@@ -614,8 +615,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         depthWriteEnabled: false,
         depthCompare: "less",
         format: "depth24plus-stencil8",
-        stencilFront: {compare: "not-equal", failOp: "keep", depthFailOp: "keep", passOp: "keep"},
-        stencilBack: {compare: "not-equal", failOp: "keep", depthFailOp: "keep", passOp: "keep"},
+        stencilFront: TEXT_COVER_FACE_STATE,
+        stencilBack: TEXT_COVER_FACE_STATE,
       },
       multisample: {count: this.sampleCount},
     })
