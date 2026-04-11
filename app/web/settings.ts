@@ -30,6 +30,10 @@ export interface AppWebRenderSettings {
   torusTubularSegments: number
   /** Прозрачность wireframe-сетки (0..1). */
   wireframeOpacity: number
+  /** Прозрачность внутренних billboard-панелей в сферах (0..1). */
+  billboardOpacity: number
+  /** Матовый коэффициент billboard-панелей в сферах (0..1). */
+  billboardMatte: number
 }
 
 /** Нередактируемый layout-контракт `app/web`: базовые размеры snapshot-а и посадка viewport. */
@@ -156,6 +160,10 @@ export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
   torusTubularSegments: 16,
   // Прозрачность wireframe-сетки.
   wireframeOpacity: 0.9,
+  // Прозрачность пустых billboard-панелей внутри field-сфер.
+  billboardOpacity: 0.34,
+  // Насколько сильно billboard выглядит матовым/молочным.
+  billboardMatte: 0.58,
 }
 
 /** Классификация настроек `app/web` по ключам. Используется UI и runtime-слоями как единая карта. */
@@ -259,6 +267,26 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     max: 1,
     step: 0.01,
   },
+  billboardOpacity: {
+    group: "labels",
+    section: "render",
+    label: "Прозрачность billboard",
+    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.billboardOpacity,
+    description: "Задает прозрачность пустых billboard-панелей внутри field-сфер.",
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
+  billboardMatte: {
+    group: "labels",
+    section: "render",
+    label: "Матовость billboard",
+    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.billboardMatte,
+    description: "Усиливает матовость и молочность billboard-панелей внутри field-сфер.",
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
   // Масштаб уменьшения shell-ов от root вглубь иерархии.
   levelSizeMultiplier: {
     group: "geometry",
@@ -324,6 +352,8 @@ export const APP_WEB_RENDER_SETTING_KEYS = [
   "torusRadialSegments",
   "torusTubularSegments",
   "wireframeOpacity",
+  "billboardOpacity",
+  "billboardMatte",
 ] as const satisfies readonly AppWebRenderSettingKey[]
 
 /**
@@ -396,4 +426,12 @@ export const normalizeAppWebRenderSettings = (
     Number.isFinite(settings.wireframeOpacity) && (settings.wireframeOpacity ?? 0) >= 0
       ? Math.max(0, Math.min(1, settings.wireframeOpacity!))
       : DEFAULT_APP_WEB_RENDER_SETTINGS.wireframeOpacity,
+  billboardOpacity:
+    Number.isFinite(settings.billboardOpacity) && (settings.billboardOpacity ?? 0) >= 0
+      ? Math.max(0, Math.min(1, settings.billboardOpacity!))
+      : DEFAULT_APP_WEB_RENDER_SETTINGS.billboardOpacity,
+  billboardMatte:
+    Number.isFinite(settings.billboardMatte) && (settings.billboardMatte ?? 0) >= 0
+      ? Math.max(0, Math.min(1, settings.billboardMatte!))
+      : DEFAULT_APP_WEB_RENDER_SETTINGS.billboardMatte,
 })

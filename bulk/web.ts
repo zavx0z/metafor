@@ -33,6 +33,7 @@ import {
 	Vector3,
 	ViewPoint,
 } from "@metafor/engine"
+import { GlassBillboard } from "../pkg/ui/index.ts"
 import {
 	resolveBulkHoverPriorityTarget,
 	resolveBulkPickHit,
@@ -161,6 +162,13 @@ type SurfaceLabelVisual = {
 	textNode: Text
 }
 
+type FieldBillboardRecord = {
+	anchorObject: Object3D
+	billboard: GlassBillboard
+	key: string
+	signature: string
+}
+
 type LabelRenderRecord = {
 	anchorObject: Object3D
 	coverCenter: TextGeometryCenter
@@ -180,6 +188,14 @@ type LabelRenderRecord = {
 	sphereRadius: number
 	stencilCenter: TextGeometryCenter
 	textNode: Text
+}
+
+type FieldBillboardSpec = {
+	anchorObject: Object3D
+	depth: number
+	key: string
+	sphereRadius: number
+	tintColor: Color
 }
 
 type LabelSpec = {
@@ -209,6 +225,7 @@ type FadingLabelRemovalRecord = {
 type TextGeometryCenter = {
 	centerX: number
 	centerY: number
+	height: number
 	width: number
 }
 
@@ -345,6 +362,7 @@ const resolveTextGeometryCenter = (
 	return {
 		centerX: (minX + maxX) / 2,
 		centerY: (minY + maxY) / 2,
+		height: Math.max(0, maxY - minY),
 		width: Math.max(0, maxX - minX),
 	}
 }
@@ -535,8 +553,8 @@ const createSurfaceLabelNode = (
 	let label = createLabel(baseFontSize)
 	let initialStencilPositions = new Float32Array(getGeometryPositionArray(label.stencilGeometry) ?? [])
 	let initialCoverPositions = new Float32Array(getGeometryPositionArray(label.coverGeometry) ?? [])
-	let stencilCenter = resolveTextGeometryCenter(initialStencilPositions) ?? { centerX: 0, centerY: 0, width: 0 }
-	let coverCenter = resolveTextGeometryCenter(initialCoverPositions) ?? { centerX: 0, centerY: 0, width: 0 }
+	let stencilCenter = resolveTextGeometryCenter(initialStencilPositions) ?? { centerX: 0, centerY: 0, height: 0, width: 0 }
+	let coverCenter = resolveTextGeometryCenter(initialCoverPositions) ?? { centerX: 0, centerY: 0, height: 0, width: 0 }
 	let maxTextWidth = Math.max(stencilCenter.width, coverCenter.width)
 	const surfaceTextScale = resolveSurfaceLabelTextScale(spec, maxTextWidth, {
 		maxUvLabelSpanRad: MAX_UV_LABEL_SPAN_RAD,
@@ -547,8 +565,8 @@ const createSurfaceLabelNode = (
 		label = createLabel(baseFontSize * surfaceTextScale)
 		initialStencilPositions = new Float32Array(getGeometryPositionArray(label.stencilGeometry) ?? [])
 		initialCoverPositions = new Float32Array(getGeometryPositionArray(label.coverGeometry) ?? [])
-		stencilCenter = resolveTextGeometryCenter(initialStencilPositions) ?? { centerX: 0, centerY: 0, width: 0 }
-		coverCenter = resolveTextGeometryCenter(initialCoverPositions) ?? { centerX: 0, centerY: 0, width: 0 }
+		stencilCenter = resolveTextGeometryCenter(initialStencilPositions) ?? { centerX: 0, centerY: 0, height: 0, width: 0 }
+		coverCenter = resolveTextGeometryCenter(initialCoverPositions) ?? { centerX: 0, centerY: 0, height: 0, width: 0 }
 		maxTextWidth = Math.max(stencilCenter.width, coverCenter.width)
 	}
 
@@ -712,6 +730,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	labelsLayer.updateMatrix()
 	scene.add(labelsLayer)
 
+	const fieldBillboardsLayer = new Object3D()
+	fieldBillboardsLayer.frustumCulled = false
+	fieldBillboardsLayer.updateMatrix()
+	scene.add(fieldBillboardsLayer)
+
 	let pickTargets: HoverablePickTarget[] = []
 	let hoveredPickTarget: HoverablePickTarget | null = null
 	let snapshot: DbWorldSnapshot | null = null
@@ -728,6 +751,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const shellRecords = new Map<string, ShellRenderRecord>()
 	const fieldRecords = new Map<string, FieldRenderRecord>()
+	const fieldBillboardRecords = new Map<string, FieldBillboardRecord>()
 	const fadingRemovalRecords: FadingRemovalRecord[] = []
 	const labelRecords = new Map<string, LabelRenderRecord>()
 	const fadingLabelRemovalRecords: FadingLabelRemovalRecord[] = []
@@ -1134,6 +1158,99 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 	}
 
+	const buildFieldBillboardSignature = (spec: FieldBillboardSpec): string => {
+		return [
+			spec.depth,
+			spec.sphereRadius.toFixed(4),
+			spec.tintColor.r.toFixed(4),
+			spec.tintColor.g.toFixed(4),
+			spec.tintColor.b.toFixed(4),
+			activeRenderSettings.billboardOpacity.toFixed(4),
+			activeRenderSettings.billboardMatte.toFixed(4),
+		].join(":")
+	}
+
+	const createFieldBillboardSpec = (record: FieldRenderRecord): FieldBillboardSpec | null => {
+		if (activeRenderSettings.billboardOpacity <= 1e-4) return null
+		if (!isLabelDepthVisible(record.depth)) return null
+
+		return {
+			anchorObject: record.node,
+			depth: record.depth,
+			key: `field:${record.snapshot.id}`,
+			sphereRadius: record.snapshot.sphereRadius,
+			tintColor: getFieldThemeColor(record.snapshot.fieldValueKind).color.clone(),
+		}
+	}
+
+	const removeFieldBillboardRecord = (key: string): void => {
+		const record = fieldBillboardRecords.get(key)
+		if (!record) return
+		detachObject(record.billboard)
+		fieldBillboardRecords.delete(key)
+	}
+
+	const upsertFieldBillboardRecord = (spec: FieldBillboardSpec): void => {
+		const signature = buildFieldBillboardSignature(spec)
+		const existing = fieldBillboardRecords.get(spec.key)
+		const inscribedSide = Math.max((spec.sphereRadius * 2) / Math.SQRT2, 1e-6)
+		const borderOpacity = Math.max(0.08, Math.min(0.5, activeRenderSettings.billboardOpacity + 0.08))
+
+		if (!existing) {
+			const billboard = new GlassBillboard({
+				borderColor: spec.tintColor,
+				borderOpacity,
+				height: inscribedSide,
+				matte: activeRenderSettings.billboardMatte,
+				opacity: activeRenderSettings.billboardOpacity,
+				tintColor: spec.tintColor,
+				width: inscribedSide,
+			})
+			billboard.frustumCulled = false
+			billboard.updateMatrix()
+			fieldBillboardsLayer.add(billboard)
+			fieldBillboardRecords.set(spec.key, {
+				anchorObject: spec.anchorObject,
+				billboard,
+				key: spec.key,
+				signature,
+			})
+			return
+		}
+
+		existing.anchorObject = spec.anchorObject
+		if (existing.signature === signature) return
+		existing.signature = signature
+		existing.billboard.setSize(inscribedSide, inscribedSide)
+		existing.billboard.setVisual({
+			borderColor: spec.tintColor,
+			borderOpacity,
+			matte: activeRenderSettings.billboardMatte,
+			opacity: activeRenderSettings.billboardOpacity,
+			tintColor: spec.tintColor,
+		})
+	}
+
+	const syncFieldBillboardRecords = (): void => {
+		const nextKeys = new Set<string>()
+
+		for (const record of [...fieldRecords.values()].sort(
+			(left, right) =>
+				left.depth - right.depth ||
+				left.snapshot.fieldOrder - right.snapshot.fieldOrder ||
+				left.snapshot.id.localeCompare(right.snapshot.id),
+		)) {
+			const spec = createFieldBillboardSpec(record)
+			if (!spec) continue
+			nextKeys.add(spec.key)
+			upsertFieldBillboardRecord(spec)
+		}
+
+		for (const key of [...fieldBillboardRecords.keys()]) {
+			if (!nextKeys.has(key)) removeFieldBillboardRecord(key)
+		}
+	}
+
 	const createFieldLabelSpec = (record: FieldRenderRecord): LabelSpec | null => {
 		if (!labelFont) return null
 		if (!isLabelDepthVisible(record.depth)) return null
@@ -1289,6 +1406,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			applyFieldRecordScale(record)
 		}
 
+		syncFieldBillboardRecords()
 		syncLabelRecords()
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
@@ -1333,6 +1451,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 		refreshParentByParticleId()
 		refreshPickTargets()
+		syncFieldBillboardRecords()
 		syncLabelRecords()
 		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
 
@@ -1732,6 +1851,22 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return hasPendingMotion
 	}
 
+	const updateFieldBillboardTrackers = (): void => {
+		const cameraPos = viewPoint.position
+
+		for (const tracker of fieldBillboardRecords.values()) {
+			tracker.anchorObject.matrixWorld.decompose(
+				reusableWorldPosition,
+				reusableWorldQuaternion,
+				reusableWorldScale,
+			)
+			const worldScale = Math.max(Math.abs(reusableWorldScale.x), 1e-6)
+			tracker.billboard.position.copy(reusableWorldPosition)
+			tracker.billboard.scale.set(worldScale, worldScale, worldScale)
+			tracker.billboard.faceCamera(cameraPos)
+		}
+	}
+
 	const updateLabelTrackers = (): void => {
 		const cameraPos = viewPoint.position
 
@@ -1960,9 +2095,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		) {
 			activeRenderSettings.baseDepth = nextBaseDepth
 			activeShellParticleId = nextActiveShellParticleId
+			syncFieldBillboardRecords()
 			syncLabelRecords()
 		}
 
+		updateFieldBillboardTrackers()
 		updateLabelTrackers()
 		scene.updateWorldMatrix()
 		renderer.render(scene, viewPoint)

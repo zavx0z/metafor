@@ -1,0 +1,12 @@
+{
+  "name": "@metafor/ui",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": {
+      "import": "./index.ts",
+      "types": "./index.ts"
+    }
+  },
+  "private": true
+}

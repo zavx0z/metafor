@@ -85,6 +85,8 @@ const torusCrossRingRotationInput = document.getElementById("torus-cross-ring-ro
 const torusRadialSegmentsInput = document.getElementById("torus-radial-segments-input") as HTMLInputElement
 const torusTubularSegmentsInput = document.getElementById("torus-tubular-segments-input") as HTMLInputElement
 const wireframeOpacityInput = document.getElementById("wireframe-opacity-input") as HTMLInputElement
+const billboardOpacityInput = document.getElementById("billboard-opacity-input") as HTMLInputElement
+const billboardMatteInput = document.getElementById("billboard-matte-input") as HTMLInputElement
 const submitButton = document.getElementById("materialize-btn") as HTMLButtonElement
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
@@ -127,6 +129,8 @@ const settingInputs = {
 	torusRadialSegments: torusRadialSegmentsInput,
 	torusTubularSegments: torusTubularSegmentsInput,
 	wireframeOpacity: wireframeOpacityInput,
+	billboardOpacity: billboardOpacityInput,
+	billboardMatte: billboardMatteInput,
 } as const
 
 type SettingInputKey = keyof typeof settingInputs
@@ -160,7 +164,14 @@ const readSettingValue = (key: SettingInputKey): AppWebLayoutSettings[keyof AppW
 	const input = settingInputs[key]
 	const config = APP_WEB_SETTINGS_BY_KEY[key]
 	const fallback = config.defaultValue
-	if (key === "labelSurfaceOffsetMm") return parseNonNegativeNumber(input, fallback)
+	if (
+		key === "labelSurfaceOffsetMm" ||
+		key === "wireframeOpacity" ||
+		key === "billboardOpacity" ||
+		key === "billboardMatte"
+	) {
+		return parseNonNegativeNumber(input, fallback)
+	}
 	if (key === "torusCrossRingRotationDeg") return parseFiniteNumber(input, fallback)
 	return parsePositiveNumber(input, fallback)
 }

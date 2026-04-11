@@ -1,4 +1,5 @@
 export * from "./Material"
+export * from "./GlassMaterial"
 export * from "./MeshBasicMaterial"
 export * from "./LineBasicMaterial"
 export * from "./LineGlowMaterial"

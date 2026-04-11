@@ -612,7 +612,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       },
       primitive: {topology: "triangle-list", cullMode: "none"},
       depthStencil: {
-        depthWriteEnabled: false,
+        depthWriteEnabled: true,
         depthCompare: "less",
         format: "depth24plus-stencil8",
         stencilFront: TEXT_COVER_FACE_STATE,
@@ -645,6 +645,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     this.lastCanvasWidth = width
     this.lastCanvasHeight = height
+    const offscreenRenderFormat = this.presentationFormat
 
     const textureUsage = GPUTextureUsage.RENDER_ATTACHMENT |
       GPUTextureUsage.TEXTURE_BINDING |
@@ -661,15 +662,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Мультисемплинговая текстура для offscreen-рендеринга
     this.offscreenTexture = this.device.createTexture({
       size: [width, height],
-      format: 'rgba8unorm',
+      format: offscreenRenderFormat,
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
       sampleCount: 4,
     })
 
-    // Разрешенная (односэмпловая) текстура для compute-шейдеров
+    // Resolve-таргет должен совпадать по формату с render target.
+    // Дальше blur compute читает его как texture_2d<f32>, поэтому presentation format здесь допустим.
     this.offscreenResolvedTexture = this.device.createTexture({
       size: [width, height],
-      format: 'rgba8unorm',
+      format: offscreenRenderFormat,
       usage: GPUTextureUsage.RENDER_ATTACHMENT |
         GPUTextureUsage.TEXTURE_BINDING |
         GPUTextureUsage.COPY_SRC,
@@ -937,7 +939,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (material instanceof MeshBasicMaterial || material instanceof MeshLambertMaterial) {
       this.perObjectDataCPU!.set(material.color.toArray(), offsetFloats + 32)
     } else if ((material as any).isGlassMaterial) {
-      this.perObjectDataCPU!.set((material as GlassMaterial).tintColor.toArray(), offsetFloats + 32)
+      const glassMaterial = material as GlassMaterial
+      const matte = Math.max(0, Math.min(1, glassMaterial.matte))
+      const clearChannel = 0.94
+      const tintColor = glassMaterial.tintColor
+      this.perObjectDataCPU!.set(
+        [
+          clearChannel + (tintColor.r - clearChannel) * matte,
+          clearChannel + (tintColor.g - clearChannel) * matte,
+          clearChannel + (tintColor.b - clearChannel) * matte,
+          Math.max(0, Math.min(1, glassMaterial.opacity)),
+        ],
+        offsetFloats + 32,
+      )
     }
   }
 
