@@ -167,6 +167,7 @@ type FieldBillboardRecord = {
 	billboard: GlassBillboard
 	key: string
 	signature: string
+	sphereRadius: number
 }
 
 type LabelRenderRecord = {
@@ -1193,18 +1194,18 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const upsertFieldBillboardRecord = (spec: FieldBillboardSpec): void => {
 		const signature = buildFieldBillboardSignature(spec)
 		const existing = fieldBillboardRecords.get(spec.key)
-		const inscribedSide = Math.max((spec.sphereRadius * 2) / Math.SQRT2, 1e-6)
+		const inscribedSquareSide = Math.max(spec.sphereRadius * Math.SQRT2, 1e-6)
 		const borderOpacity = Math.max(0.08, Math.min(0.5, activeRenderSettings.billboardOpacity + 0.08))
 
 		if (!existing) {
 			const billboard = new GlassBillboard({
 				borderColor: spec.tintColor,
 				borderOpacity,
-				height: inscribedSide,
+				height: inscribedSquareSide,
 				matte: activeRenderSettings.billboardMatte,
 				opacity: activeRenderSettings.billboardOpacity,
 				tintColor: spec.tintColor,
-				width: inscribedSide,
+				width: inscribedSquareSide,
 			})
 			billboard.frustumCulled = false
 			billboard.updateMatrix()
@@ -1214,14 +1215,15 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				billboard,
 				key: spec.key,
 				signature,
+				sphereRadius: spec.sphereRadius,
 			})
 			return
 		}
 
 		existing.anchorObject = spec.anchorObject
+		existing.sphereRadius = spec.sphereRadius
 		if (existing.signature === signature) return
 		existing.signature = signature
-		existing.billboard.setSize(inscribedSide, inscribedSide)
 		existing.billboard.setVisual({
 			borderColor: spec.tintColor,
 			borderOpacity,
@@ -1861,8 +1863,28 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				reusableWorldScale,
 			)
 			const worldScale = Math.max(Math.abs(reusableWorldScale.x), 1e-6)
-			tracker.billboard.position.copy(reusableWorldPosition)
-			tracker.billboard.scale.set(worldScale, worldScale, worldScale)
+			const worldRadius = Math.max(tracker.sphereRadius * worldScale, 1e-6)
+			const toCamera = reusableLabelNormal.copy(cameraPos).sub(reusableWorldPosition)
+			const cameraDistance = Math.max(toCamera.length(), worldRadius + 1e-6)
+			toCamera.normalize()
+
+			// Для перспективной проекции квадрат в центральной плоскости выглядит меньше силуэта сферы.
+			// Смещаем billboard внутрь к камере на r^2 / d и берем квадрат по сечению этой плоскости:
+			// тогда видимые углы квадрата касаются видимой окружности сферы.
+			const forwardOffset = Math.min(
+				worldRadius - 1e-6,
+				(worldRadius * worldRadius) / cameraDistance,
+			)
+			const sliceRadius = Math.sqrt(
+				Math.max(0, worldRadius * worldRadius - forwardOffset * forwardOffset),
+			)
+			const panelSize = Math.max(sliceRadius * Math.SQRT2, 1e-6)
+
+			tracker.billboard.position.copy(reusableWorldPosition).add(
+				reusableScaledOffset.copy(toCamera).multiplyScalar(forwardOffset),
+			)
+			tracker.billboard.scale.set(1, 1, 1)
+			tracker.billboard.setSize(panelSize, panelSize)
 			tracker.billboard.faceCamera(cameraPos)
 		}
 	}
