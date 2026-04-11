@@ -41,6 +41,7 @@ import {
 	type BulkPickTarget,
 	type BulkHoverPriorityCandidate,
 } from "./web-navigation"
+import { isDepthLabelVisible, isShellLabelVisible } from "./label-visibility"
 import { resolveSurfaceLabelTextScale } from "./surface-label"
 
 /** Краткая статистика текущего snapshot-а, которую viewport отдаёт в UI. */
@@ -231,7 +232,22 @@ const getResolvedLevelMetrics = (depth: number, outerRadiusMm?: number) =>
 		...(outerRadiusMm !== undefined && { outerRadiusMm }),
 	})
 
-const isLabelDepthVisible = (depth: number): boolean => getCanonicalLevelMetrics(depth).isLabelVisible
+let activeShellParticleId: string | null = null
+
+const isLabelDepthVisible = (depth: number): boolean =>
+	isDepthLabelVisible({
+		baseDepth: activeRenderSettings.baseDepth,
+		depth,
+		labelVisibleLevels: activeRenderSettings.labelVisibleLevels,
+	})
+
+const isShellLabelDepthVisible = (particleId: string, depth: number): boolean =>
+	isShellLabelVisible({
+		baseDepth: activeRenderSettings.baseDepth,
+		depth,
+		isActiveShell: activeShellParticleId === particleId,
+		labelVisibleLevels: activeRenderSettings.labelVisibleLevels,
+	})
 
 const getTorusDetail = (
 	_radius: number,
@@ -1095,7 +1111,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const createShellLabelSpec = (record: ShellRenderRecord): LabelSpec | null => {
 		if (!labelFont) return null
-		if (!isLabelDepthVisible(record.snapshot.depth)) return null
+		if (!isShellLabelDepthVisible(record.snapshot.particleId, record.snapshot.depth)) return null
 		const text = normalizeLabelText(record.snapshot.label)
 		if (!text) return null
 
@@ -1893,18 +1909,36 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	document.addEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 	document.addEventListener("mouseup", wakeRenderFromDocumentMouseUp)
 
-	const calculateActiveDepth = (): number => {
+	const calculateActiveShellRecord = (): ShellRenderRecord | null => {
 		const cameraPos = viewPoint.position
-		let bestDepth = -1
+		let bestRecord: ShellRenderRecord | null = null
+		let bestNormalizedDistance = Number.POSITIVE_INFINITY
 
 		for (const record of shellRecords.values()) {
 			const dist = cameraPos.distanceTo(record.pickTarget.center)
 			if (dist < record.pickTarget.outerRadius * 1.3) {
-				bestDepth = Math.max(bestDepth, record.snapshot.depth)
+				const normalizedDistance = dist / Math.max(record.pickTarget.outerRadius, 1e-6)
+				if (
+					!bestRecord ||
+					record.snapshot.depth > bestRecord.snapshot.depth ||
+					(
+						record.snapshot.depth === bestRecord.snapshot.depth &&
+						(
+							normalizedDistance < bestNormalizedDistance - 1e-6 ||
+							(
+								Math.abs(normalizedDistance - bestNormalizedDistance) <= 1e-6 &&
+								record.snapshot.particleId.localeCompare(bestRecord.snapshot.particleId) < 0
+							)
+						)
+					)
+				) {
+					bestRecord = record
+					bestNormalizedDistance = normalizedDistance
+				}
 			}
 		}
 
-		return bestDepth
+		return bestRecord
 	}
 
 	const animate = (timestamp: number): void => {
@@ -1917,9 +1951,15 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		updateSceneWorldState()
 		applyNavigationFrame(deltaMs)
 
-		const nextBaseDepth = calculateActiveDepth()
-		if (nextBaseDepth !== activeRenderSettings.baseDepth) {
+		const activeShellRecord = calculateActiveShellRecord()
+		const nextBaseDepth = activeShellRecord?.snapshot.depth ?? -1
+		const nextActiveShellParticleId = activeShellRecord?.snapshot.particleId ?? null
+		if (
+			nextBaseDepth !== activeRenderSettings.baseDepth ||
+			nextActiveShellParticleId !== activeShellParticleId
+		) {
 			activeRenderSettings.baseDepth = nextBaseDepth
+			activeShellParticleId = nextActiveShellParticleId
 			syncLabelRecords()
 		}
 
@@ -1971,6 +2011,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				...settings,
 				baseDepth: nextBaseDepth,
 			})
+			if (settings.baseDepth !== undefined) activeShellParticleId = null
 			torusWireframeCache.clear()
 			sphereWireframeCache.clear()
 			refreshSceneForSettings()
