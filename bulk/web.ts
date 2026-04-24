@@ -1554,50 +1554,38 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const labelPos = reusableLabelPos
 			let curveRadiusMm: number
 
+			// Горизонтальное направление от центра объекта к XY-проекции камеры.
+			// Метка следует за камерой по экватору (вращается азимутально), но не поднимается
+			// по меридиану — вертикальная позиция камеры игнорируется.
+			const toCameraXy = reusableLabelToCamera
+				.copy(cameraPos)
+				.sub(reusableWorldPosition)
+			const majorDir = reusableMajorDir.set(toCameraXy.x, toCameraXy.y, 0).normalize()
+			if (majorDir.length() < 1e-6) majorDir.set(1, 0, 0)
+
+			// Нормаль всегда горизонтальная (вдоль majorDir), независимо от высоты камеры.
+			normal.copy(majorDir)
+			// Касательная вдоль параллели = поворот majorDir на 90° в XY.
+			right.set(-majorDir.y, majorDir.x, 0).normalize()
+
 			if (tracker.kind === "shell") {
-				// Вектор от центра тора к камере
-				const toCamera = reusableLabelToCamera.copy(cameraPos).sub(reusableWorldPosition)
-				// Направление основного радиуса (в плоскости XY)
-				const majorDir = reusableMajorDir.set(toCamera.x, toCamera.y, 0).normalize()
-				if (majorDir.length() < 1e-6) majorDir.set(1, 0, 0)
-
-				// Центр "трубы" под камерой
-				const tubeCenter = reusableTubeCenter.copy(reusableWorldPosition).add(
-					reusableScaledOffset.copy(majorDir).multiplyScalar(shellRadius),
-				)
-
-				// Нормаль от центра трубы к камере
-				normal.copy(cameraPos).sub(tubeCenter).normalize()
-				// Позиция на поверхности трубы с учетом отступа
-				labelPos.copy(tubeCenter).add(
-					reusableScaledOffset.copy(normal).multiplyScalar(shellTube + offset),
-				)
-
-				// Вектор "вправо" (касательная к основной окружности бублика)
-				right.set(-majorDir.y, majorDir.x, 0).normalize()
-
-				// Радиус параллели, проходящей через labelPos на поверхности тубы.
-				// `normal.dot(majorDir)` = baseCosLatitude на тубе.
-				const baseCosLatitude = Math.max(-1, Math.min(1, normal.dot(majorDir)))
-				curveRadiusMm = Math.max(shellRadius + (shellTube + offset) * baseCosLatitude, 1e-6)
+				// Метка на внешнем экваторе тубы, `outerRing = shellRadius + shellTube + offset`.
+				const outerRing = shellRadius + shellTube + offset
+				labelPos
+					.copy(reusableWorldPosition)
+					.add(reusableScaledOffset.copy(majorDir).multiplyScalar(outerRing))
+				curveRadiusMm = Math.max(outerRing, 1e-6)
 			} else {
-				// Для сферы строим локальные параллели/меридианы относительно мировой оси Z.
-				normal.copy(cameraPos).sub(reusableWorldPosition).normalize()
-				labelPos.copy(reusableWorldPosition).add(
-					reusableScaledOffset.copy(normal).multiplyScalar(sphereRadius + offset),
-				)
-
-				right.set(0, 0, 1).cross(normal)
-				if (right.length() < 1e-6) right.set(1, 0, 0).cross(normal)
-				right.normalize()
-
-				// Радиус параллели на сфере: `(sphereR + offset) × cos(lat)` где lat определяется нормалью.
-				const baseCosLatitude = Math.max(0, Math.hypot(normal.x, normal.y))
-				curveRadiusMm = Math.max((sphereRadius + offset) * baseCosLatitude, 1e-6)
+				// Метка на горизонтальном поясе сферы, `radius = sphereRadius + offset`.
+				const beltRadius = sphereRadius + offset
+				labelPos
+					.copy(reusableWorldPosition)
+					.add(reusableScaledOffset.copy(majorDir).multiplyScalar(beltRadius))
+				curveRadiusMm = Math.max(beltRadius, 1e-6)
 			}
 
-			// Вектор "вверх" (перпендикулярен нормали и направлению "вправо")
-			const up = reusableLabelUp.crossVectors(normal, right).normalize()
+			// Вектор "вверх" — мировая вертикаль; метка не наклоняется с камерой.
+			const up = reusableLabelUp.set(0, 0, 1)
 
 			// Устанавливаем позицию
 			tracker.container.position.copy(labelPos)
