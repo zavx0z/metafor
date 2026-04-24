@@ -2,6 +2,8 @@
   "name": "@app/web",
   "private": true,
   "scripts": {
-    "dev": "bun server --hot"
+    "dev": "bun server --hot",
+    "tls:issue": "bash ../../scripts/tls-issue.sh",
+    "tls:issue:staging": "STAGING=1 bash ../../scripts/tls-issue.sh"
   }
 }

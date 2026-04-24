@@ -26,9 +26,22 @@ import {
 const ROOT = normalize(join(import.meta.dir, "../../"))
 const APP_CHANNEL = "app-web"
 const APP_DB_FILENAME = join(ROOT, "app/web/tmp/metafor-app.sqlite")
-const DEFAULT_PORT = 3000
+const DEFAULT_PORT = 2244
 const configuredPort = Number(Bun.env.PORT ?? DEFAULT_PORT)
 const APP_PORT = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : DEFAULT_PORT
+
+const TLS_KEY_FILE = Bun.env.TLS_KEY_FILE
+const TLS_CERT_FILE = Bun.env.TLS_CERT_FILE
+const TLS_CA_FILE = Bun.env.TLS_CA_FILE
+const TLS_PASSPHRASE = Bun.env.TLS_PASSPHRASE
+const tls = TLS_KEY_FILE && TLS_CERT_FILE
+	? {
+			key: file(TLS_KEY_FILE),
+			cert: file(TLS_CERT_FILE),
+			...(TLS_CA_FILE ? { ca: file(TLS_CA_FILE) } : {}),
+			...(TLS_PASSPHRASE ? { passphrase: TLS_PASSPHRASE } : {}),
+		}
+	: undefined
 
 type WorkerName = "dark" | "boundary" | "bulk"
 type WorkerStatus = "idle" | "ready" | "started" | "done" | "error"
@@ -286,6 +299,7 @@ protocolMirrors.forEach(({ key, channelName, validator }) => {
 
 const server = serve({
 	port: APP_PORT,
+	...(tls ? { tls } : {}),
 	routes: {
 		"/": () => new Response(file(join(import.meta.dir, "index.html"))),
 		"/client.js": async () => await buildEntrypoint(join(import.meta.dir, "client.ts")),
@@ -362,4 +376,4 @@ const server = serve({
 	},
 })
 
-console.log(`https://${server.hostname}:${server.port}`)
+console.log(`${tls ? "https" : "http"}://${server.hostname}:${server.port}`)
