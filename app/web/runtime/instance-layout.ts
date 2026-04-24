@@ -8,12 +8,10 @@ import type {
 import {
   appWebLayoutConfig,
   normalizeAppWebLayoutSettings,
+  toLevelGeometrySettings,
   type AppWebLayoutSettings,
 } from "../settings.ts"
-import {
-  resolveAppWebCanonicalLevelMetrics,
-  resolveAppWebLevelMetrics,
-} from "../level.ts"
+import { resolveLevelGeometry, type LevelGeometry } from "@bulk/gravity/level"
 
 const snapshotLayoutConfig = appWebLayoutConfig.snapshot
 
@@ -73,26 +71,30 @@ type OrbitItem =
       shell: LayoutShellNode
     }
 
-const getCanonicalLevelMetrics = (
+const getCanonicalLevelGeometry = (
   depthFromRoot: number,
   settings: AppWebLayoutSettings,
   options: { rootOuterDiameterMm?: number } = {},
-) =>
-  resolveAppWebCanonicalLevelMetrics({
+): LevelGeometry =>
+  resolveLevelGeometry({
     depth: depthFromRoot,
-    layoutSettings: settings,
-    rootOuterDiameterMm: options.rootOuterDiameterMm ?? snapshotLayoutConfig.rootOuterDiameterMm,
+    settings: toLevelGeometrySettings(
+      settings,
+      options.rootOuterDiameterMm ?? snapshotLayoutConfig.rootOuterDiameterMm,
+    ),
   })
 
-const getResolvedLevelMetrics = (
+const getSurfaceLevelGeometry = (
   depthFromRoot: number,
   settings: AppWebLayoutSettings,
   options: { outerRadiusMm?: number; rootOuterDiameterMm?: number } = {},
-) =>
-  resolveAppWebLevelMetrics({
+): LevelGeometry =>
+  resolveLevelGeometry({
     depth: depthFromRoot,
-    layoutSettings: settings,
-    rootOuterDiameterMm: options.rootOuterDiameterMm ?? snapshotLayoutConfig.rootOuterDiameterMm,
+    settings: toLevelGeometrySettings(
+      settings,
+      options.rootOuterDiameterMm ?? snapshotLayoutConfig.rootOuterDiameterMm,
+    ),
     ...(options.outerRadiusMm !== undefined ? { outerRadiusMm: options.outerRadiusMm } : {}),
   })
 
@@ -341,14 +343,14 @@ const createOuterRequirementOrbitItems = (
       innerRadius: 0,
       outerRadius:
         outerByDepth.get(child.depthFromRoot) ??
-        getCanonicalLevelMetrics(child.depthFromRoot, settings).canonicalOuterRadiusMm,
+        getCanonicalLevelGeometry(child.depthFromRoot, settings).outerRadiusMm,
     },
     extent:
       outerByDepth.get(child.depthFromRoot) ??
-      getCanonicalLevelMetrics(child.depthFromRoot, settings).canonicalOuterRadiusMm,
+      getCanonicalLevelGeometry(child.depthFromRoot, settings).outerRadiusMm,
   }))
 
-  const fieldRadius = getResolvedLevelMetrics(node.depthFromRoot, settings, { outerRadiusMm }).fieldSphereRadiusMm
+  const fieldRadius = getSurfaceLevelGeometry(node.depthFromRoot, settings, { outerRadiusMm }).sphereRadiusMm
   const fieldOrbitItems: OrbitItem[] = node.descriptor.fields.map((field) => ({
     kind: "field",
     field: cloneDescriptorField(node.descriptor, field, fieldRadius),
@@ -372,11 +374,11 @@ const resolveOuterRadiusByDepth = (
 
   for (const depth of depths) {
     const nodes = nodesByDepth.get(depth) ?? []
-    let resolvedOuter = getCanonicalLevelMetrics(depth, settings).canonicalOuterRadiusMm
+    let resolvedOuter = getCanonicalLevelGeometry(depth, settings).outerRadiusMm
 
     for (let iteration = 0; iteration < 32; iteration += 1) {
       let nextOuter = resolvedOuter
-      const levelMetrics = getResolvedLevelMetrics(depth, settings, { outerRadiusMm: resolvedOuter })
+      const levelMetrics = getSurfaceLevelGeometry(depth, settings, { outerRadiusMm: resolvedOuter })
       const innerRadius = levelMetrics.innerRadiusMm
 
       for (const node of nodes) {
@@ -411,12 +413,12 @@ const materializeCanonicalShellNode = (
   )
   const depthFromRoot = node.depthFromRoot
   const descriptor = node.descriptor
-  const levelMetrics = getResolvedLevelMetrics(depthFromRoot, settings, {
+  const levelMetrics = getSurfaceLevelGeometry(depthFromRoot, settings, {
     outerRadiusMm:
       outerByDepth.get(depthFromRoot) ??
-      getCanonicalLevelMetrics(depthFromRoot, settings).canonicalOuterRadiusMm,
+      getCanonicalLevelGeometry(depthFromRoot, settings).outerRadiusMm,
   })
-  const sphereRadius = levelMetrics.fieldSphereRadiusMm
+  const sphereRadius = levelMetrics.sphereRadiusMm
   const fields: LayoutFieldNode[] = descriptor.fields.map((field) =>
     cloneDescriptorField(descriptor, field, sphereRadius),
   )
@@ -669,7 +671,7 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
     fieldCount: number,
     childOuterRadius: number,
   ): boolean => {
-    const parentMetrics = getResolvedLevelMetrics(parentDepth, resolvedSettings, {
+    const parentMetrics = getSurfaceLevelGeometry(parentDepth, resolvedSettings, {
       outerRadiusMm: parentOuterRadius,
       rootOuterDiameterMm: targetOuterDiameter,
     })
@@ -712,13 +714,13 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
           localX: 0,
           localY: 0,
           localZ: 0,
-          sphereRadius: parentMetrics.fieldSphereRadiusMm,
+          sphereRadius: parentMetrics.sphereRadiusMm,
           colorR: 0,
           colorG: 0,
           colorB: 0,
-          extent: parentMetrics.fieldSphereRadiusMm,
+          extent: parentMetrics.sphereRadiusMm,
         } satisfies LayoutFieldNode,
-        extent: parentMetrics.fieldSphereRadiusMm,
+        extent: parentMetrics.sphereRadiusMm,
       })),
     ]
 
@@ -767,13 +769,13 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
         const parentOuterRadius = targetOuterByDepth.get(depth) ?? currentOuterByDepth.get(depth) ?? 0
         if (parentOuterRadius <= 0) continue
 
-        const parentMetrics = getResolvedLevelMetrics(depth, resolvedSettings, {
+        const parentMetrics = getSurfaceLevelGeometry(depth, resolvedSettings, {
           outerRadiusMm: parentOuterRadius,
           rootOuterDiameterMm: targetOuterDiameter,
         })
-        const canonicalChildOuterRadius = getCanonicalLevelMetrics(childDepth, resolvedSettings, {
+        const canonicalChildOuterRadius = getCanonicalLevelGeometry(childDepth, resolvedSettings, {
           rootOuterDiameterMm: targetOuterDiameter,
-        }).canonicalOuterRadiusMm
+        }).outerRadiusMm
         const desiredChildOuterRadius = Math.max(
           currentChildOuterRadius,
           Math.min(
@@ -814,7 +816,7 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
     for (const particle of scaledSnapshot.particles) {
       const targetOuterRadius = targetOuterByDepth.get(particle.depth)
       if (targetOuterRadius === undefined) continue
-      const levelMetrics = getResolvedLevelMetrics(particle.depth, resolvedSettings, {
+      const levelMetrics = getSurfaceLevelGeometry(particle.depth, resolvedSettings, {
         outerRadiusMm: targetOuterRadius,
         rootOuterDiameterMm: targetOuterDiameter,
       })
@@ -829,10 +831,10 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
     const parent = particlesById.get(field.particleId)
     if (!parent) continue
     const parentOuterRadius = getParticleOuterRadius(parent)
-    field.sphereRadius = getResolvedLevelMetrics(parent.depth, resolvedSettings, {
+    field.sphereRadius = getSurfaceLevelGeometry(parent.depth, resolvedSettings, {
       outerRadiusMm: parentOuterRadius,
       rootOuterDiameterMm: targetOuterDiameter,
-    }).fieldSphereRadiusMm
+    }).sphereRadiusMm
     const fields = fieldsByParticleId.get(field.particleId) ?? []
     fields.push(field)
     fieldsByParticleId.set(field.particleId, fields)
@@ -840,7 +842,7 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
 
   const reflowShell = (particle: DbParticleShellSnapshot): void => {
     const outerRadius = particle.shellRadius + particle.shellTube
-    const levelMetrics = getResolvedLevelMetrics(particle.depth, resolvedSettings, {
+    const levelMetrics = getSurfaceLevelGeometry(particle.depth, resolvedSettings, {
       outerRadiusMm: outerRadius,
       rootOuterDiameterMm: targetOuterDiameter,
     })

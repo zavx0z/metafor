@@ -1,3 +1,10 @@
+import type {
+  LevelDetailSettings,
+  LevelGeometrySettings,
+  LevelLabelSettings,
+  LevelSettings,
+} from "@bulk/gravity/level"
+
 /** Настройки top-down раскладки shell-иерархии для materialization в `app/web`. */
 export interface AppWebLayoutSettings {
   /** Коэффициент уменьшения canonical shell size от root-уровня вглубь. Должен быть `> 0`. */
@@ -346,6 +353,66 @@ export const normalizeAppWebLayoutSettings = (
     Number.isFinite(settings.rootSphereRadiusMm) && (settings.rootSphereRadiusMm ?? 0) > 0
       ? Math.min(settings.rootSphereRadiusMm!, appWebLayoutConfig.snapshot.rootOuterDiameterMm)
       : DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootSphereRadiusMm,
+})
+
+const TORUS_MAX_SEGMENTS = 96
+const SPHERE_BASE_WIDTH_SEGMENTS = 16
+const SPHERE_BASE_HEIGHT_SEGMENTS = 12
+const SPHERE_MAX_WIDTH_SEGMENTS = 64
+const SPHERE_MAX_HEIGHT_SEGMENTS = 48
+
+/**
+ * Проекция UI-контракта `AppWebLayoutSettings` в domain-закон `LevelGeometrySettings` из Bulk × Gravity.
+ *
+ * Опциональный `rootOuterDiameterMm` позволяет вызывающему подменить snapshot-константу
+ * (используется в instance-layout при materialize с нестандартным целевым диаметром).
+ */
+export const toLevelGeometrySettings = (
+  layout: AppWebLayoutSettings,
+  rootOuterDiameterMm: number = appWebLayoutConfig.snapshot.rootOuterDiameterMm,
+): LevelGeometrySettings => ({
+  levelSizeMultiplier: layout.levelSizeMultiplier,
+  rootInnerDiameterMm: layout.rootInnerDiameterMm,
+  rootSphereRadiusMm: layout.rootSphereRadiusMm,
+  rootOuterDiameterMm,
+  nestingCoefficient: appWebLayoutConfig.snapshot.nestingCoefficient,
+  packingDensityCoefficient: appWebLayoutConfig.snapshot.packingDensityCoefficient,
+  sphereMinScaleFactor: appWebLayoutConfig.snapshot.sphereMinScaleFactor,
+})
+
+/** Проекция UI-контракта `AppWebRenderSettings` в domain-закон `LevelDetailSettings`. */
+export const toLevelDetailSettings = (render: AppWebRenderSettings): LevelDetailSettings => ({
+  detailDensityFactor: render.detailDensityFactor,
+  detailLevelMultiplier: render.detailLevelMultiplier,
+  torusRadialSegments: render.torusRadialSegments,
+  torusTubularSegments: render.torusTubularSegments,
+  torusMaxSegments: TORUS_MAX_SEGMENTS,
+  sphereBaseWidthSegments: SPHERE_BASE_WIDTH_SEGMENTS,
+  sphereBaseHeightSegments: SPHERE_BASE_HEIGHT_SEGMENTS,
+  sphereMaxWidthSegments: SPHERE_MAX_WIDTH_SEGMENTS,
+  sphereMaxHeightSegments: SPHERE_MAX_HEIGHT_SEGMENTS,
+})
+
+/** Проекция UI-контракта `AppWebRenderSettings` в domain-закон `LevelLabelSettings`. */
+export const toLevelLabelSettings = (render: AppWebRenderSettings): LevelLabelSettings => ({
+  baseDepth: render.baseDepth,
+  fontSizeMm: render.labelFontSizeMm,
+  surfaceOffsetMm: render.labelSurfaceOffsetMm,
+  visibleLevels: render.labelVisibleLevels,
+})
+
+/** Составная проекция обоих UI-контрактов в `LevelSettings` для `createLevelResolver`. */
+export const toLevelSettings = (
+  layout: AppWebLayoutSettings,
+  render: AppWebRenderSettings,
+  rootOuterDiameterMm?: number,
+): LevelSettings => ({
+  geometry:
+    rootOuterDiameterMm !== undefined
+      ? toLevelGeometrySettings(layout, rootOuterDiameterMm)
+      : toLevelGeometrySettings(layout),
+  detail: toLevelDetailSettings(render),
+  label: toLevelLabelSettings(render),
 })
 
 /**

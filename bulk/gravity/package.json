@@ -2,5 +2,10 @@
   "name": "@bulk/gravity",
   "type": "module",
   "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./level": "./level/index.ts",
+    "./text": "./text/index.ts"
+  },
   "private": true
 }

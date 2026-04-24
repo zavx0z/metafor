@@ -6,5 +6,8 @@
     "tls:issue": "bash ../../scripts/tls-issue.sh",
     "tls:issue:staging": "STAGING=1 bash ../../scripts/tls-issue.sh",
     "tls:selfsigned": "bash ../../scripts/tls-selfsigned.sh"
+  },
+  "dependencies": {
+    "@bulk/gravity": "workspace:*"
   }
 }
