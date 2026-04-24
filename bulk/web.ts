@@ -45,11 +45,10 @@ import {
 } from "./web-navigation"
 import { isDepthLabelVisible, isShellLabelVisible } from "./label-visibility"
 import {
+	bendTextAroundEquator,
 	createSurfaceLabel,
-	projectSurfaceText,
 	resolveSurfaceFitScale,
 	type SurfaceArcLimits,
-	type SurfaceProjection,
 	type TextExtents,
 } from "@bulk/gravity/text"
 
@@ -99,11 +98,6 @@ const LABEL_FADE_IN_MS = 120
 const LABEL_INITIAL_SCALE = 0.94
 const SURFACE_ARC_LIMITS: SurfaceArcLimits = {
 	horizontalRad: Math.PI * 0.8,
-	// Ascender-арка шире descender-арки: ascender-глифы выше (`f`/`h`/`k`), и у «северной» части
-	// тубы тора больше доступной дуги до силуэта. Descender-арка уже — чтобы `y`/`g`/`p`
-	// не уходили за горизонт поверхности (это и был баг обрезания `y`).
-	ascenderRad: Math.PI * 0.5,
-	descenderRad: Math.PI * 0.25,
 }
 const MIN_SURFACE_LABEL_FIT_SCALE = 0.12
 const FOCUS_POSITION_SMOOTHING_MS = 130
@@ -335,23 +329,16 @@ const resolveFieldPeerLevelMetrics = (
 }
 
 /**
- * Характеристический радиус surface (для canonical выбора font-size).
+ * Характеристический радиус параллели surface для canonical выбора font-size.
  *
- * Для тора используется большой экваториальный радиус тубы: `shellRadius + shellTube + offset`.
- * Для сферы — полный радиус + offset. Оба — в `baseCurveRadiusMm`.
- *
- * Малый радиус (для вертикальной арки) у тора — `shellTube + offset`, у сферы — тот же полный радиус.
+ * Для тора — большой экваториальный радиус: `shellRadius + shellTube + offset`.
+ * Для сферы — полный радиус + offset.
  */
-const resolveCanonicalCurveRadii = (
-	spec: LabelSpec,
-): { baseCurveRadiusMm: number; minorCurveRadiusMm: number } => {
+const resolveCanonicalCurveRadius = (spec: LabelSpec): number => {
 	if (spec.kind === "shell") {
-		const baseCurveRadiusMm = Math.max(spec.shellRadius + spec.shellTube + spec.offset, 1e-6)
-		const minorCurveRadiusMm = Math.max(spec.shellTube + spec.offset, 1e-6)
-		return { baseCurveRadiusMm, minorCurveRadiusMm }
+		return Math.max(spec.shellRadius + spec.shellTube + spec.offset, 1e-6)
 	}
-	const radius = Math.max(spec.sphereRadius + spec.offset, 1e-6)
-	return { baseCurveRadiusMm: radius, minorCurveRadiusMm: radius }
+	return Math.max(spec.sphereRadius + spec.offset, 1e-6)
 }
 
 const createSurfaceLabelNode = (spec: LabelSpec, font: TrueTypeFont): SurfaceLabelVisual => {
@@ -361,7 +348,7 @@ const createSurfaceLabelNode = (spec: LabelSpec, font: TrueTypeFont): SurfaceLab
 		font,
 		baseFontSize,
 		material: new TextMaterial({ color: spec.color.clone(), opacity: 1 }),
-		curve: resolveCanonicalCurveRadii(spec),
+		curveRadiusMm: resolveCanonicalCurveRadius(spec),
 		limits: SURFACE_ARC_LIMITS,
 		minScale: MIN_SURFACE_LABEL_FIT_SCALE,
 	})
@@ -1565,7 +1552,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const normal = reusableLabelNormal
 			const right = reusableLabelRight
 			const labelPos = reusableLabelPos
-			let projection: SurfaceProjection
+			let curveRadiusMm: number
 
 			if (tracker.kind === "shell") {
 				// Вектор от центра тора к камере
@@ -1573,46 +1560,40 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				// Направление основного радиуса (в плоскости XY)
 				const majorDir = reusableMajorDir.set(toCamera.x, toCamera.y, 0).normalize()
 				if (majorDir.length() < 1e-6) majorDir.set(1, 0, 0)
-				
+
 				// Центр "трубы" под камерой
 				const tubeCenter = reusableTubeCenter.copy(reusableWorldPosition).add(
 					reusableScaledOffset.copy(majorDir).multiplyScalar(shellRadius),
 				)
-				
+
 				// Нормаль от центра трубы к камере
 				normal.copy(cameraPos).sub(tubeCenter).normalize()
 				// Позиция на поверхности трубы с учетом отступа
 				labelPos.copy(tubeCenter).add(
 					reusableScaledOffset.copy(normal).multiplyScalar(shellTube + offset),
 				)
-				
+
 				// Вектор "вправо" (касательная к основной окружности бублика)
 				right.set(-majorDir.y, majorDir.x, 0).normalize()
 
-				projection = {
-					baseCosLatitude: Math.max(-1, Math.min(1, normal.dot(majorDir))),
-					baseSinLatitude: Math.max(-1, Math.min(1, normal.z)),
-					kind: "torus",
-					majorRadius: shellRadius,
-					minorRadius: shellTube + offset,
-				}
+				// Радиус параллели, проходящей через labelPos на поверхности тубы.
+				// `normal.dot(majorDir)` = baseCosLatitude на тубе.
+				const baseCosLatitude = Math.max(-1, Math.min(1, normal.dot(majorDir)))
+				curveRadiusMm = Math.max(shellRadius + (shellTube + offset) * baseCosLatitude, 1e-6)
 			} else {
 				// Для сферы строим локальные параллели/меридианы относительно мировой оси Z.
 				normal.copy(cameraPos).sub(reusableWorldPosition).normalize()
 				labelPos.copy(reusableWorldPosition).add(
 					reusableScaledOffset.copy(normal).multiplyScalar(sphereRadius + offset),
 				)
-				
+
 				right.set(0, 0, 1).cross(normal)
 				if (right.length() < 1e-6) right.set(1, 0, 0).cross(normal)
 				right.normalize()
 
-				projection = {
-					baseCosLatitude: Math.max(0, Math.hypot(normal.x, normal.y)),
-					baseSinLatitude: Math.max(-1, Math.min(1, normal.z)),
-					kind: "sphere",
-					radius: sphereRadius + offset,
-				}
+				// Радиус параллели на сфере: `(sphereR + offset) × cos(lat)` где lat определяется нормалью.
+				const baseCosLatitude = Math.max(0, Math.hypot(normal.x, normal.y))
+				curveRadiusMm = Math.max((sphereRadius + offset) * baseCosLatitude, 1e-6)
 			}
 
 			// Вектор "вверх" (перпендикулярен нормали и направлению "вправо")
@@ -1620,7 +1601,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 			// Устанавливаем позицию
 			tracker.container.position.copy(labelPos)
-			
+
 			// Строим ориентацию из базиса
 			const matrix = reusableLabelMatrix
 			const e = matrix.elements
@@ -1628,35 +1609,29 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			e[4] = up.x;    e[5] = up.y;    e[6] = up.z;    e[7] = 0
 			e[8] = normal.x; e[9] = normal.y; e[10] = normal.z; e[11] = 0
 			e[12] = 0;      e[13] = 0;      e[14] = 0;      e[15] = 1
-			
+
 			tracker.container.quaternion.setFromRotationMatrix(matrix)
 
-			const baseCurveRadiusMm =
-				projection.kind === "sphere"
-					? projection.radius * projection.baseCosLatitude
-					: projection.majorRadius + projection.minorRadius * projection.baseCosLatitude
-			const minorCurveRadiusMm =
-				projection.kind === "sphere" ? projection.radius : projection.minorRadius
 			const fitScale = resolveSurfaceFitScale({
-				curve: { baseCurveRadiusMm, minorCurveRadiusMm },
+				curveRadiusMm,
 				extents: tracker.extents,
 				limits: SURFACE_ARC_LIMITS,
 				minScale: MIN_SURFACE_LABEL_FIT_SCALE,
 			})
 
-			projectSurfaceText({
+			bendTextAroundEquator({
 				geometry: tracker.textNode.stencilGeometry,
 				initialPositions: tracker.initialStencilPositions,
 				centerX: tracker.stencilCenterX,
 				scale: fitScale,
-				projection,
+				curveRadius: curveRadiusMm,
 			})
-			projectSurfaceText({
+			bendTextAroundEquator({
 				geometry: tracker.textNode.coverGeometry,
 				initialPositions: tracker.initialCoverPositions,
 				centerX: tracker.coverCenterX,
 				scale: fitScale,
-				projection,
+				curveRadius: curveRadiusMm,
 			})
 
 			tracker.container.updateMatrix()

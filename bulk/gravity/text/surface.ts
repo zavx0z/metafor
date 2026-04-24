@@ -3,18 +3,15 @@ import type { FontMetrics } from "./font-metrics"
 import { getFontMetrics } from "./font-metrics"
 import type { TextExtents } from "./extents"
 import { resolveTextExtents } from "./extents"
-import type { SurfaceArcLimits, SurfaceCurveRadii } from "./fit"
+import type { SurfaceArcLimits } from "./fit"
 import { resolveSurfaceFitScale } from "./fit"
 
 /**
- * Готовый surface-label: узел Text и всё, что нужно для per-frame проекции.
+ * Готовый surface-label: узел Text и всё, что нужно для per-frame деформации.
  *
- * `initialStencilPositions` / `initialCoverPositions` — снимок координат
- * на момент создания. Per-frame проекция пишет новые координаты в буфер `geometry`
- * через {@link projectSurfaceText} без пересборки Text.
- *
- * `centerXmm` — якорь горизонтального центра текста.
- * Baseline всегда `y = 0` по соглашению Text-геометрии.
+ * `initialStencilPositions` / `initialCoverPositions` — снимок координат на момент создания.
+ * Per-frame деформация пишет новые координаты в буфер `geometry` через {@link bendTextAroundEquator}
+ * без пересборки Text.
  */
 export interface SurfaceLabel {
   textNode: Text
@@ -32,43 +29,39 @@ export interface CreateSurfaceLabelOptions {
   font: TrueTypeFont
   baseFontSize: number
   material: TextMaterial
-  /** Параметры канонической посадки: радиусы и лимиты для выбора итогового fontSize. */
-  curve: SurfaceCurveRadii
+  /** Canonical радиус параллели для выбора итогового fontSize. */
+  curveRadiusMm: number
   limits: SurfaceArcLimits
-  /** Минимальный масштаб — ниже не сжимаем (вместо полного схлопывания в точку). */
+  /** Минимальный масштаб — ниже не сжимаем. */
   minScale: number
 }
 
 const cloneInitialPositions = (text: Text): { stencil: Float32Array; cover: Float32Array } => {
   const stencil = text.stencilGeometry.attributes.position?.array ?? new Float32Array(0)
   const cover = text.coverGeometry.attributes.position?.array ?? new Float32Array(0)
-  return {
-    stencil: new Float32Array(stencil instanceof Float32Array ? stencil : Array.from(stencil as ArrayLike<number>)),
-    cover: new Float32Array(cover instanceof Float32Array ? cover : Array.from(cover as ArrayLike<number>)),
-  }
+  const toFloat32 = (array: ArrayLike<number>): Float32Array =>
+    array instanceof Float32Array ? new Float32Array(array) : new Float32Array(Array.from(array))
+  return { stencil: toFloat32(stencil), cover: toFloat32(cover) }
 }
 
 const measureExtents = (positions: Float32Array, fontMetrics: FontMetrics, fontSize: number): TextExtents =>
   resolveTextExtents(positions, fontMetrics, fontSize)
 
 /**
- * Строит surface-label с автоподбором font-size под canonical посадку.
+ * Строит surface-label с автоподбором font-size под canonical радиус параллели.
  *
  * Процедура:
  * 1. Строим Text с `baseFontSize`.
- * 2. Меряем `TextExtents` (width из позиций, ascender/descender из шрифта).
- * 3. Считаем fit scale через {@link resolveSurfaceFitScale} — учитывает ширину, ascender И descender.
- * 4. Если fit scale < 0.999, пересобираем Text с `baseFontSize × fitScale` (single rebuild).
- *
- * Повторные пересборки не нужны: fit scale — единый множитель, который однократно приводит
- * ширину, ascender-арку и descender-арку в допустимые пределы.
+ * 2. Меряем ширину (из позиций) и высоты (из font metrics).
+ * 3. Считаем fit scale через {@link resolveSurfaceFitScale} — единый по ширине.
+ * 4. Если fit scale < 0.999, пересобираем Text с `baseFontSize × fitScale` (одноразовый rebuild).
  */
 export const createSurfaceLabel = ({
   text,
   font,
   baseFontSize,
   material,
-  curve,
+  curveRadiusMm,
   limits,
   minScale,
 }: CreateSurfaceLabelOptions): SurfaceLabel => {
@@ -79,7 +72,7 @@ export const createSurfaceLabel = ({
   let extents = measureExtents(initial.stencil, fontMetrics, baseFontSize)
   let fontSize = baseFontSize
 
-  const fitScale = resolveSurfaceFitScale({ curve, extents, limits, minScale })
+  const fitScale = resolveSurfaceFitScale({ curveRadiusMm, extents, limits, minScale })
   if (fitScale < 0.999) {
     fontSize = baseFontSize * fitScale
     textNode = new Text(text, font, fontSize, material)
