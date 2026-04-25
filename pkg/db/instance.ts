@@ -170,7 +170,13 @@ export const initializeDbInstanceSqliteSchema = (db: Database): void => {
 }
 
 export const openDbInstanceSqlite = (options: DbInstanceSqliteOptions = {}): Database => {
-  const db = new Database(options.filename ?? ":memory:")
+  const filename = options.filename ?? ":memory:"
+  const db = new Database(filename)
+  if (filename !== ":memory:") {
+    db.exec("PRAGMA journal_mode = WAL;")
+    db.exec("PRAGMA synchronous = NORMAL;")
+    db.exec("PRAGMA busy_timeout = 5000;")
+  }
   initializeDbInstanceSqliteSchema(db)
   return db
 }

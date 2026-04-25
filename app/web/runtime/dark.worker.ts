@@ -292,7 +292,7 @@ const createRuntimeParticleDescriptors = (
 			return createRuntimeParticleDescriptor(particle, particleModelsBySrc, particle)
 		})
 
-const publishInstanceSnapshot = (
+const publishStructuralSignal = (
 	src: string,
 	descriptorRoots: DbWorldParticleDescriptor[],
 	layoutSettings: Partial<AppWebLayoutSettings>,
@@ -310,11 +310,6 @@ const publishInstanceSnapshot = (
 		source: "dark",
 		rootSrc: src,
 		scope: { kind: "world" },
-	})
-	darkWorker.postMessage({
-		type: "instance-snapshot",
-		src,
-		snapshot,
 	})
 }
 
@@ -372,7 +367,7 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 					throw new Error("Cannot relayout before initial materialization (no dbFilename)")
 				}
 
-				publishInstanceSnapshot(src, currentDescriptorRoots, layoutSettings ?? {}, currentDbFilename)
+				publishStructuralSignal(src, currentDescriptorRoots, layoutSettings ?? {}, currentDbFilename)
 				darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "done", src })
 			} catch (error) {
 				darkWorker.postMessage({
