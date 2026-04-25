@@ -11,7 +11,7 @@ import {
 } from "../../pkg/db/index.ts"
 import { applyDbSyncMessage } from "../../pkg/db/instance-store-mirror.ts"
 import { isDbSyncMessage, isStructuralSignalMessage } from "@shared/protocol"
-import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web.ts"
+import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
 	APP_WEB_RENDER_SETTING_KEYS,

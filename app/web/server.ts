@@ -296,7 +296,7 @@ const server = serve({
 	routes: {
 		"/": () => new Response(file(join(import.meta.dir, "index.html"))),
 		"/client.js": async () => await buildEntrypoint(join(import.meta.dir, "client.ts")),
-		"/bulk.js": async () => await buildEntrypoint(join(ROOT, "bulk/web.ts")),
+		"/bulk.js": async () => await buildEntrypoint(join(ROOT, "bulk/web/index.ts")),
 		"/engine-static/JetBrainsMono-Bold.ttf": () => new Response(file(join(ROOT, "pkg/engine/static/JetBrainsMono-Bold.ttf"))),
 		"/ws": {
 			GET(req, wsServer) {
