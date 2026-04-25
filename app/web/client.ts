@@ -94,19 +94,10 @@ let pendingSyncQueue: Promise<void> = Promise.resolve()
 
 const localStoreReady: Promise<DbInstanceStore> = createIdbDbInstanceStore({
 	databaseName: "metafor-app-instance",
+}).then((store) => {
+	localStore = store
+	return store
 })
-	.then((store) => {
-		localStore = store
-		console.log("[client] local IDB store ready")
-		return store
-	})
-	.catch((error) => {
-		console.error("[client] local IDB store init failed:", error)
-		throw error
-	})
-
-let dbSyncApplyCount = 0
-let structuralBarrierCount = 0
 
 const refreshViewportFromLocalStore = async (rootSrc: string): Promise<void> => {
 	const store = localStore ?? (await localStoreReady)
@@ -114,9 +105,6 @@ const refreshViewportFromLocalStore = async (rootSrc: string): Promise<void> => 
 		store.selectAllParticleShells(rootSrc),
 		store.selectAllFieldOrbits(rootSrc),
 	])
-	console.log(
-		`[client] refresh viewport from IDB: rootSrc=${rootSrc} particles=${particles.length} fields=${fields.length}`,
-	)
 	bulkViewport?.applyWorld({ rootSrc, particles, fields })
 }
 
@@ -408,13 +396,9 @@ socket.onmessage = (event) => {
 				.then(async () => {
 					const store = localStore ?? (await localStoreReady)
 					await applyDbSyncMessage(store, sync)
-					dbSyncApplyCount += 1
-					if (dbSyncApplyCount <= 5 || dbSyncApplyCount % 200 === 0) {
-						console.log(`[client] db-sync apply #${dbSyncApplyCount} kind=${sync.op.kind}`)
-					}
 				})
 				.catch((error) => {
-					console.error("[client] db-sync apply error:", error)
+					console.error("db-sync apply error:", error)
 				})
 			return
 		}
@@ -422,8 +406,6 @@ socket.onmessage = (event) => {
 			const signal = message.message
 			pendingSyncQueue = pendingSyncQueue
 				.then(async () => {
-					structuralBarrierCount += 1
-					console.log(`[client] structural barrier #${structuralBarrierCount} rootSrc=${signal.rootSrc}`)
 					if (pendingSceneState && pendingSceneState.src === signal.rootSrc) {
 						lastAppliedSceneState = pendingSceneState
 						pendingSceneState = null
@@ -431,7 +413,7 @@ socket.onmessage = (event) => {
 					await refreshViewportFromLocalStore(signal.rootSrc)
 				})
 				.catch((error) => {
-					console.error("[client] structural barrier error:", error)
+					console.error("structural barrier error:", error)
 				})
 			return
 		}
