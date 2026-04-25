@@ -278,10 +278,19 @@ const protocolMirrors = [
 	{ key: "db-sync", channelName: DB_SYNC_BROADCAST_CHANNEL, validator: isDbSyncMessage },
 ] as const
 
+const mirrorCounters = new Map<string, number>()
 protocolMirrors.forEach(({ key, channelName, validator }) => {
 	const channel = new BroadcastChannel(channelName)
 	channel.onmessage = (event: MessageEvent<unknown>) => {
-		if (!validator(event.data)) return
+		if (!validator(event.data)) {
+			console.warn(`[server] mirror ${key}: rejected by validator`, event.data)
+			return
+		}
+		const count = (mirrorCounters.get(key) ?? 0) + 1
+		mirrorCounters.set(key, count)
+		if (count <= 5 || count % 100 === 0) {
+			console.log(`[server] mirror ${key} #${count}`)
+		}
 		publish({
 			type: "protocol",
 			channel: key,

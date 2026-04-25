@@ -292,6 +292,10 @@ const publishStructuralSignal = async (
 		store,
 	)
 
+	const particles = await store.selectAllParticleShells(src)
+	const fields = await store.selectAllFieldOrbits(src)
+	console.log(`[dark.worker] streamed world ${src}: ${particles.length} particles, ${fields.length} fields`)
+
 	// Барьер: «всё применено, можно перерисовывать».
 	structuralChannel.postMessage({
 		channel: "structural",
