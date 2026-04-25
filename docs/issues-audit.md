@@ -39,24 +39,6 @@
 
 ---
 
-## #75 — Единый расчёт одного уровня для визуализации и раскладки вложенных уровней
-
-**Цель issue.** Один источник истины для всех параметров уровня: внешний/внутренний радиус shell, толщина тора, размер сфер полей, масштаб подписей, масштаб детализации. Все вложенные уровни вычисляются через тот же расчёт с передачей depth, без отдельных формул.
-
-**Что сделано.**
-
-- `bulk/gravity/level/{geometry,detail,label,memo}.ts`:
-  - `resolveLevelGeometry(depth, settings, options?)` — geometry per depth.
-  - `resolveLevelDetail(depth, settings)` — detail для wireframe.
-  - `resolveLevelLabel(depth, settings)` — fontSize / surfaceOffset / visibility.
-  - `createLevelResolver(settings)` — мемоизирующий resolver с Map-cache по depth.
-- `bulk/gravity/layout/snapshot.ts` (бывший `instance-layout.ts`) использует `resolveLevelGeometry` единым входом для outer/inner/sphereRadius на каждом depth.
-- `bulk/web/index.ts` создаёт module-level `levelResolver` через `createLevelResolver(toLevelSettings(...))` и переинициализирует через `rebuildLevelResolver()` при смене settings. Все viewport-ные геометрии/подписи берутся из него.
-
-**Статус.** Фактически закрыт. Можно закрывать с ссылкой на коммиты A1+A2 (`84132c4c`, `cc552e10`).
-
----
-
 ## #74 — dark/load: убрать AST из публичных имён, переименовать ensureMetaCanonicalized в loadMeta
 
 **Цель issue.** В `dark/load.ts` смешаны роли: публичная загрузка meta, внутренняя SQLite-канонизация, AST в именах функций, test-only сброс контекста. Привести к чистому пути `DSL → DDL/SQLite → dark read-model`.
@@ -246,20 +228,6 @@
 
 ---
 
-## #31 — Реализовать общий Dark pipeline загрузки meta и раскрытия связности
-
-**Состояние.** Закрыт по существу:
-
-- `dark/dark.ts matter(wimp, parent, options)` — общий pipeline.
-- На вход адрес корневой meta (через `wimp.src`), на выход `MatterContinuation`/`MatterEntry`/`MatterLayerResult`/`MatterWimpResult`.
-- Через `gravity` (`@dark/gravity/channel.ts emitAdd/emitBarrier`) формирует частицы текущего уровня.
-- Continuation: `Wimp` опора → `Fuzzy` условный выбор → `Macho` множественное → `Axion` группировка.
-- `dark/strong/sqlite.ts readDarkParticleModel` поставляет данные.
-
-Можно закрывать с ссылкой на `dark/dark.ts`.
-
----
-
 ## #68 — MetaFor как self-authoring мультивселенная
 
 **Состояние.** Видение / архитектурная позиция, не задача в коде.
@@ -309,7 +277,6 @@
 - **#57 reset vs compare/update**, **#58 identity**, **#56 granularity** — взаимосвязанный кластер.
 
 **Чистка.**
-- **#31, #75** — закрыть на GitHub с ссылками на коммиты.
 - **#53, #68** — оставить open как направление-видение.
 
 **#66 round-trip DSL ↔ DB** — отдельный пакет, не блокирующий, но фундаментальный для authoring-цели #68.
