@@ -46,7 +46,7 @@
 **Что сделано.**
 
 - `store/meta/sqlite/relation.ts` уже раскладывает MetaDSL в реляционные таблицы `meta`, `fields`, `superposition`, `processes`, `reactions`, `matter`.
-- `dark/strong/sqlite.ts` (наш C1, commit `cc552e10`) — `readDarkParticleModel(db, src)` читает particle-плана **из SQLite**.
+- `store/meta/sqlite/read.ts` (наш C1, commit `cc552e10`) — `readDarkParticleModel(db, src)` читает particle-плана **из SQLite**.
 - `dark/dark.ts matter()` использует `readDarkParticleModel` для materialize.
 
 **Гэп.**
@@ -59,7 +59,7 @@
 
 **Что нужно для закрытия.**
 
-- Добавить `store/meta/sqlite/read-meta-projection.ts` (или функции в `dark/strong/sqlite.ts`): `readMetaProjection(db, src)` → возвращает структуру с теми же полями, что нынешний `MetaDSL`, но собранную из таблиц.
+- Добавить `store/meta/sqlite/read-meta-projection.ts` (или расширить `store/meta/sqlite/read.ts`): `readMetaProjection(db, src)` → возвращает структуру с теми же полями, что нынешний `MetaDSL`, но собранную из таблиц.
 - `dark/load.ts loadMeta` отказывается от `readMetaDsl`: на вход — только SQL handle и src.
 - `Meta` constructor (`dark/strong/Meta.ts`) принимает projection-shape, не AST.
 

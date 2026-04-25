@@ -1,12 +1,13 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL, ReactionsSchema } from "../../.."
+import type { MetaDSL, ReactionsSchema } from "../../../.."
+import type { FieldUuidByKey, StateUuidByName } from "./create.t.ts"
 
-export function relationReactions(
+export function createReactions(
   db: Database,
   meta: MetaDSL,
   src: string,
-  fieldUuids: Map<string, string>,
-  stateUuids: Map<string, string>,
+  fieldUuids: FieldUuidByKey,
+  stateUuids: StateUuidByName,
 ): void {
   if (!meta.reactions) return
 

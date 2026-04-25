@@ -1,12 +1,13 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL, ParsedDestroy, ParsedProcess } from "../../.."
+import type { MetaDSL, ParsedDestroy, ParsedProcess } from "../../../.."
+import type { FieldUuidByKey } from "./create.t.ts"
 
-const relationProcessReads = (
+const createProcessReads = (
   db: Database,
   processUuid: string,
   phase: "action" | "success" | "error",
   fieldKeys: string[] | undefined,
-  fieldUuids: Map<string, string>,
+  fieldUuids: FieldUuidByKey,
 ): void => {
   for (const fieldKey of fieldKeys ?? []) {
     const fieldUuid = fieldUuids.get(fieldKey)
@@ -17,12 +18,12 @@ const relationProcessReads = (
   }
 }
 
-const relationProcessWrites = (
+const createProcessWrites = (
   db: Database,
   processUuid: string,
   phase: "success" | "error",
   fieldKeys: string[] | undefined,
-  fieldUuids: Map<string, string>,
+  fieldUuids: FieldUuidByKey,
 ): void => {
   for (const fieldKey of fieldKeys ?? []) {
     const fieldUuid = fieldUuids.get(fieldKey)
@@ -33,11 +34,11 @@ const relationProcessWrites = (
   }
 }
 
-export function relationProcess(
+export function createProcess(
   db: Database,
   meta: MetaDSL,
   src: string,
-  fieldUuids: Map<string, string>,
+  fieldUuids: FieldUuidByKey,
 ): void {
   if (!meta.processes) return
 
@@ -80,10 +81,10 @@ export function relationProcess(
       process.error?.src || null,
     )
 
-    relationProcessReads(db, uuid, "action", process.action.read, fieldUuids)
-    relationProcessReads(db, uuid, "success", process.success?.read, fieldUuids)
-    relationProcessReads(db, uuid, "error", process.error?.read, fieldUuids)
-    relationProcessWrites(db, uuid, "success", process.success?.write, fieldUuids)
-    relationProcessWrites(db, uuid, "error", process.error?.write, fieldUuids)
+    createProcessReads(db, uuid, "action", process.action.read, fieldUuids)
+    createProcessReads(db, uuid, "success", process.success?.read, fieldUuids)
+    createProcessReads(db, uuid, "error", process.error?.read, fieldUuids)
+    createProcessWrites(db, uuid, "success", process.success?.write, fieldUuids)
+    createProcessWrites(db, uuid, "error", process.error?.write, fieldUuids)
   })
 }

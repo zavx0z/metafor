@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import type { Database } from "bun:sqlite"
-import type { MetaDSL } from "../.."
-import gitMeta from "../../github/zavx0z/git/meta.ts"
-import { relation, getMetaDB } from "@store/meta/sqlite"
-import { readDarkParticleModel } from "./sqlite.ts"
+import type { MetaDSL } from "../../.."
+import gitMeta from "../../../github/zavx0z/git/meta.ts"
+import { getMetaDB, readDarkParticleModel, relation } from "./index.ts"
 
 const richMeta: MetaDSL = {
   name: "rich",

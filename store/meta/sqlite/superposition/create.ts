@@ -1,13 +1,14 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL } from "../../.."
+import type { MetaDSL } from "../../../.."
+import type { FieldUuidByKey, StateUuidByName } from "./create.t.ts"
 
-export function relationSuperposition(
+export function createSuperposition(
   db: Database,
   meta: MetaDSL,
   src: string,
-  fieldUuids: Map<string, string>,
-): Map<string, string> {
-  const stateUuids = new Map<string, string>()
+  fieldUuids: FieldUuidByKey,
+): StateUuidByName {
+  const stateUuids: StateUuidByName = new Map<string, string>()
   const states = Object.keys(meta.superposition)
 
   // 1. States

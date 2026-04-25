@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL } from "../../.."
+import type { MetaDSL } from "../../../.."
+import type { MetaSource } from "./create.t.ts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -77,7 +78,7 @@ const insertMassValue = (
   return uuid
 }
 
-export function relationMetafor(db: Database, meta: MetaDSL, src: string): void {
+export function createMetafor(db: Database, meta: MetaDSL, src: MetaSource): void {
   if (meta.mass !== undefined && !isRecord(meta.mass)) {
     throw new Error(`Meta mass for "${src}" must be an object to be stored in relational form`)
   }

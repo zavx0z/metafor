@@ -6,5 +6,8 @@
     ".": "./index.ts",
     "./sqlite": "./sqlite/index.ts"
   },
+  "dependencies": {
+    "@dark/types": "workspace:*"
+  },
   "private": true
 }

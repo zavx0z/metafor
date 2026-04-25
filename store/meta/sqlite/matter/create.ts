@@ -1,15 +1,6 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL, NodeType } from "../../.."
-
-type BindingValue =
-  | string
-  | {
-      data?: string | string[]
-      expr?: string
-    }
-
-type ParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
-type EdgeSlot = "root" | "child" | "then" | "else" | "branch"
+import type { MetaDSL, NodeType } from "../../../.."
+import type { BindingValue, EdgeSlot, FieldUuidByKey, ParticleKind } from "./create.t.ts"
 
 const toBindingPaths = (value: BindingValue): string[] => {
   if (!value || typeof value !== "object" || !("data" in value) || value.data === undefined) return []
@@ -260,11 +251,11 @@ const projectParticleNode = (
   projectParticleChildren(db, meta, metaSrc, mapNode.child, machoParticle)
 }
 
-export function relationMatter(
+export function createMatter(
   db: Database,
   meta: MetaDSL,
   src: string,
-  _fieldUuids: Map<string, string>,
+  _fieldUuids: FieldUuidByKey,
 ): void {
   if (!meta.matter) return
 

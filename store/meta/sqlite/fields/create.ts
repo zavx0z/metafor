@@ -1,8 +1,9 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL } from "../../.."
+import type { MetaDSL } from "../../../.."
+import type { FieldUuidByKey } from "./create.t.ts"
 
-export function relationFields(db: Database, meta: MetaDSL, src: string): Map<string, string> {
-  const fieldUuids = new Map<string, string>()
+export function createFields(db: Database, meta: MetaDSL, src: string): FieldUuidByKey {
+  const fieldUuids: FieldUuidByKey = new Map<string, string>()
 
   for (const [key, def] of Object.entries(meta.fields)) {
     const uuid = crypto.randomUUID()

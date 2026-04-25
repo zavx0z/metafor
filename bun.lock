@@ -745,6 +745,9 @@
     },
     "store/meta": {
       "name": "@store/meta",
+      "dependencies": {
+        "@dark/types": "workspace:*",
+      },
     },
     "store/view": {
       "name": "@store/view",

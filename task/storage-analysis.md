@@ -749,12 +749,12 @@ Server → boundary.worker, bulk.worker.
 ### 9.2. `relation(db, meta, src)` — write-only mapping
 
 Однонаправленное отображение `MetaDSL → SQLite`, всё в одной транзакции:
-1. `relationMetafor()` — meta + recursive `meta_mass_value`
-2. `relationFields()` — fields + 6 default-таблиц + enum
-3. `relationSuperposition()` — states + transitions + conditions + predicates
-4. `relationProcess()` — processes + env + action/finally + reads/writes
-5. `relationReactions()` — reactions + state-bindings + reads/writes
-6. `relationMatter()` — bindings + particles + subtypes
+1. `createMetafor()` — meta + recursive `meta_mass_value`
+2. `createFields()` — fields + 6 default-таблиц + enum
+3. `createSuperposition()` — states + transitions + conditions + predicates
+4. `createProcess()` — processes + env + action/finally + reads/writes
+5. `createReactions()` — reactions + state-bindings + reads/writes
+6. `createMatter()` — bindings + particles + subtypes
 
 UUID-генерация — `crypto.randomUUID()` (нестабильна между запусками).
 
@@ -1348,4 +1348,3 @@ SERVER (Bun)                                BROWSER
 
 - 2026-04-25 — первичная версия (Vladimir + claude). Структура: история → текущее состояние → намерение → gap → варианты → вопросы.
 - 2026-04-25 — добавлены §8 (полный inventory persistence touchpoints), §9 (глубокий разбор store/meta/sqlite — 33 таблицы), §10 (полный pipeline materialize), §11 (финальный единый дизайн с superset-схемой, generic-контрактом, миграциями, этапами реализации).
-
