@@ -1,12 +1,13 @@
 import { MetaFor } from "../../../metafor.ts"
 import {
-	openDbInstanceSqlite,
+	createSqliteDbInstanceStore,
 	openDbMaterializationWriter,
 	openDbSqliteBackend,
-	writeDbWorldSnapshot,
+	type DbInstanceStore,
 } from "../../../pkg/db/index.ts"
 import type { DbFieldValueKind, DbParticleKind, DbWorldSnapshot } from "../../../pkg/db/index.ts"
-import { openStructuralBroadcastChannel } from "@shared/protocol"
+import { createMirroredInstanceStore } from "../../../pkg/db/instance-store-mirror.ts"
+import { openDbSyncBroadcastChannel, openStructuralBroadcastChannel } from "@shared/protocol"
 import { readDarkParticleModel, type DarkMetaParticleModel } from "../../../pkg/sqlite/dark.ts"
 import { getMetaDB, relation } from "../../../pkg/sqlite/index.ts"
 import { matter } from "../../../dark/dark.ts"
@@ -43,23 +44,25 @@ type DarkWorkerScope = typeof globalThis & {
 
 const darkWorker = globalThis as DarkWorkerScope
 const structuralChannel = openStructuralBroadcastChannel()
-let instanceDb: ReturnType<typeof openDbInstanceSqlite> | null = null
+const dbSyncChannel = openDbSyncBroadcastChannel()
+let instanceStore: DbInstanceStore | null = null
 
-const ensureInstanceDb = (dbFilename: string): ReturnType<typeof openDbInstanceSqlite> => {
-	if (!instanceDb) {
-		instanceDb = openDbInstanceSqlite({ filename: dbFilename })
+const ensureInstanceStore = (dbFilename: string): DbInstanceStore => {
+	if (!instanceStore) {
+		const local = createSqliteDbInstanceStore({ filename: dbFilename })
+		instanceStore = createMirroredInstanceStore(local, dbSyncChannel, "dark")
 	}
-	return instanceDb
+	return instanceStore
 }
 
-const closeInstanceDb = (): void => {
-	if (!instanceDb) return
+const closeInstanceStore = async (): Promise<void> => {
+	if (!instanceStore) return
 	try {
-		instanceDb.close()
+		await instanceStore.close()
 	} catch {
-		// ignore close failures — DB may already be closed
+		// ignore close failures — store may already be closed
 	}
-	instanceDb = null
+	instanceStore = null
 }
 
 const particleColorByKind: Record<DbParticleKind, { r: number; g: number; b: number }> = {
@@ -292,19 +295,30 @@ const createRuntimeParticleDescriptors = (
 			return createRuntimeParticleDescriptor(particle, particleModelsBySrc, particle)
 		})
 
-const publishStructuralSignal = (
+const publishStructuralSignal = async (
 	src: string,
 	descriptorRoots: DbWorldParticleDescriptor[],
 	layoutSettings: Partial<AppWebLayoutSettings>,
 	dbFilename: string,
-): void => {
+): Promise<void> => {
 	const snapshot = createDbWorldSnapshot(
 		src,
 		descriptorRoots.map((descriptor) => cloneParticleDescriptor(descriptor)),
 		layoutSettings,
 	)
-	const db = ensureInstanceDb(dbFilename)
-	writeDbWorldSnapshot(db, snapshot)
+	const store = ensureInstanceStore(dbFilename)
+
+	// Каждое write публикует per-row sync-событие в db-sync broadcast channel,
+	// которое server потом мирорит в WS клиентам.
+	await store.clearWorld(snapshot.rootSrc)
+	for (const shell of snapshot.particles) {
+		await store.insertParticleShell(snapshot.rootSrc, shell)
+	}
+	for (const orbit of snapshot.fields) {
+		await store.insertFieldOrbit(snapshot.rootSrc, orbit)
+	}
+
+	// Барьер: «всё применено, можно перерисовывать».
 	structuralChannel.postMessage({
 		channel: "structural",
 		source: "dark",
@@ -367,7 +381,7 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 					throw new Error("Cannot relayout before initial materialization (no dbFilename)")
 				}
 
-				publishStructuralSignal(src, currentDescriptorRoots, layoutSettings ?? {}, currentDbFilename)
+				await publishStructuralSignal(src, currentDescriptorRoots, layoutSettings ?? {}, currentDbFilename)
 				darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "done", src })
 			} catch (error) {
 				darkWorker.postMessage({
@@ -395,18 +409,24 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 			currentRootSrc = null
 			currentDescriptorRoots = []
 			currentDbFilename = dbFilename
-			closeInstanceDb()
+			await closeInstanceStore()
 			backend = openDbSqliteBackend({ filename: dbFilename })
 			await backend.reset()
 			const canonicalized = await canonicalizeMetaGraph(dbFilename, src)
 			metaDb = canonicalized.metaDb
 
 			const writer = openDbMaterializationWriter(backend)
+			// Sequential queue: каждый emitSnapshot ждёт предыдущего, чтобы порядок
+			// per-row sync-events на канале совпадал с порядком вызовов.
+			let pendingEmit: Promise<void> = Promise.resolve()
 			const emitSnapshot = (): void => {
 				const descriptorRoots = createRuntimeParticleDescriptors(canonicalized.particleModelsBySrc)
 				currentRootSrc = src
 				currentDescriptorRoots = descriptorRoots.map((descriptor) => cloneParticleDescriptor(descriptor))
-				publishStructuralSignal(src, currentDescriptorRoots, layoutSettings ?? {}, dbFilename)
+				const roots = currentDescriptorRoots
+				pendingEmit = pendingEmit.then(() =>
+					publishStructuralSignal(src, roots, layoutSettings ?? {}, dbFilename),
+				)
 			}
 			await matter(new Wimp({ src, parent: null }), undefined, {
 				dbWriter: writer,
@@ -415,6 +435,7 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 			})
 			await backend.flush()
 			emitSnapshot()
+			await pendingEmit
 
 			darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "done", src })
 		} catch (error) {

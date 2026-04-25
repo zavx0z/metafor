@@ -5,7 +5,12 @@ import {
 	setConnectionStatus,
 	setWorkerStatus,
 } from "./protocol-logger.ts"
-import type { DbWorldSnapshot } from "../../pkg/db/index.ts"
+import {
+	createIdbDbInstanceStore,
+	type DbInstanceStore,
+} from "../../pkg/db/index.ts"
+import { applyDbSyncMessage } from "../../pkg/db/instance-store-mirror.ts"
+import { isDbSyncMessage, isStructuralSignalMessage } from "@shared/protocol"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
@@ -30,12 +35,6 @@ type ProtocolMessage = {
 	message: unknown
 }
 
-type SnapshotDataMessage = {
-	type: "snapshot-data"
-	src: string
-	snapshot: DbWorldSnapshot
-}
-
 type ClientMaterializePayload = {
 	type: "materialize"
 	src: string
@@ -46,11 +45,6 @@ type ClientRelayoutPayload = {
 	type: "relayout"
 	src: string
 	layoutSettings: Partial<AppWebLayoutSettings>
-}
-
-type ClientReadSnapshotPayload = {
-	type: "read-snapshot"
-	src: string
 }
 
 type SnapshotMessage = {
@@ -95,6 +89,24 @@ const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
 let bulkViewport: BulkViewportController | null = null
 let initialMaterializationRequested = false
+let localStore: DbInstanceStore | null = null
+let pendingSyncQueue: Promise<void> = Promise.resolve()
+
+const localStoreReady: Promise<DbInstanceStore> = createIdbDbInstanceStore({
+	databaseName: "metafor-app-instance",
+}).then((store) => {
+	localStore = store
+	return store
+})
+
+const refreshViewportFromLocalStore = async (rootSrc: string): Promise<void> => {
+	const store = localStore ?? (await localStoreReady)
+	const [particles, fields] = await Promise.all([
+		store.selectAllParticleShells(rootSrc),
+		store.selectAllFieldOrbits(rootSrc),
+	])
+	bulkViewport?.setSnapshot({ rootSrc, particles, fields })
+}
 
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
 const socket = new WebSocket(`${protocol}//${window.location.host}/ws`)

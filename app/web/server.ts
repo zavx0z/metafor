@@ -1,9 +1,9 @@
-import { build, file, serve, type ServerWebSocket } from "bun"
+import { build, file, serve } from "bun"
 import { mkdirSync, rmSync } from "node:fs"
 import { dirname, join, normalize } from "node:path"
-import { openDbInstanceSqlite, readDbWorldSnapshot } from "../../pkg/db/index.ts"
 import type { AppWebLayoutSettings } from "./settings.ts"
 import {
+	DB_SYNC_BROADCAST_CHANNEL,
 	ELECTROMAGNETISM_BROADCAST_CHANNEL,
 	GLUON_BROADCAST_CHANNEL,
 	GRAVITY_BROADCAST_CHANNEL,
@@ -13,6 +13,7 @@ import {
 	WEAK_Z_BROADCAST_CHANNEL,
 	openGluonBroadcastChannel,
 	openHiggsBroadcastChannel,
+	isDbSyncMessage,
 	isGluonMessage,
 	isGravitonMessage,
 	isHiggsMessage,
@@ -71,11 +72,6 @@ type ClientRelayoutMessage = {
 	type: "relayout"
 	src: string
 	layoutSettings?: Partial<AppWebLayoutSettings>
-}
-
-type ClientReadSnapshotMessage = {
-	type: "read-snapshot"
-	src: string
 }
 
 type ClientProtocolBridgeMessage = {
@@ -279,17 +275,8 @@ const protocolMirrors = [
 	{ key: "weak-z", channelName: WEAK_Z_BROADCAST_CHANNEL, validator: isZMessage },
 	{ key: "weak-w", channelName: WEAK_W_BROADCAST_CHANNEL, validator: isWMessage },
 	{ key: "structural", channelName: STRUCTURAL_BROADCAST_CHANNEL, validator: isStructuralSignalMessage },
+	{ key: "db-sync", channelName: DB_SYNC_BROADCAST_CHANNEL, validator: isDbSyncMessage },
 ] as const
-
-const respondWithSnapshot = (ws: ServerWebSocket<unknown>, src: string): void => {
-	const db = openDbInstanceSqlite({ filename: APP_DB_FILENAME })
-	try {
-		const snapshot = readDbWorldSnapshot(db, src)
-		ws.send(JSON.stringify({ type: "snapshot-data", src, snapshot }))
-	} finally {
-		db.close()
-	}
-}
 
 protocolMirrors.forEach(({ key, channelName, validator }) => {
 	const channel = new BroadcastChannel(channelName)
@@ -328,18 +315,16 @@ const server = serve({
 				}),
 			)
 		},
-		message(ws, message) {
+		message(_ws, message) {
 			let payload:
 				| ClientMaterializeMessage
 				| ClientRelayoutMessage
-				| ClientReadSnapshotMessage
 				| ClientProtocolBridgeMessage
 				| null = null
 			try {
 				payload = JSON.parse(String(message)) as
 					| ClientMaterializeMessage
 					| ClientRelayoutMessage
-					| ClientReadSnapshotMessage
 					| ClientProtocolBridgeMessage
 			} catch {
 				return
@@ -358,20 +343,6 @@ const server = serve({
 						protocolInputs.gluon.postMessage(protocolMessage)
 					} else {
 						protocolInputs.higgs.postMessage(protocolMessage)
-					}
-					return
-				}
-
-				if (payload.type === "read-snapshot") {
-					if (typeof payload.src !== "string" || payload.src.length === 0) return
-					try {
-						respondWithSnapshot(ws, payload.src)
-					} catch (error) {
-						publish({
-							type: "log",
-							worker: "server",
-							message: `read-snapshot error: ${error instanceof Error ? error.message : String(error)}`,
-						})
 					}
 					return
 				}
