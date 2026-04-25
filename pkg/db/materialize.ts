@@ -1,5 +1,4 @@
-import type { FieldKey, MetaAST, MetaJson } from "@metafor/ast"
-import type { Mass } from "../../index.ts"
+import type { FieldKey, Mass, MetaDSL } from "../../index.ts"
 import type {
   DbData,
   DbFieldSchemaRecord,
@@ -35,12 +34,12 @@ export interface DbMetaBundle {
   src: string
   name?: string
   fields: DbMetaFieldBundle[]
-  superposition?: MetaAST["superposition"]
-  processes?: MetaAST["processes"]
-  reactions?: MetaAST["reactions"]
-  matter?: MetaAST["matter"]
-  bulk?: MetaAST["bulk"]
-  mass?: MetaAST["mass"] | Mass
+  superposition?: MetaDSL["superposition"]
+  processes?: MetaDSL["processes"]
+  reactions?: MetaDSL["reactions"]
+  matter?: MetaDSL["matter"]
+  bulk?: MetaDSL["bulk"]
+  mass?: MetaDSL["mass"] | Mass
 }
 
 export interface DbWimpFieldBundle {

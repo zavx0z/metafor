@@ -4,14 +4,14 @@
  * @packageDocumentation
  */
 
-import type { MetaJson } from "@metafor/ast"
+import type { MetaDSL } from "../../index.ts"
 
 export type Intention = string
 
 /**
  * Хранилище схем процессов: ключ → схема.
  */
-export type ProcessesStore = Map<Intention, MetaJson>
+export type ProcessesStore = Map<Intention, MetaDSL>
 
 /**
  * Внутреннее состояние `Bulk × Weak`.

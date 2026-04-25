@@ -12,7 +12,7 @@
 ## Пример
 
 ```ts
-expect(ast, "loadMetaAST должен вернуть ref").toEqual(ref)
+expect(ast, "loadMeta должен вернуть ref").toEqual(ref)
 expect(generator, "generator должен быть создан").toBeDefined()
 expect(firstLevel.done, "первый слой не должен завершать generator").toBe(false)
 ```

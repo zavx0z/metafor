@@ -91,7 +91,6 @@
         "@dark/strong": "workspace:*",
         "@dark/types": "workspace:*",
         "@dark/weak": "workspace:*",
-        "@metafor/ast": "workspace:*",
         "@metafor/db": "workspace:*",
       },
     },
@@ -106,8 +105,6 @@
       "name": "@dark/gravity",
       "dependencies": {
         "@dark/types": "workspace:*",
-        "@metafor/ast": "workspace:*",
-        "@metafor/dsl": "workspace:*",
         "@shared/protocol": "workspace:*",
       },
     },
@@ -715,14 +712,8 @@
       "name": "@zavx0z/git-worktree-worktree",
       "version": "0.1.0",
     },
-    "pkg/ast": {
-      "name": "@metafor/ast",
-    },
     "pkg/db": {
       "name": "@metafor/db",
-    },
-    "pkg/dsl": {
-      "name": "@metafor/dsl",
     },
     "pkg/engine": {
       "name": "@metafor/engine",
@@ -779,8 +770,6 @@
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
 
-    "@metafor/ast": ["@metafor/ast@workspace:pkg/ast"],
-
     "@metafor/boundary": ["@metafor/boundary@workspace:boundary"],
 
     "@metafor/bulk": ["@metafor/bulk@workspace:bulk"],
@@ -788,8 +777,6 @@
     "@metafor/dark": ["@metafor/dark@workspace:dark"],
 
     "@metafor/db": ["@metafor/db@workspace:pkg/db"],
-
-    "@metafor/dsl": ["@metafor/dsl@workspace:pkg/dsl"],
 
     "@metafor/engine": ["@metafor/engine@workspace:pkg/engine"],
 

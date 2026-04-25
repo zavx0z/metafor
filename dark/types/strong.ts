@@ -1,5 +1,4 @@
-import type { FieldDefinitionJson, FieldKey, MetaAST } from "@metafor/ast"
-import type { Mass } from "../../index.ts"
+import type { FieldDefinition, FieldKey, Mass, MetaDSL } from "../../index.ts"
 import type { NodeMeta } from "@metafor/template"
 import type { DarkParticle } from "./shared.ts"
 import type { InstanceField } from "../strong/Field.ts"
@@ -73,7 +72,7 @@ export interface MetaFieldInit {
   /** Локальный ключ поля внутри схемы меты. */
   key: FieldKey
   /** Содержимое meta-поля. */
-  schema: FieldDefinitionJson
+  schema: FieldDefinition
 }
 
 /**
@@ -94,21 +93,21 @@ export interface MetaInit {
   /** Канонический SRC-адрес меты. */
   src: string
   /** Локальное имя меты. */
-  name?: MetaAST["name"]
+  name?: MetaDSL["name"]
   /** Плоская схема полей, из которой будет собран `MetaField`-граф. */
-  fieldSchemas?: Record<FieldKey, FieldDefinitionJson>
+  fieldSchemas?: Record<FieldKey, FieldDefinition>
   /** Готовый канонический граф meta-полей. */
   fields?: MetaFields
   /** Схема переходов состояний меты. */
-  superposition?: MetaAST["superposition"]
+  superposition?: MetaDSL["superposition"]
   /** Описание процессов меты. */
-  processes?: MetaAST["processes"]
+  processes?: MetaDSL["processes"]
   /** Описание реакций меты. */
-  reactions?: MetaAST["reactions"]
+  reactions?: MetaDSL["reactions"]
   /** Описание topology declaration меты. */
-  matter?: MetaAST["matter"]
+  matter?: MetaDSL["matter"]
   /** Описание bulk-секции меты. */
-  bulk?: MetaAST["bulk"]
+  bulk?: MetaDSL["bulk"]
   /** Канонический mass-слой меты. */
   mass?: Mass | NodeMeta["mass"]
 }

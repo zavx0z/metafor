@@ -1,5 +1,4 @@
-import type { Mass, NodeMeta } from "../../index.ts"
-import type { MetaAST } from "@metafor/ast"
+import type { Mass, MetaDSL, NodeMeta } from "../../index.ts"
 import type { WimpInit } from "@dark/types/strong"
 import type { DarkGravityProtocol } from "@dark/gravity/channel.ts"
 import type { DbMaterializationWriter, DbMetaBundle, DbWimpBundle, DbWimpFieldBundle } from "@metafor/db"
@@ -63,42 +62,42 @@ export class Wimp extends BaseParticle {
   /**
    * Удобный доступ к имени меты через `Meta`.
    */
-  get name(): MetaAST["name"] | undefined {
+  get name(): MetaDSL["name"] | undefined {
     return this.meta?.name
   }
 
   /**
    * Удобный доступ к state schema через `Meta`.
    */
-  get superposition(): MetaAST["superposition"] | undefined {
+  get superposition(): MetaDSL["superposition"] | undefined {
     return this.meta?.superposition
   }
 
   /**
    * Удобный доступ к processes через `Meta`.
    */
-  get processes(): MetaAST["processes"] | undefined {
+  get processes(): MetaDSL["processes"] | undefined {
     return this.meta?.processes
   }
 
   /**
    * Удобный доступ к reactions через `Meta`.
    */
-  get reactions(): MetaAST["reactions"] | undefined {
+  get reactions(): MetaDSL["reactions"] | undefined {
     return this.meta?.reactions
   }
 
   /**
    * Удобный доступ к matter declaration через `Meta`.
    */
-  get matter(): MetaAST["matter"] | undefined {
+  get matter(): MetaDSL["matter"] | undefined {
     return this.meta?.matter
   }
 
   /**
    * Удобный доступ к bulk через `Meta`.
    */
-  get bulk(): MetaAST["bulk"] | undefined {
+  get bulk(): MetaDSL["bulk"] | undefined {
     return this.meta?.bulk
   }
 

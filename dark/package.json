@@ -13,7 +13,6 @@
     "serve": "bun server --hot"
   },
   "dependencies": {
-    "@metafor/ast": "workspace:*",
     "@dark/types": "workspace:*",
     "@dark/gravity": "workspace:*",
     "@dark/strong": "workspace:*",

@@ -1,7 +1,6 @@
-import type { FieldsAST } from "@metafor/ast"
-import type { NodeMeta } from "../../index.ts"
+import type { Fields, NodeMeta } from "../../index.ts"
 
-const getFieldValues = (path: string, fields?: FieldsAST): Array<string | number> => {
+const getFieldValues = (path: string, fields?: Fields): Array<string | number> => {
   if (!fields || !path.startsWith("/value/")) return []
 
   return [...(fields[path.slice("/value/".length)]?.values ?? [])]
@@ -23,7 +22,7 @@ const createContinuationSrc = (node: NodeMeta, value: string | number): string =
  * он умеет развернуть dynamic `src` в конкретные continuation-адреса,
  * но не управляет traversal, frontier или parent wiring.
  */
-export const resolveContinuationSources = (node: NodeMeta, fields?: FieldsAST): string[] => {
+export const resolveContinuationSources = (node: NodeMeta, fields?: Fields): string[] => {
   if (typeof node.src !== "object") return []
 
   const paths = Array.isArray(node.src.data) ? node.src.data : [node.src.data]

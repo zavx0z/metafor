@@ -19,10 +19,10 @@
 
 ```ts
 describe("init", () => {
-  let ast: MetaAST
+  let ast: MetaDSL
 
   test("load", async () => {
-    ast = (await loadMetaAST("zavx0z/git" as SRC)) as MetaAST
+    ast = (await loadMeta("zavx0z/git" as SRC)) as MetaDSL
   })
 
   let wimp: Wimp

@@ -44,7 +44,7 @@
 
 ```typescript
 // ✅ ПРАВИЛЬНО — порядок соблюдён
-import type { MetaAST } from "@metafor/ast"           // 1. Сторонние пакеты
+import type { MetaDSL } from "metafor"           // 1. Сторонние пакеты
 import type { DarkStore } from "@dark/types"          // 2. Типы из @domain/types
 import { gravity$ } from "@dark/gravity"              // 3. Собственные модули
 import { compileFragment } from "../metafor/dsl/ts"   // 4. Локальные импорты
@@ -52,7 +52,7 @@ import { loadMeta } from "./load.ts"                  // 4. Локальные �
 
 // ❌ НЕПРАВИЛЬНО — порядок нарушен
 import { gravity$ } from "./gravity/store.ts"         // локальные до сторонних
-import type { MetaAST } from "@metafor/ast"           // сторонние после локальных
+import type { MetaDSL } from "metafor"           // сторонние после локальных
 import type { DarkStore } from "@dark/types"
 ```
 
@@ -65,7 +65,7 @@ import type { DarkStore } from "@dark/types"
 ```typescript
 // ✅ Правильно — типы сверху
 import type { Store, Entity } from "@dark/types"
-import type { MetaAST } from "@metafor/ast"
+import type { MetaDSL } from "metafor"
 import { cloneSnapshot } from "./snapshot.ts"
 import { store$ } from "./store.ts"
 

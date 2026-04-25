@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import type { MetaAST } from "@metafor/ast"
+import type { MetaDSL } from "../index.ts"
 import { HubFixture } from "fixture"
 import reference from "../github/zavx0z/git/meta.ts"
 import startReference from "../github/zavx0z/git-start/meta.ts"
@@ -15,8 +15,8 @@ const hub = new HubFixture()
 
 const src = "zavx0z/git"
 const startSrc = "zavx0z/git-start"
-const ref = reference as MetaAST
-const startRef = startReference as MetaAST
+const ref = reference as MetaDSL
+const startRef = startReference as MetaDSL
 
 const readWimpValues = (wimp: Wimp) => readFieldValues(wimp.fields)
 const readFieldInitValues = (fieldInits?: MatterWimpResult[1]["fieldInits"]) =>

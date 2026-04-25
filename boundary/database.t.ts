@@ -1,4 +1,4 @@
-import type { FieldKey } from "@metafor/ast"
+import type { FieldKey } from "../index.ts"
 import type { PreparedEntanglementProjection } from "@boundary/strong"
 
 export interface BoundaryDatabaseFieldSchemaRecord {

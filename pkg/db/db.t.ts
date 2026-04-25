@@ -1,5 +1,4 @@
-import type { FieldKey, MetaAST } from "@metafor/ast"
-import type { Mass } from "../../index.ts"
+import type { FieldKey, Mass, MetaDSL } from "../../index.ts"
 
 /**
  * Краткий снимок схемы поля для канонической relational DB.
@@ -18,8 +17,8 @@ export interface DbMetaRecord {
   id: string
   src: string
   name?: string
-  bulk?: MetaAST["bulk"]
-  mass?: MetaAST["mass"] | Mass
+  bulk?: MetaDSL["bulk"]
+  mass?: MetaDSL["mass"] | Mass
 }
 
 export interface DbMetaFieldRecord {

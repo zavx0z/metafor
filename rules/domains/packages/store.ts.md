@@ -99,7 +99,7 @@ graph$.roots.add(id)
 export const store$: DomenPackageStore = {
   meta: new Map(),
 
-  setMeta(address: string, meta: MetaAST) {
+  setMeta(address: string, meta: MetaDSL) {
     const next = structuredClone(meta)
     this.meta.set(address, next)
     return next

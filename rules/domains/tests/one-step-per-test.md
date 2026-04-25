@@ -16,7 +16,7 @@
 
 ```ts
 test("load", async () => {
-  ast = await loadMetaAST(src)
+  ast = await loadMeta(src)
 })
 
 test("create wimp", () => {
