@@ -39,29 +39,6 @@
 
 ---
 
-## #74 — dark/load: убрать AST из публичных имён, переименовать ensureMetaCanonicalized в loadMeta
-
-**Цель issue.** В `dark/load.ts` смешаны роли: публичная загрузка meta, внутренняя SQLite-канонизация, AST в именах функций, test-only сброс контекста. Привести к чистому пути `DSL → DDL/SQLite → dark read-model`.
-
-**Что сделано.**
-
-- `loadMetaAST()` → удалён.
-- `ensureMetaCanonicalized()` → переименован в `loadMeta(address: SRC)` (`dark/load.ts:72`).
-- `resetCanonicalMetaContext()` → перенесён в `dark/load.context.ts` как `disposeMetaDbContext()` и используется через test fixture.
-
-**Гэп.**
-
-- `dark/types/strong.ts` всё ещё импортирует `MetaAST` из `@metafor/ast` для типизации полей: `name?: MetaAST["name"]`, `superposition?: MetaAST["superposition"]`, `processes?: MetaAST["processes"]`, `reactions?: MetaAST["reactions"]`, `matter?: MetaAST["matter"]`, `bulk?: MetaAST["bulk"]`.
-- `dark/strong/Meta.ts` хранит эти же поля как `readonly name: MetaAST["name"]`...
-- То есть AST убран из *имён функций*, но остался в *типах публичной модели*.
-
-**Что нужно для закрытия.**
-
-- Завести в `dark/types/strong.ts` (или ввести `dark/strong/meta.t.ts`) собственные типы для name/superposition/processes/reactions/matter/bulk, не зависящие от `@metafor/ast`. Источник этих типов — реляционная проекция SQLite (issue #73).
-- Связь с #73 прямая: после перехода на SQLite-проекцию AST перестаёт быть public-API dark-а вообще.
-
----
-
 ## #73 — sqlite: подготовить каноническую dark-проекцию из реляционной схемы вместо прямой загрузки raw DSL
 
 **Цель issue.** `Dark` должен получать данные не из raw `meta.json` DSL, а из реляционной SQLite-проекции, собранной `pkg/sqlite/relation.ts`. Никакого второго источника истины в виде raw DSL.
@@ -82,11 +59,11 @@
 
 **Что нужно для закрытия.**
 
-- Добавить `pkg/sqlite/read-meta-projection.ts` (или функции в `dark/strong/sqlite.ts`): `readMetaProjection(db, src)` → возвращает структуру, имеющую те же поля что нынешний `MetaAST`, но собранную из таблиц.
+- Добавить `pkg/sqlite/read-meta-projection.ts` (или функции в `dark/strong/sqlite.ts`): `readMetaProjection(db, src)` → возвращает структуру с теми же полями, что нынешний `MetaDSL`, но собранную из таблиц.
 - `dark/load.ts loadMeta` отказывается от `readMetaDsl`: на вход — только SQL handle и src.
 - `Meta` constructor (`dark/strong/Meta.ts`) принимает projection-shape, не AST.
 
-**Связь с #74:** обе issue решаются вместе — после #73 типы AST уходят из public dark API.
+**Контекст.** Парная issue #74 (убрать AST из публичных имён + переименовать в `loadMeta`) закрыта; осталось вытеснить даже `MetaDSL`-типы из public dark API через SQLite-проекцию.
 
 ---
 
@@ -251,8 +228,7 @@
 | 65 | Минимизация протокола | ⚠️ в процессе | Снести `channel`/`source`/`boson` дубли в payload | — |
 | 66 | DSL ↔ DB round-trip | ❌ половина (forward есть, reverse нет) | `pkg/dsl-emit` + round-trip тесты | #58 |
 | 68 | Self-authoring мультивселенная | 📌 видение | — | — |
-| 73 | Каноническая dark-проекция из SQLite | ⚠️ ~50% | `loadMeta` через реляционные `meta_*` таблицы, не `readMetaDsl` | #74 |
-| 74 | dark/load: убрать AST из имён | ⚠️ ~70% | Убрать `MetaAST` из `dark/types/strong.ts`, `dark/strong/Meta.ts` | #73 |
+| 73 | Каноническая dark-проекция из SQLite | ⚠️ ~50% | `loadMeta` через реляционные `meta_*` таблицы, не `readMetaDsl` | — |
 | 75 | Единый расчёт уровня | ✅ фактически закрыт | Закрыть на GitHub | — |
 | 77 | Incremental materialization rendering | ⚠️ инфраструктура есть, viewport не incremental | upsert/remove API в `bulk/web`, client применяет per-event без барьерного refresh | #57 |
 | 56 | row-group vs entity-stage writes | 🔍 TODO-вопрос | Архитектурный анализ | #58 |
@@ -267,7 +243,7 @@
 
 **Высокий приоритет (закрывает архитектурную цель текущей ветки).**
 - **#77 incremental viewport apply** — добивает streaming-flow на client-стороне; lerp/transition становятся осмысленными.
-- **#73 + #74 dark на SQLite-проекцию** — убирает дуальность DSL/SQLite в Dark; снимает AST из публичных типов.
+- **#73 dark на SQLite-проекцию** — убирает дуальность DSL/SQLite в Dark; вытесняет даже `MetaDSL` из публичных типов.
 
 **Средний приоритет (косметика и расширения).**
 - **#65 минимизация протокола** — низкий риск, но широкий refactor.
