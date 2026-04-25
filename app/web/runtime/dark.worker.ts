@@ -5,10 +5,10 @@ import {
 	openDbSqliteBackend,
 	type DbInstanceStore,
 } from "../../../pkg/db/index.ts"
-import type { DbFieldValueKind, DbParticleKind, DbWorldRows } from "../../../pkg/db/index.ts"
+import type { DbFieldValueKind, DbParticleKind } from "../../../pkg/db/index.ts"
 import { createMirroredInstanceStore } from "../../../pkg/db/instance-store-mirror.ts"
 import { openDbSyncBroadcastChannel, openStructuralBroadcastChannel } from "@shared/protocol"
-import { readDarkParticleModel, type DarkMetaParticleModel } from "../../../pkg/sqlite/dark.ts"
+import { readDarkParticleModel, type DarkMetaParticleModel } from "../../../dark/strong/index.ts"
 import { getMetaDB, relation } from "../../../pkg/sqlite/index.ts"
 import { matter } from "../../../dark/dark.ts"
 import { readMetaDsl } from "../../../dark/load.ts"
@@ -18,11 +18,7 @@ import type { MatterParticlePlan } from "../../../dark/types/dark.ts"
 import { dark$ } from "../../../dark/store.ts"
 import type { DarkParticle } from "../../../dark/types/shared.ts"
 import type { AppWebLayoutSettings } from "../settings.ts"
-import {
-	createDbWorldRowsFromParticleDescriptors,
-	scaleDbWorldRowsToRootOuterDiameter,
-	type DbWorldParticleDescriptor,
-} from "@bulk/gravity/layout"
+import { streamDbWorldRows, type DbWorldParticleDescriptor } from "@bulk/gravity/layout"
 
 type MaterializeMessage = {
 	type: "materialize"
@@ -257,22 +253,6 @@ const createRuntimeParticleDescriptor = (
 	}
 }
 
-const buildDbWorldRows = (
-	rootSrc: string,
-	descriptorRoots: DbWorldParticleDescriptor[],
-	layoutSettings: Partial<AppWebLayoutSettings> = {},
-): DbWorldRows => {
-	return scaleDbWorldRowsToRootOuterDiameter(
-		createDbWorldRowsFromParticleDescriptors(
-			rootSrc,
-			descriptorRoots,
-			layoutSettings,
-		),
-		undefined,
-		layoutSettings,
-	)
-}
-
 const cloneFieldDescriptor = (
 	field: DbWorldParticleDescriptor["fields"][number],
 ): DbWorldParticleDescriptor["fields"][number] => ({ ...field })
@@ -301,22 +281,16 @@ const publishStructuralSignal = async (
 	layoutSettings: Partial<AppWebLayoutSettings>,
 	dbFilename: string,
 ): Promise<void> => {
-	const rows = buildDbWorldRows(
+	const store = ensureInstanceStore(dbFilename)
+
+	// Layout сразу пишет per-row в `store`, который через mirror публикует sync-events
+	// в db-sync broadcast channel — server потом мирорит их в WS клиентам.
+	await streamDbWorldRows(
 		src,
 		descriptorRoots.map((descriptor) => cloneParticleDescriptor(descriptor)),
 		layoutSettings,
+		store,
 	)
-	const store = ensureInstanceStore(dbFilename)
-
-	// Каждое write публикует per-row sync-событие в db-sync broadcast channel,
-	// которое server потом мирорит в WS клиентам.
-	await store.clearWorld(rows.rootSrc)
-	for (const shell of rows.particles) {
-		await store.insertParticleShell(rows.rootSrc, shell)
-	}
-	for (const orbit of rows.fields) {
-		await store.insertFieldOrbit(rows.rootSrc, orbit)
-	}
 
 	// Барьер: «всё применено, можно перерисовывать».
 	structuralChannel.postMessage({

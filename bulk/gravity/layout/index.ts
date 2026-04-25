@@ -23,3 +23,5 @@ export {
   enforceRootShellLayoutSettings,
   scaleDbWorldRowsToRootOuterDiameter,
 } from "./snapshot"
+export type { DbWorldRowSink } from "./stream"
+export { streamDbWorldRows } from "./stream"

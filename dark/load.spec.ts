@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { HubFixture } from "fixture"
 import reference from "../github/zavx0z/git/meta.ts"
-import { readDarkParticleModel } from "../pkg/sqlite/dark.ts"
+import { readDarkParticleModel } from "./strong/sqlite.ts"
 import { loadMeta } from "./load.ts"
 import { resetDarkLoadContext } from "./tests/test.helper.ts"
 
