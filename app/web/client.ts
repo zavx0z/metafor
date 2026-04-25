@@ -295,7 +295,9 @@ const applySettingUiMetadata = (): void => {
 		if (config.step !== undefined) input.step = String(config.step)
 		if (config.min !== undefined) input.min = String(config.min)
 		if (config.max !== undefined) input.max = String(config.max)
-		if (!input.value) input.value = String(config.defaultValue)
+		// Browser кэширует value range-инпутов между перезагрузками, поэтому
+		// перезаписываем явно дефолтом — persisted-IDB значение перезапишет позже.
+		input.value = String(config.defaultValue)
 		settingValueElements[key] = value
 		updateSettingValuePreview(key)
 		input.addEventListener("input", () => {

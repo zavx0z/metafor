@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import { IDBFactory } from "fake-indexeddb"
+import { APP_CONFIG_DEFAULTS, APP_CONFIG_REVISION } from "./app-config.ts"
+import { APP_WEB_LAYOUT_SETTING_KEYS, APP_WEB_RENDER_SETTING_KEYS } from "./settings.ts"
+
+const persistedLayoutDefaults = () =>
+  Object.fromEntries(APP_WEB_LAYOUT_SETTING_KEYS.map((key) => [key, APP_CONFIG_DEFAULTS.layout[key]]))
+
+const persistedRenderDefaults = () =>
+  Object.fromEntries(APP_WEB_RENDER_SETTING_KEYS.map((key) => [key, APP_CONFIG_DEFAULTS.render[key]]))
 import { loadPersistedAppWebUiSettings, savePersistedAppWebUiSettings } from "./ui-settings-idb.ts"
 
 const createIndexedDbTarget = () => ({
@@ -8,10 +16,19 @@ const createIndexedDbTarget = () => ({
 })
 
 describe("app/web ui settings indexeddb", () => {
-  test("возвращает null, если настройки ещё не сохранялись", async () => {
+  test("на пустой IDB сразу seed-ит APP_CONFIG_DEFAULTS и возвращает их", async () => {
     const target = createIndexedDbTarget()
 
-    expect(await loadPersistedAppWebUiSettings(target)).toBeNull()
+    expect(await loadPersistedAppWebUiSettings(target)).toEqual({
+      layoutSettings: persistedLayoutDefaults(),
+      renderSettings: persistedRenderDefaults(),
+    })
+
+    // повторный load возвращает то же самое — IDB уже seeded.
+    expect(await loadPersistedAppWebUiSettings(target)).toEqual({
+      layoutSettings: persistedLayoutDefaults(),
+      renderSettings: persistedRenderDefaults(),
+    })
   })
 
   test("сохраняет и восстанавливает только известные numeric ui-настройки", async () => {
@@ -47,23 +64,17 @@ describe("app/web ui settings indexeddb", () => {
     })
   })
 
-  test("отбрасывает нечисловой и неизвестный мусор при чтении", async () => {
+  test("при revision записи равной текущему APP_CONFIG_REVISION фильтрует мусор и возвращает чистые числа", async () => {
     const target = createIndexedDbTarget()
-
-    await savePersistedAppWebUiSettings(
-      {
-        layoutSettings: {
-          levelSizeMultiplier: 2.2,
-        },
-        renderSettings: {
-          torusTubularSegments: 44,
-        },
-      },
-      target,
-    )
 
     const database = target.indexedDb.open(target.databaseName, 1)
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      database.onupgradeneeded = () => {
+        const upgrade = database.result
+        if (!upgrade.objectStoreNames.contains("ui_settings")) {
+          upgrade.createObjectStore("ui_settings", { keyPath: "id" })
+        }
+      }
       database.onsuccess = () => resolve(database.result)
       database.onerror = () => reject(database.error ?? new Error("Failed to open IndexedDB"))
     })
@@ -73,7 +84,7 @@ describe("app/web ui settings indexeddb", () => {
       const store = transaction.objectStore("ui_settings")
       const request = store.put({
         id: "display_settings",
-        revision: 2,
+        revision: APP_CONFIG_REVISION,
         layoutSettings: {
           levelSizeMultiplier: 2.2,
           rootInnerDiameterMm: "bad",
@@ -103,6 +114,43 @@ describe("app/web ui settings indexeddb", () => {
       renderSettings: {
         torusTubularSegments: 44,
       },
+    })
+  })
+
+  test("при revision не совпадающем seed-ит дефолты, перезатирая старую запись", async () => {
+    const target = createIndexedDbTarget()
+
+    const database = target.indexedDb.open(target.databaseName, 1)
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      database.onupgradeneeded = () => {
+        const upgrade = database.result
+        if (!upgrade.objectStoreNames.contains("ui_settings")) {
+          upgrade.createObjectStore("ui_settings", { keyPath: "id" })
+        }
+      }
+      database.onsuccess = () => resolve(database.result)
+      database.onerror = () => reject(database.error ?? new Error("Failed to open IndexedDB"))
+    })
+
+    try {
+      const tx = db.transaction("ui_settings", "readwrite")
+      tx.objectStore("ui_settings").put({
+        id: "display_settings",
+        revision: APP_CONFIG_REVISION - 1,
+        layoutSettings: { levelSizeMultiplier: 999 },
+        renderSettings: { torusTubularSegments: 999 },
+      })
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error ?? new Error("write failed"))
+      })
+    } finally {
+      db.close()
+    }
+
+    expect(await loadPersistedAppWebUiSettings(target)).toEqual({
+      layoutSettings: persistedLayoutDefaults(),
+      renderSettings: persistedRenderDefaults(),
     })
   })
 })

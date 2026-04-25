@@ -4,39 +4,18 @@ import type {
   LevelSettings,
 } from "@bulk/gravity/level"
 import {
-  DEFAULT_BULK_LAYOUT_SETTINGS,
   DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
   normalizeBulkLayoutSettings,
   toLevelGeometrySettings as toLevelGeometrySettingsFromBulk,
   type BulkLayoutSettings,
 } from "@bulk/gravity/layout"
+import { APP_CONFIG_DEFAULTS, type AppConfigRender } from "./app-config.ts"
 
 /** Реэкспорт top-down закона Bulk × Gravity под прежним именем для UI-слоя `app/web`. */
 export type AppWebLayoutSettings = BulkLayoutSettings
 
 /** Настройки плотности wireframe-детализации для WebGPU viewport. */
-export interface AppWebRenderSettings {
-  /** Множитель детализации для root-уровня. */
-  detailDensityFactor: number
-  /** Ослабление детализации на каждый уровень внутрь. Должен быть `> 0`. */
-  detailLevelMultiplier: number
-  /** Сколько уровней иерархии подписей показывать, начиная от root-уровня. */
-  labelVisibleLevels: number
-  /** Текущий базовый уровень (глубина) viewport-а для отсчёта видимости. */
-  baseDepth: number
-  /** Размер подписи у shell/sphere в миллиметрах. */
-  labelFontSizeMm: number
-  /** Отступ подписи от поверхности объекта в миллиметрах. */
-  labelSurfaceOffsetMm: number
-  /** Наклон продольных линий тора в градусах относительно базовой раскладки. */
-  torusCrossRingRotationDeg: number
-  /** Количество продольных колец (линий) тора. */
-  torusRadialSegments: number
-  /** Количество сегментов (сглаженность) одного кольца тора. */
-  torusTubularSegments: number
-  /** Прозрачность wireframe-сетки (0..1). */
-  wireframeOpacity: number
-}
+export type AppWebRenderSettings = AppConfigRender
 
 /** Layout-контракт UI: viewport-камера, сетка, fallback-shell. Snapshot-константы хранятся в `@bulk/gravity/layout`. */
 export interface AppWebLayoutConfig {
@@ -86,8 +65,8 @@ export interface AppWebNumericSettingConfig {
   step?: number
 }
 
-/** Реэкспорт layout-defaults Bulk × Gravity под именем UI-слоя. */
-export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = DEFAULT_BULK_LAYOUT_SETTINGS
+/** Реэкспорт layout-defaults из единого app-config-а. */
+export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = APP_CONFIG_DEFAULTS.layout
 
 /** Layout-контракт `app/web`: viewport-камера, сетка, fallback-shell. */
 export const appWebLayoutConfig: AppWebLayoutConfig = {
@@ -118,29 +97,8 @@ export const appWebLayoutConfig: AppWebLayoutConfig = {
   },
 }
 
-/** Базовый закон детализации viewport. `detailDensityFactor = 2` означает двойную базовую детализацию у root. */
-export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
-  // Базовая плотность wireframe-сетки у root-уровня.
-  detailDensityFactor: 2,
-  // Насколько быстро детализация уменьшается на каждом внутреннем уровне.
-  detailLevelMultiplier: 1,
-  // Сколько уровней подписей показывать от root внутрь.
-  labelVisibleLevels: 2,
-  // Базовый уровень viewport для отсчёта видимости (0 = root).
-  baseDepth: 0,
-  // Размер текста подписей на поверхности объектов.
-  labelFontSizeMm: 77,
-  // Насколько подпись вынесена от поверхности наружу.
-  labelSurfaceOffsetMm: 19,
-  // Наклон продольных линий тора по поверхности.
-  torusCrossRingRotationDeg: 44,
-  // Базовое количество колец тора.
-  torusRadialSegments: 14,
-  // Базовая сглаженность (сегменты) одного кольца тора.
-  torusTubularSegments: 48,
-  // Прозрачность wireframe-сетки.
-  wireframeOpacity: 0.18,
-}
+/** Реэкспорт render-defaults из единого app-config-а. */
+export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = APP_CONFIG_DEFAULTS.render
 
 /** Классификация настроек `app/web` по ключам. Используется UI и runtime-слоями как единая карта. */
 export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSettingConfig> = {

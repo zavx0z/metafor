@@ -1,3 +1,4 @@
+import { APP_CONFIG_DEFAULTS, APP_CONFIG_REVISION } from "./app-config.ts"
 import {
   APP_WEB_LAYOUT_SETTING_KEYS,
   APP_WEB_RENDER_SETTING_KEYS,
@@ -24,13 +25,6 @@ const APP_WEB_UI_SETTINGS_DB_NAME = "metafor-app-web-ui"
 const APP_WEB_UI_SETTINGS_DB_VERSION = 1
 const APP_WEB_UI_SETTINGS_STORE = "ui_settings"
 const APP_WEB_UI_SETTINGS_ID = "display_settings"
-/**
- * Маркер версии дефолтов. Бампается каждый раз, когда меняется
- * `DEFAULT_APP_WEB_RENDER_SETTINGS` или `DEFAULT_BULK_LAYOUT_SETTINGS`,
- * чтобы persisted-запись со старыми значениями не «замораживала» прежние
- * дефолты у уже открывавших страницу пользователей.
- */
-const APP_WEB_UI_SETTINGS_REVISION = 2
 
 const getIndexedDbFactory = (options: AppWebUiSettingsIndexedDbOptions): IDBFactory => {
   if (options.indexedDb) return options.indexedDb
@@ -92,9 +86,16 @@ const pickNumericSettings = <T extends string>(keys: readonly T[], value: unknow
 
 const toPersistedRecord = (snapshot: AppWebUiSettingsSnapshot): PersistedAppWebUiSettingsRecord => ({
   id: APP_WEB_UI_SETTINGS_ID,
-  revision: APP_WEB_UI_SETTINGS_REVISION,
+  revision: APP_CONFIG_REVISION,
   layoutSettings: pickNumericSettings(APP_WEB_LAYOUT_SETTING_KEYS, snapshot.layoutSettings),
   renderSettings: pickNumericSettings(APP_WEB_RENDER_SETTING_KEYS, snapshot.renderSettings),
+})
+
+const seedDefaultsRecord = (): PersistedAppWebUiSettingsRecord => ({
+  id: APP_WEB_UI_SETTINGS_ID,
+  revision: APP_CONFIG_REVISION,
+  layoutSettings: pickNumericSettings(APP_WEB_LAYOUT_SETTING_KEYS, APP_CONFIG_DEFAULTS.layout),
+  renderSettings: pickNumericSettings(APP_WEB_RENDER_SETTING_KEYS, APP_CONFIG_DEFAULTS.render),
 })
 
 export const loadPersistedAppWebUiSettings = async (
@@ -108,12 +109,21 @@ export const loadPersistedAppWebUiSettings = async (
     const rawRecord = await resolveRequest(store.get(APP_WEB_UI_SETTINGS_ID))
     await completeTransaction(transaction)
 
-    if (!rawRecord || typeof rawRecord !== "object") return null
+    const isCurrentRecord =
+      rawRecord && typeof rawRecord === "object" &&
+      (rawRecord as Partial<PersistedAppWebUiSettingsRecord>).revision === APP_CONFIG_REVISION
 
-    const persistedRevision = (rawRecord as Partial<PersistedAppWebUiSettingsRecord>).revision
-    if (persistedRevision !== APP_WEB_UI_SETTINGS_REVISION) {
-      // Дефолты после write изменились — игнорируем persisted, чтобы UI взял новые.
-      return null
+    if (!isCurrentRecord) {
+      // Записи нет, она устарела или повреждена — seed-им дефолты в IDB сразу,
+      // чтобы IDB оставался единственным источником значений для UI.
+      const seed = seedDefaultsRecord()
+      const writeTransaction = database.transaction(APP_WEB_UI_SETTINGS_STORE, "readwrite")
+      writeTransaction.objectStore(APP_WEB_UI_SETTINGS_STORE).put(seed)
+      await completeTransaction(writeTransaction)
+      return {
+        layoutSettings: { ...seed.layoutSettings },
+        renderSettings: { ...seed.renderSettings },
+      }
     }
 
     return {
