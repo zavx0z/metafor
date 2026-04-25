@@ -30,8 +30,8 @@ type ProtocolMessage = {
 	message: unknown
 }
 
-type SnapshotDataMessage = {
-	type: "snapshot-data"
+type InstanceSnapshotMessage = {
+	type: "instance-snapshot"
 	src: string
 	snapshot: DbWorldSnapshot
 }
@@ -46,11 +46,6 @@ type ClientRelayoutPayload = {
 	type: "relayout"
 	src: string
 	layoutSettings: Partial<AppWebLayoutSettings>
-}
-
-type ClientReadSnapshotPayload = {
-	type: "read-snapshot"
-	src: string
 }
 
 type SnapshotMessage = {
@@ -378,21 +373,12 @@ socket.onmessage = (event) => {
 	}
 
 	if (message.type === "protocol") {
-		if (message.channel === "structural") {
-			const signal = message.message as { rootSrc?: unknown } | null
-			const rootSrc = signal && typeof signal.rootSrc === "string" ? signal.rootSrc : null
-			if (rootSrc) {
-				const readPayload: ClientReadSnapshotPayload = { type: "read-snapshot", src: rootSrc }
-				socket.send(JSON.stringify(readPayload))
-			}
-			return
-		}
 		bulkViewport?.handleProtocol(message.channel, message.message)
 		return
 	}
 
-	if (message.type === "snapshot-data") {
-		const data = message as SnapshotDataMessage
+	if (message.type === "instance-snapshot") {
+		const data = message as InstanceSnapshotMessage
 		if (pendingSceneState && pendingSceneState.src === data.src) {
 			lastAppliedSceneState = pendingSceneState
 			pendingSceneState = null
