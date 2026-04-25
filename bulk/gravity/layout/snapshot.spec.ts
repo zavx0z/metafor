@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
-  createDbWorldSnapshotFromParticleDescriptors,
-  scaleDbWorldSnapshotToRootOuterDiameter,
+  createDbWorldRowsFromParticleDescriptors,
+  scaleDbWorldRowsToRootOuterDiameter,
   type DbWorldParticleDescriptor,
 } from "./snapshot"
 import { DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG } from "./settings"
@@ -36,7 +36,7 @@ const createParticle = (
 
 describe("bulk/gravity/layout snapshot", () => {
   test("строит planar nested layout top-down в мм и уменьшает sphere-контракт вместе с depth", () => {
-    const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
+    const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
       createParticle("root", [
         createParticle("child", [
           createParticle("leaf", [], ["leaf-field"]),
@@ -75,10 +75,10 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("увеличивает raw parent torus когда children и orbit rings не помещаются", () => {
-    const compact = createDbWorldSnapshotFromParticleDescriptors("compact", [
+    const compact = createDbWorldRowsFromParticleDescriptors("compact", [
       createParticle("root", [createParticle("child-a", [], ["leaf-a"])], []),
     ])
-    const expanded = createDbWorldSnapshotFromParticleDescriptors("expanded", [
+    const expanded = createDbWorldRowsFromParticleDescriptors("expanded", [
       createParticle("root", [
         createParticle("child-a", [], ["leaf-a"]),
         createParticle("child-b", [], ["leaf-b"]),
@@ -106,10 +106,10 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("масштабирует sphere-контракт вместе с расширением torus уровня", () => {
-    const compact = createDbWorldSnapshotFromParticleDescriptors("compact", [
+    const compact = createDbWorldRowsFromParticleDescriptors("compact", [
       createParticle("root", [], ["field-a"]),
     ], { rootSphereRadiusMm: 400 })
-    const expanded = createDbWorldSnapshotFromParticleDescriptors("expanded", [
+    const expanded = createDbWorldRowsFromParticleDescriptors("expanded", [
       createParticle("root", [
         createParticle("child-a", [], ["leaf-a"]),
         createParticle("child-b", [], ["leaf-b"]),
@@ -143,7 +143,7 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("одна орбита распределяется по центру доступной толщины тора", () => {
-    const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
+    const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
       createParticle("root", [], ["field-a", "field-b", "field-c"]),
     ])
 
@@ -160,7 +160,7 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("несколько орбит распределяются равномерными зазорами по толщине тора", () => {
-    const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
+    const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
       createParticle("root", [], [
         "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
         "f11", "f12", "f13", "f14", "f15", "f16", "f17", "f18", "f19", "f20",
@@ -201,7 +201,7 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("уважает корневой внутренний диаметр тора в мм", () => {
-    const snapshot = createDbWorldSnapshotFromParticleDescriptors(
+    const snapshot = createDbWorldRowsFromParticleDescriptors(
       "root",
       [createParticle("root", [], ["field-a"])],
       { rootInnerDiameterMm: 1800 },
@@ -215,12 +215,12 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("сдвигает первую орбиту при увеличении root inner diameter", () => {
-    const compact = createDbWorldSnapshotFromParticleDescriptors(
+    const compact = createDbWorldRowsFromParticleDescriptors(
       "root",
       [createParticle("root", [], ["field-a", "field-b", "field-c", "field-d"])],
       { rootInnerDiameterMm: 800 },
     )
-    const wide = createDbWorldSnapshotFromParticleDescriptors(
+    const wide = createDbWorldRowsFromParticleDescriptors(
       "root",
       [createParticle("root", [], ["field-a", "field-b", "field-c", "field-d"])],
       { rootInnerDiameterMm: 1800 },
@@ -237,7 +237,7 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("держит одинаковый размер торов на одном уровне", () => {
-    const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
+    const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
       createParticle("root", [
         createParticle("child-a", [createParticle("grand-a", [], ["leaf-a"])]),
         createParticle("child-b", [], ["field-b", "field-c", "field-d", "field-e", "field-f"]),
@@ -257,7 +257,7 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("держит единый sphere-контракт относительно outer diameter уровня", () => {
-    const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
+    const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
       createParticle("root", [
         createParticle("child-a", [], ["leaf-a"]),
         createParticle("child-b", [], ["leaf-b"]),
@@ -284,7 +284,7 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("после добавления орбиты перераспределяет объекты по кольцам равномерно", () => {
-    const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
+    const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
       createParticle("root", [], [
         "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
         "f11", "f12", "f13", "f14", "f15", "f16", "f17", "f18", "f19", "f20",
@@ -310,7 +310,7 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("сначала пытается уложить все элементы на одну орбиту внутри доступного родительского диаметра", () => {
-    const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
+    const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
       createParticle("root", [], ["f1", "f2", "f3", "f4"]),
     ], { rootInnerDiameterMm: 1200 })
 
@@ -326,7 +326,7 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("не дает children и fields вылезать за внешний диаметр parent torus", () => {
-    const snapshot = createDbWorldSnapshotFromParticleDescriptors("root", [
+    const snapshot = createDbWorldRowsFromParticleDescriptors("root", [
       createParticle("root", [
         createParticle("child-a", [], ["leaf-a"]),
         createParticle("child-b", [], ["leaf-b"]),
@@ -354,14 +354,14 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("нормализует root torus к outer diameter 4000 мм", () => {
-    const raw = createDbWorldSnapshotFromParticleDescriptors("root", [
+    const raw = createDbWorldRowsFromParticleDescriptors("root", [
       createParticle("root", [
         createParticle("child-a", [], ["leaf-a", "leaf-b", "leaf-c", "leaf-d", "leaf-e", "leaf-f", "leaf-g"]),
         createParticle("child-b", [], ["leaf-h", "leaf-i", "leaf-j", "leaf-k", "leaf-l", "leaf-m", "leaf-n"]),
       ], ["root-field"]),
     ])
 
-    const normalized = scaleDbWorldSnapshotToRootOuterDiameter(raw)
+    const normalized = scaleDbWorldRowsToRootOuterDiameter(raw)
     const root = normalized.particles.find((particle) => particle.parentParticleId === null)
     expect(root).toBeDefined()
     expect(((root?.shellRadius ?? 0) + (root?.shellTube ?? 0)) * 2).toBeCloseTo(
@@ -371,14 +371,14 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("сохраняет root inner diameter после нормализации внешнего диаметра", () => {
-    const raw = createDbWorldSnapshotFromParticleDescriptors("root", [
+    const raw = createDbWorldRowsFromParticleDescriptors("root", [
       createParticle("root", [
         createParticle("child-a", [], ["leaf-a", "leaf-b"]),
         createParticle("child-b", [], ["leaf-c", "leaf-d"]),
       ], ["field-a", "field-b", "field-c", "field-d"]),
     ], { rootInnerDiameterMm: 1800 })
 
-    const normalized = scaleDbWorldSnapshotToRootOuterDiameter(raw)
+    const normalized = scaleDbWorldRowsToRootOuterDiameter(raw)
     const root = normalized.particles.find((particle) => particle.parentParticleId === null)
 
     expect(root).toBeDefined()
@@ -390,8 +390,8 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("держит одинаковый inner ratio для shell-ов после нормализации", () => {
-    const normalized = scaleDbWorldSnapshotToRootOuterDiameter(
-      createDbWorldSnapshotFromParticleDescriptors(
+    const normalized = scaleDbWorldRowsToRootOuterDiameter(
+      createDbWorldRowsFromParticleDescriptors(
         "root",
         [
           createParticle("root", [
@@ -416,8 +416,8 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("после нормализации держит одинаковый outer size для shell-ов на одном depth", () => {
-    const normalized = scaleDbWorldSnapshotToRootOuterDiameter(
-      createDbWorldSnapshotFromParticleDescriptors("root", [
+    const normalized = scaleDbWorldRowsToRootOuterDiameter(
+      createDbWorldRowsFromParticleDescriptors("root", [
         createParticle("root", [
           createParticle("child-a", [createParticle("grand-a", [], ["leaf-a", "leaf-b", "leaf-c"])]),
           createParticle("child-b", [], [
@@ -437,8 +437,8 @@ describe("bulk/gravity/layout snapshot", () => {
 
   test("после нормализации nested torus реагирует на Размер по уровням даже при плотном parent", () => {
     const createDenseSnapshot = (levelSizeMultiplier: number) =>
-      scaleDbWorldSnapshotToRootOuterDiameter(
-        createDbWorldSnapshotFromParticleDescriptors("root", [
+      scaleDbWorldRowsToRootOuterDiameter(
+        createDbWorldRowsFromParticleDescriptors("root", [
           createParticle("root", [
             createParticle("child-a", [], ["leaf-a", "leaf-b"]),
             createParticle("child-b", [], ["leaf-c", "leaf-d"]),
@@ -467,7 +467,7 @@ describe("bulk/gravity/layout snapshot", () => {
   })
 
   test("держит первый root-shell в центре сцены", () => {
-    const snapshot = createDbWorldSnapshotFromParticleDescriptors("multi-root", [
+    const snapshot = createDbWorldRowsFromParticleDescriptors("multi-root", [
       createParticle("root-a", [createParticle("child-a")], ["field-a"]),
       createParticle("root-b", [createParticle("child-b")], ["field-b"]),
     ])

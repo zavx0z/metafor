@@ -1,15 +1,14 @@
-/** Канонические виды particle-carrier, используемые в instance-level world snapshot. */
+/** Канонические виды particle-carrier для instance-level world. */
 export type DbParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
 /** Render-facing scalar kind для ordinary non-topology fields. */
 export type DbFieldValueKind = "number" | "text" | "bool" | "other"
 
 /**
- * Один shell-carrier внутри instance-level world snapshot.
+ * Одна row-запись shell-carrier в `db_particle_shell`.
  *
- * Координаты и размеры выражаются в единицах engine-контракта:
- * `Z-up`, `1 world unit = 1 mm`.
+ * Координаты и размеры — в единицах engine-контракта: `Z-up`, `1 world unit = 1 mm`.
  */
-export interface DbParticleShellSnapshot {
+export interface DbParticleShellRow {
   particleId: string
   parentParticleId: string | null
   kind: DbParticleKind
@@ -30,12 +29,24 @@ export interface DbParticleShellSnapshot {
 }
 
 /**
- * Одна точка ordinary field orbit внутри instance-level world snapshot.
+ * Содержимое world-структуры под одним `rootSrc` в виде row-коллекций.
  *
- * Эти значения уже подготовлены для прямой materialization в `Boundary/Bulk`
- * и не восстанавливаются из JSON payload во время рендера.
+ * Промежуточная форма, удобная для layout-builder-а и dev-снимков. В runtime потоке
+ * данные двигаются per-row через `DbInstanceStore` без сборки `DbWorldRows` объекта.
  */
-export interface DbFieldOrbitSnapshot {
+export interface DbWorldRows {
+  rootSrc: string
+  particles: DbParticleShellRow[]
+  fields: DbFieldOrbitRow[]
+}
+
+/**
+ * Одна row-запись точки ordinary field orbit в `db_field_orbit`.
+ *
+ * Уже подготовлена для прямой materialization в `Boundary/Bulk`,
+ * не пересчитывается из JSON payload во время рендера.
+ */
+export interface DbFieldOrbitRow {
   id: string
   particleId: string
   fieldKey: string
@@ -50,11 +61,4 @@ export interface DbFieldOrbitSnapshot {
   colorR: number
   colorG: number
   colorB: number
-}
-
-/** Полный instance-level world snapshot для одного `rootSrc`. */
-export interface DbWorldSnapshot {
-  rootSrc: string
-  particles: DbParticleShellSnapshot[]
-  fields: DbFieldOrbitSnapshot[]
 }

@@ -4,11 +4,11 @@
  * Слой отвечает за:
  * - типы и нормализацию `BulkLayoutSettings` (закон уменьшения вглубь, размеры root)
  * - проекцию контракта в `LevelGeometrySettings` (см. `@bulk/gravity/level`)
- * - построение `DbWorldSnapshot` из дескрипторов particle-дерева
- * - равномерный scale snapshot-а к фиксированному внешнему диаметру root
+ * - построение `DbWorldRows` из дескрипторов particle-дерева
+ * - равномерный scale row-набора к фиксированному внешнему диаметру root
  *
- * `DbWorldSnapshot` пока используется как промежуточная форма. Streaming-материализация
- * напрямую в DB заменит его в следующей итерации (см. project_streaming_architecture).
+ * `DbWorldRows` пока используется как промежуточная in-memory форма. Streaming-материализация
+ * напрямую в DB заменит её на per-row write через `DbInstanceStore`.
  */
 export type { BulkLayoutSettings, BulkLayoutSnapshotConfig } from "./settings.t"
 export {
@@ -19,7 +19,7 @@ export {
 } from "./settings"
 export type { DbWorldFieldDescriptor, DbWorldParticleDescriptor } from "./snapshot"
 export {
-  createDbWorldSnapshotFromParticleDescriptors,
+  createDbWorldRowsFromParticleDescriptors,
   enforceRootShellLayoutSettings,
-  scaleDbWorldSnapshotToRootOuterDiameter,
+  scaleDbWorldRowsToRootOuterDiameter,
 } from "./snapshot"

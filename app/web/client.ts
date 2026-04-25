@@ -105,7 +105,7 @@ const refreshViewportFromLocalStore = async (rootSrc: string): Promise<void> => 
 		store.selectAllParticleShells(rootSrc),
 		store.selectAllFieldOrbits(rootSrc),
 	])
-	bulkViewport?.setSnapshot({ rootSrc, particles, fields })
+	bulkViewport?.applyWorld({ rootSrc, particles, fields })
 }
 
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
@@ -403,15 +403,6 @@ socket.onmessage = (event) => {
 		return
 	}
 
-	if (message.type === "snapshot-data") {
-		const data = message as SnapshotDataMessage
-		if (pendingSceneState && pendingSceneState.src === data.src) {
-			lastAppliedSceneState = pendingSceneState
-			pendingSceneState = null
-		}
-		bulkViewport?.setSnapshot(data.snapshot)
-		return
-	}
 }
 
 form.addEventListener("submit", (event) => {

@@ -4,92 +4,19 @@ import {
   insertDbFieldOrbit,
   insertDbParticleShell,
   openDbInstanceSqlite,
-  readDbWorldSnapshot,
   selectAllFieldOrbits,
   selectAllParticleShells,
   selectFieldOrbitsByParticle,
   selectParticleShellsByParent,
-  writeDbWorldSnapshot,
 } from "./instance.ts"
-import type { DbFieldOrbitSnapshot, DbParticleShellSnapshot, DbWorldSnapshot } from "./instance.t.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./instance.t.ts"
 
 describe("pkg/db instance sqlite", () => {
-  test("пишет и читает nested particle shells и field orbits без JSON payload", () => {
-    const db = openDbInstanceSqlite()
-
-    const snapshot: DbWorldSnapshot = {
-      rootSrc: "zavx0z/git",
-      particles: [
-        {
-          particleId: "root:wimp",
-          parentParticleId: null,
-          kind: "wimp",
-          src: "zavx0z/git",
-          metaSrc: "zavx0z/git",
-          label: "zavx0z/git",
-          depth: 0,
-          shellOrder: 0,
-          localX: 0,
-          localY: 0,
-          localZ: 1,
-          shellScale: 1,
-          shellRadius: 0.2,
-          shellTube: 0.14,
-          colorR: 0.4,
-          colorG: 0.45,
-          colorB: 0.98,
-        },
-        {
-          particleId: "child:fuzzy",
-          parentParticleId: "root:wimp",
-          kind: "fuzzy",
-          src: null,
-          metaSrc: null,
-          label: "fuzzy",
-          depth: 1,
-          shellOrder: 0,
-          localX: 0.14,
-          localY: 0,
-          localZ: 0.06,
-          shellScale: 0.42,
-          shellRadius: 0.2,
-          shellTube: 0.14,
-          colorR: 1,
-          colorG: 0.72,
-          colorB: 0.22,
-        },
-      ],
-      fields: [
-        {
-          id: "field:command",
-          particleId: "root:wimp",
-          fieldKey: "command",
-          fieldLabel: "Команда",
-          fieldOrder: 0,
-          fieldValueKind: "text",
-          valueText: "git status",
-          localX: 0.08,
-          localY: 0,
-          localZ: 0.03,
-          sphereRadius: 0.03,
-          colorR: 0.98,
-          colorG: 0.47,
-          colorB: 0.47,
-        },
-      ],
-    }
-
-    writeDbWorldSnapshot(db, snapshot)
-
-    const restored = readDbWorldSnapshot(db, "zavx0z/git")
-    expect(restored).toEqual(snapshot)
-  })
-
-  test("incremental write через insertDbParticleShell + insertDbFieldOrbit без накопления snapshot", () => {
+  test("incremental write через insertDbParticleShell + insertDbFieldOrbit пишет nested rows без JSON payload", () => {
     const db = openDbInstanceSqlite()
     const rootSrc = "stream/root"
 
-    const root: DbParticleShellSnapshot = {
+    const root: DbParticleShellRow = {
       particleId: "p-root",
       parentParticleId: null,
       kind: "wimp",
@@ -108,7 +35,7 @@ describe("pkg/db instance sqlite", () => {
       colorG: 0.2,
       colorB: 0.3,
     }
-    const child: DbParticleShellSnapshot = {
+    const child: DbParticleShellRow = {
       ...root,
       particleId: "p-child",
       parentParticleId: "p-root",
@@ -118,7 +45,7 @@ describe("pkg/db instance sqlite", () => {
       shellRadius: 0.5,
       shellTube: 0.2,
     }
-    const field: DbFieldOrbitSnapshot = {
+    const field: DbFieldOrbitRow = {
       id: "f-1",
       particleId: "p-root",
       fieldKey: "k",
@@ -150,7 +77,7 @@ describe("pkg/db instance sqlite", () => {
     const db = openDbInstanceSqlite()
     const rootSrc = "subtree/root"
 
-    const root: DbParticleShellSnapshot = {
+    const root: DbParticleShellRow = {
       particleId: "p-root",
       parentParticleId: null,
       kind: "wimp",
@@ -163,15 +90,15 @@ describe("pkg/db instance sqlite", () => {
       shellScale: 1, shellRadius: 1, shellTube: 0.4,
       colorR: 0, colorG: 0, colorB: 0,
     }
-    const childA: DbParticleShellSnapshot = { ...root, particleId: "p-a", parentParticleId: "p-root", label: "a", depth: 1, shellRadius: 0.5, shellTube: 0.2 }
-    const childB: DbParticleShellSnapshot = { ...root, particleId: "p-b", parentParticleId: "p-root", label: "b", depth: 1, shellOrder: 1, shellRadius: 0.5, shellTube: 0.2 }
-    const fieldOnA: DbFieldOrbitSnapshot = {
+    const childA: DbParticleShellRow = { ...root, particleId: "p-a", parentParticleId: "p-root", label: "a", depth: 1, shellRadius: 0.5, shellTube: 0.2 }
+    const childB: DbParticleShellRow = { ...root, particleId: "p-b", parentParticleId: "p-root", label: "b", depth: 1, shellOrder: 1, shellRadius: 0.5, shellTube: 0.2 }
+    const fieldOnA: DbFieldOrbitRow = {
       id: "f-on-a", particleId: "p-a", fieldKey: "k", fieldLabel: "k", fieldOrder: 0,
       fieldValueKind: "number", valueText: "1",
       localX: 0, localY: 0, localZ: 0, sphereRadius: 0.05,
       colorR: 0, colorG: 0, colorB: 0,
     }
-    const fieldOnB: DbFieldOrbitSnapshot = { ...fieldOnA, id: "f-on-b", particleId: "p-b" }
+    const fieldOnB: DbFieldOrbitRow = { ...fieldOnA, id: "f-on-b", particleId: "p-b" }
 
     const tx = db.transaction(() => {
       insertDbParticleShell(db, rootSrc, root)
@@ -192,7 +119,7 @@ describe("pkg/db instance sqlite", () => {
   test("clearDbWorld удаляет всё под rootSrc и не трогает чужой rootSrc", () => {
     const db = openDbInstanceSqlite()
 
-    const make = (rootSrc: string): DbParticleShellSnapshot => ({
+    const make = (rootSrc: string): DbParticleShellRow => ({
       particleId: `p-${rootSrc}`,
       parentParticleId: null,
       kind: "wimp",

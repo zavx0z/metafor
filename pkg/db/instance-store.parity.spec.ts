@@ -4,11 +4,11 @@ import { describe, expect, test } from "bun:test"
 import { createSqliteDbInstanceStore } from "./sqlite-instance-store.ts"
 import { createIdbDbInstanceStore } from "./idb-instance-store.ts"
 import type { DbInstanceStore } from "./instance-store.t.ts"
-import type { DbFieldOrbitSnapshot, DbParticleShellSnapshot } from "./instance.t.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./instance.t.ts"
 
 const ROOT = "parity/root"
 
-const root: DbParticleShellSnapshot = {
+const root: DbParticleShellRow = {
   particleId: "p-root",
   parentParticleId: null,
   kind: "wimp",
@@ -28,7 +28,7 @@ const root: DbParticleShellSnapshot = {
   colorB: 0.3,
 }
 
-const childA: DbParticleShellSnapshot = {
+const childA: DbParticleShellRow = {
   ...root,
   particleId: "p-a",
   parentParticleId: "p-root",
@@ -39,7 +39,7 @@ const childA: DbParticleShellSnapshot = {
   shellTube: 0.2,
 }
 
-const childB: DbParticleShellSnapshot = {
+const childB: DbParticleShellRow = {
   ...root,
   particleId: "p-b",
   parentParticleId: "p-root",
@@ -50,7 +50,7 @@ const childB: DbParticleShellSnapshot = {
   shellTube: 0.2,
 }
 
-const grandchild: DbParticleShellSnapshot = {
+const grandchild: DbParticleShellRow = {
   ...root,
   particleId: "p-aa",
   parentParticleId: "p-a",
@@ -61,7 +61,7 @@ const grandchild: DbParticleShellSnapshot = {
   shellTube: 0.1,
 }
 
-const fieldOnRoot: DbFieldOrbitSnapshot = {
+const fieldOnRoot: DbFieldOrbitRow = {
   id: "f-root-0",
   particleId: "p-root",
   fieldKey: "k0",
@@ -78,8 +78,8 @@ const fieldOnRoot: DbFieldOrbitSnapshot = {
   colorB: 1,
 }
 
-const fieldOnA: DbFieldOrbitSnapshot = { ...fieldOnRoot, id: "f-a-0", particleId: "p-a" }
-const fieldOnA2: DbFieldOrbitSnapshot = { ...fieldOnRoot, id: "f-a-1", particleId: "p-a", fieldOrder: 1 }
+const fieldOnA: DbFieldOrbitRow = { ...fieldOnRoot, id: "f-a-0", particleId: "p-a" }
+const fieldOnA2: DbFieldOrbitRow = { ...fieldOnRoot, id: "f-a-1", particleId: "p-a", fieldOrder: 1 }
 
 const seedStore = async (store: DbInstanceStore): Promise<void> => {
   await store.clearWorld(ROOT)

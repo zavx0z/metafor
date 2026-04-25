@@ -1,6 +1,6 @@
 import type { DbSyncMessage, ProtocolDomain } from "../protocol/index.ts"
 import type { DbInstanceStore } from "./instance-store.t.ts"
-import type { DbFieldOrbitSnapshot, DbParticleShellSnapshot } from "./instance.t.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./instance.t.ts"
 
 /**
  * Лёгкий канал-publisher: совместимый с BroadcastChannel-API подмножеством,
@@ -77,8 +77,8 @@ export const applyDbSyncMessage = async (
     return
   }
   if (message.op.kind === "insert-particle") {
-    await store.insertParticleShell(message.rootSrc, message.op.row as DbParticleShellSnapshot)
+    await store.insertParticleShell(message.rootSrc, message.op.row as DbParticleShellRow)
     return
   }
-  await store.insertFieldOrbit(message.rootSrc, message.op.row as DbFieldOrbitSnapshot)
+  await store.insertFieldOrbit(message.rootSrc, message.op.row as DbFieldOrbitRow)
 }

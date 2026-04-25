@@ -5,13 +5,11 @@ export {
   insertDbFieldOrbit,
   insertDbParticleShell,
   openDbInstanceSqlite,
-  readDbWorldSnapshot,
   resetDbInstanceSqlite,
   selectAllFieldOrbits,
   selectAllParticleShells,
   selectFieldOrbitsByParticle,
   selectParticleShellsByParent,
-  writeDbWorldSnapshot,
 } from "./instance.ts"
 export { createDbEntanglementFamilyId, openDbMaterializationWriter } from "./materialize.ts"
 export type {
@@ -23,11 +21,11 @@ export type {
   DbWimpRows,
 } from "./backend.t.ts"
 export type {
-  DbFieldOrbitSnapshot,
+  DbFieldOrbitRow,
   DbFieldValueKind,
   DbParticleKind,
-  DbParticleShellSnapshot,
-  DbWorldSnapshot,
+  DbParticleShellRow,
+  DbWorldRows,
 } from "./instance.t.ts"
 export type {
   DbData,

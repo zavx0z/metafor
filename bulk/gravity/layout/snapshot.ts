@@ -1,9 +1,9 @@
 import type {
-  DbFieldOrbitSnapshot,
+  DbFieldOrbitRow,
   DbFieldValueKind,
   DbParticleKind,
-  DbParticleShellSnapshot,
-  DbWorldSnapshot,
+  DbParticleShellRow,
+  DbWorldRows,
 } from "../../../pkg/db/index.ts"
 import { resolveLevelGeometry, type LevelGeometry } from "../level"
 import type { BulkLayoutSettings } from "./settings.t"
@@ -41,11 +41,11 @@ export interface DbWorldParticleDescriptor {
   children: DbWorldParticleDescriptor[]
 }
 
-interface LayoutFieldNode extends DbFieldOrbitSnapshot {
+interface LayoutFieldNode extends DbFieldOrbitRow {
   extent: number
 }
 
-interface LayoutShellNode extends Omit<DbParticleShellSnapshot, "parentParticleId" | "depth" | "shellOrder"> {
+interface LayoutShellNode extends Omit<DbParticleShellRow, "parentParticleId" | "depth" | "shellOrder"> {
   children: LayoutShellNode[]
   fields: LayoutFieldNode[]
   depthFromRoot: number
@@ -477,8 +477,8 @@ const flattenShellNode = (
   parentParticleId: string | null,
   depth: number,
   shellOrder: number,
-  particles: DbParticleShellSnapshot[],
-  fields: DbFieldOrbitSnapshot[],
+  particles: DbParticleShellRow[],
+  fields: DbFieldOrbitRow[],
 ): void => {
   particles.push({
     particleId: node.particleId,
@@ -528,14 +528,14 @@ const flattenShellNode = (
  * Совместимый shim для старых вызовов.
  *
  * Top-down закон раскладки теперь полностью разрешается в
- * {@link createDbWorldSnapshotFromParticleDescriptors} и
- * {@link scaleDbWorldSnapshotToRootOuterDiameter}. Локальный post-scale по поддереву
+ * {@link createDbWorldRowsFromParticleDescriptors} и
+ * {@link scaleDbWorldRowsToRootOuterDiameter}. Локальный post-scale по поддереву
  * здесь больше не выполняется, потому что он ломает одинаковый размер shell-ов на одном depth.
  */
 export const enforceRootShellLayoutSettings = (
-  snapshot: DbWorldSnapshot,
+  snapshot: DbWorldRows,
   _settings: Partial<BulkLayoutSettings> = {},
-): DbWorldSnapshot => {
+): DbWorldRows => {
   return {
     rootSrc: snapshot.rootSrc,
     particles: snapshot.particles.map((particle) => ({ ...particle })),
@@ -553,11 +553,11 @@ export const enforceRootShellLayoutSettings = (
  * - ordinary fields materialize-ятся как сферы peer-level размера
  * - orbit packing сначала пытается уложить всё в один ring, затем делит на несколько равномерно распределённых ring-ов
  */
-export const createDbWorldSnapshotFromParticleDescriptors = (
+export const createDbWorldRowsFromParticleDescriptors = (
   rootSrc: string,
   roots: DbWorldParticleDescriptor[],
   settings: Partial<BulkLayoutSettings> = {},
-): DbWorldSnapshot => {
+): DbWorldRows => {
   const resolvedSettings = normalizeBulkLayoutSettings(settings)
   const descriptorRoots = roots.map((root) => createShellDescriptorNode(root, 0))
   const outerByDepth = resolveOuterRadiusByDepth(descriptorRoots, resolvedSettings)
@@ -581,8 +581,8 @@ export const createDbWorldSnapshotFromParticleDescriptors = (
     },
   )
 
-  const particles: DbParticleShellSnapshot[] = []
-  const fields: DbFieldOrbitSnapshot[] = []
+  const particles: DbParticleShellRow[] = []
+  const fields: DbFieldOrbitRow[] = []
 
   materializedRoots.forEach((root, rootOrder) => {
     flattenShellNode(root, null, 0, rootOrder, particles, fields)
@@ -601,11 +601,11 @@ export const createDbWorldSnapshotFromParticleDescriptors = (
  * Масштаб применяется глобально ко всему snapshot-у. Локальные subtree-коррекции не выполняются,
  * поэтому одинаковый размер shell-ов на одном depth сохраняется.
  */
-export const scaleDbWorldSnapshotToRootOuterDiameter = (
-  snapshot: DbWorldSnapshot,
+export const scaleDbWorldRowsToRootOuterDiameter = (
+  snapshot: DbWorldRows,
   targetOuterDiameter: number = snapshotLayoutConfig.rootOuterDiameterMm,
   settings: Partial<BulkLayoutSettings> = {},
-): DbWorldSnapshot => {
+): DbWorldRows => {
   const rootOuterRadius = snapshot.particles
     .filter((particle) => particle.parentParticleId === null)
     .reduce((max, particle) => Math.max(max, particle.shellRadius + particle.shellTube), 0)
@@ -619,7 +619,7 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
     return snapshot
   }
 
-  const scaledSnapshot: DbWorldSnapshot = {
+  const scaledSnapshot: DbWorldRows = {
     rootSrc: snapshot.rootSrc,
     particles: snapshot.particles.map((particle) => ({
       ...particle,
@@ -639,15 +639,15 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
   }
 
   const resolvedSettings = normalizeBulkLayoutSettings(settings)
-  const getParticleOuterRadius = (particle: DbParticleShellSnapshot): number =>
+  const getParticleOuterRadius = (particle: DbParticleShellRow): number =>
     particle.shellRadius + particle.shellTube
   const shouldAdjustShellSizes = settings.levelSizeMultiplier !== undefined
 
   const particlesById = new Map(
     scaledSnapshot.particles.map((particle) => [particle.particleId, particle]),
   )
-  const childrenByParentId = new Map<string, DbParticleShellSnapshot[]>()
-  const fieldsByParticleId = new Map<string, DbFieldOrbitSnapshot[]>()
+  const childrenByParentId = new Map<string, DbParticleShellRow[]>()
+  const fieldsByParticleId = new Map<string, DbFieldOrbitRow[]>()
 
   for (const particle of scaledSnapshot.particles) {
     if (!particle.parentParticleId) continue
@@ -842,7 +842,7 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
     fieldsByParticleId.set(field.particleId, fields)
   }
 
-  const reflowShell = (particle: DbParticleShellSnapshot): void => {
+  const reflowShell = (particle: DbParticleShellRow): void => {
     const outerRadius = particle.shellRadius + particle.shellTube
     const levelMetrics = getSurfaceLevelGeometry(particle.depth, resolvedSettings, {
       outerRadiusMm: outerRadius,

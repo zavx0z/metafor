@@ -5,7 +5,7 @@ import {
 	openDbSqliteBackend,
 	type DbInstanceStore,
 } from "../../../pkg/db/index.ts"
-import type { DbFieldValueKind, DbParticleKind, DbWorldSnapshot } from "../../../pkg/db/index.ts"
+import type { DbFieldValueKind, DbParticleKind, DbWorldRows } from "../../../pkg/db/index.ts"
 import { createMirroredInstanceStore } from "../../../pkg/db/instance-store-mirror.ts"
 import { openDbSyncBroadcastChannel, openStructuralBroadcastChannel } from "@shared/protocol"
 import { readDarkParticleModel, type DarkMetaParticleModel } from "../../../pkg/sqlite/dark.ts"
@@ -19,8 +19,8 @@ import { dark$ } from "../../../dark/store.ts"
 import type { DarkParticle } from "../../../dark/types/shared.ts"
 import type { AppWebLayoutSettings } from "../settings.ts"
 import {
-	createDbWorldSnapshotFromParticleDescriptors,
-	scaleDbWorldSnapshotToRootOuterDiameter,
+	createDbWorldRowsFromParticleDescriptors,
+	scaleDbWorldRowsToRootOuterDiameter,
 	type DbWorldParticleDescriptor,
 } from "@bulk/gravity/layout"
 
@@ -257,13 +257,13 @@ const createRuntimeParticleDescriptor = (
 	}
 }
 
-const createDbWorldSnapshot = (
+const buildDbWorldRows = (
 	rootSrc: string,
 	descriptorRoots: DbWorldParticleDescriptor[],
 	layoutSettings: Partial<AppWebLayoutSettings> = {},
-): DbWorldSnapshot => {
-	return scaleDbWorldSnapshotToRootOuterDiameter(
-		createDbWorldSnapshotFromParticleDescriptors(
+): DbWorldRows => {
+	return scaleDbWorldRowsToRootOuterDiameter(
+		createDbWorldRowsFromParticleDescriptors(
 			rootSrc,
 			descriptorRoots,
 			layoutSettings,
@@ -290,7 +290,7 @@ const createRuntimeParticleDescriptors = (
 		.filter((particle) => particle.parent === null)
 		.map((particle) => {
 			if (!(particle instanceof Wimp)) {
-				throw new Error(`Root particle "${particle.id}" must be Wimp to build instance snapshot`)
+				throw new Error(`Root particle "${particle.id}" must be Wimp to build instance world`)
 			}
 			return createRuntimeParticleDescriptor(particle, particleModelsBySrc, particle)
 		})
@@ -301,7 +301,7 @@ const publishStructuralSignal = async (
 	layoutSettings: Partial<AppWebLayoutSettings>,
 	dbFilename: string,
 ): Promise<void> => {
-	const snapshot = createDbWorldSnapshot(
+	const rows = buildDbWorldRows(
 		src,
 		descriptorRoots.map((descriptor) => cloneParticleDescriptor(descriptor)),
 		layoutSettings,
@@ -310,12 +310,12 @@ const publishStructuralSignal = async (
 
 	// Каждое write публикует per-row sync-событие в db-sync broadcast channel,
 	// которое server потом мирорит в WS клиентам.
-	await store.clearWorld(snapshot.rootSrc)
-	for (const shell of snapshot.particles) {
-		await store.insertParticleShell(snapshot.rootSrc, shell)
+	await store.clearWorld(rows.rootSrc)
+	for (const shell of rows.particles) {
+		await store.insertParticleShell(rows.rootSrc, shell)
 	}
-	for (const orbit of snapshot.fields) {
-		await store.insertFieldOrbit(snapshot.rootSrc, orbit)
+	for (const orbit of rows.fields) {
+		await store.insertFieldOrbit(rows.rootSrc, orbit)
 	}
 
 	// Барьер: «всё применено, можно перерисовывать».

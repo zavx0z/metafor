@@ -1,4 +1,4 @@
-import type { DbFieldOrbitSnapshot, DbFieldValueKind, DbParticleShellSnapshot, DbWorldSnapshot } from "../pkg/db/index.ts"
+import type { DbFieldOrbitRow, DbFieldValueKind, DbParticleShellRow, DbWorldRows } from "../pkg/db/index.ts"
 import {
 	appWebLayoutConfig,
 	DEFAULT_APP_WEB_LAYOUT_SETTINGS,
@@ -52,7 +52,7 @@ import {
 	type TextExtents,
 } from "@bulk/gravity/text"
 
-/** Краткая статистика текущего snapshot-а, которую viewport отдаёт в UI. */
+/** Краткая статистика текущего world-а, которую viewport отдаёт в UI. */
 export interface BulkViewportStats {
 	fieldCount: number
 	rootSrc?: string
@@ -66,7 +66,7 @@ export interface BulkViewportController {
 	setLayoutSettings(settings: Partial<AppWebLayoutSettings>): void
 	setRenderSettings(settings: Partial<AppWebRenderSettings>): void
 	setSize(width: number, height: number): void
-	setSnapshot(snapshot: DbWorldSnapshot): void
+	applyWorld(world: DbWorldRows): void
 }
 
 type BulkViewportOptions = {
@@ -140,7 +140,7 @@ type ShellRenderRecord = {
 	currentTransitionScale: number
 	material: LineGlowMaterial
 	pickTarget: HoverablePickTarget
-	snapshot: DbParticleShellSnapshot
+	snapshot: DbParticleShellRow
 	targetLocalPosition: Vector3
 	torus: LineSegments
 }
@@ -152,7 +152,7 @@ type FieldRenderRecord = {
 	node: LineSegments
 	parentParticleId: string
 	pickTarget: HoverablePickTarget
-	snapshot: DbFieldOrbitSnapshot
+	snapshot: DbFieldOrbitRow
 	targetLocalPosition: Vector3
 }
 
@@ -454,7 +454,7 @@ const getSphereWireframeGeometry = (radius: number, depth: number): BufferGeomet
 	return wireframe
 }
 
-const createShellMaterial = (shell: DbParticleShellSnapshot): LineGlowMaterial =>
+const createShellMaterial = (shell: DbParticleShellRow): LineGlowMaterial =>
 	new LineGlowMaterial({
 		color: THEME_PRIMARY.clone(),
 		glowIntensity: shell.kind === "wimp" ? 1.4 : 1.15,
@@ -462,7 +462,7 @@ const createShellMaterial = (shell: DbParticleShellSnapshot): LineGlowMaterial =
 		opacity: activeRenderSettings.wireframeOpacity,
 	})
 
-const createFieldMaterial = (orbit: DbFieldOrbitSnapshot): LineGlowMaterial => {
+const createFieldMaterial = (orbit: DbFieldOrbitRow): LineGlowMaterial => {
 	const theme = getFieldThemeColor(orbit.fieldValueKind)
 	return new LineGlowMaterial({
 		color: theme.color.clone(),
@@ -517,7 +517,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	let pickTargets: HoverablePickTarget[] = []
 	let hoveredPickTarget: HoverablePickTarget | null = null
-	let snapshot: DbWorldSnapshot | null = null
+	let world: DbWorldRows | null = null
 	let parentByParticleId = new Map<string, string | null>()
 	let clickNavigationSuppressed = false
 	let isPrimaryPointerDown = false
@@ -696,7 +696,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		syncPickTargetMaterialState(record.pickTarget)
 	}
 
-	const createShellRecord = (shell: DbParticleShellSnapshot): ShellRenderRecord => {
+	const createShellRecord = (shell: DbParticleShellRow): ShellRenderRecord => {
 		const material = createShellMaterial(shell)
 		const torus = new LineSegments(
 			getTorusWireframeGeometry(
@@ -748,7 +748,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return record
 	}
 
-	const createFieldRecord = (field: DbFieldOrbitSnapshot, depth: number): FieldRenderRecord => {
+	const createFieldRecord = (field: DbFieldOrbitRow, depth: number): FieldRenderRecord => {
 		const material = createFieldMaterial(field)
 		const node = new LineSegments(getSphereWireframeGeometry(field.sphereRadius, depth), material)
 		node.position.set(field.localX, field.localY, field.localZ)
@@ -789,7 +789,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return record
 	}
 
-	const upsertShellRecord = (shell: DbParticleShellSnapshot): ShellRenderRecord => {
+	const upsertShellRecord = (shell: DbParticleShellRow): ShellRenderRecord => {
 		const existing = shellRecords.get(shell.particleId)
 		if (!existing) {
 			const created = createShellRecord(shell)
@@ -825,7 +825,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return existing
 	}
 
-	const upsertFieldRecord = (field: DbFieldOrbitSnapshot, depth: number): FieldRenderRecord => {
+	const upsertFieldRecord = (field: DbFieldOrbitRow, depth: number): FieldRenderRecord => {
 		const existing = fieldRecords.get(field.id)
 		if (!existing) {
 			const created = createFieldRecord(field, depth)
@@ -1096,18 +1096,18 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(INPUT_RENDER_WAKE_MS)
 	}
 
-	const applySnapshotToScene = (nextSnapshot: DbWorldSnapshot): void => {
-		snapshot = nextSnapshot
+	const applyWorldRowsToScene = (nextWorld: DbWorldRows): void => {
+		world = nextWorld
 
 		const nextShellIds = new Set<string>()
 		const nextFieldIds = new Set<string>()
 
-		for (const shell of nextSnapshot.particles) {
+		for (const shell of nextWorld.particles) {
 			nextShellIds.add(shell.particleId)
 			upsertShellRecord(shell)
 		}
 
-		for (const shell of nextSnapshot.particles) {
+		for (const shell of nextWorld.particles) {
 			const record = shellRecords.get(shell.particleId)
 			if (!record) continue
 			const parentObject = shell.parentParticleId
@@ -1116,7 +1116,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			parentObject.add(record.container)
 		}
 
-		for (const field of nextSnapshot.fields) {
+		for (const field of nextWorld.fields) {
 			const parentShell = shellRecords.get(field.particleId)
 			if (!parentShell) continue
 			nextFieldIds.add(field.id)
@@ -1821,8 +1821,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			viewPoint.setAspectRatio(width / height)
 			requestRenderLoop(INPUT_RENDER_WAKE_MS)
 		},
-		setSnapshot(nextSnapshot: DbWorldSnapshot) {
-			applySnapshotToScene(nextSnapshot)
+		applyWorld(nextWorld: DbWorldRows) {
+			applyWorldRowsToScene(nextWorld)
 		},
 	}
 }

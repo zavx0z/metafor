@@ -9,10 +9,10 @@ import {
   createMirroredInstanceStore,
   type DbSyncPublisher,
 } from "./instance-store-mirror.ts"
-import type { DbParticleShellSnapshot } from "./instance.t.ts"
+import type { DbParticleShellRow } from "./instance.t.ts"
 
 const ROOT = "mirror/root"
-const root: DbParticleShellSnapshot = {
+const root: DbParticleShellRow = {
   particleId: "p-root",
   parentParticleId: null,
   kind: "wimp",
@@ -31,7 +31,7 @@ const root: DbParticleShellSnapshot = {
   colorG: 0,
   colorB: 0,
 }
-const child: DbParticleShellSnapshot = {
+const child: DbParticleShellRow = {
   ...root,
   particleId: "p-a",
   parentParticleId: "p-root",

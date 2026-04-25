@@ -1,4 +1,4 @@
-import type { DbFieldOrbitSnapshot, DbParticleShellSnapshot } from "./instance.t.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./instance.t.ts"
 
 /**
  * Канонический async-API instance-store: shell-carriers и field-orbits под одним `rootSrc`.
@@ -20,16 +20,16 @@ export interface DbInstanceStore {
   clearWorld(rootSrc: string): Promise<void>
 
   /** Вставляет один shell-carrier. Конфликт по `particleId` — ошибка. */
-  insertParticleShell(rootSrc: string, shell: DbParticleShellSnapshot): Promise<void>
+  insertParticleShell(rootSrc: string, shell: DbParticleShellRow): Promise<void>
 
   /** Вставляет одну точку field-orbit. Конфликт по `id` — ошибка. */
-  insertFieldOrbit(rootSrc: string, orbit: DbFieldOrbitSnapshot): Promise<void>
+  insertFieldOrbit(rootSrc: string, orbit: DbFieldOrbitRow): Promise<void>
 
   /** Все particles под `rootSrc`, отсортированные `(depth, shellOrder, particleId)`. */
-  selectAllParticleShells(rootSrc: string): Promise<DbParticleShellSnapshot[]>
+  selectAllParticleShells(rootSrc: string): Promise<DbParticleShellRow[]>
 
   /** Все fields под `rootSrc`, отсортированные `(particleId, fieldOrder, id)`. */
-  selectAllFieldOrbits(rootSrc: string): Promise<DbFieldOrbitSnapshot[]>
+  selectAllFieldOrbits(rootSrc: string): Promise<DbFieldOrbitRow[]>
 
   /**
    * Прямые дети указанного родителя, отсортированные `(shellOrder, particleId)`.
@@ -38,8 +38,8 @@ export interface DbInstanceStore {
   selectParticleShellsByParent(
     rootSrc: string,
     parentParticleId: string | null,
-  ): Promise<DbParticleShellSnapshot[]>
+  ): Promise<DbParticleShellRow[]>
 
   /** Все fields конкретной частицы под `rootSrc`, отсортированные `(fieldOrder, id)`. */
-  selectFieldOrbitsByParticle(rootSrc: string, particleId: string): Promise<DbFieldOrbitSnapshot[]>
+  selectFieldOrbitsByParticle(rootSrc: string, particleId: string): Promise<DbFieldOrbitRow[]>
 }
