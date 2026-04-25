@@ -17,12 +17,20 @@ export interface AppWebUiSettingsIndexedDbOptions {
 
 type PersistedAppWebUiSettingsRecord = AppWebUiSettingsSnapshot & {
   id: string
+  revision: number
 }
 
 const APP_WEB_UI_SETTINGS_DB_NAME = "metafor-app-web-ui"
 const APP_WEB_UI_SETTINGS_DB_VERSION = 1
 const APP_WEB_UI_SETTINGS_STORE = "ui_settings"
 const APP_WEB_UI_SETTINGS_ID = "display_settings"
+/**
+ * Маркер версии дефолтов. Бампается каждый раз, когда меняется
+ * `DEFAULT_APP_WEB_RENDER_SETTINGS` или `DEFAULT_BULK_LAYOUT_SETTINGS`,
+ * чтобы persisted-запись со старыми значениями не «замораживала» прежние
+ * дефолты у уже открывавших страницу пользователей.
+ */
+const APP_WEB_UI_SETTINGS_REVISION = 2
 
 const getIndexedDbFactory = (options: AppWebUiSettingsIndexedDbOptions): IDBFactory => {
   if (options.indexedDb) return options.indexedDb
@@ -84,6 +92,7 @@ const pickNumericSettings = <T extends string>(keys: readonly T[], value: unknow
 
 const toPersistedRecord = (snapshot: AppWebUiSettingsSnapshot): PersistedAppWebUiSettingsRecord => ({
   id: APP_WEB_UI_SETTINGS_ID,
+  revision: APP_WEB_UI_SETTINGS_REVISION,
   layoutSettings: pickNumericSettings(APP_WEB_LAYOUT_SETTING_KEYS, snapshot.layoutSettings),
   renderSettings: pickNumericSettings(APP_WEB_RENDER_SETTING_KEYS, snapshot.renderSettings),
 })
@@ -100,6 +109,12 @@ export const loadPersistedAppWebUiSettings = async (
     await completeTransaction(transaction)
 
     if (!rawRecord || typeof rawRecord !== "object") return null
+
+    const persistedRevision = (rawRecord as Partial<PersistedAppWebUiSettingsRecord>).revision
+    if (persistedRevision !== APP_WEB_UI_SETTINGS_REVISION) {
+      // Дефолты после write изменились — игнорируем persisted, чтобы UI взял новые.
+      return null
+    }
 
     return {
       layoutSettings: pickNumericSettings(

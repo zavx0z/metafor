@@ -73,6 +73,7 @@ describe("app/web ui settings indexeddb", () => {
       const store = transaction.objectStore("ui_settings")
       const request = store.put({
         id: "display_settings",
+        revision: 2,
         layoutSettings: {
           levelSizeMultiplier: 2.2,
           rootInnerDiameterMm: "bad",
