@@ -1132,9 +1132,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
 
 		options.onStats?.({
-			rootSrc: nextSnapshot.rootSrc,
-			shellCount: nextSnapshot.particles.length,
-			fieldCount: nextSnapshot.fields.length,
+			rootSrc: nextWorld.rootSrc,
+			shellCount: nextWorld.particles.length,
+			fieldCount: nextWorld.fields.length,
 		})
 	}
 
