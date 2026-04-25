@@ -5,7 +5,7 @@ import type { BulkLayoutSettings, BulkLayoutSnapshotConfig } from "./settings.t"
 export const DEFAULT_BULK_LAYOUT_SETTINGS: BulkLayoutSettings = {
   levelSizeMultiplier: 2,
   rootInnerDiameterMm: 1000,
-  rootSphereRadiusMm: 200,
+  rootSphereRadiusMm: 1470,
 }
 
 /** Нередактируемый snapshot-контракт layout-а: целевой диаметр root, плотности, минимумы. */

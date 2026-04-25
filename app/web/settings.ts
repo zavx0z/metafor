@@ -123,23 +123,23 @@ export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
   // Базовая плотность wireframe-сетки у root-уровня.
   detailDensityFactor: 2,
   // Насколько быстро детализация уменьшается на каждом внутреннем уровне.
-  detailLevelMultiplier: 1.22,
+  detailLevelMultiplier: 1,
   // Сколько уровней подписей показывать от root внутрь.
   labelVisibleLevels: 2,
   // Базовый уровень viewport для отсчёта видимости (0 = root).
   baseDepth: 0,
   // Размер текста подписей на поверхности объектов.
-  labelFontSizeMm: 120,
+  labelFontSizeMm: 77,
   // Насколько подпись вынесена от поверхности наружу.
-  labelSurfaceOffsetMm: 40,
+  labelSurfaceOffsetMm: 19,
   // Наклон продольных линий тора по поверхности.
   torusCrossRingRotationDeg: 44,
   // Базовое количество колец тора.
-  torusRadialSegments: 16,
+  torusRadialSegments: 14,
   // Базовая сглаженность (сегменты) одного кольца тора.
-  torusTubularSegments: 16,
+  torusTubularSegments: 48,
   // Прозрачность wireframe-сетки.
-  wireframeOpacity: 0.9,
+  wireframeOpacity: 0.18,
 }
 
 /** Классификация настроек `app/web` по ключам. Используется UI и runtime-слоями как единая карта. */
