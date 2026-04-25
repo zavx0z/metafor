@@ -37,3 +37,8 @@ export type {
 } from "./core.ts"
 export { initializeDbSqliteSchema, openDbSqliteBackend } from "./sqlite.ts"
 export type { DbSqliteBackendOptions } from "./sqlite.ts"
+export type { DbInstanceStore } from "./instance-store.t.ts"
+export { createSqliteDbInstanceStore } from "./sqlite-instance-store.ts"
+export type { SqliteDbInstanceStoreOptions } from "./sqlite-instance-store.ts"
+export { createIdbDbInstanceStore } from "./idb-instance-store.ts"
+export type { IdbDbInstanceStoreOptions } from "./idb-instance-store.ts"

@@ -5,6 +5,7 @@ export const HIGGS_BROADCAST_CHANNEL = "metafor.higgs"
 export const WEAK_W_BROADCAST_CHANNEL = "metafor.weak.w"
 export const WEAK_Z_BROADCAST_CHANNEL = "metafor.weak.z"
 export const STRUCTURAL_BROADCAST_CHANNEL = "metafor.structural"
+export const DB_SYNC_BROADCAST_CHANNEL = "metafor.db-sync"
 
 export type ProtocolDomain = "dark" | "boundary" | "bulk" | "app"
 
@@ -75,6 +76,26 @@ export interface WMessage {
 }
 
 /**
+ * Per-row sync-сообщение для зеркала канонической DB на потребителях,
+ * у которых нет прямого доступа к SQLite (browser → IndexedDB).
+ *
+ * Server мирорит этот канал в WS; client применяет `op` на свой локальный store
+ * через тот же {@link DbInstanceStore} API. Порядок гарантируется WS-очередью.
+ * Барьер «всё применено» — сигнал на отдельном `STRUCTURAL_BROADCAST_CHANNEL`.
+ */
+export type DbSyncOp =
+  | { kind: "clear-world" }
+  | { kind: "insert-particle"; row: unknown }
+  | { kind: "insert-field"; row: unknown }
+
+export interface DbSyncMessage {
+  channel: "db-sync"
+  source: ProtocolDomain
+  rootSrc: string
+  op: DbSyncOp
+}
+
+/**
  * Структурный сигнал — адресующее сообщение об изменении world-структуры.
  *
  * Не несёт payload-а. Подписчик читает данные из канонического DB по `rootSrc` и `scope`.
@@ -132,6 +153,9 @@ export const openWeakZBroadcastChannel = (options: ProtocolChannelOptions = {}):
 export const openStructuralBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
   openProtocolBroadcastChannel(STRUCTURAL_BROADCAST_CHANNEL, options)
 
+export const openDbSyncBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
+  openProtocolBroadcastChannel(DB_SYNC_BROADCAST_CHANNEL, options)
+
 const isValueProtocolPatch = (value: unknown): value is ValueProtocolPatch => {
   if (!isRecord(value)) return false
   return value.op === "replace" && typeof value.path === "string" && "value" in value
@@ -188,4 +212,20 @@ export const isStructuralSignalMessage = (value: unknown): value is StructuralSi
   if (!isProtocolDomain(value.source)) return false
   if (typeof value.rootSrc !== "string") return false
   return isStructuralScope(value.scope)
+}
+
+const isDbSyncOp = (value: unknown): value is DbSyncOp => {
+  if (!isRecord(value)) return false
+  if (value.kind === "clear-world") return true
+  if (value.kind === "insert-particle") return isRecord(value.row)
+  if (value.kind === "insert-field") return isRecord(value.row)
+  return false
+}
+
+export const isDbSyncMessage = (value: unknown): value is DbSyncMessage => {
+  if (!isRecord(value)) return false
+  if (value.channel !== "db-sync") return false
+  if (!isProtocolDomain(value.source)) return false
+  if (typeof value.rootSrc !== "string") return false
+  return isDbSyncOp(value.op)
 }
