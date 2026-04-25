@@ -10,15 +10,15 @@
 
 В репозитории **уже было** реализовано «один и тот же API над SQLite/IDB с разной реализацией под капотом» — три раза, в трёх эпохах, и каждый раз почти полностью переписывалось. Сейчас в `arch` живут **три** параллельных абстракции:
 
-1. **`pkg/sqlite/`** (DSL-relational, ~33 таблицы) — нормализованный разбор DSL по 8 `*.sql` файлам; **только SQLite**, без IDB; пишется через `relation()`, читается через `readDarkParticleModel()`. Intermediate representation в pipeline.
+1. **`store/meta/sqlite/`** (DSL-relational, ~33 таблицы) — нормализованный разбор DSL по 8 `*.sql` файлам; **только SQLite**, без IDB; пишется через `relation()`, читается через `readDarkParticleModel()`. Intermediate representation в pipeline.
 2. **`pkg/db/` `DbBackend`** (canonical runtime, 24 таблицы) — `metas/wimps/field_values/entanglement_*` + meta-структура; SQLite + IDB; используется boundary-runtime, `materialize`-writer в dark.worker.
 3. **`pkg/db/` `DbInstanceStore`** (render, 2 таблицы) — pre-computed `particle_shell` + `field_orbit`; SQLite + IDB; используется dark.worker → broadcast → client → bulk viewport.
 
 Плюс: **четвёртая** IDB `metafor-app-web-ui` для UI-настроек (1 store, 1 запись, KV-стайл).
 
-Все три «канонические» абстракции архитектурно дублируют идею (контракт + два реализатора), стиль рассогласован: pkg/sqlite — write-once + read-back через `crypto.randomUUID()`; pkg/db — row-group writes + детерминированные `deriveUuid(seed)`; DbInstanceStore — per-row insert + Promise-based mirror. Mirror-канал и structural-barrier живут только над instance-store; SharedDb-write такой роскоши не имеет.
+Все три «канонические» абстракции архитектурно дублируют идею (контракт + два реализатора), стиль рассогласован: store/meta/sqlite — write-once + read-back через `crypto.randomUUID()`; pkg/db — row-group writes + детерминированные `deriveUuid(seed)`; DbInstanceStore — per-row insert + Promise-based mirror. Mirror-канал и structural-barrier живут только над instance-store; SharedDb-write такой роскоши не имеет.
 
-**За один `materialize`-pass dark.worker заполняет ВСЕ ТРИ схемы в один и тот же `.sqlite` файл** — DSL-relational + canonical + render. То есть это не «три разные базы», а «три параллельные схемы в одном носителе». Браузер же видит **только две** последние, а pkg/sqlite в IDB не зеркалится — следствие: round-trip DSL ↔ DB на клиенте недоступен.
+**За один `materialize`-pass dark.worker заполняет ВСЕ ТРИ схемы в один и тот же `.sqlite` файл** — DSL-relational + canonical + render. То есть это не «три разные базы», а «три параллельные схемы в одном носителе». Браузер же видит **только две** последние, а store/meta/sqlite в IDB не зеркалится — следствие: round-trip DSL ↔ DB на клиенте недоступен.
 
 User в текущем обсуждении (2026-04-25): **хочет один контракт над SQLite/IDB с разной имплементацией под капотом**. Этот тезис — не про новый дизайн, а про возврат и доводку идеи, которая в репозитории уже была.
 
@@ -572,14 +572,14 @@ Render-rows (`particle_shell`, `field_orbit`) хранить как ещё дв�
 
 | Open-point | Файл | Schema | Кто открывает |
 |---|---|---|---|
-| `pkg/sqlite/sqlite.ts:103` (`getMetaDB`) | любой path | 33 DSL-таблицы из `*.sql` | dark.worker, dark/load.context (`:memory:`), tests, fixtures |
+| `store/meta/sqlite/sqlite.ts:103` (`getMetaDB`) | любой path | 33 DSL-таблицы из `*.sql` | dark.worker, dark/load.context (`:memory:`), tests, fixtures |
 | `pkg/db/sqlite.ts:1497` (`openDbSqliteBackend`) | options.filename ?? `:memory:` | 24 canonical (lazy CREATE) | boundary/server.ts, app/web boundary/bulk/dark workers |
 | `pkg/db/instance.ts:174` (`openDbInstanceSqlite` через `createSqliteDbInstanceStore`) | options.filename | 2 render (lazy CREATE) | dark.worker (mirror writer) |
 
 WAL включается в (2) и (3), не в (1). PRAGMA `synchronous=NORMAL`, `busy_timeout=5000`.
 
 **Физические `.sqlite` файлы в репо:**
-- `app/web/tmp/metafor-app.sqlite` (~1.3 MB) — runtime, создаётся `app/web/server.ts`. Шарится **тремя schemas одновременно**: pkg/sqlite (33), DbBackend (24), DbInstanceStore (2) = 59 таблиц в одном файле. Всё через WAL.
+- `app/web/tmp/metafor-app.sqlite` (~1.3 MB) — runtime, создаётся `app/web/server.ts`. Шарится **тремя schemas одновременно**: store/meta/sqlite (33), DbBackend (24), DbInstanceStore (2) = 59 таблиц в одном файле. Всё через WAL.
 - `dark/tests/tmp/metafor-issue-52-materialized.sqlite` — тестовый артефакт.
 - `github/zavx0z/git/meta.sqlite` — workspace-fixture.
 
@@ -678,7 +678,7 @@ Server → boundary.worker, bulk.worker.
 │ SERVER (Bun)                                                     │
 ├─────────────────────────────────────────────────────────────────┤
 │ app/web/tmp/metafor-app.sqlite (один файл, WAL)                 │
-│ ├─ schema A: pkg/sqlite (33 таблицы, DSL-relational, write-only)│
+│ ├─ schema A: store/meta/sqlite (33 таблицы, DSL-relational, write-only)│
 │ ├─ schema B: pkg/db DbBackend (24 таблицы, canonical runtime)   │
 │ └─ schema C: pkg/db DbInstanceStore (2 таблицы, render)         │
 │                                                                  │
@@ -706,7 +706,7 @@ Server → boundary.worker, bulk.worker.
 
 ---
 
-## 9. Глубокий разбор `pkg/sqlite/` (DSL-relational, 33 таблицы)
+## 9. Глубокий разбор `store/meta/sqlite/` (DSL-relational, 33 таблицы)
 
 ### 9.1. Группы таблиц
 
@@ -758,9 +758,9 @@ Server → boundary.worker, bulk.worker.
 
 UUID-генерация — `crypto.randomUUID()` (нестабильна между запусками).
 
-### 9.3. `pkg/sqlite` vs `pkg/db` (canonical) — gaps в обе стороны
+### 9.3. `store/meta/sqlite` vs `pkg/db` (canonical) — gaps в обе стороны
 
-| Аспект | pkg/sqlite (33 табл.) | pkg/db (24 табл.) |
+| Аспект | store/meta/sqlite (33 табл.) | pkg/db (24 табл.) |
 |---|---|---|
 | **Mass tree** | `meta_mass_value` рекурсивно | `metas.mass` JSON-blob |
 | **Field defaults** | 6 type-specific таблиц | **отсутствуют в canonical** ⚠️ |
@@ -774,14 +774,14 @@ UUID-генерация — `crypto.randomUUID()` (нестабильна меж
 
 **Ни одна из схем сама не достаточна для full DSL round-trip.** Идеальная единая схема — superset обеих.
 
-### 9.4. Уникальная роль pkg/sqlite сейчас
+### 9.4. Уникальная роль store/meta/sqlite сейчас
 
 **Только intermediate representation внутри `canonicalizeMetaGraph` в dark.worker:**
 
 ```ts
 // app/web/runtime/dark.worker.ts:308
 const canonicalizeMetaGraph = async (dbFilename, rootSrc) => {
-  const metaDb = getMetaDB(dbFilename)              // pkg/sqlite open
+  const metaDb = getMetaDB(dbFilename)              // store/meta/sqlite open
   while (queue.length > 0) {
     const dsl = await readMetaDsl(src)              // JS import
     relation(metaDb, dsl, src)                      // → 33 таблицы
@@ -793,9 +793,9 @@ const canonicalizeMetaGraph = async (dbFilename, rootSrc) => {
 }
 ```
 
-То есть pkg/sqlite — это **write → read-back в одном passе**. После этого 33 таблицы лежат в `.sqlite` файле как **dead state** до следующего materialize.
+То есть store/meta/sqlite — это **write → read-back в одном passе**. После этого 33 таблицы лежат в `.sqlite` файле как **dead state** до следующего materialize.
 
-**Будь pkg/sqlite ушёл, что потеряли бы?**
+**Будь store/meta/sqlite ушёл, что потеряли бы?**
 - DSL-полнота: `meta_mass_value`, `condition_predicate` нормализация, `field_*_default` детализация. Это нужно для `#66` (DSL ↔ DB round-trip).
 - В active production-flow ничего не сломалось бы — `readDarkParticleModel` нужно перевести на чтение из pkg/db canonical (с обогащёнными недостающими полями).
 
@@ -822,10 +822,10 @@ const canonicalizeMetaGraph = async (dbFilename, rootSrc) => {
   │ Stage 1: canonicalizeMetaGraph                   │
   │   for each meta in BFS(rootSrc):                 │
   │     readMetaDsl(src)            JS import        │
-  │     relation(metaDb, dsl, src)  → pkg/sqlite     │
+  │     relation(metaDb, dsl, src)  → store/meta/sqlite     │
   │                                   (33 таблицы)   │
   │     readDarkParticleModel(metaDb, src)           │
-  │                                 ← pkg/sqlite     │
+  │                                 ← store/meta/sqlite     │
   │     particleModelsBySrc.set(src, model)          │
   └─────────────────────────────────────────────────┘
                               │
@@ -877,7 +877,7 @@ const canonicalizeMetaGraph = async (dbFilename, rootSrc) => {
 ```
 
 **В один SQLite-файл за один pass пишется ТРИ независимые схемы**:
-- 33 таблицы DSL-relational (через `pkg/sqlite/relation`)
+- 33 таблицы DSL-relational (через `store/meta/sqlite/relation`)
 - 24 таблицы canonical (через `pkg/db DbBackend`)
 - 2 таблицы render (через `DbInstanceStore`)
 
@@ -894,7 +894,7 @@ const canonicalizeMetaGraph = async (dbFilename, rootSrc) => {
 | # | Форма | Где живёт | Identity | Назначение |
 |---|---|---|---|---|
 | **1** | **DSL** (TS modules) | `github/zavx0z/*/meta.ts`, in-memory `MetaDSL` | строки src | source of truth, написана человеком |
-| **2** | **DSL-relational** | `pkg/sqlite` (33 таблицы), SQLite-файл | `crypto.randomUUID()` (нестабильна) | нормализованный разбор DSL для query / round-trip / canonicalization |
+| **2** | **DSL-relational** | `store/meta/sqlite` (33 таблицы), SQLite-файл | `crypto.randomUUID()` (нестабильна) | нормализованный разбор DSL для query / round-trip / canonicalization |
 | **3** | **Canonical `DbData`** | `pkg/db DbBackend` (24 таблицы), SQLite + IDB | `deriveUuid(seed-strings)` (стабильна) | runtime-семантика: meta + wimp + entanglement + field_values + states |
 | **4** | **`BoundaryDatabaseData`** | в памяти `boundary/database.ts` (10 flat-таблиц) | numeric `index` (позиционная) | runtime-ready flat layout для CPU/GPU computation |
 | **5** | **`Data` / `PreparedData` / `BoundaryRuntimeForceData`** | в памяти `@boundary/gravity`, `@boundary/strong` | array offsets + Map-индексы | runtime: weak-step, em, gpu buffers |
@@ -908,7 +908,7 @@ const canonicalizeMetaGraph = async (dbFilename, rootSrc) => {
    ↓ JS-импорт ── readMetaDsl(src)
 Форма 1 (in-memory MetaDSL)
    ↓ relation(db, dsl, src) ── транзакция, 6 модулей
-Форма 2 (pkg/sqlite, 33 таблицы)
+Форма 2 (store/meta/sqlite, 33 таблицы)
    ↓ readDarkParticleModel(db, src) ── чтение обратно
 DarkMetaParticleModel (in-memory derived)
    ↓ matter() pipeline ── dark.worker
@@ -941,7 +941,7 @@ DarkMetaParticleModel (in-memory derived)
 ### Где живут какие identity
 
 - **UUID-стабильные (deriveUuid)** — формы 2 (canonical), 3 (DbBackend). Можно безопасно `put()` идемпотентно.
-- **UUID-нестабильные (crypto.randomUUID)** — форма 2 в pkg/sqlite. Каждый прогон даёт разные ID. Поэтому `relation()` всегда **переписывает** через DROP+CREATE, не INSERT-IF-NOT-EXISTS.
+- **UUID-нестабильные (crypto.randomUUID)** — форма 2 в store/meta/sqlite. Каждый прогон даёт разные ID. Поэтому `relation()` всегда **переписывает** через DROP+CREATE, не INSERT-IF-NOT-EXISTS.
 - **Numeric index** — формы 4 и 5. `field.index` — позиция в массиве `fields`, который дальше идёт в GPU buffer как `[fieldIndex, value][]`. Это **runtime contract с runtime**, не identity сама по себе.
 
 ### Что есть `boundary/database.ts`
@@ -1029,7 +1029,7 @@ type BoundaryRuntimeOperationalCache = {
 
 5. **Render-форма (`DbInstanceStore`) — отдельная derived projection** от формы 3. Её можно хранить, потому что dark.worker её **уже вычислил** (через `streamDbWorldRows`+`resolveLevelGeometry`), и пересчитывать на каждое чтение дороже, чем хранить. Storage здесь работает как **memoization layer**: формы 4'/5' для viewport.
 
-6. **Форма 2 (pkg/sqlite) — кандидат на удаление.** Сейчас она используется только как промежуточная таблица в одном passе (`canonicalizeMetaGraph`). Если форма 3 (canonical DbData) становится superset формы 2 (после поглощения mass-tree, normalized predicates, particle subtypes — см. §11.2), форма 2 не нужна. Path: dark.worker идёт `MetaDSL` → `matter()` напрямую в форму 3, минуя форму 2.
+6. **Форма 2 (store/meta/sqlite) — кандидат на удаление.** Сейчас она используется только как промежуточная таблица в одном passе (`canonicalizeMetaGraph`). Если форма 3 (canonical DbData) становится superset формы 2 (после поглощения mass-tree, normalized predicates, particle subtypes — см. §11.2), форма 2 не нужна. Path: dark.worker идёт `MetaDSL` → `matter()` напрямую в форму 3, минуя форму 2.
 
 ### Обновлённая диаграмма pipeline (после dедуплификации)
 
@@ -1067,7 +1067,7 @@ Canonical DbData (форма 3)        [persistent, в одном DbStore]
 3. **Multi-tier schema** в одной базе: DSL-canonical → runtime → render → settings. Слои разделены по namespace таблиц, но живут в одной DB и одном контракте.
 4. **Per-row writes как первичные**, row-group — вторично. `#56` TODO решается на уровне контракта.
 5. **Per-row mirror** работает над любой таблицей контракта, не только над render-rows.
-6. **Детерминированная identity** через `deriveUuid(seed-strings)` для **всех** ID, во всех слоях. Это убирает разнобой `crypto.randomUUID()` в pkg/sqlite vs `deriveUuid` в pkg/db.
+6. **Детерминированная identity** через `deriveUuid(seed-strings)` для **всех** ID, во всех слоях. Это убирает разнобой `crypto.randomUUID()` в store/meta/sqlite vs `deriveUuid` в pkg/db.
 7. **Browser-safety** через явный entry-point без `bun:sqlite` import.
 8. **DSL round-trip достаточный** — schema хранит всё, что нужно для emit обратно в TS DSL (mass-tree, normalized predicates, particle subtypes, defaults, env-list, initial-state, bulk-config, schema-topology).
 
@@ -1076,9 +1076,9 @@ Canonical DbData (форма 3)        [persistent, в одном DbStore]
 Пять логических слоёв в одной базе. Нумерация namespace-префиксов таблиц:
 
 #### Слой 1 — `meta_*`: DSL-canonical (~25 таблиц)
-Объединение того, что есть в `pkg/sqlite` + что есть в `pkg/db.metas`:
+Объединение того, что есть в `store/meta/sqlite` + что есть в `pkg/db.metas`:
 - `meta` (`id PK, src UNIQUE, name, desc, view_css, bulk JSON, has_processes, has_reactions, has_matter, initial_state_id FK`)
-- `meta_mass_node` (рекурсивное JSON-дерево из pkg/sqlite, **переименовано** в `_node` для consistency)
+- `meta_mass_node` (рекурсивное JSON-дерево из store/meta/sqlite, **переименовано** в `_node` для consistency)
 - `meta_field` + `meta_field_default` + 6 type-specific default-таблиц + `meta_field_enum_variant` + `meta_field_enum_default`
 - `meta_state` (с `initial` флагом)
 - `meta_transition` + `meta_transition_condition` + `meta_transition_predicate` + `meta_transition_predicate_list_item` (нормализованные predicates)
@@ -1219,7 +1219,7 @@ export interface DbSyncMessage {
 - `wimp.id` — на основе path в matter-графе (`deriveUuid("wimp", parent_wimp_id, slot, order)`).
 - `view_particle_shell.particle_id` — на основе wimp_id или матч-графа path.
 
-Это убирает `crypto.randomUUID()` из pkg/sqlite и **гарантирует**, что повторный materialize той же DSL → той же базе → идентичные ID. После этого `put()` становится по-настоящему идемпотентным; удаление + повторный insert не нужно.
+Это убирает `crypto.randomUUID()` из store/meta/sqlite и **гарантирует**, что повторный materialize той же DSL → той же базе → идентичные ID. После этого `put()` становится по-настоящему идемпотентным; удаление + повторный insert не нужно.
 
 ### 11.6. Per-row materialize вместо row-group
 
@@ -1296,13 +1296,13 @@ SERVER (Bun)                                BROWSER
 
 | Текущий код | Куда уходит |
 |---|---|
-| `pkg/sqlite/` (вся директория) | superset-схема `meta_*` поглощает 33 таблицы; функциональность `relation()` → `materialize.ts` (с per-row writes); `getMetaDB()` → `createSqliteDbStore({spec: metaforDbStoreSpec})` |
+| `store/meta/sqlite/` (вся директория) | superset-схема `meta_*` поглощает 33 таблицы; функциональность `relation()` → `materialize.ts` (с per-row writes); `getMetaDB()` → `createSqliteDbStore({spec: metaforDbStoreSpec})` |
 | `*.sql` файлы в корне репо | `pkg/db/schema/{meta,wimp,entanglement,view,app}.ts` — declaration-based |
 | `pkg/db/backend.t.ts`, `backend.ts`, `sqlite.ts` (1598 строк), `idb.ts` (1035 строк) | `pkg/db/store.t.ts`, `pkg/db/sqlite-store.ts`, `pkg/db/idb-store.ts` (общая generic-логика, ≈400-500 строк суммарно) |
 | `pkg/db/instance-store.t.ts`, `sqlite-instance-store.ts`, `idb-instance-store.ts`, `instance.ts` | `view_*` слой в общем контракте |
 | `pkg/db/instance-store-mirror.ts` | обобщённый `pkg/db/store-mirror.ts` поверх контракта |
 | `pkg/db/materialize.ts` (per-row writes без in-memory bundle) | существенно упрощается — нет signature-cache, нет `bundlesById` (per-row writes идемпотентны через `deriveUuid`) |
-| `pkg/sqlite/sqlite.spec.ts`, `pkg/db/backend.spec.ts`, `pkg/db/instance.spec.ts`, `pkg/db/backends.parity.spec.ts`, `pkg/db/instance-store.parity.spec.ts` | один parity-test поверх spec; один schema-integrity test; один mirror test |
+| `store/meta/sqlite/sqlite.spec.ts`, `pkg/db/backend.spec.ts`, `pkg/db/instance.spec.ts`, `pkg/db/backends.parity.spec.ts`, `pkg/db/instance-store.parity.spec.ts` | один parity-test поверх spec; один schema-integrity test; один mirror test |
 | `boundary/server.ts` standalone (если не нужен) | удалить или явно пометить как `dev-only` |
 | `boundary/web.ts` standalone | удалить или явно пометить как `dev-only` |
 | `app/web/ui-settings-idb.ts` (отдельная IDB) | `app_setting` таблица в общей IDB; `loadPersistedAppWebUiSettings` → `store.get("app_setting", "ui_display")` |
@@ -1328,7 +1328,7 @@ SERVER (Bun)                                BROWSER
 2. **Generic store:** реализовать `createSqliteDbStore<T>(spec)` и `createIdbDbStore<T>(spec)` поверх contract. Покрыть parity-spec поверх любого spec.
 3. **Wire-up render:** перевести `DbInstanceStore` на новый `DbStore<{view_particle_shell, view_field_orbit}>`. Это минимальная замена (текущий instance-store = подмножество нового).
 4. **Wire-up canonical:** перевести `DbBackend` (24 таблицы) на новый контракт. `materialize.ts` остаётся row-group oriented, но через generic API.
-5. **Поглощение pkg/sqlite:** добавить недостающие meta-таблицы (`meta_mass_node`, нормализованные predicates, particle subtypes, type-specific defaults). Удалить `pkg/sqlite/`. Удалить `*.sql` файлы.
+5. **Поглощение store/meta/sqlite:** добавить недостающие meta-таблицы (`meta_mass_node`, нормализованные predicates, particle subtypes, type-specific defaults). Удалить `store/meta/sqlite/`. Удалить `*.sql` файлы.
 6. **Per-row materialize:** переписать `materialize.ts` на per-row writes, убрать in-memory bundle-кэши.
 7. **Universal mirror:** обобщить `DbSyncMessage` до `{kind: put|delete, table, row|key}`. Mirror работает на любых таблицах из whitelist.
 8. **Settings:** мигрировать `ui-settings-idb` в `app_setting` таблицу общей IDB. Удалить отдельную IDB.
@@ -1347,5 +1347,5 @@ SERVER (Bun)                                BROWSER
 ## 12. История правок документа
 
 - 2026-04-25 — первичная версия (Vladimir + claude). Структура: история → текущее состояние → намерение → gap → варианты → вопросы.
-- 2026-04-25 — добавлены §8 (полный inventory persistence touchpoints), §9 (глубокий разбор pkg/sqlite — 33 таблицы), §10 (полный pipeline materialize), §11 (финальный единый дизайн с superset-схемой, generic-контрактом, миграциями, этапами реализации).
+- 2026-04-25 — добавлены §8 (полный inventory persistence touchpoints), §9 (глубокий разбор store/meta/sqlite — 33 таблицы), §10 (полный pipeline materialize), §11 (финальный единый дизайн с superset-схемой, generic-контрактом, миграциями, этапами реализации).
 

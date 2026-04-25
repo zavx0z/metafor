@@ -21,7 +21,8 @@
     "bulk",
     "bulk/**/*",
     "app/**/*",
-    "github/**/*"
+    "github/**/*",
+    "store/**/*"
   ],
   "devDependencies": {
     "@types/bun": "^1.3.11",

@@ -1,7 +1,7 @@
 import { join, isAbsolute, dirname } from "node:path"
 import { unlinkSync, existsSync } from "node:fs"
 import { fileURLToPath } from "node:url"
-import { getMetaDB } from "../../pkg/sqlite/index.ts"
+import { getMetaDB } from "@store/meta/sqlite"
 
 /**
  * Фикстура для подготовки SQLite базы данных MetaDSL.

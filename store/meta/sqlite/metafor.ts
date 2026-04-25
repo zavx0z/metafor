@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL } from "../.."
+import type { MetaDSL } from "../../.."
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)

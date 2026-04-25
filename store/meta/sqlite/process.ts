@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL, ParsedDestroy, ParsedProcess } from "../.."
+import type { MetaDSL, ParsedDestroy, ParsedProcess } from "../../.."
 
 const relationProcessReads = (
   db: Database,

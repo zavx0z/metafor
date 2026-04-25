@@ -1,8 +1,0 @@
-{
-  "name": "@pkg/sqlite",
-  "module": "index.ts",
-  "type": "module",
-  "private": true,
-  "devDependencies": {
-  }
-}

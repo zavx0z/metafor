@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL } from "../.."
+import type { MetaDSL } from "../../.."
 
 export function relationFields(db: Database, meta: MetaDSL, src: string): Map<string, string> {
   const fieldUuids = new Map<string, string>()

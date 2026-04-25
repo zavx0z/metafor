@@ -18,6 +18,7 @@
     "@dark/strong": "workspace:*",
     "@dark/weak": "workspace:*",
     "@dark/em": "workspace:*",
-    "@metafor/db": "workspace:*"
+    "@metafor/db": "workspace:*",
+    "@store/meta": "workspace:*"
   }
 }

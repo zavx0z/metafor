@@ -1,11 +1,11 @@
-import metaforSchemaSql from "../../metafor.sql" with {type: "text"}
-import fieldsSchemaSql from "../../fields.sql" with {type: "text"}
-import superpositionSchemaSql from "../../superposition.sql" with {type: "text"}
-import processSchemaSql from "../../process.sql" with {type: "text"}
-import actionSchemaSql from "../../action.sql" with {type: "text"}
-import finallySchemaSql from "../../finally.sql" with {type: "text"}
-import reactionsSchemaSql from "../../reactions.sql" with {type: "text"}
-import matterSchemaSql from "../../matter.sql" with {type: "text"}
+import metaforSchemaSql from "../../../metafor.sql" with {type: "text"}
+import fieldsSchemaSql from "../../../fields.sql" with {type: "text"}
+import superpositionSchemaSql from "../../../superposition.sql" with {type: "text"}
+import processSchemaSql from "../../../process.sql" with {type: "text"}
+import actionSchemaSql from "../../../action.sql" with {type: "text"}
+import finallySchemaSql from "../../../finally.sql" with {type: "text"}
+import reactionsSchemaSql from "../../../reactions.sql" with {type: "text"}
+import matterSchemaSql from "../../../matter.sql" with {type: "text"}
 import {Database, constants} from "bun:sqlite"
 
 export const metaforDslTableNames = [

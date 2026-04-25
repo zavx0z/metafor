@@ -21,6 +21,7 @@
       "name": "@app/web",
       "dependencies": {
         "@bulk/gravity": "workspace:*",
+        "@store/meta": "workspace:*",
       },
     },
     "boundary": {
@@ -81,6 +82,9 @@
       "bin": {
         "create-metafor": "dist/cli.js",
       },
+      "devDependencies": {
+        "@store/meta": "workspace:*",
+      },
     },
     "dark": {
       "name": "@metafor/dark",
@@ -92,6 +96,7 @@
         "@dark/types": "workspace:*",
         "@dark/weak": "workspace:*",
         "@metafor/db": "workspace:*",
+        "@store/meta": "workspace:*",
       },
     },
     "dark/em": {
@@ -114,6 +119,7 @@
         "@dark/gravity": "workspace:*",
         "@dark/types": "workspace:*",
         "@metafor/db": "workspace:*",
+        "@store/meta": "workspace:*",
       },
     },
     "dark/types": {
@@ -425,6 +431,7 @@
       "name": "@zavx0z/git",
       "version": "0.1.0",
       "devDependencies": {
+        "@store/meta": "workspace:*",
         "create-metafor": "workspace:*",
       },
     },
@@ -729,12 +736,18 @@
     "pkg/protocol": {
       "name": "@shared/protocol",
     },
-    "pkg/sqlite": {
-      "name": "@pkg/sqlite",
-    },
     "pkg/template": {
       "name": "@metafor/template",
       "version": "2.6.2",
+    },
+    "store/actor": {
+      "name": "@store/actor",
+    },
+    "store/meta": {
+      "name": "@store/meta",
+    },
+    "store/view": {
+      "name": "@store/view",
     },
   },
   "packages": {
@@ -924,8 +937,6 @@
 
     "@person/human-wrist-right": ["@person/human-wrist-right@workspace:github/person/human-wrist-right"],
 
-    "@pkg/sqlite": ["@pkg/sqlite@workspace:pkg/sqlite"],
-
     "@puppeteer/browsers": ["@puppeteer/browsers@2.13.0", "", { "dependencies": { "debug": "^4.4.3", "extract-zip": "^2.0.1", "progress": "^2.0.3", "proxy-agent": "^6.5.0", "semver": "^7.7.4", "tar-fs": "^3.1.1", "yargs": "^17.7.2" }, "bin": { "browsers": "lib/cjs/main-cli.js" } }, "sha512-46BZJYJjc/WwmKjsvDFykHtXrtomsCIrwYQPOP7VfMJoZY2bsDF9oROBABR3paDjDcmkUye1Pb1BqdcdiipaWA=="],
 
     "@shared/protocol": ["@shared/protocol@workspace:pkg/protocol"],
@@ -939,6 +950,12 @@
     "@shikijs/types": ["@shikijs/types@3.23.0", "", { "dependencies": { "@shikijs/vscode-textmate": "^10.0.2", "@types/hast": "^3.0.4" } }, "sha512-3JZ5HXOZfYjsYSk0yPwBrkupyYSLpAE26Qc0HLghhZNGTZg/SKxXIIgoxOpmmeQP0RRSDJTk1/vPfw9tbw+jSQ=="],
 
     "@shikijs/vscode-textmate": ["@shikijs/vscode-textmate@10.0.2", "https://registry.yarnpkg.com/@shikijs/vscode-textmate/-/vscode-textmate-10.0.2.tgz", {}, "sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg=="],
+
+    "@store/actor": ["@store/actor@workspace:store/actor"],
+
+    "@store/meta": ["@store/meta@workspace:store/meta"],
+
+    "@store/view": ["@store/view@workspace:store/view"],
 
     "@tootallnate/quickjs-emscripten": ["@tootallnate/quickjs-emscripten@0.23.0", "", {}, "sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA=="],
 

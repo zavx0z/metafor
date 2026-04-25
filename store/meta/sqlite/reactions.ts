@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL, ReactionsSchema } from "../.."
+import type { MetaDSL, ReactionsSchema } from "../../.."
 
 export function relationReactions(
   db: Database,

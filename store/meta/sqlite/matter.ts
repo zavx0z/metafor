@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL, NodeType } from "../.."
+import type { MetaDSL, NodeType } from "../../.."
 
 type BindingValue =
   | string

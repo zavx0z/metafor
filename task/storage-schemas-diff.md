@@ -1,11 +1,11 @@
-# Schemas diff — `pkg/sqlite` vs `pkg/db`
+# Schemas diff — `store/meta/sqlite` vs `pkg/db`
 
 > Детальное side-by-side сравнение двух реляционных схем хранилища MetaFor.
 > Дополняет `task/storage-analysis.md` §9 и §11.2.
 
 ## 0. Общая статистика
 
-| | `pkg/sqlite/` | `pkg/db/` |
+| | `store/meta/sqlite/` | `pkg/db/` |
 |---|---:|---:|
 | Таблиц | 33 | 24 |
 | Связей FK | ~50 (плотно нормализовано) | ~30 (умеренно) |
@@ -27,7 +27,7 @@
 
 ### 1.1. `meta` ↔ `metas`
 
-| pkg/sqlite `meta` | pkg/db `metas` | Замечание |
+| store/meta/sqlite `meta` | pkg/db `metas` | Замечание |
 |---|---|---|
 | `src TEXT PK` | `id TEXT PK` + `src TEXT NOT NULL` | pkg/db имеет искусственный `id`; `src` без UNIQUE → теоретически дубли |
 | `name TEXT` | `name TEXT` | ✅ |
@@ -39,7 +39,7 @@
 
 ### 1.2. `field` ↔ `meta_fields`
 
-| pkg/sqlite | pkg/db |
+| store/meta/sqlite | pkg/db |
 |---|---|
 | `uuid PK` | `id PK` |
 | `meta TEXT FK` | `ownerMetaId TEXT FK` |
@@ -55,7 +55,7 @@
 
 ### 1.3. `superposition` ↔ `meta_states`
 
-| pkg/sqlite | pkg/db |
+| store/meta/sqlite | pkg/db |
 |---|---|
 | `uuid PK` | `id PK` |
 | `meta FK` | `ownerMetaId FK` |
@@ -66,49 +66,49 @@
 
 ### 1.4. `transition` ↔ `meta_transitions`
 
-| pkg/sqlite | pkg/db |
+| store/meta/sqlite | pkg/db |
 |---|---|
 | `from_superposition FK NOT NULL` | `ownerMetaStateId FK NOT NULL` |
 | `to_superposition FK NOT NULL` | `targetMetaStateId TEXT FK` (**может быть NULL**) |
 | `position INTEGER` | `transitionOrder INTEGER` |
 | **UNIQUE (from, position)** | — |
 
-`pkg/db` допускает transition без target (sink/self-loop); `pkg/sqlite` обязательно требует target.
+`pkg/db` допускает transition без target (sink/self-loop); `store/meta/sqlite` обязательно требует target.
 
 ### 1.5. `condition` ↔ `meta_transition_conditions`
 
-| pkg/sqlite | pkg/db |
+| store/meta/sqlite | pkg/db |
 |---|---|
 | `transition FK + field FK + position` | `ownerMetaTransitionId FK + metaFieldId FK + conditionOrder` |
 | **`condition_predicate`** — отдельная таблица c CHECK на operator/value | `conditionJson TEXT NOT NULL` (весь predicate в JSON) |
 | **`condition_list_item`** — для in/not_in/include/not_include | (часть JSON) |
 
-Главное расхождение по подходу. pkg/sqlite разбирает condition вплоть до атомарного predicate; pkg/db кладёт `JSON.stringify(condition)`.
+Главное расхождение по подходу. store/meta/sqlite разбирает condition вплоть до атомарного predicate; pkg/db кладёт `JSON.stringify(condition)`.
 
 ### 1.6. `process` ↔ `meta_processes`
 
-| pkg/sqlite (3 таблицы) | pkg/db (1 таблица) |
+| store/meta/sqlite (3 таблицы) | pkg/db (1 таблица) |
 |---|---|
 | `process` (uuid, type ∈ action/finally) | `meta_processes` всё in-line: `processKind, actionSrc?, actionImportSpecifier?, actionWrapperSrc?, successSrc?, errorSrc?, beforeSrc?` |
 | `process_action` (action/success/error src) | (in `meta_processes`) |
 | `process_finally` (before src) | (in `meta_processes`) |
 | **`process_env`** (множество env per process) | — потеряно |
 
-pkg/sqlite нормализован: action и finally — отдельные таблицы 1:1 с базой `process`. pkg/db всё in-line, разделение по `processKind`.
+store/meta/sqlite нормализован: action и finally — отдельные таблицы 1:1 с базой `process`. pkg/db всё in-line, разделение по `processKind`.
 
 ### 1.7. process reads/writes
 
-| pkg/sqlite | pkg/db |
+| store/meta/sqlite | pkg/db |
 |---|---|
 | `process_action_read (process, field, phase)` | `meta_process_reads (ownerMetaProcessId, metaFieldId, phase, readOrder)` |
 | `process_action_write (process, field, phase)` | `meta_process_writes (..., writeOrder)` |
 | `process_finally_read` (отдельная таблица) | (объединено в `meta_process_reads` через phase) |
 
-pkg/sqlite различает action vs finally в FK; pkg/db объединяет в одну таблицу с `phase`-маркером. pkg/db добавляет `*Order` для упорядочивания.
+store/meta/sqlite различает action vs finally в FK; pkg/db объединяет в одну таблицу с `phase`-маркером. pkg/db добавляет `*Order` для упорядочивания.
 
 ### 1.8. `reaction` ↔ `meta_reactions`
 
-| pkg/sqlite | pkg/db |
+| store/meta/sqlite | pkg/db |
 |---|---|
 | `cond_source TEXT` | `cond TEXT` |
 | `update_source TEXT` | `src TEXT` |
@@ -124,7 +124,7 @@ pkg/sqlite различает action vs finally в FK; pkg/db объединяе
 
 ## 2. Зона расхождения
 
-### 2.1. Только в `pkg/sqlite`
+### 2.1. Только в `store/meta/sqlite`
 
 #### A. `meta_mass_value` — рекурсивный JSON-tree в реляционной форме
 
@@ -159,7 +159,7 @@ meta_mass_value (
 В pkg/db: `metas.massJson = '{"user":{"name":"alice","age":30}}'` — одна строка JSON.
 
 **Tradeoff:**
-- pkg/sqlite — queryable: `SELECT * FROM meta_mass_value WHERE meta=? AND entry_key='user'`. Round-trip работает напрямую.
+- store/meta/sqlite — queryable: `SELECT * FROM meta_mass_value WHERE meta=? AND entry_key='user'`. Round-trip работает напрямую.
 - pkg/db — читаешь весь объект как одно значение, парсишь, мутируешь, переписываешь.
 
 #### B. Field defaults — 8 type-specific таблиц
@@ -246,7 +246,7 @@ field_sources (id PK, childWimpFieldId FK, parentWimpFieldId FK)
 
 Это **runtime-данные**: живые экземпляры мет, текущие значения полей, текущее состояние, entanglement-источники.
 
-pkg/sqlite — **DSL-only**, instance-уровня вообще нет. Это его границы.
+store/meta/sqlite — **DSL-only**, instance-уровня вообще нет. Это его границы.
 
 #### F. Entanglement — 4 таблицы
 
@@ -258,22 +258,22 @@ entanglement_fields (id PK, ownerEntanglementId FK, fieldOrder, semanticKey, fie
 entanglement_field_members (id PK, ownerEntanglementFieldId FK, ownerWimpId FK, wimpFieldId FK, memberOrder)
 ```
 
-pkg/sqlite ничего этого не имеет — это уровень runtime-связи между wimps, не DSL.
+store/meta/sqlite ничего этого не имеет — это уровень runtime-связи между wimps, не DSL.
 
 #### G. Дополнительные ordering-поля
 
 pkg/db везде добавляет `*Order INTEGER`:
 - `fieldOrder`, `stateOrder`, `transitionOrder`, `conditionOrder`, `readOrder`, `writeOrder`, `reactionOrder`, `processOrder`, `edgeOrder`, `memberOrder`, `wimpOrder`, `nodeOrder`.
 
-pkg/sqlite использует `position` где нужен; в reaction-state/reads/writes порядка вообще нет (только set-membership через PK).
+store/meta/sqlite использует `position` где нужен; в reaction-state/reads/writes порядка вообще нет (только set-membership через PK).
 
 #### H. `meta_states.initial`
 
-pkg/db явно знает «какой state стартовый» (`initial INTEGER NOT NULL` в `meta_states`). pkg/sqlite — нет (по соглашению `position=0`?).
+pkg/db явно знает «какой state стартовый» (`initial INTEGER NOT NULL` в `meta_states`). store/meta/sqlite — нет (по соглашению `position=0`?).
 
 #### I. `meta_fields.schemaTopology`
 
-Топологический флаг поля (enum=массив или скаляр). pkg/sqlite не имеет — неявно из `type='enum'`.
+Топологический флаг поля (enum=массив или скаляр). store/meta/sqlite не имеет — неявно из `type='enum'`.
 
 ---
 
@@ -281,7 +281,7 @@ pkg/db явно знает «какой state стартовый» (`initial INT
 
 ### 3.1. Identity и idempotency
 
-| | pkg/sqlite | pkg/db |
+| | store/meta/sqlite | pkg/db |
 |---|---|---|
 | ID | `crypto.randomUUID()` | `deriveUuid("kind", parent_id, key, ...)` |
 | Стабильность | **нет** (новый UUID каждый прогон) | **да** (одинаковый при том же DSL) |
@@ -290,7 +290,7 @@ pkg/db явно знает «какой state стартовый» (`initial INT
 
 ### 3.2. CHECK-constraints
 
-pkg/sqlite — **очень много CHECK**, в т.ч. составные на 5-10 колонок. См. `condition_predicate` — половина файла это CHECK блок:
+store/meta/sqlite — **очень много CHECK**, в т.ч. составные на 5-10 колонок. См. `condition_predicate` — половина файла это CHECK блок:
 
 ```sql
 CHECK (
@@ -311,15 +311,15 @@ pkg/db — почти нет CHECK, только NOT NULL. Полагается 
 
 ### 3.3. UNIQUE-индексы
 
-| pkg/sqlite | pkg/db |
+| store/meta/sqlite | pkg/db |
 |---|---|
 | 5 явных partial UNIQUE индексов + inline UNIQUE в большинстве таблиц | **0 UNIQUE** (полагается на детерминированный `deriveUuid` для idempotency) |
 
-pkg/sqlite ловит дубли на уровне БД через `UNIQUE (meta, key)` и т.п. pkg/db — через `INSERT OR REPLACE` при `put()`-семантике.
+store/meta/sqlite ловит дубли на уровне БД через `UNIQUE (meta, key)` и т.п. pkg/db — через `INSERT OR REPLACE` при `put()`-семантике.
 
 ### 3.4. JSON-стратегия
 
-| pkg/sqlite | pkg/db |
+| store/meta/sqlite | pkg/db |
 |---|---|
 | **0 JSON-полей**, всё реляционно нормализовано | 9 JSON-blob колонок |
 
@@ -337,7 +337,7 @@ JSON-колонки в pkg/db:
 
 ### 3.6. Naming
 
-| pkg/sqlite | pkg/db |
+| store/meta/sqlite | pkg/db |
 |---|---|
 | `snake_case`, единственное число (`field`, `condition`, `superposition`) | `camelCase` колонки, plural таблицы (`meta_fields`, `wimps`) |
 | `meta` (PK = src) | `metas` (искусственный id + src) |
@@ -345,23 +345,23 @@ JSON-колонки в pkg/db:
 
 ### 3.7. WAL и pragma
 
-| pkg/sqlite | pkg/db |
+| store/meta/sqlite | pkg/db |
 |---|---|
 | `new Database(path, { strict: true, create: true })` | `new Database(filename)` + `PRAGMA journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000` |
 
-pkg/db готов к concurrent-доступу из нескольких worker-ов; pkg/sqlite — нет (рассчитан на single-writer).
+pkg/db готов к concurrent-доступу из нескольких worker-ов; store/meta/sqlite — нет (рассчитан на single-writer).
 
 ---
 
 ## 4. Структурное соответствие — таблица-в-таблицу
 
-| Концепт | pkg/sqlite | pkg/db | Совпадение |
+| Концепт | store/meta/sqlite | pkg/db | Совпадение |
 |---|---|---|---|
 | **Корень мета** | `meta` (src PK) | `metas` (id PK + src) | концепция, разные identity |
 | **Mass-config** | `meta_mass_value` (рекурсивно) | `metas.massJson` (blob) | разные подходы |
 | **View CSS** | `meta.view_css` | часть `metas.bulkJson` | разная гранулярность |
 | **Поле** | `field` | `meta_fields` | 1-в-1 |
-| **Default поля** | `field_default` + 6 type-specific | — | только pkg/sqlite |
+| **Default поля** | `field_default` + 6 type-specific | — | только store/meta/sqlite |
 | **Enum-варианты** | `field_enum_variant` (multi-row) | `meta_fields.schemaValues` (JSON-array) | разные подходы |
 | **State** | `superposition` | `meta_states` | 1-в-1 |
 | **Initial state** | (по `position=0`?) | `meta_states.initial` явно | только pkg/db |
@@ -369,11 +369,11 @@ pkg/db готов к concurrent-доступу из нескольких worker-
 | **Transition** | `transition` | `meta_transitions` | 1-в-1; pkg/db допускает NULL target |
 | **Condition** | `condition` | `meta_transition_conditions` | 1-в-1 базы |
 | **Predicate** | `condition_predicate` (нормализованно) | (внутри `conditionJson`) | разные подходы |
-| **Predicate-list** | `condition_list_item` | (внутри `conditionJson`) | только pkg/sqlite |
+| **Predicate-list** | `condition_list_item` | (внутри `conditionJson`) | только store/meta/sqlite |
 | **Process база** | `process` | `meta_processes` (in-line all) | разная нормализация |
 | **Action src** | `process_action` (отдельная) | `meta_processes.actionSrc` | inline в pkg/db |
 | **Finally src** | `process_finally` | `meta_processes.beforeSrc` | inline в pkg/db |
-| **Env** | `process_env` (multi) | — | только pkg/sqlite |
+| **Env** | `process_env` (multi) | — | только store/meta/sqlite |
 | **Process reads** | `process_action_read` + `process_finally_read` | `meta_process_reads` (объединённая через phase) | разная нормализация |
 | **Process writes** | `process_action_write` | `meta_process_writes` | 1-в-1 |
 | **Reaction** | `reaction` | `meta_reactions` | 1-в-1 |
@@ -394,7 +394,7 @@ pkg/db готов к concurrent-доступу из нескольких worker-
 
 ## 5. Что теряется при переходе
 
-### pkg/sqlite → pkg/db (текущий materialize-pipeline)
+### store/meta/sqlite → pkg/db (текущий materialize-pipeline)
 
 1. **Field defaults** (8 таблиц → ничего; есть только косвенно в `metas.massJson`).
 2. **Process env** (`process_env` → нигде).
@@ -405,7 +405,7 @@ pkg/db готов к concurrent-доступу из нескольких worker-
 7. **CHECK-constraints на корректность** → только NOT NULL.
 8. **UNIQUE-гарантии** → нет.
 
-### pkg/db → pkg/sqlite (если бы шли наоборот)
+### pkg/db → store/meta/sqlite (если бы шли наоборот)
 
 1. **Instance-уровень** (wimps + всё что про runtime).
 2. **Entanglement** (4 таблицы).
@@ -413,7 +413,7 @@ pkg/db готов к concurrent-доступу из нескольких worker-
 4. **`schemaTopology`** — топологический флаг поля.
 5. **`bulkJson`** — view-конфигурация.
 6. **`*Order`** — позиционирование reaction-states, reads, writes.
-7. **Стабильные `deriveUuid`** — pkg/sqlite перегенерирует все ID.
+7. **Стабильные `deriveUuid`** — store/meta/sqlite перегенерирует все ID.
 
 ---
 
@@ -421,7 +421,7 @@ pkg/db готов к concurrent-доступу из нескольких worker-
 
 ### Что забрать в superset-схему
 
-**От pkg/sqlite:**
+**От store/meta/sqlite:**
 - `meta_mass_node` (рекурсивная) — для DSL round-trip
 - 8 default-таблиц — для field defaults
 - `meta_transition_predicate` + `meta_transition_predicate_list_item` — нормализованные predicates
@@ -443,7 +443,7 @@ pkg/db готов к concurrent-доступу из нескольких worker-
 ### Что выбрасываем
 
 **Дубликаты и несогласованности:**
-- `crypto.randomUUID()` в pkg/sqlite → заменяем на `deriveUuid` везде
+- `crypto.randomUUID()` в store/meta/sqlite → заменяем на `deriveUuid` везде
 - `meta.bulkJson` (JSON-blob) → разворачиваем в реляционную форму (как mass tree)
 - `meta_matter_nodes.payloadJson` (generic) → 4 subtype-таблицы
 - `meta_transition_conditions.conditionJson` → нормализованные predicates

@@ -41,25 +41,25 @@
 
 ## #73 — sqlite: подготовить каноническую dark-проекцию из реляционной схемы вместо прямой загрузки raw DSL
 
-**Цель issue.** `Dark` должен получать данные не из raw `meta.json` DSL, а из реляционной SQLite-проекции, собранной `pkg/sqlite/relation.ts`. Никакого второго источника истины в виде raw DSL.
+**Цель issue.** `Dark` должен получать данные не из raw `meta.json` DSL, а из реляционной SQLite-проекции, собранной `store/meta/sqlite/relation.ts`. Никакого второго источника истины в виде raw DSL.
 
 **Что сделано.**
 
-- `pkg/sqlite/relation.ts` уже раскладывает MetaDSL в реляционные таблицы `meta`, `fields`, `superposition`, `processes`, `reactions`, `matter`.
+- `store/meta/sqlite/relation.ts` уже раскладывает MetaDSL в реляционные таблицы `meta`, `fields`, `superposition`, `processes`, `reactions`, `matter`.
 - `dark/strong/sqlite.ts` (наш C1, commit `cc552e10`) — `readDarkParticleModel(db, src)` читает particle-плана **из SQLite**.
 - `dark/dark.ts matter()` использует `readDarkParticleModel` для materialize.
 
 **Гэп.**
 
-- `dark/load.ts loadMeta(address)` всё ещё через `readMetaDsl(address)` (см. `pkg/sqlite/...`?) грузит **raw `meta.json`/`meta.ts` DSL** и затем дёргает `relation()` для канонизации. Источник остаётся raw DSL, SQLite — лишь промежуточная форма.
+- `dark/load.ts loadMeta(address)` всё ещё через `readMetaDsl(address)` (см. `store/meta/sqlite/...`?) грузит **raw `meta.json`/`meta.ts` DSL** и затем дёргает `relation()` для канонизации. Источник остаётся raw DSL, SQLite — лишь промежуточная форма.
 - Чтобы `Dark` имел только один path, `loadMeta` должен:
   1. Получить SQLite handle (есть в worker как `metaDb`).
   2. Через `relation()` уже однажды записанные данные читать через **read-функции** реляционной проекции — без обращения к `meta.json`.
-- Меньше runtime-связь между `dark/load.ts` и `pkg/sqlite/`: dark становится consumer-ом реляционных rows, не автором.
+- Меньше runtime-связь между `dark/load.ts` и `store/meta/sqlite/`: dark становится consumer-ом реляционных rows, не автором.
 
 **Что нужно для закрытия.**
 
-- Добавить `pkg/sqlite/read-meta-projection.ts` (или функции в `dark/strong/sqlite.ts`): `readMetaProjection(db, src)` → возвращает структуру с теми же полями, что нынешний `MetaDSL`, но собранную из таблиц.
+- Добавить `store/meta/sqlite/read-meta-projection.ts` (или функции в `dark/strong/sqlite.ts`): `readMetaProjection(db, src)` → возвращает структуру с теми же полями, что нынешний `MetaDSL`, но собранную из таблиц.
 - `dark/load.ts loadMeta` отказывается от `readMetaDsl`: на вход — только SQL handle и src.
 - `Meta` constructor (`dark/strong/Meta.ts`) принимает projection-shape, не AST.
 
@@ -128,7 +128,7 @@
 
 **Что сделано.**
 
-- Forward path: `pkg/sqlite/relation.ts` раскладывает MetaDSL в таблицы `meta`, `fields`, `superposition`, `processes`, `reactions`, `matter`.
+- Forward path: `store/meta/sqlite/relation.ts` раскладывает MetaDSL в таблицы `meta`, `fields`, `superposition`, `processes`, `reactions`, `matter`.
 
 **Гэп.**
 

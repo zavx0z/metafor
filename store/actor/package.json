@@ -1,0 +1,6 @@
+{
+  "name": "@store/actor",
+  "module": "index.ts",
+  "type": "module",
+  "private": true
+}

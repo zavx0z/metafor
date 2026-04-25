@@ -42,5 +42,8 @@
     "test": "bun test",
     "clean": "rm -rf dist"
   },
+  "devDependencies": {
+    "@store/meta": "workspace:*"
+  },
   "type": "module"
 }

@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL } from "../.."
+import type { MetaDSL } from "../../.."
 import { relationMetafor } from "./metafor"
 import { relationFields } from "./fields"
 import { relationSuperposition } from "./superposition"
