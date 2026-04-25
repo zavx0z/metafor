@@ -1,22 +1,45 @@
-export {
-  createEmptyDbData,
-  createDbEntanglementFamilyId,
-  dbRequiredBackendIndexes,
-  normalizeDbData,
-  openDbMaterializationWriter,
-  readDbData,
-} from "./core.ts"
+/**
+ * Browser-safe entry point канонической DB-инфраструктуры.
+ *
+ * Не импортирует `bun:sqlite` ни прямо ни косвенно (поэтому идёт мимо `core.ts`,
+ * который тащит SQLite-instance-store). Всё что нужно client-side viewport-у:
+ * чистые типы, IDB-реализация {@link DbInstanceStore}, mirror и applier для
+ * `db-sync` событий, IDB-backend для канонической DB.
+ *
+ * Server/worker сторона использует `pkg/db/index.ts` (со SQLite-частью).
+ */
+export { createEmptyDbData, normalizeDbData, readDbData, dbRequiredBackendIndexes } from "./backend.ts"
+export { createDbEntanglementFamilyId, openDbMaterializationWriter } from "./materialize.ts"
 export type {
   DbBackend,
-  DbData,
+  DbBackendIndexSpec,
+  DbBackendTableName,
   DbEntanglementFamilyRows,
+  DbMetaRows,
+  DbWimpRows,
+} from "./backend.t.ts"
+export type {
+  DbData,
   DbMaterializationWriter,
   DbMetaBundle,
   DbMetaFieldBundle,
-  DbMetaRows,
   DbWimpBundle,
   DbWimpFieldBundle,
-  DbWimpRows,
-} from "./core.ts"
+} from "./db.t.ts"
+export type {
+  DbFieldOrbitRow,
+  DbFieldValueKind,
+  DbParticleKind,
+  DbParticleShellRow,
+  DbWorldRows,
+} from "./instance.t.ts"
+export type { DbInstanceStore } from "./instance-store.t.ts"
+export { createIdbDbInstanceStore } from "./idb-instance-store.ts"
+export type { IdbDbInstanceStoreOptions } from "./idb-instance-store.ts"
+export {
+  applyDbSyncMessage,
+  createMirroredInstanceStore,
+  type DbSyncPublisher,
+} from "./instance-store-mirror.ts"
 export { inspectDbIndexedDbSchema, openDbIndexedDbBackend } from "./idb.ts"
 export type { DbIndexedDbBackend, DbIndexedDbBackendOptions } from "./idb.ts"

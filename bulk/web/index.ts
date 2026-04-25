@@ -1,4 +1,4 @@
-import type { DbFieldOrbitRow, DbFieldValueKind, DbParticleShellRow, DbWorldRows } from "../../pkg/db/index.ts"
+import type { DbFieldOrbitRow, DbFieldValueKind, DbParticleShellRow, DbWorldRows } from "../../pkg/db/browser.ts"
 import {
 	appWebLayoutConfig,
 	DEFAULT_APP_WEB_LAYOUT_SETTINGS,

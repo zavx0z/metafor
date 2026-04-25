@@ -6,10 +6,10 @@ import {
 	setWorkerStatus,
 } from "./protocol-logger.ts"
 import {
+	applyDbSyncMessage,
 	createIdbDbInstanceStore,
 	type DbInstanceStore,
-} from "../../pkg/db/index.ts"
-import { applyDbSyncMessage } from "../../pkg/db/instance-store-mirror.ts"
+} from "../../pkg/db/browser.ts"
 import { isDbSyncMessage, isStructuralSignalMessage } from "@shared/protocol"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
 import {
