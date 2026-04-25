@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "bun server --hot",
     "dev:tls": "TLS_KEY_FILE=/home/zavx0z/metafor/app/web/tls/privkey.pem TLS_CERT_FILE=/home/zavx0z/metafor/app/web/tls/fullchain.pem bun server --hot",
+    "dev:tls:3333": "PORT=3333 TLS_KEY_FILE=/home/zavx0z/metafor/app/web/tls/privkey.pem TLS_CERT_FILE=/home/zavx0z/metafor/app/web/tls/fullchain.pem bun server --hot",
     "tls:issue": "bash ../../scripts/tls-issue.sh",
     "tls:issue:staging": "STAGING=1 bash ../../scripts/tls-issue.sh",
     "tls:selfsigned": "bash ../../scripts/tls-selfsigned.sh"
