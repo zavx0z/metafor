@@ -1,19 +1,18 @@
 import type {
   LevelDetailSettings,
-  LevelGeometrySettings,
   LevelLabelSettings,
   LevelSettings,
 } from "@bulk/gravity/level"
+import {
+  DEFAULT_BULK_LAYOUT_SETTINGS,
+  DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
+  normalizeBulkLayoutSettings,
+  toLevelGeometrySettings as toLevelGeometrySettingsFromBulk,
+  type BulkLayoutSettings,
+} from "@bulk/gravity/layout"
 
-/** Настройки top-down раскладки shell-иерархии для materialization в `app/web`. */
-export interface AppWebLayoutSettings {
-  /** Коэффициент уменьшения canonical shell size от root-уровня вглубь. Должен быть `> 0`. */
-  levelSizeMultiplier: number
-  /** Внутренний диаметр root-тора в миллиметрах. То же отношение переносится на внутренние уровни. */
-  rootInnerDiameterMm: number
-  /** Диаметр peer-sphere на root-уровне в миллиметрах в пределах level-contract. */
-  rootSphereRadiusMm: number
-}
+/** Реэкспорт top-down закона Bulk × Gravity под прежним именем для UI-слоя `app/web`. */
+export type AppWebLayoutSettings = BulkLayoutSettings
 
 /** Настройки плотности wireframe-детализации для WebGPU viewport. */
 export interface AppWebRenderSettings {
@@ -39,15 +38,8 @@ export interface AppWebRenderSettings {
   wireframeOpacity: number
 }
 
-/** Нередактируемый layout-контракт `app/web`: базовые размеры snapshot-а и посадка viewport. */
+/** Layout-контракт UI: viewport-камера, сетка, fallback-shell. Snapshot-константы хранятся в `@bulk/gravity/layout`. */
 export interface AppWebLayoutConfig {
-  snapshot: {
-    deepestFieldSphereRadiusMm: number
-    nestingCoefficient: number
-    packingDensityCoefficient: number
-    rootOuterDiameterMm: number
-    sphereMinScaleFactor: number
-  }
   viewport: {
     axesSizeMm: number
     camera: {
@@ -94,26 +86,11 @@ export interface AppWebNumericSettingConfig {
   step?: number
 }
 
-/** Базовый топ-даун закон размеров для root-shell и внутренних уровней. */
-export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = {
-  // Во сколько раз каждый следующий вложенный уровень меньше предыдущего.
-  levelSizeMultiplier: 2,
-  // Размер отверстия root-тора в миллиметрах.
-  rootInnerDiameterMm: 1000,
-  // Диаметр сферы поля на root-уровне.
-  rootSphereRadiusMm: 200,
-}
+/** Реэкспорт layout-defaults Bulk × Gravity под именем UI-слоя. */
+export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = DEFAULT_BULK_LAYOUT_SETTINGS
 
-
-/** Единый layout-контракт `app/web`, из которого `instance-layout` и `bulk` читают базовую геометрию. */
+/** Layout-контракт `app/web`: viewport-камера, сетка, fallback-shell. */
 export const appWebLayoutConfig: AppWebLayoutConfig = {
-  snapshot: {
-    deepestFieldSphereRadiusMm: 50,
-    nestingCoefficient: 0.1,
-    packingDensityCoefficient: 1.12,
-    rootOuterDiameterMm: 4000,
-    sphereMinScaleFactor: 0.5,
-  },
   viewport: {
     axesSizeMm: 1000,
     camera: {
@@ -296,7 +273,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootSphereRadiusMm,
     description: "Задает диаметр сфер полей на корневом уровне и пропорционально уменьшает их вглубь.",
     min: 10,
-    max: appWebLayoutConfig.snapshot.rootOuterDiameterMm,
+    max: DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm,
     step: 10,
   },
   // Наклон продольных линий тора без вывода их с поверхности тора.
@@ -311,7 +288,6 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     step: 1,
   },
 }
-
 
 /** Список layout-ключей, которые должны уходить в `dark` и layout-law snapshot-а. */
 export const APP_WEB_LAYOUT_SETTING_KEYS = [
@@ -333,27 +309,8 @@ export const APP_WEB_RENDER_SETTING_KEYS = [
   "wireframeOpacity",
 ] as const satisfies readonly AppWebRenderSettingKey[]
 
-/**
- * Нормализует частичные layout-настройки в безопасный top-down контракт shell-раскладки.
- *
- * Некорректные и неположительные значения заменяются на {@link DEFAULT_APP_WEB_LAYOUT_SETTINGS}.
- */
-export const normalizeAppWebLayoutSettings = (
-  settings: Partial<AppWebLayoutSettings> = {},
-): AppWebLayoutSettings => ({
-  levelSizeMultiplier:
-    Number.isFinite(settings.levelSizeMultiplier) && (settings.levelSizeMultiplier ?? 0) > 0
-      ? settings.levelSizeMultiplier!
-      : DEFAULT_APP_WEB_LAYOUT_SETTINGS.levelSizeMultiplier,
-  rootInnerDiameterMm:
-    Number.isFinite(settings.rootInnerDiameterMm) && (settings.rootInnerDiameterMm ?? 0) > 0
-      ? settings.rootInnerDiameterMm!
-      : DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootInnerDiameterMm,
-  rootSphereRadiusMm:
-    Number.isFinite(settings.rootSphereRadiusMm) && (settings.rootSphereRadiusMm ?? 0) > 0
-      ? Math.min(settings.rootSphereRadiusMm!, appWebLayoutConfig.snapshot.rootOuterDiameterMm)
-      : DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootSphereRadiusMm,
-})
+/** Реэкспорт нормализатора Bulk × Gravity под именем UI-слоя. */
+export const normalizeAppWebLayoutSettings = normalizeBulkLayoutSettings
 
 const TORUS_MAX_SEGMENTS = 96
 const SPHERE_BASE_WIDTH_SEGMENTS = 16
@@ -365,20 +322,12 @@ const SPHERE_MAX_HEIGHT_SEGMENTS = 48
  * Проекция UI-контракта `AppWebLayoutSettings` в domain-закон `LevelGeometrySettings` из Bulk × Gravity.
  *
  * Опциональный `rootOuterDiameterMm` позволяет вызывающему подменить snapshot-константу
- * (используется в instance-layout при materialize с нестандартным целевым диаметром).
+ * (используется в snapshot-builder-е при materialize с нестандартным целевым диаметром).
  */
 export const toLevelGeometrySettings = (
   layout: AppWebLayoutSettings,
-  rootOuterDiameterMm: number = appWebLayoutConfig.snapshot.rootOuterDiameterMm,
-): LevelGeometrySettings => ({
-  levelSizeMultiplier: layout.levelSizeMultiplier,
-  rootInnerDiameterMm: layout.rootInnerDiameterMm,
-  rootSphereRadiusMm: layout.rootSphereRadiusMm,
-  rootOuterDiameterMm,
-  nestingCoefficient: appWebLayoutConfig.snapshot.nestingCoefficient,
-  packingDensityCoefficient: appWebLayoutConfig.snapshot.packingDensityCoefficient,
-  sphereMinScaleFactor: appWebLayoutConfig.snapshot.sphereMinScaleFactor,
-})
+  rootOuterDiameterMm: number = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm,
+) => toLevelGeometrySettingsFromBulk(layout, DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG, rootOuterDiameterMm)
 
 /** Проекция UI-контракта `AppWebRenderSettings` в domain-закон `LevelDetailSettings`. */
 export const toLevelDetailSettings = (render: AppWebRenderSettings): LevelDetailSettings => ({

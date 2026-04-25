@@ -4,6 +4,7 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
+    "./layout": "./layout/index.ts",
     "./level": "./level/index.ts",
     "./text": "./text/index.ts"
   },

@@ -1,14 +1,21 @@
 export {
+  clearDbWorld,
   createEmptyDbData,
   createDbEntanglementFamilyId,
   dbRequiredBackendIndexes,
   initializeDbInstanceSqliteSchema,
+  insertDbFieldOrbit,
+  insertDbParticleShell,
   normalizeDbData,
   openDbInstanceSqlite,
   openDbMaterializationWriter,
   readDbWorldSnapshot,
   readDbData,
   resetDbInstanceSqlite,
+  selectAllFieldOrbits,
+  selectAllParticleShells,
+  selectFieldOrbitsByParticle,
+  selectParticleShellsByParent,
   writeDbWorldSnapshot,
 } from "./core.ts"
 export type {

@@ -1,13 +1,14 @@
-import { build, file, serve } from "bun"
+import { build, file, serve, type ServerWebSocket } from "bun"
 import { mkdirSync, rmSync } from "node:fs"
 import { dirname, join, normalize } from "node:path"
-import type { DbWorldSnapshot } from "../../pkg/db/index.ts"
+import { openDbInstanceSqlite, readDbWorldSnapshot } from "../../pkg/db/index.ts"
 import type { AppWebLayoutSettings } from "./settings.ts"
 import {
 	ELECTROMAGNETISM_BROADCAST_CHANNEL,
 	GLUON_BROADCAST_CHANNEL,
 	GRAVITY_BROADCAST_CHANNEL,
 	HIGGS_BROADCAST_CHANNEL,
+	STRUCTURAL_BROADCAST_CHANNEL,
 	WEAK_W_BROADCAST_CHANNEL,
 	WEAK_Z_BROADCAST_CHANNEL,
 	openGluonBroadcastChannel,
@@ -16,6 +17,7 @@ import {
 	isGravitonMessage,
 	isHiggsMessage,
 	isPhotonMessage,
+	isStructuralSignalMessage,
 	isWMessage,
 	isZMessage,
 	type GluonMessage,
@@ -59,12 +61,6 @@ type WorkerLogMessage = {
 	message: unknown
 }
 
-type InstanceSnapshotMessage = {
-	type: "instance-snapshot"
-	src: string
-	snapshot: DbWorldSnapshot
-}
-
 type ClientMaterializeMessage = {
 	type: "materialize"
 	src: string
@@ -75,6 +71,11 @@ type ClientRelayoutMessage = {
 	type: "relayout"
 	src: string
 	layoutSettings?: Partial<AppWebLayoutSettings>
+}
+
+type ClientReadSnapshotMessage = {
+	type: "read-snapshot"
+	src: string
 }
 
 type ClientProtocolBridgeMessage = {
@@ -204,12 +205,6 @@ const attachWorker = (
 			if (data && typeof data === "object" && (data as { type?: unknown }).type === "log") {
 				const message = data as WorkerLogMessage
 				publish({ type: "log", worker: workerName, message: message.message })
-				return
-			}
-
-			if (data && typeof data === "object" && (data as { type?: unknown }).type === "instance-snapshot") {
-				const message = data as InstanceSnapshotMessage
-				publish(message)
 			}
 		}
 
@@ -283,7 +278,18 @@ const protocolMirrors = [
 	{ key: "higgs", channelName: HIGGS_BROADCAST_CHANNEL, validator: isHiggsMessage },
 	{ key: "weak-z", channelName: WEAK_Z_BROADCAST_CHANNEL, validator: isZMessage },
 	{ key: "weak-w", channelName: WEAK_W_BROADCAST_CHANNEL, validator: isWMessage },
+	{ key: "structural", channelName: STRUCTURAL_BROADCAST_CHANNEL, validator: isStructuralSignalMessage },
 ] as const
+
+const respondWithSnapshot = (ws: ServerWebSocket<unknown>, src: string): void => {
+	const db = openDbInstanceSqlite({ filename: APP_DB_FILENAME })
+	try {
+		const snapshot = readDbWorldSnapshot(db, src)
+		ws.send(JSON.stringify({ type: "snapshot-data", src, snapshot }))
+	} finally {
+		db.close()
+	}
+}
 
 protocolMirrors.forEach(({ key, channelName, validator }) => {
 	const channel = new BroadcastChannel(channelName)
@@ -322,12 +328,18 @@ const server = serve({
 				}),
 			)
 		},
-		message(_ws, message) {
-			let payload: ClientMaterializeMessage | ClientRelayoutMessage | ClientProtocolBridgeMessage | null = null
+		message(ws, message) {
+			let payload:
+				| ClientMaterializeMessage
+				| ClientRelayoutMessage
+				| ClientReadSnapshotMessage
+				| ClientProtocolBridgeMessage
+				| null = null
 			try {
 				payload = JSON.parse(String(message)) as
 					| ClientMaterializeMessage
 					| ClientRelayoutMessage
+					| ClientReadSnapshotMessage
 					| ClientProtocolBridgeMessage
 			} catch {
 				return
@@ -346,6 +358,20 @@ const server = serve({
 						protocolInputs.gluon.postMessage(protocolMessage)
 					} else {
 						protocolInputs.higgs.postMessage(protocolMessage)
+					}
+					return
+				}
+
+				if (payload.type === "read-snapshot") {
+					if (typeof payload.src !== "string" || payload.src.length === 0) return
+					try {
+						respondWithSnapshot(ws, payload.src)
+					} catch (error) {
+						publish({
+							type: "log",
+							worker: "server",
+							message: `read-snapshot error: ${error instanceof Error ? error.message : String(error)}`,
+						})
 					}
 					return
 				}

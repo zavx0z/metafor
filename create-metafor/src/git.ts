@@ -66,11 +66,36 @@ export function gitAddAll(cwd: string): boolean {
   }
 }
 
+function hasGitConfig(cwd: string, key: string): boolean {
+  try {
+    const value = execSync(`git config --get ${key}`, {
+      cwd,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    })
+    return value.trim().length > 0
+  } catch {
+    return false
+  }
+}
+
+function ensureCommitIdentity(cwd: string): void {
+  if (!hasGitConfig(cwd, "user.name")) {
+    execSync(`git config user.name "MetaFor"`, { cwd, stdio: "ignore" })
+  }
+  if (!hasGitConfig(cwd, "user.email")) {
+    execSync(`git config user.email "metafor@local"`, { cwd, stdio: "ignore" })
+  }
+}
+
 /**
- * Сделать коммит
+ * Сделать коммит. Если в окружении не задан identity (`user.name` / `user.email`) —
+ * выставляет локальный fallback в репозитории, чтобы коммит проходил без зависимости от
+ * глобального git-конфига.
  */
 export function gitCommit(cwd: string, message: string): boolean {
   try {
+    ensureCommitIdentity(cwd)
     execSync(`git commit -m "${message}"`, { cwd, stdio: "ignore" })
     return true
   } catch {

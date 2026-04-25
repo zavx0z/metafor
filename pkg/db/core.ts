@@ -1,9 +1,16 @@
 export { createEmptyDbData, normalizeDbData, readDbData, dbRequiredBackendIndexes } from "./backend.ts"
 export {
+  clearDbWorld,
   initializeDbInstanceSqliteSchema,
+  insertDbFieldOrbit,
+  insertDbParticleShell,
   openDbInstanceSqlite,
   readDbWorldSnapshot,
   resetDbInstanceSqlite,
+  selectAllFieldOrbits,
+  selectAllParticleShells,
+  selectFieldOrbitsByParticle,
+  selectParticleShellsByParent,
   writeDbWorldSnapshot,
 } from "./instance.ts"
 export { createDbEntanglementFamilyId, openDbMaterializationWriter } from "./materialize.ts"

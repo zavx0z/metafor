@@ -5,15 +5,15 @@ import type {
   DbParticleShellSnapshot,
   DbWorldSnapshot,
 } from "../../../pkg/db/index.ts"
+import { resolveLevelGeometry, type LevelGeometry } from "../level"
+import type { BulkLayoutSettings } from "./settings.t"
 import {
-  appWebLayoutConfig,
-  normalizeAppWebLayoutSettings,
+  DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
+  normalizeBulkLayoutSettings,
   toLevelGeometrySettings,
-  type AppWebLayoutSettings,
-} from "../settings.ts"
-import { resolveLevelGeometry, type LevelGeometry } from "@bulk/gravity/level"
+} from "./settings"
 
-const snapshotLayoutConfig = appWebLayoutConfig.snapshot
+const snapshotLayoutConfig = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG
 
 /** Входной дескриптор ordinary field до shell-materialization в instance snapshot. */
 export interface DbWorldFieldDescriptor {
@@ -73,26 +73,28 @@ type OrbitItem =
 
 const getCanonicalLevelGeometry = (
   depthFromRoot: number,
-  settings: AppWebLayoutSettings,
+  settings: BulkLayoutSettings,
   options: { rootOuterDiameterMm?: number } = {},
 ): LevelGeometry =>
   resolveLevelGeometry({
     depth: depthFromRoot,
     settings: toLevelGeometrySettings(
       settings,
+      snapshotLayoutConfig,
       options.rootOuterDiameterMm ?? snapshotLayoutConfig.rootOuterDiameterMm,
     ),
   })
 
 const getSurfaceLevelGeometry = (
   depthFromRoot: number,
-  settings: AppWebLayoutSettings,
+  settings: BulkLayoutSettings,
   options: { outerRadiusMm?: number; rootOuterDiameterMm?: number } = {},
 ): LevelGeometry =>
   resolveLevelGeometry({
     depth: depthFromRoot,
     settings: toLevelGeometrySettings(
       settings,
+      snapshotLayoutConfig,
       options.rootOuterDiameterMm ?? snapshotLayoutConfig.rootOuterDiameterMm,
     ),
     ...(options.outerRadiusMm !== undefined ? { outerRadiusMm: options.outerRadiusMm } : {}),
@@ -316,7 +318,7 @@ const collectNodesByDepth = (
 
 const createOuterRequirementOrbitItems = (
   node: ShellDescriptorNode,
-  settings: AppWebLayoutSettings,
+  settings: BulkLayoutSettings,
   outerRadiusMm: number,
   outerByDepth: Map<number, number>,
 ): OrbitItem[] => {
@@ -362,7 +364,7 @@ const createOuterRequirementOrbitItems = (
 
 const resolveOuterRadiusByDepth = (
   roots: ShellDescriptorNode[],
-  settings: AppWebLayoutSettings,
+  settings: BulkLayoutSettings,
 ): Map<number, number> => {
   const nodesByDepth = new Map<number, ShellDescriptorNode[]>()
   for (const root of roots) {
@@ -405,7 +407,7 @@ const resolveOuterRadiusByDepth = (
 
 const materializeCanonicalShellNode = (
   node: ShellDescriptorNode,
-  settings: AppWebLayoutSettings,
+  settings: BulkLayoutSettings,
   outerByDepth: Map<number, number>,
 ): LayoutShellNode => {
   const nestedChildren = node.children.map((child) =>
@@ -532,7 +534,7 @@ const flattenShellNode = (
  */
 export const enforceRootShellLayoutSettings = (
   snapshot: DbWorldSnapshot,
-  _settings: Partial<AppWebLayoutSettings> = {},
+  _settings: Partial<BulkLayoutSettings> = {},
 ): DbWorldSnapshot => {
   return {
     rootSrc: snapshot.rootSrc,
@@ -554,9 +556,9 @@ export const enforceRootShellLayoutSettings = (
 export const createDbWorldSnapshotFromParticleDescriptors = (
   rootSrc: string,
   roots: DbWorldParticleDescriptor[],
-  settings: Partial<AppWebLayoutSettings> = {},
+  settings: Partial<BulkLayoutSettings> = {},
 ): DbWorldSnapshot => {
-  const resolvedSettings = normalizeAppWebLayoutSettings(settings)
+  const resolvedSettings = normalizeBulkLayoutSettings(settings)
   const descriptorRoots = roots.map((root) => createShellDescriptorNode(root, 0))
   const outerByDepth = resolveOuterRadiusByDepth(descriptorRoots, resolvedSettings)
   const materializedRoots = descriptorRoots.map((root) =>
@@ -602,7 +604,7 @@ export const createDbWorldSnapshotFromParticleDescriptors = (
 export const scaleDbWorldSnapshotToRootOuterDiameter = (
   snapshot: DbWorldSnapshot,
   targetOuterDiameter: number = snapshotLayoutConfig.rootOuterDiameterMm,
-  settings: Partial<AppWebLayoutSettings> = {},
+  settings: Partial<BulkLayoutSettings> = {},
 ): DbWorldSnapshot => {
   const rootOuterRadius = snapshot.particles
     .filter((particle) => particle.parentParticleId === null)
@@ -636,7 +638,7 @@ export const scaleDbWorldSnapshotToRootOuterDiameter = (
     })),
   }
 
-  const resolvedSettings = normalizeAppWebLayoutSettings(settings)
+  const resolvedSettings = normalizeBulkLayoutSettings(settings)
   const getParticleOuterRadius = (particle: DbParticleShellSnapshot): number =>
     particle.shellRadius + particle.shellTube
   const shouldAdjustShellSizes = settings.levelSizeMultiplier !== undefined

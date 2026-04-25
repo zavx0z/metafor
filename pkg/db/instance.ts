@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS db_particle_shell (
 CREATE INDEX IF NOT EXISTS db_particle_shell_by_root
   ON db_particle_shell(root_src, parent_particle_id, shell_order);
 
+CREATE INDEX IF NOT EXISTS db_particle_shell_by_root_depth
+  ON db_particle_shell(root_src, depth, shell_order);
+
 CREATE TABLE IF NOT EXISTS db_field_orbit (
   id TEXT PRIMARY KEY,
   root_src TEXT NOT NULL,
@@ -56,7 +59,17 @@ CREATE INDEX IF NOT EXISTS db_field_orbit_by_root
   ON db_field_orbit(root_src, particle_id, field_order);
 `
 
-const insertParticleShell = (db: Database, rootSrc: string, shell: DbParticleShellSnapshot): void => {
+/**
+ * Вставляет один shell-carrier в `db_particle_shell` под указанным `rootSrc`.
+ *
+ * Используется как incremental write API: streaming materialize вызывает на каждый узел
+ * descriptor-дерева, не накапливая `DbWorldSnapshot` в памяти.
+ */
+export const insertDbParticleShell = (
+  db: Database,
+  rootSrc: string,
+  shell: DbParticleShellSnapshot,
+): void => {
   db.query(
     `INSERT INTO db_particle_shell (
       particle_id,
@@ -100,7 +113,13 @@ const insertParticleShell = (db: Database, rootSrc: string, shell: DbParticleShe
   )
 }
 
-const insertFieldOrbit = (db: Database, rootSrc: string, orbit: DbFieldOrbitSnapshot): void => {
+/**
+ * Вставляет одну точку field-orbit в `db_field_orbit` под указанным `rootSrc`.
+ *
+ * Используется как incremental write API: streaming materialize вызывает на каждый field
+ * после вставки particle-родителя.
+ */
+export const insertDbFieldOrbit = (db: Database, rootSrc: string, orbit: DbFieldOrbitSnapshot): void => {
   db.query(
     `INSERT INTO db_field_orbit (
       id,
@@ -164,6 +183,214 @@ export const resetDbInstanceSqlite = (db: Database): void => {
   `)
 }
 
+/** Очищает все particles/fields для указанного `rootSrc`. Используется перед re-materialize. */
+export const clearDbWorld = (db: Database, rootSrc: string): void => {
+  initializeDbInstanceSqliteSchema(db)
+  const tx = db.transaction(() => {
+    db.query(`DELETE FROM db_field_orbit WHERE root_src = ?`).run(rootSrc)
+    db.query(`DELETE FROM db_particle_shell WHERE root_src = ?`).run(rootSrc)
+  })
+  tx()
+}
+
+interface ParticleShellRow {
+  particle_id: string
+  parent_particle_id: string | null
+  particle_kind: DbParticleShellSnapshot["kind"]
+  src: string | null
+  meta_src: string | null
+  label: string
+  depth: number
+  shell_order: number
+  local_x: number
+  local_y: number
+  local_z: number
+  shell_scale: number
+  shell_radius: number
+  shell_tube: number
+  color_r: number
+  color_g: number
+  color_b: number
+}
+
+interface FieldOrbitRow {
+  id: string
+  particle_id: string
+  field_key: string
+  field_label: string
+  field_order: number
+  value_kind: DbFieldValueKind
+  value_text: string | null
+  local_x: number
+  local_y: number
+  local_z: number
+  sphere_radius: number
+  color_r: number
+  color_g: number
+  color_b: number
+}
+
+const PARTICLE_SHELL_COLUMNS = `
+  particle_id,
+  parent_particle_id,
+  particle_kind,
+  src,
+  meta_src,
+  label,
+  depth,
+  shell_order,
+  local_x,
+  local_y,
+  local_z,
+  shell_scale,
+  shell_radius,
+  shell_tube,
+  color_r,
+  color_g,
+  color_b
+`
+
+const FIELD_ORBIT_COLUMNS = `
+  id,
+  particle_id,
+  field_key,
+  field_label,
+  field_order,
+  value_kind,
+  value_text,
+  local_x,
+  local_y,
+  local_z,
+  sphere_radius,
+  color_r,
+  color_g,
+  color_b
+`
+
+const mapParticleShellRow = (row: ParticleShellRow): DbParticleShellSnapshot => ({
+  particleId: row.particle_id,
+  parentParticleId: row.parent_particle_id,
+  kind: row.particle_kind,
+  src: row.src,
+  metaSrc: row.meta_src,
+  label: row.label,
+  depth: row.depth,
+  shellOrder: row.shell_order,
+  localX: row.local_x,
+  localY: row.local_y,
+  localZ: row.local_z,
+  shellScale: row.shell_scale,
+  shellRadius: row.shell_radius,
+  shellTube: row.shell_tube,
+  colorR: row.color_r,
+  colorG: row.color_g,
+  colorB: row.color_b,
+})
+
+const mapFieldOrbitRow = (row: FieldOrbitRow): DbFieldOrbitSnapshot => ({
+  id: row.id,
+  particleId: row.particle_id,
+  fieldKey: row.field_key,
+  fieldLabel: row.field_label,
+  fieldOrder: row.field_order,
+  fieldValueKind: row.value_kind,
+  valueText: row.value_text,
+  localX: row.local_x,
+  localY: row.local_y,
+  localZ: row.local_z,
+  sphereRadius: row.sphere_radius,
+  colorR: row.color_r,
+  colorG: row.color_g,
+  colorB: row.color_b,
+})
+
+/**
+ * Читает все particle-shell-ы под `rootSrc`, отсортированные `(depth, shell_order, particle_id)`.
+ *
+ * Используется bulk-viewport-ом для построения сцены без посредника `DbWorldSnapshot`.
+ */
+export const selectAllParticleShells = (db: Database, rootSrc: string): DbParticleShellSnapshot[] => {
+  initializeDbInstanceSqliteSchema(db)
+  return (
+    db.query(
+      `SELECT ${PARTICLE_SHELL_COLUMNS}
+       FROM db_particle_shell
+       WHERE root_src = ?
+       ORDER BY depth, shell_order, particle_id`,
+    ).all(rootSrc) as ParticleShellRow[]
+  ).map(mapParticleShellRow)
+}
+
+/**
+ * Читает все field-orbit-ы под `rootSrc`, отсортированные `(particle_id, field_order, id)`.
+ */
+export const selectAllFieldOrbits = (db: Database, rootSrc: string): DbFieldOrbitSnapshot[] => {
+  initializeDbInstanceSqliteSchema(db)
+  return (
+    db.query(
+      `SELECT ${FIELD_ORBIT_COLUMNS}
+       FROM db_field_orbit
+       WHERE root_src = ?
+       ORDER BY particle_id, field_order, id`,
+    ).all(rootSrc) as FieldOrbitRow[]
+  ).map(mapFieldOrbitRow)
+}
+
+/**
+ * Читает прямых детей указанного родителя (или roots при `parentParticleId === null`) под `rootSrc`.
+ *
+ * Используется bulk-viewport-ом при lazy-загрузке поддерева на навигации/scale.
+ */
+export const selectParticleShellsByParent = (
+  db: Database,
+  rootSrc: string,
+  parentParticleId: string | null,
+): DbParticleShellSnapshot[] => {
+  initializeDbInstanceSqliteSchema(db)
+  const rows = (
+    parentParticleId === null
+      ? db.query(
+          `SELECT ${PARTICLE_SHELL_COLUMNS}
+           FROM db_particle_shell
+           WHERE root_src = ? AND parent_particle_id IS NULL
+           ORDER BY shell_order, particle_id`,
+        ).all(rootSrc)
+      : db.query(
+          `SELECT ${PARTICLE_SHELL_COLUMNS}
+           FROM db_particle_shell
+           WHERE root_src = ? AND parent_particle_id = ?
+           ORDER BY shell_order, particle_id`,
+        ).all(rootSrc, parentParticleId)
+  ) as ParticleShellRow[]
+  return rows.map(mapParticleShellRow)
+}
+
+/**
+ * Читает все field-orbit-ы конкретной частицы под `rootSrc`.
+ */
+export const selectFieldOrbitsByParticle = (
+  db: Database,
+  rootSrc: string,
+  particleId: string,
+): DbFieldOrbitSnapshot[] => {
+  initializeDbInstanceSqliteSchema(db)
+  return (
+    db.query(
+      `SELECT ${FIELD_ORBIT_COLUMNS}
+       FROM db_field_orbit
+       WHERE root_src = ? AND particle_id = ?
+       ORDER BY field_order, id`,
+    ).all(rootSrc, particleId) as FieldOrbitRow[]
+  ).map(mapFieldOrbitRow)
+}
+
+/**
+ * Bulk-write: атомарно перезаписывает весь world указанного `rootSrc` из готового snapshot-а.
+ *
+ * @deprecated Промежуточная обёртка. Streaming materialize должен использовать
+ *   {@link clearDbWorld} + {@link insertDbParticleShell} / {@link insertDbFieldOrbit} напрямую,
+ *   чтобы не накапливать `DbWorldSnapshot` в heap.
+ */
 export const writeDbWorldSnapshot = (db: Database, snapshot: DbWorldSnapshot): void => {
   initializeDbInstanceSqliteSchema(db)
 
@@ -172,138 +399,26 @@ export const writeDbWorldSnapshot = (db: Database, snapshot: DbWorldSnapshot): v
     db.query(`DELETE FROM db_particle_shell WHERE root_src = ?`).run(snapshot.rootSrc)
 
     for (const shell of snapshot.particles) {
-      insertParticleShell(db, snapshot.rootSrc, shell)
+      insertDbParticleShell(db, snapshot.rootSrc, shell)
     }
 
     for (const orbit of snapshot.fields) {
-      insertFieldOrbit(db, snapshot.rootSrc, orbit)
+      insertDbFieldOrbit(db, snapshot.rootSrc, orbit)
     }
   })
 
   tx()
 }
 
-export const readDbWorldSnapshot = (db: Database, rootSrc: string): DbWorldSnapshot => {
-  initializeDbInstanceSqliteSchema(db)
-
-  const particles = (
-    db.query(
-      `SELECT
-         particle_id,
-         parent_particle_id,
-         particle_kind,
-         src,
-         meta_src,
-         label,
-         depth,
-         shell_order,
-         local_x,
-         local_y,
-         local_z,
-         shell_scale,
-         shell_radius,
-         shell_tube,
-         color_r,
-         color_g,
-         color_b
-       FROM db_particle_shell
-       WHERE root_src = ?
-       ORDER BY depth, shell_order, particle_id`,
-    ).all(rootSrc) as Array<{
-      particle_id: string
-      parent_particle_id: string | null
-      particle_kind: DbParticleShellSnapshot["kind"]
-      src: string | null
-      meta_src: string | null
-      label: string
-      depth: number
-      shell_order: number
-      local_x: number
-      local_y: number
-      local_z: number
-      shell_scale: number
-      shell_radius: number
-      shell_tube: number
-      color_r: number
-      color_g: number
-      color_b: number
-    }>
-  ).map((row) => ({
-      particleId: row.particle_id,
-      parentParticleId: row.parent_particle_id,
-      kind: row.particle_kind,
-      src: row.src,
-      metaSrc: row.meta_src,
-      label: row.label,
-      depth: row.depth,
-      shellOrder: row.shell_order,
-      localX: row.local_x,
-      localY: row.local_y,
-      localZ: row.local_z,
-      shellScale: row.shell_scale,
-      shellRadius: row.shell_radius,
-      shellTube: row.shell_tube,
-      colorR: row.color_r,
-      colorG: row.color_g,
-      colorB: row.color_b,
-    }))
-
-  const fields = (
-    db.query(
-      `SELECT
-         id,
-         particle_id,
-         field_key,
-         field_label,
-         field_order,
-         value_kind,
-         value_text,
-         local_x,
-         local_y,
-         local_z,
-         sphere_radius,
-         color_r,
-         color_g,
-         color_b
-       FROM db_field_orbit
-       WHERE root_src = ?
-       ORDER BY particle_id, field_order, id`,
-    ).all(rootSrc) as Array<{
-      id: string
-      particle_id: string
-      field_key: string
-      field_label: string
-      field_order: number
-      value_kind: DbFieldValueKind
-      value_text: string | null
-      local_x: number
-      local_y: number
-      local_z: number
-      sphere_radius: number
-      color_r: number
-      color_g: number
-      color_b: number
-    }>
-  ).map((row) => ({
-      id: row.id,
-      particleId: row.particle_id,
-      fieldKey: row.field_key,
-      fieldLabel: row.field_label,
-      fieldOrder: row.field_order,
-      fieldValueKind: row.value_kind,
-      valueText: row.value_text,
-      localX: row.local_x,
-      localY: row.local_y,
-      localZ: row.local_z,
-      sphereRadius: row.sphere_radius,
-      colorR: row.color_r,
-      colorG: row.color_g,
-      colorB: row.color_b,
-    }))
-
-  return {
-    rootSrc,
-    particles,
-    fields,
-  }
-}
+/**
+ * Bulk-read: собирает полный `DbWorldSnapshot` из DB для одного `rootSrc`.
+ *
+ * @deprecated Промежуточная обёртка для устаревшего snapshot-payload-flow. Новые потребители
+ *   читают через {@link selectAllParticleShells} + {@link selectAllFieldOrbits}, а в перспективе —
+ *   через subtree-queries для lazy viewport.
+ */
+export const readDbWorldSnapshot = (db: Database, rootSrc: string): DbWorldSnapshot => ({
+  rootSrc,
+  particles: selectAllParticleShells(db, rootSrc),
+  fields: selectAllFieldOrbits(db, rootSrc),
+})

@@ -1,9 +1,12 @@
 import { MetaFor } from "../../../metafor.ts"
 import {
+	openDbInstanceSqlite,
 	openDbMaterializationWriter,
 	openDbSqliteBackend,
+	writeDbWorldSnapshot,
 } from "../../../pkg/db/index.ts"
 import type { DbFieldValueKind, DbParticleKind, DbWorldSnapshot } from "../../../pkg/db/index.ts"
+import { openStructuralBroadcastChannel } from "@shared/protocol"
 import { readDarkParticleModel, type DarkMetaParticleModel } from "../../../pkg/sqlite/dark.ts"
 import { getMetaDB, relation } from "../../../pkg/sqlite/index.ts"
 import { matter } from "../../../dark/dark.ts"
@@ -18,7 +21,7 @@ import {
 	createDbWorldSnapshotFromParticleDescriptors,
 	scaleDbWorldSnapshotToRootOuterDiameter,
 	type DbWorldParticleDescriptor,
-} from "./instance-layout.ts"
+} from "@bulk/gravity/layout"
 
 type MaterializeMessage = {
 	type: "materialize"
@@ -39,6 +42,25 @@ type DarkWorkerScope = typeof globalThis & {
 }
 
 const darkWorker = globalThis as DarkWorkerScope
+const structuralChannel = openStructuralBroadcastChannel()
+let instanceDb: ReturnType<typeof openDbInstanceSqlite> | null = null
+
+const ensureInstanceDb = (dbFilename: string): ReturnType<typeof openDbInstanceSqlite> => {
+	if (!instanceDb) {
+		instanceDb = openDbInstanceSqlite({ filename: dbFilename })
+	}
+	return instanceDb
+}
+
+const closeInstanceDb = (): void => {
+	if (!instanceDb) return
+	try {
+		instanceDb.close()
+	} catch {
+		// ignore close failures — DB may already be closed
+	}
+	instanceDb = null
+}
 
 const particleColorByKind: Record<DbParticleKind, { r: number; g: number; b: number }> = {
   wimp: { r: 0.42, g: 0.45, b: 0.98 },
@@ -270,25 +292,30 @@ const createRuntimeParticleDescriptors = (
 			return createRuntimeParticleDescriptor(particle, particleModelsBySrc, particle)
 		})
 
-const publishInstanceSnapshot = (
+const publishStructuralSignal = (
 	src: string,
 	descriptorRoots: DbWorldParticleDescriptor[],
-	layoutSettings: Partial<AppWebLayoutSettings> = {},
+	layoutSettings: Partial<AppWebLayoutSettings>,
+	dbFilename: string,
 ): void => {
 	const snapshot = createDbWorldSnapshot(
 		src,
 		descriptorRoots.map((descriptor) => cloneParticleDescriptor(descriptor)),
 		layoutSettings,
 	)
-	darkWorker.postMessage({
-		type: "instance-snapshot",
-		src,
-		snapshot,
+	const db = ensureInstanceDb(dbFilename)
+	writeDbWorldSnapshot(db, snapshot)
+	structuralChannel.postMessage({
+		channel: "structural",
+		source: "dark",
+		rootSrc: src,
+		scope: { kind: "world" },
 	})
 }
 
 let currentRootSrc: string | null = null
 let currentDescriptorRoots: DbWorldParticleDescriptor[] = []
+let currentDbFilename: string | null = null
 
 const canonicalizeMetaGraph = async (
 	dbFilename: string,
@@ -336,8 +363,11 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 				if (src !== currentRootSrc) {
 					throw new Error(`Relayout source mismatch: expected "${currentRootSrc}", got "${src}"`)
 				}
+				if (!currentDbFilename) {
+					throw new Error("Cannot relayout before initial materialization (no dbFilename)")
+				}
 
-				publishInstanceSnapshot(src, currentDescriptorRoots, layoutSettings)
+				publishStructuralSignal(src, currentDescriptorRoots, layoutSettings ?? {}, currentDbFilename)
 				darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "done", src })
 			} catch (error) {
 				darkWorker.postMessage({
@@ -364,6 +394,8 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 			resetDarkRuntime()
 			currentRootSrc = null
 			currentDescriptorRoots = []
+			currentDbFilename = dbFilename
+			closeInstanceDb()
 			backend = openDbSqliteBackend({ filename: dbFilename })
 			await backend.reset()
 			const canonicalized = await canonicalizeMetaGraph(dbFilename, src)
@@ -374,7 +406,7 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 				const descriptorRoots = createRuntimeParticleDescriptors(canonicalized.particleModelsBySrc)
 				currentRootSrc = src
 				currentDescriptorRoots = descriptorRoots.map((descriptor) => cloneParticleDescriptor(descriptor))
-				publishInstanceSnapshot(src, currentDescriptorRoots, layoutSettings)
+				publishStructuralSignal(src, currentDescriptorRoots, layoutSettings ?? {}, dbFilename)
 			}
 			await matter(new Wimp({ src, parent: null }), undefined, {
 				dbWriter: writer,
