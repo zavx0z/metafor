@@ -9,14 +9,21 @@
  *   `Field`, `State`, `Process`, `Reaction` и `MatterParticlePlan` соответственно.
  *
  * Backend-специфичные имплементации (низкоуровневые SQL-функции) — в subpath
- * `@store/meta/sqlite`. Классы используют их для чтения/записи.
+ * `@store/meta/sqlite`. Классы реализованы там же (рядом с C/G/D-помощниками)
+ * и реэкспортируются отсюда без изменения публичного API.
  *
  * См. `store/meta/README.md` и `store/README.md` для архитектурных принципов.
  */
 
-export { Meta } from "./meta.ts"
-export { Field, Fields } from "./fields.ts"
-export { State, Superposition } from "./superposition.ts"
-export { Process, Processes } from "./processes.ts"
-export { Reaction, Reactions } from "./reactions.ts"
-export { Matter } from "./matter.ts"
+export {
+  Meta,
+  Field,
+  Fields,
+  State,
+  Superposition,
+  Process,
+  Processes,
+  Reaction,
+  Reactions,
+  Matter,
+} from "./sqlite/index.ts"

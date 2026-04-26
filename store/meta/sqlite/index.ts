@@ -30,8 +30,8 @@ export const metaDelete = async (sql: SQL, src: string): Promise<void> => {
   await sql`DELETE FROM meta WHERE src = ${src}`
 }
 
-// Per-entity get-функции — для ленивых getter-ов ORM-инстансов.
-// Каждая возвращает соответствующую секцию декларации.
+// Per-entity get-функции — для bulk-чтения декларации (read-проекции, dark-runtime).
+// ORM-классы используют их выборочно (Matter — целиком, Field/State/Process/Reaction — нет).
 export { getMetaRow, getMass, hasProcesses, hasReactions, hasMatter } from "./meta.G.ts"
 export { getFields } from "./fields.G.ts"
 export { getSuperposition } from "./superposition.G.ts"
@@ -44,3 +44,11 @@ export { getMatterParticles } from "./matter.G.ts"
 // (dark/dark.ts:matterMeta) где meta загружается одним вызовом.
 export { readDarkParticleModel } from "./read.ts"
 export type { DarkMetaParticleModel } from "./read.t.ts"
+
+// ORM-классы (Django-style). Корневой entry-point `@store/meta` re-export-ит их.
+export { Meta } from "./meta.ts"
+export { Field, Fields } from "./fields.ts"
+export { State, Superposition } from "./superposition.ts"
+export { Process, Processes } from "./process.ts"
+export { Reaction, Reactions } from "./reactions.ts"
+export { Matter } from "./matter.ts"
