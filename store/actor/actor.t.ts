@@ -1,7 +1,7 @@
-import type { DbInstanceStore as DbActorStore, DbParticleShellRow, DbFieldOrbitRow, DbWorldRows } from "@metafor/db";
+import type { DbActorStore, DbFieldOrbitRow, DbParticleShellRow, DbWorldRows } from "@metafor/db"
 
 export interface ActorStoreOrm {
-  readonly rows: DbActorStore
+  readonly backend: DbActorStore
   clear(rootSrc: string): Promise<void>
   insertParticle(rootSrc: string, shell: DbParticleShellRow): Promise<void>
   insertField(rootSrc: string, orbit: DbFieldOrbitRow): Promise<void>

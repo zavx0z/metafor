@@ -3,8 +3,8 @@ import { describe, expect, test } from "bun:test"
 import { IDBFactory } from "fake-indexeddb"
 import type { MetaDSL } from "../index.ts"
 import type { DbParticleShellRow } from "@metafor/db"
-import { openBrowserStore } from "./browser.ts"
-import { open } from "./server.ts"
+import { open as openBrowserStore } from "./browser.ts"
+import { open as openServerStore } from "./server.ts"
 
 const particle: DbParticleShellRow = {
   particleId: "particle:root",
@@ -42,7 +42,7 @@ const meta: MetaDSL = {
 
 describe("store entrypoints", () => {
   test("server store initializes sqlite-backed meta actor view ORM", async () => {
-    const store = open()
+    const store = openServerStore()
     try {
       store.meta.create("test/meta", meta)
       expect(store.meta.model("test/meta").meta.fieldSchemas).toEqual(meta.fields)
@@ -54,7 +54,7 @@ describe("store entrypoints", () => {
         fields: [],
       })
 
-      expect(store.view.dump().metas).toEqual([])
+      expect(await store.view.wimpIds()).toEqual([])
     } finally {
       await store.close()
     }
@@ -68,8 +68,8 @@ describe("store entrypoints", () => {
     try {
       await store.actor.insertParticle("test/meta", particle)
       expect(await store.actor.particles("test/meta")).toEqual([particle])
-      expect(store.meta.dump().metas).toEqual([])
-      expect(store.view.dump().metas).toEqual([])
+      expect(await store.meta.get("missing")).toBeNull()
+      expect(await store.view.wimpIds()).toEqual([])
     } finally {
       await store.close()
     }

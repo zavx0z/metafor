@@ -1,8 +1,8 @@
 import type { DarkMetaParticleModel } from "@store/meta/sqlite";
-import type Database from "bun:sqlite";
-import type { MetaforStore } from ".";
+import type { Database } from "bun:sqlite";
+import type { MetaforStore } from "./index.t";
 import type { MetaStoreOrm } from "./meta/meta.t";
-import type { MetaDSL } from "../metafor.t";
+import type { MetaDSL } from "../metafor.t.ts";
 
 export interface OpenServerStoreOptions {
     filename?: string;
@@ -20,4 +20,3 @@ export interface ServerMetaStoreOrm extends MetaStoreOrm {
 export interface ServerMetaforStore extends MetaforStore {
     meta: ServerMetaStoreOrm
 }
-

@@ -33,7 +33,7 @@ export const open = (options: OpenServerStoreOptions = {}): ServerMetaforStore =
   const store = createMetaforStore({
     metaBackend,
     viewBackend,
-    actorRows,
+    actorBackend: actorRows,
   })
 
   const meta: ServerMetaStoreOrm = {
