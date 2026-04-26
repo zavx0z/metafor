@@ -32,34 +32,34 @@ const DEFAULT_VIEW_INDEXED_DB_NAME = "metafor-db-view"
 const DEFAULT_VIEW_INDEXED_DB_VERSION = 1
 
 const indexedDbViewTableConfigs = [
-  { table: "wimps", dataKey: "wimps" },
-  { table: "wimp_fields", dataKey: "wimpFields" },
-  { table: "wimp_edges", dataKey: "wimpEdges" },
-  { table: "field_values", dataKey: "fieldValues" },
-  { table: "field_sources", dataKey: "fieldSources" },
-  { table: "wimp_states", dataKey: "wimpStates" },
-  { table: "entanglements", dataKey: "entanglements" },
-  { table: "entanglement_members", dataKey: "entanglementMembers" },
-  { table: "entanglement_fields", dataKey: "entanglementFields" },
-  { table: "entanglement_field_members", dataKey: "entanglementFieldMembers" },
+  { table: "view_wimps", dataKey: "view_wimps" },
+  { table: "view_wimp_fields", dataKey: "wimpFields" },
+  { table: "view_wimp_edges", dataKey: "wimpEdges" },
+  { table: "view_field_values", dataKey: "fieldValues" },
+  { table: "view_field_sources", dataKey: "fieldSources" },
+  { table: "view_wimp_states", dataKey: "wimpStates" },
+  { table: "view_entanglements", dataKey: "view_entanglements" },
+  { table: "view_entanglement_members", dataKey: "entanglementMembers" },
+  { table: "view_entanglement_fields", dataKey: "entanglementFields" },
+  { table: "view_entanglement_field_members", dataKey: "entanglementFieldMembers" },
 ] as const satisfies ReadonlyArray<{ table: DbViewBackendTableName; dataKey: string }>
 
 const indexedDbViewTableNames = indexedDbViewTableConfigs.map((config) => config.table)
 
 const wimpStoreNames = [
-  "wimps",
-  "wimp_fields",
-  "field_values",
-  "field_sources",
-  "wimp_states",
-  "wimp_edges",
+  "view_wimps",
+  "view_wimp_fields",
+  "view_field_values",
+  "view_field_sources",
+  "view_wimp_states",
+  "view_wimp_edges",
 ] as const satisfies readonly DbViewBackendTableName[]
 
 const entanglementStoreNames = [
-  "entanglements",
-  "entanglement_members",
-  "entanglement_fields",
-  "entanglement_field_members",
+  "view_entanglements",
+  "view_entanglement_members",
+  "view_entanglement_fields",
+  "view_entanglement_field_members",
 ] as const satisfies readonly DbViewBackendTableName[]
 
 const cloneRow = <T>(row: T): T => structuredClone(row)
@@ -177,17 +177,17 @@ const deleteRowsById = <T extends { id: string }>(store: IDBObjectStore, rows: r
 }
 
 const readWimpRowsFromIndexedDb = async (database: IDBDatabase, wimpId: string): Promise<DbWimpRows | null> => {
-  const wimp = await readStoreRow<DbWimpRecord>(database, "wimps", wimpId)
+  const wimp = await readStoreRow<DbWimpRecord>(database, "view_wimps", wimpId)
   if (!wimp) return null
 
-  const fields = await readStoreRowsByIndex<DbWimpFieldRecord>(database, "wimp_fields", "wimp_fields_by_owner_wimp", wimpId)
+  const fields = await readStoreRowsByIndex<DbWimpFieldRecord>(database, "view_wimp_fields", "wimp_fields_by_owner_wimp", wimpId)
   const values = sortRowsById(
     (
       await Promise.all(
         fields.map((field) =>
           readStoreRowsByIndex<DbFieldValueRecord>(
             database,
-            "field_values",
+            "view_field_values",
             "field_values_by_owner_wimp_field",
             field.id,
           ),
@@ -201,7 +201,7 @@ const readWimpRowsFromIndexedDb = async (database: IDBDatabase, wimpId: string):
         fields.map((field) =>
           readStoreRowsByIndex<DbFieldSourceRecord>(
             database,
-            "field_sources",
+            "view_field_sources",
             "field_sources_by_child_wimp_field",
             field.id,
           ),
@@ -209,7 +209,7 @@ const readWimpRowsFromIndexedDb = async (database: IDBDatabase, wimpId: string):
       )
     ).flat(),
   )
-  const state = await readStoreRowByIndex<DbWimpStateRecord>(database, "wimp_states", "wimp_states_by_owner", wimpId)
+  const state = await readStoreRowByIndex<DbWimpStateRecord>(database, "view_wimp_states", "wimp_states_by_owner", wimpId)
   if (!state) {
     throw new Error(`Wimp ${wimpId} is missing wimp_state row`)
   }
@@ -224,8 +224,8 @@ const readWimpRowsFromIndexedDb = async (database: IDBDatabase, wimpId: string):
 }
 
 const listWimpIdsFromIndexedDb = async (database: IDBDatabase): Promise<string[]> => {
-  const transaction = database.transaction("wimps", "readonly")
-  const request = transaction.objectStore("wimps").getAll()
+  const transaction = database.transaction("view_wimps", "readonly")
+  const request = transaction.objectStore("view_wimps").getAll()
   const [result] = await Promise.all([resolveRequest(request), completeTransaction(transaction)])
   return ((result ?? []) as DbWimpRecord[])
     .map(cloneRow)
@@ -236,24 +236,24 @@ const listWimpIdsFromIndexedDb = async (database: IDBDatabase): Promise<string[]
 const readWimpFieldFromIndexedDb = async (
   database: IDBDatabase,
   wimpFieldId: string,
-): Promise<DbWimpFieldRecord | null> => readStoreRow<DbWimpFieldRecord>(database, "wimp_fields", wimpFieldId)
+): Promise<DbWimpFieldRecord | null> => readStoreRow<DbWimpFieldRecord>(database, "view_wimp_fields", wimpFieldId)
 
 const readEntanglementFamilyFromIndexedDb = async (
   database: IDBDatabase,
   entanglementId: string,
 ): Promise<DbEntanglementFamilyRows | null> => {
-  const entanglement = await readStoreRow<DbEntanglementRecord>(database, "entanglements", entanglementId)
+  const entanglement = await readStoreRow<DbEntanglementRecord>(database, "view_entanglements", entanglementId)
   if (!entanglement) return null
 
   const members = await readStoreRowsByIndex<DbEntanglementMemberRecord>(
     database,
-    "entanglement_members",
+    "view_entanglement_members",
     "entanglement_members_by_owner_entanglement",
     entanglementId,
   )
   const fields = await readStoreRowsByIndex<DbEntanglementFieldRecord>(
     database,
-    "entanglement_fields",
+    "view_entanglement_fields",
     "entanglement_fields_by_owner_entanglement",
     entanglementId,
   )
@@ -263,7 +263,7 @@ const readEntanglementFamilyFromIndexedDb = async (
   }
   const fieldMembers = await readStoreRowsByIndex<DbEntanglementFieldMemberRecord>(
     database,
-    "entanglement_field_members",
+    "view_entanglement_field_members",
     "entanglement_field_members_by_owner_field",
     field.id,
   )
@@ -277,14 +277,14 @@ const readEntanglementFamilyFromIndexedDb = async (
 }
 
 const replaceWimpRowsInIndexedDb = async (database: IDBDatabase, rows: DbWimpRows): Promise<void> => {
-  const existingFields = await readStoreRowsByIndex<DbWimpFieldRecord>(database, "wimp_fields", "wimp_fields_by_owner_wimp", rows.wimp.id)
+  const existingFields = await readStoreRowsByIndex<DbWimpFieldRecord>(database, "view_wimp_fields", "wimp_fields_by_owner_wimp", rows.wimp.id)
   const existingValues = sortRowsById(
     (
       await Promise.all(
         existingFields.map((field) =>
           readStoreRowsByIndex<DbFieldValueRecord>(
             database,
-            "field_values",
+            "view_field_values",
             "field_values_by_owner_wimp_field",
             field.id,
           ),
@@ -298,7 +298,7 @@ const replaceWimpRowsInIndexedDb = async (database: IDBDatabase, rows: DbWimpRow
         existingFields.map((field) =>
           readStoreRowsByIndex<DbFieldSourceRecord>(
             database,
-            "field_sources",
+            "view_field_sources",
             "field_sources_by_child_wimp_field",
             field.id,
           ),
@@ -312,7 +312,7 @@ const replaceWimpRowsInIndexedDb = async (database: IDBDatabase, rows: DbWimpRow
         existingFields.map((field) =>
           readStoreRowsByIndex<DbFieldSourceRecord>(
             database,
-            "field_sources",
+            "view_field_sources",
             "field_sources_by_parent_wimp_field",
             field.id,
           ),
@@ -321,30 +321,30 @@ const replaceWimpRowsInIndexedDb = async (database: IDBDatabase, rows: DbWimpRow
     ).flat(),
   )
   const existingSources = dedupeRowsById([...existingChildSources, ...existingParentSources])
-  const existingState = await readStoreRowByIndex<DbWimpStateRecord>(database, "wimp_states", "wimp_states_by_owner", rows.wimp.id)
+  const existingState = await readStoreRowByIndex<DbWimpStateRecord>(database, "view_wimp_states", "wimp_states_by_owner", rows.wimp.id)
 
   const transaction = database.transaction(wimpStoreNames, "readwrite")
 
-  deleteRowsById(transaction.objectStore("field_sources"), existingSources)
-  deleteRowsById(transaction.objectStore("field_values"), existingValues)
-  deleteRowsById(transaction.objectStore("wimp_fields"), existingFields)
+  deleteRowsById(transaction.objectStore("view_field_sources"), existingSources)
+  deleteRowsById(transaction.objectStore("view_field_values"), existingValues)
+  deleteRowsById(transaction.objectStore("view_wimp_fields"), existingFields)
   if (existingState) {
-    transaction.objectStore("wimp_states").delete(existingState.id)
+    transaction.objectStore("view_wimp_states").delete(existingState.id)
   }
 
-  putRow(transaction.objectStore("wimps"), rows.wimp)
-  putRows(transaction.objectStore("wimp_fields"), rows.fields)
-  putRows(transaction.objectStore("field_values"), rows.values)
-  putRows(transaction.objectStore("field_sources"), rows.sources)
-  putRow(transaction.objectStore("wimp_states"), rows.state)
+  putRow(transaction.objectStore("view_wimps"), rows.wimp)
+  putRows(transaction.objectStore("view_wimp_fields"), rows.fields)
+  putRows(transaction.objectStore("view_field_values"), rows.values)
+  putRows(transaction.objectStore("view_field_sources"), rows.sources)
+  putRow(transaction.objectStore("view_wimp_states"), rows.state)
 
   await completeTransaction(transaction)
 }
 
 const replaceWimpEdgeInIndexedDb = async (database: IDBDatabase, row: DbWimpEdgeRecord): Promise<void> => {
-  const existing = await readStoreRowByIndex<DbWimpEdgeRecord>(database, "wimp_edges", "wimp_edges_by_child", row.childWimpId)
-  const transaction = database.transaction("wimp_edges", "readwrite")
-  const store = transaction.objectStore("wimp_edges")
+  const existing = await readStoreRowByIndex<DbWimpEdgeRecord>(database, "view_wimp_edges", "wimp_edges_by_child", row.childWimpId)
+  const transaction = database.transaction("view_wimp_edges", "readwrite")
+  const store = transaction.objectStore("view_wimp_edges")
 
   if (existing && existing.id !== row.id) {
     store.delete(existing.id)
@@ -363,16 +363,16 @@ const readExistingEntanglementFamily = async (
   fields: DbEntanglementFieldRecord[]
   fieldMembers: DbEntanglementFieldMemberRecord[]
 }> => {
-  const entanglement = await readStoreRow<DbEntanglementRecord>(database, "entanglements", entanglementId)
+  const entanglement = await readStoreRow<DbEntanglementRecord>(database, "view_entanglements", entanglementId)
   const members = await readStoreRowsByIndex<DbEntanglementMemberRecord>(
     database,
-    "entanglement_members",
+    "view_entanglement_members",
     "entanglement_members_by_owner_entanglement",
     entanglementId,
   )
   const fields = await readStoreRowsByIndex<DbEntanglementFieldRecord>(
     database,
-    "entanglement_fields",
+    "view_entanglement_fields",
     "entanglement_fields_by_owner_entanglement",
     entanglementId,
   )
@@ -382,7 +382,7 @@ const readExistingEntanglementFamily = async (
         fields.map((field) =>
           readStoreRowsByIndex<DbEntanglementFieldMemberRecord>(
             database,
-            "entanglement_field_members",
+            "view_entanglement_field_members",
             "entanglement_field_members_by_owner_field",
             field.id,
           ),
@@ -398,11 +398,11 @@ const deleteEntanglementFamilyInIndexedDb = async (database: IDBDatabase, entang
   const existing = await readExistingEntanglementFamily(database, entanglementId)
   const transaction = database.transaction(entanglementStoreNames, "readwrite")
 
-  deleteRowsById(transaction.objectStore("entanglement_field_members"), existing.fieldMembers)
-  deleteRowsById(transaction.objectStore("entanglement_fields"), existing.fields)
-  deleteRowsById(transaction.objectStore("entanglement_members"), existing.members)
+  deleteRowsById(transaction.objectStore("view_entanglement_field_members"), existing.fieldMembers)
+  deleteRowsById(transaction.objectStore("view_entanglement_fields"), existing.fields)
+  deleteRowsById(transaction.objectStore("view_entanglement_members"), existing.members)
   if (existing.entanglement) {
-    transaction.objectStore("entanglements").delete(existing.entanglement.id)
+    transaction.objectStore("view_entanglements").delete(existing.entanglement.id)
   }
 
   await completeTransaction(transaction)
@@ -415,17 +415,17 @@ const replaceEntanglementFamilyInIndexedDb = async (
   const existing = await readExistingEntanglementFamily(database, rows.entanglement.id)
   const transaction = database.transaction(entanglementStoreNames, "readwrite")
 
-  deleteRowsById(transaction.objectStore("entanglement_field_members"), existing.fieldMembers)
-  deleteRowsById(transaction.objectStore("entanglement_fields"), existing.fields)
-  deleteRowsById(transaction.objectStore("entanglement_members"), existing.members)
+  deleteRowsById(transaction.objectStore("view_entanglement_field_members"), existing.fieldMembers)
+  deleteRowsById(transaction.objectStore("view_entanglement_fields"), existing.fields)
+  deleteRowsById(transaction.objectStore("view_entanglement_members"), existing.members)
   if (existing.entanglement) {
-    transaction.objectStore("entanglements").delete(existing.entanglement.id)
+    transaction.objectStore("view_entanglements").delete(existing.entanglement.id)
   }
 
-  putRow(transaction.objectStore("entanglements"), rows.entanglement)
-  putRows(transaction.objectStore("entanglement_members"), rows.members)
-  putRow(transaction.objectStore("entanglement_fields"), rows.field)
-  putRows(transaction.objectStore("entanglement_field_members"), rows.fieldMembers)
+  putRow(transaction.objectStore("view_entanglements"), rows.entanglement)
+  putRows(transaction.objectStore("view_entanglement_members"), rows.members)
+  putRow(transaction.objectStore("view_entanglement_fields"), rows.field)
+  putRows(transaction.objectStore("view_entanglement_field_members"), rows.fieldMembers)
 
   await completeTransaction(transaction)
 }
@@ -433,7 +433,7 @@ const replaceEntanglementFamilyInIndexedDb = async (
 const setFieldValueInIndexedDb = async (database: IDBDatabase, wimpFieldId: string, value: unknown): Promise<void> => {
   const existing = await readStoreRowByIndex<DbFieldValueRecord>(
     database,
-    "field_values",
+    "view_field_values",
     "field_values_by_owner_wimp_field",
     wimpFieldId,
   )
@@ -441,8 +441,8 @@ const setFieldValueInIndexedDb = async (database: IDBDatabase, wimpFieldId: stri
     throw new Error(`Field value not found for wimp field ${wimpFieldId}`)
   }
 
-  const transaction = database.transaction("field_values", "readwrite")
-  putRow(transaction.objectStore("field_values"), {
+  const transaction = database.transaction("view_field_values", "readwrite")
+  putRow(transaction.objectStore("view_field_values"), {
     ...existing,
     value: structuredClone(value),
   })
@@ -450,13 +450,13 @@ const setFieldValueInIndexedDb = async (database: IDBDatabase, wimpFieldId: stri
 }
 
 const setWimpStateInIndexedDb = async (database: IDBDatabase, wimpId: string, metaStateId: string): Promise<void> => {
-  const existing = await readStoreRowByIndex<DbWimpStateRecord>(database, "wimp_states", "wimp_states_by_owner", wimpId)
+  const existing = await readStoreRowByIndex<DbWimpStateRecord>(database, "view_wimp_states", "wimp_states_by_owner", wimpId)
   if (!existing) {
     throw new Error(`Wimp state not found for wimp ${wimpId}`)
   }
 
-  const transaction = database.transaction("wimp_states", "readwrite")
-  putRow(transaction.objectStore("wimp_states"), {
+  const transaction = database.transaction("view_wimp_states", "readwrite")
+  putRow(transaction.objectStore("view_wimp_states"), {
     ...existing,
     metaStateId,
   })
@@ -537,7 +537,7 @@ export const createIdbDbViewBackend = async (
     async readWimpEdge(childWimpId) {
       assertOpen()
       await pendingWriteQueue
-      return readStoreRowByIndex<DbWimpEdgeRecord>(database, "wimp_edges", "wimp_edges_by_child", childWimpId)
+      return readStoreRowByIndex<DbWimpEdgeRecord>(database, "view_wimp_edges", "wimp_edges_by_child", childWimpId)
     },
 
     async readFieldValue(wimpFieldId) {
@@ -545,7 +545,7 @@ export const createIdbDbViewBackend = async (
       await pendingWriteQueue
       return readStoreRowByIndex<DbFieldValueRecord>(
         database,
-        "field_values",
+        "view_field_values",
         "field_values_by_owner_wimp_field",
         wimpFieldId,
       )
@@ -556,7 +556,7 @@ export const createIdbDbViewBackend = async (
       await pendingWriteQueue
       return readStoreRowByIndex<DbFieldSourceRecord>(
         database,
-        "field_sources",
+        "view_field_sources",
         "field_sources_by_child_wimp_field",
         childWimpFieldId,
       )

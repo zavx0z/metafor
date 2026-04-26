@@ -61,12 +61,6 @@ describe("db sqlite backend", () => {
         ).map((row) => row.name)
 
         expect(tables).toEqual([
-          "entanglement_field_members",
-          "entanglement_fields",
-          "entanglement_members",
-          "entanglements",
-          "field_sources",
-          "field_values",
           "meta_fields",
           "meta_matter_edges",
           "meta_matter_nodes",
@@ -81,15 +75,21 @@ describe("db sqlite backend", () => {
           "meta_transition_conditions",
           "meta_transitions",
           "metas",
-          "wimp_edges",
-          "wimp_fields",
-          "wimp_states",
-          "wimps",
+          "view_entanglement_field_members",
+          "view_entanglement_fields",
+          "view_entanglement_members",
+          "view_entanglements",
+          "view_field_sources",
+          "view_field_values",
+          "view_wimp_edges",
+          "view_wimp_fields",
+          "view_wimp_states",
+          "view_wimps",
         ])
         expect(indexes).toEqual(dbRequiredBackendIndexes.map((index) => index.name).sort())
 
         const wimpColumns = (
-          database.query(`PRAGMA table_info(wimps)`).all() as Array<{ name: string }>
+          database.query(`PRAGMA table_info(view_wimps)`).all() as Array<{ name: string }>
         ).map((row) => row.name)
         expect(wimpColumns).toEqual(["id", "metaId", "wimpOrder", "massOverrideJson"])
       } finally {

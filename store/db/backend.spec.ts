@@ -59,10 +59,10 @@ describe("db canonical relational data", () => {
       expect.arrayContaining([
         { name: "metas_by", table: "metas", columns: ["src"], unique: true },
         { name: "meta_fields_by_owner_and_field_key", table: "meta_fields", columns: ["ownerMetaId", "fieldKey"], unique: true },
-        { name: "wimp_fields_by_owner_and_meta_field", table: "wimp_fields", columns: ["ownerWimpId", "metaFieldId"], unique: true },
-        { name: "field_values_by_owner_wimp_field", table: "field_values", columns: ["ownerWimpFieldId"], unique: true },
+        { name: "wimp_fields_by_owner_and_meta_field", table: "view_wimp_fields", columns: ["ownerWimpId", "metaFieldId"], unique: true },
+        { name: "field_values_by_owner_wimp_field", table: "view_field_values", columns: ["ownerWimpFieldId"], unique: true },
         { name: "meta_matter_edges_by_parent_and_edge_order", table: "meta_matter_edges", columns: ["parentNodeId", "edgeOrder"], unique: false },
-        { name: "wimp_edges_by_parent_and_order", table: "wimp_edges", columns: ["parentWimpId", "edgeOrder"], unique: false },
+        { name: "wimp_edges_by_parent_and_order", table: "view_wimp_edges", columns: ["parentWimpId", "edgeOrder"], unique: false },
       ]),
     )
     expect(dbRequiredBackendIndexes.some((index) => index.columns.includes("darkWimpId"))).toBe(false)

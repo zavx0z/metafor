@@ -39,7 +39,7 @@ describe("dark -> db file materialization", () => {
 
     const database = new Database(sqliteFilename, { readonly: true })
     try {
-      const wimpRows = database.query(`SELECT id, metaId, wimpOrder FROM wimps ORDER BY wimpOrder`).all() as Array<{
+      const wimpRows = database.query(`SELECT id, metaId, wimpOrder FROM view_wimps ORDER BY wimpOrder`).all() as Array<{
         id: string
         metaId: string
         wimpOrder: number
@@ -48,23 +48,23 @@ describe("dark -> db file materialization", () => {
         id: string
         src: string
       }>
-      const wimpColumns = database.query(`PRAGMA table_info(wimps)`).all() as Array<{ name: string }>
+      const wimpColumns = database.query(`PRAGMA table_info(view_wimps)`).all() as Array<{ name: string }>
       const metaFieldCountRow = database.query(`SELECT COUNT(*) AS count FROM meta_fields`).get() as { count: number }
-      const wimpFieldCountRow = database.query(`SELECT COUNT(*) AS count FROM wimp_fields`).get() as { count: number }
-      const fieldValueCountRow = database.query(`SELECT COUNT(*) AS count FROM field_values`).get() as { count: number }
-      const fieldSourceCountRow = database.query(`SELECT COUNT(*) AS count FROM field_sources`).get() as { count: number }
+      const wimpFieldCountRow = database.query(`SELECT COUNT(*) AS count FROM view_wimp_fields`).get() as { count: number }
+      const fieldValueCountRow = database.query(`SELECT COUNT(*) AS count FROM view_field_values`).get() as { count: number }
+      const fieldSourceCountRow = database.query(`SELECT COUNT(*) AS count FROM view_field_sources`).get() as { count: number }
       const entanglementFieldCountRow = database
-        .query(`SELECT COUNT(*) AS count FROM entanglement_fields`)
+        .query(`SELECT COUNT(*) AS count FROM view_entanglement_fields`)
         .get() as { count: number }
       const metaStateCountRow = database.query(`SELECT COUNT(*) AS count FROM meta_states`).get() as {
         count: number
       }
       const startArgsSourceRow = database
         .query(
-          `SELECT field_sources.parentWimpFieldId AS parentWimpFieldId
-           FROM field_sources
-           INNER JOIN wimp_fields AS child_field ON child_field.id = field_sources.childWimpFieldId
-           INNER JOIN wimps AS child_wimp ON child_wimp.id = child_field.ownerWimpId
+          `SELECT view_field_sources.parentWimpFieldId AS parentWimpFieldId
+           FROM view_field_sources
+           INNER JOIN view_wimp_fields AS child_field ON child_field.id = view_field_sources.childWimpFieldId
+           INNER JOIN view_wimps AS child_wimp ON child_wimp.id = child_field.ownerWimpId
            INNER JOIN metas AS child_meta ON child_meta.id = child_wimp.metaId
            INNER JOIN meta_fields AS child_meta_field ON child_meta_field.id = child_field.metaFieldId
            WHERE child_meta.src = 'zavx0z/git-start'

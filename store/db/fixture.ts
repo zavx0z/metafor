@@ -204,7 +204,7 @@ export const readDbSqliteData = (database: Database): DbData =>
       edgeOrder: Number(row.edgeOrder),
     })),
     wimps: (
-      database.query(`SELECT id, metaId, wimpOrder, massOverrideJson FROM wimps ORDER BY id`).all() as Array<
+      database.query(`SELECT id, metaId, wimpOrder, massOverrideJson FROM view_wimps ORDER BY id`).all() as Array<
         Record<string, unknown>
       >
     ).map((row) => ({
@@ -217,7 +217,7 @@ export const readDbSqliteData = (database: Database): DbData =>
     })),
     wimpFields: (
       database
-        .query(`SELECT id, ownerWimpId, metaFieldId, fieldOrder FROM wimp_fields ORDER BY id`)
+        .query(`SELECT id, ownerWimpId, metaFieldId, fieldOrder FROM view_wimp_fields ORDER BY id`)
         .all() as Array<Record<string, unknown>>
     ).map((row) => ({
       id: String(row.id),
@@ -227,7 +227,7 @@ export const readDbSqliteData = (database: Database): DbData =>
     })),
     wimpEdges: (
       database
-        .query(`SELECT id, parentWimpId, childWimpId, edgeOrder FROM wimp_edges ORDER BY id`)
+        .query(`SELECT id, parentWimpId, childWimpId, edgeOrder FROM view_wimp_edges ORDER BY id`)
         .all() as Array<Record<string, unknown>>
     ).map((row) => ({
       id: String(row.id),
@@ -236,7 +236,7 @@ export const readDbSqliteData = (database: Database): DbData =>
       edgeOrder: Number(row.edgeOrder),
     })),
     fieldValues: (
-      database.query(`SELECT id, ownerWimpFieldId, valueJson FROM field_values ORDER BY id`).all() as Array<
+      database.query(`SELECT id, ownerWimpFieldId, valueJson FROM view_field_values ORDER BY id`).all() as Array<
         Record<string, unknown>
       >
     ).map((row) => ({
@@ -246,7 +246,7 @@ export const readDbSqliteData = (database: Database): DbData =>
     })),
     fieldSources: (
       database
-        .query(`SELECT id, childWimpFieldId, parentWimpFieldId FROM field_sources ORDER BY id`)
+        .query(`SELECT id, childWimpFieldId, parentWimpFieldId FROM view_field_sources ORDER BY id`)
         .all() as Array<Record<string, unknown>>
     ).map((row) => ({
       id: String(row.id),
@@ -254,7 +254,7 @@ export const readDbSqliteData = (database: Database): DbData =>
       parentWimpFieldId: String(row.parentWimpFieldId),
     })),
     wimpStates: (
-      database.query(`SELECT id, ownerWimpId, metaStateId FROM wimp_states ORDER BY id`).all() as Array<
+      database.query(`SELECT id, ownerWimpId, metaStateId FROM view_wimp_states ORDER BY id`).all() as Array<
         Record<string, unknown>
       >
     ).map((row) => ({
@@ -263,7 +263,7 @@ export const readDbSqliteData = (database: Database): DbData =>
       metaStateId: String(row.metaStateId),
     })),
     entanglements: (
-      database.query(`SELECT id, membershipKey, provenance FROM entanglements ORDER BY id`).all() as Array<
+      database.query(`SELECT id, membershipKey, provenance FROM view_entanglements ORDER BY id`).all() as Array<
         Record<string, unknown>
       >
     ).map((row) => ({
@@ -273,7 +273,7 @@ export const readDbSqliteData = (database: Database): DbData =>
     })),
     entanglementMembers: (
       database
-        .query(`SELECT id, ownerEntanglementId, wimpId, memberOrder FROM entanglement_members ORDER BY id`)
+        .query(`SELECT id, ownerEntanglementId, wimpId, memberOrder FROM view_entanglement_members ORDER BY id`)
         .all() as Array<Record<string, unknown>>
     ).map((row) => ({
       id: String(row.id),
@@ -286,7 +286,7 @@ export const readDbSqliteData = (database: Database): DbData =>
         .query(
           `SELECT id, ownerEntanglementId, fieldOrder, semanticKey, fieldName, provenance,
                   representativeWimpFieldId, payloadIdsJson, semanticKeysJson
-           FROM entanglement_fields
+           FROM view_entanglement_fields
            ORDER BY id`,
         )
         .all() as Array<Record<string, unknown>>
@@ -305,7 +305,7 @@ export const readDbSqliteData = (database: Database): DbData =>
       database
         .query(
           `SELECT id, ownerEntanglementFieldId, ownerWimpId, wimpFieldId, memberOrder
-           FROM entanglement_field_members
+           FROM view_entanglement_field_members
            ORDER BY id`,
         )
         .all() as Array<Record<string, unknown>>

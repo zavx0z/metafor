@@ -29,68 +29,68 @@ const isFileBackedSqlite = (filename: string | undefined): boolean => filename !
 const viewSchemaSql = `
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS wimps (
+CREATE TABLE IF NOT EXISTS view_wimps (
   id TEXT PRIMARY KEY,
   metaId TEXT NOT NULL,
   wimpOrder INTEGER NOT NULL,
   massOverrideJson TEXT
 );
 
-CREATE TABLE IF NOT EXISTS wimp_fields (
+CREATE TABLE IF NOT EXISTS view_wimp_fields (
   id TEXT PRIMARY KEY,
   ownerWimpId TEXT NOT NULL,
   metaFieldId TEXT NOT NULL,
   fieldOrder INTEGER NOT NULL,
-  FOREIGN KEY (ownerWimpId) REFERENCES wimps(id) ON DELETE CASCADE
+  FOREIGN KEY (ownerWimpId) REFERENCES view_wimps(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS wimp_edges (
+CREATE TABLE IF NOT EXISTS view_wimp_edges (
   id TEXT PRIMARY KEY,
   parentWimpId TEXT,
   childWimpId TEXT NOT NULL,
   edgeOrder INTEGER NOT NULL,
-  FOREIGN KEY (parentWimpId) REFERENCES wimps(id) ON DELETE CASCADE,
-  FOREIGN KEY (childWimpId) REFERENCES wimps(id) ON DELETE CASCADE
+  FOREIGN KEY (parentWimpId) REFERENCES view_wimps(id) ON DELETE CASCADE,
+  FOREIGN KEY (childWimpId) REFERENCES view_wimps(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS field_values (
+CREATE TABLE IF NOT EXISTS view_field_values (
   id TEXT PRIMARY KEY,
   ownerWimpFieldId TEXT NOT NULL,
   valueJson TEXT NOT NULL,
-  FOREIGN KEY (ownerWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
+  FOREIGN KEY (ownerWimpFieldId) REFERENCES view_wimp_fields(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS field_sources (
+CREATE TABLE IF NOT EXISTS view_field_sources (
   id TEXT PRIMARY KEY,
   childWimpFieldId TEXT NOT NULL,
   parentWimpFieldId TEXT NOT NULL,
-  FOREIGN KEY (childWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE,
-  FOREIGN KEY (parentWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
+  FOREIGN KEY (childWimpFieldId) REFERENCES view_wimp_fields(id) ON DELETE CASCADE,
+  FOREIGN KEY (parentWimpFieldId) REFERENCES view_wimp_fields(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS wimp_states (
+CREATE TABLE IF NOT EXISTS view_wimp_states (
   id TEXT PRIMARY KEY,
   ownerWimpId TEXT NOT NULL,
   metaStateId TEXT NOT NULL,
-  FOREIGN KEY (ownerWimpId) REFERENCES wimps(id) ON DELETE CASCADE
+  FOREIGN KEY (ownerWimpId) REFERENCES view_wimps(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS entanglements (
+CREATE TABLE IF NOT EXISTS view_entanglements (
   id TEXT PRIMARY KEY,
   membershipKey TEXT NOT NULL,
   provenance TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS entanglement_members (
+CREATE TABLE IF NOT EXISTS view_entanglement_members (
   id TEXT PRIMARY KEY,
   ownerEntanglementId TEXT NOT NULL,
   wimpId TEXT NOT NULL,
   memberOrder INTEGER NOT NULL,
-  FOREIGN KEY (ownerEntanglementId) REFERENCES entanglements(id) ON DELETE CASCADE,
-  FOREIGN KEY (wimpId) REFERENCES wimps(id) ON DELETE CASCADE
+  FOREIGN KEY (ownerEntanglementId) REFERENCES view_entanglements(id) ON DELETE CASCADE,
+  FOREIGN KEY (wimpId) REFERENCES view_wimps(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS entanglement_fields (
+CREATE TABLE IF NOT EXISTS view_entanglement_fields (
   id TEXT PRIMARY KEY,
   ownerEntanglementId TEXT NOT NULL,
   fieldOrder INTEGER NOT NULL,
@@ -100,19 +100,19 @@ CREATE TABLE IF NOT EXISTS entanglement_fields (
   representativeWimpFieldId TEXT NOT NULL,
   payloadIdsJson TEXT NOT NULL,
   semanticKeysJson TEXT NOT NULL,
-  FOREIGN KEY (ownerEntanglementId) REFERENCES entanglements(id) ON DELETE CASCADE,
-  FOREIGN KEY (representativeWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
+  FOREIGN KEY (ownerEntanglementId) REFERENCES view_entanglements(id) ON DELETE CASCADE,
+  FOREIGN KEY (representativeWimpFieldId) REFERENCES view_wimp_fields(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS entanglement_field_members (
+CREATE TABLE IF NOT EXISTS view_entanglement_field_members (
   id TEXT PRIMARY KEY,
   ownerEntanglementFieldId TEXT NOT NULL,
   ownerWimpId TEXT NOT NULL,
   wimpFieldId TEXT NOT NULL,
   memberOrder INTEGER NOT NULL,
-  FOREIGN KEY (ownerEntanglementFieldId) REFERENCES entanglement_fields(id) ON DELETE CASCADE,
-  FOREIGN KEY (ownerWimpId) REFERENCES wimps(id) ON DELETE CASCADE,
-  FOREIGN KEY (wimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
+  FOREIGN KEY (ownerEntanglementFieldId) REFERENCES view_entanglement_fields(id) ON DELETE CASCADE,
+  FOREIGN KEY (ownerWimpId) REFERENCES view_wimps(id) ON DELETE CASCADE,
+  FOREIGN KEY (wimpFieldId) REFERENCES view_wimp_fields(id) ON DELETE CASCADE
 );
 `
 
@@ -131,16 +131,16 @@ const compareById = <T extends { id: string }>(left: T, right: T): number => lef
 const sortRowsById = <T extends { id: string }>(rows: T[]): T[] => rows.sort(compareById)
 
 const viewTableResetOrder = [
-  "entanglement_field_members",
-  "entanglement_fields",
-  "entanglement_members",
-  "entanglements",
-  "wimp_states",
-  "field_sources",
-  "field_values",
-  "wimp_edges",
-  "wimp_fields",
-  "wimps",
+  "view_entanglement_field_members",
+  "view_entanglement_fields",
+  "view_entanglement_members",
+  "view_entanglements",
+  "view_wimp_states",
+  "view_field_sources",
+  "view_field_values",
+  "view_wimp_edges",
+  "view_wimp_fields",
+  "view_wimps",
 ] as const
 
 const queryRow = <T>(
@@ -255,7 +255,7 @@ const readWimpRowsFromDatabase = (database: Database, wimpId: string): DbWimpRow
   const wimp = queryRow(
     database,
     `SELECT id, metaId, wimpOrder, massOverrideJson
-     FROM wimps
+     FROM view_wimps
      WHERE id = ?`,
     [wimpId],
     readWimpRecordRow,
@@ -265,7 +265,7 @@ const readWimpRowsFromDatabase = (database: Database, wimpId: string): DbWimpRow
   const fields = queryRows(
     database,
     `SELECT id, ownerWimpId, metaFieldId, fieldOrder
-     FROM wimp_fields
+     FROM view_wimp_fields
      WHERE ownerWimpId = ?
      ORDER BY id`,
     [wimpId],
@@ -276,7 +276,7 @@ const readWimpRowsFromDatabase = (database: Database, wimpId: string): DbWimpRow
       queryRows(
         database,
         `SELECT id, ownerWimpFieldId, valueJson
-         FROM field_values
+         FROM view_field_values
          WHERE ownerWimpFieldId = ?
          ORDER BY id`,
         [field.id],
@@ -289,7 +289,7 @@ const readWimpRowsFromDatabase = (database: Database, wimpId: string): DbWimpRow
       queryRows(
         database,
         `SELECT id, childWimpFieldId, parentWimpFieldId
-         FROM field_sources
+         FROM view_field_sources
          WHERE childWimpFieldId = ?
          ORDER BY id`,
         [field.id],
@@ -300,7 +300,7 @@ const readWimpRowsFromDatabase = (database: Database, wimpId: string): DbWimpRow
   const state = queryRow(
     database,
     `SELECT id, ownerWimpId, metaStateId
-     FROM wimp_states
+     FROM view_wimp_states
      WHERE ownerWimpId = ?`,
     [wimpId],
     readWimpStateRecordRow,
@@ -322,7 +322,7 @@ const listWimpIdsFromDatabase = (database: Database): string[] =>
   queryRows(
     database,
     `SELECT id
-     FROM wimps
+     FROM view_wimps
      ORDER BY wimpOrder, id`,
     [],
     (row) => String((row as Record<string, unknown>).id),
@@ -332,7 +332,7 @@ const readWimpFieldFromDatabase = (database: Database, wimpFieldId: string): DbW
   queryRow(
     database,
     `SELECT id, ownerWimpId, metaFieldId, fieldOrder
-     FROM wimp_fields
+     FROM view_wimp_fields
      WHERE id = ?`,
     [wimpFieldId],
     readWimpFieldRecordRow,
@@ -342,7 +342,7 @@ const readWimpEdgeFromDatabase = (database: Database, childWimpId: string): DbWi
   queryRow(
     database,
     `SELECT id, parentWimpId, childWimpId, edgeOrder
-     FROM wimp_edges
+     FROM view_wimp_edges
      WHERE childWimpId = ?`,
     [childWimpId],
     readWimpEdgeRecordRow,
@@ -352,7 +352,7 @@ const readFieldValueFromDatabase = (database: Database, wimpFieldId: string): Db
   queryRow(
     database,
     `SELECT id, ownerWimpFieldId, valueJson
-     FROM field_values
+     FROM view_field_values
      WHERE ownerWimpFieldId = ?`,
     [wimpFieldId],
     readFieldValueRecordRow,
@@ -362,7 +362,7 @@ const readFieldSourceFromDatabase = (database: Database, childWimpFieldId: strin
   queryRow(
     database,
     `SELECT id, childWimpFieldId, parentWimpFieldId
-     FROM field_sources
+     FROM view_field_sources
      WHERE childWimpFieldId = ?`,
     [childWimpFieldId],
     readFieldSourceRecordRow,
@@ -375,7 +375,7 @@ const readEntanglementFamilyFromDatabase = (
   const entanglement = queryRow(
     database,
     `SELECT id, membershipKey, provenance
-     FROM entanglements
+     FROM view_entanglements
      WHERE id = ?`,
     [entanglementId],
     readEntanglementRecordRow,
@@ -385,7 +385,7 @@ const readEntanglementFamilyFromDatabase = (
   const members = queryRows(
     database,
     `SELECT id, ownerEntanglementId, wimpId, memberOrder
-     FROM entanglement_members
+     FROM view_entanglement_members
      WHERE ownerEntanglementId = ?
      ORDER BY id`,
     [entanglementId],
@@ -395,7 +395,7 @@ const readEntanglementFamilyFromDatabase = (
     database,
     `SELECT id, ownerEntanglementId, fieldOrder, semanticKey, fieldName, provenance,
             representativeWimpFieldId, payloadIdsJson, semanticKeysJson
-     FROM entanglement_fields
+     FROM view_entanglement_fields
      WHERE ownerEntanglementId = ?
      ORDER BY id`,
     [entanglementId],
@@ -409,7 +409,7 @@ const readEntanglementFamilyFromDatabase = (
   const fieldMembers = queryRows(
     database,
     `SELECT id, ownerEntanglementFieldId, ownerWimpId, wimpFieldId, memberOrder
-     FROM entanglement_field_members
+     FROM view_entanglement_field_members
      WHERE ownerEntanglementFieldId = ?
      ORDER BY id`,
     [field.id],
@@ -428,7 +428,7 @@ const upsertWimpRow = (database: Database, rows: DbWimpRows): void => {
   database.transaction(() => {
     database
       .query(
-        `INSERT INTO wimps(id, metaId, wimpOrder, massOverrideJson)
+        `INSERT INTO view_wimps(id, metaId, wimpOrder, massOverrideJson)
          VALUES (?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            metaId = excluded.metaId,
@@ -442,26 +442,26 @@ const upsertWimpRow = (database: Database, rows: DbWimpRows): void => {
         rows.wimp.massOverride === undefined ? null : serializeJson(rows.wimp.massOverride),
       )
 
-    database.query(`DELETE FROM wimp_states WHERE ownerWimpId = ?`).run(rows.wimp.id)
-    database.query(`DELETE FROM wimp_fields WHERE ownerWimpId = ?`).run(rows.wimp.id)
+    database.query(`DELETE FROM view_wimp_states WHERE ownerWimpId = ?`).run(rows.wimp.id)
+    database.query(`DELETE FROM view_wimp_fields WHERE ownerWimpId = ?`).run(rows.wimp.id)
 
     const insertWimpField = database.query(
-      `INSERT INTO wimp_fields(id, ownerWimpId, metaFieldId, fieldOrder) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO view_wimp_fields(id, ownerWimpId, metaFieldId, fieldOrder) VALUES (?, ?, ?, ?)`,
     )
     rows.fields.forEach((row) => insertWimpField.run(row.id, row.ownerWimpId, row.metaFieldId, row.fieldOrder))
 
     const insertFieldValue = database.query(
-      `INSERT INTO field_values(id, ownerWimpFieldId, valueJson) VALUES (?, ?, ?)`,
+      `INSERT INTO view_field_values(id, ownerWimpFieldId, valueJson) VALUES (?, ?, ?)`,
     )
     rows.values.forEach((row) => insertFieldValue.run(row.id, row.ownerWimpFieldId, serializeJson(row.value)))
 
     const insertFieldSource = database.query(
-      `INSERT INTO field_sources(id, childWimpFieldId, parentWimpFieldId) VALUES (?, ?, ?)`,
+      `INSERT INTO view_field_sources(id, childWimpFieldId, parentWimpFieldId) VALUES (?, ?, ?)`,
     )
     rows.sources.forEach((row) => insertFieldSource.run(row.id, row.childWimpFieldId, row.parentWimpFieldId))
 
     database
-      .query(`INSERT INTO wimp_states(id, ownerWimpId, metaStateId) VALUES (?, ?, ?)`)
+      .query(`INSERT INTO view_wimp_states(id, ownerWimpId, metaStateId) VALUES (?, ?, ?)`)
       .run(rows.state.id, rows.state.ownerWimpId, rows.state.metaStateId)
   })()
 }
@@ -469,7 +469,7 @@ const upsertWimpRow = (database: Database, rows: DbWimpRows): void => {
 const writeWimpEdgeInDatabase = (database: Database, row: DbWimpEdgeRecord): void => {
   database
     .query(
-      `INSERT INTO wimp_edges(id, parentWimpId, childWimpId, edgeOrder)
+      `INSERT INTO view_wimp_edges(id, parentWimpId, childWimpId, edgeOrder)
        VALUES (?, ?, ?, ?)
        ON CONFLICT(childWimpId) DO UPDATE SET
          id = excluded.id,
@@ -480,7 +480,7 @@ const writeWimpEdgeInDatabase = (database: Database, row: DbWimpEdgeRecord): voi
 }
 
 const deleteEntanglementFamilyInDatabase = (database: Database, entanglementId: string): void => {
-  database.query(`DELETE FROM entanglements WHERE id = ?`).run(entanglementId)
+  database.query(`DELETE FROM view_entanglements WHERE id = ?`).run(entanglementId)
 }
 
 const writeEntanglementFamilyInDatabase = (database: Database, rows: DbEntanglementFamilyRows): void => {
@@ -488,19 +488,19 @@ const writeEntanglementFamilyInDatabase = (database: Database, rows: DbEntanglem
     deleteEntanglementFamilyInDatabase(database, rows.entanglement.id)
 
     const insertEntanglement = database.query(
-      `INSERT INTO entanglements(id, membershipKey, provenance) VALUES (?, ?, ?)`,
+      `INSERT INTO view_entanglements(id, membershipKey, provenance) VALUES (?, ?, ?)`,
     )
     insertEntanglement.run(rows.entanglement.id, rows.entanglement.membershipKey, rows.entanglement.provenance)
 
     const insertEntanglementMember = database.query(
-      `INSERT INTO entanglement_members(id, ownerEntanglementId, wimpId, memberOrder) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO view_entanglement_members(id, ownerEntanglementId, wimpId, memberOrder) VALUES (?, ?, ?, ?)`,
     )
     rows.members.forEach((row) =>
       insertEntanglementMember.run(row.id, row.ownerEntanglementId, row.wimpId, row.memberOrder),
     )
 
     const insertEntanglementField = database.query(
-      `INSERT INTO entanglement_fields(
+      `INSERT INTO view_entanglement_fields(
          id, ownerEntanglementId, fieldOrder, semanticKey, fieldName, provenance,
          representativeWimpFieldId, payloadIdsJson, semanticKeysJson
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -518,7 +518,7 @@ const writeEntanglementFamilyInDatabase = (database: Database, rows: DbEntanglem
     )
 
     const insertEntanglementFieldMember = database.query(
-      `INSERT INTO entanglement_field_members(id, ownerEntanglementFieldId, ownerWimpId, wimpFieldId, memberOrder)
+      `INSERT INTO view_entanglement_field_members(id, ownerEntanglementFieldId, ownerWimpId, wimpFieldId, memberOrder)
        VALUES (?, ?, ?, ?, ?)`,
     )
     rows.fieldMembers.forEach((row) =>
@@ -535,7 +535,7 @@ const writeEntanglementFamilyInDatabase = (database: Database, rows: DbEntanglem
 
 const setFieldValueInDatabase = (database: Database, wimpFieldId: string, value: unknown): void => {
   const result = database
-    .query(`UPDATE field_values SET valueJson = ? WHERE ownerWimpFieldId = ?`)
+    .query(`UPDATE view_field_values SET valueJson = ? WHERE ownerWimpFieldId = ?`)
     .run(serializeJson(value), wimpFieldId)
 
   if (result.changes === 0) {
@@ -545,7 +545,7 @@ const setFieldValueInDatabase = (database: Database, wimpFieldId: string, value:
 
 const setWimpStateInDatabase = (database: Database, wimpId: string, metaStateId: string): void => {
   const result = database
-    .query(`UPDATE wimp_states SET metaStateId = ? WHERE ownerWimpId = ?`)
+    .query(`UPDATE view_wimp_states SET metaStateId = ? WHERE ownerWimpId = ?`)
     .run(metaStateId, wimpId)
 
   if (result.changes === 0) {
