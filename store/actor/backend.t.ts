@@ -4,10 +4,27 @@ import type { ActorValueRecord } from "./sqlite/actor_value.t.ts"
 import type { Scalar, ValueItemRecord, ValueRecord } from "./sqlite/value.t.ts"
 
 /**
- * Имена таблиц actor-слоя. Префикс `actor_` обязателен для actor-сущностей,
+ * Имена таблиц actor-слоя. Префикс `actor_` — для actor-сущностей,
  * `value*` — глобальные value-записи (могут разделяться).
+ *
+ * Корневые `value` / `value_list_item` хранят только дискриминатор `kind`;
+ * скалярное содержимое — в типизированных подтаблицах `value_<kind>` /
+ * `value_list_item_<kind>` (по одной колонке нативного типа на каждую).
  */
-export type ActorBackendTableName = "actor" | "actor_value" | "actor_state" | "value" | "value_item"
+export type ActorBackendTableName =
+  | "actor"
+  | "actor_value"
+  | "actor_state"
+  | "value"
+  | "value_boolean"
+  | "value_number"
+  | "value_string"
+  | "value_enum"
+  | "value_list_item"
+  | "value_list_item_boolean"
+  | "value_list_item_number"
+  | "value_list_item_string"
+  | "value_list_item_enum"
 
 export interface ActorBackendIndexSpec {
   name: string

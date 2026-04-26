@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
 import type { ActorRecord, ActorRows } from "./actor.t.ts"
-import { scalarColumns } from "./_helpers.ts"
+import type { Scalar, ValueRecord } from "./value.t.ts"
 
 /** Создаёт пустую запись `actor` (без связанных value/state). */
 export const createActor = async (db: Database, actor: ActorRecord): Promise<void> => {
@@ -12,28 +12,103 @@ export const createActor = async (db: Database, actor: ActorRecord): Promise<voi
   )
 }
 
+/** Очищает скалярные подтаблицы для одной value-записи (перед сменой kind). */
+const clearValueScalarTables = (db: Database, uuid: string): void => {
+  db.prepare(`DELETE FROM value_boolean WHERE value = ?`).run(uuid)
+  db.prepare(`DELETE FROM value_number WHERE value = ?`).run(uuid)
+  db.prepare(`DELETE FROM value_string WHERE value = ?`).run(uuid)
+  db.prepare(`DELETE FROM value_enum WHERE value = ?`).run(uuid)
+}
+
+/** Записывает скалярную часть value в типизированную подтаблицу. null/list — без подтаблицы. */
+const writeValueScalar = (db: Database, value: ValueRecord): void => {
+  switch (value.kind) {
+    case "null":
+    case "list":
+      return
+    case "boolean":
+      db.prepare(`INSERT INTO value_boolean (value, boolean) VALUES (?, ?)`).run(value.uuid, value.boolean ? 1 : 0)
+      return
+    case "number":
+      db.prepare(`INSERT INTO value_number (value, number) VALUES (?, ?)`).run(value.uuid, value.number)
+      return
+    case "string":
+      db.prepare(`INSERT INTO value_string (value, text) VALUES (?, ?)`).run(value.uuid, value.text)
+      return
+    case "enum":
+      db.prepare(`INSERT INTO value_enum (value, variant) VALUES (?, ?)`).run(value.uuid, value.variant)
+      return
+  }
+}
+
+/** Очищает типизированные list-item подтаблицы для (value, position). */
+const clearValueListItemTables = (db: Database, value: string, position: number): void => {
+  db.prepare(`DELETE FROM value_list_item_boolean WHERE value = ? AND position = ?`).run(value, position)
+  db.prepare(`DELETE FROM value_list_item_number  WHERE value = ? AND position = ?`).run(value, position)
+  db.prepare(`DELETE FROM value_list_item_string  WHERE value = ? AND position = ?`).run(value, position)
+  db.prepare(`DELETE FROM value_list_item_enum    WHERE value = ? AND position = ?`).run(value, position)
+}
+
+/** Записывает скалярную часть list-item в типизированную подтаблицу. */
+const writeValueListItemScalar = (db: Database, value: string, position: number, item: Scalar): void => {
+  switch (item.kind) {
+    case "null":
+      return
+    case "boolean":
+      db.prepare(`INSERT INTO value_list_item_boolean (value, position, boolean) VALUES (?, ?, ?)`).run(
+        value,
+        position,
+        item.boolean ? 1 : 0,
+      )
+      return
+    case "number":
+      db.prepare(`INSERT INTO value_list_item_number (value, position, number) VALUES (?, ?, ?)`).run(
+        value,
+        position,
+        item.number,
+      )
+      return
+    case "string":
+      db.prepare(`INSERT INTO value_list_item_string (value, position, text) VALUES (?, ?, ?)`).run(
+        value,
+        position,
+        item.text,
+      )
+      return
+    case "enum":
+      db.prepare(`INSERT INTO value_list_item_enum (value, position, variant) VALUES (?, ?, ?)`).run(
+        value,
+        position,
+        item.variant,
+      )
+      return
+  }
+}
+
 /**
  * Записывает row-group актора одной транзакцией.
  *
  * Удаляет предыдущую версию актора (каскад снимет `actor_value`/`actor_state`),
- * вставляет новый набор `value`/`value_item`/`actor_value`/`actor_state`,
- * подчищает orphan-value, на которые после удаления никто не ссылается.
+ * вставляет новый набор записей: actor + value + value_<kind> + value_list_item +
+ * value_list_item_<kind> + actor_value + actor_state. Подчищает orphan-value,
+ * на которые после удаления никто не ссылается.
  */
 export const writeActorRows = async (db: Database, rows: ActorRows): Promise<void> => {
   const insertActorStmt = db.prepare(`INSERT INTO actor (uuid, parent, meta, position) VALUES (?, ?, ?, ?)`)
-  const insertValueItemStmt = db.prepare(
-    `INSERT INTO value_item (value, position, kind, boolean, number, text, variant) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  const upsertValueRootStmt = db.prepare(
+    `INSERT INTO value (uuid, kind) VALUES (?, ?)
+     ON CONFLICT (uuid) DO UPDATE SET kind = excluded.kind`,
+  )
+  const upsertValueListItemRootStmt = db.prepare(
+    `INSERT INTO value_list_item (value, position, kind) VALUES (?, ?, ?)
+     ON CONFLICT (value, position) DO UPDATE SET kind = excluded.kind`,
   )
   const insertActorValueStmt = db.prepare(`INSERT INTO actor_value (actor, metaField, value) VALUES (?, ?, ?)`)
   const insertActorStateStmt = db.prepare(`INSERT INTO actor_state (actor, metaState) VALUES (?, ?)`)
   const deleteOrphanValueStmt = db.prepare(
     `DELETE FROM value WHERE uuid = ? AND NOT EXISTS (SELECT 1 FROM actor_value WHERE value = uuid)`,
   )
-  const upsertValueStmt = db.prepare(
-    `INSERT INTO value (uuid, kind, boolean, number, text, variant) VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT (uuid) DO UPDATE SET kind=excluded.kind, boolean=excluded.boolean, number=excluded.number, text=excluded.text, variant=excluded.variant`,
-  )
-  const deleteValueItemsStmt = db.prepare(`DELETE FROM value_item WHERE value = ?`)
+  const deleteListItemsStmt = db.prepare(`DELETE FROM value_list_item WHERE value = ?`)
   const collectStmt = db.prepare(`SELECT value FROM actor_value WHERE actor = ?`)
   const deleteActorStmt = db.prepare(`DELETE FROM actor WHERE uuid = ?`)
 
@@ -45,23 +120,25 @@ export const writeActorRows = async (db: Database, rows: ActorRows): Promise<voi
     // вставить актора
     insertActorStmt.run(rows.actor.uuid, rows.actor.parent, rows.actor.meta, rows.actor.position)
 
-    // вставить value-записи (UPSERT — если такая запись уже существует от другого актора, не пересоздаём)
+    // value-записи: upsert корня + типизированная подтаблица
     for (const v of rows.valueRecords) {
-      const cols = scalarColumns(v)
-      upsertValueStmt.run(v.uuid, v.kind, cols.boolean, cols.number, cols.text, cols.variant)
+      upsertValueRootStmt.run(v.uuid, v.kind)
+      clearValueScalarTables(db, v.uuid)
+      writeValueScalar(db, v)
     }
 
-    // value_item: переписать набор для каждой записи
-    const valueIdsToReplaceItems = new Set(rows.valueRecords.filter((v) => v.kind === "list").map((v) => v.uuid))
-    for (const valueId of valueIdsToReplaceItems) {
-      deleteValueItemsStmt.run(valueId)
+    // value_list_item: переписать всю list-секцию каждой list-value-записи
+    const listValueIds = new Set(rows.valueRecords.filter((v) => v.kind === "list").map((v) => v.uuid))
+    for (const valueId of listValueIds) {
+      deleteListItemsStmt.run(valueId)
     }
     for (const item of rows.valueItems) {
-      const cols = scalarColumns(item)
-      insertValueItemStmt.run(item.value, item.position, item.kind, cols.boolean, cols.number, cols.text, cols.variant)
+      upsertValueListItemRootStmt.run(item.value, item.position, item.kind)
+      clearValueListItemTables(db, item.value, item.position)
+      writeValueListItemScalar(db, item.value, item.position, item)
     }
 
-    // вставить связи actor_value
+    // связи actor_value
     for (const av of rows.values) {
       insertActorValueStmt.run(av.actor, av.metaField, av.value)
     }

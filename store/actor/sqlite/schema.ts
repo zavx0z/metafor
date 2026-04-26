@@ -8,7 +8,8 @@ import stateSql from "./state.sql" with { type: "text" }
 /**
  * Полная DDL инстансного слоя — конкатенация модулей в порядке FK-зависимостей:
  * - `actor.sql` — корневая таблица actor (FK на meta + self-FK)
- * - `value.sql` — value + value_item (FK на field_enum_variant)
+ * - `value.sql` — value + value_<kind> + value_list_item + value_list_item_<kind>
+ *   (FK на field_enum_variant)
  * - `actor_value.sql` — связь actor↔value (FK на actor + field + value)
  * - `state.sql` — actor_state (FK на actor + superposition)
  *
@@ -24,8 +25,24 @@ export const actorSchemaSql = [actorSql, valueSql, actorValueSql, stateSql]
 
 /**
  * Имена таблиц в порядке, обратном FK-зависимостям (для безопасного DELETE).
+ * Каскад FK снимет всё с одного DELETE FROM actor, но явный список держит
+ * инвариант видимым и позволяет точечный reset одной таблицы при необходимости.
  */
-export const actorTableNames = ["actor_state", "actor_value", "value_item", "value", "actor"] as const
+export const actorTableNames = [
+  "actor_state",
+  "actor_value",
+  "value_list_item_enum",
+  "value_list_item_string",
+  "value_list_item_number",
+  "value_list_item_boolean",
+  "value_list_item",
+  "value_enum",
+  "value_string",
+  "value_number",
+  "value_boolean",
+  "value",
+  "actor",
+] as const
 
 /**
  * Применяет actor DDL (5 таблиц + индексы) к уже открытому Database.
