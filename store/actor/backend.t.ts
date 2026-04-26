@@ -1,31 +1,18 @@
 import type {
-  ActorEdgeRecord,
-  ActorEntanglementFamilyRows,
-  ActorFieldRecord,
   ActorRecord,
   ActorRows,
-  ActorScalar,
-  ActorSourceRecord,
   ActorStateRecord,
   ActorValueRecord,
+  Scalar,
+  ValueItemRecord,
+  ValueRecord,
 } from "./types.t.ts"
 
 /**
- * Имена таблиц actor-слоя в любом backend (sqlite, idb).
- * Префикс `actor_` обязателен — это namespace инстансного слоя в общей БД.
+ * Имена таблиц actor-слоя. Префикс `actor_` обязателен для actor-сущностей,
+ * `value*` — глобальные value-записи (могут разделяться).
  */
-export type ActorBackendTableName =
-  | "actor"
-  | "actor_edge"
-  | "actor_field"
-  | "actor_value"
-  | "actor_value_item"
-  | "actor_source"
-  | "actor_state"
-  | "actor_entanglement"
-  | "actor_entanglement_member"
-  | "actor_entanglement_field"
-  | "actor_entanglement_field_member"
+export type ActorBackendTableName = "actor" | "actor_value" | "actor_state" | "value" | "value_item"
 
 export interface ActorBackendIndexSpec {
   name: string
@@ -40,8 +27,8 @@ export type ActorBackendAwaitable<T> = T | Promise<T>
  * Контракт actor-стора. Адресный API без полных дампов.
  *
  * Любая реализация (sqlite, idb, in-memory, мок) должна обеспечивать
- * одинаковое наблюдаемое поведение этих методов. Backend-специфичные
- * оптимизации (индексы, WAL, колоночные форматы) — деталь реализации.
+ * одинаковое наблюдаемое поведение. Backend-специфичные оптимизации (индексы,
+ * WAL, колоночные форматы) — деталь реализации, не контракта.
  */
 export interface ActorBackend {
   readonly requiredIndexes: readonly ActorBackendIndexSpec[]
@@ -50,96 +37,58 @@ export interface ActorBackend {
   reset(): ActorBackendAwaitable<void>
   flush(): Promise<void>
 
-  // Адресные чтения
-  listActorIds(world: string): Promise<string[]>
+  // Адресные чтения акторов
+  /** Все корневые акторы (parent IS NULL), упорядочены по `position`. */
+  listRootActors(): Promise<ActorRecord[]>
+  /** Все дочерние акторы данного родителя, упорядочены по `position`. */
+  listChildActors(parent: string): Promise<ActorRecord[]>
+  readActor(uuid: string): Promise<ActorRecord | null>
   readActorRows(uuid: string): Promise<ActorRows | null>
-  readActorField(fieldUuid: string): Promise<ActorFieldRecord | null>
-  readActorEdge(child: string): Promise<ActorEdgeRecord | null>
-  readActorValue(fieldUuid: string): Promise<ActorValueRecord | null>
-  readActorSource(childField: string): Promise<ActorSourceRecord | null>
   readActorState(actor: string): Promise<ActorStateRecord | null>
-  readEntanglementFamily(uuid: string): Promise<ActorEntanglementFamilyRows | null>
+  readActorValue(actor: string, metaField: string): Promise<ActorValueRecord | null>
 
-  // Записи актора
-  /** Записывает row-group актора одной транзакцией: actor + edge + fields + values + sources + state. */
+  // Адресные чтения значений
+  readValue(uuid: string): Promise<ValueRecord | null>
+  readValueItems(value: string): Promise<ValueItemRecord[]>
+  /** Кто разделяет это значение. Длина результата > 1 = entanglement. */
+  listValueOwners(value: string): Promise<ActorValueRecord[]>
+
+  // Записи
+  /** Записывает row-group актора одной транзакцией: actor + values + value-records + value-items + state. */
   writeActorRows(rows: ActorRows): ActorBackendAwaitable<void>
-  /** Удаляет актора и каскадно всё его state. */
+  /** Удаляет актора, его связи и orphan-записи value (на которые больше никто не ссылается). */
   deleteActor(uuid: string): ActorBackendAwaitable<void>
-
-  // Точечные операции
-  /** Меняет одно скалярное значение (без обхода всего актора). */
-  setActorValue(fieldUuid: string, value: ActorScalar | { kind: "list" }): ActorBackendAwaitable<void>
-  /** Записывает элемент списочного значения по позиции. */
-  writeActorValueItem(fieldUuid: string, position: number, item: ActorScalar): ActorBackendAwaitable<void>
-  /** Удаляет хвост списочного значения начиная с указанной позиции (для shrink-операций). */
-  truncateActorValueItems(fieldUuid: string, fromPosition: number): ActorBackendAwaitable<void>
+  /** Меняет содержимое записи value (касается всех акторов, разделяющих её). */
+  setValue(uuid: string, scalar: Scalar | { kind: "list" }): ActorBackendAwaitable<void>
+  /** Записывает/обновляет элемент списочного значения по позиции. */
+  writeValueItem(value: string, position: number, item: Scalar): ActorBackendAwaitable<void>
+  /** Удаляет хвост списочного значения (для shrink). */
+  truncateValueItems(value: string, fromPosition: number): ActorBackendAwaitable<void>
   /** Меняет состояние FSM актора. */
   setActorState(actor: string, metaState: string): ActorBackendAwaitable<void>
 
-  // Записи entanglement-семьи
-  writeEntanglementFamily(rows: ActorEntanglementFamilyRows): ActorBackendAwaitable<void>
-  deleteEntanglementFamily(uuid: string): ActorBackendAwaitable<void>
-
-  // Перечисление мира (для рантайма, который хочет обойти всех акторов)
-  listWorldActors(world: string): Promise<ActorRecord[]>
+  /**
+   * Связывает актор-поле с существующей записью value (entanglement).
+   * Если у actor-поля уже была запись и она orphan-нулась — удаляется.
+   */
+  shareValue(actor: string, metaField: string, value: string): ActorBackendAwaitable<void>
+  /**
+   * Расщепляет shared value: создаёт новую копию записи value под одного актор-поле,
+   * остальные продолжают делить старую. Возвращает новый uuid value.
+   */
+  forkValue(actor: string, metaField: string): Promise<string>
 }
 
-/**
- * Стандартный набор индексов actor-стора. Применяется ко всем backend-имплементациям.
- */
 export const actorRequiredBackendIndexes: readonly ActorBackendIndexSpec[] = [
-  { name: "actor_by_world", table: "actor", columns: ["world"], unique: false },
-  { name: "actor_by_world_and_position", table: "actor", columns: ["world", "position"], unique: true },
-  { name: "actor_by_meta_src", table: "actor", columns: ["metaSrc"], unique: false },
+  // actor
+  { name: "actor_by_meta", table: "actor", columns: ["meta"], unique: false },
+  { name: "actor_by_parent", table: "actor", columns: ["parent"], unique: false },
+  { name: "actor_by_parent_and_position", table: "actor", columns: ["parent", "position"], unique: false },
 
-  { name: "actor_edge_by_parent", table: "actor_edge", columns: ["parent"], unique: false },
-  { name: "actor_edge_by_parent_and_position", table: "actor_edge", columns: ["parent", "position"], unique: false },
+  // actor_value
+  { name: "actor_value_by_value", table: "actor_value", columns: ["value"], unique: false },
+  { name: "actor_value_by_meta_field", table: "actor_value", columns: ["metaField"], unique: false },
 
-  { name: "actor_field_by_actor", table: "actor_field", columns: ["actor"], unique: false },
-  { name: "actor_field_by_actor_and_position", table: "actor_field", columns: ["actor", "position"], unique: true },
-  { name: "actor_field_by_actor_and_meta_field", table: "actor_field", columns: ["actor", "metaField"], unique: true },
-
-  { name: "actor_source_by_parent_field", table: "actor_source", columns: ["parentField"], unique: false },
-
-  { name: "actor_entanglement_by_world", table: "actor_entanglement", columns: ["world"], unique: false },
-  { name: "actor_entanglement_by_root_field", table: "actor_entanglement", columns: ["rootField"], unique: true },
-
-  {
-    name: "actor_entanglement_member_by_entanglement",
-    table: "actor_entanglement_member",
-    columns: ["entanglement"],
-    unique: false,
-  },
-  {
-    name: "actor_entanglement_member_by_actor",
-    table: "actor_entanglement_member",
-    columns: ["actor"],
-    unique: false,
-  },
-
-  {
-    name: "actor_entanglement_field_by_entanglement",
-    table: "actor_entanglement_field",
-    columns: ["entanglement"],
-    unique: false,
-  },
-  {
-    name: "actor_entanglement_field_by_entanglement_and_position",
-    table: "actor_entanglement_field",
-    columns: ["entanglement", "position"],
-    unique: true,
-  },
-
-  {
-    name: "actor_entanglement_field_member_by_field",
-    table: "actor_entanglement_field_member",
-    columns: ["entanglementField"],
-    unique: false,
-  },
-  {
-    name: "actor_entanglement_field_member_by_actor_field",
-    table: "actor_entanglement_field_member",
-    columns: ["actorField"],
-    unique: true,
-  },
+  // value (variant)
+  { name: "value_by_variant", table: "value", columns: ["variant"], unique: false },
 ] as const

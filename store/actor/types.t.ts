@@ -1,146 +1,86 @@
 /**
  * Канонические record-типы инстансного слоя (actor).
  *
- * Один актор — это запущенный экземпляр меты со своим состоянием:
- * полями, значениями, текущей фазой FSM и связями с другими акторами.
- * Render-данные (визуализация) здесь не хранятся — они вычислимы из
- * `actor + meta + layoutConfig` и живут в render-слое.
+ * Один актор — это запущенный экземпляр меты со своим состоянием.
+ * Поля не дублируются в этом слое — они объявлены в `meta`. Актор только
+ * связывает свои значения с полями меты через `actor_value`.
  *
- * Все ID — TEXT-идентификаторы. Стабильные UUID-ы, генерируемые при
- * создании сущности.
+ * Entanglement выражен через **разделение записи `value`**: если две строки
+ * `actor_value` указывают на один `value.uuid`, акторы запутаны. Никаких
+ * отдельных таблиц `actor_entanglement_*` не существует.
+ *
+ * Все ID — TEXT-идентификаторы. Стабильные UUID-ы.
  */
 
-export type ActorScalarKind = "null" | "boolean" | "number" | "string" | "enum"
-export type ActorValueKind = ActorScalarKind | "list"
+export type ScalarKind = "null" | "boolean" | "number" | "string" | "enum"
+export type ValueKind = ScalarKind | "list"
 
-/** Скалярная или enum-часть значения, заполняется одна из колонок в зависимости от kind. */
-export interface ActorScalar {
-  kind: ActorScalarKind
-  boolean?: boolean
-  number?: number
-  text?: string
-  /** UUID `field_enum_variant` из meta-декларации (для kind === "enum"). */
-  variant?: string
-}
-
-/** Один запущенный актор — инстанс меты. */
+/** Один запущенный актор. */
 export interface ActorRecord {
   uuid: string
-  /** Канонический `src` корневой меты мира, к которому актор принадлежит. */
-  world: string
-  /** Канонический `src` меты, по которой актор работает. */
-  metaSrc: string
-  /** Порядок появления актора в мире (стабилен между запусками для детерминированной материализации). */
-  position: number
-}
-
-/** Связь родитель → потомок. Одна запись на каждого ребёнка. */
-export interface ActorEdgeRecord {
-  /** UUID дочернего актора. */
-  child: string
-  /** UUID родительского актора (NULL у корневого актора мира). */
+  /** UUID родителя (NULL у корневого; self-FK на `actor.uuid`). */
   parent: string | null
-  /** Позиция среди братьев. */
+  /** Канонический `src` меты — FK на `meta.src`. */
+  meta: string
+  /** Порядок появления среди братьев в одном parent-уровне. */
   position: number
 }
 
-/** Поле-инстанс актора, соответствует одному `field` из meta-схемы. */
-export interface ActorFieldRecord {
+/** Запись значения. Может разделяться несколькими акторами (entanglement). */
+export interface ValueRecord {
   uuid: string
-  /** UUID родительского актора. */
-  actor: string
-  /** UUID `field` из meta-декларации. */
-  metaField: string
-  /** Порядок поля внутри актора (зеркалирует порядок в meta-схеме). */
-  position: number
+  kind: ValueKind
+  boolean?: boolean
+  number?: number
+  text?: string
+  /** UUID `field_enum_variant` из meta (для kind="enum"). */
+  variant?: string
 }
 
-/** Текущее значение поля. Одна строка на одно `actor_field`. */
+/** Элемент списочного значения (когда `value.kind === "list"`). */
+export interface ValueItemRecord {
+  value: string
+  position: number
+  kind: ScalarKind
+  boolean?: boolean
+  number?: number
+  text?: string
+  variant?: string
+}
+
+/** Связь актор-поле-меты → значение. PK (actor, metaField). */
 export interface ActorValueRecord {
-  /** UUID `actor_field`. */
-  field: string
-  kind: ActorValueKind
-  boolean?: boolean
-  number?: number
-  text?: string
-  /** UUID `field_enum_variant` из meta. */
-  variant?: string
-}
-
-/** Один элемент списочного значения (когда `value.kind === "list"`). */
-export interface ActorValueItemRecord {
-  /** UUID `actor_field`. */
-  field: string
-  position: number
-  kind: ActorScalarKind
-  boolean?: boolean
-  number?: number
-  text?: string
-  variant?: string
-}
-
-/** Прямая проводка значения от поля-источника к полю-получателю. */
-export interface ActorSourceRecord {
-  /** UUID поля-получателя. */
-  childField: string
-  /** UUID поля-источника. */
-  parentField: string
+  actor: string
+  /** UUID поля в meta-декларации (FK на `field.uuid`). */
+  metaField: string
+  /** UUID записи значения (FK на `value.uuid`). */
+  value: string
 }
 
 /** Текущее состояние FSM актора. */
 export interface ActorStateRecord {
-  /** UUID актора. */
   actor: string
   /** UUID `superposition` из meta. */
   metaState: string
 }
 
-/** Семья entangled-акторов: набор инстансов, делящих корневой источник значения. */
-export interface ActorEntanglementRecord {
-  uuid: string
-  world: string
-  /** UUID корневого `actor_field`-источника, от которого расходится цепочка. */
-  rootField: string
-}
-
-/** Член семьи — один из акторов в составе entanglement. */
-export interface ActorEntanglementMemberRecord {
-  entanglement: string
-  actor: string
-  position: number
-}
-
-/** Описание разделяемого поля внутри семьи. */
-export interface ActorEntanglementFieldRecord {
-  uuid: string
-  entanglement: string
-  /** UUID `field` из meta. */
-  metaField: string
-  position: number
-}
-
-/** Конкретное поле-инстанс одного актора в составе entangled-поля. */
-export interface ActorEntanglementFieldMemberRecord {
-  entanglementField: string
-  actorField: string
-  position: number
+/** Скалярная или enum-часть значения, заполняется одна из колонок в зависимости от kind. */
+export interface Scalar {
+  kind: ScalarKind
+  boolean?: boolean
+  number?: number
+  text?: string
+  variant?: string
 }
 
 /** Полный row-group одного актора — read/write единицей. */
 export interface ActorRows {
   actor: ActorRecord
-  edge: ActorEdgeRecord
-  fields: ActorFieldRecord[]
+  /** Все поля актора, которые имеют значения. Каждое — связь с записью value. */
   values: ActorValueRecord[]
-  valueItems: ActorValueItemRecord[]
-  sources: ActorSourceRecord[]
+  /** Записи value, на которые ссылаются данные актора. Могут разделяться с другими акторами. */
+  valueRecords: ValueRecord[]
+  /** Элементы списочных значений (для тех value, где kind="list"). */
+  valueItems: ValueItemRecord[]
   state: ActorStateRecord
-}
-
-/** Полный row-group одной entanglement-семьи. */
-export interface ActorEntanglementFamilyRows {
-  entanglement: ActorEntanglementRecord
-  members: ActorEntanglementMemberRecord[]
-  fields: ActorEntanglementFieldRecord[]
-  fieldMembers: ActorEntanglementFieldMemberRecord[]
 }
