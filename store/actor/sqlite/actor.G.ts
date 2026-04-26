@@ -15,7 +15,7 @@ export const decodeActor = (row: Record<string, unknown>): ActorRecord => ({
 })
 
 /** Все корневые акторы (parent IS NULL), упорядочены по `position`. */
-export const listRootActors = async (db: Database): Promise<ActorRecord[]> => {
+export const listRootActors = (db: Database): ActorRecord[] => {
   const rows = db
     .prepare(`SELECT uuid, parent, meta, position FROM actor WHERE parent IS NULL ORDER BY position`)
     .all() as Array<Record<string, unknown>>
@@ -23,7 +23,7 @@ export const listRootActors = async (db: Database): Promise<ActorRecord[]> => {
 }
 
 /** Все дочерние акторы данного родителя, упорядочены по `position`. */
-export const listChildActors = async (db: Database, parent: string): Promise<ActorRecord[]> => {
+export const listChildActors = (db: Database, parent: string): ActorRecord[] => {
   const rows = db
     .prepare(`SELECT uuid, parent, meta, position FROM actor WHERE parent = ? ORDER BY position`)
     .all(parent) as Array<Record<string, unknown>>
@@ -31,7 +31,7 @@ export const listChildActors = async (db: Database, parent: string): Promise<Act
 }
 
 /** Читает одного актора по uuid. */
-export const readActor = async (db: Database, uuid: string): Promise<ActorRecord | null> => {
+export const readActor = (db: Database, uuid: string): ActorRecord | null => {
   const row = db.prepare(`SELECT uuid, parent, meta, position FROM actor WHERE uuid = ?`).get(uuid) as Record<
     string,
     unknown
@@ -73,7 +73,7 @@ const decodeListItemRow = (row: Record<string, unknown>): ValueItemRecord => ({
  * Один проход: SELECT actor → SELECT actor_value → JOIN-чтение value+подтаблиц по списку uuid.
  * Возвращает `null`, если актор или его state отсутствуют.
  */
-export const readActorRows = async (db: Database, uuid: string): Promise<ActorRows | null> => {
+export const readActorRows = (db: Database, uuid: string): ActorRows | null => {
   const actorRow = db
     .prepare(`SELECT uuid, parent, meta, position FROM actor WHERE uuid = ?`)
     .get(uuid) as Record<string, unknown> | null

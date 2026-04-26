@@ -8,7 +8,7 @@ export const decodeActorState = (row: Record<string, unknown> | null): ActorStat
 }
 
 /** Читает текущее состояние FSM актора. */
-export const readActorState = async (db: Database, actor: string): Promise<ActorStateRecord | null> => {
+export const readActorState = (db: Database, actor: string): ActorStateRecord | null => {
   return decodeActorState(
     db.prepare(`SELECT actor, metaState FROM actor_state WHERE actor = ?`).get(actor) as Record<
       string,

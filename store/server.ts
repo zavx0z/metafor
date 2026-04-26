@@ -1,34 +1,24 @@
 /**
- * Server-side entry: одна bun-sqlite Database держит **единую схему** стора.
- * Логически она разделена на meta-сущности (DSL-декларация) и actor-сущности
- * (инстансный слой) — но это деление по пакетам ради удобства разработки,
- * не разные базы. Все FK работают как обычно (под `PRAGMA foreign_keys = ON`).
+ * Server-side entry-point: открывает одну bun-sqlite Database и применяет
+ * единую схему стора — таблицы из обоих пакетов (`@store/meta` и
+ * `@store/actor`). Логически она разделена на meta-сущности (DSL-декларация)
+ * и actor-сущности (инстансный слой) — но это деление по пакетам ради
+ * удобства разработки, не разные базы. FK работают как обычно.
  *
- * Возвращает связку `{ database, meta, actor, close }`:
- * - `database` — низкоуровневый bun-sqlite handle (для прямых запросов, тестов, миграций)
- * - `meta` — функции записи/чтения декларации (write, read)
- * - `actor` — реализация {@link ActorBackend} над тем же `database`
+ * Возвращает `{ database, close }` — низкоуровневый Database handle для прямых
+ * вызовов функций из `@store/meta/sqlite` (metaCreate, metaGet, metaDelete) и
+ * `@store/actor/sqlite` (actorCreate, actorGet, ..., valueGet, ..., stateGet,
+ * ..., linkGet, ...). Никаких фасад-объектов: симметричный функциональный API.
  *
  * Типы — в `./server.t.ts`.
  */
 
 import { Database, constants } from "bun:sqlite"
-import {
-  initializeMetaDslSchema,
-  readDarkParticleModel,
-  relation as writeMetaToDsl,
-} from "@store/meta/sqlite"
-import { createSqliteActorBackend } from "@store/actor/sqlite"
-import type { MetaDSL } from "../metafor.t.ts"
-import type { OpenServerStoreOptions, ServerMetaApi, ServerStore } from "./server.t.ts"
+import { metaSchemaSql } from "@store/meta/sqlite"
+import { actorSchemaSql } from "@store/actor/sqlite"
+import type { OpenServerStoreOptions, ServerStore } from "./server.t.ts"
 
 const isFileBacked = (filename: string): boolean => filename !== ":memory:"
-
-const idempotentWriteMeta = (db: Database, meta: MetaDSL, src: string): void => {
-  // FK в DSL-relational имеет ON DELETE CASCADE на meta(src) — снимет всё дерево записи.
-  db.prepare(`DELETE FROM meta WHERE src = ?`).run(src)
-  writeMetaToDsl(db, meta, src)
-}
 
 export const open = (options: OpenServerStoreOptions = {}): ServerStore => {
   const filename = options.filename ?? ":memory:"
@@ -42,24 +32,13 @@ export const open = (options: OpenServerStoreOptions = {}): ServerStore => {
     database.run("PRAGMA busy_timeout = 5000;")
   }
 
-  initializeMetaDslSchema(database)
-  const actor = createSqliteActorBackend({ database })
-
-  const meta: ServerMetaApi = {
-    write: (src, dsl) => idempotentWriteMeta(database, dsl, src),
-    read: (src) => readDarkParticleModel(database, src),
-  }
+  // Единая схема стора: meta-таблицы + actor-таблицы на одной Database.
+  database.run(metaSchemaSql)
+  database.run(actorSchemaSql)
 
   return {
     database,
-    meta,
-    actor,
-    async close() {
-      try {
-        await actor.close()
-      } catch {
-        // ignore
-      }
+    close() {
       try {
         if (fileBacked) {
           database.fileControl(constants.SQLITE_FCNTL_PERSIST_WAL, 0)

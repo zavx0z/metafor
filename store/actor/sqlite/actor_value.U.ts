@@ -6,7 +6,7 @@ import { generateUuid } from "./_helpers.ts"
  * Если у actor-поля уже была запись и она orphan-нулась — удаляется (каскад
  * снимет данные из всех типизированных value_<kind> и value_list_item_*).
  */
-export const shareValue = async (db: Database, actor: string, field: string, value: string): Promise<void> => {
+export const shareValue = (db: Database, actor: string, field: string, value: string): void => {
   const deleteOrphanValueStmt = db.prepare(
     `DELETE FROM value WHERE uuid = ? AND NOT EXISTS (SELECT 1 FROM actor_value WHERE value = uuid)`,
   )
@@ -30,7 +30,7 @@ export const shareValue = async (db: Database, actor: string, field: string, val
  * типизированными подтаблицами и list-item-ами) под одного актор-поле,
  * остальные акторы продолжают делить старую. Возвращает новый uuid value.
  */
-export const forkValue = async (db: Database, actor: string, field: string): Promise<string> => {
+export const forkValue = (db: Database, actor: string, field: string): string => {
   const newUuid = generateUuid()
 
   db.transaction(() => {

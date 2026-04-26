@@ -3,7 +3,7 @@ import type { ActorRecord, ActorRows } from "./actor.t.ts"
 import type { ValueRecord } from "./value.t.ts"
 
 /** Создаёт пустую запись `actor` (без связанных value/state). */
-export const createActor = async (db: Database, actor: ActorRecord): Promise<void> => {
+export const createActor = (db: Database, actor: ActorRecord): void => {
   db.prepare(`INSERT INTO actor (uuid, parent, meta, position) VALUES (?, ?, ?, ?)`).run(
     actor.uuid,
     actor.parent,
@@ -49,7 +49,7 @@ const writeValueScalar = (db: Database, value: ValueRecord): void => {
  * actor_value + actor_state. Подчищает orphan-value, на которые после удаления
  * никто не ссылается.
  */
-export const writeActorRows = async (db: Database, rows: ActorRows): Promise<void> => {
+export const writeActorRows = (db: Database, rows: ActorRows): void => {
   const insertActorStmt = db.prepare(`INSERT INTO actor (uuid, parent, meta, position) VALUES (?, ?, ?, ?)`)
   const upsertValueRootStmt = db.prepare(
     `INSERT INTO value (uuid, kind) VALUES (?, ?)

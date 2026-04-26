@@ -10,12 +10,10 @@ import type { DarkMetaParticleModel } from "./read.t.ts"
 
 const hasKeys = (value: object): boolean => Object.keys(value).length > 0
 
-export const readDarkParticleModel = (db: Database, src: string): DarkMetaParticleModel => {
+export const readDarkParticleModel = (db: Database, src: string): DarkMetaParticleModel | null => {
   const metaRow = getMetaRow(db, src)
 
-  if (!metaRow) {
-    throw new Error(`Canonical meta "${src}" is not found in SQLite`)
-  }
+  if (!metaRow) return null
 
   const { fields, fieldKeys, enumVariants } = getFields(db, src)
   const metaMass = getMass(db, src)

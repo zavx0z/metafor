@@ -44,7 +44,7 @@ const writeValueScalar = (db: Database, uuid: string, scalar: Scalar | { kind: "
  * подтаблицы (если был другой kind) и пишет новую запись в нужную подтаблицу.
  * Для `'list'` элементы (`value_list_item`) НЕ затрагиваются — они живут отдельно.
  */
-export const setValue = async (db: Database, uuid: string, scalar: Scalar | { kind: "list" }): Promise<void> => {
+export const setValue = (db: Database, uuid: string, scalar: Scalar | { kind: "list" }): void => {
   db.transaction(() => {
     db.prepare(`UPDATE value SET kind = ? WHERE uuid = ?`).run(scalar.kind, uuid)
     clearValueScalarTables(db, uuid)
@@ -56,12 +56,12 @@ export const setValue = async (db: Database, uuid: string, scalar: Scalar | { ki
  * Записывает / обновляет один элемент списочного значения по позиции.
  * `itemValue` — уже сериализованное представление; сериализация на стороне рантайма.
  */
-export const writeValueItem = async (
+export const writeValueItem = (
   db: Database,
   value: string,
   position: number,
   itemValue: string,
-): Promise<void> => {
+): void => {
   db.prepare(
     `INSERT INTO value_list_item (value, position, item_value) VALUES (?, ?, ?)
      ON CONFLICT (value, position) DO UPDATE SET item_value = excluded.item_value`,
@@ -69,6 +69,6 @@ export const writeValueItem = async (
 }
 
 /** Удаляет хвост списочного значения начиная с указанной позиции. */
-export const truncateValueItems = async (db: Database, value: string, fromPosition: number): Promise<void> => {
+export const truncateValueItems = (db: Database, value: string, fromPosition: number): void => {
   db.prepare(`DELETE FROM value_list_item WHERE value = ? AND position >= ?`).run(value, fromPosition)
 }

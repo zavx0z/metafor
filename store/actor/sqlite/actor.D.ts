@@ -4,7 +4,7 @@ import type { Database } from "bun:sqlite"
  * Удаляет актора, его связи (`actor_value`, `actor_state` уходят по каскаду)
  * и orphan-записи value, на которые после удаления больше никто не ссылается.
  */
-export const deleteActor = async (db: Database, uuid: string): Promise<void> => {
+export const deleteActor = (db: Database, uuid: string): void => {
   const collectStmt = db.prepare(`SELECT value FROM actor_value WHERE actor = ?`)
   const deleteActorStmt = db.prepare(`DELETE FROM actor WHERE uuid = ?`)
   const deleteOrphanValueStmt = db.prepare(

@@ -1,8 +1,17 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import type { Database } from "bun:sqlite"
+import { Database } from "bun:sqlite"
 import type { MetaDSL } from "../../.."
 import gitMeta from "../../../github/zavx0z/git/meta.ts"
-import { getMetaDB, readDarkParticleModel, relation } from "./index.ts"
+import { metaCreate, metaGet, metaSchemaSql } from "./index.ts"
+
+const getMetaDB = (path: string): Database => {
+  const db = new Database(path, { strict: true, create: true })
+  db.run("PRAGMA foreign_keys = ON;")
+  db.run(metaSchemaSql)
+  return db
+}
+const relation = (db: Database, meta: MetaDSL, src: string) => metaCreate(db, src, meta)
+const readDarkParticleModel = metaGet
 
 const richMeta: MetaDSL = {
   name: "rich",
@@ -227,7 +236,7 @@ describe("sqlite dark particle model", () => {
   test("читает particle-centric runtime model для существующей git meta после relation()", () => {
     relation(db, gitMeta, "zavx0z/git")
 
-    const projection = readDarkParticleModel(db, "zavx0z/git")
+    const projection = readDarkParticleModel(db, "zavx0z/git")!
 
     expect(projection.meta.fieldSchemas).toEqual(gitMeta.fields)
     expect(projection.meta.superposition).toEqual(gitMeta.superposition)
@@ -239,7 +248,7 @@ describe("sqlite dark particle model", () => {
   test("сохраняет particle-centric matter write-side и даёт тонкий ORM loader поверх реляционных rows", () => {
     relation(db, richMeta, "owner/rich")
 
-    const projection = readDarkParticleModel(db, "owner/rich")
+    const projection = readDarkParticleModel(db, "owner/rich")!
 
     expect(projection.meta.fieldSchemas).toEqual(richMeta.fields)
     expect(projection.meta.superposition).toEqual(richMeta.superposition)
@@ -274,7 +283,7 @@ describe("sqlite dark particle model", () => {
   test("не выводит пустые processes/reactions из отсутствия записей в БД", () => {
     relation(db, explicitEmptyMeta, "owner/empty")
 
-    const projection = readDarkParticleModel(db, "owner/empty")
+    const projection = readDarkParticleModel(db, "owner/empty")!
 
     // Принцип минимума: если в БД нет ни одной записи в process/reaction/matter_particle,
     // соответствующая секция не появляется в projection. Пустой объект — это производное,

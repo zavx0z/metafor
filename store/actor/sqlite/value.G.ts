@@ -8,7 +8,7 @@ import type { ValueItemRecord, ValueRecord } from "./value.t.ts"
  * Один LEFT JOIN-запрос: дёшево даже с пустыми ветками. Строится discriminated
  * union по kind — нерелевантные поля просто отсутствуют.
  */
-export const readValue = async (db: Database, uuid: string): Promise<ValueRecord | null> => {
+export const readValue = (db: Database, uuid: string): ValueRecord | null => {
   const row = db
     .prepare(
       `SELECT v.uuid AS uuid,
@@ -49,7 +49,7 @@ export const readValue = async (db: Database, uuid: string): Promise<ValueRecord
 }
 
 /** Читает все элементы списочного значения, упорядочены по `position`. */
-export const readValueItems = async (db: Database, value: string): Promise<ValueItemRecord[]> => {
+export const readValueItems = (db: Database, value: string): ValueItemRecord[] => {
   const rows = db
     .prepare(`SELECT value, position, item_value FROM value_list_item WHERE value = ? ORDER BY position`)
     .all(value) as Array<Record<string, unknown>>
