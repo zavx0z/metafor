@@ -1,9 +1,9 @@
 {
   "name": "@store/actor",
-  "module": "index.ts",
   "type": "module",
-  "private": true,
-  "dependencies": {
-    "@shared/protocol": "workspace:*"
-  }
+  "exports": {
+    ".": "./index.ts",
+    "./sqlite": "./sqlite/index.ts"
+  },
+  "private": true
 }

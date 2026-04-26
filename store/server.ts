@@ -1,7 +1,8 @@
 /**
- * Server-side entry: одна Database (bun-sqlite) держит обе схемы — meta-DSL-relational
- * и actor-инстансного слоя. Все FK между actor-таблицами и meta-таблицами становятся
- * жёсткими (под `PRAGMA foreign_keys = ON`).
+ * Server-side entry: одна bun-sqlite Database держит **единую схему** стора.
+ * Логически она разделена на meta-сущности (DSL-декларация) и actor-сущности
+ * (инстансный слой) — но это деление по пакетам ради удобства разработки,
+ * не разные базы. Все FK работают как обычно (под `PRAGMA foreign_keys = ON`).
  *
  * Возвращает связку `{ database, meta, actor, close }`:
  * - `database` — низкоуровневый bun-sqlite handle (для прямых запросов, тестов, миграций)
@@ -17,8 +18,8 @@ import {
   readDarkParticleModel,
   relation as writeMetaToDsl,
 } from "@store/meta/sqlite"
+import { createSqliteActorBackend } from "@store/actor/sqlite"
 import type { MetaDSL } from "../metafor.t.ts"
-import { createSqliteActorBackend } from "@store/actor"
 import type { OpenServerStoreOptions, ServerMetaApi, ServerStore } from "./server.t.ts"
 
 const isFileBacked = (filename: string): boolean => filename !== ":memory:"

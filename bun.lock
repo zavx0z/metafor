@@ -755,9 +755,6 @@
     },
     "store/actor": {
       "name": "@store/actor",
-      "dependencies": {
-        "@shared/protocol": "workspace:*",
-      },
     },
     "store/meta": {
       "name": "@store/meta",
