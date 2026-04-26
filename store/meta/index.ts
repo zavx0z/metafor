@@ -5,7 +5,8 @@
  * декларации представлена своим manager-классом (Django-style):
  * - `Meta` — главный инстанс, координирует все managers и скаляры
  * - `Fields` / `Superposition` / `Processes` / `Reactions` / `Matter` — managers
- *   с `.all() / .get(filter) / .count() / .exists()`.
+ *   с `.all() / .get(filter) / .count() / .exists()`, возвращают инстансы:
+ *   `Field`, `State`, `Process`, `Reaction` и `MatterParticlePlan` соответственно.
  *
  * Backend-специфичные имплементации (низкоуровневые SQL-функции) — в subpath
  * `@store/meta/sqlite`. Классы используют их для чтения/записи.
@@ -14,8 +15,8 @@
  */
 
 export { Meta } from "./meta.ts"
-export { Fields, type FieldRecord } from "./fields.ts"
-export { Superposition, type SuperpositionStateRecord } from "./superposition.ts"
-export { Processes, type ProcessRecord } from "./processes.ts"
-export { Reactions, type ReactionRecord } from "./reactions.ts"
+export { Field, Fields } from "./fields.ts"
+export { State, Superposition } from "./superposition.ts"
+export { Process, Processes } from "./processes.ts"
+export { Reaction, Reactions } from "./reactions.ts"
 export { Matter } from "./matter.ts"
