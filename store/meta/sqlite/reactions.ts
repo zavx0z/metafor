@@ -6,7 +6,6 @@
  *   reaction_read, reaction_write)
  * - `reactions.t.ts` — типы (ReactionRow, FieldUuidByKey, StateUuidByName)
  * - `reactions.C.ts` — `createReactions(db, meta, src, fieldUuids, stateUuids)`
- * - `reactions.G.ts` — `getReactions(db, src, fieldKeys)` (bulk-loader)
  *
  * ORM-классы `Reaction` / `Reactions` — в этом файле; каждое свойство —
  * отдельный getter (или setter для редактируемых строковых скаляров).

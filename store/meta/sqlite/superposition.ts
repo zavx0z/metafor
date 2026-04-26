@@ -8,10 +8,9 @@
  * - `superposition.t.ts` — типы (PredicateRow, ConditionListItemRow, FieldUuidByKey,
  *   StateUuidByName)
  * - `superposition.C.ts` — `createSuperposition(db, meta, src, fieldUuids)`
- * - `superposition.G.ts` — `getSuperposition(db, src, enumVariants)` (bulk-loader)
  *
  * ORM-классы `State` / `Superposition` — в этом файле; `State.transitions()`
- * подгружает переходы только для своего state targeted-запросами, без bulk.
+ * подгружает переходы только для своего state targeted-запросами.
  */
 
 import type { SQL } from "bun"

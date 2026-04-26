@@ -33,10 +33,6 @@ export const metaDelete = async (sql: SQL, src: string): Promise<void> => {
 // Per-entity get-функции — для bulk-чтения декларации (read-проекции, dark-runtime).
 // ORM-классы используют их выборочно (Matter — целиком, Field/State/Process/Reaction — нет).
 export { getMetaRow, getMass, hasProcesses, hasReactions, hasMatter } from "./meta.G.ts"
-export { getFields } from "./fields.G.ts"
-export { getSuperposition } from "./superposition.G.ts"
-export { getProcesses } from "./process.G.ts"
-export { getReactions } from "./reactions.G.ts"
 export { getMatterParticles } from "./matter.G.ts"
 
 // Dark-specific projection: собирает всю декларацию в один объект формы

@@ -8,7 +8,6 @@
  * - `process.t.ts` — типы (ProcessRow, ProcessActionRow, ProcessActionReadRow,
  *   ProcessActionWriteRow, FieldUuidByKey)
  * - `process.C.ts` — `createProcess(db, meta, src, fieldUuids)`
- * - `process.G.ts` — `getProcesses(db, src, fieldKeys)` (bulk-loader)
  *
  * ORM-классы `Process` / `Processes` — в этом файле; каждое скалярное свойство —
  * отдельный getter, фазы (`action`/`success`/`error`/`before`) — composite SQL

@@ -7,7 +7,7 @@
  * Якорный файл сущности — под ним группируются:
  * - `finally.sql` — DDL (process_finally, process_finally_read)
  *
- * Логика записи и чтения для finally хранится внутри `process.C.ts` и `process.G.ts`
+ * Логика записи для finally хранится внутри `process.C.ts`, чтения — в `read.ts`
  * (они общие для action и finally, расходятся по `process.type`).
  */
 

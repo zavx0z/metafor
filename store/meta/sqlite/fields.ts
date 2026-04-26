@@ -6,12 +6,11 @@
  *   field_array_default_item, field_enum_variant, field_enum_default)
  * - `fields.t.ts` — типы (FieldRow, MetaFieldSchema, GetFieldsResult, FieldUuidByKey)
  * - `fields.C.ts` — `createFields(db, meta, src)`
- * - `fields.G.ts` — `getFields(db, src)` (bulk-loader для read-проекций)
  *
  * ORM-классы `Field` (abstract) + 5 type-specific подклассов
  * (`StringField` / `NumberField` / `BooleanField` / `ArrayField` / `EnumField`)
  * + `Fields` manager — в этом файле; используют точечные SELECT-ы по
- * `(meta, key)` и не дёргают bulk-loader `getFields`.
+ * `(meta, key)`.
  */
 
 import type { SQL } from "bun"
