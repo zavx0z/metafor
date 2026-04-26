@@ -98,6 +98,16 @@ export const metaforDslSchemaSql = metaforDslSchemaSqlModules
   .trim()
 
 /**
+ * Применяет DSL meta-схему (33 таблицы) к уже открытому Database.
+ *
+ * Идемпотентно: каждое CREATE TABLE — IF NOT EXISTS. PRAGMA-настройки не
+ * трогает (это ответственность владельца Database).
+ */
+export function initializeMetaDslSchema(db: Database): void {
+  db.run(metaforDslSchemaSql)
+}
+
+/**
  * Открывает или создает базу данных SQLite по указанному пути.
  *
  * Если файл базы данных уже существует, он будет открыт. Если нет — создан новый.
@@ -112,7 +122,7 @@ export function open(path: string): Database {
 
   db.run("PRAGMA foreign_keys = ON;")
   db.run("PRAGMA journal_mode = WAL;")
-  db.run(metaforDslSchemaSql)
+  initializeMetaDslSchema(db)
 
   const originalClose = db.close.bind(db)
   db.close = (throwOnError?: boolean) => {

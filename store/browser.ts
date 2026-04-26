@@ -9,17 +9,10 @@ const DEFAULT_BROWSER_STORE_NAME = "metafor-store"
 
 export const open = async (options: OpenBrowserStoreOptions = {}): Promise<BrowserMetaforStore> => {
   const databaseName = options.databaseName ?? DEFAULT_BROWSER_STORE_NAME
-  const metaDatabaseName = options.metaDatabaseName ?? `${databaseName}-meta`
-  const actorDatabaseName = options.actorDatabaseName ?? `${databaseName}-actor`
-  const viewDatabaseName = options.viewDatabaseName ?? metaDatabaseName
+  const actorDatabaseName = `${databaseName}-actor`
 
-  const metaOptions: DbIndexedDbBackendOptions = {
-    databaseName: metaDatabaseName,
-    ...(options.version !== undefined ? { version: options.version } : {}),
-    ...(options.indexedDb !== undefined ? { indexedDb: options.indexedDb } : {}),
-  }
-  const viewOptions: DbIndexedDbBackendOptions = {
-    databaseName: viewDatabaseName,
+  const metaViewOptions: DbIndexedDbBackendOptions = {
+    databaseName,
     ...(options.version !== undefined ? { version: options.version } : {}),
     ...(options.indexedDb !== undefined ? { indexedDb: options.indexedDb } : {}),
   }
@@ -29,9 +22,12 @@ export const open = async (options: OpenBrowserStoreOptions = {}): Promise<Brows
     ...(options.indexedDb !== undefined ? { factory: options.indexedDb } : {}),
   }
 
-  const metaBackend = await openDbIndexedDbBackend(metaOptions)
-  const viewBackend = viewDatabaseName === metaDatabaseName ? metaBackend : await openDbIndexedDbBackend(viewOptions)
-  const actorRows = await createIdbDbActorStore(actorOptions)
+  const metaViewBackend = await openDbIndexedDbBackend(metaViewOptions)
+  const actorBackend = await createIdbDbActorStore(actorOptions)
 
-  return createMetaforStore({ metaBackend, viewBackend, actorBackend: actorRows })
+  return createMetaforStore({
+    metaBackend: metaViewBackend,
+    viewBackend: metaViewBackend,
+    actorBackend,
+  })
 }

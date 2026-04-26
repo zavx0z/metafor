@@ -22,6 +22,8 @@ import type {
 
 export interface DbSqliteBackendOptions {
   filename?: string
+  /** Уже открытый Database. Если указан — backend не открывает и не закрывает его. */
+  database?: Database
 }
 
 export interface DbSqliteBackend extends DbBackend {
@@ -760,9 +762,10 @@ const upsertMetaRow = (database: Database, rows: DbMetaRows): void => {
 }
 
 export const openDbSqliteBackend = (options: DbSqliteBackendOptions = {}): DbSqliteBackend => {
+  const ownsDatabase = options.database === undefined
   const filename = options.filename ?? ":memory:"
-  const database = new Database(filename)
-  const fileBacked = isFileBackedSqlite(filename)
+  const database = options.database ?? new Database(filename)
+  const fileBacked = options.database === undefined && isFileBackedSqlite(filename)
 
   if (fileBacked) {
     database.exec("PRAGMA journal_mode = WAL;")
@@ -783,7 +786,7 @@ export const openDbSqliteBackend = (options: DbSqliteBackendOptions = {}): DbSql
     requiredIndexes: dbRequiredBackendIndexes,
 
     close() {
-      database.close()
+      if (ownsDatabase) database.close()
     },
 
     reset() {
