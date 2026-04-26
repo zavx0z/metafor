@@ -1,4 +1,4 @@
-import type { DbActorStore } from "store/db"
+import type { DbActorStore } from "./store.t"
 import type { ActorStoreOrm } from "./actor.t"
 
 export const createActorStoreOrm = (backend: DbActorStore): ActorStoreOrm => ({

@@ -1,4 +1,5 @@
-import type { DbActorStore, DbFieldOrbitRow, DbParticleShellRow, DbWorldRows } from "store/db"
+import type { DbActorStore } from "./store.t"
+import type { DbFieldOrbitRow, DbParticleShellRow, DbWorldRows } from "./types.t"
 
 export interface ActorStoreOrm {
   readonly backend: DbActorStore

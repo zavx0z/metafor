@@ -1,12 +1,12 @@
 import { MetaFor } from "../../../metafor.ts"
+import { openDbMaterializationWriter, openDbSqliteBackend } from "store/db"
 import {
+	createMirroredActorStore,
 	createSqliteDbActorStore,
-	openDbMaterializationWriter,
-	openDbSqliteBackend,
 	type DbActorStore,
-} from "store/db"
-import type { DbFieldValueKind, DbParticleKind } from "store/db"
-import { createMirroredActorStore } from "store/db/actor-store-mirror"
+	type DbFieldValueKind,
+	type DbParticleKind,
+} from "@store/actor"
 import { openDbSyncBroadcastChannel, openStructuralBroadcastChannel } from "@shared/protocol"
 import { getMetaDB, readDarkParticleModel, relation, type DarkMetaParticleModel } from "@store/meta/sqlite"
 import { matter } from "../../../dark/dark.ts"

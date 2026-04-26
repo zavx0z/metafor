@@ -4,7 +4,7 @@ export type DbParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
 export type DbFieldValueKind = "number" | "text" | "bool" | "other"
 
 /**
- * Одна row-запись shell-carrier в `db_particle_shell`.
+ * Одна row-запись shell-carrier в `actor_particle_shell`.
  *
  * Координаты и размеры — в единицах engine-контракта: `Z-up`, `1 world unit = 1 mm`.
  */
@@ -41,7 +41,7 @@ export interface DbWorldRows {
 }
 
 /**
- * Одна row-запись точки ordinary field orbit в `db_field_orbit`.
+ * Одна row-запись точки ordinary field orbit в `actor_field_orbit`.
  *
  * Уже подготовлена для прямой materialization в `Boundary/Bulk`,
  * не пересчитывается из JSON payload во время рендера.

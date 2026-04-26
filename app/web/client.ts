@@ -9,7 +9,7 @@ import {
 	applyDbSyncMessage,
 	createIdbDbActorStore,
 	type DbActorStore,
-} from "store/db/browser"
+} from "@store/actor"
 import { isDbSyncMessage, isStructuralSignalMessage } from "@shared/protocol"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
 import {

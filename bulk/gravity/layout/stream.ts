@@ -1,4 +1,4 @@
-import type { DbActorStore } from "store/db/actor-store"
+import type { DbActorStore } from "@store/actor"
 import {
   createDbWorldRowsFromParticleDescriptors,
   scaleDbWorldRowsToRootOuterDiameter,

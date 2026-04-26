@@ -1,9 +1,5 @@
-import {
-  createIdbDbActorStore,
-  openDbIndexedDbBackend,
-  type DbIndexedDbBackendOptions,
-  type IdbDbActorStoreOptions,
-} from "store/db/browser"
+import { openDbIndexedDbBackend, type DbIndexedDbBackendOptions } from "store/db/browser"
+import { createIdbDbActorStore, type IdbDbActorStoreOptions } from "@store/actor"
 import { createMetaforStore } from "./index.ts"
 import type { BrowserMetaforStore, OpenBrowserStoreOptions } from "./browser.t"
 

@@ -21,6 +21,7 @@
       "name": "@app/web",
       "dependencies": {
         "@bulk/gravity": "workspace:*",
+        "@store/actor": "workspace:*",
         "@store/meta": "workspace:*",
         "store": "workspace:*",
       },
@@ -60,6 +61,7 @@
         "@bulk/gravity": "workspace:*",
         "@bulk/strong": "workspace:*",
         "@bulk/weak": "workspace:*",
+        "@store/actor": "workspace:*",
         "store": "workspace:*",
       },
     },
@@ -72,6 +74,7 @@
     "bulk/gravity": {
       "name": "@bulk/gravity",
       "dependencies": {
+        "@store/actor": "workspace:*",
         "store": "workspace:*",
       },
     },
@@ -747,11 +750,15 @@
       "name": "store",
       "dependencies": {
         "@shared/protocol": "workspace:*",
+        "@store/actor": "workspace:*",
         "@store/meta": "workspace:*",
       },
     },
     "store/actor": {
       "name": "@store/actor",
+      "dependencies": {
+        "@shared/protocol": "workspace:*",
+      },
     },
     "store/meta": {
       "name": "@store/meta",

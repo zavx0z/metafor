@@ -11,13 +11,12 @@
     "./db/core": "./db/core.ts",
     "./db/materialize": "./db/materialize.ts",
     "./db/sqlite": "./db/sqlite.ts",
-    "./db/fixture": "./db/fixture.ts",
-    "./db/actor-store": "./db/actor-store.t.ts",
-    "./db/actor-store-mirror": "./db/actor-store-mirror.ts"
+    "./db/fixture": "./db/fixture.ts"
   },
   "private": true,
   "dependencies": {
     "@shared/protocol": "workspace:*",
+    "@store/actor": "workspace:*",
     "@store/meta": "workspace:*"
   }
 }

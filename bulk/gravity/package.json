@@ -10,6 +10,7 @@
   },
   "private": true,
   "dependencies": {
+    "@store/actor": "workspace:*",
     "store": "workspace:*"
   }
 }

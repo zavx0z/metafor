@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { DbActorStore } from "./actor-store.t.ts"
+import type { DbActorStore } from "../store.t.ts"
 import {
   clearDbWorld,
   insertDbFieldOrbit,
@@ -9,7 +9,7 @@ import {
   selectAllParticleShells,
   selectFieldOrbitsByParticle,
   selectParticleShellsByParent,
-} from "./actor.ts"
+} from "./schema.ts"
 
 export interface SqliteDbActorStoreOptions {
   /** Путь к SQLite-файлу. `:memory:` или undefined → in-memory. */

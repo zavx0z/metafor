@@ -1,10 +1,10 @@
 import "fake-indexeddb/auto"
 import { IDBFactory } from "fake-indexeddb"
 import { describe, expect, test } from "bun:test"
-import { createSqliteDbActorStore } from "./sqlite-actor-store.ts"
-import { createIdbDbActorStore } from "./idb-actor-store.ts"
-import type { DbActorStore } from "./actor-store.t.ts"
-import type { DbFieldOrbitRow, DbParticleShellRow } from "./actor.t.ts"
+import { createSqliteDbActorStore } from "./sqlite/store.ts"
+import { createIdbDbActorStore } from "./idb/store.ts"
+import type { DbActorStore } from "./store.t.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./types.t.ts"
 
 const ROOT = "parity/root"
 

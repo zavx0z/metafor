@@ -1,9 +1,5 @@
-import {
-  createSqliteDbActorStore,
-  openDbSqliteBackend,
-  type DbSqliteBackendOptions,
-  type SqliteDbActorStoreOptions,
-} from "store/db"
+import { openDbSqliteBackend, type DbSqliteBackendOptions } from "store/db"
+import { createSqliteDbActorStore, type SqliteDbActorStoreOptions } from "@store/actor"
 import {
   getMetaDB,
   readDarkParticleModel,

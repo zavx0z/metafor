@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite"
-import type { DbFieldOrbitRow, DbFieldValueKind, DbParticleShellRow } from "./actor.t.ts"
+import type { DbFieldOrbitRow, DbFieldValueKind, DbParticleShellRow } from "../types.t.ts"
 
 export interface DbActorSqliteOptions {
   filename?: string
@@ -8,7 +8,7 @@ export interface DbActorSqliteOptions {
 const schemaSql = `
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS db_particle_shell (
+CREATE TABLE IF NOT EXISTS actor_particle_shell (
   particle_id TEXT PRIMARY KEY,
   root_src TEXT NOT NULL,
   parent_particle_id TEXT,
@@ -27,16 +27,16 @@ CREATE TABLE IF NOT EXISTS db_particle_shell (
   color_r REAL NOT NULL,
   color_g REAL NOT NULL,
   color_b REAL NOT NULL,
-  FOREIGN KEY (parent_particle_id) REFERENCES db_particle_shell(particle_id) ON DELETE CASCADE
+  FOREIGN KEY (parent_particle_id) REFERENCES actor_particle_shell(particle_id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS db_particle_shell_by_root
-  ON db_particle_shell(root_src, parent_particle_id, shell_order);
+CREATE INDEX IF NOT EXISTS actor_particle_shell_by_root
+  ON actor_particle_shell(root_src, parent_particle_id, shell_order);
 
-CREATE INDEX IF NOT EXISTS db_particle_shell_by_root_depth
-  ON db_particle_shell(root_src, depth, shell_order);
+CREATE INDEX IF NOT EXISTS actor_particle_shell_by_root_depth
+  ON actor_particle_shell(root_src, depth, shell_order);
 
-CREATE TABLE IF NOT EXISTS db_field_orbit (
+CREATE TABLE IF NOT EXISTS actor_field_orbit (
   id TEXT PRIMARY KEY,
   root_src TEXT NOT NULL,
   particle_id TEXT NOT NULL,
@@ -52,15 +52,15 @@ CREATE TABLE IF NOT EXISTS db_field_orbit (
   color_r REAL NOT NULL,
   color_g REAL NOT NULL,
   color_b REAL NOT NULL,
-  FOREIGN KEY (particle_id) REFERENCES db_particle_shell(particle_id) ON DELETE CASCADE
+  FOREIGN KEY (particle_id) REFERENCES actor_particle_shell(particle_id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS db_field_orbit_by_root
-  ON db_field_orbit(root_src, particle_id, field_order);
+CREATE INDEX IF NOT EXISTS actor_field_orbit_by_root
+  ON actor_field_orbit(root_src, particle_id, field_order);
 `
 
 /**
- * Вставляет один shell-carrier в `db_particle_shell` под указанным `rootSrc`.
+ * Вставляет один shell-carrier в `actor_particle_shell` под указанным `rootSrc`.
  *
  * Используется как incremental write API: streaming materialize вызывает на каждый узел
  * descriptor-дерева, не накапливая весь world в памяти.
@@ -71,7 +71,7 @@ export const insertDbParticleShell = (
   shell: DbParticleShellRow,
 ): void => {
   db.query(
-    `INSERT INTO db_particle_shell (
+    `INSERT INTO actor_particle_shell (
       particle_id,
       root_src,
       parent_particle_id,
@@ -114,14 +114,14 @@ export const insertDbParticleShell = (
 }
 
 /**
- * Вставляет одну точку field-orbit в `db_field_orbit` под указанным `rootSrc`.
+ * Вставляет одну точку field-orbit в `actor_field_orbit` под указанным `rootSrc`.
  *
  * Используется как incremental write API: streaming materialize вызывает на каждый field
  * после вставки particle-родителя.
  */
 export const insertDbFieldOrbit = (db: Database, rootSrc: string, orbit: DbFieldOrbitRow): void => {
   db.query(
-    `INSERT INTO db_field_orbit (
+    `INSERT INTO actor_field_orbit (
       id,
       root_src,
       particle_id,
@@ -161,11 +161,11 @@ export const initializeDbActorSqliteSchema = (db: Database): void => {
   db.exec(schemaSql)
 
   const fieldOrbitColumns = db
-    .query(`PRAGMA table_info(db_field_orbit)`)
+    .query(`PRAGMA table_info(actor_field_orbit)`)
     .all() as Array<{ name: string }>
 
   if (!fieldOrbitColumns.some((column) => column.name === "value_kind")) {
-    db.exec(`ALTER TABLE db_field_orbit ADD COLUMN value_kind TEXT NOT NULL DEFAULT 'other';`)
+    db.exec(`ALTER TABLE actor_field_orbit ADD COLUMN value_kind TEXT NOT NULL DEFAULT 'other';`)
   }
 }
 
@@ -184,8 +184,8 @@ export const openDbActorSqlite = (options: DbActorSqliteOptions = {}): Database 
 export const resetDbActorSqlite = (db: Database): void => {
   initializeDbActorSqliteSchema(db)
   db.exec(`
-    DELETE FROM db_field_orbit;
-    DELETE FROM db_particle_shell;
+    DELETE FROM actor_field_orbit;
+    DELETE FROM actor_particle_shell;
   `)
 }
 
@@ -193,8 +193,8 @@ export const resetDbActorSqlite = (db: Database): void => {
 export const clearDbWorld = (db: Database, rootSrc: string): void => {
   initializeDbActorSqliteSchema(db)
   const tx = db.transaction(() => {
-    db.query(`DELETE FROM db_field_orbit WHERE root_src = ?`).run(rootSrc)
-    db.query(`DELETE FROM db_particle_shell WHERE root_src = ?`).run(rootSrc)
+    db.query(`DELETE FROM actor_field_orbit WHERE root_src = ?`).run(rootSrc)
+    db.query(`DELETE FROM actor_particle_shell WHERE root_src = ?`).run(rootSrc)
   })
   tx()
 }
@@ -320,7 +320,7 @@ export const selectAllParticleShells = (db: Database, rootSrc: string): DbPartic
   return (
     db.query(
       `SELECT ${PARTICLE_SHELL_COLUMNS}
-       FROM db_particle_shell
+       FROM actor_particle_shell
        WHERE root_src = ?
        ORDER BY depth, shell_order, particle_id`,
     ).all(rootSrc) as ParticleShellRow[]
@@ -335,7 +335,7 @@ export const selectAllFieldOrbits = (db: Database, rootSrc: string): DbFieldOrbi
   return (
     db.query(
       `SELECT ${FIELD_ORBIT_COLUMNS}
-       FROM db_field_orbit
+       FROM actor_field_orbit
        WHERE root_src = ?
        ORDER BY particle_id, field_order, id`,
     ).all(rootSrc) as FieldOrbitRow[]
@@ -357,13 +357,13 @@ export const selectParticleShellsByParent = (
     parentParticleId === null
       ? db.query(
           `SELECT ${PARTICLE_SHELL_COLUMNS}
-           FROM db_particle_shell
+           FROM actor_particle_shell
            WHERE root_src = ? AND parent_particle_id IS NULL
            ORDER BY shell_order, particle_id`,
         ).all(rootSrc)
       : db.query(
           `SELECT ${PARTICLE_SHELL_COLUMNS}
-           FROM db_particle_shell
+           FROM actor_particle_shell
            WHERE root_src = ? AND parent_particle_id = ?
            ORDER BY shell_order, particle_id`,
         ).all(rootSrc, parentParticleId)
@@ -383,7 +383,7 @@ export const selectFieldOrbitsByParticle = (
   return (
     db.query(
       `SELECT ${FIELD_ORBIT_COLUMNS}
-       FROM db_field_orbit
+       FROM actor_field_orbit
        WHERE root_src = ? AND particle_id = ?
        ORDER BY field_order, id`,
     ).all(rootSrc, particleId) as FieldOrbitRow[]

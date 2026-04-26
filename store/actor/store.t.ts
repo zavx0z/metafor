@@ -1,4 +1,4 @@
-import type { DbFieldOrbitRow, DbParticleShellRow } from "./actor.t.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./types.t.ts"
 
 /**
  * Канонический async-API actor-store: shell-carriers и field-orbits под одним `rootSrc`.

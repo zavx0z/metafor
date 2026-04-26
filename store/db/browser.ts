@@ -26,20 +26,5 @@ export type {
   DbWimpBundle,
   DbWimpFieldBundle,
 } from "./db.t.ts"
-export type {
-  DbFieldOrbitRow,
-  DbFieldValueKind,
-  DbParticleKind,
-  DbParticleShellRow,
-  DbWorldRows,
-} from "./actor.t.ts"
-export type { DbActorStore } from "./actor-store.t.ts"
-export { createIdbDbActorStore } from "./idb-actor-store.ts"
-export type { IdbDbActorStoreOptions } from "./idb-actor-store.ts"
-export {
-  applyDbSyncMessage,
-  createMirroredActorStore,
-  type DbSyncPublisher,
-} from "./actor-store-mirror.ts"
 export { inspectDbIndexedDbSchema, openDbIndexedDbBackend } from "./idb.ts"
 export type { DbIndexedDbBackend, DbIndexedDbBackendOptions } from "./idb.ts"

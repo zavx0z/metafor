@@ -8,8 +8,8 @@ import {
   selectAllParticleShells,
   selectFieldOrbitsByParticle,
   selectParticleShellsByParent,
-} from "./actor.ts"
-import type { DbFieldOrbitRow, DbParticleShellRow } from "./actor.t.ts"
+} from "./schema.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "../types.t.ts"
 
 describe("store/db actor sqlite", () => {
   test("incremental write через insertDbParticleShell + insertDbFieldOrbit пишет nested rows без JSON payload", () => {

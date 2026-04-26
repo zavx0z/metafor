@@ -1,6 +1,6 @@
 import type { DbSyncMessage, ProtocolDomain } from "@shared/protocol"
-import type { DbActorStore } from "./actor-store.t.ts"
-import type { DbFieldOrbitRow, DbParticleShellRow } from "./actor.t.ts"
+import type { DbActorStore } from "./store.t.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./types.t.ts"
 
 /**
  * Лёгкий канал-publisher: совместимый с BroadcastChannel-API подмножеством,

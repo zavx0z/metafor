@@ -1,15 +1,15 @@
 import "fake-indexeddb/auto"
 import { IDBFactory } from "fake-indexeddb"
 import { describe, expect, test } from "bun:test"
-import type { DbSyncMessage } from "../protocol/index.ts"
-import { createSqliteDbActorStore } from "./sqlite-actor-store.ts"
-import { createIdbDbActorStore } from "./idb-actor-store.ts"
+import type { DbSyncMessage } from "@shared/protocol"
+import { createSqliteDbActorStore } from "./sqlite/store.ts"
+import { createIdbDbActorStore } from "./idb/store.ts"
 import {
   applyDbSyncMessage,
   createMirroredActorStore,
   type DbSyncPublisher,
-} from "./actor-store-mirror.ts"
-import type { DbParticleShellRow } from "./actor.t.ts"
+} from "./mirror.ts"
+import type { DbParticleShellRow } from "./types.t.ts"
 
 const ROOT = "mirror/root"
 const root: DbParticleShellRow = {
