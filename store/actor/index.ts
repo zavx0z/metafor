@@ -6,36 +6,11 @@
  * несколько строк `actor_value`).
  *
  * См. `store/actor/README.md` и `store/README.md` для архитектурных принципов.
+ *
+ * Публичный API минимален — только то, что нужно потребителю-фабрике стора.
+ * Типы записей и контракт `ActorBackend` импортируются напрямую из соответствующих
+ * файлов (`./actor.t.ts`, `./value.t.ts`, `./backend.t.ts`, ...) когда понадобятся
+ * конкретному месту, а не через единый прокси.
  */
 
-export type {
-  ActorRecord,
-  ActorRows,
-  ActorStateRecord,
-  ActorValueRecord,
-  Scalar,
-  ScalarKind,
-  ValueItemRecord,
-  ValueKind,
-  ValueRecord,
-} from "./types.t.ts"
-
-export {
-  actorRequiredBackendIndexes,
-  type ActorBackend,
-  type ActorBackendAwaitable,
-  type ActorBackendIndexSpec,
-  type ActorBackendTableName,
-} from "./backend.t.ts"
-
-export {
-  actorSchemaSql,
-  actorTableNames,
-  initializeActorSqliteSchema,
-  resetActorSqliteSchema,
-} from "./sqlite/schema.ts"
-
-export {
-  createSqliteActorBackend,
-  type SqliteActorBackendOptions,
-} from "./sqlite/store.ts"
+export { createSqliteActorBackend } from "./sqlite/index.ts"

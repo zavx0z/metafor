@@ -8,12 +8,12 @@ import reactionsSchemaSql from "./reactions.sql" with {type: "text"}
 import matterSchemaSql from "./matter.sql" with {type: "text"}
 import {Database, constants} from "bun:sqlite"
 import type { MetaDSL } from "../../../metafor.t"
-import { createFields } from "./fields.ts"
-import { createMatter } from "./matter.ts"
-import { createMetafor } from "./metafor.ts"
-import { createProcess } from "./process.ts"
-import { createReactions } from "./reactions.ts"
-import { createSuperposition } from "./superposition.ts"
+import { createFields } from "./fields.C.ts"
+import { createMatter } from "./matter.C.ts"
+import { createMetafor } from "./metafor.C.ts"
+import { createProcess } from "./process.C.ts"
+import { createReactions } from "./reactions.C.ts"
+import { createSuperposition } from "./superposition.C.ts"
 
 export const metaforDslTableNames = [
   "meta",

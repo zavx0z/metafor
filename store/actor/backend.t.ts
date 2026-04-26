@@ -1,12 +1,7 @@
-import type {
-  ActorRecord,
-  ActorRows,
-  ActorStateRecord,
-  ActorValueRecord,
-  Scalar,
-  ValueItemRecord,
-  ValueRecord,
-} from "./types.t.ts"
+import type { ActorRecord, ActorRows } from "./actor.t.ts"
+import type { ActorStateRecord } from "./state.t.ts"
+import type { ActorValueRecord } from "./actor_value.t.ts"
+import type { Scalar, ValueItemRecord, ValueRecord } from "./value.t.ts"
 
 /**
  * Имена таблиц actor-слоя. Префикс `actor_` обязателен для actor-сущностей,
