@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { createDbFixture } from "fixture/db.fixture.ts"
 import { readDbSqliteData } from "store/db/fixture"
-import { openDbMaterializationWriter } from "store/db/materialize"
+import { openDbMaterializationWriter } from "store/materialize"
 import { openDbSqliteBackend } from "store/db/sqlite"
 import { prepareRuntimeData, prepareRuntimeStore } from "../boundary.ts"
 import { FieldType } from "../gravity"

@@ -1,5 +1,5 @@
 export { createEmptyDbData, normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
-export { createDbEntanglementFamilyId, openDbMaterializationWriter } from "./materialize.ts"
+export { createDbEntanglementFamilyId, openDbMaterializationWriter } from "../materialize.ts"
 export type {
   DbBackend,
   DbBackendIndexSpec,
@@ -42,4 +42,4 @@ export type {
   DbMetaFieldBundle,
   DbWimpBundle,
   DbWimpFieldBundle,
-} from "./materialize.ts"
+} from "../materialize.ts"

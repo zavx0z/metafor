@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createDbFixture } from "fixture/db.fixture.ts"
 import { openDbIndexedDbBackend } from "./idb.ts"
-import { openDbMaterializationWriter } from "./materialize.ts"
+import { openDbMaterializationWriter } from "../materialize.ts"
 import { openDbSqliteBackend } from "./sqlite.ts"
 import { deriveUuid } from "./uuid.ts"
 

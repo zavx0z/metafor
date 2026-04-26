@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { createDbFixture } from "fixture/db.fixture.ts"
 import { dbRequiredBackendIndexes } from "./backend.ts"
 import { readDbSqliteData } from "./fixture.ts"
-import { openDbMaterializationWriter } from "./materialize.ts"
+import { openDbMaterializationWriter } from "../materialize.ts"
 import { openDbSqliteBackend } from "./sqlite.ts"
 
 describe("db canonical relational data", () => {

@@ -1,10 +1,4 @@
 import type {
-  DbEntanglementFieldMemberRecord,
-  DbEntanglementFieldRecord,
-  DbEntanglementMemberRecord,
-  DbEntanglementRecord,
-  DbFieldSourceRecord,
-  DbFieldValueRecord,
   DbMetaFieldRecord,
   DbMetaMatterEdgeRecord,
   DbMetaMatterNodeRecord,
@@ -19,11 +13,17 @@ import type {
   DbMetaStateRecord,
   DbMetaTransitionConditionRecord,
   DbMetaTransitionRecord,
+} from "./db.t.ts"
+import type {
+  DbEntanglementFamilyRows,
+  DbFieldSourceRecord,
+  DbFieldValueRecord,
   DbWimpEdgeRecord,
   DbWimpFieldRecord,
-  DbWimpRecord,
-  DbWimpStateRecord,
-} from "./db.t.ts"
+  DbWimpRows,
+} from "../view/types.t.ts"
+
+export type { DbEntanglementFamilyRows, DbWimpRows }
 
 export type DbBackendTableName =
   | "metas"
@@ -73,21 +73,6 @@ export interface DbMetaRows {
   reactionWrites: DbMetaReactionWriteRecord[]
   matterNodes: DbMetaMatterNodeRecord[]
   matterEdges: DbMetaMatterEdgeRecord[]
-}
-
-export interface DbWimpRows {
-  wimp: DbWimpRecord
-  fields: DbWimpFieldRecord[]
-  values: DbFieldValueRecord[]
-  sources: DbFieldSourceRecord[]
-  state: DbWimpStateRecord
-}
-
-export interface DbEntanglementFamilyRows {
-  entanglement: DbEntanglementRecord
-  members: DbEntanglementMemberRecord[]
-  field: DbEntanglementFieldRecord
-  fieldMembers: DbEntanglementFieldMemberRecord[]
 }
 
 export type DbBackendAwaitable<T> = T | Promise<T>

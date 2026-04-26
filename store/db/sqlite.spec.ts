@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { createDbFixture } from "fixture/db.fixture.ts"
 import { normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
 import { readDbSqliteData } from "./fixture.ts"
-import { openDbMaterializationWriter } from "./materialize.ts"
+import { openDbMaterializationWriter } from "../materialize.ts"
 import { openDbSqliteBackend } from "./sqlite.ts"
 import { assembleDbData } from "fixture/dark.ts"
 

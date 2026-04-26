@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { createDbFixture } from "fixture/db.fixture.ts"
-import { normalizeDbData } from "./backend.ts"
-import { readDbSqliteData } from "./fixture.ts"
+import { normalizeDbData } from "./db/backend.ts"
+import { readDbSqliteData } from "./db/fixture.ts"
 import { openDbMaterializationWriter } from "./materialize.ts"
-import { openDbSqliteBackend } from "./sqlite.ts"
+import { openDbSqliteBackend } from "./db/sqlite.ts"
 import { assembleDbData } from "fixture/dark.ts"
 
 describe("db materialization writer", () => {

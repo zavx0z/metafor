@@ -132,77 +132,30 @@ export interface DbMetaMatterEdgeRecord {
   edgeOrder: number
 }
 
-export interface DbWimpRecord {
-  id: string
-  metaId: string
-  wimpOrder: number
-  massOverride?: unknown
-}
-
-export interface DbWimpFieldRecord {
-  id: string
-  ownerWimpId: string
-  metaFieldId: string
-  fieldOrder: number
-}
-
-export interface DbWimpEdgeRecord {
-  id: string
-  parentWimpId: string | null
-  childWimpId: string
-  edgeOrder: number
-}
-
-export interface DbFieldValueRecord {
-  id: string
-  ownerWimpFieldId: string
-  value: unknown
-}
-
-export interface DbFieldSourceRecord {
-  id: string
-  childWimpFieldId: string
-  parentWimpFieldId: string
-}
-
-export interface DbWimpStateRecord {
-  id: string
-  ownerWimpId: string
-  metaStateId: string
-}
-
-export interface DbEntanglementRecord {
-  id: string
-  membershipKey: string
-  provenance: string
-}
-
-export interface DbEntanglementMemberRecord {
-  id: string
-  ownerEntanglementId: string
-  wimpId: string
-  memberOrder: number
-}
-
-export interface DbEntanglementFieldRecord {
-  id: string
-  ownerEntanglementId: string
-  fieldOrder: number
-  semanticKey: string
-  fieldName: string
-  provenance: string
-  representativeWimpFieldId: string
-  payloadIds: string[]
-  semanticKeys: string[]
-}
-
-export interface DbEntanglementFieldMemberRecord {
-  id: string
-  ownerEntanglementFieldId: string
-  ownerWimpId: string
-  wimpFieldId: string
-  memberOrder: number
-}
+export type {
+  DbEntanglementFieldMemberRecord,
+  DbEntanglementFieldRecord,
+  DbEntanglementMemberRecord,
+  DbEntanglementRecord,
+  DbFieldSourceRecord,
+  DbFieldValueRecord,
+  DbWimpEdgeRecord,
+  DbWimpFieldRecord,
+  DbWimpRecord,
+  DbWimpStateRecord,
+} from "../view/types.t.ts"
+import type {
+  DbEntanglementFieldMemberRecord,
+  DbEntanglementFieldRecord,
+  DbEntanglementMemberRecord,
+  DbEntanglementRecord,
+  DbFieldSourceRecord,
+  DbFieldValueRecord,
+  DbWimpEdgeRecord,
+  DbWimpFieldRecord,
+  DbWimpRecord,
+  DbWimpStateRecord,
+} from "../view/types.t.ts"
 
 /**
  * Канонический relational dataset DB-layer.

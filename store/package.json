@@ -9,9 +9,9 @@
     "./db": "./db/index.ts",
     "./db/browser": "./db/browser.ts",
     "./db/core": "./db/core.ts",
-    "./db/materialize": "./db/materialize.ts",
     "./db/sqlite": "./db/sqlite.ts",
-    "./db/fixture": "./db/fixture.ts"
+    "./db/fixture": "./db/fixture.ts",
+    "./materialize": "./materialize.ts"
   },
   "private": true,
   "dependencies": {

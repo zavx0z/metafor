@@ -1,9 +1,7 @@
-import type { FieldKey, Mass, MetaDSL } from "../../index.ts"
+import type { FieldKey, Mass, MetaDSL } from "../index.ts"
 import type {
   DbData,
   DbFieldSchemaRecord,
-  DbFieldSourceRecord,
-  DbFieldValueRecord,
   DbMetaFieldRecord,
   DbMetaProcessReadRecord,
   DbMetaProcessRecord,
@@ -11,17 +9,18 @@ import type {
   DbMetaReactionRecord,
   DbMetaStateRecord,
   DbMetaTransitionRecord,
+} from "./db/db.t.ts"
+import type { DbBackend, DbMetaRows } from "./db/backend.t.ts"
+import { createEmptyDbData } from "./db/backend.ts"
+import { deriveUuid } from "./db/uuid.ts"
+import type {
+  DbEntanglementFamilyRows,
+  DbFieldSourceRecord,
+  DbFieldValueRecord,
   DbWimpEdgeRecord,
   DbWimpFieldRecord,
-} from "./db.t.ts"
-import type {
-  DbBackend,
-  DbEntanglementFamilyRows,
-  DbMetaRows,
   DbWimpRows,
-} from "./backend.t.ts"
-import { createEmptyDbData } from "./backend.ts"
-import { deriveUuid } from "./uuid.ts"
+} from "./view/types.t.ts"
 
 export interface DbMetaFieldBundle {
   id: string

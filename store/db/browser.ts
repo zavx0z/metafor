@@ -9,7 +9,7 @@
  * Server/worker сторона использует `store/db` (со SQLite-частью).
  */
 export { createEmptyDbData, normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
-export { createDbEntanglementFamilyId, openDbMaterializationWriter } from "./materialize.ts"
+export { createDbEntanglementFamilyId, openDbMaterializationWriter } from "../materialize.ts"
 export type {
   DbBackend,
   DbBackendIndexSpec,

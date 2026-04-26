@@ -4,7 +4,7 @@ import { createDbFixture } from "fixture/db.fixture.ts"
 import { dbRequiredBackendIndexes, normalizeDbData } from "./backend.ts"
 import { selectDbFieldValue, selectDbMetaRows, selectDbWimpRows } from "./fixture.ts"
 import { inspectDbIndexedDbSchema, openDbIndexedDbBackend } from "./idb.ts"
-import { openDbMaterializationWriter } from "./materialize.ts"
+import { openDbMaterializationWriter } from "../materialize.ts"
 import { assembleDbData } from "fixture/dark.ts"
 
 const createIndexedDbTarget = () => ({
