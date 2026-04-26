@@ -749,7 +749,6 @@
     "store": {
       "name": "store",
       "dependencies": {
-        "@shared/protocol": "workspace:*",
         "@store/actor": "workspace:*",
         "@store/meta": "workspace:*",
       },

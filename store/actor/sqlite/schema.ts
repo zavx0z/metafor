@@ -45,10 +45,10 @@ export const actorTableNames = [
  * Идемпотентно — все CREATE с IF NOT EXISTS. PRAGMA не трогает.
  */
 export const initializeActorSqliteSchema = (db: Database): void => {
-  db.exec(actorSchemaSql)
+  db.run(actorSchemaSql)
   for (const index of actorRequiredBackendIndexes) {
     const unique = index.unique ? "UNIQUE " : ""
-    db.exec(`CREATE ${unique}INDEX IF NOT EXISTS ${index.name} ON ${index.table}(${index.columns.join(", ")})`)
+    db.run(`CREATE ${unique}INDEX IF NOT EXISTS ${index.name} ON ${index.table}(${index.columns.join(", ")})`)
   }
 }
 
@@ -58,7 +58,7 @@ export const initializeActorSqliteSchema = (db: Database): void => {
 export const resetActorSqliteSchema = (db: Database): void => {
   db.transaction(() => {
     for (const table of actorTableNames) {
-      db.exec(`DELETE FROM ${table}`)
+      db.run(`DELETE FROM ${table}`)
     }
   })()
 }

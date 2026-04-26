@@ -1,22 +1,11 @@
 {
   "name": "store",
-  "module": "index.ts",
   "type": "module",
   "exports": {
-    ".": "./index.ts",
-    "./browser": "./browser.ts",
-    "./server": "./server.ts",
-    "./db": "./db/index.ts",
-    "./db/browser": "./db/browser.ts",
-    "./db/core": "./db/core.ts",
-    "./db/sqlite": "./db/sqlite.ts",
-    "./db/fixture": "./db/fixture.ts",
-    "./db/uuid": "./db/uuid.ts",
-    "./materialize": "./materialize.ts"
+    "./server": "./server.ts"
   },
   "private": true,
   "dependencies": {
-    "@shared/protocol": "workspace:*",
     "@store/actor": "workspace:*",
     "@store/meta": "workspace:*"
   }
