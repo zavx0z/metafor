@@ -13,7 +13,8 @@ import { SQL } from "bun"
 import { metaSchemaSql } from "@store/meta/sqlite"
 import { Meta } from "@store/meta"
 import { Actor, Value } from "@store/actor"
-import { actorSchemaSql, linkFork, linkGet, linkShare } from "@store/actor/sqlite"
+import type { ActorValueRecord } from "@store/actor"
+import { actorSchemaSql, linkFork, linkShare } from "@store/actor/sqlite"
 import type { ActorApi, LinkApi, MetaApi, OpenServerStoreOptions, ServerStore, ValueApi } from "./server.t.ts"
 
 // ────────────────────────────── meta / actor / value API: тонкие обёртки над классами ──────────────────────────────
@@ -28,8 +29,17 @@ const buildValueApi = (sql: SQL): ValueApi => ({
   get: (uuid) => Value.get(sql, uuid),
 })
 
+const linkGetRecord = async (sql: SQL, actor: string, field: string): Promise<ActorValueRecord | null> => {
+  const row = (
+    await sql<Array<{ actor: string; field: string; value: string }>>`
+      SELECT actor, field, value FROM actor_value WHERE actor = ${actor} AND field = ${field} LIMIT 1
+    `
+  )[0]
+  return row ? { actor: String(row.actor), field: String(row.field), value: String(row.value) } : null
+}
+
 const buildLinkApi = (sql: SQL): LinkApi => ({
-  get: (actor, field) => linkGet(sql, actor, field),
+  get: (actor, field) => linkGetRecord(sql, actor, field),
   share: (actor, field, value) => linkShare(sql, actor, field, value),
   fork: (actor, field) => linkFork(sql, actor, field),
 })

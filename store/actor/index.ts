@@ -19,5 +19,17 @@ export type { ActorStateRecord } from "./sqlite/state.t.ts"
 export type { ActorValueRecord } from "./sqlite/actor_value.t.ts"
 export type { Scalar, ScalarKind, ValueItemRecord, ValueKind, ValueRecord } from "./sqlite/value.t.ts"
 
-export { Actor, ActorChildren, ActorRoots, ActorValues } from "./actor.ts"
-export { ActorFieldValue, Value } from "./value.ts"
+export {
+  Actor,
+  ActorChildren,
+  ActorFieldValue,
+  ActorRoots,
+  ActorValues,
+  BooleanValue,
+  EnumValue,
+  ListValue,
+  NullValue,
+  NumberValue,
+  StringValue,
+  Value,
+} from "./sqlite/index.ts"
