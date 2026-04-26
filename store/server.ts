@@ -11,7 +11,21 @@
  */
 
 import { Database, constants } from "bun:sqlite"
-import { metaCreate, metaDelete, metaGet, metaSchemaSql } from "@store/meta/sqlite"
+import {
+  getFields,
+  getMass,
+  getMatterParticles,
+  getMetaRow,
+  getProcesses,
+  getReactions,
+  getSuperposition,
+  hasMatter,
+  hasProcesses,
+  hasReactions,
+  metaCreate,
+  metaDelete,
+  metaSchemaSql,
+} from "@store/meta/sqlite"
 import {
   actorCreate,
   actorDelete,
@@ -32,6 +46,7 @@ import {
   valueOwners,
   valueSet,
 } from "@store/actor/sqlite"
+import type { MetaDSL } from "../metafor.t.ts"
 import type {
   ActorApi,
   ActorFieldValueInstance,
@@ -116,22 +131,62 @@ const buildActorFieldValueInstance = (
   }
 }
 
-const buildMetaInstance = (database: Database, src: string): MetaInstance => ({
-  src,
-  get model() {
-    const model = metaGet(database, src)
-    if (!model) throw new Error(`meta "${src}" not found`)
-    return model
-  },
-  delete: () => metaDelete(database, src),
-})
+const buildMetaInstance = (database: Database, src: string): MetaInstance => {
+  // Memoization внутри одного инстанса — повторный доступ не вызывает SELECT снова.
+  // На разных инстансах состояние независимое (новый инстанс = свежие SELECTs).
+  let fieldsCache: ReturnType<typeof getFields> | undefined
+  const loadFields = () => (fieldsCache ??= getFields(database, src))
+
+  let metaRowCache: ReturnType<typeof getMetaRow> | undefined
+  let metaRowLoaded = false
+  const loadMetaRow = () => {
+    if (!metaRowLoaded) {
+      metaRowCache = getMetaRow(database, src)
+      metaRowLoaded = true
+    }
+    return metaRowCache
+  }
+
+  return {
+    src,
+    get name() {
+      const row = loadMetaRow()
+      return row?.name ?? src.split("/").pop() ?? src
+    },
+    get fields() {
+      return loadFields().fields
+    },
+    get superposition() {
+      return getSuperposition(database, src, loadFields().enumVariants) ?? {}
+    },
+    get processes() {
+      return hasProcesses(database, src) ? (getProcesses(database, src, loadFields().fieldKeys) ?? {}) : undefined
+    },
+    get reactions() {
+      return hasReactions(database, src)
+        ? (getReactions(database, src, loadFields().fieldKeys) ?? { reactions: {}, superposition: {} })
+        : undefined
+    },
+    get matter() {
+      return hasMatter(database, src) ? getMatterParticles(database, src) : []
+    },
+    get mass() {
+      return getMass(database, src)
+    },
+    get bulk() {
+      const row = loadMetaRow()
+      return row?.view_css ? ({ view: row.view_css } as MetaDSL["bulk"]) : undefined
+    },
+    delete: () => metaDelete(database, src),
+  }
+}
 
 const buildMetaApi = (database: Database): MetaApi => ({
   create: (src, dsl) => {
     metaCreate(database, src, dsl)
     return buildMetaInstance(database, src)
   },
-  get: (src) => (metaGet(database, src) === null ? null : buildMetaInstance(database, src)),
+  get: (src) => (getMetaRow(database, src) === null ? null : buildMetaInstance(database, src)),
   delete: (src) => metaDelete(database, src),
 })
 

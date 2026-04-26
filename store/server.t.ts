@@ -1,10 +1,15 @@
 import type { Database } from "bun:sqlite"
+import type { MatterParticlePlan } from "@dark/types/dark"
 import type { MetaDSL } from "../metafor.t.ts"
-import type { DarkMetaParticleModel } from "@store/meta/sqlite/read.t.ts"
-import type { ActorRecord, ActorRows } from "@store/actor/sqlite/actor.t.ts"
-import type { ActorStateRecord } from "@store/actor/sqlite/state.t.ts"
-import type { ActorValueRecord } from "@store/actor/sqlite/actor_value.t.ts"
-import type { Scalar, ValueItemRecord, ValueRecord } from "@store/actor/sqlite/value.t.ts"
+import type {
+  ActorRecord,
+  ActorRows,
+  ActorStateRecord,
+  ActorValueRecord,
+  Scalar,
+  ValueItemRecord,
+  ValueRecord,
+} from "@store/actor"
 
 export interface OpenServerStoreOptions {
   /** Путь к SQLite-файлу. По умолчанию `:memory:`. */
@@ -25,8 +30,22 @@ export interface MetaApi {
 /** Lazy-инстанс одной декларации меты. Getter-ы делают SELECT при первом доступе. */
 export interface MetaInstance {
   readonly src: string
-  /** Сборка runtime-модели (fieldSchemas, superposition, processes, reactions, particles, ...). */
-  readonly model: DarkMetaParticleModel
+  /** Имя меты (или последний сегмент `src` если name не задан). */
+  readonly name: string
+  /** Декларация полей: `Record<key, FieldDefinition>`. */
+  readonly fields: NonNullable<MetaDSL["fields"]>
+  /** FSM-граф состояний. */
+  readonly superposition: NonNullable<MetaDSL["superposition"]>
+  /** Декларация процессов или `undefined`. */
+  readonly processes: MetaDSL["processes"]
+  /** Декларация реакций или `undefined`. */
+  readonly reactions: MetaDSL["reactions"]
+  /** Иерархия дочерних компонентов (matter-particle-plans). */
+  readonly matter: MatterParticlePlan[]
+  /** Mass-словарь или `undefined`. */
+  readonly mass: MetaDSL["mass"]
+  /** Bulk-секция (CSS) или `undefined`. */
+  readonly bulk: MetaDSL["bulk"]
   /** Удаляет эту декларацию из БД. */
   delete(): void
 }

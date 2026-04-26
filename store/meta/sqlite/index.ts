@@ -11,9 +11,7 @@
 
 import type { Database } from "bun:sqlite"
 import { create as writeMetaToDsl, metaforDslSchemaSql } from "./sqlite.ts"
-import { readDarkParticleModel } from "./read.ts"
 import type { MetaDSL } from "../../../metafor.t.ts"
-import type { DarkMetaParticleModel } from "./read.t.ts"
 
 /** Полный DDL meta-DSL-relational схемы (33 таблицы + индексы). Применяется к открытой Database. */
 export const metaSchemaSql: string = metaforDslSchemaSql
@@ -27,11 +25,22 @@ export const metaCreate = (db: Database, src: string, dsl: MetaDSL): void => {
   writeMetaToDsl(db, dsl, src)
 }
 
-/** Читает meta из DSL-relational и собирает runtime-модель. `null`, если меты нет. */
-export const metaGet = (db: Database, src: string): DarkMetaParticleModel | null =>
-  readDarkParticleModel(db, src)
-
 /** Удаляет meta по `src`. Каскад FK снимет всё дерево декларации. */
 export const metaDelete = (db: Database, src: string): void => {
   db.prepare(`DELETE FROM meta WHERE src = ?`).run(src)
 }
+
+// Per-entity get-функции — для ленивых getter-ов ORM-инстансов.
+// Каждая возвращает соответствующую секцию декларации.
+export { getMetaRow, getMass, hasProcesses, hasReactions, hasMatter } from "./meta.G.ts"
+export { getFields } from "./fields.G.ts"
+export { getSuperposition } from "./superposition.G.ts"
+export { getProcesses } from "./process.G.ts"
+export { getReactions } from "./reactions.G.ts"
+export { getMatterParticles } from "./matter.G.ts"
+
+// Dark-specific projection: собирает всю декларацию в один объект формы
+// `{ meta: MetaInit, particles: MatterParticlePlan[] }` — нужен runtime-слою dark
+// (dark/dark.ts:matterMeta) где meta загружается одним вызовом.
+export { readDarkParticleModel } from "./read.ts"
+export type { DarkMetaParticleModel } from "./read.t.ts"

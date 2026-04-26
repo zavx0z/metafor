@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { Database } from "bun:sqlite"
 import type { MetaDSL } from "../../.."
 import gitMeta from "../../../github/zavx0z/git/meta.ts"
-import { metaCreate, metaGet, metaSchemaSql } from "./index.ts"
+import { metaCreate, metaSchemaSql, readDarkParticleModel } from "./index.ts"
 
 const getMetaDB = (path: string): Database => {
   const db = new Database(path, { strict: true, create: true })
@@ -11,7 +11,6 @@ const getMetaDB = (path: string): Database => {
   return db
 }
 const relation = (db: Database, meta: MetaDSL, src: string) => metaCreate(db, src, meta)
-const readDarkParticleModel = metaGet
 
 const richMeta: MetaDSL = {
   name: "rich",
