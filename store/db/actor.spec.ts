@@ -3,17 +3,17 @@ import {
   clearDbWorld,
   insertDbFieldOrbit,
   insertDbParticleShell,
-  openDbInstanceSqlite,
+  openDbActorSqlite,
   selectAllFieldOrbits,
   selectAllParticleShells,
   selectFieldOrbitsByParticle,
   selectParticleShellsByParent,
-} from "./instance.ts"
-import type { DbFieldOrbitRow, DbParticleShellRow } from "./instance.t.ts"
+} from "./actor.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./actor.t.ts"
 
-describe("pkg/db instance sqlite", () => {
+describe("store/db actor sqlite", () => {
   test("incremental write через insertDbParticleShell + insertDbFieldOrbit пишет nested rows без JSON payload", () => {
-    const db = openDbInstanceSqlite()
+    const db = openDbActorSqlite()
     const rootSrc = "stream/root"
 
     const root: DbParticleShellRow = {
@@ -74,7 +74,7 @@ describe("pkg/db instance sqlite", () => {
   })
 
   test("subtree reads: selectParticleShellsByParent и selectFieldOrbitsByParticle возвращают узкие срезы", () => {
-    const db = openDbInstanceSqlite()
+    const db = openDbActorSqlite()
     const rootSrc = "subtree/root"
 
     const root: DbParticleShellRow = {
@@ -117,7 +117,7 @@ describe("pkg/db instance sqlite", () => {
   })
 
   test("clearDbWorld удаляет всё под rootSrc и не трогает чужой rootSrc", () => {
-    const db = openDbInstanceSqlite()
+    const db = openDbActorSqlite()
 
     const make = (rootSrc: string): DbParticleShellRow => ({
       particleId: `p-${rootSrc}`,

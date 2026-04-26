@@ -12,6 +12,7 @@
     "@bulk/gravity": "workspace:*",
     "@bulk/strong": "workspace:*",
     "@bulk/weak": "workspace:*",
-    "@bulk/em": "workspace:*"
+    "@bulk/em": "workspace:*",
+    "store": "workspace:*"
   }
 }

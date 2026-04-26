@@ -1,16 +1,16 @@
 export { createEmptyDbData, normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
 export {
   clearDbWorld,
-  initializeDbInstanceSqliteSchema,
+  initializeDbActorSqliteSchema,
   insertDbFieldOrbit,
   insertDbParticleShell,
-  openDbInstanceSqlite,
-  resetDbInstanceSqlite,
+  openDbActorSqlite,
+  resetDbActorSqlite,
   selectAllFieldOrbits,
   selectAllParticleShells,
   selectFieldOrbitsByParticle,
   selectParticleShellsByParent,
-} from "./instance.ts"
+} from "./actor.ts"
 export { createDbEntanglementFamilyId, openDbMaterializationWriter } from "./materialize.ts"
 export type {
   DbBackend,
@@ -26,7 +26,7 @@ export type {
   DbParticleKind,
   DbParticleShellRow,
   DbWorldRows,
-} from "./instance.t.ts"
+} from "./actor.t.ts"
 export type {
   DbData,
   DbEntanglementFieldMemberRecord,

@@ -1,4 +1,4 @@
-/** Канонические виды particle-carrier для instance-level world. */
+/** Канонические виды particle-carrier для actor-level world. */
 export type DbParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
 /** Render-facing scalar kind для ordinary non-topology fields. */
 export type DbFieldValueKind = "number" | "text" | "bool" | "other"
@@ -32,7 +32,7 @@ export interface DbParticleShellRow {
  * Содержимое world-структуры под одним `rootSrc` в виде row-коллекций.
  *
  * Промежуточная форма, удобная для layout-builder-а и dev-снимков. В runtime потоке
- * данные двигаются per-row через `DbInstanceStore` без сборки `DbWorldRows` объекта.
+ * данные двигаются per-row через `DbActorStore` без сборки `DbWorldRows` объекта.
  */
 export interface DbWorldRows {
   rootSrc: string

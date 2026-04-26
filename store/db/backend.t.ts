@@ -122,7 +122,7 @@ export interface DbBackend {
 
   /** Записывает весь meta-level canonical row group для одной меты. */
   writeMetaRows(rows: DbMetaRows): DbBackendAwaitable<void>
-  /** Записывает весь instance-level canonical row group для одного wimp. */
+  /** Записывает весь actor-level canonical row group для одного wimp. */
   writeWimpRows(rows: DbWimpRows): DbBackendAwaitable<void>
   /** Записывает structural parent/child relation для одного wimp. */
   writeWimpEdge(row: DbWimpEdgeRecord): DbBackendAwaitable<void>

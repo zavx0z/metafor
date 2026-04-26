@@ -1,4 +1,4 @@
-import type { DbActorStore, DbFieldOrbitRow, DbParticleShellRow, DbWorldRows } from "@metafor/db"
+import type { DbActorStore, DbFieldOrbitRow, DbParticleShellRow, DbWorldRows } from "store/db"
 
 export interface ActorStoreOrm {
   readonly backend: DbActorStore

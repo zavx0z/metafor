@@ -1,5 +1,5 @@
 import { applyStructuralPatchFromDb, applyWeakResultPacket, setValues } from "./boundary.ts"
-import type { DbBackend } from "../pkg/db/core.ts"
+import type { DbBackend } from "store/db/core"
 import {
   GLUON_BROADCAST_CHANNEL,
   GRAVITY_BROADCAST_CHANNEL,

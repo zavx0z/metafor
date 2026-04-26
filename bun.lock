@@ -22,6 +22,7 @@
       "dependencies": {
         "@bulk/gravity": "workspace:*",
         "@store/meta": "workspace:*",
+        "store": "workspace:*",
       },
     },
     "boundary": {
@@ -31,8 +32,8 @@
         "@boundary/gravity": "workspace:*",
         "@boundary/strong": "workspace:*",
         "@boundary/weak": "workspace:*",
-        "@metafor/db": "workspace:*",
         "@shared/protocol": "workspace:*",
+        "store": "workspace:*",
       },
     },
     "boundary/gravity": {
@@ -59,6 +60,7 @@
         "@bulk/gravity": "workspace:*",
         "@bulk/strong": "workspace:*",
         "@bulk/weak": "workspace:*",
+        "store": "workspace:*",
       },
     },
     "bulk/em": {
@@ -69,6 +71,9 @@
     },
     "bulk/gravity": {
       "name": "@bulk/gravity",
+      "dependencies": {
+        "store": "workspace:*",
+      },
     },
     "bulk/strong": {
       "name": "@bulk/strong",
@@ -95,8 +100,8 @@
         "@dark/strong": "workspace:*",
         "@dark/types": "workspace:*",
         "@dark/weak": "workspace:*",
-        "@metafor/db": "workspace:*",
         "@store/meta": "workspace:*",
+        "store": "workspace:*",
       },
     },
     "dark/em": {
@@ -118,8 +123,8 @@
       "dependencies": {
         "@dark/gravity": "workspace:*",
         "@dark/types": "workspace:*",
-        "@metafor/db": "workspace:*",
         "@store/meta": "workspace:*",
+        "store": "workspace:*",
       },
     },
     "dark/types": {
@@ -138,6 +143,7 @@
       "devDependencies": {
         "@types/puppeteer": "^5.4.7",
         "puppeteer": "^24.37.2",
+        "store": "workspace:*",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -719,9 +725,6 @@
       "name": "@zavx0z/git-worktree-worktree",
       "version": "0.1.0",
     },
-    "pkg/db": {
-      "name": "@metafor/db",
-    },
     "pkg/engine": {
       "name": "@metafor/engine",
       "version": "1.0.0",
@@ -743,7 +746,7 @@
     "store": {
       "name": "store",
       "dependencies": {
-        "@metafor/db": "workspace:*",
+        "@shared/protocol": "workspace:*",
         "@store/meta": "workspace:*",
       },
     },
@@ -798,8 +801,6 @@
     "@metafor/bulk": ["@metafor/bulk@workspace:bulk"],
 
     "@metafor/dark": ["@metafor/dark@workspace:dark"],
-
-    "@metafor/db": ["@metafor/db@workspace:pkg/db"],
 
     "@metafor/engine": ["@metafor/engine@workspace:pkg/engine"],
 

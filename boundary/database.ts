@@ -11,7 +11,7 @@ import {
   type DbWimpEdgeRecord,
   type DbWimpFieldRecord,
   type DbWimpRows,
-} from "../pkg/db/core.ts"
+} from "store/db/core"
 import { FieldType, flattenBoundaryData, type BraneValue, type Collapse, type Data, type Field } from "@boundary/gravity"
 import { assembleStoredBoundaryData, type PreparedEntanglementProjection } from "@boundary/strong"
 import type { PreparedData } from "./boundary.t.ts"

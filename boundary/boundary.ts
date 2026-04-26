@@ -50,7 +50,7 @@ import { FieldType } from "@boundary/gravity"
 import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData, strong$ } from "@boundary/strong"
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import type { WeakHeapUpdate } from "./weak/weak.t"
-import { createEmptyDbData, type DbBackend, type DbData } from "../pkg/db/core.ts"
+import { createEmptyDbData, type DbBackend, type DbData } from "store/db/core"
 import {
   isGluonMessage,
   isGravitonMessage,

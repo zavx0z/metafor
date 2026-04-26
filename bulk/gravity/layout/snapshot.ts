@@ -4,7 +4,7 @@ import type {
   DbParticleKind,
   DbParticleShellRow,
   DbWorldRows,
-} from "../../../pkg/db/index.ts"
+} from "store/db"
 import { resolveLevelGeometry, type LevelGeometry } from "../level"
 import type { BulkLayoutSettings } from "./settings.t"
 import {
@@ -15,7 +15,7 @@ import {
 
 const snapshotLayoutConfig = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG
 
-/** Входной дескриптор ordinary field до shell-materialization в instance snapshot. */
+/** Входной дескриптор ordinary field до shell-materialization в actor rows. */
 export interface DbWorldFieldDescriptor {
   id: string
   fieldKey: string
@@ -544,7 +544,7 @@ export const enforceRootShellLayoutSettings = (
 }
 
 /**
- * Строит planar `pkg/db` world snapshot из семантического particle-дерева.
+ * Строит planar `store/db` world snapshot из семантического particle-дерева.
  *
  * Закон раскладки:
  * - сцена остаётся в `Z-up`

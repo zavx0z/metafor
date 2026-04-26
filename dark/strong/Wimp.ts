@@ -1,7 +1,7 @@
 import type { Mass, MetaDSL, NodeMeta } from "../../index.ts"
 import type { WimpInit } from "@dark/types/strong"
 import type { DarkGravityProtocol } from "@dark/gravity/channel.ts"
-import type { DbMaterializationWriter, DbMetaBundle, DbWimpBundle, DbWimpFieldBundle } from "@metafor/db"
+import type { DbMaterializationWriter, DbMetaBundle, DbWimpBundle, DbWimpFieldBundle } from "store/db"
 import type { Meta } from "./Meta.ts"
 import { BaseParticle } from "./part.ts"
 

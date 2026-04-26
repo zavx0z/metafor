@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { openDbMaterializationWriter, openDbSqliteBackend } from "../../pkg/db/index.ts"
+import { openDbMaterializationWriter, openDbSqliteBackend } from "store/db"
 import { flattenBoundaryData, FieldType } from "../gravity"
 import { assembleStoredBoundaryData } from "../strong"
 import { weak$ } from "../weak"

@@ -1,4 +1,4 @@
-import type { DbInstanceStore } from "../../../pkg/db/instance-store.t.ts"
+import type { DbActorStore } from "store/db/actor-store"
 import {
   createDbWorldRowsFromParticleDescriptors,
   scaleDbWorldRowsToRootOuterDiameter,
@@ -7,11 +7,11 @@ import {
 import type { BulkLayoutSettings } from "./settings.t"
 
 /**
- * Лёгкий sink-API: подмножество {@link DbInstanceStore}, нужное layout-builder-у для
+ * Лёгкий sink-API: подмножество {@link DbActorStore}, нужное layout-builder-у для
  * потоковой записи row-ов. Реализуется и SQLite, и IDB store-ом, либо тестовым stub-ом.
  */
 export type DbWorldRowSink = Pick<
-  DbInstanceStore,
+  DbActorStore,
   "clearWorld" | "insertParticleShell" | "insertFieldOrbit"
 >
 

@@ -1,4 +1,4 @@
-import type { DbActorStore, DbBackend } from "@metafor/db"
+import type { DbActorStore, DbBackend } from "store/db"
 import type { ActorStoreOrm } from "./actor/actor.t"
 import type { MetaStoreOrm } from "./meta/meta.t"
 import type { ViewStoreOrm } from "./view/view.t"

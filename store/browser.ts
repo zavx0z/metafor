@@ -3,7 +3,7 @@ import {
   openDbIndexedDbBackend,
   type DbIndexedDbBackendOptions,
   type IdbDbActorStoreOptions,
-} from "@metafor/db/browser"
+} from "store/db/browser"
 import { createMetaforStore } from "./index.ts"
 import type { BrowserMetaforStore, OpenBrowserStoreOptions } from "./browser.t"
 

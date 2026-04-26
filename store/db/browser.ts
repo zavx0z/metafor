@@ -2,11 +2,11 @@
  * Browser-safe entry point канонической DB-инфраструктуры.
  *
  * Не импортирует `bun:sqlite` ни прямо ни косвенно (поэтому идёт мимо `core.ts`,
- * который тащит SQLite-instance-store). Всё что нужно client-side viewport-у:
- * чистые типы, IDB-реализация {@link DbInstanceStore}, mirror и applier для
+ * который тащит SQLite actor-store). Всё что нужно client-side viewport-у:
+ * чистые типы, IDB-реализация {@link DbActorStore}, mirror и applier для
  * `db-sync` событий, IDB-backend для канонической DB.
  *
- * Server/worker сторона использует `pkg/db/index.ts` (со SQLite-частью).
+ * Server/worker сторона использует `store/db` (со SQLite-частью).
  */
 export { createEmptyDbData, normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
 export { createDbEntanglementFamilyId, openDbMaterializationWriter } from "./materialize.ts"
@@ -32,20 +32,14 @@ export type {
   DbParticleKind,
   DbParticleShellRow,
   DbWorldRows,
-} from "./instance.t.ts"
-export type { DbInstanceStore, DbInstanceStore as DbActorStore } from "./instance-store.t.ts"
-export {
-  createIdbDbInstanceStore,
-  createIdbDbInstanceStore as createIdbDbActorStore,
-} from "./idb-instance-store.ts"
-export type {
-  IdbDbInstanceStoreOptions,
-  IdbDbInstanceStoreOptions as IdbDbActorStoreOptions,
-} from "./idb-instance-store.ts"
+} from "./actor.t.ts"
+export type { DbActorStore } from "./actor-store.t.ts"
+export { createIdbDbActorStore } from "./idb-actor-store.ts"
+export type { IdbDbActorStoreOptions } from "./idb-actor-store.ts"
 export {
   applyDbSyncMessage,
-  createMirroredInstanceStore,
+  createMirroredActorStore,
   type DbSyncPublisher,
-} from "./instance-store-mirror.ts"
+} from "./actor-store-mirror.ts"
 export { inspectDbIndexedDbSchema, openDbIndexedDbBackend } from "./idb.ts"
 export type { DbIndexedDbBackend, DbIndexedDbBackendOptions } from "./idb.ts"

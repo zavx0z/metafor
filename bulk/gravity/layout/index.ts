@@ -8,7 +8,7 @@
  * - равномерный scale row-набора к фиксированному внешнему диаметру root
  *
  * `DbWorldRows` пока используется как промежуточная in-memory форма. Streaming-материализация
- * напрямую в DB заменит её на per-row write через `DbInstanceStore`.
+ * напрямую в DB заменит её на per-row write через `DbActorStore`.
  */
 export type { BulkLayoutSettings, BulkLayoutSnapshotConfig } from "./settings.t"
 export {

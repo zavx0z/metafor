@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite"
-import type { DbFieldOrbitRow, DbFieldValueKind, DbParticleShellRow } from "./instance.t.ts"
+import type { DbFieldOrbitRow, DbFieldValueKind, DbParticleShellRow } from "./actor.t.ts"
 
-export interface DbInstanceSqliteOptions {
+export interface DbActorSqliteOptions {
   filename?: string
 }
 
@@ -157,7 +157,7 @@ export const insertDbFieldOrbit = (db: Database, rootSrc: string, orbit: DbField
   )
 }
 
-export const initializeDbInstanceSqliteSchema = (db: Database): void => {
+export const initializeDbActorSqliteSchema = (db: Database): void => {
   db.exec(schemaSql)
 
   const fieldOrbitColumns = db
@@ -169,7 +169,7 @@ export const initializeDbInstanceSqliteSchema = (db: Database): void => {
   }
 }
 
-export const openDbInstanceSqlite = (options: DbInstanceSqliteOptions = {}): Database => {
+export const openDbActorSqlite = (options: DbActorSqliteOptions = {}): Database => {
   const filename = options.filename ?? ":memory:"
   const db = new Database(filename)
   if (filename !== ":memory:") {
@@ -177,12 +177,12 @@ export const openDbInstanceSqlite = (options: DbInstanceSqliteOptions = {}): Dat
     db.exec("PRAGMA synchronous = NORMAL;")
     db.exec("PRAGMA busy_timeout = 5000;")
   }
-  initializeDbInstanceSqliteSchema(db)
+  initializeDbActorSqliteSchema(db)
   return db
 }
 
-export const resetDbInstanceSqlite = (db: Database): void => {
-  initializeDbInstanceSqliteSchema(db)
+export const resetDbActorSqlite = (db: Database): void => {
+  initializeDbActorSqliteSchema(db)
   db.exec(`
     DELETE FROM db_field_orbit;
     DELETE FROM db_particle_shell;
@@ -191,7 +191,7 @@ export const resetDbInstanceSqlite = (db: Database): void => {
 
 /** Очищает все particles/fields для указанного `rootSrc`. Используется перед re-materialize. */
 export const clearDbWorld = (db: Database, rootSrc: string): void => {
-  initializeDbInstanceSqliteSchema(db)
+  initializeDbActorSqliteSchema(db)
   const tx = db.transaction(() => {
     db.query(`DELETE FROM db_field_orbit WHERE root_src = ?`).run(rootSrc)
     db.query(`DELETE FROM db_particle_shell WHERE root_src = ?`).run(rootSrc)
@@ -316,7 +316,7 @@ const mapFieldOrbitRow = (row: FieldOrbitRow): DbFieldOrbitRow => ({
  * Используется bulk-viewport-ом для построения сцены прямо из rows.
  */
 export const selectAllParticleShells = (db: Database, rootSrc: string): DbParticleShellRow[] => {
-  initializeDbInstanceSqliteSchema(db)
+  initializeDbActorSqliteSchema(db)
   return (
     db.query(
       `SELECT ${PARTICLE_SHELL_COLUMNS}
@@ -331,7 +331,7 @@ export const selectAllParticleShells = (db: Database, rootSrc: string): DbPartic
  * Читает все field-orbit-ы под `rootSrc`, отсортированные `(particle_id, field_order, id)`.
  */
 export const selectAllFieldOrbits = (db: Database, rootSrc: string): DbFieldOrbitRow[] => {
-  initializeDbInstanceSqliteSchema(db)
+  initializeDbActorSqliteSchema(db)
   return (
     db.query(
       `SELECT ${FIELD_ORBIT_COLUMNS}
@@ -352,7 +352,7 @@ export const selectParticleShellsByParent = (
   rootSrc: string,
   parentParticleId: string | null,
 ): DbParticleShellRow[] => {
-  initializeDbInstanceSqliteSchema(db)
+  initializeDbActorSqliteSchema(db)
   const rows = (
     parentParticleId === null
       ? db.query(
@@ -379,7 +379,7 @@ export const selectFieldOrbitsByParticle = (
   rootSrc: string,
   particleId: string,
 ): DbFieldOrbitRow[] => {
-  initializeDbInstanceSqliteSchema(db)
+  initializeDbActorSqliteSchema(db)
   return (
     db.query(
       `SELECT ${FIELD_ORBIT_COLUMNS}

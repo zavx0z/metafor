@@ -1,18 +1,18 @@
-import type { DbFieldOrbitRow, DbParticleShellRow } from "./instance.t.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./actor.t.ts"
 
 /**
- * Канонический async-API instance-store: shell-carriers и field-orbits под одним `rootSrc`.
+ * Канонический async-API actor-store: shell-carriers и field-orbits под одним `rootSrc`.
  *
  * Один и тот же контракт реализуют:
- * - `pkg/db/sqlite-instance-store.ts` — bun-sqlite + WAL для server/worker процессов;
- * - `pkg/db/idb-instance-store.ts` — IndexedDB для browser-side зеркала.
+ * - `store/db/sqlite-actor-store.ts` — bun-sqlite + WAL для server/worker процессов;
+ * - `store/db/idb-actor-store.ts` — IndexedDB для browser-side зеркала.
  *
  * Все методы async, чтобы не разделять call sites между sync (sqlite) и async (idb) кодом.
  *
  * **Concurrency**: single-writer pattern. Параллельные записи в один и тот же `rootSrc`
  * считаются ответственностью вызывающего; реализации не обязаны их сериализовать.
  */
-export interface DbInstanceStore {
+export interface DbActorStore {
   /** Закрывает физические ресурсы (DB handle, IDBDatabase). После close все методы — no-op или throw. */
   close(): Promise<void>
 

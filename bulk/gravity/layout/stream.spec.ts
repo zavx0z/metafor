@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { DbFieldOrbitRow, DbParticleShellRow } from "../../../pkg/db/index.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "store/db"
 import { streamDbWorldRows, type DbWorldRowSink } from "./stream"
 import type { DbWorldParticleDescriptor } from "./snapshot"
 

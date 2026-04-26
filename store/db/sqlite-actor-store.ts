@@ -1,17 +1,17 @@
 import type { Database } from "bun:sqlite"
-import type { DbInstanceStore } from "./instance-store.t.ts"
+import type { DbActorStore } from "./actor-store.t.ts"
 import {
   clearDbWorld,
   insertDbFieldOrbit,
   insertDbParticleShell,
-  openDbInstanceSqlite,
+  openDbActorSqlite,
   selectAllFieldOrbits,
   selectAllParticleShells,
   selectFieldOrbitsByParticle,
   selectParticleShellsByParent,
-} from "./instance.ts"
+} from "./actor.ts"
 
-export interface SqliteDbInstanceStoreOptions {
+export interface SqliteDbActorStoreOptions {
   /** Путь к SQLite-файлу. `:memory:` или undefined → in-memory. */
   filename?: string
   /** Уже открытый Database handle. Если указан — не закрывается на `close()`. */
@@ -19,17 +19,17 @@ export interface SqliteDbInstanceStoreOptions {
 }
 
 /**
- * Bun-sqlite реализация {@link DbInstanceStore}.
+ * Bun-sqlite реализация {@link DbActorStore}.
  *
- * Открывает (или принимает извне) `Database` через {@link openDbInstanceSqlite},
+ * Открывает (или принимает извне) `Database` через {@link openDbActorSqlite},
  * что включает WAL и `busy_timeout` для file-backed DB. Все sync-операции bun-sqlite
  * оборачиваются в `Promise.resolve()` чтобы соответствовать контракту.
  */
-export const createSqliteDbInstanceStore = (
-  options: SqliteDbInstanceStoreOptions = {},
-): DbInstanceStore => {
+export const createSqliteDbActorStore = (
+  options: SqliteDbActorStoreOptions = {},
+): DbActorStore => {
   const owned = options.database === undefined
-  const db = options.database ?? openDbInstanceSqlite({ filename: options.filename ?? ":memory:" })
+  const db = options.database ?? openDbActorSqlite({ filename: options.filename ?? ":memory:" })
 
   return {
     async close() {

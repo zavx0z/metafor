@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test"
 import { Fuzzy, materializeFields, Meta, Wimp } from "@dark/strong"
-import { openDbMaterializationWriter, openDbSqliteBackend } from "../../pkg/db/index.ts"
+import { openDbMaterializationWriter, openDbSqliteBackend } from "store/db"
 import { HubFixture } from "fixture"
 import { matter } from "../../dark/index.ts"
 import { createDbFixture } from "fixture/db.fixture.ts"

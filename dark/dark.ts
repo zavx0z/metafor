@@ -1,7 +1,7 @@
 import type { MatterContinuation, MatterEntry, MatterLayerResult, MatterParticlePlan, MatterWimpResult } from "@dark/types/dark"
 import type { DarkParticle } from "@dark/types"
 import { emitAdd, emitBarrier } from "@dark/gravity/channel.ts"
-import type { DbMaterializationWriter } from "@metafor/db"
+import type { DbMaterializationWriter } from "store/db"
 import { readDarkParticleModel } from "@store/meta/sqlite"
 import { Axion, Fuzzy, Macho, materializeFields, Meta, resolveWimpContinuation, Wimp } from "@dark/strong"
 import { loadMeta } from "./load.ts"

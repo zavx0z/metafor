@@ -3,7 +3,7 @@ import type { FieldKey, Mass, MetaDSL } from "../../index.ts"
 /**
  * Краткий снимок схемы поля для канонической relational DB.
  *
- * Схема живёт на meta-level и затем переиспользуется instance-level сущностями через FK.
+ * Схема живёт на meta-level и затем переиспользуется actor-level сущностями через FK.
  */
 export interface DbFieldSchemaRecord {
   type: string

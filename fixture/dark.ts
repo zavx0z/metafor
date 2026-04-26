@@ -1,7 +1,7 @@
 import { Wimp } from "@dark/strong"
 import type { DarkParticle } from "@dark/types"
-import { openDbMaterializationWriter, openDbSqliteBackend, type DbData } from "../pkg/db/index.ts"
-import { readDbSqliteData } from "../pkg/db/fixture.ts"
+import { openDbMaterializationWriter, openDbSqliteBackend, type DbData } from "store/db"
+import { readDbSqliteData } from "store/db/fixture"
 
 /**
  * Собирает плоский список всех `Wimp`, достижимых от корня.

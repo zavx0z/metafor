@@ -6,7 +6,7 @@ import type {
   DbWimpEdgeRecord,
   DbWimpFieldRecord,
   DbWimpRows,
-} from "@metafor/db"
+} from "store/db"
 
 export interface ViewStoreOrm {
   readonly backend: DbBackend

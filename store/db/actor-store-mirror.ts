@@ -1,6 +1,6 @@
-import type { DbSyncMessage, ProtocolDomain } from "../protocol/index.ts"
-import type { DbInstanceStore } from "./instance-store.t.ts"
-import type { DbFieldOrbitRow, DbParticleShellRow } from "./instance.t.ts"
+import type { DbSyncMessage, ProtocolDomain } from "@shared/protocol"
+import type { DbActorStore } from "./actor-store.t.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./actor.t.ts"
 
 /**
  * Лёгкий канал-publisher: совместимый с BroadcastChannel-API подмножеством,
@@ -11,7 +11,7 @@ export interface DbSyncPublisher {
 }
 
 /**
- * Оборачивает локальный {@link DbInstanceStore} так, что каждая мутация (`clearWorld`,
+ * Оборачивает локальный {@link DbActorStore} так, что каждая мутация (`clearWorld`,
  * `insertParticleShell`, `insertFieldOrbit`) — после успешного применения локально —
  * публикует per-row событие в {@link DbSyncPublisher}.
  *
@@ -20,11 +20,11 @@ export interface DbSyncPublisher {
  *
  * Read-методы делегируются один-к-одному.
  */
-export const createMirroredInstanceStore = (
-  local: DbInstanceStore,
+export const createMirroredActorStore = (
+  local: DbActorStore,
   publisher: DbSyncPublisher,
   source: ProtocolDomain,
-): DbInstanceStore => ({
+): DbActorStore => ({
   close: () => local.close(),
   selectAllParticleShells: (rootSrc) => local.selectAllParticleShells(rootSrc),
   selectAllFieldOrbits: (rootSrc) => local.selectAllFieldOrbits(rootSrc),
@@ -64,12 +64,12 @@ export const createMirroredInstanceStore = (
 
 /**
  * Применяет одно `db-sync` сообщение на целевой store. Используется client-side для
- * зеркалирования server-side изменений в local IDB через тот же {@link DbInstanceStore}.
+ * зеркалирования server-side изменений в local IDB через тот же {@link DbActorStore}.
  *
  * Не различает источник (`source`) — апплайер просто исполняет операцию.
  */
 export const applyDbSyncMessage = async (
-  store: DbInstanceStore,
+  store: DbActorStore,
   message: DbSyncMessage,
 ): Promise<void> => {
   if (message.op.kind === "clear-world") {

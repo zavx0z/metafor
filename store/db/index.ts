@@ -3,13 +3,13 @@ export {
   createEmptyDbData,
   createDbEntanglementFamilyId,
   dbRequiredBackendIndexes,
-  initializeDbInstanceSqliteSchema,
+  initializeDbActorSqliteSchema,
   insertDbFieldOrbit,
   insertDbParticleShell,
   normalizeDbData,
-  openDbInstanceSqlite,
+  openDbActorSqlite,
   openDbMaterializationWriter,
-  resetDbInstanceSqlite,
+  resetDbActorSqlite,
   selectAllFieldOrbits,
   selectAllParticleShells,
   selectFieldOrbitsByParticle,
@@ -40,20 +40,8 @@ export type {
 } from "./core.ts"
 export { initializeDbSqliteSchema, openDbSqliteBackend } from "./sqlite.ts"
 export type { DbSqliteBackend, DbSqliteBackendOptions } from "./sqlite.ts"
-export type { DbInstanceStore, DbInstanceStore as DbActorStore } from "./instance-store.t.ts"
-export {
-  createSqliteDbInstanceStore,
-  createSqliteDbInstanceStore as createSqliteDbActorStore,
-} from "./sqlite-instance-store.ts"
-export type {
-  SqliteDbInstanceStoreOptions,
-  SqliteDbInstanceStoreOptions as SqliteDbActorStoreOptions,
-} from "./sqlite-instance-store.ts"
-export {
-  createIdbDbInstanceStore,
-  createIdbDbInstanceStore as createIdbDbActorStore,
-} from "./idb-instance-store.ts"
-export type {
-  IdbDbInstanceStoreOptions,
-  IdbDbInstanceStoreOptions as IdbDbActorStoreOptions,
-} from "./idb-instance-store.ts"
+export type { DbActorStore } from "./actor-store.t.ts"
+export { createSqliteDbActorStore } from "./sqlite-actor-store.ts"
+export type { SqliteDbActorStoreOptions } from "./sqlite-actor-store.ts"
+export { createIdbDbActorStore } from "./idb-actor-store.ts"
+export type { IdbDbActorStoreOptions } from "./idb-actor-store.ts"

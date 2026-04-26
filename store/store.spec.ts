@@ -2,7 +2,7 @@ import "fake-indexeddb/auto"
 import { describe, expect, test } from "bun:test"
 import { IDBFactory } from "fake-indexeddb"
 import type { MetaDSL } from "../index.ts"
-import type { DbParticleShellRow } from "@metafor/db"
+import type { DbParticleShellRow } from "store/db"
 import { open as openBrowserStore } from "./browser.ts"
 import { open as openServerStore } from "./server.ts"
 

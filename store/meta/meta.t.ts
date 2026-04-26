@@ -1,4 +1,4 @@
-import type { DbBackend, DbMetaRows } from "@metafor/db"
+import type { DbBackend, DbMetaRows } from "store/db"
 
 export interface MetaStoreOrm {
   readonly backend: DbBackend

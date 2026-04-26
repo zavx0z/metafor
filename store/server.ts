@@ -3,7 +3,7 @@ import {
   openDbSqliteBackend,
   type DbSqliteBackendOptions,
   type SqliteDbActorStoreOptions,
-} from "@metafor/db"
+} from "store/db"
 import {
   getMetaDB,
   readDarkParticleModel,

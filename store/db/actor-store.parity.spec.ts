@@ -1,10 +1,10 @@
 import "fake-indexeddb/auto"
 import { IDBFactory } from "fake-indexeddb"
 import { describe, expect, test } from "bun:test"
-import { createSqliteDbInstanceStore } from "./sqlite-instance-store.ts"
-import { createIdbDbInstanceStore } from "./idb-instance-store.ts"
-import type { DbInstanceStore } from "./instance-store.t.ts"
-import type { DbFieldOrbitRow, DbParticleShellRow } from "./instance.t.ts"
+import { createSqliteDbActorStore } from "./sqlite-actor-store.ts"
+import { createIdbDbActorStore } from "./idb-actor-store.ts"
+import type { DbActorStore } from "./actor-store.t.ts"
+import type { DbFieldOrbitRow, DbParticleShellRow } from "./actor.t.ts"
 
 const ROOT = "parity/root"
 
@@ -81,7 +81,7 @@ const fieldOnRoot: DbFieldOrbitRow = {
 const fieldOnA: DbFieldOrbitRow = { ...fieldOnRoot, id: "f-a-0", particleId: "p-a" }
 const fieldOnA2: DbFieldOrbitRow = { ...fieldOnRoot, id: "f-a-1", particleId: "p-a", fieldOrder: 1 }
 
-const seedStore = async (store: DbInstanceStore): Promise<void> => {
+const seedStore = async (store: DbActorStore): Promise<void> => {
   await store.clearWorld(ROOT)
   await store.insertParticleShell(ROOT, root)
   await store.insertParticleShell(ROOT, childA)
@@ -92,7 +92,7 @@ const seedStore = async (store: DbInstanceStore): Promise<void> => {
   await store.insertFieldOrbit(ROOT, fieldOnA)
 }
 
-const collectStoreSnapshot = async (store: DbInstanceStore) => ({
+const collectStoreSnapshot = async (store: DbActorStore) => ({
   all: await store.selectAllParticleShells(ROOT),
   fields: await store.selectAllFieldOrbits(ROOT),
   roots: await store.selectParticleShellsByParent(ROOT, null),
@@ -102,10 +102,10 @@ const collectStoreSnapshot = async (store: DbInstanceStore) => ({
   fieldsOfRoot: await store.selectFieldOrbitsByParticle(ROOT, "p-root"),
 })
 
-describe("DbInstanceStore parity (SQLite vs IDB)", () => {
+describe("DbActorStore parity (SQLite vs IDB)", () => {
   test("одинаковое состояние после одинаковой последовательности операций", async () => {
-    const sqlite = createSqliteDbInstanceStore({ filename: ":memory:" })
-    const idb = await createIdbDbInstanceStore({
+    const sqlite = createSqliteDbActorStore({ filename: ":memory:" })
+    const idb = await createIdbDbActorStore({
       databaseName: `parity-${Math.random().toString(36).slice(2)}`,
       factory: new IDBFactory(),
     })
@@ -129,7 +129,7 @@ describe("DbInstanceStore parity (SQLite vs IDB)", () => {
   })
 
   test("clearWorld удаляет всё под rootSrc и не трогает чужой rootSrc", async () => {
-    const make = (impl: DbInstanceStore) => async () => {
+    const make = (impl: DbActorStore) => async () => {
       await impl.insertParticleShell("alpha", { ...root, particleId: "p-alpha" })
       await impl.insertParticleShell("beta", { ...root, particleId: "p-beta" })
       await impl.clearWorld("alpha")
@@ -138,8 +138,8 @@ describe("DbInstanceStore parity (SQLite vs IDB)", () => {
       return { alpha, beta }
     }
 
-    const sqlite = createSqliteDbInstanceStore({ filename: ":memory:" })
-    const idb = await createIdbDbInstanceStore({
+    const sqlite = createSqliteDbActorStore({ filename: ":memory:" })
+    const idb = await createIdbDbActorStore({
       databaseName: `clear-${Math.random().toString(36).slice(2)}`,
       factory: new IDBFactory(),
     })

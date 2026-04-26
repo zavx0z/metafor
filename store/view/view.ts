@@ -1,4 +1,4 @@
-import type { DbBackend } from "@metafor/db"
+import type { DbBackend } from "store/db"
 import { resolveMaybe } from ".."
 import type { ViewStoreOrm } from "./view.t"
 

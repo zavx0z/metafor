@@ -8,5 +8,8 @@
     "./level": "./level/index.ts",
     "./text": "./text/index.ts"
   },
-  "private": true
+  "private": true,
+  "dependencies": {
+    "store": "workspace:*"
+  }
 }

@@ -2,14 +2,14 @@ import "fake-indexeddb/auto"
 import { IDBFactory } from "fake-indexeddb"
 import { describe, expect, test } from "bun:test"
 import type { DbSyncMessage } from "../protocol/index.ts"
-import { createSqliteDbInstanceStore } from "./sqlite-instance-store.ts"
-import { createIdbDbInstanceStore } from "./idb-instance-store.ts"
+import { createSqliteDbActorStore } from "./sqlite-actor-store.ts"
+import { createIdbDbActorStore } from "./idb-actor-store.ts"
 import {
   applyDbSyncMessage,
-  createMirroredInstanceStore,
+  createMirroredActorStore,
   type DbSyncPublisher,
-} from "./instance-store-mirror.ts"
-import type { DbParticleShellRow } from "./instance.t.ts"
+} from "./actor-store-mirror.ts"
+import type { DbParticleShellRow } from "./actor.t.ts"
 
 const ROOT = "mirror/root"
 const root: DbParticleShellRow = {
@@ -39,13 +39,13 @@ const child: DbParticleShellRow = {
   depth: 1,
 }
 
-describe("createMirroredInstanceStore + applyDbSyncMessage", () => {
+describe("createMirroredActorStore + applyDbSyncMessage", () => {
   test("каждое write-вызов публикует sync-event, apply на second store воспроизводит state", async () => {
     const events: DbSyncMessage[] = []
     const publisher: DbSyncPublisher = { postMessage: (msg) => events.push(msg) }
 
-    const primary = createSqliteDbInstanceStore({ filename: ":memory:" })
-    const mirrored = createMirroredInstanceStore(primary, publisher, "dark")
+    const primary = createSqliteDbActorStore({ filename: ":memory:" })
+    const mirrored = createMirroredActorStore(primary, publisher, "dark")
 
     await mirrored.clearWorld(ROOT)
     await mirrored.insertParticleShell(ROOT, root)
@@ -59,7 +59,7 @@ describe("createMirroredInstanceStore + applyDbSyncMessage", () => {
     expect(events.every((e) => e.source === "dark")).toBe(true)
     expect(events.every((e) => e.rootSrc === ROOT)).toBe(true)
 
-    const replica = await createIdbDbInstanceStore({
+    const replica = await createIdbDbActorStore({
       databaseName: `mirror-${Math.random().toString(36).slice(2)}`,
       factory: new IDBFactory(),
     })
@@ -77,8 +77,8 @@ describe("createMirroredInstanceStore + applyDbSyncMessage", () => {
     const events: DbSyncMessage[] = []
     const publisher: DbSyncPublisher = { postMessage: (msg) => events.push(msg) }
 
-    const primary = createSqliteDbInstanceStore({ filename: ":memory:" })
-    const mirrored = createMirroredInstanceStore(primary, publisher, "dark")
+    const primary = createSqliteDbActorStore({ filename: ":memory:" })
+    const mirrored = createMirroredActorStore(primary, publisher, "dark")
 
     await mirrored.insertParticleShell(ROOT, root)
     events.length = 0

@@ -7,9 +7,9 @@ import {
 } from "./protocol-logger.ts"
 import {
 	applyDbSyncMessage,
-	createIdbDbInstanceStore,
-	type DbInstanceStore,
-} from "../../pkg/db/browser.ts"
+	createIdbDbActorStore,
+	type DbActorStore,
+} from "store/db/browser"
 import { isDbSyncMessage, isStructuralSignalMessage } from "@shared/protocol"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
 import {
@@ -89,10 +89,10 @@ const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
 let bulkViewport: BulkViewportController | null = null
 let initialMaterializationRequested = false
-let localStore: DbInstanceStore | null = null
+let localStore: DbActorStore | null = null
 let pendingSyncQueue: Promise<void> = Promise.resolve()
 
-const localStoreReady: Promise<DbInstanceStore> = createIdbDbInstanceStore({
+const localStoreReady: Promise<DbActorStore> = createIdbDbActorStore({
 	databaseName: "metafor-app-instance",
 }).then((store) => {
 	localStore = store

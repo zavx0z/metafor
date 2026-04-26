@@ -1,4 +1,4 @@
-import { openDbSqliteBackend } from "../../pkg/db/index.ts"
+import { openDbSqliteBackend } from "store/db"
 import { closeBoundaryProtocolChannels, writeRuntimeFromDb } from "../boundary"
 
 export async function resetBoundaryForTest(): Promise<void> {

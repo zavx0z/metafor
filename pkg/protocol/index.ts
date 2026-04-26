@@ -80,7 +80,7 @@ export interface WMessage {
  * у которых нет прямого доступа к SQLite (browser → IndexedDB).
  *
  * Server мирорит этот канал в WS; client применяет `op` на свой локальный store
- * через тот же {@link DbInstanceStore} API. Порядок гарантируется WS-очередью.
+ * через тот же {@link DbActorStore} API. Порядок гарантируется WS-очередью.
  * Барьер «всё применено» — сигнал на отдельном `STRUCTURAL_BROADCAST_CHANNEL`.
  */
 export type DbSyncOp =

@@ -5,11 +5,19 @@
   "exports": {
     ".": "./index.ts",
     "./browser": "./browser.ts",
-    "./server": "./server.ts"
+    "./server": "./server.ts",
+    "./db": "./db/index.ts",
+    "./db/browser": "./db/browser.ts",
+    "./db/core": "./db/core.ts",
+    "./db/materialize": "./db/materialize.ts",
+    "./db/sqlite": "./db/sqlite.ts",
+    "./db/fixture": "./db/fixture.ts",
+    "./db/actor-store": "./db/actor-store.t.ts",
+    "./db/actor-store-mirror": "./db/actor-store-mirror.ts"
   },
   "private": true,
   "dependencies": {
-    "@metafor/db": "workspace:*",
+    "@shared/protocol": "workspace:*",
     "@store/meta": "workspace:*"
   }
 }

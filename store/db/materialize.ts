@@ -62,7 +62,7 @@ export interface DbWimpBundle {
 
 export interface DbMaterializationWriter {
   /**
-   * Сохраняет meta-level bundle и подготавливает context для следующих instance-level записей.
+   * Сохраняет meta-level bundle и подготавливает context для следующих actor-level записей.
    */
   saveMetaBundle(bundle: DbMetaBundle): Promise<void>
   /**

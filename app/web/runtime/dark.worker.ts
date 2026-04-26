@@ -1,12 +1,12 @@
 import { MetaFor } from "../../../metafor.ts"
 import {
-	createSqliteDbInstanceStore,
+	createSqliteDbActorStore,
 	openDbMaterializationWriter,
 	openDbSqliteBackend,
-	type DbInstanceStore,
-} from "../../../pkg/db/index.ts"
-import type { DbFieldValueKind, DbParticleKind } from "../../../pkg/db/index.ts"
-import { createMirroredInstanceStore } from "../../../pkg/db/instance-store-mirror.ts"
+	type DbActorStore,
+} from "store/db"
+import type { DbFieldValueKind, DbParticleKind } from "store/db"
+import { createMirroredActorStore } from "store/db/actor-store-mirror"
 import { openDbSyncBroadcastChannel, openStructuralBroadcastChannel } from "@shared/protocol"
 import { getMetaDB, readDarkParticleModel, relation, type DarkMetaParticleModel } from "@store/meta/sqlite"
 import { matter } from "../../../dark/dark.ts"
@@ -40,24 +40,24 @@ type DarkWorkerScope = typeof globalThis & {
 const darkWorker = globalThis as DarkWorkerScope
 const structuralChannel = openStructuralBroadcastChannel()
 const dbSyncChannel = openDbSyncBroadcastChannel()
-let instanceStore: DbInstanceStore | null = null
+let actorStore: DbActorStore | null = null
 
-const ensureInstanceStore = (dbFilename: string): DbInstanceStore => {
-	if (!instanceStore) {
-		const local = createSqliteDbInstanceStore({ filename: dbFilename })
-		instanceStore = createMirroredInstanceStore(local, dbSyncChannel, "dark")
+const ensureActorStore = (dbFilename: string): DbActorStore => {
+	if (!actorStore) {
+		const local = createSqliteDbActorStore({ filename: dbFilename })
+		actorStore = createMirroredActorStore(local, dbSyncChannel, "dark")
 	}
-	return instanceStore
+	return actorStore
 }
 
-const closeInstanceStore = async (): Promise<void> => {
-	if (!instanceStore) return
+const closeActorStore = async (): Promise<void> => {
+	if (!actorStore) return
 	try {
-		await instanceStore.close()
+		await actorStore.close()
 	} catch {
 		// ignore close failures — store may already be closed
 	}
-	instanceStore = null
+	actorStore = null
 }
 
 const particleColorByKind: Record<DbParticleKind, { r: number; g: number; b: number }> = {
@@ -269,7 +269,7 @@ const createRuntimeParticleDescriptors = (
 		.filter((particle) => particle.parent === null)
 		.map((particle) => {
 			if (!(particle instanceof Wimp)) {
-				throw new Error(`Root particle "${particle.id}" must be Wimp to build instance world`)
+				throw new Error(`Root particle "${particle.id}" must be Wimp to build actor world`)
 			}
 			return createRuntimeParticleDescriptor(particle, particleModelsBySrc, particle)
 		})
@@ -280,7 +280,7 @@ const publishStructuralSignal = async (
 	layoutSettings: Partial<AppWebLayoutSettings>,
 	dbFilename: string,
 ): Promise<void> => {
-	const store = ensureInstanceStore(dbFilename)
+	const store = ensureActorStore(dbFilename)
 
 	// Layout сразу пишет per-row в `store`, который через mirror публикует sync-events
 	// в db-sync broadcast channel — server потом мирорит их в WS клиентам.
@@ -382,7 +382,7 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 			currentRootSrc = null
 			currentDescriptorRoots = []
 			currentDbFilename = dbFilename
-			await closeInstanceStore()
+			await closeActorStore()
 			backend = openDbSqliteBackend({ filename: dbFilename })
 			await backend.reset()
 			const canonicalized = await canonicalizeMetaGraph(dbFilename, src)
