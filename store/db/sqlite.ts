@@ -1,5 +1,6 @@
 import { Database, type SQLQueryBindings } from "bun:sqlite"
 import { createSqliteDbViewBackend, initializeDbViewSqliteSchema } from "../view/sqlite/store.ts"
+import { initializeMetaDslSchema } from "../meta/sqlite/sqlite.ts"
 import { dbRequiredBackendIndexes } from "./backend.ts"
 import type { DbBackend, DbMetaRows } from "./backend.t.ts"
 import type {
@@ -380,6 +381,10 @@ export const initializeDbSqliteSchema = (database: Database): void => {
 
   // Apply view-level DDL via the view subsystem so view-таблицы и индексы остаются единым контрактом.
   initializeDbViewSqliteSchema(database)
+
+  // Apply DSL-relational meta-schema (33 tables from @store/meta/sqlite *.sql modules) on the same Database.
+  // materialize.syncMetaBundle dual-write: canonical meta_* + DSL-relational; canonical-adapter reads back from DSL-relational.
+  initializeMetaDslSchema(database)
 
   dbRequiredBackendIndexes.forEach((index) => {
     const unique = index.unique ? "UNIQUE " : ""

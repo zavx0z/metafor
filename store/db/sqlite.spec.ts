@@ -60,7 +60,15 @@ describe("db sqlite backend", () => {
             .all() as Array<{ name: string }>
         ).map((row) => row.name)
 
-        expect(tables).toEqual([
+        // openDbSqliteBackend применяет три набора DDL: canonical meta_* + view_* + DSL-relational (33 таблицы из @store/meta/sqlite).
+        // Здесь проверяем только canonical+view часть.
+        const canonicalTables = tables.filter(
+          (name) =>
+            (name.startsWith("meta_") && name !== "meta_mass_value") ||
+            name === "metas" ||
+            name.startsWith("view_"),
+        )
+        expect(canonicalTables).toEqual([
           "meta_fields",
           "meta_matter_edges",
           "meta_matter_nodes",
@@ -86,7 +94,10 @@ describe("db sqlite backend", () => {
           "view_wimp_states",
           "view_wimps",
         ])
-        expect(indexes).toEqual(dbRequiredBackendIndexes.map((index) => index.name).sort())
+        const canonicalIndexes = indexes.filter((name) =>
+          dbRequiredBackendIndexes.some((spec) => spec.name === name),
+        )
+        expect(canonicalIndexes.sort()).toEqual(dbRequiredBackendIndexes.map((index) => index.name).sort())
 
         const wimpColumns = (
           database.query(`PRAGMA table_info(view_wimps)`).all() as Array<{ name: string }>

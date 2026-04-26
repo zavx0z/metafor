@@ -13,6 +13,7 @@ import type {
 import type { DbBackend, DbMetaRows } from "./db/backend.t.ts"
 import { createEmptyDbData } from "./db/backend.ts"
 import { deriveUuid } from "./db/uuid.ts"
+import { create as writeMetaToDslRelational } from "./meta/sqlite/sqlite.ts"
 import type {
   DbEntanglementFamilyRows,
   DbFieldSourceRecord,
@@ -80,7 +81,7 @@ type MetaContext = {
 
 type WimpFieldWithOwner = DbWimpFieldBundle & { ownerWimpId: string }
 
-type MetaMaterializationState = {
+export type MetaMaterializationState = {
   nextMatterNodeOrder: number
 }
 
@@ -163,7 +164,7 @@ const requireMetaFieldId = (context: MetaContext, ownerMetaId: string, fieldKey:
   return metaFieldId
 }
 
-const appendMetaMatter = (
+export const appendMetaMatter = (
   data: DbData,
   ownerMetaId: string,
   nodes: DbMetaBundle["matter"],
@@ -752,6 +753,29 @@ export const openDbMaterializationWriter = (backend: DbBackend): DbMaterializati
     }
 
     await backend.writeMetaRows(metaRows)
+
+    // Sqlite-path: дублируем запись в DSL-relational (33 таблицы из @store/meta/sqlite),
+    // чтобы canonical-adapter мог читать meta из единого DSL-relational источника.
+    // На idb DSL-relational schema не реализована — там только canonical-meta_*.
+    const sqliteDb = (backend as { database?: { query: (sql: string) => { run: (...args: unknown[]) => void } } })
+      .database
+    if (sqliteDb !== undefined) {
+      const dsl: MetaDSL = {
+        ...(savedMeta.name !== undefined ? { name: savedMeta.name } : {}),
+        fields: Object.fromEntries(savedMeta.fields.map((f) => [f.key, f.schema])),
+        // create() требует superposition; default — пустой объект.
+        superposition: savedMeta.superposition ?? {},
+        ...(savedMeta.processes !== undefined ? { processes: savedMeta.processes } : {}),
+        ...(savedMeta.reactions !== undefined ? { reactions: savedMeta.reactions } : {}),
+        ...(savedMeta.matter !== undefined ? { matter: savedMeta.matter } : {}),
+        ...(savedMeta.bulk !== undefined ? { bulk: savedMeta.bulk } : {}),
+        ...(savedMeta.mass !== undefined ? { mass: savedMeta.mass } : {}),
+      } as MetaDSL
+      // Idempotent: DELETE FROM meta WHERE src=? удалит каскадно все связанные DSL-relational rows.
+      sqliteDb.query("DELETE FROM meta WHERE src = ?").run(savedMeta.src)
+      writeMetaToDslRelational(sqliteDb as never, dsl, savedMeta.src)
+    }
+
     metaSignatureById.set(savedMeta.id, nextMetaSignature)
     bundlesById.forEach((candidate) => {
       if (candidate.meta.id === savedMeta.id) {
