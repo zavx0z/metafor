@@ -1,64 +1,146 @@
-/** Канонические виды particle-carrier для actor-level world. */
-export type DbParticleKind = "wimp" | "fuzzy" | "axion" | "macho"
-/** Render-facing scalar kind для ordinary non-topology fields. */
-export type DbFieldValueKind = "number" | "text" | "bool" | "other"
-
 /**
- * Одна row-запись shell-carrier в `actor_particle_shell`.
+ * Канонические record-типы инстансного слоя (actor).
  *
- * Координаты и размеры — в единицах engine-контракта: `Z-up`, `1 world unit = 1 mm`.
+ * Один актор — это запущенный экземпляр меты со своим состоянием:
+ * полями, значениями, текущей фазой FSM и связями с другими акторами.
+ * Render-данные (визуализация) здесь не хранятся — они вычислимы из
+ * `actor + meta + layoutConfig` и живут в render-слое.
+ *
+ * Все ID — TEXT-идентификаторы. Стабильные UUID-ы, генерируемые при
+ * создании сущности.
  */
-export interface DbParticleShellRow {
-  particleId: string
-  parentParticleId: string | null
-  kind: DbParticleKind
-  src: string | null
-  metaSrc: string | null
-  label: string
-  depth: number
-  shellOrder: number
-  localX: number
-  localY: number
-  localZ: number
-  shellScale: number
-  shellRadius: number
-  shellTube: number
-  colorR: number
-  colorG: number
-  colorB: number
+
+export type ActorScalarKind = "null" | "boolean" | "number" | "string" | "enum"
+export type ActorValueKind = ActorScalarKind | "list"
+
+/** Скалярная или enum-часть значения, заполняется одна из колонок в зависимости от kind. */
+export interface ActorScalar {
+  kind: ActorScalarKind
+  boolean?: boolean
+  number?: number
+  text?: string
+  /** UUID `field_enum_variant` из meta-декларации (для kind === "enum"). */
+  variant?: string
 }
 
-/**
- * Содержимое world-структуры под одним `rootSrc` в виде row-коллекций.
- *
- * Промежуточная форма, удобная для layout-builder-а и dev-снимков. В runtime потоке
- * данные двигаются per-row через `DbActorStore` без сборки `DbWorldRows` объекта.
- */
-export interface DbWorldRows {
-  rootSrc: string
-  particles: DbParticleShellRow[]
-  fields: DbFieldOrbitRow[]
+/** Один запущенный актор — инстанс меты. */
+export interface ActorRecord {
+  uuid: string
+  /** Канонический `src` корневой меты мира, к которому актор принадлежит. */
+  world: string
+  /** Канонический `src` меты, по которой актор работает. */
+  metaSrc: string
+  /** Порядок появления актора в мире (стабилен между запусками для детерминированной материализации). */
+  position: number
 }
 
-/**
- * Одна row-запись точки ordinary field orbit в `actor_field_orbit`.
- *
- * Уже подготовлена для прямой materialization в `Boundary/Bulk`,
- * не пересчитывается из JSON payload во время рендера.
- */
-export interface DbFieldOrbitRow {
-  id: string
-  particleId: string
-  fieldKey: string
-  fieldLabel: string
-  fieldOrder: number
-  fieldValueKind: DbFieldValueKind
-  valueText: string | null
-  localX: number
-  localY: number
-  localZ: number
-  sphereRadius: number
-  colorR: number
-  colorG: number
-  colorB: number
+/** Связь родитель → потомок. Одна запись на каждого ребёнка. */
+export interface ActorEdgeRecord {
+  /** UUID дочернего актора. */
+  child: string
+  /** UUID родительского актора (NULL у корневого актора мира). */
+  parent: string | null
+  /** Позиция среди братьев. */
+  position: number
+}
+
+/** Поле-инстанс актора, соответствует одному `field` из meta-схемы. */
+export interface ActorFieldRecord {
+  uuid: string
+  /** UUID родительского актора. */
+  actor: string
+  /** UUID `field` из meta-декларации. */
+  metaField: string
+  /** Порядок поля внутри актора (зеркалирует порядок в meta-схеме). */
+  position: number
+}
+
+/** Текущее значение поля. Одна строка на одно `actor_field`. */
+export interface ActorValueRecord {
+  /** UUID `actor_field`. */
+  field: string
+  kind: ActorValueKind
+  boolean?: boolean
+  number?: number
+  text?: string
+  /** UUID `field_enum_variant` из meta. */
+  variant?: string
+}
+
+/** Один элемент списочного значения (когда `value.kind === "list"`). */
+export interface ActorValueItemRecord {
+  /** UUID `actor_field`. */
+  field: string
+  position: number
+  kind: ActorScalarKind
+  boolean?: boolean
+  number?: number
+  text?: string
+  variant?: string
+}
+
+/** Прямая проводка значения от поля-источника к полю-получателю. */
+export interface ActorSourceRecord {
+  /** UUID поля-получателя. */
+  childField: string
+  /** UUID поля-источника. */
+  parentField: string
+}
+
+/** Текущее состояние FSM актора. */
+export interface ActorStateRecord {
+  /** UUID актора. */
+  actor: string
+  /** UUID `superposition` из meta. */
+  metaState: string
+}
+
+/** Семья entangled-акторов: набор инстансов, делящих корневой источник значения. */
+export interface ActorEntanglementRecord {
+  uuid: string
+  world: string
+  /** UUID корневого `actor_field`-источника, от которого расходится цепочка. */
+  rootField: string
+}
+
+/** Член семьи — один из акторов в составе entanglement. */
+export interface ActorEntanglementMemberRecord {
+  entanglement: string
+  actor: string
+  position: number
+}
+
+/** Описание разделяемого поля внутри семьи. */
+export interface ActorEntanglementFieldRecord {
+  uuid: string
+  entanglement: string
+  /** UUID `field` из meta. */
+  metaField: string
+  position: number
+}
+
+/** Конкретное поле-инстанс одного актора в составе entangled-поля. */
+export interface ActorEntanglementFieldMemberRecord {
+  entanglementField: string
+  actorField: string
+  position: number
+}
+
+/** Полный row-group одного актора — read/write единицей. */
+export interface ActorRows {
+  actor: ActorRecord
+  edge: ActorEdgeRecord
+  fields: ActorFieldRecord[]
+  values: ActorValueRecord[]
+  valueItems: ActorValueItemRecord[]
+  sources: ActorSourceRecord[]
+  state: ActorStateRecord
+}
+
+/** Полный row-group одной entanglement-семьи. */
+export interface ActorEntanglementFamilyRows {
+  entanglement: ActorEntanglementRecord
+  members: ActorEntanglementMemberRecord[]
+  fields: ActorEntanglementFieldRecord[]
+  fieldMembers: ActorEntanglementFieldMemberRecord[]
 }

@@ -1,392 +1,166 @@
-import { Database } from "bun:sqlite"
-import type { DbFieldOrbitRow, DbFieldValueKind, DbParticleShellRow } from "../types.t.ts"
+import type { Database } from "bun:sqlite"
+import { actorRequiredBackendIndexes } from "../backend.t.ts"
 
-export interface DbActorSqliteOptions {
-  filename?: string
-}
-
-const schemaSql = `
-PRAGMA foreign_keys = ON;
-
-CREATE TABLE IF NOT EXISTS actor_particle_shell (
-  particle_id TEXT PRIMARY KEY,
-  root_src TEXT NOT NULL,
-  parent_particle_id TEXT,
-  particle_kind TEXT NOT NULL CHECK (particle_kind IN ('wimp', 'fuzzy', 'axion', 'macho')),
-  src TEXT,
-  meta_src TEXT,
-  label TEXT NOT NULL,
-  depth INTEGER NOT NULL CHECK (depth >= 0),
-  shell_order INTEGER NOT NULL CHECK (shell_order >= 0),
-  local_x REAL NOT NULL,
-  local_y REAL NOT NULL,
-  local_z REAL NOT NULL,
-  shell_scale REAL NOT NULL CHECK (shell_scale > 0),
-  shell_radius REAL NOT NULL CHECK (shell_radius > 0),
-  shell_tube REAL NOT NULL CHECK (shell_tube > 0),
-  color_r REAL NOT NULL,
-  color_g REAL NOT NULL,
-  color_b REAL NOT NULL,
-  FOREIGN KEY (parent_particle_id) REFERENCES actor_particle_shell(particle_id) ON DELETE CASCADE
+/**
+ * DDL инстансного слоя. Применяется на той же `Database`, что и meta-DDL и любые другие схемы;
+ * префикс `actor_` обеспечивает изоляцию пространства имён.
+ *
+ * FK на `meta(src)` (через `meta_src`, `world`) намеренно НЕ создаются: actor может ссылаться на
+ * мету, лежащую в другой БД, либо ещё не загруженную. Целостность ref проверяется на стороне
+ * рантайма перед записью.
+ */
+const actorSchemaSql = `
+CREATE TABLE IF NOT EXISTS actor
+(
+    uuid     TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
+    world    TEXT    NOT NULL CHECK (length(trim(world)) > 0),
+    metaSrc  TEXT    NOT NULL CHECK (length(trim(metaSrc)) > 0),
+    position INTEGER NOT NULL CHECK (position >= 0)
 );
 
-CREATE INDEX IF NOT EXISTS actor_particle_shell_by_root
-  ON actor_particle_shell(root_src, parent_particle_id, shell_order);
-
-CREATE INDEX IF NOT EXISTS actor_particle_shell_by_root_depth
-  ON actor_particle_shell(root_src, depth, shell_order);
-
-CREATE TABLE IF NOT EXISTS actor_field_orbit (
-  id TEXT PRIMARY KEY,
-  root_src TEXT NOT NULL,
-  particle_id TEXT NOT NULL,
-  field_key TEXT NOT NULL,
-  field_label TEXT NOT NULL,
-  field_order INTEGER NOT NULL CHECK (field_order >= 0),
-  value_kind TEXT NOT NULL CHECK (value_kind IN ('number', 'text', 'bool', 'other')),
-  value_text TEXT,
-  local_x REAL NOT NULL,
-  local_y REAL NOT NULL,
-  local_z REAL NOT NULL,
-  sphere_radius REAL NOT NULL CHECK (sphere_radius > 0),
-  color_r REAL NOT NULL,
-  color_g REAL NOT NULL,
-  color_b REAL NOT NULL,
-  FOREIGN KEY (particle_id) REFERENCES actor_particle_shell(particle_id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS actor_edge
+(
+    child    TEXT PRIMARY KEY CHECK (length(trim(child)) > 0),
+    parent   TEXT,
+    position INTEGER NOT NULL CHECK (position >= 0),
+    FOREIGN KEY (child) REFERENCES actor (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (parent) REFERENCES actor (uuid) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS actor_field_orbit_by_root
-  ON actor_field_orbit(root_src, particle_id, field_order);
+CREATE TABLE IF NOT EXISTS actor_field
+(
+    uuid      TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
+    actor     TEXT    NOT NULL CHECK (length(trim(actor)) > 0),
+    metaField TEXT    NOT NULL CHECK (length(trim(metaField)) > 0),
+    position  INTEGER NOT NULL CHECK (position >= 0),
+    UNIQUE (actor, metaField),
+    UNIQUE (actor, position),
+    FOREIGN KEY (actor) REFERENCES actor (uuid) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS actor_value
+(
+    field   TEXT PRIMARY KEY CHECK (length(trim(field)) > 0),
+    kind    TEXT    NOT NULL CHECK (kind IN ('null', 'boolean', 'number', 'string', 'enum', 'list')),
+    boolean INTEGER CHECK (boolean IS NULL OR boolean IN (0, 1)),
+    number  REAL,
+    text    TEXT,
+    variant TEXT,
+    FOREIGN KEY (field) REFERENCES actor_field (uuid) ON DELETE CASCADE,
+    CHECK (
+        (kind = 'null' AND boolean IS NULL AND number IS NULL AND text IS NULL AND variant IS NULL) OR
+        (kind = 'boolean' AND boolean IS NOT NULL AND number IS NULL AND text IS NULL AND variant IS NULL) OR
+        (kind = 'number' AND number IS NOT NULL AND boolean IS NULL AND text IS NULL AND variant IS NULL) OR
+        (kind = 'string' AND text IS NOT NULL AND boolean IS NULL AND number IS NULL AND variant IS NULL) OR
+        (kind = 'enum' AND variant IS NOT NULL AND boolean IS NULL AND number IS NULL AND text IS NULL) OR
+        (kind = 'list' AND boolean IS NULL AND number IS NULL AND text IS NULL AND variant IS NULL)
+        )
+);
+
+CREATE TABLE IF NOT EXISTS actor_value_item
+(
+    field    TEXT NOT NULL CHECK (length(trim(field)) > 0),
+    position INTEGER NOT NULL CHECK (position >= 0),
+    kind     TEXT NOT NULL CHECK (kind IN ('null', 'boolean', 'number', 'string', 'enum')),
+    boolean  INTEGER CHECK (boolean IS NULL OR boolean IN (0, 1)),
+    number   REAL,
+    text     TEXT,
+    variant  TEXT,
+    PRIMARY KEY (field, position),
+    FOREIGN KEY (field) REFERENCES actor_value (field) ON DELETE CASCADE,
+    CHECK (
+        (kind = 'null' AND boolean IS NULL AND number IS NULL AND text IS NULL AND variant IS NULL) OR
+        (kind = 'boolean' AND boolean IS NOT NULL AND number IS NULL AND text IS NULL AND variant IS NULL) OR
+        (kind = 'number' AND number IS NOT NULL AND boolean IS NULL AND text IS NULL AND variant IS NULL) OR
+        (kind = 'string' AND text IS NOT NULL AND boolean IS NULL AND number IS NULL AND variant IS NULL) OR
+        (kind = 'enum' AND variant IS NOT NULL AND boolean IS NULL AND number IS NULL AND text IS NULL)
+        )
+);
+
+CREATE TABLE IF NOT EXISTS actor_source
+(
+    childField  TEXT PRIMARY KEY CHECK (length(trim(childField)) > 0),
+    parentField TEXT NOT NULL CHECK (length(trim(parentField)) > 0),
+    FOREIGN KEY (childField) REFERENCES actor_field (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (parentField) REFERENCES actor_field (uuid) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS actor_state
+(
+    actor     TEXT PRIMARY KEY CHECK (length(trim(actor)) > 0),
+    metaState TEXT NOT NULL CHECK (length(trim(metaState)) > 0),
+    FOREIGN KEY (actor) REFERENCES actor (uuid) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS actor_entanglement
+(
+    uuid      TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
+    world     TEXT NOT NULL CHECK (length(trim(world)) > 0),
+    rootField TEXT NOT NULL CHECK (length(trim(rootField)) > 0),
+    UNIQUE (rootField),
+    FOREIGN KEY (rootField) REFERENCES actor_field (uuid) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS actor_entanglement_member
+(
+    entanglement TEXT NOT NULL CHECK (length(trim(entanglement)) > 0),
+    actor        TEXT NOT NULL CHECK (length(trim(actor)) > 0),
+    position     INTEGER NOT NULL CHECK (position >= 0),
+    PRIMARY KEY (entanglement, actor),
+    FOREIGN KEY (entanglement) REFERENCES actor_entanglement (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (actor) REFERENCES actor (uuid) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS actor_entanglement_field
+(
+    uuid         TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
+    entanglement TEXT NOT NULL CHECK (length(trim(entanglement)) > 0),
+    metaField    TEXT NOT NULL CHECK (length(trim(metaField)) > 0),
+    position     INTEGER NOT NULL CHECK (position >= 0),
+    UNIQUE (entanglement, position),
+    FOREIGN KEY (entanglement) REFERENCES actor_entanglement (uuid) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS actor_entanglement_field_member
+(
+    entanglementField TEXT NOT NULL CHECK (length(trim(entanglementField)) > 0),
+    actorField        TEXT NOT NULL CHECK (length(trim(actorField)) > 0),
+    position          INTEGER NOT NULL CHECK (position >= 0),
+    PRIMARY KEY (entanglementField, actorField),
+    UNIQUE (actorField),
+    FOREIGN KEY (entanglementField) REFERENCES actor_entanglement_field (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (actorField) REFERENCES actor_field (uuid) ON DELETE CASCADE
+);
 `
 
 /**
- * Вставляет один shell-carrier в `actor_particle_shell` под указанным `rootSrc`.
- *
- * Используется как incremental write API: streaming materialize вызывает на каждый узел
- * descriptor-дерева, не накапливая весь world в памяти.
+ * Применяет actor DDL (11 таблиц) к уже открытому Database. Идемпотентно — все CREATE с IF NOT EXISTS.
+ * PRAGMA не трогает (ответственность владельца Database).
  */
-export const insertDbParticleShell = (
-  db: Database,
-  rootSrc: string,
-  shell: DbParticleShellRow,
-): void => {
-  db.query(
-    `INSERT INTO actor_particle_shell (
-      particle_id,
-      root_src,
-      parent_particle_id,
-      particle_kind,
-      src,
-      meta_src,
-      label,
-      depth,
-      shell_order,
-      local_x,
-      local_y,
-      local_z,
-      shell_scale,
-      shell_radius,
-      shell_tube,
-      color_r,
-      color_g,
-      color_b
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    shell.particleId,
-    rootSrc,
-    shell.parentParticleId,
-    shell.kind,
-    shell.src,
-    shell.metaSrc,
-    shell.label,
-    shell.depth,
-    shell.shellOrder,
-    shell.localX,
-    shell.localY,
-    shell.localZ,
-    shell.shellScale,
-    shell.shellRadius,
-    shell.shellTube,
-    shell.colorR,
-    shell.colorG,
-    shell.colorB,
-  )
-}
-
-/**
- * Вставляет одну точку field-orbit в `actor_field_orbit` под указанным `rootSrc`.
- *
- * Используется как incremental write API: streaming materialize вызывает на каждый field
- * после вставки particle-родителя.
- */
-export const insertDbFieldOrbit = (db: Database, rootSrc: string, orbit: DbFieldOrbitRow): void => {
-  db.query(
-    `INSERT INTO actor_field_orbit (
-      id,
-      root_src,
-      particle_id,
-      field_key,
-      field_label,
-      field_order,
-      value_kind,
-      value_text,
-      local_x,
-      local_y,
-      local_z,
-      sphere_radius,
-      color_r,
-      color_g,
-      color_b
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    orbit.id,
-    rootSrc,
-    orbit.particleId,
-    orbit.fieldKey,
-    orbit.fieldLabel,
-    orbit.fieldOrder,
-    orbit.fieldValueKind,
-    orbit.valueText,
-    orbit.localX,
-    orbit.localY,
-    orbit.localZ,
-    orbit.sphereRadius,
-    orbit.colorR,
-    orbit.colorG,
-    orbit.colorB,
-  )
-}
-
-export const initializeDbActorSqliteSchema = (db: Database): void => {
-  db.exec(schemaSql)
-
-  const fieldOrbitColumns = db
-    .query(`PRAGMA table_info(actor_field_orbit)`)
-    .all() as Array<{ name: string }>
-
-  if (!fieldOrbitColumns.some((column) => column.name === "value_kind")) {
-    db.exec(`ALTER TABLE actor_field_orbit ADD COLUMN value_kind TEXT NOT NULL DEFAULT 'other';`)
+export const initializeActorSqliteSchema = (db: Database): void => {
+  db.exec(actorSchemaSql)
+  for (const index of actorRequiredBackendIndexes) {
+    const unique = index.unique ? "UNIQUE " : ""
+    db.exec(`CREATE ${unique}INDEX IF NOT EXISTS ${index.name} ON ${index.table}(${index.columns.join(", ")})`)
   }
 }
 
-export const openDbActorSqlite = (options: DbActorSqliteOptions = {}): Database => {
-  const filename = options.filename ?? ":memory:"
-  const db = new Database(filename)
-  if (filename !== ":memory:") {
-    db.exec("PRAGMA journal_mode = WAL;")
-    db.exec("PRAGMA synchronous = NORMAL;")
-    db.exec("PRAGMA busy_timeout = 5000;")
-  }
-  initializeDbActorSqliteSchema(db)
-  return db
-}
-
-export const resetDbActorSqlite = (db: Database): void => {
-  initializeDbActorSqliteSchema(db)
-  db.exec(`
-    DELETE FROM actor_field_orbit;
-    DELETE FROM actor_particle_shell;
-  `)
-}
-
-/** Очищает все particles/fields для указанного `rootSrc`. Используется перед re-materialize. */
-export const clearDbWorld = (db: Database, rootSrc: string): void => {
-  initializeDbActorSqliteSchema(db)
-  const tx = db.transaction(() => {
-    db.query(`DELETE FROM actor_field_orbit WHERE root_src = ?`).run(rootSrc)
-    db.query(`DELETE FROM actor_particle_shell WHERE root_src = ?`).run(rootSrc)
-  })
-  tx()
-}
-
-interface ParticleShellRow {
-  particle_id: string
-  parent_particle_id: string | null
-  particle_kind: DbParticleShellRow["kind"]
-  src: string | null
-  meta_src: string | null
-  label: string
-  depth: number
-  shell_order: number
-  local_x: number
-  local_y: number
-  local_z: number
-  shell_scale: number
-  shell_radius: number
-  shell_tube: number
-  color_r: number
-  color_g: number
-  color_b: number
-}
-
-interface FieldOrbitRow {
-  id: string
-  particle_id: string
-  field_key: string
-  field_label: string
-  field_order: number
-  value_kind: DbFieldValueKind
-  value_text: string | null
-  local_x: number
-  local_y: number
-  local_z: number
-  sphere_radius: number
-  color_r: number
-  color_g: number
-  color_b: number
-}
-
-const PARTICLE_SHELL_COLUMNS = `
-  particle_id,
-  parent_particle_id,
-  particle_kind,
-  src,
-  meta_src,
-  label,
-  depth,
-  shell_order,
-  local_x,
-  local_y,
-  local_z,
-  shell_scale,
-  shell_radius,
-  shell_tube,
-  color_r,
-  color_g,
-  color_b
-`
-
-const FIELD_ORBIT_COLUMNS = `
-  id,
-  particle_id,
-  field_key,
-  field_label,
-  field_order,
-  value_kind,
-  value_text,
-  local_x,
-  local_y,
-  local_z,
-  sphere_radius,
-  color_r,
-  color_g,
-  color_b
-`
-
-const mapParticleShellRow = (row: ParticleShellRow): DbParticleShellRow => ({
-  particleId: row.particle_id,
-  parentParticleId: row.parent_particle_id,
-  kind: row.particle_kind,
-  src: row.src,
-  metaSrc: row.meta_src,
-  label: row.label,
-  depth: row.depth,
-  shellOrder: row.shell_order,
-  localX: row.local_x,
-  localY: row.local_y,
-  localZ: row.local_z,
-  shellScale: row.shell_scale,
-  shellRadius: row.shell_radius,
-  shellTube: row.shell_tube,
-  colorR: row.color_r,
-  colorG: row.color_g,
-  colorB: row.color_b,
-})
-
-const mapFieldOrbitRow = (row: FieldOrbitRow): DbFieldOrbitRow => ({
-  id: row.id,
-  particleId: row.particle_id,
-  fieldKey: row.field_key,
-  fieldLabel: row.field_label,
-  fieldOrder: row.field_order,
-  fieldValueKind: row.value_kind,
-  valueText: row.value_text,
-  localX: row.local_x,
-  localY: row.local_y,
-  localZ: row.local_z,
-  sphereRadius: row.sphere_radius,
-  colorR: row.color_r,
-  colorG: row.color_g,
-  colorB: row.color_b,
-})
-
 /**
- * Читает все particle-shell-ы под `rootSrc`, отсортированные `(depth, shell_order, particle_id)`.
- *
- * Используется bulk-viewport-ом для построения сцены прямо из rows.
+ * Очищает все actor-таблицы для всех миров. Используется в тестах и на полный сброс state-а.
+ * Каскад FK снимает зависимые строки автоматически — достаточно DELETE из корневой `actor`.
  */
-export const selectAllParticleShells = (db: Database, rootSrc: string): DbParticleShellRow[] => {
-  initializeDbActorSqliteSchema(db)
-  return (
-    db.query(
-      `SELECT ${PARTICLE_SHELL_COLUMNS}
-       FROM actor_particle_shell
-       WHERE root_src = ?
-       ORDER BY depth, shell_order, particle_id`,
-    ).all(rootSrc) as ParticleShellRow[]
-  ).map(mapParticleShellRow)
+export const resetActorSqliteSchema = (db: Database): void => {
+  db.transaction(() => {
+    db.exec("DELETE FROM actor_entanglement_field_member")
+    db.exec("DELETE FROM actor_entanglement_field")
+    db.exec("DELETE FROM actor_entanglement_member")
+    db.exec("DELETE FROM actor_entanglement")
+    db.exec("DELETE FROM actor_state")
+    db.exec("DELETE FROM actor_source")
+    db.exec("DELETE FROM actor_value_item")
+    db.exec("DELETE FROM actor_value")
+    db.exec("DELETE FROM actor_field")
+    db.exec("DELETE FROM actor_edge")
+    db.exec("DELETE FROM actor")
+  })()
 }
-
-/**
- * Читает все field-orbit-ы под `rootSrc`, отсортированные `(particle_id, field_order, id)`.
- */
-export const selectAllFieldOrbits = (db: Database, rootSrc: string): DbFieldOrbitRow[] => {
-  initializeDbActorSqliteSchema(db)
-  return (
-    db.query(
-      `SELECT ${FIELD_ORBIT_COLUMNS}
-       FROM actor_field_orbit
-       WHERE root_src = ?
-       ORDER BY particle_id, field_order, id`,
-    ).all(rootSrc) as FieldOrbitRow[]
-  ).map(mapFieldOrbitRow)
-}
-
-/**
- * Читает прямых детей указанного родителя (или roots при `parentParticleId === null`) под `rootSrc`.
- *
- * Используется bulk-viewport-ом при lazy-загрузке поддерева на навигации/scale.
- */
-export const selectParticleShellsByParent = (
-  db: Database,
-  rootSrc: string,
-  parentParticleId: string | null,
-): DbParticleShellRow[] => {
-  initializeDbActorSqliteSchema(db)
-  const rows = (
-    parentParticleId === null
-      ? db.query(
-          `SELECT ${PARTICLE_SHELL_COLUMNS}
-           FROM actor_particle_shell
-           WHERE root_src = ? AND parent_particle_id IS NULL
-           ORDER BY shell_order, particle_id`,
-        ).all(rootSrc)
-      : db.query(
-          `SELECT ${PARTICLE_SHELL_COLUMNS}
-           FROM actor_particle_shell
-           WHERE root_src = ? AND parent_particle_id = ?
-           ORDER BY shell_order, particle_id`,
-        ).all(rootSrc, parentParticleId)
-  ) as ParticleShellRow[]
-  return rows.map(mapParticleShellRow)
-}
-
-/**
- * Читает все field-orbit-ы конкретной частицы под `rootSrc`.
- */
-export const selectFieldOrbitsByParticle = (
-  db: Database,
-  rootSrc: string,
-  particleId: string,
-): DbFieldOrbitRow[] => {
-  initializeDbActorSqliteSchema(db)
-  return (
-    db.query(
-      `SELECT ${FIELD_ORBIT_COLUMNS}
-       FROM actor_field_orbit
-       WHERE root_src = ? AND particle_id = ?
-       ORDER BY field_order, id`,
-    ).all(rootSrc, particleId) as FieldOrbitRow[]
-  ).map(mapFieldOrbitRow)
-}
-

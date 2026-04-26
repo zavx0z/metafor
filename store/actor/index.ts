@@ -1,28 +1,42 @@
-export { createActorStoreOrm } from "./actor.ts"
-export type { ActorStoreOrm } from "./actor.t.ts"
-export type { DbActorStore } from "./store.t.ts"
+/**
+ * `@store/actor` — реляционное хранилище инстансного слоя.
+ *
+ * См. `store/actor/README.md` и `store/README.md` для архитектурных принципов.
+ */
+
 export type {
-  DbFieldOrbitRow,
-  DbFieldValueKind,
-  DbParticleKind,
-  DbParticleShellRow,
-  DbWorldRows,
+  ActorEdgeRecord,
+  ActorEntanglementFamilyRows,
+  ActorEntanglementFieldMemberRecord,
+  ActorEntanglementFieldRecord,
+  ActorEntanglementMemberRecord,
+  ActorEntanglementRecord,
+  ActorFieldRecord,
+  ActorRecord,
+  ActorRows,
+  ActorScalar,
+  ActorScalarKind,
+  ActorSourceRecord,
+  ActorStateRecord,
+  ActorValueItemRecord,
+  ActorValueKind,
+  ActorValueRecord,
 } from "./types.t.ts"
+
 export {
-  clearDbWorld,
-  initializeDbActorSqliteSchema,
-  insertDbFieldOrbit,
-  insertDbParticleShell,
-  openDbActorSqlite,
-  resetDbActorSqlite,
-  selectAllFieldOrbits,
-  selectAllParticleShells,
-  selectFieldOrbitsByParticle,
-  selectParticleShellsByParent,
+  actorRequiredBackendIndexes,
+  type ActorBackend,
+  type ActorBackendAwaitable,
+  type ActorBackendIndexSpec,
+  type ActorBackendTableName,
+} from "./backend.t.ts"
+
+export {
+  initializeActorSqliteSchema,
+  resetActorSqliteSchema,
 } from "./sqlite/schema.ts"
-export { createSqliteDbActorStore } from "./sqlite/store.ts"
-export type { SqliteDbActorStoreOptions } from "./sqlite/store.ts"
-export { createIdbDbActorStore } from "./idb/store.ts"
-export type { IdbDbActorStoreOptions } from "./idb/store.ts"
-export { applyDbSyncMessage, createMirroredActorStore } from "./mirror.ts"
-export type { DbSyncPublisher } from "./mirror.ts"
+
+export {
+  createSqliteActorBackend,
+  type SqliteActorBackendOptions,
+} from "./sqlite/store.ts"

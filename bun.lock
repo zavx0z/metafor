@@ -766,9 +766,6 @@
         "@dark/types": "workspace:*",
       },
     },
-    "store/view": {
-      "name": "@store/view",
-    },
   },
   "packages": {
     "@app/web": ["@app/web@workspace:app/web"],
@@ -972,8 +969,6 @@
     "@store/actor": ["@store/actor@workspace:store/actor"],
 
     "@store/meta": ["@store/meta@workspace:store/meta"],
-
-    "@store/view": ["@store/view@workspace:store/view"],
 
     "@tootallnate/quickjs-emscripten": ["@tootallnate/quickjs-emscripten@0.23.0", "", {}, "sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA=="],
 
