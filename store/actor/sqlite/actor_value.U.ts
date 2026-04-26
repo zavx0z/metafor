@@ -6,19 +6,19 @@ import { generateUuid } from "./_helpers.ts"
  * Если у actor-поля уже была запись и она orphan-нулась — удаляется (каскад
  * снимет данные из всех типизированных value_<kind> и value_list_item_*).
  */
-export const shareValue = async (db: Database, actor: string, metaField: string, value: string): Promise<void> => {
+export const shareValue = async (db: Database, actor: string, field: string, value: string): Promise<void> => {
   const deleteOrphanValueStmt = db.prepare(
     `DELETE FROM value WHERE uuid = ? AND NOT EXISTS (SELECT 1 FROM actor_value WHERE value = uuid)`,
   )
   db.transaction(() => {
     const oldRow = db
-      .prepare(`SELECT value FROM actor_value WHERE actor = ? AND metaField = ?`)
-      .get(actor, metaField) as { value: string } | null
+      .prepare(`SELECT value FROM actor_value WHERE actor = ? AND field = ?`)
+      .get(actor, field) as { value: string } | null
     const oldValueId = oldRow?.value
     db.prepare(
-      `INSERT INTO actor_value (actor, metaField, value) VALUES (?, ?, ?)
-       ON CONFLICT (actor, metaField) DO UPDATE SET value = excluded.value`,
-    ).run(actor, metaField, value)
+      `INSERT INTO actor_value (actor, field, value) VALUES (?, ?, ?)
+       ON CONFLICT (actor, field) DO UPDATE SET value = excluded.value`,
+    ).run(actor, field, value)
     if (oldValueId !== undefined && oldValueId !== value) {
       deleteOrphanValueStmt.run(oldValueId)
     }
@@ -30,15 +30,15 @@ export const shareValue = async (db: Database, actor: string, metaField: string,
  * типизированными подтаблицами и list-item-ами) под одного актор-поле,
  * остальные акторы продолжают делить старую. Возвращает новый uuid value.
  */
-export const forkValue = async (db: Database, actor: string, metaField: string): Promise<string> => {
+export const forkValue = async (db: Database, actor: string, field: string): Promise<string> => {
   const newUuid = generateUuid()
 
   db.transaction(() => {
     const sharedRow = db
-      .prepare(`SELECT value FROM actor_value WHERE actor = ? AND metaField = ?`)
-      .get(actor, metaField) as { value: string } | null
+      .prepare(`SELECT value FROM actor_value WHERE actor = ? AND field = ?`)
+      .get(actor, field) as { value: string } | null
     if (!sharedRow) {
-      throw new Error(`actor_value (${actor}, ${metaField}) not found — cannot fork`)
+      throw new Error(`actor_value (${actor}, ${field}) not found — cannot fork`)
     }
     const sourceUuid = sharedRow.value
 
@@ -90,7 +90,7 @@ export const forkValue = async (db: Database, actor: string, metaField: string):
     }
 
     // переключаем actor_value на новую запись
-    db.prepare(`UPDATE actor_value SET value = ? WHERE actor = ? AND metaField = ?`).run(newUuid, actor, metaField)
+    db.prepare(`UPDATE actor_value SET value = ? WHERE actor = ? AND field = ?`).run(newUuid, actor, field)
   })()
 
   return newUuid

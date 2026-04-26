@@ -28,7 +28,7 @@
 Актор ссылается на мету через `meta`-колонку (= `meta.src`). Это **полноценный FK** с `ON DELETE CASCADE`. Удаление меты автоматически снимает все акторы по ней (это корректно — если декларации больше нет, инстансы по ней теряют смысл).
 
 Аналогично:
-- `actor_value.metaField` → `field.uuid` (на какое поле меты ссылается значение)
+- `actor_value.field` → `field.uuid` (на какое поле меты ссылается значение)
 - `actor_state.metaState` → `superposition.uuid` (текущая фаза FSM из meta-superposition)
 - `value.variant` → `field_enum_variant.uuid` (для значений типа enum)
 
@@ -78,10 +78,10 @@
 | колонка | смысл |
 |---|---|
 | `actor` (PK) | FK на `actor.uuid` |
-| `metaField` (PK) | FK на `field.uuid` (поле меты, к которому относится значение) |
+| `field` (PK) | FK на `field.uuid` (поле меты, к которому относится значение) |
 | `value` | FK на `value.uuid` |
 
-**PRIMARY KEY**: `(actor, metaField)` — один actor имеет одно значение per поле меты.
+**PRIMARY KEY**: `(actor, field)` — один actor имеет одно значение per поле меты.
 
 **Entanglement** = два `actor_value` указывают на один и тот же `value.uuid`:
 ```
@@ -108,7 +108,7 @@ actor_value (actorB, fieldY, valueV)  -- та же V
 2. INSERT в `actor_state` с initial-состоянием меты (берётся из `superposition` где `position = 0`).
 3. Для каждого `field`-а из meta (через мету актора):
    - INSERT в `value` с дефолтным значением (или текущим из binding-source — см. ниже).
-   - INSERT в `actor_value (actor, metaField, value)`.
+   - INSERT в `actor_value (actor, field, value)`.
 4. Если поле приходит от родительского актора через source-binding (matter declaration parent передаёт child) — вместо нового `value` берётся UUID существующей записи родительского `actor_value` и оба указывают на неё. **Это и есть entanglement по построению.**
 
 ### Обновление значения
@@ -140,7 +140,7 @@ DELETE `actor` по uuid. Каскад FK снимает: `actor_value` (по `a
 - **Дети актора**: `SELECT uuid FROM actor WHERE parent = ? ORDER BY position`.
 - **Все поля одного актора с значениями**: JOIN `actor_value` + `value` + `field` (meta) по `actor = ?`.
 - **Кто разделяет это значение**: `SELECT actor FROM actor_value WHERE value = ?`. Если результат — одна строка, это локальное значение; если несколько — это entangled-семья.
-- **Поля разделяемые между двумя акторами**: `SELECT a1.metaField, a2.metaField FROM actor_value a1 JOIN actor_value a2 ON a1.value = a2.value WHERE a1.actor = ? AND a2.actor = ? AND a1.actor != a2.actor`.
+- **Поля разделяемые между двумя акторами**: `SELECT a1.field, a2.field FROM actor_value a1 JOIN actor_value a2 ON a1.value = a2.value WHERE a1.actor = ? AND a2.actor = ? AND a1.actor != a2.actor`.
 - **Текущее состояние**: `SELECT metaState FROM actor_state WHERE actor = ?`.
 
 ---
@@ -158,7 +158,7 @@ DELETE `actor` по uuid. Каскад FK снимает: `actor_value` (по `a
 
 5 таблиц вместо 11 в предыдущей версии. Уменьшение достигнуто за счёт:
 
-- удалена `actor_field` — поля декларированы в meta, не нужно их повторно перечислять для каждого инстанса (`actor_value.metaField` напрямую ссылается на `field.uuid`)
+- удалена `actor_field` — поля декларированы в meta, не нужно их повторно перечислять для каждого инстанса (`actor_value.field` напрямую ссылается на `field.uuid`)
 - удалена `actor_edge` — `actor.parent` через self-FK даёт ту же иерархию
 - удалена `actor_source` — entanglement выражается через shared `value.uuid`, source-проводки исчезают как отдельная сущность (это просто разделение записи)
 - удалены 4 таблицы `actor_entanglement_*` — entanglement = shared row, никаких метаданных «семьи» хранить не нужно (вычислимо: `SELECT actor FROM actor_value WHERE value = ?`)
@@ -173,7 +173,7 @@ User отметил, что нужно **более глубокое иссле�
 Текущая модель (shared `value.uuid`) предполагает: entanglement — **только** разделение записи. Это покрывает базовый кейс «parent передаёт значение child через matter-binding».
 
 Что **не** покрывает текущая модель:
-- **Direction**: source-bindings имеют направление (parent → child). Shared row симметричен. Если рантайм гарантирует, что child не пишет сам — direction обеспечивается дисциплиной, не схемой. Если бы хотелось зафиксировать direction в схеме — нужна была бы доп. колонка `actor_value.source` (FK на пару `(actor, metaField)`-источник) или возврат отдельной таблицы `value_source`.
+- **Direction**: source-bindings имеют направление (parent → child). Shared row симметричен. Если рантайм гарантирует, что child не пишет сам — direction обеспечивается дисциплиной, не схемой. Если бы хотелось зафиксировать direction в схеме — нужна была бы доп. колонка `actor_value.source` (FK на пару `(actor, field)`-источник) или возврат отдельной таблицы `value_source`.
 - **Дериативные значения**: matter-binding может содержать выражение `expr` («child = parent.length + 1»). Тогда child не равен parent, а вычисляется. Shared row не работает — нужны отдельные `value`, и связь между ними — не «равенство», а «вычисление».
 - **Семьи > 2**: если три актора делят одно значение через цепочку bindings — shared row покрывает это естественно (все три указывают на одну запись). Семья — производное множество, не хранится.
 - **List-shared**: если list-значение разделяется, изменение `value_item.position=N` затрагивает всех — это нормально. Но если кто-то хочет inserting/deleting items только у себя — нужен local fork (см. «расщепление» выше).

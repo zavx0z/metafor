@@ -80,7 +80,7 @@ export const readActorRows = async (db: Database, uuid: string): Promise<ActorRo
   if (!actorRow) return null
 
   const values = (
-    db.prepare(`SELECT actor, metaField, value FROM actor_value WHERE actor = ?`).all(uuid) as Array<
+    db.prepare(`SELECT actor, field, value FROM actor_value WHERE actor = ?`).all(uuid) as Array<
       Record<string, unknown>
     >
   ).map((row) => decodeActorValue(row)!) as ActorValueRecord[]

@@ -55,7 +55,7 @@ export interface ActorBackend {
   readActor(uuid: string): Promise<ActorRecord | null>
   readActorRows(uuid: string): Promise<ActorRows | null>
   readActorState(actor: string): Promise<ActorStateRecord | null>
-  readActorValue(actor: string, metaField: string): Promise<ActorValueRecord | null>
+  readActorValue(actor: string, field: string): Promise<ActorValueRecord | null>
 
   // Адресные чтения значений
   readValue(uuid: string): Promise<ValueRecord | null>
@@ -81,12 +81,12 @@ export interface ActorBackend {
    * Связывает актор-поле с существующей записью value (entanglement).
    * Если у actor-поля уже была запись и она orphan-нулась — удаляется.
    */
-  shareValue(actor: string, metaField: string, value: string): ActorBackendAwaitable<void>
+  shareValue(actor: string, field: string, value: string): ActorBackendAwaitable<void>
   /**
    * Расщепляет shared value: создаёт новую копию записи value под одного актор-поле,
    * остальные продолжают делить старую. Возвращает новый uuid value.
    */
-  forkValue(actor: string, metaField: string): Promise<string>
+  forkValue(actor: string, field: string): Promise<string>
 }
 
 export const actorRequiredBackendIndexes: readonly ActorBackendIndexSpec[] = [
@@ -97,7 +97,7 @@ export const actorRequiredBackendIndexes: readonly ActorBackendIndexSpec[] = [
 
   // actor_value
   { name: "actor_value_by_value", table: "actor_value", columns: ["value"], unique: false },
-  { name: "actor_value_by_meta_field", table: "actor_value", columns: ["metaField"], unique: false },
+  { name: "actor_value_by_field", table: "actor_value", columns: ["field"], unique: false },
 
   // value (variant)
   { name: "value_by_variant", table: "value", columns: ["variant"], unique: false },

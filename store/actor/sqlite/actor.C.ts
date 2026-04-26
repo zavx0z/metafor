@@ -59,7 +59,7 @@ export const writeActorRows = async (db: Database, rows: ActorRows): Promise<voi
     `INSERT INTO value_list_item (value, position, item_value) VALUES (?, ?, ?)
      ON CONFLICT (value, position) DO UPDATE SET item_value = excluded.item_value`,
   )
-  const insertActorValueStmt = db.prepare(`INSERT INTO actor_value (actor, metaField, value) VALUES (?, ?, ?)`)
+  const insertActorValueStmt = db.prepare(`INSERT INTO actor_value (actor, field, value) VALUES (?, ?, ?)`)
   const insertActorStateStmt = db.prepare(`INSERT INTO actor_state (actor, metaState) VALUES (?, ?)`)
   const deleteOrphanValueStmt = db.prepare(
     `DELETE FROM value WHERE uuid = ? AND NOT EXISTS (SELECT 1 FROM actor_value WHERE value = uuid)`,
@@ -94,7 +94,7 @@ export const writeActorRows = async (db: Database, rows: ActorRows): Promise<voi
 
     // связи actor_value
     for (const av of rows.values) {
-      insertActorValueStmt.run(av.actor, av.metaField, av.value)
+      insertActorValueStmt.run(av.actor, av.field, av.value)
     }
 
     // состояние

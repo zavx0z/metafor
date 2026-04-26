@@ -64,7 +64,7 @@ export const createSqliteActorBackend = (options: SqliteActorBackendOptions = {}
     readActor: (uuid) => readActor(db, uuid),
     readActorRows: (uuid) => readActorRows(db, uuid),
     readActorState: (actor) => readActorState(db, actor),
-    readActorValue: (actor, metaField) => readActorValue(db, actor, metaField),
+    readActorValue: (actor, field) => readActorValue(db, actor, field),
 
     readValue: (uuid) => readValue(db, uuid),
     readValueItems: (value) => readValueItems(db, value),
@@ -77,7 +77,7 @@ export const createSqliteActorBackend = (options: SqliteActorBackendOptions = {}
     truncateValueItems: (value, fromPosition) => truncateValueItems(db, value, fromPosition),
     setActorState: (actor, metaState) => setActorState(db, actor, metaState),
 
-    shareValue: (actor, metaField, value) => shareValue(db, actor, metaField, value),
-    forkValue: (actor, metaField) => forkValue(db, actor, metaField),
+    shareValue: (actor, field, value) => shareValue(db, actor, field, value),
+    forkValue: (actor, field) => forkValue(db, actor, field),
   }
 }
