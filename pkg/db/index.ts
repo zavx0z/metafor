@@ -18,9 +18,13 @@ export {
 } from "./core.ts"
 export type {
   DbBackend,
+  DbBackendIndexSpec,
+  DbBackendTableName,
   DbData,
   DbEntanglementFamilyRows,
   DbFieldOrbitRow,
+  DbFieldSourceRecord,
+  DbFieldValueRecord,
   DbFieldValueKind,
   DbMaterializationWriter,
   DbMetaBundle,
@@ -28,6 +32,8 @@ export type {
   DbParticleKind,
   DbParticleShellRow,
   DbMetaRows,
+  DbWimpEdgeRecord,
+  DbWimpFieldRecord,
   DbWorldRows,
   DbWimpBundle,
   DbWimpFieldBundle,
@@ -35,8 +41,20 @@ export type {
 } from "./core.ts"
 export { initializeDbSqliteSchema, openDbSqliteBackend } from "./sqlite.ts"
 export type { DbSqliteBackendOptions } from "./sqlite.ts"
-export type { DbInstanceStore } from "./instance-store.t.ts"
-export { createSqliteDbInstanceStore } from "./sqlite-instance-store.ts"
-export type { SqliteDbInstanceStoreOptions } from "./sqlite-instance-store.ts"
-export { createIdbDbInstanceStore } from "./idb-instance-store.ts"
-export type { IdbDbInstanceStoreOptions } from "./idb-instance-store.ts"
+export type { DbInstanceStore, DbInstanceStore as DbActorStore } from "./instance-store.t.ts"
+export {
+  createSqliteDbInstanceStore,
+  createSqliteDbInstanceStore as createSqliteDbActorStore,
+} from "./sqlite-instance-store.ts"
+export type {
+  SqliteDbInstanceStoreOptions,
+  SqliteDbInstanceStoreOptions as SqliteDbActorStoreOptions,
+} from "./sqlite-instance-store.ts"
+export {
+  createIdbDbInstanceStore,
+  createIdbDbInstanceStore as createIdbDbActorStore,
+} from "./idb-instance-store.ts"
+export type {
+  IdbDbInstanceStoreOptions,
+  IdbDbInstanceStoreOptions as IdbDbActorStoreOptions,
+} from "./idb-instance-store.ts"

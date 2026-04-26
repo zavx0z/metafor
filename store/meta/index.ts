@@ -1,1 +1,1 @@
-export { getMetaDB, relation } from "./sqlite/index.ts"
+export { getMetaDB as get, relation } from "./sqlite/index.ts"

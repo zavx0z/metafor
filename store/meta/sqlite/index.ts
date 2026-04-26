@@ -1,5 +1,4 @@
-export { relation } from "./relation.ts"
-export { getMetaDB } from "./sqlite.ts"
+export { open as getMetaDB, create as relation } from "./sqlite.ts"
 export { readDarkParticleModel } from "./read.ts"
 export { getFields, getFields as readFields } from "./fields/get.ts"
 export { getMass, getMass as readMass, getMetaRow } from "./metafor/get.ts"

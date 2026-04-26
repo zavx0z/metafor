@@ -33,9 +33,15 @@ export type {
   DbParticleShellRow,
   DbWorldRows,
 } from "./instance.t.ts"
-export type { DbInstanceStore } from "./instance-store.t.ts"
-export { createIdbDbInstanceStore } from "./idb-instance-store.ts"
-export type { IdbDbInstanceStoreOptions } from "./idb-instance-store.ts"
+export type { DbInstanceStore, DbInstanceStore as DbActorStore } from "./instance-store.t.ts"
+export {
+  createIdbDbInstanceStore,
+  createIdbDbInstanceStore as createIdbDbActorStore,
+} from "./idb-instance-store.ts"
+export type {
+  IdbDbInstanceStoreOptions,
+  IdbDbInstanceStoreOptions as IdbDbActorStoreOptions,
+} from "./idb-instance-store.ts"
 export {
   applyDbSyncMessage,
   createMirroredInstanceStore,

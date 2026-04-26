@@ -1,12 +1,12 @@
 import { Database } from "bun:sqlite"
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
-import { getMetaDB, metaforDslIndexNames, metaforDslTableNames } from "./sqlite.ts"
+import { open, metaforDslIndexNames, metaforDslTableNames } from "./sqlite.ts"
 
 describe("sqlite ddl", () => {
   let db: Database
 
   beforeEach(() => {
-    db = getMetaDB(":memory:")
+    db = open(":memory:")
   })
 
   afterEach(() => {

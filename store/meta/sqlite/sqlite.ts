@@ -7,6 +7,13 @@ import finallySchemaSql from "../../../finally.sql" with {type: "text"}
 import reactionsSchemaSql from "../../../reactions.sql" with {type: "text"}
 import matterSchemaSql from "../../../matter.sql" with {type: "text"}
 import {Database, constants} from "bun:sqlite"
+import type { MetaDSL } from "../../../metafor.t"
+import { createFields } from "./fields"
+import { createMatter } from "./matter"
+import { createMetafor } from "./metafor"
+import { createProcess } from "./process"
+import { createReactions } from "./reactions"
+import { createSuperposition } from "./superposition"
 
 export const metaforDslTableNames = [
   "meta",
@@ -100,7 +107,7 @@ export const metaforDslSchemaSql = metaforDslSchemaSqlModules
  * @param path - Путь к файлу базы данных.
  * @returns Открытый экземпляр Database с инициализированной схемой.
  */
-export function getMetaDB(path: string): Database {
+export function open(path: string): Database {
   const db = new Database(path, { strict: true, create: true })
 
   db.run("PRAGMA foreign_keys = ON;")
@@ -116,3 +123,23 @@ export function getMetaDB(path: string): Database {
 
   return db
 }
+
+/**
+ * Экспортирует структуру MetaDSL в реляционные таблицы SQLite.
+ *
+ * @param db - Экземпляр базы данных SQLite.
+ * @param meta - Объект MetaDSL.
+ * @param src - Уникальный идентификатор (source) атома.
+ */
+
+export function create(db: Database, meta: MetaDSL, src: string): void {
+  db.transaction(() => {
+    createMetafor(db, meta, src)
+    const fieldUuids = createFields(db, meta, src)
+    const stateUuids = createSuperposition(db, meta, src, fieldUuids)
+    createProcess(db, meta, src, fieldUuids)
+    createReactions(db, meta, src, fieldUuids, stateUuids)
+    createMatter(db, meta, src, fieldUuids)
+  })()
+}
+
