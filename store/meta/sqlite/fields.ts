@@ -168,7 +168,13 @@ export class EnumField extends Field {
   }
 }
 
-const buildField = (sql: SQL, src: string, key: FieldKey, type: FieldType): Field => {
+/**
+ * Дискриминированный union возможных полей. `Fields.get/.all` возвращают
+ * именно его, а не абстрактный `Field`, чтобы TS сужал по `field.type`.
+ */
+export type AnyField = StringField | NumberField | BooleanField | ArrayField | EnumField
+
+const buildField = (sql: SQL, src: string, key: FieldKey, type: FieldType): AnyField => {
   switch (type) {
     case "string":
       return new StringField(sql, src, key)
@@ -191,7 +197,7 @@ export class Fields {
   ) {}
 
   /** Все поля декларации в порядке объявления — каждый инстанс под своим типом. */
-  async all(): Promise<Field[]> {
+  async all(): Promise<AnyField[]> {
     const rows = await this.sql<Array<{ key: string; type: FieldType }>>`
       SELECT key, type FROM field WHERE meta = ${this.src} ORDER BY rowid
     `
@@ -199,7 +205,7 @@ export class Fields {
   }
 
   /** Одно поле по ключу — точный подкласс по `field.type`. */
-  async get(filter: { key: FieldKey }): Promise<Field | null> {
+  async get(filter: { key: FieldKey }): Promise<AnyField | null> {
     const row = (
       await this.sql<Array<{ type: FieldType }>>`
         SELECT type FROM field WHERE meta = ${this.src} AND key = ${filter.key} LIMIT 1

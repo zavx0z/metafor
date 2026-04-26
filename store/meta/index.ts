@@ -33,4 +33,4 @@ export {
   StringField,
   Superposition,
 } from "./sqlite/index.ts"
-export type { FieldType } from "./sqlite/index.ts"
+export type { AnyField, FieldType } from "./sqlite/index.ts"

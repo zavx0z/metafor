@@ -52,7 +52,7 @@ export abstract class Value {
   }
 
   /** Возвращает Value-инстанс точного подкласса или `null`, если записи нет. */
-  static async get(sql: SQL, uuid: string): Promise<Value | null> {
+  static async get(sql: SQL, uuid: string): Promise<AnyValue | null> {
     const row = (
       await sql<Array<{ kind: string }>>`
         SELECT kind FROM value WHERE uuid = ${uuid} LIMIT 1
@@ -179,8 +179,15 @@ export class ListValue extends Value {
   }
 }
 
+/**
+ * Дискриминированный union возможных value-инстансов. `Value.get` /
+ * `ActorFieldValue.value` возвращают именно его, а не абстрактный `Value`,
+ * чтобы TS сужал по `value.kind`.
+ */
+export type AnyValue = NullValue | BooleanValue | NumberValue | StringValue | EnumValue | ListValue
+
 /** Factory: инстанцирует точный подкласс `Value` по `kind`. */
-const buildValue = (sql: SQL, uuid: string, kind: ValueKind): Value => {
+const buildValue = (sql: SQL, uuid: string, kind: ValueKind): AnyValue => {
   switch (kind) {
     case "null":
       return new NullValue(sql, uuid)

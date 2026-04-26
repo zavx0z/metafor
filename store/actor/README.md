@@ -30,7 +30,7 @@
 Аналогично:
 - `actor_value.field` → `field.uuid` (на какое поле меты ссылается значение)
 - `actor_state.metaState` → `superposition.uuid` (текущая фаза FSM из meta-superposition)
-- `value.variant` → `field_enum_variant.uuid` (для значений типа enum)
+- `value_enum.variant` → `field_enum_variant.uuid` (для значений типа enum; payload разнесён по type-specific подтаблицам, корневая `value` хранит только `kind`)
 
 Стор и meta живут в одной БД — FK работают.
 

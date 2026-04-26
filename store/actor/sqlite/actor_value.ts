@@ -16,7 +16,7 @@
 
 import type { SQL } from "bun"
 import type { ValueKind } from "./value.t.ts"
-import { Value } from "./value.ts"
+import { Value, type AnyValue } from "./value.ts"
 import { forkValue, shareValue } from "./actor_value.U.ts"
 
 /**
@@ -34,7 +34,7 @@ export class ActorFieldValue {
   ) {}
 
   /** Текущий `Value` (точный подкласс) под этим линком. Бросает, если линк исчез. */
-  async value(): Promise<Value> {
+  async value(): Promise<AnyValue> {
     const row = (
       await this.sql<Array<{ value: string; kind: string }>>`
         SELECT av.value AS value, v.kind AS kind
@@ -56,7 +56,7 @@ export class ActorFieldValue {
   }
 
   /** Расщепить shared value: создаётся новая копия записи под этого актора. */
-  async fork(): Promise<Value> {
+  async fork(): Promise<AnyValue> {
     const newUuid = await forkValue(this.sql, this.actor, this.field)
     const found = await Value.get(this.sql, newUuid)
     if (!found) throw new Error(`forked value ${newUuid} not visible after commit`)

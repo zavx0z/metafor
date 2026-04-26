@@ -33,6 +33,7 @@ export { actorSchemaSql }
 export { Actor, ActorChildren, ActorRoots, ActorValues } from "./actor.ts"
 export { ActorFieldValue } from "./actor_value.ts"
 export { BooleanValue, EnumValue, ListValue, NullValue, NumberValue, StringValue, Value } from "./value.ts"
+export type { AnyValue } from "./value.ts"
 
 // ────────────────────────────── write-side helpers (server.ts API) ──────────────────────────────
 

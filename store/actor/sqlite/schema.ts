@@ -35,7 +35,6 @@ const actorIndexes: readonly ActorIndexSpec[] = [
   { name: "actor_by_parent_and_position", table: "actor", columns: ["parent", "position"], unique: false },
   { name: "actor_value_by_value", table: "actor_value", columns: ["value"], unique: false },
   { name: "actor_value_by_field", table: "actor_value", columns: ["field"], unique: false },
-  { name: "value_by_variant", table: "value", columns: ["variant"], unique: false },
 ] as const
 
 const indexDdl = (idx: ActorIndexSpec): string => {
