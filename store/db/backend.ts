@@ -1,3 +1,4 @@
+import { dbViewRequiredBackendIndexes } from "../view/backend.t.ts"
 import type { DbBackendIndexSpec } from "./backend.t.ts"
 import type {
   DbData,
@@ -67,7 +68,17 @@ const requireReference = (
   }
 }
 
-export const dbRequiredBackendIndexes: readonly DbBackendIndexSpec[] = [
+/**
+ * Meta-уровневые индексы canonical relational DB.
+ *
+ * Покрывают все 14 meta_* таблиц (metas + meta_fields + meta_states + meta_transitions +
+ * meta_transition_conditions + meta_processes + meta_process_reads + meta_process_writes +
+ * meta_reactions + meta_reaction_states + meta_reaction_reads + meta_reaction_writes +
+ * meta_matter_nodes + meta_matter_edges).
+ *
+ * View-уровневые индексы живут отдельно в `store/view/backend.t.ts`.
+ */
+export const dbMetaRequiredBackendIndexes: readonly DbBackendIndexSpec[] = [
   { name: "metas_by", table: "metas", columns: ["src"], unique: true },
   { name: "meta_fields_by_owner_meta", table: "meta_fields", columns: ["ownerMetaId"], unique: false },
   { name: "meta_fields_by_owner_and_field_key", table: "meta_fields", columns: ["ownerMetaId", "fieldKey"], unique: true },
@@ -169,54 +180,18 @@ export const dbRequiredBackendIndexes: readonly DbBackendIndexSpec[] = [
     columns: ["parentNodeId", "edgeOrder"],
     unique: false,
   },
-  { name: "wimps_by_wimp_order", table: "wimps", columns: ["wimpOrder"], unique: true },
-  { name: "wimps_by_meta_id", table: "wimps", columns: ["metaId"], unique: false },
-  { name: "wimp_fields_by_owner_wimp", table: "wimp_fields", columns: ["ownerWimpId"], unique: false },
-  { name: "wimp_fields_by_owner_and_meta_field", table: "wimp_fields", columns: ["ownerWimpId", "metaFieldId"], unique: true },
-  { name: "wimp_fields_by_owner_and_field_order", table: "wimp_fields", columns: ["ownerWimpId", "fieldOrder"], unique: true },
-  { name: "wimp_edges_by_child", table: "wimp_edges", columns: ["childWimpId"], unique: true },
-  { name: "wimp_edges_by_parent_and_order", table: "wimp_edges", columns: ["parentWimpId", "edgeOrder"], unique: false },
-  { name: "field_values_by_owner_wimp_field", table: "field_values", columns: ["ownerWimpFieldId"], unique: true },
-  { name: "field_sources_by_child_wimp_field", table: "field_sources", columns: ["childWimpFieldId"], unique: true },
-  { name: "field_sources_by_parent_wimp_field", table: "field_sources", columns: ["parentWimpFieldId"], unique: false },
-  { name: "wimp_states_by_owner", table: "wimp_states", columns: ["ownerWimpId"], unique: true },
-  { name: "entanglements_by_membership_key", table: "entanglements", columns: ["membershipKey"], unique: false },
-  {
-    name: "entanglement_members_by_owner_entanglement",
-    table: "entanglement_members",
-    columns: ["ownerEntanglementId"],
-    unique: false,
-  },
-  {
-    name: "entanglement_members_by_owner_and_order",
-    table: "entanglement_members",
-    columns: ["ownerEntanglementId", "memberOrder"],
-    unique: true,
-  },
-  {
-    name: "entanglement_fields_by_owner_entanglement",
-    table: "entanglement_fields",
-    columns: ["ownerEntanglementId"],
-    unique: false,
-  },
-  {
-    name: "entanglement_fields_by_owner_and_order",
-    table: "entanglement_fields",
-    columns: ["ownerEntanglementId", "fieldOrder"],
-    unique: true,
-  },
-  {
-    name: "entanglement_field_members_by_owner_field",
-    table: "entanglement_field_members",
-    columns: ["ownerEntanglementFieldId"],
-    unique: false,
-  },
-  {
-    name: "entanglement_field_members_by_owner_and_order",
-    table: "entanglement_field_members",
-    columns: ["ownerEntanglementFieldId", "memberOrder"],
-    unique: true,
-  },
+] as const
+
+/**
+ * Объединённый список индексов unified DbBackend (meta + view).
+ *
+ * Существует для обратной совместимости — современные потребители должны брать meta-индексы
+ * из `dbMetaRequiredBackendIndexes`, а view-индексы — из `dbViewRequiredBackendIndexes`
+ * в `store/view/backend.t.ts`.
+ */
+export const dbRequiredBackendIndexes: readonly DbBackendIndexSpec[] = [
+  ...dbMetaRequiredBackendIndexes,
+  ...(dbViewRequiredBackendIndexes as readonly DbBackendIndexSpec[]),
 ] as const
 
 export const createEmptyDbData = (): DbData => ({

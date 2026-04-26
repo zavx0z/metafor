@@ -1,15 +1,9 @@
 import { Database, type SQLQueryBindings } from "bun:sqlite"
+import { createSqliteDbViewBackend, initializeDbViewSqliteSchema } from "../view/sqlite/store.ts"
 import { dbRequiredBackendIndexes } from "./backend.ts"
-import type { DbBackend, DbEntanglementFamilyRows, DbMetaRows, DbWimpRows } from "./backend.t.ts"
+import type { DbBackend, DbMetaRows } from "./backend.t.ts"
 import type {
-  DbData,
-  DbEntanglementFieldMemberRecord,
-  DbEntanglementFieldRecord,
-  DbEntanglementMemberRecord,
-  DbEntanglementRecord,
   DbFieldSchemaRecord,
-  DbFieldSourceRecord,
-  DbFieldValueRecord,
   DbMetaFieldRecord,
   DbMetaMatterEdgeRecord,
   DbMetaMatterNodeRecord,
@@ -24,10 +18,6 @@ import type {
   DbMetaStateRecord,
   DbMetaTransitionConditionRecord,
   DbMetaTransitionRecord,
-  DbWimpEdgeRecord,
-  DbWimpFieldRecord,
-  DbWimpRecord,
-  DbWimpStateRecord,
 } from "./db.t.ts"
 
 export interface DbSqliteBackendOptions {
@@ -40,7 +30,7 @@ export interface DbSqliteBackend extends DbBackend {
 
 const isFileBackedSqlite = (filename: string | undefined): boolean => filename !== undefined && filename !== ":memory:"
 
-const schemaSql = `
+const metaSchemaSql = `
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS metas (
@@ -187,95 +177,6 @@ CREATE TABLE IF NOT EXISTS meta_matter_edges (
   FOREIGN KEY (parentNodeId) REFERENCES meta_matter_nodes(id) ON DELETE CASCADE,
   FOREIGN KEY (childNodeId) REFERENCES meta_matter_nodes(id) ON DELETE CASCADE
 );
-
-CREATE TABLE IF NOT EXISTS wimps (
-  id TEXT PRIMARY KEY,
-  metaId TEXT NOT NULL,
-  wimpOrder INTEGER NOT NULL,
-  massOverrideJson TEXT,
-  FOREIGN KEY (metaId) REFERENCES metas(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS wimp_fields (
-  id TEXT PRIMARY KEY,
-  ownerWimpId TEXT NOT NULL,
-  metaFieldId TEXT NOT NULL,
-  fieldOrder INTEGER NOT NULL,
-  FOREIGN KEY (ownerWimpId) REFERENCES wimps(id) ON DELETE CASCADE,
-  FOREIGN KEY (metaFieldId) REFERENCES meta_fields(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS wimp_edges (
-  id TEXT PRIMARY KEY,
-  parentWimpId TEXT,
-  childWimpId TEXT NOT NULL,
-  edgeOrder INTEGER NOT NULL,
-  FOREIGN KEY (parentWimpId) REFERENCES wimps(id) ON DELETE CASCADE,
-  FOREIGN KEY (childWimpId) REFERENCES wimps(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS field_values (
-  id TEXT PRIMARY KEY,
-  ownerWimpFieldId TEXT NOT NULL,
-  valueJson TEXT NOT NULL,
-  FOREIGN KEY (ownerWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS field_sources (
-  id TEXT PRIMARY KEY,
-  childWimpFieldId TEXT NOT NULL,
-  parentWimpFieldId TEXT NOT NULL,
-  FOREIGN KEY (childWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE,
-  FOREIGN KEY (parentWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS wimp_states (
-  id TEXT PRIMARY KEY,
-  ownerWimpId TEXT NOT NULL,
-  metaStateId TEXT NOT NULL,
-  FOREIGN KEY (ownerWimpId) REFERENCES wimps(id) ON DELETE CASCADE,
-  FOREIGN KEY (metaStateId) REFERENCES meta_states(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS entanglements (
-  id TEXT PRIMARY KEY,
-  membershipKey TEXT NOT NULL,
-  provenance TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS entanglement_members (
-  id TEXT PRIMARY KEY,
-  ownerEntanglementId TEXT NOT NULL,
-  wimpId TEXT NOT NULL,
-  memberOrder INTEGER NOT NULL,
-  FOREIGN KEY (ownerEntanglementId) REFERENCES entanglements(id) ON DELETE CASCADE,
-  FOREIGN KEY (wimpId) REFERENCES wimps(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS entanglement_fields (
-  id TEXT PRIMARY KEY,
-  ownerEntanglementId TEXT NOT NULL,
-  fieldOrder INTEGER NOT NULL,
-  semanticKey TEXT NOT NULL,
-  fieldName TEXT NOT NULL,
-  provenance TEXT NOT NULL,
-  representativeWimpFieldId TEXT NOT NULL,
-  payloadIdsJson TEXT NOT NULL,
-  semanticKeysJson TEXT NOT NULL,
-  FOREIGN KEY (ownerEntanglementId) REFERENCES entanglements(id) ON DELETE CASCADE,
-  FOREIGN KEY (representativeWimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS entanglement_field_members (
-  id TEXT PRIMARY KEY,
-  ownerEntanglementFieldId TEXT NOT NULL,
-  ownerWimpId TEXT NOT NULL,
-  wimpFieldId TEXT NOT NULL,
-  memberOrder INTEGER NOT NULL,
-  FOREIGN KEY (ownerEntanglementFieldId) REFERENCES entanglement_fields(id) ON DELETE CASCADE,
-  FOREIGN KEY (ownerWimpId) REFERENCES wimps(id) ON DELETE CASCADE,
-  FOREIGN KEY (wimpFieldId) REFERENCES wimp_fields(id) ON DELETE CASCADE
-);
 `
 
 const serializeJson = (value: unknown): string => {
@@ -292,17 +193,7 @@ const compareById = <T extends { id: string }>(left: T, right: T): number => lef
 
 const sortRowsById = <T extends { id: string }>(rows: T[]): T[] => rows.sort(compareById)
 
-const tableResetOrder = [
-  "entanglement_field_members",
-  "entanglement_fields",
-  "entanglement_members",
-  "entanglements",
-  "wimp_states",
-  "field_sources",
-  "field_values",
-  "wimp_edges",
-  "wimp_fields",
-  "wimps",
+const metaTableResetOrder = [
   "meta_matter_edges",
   "meta_matter_nodes",
   "meta_reaction_writes",
@@ -482,82 +373,11 @@ const readMetaMatterEdgeRecordRow = (row: Record<string, unknown>): DbMetaMatter
   edgeOrder: Number(row.edgeOrder),
 })
 
-const readWimpRecordRow = (row: Record<string, unknown>): DbWimpRecord => ({
-  id: String(row.id),
-  metaId: String(row.metaId),
-  wimpOrder: Number(row.wimpOrder),
-  ...(row.massOverrideJson !== null && row.massOverrideJson !== undefined
-    ? { massOverride: parseJson(String(row.massOverrideJson)) }
-    : {}),
-})
-
-const readWimpFieldRecordRow = (row: Record<string, unknown>): DbWimpFieldRecord => ({
-  id: String(row.id),
-  ownerWimpId: String(row.ownerWimpId),
-  metaFieldId: String(row.metaFieldId),
-  fieldOrder: Number(row.fieldOrder),
-})
-
-const readWimpEdgeRecordRow = (row: Record<string, unknown>): DbWimpEdgeRecord => ({
-  id: String(row.id),
-  parentWimpId: row.parentWimpId === null || row.parentWimpId === undefined ? null : String(row.parentWimpId),
-  childWimpId: String(row.childWimpId),
-  edgeOrder: Number(row.edgeOrder),
-})
-
-const readFieldValueRecordRow = (row: Record<string, unknown>): DbFieldValueRecord => ({
-  id: String(row.id),
-  ownerWimpFieldId: String(row.ownerWimpFieldId),
-  value: parseJson(String(row.valueJson)),
-})
-
-const readFieldSourceRecordRow = (row: Record<string, unknown>): DbFieldSourceRecord => ({
-  id: String(row.id),
-  childWimpFieldId: String(row.childWimpFieldId),
-  parentWimpFieldId: String(row.parentWimpFieldId),
-})
-
-const readWimpStateRecordRow = (row: Record<string, unknown>): DbWimpStateRecord => ({
-  id: String(row.id),
-  ownerWimpId: String(row.ownerWimpId),
-  metaStateId: String(row.metaStateId),
-})
-
-const readEntanglementRecordRow = (row: Record<string, unknown>): DbEntanglementRecord => ({
-  id: String(row.id),
-  membershipKey: String(row.membershipKey),
-  provenance: String(row.provenance),
-})
-
-const readEntanglementMemberRecordRow = (row: Record<string, unknown>): DbEntanglementMemberRecord => ({
-  id: String(row.id),
-  ownerEntanglementId: String(row.ownerEntanglementId),
-  wimpId: String(row.wimpId),
-  memberOrder: Number(row.memberOrder),
-})
-
-const readEntanglementFieldRecordRow = (row: Record<string, unknown>): DbEntanglementFieldRecord => ({
-  id: String(row.id),
-  ownerEntanglementId: String(row.ownerEntanglementId),
-  fieldOrder: Number(row.fieldOrder),
-  semanticKey: String(row.semanticKey),
-  fieldName: String(row.fieldName),
-  provenance: String(row.provenance),
-  representativeWimpFieldId: String(row.representativeWimpFieldId),
-  payloadIds: parseJson<string[]>(String(row.payloadIdsJson)) ?? [],
-  semanticKeys: parseJson<string[]>(String(row.semanticKeysJson)) ?? [],
-})
-
-const readEntanglementFieldMemberRecordRow = (row: Record<string, unknown>): DbEntanglementFieldMemberRecord => ({
-  id: String(row.id),
-  ownerEntanglementFieldId: String(row.ownerEntanglementFieldId),
-  ownerWimpId: String(row.ownerWimpId),
-  wimpFieldId: String(row.wimpFieldId),
-  memberOrder: Number(row.memberOrder),
-})
-
 export const initializeDbSqliteSchema = (database: Database): void => {
-  database.exec(schemaSql)
+  database.exec(metaSchemaSql)
+
+  // Apply view-level DDL via the view subsystem so view-таблицы и индексы остаются единым контрактом.
+  initializeDbViewSqliteSchema(database)
 
   dbRequiredBackendIndexes.forEach((index) => {
     const unique = index.unique ? "UNIQUE " : ""
@@ -565,9 +385,9 @@ export const initializeDbSqliteSchema = (database: Database): void => {
   })
 }
 
-const resetDatabase = (database: Database): void => {
+const resetMetaTables = (database: Database): void => {
   database.transaction(() => {
-    tableResetOrder.forEach((table) => {
+    metaTableResetOrder.forEach((table) => {
       database.exec(`DELETE FROM ${table}`)
     })
   })()
@@ -744,179 +564,6 @@ const readMetaRowsFromDatabase = (database: Database, metaId: string): DbMetaRow
     reactionWrites,
     matterNodes,
     matterEdges,
-  }
-}
-
-const readWimpRowsFromDatabase = (database: Database, wimpId: string): DbWimpRows | null => {
-  const wimp = queryRow(
-    database,
-    `SELECT id, metaId, wimpOrder, massOverrideJson
-     FROM wimps
-     WHERE id = ?`,
-    [wimpId],
-    readWimpRecordRow,
-  )
-  if (!wimp) return null
-
-  const fields = queryRows(
-    database,
-    `SELECT id, ownerWimpId, metaFieldId, fieldOrder
-     FROM wimp_fields
-     WHERE ownerWimpId = ?
-     ORDER BY id`,
-    [wimpId],
-    readWimpFieldRecordRow,
-  )
-  const values = sortRowsById(
-    fields.flatMap((field) =>
-      queryRows(
-        database,
-        `SELECT id, ownerWimpFieldId, valueJson
-         FROM field_values
-         WHERE ownerWimpFieldId = ?
-         ORDER BY id`,
-        [field.id],
-        readFieldValueRecordRow,
-      ),
-    ),
-  )
-  const sources = sortRowsById(
-    fields.flatMap((field) =>
-      queryRows(
-        database,
-        `SELECT id, childWimpFieldId, parentWimpFieldId
-         FROM field_sources
-         WHERE childWimpFieldId = ?
-         ORDER BY id`,
-        [field.id],
-        readFieldSourceRecordRow,
-      ),
-    ),
-  )
-  const state = queryRow(
-    database,
-    `SELECT id, ownerWimpId, metaStateId
-     FROM wimp_states
-     WHERE ownerWimpId = ?`,
-    [wimpId],
-    readWimpStateRecordRow,
-  )
-  if (!state) {
-    throw new Error(`Wimp ${wimpId} is missing wimp_state row`)
-  }
-
-  return {
-    wimp,
-    fields,
-    values,
-    sources,
-    state,
-  }
-}
-
-const listWimpIdsFromDatabase = (database: Database): string[] =>
-  queryRows(
-    database,
-    `SELECT id
-     FROM wimps
-     ORDER BY wimpOrder, id`,
-    [],
-    (row) => String((row as Record<string, unknown>).id),
-  )
-
-const readWimpFieldFromDatabase = (database: Database, wimpFieldId: string): DbWimpFieldRecord | null =>
-  queryRow(
-    database,
-    `SELECT id, ownerWimpId, metaFieldId, fieldOrder
-     FROM wimp_fields
-     WHERE id = ?`,
-    [wimpFieldId],
-    readWimpFieldRecordRow,
-  )
-
-const readWimpEdgeFromDatabase = (database: Database, childWimpId: string): DbWimpEdgeRecord | null =>
-  queryRow(
-    database,
-    `SELECT id, parentWimpId, childWimpId, edgeOrder
-     FROM wimp_edges
-     WHERE childWimpId = ?`,
-    [childWimpId],
-    readWimpEdgeRecordRow,
-  )
-
-const readFieldValueFromDatabase = (database: Database, wimpFieldId: string): DbFieldValueRecord | null =>
-  queryRow(
-    database,
-    `SELECT id, ownerWimpFieldId, valueJson
-     FROM field_values
-     WHERE ownerWimpFieldId = ?`,
-    [wimpFieldId],
-    readFieldValueRecordRow,
-  )
-
-const readFieldSourceFromDatabase = (database: Database, childWimpFieldId: string): DbFieldSourceRecord | null =>
-  queryRow(
-    database,
-    `SELECT id, childWimpFieldId, parentWimpFieldId
-     FROM field_sources
-     WHERE childWimpFieldId = ?`,
-    [childWimpFieldId],
-    readFieldSourceRecordRow,
-  )
-
-const readEntanglementFamilyFromDatabase = (
-  database: Database,
-  entanglementId: string,
-): DbEntanglementFamilyRows | null => {
-  const entanglement = queryRow(
-    database,
-    `SELECT id, membershipKey, provenance
-     FROM entanglements
-     WHERE id = ?`,
-    [entanglementId],
-    readEntanglementRecordRow,
-  )
-  if (!entanglement) return null
-
-  const members = queryRows(
-    database,
-    `SELECT id, ownerEntanglementId, wimpId, memberOrder
-     FROM entanglement_members
-     WHERE ownerEntanglementId = ?
-     ORDER BY id`,
-    [entanglementId],
-    readEntanglementMemberRecordRow,
-  )
-  const fields = queryRows(
-    database,
-    `SELECT id, ownerEntanglementId, fieldOrder, semanticKey, fieldName, provenance,
-            representativeWimpFieldId, payloadIdsJson, semanticKeysJson
-     FROM entanglement_fields
-     WHERE ownerEntanglementId = ?
-     ORDER BY id`,
-    [entanglementId],
-    readEntanglementFieldRecordRow,
-  )
-  const field = fields[0]
-  if (!field) {
-    throw new Error(`Entanglement ${entanglementId} is missing entanglement_field rows`)
-  }
-
-  const fieldMembers = queryRows(
-    database,
-    `SELECT id, ownerEntanglementFieldId, ownerWimpId, wimpFieldId, memberOrder
-     FROM entanglement_field_members
-     WHERE ownerEntanglementFieldId = ?
-     ORDER BY id`,
-    [field.id],
-    readEntanglementFieldMemberRecordRow,
-  )
-
-  return {
-    entanglement,
-    members,
-    field,
-    fieldMembers,
   }
 }
 
@@ -1112,105 +759,6 @@ const upsertMetaRow = (database: Database, rows: DbMetaRows): void => {
   })()
 }
 
-const upsertWimpRow = (database: Database, rows: DbWimpRows): void => {
-  database.transaction(() => {
-    database
-      .query(
-        `INSERT INTO wimps(id, metaId, wimpOrder, massOverrideJson)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
-           metaId = excluded.metaId,
-           wimpOrder = excluded.wimpOrder,
-           massOverrideJson = excluded.massOverrideJson`,
-      )
-      .run(
-        rows.wimp.id,
-        rows.wimp.metaId,
-        rows.wimp.wimpOrder,
-        rows.wimp.massOverride === undefined ? null : serializeJson(rows.wimp.massOverride),
-      )
-
-    database.query(`DELETE FROM wimp_states WHERE ownerWimpId = ?`).run(rows.wimp.id)
-    database.query(`DELETE FROM wimp_fields WHERE ownerWimpId = ?`).run(rows.wimp.id)
-
-    const insertWimpField = database.query(
-      `INSERT INTO wimp_fields(id, ownerWimpId, metaFieldId, fieldOrder) VALUES (?, ?, ?, ?)`,
-    )
-    rows.fields.forEach((row) => insertWimpField.run(row.id, row.ownerWimpId, row.metaFieldId, row.fieldOrder))
-
-    const insertFieldValue = database.query(
-      `INSERT INTO field_values(id, ownerWimpFieldId, valueJson) VALUES (?, ?, ?)`,
-    )
-    rows.values.forEach((row) => insertFieldValue.run(row.id, row.ownerWimpFieldId, serializeJson(row.value)))
-
-    const insertFieldSource = database.query(
-      `INSERT INTO field_sources(id, childWimpFieldId, parentWimpFieldId) VALUES (?, ?, ?)`,
-    )
-    rows.sources.forEach((row) => insertFieldSource.run(row.id, row.childWimpFieldId, row.parentWimpFieldId))
-
-    database
-      .query(`INSERT INTO wimp_states(id, ownerWimpId, metaStateId) VALUES (?, ?, ?)`)
-      .run(rows.state.id, rows.state.ownerWimpId, rows.state.metaStateId)
-  })()
-}
-
-const writeWimpEdgeInDatabase = (database: Database, row: DbData["wimpEdges"][number]): void => {
-  database
-    .query(
-      `INSERT INTO wimp_edges(id, parentWimpId, childWimpId, edgeOrder)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(childWimpId) DO UPDATE SET
-         id = excluded.id,
-         parentWimpId = excluded.parentWimpId,
-         edgeOrder = excluded.edgeOrder`,
-    )
-    .run(row.id, row.parentWimpId, row.childWimpId, row.edgeOrder)
-}
-
-const deleteEntanglementFamilyInDatabase = (database: Database, entanglementId: string): void => {
-  database.query(`DELETE FROM entanglements WHERE id = ?`).run(entanglementId)
-}
-
-const writeEntanglementFamilyInDatabase = (database: Database, rows: DbEntanglementFamilyRows): void => {
-  database.transaction(() => {
-    deleteEntanglementFamilyInDatabase(database, rows.entanglement.id)
-
-    const insertEntanglement = database.query(
-      `INSERT INTO entanglements(id, membershipKey, provenance) VALUES (?, ?, ?)`,
-    )
-    insertEntanglement.run(rows.entanglement.id, rows.entanglement.membershipKey, rows.entanglement.provenance)
-
-    const insertEntanglementMember = database.query(
-      `INSERT INTO entanglement_members(id, ownerEntanglementId, wimpId, memberOrder) VALUES (?, ?, ?, ?)`,
-    )
-    rows.members.forEach((row) => insertEntanglementMember.run(row.id, row.ownerEntanglementId, row.wimpId, row.memberOrder))
-
-    const insertEntanglementField = database.query(
-      `INSERT INTO entanglement_fields(
-         id, ownerEntanglementId, fieldOrder, semanticKey, fieldName, provenance,
-         representativeWimpFieldId, payloadIdsJson, semanticKeysJson
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    insertEntanglementField.run(
-      rows.field.id,
-      rows.field.ownerEntanglementId,
-      rows.field.fieldOrder,
-      rows.field.semanticKey,
-      rows.field.fieldName,
-      rows.field.provenance,
-      rows.field.representativeWimpFieldId,
-      serializeJson(rows.field.payloadIds),
-      serializeJson(rows.field.semanticKeys),
-    )
-
-    const insertEntanglementFieldMember = database.query(
-      `INSERT INTO entanglement_field_members(id, ownerEntanglementFieldId, ownerWimpId, wimpFieldId, memberOrder)
-       VALUES (?, ?, ?, ?, ?)`,
-    )
-    rows.fieldMembers.forEach((row) => insertEntanglementFieldMember.run(row.id, row.ownerEntanglementFieldId, row.ownerWimpId, row.wimpFieldId, row.memberOrder))
-  })()
-}
-
 export const openDbSqliteBackend = (options: DbSqliteBackendOptions = {}): DbSqliteBackend => {
   const filename = options.filename ?? ":memory:"
   const database = new Database(filename)
@@ -1222,7 +770,13 @@ export const openDbSqliteBackend = (options: DbSqliteBackendOptions = {}): DbSql
     database.exec("PRAGMA busy_timeout = 5000;")
   }
 
+  // Полная schema (meta + view + ALL indexes) применяется через initializeDbSqliteSchema.
+  // initializeDbViewSqliteSchema внутри неё создаёт view-DDL и view-индексы;
+  // здесь же создаются meta-DDL и оставшиеся meta-индексы.
   initializeDbSqliteSchema(database)
+
+  // ViewBackend разделяет тот же Database — не закрывает его, не управляет PRAGMA-ми (это делает unified backend).
+  const viewBackend = createSqliteDbViewBackend({ database })
 
   return {
     database,
@@ -1233,7 +787,9 @@ export const openDbSqliteBackend = (options: DbSqliteBackendOptions = {}): DbSql
     },
 
     reset() {
-      resetDatabase(database)
+      // Сначала сбрасываем view-таблицы (FK ссылаются на meta_*), затем meta-таблицы.
+      viewBackend.reset()
+      resetMetaTables(database)
     },
 
     async flush() {
@@ -1245,32 +801,32 @@ export const openDbSqliteBackend = (options: DbSqliteBackendOptions = {}): DbSql
       return readMetaRowsFromDatabase(database, metaId)
     },
 
-    async listWimpIds() {
-      return listWimpIdsFromDatabase(database)
+    listWimpIds() {
+      return viewBackend.listWimpIds()
     },
 
-    async readWimpRows(wimpId) {
-      return readWimpRowsFromDatabase(database, wimpId)
+    readWimpRows(wimpId) {
+      return viewBackend.readWimpRows(wimpId)
     },
 
-    async readWimpField(wimpFieldId) {
-      return readWimpFieldFromDatabase(database, wimpFieldId)
+    readWimpField(wimpFieldId) {
+      return viewBackend.readWimpField(wimpFieldId)
     },
 
-    async readWimpEdge(childWimpId) {
-      return readWimpEdgeFromDatabase(database, childWimpId)
+    readWimpEdge(childWimpId) {
+      return viewBackend.readWimpEdge(childWimpId)
     },
 
-    async readFieldValue(wimpFieldId) {
-      return readFieldValueFromDatabase(database, wimpFieldId)
+    readFieldValue(wimpFieldId) {
+      return viewBackend.readFieldValue(wimpFieldId)
     },
 
-    async readFieldSource(childWimpFieldId) {
-      return readFieldSourceFromDatabase(database, childWimpFieldId)
+    readFieldSource(childWimpFieldId) {
+      return viewBackend.readFieldSource(childWimpFieldId)
     },
 
-    async readEntanglementFamily(entanglementId) {
-      return readEntanglementFamilyFromDatabase(database, entanglementId)
+    readEntanglementFamily(entanglementId) {
+      return viewBackend.readEntanglementFamily(entanglementId)
     },
 
     writeMetaRows(rows) {
@@ -1278,37 +834,27 @@ export const openDbSqliteBackend = (options: DbSqliteBackendOptions = {}): DbSql
     },
 
     writeWimpRows(rows) {
-      upsertWimpRow(database, rows)
+      return viewBackend.writeWimpRows(rows)
     },
 
     writeWimpEdge(row) {
-      writeWimpEdgeInDatabase(database, row)
+      return viewBackend.writeWimpEdge(row)
     },
 
     deleteEntanglementFamily(entanglementId) {
-      deleteEntanglementFamilyInDatabase(database, entanglementId)
+      return viewBackend.deleteEntanglementFamily(entanglementId)
     },
 
     writeEntanglementFamily(rows) {
-      writeEntanglementFamilyInDatabase(database, rows)
+      return viewBackend.writeEntanglementFamily(rows)
     },
 
     setFieldValue(wimpFieldId, value) {
-      const result = database
-        .query(`UPDATE field_values SET valueJson = ? WHERE ownerWimpFieldId = ?`)
-        .run(serializeJson(value), wimpFieldId)
-
-      if (result.changes === 0) {
-        throw new Error(`Field value not found for wimp field ${wimpFieldId}`)
-      }
+      return viewBackend.setFieldValue(wimpFieldId, value)
     },
 
     setWimpState(wimpId, metaStateId) {
-      const result = database.query(`UPDATE wimp_states SET metaStateId = ? WHERE ownerWimpId = ?`).run(metaStateId, wimpId)
-
-      if (result.changes === 0) {
-        throw new Error(`Wimp state not found for wimp ${wimpId}`)
-      }
+      return viewBackend.setWimpState(wimpId, metaStateId)
     },
   }
 }

@@ -2,5 +2,12 @@
   "name": "@store/view",
   "module": "index.ts",
   "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./sqlite": "./sqlite/store.ts",
+    "./idb": "./idb/store.ts",
+    "./types": "./types.t.ts",
+    "./backend": "./backend.t.ts"
+  },
   "private": true
 }
