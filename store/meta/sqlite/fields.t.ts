@@ -1,4 +1,7 @@
-import type { MetaDSL } from "../../../.."
+import type { MetaDSL } from "../../.."
+
+export type FieldUuidByKey = Map<string, string>
+
 
 export type FieldRow = {
   uuid: string

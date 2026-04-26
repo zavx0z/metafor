@@ -1,9 +1,9 @@
 import type { Database } from "bun:sqlite"
 import { actorRequiredBackendIndexes } from "../backend.t.ts"
-import actorSql from "../sql/actor.sql" with { type: "text" }
-import valueSql from "../sql/value.sql" with { type: "text" }
-import actorValueSql from "../sql/actor_value.sql" with { type: "text" }
-import stateSql from "../sql/state.sql" with { type: "text" }
+import actorSql from "./actor.sql" with { type: "text" }
+import valueSql from "./value.sql" with { type: "text" }
+import actorValueSql from "./actor_value.sql" with { type: "text" }
+import stateSql from "./state.sql" with { type: "text" }
 
 /**
  * Полная DDL инстансного слоя — конкатенация модулей в порядке FK-зависимостей:

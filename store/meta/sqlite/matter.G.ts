@@ -7,7 +7,7 @@ import type {
   MachoParticleRow,
   ParticleRow,
   WimpParticleRow,
-} from "./get.t.ts"
+} from "./matter.t.ts"
 
 const toMaybeArray = (values: string[]): string | string[] => (values.length === 1 ? values[0]! : values)
 const particleEdgeSlotOrder: Record<ParticleRow["edge_slot"], number> = {

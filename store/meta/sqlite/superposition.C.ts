@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL } from "../../../.."
-import type { FieldUuidByKey, StateUuidByName } from "./create.t.ts"
+import type { MetaDSL } from "../../.."
+import type { FieldUuidByKey, StateUuidByName } from "./superposition.t.ts"
 
 export function createSuperposition(
   db: Database,

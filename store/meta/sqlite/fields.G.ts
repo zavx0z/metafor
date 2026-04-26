@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { FieldRow, GetFieldsResult, MetaFieldSchema } from "./get.t.ts"
+import type { FieldRow, GetFieldsResult, MetaFieldSchema } from "./fields.t.ts"
 
 export const getFields = (db: Database, src: string): GetFieldsResult => {
   const fieldRows = db.query(`SELECT uuid, key, type, required, label FROM field WHERE meta = ? ORDER BY rowid`).all(src) as FieldRow[]

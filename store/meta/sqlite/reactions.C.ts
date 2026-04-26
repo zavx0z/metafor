@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL, ReactionsSchema } from "../../../.."
-import type { FieldUuidByKey, StateUuidByName } from "./create.t.ts"
+import type { MetaDSL, ReactionsSchema } from "../../.."
+import type { FieldUuidByKey, StateUuidByName } from "./reactions.t.ts"
 
 export function createReactions(
   db: Database,

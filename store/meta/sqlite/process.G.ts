@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL, ParsedDestroy, ParsedProcess } from "../../../.."
-import type { ProcessActionReadRow, ProcessActionRow, ProcessActionWriteRow, ProcessRow } from "./get.t.ts"
+import type { MetaDSL, ParsedDestroy, ParsedProcess } from "../../.."
+import type { ProcessActionReadRow, ProcessActionRow, ProcessActionWriteRow, ProcessRow } from "./process.t.ts"
 
 export const getProcesses = (
   db: Database,

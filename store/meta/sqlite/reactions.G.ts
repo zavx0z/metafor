@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
-import type { ReactionsSchema } from "../../../.."
-import type { ReactionRow } from "./get.t.ts"
+import type { ReactionsSchema } from "../../.."
+import type { ReactionRow } from "./reactions.t.ts"
 
 export const getReactions = (
   db: Database,

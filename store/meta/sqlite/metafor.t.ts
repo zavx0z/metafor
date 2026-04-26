@@ -1,3 +1,5 @@
+export type MetaSource = string
+
 export type MetaRow = {
   src: string
   name: string | null

@@ -1,11 +1,11 @@
 import type { Database } from "bun:sqlite"
 import type { MetaDSL } from "../../.."
-import { getFields } from "./fields/get.ts"
-import { getMass, getMetaRow, hasMatter, hasProcesses, hasReactions } from "./metafor/get.ts"
-import { getMatterParticles } from "./matter/get.ts"
-import { getProcesses } from "./process/get.ts"
-import { getReactions } from "./reactions/get.ts"
-import { getSuperposition } from "./superposition/get.ts"
+import { getFields } from "./fields.G.ts"
+import { getMass, getMetaRow, hasMatter, hasProcesses, hasReactions } from "./metafor.G.ts"
+import { getMatterParticles } from "./matter.G.ts"
+import { getProcesses } from "./process.G.ts"
+import { getReactions } from "./reactions.G.ts"
+import { getSuperposition } from "./superposition.G.ts"
 import type { DarkMetaParticleModel } from "./read.t.ts"
 
 const hasKeys = (value: object): boolean => Object.keys(value).length > 0

@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL } from "../../../.."
-import type { FieldUuidByKey } from "./create.t.ts"
+import type { MetaDSL } from "../../.."
+import type { FieldUuidByKey } from "./fields.t.ts"
 
 export function createFields(db: Database, meta: MetaDSL, src: string): FieldUuidByKey {
   const fieldUuids: FieldUuidByKey = new Map<string, string>()

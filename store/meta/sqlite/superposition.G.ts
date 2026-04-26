@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL } from "../../../.."
-import type { ConditionListItemRow, PredicateRow } from "./get.t.ts"
+import type { MetaDSL } from "../../.."
+import type { ConditionListItemRow, PredicateRow } from "./superposition.t.ts"
 
 const decodeStoredScalar = (
   valueKind: PredicateRow["value_kind"],

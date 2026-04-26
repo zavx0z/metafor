@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
-import type { MetaDSL, NodeType } from "../../../.."
-import type { BindingValue, EdgeSlot, FieldUuidByKey, ParticleKind } from "./create.t.ts"
+import type { MetaDSL, NodeType } from "../../.."
+import type { BindingValue, EdgeSlot, FieldUuidByKey, ParticleKind } from "./matter.t.ts"
 
 const toBindingPaths = (value: BindingValue): string[] => {
   if (!value || typeof value !== "object" || !("data" in value) || value.data === undefined) return []
