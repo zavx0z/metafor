@@ -31,10 +31,6 @@ export const actorSchemaSql = [actorSql, valueSql, actorValueSql, stateSql]
 export const actorTableNames = [
   "actor_state",
   "actor_value",
-  "value_list_item_enum",
-  "value_list_item_string",
-  "value_list_item_number",
-  "value_list_item_boolean",
   "value_list_item",
   "value_enum",
   "value_string",

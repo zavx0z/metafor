@@ -7,9 +7,11 @@ import type { Scalar, ValueItemRecord, ValueRecord } from "./sqlite/value.t.ts"
  * Имена таблиц actor-слоя. Префикс `actor_` — для actor-сущностей,
  * `value*` — глобальные value-записи (могут разделяться).
  *
- * Корневые `value` / `value_list_item` хранят только дискриминатор `kind`;
- * скалярное содержимое — в типизированных подтаблицах `value_<kind>` /
- * `value_list_item_<kind>` (по одной колонке нативного типа на каждую).
+ * Корневая `value` хранит только дискриминатор `kind`; скалярное содержимое —
+ * в типизированных подтаблицах `value_<kind>` (по одной колонке нативного
+ * типа на каждую). Элементы list-значения — в плоской `value_list_item`
+ * с единой колонкой `item_value TEXT NOT NULL` (по аналогии с
+ * `field_array_default_item` в meta-схеме).
  */
 export type ActorBackendTableName =
   | "actor"
@@ -21,10 +23,6 @@ export type ActorBackendTableName =
   | "value_string"
   | "value_enum"
   | "value_list_item"
-  | "value_list_item_boolean"
-  | "value_list_item_number"
-  | "value_list_item_string"
-  | "value_list_item_enum"
 
 export interface ActorBackendIndexSpec {
   name: string
@@ -73,7 +71,7 @@ export interface ActorBackend {
   /** Меняет содержимое записи value (касается всех акторов, разделяющих её). */
   setValue(uuid: string, scalar: Scalar | { kind: "list" }): ActorBackendAwaitable<void>
   /** Записывает/обновляет элемент списочного значения по позиции. */
-  writeValueItem(value: string, position: number, item: Scalar): ActorBackendAwaitable<void>
+  writeValueItem(value: string, position: number, itemValue: string): ActorBackendAwaitable<void>
   /** Удаляет хвост списочного значения (для shrink). */
   truncateValueItems(value: string, fromPosition: number): ActorBackendAwaitable<void>
   /** Меняет состояние FSM актора. */

@@ -6,8 +6,12 @@
  *
  * Discriminated union по `kind` — каждая ветка содержит ровно те поля,
  * которые есть в соответствующей типизированной таблице (`value_boolean`,
- * `value_number`, `value_string`, `value_enum`). Никаких optional skim-колонок
- * ради общей формы.
+ * `value_number`, `value_string`, `value_enum`).
+ *
+ * Элементы списочного значения хранятся в плоской таблице `value_list_item`
+ * как `item_value TEXT NOT NULL` (по аналогии с `field_array_default_item`
+ * в meta-схеме). Конкретный тип элемента восстанавливается на стороне
+ * рантайма через meta-схему родительского поля.
  */
 
 /** Скалярные типы значений. */
@@ -16,7 +20,7 @@ export type ScalarKind = "null" | "boolean" | "number" | "string" | "enum"
 /** Все типы значений (скаляры + list). */
 export type ValueKind = ScalarKind | "list"
 
-/** Скалярная (или enum) часть значения. Используется и как value, и как list-item. */
+/** Скалярная (или enum) часть значения. */
 export type Scalar =
   | { kind: "null" }
   | { kind: "boolean"; boolean: boolean }
@@ -34,5 +38,13 @@ export type ValueRecord =
   | { uuid: string; kind: "enum"; variant: string }
   | { uuid: string; kind: "list" }
 
-/** Один элемент списочного значения (kind в Scalar; вложенные списки не поддерживаются). */
-export type ValueItemRecord = Scalar & { value: string; position: number }
+/**
+ * Один элемент списочного значения. Хранится как text — конкретный тип
+ * восстанавливается рантаймом через meta-схему родительского поля.
+ */
+export interface ValueItemRecord {
+  value: string
+  position: number
+  /** Сериализованное значение элемента. Парсится в нужный тип на стороне рантайма. */
+  itemValue: string
+}

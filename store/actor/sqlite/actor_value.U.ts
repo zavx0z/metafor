@@ -76,64 +76,13 @@ export const forkValue = async (db: Database, actor: string, metaField: string):
         break
       }
       case "list": {
-        // копируем все list-item записи через все типизированные подтаблицы
-        const itemRoots = db
-          .prepare(`SELECT position, kind FROM value_list_item WHERE value = ?`)
-          .all(sourceUuid) as Array<{ position: number; kind: string }>
-        const insertItemRoot = db.prepare(`INSERT INTO value_list_item (value, position, kind) VALUES (?, ?, ?)`)
-        for (const item of itemRoots) {
-          insertItemRoot.run(newUuid, item.position, item.kind)
-          switch (item.kind) {
-            case "boolean": {
-              const r = db
-                .prepare(`SELECT boolean FROM value_list_item_boolean WHERE value = ? AND position = ?`)
-                .get(sourceUuid, item.position) as { boolean: number } | null
-              if (r)
-                db.prepare(`INSERT INTO value_list_item_boolean (value, position, boolean) VALUES (?, ?, ?)`).run(
-                  newUuid,
-                  item.position,
-                  r.boolean,
-                )
-              break
-            }
-            case "number": {
-              const r = db
-                .prepare(`SELECT number FROM value_list_item_number WHERE value = ? AND position = ?`)
-                .get(sourceUuid, item.position) as { number: number } | null
-              if (r)
-                db.prepare(`INSERT INTO value_list_item_number (value, position, number) VALUES (?, ?, ?)`).run(
-                  newUuid,
-                  item.position,
-                  r.number,
-                )
-              break
-            }
-            case "string": {
-              const r = db
-                .prepare(`SELECT text FROM value_list_item_string WHERE value = ? AND position = ?`)
-                .get(sourceUuid, item.position) as { text: string } | null
-              if (r)
-                db.prepare(`INSERT INTO value_list_item_string (value, position, text) VALUES (?, ?, ?)`).run(
-                  newUuid,
-                  item.position,
-                  r.text,
-                )
-              break
-            }
-            case "enum": {
-              const r = db
-                .prepare(`SELECT variant FROM value_list_item_enum WHERE value = ? AND position = ?`)
-                .get(sourceUuid, item.position) as { variant: string } | null
-              if (r)
-                db.prepare(`INSERT INTO value_list_item_enum (value, position, variant) VALUES (?, ?, ?)`).run(
-                  newUuid,
-                  item.position,
-                  r.variant,
-                )
-              break
-            }
-            // для 'null' дополнительная подтаблица отсутствует
-          }
+        // копируем все list-item записи (плоская таблица, item_value TEXT)
+        const items = db
+          .prepare(`SELECT position, item_value FROM value_list_item WHERE value = ?`)
+          .all(sourceUuid) as Array<{ position: number; item_value: string }>
+        const insertItem = db.prepare(`INSERT INTO value_list_item (value, position, item_value) VALUES (?, ?, ?)`)
+        for (const item of items) {
+          insertItem.run(newUuid, item.position, item.item_value)
         }
         break
       }

@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
 import type { ActorRecord, ActorRows } from "./actor.t.ts"
-import type { Scalar, ValueRecord } from "./value.t.ts"
+import type { ValueRecord } from "./value.t.ts"
 
 /** Создаёт пустую запись `actor` (без связанных value/state). */
 export const createActor = async (db: Database, actor: ActorRecord): Promise<void> => {
@@ -41,57 +41,13 @@ const writeValueScalar = (db: Database, value: ValueRecord): void => {
   }
 }
 
-/** Очищает типизированные list-item подтаблицы для (value, position). */
-const clearValueListItemTables = (db: Database, value: string, position: number): void => {
-  db.prepare(`DELETE FROM value_list_item_boolean WHERE value = ? AND position = ?`).run(value, position)
-  db.prepare(`DELETE FROM value_list_item_number  WHERE value = ? AND position = ?`).run(value, position)
-  db.prepare(`DELETE FROM value_list_item_string  WHERE value = ? AND position = ?`).run(value, position)
-  db.prepare(`DELETE FROM value_list_item_enum    WHERE value = ? AND position = ?`).run(value, position)
-}
-
-/** Записывает скалярную часть list-item в типизированную подтаблицу. */
-const writeValueListItemScalar = (db: Database, value: string, position: number, item: Scalar): void => {
-  switch (item.kind) {
-    case "null":
-      return
-    case "boolean":
-      db.prepare(`INSERT INTO value_list_item_boolean (value, position, boolean) VALUES (?, ?, ?)`).run(
-        value,
-        position,
-        item.boolean ? 1 : 0,
-      )
-      return
-    case "number":
-      db.prepare(`INSERT INTO value_list_item_number (value, position, number) VALUES (?, ?, ?)`).run(
-        value,
-        position,
-        item.number,
-      )
-      return
-    case "string":
-      db.prepare(`INSERT INTO value_list_item_string (value, position, text) VALUES (?, ?, ?)`).run(
-        value,
-        position,
-        item.text,
-      )
-      return
-    case "enum":
-      db.prepare(`INSERT INTO value_list_item_enum (value, position, variant) VALUES (?, ?, ?)`).run(
-        value,
-        position,
-        item.variant,
-      )
-      return
-  }
-}
-
 /**
  * Записывает row-group актора одной транзакцией.
  *
  * Удаляет предыдущую версию актора (каскад снимет `actor_value`/`actor_state`),
  * вставляет новый набор записей: actor + value + value_<kind> + value_list_item +
- * value_list_item_<kind> + actor_value + actor_state. Подчищает orphan-value,
- * на которые после удаления никто не ссылается.
+ * actor_value + actor_state. Подчищает orphan-value, на которые после удаления
+ * никто не ссылается.
  */
 export const writeActorRows = async (db: Database, rows: ActorRows): Promise<void> => {
   const insertActorStmt = db.prepare(`INSERT INTO actor (uuid, parent, meta, position) VALUES (?, ?, ?, ?)`)
@@ -99,9 +55,9 @@ export const writeActorRows = async (db: Database, rows: ActorRows): Promise<voi
     `INSERT INTO value (uuid, kind) VALUES (?, ?)
      ON CONFLICT (uuid) DO UPDATE SET kind = excluded.kind`,
   )
-  const upsertValueListItemRootStmt = db.prepare(
-    `INSERT INTO value_list_item (value, position, kind) VALUES (?, ?, ?)
-     ON CONFLICT (value, position) DO UPDATE SET kind = excluded.kind`,
+  const upsertValueListItemStmt = db.prepare(
+    `INSERT INTO value_list_item (value, position, item_value) VALUES (?, ?, ?)
+     ON CONFLICT (value, position) DO UPDATE SET item_value = excluded.item_value`,
   )
   const insertActorValueStmt = db.prepare(`INSERT INTO actor_value (actor, metaField, value) VALUES (?, ?, ?)`)
   const insertActorStateStmt = db.prepare(`INSERT INTO actor_state (actor, metaState) VALUES (?, ?)`)
@@ -127,15 +83,13 @@ export const writeActorRows = async (db: Database, rows: ActorRows): Promise<voi
       writeValueScalar(db, v)
     }
 
-    // value_list_item: переписать всю list-секцию каждой list-value-записи
+    // value_list_item: переписать набор для каждой list-value-записи
     const listValueIds = new Set(rows.valueRecords.filter((v) => v.kind === "list").map((v) => v.uuid))
     for (const valueId of listValueIds) {
       deleteListItemsStmt.run(valueId)
     }
     for (const item of rows.valueItems) {
-      upsertValueListItemRootStmt.run(item.value, item.position, item.kind)
-      clearValueListItemTables(db, item.value, item.position)
-      writeValueListItemScalar(db, item.value, item.position, item)
+      upsertValueListItemStmt.run(item.value, item.position, item.itemValue)
     }
 
     // связи actor_value

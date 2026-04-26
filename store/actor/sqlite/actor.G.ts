@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite"
 import type { ActorRecord, ActorRows } from "./actor.t.ts"
 import type { ActorStateRecord } from "./state.t.ts"
 import type { ActorValueRecord } from "./actor_value.t.ts"
-import type { ScalarKind, ValueItemRecord, ValueRecord } from "./value.t.ts"
+import type { ValueItemRecord, ValueRecord } from "./value.t.ts"
 import { decodeActorValue } from "./actor_value.G.ts"
 import { decodeActorState } from "./state.G.ts"
 
@@ -61,26 +61,12 @@ const decodeValueJoinRow = (row: Record<string, unknown>): ValueRecord => {
   }
 }
 
-/** Декодирует объединённую LEFT JOIN-строку (value_list_item + value_list_item_<kind>) в `ValueItemRecord`. */
-const decodeListItemJoinRow = (row: Record<string, unknown>): ValueItemRecord => {
-  const value = String(row.value)
-  const position = Number(row.position)
-  const kind = String(row.kind) as ScalarKind
-  switch (kind) {
-    case "null":
-      return { value, position, kind: "null" }
-    case "boolean":
-      return { value, position, kind: "boolean", boolean: row.boolean === 1 }
-    case "number":
-      return { value, position, kind: "number", number: Number(row.number) }
-    case "string":
-      return { value, position, kind: "string", text: String(row.text) }
-    case "enum":
-      return { value, position, kind: "enum", variant: String(row.variant) }
-    default:
-      throw new Error(`Unknown value_list_item.kind '${kind}' at value=${value}, position=${position}`)
-  }
-}
+/** Декодирует строку `value_list_item` в `ValueItemRecord`. */
+const decodeListItemRow = (row: Record<string, unknown>): ValueItemRecord => ({
+  value: String(row.value),
+  position: Number(row.position),
+  itemValue: String(row.item_value),
+})
 
 /**
  * Читает row-group актора (actor + values + valueRecords + valueItems + state).
@@ -126,23 +112,12 @@ export const readActorRows = async (db: Database, uuid: string): Promise<ActorRo
 
     const itemRows = db
       .prepare(
-        `SELECT i.value    AS value,
-                i.position AS position,
-                i.kind     AS kind,
-                ib.boolean AS boolean,
-                inum.number AS number,
-                ist.text   AS text,
-                ie.variant AS variant
-         FROM value_list_item i
-              LEFT JOIN value_list_item_boolean ib   ON ib.value = i.value AND ib.position = i.position
-              LEFT JOIN value_list_item_number  inum ON inum.value = i.value AND inum.position = i.position
-              LEFT JOIN value_list_item_string  ist  ON ist.value = i.value AND ist.position = i.position
-              LEFT JOIN value_list_item_enum    ie   ON ie.value = i.value AND ie.position = i.position
-         WHERE i.value IN (${placeholders})
-         ORDER BY i.value, i.position`,
+        `SELECT value, position, item_value FROM value_list_item
+         WHERE value IN (${placeholders})
+         ORDER BY value, position`,
       )
       .all(...valueIds) as Array<Record<string, unknown>>
-    for (const row of itemRows) valueItems.push(decodeListItemJoinRow(row))
+    for (const row of itemRows) valueItems.push(decodeListItemRow(row))
   }
 
   const state: ActorStateRecord | null = decodeActorState(

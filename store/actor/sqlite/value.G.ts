@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { ScalarKind, ValueItemRecord, ValueRecord } from "./value.t.ts"
+import type { ValueItemRecord, ValueRecord } from "./value.t.ts"
 
 /**
  * Читает запись `value` по uuid + одну строку из соответствующей типизированной
@@ -48,46 +48,14 @@ export const readValue = async (db: Database, uuid: string): Promise<ValueRecord
   }
 }
 
-/**
- * Читает все элементы списочного значения, упорядочены по `position`.
- * Один JOIN-запрос корневой `value_list_item` с типизированными подтаблицами.
- */
+/** Читает все элементы списочного значения, упорядочены по `position`. */
 export const readValueItems = async (db: Database, value: string): Promise<ValueItemRecord[]> => {
   const rows = db
-    .prepare(
-      `SELECT i.position AS position,
-              i.kind     AS kind,
-              ib.boolean AS boolean,
-              inum.number AS number,
-              ist.text   AS text,
-              ie.variant AS variant
-       FROM value_list_item i
-            LEFT JOIN value_list_item_boolean ib   ON ib.value = i.value AND ib.position = i.position
-            LEFT JOIN value_list_item_number  inum ON inum.value = i.value AND inum.position = i.position
-            LEFT JOIN value_list_item_string  ist  ON ist.value = i.value AND ist.position = i.position
-            LEFT JOIN value_list_item_enum    ie   ON ie.value = i.value AND ie.position = i.position
-       WHERE i.value = ?
-       ORDER BY i.position`,
-    )
+    .prepare(`SELECT value, position, item_value FROM value_list_item WHERE value = ? ORDER BY position`)
     .all(value) as Array<Record<string, unknown>>
-
-  return rows.map((row) => {
-    const position = Number(row.position)
-    const kind = String(row.kind) as ScalarKind
-    const base = { value, position }
-    switch (kind) {
-      case "null":
-        return { ...base, kind: "null" }
-      case "boolean":
-        return { ...base, kind: "boolean", boolean: row.boolean === 1 }
-      case "number":
-        return { ...base, kind: "number", number: Number(row.number) }
-      case "string":
-        return { ...base, kind: "string", text: String(row.text) }
-      case "enum":
-        return { ...base, kind: "enum", variant: String(row.variant) }
-      default:
-        throw new Error(`Unknown value_list_item.kind '${kind}' at value=${value}, position=${position}`)
-    }
-  })
+  return rows.map((row) => ({
+    value: String(row.value),
+    position: Number(row.position),
+    itemValue: String(row.item_value),
+  }))
 }
