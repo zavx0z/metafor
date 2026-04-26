@@ -2,14 +2,14 @@
  * Bun-sqlite реализация actor-стора.
  *
  * Функциональный API: каждая операция — функция, первым аргументом принимающая
- * `Database`. Открытие БД и применение схемы — ответственность caller-а
- * (см. `store/server.ts`), потому что одна Database держит таблицы обоих
+ * `SQL`. Открытие БД и применение схемы — ответственность caller-а
+ * (см. `store/server.ts`), потому что одна SQL держит таблицы обоих
  * пакетов (meta + actor).
  *
  * Симметрично с `@store/meta/sqlite`.
  */
 
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { ActorRecord, ActorRows } from "./actor.t.ts"
 import type { ActorStateRecord } from "./state.t.ts"
 import type { ActorValueRecord } from "./actor_value.t.ts"
@@ -27,84 +27,84 @@ import { setValue, truncateValueItems, writeValueItem } from "./value.U.ts"
 
 import { actorSchemaSql, actorTableNames } from "./schema.ts"
 
-/** Полный DDL actor-схемы (5 таблиц + индексы). Применяется к открытой Database. */
+/** Полный DDL actor-схемы (5 таблиц + индексы). Применяется к открытой SQL. */
 export { actorSchemaSql }
 
 // ────────────────────────────── корневая сущность actor ──────────────────────────────
 
 /** Записывает row-group актора одной транзакцией: actor + values + value-records + value-items + state. */
-export const actorCreate = (db: Database, rows: ActorRows): void => writeActorRows(db, rows)
+export const actorCreate = async (sql: SQL, rows: ActorRows): Promise<void> => writeActorRows(sql, rows)
 
 /** Читает row-group актора. Возвращает `null`, если актор или его state отсутствуют. */
-export const actorGet = (db: Database, uuid: string): ActorRows | null => readActorRows(db, uuid)
+export const actorGet = async (sql: SQL, uuid: string): Promise<ActorRows | null> => readActorRows(sql, uuid)
 
 /** Удаляет актора и orphan-value (на которые больше никто не ссылается). Каскад FK снимет actor_value/actor_state. */
-export const actorDelete = (db: Database, uuid: string): void => deleteActor(db, uuid)
+export const actorDelete = async (sql: SQL, uuid: string): Promise<void> => deleteActor(sql, uuid)
 
 /** Базовая запись актора без связанных value/state. */
-export const actorHead = (db: Database, uuid: string): ActorRecord | null => readActor(db, uuid)
+export const actorHead = async (sql: SQL, uuid: string): Promise<ActorRecord | null> => readActor(sql, uuid)
 
 /** Все корневые акторы (parent IS NULL), упорядочены по `position`. */
-export const actorListRoots = (db: Database): ActorRecord[] => listRootActors(db)
+export const actorListRoots = async (sql: SQL): Promise<ActorRecord[]> => listRootActors(sql)
 
 /** Все дочерние акторы родителя, упорядочены по `position`. */
-export const actorListChildren = (db: Database, parent: string): ActorRecord[] => listChildActors(db, parent)
+export const actorListChildren = async (sql: SQL, parent: string): Promise<ActorRecord[]> => listChildActors(sql, parent)
 
 /** Очищает все actor-таблицы. */
-export const actorReset = (db: Database): void => {
-  db.transaction(() => {
+export const actorReset = async (sql: SQL): Promise<void> => {
+  await sql.begin(async (tx) => {
     for (const table of actorTableNames) {
-      db.run(`DELETE FROM ${table}`)
+      await tx.unsafe(`DELETE FROM ${table}`)
     }
-  })()
+  })
 }
 
 // ────────────────────────────── value (записи значений) ──────────────────────────────
 
 /** Читает запись value по uuid. */
-export const valueGet = (db: Database, uuid: string): ValueRecord | null => readValue(db, uuid)
+export const valueGet = async (sql: SQL, uuid: string): Promise<ValueRecord | null> => readValue(sql, uuid)
 
 /** Меняет содержимое записи value (касается всех акторов, разделяющих её). */
-export const valueSet = (db: Database, uuid: string, scalar: Scalar | { kind: "list" }): void =>
-  setValue(db, uuid, scalar)
+export const valueSet = async (sql: SQL, uuid: string, scalar: Scalar | { kind: "list" }): Promise<void> =>
+  setValue(sql, uuid, scalar)
 
 /** Список акторов, разделяющих эту запись. Длина > 1 = entanglement. */
-export const valueOwners = (db: Database, uuid: string): ActorValueRecord[] => listValueOwners(db, uuid)
+export const valueOwners = async (sql: SQL, uuid: string): Promise<ActorValueRecord[]> => listValueOwners(sql, uuid)
 
 /** Все элементы списочного значения, упорядочены по `position`. */
-export const valueItemsGet = (db: Database, value: string): ValueItemRecord[] => readValueItems(db, value)
+export const valueItemsGet = async (sql: SQL, value: string): Promise<ValueItemRecord[]> => readValueItems(sql, value)
 
 /** Записывает / обновляет один элемент списочного значения по позиции. */
-export const valueItemsWrite = (db: Database, value: string, position: number, itemValue: string): void =>
-  writeValueItem(db, value, position, itemValue)
+export const valueItemsWrite = async (sql: SQL, value: string, position: number, itemValue: string): Promise<void> =>
+  writeValueItem(sql, value, position, itemValue)
 
 /** Удаляет хвост списочного значения начиная с указанной позиции. */
-export const valueItemsTruncate = (db: Database, value: string, fromPosition: number): void =>
-  truncateValueItems(db, value, fromPosition)
+export const valueItemsTruncate = async (sql: SQL, value: string, fromPosition: number): Promise<void> =>
+  truncateValueItems(sql, value, fromPosition)
 
 // ────────────────────────────── state (FSM-состояние) ──────────────────────────────
 
 /** Читает текущее FSM-состояние актора. */
-export const stateGet = (db: Database, actor: string): ActorStateRecord | null => readActorState(db, actor)
+export const stateGet = async (sql: SQL, actor: string): Promise<ActorStateRecord | null> => readActorState(sql, actor)
 
 /** Меняет состояние FSM актора (upsert). */
-export const stateSet = (db: Database, actor: string, metaState: string): void => setActorState(db, actor, metaState)
+export const stateSet = async (sql: SQL, actor: string, metaState: string): Promise<void> => setActorState(sql, actor, metaState)
 
 // ────────────────────────────── link (actor_value junction) ──────────────────────────────
 
 /** Читает связь actor_value по (actor, field). */
-export const linkGet = (db: Database, actor: string, field: string): ActorValueRecord | null =>
-  readActorValue(db, actor, field)
+export const linkGet = async (sql: SQL, actor: string, field: string): Promise<ActorValueRecord | null> =>
+  readActorValue(sql, actor, field)
 
 /**
  * Связывает актор-поле с существующей записью value (entanglement).
  * Если у actor-поля уже была запись и она orphan-нулась — удаляется.
  */
-export const linkShare = (db: Database, actor: string, field: string, value: string): void =>
-  shareValue(db, actor, field, value)
+export const linkShare = async (sql: SQL, actor: string, field: string, value: string): Promise<void> =>
+  shareValue(sql, actor, field, value)
 
 /**
  * Расщепляет shared value: создаёт новую копию записи value (со всеми подтаблицами и list-item-ами)
  * под одного актор-поле, остальные акторы продолжают делить старую. Возвращает новый uuid value.
  */
-export const linkFork = (db: Database, actor: string, field: string): string => forkValue(db, actor, field)
+export const linkFork = async (sql: SQL, actor: string, field: string): Promise<string> => forkValue(sql, actor, field)

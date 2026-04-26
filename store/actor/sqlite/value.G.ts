@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { ValueItemRecord, ValueRecord } from "./value.t.ts"
 
 /**
@@ -8,24 +8,22 @@ import type { ValueItemRecord, ValueRecord } from "./value.t.ts"
  * Один LEFT JOIN-запрос: дёшево даже с пустыми ветками. Строится discriminated
  * union по kind — нерелевантные поля просто отсутствуют.
  */
-export const readValue = (db: Database, uuid: string): ValueRecord | null => {
-  const row = db
-    .prepare(
-      `SELECT v.uuid AS uuid,
-              v.kind AS kind,
-              vb.boolean AS boolean,
-              vn.number  AS number,
-              vs.text    AS text,
-              ve.variant AS variant
-       FROM value v
-            LEFT JOIN value_boolean vb ON vb.value = v.uuid
-            LEFT JOIN value_number  vn ON vn.value = v.uuid
-            LEFT JOIN value_string  vs ON vs.value = v.uuid
-            LEFT JOIN value_enum    ve ON ve.value = v.uuid
-       WHERE v.uuid = ?`,
-    )
-    .get(uuid) as Record<string, unknown> | null
-
+export const readValue = async (sql: SQL, uuid: string): Promise<ValueRecord | null> => {
+  const rows = await sql<Array<Record<string, unknown>>>`
+    SELECT v.uuid AS uuid,
+           v.kind AS kind,
+           vb.boolean AS boolean,
+           vn.number  AS number,
+           vs.text    AS text,
+           ve.variant AS variant
+    FROM value v
+         LEFT JOIN value_boolean vb ON vb.value = v.uuid
+         LEFT JOIN value_number  vn ON vn.value = v.uuid
+         LEFT JOIN value_string  vs ON vs.value = v.uuid
+         LEFT JOIN value_enum    ve ON ve.value = v.uuid
+    WHERE v.uuid = ${uuid}
+  `
+  const row = rows[0] ?? null
   if (!row) return null
 
   const id = String(row.uuid)
@@ -49,10 +47,10 @@ export const readValue = (db: Database, uuid: string): ValueRecord | null => {
 }
 
 /** Читает все элементы списочного значения, упорядочены по `position`. */
-export const readValueItems = (db: Database, value: string): ValueItemRecord[] => {
-  const rows = db
-    .prepare(`SELECT value, position, item_value FROM value_list_item WHERE value = ? ORDER BY position`)
-    .all(value) as Array<Record<string, unknown>>
+export const readValueItems = async (sql: SQL, value: string): Promise<ValueItemRecord[]> => {
+  const rows = await sql<Array<Record<string, unknown>>>`
+    SELECT value, position, item_value FROM value_list_item WHERE value = ${value} ORDER BY position
+  `
   return rows.map((row) => ({
     value: String(row.value),
     position: Number(row.position),

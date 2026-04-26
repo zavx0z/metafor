@@ -6,7 +6,7 @@ import actionSchemaSql from "./action.sql" with {type: "text"}
 import finallySchemaSql from "./finally.sql" with {type: "text"}
 import reactionsSchemaSql from "./reactions.sql" with {type: "text"}
 import matterSchemaSql from "./matter.sql" with {type: "text"}
-import {Database, constants} from "bun:sqlite"
+import { SQL } from "bun"
 import type { MetaDSL } from "../../../metafor.t"
 import { createFields } from "./fields.C.ts"
 import { createMatter } from "./matter.C.ts"
@@ -98,13 +98,13 @@ export const metaforDslSchemaSql = metaforDslSchemaSqlModules
   .trim()
 
 /**
- * Применяет DSL meta-схему (33 таблицы) к уже открытому Database.
+ * Применяет DSL meta-схему (33 таблицы) к уже открытому SQL.
  *
  * Идемпотентно: каждое CREATE TABLE — IF NOT EXISTS. PRAGMA-настройки не
- * трогает (это ответственность владельца Database).
+ * трогает (это ответственность владельца SQL).
  */
-export function initializeMetaDslSchema(db: Database): void {
-  db.run(metaforDslSchemaSql)
+export async function initializeMetaDslSchema(sql: SQL): Promise<void> {
+  await sql.unsafe(metaforDslSchemaSql)
 }
 
 /**
@@ -112,44 +112,35 @@ export function initializeMetaDslSchema(db: Database): void {
  *
  * Если файл базы данных уже существует, он будет открыт. Если нет — создан новый.
  * После открытия применяет DDL схему Metafor DSL (`CREATE TABLE IF NOT EXISTS`).
- * Также расширяет метод `close()` для корректного сброса WAL-логов и удаления временных файлов.
  *
  * @param path - Путь к файлу базы данных.
- * @returns Открытый экземпляр Database с инициализированной схемой.
+ * @returns Открытый экземпляр SQL с инициализированной схемой.
  */
-export function open(path: string): Database {
-  const db = new Database(path, { strict: true, create: true })
+export async function open(path: string): Promise<SQL> {
+  const sql = new SQL(`sqlite://${path}`)
 
-  db.run("PRAGMA foreign_keys = ON;")
-  db.run("PRAGMA journal_mode = WAL;")
-  initializeMetaDslSchema(db)
+  await sql.unsafe("PRAGMA foreign_keys = ON;")
+  await sql.unsafe("PRAGMA journal_mode = WAL;")
+  await initializeMetaDslSchema(sql)
 
-  const originalClose = db.close.bind(db)
-  db.close = (throwOnError?: boolean) => {
-    db.fileControl(constants.SQLITE_FCNTL_PERSIST_WAL, 0)
-    db.run("PRAGMA wal_checkpoint(TRUNCATE);")
-    return originalClose(throwOnError)
-  }
-
-  return db
+  return sql
 }
 
 /**
  * Экспортирует структуру MetaDSL в реляционные таблицы SQLite.
  *
- * @param db - Экземпляр базы данных SQLite.
+ * @param sql - Экземпляр базы данных SQL.
  * @param meta - Объект MetaDSL.
  * @param src - Уникальный идентификатор (source) атома.
  */
 
-export function create(db: Database, meta: MetaDSL, src: string): void {
-  db.transaction(() => {
-    createMetafor(db, meta, src)
-    const fieldUuids = createFields(db, meta, src)
-    const stateUuids = createSuperposition(db, meta, src, fieldUuids)
-    createProcess(db, meta, src, fieldUuids)
-    createReactions(db, meta, src, fieldUuids, stateUuids)
-    createMatter(db, meta, src, fieldUuids)
-  })()
+export async function create(sql: SQL, meta: MetaDSL, src: string): Promise<void> {
+  await sql.begin(async (tx) => {
+    await createMetafor(tx, meta, src)
+    const fieldUuids = await createFields(tx, meta, src)
+    const stateUuids = await createSuperposition(tx, meta, src, fieldUuids)
+    await createProcess(tx, meta, src, fieldUuids)
+    await createReactions(tx, meta, src, fieldUuids, stateUuids)
+    await createMatter(tx, meta, src, fieldUuids)
+  })
 }
-

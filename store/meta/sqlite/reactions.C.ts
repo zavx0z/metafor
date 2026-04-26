@@ -1,37 +1,39 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { MetaDSL, ReactionsSchema } from "../../.."
 import type { FieldUuidByKey, StateUuidByName } from "./reactions.t.ts"
 
-export function createReactions(
-  db: Database,
+export async function createReactions(
+  sql: SQL,
   meta: MetaDSL,
   src: string,
   fieldUuids: FieldUuidByKey,
   stateUuids: StateUuidByName,
-): void {
+): Promise<void> {
   if (!meta.reactions) return
 
   const rs = meta.reactions as ReactionsSchema
   for (const [id, r] of Object.entries(rs.reactions)) {
     const uuid = crypto.randomUUID()
-    db.query("INSERT INTO reaction (uuid, meta, key, label, desc, cond_source, update_source) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .run(uuid, src, id, r.label, r.desc || null, r.cond, r.src)
+    await sql`
+      INSERT INTO reaction (uuid, meta, key, label, desc, cond_source, update_source)
+      VALUES (${uuid}, ${src}, ${id}, ${r.label}, ${r.desc || null}, ${r.cond}, ${r.src})
+    `
 
     if (r.read) {
-      r.read.forEach((fieldKey) => {
+      for (const fieldKey of r.read) {
         const fieldUuid = fieldUuids.get(fieldKey)
         if (fieldUuid) {
-          db.query("INSERT INTO reaction_read (reaction, field) VALUES (?, ?)").run(uuid, fieldUuid)
+          await sql`INSERT INTO reaction_read (reaction, field) VALUES (${uuid}, ${fieldUuid})`
         }
-      })
+      }
     }
     if (r.write) {
-      r.write.forEach((fieldKey) => {
+      for (const fieldKey of r.write) {
         const fieldUuid = fieldUuids.get(fieldKey)
         if (fieldUuid) {
-          db.query("INSERT INTO reaction_write (reaction, field) VALUES (?, ?)").run(uuid, fieldUuid)
+          await sql`INSERT INTO reaction_write (reaction, field) VALUES (${uuid}, ${fieldUuid})`
         }
-      })
+      }
     }
 
     // Reaction Superpositions
@@ -39,8 +41,7 @@ export function createReactions(
       if (reactionIds.includes(id)) {
         const stateUuid = stateUuids.get(state)
         if (stateUuid) {
-          db.query("INSERT INTO reaction_superposition (reaction, superposition) VALUES (?, ?)")
-            .run(uuid, stateUuid)
+          await sql`INSERT INTO reaction_superposition (reaction, superposition) VALUES (${uuid}, ${stateUuid})`
         }
       }
     }

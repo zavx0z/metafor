@@ -1,44 +1,44 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { ReactionsSchema } from "../../.."
 import type { ReactionRow } from "./reactions.t.ts"
 
-export const getReactions = (
-  db: Database,
+export const getReactions = async (
+  sql: SQL,
   src: string,
   fieldKeys: Map<string, string>,
-): ReactionsSchema | undefined => {
-  const reactionRows = db.query(
-    `SELECT uuid, key, label, desc, cond_source, update_source
-     FROM reaction
-     WHERE meta = ?
-     ORDER BY reaction.rowid`,
-  ).all(src) as ReactionRow[]
+): Promise<ReactionsSchema | undefined> => {
+  const reactionRows = await sql<ReactionRow[]>`
+    SELECT uuid, key, label, desc, cond_source, update_source
+    FROM reaction
+    WHERE meta = ${src}
+    ORDER BY reaction.rowid
+  `
   if (reactionRows.length === 0) return
 
-  const reactionReads = db.query(
-    `SELECT reaction_read.reaction AS reaction, reaction_read.field AS field
-     FROM reaction_read
-     INNER JOIN reaction ON reaction.uuid = reaction_read.reaction
-     WHERE reaction.meta = ?
-     ORDER BY reaction_read.rowid`,
-  ).all(src) as Array<{ reaction: string; field: string }>
+  const reactionReads = await sql<Array<{ reaction: string; field: string }>>`
+    SELECT reaction_read.reaction AS reaction, reaction_read.field AS field
+    FROM reaction_read
+    INNER JOIN reaction ON reaction.uuid = reaction_read.reaction
+    WHERE reaction.meta = ${src}
+    ORDER BY reaction_read.rowid
+  `
 
-  const reactionWrites = db.query(
-    `SELECT reaction_write.reaction AS reaction, reaction_write.field AS field
-     FROM reaction_write
-     INNER JOIN reaction ON reaction.uuid = reaction_write.reaction
-     WHERE reaction.meta = ?
-     ORDER BY reaction_write.rowid`,
-  ).all(src) as Array<{ reaction: string; field: string }>
+  const reactionWrites = await sql<Array<{ reaction: string; field: string }>>`
+    SELECT reaction_write.reaction AS reaction, reaction_write.field AS field
+    FROM reaction_write
+    INNER JOIN reaction ON reaction.uuid = reaction_write.reaction
+    WHERE reaction.meta = ${src}
+    ORDER BY reaction_write.rowid
+  `
 
-  const reactionStates = db.query(
-    `SELECT reaction_superposition.reaction AS reaction, superposition.name AS state_name
-     FROM reaction_superposition
-     INNER JOIN reaction ON reaction.uuid = reaction_superposition.reaction
-     INNER JOIN superposition ON superposition.uuid = reaction_superposition.superposition
-     WHERE reaction.meta = ?
-     ORDER BY reaction_superposition.rowid`,
-  ).all(src) as Array<{ reaction: string; state_name: string }>
+  const reactionStates = await sql<Array<{ reaction: string; state_name: string }>>`
+    SELECT reaction_superposition.reaction AS reaction, superposition.name AS state_name
+    FROM reaction_superposition
+    INNER JOIN reaction ON reaction.uuid = reaction_superposition.reaction
+    INNER JOIN superposition ON superposition.uuid = reaction_superposition.superposition
+    WHERE reaction.meta = ${src}
+    ORDER BY reaction_superposition.rowid
+  `
 
   const readsByReaction = new Map<string, string[]>()
   for (const row of reactionReads) {

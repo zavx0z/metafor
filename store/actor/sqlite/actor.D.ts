@@ -1,21 +1,18 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 
 /**
  * Удаляет актора, его связи (`actor_value`, `actor_state` уходят по каскаду)
  * и orphan-записи value, на которые после удаления больше никто не ссылается.
  */
-export const deleteActor = (db: Database, uuid: string): void => {
-  const collectStmt = db.prepare(`SELECT value FROM actor_value WHERE actor = ?`)
-  const deleteActorStmt = db.prepare(`DELETE FROM actor WHERE uuid = ?`)
-  const deleteOrphanValueStmt = db.prepare(
-    `DELETE FROM value WHERE uuid = ? AND NOT EXISTS (SELECT 1 FROM actor_value WHERE value = uuid)`,
-  )
-
-  db.transaction(() => {
-    const oldValueIds = (collectStmt.all(uuid) as Array<{ value: string }>).map((r) => r.value)
-    deleteActorStmt.run(uuid)
+export const deleteActor = async (sql: SQL, uuid: string): Promise<void> => {
+  await sql.begin(async (tx) => {
+    const collected = await tx<Array<{ value: string }>>`SELECT value FROM actor_value WHERE actor = ${uuid}`
+    const oldValueIds = collected.map((r) => r.value)
+    await tx`DELETE FROM actor WHERE uuid = ${uuid}`
     for (const valueId of oldValueIds) {
-      deleteOrphanValueStmt.run(valueId)
+      await tx`
+        DELETE FROM value WHERE uuid = ${valueId} AND NOT EXISTS (SELECT 1 FROM actor_value WHERE value = uuid)
+      `
     }
-  })()
+  })
 }

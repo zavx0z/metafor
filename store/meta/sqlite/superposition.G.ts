@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { MetaDSL } from "../../.."
 import type { ConditionListItemRow, PredicateRow } from "./superposition.t.ts"
 
@@ -38,15 +38,14 @@ const decodeOperatorKey = (operator: string): string => {
   }
 }
 
-export const getSuperposition = (
-  db: Database,
+export const getSuperposition = async (
+  sql: SQL,
   src: string,
   enumVariants: Map<string, string>,
-): NonNullable<MetaDSL["superposition"]> | undefined => {
-  const stateRows = db.query(`SELECT uuid, name FROM superposition WHERE meta = ? ORDER BY position`).all(src) as Array<{
-    uuid: string
-    name: string
-  }>
+): Promise<NonNullable<MetaDSL["superposition"]> | undefined> => {
+  const stateRows = await sql<Array<{ uuid: string; name: string }>>`
+    SELECT uuid, name FROM superposition WHERE meta = ${src} ORDER BY position
+  `
   if (stateRows.length === 0) return
 
   const superposition: NonNullable<MetaDSL["superposition"]> = {}
@@ -56,12 +55,12 @@ export const getSuperposition = (
     superposition[row.name] = {}
   }
 
-  const transitionRows = db.query(
-    `SELECT uuid, from_superposition, to_superposition
-     FROM transition
-     WHERE from_superposition IN (SELECT uuid FROM superposition WHERE meta = ?)
-     ORDER BY position`,
-  ).all(src) as Array<{ uuid: string; from_superposition: string; to_superposition: string }>
+  const transitionRows = await sql<Array<{ uuid: string; from_superposition: string; to_superposition: string }>>`
+    SELECT uuid, from_superposition, to_superposition
+    FROM transition
+    WHERE from_superposition IN (SELECT uuid FROM superposition WHERE meta = ${src})
+    ORDER BY position
+  `
 
   const transitions = new Map<string, Record<string, unknown>>()
   for (const row of transitionRows) {
@@ -74,51 +73,51 @@ export const getSuperposition = (
     transitions.set(row.uuid, conditionSet)
   }
 
-  const conditionRows = db.query(
-    `SELECT condition.uuid AS uuid, condition.transition AS transition, field.key AS field_key
-     FROM condition
-     INNER JOIN field ON field.uuid = condition.field
-     WHERE condition.transition IN (
-       SELECT transition.uuid
-       FROM transition
-       INNER JOIN superposition ON superposition.uuid = transition.from_superposition
-       WHERE superposition.meta = ?
-     )
-     ORDER BY condition.position`,
-  ).all(src) as Array<{ uuid: string; transition: string; field_key: string }>
+  const conditionRows = await sql<Array<{ uuid: string; transition: string; field_key: string }>>`
+    SELECT condition.uuid AS uuid, condition.transition AS transition, field.key AS field_key
+    FROM condition
+    INNER JOIN field ON field.uuid = condition.field
+    WHERE condition.transition IN (
+      SELECT transition.uuid
+      FROM transition
+      INNER JOIN superposition ON superposition.uuid = transition.from_superposition
+      WHERE superposition.meta = ${src}
+    )
+    ORDER BY condition.position
+  `
 
-  const predicateRows = db.query(
-    `SELECT uuid, condition, predicate_order, operator, value_kind, value_boolean, value_number, value_text, value_variant
-     FROM condition_predicate
-     WHERE condition IN (
-       SELECT condition.uuid
-       FROM condition
-       INNER JOIN transition ON transition.uuid = condition.transition
-       INNER JOIN superposition ON superposition.uuid = transition.from_superposition
-       WHERE superposition.meta = ?
-     )
-     ORDER BY predicate_order`,
-  ).all(src) as PredicateRow[]
+  const predicateRows = await sql<PredicateRow[]>`
+    SELECT uuid, condition, predicate_order, operator, value_kind, value_boolean, value_number, value_text, value_variant
+    FROM condition_predicate
+    WHERE condition IN (
+      SELECT condition.uuid
+      FROM condition
+      INNER JOIN transition ON transition.uuid = condition.transition
+      INNER JOIN superposition ON superposition.uuid = transition.from_superposition
+      WHERE superposition.meta = ${src}
+    )
+    ORDER BY predicate_order
+  `
 
-  const listItemRows = db.query(
-    `SELECT condition_list_item.predicate AS predicate,
-            condition_list_item.item_order AS item_order,
-            condition_list_item.value_kind AS value_kind,
-            condition_list_item.value_boolean AS value_boolean,
-            condition_list_item.value_number AS value_number,
-            condition_list_item.value_text AS value_text,
-            condition_list_item.value_variant AS value_variant
-     FROM condition_list_item
-     WHERE condition_list_item.predicate IN (
-       SELECT condition_predicate.uuid
-       FROM condition_predicate
-       INNER JOIN condition ON condition.uuid = condition_predicate.condition
-       INNER JOIN transition ON transition.uuid = condition.transition
-       INNER JOIN superposition ON superposition.uuid = transition.from_superposition
-       WHERE superposition.meta = ?
-     )
-     ORDER BY condition_list_item.item_order`,
-  ).all(src) as ConditionListItemRow[]
+  const listItemRows = await sql<ConditionListItemRow[]>`
+    SELECT condition_list_item.predicate AS predicate,
+           condition_list_item.item_order AS item_order,
+           condition_list_item.value_kind AS value_kind,
+           condition_list_item.value_boolean AS value_boolean,
+           condition_list_item.value_number AS value_number,
+           condition_list_item.value_text AS value_text,
+           condition_list_item.value_variant AS value_variant
+    FROM condition_list_item
+    WHERE condition_list_item.predicate IN (
+      SELECT condition_predicate.uuid
+      FROM condition_predicate
+      INNER JOIN condition ON condition.uuid = condition_predicate.condition
+      INNER JOIN transition ON transition.uuid = condition.transition
+      INNER JOIN superposition ON superposition.uuid = transition.from_superposition
+      WHERE superposition.meta = ${src}
+    )
+    ORDER BY condition_list_item.item_order
+  `
 
   const listItems = new Map<string, Array<string | number | boolean | null>>()
   for (const row of listItemRows) {

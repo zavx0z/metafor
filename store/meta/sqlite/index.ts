@@ -2,32 +2,32 @@
  * Bun-sqlite реализация meta-стора.
  *
  * Функциональный API: каждая операция — функция, первым аргументом принимающая
- * `Database`. Открытие БД и применение схемы — ответственность caller-а
- * (см. `store/server.ts`), потому что одна Database держит таблицы обоих
+ * `SQL`. Открытие БД и применение схемы — ответственность caller-а
+ * (см. `store/server.ts`), потому что одна SQL держит таблицы обоих
  * пакетов (meta + actor).
  *
  * Симметрично с `@store/actor/sqlite`.
  */
 
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import { create as writeMetaToDsl, metaforDslSchemaSql } from "./sqlite.ts"
 import type { MetaDSL } from "../../../metafor.t.ts"
 
-/** Полный DDL meta-DSL-relational схемы (33 таблицы + индексы). Применяется к открытой Database. */
+/** Полный DDL meta-DSL-relational схемы (33 таблицы + индексы). Применяется к открытой SQL. */
 export const metaSchemaSql: string = metaforDslSchemaSql
 
 /**
  * Записывает MetaDSL в DSL-relational схему по `src`.
  * Идемпотентно: DELETE-then-INSERT, каскад FK снимет старое дерево.
  */
-export const metaCreate = (db: Database, src: string, dsl: MetaDSL): void => {
-  db.prepare(`DELETE FROM meta WHERE src = ?`).run(src)
-  writeMetaToDsl(db, dsl, src)
+export const metaCreate = async (sql: SQL, src: string, dsl: MetaDSL): Promise<void> => {
+  await sql`DELETE FROM meta WHERE src = ${src}`
+  await writeMetaToDsl(sql, dsl, src)
 }
 
 /** Удаляет meta по `src`. Каскад FK снимет всё дерево декларации. */
-export const metaDelete = (db: Database, src: string): void => {
-  db.prepare(`DELETE FROM meta WHERE src = ?`).run(src)
+export const metaDelete = async (sql: SQL, src: string): Promise<void> => {
+  await sql`DELETE FROM meta WHERE src = ${src}`
 }
 
 // Per-entity get-функции — для ленивых getter-ов ORM-инстансов.

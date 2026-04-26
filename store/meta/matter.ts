@@ -1,24 +1,26 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { MatterParticlePlan } from "@dark/types/dark"
 import { getMatterParticles, hasMatter } from "./sqlite"
 
 /** Django-style manager для matter-particle-plans одной меты. */
 export class Matter {
   constructor(
-    private readonly db: Database,
+    private readonly sql: SQL,
     private readonly src: string,
   ) {}
 
   /** Все root-level particle plans (вложенные — через `.children` каждого plan-а). */
-  all(): MatterParticlePlan[] {
-    return hasMatter(this.db, this.src) ? getMatterParticles(this.db, this.src) : []
+  async all(): Promise<MatterParticlePlan[]> {
+    if (!(await hasMatter(this.sql, this.src))) return []
+    return getMatterParticles(this.sql, this.src)
   }
 
-  count(): number {
-    return hasMatter(this.db, this.src) ? getMatterParticles(this.db, this.src).length : 0
+  async count(): Promise<number> {
+    if (!(await hasMatter(this.sql, this.src))) return 0
+    return (await getMatterParticles(this.sql, this.src)).length
   }
 
-  exists(): boolean {
-    return hasMatter(this.db, this.src)
+  async exists(): Promise<boolean> {
+    return hasMatter(this.sql, this.src)
   }
 }

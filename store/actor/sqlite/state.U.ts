@@ -1,9 +1,9 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 
 /** Меняет состояние FSM актора (upsert по actor). */
-export const setActorState = (db: Database, actor: string, metaState: string): void => {
-  db.prepare(
-    `INSERT INTO actor_state (actor, metaState) VALUES (?, ?)
-     ON CONFLICT (actor) DO UPDATE SET metaState = excluded.metaState`,
-  ).run(actor, metaState)
+export const setActorState = async (sql: SQL, actor: string, metaState: string): Promise<void> => {
+  await sql`
+    INSERT INTO actor_state (actor, metaState) VALUES (${actor}, ${metaState})
+    ON CONFLICT (actor) DO UPDATE SET metaState = excluded.metaState
+  `
 }

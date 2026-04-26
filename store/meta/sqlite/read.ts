@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { MetaDSL } from "../../.."
 import { getFields } from "./fields.G.ts"
 import { getMass, getMetaRow, hasMatter, hasProcesses, hasReactions } from "./meta.G.ts"
@@ -10,17 +10,17 @@ import type { DarkMetaParticleModel } from "./read.t.ts"
 
 const hasKeys = (value: object): boolean => Object.keys(value).length > 0
 
-export const readDarkParticleModel = (db: Database, src: string): DarkMetaParticleModel | null => {
-  const metaRow = getMetaRow(db, src)
+export const readDarkParticleModel = async (sql: SQL, src: string): Promise<DarkMetaParticleModel | null> => {
+  const metaRow = await getMetaRow(sql, src)
 
   if (!metaRow) return null
 
-  const { fields, fieldKeys, enumVariants } = getFields(db, src)
-  const metaMass = getMass(db, src)
-  const superposition = getSuperposition(db, src, enumVariants)
-  const processes = hasProcesses(db, src) ? (getProcesses(db, src, fieldKeys) ?? {}) : undefined
-  const reactionsExist = hasReactions(db, src)
-  const reactions = reactionsExist ? (getReactions(db, src, fieldKeys) ?? { reactions: {}, superposition: {} }) : undefined
+  const { fields, fieldKeys, enumVariants } = await getFields(sql, src)
+  const metaMass = await getMass(sql, src)
+  const superposition = await getSuperposition(sql, src, enumVariants)
+  const processes = (await hasProcesses(sql, src)) ? ((await getProcesses(sql, src, fieldKeys)) ?? {}) : undefined
+  const reactionsExist = await hasReactions(sql, src)
+  const reactions = reactionsExist ? ((await getReactions(sql, src, fieldKeys)) ?? { reactions: {}, superposition: {} }) : undefined
 
   return {
     meta: {
@@ -33,6 +33,6 @@ export const readDarkParticleModel = (db: Database, src: string): DarkMetaPartic
       ...(metaRow.view_css !== null ? { bulk: { view: metaRow.view_css } as MetaDSL["bulk"] } : {}),
       ...(metaMass !== undefined && hasKeys(metaMass) ? { mass: metaMass } : {}),
     },
-    particles: hasMatter(db, src) ? getMatterParticles(db, src) : [],
+    particles: (await hasMatter(sql, src)) ? await getMatterParticles(sql, src) : [],
   }
 }

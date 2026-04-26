@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { ActorRecord, ActorRows } from "./actor.t.ts"
 import type { ActorStateRecord } from "./state.t.ts"
 import type { ActorValueRecord } from "./actor_value.t.ts"
@@ -15,27 +15,27 @@ export const decodeActor = (row: Record<string, unknown>): ActorRecord => ({
 })
 
 /** Все корневые акторы (parent IS NULL), упорядочены по `position`. */
-export const listRootActors = (db: Database): ActorRecord[] => {
-  const rows = db
-    .prepare(`SELECT uuid, parent, meta, position FROM actor WHERE parent IS NULL ORDER BY position`)
-    .all() as Array<Record<string, unknown>>
+export const listRootActors = async (sql: SQL): Promise<ActorRecord[]> => {
+  const rows = await sql<Array<Record<string, unknown>>>`
+    SELECT uuid, parent, meta, position FROM actor WHERE parent IS NULL ORDER BY position
+  `
   return rows.map(decodeActor)
 }
 
 /** Все дочерние акторы данного родителя, упорядочены по `position`. */
-export const listChildActors = (db: Database, parent: string): ActorRecord[] => {
-  const rows = db
-    .prepare(`SELECT uuid, parent, meta, position FROM actor WHERE parent = ? ORDER BY position`)
-    .all(parent) as Array<Record<string, unknown>>
+export const listChildActors = async (sql: SQL, parent: string): Promise<ActorRecord[]> => {
+  const rows = await sql<Array<Record<string, unknown>>>`
+    SELECT uuid, parent, meta, position FROM actor WHERE parent = ${parent} ORDER BY position
+  `
   return rows.map(decodeActor)
 }
 
 /** Читает одного актора по uuid. */
-export const readActor = (db: Database, uuid: string): ActorRecord | null => {
-  const row = db.prepare(`SELECT uuid, parent, meta, position FROM actor WHERE uuid = ?`).get(uuid) as Record<
-    string,
-    unknown
-  > | null
+export const readActor = async (sql: SQL, uuid: string): Promise<ActorRecord | null> => {
+  const rows = await sql<Array<Record<string, unknown>>>`
+    SELECT uuid, parent, meta, position FROM actor WHERE uuid = ${uuid}
+  `
+  const row = rows[0] ?? null
   return row ? decodeActor(row) : null
 }
 
@@ -73,16 +73,15 @@ const decodeListItemRow = (row: Record<string, unknown>): ValueItemRecord => ({
  * Один проход: SELECT actor → SELECT actor_value → JOIN-чтение value+подтаблиц по списку uuid.
  * Возвращает `null`, если актор или его state отсутствуют.
  */
-export const readActorRows = (db: Database, uuid: string): ActorRows | null => {
-  const actorRow = db
-    .prepare(`SELECT uuid, parent, meta, position FROM actor WHERE uuid = ?`)
-    .get(uuid) as Record<string, unknown> | null
+export const readActorRows = async (sql: SQL, uuid: string): Promise<ActorRows | null> => {
+  const actorRows = await sql<Array<Record<string, unknown>>>`
+    SELECT uuid, parent, meta, position FROM actor WHERE uuid = ${uuid}
+  `
+  const actorRow = actorRows[0] ?? null
   if (!actorRow) return null
 
   const values = (
-    db.prepare(`SELECT actor, field, value FROM actor_value WHERE actor = ?`).all(uuid) as Array<
-      Record<string, unknown>
-    >
+    await sql<Array<Record<string, unknown>>>`SELECT actor, field, value FROM actor_value WHERE actor = ${uuid}`
   ).map((row) => decodeActorValue(row)!) as ActorValueRecord[]
 
   const valueIds = [...new Set(values.map((v) => v.value))]
@@ -90,39 +89,34 @@ export const readActorRows = (db: Database, uuid: string): ActorRows | null => {
   const valueItems: ValueItemRecord[] = []
 
   if (valueIds.length > 0) {
-    const placeholders = valueIds.map(() => "?").join(", ")
-
-    const valueRows = db
-      .prepare(
-        `SELECT v.uuid AS uuid,
-                v.kind AS kind,
-                vb.boolean AS boolean,
-                vn.number  AS number,
-                vs.text    AS text,
-                ve.variant AS variant
-         FROM value v
-              LEFT JOIN value_boolean vb ON vb.value = v.uuid
-              LEFT JOIN value_number  vn ON vn.value = v.uuid
-              LEFT JOIN value_string  vs ON vs.value = v.uuid
-              LEFT JOIN value_enum    ve ON ve.value = v.uuid
-         WHERE v.uuid IN (${placeholders})`,
-      )
-      .all(...valueIds) as Array<Record<string, unknown>>
+    const valueRows = await sql<Array<Record<string, unknown>>>`
+      SELECT v.uuid AS uuid,
+             v.kind AS kind,
+             vb.boolean AS boolean,
+             vn.number  AS number,
+             vs.text    AS text,
+             ve.variant AS variant
+      FROM value v
+           LEFT JOIN value_boolean vb ON vb.value = v.uuid
+           LEFT JOIN value_number  vn ON vn.value = v.uuid
+           LEFT JOIN value_string  vs ON vs.value = v.uuid
+           LEFT JOIN value_enum    ve ON ve.value = v.uuid
+      WHERE v.uuid IN ${sql(valueIds)}
+    `
     for (const row of valueRows) valueRecords.push(decodeValueJoinRow(row))
 
-    const itemRows = db
-      .prepare(
-        `SELECT value, position, item_value FROM value_list_item
-         WHERE value IN (${placeholders})
-         ORDER BY value, position`,
-      )
-      .all(...valueIds) as Array<Record<string, unknown>>
+    const itemRows = await sql<Array<Record<string, unknown>>>`
+      SELECT value, position, item_value FROM value_list_item
+      WHERE value IN ${sql(valueIds)}
+      ORDER BY value, position
+    `
     for (const row of itemRows) valueItems.push(decodeListItemRow(row))
   }
 
-  const state: ActorStateRecord | null = decodeActorState(
-    db.prepare(`SELECT actor, metaState FROM actor_state WHERE actor = ?`).get(uuid) as Record<string, unknown> | null,
-  )
+  const stateRows = await sql<Array<Record<string, unknown>>>`
+    SELECT actor, metaState FROM actor_state WHERE actor = ${uuid}
+  `
+  const state: ActorStateRecord | null = decodeActorState(stateRows[0] ?? null)
   if (!state) return null
 
   return {

@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { MetaDSL } from "../../metafor.t.ts"
 import { getReactions, hasReactions } from "./sqlite"
 import type { Fields } from "./fields.ts"
@@ -13,14 +13,15 @@ export interface ReactionRecord {
 /** Django-style manager для реакций одной меты. */
 export class Reactions {
   constructor(
-    private readonly db: Database,
+    private readonly sql: SQL,
     private readonly src: string,
     private readonly fields: Fields,
   ) {}
 
-  private load(): NonNullable<MetaDSL["reactions"]> | null {
-    if (!hasReactions(this.db, this.src)) return null
-    return getReactions(this.db, this.src, this.fields.raw().fieldKeys) ?? { reactions: {}, superposition: {} }
+  private async load(): Promise<NonNullable<MetaDSL["reactions"]> | null> {
+    if (!(await hasReactions(this.sql, this.src))) return null
+    const { fieldKeys } = await this.fields.raw()
+    return (await getReactions(this.sql, this.src, fieldKeys)) ?? { reactions: {}, superposition: {} }
   }
 
   private buildStateIndex(r: NonNullable<MetaDSL["reactions"]>): Record<string, string[]> {
@@ -33,8 +34,8 @@ export class Reactions {
     return index
   }
 
-  all(): ReactionRecord[] {
-    const r = this.load()
+  async all(): Promise<ReactionRecord[]> {
+    const r = await this.load()
     if (!r) return []
     const stateIndex = this.buildStateIndex(r)
     return Object.entries(r.reactions ?? {}).map(([key, definition]) => ({
@@ -44,8 +45,8 @@ export class Reactions {
     }))
   }
 
-  get(filter: { key: string }): ReactionRecord | null {
-    const r = this.load()
+  async get(filter: { key: string }): Promise<ReactionRecord | null> {
+    const r = await this.load()
     if (!r) return null
     const definition = r.reactions?.[filter.key]
     if (definition === undefined) return null
@@ -56,12 +57,12 @@ export class Reactions {
     return { key: filter.key, definition, states }
   }
 
-  count(): number {
-    const r = this.load()
+  async count(): Promise<number> {
+    const r = await this.load()
     return r ? Object.keys(r.reactions ?? {}).length : 0
   }
 
-  exists(): boolean {
-    return hasReactions(this.db, this.src)
+  async exists(): Promise<boolean> {
+    return hasReactions(this.sql, this.src)
   }
 }

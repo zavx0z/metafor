@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { ActorStateRecord } from "./state.t.ts"
 
 /** Декодирует строку sqlite в `ActorStateRecord`. */
@@ -8,11 +8,9 @@ export const decodeActorState = (row: Record<string, unknown> | null): ActorStat
 }
 
 /** Читает текущее состояние FSM актора. */
-export const readActorState = (db: Database, actor: string): ActorStateRecord | null => {
-  return decodeActorState(
-    db.prepare(`SELECT actor, metaState FROM actor_state WHERE actor = ?`).get(actor) as Record<
-      string,
-      unknown
-    > | null,
-  )
+export const readActorState = async (sql: SQL, actor: string): Promise<ActorStateRecord | null> => {
+  const rows = await sql<Array<Record<string, unknown>>>`
+    SELECT actor, metaState FROM actor_state WHERE actor = ${actor}
+  `
+  return decodeActorState(rows[0] ?? null)
 }

@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { FieldDefinition, FieldKey } from "../../metafor.t.ts"
 import type { GetFieldsResult } from "./sqlite/fields.t.ts"
 import { getFields } from "./sqlite"
@@ -11,46 +11,44 @@ export interface FieldRecord {
 
 /**
  * Django-style manager для коллекции `field` одной меты.
- * Memoization внутри инстанса: первый `.all()/.get()/.count()/.exists()`
- * делает SELECT, остальные используют кеш.
+ * Каждый метод — отдельный SELECT в БД (без кеша).
  */
 export class Fields {
-  private cache?: GetFieldsResult
   constructor(
-    private readonly db: Database,
+    private readonly sql: SQL,
     private readonly src: string,
   ) {}
 
-  private load(): GetFieldsResult {
-    return (this.cache ??= getFields(this.db, this.src))
-  }
-
   /** Все поля декларации, в порядке объявления. */
-  all(): FieldRecord[] {
-    return Object.entries(this.load().fields).map(([key, schema]) => ({ key, schema }))
+  async all(): Promise<FieldRecord[]> {
+    const result = await getFields(this.sql, this.src)
+    return Object.entries(result.fields).map(([key, schema]) => ({ key, schema }))
   }
 
   /** Одно поле по ключу. */
-  get(filter: { key: FieldKey }): FieldRecord | null {
-    const schema = this.load().fields[filter.key]
+  async get(filter: { key: FieldKey }): Promise<FieldRecord | null> {
+    const result = await getFields(this.sql, this.src)
+    const schema = result.fields[filter.key]
     return schema === undefined ? null : { key: filter.key, schema }
   }
 
   /** Число полей. */
-  count(): number {
-    return Object.keys(this.load().fields).length
+  async count(): Promise<number> {
+    const result = await getFields(this.sql, this.src)
+    return Object.keys(result.fields).length
   }
 
   /** Хотя бы одно поле есть? */
-  exists(): boolean {
-    return Object.keys(this.load().fields).length > 0
+  async exists(): Promise<boolean> {
+    const result = await getFields(this.sql, this.src)
+    return Object.keys(result.fields).length > 0
   }
 
   /**
-   * Внутренний доступ к raw-результату (нужен другим manager-ам, которым
-   * нужны fieldKeys/enumVariants для зависимых запросов).
+   * Внутренний доступ к raw-результату (для зависимых manager-ов, которым
+   * нужны fieldKeys / enumVariants). Каждый вызов — свежий SELECT.
    */
-  raw(): GetFieldsResult {
-    return this.load()
+  raw(): Promise<GetFieldsResult> {
+    return getFields(this.sql, this.src)
   }
 }

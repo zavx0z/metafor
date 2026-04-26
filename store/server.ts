@@ -1,19 +1,15 @@
 /**
- * Server-side ORM-стор: открывает одну bun-sqlite Database, применяет единую
- * схему стора (meta-DSL-relational + actor-инстансный слой) и возвращает
+ * Server-side ORM-стор: открывает одну `Bun.SQL` (sqlite) и применяет единую
+ * схему стора (meta-DSL-relational + actor-инстансный слой). Возвращает
  * фасад с namespace-ами `meta` и `actor`.
  *
- * ORM-классы живут в корнях пакетов:
- * - `@store/meta` — `Meta` (с managers `fields`, `superposition`, `processes`,
- *   `reactions`, `matter`)
- * - `@store/actor` — actor-инстанс ORM (TODO: классы)
- *
- * Низкоуровневые backend-функции — в subpath `@store/<pkg>/sqlite`.
+ * Все методы async — Bun.SQL работает через tagged template literals.
+ * Никакого in-memory кеша — каждый вызов идёт в БД.
  *
  * Контракты — в `./server.t.ts`.
  */
 
-import { Database, constants } from "bun:sqlite"
+import { SQL } from "bun"
 import { metaSchemaSql } from "@store/meta/sqlite"
 import { Meta } from "@store/meta"
 import {
@@ -48,129 +44,147 @@ import type {
   ValueInstance,
 } from "./server.t.ts"
 
-const isFileBacked = (filename: string): boolean => filename !== ":memory:"
+// ────────────────────────────── value/actor (factory-style инстансы) ──────────────────────────────
 
-// ────────────────────────────── value/actor (factory-style, до миграции в классы) ──────────────────────────────
-
-const buildValueInstance = (database: Database, uuid: string): ValueInstance => ({
+const buildValueInstance = (sql: SQL, uuid: string): ValueInstance => ({
   uuid,
-  get record() {
-    const row = valueGet(database, uuid)
+  async record() {
+    const row = await valueGet(sql, uuid)
     if (!row) throw new Error(`value ${uuid} not found`)
     return row
   },
-  get owners() {
-    return valueOwners(database, uuid)
-  },
-  get items() {
-    return valueItemsGet(database, uuid)
-  },
-  set: (scalar) => valueSet(database, uuid, scalar),
-  writeItem: (position, itemValue) => valueItemsWrite(database, uuid, position, itemValue),
-  truncateItems: (fromPosition) => valueItemsTruncate(database, uuid, fromPosition),
+  owners: () => valueOwners(sql, uuid),
+  items: () => valueItemsGet(sql, uuid),
+  set: (scalar) => valueSet(sql, uuid, scalar),
+  writeItem: (position, itemValue) => valueItemsWrite(sql, uuid, position, itemValue),
+  truncateItems: (fromPosition) => valueItemsTruncate(sql, uuid, fromPosition),
 })
 
-const buildActorFieldValueInstance = (
-  database: Database,
+const buildActorFieldValueInstance = async (
+  sql: SQL,
   actor: string,
   field: string,
-): ActorFieldValueInstance | null => {
-  const link = linkGet(database, actor, field)
+): Promise<ActorFieldValueInstance | null> => {
+  const link = await linkGet(sql, actor, field)
   if (!link) return null
   return {
     actor,
     field,
-    get value() {
-      return buildValueInstance(database, link.value)
+    async value() {
+      const fresh = await linkGet(sql, actor, field)
+      if (!fresh) throw new Error(`actor_value (${actor}, ${field}) not found`)
+      return buildValueInstance(sql, fresh.value)
     },
-    share: (valueUuid) => linkShare(database, actor, field, valueUuid),
-    fork: () => buildValueInstance(database, linkFork(database, actor, field)),
+    share: (valueUuid) => linkShare(sql, actor, field, valueUuid),
+    async fork() {
+      const newUuid = await linkFork(sql, actor, field)
+      return buildValueInstance(sql, newUuid)
+    },
   }
 }
 
-const buildActorInstance = (database: Database, uuid: string): ActorInstance => ({
+const buildActorInstance = (sql: SQL, uuid: string): ActorInstance => ({
   uuid,
-  get meta() {
-    const head = actorHead(database, uuid)
+  async meta() {
+    const head = await actorHead(sql, uuid)
     if (!head) throw new Error(`actor ${uuid} not found`)
     return head.meta
   },
-  get position() {
-    const head = actorHead(database, uuid)
+  async position() {
+    const head = await actorHead(sql, uuid)
     if (!head) throw new Error(`actor ${uuid} not found`)
     return head.position
   },
-  get parent() {
-    const head = actorHead(database, uuid)
+  async parent() {
+    const head = await actorHead(sql, uuid)
     if (!head || head.parent === null) return null
-    return buildActorInstance(database, head.parent)
+    return buildActorInstance(sql, head.parent)
   },
   children: {
-    all: () => actorListChildren(database, uuid).map((row) => buildActorInstance(database, row.uuid)),
-    get: ({ uuid: childUuid }) => {
-      const head = actorHead(database, childUuid)
-      if (!head || head.parent !== uuid) return null
-      return buildActorInstance(database, childUuid)
+    async all() {
+      const rows = await actorListChildren(sql, uuid)
+      return rows.map((row) => buildActorInstance(sql, row.uuid))
     },
-    count: () => actorListChildren(database, uuid).length,
-    exists: () => actorListChildren(database, uuid).length > 0,
+    async get({ uuid: childUuid }) {
+      const head = await actorHead(sql, childUuid)
+      if (!head || head.parent !== uuid) return null
+      return buildActorInstance(sql, childUuid)
+    },
+    async count() {
+      return (await actorListChildren(sql, uuid)).length
+    },
+    async exists() {
+      return (await actorListChildren(sql, uuid)).length > 0
+    },
   },
   values: {
-    all: () => {
-      const rows = actorGet(database, uuid)
+    async all() {
+      const rows = await actorGet(sql, uuid)
       if (!rows) return []
-      return rows.values
-        .map((av) => buildActorFieldValueInstance(database, uuid, av.field))
-        .filter((v): v is NonNullable<typeof v> => v !== null)
+      const instances = await Promise.all(
+        rows.values.map((av) => buildActorFieldValueInstance(sql, uuid, av.field)),
+      )
+      return instances.filter((v): v is NonNullable<typeof v> => v !== null)
     },
-    get: ({ field }: { field: string }) => buildActorFieldValueInstance(database, uuid, field),
-    count: () => {
-      const rows = actorGet(database, uuid)
+    async get({ field }: { field: string }) {
+      return buildActorFieldValueInstance(sql, uuid, field)
+    },
+    async count() {
+      const rows = await actorGet(sql, uuid)
       return rows ? rows.values.length : 0
     },
   },
-  get state() {
-    return stateGet(database, uuid)
-  },
-  get rows() {
-    const rows = actorGet(database, uuid)
+  state: () => stateGet(sql, uuid),
+  async rows() {
+    const rows = await actorGet(sql, uuid)
     if (!rows) throw new Error(`actor ${uuid} not found`)
     return rows
   },
-  setState: (metaState) => stateSet(database, uuid, metaState),
-  delete: () => actorDelete(database, uuid),
+  setState: (metaState) => stateSet(sql, uuid, metaState),
+  delete: () => actorDelete(sql, uuid),
 })
 
-const buildValueApi = (database: Database): ValueApi => ({
-  get: (uuid) => (valueGet(database, uuid) === null ? null : buildValueInstance(database, uuid)),
+const buildValueApi = (sql: SQL): ValueApi => ({
+  async get(uuid) {
+    return (await valueGet(sql, uuid)) === null ? null : buildValueInstance(sql, uuid)
+  },
 })
 
-const buildLinkApi = (database: Database): LinkApi => ({
-  get: (actor, field) => linkGet(database, actor, field),
-  share: (actor, field, value) => linkShare(database, actor, field, value),
-  fork: (actor, field) => linkFork(database, actor, field),
+const buildLinkApi = (sql: SQL): LinkApi => ({
+  get: (actor, field) => linkGet(sql, actor, field),
+  share: (actor, field, value) => linkShare(sql, actor, field, value),
+  fork: (actor, field) => linkFork(sql, actor, field),
 })
 
-const buildActorApi = (database: Database): ActorApi => {
-  const value = buildValueApi(database)
-  const link = buildLinkApi(database)
+const buildActorApi = (sql: SQL): ActorApi => {
+  const value = buildValueApi(sql)
+  const link = buildLinkApi(sql)
   return {
-    create: (rows) => {
-      actorCreate(database, rows)
-      return buildActorInstance(database, rows.actor.uuid)
+    async create(rows) {
+      await actorCreate(sql, rows)
+      return buildActorInstance(sql, rows.actor.uuid)
     },
-    get: (uuid) => (actorHead(database, uuid) === null ? null : buildActorInstance(database, uuid)),
-    delete: (uuid) => actorDelete(database, uuid),
-    head: (uuid) => actorHead(database, uuid),
+    async get(uuid) {
+      return (await actorHead(sql, uuid)) === null ? null : buildActorInstance(sql, uuid)
+    },
+    delete: (uuid) => actorDelete(sql, uuid),
+    head: (uuid) => actorHead(sql, uuid),
     roots: {
-      all: () => actorListRoots(database).map((row) => buildActorInstance(database, row.uuid)),
-      get: ({ uuid }) => {
-        const head = actorHead(database, uuid)
-        if (!head || head.parent !== null) return null
-        return buildActorInstance(database, uuid)
+      async all() {
+        const rows = await actorListRoots(sql)
+        return rows.map((row) => buildActorInstance(sql, row.uuid))
       },
-      count: () => actorListRoots(database).length,
-      exists: () => actorListRoots(database).length > 0,
+      async get({ uuid }) {
+        const head = await actorHead(sql, uuid)
+        if (!head || head.parent !== null) return null
+        return buildActorInstance(sql, uuid)
+      },
+      async count() {
+        return (await actorListRoots(sql)).length
+      },
+      async exists() {
+        return (await actorListRoots(sql)).length > 0
+      },
     },
     value,
     link,
@@ -179,41 +193,45 @@ const buildActorApi = (database: Database): ActorApi => {
 
 // ────────────────────────────── meta API: тонкая обёртка над классом Meta ──────────────────────────────
 
-const buildMetaApi = (database: Database): MetaApi => ({
-  create: (src, dsl) => Meta.create(database, src, dsl),
-  get: (src) => Meta.get(database, src),
-  delete: (src) => Meta.delete(database, src),
+const buildMetaApi = (sql: SQL): MetaApi => ({
+  create: (src, dsl) => Meta.create(sql, src, dsl),
+  get: (src) => Meta.get(sql, src),
+  delete: (src) => Meta.delete(sql, src),
 })
 
 // ────────────────────────────── корневой open() ──────────────────────────────
 
-export const open = (options: OpenServerStoreOptions = {}): ServerStore => {
+const isFileBacked = (filename: string): boolean => filename !== ":memory:"
+
+const buildSqliteUrl = (filename: string): string => (filename === ":memory:" ? "sqlite::memory:" : `sqlite://${filename}`)
+
+export const open = async (options: OpenServerStoreOptions = {}): Promise<ServerStore> => {
   const filename = options.filename ?? ":memory:"
   const fileBacked = isFileBacked(filename)
 
-  const database = new Database(filename, { strict: true, create: true })
-  database.run("PRAGMA foreign_keys = ON;")
+  const sql = new SQL(buildSqliteUrl(filename))
+
+  await sql.unsafe("PRAGMA foreign_keys = ON;")
   if (fileBacked) {
-    database.run("PRAGMA journal_mode = WAL;")
-    database.run("PRAGMA synchronous = NORMAL;")
-    database.run("PRAGMA busy_timeout = 5000;")
+    await sql.unsafe("PRAGMA journal_mode = WAL;")
+    await sql.unsafe("PRAGMA synchronous = NORMAL;")
+    await sql.unsafe("PRAGMA busy_timeout = 5000;")
   }
 
-  // Единая схема стора: meta-таблицы + actor-таблицы на одной Database.
-  database.run(metaSchemaSql)
-  database.run(actorSchemaSql)
+  // Единая схема стора: meta-таблицы + actor-таблицы на одной БД.
+  await sql.unsafe(metaSchemaSql)
+  await sql.unsafe(actorSchemaSql)
 
   return {
-    database,
-    meta: buildMetaApi(database),
-    actor: buildActorApi(database),
-    close() {
+    sql,
+    meta: buildMetaApi(sql),
+    actor: buildActorApi(sql),
+    async close() {
       try {
         if (fileBacked) {
-          database.fileControl(constants.SQLITE_FCNTL_PERSIST_WAL, 0)
-          database.run("PRAGMA wal_checkpoint(TRUNCATE);")
+          await sql.unsafe("PRAGMA wal_checkpoint(TRUNCATE);")
         }
-        database.close()
+        await sql.close()
       } catch {
         // ignore double-close
       }

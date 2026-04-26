@@ -1,26 +1,26 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { MetaDSL, ParsedDestroy, ParsedProcess } from "../../.."
 import type { ProcessActionReadRow, ProcessActionRow, ProcessActionWriteRow, ProcessRow } from "./process.t.ts"
 
-export const getProcesses = (
-  db: Database,
+export const getProcesses = async (
+  sql: SQL,
   src: string,
   fieldKeys: Map<string, string>,
-): NonNullable<MetaDSL["processes"]> | undefined => {
-  const processRows = db.query(
-    `SELECT uuid, key, type, label, desc
-     FROM process
-     WHERE meta = ?
-     ORDER BY process.rowid`,
-  ).all(src) as ProcessRow[]
+): Promise<NonNullable<MetaDSL["processes"]> | undefined> => {
+  const processRows = await sql<ProcessRow[]>`
+    SELECT uuid, key, type, label, desc
+    FROM process
+    WHERE meta = ${src}
+    ORDER BY process.rowid
+  `
   if (processRows.length === 0) return
 
-  const envRows = db.query(
-    `SELECT process, env
-     FROM process_env
-     WHERE process IN (SELECT uuid FROM process WHERE meta = ?)
-     ORDER BY process_env.rowid`,
-  ).all(src) as Array<{ process: string; env: string }>
+  const envRows = await sql<Array<{ process: string; env: string }>>`
+    SELECT process, env
+    FROM process_env
+    WHERE process IN (SELECT uuid FROM process WHERE meta = ${src})
+    ORDER BY process_env.rowid
+  `
 
   const envsByProcess = new Map<string, string[]>()
   for (const row of envRows) {
@@ -31,47 +31,47 @@ export const getProcesses = (
 
   const actionRows = new Map(
     (
-      db.query(
-        `SELECT process, action, action_import_specifier, action_wrapper_src, success, error
-         FROM process_action
-         WHERE process IN (SELECT uuid FROM process WHERE meta = ?)`,
-      ).all(src) as ProcessActionRow[]
+      await sql<ProcessActionRow[]>`
+        SELECT process, action, action_import_specifier, action_wrapper_src, success, error
+        FROM process_action
+        WHERE process IN (SELECT uuid FROM process WHERE meta = ${src})
+      `
     ).map((row) => [row.process, row]),
   )
 
-  const actionReadRows = db.query(
-    `SELECT process_action_read.process AS process, process_action_read.phase AS phase, process_action_read.field AS field
-     FROM process_action_read
-     INNER JOIN process ON process.uuid = process_action_read.process
-     WHERE process.meta = ?
-     ORDER BY process_action_read.rowid`,
-  ).all(src) as ProcessActionReadRow[]
+  const actionReadRows = await sql<ProcessActionReadRow[]>`
+    SELECT process_action_read.process AS process, process_action_read.phase AS phase, process_action_read.field AS field
+    FROM process_action_read
+    INNER JOIN process ON process.uuid = process_action_read.process
+    WHERE process.meta = ${src}
+    ORDER BY process_action_read.rowid
+  `
 
-  const actionWriteRows = db.query(
-    `SELECT process_action_write.process AS process, process_action_write.phase AS phase, process_action_write.field AS field
-     FROM process_action_write
-     INNER JOIN process ON process.uuid = process_action_write.process
-     WHERE process.meta = ?
-     ORDER BY process_action_write.rowid`,
-  ).all(src) as ProcessActionWriteRow[]
+  const actionWriteRows = await sql<ProcessActionWriteRow[]>`
+    SELECT process_action_write.process AS process, process_action_write.phase AS phase, process_action_write.field AS field
+    FROM process_action_write
+    INNER JOIN process ON process.uuid = process_action_write.process
+    WHERE process.meta = ${src}
+    ORDER BY process_action_write.rowid
+  `
 
   const finallyRows = new Map(
     (
-      db.query(
-        `SELECT process, before
-         FROM process_finally
-         WHERE process IN (SELECT uuid FROM process WHERE meta = ?)`,
-      ).all(src) as Array<{ process: string; before: string }>
+      await sql<Array<{ process: string; before: string }>>`
+        SELECT process, before
+        FROM process_finally
+        WHERE process IN (SELECT uuid FROM process WHERE meta = ${src})
+      `
     ).map((row) => [row.process, row]),
   )
 
-  const finallyReadRows = db.query(
-    `SELECT process_finally_read.process AS process, process_finally_read.field AS field
-     FROM process_finally_read
-     INNER JOIN process ON process.uuid = process_finally_read.process
-     WHERE process.meta = ?
-     ORDER BY process_finally_read.rowid`,
-  ).all(src) as Array<{ process: string; field: string }>
+  const finallyReadRows = await sql<Array<{ process: string; field: string }>>`
+    SELECT process_finally_read.process AS process, process_finally_read.field AS field
+    FROM process_finally_read
+    INNER JOIN process ON process.uuid = process_finally_read.process
+    WHERE process.meta = ${src}
+    ORDER BY process_finally_read.rowid
+  `
 
   const readMap = new Map<string, Record<string, string[]>>()
   for (const row of actionReadRows) {

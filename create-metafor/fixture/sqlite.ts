@@ -1,15 +1,16 @@
 import { join, isAbsolute, dirname } from "node:path"
 import { unlinkSync, existsSync } from "node:fs"
 import { fileURLToPath } from "node:url"
-import { getMetaDB } from "@store/meta/sqlite"
+import { SQL } from "bun"
+import { metaSchemaSql } from "@store/meta/sqlite"
 
 /**
  * Фикстура для подготовки SQLite базы данных MetaDSL.
  *
  * @param dbPath - Путь к файлу базы данных. По умолчанию "meta.sqlite" рядом с вызывающим тестом.
- * @returns Открытый экземпляр Database с инициализированной схемой и расширенным методом close().
+ * @returns Открытый Bun.SQL с применённой meta-схемой.
  */
-export function createMetaforSqliteFixture(dbPath = "meta.sqlite") {
+export async function createMetaforSqliteFixture(dbPath = "meta.sqlite") {
   let finalPath = dbPath
 
   if (!isAbsolute(dbPath)) {
@@ -34,5 +35,9 @@ export function createMetaforSqliteFixture(dbPath = "meta.sqlite") {
     unlinkSync(absolutePath)
   }
 
-  return getMetaDB(absolutePath)
+  const sql = new SQL(`sqlite://${absolutePath}`)
+  await sql.unsafe("PRAGMA foreign_keys = ON;")
+  await sql.unsafe("PRAGMA journal_mode = WAL;")
+  await sql.unsafe(metaSchemaSql)
+  return sql
 }

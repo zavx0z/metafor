@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { ActorValueRecord } from "./actor_value.t.ts"
 
 /** Декодирует строку sqlite в `ActorValueRecord`. */
@@ -8,24 +8,23 @@ export const decodeActorValue = (row: Record<string, unknown> | null): ActorValu
 }
 
 /** Читает связь `actor_value` по (actor, field). */
-export const readActorValue = (
-  db: Database,
+export const readActorValue = async (
+  sql: SQL,
   actor: string,
   field: string,
-): ActorValueRecord | null => {
-  return decodeActorValue(
-    db
-      .prepare(`SELECT actor, field, value FROM actor_value WHERE actor = ? AND field = ?`)
-      .get(actor, field) as Record<string, unknown> | null,
-  )
+): Promise<ActorValueRecord | null> => {
+  const rows = await sql<Array<Record<string, unknown>>>`
+    SELECT actor, field, value FROM actor_value WHERE actor = ${actor} AND field = ${field}
+  `
+  return decodeActorValue(rows[0] ?? null)
 }
 
 /**
  * Кто разделяет это значение. Длина результата > 1 = entanglement.
  */
-export const listValueOwners = (db: Database, value: string): ActorValueRecord[] => {
-  const rows = db.prepare(`SELECT actor, field, value FROM actor_value WHERE value = ?`).all(value) as Array<
-    Record<string, unknown>
-  >
+export const listValueOwners = async (sql: SQL, value: string): Promise<ActorValueRecord[]> => {
+  const rows = await sql<Array<Record<string, unknown>>>`
+    SELECT actor, field, value FROM actor_value WHERE value = ${value}
+  `
   return rows.map((row) => decodeActorValue(row)!) as ActorValueRecord[]
 }

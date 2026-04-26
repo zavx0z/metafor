@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { MetaDSL } from "../../metafor.t.ts"
 import { getMass, getMetaRow, metaCreate, metaDelete } from "./sqlite"
 import { Fields } from "./fields.ts"
@@ -10,9 +10,12 @@ import { Matter } from "./matter.ts"
 /**
  * Один инстанс декларации меты — корневой ORM-объект пакета `@store/meta`.
  *
- * Скаляры (`name`, `mass`, `bulk`, `desc`) — ленивые getter-ы.
+ * Скаляры (`name`, `desc`, `mass`, `bulk`) — методы (async, без кеша).
  * Коллекции (`fields`, `superposition`, `processes`, `reactions`, `matter`) —
  * Django-style managers с `.all() / .get(filter) / .count() / .exists()`.
+ *
+ * Каждое обращение — отдельный SELECT в БД; никакого in-memory кеша внутри
+ * инстанса. Свежесть данных гарантирована.
  */
 export class Meta {
   readonly fields: Fields
@@ -22,58 +25,60 @@ export class Meta {
   readonly matter: Matter
 
   constructor(
-    private readonly db: Database,
+    private readonly sql: SQL,
     readonly src: string,
   ) {
-    this.fields = new Fields(db, src)
-    this.superposition = new Superposition(db, src, this.fields)
-    this.processes = new Processes(db, src, this.fields)
-    this.reactions = new Reactions(db, src, this.fields)
-    this.matter = new Matter(db, src)
+    this.fields = new Fields(sql, src)
+    this.superposition = new Superposition(sql, src, this.fields)
+    this.processes = new Processes(sql, src, this.fields)
+    this.reactions = new Reactions(sql, src, this.fields)
+    this.matter = new Matter(sql, src)
   }
 
   /** Имя меты (или последний сегмент `src`, если name не задан). */
-  get name(): string {
-    return getMetaRow(this.db, this.src)?.name ?? this.src.split("/").pop() ?? this.src
+  async name(): Promise<string> {
+    const row = await getMetaRow(this.sql, this.src)
+    return row?.name ?? this.src.split("/").pop() ?? this.src
   }
 
   /** Описание меты или `undefined`. */
-  get desc(): string | undefined {
-    return getMetaRow(this.db, this.src)?.desc ?? undefined
+  async desc(): Promise<string | undefined> {
+    const row = await getMetaRow(this.sql, this.src)
+    return row?.desc ?? undefined
   }
 
   /** Mass-словарь меты или `undefined`. */
-  get mass(): MetaDSL["mass"] {
-    return getMass(this.db, this.src)
+  async mass(): Promise<MetaDSL["mass"]> {
+    return getMass(this.sql, this.src)
   }
 
   /** Bulk (CSS) или `undefined`. */
-  get bulk(): MetaDSL["bulk"] {
-    const row = getMetaRow(this.db, this.src)
+  async bulk(): Promise<MetaDSL["bulk"]> {
+    const row = await getMetaRow(this.sql, this.src)
     return row?.view_css ? ({ view: row.view_css } as MetaDSL["bulk"]) : undefined
   }
 
   /** Удаляет эту мету из БД. Каскад FK снимет всё дерево декларации. */
-  delete(): void {
-    metaDelete(this.db, this.src)
+  async delete(): Promise<void> {
+    await metaDelete(this.sql, this.src)
   }
 
   /**
    * Идемпотентно перезаписывает декларацию меты по `src` (DELETE-then-INSERT).
    * Возвращает новый Meta-инстанс.
    */
-  static create(db: Database, src: string, dsl: MetaDSL): Meta {
-    metaCreate(db, src, dsl)
-    return new Meta(db, src)
+  static async create(sql: SQL, src: string, dsl: MetaDSL): Promise<Meta> {
+    await metaCreate(sql, src, dsl)
+    return new Meta(sql, src)
   }
 
   /** Возвращает Meta-инстанс, либо `null` если меты с таким `src` нет. */
-  static get(db: Database, src: string): Meta | null {
-    return getMetaRow(db, src) === null ? null : new Meta(db, src)
+  static async get(sql: SQL, src: string): Promise<Meta | null> {
+    return (await getMetaRow(sql, src)) === null ? null : new Meta(sql, src)
   }
 
   /** Удаляет мету по `src` (без создания инстанса). */
-  static delete(db: Database, src: string): void {
-    metaDelete(db, src)
+  static async delete(sql: SQL, src: string): Promise<void> {
+    await metaDelete(sql, src)
   }
 }

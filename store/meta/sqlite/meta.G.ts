@@ -1,26 +1,34 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { MetaDSL } from "../../.."
 import type { MetaMassValueRow, MetaRow } from "./meta.t.ts"
 
-export const getMetaRow = (db: Database, src: string): MetaRow | null =>
-  db.query(
-    `SELECT src, name, desc, view_css
-     FROM meta
-     WHERE src = ?`,
-  ).get(src) as MetaRow | null
+export const getMetaRow = async (sql: SQL, src: string): Promise<MetaRow | null> => {
+  const rows = await sql<MetaRow[]>`
+    SELECT src, name, desc, view_css
+    FROM meta
+    WHERE src = ${src}
+  `
+  return rows[0] ?? null
+}
 
 /**
  * Производные методы для проверки наличия секций. Не хранятся как колонки —
  * вычисляются через EXISTS, чтобы исключить рассинхронизацию между флагом и реальностью.
  */
-export const hasProcesses = (db: Database, src: string): boolean =>
-  (db.query(`SELECT 1 FROM process WHERE meta = ? LIMIT 1`).get(src) as unknown) !== null
+export const hasProcesses = async (sql: SQL, src: string): Promise<boolean> => {
+  const rows = await sql`SELECT 1 AS one FROM process WHERE meta = ${src} LIMIT 1`
+  return rows.length > 0
+}
 
-export const hasReactions = (db: Database, src: string): boolean =>
-  (db.query(`SELECT 1 FROM reaction WHERE meta = ? LIMIT 1`).get(src) as unknown) !== null
+export const hasReactions = async (sql: SQL, src: string): Promise<boolean> => {
+  const rows = await sql`SELECT 1 AS one FROM reaction WHERE meta = ${src} LIMIT 1`
+  return rows.length > 0
+}
 
-export const hasMatter = (db: Database, src: string): boolean =>
-  (db.query(`SELECT 1 FROM matter_particle WHERE meta = ? LIMIT 1`).get(src) as unknown) !== null
+export const hasMatter = async (sql: SQL, src: string): Promise<boolean> => {
+  const rows = await sql`SELECT 1 AS one FROM matter_particle WHERE meta = ${src} LIMIT 1`
+  return rows.length > 0
+}
 
 const compareMassRows = (left: MetaMassValueRow, right: MetaMassValueRow): number => {
   if (left.entry_order !== null || right.entry_order !== null) {
@@ -52,13 +60,13 @@ const decodeMassValue = (
   return null
 }
 
-export const getMass = (db: Database, src: string): MetaDSL["mass"] | undefined => {
-  const rows = db.query(
-    `SELECT uuid, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value
-     FROM meta_mass_value
-     WHERE meta = ?
-     ORDER BY CASE WHEN parent_value IS NULL THEN 0 ELSE 1 END, entry_order, entry_key, rowid`,
-  ).all(src) as MetaMassValueRow[]
+export const getMass = async (sql: SQL, src: string): Promise<MetaDSL["mass"] | undefined> => {
+  const rows = await sql<MetaMassValueRow[]>`
+    SELECT uuid, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value
+    FROM meta_mass_value
+    WHERE meta = ${src}
+    ORDER BY CASE WHEN parent_value IS NULL THEN 0 ELSE 1 END, entry_order, entry_key, rowid
+  `
 
   const root = rows.find((row) => row.parent_value === null)
   if (!root) return

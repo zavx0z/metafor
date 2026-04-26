@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { MetaDSL, NodeType } from "../../.."
 import type { BindingValue, EdgeSlot, FieldUuidByKey, ParticleKind } from "./matter.t.ts"
 
@@ -7,48 +7,53 @@ const toBindingPaths = (value: BindingValue): string[] => {
   return Array.isArray(value.data) ? value.data : [value.data]
 }
 
-const insertBinding = (db: Database, src: string, value: BindingValue | undefined): string | undefined => {
+const insertBinding = async (sql: SQL, src: string, value: BindingValue | undefined): Promise<string | undefined> => {
   if (value === undefined) return
 
   const uuid = crypto.randomUUID()
 
   if (typeof value === "string") {
-    db.query(
-      "INSERT INTO matter_binding (uuid, meta, binding_kind, literal_kind, literal_text) VALUES (?, ?, ?, ?, ?)",
-    ).run(uuid, src, "static", "text", value)
+    await sql`
+      INSERT INTO matter_binding (uuid, meta, binding_kind, literal_kind, literal_text)
+      VALUES (${uuid}, ${src}, ${"static"}, ${"text"}, ${value})
+    `
     return uuid
   }
 
   const paths = toBindingPaths(value)
   if (value.expr !== undefined) {
-    db.query("INSERT INTO matter_binding (uuid, meta, binding_kind, expr) VALUES (?, ?, ?, ?)")
-      .run(uuid, src, "dynamic", value.expr)
+    await sql`
+      INSERT INTO matter_binding (uuid, meta, binding_kind, expr)
+      VALUES (${uuid}, ${src}, ${"dynamic"}, ${value.expr})
+    `
   } else {
-    db.query("INSERT INTO matter_binding (uuid, meta, binding_kind) VALUES (?, ?, ?)")
-      .run(uuid, src, "variable")
+    await sql`
+      INSERT INTO matter_binding (uuid, meta, binding_kind)
+      VALUES (${uuid}, ${src}, ${"variable"})
+    `
   }
 
-  paths.forEach((path, index) => {
-    db.query("INSERT INTO matter_binding_dep (binding, dep_order, path) VALUES (?, ?, ?)")
-      .run(uuid, index, path)
-  })
+  for (let index = 0; index < paths.length; index++) {
+    const path = paths[index]!
+    await sql`INSERT INTO matter_binding_dep (binding, dep_order, path) VALUES (${uuid}, ${index}, ${path})`
+  }
 
   return uuid
 }
 
-const insertParticle = (
-  db: Database,
+const insertParticle = async (
+  sql: SQL,
   metaSrc: string,
   particleKind: ParticleKind,
   parentParticle: string | null,
   edgeSlot: EdgeSlot,
   particleOrder: number,
-): string => {
+): Promise<string> => {
   const particleUuid = crypto.randomUUID()
-  db.query(
-    `INSERT INTO matter_particle (uuid, meta, parent_particle, particle_kind, edge_slot, particle_order)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(particleUuid, metaSrc, parentParticle, particleKind, edgeSlot, particleOrder)
+  await sql`
+    INSERT INTO matter_particle (uuid, meta, parent_particle, particle_kind, edge_slot, particle_order)
+    VALUES (${particleUuid}, ${metaSrc}, ${parentParticle}, ${particleKind}, ${edgeSlot}, ${particleOrder})
+  `
   return particleUuid
 }
 
@@ -81,8 +86,8 @@ const resolveDynamicMetaSrcs = (
   return resolveMatterEnumValues(meta, firstPath).map((variant) => createContinuationSrc(value.expr, variant))
 }
 
-const insertWimpParticle = (
-  db: Database,
+const insertWimpParticle = async (
+  sql: SQL,
   metaSrc: string,
   parentParticle: string | null,
   edgeSlot: EdgeSlot,
@@ -90,68 +95,68 @@ const insertWimpParticle = (
   wimpSrc: string,
   fieldsBinding: string | undefined,
   massBinding: string | undefined,
-): string => {
-  const particleUuid = insertParticle(db, metaSrc, "wimp", parentParticle, edgeSlot, particleOrder)
-  db.query(
-    `INSERT INTO matter_particle_wimp (particle, src, fields_binding, mass_binding)
-     VALUES (?, ?, ?, ?)`,
-  ).run(particleUuid, wimpSrc, fieldsBinding ?? null, massBinding ?? null)
+): Promise<string> => {
+  const particleUuid = await insertParticle(sql, metaSrc, "wimp", parentParticle, edgeSlot, particleOrder)
+  await sql`
+    INSERT INTO matter_particle_wimp (particle, src, fields_binding, mass_binding)
+    VALUES (${particleUuid}, ${wimpSrc}, ${fieldsBinding ?? null}, ${massBinding ?? null})
+  `
   return particleUuid
 }
 
-const insertCondFuzzyParticle = (
-  db: Database,
+const insertCondFuzzyParticle = async (
+  sql: SQL,
   metaSrc: string,
   parentParticle: string | null,
   edgeSlot: EdgeSlot,
   particleOrder: number,
   predicateBinding: string,
-): string => {
-  const particleUuid = insertParticle(db, metaSrc, "fuzzy", parentParticle, edgeSlot, particleOrder)
-  db.query(
-    `INSERT INTO matter_particle_fuzzy (particle, fuzzy_kind, predicate_binding)
-     VALUES (?, ?, ?)`,
-  ).run(particleUuid, "cond", predicateBinding)
+): Promise<string> => {
+  const particleUuid = await insertParticle(sql, metaSrc, "fuzzy", parentParticle, edgeSlot, particleOrder)
+  await sql`
+    INSERT INTO matter_particle_fuzzy (particle, fuzzy_kind, predicate_binding)
+    VALUES (${particleUuid}, ${"cond"}, ${predicateBinding})
+  `
   return particleUuid
 }
 
-const insertDynamicMetaFuzzyParticle = (
-  db: Database,
+const insertDynamicMetaFuzzyParticle = async (
+  sql: SQL,
   metaSrc: string,
   parentParticle: string | null,
   edgeSlot: EdgeSlot,
   particleOrder: number,
-): string => {
-  const particleUuid = insertParticle(db, metaSrc, "fuzzy", parentParticle, edgeSlot, particleOrder)
-  db.query(
-    `INSERT INTO matter_particle_fuzzy (particle, fuzzy_kind, predicate_binding)
-     VALUES (?, ?, ?)`,
-  ).run(particleUuid, "dynamic-meta", null)
+): Promise<string> => {
+  const particleUuid = await insertParticle(sql, metaSrc, "fuzzy", parentParticle, edgeSlot, particleOrder)
+  await sql`
+    INSERT INTO matter_particle_fuzzy (particle, fuzzy_kind, predicate_binding)
+    VALUES (${particleUuid}, ${"dynamic-meta"}, ${null})
+  `
   return particleUuid
 }
 
-const projectParticleChildren = (
-  db: Database,
+const projectParticleChildren = async (
+  sql: SQL,
   meta: MetaDSL,
   metaSrc: string,
   children: NodeType[] | undefined,
   parentParticle: string,
-): void => {
+): Promise<void> => {
   if (!Array.isArray(children) || children.length === 0) return
-  children.forEach((child, index) => {
-    projectParticleNode(db, meta, metaSrc, child, parentParticle, "child", index)
-  })
+  for (let index = 0; index < children.length; index++) {
+    await projectParticleNode(sql, meta, metaSrc, children[index]!, parentParticle, "child", index)
+  }
 }
 
-const projectParticleNode = (
-  db: Database,
+const projectParticleNode = async (
+  sql: SQL,
   meta: MetaDSL,
   metaSrc: string,
   node: NodeType,
   parentParticle: string | null,
   edgeSlot: EdgeSlot,
   particleOrder: number,
-): void => {
+): Promise<void> => {
   if (!["meta", "cond", "log", "map"].includes(node.type)) {
     throw new Error(`Unsupported matter node type "${node.type}" for canonical SQLite particle relation`)
   }
@@ -163,12 +168,12 @@ const projectParticleNode = (
       mass?: BindingValue
       child?: NodeType[]
     }
-    const fieldsBinding = insertBinding(db, metaSrc, metaNode.fields)
-    const massBinding = insertBinding(db, metaSrc, metaNode.mass)
+    const fieldsBinding = await insertBinding(sql, metaSrc, metaNode.fields)
+    const massBinding = await insertBinding(sql, metaSrc, metaNode.mass)
 
     if (typeof metaNode.src === "string") {
-      const wimpParticle = insertWimpParticle(
-        db,
+      const wimpParticle = await insertWimpParticle(
+        sql,
         metaSrc,
         parentParticle,
         edgeSlot,
@@ -177,14 +182,16 @@ const projectParticleNode = (
         fieldsBinding,
         massBinding,
       )
-      projectParticleChildren(db, meta, metaSrc, metaNode.child, wimpParticle)
+      await projectParticleChildren(sql, meta, metaSrc, metaNode.child, wimpParticle)
       return
     }
 
-    const fuzzyParticle = insertDynamicMetaFuzzyParticle(db, metaSrc, parentParticle, edgeSlot, particleOrder)
-    resolveDynamicMetaSrcs(meta, metaNode.src).forEach((resolvedSrc, branchOrder) => {
-      const branchWimp = insertWimpParticle(
-        db,
+    const fuzzyParticle = await insertDynamicMetaFuzzyParticle(sql, metaSrc, parentParticle, edgeSlot, particleOrder)
+    const dynamicSrcs = resolveDynamicMetaSrcs(meta, metaNode.src)
+    for (let branchOrder = 0; branchOrder < dynamicSrcs.length; branchOrder++) {
+      const resolvedSrc = dynamicSrcs[branchOrder]!
+      const branchWimp = await insertWimpParticle(
+        sql,
         metaSrc,
         fuzzyParticle,
         "branch",
@@ -193,15 +200,15 @@ const projectParticleNode = (
         fieldsBinding,
         massBinding,
       )
-      projectParticleChildren(db, meta, metaSrc, metaNode.child, branchWimp)
-    })
+      await projectParticleChildren(sql, meta, metaSrc, metaNode.child, branchWimp)
+    }
     return
   }
 
   if (node.type === "cond") {
     const conditionNode = node as { data: string | string[]; expr?: string; child?: NodeType[] }
-    const predicateBinding = insertBinding(
-      db,
+    const predicateBinding = await insertBinding(
+      sql,
       metaSrc,
       conditionNode.expr !== undefined ? { data: conditionNode.data, expr: conditionNode.expr } : { data: conditionNode.data },
     )
@@ -209,18 +216,18 @@ const projectParticleNode = (
       throw new Error(`Condition particle for meta "${metaSrc}" requires predicate binding`)
     }
 
-    const fuzzyParticle = insertCondFuzzyParticle(db, metaSrc, parentParticle, edgeSlot, particleOrder, predicateBinding)
+    const fuzzyParticle = await insertCondFuzzyParticle(sql, metaSrc, parentParticle, edgeSlot, particleOrder, predicateBinding)
     if (Array.isArray(conditionNode.child)) {
-      if (conditionNode.child[0]) projectParticleNode(db, meta, metaSrc, conditionNode.child[0], fuzzyParticle, "then", 0)
-      if (conditionNode.child[1]) projectParticleNode(db, meta, metaSrc, conditionNode.child[1], fuzzyParticle, "else", 1)
+      if (conditionNode.child[0]) await projectParticleNode(sql, meta, metaSrc, conditionNode.child[0], fuzzyParticle, "then", 0)
+      if (conditionNode.child[1]) await projectParticleNode(sql, meta, metaSrc, conditionNode.child[1], fuzzyParticle, "else", 1)
     }
     return
   }
 
   if (node.type === "log") {
     const logicalNode = node as { data: string | string[]; expr?: string; child?: NodeType[] }
-    const predicateBinding = insertBinding(
-      db,
+    const predicateBinding = await insertBinding(
+      sql,
       metaSrc,
       logicalNode.expr !== undefined ? { data: logicalNode.data, expr: logicalNode.expr } : { data: logicalNode.data },
     )
@@ -228,39 +235,39 @@ const projectParticleNode = (
       throw new Error(`Logical particle for meta "${metaSrc}" requires predicate binding`)
     }
 
-    const axionParticle = insertParticle(db, metaSrc, "axion", parentParticle, edgeSlot, particleOrder)
-    db.query(
-      `INSERT INTO matter_particle_axion (particle, predicate_binding)
-       VALUES (?, ?)`,
-    ).run(axionParticle, predicateBinding)
-    projectParticleChildren(db, meta, metaSrc, logicalNode.child, axionParticle)
+    const axionParticle = await insertParticle(sql, metaSrc, "axion", parentParticle, edgeSlot, particleOrder)
+    await sql`
+      INSERT INTO matter_particle_axion (particle, predicate_binding)
+      VALUES (${axionParticle}, ${predicateBinding})
+    `
+    await projectParticleChildren(sql, meta, metaSrc, logicalNode.child, axionParticle)
     return
   }
 
   const mapNode = node as { data: string; child?: NodeType[] }
-  const collectionBinding = insertBinding(db, metaSrc, { data: mapNode.data })
+  const collectionBinding = await insertBinding(sql, metaSrc, { data: mapNode.data })
   if (!collectionBinding) {
     throw new Error(`Map particle for meta "${metaSrc}" requires collection binding`)
   }
 
-  const machoParticle = insertParticle(db, metaSrc, "macho", parentParticle, edgeSlot, particleOrder)
-  db.query(
-    `INSERT INTO matter_particle_macho (particle, collection_binding)
-     VALUES (?, ?)`,
-  ).run(machoParticle, collectionBinding)
-  projectParticleChildren(db, meta, metaSrc, mapNode.child, machoParticle)
+  const machoParticle = await insertParticle(sql, metaSrc, "macho", parentParticle, edgeSlot, particleOrder)
+  await sql`
+    INSERT INTO matter_particle_macho (particle, collection_binding)
+    VALUES (${machoParticle}, ${collectionBinding})
+  `
+  await projectParticleChildren(sql, meta, metaSrc, mapNode.child, machoParticle)
 }
 
-export function createMatter(
-  db: Database,
+export async function createMatter(
+  sql: SQL,
   meta: MetaDSL,
   src: string,
   _fieldUuids: FieldUuidByKey,
-): void {
+): Promise<void> {
   if (!meta.matter) return
 
   const matter = meta.matter ?? []
-  matter.forEach((node: NodeType, index: number) => {
-    projectParticleNode(db, meta, src, node, null, "root", index)
-  })
+  for (let index = 0; index < matter.length; index++) {
+    await projectParticleNode(sql, meta, src, matter[index]!, null, "root", index)
+  }
 }

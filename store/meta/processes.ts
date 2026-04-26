@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { MetaDSL } from "../../metafor.t.ts"
 import { getProcesses, hasProcesses } from "./sqlite"
 import type { Fields } from "./fields.ts"
@@ -12,35 +12,36 @@ export interface ProcessRecord {
 /** Django-style manager для процессов одной меты. */
 export class Processes {
   constructor(
-    private readonly db: Database,
+    private readonly sql: SQL,
     private readonly src: string,
     private readonly fields: Fields,
   ) {}
 
-  private load(): NonNullable<MetaDSL["processes"]> | null {
-    if (!hasProcesses(this.db, this.src)) return null
-    return getProcesses(this.db, this.src, this.fields.raw().fieldKeys) ?? {}
+  private async load(): Promise<NonNullable<MetaDSL["processes"]> | null> {
+    if (!(await hasProcesses(this.sql, this.src))) return null
+    const { fieldKeys } = await this.fields.raw()
+    return (await getProcesses(this.sql, this.src, fieldKeys)) ?? {}
   }
 
-  all(): ProcessRecord[] {
-    const procs = this.load()
+  async all(): Promise<ProcessRecord[]> {
+    const procs = await this.load()
     if (!procs) return []
     return Object.entries(procs).map(([key, definition]) => ({ key, definition }))
   }
 
-  get(filter: { key: string }): ProcessRecord | null {
-    const procs = this.load()
+  async get(filter: { key: string }): Promise<ProcessRecord | null> {
+    const procs = await this.load()
     if (!procs) return null
     const definition = procs[filter.key]
     return definition === undefined ? null : { key: filter.key, definition }
   }
 
-  count(): number {
-    const procs = this.load()
+  async count(): Promise<number> {
+    const procs = await this.load()
     return procs ? Object.keys(procs).length : 0
   }
 
-  exists(): boolean {
-    return hasProcesses(this.db, this.src)
+  async exists(): Promise<boolean> {
+    return hasProcesses(this.sql, this.src)
   }
 }

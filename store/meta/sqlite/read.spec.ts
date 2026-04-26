@@ -1,16 +1,17 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { Database } from "bun:sqlite"
+import { SQL } from "bun"
 import type { MetaDSL } from "../../.."
 import gitMeta from "../../../github/zavx0z/git/meta.ts"
 import { metaCreate, metaSchemaSql, readDarkParticleModel } from "./index.ts"
 
-const getMetaDB = (path: string): Database => {
-  const db = new Database(path, { strict: true, create: true })
-  db.run("PRAGMA foreign_keys = ON;")
-  db.run(metaSchemaSql)
-  return db
+const getMetaDB = async (path: string): Promise<SQL> => {
+  const url = path === ":memory:" ? "sqlite::memory:" : `sqlite://${path}`
+  const sql = new SQL(url)
+  await sql.unsafe("PRAGMA foreign_keys = ON;")
+  await sql.unsafe(metaSchemaSql)
+  return sql
 }
-const relation = (db: Database, meta: MetaDSL, src: string) => metaCreate(db, src, meta)
+const relation = (sql: SQL, meta: MetaDSL, src: string) => metaCreate(sql, src, meta)
 
 const richMeta: MetaDSL = {
   name: "rich",
@@ -222,20 +223,25 @@ const explicitEmptyMeta: MetaDSL = {
 }
 
 describe("sqlite dark particle model", () => {
-  let db: Database
+  let db: SQL
 
-  beforeEach(() => {
-    db = getMetaDB(":memory:")
+  beforeEach(async () => {
+    db = await getMetaDB(":memory:")
   })
 
-  afterEach(() => {
-    db.close()
+  afterEach(async () => {
+    await db.close()
   })
 
-  test("читает particle-centric runtime model для существующей git meta после relation()", () => {
-    relation(db, gitMeta, "zavx0z/git")
+  const countRows = async (table: string): Promise<number> => {
+    const rows = (await db.unsafe(`SELECT COUNT(*) AS count FROM ${table}`)) as Array<{ count: number }>
+    return rows[0]?.count ?? 0
+  }
 
-    const projection = readDarkParticleModel(db, "zavx0z/git")!
+  test("читает particle-centric runtime model для существующей git meta после relation()", async () => {
+    await relation(db, gitMeta, "zavx0z/git")
+
+    const projection = (await readDarkParticleModel(db, "zavx0z/git"))!
 
     expect(projection.meta.fieldSchemas).toEqual(gitMeta.fields)
     expect(projection.meta.superposition).toEqual(gitMeta.superposition)
@@ -244,10 +250,10 @@ describe("sqlite dark particle model", () => {
     expect(projection.particles.map((particle) => particle.kind)).toEqual(["fuzzy", "axion"])
   })
 
-  test("сохраняет particle-centric matter write-side и даёт тонкий ORM loader поверх реляционных rows", () => {
-    relation(db, richMeta, "owner/rich")
+  test("сохраняет particle-centric matter write-side и даёт тонкий ORM loader поверх реляционных rows", async () => {
+    await relation(db, richMeta, "owner/rich")
 
-    const projection = readDarkParticleModel(db, "owner/rich")!
+    const projection = (await readDarkParticleModel(db, "owner/rich"))!
 
     expect(projection.meta.fieldSchemas).toEqual(richMeta.fields)
     expect(projection.meta.superposition).toEqual(richMeta.superposition)
@@ -256,33 +262,22 @@ describe("sqlite dark particle model", () => {
     expect(projection.meta.mass).toEqual(richMeta.mass)
     expect(projection.particles.map((particle) => particle.kind)).toEqual(["wimp", "fuzzy", "axion"])
 
-    const processActionCount = db.query(`SELECT COUNT(*) AS count FROM process_action`).get() as { count: number }
-    const processActionReadCount = db.query(`SELECT COUNT(*) AS count FROM process_action_read`).get() as { count: number }
-    const processActionWriteCount = db.query(`SELECT COUNT(*) AS count FROM process_action_write`).get() as { count: number }
-    const processFinallyCount = db.query(`SELECT COUNT(*) AS count FROM process_finally`).get() as { count: number }
-    const processFinallyReadCount = db.query(`SELECT COUNT(*) AS count FROM process_finally_read`).get() as { count: number }
-    const matterParticleCount = db.query(`SELECT COUNT(*) AS count FROM matter_particle`).get() as { count: number }
-    const matterParticleWimpCount = db.query(`SELECT COUNT(*) AS count FROM matter_particle_wimp`).get() as { count: number }
-    const matterParticleFuzzyCount = db.query(`SELECT COUNT(*) AS count FROM matter_particle_fuzzy`).get() as { count: number }
-    const matterParticleAxionCount = db.query(`SELECT COUNT(*) AS count FROM matter_particle_axion`).get() as { count: number }
-    const matterParticleMachoCount = db.query(`SELECT COUNT(*) AS count FROM matter_particle_macho`).get() as { count: number }
-
-    expect(processActionCount.count).toBe(1)
-    expect(processActionReadCount.count).toBe(3)
-    expect(processActionWriteCount.count).toBe(2)
-    expect(processFinallyCount.count).toBe(1)
-    expect(processFinallyReadCount.count).toBe(1)
-    expect(matterParticleCount.count).toBe(10)
-    expect(matterParticleWimpCount.count).toBe(6)
-    expect(matterParticleFuzzyCount.count).toBe(2)
-    expect(matterParticleAxionCount.count).toBe(1)
-    expect(matterParticleMachoCount.count).toBe(1)
+    expect(await countRows("process_action")).toBe(1)
+    expect(await countRows("process_action_read")).toBe(3)
+    expect(await countRows("process_action_write")).toBe(2)
+    expect(await countRows("process_finally")).toBe(1)
+    expect(await countRows("process_finally_read")).toBe(1)
+    expect(await countRows("matter_particle")).toBe(10)
+    expect(await countRows("matter_particle_wimp")).toBe(6)
+    expect(await countRows("matter_particle_fuzzy")).toBe(2)
+    expect(await countRows("matter_particle_axion")).toBe(1)
+    expect(await countRows("matter_particle_macho")).toBe(1)
   })
 
-  test("не выводит пустые processes/reactions из отсутствия записей в БД", () => {
-    relation(db, explicitEmptyMeta, "owner/empty")
+  test("не выводит пустые processes/reactions из отсутствия записей в БД", async () => {
+    await relation(db, explicitEmptyMeta, "owner/empty")
 
-    const projection = readDarkParticleModel(db, "owner/empty")!
+    const projection = (await readDarkParticleModel(db, "owner/empty"))!
 
     // Принцип минимума: если в БД нет ни одной записи в process/reaction/matter_particle,
     // соответствующая секция не появляется в projection. Пустой объект — это производное,

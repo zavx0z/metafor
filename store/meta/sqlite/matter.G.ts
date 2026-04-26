@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite"
+import type { SQL } from "bun"
 import type { MatterParticlePlan, MatterRelationBindingValue } from "@dark/types/dark"
 import type {
   AxionParticleRow,
@@ -18,24 +18,24 @@ const particleEdgeSlotOrder: Record<ParticleRow["edge_slot"], number> = {
   else: 1,
 }
 
-const getParticleBindings = (db: Database, src: string) => {
+const getParticleBindings = async (sql: SQL, src: string) => {
   const bindingRows = new Map(
     (
-      db.query(
-        `SELECT uuid, binding_kind, literal_kind, literal_text, literal_boolean, expr
-         FROM matter_binding
-         WHERE meta = ?`,
-      ).all(src) as BindingRow[]
+      await sql<BindingRow[]>`
+        SELECT uuid, binding_kind, literal_kind, literal_text, literal_boolean, expr
+        FROM matter_binding
+        WHERE meta = ${src}
+      `
     ).map((row) => [row.uuid, row]),
   )
 
   const bindingDeps = new Map<string, string[]>()
-  const depRows = db.query(
-    `SELECT binding, dep_order, path
-     FROM matter_binding_dep
-     WHERE binding IN (SELECT uuid FROM matter_binding WHERE meta = ?)
-     ORDER BY dep_order`,
-  ).all(src) as Array<{ binding: string; dep_order: number; path: string }>
+  const depRows = await sql<Array<{ binding: string; dep_order: number; path: string }>>`
+    SELECT binding, dep_order, path
+    FROM matter_binding_dep
+    WHERE binding IN (SELECT uuid FROM matter_binding WHERE meta = ${src})
+    ORDER BY dep_order
+  `
 
   for (const row of depRows) {
     const deps = bindingDeps.get(row.binding) ?? []
@@ -132,15 +132,15 @@ const buildParticleModel = (
   }
 }
 
-export const getMatterParticles = (db: Database, src: string): MatterParticlePlan[] => {
-  const { getBinding } = getParticleBindings(db, src)
+export const getMatterParticles = async (sql: SQL, src: string): Promise<MatterParticlePlan[]> => {
+  const { getBinding } = await getParticleBindings(sql, src)
 
-  const particleRows = db.query(
-    `SELECT uuid, parent_particle, particle_kind, edge_slot, particle_order
-     FROM matter_particle
-     WHERE meta = ?
-     ORDER BY CASE WHEN parent_particle IS NULL THEN 0 ELSE 1 END, particle_order, rowid`,
-  ).all(src) as ParticleRow[]
+  const particleRows = await sql<ParticleRow[]>`
+    SELECT uuid, parent_particle, particle_kind, edge_slot, particle_order
+    FROM matter_particle
+    WHERE meta = ${src}
+    ORDER BY CASE WHEN parent_particle IS NULL THEN 0 ELSE 1 END, particle_order, rowid
+  `
 
   const rowsByParent = new Map<string | null, ParticleRow[]>()
   for (const row of particleRows) {
@@ -159,41 +159,41 @@ export const getMatterParticles = (db: Database, src: string): MatterParticlePla
 
   const wimpRows = new Map(
     (
-      db.query(
-        `SELECT particle, src, fields_binding, mass_binding
-         FROM matter_particle_wimp
-         WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ?)`,
-      ).all(src) as WimpParticleRow[]
+      await sql<WimpParticleRow[]>`
+        SELECT particle, src, fields_binding, mass_binding
+        FROM matter_particle_wimp
+        WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ${src})
+      `
     ).map((row) => [row.particle, row]),
   )
 
   const fuzzyRows = new Map(
     (
-      db.query(
-        `SELECT particle, fuzzy_kind, predicate_binding
-         FROM matter_particle_fuzzy
-         WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ?)`,
-      ).all(src) as FuzzyParticleRow[]
+      await sql<FuzzyParticleRow[]>`
+        SELECT particle, fuzzy_kind, predicate_binding
+        FROM matter_particle_fuzzy
+        WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ${src})
+      `
     ).map((row) => [row.particle, row]),
   )
 
   const axionRows = new Map(
     (
-      db.query(
-        `SELECT particle, predicate_binding
-         FROM matter_particle_axion
-         WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ?)`,
-      ).all(src) as AxionParticleRow[]
+      await sql<AxionParticleRow[]>`
+        SELECT particle, predicate_binding
+        FROM matter_particle_axion
+        WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ${src})
+      `
     ).map((row) => [row.particle, row]),
   )
 
   const machoRows = new Map(
     (
-      db.query(
-        `SELECT particle, collection_binding
-         FROM matter_particle_macho
-         WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ?)`,
-      ).all(src) as MachoParticleRow[]
+      await sql<MachoParticleRow[]>`
+        SELECT particle, collection_binding
+        FROM matter_particle_macho
+        WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ${src})
+      `
     ).map((row) => [row.particle, row]),
   )
 
