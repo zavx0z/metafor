@@ -1,4 +1,5 @@
 import type { MetaFieldInit } from "@dark/types/strong"
+import { deriveUuid } from "store/db/uuid"
 
 /**
  * Каноническое meta-поле, принадлежащее `Meta`.
@@ -17,7 +18,10 @@ export class MetaField {
   readonly schema: MetaFieldInit["schema"]
 
   constructor(init: MetaFieldInit) {
-    this.id = crypto.randomUUID()
+    // Детерминированный id — same seed daёт same uuid, что критично для совместимости
+    // с canonical-adapter: адаптер вычисляет deriveUuid("meta-field", src, key) при
+    // чтении из DSL-relational и должен совпадать с тем, что записал canonical materialize.
+    this.id = deriveUuid("meta-field", init.ownerMeta.src, init.key)
     this.ownerMeta = init.ownerMeta
     this.key = init.key
     this.schema = structuredClone(init.schema)

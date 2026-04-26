@@ -11,6 +11,7 @@
     "./db/core": "./db/core.ts",
     "./db/sqlite": "./db/sqlite.ts",
     "./db/fixture": "./db/fixture.ts",
+    "./db/uuid": "./db/uuid.ts",
     "./materialize": "./materialize.ts"
   },
   "private": true,

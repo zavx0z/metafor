@@ -86,9 +86,11 @@ export const readCanonicalMetaRows = (database: Database, src: string): DbMetaRo
     return null
   }
 
-  const metaId = deriveUuid("meta", src)
-  const fields: DbMetaFieldBundle[] = Object.entries(model.meta.fieldSchemas).map(([fieldKey, schema], fieldOrder) => ({
-    id: deriveUuid("meta-field", metaId, fieldKey, fieldOrder),
+  // Канонический materialize использует Meta.id = src (не deriveUuid). Сохраняем совместимость.
+  const metaId = src
+  const fields: DbMetaFieldBundle[] = Object.entries(model.meta.fieldSchemas).map(([fieldKey, schema]) => ({
+    // Совпадает с MetaField.id = deriveUuid("meta-field", ownerMeta.src, key) — id-совместимость.
+    id: deriveUuid("meta-field", src, fieldKey),
     key: fieldKey,
     schema: {
       type: schema.type,
