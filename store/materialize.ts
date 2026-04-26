@@ -345,7 +345,7 @@ const appendMetaReactions = (data: DbData, meta: DbMetaBundle, context: MetaCont
   })
 }
 
-const materializeMetaRows = (meta: DbMetaBundle): { rows: DbMetaRows; context: MetaContext } => {
+export const materializeMetaRows = (meta: DbMetaBundle): { rows: DbMetaRows; context: MetaContext } => {
   const data = createEmptyDbData()
 
   data.metas.push({

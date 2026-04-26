@@ -1,5 +1,6 @@
 export { open as getMetaDB, create as relation, initializeMetaDslSchema } from "./sqlite.ts"
 export { readDarkParticleModel } from "./read.ts"
+export { readCanonicalMetaRows } from "./canonical-adapter.ts"
 export { getFields, getFields as readFields } from "./fields/get.ts"
 export { getMass, getMass as readMass, getMetaRow } from "./metafor/get.ts"
 export { getMatterParticles } from "./matter/get.ts"
