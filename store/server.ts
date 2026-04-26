@@ -1,31 +1,21 @@
 /**
  * Server-side ORM-стор: открывает одну bun-sqlite Database, применяет единую
  * схему стора (meta-DSL-relational + actor-инстансный слой) и возвращает
- * ORM-фасад с namespace-ами `meta` и `actor`.
+ * фасад с namespace-ами `meta` и `actor`.
  *
- * ORM построен поверх pure-функций пакетов `@store/meta/sqlite` и
- * `@store/actor/sqlite`. Геттеры на инстансах **ленивые** — каждый делает
- * SELECT при первом обращении (принцип `store/README.md` §5).
+ * ORM-классы живут в корнях пакетов:
+ * - `@store/meta` — `Meta` (с managers `fields`, `superposition`, `processes`,
+ *   `reactions`, `matter`)
+ * - `@store/actor` — actor-инстанс ORM (TODO: классы)
  *
- * Контракты `ServerStore`/`MetaApi`/`ActorApi`/инстансы — в `./server.t.ts`.
+ * Низкоуровневые backend-функции — в subpath `@store/<pkg>/sqlite`.
+ *
+ * Контракты — в `./server.t.ts`.
  */
 
 import { Database, constants } from "bun:sqlite"
-import {
-  getFields,
-  getMass,
-  getMatterParticles,
-  getMetaRow,
-  getProcesses,
-  getReactions,
-  getSuperposition,
-  hasMatter,
-  hasProcesses,
-  hasReactions,
-  metaCreate,
-  metaDelete,
-  metaSchemaSql,
-} from "@store/meta/sqlite"
+import { metaSchemaSql } from "@store/meta/sqlite"
+import { Meta } from "@store/meta"
 import {
   actorCreate,
   actorDelete,
@@ -46,14 +36,12 @@ import {
   valueOwners,
   valueSet,
 } from "@store/actor/sqlite"
-import type { MetaDSL } from "../metafor.t.ts"
 import type {
   ActorApi,
   ActorFieldValueInstance,
   ActorInstance,
   LinkApi,
   MetaApi,
-  MetaInstance,
   OpenServerStoreOptions,
   ServerStore,
   ValueApi,
@@ -61,6 +49,8 @@ import type {
 } from "./server.t.ts"
 
 const isFileBacked = (filename: string): boolean => filename !== ":memory:"
+
+// ────────────────────────────── value/actor (factory-style, до миграции в классы) ──────────────────────────────
 
 const buildValueInstance = (database: Database, uuid: string): ValueInstance => ({
   uuid,
@@ -78,39 +68,6 @@ const buildValueInstance = (database: Database, uuid: string): ValueInstance => 
   set: (scalar) => valueSet(database, uuid, scalar),
   writeItem: (position, itemValue) => valueItemsWrite(database, uuid, position, itemValue),
   truncateItems: (fromPosition) => valueItemsTruncate(database, uuid, fromPosition),
-})
-
-const buildActorInstance = (database: Database, uuid: string): ActorInstance => ({
-  uuid,
-  get meta() {
-    const head = actorHead(database, uuid)
-    if (!head) throw new Error(`actor ${uuid} not found`)
-    return head.meta
-  },
-  get position() {
-    const head = actorHead(database, uuid)
-    if (!head) throw new Error(`actor ${uuid} not found`)
-    return head.position
-  },
-  get parent() {
-    const head = actorHead(database, uuid)
-    if (!head || head.parent === null) return null
-    return buildActorInstance(database, head.parent)
-  },
-  get children() {
-    return actorListChildren(database, uuid).map((row) => buildActorInstance(database, row.uuid))
-  },
-  get state() {
-    return stateGet(database, uuid)
-  },
-  get rows() {
-    const rows = actorGet(database, uuid)
-    if (!rows) throw new Error(`actor ${uuid} not found`)
-    return rows
-  },
-  setState: (metaState) => stateSet(database, uuid, metaState),
-  value: (field) => buildActorFieldValueInstance(database, uuid, field),
-  delete: () => actorDelete(database, uuid),
 })
 
 const buildActorFieldValueInstance = (
@@ -131,63 +88,57 @@ const buildActorFieldValueInstance = (
   }
 }
 
-const buildMetaInstance = (database: Database, src: string): MetaInstance => {
-  // Memoization внутри одного инстанса — повторный доступ не вызывает SELECT снова.
-  // На разных инстансах состояние независимое (новый инстанс = свежие SELECTs).
-  let fieldsCache: ReturnType<typeof getFields> | undefined
-  const loadFields = () => (fieldsCache ??= getFields(database, src))
-
-  let metaRowCache: ReturnType<typeof getMetaRow> | undefined
-  let metaRowLoaded = false
-  const loadMetaRow = () => {
-    if (!metaRowLoaded) {
-      metaRowCache = getMetaRow(database, src)
-      metaRowLoaded = true
-    }
-    return metaRowCache
-  }
-
-  return {
-    src,
-    get name() {
-      const row = loadMetaRow()
-      return row?.name ?? src.split("/").pop() ?? src
-    },
-    get fields() {
-      return loadFields().fields
-    },
-    get superposition() {
-      return getSuperposition(database, src, loadFields().enumVariants) ?? {}
-    },
-    get processes() {
-      return hasProcesses(database, src) ? (getProcesses(database, src, loadFields().fieldKeys) ?? {}) : undefined
-    },
-    get reactions() {
-      return hasReactions(database, src)
-        ? (getReactions(database, src, loadFields().fieldKeys) ?? { reactions: {}, superposition: {} })
-        : undefined
-    },
-    get matter() {
-      return hasMatter(database, src) ? getMatterParticles(database, src) : []
-    },
-    get mass() {
-      return getMass(database, src)
-    },
-    get bulk() {
-      const row = loadMetaRow()
-      return row?.view_css ? ({ view: row.view_css } as MetaDSL["bulk"]) : undefined
-    },
-    delete: () => metaDelete(database, src),
-  }
-}
-
-const buildMetaApi = (database: Database): MetaApi => ({
-  create: (src, dsl) => {
-    metaCreate(database, src, dsl)
-    return buildMetaInstance(database, src)
+const buildActorInstance = (database: Database, uuid: string): ActorInstance => ({
+  uuid,
+  get meta() {
+    const head = actorHead(database, uuid)
+    if (!head) throw new Error(`actor ${uuid} not found`)
+    return head.meta
   },
-  get: (src) => (getMetaRow(database, src) === null ? null : buildMetaInstance(database, src)),
-  delete: (src) => metaDelete(database, src),
+  get position() {
+    const head = actorHead(database, uuid)
+    if (!head) throw new Error(`actor ${uuid} not found`)
+    return head.position
+  },
+  get parent() {
+    const head = actorHead(database, uuid)
+    if (!head || head.parent === null) return null
+    return buildActorInstance(database, head.parent)
+  },
+  children: {
+    all: () => actorListChildren(database, uuid).map((row) => buildActorInstance(database, row.uuid)),
+    get: ({ uuid: childUuid }) => {
+      const head = actorHead(database, childUuid)
+      if (!head || head.parent !== uuid) return null
+      return buildActorInstance(database, childUuid)
+    },
+    count: () => actorListChildren(database, uuid).length,
+    exists: () => actorListChildren(database, uuid).length > 0,
+  },
+  values: {
+    all: () => {
+      const rows = actorGet(database, uuid)
+      if (!rows) return []
+      return rows.values
+        .map((av) => buildActorFieldValueInstance(database, uuid, av.field))
+        .filter((v): v is NonNullable<typeof v> => v !== null)
+    },
+    get: ({ field }: { field: string }) => buildActorFieldValueInstance(database, uuid, field),
+    count: () => {
+      const rows = actorGet(database, uuid)
+      return rows ? rows.values.length : 0
+    },
+  },
+  get state() {
+    return stateGet(database, uuid)
+  },
+  get rows() {
+    const rows = actorGet(database, uuid)
+    if (!rows) throw new Error(`actor ${uuid} not found`)
+    return rows
+  },
+  setState: (metaState) => stateSet(database, uuid, metaState),
+  delete: () => actorDelete(database, uuid),
 })
 
 const buildValueApi = (database: Database): ValueApi => ({
@@ -211,13 +162,30 @@ const buildActorApi = (database: Database): ActorApi => {
     get: (uuid) => (actorHead(database, uuid) === null ? null : buildActorInstance(database, uuid)),
     delete: (uuid) => actorDelete(database, uuid),
     head: (uuid) => actorHead(database, uuid),
-    get roots() {
-      return actorListRoots(database).map((row) => buildActorInstance(database, row.uuid))
+    roots: {
+      all: () => actorListRoots(database).map((row) => buildActorInstance(database, row.uuid)),
+      get: ({ uuid }) => {
+        const head = actorHead(database, uuid)
+        if (!head || head.parent !== null) return null
+        return buildActorInstance(database, uuid)
+      },
+      count: () => actorListRoots(database).length,
+      exists: () => actorListRoots(database).length > 0,
     },
     value,
     link,
   }
 }
+
+// ────────────────────────────── meta API: тонкая обёртка над классом Meta ──────────────────────────────
+
+const buildMetaApi = (database: Database): MetaApi => ({
+  create: (src, dsl) => Meta.create(database, src, dsl),
+  get: (src) => Meta.get(database, src),
+  delete: (src) => Meta.delete(database, src),
+})
+
+// ────────────────────────────── корневой open() ──────────────────────────────
 
 export const open = (options: OpenServerStoreOptions = {}): ServerStore => {
   const filename = options.filename ?? ":memory:"

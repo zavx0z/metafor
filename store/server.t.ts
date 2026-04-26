@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
-import type { MatterParticlePlan } from "@dark/types/dark"
 import type { MetaDSL } from "../metafor.t.ts"
+import type { Meta } from "@store/meta"
 import type {
   ActorRecord,
   ActorRows,
@@ -18,39 +18,28 @@ export interface OpenServerStoreOptions {
 
 // ────────────────────────────── meta ORM ──────────────────────────────
 
+/**
+ * Meta API — фасад над классом `Meta` из `@store/meta`. Каждый метод
+ * делегирует в соответствующую static-функцию класса.
+ */
 export interface MetaApi {
   /** Создаёт декларацию по `src`. Идемпотентно: DELETE-then-INSERT. */
-  create(src: string, dsl: MetaDSL): MetaInstance
-  /** Возвращает инстанс декларации по `src` или `null`. */
-  get(src: string): MetaInstance | null
+  create(src: string, dsl: MetaDSL): Meta
+  /** Возвращает Meta-инстанс по `src` или `null`. */
+  get(src: string): Meta | null
   /** Удаляет декларацию по `src`. Каскад FK снимет всё дерево. */
   delete(src: string): void
 }
 
-/** Lazy-инстанс одной декларации меты. Getter-ы делают SELECT при первом доступе. */
-export interface MetaInstance {
-  readonly src: string
-  /** Имя меты (или последний сегмент `src` если name не задан). */
-  readonly name: string
-  /** Декларация полей: `Record<key, FieldDefinition>`. */
-  readonly fields: NonNullable<MetaDSL["fields"]>
-  /** FSM-граф состояний. */
-  readonly superposition: NonNullable<MetaDSL["superposition"]>
-  /** Декларация процессов или `undefined`. */
-  readonly processes: MetaDSL["processes"]
-  /** Декларация реакций или `undefined`. */
-  readonly reactions: MetaDSL["reactions"]
-  /** Иерархия дочерних компонентов (matter-particle-plans). */
-  readonly matter: MatterParticlePlan[]
-  /** Mass-словарь или `undefined`. */
-  readonly mass: MetaDSL["mass"]
-  /** Bulk-секция (CSS) или `undefined`. */
-  readonly bulk: MetaDSL["bulk"]
-  /** Удаляет эту декларацию из БД. */
-  delete(): void
-}
-
 // ────────────────────────────── actor ORM ──────────────────────────────
+
+/** Manager корневых акторов (parent IS NULL). */
+export interface ActorRootsManager {
+  all(): ActorInstance[]
+  get(filter: { uuid: string }): ActorInstance | null
+  count(): number
+  exists(): boolean
+}
 
 export interface ActorApi {
   /** Записывает row-group актора одной транзакцией. Возвращает инстанс. */
@@ -59,14 +48,36 @@ export interface ActorApi {
   get(uuid: string): ActorInstance | null
   /** Удаляет актора (каскад) и orphan-value. */
   delete(uuid: string): void
-  /** Все корневые акторы (parent IS NULL). */
-  readonly roots: ActorInstance[]
+  /** Корневые акторы. */
+  readonly roots: ActorRootsManager
   /** Базовая запись актора без связанных value/state. */
   head(uuid: string): ActorRecord | null
   /** Точечные операции над любой записью value (без привязки к актору). */
   readonly value: ValueApi
   /** Junction `actor_value` (entanglement через shared value). */
   readonly link: LinkApi
+}
+
+/** Manager дочерних акторов одного родителя. */
+export interface ActorChildrenManager {
+  /** Все дети, упорядочены по `position`. */
+  all(): ActorInstance[]
+  /** Один ребёнок по uuid. */
+  get(filter: { uuid: string }): ActorInstance | null
+  /** Число детей. */
+  count(): number
+  /** Хотя бы один ребёнок? */
+  exists(): boolean
+}
+
+/** Manager значений одного актора (по всем его полям). */
+export interface ActorValuesManager {
+  /** Все актор-значения (по всем полям). */
+  all(): ActorFieldValueInstance[]
+  /** Одно значение по полю. */
+  get(filter: { field: string }): ActorFieldValueInstance | null
+  /** Число привязанных значений. */
+  count(): number
 }
 
 /** Lazy-инстанс одного актора. */
@@ -76,16 +87,16 @@ export interface ActorInstance {
   readonly position: number
   /** Родитель (lazy lookup). `null` у корневого. */
   readonly parent: ActorInstance | null
-  /** Дочерние акторы (lazy SELECT по parent=uuid). */
-  readonly children: ActorInstance[]
-  /** Текущее FSM-состояние. */
+  /** Дочерние акторы. */
+  readonly children: ActorChildrenManager
+  /** Значения актора по всем его полям. */
+  readonly values: ActorValuesManager
+  /** Текущее FSM-состояние (одиночное значение). */
   readonly state: ActorStateRecord | null
   /** Полный row-group (actor + values + valueRecords + valueItems + state). */
   readonly rows: ActorRows
   /** Меняет FSM-состояние актора. */
   setState(metaState: string): void
-  /** Возвращает инстанс значения, привязанного к этому актору по полю. */
-  value(field: string): ActorFieldValueInstance | null
   /** Удаляет этого актора. Каскад FK + orphan-cleanup. */
   delete(): void
 }
