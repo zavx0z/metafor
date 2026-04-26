@@ -5,7 +5,8 @@
  * Entanglement выражен через разделение записи `value` (один `value.uuid` —
  * несколько строк `actor_value`).
  *
- * Корневой entry-point держит **общие типы** — без привязки к конкретному backend.
+ * Корневой entry-point держит **общие типы и ORM-классы** — без привязки к
+ * конкретному backend (классы получают `SQL` через конструктор).
  * Backend-специфичные имплементации лежат в subpath:
  * - `@store/actor/sqlite` — bun-sqlite реализация
  * - `@store/actor/idb` — IndexedDB реализация (планируется)
@@ -17,3 +18,6 @@ export type { ActorRecord, ActorRows } from "./sqlite/actor.t.ts"
 export type { ActorStateRecord } from "./sqlite/state.t.ts"
 export type { ActorValueRecord } from "./sqlite/actor_value.t.ts"
 export type { Scalar, ScalarKind, ValueItemRecord, ValueKind, ValueRecord } from "./sqlite/value.t.ts"
+
+export { Actor, ActorChildren, ActorRoots, ActorValues } from "./actor.ts"
+export { ActorFieldValue, Value } from "./value.ts"
