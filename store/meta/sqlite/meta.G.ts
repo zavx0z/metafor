@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
 import type { MetaDSL } from "../../.."
-import type { MetaMassValueRow, MetaRow } from "./metafor.t.ts"
+import type { MetaMassValueRow, MetaRow } from "./meta.t.ts"
 
 export const getMetaRow = (db: Database, src: string): MetaRow | null =>
   db.query(

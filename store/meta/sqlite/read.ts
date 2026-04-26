@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite"
 import type { MetaDSL } from "../../.."
 import { getFields } from "./fields.G.ts"
-import { getMass, getMetaRow, hasMatter, hasProcesses, hasReactions } from "./metafor.G.ts"
+import { getMass, getMetaRow, hasMatter, hasProcesses, hasReactions } from "./meta.G.ts"
 import { getMatterParticles } from "./matter.G.ts"
 import { getProcesses } from "./process.G.ts"
 import { getReactions } from "./reactions.G.ts"

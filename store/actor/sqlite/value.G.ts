@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { ValueItemRecord, ValueKind, ValueRecord } from "../value.t.ts"
+import type { ValueItemRecord, ValueKind, ValueRecord } from "./value.t.ts"
 
 /** Декодирует строку sqlite в `ValueRecord`. */
 export const decodeValue = (row: Record<string, unknown> | null): ValueRecord | null => {

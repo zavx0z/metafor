@@ -1,16 +1,16 @@
-import metaforSchemaSql from "./metafor.sql" with {type: "text"}
+import metaforSchemaSql from "./meta.sql" with {type: "text"}
 import fieldsSchemaSql from "./fields.sql" with {type: "text"}
 import superpositionSchemaSql from "./superposition.sql" with {type: "text"}
 import processSchemaSql from "./process.sql" with {type: "text"}
-import actionSchemaSql from "./process.action.sql" with {type: "text"}
-import finallySchemaSql from "./process.finally.sql" with {type: "text"}
+import actionSchemaSql from "./action.sql" with {type: "text"}
+import finallySchemaSql from "./finally.sql" with {type: "text"}
 import reactionsSchemaSql from "./reactions.sql" with {type: "text"}
 import matterSchemaSql from "./matter.sql" with {type: "text"}
 import {Database, constants} from "bun:sqlite"
 import type { MetaDSL } from "../../../metafor.t"
 import { createFields } from "./fields.C.ts"
 import { createMatter } from "./matter.C.ts"
-import { createMetafor } from "./metafor.C.ts"
+import { createMetafor } from "./meta.C.ts"
 import { createProcess } from "./process.C.ts"
 import { createReactions } from "./reactions.C.ts"
 import { createSuperposition } from "./superposition.C.ts"

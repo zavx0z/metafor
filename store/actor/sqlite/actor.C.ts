@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { ActorRecord, ActorRows } from "../actor.t.ts"
+import type { ActorRecord, ActorRows } from "./actor.t.ts"
 import { scalarColumns } from "./_helpers.ts"
 
 /** Создаёт пустую запись `actor` (без связанных value/state). */

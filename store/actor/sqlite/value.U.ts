@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { Scalar } from "../value.t.ts"
+import type { Scalar } from "./value.t.ts"
 import { scalarColumns, type ScalarLike } from "./_helpers.ts"
 
 /**

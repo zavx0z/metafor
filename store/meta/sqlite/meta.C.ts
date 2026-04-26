@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
 import type { MetaDSL } from "../../.."
-import type { MetaSource } from "./metafor.t.ts"
+import type { MetaSource } from "./meta.t.ts"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
