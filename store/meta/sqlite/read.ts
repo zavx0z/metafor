@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite"
 import type { MetaDSL } from "../../.."
 import { getFields } from "./fields/get.ts"
-import { getMass, getMetaRow } from "./metafor/get.ts"
+import { getMass, getMetaRow, hasMatter, hasProcesses, hasReactions } from "./metafor/get.ts"
 import { getMatterParticles } from "./matter/get.ts"
 import { getProcesses } from "./process/get.ts"
 import { getReactions } from "./reactions/get.ts"
@@ -20,8 +20,9 @@ export const readDarkParticleModel = (db: Database, src: string): DarkMetaPartic
   const { fields, fieldKeys, enumVariants } = getFields(db, src)
   const metaMass = getMass(db, src)
   const superposition = getSuperposition(db, src, enumVariants)
-  const processes = getProcesses(db, src, fieldKeys)
-  const reactions = getReactions(db, src, fieldKeys)
+  const processes = hasProcesses(db, src) ? (getProcesses(db, src, fieldKeys) ?? {}) : undefined
+  const reactionsExist = hasReactions(db, src)
+  const reactions = reactionsExist ? (getReactions(db, src, fieldKeys) ?? { reactions: {}, superposition: {} }) : undefined
 
   return {
     meta: {
@@ -29,13 +30,11 @@ export const readDarkParticleModel = (db: Database, src: string): DarkMetaPartic
       name: metaRow.name ?? src.split("/").pop() ?? src,
       fieldSchemas: fields,
       superposition: superposition ?? {},
-      ...(metaRow.has_processes === 1 || processes !== undefined ? { processes: processes ?? {} } : {}),
-      ...(metaRow.has_reactions === 1 || (reactions !== undefined && (hasKeys(reactions.reactions) || hasKeys(reactions.superposition)))
-        ? { reactions: reactions ?? { reactions: {}, superposition: {} } }
-        : {}),
+      ...(processes !== undefined ? { processes } : {}),
+      ...(reactions !== undefined ? { reactions } : {}),
       ...(metaRow.view_css !== null ? { bulk: { view: metaRow.view_css } as MetaDSL["bulk"] } : {}),
       ...(metaMass !== undefined && hasKeys(metaMass) ? { mass: metaMass } : {}),
     },
-    particles: getMatterParticles(db, src),
+    particles: hasMatter(db, src) ? getMatterParticles(db, src) : [],
   }
 }

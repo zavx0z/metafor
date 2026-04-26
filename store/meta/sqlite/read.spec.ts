@@ -271,16 +271,16 @@ describe("sqlite dark particle model", () => {
     expect(matterParticleMachoCount.count).toBe(1)
   })
 
-  test("не теряет явно объявленные пустые processes/reactions/matter", () => {
+  test("не выводит пустые processes/reactions из отсутствия записей в БД", () => {
     relation(db, explicitEmptyMeta, "owner/empty")
 
     const projection = readDarkParticleModel(db, "owner/empty")
 
-    expect(projection.meta.processes).toEqual({})
-    expect(projection.meta.reactions).toEqual({
-      reactions: {},
-      superposition: {},
-    })
+    // Принцип минимума: если в БД нет ни одной записи в process/reaction/matter_particle,
+    // соответствующая секция не появляется в projection. Пустой объект — это производное,
+    // не хранимое состояние.
+    expect(projection.meta.processes).toBeUndefined()
+    expect(projection.meta.reactions).toBeUndefined()
     expect(projection.particles).toEqual([])
   })
 })

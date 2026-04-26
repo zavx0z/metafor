@@ -84,17 +84,9 @@ export function createMetafor(db: Database, meta: MetaDSL, src: MetaSource): voi
   }
 
   db.query(
-    `INSERT INTO meta (src, name, desc, view_css, has_processes, has_reactions, has_matter)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    src,
-    meta.name,
-    meta.desc || null,
-    meta.bulk?.view || null,
-    meta.processes !== undefined ? 1 : 0,
-    meta.reactions !== undefined ? 1 : 0,
-    meta.matter !== undefined ? 1 : 0,
-  )
+    `INSERT INTO meta (src, name, desc, view_css)
+     VALUES (?, ?, ?, ?)`,
+  ).run(src, meta.name, meta.desc || null, meta.bulk?.view || null)
 
   if (meta.mass !== undefined) {
     insertMassValue(db, src, meta.mass, null, null, null)

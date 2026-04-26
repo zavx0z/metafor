@@ -4,10 +4,23 @@ import type { MetaMassValueRow, MetaRow } from "./get.t.ts"
 
 export const getMetaRow = (db: Database, src: string): MetaRow | null =>
   db.query(
-    `SELECT src, name, desc, view_css, has_processes, has_reactions, has_matter
+    `SELECT src, name, desc, view_css
      FROM meta
      WHERE src = ?`,
   ).get(src) as MetaRow | null
+
+/**
+ * Производные методы для проверки наличия секций. Не хранятся как колонки —
+ * вычисляются через EXISTS, чтобы исключить рассинхронизацию между флагом и реальностью.
+ */
+export const hasProcesses = (db: Database, src: string): boolean =>
+  (db.query(`SELECT 1 FROM process WHERE meta = ? LIMIT 1`).get(src) as unknown) !== null
+
+export const hasReactions = (db: Database, src: string): boolean =>
+  (db.query(`SELECT 1 FROM reaction WHERE meta = ? LIMIT 1`).get(src) as unknown) !== null
+
+export const hasMatter = (db: Database, src: string): boolean =>
+  (db.query(`SELECT 1 FROM matter_particle WHERE meta = ? LIMIT 1`).get(src) as unknown) !== null
 
 const compareMassRows = (left: MetaMassValueRow, right: MetaMassValueRow): number => {
   if (left.entry_order !== null || right.entry_order !== null) {

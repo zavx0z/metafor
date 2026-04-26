@@ -3,9 +3,6 @@ export type MetaRow = {
   name: string | null
   desc: string | null
   view_css: string | null
-  has_processes: number
-  has_reactions: number
-  has_matter: number
 }
 
 export type MetaMassValueRow = {

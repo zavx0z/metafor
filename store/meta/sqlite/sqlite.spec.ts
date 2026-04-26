@@ -119,9 +119,6 @@ describe("sqlite ddl", () => {
       "name",
       "desc",
       "view_css",
-      "has_processes",
-      "has_reactions",
-      "has_matter",
     ])
     expect(metaMassColumns).toEqual([
       "uuid",
