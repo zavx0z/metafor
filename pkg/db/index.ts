@@ -9,7 +9,6 @@ export {
   normalizeDbData,
   openDbInstanceSqlite,
   openDbMaterializationWriter,
-  readDbData,
   resetDbInstanceSqlite,
   selectAllFieldOrbits,
   selectAllParticleShells,
@@ -40,7 +39,7 @@ export type {
   DbWimpRows,
 } from "./core.ts"
 export { initializeDbSqliteSchema, openDbSqliteBackend } from "./sqlite.ts"
-export type { DbSqliteBackendOptions } from "./sqlite.ts"
+export type { DbSqliteBackend, DbSqliteBackendOptions } from "./sqlite.ts"
 export type { DbInstanceStore, DbInstanceStore as DbActorStore } from "./instance-store.t.ts"
 export {
   createSqliteDbInstanceStore,

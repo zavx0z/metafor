@@ -4,7 +4,6 @@ import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createDbFixture } from "fixture/db.fixture.ts"
-import { normalizeDbData } from "./backend.ts"
 import { openDbIndexedDbBackend } from "./idb.ts"
 import { openDbMaterializationWriter } from "./materialize.ts"
 import { openDbSqliteBackend } from "./sqlite.ts"
@@ -38,6 +37,44 @@ const openPersistentParityBackends = async (target: ReturnType<typeof createPers
     databaseName: target.databaseName,
   }),
 })
+
+type ParityBackends = Awaited<ReturnType<typeof createParityBackends>>
+type DbFixture = ReturnType<typeof createDbFixture>
+
+const expectAddressableParity = async (
+  backends: ParityBackends,
+  fixture: DbFixture,
+  rootEntanglementId: string,
+): Promise<void> => {
+  expect(await backends.sqlite.listWimpIds()).toEqual(await backends.indexeddb.listWimpIds())
+  expect(await backends.sqlite.readMetaRows(fixture.root.meta!.id)).toEqual(
+    await backends.indexeddb.readMetaRows(fixture.root.meta!.id),
+  )
+  expect(await backends.sqlite.readMetaRows(fixture.child.meta!.id)).toEqual(
+    await backends.indexeddb.readMetaRows(fixture.child.meta!.id),
+  )
+  expect(await backends.sqlite.readWimpRows(fixture.root.id)).toEqual(
+    await backends.indexeddb.readWimpRows(fixture.root.id),
+  )
+  expect(await backends.sqlite.readWimpRows(fixture.child.id)).toEqual(
+    await backends.indexeddb.readWimpRows(fixture.child.id),
+  )
+  expect(await backends.sqlite.readWimpField(fixture.fields.childAlias!.id)).toEqual(
+    await backends.indexeddb.readWimpField(fixture.fields.childAlias!.id),
+  )
+  expect(await backends.sqlite.readWimpEdge(fixture.child.id)).toEqual(
+    await backends.indexeddb.readWimpEdge(fixture.child.id),
+  )
+  expect(await backends.sqlite.readFieldValue(fixture.fields.childAlias!.id)).toEqual(
+    await backends.indexeddb.readFieldValue(fixture.fields.childAlias!.id),
+  )
+  expect(await backends.sqlite.readFieldSource(fixture.fields.childAlias!.id)).toEqual(
+    await backends.indexeddb.readFieldSource(fixture.fields.childAlias!.id),
+  )
+  expect(await backends.sqlite.readEntanglementFamily(rootEntanglementId)).toEqual(
+    await backends.indexeddb.readEntanglementFamily(rootEntanglementId),
+  )
+}
 
 describe("db backend parity", () => {
   test("SQLite и IndexedDB читают одинаковые addressable row groups после одной materialization sequence", async () => {
@@ -141,7 +178,7 @@ describe("db backend parity", () => {
     }
   })
 
-  test("SQLite и IndexedDB совпадают по full backend state после operational writes, reopen и reset", async () => {
+  test("SQLite и IndexedDB совпадают по addressable row groups после operational writes, reopen и reset", async () => {
     const target = createPersistentParityTarget()
     const fixture = createDbFixture()
     const rootEntanglementId = deriveUuid("entanglement-family", fixture.fields.rootTitle!.id)
@@ -182,9 +219,7 @@ describe("db backend parity", () => {
         await initial.indexeddb.writeEntanglementFamily(family!)
         await initial.indexeddb.flush()
 
-        expect(normalizeDbData(initial.sqlite.readData())).toEqual(
-          normalizeDbData(initial.indexeddb.readData()),
-        )
+        await expectAddressableParity(initial, fixture, rootEntanglementId)
       } finally {
         await initial.indexeddb.flush()
         initial.sqlite.close()
@@ -193,19 +228,18 @@ describe("db backend parity", () => {
 
       const reopened = await openPersistentParityBackends(target)
       try {
-        expect(normalizeDbData(reopened.sqlite.readData())).toEqual(normalizeDbData(reopened.indexeddb.readData()))
-        expect(await reopened.sqlite.readWimpRows(fixture.child.id)).toEqual(await reopened.indexeddb.readWimpRows(fixture.child.id))
-        expect(await reopened.sqlite.readFieldValue(fixture.fields.childAlias!.id)).toEqual(
-          await reopened.indexeddb.readFieldValue(fixture.fields.childAlias!.id),
-        )
+        await expectAddressableParity(reopened, fixture, rootEntanglementId)
 
         await reopened.sqlite.reset()
         await reopened.indexeddb.reset()
         await reopened.indexeddb.flush()
 
-        expect(normalizeDbData(reopened.sqlite.readData())).toEqual(normalizeDbData(reopened.indexeddb.readData()))
-        expect(reopened.sqlite.readData().wimps).toEqual([])
-        expect(reopened.indexeddb.readData().wimps).toEqual([])
+        expect(await reopened.sqlite.listWimpIds()).toEqual([])
+        expect(await reopened.indexeddb.listWimpIds()).toEqual([])
+        expect(await reopened.sqlite.readWimpRows(fixture.child.id)).toBeNull()
+        expect(await reopened.indexeddb.readWimpRows(fixture.child.id)).toBeNull()
+        expect(await reopened.sqlite.readEntanglementFamily(rootEntanglementId)).toBeNull()
+        expect(await reopened.indexeddb.readEntanglementFamily(rootEntanglementId)).toBeNull()
       } finally {
         await reopened.indexeddb.flush()
         reopened.sqlite.close()

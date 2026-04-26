@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { createDbFixture } from "fixture/db.fixture.ts"
-import { normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
+import { dbRequiredBackendIndexes } from "./backend.ts"
+import { readDbSqliteData } from "./fixture.ts"
 import { openDbMaterializationWriter } from "./materialize.ts"
 import { openDbSqliteBackend } from "./sqlite.ts"
 
@@ -14,7 +15,7 @@ describe("db canonical relational data", () => {
       await fixture.root.save(writer)
       await fixture.child.save(writer)
 
-      const data = normalizeDbData(backend.readData())
+      const data = readDbSqliteData(backend.database)
 
       expect(Object.hasOwn(data, "braneIndexByDarkId")).toBe(false)
       expect(Object.hasOwn(data, "fieldIndexByDarkId")).toBe(false)
@@ -76,14 +77,14 @@ describe("db canonical relational data", () => {
 
     try {
       await fixture.root.save(writer)
-      const readyStateId = backend.readData().metaStates.find(
+      const readyStateId = (await backend.readMetaRows(fixture.root.meta!.id))?.states.find(
         (row) => row.ownerMetaId === fixture.root.meta!.id && row.stateName === "ready",
       )?.id
       expect(readyStateId).toBeDefined()
 
       await backend.setWimpState(fixture.root.id, readyStateId!)
 
-      expect(backend.readData().wimpStates.find((row) => row.ownerWimpId === fixture.root.id)?.metaStateId).toBe(readyStateId)
+      expect((await backend.readWimpRows(fixture.root.id))?.state.metaStateId).toBe(readyStateId)
     } finally {
       backend.close()
     }

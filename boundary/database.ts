@@ -2,7 +2,6 @@ import {
   createDbEntanglementFamilyId,
   createEmptyDbData,
   normalizeDbData,
-  readDbData,
   type DbBackend,
   type DbData,
   type DbEntanglementFamilyRows,
@@ -1569,17 +1568,10 @@ export const prepareBoundaryRuntimeStore = (
   options: BoundaryDbRuntimeOptions = {},
 ): PreparedData => prepareBoundaryStoreFromDatabase(prepareBoundaryDatabaseData(rawData), options)
 
-const prepareBoundaryRuntimeFragmentFromDb = (
-  backend: DbBackend,
-  wimpId: string,
-): DbData => prepareBoundaryRuntimeFragment(readDbData(backend), wimpId)
-
-const prepareBoundaryRuntimeLoadedFragmentFromDb = (
-  backend: DbBackend,
-  activeWimpIds?: Iterable<string>,
-): DbData => prepareBoundaryRuntimeLoadedFragment(readDbData(backend), activeWimpIds)
-
 export const prepareBoundaryRuntimeStoreFromDb = (
   backend: DbBackend,
   options: BoundaryDbRuntimeOptions = {},
-): PreparedData => prepareBoundaryRuntimeStore(readDbData(backend), options)
+): Promise<PreparedData> =>
+  prepareBoundaryRuntimeLoadedFragmentFromDbOperational(backend).then((fragment) =>
+    prepareBoundaryRuntimeStore(fragment, options),
+  )

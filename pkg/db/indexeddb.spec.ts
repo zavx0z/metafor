@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { IDBFactory } from "fake-indexeddb"
 import { createDbFixture } from "fixture/db.fixture.ts"
-import { normalizeDbData, readDbData, dbRequiredBackendIndexes } from "./backend.ts"
+import { dbRequiredBackendIndexes, normalizeDbData } from "./backend.ts"
+import { selectDbFieldValue, selectDbMetaRows, selectDbWimpRows } from "./fixture.ts"
 import { inspectDbIndexedDbSchema, openDbIndexedDbBackend } from "./idb.ts"
 import { openDbMaterializationWriter } from "./materialize.ts"
 import { assembleDbData } from "fixture/dark.ts"
@@ -69,8 +70,17 @@ describe("db indexeddb backend", () => {
 
     const reader = await openDbIndexedDbBackend(target)
     try {
-      const restored = readDbData(reader)
-      expect(normalizeDbData(restored)).toEqual(normalizeDbData(expected))
+      const normalizedExpected = normalizeDbData(expected)
+      expect(await reader.readMetaRows(fixture.root.meta!.id)).toEqual(
+        selectDbMetaRows(normalizedExpected, fixture.root.meta!.id),
+      )
+      expect(await reader.readMetaRows(fixture.child.meta!.id)).toEqual(
+        selectDbMetaRows(normalizedExpected, fixture.child.meta!.id),
+      )
+      expect(await reader.readWimpRows(fixture.root.id)).toEqual(selectDbWimpRows(normalizedExpected, fixture.root.id))
+      expect(await reader.readWimpRows(fixture.child.id)).toEqual(
+        selectDbWimpRows(normalizedExpected, fixture.child.id),
+      )
 
       await reader.setFieldValue(fixture.fields.childAlias!.id, "Alias via indexeddb")
       await reader.flush()
@@ -80,9 +90,10 @@ describe("db indexeddb backend", () => {
 
     const reopened = await openDbIndexedDbBackend(target)
     try {
-      expect(
-        readDbData(reopened).fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value,
-      ).toBe("Alias via indexeddb")
+      expect((await reopened.readFieldValue(fixture.fields.childAlias!.id))?.value).toBe("Alias via indexeddb")
+      expect((await reopened.readFieldValue(fixture.fields.rootTitle!.id))?.value).toEqual(
+        selectDbFieldValue(normalizeDbData(expected), fixture.fields.rootTitle!.id)?.value,
+      )
     } finally {
       reopened.close()
     }

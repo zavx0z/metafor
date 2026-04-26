@@ -1,4 +1,4 @@
-import type { DbBackend, DbBackendIndexSpec } from "./backend.t.ts"
+import type { DbBackendIndexSpec } from "./backend.t.ts"
 import type {
   DbData,
   DbEntanglementFieldMemberRecord,
@@ -589,81 +589,3 @@ export const normalizeDbData = (data: DbData): DbData => {
   }
 }
 
-export const readDbData = (backend: DbBackend): DbData => normalizeDbData(backend.readData())
-
-export const selectDbMetaRows = (data: DbData, metaId: string) => {
-  const meta = data.metas.find((row) => row.id === metaId)
-  if (!meta) return null
-
-  const states = data.metaStates.filter((row) => row.ownerMetaId === metaId)
-  const stateIds = new Set(states.map((row) => row.id))
-  const transitions = data.metaTransitions.filter((row) => stateIds.has(row.ownerMetaStateId))
-  const transitionIds = new Set(transitions.map((row) => row.id))
-  const processes = data.metaProcesses.filter((row) => row.ownerMetaId === metaId)
-  const processIds = new Set(processes.map((row) => row.id))
-  const reactions = data.metaReactions.filter((row) => row.ownerMetaId === metaId)
-  const reactionIds = new Set(reactions.map((row) => row.id))
-
-  return {
-    meta,
-    fields: data.metaFields.filter((row) => row.ownerMetaId === metaId),
-    states,
-    transitions,
-    transitionConditions: data.metaTransitionConditions.filter((row) => transitionIds.has(row.ownerMetaTransitionId)),
-    processes,
-    processReads: data.metaProcessReads.filter((row) => processIds.has(row.ownerMetaProcessId)),
-    processWrites: data.metaProcessWrites.filter((row) => processIds.has(row.ownerMetaProcessId)),
-    reactions,
-    reactionStates: data.metaReactionStates.filter((row) => reactionIds.has(row.ownerMetaReactionId)),
-    reactionReads: data.metaReactionReads.filter((row) => reactionIds.has(row.ownerMetaReactionId)),
-    reactionWrites: data.metaReactionWrites.filter((row) => reactionIds.has(row.ownerMetaReactionId)),
-    matterNodes: data.metaMatterNodes.filter((row) => row.ownerMetaId === metaId),
-    matterEdges: data.metaMatterEdges.filter((row) => row.ownerMetaId === metaId),
-  }
-}
-
-export const selectDbWimpRows = (data: DbData, wimpId: string) => {
-  const wimp = data.wimps.find((row) => row.id === wimpId)
-  if (!wimp) return null
-
-  const fields = data.wimpFields.filter((row) => row.ownerWimpId === wimpId)
-  const fieldIds = new Set(fields.map((row) => row.id))
-  const state = data.wimpStates.find((row) => row.ownerWimpId === wimpId)
-  if (!state) {
-    throw new Error(`Wimp ${wimpId} is missing wimp_state row`)
-  }
-
-  return {
-    wimp,
-    fields,
-    values: data.fieldValues.filter((row) => fieldIds.has(row.ownerWimpFieldId)),
-    sources: data.fieldSources.filter((row) => fieldIds.has(row.childWimpFieldId)),
-    state,
-  }
-}
-
-export const selectDbWimpEdge = (data: DbData, childWimpId: string) =>
-  data.wimpEdges.find((row) => row.childWimpId === childWimpId) ?? null
-
-export const selectDbFieldValue = (data: DbData, wimpFieldId: string) =>
-  data.fieldValues.find((row) => row.ownerWimpFieldId === wimpFieldId) ?? null
-
-export const selectDbFieldSource = (data: DbData, childWimpFieldId: string) =>
-  data.fieldSources.find((row) => row.childWimpFieldId === childWimpFieldId) ?? null
-
-export const selectDbEntanglementFamilyRows = (data: DbData, entanglementId: string) => {
-  const entanglement = data.entanglements.find((row) => row.id === entanglementId)
-  if (!entanglement) return null
-
-  const field = data.entanglementFields.find((row) => row.ownerEntanglementId === entanglementId)
-  if (!field) {
-    throw new Error(`Entanglement ${entanglementId} is missing entanglement_field rows`)
-  }
-
-  return {
-    entanglement,
-    members: data.entanglementMembers.filter((row) => row.ownerEntanglementId === entanglementId),
-    field,
-    fieldMembers: data.entanglementFieldMembers.filter((row) => row.ownerEntanglementFieldId === field.id),
-  }
-}

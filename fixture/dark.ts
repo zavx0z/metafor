@@ -1,6 +1,7 @@
 import { Wimp } from "@dark/strong"
 import type { DarkParticle } from "@dark/types"
 import { openDbMaterializationWriter, openDbSqliteBackend, type DbData } from "../pkg/db/index.ts"
+import { readDbSqliteData } from "../pkg/db/fixture.ts"
 
 /**
  * Собирает плоский список всех `Wimp`, достижимых от корня.
@@ -47,7 +48,7 @@ export const assembleDbData = async (root: Wimp): Promise<DbData> => {
       await wimp.save(writer)
     }
 
-    return backend.readData()
+    return readDbSqliteData(backend.database)
   } finally {
     backend.close()
   }

@@ -8,7 +8,7 @@
  *
  * Server/worker сторона использует `pkg/db/index.ts` (со SQLite-частью).
  */
-export { createEmptyDbData, normalizeDbData, readDbData, dbRequiredBackendIndexes } from "./backend.ts"
+export { createEmptyDbData, normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
 export { createDbEntanglementFamilyId, openDbMaterializationWriter } from "./materialize.ts"
 export type {
   DbBackend,

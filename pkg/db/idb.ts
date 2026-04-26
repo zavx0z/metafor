@@ -1,7 +1,6 @@
-import { createEmptyDbData, normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
+import { dbRequiredBackendIndexes } from "./backend.ts"
 import type { DbBackend, DbBackendTableName, DbEntanglementFamilyRows, DbMetaRows, DbWimpRows } from "./backend.t.ts"
 import type {
-  DbData,
   DbEntanglementFieldMemberRecord,
   DbEntanglementFieldRecord,
   DbEntanglementMemberRecord,
@@ -66,7 +65,7 @@ const indexedDbTableConfigs = [
   { table: "entanglement_members", dataKey: "entanglementMembers" },
   { table: "entanglement_fields", dataKey: "entanglementFields" },
   { table: "entanglement_field_members", dataKey: "entanglementFieldMembers" },
-] as const satisfies ReadonlyArray<{ table: DbBackendTableName; dataKey: keyof DbData }>
+] as const satisfies ReadonlyArray<{ table: DbBackendTableName; dataKey: string }>
 
 const indexedDbTableNames = indexedDbTableConfigs.map((config) => config.table)
 
@@ -199,30 +198,6 @@ const readStoreRowsByIndex = async <T extends { id: string }>(
   const request = transaction.objectStore(storeName).index(indexName).getAll(key)
   const [result] = await Promise.all([resolveRequest(request), completeTransaction(transaction)])
   return sortRowsById(cloneRows((result ?? []) as T[]))
-}
-
-const readAllIndexedDbData = async (database: IDBDatabase): Promise<DbData> => {
-  const transaction = database.transaction(indexedDbTableNames, "readonly")
-  const requests = new Map<keyof DbData, IDBRequest<unknown[]>>()
-
-  indexedDbTableConfigs.forEach((config) => {
-    requests.set(config.dataKey, transaction.objectStore(config.table).getAll())
-  })
-
-  await completeTransaction(transaction)
-
-  const data = createEmptyDbData()
-  const assignRows = <Key extends keyof DbData>(key: Key, rows: DbData[Key]): void => {
-    data[key] = rows
-  }
-  indexedDbTableConfigs.forEach((config) => {
-    const rows = (requests.get(config.dataKey)?.result ?? []).map((row) => structuredClone(row)) as DbData[
-      typeof config.dataKey
-    ]
-    assignRows(config.dataKey, rows)
-  })
-
-  return normalizeDbData(data)
 }
 
 const putRow = <T>(store: IDBObjectStore, row: T): void => {
@@ -835,9 +810,6 @@ const setWimpStateInIndexedDb = async (database: IDBDatabase, wimpId: string, me
   await completeTransaction(transaction)
 }
 
-const readFullDumpSnapshotFromIndexedDb = async (database: IDBDatabase): Promise<DbData> =>
-  await readAllIndexedDbData(database)
-
 export const openDbIndexedDbBackend = async (
   options: DbIndexedDbBackendOptions = {},
 ): Promise<DbIndexedDbBackend> => {
@@ -848,13 +820,6 @@ export const openDbIndexedDbBackend = async (
     options.version ?? DEFAULT_INDEXED_DB_VERSION,
   )
 
-  /**
-   * Full dump snapshot для sync `readData()`.
-   *
-   * Это не mutable mirror row-cache: snapshot каждый раз перечитывается
-   * из уже persisted IndexedDB state после успешной write-операции.
-   */
-  let fullDumpSnapshot = await readFullDumpSnapshotFromIndexedDb(database)
   let pendingWriteQueue = Promise.resolve()
   let closed = false
 
@@ -864,15 +829,10 @@ export const openDbIndexedDbBackend = async (
     }
   }
 
-  const refreshFullDumpSnapshot = async (): Promise<void> => {
-    fullDumpSnapshot = await readFullDumpSnapshotFromIndexedDb(database)
-  }
-
   const enqueueWrite = (operation: () => Promise<void>): Promise<void> => {
     assertOpen()
     const writePromise = pendingWriteQueue.then(async () => {
       await operation()
-      await refreshFullDumpSnapshot()
     })
     pendingWriteQueue = writePromise.then(() => undefined, () => undefined)
     return writePromise
@@ -901,11 +861,6 @@ export const openDbIndexedDbBackend = async (
 
     async flush() {
       await pendingWriteQueue
-    },
-
-    readData() {
-      assertOpen()
-      return normalizeDbData(fullDumpSnapshot)
     },
 
     async readMetaRows(metaId) {

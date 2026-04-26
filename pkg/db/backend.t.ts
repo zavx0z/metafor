@@ -1,5 +1,4 @@
 import type {
-  DbData,
   DbEntanglementFieldMemberRecord,
   DbEntanglementFieldRecord,
   DbEntanglementMemberRecord,
@@ -97,30 +96,20 @@ export type DbBackendAwaitable<T> = T | Promise<T>
  * Минимальный backend-контракт канонической relational DB.
  *
  * Backend хранит только relational entity/relation tables.
- * Любой downstream adapter/index-space строится уже после `readData()` в CPU memory.
+ * Operational path должен идти через адресные read/write методы, без full-dump cache.
  */
 export interface DbBackend {
   readonly requiredIndexes: readonly DbBackendIndexSpec[]
 
-  /**
-   * Full dump / debug / bootstrap path.
-   *
-   * Это не основной operational API backend-а: полный снимок остаётся
-   * режимом для round-trip проверки, bootstrap и общей CPU-side проекции.
-   *
-   * Для async backend-ов вроде `IndexedDB` этот dump должен отражать уже
-   * persisted backend state, а не локально мутируемый shadow-cache.
-   */
   close(): DbBackendAwaitable<void>
   reset(): DbBackendAwaitable<void>
   flush(): Promise<void>
-  readData(): DbData
 
   /**
    * Operational addressable read path.
    *
    * Эти методы должны читать только затронутые row groups и relation rows,
-   * а не требовать полного `readData()` как основной способ работы.
+   * без полного dump-а backend state в память.
    */
   readMetaRows(metaId: string): Promise<DbMetaRows | null>
   listWimpIds(): Promise<string[]>

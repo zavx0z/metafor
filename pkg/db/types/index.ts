@@ -22,7 +22,7 @@ export type {
   DbWorldRows,
 } from "../core.ts"
 export type { DbInstanceStore, DbInstanceStore as DbActorStore } from "../instance-store.t.ts"
-export type { DbSqliteBackendOptions } from "../sqlite.ts"
+export type { DbSqliteBackend, DbSqliteBackendOptions } from "../sqlite.ts"
 export type {
   SqliteDbInstanceStoreOptions,
   SqliteDbInstanceStoreOptions as SqliteDbActorStoreOptions,

@@ -462,11 +462,11 @@ export function prepareRuntimeStore(data: DbData, options: BoundaryDbRuntimeOpti
   return prepareBoundaryRuntimeStore(data, options)
 }
 
-export function prepareRuntimeFromDb(
+export async function prepareRuntimeFromDb(
   backend: DbBackend,
   options: BoundaryDbRuntimeOptions = {},
-): PreparedData {
-  return prepareBoundaryRuntimeStoreFromDb(backend, options)
+): Promise<PreparedData> {
+  return await prepareBoundaryRuntimeStoreFromDb(backend, options)
 }
 
 export function listRuntimeWimpIds(): string[] {

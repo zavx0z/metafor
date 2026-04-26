@@ -242,15 +242,16 @@ describe("boundary runtime from db backend", () => {
     const backend = await materializeGithubWorldToDb()
 
     try {
-      const sharedData = backend.readData()
-      const prepared = prepareRuntimeFromDb(backend)
+      const wimpIds = await backend.listWimpIds()
+      const rows = await Promise.all(wimpIds.map((wimpId) => backend.readWimpRows(wimpId)))
+      const prepared = await prepareRuntimeFromDb(backend)
 
-      expect(sharedData.metas.some((meta) => meta.id === "zavx0z/git")).toBe(true)
-      expect(sharedData.wimps.length).toBeGreaterThan(0)
-      expect(sharedData.fieldValues.length).toBe(sharedData.wimpFields.length)
-      expect(prepared.branes).toHaveLength(sharedData.wimps.length)
+      expect(await backend.readMetaRows("zavx0z/git")).not.toBeNull()
+      expect(wimpIds.length).toBeGreaterThan(0)
+      expect(rows.every((row) => row !== null && row.values.length === row.fields.length)).toBe(true)
+      expect(prepared.branes).toHaveLength(wimpIds.length)
       expect(prepared.fields.length).toBeGreaterThan(0)
-      expect(prepared.states).toHaveLength(sharedData.wimps.length)
+      expect(prepared.states).toHaveLength(wimpIds.length)
       expect(prepared.stringTable.length).toBeGreaterThan(0)
     } finally {
       backend.close()
@@ -261,16 +262,16 @@ describe("boundary runtime from db backend", () => {
     const backend = await materializeGithubWorldToDb()
 
     try {
-      const sharedData = backend.readData()
-      const prepared = prepareRuntimeFromDb(backend)
+      const wimpIds = await backend.listWimpIds()
+      const prepared = await prepareRuntimeFromDb(backend)
 
       const changes = await writeRuntimeFromDb(backend)
       expect(changes).toEqual([])
       expect(weak$.initialized).toBe(true)
       expect(gravity$.structuralDirty).toBe(false)
-      expect(boundary$.branes).toHaveLength(sharedData.wimps.length)
-      expect(gravity$.braneIndexToWimpId).toHaveLength(sharedData.wimps.length)
-      expect(boundary$.states).toHaveLength(sharedData.wimps.length)
+      expect(boundary$.branes).toHaveLength(wimpIds.length)
+      expect(gravity$.braneIndexToWimpId).toHaveLength(wimpIds.length)
+      expect(boundary$.states).toHaveLength(wimpIds.length)
       expect(normalizeRuntimeFields(boundary$.fields)).toEqual(normalizeRuntimeFields(prepared.fields))
       expect(boundary$.stringTable).toEqual(prepared.stringTable)
       expect(boundary$.sharedValues.length + boundary$.braneValues.length).toBeGreaterThan(0)
@@ -407,19 +408,18 @@ describe("boundary runtime from db backend", () => {
       expect(boundary$.states[rootBraneIndex!]).toBe(1)
       expect(boundary$.states[childBraneIndex!]).toBe(1)
 
-      const persisted = backend.readData()
-      const rootReadyStateId = persisted.metaStates.find(
+      const rootReadyStateId = (await backend.readMetaRows(fixture.root.meta!.id))?.states.find(
         (row) => row.ownerMetaId === fixture.root.meta!.id && row.stateName === "ready",
       )?.id
-      const childReadyStateId = persisted.metaStates.find(
+      const childReadyStateId = (await backend.readMetaRows(fixture.child.meta!.id))?.states.find(
         (row) => row.ownerMetaId === fixture.child.meta!.id && row.stateName === "ready",
       )?.id
       expect(rootReadyStateId).toBeDefined()
       expect(childReadyStateId).toBeDefined()
-      expect(persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.rootMode!.id)?.value).toBe("ready")
-      expect(persisted.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childMode!.id)?.value).toBe("ready")
-      expect(persisted.wimpStates.find((row) => row.ownerWimpId === fixture.root.id)?.metaStateId).toBe(rootReadyStateId)
-      expect(persisted.wimpStates.find((row) => row.ownerWimpId === fixture.child.id)?.metaStateId).toBe(childReadyStateId)
+      expect((await backend.readFieldValue(fixture.fields.rootMode!.id))?.value).toBe("ready")
+      expect((await backend.readFieldValue(fixture.fields.childMode!.id))?.value).toBe("ready")
+      expect((await backend.readWimpRows(fixture.root.id))?.state.metaStateId).toBe(rootReadyStateId)
+      expect((await backend.readWimpRows(fixture.child.id))?.state.metaStateId).toBe(childReadyStateId)
 
       await writeRuntimeFromDb(backend)
       expect(boundary$.states[rootBraneIndex!]).toBe(1)
@@ -450,10 +450,8 @@ describe("boundary runtime from db backend", () => {
       })
 
       expect(Array.isArray(changes)).toBe(true)
-      expect(backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value).toBe(
-        "Alias via UUID field",
-      )
-      expect(backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.rootMode!.id)?.value).toBe("ready")
+      expect((await backend.readFieldValue(fixture.fields.childAlias!.id))?.value).toBe("Alias via UUID field")
+      expect((await backend.readFieldValue(fixture.fields.rootMode!.id))?.value).toBe("ready")
     } finally {
       backend.close()
     }
@@ -473,7 +471,7 @@ describe("boundary runtime from db backend", () => {
       expect(boundary$.states[braneIndex!]).toBe(1)
       expect(boundary$.branes[braneIndex!]?.lock).toBe(true)
 
-      const processId = backend.readData().metaProcesses.find(
+      const processId = (await backend.readMetaRows(meta.id))?.processes.find(
         (row) => row.ownerMetaId === meta.id && row.processKey === "processing",
       )?.id
       expect(processId).toBeDefined()
@@ -513,11 +511,9 @@ describe("boundary runtime from db backend", () => {
       expect(changes).toEqual([])
       expect(boundary$.states[braneIndex!]).toBe(0)
       expect(boundary$.branes[braneIndex!]?.lock).toBe(true)
-      expect(backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === root.fields.payload!.id)?.value).toBe(
-        "payload via UUID",
-      )
+      expect((await backend.readFieldValue(root.fields.payload!.id))?.value).toBe("payload via UUID")
 
-      const processId = backend.readData().metaProcesses.find(
+      const processId = (await backend.readMetaRows(meta.id))?.processes.find(
         (row) => row.ownerMetaId === meta.id && row.processKey === "processing",
       )?.id
       expect(processId).toBeDefined()
@@ -554,7 +550,7 @@ describe("boundary runtime from db backend", () => {
       expect(boundary$.branes[rootBraneIndex!]?.lock).toBe(false)
       expect(boundary$.branes[childBraneIndex!]?.lock).toBe(false)
 
-      const rootProcessId = backend.readData().metaProcesses.find(
+      const rootProcessId = (await backend.readMetaRows(rootMeta.id))?.processes.find(
         (row) => row.ownerMetaId === rootMeta.id && row.processKey === "processing",
       )?.id
       expect(rootProcessId).toBeDefined()
@@ -580,12 +576,8 @@ describe("boundary runtime from db backend", () => {
       expect(weakResultChanges).toEqual([])
       expect(boundary$.branes[rootBraneIndex!]?.lock).toBe(false)
       expect(boundary$.branes[childBraneIndex!]?.lock).toBe(true)
-      expect(backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === root.fields.payload!.id)?.value).toBe(
-        "shared payload",
-      )
-      expect(backend.readData().fieldValues.find((row) => row.ownerWimpFieldId === child.fields.payload!.id)?.value).toBe(
-        "shared payload",
-      )
+      expect((await backend.readFieldValue(root.fields.payload!.id))?.value).toBe("shared payload")
+      expect((await backend.readFieldValue(child.fields.payload!.id))?.value).toBe("shared payload")
     } finally {
       backend.close()
     }

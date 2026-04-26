@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { createDbFixture } from "fixture/db.fixture.ts"
+import { readDbSqliteData } from "../../pkg/db/fixture.ts"
 import { openDbMaterializationWriter } from "../../pkg/db/materialize.ts"
 import { openDbSqliteBackend } from "../../pkg/db/sqlite.ts"
 import { prepareRuntimeData, prepareRuntimeStore } from "../boundary.ts"
@@ -22,7 +23,7 @@ describe("boundary runtime projection from db data", () => {
     const { fixture, backend } = await materializeFixture()
 
     try {
-      const runtimeInput = prepareRuntimeData(backend.readData())
+      const runtimeInput = prepareRuntimeData(readDbSqliteData(backend.database))
 
       expect(runtimeInput.fields).toEqual([
         { type: FieldType.STRING_PTR },
@@ -89,7 +90,7 @@ describe("boundary runtime projection from db data", () => {
     const { backend } = await materializeFixture()
 
     try {
-      const prepared = prepareRuntimeStore(backend.readData())
+      const prepared = prepareRuntimeStore(readDbSqliteData(backend.database))
 
       expect(prepared.fields).toEqual([
         { type: FieldType.STRING_PTR },
@@ -122,7 +123,7 @@ describe("boundary runtime projection from db data", () => {
     const { backend } = await materializeFixture()
 
     try {
-      const mutated = structuredClone(backend.readData())
+      const mutated = structuredClone(readDbSqliteData(backend.database))
       const arrayMetaFieldIds = new Set(
         mutated.metaFields.filter((row) => row.schema.type === "array").map((row) => row.id),
       )

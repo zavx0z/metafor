@@ -1,4 +1,4 @@
-export { createEmptyDbData, normalizeDbData, readDbData, dbRequiredBackendIndexes } from "./backend.ts"
+export { createEmptyDbData, normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
 export {
   clearDbWorld,
   initializeDbInstanceSqliteSchema,

@@ -4,7 +4,8 @@ import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createDbFixture } from "fixture/db.fixture.ts"
-import { normalizeDbData, readDbData, dbRequiredBackendIndexes } from "./backend.ts"
+import { normalizeDbData, dbRequiredBackendIndexes } from "./backend.ts"
+import { readDbSqliteData } from "./fixture.ts"
 import { openDbMaterializationWriter } from "./materialize.ts"
 import { openDbSqliteBackend } from "./sqlite.ts"
 import { assembleDbData } from "fixture/dark.ts"
@@ -111,7 +112,7 @@ describe("db sqlite backend", () => {
 
       const reader = openDbSqliteBackend({ filename: temp.filename })
       try {
-        const restored = readDbData(reader)
+        const restored = readDbSqliteData(reader.database)
         expect(normalizeDbData(restored)).toEqual(normalizeDbData(expected))
 
         await reader.setFieldValue(fixture.fields.childAlias!.id, "Alias via sqlite")
@@ -122,7 +123,7 @@ describe("db sqlite backend", () => {
       const reopened = openDbSqliteBackend({ filename: temp.filename })
       try {
         expect(
-          readDbData(reopened).fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value,
+          readDbSqliteData(reopened.database).fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value,
         ).toBe("Alias via sqlite")
       } finally {
         reopened.close()

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { createDbFixture } from "fixture/db.fixture.ts"
-import { normalizeDbData, readDbData } from "./backend.ts"
+import { normalizeDbData } from "./backend.ts"
+import { readDbSqliteData } from "./fixture.ts"
 import { openDbMaterializationWriter } from "./materialize.ts"
 import { openDbSqliteBackend } from "./sqlite.ts"
 import { assembleDbData } from "fixture/dark.ts"
@@ -15,7 +16,7 @@ describe("db materialization writer", () => {
       await fixture.root.save(writer)
       await fixture.child.save(writer)
 
-      const roundTrip = readDbData(backend)
+      const roundTrip = readDbSqliteData(backend.database)
       const expected = await assembleDbData(fixture.root)
 
       expect(normalizeDbData(roundTrip)).toEqual(normalizeDbData(expected))
@@ -38,7 +39,7 @@ describe("db materialization writer", () => {
       fixture.child.fields!.alias!.value = "Alias after resave"
       await fixture.child.save(writer)
 
-      const roundTrip = readDbData(backend)
+      const roundTrip = readDbSqliteData(backend.database)
       expect(roundTrip.wimps).toHaveLength(2)
       expect(roundTrip.wimpFields).toHaveLength(6)
       expect(roundTrip.fieldValues.find((row) => row.ownerWimpFieldId === fixture.fields.childAlias!.id)?.value).toBe(
@@ -76,7 +77,7 @@ describe("db materialization writer", () => {
       await writer.saveMetaBundle(fixture.root.toDbMetaBundle())
       await writer.saveMetaBundle(fixture.child.toDbMetaBundle())
 
-      let roundTrip = readDbData(backend)
+      let roundTrip = readDbSqliteData(backend.database)
       expect(roundTrip.metas).toHaveLength(2)
       expect(roundTrip.wimps).toHaveLength(0)
 
@@ -86,7 +87,7 @@ describe("db materialization writer", () => {
       ;(fixture.root.meta as unknown as { name?: string }).name = "root-renamed"
       await writer.saveMetaBundle(fixture.root.toDbMetaBundle())
 
-      roundTrip = readDbData(backend)
+      roundTrip = readDbSqliteData(backend.database)
       expect(roundTrip.metas.find((row) => row.id === fixture.root.meta!.id)?.name).toBe("root-renamed")
       expect(roundTrip.wimps).toHaveLength(2)
       expect(roundTrip.metaFields).toHaveLength(6)
