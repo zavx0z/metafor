@@ -5,8 +5,9 @@
  * декларации представлена своим manager-классом (Django-style):
  * - `Meta` — главный инстанс, координирует все managers и скаляры
  * - `Fields` / `Superposition` / `Processes` / `Reactions` / `Matter` — managers
- *   с `.all() / .get(filter) / .count() / .exists()`, возвращают инстансы:
- *   `Field`, `State`, `Process`, `Reaction` и `MatterParticlePlan` соответственно.
+ *   с `.all() / .get(filter) / .count() / .exists()`. `Fields` возвращает
+ *   type-specific подкласс `Field` (`StringField` / `NumberField` /
+ *   `BooleanField` / `ArrayField` / `EnumField`) — дискриминатор `type`.
  *
  * Backend-специфичные имплементации (низкоуровневые SQL-функции) — в subpath
  * `@store/meta/sqlite`. Классы реализованы там же (рядом с C/G/D-помощниками)
@@ -16,14 +17,20 @@
  */
 
 export {
-  Meta,
+  ArrayField,
+  BooleanField,
+  EnumField,
   Field,
   Fields,
-  State,
-  Superposition,
+  Matter,
+  Meta,
+  NumberField,
   Process,
   Processes,
   Reaction,
   Reactions,
-  Matter,
+  State,
+  StringField,
+  Superposition,
 } from "./sqlite/index.ts"
+export type { FieldType } from "./sqlite/index.ts"
