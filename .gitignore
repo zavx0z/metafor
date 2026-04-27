@@ -15,3 +15,5 @@ public
 .npmrc
 old
 .ai
+app/web/tls
+.claude/

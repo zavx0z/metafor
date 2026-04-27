@@ -2,7 +2,6 @@ import {
   createDbEntanglementFamilyId,
   createEmptyDbData,
   normalizeDbData,
-  readDbData,
   type DbBackend,
   type DbData,
   type DbEntanglementFamilyRows,
@@ -12,7 +11,7 @@ import {
   type DbWimpEdgeRecord,
   type DbWimpFieldRecord,
   type DbWimpRows,
-} from "../pkg/db/core.ts"
+} from "store/db/core"
 import { FieldType, flattenBoundaryData, type BraneValue, type Collapse, type Data, type Field } from "@boundary/gravity"
 import { assembleStoredBoundaryData, type PreparedEntanglementProjection } from "@boundary/strong"
 import type { PreparedData } from "./boundary.t.ts"
@@ -1569,17 +1568,10 @@ export const prepareBoundaryRuntimeStore = (
   options: BoundaryDbRuntimeOptions = {},
 ): PreparedData => prepareBoundaryStoreFromDatabase(prepareBoundaryDatabaseData(rawData), options)
 
-const prepareBoundaryRuntimeFragmentFromDb = (
-  backend: DbBackend,
-  wimpId: string,
-): DbData => prepareBoundaryRuntimeFragment(readDbData(backend), wimpId)
-
-const prepareBoundaryRuntimeLoadedFragmentFromDb = (
-  backend: DbBackend,
-  activeWimpIds?: Iterable<string>,
-): DbData => prepareBoundaryRuntimeLoadedFragment(readDbData(backend), activeWimpIds)
-
 export const prepareBoundaryRuntimeStoreFromDb = (
   backend: DbBackend,
   options: BoundaryDbRuntimeOptions = {},
-): PreparedData => prepareBoundaryRuntimeStore(readDbData(backend), options)
+): Promise<PreparedData> =>
+  prepareBoundaryRuntimeLoadedFragmentFromDbOperational(backend).then((fragment) =>
+    prepareBoundaryRuntimeStore(fragment, options),
+  )

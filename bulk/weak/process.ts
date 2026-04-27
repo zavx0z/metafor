@@ -5,7 +5,7 @@
  */
 
 import { weak$ } from "./store"
-import type { MetaJson } from "@metafor/ast"
+import type { MetaDSL } from "../../index.ts"
 import type { Intention } from "./store.t"
 
 /**
@@ -29,9 +29,9 @@ import type { Intention } from "./store.t"
  * })
  * ```
  */
-export function registerProcesses(processes: Record<Intention, MetaJson>): void {
+export function registerProcesses(processes: Record<Intention, MetaDSL>): void {
   for (const [key, schema] of Object.entries(processes)) {
-    weak$.processes.set(key, schema as MetaJson)
+    weak$.processes.set(key, schema as MetaDSL)
   }
 }
 
@@ -41,6 +41,6 @@ export function registerProcesses(processes: Record<Intention, MetaJson>): void 
  * @param processKey - Ключ процесса (ID намерения).
  * @returns Схема процесса или undefined если не найдена.
  */
-export function getProcessSchema(processKey: Intention): MetaJson | undefined {
+export function getProcessSchema(processKey: Intention): MetaDSL | undefined {
   return weak$.processes.get(processKey)
 }

@@ -9,8 +9,7 @@
     ".": "./src/meta.ts"
   },
   "dependencies": {
-    "@metafor/dsl": "link:@metafor/dsl",
-    "@metafor/ast": "link:@metafor/ast"
+    "metafor": "link:metafor"
   },
   "scripts": {
     "build": "metafor-build src/meta.ts --out {{name}}.json"

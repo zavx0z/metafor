@@ -1,4 +1,4 @@
-import type { FieldDefinitionJson, FieldKey, FieldsAST } from "@metafor/ast"
+import type { FieldDefinition, FieldKey, Fields } from "../../index.ts"
 import type { MatterBindingValue } from "@dark/types/dark"
 import type { FieldInit, MetaFields, WimpFields, WimpValues } from "@dark/types/strong"
 import type { Wimp } from "./Wimp.ts"
@@ -55,10 +55,10 @@ const toFieldObject = (value: unknown): WimpValues => {
  * `default` побеждает, `required` без `default` падает, optional стартует как `null`.
  *
  * @param key Локальный ключ поля в схеме.
- * @param field Описание поля из `MetaAST.fields`.
+ * @param field Описание поля из `MetaDSL.fields`.
  * @returns Ленивую функцию, вычисляющую начальное значение поля.
  */
-export const createFieldValueResolver = (key: FieldKey, field: FieldDefinitionJson): FieldResolver => {
+export const createFieldValueResolver = (key: FieldKey, field: FieldDefinition): FieldResolver => {
   if (hasOwn(field, "default")) {
     return () => structuredClone(field.default)
   }
@@ -78,7 +78,7 @@ export const createFieldValueResolver = (key: FieldKey, field: FieldDefinitionJs
  * @param fields Полная схема полей конкретной меты.
  * @returns Отображение `ключ поля -> вычислитель`, используемое для начальной инициализации значений.
  */
-export const createFieldValueResolvers = (fields: FieldsAST): FieldResolvers =>
+export const createFieldValueResolvers = (fields: Fields): FieldResolvers =>
   new Map(Object.entries(fields).map(([key, field]) => [key, createFieldValueResolver(key, field)]))
 
 /**
@@ -98,7 +98,7 @@ export const createRuntimeFieldResolvers = (fields?: WimpFields): FieldResolvers
  * @param fields Полная схема полей конкретной меты.
  * @returns Уплощённый объект со значениями по правилам инициализации схемы.
  */
-export const resolveFieldValues = (fields: FieldsAST): WimpValues => {
+export const resolveFieldValues = (fields: Fields): WimpValues => {
   const resolvers = createFieldValueResolvers(fields)
 
   return Object.fromEntries(Array.from(resolvers, ([key, resolve]) => [key, resolve()]))
@@ -141,7 +141,7 @@ export const resolveNodeFieldValues = (
  * @param field Схема конкретного поля.
  * @returns `true`, если поле допустимо для прямой связи по источнику.
  */
-export const isOrdinaryFieldSchema = (field: FieldDefinitionJson): boolean =>
+export const isOrdinaryFieldSchema = (field: FieldDefinition): boolean =>
   field.type !== "enum" &&
   field.type !== "array" &&
   !field.type.startsWith("enum<") &&
@@ -191,7 +191,7 @@ const normalizeFieldInits = (fieldInits: FieldInit[] | undefined, fields: MetaFi
 }
 
 const resolveFieldSource = (
-  schema: FieldDefinitionJson,
+  schema: FieldDefinition,
   source: InstanceField | null | undefined,
 ): InstanceField | null => {
   if (!source) return null

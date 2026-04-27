@@ -1,4 +1,4 @@
-import { openDbSqliteBackend } from "../../../pkg/db/index.ts"
+import { openDbSqliteBackend } from "store/db"
 import { createAppBulkProcessRuntime } from "./bulk.process.ts"
 
 type BulkBootMessage = {

@@ -141,17 +141,17 @@
 
 1. `Dark` materialize-ит одну `meta` и её hidden particle-дерево.
 2. После завершения `matter(...)` получается уже не AST-картинка, а runtime-дерево частиц.
-3. Это дерево раскладывается в отдельную `pkg/db` instance-level базу как world snapshot.
+3. Это дерево раскладывается в отдельную `store/db` instance-level базу как world snapshot.
 4. `Boundary` и `Bulk` читают уже не hidden source, а этот instance-level relational snapshot.
 5. UI и worker-оркестрация в `app/web` только доставляют snapshot и protocol events, не создавая новую истину поверх него.
 
 Это важно потому, что:
 
 - hidden truth остаётся в `Dark` и его canonical SQLite relation,
-- visible world snapshot фиксируется в `pkg/db`,
+- visible world snapshot фиксируется в `store/db`,
 - `Boundary` и `Bulk` дальше работают как разные проекции одной и той же instance-level world-form.
 
-Именно `pkg/db` в этом контуре должен стать bridge-layer между hidden materialization и визуальными/исполнительными слоями.
+Именно `store/db` в этом контуре должен стать bridge-layer между hidden materialization и визуальными/исполнительными слоями.
 
 ### Первая геометрия должна быть shell-first
 
@@ -216,7 +216,7 @@
 Но важно различать два snapshot-слоя:
 
 - `boundary$` — boundary-readable runtime state matrix,
-- `pkg/db` instance snapshot — visible world arrangement для `Boundary/Bulk`.
+- `store/db` instance snapshot — visible world arrangement для `Boundary/Bulk`.
 
 Они связаны, но не тождественны.
 `boundary$` отвечает за stateful and computable reading,
@@ -312,7 +312,7 @@
 
 Чтобы следующий рефакторинг был правильным, ближайший implementation-order должен быть таким:
 
-1. завершить shell-first instance snapshot в `pkg/db`,
+1. завершить shell-first instance snapshot в `store/db`,
 2. стабилизировать `Bulk` viewport и workspace как `Z-up` physical scene,
 3. сделать читаемым один локальный мир без связей,
 4. после этого добавить visual layer для agent/chat/tool actions,

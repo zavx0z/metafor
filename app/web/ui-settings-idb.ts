@@ -1,3 +1,4 @@
+import { APP_CONFIG_DEFAULTS, APP_CONFIG_REVISION } from "./app-config.ts"
 import {
   APP_WEB_LAYOUT_SETTING_KEYS,
   APP_WEB_RENDER_SETTING_KEYS,
@@ -17,6 +18,7 @@ export interface AppWebUiSettingsIndexedDbOptions {
 
 type PersistedAppWebUiSettingsRecord = AppWebUiSettingsSnapshot & {
   id: string
+  revision: number
 }
 
 const APP_WEB_UI_SETTINGS_DB_NAME = "metafor-app-web-ui"
@@ -84,8 +86,16 @@ const pickNumericSettings = <T extends string>(keys: readonly T[], value: unknow
 
 const toPersistedRecord = (snapshot: AppWebUiSettingsSnapshot): PersistedAppWebUiSettingsRecord => ({
   id: APP_WEB_UI_SETTINGS_ID,
+  revision: APP_CONFIG_REVISION,
   layoutSettings: pickNumericSettings(APP_WEB_LAYOUT_SETTING_KEYS, snapshot.layoutSettings),
   renderSettings: pickNumericSettings(APP_WEB_RENDER_SETTING_KEYS, snapshot.renderSettings),
+})
+
+const seedDefaultsRecord = (): PersistedAppWebUiSettingsRecord => ({
+  id: APP_WEB_UI_SETTINGS_ID,
+  revision: APP_CONFIG_REVISION,
+  layoutSettings: pickNumericSettings(APP_WEB_LAYOUT_SETTING_KEYS, APP_CONFIG_DEFAULTS.layout),
+  renderSettings: pickNumericSettings(APP_WEB_RENDER_SETTING_KEYS, APP_CONFIG_DEFAULTS.render),
 })
 
 export const loadPersistedAppWebUiSettings = async (
@@ -99,7 +109,22 @@ export const loadPersistedAppWebUiSettings = async (
     const rawRecord = await resolveRequest(store.get(APP_WEB_UI_SETTINGS_ID))
     await completeTransaction(transaction)
 
-    if (!rawRecord || typeof rawRecord !== "object") return null
+    const isCurrentRecord =
+      rawRecord && typeof rawRecord === "object" &&
+      (rawRecord as Partial<PersistedAppWebUiSettingsRecord>).revision === APP_CONFIG_REVISION
+
+    if (!isCurrentRecord) {
+      // Записи нет, она устарела или повреждена — seed-им дефолты в IDB сразу,
+      // чтобы IDB оставался единственным источником значений для UI.
+      const seed = seedDefaultsRecord()
+      const writeTransaction = database.transaction(APP_WEB_UI_SETTINGS_STORE, "readwrite")
+      writeTransaction.objectStore(APP_WEB_UI_SETTINGS_STORE).put(seed)
+      await completeTransaction(writeTransaction)
+      return {
+        layoutSettings: { ...seed.layoutSettings },
+        renderSettings: { ...seed.renderSettings },
+      }
+    }
 
     return {
       layoutSettings: pickNumericSettings(

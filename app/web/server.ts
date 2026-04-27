@@ -1,21 +1,24 @@
 import { build, file, serve } from "bun"
 import { mkdirSync, rmSync } from "node:fs"
 import { dirname, join, normalize } from "node:path"
-import type { DbWorldSnapshot } from "../../pkg/db/index.ts"
 import type { AppWebLayoutSettings } from "./settings.ts"
 import {
+	DB_SYNC_BROADCAST_CHANNEL,
 	ELECTROMAGNETISM_BROADCAST_CHANNEL,
 	GLUON_BROADCAST_CHANNEL,
 	GRAVITY_BROADCAST_CHANNEL,
 	HIGGS_BROADCAST_CHANNEL,
+	STRUCTURAL_BROADCAST_CHANNEL,
 	WEAK_W_BROADCAST_CHANNEL,
 	WEAK_Z_BROADCAST_CHANNEL,
 	openGluonBroadcastChannel,
 	openHiggsBroadcastChannel,
+	isDbSyncMessage,
 	isGluonMessage,
 	isGravitonMessage,
 	isHiggsMessage,
 	isPhotonMessage,
+	isStructuralSignalMessage,
 	isWMessage,
 	isZMessage,
 	type GluonMessage,
@@ -29,6 +32,19 @@ const APP_DB_FILENAME = join(ROOT, "app/web/tmp/metafor-app.sqlite")
 const DEFAULT_PORT = 3000
 const configuredPort = Number(Bun.env.PORT ?? DEFAULT_PORT)
 const APP_PORT = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : DEFAULT_PORT
+
+const TLS_KEY_FILE = Bun.env.TLS_KEY_FILE
+const TLS_CERT_FILE = Bun.env.TLS_CERT_FILE
+const TLS_CA_FILE = Bun.env.TLS_CA_FILE
+const TLS_PASSPHRASE = Bun.env.TLS_PASSPHRASE
+const tls = TLS_KEY_FILE && TLS_CERT_FILE
+	? {
+			key: file(TLS_KEY_FILE),
+			cert: file(TLS_CERT_FILE),
+			...(TLS_CA_FILE ? { ca: file(TLS_CA_FILE) } : {}),
+			...(TLS_PASSPHRASE ? { passphrase: TLS_PASSPHRASE } : {}),
+		}
+	: undefined
 
 type WorkerName = "dark" | "boundary" | "bulk"
 type WorkerStatus = "idle" | "ready" | "started" | "done" | "error"
@@ -44,12 +60,6 @@ type WorkerStatusMessage = {
 type WorkerLogMessage = {
 	type: "log"
 	message: unknown
-}
-
-type InstanceSnapshotMessage = {
-	type: "instance-snapshot"
-	src: string
-	snapshot: DbWorldSnapshot
 }
 
 type ClientMaterializeMessage = {
@@ -191,12 +201,6 @@ const attachWorker = (
 			if (data && typeof data === "object" && (data as { type?: unknown }).type === "log") {
 				const message = data as WorkerLogMessage
 				publish({ type: "log", worker: workerName, message: message.message })
-				return
-			}
-
-			if (data && typeof data === "object" && (data as { type?: unknown }).type === "instance-snapshot") {
-				const message = data as InstanceSnapshotMessage
-				publish(message)
 			}
 		}
 
@@ -270,6 +274,8 @@ const protocolMirrors = [
 	{ key: "higgs", channelName: HIGGS_BROADCAST_CHANNEL, validator: isHiggsMessage },
 	{ key: "weak-z", channelName: WEAK_Z_BROADCAST_CHANNEL, validator: isZMessage },
 	{ key: "weak-w", channelName: WEAK_W_BROADCAST_CHANNEL, validator: isWMessage },
+	{ key: "structural", channelName: STRUCTURAL_BROADCAST_CHANNEL, validator: isStructuralSignalMessage },
+	{ key: "db-sync", channelName: DB_SYNC_BROADCAST_CHANNEL, validator: isDbSyncMessage },
 ] as const
 
 protocolMirrors.forEach(({ key, channelName, validator }) => {
@@ -286,10 +292,11 @@ protocolMirrors.forEach(({ key, channelName, validator }) => {
 
 const server = serve({
 	port: APP_PORT,
+	...(tls ? { tls } : {}),
 	routes: {
 		"/": () => new Response(file(join(import.meta.dir, "index.html"))),
 		"/client.js": async () => await buildEntrypoint(join(import.meta.dir, "client.ts")),
-		"/bulk.js": async () => await buildEntrypoint(join(ROOT, "bulk/web.ts")),
+		"/bulk.js": async () => await buildEntrypoint(join(ROOT, "bulk/web/index.ts")),
 		"/engine-static/JetBrainsMono-Bold.ttf": () => new Response(file(join(ROOT, "pkg/engine/static/JetBrainsMono-Bold.ttf"))),
 		"/ws": {
 			GET(req, wsServer) {
@@ -309,7 +316,11 @@ const server = serve({
 			)
 		},
 		message(_ws, message) {
-			let payload: ClientMaterializeMessage | ClientRelayoutMessage | ClientProtocolBridgeMessage | null = null
+			let payload:
+				| ClientMaterializeMessage
+				| ClientRelayoutMessage
+				| ClientProtocolBridgeMessage
+				| null = null
 			try {
 				payload = JSON.parse(String(message)) as
 					| ClientMaterializeMessage
@@ -362,4 +373,4 @@ const server = serve({
 	},
 })
 
-console.log(`https://${server.hostname}:${server.port}`)
+console.log(`${tls ? "https" : "http"}://${server.hostname}:${server.port}`)

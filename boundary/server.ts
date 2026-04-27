@@ -1,5 +1,5 @@
 import { bootBoundaryDomain } from "./boot.ts"
-import { openDbSqliteBackend } from "../pkg/db/index.ts"
+import { openDbSqliteBackend } from "store/db"
 
 bootBoundaryDomain(() =>
   openDbSqliteBackend({

@@ -41,8 +41,7 @@ describe("generatePackageJsonFile", () => {
     const parsed = JSON.parse(result)
     
     expect(parsed.dependencies).toEqual({
-      "@metafor/dsl": "link:@metafor/dsl",
-      "@metafor/ast": "link:@metafor/ast",
+      "metafor": "link:metafor",
     })
   })
 

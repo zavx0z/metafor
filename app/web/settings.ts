@@ -1,50 +1,24 @@
-/** Настройки top-down раскладки shell-иерархии для materialization в `app/web`. */
-export interface AppWebLayoutSettings {
-  /** Коэффициент уменьшения canonical shell size от root-уровня вглубь. Должен быть `> 0`. */
-  levelSizeMultiplier: number
-  /** Внутренний диаметр root-тора в миллиметрах. То же отношение переносится на внутренние уровни. */
-  rootInnerDiameterMm: number
-  /** Диаметр peer-sphere на root-уровне в миллиметрах в пределах level-contract. */
-  rootSphereRadiusMm: number
-}
+import type {
+  LevelDetailSettings,
+  LevelLabelSettings,
+  LevelSettings,
+} from "@bulk/gravity/level"
+import {
+  DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
+  normalizeBulkLayoutSettings,
+  toLevelGeometrySettings as toLevelGeometrySettingsFromBulk,
+  type BulkLayoutSettings,
+} from "@bulk/gravity/layout"
+import { APP_CONFIG_DEFAULTS, type AppConfigRender } from "./app-config.ts"
+
+/** Реэкспорт top-down закона Bulk × Gravity под прежним именем для UI-слоя `app/web`. */
+export type AppWebLayoutSettings = BulkLayoutSettings
 
 /** Настройки плотности wireframe-детализации для WebGPU viewport. */
-export interface AppWebRenderSettings {
-  /** Множитель детализации для root-уровня. */
-  detailDensityFactor: number
-  /** Ослабление детализации на каждый уровень внутрь. Должен быть `> 0`. */
-  detailLevelMultiplier: number
-  /** Сколько уровней иерархии подписей показывать, начиная от root-уровня. */
-  labelVisibleLevels: number
-  /** Текущий базовый уровень (глубина) viewport-а для отсчёта видимости. */
-  baseDepth: number
-  /** Размер подписи у shell/sphere в миллиметрах. */
-  labelFontSizeMm: number
-  /** Отступ подписи от поверхности объекта в миллиметрах. */
-  labelSurfaceOffsetMm: number
-  /** Наклон продольных линий тора в градусах относительно базовой раскладки. */
-  torusCrossRingRotationDeg: number
-  /** Количество продольных колец (линий) тора. */
-  torusRadialSegments: number
-  /** Количество сегментов (сглаженность) одного кольца тора. */
-  torusTubularSegments: number
-  /** Прозрачность wireframe-сетки (0..1). */
-  wireframeOpacity: number
-  /** Прозрачность внутренних billboard-панелей в сферах (0..1). */
-  billboardOpacity: number
-  /** Матовый коэффициент billboard-панелей в сферах (0..1). */
-  billboardMatte: number
-}
+export type AppWebRenderSettings = AppConfigRender
 
-/** Нередактируемый layout-контракт `app/web`: базовые размеры snapshot-а и посадка viewport. */
+/** Layout-контракт UI: viewport-камера, сетка, fallback-shell. Snapshot-константы хранятся в `@bulk/gravity/layout`. */
 export interface AppWebLayoutConfig {
-  snapshot: {
-    deepestFieldSphereRadiusMm: number
-    nestingCoefficient: number
-    packingDensityCoefficient: number
-    rootOuterDiameterMm: number
-    sphereMinScaleFactor: number
-  }
   viewport: {
     axesSizeMm: number
     camera: {
@@ -91,26 +65,11 @@ export interface AppWebNumericSettingConfig {
   step?: number
 }
 
-/** Базовый топ-даун закон размеров для root-shell и внутренних уровней. */
-export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = {
-  // Во сколько раз каждый следующий вложенный уровень меньше предыдущего.
-  levelSizeMultiplier: 2,
-  // Размер отверстия root-тора в миллиметрах.
-  rootInnerDiameterMm: 1000,
-  // Диаметр сферы поля на root-уровне.
-  rootSphereRadiusMm: 200,
-}
+/** Реэкспорт layout-defaults из единого app-config-а. */
+export const DEFAULT_APP_WEB_LAYOUT_SETTINGS: AppWebLayoutSettings = APP_CONFIG_DEFAULTS.layout
 
-
-/** Единый layout-контракт `app/web`, из которого `instance-layout` и `bulk` читают базовую геометрию. */
+/** Layout-контракт `app/web`: viewport-камера, сетка, fallback-shell. */
 export const appWebLayoutConfig: AppWebLayoutConfig = {
-  snapshot: {
-    deepestFieldSphereRadiusMm: 50,
-    nestingCoefficient: 0.1,
-    packingDensityCoefficient: 1.12,
-    rootOuterDiameterMm: 4000,
-    sphereMinScaleFactor: 0.5,
-  },
   viewport: {
     axesSizeMm: 1000,
     camera: {
@@ -138,33 +97,8 @@ export const appWebLayoutConfig: AppWebLayoutConfig = {
   },
 }
 
-/** Базовый закон детализации viewport. `detailDensityFactor = 2` означает двойную базовую детализацию у root. */
-export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = {
-  // Базовая плотность wireframe-сетки у root-уровня.
-  detailDensityFactor: 2,
-  // Насколько быстро детализация уменьшается на каждом внутреннем уровне.
-  detailLevelMultiplier: 1.22,
-  // Сколько уровней подписей показывать от root внутрь.
-  labelVisibleLevels: 2,
-  // Базовый уровень viewport для отсчёта видимости (0 = root).
-  baseDepth: 0,
-  // Размер текста подписей на поверхности объектов.
-  labelFontSizeMm: 120,
-  // Насколько подпись вынесена от поверхности наружу.
-  labelSurfaceOffsetMm: 40,
-  // Наклон продольных линий тора по поверхности.
-  torusCrossRingRotationDeg: 44,
-  // Базовое количество колец тора.
-  torusRadialSegments: 16,
-  // Базовая сглаженность (сегменты) одного кольца тора.
-  torusTubularSegments: 16,
-  // Прозрачность wireframe-сетки.
-  wireframeOpacity: 0.9,
-  // Прозрачность пустых billboard-панелей внутри field-сфер.
-  billboardOpacity: 0.34,
-  // Насколько сильно billboard выглядит матовым/молочным.
-  billboardMatte: 0.58,
-}
+/** Реэкспорт render-defaults из единого app-config-а. */
+export const DEFAULT_APP_WEB_RENDER_SETTINGS: AppWebRenderSettings = APP_CONFIG_DEFAULTS.render
 
 /** Классификация настроек `app/web` по ключам. Используется UI и runtime-слоями как единая карта. */
 export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSettingConfig> = {
@@ -267,26 +201,6 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     max: 1,
     step: 0.01,
   },
-  billboardOpacity: {
-    group: "labels",
-    section: "render",
-    label: "Прозрачность billboard",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.billboardOpacity,
-    description: "Задает прозрачность пустых billboard-панелей внутри field-сфер.",
-    min: 0,
-    max: 1,
-    step: 0.01,
-  },
-  billboardMatte: {
-    group: "labels",
-    section: "render",
-    label: "Матовость billboard",
-    defaultValue: DEFAULT_APP_WEB_RENDER_SETTINGS.billboardMatte,
-    description: "Усиливает матовость и молочность billboard-панелей внутри field-сфер.",
-    min: 0,
-    max: 1,
-    step: 0.01,
-  },
   // Масштаб уменьшения shell-ов от root вглубь иерархии.
   levelSizeMultiplier: {
     group: "geometry",
@@ -317,7 +231,7 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     defaultValue: DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootSphereRadiusMm,
     description: "Задает диаметр сфер полей на корневом уровне и пропорционально уменьшает их вглубь.",
     min: 10,
-    max: appWebLayoutConfig.snapshot.rootOuterDiameterMm,
+    max: DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm,
     step: 10,
   },
   // Наклон продольных линий тора без вывода их с поверхности тора.
@@ -332,7 +246,6 @@ export const APP_WEB_SETTINGS_BY_KEY: Record<AppWebSettingKey, AppWebNumericSett
     step: 1,
   },
 }
-
 
 /** Список layout-ключей, которые должны уходить в `dark` и layout-law snapshot-а. */
 export const APP_WEB_LAYOUT_SETTING_KEYS = [
@@ -352,30 +265,61 @@ export const APP_WEB_RENDER_SETTING_KEYS = [
   "torusRadialSegments",
   "torusTubularSegments",
   "wireframeOpacity",
-  "billboardOpacity",
-  "billboardMatte",
 ] as const satisfies readonly AppWebRenderSettingKey[]
 
+/** Реэкспорт нормализатора Bulk × Gravity под именем UI-слоя. */
+export const normalizeAppWebLayoutSettings = normalizeBulkLayoutSettings
+
+const TORUS_MAX_SEGMENTS = 96
+const SPHERE_BASE_WIDTH_SEGMENTS = 16
+const SPHERE_BASE_HEIGHT_SEGMENTS = 12
+const SPHERE_MAX_WIDTH_SEGMENTS = 64
+const SPHERE_MAX_HEIGHT_SEGMENTS = 48
+
 /**
- * Нормализует частичные layout-настройки в безопасный top-down контракт shell-раскладки.
+ * Проекция UI-контракта `AppWebLayoutSettings` в domain-закон `LevelGeometrySettings` из Bulk × Gravity.
  *
- * Некорректные и неположительные значения заменяются на {@link DEFAULT_APP_WEB_LAYOUT_SETTINGS}.
+ * Опциональный `rootOuterDiameterMm` позволяет вызывающему подменить snapshot-константу
+ * (используется в snapshot-builder-е при materialize с нестандартным целевым диаметром).
  */
-export const normalizeAppWebLayoutSettings = (
-  settings: Partial<AppWebLayoutSettings> = {},
-): AppWebLayoutSettings => ({
-  levelSizeMultiplier:
-    Number.isFinite(settings.levelSizeMultiplier) && (settings.levelSizeMultiplier ?? 0) > 0
-      ? settings.levelSizeMultiplier!
-      : DEFAULT_APP_WEB_LAYOUT_SETTINGS.levelSizeMultiplier,
-  rootInnerDiameterMm:
-    Number.isFinite(settings.rootInnerDiameterMm) && (settings.rootInnerDiameterMm ?? 0) > 0
-      ? settings.rootInnerDiameterMm!
-      : DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootInnerDiameterMm,
-  rootSphereRadiusMm:
-    Number.isFinite(settings.rootSphereRadiusMm) && (settings.rootSphereRadiusMm ?? 0) > 0
-      ? Math.min(settings.rootSphereRadiusMm!, appWebLayoutConfig.snapshot.rootOuterDiameterMm)
-      : DEFAULT_APP_WEB_LAYOUT_SETTINGS.rootSphereRadiusMm,
+export const toLevelGeometrySettings = (
+  layout: AppWebLayoutSettings,
+  rootOuterDiameterMm: number = DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm,
+) => toLevelGeometrySettingsFromBulk(layout, DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG, rootOuterDiameterMm)
+
+/** Проекция UI-контракта `AppWebRenderSettings` в domain-закон `LevelDetailSettings`. */
+export const toLevelDetailSettings = (render: AppWebRenderSettings): LevelDetailSettings => ({
+  detailDensityFactor: render.detailDensityFactor,
+  detailLevelMultiplier: render.detailLevelMultiplier,
+  torusRadialSegments: render.torusRadialSegments,
+  torusTubularSegments: render.torusTubularSegments,
+  torusMaxSegments: TORUS_MAX_SEGMENTS,
+  sphereBaseWidthSegments: SPHERE_BASE_WIDTH_SEGMENTS,
+  sphereBaseHeightSegments: SPHERE_BASE_HEIGHT_SEGMENTS,
+  sphereMaxWidthSegments: SPHERE_MAX_WIDTH_SEGMENTS,
+  sphereMaxHeightSegments: SPHERE_MAX_HEIGHT_SEGMENTS,
+})
+
+/** Проекция UI-контракта `AppWebRenderSettings` в domain-закон `LevelLabelSettings`. */
+export const toLevelLabelSettings = (render: AppWebRenderSettings): LevelLabelSettings => ({
+  baseDepth: render.baseDepth,
+  fontSizeMm: render.labelFontSizeMm,
+  surfaceOffsetMm: render.labelSurfaceOffsetMm,
+  visibleLevels: render.labelVisibleLevels,
+})
+
+/** Составная проекция обоих UI-контрактов в `LevelSettings` для `createLevelResolver`. */
+export const toLevelSettings = (
+  layout: AppWebLayoutSettings,
+  render: AppWebRenderSettings,
+  rootOuterDiameterMm?: number,
+): LevelSettings => ({
+  geometry:
+    rootOuterDiameterMm !== undefined
+      ? toLevelGeometrySettings(layout, rootOuterDiameterMm)
+      : toLevelGeometrySettings(layout),
+  detail: toLevelDetailSettings(render),
+  label: toLevelLabelSettings(render),
 })
 
 /**
@@ -426,12 +370,4 @@ export const normalizeAppWebRenderSettings = (
     Number.isFinite(settings.wireframeOpacity) && (settings.wireframeOpacity ?? 0) >= 0
       ? Math.max(0, Math.min(1, settings.wireframeOpacity!))
       : DEFAULT_APP_WEB_RENDER_SETTINGS.wireframeOpacity,
-  billboardOpacity:
-    Number.isFinite(settings.billboardOpacity) && (settings.billboardOpacity ?? 0) >= 0
-      ? Math.max(0, Math.min(1, settings.billboardOpacity!))
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.billboardOpacity,
-  billboardMatte:
-    Number.isFinite(settings.billboardMatte) && (settings.billboardMatte ?? 0) >= 0
-      ? Math.max(0, Math.min(1, settings.billboardMatte!))
-      : DEFAULT_APP_WEB_RENDER_SETTINGS.billboardMatte,
 })

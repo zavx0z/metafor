@@ -4,6 +4,8 @@ export const GLUON_BROADCAST_CHANNEL = "metafor.gluon"
 export const HIGGS_BROADCAST_CHANNEL = "metafor.higgs"
 export const WEAK_W_BROADCAST_CHANNEL = "metafor.weak.w"
 export const WEAK_Z_BROADCAST_CHANNEL = "metafor.weak.z"
+export const STRUCTURAL_BROADCAST_CHANNEL = "metafor.structural"
+export const DB_SYNC_BROADCAST_CHANNEL = "metafor.db-sync"
 
 export type ProtocolDomain = "dark" | "boundary" | "bulk" | "app"
 
@@ -73,6 +75,40 @@ export interface WMessage {
   patches: ValueProtocolPatch[]
 }
 
+/**
+ * Per-row sync-сообщение для зеркала канонической DB на потребителях,
+ * у которых нет прямого доступа к SQLite (browser → IndexedDB).
+ *
+ * Server мирорит этот канал в WS; client применяет `op` на свой локальный store
+ * через тот же {@link DbActorStore} API. Порядок гарантируется WS-очередью.
+ * Барьер «всё применено» — сигнал на отдельном `STRUCTURAL_BROADCAST_CHANNEL`.
+ */
+export type DbSyncOp =
+  | { kind: "clear-world" }
+  | { kind: "insert-particle"; row: unknown }
+  | { kind: "insert-field"; row: unknown }
+
+export interface DbSyncMessage {
+  channel: "db-sync"
+  source: ProtocolDomain
+  rootSrc: string
+  op: DbSyncOp
+}
+
+/**
+ * Структурный сигнал — адресующее сообщение об изменении world-структуры.
+ *
+ * Не несёт payload-а. Подписчик читает данные из канонического DB по `rootSrc` и `scope`.
+ * Это служебный сигнал инфраструктурного слоя, без бозона: топологические изменения адресуются
+ * `Higgs boson` (см. `HiggsMessage`), здесь же — извещение «есть что перечитать».
+ */
+export interface StructuralSignalMessage {
+  channel: "structural"
+  source: ProtocolDomain
+  rootSrc: string
+  scope: { kind: "world" } | { kind: "subtree"; parentParticleId: string }
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null
 const isProtocolDomain = (value: unknown): value is ProtocolDomain =>
   value === "dark" || value === "boundary" || value === "bulk" || value === "app"
@@ -113,6 +149,12 @@ export const openWeakWBroadcastChannel = (options: ProtocolChannelOptions = {}):
 
 export const openWeakZBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
   openProtocolBroadcastChannel(WEAK_Z_BROADCAST_CHANNEL, options)
+
+export const openStructuralBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
+  openProtocolBroadcastChannel(STRUCTURAL_BROADCAST_CHANNEL, options)
+
+export const openDbSyncBroadcastChannel = (options: ProtocolChannelOptions = {}): BroadcastChannel =>
+  openProtocolBroadcastChannel(DB_SYNC_BROADCAST_CHANNEL, options)
 
 const isValueProtocolPatch = (value: unknown): value is ValueProtocolPatch => {
   if (!isRecord(value)) return false
@@ -155,4 +197,35 @@ export const isWMessage = (value: unknown): value is WMessage => {
   if (!hasProtocolEnvelope(value, "weak-w", value.boson)) return false
   if (typeof value.wimpId !== "string" || typeof value.processId !== "string") return false
   return Array.isArray(value.patches) && value.patches.every(isValueProtocolPatch)
+}
+
+const isStructuralScope = (value: unknown): value is StructuralSignalMessage["scope"] => {
+  if (!isRecord(value)) return false
+  if (value.kind === "world") return true
+  if (value.kind === "subtree") return typeof value.parentParticleId === "string"
+  return false
+}
+
+export const isStructuralSignalMessage = (value: unknown): value is StructuralSignalMessage => {
+  if (!isRecord(value)) return false
+  if (value.channel !== "structural") return false
+  if (!isProtocolDomain(value.source)) return false
+  if (typeof value.rootSrc !== "string") return false
+  return isStructuralScope(value.scope)
+}
+
+const isDbSyncOp = (value: unknown): value is DbSyncOp => {
+  if (!isRecord(value)) return false
+  if (value.kind === "clear-world") return true
+  if (value.kind === "insert-particle") return isRecord(value.row)
+  if (value.kind === "insert-field") return isRecord(value.row)
+  return false
+}
+
+export const isDbSyncMessage = (value: unknown): value is DbSyncMessage => {
+  if (!isRecord(value)) return false
+  if (value.channel !== "db-sync") return false
+  if (!isProtocolDomain(value.source)) return false
+  if (typeof value.rootSrc !== "string") return false
+  return isDbSyncOp(value.op)
 }

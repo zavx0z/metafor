@@ -5,13 +5,15 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./web": "./web.ts"
+    "./web": "./web/index.ts"
   },
   "private": true,
   "dependencies": {
     "@bulk/gravity": "workspace:*",
     "@bulk/strong": "workspace:*",
     "@bulk/weak": "workspace:*",
-    "@bulk/em": "workspace:*"
+    "@bulk/em": "workspace:*",
+    "@store/actor": "workspace:*",
+    "store": "workspace:*"
   }
 }

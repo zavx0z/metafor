@@ -1,5 +1,5 @@
 import { bootBoundaryDomain } from "./boot.ts"
-import { openDbIndexedDbBackend } from "../pkg/db/browser.ts"
+import { openDbIndexedDbBackend } from "store/db/browser"
 
 bootBoundaryDomain(() =>
   openDbIndexedDbBackend({

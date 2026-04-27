@@ -9,7 +9,7 @@ export async function getMetaDbContext(): Promise<{ db: unknown; loaded: Set<str
   if (typeof Bun === "undefined") return null
 
   if (!metaDbContext) {
-    const { getMetaDB } = await import("../pkg/sqlite/index.ts")
+    const { getMetaDB } = await import("@store/meta/sqlite")
     metaDbContext = {
       db: getMetaDB(":memory:"),
       loaded: new Set<string>(),

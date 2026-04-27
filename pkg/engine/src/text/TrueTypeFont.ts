@@ -151,6 +151,26 @@ export class TrueTypeFont {
     return { advanceWidth: adv, lsb }
   }
 
+  /** Количество em-единиц над baseline (типографский ascent, положительный). */
+  get ascent(): number {
+    return this._hhea!.ascent
+  }
+
+  /**
+   * Количество em-единиц под baseline (типографский descent).
+   *
+   * В TTF/`hhea` это значение обычно отрицательное. Здесь возвращается как **положительная глубина**
+   * descender-а (удобно для расчёта арок ниже baseline).
+   */
+  get descent(): number {
+    return Math.abs(this._hhea!.descent)
+  }
+
+  /** Межстрочный промежуток из `hhea` в em-единицах. */
+  get lineGap(): number {
+    return this._hhea!.lineGap
+  }
+
   private _cmap12: { sub: number; nGroups: number } | null = null
   private _cmap4: {
     sub: number

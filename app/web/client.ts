@@ -5,8 +5,13 @@ import {
 	setConnectionStatus,
 	setWorkerStatus,
 } from "./protocol-logger.ts"
-import type { DbWorldSnapshot } from "../../pkg/db/index.ts"
-import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web.ts"
+import {
+	applyDbSyncMessage,
+	createIdbDbActorStore,
+	type DbActorStore,
+} from "@store/actor"
+import { isDbSyncMessage, isStructuralSignalMessage } from "@shared/protocol"
+import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
 	APP_WEB_RENDER_SETTING_KEYS,
@@ -28,12 +33,6 @@ type ProtocolMessage = {
 	type: "protocol"
 	channel: string
 	message: unknown
-}
-
-type InstanceSnapshotMessage = {
-	type: "instance-snapshot"
-	src: string
-	snapshot: DbWorldSnapshot
 }
 
 type ClientMaterializePayload = {
@@ -92,6 +91,24 @@ const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement
 const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
 let bulkViewport: BulkViewportController | null = null
 let initialMaterializationRequested = false
+let localStore: DbActorStore | null = null
+let pendingSyncQueue: Promise<void> = Promise.resolve()
+
+const localStoreReady: Promise<DbActorStore> = createIdbDbActorStore({
+	databaseName: "metafor-app-instance",
+}).then((store) => {
+	localStore = store
+	return store
+})
+
+const refreshViewportFromLocalStore = async (rootSrc: string): Promise<void> => {
+	const store = localStore ?? (await localStoreReady)
+	const [particles, fields] = await Promise.all([
+		store.selectAllParticleShells(rootSrc),
+		store.selectAllFieldOrbits(rootSrc),
+	])
+	bulkViewport?.applyWorld({ rootSrc, particles, fields })
+}
 
 const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
 const socket = new WebSocket(`${protocol}//${window.location.host}/ws`)
@@ -289,7 +306,9 @@ const applySettingUiMetadata = (): void => {
 		if (config.step !== undefined) input.step = String(config.step)
 		if (config.min !== undefined) input.min = String(config.min)
 		if (config.max !== undefined) input.max = String(config.max)
-		if (!input.value) input.value = String(config.defaultValue)
+		// Browser кэширует value range-инпутов между перезагрузками, поэтому
+		// перезаписываем явно дефолтом — persisted-IDB значение перезапишет позже.
+		input.value = String(config.defaultValue)
 		settingValueElements[key] = value
 		updateSettingValuePreview(key)
 		input.addEventListener("input", () => {
@@ -384,16 +403,34 @@ socket.onmessage = (event) => {
 	}
 
 	if (message.type === "protocol") {
-		bulkViewport?.handleProtocol(message.channel, message.message)
-		return
-	}
-
-	if (message.type === "instance-snapshot") {
-		if (pendingSceneState && pendingSceneState.src === message.src) {
-			lastAppliedSceneState = pendingSceneState
-			pendingSceneState = null
+		if (message.channel === "db-sync" && isDbSyncMessage(message.message)) {
+			const sync = message.message
+			pendingSyncQueue = pendingSyncQueue
+				.then(async () => {
+					const store = localStore ?? (await localStoreReady)
+					await applyDbSyncMessage(store, sync)
+				})
+				.catch((error) => {
+					console.error("db-sync apply error:", error)
+				})
+			return
 		}
-		bulkViewport?.setSnapshot(message.snapshot)
+		if (message.channel === "structural" && isStructuralSignalMessage(message.message)) {
+			const signal = message.message
+			pendingSyncQueue = pendingSyncQueue
+				.then(async () => {
+					if (pendingSceneState && pendingSceneState.src === signal.rootSrc) {
+						lastAppliedSceneState = pendingSceneState
+						pendingSceneState = null
+					}
+					await refreshViewportFromLocalStore(signal.rootSrc)
+				})
+				.catch((error) => {
+					console.error("structural barrier error:", error)
+				})
+			return
+		}
+		bulkViewport?.handleProtocol(message.channel, message.message)
 		return
 	}
 }

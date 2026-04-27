@@ -2,5 +2,15 @@
   "name": "@bulk/gravity",
   "type": "module",
   "main": "index.ts",
-  "private": true
+  "exports": {
+    ".": "./index.ts",
+    "./layout": "./layout/index.ts",
+    "./level": "./level/index.ts",
+    "./text": "./text/index.ts"
+  },
+  "private": true,
+  "dependencies": {
+    "@store/actor": "workspace:*",
+    "store": "workspace:*"
+  }
 }

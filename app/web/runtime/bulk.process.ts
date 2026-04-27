@@ -9,7 +9,7 @@ import type {
   DbMetaProcessRecord,
   DbMetaRows,
   DbWimpRows,
-} from "../../../pkg/db/core.ts"
+} from "store/db/core"
 import type { Self } from "../../../index.ts"
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url))

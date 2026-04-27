@@ -73,7 +73,7 @@
 
 - `Dark` владеет канонической доменной ORM-моделью и объектным графом,
 - `shared/orm` зарезервирован под общие ORM-абстракции, которые пока не принадлежат конкретному домену,
-- `pkg/db` владеет канонической реляционной DB-моделью и DB helper API,
+- `store/db` владеет канонической реляционной DB-моделью и DB helper API,
 - `Dark` владеет экспортом своего object graph в канонический `DbData`,
 - CPU-side derived adapter, lookup maps, grouping, projection/view и runtime preparation собираются в памяти уже после чтения relational DB,
 - `Boundary` потребляет эти shared DB-данные через собственный derived database API и не становится владельцем общего DB-контракта.

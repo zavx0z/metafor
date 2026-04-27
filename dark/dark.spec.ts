@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import type { MetaAST } from "@metafor/ast"
+import type { MetaDSL } from "../index.ts"
 import { HubFixture } from "fixture"
 import reference from "../github/zavx0z/git/meta.ts"
 import startReference from "../github/zavx0z/git-start/meta.ts"
@@ -15,8 +15,8 @@ const hub = new HubFixture()
 
 const src = "zavx0z/git"
 const startSrc = "zavx0z/git-start"
-const ref = reference as MetaAST
-const startRef = startReference as MetaAST
+const ref = reference as MetaDSL
+const startRef = startReference as MetaDSL
 
 const readWimpValues = (wimp: Wimp) => readFieldValues(wimp.fields)
 const readFieldInitValues = (fieldInits?: MatterWimpResult[1]["fieldInits"]) =>
@@ -289,8 +289,11 @@ describe("zavx0z/git", () => {
         startWimp.superposition,
         "дочерний Wimp должен хранить локальную `superposition` своей меты",
       ).toEqual(startRef.superposition)
-      expect(startWimp.processes, "дочерний Wimp должен хранить локальные `processes` своей меты").toEqual(
-        startRef.processes,
+      // После удаления has_processes/reactions/matter флагов из БД пустой объект `{}` в DSL
+       // и отсутствие секции читаются одинаково — как `undefined`. Сравниваем через
+      // нормализацию: и `{}` и `undefined` считаются "пустыми".
+      expect(startWimp.processes ?? {}, "дочерний Wimp должен хранить локальные `processes` своей меты").toEqual(
+        startRef.processes ?? {},
       )
       expect(startWimp.mass, "при пустой `mass` дочерней меты корневой Wimp не должен получать `mass`").toBeUndefined()
       expect(dark$.particles.get(startWimp.id), "дочерний корневой Wimp должен быть сохранён в dark$.particles").toBe(

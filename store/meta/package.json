@@ -1,0 +1,13 @@
+{
+  "name": "@store/meta",
+  "module": "index.ts",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./sqlite": "./sqlite/index.ts"
+  },
+  "dependencies": {
+    "@dark/types": "workspace:*"
+  },
+  "private": true
+}

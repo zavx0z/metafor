@@ -93,8 +93,8 @@ bun install
 | Command               | Description                                    |
 |-----------------------|------------------------------------------------|
 | `bun run dev`         | Start development server (runs `@app/web dev`) |
-| `bun run build`       | Build `@metafor/dsl` package                   |
-| `bun run typegen`     | Generate types for `@metafor/dsl`              |
+| `bun run build`       | Build `metafor` package                        |
+| `bun run typegen`     | Generate types for `metafor`                   |
 | `bun run space:build` | Build `metafor.ts` with sourcemaps             |
 | `bun run lint:md`     | Lint all Markdown files                        |
 | `bun run upd`         | Update all dependencies to latest              |

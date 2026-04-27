@@ -1,5 +1,5 @@
 import { bootBoundaryDomain } from "../../../boundary/boot.ts"
-import { openDbSqliteBackend } from "../../../pkg/db/index.ts"
+import { openDbSqliteBackend } from "store/db"
 
 type BoundaryBootMessage = {
 	type: "boot"

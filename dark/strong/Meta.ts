@@ -1,4 +1,4 @@
-import type { MetaAST } from "@metafor/ast"
+import type { MetaDSL } from "../../index.ts"
 import type { MetaInit, MetaFields } from "@dark/types/strong"
 import { MetaField } from "./MetaField.ts"
 
@@ -24,19 +24,19 @@ export class Meta {
   /** Канонический SRC-адрес меты. */
   readonly src: MetaInit["src"]
   /** Локальное имя меты. */
-  readonly name: MetaAST["name"] | undefined
+  readonly name: MetaDSL["name"] | undefined
   /** Канонический набор meta-полей. */
   readonly fields: MetaFields
   /** Каноническая схема переходов состояний. */
-  readonly superposition: MetaAST["superposition"] | undefined
+  readonly superposition: MetaDSL["superposition"] | undefined
   /** Канонические процессы меты. */
-  readonly processes: MetaAST["processes"] | undefined
+  readonly processes: MetaDSL["processes"] | undefined
   /** Канонические реакции меты. */
-  readonly reactions: MetaAST["reactions"] | undefined
+  readonly reactions: MetaDSL["reactions"] | undefined
   /** Каноническое topology/matter-описание меты. */
-  readonly matter: MetaAST["matter"] | undefined
+  readonly matter: MetaDSL["matter"] | undefined
   /** Канонический bulk-слой меты. */
-  readonly bulk: MetaAST["bulk"] | undefined
+  readonly bulk: MetaDSL["bulk"] | undefined
   /** Канонический mass-слой меты. */
   readonly mass: MetaInit["mass"]
 

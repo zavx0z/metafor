@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { DbBackend } from "../../../pkg/db/index.ts"
+import type { DbBackend } from "store/db"
 import type { AppBulkProcessTarget } from "./bulk.process.ts"
 import { executeAppBulkProcessTarget, resolveAppBulkActionSpecifier } from "./bulk.process.ts"
 
@@ -9,34 +9,6 @@ const createBackendStub = (): DbBackend =>
     close() {},
     reset() {},
     async flush() {},
-    readData() {
-      return {
-        metas: [],
-        metaFields: [],
-        metaStates: [],
-        metaTransitions: [],
-        metaTransitionConditions: [],
-        metaProcesses: [],
-        metaProcessReads: [],
-        metaProcessWrites: [],
-        metaReactions: [],
-        metaReactionStates: [],
-        metaReactionReads: [],
-        metaReactionWrites: [],
-        metaMatterNodes: [],
-        metaMatterEdges: [],
-        wimps: [],
-        wimpFields: [],
-        wimpEdges: [],
-        fieldValues: [],
-        fieldSources: [],
-        wimpStates: [],
-        entanglements: [],
-        entanglementMembers: [],
-        entanglementFields: [],
-        entanglementFieldMembers: [],
-      }
-    },
     async readMetaRows() {
       return null
     },

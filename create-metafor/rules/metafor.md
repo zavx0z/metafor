@@ -3,7 +3,7 @@
 ## Структура
 
 ```typescript
-import "@metafor/dsl"
+import "metafor"
 
 export default MetaFor("<name>")
   .fields((field) => ({}))
@@ -252,7 +252,7 @@ export default MetaFor("<name>")
 
 ```typescript
 // actions/fetchUser.ts
-import type { ActionParams } from "@metafor/dsl"
+import type { ActionParams } from "metafor"
 
 export interface FetchUserResult {
   name: string
@@ -442,7 +442,7 @@ return { group: group as "start" | "work" | "examine" }
 ## Пример актора
 
 ```typescript
-import "@metafor/dsl"
+import "metafor"
 
 export default MetaFor("git")
   .fields((field) => ({
@@ -501,7 +501,7 @@ export default MetaFor("git")
 
 ```typescript
 // actions/detectOperation.ts
-import type { ActionParams } from "@metafor/dsl"
+import type { ActionParams } from "metafor"
 
 interface DetectOperationValue {
   command?: string | null
@@ -535,7 +535,7 @@ export default async function action({
 1. Файл: `<username>/<name>/meta.ts` (например: `zavx0z/git/meta.ts`)
 2. Имя: `MetaFor("<name>")`
 3. Enum: всегда с `label`
-4. Импорт: `import "@metafor/dsl"`
+4. Импорт: `import "metafor"`
 5. Bulk: только `<meta-for>` для иерархии акторов
 6. Цепочка: все методы обязательны (даже пустые)
 7. **Action-модули:** логика действий в отдельных файлах `actions/*.ts`
@@ -702,7 +702,7 @@ export default MetaFor("git")
 
 ```typescript
 // actions/detectOperation.ts
-import type { ActionParams } from "@metafor/dsl"
+import type { ActionParams } from "metafor"
 
 interface DetectOperationValue {
   command?: string | null
