@@ -1,5 +1,9 @@
 # Schemas diff — `store/meta/sqlite` vs `pkg/db`
 
+> Актуальность: исторический diff для старого `pkg/db`.
+> `pkg/db`/`store/db` больше не является текущей целевой архитектурой.
+> Текущий план по единому `store` см. в `task/store-unification.md`.
+
 > Детальное side-by-side сравнение двух реляционных схем хранилища MetaFor.
 > Дополняет `task/storage-analysis.md` §9 и §11.2.
 
