@@ -1,27 +1,7 @@
-import type { Mass, MetaDSL, NodeMeta } from "../../index.ts"
-import type { WimpInit } from "@dark/types/strong"
-import type { DarkGravityProtocol } from "@dark/gravity/channel.ts"
-import type { DbMaterializationWriter, DbMetaBundle, DbWimpBundle, DbWimpFieldBundle } from "store/db"
-import type { Meta } from "./Meta.ts"
-import { BaseParticle } from "./part.ts"
-
-const isTopologyFieldType = (type: string): boolean =>
-  type === "enum" || type === "array" || type.startsWith("enum<") || type.startsWith("array<")
-
-const cloneFieldSchema = (schema: NonNullable<Wimp["fields"]>[string]["schema"]) => ({
-  type: schema.type,
-  required: schema.required === true,
-  topology: isTopologyFieldType(schema.type),
-  ...(schema.label !== undefined ? { label: schema.label } : {}),
-  ...(schema.values !== undefined ? { values: structuredClone(schema.values) } : {}),
-})
-
-const cloneDefinedValue = <T>(value: T | undefined): T => {
-  if (value === undefined) {
-    throw new Error("Cannot clone undefined value in exactOptionalPropertyTypes context")
-  }
-  return structuredClone(value)
-}
+import type {Mass, MetaDSL, NodeMeta} from "../../index.ts"
+import type {WimpInit} from "@dark/types/strong"
+import type {Meta} from "./Meta.ts"
+import {BaseParticle} from "./part.ts"
 
 /**
  * Канонический мета-узел объектного графа Dark.
@@ -39,11 +19,6 @@ export class Wimp extends BaseParticle {
   /** Instance-level override для `mass`, если он пришёл не из meta-level source. */
   private massOverride: Mass | NodeMeta["mass"] | undefined
 
-  /**
-   * Создаёт пустой или частично materialized `Wimp`.
-   *
-   * @param init Начальные данные `Wimp`: src, необязательная ссылка на `Meta`, локальные instance fields и связь с родителем.
-   */
   constructor(init: WimpInit) {
     super(init)
     this.metaSrc = init.meta?.src ?? init.src
@@ -52,59 +27,34 @@ export class Wimp extends BaseParticle {
     this.massOverride = init.mass
   }
 
-  /**
-   * SRC остаётся удобным полем particle-level API, но source of truth живёт в `Meta`.
-   */
   get src(): string {
     return this.meta?.src ?? this.metaSrc
   }
 
-  /**
-   * Удобный доступ к имени меты через `Meta`.
-   */
   get name(): MetaDSL["name"] | undefined {
     return this.meta?.name
   }
 
-  /**
-   * Удобный доступ к state schema через `Meta`.
-   */
   get superposition(): MetaDSL["superposition"] | undefined {
     return this.meta?.superposition
   }
 
-  /**
-   * Удобный доступ к processes через `Meta`.
-   */
   get processes(): MetaDSL["processes"] | undefined {
     return this.meta?.processes
   }
 
-  /**
-   * Удобный доступ к reactions через `Meta`.
-   */
   get reactions(): MetaDSL["reactions"] | undefined {
     return this.meta?.reactions
   }
 
-  /**
-   * Удобный доступ к matter declaration через `Meta`.
-   */
   get matter(): MetaDSL["matter"] | undefined {
     return this.meta?.matter
   }
 
-  /**
-   * Удобный доступ к bulk через `Meta`.
-   */
   get bulk(): MetaDSL["bulk"] | undefined {
     return this.meta?.bulk
   }
 
-  /**
-   * `mass` остаётся удобным API на уровне `Wimp`,
-   * но meta-level значение читается из `Meta`, а временный override остаётся particle-level.
-   */
   get mass(): Mass | NodeMeta["mass"] | undefined {
     return this.massOverride ?? this.meta?.mass
   }
@@ -113,94 +63,8 @@ export class Wimp extends BaseParticle {
     this.massOverride = value
   }
 
-  /**
-   * Instance-level override `mass`, если он задан отдельно от `Meta`.
-   */
+  /** Instance-level override `mass`, если он задан отдельно от `Meta`. */
   get instanceMassOverride(): Mass | NodeMeta["mass"] | undefined {
     return this.massOverride === undefined ? undefined : structuredClone(this.massOverride)
-  }
-
-  private getParentWimpId(): string | undefined {
-    let current = this.parent
-
-    while (current) {
-      if (current instanceof Wimp) return current.id
-      current = current.parent
-    }
-
-    return undefined
-  }
-
-  /**
-   * Строит canonical DB bundle meta-level описания текущего `Wimp`.
-   */
-  toDbMetaBundle(): DbMetaBundle {
-    if (!this.meta) {
-      throw new Error(`Wimp ${this.id} cannot build DB meta bundle before Meta is materialized`)
-    }
-
-    const result: DbMetaBundle = {
-      id: this.meta.id,
-      src: this.meta.src,
-      fields: Object.values(this.meta.fields).map((field) => ({
-        id: field.id,
-        key: field.key,
-        schema: cloneFieldSchema(field.schema),
-      })),
-    }
-
-    if (this.meta.name !== undefined) result.name = cloneDefinedValue(this.meta.name)
-    if (this.meta.superposition !== undefined) result.superposition = cloneDefinedValue(this.meta.superposition)
-    if (this.meta.processes !== undefined) result.processes = cloneDefinedValue(this.meta.processes)
-    if (this.meta.reactions !== undefined) result.reactions = cloneDefinedValue(this.meta.reactions)
-    if (this.meta.matter !== undefined) result.matter = cloneDefinedValue(this.meta.matter)
-    if (this.meta.bulk !== undefined) result.bulk = cloneDefinedValue(this.meta.bulk)
-    if (this.meta.mass !== undefined) result.mass = this.meta.mass as Mass
-
-    return result
-  }
-
-  /**
-   * Строит canonical DB bundle текущего fully-formed `Wimp`.
-   */
-  toDbBundle(): DbWimpBundle {
-    if (!this.meta) {
-      throw new Error(`Wimp ${this.id} cannot build DB bundle before Meta is materialized`)
-    }
-    if (!this.fields) {
-      throw new Error(`Wimp ${this.id} cannot build DB bundle before fields are materialized`)
-    }
-
-    const result: DbWimpBundle = {
-      id: this.id,
-      meta: this.toDbMetaBundle(),
-      fields: Object.values(this.fields).map((field, fieldOrder) => {
-        const fieldBundle: DbWimpFieldBundle = {
-          id: field.id,
-          metaFieldId: field.metaField.id,
-          fieldOrder,
-          key: field.key,
-          schema: cloneFieldSchema(field.schema),
-          value: structuredClone(field.value),
-        }
-        if (field.source) fieldBundle.sourceWimpFieldId = field.source.id
-        return fieldBundle
-      }),
-    }
-
-    const parentWimpId = this.getParentWimpId()
-    if (parentWimpId !== undefined) result.parentWimpId = parentWimpId
-    if (this.massOverride !== undefined) result.massOverride = cloneDefinedValue(this.massOverride)
-
-    return result
-  }
-
-  /**
-   * Сохраняет текущий canonical DB bundle через унифицированный writer.
-   */
-  async save(writer: DbMaterializationWriter, gravityProtocol?: DarkGravityProtocol): Promise<void> {
-    await writer.saveMetaBundle(this.toDbMetaBundle())
-    await writer.saveWimpBundle(this.toDbBundle())
-    gravityProtocol?.emitAdd(this.id)
   }
 }

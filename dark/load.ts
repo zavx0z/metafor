@@ -1,33 +1,14 @@
-import type { MetaDSL, SRC } from ".."
-import type { MetaApi } from "../store/index.ts"
-import { getMetaDbContext } from "./load.context.ts"
-import { projectTemplateMatterRelations } from "./matter.ts"
+import type {MetaDSL, SRC} from ".."
+import type {Store} from "../store/index.ts"
+import {emitMetaPatches, type MetaIndex} from "./patch/meta.ts"
+import {dark$} from "./store.ts"
 
 const HUB = "github/"
 
-/**
- * Преобразует SRC в путь к файлу для загрузки.
- *
- * @param address — канонический адрес хаба
- * @returns путь к файлу для fetch в формате `/{address}/meta.json`
- */
-function resolveMetaSource(address: SRC): string {
-  return `/${address}/meta.json`
-}
+const resolveHubMetaSource = (address: SRC): string => `/${HUB + address}/meta.json`
 
-/**
- * Преобразует SRC в путь к исходному .ts файлу.
- *
- * @param address — канонический адрес хаба
- * @returns путь к .ts файлу в формате `/{address}.ts`
- */
-function resolveMetaTsPath(address: SRC): string {
-  return `/${address}.ts`
-}
-
-const resolveHubMetaSource = (address: SRC): string => resolveMetaSource(HUB + address)
-
-const resolveLocalMetaModuleUrl = (address: SRC): string => new URL(`../${HUB}${address}/meta.ts`, import.meta.url).href
+const resolveLocalMetaModuleUrl = (address: SRC): string =>
+  new URL(`../${HUB}${address}/meta.ts`, import.meta.url).href
 
 const loadMetaFromModule = async (address: SRC): Promise<MetaDSL> => {
   const module = await import(resolveLocalMetaModuleUrl(address))
@@ -35,9 +16,7 @@ const loadMetaFromModule = async (address: SRC): Promise<MetaDSL> => {
 }
 
 /**
- * Внутренне читает DSL meta из файла.
- *
- * Не делает orchestration пакета Dark и не мутирует store.
+ * Внутренне читает DSL meta из файла. Не делает orchestration пакета Dark и не мутирует store.
  *
  * @param address — канонический адрес хаба для загрузки
  * @returns `dsl`
@@ -66,23 +45,18 @@ export const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
 }
 
 /**
- * Загружает и канонизирует ровно одну meta в общем in-memory SQLite-контексте.
- *
- * Дальнейшая orchestration обхода дочерних meta должна жить выше `load`,
- * а не внутри этого модуля.
+ * Канонизирует мету: при первом обращении эмитит graviton-патчи в `store.update`,
+ * при повторном — возвращает ранее построенный `MetaIndex` из `dark$.metaIndex`.
  */
-export async function loadMeta(address: SRC): Promise<{
-  db: unknown
-  store: { meta: MetaApi }
-} | null> {
-  const metaDbContext = await getMetaDbContext()
-  if (!metaDbContext) return null
+export const loadMeta = async (
+  src: SRC,
+  store: Pick<Store, "update">,
+): Promise<MetaIndex> => {
+  const cached = dark$.metaIndex.get(src)
+  if (cached) return cached
 
-  if (!metaDbContext.loaded.has(address)) {
-    const dsl = await readMetaDsl(address)
-    await metaDbContext.store.meta.create(address, dsl, projectTemplateMatterRelations(dsl))
-    metaDbContext.loaded.add(address)
-  }
-
-  return { db: metaDbContext.db, store: metaDbContext.store }
+  const dsl = await readMetaDsl(src)
+  const index = await emitMetaPatches(src, dsl, store)
+  dark$.metaIndex.set(src, index)
+  return index
 }

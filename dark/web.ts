@@ -1,9 +1,14 @@
-import { openDbIndexedDbBackend } from "store/db/browser"
-import { matter } from "./index.ts"
-import { Wimp } from "./strong/index.ts"
-import { openDbMaterializationWriter } from "store/materialize"
+/**
+ * Браузерный entrypoint для Dark.
+ *
+ * Пока не подключён: реляционный store через `store/server.ts` поднимается на Bun SQL,
+ * а browser-backend (IDB или иной) ещё не реализован. До его появления этот файл
+ * только сообщает об ограничении, чтобы build не падал на отсутствующих legacy-модулях.
+ */
+const message = "dark/web.ts: browser store backend ещё не реализован — Dark в браузере пока не запускается"
 
-const db = await openDbIndexedDbBackend({ databaseName: "metafor-web" })
-const writer = openDbMaterializationWriter(db)
+if (typeof console !== "undefined") {
+  console.warn(message)
+}
 
-await matter(new Wimp({ src: "zavx0z/git", parent: null }), undefined, { dbWriter: writer })
+throw new Error(message)
