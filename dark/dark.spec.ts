@@ -6,10 +6,10 @@ import startReference from "../github/zavx0z/git-start/meta.ts"
 
 import type { MatterWimpResult } from "@dark/types/dark"
 import { Axion, Fuzzy, readFieldValues, Wimp } from "@dark/strong"
+import { open } from "../store/server.ts"
 import { matterMeta } from "./dark.ts"
 import { loadMeta } from "./load.ts"
 import { dark$ } from "./store"
-import { resetDarkLoadContext } from "./tests/test.helper.ts"
 
 const hub = new HubFixture()
 
@@ -26,19 +26,20 @@ const findFieldInit = (continuation: MatterWimpResult[1], key: string) =>
   continuation.fieldInits?.find((fieldInit) => fieldInit.key === key)
 
 describe("zavx0z/git", () => {
-  let store: NonNullable<Awaited<ReturnType<typeof loadMeta>>>["store"]
+  let store: Awaited<ReturnType<typeof open>>
 
   beforeAll(async () => {
     await hub.setup()
-    const sqlite = await loadMeta(src)
-    await loadMeta(startSrc)
-    store = sqlite!.store
+    store = await open(":memory:")
+    await loadMeta(src, store)
+    await loadMeta(startSrc, store)
   })
   afterAll(async () => {
     dark$.meta.clear()
     dark$.fields.clear()
     dark$.particles.clear()
-    resetDarkLoadContext()
+    dark$.metaIndex.clear()
+    await store.close()
     await hub.teardown()
   })
 

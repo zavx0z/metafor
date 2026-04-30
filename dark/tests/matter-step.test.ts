@@ -1,9 +1,9 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { HubFixture } from "fixture"
-import { matter } from "../index.ts"
-import { dark$ } from "../store"
-import { Wimp } from "@dark/strong"
-import { resetDarkLoadContext } from "../tests/test.helper.ts"
+import {afterAll, beforeAll, describe, expect, test} from "bun:test"
+import {HubFixture} from "fixture"
+import {open} from "../../store/server.ts"
+import {matter} from "../index.ts"
+import {dark$} from "../store"
+import {Wimp} from "@dark/strong"
 
 type RecordedStep = {
   kind: "layer" | "root"
@@ -15,10 +15,13 @@ const hub = new HubFixture()
 
 describe("dark matter incremental steps", () => {
   const steps: RecordedStep[] = []
+  let store: Awaited<ReturnType<typeof open>>
 
   beforeAll(async () => {
     await hub.setup()
-    await matter(new Wimp({ src: "zavx0z/git", parent: null }), undefined, {
+    store = await open(":memory:")
+    await matter(new Wimp({src: "zavx0z/git", parent: null}), undefined, {
+      store,
       onMaterializedStep(step) {
         steps.push({
           kind: step.kind,
@@ -33,7 +36,8 @@ describe("dark matter incremental steps", () => {
     dark$.meta.clear()
     dark$.fields.clear()
     dark$.particles.clear()
-    resetDarkLoadContext()
+    dark$.metaIndex.clear()
+    await store.close()
     await hub.teardown()
   })
 

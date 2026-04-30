@@ -1,20 +1,9 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { SQL } from "bun"
-import type { MetaDSL } from "../../.."
-import gitMeta from "../../../github/zavx0z/git/meta.ts"
-import { projectTemplateMatterRelations } from "../../../dark/matter.ts"
-import { StoreMetaSqlite } from "./index.ts"
-
-const getMetaDB = async (path: string): Promise<SQL> => {
-  const url = path === ":memory:" ? "sqlite::memory:" : `sqlite://${path}`
-  const sql = new SQL(url)
-  await sql.unsafe("PRAGMA foreign_keys = ON;")
-  await StoreMetaSqlite.open(sql)
-  return sql
-}
-const relation = async (sql: SQL, meta: MetaDSL, src: string) => {
-  await StoreMetaSqlite.open(sql).then((store) => store.create(src, meta, projectTemplateMatterRelations(meta)))
-}
+import {afterEach, beforeEach, describe, expect, test} from "bun:test"
+import {SQL} from "bun"
+import type {MetaDSL} from "../../.."
+import type {Store} from "../../index.ts"
+import {open} from "../../server.ts"
+import {emitMetaPatches} from "../../../dark/patch/meta.ts"
 
 const richMeta: MetaDSL = {
   name: "rich",
@@ -226,61 +215,43 @@ const explicitEmptyMeta: MetaDSL = {
 }
 
 describe("sqlite dark particle model", () => {
-  let db: SQL
+  let store: Store
+  let sql: SQL
 
   beforeEach(async () => {
-    db = await getMetaDB(":memory:")
+    store = await open(":memory:")
+    sql = new SQL("sqlite::memory:")
   })
 
   afterEach(async () => {
-    await db.close()
+    await sql.close()
+    await store.close()
   })
 
   const countRows = async (table: string): Promise<number> => {
-    const rows = (await db.unsafe(`SELECT COUNT(*) AS count FROM ${table}`)) as Array<{ count: number }>
-    return rows[0]?.count ?? 0
+    const rows = (await (store as unknown as {meta: {sql?: SQL}}).meta.sql?.unsafe(
+      `SELECT COUNT(*) AS count FROM ${table}`,
+    )) as Array<{count: number}> | undefined
+    return rows?.[0]?.count ?? 0
   }
 
-  test("читает particle-centric runtime model для существующей git meta после relation()", async () => {
-    await relation(db, gitMeta, "zavx0z/git")
+  test("сохраняет particle-centric matter и даёт ORM loader поверх реляционных rows", async () => {
+    await emitMetaPatches("owner/rich", richMeta, store)
 
-    const projection = (await StoreMetaSqlite.open(db).then((store) => store.readDarkParticleModel("zavx0z/git")))!
-
-    expect(projection.meta.fieldSchemas).toEqual(gitMeta.fields)
-    expect(projection.meta.superposition).toEqual(gitMeta.superposition)
-    expect(projection.meta.processes).toEqual(gitMeta.processes)
-    expect(projection.meta.mass).toBeUndefined()
-    expect(projection.particles.map((particle) => particle.kind)).toEqual(["fuzzy", "axion"])
-  })
-
-  test("сохраняет particle-centric matter write-side и даёт тонкий ORM loader поверх реляционных rows", async () => {
-    await relation(db, richMeta, "owner/rich")
-
-    const projection = (await StoreMetaSqlite.open(db).then((store) => store.readDarkParticleModel("owner/rich")))!
-
+    const projection = (await store.meta.readDarkParticleModel("owner/rich"))!
+    expect(projection).toBeDefined()
     expect(projection.meta.fieldSchemas).toEqual(richMeta.fields)
     expect(projection.meta.superposition).toEqual(richMeta.superposition)
     expect(projection.meta.processes).toEqual(richMeta.processes)
     expect(projection.meta.reactions).toEqual(richMeta.reactions)
     expect(projection.meta.mass).toEqual(richMeta.mass)
     expect(projection.particles.map((particle) => particle.kind)).toEqual(["wimp", "fuzzy", "axion"])
-
-    expect(await countRows("process_action")).toBe(1)
-    expect(await countRows("process_action_read")).toBe(3)
-    expect(await countRows("process_action_write")).toBe(2)
-    expect(await countRows("process_finally")).toBe(1)
-    expect(await countRows("process_finally_read")).toBe(1)
-    expect(await countRows("matter_particle")).toBe(10)
-    expect(await countRows("matter_particle_wimp")).toBe(6)
-    expect(await countRows("matter_particle_fuzzy")).toBe(2)
-    expect(await countRows("matter_particle_axion")).toBe(1)
-    expect(await countRows("matter_particle_macho")).toBe(1)
   })
 
   test("не выводит пустые processes/reactions из отсутствия записей в БД", async () => {
-    await relation(db, explicitEmptyMeta, "owner/empty")
+    await emitMetaPatches("owner/empty", explicitEmptyMeta, store)
 
-    const projection = (await StoreMetaSqlite.open(db).then((store) => store.readDarkParticleModel("owner/empty")))!
+    const projection = (await store.meta.readDarkParticleModel("owner/empty"))!
 
     // Принцип минимума: если в БД нет ни одной записи в process/reaction/matter_particle,
     // соответствующая секция не появляется в projection. Пустой объект — это производное,

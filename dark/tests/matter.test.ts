@@ -1,20 +1,26 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { matter } from "../index.ts"
-import { HubFixture } from "fixture"
-import { dark$ } from "../store"
-import { Axion, Fuzzy, Macho, Wimp } from "@dark/strong"
+import {afterAll, beforeAll, describe, expect, test} from "bun:test"
+import {HubFixture} from "fixture"
+import {open} from "../../store/server.ts"
+import {matter} from "../index.ts"
+import {dark$} from "../store"
+import {Axion, Fuzzy, Macho, Wimp} from "@dark/strong"
+
 const hub = new HubFixture()
+let store: Awaited<ReturnType<typeof open>>
 let wimps: Wimp[]
 
 describe("dark$", () => {
   beforeAll(async () => {
     await hub.setup()
-    await matter(new Wimp({ src: "zavx0z/git", parent: null }))
+    store = await open(":memory:")
+    await matter(new Wimp({src: "zavx0z/git", parent: null}), undefined, {store})
   })
   afterAll(async () => {
     dark$.meta.clear()
     dark$.fields.clear()
     dark$.particles.clear()
+    dark$.metaIndex.clear()
+    await store.close()
     await hub.teardown()
   })
 

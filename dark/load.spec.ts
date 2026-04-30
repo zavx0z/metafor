@@ -1,42 +1,55 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { HubFixture } from "fixture"
-import reference from "../github/zavx0z/git/meta.ts"
-import { StoreMetaSqlite } from "@store/meta/sqlite"
-import { loadMeta } from "./load.ts"
-import { resetDarkLoadContext } from "./tests/test.helper.ts"
+import {afterEach, beforeEach, describe, expect, test} from "bun:test"
+import type {MetaDSL} from ".."
+import {open} from "../store/server.ts"
+import {emitMetaPatches} from "./patch/meta.ts"
+import {dark$} from "./store.ts"
 
-const hub = new HubFixture()
+const minMeta: MetaDSL = {
+  name: "min",
+  fields: {flag: {type: "boolean"}},
+  superposition: {idle: {}},
+  mass: {},
+  processes: {},
+  reactions: {reactions: {}, superposition: {}},
+  matter: [],
+}
 
-describe("loadMeta", () => {
-  beforeAll(async () => await hub.setup())
-  afterAll(async () => {
-    resetDarkLoadContext()
-    await hub.teardown()
+describe("emitMetaPatches", () => {
+  let store: Awaited<ReturnType<typeof open>>
+
+  beforeEach(async () => {
+    store = await open(":memory:")
+    dark$.meta.clear()
+    dark$.fields.clear()
+    dark$.particles.clear()
+    dark$.metaIndex.clear()
   })
 
-  test("канонизирует одну meta в SQLite и возвращает particle runtime model", async () => {
-    const loaded = await loadMeta("zavx0z/git")
-    if (!loaded) throw new Error("store context is unavailable")
-
-    const projection = await StoreMetaSqlite.open(loaded.db as any).then((store) => store.readDarkParticleModel("zavx0z/git"))
-    if (!projection) throw new Error("projection not found")
-
-    expect(projection.meta.src).toBe("zavx0z/git")
-    expect(projection.meta.name).toBe(reference.name)
-    expect(projection.meta.fieldSchemas).toEqual(reference.fields)
-    expect(projection.meta.superposition).toEqual(reference.superposition)
-    expect(projection.meta.processes).toEqual(reference.processes)
-    expect(projection.meta.reactions).toBeUndefined()
-    expect(projection.meta.mass).toBeUndefined()
-    expect(projection.particles.map((particle) => particle.kind)).toEqual(["fuzzy", "axion"])
+  afterEach(async () => {
+    await store.close()
   })
 
-  test("переиспользует общий in-memory SQLite-контекст между вызовами", async () => {
-    const firstLoad = await loadMeta("zavx0z/git")
-    const secondLoad = await loadMeta("zavx0z/git-start")
+  test("эмитит graviton-патчи и возвращает MetaIndex с uuid полей и состояний", async () => {
+    const index = await emitMetaPatches("owner/min", minMeta, store)
 
-    expect(firstLoad).not.toBeNull()
-    expect(secondLoad).not.toBeNull()
-    expect(secondLoad?.db).toBe(firstLoad?.db)
+    expect(index.src).toBe("owner/min")
+    expect(index.fieldUuids.has("flag")).toBe(true)
+    expect(index.superpositionUuids.has("idle")).toBe(true)
+    expect(index.initialState).toBe(index.superpositionUuids.get("idle") ?? null)
+
+    const projection = (await store.meta.readDarkParticleModel("owner/min"))!
+    expect(projection.meta.src).toBe("owner/min")
+    expect(projection.meta.fieldSchemas).toEqual(minMeta.fields)
+  })
+
+  test("повторная канонизация той же src ведёт к UNIQUE-конфликту — caller должен дедуплицировать", async () => {
+    await emitMetaPatches("owner/min", minMeta, store)
+    let threw = false
+    try {
+      await emitMetaPatches("owner/min", minMeta, store)
+    } catch {
+      threw = true
+    }
+    expect(threw).toBe(true)
   })
 })
