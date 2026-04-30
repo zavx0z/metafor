@@ -1,37 +1,72 @@
-import {serve} from "bun"
-import indexHtml from "./index.html"
+import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage} from "@shared/protocol"
+import {open} from "../store/server.ts"
+import {matter} from "./dark.ts"
+import {Wimp} from "./strong"
 
-const dark = new Worker("./index.ts")
+/**
+ * Серверный демон Dark: открывает файловый store через `store/server.open()`
+ * и слушает `gravity`-канал на входящие графитоны вида `add /meta/<src>` —
+ * по такому патчу запускает `matter(new Wimp({src}), { store })`,
+ * который сам стримит graviton/gluon/photon-патчи в `store.update`.
+ *
+ * Исходящие сообщения от самого Dark (`source === "dark"`) пропускаются,
+ * чтобы не было обратной обработки собственных `/wimp/<id>` add'ов и barrier'ов.
+ */
 
-const server = serve({
-  port: 4444,
-  routes: {
-    // Автоматическая сборка и отдача фронтенда
-    "/": indexHtml,
-    // Обработка WebSocket апгрейда через эндпоинт
-    "/ws": {
-      GET(req, server) {
-        if (server.upgrade(req)) return
-        return new Response("Upgrade failed", { status: 400 })
-      },
-    },
-  },
-  websocket: {
-    open(ws) {
-      ws.subscribe("status")
-      ws.send(JSON.stringify({ type: "status", status: "ready" }))
-    },
-    message(ws, message) {
-      const data = JSON.parse(String(message))
-      if (data.type === "matter" && data.src) {
-        dark.postMessage({ src: data.src })
-      }
-    },
-  },
-})
+const STORE_PATH = process.env.DARK_STORE_PATH ?? "./dark.sqlite"
 
-dark.onmessage = (event) => {
-  server.publish("status", JSON.stringify(event.data))
+const decodeSegment = (s: string): string => s.replace(/~1/g, "/").replace(/~0/g, "~")
+
+/** Извлекает `src` из path вида `/meta/<encoded-src>`; возвращает `null`, если path не той формы. */
+const extractMetaSrc = (path: string): string | null => {
+  if (!path.startsWith("/meta/")) return null
+  const rest = path.slice("/meta/".length)
+  if (rest.length === 0 || rest.includes("/")) return null
+  return decodeSegment(rest)
 }
 
-console.log(`server running on https://${server.hostname}:${server.port}`)
+const store = await open(STORE_PATH)
+const gravity = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
+
+const handleMetaLoad = async (src: string): Promise<void> => {
+  const existing = await store.meta.get(src)
+  if (existing) {
+    console.log(`[dark/server] мета "${src}" уже в store — пропуск`)
+    return
+  }
+  console.log(`[dark/server] загружаю мету "${src}"`)
+  try {
+    await matter(new Wimp({src, parent: null}), undefined, {store})
+    console.log(`[dark/server] мета "${src}" материализована`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`[dark/server] ошибка загрузки "${src}": ${message}`)
+  }
+}
+
+gravity.addEventListener("message", (event) => {
+  const data = (event as MessageEvent<unknown>).data
+  if (!isGravitonMessage(data)) return
+  if (data.source === "dark") return // собственные сообщения не обрабатываем
+
+  for (const patch of data.patches) {
+    if (patch.op !== "add") continue
+    const src = extractMetaSrc(patch.path)
+    if (!src) continue
+    void handleMetaLoad(src)
+  }
+})
+
+const shutdown = async (signal: string): Promise<void> => {
+  console.log(`[dark/server] ${signal} — закрываю канал и store`)
+  gravity.close()
+  await store.close()
+  process.exit(0)
+}
+
+process.on("SIGINT", () => void shutdown("SIGINT"))
+process.on("SIGTERM", () => void shutdown("SIGTERM"))
+
+console.log(
+  `[dark/server] dark store ready at "${STORE_PATH}"; слушаю gravity channel "${GRAVITY_BROADCAST_CHANNEL}" на add /meta/<src>`,
+)
