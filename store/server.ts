@@ -1,9 +1,10 @@
 import {SQL} from "bun"
 import {StoreMetaSqlite} from "@store/meta/sqlite"
 import {StoreActorSqlite} from "@store/actor/sqlite"
-import type {ServerStore} from "./server.t.ts"
 
-export const open = async (filename?: string): Promise<ServerStore> => {
+import type {Store} from "./index.ts"
+
+export const open = async (filename?: string): Promise<Store> => {
   const fileBacked = filename !== undefined && filename !== ":memory:"
 
   const sql = new SQL(fileBacked ? `sqlite://${filename}` : "sqlite::memory:")
@@ -15,7 +16,6 @@ export const open = async (filename?: string): Promise<ServerStore> => {
   }
 
   return {
-    sql,
     meta: await StoreMetaSqlite.open(sql),
     actor: await StoreActorSqlite.open(sql),
     async close() {

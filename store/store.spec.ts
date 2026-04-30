@@ -1,9 +1,11 @@
-
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { mkdirSync, rmSync } from "node:fs"
+import { join } from "node:path"
+import { SQL } from "bun"
 import type { MetaDSL } from "../metafor.t.ts"
-import type { ServerStore } from "./server.t.ts"
 import { open } from "./server.ts"
 import { BooleanValue, EnumValue } from "@store/actor"
+import type {Store} from "./index.ts"
 
 const minimalMeta: MetaDSL = {
   name: "smoke",
@@ -19,18 +21,27 @@ const minimalMeta: MetaDSL = {
 }
 
 describe("store/server smoke", () => {
-  let store: ServerStore
+  let store: Store
+  let sql: SQL
+  let filename: string
 
   beforeEach(async () => {
-    store = await open("i.db")
+    mkdirSync(join(import.meta.dir, "tmp"), { recursive: true })
+    filename = join(import.meta.dir, "tmp", `store-${crypto.randomUUID()}.sqlite`)
+    store = await open(filename)
+    sql = new SQL(`sqlite://${filename}`)
   })
 
   afterEach(async () => {
+    await sql.close()
     await store.close()
+    rmSync(filename, { force: true })
+    rmSync(`${filename}-shm`, { force: true })
+    rmSync(`${filename}-wal`, { force: true })
   })
 
   test("open() поднимает обе схемы — meta и actor — на одной БД", async () => {
-    const tables = (await store.sql<Array<{ name: string }>>`
+    const tables = (await sql<Array<{ name: string }>>`
       SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name
     `).map((r) => r.name)
 
@@ -69,16 +80,16 @@ describe("store/server smoke", () => {
   test("actor.create + read через ORM-инстансы", async () => {
     await store.meta.create("owner/smoke", minimalMeta)
 
-    const flagFieldUuid = (await store.sql<Array<{ uuid: string }>>`
+    const flagFieldUuid = (await sql<Array<{ uuid: string }>>`
       SELECT uuid FROM field WHERE meta = ${"owner/smoke"} AND key = ${"flag"}
     `)[0]!.uuid
-    const statusFieldUuid = (await store.sql<Array<{ uuid: string }>>`
+    const statusFieldUuid = (await sql<Array<{ uuid: string }>>`
       SELECT uuid FROM field WHERE meta = ${"owner/smoke"} AND key = ${"status"}
     `)[0]!.uuid
-    const idleStateUuid = (await store.sql<Array<{ uuid: string }>>`
+    const idleStateUuid = (await sql<Array<{ uuid: string }>>`
       SELECT uuid FROM superposition WHERE meta = ${"owner/smoke"} AND name = ${"idle"}
     `)[0]!.uuid
-    const idleVariantUuid = (await store.sql<Array<{ uuid: string }>>`
+    const idleVariantUuid = (await sql<Array<{ uuid: string }>>`
       SELECT uuid FROM field_enum_variant WHERE field = ${statusFieldUuid} AND item_value = ${"idle"}
     `)[0]!.uuid
 
