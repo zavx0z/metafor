@@ -1,0 +1,120 @@
+import {afterAll, beforeAll, describe, expect, test} from "bun:test"
+import {SQL} from "bun"
+import {mkdirSync, rmSync} from "node:fs"
+import {join} from "node:path"
+import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage, type GravitonMessage} from "@shared/protocol"
+
+// server.ts открывает store на верхнем уровне через top-level await.
+// Имя зафиксировано — `dark/tmp/boundary.sqlite`, файл не удаляется после теста, чтобы
+// результат разложения git можно было осмотреть руками.
+const tmpDir = join(import.meta.dir, "tmp")
+mkdirSync(tmpDir, {recursive: true})
+const storePath = join(tmpDir, "boundary.sqlite")
+
+// pre-clean: предыдущий запуск мог оставить файл — стартуем с чистого слепка
+rmSync(storePath, {force: true})
+rmSync(`${storePath}-shm`, {force: true})
+rmSync(`${storePath}-wal`, {force: true})
+
+process.env.DARK_STORE_PATH = storePath
+
+// IMPORTANT: top-level await — server поднимается ровно один раз.
+await import("./server.ts")
+
+describe("dark/server разворачивает дерево zavx0z/git по gravity-патчу", () => {
+  let outbound: BroadcastChannel
+  const observed: GravitonMessage[] = []
+
+  beforeAll(() => {
+    outbound = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
+    outbound.addEventListener("message", (event) => {
+      const data = (event as MessageEvent<unknown>).data
+      if (isGravitonMessage(data)) observed.push(data)
+    })
+  })
+
+  afterAll(() => {
+    outbound.close()
+    // НЕ удаляем storePath — файл остаётся в dark/tmp/boundary.sqlite для ручного осмотра
+  })
+
+  test("после add /meta/zavx0z~1git store содержит каноническое дерево git", async () => {
+    outbound.postMessage({
+      channel: "gravity",
+      boson: "graviton",
+      source: "app",
+      patches: [{op: "add", path: "/meta/zavx0z~1git"}],
+    } satisfies GravitonMessage)
+
+    // ждём barrier от Dark — он публикуется один раз в конце top-level matter()
+    const deadline = Date.now() + 30_000
+    let barrierReceived = false
+    while (Date.now() < deadline) {
+      const hasBarrier = observed.some(
+        (m) =>
+          m.source === "dark" &&
+          m.patches.some((p) => p.op === "test" && p.path === ""),
+      )
+      if (hasBarrier) {
+        barrierReceived = true
+        break
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    expect(barrierReceived, "Dark должен был опубликовать gravity barrier по завершении matter()").toBe(true)
+
+    const sql = new SQL(`sqlite://${storePath}`)
+    try {
+      const metaRows = await sql<Array<{src: string}>>`SELECT src FROM meta ORDER BY src`
+      const srcs = metaRows.map((row) => row.src)
+
+      expect(srcs).toContain("zavx0z/git")
+      expect(srcs).toContain("zavx0z/git-start")
+      expect(srcs).toContain("zavx0z/git-error")
+      expect(srcs).toContain("zavx0z/git-history-commit")
+
+      const actorRows = await sql<Array<{uuid: string; meta: string}>>`SELECT uuid, meta FROM actor`
+      const stateRows = await sql<Array<{actor: string}>>`SELECT actor FROM actor_state`
+      const valueRows = await sql<Array<{value: string}>>`SELECT DISTINCT value FROM actor_value`
+
+      expect(actorRows.length, "должно быть материализовано >20 акторов").toBeGreaterThan(20)
+      expect(stateRows.length, "у каждого актора должна быть строка actor_state").toBe(actorRows.length)
+      expect(valueRows.length, "должны быть записи в value через gluon").toBeGreaterThan(0)
+
+      // root актор — единственный без parent, его meta = zavx0z/git
+      const rootRows = await sql<Array<{meta: string}>>`SELECT meta FROM actor WHERE parent IS NULL`
+      expect(rootRows.length).toBe(1)
+      expect(rootRows[0]?.meta).toBe("zavx0z/git")
+
+      // среди gravity-сообщений от Dark должны быть add /wimp/<id> per актор + barrier в конце
+      const wimpAddCount = observed
+        .filter((m) => m.source === "dark")
+        .flatMap((m) => m.patches)
+        .filter((p) => p.op === "add" && p.path.startsWith("/wimp/")).length
+      expect(wimpAddCount).toBe(actorRows.length)
+    } finally {
+      await sql.close()
+    }
+  })
+
+  test("повторный add /meta/zavx0z~1git идемпотентен — server пропускает уже залитую мету", async () => {
+    const observedBefore = observed.length
+
+    outbound.postMessage({
+      channel: "gravity",
+      boson: "graviton",
+      source: "app",
+      patches: [{op: "add", path: "/meta/zavx0z~1git"}],
+    } satisfies GravitonMessage)
+
+    // даём server'у тик — если бы он начал загрузку, он бы уехал в matter()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    // никаких новых /wimp/ add'ов и barrier'ов от dark не должно появиться
+    const newDarkPatches = observed
+      .slice(observedBefore)
+      .filter((m) => m.source === "dark")
+      .flatMap((m) => m.patches)
+    expect(newDarkPatches).toEqual([])
+  })
+})
