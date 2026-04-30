@@ -23,13 +23,6 @@ export abstract class Field {
     return row.required === 1
   }
 
-  async setRequired(value: boolean): Promise<void> {
-    await this.sql`
-      UPDATE field SET required = ${value ? 1 : 0}
-      WHERE meta = ${this.src} AND key = ${this.key}
-    `
-  }
-
     async label(): Promise<string | undefined> {
     const row = (
       await this.sql<Array<{ label: string | null }>>`
@@ -38,13 +31,6 @@ export abstract class Field {
     )[0]
     if (!row) throw new Error(`field ${this.key} not found in meta ${this.src}`)
     return row.label ?? undefined
-  }
-
-  async setLabel(value: string | null): Promise<void> {
-    await this.sql`
-      UPDATE field SET label = ${value}
-      WHERE meta = ${this.src} AND key = ${this.key}
-    `
   }
 }
 
