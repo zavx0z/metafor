@@ -1,15 +1,3 @@
-/**
- * Сущность `actor` — корневая запись запущенного экземпляра меты.
- *
- * Якорный файл сущности — под ним группируются:
- * - `actor.sql` — DDL (uuid, parent self-FK CASCADE, meta FK→meta.src CASCADE, position)
- * - `actor.t.ts` — типы (ActorRecord, ActorRows)
- * - `actor.C.ts` — Create-операции (writeActorRows, createActor)
- * - `actor.D.ts` — Delete-операции (deleteActor с orphan-cleanup)
- *
- * ORM-классы `Actor`, `ActorChildren`, `ActorRoots`, `ActorValues` — в этом
- * файле; используют точечные SELECT-ы по `uuid` / `parent`.
- */
 
 import type { SQL } from "bun"
 import type { ActorRecord, ActorRows } from "./actor.t.ts"
@@ -17,11 +5,9 @@ import type { ActorStateRecord } from "./state.t.ts"
 import type { ActorValueRecord } from "./actor_value.t.ts"
 import type { ValueItemRecord, ValueRecord } from "./value.t.ts"
 import { ActorFieldValue } from "./actor_value.ts"
-import { writeActorRows } from "./actor.C.ts"
 import { deleteActor } from "./actor.D.ts"
 import { setActorState } from "./state.U.ts"
 
-/** Декодирует строку sqlite в `ActorRecord`. */
 const decodeActorRow = (row: Record<string, unknown>): ActorRecord => ({
   uuid: String(row.uuid),
   parent: row.parent === null || row.parent === undefined ? null : String(row.parent),
@@ -29,7 +15,6 @@ const decodeActorRow = (row: Record<string, unknown>): ActorRecord => ({
   position: Number(row.position),
 })
 
-/** Django-style manager: дочерние акторы одного родителя. */
 export class ActorChildren {
   constructor(
     private readonly sql: SQL,
@@ -71,7 +56,6 @@ export class ActorChildren {
   }
 }
 
-/** Django-style manager: actor_value-линки одного актора. */
 export class ActorValues {
   constructor(
     private readonly sql: SQL,
@@ -99,7 +83,6 @@ export class ActorValues {
   }
 }
 
-/** Django-style manager: корневые акторы (parent IS NULL). */
 export class ActorRoots {
   constructor(private readonly sql: SQL) {}
 
@@ -138,16 +121,6 @@ export class ActorRoots {
   }
 }
 
-/**
- * Один инстанс актора — корневой ORM-объект пакета `@store/actor`.
- *
- * Скаляры (`meta`, `position`, `parent`, `state`, `rows`) — методы (async, без кеша).
- * Коллекции (`children`, `values`) — Django-style managers с
- * `.all() / .get(filter) / .count() / .exists()`.
- *
- * Каждое обращение — отдельный SELECT в БД; никакого in-memory кеша внутри
- * инстанса. Свежесть данных гарантирована.
- */
 export class Actor {
   readonly children: ActorChildren
   readonly values: ActorValues
@@ -160,8 +133,7 @@ export class Actor {
     this.values = new ActorValues(sql, uuid)
   }
 
-  /** Имя меты, по которой создан актор. */
-  async meta(): Promise<string> {
+    async meta(): Promise<string> {
     const row = (
       await this.sql<Array<{ meta: string }>>`
         SELECT meta FROM actor WHERE uuid = ${this.uuid} LIMIT 1
@@ -171,8 +143,7 @@ export class Actor {
     return String(row.meta)
   }
 
-  /** Позиция актора среди sibling-ов. */
-  async position(): Promise<number> {
+    async position(): Promise<number> {
     const row = (
       await this.sql<Array<{ position: number }>>`
         SELECT position FROM actor WHERE uuid = ${this.uuid} LIMIT 1
@@ -182,8 +153,7 @@ export class Actor {
     return Number(row.position)
   }
 
-  /** Родительский Actor или `null`, если корневой. */
-  async parent(): Promise<Actor | null> {
+    async parent(): Promise<Actor | null> {
     const row = (
       await this.sql<Array<{ parent: string | null }>>`
         SELECT parent FROM actor WHERE uuid = ${this.uuid} LIMIT 1
@@ -193,8 +163,7 @@ export class Actor {
     return row.parent === null || row.parent === undefined ? null : new Actor(this.sql, String(row.parent))
   }
 
-  /** Текущее FSM-состояние актора. */
-  async state(): Promise<ActorStateRecord | null> {
+    async state(): Promise<ActorStateRecord | null> {
     const row = (
       await this.sql<Array<{ actor: string; metaState: string }>>`
         SELECT actor, metaState FROM actor_state WHERE actor = ${this.uuid} LIMIT 1
@@ -204,8 +173,7 @@ export class Actor {
     return { actor: String(row.actor), metaState: String(row.metaState) }
   }
 
-  /** Полный row-group актора (actor + values + state). Бросает, если актор исчез. */
-  async rows(): Promise<ActorRows> {
+    async rows(): Promise<ActorRows> {
     const actorRow = (
       await this.sql<Array<Record<string, unknown>>>`
         SELECT uuid, parent, meta, position FROM actor WHERE uuid = ${this.uuid}
@@ -298,49 +266,11 @@ export class Actor {
     }
   }
 
-  /** Меняет состояние FSM (upsert). */
-  async setState(metaState: string): Promise<void> {
+    async setState(metaState: string): Promise<void> {
     await setActorState(this.sql, this.uuid, metaState)
   }
 
-  /** Удаляет актора и orphan-value (на которые больше никто не ссылается). */
-  async delete(): Promise<void> {
+    async delete(): Promise<void> {
     await deleteActor(this.sql, this.uuid)
-  }
-
-  /** Создаёт актора из row-group (actor + values + value-records + state). */
-  static async create(sql: SQL, rows: ActorRows): Promise<Actor> {
-    await writeActorRows(sql, rows)
-    return new Actor(sql, rows.actor.uuid)
-  }
-
-  /** Возвращает Actor-инстанс или `null`, если актор отсутствует. */
-  static async get(sql: SQL, uuid: string): Promise<Actor | null> {
-    const row = (
-      await sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM actor WHERE uuid = ${uuid} LIMIT 1
-      `
-    )[0]
-    return row ? new Actor(sql, uuid) : null
-  }
-
-  /** Удаляет актора по uuid (без создания инстанса). */
-  static async delete(sql: SQL, uuid: string): Promise<void> {
-    await deleteActor(sql, uuid)
-  }
-
-  /** Базовая запись актора (actor-таблица) без связанных value/state. */
-  static async head(sql: SQL, uuid: string): Promise<ActorRecord | null> {
-    const row = (
-      await sql<Array<Record<string, unknown>>>`
-        SELECT uuid, parent, meta, position FROM actor WHERE uuid = ${uuid}
-      `
-    )[0]
-    return row ? decodeActorRow(row) : null
-  }
-
-  /** Manager корневых акторов (parent IS NULL). */
-  static roots(sql: SQL): ActorRoots {
-    return new ActorRoots(sql)
   }
 }

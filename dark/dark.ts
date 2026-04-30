@@ -2,7 +2,7 @@ import type { MatterContinuation, MatterEntry, MatterLayerResult, MatterParticle
 import type { DarkParticle } from "@dark/types"
 import { emitAdd, emitBarrier } from "@dark/gravity/channel.ts"
 import type { DbMaterializationWriter } from "store/db"
-import { readDarkParticleModel } from "@store/meta/sqlite"
+import { StoreMetaSqlite } from "@store/meta/sqlite"
 import { Axion, Fuzzy, Macho, materializeFields, Meta, resolveWimpContinuation, Wimp } from "@dark/strong"
 import { loadMeta } from "./load.ts"
 import { dark$ } from "./store"
@@ -94,7 +94,10 @@ const readRuntimeMeta = async (src: string, sqliteDb: unknown): Promise<RuntimeM
     )
   }
 
-  const particleModel = readDarkParticleModel(sqliteDb as any, src)
+  const particleModel = await StoreMetaSqlite.open(sqliteDb as any).then((store) => store.readDarkParticleModel(src))
+  if (!particleModel) {
+    throw new Error(`Dark runtime meta "${src}" is not canonicalized in SQLite store`)
+  }
   return {
     meta: new Meta(particleModel.meta),
     particles: particleModel.particles,

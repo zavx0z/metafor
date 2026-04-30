@@ -2,7 +2,6 @@ import type { SQL } from "bun"
 import type { ActorRecord, ActorRows } from "./actor.t.ts"
 import type { ValueRecord } from "./value.t.ts"
 
-/** Создаёт пустую запись `actor` (без связанных value/state). */
 export const createActor = async (sql: SQL, actor: ActorRecord): Promise<void> => {
   await sql`
     INSERT INTO actor (uuid, parent, meta, position)
@@ -10,7 +9,6 @@ export const createActor = async (sql: SQL, actor: ActorRecord): Promise<void> =
   `
 }
 
-/** Очищает скалярные подтаблицы для одной value-записи (перед сменой kind). */
 const clearValueScalarTables = async (sql: SQL, uuid: string): Promise<void> => {
   await sql`DELETE FROM value_boolean WHERE value = ${uuid}`
   await sql`DELETE FROM value_number WHERE value = ${uuid}`
@@ -18,7 +16,6 @@ const clearValueScalarTables = async (sql: SQL, uuid: string): Promise<void> => 
   await sql`DELETE FROM value_enum WHERE value = ${uuid}`
 }
 
-/** Записывает скалярную часть value в типизированную подтаблицу. null/list — без подтаблицы. */
 const writeValueScalar = async (sql: SQL, value: ValueRecord): Promise<void> => {
   switch (value.kind) {
     case "null":
@@ -39,14 +36,6 @@ const writeValueScalar = async (sql: SQL, value: ValueRecord): Promise<void> => 
   }
 }
 
-/**
- * Записывает row-group актора одной транзакцией.
- *
- * Удаляет предыдущую версию актора (каскад снимет `actor_value`/`actor_state`),
- * вставляет новый набор записей: actor + value + value_<kind> + value_list_item +
- * actor_value + actor_state. Подчищает orphan-value, на которые после удаления
- * никто не ссылается.
- */
 export const writeActorRows = async (sql: SQL, rows: ActorRows): Promise<void> => {
   await sql.begin(async (tx) => {
     // удалить актора целиком (каскад снесёт actor_value, actor_state; orphan-value подчистим ниже)

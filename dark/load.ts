@@ -74,9 +74,10 @@ export async function loadMeta(address: SRC): Promise<{ db: unknown } | null> {
   if (!metaDbContext) return null
 
   if (!metaDbContext.loaded.has(address)) {
-    const { relation } = await import("@store/meta/sqlite")
+    const { StoreMetaSqlite } = await import("@store/meta/sqlite")
     const dsl = await readMetaDsl(address)
-    relation(metaDbContext.db as any, dsl, address)
+    const metaStore = await StoreMetaSqlite.open(metaDbContext.db as any)
+    await metaStore.create(address, dsl)
     metaDbContext.loaded.add(address)
   }
 

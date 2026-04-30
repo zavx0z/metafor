@@ -2,16 +2,18 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { SQL } from "bun"
 import type { MetaDSL } from "../../.."
 import gitMeta from "../../../github/zavx0z/git/meta.ts"
-import { metaCreate, metaSchemaSql, readDarkParticleModel } from "./index.ts"
+import { StoreMetaSqlite } from "./index.ts"
 
 const getMetaDB = async (path: string): Promise<SQL> => {
   const url = path === ":memory:" ? "sqlite::memory:" : `sqlite://${path}`
   const sql = new SQL(url)
   await sql.unsafe("PRAGMA foreign_keys = ON;")
-  await sql.unsafe(metaSchemaSql)
+  await StoreMetaSqlite.open(sql)
   return sql
 }
-const relation = (sql: SQL, meta: MetaDSL, src: string) => metaCreate(sql, src, meta)
+const relation = async (sql: SQL, meta: MetaDSL, src: string) => {
+  await StoreMetaSqlite.open(sql).then((store) => store.create(src, meta))
+}
 
 const richMeta: MetaDSL = {
   name: "rich",
@@ -241,7 +243,7 @@ describe("sqlite dark particle model", () => {
   test("читает particle-centric runtime model для существующей git meta после relation()", async () => {
     await relation(db, gitMeta, "zavx0z/git")
 
-    const projection = (await readDarkParticleModel(db, "zavx0z/git"))!
+    const projection = (await StoreMetaSqlite.open(db).then((store) => store.readDarkParticleModel("zavx0z/git")))!
 
     expect(projection.meta.fieldSchemas).toEqual(gitMeta.fields)
     expect(projection.meta.superposition).toEqual(gitMeta.superposition)
@@ -253,7 +255,7 @@ describe("sqlite dark particle model", () => {
   test("сохраняет particle-centric matter write-side и даёт тонкий ORM loader поверх реляционных rows", async () => {
     await relation(db, richMeta, "owner/rich")
 
-    const projection = (await readDarkParticleModel(db, "owner/rich"))!
+    const projection = (await StoreMetaSqlite.open(db).then((store) => store.readDarkParticleModel("owner/rich")))!
 
     expect(projection.meta.fieldSchemas).toEqual(richMeta.fields)
     expect(projection.meta.superposition).toEqual(richMeta.superposition)
@@ -277,7 +279,7 @@ describe("sqlite dark particle model", () => {
   test("не выводит пустые processes/reactions из отсутствия записей в БД", async () => {
     await relation(db, explicitEmptyMeta, "owner/empty")
 
-    const projection = (await readDarkParticleModel(db, "owner/empty"))!
+    const projection = (await StoreMetaSqlite.open(db).then((store) => store.readDarkParticleModel("owner/empty")))!
 
     // Принцип минимума: если в БД нет ни одной записи в process/reaction/matter_particle,
     // соответствующая секция не появляется в projection. Пустой объект — это производное,

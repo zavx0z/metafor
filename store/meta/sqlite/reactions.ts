@@ -1,22 +1,6 @@
-/**
- * Сущность `reaction` + reaction_superposition + read/write в DSL-relational схеме.
- *
- * Якорный файл сущности — под ним группируются:
- * - `reactions.sql` — DDL (4 таблицы: reaction, reaction_superposition,
- *   reaction_read, reaction_write)
- * - `reactions.t.ts` — типы (ReactionRow, FieldUuidByKey, StateUuidByName)
- * - `reactions.C.ts` — `createReactions(db, meta, src, fieldUuids, stateUuids)`
- *
- * ORM-классы `Reaction` / `Reactions` — в этом файле; каждое свойство —
- * отдельный getter (или setter для редактируемых строковых скаляров).
- */
 
 import type { SQL } from "bun"
 
-/**
- * Одна реакция декларации. Хранит `(sql, metaSrc, key)`. Каждое свойство
- * подгружается отдельным точечным запросом, без in-memory кеша.
- */
 export class Reaction {
   constructor(
     private readonly sql: SQL,
@@ -24,8 +8,7 @@ export class Reaction {
     readonly key: string,
   ) {}
 
-  /** Человекочитаемая метка реакции. */
-  async label(): Promise<string | undefined> {
+    async label(): Promise<string | undefined> {
     const row = (
       await this.sql<Array<{ label: string | null }>>`
         SELECT label FROM reaction WHERE meta = ${this.metaSrc} AND key = ${this.key}
@@ -42,8 +25,7 @@ export class Reaction {
     `
   }
 
-  /** Описание (или `undefined`, если не задано). */
-  async desc(): Promise<string | undefined> {
+    async desc(): Promise<string | undefined> {
     const row = (
       await this.sql<Array<{ desc: string | null }>>`
         SELECT desc FROM reaction WHERE meta = ${this.metaSrc} AND key = ${this.key}
@@ -60,8 +42,7 @@ export class Reaction {
     `
   }
 
-  /** Source-код условия активации реакции (`cond`). */
-  async cond(): Promise<string> {
+    async cond(): Promise<string> {
     const row = (
       await this.sql<Array<{ cond_source: string }>>`
         SELECT cond_source FROM reaction WHERE meta = ${this.metaSrc} AND key = ${this.key}
@@ -78,8 +59,7 @@ export class Reaction {
     `
   }
 
-  /** Source-код update-функции (DSL `src`). */
-  async src(): Promise<string> {
+    async src(): Promise<string> {
     const row = (
       await this.sql<Array<{ update_source: string }>>`
         SELECT update_source FROM reaction WHERE meta = ${this.metaSrc} AND key = ${this.key}
@@ -96,8 +76,7 @@ export class Reaction {
     `
   }
 
-  /** Список ключей полей, которые реакция читает (в порядке привязки). */
-  async read(): Promise<string[]> {
+    async read(): Promise<string[]> {
     const rows = await this.sql<Array<{ key: string }>>`
       SELECT field.key AS key
       FROM reaction_read
@@ -109,8 +88,7 @@ export class Reaction {
     return rows.map((row) => row.key)
   }
 
-  /** Список ключей полей, которые реакция пишет (в порядке привязки). */
-  async write(): Promise<string[]> {
+    async write(): Promise<string[]> {
     const rows = await this.sql<Array<{ key: string }>>`
       SELECT field.key AS key
       FROM reaction_write
@@ -122,8 +100,7 @@ export class Reaction {
     return rows.map((row) => row.key)
   }
 
-  /** Список states, в которых реакция активна (в порядке привязки). */
-  async states(): Promise<string[]> {
+    async states(): Promise<string[]> {
     const rows = await this.sql<Array<{ name: string }>>`
       SELECT superposition.name AS name
       FROM reaction_superposition
@@ -136,7 +113,6 @@ export class Reaction {
   }
 }
 
-/** Django-style manager для реакций одной меты. */
 export class Reactions {
   constructor(
     private readonly sql: SQL,

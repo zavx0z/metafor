@@ -1,11 +1,3 @@
-/**
- * Integration smoke для `store/server.open()` — гоняет обе схемы (meta + actor)
- * на одном SQL handle и проверяет, что `open` → `close` чисты, ORM-классы
- * meta- и actor-сторон работают вместе.
- *
- * Цель — поймать DDL-регрессии (например битые индексы) и
- * cross-schema FK-нарушения раньше unit-spec-ов.
- */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import type { MetaDSL } from "../metafor.t.ts"
@@ -30,7 +22,7 @@ describe("store/server smoke", () => {
   let store: ServerStore
 
   beforeEach(async () => {
-    store = await open({})
+    store = await open("i.db")
   })
 
   afterEach(async () => {

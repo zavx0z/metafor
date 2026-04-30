@@ -553,29 +553,33 @@ const getReactions = async (
   return reactions
 }
 
-export const readDarkParticleModel = async (sql: SQL, src: string): Promise<DarkMetaParticleModel | null> => {
-  const metaRow = await getMetaRow(sql, src)
+export class DarkParticleModelProjection {
+  constructor(private readonly sql: SQL) {}
 
-  if (!metaRow) return null
+  async read(src: string): Promise<DarkMetaParticleModel | null> {
+    const metaRow = await getMetaRow(this.sql, src)
 
-  const { fields, fieldKeys, enumVariants } = await getFields(sql, src)
-  const metaMass = await getMass(sql, src)
-  const superposition = await getSuperposition(sql, src, enumVariants)
-  const processes = (await hasProcesses(sql, src)) ? ((await getProcesses(sql, src, fieldKeys)) ?? {}) : undefined
-  const reactionsExist = await hasReactions(sql, src)
-  const reactions = reactionsExist ? ((await getReactions(sql, src, fieldKeys)) ?? { reactions: {}, superposition: {} }) : undefined
+    if (!metaRow) return null
 
-  return {
-    meta: {
-      src,
-      name: metaRow.name ?? src.split("/").pop() ?? src,
-      fieldSchemas: fields,
-      superposition: superposition ?? {},
-      ...(processes !== undefined ? { processes } : {}),
-      ...(reactions !== undefined ? { reactions } : {}),
-      ...(metaRow.view_css !== null ? { bulk: { view: metaRow.view_css } as MetaDSL["bulk"] } : {}),
-      ...(metaMass !== undefined && hasKeys(metaMass) ? { mass: metaMass } : {}),
-    },
-    particles: (await hasMatter(sql, src)) ? await getMatterParticles(sql, src) : [],
+    const { fields, fieldKeys, enumVariants } = await getFields(this.sql, src)
+    const metaMass = await getMass(this.sql, src)
+    const superposition = await getSuperposition(this.sql, src, enumVariants)
+    const processes = (await hasProcesses(this.sql, src)) ? ((await getProcesses(this.sql, src, fieldKeys)) ?? {}) : undefined
+    const reactionsExist = await hasReactions(this.sql, src)
+    const reactions = reactionsExist ? ((await getReactions(this.sql, src, fieldKeys)) ?? { reactions: {}, superposition: {} }) : undefined
+
+    return {
+      meta: {
+        src,
+        name: metaRow.name ?? src.split("/").pop() ?? src,
+        fieldSchemas: fields,
+        superposition: superposition ?? {},
+        ...(processes !== undefined ? { processes } : {}),
+        ...(reactions !== undefined ? { reactions } : {}),
+        ...(metaRow.view_css !== null ? { bulk: { view: metaRow.view_css } as MetaDSL["bulk"] } : {}),
+        ...(metaMass !== undefined && hasKeys(metaMass) ? { mass: metaMass } : {}),
+      },
+      particles: (await hasMatter(this.sql, src)) ? await getMatterParticles(this.sql, src) : [],
+    }
   }
 }

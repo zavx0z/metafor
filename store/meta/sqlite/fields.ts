@@ -1,28 +1,9 @@
-/**
- * Сущность `field` + варианты + defaults в DSL-relational схеме.
- *
- * Якорный файл сущности — под ним группируются:
- * - `fields.sql` — DDL (8 таблиц: field, field_default, field_<type>_default,
- *   field_array_default_item, field_enum_variant, field_enum_default)
- * - `fields.t.ts` — типы (FieldRow, MetaFieldSchema, GetFieldsResult, FieldUuidByKey)
- * - `fields.C.ts` — `createFields(db, meta, src)`
- *
- * ORM-классы `Field` (abstract) + 5 type-specific подклассов
- * (`StringField` / `NumberField` / `BooleanField` / `ArrayField` / `EnumField`)
- * + `Fields` manager — в этом файле; используют точечные SELECT-ы по
- * `(meta, key)`.
- */
 
 import type { SQL } from "bun"
 import type { FieldKey } from "../../../metafor.t.ts"
 
 export type FieldType = "string" | "number" | "boolean" | "array" | "enum"
 
-/**
- * Базовый абстрактный класс одного поля декларации. Хранит `(sql, src, key)`
- * и `type`-дискриминатор. Скаляры (`required`, `label`) — общие для всех типов;
- * `default()` и `variants()` — на type-specific подклассах.
- */
 export abstract class Field {
   constructor(
     protected readonly sql: SQL,
@@ -30,11 +11,9 @@ export abstract class Field {
     readonly key: FieldKey,
   ) {}
 
-  /** Дискриминатор. Известен на этапе construction'а — sync property. */
-  abstract readonly type: FieldType
+    abstract readonly type: FieldType
 
-  /** Required-флаг. */
-  async required(): Promise<boolean> {
+    async required(): Promise<boolean> {
     const row = (
       await this.sql<Array<{ required: number }>>`
         SELECT required FROM field WHERE meta = ${this.src} AND key = ${this.key}
@@ -51,8 +30,7 @@ export abstract class Field {
     `
   }
 
-  /** Человекочитаемая метка. */
-  async label(): Promise<string | undefined> {
+    async label(): Promise<string | undefined> {
     const row = (
       await this.sql<Array<{ label: string | null }>>`
         SELECT label FROM field WHERE meta = ${this.src} AND key = ${this.key}
@@ -70,7 +48,6 @@ export abstract class Field {
   }
 }
 
-/** Поле строкового типа. */
 export class StringField extends Field {
   readonly type = "string" as const
 
@@ -87,7 +64,6 @@ export class StringField extends Field {
   }
 }
 
-/** Поле числового типа. */
 export class NumberField extends Field {
   readonly type = "number" as const
 
@@ -104,7 +80,6 @@ export class NumberField extends Field {
   }
 }
 
-/** Поле булева типа. */
 export class BooleanField extends Field {
   readonly type = "boolean" as const
 
@@ -121,7 +96,6 @@ export class BooleanField extends Field {
   }
 }
 
-/** Поле-массив (default — список числовых элементов в порядке `position`). */
 export class ArrayField extends Field {
   readonly type = "array" as const
 
@@ -138,7 +112,6 @@ export class ArrayField extends Field {
   }
 }
 
-/** Поле-enum: имеет `variants` и опциональный `default` (имя варианта). */
 export class EnumField extends Field {
   readonly type = "enum" as const
 
@@ -155,8 +128,7 @@ export class EnumField extends Field {
     return row?.item_value
   }
 
-  /** Список enum-вариантов в порядке объявления. */
-  async variants(): Promise<string[]> {
+    async variants(): Promise<string[]> {
     const rows = await this.sql<Array<{ item_value: string }>>`
       SELECT v.item_value
       FROM field f
@@ -168,10 +140,6 @@ export class EnumField extends Field {
   }
 }
 
-/**
- * Дискриминированный union возможных полей. `Fields.get/.all` возвращают
- * именно его, а не абстрактный `Field`, чтобы TS сужал по `field.type`.
- */
 export type AnyField = StringField | NumberField | BooleanField | ArrayField | EnumField
 
 const buildField = (sql: SQL, src: string, key: FieldKey, type: FieldType): AnyField => {
@@ -189,23 +157,20 @@ const buildField = (sql: SQL, src: string, key: FieldKey, type: FieldType): AnyF
   }
 }
 
-/** Django-style manager для коллекции `field` одной меты. */
 export class Fields {
   constructor(
     private readonly sql: SQL,
     private readonly src: string,
   ) {}
 
-  /** Все поля декларации в порядке объявления — каждый инстанс под своим типом. */
-  async all(): Promise<AnyField[]> {
+    async all(): Promise<AnyField[]> {
     const rows = await this.sql<Array<{ key: string; type: FieldType }>>`
       SELECT key, type FROM field WHERE meta = ${this.src} ORDER BY rowid
     `
     return rows.map((row) => buildField(this.sql, this.src, row.key, row.type))
   }
 
-  /** Одно поле по ключу — точный подкласс по `field.type`. */
-  async get(filter: { key: FieldKey }): Promise<AnyField | null> {
+    async get(filter: { key: FieldKey }): Promise<AnyField | null> {
     const row = (
       await this.sql<Array<{ type: FieldType }>>`
         SELECT type FROM field WHERE meta = ${this.src} AND key = ${filter.key} LIMIT 1

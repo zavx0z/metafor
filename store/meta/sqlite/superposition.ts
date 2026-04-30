@@ -1,17 +1,3 @@
-/**
- * FSM сущности `superposition` + `transition` + `condition` (+ predicate, list_item)
- * в DSL-relational схеме.
- *
- * Якорный файл сущности — под ним группируются:
- * - `superposition.sql` — DDL (5 таблиц: superposition, transition, condition,
- *   condition_predicate, condition_list_item)
- * - `superposition.t.ts` — типы (PredicateRow, ConditionListItemRow, FieldUuidByKey,
- *   StateUuidByName)
- * - `superposition.C.ts` — `createSuperposition(db, meta, src, fieldUuids)`
- *
- * ORM-классы `State` / `Superposition` — в этом файле; `State.transitions()`
- * подгружает переходы только для своего state targeted-запросами.
- */
 
 import type { SQL } from "bun"
 import type { ConditionListItemRow, PredicateRow } from "./superposition.t.ts"
@@ -52,10 +38,6 @@ const decodeOperatorKey = (operator: string): string => {
   }
 }
 
-/**
- * Один FSM-state декларации. Хранит только `(sql, src, name)`;
- * `transitions()` подгружается лениво targeted-запросами.
- */
 export class State {
   constructor(
     private readonly sql: SQL,
@@ -63,8 +45,7 @@ export class State {
     readonly name: string,
   ) {}
 
-  /** Карта переходов: `Record<targetState, conditions>`. Пусто для terminal-state. */
-  async transitions(): Promise<Record<string, unknown>> {
+    async transitions(): Promise<Record<string, unknown>> {
     const stateRow = (
       await this.sql<Array<{ uuid: string }>>`
         SELECT uuid FROM superposition
@@ -198,7 +179,6 @@ export class State {
   }
 }
 
-/** Django-style manager для FSM-состояний одной меты. */
 export class Superposition {
   constructor(
     private readonly sql: SQL,

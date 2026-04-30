@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { HubFixture } from "fixture"
 import reference from "../github/zavx0z/git/meta.ts"
-import { readDarkParticleModel } from "@store/meta/sqlite"
+import { StoreMetaSqlite } from "@store/meta/sqlite"
 import { loadMeta } from "./load.ts"
 import { resetDarkLoadContext } from "./tests/test.helper.ts"
 
@@ -18,7 +18,8 @@ describe("loadMeta", () => {
     const loaded = await loadMeta("zavx0z/git")
     if (!loaded) throw new Error("SQLite context is unavailable")
 
-    const projection = readDarkParticleModel(loaded.db as any, "zavx0z/git")
+    const projection = await StoreMetaSqlite.open(loaded.db as any).then((store) => store.readDarkParticleModel("zavx0z/git"))
+    if (!projection) throw new Error("projection not found")
 
     expect(projection.meta.src).toBe("zavx0z/git")
     expect(projection.meta.name).toBe(reference.name)

@@ -14,133 +14,60 @@ import { createMetafor } from "./meta.C.ts"
 import { createProcess } from "./process.C.ts"
 import { createReactions } from "./reactions.C.ts"
 import { createSuperposition } from "./superposition.C.ts"
+import { Meta } from "./meta.ts"
+import type { DarkMetaParticleModel } from "./read.t.ts"
+import { DarkParticleModelProjection } from "./read.ts"
 
-export const metaforDslTableNames = [
-  "meta",
-  "meta_mass_value",
-  "field",
-  "field_default",
-  "field_string_default",
-  "field_number_default",
-  "field_boolean_default",
-  "field_array_default_item",
-  "field_enum_variant",
-  "field_enum_default",
-  "superposition",
-  "transition",
-  "condition",
-  "condition_predicate",
-  "condition_list_item",
-  "process",
-  "process_action",
-  "process_finally",
-  "process_env",
-  "process_action_read",
-  "process_action_write",
-  "process_finally_read",
-  "reaction",
-  "reaction_superposition",
-  "reaction_read",
-  "reaction_write",
-  "matter_binding",
-  "matter_binding_dep",
-  "matter_particle",
-  "matter_particle_wimp",
-  "matter_particle_fuzzy",
-  "matter_particle_axion",
-  "matter_particle_macho",
-] as const
+export class StoreMetaSqlite {
+  private constructor(private readonly sql: SQL) {}
 
-export const metaforDslIndexNames = [
-  "meta_mass_root_by_meta",
-  "meta_mass_object_entry",
-  "meta_mass_array_entry",
-  "meta_mass_by_meta",
-  "meta_mass_by_parent",
-  "field_by_meta",
-  "superposition_by_meta",
-  "condition_by_transition",
-  "condition_predicate_by_condition",
-  "condition_list_item_by_predicate",
-  "process_by_meta",
-  "process_env_by_process",
-  "process_action_read_by_process",
-  "process_action_write_by_process",
-  "process_finally_read_by_process",
-  "reaction_by_meta",
-  "reaction_superposition_by_reaction",
-  "reaction_read_by_reaction",
-  "reaction_write_by_reaction",
-  "matter_binding_by_meta",
-  "matter_binding_dep_by_binding",
-  "matter_root_particle_order",
-  "matter_particle_child_order",
-  "matter_particle_branch_slot",
-  "matter_particle_by_meta",
-  "matter_particle_by_parent",
-] as const
+  static async open(sql: SQL): Promise<StoreMetaSqlite> {
+    await sql.unsafe(
+      [
+        metaforSchemaSql,
+        fieldsSchemaSql,
+        superpositionSchemaSql,
+        processSchemaSql,
+        actionSchemaSql,
+        finallySchemaSql,
+        reactionsSchemaSql,
+        matterSchemaSql,
+      ]
+        .map((sql) => sql.trim())
+        .filter(Boolean)
+        .join("\n\n")
+        .trim(),
+    )
+    return new StoreMetaSqlite(sql)
+  }
 
-const metaforDslSchemaSqlModules = [
-  metaforSchemaSql,
-  fieldsSchemaSql,
-  superpositionSchemaSql,
-  processSchemaSql,
-  actionSchemaSql,
-  finallySchemaSql,
-  reactionsSchemaSql,
-  matterSchemaSql,
-] as const
+  async create(src: string, dsl: MetaDSL): Promise<Meta> {
+    await this.sql`DELETE FROM meta WHERE src = ${src}`
+    await this.sql.begin(async (tx) => {
+      await createMetafor(tx, dsl, src)
+      const fieldUuids = await createFields(tx, dsl, src)
+      const stateUuids = await createSuperposition(tx, dsl, src, fieldUuids)
+      await createProcess(tx, dsl, src, fieldUuids)
+      await createReactions(tx, dsl, src, fieldUuids, stateUuids)
+      await createMatter(tx, dsl, src, fieldUuids)
+    })
+    return new Meta(this.sql, src)
+  }
 
-export const metaforDslSchemaSql = metaforDslSchemaSqlModules
-  .map((sql) => sql.trim())
-  .filter(Boolean)
-  .join("\n\n")
-  .trim()
+  async get(src: string): Promise<Meta | null> {
+    const row = (
+      await this.sql<Array<{ ok: number }>>`
+        SELECT 1 AS ok FROM meta WHERE src = ${src} LIMIT 1
+      `
+    )[0]
+    return row ? new Meta(this.sql, src) : null
+  }
 
-/**
- * Применяет DSL meta-схему (33 таблицы) к уже открытому SQL.
- *
- * Идемпотентно: каждое CREATE TABLE — IF NOT EXISTS. PRAGMA-настройки не
- * трогает (это ответственность владельца SQL).
- */
-export async function initializeMetaDslSchema(sql: SQL): Promise<void> {
-  await sql.unsafe(metaforDslSchemaSql)
-}
+  async delete(src: string): Promise<void> {
+    await this.sql`DELETE FROM meta WHERE src = ${src}`
+  }
 
-/**
- * Открывает или создает базу данных SQLite по указанному пути.
- *
- * Если файл базы данных уже существует, он будет открыт. Если нет — создан новый.
- * После открытия применяет DDL схему Metafor DSL (`CREATE TABLE IF NOT EXISTS`).
- *
- * @param path - Путь к файлу базы данных.
- * @returns Открытый экземпляр SQL с инициализированной схемой.
- */
-export async function open(path: string): Promise<SQL> {
-  const sql = new SQL(`sqlite://${path}`)
-
-  await sql.unsafe("PRAGMA foreign_keys = ON;")
-  await sql.unsafe("PRAGMA journal_mode = WAL;")
-  await initializeMetaDslSchema(sql)
-
-  return sql
-}
-
-/**
- * Экспортирует структуру MetaDSL в реляционные таблицы SQLite.
- *
- * @param sql - Экземпляр базы данных SQL.
- * @param meta - Объект MetaDSL.
- * @param src - Уникальный идентификатор (source) атома.
- */
-
-export async function create(sql: SQL, meta: MetaDSL, src: string): Promise<void> {
-  await sql.begin(async (tx) => {
-    await createMetafor(tx, meta, src)
-    const fieldUuids = await createFields(tx, meta, src)
-    const stateUuids = await createSuperposition(tx, meta, src, fieldUuids)
-    await createProcess(tx, meta, src, fieldUuids)
-    await createReactions(tx, meta, src, fieldUuids, stateUuids)
-    await createMatter(tx, meta, src, fieldUuids)
-  })
+  async readDarkParticleModel(src: string): Promise<DarkMetaParticleModel | null> {
+    return new DarkParticleModelProjection(this.sql).read(src)
+  }
 }

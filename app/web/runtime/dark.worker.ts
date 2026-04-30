@@ -8,7 +8,8 @@ import {
 	type DbParticleKind,
 } from "@store/actor"
 import { openDbSyncBroadcastChannel, openStructuralBroadcastChannel } from "@shared/protocol"
-import { getMetaDB, readDarkParticleModel, relation, type DarkMetaParticleModel } from "@store/meta/sqlite"
+import { StoreMetaSqlite, type DarkMetaParticleModel } from "@store/meta/sqlite"
+import { SQL } from "bun"
 import { matter } from "../../../dark/dark.ts"
 import { readMetaDsl } from "../../../dark/load.ts"
 import { disposeMetaDbContext } from "../../../dark/load.context.ts"
@@ -308,10 +309,12 @@ const canonicalizeMetaGraph = async (
 	dbFilename: string,
 	rootSrc: string,
 ): Promise<{
-	metaDb: ReturnType<typeof getMetaDB>
+	metaDb: SQL
 	particleModelsBySrc: Map<string, DarkMetaParticleModel>
 }> => {
-	const metaDb = getMetaDB(dbFilename)
+	const metaDb = new SQL(dbFilename === ":memory:" ? "sqlite::memory:" : `sqlite://${dbFilename}`)
+	await metaDb.unsafe("PRAGMA foreign_keys = ON;")
+	const metaStore = await StoreMetaSqlite.open(metaDb)
 	const particleModelsBySrc = new Map<string, DarkMetaParticleModel>()
 	const loaded = new Set<string>()
 	const queue = [rootSrc]
@@ -321,10 +324,11 @@ const canonicalizeMetaGraph = async (
 		if (!src || loaded.has(src)) continue
 
 		const dsl = await readMetaDsl(src)
-		relation(metaDb, dsl, src)
+		await metaStore.create(src, dsl)
 		loaded.add(src)
 
-		const particleModel = readDarkParticleModel(metaDb, src)
+		const particleModel = await metaStore.readDarkParticleModel(src)
+		if (!particleModel) throw new Error(`Meta "${src}" is not canonicalized`)
 		particleModelsBySrc.set(src, particleModel)
 		for (const childSrc of collectChildMetaSrcs(particleModel.particles)) {
 			if (!loaded.has(childSrc)) queue.push(childSrc)
@@ -376,7 +380,7 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 		darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "started", src })
 
 		let backend: ReturnType<typeof openDbSqliteBackend> | null = null
-		let metaDb: ReturnType<typeof getMetaDB> | null = null
+		let metaDb: SQL | null = null
 		try {
 			resetDarkRuntime()
 			currentRootSrc = null

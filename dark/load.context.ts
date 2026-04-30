@@ -9,9 +9,13 @@ export async function getMetaDbContext(): Promise<{ db: unknown; loaded: Set<str
   if (typeof Bun === "undefined") return null
 
   if (!metaDbContext) {
-    const { getMetaDB } = await import("@store/meta/sqlite")
+    const { SQL } = await import("bun")
+    const { StoreMetaSqlite } = await import("@store/meta/sqlite")
+    const db = new SQL("sqlite::memory:")
+    await db.unsafe("PRAGMA foreign_keys = ON;")
+    await StoreMetaSqlite.open(db)
     metaDbContext = {
-      db: getMetaDB(":memory:"),
+      db,
       loaded: new Set<string>(),
     }
   }

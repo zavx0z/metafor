@@ -1,24 +1,8 @@
-/**
- * Сущность `process` (action / finally) с reads/writes per phase в DSL-relational схеме.
- *
- * Якорный файл сущности — под ним группируются:
- * - `process.sql` — общая часть (process, process_env)
- * - `process.action.sql` — process_action + reads/writes
- * - `process.finally.sql` — process_finally + reads
- * - `process.t.ts` — типы (ProcessRow, ProcessActionRow, ProcessActionReadRow,
- *   ProcessActionWriteRow, FieldUuidByKey)
- * - `process.C.ts` — `createProcess(db, meta, src, fieldUuids)`
- *
- * ORM-классы `Process` / `Processes` — в этом файле; каждое скалярное свойство —
- * отдельный getter, фазы (`action`/`success`/`error`/`before`) — composite SQL
- * с `json_group_array` для reads/writes.
- */
 
 import type { SQL } from "bun"
 
 type ProcessType = "action" | "finally"
 
-/** Шейп фазы action: исходник + опциональные модификаторы + читаемые поля. */
 export interface ProcessActionPhase {
   src: string
   importSpecifier?: string
@@ -26,14 +10,12 @@ export interface ProcessActionPhase {
   read?: string[]
 }
 
-/** Шейп фазы success/error/before: исходник + читаемые/писательные поля. */
 export interface ProcessHandlerPhase {
   src: string
   read?: string[]
   write?: string[]
 }
 
-/** Шейп finally.before — только reads. */
 export interface ProcessBeforePhase {
   src: string
   read?: string[]
@@ -45,10 +27,6 @@ const parseJsonStringArray = (value: string | null): string[] | undefined => {
   return arr.length > 0 ? arr : undefined
 }
 
-/**
- * Один процесс декларации. Хранит `(sql, metaSrc, key)`. Скаляры вытягиваются
- * отдельными точечными запросами, фазы — composite SELECT с агрегацией списков.
- */
 export class Process {
   constructor(
     private readonly sql: SQL,
@@ -56,8 +34,7 @@ export class Process {
     readonly key: string,
   ) {}
 
-  /** Тип процесса. */
-  async type(): Promise<ProcessType> {
+    async type(): Promise<ProcessType> {
     const row = (
       await this.sql<Array<{ type: ProcessType }>>`
         SELECT type FROM process WHERE meta = ${this.metaSrc} AND key = ${this.key}
@@ -67,8 +44,7 @@ export class Process {
     return row.type
   }
 
-  /** Метка процесса. */
-  async label(): Promise<string | undefined> {
+    async label(): Promise<string | undefined> {
     const row = (
       await this.sql<Array<{ label: string | null }>>`
         SELECT label FROM process WHERE meta = ${this.metaSrc} AND key = ${this.key}
@@ -85,8 +61,7 @@ export class Process {
     `
   }
 
-  /** Описание процесса. */
-  async desc(): Promise<string | undefined> {
+    async desc(): Promise<string | undefined> {
     const row = (
       await this.sql<Array<{ desc: string | null }>>`
         SELECT desc FROM process WHERE meta = ${this.metaSrc} AND key = ${this.key}
@@ -103,8 +78,7 @@ export class Process {
     `
   }
 
-  /** Список environments (`["node", "browser"]` и т.п.) в порядке привязки. */
-  async env(): Promise<string[]> {
+    async env(): Promise<string[]> {
     const rows = await this.sql<Array<{ env: string }>>`
       SELECT process_env.env AS env
       FROM process_env
@@ -115,12 +89,7 @@ export class Process {
     return rows.map((row) => row.env)
   }
 
-  /**
-   * Фаза `action` (только для процессов типа `action`). Composite SQL:
-   * action_row + reads(phase='action') в одном SELECT-е.
-   * Бросает, если процесс finally или процесс исчез.
-   */
-  async action(): Promise<ProcessActionPhase> {
+    async action(): Promise<ProcessActionPhase> {
     type Row = {
       type: ProcessType
       action: string | null
@@ -159,19 +128,11 @@ export class Process {
     return phase
   }
 
-  /**
-   * Фаза `success` или `null` если не объявлена. Composite SQL:
-   * success-source + reads(phase='success') + writes(phase='success').
-   */
-  async success(): Promise<ProcessHandlerPhase | null> {
+    async success(): Promise<ProcessHandlerPhase | null> {
     return this.handlerPhase("success")
   }
 
-  /**
-   * Фаза `error` или `null` если не объявлена. Composite SQL:
-   * error-source + reads(phase='error') + writes(phase='error').
-   */
-  async error(): Promise<ProcessHandlerPhase | null> {
+    async error(): Promise<ProcessHandlerPhase | null> {
     return this.handlerPhase("error")
   }
 
@@ -217,12 +178,7 @@ export class Process {
     return result
   }
 
-  /**
-   * Фаза `before` (только для процессов типа `finally`). Composite SQL:
-   * before-source + reads.
-   * Бросает, если процесс action или процесс исчез.
-   */
-  async before(): Promise<ProcessBeforePhase> {
+    async before(): Promise<ProcessBeforePhase> {
     type Row = {
       type: ProcessType
       before: string | null
@@ -256,7 +212,6 @@ export class Process {
   }
 }
 
-/** Django-style manager для процессов одной меты. */
 export class Processes {
   constructor(
     private readonly sql: SQL,

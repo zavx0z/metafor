@@ -1,11 +1,6 @@
 import type { SQL } from "bun"
 import { generateUuid } from "./_helpers.ts"
 
-/**
- * Связывает актор-поле с существующей записью value (entanglement).
- * Если у actor-поля уже была запись и она orphan-нулась — удаляется (каскад
- * снимет данные из всех типизированных value_<kind> и value_list_item_*).
- */
 export const shareValue = async (sql: SQL, actor: string, field: string, value: string): Promise<void> => {
   await sql.begin(async (tx) => {
     const oldRows = await tx<Array<{ value: string }>>`
@@ -25,11 +20,6 @@ export const shareValue = async (sql: SQL, actor: string, field: string, value: 
   })
 }
 
-/**
- * Расщепляет shared value: создаёт новую копию записи value (со всеми
- * типизированными подтаблицами и list-item-ами) под одного актор-поле,
- * остальные акторы продолжают делить старую. Возвращает новый uuid value.
- */
 export const forkValue = async (sql: SQL, actor: string, field: string): Promise<string> => {
   const newUuid = generateUuid()
 

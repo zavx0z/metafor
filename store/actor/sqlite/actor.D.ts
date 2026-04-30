@@ -1,9 +1,5 @@
 import type { SQL } from "bun"
 
-/**
- * Удаляет актора, его связи (`actor_value`, `actor_state` уходят по каскаду)
- * и orphan-записи value, на которые после удаления больше никто не ссылается.
- */
 export const deleteActor = async (sql: SQL, uuid: string): Promise<void> => {
   await sql.begin(async (tx) => {
     const collected = await tx<Array<{ value: string }>>`SELECT value FROM actor_value WHERE actor = ${uuid}`

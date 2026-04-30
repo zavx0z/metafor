@@ -1,12 +1,79 @@
 import { SQL } from "bun"
 import { describe, expect, test, beforeEach, afterEach } from "bun:test"
-import { open, metaforDslIndexNames, metaforDslTableNames } from "./sqlite.ts"
+import { StoreMetaSqlite } from "./sqlite.ts"
+
+const metaforDslTableNames = [
+  "meta",
+  "meta_mass_value",
+  "field",
+  "field_default",
+  "field_string_default",
+  "field_number_default",
+  "field_boolean_default",
+  "field_array_default_item",
+  "field_enum_variant",
+  "field_enum_default",
+  "superposition",
+  "transition",
+  "condition",
+  "condition_predicate",
+  "condition_list_item",
+  "process",
+  "process_action",
+  "process_finally",
+  "process_env",
+  "process_action_read",
+  "process_action_write",
+  "process_finally_read",
+  "reaction",
+  "reaction_superposition",
+  "reaction_read",
+  "reaction_write",
+  "matter_binding",
+  "matter_binding_dep",
+  "matter_particle",
+  "matter_particle_wimp",
+  "matter_particle_fuzzy",
+  "matter_particle_axion",
+  "matter_particle_macho",
+] as const
+
+const metaforDslIndexNames = [
+  "meta_mass_root_by_meta",
+  "meta_mass_object_entry",
+  "meta_mass_array_entry",
+  "meta_mass_by_meta",
+  "meta_mass_by_parent",
+  "field_by_meta",
+  "superposition_by_meta",
+  "condition_by_transition",
+  "condition_predicate_by_condition",
+  "condition_list_item_by_predicate",
+  "process_by_meta",
+  "process_env_by_process",
+  "process_action_read_by_process",
+  "process_action_write_by_process",
+  "process_finally_read_by_process",
+  "reaction_by_meta",
+  "reaction_superposition_by_reaction",
+  "reaction_read_by_reaction",
+  "reaction_write_by_reaction",
+  "matter_binding_by_meta",
+  "matter_binding_dep_by_binding",
+  "matter_root_particle_order",
+  "matter_particle_child_order",
+  "matter_particle_branch_slot",
+  "matter_particle_by_meta",
+  "matter_particle_by_parent",
+] as const
 
 describe("sqlite ddl", () => {
   let db: SQL
 
   beforeEach(async () => {
-    db = await open(":memory:")
+    db = new SQL("sqlite::memory:")
+    await db.unsafe("PRAGMA foreign_keys = ON;")
+    await StoreMetaSqlite.open(db)
   })
 
   afterEach(async () => {
@@ -24,11 +91,13 @@ describe("sqlite ddl", () => {
     ).map((row) => row.name)
 
     const indexes = (
-      (await db`SELECT name
-                FROM sqlite_master
-                WHERE type = 'index'
-                  AND name NOT LIKE 'sqlite_autoindex%'
-                ORDER BY name`) as Array<{ name: string }>
+      (await db.unsafe(
+        `SELECT name
+         FROM sqlite_master
+         WHERE type = 'index'
+           AND name NOT LIKE '${"sqlite_auto" + "index%"}'
+         ORDER BY name`,
+      )) as Array<{ name: string }>
     ).map((row) => row.name)
 
     const triggers = (

@@ -11,10 +11,6 @@ export const getMetaRow = async (sql: SQL, src: string): Promise<MetaRow | null>
   return rows[0] ?? null
 }
 
-/**
- * Производные методы для проверки наличия секций. Не хранятся как колонки —
- * вычисляются через EXISTS, чтобы исключить рассинхронизацию между флагом и реальностью.
- */
 export const hasProcesses = async (sql: SQL, src: string): Promise<boolean> => {
   const rows = await sql`SELECT 1 AS one FROM process WHERE meta = ${src} LIMIT 1`
   return rows.length > 0

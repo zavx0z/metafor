@@ -1,44 +1,75 @@
-/**
- * Сущность `meta` + `meta_mass_value` в DSL-relational схеме.
- *
- * Якорный файл сущности — под ним группируются:
- * - `meta.sql` — DDL (см. рядом)
- * - `meta.t.ts` — типы строк (`MetaRow`, `MetaMassValueRow`)
- * - `meta.C.ts` — функции записи (создание meta + рекурсивный mass)
- * - `meta.G.ts` — функции чтения (`getMetaRow`, `getMass`, `hasProcesses`, ...)
- *
- * ORM-класс `Meta` — в этом файле; координирует manager-инстансы и скаляры.
- */
 
 import type { SQL } from "bun"
 import type { MetaDSL } from "../../../metafor.t.ts"
-import { create as writeMetaToDsl } from "./sqlite.ts"
-import { getMass, getMetaRow } from "./meta.G.ts"
+import type { MetaMassValueRow, MetaRow } from "./meta.t.ts"
 import { Fields } from "./fields.ts"
 import { Superposition } from "./superposition.ts"
 import { Processes } from "./process.ts"
 import { Reactions } from "./reactions.ts"
 import { Matter } from "./matter.ts"
 
-const metaCreate = async (sql: SQL, src: string, dsl: MetaDSL): Promise<void> => {
-  await sql`DELETE FROM meta WHERE src = ${src}`
-  await writeMetaToDsl(sql, dsl, src)
+const getMetaRow = async (sql: SQL, src: string): Promise<MetaRow | null> => {
+  const rows = await sql<MetaRow[]>`
+    SELECT src, name, desc, view_css
+    FROM meta
+    WHERE src = ${src}
+  `
+  return rows[0] ?? null
 }
 
-const metaDelete = async (sql: SQL, src: string): Promise<void> => {
-  await sql`DELETE FROM meta WHERE src = ${src}`
+const compareMassRows = (left: MetaMassValueRow, right: MetaMassValueRow): number => {
+  if (left.entry_order !== null || right.entry_order !== null) {
+    return (left.entry_order ?? 0) - (right.entry_order ?? 0)
+  }
+
+  return (left.entry_key ?? "").localeCompare(right.entry_key ?? "")
 }
 
-/**
- * Один инстанс декларации меты — корневой ORM-объект пакета `@store/meta`.
- *
- * Скаляры (`name`, `desc`, `mass`, `bulk`) — методы (async, без кеша).
- * Коллекции (`fields`, `superposition`, `processes`, `reactions`, `matter`) —
- * Django-style managers с `.all() / .get(filter) / .count() / .exists()`.
- *
- * Каждое обращение — отдельный SELECT в БД; никакого in-memory кеша внутри
- * инстанса. Свежесть данных гарантирована.
- */
+const decodeMassValue = (
+  row: MetaMassValueRow,
+  childrenByParent: Map<string, MetaMassValueRow[]>,
+): unknown => {
+  if (row.value_kind === "object") {
+    return Object.fromEntries(
+      (childrenByParent.get(row.uuid) ?? [])
+        .sort(compareMassRows)
+        .map((child) => [child.entry_key ?? "", decodeMassValue(child, childrenByParent)]),
+    )
+  }
+
+  if (row.value_kind === "array") {
+    return (childrenByParent.get(row.uuid) ?? []).sort(compareMassRows).map((child) => decodeMassValue(child, childrenByParent))
+  }
+
+  if (row.value_kind === "string") return row.text_value ?? ""
+  if (row.value_kind === "number") return row.number_value ?? 0
+  if (row.value_kind === "boolean") return row.boolean_value === 1
+  return null
+}
+
+const readMass = async (sql: SQL, src: string): Promise<MetaDSL["mass"] | undefined> => {
+  const rows = await sql<MetaMassValueRow[]>`
+    SELECT uuid, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value
+    FROM meta_mass_value
+    WHERE meta = ${src}
+    ORDER BY CASE WHEN parent_value IS NULL THEN 0 ELSE 1 END, entry_order, entry_key, rowid
+  `
+
+  const root = rows.find((row) => row.parent_value === null)
+  if (!root) return
+
+  const childrenByParent = new Map<string, MetaMassValueRow[]>()
+  for (const row of rows) {
+    if (row.parent_value === null) continue
+
+    const children = childrenByParent.get(row.parent_value) ?? []
+    children.push(row)
+    childrenByParent.set(row.parent_value, children)
+  }
+
+  return decodeMassValue(root, childrenByParent) as MetaDSL["mass"]
+}
+
 export class Meta {
   readonly fields: Fields
   readonly superposition: Superposition
@@ -57,50 +88,26 @@ export class Meta {
     this.matter = new Matter(sql, src)
   }
 
-  /** Имя меты (или последний сегмент `src`, если name не задан). */
-  async name(): Promise<string> {
+    async name(): Promise<string> {
     const row = await getMetaRow(this.sql, this.src)
     return row?.name ?? this.src.split("/").pop() ?? this.src
   }
 
-  /** Описание меты или `undefined`. */
-  async desc(): Promise<string | undefined> {
+    async desc(): Promise<string | undefined> {
     const row = await getMetaRow(this.sql, this.src)
     return row?.desc ?? undefined
   }
 
-  /** Mass-словарь меты или `undefined`. */
-  async mass(): Promise<MetaDSL["mass"]> {
-    return getMass(this.sql, this.src)
+    async mass(): Promise<MetaDSL["mass"]> {
+    return readMass(this.sql, this.src)
   }
 
-  /** Bulk (CSS) или `undefined`. */
-  async bulk(): Promise<MetaDSL["bulk"]> {
+    async bulk(): Promise<MetaDSL["bulk"]> {
     const row = await getMetaRow(this.sql, this.src)
     return row?.view_css ? ({ view: row.view_css } as MetaDSL["bulk"]) : undefined
   }
 
-  /** Удаляет эту мету из БД. Каскад FK снимет всё дерево декларации. */
-  async delete(): Promise<void> {
-    await metaDelete(this.sql, this.src)
-  }
-
-  /**
-   * Идемпотентно перезаписывает декларацию меты по `src` (DELETE-then-INSERT).
-   * Возвращает новый Meta-инстанс.
-   */
-  static async create(sql: SQL, src: string, dsl: MetaDSL): Promise<Meta> {
-    await metaCreate(sql, src, dsl)
-    return new Meta(sql, src)
-  }
-
-  /** Возвращает Meta-инстанс, либо `null` если меты с таким `src` нет. */
-  static async get(sql: SQL, src: string): Promise<Meta | null> {
-    return (await getMetaRow(sql, src)) === null ? null : new Meta(sql, src)
-  }
-
-  /** Удаляет мету по `src` (без создания инстанса). */
-  static async delete(sql: SQL, src: string): Promise<void> {
-    await metaDelete(sql, src)
+    async delete(): Promise<void> {
+    await this.sql`DELETE FROM meta WHERE src = ${this.src}`
   }
 }
