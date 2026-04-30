@@ -3,6 +3,7 @@ import { mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { SQL } from "bun"
 import type { MetaDSL } from "../metafor.t.ts"
+import { projectTemplateMatterRelations } from "../dark/matter.ts"
 import { open } from "./server.ts"
 import { BooleanValue, EnumValue } from "@store/actor"
 import type {Store} from "./index.ts"
@@ -58,7 +59,7 @@ describe("store/server smoke", () => {
   })
 
   test("meta.create записывает декларацию, ORM-классы читают её обратно", async () => {
-    const meta = await store.meta.create("owner/smoke", minimalMeta)
+    const meta = await store.meta.create("owner/smoke", minimalMeta, projectTemplateMatterRelations(minimalMeta))
 
     expect(await meta.name()).toBe("smoke")
     expect(await meta.fields.count()).toBe(2)
@@ -78,7 +79,7 @@ describe("store/server smoke", () => {
   })
 
   test("actor.create + read через ORM-инстансы", async () => {
-    await store.meta.create("owner/smoke", minimalMeta)
+    await store.meta.create("owner/smoke", minimalMeta, projectTemplateMatterRelations(minimalMeta))
 
     const flagFieldUuid = (await sql<Array<{ uuid: string }>>`
       SELECT uuid FROM field WHERE meta = ${"owner/smoke"} AND key = ${"flag"}

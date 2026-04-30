@@ -48,3 +48,44 @@ export type MachoParticleRow = {
   particle: string
   collection_binding: string
 }
+
+export type MatterRelationBindingValue = BindingValue
+export type MatterRelationChildEdgeSlot = Exclude<EdgeSlot, "root">
+
+export interface MatterRelationChild {
+  edgeSlot: MatterRelationChildEdgeSlot
+  particle: MatterRelationParticle
+}
+
+export interface MatterRelationWimp {
+  kind: "wimp"
+  src: string
+  fieldsBinding?: MatterRelationBindingValue
+  massBinding?: MatterRelationBindingValue
+  children?: MatterRelationChild[]
+}
+
+export interface MatterRelationFuzzy {
+  kind: "fuzzy"
+  fuzzyKind: "dynamic-meta" | "cond"
+  predicateBinding?: MatterRelationBindingValue
+  children?: MatterRelationChild[]
+}
+
+export interface MatterRelationAxion {
+  kind: "axion"
+  predicateBinding: MatterRelationBindingValue
+  children?: MatterRelationChild[]
+}
+
+export interface MatterRelationMacho {
+  kind: "macho"
+  collectionBinding: MatterRelationBindingValue
+  children?: MatterRelationChild[]
+}
+
+export type MatterRelationParticle =
+  | MatterRelationWimp
+  | MatterRelationFuzzy
+  | MatterRelationAxion
+  | MatterRelationMacho

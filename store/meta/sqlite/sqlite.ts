@@ -8,6 +8,7 @@ import reactionsSchemaSql from "./reactions.sql" with {type: "text"}
 import matterSchemaSql from "./matter.sql" with {type: "text"}
 import { SQL } from "bun"
 import type { MetaDSL } from "../../../metafor.t"
+import type { MatterRelationParticle } from "./matter.t.ts"
 import { createFields } from "./fields.C.ts"
 import { createMatter } from "./matter.C.ts"
 import { createMeta } from "./meta.C.ts"
@@ -41,7 +42,7 @@ export class StoreMetaSqlite {
     return new StoreMetaSqlite(sql)
   }
 
-  async create(src: string, dsl: MetaDSL): Promise<Meta> {
+  async create(src: string, dsl: MetaDSL, matter: MatterRelationParticle[]): Promise<Meta> {
     await this.sql`DELETE FROM meta WHERE src = ${src}`
     await this.sql.begin(async (tx) => {
       await createMeta(tx, dsl, src)
@@ -49,7 +50,7 @@ export class StoreMetaSqlite {
       const stateUuids = await createSuperposition(tx, dsl, src, fieldUuids)
       await createProcess(tx, dsl, src, fieldUuids)
       await createReactions(tx, dsl, src, fieldUuids, stateUuids)
-      await createMatter(tx, dsl, src, fieldUuids)
+      await createMatter(tx, src, matter)
     })
     return new Meta(this.sql, src)
   }

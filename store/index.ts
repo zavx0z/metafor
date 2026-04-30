@@ -1,14 +1,17 @@
 import type {Actor, ActorRecord, ActorRoots, ActorRows, ActorValueRecord, Value} from "@store/actor"
 import type {MetaDSL} from "../metafor.t"
-import type {Meta} from "@store/meta/sqlite"
+import type {DarkMetaParticleModel, Meta} from "@store/meta/sqlite"
+import type {MatterRelationParticle} from "./meta/sqlite/matter.t.ts"
 import type {StoreUpdateMessage} from "./server.ts"
 
 export interface MetaApi {
-  create(src: string, dsl: MetaDSL): Promise<Meta>
+  create(src: string, dsl: MetaDSL, matter: MatterRelationParticle[]): Promise<Meta>
 
   get(src: string): Promise<Meta | null>
 
   delete(src: string): Promise<void>
+
+  readDarkParticleModel(src: string): Promise<DarkMetaParticleModel | null>
 }
 
 export interface ActorApi {

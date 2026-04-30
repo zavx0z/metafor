@@ -1,6 +1,6 @@
 
 import type { SQL } from "bun"
-import type { MatterParticlePlan } from "@dark/types/dark"
+import type { MatterRelationParticle } from "./matter.t.ts"
 import { getMatterParticles } from "./matter.G.ts"
 import { hasMatter } from "./meta.G.ts"
 
@@ -10,7 +10,7 @@ export class Matter {
     private readonly src: string,
   ) {}
 
-    async all(): Promise<MatterParticlePlan[]> {
+  async all(): Promise<MatterRelationParticle[]> {
     if (!(await hasMatter(this.sql, this.src))) return []
     return getMatterParticles(this.sql, this.src)
   }

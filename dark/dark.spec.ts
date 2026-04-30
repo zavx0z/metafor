@@ -26,13 +26,13 @@ const findFieldInit = (continuation: MatterWimpResult[1], key: string) =>
   continuation.fieldInits?.find((fieldInit) => fieldInit.key === key)
 
 describe("zavx0z/git", () => {
-  let sqliteDb: unknown
+  let store: NonNullable<Awaited<ReturnType<typeof loadMeta>>>["store"]
 
   beforeAll(async () => {
     await hub.setup()
     const sqlite = await loadMeta(src)
     await loadMeta(startSrc)
-    sqliteDb = sqlite?.db
+    store = sqlite!.store
   })
   afterAll(async () => {
     dark$.meta.clear()
@@ -61,7 +61,7 @@ describe("zavx0z/git", () => {
 
     let generator: ReturnType<typeof matterMeta>
     test("создание генератора", () => {
-      generator = matterMeta(rootWimp, undefined, { sqliteDb })
+      generator = matterMeta(rootWimp, undefined, { store })
 
       expect(generator, "генератор должен быть создан").toBeDefined()
       expect(typeof generator.next, "генератор должен иметь метод `next`").toBe("function")
@@ -250,7 +250,7 @@ describe("zavx0z/git", () => {
 
     let generator: ReturnType<typeof matterMeta>
     test("создание генератора", () => {
-      generator = matterMeta(startWimp, startContinuation, { sqliteDb })
+      generator = matterMeta(startWimp, startContinuation, { store })
 
       expect(generator, "генератор для git-start должен быть создан").toBeDefined()
       expect(typeof generator.next, "генератор для git-start должен иметь метод `next`").toBe("function")

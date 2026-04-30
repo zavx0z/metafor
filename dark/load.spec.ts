@@ -16,7 +16,7 @@ describe("loadMeta", () => {
 
   test("канонизирует одну meta в SQLite и возвращает particle runtime model", async () => {
     const loaded = await loadMeta("zavx0z/git")
-    if (!loaded) throw new Error("SQLite context is unavailable")
+    if (!loaded) throw new Error("store context is unavailable")
 
     const projection = await StoreMetaSqlite.open(loaded.db as any).then((store) => store.readDarkParticleModel("zavx0z/git"))
     if (!projection) throw new Error("projection not found")

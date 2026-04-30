@@ -1,5 +1,7 @@
 import type { MetaDSL, SRC } from ".."
+import type { MetaApi } from "../store/index.ts"
 import { getMetaDbContext } from "./load.context.ts"
+import { projectTemplateMatterRelations } from "./matter.ts"
 
 const HUB = "github/"
 
@@ -69,17 +71,18 @@ export const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
  * Дальнейшая orchestration обхода дочерних meta должна жить выше `load`,
  * а не внутри этого модуля.
  */
-export async function loadMeta(address: SRC): Promise<{ db: unknown } | null> {
+export async function loadMeta(address: SRC): Promise<{
+  db: unknown
+  store: { meta: MetaApi }
+} | null> {
   const metaDbContext = await getMetaDbContext()
   if (!metaDbContext) return null
 
   if (!metaDbContext.loaded.has(address)) {
-    const { StoreMetaSqlite } = await import("@store/meta/sqlite")
     const dsl = await readMetaDsl(address)
-    const metaStore = await StoreMetaSqlite.open(metaDbContext.db as any)
-    await metaStore.create(address, dsl)
+    await metaDbContext.store.meta.create(address, dsl, projectTemplateMatterRelations(dsl))
     metaDbContext.loaded.add(address)
   }
 
-  return { db: metaDbContext.db }
+  return { db: metaDbContext.db, store: metaDbContext.store }
 }

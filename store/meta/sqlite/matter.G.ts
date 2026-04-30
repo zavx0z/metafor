@@ -1,10 +1,11 @@
 import type { SQL } from "bun"
-import type { MatterParticlePlan, MatterRelationBindingValue } from "@dark/types/dark"
 import type {
   AxionParticleRow,
   BindingRow,
   FuzzyParticleRow,
   MachoParticleRow,
+  MatterRelationBindingValue,
+  MatterRelationParticle,
   ParticleRow,
   WimpParticleRow,
 } from "./matter.t.ts"
@@ -77,10 +78,11 @@ const buildParticleModel = (
   axionRows: Map<string, AxionParticleRow>,
   machoRows: Map<string, MachoParticleRow>,
   getBinding: (bindingId: string | null | undefined) => MatterRelationBindingValue | undefined,
-): MatterParticlePlan => {
-  const children = (rowsByParent.get(row.uuid) ?? []).map((child) =>
-    buildParticleModel(child, rowsByParent, wimpRows, fuzzyRows, axionRows, machoRows, getBinding),
-  )
+): MatterRelationParticle => {
+  const children = (rowsByParent.get(row.uuid) ?? []).map((child) => ({
+    edgeSlot: child.edge_slot === "root" ? "child" : child.edge_slot,
+    particle: buildParticleModel(child, rowsByParent, wimpRows, fuzzyRows, axionRows, machoRows, getBinding),
+  }))
 
   if (row.particle_kind === "wimp") {
     const wimpRow = wimpRows.get(row.uuid)
@@ -132,7 +134,7 @@ const buildParticleModel = (
   }
 }
 
-export const getMatterParticles = async (sql: SQL, src: string): Promise<MatterParticlePlan[]> => {
+export const getMatterParticles = async (sql: SQL, src: string): Promise<MatterRelationParticle[]> => {
   const { getBinding } = await getParticleBindings(sql, src)
 
   const particleRows = await sql<ParticleRow[]>`

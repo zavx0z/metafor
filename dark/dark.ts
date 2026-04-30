@@ -2,16 +2,17 @@ import type { MatterContinuation, MatterEntry, MatterLayerResult, MatterParticle
 import type { DarkParticle } from "@dark/types"
 import { emitAdd, emitBarrier } from "@dark/gravity/channel.ts"
 import type { DbMaterializationWriter } from "store/db"
-import { StoreMetaSqlite } from "@store/meta/sqlite"
+import type { Store } from "../store/index.ts"
 import { Axion, Fuzzy, Macho, materializeFields, Meta, resolveWimpContinuation, Wimp } from "@dark/strong"
 import { loadMeta } from "./load.ts"
+import { projectStoreMatterParticles } from "./matter.ts"
 import { dark$ } from "./store"
 
 interface MatterOptions {
   dbWriter?: DbMaterializationWriter
   onMaterializedStep?: (step: MatterMaterializationStep) => Promise<void> | void
   suppressGravityBarrier?: boolean
-  sqliteDb?: unknown
+  store?: Pick<Store, "meta">
 }
 
 interface RuntimeMetaMaterialization {
@@ -87,20 +88,20 @@ const registerMeta = (meta: Meta): Meta => {
   return meta
 }
 
-const readRuntimeMeta = async (src: string, sqliteDb: unknown): Promise<RuntimeMetaMaterialization> => {
-  if (!sqliteDb) {
+const readRuntimeMeta = async (src: string, store: Pick<Store, "meta"> | undefined): Promise<RuntimeMetaMaterialization> => {
+  if (!store) {
     throw new Error(
-      `Dark runtime requires prepared SQLite / ORM context for "${src}"; canonicalization must happen in load before dark traversal`,
+      `Dark runtime requires prepared store context for "${src}"; canonicalization must happen in load before dark traversal`,
     )
   }
 
-  const particleModel = await StoreMetaSqlite.open(sqliteDb as any).then((store) => store.readDarkParticleModel(src))
+  const particleModel = await store.meta.readDarkParticleModel(src)
   if (!particleModel) {
-    throw new Error(`Dark runtime meta "${src}" is not canonicalized in SQLite store`)
+    throw new Error(`Dark runtime meta "${src}" is not canonicalized in store`)
   }
   return {
     meta: new Meta(particleModel.meta),
-    particles: particleModel.particles,
+    particles: projectStoreMatterParticles(particleModel.particles),
   }
 }
 
@@ -173,7 +174,7 @@ export async function* matterMeta(
   continuation?: MatterContinuation,
   options: MatterOptions = {},
 ): AsyncGenerator<MatterLayerResult, void> {
-  const runtimeMeta = await readRuntimeMeta(wimp.src, options.sqliteDb)
+  const runtimeMeta = await readRuntimeMeta(wimp.src, options.store)
   const meta = registerMeta(runtimeMeta.meta)
 
   wimp.meta = meta
@@ -231,16 +232,21 @@ export async function matter(
   continuation?: MatterContinuation,
   options: MatterOptions = {},
 ): Promise<void> {
-  const sqlite = options.sqliteDb ? { db: options.sqliteDb } : await loadMeta(wimp.src)
-  if (!sqlite) {
-    throw new Error(`Canonical SQLite context is unavailable for "${wimp.src}"`)
+  const hasExternalStore = options.store !== undefined
+  const loaded = hasExternalStore ? { store: options.store! } : await loadMeta(wimp.src)
+  if (!loaded) {
+    throw new Error(`Canonical store context is unavailable for "${wimp.src}"`)
   }
 
   const shouldEmitGravityBarrier = options.suppressGravityBarrier !== true
-  const nestedOptions = shouldEmitGravityBarrier ? { ...options, suppressGravityBarrier: true } : options
+  const optionsWithStore = { ...options, store: loaded.store }
+  const { store: _autoLoadedStore, ...optionsWithoutStore } = options
+  const nestedOptionsBase = hasExternalStore ? optionsWithStore : optionsWithoutStore
+  const nestedOptions = shouldEmitGravityBarrier
+    ? { ...nestedOptionsBase, suppressGravityBarrier: true }
+    : nestedOptionsBase
   const generator = matterMeta(wimp, continuation, {
-    ...options,
-    sqliteDb: sqlite.db,
+    ...optionsWithStore,
   })
 
   for await (const wimps of generator) {

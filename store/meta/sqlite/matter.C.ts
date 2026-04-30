@@ -1,6 +1,5 @@
 import type { SQL } from "bun"
-import type { MetaDSL, NodeType } from "../../.."
-import type { BindingValue, EdgeSlot, FieldUuidByKey, ParticleKind } from "./matter.t.ts"
+import type { BindingValue, EdgeSlot, MatterRelationParticle, ParticleKind } from "./matter.t.ts"
 
 const toBindingPaths = (value: BindingValue): string[] => {
   if (!value || typeof value !== "object" || !("data" in value) || value.data === undefined) return []
@@ -57,33 +56,9 @@ const insertParticle = async (
   return particleUuid
 }
 
-const createContinuationSrc = (expr: string | undefined, value: string | number): string => {
-  if (!expr) return String(value)
-
-  const escaped = expr.replaceAll("\\", "\\\\").replaceAll("`", "\\`")
-  return String(new Function("_", `return \`${escaped}\``)([value]))
-}
-
-const resolveMatterEnumValues = (meta: MetaDSL, path: string): Array<string | number> => {
-  if (!path.startsWith("/value/")) return []
-
-  const fieldKey = path.slice("/value/".length)
-  const field = meta.fields?.[fieldKey]
-  if (!field || field.type !== "enum") return []
-  return [...(field.values ?? [])]
-}
-
-const resolveDynamicMetaSrcs = (
-  meta: MetaDSL,
-  value: Exclude<BindingValue, string> | undefined,
-): string[] => {
-  if (!value || typeof value !== "object") return []
-
-  const paths = toBindingPaths(value)
-  const firstPath = paths[0]
-  if (!firstPath) return []
-
-  return resolveMatterEnumValues(meta, firstPath).map((variant) => createContinuationSrc(value.expr, variant))
+const requireBinding = (binding: string | undefined, message: string): string => {
+  if (!binding) throw new Error(message)
+  return binding
 }
 
 const insertWimpParticle = async (
@@ -135,139 +110,92 @@ const insertDynamicMetaFuzzyParticle = async (
   return particleUuid
 }
 
-const projectParticleChildren = async (
+const insertRelationParticle = async (
   sql: SQL,
-  meta: MetaDSL,
   metaSrc: string,
-  children: NodeType[] | undefined,
-  parentParticle: string,
-): Promise<void> => {
-  if (!Array.isArray(children) || children.length === 0) return
-  for (let index = 0; index < children.length; index++) {
-    await projectParticleNode(sql, meta, metaSrc, children[index]!, parentParticle, "child", index)
-  }
-}
-
-const projectParticleNode = async (
-  sql: SQL,
-  meta: MetaDSL,
-  metaSrc: string,
-  node: NodeType,
+  particle: MatterRelationParticle,
   parentParticle: string | null,
   edgeSlot: EdgeSlot,
   particleOrder: number,
 ): Promise<void> => {
-  if (!["meta", "cond", "log", "map"].includes(node.type)) {
-    throw new Error(`Unsupported matter node type "${node.type}" for canonical SQLite particle relation`)
-  }
-
-  if (node.type === "meta") {
-    const metaNode = node as {
-      src: BindingValue
-      fields?: BindingValue
-      mass?: BindingValue
-      child?: NodeType[]
-    }
-    const fieldsBinding = await insertBinding(sql, metaSrc, metaNode.fields)
-    const massBinding = await insertBinding(sql, metaSrc, metaNode.mass)
-
-    if (typeof metaNode.src === "string") {
-      const wimpParticle = await insertWimpParticle(
-        sql,
-        metaSrc,
-        parentParticle,
-        edgeSlot,
-        particleOrder,
-        metaNode.src,
-        fieldsBinding,
-        massBinding,
-      )
-      await projectParticleChildren(sql, meta, metaSrc, metaNode.child, wimpParticle)
-      return
-    }
-
-    const fuzzyParticle = await insertDynamicMetaFuzzyParticle(sql, metaSrc, parentParticle, edgeSlot, particleOrder)
-    const dynamicSrcs = resolveDynamicMetaSrcs(meta, metaNode.src)
-    for (let branchOrder = 0; branchOrder < dynamicSrcs.length; branchOrder++) {
-      const resolvedSrc = dynamicSrcs[branchOrder]!
-      const branchWimp = await insertWimpParticle(
-        sql,
-        metaSrc,
-        fuzzyParticle,
-        "branch",
-        branchOrder,
-        resolvedSrc,
-        fieldsBinding,
-        massBinding,
-      )
-      await projectParticleChildren(sql, meta, metaSrc, metaNode.child, branchWimp)
-    }
+  if (particle.kind === "wimp") {
+    const fieldsBinding = await insertBinding(sql, metaSrc, particle.fieldsBinding)
+    const massBinding = await insertBinding(sql, metaSrc, particle.massBinding)
+    const particleUuid = await insertWimpParticle(
+      sql,
+      metaSrc,
+      parentParticle,
+      edgeSlot,
+      particleOrder,
+      particle.src,
+      fieldsBinding,
+      massBinding,
+    )
+    await insertRelationChildren(sql, metaSrc, particle.children, particleUuid)
     return
   }
 
-  if (node.type === "cond") {
-    const conditionNode = node as { data: string | string[]; expr?: string; child?: NodeType[] }
-    const predicateBinding = await insertBinding(
-      sql,
-      metaSrc,
-      conditionNode.expr !== undefined ? { data: conditionNode.data, expr: conditionNode.expr } : { data: conditionNode.data },
-    )
-    if (!predicateBinding) {
-      throw new Error(`Condition particle for meta "${metaSrc}" requires predicate binding`)
-    }
-
-    const fuzzyParticle = await insertCondFuzzyParticle(sql, metaSrc, parentParticle, edgeSlot, particleOrder, predicateBinding)
-    if (Array.isArray(conditionNode.child)) {
-      if (conditionNode.child[0]) await projectParticleNode(sql, meta, metaSrc, conditionNode.child[0], fuzzyParticle, "then", 0)
-      if (conditionNode.child[1]) await projectParticleNode(sql, meta, metaSrc, conditionNode.child[1], fuzzyParticle, "else", 1)
-    }
+  if (particle.kind === "fuzzy") {
+    const predicateBinding = await insertBinding(sql, metaSrc, particle.predicateBinding)
+    const particleUuid =
+      particle.fuzzyKind === "cond"
+        ? await insertCondFuzzyParticle(
+            sql,
+            metaSrc,
+            parentParticle,
+            edgeSlot,
+            particleOrder,
+            requireBinding(predicateBinding, `Condition particle for meta "${metaSrc}" requires predicate binding`),
+          )
+        : await insertDynamicMetaFuzzyParticle(sql, metaSrc, parentParticle, edgeSlot, particleOrder)
+    await insertRelationChildren(sql, metaSrc, particle.children, particleUuid)
     return
   }
 
-  if (node.type === "log") {
-    const logicalNode = node as { data: string | string[]; expr?: string; child?: NodeType[] }
-    const predicateBinding = await insertBinding(
-      sql,
-      metaSrc,
-      logicalNode.expr !== undefined ? { data: logicalNode.data, expr: logicalNode.expr } : { data: logicalNode.data },
-    )
-    if (!predicateBinding) {
-      throw new Error(`Logical particle for meta "${metaSrc}" requires predicate binding`)
-    }
+  if (particle.kind === "axion") {
+    const predicateBinding = await insertBinding(sql, metaSrc, particle.predicateBinding)
+    if (!predicateBinding) throw new Error(`Axion particle for meta "${metaSrc}" requires predicate binding`)
 
-    const axionParticle = await insertParticle(sql, metaSrc, "axion", parentParticle, edgeSlot, particleOrder)
+    const particleUuid = await insertParticle(sql, metaSrc, "axion", parentParticle, edgeSlot, particleOrder)
     await sql`
       INSERT INTO matter_particle_axion (particle, predicate_binding)
-      VALUES (${axionParticle}, ${predicateBinding})
+      VALUES (${particleUuid}, ${predicateBinding})
     `
-    await projectParticleChildren(sql, meta, metaSrc, logicalNode.child, axionParticle)
+    await insertRelationChildren(sql, metaSrc, particle.children, particleUuid)
     return
   }
 
-  const mapNode = node as { data: string; child?: NodeType[] }
-  const collectionBinding = await insertBinding(sql, metaSrc, { data: mapNode.data })
-  if (!collectionBinding) {
-    throw new Error(`Map particle for meta "${metaSrc}" requires collection binding`)
-  }
+  const collectionBinding = await insertBinding(sql, metaSrc, particle.collectionBinding)
+  if (!collectionBinding) throw new Error(`Macho particle for meta "${metaSrc}" requires collection binding`)
 
-  const machoParticle = await insertParticle(sql, metaSrc, "macho", parentParticle, edgeSlot, particleOrder)
+  const particleUuid = await insertParticle(sql, metaSrc, "macho", parentParticle, edgeSlot, particleOrder)
   await sql`
     INSERT INTO matter_particle_macho (particle, collection_binding)
-    VALUES (${machoParticle}, ${collectionBinding})
+    VALUES (${particleUuid}, ${collectionBinding})
   `
-  await projectParticleChildren(sql, meta, metaSrc, mapNode.child, machoParticle)
+  await insertRelationChildren(sql, metaSrc, particle.children, particleUuid)
+}
+
+const insertRelationChildren = async (
+  sql: SQL,
+  metaSrc: string,
+  children: MatterRelationParticle["children"],
+  parentParticle: string,
+): Promise<void> => {
+  if (!Array.isArray(children) || children.length === 0) return
+
+  for (let index = 0; index < children.length; index++) {
+    const child = children[index]!
+    await insertRelationParticle(sql, metaSrc, child.particle, parentParticle, child.edgeSlot, index)
+  }
 }
 
 export async function createMatter(
   sql: SQL,
-  meta: MetaDSL,
   src: string,
-  _fieldUuids: FieldUuidByKey,
+  matter: MatterRelationParticle[],
 ): Promise<void> {
-  if (!meta.matter) return
-
-  const matter = meta.matter ?? []
   for (let index = 0; index < matter.length; index++) {
-    await projectParticleNode(sql, meta, src, matter[index]!, null, "root", index)
+    await insertRelationParticle(sql, src, matter[index]!, null, "root", index)
   }
 }

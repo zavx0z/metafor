@@ -1,11 +1,18 @@
+import type { MetaApi } from "../store/index.ts"
+
 let metaDbContext:
   | {
       db: unknown
+      store: { meta: MetaApi }
       loaded: Set<string>
     }
   | undefined
 
-export async function getMetaDbContext(): Promise<{ db: unknown; loaded: Set<string> } | null> {
+export async function getMetaDbContext(): Promise<{
+  db: unknown
+  store: { meta: MetaApi }
+  loaded: Set<string>
+} | null> {
   if (typeof Bun === "undefined") return null
 
   if (!metaDbContext) {
@@ -13,9 +20,10 @@ export async function getMetaDbContext(): Promise<{ db: unknown; loaded: Set<str
     const { StoreMetaSqlite } = await import("@store/meta/sqlite")
     const db = new SQL("sqlite::memory:")
     await db.unsafe("PRAGMA foreign_keys = ON;")
-    await StoreMetaSqlite.open(db)
+    const meta = await StoreMetaSqlite.open(db)
     metaDbContext = {
       db,
+      store: { meta },
       loaded: new Set<string>(),
     }
   }

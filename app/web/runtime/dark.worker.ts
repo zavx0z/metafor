@@ -11,6 +11,7 @@ import { openDbSyncBroadcastChannel, openStructuralBroadcastChannel } from "@sha
 import { StoreMetaSqlite, type DarkMetaParticleModel } from "@store/meta/sqlite"
 import { SQL } from "bun"
 import { matter } from "../../../dark/dark.ts"
+import { projectStoreMatterParticles, projectTemplateMatterRelations } from "../../../dark/matter.ts"
 import { readMetaDsl } from "../../../dark/load.ts"
 import { disposeMetaDbContext } from "../../../dark/load.context.ts"
 import { Axion, Fuzzy, Macho, Wimp } from "../../../dark/strong/index.ts"
@@ -209,7 +210,7 @@ const createRuntimeParticleDescriptor = (
 	if (particle instanceof Wimp) {
 		const particleModel = particleModelsBySrc.get(particle.src)
 		const continuationPlans = Array.isArray(plan?.children) ? plan.children : []
-		const ownPlans = particleModel?.particles ?? []
+		const ownPlans = particleModel ? projectStoreMatterParticles(particleModel.particles) : []
 		const actualChildren = [...particle.children]
 		const continuationCount = Math.min(continuationPlans.length, actualChildren.length)
 		const continuationChildren = actualChildren.slice(0, continuationCount)
@@ -310,6 +311,7 @@ const canonicalizeMetaGraph = async (
 	rootSrc: string,
 ): Promise<{
 	metaDb: SQL
+	metaStore: StoreMetaSqlite
 	particleModelsBySrc: Map<string, DarkMetaParticleModel>
 }> => {
 	const metaDb = new SQL(dbFilename === ":memory:" ? "sqlite::memory:" : `sqlite://${dbFilename}`)
@@ -324,18 +326,18 @@ const canonicalizeMetaGraph = async (
 		if (!src || loaded.has(src)) continue
 
 		const dsl = await readMetaDsl(src)
-		await metaStore.create(src, dsl)
+		await metaStore.create(src, dsl, projectTemplateMatterRelations(dsl))
 		loaded.add(src)
 
 		const particleModel = await metaStore.readDarkParticleModel(src)
 		if (!particleModel) throw new Error(`Meta "${src}" is not canonicalized`)
 		particleModelsBySrc.set(src, particleModel)
-		for (const childSrc of collectChildMetaSrcs(particleModel.particles)) {
+		for (const childSrc of collectChildMetaSrcs(projectStoreMatterParticles(particleModel.particles))) {
 			if (!loaded.has(childSrc)) queue.push(childSrc)
 		}
 	}
 
-	return { metaDb, particleModelsBySrc }
+	return { metaDb, metaStore, particleModelsBySrc }
 }
 
 darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "ready" })
@@ -407,7 +409,7 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 			}
 			await matter(new Wimp({ src, parent: null }), undefined, {
 				dbWriter: writer,
-				sqliteDb: metaDb,
+				store: { meta: canonicalized.metaStore },
 				onMaterializedStep: emitSnapshot,
 			})
 			await backend.flush()

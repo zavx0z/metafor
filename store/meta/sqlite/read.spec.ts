@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { SQL } from "bun"
 import type { MetaDSL } from "../../.."
 import gitMeta from "../../../github/zavx0z/git/meta.ts"
+import { projectTemplateMatterRelations } from "../../../dark/matter.ts"
 import { StoreMetaSqlite } from "./index.ts"
 
 const getMetaDB = async (path: string): Promise<SQL> => {
@@ -12,7 +13,7 @@ const getMetaDB = async (path: string): Promise<SQL> => {
   return sql
 }
 const relation = async (sql: SQL, meta: MetaDSL, src: string) => {
-  await StoreMetaSqlite.open(sql).then((store) => store.create(src, meta))
+  await StoreMetaSqlite.open(sql).then((store) => store.create(src, meta, projectTemplateMatterRelations(meta)))
 }
 
 const richMeta: MetaDSL = {
