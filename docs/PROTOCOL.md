@@ -62,8 +62,8 @@ Protocol distinguishes:
 - topology-fields.
 
 `enum` and `array` belong to topology-fields by their type nature.
-This is not an after-the-fact conclusion from AST shape.
-`AST` only unfolds a semantic distinction that already exists.
+This is a primary model category, not an after-the-fact conclusion from contract shape.
+The contract only unfolds topology semantics that already exists.
 
 Topology-fields in MetaFor are read as Higgs fields:
 

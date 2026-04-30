@@ -1,4 +1,3 @@
-
 export type { ActorRecord, ActorRows } from "./sqlite/actor.t.ts"
 export type { ActorStateRecord } from "./sqlite/state.t.ts"
 export type { ActorValueRecord } from "./sqlite/actor_value.t.ts"

@@ -26,8 +26,8 @@ Neither `enum` nor `array` belongs to the ordinary field-update regime.
 Neither should be read as an ordinary value field.
 Both change only as topology change through `Higgs boson`, not as ordinary value mutation.
 
-This distinction is primary relative to AST.
-AST only unfolds topology semantics into a concrete contract.
+This distinction is primary relative to a concrete contract shape.
+The contract only unfolds topology semantics that is already defined.
 
 ## Reading by domain
 

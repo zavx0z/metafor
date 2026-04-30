@@ -165,12 +165,12 @@ export class Actor {
 
     async state(): Promise<ActorStateRecord | null> {
     const row = (
-      await this.sql<Array<{ actor: string; metaState: string }>>`
+      await this.sql<Array<{ actor: string; metaState: string | null }>>`
         SELECT actor, metaState FROM actor_state WHERE actor = ${this.uuid} LIMIT 1
       `
     )[0]
     if (!row) return null
-    return { actor: String(row.actor), metaState: String(row.metaState) }
+    return { actor: String(row.actor), metaState: row.metaState === null ? null : String(row.metaState) }
   }
 
     async rows(): Promise<ActorRows> {
@@ -251,22 +251,25 @@ export class Actor {
     }
 
     const stateRow = (
-      await this.sql<Array<{ actor: string; metaState: string }>>`
+      await this.sql<Array<{ actor: string; metaState: string | null }>>`
         SELECT actor, metaState FROM actor_state WHERE actor = ${this.uuid} LIMIT 1
       `
     )[0]
-    if (!stateRow) throw new Error(`actor ${this.uuid} not found`)
+    if (!stateRow) throw new Error(`actor_state ${this.uuid} not found`)
 
     return {
       actor: decodeActorRow(actorRow),
       values,
       valueRecords,
       valueItems,
-      state: { actor: String(stateRow.actor), metaState: String(stateRow.metaState) },
+      state: {
+        actor: String(stateRow.actor),
+        metaState: stateRow.metaState === null ? null : String(stateRow.metaState),
+      },
     }
   }
 
-    async setState(metaState: string): Promise<void> {
+    async setState(metaState: string | null): Promise<void> {
     await setActorState(this.sql, this.uuid, metaState)
   }
 

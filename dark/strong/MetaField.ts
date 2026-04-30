@@ -1,5 +1,5 @@
 import type { MetaFieldInit } from "@dark/types/strong"
-import { deriveUuid } from "store/db/uuid"
+import { deriveUuid } from "../../pkg/surface/uuid.ts"
 
 /**
  * Каноническое meta-поле, принадлежащее `Meta`.

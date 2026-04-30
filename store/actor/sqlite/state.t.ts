@@ -1,5 +1,5 @@
 
 export interface ActorStateRecord {
   actor: string
-    metaState: string
+    metaState: string | null
 }

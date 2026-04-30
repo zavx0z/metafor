@@ -10,7 +10,7 @@ import { SQL } from "bun"
 import type { MetaDSL } from "../../../metafor.t"
 import { createFields } from "./fields.C.ts"
 import { createMatter } from "./matter.C.ts"
-import { createMetafor } from "./meta.C.ts"
+import { createMeta } from "./meta.C.ts"
 import { createProcess } from "./process.C.ts"
 import { createReactions } from "./reactions.C.ts"
 import { createSuperposition } from "./superposition.C.ts"
@@ -44,7 +44,7 @@ export class StoreMetaSqlite {
   async create(src: string, dsl: MetaDSL): Promise<Meta> {
     await this.sql`DELETE FROM meta WHERE src = ${src}`
     await this.sql.begin(async (tx) => {
-      await createMetafor(tx, dsl, src)
+      await createMeta(tx, dsl, src)
       const fieldUuids = await createFields(tx, dsl, src)
       const stateUuids = await createSuperposition(tx, dsl, src, fieldUuids)
       await createProcess(tx, dsl, src, fieldUuids)

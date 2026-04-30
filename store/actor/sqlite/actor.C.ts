@@ -76,7 +76,7 @@ export const writeActorRows = async (sql: SQL, rows: ActorRows): Promise<void> =
       await tx`INSERT INTO actor_value (actor, field, value) VALUES (${av.actor}, ${av.field}, ${av.value})`
     }
 
-    // состояние
+    // metaState может быть NULL, если у meta нет superposition
     await tx`INSERT INTO actor_state (actor, metaState) VALUES (${rows.state.actor}, ${rows.state.metaState})`
 
     // подчистить orphan-value (которые после удаления актора больше никем не делятся)

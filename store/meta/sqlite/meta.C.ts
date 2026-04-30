@@ -78,7 +78,7 @@ const insertMassValue = async (
   return uuid
 }
 
-export async function createMetafor(sql: SQL, meta: MetaDSL, src: MetaSource): Promise<void> {
+export async function createMeta(sql: SQL, meta: MetaDSL, src: MetaSource): Promise<void> {
   if (meta.mass !== undefined && !isRecord(meta.mass)) {
     throw new Error(`Meta mass for "${src}" must be an object to be stored in relational form`)
   }

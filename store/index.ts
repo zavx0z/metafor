@@ -1,6 +1,7 @@
 import type {Actor, ActorRecord, ActorRoots, ActorRows, ActorValueRecord, Value} from "@store/actor"
 import type {MetaDSL} from "../metafor.t"
 import type {Meta} from "@store/meta/sqlite"
+import type {StoreUpdateMessage} from "./server.ts"
 
 export interface MetaApi {
   create(src: string, dsl: MetaDSL): Promise<Meta>
@@ -39,6 +40,8 @@ export interface LinkApi {
 export interface Store {
   readonly meta: MetaApi
   readonly actor: ActorApi
+
+  update(message: StoreUpdateMessage): Promise<void>
 
   close(): Promise<void>
 }
