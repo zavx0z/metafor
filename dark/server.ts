@@ -13,7 +13,7 @@ import {Wimp} from "./strong"
  * чтобы не было обратной обработки собственных `/wimp/<id>` add'ов и barrier'ов.
  */
 
-const STORE_PATH = process.env.DARK_STORE_PATH ?? "./dark.sqlite"
+const STORE_PATH = process.env.DARK_STORE_PATH ?? "./boundary.sqlite"
 
 const decodeSegment = (s: string): string => s.replace(/~1/g, "/").replace(/~0/g, "~")
 
