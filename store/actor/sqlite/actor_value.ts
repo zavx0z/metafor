@@ -1,8 +1,6 @@
-
-import type { SQL } from "bun"
-import type { ValueKind } from "./value.t.ts"
-import { Value, type AnyValue } from "./value.ts"
-import { forkValue, shareValue } from "./actor_value.U.ts"
+import type {SQL} from "bun"
+import type {ValueKind} from "./value.t.ts"
+import {Value, type AnyValue} from "./value.ts"
 
 export class ActorFieldValue {
   constructor(
@@ -11,7 +9,7 @@ export class ActorFieldValue {
     readonly field: string,
   ) {}
 
-    async value(): Promise<AnyValue> {
+  async value(): Promise<AnyValue> {
     const row = (
       await this.sql<Array<{ value: string; kind: string }>>`
         SELECT av.value AS value, v.kind AS kind
@@ -27,18 +25,7 @@ export class ActorFieldValue {
     return found
   }
 
-    async share(valueUuid: string): Promise<void> {
-    await shareValue(this.sql, this.actor, this.field, valueUuid)
-  }
-
-    async fork(): Promise<AnyValue> {
-    const newUuid = await forkValue(this.sql, this.actor, this.field)
-    const found = await Value.get(this.sql, newUuid)
-    if (!found) throw new Error(`forked value ${newUuid} not visible after commit`)
-    return found
-  }
-
-    static async get(sql: SQL, actor: string, field: string): Promise<ActorFieldValue | null> {
+  static async get(sql: SQL, actor: string, field: string): Promise<ActorFieldValue | null> {
     const row = (
       await sql<Array<{ ok: number }>>`
         SELECT 1 AS ok FROM actor_value WHERE actor = ${actor} AND field = ${field} LIMIT 1

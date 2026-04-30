@@ -105,8 +105,4 @@ export class Meta {
     const row = await getMetaRow(this.sql, this.src)
     return row?.view_css ? ({ view: row.view_css } as MetaDSL["bulk"]) : undefined
   }
-
-    async delete(): Promise<void> {
-    await this.sql`DELETE FROM meta WHERE src = ${this.src}`
-  }
 }

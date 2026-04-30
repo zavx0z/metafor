@@ -1,8 +1,0 @@
-import type { SQL } from "bun"
-
-export const setActorState = async (sql: SQL, actor: string, metaState: string | null): Promise<void> => {
-  await sql`
-    INSERT INTO actor_state (actor, metaState) VALUES (${actor}, ${metaState})
-    ON CONFLICT (actor) DO UPDATE SET metaState = excluded.metaState
-  `
-}

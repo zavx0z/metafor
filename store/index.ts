@@ -1,43 +1,29 @@
-import type {Actor, ActorRecord, ActorRoots, ActorRows, ActorValueRecord, Value} from "@store/actor"
-import type {MetaDSL} from "../metafor.t"
+import type {Actor, ActorRecord, ActorRoots, AnyValue, ActorFieldValue} from "@store/actor"
 import type {DarkMetaParticleModel, Meta} from "@store/meta/sqlite"
-import type {MatterRelationParticle} from "./meta/sqlite/matter.t.ts"
 import type {StoreUpdateMessage} from "./server.ts"
 
 export interface MetaApi {
-  create(src: string, dsl: MetaDSL, matter: MatterRelationParticle[]): Promise<Meta>
-
   get(src: string): Promise<Meta | null>
-
-  delete(src: string): Promise<void>
 
   readDarkParticleModel(src: string): Promise<DarkMetaParticleModel | null>
 }
 
+export interface ValueApi {
+  get(uuid: string): Promise<AnyValue | null>
+}
+
+export interface LinkApi {
+  get(actor: string, field: string): Promise<ActorFieldValue | null>
+}
+
 export interface ActorApi {
-  create(rows: ActorRows): Promise<Actor>
-
   get(uuid: string): Promise<Actor | null>
-
-  delete(uuid: string): Promise<void>
 
   head(uuid: string): Promise<ActorRecord | null>
 
   readonly roots: ActorRoots
   readonly value: ValueApi
   readonly link: LinkApi
-}
-
-export interface ValueApi {
-  get(uuid: string): Promise<Value | null>
-}
-
-export interface LinkApi {
-  get(actor: string, field: string): Promise<ActorValueRecord | null>
-
-  share(actor: string, field: string, value: string): Promise<void>
-
-  fork(actor: string, field: string): Promise<string>
 }
 
 export interface Store {

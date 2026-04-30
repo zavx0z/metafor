@@ -1,12 +1,9 @@
-
-import type { SQL } from "bun"
-import type { ActorRecord, ActorRows } from "./actor.t.ts"
-import type { ActorStateRecord } from "./state.t.ts"
-import type { ActorValueRecord } from "./actor_value.t.ts"
-import type { ValueItemRecord, ValueRecord } from "./value.t.ts"
-import { ActorFieldValue } from "./actor_value.ts"
-import { deleteActor } from "./actor.D.ts"
-import { setActorState } from "./state.U.ts"
+import type {SQL} from "bun"
+import type {ActorRecord, ActorRows} from "./actor.t.ts"
+import type {ActorStateRecord} from "./state.t.ts"
+import type {ActorValueRecord} from "./actor_value.t.ts"
+import type {ValueItemRecord, ValueRecord} from "./value.t.ts"
+import {ActorFieldValue} from "./actor_value.ts"
 
 const decodeActorRow = (row: Record<string, unknown>): ActorRecord => ({
   uuid: String(row.uuid),
@@ -28,7 +25,7 @@ export class ActorChildren {
     return rows.map((row) => new Actor(this.sql, String(row.uuid)))
   }
 
-  async get({ uuid }: { uuid: string }): Promise<Actor | null> {
+  async get({uuid}: { uuid: string }): Promise<Actor | null> {
     const row = (
       await this.sql<Array<{ ok: number }>>`
         SELECT 1 AS ok FROM actor WHERE uuid = ${uuid} AND parent = ${this.parentUuid} LIMIT 1
@@ -69,7 +66,7 @@ export class ActorValues {
     return rows.map((row) => new ActorFieldValue(this.sql, this.actorUuid, String(row.field)))
   }
 
-  async get({ field }: { field: string }): Promise<ActorFieldValue | null> {
+  async get({field}: { field: string }): Promise<ActorFieldValue | null> {
     return ActorFieldValue.get(this.sql, this.actorUuid, field)
   }
 
@@ -93,7 +90,7 @@ export class ActorRoots {
     return rows.map((row) => new Actor(this.sql, String(row.uuid)))
   }
 
-  async get({ uuid }: { uuid: string }): Promise<Actor | null> {
+  async get({uuid}: { uuid: string }): Promise<Actor | null> {
     const row = (
       await this.sql<Array<{ ok: number }>>`
         SELECT 1 AS ok FROM actor WHERE uuid = ${uuid} AND parent IS NULL LIMIT 1
@@ -133,7 +130,7 @@ export class Actor {
     this.values = new ActorValues(sql, uuid)
   }
 
-    async meta(): Promise<string> {
+  async meta(): Promise<string> {
     const row = (
       await this.sql<Array<{ meta: string }>>`
         SELECT meta FROM actor WHERE uuid = ${this.uuid} LIMIT 1
@@ -143,7 +140,7 @@ export class Actor {
     return String(row.meta)
   }
 
-    async position(): Promise<number> {
+  async position(): Promise<number> {
     const row = (
       await this.sql<Array<{ position: number }>>`
         SELECT position FROM actor WHERE uuid = ${this.uuid} LIMIT 1
@@ -153,7 +150,7 @@ export class Actor {
     return Number(row.position)
   }
 
-    async parent(): Promise<Actor | null> {
+  async parent(): Promise<Actor | null> {
     const row = (
       await this.sql<Array<{ parent: string | null }>>`
         SELECT parent FROM actor WHERE uuid = ${this.uuid} LIMIT 1
@@ -163,17 +160,17 @@ export class Actor {
     return row.parent === null || row.parent === undefined ? null : new Actor(this.sql, String(row.parent))
   }
 
-    async state(): Promise<ActorStateRecord | null> {
+  async state(): Promise<ActorStateRecord | null> {
     const row = (
       await this.sql<Array<{ actor: string; metaState: string | null }>>`
         SELECT actor, metaState FROM actor_state WHERE actor = ${this.uuid} LIMIT 1
       `
     )[0]
     if (!row) return null
-    return { actor: String(row.actor), metaState: row.metaState === null ? null : String(row.metaState) }
+    return {actor: String(row.actor), metaState: row.metaState === null ? null : String(row.metaState)}
   }
 
-    async rows(): Promise<ActorRows> {
+  async rows(): Promise<ActorRows> {
     const actorRow = (
       await this.sql<Array<Record<string, unknown>>>`
         SELECT uuid, parent, meta, position FROM actor WHERE uuid = ${this.uuid}
@@ -214,22 +211,22 @@ export class Actor {
         const kind = String(row.kind)
         switch (kind) {
           case "null":
-            valueRecords.push({ uuid: id, kind: "null" })
+            valueRecords.push({uuid: id, kind: "null"})
             break
           case "boolean":
-            valueRecords.push({ uuid: id, kind: "boolean", boolean: row.boolean === 1 })
+            valueRecords.push({uuid: id, kind: "boolean", boolean: row.boolean === 1})
             break
           case "number":
-            valueRecords.push({ uuid: id, kind: "number", number: Number(row.number) })
+            valueRecords.push({uuid: id, kind: "number", number: Number(row.number)})
             break
           case "string":
-            valueRecords.push({ uuid: id, kind: "string", text: String(row.text) })
+            valueRecords.push({uuid: id, kind: "string", text: String(row.text)})
             break
           case "enum":
-            valueRecords.push({ uuid: id, kind: "enum", variant: String(row.variant) })
+            valueRecords.push({uuid: id, kind: "enum", variant: String(row.variant)})
             break
           case "list":
-            valueRecords.push({ uuid: id, kind: "list" })
+            valueRecords.push({uuid: id, kind: "list"})
             break
           default:
             throw new Error(`Unknown value.kind '${kind}' for ${id}`)
@@ -267,13 +264,5 @@ export class Actor {
         metaState: stateRow.metaState === null ? null : String(stateRow.metaState),
       },
     }
-  }
-
-    async setState(metaState: string | null): Promise<void> {
-    await setActorState(this.sql, this.uuid, metaState)
-  }
-
-    async delete(): Promise<void> {
-    await deleteActor(this.sql, this.uuid)
   }
 }

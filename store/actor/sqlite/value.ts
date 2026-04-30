@@ -1,8 +1,6 @@
-
-import type { SQL } from "bun"
-import type { ActorValueRecord } from "./actor_value.t.ts"
-import type { ValueItemRecord, ValueKind } from "./value.t.ts"
-import { truncateValueItems, writeValueItem } from "./value.U.ts"
+import type {SQL} from "bun"
+import type {ActorValueRecord} from "./actor_value.t.ts"
+import type {ValueItemRecord, ValueKind} from "./value.t.ts"
 
 export abstract class Value {
   constructor(
@@ -10,16 +8,16 @@ export abstract class Value {
     readonly uuid: string,
   ) {}
 
-    abstract readonly kind: ValueKind
+  abstract readonly kind: ValueKind
 
-    async owners(): Promise<ActorValueRecord[]> {
+  async owners(): Promise<ActorValueRecord[]> {
     const rows = await this.sql<Array<{ actor: string; field: string; value: string }>>`
       SELECT actor, field, value FROM actor_value WHERE value = ${this.uuid}
     `
-    return rows.map((row) => ({ actor: String(row.actor), field: String(row.field), value: String(row.value) }))
+    return rows.map((row) => ({actor: String(row.actor), field: String(row.field), value: String(row.value)}))
   }
 
-    static async get(sql: SQL, uuid: string): Promise<AnyValue | null> {
+  static async get(sql: SQL, uuid: string): Promise<AnyValue | null> {
     const row = (
       await sql<Array<{ kind: string }>>`
         SELECT kind FROM value WHERE uuid = ${uuid} LIMIT 1
@@ -46,12 +44,6 @@ export class BooleanValue extends Value {
     if (!row) throw new Error(`value_boolean ${this.uuid} not found`)
     return row.boolean === 1
   }
-
-  async setBoolean(value: boolean): Promise<void> {
-    await this.sql`
-      UPDATE value_boolean SET boolean = ${value ? 1 : 0} WHERE value = ${this.uuid}
-    `
-  }
 }
 
 export class NumberValue extends Value {
@@ -65,12 +57,6 @@ export class NumberValue extends Value {
     )[0]
     if (!row) throw new Error(`value_number ${this.uuid} not found`)
     return Number(row.number)
-  }
-
-  async setNumber(value: number): Promise<void> {
-    await this.sql`
-      UPDATE value_number SET number = ${value} WHERE value = ${this.uuid}
-    `
   }
 }
 
@@ -86,12 +72,6 @@ export class StringValue extends Value {
     if (!row) throw new Error(`value_string ${this.uuid} not found`)
     return String(row.text)
   }
-
-  async setText(value: string): Promise<void> {
-    await this.sql`
-      UPDATE value_string SET text = ${value} WHERE value = ${this.uuid}
-    `
-  }
 }
 
 export class EnumValue extends Value {
@@ -106,18 +86,12 @@ export class EnumValue extends Value {
     if (!row) throw new Error(`value_enum ${this.uuid} not found`)
     return String(row.variant)
   }
-
-  async setVariant(value: string): Promise<void> {
-    await this.sql`
-      UPDATE value_enum SET variant = ${value} WHERE value = ${this.uuid}
-    `
-  }
 }
 
 export class ListValue extends Value {
   readonly kind = "list" as const
 
-    async items(): Promise<ValueItemRecord[]> {
+  async items(): Promise<ValueItemRecord[]> {
     const rows = await this.sql<Array<{ value: string; position: number; item_value: string }>>`
       SELECT value, position, item_value FROM value_list_item WHERE value = ${this.uuid} ORDER BY position
     `
@@ -126,14 +100,6 @@ export class ListValue extends Value {
       position: Number(row.position),
       itemValue: String(row.item_value),
     }))
-  }
-
-    async writeItem(position: number, itemValue: string): Promise<void> {
-    await writeValueItem(this.sql, this.uuid, position, itemValue)
-  }
-
-    async truncateItems(fromPosition: number): Promise<void> {
-    await truncateValueItems(this.sql, this.uuid, fromPosition)
   }
 }
 
