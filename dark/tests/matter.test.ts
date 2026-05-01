@@ -21,7 +21,8 @@ describe("matter() — runtime tree", () => {
   beforeAll(async () => {
     store = await open(":memory:")
     sql = new SQL("sqlite::memory:")
-    root = await matter("zavx0z/git", {store})
+    root = new Wimp({src: "zavx0z/git", parent: null})
+    await matter(root, undefined, {store})
     allParticles = collectParticles(root)
     wimps = allParticles.filter((p): p is Wimp => p instanceof Wimp)
   })

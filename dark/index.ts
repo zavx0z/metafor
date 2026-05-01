@@ -1,5 +1,6 @@
 import {open} from "../store/server.ts"
 import {matter} from "./dark.ts"
+import {Wimp} from "./strong"
 import {MetaFor} from "../metafor"
 
 export {matter, matterMeta} from "./dark.ts"
@@ -18,7 +19,7 @@ if (typeof self !== "undefined" && "postMessage" in self) {
 
     try {
       self.postMessage({type: "status", status: "started", src})
-      await matter(src, {store})
+      await matter(new Wimp({src, parent: null}), undefined, {store})
       self.postMessage({type: "status", status: "done", src})
     } catch (error) {
       self.postMessage({
