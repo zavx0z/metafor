@@ -1,27 +1,26 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
-import {Wimp} from "@dark/strong"
 
 type RecordedStep = {
-  kind: "layer" | "root"
-  layerSize: number
-  src: string
+  kind: "actor" | "topology"
+  particleUuid: string
+  src?: string
 }
 
-describe("dark matter incremental steps", () => {
+describe("dark matter — observation hook", () => {
   const steps: RecordedStep[] = []
   let store: Awaited<ReturnType<typeof open>>
 
   beforeAll(async () => {
     store = await open(":memory:")
-    await matter(new Wimp({src: "zavx0z/git", parent: null}), undefined, {
+    await matter("zavx0z/git", {
       store,
       onMaterializedStep(step) {
         steps.push({
           kind: step.kind,
-          layerSize: step.layerWimps.length,
-          src: step.wimp.src,
+          particleUuid: step.particle.uuid,
+          ...(step.src !== undefined ? {src: step.src} : {}),
         })
       },
     })
@@ -31,16 +30,22 @@ describe("dark matter incremental steps", () => {
     await store.close()
   })
 
-  test("сначала публикует root шаг текущей меты, а затем её layer шаги", () => {
-    const rootStepIndex = steps.findIndex((step) => step.kind === "root" && step.src === "zavx0z/git")
-    const firstRootLayerIndex = steps.findIndex((step) => step.kind === "layer" && step.src === "zavx0z/git")
-
-    expect(rootStepIndex).toBe(0)
-    expect(firstRootLayerIndex).toBeGreaterThan(rootStepIndex)
+  test("первым приходит actor-шаг для root меты", () => {
+    expect(steps[0]?.kind).toBe("actor")
+    expect(steps[0]?.src).toBe("zavx0z/git")
   })
 
-  test("публикует шаги и для рекурсивно materialized дочерних мет", () => {
-    expect(steps.some((step) => step.kind === "root" && step.src === "zavx0z/git-start")).toBe(true)
-    expect(steps.some((step) => step.kind === "layer" && step.layerSize > 0)).toBe(true)
+  test("публикует actor-шаги для рекурсивно materialized дочерних мет", () => {
+    expect(steps.some((step) => step.kind === "actor" && step.src === "zavx0z/git-start")).toBe(true)
+    expect(steps.some((step) => step.kind === "actor" && step.src === "zavx0z/git-error")).toBe(true)
+  })
+
+  test("публикует topology-шаги (Fuzzy/Axion)", () => {
+    expect(steps.some((step) => step.kind === "topology")).toBe(true)
+  })
+
+  test("каждый particle uuid уникален в steps", () => {
+    const uuids = steps.map((s) => s.particleUuid)
+    expect(new Set(uuids).size).toBe(uuids.length)
   })
 })

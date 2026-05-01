@@ -1,348 +1,111 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {MetaDSL} from "../index.ts"
-import reference from "../github/zavx0z/git/meta.ts"
-import startReference from "../github/zavx0z/git-start/meta.ts"
-
-import type {DarkParticle} from "@dark/types"
-import type {MatterWimpResult} from "@dark/types/dark"
-import {Axion, Fuzzy, readFieldValues, Wimp} from "@dark/strong"
+import {SQL} from "bun"
+import {mkdirSync, rmSync} from "node:fs"
+import {join} from "node:path"
+import type {Actor} from "@store/actor"
 import {open} from "../store/server.ts"
-import {matterMeta} from "./dark.ts"
-import {loadMeta} from "./load.ts"
+import {matter} from "./dark.ts"
 
 const src = "zavx0z/git"
-const startSrc = "zavx0z/git-start"
-const ref = reference as MetaDSL
-const startRef = startReference as MetaDSL
 
-const readWimpValues = (wimp: Wimp) => readFieldValues(wimp.fields)
-const readFieldInitValues = (fieldInits?: MatterWimpResult[1]["fieldInits"]) =>
-  Object.fromEntries((fieldInits ?? []).map(({key, value}) => [key, value]))
-
-const findFieldInit = (continuation: MatterWimpResult[1], key: string) =>
-  continuation.fieldInits?.find((fieldInit) => fieldInit.key === key)
-
-const collectParticles = (root: DarkParticle, sink: Set<DarkParticle> = new Set()): Set<DarkParticle> => {
-  sink.add(root)
-  for (const child of root.children) collectParticles(child, sink)
-  return sink
-}
-
-describe("zavx0z/git", () => {
+describe("matter(zavx0z/git) → store", () => {
   let store: Awaited<ReturnType<typeof open>>
+  let sql: SQL
+  let root: Actor
+  let tmpFile: string
 
   beforeAll(async () => {
-    store = await open(":memory:")
-    await loadMeta(src, store)
-    await loadMeta(startSrc, store)
+    const tmpDir = join(import.meta.dir, "tmp")
+    mkdirSync(tmpDir, {recursive: true})
+    tmpFile = join(tmpDir, `dark-spec-${crypto.randomUUID()}.sqlite`)
+    store = await open(tmpFile)
+    sql = new SQL(`sqlite://${tmpFile}`)
+    root = await matter(src, {store})
   })
+
   afterAll(async () => {
+    await sql.close()
     await store.close()
+    rmSync(tmpFile, {force: true})
+    rmSync(`${tmpFile}-shm`, {force: true})
+    rmSync(`${tmpFile}-wal`, {force: true})
   })
 
-  let rootResults: MatterWimpResult[] = []
-  let rootWimp: Wimp
-
-  describe("zavx0z/git", () => {
-    let rootFuzzy: Fuzzy
-    let rootAxion: Axion
-
-    test("создание корневого Wimp", () => {
-      rootWimp = new Wimp({src, parent: null})
-
-      expect(rootWimp.fields, "до запуска прохода корневой Wimp должен оставаться пустым").toBeUndefined()
-      expect(rootWimp.mass, "до запуска прохода корневой Wimp не должен иметь `mass`").toBeUndefined()
-      expect(rootWimp.children, "до первого шага прохода корневой Wimp ещё не должен иметь детей").toEqual(new Set())
-    })
-
-    let generator: ReturnType<typeof matterMeta>
-    test("создание генератора", () => {
-      generator = matterMeta(rootWimp, undefined, {store})
-
-      expect(generator, "генератор должен быть создан").toBeDefined()
-      expect(typeof generator.next, "генератор должен иметь метод `next`").toBe("function")
-      expect(rootWimp.fields, "создание генератора не должно преждевременно инициализировать корневой Wimp").toBeUndefined()
-    })
-
-    test("обработка первого уровня", async () => {
-      const firstLevel = await generator.next()
-      if (firstLevel.done) throw new Error("first level is done")
-
-      const firstLayer = firstLevel.value
-      const materialized = collectParticles(rootWimp)
-
-      expect(firstLevel.done, "первый слой не должен завершать генератор").toBe(false)
-      expect(firstLayer, "первый слой должен вернуть пустой список Wimp-результатов").toEqual([])
-      expect(readWimpValues(rootWimp), "корневой Wimp должен получить объектные поля только на первом `next`").toEqual({
-        operation: null,
-        error: null,
-        command: null,
-        args: null,
-      })
-      expect(rootWimp.meta, "корневой Wimp должен ссылаться на materialized Meta").toBeDefined()
-      expect(rootWimp.name, "корневой Wimp должен хранить локальное имя своей меты").toBe(ref.name)
-      expect(Object.keys(rootWimp.fields ?? {}), "корневой Wimp должен хранить объектные поля для всех ключей схемы").toEqual(
-        Object.keys(ref.fields),
-      )
-      expect(rootWimp.fields!.operation!.owner, "каждое поле должно знать владельца").toBe(rootWimp)
-      expect(rootWimp.fields!.operation!.schema, "поле должно хранить свою схему").toEqual(ref.fields.operation!)
-      expect(rootWimp.fields!.operation!.schema, "схема поля не должна оставаться ссылкой на исходный AST").not.toBe(
-        ref.fields.operation!,
-      )
-      expect(rootWimp.fields!.operation!.metaField, "instance field должен ссылаться на канонический `MetaField`").toBe(
-        rootWimp.meta!.fields.operation!,
-      )
-      expect(rootWimp.fields!.command!.value, "поле должно хранить текущее значение").toBeNull()
-      expect(rootWimp.fields!.command!.source, "локальное поле без родителя должно иметь `source = null`").toBeNull()
-      expect(rootWimp.superposition, "корневой Wimp должен хранить локальную `superposition` своей меты").toEqual(
-        ref.superposition,
-      )
-      expect(
-        rootWimp.superposition,
-        "`superposition` должна принадлежать самому Wimp, а не оставаться ссылкой на AST",
-      ).not.toBe(ref.superposition)
-      expect(rootWimp.processes, "корневой Wimp должен хранить локальные `processes` своей меты").toEqual(ref.processes)
-      expect(rootWimp.processes, "`processes` должны принадлежать самому Wimp, а не оставаться ссылкой на AST").not.toBe(
-        ref.processes,
-      )
-      expect(rootWimp.reactions, "если `reactions` в мете нет, Wimp не должен создавать её искусственно").toBeUndefined()
-      expect(rootWimp.bulk, "если `bulk` в мете нет, Wimp не должен создавать его искусственно").toBeUndefined()
-      if (ref.mass && Object.keys(ref.mass).length > 0) {
-        expect(rootWimp.mass, "`mass` должен присваиваться корневому Wimp при входе в проход").toEqual(ref.mass)
-        expect(rootWimp.mass, "`mass` тоже должна принадлежать самому Wimp, а не AST").not.toBe(ref.mass)
-      } else {
-        expect(rootWimp.mass, "при пустом `ast.mass` корневой Wimp не должен получать `mass`").toBeUndefined()
-      }
-
-      rootFuzzy = [...materialized].find((particle): particle is Fuzzy => particle instanceof Fuzzy)!
-      rootAxion = [...materialized].find((particle): particle is Axion => particle instanceof Axion)!
-
-      expect(rootFuzzy, "на первом уровне должен появиться Fuzzy").toBeInstanceOf(Fuzzy)
-      expect(rootAxion, "на первом уровне должен появиться Axion").toBeInstanceOf(Axion)
-      expect(materialized.size, "после первого уровня в object-graph должны быть rootWimp, Fuzzy и Axion").toBe(3)
-      expect(rootFuzzy.value, "Fuzzy без выбранного enum значения должен быть пустым").toBeNull()
-      expect(rootWimp.children, "корневой Wimp должен получить связи на Fuzzy и Axion первого уровня").toEqual(
-        new Set([rootFuzzy, rootAxion]),
-      )
-      expect(rootFuzzy.children, "на первом уровне Fuzzy ещё не должен иметь дочерних Wimp").toEqual(new Set())
-      expect(rootAxion.children, "на первом уровне Axion ещё не должен иметь дочерних Wimp").toEqual(new Set())
-      expect(rootFuzzy.parent, "`parent` Fuzzy первого уровня должен быть корневым Wimp").toBe(rootWimp)
-      expect(rootAxion.parent, "`parent` Axion первого уровня должен быть корневым Wimp").toBe(rootWimp)
-      expect(rootResults, "до второго слоя ещё не должно быть внешних Wimp-результатов").toEqual([])
-    })
-
-    test("обработка второго уровня", async () => {
-      const secondLevel = await generator.next()
-      const values = ref.fields.operation?.values ?? []
-      if (secondLevel.done) throw new Error("second level is done")
-
-      const secondLayer = secondLevel.value
-      const branchResults = secondLayer.filter(([particle]) => particle.parent === rootFuzzy)
-      const childResult = secondLayer.find(([particle]) => particle.parent === rootAxion)
-
-      rootResults = secondLayer
-
-      expect(secondLevel.done, "второй слой не должен завершать генератор").toBe(false)
-      expect(secondLayer, "второй слой должен вернуть все Wimp, обнаруженные на этом шаге").toHaveLength(
-        values.length + 1,
-      )
-      expect(
-        collectParticles(rootWimp).size,
-        "после второго уровня в object-graph должны быть корень, Fuzzy, Axion и все ветви Wimp",
-      ).toBe(values.length + 4)
-      expect(
-        branchResults.map(([particle]) => particle.src),
-        "после второго уровня Fuzzy должен раскрыть все статические Wimp из значений `enum`",
-      ).toEqual(values.map((value) => `zavx0z/git-${value}`))
-      for (const [, continuation] of branchResults) {
-        expect(
-          readFieldInitValues(continuation.fieldInits),
-          "ветви Fuzzy должны отдавать набор `FieldInit`, подготовленный на уровне родительской меты",
-        ).toEqual({operation: null, args: null})
-        expect(
-          findFieldInit(continuation, "operation")?.source,
-          "поле `enum` не должно участвовать в прямой связи по источнику даже внутри временного пакета",
-        ).toBeUndefined()
-        expect(findFieldInit(continuation, "args")?.source, "обычное поле должно ссылаться на поле родителя").toBe(
-          rootWimp.fields!.args,
-        )
-      }
-      expect(
-        branchResults.every(([particle]) => particle.mass === undefined),
-        "обнаруженные ветви Wimp ещё не должны иметь `mass`",
-      ).toBe(true)
-      expect(
-        branchResults.every(([particle]) => particle.fields === undefined && particle.superposition === undefined),
-        "обнаруженные ветви Wimp ещё не должны получать локальные данные AST до загрузки своей меты",
-      ).toBe(true)
-      expect(childResult, "после второго уровня Axion должен получить дочерний Wimp").toBeDefined()
-      expect(childResult?.[0].src, "дочерний Wimp должен сохранять статический `src` из дочерней меты").toBe(
-        "zavx0z/git-error",
-      )
-      expect(childResult?.[0].fields, "дочерний Wimp тоже должен оставаться пустым до своей меты").toBeUndefined()
-      expect(childResult?.[0].mass, "дочерний Wimp не должен получать `mass` до входа в свой проход").toBeUndefined()
-      expect(
-        readFieldInitValues(childResult?.[1].fieldInits),
-        "дочерний Wimp должен вернуть набор `FieldInit` для своей меты",
-      ).toEqual({message: null})
-      expect(findFieldInit(childResult![1], "message")?.source).toBe(rootWimp.fields!.error)
-      expect(rootFuzzy.children, "Fuzzy должен содержать связи на все собранные ветви Wimp").toEqual(
-        new Set(branchResults.map(([particle]) => particle)),
-      )
-      expect(rootAxion.children, "Axion должен содержать связь на дочерний Wimp").toEqual(new Set([childResult![0]]))
-      for (const [particle] of branchResults) {
-        expect(particle.parent, "`parent` каждой ветви Wimp из `enum` должен быть Fuzzy").toBe(rootFuzzy)
-      }
-      expect(childResult![0].parent, "`parent` дочернего Wimp должен быть Axion").toBe(rootAxion)
-      expect(
-        secondLayer.map(([particle]) => particle.src),
-        "второй слой должен вернуть все обнаруженные Wimp текущей меты",
-      ).toEqual([...values.map((value) => `zavx0z/git-${value}`), "zavx0z/git-error"])
-    })
-
-    test("завершение генератора", async () => {
-      const end = await generator.next()
-
-      expect(end.done, "генератор должен завершиться после второго уровня").toBe(true)
-      expect(end.value, "после завершения генератор не должен возвращать дополнительный результат").toBeUndefined()
-    })
+  test("root actor создан, привязан к meta zavx0z/git", async () => {
+    expect(root.uuid).toBeDefined()
+    expect(await root.meta()).toBe(src)
+    expect(await root.position()).toBe(0)
+    const ref = await root.parentRef()
+    expect(ref).toBeNull()
   })
 
-  describe("zavx0z/git-start", () => {
-    let startWimp: Wimp
-    let startContinuation: MatterWimpResult[1]
-    let childFuzzy: Fuzzy
-    let childResults: MatterWimpResult[] = []
+  test("у root есть topology-узлы Fuzzy и Axion (первый слой git)", async () => {
+    const topology = await store.topology.childrenOfActor(root.uuid)
+    const kinds = topology.map((t) => t.kind).sort()
+    expect(kinds).toEqual(["axion", "fuzzy"])
+  })
 
-    test("создание корневого Wimp дочерней меты", () => {
-      const result = rootResults[0]
-      if (!result) throw new Error("Wimp git-start не найден")
-      ;[startWimp, startContinuation] = result
-
-      expect(startWimp, "первый Wimp из временного пакета корневой меты должен существовать").toBeDefined()
-      expect(startWimp.src, "первый Wimp из временного пакета должен быть git-start").toBe(startSrc)
-      expect(startContinuation, "Wimp git-start должен прийти вместе с набором описаний полей от родителя").toEqual({
-        fieldInits: [
-          {key: "operation", value: null},
-          {key: "args", value: null, source: rootWimp.fields!.args!},
-        ],
-      })
-      expect(startWimp.fields, "до входа в дочернюю мету Wimp должен оставаться пустым").toBeUndefined()
-      expect(startWimp.mass, "до входа в дочернюю мету `mass` тоже не должен быть выставлен").toBeUndefined()
-    })
-
-    let generator: ReturnType<typeof matterMeta>
-    test("создание генератора", () => {
-      generator = matterMeta(startWimp, startContinuation, {store})
-
-      expect(generator, "генератор для git-start должен быть создан").toBeDefined()
-      expect(typeof generator.next, "генератор для git-start должен иметь метод `next`").toBe("function")
-      expect(startWimp.fields, "до первого `next` дочерний Wimp должен оставаться пустым").toBeUndefined()
-    })
-
-    test("обработка первого уровня", async () => {
-      const firstLevel = await generator.next()
-      if (firstLevel.done) throw new Error("first git-start level is done")
-
-      const firstLayer = firstLevel.value
-
-      expect(firstLevel.done, "первый слой git-start не должен завершать генератор").toBe(false)
-      expect(firstLayer, "первый слой git-start должен вернуть пустой список Wimp-результатов").toEqual([])
-      expect(readWimpValues(startWimp), "набор `FieldInit` должен примениться только на первом `next` дочерней меты").toEqual({
-        operation: null,
-        args: null,
-      })
-      expect(startWimp.meta, "дочерний Wimp должен получить ссылку на materialized Meta").toBeDefined()
-      expect(startWimp.name, "дочерний Wimp должен хранить локальное имя своей меты").toBe(startRef.name)
-      expect(
-        Object.keys(startWimp.fields ?? {}),
-        "дочерний Wimp должен собирать собственный объектный набор полей",
-      ).toEqual(Object.keys(startRef.fields))
-      expect(startWimp.fields!.operation!.schema).toEqual(startRef.fields.operation!)
-      expect(startWimp.fields!.args!.owner, "поле дочернего Wimp должно знать владельца").toBe(startWimp)
-      expect(startWimp.fields!.args!.source, "обычное поле должно ссылаться на поле родительского Wimp").toBe(
-        rootWimp.fields!.args!,
+  test("Fuzzy раскрыт на статические Wimp-ветви соответствующие values enum operation", async () => {
+    const topology = await store.topology.childrenOfActor(root.uuid)
+    const fuzzy = topology.find((t) => t.kind === "fuzzy")
+    if (!fuzzy) throw new Error("fuzzy missing")
+    const branches = await store
+      .actor.head(root.uuid) // sanity
+      .then(() =>
+        store.meta
+          .get(src)
+          .then((m) => m!.fields.get({key: "operation"}))
+          .then((field) => (field && field.type === "enum" ? field.variants() : Promise.resolve([] as string[]))),
       )
-      expect(
-        startWimp.fields!.operation!.source,
-        "топологическое поле `enum` не должно смешиваться с прямой связью по источнику",
-      ).toBeNull()
-      expect(startWimp.superposition, "дочерний Wimp должен хранить локальную `superposition` своей меты").toEqual(
-        startRef.superposition,
-      )
-      expect(startWimp.processes ?? {}, "дочерний Wimp должен хранить локальные `processes` своей меты").toEqual(
-        startRef.processes ?? {},
-      )
-      expect(startWimp.mass, "при пустой `mass` дочерней меты корневой Wimp не должен получать `mass`").toBeUndefined()
+    expect(branches.length).toBeGreaterThan(0)
 
-      childFuzzy = [...collectParticles(startWimp)].find(
-        (particle): particle is Fuzzy => particle instanceof Fuzzy && particle.parent === startWimp,
-      )!
+    const wimpRows = await sql<Array<{src: string}>>`
+      SELECT meta AS src FROM actor
+      WHERE parent_topology = ${fuzzy.uuid}
+      ORDER BY position
+    `
+    const expectedBranchSrcs = branches.map((value) => `${src}-${value}`)
+    expect(wimpRows.map((r) => r.src).sort()).toEqual(expectedBranchSrcs.sort())
+  })
 
-      expect(childFuzzy, "после первого уровня git-start должен появиться Fuzzy").toBeInstanceOf(Fuzzy)
-      expect(startWimp.children, "git-start Wimp должен получить связь на Fuzzy первого уровня").toContain(childFuzzy)
-      expect(childFuzzy.children, "на первом уровне git-start Fuzzy ещё не должен иметь дочерних частиц").toEqual(
-        new Set(),
-      )
-      expect(childResults, "на первом уровне git-start список continuation-пар ещё должен быть пустым").toEqual([])
+  test("под Axion ровно один child wimp — zavx0z/git-error", async () => {
+    const topology = await store.topology.childrenOfActor(root.uuid)
+    const axion = topology.find((t) => t.kind === "axion")
+    if (!axion) throw new Error("axion missing")
+    const wimps = await sql<Array<{meta: string}>>`
+      SELECT meta FROM actor WHERE parent_topology = ${axion.uuid}
+    `
+    expect(wimps.length).toBe(1)
+    expect(wimps[0]!.meta).toBe(`${src}-error`)
+  })
 
-      const argsInit = findFieldInit(startContinuation, "args")
-      if (!argsInit) throw new Error("описание поля args не найдено")
-      argsInit.value = "--mutated-after-materialization"
-      expect(
-        readWimpValues(startWimp),
-        "временный пакет после применения не должен становиться каноническим слоем хранения",
-      ).toEqual({operation: null, args: null})
-      expect((startWimp as Wimp & {fieldInits?: unknown}).fieldInits).toBeUndefined()
-    })
+  test("entanglement: поле args дочернего git-start должно share value.uuid с args корневого git", async () => {
+    // Под fuzzy → wimp git-start. У wimp git-start есть поле args (мapping от parent).
+    // root.args значение null (default), и git-start.args тоже null — но через shared value.uuid.
+    const topology = await store.topology.childrenOfActor(root.uuid)
+    const fuzzy = topology.find((t) => t.kind === "fuzzy")!
+    const startRow = (
+      await sql<Array<{uuid: string}>>`
+        SELECT uuid FROM actor
+        WHERE parent_topology = ${fuzzy.uuid} AND meta = ${src + "-start"}
+      `
+    )[0]
+    if (!startRow) throw new Error("git-start actor not found")
 
-    test("обработка второго уровня", async () => {
-      const secondLevel = await generator.next()
-      if (secondLevel.done) throw new Error("second git-start level is done")
+    const rootMeta = await store.meta.get(src)
+    const startMeta = await store.meta.get(`${src}-start`)
+    const rootIds = await rootMeta!.identifiers()
+    const startIds = await startMeta!.identifiers()
+    const rootArgsField = rootIds.fieldUuids.get("args")
+    const startArgsField = startIds.fieldUuids.get("args")
+    expect(rootArgsField).toBeDefined()
+    expect(startArgsField).toBeDefined()
 
-      const secondLayer = secondLevel.value
-      const branchResults = secondLayer.filter(([particle]) => particle.parent === childFuzzy)
-
-      expect(secondLevel.done, "второй слой git-start не должен завершать генератор").toBe(false)
-      expect(secondLayer, "второй цикл git-start должен вернуть только Wimp с временными пакетами этого уровня").toHaveLength(2)
-
-      childResults = secondLayer
-      expect(
-        branchResults.map(([particle]) => particle.src),
-        "после второго уровня git-start Fuzzy должен раскрыть все статические Wimp из значений `enum`",
-      ).toEqual(["zavx0z/git-start-clone", "zavx0z/git-start-init"])
-      expect(
-        branchResults.map(([, nextContinuation]) => readFieldInitValues(nextContinuation.fieldInits)),
-        "временный пакет git-start должен сохранять `FieldInit` для следующего уровня меты",
-      ).toEqual([{args: null}, {args: null}])
-      for (const [, nextContinuation] of branchResults) {
-        expect(findFieldInit(nextContinuation, "args")?.source).toBe(startWimp.fields!.args)
-      }
-      expect(
-        branchResults.every(([particle]) => particle.fields === undefined),
-        "ветви git-start должны оставаться пустыми до своей меты",
-      ).toBe(true)
-      expect(
-        branchResults.every(([particle]) => particle.mass === undefined),
-        "ветви git-start не должны получать `mass` заранее",
-      ).toBe(true)
-      expect(childFuzzy.children, "Fuzzy git-start должен содержать связи на все собранные ветви Wimp").toEqual(
-        new Set(branchResults.map(([particle]) => particle)),
-      )
-      expect(
-        secondLayer.map(([particle]) => particle.src),
-        "второй слой git-start должен вернуть все обнаруженные Wimp",
-      ).toEqual(["zavx0z/git-start-clone", "zavx0z/git-start-init"])
-      for (const [particle] of branchResults) {
-        expect(particle.parent, "после записи `parent` Wimp git-start должен быть сохранён").toBe(childFuzzy)
-      }
-    })
-
-    test("завершение генератора", async () => {
-      const end = await generator.next()
-
-      expect(end.done, "генератор git-start должен завершиться после второго уровня").toBe(true)
-      expect(end.value, "после завершения генератор git-start не должен возвращать дополнительный результат").toBeUndefined()
-    })
+    const rootLink = await store.actor.link.get(root.uuid, rootArgsField!)
+    const startLink = await store.actor.link.get(startRow.uuid, startArgsField!)
+    const rootValue = await rootLink!.value()
+    const startValue = await startLink!.value()
+    // entanglement через shared value.uuid
+    expect(startValue.uuid).toBe(rootValue.uuid)
   })
 })

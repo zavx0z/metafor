@@ -1,53 +1,27 @@
-import type {MatterContinuation, MatterEntry, MatterLayerResult, MatterParticlePlan, MatterWimpResult} from "@dark/types/dark"
-import type {DarkParticle} from "@dark/types"
+import type {FieldDefinition, FieldKey} from "../index.ts"
 import type {MetaIdentifiers} from "@store/meta/sqlite"
-import type {ActorRows, ActorValueRecord, ValueRecord, ValueItemRecord} from "@store/actor"
+import type {ActorRows, ActorValueRecord, AnyValue, ValueItemRecord, ValueRecord} from "@store/actor"
+import type {Actor, ActorRecord} from "@store/actor"
 import type {Store} from "../store/index.ts"
+import type {MatterParticlePlan} from "@dark/types/dark"
 import {emitAdd, emitBarrier} from "@dark/gravity/channel.ts"
-import {Axion, Fuzzy, materializeFields, Macho, Meta, resolveWimpContinuation, Wimp} from "@dark/strong"
-import type {InstanceField} from "@dark/strong/Field.ts"
 import {loadMeta} from "./load.ts"
 import {projectStoreMatterParticles} from "./matter.ts"
+import {finalizeFieldValues, resolveFieldInits, type Continuation, type FieldInit} from "./continuation.ts"
+
+export type ParticleRef = {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string}
+
+export interface MatterMaterializationStep {
+  kind: "actor" | "topology"
+  particle: ParticleRef
+  /** Для `actor` — meta src; для topology — undefined. */
+  src?: string
+}
 
 interface MatterOptions {
   store: Store
   onMaterializedStep?: (step: MatterMaterializationStep) => Promise<void> | void
   suppressGravityBarrier?: boolean
-  positionByParent?: Map<string, number>
-}
-
-interface RuntimeMetaMaterialization {
-  meta: Meta
-  particles: MatterParticlePlan[]
-  identifiers: MetaIdentifiers
-}
-
-export interface MatterMaterializationStep {
-  kind: "layer" | "root"
-  layerWimps: MatterLayerResult
-  wimp: Wimp
-}
-
-const cloneContinuation = (continuation: MatterContinuation): MatterContinuation => {
-  const cloned: MatterContinuation = {}
-
-  if (continuation.fieldInits !== undefined) {
-    cloned.fieldInits = continuation.fieldInits.map((fieldInit) => {
-      const nextFieldInit: typeof fieldInit = {
-        key: fieldInit.key,
-        value: structuredClone(fieldInit.value),
-      }
-      if (fieldInit.source !== undefined) nextFieldInit.source = fieldInit.source
-      return nextFieldInit
-    })
-  }
-  if (continuation.mass !== undefined) cloned.mass = structuredClone(continuation.mass)
-  return cloned
-}
-
-const linkToParent = (particle: DarkParticle, parent: DarkParticle): void => {
-  parent.children.add(particle)
-  if (parent instanceof Fuzzy) parent.branch.set(particle, particle)
 }
 
 const nextPosition = (counter: Map<string, number>, parentKey: string): number => {
@@ -56,63 +30,48 @@ const nextPosition = (counter: Map<string, number>, parentKey: string): number =
   return next
 }
 
-const readRuntimeMeta = async (
-  src: string,
-  store: Pick<Store, "meta">,
-): Promise<RuntimeMetaMaterialization> => {
-  const identifiers = await loadMeta(src, store)
-  const particleModel = await store.meta.readDarkParticleModel(src)
-  if (!particleModel) {
-    throw new Error(`Dark runtime meta "${src}" is not canonicalized in store after loadMeta`)
-  }
-  return {
-    meta: new Meta(particleModel.meta),
-    particles: projectStoreMatterParticles(particleModel.particles),
-    identifiers,
-  }
-}
-
-const resolveParentRef = (
-  wimp: Wimp,
-): {kind: "actor" | "topology"; uuid: string} | null => {
-  const parent = wimp.parent
-  if (!parent) return null
-  if (parent instanceof Fuzzy || parent instanceof Macho || parent instanceof Axion) {
-    return {kind: "topology", uuid: parent.id}
-  }
-  return {kind: "actor", uuid: parent.id}
-}
-
 /**
- * Резолвит value uuid поля родителя из БД. Используется при entanglement: дочерний `actor_value`
- * указывает на тот же `value.uuid`, что и родительский — share через FK.
+ * Извлекает raw runtime-значение из ORM Value (для snapshot и default-сравнения).
  */
-const resolveSourceValueUuid = async (
-  source: InstanceField,
-  store: Store,
-): Promise<string> => {
-  const parentMeta = await store.meta.get(source.owner.src)
-  if (!parentMeta) throw new Error(`parent meta "${source.owner.src}" missing in store`)
-  const parentIds = await parentMeta.identifiers()
-  const parentFieldUuid = parentIds.fieldUuids.get(source.key)
-  if (!parentFieldUuid) throw new Error(`parent field "${source.key}" missing in identifiers`)
-  const link = await store.actor.link.get(source.owner.id, parentFieldUuid)
-  if (!link) throw new Error(`parent actor_value missing for (${source.owner.id}, ${source.key})`)
-  const value = await link.value()
-  return value.uuid
+const decodeValue = async (value: AnyValue, variantText: Map<string, string>): Promise<unknown> => {
+  switch (value.kind) {
+    case "null":
+      return null
+    case "boolean":
+      return await value.boolean()
+    case "number":
+      return await value.number()
+    case "string":
+      return await value.text()
+    case "enum": {
+      const variantUuid = await value.variant()
+      return variantText.get(variantUuid) ?? null
+    }
+    case "list": {
+      const items = await value.items()
+      return items.map((item) => item.itemValue)
+    }
+  }
 }
 
-/**
- * Кодирует runtime-значение `InstanceField` в `ValueRecord` для записи в `value` table.
- */
+const buildVariantTextMap = (identifiers: MetaIdentifiers): Map<string, string> => {
+  const map = new Map<string, string>()
+  for (const [, sub] of identifiers.variantUuids) {
+    for (const [text, variantUuid] of sub) {
+      map.set(variantUuid, text)
+    }
+  }
+  return map
+}
+
 const buildValueRecord = (
   uuid: string,
-  field: InstanceField,
-  variantsByValue: Map<string, string> | undefined,
+  raw: unknown,
+  fieldType: string,
+  variantsByText: Map<string, string> | undefined,
+  fieldKey: FieldKey,
 ): {record: ValueRecord; items: ValueItemRecord[]} => {
-  const raw = field.value
   if (raw === null || raw === undefined) return {record: {uuid, kind: "null"}, items: []}
-  const fieldType: string = field.schema.type
   switch (fieldType) {
     case "boolean":
       return {record: {uuid, kind: "boolean", boolean: Boolean(raw)}, items: []}
@@ -121,9 +80,9 @@ const buildValueRecord = (
     case "string":
       return {record: {uuid, kind: "string", text: String(raw)}, items: []}
     case "enum": {
-      const variantUuid = variantsByValue?.get(String(raw))
+      const variantUuid = variantsByText?.get(String(raw))
       if (!variantUuid) {
-        throw new Error(`Unknown enum variant "${String(raw)}" for field "${field.key}"`)
+        throw new Error(`Unknown enum variant "${String(raw)}" for field "${fieldKey}"`)
       }
       return {record: {uuid, kind: "enum", variant: variantUuid}, items: []}
     }
@@ -138,197 +97,223 @@ const buildValueRecord = (
 }
 
 /**
- * Строит `ActorRows` для записи через `store.actor.create`.
- * Для полей с заданным `source` переиспользует value uuid родителя (entanglement через shared row).
+ * Резолвит value uuid поля родителя через store-чтение (для entanglement через shared row).
+ * Делает 2 SQL запроса: head(actor) → meta.identifiers() → link.get → value.uuid.
  */
-const buildActorRows = async (
-  wimp: Wimp,
-  position: number,
-  identifiers: MetaIdentifiers,
+const resolveSourceValueUuid = async (
+  parentActorUuid: string,
+  parentFieldKey: FieldKey,
   store: Store,
-): Promise<ActorRows> => {
-  if (!wimp.fields) throw new Error(`Wimp ${wimp.id} cannot be persisted: fields are not materialized`)
+): Promise<string> => {
+  const head = await store.actor.head(parentActorUuid)
+  if (!head) throw new Error(`parent actor ${parentActorUuid} not found`)
+  const parentMeta = await store.meta.get(head.meta)
+  if (!parentMeta) throw new Error(`parent meta ${head.meta} not found`)
+  const parentIds = await parentMeta.identifiers()
+  const parentFieldUuid = parentIds.fieldUuids.get(parentFieldKey)
+  if (!parentFieldUuid) throw new Error(`parent field "${parentFieldKey}" missing in identifiers`)
+  const link = await store.actor.link.get(parentActorUuid, parentFieldUuid)
+  if (!link) throw new Error(`parent actor_value missing for (${parentActorUuid}, ${parentFieldKey})`)
+  const value = await link.value()
+  return value.uuid
+}
 
-  const parent = resolveParentRef(wimp)
+/**
+ * Строит `ActorRows` из готового набора финальных field values + identifiers.
+ * Source-fields share value.uuid с родителем через store-чтение.
+ */
+const buildActorRows = async (params: {
+  actorUuid: string
+  parent: ParticleRef | null
+  src: string
+  position: number
+  finalValues: Map<FieldKey, FieldInit>
+  fieldSchemas: Record<FieldKey, FieldDefinition>
+  identifiers: MetaIdentifiers
+  store: Store
+}): Promise<ActorRows> => {
+  const {actorUuid, parent, src, position, finalValues, fieldSchemas, identifiers, store} = params
   const values: ActorValueRecord[] = []
   const valueRecords: ValueRecord[] = []
   const valueItems: ValueItemRecord[] = []
 
-  for (const field of Object.values(wimp.fields)) {
-    const fieldUuid = identifiers.fieldUuids.get(field.key)
+  for (const [key, init] of finalValues) {
+    const fieldUuid = identifiers.fieldUuids.get(key)
     if (!fieldUuid) {
-      throw new Error(`Field "${field.key}" is not registered in meta identifiers for "${wimp.src}"`)
+      throw new Error(`Field "${key}" is not registered in meta identifiers for "${src}"`)
     }
+    const schema = fieldSchemas[key]
+    if (!schema) throw new Error(`Field schema "${key}" missing in DSL for "${src}"`)
+
     let valueUuid: string
-    if (field.source) {
-      // entanglement: share parent's value.uuid
-      valueUuid = await resolveSourceValueUuid(field.source, store)
+    if (init.source) {
+      valueUuid = await resolveSourceValueUuid(init.source.parentActorUuid, init.source.parentFieldKey, store)
     } else {
       valueUuid = crypto.randomUUID()
-      const variants = identifiers.variantUuids.get(field.key)
-      const built = buildValueRecord(valueUuid, field, variants)
+      const variants = identifiers.variantUuids.get(key)
+      const built = buildValueRecord(valueUuid, init.value, schema.type, variants, key)
       valueRecords.push(built.record)
       valueItems.push(...built.items)
     }
-    values.push({actor: wimp.id, field: fieldUuid, value: valueUuid})
+    values.push({actor: actorUuid, field: fieldUuid, value: valueUuid})
   }
 
   return {
     actor: {
-      uuid: wimp.id,
+      uuid: actorUuid,
       parentActor: parent?.kind === "actor" ? parent.uuid : null,
       parentTopology: parent?.kind === "topology" ? parent.uuid : null,
-      meta: wimp.src,
+      meta: src,
       position,
     },
     values,
     valueRecords,
     valueItems,
-    state: {actor: wimp.id, metaState: identifiers.initialState},
+    state: {actor: actorUuid, metaState: identifiers.initialState},
   }
 }
 
-const appendChildEntries = (frontier: MatterEntry[], plan: MatterParticlePlan, parent: DarkParticle): void => {
-  if (!Array.isArray(plan.children) || plan.children.length === 0) return
-  frontier.push(...plan.children.map((child) => ({plan: child, parent})))
+interface BfsEntry {
+  plan: MatterParticlePlan
+  parent: ParticleRef
 }
 
-const topologyParentRefOf = (parent: DarkParticle): {parentActor: string | null; parentTopology: string | null} => {
-  if (parent instanceof Wimp) return {parentActor: parent.id, parentTopology: null}
-  return {parentActor: null, parentTopology: parent.id}
-}
-
-/**
- * Обрабатывает узел текущего топологического слоя:
- * - для wimp — создаёт пустой `Wimp` и кладёт в результат для последующего материализующего прохода;
- * - для fuzzy/axion/macho — создаёт runtime-инстанс и записывает topology row через `store.topology.create`.
- */
-const processMatterParticle = async (
-  entry: MatterEntry,
-  fields: Wimp["fields"],
-  nextFrontier: MatterEntry[],
-  wimps: MatterWimpResult[],
-  store: Store,
-  positionByParent: Map<string, number>,
-): Promise<void> => {
-  switch (entry.plan.kind) {
-    case "wimp": {
-      const continuation = cloneContinuation(
-        resolveWimpContinuation(
-          {
-            ...(entry.plan.fieldsBinding !== undefined ? {fieldsBinding: entry.plan.fieldsBinding} : {}),
-            ...(entry.plan.massBinding !== undefined ? {massBinding: entry.plan.massBinding} : {}),
-          },
-          fields,
-        ),
-      )
-      const wimp = new Wimp({src: entry.plan.src, parent: entry.parent})
-      wimps.push([wimp, continuation])
-      linkToParent(wimp, entry.parent)
-      appendChildEntries(nextFrontier, entry.plan, wimp)
-      return
-    }
-    case "fuzzy": {
-      const fuzzy = new Fuzzy({parent: entry.parent})
-      linkToParent(fuzzy, entry.parent)
-      const position = nextPosition(positionByParent, entry.parent.id)
-      const parentRef = topologyParentRefOf(entry.parent)
-      await store.topology.create({uuid: fuzzy.id, ...parentRef, kind: "fuzzy", position})
-      appendChildEntries(nextFrontier, entry.plan, fuzzy)
-      return
-    }
-    case "axion": {
-      const axion = new Axion({parent: entry.parent})
-      linkToParent(axion, entry.parent)
-      const position = nextPosition(positionByParent, entry.parent.id)
-      const parentRef = topologyParentRefOf(entry.parent)
-      await store.topology.create({uuid: axion.id, ...parentRef, kind: "axion", position})
-      appendChildEntries(nextFrontier, entry.plan, axion)
-      return
-    }
-    case "macho": {
-      const macho = new Macho({parent: entry.parent})
-      linkToParent(macho, entry.parent)
-      const position = nextPosition(positionByParent, entry.parent.id)
-      const parentRef = topologyParentRefOf(entry.parent)
-      await store.topology.create({uuid: macho.id, ...parentRef, kind: "macho", position})
-      appendChildEntries(nextFrontier, entry.plan, macho)
-      return
-    }
-  }
+interface PendingChildWimp {
+  src: string
+  parent: ParticleRef
+  continuation: Continuation
 }
 
 /**
- * Явный послойный проход одной меты. Yields массив pending дочерних wimp на каждом шаге BFS.
+ * Материализует одну мету: пишет actor row, обходит её топологический план (BFS),
+ * создаёт topology rows для Fuzzy/Axion/Macho и рекурсивно входит в child wimp meta'ы.
+ *
+ * @returns uuid созданного actor.
  */
-export async function* matterMeta(
-  wimp: Wimp,
-  continuation: MatterContinuation | undefined,
+const materializeMeta = async (
+  src: string,
+  parent: ParticleRef | null,
+  continuation: Continuation | undefined,
   options: MatterOptions,
-): AsyncGenerator<MatterLayerResult, void> {
-  const runtimeMeta = await readRuntimeMeta(wimp.src, options.store)
-  const positionByParent = options.positionByParent ?? new Map<string, number>()
+  positionByParent: Map<string, number>,
+): Promise<string> => {
+  const identifiers = await loadMeta(src, options.store)
+  const particleModel = await options.store.meta.readDarkParticleModel(src)
+  if (!particleModel) {
+    throw new Error(`Dark runtime meta "${src}" is not canonicalized in store after loadMeta`)
+  }
 
-  wimp.meta = runtimeMeta.meta
-  wimp.fields = materializeFields(wimp, runtimeMeta.meta.fields, continuation?.fieldInits)
-  wimp.mass = continuation?.mass
+  const fieldSchemas = particleModel.meta.fieldSchemas ?? {}
+  const finalValues = finalizeFieldValues(fieldSchemas, continuation?.fieldInits)
 
-  const parentKey = wimp.parent?.id ?? "root"
+  const actorUuid = crypto.randomUUID()
+  const parentKey = parent?.uuid ?? "root"
   const position = nextPosition(positionByParent, parentKey)
-  const rows = await buildActorRows(wimp, position, runtimeMeta.identifiers, options.store)
+
+  const rows = await buildActorRows({
+    actorUuid,
+    parent,
+    src,
+    position,
+    finalValues,
+    fieldSchemas,
+    identifiers,
+    store: options.store,
+  })
   await options.store.actor.create(rows)
-  emitAdd(wimp.id)
+  emitAdd(actorUuid)
 
-  await options.onMaterializedStep?.({kind: "root", layerWimps: [], wimp})
+  await options.onMaterializedStep?.({kind: "actor", particle: {kind: "actor", uuid: actorUuid}, src})
 
-  if (runtimeMeta.particles.length === 0) return
+  // Snapshot для построения continuation дочерних wimp.
+  const fieldValuesSnapshot = new Map<FieldKey, unknown>()
+  const fieldTypesSnapshot = new Map<FieldKey, string>()
+  for (const [key, init] of finalValues) {
+    fieldValuesSnapshot.set(key, init.value)
+    fieldTypesSnapshot.set(key, fieldSchemas[key]!.type)
+  }
 
-  let frontier = runtimeMeta.particles.map((plan): MatterEntry => ({plan, parent: wimp}))
+  const plans = projectStoreMatterParticles(particleModel.particles)
+  if (plans.length === 0) return actorUuid
+
+  const pendingChildren: PendingChildWimp[] = []
+  let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", uuid: actorUuid}}))
 
   while (frontier.length > 0) {
-    const currentLayer = frontier
-    const nextFrontier: MatterEntry[] = []
-    const levelWimps: MatterLayerResult = []
-    frontier = nextFrontier
-
-    for (const entry of currentLayer) {
-      await processMatterParticle(entry, wimp.fields, nextFrontier, levelWimps, options.store, positionByParent)
+    const next: BfsEntry[] = []
+    for (const entry of frontier) {
+      switch (entry.plan.kind) {
+        case "wimp": {
+          const childContinuation: Continuation = {}
+          if (entry.plan.fieldsBinding !== undefined) {
+            const inits = resolveFieldInits(entry.plan.fieldsBinding, {
+              actorUuid,
+              fieldValues: fieldValuesSnapshot,
+              fieldTypes: fieldTypesSnapshot,
+            })
+            if (inits) childContinuation.fieldInits = inits
+          }
+          if (entry.plan.massBinding !== undefined) {
+            childContinuation.mass = entry.plan.massBinding
+          }
+          pendingChildren.push({src: entry.plan.src, parent: entry.parent, continuation: childContinuation})
+          break
+        }
+        case "fuzzy":
+        case "axion":
+        case "macho": {
+          const topologyUuid = crypto.randomUUID()
+          const topologyPos = nextPosition(positionByParent, entry.parent.uuid)
+          await options.store.topology.create({
+            uuid: topologyUuid,
+            parentActor: entry.parent.kind === "actor" ? entry.parent.uuid : null,
+            parentTopology: entry.parent.kind === "topology" ? entry.parent.uuid : null,
+            kind: entry.plan.kind,
+            position: topologyPos,
+          })
+          await options.onMaterializedStep?.({
+            kind: "topology",
+            particle: {kind: "topology", uuid: topologyUuid},
+          })
+          for (const child of entry.plan.children ?? []) {
+            next.push({plan: child, parent: {kind: "topology", uuid: topologyUuid}})
+          }
+          break
+        }
+      }
     }
-
-    await options.onMaterializedStep?.({kind: "layer", layerWimps: levelWimps, wimp})
-    yield levelWimps
+    frontier = next
   }
+
+  // Рекурсивно материализуем дочерние wimp meta после завершения BFS topology.
+  for (const pending of pendingChildren) {
+    await materializeMeta(pending.src, pending.parent, pending.continuation, options, positionByParent)
+  }
+
+  return actorUuid
 }
 
 /**
  * Публичный entrypoint Dark.
  *
- * - канонизирует мету через `store.meta.create`,
- * - вызывает single-meta `matterMeta()`,
- * - рекурсивно проходит дочерние Wimp,
+ * Принимает канонический `src` меты, разворачивает её дерево через store ORM:
+ * - канонизирует meta через `store.meta.create`,
+ * - создаёт actor + topology rows через `store.actor.create` / `store.topology.create`,
+ * - рекурсивно материализует дочерние wimp,
  * - один раз публикует gravity barrier на верхнем вызове.
+ *
+ * @returns корневой `Actor` ORM (для дальнейшего read-обхода через `actor.children`/`topology.childrenOfActor`).
  */
-export async function matter(
-  wimp: Wimp,
-  continuation: MatterContinuation | undefined,
-  options: MatterOptions,
-): Promise<void> {
-  const shouldEmitGravityBarrier = options.suppressGravityBarrier !== true
-  const positionByParent = options.positionByParent ?? new Map<string, number>()
+export async function matter(src: string, options: MatterOptions): Promise<Actor> {
+  const positionByParent = new Map<string, number>()
+  const rootUuid = await materializeMeta(src, null, undefined, options, positionByParent)
 
-  const generator = matterMeta(wimp, continuation, {...options, positionByParent})
+  if (options.suppressGravityBarrier !== true) emitBarrier()
 
-  for await (const wimps of generator) {
-    for (const [childWimp, childContinuation] of wimps) {
-      await matter(childWimp, childContinuation, {
-        ...options,
-        positionByParent,
-        suppressGravityBarrier: true,
-      })
-    }
-  }
-
-  if (shouldEmitGravityBarrier) {
-    emitBarrier()
-  }
+  const root = await options.store.actor.get(rootUuid)
+  if (!root) throw new Error(`Root actor ${rootUuid} missing after materialization`)
+  return root
 }
+
+// Re-exports для consumers (типы)
+export type {Continuation, FieldInit} from "./continuation.ts"

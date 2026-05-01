@@ -1,100 +1,84 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
-import type {DarkParticle} from "@dark/types"
+import {mkdirSync, rmSync} from "node:fs"
+import {join} from "node:path"
+import type {Actor} from "@store/actor"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
-import {Axion, Fuzzy, Macho, Wimp} from "@dark/strong"
 
 let store: Awaited<ReturnType<typeof open>>
 let sql: SQL
-let root: Wimp
-let allParticles: DarkParticle[]
-let wimps: Wimp[]
+let root: Actor
+let tmpFile: string
 
-const collectParticles = (particle: DarkParticle, sink: DarkParticle[] = []): DarkParticle[] => {
-  sink.push(particle)
-  for (const child of particle.children) collectParticles(child, sink)
-  return sink
-}
-
-describe("matter() — runtime tree", () => {
+describe("matter() — runtime tree через store", () => {
   beforeAll(async () => {
-    store = await open(":memory:")
-    sql = new SQL("sqlite::memory:")
-    root = new Wimp({src: "zavx0z/git", parent: null})
-    await matter(root, undefined, {store})
-    allParticles = collectParticles(root)
-    wimps = allParticles.filter((p): p is Wimp => p instanceof Wimp)
+    const tmpDir = join(import.meta.dir, "tmp")
+    mkdirSync(tmpDir, {recursive: true})
+    tmpFile = join(tmpDir, `matter-${crypto.randomUUID()}.sqlite`)
+    store = await open(tmpFile)
+    sql = new SQL(`sqlite://${tmpFile}`)
+    root = await matter("zavx0z/git", {store})
   })
   afterAll(async () => {
     await sql.close()
     await store.close()
+    rmSync(tmpFile, {force: true})
+    rmSync(`${tmpFile}-shm`, {force: true})
+    rmSync(`${tmpFile}-wal`, {force: true})
   })
 
-  describe("частицы", () => {
-    test("частицы созданы", () => expect(allParticles.length).toBeGreaterThan(0))
-
-    test("Wimp присутствуют", () => {
-      expect(wimps.length).toBeGreaterThan(0)
+  describe("particle counts через ORM/SQL", () => {
+    test("акторы созданы (>20)", async () => {
+      const rows = await sql<Array<{n: number}>>`SELECT COUNT(*) AS n FROM actor`
+      expect(rows[0]!.n).toBeGreaterThan(20)
     })
 
-    test("Fuzzy присутствуют", () => {
-      const fuzzy = allParticles.filter((p): p is Fuzzy => p instanceof Fuzzy)
-      expect(fuzzy.length).toBeGreaterThan(0)
+    test("Fuzzy-узлы присутствуют", async () => {
+      const rows = await sql<Array<{n: number}>>`SELECT COUNT(*) AS n FROM topology WHERE kind = 'fuzzy'`
+      expect(rows[0]!.n).toBeGreaterThan(0)
     })
 
-    test("Axion присутствуют", () => {
-      const axion = allParticles.filter((p): p is Axion => p instanceof Axion)
-      expect(axion.length).toBeGreaterThan(0)
+    test("Axion-узлы присутствуют", async () => {
+      const rows = await sql<Array<{n: number}>>`SELECT COUNT(*) AS n FROM topology WHERE kind = 'axion'`
+      expect(rows[0]!.n).toBeGreaterThan(0)
     })
 
-    test("Macho отсутствуют", () => {
-      const macho = allParticles.filter((p): p is Macho => p instanceof Macho)
-      expect(macho.length).toBe(0)
-    })
-
-    test("кроме Wimp/Fuzzy/Axion/Macho других particle нет", () => {
-      const w = allParticles.filter((p) => p instanceof Wimp).length
-      const f = allParticles.filter((p) => p instanceof Fuzzy).length
-      const a = allParticles.filter((p) => p instanceof Axion).length
-      const m = allParticles.filter((p) => p instanceof Macho).length
-      expect(w + f + a + m).toBe(allParticles.length)
+    test("Macho-узлов нет", async () => {
+      const rows = await sql<Array<{n: number}>>`SELECT COUNT(*) AS n FROM topology WHERE kind = 'macho'`
+      expect(rows[0]!.n).toBe(0)
     })
   })
 
   describe("декларация в store", () => {
-    test("каждая уникальная wimp.src имеет ровно одну запись в store.meta", async () => {
-      const uniqueSrcs = new Set(wimps.map((wimp) => wimp.src))
-      for (const src of uniqueSrcs) {
+    test("каждая meta из дерева — единственная запись в store.meta", async () => {
+      const distinctSrcs = (
+        await sql<Array<{meta: string}>>`SELECT DISTINCT meta FROM actor`
+      ).map((r) => r.meta)
+      for (const src of distinctSrcs) {
         const meta = await store.meta.get(src)
         expect(meta, `meta для "${src}" должна существовать в store`).not.toBeNull()
       }
     })
-
-    test("каждый wimp ссылается на свой Meta-объект (не shared identity, см. policy без кеша)", () => {
-      for (const wimp of wimps) {
-        expect(wimp.meta, `Wimp ${wimp.id} должен ссылаться на свой Meta`).toBeDefined()
-        expect(wimp.meta!.src).toBe(wimp.src)
-      }
-    })
   })
 
-  describe("родители (object-graph)", () => {
-    test("корневой Wimp не имеет parent", () => {
-      const rootByName = wimps.find((wimp) => wimp.src === "zavx0z/git")
-      expect(rootByName, "корневой Wimp должен присутствовать в списке Wimp").toBeDefined()
-      expect(rootByName!.parent).toBeNull()
+  describe("родители", () => {
+    test("корневой actor не имеет parent (parent_actor IS NULL AND parent_topology IS NULL)", async () => {
+      const rows = await sql<Array<{uuid: string; meta: string}>>`
+        SELECT uuid, meta FROM actor WHERE parent_actor IS NULL AND parent_topology IS NULL
+      `
+      expect(rows.length).toBe(1)
+      expect(rows[0]!.meta).toBe("zavx0z/git")
+      expect(rows[0]!.uuid).toBe(root.uuid)
     })
 
-    test("каждая не-корневая частица имеет parent в той же object-graph", () => {
-      for (const particle of allParticles) {
-        if (particle === root) continue
-        const parent = particle.parent
-        if (!parent) throw new Error(`частица ${particle.id} должна иметь parent`)
-        expect(
-          parent.children.has(particle),
-          `родительская частица ${parent.id} должна ссылаться на ${particle.id}`,
-        ).toBe(true)
+    test("каждый non-root actor ссылается либо на actor либо на topology в качестве parent", async () => {
+      const rows = await sql<Array<{uuid: string; parent_actor: string | null; parent_topology: string | null}>>`
+        SELECT uuid, parent_actor, parent_topology FROM actor WHERE NOT (parent_actor IS NULL AND parent_topology IS NULL)
+      `
+      for (const row of rows) {
+        const oneSet = (row.parent_actor !== null) !== (row.parent_topology !== null)
+        expect(oneSet, `actor ${row.uuid} должен иметь ровно один из parent_actor/parent_topology`).toBe(true)
       }
     })
   })

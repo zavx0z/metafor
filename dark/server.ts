@@ -2,7 +2,6 @@ import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage} from "@shared/protocol"
 import {open} from "../store/server.ts"
 import {MetaFor} from "../metafor"
 import {matter} from "./dark.ts"
-import {Wimp} from "./strong"
 
 // DSL-файлы `github/.../meta.ts` обращаются к `MetaFor(...)` как к глобальной функции,
 // поэтому регистрируем её до первого dynamic import меты.
@@ -11,8 +10,8 @@ import {Wimp} from "./strong"
 /**
  * Серверный демон Dark: открывает файловый store через `store/server.open()`
  * и слушает `gravity`-канал на входящие гравитоны вида `add /meta/<src>` —
- * по такому патчу запускает `matter(new Wimp({src}), { store })`,
- * который сам стримит graviton/gluon/photon-патчи в `store.update`.
+ * по такому патчу запускает `matter(src, { store })`,
+ * который через ORM пишет meta + actor + topology rows.
  *
  * Исходящие сообщения от самого Dark (`source === "dark"`) пропускаются,
  * чтобы не было обратной обработки собственных `/wimp/<id>` add'ов и barrier'ов.
@@ -41,7 +40,7 @@ const handleMetaLoad = async (src: string): Promise<void> => {
   }
   console.log(`[dark/server] загружаю мету "${src}"`)
   try {
-    await matter(new Wimp({src, parent: null}), undefined, {store})
+    await matter(src, {store})
     console.log(`[dark/server] мета "${src}" материализована`)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

@@ -1,11 +1,7 @@
-export { Axion } from "./Axion.ts"
-export { Field } from "./Field.ts"
-export { InstanceField } from "./Field.ts"
-export { Fuzzy } from "./Fuzzy.ts"
-export { Macho } from "./Macho.ts"
-export { Meta } from "./Meta.ts"
-export { MetaField } from "./MetaField.ts"
-export { Wimp } from "./Wimp.ts"
-export { resolveWimpContinuation } from "./strong.ts"
-export { materializeFields, readFieldValues, resolveFieldValues, resolveNodeFieldInits } from "./fields.ts"
-export type { DarkMetaParticleModel } from "@store/meta/sqlite"
+// Strong-силы Dark — placeholder.
+// Контент будет добавляться по мере оформления Dark × Strong протоколов:
+// - persistence of structural memory,
+// - coherence of schemas,
+// - change of ordinary `Field` values через `Gluon` без connectivity break,
+// - retention of hidden structural frame.
+export {}
