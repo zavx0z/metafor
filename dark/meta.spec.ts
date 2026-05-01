@@ -1,19 +1,12 @@
-import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, test} from "bun:test"
+import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
-import {HubFixture} from "fixture"
 import {open} from "../store/server.ts"
 import {matter} from "./index.ts"
 import {Wimp} from "@dark/strong"
 
-const hub = new HubFixture("./")
-
 describe("meta normalization", () => {
   let store: Awaited<ReturnType<typeof open>>
   let sql: SQL
-
-  beforeAll(async () => {
-    await hub.setup()
-  })
 
   beforeEach(async () => {
     store = await open(":memory:")
@@ -23,10 +16,6 @@ describe("meta normalization", () => {
   afterEach(async () => {
     await sql.close()
     await store.close()
-  })
-
-  afterAll(async () => {
-    await hub.teardown()
   })
 
   test("повторная materialization одинакового src НЕ дублирует декларацию в store", async () => {

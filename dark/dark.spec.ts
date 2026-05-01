@@ -1,6 +1,5 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import type {MetaDSL} from "../index.ts"
-import {HubFixture} from "fixture"
 import reference from "../github/zavx0z/git/meta.ts"
 import startReference from "../github/zavx0z/git-start/meta.ts"
 
@@ -10,8 +9,6 @@ import {Axion, Fuzzy, readFieldValues, Wimp} from "@dark/strong"
 import {open} from "../store/server.ts"
 import {matterMeta} from "./dark.ts"
 import {loadMeta} from "./load.ts"
-
-const hub = new HubFixture()
 
 const src = "zavx0z/git"
 const startSrc = "zavx0z/git-start"
@@ -35,14 +32,12 @@ describe("zavx0z/git", () => {
   let store: Awaited<ReturnType<typeof open>>
 
   beforeAll(async () => {
-    await hub.setup()
     store = await open(":memory:")
     await loadMeta(src, store)
     await loadMeta(startSrc, store)
   })
   afterAll(async () => {
     await store.close()
-    await hub.teardown()
   })
 
   let rootResults: MatterWimpResult[] = []

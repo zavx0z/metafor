@@ -1,12 +1,10 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
-import {HubFixture} from "fixture"
 import type {DarkParticle} from "@dark/types"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
 import {Axion, Fuzzy, Macho, Wimp} from "@dark/strong"
 
-const hub = new HubFixture()
 let store: Awaited<ReturnType<typeof open>>
 let sql: SQL
 let root: Wimp
@@ -21,7 +19,6 @@ const collectParticles = (particle: DarkParticle, sink: DarkParticle[] = []): Da
 
 describe("matter() — runtime tree", () => {
   beforeAll(async () => {
-    await hub.setup()
     store = await open(":memory:")
     sql = new SQL("sqlite::memory:")
     root = new Wimp({src: "zavx0z/git", parent: null})
@@ -32,7 +29,6 @@ describe("matter() — runtime tree", () => {
   afterAll(async () => {
     await sql.close()
     await store.close()
-    await hub.teardown()
   })
 
   describe("частицы", () => {

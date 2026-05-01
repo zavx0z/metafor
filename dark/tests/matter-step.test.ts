@@ -1,5 +1,4 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import {HubFixture} from "fixture"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
 import {Wimp} from "@dark/strong"
@@ -10,14 +9,11 @@ type RecordedStep = {
   src: string
 }
 
-const hub = new HubFixture()
-
 describe("dark matter incremental steps", () => {
   const steps: RecordedStep[] = []
   let store: Awaited<ReturnType<typeof open>>
 
   beforeAll(async () => {
-    await hub.setup()
     store = await open(":memory:")
     await matter(new Wimp({src: "zavx0z/git", parent: null}), undefined, {
       store,
@@ -33,7 +29,6 @@ describe("dark matter incremental steps", () => {
 
   afterAll(async () => {
     await store.close()
-    await hub.teardown()
   })
 
   test("сначала публикует root шаг текущей меты, а затем её layer шаги", () => {
