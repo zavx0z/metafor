@@ -1,9 +1,8 @@
-import {afterAll, beforeEach, describe, expect, test} from "bun:test"
+import {beforeEach, describe, expect, test} from "bun:test"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {matter} from "../../dark/index.ts"
-import {dark$} from "../../dark/store.ts"
 import {Wimp} from "../../dark/strong/index.ts"
 import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage, type GravitonMessage} from "@shared/protocol"
 import type {Store} from "../index.ts"
@@ -39,17 +38,6 @@ describe("store/tests github/zavx0z startup load", () => {
     rmSync(`${sqliteFilename}-wal`, {force: true})
     store = await open(sqliteFilename)
     sql = new SQL(`sqlite://${sqliteFilename}`)
-    dark$.meta.clear()
-    dark$.fields.clear()
-    dark$.particles.clear()
-    dark$.metaIndex.clear()
-  })
-
-  afterAll(() => {
-    dark$.meta.clear()
-    dark$.fields.clear()
-    dark$.particles.clear()
-    dark$.metaIndex.clear()
   })
 
   test("matter() пишет всё дерево zavx0z/git через patch-flow и публикует gravity-сообщения", async () => {
@@ -80,8 +68,8 @@ describe("store/tests github/zavx0z startup load", () => {
         FROM meta
         ORDER BY src
     `
-    const actorRows = await sql<Array<{uuid: string; parent: string | null; meta: string}>>`
-        SELECT uuid, parent, meta
+    const actorRows = await sql<Array<{uuid: string; parent_actor: string | null; parent_topology: string | null; meta: string}>>`
+        SELECT uuid, parent_actor, parent_topology, meta
         FROM actor
         ORDER BY position, uuid
     `
@@ -102,7 +90,10 @@ describe("store/tests github/zavx0z startup load", () => {
     const roots = await store.actor.roots.all()
     expect(roots).toHaveLength(1)
     expect(await roots[0]!.meta()).toBe("zavx0z/git")
-    expect(await roots[0]!.children.count()).toBeGreaterThan(0)
+    // Wimp-под-Wimp напрямую может не быть (всё дерево идёт через topology Fuzzy/Axion).
+    // Проверяем через topology: у root должны быть дочерние topology-узлы.
+    const rootTopology = await store.topology.childrenOfActor(roots[0]!.uuid)
+    expect(rootTopology.length).toBeGreaterThan(0)
 
     const rootOperationField = requiredRow(
       (

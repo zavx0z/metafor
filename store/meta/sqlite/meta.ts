@@ -1,6 +1,6 @@
 import type { SQL } from "bun"
 import type { MetaDSL } from "../../../metafor.t.ts"
-import type { MetaMassValueRow, MetaRow } from "./meta.t.ts"
+import type { MetaIdentifiers, MetaMassValueRow, MetaRow } from "./meta.t.ts"
 import { Fields } from "./fields.ts"
 import { Superposition } from "./superposition.ts"
 import { Processes } from "./process.ts"
@@ -104,5 +104,49 @@ export class Meta {
     async bulk(): Promise<MetaDSL["bulk"]> {
     const row = await getMetaRow(this.sql, this.src)
     return row?.view_css ? ({ view: row.view_css } as MetaDSL["bulk"]) : undefined
+  }
+
+  /**
+   * Снимок UUID-маппингов для канонизированной меты. Требует чтобы мета была в БД.
+   * Без кеша — каждый вызов делает SQL.
+   */
+  async identifiers(): Promise<MetaIdentifiers> {
+    const fieldRows = await this.sql<Array<{uuid: string; key: string}>>`
+      SELECT uuid, key FROM field WHERE meta = ${this.src}
+    `
+    const fieldUuids = new Map<string, string>()
+    for (const row of fieldRows) fieldUuids.set(row.key, row.uuid)
+
+    const variantUuids = new Map<string, Map<string, string>>()
+    if (fieldRows.length > 0) {
+      const variantRows = await this.sql<Array<{field: string; uuid: string; item_value: string}>>`
+        SELECT field, uuid, item_value
+        FROM field_enum_variant
+        WHERE field IN ${this.sql(fieldRows.map((r) => r.uuid))}
+        ORDER BY position
+      `
+      const fieldKeyByUuid = new Map<string, string>()
+      for (const row of fieldRows) fieldKeyByUuid.set(row.uuid, row.key)
+      for (const row of variantRows) {
+        const fieldKey = fieldKeyByUuid.get(row.field)
+        if (!fieldKey) continue
+        const sub = variantUuids.get(fieldKey) ?? new Map<string, string>()
+        sub.set(row.item_value, row.uuid)
+        variantUuids.set(fieldKey, sub)
+      }
+    }
+
+    const stateRows = await this.sql<Array<{uuid: string; name: string; position: number}>>`
+      SELECT uuid, name, position FROM superposition WHERE meta = ${this.src} ORDER BY position
+    `
+    const superpositionUuids = new Map<string, string>()
+    let initialState: string | null = null
+    for (const row of stateRows) {
+      superpositionUuids.set(row.name, row.uuid)
+      if (row.position === 0) initialState = row.uuid
+    }
+    if (initialState === null && stateRows.length > 0) initialState = stateRows[0]!.uuid
+
+    return {src: this.src, fieldUuids, variantUuids, superpositionUuids, initialState}
   }
 }

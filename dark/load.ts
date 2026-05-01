@@ -1,7 +1,7 @@
 import type {MetaDSL, SRC} from ".."
+import type {MetaIdentifiers} from "@store/meta/sqlite"
 import type {Store} from "../store/index.ts"
-import {emitMetaPatches, type MetaIndex} from "./patch/meta.ts"
-import {dark$} from "./store.ts"
+import {emitMetaPatches} from "./patch/meta.ts"
 
 const HUB = "github/"
 
@@ -45,18 +45,20 @@ export const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
 }
 
 /**
- * Канонизирует мету: при первом обращении эмитит graviton-патчи в `store.update`,
- * при повторном — возвращает ранее построенный `MetaIndex` из `dark$.metaIndex`.
+ * Канонизирует мету:
+ * - если её ещё нет в store — эмитит graviton-патчи через `emitMetaPatches`,
+ * - если уже есть — читает `MetaIdentifiers` из store через `Meta.identifiers()` ORM.
+ *
+ * Без in-memory кеша: повторный вызов всегда делает либо emit (для отсутствующей),
+ * либо SQL-запрос за uuid'ами.
  */
 export const loadMeta = async (
   src: SRC,
-  store: Pick<Store, "update">,
-): Promise<MetaIndex> => {
-  const cached = dark$.metaIndex.get(src)
-  if (cached) return cached
+  store: Pick<Store, "meta" | "update">,
+): Promise<MetaIdentifiers> => {
+  const existing = await store.meta.get(src)
+  if (existing) return existing.identifiers()
 
   const dsl = await readMetaDsl(src)
-  const index = await emitMetaPatches(src, dsl, store)
-  dark$.metaIndex.set(src, index)
-  return index
+  return emitMetaPatches(src, dsl, store)
 }

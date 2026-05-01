@@ -1,10 +1,7 @@
-import type { Axion } from "../strong/Axion.ts"
-import type { Fuzzy } from "../strong/Fuzzy.ts"
-import type { Macho } from "../strong/Macho.ts"
-import type { Meta } from "../strong/Meta.ts"
-import type { MetaField } from "../strong/MetaField.ts"
-import type { Wimp } from "../strong/Wimp.ts"
-import type { MetaIndex } from "../patch/meta.ts"
+import type {Axion} from "../strong/Axion.ts"
+import type {Fuzzy} from "../strong/Fuzzy.ts"
+import type {Macho} from "../strong/Macho.ts"
+import type {Wimp} from "../strong/Wimp.ts"
 
 /** ID частицы. */
 export type ParticleID = string
@@ -34,17 +31,3 @@ export type AxionID = ParticleID
  * Union-тип всех Dark-частиц.
  */
 export type DarkParticle = Wimp | Axion | Fuzzy | Macho
-
-/**
- * Хранилище Dark-частиц.
- * @prop meta Map от MetaID к объекту Meta
- * @prop fields Map от MetaFieldID к объекту MetaField
- * @prop particles Map от ParticleID к экземпляру частицы
- * @prop metaIndex Map от `meta.src` к MetaIndex (uuid из БД, собранные эмиттером)
- */
-export interface DarkStore {
-  meta: Map<MetaID, Meta>
-  fields: Map<MetaFieldID, MetaField>
-  particles: Map<ParticleID, DarkParticle>
-  metaIndex: Map<string, MetaIndex>
-}

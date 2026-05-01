@@ -82,7 +82,9 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
       expect(valueRows.length, "должны быть записи в value через gluon").toBeGreaterThan(0)
 
       // root актор — единственный без parent, его meta = zavx0z/git
-      const rootRows = await sql<Array<{meta: string}>>`SELECT meta FROM actor WHERE parent IS NULL`
+      const rootRows = await sql<Array<{meta: string}>>`
+        SELECT meta FROM actor WHERE parent_actor IS NULL AND parent_topology IS NULL
+      `
       expect(rootRows.length).toBe(1)
       expect(rootRows[0]?.meta).toBe("zavx0z/git")
 

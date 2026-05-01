@@ -1,18 +1,21 @@
+import type {MetaIdentifiers} from "@store/meta/sqlite"
 import type {Wimp} from "../strong/Wimp.ts"
+import {Fuzzy, Macho, Axion} from "../strong"
 import type {InstanceField} from "../strong/Field.ts"
-import type {MetaIndex} from "./meta.ts"
 import {emit, path, type Updater} from "./_common.ts"
 
-const findParentWimpId = (wimp: Wimp): string | null => {
-  let current = wimp.parent
-  while (current) {
-    // Use duck typing on `src` to detect Wimp without circular import dependency.
-    if ("src" in current && typeof (current as {src?: unknown}).src === "string" && "fields" in current) {
-      return current.id
-    }
-    current = current.parent
+/**
+ * Возвращает дискриминированный ref на ближайшего непосредственного parent-particle.
+ * `actor` означает «родитель — другой Wimp», `topology` — родитель — Fuzzy/Axion/Macho.
+ */
+const resolveParentRef = (wimp: Wimp): {kind: "actor" | "topology"; uuid: string} | null => {
+  const parent = wimp.parent
+  if (!parent) return null
+  if (parent instanceof Fuzzy || parent instanceof Macho || parent instanceof Axion) {
+    return {kind: "topology", uuid: parent.id}
   }
-  return null
+  // иначе считаем что родитель — Wimp (single non-topology kind в DarkParticle)
+  return {kind: "actor", uuid: parent.id}
 }
 
 const emitValueRecord = async (
@@ -61,40 +64,41 @@ const emitValueRecord = async (
 export interface ActorEmitContext {
   position: number
   store: Updater
-  metaIndex: MetaIndex
+  identifiers: MetaIdentifiers
 }
 
 export const emitActorPatches = async (wimp: Wimp, ctx: ActorEmitContext): Promise<void> => {
   if (!wimp.fields) {
     throw new Error(`Wimp ${wimp.id} cannot be emitted: fields are not materialized`)
   }
-  if (ctx.metaIndex.src !== wimp.src) {
-    throw new Error(`Meta index src "${ctx.metaIndex.src}" does not match wimp src "${wimp.src}"`)
+  if (ctx.identifiers.src !== wimp.src) {
+    throw new Error(`Meta identifiers src "${ctx.identifiers.src}" does not match wimp src "${wimp.src}"`)
   }
 
-  const parent = findParentWimpId(wimp)
+  const parent = resolveParentRef(wimp)
 
   // 1. graviton: actor row
   await emit(ctx.store, "graviton", path("actor", wimp.id), {
-    ...(parent !== null ? {parent} : {parent: null}),
+    parentActor: parent?.kind === "actor" ? parent.uuid : null,
+    parentTopology: parent?.kind === "topology" ? parent.uuid : null,
     meta: wimp.src,
     position: ctx.position,
   })
 
   // 2. gluon: value record + actor_value link для каждого поля
   for (const field of Object.values(wimp.fields)) {
-    const fieldUuid = ctx.metaIndex.fieldUuids.get(field.key)
+    const fieldUuid = ctx.identifiers.fieldUuids.get(field.key)
     if (!fieldUuid) {
-      throw new Error(`Field "${field.key}" is not registered in meta index for "${wimp.src}"`)
+      throw new Error(`Field "${field.key}" is not registered in meta identifiers for "${wimp.src}"`)
     }
     const valueUuid = crypto.randomUUID()
-    const variants = ctx.metaIndex.variantUuids.get(field.key)
+    const variants = ctx.identifiers.variantUuids.get(field.key)
     await emitValueRecord(ctx.store, valueUuid, field, variants)
     await emit(ctx.store, "gluon", path("actor", wimp.id, "value", fieldUuid), {value: valueUuid})
   }
 
   // 3. photon: actor_state
   await emit(ctx.store, "photon", path("actor", wimp.id, "state"), {
-    metaState: ctx.metaIndex.initialState,
+    metaState: ctx.identifiers.initialState,
   })
 }

@@ -7,6 +7,7 @@
   "private": true,
   "dependencies": {
     "@store/actor": "workspace:*",
+    "@store/topology": "workspace:*",
     "@store/meta": "workspace:*"
   }
 }

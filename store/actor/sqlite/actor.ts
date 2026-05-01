@@ -5,13 +5,18 @@ import type {ActorValueRecord} from "./actor_value.t.ts"
 import type {ValueItemRecord, ValueRecord} from "./value.t.ts"
 import {ActorFieldValue} from "./actor_value.ts"
 
-const decodeActorRow = (row: Record<string, unknown>): ActorRecord => ({
+export const decodeActorRow = (row: Record<string, unknown>): ActorRecord => ({
   uuid: String(row.uuid),
-  parent: row.parent === null || row.parent === undefined ? null : String(row.parent),
+  parentActor: row.parent_actor === null || row.parent_actor === undefined ? null : String(row.parent_actor),
+  parentTopology: row.parent_topology === null || row.parent_topology === undefined ? null : String(row.parent_topology),
   meta: String(row.meta),
   position: Number(row.position),
 })
 
+/**
+ * Дочерние акторы (Wimp под Wimp). Для смешанных детей с topology-узлами
+ * читать также `topology` table напрямую — runtime tree polymorphic.
+ */
 export class ActorChildren {
   constructor(
     private readonly sql: SQL,
@@ -19,16 +24,16 @@ export class ActorChildren {
   ) {}
 
   async all(): Promise<Actor[]> {
-    const rows = await this.sql<Array<{ uuid: string }>>`
-      SELECT uuid FROM actor WHERE parent = ${this.parentUuid} ORDER BY position
+    const rows = await this.sql<Array<{uuid: string}>>`
+      SELECT uuid FROM actor WHERE parent_actor = ${this.parentUuid} ORDER BY position
     `
     return rows.map((row) => new Actor(this.sql, String(row.uuid)))
   }
 
-  async get({uuid}: { uuid: string }): Promise<Actor | null> {
+  async get({uuid}: {uuid: string}): Promise<Actor | null> {
     const row = (
-      await this.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM actor WHERE uuid = ${uuid} AND parent = ${this.parentUuid} LIMIT 1
+      await this.sql<Array<{ok: number}>>`
+        SELECT 1 AS ok FROM actor WHERE uuid = ${uuid} AND parent_actor = ${this.parentUuid} LIMIT 1
       `
     )[0]
     return row ? new Actor(this.sql, uuid) : null
@@ -36,8 +41,8 @@ export class ActorChildren {
 
   async count(): Promise<number> {
     const row = (
-      await this.sql<Array<{ count: number }>>`
-        SELECT COUNT(*) AS count FROM actor WHERE parent = ${this.parentUuid}
+      await this.sql<Array<{count: number}>>`
+        SELECT COUNT(*) AS count FROM actor WHERE parent_actor = ${this.parentUuid}
       `
     )[0]
     return row?.count ?? 0
@@ -45,8 +50,8 @@ export class ActorChildren {
 
   async exists(): Promise<boolean> {
     const row = (
-      await this.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM actor WHERE parent = ${this.parentUuid} LIMIT 1
+      await this.sql<Array<{ok: number}>>`
+        SELECT 1 AS ok FROM actor WHERE parent_actor = ${this.parentUuid} LIMIT 1
       `
     )[0]
     return row !== undefined
@@ -60,19 +65,19 @@ export class ActorValues {
   ) {}
 
   async all(): Promise<ActorFieldValue[]> {
-    const rows = await this.sql<Array<{ field: string }>>`
+    const rows = await this.sql<Array<{field: string}>>`
       SELECT field FROM actor_value WHERE actor = ${this.actorUuid}
     `
     return rows.map((row) => new ActorFieldValue(this.sql, this.actorUuid, String(row.field)))
   }
 
-  async get({field}: { field: string }): Promise<ActorFieldValue | null> {
+  async get({field}: {field: string}): Promise<ActorFieldValue | null> {
     return ActorFieldValue.get(this.sql, this.actorUuid, field)
   }
 
   async count(): Promise<number> {
     const row = (
-      await this.sql<Array<{ count: number }>>`
+      await this.sql<Array<{count: number}>>`
         SELECT COUNT(*) AS count FROM actor_value WHERE actor = ${this.actorUuid}
       `
     )[0]
@@ -80,20 +85,27 @@ export class ActorValues {
   }
 }
 
+/**
+ * Корневые акторы — те, у которых нет ни actor-родителя, ни topology-родителя.
+ */
 export class ActorRoots {
   constructor(private readonly sql: SQL) {}
 
   async all(): Promise<Actor[]> {
-    const rows = await this.sql<Array<{ uuid: string }>>`
-      SELECT uuid FROM actor WHERE parent IS NULL ORDER BY position
+    const rows = await this.sql<Array<{uuid: string}>>`
+      SELECT uuid FROM actor
+      WHERE parent_actor IS NULL AND parent_topology IS NULL
+      ORDER BY position
     `
     return rows.map((row) => new Actor(this.sql, String(row.uuid)))
   }
 
-  async get({uuid}: { uuid: string }): Promise<Actor | null> {
+  async get({uuid}: {uuid: string}): Promise<Actor | null> {
     const row = (
-      await this.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM actor WHERE uuid = ${uuid} AND parent IS NULL LIMIT 1
+      await this.sql<Array<{ok: number}>>`
+        SELECT 1 AS ok FROM actor
+        WHERE uuid = ${uuid} AND parent_actor IS NULL AND parent_topology IS NULL
+        LIMIT 1
       `
     )[0]
     return row ? new Actor(this.sql, uuid) : null
@@ -101,8 +113,9 @@ export class ActorRoots {
 
   async count(): Promise<number> {
     const row = (
-      await this.sql<Array<{ count: number }>>`
-        SELECT COUNT(*) AS count FROM actor WHERE parent IS NULL
+      await this.sql<Array<{count: number}>>`
+        SELECT COUNT(*) AS count FROM actor
+        WHERE parent_actor IS NULL AND parent_topology IS NULL
       `
     )[0]
     return row?.count ?? 0
@@ -110,8 +123,10 @@ export class ActorRoots {
 
   async exists(): Promise<boolean> {
     const row = (
-      await this.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM actor WHERE parent IS NULL LIMIT 1
+      await this.sql<Array<{ok: number}>>`
+        SELECT 1 AS ok FROM actor
+        WHERE parent_actor IS NULL AND parent_topology IS NULL
+        LIMIT 1
       `
     )[0]
     return row !== undefined
@@ -132,7 +147,7 @@ export class Actor {
 
   async meta(): Promise<string> {
     const row = (
-      await this.sql<Array<{ meta: string }>>`
+      await this.sql<Array<{meta: string}>>`
         SELECT meta FROM actor WHERE uuid = ${this.uuid} LIMIT 1
       `
     )[0]
@@ -142,7 +157,7 @@ export class Actor {
 
   async position(): Promise<number> {
     const row = (
-      await this.sql<Array<{ position: number }>>`
+      await this.sql<Array<{position: number}>>`
         SELECT position FROM actor WHERE uuid = ${this.uuid} LIMIT 1
       `
     )[0]
@@ -150,19 +165,36 @@ export class Actor {
     return Number(row.position)
   }
 
-  async parent(): Promise<Actor | null> {
+  /**
+   * Возвращает `parentActor`/`parentTopology` UUID. Если у актора есть родитель-actor —
+   * вернётся `Actor`-ORM. Если родитель — topology-узел, нужно получать его через
+   * `store.topology.get(parentTopology)` (избегаем cross-package import).
+   */
+  async parentRef(): Promise<{kind: "actor"; uuid: string} | {kind: "topology"; uuid: string} | null> {
     const row = (
-      await this.sql<Array<{ parent: string | null }>>`
-        SELECT parent FROM actor WHERE uuid = ${this.uuid} LIMIT 1
+      await this.sql<Array<{parent_actor: string | null; parent_topology: string | null}>>`
+        SELECT parent_actor, parent_topology FROM actor WHERE uuid = ${this.uuid} LIMIT 1
       `
     )[0]
     if (!row) throw new Error(`actor ${this.uuid} not found`)
-    return row.parent === null || row.parent === undefined ? null : new Actor(this.sql, String(row.parent))
+    if (row.parent_actor !== null && row.parent_actor !== undefined) {
+      return {kind: "actor", uuid: String(row.parent_actor)}
+    }
+    if (row.parent_topology !== null && row.parent_topology !== undefined) {
+      return {kind: "topology", uuid: String(row.parent_topology)}
+    }
+    return null
+  }
+
+  /** Удобный метод когда заведомо известно что родитель — другой actor (wimp под wimp). */
+  async parent(): Promise<Actor | null> {
+    const ref = await this.parentRef()
+    return ref?.kind === "actor" ? new Actor(this.sql, ref.uuid) : null
   }
 
   async state(): Promise<ActorStateRecord | null> {
     const row = (
-      await this.sql<Array<{ actor: string; metaState: string | null }>>`
+      await this.sql<Array<{actor: string; metaState: string | null}>>`
         SELECT actor, metaState FROM actor_state WHERE actor = ${this.uuid} LIMIT 1
       `
     )[0]
@@ -173,12 +205,12 @@ export class Actor {
   async rows(): Promise<ActorRows> {
     const actorRow = (
       await this.sql<Array<Record<string, unknown>>>`
-        SELECT uuid, parent, meta, position FROM actor WHERE uuid = ${this.uuid}
+        SELECT uuid, parent_actor, parent_topology, meta, position FROM actor WHERE uuid = ${this.uuid}
       `
     )[0]
     if (!actorRow) throw new Error(`actor ${this.uuid} not found`)
 
-    const actorValueRows = await this.sql<Array<{ actor: string; field: string; value: string }>>`
+    const actorValueRows = await this.sql<Array<{actor: string; field: string; value: string}>>`
       SELECT actor, field, value FROM actor_value WHERE actor = ${this.uuid}
     `
     const values: ActorValueRecord[] = actorValueRows.map((row) => ({
@@ -248,7 +280,7 @@ export class Actor {
     }
 
     const stateRow = (
-      await this.sql<Array<{ actor: string; metaState: string | null }>>`
+      await this.sql<Array<{actor: string; metaState: string | null}>>`
         SELECT actor, metaState FROM actor_state WHERE actor = ${this.uuid} LIMIT 1
       `
     )[0]

@@ -1,93 +1,100 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
+import {SQL} from "bun"
 import {HubFixture} from "fixture"
+import type {DarkParticle} from "@dark/types"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
-import {dark$} from "../store"
 import {Axion, Fuzzy, Macho, Wimp} from "@dark/strong"
 
 const hub = new HubFixture()
 let store: Awaited<ReturnType<typeof open>>
+let sql: SQL
+let root: Wimp
+let allParticles: DarkParticle[]
 let wimps: Wimp[]
 
-describe("dark$", () => {
+const collectParticles = (particle: DarkParticle, sink: DarkParticle[] = []): DarkParticle[] => {
+  sink.push(particle)
+  for (const child of particle.children) collectParticles(child, sink)
+  return sink
+}
+
+describe("matter() — runtime tree", () => {
   beforeAll(async () => {
     await hub.setup()
     store = await open(":memory:")
-    await matter(new Wimp({src: "zavx0z/git", parent: null}), undefined, {store})
+    sql = new SQL("sqlite::memory:")
+    root = new Wimp({src: "zavx0z/git", parent: null})
+    await matter(root, undefined, {store})
+    allParticles = collectParticles(root)
+    wimps = allParticles.filter((p): p is Wimp => p instanceof Wimp)
   })
   afterAll(async () => {
-    dark$.meta.clear()
-    dark$.fields.clear()
-    dark$.particles.clear()
-    dark$.metaIndex.clear()
+    await sql.close()
     await store.close()
     await hub.teardown()
   })
 
   describe("частицы", () => {
-    test("частицы созданы", () => expect(dark$.particles.size).toBeGreaterThan(0))
+    test("частицы созданы", () => expect(allParticles.length).toBeGreaterThan(0))
+
     test("Wimp присутствуют", () => {
-      wimps = [...dark$.particles.values()].filter((particle) => particle instanceof Wimp)
       expect(wimps.length).toBeGreaterThan(0)
     })
-    let fuzzy: Fuzzy[]
+
     test("Fuzzy присутствуют", () => {
-      fuzzy = [...dark$.particles.values()].filter((particle) => particle instanceof Fuzzy)
+      const fuzzy = allParticles.filter((p): p is Fuzzy => p instanceof Fuzzy)
       expect(fuzzy.length).toBeGreaterThan(0)
     })
-    let axion: Axion[]
+
     test("Axion присутствуют", () => {
-      axion = [...dark$.particles.values()].filter((particle) => particle instanceof Axion)
+      const axion = allParticles.filter((p): p is Axion => p instanceof Axion)
       expect(axion.length).toBeGreaterThan(0)
     })
-    let macho: Macho[]
+
     test("Macho отсутствуют", () => {
-      macho = [...dark$.particles.values()].filter((particle) => particle instanceof Macho)
+      const macho = allParticles.filter((p): p is Macho => p instanceof Macho)
       expect(macho.length).toBe(0)
     })
-    test("кроме частиц ничего нет", () => {
-      const lenghAllParticles = wimps.length + fuzzy.length + axion.length + macho.length
-      expect(lenghAllParticles).toBe(dark$.particles.size)
+
+    test("кроме Wimp/Fuzzy/Axion/Macho других particle нет", () => {
+      const w = allParticles.filter((p) => p instanceof Wimp).length
+      const f = allParticles.filter((p) => p instanceof Fuzzy).length
+      const a = allParticles.filter((p) => p instanceof Axion).length
+      const m = allParticles.filter((p) => p instanceof Macho).length
+      expect(w + f + a + m).toBe(allParticles.length)
     })
   })
 
-  describe("таблицы meta ORM", () => {
-    test("dark$.meta хранит уникальные Meta по `src`, а не копии внутри каждого Wimp", () => {
+  describe("декларация в store", () => {
+    test("каждая уникальная wimp.src имеет ровно одну запись в store.meta", async () => {
       const uniqueSrcs = new Set(wimps.map((wimp) => wimp.src))
-
-      expect(dark$.meta.size).toBe(uniqueSrcs.size)
-      expect(new Set([...dark$.meta.values()].map((meta) => meta.src))).toEqual(uniqueSrcs)
-      for (const wimp of wimps) {
-        expect(wimp.meta, `Wimp ${wimp.id} должен ссылаться на materialized Meta`).toBeDefined()
-        expect([...dark$.meta.values()].some((meta) => meta === wimp.meta)).toBe(true)
+      for (const src of uniqueSrcs) {
+        const meta = await store.meta.get(src)
+        expect(meta, `meta для "${src}" должна существовать в store`).not.toBeNull()
       }
     })
 
-    test("dark$.fields хранит канонические MetaField", () => {
-      const metaFields = [...dark$.meta.values()].flatMap((meta) => Object.values(meta.fields))
-
-      expect(dark$.fields.size).toBe(metaFields.length)
-      expect([...dark$.fields.values()]).toEqual(metaFields)
+    test("каждый wimp ссылается на свой Meta-объект (не shared identity, см. policy без кеша)", () => {
+      for (const wimp of wimps) {
+        expect(wimp.meta, `Wimp ${wimp.id} должен ссылаться на свой Meta`).toBeDefined()
+        expect(wimp.meta!.src).toBe(wimp.src)
+      }
     })
   })
 
-  describe("родители", () => {
-    test("`parent` хранит связи для всех не-корневых частиц", () => {
-      const particles = [...dark$.particles.values()]
-      const root = wimps.find((wimp) => wimp.src === "zavx0z/git")
+  describe("родители (object-graph)", () => {
+    test("корневой Wimp не имеет parent", () => {
+      const rootByName = wimps.find((wimp) => wimp.src === "zavx0z/git")
+      expect(rootByName, "корневой Wimp должен присутствовать в списке Wimp").toBeDefined()
+      expect(rootByName!.parent).toBeNull()
+    })
 
-      expect(root, "корневой Wimp должен присутствовать в списке Wimp").toBeDefined()
-      expect(root!.parent, "корневой Wimp не должен иметь `parent`").toBeNull()
-
-      for (const particle of particles) {
+    test("каждая не-корневая частица имеет parent в той же object-graph", () => {
+      for (const particle of allParticles) {
         if (particle === root) continue
-
         const parent = particle.parent
         if (!parent) throw new Error(`частица ${particle.id} должна иметь parent`)
-        expect(
-          dark$.particles.has(parent.id),
-          `родительская частица ${parent.id} должна быть сохранена в dark$.particles`,
-        ).toBe(true)
         expect(
           parent.children.has(particle),
           `родительская частица ${parent.id} должна ссылаться на ${particle.id}`,

@@ -1,15 +1,14 @@
-import type {FieldKey, MetaDSL, ParsedDestroy, ParsedProcess, ReactionsSchema} from "../../index.ts"
+import type {MetaDSL, ParsedDestroy, ParsedProcess, ReactionsSchema} from "../../index.ts"
 import type {MatterRelationParticle, MatterRelationChild, BindingValue} from "../../store/meta/sqlite/matter.t.ts"
+import type {MetaIdentifiers} from "@store/meta/sqlite"
 import {projectTemplateMatterRelations} from "../matter.ts"
 import {emit as emitRaw, path, type Updater} from "./_common.ts"
 
-export interface MetaIndex {
-  src: string
-  fieldUuids: Map<FieldKey, string>
-  variantUuids: Map<FieldKey, Map<string, string>>
-  superpositionUuids: Map<string, string>
-  initialState: string | null
-}
+/**
+ * `MetaIdentifiers` нужен потребителям сразу после эмита (чтобы строить actor-патчи
+ * без отдельного SQL-чтения). Поэтому собираем его inline в момент emit'а.
+ */
+type MetaIndex = MetaIdentifiers
 
 const emit = (store: Updater, p: string, value: unknown): Promise<void> =>
   emitRaw(store, "graviton", p, value)

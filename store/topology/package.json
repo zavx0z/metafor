@@ -1,0 +1,9 @@
+{
+  "name": "@store/topology",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./sqlite": "./sqlite/index.ts"
+  },
+  "private": true
+}

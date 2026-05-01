@@ -1,6 +1,7 @@
 import {SQL, type ReservedSQL} from "bun"
 import {StoreMetaSqlite} from "@store/meta/sqlite"
 import {StoreActorSqlite} from "@store/actor/sqlite"
+import {StoreTopologySqlite} from "@store/topology/sqlite"
 
 import type {Store} from "./index.ts"
 
@@ -603,8 +604,11 @@ const applyActorRow = async (tx: Tx, op: string, segs: string[], value: unknown)
   if (op === "add") {
     const v = requireRecord(value, path)
     await tx`
-      INSERT INTO actor (uuid, parent, meta, position)
-      VALUES (${uuid}, ${optionalString(v, "parent", path)}, ${requireString(v, "meta", path)},
+      INSERT INTO actor (uuid, parent_actor, parent_topology, meta, position)
+      VALUES (${uuid},
+              ${optionalString(v, "parentActor", path)},
+              ${optionalString(v, "parentTopology", path)},
+              ${requireString(v, "meta", path)},
               ${requireNumber(v, "position", path)})
     `
     return
@@ -613,10 +617,38 @@ const applyActorRow = async (tx: Tx, op: string, segs: string[], value: unknown)
     const v = requireRecord(value, path)
     await tx`
       UPDATE actor
-      SET parent = ${optionalString(v, "parent", path)},
+      SET parent_actor = ${optionalString(v, "parentActor", path)},
+          parent_topology = ${optionalString(v, "parentTopology", path)},
           meta = ${requireString(v, "meta", path)},
           position = ${requireNumber(v, "position", path)}
       WHERE uuid = ${uuid}
+    `
+    return
+  }
+  notSupported(op, path, "graviton")
+}
+
+const applyTopologyRow = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+  // /topology/<uuid>
+  const uuid = segs[1]!
+  const path = `/topology/${uuid}`
+  if (op === "remove") {
+    await tx`DELETE FROM topology WHERE uuid = ${uuid}`
+    return
+  }
+  if (op === "add") {
+    const v = requireRecord(value, path)
+    const kind = requireString(v, "kind", path)
+    if (kind !== "fuzzy" && kind !== "axion" && kind !== "macho") {
+      throw new Error(`Patch ${path}: unknown topology kind "${kind}"`)
+    }
+    await tx`
+      INSERT INTO topology (uuid, parent_actor, parent_topology, kind, position)
+      VALUES (${uuid},
+              ${optionalString(v, "parentActor", path)},
+              ${optionalString(v, "parentTopology", path)},
+              ${kind},
+              ${requireNumber(v, "position", path)})
     `
     return
   }
@@ -633,6 +665,11 @@ const applyGravitonPatch = async (tx: Tx, patch: StorePatch): Promise<void> => {
 
   if (segs[0] === "actor") {
     if (segs.length === 2) return applyActorRow(tx, patch.op, segs, value)
+    throw new Error(`Unknown graviton path: ${patch.path}`)
+  }
+
+  if (segs[0] === "topology") {
+    if (segs.length === 2) return applyTopologyRow(tx, patch.op, segs, value)
     throw new Error(`Unknown graviton path: ${patch.path}`)
   }
 
@@ -899,9 +936,16 @@ export const open = async (filename?: string): Promise<Store> => {
     await sql.unsafe("PRAGMA busy_timeout = 5000;")
   }
 
+  // ВАЖНО: topology поднимаем ДО actor — у actor есть FK parent_topology → topology(uuid).
+  // SQLite позволяет создавать circular FK при foreign_keys=ON, но table-target должна
+  // существовать к моменту первого INSERT.
+  const topology = await StoreTopologySqlite.open(sql)
+  const actor = await StoreActorSqlite.open(sql)
+
   return {
     meta: await StoreMetaSqlite.open(sql),
-    actor: await StoreActorSqlite.open(sql),
+    actor,
+    topology,
     update: buildApplyMessage(sql),
     async close() {
       try {

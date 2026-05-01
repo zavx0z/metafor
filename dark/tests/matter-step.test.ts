@@ -2,7 +2,6 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {HubFixture} from "fixture"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
-import {dark$} from "../store"
 import {Wimp} from "@dark/strong"
 
 type RecordedStep = {
@@ -33,10 +32,6 @@ describe("dark matter incremental steps", () => {
   })
 
   afterAll(async () => {
-    dark$.meta.clear()
-    dark$.fields.clear()
-    dark$.particles.clear()
-    dark$.metaIndex.clear()
     await store.close()
     await hub.teardown()
   })

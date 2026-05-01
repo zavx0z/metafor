@@ -3,17 +3,10 @@ import actorSql from "./actor.sql" with {type: "text"}
 import valueSql from "./value.sql" with {type: "text"}
 import actorValueSql from "./actor_value.sql" with {type: "text"}
 import stateSql from "./state.sql" with {type: "text"}
-import {Actor, ActorRoots} from "./actor.ts"
+import {Actor, ActorRoots, decodeActorRow} from "./actor.ts"
 import {Value, type AnyValue} from "./value.ts"
 import type {ActorRecord} from "./actor.t.ts"
 import {ActorFieldValue} from "./actor_value.ts"
-
-const decodeActorRow = (row: Record<string, unknown>): ActorRecord => ({
-  uuid: String(row.uuid),
-  parent: row.parent === null || row.parent === undefined ? null : String(row.parent),
-  meta: String(row.meta),
-  position: Number(row.position),
-})
 
 export class StoreActorSqlite {
   readonly roots: ActorRoots
@@ -57,7 +50,7 @@ export class StoreActorSqlite {
   async head(uuid: string): Promise<ActorRecord | null> {
     const row = (
       await this.sql<Array<Record<string, unknown>>>`
-        SELECT uuid, parent, meta, position FROM actor WHERE uuid = ${uuid}
+        SELECT uuid, parent_actor, parent_topology, meta, position FROM actor WHERE uuid = ${uuid}
       `
     )[0]
     return row ? decodeActorRow(row) : null

@@ -1,5 +1,6 @@
 export { StoreMetaSqlite } from "./sqlite.ts"
 export type { DarkMetaParticleModel } from "./read.t.ts"
+export type { MetaIdentifiers } from "./meta.t.ts"
 
 // ORM-классы (Django-style). Корневой entry-point `@store/meta` re-export-ит их.
 export { Meta } from "./meta.ts"

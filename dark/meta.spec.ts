@@ -1,14 +1,15 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, test} from "bun:test"
+import {SQL} from "bun"
 import {HubFixture} from "fixture"
 import {open} from "../store/server.ts"
 import {matter} from "./index.ts"
 import {Wimp} from "@dark/strong"
-import {dark$} from "./store.ts"
 
 const hub = new HubFixture("./")
 
 describe("meta normalization", () => {
   let store: Awaited<ReturnType<typeof open>>
+  let sql: SQL
 
   beforeAll(async () => {
     await hub.setup()
@@ -16,13 +17,11 @@ describe("meta normalization", () => {
 
   beforeEach(async () => {
     store = await open(":memory:")
+    sql = new SQL("sqlite::memory:")
   })
 
   afterEach(async () => {
-    dark$.meta.clear()
-    dark$.fields.clear()
-    dark$.particles.clear()
-    dark$.metaIndex.clear()
+    await sql.close()
     await store.close()
   })
 
@@ -30,20 +29,26 @@ describe("meta normalization", () => {
     await hub.teardown()
   })
 
-  test("повторная materialization одинакового src переиспользует Meta и MetaField вместо новых копий", async () => {
-    const firstRoot = new Wimp({src: "zavx0z/git", parent: null})
-    await matter(firstRoot, undefined, {store})
+  test("повторная materialization одинакового src НЕ дублирует декларацию в store", async () => {
+    // Используем один и тот же store — повторный matter() для уже залитой меты
+    // должен пройти без UNIQUE-конфликтов (loadMeta сам видит существующую и читает identifiers).
+    await matter(new Wimp({src: "zavx0z/git", parent: null}), undefined, {store})
 
-    const firstMetaCount = dark$.meta.size
-    const firstFieldCount = dark$.fields.size
-    const firstMeta = firstRoot.meta
+    // получим snapshot meta-каталога из store
+    const firstMeta = await store.meta.get("zavx0z/git")
+    expect(firstMeta).not.toBeNull()
+    const firstIds = await firstMeta!.identifiers()
 
-    const secondRoot = new Wimp({src: "zavx0z/git", parent: null})
-    await matter(secondRoot, undefined, {store})
+    // вторая попытка: новый root Wimp той же src.
+    // matter() пишет actor row для этого Wimp, но meta-декларация не переписывается.
+    await matter(new Wimp({src: "zavx0z/git", parent: null}), undefined, {store})
 
-    expect(firstMeta, "первая materialization должна привязать корневой Wimp к Meta").toBeDefined()
-    expect(secondRoot.meta, "вторая materialization тоже должна привязать Wimp к Meta").toBe(firstMeta)
-    expect(dark$.meta.size, "повторный проход не должен дублировать Meta в store").toBe(firstMetaCount)
-    expect(dark$.fields.size, "повторный проход не должен дублировать MetaField в store").toBe(firstFieldCount)
+    const secondMeta = await store.meta.get("zavx0z/git")
+    expect(secondMeta).not.toBeNull()
+    const secondIds = await secondMeta!.identifiers()
+
+    // Те же uuid'ы — декларация не переписалась
+    expect(secondIds.fieldUuids.get("operation")).toBe(firstIds.fieldUuids.get("operation"))
+    expect(secondIds.initialState).toBe(firstIds.initialState)
   })
 })
