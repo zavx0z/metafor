@@ -1,7 +1,12 @@
 import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage} from "@shared/protocol"
 import {open} from "../store/server.ts"
+import {MetaFor} from "../metafor"
 import {matter} from "./dark.ts"
 import {Wimp} from "./strong"
+
+// DSL-файлы `github/.../meta.ts` обращаются к `MetaFor(...)` как к глобальной функции,
+// поэтому регистрируем её до первого dynamic import меты.
+;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
 /**
  * Серверный демон Dark: открывает файловый store через `store/server.open()`
