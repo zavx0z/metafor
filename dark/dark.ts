@@ -180,14 +180,9 @@ export async function* matterMeta(
 }
 
 /**
- * Публичный entrypoint Dark.
- *
- * - канонизирует мету через эмиттер graviton-патчей в `store.update`,
- * - вызывает single-meta `matterMeta()`,
- * - рекурсивно проходит дочерние Wimp,
- * - один раз публикует gravity barrier на верхнем вызове.
+ * Внутренний рекурсивный обход одной particle. Снаружи использовать `matter(src, options)`.
  */
-export async function matter(
+async function materializeWimp(
   wimp: Wimp,
   continuation: MatterContinuation | undefined,
   options: MatterOptions,
@@ -199,7 +194,7 @@ export async function matter(
 
   for await (const wimps of generator) {
     for (const [childWimp, childContinuation] of wimps) {
-      await matter(childWimp, childContinuation, {
+      await materializeWimp(childWimp, childContinuation, {
         ...options,
         positionByParent,
         suppressGravityBarrier: true,
@@ -210,4 +205,22 @@ export async function matter(
   if (shouldEmitGravityBarrier) {
     emitBarrier()
   }
+}
+
+/**
+ * Публичный entrypoint Dark.
+ *
+ * Принимает канонический `src` меты, создаёт корневой `Wimp` и разворачивает её дерево:
+ * - канонизирует мету через эмиттер graviton-патчей в `store.update`,
+ * - рекурсивно материализует дочерние Wimp/Fuzzy/Axion/Macho,
+ * - один раз публикует gravity barrier на верхнем вызове.
+ *
+ * @param src канонический адрес меты (например, `"zavx0z/git"`).
+ * @param options содержит обязательный `store` и опциональные хуки наблюдения.
+ * @returns корневой `Wimp` со всем object-graph дочерних particle (для traversal в тестах/наблюдении).
+ */
+export async function matter(src: string, options: MatterOptions): Promise<Wimp> {
+  const root = new Wimp({src, parent: null})
+  await materializeWimp(root, undefined, options)
+  return root
 }

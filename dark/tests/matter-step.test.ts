@@ -1,7 +1,6 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
-import {Wimp} from "@dark/strong"
 
 type RecordedStep = {
   kind: "layer" | "root"
@@ -15,7 +14,7 @@ describe("dark matter incremental steps", () => {
 
   beforeAll(async () => {
     store = await open(":memory:")
-    await matter(new Wimp({src: "zavx0z/git", parent: null}), undefined, {
+    await matter("zavx0z/git", {
       store,
       onMaterializedStep(step) {
         steps.push({
