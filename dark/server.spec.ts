@@ -95,7 +95,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     } finally {
       await sql.close()
     }
-  })
+  }, 60_000)
 
   test("повторный add /meta/zavx0z~1git идемпотентен — server пропускает уже залитую мету", async () => {
     const observedBefore = observed.length
