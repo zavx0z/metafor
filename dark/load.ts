@@ -2,11 +2,9 @@ import type {MetaDSL, SRC} from ".."
 import type {MetaIdentifiers} from "@store/meta/sqlite"
 import type {Store} from "../store/index.ts"
 import {emitMetaPatches} from "./patch/meta.ts"
+import settings from "./settings.yml"
 
-const HUB = "github/"
-
-const resolveLocalMetaModuleUrl = (address: SRC): string =>
-  new URL(`../${HUB}${address}/meta.ts`, import.meta.url).href
+const {HUB, MODULE} = settings 
 
 /**
  * Читает DSL meta из локального TS-модуля через dynamic import.
@@ -16,10 +14,10 @@ const resolveLocalMetaModuleUrl = (address: SRC): string =>
  * @throws если не удалось загрузить meta
  */
 export const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
-  const sourcePath = resolveLocalMetaModuleUrl(address)
+  const sourcePath = new URL(`../${HUB}${address}/${MODULE}`, import.meta.url).href
   try {
     const module = await import(sourcePath)
-    return structuredClone((module.default ?? module) as MetaDSL)
+    return (module.default ?? module) as MetaDSL
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(`Не удалось загрузить meta: ${sourcePath} — ${message}`)

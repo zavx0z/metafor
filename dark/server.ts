@@ -10,7 +10,7 @@ import {Wimp} from "./strong"
 
 /**
  * Серверный демон Dark: открывает файловый store через `store/server.open()`
- * и слушает `gravity`-канал на входящие графитоны вида `add /meta/<src>` —
+ * и слушает `gravity`-канал на входящие гравитоны вида `add /meta/<src>` —
  * по такому патчу запускает `matter(new Wimp({src}), { store })`,
  * который сам стримит graviton/gluon/photon-патчи в `store.update`.
  *
