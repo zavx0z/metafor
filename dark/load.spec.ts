@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import type {MetaDSL} from ".."
 import {open} from "../store/server.ts"
-import {emitMetaPatches} from "./patch/meta.ts"
+import {projectTemplateMatterRelations} from "./matter.ts"
 
 const minMeta: MetaDSL = {
   name: "min",
@@ -13,7 +13,7 @@ const minMeta: MetaDSL = {
   matter: [],
 }
 
-describe("emitMetaPatches", () => {
+describe("store.meta.create", () => {
   let store: Awaited<ReturnType<typeof open>>
 
   beforeEach(async () => {
@@ -24,8 +24,9 @@ describe("emitMetaPatches", () => {
     await store.close()
   })
 
-  test("эмитит graviton-патчи и возвращает MetaIdentifiers с uuid полей и состояний", async () => {
-    const ids = await emitMetaPatches("owner/min", minMeta, store)
+  test("создаёт декларацию и Meta.identifiers() возвращает uuid полей и состояний", async () => {
+    const meta = await store.meta.create("owner/min", minMeta, projectTemplateMatterRelations(minMeta))
+    const ids = await meta.identifiers()
 
     expect(ids.src).toBe("owner/min")
     expect(ids.fieldUuids.has("flag")).toBe(true)
@@ -37,25 +38,15 @@ describe("emitMetaPatches", () => {
     expect(projection.meta.fieldSchemas).toEqual(minMeta.fields)
   })
 
-  test("повторная канонизация той же src ведёт к UNIQUE-конфликту — caller должен дедуплицировать", async () => {
-    await emitMetaPatches("owner/min", minMeta, store)
-    let threw = false
-    try {
-      await emitMetaPatches("owner/min", minMeta, store)
-    } catch {
-      threw = true
-    }
-    expect(threw).toBe(true)
-  })
+  test("повторная канонизация той же src идемпотентна — DELETE+INSERT", async () => {
+    const first = await store.meta.create("owner/min", minMeta, projectTemplateMatterRelations(minMeta))
+    const firstIds = await first.identifiers()
 
-  test("Meta.identifiers() читает те же uuid после emit", async () => {
-    const emitted = await emitMetaPatches("owner/min", minMeta, store)
-    const meta = await store.meta.get("owner/min")
-    if (!meta) throw new Error("meta missing after emit")
+    const second = await store.meta.create("owner/min", minMeta, projectTemplateMatterRelations(minMeta))
+    const secondIds = await second.identifiers()
 
-    const reread = await meta.identifiers()
-    expect(reread.fieldUuids.get("flag")).toBe(emitted.fieldUuids.get("flag"))
-    expect(reread.superpositionUuids.get("idle")).toBe(emitted.superpositionUuids.get("idle"))
-    expect(reread.initialState).toBe(emitted.initialState)
+    // UUID'ы регенерируются (не deterministic), но структура целая
+    expect(secondIds.fieldUuids.has("flag")).toBe(true)
+    expect(secondIds.fieldUuids.get("flag")).not.toBe(firstIds.fieldUuids.get("flag"))
   })
 })

@@ -3,7 +3,7 @@ import {SQL} from "bun"
 import type {MetaDSL} from "../../.."
 import type {Store} from "../../index.ts"
 import {open} from "../../server.ts"
-import {emitMetaPatches} from "../../../dark/patch/meta.ts"
+import {projectTemplateMatterRelations} from "../../../dark/matter.ts"
 
 const richMeta: MetaDSL = {
   name: "rich",
@@ -236,7 +236,7 @@ describe("sqlite dark particle model", () => {
   }
 
   test("сохраняет particle-centric matter и даёт ORM loader поверх реляционных rows", async () => {
-    await emitMetaPatches("owner/rich", richMeta, store)
+    await store.meta.create("owner/rich", richMeta, projectTemplateMatterRelations(richMeta))
 
     const projection = (await store.meta.readDarkParticleModel("owner/rich"))!
     expect(projection).toBeDefined()
@@ -249,7 +249,7 @@ describe("sqlite dark particle model", () => {
   })
 
   test("не выводит пустые processes/reactions из отсутствия записей в БД", async () => {
-    await emitMetaPatches("owner/empty", explicitEmptyMeta, store)
+    await store.meta.create("owner/empty", explicitEmptyMeta, projectTemplateMatterRelations(explicitEmptyMeta))
 
     const projection = (await store.meta.readDarkParticleModel("owner/empty"))!
 

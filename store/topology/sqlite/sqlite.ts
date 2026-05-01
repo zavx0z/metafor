@@ -19,6 +19,18 @@ export class StoreTopologySqlite {
     return new StoreTopologySqlite(sql)
   }
 
+  /**
+   * Создаёт topology-узел (Fuzzy/Axion/Macho). Polymorphic parent: ровно один из
+   * `parentActor`/`parentTopology` должен быть задан.
+   */
+  async create(input: TopologyRecord): Promise<AnyTopology> {
+    await this.sql`
+      INSERT INTO topology (uuid, parent_actor, parent_topology, kind, position)
+      VALUES (${input.uuid}, ${input.parentActor}, ${input.parentTopology}, ${input.kind}, ${input.position})
+    `
+    return buildTopology(this.sql, input)
+  }
+
   async get(uuid: string): Promise<AnyTopology | null> {
     const row = (
       await this.sql<Array<Record<string, unknown>>>`

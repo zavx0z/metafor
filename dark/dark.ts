@@ -1,16 +1,16 @@
 import type {MatterContinuation, MatterEntry, MatterLayerResult, MatterParticlePlan, MatterWimpResult} from "@dark/types/dark"
 import type {DarkParticle} from "@dark/types"
 import type {MetaIdentifiers} from "@store/meta/sqlite"
+import type {ActorRows, ActorValueRecord, ValueRecord, ValueItemRecord} from "@store/actor"
 import type {Store} from "../store/index.ts"
 import {emitAdd, emitBarrier} from "@dark/gravity/channel.ts"
 import {Axion, Fuzzy, materializeFields, Macho, Meta, resolveWimpContinuation, Wimp} from "@dark/strong"
+import type {InstanceField} from "@dark/strong/Field.ts"
 import {loadMeta} from "./load.ts"
 import {projectStoreMatterParticles} from "./matter.ts"
-import {emitActorPatches} from "./patch/actor.ts"
-import {emitTopologyPatches} from "./patch/topology.ts"
 
 interface MatterOptions {
-  store: Pick<Store, "meta" | "update">
+  store: Store
   onMaterializedStep?: (step: MatterMaterializationStep) => Promise<void> | void
   suppressGravityBarrier?: boolean
   positionByParent?: Map<string, number>
@@ -45,7 +45,6 @@ const cloneContinuation = (continuation: MatterContinuation): MatterContinuation
   return cloned
 }
 
-/** Регистрирует только object-graph parent-child связь. Никаких глобальных Map'ов. */
 const linkToParent = (particle: DarkParticle, parent: DarkParticle): void => {
   parent.children.add(particle)
   if (parent instanceof Fuzzy) parent.branch.set(particle, particle)
@@ -59,7 +58,7 @@ const nextPosition = (counter: Map<string, number>, parentKey: string): number =
 
 const readRuntimeMeta = async (
   src: string,
-  store: Pick<Store, "meta" | "update">,
+  store: Pick<Store, "meta">,
 ): Promise<RuntimeMetaMaterialization> => {
   const identifiers = await loadMeta(src, store)
   const particleModel = await store.meta.readDarkParticleModel(src)
@@ -73,22 +72,143 @@ const readRuntimeMeta = async (
   }
 }
 
+const resolveParentRef = (
+  wimp: Wimp,
+): {kind: "actor" | "topology"; uuid: string} | null => {
+  const parent = wimp.parent
+  if (!parent) return null
+  if (parent instanceof Fuzzy || parent instanceof Macho || parent instanceof Axion) {
+    return {kind: "topology", uuid: parent.id}
+  }
+  return {kind: "actor", uuid: parent.id}
+}
+
+/**
+ * Резолвит value uuid поля родителя из БД. Используется при entanglement: дочерний `actor_value`
+ * указывает на тот же `value.uuid`, что и родительский — share через FK.
+ */
+const resolveSourceValueUuid = async (
+  source: InstanceField,
+  store: Store,
+): Promise<string> => {
+  const parentMeta = await store.meta.get(source.owner.src)
+  if (!parentMeta) throw new Error(`parent meta "${source.owner.src}" missing in store`)
+  const parentIds = await parentMeta.identifiers()
+  const parentFieldUuid = parentIds.fieldUuids.get(source.key)
+  if (!parentFieldUuid) throw new Error(`parent field "${source.key}" missing in identifiers`)
+  const link = await store.actor.link.get(source.owner.id, parentFieldUuid)
+  if (!link) throw new Error(`parent actor_value missing for (${source.owner.id}, ${source.key})`)
+  const value = await link.value()
+  return value.uuid
+}
+
+/**
+ * Кодирует runtime-значение `InstanceField` в `ValueRecord` для записи в `value` table.
+ */
+const buildValueRecord = (
+  uuid: string,
+  field: InstanceField,
+  variantsByValue: Map<string, string> | undefined,
+): {record: ValueRecord; items: ValueItemRecord[]} => {
+  const raw = field.value
+  if (raw === null || raw === undefined) return {record: {uuid, kind: "null"}, items: []}
+  const fieldType: string = field.schema.type
+  switch (fieldType) {
+    case "boolean":
+      return {record: {uuid, kind: "boolean", boolean: Boolean(raw)}, items: []}
+    case "number":
+      return {record: {uuid, kind: "number", number: Number(raw)}, items: []}
+    case "string":
+      return {record: {uuid, kind: "string", text: String(raw)}, items: []}
+    case "enum": {
+      const variantUuid = variantsByValue?.get(String(raw))
+      if (!variantUuid) {
+        throw new Error(`Unknown enum variant "${String(raw)}" for field "${field.key}"`)
+      }
+      return {record: {uuid, kind: "enum", variant: variantUuid}, items: []}
+    }
+    case "array": {
+      const items: ValueItemRecord[] = Array.isArray(raw)
+        ? raw.map((item, position) => ({value: uuid, position, itemValue: String(item)}))
+        : []
+      return {record: {uuid, kind: "list"}, items}
+    }
+  }
+  throw new Error(`Unsupported field type for value emission: ${fieldType}`)
+}
+
+/**
+ * Строит `ActorRows` для записи через `store.actor.create`.
+ * Для полей с заданным `source` переиспользует value uuid родителя (entanglement через shared row).
+ */
+const buildActorRows = async (
+  wimp: Wimp,
+  position: number,
+  identifiers: MetaIdentifiers,
+  store: Store,
+): Promise<ActorRows> => {
+  if (!wimp.fields) throw new Error(`Wimp ${wimp.id} cannot be persisted: fields are not materialized`)
+
+  const parent = resolveParentRef(wimp)
+  const values: ActorValueRecord[] = []
+  const valueRecords: ValueRecord[] = []
+  const valueItems: ValueItemRecord[] = []
+
+  for (const field of Object.values(wimp.fields)) {
+    const fieldUuid = identifiers.fieldUuids.get(field.key)
+    if (!fieldUuid) {
+      throw new Error(`Field "${field.key}" is not registered in meta identifiers for "${wimp.src}"`)
+    }
+    let valueUuid: string
+    if (field.source) {
+      // entanglement: share parent's value.uuid
+      valueUuid = await resolveSourceValueUuid(field.source, store)
+    } else {
+      valueUuid = crypto.randomUUID()
+      const variants = identifiers.variantUuids.get(field.key)
+      const built = buildValueRecord(valueUuid, field, variants)
+      valueRecords.push(built.record)
+      valueItems.push(...built.items)
+    }
+    values.push({actor: wimp.id, field: fieldUuid, value: valueUuid})
+  }
+
+  return {
+    actor: {
+      uuid: wimp.id,
+      parentActor: parent?.kind === "actor" ? parent.uuid : null,
+      parentTopology: parent?.kind === "topology" ? parent.uuid : null,
+      meta: wimp.src,
+      position,
+    },
+    values,
+    valueRecords,
+    valueItems,
+    state: {actor: wimp.id, metaState: identifiers.initialState},
+  }
+}
+
 const appendChildEntries = (frontier: MatterEntry[], plan: MatterParticlePlan, parent: DarkParticle): void => {
   if (!Array.isArray(plan.children) || plan.children.length === 0) return
   frontier.push(...plan.children.map((child) => ({plan: child, parent})))
 }
 
+const topologyParentRefOf = (parent: DarkParticle): {parentActor: string | null; parentTopology: string | null} => {
+  if (parent instanceof Wimp) return {parentActor: parent.id, parentTopology: null}
+  return {parentActor: null, parentTopology: parent.id}
+}
+
 /**
  * Обрабатывает узел текущего топологического слоя:
  * - для wimp — создаёт пустой `Wimp` и кладёт в результат для последующего материализующего прохода;
- * - для fuzzy/axion/macho — создаёт runtime-инстанс, эмитит `/topology/<uuid>` graviton-патч в store.
+ * - для fuzzy/axion/macho — создаёт runtime-инстанс и записывает topology row через `store.topology.create`.
  */
 const processMatterParticle = async (
   entry: MatterEntry,
   fields: Wimp["fields"],
   nextFrontier: MatterEntry[],
   wimps: MatterWimpResult[],
-  store: Pick<Store, "update">,
+  store: Store,
   positionByParent: Map<string, number>,
 ): Promise<void> => {
   switch (entry.plan.kind) {
@@ -112,7 +232,8 @@ const processMatterParticle = async (
       const fuzzy = new Fuzzy({parent: entry.parent})
       linkToParent(fuzzy, entry.parent)
       const position = nextPosition(positionByParent, entry.parent.id)
-      await emitTopologyPatches(fuzzy, {position, store})
+      const parentRef = topologyParentRefOf(entry.parent)
+      await store.topology.create({uuid: fuzzy.id, ...parentRef, kind: "fuzzy", position})
       appendChildEntries(nextFrontier, entry.plan, fuzzy)
       return
     }
@@ -120,7 +241,8 @@ const processMatterParticle = async (
       const axion = new Axion({parent: entry.parent})
       linkToParent(axion, entry.parent)
       const position = nextPosition(positionByParent, entry.parent.id)
-      await emitTopologyPatches(axion, {position, store})
+      const parentRef = topologyParentRefOf(entry.parent)
+      await store.topology.create({uuid: axion.id, ...parentRef, kind: "axion", position})
       appendChildEntries(nextFrontier, entry.plan, axion)
       return
     }
@@ -128,7 +250,8 @@ const processMatterParticle = async (
       const macho = new Macho({parent: entry.parent})
       linkToParent(macho, entry.parent)
       const position = nextPosition(positionByParent, entry.parent.id)
-      await emitTopologyPatches(macho, {position, store})
+      const parentRef = topologyParentRefOf(entry.parent)
+      await store.topology.create({uuid: macho.id, ...parentRef, kind: "macho", position})
       appendChildEntries(nextFrontier, entry.plan, macho)
       return
     }
@@ -136,10 +259,7 @@ const processMatterParticle = async (
 }
 
 /**
- * Явный послойный проход одной меты.
- *
- * На первом `next()` генератор инициализирует корневой `Wimp`, эмитит actor-патчи через store,
- * затем обрабатывает первый слой particle-plan и yield-ит только Wimp, обнаруженные на этом шаге.
+ * Явный послойный проход одной меты. Yields массив pending дочерних wimp на каждом шаге BFS.
  */
 export async function* matterMeta(
   wimp: Wimp,
@@ -155,7 +275,8 @@ export async function* matterMeta(
 
   const parentKey = wimp.parent?.id ?? "root"
   const position = nextPosition(positionByParent, parentKey)
-  await emitActorPatches(wimp, {position, store: options.store, identifiers: runtimeMeta.identifiers})
+  const rows = await buildActorRows(wimp, position, runtimeMeta.identifiers, options.store)
+  await options.store.actor.create(rows)
   emitAdd(wimp.id)
 
   await options.onMaterializedStep?.({kind: "root", layerWimps: [], wimp})
@@ -182,7 +303,7 @@ export async function* matterMeta(
 /**
  * Публичный entrypoint Dark.
  *
- * - канонизирует мету через эмиттер graviton-патчей в `store.update`,
+ * - канонизирует мету через `store.meta.create`,
  * - вызывает single-meta `matterMeta()`,
  * - рекурсивно проходит дочерние Wimp,
  * - один раз публикует gravity barrier на верхнем вызове.

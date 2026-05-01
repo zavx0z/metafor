@@ -1,10 +1,10 @@
 import type {MetaDSL, SRC} from ".."
 import type {MetaIdentifiers} from "@store/meta/sqlite"
 import type {Store} from "../store/index.ts"
-import {emitMetaPatches} from "./patch/meta.ts"
 import settings from "./settings.yml"
+import {projectTemplateMatterRelations} from "./matter.ts"
 
-const {HUB, MODULE} = settings 
+const {HUB, MODULE} = settings
 
 /**
  * Читает DSL meta из локального TS-модуля через dynamic import.
@@ -26,19 +26,19 @@ export const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
 
 /**
  * Канонизирует мету:
- * - если её ещё нет в store — эмитит graviton-патчи через `emitMetaPatches`,
+ * - если её ещё нет в store — записывает декларацию через `store.meta.create(src, dsl, matter)`,
  * - если уже есть — читает `MetaIdentifiers` из store через `Meta.identifiers()` ORM.
  *
- * Без in-memory кеша: повторный вызов всегда делает либо emit (для отсутствующей),
- * либо SQL-запрос за uuid'ами.
+ * Без in-memory кеша: повторный вызов всегда делает либо создание, либо SQL-запрос за uuid'ами.
  */
 export const loadMeta = async (
   src: SRC,
-  store: Pick<Store, "meta" | "update">,
+  store: Pick<Store, "meta">,
 ): Promise<MetaIdentifiers> => {
   const existing = await store.meta.get(src)
   if (existing) return existing.identifiers()
 
   const dsl = await readMetaDsl(src)
-  return emitMetaPatches(src, dsl, store)
+  const meta = await store.meta.create(src, dsl, projectTemplateMatterRelations(dsl))
+  return meta.identifiers()
 }
