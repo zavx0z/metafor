@@ -440,7 +440,6 @@
       "name": "@zavx0z/git",
       "version": "0.1.0",
       "devDependencies": {
-        "@surface/meta": "workspace:*",
         "create-metafor": "workspace:*",
       },
     },
@@ -742,9 +741,6 @@
     "pkg/protocol": {
       "name": "@shared/protocol",
     },
-    "pkg/surface/meta": {
-      "name": "@surface/meta",
-    },
     "pkg/template": {
       "name": "@metafor/template",
       "version": "2.6.2",
@@ -974,8 +970,6 @@
     "@store/meta": ["@store/meta@workspace:store/meta"],
 
     "@store/topology": ["@store/topology@workspace:store/topology"],
-
-    "@surface/meta": ["@surface/meta@workspace:pkg/surface/meta"],
 
     "@tootallnate/quickjs-emscripten": ["@tootallnate/quickjs-emscripten@0.23.0", "", {}, "sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA=="],
 
