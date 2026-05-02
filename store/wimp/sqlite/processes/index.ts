@@ -1,5 +1,5 @@
-import type { Wimp } from "./wimp.ts"
-import { Process } from "./process.process.ts"
+import type { Wimp } from "../wimp.ts"
+import { Process } from "./process.ts"
 
 type ProcessType = "action" | "finally"
 

@@ -1,7 +1,7 @@
-import type { Processes } from "./process.ts"
-import { ProcessAction } from "./process.action.ts"
-import { ProcessFinally } from "./process.finally.ts"
-import { ProcessEnvs } from "./process.env.ts"
+import type { Processes } from "./index.ts"
+import { ProcessAction } from "./action.ts"
+import { ProcessFinally } from "./finally.ts"
+import { ProcessEnvs } from "./env.ts"
 
 type ProcessType = "action" | "finally"
 

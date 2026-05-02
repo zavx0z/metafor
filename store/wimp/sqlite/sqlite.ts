@@ -10,9 +10,9 @@ import superpositionSchemaSql from "./superposition.sql" with {type: "text"}
 import transitionSchemaSql from "./transition.sql" with {type: "text"}
 import conditionSchemaSql from "./condition.sql" with {type: "text"}
 import predicateSchemaSql from "./predicate.sql" with {type: "text"}
-import processSchemaSql from "./process.sql" with {type: "text"}
-import actionSchemaSql from "./process.action.sql" with {type: "text"}
-import finallySchemaSql from "./process.finally.sql" with {type: "text"}
+import processSchemaSql from "./processes/process.sql" with {type: "text"}
+import actionSchemaSql from "./processes/action.sql" with {type: "text"}
+import finallySchemaSql from "./processes/finally.sql" with {type: "text"}
 import reactionsSchemaSql from "./reactions.sql" with {type: "text"}
 import matterSchemaSql from "./matter.sql" with {type: "text"}
 import {SQL} from "bun"

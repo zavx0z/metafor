@@ -1,4 +1,4 @@
-import type { Process } from "./process.process.ts"
+import type { Process } from "./process.ts"
 
 type ReadPhase = "action" | "success" | "error"
 type WritePhase = "success" | "error"

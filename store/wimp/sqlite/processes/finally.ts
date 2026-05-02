@@ -1,4 +1,4 @@
-import type { Process } from "./process.process.ts"
+import type { Process } from "./process.ts"
 
 /**
  * Sub-ORM для таблицы `process_finally_read` (PK (process, field)).
