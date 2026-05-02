@@ -3,7 +3,7 @@ import settings from "./settings.yml"
 
 const { HUB, MODULE } = settings
 
-export const readWimpDsl = async (address: SRC): Promise<MetaDSL> => {
+export const loadMeta = async (address: SRC): Promise<MetaDSL> => {
   const sourcePath = new URL(`../${HUB}${address}/${MODULE}`, import.meta.url).href
   try {
     const module = await import(sourcePath)

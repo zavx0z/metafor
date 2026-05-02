@@ -6,7 +6,7 @@ import {emitAdd} from "@dark/gravity/channel.ts"
 import {projectStoreMatterParticles, fillGravityMatter} from "@dark/gravity"
 import {fillStrongStructure} from "@dark/strong"
 import {fillWeakDynamics} from "@dark/weak"
-import {readWimpDsl} from "./dsl.ts"
+import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation, type FieldInit} from "./continuation.ts"
 
 export type ParticleRef = {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string}
@@ -149,7 +149,7 @@ async function* matterWimp(
   options: MatterOptions,
 ): AsyncGenerator<PendingChildWimp[], void, void> {
   const src = wimp.src
-  const dsl = await readWimpDsl(src)
+  const dsl = await loadMeta(src)
 
   let matterRelations: Awaited<ReturnType<typeof fillGravityMatter>>
   if (await wimp.fields.exists()) {
