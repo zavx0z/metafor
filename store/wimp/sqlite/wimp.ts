@@ -1,22 +1,22 @@
 import type { SQL } from "bun"
 import type { MetaDSL } from "../../../metafor.t.ts"
-import type { MetaIdentifiers, MetaMassValueRow, MetaRow } from "./meta.t.ts"
+import type { WimpIdentifiers, WimpMassValueRow, WimpRow } from "./wimp.t.ts"
 import { Fields } from "./fields.ts"
 import { Superposition } from "./superposition.ts"
 import { Processes } from "./process.ts"
 import { Reactions } from "./reactions.ts"
 import { Matter } from "./matter.ts"
 
-const getMetaRow = async (sql: SQL, src: string): Promise<MetaRow | null> => {
-  const rows = await sql<MetaRow[]>`
+const getWimpRow = async (sql: SQL, src: string): Promise<WimpRow | null> => {
+  const rows = await sql<WimpRow[]>`
     SELECT src, name, desc, view_css
-    FROM meta
+    FROM wimp
     WHERE src = ${src}
   `
   return rows[0] ?? null
 }
 
-const compareMassRows = (left: MetaMassValueRow, right: MetaMassValueRow): number => {
+const compareMassRows = (left: WimpMassValueRow, right: WimpMassValueRow): number => {
   if (left.entry_order !== null || right.entry_order !== null) {
     return (left.entry_order ?? 0) - (right.entry_order ?? 0)
   }
@@ -25,8 +25,8 @@ const compareMassRows = (left: MetaMassValueRow, right: MetaMassValueRow): numbe
 }
 
 const decodeMassValue = (
-  row: MetaMassValueRow,
-  childrenByParent: Map<string, MetaMassValueRow[]>,
+  row: WimpMassValueRow,
+  childrenByParent: Map<string, WimpMassValueRow[]>,
 ): unknown => {
   if (row.value_kind === "object") {
     return Object.fromEntries(
@@ -47,17 +47,17 @@ const decodeMassValue = (
 }
 
 const readMass = async (sql: SQL, src: string): Promise<MetaDSL["mass"] | undefined> => {
-  const rows = await sql<MetaMassValueRow[]>`
+  const rows = await sql<WimpMassValueRow[]>`
     SELECT uuid, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value
-    FROM meta_mass_value
-    WHERE meta = ${src}
+    FROM wimp_mass_value
+    WHERE wimp = ${src}
     ORDER BY CASE WHEN parent_value IS NULL THEN 0 ELSE 1 END, entry_order, entry_key, rowid
   `
 
   const root = rows.find((row) => row.parent_value === null)
   if (!root) return
 
-  const childrenByParent = new Map<string, MetaMassValueRow[]>()
+  const childrenByParent = new Map<string, WimpMassValueRow[]>()
   for (const row of rows) {
     if (row.parent_value === null) continue
 
@@ -69,7 +69,7 @@ const readMass = async (sql: SQL, src: string): Promise<MetaDSL["mass"] | undefi
   return decodeMassValue(root, childrenByParent) as MetaDSL["mass"]
 }
 
-export class Meta {
+export class Wimp {
   readonly fields: Fields
   readonly superposition: Superposition
   readonly processes: Processes
@@ -88,12 +88,12 @@ export class Meta {
   }
 
     async name(): Promise<string> {
-    const row = await getMetaRow(this.sql, this.src)
+    const row = await getWimpRow(this.sql, this.src)
     return row?.name ?? this.src.split("/").pop() ?? this.src
   }
 
     async desc(): Promise<string | undefined> {
-    const row = await getMetaRow(this.sql, this.src)
+    const row = await getWimpRow(this.sql, this.src)
     return row?.desc ?? undefined
   }
 
@@ -102,7 +102,7 @@ export class Meta {
   }
 
     async bulk(): Promise<MetaDSL["bulk"]> {
-    const row = await getMetaRow(this.sql, this.src)
+    const row = await getWimpRow(this.sql, this.src)
     return row?.view_css ? ({ view: row.view_css } as MetaDSL["bulk"]) : undefined
   }
 
@@ -110,9 +110,9 @@ export class Meta {
    * Снимок UUID-маппингов для канонизированной меты. Требует чтобы мета была в БД.
    * Без кеша — каждый вызов делает SQL.
    */
-  async identifiers(): Promise<MetaIdentifiers> {
+  async identifiers(): Promise<WimpIdentifiers> {
     const fieldRows = await this.sql<Array<{uuid: string; key: string}>>`
-      SELECT uuid, key FROM field WHERE meta = ${this.src}
+      SELECT uuid, key FROM field WHERE wimp = ${this.src}
     `
     const fieldUuids = new Map<string, string>()
     for (const row of fieldRows) fieldUuids.set(row.key, row.uuid)
@@ -137,7 +137,7 @@ export class Meta {
     }
 
     const stateRows = await this.sql<Array<{uuid: string; name: string; position: number}>>`
-      SELECT uuid, name, position FROM superposition WHERE meta = ${this.src} ORDER BY position
+      SELECT uuid, name, position FROM superposition WHERE wimp = ${this.src} ORDER BY position
     `
     const superpositionUuids = new Map<string, string>()
     let initialState: string | null = null

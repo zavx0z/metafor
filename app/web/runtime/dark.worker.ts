@@ -8,7 +8,7 @@ import {
 	type DbParticleKind,
 } from "@store/actor"
 import { openDbSyncBroadcastChannel, openStructuralBroadcastChannel } from "@shared/protocol"
-import { StoreMetaSqlite, type DarkMetaParticleModel } from "@store/meta/sqlite"
+import { StoreWimpSqlite, type DarkMetaParticleModel } from "@store/wimp/sqlite"
 import { SQL } from "bun"
 import { matter } from "../../../dark/dark.ts"
 import { projectStoreMatterParticles, projectTemplateMatterRelations } from "../../../dark/matter.ts"
@@ -311,12 +311,12 @@ const canonicalizeMetaGraph = async (
 	rootSrc: string,
 ): Promise<{
 	metaDb: SQL
-	metaStore: StoreMetaSqlite
+	metaStore: StoreWimpSqlite
 	particleModelsBySrc: Map<string, DarkMetaParticleModel>
 }> => {
 	const metaDb = new SQL(dbFilename === ":memory:" ? "sqlite::memory:" : `sqlite://${dbFilename}`)
 	await metaDb.unsafe("PRAGMA foreign_keys = ON;")
-	const metaStore = await StoreMetaSqlite.open(metaDb)
+	const metaStore = await StoreWimpSqlite.open(metaDb)
 	const particleModelsBySrc = new Map<string, DarkMetaParticleModel>()
 	const loaded = new Set<string>()
 	const queue = [rootSrc]

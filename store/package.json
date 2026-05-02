@@ -9,6 +9,6 @@
   "dependencies": {
     "@store/actor": "workspace:*",
     "@store/topology": "workspace:*",
-    "@store/meta": "workspace:*"
+    "@store/wimp": "workspace:*"
   }
 }

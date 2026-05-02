@@ -3,7 +3,7 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {matter} from "../../dark/index.ts"
-import {loadMeta} from "../../dark/load.ts"
+import {loadWimp} from "../../dark/load.ts"
 import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage, type GravitonMessage} from "@shared/protocol"
 import type {Store} from "../index.ts"
 import {open} from "../server.ts"
@@ -51,7 +51,7 @@ describe("store/tests github/zavx0z startup load", () => {
     }
 
     try {
-      const meta = await loadMeta("zavx0z/git")
+      const meta = await loadWimp("zavx0z/git")
       await matter(meta, {
         async onMaterializedStep(step) {
           if (step.kind !== "actor") return
@@ -66,11 +66,11 @@ describe("store/tests github/zavx0z startup load", () => {
 
     const metaRows = await sql<Array<{src: string}>>`
         SELECT src
-        FROM meta
+        FROM wimp
         ORDER BY src
     `
-    const actorRows = await sql<Array<{uuid: string; parent_actor: string | null; parent_topology: string | null; meta: string}>>`
-        SELECT uuid, parent_actor, parent_topology, meta
+    const actorRows = await sql<Array<{uuid: string; parent_actor: string | null; parent_topology: string | null; wimp: string}>>`
+        SELECT uuid, parent_actor, parent_topology, wimp
         FROM actor
         ORDER BY position, uuid
     `
@@ -90,7 +90,7 @@ describe("store/tests github/zavx0z startup load", () => {
 
     const roots = await store.actor.roots.all()
     expect(roots).toHaveLength(1)
-    expect(await roots[0]!.meta()).toBe("zavx0z/git")
+    expect(await roots[0]!.wimp()).toBe("zavx0z/git")
     // Wimp-под-Wimp напрямую может не быть (всё дерево идёт через topology Fuzzy/Axion).
     // Проверяем через topology: у root должны быть дочерние topology-узлы.
     const rootTopology = await store.topology.childrenOfActor(roots[0]!.uuid)
@@ -101,7 +101,7 @@ describe("store/tests github/zavx0z startup load", () => {
         await sql<Array<{uuid: string}>>`
             SELECT uuid
             FROM field
-            WHERE meta = ${"zavx0z/git"}
+            WHERE wimp = ${"zavx0z/git"}
               AND key = ${"operation"}
             LIMIT 1
         `
@@ -111,7 +111,7 @@ describe("store/tests github/zavx0z startup load", () => {
     const rootOperation = await (await roots[0]!.values.get({field: rootOperationField}))?.value()
     expect(rootOperation?.kind).toBe("null")
 
-    const commitActor = actorRows.find((row) => row.meta === "zavx0z/git-history-commit")
+    const commitActor = actorRows.find((row) => row.wimp === "zavx0z/git-history-commit")
     if (!commitActor) throw new Error("zavx0z/git-history-commit actor was not materialized")
     const commit = (await store.actor.get(commitActor.uuid))!
     expect(await commit.values.count()).toBeGreaterThan(0)

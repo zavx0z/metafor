@@ -236,9 +236,9 @@ describe("sqlite dark particle model", () => {
   }
 
   test("сохраняет particle-centric matter и даёт ORM loader поверх реляционных rows", async () => {
-    await store.meta.create("owner/rich", richMeta, projectTemplateMatterRelations(richMeta))
+    await store.wimp.create("owner/rich", richMeta, projectTemplateMatterRelations(richMeta))
 
-    const projection = (await store.meta.readDarkParticleModel("owner/rich"))!
+    const projection = (await store.wimp.readDarkParticleModel("owner/rich"))!
     expect(projection).toBeDefined()
     expect(projection.meta.fieldSchemas).toEqual(richMeta.fields)
     expect(projection.meta.superposition).toEqual(richMeta.superposition)
@@ -249,9 +249,9 @@ describe("sqlite dark particle model", () => {
   })
 
   test("не выводит пустые processes/reactions из отсутствия записей в БД", async () => {
-    await store.meta.create("owner/empty", explicitEmptyMeta, projectTemplateMatterRelations(explicitEmptyMeta))
+    await store.wimp.create("owner/empty", explicitEmptyMeta, projectTemplateMatterRelations(explicitEmptyMeta))
 
-    const projection = (await store.meta.readDarkParticleModel("owner/empty"))!
+    const projection = (await store.wimp.readDarkParticleModel("owner/empty"))!
 
     // Принцип минимума: если в БД нет ни одной записи в process/reaction/matter_particle,
     // соответствующая секция не появляется в projection. Пустой объект — это производное,

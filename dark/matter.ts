@@ -3,7 +3,7 @@ import type {
   MatterRelationBindingValue,
   MatterRelationChild,
   MatterRelationParticle,
-} from "../store/meta/sqlite/matter.t.ts"
+} from "../store/wimp/sqlite/matter.t.ts"
 import type { MatterParticlePlan } from "./types/dark.ts"
 
 const createContinuationSrc = (expr: string | undefined, value: string | number): string => {

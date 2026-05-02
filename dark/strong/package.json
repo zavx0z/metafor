@@ -6,7 +6,7 @@
   "dependencies": {
     "@dark/gravity": "workspace:*",
     "@dark/types": "workspace:*",
-    "@store/meta": "workspace:*",
+    "@store/wimp": "workspace:*",
     "store": "workspace:*"
   }
 }

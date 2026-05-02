@@ -1,9 +1,9 @@
 import type {FieldDefinition, FieldKey} from "../index.ts"
-import type {Meta, MetaIdentifiers} from "@store/meta/sqlite"
+import type {Wimp, WimpIdentifiers} from "@store/wimp/sqlite"
 import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord, Actor} from "@store/actor"
 import type {MatterParticlePlan} from "@dark/types/dark"
 import {emitAdd, emitBarrier} from "@dark/gravity/channel.ts"
-import {loadMeta} from "./load.ts"
+import {loadWimp} from "./load.ts"
 import {projectStoreMatterParticles} from "./matter.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation, type FieldInit} from "./continuation.ts"
 
@@ -68,8 +68,8 @@ const resolveSourceValueUuid = async (
 ): Promise<string> => {
   const head = await store.actor.head(parentActorUuid)
   if (!head) throw new Error(`parent actor ${parentActorUuid} not found`)
-  const parentMeta = await store.meta.get(head.meta)
-  if (!parentMeta) throw new Error(`parent meta ${head.meta} not found`)
+  const parentMeta = await store.wimp.get(head.wimp)
+  if (!parentMeta) throw new Error(`parent meta ${head.wimp} not found`)
   const parentIds = await parentMeta.identifiers()
   const parentFieldUuid = parentIds.fieldUuids.get(parentFieldKey)
   if (!parentFieldUuid) throw new Error(`parent field "${parentFieldKey}" missing in identifiers`)
@@ -86,7 +86,7 @@ const buildActorRows = async (params: {
   position: number
   finalValues: Map<FieldKey, FieldInit>
   fieldSchemas: Record<FieldKey, FieldDefinition>
-  identifiers: MetaIdentifiers
+  identifiers: WimpIdentifiers
 }): Promise<ActorRows> => {
   const {actorUuid, parent, src, position, finalValues, fieldSchemas, identifiers} = params
   const values: ActorValueRecord[] = []
@@ -119,7 +119,7 @@ const buildActorRows = async (params: {
       uuid: actorUuid,
       parentActor: parent?.kind === "actor" ? parent.uuid : null,
       parentTopology: parent?.kind === "topology" ? parent.uuid : null,
-      meta: src,
+      wimp: src,
       position,
     },
     values,
@@ -141,7 +141,7 @@ interface PendingChildWimp {
 }
 
 const materializeMeta = async (
-  meta: Meta,
+  meta: Wimp,
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
   options: MatterOptions,
@@ -149,7 +149,7 @@ const materializeMeta = async (
 ): Promise<string> => {
   const src = meta.src
   const identifiers = await meta.identifiers()
-  const particleModel = await store.meta.readDarkParticleModel(src)
+  const particleModel = await store.wimp.readDarkParticleModel(src)
   if (!particleModel) {
     throw new Error(`Dark runtime meta "${src}" is not canonicalized in store`)
   }
@@ -235,7 +235,7 @@ const materializeMeta = async (
   }
 
   for (const pending of pendingChildren) {
-    const childMeta = await loadMeta(pending.src)
+    const childMeta = await loadWimp(pending.src)
     await materializeMeta(childMeta, pending.parent, pending.continuation, options, positionByParent)
   }
 
@@ -246,12 +246,12 @@ const materializeMeta = async (
  * Публичный entrypoint Dark.
  *
  * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/index.ts`.
- * Принимает уже канонизированный `Meta` ORM (получить через `loadMeta(src)`) и разворачивает дерево
+ * Принимает уже канонизированный `Meta` ORM (получить через `loadWimp(src)`) и разворачивает дерево
  * через store ORM: создаёт actor + topology rows, рекурсивно материализует дочерние wimp meta.
  *
  * @returns корневой `Actor` ORM.
  */
-export async function matter(meta: Meta, options: MatterOptions = {}): Promise<Actor> {
+export async function matter(meta: Wimp, options: MatterOptions = {}): Promise<Actor> {
   const positionByParent = new Map<string, number>()
   const rootUuid = await materializeMeta(meta, null, undefined, options, positionByParent)
 

@@ -2,7 +2,7 @@
 import type { SQL } from "bun"
 import type { MatterRelationParticle } from "./matter.t.ts"
 import { getMatterParticles } from "./matter.G.ts"
-import { hasMatter } from "./meta.G.ts"
+import { hasMatter } from "./wimp.G.ts"
 
 export class Matter {
   constructor(

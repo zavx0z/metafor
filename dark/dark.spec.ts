@@ -6,7 +6,7 @@ import type {Actor} from "@store/actor"
 import type {Store} from "../store/index.ts"
 import {open} from "../store/server.ts"
 import {matter} from "./dark.ts"
-import {loadMeta} from "./load.ts"
+import {loadWimp} from "./load.ts"
 
 const src = "zavx0z/git"
 
@@ -23,7 +23,7 @@ describe("matter(zavx0z/git) → store", () => {
     store = await open(tmpFile)
     globalThis.store = store
     sql = new SQL(`sqlite://${tmpFile}`)
-    root = await matter(await loadMeta(src))
+    root = await matter(await loadWimp(src))
   })
 
   afterAll(async () => {
@@ -36,7 +36,7 @@ describe("matter(zavx0z/git) → store", () => {
 
   test("root actor создан, привязан к meta zavx0z/git", async () => {
     expect(root.uuid).toBeDefined()
-    expect(await root.meta()).toBe(src)
+    expect(await root.wimp()).toBe(src)
     expect(await root.position()).toBe(0)
     const ref = await root.parentRef()
     expect(ref).toBeNull()
@@ -55,15 +55,15 @@ describe("matter(zavx0z/git) → store", () => {
     const branches = await store
       .actor.head(root.uuid) // sanity
       .then(() =>
-        store.meta
+        store.wimp
           .get(src)
-          .then((m) => m!.fields.get({key: "operation"}))
+          .then((w) => w!.fields.get({key: "operation"}))
           .then((field) => (field && field.type === "enum" ? field.variants() : Promise.resolve([] as string[]))),
       )
     expect(branches.length).toBeGreaterThan(0)
 
     const wimpRows = await sql<Array<{src: string}>>`
-      SELECT meta AS src FROM actor
+      SELECT wimp AS src FROM actor
       WHERE parent_topology = ${fuzzy.uuid}
       ORDER BY position
     `
@@ -75,11 +75,11 @@ describe("matter(zavx0z/git) → store", () => {
     const topology = await store.topology.childrenOfActor(root.uuid)
     const axion = topology.find((t) => t.kind === "axion")
     if (!axion) throw new Error("axion missing")
-    const wimps = await sql<Array<{meta: string}>>`
-      SELECT meta FROM actor WHERE parent_topology = ${axion.uuid}
+    const wimps = await sql<Array<{wimp: string}>>`
+      SELECT wimp FROM actor WHERE parent_topology = ${axion.uuid}
     `
     expect(wimps.length).toBe(1)
-    expect(wimps[0]!.meta).toBe(`${src}-error`)
+    expect(wimps[0]!.wimp).toBe(`${src}-error`)
   })
 
   test("entanglement: поле args дочернего git-start должно share value.uuid с args корневого git", async () => {
@@ -90,13 +90,13 @@ describe("matter(zavx0z/git) → store", () => {
     const startRow = (
       await sql<Array<{uuid: string}>>`
         SELECT uuid FROM actor
-        WHERE parent_topology = ${fuzzy.uuid} AND meta = ${src + "-start"}
+        WHERE parent_topology = ${fuzzy.uuid} AND wimp = ${src + "-start"}
       `
     )[0]
     if (!startRow) throw new Error("git-start actor not found")
 
-    const rootMeta = await store.meta.get(src)
-    const startMeta = await store.meta.get(`${src}-start`)
+    const rootMeta = await store.wimp.get(src)
+    const startMeta = await store.wimp.get(`${src}-start`)
     const rootIds = await rootMeta!.identifiers()
     const startIds = await startMeta!.identifiers()
     const rootArgsField = rootIds.fieldUuids.get("args")

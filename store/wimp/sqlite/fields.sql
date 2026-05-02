@@ -1,13 +1,13 @@
 CREATE TABLE IF NOT EXISTS field
 (
     uuid     TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    meta     TEXT    NOT NULL,
+    wimp     TEXT    NOT NULL,
     key      TEXT    NOT NULL CHECK (length(trim(key)) > 0),
     type     TEXT    NOT NULL CHECK (type IN ('string', 'number', 'boolean', 'array', 'enum')),
     required INTEGER NOT NULL CHECK (required IN (0, 1)),
     label    TEXT,
-    UNIQUE (meta, key),
-    FOREIGN KEY (meta) REFERENCES meta (src) ON DELETE CASCADE
+    UNIQUE (wimp, key),
+    FOREIGN KEY (wimp) REFERENCES wimp (src) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS field_default
@@ -65,5 +65,5 @@ CREATE TABLE IF NOT EXISTS field_enum_default
     FOREIGN KEY (variant) REFERENCES field_enum_variant (uuid) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS field_by_meta
-    ON field (meta);
+CREATE INDEX IF NOT EXISTS field_by_wimp
+    ON field (wimp);

@@ -49,7 +49,7 @@ export class State {
     const stateRow = (
       await this.sql<Array<{ uuid: string }>>`
         SELECT uuid FROM superposition
-        WHERE meta = ${this.src} AND name = ${this.name}
+        WHERE wimp = ${this.src} AND name = ${this.name}
         LIMIT 1
       `
     )[0]
@@ -187,7 +187,7 @@ export class Superposition {
 
   async all(): Promise<State[]> {
     const rows = await this.sql<Array<{ name: string }>>`
-      SELECT name FROM superposition WHERE meta = ${this.src} ORDER BY position
+      SELECT name FROM superposition WHERE wimp = ${this.src} ORDER BY position
     `
     return rows.map((row) => new State(this.sql, this.src, row.name))
   }
@@ -196,7 +196,7 @@ export class Superposition {
     const row = (
       await this.sql<Array<{ ok: number }>>`
         SELECT 1 AS ok FROM superposition
-        WHERE meta = ${this.src} AND name = ${filter.name}
+        WHERE wimp = ${this.src} AND name = ${filter.name}
         LIMIT 1
       `
     )[0]
@@ -206,7 +206,7 @@ export class Superposition {
   async count(): Promise<number> {
     const row = (
       await this.sql<Array<{ count: number }>>`
-        SELECT COUNT(*) AS count FROM superposition WHERE meta = ${this.src}
+        SELECT COUNT(*) AS count FROM superposition WHERE wimp = ${this.src}
       `
     )[0]
     return row?.count ?? 0
@@ -215,7 +215,7 @@ export class Superposition {
   async exists(): Promise<boolean> {
     const row = (
       await this.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM superposition WHERE meta = ${this.src} LIMIT 1
+        SELECT 1 AS ok FROM superposition WHERE wimp = ${this.src} LIMIT 1
       `
     )[0]
     return row !== undefined

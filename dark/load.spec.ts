@@ -13,7 +13,7 @@ const minMeta: MetaDSL = {
   matter: [],
 }
 
-describe("store.meta.create", () => {
+describe("store.wimp.create", () => {
   let store: Awaited<ReturnType<typeof open>>
 
   beforeEach(async () => {
@@ -25,7 +25,7 @@ describe("store.meta.create", () => {
   })
 
   test("создаёт декларацию и Meta.identifiers() возвращает uuid полей и состояний", async () => {
-    const meta = await store.meta.create("owner/min", minMeta, projectTemplateMatterRelations(minMeta))
+    const meta = await store.wimp.create("owner/min", minMeta, projectTemplateMatterRelations(minMeta))
     const ids = await meta.identifiers()
 
     expect(ids.src).toBe("owner/min")
@@ -33,16 +33,16 @@ describe("store.meta.create", () => {
     expect(ids.superpositionUuids.has("idle")).toBe(true)
     expect(ids.initialState).toBe(ids.superpositionUuids.get("idle") ?? null)
 
-    const projection = (await store.meta.readDarkParticleModel("owner/min"))!
+    const projection = (await store.wimp.readDarkParticleModel("owner/min"))!
     expect(projection.meta.src).toBe("owner/min")
     expect(projection.meta.fieldSchemas).toEqual(minMeta.fields)
   })
 
   test("повторная канонизация той же src идемпотентна — DELETE+INSERT", async () => {
-    const first = await store.meta.create("owner/min", minMeta, projectTemplateMatterRelations(minMeta))
+    const first = await store.wimp.create("owner/min", minMeta, projectTemplateMatterRelations(minMeta))
     const firstIds = await first.identifiers()
 
-    const second = await store.meta.create("owner/min", minMeta, projectTemplateMatterRelations(minMeta))
+    const second = await store.wimp.create("owner/min", minMeta, projectTemplateMatterRelations(minMeta))
     const secondIds = await second.identifiers()
 
     // UUID'ы регенерируются (не deterministic), но структура целая

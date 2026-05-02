@@ -9,7 +9,7 @@ export const decodeActorRow = (row: Record<string, unknown>): ActorRecord => ({
   uuid: String(row.uuid),
   parentActor: row.parent_actor === null || row.parent_actor === undefined ? null : String(row.parent_actor),
   parentTopology: row.parent_topology === null || row.parent_topology === undefined ? null : String(row.parent_topology),
-  meta: String(row.meta),
+  wimp: String(row.wimp),
   position: Number(row.position),
 })
 
@@ -145,14 +145,14 @@ export class Actor {
     this.values = new ActorValues(sql, uuid)
   }
 
-  async meta(): Promise<string> {
+  async wimp(): Promise<string> {
     const row = (
-      await this.sql<Array<{meta: string}>>`
-        SELECT meta FROM actor WHERE uuid = ${this.uuid} LIMIT 1
+      await this.sql<Array<{wimp: string}>>`
+        SELECT wimp FROM actor WHERE uuid = ${this.uuid} LIMIT 1
       `
     )[0]
     if (!row) throw new Error(`actor ${this.uuid} not found`)
-    return String(row.meta)
+    return String(row.wimp)
   }
 
   async position(): Promise<number> {
@@ -205,7 +205,7 @@ export class Actor {
   async rows(): Promise<ActorRows> {
     const actorRow = (
       await this.sql<Array<Record<string, unknown>>>`
-        SELECT uuid, parent_actor, parent_topology, meta, position FROM actor WHERE uuid = ${this.uuid}
+        SELECT uuid, parent_actor, parent_topology, wimp, position FROM actor WHERE uuid = ${this.uuid}
       `
     )[0]
     if (!actorRow) throw new Error(`actor ${this.uuid} not found`)

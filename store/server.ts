@@ -1,5 +1,5 @@
 import {SQL, type ReservedSQL} from "bun"
-import {StoreMetaSqlite} from "@store/meta/sqlite"
+import {StoreWimpSqlite} from "@store/wimp/sqlite"
 import {StoreActorSqlite} from "@store/actor/sqlite"
 import {StoreTopologySqlite} from "@store/topology/sqlite"
 
@@ -83,42 +83,42 @@ const notSupported = (op: string, path: string, part: StoreParticle): never => {
 // graviton — declaration + actor structural row
 // =============================================================================
 
-const applyMetaRow = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>
+const applyWimpRow = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+  // /wimp/<src>
   const src = segs[1]!
   if (op === "remove") {
-    await tx`DELETE FROM meta WHERE src = ${src}`
+    await tx`DELETE FROM wimp WHERE src = ${src}`
     return
   }
   if (op === "add") {
-    const v = requireRecord(value, `/meta/${src}`)
+    const v = requireRecord(value, `/wimp/${src}`)
     await tx`
-      INSERT INTO meta (src, name, desc, view_css)
-      VALUES (${src}, ${optionalString(v, "name", `/meta/${src}`)},
-              ${optionalString(v, "desc", `/meta/${src}`)}, ${optionalString(v, "view_css", `/meta/${src}`)})
+      INSERT INTO wimp (src, name, desc, view_css)
+      VALUES (${src}, ${optionalString(v, "name", `/wimp/${src}`)},
+              ${optionalString(v, "desc", `/wimp/${src}`)}, ${optionalString(v, "view_css", `/wimp/${src}`)})
     `
     return
   }
   if (op === "replace") {
-    const v = requireRecord(value, `/meta/${src}`)
+    const v = requireRecord(value, `/wimp/${src}`)
     await tx`
-      UPDATE meta
-      SET name = ${optionalString(v, "name", `/meta/${src}`)},
-          desc = ${optionalString(v, "desc", `/meta/${src}`)},
-          view_css = ${optionalString(v, "view_css", `/meta/${src}`)}
+      UPDATE wimp
+      SET name = ${optionalString(v, "name", `/wimp/${src}`)},
+          desc = ${optionalString(v, "desc", `/wimp/${src}`)},
+          view_css = ${optionalString(v, "view_css", `/wimp/${src}`)}
       WHERE src = ${src}
     `
     return
   }
-  notSupported(op, `/meta/${src}`, "graviton")
+  notSupported(op, `/wimp/${src}`, "graviton")
 }
 
-const applyMetaMass = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/mass/<uuid>
+const applyWimpMass = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+  // /wimp/<src>/mass/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/mass/${uuid}`
+  const path = `/wimp/${src}/mass/${uuid}`
   if (op === "remove") {
-    await tx`DELETE FROM meta_mass_value WHERE uuid = ${uuid} AND meta = ${src}`
+    await tx`DELETE FROM wimp_mass_value WHERE uuid = ${uuid} AND wimp = ${src}`
     return
   }
   if (op !== "add") return notSupported(op, path, "graviton")
@@ -131,19 +131,19 @@ const applyMetaMass = async (tx: Tx, op: string, segs: string[], value: unknown)
   const number = optionalNumber(v, "number", path)
   const boolean = optionalBoolean(v, "boolean", path)
   await tx`
-    INSERT INTO meta_mass_value
-      (uuid, meta, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
+    INSERT INTO wimp_mass_value
+      (uuid, wimp, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value)
     VALUES (${uuid}, ${src}, ${parent}, ${kind}, ${entryKey}, ${entryOrder},
             ${text}, ${number}, ${boolean === null ? null : boolean ? 1 : 0})
   `
 }
 
 const applyField = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/field/<uuid>
+  // /wimp/<src>/field/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/field/${uuid}`
+  const path = `/wimp/${src}/field/${uuid}`
   if (op === "remove") {
-    await tx`DELETE FROM field WHERE uuid = ${uuid} AND meta = ${src}`
+    await tx`DELETE FROM field WHERE uuid = ${uuid} AND wimp = ${src}`
     return
   }
   if (op !== "add") return notSupported(op, path, "graviton")
@@ -153,15 +153,15 @@ const applyField = async (tx: Tx, op: string, segs: string[], value: unknown): P
   const required = optionalBoolean(v, "required", path) ?? false
   const label = optionalString(v, "label", path)
   await tx`
-    INSERT INTO field (uuid, meta, key, type, required, label)
+    INSERT INTO field (uuid, wimp, key, type, required, label)
     VALUES (${uuid}, ${src}, ${key}, ${type}, ${required ? 1 : 0}, ${label})
   `
 }
 
 const applyFieldDefaultMarker = async (tx: Tx, op: string, segs: string[]): Promise<void> => {
-  // /meta/<src>/field/<uuid>/default
+  // /wimp/<src>/field/<uuid>/default
   const [, src, , fieldUuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/field/${fieldUuid}/default`
+  const path = `/wimp/${src}/field/${fieldUuid}/default`
   if (op === "remove") {
     await tx`DELETE FROM field_default WHERE field = ${fieldUuid}`
     return
@@ -171,9 +171,9 @@ const applyFieldDefaultMarker = async (tx: Tx, op: string, segs: string[]): Prom
 }
 
 const applyFieldDefaultScalar = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/field/<uuid>/default/scalar
+  // /wimp/<src>/field/<uuid>/default/scalar
   const [, src, , fieldUuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/field/${fieldUuid}/default/scalar`
+  const path = `/wimp/${src}/field/${fieldUuid}/default/scalar`
   if (op === "remove") {
     await tx`DELETE FROM field_string_default WHERE field = ${fieldUuid}`
     await tx`DELETE FROM field_number_default WHERE field = ${fieldUuid}`
@@ -201,9 +201,9 @@ const applyFieldDefaultScalar = async (tx: Tx, op: string, segs: string[], value
 }
 
 const applyFieldDefaultItem = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/field/<fieldUuid>/default/item/<itemUuid>
+  // /wimp/<src>/field/<fieldUuid>/default/item/<itemUuid>
   const [, src, , fieldUuid, , , itemUuid] = segs as [string, string, string, string, string, string, string]
-  const path = `/meta/${src}/field/${fieldUuid}/default/item/${itemUuid}`
+  const path = `/wimp/${src}/field/${fieldUuid}/default/item/${itemUuid}`
   if (op === "remove") {
     await tx`DELETE FROM field_array_default_item WHERE uuid = ${itemUuid}`
     return
@@ -217,9 +217,9 @@ const applyFieldDefaultItem = async (tx: Tx, op: string, segs: string[], value: 
 }
 
 const applyFieldDefaultVariant = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/field/<fieldUuid>/default/variant
+  // /wimp/<src>/field/<fieldUuid>/default/variant
   const [, src, , fieldUuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/field/${fieldUuid}/default/variant`
+  const path = `/wimp/${src}/field/${fieldUuid}/default/variant`
   if (op === "remove") {
     await tx`DELETE FROM field_enum_default WHERE field = ${fieldUuid}`
     return
@@ -230,9 +230,9 @@ const applyFieldDefaultVariant = async (tx: Tx, op: string, segs: string[], valu
 }
 
 const applyFieldEnumVariant = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/field/<fieldUuid>/variant/<variantUuid>
+  // /wimp/<src>/field/<fieldUuid>/variant/<variantUuid>
   const [, src, , fieldUuid, , variantUuid] = segs as [string, string, string, string, string, string]
-  const path = `/meta/${src}/field/${fieldUuid}/variant/${variantUuid}`
+  const path = `/wimp/${src}/field/${fieldUuid}/variant/${variantUuid}`
   if (op === "remove") {
     await tx`DELETE FROM field_enum_variant WHERE uuid = ${variantUuid}`
     return
@@ -246,9 +246,9 @@ const applyFieldEnumVariant = async (tx: Tx, op: string, segs: string[], value: 
 }
 
 const applySuperposition = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/superposition/<uuid>
+  // /wimp/<src>/superposition/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/superposition/${uuid}`
+  const path = `/wimp/${src}/superposition/${uuid}`
   if (op === "remove") {
     await tx`DELETE FROM superposition WHERE uuid = ${uuid}`
     return
@@ -256,15 +256,15 @@ const applySuperposition = async (tx: Tx, op: string, segs: string[], value: unk
   if (op !== "add") return notSupported(op, path, "graviton")
   const v = requireRecord(value, path)
   await tx`
-    INSERT INTO superposition (uuid, meta, name, position)
+    INSERT INTO superposition (uuid, wimp, name, position)
     VALUES (${uuid}, ${src}, ${requireString(v, "name", path)}, ${requireNumber(v, "position", path)})
   `
 }
 
 const applyTransition = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/transition/<uuid>
+  // /wimp/<src>/transition/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/transition/${uuid}`
+  const path = `/wimp/${src}/transition/${uuid}`
   if (op === "remove") {
     await tx`DELETE FROM transition WHERE uuid = ${uuid}`
     return
@@ -278,9 +278,9 @@ const applyTransition = async (tx: Tx, op: string, segs: string[], value: unknow
 }
 
 const applyCondition = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/transition/<transitionUuid>/condition/<uuid>
+  // /wimp/<src>/transition/<transitionUuid>/condition/<uuid>
   const [, src, , transitionUuid, , uuid] = segs as [string, string, string, string, string, string]
-  const path = `/meta/${src}/transition/${transitionUuid}/condition/${uuid}`
+  const path = `/wimp/${src}/transition/${transitionUuid}/condition/${uuid}`
   if (op === "remove") {
     await tx`DELETE FROM condition WHERE uuid = ${uuid}`
     return
@@ -294,9 +294,9 @@ const applyCondition = async (tx: Tx, op: string, segs: string[], value: unknown
 }
 
 const applyConditionPredicate = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/transition/<transitionUuid>/condition/<conditionUuid>/predicate/<uuid>
+  // /wimp/<src>/transition/<transitionUuid>/condition/<conditionUuid>/predicate/<uuid>
   const [, src, , transitionUuid, , conditionUuid, , uuid] = segs as [string, string, string, string, string, string, string, string]
-  const path = `/meta/${src}/transition/${transitionUuid}/condition/${conditionUuid}/predicate/${uuid}`
+  const path = `/wimp/${src}/transition/${transitionUuid}/condition/${conditionUuid}/predicate/${uuid}`
   if (op === "remove") {
     await tx`DELETE FROM condition_predicate WHERE uuid = ${uuid}`
     return
@@ -319,12 +319,12 @@ const applyConditionPredicate = async (tx: Tx, op: string, segs: string[], value
 }
 
 const applyConditionListItem = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/transition/<t>/condition/<c>/predicate/<p>/item/<order>
+  // /wimp/<src>/transition/<t>/condition/<c>/predicate/<p>/item/<order>
   const [, src, , transitionUuid, , conditionUuid, , predicateUuid, , orderRaw] = segs as [
     string, string, string, string, string, string, string, string, string, string,
   ]
   const order = Number(orderRaw)
-  const path = `/meta/${src}/transition/${transitionUuid}/condition/${conditionUuid}/predicate/${predicateUuid}/item/${order}`
+  const path = `/wimp/${src}/transition/${transitionUuid}/condition/${conditionUuid}/predicate/${predicateUuid}/item/${order}`
   if (op === "remove") {
     await tx`DELETE FROM condition_list_item WHERE predicate = ${predicateUuid} AND item_order = ${order}`
     return
@@ -344,9 +344,9 @@ const applyConditionListItem = async (tx: Tx, op: string, segs: string[], value:
 }
 
 const applyProcess = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/process/<uuid>
+  // /wimp/<src>/process/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/process/${uuid}`
+  const path = `/wimp/${src}/process/${uuid}`
   if (op === "remove") {
     await tx`DELETE FROM process WHERE uuid = ${uuid}`
     return
@@ -354,16 +354,16 @@ const applyProcess = async (tx: Tx, op: string, segs: string[], value: unknown):
   if (op !== "add") return notSupported(op, path, "graviton")
   const v = requireRecord(value, path)
   await tx`
-    INSERT INTO process (uuid, meta, key, type, label, desc)
+    INSERT INTO process (uuid, wimp, key, type, label, desc)
     VALUES (${uuid}, ${src}, ${requireString(v, "key", path)}, ${requireString(v, "type", path)},
             ${optionalString(v, "label", path)}, ${optionalString(v, "desc", path)})
   `
 }
 
 const applyProcessEnv = async (tx: Tx, op: string, segs: string[]): Promise<void> => {
-  // /meta/<src>/process/<uuid>/env/<env>
+  // /wimp/<src>/process/<uuid>/env/<env>
   const [, src, , processUuid, , env] = segs as [string, string, string, string, string, string]
-  const path = `/meta/${src}/process/${processUuid}/env/${env}`
+  const path = `/wimp/${src}/process/${processUuid}/env/${env}`
   if (op === "remove") {
     await tx`DELETE FROM process_env WHERE process = ${processUuid} AND env = ${env}`
     return
@@ -373,9 +373,9 @@ const applyProcessEnv = async (tx: Tx, op: string, segs: string[]): Promise<void
 }
 
 const applyProcessAction = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/process/<uuid>/action
+  // /wimp/<src>/process/<uuid>/action
   const [, src, , processUuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/process/${processUuid}/action`
+  const path = `/wimp/${src}/process/${processUuid}/action`
   if (op === "remove") {
     await tx`DELETE FROM process_action WHERE process = ${processUuid}`
     return
@@ -391,9 +391,9 @@ const applyProcessAction = async (tx: Tx, op: string, segs: string[], value: unk
 }
 
 const applyProcessFinally = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/process/<uuid>/finally
+  // /wimp/<src>/process/<uuid>/finally
   const [, src, , processUuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/process/${processUuid}/finally`
+  const path = `/wimp/${src}/process/${processUuid}/finally`
   if (op === "remove") {
     await tx`DELETE FROM process_finally WHERE process = ${processUuid}`
     return
@@ -409,11 +409,11 @@ const applyProcessActionField = async (
   segs: string[],
   table: "process_action_read" | "process_action_write",
 ): Promise<void> => {
-  // /meta/<src>/process/<uuid>/(read|write)/<phase>/<fieldUuid>
+  // /wimp/<src>/process/<uuid>/(read|write)/<phase>/<fieldUuid>
   const [, src, , processUuid, , phase, fieldUuid] = segs as [
     string, string, string, string, string, string, string,
   ]
-  const path = `/meta/${src}/process/${processUuid}/${table === "process_action_read" ? "read" : "write"}/${phase}/${fieldUuid}`
+  const path = `/wimp/${src}/process/${processUuid}/${table === "process_action_read" ? "read" : "write"}/${phase}/${fieldUuid}`
   if (op === "remove") {
     if (table === "process_action_read") {
       await tx`DELETE FROM process_action_read WHERE process = ${processUuid} AND phase = ${phase} AND field = ${fieldUuid}`
@@ -431,9 +431,9 @@ const applyProcessActionField = async (
 }
 
 const applyProcessFinallyRead = async (tx: Tx, op: string, segs: string[]): Promise<void> => {
-  // /meta/<src>/process/<uuid>/finally-read/<fieldUuid>
+  // /wimp/<src>/process/<uuid>/finally-read/<fieldUuid>
   const [, src, , processUuid, , fieldUuid] = segs as [string, string, string, string, string, string]
-  const path = `/meta/${src}/process/${processUuid}/finally-read/${fieldUuid}`
+  const path = `/wimp/${src}/process/${processUuid}/finally-read/${fieldUuid}`
   if (op === "remove") {
     await tx`DELETE FROM process_finally_read WHERE process = ${processUuid} AND field = ${fieldUuid}`
     return
@@ -443,9 +443,9 @@ const applyProcessFinallyRead = async (tx: Tx, op: string, segs: string[]): Prom
 }
 
 const applyReaction = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/reaction/<uuid>
+  // /wimp/<src>/reaction/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/reaction/${uuid}`
+  const path = `/wimp/${src}/reaction/${uuid}`
   if (op === "remove") {
     await tx`DELETE FROM reaction WHERE uuid = ${uuid}`
     return
@@ -453,7 +453,7 @@ const applyReaction = async (tx: Tx, op: string, segs: string[], value: unknown)
   if (op !== "add") return notSupported(op, path, "graviton")
   const v = requireRecord(value, path)
   await tx`
-    INSERT INTO reaction (uuid, meta, key, label, desc, cond_source, update_source)
+    INSERT INTO reaction (uuid, wimp, key, label, desc, cond_source, update_source)
     VALUES (${uuid}, ${src}, ${requireString(v, "key", path)}, ${requireString(v, "label", path)},
             ${optionalString(v, "desc", path)}, ${requireString(v, "cond_source", path)},
             ${requireString(v, "update_source", path)})
@@ -467,9 +467,9 @@ const applyReactionLink = async (
   table: "reaction_superposition" | "reaction_read" | "reaction_write",
   rightCol: "superposition" | "field",
 ): Promise<void> => {
-  // /meta/<src>/reaction/<uuid>/(superposition|read|write)/<id>
+  // /wimp/<src>/reaction/<uuid>/(superposition|read|write)/<id>
   const [, src, , reactionUuid, slot, rightId] = segs as [string, string, string, string, string, string]
-  const path = `/meta/${src}/reaction/${reactionUuid}/${slot}/${rightId}`
+  const path = `/wimp/${src}/reaction/${reactionUuid}/${slot}/${rightId}`
   if (op === "remove") {
     if (table === "reaction_superposition") {
       await tx`DELETE FROM reaction_superposition WHERE reaction = ${reactionUuid} AND superposition = ${rightId}`
@@ -492,9 +492,9 @@ const applyReactionLink = async (
 }
 
 const applyMatterBinding = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/binding/<uuid>
+  // /wimp/<src>/binding/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/binding/${uuid}`
+  const path = `/wimp/${src}/binding/${uuid}`
   if (op === "remove") {
     await tx`DELETE FROM matter_binding WHERE uuid = ${uuid}`
     return
@@ -503,7 +503,7 @@ const applyMatterBinding = async (tx: Tx, op: string, segs: string[], value: unk
   const v = requireRecord(value, path)
   const literalBoolean = optionalBoolean(v, "literal_boolean", path)
   await tx`
-    INSERT INTO matter_binding (uuid, meta, binding_kind, literal_kind, literal_text, literal_boolean, expr)
+    INSERT INTO matter_binding (uuid, wimp, binding_kind, literal_kind, literal_text, literal_boolean, expr)
     VALUES (${uuid}, ${src}, ${requireString(v, "binding_kind", path)},
             ${optionalString(v, "literal_kind", path)},
             ${optionalString(v, "literal_text", path)},
@@ -513,10 +513,10 @@ const applyMatterBinding = async (tx: Tx, op: string, segs: string[], value: unk
 }
 
 const applyMatterBindingDep = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/binding/<bindingUuid>/dep/<order>
+  // /wimp/<src>/binding/<bindingUuid>/dep/<order>
   const [, src, , bindingUuid, , orderRaw] = segs as [string, string, string, string, string, string]
   const order = Number(orderRaw)
-  const path = `/meta/${src}/binding/${bindingUuid}/dep/${order}`
+  const path = `/wimp/${src}/binding/${bindingUuid}/dep/${order}`
   if (op === "remove") {
     await tx`DELETE FROM matter_binding_dep WHERE binding = ${bindingUuid} AND dep_order = ${order}`
     return
@@ -530,9 +530,9 @@ const applyMatterBindingDep = async (tx: Tx, op: string, segs: string[], value: 
 }
 
 const applyMatterParticle = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/particle/<uuid>
+  // /wimp/<src>/particle/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
-  const path = `/meta/${src}/particle/${uuid}`
+  const path = `/wimp/${src}/particle/${uuid}`
   if (op === "remove") {
     await tx`DELETE FROM matter_particle WHERE uuid = ${uuid}`
     return
@@ -540,7 +540,7 @@ const applyMatterParticle = async (tx: Tx, op: string, segs: string[], value: un
   if (op !== "add") return notSupported(op, path, "graviton")
   const v = requireRecord(value, path)
   await tx`
-    INSERT INTO matter_particle (uuid, meta, parent_particle, particle_kind, edge_slot, particle_order)
+    INSERT INTO matter_particle (uuid, wimp, parent_particle, particle_kind, edge_slot, particle_order)
     VALUES (${uuid}, ${src}, ${optionalString(v, "parent", path)},
             ${requireString(v, "particle_kind", path)}, ${requireString(v, "edge_slot", path)},
             ${requireNumber(v, "particle_order", path)})
@@ -548,9 +548,9 @@ const applyMatterParticle = async (tx: Tx, op: string, segs: string[], value: un
 }
 
 const applyMatterParticleKind = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /meta/<src>/particle/<uuid>/(wimp|fuzzy|axion|macho)
+  // /wimp/<src>/particle/<uuid>/(wimp|fuzzy|axion|macho)
   const [, src, , particleUuid, kind] = segs as [string, string, string, string, string]
-  const path = `/meta/${src}/particle/${particleUuid}/${kind}`
+  const path = `/wimp/${src}/particle/${particleUuid}/${kind}`
   if (op === "remove") {
     if (kind === "wimp") await tx`DELETE FROM matter_particle_wimp WHERE particle = ${particleUuid}`
     else if (kind === "fuzzy") await tx`DELETE FROM matter_particle_fuzzy WHERE particle = ${particleUuid}`
@@ -604,11 +604,11 @@ const applyActorRow = async (tx: Tx, op: string, segs: string[], value: unknown)
   if (op === "add") {
     const v = requireRecord(value, path)
     await tx`
-      INSERT INTO actor (uuid, parent_actor, parent_topology, meta, position)
+      INSERT INTO actor (uuid, parent_actor, parent_topology, wimp, position)
       VALUES (${uuid},
               ${optionalString(v, "parentActor", path)},
               ${optionalString(v, "parentTopology", path)},
-              ${requireString(v, "meta", path)},
+              ${requireString(v, "wimp", path)},
               ${requireNumber(v, "position", path)})
     `
     return
@@ -619,7 +619,7 @@ const applyActorRow = async (tx: Tx, op: string, segs: string[], value: unknown)
       UPDATE actor
       SET parent_actor = ${optionalString(v, "parentActor", path)},
           parent_topology = ${optionalString(v, "parentTopology", path)},
-          meta = ${requireString(v, "meta", path)},
+          wimp = ${requireString(v, "wimp", path)},
           position = ${requireNumber(v, "position", path)}
       WHERE uuid = ${uuid}
     `
@@ -673,10 +673,10 @@ const applyGravitonPatch = async (tx: Tx, patch: StorePatch): Promise<void> => {
     throw new Error(`Unknown graviton path: ${patch.path}`)
   }
 
-  if (segs[0] !== "meta") throw new Error(`Unknown graviton path: ${patch.path}`)
+  if (segs[0] !== "wimp") throw new Error(`Unknown graviton path: ${patch.path}`)
 
-  if (segs.length === 2) return applyMetaRow(tx, patch.op, segs, value)
-  if (segs.length === 4 && segs[2] === "mass") return applyMetaMass(tx, patch.op, segs, value)
+  if (segs.length === 2) return applyWimpRow(tx, patch.op, segs, value)
+  if (segs.length === 4 && segs[2] === "mass") return applyWimpMass(tx, patch.op, segs, value)
   if (segs.length === 4 && segs[2] === "field") return applyField(tx, patch.op, segs, value)
   if (segs.length === 5 && segs[2] === "field" && segs[4] === "default")
     return applyFieldDefaultMarker(tx, patch.op, segs)
@@ -943,7 +943,7 @@ export const open = async (filename?: string): Promise<Store> => {
   const actor = await StoreActorSqlite.open(sql)
 
   return {
-    meta: await StoreMetaSqlite.open(sql),
+    wimp: await StoreWimpSqlite.open(sql),
     actor,
     topology,
     update: buildApplyMessage(sql),

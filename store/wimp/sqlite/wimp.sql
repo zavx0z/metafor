@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS meta
+CREATE TABLE IF NOT EXISTS wimp
 (
     src      TEXT PRIMARY KEY CHECK (length(trim(src)) > 0),
     name     TEXT,
@@ -6,10 +6,10 @@ CREATE TABLE IF NOT EXISTS meta
     view_css TEXT
 );
 
-CREATE TABLE IF NOT EXISTS meta_mass_value
+CREATE TABLE IF NOT EXISTS wimp_mass_value
 (
     uuid          TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    meta          TEXT NOT NULL,
+    wimp          TEXT NOT NULL,
     parent_value  TEXT,
     value_kind    TEXT NOT NULL CHECK (value_kind IN ('object', 'array', 'string', 'number', 'boolean', 'null')),
     entry_key     TEXT,
@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS meta_mass_value
     text_value    TEXT,
     number_value  REAL,
     boolean_value INTEGER CHECK (boolean_value IS NULL OR boolean_value IN (0, 1)),
-    FOREIGN KEY (meta) REFERENCES meta (src) ON DELETE CASCADE,
-    FOREIGN KEY (parent_value) REFERENCES meta_mass_value (uuid) ON DELETE CASCADE,
+    FOREIGN KEY (wimp) REFERENCES wimp (src) ON DELETE CASCADE,
+    FOREIGN KEY (parent_value) REFERENCES wimp_mass_value (uuid) ON DELETE CASCADE,
     CHECK (
         (parent_value IS NULL AND entry_key IS NULL AND entry_order IS NULL AND value_kind = 'object') OR
         (parent_value IS NOT NULL AND (
@@ -34,20 +34,20 @@ CREATE TABLE IF NOT EXISTS meta_mass_value
         )
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS meta_mass_root_by_meta
-    ON meta_mass_value (meta)
+CREATE UNIQUE INDEX IF NOT EXISTS wimp_mass_root_by_wimp
+    ON wimp_mass_value (wimp)
     WHERE parent_value IS NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS meta_mass_object_entry
-    ON meta_mass_value (parent_value, entry_key)
+CREATE UNIQUE INDEX IF NOT EXISTS wimp_mass_object_entry
+    ON wimp_mass_value (parent_value, entry_key)
     WHERE entry_key IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS meta_mass_array_entry
-    ON meta_mass_value (parent_value, entry_order)
+CREATE UNIQUE INDEX IF NOT EXISTS wimp_mass_array_entry
+    ON wimp_mass_value (parent_value, entry_order)
     WHERE entry_order IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS meta_mass_by_meta
-    ON meta_mass_value (meta);
+CREATE INDEX IF NOT EXISTS wimp_mass_by_wimp
+    ON wimp_mass_value (wimp);
 
-CREATE INDEX IF NOT EXISTS meta_mass_by_parent
-    ON meta_mass_value (parent_value);
+CREATE INDEX IF NOT EXISTS wimp_mass_by_parent
+    ON wimp_mass_value (parent_value);

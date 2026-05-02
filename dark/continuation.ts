@@ -1,5 +1,5 @@
 import type {FieldDefinition, FieldKey, MetaDSL} from "../index.ts"
-import type {MatterRelationBindingValue} from "../store/meta/sqlite/matter.t.ts"
+import type {MatterRelationBindingValue} from "../store/wimp/sqlite/matter.t.ts"
 
 /**
  * Описание начальной инициализации поля при материализации child wimp.

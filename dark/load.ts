@@ -1,5 +1,5 @@
 import type {MetaDSL, SRC} from ".."
-import type {Meta} from "@store/meta/sqlite"
+import type {Wimp} from "@store/wimp/sqlite"
 import settings from "./settings.yml"
 import {projectTemplateMatterRelations} from "./matter.ts"
 
@@ -12,7 +12,7 @@ const {HUB, MODULE} = settings
  * @returns `dsl`
  * @throws если не удалось загрузить meta
  */
-export const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
+export const readWimpDsl = async (address: SRC): Promise<MetaDSL> => {
   const sourcePath = new URL(`../${HUB}${address}/${MODULE}`, import.meta.url).href
   try {
     const module = await import(sourcePath)
@@ -26,12 +26,12 @@ export const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
 /**
  * Получает или канонизирует мету в `globalThis.store`:
  * - если уже есть — возвращает существующий `Meta` ORM,
- * - иначе читает DSL и создаёт через `store.meta.create(src, dsl, matter)`.
+ * - иначе читает DSL и создаёт через `store.wimp.create(src, dsl, matter)`.
  */
-export const loadMeta = async (src: SRC): Promise<Meta> => {
-  const existing = await store.meta.get(src)
+export const loadWimp = async (src: SRC): Promise<Wimp> => {
+  const existing = await store.wimp.get(src)
   if (existing) return existing
 
-  const dsl = await readMetaDsl(src)
-  return store.meta.create(src, dsl, projectTemplateMatterRelations(dsl))
+  const dsl = await readWimpDsl(src)
+  return store.wimp.create(src, dsl, projectTemplateMatterRelations(dsl))
 }

@@ -44,7 +44,7 @@ export async function createProcess(
     const uuid = crypto.randomUUID()
     const process = p as ParsedProcess | ParsedDestroy
     await sql`
-      INSERT INTO process (uuid, meta, key, type, label, desc)
+      INSERT INTO process (uuid, wimp, key, type, label, desc)
       VALUES (${uuid}, ${src}, ${state}, ${process.type || "action"}, ${process.label || null}, ${process.desc || null})
     `
 

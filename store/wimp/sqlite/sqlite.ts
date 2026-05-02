@@ -1,4 +1,4 @@
-import metaforSchemaSql from "./meta.sql" with {type: "text"}
+import wimpSchemaSql from "./wimp.sql" with {type: "text"}
 import fieldsSchemaSql from "./fields.sql" with {type: "text"}
 import superpositionSchemaSql from "./superposition.sql" with {type: "text"}
 import processSchemaSql from "./process.sql" with {type: "text"}
@@ -11,21 +11,21 @@ import type {MetaDSL} from "../../../metafor.t"
 import type {MatterRelationParticle} from "./matter.t.ts"
 import {createFields} from "./fields.C.ts"
 import {createMatter} from "./matter.C.ts"
-import {createMeta} from "./meta.C.ts"
+import {createWimp} from "./wimp.C.ts"
 import {createProcess} from "./process.C.ts"
 import {createReactions} from "./reactions.C.ts"
 import {createSuperposition} from "./superposition.C.ts"
-import {Meta} from "./meta.ts"
-import type {DarkMetaParticleModel} from "./read.t.ts"
+import {Wimp} from "./wimp.ts"
+import type {DarkWimpParticleModel} from "./read.t.ts"
 import {DarkParticleModelProjection} from "./read.ts"
 
-export class StoreMetaSqlite {
+export class StoreWimpSqlite {
   private constructor(private readonly sql: SQL) {}
 
-  static async open(sql: SQL): Promise<StoreMetaSqlite> {
+  static async open(sql: SQL): Promise<StoreWimpSqlite> {
     await sql.unsafe(
       [
-        metaforSchemaSql,
+        wimpSchemaSql,
         fieldsSchemaSql,
         superpositionSchemaSql,
         processSchemaSql,
@@ -39,36 +39,36 @@ export class StoreMetaSqlite {
         .join("\n\n")
         .trim(),
     )
-    return new StoreMetaSqlite(sql)
+    return new StoreWimpSqlite(sql)
   }
 
   /**
    * Записывает декларацию меты в БД одной транзакцией. Идемпотентно: повторная запись с тем же `src`
    * сначала удаляет старую декларацию (cascade на field/superposition/process/reaction/matter).
    */
-  async create(src: string, dsl: MetaDSL, matter: MatterRelationParticle[]): Promise<Meta> {
-    await this.sql`DELETE FROM meta WHERE src = ${src}`
+  async create(src: string, dsl: MetaDSL, matter: MatterRelationParticle[]): Promise<Wimp> {
+    await this.sql`DELETE FROM wimp WHERE src = ${src}`
     await this.sql.begin(async (tx) => {
-      await createMeta(tx, dsl, src)
+      await createWimp(tx, dsl, src)
       const fieldUuids = await createFields(tx, dsl, src)
       const stateUuids = await createSuperposition(tx, dsl, src, fieldUuids)
       await createProcess(tx, dsl, src, fieldUuids)
       await createReactions(tx, dsl, src, fieldUuids, stateUuids)
       await createMatter(tx, src, matter)
     })
-    return new Meta(this.sql, src)
+    return new Wimp(this.sql, src)
   }
 
-  async get(src: string): Promise<Meta | null> {
+  async get(src: string): Promise<Wimp | null> {
     const row = (
       await this.sql<Array<{ok: number}>>`
-        SELECT 1 AS ok FROM meta WHERE src = ${src} LIMIT 1
+        SELECT 1 AS ok FROM wimp WHERE src = ${src} LIMIT 1
       `
     )[0]
-    return row ? new Meta(this.sql, src) : null
+    return row ? new Wimp(this.sql, src) : null
   }
 
-  async readDarkParticleModel(src: string): Promise<DarkMetaParticleModel | null> {
+  async readDarkParticleModel(src: string): Promise<DarkWimpParticleModel | null> {
     return new DarkParticleModelProjection(this.sql).read(src)
   }
 }

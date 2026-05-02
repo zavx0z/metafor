@@ -2,7 +2,7 @@ import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage} from "@shared/protocol"
 import {MetaFor} from "../metafor"
 import {open} from "store/server"
 import {matter} from "./dark.ts"
-import {loadMeta} from "./load.ts"
+import {loadWimp} from "./load.ts"
 
 // DSL-файлы `github/.../meta.ts` обращаются к `MetaFor(...)` как к глобальной функции,
 // поэтому регистрируем её до первого dynamic import меты.
@@ -36,14 +36,14 @@ const extractMetaSrc = (path: string): string | null => {
 const gravity = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
 
 const handleMetaLoad = async (src: string): Promise<void> => {
-  const existing = await globalThis.store.meta.get(src)
+  const existing = await globalThis.store.wimp.get(src)
   if (existing) {
     console.log(`[dark/server] мета "${src}" уже в store — пропуск`)
     return
   }
   console.log(`[dark/server] загружаю мету "${src}"`)
   try {
-    const meta = await loadMeta(src)
+    const meta = await loadWimp(src)
     await matter(meta)
     console.log(`[dark/server] мета "${src}" материализована`)
   } catch (error) {

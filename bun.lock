@@ -22,7 +22,7 @@
       "dependencies": {
         "@bulk/gravity": "workspace:*",
         "@store/actor": "workspace:*",
-        "@store/meta": "workspace:*",
+        "@store/wimp": "workspace:*",
         "store": "workspace:*",
       },
     },
@@ -91,7 +91,7 @@
         "create-metafor": "dist/cli.js",
       },
       "devDependencies": {
-        "@store/meta": "workspace:*",
+        "@store/wimp": "workspace:*",
       },
     },
     "dark": {
@@ -103,7 +103,7 @@
         "@dark/strong": "workspace:*",
         "@dark/types": "workspace:*",
         "@dark/weak": "workspace:*",
-        "@store/meta": "workspace:*",
+        "@store/wimp": "workspace:*",
         "store": "workspace:*",
       },
     },
@@ -126,7 +126,7 @@
       "dependencies": {
         "@dark/gravity": "workspace:*",
         "@dark/types": "workspace:*",
-        "@store/meta": "workspace:*",
+        "@store/wimp": "workspace:*",
         "store": "workspace:*",
       },
     },
@@ -749,21 +749,21 @@
       "name": "store",
       "dependencies": {
         "@store/actor": "workspace:*",
-        "@store/meta": "workspace:*",
         "@store/topology": "workspace:*",
+        "@store/wimp": "workspace:*",
       },
     },
     "store/actor": {
       "name": "@store/actor",
     },
-    "store/meta": {
-      "name": "@store/meta",
+    "store/topology": {
+      "name": "@store/topology",
+    },
+    "store/wimp": {
+      "name": "@store/wimp",
       "dependencies": {
         "@dark/types": "workspace:*",
       },
-    },
-    "store/topology": {
-      "name": "@store/topology",
     },
   },
   "packages": {
@@ -967,9 +967,9 @@
 
     "@store/actor": ["@store/actor@workspace:store/actor"],
 
-    "@store/meta": ["@store/meta@workspace:store/meta"],
-
     "@store/topology": ["@store/topology@workspace:store/topology"],
+
+    "@store/wimp": ["@store/wimp@workspace:store/wimp"],
 
     "@tootallnate/quickjs-emscripten": ["@tootallnate/quickjs-emscripten@0.23.0", "", {}, "sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA=="],
 

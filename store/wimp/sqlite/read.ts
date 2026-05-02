@@ -1,24 +1,24 @@
 import type { SQL } from "bun"
 import type { MetaDSL, ParsedDestroy, ParsedProcess, ReactionsSchema } from "../../.."
-import { getMass, getMetaRow, hasMatter, hasProcesses, hasReactions } from "./meta.G.ts"
+import { getMass, getWimpRow, hasMatter, hasProcesses, hasReactions } from "./wimp.G.ts"
 import { getMatterParticles } from "./matter.G.ts"
 import type { FieldRow, GetFieldsResult, MetaFieldSchema } from "./fields.t.ts"
 import type { ConditionListItemRow, PredicateRow } from "./superposition.t.ts"
 import type { ProcessActionReadRow, ProcessActionRow, ProcessActionWriteRow, ProcessRow } from "./process.t.ts"
 import type { ReactionRow } from "./reactions.t.ts"
-import type { DarkMetaParticleModel } from "./read.t.ts"
+import type { DarkWimpParticleModel } from "./read.t.ts"
 
 const hasKeys = (value: object): boolean => Object.keys(value).length > 0
 
 const getFields = async (sql: SQL, src: string): Promise<GetFieldsResult> => {
-  const fieldRows = await sql<FieldRow[]>`SELECT uuid, key, type, required, label FROM field WHERE meta = ${src} ORDER BY rowid`
+  const fieldRows = await sql<FieldRow[]>`SELECT uuid, key, type, required, label FROM field WHERE wimp = ${src} ORDER BY rowid`
   const defaultFieldIds = new Set(
     (
       await sql<Array<{ field: string }>>`
         SELECT field_default.field AS field
         FROM field_default
         INNER JOIN field ON field.uuid = field_default.field
-        WHERE field.meta = ${src}
+        WHERE field.wimp = ${src}
       `
     ).map((row) => row.field),
   )
@@ -29,7 +29,7 @@ const getFields = async (sql: SQL, src: string): Promise<GetFieldsResult> => {
         SELECT field_string_default.field AS field, field_string_default.default_value AS default_value
         FROM field_string_default
         INNER JOIN field ON field.uuid = field_string_default.field
-        WHERE field.meta = ${src}
+        WHERE field.wimp = ${src}
       `
     ).map((row) => [row.field, row.default_value]),
   )
@@ -40,7 +40,7 @@ const getFields = async (sql: SQL, src: string): Promise<GetFieldsResult> => {
         SELECT field_number_default.field AS field, field_number_default.default_value AS default_value
         FROM field_number_default
         INNER JOIN field ON field.uuid = field_number_default.field
-        WHERE field.meta = ${src}
+        WHERE field.wimp = ${src}
       `
     ).map((row) => [row.field, row.default_value]),
   )
@@ -51,7 +51,7 @@ const getFields = async (sql: SQL, src: string): Promise<GetFieldsResult> => {
         SELECT field_boolean_default.field AS field, field_boolean_default.default_value AS default_value
         FROM field_boolean_default
         INNER JOIN field ON field.uuid = field_boolean_default.field
-        WHERE field.meta = ${src}
+        WHERE field.wimp = ${src}
       `
     ).map((row) => [row.field, row.default_value === 1]),
   )
@@ -60,7 +60,7 @@ const getFields = async (sql: SQL, src: string): Promise<GetFieldsResult> => {
     SELECT field_array_default_item.field AS field, field_array_default_item.item_value AS item_value
     FROM field_array_default_item
     INNER JOIN field ON field.uuid = field_array_default_item.field
-    WHERE field.meta = ${src}
+    WHERE field.wimp = ${src}
     ORDER BY field_array_default_item.position
   `
 
@@ -75,7 +75,7 @@ const getFields = async (sql: SQL, src: string): Promise<GetFieldsResult> => {
     SELECT field_enum_variant.uuid AS uuid, field_enum_variant.field AS field, field_enum_variant.item_value AS item_value
     FROM field_enum_variant
     INNER JOIN field ON field.uuid = field_enum_variant.field
-    WHERE field.meta = ${src}
+    WHERE field.wimp = ${src}
     ORDER BY field_enum_variant.position
   `
 
@@ -95,7 +95,7 @@ const getFields = async (sql: SQL, src: string): Promise<GetFieldsResult> => {
         FROM field_enum_default
         INNER JOIN field ON field.uuid = field_enum_default.field
         INNER JOIN field_enum_variant ON field_enum_variant.uuid = field_enum_default.variant
-        WHERE field.meta = ${src}
+        WHERE field.wimp = ${src}
       `
     ).map((row) => [row.field, row.item_value]),
   )
@@ -170,7 +170,7 @@ const getSuperposition = async (
   enumVariants: Map<string, string>,
 ): Promise<NonNullable<MetaDSL["superposition"]> | undefined> => {
   const stateRows = await sql<Array<{ uuid: string; name: string }>>`
-    SELECT uuid, name FROM superposition WHERE meta = ${src} ORDER BY position
+    SELECT uuid, name FROM superposition WHERE wimp = ${src} ORDER BY position
   `
   if (stateRows.length === 0) return
 
@@ -184,7 +184,7 @@ const getSuperposition = async (
   const transitionRows = await sql<Array<{ uuid: string; from_superposition: string; to_superposition: string }>>`
     SELECT uuid, from_superposition, to_superposition
     FROM transition
-    WHERE from_superposition IN (SELECT uuid FROM superposition WHERE meta = ${src})
+    WHERE from_superposition IN (SELECT uuid FROM superposition WHERE wimp = ${src})
     ORDER BY position
   `
 
@@ -207,7 +207,7 @@ const getSuperposition = async (
       SELECT transition.uuid
       FROM transition
       INNER JOIN superposition ON superposition.uuid = transition.from_superposition
-      WHERE superposition.meta = ${src}
+      WHERE superposition.wimp = ${src}
     )
     ORDER BY condition.position
   `
@@ -220,7 +220,7 @@ const getSuperposition = async (
       FROM condition
       INNER JOIN transition ON transition.uuid = condition.transition
       INNER JOIN superposition ON superposition.uuid = transition.from_superposition
-      WHERE superposition.meta = ${src}
+      WHERE superposition.wimp = ${src}
     )
     ORDER BY predicate_order
   `
@@ -240,7 +240,7 @@ const getSuperposition = async (
       INNER JOIN condition ON condition.uuid = condition_predicate.condition
       INNER JOIN transition ON transition.uuid = condition.transition
       INNER JOIN superposition ON superposition.uuid = transition.from_superposition
-      WHERE superposition.meta = ${src}
+      WHERE superposition.wimp = ${src}
     )
     ORDER BY condition_list_item.item_order
   `
@@ -293,7 +293,7 @@ const getProcesses = async (
   const processRows = await sql<ProcessRow[]>`
     SELECT uuid, key, type, label, desc
     FROM process
-    WHERE meta = ${src}
+    WHERE wimp = ${src}
     ORDER BY process.rowid
   `
   if (processRows.length === 0) return
@@ -301,7 +301,7 @@ const getProcesses = async (
   const envRows = await sql<Array<{ process: string; env: string }>>`
     SELECT process, env
     FROM process_env
-    WHERE process IN (SELECT uuid FROM process WHERE meta = ${src})
+    WHERE process IN (SELECT uuid FROM process WHERE wimp = ${src})
     ORDER BY process_env.rowid
   `
 
@@ -317,7 +317,7 @@ const getProcesses = async (
       await sql<ProcessActionRow[]>`
         SELECT process, action, action_import_specifier, action_wrapper_src, success, error
         FROM process_action
-        WHERE process IN (SELECT uuid FROM process WHERE meta = ${src})
+        WHERE process IN (SELECT uuid FROM process WHERE wimp = ${src})
       `
     ).map((row) => [row.process, row]),
   )
@@ -326,7 +326,7 @@ const getProcesses = async (
     SELECT process_action_read.process AS process, process_action_read.phase AS phase, process_action_read.field AS field
     FROM process_action_read
     INNER JOIN process ON process.uuid = process_action_read.process
-    WHERE process.meta = ${src}
+    WHERE process.wimp = ${src}
     ORDER BY process_action_read.rowid
   `
 
@@ -334,7 +334,7 @@ const getProcesses = async (
     SELECT process_action_write.process AS process, process_action_write.phase AS phase, process_action_write.field AS field
     FROM process_action_write
     INNER JOIN process ON process.uuid = process_action_write.process
-    WHERE process.meta = ${src}
+    WHERE process.wimp = ${src}
     ORDER BY process_action_write.rowid
   `
 
@@ -343,7 +343,7 @@ const getProcesses = async (
       await sql<Array<{ process: string; before: string }>>`
         SELECT process, before
         FROM process_finally
-        WHERE process IN (SELECT uuid FROM process WHERE meta = ${src})
+        WHERE process IN (SELECT uuid FROM process WHERE wimp = ${src})
       `
     ).map((row) => [row.process, row]),
   )
@@ -352,7 +352,7 @@ const getProcesses = async (
     SELECT process_finally_read.process AS process, process_finally_read.field AS field
     FROM process_finally_read
     INNER JOIN process ON process.uuid = process_finally_read.process
-    WHERE process.meta = ${src}
+    WHERE process.wimp = ${src}
     ORDER BY process_finally_read.rowid
   `
 
@@ -470,7 +470,7 @@ const getReactions = async (
   const reactionRows = await sql<ReactionRow[]>`
     SELECT uuid, key, label, desc, cond_source, update_source
     FROM reaction
-    WHERE meta = ${src}
+    WHERE wimp = ${src}
     ORDER BY reaction.rowid
   `
   if (reactionRows.length === 0) return
@@ -479,7 +479,7 @@ const getReactions = async (
     SELECT reaction_read.reaction AS reaction, reaction_read.field AS field
     FROM reaction_read
     INNER JOIN reaction ON reaction.uuid = reaction_read.reaction
-    WHERE reaction.meta = ${src}
+    WHERE reaction.wimp = ${src}
     ORDER BY reaction_read.rowid
   `
 
@@ -487,7 +487,7 @@ const getReactions = async (
     SELECT reaction_write.reaction AS reaction, reaction_write.field AS field
     FROM reaction_write
     INNER JOIN reaction ON reaction.uuid = reaction_write.reaction
-    WHERE reaction.meta = ${src}
+    WHERE reaction.wimp = ${src}
     ORDER BY reaction_write.rowid
   `
 
@@ -496,7 +496,7 @@ const getReactions = async (
     FROM reaction_superposition
     INNER JOIN reaction ON reaction.uuid = reaction_superposition.reaction
     INNER JOIN superposition ON superposition.uuid = reaction_superposition.superposition
-    WHERE reaction.meta = ${src}
+    WHERE reaction.wimp = ${src}
     ORDER BY reaction_superposition.rowid
   `
 
@@ -556,8 +556,8 @@ const getReactions = async (
 export class DarkParticleModelProjection {
   constructor(private readonly sql: SQL) {}
 
-  async read(src: string): Promise<DarkMetaParticleModel | null> {
-    const metaRow = await getMetaRow(this.sql, src)
+  async read(src: string): Promise<DarkWimpParticleModel | null> {
+    const metaRow = await getWimpRow(this.sql, src)
 
     if (!metaRow) return null
 

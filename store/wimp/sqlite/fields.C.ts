@@ -10,7 +10,7 @@ export async function createFields(sql: SQL, meta: MetaDSL, src: string): Promis
     fieldUuids.set(key, uuid)
 
     await sql`
-      INSERT INTO field (uuid, meta, key, type, required, label)
+      INSERT INTO field (uuid, wimp, key, type, required, label)
       VALUES (${uuid}, ${src}, ${key}, ${def.type}, ${def.required ? 1 : 0}, ${def.label || null})
     `
 

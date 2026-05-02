@@ -1,10 +1,10 @@
 import {open} from "../store/server.ts"
 import {matter} from "./dark.ts"
-import {loadMeta} from "./load.ts"
+import {loadWimp} from "./load.ts"
 import {MetaFor} from "../metafor"
 
 export {matter} from "./dark.ts"
-export {loadMeta} from "./load.ts"
+export {loadWimp} from "./load.ts"
 
 // Гарантируем наличие MetaFor в глобальном контексте для DSL файлов
 if (typeof globalThis !== "undefined") {
@@ -20,7 +20,7 @@ if (typeof self !== "undefined" && "postMessage" in self) {
 
     try {
       self.postMessage({type: "status", status: "started", src})
-      const meta = await loadMeta(src)
+      const meta = await loadWimp(src)
       await matter(meta)
       self.postMessage({type: "status", status: "done", src})
     } catch (error) {

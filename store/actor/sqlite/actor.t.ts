@@ -8,7 +8,7 @@ export interface ActorRecord {
   parentActor: string | null
   /** UUID родительского `Topology`-узла, если родитель — fuzzy/axion/macho. Иначе `null`. */
   parentTopology: string | null
-  meta: string
+  wimp: string
   position: number
 }
 

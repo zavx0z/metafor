@@ -3,7 +3,7 @@ import {SQL} from "bun"
 import type {Store} from "../store/index.ts"
 import {open} from "../store/server.ts"
 import {matter} from "./index.ts"
-import {loadMeta} from "./load.ts"
+import {loadWimp} from "./load.ts"
 
 describe("meta normalization", () => {
   let store: Awaited<ReturnType<typeof open>>
@@ -21,18 +21,18 @@ describe("meta normalization", () => {
   })
 
   test("повторная materialization одинакового src НЕ дублирует декларацию в store", async () => {
-    await matter(await loadMeta("zavx0z/git"))
+    await matter(await loadWimp("zavx0z/git"))
 
-    const firstMeta = await store.meta.get("zavx0z/git")
+    const firstMeta = await store.wimp.get("zavx0z/git")
     expect(firstMeta).not.toBeNull()
     const firstIds = await firstMeta!.identifiers()
 
     // Вторая попытка той же src через matter():
-    // loadMeta видит существующую meta и пропускает emit declaration —
+    // loadWimp видит существующую meta и пропускает emit declaration —
     // декларация в БД не перезаписывается, identifiers те же.
-    await matter(await loadMeta("zavx0z/git"))
+    await matter(await loadWimp("zavx0z/git"))
 
-    const secondMeta = await store.meta.get("zavx0z/git")
+    const secondMeta = await store.wimp.get("zavx0z/git")
     expect(secondMeta).not.toBeNull()
     const secondIds = await secondMeta!.identifiers()
 

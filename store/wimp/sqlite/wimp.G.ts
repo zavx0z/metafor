@@ -1,32 +1,32 @@
 import type { SQL } from "bun"
 import type { MetaDSL } from "../../.."
-import type { MetaMassValueRow, MetaRow } from "./meta.t.ts"
+import type { WimpMassValueRow, WimpRow } from "./wimp.t.ts"
 
-export const getMetaRow = async (sql: SQL, src: string): Promise<MetaRow | null> => {
-  const rows = await sql<MetaRow[]>`
+export const getWimpRow = async (sql: SQL, src: string): Promise<WimpRow | null> => {
+  const rows = await sql<WimpRow[]>`
     SELECT src, name, desc, view_css
-    FROM meta
+    FROM wimp
     WHERE src = ${src}
   `
   return rows[0] ?? null
 }
 
 export const hasProcesses = async (sql: SQL, src: string): Promise<boolean> => {
-  const rows = await sql`SELECT 1 AS one FROM process WHERE meta = ${src} LIMIT 1`
+  const rows = await sql`SELECT 1 AS one FROM process WHERE wimp = ${src} LIMIT 1`
   return rows.length > 0
 }
 
 export const hasReactions = async (sql: SQL, src: string): Promise<boolean> => {
-  const rows = await sql`SELECT 1 AS one FROM reaction WHERE meta = ${src} LIMIT 1`
+  const rows = await sql`SELECT 1 AS one FROM reaction WHERE wimp = ${src} LIMIT 1`
   return rows.length > 0
 }
 
 export const hasMatter = async (sql: SQL, src: string): Promise<boolean> => {
-  const rows = await sql`SELECT 1 AS one FROM matter_particle WHERE meta = ${src} LIMIT 1`
+  const rows = await sql`SELECT 1 AS one FROM matter_particle WHERE wimp = ${src} LIMIT 1`
   return rows.length > 0
 }
 
-const compareMassRows = (left: MetaMassValueRow, right: MetaMassValueRow): number => {
+const compareMassRows = (left: WimpMassValueRow, right: WimpMassValueRow): number => {
   if (left.entry_order !== null || right.entry_order !== null) {
     return (left.entry_order ?? 0) - (right.entry_order ?? 0)
   }
@@ -35,8 +35,8 @@ const compareMassRows = (left: MetaMassValueRow, right: MetaMassValueRow): numbe
 }
 
 const decodeMassValue = (
-  row: MetaMassValueRow,
-  childrenByParent: Map<string, MetaMassValueRow[]>,
+  row: WimpMassValueRow,
+  childrenByParent: Map<string, WimpMassValueRow[]>,
 ): unknown => {
   if (row.value_kind === "object") {
     return Object.fromEntries(
@@ -57,17 +57,17 @@ const decodeMassValue = (
 }
 
 export const getMass = async (sql: SQL, src: string): Promise<MetaDSL["mass"] | undefined> => {
-  const rows = await sql<MetaMassValueRow[]>`
+  const rows = await sql<WimpMassValueRow[]>`
     SELECT uuid, parent_value, value_kind, entry_key, entry_order, text_value, number_value, boolean_value
-    FROM meta_mass_value
-    WHERE meta = ${src}
+    FROM wimp_mass_value
+    WHERE wimp = ${src}
     ORDER BY CASE WHEN parent_value IS NULL THEN 0 ELSE 1 END, entry_order, entry_key, rowid
   `
 
   const root = rows.find((row) => row.parent_value === null)
   if (!root) return
 
-  const childrenByParent = new Map<string, MetaMassValueRow[]>()
+  const childrenByParent = new Map<string, WimpMassValueRow[]>()
   for (const row of rows) {
     if (row.parent_value === null) continue
 

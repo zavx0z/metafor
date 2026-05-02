@@ -12,7 +12,7 @@
   "dependencies": {
     "@bulk/gravity": "workspace:*",
     "@store/actor": "workspace:*",
-    "@store/meta": "workspace:*",
+    "@store/wimp": "workspace:*",
     "store": "workspace:*"
   }
 }

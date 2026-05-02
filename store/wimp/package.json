@@ -1,5 +1,5 @@
 {
-  "name": "@store/meta",
+  "name": "@store/wimp",
   "module": "index.ts",
   "type": "module",
   "exports": {

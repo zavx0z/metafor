@@ -57,7 +57,7 @@ export class StoreActorSqlite {
   async head(uuid: string): Promise<ActorRecord | null> {
     const row = (
       await this.sql<Array<Record<string, unknown>>>`
-        SELECT uuid, parent_actor, parent_topology, meta, position FROM actor WHERE uuid = ${uuid}
+        SELECT uuid, parent_actor, parent_topology, wimp, position FROM actor WHERE uuid = ${uuid}
       `
     )[0]
     return row ? decodeActorRow(row) : null

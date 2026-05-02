@@ -1,13 +1,13 @@
-export type MetaSource = string
+export type WimpSource = string
 
-export type MetaRow = {
+export type WimpRow = {
   src: string
   name: string | null
   desc: string | null
   view_css: string | null
 }
 
-export type MetaMassValueRow = {
+export type WimpMassValueRow = {
   uuid: string
   parent_value: string | null
   value_kind: "object" | "array" | "string" | "number" | "boolean" | "null"
@@ -25,7 +25,7 @@ export type MetaMassValueRow = {
  * Это не схемная сущность, а runtime-проекция — собирается через `Meta.identifiers()` запросом
  * по требованию (ORM-кеша нет, запрос идёт каждый раз свежий).
  */
-export interface MetaIdentifiers {
+export interface WimpIdentifiers {
   src: string
   fieldUuids: Map<string, string>
   variantUuids: Map<string, Map<string, string>>

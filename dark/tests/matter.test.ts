@@ -6,7 +6,7 @@ import type {Actor} from "@store/actor"
 import type {Store} from "../../store/index.ts"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
-import {loadMeta} from "../load.ts"
+import {loadWimp} from "../load.ts"
 
 let store: Awaited<ReturnType<typeof open>>
 let sql: SQL
@@ -21,7 +21,7 @@ describe("matter() — runtime tree через store", () => {
     store = await open(tmpFile)
     globalThis.store = store
     sql = new SQL(`sqlite://${tmpFile}`)
-    root = await matter(await loadMeta("zavx0z/git"))
+    root = await matter(await loadWimp("zavx0z/git"))
   })
   afterAll(async () => {
     await sql.close()
@@ -56,10 +56,10 @@ describe("matter() — runtime tree через store", () => {
   describe("декларация в store", () => {
     test("каждая meta из дерева — единственная запись в store.meta", async () => {
       const distinctSrcs = (
-        await sql<Array<{meta: string}>>`SELECT DISTINCT meta FROM actor`
-      ).map((r) => r.meta)
+        await sql<Array<{wimp: string}>>`SELECT DISTINCT wimp FROM actor`
+      ).map((r) => r.wimp)
       for (const src of distinctSrcs) {
-        const meta = await store.meta.get(src)
+        const meta = await store.wimp.get(src)
         expect(meta, `meta для "${src}" должна существовать в store`).not.toBeNull()
       }
     })
@@ -67,11 +67,11 @@ describe("matter() — runtime tree через store", () => {
 
   describe("родители", () => {
     test("корневой actor не имеет parent (parent_actor IS NULL AND parent_topology IS NULL)", async () => {
-      const rows = await sql<Array<{uuid: string; meta: string}>>`
-        SELECT uuid, meta FROM actor WHERE parent_actor IS NULL AND parent_topology IS NULL
+      const rows = await sql<Array<{uuid: string; wimp: string}>>`
+        SELECT uuid, wimp FROM actor WHERE parent_actor IS NULL AND parent_topology IS NULL
       `
       expect(rows.length).toBe(1)
-      expect(rows[0]!.meta).toBe("zavx0z/git")
+      expect(rows[0]!.wimp).toBe("zavx0z/git")
       expect(rows[0]!.uuid).toBe(root.uuid)
     })
 

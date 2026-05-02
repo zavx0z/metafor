@@ -65,7 +65,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
 
     const sql = new SQL(`sqlite://${storePath}`)
     try {
-      const metaRows = await sql<Array<{src: string}>>`SELECT src FROM meta ORDER BY src`
+      const metaRows = await sql<Array<{src: string}>>`SELECT src FROM wimp ORDER BY src`
       const srcs = metaRows.map((row) => row.src)
 
       expect(srcs).toContain("zavx0z/git")
@@ -73,7 +73,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
       expect(srcs).toContain("zavx0z/git-error")
       expect(srcs).toContain("zavx0z/git-history-commit")
 
-      const actorRows = await sql<Array<{uuid: string; meta: string}>>`SELECT uuid, meta FROM actor`
+      const actorRows = await sql<Array<{uuid: string; wimp: string}>>`SELECT uuid, wimp FROM actor`
       const stateRows = await sql<Array<{actor: string}>>`SELECT actor FROM actor_state`
       const valueRows = await sql<Array<{value: string}>>`SELECT DISTINCT value FROM actor_value`
 
@@ -81,12 +81,12 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
       expect(stateRows.length, "у каждого актора должна быть строка actor_state").toBe(actorRows.length)
       expect(valueRows.length, "должны быть записи в value через gluon").toBeGreaterThan(0)
 
-      // root актор — единственный без parent, его meta = zavx0z/git
-      const rootRows = await sql<Array<{meta: string}>>`
-        SELECT meta FROM actor WHERE parent_actor IS NULL AND parent_topology IS NULL
+      // root актор — единственный без parent, его wimp = zavx0z/git
+      const rootRows = await sql<Array<{wimp: string}>>`
+        SELECT wimp FROM actor WHERE parent_actor IS NULL AND parent_topology IS NULL
       `
       expect(rootRows.length).toBe(1)
-      expect(rootRows[0]?.meta).toBe("zavx0z/git")
+      expect(rootRows[0]?.wimp).toBe("zavx0z/git")
 
       // среди gravity-сообщений от Dark должны быть add /wimp/<id> per актор + barrier в конце
       const wimpAddCount = observed

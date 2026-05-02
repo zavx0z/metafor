@@ -16,7 +16,7 @@ export async function createSuperposition(
     const name = states[i]!
     const uuid = crypto.randomUUID()
     stateUuids.set(name, uuid)
-    await sql`INSERT INTO superposition (uuid, meta, name, position) VALUES (${uuid}, ${src}, ${name}, ${i})`
+    await sql`INSERT INTO superposition (uuid, wimp, name, position) VALUES (${uuid}, ${src}, ${name}, ${i})`
   }
 
   // 2. Transitions & Conditions

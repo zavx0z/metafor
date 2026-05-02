@@ -30,51 +30,51 @@ const parseJsonStringArray = (value: string | null): string[] | undefined => {
 export class Process {
   constructor(
     private readonly sql: SQL,
-    private readonly metaSrc: string,
+    private readonly wimpSrc: string,
     readonly key: string,
   ) {}
 
     async type(): Promise<ProcessType> {
     const row = (
       await this.sql<Array<{ type: ProcessType }>>`
-        SELECT type FROM process WHERE meta = ${this.metaSrc} AND key = ${this.key}
+        SELECT type FROM process WHERE wimp = ${this.wimpSrc} AND key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.metaSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
     return row.type
   }
 
     async label(): Promise<string | undefined> {
     const row = (
       await this.sql<Array<{ label: string | null }>>`
-        SELECT label FROM process WHERE meta = ${this.metaSrc} AND key = ${this.key}
+        SELECT label FROM process WHERE wimp = ${this.wimpSrc} AND key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.metaSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
     return row.label ?? undefined
   }
 
   async setLabel(value: string | null): Promise<void> {
     await this.sql`
       UPDATE process SET label = ${value}
-      WHERE meta = ${this.metaSrc} AND key = ${this.key}
+      WHERE wimp = ${this.wimpSrc} AND key = ${this.key}
     `
   }
 
     async desc(): Promise<string | undefined> {
     const row = (
       await this.sql<Array<{ desc: string | null }>>`
-        SELECT desc FROM process WHERE meta = ${this.metaSrc} AND key = ${this.key}
+        SELECT desc FROM process WHERE wimp = ${this.wimpSrc} AND key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.metaSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
     return row.desc ?? undefined
   }
 
   async setDesc(value: string | null): Promise<void> {
     await this.sql`
       UPDATE process SET desc = ${value}
-      WHERE meta = ${this.metaSrc} AND key = ${this.key}
+      WHERE wimp = ${this.wimpSrc} AND key = ${this.key}
     `
   }
 
@@ -83,7 +83,7 @@ export class Process {
       SELECT process_env.env AS env
       FROM process_env
       INNER JOIN process ON process.uuid = process_env.process
-      WHERE process.meta = ${this.metaSrc} AND process.key = ${this.key}
+      WHERE process.wimp = ${this.wimpSrc} AND process.key = ${this.key}
       ORDER BY process_env.rowid
     `
     return rows.map((row) => row.env)
@@ -113,10 +113,10 @@ export class Process {
            )) AS reads
         FROM process p
         LEFT JOIN process_action pa ON pa.process = p.uuid
-        WHERE p.meta = ${this.metaSrc} AND p.key = ${this.key}
+        WHERE p.wimp = ${this.wimpSrc} AND p.key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.metaSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
     if (row.type !== "action") throw new Error(`process ${this.key} is type=${row.type}, has no action phase`)
     if (row.action === null) throw new Error(`process_action row missing for ${this.key}`)
 
@@ -164,10 +164,10 @@ export class Process {
            )) AS writes
         FROM process p
         LEFT JOIN process_action pa ON pa.process = p.uuid
-        WHERE p.meta = ${this.metaSrc} AND p.key = ${this.key}
+        WHERE p.wimp = ${this.wimpSrc} AND p.key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.metaSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
     if (row.type !== "action") throw new Error(`process ${this.key} is type=${row.type}, has no ${phase} phase`)
     if (row.src === null) return null
     const result: ProcessHandlerPhase = { src: row.src }
@@ -198,10 +198,10 @@ export class Process {
            )) AS reads
         FROM process p
         LEFT JOIN process_finally pf ON pf.process = p.uuid
-        WHERE p.meta = ${this.metaSrc} AND p.key = ${this.key}
+        WHERE p.wimp = ${this.wimpSrc} AND p.key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.metaSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
     if (row.type !== "finally") throw new Error(`process ${this.key} is type=${row.type}, has no before phase`)
     if (row.before === null) throw new Error(`process_finally row missing for ${this.key}`)
 
@@ -220,7 +220,7 @@ export class Processes {
 
   async all(): Promise<Process[]> {
     const rows = await this.sql<Array<{ key: string }>>`
-      SELECT key FROM process WHERE meta = ${this.src} ORDER BY rowid
+      SELECT key FROM process WHERE wimp = ${this.src} ORDER BY rowid
     `
     return rows.map((row) => new Process(this.sql, this.src, row.key))
   }
@@ -228,7 +228,7 @@ export class Processes {
   async get(filter: { key: string }): Promise<Process | null> {
     const row = (
       await this.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM process WHERE meta = ${this.src} AND key = ${filter.key} LIMIT 1
+        SELECT 1 AS ok FROM process WHERE wimp = ${this.src} AND key = ${filter.key} LIMIT 1
       `
     )[0]
     return row ? new Process(this.sql, this.src, filter.key) : null
@@ -237,7 +237,7 @@ export class Processes {
   async count(): Promise<number> {
     const row = (
       await this.sql<Array<{ count: number }>>`
-        SELECT COUNT(*) AS count FROM process WHERE meta = ${this.src}
+        SELECT COUNT(*) AS count FROM process WHERE wimp = ${this.src}
       `
     )[0]
     return row?.count ?? 0
@@ -246,7 +246,7 @@ export class Processes {
   async exists(): Promise<boolean> {
     const row = (
       await this.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM process WHERE meta = ${this.src} LIMIT 1
+        SELECT 1 AS ok FROM process WHERE wimp = ${this.src} LIMIT 1
       `
     )[0]
     return row !== undefined

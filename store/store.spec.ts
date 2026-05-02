@@ -35,7 +35,7 @@ describe("store/server smoke", () => {
       `
     ).map((r) => r.name)
 
-    expect(tables).toContain("meta")
+    expect(tables).toContain("wimp")
     expect(tables).toContain("field")
     expect(tables).toContain("superposition")
     expect(tables).toContain("actor")
@@ -54,22 +54,22 @@ describe("store/server smoke", () => {
     const idleStateUuid = crypto.randomUUID()
     const readyStateUuid = crypto.randomUUID()
 
-    await store.update({part: "graviton", patch: [{op: "add", path: `/meta/${enc(SRC)}`, value: {name: "smoke"}}]})
+    await store.update({part: "graviton", patch: [{op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}]})
 
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/meta/${enc(SRC)}/field/${flagUuid}`, value: {key: "flag", type: "boolean", label: "Flag"}}],
+      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}`, value: {key: "flag", type: "boolean", label: "Flag"}}],
     })
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/meta/${enc(SRC)}/field/${flagUuid}/default`, value: {}}],
+      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}/default`, value: {}}],
     })
     await store.update({
       part: "graviton",
       patch: [
         {
           op: "add",
-          path: `/meta/${enc(SRC)}/field/${flagUuid}/default/scalar`,
+          path: `/wimp/${enc(SRC)}/field/${flagUuid}/default/scalar`,
           value: {kind: "boolean", boolean: false},
         },
       ],
@@ -77,14 +77,14 @@ describe("store/server smoke", () => {
 
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/meta/${enc(SRC)}/field/${statusUuid}`, value: {key: "status", type: "enum"}}],
+      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}`, value: {key: "status", type: "enum"}}],
     })
     await store.update({
       part: "graviton",
       patch: [
         {
           op: "add",
-          path: `/meta/${enc(SRC)}/field/${statusUuid}/variant/${idleVariantUuid}`,
+          path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${idleVariantUuid}`,
           value: {position: 0, item_value: "idle"},
         },
       ],
@@ -94,21 +94,21 @@ describe("store/server smoke", () => {
       patch: [
         {
           op: "add",
-          path: `/meta/${enc(SRC)}/field/${statusUuid}/variant/${readyVariantUuid}`,
+          path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${readyVariantUuid}`,
           value: {position: 1, item_value: "ready"},
         },
       ],
     })
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/meta/${enc(SRC)}/field/${statusUuid}/default`, value: {}}],
+      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}/default`, value: {}}],
     })
     await store.update({
       part: "graviton",
       patch: [
         {
           op: "add",
-          path: `/meta/${enc(SRC)}/field/${statusUuid}/default/variant`,
+          path: `/wimp/${enc(SRC)}/field/${statusUuid}/default/variant`,
           value: {variant: idleVariantUuid},
         },
       ],
@@ -116,16 +116,16 @@ describe("store/server smoke", () => {
 
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/meta/${enc(SRC)}/superposition/${idleStateUuid}`, value: {name: "idle", position: 0}}],
+      patch: [{op: "add", path: `/wimp/${enc(SRC)}/superposition/${idleStateUuid}`, value: {name: "idle", position: 0}}],
     })
     await store.update({
       part: "graviton",
       patch: [
-        {op: "add", path: `/meta/${enc(SRC)}/superposition/${readyStateUuid}`, value: {name: "ready", position: 1}},
+        {op: "add", path: `/wimp/${enc(SRC)}/superposition/${readyStateUuid}`, value: {name: "ready", position: 1}},
       ],
     })
 
-    const meta = await store.meta.get(SRC)
+    const meta = await store.wimp.get(SRC)
     if (!meta) throw new Error("meta missing")
     expect(await meta.name()).toBe("smoke")
     expect(await meta.fields.count()).toBe(2)
@@ -151,28 +151,28 @@ describe("store/server smoke", () => {
     const idleStateUuid = crypto.randomUUID()
 
     // декларация (минимум)
-    await store.update({part: "graviton", patch: [{op: "add", path: `/meta/${enc(SRC)}`, value: {name: "smoke"}}]})
+    await store.update({part: "graviton", patch: [{op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}]})
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/meta/${enc(SRC)}/field/${flagUuid}`, value: {key: "flag", type: "boolean"}}],
+      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}`, value: {key: "flag", type: "boolean"}}],
     })
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/meta/${enc(SRC)}/field/${statusUuid}`, value: {key: "status", type: "enum"}}],
+      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}`, value: {key: "status", type: "enum"}}],
     })
     await store.update({
       part: "graviton",
       patch: [
         {
           op: "add",
-          path: `/meta/${enc(SRC)}/field/${statusUuid}/variant/${idleVariantUuid}`,
+          path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${idleVariantUuid}`,
           value: {position: 0, item_value: "idle"},
         },
       ],
     })
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/meta/${enc(SRC)}/superposition/${idleStateUuid}`, value: {name: "idle", position: 0}}],
+      patch: [{op: "add", path: `/wimp/${enc(SRC)}/superposition/${idleStateUuid}`, value: {name: "idle", position: 0}}],
     })
 
     // actor-1
@@ -182,7 +182,7 @@ describe("store/server smoke", () => {
 
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/actor/${actorUuid}`, value: {parent: null, meta: SRC, position: 0}}],
+      patch: [{op: "add", path: `/actor/${actorUuid}`, value: {parent: null, wimp: SRC, position: 0}}],
     })
     await store.update({part: "gluon", patch: [{op: "add", path: `/value/${valueFlag}`, value: {kind: "boolean", boolean: true}}]})
     await store.update({
@@ -205,7 +205,7 @@ describe("store/server smoke", () => {
     const actor = await store.actor.get(actorUuid)
     if (!actor) throw new Error("actor missing")
     expect(actor.uuid).toBe(actorUuid)
-    expect(await actor.meta()).toBe(SRC)
+    expect(await actor.wimp()).toBe(SRC)
     expect(await actor.parent()).toBeNull()
     expect(await actor.position()).toBe(0)
     expect((await actor.state())?.metaState).toBe(idleStateUuid)
@@ -228,7 +228,7 @@ describe("store/server smoke", () => {
 
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/actor/${actor2Uuid}`, value: {parent: null, meta: SRC, position: 1}}],
+      patch: [{op: "add", path: `/actor/${actor2Uuid}`, value: {parent: null, wimp: SRC, position: 1}}],
     })
     await store.update({part: "gluon", patch: [{op: "add", path: `/value/${valueFlag2}`, value: {kind: "boolean", boolean: true}}]})
     await store.update({

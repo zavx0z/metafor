@@ -15,7 +15,7 @@ import type {MatterRelationParticle} from "./matter.t.ts"
  * @property bulk описание bulk-секции меты
  * @property mass канонический mass-слой
  */
-export interface MetaInit {
+export interface WimpInit {
   src: string
   name?: MetaDSL["name"]
   fieldSchemas?: Record<FieldKey, FieldDefinition>
@@ -27,7 +27,7 @@ export interface MetaInit {
   mass?: Mass | NodeMeta["mass"]
 }
 
-export interface DarkMetaParticleModel {
-  meta: MetaInit
+export interface DarkWimpParticleModel {
+  meta: WimpInit
   particles: MatterRelationParticle[]
 }

@@ -41,9 +41,9 @@ export const writeActorRows = async (sql: SQL, rows: ActorRows): Promise<void> =
 
     // вставка actor с polymorphic parent
     await tx`
-      INSERT INTO actor (uuid, parent_actor, parent_topology, meta, position)
+      INSERT INTO actor (uuid, parent_actor, parent_topology, wimp, position)
       VALUES (${rows.actor.uuid}, ${rows.actor.parentActor}, ${rows.actor.parentTopology},
-              ${rows.actor.meta}, ${rows.actor.position})
+              ${rows.actor.wimp}, ${rows.actor.position})
     `
 
     // value-записи: upsert корня + типизированная подтаблица

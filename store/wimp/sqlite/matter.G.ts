@@ -25,7 +25,7 @@ const getParticleBindings = async (sql: SQL, src: string) => {
       await sql<BindingRow[]>`
         SELECT uuid, binding_kind, literal_kind, literal_text, literal_boolean, expr
         FROM matter_binding
-        WHERE meta = ${src}
+        WHERE wimp = ${src}
       `
     ).map((row) => [row.uuid, row]),
   )
@@ -34,7 +34,7 @@ const getParticleBindings = async (sql: SQL, src: string) => {
   const depRows = await sql<Array<{ binding: string; dep_order: number; path: string }>>`
     SELECT binding, dep_order, path
     FROM matter_binding_dep
-    WHERE binding IN (SELECT uuid FROM matter_binding WHERE meta = ${src})
+    WHERE binding IN (SELECT uuid FROM matter_binding WHERE wimp = ${src})
     ORDER BY dep_order
   `
 
@@ -140,7 +140,7 @@ export const getMatterParticles = async (sql: SQL, src: string): Promise<MatterR
   const particleRows = await sql<ParticleRow[]>`
     SELECT uuid, parent_particle, particle_kind, edge_slot, particle_order
     FROM matter_particle
-    WHERE meta = ${src}
+    WHERE wimp = ${src}
     ORDER BY CASE WHEN parent_particle IS NULL THEN 0 ELSE 1 END, particle_order, rowid
   `
 
@@ -164,7 +164,7 @@ export const getMatterParticles = async (sql: SQL, src: string): Promise<MatterR
       await sql<WimpParticleRow[]>`
         SELECT particle, src, fields_binding, mass_binding
         FROM matter_particle_wimp
-        WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ${src})
+        WHERE particle IN (SELECT uuid FROM matter_particle WHERE wimp = ${src})
       `
     ).map((row) => [row.particle, row]),
   )
@@ -174,7 +174,7 @@ export const getMatterParticles = async (sql: SQL, src: string): Promise<MatterR
       await sql<FuzzyParticleRow[]>`
         SELECT particle, fuzzy_kind, predicate_binding
         FROM matter_particle_fuzzy
-        WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ${src})
+        WHERE particle IN (SELECT uuid FROM matter_particle WHERE wimp = ${src})
       `
     ).map((row) => [row.particle, row]),
   )
@@ -184,7 +184,7 @@ export const getMatterParticles = async (sql: SQL, src: string): Promise<MatterR
       await sql<AxionParticleRow[]>`
         SELECT particle, predicate_binding
         FROM matter_particle_axion
-        WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ${src})
+        WHERE particle IN (SELECT uuid FROM matter_particle WHERE wimp = ${src})
       `
     ).map((row) => [row.particle, row]),
   )
@@ -194,7 +194,7 @@ export const getMatterParticles = async (sql: SQL, src: string): Promise<MatterR
       await sql<MachoParticleRow[]>`
         SELECT particle, collection_binding
         FROM matter_particle_macho
-        WHERE particle IN (SELECT uuid FROM matter_particle WHERE meta = ${src})
+        WHERE particle IN (SELECT uuid FROM matter_particle WHERE wimp = ${src})
       `
     ).map((row) => [row.particle, row]),
   )

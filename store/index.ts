@@ -1,17 +1,17 @@
 import type {Actor, ActorRecord, ActorRoots, AnyValue, ActorFieldValue, ActorRows} from "@store/actor"
 import type {AnyTopology, TopologyRecord} from "@store/topology"
-import type {DarkMetaParticleModel, Meta} from "@store/meta/sqlite"
+import type {DarkWimpParticleModel, Wimp} from "@store/wimp/sqlite"
 import type {MetaDSL} from "../metafor.t"
-import type {MatterRelationParticle} from "./meta/sqlite/matter.t.ts"
+import type {MatterRelationParticle} from "./wimp/sqlite/matter.t.ts"
 import type {StoreUpdateMessage} from "./server.ts"
 
-export interface MetaApi {
-  /** Создаёт декларацию меты в БД одной транзакцией. Идемпотентно по `src` (DELETE+INSERT). */
-  create(src: string, dsl: MetaDSL, matter: MatterRelationParticle[]): Promise<Meta>
+export interface WimpApi {
+  /** Создаёт декларацию wimp в БД одной транзакцией. Идемпотентно по `src` (DELETE+INSERT). */
+  create(src: string, dsl: MetaDSL, matter: MatterRelationParticle[]): Promise<Wimp>
 
-  get(src: string): Promise<Meta | null>
+  get(src: string): Promise<Wimp | null>
 
-  readDarkParticleModel(src: string): Promise<DarkMetaParticleModel | null>
+  readDarkParticleModel(src: string): Promise<DarkWimpParticleModel | null>
 }
 
 export interface ValueApi {
@@ -47,13 +47,13 @@ export interface TopologyApi {
 }
 
 export interface Store {
-  readonly meta: MetaApi
+  readonly wimp: WimpApi
   readonly actor: ActorApi
   readonly topology: TopologyApi
 
   /**
    * Inbound API для приёма sync-патчей от других процессов.
-   * Domain-код (Dark/Boundary/Bulk) должен использовать ORM-методы (`meta.create`, `actor.create`, etc.),
+   * Domain-код (Dark/Boundary/Bulk) должен использовать ORM-методы (`wimp.create`, `actor.create`, etc.),
    * не этот канал. `update` переводит JSON Patch в соответствующие SQL-операции.
    */
   update(message: StoreUpdateMessage): Promise<void>

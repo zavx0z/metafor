@@ -1,13 +1,13 @@
 CREATE TABLE IF NOT EXISTS matter_binding
 (
     uuid            TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    meta            TEXT NOT NULL,
+    wimp            TEXT NOT NULL,
     binding_kind    TEXT NOT NULL CHECK (binding_kind IN ('static', 'variable', 'dynamic')),
     literal_kind    TEXT CHECK (literal_kind IS NULL OR literal_kind IN ('text', 'boolean')),
     literal_text    TEXT,
     literal_boolean INTEGER CHECK (literal_boolean IS NULL OR literal_boolean IN (0, 1)),
     expr            TEXT,
-    FOREIGN KEY (meta) REFERENCES meta (src) ON DELETE CASCADE,
+    FOREIGN KEY (wimp) REFERENCES wimp (src) ON DELETE CASCADE,
     CHECK (
         (binding_kind = 'static' AND (
             (literal_kind = 'text' AND literal_text IS NOT NULL AND literal_boolean IS NULL AND expr IS NULL) OR
@@ -29,8 +29,8 @@ CREATE TABLE IF NOT EXISTS matter_binding_dep
     FOREIGN KEY (binding) REFERENCES matter_binding (uuid) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS matter_binding_by_meta
-    ON matter_binding (meta);
+CREATE INDEX IF NOT EXISTS matter_binding_by_wimp
+    ON matter_binding (wimp);
 
 CREATE INDEX IF NOT EXISTS matter_binding_dep_by_binding
     ON matter_binding_dep (binding);
@@ -38,12 +38,12 @@ CREATE INDEX IF NOT EXISTS matter_binding_dep_by_binding
 CREATE TABLE IF NOT EXISTS matter_particle
 (
     uuid            TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
-    meta            TEXT    NOT NULL,
+    wimp            TEXT    NOT NULL,
     parent_particle TEXT,
     particle_kind   TEXT    NOT NULL CHECK (particle_kind IN ('wimp', 'fuzzy', 'axion', 'macho')),
     edge_slot       TEXT    NOT NULL CHECK (edge_slot IN ('root', 'child', 'then', 'else', 'branch')),
     particle_order  INTEGER NOT NULL CHECK (particle_order >= 0),
-    FOREIGN KEY (meta) REFERENCES meta (src) ON DELETE CASCADE,
+    FOREIGN KEY (wimp) REFERENCES wimp (src) ON DELETE CASCADE,
     FOREIGN KEY (parent_particle) REFERENCES matter_particle (uuid) ON DELETE CASCADE,
     CHECK (
         (parent_particle IS NULL AND edge_slot = 'root') OR
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS matter_particle
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS matter_root_particle_order
-    ON matter_particle (meta, particle_order)
+    ON matter_particle (wimp, particle_order)
     WHERE parent_particle IS NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS matter_particle_child_order
@@ -63,8 +63,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS matter_particle_branch_slot
     ON matter_particle (parent_particle, edge_slot)
     WHERE edge_slot IN ('then', 'else');
 
-CREATE INDEX IF NOT EXISTS matter_particle_by_meta
-    ON matter_particle (meta);
+CREATE INDEX IF NOT EXISTS matter_particle_by_wimp
+    ON matter_particle (wimp);
 
 CREATE INDEX IF NOT EXISTS matter_particle_by_parent
     ON matter_particle (parent_particle);

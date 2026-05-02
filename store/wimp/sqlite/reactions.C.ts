@@ -15,7 +15,7 @@ export async function createReactions(
   for (const [id, r] of Object.entries(rs.reactions)) {
     const uuid = crypto.randomUUID()
     await sql`
-      INSERT INTO reaction (uuid, meta, key, label, desc, cond_source, update_source)
+      INSERT INTO reaction (uuid, wimp, key, label, desc, cond_source, update_source)
       VALUES (${uuid}, ${src}, ${id}, ${r.label}, ${r.desc || null}, ${r.cond}, ${r.src})
     `
 
