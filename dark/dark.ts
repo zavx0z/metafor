@@ -1,5 +1,5 @@
 import type {FieldDefinition, FieldKey} from "../index.ts"
-import type {Wimp, WimpSnapshot} from "@store/wimp/sqlite"
+import type {AnyField, Wimp} from "@store/wimp/sqlite"
 import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord, Actor} from "@store/actor"
 import type {MatterParticlePlan} from "@dark/types/dark"
 import {emitAdd, emitBarrier} from "@dark/gravity/channel.ts"
@@ -23,23 +23,19 @@ export interface MatterOptions {
   suppressGravityBarrier?: boolean
 }
 
-type WimpIdentifiersSnapshot = WimpSnapshot
-
-type IdentCache = Map<string, WimpIdentifiersSnapshot>
-
 const nextPosition = (counter: Map<string, number>, parentKey: string): number => {
   const next = counter.get(parentKey) ?? 0
   counter.set(parentKey, next + 1)
   return next
 }
 
-const buildValueRecord = (
+const buildValueRecord = async (
   uuid: string,
   raw: unknown,
   fieldType: string,
-  variantsByText: Map<string, string> | undefined,
+  field: AnyField,
   fieldKey: FieldKey,
-): {record: ValueRecord; items: ValueItemRecord[]} => {
+): Promise<{record: ValueRecord; items: ValueItemRecord[]}> => {
   if (raw === null || raw === undefined) return {record: {uuid, kind: "null"}, items: []}
   switch (fieldType) {
     case "boolean":
@@ -49,7 +45,8 @@ const buildValueRecord = (
     case "string":
       return {record: {uuid, kind: "string", text: String(raw)}, items: []}
     case "enum": {
-      const variantUuid = variantsByText?.get(String(raw))
+      if (field.type !== "enum") throw new Error(`expected enum field for "${fieldKey}"`)
+      const variantUuid = await field.variantUuid(String(raw))
       if (!variantUuid) {
         throw new Error(`Unknown enum variant "${String(raw)}" for field "${fieldKey}"`)
       }
@@ -65,20 +62,17 @@ const buildValueRecord = (
   throw new Error(`Unsupported field type for value emission: ${fieldType}`)
 }
 
-/**
- * Резолвит value uuid поля родителя через store-чтение (для entanglement через shared row).
- */
 const resolveSourceValueUuid = async (
   parentActorUuid: string,
   parentFieldKey: FieldKey,
-  identCache: IdentCache,
 ): Promise<string> => {
   const head = await store.actor.head(parentActorUuid)
   if (!head) throw new Error(`parent actor ${parentActorUuid} not found`)
-  const parentIds = identCache.get(head.wimp)
-  if (!parentIds) throw new Error(`identifiers cache miss for parent wimp ${head.wimp}`)
-  const parentFieldUuid = parentIds.fieldUuids.get(parentFieldKey)
-  if (!parentFieldUuid) throw new Error(`parent field "${parentFieldKey}" missing in identifiers`)
+  const parentWimp = await store.wimp.get(head.wimp)
+  if (!parentWimp) throw new Error(`parent wimp ${head.wimp} not found`)
+  const parentField = await parentWimp.fields.get({key: parentFieldKey})
+  if (!parentField) throw new Error(`parent field "${parentFieldKey}" missing in wimp ${head.wimp}`)
+  const parentFieldUuid = await parentField.uuid()
   const link = await store.actor.link.get(parentActorUuid, parentFieldUuid)
   if (!link) throw new Error(`parent actor_value missing for (${parentActorUuid}, ${parentFieldKey})`)
   const value = await link.value()
@@ -88,38 +82,38 @@ const resolveSourceValueUuid = async (
 const buildActorRows = async (params: {
   actorUuid: string
   parent: ParticleRef | null
-  src: string
+  wimp: Wimp
   position: number
   finalValues: Map<FieldKey, FieldInit>
   fieldSchemas: Record<FieldKey, FieldDefinition>
-  identifiers: WimpIdentifiersSnapshot
-  identCache: IdentCache
 }): Promise<ActorRows> => {
-  const {actorUuid, parent, src, position, finalValues, fieldSchemas, identifiers, identCache} = params
+  const {actorUuid, parent, wimp, position, finalValues, fieldSchemas} = params
+  const src = wimp.src
   const values: ActorValueRecord[] = []
   const valueRecords: ValueRecord[] = []
   const valueItems: ValueItemRecord[] = []
 
   for (const [key, init] of finalValues) {
-    const fieldUuid = identifiers.fieldUuids.get(key)
-    if (!fieldUuid) {
-      throw new Error(`Field "${key}" is not registered in wimp identifiers for "${src}"`)
-    }
+    const field = await wimp.fields.get({key})
+    if (!field) throw new Error(`Field "${key}" is not registered for "${src}"`)
+    const fieldUuid = await field.uuid()
     const schema = fieldSchemas[key]
     if (!schema) throw new Error(`Field schema "${key}" missing in DSL for "${src}"`)
 
     let valueUuid: string
     if (init.source) {
-      valueUuid = await resolveSourceValueUuid(init.source.parentActorUuid, init.source.parentFieldKey, identCache)
+      valueUuid = await resolveSourceValueUuid(init.source.parentActorUuid, init.source.parentFieldKey)
     } else {
       valueUuid = crypto.randomUUID()
-      const variants = identifiers.variantUuids.get(key)
-      const built = buildValueRecord(valueUuid, init.value, schema.type, variants, key)
+      const built = await buildValueRecord(valueUuid, init.value, schema.type, field, key)
       valueRecords.push(built.record)
       valueItems.push(...built.items)
     }
     values.push({actor: actorUuid, field: fieldUuid, value: valueUuid})
   }
+
+  const initial = await wimp.superposition.initial()
+  const initialState = initial ? await initial.uuid() : null
 
   return {
     actor: {
@@ -132,7 +126,7 @@ const buildActorRows = async (params: {
     values,
     valueRecords,
     valueItems,
-    state: {actor: actorUuid, metaState: identifiers.initialState},
+    state: {actor: actorUuid, metaState: initialState},
   }
 }
 
@@ -163,31 +157,17 @@ async function* matterWimp(
   continuation: Continuation | undefined,
   options: MatterOptions,
   positionByParent: Map<string, number>,
-  identCache: IdentCache,
 ): AsyncGenerator<PendingChildWimp[], string, void> {
   const src = wimp.src
   const dsl = await readWimpDsl(src)
 
-  let identifiers: WimpIdentifiersSnapshot
   let matterRelations: Awaited<ReturnType<typeof fillGravityMatter>>
-  const cached = identCache.get(src)
-  const alreadyFilled = cached !== undefined || (await wimp.fields.exists())
-  if (alreadyFilled) {
-    identifiers = cached ?? (await wimp.readSnapshot())
-    if (!cached) identCache.set(src, identifiers)
+  if (await wimp.fields.exists()) {
     matterRelations = await wimp.matter.all()
   } else {
-    const {fieldUuids, variantUuids} = await fillStrongStructure(wimp, dsl)
-    const {stateUuids, initialState} = await fillWeakDynamics(wimp, dsl, fieldUuids)
+    await fillStrongStructure(wimp, dsl)
+    await fillWeakDynamics(wimp, dsl)
     matterRelations = await fillGravityMatter(wimp, dsl)
-    identifiers = {
-      src,
-      fieldUuids,
-      variantUuids,
-      superpositionUuids: stateUuids,
-      initialState,
-    }
-    identCache.set(src, identifiers)
   }
 
   const fieldSchemas = dsl.fields ?? {}
@@ -200,12 +180,10 @@ async function* matterWimp(
   const rows = await buildActorRows({
     actorUuid,
     parent,
-    src,
+    wimp,
     position,
     finalValues,
     fieldSchemas,
-    identifiers,
-    identCache,
   })
   await store.actor.create(rows)
   emitAdd(actorUuid)
@@ -283,9 +261,8 @@ const materializeWimp = async (
   continuation: Continuation | undefined,
   options: MatterOptions,
   positionByParent: Map<string, number>,
-  identCache: IdentCache,
 ): Promise<string> => {
-  const generator = matterWimp(wimp, parent, continuation, options, positionByParent, identCache)
+  const generator = matterWimp(wimp, parent, continuation, options, positionByParent)
 
   while (true) {
     const result = await generator.next()
@@ -293,7 +270,7 @@ const materializeWimp = async (
     for (const pending of result.value) {
       let childWimp = await store.wimp.get(pending.src)
       if (!childWimp) childWimp = await store.wimp.create(pending.src)
-      await materializeWimp(childWimp, pending.parent, pending.continuation, options, positionByParent, identCache)
+      await materializeWimp(childWimp, pending.parent, pending.continuation, options, positionByParent)
     }
   }
 }
@@ -314,8 +291,7 @@ const materializeWimp = async (
  */
 export async function matter(wimp: Wimp, options: MatterOptions = {}): Promise<Actor> {
   const positionByParent = new Map<string, number>()
-  const identCache: IdentCache = new Map()
-  const rootUuid = await materializeWimp(wimp, null, undefined, options, positionByParent, identCache)
+  const rootUuid = await materializeWimp(wimp, null, undefined, options, positionByParent)
 
   if (options.suppressGravityBarrier !== true) emitBarrier()
 

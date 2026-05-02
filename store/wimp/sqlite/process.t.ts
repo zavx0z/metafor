@@ -1,5 +1,3 @@
-export type FieldUuidByKey = Map<string, string>
-
 export type ProcessRow = {
   uuid: string
   key: string

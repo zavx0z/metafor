@@ -1,1 +1,1 @@
-export { fillWeakDynamics, type WeakDynamics } from "./dynamics.ts"
+export { fillWeakDynamics } from "./dynamics.ts"

@@ -2,7 +2,7 @@
 import type { SQL } from "bun"
 import type { MetaDSL } from "../../../metafor.t.ts"
 import { createSuperposition } from "./superposition.C.ts"
-import type { ConditionListItemRow, FieldUuidByKey, PredicateRow, StateUuidByName } from "./superposition.t.ts"
+import type { ConditionListItemRow, PredicateRow } from "./superposition.t.ts"
 
 const decodeStoredScalar = (
   valueKind: PredicateRow["value_kind"],
@@ -46,6 +46,18 @@ export class State {
     private readonly src: string,
     readonly name: string,
   ) {}
+
+    async uuid(): Promise<string> {
+    const row = (
+      await this.sql<Array<{ uuid: string }>>`
+        SELECT uuid FROM superposition
+        WHERE wimp = ${this.src} AND name = ${this.name}
+        LIMIT 1
+      `
+    )[0]
+    if (!row) throw new Error(`state ${this.name} not found in meta ${this.src}`)
+    return row.uuid
+  }
 
     async transitions(): Promise<Record<string, unknown>> {
     const stateRow = (
@@ -187,8 +199,8 @@ export class Superposition {
     private readonly src: string,
   ) {}
 
-  async create(dsl: MetaDSL, fieldUuids: FieldUuidByKey): Promise<StateUuidByName> {
-    return createSuperposition(this.sql, dsl, this.src, fieldUuids)
+  async create(dsl: MetaDSL): Promise<void> {
+    await createSuperposition(this.sql, dsl, this.src)
   }
 
   async all(): Promise<State[]> {
@@ -207,6 +219,15 @@ export class Superposition {
       `
     )[0]
     return row ? new State(this.sql, this.src, filter.name) : null
+  }
+
+  async initial(): Promise<State | null> {
+    const row = (
+      await this.sql<Array<{ name: string }>>`
+        SELECT name FROM superposition WHERE wimp = ${this.src} ORDER BY position LIMIT 1
+      `
+    )[0]
+    return row ? new State(this.sql, this.src, row.name) : null
   }
 
   async count(): Promise<number> {

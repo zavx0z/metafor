@@ -1,32 +1,44 @@
 import type { SQL } from "bun"
 import type { MetaDSL } from "../../.."
-import type { FieldUuidByKey, StateUuidByName } from "./superposition.t.ts"
 
-export async function createSuperposition(
-  sql: SQL,
-  meta: MetaDSL,
-  src: string,
-  fieldUuids: FieldUuidByKey,
-): Promise<StateUuidByName> {
-  const stateUuids: StateUuidByName = new Map<string, string>()
+const resolveFieldUuid = async (sql: SQL, src: string, fieldKey: string): Promise<string | null> => {
+  const row = (
+    await sql<Array<{ uuid: string }>>`
+      SELECT uuid FROM field WHERE wimp = ${src} AND key = ${fieldKey} LIMIT 1
+    `
+  )[0]
+  return row?.uuid ?? null
+}
+
+const resolveStateUuid = async (sql: SQL, src: string, name: string): Promise<string | null> => {
+  const row = (
+    await sql<Array<{ uuid: string }>>`
+      SELECT uuid FROM superposition WHERE wimp = ${src} AND name = ${name} LIMIT 1
+    `
+  )[0]
+  return row?.uuid ?? null
+}
+
+export async function createSuperposition(sql: SQL, meta: MetaDSL, src: string): Promise<void> {
   const states = Object.keys(meta.superposition)
 
   // 1. States
   for (let i = 0; i < states.length; i++) {
     const name = states[i]!
     const uuid = crypto.randomUUID()
-    stateUuids.set(name, uuid)
     await sql`INSERT INTO superposition (uuid, wimp, name, position) VALUES (${uuid}, ${src}, ${name}, ${i})`
   }
 
   // 2. Transitions & Conditions
   for (const [fromName, transitions] of Object.entries(meta.superposition)) {
     if (!transitions) continue
-    const fromUuid = stateUuids.get(fromName)!
+    const fromUuid = await resolveStateUuid(sql, src, fromName)
+    if (!fromUuid) continue
 
     let transitionPos = 0
     for (const [toName, cond] of Object.entries(transitions as Record<string, unknown>)) {
-      const toUuid = stateUuids.get(toName)!
+      const toUuid = await resolveStateUuid(sql, src, toName)
+      if (!toUuid) continue
       const transitionUuid = crypto.randomUUID()
 
       await sql`
@@ -37,7 +49,7 @@ export async function createSuperposition(
       if (cond && typeof cond === "object") {
         let condPos = 0
         for (const [fieldKey, predicate] of Object.entries(cond as Record<string, unknown>)) {
-          const fieldUuid = fieldUuids.get(fieldKey)
+          const fieldUuid = await resolveFieldUuid(sql, src, fieldKey)
           if (!fieldUuid) continue
 
           const condUuid = crypto.randomUUID()
@@ -96,6 +108,4 @@ export async function createSuperposition(
       }
     }
   }
-
-  return stateUuids
 }

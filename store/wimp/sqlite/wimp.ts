@@ -1,22 +1,12 @@
 import type { SQL } from "bun"
 import type { MetaDSL } from "../../../metafor.t.ts"
 import type { WimpMassValueRow, WimpRow } from "./wimp.t.ts"
-import type { FieldUuidByKey, VariantUuidByValue } from "./fields.t.ts"
-import type { StateUuidByName } from "./superposition.t.ts"
 import { Fields } from "./fields.ts"
 import { Superposition } from "./superposition.ts"
 import { Processes } from "./process.ts"
 import { Reactions } from "./reactions.ts"
 import { Matter } from "./matter.ts"
 import { insertMassValue } from "./mass.C.ts"
-
-export interface WimpSnapshot {
-  src: string
-  fieldUuids: FieldUuidByKey
-  variantUuids: VariantUuidByValue
-  superpositionUuids: StateUuidByName
-  initialState: string | null
-}
 
 const getWimpRow = async (sql: SQL, src: string): Promise<WimpRow | null> => {
   const rows = await sql<WimpRow[]>`
@@ -133,49 +123,5 @@ export class Wimp {
     if (mass === undefined) return
     await this.sql`DELETE FROM wimp_mass_value WHERE wimp = ${this.src}`
     await insertMassValue(this.sql, this.src, mass, null, null, null)
-  }
-
-  /**
-   * Снимок UUID-маппингов для уже наполненной wimp. Нужен dark/em flow для пересборки
-   * identCache по существующей декларации без повторного fillStrong/Weak/Gravity.
-   */
-  async readSnapshot(): Promise<WimpSnapshot> {
-    const fieldRows = await this.sql<Array<{uuid: string; key: string}>>`
-      SELECT uuid, key FROM field WHERE wimp = ${this.src}
-    `
-    const fieldUuids: FieldUuidByKey = new Map()
-    for (const row of fieldRows) fieldUuids.set(row.key, row.uuid)
-
-    const variantUuids: VariantUuidByValue = new Map()
-    if (fieldRows.length > 0) {
-      const variantRows = await this.sql<Array<{field: string; uuid: string; item_value: string}>>`
-        SELECT field, uuid, item_value
-        FROM field_enum_variant
-        WHERE field IN ${this.sql(fieldRows.map((r) => r.uuid))}
-        ORDER BY position
-      `
-      const fieldKeyByUuid = new Map<string, string>()
-      for (const row of fieldRows) fieldKeyByUuid.set(row.uuid, row.key)
-      for (const row of variantRows) {
-        const fieldKey = fieldKeyByUuid.get(row.field)
-        if (!fieldKey) continue
-        const sub = variantUuids.get(fieldKey) ?? new Map<string, string>()
-        sub.set(row.item_value, row.uuid)
-        variantUuids.set(fieldKey, sub)
-      }
-    }
-
-    const stateRows = await this.sql<Array<{uuid: string; name: string; position: number}>>`
-      SELECT uuid, name, position FROM superposition WHERE wimp = ${this.src} ORDER BY position
-    `
-    const superpositionUuids: StateUuidByName = new Map()
-    let initialState: string | null = null
-    for (const row of stateRows) {
-      superpositionUuids.set(row.name, row.uuid)
-      if (row.position === 0) initialState = row.uuid
-    }
-    if (initialState === null && stateRows.length > 0) initialState = stateRows[0]!.uuid
-
-    return {src: this.src, fieldUuids, variantUuids, superpositionUuids, initialState}
   }
 }

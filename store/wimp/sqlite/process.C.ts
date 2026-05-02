@@ -1,43 +1,39 @@
 import type { SQL } from "bun"
 import type { MetaDSL, ParsedDestroy, ParsedProcess } from "../../.."
-import type { FieldUuidByKey } from "./process.t.ts"
 
-const createProcessReads = async (
+const insertProcessReads = async (
   sql: SQL,
+  src: string,
   processUuid: string,
   phase: "action" | "success" | "error",
   fieldKeys: string[] | undefined,
-  fieldUuids: FieldUuidByKey,
 ): Promise<void> => {
   for (const fieldKey of fieldKeys ?? []) {
-    const fieldUuid = fieldUuids.get(fieldKey)
-    if (!fieldUuid) continue
-
-    await sql`INSERT INTO process_action_read (process, field, phase) VALUES (${processUuid}, ${fieldUuid}, ${phase})`
+    await sql`
+      INSERT INTO process_action_read (process, field, phase)
+      SELECT ${processUuid}, field.uuid, ${phase}
+      FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
+    `
   }
 }
 
-const createProcessWrites = async (
+const insertProcessWrites = async (
   sql: SQL,
+  src: string,
   processUuid: string,
   phase: "success" | "error",
   fieldKeys: string[] | undefined,
-  fieldUuids: FieldUuidByKey,
 ): Promise<void> => {
   for (const fieldKey of fieldKeys ?? []) {
-    const fieldUuid = fieldUuids.get(fieldKey)
-    if (!fieldUuid) continue
-
-    await sql`INSERT INTO process_action_write (process, field, phase) VALUES (${processUuid}, ${fieldUuid}, ${phase})`
+    await sql`
+      INSERT INTO process_action_write (process, field, phase)
+      SELECT ${processUuid}, field.uuid, ${phase}
+      FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
+    `
   }
 }
 
-export async function createProcess(
-  sql: SQL,
-  meta: MetaDSL,
-  src: string,
-  fieldUuids: FieldUuidByKey,
-): Promise<void> {
+export async function createProcess(sql: SQL, meta: MetaDSL, src: string): Promise<void> {
   if (!meta.processes) return
 
   for (const [state, p] of Object.entries(meta.processes)) {
@@ -58,10 +54,11 @@ export async function createProcess(
       await sql`INSERT INTO process_finally (process, before) VALUES (${uuid}, ${process.before.src})`
 
       for (const fieldKey of process.before.read ?? []) {
-        const fieldUuid = fieldUuids.get(fieldKey)
-        if (!fieldUuid) continue
-
-        await sql`INSERT INTO process_finally_read (process, field) VALUES (${uuid}, ${fieldUuid})`
+        await sql`
+          INSERT INTO process_finally_read (process, field)
+          SELECT ${uuid}, field.uuid
+          FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
+        `
       }
 
       continue
@@ -79,10 +76,10 @@ export async function createProcess(
       )
     `
 
-    await createProcessReads(sql, uuid, "action", process.action.read, fieldUuids)
-    await createProcessReads(sql, uuid, "success", process.success?.read, fieldUuids)
-    await createProcessReads(sql, uuid, "error", process.error?.read, fieldUuids)
-    await createProcessWrites(sql, uuid, "success", process.success?.write, fieldUuids)
-    await createProcessWrites(sql, uuid, "error", process.error?.write, fieldUuids)
+    await insertProcessReads(sql, src, uuid, "action", process.action.read)
+    await insertProcessReads(sql, src, uuid, "success", process.success?.read)
+    await insertProcessReads(sql, src, uuid, "error", process.error?.read)
+    await insertProcessWrites(sql, src, uuid, "success", process.success?.write)
+    await insertProcessWrites(sql, src, uuid, "error", process.error?.write)
   }
 }

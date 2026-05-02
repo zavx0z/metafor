@@ -333,8 +333,8 @@ const canonicalizeMetaGraph = async (
 
 		const dsl = await readWimpDsl(src)
 		const wimp = await metaStore.create(src)
-		const { fieldUuids } = await fillStrongStructure(wimp, dsl)
-		await fillWeakDynamics(wimp, dsl, fieldUuids)
+		await fillStrongStructure(wimp, dsl)
+		await fillWeakDynamics(wimp, dsl)
 		const relations = await fillGravityMatter(wimp, dsl)
 		loaded.add(src)
 

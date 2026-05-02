@@ -1,1 +1,1 @@
-export { fillStrongStructure, type StrongStructure } from "./structure.ts"
+export { fillStrongStructure } from "./structure.ts"
