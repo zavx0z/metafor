@@ -51,6 +51,11 @@ const handleWimpLoad = async (src: string): Promise<void> => {
   }
 }
 
+// Серилизуем обработку входящих gravity-сообщений: каждый следующий wimp
+// ждёт завершения матерализации предыдущего. Без этого тесты не имеют точки
+// синхронизации (мы убрали emitBarrier).
+let processingChain: Promise<void> = Promise.resolve()
+
 gravity.addEventListener("message", (event) => {
   const data = (event as MessageEvent<unknown>).data
   if (!isGravitonMessage(data)) return
@@ -60,7 +65,7 @@ gravity.addEventListener("message", (event) => {
     if (patch.op !== "add") continue
     const src = extractWimpSrc(patch.path)
     if (!src) continue
-    void handleWimpLoad(src)
+    processingChain = processingChain.then(() => handleWimpLoad(src))
   }
 })
 

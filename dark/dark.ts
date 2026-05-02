@@ -2,7 +2,6 @@ import type {FieldDefinition, FieldKey} from ".."
 import type {AnyField, Wimp} from "@store/wimp/sqlite"
 import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
 import type {MatterParticlePlan} from "@dark/types/dark"
-import {emitAdd} from "@dark/gravity/channel.ts"
 import {projectStoreMatterParticles, fillGravityMatter} from "@dark/gravity"
 import {fillWeakDynamics} from "@dark/weak"
 import {loadMeta} from "./load.ts"
@@ -175,7 +174,6 @@ async function* matterWimp(
 
   const rows = await buildActorRows({actorUuid, parent, wimp, finalValues, fieldSchemas})
   await store.actor.create(rows)
-  emitAdd(actorUuid)
 
   await options.onMaterializedStep?.({kind: "actor", particle: {kind: "actor", uuid: actorUuid}, src})
 

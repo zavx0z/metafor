@@ -88,12 +88,12 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
       expect(rootRows.length).toBe(1)
       expect(rootRows[0]?.wimp).toBe("zavx0z/git")
 
-      // среди gravity-сообщений от Dark должны быть add /wimp/<id> per актор + barrier в конце
-      const wimpAddCount = observed
+      // dark больше не эмитит gravity-патчи в matter() — emitAdd удалён,
+      // механизм sync-сообщений будет переделан отдельно.
+      const darkPatches = observed
         .filter((m) => m.source === "dark")
         .flatMap((m) => m.patches)
-        .filter((p) => p.op === "add" && p.path.startsWith("/wimp/")).length
-      expect(wimpAddCount).toBe(actorRows.length)
+      expect(darkPatches).toEqual([])
     } finally {
       await sql.close()
     }

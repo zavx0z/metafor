@@ -57,7 +57,9 @@ describe("store/tests github/zavx0z startup load", () => {
         },
       })
 
-      await waitForMessages(messages, materializedWimps.length)
+      // dark больше не эмитит gravity-патчи в matter() — emitAdd удалён.
+      // Микро-задержка чтобы убедиться что никаких сообщений не пришло.
+      await new Promise((resolve) => setTimeout(resolve, 50))
     } finally {
       channel.close()
     }
@@ -115,25 +117,8 @@ describe("store/tests github/zavx0z startup load", () => {
     expect(await commit.values.count()).toBeGreaterThan(0)
     expect((await commit.state())?.metaState).not.toBeNull()
 
-    expect(messages.every(isGravitonMessage)).toBe(true)
-    const gravitonMessages = messages as GravitonMessage[]
-    const expectedMessages: GravitonMessage[] = materializedWimps.map(
-      (wimpId): GravitonMessage => ({
-        channel: "gravity",
-        boson: "graviton",
-        source: "dark",
-        patches: [{op: "add", path: `/wimp/${wimpId}`}],
-      }),
-    )
-
-    expect(
-      gravitonMessages.map((message) => ({
-        channel: message.channel,
-        boson: message.boson,
-        source: message.source,
-        patches: message.patches,
-      })),
-    ).toEqual(expectedMessages)
+    // dark больше не эмитит gravity-патчи (emitAdd удалён).
+    expect(messages).toEqual([])
 
     await sql.close()
     await store.close()
