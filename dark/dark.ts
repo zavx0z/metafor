@@ -185,11 +185,12 @@ const materializeMeta = async (
   const plans = projectStoreMatterParticles(particleModel.particles)
   if (plans.length === 0) return actorUuid
 
-  const pendingChildren: PendingChildWimp[] = []
   let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", uuid: actorUuid}}))
 
   while (frontier.length > 0) {
     const next: BfsEntry[] = []
+    const layerPendingChildren: PendingChildWimp[] = []
+
     for (const entry of frontier) {
       switch (entry.plan.kind) {
         case "wimp": {
@@ -205,7 +206,7 @@ const materializeMeta = async (
           if (entry.plan.massBinding !== undefined) {
             childContinuation.mass = entry.plan.massBinding
           }
-          pendingChildren.push({src: entry.plan.src, parent: entry.parent, continuation: childContinuation})
+          layerPendingChildren.push({src: entry.plan.src, parent: entry.parent, continuation: childContinuation})
           break
         }
         case "fuzzy":
@@ -231,12 +232,13 @@ const materializeMeta = async (
         }
       }
     }
-    frontier = next
-  }
 
-  for (const pending of pendingChildren) {
-    const childMeta = await loadWimp(pending.src)
-    await materializeMeta(childMeta, pending.parent, pending.continuation, options, positionByParent)
+    for (const pending of layerPendingChildren) {
+      const childMeta = await loadWimp(pending.src)
+      await materializeMeta(childMeta, pending.parent, pending.continuation, options, positionByParent)
+    }
+
+    frontier = next
   }
 
   return actorUuid
@@ -248,6 +250,10 @@ const materializeMeta = async (
  * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/index.ts`.
  * Принимает уже канонизированный `Meta` ORM (получить через `loadWimp(src)`) и разворачивает дерево
  * через store ORM: создаёт actor + topology rows, рекурсивно материализует дочерние wimp meta.
+ *
+ * Обход дерева — послойный: на каждом BFS-слое топологии родительской меты сначала
+ * создаются все topology-узлы слоя, затем рекурсивно материализуются child wimps этого
+ * же слоя, и только потом обход переходит к следующему слою.
  *
  * @returns корневой `Actor` ORM.
  */
