@@ -2,6 +2,9 @@ import wimpSchemaSql from "./wimp.sql" with {type: "text"}
 import massSchemaSql from "./mass.sql" with {type: "text"}
 import fieldsSchemaSql from "./fields.sql" with {type: "text"}
 import superpositionSchemaSql from "./superposition.sql" with {type: "text"}
+import transitionSchemaSql from "./transition.sql" with {type: "text"}
+import conditionSchemaSql from "./condition.sql" with {type: "text"}
+import predicateSchemaSql from "./predicate.sql" with {type: "text"}
 import processSchemaSql from "./process.sql" with {type: "text"}
 import actionSchemaSql from "./process.action.sql" with {type: "text"}
 import finallySchemaSql from "./process.finally.sql" with {type: "text"}
@@ -20,6 +23,9 @@ export class StoreWimpSqlite {
         massSchemaSql,
         fieldsSchemaSql,
         superpositionSchemaSql,
+        transitionSchemaSql,
+        conditionSchemaSql,
+        predicateSchemaSql,
         processSchemaSql,
         actionSchemaSql,
         finallySchemaSql,
