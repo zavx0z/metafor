@@ -5,7 +5,7 @@ import {open} from "../store/server.ts"
 import {matter} from "./index.ts"
 import {loadWimp} from "./load.ts"
 
-describe("meta normalization", () => {
+describe("wimp normalization", () => {
   let store: Awaited<ReturnType<typeof open>>
   let sql: SQL
 
@@ -23,18 +23,18 @@ describe("meta normalization", () => {
   test("повторная materialization одинакового src НЕ дублирует декларацию в store", async () => {
     await matter(await loadWimp("zavx0z/git"))
 
-    const firstMeta = await store.wimp.get("zavx0z/git")
-    expect(firstMeta).not.toBeNull()
-    const firstIds = await firstMeta!.identifiers()
+    const firstWimp = await store.wimp.get("zavx0z/git")
+    expect(firstWimp).not.toBeNull()
+    const firstIds = await firstWimp!.identifiers()
 
     // Вторая попытка той же src через matter():
-    // loadWimp видит существующую meta и пропускает emit declaration —
+    // loadWimp видит существующий wimp и пропускает emit declaration —
     // декларация в БД не перезаписывается, identifiers те же.
     await matter(await loadWimp("zavx0z/git"))
 
-    const secondMeta = await store.wimp.get("zavx0z/git")
-    expect(secondMeta).not.toBeNull()
-    const secondIds = await secondMeta!.identifiers()
+    const secondWimp = await store.wimp.get("zavx0z/git")
+    expect(secondWimp).not.toBeNull()
+    const secondIds = await secondWimp!.identifiers()
 
     expect(secondIds.fieldUuids.get("operation")).toBe(firstIds.fieldUuids.get("operation"))
     expect(secondIds.initialState).toBe(firstIds.initialState)

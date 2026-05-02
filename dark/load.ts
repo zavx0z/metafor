@@ -10,7 +10,7 @@ const {HUB, MODULE} = settings
  *
  * @param address — канонический адрес хаба для загрузки
  * @returns `dsl`
- * @throws если не удалось загрузить meta
+ * @throws если не удалось загрузить DSL
  */
 export const readWimpDsl = async (address: SRC): Promise<MetaDSL> => {
   const sourcePath = new URL(`../${HUB}${address}/${MODULE}`, import.meta.url).href
@@ -19,13 +19,13 @@ export const readWimpDsl = async (address: SRC): Promise<MetaDSL> => {
     return (module.default ?? module) as MetaDSL
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Не удалось загрузить meta: ${sourcePath} — ${message}`)
+    throw new Error(`Не удалось загрузить DSL: ${sourcePath} — ${message}`)
   }
 }
 
 /**
- * Получает или канонизирует мету в `globalThis.store`:
- * - если уже есть — возвращает существующий `Meta` ORM,
+ * Получает или канонизирует wimp в `globalThis.store`:
+ * - если уже есть — возвращает существующий `Wimp` ORM,
  * - иначе читает DSL и создаёт через `store.wimp.create(src, dsl, matter)`.
  */
 export const loadWimp = async (src: SRC): Promise<Wimp> => {

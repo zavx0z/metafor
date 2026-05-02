@@ -12,7 +12,7 @@ export type ParticleRef = {kind: "actor"; uuid: string} | {kind: "topology"; uui
 export interface MatterMaterializationStep {
   kind: "actor" | "topology"
   particle: ParticleRef
-  /** Для `actor` — meta src; для topology — undefined. */
+  /** Для `actor` — wimp src; для topology — undefined. */
   src?: string
 }
 
@@ -68,9 +68,9 @@ const resolveSourceValueUuid = async (
 ): Promise<string> => {
   const head = await store.actor.head(parentActorUuid)
   if (!head) throw new Error(`parent actor ${parentActorUuid} not found`)
-  const parentMeta = await store.wimp.get(head.wimp)
-  if (!parentMeta) throw new Error(`parent meta ${head.wimp} not found`)
-  const parentIds = await parentMeta.identifiers()
+  const parentWimp = await store.wimp.get(head.wimp)
+  if (!parentWimp) throw new Error(`parent wimp ${head.wimp} not found`)
+  const parentIds = await parentWimp.identifiers()
   const parentFieldUuid = parentIds.fieldUuids.get(parentFieldKey)
   if (!parentFieldUuid) throw new Error(`parent field "${parentFieldKey}" missing in identifiers`)
   const link = await store.actor.link.get(parentActorUuid, parentFieldUuid)
@@ -96,7 +96,7 @@ const buildActorRows = async (params: {
   for (const [key, init] of finalValues) {
     const fieldUuid = identifiers.fieldUuids.get(key)
     if (!fieldUuid) {
-      throw new Error(`Field "${key}" is not registered in meta identifiers for "${src}"`)
+      throw new Error(`Field "${key}" is not registered in wimp identifiers for "${src}"`)
     }
     const schema = fieldSchemas[key]
     if (!schema) throw new Error(`Field schema "${key}" missing in DSL for "${src}"`)
@@ -141,7 +141,7 @@ interface PendingChildWimp {
 }
 
 /**
- * Послойный проход одной меты.
+ * Послойный проход одной wimp.
  *
  * Создаёт root actor, эмитит `kind: "actor"` step, затем BFS по plan-tree:
  * на каждой итерации обрабатывает все entries текущего фронтира — для topology-узлов
@@ -150,18 +150,18 @@ interface PendingChildWimp {
  * материализовать их перед `next()`, чтобы дочерние actors встали в БД до того,
  * как BFS перейдёт к следующему слою топологии.
  */
-async function* matterMeta(
-  meta: Wimp,
+async function* matterWimp(
+  wimp: Wimp,
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
   options: MatterOptions,
   positionByParent: Map<string, number>,
 ): AsyncGenerator<PendingChildWimp[], string, void> {
-  const src = meta.src
-  const identifiers = await meta.identifiers()
+  const src = wimp.src
+  const identifiers = await wimp.identifiers()
   const particleModel = await store.wimp.readDarkParticleModel(src)
   if (!particleModel) {
-    throw new Error(`Dark runtime meta "${src}" is not canonicalized in store`)
+    throw new Error(`Dark runtime wimp "${src}" is not canonicalized in store`)
   }
 
   const fieldSchemas = particleModel.meta.fieldSchemas ?? {}
@@ -250,21 +250,21 @@ async function* matterMeta(
   return actorUuid
 }
 
-const materializeMeta = async (
-  meta: Wimp,
+const materializeWimp = async (
+  wimp: Wimp,
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
   options: MatterOptions,
   positionByParent: Map<string, number>,
 ): Promise<string> => {
-  const generator = matterMeta(meta, parent, continuation, options, positionByParent)
+  const generator = matterWimp(wimp, parent, continuation, options, positionByParent)
 
   while (true) {
     const result = await generator.next()
     if (result.done) return result.value
     for (const pending of result.value) {
-      const childMeta = await loadWimp(pending.src)
-      await materializeMeta(childMeta, pending.parent, pending.continuation, options, positionByParent)
+      const childWimp = await loadWimp(pending.src)
+      await materializeWimp(childWimp, pending.parent, pending.continuation, options, positionByParent)
     }
   }
 }
@@ -273,18 +273,18 @@ const materializeMeta = async (
  * Публичный entrypoint Dark.
  *
  * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/index.ts`.
- * Принимает уже канонизированный `Meta` ORM (получить через `loadWimp(src)`) и разворачивает дерево
- * через store ORM: создаёт actor + topology rows, рекурсивно материализует дочерние wimp meta.
+ * Принимает уже канонизированный `Wimp` ORM (получить через `loadWimp(src)`) и разворачивает дерево
+ * через store ORM: создаёт actor + topology rows, рекурсивно материализует дочерние wimps.
  *
- * Обход дерева — послойный: на каждом BFS-слое топологии родительской меты сначала
+ * Обход дерева — послойный: на каждом BFS-слое топологии родительской wimp сначала
  * создаются все topology-узлы слоя, затем рекурсивно материализуются child wimps этого
  * же слоя, и только потом обход переходит к следующему слою.
  *
  * @returns корневой `Actor` ORM.
  */
-export async function matter(meta: Wimp, options: MatterOptions = {}): Promise<Actor> {
+export async function matter(wimp: Wimp, options: MatterOptions = {}): Promise<Actor> {
   const positionByParent = new Map<string, number>()
-  const rootUuid = await materializeMeta(meta, null, undefined, options, positionByParent)
+  const rootUuid = await materializeWimp(wimp, null, undefined, options, positionByParent)
 
   if (options.suppressGravityBarrier !== true) emitBarrier()
 

@@ -38,12 +38,12 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     // НЕ удаляем storePath — файл остаётся в dark/tmp/boundary.sqlite для ручного осмотра
   })
 
-  test("после add /meta/zavx0z~1git store содержит каноническое дерево git", async () => {
+  test("после add /wimp/zavx0z~1git store содержит каноническое дерево git", async () => {
     outbound.postMessage({
       channel: "gravity",
       boson: "graviton",
       source: "app",
-      patches: [{op: "add", path: "/meta/zavx0z~1git"}],
+      patches: [{op: "add", path: "/wimp/zavx0z~1git"}],
     } satisfies GravitonMessage)
 
     // ждём barrier от Dark — он публикуется один раз в конце top-level matter()
@@ -65,8 +65,8 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
 
     const sql = new SQL(`sqlite://${storePath}`)
     try {
-      const metaRows = await sql<Array<{src: string}>>`SELECT src FROM wimp ORDER BY src`
-      const srcs = metaRows.map((row) => row.src)
+      const wimpRows = await sql<Array<{src: string}>>`SELECT src FROM wimp ORDER BY src`
+      const srcs = wimpRows.map((row) => row.src)
 
       expect(srcs).toContain("zavx0z/git")
       expect(srcs).toContain("zavx0z/git-start")
@@ -99,14 +99,14 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     }
   }, 60_000)
 
-  test("повторный add /meta/zavx0z~1git идемпотентен — server пропускает уже залитую мету", async () => {
+  test("повторный add /wimp/zavx0z~1git идемпотентен — server пропускает уже залитый wimp", async () => {
     const observedBefore = observed.length
 
     outbound.postMessage({
       channel: "gravity",
       boson: "graviton",
       source: "app",
-      patches: [{op: "add", path: "/meta/zavx0z~1git"}],
+      patches: [{op: "add", path: "/wimp/zavx0z~1git"}],
     } satisfies GravitonMessage)
 
     // даём server'у тик — если бы он начал загрузку, он бы уехал в matter()

@@ -34,7 +34,7 @@ describe("matter(zavx0z/git) → store", () => {
     rmSync(`${tmpFile}-wal`, {force: true})
   })
 
-  test("root actor создан, привязан к meta zavx0z/git", async () => {
+  test("root actor создан, привязан к wimp zavx0z/git", async () => {
     expect(root.uuid).toBeDefined()
     expect(await root.wimp()).toBe(src)
     expect(await root.position()).toBe(0)
@@ -95,10 +95,10 @@ describe("matter(zavx0z/git) → store", () => {
     )[0]
     if (!startRow) throw new Error("git-start actor not found")
 
-    const rootMeta = await store.wimp.get(src)
-    const startMeta = await store.wimp.get(`${src}-start`)
-    const rootIds = await rootMeta!.identifiers()
-    const startIds = await startMeta!.identifiers()
+    const rootWimp = await store.wimp.get(src)
+    const startWimp = await store.wimp.get(`${src}-start`)
+    const rootIds = await rootWimp!.identifiers()
+    const startIds = await startWimp!.identifiers()
     const rootArgsField = rootIds.fieldUuids.get("args")
     const startArgsField = startIds.fieldUuids.get("args")
     expect(rootArgsField).toBeDefined()
