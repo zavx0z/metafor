@@ -1,6 +1,6 @@
 import type {SQL} from "bun"
 import {Fields} from "./fields/index.ts"
-import {Superposition} from "./superposition.ts"
+import {States} from "./states/index.ts"
 import {Processes} from "./processes/index.ts"
 import {Reactions} from "./reactions.ts"
 import {Matter} from "./matter.ts"
@@ -9,7 +9,7 @@ import {Bulk} from "./bulk.ts"
 
 export class Wimp {
   readonly fields: Fields
-  readonly superposition: Superposition
+  readonly states: States
   readonly processes: Processes
   readonly reactions: Reactions
   readonly matter: Matter
@@ -23,7 +23,7 @@ export class Wimp {
     readonly src: string,
   ) {
     this.fields = new Fields(this)
-    this.superposition = new Superposition(this)
+    this.states = new States(this)
     this.processes = new Processes(this)
     this.reactions = new Reactions(this)
     this.matter = new Matter(this)

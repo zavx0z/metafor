@@ -12,7 +12,7 @@ export class Transition {
   }
 
   async uuid(): Promise<string> {
-    const sql = this.state.superposition.wimp.sql
+    const sql = this.state.states.wimp.sql
     const fromUuid = await this.state.uuid()
     const row = (
       await sql<Array<{ uuid: string }>>`
@@ -26,14 +26,14 @@ export class Transition {
     )[0]
     if (!row) {
       throw new Error(
-        `transition ${this.state.name} → ${this.toName} not found in wimp ${this.state.superposition.wimp.src}`,
+        `transition ${this.state.name} → ${this.toName} not found in wimp ${this.state.states.wimp.src}`,
       )
     }
     return row.uuid
   }
 
   async position(): Promise<number> {
-    const sql = this.state.superposition.wimp.sql
+    const sql = this.state.states.wimp.sql
     const uuid = await this.uuid()
     const row = (
       await sql<Array<{ position: number }>>`
@@ -54,8 +54,8 @@ export class Transitions {
    * Position — auto (next).
    */
   async add(toName: string): Promise<Transition> {
-    const sql = this.state.superposition.wimp.sql
-    const src = this.state.superposition.wimp.src
+    const sql = this.state.states.wimp.sql
+    const src = this.state.states.wimp.src
     const fromUuid = await this.state.uuid()
 
     const targetRow = (
@@ -85,7 +85,7 @@ export class Transitions {
   }
 
   async all(): Promise<Transition[]> {
-    const sql = this.state.superposition.wimp.sql
+    const sql = this.state.states.wimp.sql
     const fromUuid = await this.state.uuid()
     const rows = await sql<Array<{ to_name: string }>>`
       SELECT target.name AS to_name
@@ -98,7 +98,7 @@ export class Transitions {
   }
 
   async get(filter: { to: string }): Promise<Transition | null> {
-    const sql = this.state.superposition.wimp.sql
+    const sql = this.state.states.wimp.sql
     const fromUuid = await this.state.uuid()
     const row = (
       await sql<Array<{ ok: number }>>`
@@ -114,7 +114,7 @@ export class Transitions {
   }
 
   async count(): Promise<number> {
-    const sql = this.state.superposition.wimp.sql
+    const sql = this.state.states.wimp.sql
     const fromUuid = await this.state.uuid()
     const row = (
       await sql<Array<{ count: number }>>`
@@ -125,7 +125,7 @@ export class Transitions {
   }
 
   async exists(): Promise<boolean> {
-    const sql = this.state.superposition.wimp.sql
+    const sql = this.state.states.wimp.sql
     const fromUuid = await this.state.uuid()
     const row = (
       await sql<Array<{ ok: number }>>`

@@ -28,7 +28,7 @@ export class Condition {
   }
 
   async uuid(): Promise<string> {
-    const sql = this.transition.state.superposition.wimp.sql
+    const sql = this.transition.state.states.wimp.sql
     const transitionUuid = await this.transition.uuid()
     const row = (
       await sql<Array<{ uuid: string }>>`
@@ -59,7 +59,7 @@ export class Predicates {
    * pre-resolve в `value_variant` (если value совпадает с enum.item_value поля).
    */
   async add(op: string, val: unknown): Promise<Predicate> {
-    const sql = this.condition.transition.state.superposition.wimp.sql
+    const sql = this.condition.transition.state.states.wimp.sql
     const conditionUuid = await this.condition.uuid()
 
     const posRow = (
@@ -107,7 +107,7 @@ export class Predicates {
   }
 
   async all(): Promise<Predicate[]> {
-    const sql = this.condition.transition.state.superposition.wimp.sql
+    const sql = this.condition.transition.state.states.wimp.sql
     const conditionUuid = await this.condition.uuid()
     const rows = await sql<Array<{ uuid: string }>>`
       SELECT uuid FROM condition_predicate
@@ -118,7 +118,7 @@ export class Predicates {
   }
 
   async count(): Promise<number> {
-    const sql = this.condition.transition.state.superposition.wimp.sql
+    const sql = this.condition.transition.state.states.wimp.sql
     const conditionUuid = await this.condition.uuid()
     const row = (
       await sql<Array<{ count: number }>>`
@@ -129,7 +129,7 @@ export class Predicates {
   }
 
   async exists(): Promise<boolean> {
-    const sql = this.condition.transition.state.superposition.wimp.sql
+    const sql = this.condition.transition.state.states.wimp.sql
     const conditionUuid = await this.condition.uuid()
     const row = (
       await sql<Array<{ ok: number }>>`
@@ -148,8 +148,8 @@ export class Conditions {
    * Если поле не существует — возвращает `null` (caller skip-ает).
    */
   async add(fieldKey: string): Promise<Condition | null> {
-    const sql = this.transition.state.superposition.wimp.sql
-    const src = this.transition.state.superposition.wimp.src
+    const sql = this.transition.state.states.wimp.sql
+    const src = this.transition.state.states.wimp.src
     const fieldUuid = await resolveFieldUuid(sql, src, fieldKey)
     if (!fieldUuid) return null
 
@@ -173,7 +173,7 @@ export class Conditions {
   }
 
   async all(): Promise<Condition[]> {
-    const sql = this.transition.state.superposition.wimp.sql
+    const sql = this.transition.state.states.wimp.sql
     const transitionUuid = await this.transition.uuid()
     const rows = await sql<Array<{ field_key: string }>>`
       SELECT field.key AS field_key
@@ -186,7 +186,7 @@ export class Conditions {
   }
 
   async get(filter: { fieldKey: string }): Promise<Condition | null> {
-    const sql = this.transition.state.superposition.wimp.sql
+    const sql = this.transition.state.states.wimp.sql
     const transitionUuid = await this.transition.uuid()
     const row = (
       await sql<Array<{ ok: number }>>`
@@ -202,7 +202,7 @@ export class Conditions {
   }
 
   async count(): Promise<number> {
-    const sql = this.transition.state.superposition.wimp.sql
+    const sql = this.transition.state.states.wimp.sql
     const transitionUuid = await this.transition.uuid()
     const row = (
       await sql<Array<{ count: number }>>`
@@ -213,7 +213,7 @@ export class Conditions {
   }
 
   async exists(): Promise<boolean> {
-    const sql = this.transition.state.superposition.wimp.sql
+    const sql = this.transition.state.states.wimp.sql
     const transitionUuid = await this.transition.uuid()
     const row = (
       await sql<Array<{ ok: number }>>`

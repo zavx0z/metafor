@@ -1,5 +1,16 @@
 import type { Condition } from "./condition.ts"
-import type { PredicateRow } from "./superposition.t.ts"
+
+type PredicateRow = {
+  uuid: string
+  condition: string
+  predicate_order: number
+  operator: string
+  value_kind: "null" | "boolean" | "number" | "string" | "enum" | "list"
+  value_boolean: number | null
+  value_number: number | null
+  value_text: string | null
+  value_variant: string | null
+}
 
 const decodeOperatorKey = (operator: string): string => {
   switch (operator) {
@@ -44,7 +55,7 @@ export class Predicate {
   ) {}
 
   async order(): Promise<number> {
-    const sql = this.condition.transition.state.superposition.wimp.sql
+    const sql = this.condition.transition.state.states.wimp.sql
     const row = (
       await sql<Array<{ predicate_order: number }>>`
         SELECT predicate_order FROM condition_predicate WHERE uuid = ${this.uuid} LIMIT 1
@@ -55,7 +66,7 @@ export class Predicate {
   }
 
   async operator(): Promise<string> {
-    const sql = this.condition.transition.state.superposition.wimp.sql
+    const sql = this.condition.transition.state.states.wimp.sql
     const row = (
       await sql<Array<{ operator: string; value_kind: PredicateRow["value_kind"] }>>`
         SELECT operator, value_kind FROM condition_predicate WHERE uuid = ${this.uuid} LIMIT 1
@@ -71,7 +82,7 @@ export class Predicate {
 
   /** Decoded scalar/list value. Для `null`-operator возвращает true/false. */
   async value(): Promise<unknown> {
-    const sql = this.condition.transition.state.superposition.wimp.sql
+    const sql = this.condition.transition.state.states.wimp.sql
     const row = (
       await sql<Array<PredicateRow>>`
         SELECT uuid, condition, predicate_order, operator, value_kind,

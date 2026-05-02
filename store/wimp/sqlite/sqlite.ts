@@ -6,10 +6,10 @@ import fieldNumberSchemaSql from "./fields/number.sql" with {type: "text"}
 import fieldBooleanSchemaSql from "./fields/boolean.sql" with {type: "text"}
 import fieldArraySchemaSql from "./fields/array.sql" with {type: "text"}
 import fieldEnumSchemaSql from "./fields/enum.sql" with {type: "text"}
-import superpositionSchemaSql from "./superposition.sql" with {type: "text"}
-import transitionSchemaSql from "./transition.sql" with {type: "text"}
-import conditionSchemaSql from "./condition.sql" with {type: "text"}
-import predicateSchemaSql from "./predicate.sql" with {type: "text"}
+import superpositionSchemaSql from "./states/superposition.sql" with {type: "text"}
+import transitionSchemaSql from "./states/transition.sql" with {type: "text"}
+import conditionSchemaSql from "./states/condition.sql" with {type: "text"}
+import predicateSchemaSql from "./states/predicate.sql" with {type: "text"}
 import processSchemaSql from "./processes/process.sql" with {type: "text"}
 import actionSchemaSql from "./processes/action.sql" with {type: "text"}
 import finallySchemaSql from "./processes/finally.sql" with {type: "text"}

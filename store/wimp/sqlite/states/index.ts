@@ -1,7 +1,7 @@
-import type { Wimp } from "./wimp.ts"
+import type { Wimp } from "../wimp.ts"
 import { State } from "./state.ts"
 
-export class Superposition {
+export class States {
   constructor(readonly wimp: Wimp) {}
 
   /**

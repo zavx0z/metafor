@@ -103,7 +103,7 @@ const buildActorRows = async (params: {
     values.push({actor: actorUuid, field: fieldUuid, value: valueUuid})
   }
 
-  const initial = await wimp.superposition.initial()
+  const initial = await wimp.states.initial()
   const initialState = initial ? await initial.uuid() : null
 
   return {

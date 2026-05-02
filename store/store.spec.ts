@@ -129,7 +129,7 @@ describe("store/server smoke", () => {
     if (!meta) throw new Error("meta missing")
     expect(await meta.name.get()).toBe("smoke")
     expect(await meta.fields.count()).toBe(2)
-    expect(await meta.superposition.count()).toBe(2)
+    expect(await meta.states.count()).toBe(2)
 
     const flag = await meta.fields.get({key: "flag"})
     if (!flag) throw new Error("flag field missing")
