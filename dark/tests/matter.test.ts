@@ -3,6 +3,7 @@ import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import type {Actor} from "@store/actor"
+import type {Store} from "../../store/index.ts"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
 
@@ -17,8 +18,9 @@ describe("matter() — runtime tree через store", () => {
     mkdirSync(tmpDir, {recursive: true})
     tmpFile = join(tmpDir, `matter-${crypto.randomUUID()}.sqlite`)
     store = await open(tmpFile)
+    ;(globalThis as unknown as {store: Store}).store = store
     sql = new SQL(`sqlite://${tmpFile}`)
-    root = await matter("zavx0z/git", {store})
+    root = await matter("zavx0z/git")
   })
   afterAll(async () => {
     await sql.close()

@@ -1,4 +1,5 @@
 import {open} from "../store/server.ts"
+import type {Store} from "../store/index.ts"
 import {matter} from "./dark.ts"
 import {MetaFor} from "../metafor"
 
@@ -11,6 +12,7 @@ if (typeof globalThis !== "undefined") {
 
 if (typeof self !== "undefined" && "postMessage" in self) {
   const store = await open(":memory:")
+  ;(globalThis as unknown as {store: Store}).store = store
 
   self.onmessage = async (event: MessageEvent<{src?: string}>) => {
     const {src} = event.data
@@ -18,7 +20,7 @@ if (typeof self !== "undefined" && "postMessage" in self) {
 
     try {
       self.postMessage({type: "status", status: "started", src})
-      await matter(src, {store})
+      await matter(src)
       self.postMessage({type: "status", status: "done", src})
     } catch (error) {
       self.postMessage({

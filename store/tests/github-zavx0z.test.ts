@@ -36,6 +36,7 @@ describe("store/tests github/zavx0z startup load", () => {
     rmSync(`${sqliteFilename}-shm`, {force: true})
     rmSync(`${sqliteFilename}-wal`, {force: true})
     store = await open(sqliteFilename)
+    ;(globalThis as unknown as {store: Store}).store = store
     sql = new SQL(`sqlite://${sqliteFilename}`)
   })
 
@@ -50,7 +51,6 @@ describe("store/tests github/zavx0z startup load", () => {
 
     try {
       await matter("zavx0z/git", {
-        store,
         async onMaterializedStep(step) {
           if (step.kind !== "actor") return
           materializedWimps.push(step.particle.uuid)

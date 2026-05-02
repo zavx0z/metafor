@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
+import type {Store} from "../store/index.ts"
 import {open} from "../store/server.ts"
 import {matter} from "./index.ts"
 
@@ -9,6 +10,7 @@ describe("meta normalization", () => {
 
   beforeEach(async () => {
     store = await open(":memory:")
+    ;(globalThis as unknown as {store: Store}).store = store
     sql = new SQL("sqlite::memory:")
   })
 
@@ -18,7 +20,7 @@ describe("meta normalization", () => {
   })
 
   test("повторная materialization одинакового src НЕ дублирует декларацию в store", async () => {
-    await matter("zavx0z/git", {store})
+    await matter("zavx0z/git")
 
     const firstMeta = await store.meta.get("zavx0z/git")
     expect(firstMeta).not.toBeNull()
@@ -27,7 +29,7 @@ describe("meta normalization", () => {
     // Вторая попытка той же src через matter():
     // loadMeta видит существующую meta и пропускает emit declaration —
     // декларация в БД не перезаписывается, identifiers те же.
-    await matter("zavx0z/git", {store})
+    await matter("zavx0z/git")
 
     const secondMeta = await store.meta.get("zavx0z/git")
     expect(secondMeta).not.toBeNull()

@@ -1,6 +1,7 @@
 import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage} from "@shared/protocol"
-import {open} from "../store/server.ts"
 import {MetaFor} from "../metafor"
+import type {Store} from "store"
+import {open} from "store/server"
 import {matter} from "./dark.ts"
 
 // DSL-файлы `github/.../meta.ts` обращаются к `MetaFor(...)` как к глобальной функции,
@@ -8,9 +9,9 @@ import {matter} from "./dark.ts"
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
 /**
- * Серверный демон Dark: открывает файловый store через `store/server.open()`
- * и слушает `gravity`-канал на входящие гравитоны вида `add /meta/<src>` —
- * по такому патчу запускает `matter(src, { store })`,
+ * Серверный демон Dark: открывает файловый store через `store/server.open()`,
+ * публикует его в `globalThis.store`, и слушает `gravity`-канал на входящие
+ * гравитоны вида `add /meta/<src>` — по такому патчу запускает `matter(src)`,
  * который через ORM пишет meta + actor + topology rows.
  *
  * Исходящие сообщения от самого Dark (`source === "dark"`) пропускаются,
@@ -18,6 +19,9 @@ import {matter} from "./dark.ts"
  */
 
 const STORE_PATH = process.env.DARK_STORE_PATH ?? "./boundary.sqlite"
+
+const store = await open(STORE_PATH)
+;(globalThis as unknown as {store: Store}).store = store
 
 const decodeSegment = (s: string): string => s.replace(/~1/g, "/").replace(/~0/g, "~")
 
@@ -29,7 +33,7 @@ const extractMetaSrc = (path: string): string | null => {
   return decodeSegment(rest)
 }
 
-const store = await open(STORE_PATH)
+
 const gravity = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
 
 const handleMetaLoad = async (src: string): Promise<void> => {
@@ -40,7 +44,7 @@ const handleMetaLoad = async (src: string): Promise<void> => {
   }
   console.log(`[dark/server] загружаю мету "${src}"`)
   try {
-    await matter(src, {store})
+    await matter(src)
     console.log(`[dark/server] мета "${src}" материализована`)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

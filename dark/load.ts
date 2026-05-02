@@ -6,6 +6,14 @@ import {projectTemplateMatterRelations} from "./matter.ts"
 
 const {HUB, MODULE} = settings
 
+const getStore = (): Store => {
+  const store = (globalThis as unknown as {store?: Store}).store
+  if (!store) {
+    throw new Error("dark: globalThis.store не установлен — инициализируй store перед loadMeta()")
+  }
+  return store
+}
+
 /**
  * Читает DSL meta из локального TS-модуля через dynamic import.
  *
@@ -25,16 +33,12 @@ export const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
 }
 
 /**
- * Канонизирует мету:
- * - если её ещё нет в store — записывает декларацию через `store.meta.create(src, dsl, matter)`,
- * - если уже есть — читает `MetaIdentifiers` из store через `Meta.identifiers()` ORM.
- *
- * Без in-memory кеша: повторный вызов всегда делает либо создание, либо SQL-запрос за uuid'ами.
+ * Канонизирует мету в текущем module-level store:
+ * - если её ещё нет — записывает декларацию через `store.meta.create(src, dsl, matter)`,
+ * - если уже есть — читает `MetaIdentifiers` через `Meta.identifiers()` ORM.
  */
-export const loadMeta = async (
-  src: SRC,
-  store: Pick<Store, "meta">,
-): Promise<MetaIdentifiers> => {
+export const loadMeta = async (src: SRC): Promise<MetaIdentifiers> => {
+  const store = getStore()
   const existing = await store.meta.get(src)
   if (existing) return existing.identifiers()
 

@@ -1,13 +1,24 @@
 import type {FieldDefinition, FieldKey} from "../index.ts"
 import type {MetaIdentifiers} from "@store/meta/sqlite"
-import type {ActorRows, ActorValueRecord, AnyValue, ValueItemRecord, ValueRecord} from "@store/actor"
-import type {Actor, ActorRecord} from "@store/actor"
+import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord, Actor} from "@store/actor"
 import type {Store} from "../store/index.ts"
 import type {MatterParticlePlan} from "@dark/types/dark"
 import {emitAdd, emitBarrier} from "@dark/gravity/channel.ts"
 import {loadMeta} from "./load.ts"
 import {projectStoreMatterParticles} from "./matter.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation, type FieldInit} from "./continuation.ts"
+
+/**
+ * Module-level store берётся из `globalThis.store`. Устанавливается в `dark/server.ts`
+ * (демон) либо `dark/index.ts` (worker), либо в тестах через прямую запись.
+ */
+const getStore = (): Store => {
+  const store = (globalThis as unknown as {store?: Store}).store
+  if (!store) {
+    throw new Error("dark: globalThis.store не установлен — инициализируй store перед matter()")
+  }
+  return store
+}
 
 export type ParticleRef = {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string}
 
@@ -18,8 +29,7 @@ export interface MatterMaterializationStep {
   src?: string
 }
 
-interface MatterOptions {
-  store: Store
+export interface MatterOptions {
   onMaterializedStep?: (step: MatterMaterializationStep) => Promise<void> | void
   suppressGravityBarrier?: boolean
 }
@@ -28,40 +38,6 @@ const nextPosition = (counter: Map<string, number>, parentKey: string): number =
   const next = counter.get(parentKey) ?? 0
   counter.set(parentKey, next + 1)
   return next
-}
-
-/**
- * Извлекает raw runtime-значение из ORM Value (для snapshot и default-сравнения).
- */
-const decodeValue = async (value: AnyValue, variantText: Map<string, string>): Promise<unknown> => {
-  switch (value.kind) {
-    case "null":
-      return null
-    case "boolean":
-      return await value.boolean()
-    case "number":
-      return await value.number()
-    case "string":
-      return await value.text()
-    case "enum": {
-      const variantUuid = await value.variant()
-      return variantText.get(variantUuid) ?? null
-    }
-    case "list": {
-      const items = await value.items()
-      return items.map((item) => item.itemValue)
-    }
-  }
-}
-
-const buildVariantTextMap = (identifiers: MetaIdentifiers): Map<string, string> => {
-  const map = new Map<string, string>()
-  for (const [, sub] of identifiers.variantUuids) {
-    for (const [text, variantUuid] of sub) {
-      map.set(variantUuid, text)
-    }
-  }
-  return map
 }
 
 const buildValueRecord = (
@@ -98,7 +74,6 @@ const buildValueRecord = (
 
 /**
  * Резолвит value uuid поля родителя через store-чтение (для entanglement через shared row).
- * Делает 2 SQL запроса: head(actor) → meta.identifiers() → link.get → value.uuid.
  */
 const resolveSourceValueUuid = async (
   parentActorUuid: string,
@@ -118,10 +93,6 @@ const resolveSourceValueUuid = async (
   return value.uuid
 }
 
-/**
- * Строит `ActorRows` из готового набора финальных field values + identifiers.
- * Source-fields share value.uuid с родителем через store-чтение.
- */
 const buildActorRows = async (params: {
   actorUuid: string
   parent: ParticleRef | null
@@ -184,12 +155,6 @@ interface PendingChildWimp {
   continuation: Continuation
 }
 
-/**
- * Материализует одну мету: пишет actor row, обходит её топологический план (BFS),
- * создаёт topology rows для Fuzzy/Axion/Macho и рекурсивно входит в child wimp meta'ы.
- *
- * @returns uuid созданного actor.
- */
 const materializeMeta = async (
   src: string,
   parent: ParticleRef | null,
@@ -197,8 +162,9 @@ const materializeMeta = async (
   options: MatterOptions,
   positionByParent: Map<string, number>,
 ): Promise<string> => {
-  const identifiers = await loadMeta(src, options.store)
-  const particleModel = await options.store.meta.readDarkParticleModel(src)
+  const store = getStore()
+  const identifiers = await loadMeta(src)
+  const particleModel = await store.meta.readDarkParticleModel(src)
   if (!particleModel) {
     throw new Error(`Dark runtime meta "${src}" is not canonicalized in store after loadMeta`)
   }
@@ -218,14 +184,13 @@ const materializeMeta = async (
     finalValues,
     fieldSchemas,
     identifiers,
-    store: options.store,
+    store,
   })
-  await options.store.actor.create(rows)
+  await store.actor.create(rows)
   emitAdd(actorUuid)
 
   await options.onMaterializedStep?.({kind: "actor", particle: {kind: "actor", uuid: actorUuid}, src})
 
-  // Snapshot для построения continuation дочерних wimp.
   const fieldValuesSnapshot = new Map<FieldKey, unknown>()
   const fieldTypesSnapshot = new Map<FieldKey, string>()
   for (const [key, init] of finalValues) {
@@ -264,7 +229,7 @@ const materializeMeta = async (
         case "macho": {
           const topologyUuid = crypto.randomUUID()
           const topologyPos = nextPosition(positionByParent, entry.parent.uuid)
-          await options.store.topology.create({
+          await store.topology.create({
             uuid: topologyUuid,
             parentActor: entry.parent.kind === "actor" ? entry.parent.uuid : null,
             parentTopology: entry.parent.kind === "topology" ? entry.parent.uuid : null,
@@ -285,7 +250,6 @@ const materializeMeta = async (
     frontier = next
   }
 
-  // Рекурсивно материализуем дочерние wimp meta после завершения BFS topology.
   for (const pending of pendingChildren) {
     await materializeMeta(pending.src, pending.parent, pending.continuation, options, positionByParent)
   }
@@ -296,24 +260,21 @@ const materializeMeta = async (
 /**
  * Публичный entrypoint Dark.
  *
- * Принимает канонический `src` меты, разворачивает её дерево через store ORM:
- * - канонизирует meta через `store.meta.create`,
- * - создаёт actor + topology rows через `store.actor.create` / `store.topology.create`,
- * - рекурсивно материализует дочерние wimp,
- * - один раз публикует gravity barrier на верхнем вызове.
+ * Использует module-level store, установленный через `setStore(store)` (см. `dark/runtime.ts`).
+ * Принимает канонический `src` меты и разворачивает её дерево через store ORM.
  *
- * @returns корневой `Actor` ORM (для дальнейшего read-обхода через `actor.children`/`topology.childrenOfActor`).
+ * @returns корневой `Actor` ORM.
  */
-export async function matter(src: string, options: MatterOptions): Promise<Actor> {
+export async function matter(src: string, options: MatterOptions = {}): Promise<Actor> {
+  const store = getStore()
   const positionByParent = new Map<string, number>()
   const rootUuid = await materializeMeta(src, null, undefined, options, positionByParent)
 
   if (options.suppressGravityBarrier !== true) emitBarrier()
 
-  const root = await options.store.actor.get(rootUuid)
+  const root = await store.actor.get(rootUuid)
   if (!root) throw new Error(`Root actor ${rootUuid} missing after materialization`)
   return root
 }
 
-// Re-exports для consumers (типы)
 export type {Continuation, FieldInit} from "./continuation.ts"

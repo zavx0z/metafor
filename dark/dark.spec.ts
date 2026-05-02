@@ -3,6 +3,7 @@ import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import type {Actor} from "@store/actor"
+import type {Store} from "../store/index.ts"
 import {open} from "../store/server.ts"
 import {matter} from "./dark.ts"
 
@@ -19,8 +20,9 @@ describe("matter(zavx0z/git) → store", () => {
     mkdirSync(tmpDir, {recursive: true})
     tmpFile = join(tmpDir, `dark-spec-${crypto.randomUUID()}.sqlite`)
     store = await open(tmpFile)
+    ;(globalThis as unknown as {store: Store}).store = store
     sql = new SQL(`sqlite://${tmpFile}`)
-    root = await matter(src, {store})
+    root = await matter(src)
   })
 
   afterAll(async () => {

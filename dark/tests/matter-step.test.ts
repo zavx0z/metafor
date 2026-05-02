@@ -1,4 +1,5 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
+import type {Store} from "../../store/index.ts"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
 
@@ -14,8 +15,8 @@ describe("dark matter — observation hook", () => {
 
   beforeAll(async () => {
     store = await open(":memory:")
+    ;(globalThis as unknown as {store: Store}).store = store
     await matter("zavx0z/git", {
-      store,
       onMaterializedStep(step) {
         steps.push({
           kind: step.kind,
