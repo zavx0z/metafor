@@ -1,21 +1,11 @@
 import type {SQL} from "bun"
-import type {MetaDSL} from "../../../metafor.t.ts"
-import type {WimpRow} from "./wimp.t.ts"
 import {Fields} from "./fields.ts"
 import {Superposition} from "./superposition.ts"
 import {Processes} from "./process.ts"
 import {Reactions} from "./reactions.ts"
 import {Matter} from "./matter.ts"
 import {Mass} from "./mass.ts"
-
-const getWimpRow = async (sql: SQL, src: string): Promise<WimpRow | null> => {
-  const rows = await sql<WimpRow[]>`
-      SELECT src, name, desc, view_css
-      FROM wimp
-      WHERE src = ${src}
-  `
-  return rows[0] ?? null
-}
+import {Bulk} from "./bulk.ts"
 
 export class Wimp {
   readonly fields: Fields
@@ -24,6 +14,9 @@ export class Wimp {
   readonly reactions: Reactions
   readonly matter: Matter
   readonly mass: Mass
+  readonly bulk: Bulk
+  readonly name: Name
+  readonly desc: Desc
 
   constructor(
     readonly sql: SQL,
@@ -35,32 +28,60 @@ export class Wimp {
     this.reactions = new Reactions(this)
     this.matter = new Matter(this)
     this.mass = new Mass(this)
+    this.bulk = new Bulk(this)
+    this.name = new Name(this)
+    this.desc = new Desc(this)
+  }
+}
+
+export abstract class WimpScalar<T> {
+  constructor(readonly wimp: Wimp) {
   }
 
-  async name(): Promise<string> {
-    const row = await getWimpRow(this.sql, this.src)
-    return row?.name ?? this.src.split("/").pop() ?? this.src
+  abstract get(): Promise<T | undefined>
+
+  abstract set(value: T | null): Promise<void>
+}
+
+export class Name extends WimpScalar<string> {
+  async get(): Promise<string | undefined> {
+    const row = (
+      await this.wimp.sql<Array<{ name: string | null }>>`
+          SELECT name
+          FROM wimp
+          WHERE src = ${this.wimp.src}
+          LIMIT 1
+      `
+    )[0]
+    return row?.name ?? undefined
   }
 
-  async desc(): Promise<string | undefined> {
-    const row = await getWimpRow(this.sql, this.src)
+  async set(value: string | null): Promise<void> {
+    await this.wimp.sql`
+        UPDATE wimp
+        SET name = ${value}
+        WHERE src = ${this.wimp.src}`
+  }
+}
+
+export class Desc extends WimpScalar<string> {
+  async get(): Promise<string | undefined> {
+    const row = (
+      await this.wimp.sql<Array<{ desc: string | null }>>`
+          SELECT desc
+          FROM wimp
+          WHERE src = ${this.wimp.src}
+          LIMIT 1
+      `
+    )[0]
     return row?.desc ?? undefined
   }
 
-  async bulk(): Promise<MetaDSL["bulk"]> {
-    const row = await getWimpRow(this.sql, this.src)
-    return row?.view_css ? ({view: row.view_css} as MetaDSL["bulk"]) : undefined
-  }
-
-  async setMetadata(input: {name?: string | null; desc?: string | null; viewCss?: string | null}): Promise<void> {
-    if (input.name !== undefined) {
-      await this.sql`UPDATE wimp SET name = ${input.name} WHERE src = ${this.src}`
-    }
-    if (input.desc !== undefined) {
-      await this.sql`UPDATE wimp SET desc = ${input.desc} WHERE src = ${this.src}`
-    }
-    if (input.viewCss !== undefined) {
-      await this.sql`UPDATE wimp SET view_css = ${input.viewCss} WHERE src = ${this.src}`
-    }
+  async set(value: string | null): Promise<void> {
+    await this.wimp.sql`
+        UPDATE wimp
+        SET desc = ${value}
+        WHERE src = ${this.wimp.src}
+    `
   }
 }

@@ -127,7 +127,7 @@ describe("store/server smoke", () => {
 
     const meta = await store.wimp.get(SRC)
     if (!meta) throw new Error("meta missing")
-    expect(await meta.name()).toBe("smoke")
+    expect(await meta.name.get()).toBe("smoke")
     expect(await meta.fields.count()).toBe(2)
     expect(await meta.superposition.count()).toBe(2)
 
