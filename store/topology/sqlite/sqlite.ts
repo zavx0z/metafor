@@ -3,7 +3,7 @@ import topologySql from "./topology.sql" with {type: "text"}
 import topologyFuzzyStateSql from "./topology_fuzzy_state.sql" with {type: "text"}
 import {buildTopology, decodeTopologyRow} from "./topology.ts"
 import type {AnyTopology} from "./topology.ts"
-import type {TopologyRecord} from "./topology.t.ts"
+import type {TopologyInput, TopologyRecord} from "./topology.t.ts"
 
 export class StoreTopologySqlite {
   private constructor(private readonly sql: SQL) {}
@@ -22,13 +22,22 @@ export class StoreTopologySqlite {
   /**
    * Создаёт topology-узел (Fuzzy/Axion/Macho). Polymorphic parent: ровно один из
    * `parentActor`/`parentTopology` должен быть задан.
+   * Position вычисляется автоматически как next среди siblings.
    */
-  async create(input: TopologyRecord): Promise<AnyTopology> {
+  async create(input: TopologyInput): Promise<AnyTopology> {
+    const siblingCount = (
+      await this.sql<Array<{count: number}>>`
+        SELECT COUNT(*) AS count FROM topology
+        WHERE parent_actor IS ${input.parentActor}
+          AND parent_topology IS ${input.parentTopology}
+      `
+    )[0]?.count ?? 0
+    const position = Number(siblingCount)
     await this.sql`
       INSERT INTO topology (uuid, parent_actor, parent_topology, kind, position)
-      VALUES (${input.uuid}, ${input.parentActor}, ${input.parentTopology}, ${input.kind}, ${input.position})
+      VALUES (${input.uuid}, ${input.parentActor}, ${input.parentTopology}, ${input.kind}, ${position})
     `
-    return buildTopology(this.sql, input)
+    return buildTopology(this.sql, {...input, position})
   }
 
   async get(uuid: string): Promise<AnyTopology | null> {

@@ -182,11 +182,21 @@ export class Actor {
       const oldValueIds = collected.map((r) => r.value)
       await tx`DELETE FROM actor WHERE uuid = ${rows.actor.uuid}`
 
+      // position = next среди siblings по polymorphic parent
+      const siblingCount = (
+        await tx<Array<{count: number}>>`
+          SELECT COUNT(*) AS count FROM actor
+          WHERE parent_actor IS ${rows.actor.parentActor}
+            AND parent_topology IS ${rows.actor.parentTopology}
+        `
+      )[0]?.count ?? 0
+      const position = Number(siblingCount)
+
       // вставка actor с polymorphic parent
       await tx`
         INSERT INTO actor (uuid, parent_actor, parent_topology, wimp, position)
         VALUES (${rows.actor.uuid}, ${rows.actor.parentActor}, ${rows.actor.parentTopology},
-                ${rows.actor.wimp}, ${rows.actor.position})
+                ${rows.actor.wimp}, ${position})
       `
 
       // value-записи: upsert корня + типизированная подтаблица

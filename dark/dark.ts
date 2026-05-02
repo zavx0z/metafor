@@ -23,12 +23,6 @@ export interface MatterOptions {
   suppressGravityBarrier?: boolean
 }
 
-const nextPosition = (counter: Map<string, number>, parentKey: string): number => {
-  const next = counter.get(parentKey) ?? 0
-  counter.set(parentKey, next + 1)
-  return next
-}
-
 const buildValueRecord = async (
   uuid: string,
   raw: unknown,
@@ -83,11 +77,10 @@ const buildActorRows = async (params: {
   actorUuid: string
   parent: ParticleRef | null
   wimp: Wimp
-  position: number
   finalValues: Map<FieldKey, FieldInit>
   fieldSchemas: Record<FieldKey, FieldDefinition>
 }): Promise<ActorRows> => {
-  const {actorUuid, parent, wimp, position, finalValues, fieldSchemas} = params
+  const {actorUuid, parent, wimp, finalValues, fieldSchemas} = params
   const src = wimp.src
   const values: ActorValueRecord[] = []
   const valueRecords: ValueRecord[] = []
@@ -121,7 +114,6 @@ const buildActorRows = async (params: {
       parentActor: parent?.kind === "actor" ? parent.uuid : null,
       parentTopology: parent?.kind === "topology" ? parent.uuid : null,
       wimp: src,
-      position,
     },
     values,
     valueRecords,
@@ -156,7 +148,6 @@ async function* matterWimp(
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
   options: MatterOptions,
-  positionByParent: Map<string, number>,
 ): AsyncGenerator<PendingChildWimp[], string, void> {
   const src = wimp.src
   const dsl = await readWimpDsl(src)
@@ -174,14 +165,11 @@ async function* matterWimp(
   const finalValues = finalizeFieldValues(fieldSchemas, continuation?.fieldInits)
 
   const actorUuid = crypto.randomUUID()
-  const parentKey = parent?.uuid ?? "root"
-  const position = nextPosition(positionByParent, parentKey)
 
   const rows = await buildActorRows({
     actorUuid,
     parent,
     wimp,
-    position,
     finalValues,
     fieldSchemas,
   })
@@ -228,13 +216,11 @@ async function* matterWimp(
         case "axion":
         case "macho": {
           const topologyUuid = crypto.randomUUID()
-          const topologyPos = nextPosition(positionByParent, entry.parent.uuid)
           await store.topology.create({
             uuid: topologyUuid,
             parentActor: entry.parent.kind === "actor" ? entry.parent.uuid : null,
             parentTopology: entry.parent.kind === "topology" ? entry.parent.uuid : null,
             kind: entry.plan.kind,
-            position: topologyPos,
           })
           await options.onMaterializedStep?.({
             kind: "topology",
@@ -260,9 +246,8 @@ const materializeWimp = async (
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
   options: MatterOptions,
-  positionByParent: Map<string, number>,
 ): Promise<string> => {
-  const generator = matterWimp(wimp, parent, continuation, options, positionByParent)
+  const generator = matterWimp(wimp, parent, continuation, options)
 
   while (true) {
     const result = await generator.next()
@@ -270,7 +255,7 @@ const materializeWimp = async (
     for (const pending of result.value) {
       let childWimp = await store.wimp.get(pending.src)
       if (!childWimp) childWimp = await store.wimp.create(pending.src)
-      await materializeWimp(childWimp, pending.parent, pending.continuation, options, positionByParent)
+      await materializeWimp(childWimp, pending.parent, pending.continuation, options)
     }
   }
 }
@@ -290,8 +275,7 @@ const materializeWimp = async (
  * @returns корневой `Actor` ORM.
  */
 export async function matter(wimp: Wimp, options: MatterOptions = {}): Promise<Actor> {
-  const positionByParent = new Map<string, number>()
-  const rootUuid = await materializeWimp(wimp, null, undefined, options, positionByParent)
+  const rootUuid = await materializeWimp(wimp, null, undefined, options)
 
   if (options.suppressGravityBarrier !== true) emitBarrier()
 

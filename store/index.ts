@@ -1,5 +1,5 @@
 import type {Actor, ActorRecord, ActorRoots, AnyValue, ActorFieldValue, ActorRows} from "@store/actor"
-import type {AnyTopology, TopologyRecord} from "@store/topology"
+import type {AnyTopology, TopologyInput, TopologyRecord} from "@store/topology"
 import type {Wimp} from "@store/wimp/sqlite"
 import type {StoreUpdateMessage} from "./server.ts"
 
@@ -35,8 +35,8 @@ export interface ActorApi {
 }
 
 export interface TopologyApi {
-  /** Создаёт topology-узел (Fuzzy/Axion/Macho). */
-  create(input: TopologyRecord): Promise<AnyTopology>
+  /** Создаёт topology-узел (Fuzzy/Axion/Macho). Position вычисляется автоматически. */
+  create(input: TopologyInput): Promise<AnyTopology>
 
   get(uuid: string): Promise<AnyTopology | null>
 

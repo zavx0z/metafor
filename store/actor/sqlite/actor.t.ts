@@ -12,8 +12,19 @@ export interface ActorRecord {
   position: number
 }
 
+/**
+ * Вход для `Actor.writeRows`. Без `position` — он вычисляется автоматически
+ * как next среди siblings (по `parent_actor`/`parent_topology`).
+ */
+export interface ActorInputRow {
+  uuid: string
+  parentActor: string | null
+  parentTopology: string | null
+  wimp: string
+}
+
 export interface ActorRows {
-  actor: ActorRecord
+  actor: ActorInputRow
   values: ActorValueRecord[]
   valueRecords: ValueRecord[]
   valueItems: ValueItemRecord[]
