@@ -1,4 +1,4 @@
-import type { ActionParams } from "./action.t.ts"
+import type {ActionParams} from "./action.t.ts"
 import {
   extractImportSpecifier,
   extractModuleSrc,
@@ -7,10 +7,10 @@ import {
   updateAppendArg,
   validateActionStructure,
 } from "./action.ts"
-import type { DestroyConfig } from "./finally.t.ts"
-import { createFinallyChain, isFinallyChain, parseFinally } from "./finally.ts"
-import type { Fields, Values } from "./fields.t.ts"
-import { Initiator, type Mass } from "./metafor.t.ts"
+import type {DestroyConfig} from "./finally.t.ts"
+import {createFinallyChain, isFinallyChain, parseFinally} from "./finally.ts"
+import type {Fields, Values} from "./fields.t.ts"
+import {Initiator, type Mass} from "./metafor.t.ts"
 import {
   ProcessType,
   type ActionChain,
@@ -34,7 +34,9 @@ type ProcessChainResult<ɸ extends Fields, m extends Mass, Res, v extends Values
   getResult: () => Process<ɸ, m, Res, v, s>
 }
 
-type ProcessRuntimeResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string> = Process<ɸ, m, Res, v, s> & {
+type ProcessRuntimeResult<ɸ extends Fields, m extends Mass, Res, v extends Values<ɸ>, s extends string> =
+  Process<ɸ, m, Res, v, s>
+  & {
   state: s
 }
 
@@ -57,9 +59,9 @@ export function createProcessChain<ɸ extends Fields, m extends Mass, v extends 
         type: ProcessType.ACTION,
         state,
         action: fn,
-        ...(config?.label ? { label: config.label } : {}),
-        ...(config?.desc ? { desc: config.desc } : {}),
-        ...(config?.env ? { env: config.env } : {}),
+        ...(config?.label ? {label: config.label} : {}),
+        ...(config?.desc ? {desc: config.desc} : {}),
+        ...(config?.env ? {env: config.env} : {}),
       }
 
       const chain: ProcessChainResult<ɸ, m, Res, v, s> = {
@@ -116,13 +118,13 @@ export function parseProcess<ɸ extends Fields, m extends Mass, Res = any, v ext
     type: ProcessType.ACTION,
     action: {
       src: modulePath ?? "",
-      ...(importSpecifier ? { importSpecifier } : {}),
+      ...(importSpecifier ? {importSpecifier} : {}),
       wrapperSrc: normalizeFunctionString(process.action.toString()),
-      ...(parsedAction.read.length > 0 ? { read: parsedAction.read } : {}),
+      ...(parsedAction.read.length > 0 ? {read: parsedAction.read} : {}),
     },
-    ...(process.label ? { label: process.label } : {}),
-    ...(process.desc ? { desc: process.desc } : {}),
-    ...(process.env ? { env: process.env } : {}),
+    ...(process.label ? {label: process.label} : {}),
+    ...(process.desc ? {desc: process.desc} : {}),
+    ...(process.env ? {env: process.env} : {}),
   }
 
   if (process.success) {
@@ -130,8 +132,8 @@ export function parseProcess<ɸ extends Fields, m extends Mass, Res = any, v ext
     const src = normalizeFunctionString(updateAppendArg(process.success.toString(), `"${Initiator.Success}"`))
     result.success = {
       src,
-      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
-      ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
+      ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
+      ...(parsed.write.length > 0 ? {write: parsed.write} : {}),
     }
   }
 
@@ -140,8 +142,8 @@ export function parseProcess<ɸ extends Fields, m extends Mass, Res = any, v ext
     const src = normalizeFunctionString(updateAppendArg(process.error.toString(), `"${Initiator.Error}"`))
     result.error = {
       src,
-      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
-      ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
+      ...(parsed.read.length > 0 ? {read: parsed.read} : {}),
+      ...(parsed.write.length > 0 ? {write: parsed.write} : {}),
     }
   }
 

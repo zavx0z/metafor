@@ -1,8 +1,8 @@
-import type { Fields, Update, Values } from "./fields.t.ts"
-import type { ActionParams } from "./action.t.ts"
-import type { Mass } from "./metafor.t.ts"
-import type { DestroyChain, DestroyConfig, ParsedDestroy } from "./finally.t.ts"
-import type { SuperpositionProcessValue } from "./superposition.t.ts"
+import type {Fields, Update, Values} from "./fields.t.ts"
+import type {ActionParams} from "./action.t.ts"
+import type {Mass} from "./metafor.t.ts"
+import type {DestroyChain, DestroyConfig, ParsedDestroy} from "./finally.t.ts"
+import type {SuperpositionProcessValue} from "./superposition.t.ts"
 
 declare const ProcessStateBrand: unique symbol
 
@@ -118,11 +118,11 @@ export type ProcessesList<
   ψ = never,
 > = readonly (
   | {
-      [S in 𝛴]:
-        | ActionChain<ɸ, m, any, SuperpositionProcessValue<ɸ, ψ, S>, S>
-        | DestroyChain<ɸ, m, S>
-    }[𝛴]
-)[]
+  [S in 𝛴]:
+  | ActionChain<ɸ, m, any, SuperpositionProcessValue<ɸ, ψ, S>, S>
+  | DestroyChain<ɸ, m, S>
+}[𝛴]
+  )[]
 
 /**
  * Тип билдера для декларации набора процессов автомата.
@@ -172,10 +172,12 @@ export type ParsedHandler = {
   /** Строковое представление функции для десериализации */
   src: string
 }
+
 export enum ProcessType {
   ACTION = "action",
   FINALLY = "finally",
 }
+
 /**
  * Распарсенный процесс с обработчиками.
  * Содержит обработчики для действия, успеха и ошибки.

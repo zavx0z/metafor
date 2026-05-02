@@ -1,7 +1,9 @@
 import type { Wimp } from "../wimp.ts"
+import type { ProcessType as ProcessTypeEnum } from "../../../../process.t.ts"
 import { Process } from "./process.ts"
 
-type ProcessType = "action" | "finally"
+/** String-литералы значений `enum ProcessType` из metafor DSL — единый источник истины. */
+export type ProcessType = `${ProcessTypeEnum}`
 
 export class Processes {
   constructor(readonly wimp: Wimp) {}

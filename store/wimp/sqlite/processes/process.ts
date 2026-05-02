@@ -1,9 +1,7 @@
-import type { Processes } from "./index.ts"
+import type { Processes, ProcessType } from "./index.ts"
 import { ProcessAction } from "./action.ts"
 import { ProcessFinally } from "./finally.ts"
 import { ProcessEnvs } from "./env.ts"
-
-type ProcessType = "action" | "finally"
 
 export class Process {
   readonly env: ProcessEnvs
