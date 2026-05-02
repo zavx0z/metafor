@@ -1,24 +1,11 @@
 import type {FieldDefinition, FieldKey} from "../index.ts"
 import type {MetaIdentifiers} from "@store/meta/sqlite"
 import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord, Actor} from "@store/actor"
-import type {Store} from "../store/index.ts"
 import type {MatterParticlePlan} from "@dark/types/dark"
 import {emitAdd, emitBarrier} from "@dark/gravity/channel.ts"
 import {loadMeta} from "./load.ts"
 import {projectStoreMatterParticles} from "./matter.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation, type FieldInit} from "./continuation.ts"
-
-/**
- * Module-level store берётся из `globalThis.store`. Устанавливается в `dark/server.ts`
- * (демон) либо `dark/index.ts` (worker), либо в тестах через прямую запись.
- */
-const getStore = (): Store => {
-  const store = (globalThis as unknown as {store?: Store}).store
-  if (!store) {
-    throw new Error("dark: globalThis.store не установлен — инициализируй store перед matter()")
-  }
-  return store
-}
 
 export type ParticleRef = {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string}
 
@@ -78,7 +65,6 @@ const buildValueRecord = (
 const resolveSourceValueUuid = async (
   parentActorUuid: string,
   parentFieldKey: FieldKey,
-  store: Store,
 ): Promise<string> => {
   const head = await store.actor.head(parentActorUuid)
   if (!head) throw new Error(`parent actor ${parentActorUuid} not found`)
@@ -101,9 +87,8 @@ const buildActorRows = async (params: {
   finalValues: Map<FieldKey, FieldInit>
   fieldSchemas: Record<FieldKey, FieldDefinition>
   identifiers: MetaIdentifiers
-  store: Store
 }): Promise<ActorRows> => {
-  const {actorUuid, parent, src, position, finalValues, fieldSchemas, identifiers, store} = params
+  const {actorUuid, parent, src, position, finalValues, fieldSchemas, identifiers} = params
   const values: ActorValueRecord[] = []
   const valueRecords: ValueRecord[] = []
   const valueItems: ValueItemRecord[] = []
@@ -118,7 +103,7 @@ const buildActorRows = async (params: {
 
     let valueUuid: string
     if (init.source) {
-      valueUuid = await resolveSourceValueUuid(init.source.parentActorUuid, init.source.parentFieldKey, store)
+      valueUuid = await resolveSourceValueUuid(init.source.parentActorUuid, init.source.parentFieldKey)
     } else {
       valueUuid = crypto.randomUUID()
       const variants = identifiers.variantUuids.get(key)
@@ -162,7 +147,6 @@ const materializeMeta = async (
   options: MatterOptions,
   positionByParent: Map<string, number>,
 ): Promise<string> => {
-  const store = getStore()
   const identifiers = await loadMeta(src)
   const particleModel = await store.meta.readDarkParticleModel(src)
   if (!particleModel) {
@@ -184,7 +168,6 @@ const materializeMeta = async (
     finalValues,
     fieldSchemas,
     identifiers,
-    store,
   })
   await store.actor.create(rows)
   emitAdd(actorUuid)
@@ -260,13 +243,12 @@ const materializeMeta = async (
 /**
  * Публичный entrypoint Dark.
  *
- * Использует module-level store, установленный через `setStore(store)` (см. `dark/runtime.ts`).
+ * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/index.ts`.
  * Принимает канонический `src` меты и разворачивает её дерево через store ORM.
  *
  * @returns корневой `Actor` ORM.
  */
 export async function matter(src: string, options: MatterOptions = {}): Promise<Actor> {
-  const store = getStore()
   const positionByParent = new Map<string, number>()
   const rootUuid = await materializeMeta(src, null, undefined, options, positionByParent)
 

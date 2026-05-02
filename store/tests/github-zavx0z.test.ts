@@ -36,7 +36,7 @@ describe("store/tests github/zavx0z startup load", () => {
     rmSync(`${sqliteFilename}-shm`, {force: true})
     rmSync(`${sqliteFilename}-wal`, {force: true})
     store = await open(sqliteFilename)
-    ;(globalThis as unknown as {store: Store}).store = store
+    globalThis.store = store
     sql = new SQL(`sqlite://${sqliteFilename}`)
   })
 

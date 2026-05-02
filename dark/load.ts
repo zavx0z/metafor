@@ -1,18 +1,9 @@
 import type {MetaDSL, SRC} from ".."
 import type {MetaIdentifiers} from "@store/meta/sqlite"
-import type {Store} from "../store/index.ts"
 import settings from "./settings.yml"
 import {projectTemplateMatterRelations} from "./matter.ts"
 
 const {HUB, MODULE} = settings
-
-const getStore = (): Store => {
-  const store = (globalThis as unknown as {store?: Store}).store
-  if (!store) {
-    throw new Error("dark: globalThis.store не установлен — инициализируй store перед loadMeta()")
-  }
-  return store
-}
 
 /**
  * Читает DSL meta из локального TS-модуля через dynamic import.
@@ -38,7 +29,6 @@ export const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
  * - если уже есть — читает `MetaIdentifiers` через `Meta.identifiers()` ORM.
  */
 export const loadMeta = async (src: SRC): Promise<MetaIdentifiers> => {
-  const store = getStore()
   const existing = await store.meta.get(src)
   if (existing) return existing.identifiers()
 

@@ -18,7 +18,7 @@ describe("matter() — runtime tree через store", () => {
     mkdirSync(tmpDir, {recursive: true})
     tmpFile = join(tmpDir, `matter-${crypto.randomUUID()}.sqlite`)
     store = await open(tmpFile)
-    ;(globalThis as unknown as {store: Store}).store = store
+    globalThis.store = store
     sql = new SQL(`sqlite://${tmpFile}`)
     root = await matter("zavx0z/git")
   })

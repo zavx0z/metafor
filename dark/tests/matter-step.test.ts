@@ -15,7 +15,7 @@ describe("dark matter — observation hook", () => {
 
   beforeAll(async () => {
     store = await open(":memory:")
-    ;(globalThis as unknown as {store: Store}).store = store
+    globalThis.store = store
     await matter("zavx0z/git", {
       onMaterializedStep(step) {
         steps.push({

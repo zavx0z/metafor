@@ -1,6 +1,5 @@
 import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage} from "@shared/protocol"
 import {MetaFor} from "../metafor"
-import type {Store} from "store"
 import {open} from "store/server"
 import {matter} from "./dark.ts"
 
@@ -20,8 +19,7 @@ import {matter} from "./dark.ts"
 
 const STORE_PATH = process.env.DARK_STORE_PATH ?? "./boundary.sqlite"
 
-const store = await open(STORE_PATH)
-;(globalThis as unknown as {store: Store}).store = store
+globalThis.store = await open(STORE_PATH)
 
 const decodeSegment = (s: string): string => s.replace(/~1/g, "/").replace(/~0/g, "~")
 
@@ -37,7 +35,7 @@ const extractMetaSrc = (path: string): string | null => {
 const gravity = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
 
 const handleMetaLoad = async (src: string): Promise<void> => {
-  const existing = await store.meta.get(src)
+  const existing = await globalThis.store.meta.get(src)
   if (existing) {
     console.log(`[dark/server] мета "${src}" уже в store — пропуск`)
     return
@@ -68,7 +66,7 @@ gravity.addEventListener("message", (event) => {
 const shutdown = async (signal: string): Promise<void> => {
   console.log(`[dark/server] ${signal} — закрываю канал и store`)
   gravity.close()
-  await store.close()
+  await globalThis.store.close()
   process.exit(0)
 }
 

@@ -10,7 +10,7 @@ describe("meta normalization", () => {
 
   beforeEach(async () => {
     store = await open(":memory:")
-    ;(globalThis as unknown as {store: Store}).store = store
+    globalThis.store = store
     sql = new SQL("sqlite::memory:")
   })
 
