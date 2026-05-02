@@ -28,87 +28,77 @@ export class Fields {
   constructor(readonly wimp: Wimp) {
   }
 
-  async string(input: {
+  async add(type: "string", input: {
     key: FieldKey
     default?: string | undefined
     label?: string | null | undefined
     required?: boolean | undefined
-  }): Promise<StringField> {
-    await this.wimp.sql`
-        INSERT INTO field (uuid, wimp, key, type, required, label)
-        VALUES (${crypto.randomUUID()}, ${this.wimp.src}, ${input.key}, ${"string"},
-                ${input.required ? 1 : 0}, ${input.label ?? null})
-    `
-    const field = new StringField(this, input.key)
-    if (input.default !== undefined) await field.setDefault(input.default)
-    return field
-  }
-
-  async number(input: {
+  }): Promise<StringField>
+  async add(type: "number", input: {
     key: FieldKey
     default?: number | undefined
     label?: string | null | undefined
     required?: boolean | undefined
-  }): Promise<NumberField> {
-    await this.wimp.sql`
-        INSERT INTO field (uuid, wimp, key, type, required, label)
-        VALUES (${crypto.randomUUID()}, ${this.wimp.src}, ${input.key}, ${"number"},
-                ${input.required ? 1 : 0}, ${input.label ?? null})
-    `
-    const field = new NumberField(this, input.key)
-    if (input.default !== undefined) await field.setDefault(input.default)
-    return field
-  }
-
-  async boolean(input: {
+  }): Promise<NumberField>
+  async add(type: "boolean", input: {
     key: FieldKey
     default?: boolean | undefined
     label?: string | null | undefined
     required?: boolean | undefined
-  }): Promise<BooleanField> {
-    await this.wimp.sql`
-        INSERT INTO field (uuid, wimp, key, type, required, label)
-        VALUES (${crypto.randomUUID()}, ${this.wimp.src}, ${input.key}, ${"boolean"},
-                ${input.required ? 1 : 0}, ${input.label ?? null})
-    `
-    const field = new BooleanField(this, input.key)
-    if (input.default !== undefined) await field.setDefault(input.default)
-    return field
-  }
-
-  async array(input: {
+  }): Promise<BooleanField>
+  async add(type: "array", input: {
     key: FieldKey
     default?: number[] | undefined
     label?: string | null | undefined
     required?: boolean | undefined
-  }): Promise<ArrayField> {
-    await this.wimp.sql`
-        INSERT INTO field (uuid, wimp, key, type, required, label)
-        VALUES (${crypto.randomUUID()}, ${this.wimp.src}, ${input.key}, ${"array"},
-                ${input.required ? 1 : 0}, ${input.label ?? null})
-    `
-    const field = new ArrayField(this, input.key)
-    if (input.default !== undefined) await field.setDefault(input.default)
-    return field
-  }
-
-  async enum(input: {
+  }): Promise<ArrayField>
+  async add(type: "enum", input: {
     key: FieldKey
     values: ReadonlyArray<string | number>
     default?: string | number | undefined
     label?: string | null | undefined
     required?: boolean | undefined
-  }): Promise<EnumField> {
+  }): Promise<EnumField>
+  async add(
+    type: FieldType,
+    input: {
+      key: FieldKey
+      default?: unknown
+      values?: ReadonlyArray<string | number>
+      label?: string | null | undefined
+      required?: boolean | undefined
+    },
+  ): Promise<AnyField> {
     await this.wimp.sql`
         INSERT INTO field (uuid, wimp, key, type, required, label)
-        VALUES (${crypto.randomUUID()}, ${this.wimp.src}, ${input.key}, ${"enum"},
+        VALUES (${crypto.randomUUID()}, ${this.wimp.src}, ${input.key}, ${type},
                 ${input.required ? 1 : 0}, ${input.label ?? null})
     `
-    const field = new EnumField(this, input.key)
-    for (const value of input.values) {
-      await field.variants.add(value)
+    const field = buildField(this, input.key, type)
+    if (field.type === "enum" && input.values !== undefined) {
+      for (const value of input.values) {
+        await field.variants.add(value)
+      }
     }
-    if (input.default !== undefined) await field.setDefault(input.default)
+    if (input.default !== undefined) {
+      switch (field.type) {
+        case "string":
+          await field.setDefault(input.default as string)
+          break
+        case "number":
+          await field.setDefault(input.default as number)
+          break
+        case "boolean":
+          await field.setDefault(input.default as boolean)
+          break
+        case "array":
+          await field.setDefault(input.default as number[])
+          break
+        case "enum":
+          await field.setDefault(input.default as string | number)
+          break
+      }
+    }
     return field
   }
 
