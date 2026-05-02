@@ -145,9 +145,9 @@ export class ReactionWrite {
 }
 
 /**
- * Sub-ORM для таблицы `reaction_superposition` (PK (reaction, superposition)).
+ * Sub-ORM для таблицы `reaction_state` (PK (reaction, state)).
  * Связь реакции со state-ами, в которых она активна.
- * Резолв `superposition.uuid` через WHERE superposition.wimp=src AND superposition.name=stateName.
+ * Резолв `state.uuid` через WHERE state.wimp=src AND state.name=stateName.
  */
 export class ReactionStates {
   constructor(readonly reaction: Reaction) {}
@@ -157,9 +157,9 @@ export class ReactionStates {
     const src = this.reaction.reactions.wimp.src
     const reactionUuid = await this.reaction.uuid()
     await sql`
-      INSERT OR IGNORE INTO reaction_superposition (reaction, superposition)
-      SELECT ${reactionUuid}, superposition.uuid
-      FROM superposition WHERE superposition.wimp = ${src} AND superposition.name = ${stateName}
+      INSERT OR IGNORE INTO reaction_state (reaction, state)
+      SELECT ${reactionUuid}, state.uuid
+      FROM state WHERE state.wimp = ${src} AND state.name = ${stateName}
     `
   }
 
@@ -168,9 +168,9 @@ export class ReactionStates {
     const src = this.reaction.reactions.wimp.src
     const reactionUuid = await this.reaction.uuid()
     await sql`
-      DELETE FROM reaction_superposition
+      DELETE FROM reaction_state
       WHERE reaction = ${reactionUuid}
-        AND superposition IN (SELECT uuid FROM superposition WHERE wimp = ${src} AND name = ${stateName})
+        AND state IN (SELECT uuid FROM state WHERE wimp = ${src} AND name = ${stateName})
     `
   }
 
@@ -178,9 +178,9 @@ export class ReactionStates {
     const sql = this.reaction.reactions.wimp.sql
     const reactionUuid = await this.reaction.uuid()
     const rows = await sql<Array<{ name: string }>>`
-      SELECT superposition.name AS name
-      FROM reaction_superposition rs
-      INNER JOIN superposition ON superposition.uuid = rs.superposition
+      SELECT state.name AS name
+      FROM reaction_state rs
+      INNER JOIN state ON state.uuid = rs.state
       WHERE rs.reaction = ${reactionUuid}
       ORDER BY rs.rowid
     `
@@ -194,11 +194,11 @@ export class ReactionStates {
     const row = (
       await sql<Array<{ ok: number }>>`
         SELECT 1 AS ok
-        FROM reaction_superposition rs
-        INNER JOIN superposition ON superposition.uuid = rs.superposition
+        FROM reaction_state rs
+        INNER JOIN state ON state.uuid = rs.state
         WHERE rs.reaction = ${reactionUuid}
-          AND superposition.wimp = ${src}
-          AND superposition.name = ${stateName}
+          AND state.wimp = ${src}
+          AND state.name = ${stateName}
         LIMIT 1
       `
     )[0]
@@ -210,7 +210,7 @@ export class ReactionStates {
     const reactionUuid = await this.reaction.uuid()
     const row = (
       await sql<Array<{ count: number }>>`
-        SELECT COUNT(*) AS count FROM reaction_superposition WHERE reaction = ${reactionUuid}
+        SELECT COUNT(*) AS count FROM reaction_state WHERE reaction = ${reactionUuid}
       `
     )[0]
     return row?.count ?? 0
@@ -219,7 +219,7 @@ export class ReactionStates {
 
 /**
  * ORM для строки таблицы `reaction` (UNIQUE wimp+key).
- * Sub-ORMs `read`/`write`/`states` управляют связями reaction_read/reaction_write/reaction_superposition.
+ * Sub-ORMs `read`/`write`/`states` управляют связями reaction_read/reaction_write/reaction_state.
  */
 export class Reaction {
   readonly read: ReactionRead

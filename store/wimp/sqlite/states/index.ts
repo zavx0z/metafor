@@ -5,7 +5,7 @@ export class States {
   constructor(readonly wimp: Wimp) {}
 
   /**
-   * INSERT в `superposition` с auto-position (следующий по count).
+   * INSERT в `state` с auto-position (следующий по count).
    * Если state с таким именем уже есть — возвращает existing (idempotent).
    */
   async add(name: string): Promise<State> {
@@ -14,26 +14,30 @@ export class States {
 
     const existing = (
       await sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM superposition WHERE wimp = ${src} AND name = ${name} LIMIT 1
+          SELECT 1 AS ok
+          FROM state
+          WHERE wimp = ${src}
+            AND name = ${name}
+          LIMIT 1
       `
     )[0]
     if (existing) return new State(this, name)
 
     const posRow = (
       await sql<Array<{ next: number }>>`
-        SELECT COALESCE(MAX(position) + 1, 0) AS next FROM superposition WHERE wimp = ${src}
+        SELECT COALESCE(MAX(position) + 1, 0) AS next FROM state WHERE wimp = ${src}
       `
     )[0]
     const position = posRow?.next ?? 0
 
     const uuid = crypto.randomUUID()
-    await sql`INSERT INTO superposition (uuid, wimp, name, position) VALUES (${uuid}, ${src}, ${name}, ${position})`
+    await sql`INSERT INTO state (uuid, wimp, name, position) VALUES (${uuid}, ${src}, ${name}, ${position})`
     return new State(this, name)
   }
 
   async all(): Promise<State[]> {
     const rows = await this.wimp.sql<Array<{ name: string }>>`
-      SELECT name FROM superposition WHERE wimp = ${this.wimp.src} ORDER BY position
+      SELECT name FROM state WHERE wimp = ${this.wimp.src} ORDER BY position
     `
     return rows.map((row) => new State(this, row.name))
   }
@@ -41,7 +45,7 @@ export class States {
   async get(filter: { name: string }): Promise<State | null> {
     const row = (
       await this.wimp.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM superposition
+        SELECT 1 AS ok FROM state
         WHERE wimp = ${this.wimp.src} AND name = ${filter.name}
         LIMIT 1
       `
@@ -52,7 +56,7 @@ export class States {
   async initial(): Promise<State | null> {
     const row = (
       await this.wimp.sql<Array<{ name: string }>>`
-        SELECT name FROM superposition WHERE wimp = ${this.wimp.src} ORDER BY position LIMIT 1
+        SELECT name FROM state WHERE wimp = ${this.wimp.src} ORDER BY position LIMIT 1
       `
     )[0]
     return row ? new State(this, row.name) : null
@@ -61,7 +65,7 @@ export class States {
   async count(): Promise<number> {
     const row = (
       await this.wimp.sql<Array<{ count: number }>>`
-        SELECT COUNT(*) AS count FROM superposition WHERE wimp = ${this.wimp.src}
+        SELECT COUNT(*) AS count FROM state WHERE wimp = ${this.wimp.src}
       `
     )[0]
     return row?.count ?? 0
@@ -70,7 +74,7 @@ export class States {
   async exists(): Promise<boolean> {
     const row = (
       await this.wimp.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM superposition WHERE wimp = ${this.wimp.src} LIMIT 1
+        SELECT 1 AS ok FROM state WHERE wimp = ${this.wimp.src} LIMIT 1
       `
     )[0]
     return row !== undefined

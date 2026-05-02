@@ -245,18 +245,18 @@ const applyFieldEnumVariant = async (tx: Tx, op: string, segs: string[], value: 
   `
 }
 
-const applySuperposition = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
-  // /wimp/<src>/superposition/<uuid>
+const applyState = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+  // /wimp/<src>/state/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
-  const path = `/wimp/${src}/superposition/${uuid}`
+  const path = `/wimp/${src}/state/${uuid}`
   if (op === "remove") {
-    await tx`DELETE FROM superposition WHERE uuid = ${uuid}`
+    await tx`DELETE FROM state WHERE uuid = ${uuid}`
     return
   }
   if (op !== "add") return notSupported(op, path, "graviton")
   const v = requireRecord(value, path)
   await tx`
-    INSERT INTO superposition (uuid, wimp, name, position)
+    INSERT INTO state (uuid, wimp, name, position)
     VALUES (${uuid}, ${src}, ${requireString(v, "name", path)}, ${requireNumber(v, "position", path)})
   `
 }
@@ -272,7 +272,7 @@ const applyTransition = async (tx: Tx, op: string, segs: string[], value: unknow
   if (op !== "add") return notSupported(op, path, "graviton")
   const v = requireRecord(value, path)
   await tx`
-    INSERT INTO transition (uuid, from_superposition, to_superposition, position)
+    INSERT INTO transition (uuid, from_state, to_state, position)
     VALUES (${uuid}, ${requireString(v, "from", path)}, ${requireString(v, "to", path)}, ${requireNumber(v, "position", path)})
   `
 }
@@ -464,15 +464,15 @@ const applyReactionLink = async (
   tx: Tx,
   op: string,
   segs: string[],
-  table: "reaction_superposition" | "reaction_read" | "reaction_write",
-  rightCol: "superposition" | "field",
+  table: "reaction_state" | "reaction_read" | "reaction_write",
+  rightCol: "state" | "field",
 ): Promise<void> => {
-  // /wimp/<src>/reaction/<uuid>/(superposition|read|write)/<id>
+  // /wimp/<src>/reaction/<uuid>/(state|read|write)/<id>
   const [, src, , reactionUuid, slot, rightId] = segs as [string, string, string, string, string, string]
   const path = `/wimp/${src}/reaction/${reactionUuid}/${slot}/${rightId}`
   if (op === "remove") {
-    if (table === "reaction_superposition") {
-      await tx`DELETE FROM reaction_superposition WHERE reaction = ${reactionUuid} AND superposition = ${rightId}`
+    if (table === "reaction_state") {
+      await tx`DELETE FROM reaction_state WHERE reaction = ${reactionUuid} AND state = ${rightId}`
     } else if (table === "reaction_read") {
       await tx`DELETE FROM reaction_read WHERE reaction = ${reactionUuid} AND field = ${rightId}`
     } else {
@@ -481,8 +481,8 @@ const applyReactionLink = async (
     return
   }
   if (op !== "add") return notSupported(op, path, "graviton")
-  if (table === "reaction_superposition") {
-    await tx`INSERT INTO reaction_superposition (reaction, superposition) VALUES (${reactionUuid}, ${rightId})`
+  if (table === "reaction_state") {
+    await tx`INSERT INTO reaction_state (reaction, state) VALUES (${reactionUuid}, ${rightId})`
   } else if (table === "reaction_read") {
     await tx`INSERT INTO reaction_read (reaction, field) VALUES (${reactionUuid}, ${rightId})`
   } else {
@@ -688,7 +688,7 @@ const applyGravitonPatch = async (tx: Tx, patch: StorePatch): Promise<void> => {
     return applyFieldDefaultItem(tx, patch.op, segs, value)
   if (segs.length === 6 && segs[2] === "field" && segs[4] === "variant")
     return applyFieldEnumVariant(tx, patch.op, segs, value)
-  if (segs.length === 4 && segs[2] === "superposition") return applySuperposition(tx, patch.op, segs, value)
+  if (segs.length === 4 && segs[2] === "state") return applyState(tx, patch.op, segs, value)
   if (segs.length === 4 && segs[2] === "transition") return applyTransition(tx, patch.op, segs, value)
   if (segs.length === 6 && segs[2] === "transition" && segs[4] === "condition")
     return applyCondition(tx, patch.op, segs, value)
@@ -710,8 +710,8 @@ const applyGravitonPatch = async (tx: Tx, patch: StorePatch): Promise<void> => {
   if (segs.length === 6 && segs[2] === "process" && segs[4] === "finally-read")
     return applyProcessFinallyRead(tx, patch.op, segs)
   if (segs.length === 4 && segs[2] === "reaction") return applyReaction(tx, patch.op, segs, value)
-  if (segs.length === 6 && segs[2] === "reaction" && segs[4] === "superposition")
-    return applyReactionLink(tx, patch.op, segs, "reaction_superposition", "superposition")
+  if (segs.length === 6 && segs[2] === "reaction" && segs[4] === "state")
+    return applyReactionLink(tx, patch.op, segs, "reaction_state", "state")
   if (segs.length === 6 && segs[2] === "reaction" && segs[4] === "read")
     return applyReactionLink(tx, patch.op, segs, "reaction_read", "field")
   if (segs.length === 6 && segs[2] === "reaction" && segs[4] === "write")

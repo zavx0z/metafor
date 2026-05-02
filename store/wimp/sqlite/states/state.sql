@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS superposition
+CREATE TABLE IF NOT EXISTS state
 (
     uuid     TEXT PRIMARY KEY CHECK (length(trim(uuid)) > 0),
     wimp     TEXT    NOT NULL,
@@ -9,5 +9,5 @@ CREATE TABLE IF NOT EXISTS superposition
     FOREIGN KEY (wimp) REFERENCES wimp (src) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS superposition_by_wimp
-    ON superposition (wimp);
+CREATE INDEX IF NOT EXISTS state_by_wimp
+    ON state (wimp);

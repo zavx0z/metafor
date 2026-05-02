@@ -15,7 +15,7 @@ export class State {
     const row = (
       await this.states.wimp.sql<Array<{ uuid: string }>>`
           SELECT uuid
-          FROM superposition
+          FROM state
           WHERE wimp = ${this.states.wimp.src}
             AND name = ${this.name}
           LIMIT 1
@@ -29,7 +29,7 @@ export class State {
     const row = (
       await this.states.wimp.sql<Array<{ position: number }>>`
           SELECT position
-          FROM superposition
+          FROM state
           WHERE wimp = ${this.states.wimp.src}
             AND name = ${this.name}
           LIMIT 1

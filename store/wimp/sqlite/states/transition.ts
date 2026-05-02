@@ -18,8 +18,8 @@ export class Transition {
       await sql<Array<{ uuid: string }>>`
         SELECT transition.uuid AS uuid
         FROM transition
-        INNER JOIN superposition AS target ON target.uuid = transition.to_superposition
-        WHERE transition.from_superposition = ${fromUuid}
+        INNER JOIN state AS target ON target.uuid = transition.to_state
+        WHERE transition.from_state = ${fromUuid}
           AND target.name = ${this.toName}
         LIMIT 1
       `
@@ -60,7 +60,7 @@ export class Transitions {
 
     const targetRow = (
       await sql<Array<{ uuid: string }>>`
-        SELECT uuid FROM superposition WHERE wimp = ${src} AND name = ${toName} LIMIT 1
+        SELECT uuid FROM state WHERE wimp = ${src} AND name = ${toName} LIMIT 1
       `
     )[0]
     if (!targetRow) {
@@ -71,14 +71,14 @@ export class Transitions {
       await sql<Array<{ next: number }>>`
         SELECT COALESCE(MAX(position) + 1, 0) AS next
         FROM transition
-        WHERE from_superposition = ${fromUuid}
+        WHERE from_state = ${fromUuid}
       `
     )[0]
     const position = posRow?.next ?? 0
 
     const uuid = crypto.randomUUID()
     await sql`
-      INSERT INTO transition (uuid, from_superposition, to_superposition, position)
+      INSERT INTO transition (uuid, from_state, to_state, position)
       VALUES (${uuid}, ${fromUuid}, ${targetRow.uuid}, ${position})
     `
     return new Transition(this.state, toName)
@@ -90,8 +90,8 @@ export class Transitions {
     const rows = await sql<Array<{ to_name: string }>>`
       SELECT target.name AS to_name
       FROM transition
-      INNER JOIN superposition AS target ON target.uuid = transition.to_superposition
-      WHERE transition.from_superposition = ${fromUuid}
+      INNER JOIN state AS target ON target.uuid = transition.to_state
+      WHERE transition.from_state = ${fromUuid}
       ORDER BY transition.position
     `
     return rows.map((row) => new Transition(this.state, row.to_name))
@@ -104,8 +104,8 @@ export class Transitions {
       await sql<Array<{ ok: number }>>`
         SELECT 1 AS ok
         FROM transition
-        INNER JOIN superposition AS target ON target.uuid = transition.to_superposition
-        WHERE transition.from_superposition = ${fromUuid}
+        INNER JOIN state AS target ON target.uuid = transition.to_state
+        WHERE transition.from_state = ${fromUuid}
           AND target.name = ${filter.to}
         LIMIT 1
       `
@@ -118,7 +118,7 @@ export class Transitions {
     const fromUuid = await this.state.uuid()
     const row = (
       await sql<Array<{ count: number }>>`
-        SELECT COUNT(*) AS count FROM transition WHERE from_superposition = ${fromUuid}
+        SELECT COUNT(*) AS count FROM transition WHERE from_state = ${fromUuid}
       `
     )[0]
     return row?.count ?? 0
@@ -129,7 +129,7 @@ export class Transitions {
     const fromUuid = await this.state.uuid()
     const row = (
       await sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM transition WHERE from_superposition = ${fromUuid} LIMIT 1
+        SELECT 1 AS ok FROM transition WHERE from_state = ${fromUuid} LIMIT 1
       `
     )[0]
     return row !== undefined

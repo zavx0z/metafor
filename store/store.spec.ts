@@ -37,7 +37,7 @@ describe("store/server smoke", () => {
 
     expect(tables).toContain("wimp")
     expect(tables).toContain("field")
-    expect(tables).toContain("superposition")
+    expect(tables).toContain("state")
     expect(tables).toContain("actor")
     expect(tables).toContain("actor_value")
     expect(tables).toContain("actor_state")
@@ -116,12 +116,12 @@ describe("store/server smoke", () => {
 
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/wimp/${enc(SRC)}/superposition/${idleStateUuid}`, value: {name: "idle", position: 0}}],
+      patch: [{op: "add", path: `/wimp/${enc(SRC)}/state/${idleStateUuid}`, value: {name: "idle", position: 0}}],
     })
     await store.update({
       part: "graviton",
       patch: [
-        {op: "add", path: `/wimp/${enc(SRC)}/superposition/${readyStateUuid}`, value: {name: "ready", position: 1}},
+        {op: "add", path: `/wimp/${enc(SRC)}/state/${readyStateUuid}`, value: {name: "ready", position: 1}},
       ],
     })
 
@@ -172,7 +172,7 @@ describe("store/server smoke", () => {
     })
     await store.update({
       part: "graviton",
-      patch: [{op: "add", path: `/wimp/${enc(SRC)}/superposition/${idleStateUuid}`, value: {name: "idle", position: 0}}],
+      patch: [{op: "add", path: `/wimp/${enc(SRC)}/state/${idleStateUuid}`, value: {name: "idle", position: 0}}],
     })
 
     // actor-1

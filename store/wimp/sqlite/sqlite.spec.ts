@@ -13,7 +13,7 @@ const metaforDslTableNames = [
   "field_array_default_item",
   "field_enum_variant",
   "field_enum_default",
-  "superposition",
+  "state",
   "transition",
   "condition",
   "condition_predicate",
@@ -26,7 +26,7 @@ const metaforDslTableNames = [
   "process_action_write",
   "process_finally_read",
   "reaction",
-  "reaction_superposition",
+  "reaction_state",
   "reaction_read",
   "reaction_write",
   "matter_binding",
@@ -45,7 +45,7 @@ const metaforDslIndexNames = [
   "wimp_mass_by_wimp",
   "wimp_mass_by_parent",
   "field_by_wimp",
-  "superposition_by_wimp",
+  "state_by_wimp",
   "condition_by_transition",
   "condition_predicate_by_condition",
   "condition_list_item_by_predicate",
@@ -55,7 +55,7 @@ const metaforDslIndexNames = [
   "process_action_write_by_process",
   "process_finally_read_by_process",
   "reaction_by_wimp",
-  "reaction_superposition_by_reaction",
+  "reaction_state_by_reaction",
   "reaction_read_by_reaction",
   "reaction_write_by_reaction",
   "matter_binding_by_wimp",
@@ -129,8 +129,8 @@ describe("sqlite ddl", () => {
       (await db.unsafe(`PRAGMA table_info(field_enum_default)`)) as Array<{ name: string }>
     ).map((row) => row.name)
 
-    const superpositionColumns = (
-      (await db.unsafe(`PRAGMA table_info(superposition)`)) as Array<{ name: string }>
+    const stateColumns = (
+      (await db.unsafe(`PRAGMA table_info(state)`)) as Array<{ name: string }>
     ).map((row) => row.name)
     const transitionColumns = (
       (await db.unsafe(`PRAGMA table_info(transition)`)) as Array<{ name: string }>
@@ -154,8 +154,8 @@ describe("sqlite ddl", () => {
     const processFinallyColumns = (
       (await db.unsafe(`PRAGMA table_info(process_finally)`)) as Array<{ name: string }>
     ).map((row) => row.name)
-    const reactionSuperpositionColumns = (
-      (await db.unsafe(`PRAGMA table_info(reaction_superposition)`)) as Array<{ name: string }>
+    const reactionStateColumns = (
+      (await db.unsafe(`PRAGMA table_info(reaction_state)`)) as Array<{ name: string }>
     ).map((row) => row.name)
 
     const matterParticleColumns = (
@@ -197,8 +197,8 @@ describe("sqlite ddl", () => {
     expect(fieldEnumVariantColumns).toEqual(["uuid", "field", "position", "item_value"])
     expect(fieldEnumDefaultColumns).toEqual(["field", "variant"])
 
-    expect(superpositionColumns).toEqual(["uuid", "wimp", "name", "position"])
-    expect(transitionColumns).toEqual(["uuid", "from_superposition", "to_superposition", "position"])
+    expect(stateColumns).toEqual(["uuid", "wimp", "name", "position"])
+    expect(transitionColumns).toEqual(["uuid", "from_state", "to_state", "position"])
     expect(conditionColumns).toEqual(["uuid", "transition", "field", "position"])
     expect(conditionPredicateColumns).toEqual([
       "uuid",
@@ -232,7 +232,7 @@ describe("sqlite ddl", () => {
       "error",
     ])
     expect(processFinallyColumns).toEqual(["process", "before"])
-    expect(reactionSuperpositionColumns).toEqual(["reaction", "superposition"])
+    expect(reactionStateColumns).toEqual(["reaction", "state"])
 
     expect(matterParticleColumns).toEqual(["uuid", "wimp", "parent_particle", "particle_kind", "edge_slot", "particle_order"])
     expect(matterParticleWimpColumns).toEqual(["particle", "src", "fields_binding", "mass_binding"])
@@ -331,13 +331,13 @@ describe("sqlite ddl", () => {
     await db`INSERT INTO field_enum_variant(uuid, field, position, item_value)
              VALUES (${"variant:closed"}, ${"field:beta:status"}, ${1}, ${"closed"})`
 
-    await db`INSERT INTO superposition(uuid, wimp, name, position)
+    await db`INSERT INTO state(uuid, wimp, name, position)
              VALUES (${"state:alpha"}, ${"alpha/meta"}, ${"idle"}, ${0})`
 
-    await db`INSERT INTO superposition(uuid, wimp, name, position)
+    await db`INSERT INTO state(uuid, wimp, name, position)
              VALUES (${"state:beta"}, ${"beta/meta"}, ${"idle"}, ${0})`
 
-    await db`INSERT INTO transition(uuid, from_superposition, to_superposition, position)
+    await db`INSERT INTO transition(uuid, from_state, to_state, position)
              VALUES (${"transition:cross"}, ${"state:alpha"}, ${"state:beta"}, ${0})`
 
     await db`INSERT INTO condition(uuid, transition, field, position)
@@ -393,7 +393,7 @@ describe("sqlite ddl", () => {
     await db`INSERT INTO reaction(uuid, wimp, key, label, cond_source, update_source)
              VALUES (${"reaction:alpha"}, ${"alpha/meta"}, ${"refresh"}, ${"Refresh"}, ${"() => true"}, ${"() => ({})"})`
 
-    await db`INSERT INTO reaction_superposition(reaction, superposition)
+    await db`INSERT INTO reaction_state(reaction, state)
              VALUES (${"reaction:alpha"}, ${"state:beta"})`
 
     await db`INSERT INTO reaction_write(reaction, field)
