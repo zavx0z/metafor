@@ -8,7 +8,7 @@ import {fillWeakDynamics} from "@dark/weak"
 import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation, type FieldInit} from "./continuation.ts"
 
-export type ParticleRef = {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string}
+export type ParticleRef = { kind: "actor"; uuid: string } | { kind: "topology"; uuid: string }
 
 export interface MatterMaterializationStep {
   kind: "actor" | "topology"
@@ -27,7 +27,7 @@ const buildValueRecord = async (
   fieldType: string,
   field: AnyField,
   fieldKey: FieldKey,
-): Promise<{record: ValueRecord; items: ValueItemRecord[]}> => {
+): Promise<{ record: ValueRecord; items: ValueItemRecord[] }> => {
   if (raw === null || raw === undefined) return {record: {uuid, kind: "null"}, items: []}
   switch (fieldType) {
     case "boolean":
@@ -163,25 +163,15 @@ async function* matterWimp(
     matterRelations = await wimp.matter.all()
   } else {
     for (const [key, def] of Object.entries(dsl.fields)) {
+      const {type} = def
       const label = def.label ?? null
       const required = def.required ?? false
-      switch (def.type) {
-        case "string":
-          await wimp.fields.string({key, default: def.default, label, required})
-          break
-        case "number":
-          await wimp.fields.number({key, default: def.default, label, required})
-          break
-        case "boolean":
-          await wimp.fields.boolean({key, default: def.default, label, required})
-          break
-        case "array":
-          await wimp.fields.array({key, default: def.default, label, required})
-          break
-        case "enum":
-          await wimp.fields.enum({key, values: (def.values ?? []), default: def.default, label, required})
-          break
-      }
+      const values = def.values ?? []
+      if (type === "string") await wimp.fields.string({key, default: def.default, label, required})
+      else if (type === "number") await wimp.fields.number({key, default: def.default, label, required})
+      else if (type === "boolean") await wimp.fields.boolean({key, default: def.default, label, required})
+      else if (type === "array") await wimp.fields.array({key, default: def.default, label, required})
+      else if (type === "enum") await wimp.fields.enum({key, values, default: def.default, label, required})
     }
     await fillWeakDynamics(wimp, dsl)
     matterRelations = await fillGravityMatter(wimp, dsl)
@@ -192,13 +182,7 @@ async function* matterWimp(
 
   const actorUuid = crypto.randomUUID()
 
-  const rows = await buildActorRows({
-    actorUuid,
-    parent,
-    wimp,
-    finalValues,
-    fieldSchemas,
-  })
+  const rows = await buildActorRows({actorUuid, parent, wimp, finalValues, fieldSchemas})
   await store.actor.create(rows)
   emitAdd(actorUuid)
 

@@ -29,22 +29,21 @@ export class Fields {
   }
 
   /**
-   * Низкоуровневый INSERT в `field`. Не обрабатывает default/variants —
-   * это ответственность caller через возвращённый ORM.
+   * Низкоуровневый INSERT в `field`. Internal helper — caller использует
+   * type-specific методы (`string`/`number`/`boolean`/`array`/`enum`).
    */
-  async add(input: {
+  private async insertRow(input: {
     key: FieldKey
     type: FieldType
-    required?: boolean | undefined
-    label?: string | null | undefined
-  }): Promise<AnyField> {
+    required: boolean
+    label: string | null
+  }): Promise<void> {
     const uuid = crypto.randomUUID()
     await this.wimp.sql`
         INSERT INTO field (uuid, wimp, key, type, required, label)
         VALUES (${uuid}, ${this.wimp.src}, ${input.key}, ${input.type},
-                ${input.required ? 1 : 0}, ${input.label ?? null})
+                ${input.required ? 1 : 0}, ${input.label})
     `
-    return buildField(this, input.key, input.type)
   }
 
   async string(input: {
@@ -53,12 +52,8 @@ export class Fields {
     label?: string | null | undefined
     required?: boolean | undefined
   }): Promise<StringField> {
-    const field = (await this.add({
-      key: input.key,
-      type: "string",
-      required: input.required,
-      label: input.label,
-    })) as StringField
+    await this.insertRow({key: input.key, type: "string", required: input.required ?? false, label: input.label ?? null})
+    const field = new StringField(this, input.key)
     if (input.default !== undefined) await field.setDefault(input.default)
     return field
   }
@@ -69,12 +64,8 @@ export class Fields {
     label?: string | null | undefined
     required?: boolean | undefined
   }): Promise<NumberField> {
-    const field = (await this.add({
-      key: input.key,
-      type: "number",
-      required: input.required,
-      label: input.label,
-    })) as NumberField
+    await this.insertRow({key: input.key, type: "number", required: input.required ?? false, label: input.label ?? null})
+    const field = new NumberField(this, input.key)
     if (input.default !== undefined) await field.setDefault(input.default)
     return field
   }
@@ -85,12 +76,8 @@ export class Fields {
     label?: string | null | undefined
     required?: boolean | undefined
   }): Promise<BooleanField> {
-    const field = (await this.add({
-      key: input.key,
-      type: "boolean",
-      required: input.required,
-      label: input.label,
-    })) as BooleanField
+    await this.insertRow({key: input.key, type: "boolean", required: input.required ?? false, label: input.label ?? null})
+    const field = new BooleanField(this, input.key)
     if (input.default !== undefined) await field.setDefault(input.default)
     return field
   }
@@ -101,12 +88,8 @@ export class Fields {
     label?: string | null | undefined
     required?: boolean | undefined
   }): Promise<ArrayField> {
-    const field = (await this.add({
-      key: input.key,
-      type: "array",
-      required: input.required,
-      label: input.label,
-    })) as ArrayField
+    await this.insertRow({key: input.key, type: "array", required: input.required ?? false, label: input.label ?? null})
+    const field = new ArrayField(this, input.key)
     if (input.default !== undefined) await field.setDefault(input.default)
     return field
   }
@@ -118,12 +101,8 @@ export class Fields {
     label?: string | null | undefined
     required?: boolean | undefined
   }): Promise<EnumField> {
-    const field = (await this.add({
-      key: input.key,
-      type: "enum",
-      required: input.required,
-      label: input.label,
-    })) as EnumField
+    await this.insertRow({key: input.key, type: "enum", required: input.required ?? false, label: input.label ?? null})
+    const field = new EnumField(this, input.key)
     for (const value of input.values) {
       await field.variants.add(value)
     }
