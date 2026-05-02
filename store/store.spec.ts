@@ -140,7 +140,7 @@ describe("store/server smoke", () => {
     const status = await meta.fields.get({key: "status"})
     if (!status) throw new Error("status field missing")
     if (status.type !== "enum") throw new Error("expected enum field")
-    expect(await status.variants()).toEqual(["idle", "ready"])
+    expect((await status.variants.all()).map((v) => v.value)).toEqual(["idle", "ready"])
     expect(await status.default()).toBe("idle")
   })
 

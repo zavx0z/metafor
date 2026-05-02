@@ -57,7 +57,11 @@ describe("matter(zavx0z/git) → store", () => {
         store.wimp
           .get(src)
           .then((w) => w!.fields.get({key: "operation"}))
-          .then((field) => (field && field.type === "enum" ? field.variants() : Promise.resolve([] as string[]))),
+          .then((field) =>
+            field && field.type === "enum"
+              ? field.variants.all().then((variants) => variants.map((v) => v.value))
+              : Promise.resolve([] as string[]),
+          ),
       )
     expect(branches.length).toBeGreaterThan(0)
 

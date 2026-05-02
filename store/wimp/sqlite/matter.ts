@@ -128,84 +128,20 @@ const insertDynamicMetaFuzzyParticle = async (
   return particleUuid
 }
 
-const insertRelationParticle = async (
-  sql: SQL,
-  wimpSrc: string,
-  particle: MatterRelationParticle,
-  parentParticle: string | null,
-  edgeSlot: EdgeSlot,
-  particleOrder: number,
-): Promise<void> => {
-  if (particle.kind === "wimp") {
-    const fieldsBinding = await insertBinding(sql, wimpSrc, particle.fieldsBinding)
-    const massBinding = await insertBinding(sql, wimpSrc, particle.massBinding)
-    const particleUuid = await insertWimpParticle(
-      sql,
-      wimpSrc,
-      parentParticle,
-      edgeSlot,
-      particleOrder,
-      particle.src,
-      fieldsBinding,
-      massBinding,
-    )
-    await insertRelationChildren(sql, wimpSrc, particle.children, particleUuid)
-    return
-  }
-
-  if (particle.kind === "fuzzy") {
-    const predicateBinding = await insertBinding(sql, wimpSrc, particle.predicateBinding)
-    const particleUuid =
-      particle.fuzzyKind === "cond"
-        ? await insertCondFuzzyParticle(
-            sql,
-            wimpSrc,
-            parentParticle,
-            edgeSlot,
-            particleOrder,
-            requireBinding(predicateBinding, `Condition particle for meta "${wimpSrc}" requires predicate binding`),
-          )
-        : await insertDynamicMetaFuzzyParticle(sql, wimpSrc, parentParticle, edgeSlot, particleOrder)
-    await insertRelationChildren(sql, wimpSrc, particle.children, particleUuid)
-    return
-  }
-
-  if (particle.kind === "axion") {
-    const predicateBinding = await insertBinding(sql, wimpSrc, particle.predicateBinding)
-    if (!predicateBinding) throw new Error(`Axion particle for meta "${wimpSrc}" requires predicate binding`)
-
-    const particleUuid = await insertParticle(sql, wimpSrc, "axion", parentParticle, edgeSlot, particleOrder)
-    await sql`
-      INSERT INTO matter_particle_axion (particle, predicate_binding)
-      VALUES (${particleUuid}, ${predicateBinding})
-    `
-    await insertRelationChildren(sql, wimpSrc, particle.children, particleUuid)
-    return
-  }
-
-  const collectionBinding = await insertBinding(sql, wimpSrc, particle.collectionBinding)
-  if (!collectionBinding) throw new Error(`Macho particle for meta "${wimpSrc}" requires collection binding`)
-
-  const particleUuid = await insertParticle(sql, wimpSrc, "macho", parentParticle, edgeSlot, particleOrder)
-  await sql`
-    INSERT INTO matter_particle_macho (particle, collection_binding)
-    VALUES (${particleUuid}, ${collectionBinding})
+const countRootParticles = async (sql: SQL, wimpSrc: string): Promise<number> => {
+  const rows = await sql<Array<{n: number}>>`
+    SELECT COUNT(*) AS n FROM matter_particle
+    WHERE wimp = ${wimpSrc} AND parent_particle IS NULL
   `
-  await insertRelationChildren(sql, wimpSrc, particle.children, particleUuid)
+  return rows[0]?.n ?? 0
 }
 
-const insertRelationChildren = async (
-  sql: SQL,
-  wimpSrc: string,
-  children: MatterRelationParticle["children"],
-  parentParticle: string,
-): Promise<void> => {
-  if (!Array.isArray(children) || children.length === 0) return
-
-  for (let index = 0; index < children.length; index++) {
-    const child = children[index]!
-    await insertRelationParticle(sql, wimpSrc, child.particle, parentParticle, child.edgeSlot, index)
-  }
+const countChildParticles = async (sql: SQL, parentUuid: string): Promise<number> => {
+  const rows = await sql<Array<{n: number}>>`
+    SELECT COUNT(*) AS n FROM matter_particle
+    WHERE parent_particle = ${parentUuid}
+  `
+  return rows[0]?.n ?? 0
 }
 
 const toMaybeArray = (values: string[]): string | string[] => (values.length === 1 ? values[0]! : values)
@@ -403,26 +339,245 @@ const getMatterParticles = async (sql: SQL, src: string): Promise<MatterRelation
   )
 }
 
-export class Matter {
-  constructor(readonly wimp: Wimp) {}
+/**
+ * Granular API: insertion helpers for `Matter` and `MatterChildren`.
+ *
+ * Каждый helper вычисляет `particleOrder` авто (count siblings),
+ * вызывает существующие insert*Particle, и возвращает uuid нового particle.
+ */
+const insertWimpAt = async (
+  wimp: Wimp,
+  parentParticle: string | null,
+  edgeSlot: EdgeSlot,
+  src: string,
+  fieldsBindingValue: BindingValue | undefined,
+  massBindingValue: BindingValue | undefined,
+): Promise<string> => {
+  const fieldsBinding = await insertBinding(wimp.sql, wimp.src, fieldsBindingValue)
+  const massBinding = await insertBinding(wimp.sql, wimp.src, massBindingValue)
+  const particleOrder =
+    parentParticle === null ? await countRootParticles(wimp.sql, wimp.src) : await countChildParticles(wimp.sql, parentParticle)
+  return insertWimpParticle(wimp.sql, wimp.src, parentParticle, edgeSlot, particleOrder, src, fieldsBinding, massBinding)
+}
 
-  async create(particles: MatterRelationParticle[]): Promise<void> {
-    for (let index = 0; index < particles.length; index++) {
-      await insertRelationParticle(this.wimp.sql, this.wimp.src, particles[index]!, null, "root", index)
-    }
+const insertFuzzyAt = async (
+  wimp: Wimp,
+  parentParticle: string | null,
+  edgeSlot: EdgeSlot,
+  fuzzyKind: "cond" | "dynamic-meta",
+  predicateBindingValue: BindingValue | undefined,
+): Promise<string> => {
+  const particleOrder =
+    parentParticle === null ? await countRootParticles(wimp.sql, wimp.src) : await countChildParticles(wimp.sql, parentParticle)
+
+  if (fuzzyKind === "cond") {
+    const predicateBinding = await insertBinding(wimp.sql, wimp.src, predicateBindingValue)
+    return insertCondFuzzyParticle(
+      wimp.sql,
+      wimp.src,
+      parentParticle,
+      edgeSlot,
+      particleOrder,
+      requireBinding(predicateBinding, `Condition particle for meta "${wimp.src}" requires predicate binding`),
+    )
+  }
+  return insertDynamicMetaFuzzyParticle(wimp.sql, wimp.src, parentParticle, edgeSlot, particleOrder)
+}
+
+const insertAxionAt = async (
+  wimp: Wimp,
+  parentParticle: string | null,
+  edgeSlot: EdgeSlot,
+  predicateBindingValue: BindingValue,
+): Promise<string> => {
+  const predicateBinding = await insertBinding(wimp.sql, wimp.src, predicateBindingValue)
+  if (!predicateBinding) throw new Error(`Axion particle for meta "${wimp.src}" requires predicate binding`)
+
+  const particleOrder =
+    parentParticle === null ? await countRootParticles(wimp.sql, wimp.src) : await countChildParticles(wimp.sql, parentParticle)
+  const particleUuid = await insertParticle(wimp.sql, wimp.src, "axion", parentParticle, edgeSlot, particleOrder)
+  await wimp.sql`
+    INSERT INTO matter_particle_axion (particle, predicate_binding)
+    VALUES (${particleUuid}, ${predicateBinding})
+  `
+  return particleUuid
+}
+
+const insertMachoAt = async (
+  wimp: Wimp,
+  parentParticle: string | null,
+  edgeSlot: EdgeSlot,
+  collectionBindingValue: BindingValue,
+): Promise<string> => {
+  const collectionBinding = await insertBinding(wimp.sql, wimp.src, collectionBindingValue)
+  if (!collectionBinding) throw new Error(`Macho particle for meta "${wimp.src}" requires collection binding`)
+
+  const particleOrder =
+    parentParticle === null ? await countRootParticles(wimp.sql, wimp.src) : await countChildParticles(wimp.sql, parentParticle)
+  const particleUuid = await insertParticle(wimp.sql, wimp.src, "macho", parentParticle, edgeSlot, particleOrder)
+  await wimp.sql`
+    INSERT INTO matter_particle_macho (particle, collection_binding)
+    VALUES (${particleUuid}, ${collectionBinding})
+  `
+  return particleUuid
+}
+
+export abstract class MatterParticle {
+  readonly uuid: string
+  readonly children: MatterChildren
+
+  constructor(
+    readonly matter: Matter,
+    uuid: string,
+  ) {
+    this.uuid = uuid
+    this.children = new MatterChildren(this)
   }
 
-  async all(): Promise<MatterRelationParticle[]> {
-    if (!(await hasMatter(this.wimp.sql, this.wimp.src))) return []
-    return getMatterParticles(this.wimp.sql, this.wimp.src)
+  abstract readonly kind: "wimp" | "fuzzy" | "axion" | "macho"
+}
+
+export class MatterWimpParticle extends MatterParticle {
+  readonly kind = "wimp" as const
+  constructor(
+    matter: Matter,
+    uuid: string,
+    readonly src: string,
+  ) {
+    super(matter, uuid)
+  }
+}
+
+export class MatterFuzzyParticle extends MatterParticle {
+  readonly kind = "fuzzy" as const
+  constructor(
+    matter: Matter,
+    uuid: string,
+    readonly fuzzyKind: "cond" | "dynamic-meta",
+  ) {
+    super(matter, uuid)
+  }
+}
+
+export class MatterAxionParticle extends MatterParticle {
+  readonly kind = "axion" as const
+}
+
+export class MatterMachoParticle extends MatterParticle {
+  readonly kind = "macho" as const
+}
+
+export class MatterChildren {
+  constructor(readonly particle: MatterParticle) {}
+
+  async wimp(input: {
+    edgeSlot: "child" | "branch"
+    src: string
+    fieldsBinding?: BindingValue | undefined
+    massBinding?: BindingValue | undefined
+  }): Promise<MatterWimpParticle> {
+    const uuid = await insertWimpAt(
+      this.particle.matter.parent,
+      this.particle.uuid,
+      input.edgeSlot,
+      input.src,
+      input.fieldsBinding,
+      input.massBinding,
+    )
+    return new MatterWimpParticle(this.particle.matter, uuid, input.src)
+  }
+
+  async fuzzy(input: {
+    edgeSlot: "child" | "then" | "else" | "branch"
+    fuzzyKind: "cond" | "dynamic-meta"
+    predicateBinding?: BindingValue | undefined
+  }): Promise<MatterFuzzyParticle> {
+    const uuid = await insertFuzzyAt(
+      this.particle.matter.parent,
+      this.particle.uuid,
+      input.edgeSlot,
+      input.fuzzyKind,
+      input.predicateBinding,
+    )
+    return new MatterFuzzyParticle(this.particle.matter, uuid, input.fuzzyKind)
+  }
+
+  async axion(input: {
+    edgeSlot: "child" | "then" | "else" | "branch"
+    predicateBinding: BindingValue
+  }): Promise<MatterAxionParticle> {
+    const uuid = await insertAxionAt(
+      this.particle.matter.parent,
+      this.particle.uuid,
+      input.edgeSlot,
+      input.predicateBinding,
+    )
+    return new MatterAxionParticle(this.particle.matter, uuid)
+  }
+
+  async macho(input: {
+    edgeSlot: "child" | "then" | "else" | "branch"
+    collectionBinding: BindingValue
+  }): Promise<MatterMachoParticle> {
+    const uuid = await insertMachoAt(
+      this.particle.matter.parent,
+      this.particle.uuid,
+      input.edgeSlot,
+      input.collectionBinding,
+    )
+    return new MatterMachoParticle(this.particle.matter, uuid)
   }
 
   async count(): Promise<number> {
-    if (!(await hasMatter(this.wimp.sql, this.wimp.src))) return 0
-    return (await getMatterParticles(this.wimp.sql, this.wimp.src)).length
+    return countChildParticles(this.particle.matter.parent.sql, this.particle.uuid)
+  }
+}
+
+export class Matter {
+  /**
+   * Родительский `Wimp` ORM. Назван `parent` (не `wimp`), чтобы не конфликтовать
+   * с одноимённым методом `Matter.wimp(...)` для создания root wimp-particle.
+   */
+  constructor(readonly parent: Wimp) {}
+
+  async wimp(input: {
+    src: string
+    fieldsBinding?: BindingValue | undefined
+    massBinding?: BindingValue | undefined
+  }): Promise<MatterWimpParticle> {
+    const uuid = await insertWimpAt(this.parent, null, "root", input.src, input.fieldsBinding, input.massBinding)
+    return new MatterWimpParticle(this, uuid, input.src)
+  }
+
+  async fuzzy(input: {
+    fuzzyKind: "cond" | "dynamic-meta"
+    predicateBinding?: BindingValue | undefined
+  }): Promise<MatterFuzzyParticle> {
+    const uuid = await insertFuzzyAt(this.parent, null, "root", input.fuzzyKind, input.predicateBinding)
+    return new MatterFuzzyParticle(this, uuid, input.fuzzyKind)
+  }
+
+  async axion(input: {predicateBinding: BindingValue}): Promise<MatterAxionParticle> {
+    const uuid = await insertAxionAt(this.parent, null, "root", input.predicateBinding)
+    return new MatterAxionParticle(this, uuid)
+  }
+
+  async macho(input: {collectionBinding: BindingValue}): Promise<MatterMachoParticle> {
+    const uuid = await insertMachoAt(this.parent, null, "root", input.collectionBinding)
+    return new MatterMachoParticle(this, uuid)
+  }
+
+  async all(): Promise<MatterRelationParticle[]> {
+    if (!(await hasMatter(this.parent.sql, this.parent.src))) return []
+    return getMatterParticles(this.parent.sql, this.parent.src)
+  }
+
+  async count(): Promise<number> {
+    if (!(await hasMatter(this.parent.sql, this.parent.src))) return 0
+    return (await getMatterParticles(this.parent.sql, this.parent.src)).length
   }
 
   async exists(): Promise<boolean> {
-    return hasMatter(this.wimp.sql, this.wimp.src)
+    return hasMatter(this.parent.sql, this.parent.src)
   }
 }

@@ -3,8 +3,8 @@ import massSchemaSql from "./mass.sql" with {type: "text"}
 import fieldsSchemaSql from "./fields.sql" with {type: "text"}
 import superpositionSchemaSql from "./superposition.sql" with {type: "text"}
 import processSchemaSql from "./process.sql" with {type: "text"}
-import actionSchemaSql from "./action.sql" with {type: "text"}
-import finallySchemaSql from "./finally.sql" with {type: "text"}
+import actionSchemaSql from "./process.action.sql" with {type: "text"}
+import finallySchemaSql from "./process.finally.sql" with {type: "text"}
 import reactionsSchemaSql from "./reactions.sql" with {type: "text"}
 import matterSchemaSql from "./matter.sql" with {type: "text"}
 import {SQL} from "bun"
@@ -37,7 +37,7 @@ export class StoreWimpSqlite {
   /**
    * Создаёт минимальную row в `wimp` (только `src`, остальные поля null).
    * Идемпотентно по src через DELETE+INSERT (cascade на field/superposition/process/reaction/matter/wimp_mass_value).
-   * Наполнение делается тонкими domain-методами на ORM (`wimp.fields.create`, etc.).
+   * Наполнение делается тонкими domain-методами на ORM (`wimp.fields.string`/`enum`/..., etc.).
    */
   async create(src: string): Promise<Wimp> {
     await this.sql`DELETE FROM wimp WHERE src = ${src}`
