@@ -1,9 +1,43 @@
 
 import type { SQL } from "bun"
 import type { MetaDSL } from "../../../metafor.t.ts"
-import { createProcess } from "./process.C.ts"
+import type { ParsedProcess } from "../../../process.t.ts"
+import type { ParsedDestroy } from "../../../finally.t.ts"
+import type { Wimp } from "./wimp.ts"
 
 type ProcessType = "action" | "finally"
+
+const insertProcessReads = async (
+  sql: SQL,
+  src: string,
+  processUuid: string,
+  phase: "action" | "success" | "error",
+  fieldKeys: string[] | undefined,
+): Promise<void> => {
+  for (const fieldKey of fieldKeys ?? []) {
+    await sql`
+      INSERT INTO process_action_read (process, field, phase)
+      SELECT ${processUuid}, field.uuid, ${phase}
+      FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
+    `
+  }
+}
+
+const insertProcessWrites = async (
+  sql: SQL,
+  src: string,
+  processUuid: string,
+  phase: "success" | "error",
+  fieldKeys: string[] | undefined,
+): Promise<void> => {
+  for (const fieldKey of fieldKeys ?? []) {
+    await sql`
+      INSERT INTO process_action_write (process, field, phase)
+      SELECT ${processUuid}, field.uuid, ${phase}
+      FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
+    `
+  }
+}
 
 export interface ProcessActionPhase {
   src: string
@@ -31,61 +65,60 @@ const parseJsonStringArray = (value: string | null): string[] | undefined => {
 
 export class Process {
   constructor(
-    private readonly sql: SQL,
-    private readonly wimpSrc: string,
+    private readonly processes: Processes,
     readonly key: string,
   ) {}
 
     async type(): Promise<ProcessType> {
     const row = (
-      await this.sql<Array<{ type: ProcessType }>>`
-        SELECT type FROM process WHERE wimp = ${this.wimpSrc} AND key = ${this.key}
+      await this.processes.wimp.sql<Array<{ type: ProcessType }>>`
+        SELECT type FROM process WHERE wimp = ${this.processes.wimp.src} AND key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.processes.wimp.src}`)
     return row.type
   }
 
     async label(): Promise<string | undefined> {
     const row = (
-      await this.sql<Array<{ label: string | null }>>`
-        SELECT label FROM process WHERE wimp = ${this.wimpSrc} AND key = ${this.key}
+      await this.processes.wimp.sql<Array<{ label: string | null }>>`
+        SELECT label FROM process WHERE wimp = ${this.processes.wimp.src} AND key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.processes.wimp.src}`)
     return row.label ?? undefined
   }
 
   async setLabel(value: string | null): Promise<void> {
-    await this.sql`
+    await this.processes.wimp.sql`
       UPDATE process SET label = ${value}
-      WHERE wimp = ${this.wimpSrc} AND key = ${this.key}
+      WHERE wimp = ${this.processes.wimp.src} AND key = ${this.key}
     `
   }
 
     async desc(): Promise<string | undefined> {
     const row = (
-      await this.sql<Array<{ desc: string | null }>>`
-        SELECT desc FROM process WHERE wimp = ${this.wimpSrc} AND key = ${this.key}
+      await this.processes.wimp.sql<Array<{ desc: string | null }>>`
+        SELECT desc FROM process WHERE wimp = ${this.processes.wimp.src} AND key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.processes.wimp.src}`)
     return row.desc ?? undefined
   }
 
   async setDesc(value: string | null): Promise<void> {
-    await this.sql`
+    await this.processes.wimp.sql`
       UPDATE process SET desc = ${value}
-      WHERE wimp = ${this.wimpSrc} AND key = ${this.key}
+      WHERE wimp = ${this.processes.wimp.src} AND key = ${this.key}
     `
   }
 
     async env(): Promise<string[]> {
-    const rows = await this.sql<Array<{ env: string }>>`
+    const rows = await this.processes.wimp.sql<Array<{ env: string }>>`
       SELECT process_env.env AS env
       FROM process_env
       INNER JOIN process ON process.uuid = process_env.process
-      WHERE process.wimp = ${this.wimpSrc} AND process.key = ${this.key}
+      WHERE process.wimp = ${this.processes.wimp.src} AND process.key = ${this.key}
       ORDER BY process_env.rowid
     `
     return rows.map((row) => row.env)
@@ -100,7 +133,7 @@ export class Process {
       reads: string | null
     }
     const row = (
-      await this.sql<Row[]>`
+      await this.processes.wimp.sql<Row[]>`
         SELECT
           p.type AS type,
           pa.action AS action,
@@ -115,10 +148,10 @@ export class Process {
            )) AS reads
         FROM process p
         LEFT JOIN process_action pa ON pa.process = p.uuid
-        WHERE p.wimp = ${this.wimpSrc} AND p.key = ${this.key}
+        WHERE p.wimp = ${this.processes.wimp.src} AND p.key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.processes.wimp.src}`)
     if (row.type !== "action") throw new Error(`process ${this.key} is type=${row.type}, has no action phase`)
     if (row.action === null) throw new Error(`process_action row missing for ${this.key}`)
 
@@ -146,7 +179,7 @@ export class Process {
       writes: string | null
     }
     const row = (
-      await this.sql<Row[]>`
+      await this.processes.wimp.sql<Row[]>`
         SELECT
           p.type AS type,
           (CASE ${phase} WHEN 'success' THEN pa.success WHEN 'error' THEN pa.error END) AS src,
@@ -166,10 +199,10 @@ export class Process {
            )) AS writes
         FROM process p
         LEFT JOIN process_action pa ON pa.process = p.uuid
-        WHERE p.wimp = ${this.wimpSrc} AND p.key = ${this.key}
+        WHERE p.wimp = ${this.processes.wimp.src} AND p.key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.processes.wimp.src}`)
     if (row.type !== "action") throw new Error(`process ${this.key} is type=${row.type}, has no ${phase} phase`)
     if (row.src === null) return null
     const result: ProcessHandlerPhase = { src: row.src }
@@ -187,7 +220,7 @@ export class Process {
       reads: string | null
     }
     const row = (
-      await this.sql<Row[]>`
+      await this.processes.wimp.sql<Row[]>`
         SELECT
           p.type AS type,
           pf.before AS before,
@@ -200,10 +233,10 @@ export class Process {
            )) AS reads
         FROM process p
         LEFT JOIN process_finally pf ON pf.process = p.uuid
-        WHERE p.wimp = ${this.wimpSrc} AND p.key = ${this.key}
+        WHERE p.wimp = ${this.processes.wimp.src} AND p.key = ${this.key}
       `
     )[0]
-    if (!row) throw new Error(`process ${this.key} not found in meta ${this.wimpSrc}`)
+    if (!row) throw new Error(`process ${this.key} not found in meta ${this.processes.wimp.src}`)
     if (row.type !== "finally") throw new Error(`process ${this.key} is type=${row.type}, has no before phase`)
     if (row.before === null) throw new Error(`process_finally row missing for ${this.key}`)
 
@@ -215,35 +248,82 @@ export class Process {
 }
 
 export class Processes {
-  constructor(
-    private readonly sql: SQL,
-    private readonly src: string,
-  ) {}
+  constructor(readonly wimp: Wimp) {}
 
   async create(dsl: MetaDSL): Promise<void> {
-    await createProcess(this.sql, dsl, this.src)
+    if (!dsl.processes) return
+
+    const sql = this.wimp.sql
+    const src = this.wimp.src
+
+    for (const [state, p] of Object.entries(dsl.processes)) {
+      const uuid = crypto.randomUUID()
+      const process = p as ParsedProcess | ParsedDestroy
+      await sql`
+        INSERT INTO process (uuid, wimp, key, type, label, desc)
+        VALUES (${uuid}, ${src}, ${state}, ${process.type || "action"}, ${process.label || null}, ${process.desc || null})
+      `
+
+      if (process.env) {
+        for (const env of process.env) {
+          await sql`INSERT INTO process_env (process, env) VALUES (${uuid}, ${env})`
+        }
+      }
+
+      if (process.type === "finally") {
+        await sql`INSERT INTO process_finally (process, before) VALUES (${uuid}, ${process.before.src})`
+
+        for (const fieldKey of process.before.read ?? []) {
+          await sql`
+            INSERT INTO process_finally_read (process, field)
+            SELECT ${uuid}, field.uuid
+            FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
+          `
+        }
+
+        continue
+      }
+
+      await sql`
+        INSERT INTO process_action (process, action, action_import_specifier, action_wrapper_src, success, error)
+        VALUES (
+          ${uuid},
+          ${process.action.src},
+          ${process.action.importSpecifier || null},
+          ${process.action.wrapperSrc || null},
+          ${process.success?.src || null},
+          ${process.error?.src || null}
+        )
+      `
+
+      await insertProcessReads(sql, src, uuid, "action", process.action.read)
+      await insertProcessReads(sql, src, uuid, "success", process.success?.read)
+      await insertProcessReads(sql, src, uuid, "error", process.error?.read)
+      await insertProcessWrites(sql, src, uuid, "success", process.success?.write)
+      await insertProcessWrites(sql, src, uuid, "error", process.error?.write)
+    }
   }
 
   async all(): Promise<Process[]> {
-    const rows = await this.sql<Array<{ key: string }>>`
-      SELECT key FROM process WHERE wimp = ${this.src} ORDER BY rowid
+    const rows = await this.wimp.sql<Array<{ key: string }>>`
+      SELECT key FROM process WHERE wimp = ${this.wimp.src} ORDER BY rowid
     `
-    return rows.map((row) => new Process(this.sql, this.src, row.key))
+    return rows.map((row) => new Process(this, row.key))
   }
 
   async get(filter: { key: string }): Promise<Process | null> {
     const row = (
-      await this.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM process WHERE wimp = ${this.src} AND key = ${filter.key} LIMIT 1
+      await this.wimp.sql<Array<{ ok: number }>>`
+        SELECT 1 AS ok FROM process WHERE wimp = ${this.wimp.src} AND key = ${filter.key} LIMIT 1
       `
     )[0]
-    return row ? new Process(this.sql, this.src, filter.key) : null
+    return row ? new Process(this, filter.key) : null
   }
 
   async count(): Promise<number> {
     const row = (
-      await this.sql<Array<{ count: number }>>`
-        SELECT COUNT(*) AS count FROM process WHERE wimp = ${this.src}
+      await this.wimp.sql<Array<{ count: number }>>`
+        SELECT COUNT(*) AS count FROM process WHERE wimp = ${this.wimp.src}
       `
     )[0]
     return row?.count ?? 0
@@ -251,8 +331,8 @@ export class Processes {
 
   async exists(): Promise<boolean> {
     const row = (
-      await this.sql<Array<{ ok: number }>>`
-        SELECT 1 AS ok FROM process WHERE wimp = ${this.src} LIMIT 1
+      await this.wimp.sql<Array<{ ok: number }>>`
+        SELECT 1 AS ok FROM process WHERE wimp = ${this.wimp.src} LIMIT 1
       `
     )[0]
     return row !== undefined

@@ -1,4 +1,5 @@
 import wimpSchemaSql from "./wimp.sql" with {type: "text"}
+import massSchemaSql from "./mass.sql" with {type: "text"}
 import fieldsSchemaSql from "./fields.sql" with {type: "text"}
 import superpositionSchemaSql from "./superposition.sql" with {type: "text"}
 import processSchemaSql from "./process.sql" with {type: "text"}
@@ -16,6 +17,7 @@ export class StoreWimpSqlite {
     await sql.unsafe(
       [
         wimpSchemaSql,
+        massSchemaSql,
         fieldsSchemaSql,
         superpositionSchemaSql,
         processSchemaSql,

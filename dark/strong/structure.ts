@@ -7,6 +7,6 @@ export async function fillStrongStructure(wimp: Wimp, dsl: MetaDSL): Promise<voi
     desc: dsl.desc ?? null,
     viewCss: dsl.bulk?.view ?? null,
   })
-  if (dsl.mass !== undefined) await wimp.setMass(dsl.mass)
+  if (dsl.mass !== undefined) await wimp.mass.set(dsl.mass)
   await wimp.fields.create(dsl)
 }
