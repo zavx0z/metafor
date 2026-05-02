@@ -1,5 +1,5 @@
 import type {FieldDefinition, FieldKey} from "../index.ts"
-import type {MetaIdentifiers} from "@store/meta/sqlite"
+import type {Meta, MetaIdentifiers} from "@store/meta/sqlite"
 import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord, Actor} from "@store/actor"
 import type {MatterParticlePlan} from "@dark/types/dark"
 import {emitAdd, emitBarrier} from "@dark/gravity/channel.ts"
@@ -141,16 +141,17 @@ interface PendingChildWimp {
 }
 
 const materializeMeta = async (
-  src: string,
+  meta: Meta,
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
   options: MatterOptions,
   positionByParent: Map<string, number>,
 ): Promise<string> => {
-  const identifiers = await loadMeta(src)
+  const src = meta.src
+  const identifiers = await meta.identifiers()
   const particleModel = await store.meta.readDarkParticleModel(src)
   if (!particleModel) {
-    throw new Error(`Dark runtime meta "${src}" is not canonicalized in store after loadMeta`)
+    throw new Error(`Dark runtime meta "${src}" is not canonicalized in store`)
   }
 
   const fieldSchemas = particleModel.meta.fieldSchemas ?? {}
@@ -234,7 +235,8 @@ const materializeMeta = async (
   }
 
   for (const pending of pendingChildren) {
-    await materializeMeta(pending.src, pending.parent, pending.continuation, options, positionByParent)
+    const childMeta = await loadMeta(pending.src)
+    await materializeMeta(childMeta, pending.parent, pending.continuation, options, positionByParent)
   }
 
   return actorUuid
@@ -244,13 +246,14 @@ const materializeMeta = async (
  * Публичный entrypoint Dark.
  *
  * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/index.ts`.
- * Принимает канонический `src` меты и разворачивает её дерево через store ORM.
+ * Принимает уже канонизированный `Meta` ORM (получить через `loadMeta(src)`) и разворачивает дерево
+ * через store ORM: создаёт actor + topology rows, рекурсивно материализует дочерние wimp meta.
  *
  * @returns корневой `Actor` ORM.
  */
-export async function matter(src: string, options: MatterOptions = {}): Promise<Actor> {
+export async function matter(meta: Meta, options: MatterOptions = {}): Promise<Actor> {
   const positionByParent = new Map<string, number>()
-  const rootUuid = await materializeMeta(src, null, undefined, options, positionByParent)
+  const rootUuid = await materializeMeta(meta, null, undefined, options, positionByParent)
 
   if (options.suppressGravityBarrier !== true) emitBarrier()
 

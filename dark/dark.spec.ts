@@ -6,6 +6,7 @@ import type {Actor} from "@store/actor"
 import type {Store} from "../store/index.ts"
 import {open} from "../store/server.ts"
 import {matter} from "./dark.ts"
+import {loadMeta} from "./load.ts"
 
 const src = "zavx0z/git"
 
@@ -22,7 +23,7 @@ describe("matter(zavx0z/git) → store", () => {
     store = await open(tmpFile)
     globalThis.store = store
     sql = new SQL(`sqlite://${tmpFile}`)
-    root = await matter(src)
+    root = await matter(await loadMeta(src))
   })
 
   afterAll(async () => {

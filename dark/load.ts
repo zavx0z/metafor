@@ -1,5 +1,5 @@
 import type {MetaDSL, SRC} from ".."
-import type {MetaIdentifiers} from "@store/meta/sqlite"
+import type {Meta} from "@store/meta/sqlite"
 import settings from "./settings.yml"
 import {projectTemplateMatterRelations} from "./matter.ts"
 
@@ -24,15 +24,14 @@ export const readMetaDsl = async (address: SRC): Promise<MetaDSL> => {
 }
 
 /**
- * Канонизирует мету в текущем module-level store:
- * - если её ещё нет — записывает декларацию через `store.meta.create(src, dsl, matter)`,
- * - если уже есть — читает `MetaIdentifiers` через `Meta.identifiers()` ORM.
+ * Получает или канонизирует мету в `globalThis.store`:
+ * - если уже есть — возвращает существующий `Meta` ORM,
+ * - иначе читает DSL и создаёт через `store.meta.create(src, dsl, matter)`.
  */
-export const loadMeta = async (src: SRC): Promise<MetaIdentifiers> => {
+export const loadMeta = async (src: SRC): Promise<Meta> => {
   const existing = await store.meta.get(src)
-  if (existing) return existing.identifiers()
+  if (existing) return existing
 
   const dsl = await readMetaDsl(src)
-  const meta = await store.meta.create(src, dsl, projectTemplateMatterRelations(dsl))
-  return meta.identifiers()
+  return store.meta.create(src, dsl, projectTemplateMatterRelations(dsl))
 }

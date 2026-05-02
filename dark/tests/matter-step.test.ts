@@ -2,6 +2,7 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import type {Store} from "../../store/index.ts"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
+import {loadMeta} from "../load.ts"
 
 type RecordedStep = {
   kind: "actor" | "topology"
@@ -16,7 +17,8 @@ describe("dark matter — observation hook", () => {
   beforeAll(async () => {
     store = await open(":memory:")
     globalThis.store = store
-    await matter("zavx0z/git", {
+    const meta = await loadMeta("zavx0z/git")
+    await matter(meta, {
       onMaterializedStep(step) {
         steps.push({
           kind: step.kind,
