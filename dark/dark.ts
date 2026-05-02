@@ -140,13 +140,23 @@ interface PendingChildWimp {
   continuation: Continuation
 }
 
-const materializeMeta = async (
+/**
+ * Послойный проход одной меты.
+ *
+ * Создаёт root actor, эмитит `kind: "actor"` step, затем BFS по plan-tree:
+ * на каждой итерации обрабатывает все entries текущего фронтира — для topology-узлов
+ * пишет row + emit, для wimp-узлов накапливает pending. По завершении слоя — yield-ит
+ * накопленные pending child wimps наружу. Внешний оркестратор обязан рекурсивно
+ * материализовать их перед `next()`, чтобы дочерние actors встали в БД до того,
+ * как BFS перейдёт к следующему слою топологии.
+ */
+async function* matterMeta(
   meta: Wimp,
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
   options: MatterOptions,
   positionByParent: Map<string, number>,
-): Promise<string> => {
+): AsyncGenerator<PendingChildWimp[], string, void> {
   const src = meta.src
   const identifiers = await meta.identifiers()
   const particleModel = await store.wimp.readDarkParticleModel(src)
@@ -233,15 +243,30 @@ const materializeMeta = async (
       }
     }
 
-    for (const pending of layerPendingChildren) {
-      const childMeta = await loadWimp(pending.src)
-      await materializeMeta(childMeta, pending.parent, pending.continuation, options, positionByParent)
-    }
-
+    yield layerPendingChildren
     frontier = next
   }
 
   return actorUuid
+}
+
+const materializeMeta = async (
+  meta: Wimp,
+  parent: ParticleRef | null,
+  continuation: Continuation | undefined,
+  options: MatterOptions,
+  positionByParent: Map<string, number>,
+): Promise<string> => {
+  const generator = matterMeta(meta, parent, continuation, options, positionByParent)
+
+  while (true) {
+    const result = await generator.next()
+    if (result.done) return result.value
+    for (const pending of result.value) {
+      const childMeta = await loadWimp(pending.src)
+      await materializeMeta(childMeta, pending.parent, pending.continuation, options, positionByParent)
+    }
+  }
 }
 
 /**
