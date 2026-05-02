@@ -28,37 +28,6 @@ export class Fields {
   constructor(readonly wimp: Wimp) {
   }
 
-  async add(type: "string", input: {
-    key: FieldKey
-    default?: string | undefined
-    label?: string | null | undefined
-    required?: boolean | undefined
-  }): Promise<StringField>
-  async add(type: "number", input: {
-    key: FieldKey
-    default?: number | undefined
-    label?: string | null | undefined
-    required?: boolean | undefined
-  }): Promise<NumberField>
-  async add(type: "boolean", input: {
-    key: FieldKey
-    default?: boolean | undefined
-    label?: string | null | undefined
-    required?: boolean | undefined
-  }): Promise<BooleanField>
-  async add(type: "array", input: {
-    key: FieldKey
-    default?: number[] | undefined
-    label?: string | null | undefined
-    required?: boolean | undefined
-  }): Promise<ArrayField>
-  async add(type: "enum", input: {
-    key: FieldKey
-    values: ReadonlyArray<string | number>
-    default?: string | number | undefined
-    label?: string | null | undefined
-    required?: boolean | undefined
-  }): Promise<EnumField>
   async add(
     type: FieldType,
     input: {

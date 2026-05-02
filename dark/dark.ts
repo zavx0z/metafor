@@ -162,17 +162,8 @@ async function* matterWimp(
   if (await wimp.fields.exists()) {
     matterRelations = await wimp.matter.all()
   } else {
-    for (const [key, def] of Object.entries(dsl.fields)) {
-      const {type} = def
-      const label = def.label ?? null
-      const required = def.required ?? false
-      const values = def.values ?? []
-      if (type === "string") await wimp.fields.add("string", {key, default: def.default, label, required})
-      else if (type === "number") await wimp.fields.add("number", {key, default: def.default, label, required})
-      else if (type === "boolean") await wimp.fields.add("boolean", {key, default: def.default, label, required})
-      else if (type === "array") await wimp.fields.add("array", {key, default: def.default, label, required})
-      else if (type === "enum") await wimp.fields.add("enum", {key, values, default: def.default, label, required})
-    }
+    for (const [key, {type, ...definition}] of Object.entries(dsl.fields))
+      await wimp.fields.add(type, {key, ...definition})
     await fillWeakDynamics(wimp, dsl)
     matterRelations = await fillGravityMatter(wimp, dsl)
   }
