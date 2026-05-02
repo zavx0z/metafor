@@ -1,5 +1,5 @@
 import type {SQL} from "bun"
-import {Fields} from "./fields.ts"
+import {Fields} from "./fields/index.ts"
 import {Superposition} from "./superposition.ts"
 import {Processes} from "./process.ts"
 import {Reactions} from "./reactions.ts"

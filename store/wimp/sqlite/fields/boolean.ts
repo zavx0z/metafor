@@ -23,7 +23,14 @@ export class BooleanField extends Field {
     const uuid = await this.uuid()
     await this.ensureDefaultRow(uuid)
     const sql = this.fields.wimp.sql
-    await sql`DELETE FROM field_boolean_default WHERE field = ${uuid}`
-    await sql`INSERT INTO field_boolean_default (field, default_value) VALUES (${uuid}, ${value ? 1 : 0})`
+    await sql`
+        DELETE
+        FROM field_boolean_default
+        WHERE field = ${uuid}
+    `
+    await sql`
+        INSERT INTO field_boolean_default (field, default_value)
+        VALUES (${uuid}, ${value ? 1 : 0})
+    `
   }
 }

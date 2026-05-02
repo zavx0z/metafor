@@ -1,6 +1,6 @@
 import {Field} from "./field.ts"
-import type {Fields} from "./fields.ts"
-import type {FieldKey} from "../../../metafor.t.ts"
+import type {Fields} from "./index.ts"
+import type {FieldKey} from "../../../../metafor.t.ts"
 
 export class EnumVariant {
   constructor(

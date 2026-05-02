@@ -1,11 +1,11 @@
-import type {FieldKey} from "../../../metafor.t.ts"
-import type {Wimp} from "./wimp.ts"
+import type {FieldKey} from "../../../../metafor.t.ts"
+import type {Wimp} from "../wimp.ts"
 import type {FieldType} from "./field.ts"
-import {StringField} from "./field.string.ts"
-import {NumberField} from "./field.number.ts"
-import {BooleanField} from "./field.boolean.ts"
-import {ArrayField} from "./field.array.ts"
-import {EnumField} from "./field.enum.ts"
+import {StringField} from "./string.ts"
+import {NumberField} from "./number.ts"
+import {BooleanField} from "./boolean.ts"
+import {ArrayField} from "./array.ts"
+import {EnumField} from "./enum.ts"
 
 export type AnyField = StringField | NumberField | BooleanField | ArrayField | EnumField
 
