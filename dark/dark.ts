@@ -148,7 +148,7 @@ async function* matterWimp(
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
   options: MatterOptions,
-): AsyncGenerator<PendingChildWimp[], string, void> {
+): AsyncGenerator<PendingChildWimp[], Actor, void> {
   const src = wimp.src
   const dsl = await readWimpDsl(src)
 
@@ -173,7 +173,7 @@ async function* matterWimp(
     finalValues,
     fieldSchemas,
   })
-  await store.actor.create(rows)
+  const actor = await store.actor.create(rows)
   emitAdd(actorUuid)
 
   await options.onMaterializedStep?.({kind: "actor", particle: {kind: "actor", uuid: actorUuid}, src})
@@ -186,7 +186,7 @@ async function* matterWimp(
   }
 
   const plans = projectStoreMatterParticles(matterRelations)
-  if (plans.length === 0) return actorUuid
+  if (plans.length === 0) return actor
 
   let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", uuid: actorUuid}}))
 
@@ -238,7 +238,7 @@ async function* matterWimp(
     frontier = next
   }
 
-  return actorUuid
+  return actor
 }
 
 const materializeWimp = async (
@@ -246,7 +246,7 @@ const materializeWimp = async (
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
   options: MatterOptions,
-): Promise<string> => {
+): Promise<Actor> => {
   const generator = matterWimp(wimp, parent, continuation, options)
 
   while (true) {
@@ -275,12 +275,8 @@ const materializeWimp = async (
  * @returns корневой `Actor` ORM.
  */
 export async function matter(wimp: Wimp, options: MatterOptions = {}): Promise<Actor> {
-  const rootUuid = await materializeWimp(wimp, null, undefined, options)
-
+  const root = await materializeWimp(wimp, null, undefined, options)
   if (options.suppressGravityBarrier !== true) emitBarrier()
-
-  const root = await store.actor.get(rootUuid)
-  if (!root) throw new Error(`Root actor ${rootUuid} missing after materialization`)
   return root
 }
 
