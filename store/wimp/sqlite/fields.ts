@@ -1,6 +1,7 @@
 
 import type { SQL } from "bun"
-import type { FieldKey } from "../../../metafor.t.ts"
+import type { FieldKey, MetaDSL } from "../../../metafor.t.ts"
+import { createFields, type CreateFieldsResult } from "./fields.C.ts"
 
 export type FieldType = "string" | "number" | "boolean" | "array" | "enum"
 
@@ -148,6 +149,10 @@ export class Fields {
     private readonly sql: SQL,
     private readonly src: string,
   ) {}
+
+  async create(dsl: MetaDSL): Promise<CreateFieldsResult> {
+    return createFields(this.sql, dsl, this.src)
+  }
 
     async all(): Promise<AnyField[]> {
     const rows = await this.sql<Array<{ key: string; type: FieldType }>>`

@@ -6,7 +6,6 @@ import type {Actor} from "@store/actor"
 import type {Store} from "../../store/index.ts"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
-import {loadWimp} from "../load.ts"
 
 let store: Awaited<ReturnType<typeof open>>
 let sql: SQL
@@ -21,7 +20,7 @@ describe("matter() — runtime tree через store", () => {
     store = await open(tmpFile)
     globalThis.store = store
     sql = new SQL(`sqlite://${tmpFile}`)
-    root = await matter(await loadWimp("zavx0z/git"))
+    root = await matter("zavx0z/git")
   })
   afterAll(async () => {
     await sql.close()

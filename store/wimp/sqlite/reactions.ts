@@ -1,5 +1,8 @@
 
 import type { SQL } from "bun"
+import type { MetaDSL } from "../../../metafor.t.ts"
+import { createReactions } from "./reactions.C.ts"
+import type { FieldUuidByKey, StateUuidByName } from "./reactions.t.ts"
 
 export class Reaction {
   constructor(
@@ -118,6 +121,10 @@ export class Reactions {
     private readonly sql: SQL,
     private readonly src: string,
   ) {}
+
+  async create(dsl: MetaDSL, fieldUuids: FieldUuidByKey, stateUuids: StateUuidByName): Promise<void> {
+    await createReactions(this.sql, dsl, this.src, fieldUuids, stateUuids)
+  }
 
   async all(): Promise<Reaction[]> {
     const rows = await this.sql<Array<{ key: string }>>`

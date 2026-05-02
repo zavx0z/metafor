@@ -1,17 +1,16 @@
 import type {Actor, ActorRecord, ActorRoots, AnyValue, ActorFieldValue, ActorRows} from "@store/actor"
 import type {AnyTopology, TopologyRecord} from "@store/topology"
-import type {DarkWimpParticleModel, Wimp} from "@store/wimp/sqlite"
-import type {MetaDSL} from "../metafor.t"
-import type {MatterRelationParticle} from "./wimp/sqlite/matter.t.ts"
+import type {Wimp} from "@store/wimp/sqlite"
 import type {StoreUpdateMessage} from "./server.ts"
 
 export interface WimpApi {
-  /** Создаёт декларацию wimp в БД одной транзакцией. Идемпотентно по `src` (DELETE+INSERT). */
-  create(src: string, dsl: MetaDSL, matter: MatterRelationParticle[]): Promise<Wimp>
+  /**
+   * Создаёт минимальную row в `wimp` (только `src`, остальные поля null).
+   * Идемпотентно по `src` (DELETE+INSERT).
+   */
+  create(src: string): Promise<Wimp>
 
   get(src: string): Promise<Wimp | null>
-
-  readDarkParticleModel(src: string): Promise<DarkWimpParticleModel | null>
 }
 
 export interface ValueApi {

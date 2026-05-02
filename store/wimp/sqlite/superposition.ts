@@ -1,6 +1,8 @@
 
 import type { SQL } from "bun"
-import type { ConditionListItemRow, PredicateRow } from "./superposition.t.ts"
+import type { MetaDSL } from "../../../metafor.t.ts"
+import { createSuperposition } from "./superposition.C.ts"
+import type { ConditionListItemRow, FieldUuidByKey, PredicateRow, StateUuidByName } from "./superposition.t.ts"
 
 const decodeStoredScalar = (
   valueKind: PredicateRow["value_kind"],
@@ -184,6 +186,10 @@ export class Superposition {
     private readonly sql: SQL,
     private readonly src: string,
   ) {}
+
+  async create(dsl: MetaDSL, fieldUuids: FieldUuidByKey): Promise<StateUuidByName> {
+    return createSuperposition(this.sql, dsl, this.src, fieldUuids)
+  }
 
   async all(): Promise<State[]> {
     const rows = await this.sql<Array<{ name: string }>>`

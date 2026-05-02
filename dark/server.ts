@@ -2,7 +2,6 @@ import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage} from "@shared/protocol"
 import {MetaFor} from "../metafor"
 import {open} from "store/server"
 import {matter} from "./dark.ts"
-import {loadWimp} from "./load.ts"
 
 // DSL-файлы `github/.../meta.ts` обращаются к `MetaFor(...)` как к глобальной функции,
 // поэтому регистрируем её до первого dynamic import меты.
@@ -43,7 +42,7 @@ const handleWimpLoad = async (src: string): Promise<void> => {
   }
   console.log(`[dark/server] загружаю wimp "${src}"`)
   try {
-    const wimp = await loadWimp(src)
+    const wimp = await globalThis.store.wimp.create(src)
     await matter(wimp)
     console.log(`[dark/server] wimp "${src}" материализован`)
   } catch (error) {

@@ -1,10 +1,11 @@
-import type { MetaDSL, NodeType } from "../index.ts"
+import type { MetaDSL, NodeType } from "../../index.ts"
 import type {
   MatterRelationBindingValue,
   MatterRelationChild,
   MatterRelationParticle,
-} from "../store/wimp/sqlite/matter.t.ts"
-import type { MatterParticlePlan } from "./types/dark.ts"
+} from "../../store/wimp/sqlite/matter.t.ts"
+import type { MatterParticlePlan } from "../types/dark.ts"
+import type { Wimp } from "@store/wimp/sqlite"
 
 const createContinuationSrc = (expr: string | undefined, value: string | number): string => {
   if (!expr) return String(value)
@@ -161,3 +162,9 @@ export const projectStoreMatterParticles = (particles: MatterRelationParticle[])
         }
     }
   })
+
+export async function fillGravityMatter(wimp: Wimp, dsl: MetaDSL): Promise<MatterRelationParticle[]> {
+  const relations = projectTemplateMatterRelations(dsl)
+  await wimp.matter.create(relations)
+  return relations
+}

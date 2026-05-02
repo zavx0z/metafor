@@ -7,17 +7,7 @@ import finallySchemaSql from "./finally.sql" with {type: "text"}
 import reactionsSchemaSql from "./reactions.sql" with {type: "text"}
 import matterSchemaSql from "./matter.sql" with {type: "text"}
 import {SQL} from "bun"
-import type {MetaDSL} from "../../../metafor.t"
-import type {MatterRelationParticle} from "./matter.t.ts"
-import {createFields} from "./fields.C.ts"
-import {createMatter} from "./matter.C.ts"
-import {createWimp} from "./wimp.C.ts"
-import {createProcess} from "./process.C.ts"
-import {createReactions} from "./reactions.C.ts"
-import {createSuperposition} from "./superposition.C.ts"
 import {Wimp} from "./wimp.ts"
-import type {DarkWimpParticleModel} from "./read.t.ts"
-import {DarkParticleModelProjection} from "./read.ts"
 
 export class StoreWimpSqlite {
   private constructor(private readonly sql: SQL) {}
@@ -43,19 +33,13 @@ export class StoreWimpSqlite {
   }
 
   /**
-   * Записывает декларацию меты в БД одной транзакцией. Идемпотентно: повторная запись с тем же `src`
-   * сначала удаляет старую декларацию (cascade на field/superposition/process/reaction/matter).
+   * Создаёт минимальную row в `wimp` (только `src`, остальные поля null).
+   * Идемпотентно по src через DELETE+INSERT (cascade на field/superposition/process/reaction/matter/wimp_mass_value).
+   * Наполнение делается тонкими domain-методами на ORM (`wimp.fields.create`, etc.).
    */
-  async create(src: string, dsl: MetaDSL, matter: MatterRelationParticle[]): Promise<Wimp> {
+  async create(src: string): Promise<Wimp> {
     await this.sql`DELETE FROM wimp WHERE src = ${src}`
-    await this.sql.begin(async (tx) => {
-      await createWimp(tx, dsl, src)
-      const fieldUuids = await createFields(tx, dsl, src)
-      const stateUuids = await createSuperposition(tx, dsl, src, fieldUuids)
-      await createProcess(tx, dsl, src, fieldUuids)
-      await createReactions(tx, dsl, src, fieldUuids, stateUuids)
-      await createMatter(tx, src, matter)
-    })
+    await this.sql`INSERT INTO wimp (src) VALUES (${src})`
     return new Wimp(this.sql, src)
   }
 
@@ -66,9 +50,5 @@ export class StoreWimpSqlite {
       `
     )[0]
     return row ? new Wimp(this.sql, src) : null
-  }
-
-  async readDarkParticleModel(src: string): Promise<DarkWimpParticleModel | null> {
-    return new DarkParticleModelProjection(this.sql).read(src)
   }
 }

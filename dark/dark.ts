@@ -1,10 +1,12 @@
 import type {FieldDefinition, FieldKey} from "../index.ts"
-import type {Wimp, WimpIdentifiers} from "@store/wimp/sqlite"
+import type {Wimp, WimpSnapshot} from "@store/wimp/sqlite"
 import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord, Actor} from "@store/actor"
 import type {MatterParticlePlan} from "@dark/types/dark"
 import {emitAdd, emitBarrier} from "@dark/gravity/channel.ts"
-import {loadWimp} from "./load.ts"
-import {projectStoreMatterParticles} from "./matter.ts"
+import {projectStoreMatterParticles, fillGravityMatter} from "@dark/gravity"
+import {fillStrongStructure} from "@dark/strong"
+import {fillWeakDynamics} from "@dark/weak"
+import {readWimpDsl} from "./dsl.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation, type FieldInit} from "./continuation.ts"
 
 export type ParticleRef = {kind: "actor"; uuid: string} | {kind: "topology"; uuid: string}
@@ -20,6 +22,10 @@ export interface MatterOptions {
   onMaterializedStep?: (step: MatterMaterializationStep) => Promise<void> | void
   suppressGravityBarrier?: boolean
 }
+
+type WimpIdentifiersSnapshot = WimpSnapshot
+
+type IdentCache = Map<string, WimpIdentifiersSnapshot>
 
 const nextPosition = (counter: Map<string, number>, parentKey: string): number => {
   const next = counter.get(parentKey) ?? 0
@@ -65,12 +71,12 @@ const buildValueRecord = (
 const resolveSourceValueUuid = async (
   parentActorUuid: string,
   parentFieldKey: FieldKey,
+  identCache: IdentCache,
 ): Promise<string> => {
   const head = await store.actor.head(parentActorUuid)
   if (!head) throw new Error(`parent actor ${parentActorUuid} not found`)
-  const parentWimp = await store.wimp.get(head.wimp)
-  if (!parentWimp) throw new Error(`parent wimp ${head.wimp} not found`)
-  const parentIds = await parentWimp.identifiers()
+  const parentIds = identCache.get(head.wimp)
+  if (!parentIds) throw new Error(`identifiers cache miss for parent wimp ${head.wimp}`)
   const parentFieldUuid = parentIds.fieldUuids.get(parentFieldKey)
   if (!parentFieldUuid) throw new Error(`parent field "${parentFieldKey}" missing in identifiers`)
   const link = await store.actor.link.get(parentActorUuid, parentFieldUuid)
@@ -86,9 +92,10 @@ const buildActorRows = async (params: {
   position: number
   finalValues: Map<FieldKey, FieldInit>
   fieldSchemas: Record<FieldKey, FieldDefinition>
-  identifiers: WimpIdentifiers
+  identifiers: WimpIdentifiersSnapshot
+  identCache: IdentCache
 }): Promise<ActorRows> => {
-  const {actorUuid, parent, src, position, finalValues, fieldSchemas, identifiers} = params
+  const {actorUuid, parent, src, position, finalValues, fieldSchemas, identifiers, identCache} = params
   const values: ActorValueRecord[] = []
   const valueRecords: ValueRecord[] = []
   const valueItems: ValueItemRecord[] = []
@@ -103,7 +110,7 @@ const buildActorRows = async (params: {
 
     let valueUuid: string
     if (init.source) {
-      valueUuid = await resolveSourceValueUuid(init.source.parentActorUuid, init.source.parentFieldKey)
+      valueUuid = await resolveSourceValueUuid(init.source.parentActorUuid, init.source.parentFieldKey, identCache)
     } else {
       valueUuid = crypto.randomUUID()
       const variants = identifiers.variantUuids.get(key)
@@ -156,15 +163,34 @@ async function* matterWimp(
   continuation: Continuation | undefined,
   options: MatterOptions,
   positionByParent: Map<string, number>,
+  identCache: IdentCache,
 ): AsyncGenerator<PendingChildWimp[], string, void> {
   const src = wimp.src
-  const identifiers = await wimp.identifiers()
-  const particleModel = await store.wimp.readDarkParticleModel(src)
-  if (!particleModel) {
-    throw new Error(`Dark runtime wimp "${src}" is not canonicalized in store`)
+  const dsl = await readWimpDsl(src)
+
+  let identifiers: WimpIdentifiersSnapshot
+  let matterRelations: Awaited<ReturnType<typeof fillGravityMatter>>
+  const cached = identCache.get(src)
+  const alreadyFilled = cached !== undefined || (await wimp.fields.exists())
+  if (alreadyFilled) {
+    identifiers = cached ?? (await wimp.readSnapshot())
+    if (!cached) identCache.set(src, identifiers)
+    matterRelations = await wimp.matter.all()
+  } else {
+    const {fieldUuids, variantUuids} = await fillStrongStructure(wimp, dsl)
+    const {stateUuids, initialState} = await fillWeakDynamics(wimp, dsl, fieldUuids)
+    matterRelations = await fillGravityMatter(wimp, dsl)
+    identifiers = {
+      src,
+      fieldUuids,
+      variantUuids,
+      superpositionUuids: stateUuids,
+      initialState,
+    }
+    identCache.set(src, identifiers)
   }
 
-  const fieldSchemas = particleModel.meta.fieldSchemas ?? {}
+  const fieldSchemas = dsl.fields ?? {}
   const finalValues = finalizeFieldValues(fieldSchemas, continuation?.fieldInits)
 
   const actorUuid = crypto.randomUUID()
@@ -179,6 +205,7 @@ async function* matterWimp(
     finalValues,
     fieldSchemas,
     identifiers,
+    identCache,
   })
   await store.actor.create(rows)
   emitAdd(actorUuid)
@@ -192,7 +219,7 @@ async function* matterWimp(
     fieldTypesSnapshot.set(key, fieldSchemas[key]!.type)
   }
 
-  const plans = projectStoreMatterParticles(particleModel.particles)
+  const plans = projectStoreMatterParticles(matterRelations)
   if (plans.length === 0) return actorUuid
 
   let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", uuid: actorUuid}}))
@@ -256,15 +283,17 @@ const materializeWimp = async (
   continuation: Continuation | undefined,
   options: MatterOptions,
   positionByParent: Map<string, number>,
+  identCache: IdentCache,
 ): Promise<string> => {
-  const generator = matterWimp(wimp, parent, continuation, options, positionByParent)
+  const generator = matterWimp(wimp, parent, continuation, options, positionByParent, identCache)
 
   while (true) {
     const result = await generator.next()
     if (result.done) return result.value
     for (const pending of result.value) {
-      const childWimp = await loadWimp(pending.src)
-      await materializeWimp(childWimp, pending.parent, pending.continuation, options, positionByParent)
+      let childWimp = await store.wimp.get(pending.src)
+      if (!childWimp) childWimp = await store.wimp.create(pending.src)
+      await materializeWimp(childWimp, pending.parent, pending.continuation, options, positionByParent, identCache)
     }
   }
 }
@@ -273,8 +302,9 @@ const materializeWimp = async (
  * Публичный entrypoint Dark.
  *
  * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/index.ts`.
- * Принимает уже канонизированный `Wimp` ORM (получить через `loadWimp(src)`) и разворачивает дерево
- * через store ORM: создаёт actor + topology rows, рекурсивно материализует дочерние wimps.
+ * Принимает уже созданный (минимальный) `Wimp` ORM и наполняет его доменными слоями
+ * через тонкие fill-функции (strong/weak/gravity), затем разворачивает дерево через
+ * store ORM: создаёт actor + topology rows, рекурсивно материализует дочерние wimps.
  *
  * Обход дерева — послойный: на каждом BFS-слое топологии родительской wimp сначала
  * создаются все topology-узлы слоя, затем рекурсивно материализуются child wimps этого
@@ -284,7 +314,8 @@ const materializeWimp = async (
  */
 export async function matter(wimp: Wimp, options: MatterOptions = {}): Promise<Actor> {
   const positionByParent = new Map<string, number>()
-  const rootUuid = await materializeWimp(wimp, null, undefined, options, positionByParent)
+  const identCache: IdentCache = new Map()
+  const rootUuid = await materializeWimp(wimp, null, undefined, options, positionByParent, identCache)
 
   if (options.suppressGravityBarrier !== true) emitBarrier()
 

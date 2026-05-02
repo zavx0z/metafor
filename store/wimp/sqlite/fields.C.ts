@@ -1,9 +1,15 @@
 import type { SQL } from "bun"
 import type { MetaDSL } from "../../.."
-import type { FieldUuidByKey } from "./fields.t.ts"
+import type { FieldUuidByKey, VariantUuidByValue } from "./fields.t.ts"
 
-export async function createFields(sql: SQL, meta: MetaDSL, src: string): Promise<FieldUuidByKey> {
+export interface CreateFieldsResult {
+  fieldUuids: FieldUuidByKey
+  variantUuids: VariantUuidByValue
+}
+
+export async function createFields(sql: SQL, meta: MetaDSL, src: string): Promise<CreateFieldsResult> {
   const fieldUuids: FieldUuidByKey = new Map<string, string>()
+  const variantUuidsByField: VariantUuidByValue = new Map<string, Map<string, string>>()
 
   for (const [key, def] of Object.entries(meta.fields)) {
     const uuid = crypto.randomUUID()
@@ -36,16 +42,19 @@ export async function createFields(sql: SQL, meta: MetaDSL, src: string): Promis
 
     if (def.type === "enum" && "values" in def && Array.isArray(def.values)) {
       const variantUuids = new Map<string | number, string>()
+      const variantUuidsByValueText = new Map<string, string>()
       const values = def.values as Array<string | number>
       for (let i = 0; i < values.length; i++) {
         const val = values[i]!
         const variantUuid = crypto.randomUUID()
         variantUuids.set(val, variantUuid)
+        variantUuidsByValueText.set(String(val), variantUuid)
         await sql`
           INSERT INTO field_enum_variant (uuid, field, position, item_value)
           VALUES (${variantUuid}, ${uuid}, ${i}, ${String(val)})
         `
       }
+      variantUuidsByField.set(key, variantUuidsByValueText)
 
       if ("default" in def && def.default !== undefined) {
         const variantUuid = variantUuids.get(def.default as string | number)
@@ -56,5 +65,5 @@ export async function createFields(sql: SQL, meta: MetaDSL, src: string): Promis
     }
   }
 
-  return fieldUuids
+  return { fieldUuids, variantUuids: variantUuidsByField }
 }

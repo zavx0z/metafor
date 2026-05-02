@@ -5,8 +5,7 @@ import {join} from "node:path"
 import type {Actor} from "@store/actor"
 import type {Store} from "../store/index.ts"
 import {open} from "../store/server.ts"
-import {matter} from "./dark.ts"
-import {loadWimp} from "./load.ts"
+import {matter} from "./index.ts"
 
 const src = "zavx0z/git"
 
@@ -23,7 +22,7 @@ describe("matter(zavx0z/git) → store", () => {
     store = await open(tmpFile)
     globalThis.store = store
     sql = new SQL(`sqlite://${tmpFile}`)
-    root = await matter(await loadWimp(src))
+    root = await matter(src)
   })
 
   afterAll(async () => {
@@ -95,12 +94,16 @@ describe("matter(zavx0z/git) → store", () => {
     )[0]
     if (!startRow) throw new Error("git-start actor not found")
 
-    const rootWimp = await store.wimp.get(src)
-    const startWimp = await store.wimp.get(`${src}-start`)
-    const rootIds = await rootWimp!.identifiers()
-    const startIds = await startWimp!.identifiers()
-    const rootArgsField = rootIds.fieldUuids.get("args")
-    const startArgsField = startIds.fieldUuids.get("args")
+    const rootArgsField = (
+      await sql<Array<{uuid: string}>>`
+        SELECT uuid FROM field WHERE wimp = ${src} AND key = ${"args"} LIMIT 1
+      `
+    )[0]?.uuid
+    const startArgsField = (
+      await sql<Array<{uuid: string}>>`
+        SELECT uuid FROM field WHERE wimp = ${src + "-start"} AND key = ${"args"} LIMIT 1
+      `
+    )[0]?.uuid
     expect(rootArgsField).toBeDefined()
     expect(startArgsField).toBeDefined()
 

@@ -1,5 +1,8 @@
 
 import type { SQL } from "bun"
+import type { MetaDSL } from "../../../metafor.t.ts"
+import { createProcess } from "./process.C.ts"
+import type { FieldUuidByKey } from "./process.t.ts"
 
 type ProcessType = "action" | "finally"
 
@@ -217,6 +220,10 @@ export class Processes {
     private readonly sql: SQL,
     private readonly src: string,
   ) {}
+
+  async create(dsl: MetaDSL, fieldUuids: FieldUuidByKey): Promise<void> {
+    await createProcess(this.sql, dsl, this.src, fieldUuids)
+  }
 
   async all(): Promise<Process[]> {
     const rows = await this.sql<Array<{ key: string }>>`

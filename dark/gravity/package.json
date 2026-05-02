@@ -5,6 +5,7 @@
   "private": true,
   "dependencies": {
     "@dark/types": "workspace:*",
-    "@shared/protocol": "workspace:*"
+    "@shared/protocol": "workspace:*",
+    "@store/wimp": "workspace:*"
   }
 }

@@ -1,11 +1,22 @@
 import type { SQL } from "bun"
 import type { MetaDSL } from "../../../metafor.t.ts"
-import type { WimpIdentifiers, WimpMassValueRow, WimpRow } from "./wimp.t.ts"
+import type { WimpMassValueRow, WimpRow } from "./wimp.t.ts"
+import type { FieldUuidByKey, VariantUuidByValue } from "./fields.t.ts"
+import type { StateUuidByName } from "./superposition.t.ts"
 import { Fields } from "./fields.ts"
 import { Superposition } from "./superposition.ts"
 import { Processes } from "./process.ts"
 import { Reactions } from "./reactions.ts"
 import { Matter } from "./matter.ts"
+import { insertMassValue } from "./mass.C.ts"
+
+export interface WimpSnapshot {
+  src: string
+  fieldUuids: FieldUuidByKey
+  variantUuids: VariantUuidByValue
+  superpositionUuids: StateUuidByName
+  initialState: string | null
+}
 
 const getWimpRow = async (sql: SQL, src: string): Promise<WimpRow | null> => {
   const rows = await sql<WimpRow[]>`
@@ -106,18 +117,36 @@ export class Wimp {
     return row?.view_css ? ({ view: row.view_css } as MetaDSL["bulk"]) : undefined
   }
 
+  async setMetadata(input: { name?: string | null; desc?: string | null; viewCss?: string | null }): Promise<void> {
+    if (input.name !== undefined) {
+      await this.sql`UPDATE wimp SET name = ${input.name} WHERE src = ${this.src}`
+    }
+    if (input.desc !== undefined) {
+      await this.sql`UPDATE wimp SET desc = ${input.desc} WHERE src = ${this.src}`
+    }
+    if (input.viewCss !== undefined) {
+      await this.sql`UPDATE wimp SET view_css = ${input.viewCss} WHERE src = ${this.src}`
+    }
+  }
+
+  async setMass(mass: MetaDSL["mass"]): Promise<void> {
+    if (mass === undefined) return
+    await this.sql`DELETE FROM wimp_mass_value WHERE wimp = ${this.src}`
+    await insertMassValue(this.sql, this.src, mass, null, null, null)
+  }
+
   /**
-   * Снимок UUID-маппингов для канонизированной меты. Требует чтобы мета была в БД.
-   * Без кеша — каждый вызов делает SQL.
+   * Снимок UUID-маппингов для уже наполненной wimp. Нужен dark/em flow для пересборки
+   * identCache по существующей декларации без повторного fillStrong/Weak/Gravity.
    */
-  async identifiers(): Promise<WimpIdentifiers> {
+  async readSnapshot(): Promise<WimpSnapshot> {
     const fieldRows = await this.sql<Array<{uuid: string; key: string}>>`
       SELECT uuid, key FROM field WHERE wimp = ${this.src}
     `
-    const fieldUuids = new Map<string, string>()
+    const fieldUuids: FieldUuidByKey = new Map()
     for (const row of fieldRows) fieldUuids.set(row.key, row.uuid)
 
-    const variantUuids = new Map<string, Map<string, string>>()
+    const variantUuids: VariantUuidByValue = new Map()
     if (fieldRows.length > 0) {
       const variantRows = await this.sql<Array<{field: string; uuid: string; item_value: string}>>`
         SELECT field, uuid, item_value
@@ -139,7 +168,7 @@ export class Wimp {
     const stateRows = await this.sql<Array<{uuid: string; name: string; position: number}>>`
       SELECT uuid, name, position FROM superposition WHERE wimp = ${this.src} ORDER BY position
     `
-    const superpositionUuids = new Map<string, string>()
+    const superpositionUuids: StateUuidByName = new Map()
     let initialState: string | null = null
     for (const row of stateRows) {
       superpositionUuids.set(row.name, row.uuid)

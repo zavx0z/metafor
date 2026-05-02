@@ -8,11 +8,13 @@ import {
 	type DbParticleKind,
 } from "@store/actor"
 import { openDbSyncBroadcastChannel, openStructuralBroadcastChannel } from "@shared/protocol"
-import { StoreWimpSqlite, type DarkMetaParticleModel } from "@store/wimp/sqlite"
+import { StoreWimpSqlite, type MatterRelationParticle } from "@store/wimp/sqlite"
 import { SQL } from "bun"
 import { matter } from "../../../dark/dark.ts"
-import { projectStoreMatterParticles, projectTemplateMatterRelations } from "../../../dark/matter.ts"
-import { readMetaDsl } from "../../../dark/load.ts"
+import { projectStoreMatterParticles, fillGravityMatter } from "@dark/gravity"
+import { fillStrongStructure } from "@dark/strong"
+import { fillWeakDynamics } from "@dark/weak"
+import { readWimpDsl } from "../../../dark/dsl.ts"
 import { disposeMetaDbContext } from "../../../dark/load.context.ts"
 import { Axion, Fuzzy, Macho, Wimp } from "../../../dark/strong/index.ts"
 import type { MatterParticlePlan } from "../../../dark/types/dark.ts"
@@ -20,6 +22,10 @@ import { dark$ } from "../../../dark/store.ts"
 import type { DarkParticle } from "../../../dark/types/shared.ts"
 import type { AppWebLayoutSettings } from "../settings.ts"
 import { streamDbWorldRows, type DbWorldParticleDescriptor } from "@bulk/gravity/layout"
+
+interface DarkMetaParticleModel {
+	particles: MatterRelationParticle[]
+}
 
 type MaterializeMessage = {
 	type: "materialize"
@@ -325,12 +331,14 @@ const canonicalizeMetaGraph = async (
 		const src = queue.shift()
 		if (!src || loaded.has(src)) continue
 
-		const dsl = await readMetaDsl(src)
-		await metaStore.create(src, dsl, projectTemplateMatterRelations(dsl))
+		const dsl = await readWimpDsl(src)
+		const wimp = await metaStore.create(src)
+		const { fieldUuids } = await fillStrongStructure(wimp, dsl)
+		await fillWeakDynamics(wimp, dsl, fieldUuids)
+		const relations = await fillGravityMatter(wimp, dsl)
 		loaded.add(src)
 
-		const particleModel = await metaStore.readDarkParticleModel(src)
-		if (!particleModel) throw new Error(`Meta "${src}" is not canonicalized`)
+		const particleModel: DarkMetaParticleModel = { particles: relations }
 		particleModelsBySrc.set(src, particleModel)
 		for (const childSrc of collectChildMetaSrcs(projectStoreMatterParticles(particleModel.particles))) {
 			if (!loaded.has(childSrc)) queue.push(childSrc)

@@ -1,6 +1,7 @@
 import type { MetaDSL } from "../../.."
 
 export type FieldUuidByKey = Map<string, string>
+export type VariantUuidByValue = Map<string, Map<string, string>>
 
 
 export type FieldRow = {

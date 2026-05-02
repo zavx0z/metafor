@@ -3,12 +3,17 @@ import type { SQL } from "bun"
 import type { MatterRelationParticle } from "./matter.t.ts"
 import { getMatterParticles } from "./matter.G.ts"
 import { hasMatter } from "./wimp.G.ts"
+import { createMatter } from "./matter.C.ts"
 
 export class Matter {
   constructor(
     private readonly sql: SQL,
     private readonly src: string,
   ) {}
+
+  async create(particles: MatterRelationParticle[]): Promise<void> {
+    await createMatter(this.sql, this.src, particles)
+  }
 
   async all(): Promise<MatterRelationParticle[]> {
     if (!(await hasMatter(this.sql, this.src))) return []

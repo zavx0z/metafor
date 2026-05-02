@@ -3,7 +3,6 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {matter} from "../../dark/index.ts"
-import {loadWimp} from "../../dark/load.ts"
 import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage, type GravitonMessage} from "@shared/protocol"
 import type {Store} from "../index.ts"
 import {open} from "../server.ts"
@@ -51,8 +50,7 @@ describe("store/tests github/zavx0z startup load", () => {
     }
 
     try {
-      const meta = await loadWimp("zavx0z/git")
-      await matter(meta, {
+      await matter("zavx0z/git", {
         async onMaterializedStep(step) {
           if (step.kind !== "actor") return
           materializedWimps.push(step.particle.uuid)
