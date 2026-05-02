@@ -1,6 +1,11 @@
 import wimpSchemaSql from "./wimp.sql" with {type: "text"}
 import massSchemaSql from "./mass.sql" with {type: "text"}
-import fieldsSchemaSql from "./fields.sql" with {type: "text"}
+import fieldSchemaSql from "./field.sql" with {type: "text"}
+import fieldStringSchemaSql from "./field.string.sql" with {type: "text"}
+import fieldNumberSchemaSql from "./field.number.sql" with {type: "text"}
+import fieldBooleanSchemaSql from "./field.boolean.sql" with {type: "text"}
+import fieldArraySchemaSql from "./field.array.sql" with {type: "text"}
+import fieldEnumSchemaSql from "./field.enum.sql" with {type: "text"}
 import superpositionSchemaSql from "./superposition.sql" with {type: "text"}
 import transitionSchemaSql from "./transition.sql" with {type: "text"}
 import conditionSchemaSql from "./condition.sql" with {type: "text"}
@@ -21,7 +26,12 @@ export class StoreWimpSqlite {
       [
         wimpSchemaSql,
         massSchemaSql,
-        fieldsSchemaSql,
+        fieldSchemaSql,
+        fieldStringSchemaSql,
+        fieldNumberSchemaSql,
+        fieldBooleanSchemaSql,
+        fieldArraySchemaSql,
+        fieldEnumSchemaSql,
         superpositionSchemaSql,
         transitionSchemaSql,
         conditionSchemaSql,
