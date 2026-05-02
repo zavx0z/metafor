@@ -1,10 +1,9 @@
-import type {FieldDefinition, FieldKey} from "../index.ts"
+import type {FieldDefinition, FieldKey} from ".."
 import type {AnyField, Wimp} from "@store/wimp/sqlite"
 import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
 import type {MatterParticlePlan} from "@dark/types/dark"
 import {emitAdd} from "@dark/gravity/channel.ts"
 import {projectStoreMatterParticles, fillGravityMatter} from "@dark/gravity"
-import {fillStrongStructure} from "@dark/strong"
 import {fillWeakDynamics} from "@dark/weak"
 import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation, type FieldInit} from "./continuation.ts"
@@ -151,11 +150,39 @@ async function* matterWimp(
   const src = wimp.src
   const dsl = await loadMeta(src)
 
+  await wimp.name.set(dsl.name ?? null)
+  await wimp.desc.set(dsl.desc ?? null)
+  await wimp.bulk.set(dsl.bulk ?? null)
+  if (dsl.mass !== undefined) await wimp.mass.set(dsl.mass)
+
+  // Один и тот же child wimp может упоминаться несколько раз в matter-дереве
+  // (multi-mount под разными topology-узлами). Декларация в store — одна на src;
+  // повторные вызовы matterWimp создают только новые actor rows, fill пропускают.
   let matterRelations: Awaited<ReturnType<typeof fillGravityMatter>>
   if (await wimp.fields.exists()) {
     matterRelations = await wimp.matter.all()
   } else {
-    await fillStrongStructure(wimp, dsl)
+    for (const [key, def] of Object.entries(dsl.fields)) {
+      const label = def.label ?? null
+      const required = def.required ?? false
+      switch (def.type) {
+        case "string":
+          await wimp.fields.string({key, default: def.default, label, required})
+          break
+        case "number":
+          await wimp.fields.number({key, default: def.default, label, required})
+          break
+        case "boolean":
+          await wimp.fields.boolean({key, default: def.default, label, required})
+          break
+        case "array":
+          await wimp.fields.array({key, default: def.default, label, required})
+          break
+        case "enum":
+          await wimp.fields.enum({key, values: (def.values ?? []), default: def.default, label, required})
+          break
+      }
+    }
     await fillWeakDynamics(wimp, dsl)
     matterRelations = await fillGravityMatter(wimp, dsl)
   }
@@ -264,6 +291,8 @@ export async function matter(
     const result = await generator.next()
     if (result.done) return
     for (const pending of result.value) {
+      // Multi-mount: один и тот же child src может встречаться несколько раз в matter-дереве.
+      // store.wimp.create destructive (DELETE+INSERT) — берём existing если есть.
       let childWimp = await store.wimp.get(pending.src)
       if (!childWimp) childWimp = await store.wimp.create(pending.src)
       await matter(childWimp, options, pending.parent, pending.continuation)
