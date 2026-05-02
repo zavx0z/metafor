@@ -46,24 +46,24 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
       patches: [{op: "add", path: "/wimp/zavx0z~1git"}],
     } satisfies GravitonMessage)
 
-    // ждём barrier от Dark — он публикуется один раз в конце top-level matter()
-    const deadline = Date.now() + 30_000
-    let barrierReceived = false
-    while (Date.now() < deadline) {
-      const hasBarrier = observed.some(
-        (m) =>
-          m.source === "dark" &&
-          m.patches.some((p) => p.op === "test" && p.path === ""),
-      )
-      if (hasBarrier) {
-        barrierReceived = true
-        break
-      }
-      await new Promise((resolve) => setTimeout(resolve, 25))
-    }
-    expect(barrierReceived, "Dark должен был опубликовать gravity barrier по завершении matter()").toBe(true)
-
+    // ждём пока Dark материализует root wimp + child wimps в БД
     const sql = new SQL(`sqlite://${storePath}`)
+    const deadline = Date.now() + 30_000
+    let materialized = false
+    while (Date.now() < deadline) {
+      try {
+        const rows = await sql<Array<{src: string}>>`SELECT src FROM wimp WHERE src = 'zavx0z/git-history-commit'`
+        if (rows.length > 0) {
+          materialized = true
+          break
+        }
+      } catch {
+        // БД может быть ещё не записана/locked
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    expect(materialized, "Dark должен был материализовать дерево zavx0z/git").toBe(true)
+
     try {
       const wimpRows = await sql<Array<{src: string}>>`SELECT src FROM wimp ORDER BY src`
       const srcs = wimpRows.map((row) => row.src)

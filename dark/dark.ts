@@ -1,8 +1,8 @@
 import type {FieldDefinition, FieldKey} from "../index.ts"
 import type {AnyField, Wimp} from "@store/wimp/sqlite"
-import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord, Actor} from "@store/actor"
+import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
 import type {MatterParticlePlan} from "@dark/types/dark"
-import {emitAdd, emitBarrier} from "@dark/gravity/channel.ts"
+import {emitAdd} from "@dark/gravity/channel.ts"
 import {projectStoreMatterParticles, fillGravityMatter} from "@dark/gravity"
 import {fillStrongStructure} from "@dark/strong"
 import {fillWeakDynamics} from "@dark/weak"
@@ -20,7 +20,6 @@ export interface MatterMaterializationStep {
 
 export interface MatterOptions {
   onMaterializedStep?: (step: MatterMaterializationStep) => Promise<void> | void
-  suppressGravityBarrier?: boolean
 }
 
 const buildValueRecord = async (
@@ -148,7 +147,7 @@ async function* matterWimp(
   parent: ParticleRef | null,
   continuation: Continuation | undefined,
   options: MatterOptions,
-): AsyncGenerator<PendingChildWimp[], Actor, void> {
+): AsyncGenerator<PendingChildWimp[], void, void> {
   const src = wimp.src
   const dsl = await readWimpDsl(src)
 
@@ -173,7 +172,7 @@ async function* matterWimp(
     finalValues,
     fieldSchemas,
   })
-  const actor = await store.actor.create(rows)
+  await store.actor.create(rows)
   emitAdd(actorUuid)
 
   await options.onMaterializedStep?.({kind: "actor", particle: {kind: "actor", uuid: actorUuid}, src})
@@ -186,7 +185,7 @@ async function* matterWimp(
   }
 
   const plans = projectStoreMatterParticles(matterRelations)
-  if (plans.length === 0) return actor
+  if (plans.length === 0) return
 
   let frontier: BfsEntry[] = plans.map((plan) => ({plan, parent: {kind: "actor", uuid: actorUuid}}))
 
@@ -237,27 +236,6 @@ async function* matterWimp(
     yield layerPendingChildren
     frontier = next
   }
-
-  return actor
-}
-
-const materializeWimp = async (
-  wimp: Wimp,
-  parent: ParticleRef | null,
-  continuation: Continuation | undefined,
-  options: MatterOptions,
-): Promise<Actor> => {
-  const generator = matterWimp(wimp, parent, continuation, options)
-
-  while (true) {
-    const result = await generator.next()
-    if (result.done) return result.value
-    for (const pending of result.value) {
-      let childWimp = await store.wimp.get(pending.src)
-      if (!childWimp) childWimp = await store.wimp.create(pending.src)
-      await materializeWimp(childWimp, pending.parent, pending.continuation, options)
-    }
-  }
 }
 
 /**
@@ -272,12 +250,25 @@ const materializeWimp = async (
  * создаются все topology-узлы слоя, затем рекурсивно материализуются child wimps этого
  * же слоя, и только потом обход переходит к следующему слою.
  *
- * @returns корневой `Actor` ORM.
+ * `parent`/`continuation` — внутренние параметры рекурсии, caller'ам передавать не нужно.
  */
-export async function matter(wimp: Wimp, options: MatterOptions = {}): Promise<Actor> {
-  const root = await materializeWimp(wimp, null, undefined, options)
-  if (options.suppressGravityBarrier !== true) emitBarrier()
-  return root
+export async function matter(
+  wimp: Wimp,
+  options: MatterOptions = {},
+  parent: ParticleRef | null = null,
+  continuation: Continuation | undefined = undefined,
+): Promise<void> {
+  const generator = matterWimp(wimp, parent, continuation, options)
+
+  while (true) {
+    const result = await generator.next()
+    if (result.done) return
+    for (const pending of result.value) {
+      let childWimp = await store.wimp.get(pending.src)
+      if (!childWimp) childWimp = await store.wimp.create(pending.src)
+      await matter(childWimp, options, pending.parent, pending.continuation)
+    }
+  }
 }
 
 export type {Continuation, FieldInit} from "./continuation.ts"

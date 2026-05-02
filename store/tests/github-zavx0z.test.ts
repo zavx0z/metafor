@@ -57,7 +57,7 @@ describe("store/tests github/zavx0z startup load", () => {
         },
       })
 
-      await waitForMessages(messages, materializedWimps.length + 1)
+      await waitForMessages(messages, materializedWimps.length)
     } finally {
       channel.close()
     }
@@ -117,22 +117,14 @@ describe("store/tests github/zavx0z startup load", () => {
 
     expect(messages.every(isGravitonMessage)).toBe(true)
     const gravitonMessages = messages as GravitonMessage[]
-    const expectedMessages: GravitonMessage[] = [
-      ...materializedWimps.map(
-        (wimpId): GravitonMessage => ({
-          channel: "gravity",
-          boson: "graviton",
-          source: "dark",
-          patches: [{op: "add", path: `/wimp/${wimpId}`}],
-        }),
-      ),
-      {
+    const expectedMessages: GravitonMessage[] = materializedWimps.map(
+      (wimpId): GravitonMessage => ({
         channel: "gravity",
         boson: "graviton",
         source: "dark",
-        patches: [{op: "test", path: "", value: null}],
-      },
-    ]
+        patches: [{op: "add", path: `/wimp/${wimpId}`}],
+      }),
+    )
 
     expect(
       gravitonMessages.map((message) => ({

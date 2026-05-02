@@ -22,7 +22,10 @@ describe("matter(zavx0z/git) → store", () => {
     store = await open(tmpFile)
     globalThis.store = store
     sql = new SQL(`sqlite://${tmpFile}`)
-    root = await matter(src)
+    await matter(src)
+    const roots = await store.actor.roots.all()
+    if (roots.length === 0) throw new Error("root actor not created")
+    root = roots[0]!
   })
 
   afterAll(async () => {

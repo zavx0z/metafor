@@ -20,7 +20,10 @@ describe("matter() — runtime tree через store", () => {
     store = await open(tmpFile)
     globalThis.store = store
     sql = new SQL(`sqlite://${tmpFile}`)
-    root = await matter("zavx0z/git")
+    await matter("zavx0z/git")
+    const roots = await store.actor.roots.all()
+    if (roots.length === 0) throw new Error("root actor not created")
+    root = roots[0]!
   })
   afterAll(async () => {
     await sql.close()
