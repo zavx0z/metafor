@@ -221,6 +221,44 @@ function refreshWelcome(): void {
   welcomeSection.hidden = false
   mainEl.classList.add("welcome")
   welcomeContent.innerHTML = renderWelcome()
+  bindWelcomeApply()
+}
+
+function bindWelcomeApply(): void {
+  const input = document.getElementById("welcome-url-input") as HTMLInputElement | null
+  const button = document.getElementById("btn-welcome-apply") as HTMLButtonElement | null
+  const status = document.getElementById("welcome-url-status")
+  if (input === null || button === null || status === null) return
+
+  const apply = async (): Promise<void> => {
+    const next = input.value.trim()
+    if (next.length === 0) return
+    status.textContent = `→ POST /inspector ${next}`
+    button.disabled = true
+    try {
+      const res = await fetch("/inspector", {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify({url: next}),
+      })
+      const data = await res.json() as {ok: boolean; error?: string; previous?: string}
+      status.textContent = data.ok
+        ? `→ переключаюсь с ${data.previous ?? "?"} на ${next}`
+        : `ошибка: ${data.error ?? "unknown"}`
+    } catch (error) {
+      status.textContent = `fetch failed: ${String(error)}`
+    } finally {
+      button.disabled = false
+    }
+  }
+
+  button.addEventListener("click", () => void apply())
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault()
+      void apply()
+    }
+  })
 }
 
 function renderWelcome(): string {
@@ -229,25 +267,30 @@ function renderWelcome(): string {
     ? "<span class=\"pulse\">connecting…</span>"
     : `<span class=\"pulse\">disconnected</span> ${connectionError ? `(${escapeHtml(connectionError)})` : ""}`
   return `
-    <p>${stateLabel} → пытаюсь подключиться к <code>${escapeHtml(url)}</code>.</p>
+    <p>${stateLabel} → пытаюсь подключиться к <code id="welcome-url">${escapeHtml(url)}</code>.</p>
 
-    <h3>1. Запустить отлаживаемый процесс</h3>
+    <h3>Сменить inspector URL</h3>
+    <div class="row" style="display:flex;gap:8px;margin:6px 0">
+      <input id="welcome-url-input" type="text" value="${escapeHtml(url)}" style="flex:1;background:var(--panel);color:var(--fg);border:1px solid var(--border);border-radius:3px;padding:4px 8px;font-family:inherit;font-size:12px" />
+      <button id="btn-welcome-apply" type="button">Apply</button>
+    </div>
+    <div id="welcome-url-status" class="muted"></div>
+
+    <h3>Запуск target'а (с этим URL)</h3>
     <pre>bun test --timeout=2147483647 --inspect-wait=${escapeHtml(url)} dark/server.spec.ts</pre>
-    <div class="muted">используй <code>--inspect-wait</code> (а не <code>-brk</code>): Bun ждёт первого клиента, sidecar отправит <code>Inspector.initialized</code>.</div>
+    <div class="muted">используй <code>--inspect-wait</code> (не <code>-brk</code>): Bun ждёт первого клиента, sidecar отправит <code>Inspector.initialized</code> и target пойдёт.</div>
 
-    <h3>2. Когда коннект встанет</h3>
+    <h3>Когда коннект встанет</h3>
     <ul>
-      <li>в этой панели появится список скриптов и frames на каждом pause</li>
-      <li>можно ставить bp в Chrome <code>https://debug.bun.sh/#${escapeHtml(stripWs(url))}</code></li>
-      <li>включи <strong>Verbose</strong> (вверху справа) чтобы видеть все события Bun-инспектора в реальном времени</li>
+      <li>в основной панели появятся frames и source с подсветкой текущей строки</li>
+      <li>можно ставить bp в Chrome: <code>https://debug.bun.sh/#${escapeHtml(stripWs(url))}</code></li>
+      <li>тумблер <strong>Verbose</strong> в шапке открывает стрим всех событий Bun-инспектора</li>
     </ul>
 
     <h3>REST cheatsheet</h3>
     <pre>curl -s http://127.0.0.1:6500/health
-curl -s http://127.0.0.1:6500/state
-curl -s -X POST http://127.0.0.1:6500/eval \\
-  -H 'content-type: application/json' \\
-  -d '{"frame":0,"expr":"data.patches[0].path"}'</pre>
+curl -s -X POST http://127.0.0.1:6500/inspector -H 'content-type: application/json' -d '{"url":"ws://127.0.0.1:6499/dark"}'
+curl -s -X POST http://127.0.0.1:6500/eval -H 'content-type: application/json' -d '{"frame":0,"expr":"data.patches[0].path"}'</pre>
   `
 }
 

@@ -91,7 +91,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       type: "connection",
       state,
       error: error ?? null,
-      inspectorUrl: options.inspectorUrl,
+      inspectorUrl: options.client.url,
     })
   })
 
@@ -120,7 +120,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       options.logger.event("ws.client.opened", {id: ws.data.id, total: wsClients.size})
       const hello: JsonObject = {
         type: "hello",
-        inspectorUrl: options.inspectorUrl,
+        inspectorUrl: options.client.url,
         paused: options.snapshots.paused,
         dump: options.snapshots.dump ?? null,
         scriptCount: options.snapshots.scripts.length,
@@ -249,6 +249,7 @@ async function handleRoute(
   if (method === "POST" && path === "/pause") return await dispatchPost(req, "pause", ctx)
   if (method === "POST" && path === "/resume") return await dispatchPost(req, "resume", ctx)
   if (method === "POST" && path === "/frames") return await dispatchPost(req, "frames", ctx)
+  if (method === "POST" && path === "/inspector") return await reconnectInspector(req, options)
 
   return jsonResponse({ok: false, error: `not found: ${method} ${path}`}, 404)
 }
@@ -267,13 +268,16 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/step", description: '{kind: "over"|"into"|"out"}'},
     {method: "POST", path: "/pause", description: "Debugger.pause"},
     {method: "POST", path: "/resume", description: "Debugger.resume"},
+    {method: "POST", path: "/inspector", description: "{url} — переподключиться к другому Bun-инспектору"},
   ]
 }
 
 function healthPayload(options: HttpServerOptions): JsonObject {
   return {
     ok: true,
-    inspectorUrl: options.inspectorUrl,
+    inspectorUrl: options.client.url,
+    inspectorState: options.client.socketState,
+    inspectorError: options.client.lastError ?? null,
     paused: options.snapshots.paused,
     scriptCount: options.snapshots.scripts.length,
     hasDump: options.snapshots.dump !== undefined,
@@ -306,6 +310,32 @@ async function dispatchPost(req: Request, cmd: string, ctx: CommandContext): Pro
 }
 
 const sourceCache = new Map<string, string>()
+
+async function reconnectInspector(req: Request, options: HttpServerOptions): Promise<Response> {
+  let body: JsonObject = {}
+  const text = await req.text()
+  if (text.length > 0) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(text)
+    } catch (error) {
+      return jsonResponse({ok: false, error: `invalid JSON: ${serializeError(error)}`}, 400)
+    }
+    body = asObject(parsed) ?? {}
+  }
+  const url = asString(body["url"])
+  if (url === undefined || url.length === 0) {
+    return jsonResponse({ok: false, error: "url required (e.g. ws://127.0.0.1:6499/dark)"}, 400)
+  }
+  if (!url.startsWith("ws://") && !url.startsWith("wss://")) {
+    return jsonResponse({ok: false, error: "url must start with ws:// or wss://"}, 400)
+  }
+  const previous = options.client.url
+  options.client.setUrl(url)
+  // Скидываем кэш source — у нового target'а будут свои scriptId.
+  sourceCache.clear()
+  return jsonResponse({ok: true, previous, url})
+}
 
 async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Response> {
   const scriptId = url.searchParams.get("scriptId") ?? ""

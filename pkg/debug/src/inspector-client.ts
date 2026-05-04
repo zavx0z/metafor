@@ -22,7 +22,7 @@ export type InspectorClientOptions = {
 }
 
 export class InspectorClient {
-  readonly url: string
+  #url: string
 
   #logger: EventLogger
   #requestTimeoutMs: number
@@ -36,9 +36,21 @@ export class InspectorClient {
   #textDecoder = new TextDecoder()
 
   constructor(options: InspectorClientOptions) {
-    this.url = options.url
+    this.#url = options.url
     this.#requestTimeoutMs = options.requestTimeoutMs
     this.#logger = options.logger
+  }
+
+  get url(): string {
+    return this.#url
+  }
+
+  setUrl(url: string): void {
+    if (url === this.#url) return
+    this.#logger.event("inspector.url.changed", {from: this.#url, to: url})
+    this.#url = url
+    // Force-close current socket — `maintainConnection` пойдёт по циклу с новым url.
+    this.#socket?.close()
   }
 
   onEvent(handler: InspectorEventHandler): () => void {

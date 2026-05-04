@@ -1,0 +1,230 @@
+{"timestamp":"2026-05-04T03:24:19.203Z","event":"agent.started","inspectorUrl":"ws://127.0.0.1:6499/bun","dumpPath":".metafor/debug/agent-state.json","eventLogPath":".metafor/debug/agent-events.log","consoleLogPath":".metafor/debug/agent-console.log","commandPath":".metafor/debug/agent-commands.ndjson","responsePath":".metafor/debug/agent-responses.ndjson","initializedFallbackMs":30000,"httpEnabled":true,"httpHost":"127.0.0.1","httpPort":6500}
+{"timestamp":"2026-05-04T03:24:19.210Z","event":"http.started","host":"127.0.0.1","port":6500}
+{"timestamp":"2026-05-04T03:24:19.221Z","event":"command_file.started","commandPath":".metafor/debug/agent-commands.ndjson","responsePath":".metafor/debug/agent-responses.ndjson"}
+{"timestamp":"2026-05-04T03:24:19.223Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:19.223Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:19.224Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:20.226Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:20.226Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:20.232Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:21.233Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:21.233Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:21.239Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:22.240Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:22.241Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:22.246Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:23.248Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:23.248Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:23.254Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:24.255Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:24.255Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:24.261Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:25.262Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:25.263Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:25.268Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:26.269Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:26.269Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:26.275Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:27.117Z","event":"ws.client.opened","id":1,"total":1}
+{"timestamp":"2026-05-04T03:24:27.276Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:27.276Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:27.282Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:28.284Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:28.285Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:28.291Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:29.293Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:29.293Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:29.299Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:30.301Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:30.301Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:30.307Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:31.309Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:31.309Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:31.314Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:32.316Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:32.316Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:32.322Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:33.323Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:33.323Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:33.329Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:34.330Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:34.330Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:34.336Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:35.337Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:35.338Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:35.343Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:36.344Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:36.345Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:36.350Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:37.352Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:37.352Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:37.357Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:38.358Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:38.359Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:38.364Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:39.365Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:39.365Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:39.371Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:40.372Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:40.372Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:40.379Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:41.382Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:41.382Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:24:41.387Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:42.398Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:42.398Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:42.399Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:43.401Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:43.402Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:43.407Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:44.410Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:44.411Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:44.416Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:45.418Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:45.419Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:45.419Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:46.421Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:46.421Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:46.427Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:47.428Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:47.429Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:47.434Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:48.436Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:48.436Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:48.441Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:49.443Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:49.444Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:49.449Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:50.451Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:50.451Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:50.457Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:51.460Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:51.460Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:51.466Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:52.468Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:52.469Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:52.474Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:52.625Z","event":"ws.client.closed","id":1,"total":0}
+{"timestamp":"2026-05-04T03:24:52.694Z","event":"ws.client.opened","id":2,"total":1}
+{"timestamp":"2026-05-04T03:24:53.477Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:53.477Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:53.483Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:54.484Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:54.484Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:54.490Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:55.492Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:55.492Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:55.498Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:56.500Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:56.501Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:56.506Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:57.509Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:57.510Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:57.515Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:58.517Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:58.518Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:58.523Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:59.524Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:24:59.525Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:24:59.530Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:00.533Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:00.533Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:00.538Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:01.541Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:01.542Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:01.547Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:02.550Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:02.550Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:02.556Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:03.557Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:03.557Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:03.563Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:04.565Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:04.565Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:04.571Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:05.572Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:05.573Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:05.578Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:05.643Z","event":"ws.client.closed","id":2,"total":0}
+{"timestamp":"2026-05-04T03:25:05.703Z","event":"ws.client.opened","id":3,"total":1}
+{"timestamp":"2026-05-04T03:25:06.581Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:06.581Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:06.587Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:07.589Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:07.590Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:07.595Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:08.597Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:08.597Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:08.602Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:09.604Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:09.604Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:09.609Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:10.612Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:10.613Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:10.618Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:11.619Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:11.620Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:11.621Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:12.623Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:12.624Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:12.629Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:13.631Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:13.632Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:13.637Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:14.640Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:14.640Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:14.645Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:15.649Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:15.649Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:15.649Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:16.651Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:16.651Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:16.657Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:17.659Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:17.659Z","event":"socket.close","code":1006,"reason":"Failed to connect","wasClean":false}
+{"timestamp":"2026-05-04T03:25:17.664Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:18.666Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:18.667Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:18.673Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:19.675Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:19.676Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:19.681Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:20.684Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:20.685Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:20.690Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:21.692Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:21.693Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:21.698Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:22.699Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:22.700Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:22.705Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:23.707Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:23.707Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:23.713Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:24.715Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:24.716Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:24.721Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:25.326Z","event":"ws.client.closed","id":3,"total":0}
+{"timestamp":"2026-05-04T03:25:25.390Z","event":"ws.client.opened","id":4,"total":1}
+{"timestamp":"2026-05-04T03:25:25.723Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:25.723Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:25.729Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:26.731Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:26.731Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:26.737Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:27.739Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:27.739Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:27.745Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:28.754Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:28.754Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:28.757Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:29.760Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:29.760Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:29.766Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:30.768Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:30.768Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:30.773Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:31.776Z","event":"socket.error","url":"ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:31.776Z","event":"socket.close","code":1002,"reason":"Expected 101 status code","wasClean":false}
+{"timestamp":"2026-05-04T03:25:31.782Z","event":"agent.connection.failed","error":"failed to connect to ws://127.0.0.1:6499/bun"}
+{"timestamp":"2026-05-04T03:25:32.321Z","event":"agent.shutdown","code":130}
