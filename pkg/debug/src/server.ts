@@ -14,18 +14,21 @@
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
 import {existsSync, statSync, openSync, readSync, closeSync} from "node:fs"
-import {join} from "node:path"
-import {createRequire} from "node:module"
+import {dirname, join} from "node:path"
 import indexHtml from "../web/index.html"
 
 const WEB_DIR = join(import.meta.dir, "..", "web")
+const YOGA_WASM_REL = "node_modules/yoga-layout/dist/binaries/yoga-wasm-base64-esm.js"
 const YOGA_WASM_PATH = (() => {
-  try {
-    const require = createRequire(import.meta.url)
-    return require.resolve("yoga-layout/dist/binaries/yoga-wasm-base64-esm.js")
-  } catch {
-    return null
+  let dir = import.meta.dir
+  for (let i = 0; i < 8; i++) {
+    const candidate = join(dir, YOGA_WASM_REL)
+    if (existsSync(candidate)) return candidate
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
   }
+  return null
 })()
 import {executeCommand, type CommandContext} from "./commands.ts"
 import type {ConsoleLogStore} from "./console.ts"
