@@ -14,7 +14,10 @@
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
 import {existsSync, statSync, openSync, readSync, closeSync} from "node:fs"
+import {join} from "node:path"
 import indexHtml from "../web/index.html"
+
+const WEB_DIR = join(import.meta.dir, "..", "web")
 import {executeCommand, type CommandContext} from "./commands.ts"
 import type {ConsoleLogStore} from "./console.ts"
 import {serializeError} from "./errors.ts"
@@ -263,7 +266,25 @@ async function handleRoute(
   if (method === "POST" && path === "/target/run") return await runTarget(req, options)
   if (method === "POST" && path === "/target/stop") return await stopTarget(req, options)
 
+  if (method === "GET" && path === "/JetBrainsMono-Bold.ttf") {
+    return serveStatic(join(WEB_DIR, "JetBrainsMono-Bold.ttf"), "font/ttf")
+  }
+  // TODO[xr-editor] когда overlay перейдёт на LayoutManager — добавить route
+  // GET /yoga-wasm-base64-esm.js (из node_modules/yoga-layout/dist/binaries/),
+  // YogaService импортирует его абсолютным путём.
+
   return jsonResponse({ok: false, error: `not found: ${method} ${path}`}, 404)
+}
+
+function serveStatic(filePath: string, contentType: string): Response {
+  const file = Bun.file(filePath)
+  return new Response(file, {
+    status: 200,
+    headers: {
+      "content-type": contentType,
+      "cache-control": "public, max-age=86400",
+    },
+  })
 }
 
 function routeIndex(): Array<{method: string; path: string; description: string}> {

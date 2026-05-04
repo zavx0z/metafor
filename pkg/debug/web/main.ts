@@ -4,6 +4,8 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
+import {XrOverlay, type XrSource} from "./xr-overlay.ts"
+
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
 
@@ -98,6 +100,13 @@ const btnClearVerbose = $<HTMLButtonElement>("btn-clear-verbose")
 const welcomeSection = $("welcome-section")
 const welcomeContent = $("welcome-content")
 const mainEl = document.querySelector("main") as HTMLElement
+const xrToggle = $<HTMLInputElement>("toggle-xr")
+const xrOverlayEl = $("xr-overlay")
+const xrCanvas = $<HTMLCanvasElement>("xr-canvas")
+const xrStatus = $("xr-status")
+let xrOverlay: XrOverlay | null = null
+let xrLoading = false
+let xrLastSource: XrSource | null = null
 const scriptUrls = new Map<string, string>()
 let inspectorUrl = ""
 let connectionState: ConnectionState = "connecting"
@@ -582,6 +591,12 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
   if (cur !== null) {
     sourceView.scrollTop = Math.max(0, cur.offsetTop - sourceView.clientHeight / 3)
   }
+
+  pushXrSource({
+    lines,
+    currentLine: frame.line,
+    location: `${frame.url || "scriptId=" + scriptId}:${frame.line}`,
+  })
 }
 
 function renderScopes(frame: FrameSnapshot): void {
@@ -735,4 +750,58 @@ if (persistedVerbose === "1") {
 const persistedFilter = localStorage.getItem("bd:verbose:filter")
 if (persistedFilter !== null) verboseFilter.value = persistedFilter
 
+xrToggle.addEventListener("change", () => {
+  const on = xrToggle.checked
+  localStorage.setItem("bd:xr", on ? "1" : "0")
+  if (on) void enableXrOverlay()
+  else disableXrOverlay()
+})
+
+window.addEventListener("resize", () => {
+  if (xrOverlay !== null) xrOverlay.handleResize()
+})
+
+const persistedXr = localStorage.getItem("bd:xr")
+if (persistedXr === "1") {
+  xrToggle.checked = true
+  void enableXrOverlay()
+}
+
 connect()
+
+async function enableXrOverlay(): Promise<void> {
+  if (xrOverlay !== null) {
+    xrOverlayEl.hidden = false
+    xrOverlay.handleResize()
+    xrOverlay.start()
+    if (xrLastSource !== null) xrOverlay.setSource(xrLastSource)
+    return
+  }
+  if (xrLoading) return
+  xrLoading = true
+  xrOverlayEl.hidden = false
+  xrStatus.textContent = "initialising WebGPU…"
+  try {
+    xrOverlay = await XrOverlay.create(xrCanvas)
+    xrOverlay.handleResize()
+    xrOverlay.start()
+    xrStatus.textContent = "vision pro / paused frame source"
+    if (xrLastSource !== null) xrOverlay.setSource(xrLastSource)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    xrStatus.textContent = `WebGPU init failed: ${message}`
+    xrToggle.checked = false
+  } finally {
+    xrLoading = false
+  }
+}
+
+function disableXrOverlay(): void {
+  if (xrOverlay !== null) xrOverlay.stop()
+  xrOverlayEl.hidden = true
+}
+
+function pushXrSource(payload: XrSource): void {
+  xrLastSource = payload
+  if (xrOverlay !== null) xrOverlay.setSource(payload)
+}

@@ -19,6 +19,7 @@
       </div>
       <div class="controls">
         <label class="toggle"><input id="toggle-verbose" type="checkbox" /> Verbose</label>
+        <label class="toggle"><input id="toggle-xr" type="checkbox" /> XR</label>
         <button id="btn-pause">Pause</button>
         <button id="btn-resume">Resume</button>
         <button id="btn-step-over">Step Over</button>
@@ -26,6 +27,11 @@
         <button id="btn-step-out">Step Out</button>
       </div>
     </header>
+
+    <div id="xr-overlay" hidden>
+      <canvas id="xr-canvas"></canvas>
+      <div id="xr-status" class="muted"></div>
+    </div>
 
     <main>
       <section id="frames-section">
