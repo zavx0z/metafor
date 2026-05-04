@@ -39,11 +39,10 @@ export type XrSource = {
   location: string
 }
 
-const PIXEL_HEIGHT = 600
-const PADDING_PX = 14
-const GUTTER_PX = 56
-const LINE_PX = 16
-const CODE_FONT_PX = 11
+const PADDING_PX = 12
+const GUTTER_PX = 60
+const LINE_PX = 18
+const CODE_FONT_PX = 13
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 1)
@@ -77,6 +76,7 @@ export class XrOverlay {
   #physicalHeight = 0.6
   #physicalWidth = 0.6
   #pixelWidth = 600
+  #pixelHeight = 600
   #pixelScale = 0.001
   #cameraDistance = 0.6
   #rafId: number | null = null
@@ -160,14 +160,14 @@ export class XrOverlay {
     this.#renderer.setSize(w, h)
     this.#viewPoint.setAspectRatio(w / h)
 
-    // Карта подгоняется под aspect canvas: высота = PIXEL_HEIGHT pixels →
-    // physicalHeight рассчитан так чтобы карта целиком влезала по высоте при
-    // текущем fov и camera distance.
-    const aspect = w / h
+    // Логические пиксели Yoga = CSS-пиксели canvas (1:1). Физический размер
+    // карты подбирается под fov+distance, чтобы заполнить viewport. pixelScale
+    // = phys/pixels — для перевода Yoga-пикселей в мировые единицы.
+    this.#pixelWidth = w
+    this.#pixelHeight = h
     this.#physicalHeight = 2 * this.#cameraDistance * Math.tan(this.#viewPoint.fov / 2)
-    this.#physicalWidth = this.#physicalHeight * aspect
-    this.#pixelScale = this.#physicalHeight / PIXEL_HEIGHT
-    this.#pixelWidth = Math.round(this.#physicalWidth / this.#pixelScale)
+    this.#physicalWidth = this.#physicalHeight * (w / h)
+    this.#pixelScale = this.#physicalHeight / this.#pixelHeight
 
     this.#background.geometry = new PlaneGeometry({
       width: this.#physicalWidth,
@@ -182,7 +182,7 @@ export class XrOverlay {
 
     this.#codeContainer.layout = {
       width: this.#pixelWidth,
-      height: PIXEL_HEIGHT,
+      height: this.#pixelHeight,
       flexDirection: "column",
       alignItems: "stretch",
       padding: PADDING_PX,
@@ -232,7 +232,7 @@ export class XrOverlay {
       this.#layoutManager.update(
         this.#codeContainer,
         this.#pixelWidth,
-        PIXEL_HEIGHT,
+        this.#pixelHeight,
         this.#pixelScale,
       )
       this.#layoutDirty = false
@@ -323,7 +323,7 @@ export class XrOverlay {
 
     if (lines.length === 0) return
 
-    const maxLines = Math.max(1, Math.floor((PIXEL_HEIGHT - PADDING_PX * 2) / LINE_PX))
+    const maxLines = Math.max(1, Math.floor((this.#pixelHeight - PADDING_PX * 2) / LINE_PX))
     const half = Math.floor(maxLines / 2)
     let start = Math.max(0, currentLine - 1 - half)
     const end = Math.min(lines.length, start + maxLines)

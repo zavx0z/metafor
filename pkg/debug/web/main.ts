@@ -86,7 +86,6 @@ const evalInput = $<HTMLTextAreaElement>("eval-input")
 const evalFrame = $<HTMLInputElement>("eval-frame")
 const evalOutput = $("eval-output")
 const consoleLog = $("console-log")
-const sourceView = $<HTMLPreElement>("source-view")
 const sourceLoc = $("source-loc")
 const sourceCache = new Map<string, string>()
 const connStatus = $("conn-status")
@@ -100,9 +99,7 @@ const btnClearVerbose = $<HTMLButtonElement>("btn-clear-verbose")
 const welcomeSection = $("welcome-section")
 const welcomeContent = $("welcome-content")
 const mainEl = document.querySelector("main") as HTMLElement
-const engineToggle = $<HTMLInputElement>("toggle-engine")
 const engineCanvas = $<HTMLCanvasElement>("engine-source-canvas")
-const sourceSection = $("source-section")
 const sourceStatus = $("source-status")
 let engineOverlay: XrOverlay | null = null
 let engineLoading = false
@@ -192,8 +189,8 @@ function handleServerMessage(msg: ServerMessage): void {
       currentDump = undefined
       framesList.innerHTML = ""
       scopesContainer.innerHTML = `<div class="muted">running…</div>`
-      sourceView.innerHTML = ""
       sourceLoc.textContent = ""
+      pushSourceToEngine({lines: [], currentLine: 0, location: ""})
       setRunStatus("running", "live")
       return
     case "connection":
@@ -247,8 +244,8 @@ function clearLiveState(): void {
   activeFrameIndex = 0
   framesList.innerHTML = ""
   scopesContainer.innerHTML = `<div class="muted">inspector disconnected — данные устарели</div>`
-  sourceView.innerHTML = ""
   sourceLoc.textContent = ""
+  pushSourceToEngine({lines: [], currentLine: 0, location: ""})
   scriptUrls.clear()
   sourceCache.clear()
 }
@@ -553,50 +550,35 @@ function renderDump(dump: AgentDump): void {
 async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
   const scriptId = frame.scriptId
   if (scriptId === undefined) {
-    sourceView.innerHTML = `<div class="muted" style="padding:8px">scriptId недоступен для этого фрейма</div>`
     sourceLoc.textContent = ""
+    pushSourceToEngine({lines: ["scriptId недоступен для этого фрейма"], currentLine: 0, location: ""})
     return
   }
-  sourceLoc.textContent = `${frame.url || "scriptId=" + scriptId}:${frame.line}`
+  const location = `${frame.url || "scriptId=" + scriptId}:${frame.line}`
+  sourceLoc.textContent = location
 
   let src = sourceCache.get(scriptId)
   if (src === undefined) {
-    sourceView.innerHTML = `<div class="muted" style="padding:8px">loading…</div>`
+    pushSourceToEngine({lines: ["loading…"], currentLine: 0, location})
     try {
       const res = await fetch(`/source?scriptId=${encodeURIComponent(scriptId)}`)
       const data = await res.json() as {scriptSource?: string; error?: string}
       if (typeof data.scriptSource !== "string") {
-        sourceView.innerHTML = `<div class="muted" style="padding:8px">no source: ${escapeHtml(data.error ?? "unknown")}</div>`
+        pushSourceToEngine({lines: [`no source: ${data.error ?? "unknown"}`], currentLine: 0, location})
         return
       }
       src = data.scriptSource
       sourceCache.set(scriptId, src)
     } catch (error) {
-      sourceView.innerHTML = `<div class="muted" style="padding:8px">fetch failed: ${escapeHtml(String(error))}</div>`
+      pushSourceToEngine({lines: [`fetch failed: ${String(error)}`], currentLine: 0, location})
       return
     }
   }
 
-  const lines = src.split("\n")
-  const html: string[] = []
-  for (let i = 0; i < lines.length; i++) {
-    const lineNo = i + 1
-    const isCurrent = lineNo === frame.line
-    const cls = isCurrent ? "src-line current" : "src-line"
-    const num = String(lineNo).padStart(4, " ")
-    html.push(`<span class="${cls}" data-line="${lineNo}"><span class="src-num">${num}</span>${escapeHtml(lines[i] ?? "")}</span>`)
-  }
-  sourceView.innerHTML = html.join("\n")
-
-  const cur = sourceView.querySelector(".src-line.current") as HTMLElement | null
-  if (cur !== null) {
-    sourceView.scrollTop = Math.max(0, cur.offsetTop - sourceView.clientHeight / 3)
-  }
-
-  pushXrSource({
-    lines,
+  pushSourceToEngine({
+    lines: src.split("\n"),
     currentLine: frame.line,
-    location: `${frame.url || "scriptId=" + scriptId}:${frame.line}`,
+    location,
   })
 }
 
@@ -751,62 +733,31 @@ if (persistedVerbose === "1") {
 const persistedFilter = localStorage.getItem("bd:verbose:filter")
 if (persistedFilter !== null) verboseFilter.value = persistedFilter
 
-engineToggle.addEventListener("change", () => {
-  const on = engineToggle.checked
-  localStorage.setItem("bd:engine", on ? "1" : "0")
-  if (on) void enableEngineSourceView()
-  else disableEngineSourceView()
-})
-
-const persistedEngine = localStorage.getItem("bd:engine")
-if (persistedEngine === "1") {
-  engineToggle.checked = true
-  void enableEngineSourceView()
-}
-
 connect()
+void initEngineSourceView()
 
-async function enableEngineSourceView(): Promise<void> {
-  sourceSection.classList.add("engine-active")
-  engineCanvas.hidden = false
-  if (engineOverlay !== null) {
-    engineOverlay.start()
-    if (engineLastSource !== null) engineOverlay.setSource(engineLastSource)
-    return
-  }
-  if (engineLoading) return
+async function initEngineSourceView(): Promise<void> {
+  if (engineLoading || engineOverlay !== null) return
   engineLoading = true
   sourceStatus.textContent = "engine: init…"
   try {
     engineOverlay = await XrOverlay.create(engineCanvas)
     engineOverlay.start()
-    if (engineResizeObserver === null) {
-      engineResizeObserver = new ResizeObserver(() => {
-        if (engineOverlay !== null) engineOverlay.handleResize()
-      })
-      engineResizeObserver.observe(engineCanvas)
-    }
+    engineResizeObserver = new ResizeObserver(() => {
+      if (engineOverlay !== null) engineOverlay.handleResize()
+    })
+    engineResizeObserver.observe(engineCanvas)
     sourceStatus.textContent = "engine: webgpu"
     if (engineLastSource !== null) engineOverlay.setSource(engineLastSource)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     sourceStatus.textContent = `engine init failed: ${message}`
-    engineToggle.checked = false
-    sourceSection.classList.remove("engine-active")
-    engineCanvas.hidden = true
   } finally {
     engineLoading = false
   }
 }
 
-function disableEngineSourceView(): void {
-  if (engineOverlay !== null) engineOverlay.stop()
-  sourceSection.classList.remove("engine-active")
-  engineCanvas.hidden = true
-  sourceStatus.textContent = ""
-}
-
-function pushXrSource(payload: XrSource): void {
+function pushSourceToEngine(payload: XrSource): void {
   engineLastSource = payload
   if (engineOverlay !== null) engineOverlay.setSource(payload)
 }

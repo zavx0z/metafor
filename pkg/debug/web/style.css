@@ -127,42 +127,6 @@ section h2 {
 #source-section h2 { display: flex; gap: 8px; align-items: baseline; }
 #source-loc { font-size: 11px; }
 
-#source-view {
-  margin: 0;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  height: calc(100% - 24px);
-  overflow: auto;
-  font-size: 12px;
-  white-space: pre;
-}
-
-.src-line {
-  display: block;
-  padding: 0 8px;
-  white-space: pre;
-}
-
-.src-line.current {
-  background: rgba(247, 129, 102, 0.18);
-  border-left: 2px solid var(--accent-hot);
-  padding-left: 6px;
-}
-
-.src-num {
-  color: var(--muted);
-  display: inline-block;
-  width: 4em;
-  margin-right: 12px;
-  text-align: right;
-  user-select: none;
-}
-
-.src-line.current .src-num {
-  color: var(--accent-hot);
-}
-
 #frames {
   list-style: none;
   margin: 0;
@@ -443,25 +407,16 @@ main.welcome #welcome-section {
 
 #source-section {
   position: relative;
+  padding: 12px 16px 16px;
 }
 
 #engine-source-canvas {
   position: absolute;
   inset: 36px 16px 16px 16px;
-  width: calc(100% - 32px);
-  height: calc(100% - 52px);
   display: block;
   border: 1px solid var(--border);
   border-radius: 3px;
   background: var(--panel);
-}
-
-#engine-source-canvas[hidden] {
-  display: none;
-}
-
-#source-section.engine-active #source-view {
-  display: none;
 }
 
 #source-status {
