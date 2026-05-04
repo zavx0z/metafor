@@ -39,8 +39,15 @@ export type XrSource = {
   location: string
 }
 
-const PADDING_PX = 0
-const GUTTER_PX = 76
+const CONTENT_PAD_TOP_PX = 34
+const CONTENT_PAD_LEFT_PX = 10
+const CONTENT_PAD_RIGHT_PX = 10
+const CONTENT_PAD_BOTTOM_PX = 8
+const GUTTER_MIN_PX = 56
+const GUTTER_LEFT_PAD_PX = 8
+const GUTTER_RIGHT_PAD_PX = 12
+const CODE_LEFT_PAD_PX = 12
+const GUTTER_RULE_PX = 1
 const LINE_PX = 22
 const CODE_FONT_PX = 15
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
@@ -50,6 +57,7 @@ const COLOR_HIGHLIGHT = new Color(56 / 255, 139 / 255, 253 / 255, 0.16)
 const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
 const COLOR_GUTTER = new Color(110 / 255, 118 / 255, 129 / 255, 0.8)
 const COLOR_GUTTER_HOT = new Color(247 / 255, 129 / 255, 102 / 255, 1)
+const COLOR_GUTTER_RULE = new Color(48 / 255, 54 / 255, 61 / 255, 1)
 
 export class XrOverlay {
   static async create(canvas: HTMLCanvasElement): Promise<XrOverlay> {
@@ -68,6 +76,7 @@ export class XrOverlay {
   readonly #viewPoint: ViewPoint
   readonly #card: Object3D
   readonly #background: Mesh
+  readonly #gutterRule: Mesh
   readonly #contentContainer: Object3D
   readonly #codeContainer: Object3D
   readonly #layoutManager: LayoutManager
@@ -78,6 +87,8 @@ export class XrOverlay {
   #physicalWidth = 0.6
   #pixelWidth = 600
   #pixelHeight = 600
+  #contentPixelWidth = 580
+  #contentPixelHeight = 558
   #pixelScale = 0.001
   #cameraDistance = 0.6
   #rafId: number | null = null
@@ -120,6 +131,12 @@ export class XrOverlay {
     )
     this.#card.add(this.#background)
 
+    this.#gutterRule = new Mesh(
+      new PlaneGeometry({width: 1, height: 1}),
+      new MeshBasicMaterial({color: COLOR_GUTTER_RULE}),
+    )
+    this.#gutterRule.position.z = 0.001
+
     this.#layoutManager = new LayoutManager()
     this.#lineMaterial = new TextMaterial({color: COLOR_TEXT})
     this.#gutterMaterial = new TextMaterial({color: COLOR_GUTTER})
@@ -128,6 +145,7 @@ export class XrOverlay {
     this.#contentContainer = new Object3D()
     this.#contentContainer.position.z = 0.002
     this.#card.add(this.#contentContainer)
+    this.#contentContainer.add(this.#gutterRule)
 
     this.#codeContainer = new Object3D()
     this.#codeContainer.layout = {
@@ -181,18 +199,21 @@ export class XrOverlay {
       height: this.#physicalHeight,
     })
 
-    // Контент сдвинут к верхнему-левому углу карты (Yoga origin). LayoutManager
-    // переводит left/top пиксели Yoga в position.x = left*scale, position.y = -top*scale.
-    this.#contentContainer.position.x = -this.#physicalWidth / 2
-    this.#contentContainer.position.y = this.#physicalHeight / 2
+    this.#contentPixelWidth = Math.max(1, this.#pixelWidth - CONTENT_PAD_LEFT_PX - CONTENT_PAD_RIGHT_PX)
+    this.#contentPixelHeight = Math.max(1, this.#pixelHeight - CONTENT_PAD_TOP_PX - CONTENT_PAD_BOTTOM_PX)
+
+    // Контент сдвинут к верхнему-левому углу карты (Yoga origin) с явным
+    // отступом под абсолютный h2. LayoutManager переводит left/top пиксели Yoga
+    // в position.x = left*scale, position.y = -top*scale.
+    this.#contentContainer.position.x = -this.#physicalWidth / 2 + CONTENT_PAD_LEFT_PX * this.#pixelScale
+    this.#contentContainer.position.y = this.#physicalHeight / 2 - CONTENT_PAD_TOP_PX * this.#pixelScale
     this.#contentContainer.updateMatrix()
 
     this.#codeContainer.layout = {
-      width: this.#pixelWidth,
-      height: this.#pixelHeight,
+      width: this.#contentPixelWidth,
+      height: this.#contentPixelHeight,
       flexDirection: "column",
       alignItems: "stretch",
-      padding: PADDING_PX,
     }
 
     if (this.#current !== null) this.#renderLines()
@@ -261,7 +282,7 @@ export class XrOverlay {
   }
 
   #visibleLineCount(): number {
-    return Math.max(1, Math.floor((this.#pixelHeight - PADDING_PX * 2) / LINE_PX))
+    return Math.max(1, Math.floor(this.#contentPixelHeight / LINE_PX))
   }
 
   #attachWheelListener(): void {
@@ -307,6 +328,7 @@ export class XrOverlay {
   // полного пересоздания (профайлить когда строк станет больше 100).
   #renderLines(): void {
     this.#codeContainer.children = []
+    this.#hideGutterRule()
 
     if (this.#current === null) return
     const lines = this.#current.lines
@@ -322,7 +344,9 @@ export class XrOverlay {
     const end = Math.min(lines.length, start + maxLines)
 
     const lineFontWorld = lineFontWorldFor(this.#pixelScale)
-    const codeWidthPx = this.#pixelWidth - PADDING_PX * 2 - GUTTER_PX
+    const gutterPx = this.#gutterWidthPx(lines.length)
+    const codeWidthPx = Math.max(1, this.#contentPixelWidth - gutterPx)
+    this.#syncGutterRule(gutterPx)
 
     for (let i = 0; i < end - start; i++) {
       const lineIndex = start + i
@@ -340,8 +364,7 @@ export class XrOverlay {
 
       if (isCurrent) {
         const highlightWorldH = LINE_PX * this.#pixelScale
-        const contentWorldW =
-          (this.#pixelWidth - PADDING_PX * 2) * this.#pixelScale
+        const contentWorldW = this.#contentPixelWidth * this.#pixelScale
         const hl = new Mesh(
           new PlaneGeometry({width: contentWorldW, height: highlightWorldH}),
           new MeshBasicMaterial({color: COLOR_HIGHLIGHT}),
@@ -356,10 +379,11 @@ export class XrOverlay {
       }
 
       const gutter = new Object3D()
-      gutter.layout = {width: GUTTER_PX, height: LINE_PX}
-      const numStr = String(lineNo).padStart(4, " ")
+      gutter.layout = {width: gutterPx, height: LINE_PX}
+      const numStr = String(lineNo)
       const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
       const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
+      numText.position.x = this.#lineNumberX(numStr, gutterPx, lineFontWorld)
       numText.position.y = -lineFontWorld
       numText.updateMatrix()
       gutter.add(numText)
@@ -370,6 +394,7 @@ export class XrOverlay {
       if (text.length > 0) {
         const trimmed = text.length > 200 ? `${text.slice(0, 199)}…` : text
         const lineText = new Text(trimmed, this.#font, lineFontWorld, this.#lineMaterial)
+        lineText.position.x = CODE_LEFT_PAD_PX * this.#pixelScale
         lineText.position.y = -lineFontWorld
         lineText.updateMatrix()
         code.add(lineText)
@@ -379,8 +404,53 @@ export class XrOverlay {
       this.#codeContainer.add(row)
     }
   }
+
+  #gutterWidthPx(lineCount: number): number {
+    const digits = Math.max(2, String(Math.max(1, lineCount)).length)
+    const digitWidthPx = measureTextWorld("8", this.#font, lineFontWorldFor(this.#pixelScale)) / this.#pixelScale
+    return Math.ceil(Math.max(
+      GUTTER_MIN_PX,
+      GUTTER_LEFT_PAD_PX + digitWidthPx * digits + GUTTER_RIGHT_PAD_PX,
+    ))
+  }
+
+  #lineNumberX(text: string, gutterPx: number, fontSizeWorld: number): number {
+    const widthWorld = measureTextWorld(text, this.#font, fontSizeWorld)
+    const rightEdgeWorld = (gutterPx - GUTTER_RIGHT_PAD_PX) * this.#pixelScale
+    const leftInsetWorld = GUTTER_LEFT_PAD_PX * this.#pixelScale
+    return Math.max(leftInsetWorld, rightEdgeWorld - widthWorld)
+  }
+
+  #syncGutterRule(gutterPx: number): void {
+    const width = GUTTER_RULE_PX * this.#pixelScale
+    const height = this.#contentPixelHeight * this.#pixelScale
+    this.#gutterRule.geometry = new PlaneGeometry({width, height})
+    this.#gutterRule.visible = true
+    this.#gutterRule.position.x = gutterPx * this.#pixelScale + width / 2
+    this.#gutterRule.position.y = -height / 2
+    this.#gutterRule.updateMatrix()
+  }
+
+  #hideGutterRule(): void {
+    this.#gutterRule.visible = false
+  }
 }
 
 function lineFontWorldFor(pixelScale: number): number {
   return CODE_FONT_PX * pixelScale
+}
+
+function measureTextWorld(text: string, font: TrueTypeFont, fontSize: number): number {
+  const scale = fontSize / font.unitsPerEm
+  const letterSpacing = fontSize * 0.05
+  let width = 0
+  for (const char of text) {
+    if (char === " ") {
+      width += font.unitsPerEm * 0.3 * scale
+      continue
+    }
+    const gid = font.mapCharToGlyph(char.codePointAt(0)!)
+    width += font.getHMetric(gid).advanceWidth * scale + letterSpacing
+  }
+  return width
 }
