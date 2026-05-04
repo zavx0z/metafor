@@ -4,7 +4,7 @@ export const DEFAULT_INSPECTOR_URL = "ws://127.0.0.1:6499/bun"
 export const DEFAULT_DUMP_PATH = ".metafor/debug/agent-state.json"
 export const DEFAULT_RECONNECT_DELAY_MS = 1_000
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000
-export const DEFAULT_INITIALIZE_FALLBACK_MS = 30_000
+export const DEFAULT_INITIALIZE_FALLBACK_MS = 1_500
 export const DEFAULT_HTTP_HOST = "127.0.0.1"
 export const DEFAULT_HTTP_PORT = 6500
 
