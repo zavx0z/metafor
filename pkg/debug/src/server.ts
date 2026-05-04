@@ -174,9 +174,10 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   const server = Bun.serve({
     hostname: options.host,
     port: options.port,
-    // development: true включает HMR-runtime который ломается на нашей странице
-    // ("Failed to construct 'URL': Invalid URL"). Без него — etag/no-cache
-    // выставляем через <meta> в index.html.
+    // development: true тянет за собой HMR-runtime, который падает на нашей
+    // странице ("Failed to construct 'URL': Invalid URL"). Object-форма
+    // {hmr: false} в Bun 1.3.13 ещё не поддерживается. Поэтому false +
+    // <meta http-equiv="cache-control"> в index.html.
     development: false,
     routes: {
       "/": indexHtml,
