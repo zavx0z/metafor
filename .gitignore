@@ -18,5 +18,5 @@ old
 app/web/tls
 .claude/
 .ai/
-/.metafor/debug/
+.metafor/debug/
 dark/debug/.agent-*
