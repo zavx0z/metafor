@@ -131,11 +131,13 @@ class AgentRuntime {
   }
 
   async maintainConnection(): Promise<void> {
+    let attempt = 0
     while (true) {
       let connectedSocket: WebSocket | undefined
 
       try {
         connectedSocket = await this.#client.connect()
+        attempt = 0
         await this.#initializeInspector()
         await this.#client.waitForClose(connectedSocket)
         this.#clearInitializedFallback()
@@ -150,12 +152,40 @@ class AgentRuntime {
         ) {
           connectedSocket.close()
         }
-        this.#logger.event("agent.connection.failed", {error: serializeError(error)})
-        this.#logger.status(`connection unavailable, retrying in ${this.#config.reconnectDelayMs}ms`)
+        const message = serializeError(error)
+        const lastError = this.#client.lastError ?? message
+        const hint = this.#diagnoseConnectError(lastError)
+        const delay = this.#nextBackoffDelayMs(++attempt)
+        this.#logger.event("agent.connection.failed", {
+          attempt,
+          error: message,
+          lastError,
+          hint,
+          nextRetryMs: delay,
+        })
+        if (attempt === 1 || attempt % 5 === 0) {
+          this.#logger.status(`connection unavailable (attempt ${attempt}): ${hint}; retry in ${delay}ms`)
+        }
       }
 
-      await sleep(this.#config.reconnectDelayMs)
+      await sleep(this.#nextBackoffDelayMs(attempt || 1))
     }
+  }
+
+  #nextBackoffDelayMs(attempt: number): number {
+    const base = this.#config.reconnectDelayMs
+    const exp = Math.min(attempt - 1, 5) // 1× ... 32×
+    return Math.min(base * Math.pow(2, exp), 15_000)
+  }
+
+  #diagnoseConnectError(message: string): string {
+    if (message.includes("Expected 101")) {
+      return `target отвечает HTTP, не WebSocket — путь URL ('${this.#client.url}') не совпадает с тем что слушает Bun-инспектор. Используй POST /inspector или env BUN_INSPECTOR_URL чтобы сменить путь (например /dark)`
+    }
+    if (message.includes("ECONNREFUSED") || message.includes("Failed to connect")) {
+      return `target не запущен на ${this.#client.url} — запусти 'bun ... --inspect-wait=${this.#client.url}'`
+    }
+    return message
   }
 
   shutdown(code: number): never {
