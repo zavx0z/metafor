@@ -6,6 +6,7 @@ import {InspectorClient} from "./inspector-client.ts"
 import {EventLogger} from "./logger.ts"
 import {SnapshotStore} from "./snapshot.ts"
 import {startHttpServer, type HttpServer} from "./server.ts"
+import {TargetSupervisor} from "./target.ts"
 import {sleep} from "./time.ts"
 import type {JsonObject} from "./types.ts"
 import {serializeError} from "./errors.ts"
@@ -31,6 +32,7 @@ export async function runAgent(config: AgentConfig = loadConfig()): Promise<neve
     logger,
     consoleLogPath: config.consoleLogPath,
   })
+  const target = new TargetSupervisor(logger)
 
   const runtime = new AgentRuntime({
     config,
@@ -63,6 +65,7 @@ export async function runAgent(config: AgentConfig = loadConfig()): Promise<neve
         client,
         snapshots,
         consoleLogs,
+        target,
         logger,
         eventLogPath: config.eventLogPath,
         consoleLogPath: config.consoleLogPath,
@@ -74,6 +77,7 @@ export async function runAgent(config: AgentConfig = loadConfig()): Promise<neve
     }
   }
   runtime.attachHttpServer(httpServer)
+  runtime.attachTarget(target)
 
   process.on("SIGINT", () => runtime.shutdown(130))
   process.on("SIGTERM", () => runtime.shutdown(143))
@@ -113,6 +117,7 @@ class AgentRuntime {
   #consoleLogs: ConsoleLogStore
   #initializedFallbackTimer: ReturnType<typeof setTimeout> | undefined
   #httpServer: HttpServer | undefined
+  #target: TargetSupervisor | undefined
 
   constructor(options: AgentRuntimeOptions) {
     this.#config = options.config
@@ -188,9 +193,14 @@ class AgentRuntime {
     return message
   }
 
+  attachTarget(target: TargetSupervisor): void {
+    this.#target = target
+  }
+
   shutdown(code: number): never {
     this.#logger.event("agent.shutdown", {code})
     this.#clearInitializedFallback()
+    this.#target?.shutdown()
     this.#client.close()
     this.#httpServer?.stop?.()
     process.exit(code)

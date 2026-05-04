@@ -18,10 +18,11 @@ import indexHtml from "../web/index.html"
 import {executeCommand, type CommandContext} from "./commands.ts"
 import type {ConsoleLogStore} from "./console.ts"
 import {serializeError} from "./errors.ts"
-import {asNumber, asObject, asString} from "./guards.ts"
+import {asNumber, asObject, asString, asStringArray} from "./guards.ts"
 import type {EventLogger} from "./logger.ts"
 import type {SnapshotStore} from "./snapshot.ts"
 import type {InspectorClient} from "./inspector-client.ts"
+import type {TargetSupervisor} from "./target.ts"
 import type {JsonObject} from "./types.ts"
 
 export type HttpServerOptions = {
@@ -30,6 +31,7 @@ export type HttpServerOptions = {
   client: InspectorClient
   snapshots: SnapshotStore
   consoleLogs: ConsoleLogStore
+  target: TargetSupervisor
   logger: EventLogger
   eventLogPath: string
   consoleLogPath: string
@@ -112,6 +114,9 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       event: entry.event,
       detail: entry,
     })
+  })
+  options.target.onEvent((event) => {
+    broadcast({type: "target", event})
   })
 
   const websocket: WebSocketHandler<WsClientData> = {
@@ -254,6 +259,9 @@ async function handleRoute(
   if (method === "POST" && path === "/resume") return await dispatchPost(req, "resume", ctx)
   if (method === "POST" && path === "/frames") return await dispatchPost(req, "frames", ctx)
   if (method === "POST" && path === "/inspector") return await reconnectInspector(req, options)
+  if (method === "GET" && path === "/target") return jsonResponse(options.target.snapshot())
+  if (method === "POST" && path === "/target/run") return await runTarget(req, options)
+  if (method === "POST" && path === "/target/stop") return await stopTarget(req, options)
 
   return jsonResponse({ok: false, error: `not found: ${method} ${path}`}, 404)
 }
@@ -273,6 +281,9 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/pause", description: "Debugger.pause"},
     {method: "POST", path: "/resume", description: "Debugger.resume"},
     {method: "POST", path: "/inspector", description: "{url} — переподключиться к другому Bun-инспектору"},
+    {method: "GET", path: "/target", description: "состояние target-процесса (если запущен через /target/run)"},
+    {method: "POST", path: "/target/run", description: "{command:[...], cwd?, env?} — запустить target через Bun.spawn"},
+    {method: "POST", path: "/target/stop", description: "{signal?} — SIGTERM (по умолчанию) → SIGKILL через 3с"},
   ]
 }
 
@@ -314,6 +325,56 @@ async function dispatchPost(req: Request, cmd: string, ctx: CommandContext): Pro
 }
 
 const sourceCache = new Map<string, string>()
+
+async function runTarget(req: Request, options: HttpServerOptions): Promise<Response> {
+  let body: JsonObject = {}
+  const text = await req.text()
+  if (text.length > 0) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(text)
+    } catch (error) {
+      return jsonResponse({ok: false, error: `invalid JSON: ${serializeError(error)}`}, 400)
+    }
+    body = asObject(parsed) ?? {}
+  }
+
+  const command = asStringArray(body["command"])
+  if (command === undefined || command.length === 0) {
+    return jsonResponse({ok: false, error: "command must be non-empty array of strings (e.g. ['bun','test',...])"}, 400)
+  }
+  const cwd = asString(body["cwd"])
+  const env = asObject(body["env"])
+  const envStrings: Record<string, string> | undefined = env === undefined
+    ? undefined
+    : Object.fromEntries(
+        Object.entries(env).filter(([, v]) => typeof v === "string") as Array<[string, string]>,
+      )
+
+  try {
+    const opts: {command: string[]; cwd?: string; env?: Record<string, string>} = {command}
+    if (cwd !== undefined) opts.cwd = cwd
+    if (envStrings !== undefined) opts.env = envStrings
+    const snapshot = options.target.start(opts)
+    return jsonResponse({ok: true, snapshot})
+  } catch (error) {
+    return jsonResponse({ok: false, error: serializeError(error)}, 409)
+  }
+}
+
+async function stopTarget(req: Request, options: HttpServerOptions): Promise<Response> {
+  let signal: NodeJS.Signals = "SIGTERM"
+  const text = await req.text()
+  if (text.length > 0) {
+    try {
+      const body = asObject(JSON.parse(text))
+      const sig = asString(body?.["signal"])
+      if (sig !== undefined) signal = sig as NodeJS.Signals
+    } catch {}
+  }
+  const snapshot = await options.target.stop(signal)
+  return jsonResponse({ok: true, snapshot})
+}
 
 async function reconnectInspector(req: Request, options: HttpServerOptions): Promise<Response> {
   let body: JsonObject = {}
