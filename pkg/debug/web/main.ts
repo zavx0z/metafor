@@ -71,6 +71,9 @@ const evalInput = $<HTMLTextAreaElement>("eval-input")
 const evalFrame = $<HTMLInputElement>("eval-frame")
 const evalOutput = $("eval-output")
 const consoleLog = $("console-log")
+const sourceView = $<HTMLPreElement>("source-view")
+const sourceLoc = $("source-loc")
+const sourceCache = new Map<string, string>()
 
 const buttons = {
   pause: $<HTMLButtonElement>("btn-pause"),
@@ -173,7 +176,54 @@ function renderDump(dump: AgentDump): void {
   }
 
   const top = dump.frames[activeFrameIndex] ?? dump.frames[0]
-  if (top !== undefined) renderScopes(top)
+  if (top !== undefined) {
+    renderScopes(top)
+    void renderSourceForFrame(top)
+  }
+}
+
+async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
+  const scriptId = frame.scriptId
+  if (scriptId === undefined) {
+    sourceView.innerHTML = `<div class="muted" style="padding:8px">scriptId недоступен для этого фрейма</div>`
+    sourceLoc.textContent = ""
+    return
+  }
+  sourceLoc.textContent = `${frame.url || "scriptId=" + scriptId}:${frame.line}`
+
+  let src = sourceCache.get(scriptId)
+  if (src === undefined) {
+    sourceView.innerHTML = `<div class="muted" style="padding:8px">loading…</div>`
+    try {
+      const res = await fetch(`/source?scriptId=${encodeURIComponent(scriptId)}`)
+      const data = await res.json() as {scriptSource?: string; error?: string}
+      if (typeof data.scriptSource !== "string") {
+        sourceView.innerHTML = `<div class="muted" style="padding:8px">no source: ${escapeHtml(data.error ?? "unknown")}</div>`
+        return
+      }
+      src = data.scriptSource
+      sourceCache.set(scriptId, src)
+    } catch (error) {
+      sourceView.innerHTML = `<div class="muted" style="padding:8px">fetch failed: ${escapeHtml(String(error))}</div>`
+      return
+    }
+  }
+
+  const lines = src.split("\n")
+  const html: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const lineNo = i + 1
+    const isCurrent = lineNo === frame.line
+    const cls = isCurrent ? "src-line current" : "src-line"
+    const num = String(lineNo).padStart(4, " ")
+    html.push(`<span class="${cls}" data-line="${lineNo}"><span class="src-num">${num}</span>${escapeHtml(lines[i] ?? "")}</span>`)
+  }
+  sourceView.innerHTML = html.join("\n")
+
+  const cur = sourceView.querySelector(".src-line.current") as HTMLElement | null
+  if (cur !== null) {
+    sourceView.scrollTop = Math.max(0, cur.offsetTop - sourceView.clientHeight / 3)
+  }
 }
 
 function renderScopes(frame: FrameSnapshot): void {

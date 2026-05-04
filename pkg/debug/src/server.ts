@@ -206,6 +206,7 @@ async function handleRoute(
   }
   if (method === "GET" && path === "/events") return jsonResponse(readNdjsonTail(options.eventLogPath, url))
   if (method === "GET" && path === "/console") return jsonResponse(readNdjsonTail(options.consoleLogPath, url))
+  if (method === "GET" && path === "/source") return await getScriptSource(url, options)
 
   if (method === "POST" && path === "/eval") return await dispatchPost(req, "eval", ctx)
   if (method === "POST" && path === "/props") return await dispatchPost(req, "props", ctx)
@@ -225,6 +226,7 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "GET", path: "/frames", description: "callFrames + dump"},
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
     {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
+    {method: "GET", path: "/source?scriptId=<id>", description: "исходник скрипта (Debugger.getScriptSource)"},
     {method: "POST", path: "/eval", description: "{frame?, expr} — Debugger.evaluateOnCallFrame"},
     {method: "POST", path: "/props", description: "{objectId, ownProperties?} — Runtime.getProperties"},
     {method: "POST", path: "/step", description: '{kind: "over"|"into"|"out"}'},
@@ -265,6 +267,29 @@ async function dispatchPost(req: Request, cmd: string, ctx: CommandContext): Pro
     return jsonResponse({ok: true, cmd, result})
   } catch (error) {
     return jsonResponse({ok: false, cmd, error: serializeError(error)}, 400)
+  }
+}
+
+const sourceCache = new Map<string, string>()
+
+async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Response> {
+  const scriptId = url.searchParams.get("scriptId") ?? ""
+  if (scriptId.length === 0) return jsonResponse({ok: false, error: "scriptId required"}, 400)
+
+  const fileUrl = options.snapshots.scriptUrl(scriptId)
+
+  const cached = sourceCache.get(scriptId)
+  if (cached !== undefined) {
+    return jsonResponse({scriptId, url: fileUrl ?? "", scriptSource: cached, cached: true})
+  }
+
+  try {
+    const result = asObject(await options.client.request("Debugger.getScriptSource", {scriptId}))
+    const scriptSource = asString(result?.["scriptSource"]) ?? ""
+    if (scriptSource.length > 0) sourceCache.set(scriptId, scriptSource)
+    return jsonResponse({scriptId, url: fileUrl ?? "", scriptSource, cached: false})
+  } catch (error) {
+    return jsonResponse({ok: false, scriptId, error: serializeError(error)}, 500)
   }
 }
 
