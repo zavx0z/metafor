@@ -1,33 +1,20 @@
 /**
- * XR-overlay: WebGPU-canvas с редактором кода на @metafor/engine.
- * Полупрозрачная Vision-Pro карточка, на которой текстом рендерится
- * фрагмент исходника текущей точки останова.
+ * Engine source-view: пилотный шаг миграции debug-UI на @metafor/engine.
  *
- * Разметка строится через flexbox (Yoga) поверх UIDisplay/LayoutManager:
- *   contentContainer (column, padding, alignItems: stretch)
- *   ├── titleRow (row, height)
- *   │   └── Text(location)
- *   └── code rows × VISIBLE_LINES (row, height)
- *       ├── gutter (width: 56)
- *       │   └── Text(lineNo)
- *       └── code (height)
- *           └── Text(line)
+ * Канвас встаёт на место HTML <pre id="source-view"> внутри #source-section,
+ * рендерит исходник текущего паузнутого фрейма средствами WebGPU-движка
+ * (Renderer/Scene/Text + Yoga flexbox через LayoutManager).
  *
- * Подсветка currentLine — child строки, prepend (отрисовка z-back),
- * растянутый на всю ширину строки. Yoga в LayoutProps пока без position:absolute,
- * поэтому highlight сидит как обычный sibling, но не участвует в layout
- * (display: 'none' эквивалент дать нельзя, поэтому ставим width=0/height=0
- * и потом руками растягиваем геометрию по pixelScale).
+ * Камера смотрит ПЕРПЕНДИКУЛЯРНО вниз на плоскость локального XY (без
+ * rotation у контента) — так слева/справа в layout совпадают со слева/справа
+ * на экране, без зеркала.
  *
- * Готовится как 2D-вёрстка чтобы перенести в WebXR без правок layout-логики.
+ * Render-on-demand: один кадр после setSource/handleResize, RAF-цикл только
+ * пока активен pointer/wheel на canvas.
  *
- * TODO[xr-editor] подсветка синтаксиса (TS/JS токенизация → разные
- *   TextMaterial по цветам), inline-значения переменных из scope,
- *   клик по строке = goto definition, conditional breakpoints.
- * TODO[xr-editor] переиспользование Text-объектов между фреймами
- *   (сейчас при каждом setSource Text-объекты пересоздаются).
- * TODO[xr-session] навесить WebXR-сессию (immersive-vr / immersive-ar) +
- *   контроллеры/жесты для навигации по фреймам и scope-tree.
+ * TODO[engine-ui] перенести аналогично frames/scopes/console.
+ * TODO[engine-ui] подсветка синтаксиса (несколько TextMaterial → токены).
+ * TODO[engine-ui] переиспользование Text-объектов между фреймами.
  */
 
 import {
@@ -41,7 +28,6 @@ import {
   Text,
   TextMaterial,
   TrueTypeFont,
-  UIDisplay,
   ViewPoint,
 } from "@metafor/engine"
 import {LayoutManager} from "../../engine/src/layout/LayoutManager.ts"
@@ -53,25 +39,18 @@ export type XrSource = {
   location: string
 }
 
-const PHYSICAL_WIDTH = 0.72
-const PHYSICAL_HEIGHT = 0.45
-const PIXEL_WIDTH = 800
-const PIXEL_HEIGHT = 500
-const PADDING_PX = 16
+const PIXEL_HEIGHT = 600
+const PADDING_PX = 14
 const GUTTER_PX = 56
-const TITLE_ROW_PX = 24
 const LINE_PX = 16
-const TITLE_FONT_PX = 14
 const CODE_FONT_PX = 11
-const VISIBLE_LINES = 24
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
 
-const COLOR_BG = new Color(20 / 255, 26 / 255, 38 / 255, 0.62)
-const COLOR_HIGHLIGHT = new Color(247 / 255, 129 / 255, 102 / 255, 0.22)
+const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 1)
+const COLOR_HIGHLIGHT = new Color(56 / 255, 139 / 255, 253 / 255, 0.16)
 const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
-const COLOR_GUTTER = new Color(139 / 255, 148 / 255, 158 / 255, 0.85)
+const COLOR_GUTTER = new Color(110 / 255, 118 / 255, 129 / 255, 0.8)
 const COLOR_GUTTER_HOT = new Color(247 / 255, 129 / 255, 102 / 255, 1)
-const COLOR_TITLE = new Color(88 / 255, 166 / 255, 255 / 255, 1)
 
 export class XrOverlay {
   static async create(canvas: HTMLCanvasElement): Promise<XrOverlay> {
@@ -87,15 +66,19 @@ export class XrOverlay {
   readonly #font: TrueTypeFont
   readonly #scene: Scene
   readonly #viewPoint: ViewPoint
-  readonly #display: UIDisplay
+  readonly #card: Object3D
+  readonly #background: Mesh
+  readonly #contentContainer: Object3D
+  readonly #codeContainer: Object3D
   readonly #layoutManager: LayoutManager
-  readonly #titleMaterial: TextMaterial
   readonly #lineMaterial: TextMaterial
   readonly #gutterMaterial: TextMaterial
   readonly #gutterHotMaterial: TextMaterial
-  readonly #titleRow: Object3D
-  readonly #codeContainer: Object3D
-  #titleText: Text | null = null
+  #physicalHeight = 0.6
+  #physicalWidth = 0.6
+  #pixelWidth = 600
+  #pixelScale = 0.001
+  #cameraDistance = 0.6
   #rafId: number | null = null
   #renderRequested = false
   #disposed = false
@@ -115,63 +98,59 @@ export class XrOverlay {
     this.#scene = new Scene()
     this.#scene.background = new Color(0, 0, 0, 0)
 
+    // Камера в +Z, смотрит на (0,0,0) вниз. Up = (0,1,0): локальная +Y → вверх
+    // на экране, +X → вправо. Никакого rotation у плоскости — видим лицевую
+    // сторону без зеркала.
     this.#viewPoint = new ViewPoint({
       element: canvas,
       fov: Math.PI / 4,
-      near: 0.05,
+      near: 0.01,
       far: 50,
-      position: {x: 0, y: -1.05, z: 0},
+      position: {x: 0, y: 0, z: this.#cameraDistance},
       target: {x: 0, y: 0, z: 0},
     })
+    this.#setCameraUpY()
+    this.#detachViewPointInput()
 
-    this.#display = new UIDisplay({
-      width: PHYSICAL_WIDTH,
-      height: PHYSICAL_HEIGHT,
-      pixelWidth: PIXEL_WIDTH,
-      pixelHeight: PIXEL_HEIGHT,
-      background: COLOR_BG,
-    })
-    // Карточку поднимаем вертикально (фронт смотрит на -Y).
-    this.#display.rotation.x = Math.PI / 2
-    this.#display.updateMatrix()
-    this.#scene.add(this.#display)
+    this.#card = new Object3D()
+    this.#scene.add(this.#card)
 
-    // Корневой контейнер: row alignItems → column stretch (редактор, не центр).
-    this.#display.contentContainer.layout = {
-      width: PIXEL_WIDTH,
-      height: PIXEL_HEIGHT,
-      flexDirection: "column",
-      justifyContent: "flex-start",
-      alignItems: "stretch",
-      padding: PADDING_PX,
-    }
+    this.#background = new Mesh(
+      new PlaneGeometry({width: 1, height: 1}),
+      new MeshBasicMaterial({color: COLOR_BG}),
+    )
+    this.#card.add(this.#background)
 
     this.#layoutManager = new LayoutManager()
-
-    this.#titleMaterial = new TextMaterial({color: COLOR_TITLE})
     this.#lineMaterial = new TextMaterial({color: COLOR_TEXT})
     this.#gutterMaterial = new TextMaterial({color: COLOR_GUTTER})
     this.#gutterHotMaterial = new TextMaterial({color: COLOR_GUTTER_HOT})
 
-    this.#titleRow = new Object3D()
-    this.#titleRow.layout = {
-      width: "100%",
-      height: TITLE_ROW_PX,
-      flexDirection: "row",
-      alignItems: "flex-start",
-    }
-    this.#display.addUI(this.#titleRow)
+    this.#contentContainer = new Object3D()
+    this.#contentContainer.position.z = 0.002
+    this.#card.add(this.#contentContainer)
 
     this.#codeContainer = new Object3D()
     this.#codeContainer.layout = {
       width: "100%",
-      height: VISIBLE_LINES * LINE_PX,
+      height: "100%",
       flexDirection: "column",
       alignItems: "stretch",
     }
-    this.#display.addUI(this.#codeContainer)
+    this.#contentContainer.add(this.#codeContainer)
+  }
 
-    this.handleResize()
+  // ViewPoint конструктор вешает orbit-listeners на canvas — для встроенного
+  // редактора кода они мешают (drag = выделение текста, wheel = scroll).
+  // Снимаем их через публичный dispose, который удаляет именно слушатели.
+  #detachViewPointInput(): void {
+    this.#viewPoint.dispose()
+  }
+
+  #setCameraUpY(): void {
+    const vp = this.#viewPoint as unknown as {up: {set(x: number, y: number, z: number): void}}
+    vp.up.set(0, 1, 0)
+    this.#viewPoint.update()
   }
 
   handleResize(): void {
@@ -180,17 +159,43 @@ export class XrOverlay {
     this.#renderer.setPixelRatio(window.devicePixelRatio || 1)
     this.#renderer.setSize(w, h)
     this.#viewPoint.setAspectRatio(w / h)
+
+    // Карта подгоняется под aspect canvas: высота = PIXEL_HEIGHT pixels →
+    // physicalHeight рассчитан так чтобы карта целиком влезала по высоте при
+    // текущем fov и camera distance.
+    const aspect = w / h
+    this.#physicalHeight = 2 * this.#cameraDistance * Math.tan(this.#viewPoint.fov / 2)
+    this.#physicalWidth = this.#physicalHeight * aspect
+    this.#pixelScale = this.#physicalHeight / PIXEL_HEIGHT
+    this.#pixelWidth = Math.round(this.#physicalWidth / this.#pixelScale)
+
+    this.#background.geometry = new PlaneGeometry({
+      width: this.#physicalWidth,
+      height: this.#physicalHeight,
+    })
+
+    // Контент сдвинут к верхнему-левому углу карты (Yoga origin). LayoutManager
+    // переводит left/top пиксели Yoga в position.x = left*scale, position.y = -top*scale.
+    this.#contentContainer.position.x = -this.#physicalWidth / 2
+    this.#contentContainer.position.y = this.#physicalHeight / 2
+    this.#contentContainer.updateMatrix()
+
+    this.#codeContainer.layout = {
+      width: this.#pixelWidth,
+      height: PIXEL_HEIGHT,
+      flexDirection: "column",
+      alignItems: "stretch",
+      padding: PADDING_PX,
+    }
+
+    this.#layoutDirty = true
     this.#requestRender()
   }
 
-  // Render-on-demand: один кадр после setSource/resize. Постоянный RAF-цикл
-  // включается только пока пользователь крутит камеру (pointerdown/wheel),
-  // в idle gpu/cpu простаивают.
   start(): void {
     if (this.#disposed) return
     this.#attachInteractionListeners()
-    this.#layoutDirty = true
-    this.#requestRender()
+    this.handleResize()
   }
 
   stop(): void {
@@ -212,7 +217,6 @@ export class XrOverlay {
 
   setSource(source: XrSource): void {
     this.#current = source
-    this.#renderTitle(source.location)
     this.#renderLines(source.lines, source.currentLine)
     this.#layoutDirty = true
     this.#requestRender()
@@ -226,10 +230,10 @@ export class XrOverlay {
     if (this.#disposed) return
     if (this.#layoutDirty) {
       this.#layoutManager.update(
-        this.#display.contentContainer,
-        this.#display.pixelWidth,
-        this.#display.pixelHeight,
-        this.#display.pixelScale,
+        this.#codeContainer,
+        this.#pixelWidth,
+        PIXEL_HEIGHT,
+        this.#pixelScale,
       )
       this.#layoutDirty = false
     }
@@ -273,7 +277,6 @@ export class XrOverlay {
         cancelAnimationFrame(this.#rafId)
         this.#rafId = null
       }
-      // Финальный кадр — отрисовать конечное состояние камеры.
       this.#requestRender()
     }, 150)
   }
@@ -313,39 +316,21 @@ export class XrOverlay {
     }
   }
 
-  #fontSizeWorld(px: number): number {
-    return this.#display.getFontSize(px)
-  }
-
-  #renderTitle(location: string): void {
-    this.#titleRow.children = []
-    if (location.length === 0) {
-      this.#titleText = null
-      return
-    }
-    const text = new Text(location, this.#font, this.#fontSizeWorld(TITLE_FONT_PX), this.#titleMaterial)
-    // Yoga ставит titleRow в (left*scale, -top*scale). Внутри строки Text без
-    // layout остаётся на (0,0) родителя, рисуется вправо-вверх — поэтому
-    // сдвигаем его вниз на свою высоту, чтобы baseline совпал с верхом ячейки.
-    text.position.y = -this.#fontSizeWorld(TITLE_FONT_PX)
-    text.updateMatrix()
-    this.#titleRow.add(text)
-    this.#titleText = text
-  }
-
-  // TODO[xr-editor] переиспользовать row-объекты между фреймами вместо
-  // полного пересоздания (профайлить когда строк станет больше 24).
+  // TODO[engine-ui] переиспользовать row-объекты между фреймами вместо
+  // полного пересоздания (профайлить когда строк станет больше 100).
   #renderLines(lines: string[], currentLine: number): void {
     this.#codeContainer.children = []
 
     if (lines.length === 0) return
 
-    const half = Math.floor(VISIBLE_LINES / 2)
+    const maxLines = Math.max(1, Math.floor((PIXEL_HEIGHT - PADDING_PX * 2) / LINE_PX))
+    const half = Math.floor(maxLines / 2)
     let start = Math.max(0, currentLine - 1 - half)
-    const end = Math.min(lines.length, start + VISIBLE_LINES)
-    if (end - start < VISIBLE_LINES) start = Math.max(0, end - VISIBLE_LINES)
+    const end = Math.min(lines.length, start + maxLines)
+    if (end - start < maxLines) start = Math.max(0, end - maxLines)
 
-    const lineFontWorld = this.#fontSizeWorld(CODE_FONT_PX)
+    const lineFontWorld = lineFontWorldFor(this.#pixelScale)
+    const codeWidthPx = this.#pixelWidth - PADDING_PX * 2 - GUTTER_PX
 
     for (let i = 0; i < end - start; i++) {
       const lineIndex = start + i
@@ -362,28 +347,24 @@ export class XrOverlay {
       }
 
       if (isCurrent) {
-        const highlightWorldH = LINE_PX * this.#display.pixelScale
+        const highlightWorldH = LINE_PX * this.#pixelScale
         const contentWorldW =
-          (PIXEL_WIDTH - PADDING_PX * 2) * this.#display.pixelScale
+          (this.#pixelWidth - PADDING_PX * 2) * this.#pixelScale
         const hl = new Mesh(
           new PlaneGeometry({width: contentWorldW, height: highlightWorldH}),
           new MeshBasicMaterial({color: COLOR_HIGHLIGHT}),
         )
-        // Якорь row — верхний-левый угол ячейки, plane по умолчанию центрирован
-        // на (0,0,0) → опускаем на половину высоты вниз и сдвигаем на
-        // половину ширины вправо, чтобы плашка покрыла всю строку.
+        // row якорь — в его верхнем-левом углу. Plane центрирован, поэтому
+        // сдвигаем на половину ширины вправо и половину высоты вниз.
         hl.position.x = contentWorldW / 2
         hl.position.y = -highlightWorldH / 2
-        hl.position.z = -0.001
+        hl.position.z = -0.0005
         hl.updateMatrix()
         row.add(hl)
       }
 
       const gutter = new Object3D()
-      gutter.layout = {
-        width: GUTTER_PX,
-        height: LINE_PX,
-      }
+      gutter.layout = {width: GUTTER_PX, height: LINE_PX}
       const numStr = String(lineNo).padStart(4, " ")
       const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
       const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
@@ -393,12 +374,9 @@ export class XrOverlay {
       row.add(gutter)
 
       const code = new Object3D()
-      code.layout = {
-        width: PIXEL_WIDTH - PADDING_PX * 2 - GUTTER_PX,
-        height: LINE_PX,
-      }
+      code.layout = {width: codeWidthPx, height: LINE_PX}
       if (text.length > 0) {
-        const trimmed = text.length > 96 ? `${text.slice(0, 95)}…` : text
+        const trimmed = text.length > 200 ? `${text.slice(0, 199)}…` : text
         const lineText = new Text(trimmed, this.#font, lineFontWorld, this.#lineMaterial)
         lineText.position.y = -lineFontWorld
         lineText.updateMatrix()
@@ -409,4 +387,8 @@ export class XrOverlay {
       this.#codeContainer.add(row)
     }
   }
+}
+
+function lineFontWorldFor(pixelScale: number): number {
+  return CODE_FONT_PX * pixelScale
 }

@@ -100,13 +100,14 @@ const btnClearVerbose = $<HTMLButtonElement>("btn-clear-verbose")
 const welcomeSection = $("welcome-section")
 const welcomeContent = $("welcome-content")
 const mainEl = document.querySelector("main") as HTMLElement
-const xrToggle = $<HTMLInputElement>("toggle-xr")
-const xrOverlayEl = $("xr-overlay")
-const xrCanvas = $<HTMLCanvasElement>("xr-canvas")
-const xrStatus = $("xr-status")
-let xrOverlay: XrOverlay | null = null
-let xrLoading = false
-let xrLastSource: XrSource | null = null
+const engineToggle = $<HTMLInputElement>("toggle-engine")
+const engineCanvas = $<HTMLCanvasElement>("engine-source-canvas")
+const sourceSection = $("source-section")
+const sourceStatus = $("source-status")
+let engineOverlay: XrOverlay | null = null
+let engineLoading = false
+let engineLastSource: XrSource | null = null
+let engineResizeObserver: ResizeObserver | null = null
 const scriptUrls = new Map<string, string>()
 let inspectorUrl = ""
 let connectionState: ConnectionState = "connecting"
@@ -750,58 +751,62 @@ if (persistedVerbose === "1") {
 const persistedFilter = localStorage.getItem("bd:verbose:filter")
 if (persistedFilter !== null) verboseFilter.value = persistedFilter
 
-xrToggle.addEventListener("change", () => {
-  const on = xrToggle.checked
-  localStorage.setItem("bd:xr", on ? "1" : "0")
-  if (on) void enableXrOverlay()
-  else disableXrOverlay()
+engineToggle.addEventListener("change", () => {
+  const on = engineToggle.checked
+  localStorage.setItem("bd:engine", on ? "1" : "0")
+  if (on) void enableEngineSourceView()
+  else disableEngineSourceView()
 })
 
-window.addEventListener("resize", () => {
-  if (xrOverlay !== null) xrOverlay.handleResize()
-})
-
-const persistedXr = localStorage.getItem("bd:xr")
-if (persistedXr === "1") {
-  xrToggle.checked = true
-  void enableXrOverlay()
+const persistedEngine = localStorage.getItem("bd:engine")
+if (persistedEngine === "1") {
+  engineToggle.checked = true
+  void enableEngineSourceView()
 }
 
 connect()
 
-async function enableXrOverlay(): Promise<void> {
-  if (xrOverlay !== null) {
-    xrOverlayEl.hidden = false
-    xrOverlay.handleResize()
-    xrOverlay.start()
-    if (xrLastSource !== null) xrOverlay.setSource(xrLastSource)
+async function enableEngineSourceView(): Promise<void> {
+  sourceSection.classList.add("engine-active")
+  engineCanvas.hidden = false
+  if (engineOverlay !== null) {
+    engineOverlay.start()
+    if (engineLastSource !== null) engineOverlay.setSource(engineLastSource)
     return
   }
-  if (xrLoading) return
-  xrLoading = true
-  xrOverlayEl.hidden = false
-  xrStatus.textContent = "initialising WebGPU…"
+  if (engineLoading) return
+  engineLoading = true
+  sourceStatus.textContent = "engine: init…"
   try {
-    xrOverlay = await XrOverlay.create(xrCanvas)
-    xrOverlay.handleResize()
-    xrOverlay.start()
-    xrStatus.textContent = "vision pro / paused frame source"
-    if (xrLastSource !== null) xrOverlay.setSource(xrLastSource)
+    engineOverlay = await XrOverlay.create(engineCanvas)
+    engineOverlay.start()
+    if (engineResizeObserver === null) {
+      engineResizeObserver = new ResizeObserver(() => {
+        if (engineOverlay !== null) engineOverlay.handleResize()
+      })
+      engineResizeObserver.observe(engineCanvas)
+    }
+    sourceStatus.textContent = "engine: webgpu"
+    if (engineLastSource !== null) engineOverlay.setSource(engineLastSource)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    xrStatus.textContent = `WebGPU init failed: ${message}`
-    xrToggle.checked = false
+    sourceStatus.textContent = `engine init failed: ${message}`
+    engineToggle.checked = false
+    sourceSection.classList.remove("engine-active")
+    engineCanvas.hidden = true
   } finally {
-    xrLoading = false
+    engineLoading = false
   }
 }
 
-function disableXrOverlay(): void {
-  if (xrOverlay !== null) xrOverlay.stop()
-  xrOverlayEl.hidden = true
+function disableEngineSourceView(): void {
+  if (engineOverlay !== null) engineOverlay.stop()
+  sourceSection.classList.remove("engine-active")
+  engineCanvas.hidden = true
+  sourceStatus.textContent = ""
 }
 
 function pushXrSource(payload: XrSource): void {
-  xrLastSource = payload
-  if (xrOverlay !== null) xrOverlay.setSource(payload)
+  engineLastSource = payload
+  if (engineOverlay !== null) engineOverlay.setSource(payload)
 }
