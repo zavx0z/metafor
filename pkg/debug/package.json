@@ -1,0 +1,21 @@
+{
+  "name": "@metafor/bun-debug",
+  "version": "0.0.1",
+  "description": "Bun WebKit Inspector sidecar for collaborative debugging.",
+  "type": "module",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./agent-attach": "./agent-attach.ts"
+  },
+  "bin": {
+    "metafor-bun-debug": "./agent-attach.ts",
+    "bun-debug-agent": "./agent-attach.ts"
+  },
+  "scripts": {
+    "agent": "bun run agent-attach.ts",
+    "typecheck": "tsc --noEmit --pretty false"
+  }
+}

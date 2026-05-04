@@ -1,0 +1,107 @@
+import {appendFileSync, mkdirSync} from "node:fs"
+import {dirname} from "node:path"
+import {serializeError} from "./errors.ts"
+import {asNumber, asObject, asString} from "./guards.ts"
+import type {EventLogger} from "./logger.ts"
+import type {JsonObject, RemoteObject} from "./types.ts"
+
+export class ConsoleLogStore {
+  #consoleLogPath: string
+  #logger: EventLogger
+
+  constructor(options: {
+    consoleLogPath: string
+    logger: EventLogger
+  }) {
+    this.#consoleLogPath = options.consoleLogPath
+    this.#logger = options.logger
+    mkdirSync(dirname(this.#consoleLogPath), {recursive: true})
+  }
+
+  handleMessageAdded(params: JsonObject): void {
+    const message = asObject(params["message"]) ?? {}
+    const entry = {
+      timestamp: new Date().toISOString(),
+      event: "Console.messageAdded",
+      source: asString(message["source"]),
+      level: asString(message["level"]),
+      type: asString(message["type"]),
+      text: asString(message["text"]),
+      url: asString(message["url"]),
+      line: asNumber(message["line"]),
+      column: asNumber(message["column"]),
+      repeatCount: asNumber(message["repeatCount"]),
+      parameters: message["parameters"],
+      raw: params,
+    }
+
+    this.#append(entry)
+    this.#logger.event("Console.messageAdded", {
+      level: entry.level,
+      type: entry.type,
+      text: entry.text,
+      url: entry.url,
+      line: entry.line,
+      column: entry.column,
+    })
+  }
+
+  handleRuntimeConsoleApiCalled(params: JsonObject): void {
+    const args = Array.isArray(params["args"]) ? params["args"] : []
+    const remoteArgs = args
+      .map((item) => asRemoteObjectLoose(item))
+      .filter((item): item is RemoteObject => item !== undefined)
+    const text = remoteArgs.map(formatRemoteObject).join(" ")
+
+    const entry = {
+      timestamp: new Date().toISOString(),
+      event: "Runtime.consoleAPICalled",
+      type: asString(params["type"]),
+      text,
+      args: remoteArgs,
+      executionContextId: asNumber(params["executionContextId"]),
+      rawTimestamp: asNumber(params["timestamp"]),
+      stackTrace: params["stackTrace"],
+      raw: params,
+    }
+
+    this.#append(entry)
+    this.#logger.event("Runtime.consoleAPICalled", {
+      type: entry.type,
+      text,
+      executionContextId: entry.executionContextId,
+    })
+  }
+
+  #append(entry: JsonObject): void {
+    try {
+      appendFileSync(this.#consoleLogPath, `${JSON.stringify(entry)}\n`)
+    } catch (error) {
+      this.#logger.status(`failed to write console log: ${serializeError(error)}`)
+    }
+  }
+}
+
+function asRemoteObjectLoose(value: unknown): RemoteObject | undefined {
+  const object = asObject(value)
+  if (object === undefined) return undefined
+
+  return {
+    type: asString(object["type"]),
+    subtype: asString(object["subtype"]),
+    className: asString(object["className"]),
+    value: object["value"],
+    unserializableValue: asString(object["unserializableValue"]),
+    description: asString(object["description"]),
+    objectId: asString(object["objectId"]),
+    preview: object["preview"],
+  }
+}
+
+function formatRemoteObject(object: RemoteObject): string {
+  if (object.value !== undefined) return String(object.value)
+  if (object.unserializableValue !== undefined) return object.unserializableValue
+  if (object.description !== undefined) return object.description
+  if (object.className !== undefined) return object.className
+  return object.type ?? "<unknown>"
+}
