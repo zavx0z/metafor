@@ -155,21 +155,20 @@ export class XrOverlay {
   }
 
   handleResize(): void {
-    // Берём CSS-размер из bounding rect (а НЕ clientWidth/Height): после
+    // Размер берём из bounding rect (а НЕ clientWidth/Height): после
     // setSize() canvas.width attribute становится w*devicePixelRatio, и
     // некоторые браузеры используют его как intrinsic size — clientWidth
-    // тогда удваивается каждый ResizeObserver-tick → петля → texture-size
-    // overflow. Через rect мы получаем реальный CSS-box, заданный стилем
-    // (width: calc(100% - 32px)).
+    // тогда удваивается. rect отдаёт реальный CSS-box от стилей.
     const rect = this.#canvas.getBoundingClientRect()
-    const w = Math.max(1, Math.round(rect.width))
-    const h = Math.max(1, Math.round(rect.height))
+    const w = Math.round(rect.width)
+    const h = Math.round(rect.height)
+    // Если canvas ещё не получил layout (0×0 — DOM ещё не разложен или
+    // секция скрыта), пропускаем. ResizeObserver вызовет нас снова, когда
+    // размер появится. Минимальный 1×1 НЕ задаём — это бы зафиксировало
+    // canvas с aspect-ratio 1/1 inline-style'ом и поломало CSS calc(100%-…).
+    if (w < 2 || h < 2) return
     if (w === this.#pixelWidth && h === this.#pixelHeight) return
 
-    // Фиксируем CSS-размер ещё раз стилем — на случай, если intrinsic от
-    // canvas.width пытается распирать его.
-    this.#canvas.style.width = `${w}px`
-    this.#canvas.style.height = `${h}px`
     this.#renderer.setSize(w, h)
     this.#viewPoint.setAspectRatio(w / h)
 

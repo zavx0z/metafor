@@ -420,6 +420,9 @@ main.welcome #welcome-section {
   border: 1px solid var(--border);
   border-radius: 3px;
   background: var(--panel);
+  /* canvas.width/height attributes пытаются задать aspect-ratio; обнуляем,
+     чтобы реальный размер брался из width/height calc(...) выше. */
+  aspect-ratio: auto;
 }
 
 #source-status {
