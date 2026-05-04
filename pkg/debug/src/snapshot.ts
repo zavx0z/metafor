@@ -47,6 +47,16 @@ export class SnapshotStore {
     return this.#lastDump
   }
 
+  get scripts(): Array<{scriptId: string; url: string}> {
+    const entries: Array<{scriptId: string; url: string}> = []
+    for (const [scriptId, url] of this.#scriptUrls) entries.push({scriptId, url})
+    return entries
+  }
+
+  scriptUrl(scriptId: string): string | undefined {
+    return this.#scriptUrls.get(scriptId)
+  }
+
   markRunning(): void {
     this.#paused = false
   }

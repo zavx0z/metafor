@@ -8,7 +8,7 @@
 1. Человек ставит breakpoint-ы и шагает в WebStorm или Chrome.
 2. Sidecar подключён вторым inspector-клиентом.
 3. При остановке sidecar пишет snapshot с call frames и top-frame scopes.
-4. Агент в чате читает snapshot или отправляет NDJSON-команды для `eval`, `props`, `step`, `resume`.
+4. Агент в чате читает state по REST (`GET /state`) или отправляет команды (`POST /eval`, `/props`, `/step`, `/pause`, `/resume`). Снапшот и логи также доступны как файлы — см. ниже.
 
 Sidecar запускается отдельным процессом, чтобы crash/debug WebSocket не валил основной чат.
 
@@ -136,6 +136,18 @@ Timeout inspector request. Default: `10000`.
 
 Reconnect delay. Default: `1000`.
 
+`AGENT_HTTP_ENABLED`
+
+Включает/выключает REST API. Default: `1`.
+
+`AGENT_HTTP_HOST`
+
+Хост HTTP API. Default: `127.0.0.1`.
+
+`AGENT_HTTP_PORT`
+
+Порт HTTP API. Default: `6500`.
+
 ## Timeout Тестов
 
 Для breakpoint-debugging тестов всегда поднимать Bun test timeout:
@@ -147,10 +159,49 @@ bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/serve
 `2147483647` ms — примерно 24.8 дней.
 Это практический максимум для timer-based timeout.
 
-## Команды Агента
+## REST API
 
-Команды читаются из stdin в формате NDJSON.
-Ответы пишутся в stdout в формате NDJSON.
+Sidecar поднимает HTTP-сервер на `127.0.0.1:6500` (настраивается через `AGENT_HTTP_HOST`/`AGENT_HTTP_PORT`; отключается `AGENT_HTTP_ENABLED=0`).
+
+Эндпоинты:
+
+```text
+GET  /                — индекс роутов
+GET  /health          — статус коннекта и параметры
+GET  /state           — последний snapshot Debugger.paused (или null)
+GET  /scripts         — карта scriptId → url
+GET  /frames          — paused-флаг + callFrames + dump
+GET  /events?since=<iso|seq>&limit=<n>   — хвост event-лога
+GET  /console?since=<iso|seq>&limit=<n>  — хвост console-лога
+POST /eval            — body {frame?, expr}              → Debugger.evaluateOnCallFrame
+POST /props           — body {objectId, ownProperties?}  → Runtime.getProperties
+POST /step            — body {kind: "over"|"into"|"out"} → Debugger.stepOver/Into/Out
+POST /pause           — Debugger.pause
+POST /resume          — Debugger.resume
+```
+
+Примеры:
+
+```sh
+curl -s http://127.0.0.1:6500/health | jq .
+curl -s http://127.0.0.1:6500/state  | jq .
+curl -s http://127.0.0.1:6500/events?limit=20 | jq .
+
+curl -s -X POST http://127.0.0.1:6500/eval \
+  -H 'content-type: application/json' \
+  -d '{"frame":0,"expr":"wimp.children.length"}' | jq .
+
+curl -s -X POST http://127.0.0.1:6500/step \
+  -H 'content-type: application/json' \
+  -d '{"kind":"over"}' | jq .
+
+curl -s -X POST http://127.0.0.1:6500/resume | jq .
+```
+
+## Команды Агента (NDJSON)
+
+Кроме REST, sidecar читает команды из stdin (и `AGENT_COMMAND_PATH`-файла) в формате NDJSON.
+Ответы пишутся в stdout и в `AGENT_RESPONSE_PATH`.
 Status и logs пишутся в stderr/event log.
 
 Получить последние frames:

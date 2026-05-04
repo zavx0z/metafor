@@ -5,6 +5,7 @@ import {ensureParentDir} from "./fs.ts"
 import {InspectorClient} from "./inspector-client.ts"
 import {EventLogger} from "./logger.ts"
 import {SnapshotStore} from "./snapshot.ts"
+import {startHttpServer, type HttpServer} from "./server.ts"
 import {sleep} from "./time.ts"
 import type {JsonObject} from "./types.ts"
 import {serializeError} from "./errors.ts"
@@ -48,7 +49,30 @@ export async function runAgent(config: AgentConfig = loadConfig()): Promise<neve
     commandPath: config.commandPath,
     responsePath: config.responsePath,
     initializedFallbackMs: config.initializedFallbackMs,
+    httpEnabled: config.httpEnabled,
+    httpHost: config.httpHost,
+    httpPort: config.httpPort,
   })
+
+  let httpServer: HttpServer | undefined
+  if (config.httpEnabled) {
+    try {
+      httpServer = startHttpServer({
+        host: config.httpHost,
+        port: config.httpPort,
+        client,
+        snapshots,
+        logger,
+        eventLogPath: config.eventLogPath,
+        consoleLogPath: config.consoleLogPath,
+        inspectorUrl: config.inspectorUrl,
+      })
+    } catch (error) {
+      logger.event("http.start.failed", {error: serializeError(error)})
+      logger.status(`http api failed to start on ${config.httpHost}:${config.httpPort}`)
+    }
+  }
+  runtime.attachHttpServer(httpServer)
 
   process.on("SIGINT", () => runtime.shutdown(130))
   process.on("SIGTERM", () => runtime.shutdown(143))
@@ -87,6 +111,7 @@ class AgentRuntime {
   #snapshots: SnapshotStore
   #consoleLogs: ConsoleLogStore
   #initializedFallbackTimer: ReturnType<typeof setTimeout> | undefined
+  #httpServer: HttpServer | undefined
 
   constructor(options: AgentRuntimeOptions) {
     this.#config = options.config
@@ -98,6 +123,10 @@ class AgentRuntime {
     this.#client.onEvent((method, params) => {
       this.#handleInspectorEvent(method, params)
     })
+  }
+
+  attachHttpServer(server: HttpServer | undefined): void {
+    this.#httpServer = server
   }
 
   async maintainConnection(): Promise<void> {
@@ -132,6 +161,7 @@ class AgentRuntime {
     this.#logger.event("agent.shutdown", {code})
     this.#clearInitializedFallback()
     this.#client.close()
+    this.#httpServer?.stop?.()
     process.exit(code)
   }
 

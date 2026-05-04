@@ -1,0 +1,255 @@
+/**
+ * REST API поверх работающего sidecar'а: маршруты по `Bun.serve`, делегирующие
+ * в тот же `executeCommand`, что и stdin/file-loop. Нужен чтобы LLM-агент в чате
+ * мог дёргать состояние и команды через curl/fetch без чтения файлов и без
+ * polling'а. Файлы (`.agent-events.log`, `.agent-console.log`) сохранены — они
+ * остаются полезным архивом и читаются через `GET /events` и `GET /console`.
+ */
+
+import {existsSync, statSync, openSync, readSync, closeSync} from "node:fs"
+import {executeCommand, type CommandContext} from "./commands.ts"
+import {serializeError} from "./errors.ts"
+import {asNumber, asObject, asString} from "./guards.ts"
+import type {EventLogger} from "./logger.ts"
+import type {SnapshotStore} from "./snapshot.ts"
+import type {InspectorClient} from "./inspector-client.ts"
+import type {JsonObject} from "./types.ts"
+
+export type HttpServerOptions = {
+  host: string
+  port: number
+  client: InspectorClient
+  snapshots: SnapshotStore
+  logger: EventLogger
+  eventLogPath: string
+  consoleLogPath: string
+  inspectorUrl: string
+}
+
+export type HttpServer = ReturnType<typeof Bun.serve>
+
+const NDJSON_TAIL_DEFAULT_LIMIT = 200
+const NDJSON_TAIL_MAX_LIMIT = 5_000
+
+export function startHttpServer(options: HttpServerOptions): HttpServer {
+  const ctx: CommandContext = {
+    client: options.client,
+    snapshots: options.snapshots,
+    logger: options.logger,
+  }
+
+  const server = Bun.serve({
+    hostname: options.host,
+    port: options.port,
+    development: false,
+    async fetch(req): Promise<Response> {
+      const url = new URL(req.url)
+      const path = url.pathname.replace(/\/+$/, "") || "/"
+      const method = req.method.toUpperCase()
+      const start = Date.now()
+
+      try {
+        const response = await handleRoute(method, path, url, req, options, ctx)
+        options.logger.event("http.request", {
+          method,
+          path,
+          status: response.status,
+          durationMs: Date.now() - start,
+        })
+        return response
+      } catch (error) {
+        const message = serializeError(error)
+        options.logger.event("http.error", {method, path, error: message})
+        return jsonResponse({ok: false, error: message}, 500)
+      }
+    },
+    error(error: Error): Response {
+      options.logger.event("http.fatal", {error: serializeError(error)})
+      return jsonResponse({ok: false, error: serializeError(error)}, 500)
+    },
+  })
+
+  options.logger.status(`http api listening on http://${options.host}:${options.port}`)
+  options.logger.event("http.started", {host: options.host, port: options.port})
+
+  return server
+}
+
+async function handleRoute(
+  method: string,
+  path: string,
+  url: URL,
+  req: Request,
+  options: HttpServerOptions,
+  ctx: CommandContext,
+): Promise<Response> {
+  if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/bun-debug", routes: routeIndex()})
+  if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
+  if (method === "GET" && path === "/state") return jsonResponse(options.snapshots.dump ?? null)
+  if (method === "GET" && path === "/scripts") return jsonResponse(options.snapshots.scripts)
+  if (method === "GET" && path === "/frames") {
+    return jsonResponse({
+      paused: options.snapshots.paused,
+      frames: options.snapshots.callFrames,
+      dump: options.snapshots.dump ?? null,
+    })
+  }
+  if (method === "GET" && path === "/events") return jsonResponse(readNdjsonTail(options.eventLogPath, url))
+  if (method === "GET" && path === "/console") return jsonResponse(readNdjsonTail(options.consoleLogPath, url))
+
+  if (method === "POST" && path === "/eval") return await dispatchPost(req, "eval", ctx)
+  if (method === "POST" && path === "/props") return await dispatchPost(req, "props", ctx)
+  if (method === "POST" && path === "/step") return await dispatchPost(req, "step", ctx)
+  if (method === "POST" && path === "/pause") return await dispatchPost(req, "pause", ctx)
+  if (method === "POST" && path === "/resume") return await dispatchPost(req, "resume", ctx)
+  if (method === "POST" && path === "/frames") return await dispatchPost(req, "frames", ctx)
+
+  return jsonResponse({ok: false, error: `not found: ${method} ${path}`}, 404)
+}
+
+function routeIndex(): Array<{method: string; path: string; description: string}> {
+  return [
+    {method: "GET", path: "/health", description: "статус коннекта и параметры"},
+    {method: "GET", path: "/state", description: "последний snapshot Debugger.paused (или null)"},
+    {method: "GET", path: "/scripts", description: "карта scriptId → url"},
+    {method: "GET", path: "/frames", description: "callFrames + dump"},
+    {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
+    {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
+    {method: "POST", path: "/eval", description: "{frame?, expr} — Debugger.evaluateOnCallFrame"},
+    {method: "POST", path: "/props", description: "{objectId, ownProperties?} — Runtime.getProperties"},
+    {method: "POST", path: "/step", description: '{kind: "over"|"into"|"out"}'},
+    {method: "POST", path: "/pause", description: "Debugger.pause"},
+    {method: "POST", path: "/resume", description: "Debugger.resume"},
+  ]
+}
+
+function healthPayload(options: HttpServerOptions): JsonObject {
+  return {
+    ok: true,
+    inspectorUrl: options.inspectorUrl,
+    paused: options.snapshots.paused,
+    scriptCount: options.snapshots.scripts.length,
+    hasDump: options.snapshots.dump !== undefined,
+  }
+}
+
+async function dispatchPost(req: Request, cmd: string, ctx: CommandContext): Promise<Response> {
+  let body: JsonObject = {}
+  const text = await req.text()
+  if (text.length > 0) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(text)
+    } catch (error) {
+      return jsonResponse({ok: false, cmd, error: `invalid JSON body: ${serializeError(error)}`}, 400)
+    }
+    const obj = asObject(parsed)
+    if (obj === undefined) return jsonResponse({ok: false, cmd, error: "body must be a JSON object"}, 400)
+    body = obj
+  }
+
+  ctx.logger.event("http.command", {cmd, hasBody: Object.keys(body).length > 0})
+
+  try {
+    const result = await executeCommand(ctx, body, cmd)
+    return jsonResponse({ok: true, cmd, result})
+  } catch (error) {
+    return jsonResponse({ok: false, cmd, error: serializeError(error)}, 400)
+  }
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: {"content-type": "application/json; charset=utf-8"},
+  })
+}
+
+type NdjsonTailResult = {
+  path: string
+  count: number
+  total: number
+  truncated: boolean
+  lines: JsonObject[]
+}
+
+function readNdjsonTail(path: string, url: URL): NdjsonTailResult {
+  const since = url.searchParams.get("since") ?? undefined
+  const limitParam = url.searchParams.get("limit") ?? undefined
+  const limit = clampLimit(limitParam ? Number(limitParam) : NDJSON_TAIL_DEFAULT_LIMIT)
+
+  if (!existsSync(path)) {
+    return {path, count: 0, total: 0, truncated: false, lines: []}
+  }
+
+  const allLines = readNdjsonLines(path)
+  const filtered = since !== undefined ? allLines.filter((line) => isAfter(line, since)) : allLines
+  const total = filtered.length
+  const tail = filtered.slice(-limit)
+
+  return {
+    path,
+    count: tail.length,
+    total,
+    truncated: tail.length < total,
+    lines: tail,
+  }
+}
+
+function clampLimit(value: number): number {
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value <= 0) return NDJSON_TAIL_DEFAULT_LIMIT
+  if (value > NDJSON_TAIL_MAX_LIMIT) return NDJSON_TAIL_MAX_LIMIT
+  return value
+}
+
+function readNdjsonLines(path: string): JsonObject[] {
+  // Читаем последние ~2 MiB файла — этого хватает для хвоста, но не вытягивает огромные логи в память.
+  const chunkSize = 2 * 1024 * 1024
+  const stat = statSync(path)
+  const start = stat.size > chunkSize ? stat.size - chunkSize : 0
+  const fd = openSync(path, "r")
+  const buffer = Buffer.alloc(stat.size - start)
+  try {
+    readSync(fd, buffer, 0, buffer.byteLength, start)
+  } finally {
+    closeSync(fd)
+  }
+
+  const text = buffer.toString("utf8")
+  const lines: JsonObject[] = []
+  let firstLineSkipped = start === 0
+  for (const raw of text.split("\n")) {
+    const trimmed = raw.trim()
+    if (trimmed.length === 0) continue
+    if (!firstLineSkipped) {
+      // первая строка может быть обрезана — пропускаем
+      firstLineSkipped = true
+      continue
+    }
+    try {
+      const parsed = JSON.parse(trimmed)
+      const obj = asObject(parsed)
+      if (obj !== undefined) lines.push(obj)
+    } catch {
+      // строка повреждена — пропускаем молча, не валим API
+    }
+  }
+  return lines
+}
+
+function isAfter(line: JsonObject, sinceIso: string): boolean {
+  const ts = asString(line["ts"]) ?? asString(line["timestamp"])
+  const seq = asNumber(line["seq"])
+  if (ts === undefined && seq === undefined) return true
+
+  const sinceNum = Number(sinceIso)
+  if (!Number.isNaN(sinceNum) && seq !== undefined) {
+    return seq > sinceNum
+  }
+  if (ts !== undefined) {
+    const lineTime = Date.parse(ts)
+    const sinceTime = Date.parse(sinceIso)
+    if (!Number.isNaN(lineTime) && !Number.isNaN(sinceTime)) return lineTime > sinceTime
+  }
+  return true
+}

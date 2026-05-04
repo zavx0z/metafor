@@ -144,7 +144,7 @@ async function handleCommandLine(context: CommandContext, seq: number, line: str
   }
 }
 
-async function executeCommand(context: CommandContext, command: JsonObject, cmd: string): Promise<unknown> {
+export async function executeCommand(context: CommandContext, command: JsonObject, cmd: string): Promise<unknown> {
   switch (cmd) {
     case "eval":
       return await evaluateCommand(context, command)
