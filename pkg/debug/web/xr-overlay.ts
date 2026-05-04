@@ -1,20 +1,31 @@
 /**
- * XR-overlay поверх обычного debug-UI: WebGPU-canvas, на котором стоит
- * полупрозрачная карточка в стиле Apple Vision Pro и рендерится текстом
- * фрагмент исходника на месте текущей точки останова.
+ * XR-overlay: WebGPU-canvas с редактором кода на @metafor/engine.
+ * Полупрозрачная Vision-Pro карточка, на которой текстом рендерится
+ * фрагмент исходника текущей точки останова.
  *
- * Задел на будущее — в WebXR-сессии та же сцена должна показываться в
- * иммерсивном режиме без правок: 2D-вёрстка строится в локальной XY
- * карточки, источник данных тот же что у HTML-source view.
+ * Разметка строится через flexbox (Yoga) поверх UIDisplay/LayoutManager:
+ *   contentContainer (column, padding, alignItems: stretch)
+ *   ├── titleRow (row, height)
+ *   │   └── Text(location)
+ *   └── code rows × VISIBLE_LINES (row, height)
+ *       ├── gutter (width: 56)
+ *       │   └── Text(lineNo)
+ *       └── code (height)
+ *           └── Text(line)
  *
- * TODO[xr-editor] перевести разметку на UIDisplay + LayoutManager (Yoga
- *   flexbox) из @metafor/engine: каждая строка — row-контейнер с двумя
- *   layout-нодами (gutter + код), Highlight через absolute-узел.
- *   Сейчас строки расставлены вручную через position.x/position.y, чтобы
- *   не тащить Yoga-WASM в сидекар на текущем этапе.
- * TODO[xr-editor] полноценный редактор кода: подсветка синтаксиса,
- *   inline-значения переменных из scope, клик по строке = goto definition,
- *   conditional breakpoints через тот же LayoutManager.
+ * Подсветка currentLine — child строки, prepend (отрисовка z-back),
+ * растянутый на всю ширину строки. Yoga в LayoutProps пока без position:absolute,
+ * поэтому highlight сидит как обычный sibling, но не участвует в layout
+ * (display: 'none' эквивалент дать нельзя, поэтому ставим width=0/height=0
+ * и потом руками растягиваем геометрию по pixelScale).
+ *
+ * Готовится как 2D-вёрстка чтобы перенести в WebXR без правок layout-логики.
+ *
+ * TODO[xr-editor] подсветка синтаксиса (TS/JS токенизация → разные
+ *   TextMaterial по цветам), inline-значения переменных из scope,
+ *   клик по строке = goto definition, conditional breakpoints.
+ * TODO[xr-editor] переиспользование Text-объектов между фреймами
+ *   (сейчас при каждом setSource Text-объекты пересоздаются).
  * TODO[xr-session] навесить WebXR-сессию (immersive-vr / immersive-ar) +
  *   контроллеры/жесты для навигации по фреймам и scope-tree.
  */
@@ -30,8 +41,11 @@ import {
   Text,
   TextMaterial,
   TrueTypeFont,
+  UIDisplay,
   ViewPoint,
 } from "@metafor/engine"
+import {LayoutManager} from "../../engine/src/layout/LayoutManager.ts"
+import YogaService from "../../engine/src/layout/YogaService.ts"
 
 export type XrSource = {
   lines: string[]
@@ -39,18 +53,20 @@ export type XrSource = {
   location: string
 }
 
-const CARD_WIDTH = 0.72
-const CARD_HEIGHT = 0.46
-const PADDING = 0.022
-const TITLE_FONT_SIZE = 0.014
-const LINE_FONT_SIZE = 0.011
-const LINE_HEIGHT = 0.0145
-const VISIBLE_LINES = 26
-const GUTTER_WIDTH = 0.04
+const PHYSICAL_WIDTH = 0.72
+const PHYSICAL_HEIGHT = 0.45
+const PIXEL_WIDTH = 800
+const PIXEL_HEIGHT = 500
+const PADDING_PX = 16
+const GUTTER_PX = 56
+const TITLE_ROW_PX = 24
+const LINE_PX = 16
+const TITLE_FONT_PX = 14
+const CODE_FONT_PX = 11
+const VISIBLE_LINES = 24
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
 
 const COLOR_BG = new Color(20 / 255, 26 / 255, 38 / 255, 0.62)
-const COLOR_FRAME = new Color(120 / 255, 134 / 255, 156 / 255, 0.7)
 const COLOR_HIGHLIGHT = new Color(247 / 255, 129 / 255, 102 / 255, 0.22)
 const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
 const COLOR_GUTTER = new Color(139 / 255, 148 / 255, 158 / 255, 0.85)
@@ -59,6 +75,7 @@ const COLOR_TITLE = new Color(88 / 255, 166 / 255, 255 / 255, 1)
 
 export class XrOverlay {
   static async create(canvas: HTMLCanvasElement): Promise<XrOverlay> {
+    await YogaService.instance.initialize()
     const renderer = new Renderer()
     await renderer.init(canvas)
     const font = await TrueTypeFont.fromUrl(FONT_URL)
@@ -70,14 +87,15 @@ export class XrOverlay {
   readonly #font: TrueTypeFont
   readonly #scene: Scene
   readonly #viewPoint: ViewPoint
-  readonly #card: Object3D
-  readonly #linesGroup: Object3D
+  readonly #display: UIDisplay
+  readonly #layoutManager: LayoutManager
   readonly #titleMaterial: TextMaterial
   readonly #lineMaterial: TextMaterial
   readonly #gutterMaterial: TextMaterial
   readonly #gutterHotMaterial: TextMaterial
-  readonly #highlight: Mesh
-  #titleObject: Text | null = null
+  readonly #titleRow: Object3D
+  readonly #codeContainer: Object3D
+  #titleText: Text | null = null
   #rafId: number | null = null
   #disposed = false
   #current: XrSource | null = null
@@ -99,22 +117,52 @@ export class XrOverlay {
       target: {x: 0, y: 0, z: 0},
     })
 
-    this.#card = this.#buildCard()
-    this.#scene.add(this.#card)
+    this.#display = new UIDisplay({
+      width: PHYSICAL_WIDTH,
+      height: PHYSICAL_HEIGHT,
+      pixelWidth: PIXEL_WIDTH,
+      pixelHeight: PIXEL_HEIGHT,
+      background: COLOR_BG,
+    })
+    // Карточку поднимаем вертикально (фронт смотрит на -Y).
+    this.#display.rotation.x = Math.PI / 2
+    this.#display.updateMatrix()
+    this.#scene.add(this.#display)
 
-    this.#highlight = this.#buildHighlight()
-    this.#card.add(this.#highlight)
-    this.#highlight.visible = false
+    // Корневой контейнер: row alignItems → column stretch (редактор, не центр).
+    this.#display.contentContainer.layout = {
+      width: PIXEL_WIDTH,
+      height: PIXEL_HEIGHT,
+      flexDirection: "column",
+      justifyContent: "flex-start",
+      alignItems: "stretch",
+      padding: PADDING_PX,
+    }
 
-    this.#linesGroup = new Object3D()
-    this.#linesGroup.position.z = 0.003
-    this.#linesGroup.updateMatrix()
-    this.#card.add(this.#linesGroup)
+    this.#layoutManager = new LayoutManager()
 
     this.#titleMaterial = new TextMaterial({color: COLOR_TITLE})
     this.#lineMaterial = new TextMaterial({color: COLOR_TEXT})
     this.#gutterMaterial = new TextMaterial({color: COLOR_GUTTER})
     this.#gutterHotMaterial = new TextMaterial({color: COLOR_GUTTER_HOT})
+
+    this.#titleRow = new Object3D()
+    this.#titleRow.layout = {
+      width: "100%",
+      height: TITLE_ROW_PX,
+      flexDirection: "row",
+      alignItems: "flex-start",
+    }
+    this.#display.addUI(this.#titleRow)
+
+    this.#codeContainer = new Object3D()
+    this.#codeContainer.layout = {
+      width: "100%",
+      height: VISIBLE_LINES * LINE_PX,
+      flexDirection: "column",
+      alignItems: "stretch",
+    }
+    this.#display.addUI(this.#codeContainer)
 
     this.handleResize()
   }
@@ -131,6 +179,12 @@ export class XrOverlay {
     if (this.#rafId !== null || this.#disposed) return
     const tick = (): void => {
       if (this.#disposed) return
+      this.#layoutManager.update(
+        this.#display.contentContainer,
+        this.#display.pixelWidth,
+        this.#display.pixelHeight,
+        this.#display.pixelScale,
+      )
       this.#scene.updateWorldMatrix()
       this.#renderer.render(this.#scene, this.#viewPoint)
       this.#rafId = requestAnimationFrame(tick)
@@ -158,129 +212,100 @@ export class XrOverlay {
     if (this.#current !== null) this.setSource(this.#current)
   }
 
-  #buildCard(): Object3D {
-    const group = new Object3D()
-    // Поднимаем карточку вертикально: PlaneGeometry создаётся в локальной XY,
-    // поворот rotation.x = π/2 ставит её перпендикулярно мировой оси Y, чтобы
-    // камера, стоящая на отрицательной Y, видела её фронтально.
-    group.rotation.x = Math.PI / 2
-
-    const bgGeo = new PlaneGeometry({width: CARD_WIDTH, height: CARD_HEIGHT})
-    const bg = new Mesh(bgGeo, new MeshBasicMaterial({color: COLOR_BG}))
-    group.add(bg)
-
-    // Тонкая рамка-окантовка: ещё одна plane чуть крупнее, в качестве «свечения».
-    const frameGeo = new PlaneGeometry({width: CARD_WIDTH + 0.006, height: CARD_HEIGHT + 0.006})
-    const frame = new Mesh(frameGeo, new MeshBasicMaterial({color: COLOR_FRAME}))
-    frame.position.z = -0.001
-    frame.updateMatrix()
-    group.add(frame)
-
-    group.updateMatrix()
-    return group
-  }
-
-  #buildHighlight(): Mesh {
-    const geo = new PlaneGeometry({width: CARD_WIDTH - PADDING * 2, height: LINE_HEIGHT})
-    const mat = new MeshBasicMaterial({color: COLOR_HIGHLIGHT})
-    const mesh = new Mesh(geo, mat)
-    mesh.position.z = 0.002
-    mesh.updateMatrix()
-    return mesh
-  }
-
-  #measureWidth(text: string, fontSize: number): number {
-    if (text.length === 0) return 0
-    const scale = fontSize / this.#font.unitsPerEm
-    const letterSpacing = fontSize * 0.05
-    let width = 0
-    for (const char of text) {
-      if (char === " ") {
-        width += this.#font.unitsPerEm * 0.3 * scale
-        continue
-      }
-      const code = char.codePointAt(0)
-      if (code === undefined) continue
-      const gid = this.#font.mapCharToGlyph(code)
-      const metric = this.#font.getHMetric(gid)
-      width += metric.advanceWidth * scale + letterSpacing
-    }
-    return width
+  #fontSizeWorld(px: number): number {
+    return this.#display.getFontSize(px)
   }
 
   #renderTitle(location: string): void {
-    if (this.#titleObject !== null) {
-      this.#card.children = this.#card.children.filter((c) => c !== this.#titleObject)
-      this.#titleObject = null
-    }
-    if (location.length === 0) return
-    const text = new Text(location, this.#font, TITLE_FONT_SIZE, this.#titleMaterial)
-    text.position.x = -CARD_WIDTH / 2 + PADDING
-    text.position.y = CARD_HEIGHT / 2 - PADDING - TITLE_FONT_SIZE
-    text.position.z = 0.003
-    text.updateMatrix()
-    this.#card.add(text)
-    this.#titleObject = text
-  }
-
-  // TODO[xr-editor] заменить ручной layout строк на flex-row через LayoutManager:
-  //   row { layout: { flexDirection:'row', height: lineHeightPx } }
-  //     → gutter Object3D { layout: { width: 60 } }
-  //     → code   Object3D { layout: { width: codePx } }
-  // и переиспользовать ноды между фреймами вместо пересоздания Text-объектов.
-  #renderLines(lines: string[], currentLine: number): void {
-    this.#linesGroup.children = []
-
-    if (lines.length === 0) {
-      this.#highlight.visible = false
+    this.#titleRow.children = []
+    if (location.length === 0) {
+      this.#titleText = null
       return
     }
+    const text = new Text(location, this.#font, this.#fontSizeWorld(TITLE_FONT_PX), this.#titleMaterial)
+    // Yoga ставит titleRow в (left*scale, -top*scale). Внутри строки Text без
+    // layout остаётся на (0,0) родителя, рисуется вправо-вверх — поэтому
+    // сдвигаем его вниз на свою высоту, чтобы baseline совпал с верхом ячейки.
+    text.position.y = -this.#fontSizeWorld(TITLE_FONT_PX)
+    text.updateMatrix()
+    this.#titleRow.add(text)
+    this.#titleText = text
+  }
+
+  // TODO[xr-editor] переиспользовать row-объекты между фреймами вместо
+  // полного пересоздания (профайлить когда строк станет больше 24).
+  #renderLines(lines: string[], currentLine: number): void {
+    this.#codeContainer.children = []
+
+    if (lines.length === 0) return
 
     const half = Math.floor(VISIBLE_LINES / 2)
     let start = Math.max(0, currentLine - 1 - half)
     const end = Math.min(lines.length, start + VISIBLE_LINES)
     if (end - start < VISIBLE_LINES) start = Math.max(0, end - VISIBLE_LINES)
 
-    const top = CARD_HEIGHT / 2 - PADDING - TITLE_FONT_SIZE - 0.018
-    const leftGutter = -CARD_WIDTH / 2 + PADDING
-    const leftCode = leftGutter + GUTTER_WIDTH
+    const lineFontWorld = this.#fontSizeWorld(CODE_FONT_PX)
 
-    let highlightY: number | null = null
     for (let i = 0; i < end - start; i++) {
       const lineIndex = start + i
       const lineNo = lineIndex + 1
       const isCurrent = lineNo === currentLine
-      const y = top - i * LINE_HEIGHT - LINE_FONT_SIZE
       const text = lines[lineIndex] ?? ""
 
-      const numStr = String(lineNo).padStart(4, " ")
-      const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
-      const numText = new Text(numStr, this.#font, LINE_FONT_SIZE, numMaterial)
-      numText.position.x = leftGutter
-      numText.position.y = y
-      numText.updateMatrix()
-      this.#linesGroup.add(numText)
-
-      if (text.length > 0) {
-        const trimmed = text.length > 96 ? `${text.slice(0, 95)}…` : text
-        const lineText = new Text(trimmed, this.#font, LINE_FONT_SIZE, this.#lineMaterial)
-        lineText.position.x = leftCode
-        lineText.position.y = y
-        lineText.updateMatrix()
-        this.#linesGroup.add(lineText)
+      const row = new Object3D()
+      row.layout = {
+        width: "100%",
+        height: LINE_PX,
+        flexDirection: "row",
+        alignItems: "flex-start",
       }
 
-      if (isCurrent) highlightY = y + LINE_FONT_SIZE * 0.25
-    }
+      if (isCurrent) {
+        const highlightWorldH = LINE_PX * this.#display.pixelScale
+        const contentWorldW =
+          (PIXEL_WIDTH - PADDING_PX * 2) * this.#display.pixelScale
+        const hl = new Mesh(
+          new PlaneGeometry({width: contentWorldW, height: highlightWorldH}),
+          new MeshBasicMaterial({color: COLOR_HIGHLIGHT}),
+        )
+        // Якорь row — верхний-левый угол ячейки, plane по умолчанию центрирован
+        // на (0,0,0) → опускаем на половину высоты вниз и сдвигаем на
+        // половину ширины вправо, чтобы плашка покрыла всю строку.
+        hl.position.x = contentWorldW / 2
+        hl.position.y = -highlightWorldH / 2
+        hl.position.z = -0.001
+        hl.updateMatrix()
+        row.add(hl)
+      }
 
-    if (highlightY !== null) {
-      this.#highlight.visible = true
-      this.#highlight.position.y = highlightY
-      this.#highlight.updateMatrix()
-    } else {
-      this.#highlight.visible = false
-    }
+      const gutter = new Object3D()
+      gutter.layout = {
+        width: GUTTER_PX,
+        height: LINE_PX,
+      }
+      const numStr = String(lineNo).padStart(4, " ")
+      const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
+      const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
+      numText.position.y = -lineFontWorld
+      numText.updateMatrix()
+      gutter.add(numText)
+      row.add(gutter)
 
-    this.#linesGroup.updateMatrix()
+      const code = new Object3D()
+      code.layout = {
+        width: PIXEL_WIDTH - PADDING_PX * 2 - GUTTER_PX,
+        height: LINE_PX,
+      }
+      if (text.length > 0) {
+        const trimmed = text.length > 96 ? `${text.slice(0, 95)}…` : text
+        const lineText = new Text(trimmed, this.#font, lineFontWorld, this.#lineMaterial)
+        lineText.position.y = -lineFontWorld
+        lineText.updateMatrix()
+        code.add(lineText)
+      }
+      row.add(code)
+
+      this.#codeContainer.add(row)
+    }
   }
 }

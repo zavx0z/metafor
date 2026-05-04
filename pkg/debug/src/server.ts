@@ -15,9 +15,18 @@
 import type {ServerWebSocket, WebSocketHandler} from "bun"
 import {existsSync, statSync, openSync, readSync, closeSync} from "node:fs"
 import {join} from "node:path"
+import {createRequire} from "node:module"
 import indexHtml from "../web/index.html"
 
 const WEB_DIR = join(import.meta.dir, "..", "web")
+const YOGA_WASM_PATH = (() => {
+  try {
+    const require = createRequire(import.meta.url)
+    return require.resolve("yoga-layout/dist/binaries/yoga-wasm-base64-esm.js")
+  } catch {
+    return null
+  }
+})()
 import {executeCommand, type CommandContext} from "./commands.ts"
 import type {ConsoleLogStore} from "./console.ts"
 import {serializeError} from "./errors.ts"
@@ -269,9 +278,12 @@ async function handleRoute(
   if (method === "GET" && path === "/JetBrainsMono-Bold.ttf") {
     return serveStatic(join(WEB_DIR, "JetBrainsMono-Bold.ttf"), "font/ttf")
   }
-  // TODO[xr-editor] когда overlay перейдёт на LayoutManager — добавить route
-  // GET /yoga-wasm-base64-esm.js (из node_modules/yoga-layout/dist/binaries/),
-  // YogaService импортирует его абсолютным путём.
+  if (method === "GET" && path === "/yoga-wasm-base64-esm.js") {
+    if (YOGA_WASM_PATH === null) {
+      return jsonResponse({ok: false, error: "yoga-layout не установлен в workspace"}, 404)
+    }
+    return serveStatic(YOGA_WASM_PATH, "application/javascript")
+  }
 
   return jsonResponse({ok: false, error: `not found: ${method} ${path}`}, 404)
 }
