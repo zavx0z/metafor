@@ -97,8 +97,15 @@ export class XrOverlay {
   readonly #codeContainer: Object3D
   #titleText: Text | null = null
   #rafId: number | null = null
+  #renderRequested = false
   #disposed = false
   #current: XrSource | null = null
+  #layoutDirty = true
+  #interactionLoop = false
+  #idleTimer: ReturnType<typeof setTimeout> | null = null
+  #pointerDownHandler: (() => void) | null = null
+  #pointerUpHandler: (() => void) | null = null
+  #wheelHandler: (() => void) | null = null
 
   private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont) {
     this.#canvas = canvas
@@ -173,28 +180,29 @@ export class XrOverlay {
     this.#renderer.setPixelRatio(window.devicePixelRatio || 1)
     this.#renderer.setSize(w, h)
     this.#viewPoint.setAspectRatio(w / h)
+    this.#requestRender()
   }
 
+  // Render-on-demand: один кадр после setSource/resize. Постоянный RAF-цикл
+  // включается только пока пользователь крутит камеру (pointerdown/wheel),
+  // в idle gpu/cpu простаивают.
   start(): void {
-    if (this.#rafId !== null || this.#disposed) return
-    const tick = (): void => {
-      if (this.#disposed) return
-      this.#layoutManager.update(
-        this.#display.contentContainer,
-        this.#display.pixelWidth,
-        this.#display.pixelHeight,
-        this.#display.pixelScale,
-      )
-      this.#scene.updateWorldMatrix()
-      this.#renderer.render(this.#scene, this.#viewPoint)
-      this.#rafId = requestAnimationFrame(tick)
-    }
-    this.#rafId = requestAnimationFrame(tick)
+    if (this.#disposed) return
+    this.#attachInteractionListeners()
+    this.#layoutDirty = true
+    this.#requestRender()
   }
 
   stop(): void {
     if (this.#rafId !== null) cancelAnimationFrame(this.#rafId)
     this.#rafId = null
+    this.#renderRequested = false
+    this.#interactionLoop = false
+    if (this.#idleTimer !== null) {
+      clearTimeout(this.#idleTimer)
+      this.#idleTimer = null
+    }
+    this.#detachInteractionListeners()
   }
 
   dispose(): void {
@@ -206,10 +214,103 @@ export class XrOverlay {
     this.#current = source
     this.#renderTitle(source.location)
     this.#renderLines(source.lines, source.currentLine)
+    this.#layoutDirty = true
+    this.#requestRender()
   }
 
   refresh(): void {
     if (this.#current !== null) this.setSource(this.#current)
+  }
+
+  #renderFrame(): void {
+    if (this.#disposed) return
+    if (this.#layoutDirty) {
+      this.#layoutManager.update(
+        this.#display.contentContainer,
+        this.#display.pixelWidth,
+        this.#display.pixelHeight,
+        this.#display.pixelScale,
+      )
+      this.#layoutDirty = false
+    }
+    this.#scene.updateWorldMatrix()
+    this.#renderer.render(this.#scene, this.#viewPoint)
+  }
+
+  #requestRender(): void {
+    if (this.#renderRequested || this.#interactionLoop || this.#disposed) return
+    this.#renderRequested = true
+    this.#rafId = requestAnimationFrame(() => {
+      this.#rafId = null
+      this.#renderRequested = false
+      this.#renderFrame()
+    })
+  }
+
+  #startInteractionLoop(): void {
+    if (this.#interactionLoop || this.#disposed) return
+    this.#interactionLoop = true
+    if (this.#rafId !== null) {
+      cancelAnimationFrame(this.#rafId)
+      this.#rafId = null
+      this.#renderRequested = false
+    }
+    const tick = (): void => {
+      if (!this.#interactionLoop || this.#disposed) return
+      this.#renderFrame()
+      this.#rafId = requestAnimationFrame(tick)
+    }
+    this.#rafId = requestAnimationFrame(tick)
+  }
+
+  #stopInteractionLoopSoon(): void {
+    if (this.#idleTimer !== null) clearTimeout(this.#idleTimer)
+    this.#idleTimer = setTimeout(() => {
+      this.#idleTimer = null
+      if (!this.#interactionLoop) return
+      this.#interactionLoop = false
+      if (this.#rafId !== null) {
+        cancelAnimationFrame(this.#rafId)
+        this.#rafId = null
+      }
+      // Финальный кадр — отрисовать конечное состояние камеры.
+      this.#requestRender()
+    }, 150)
+  }
+
+  #attachInteractionListeners(): void {
+    if (this.#pointerDownHandler !== null) return
+    const onDown = (): void => this.#startInteractionLoop()
+    const onUp = (): void => this.#stopInteractionLoopSoon()
+    const onWheel = (): void => {
+      if (!this.#interactionLoop) {
+        this.#startInteractionLoop()
+        this.#stopInteractionLoopSoon()
+      } else {
+        this.#stopInteractionLoopSoon()
+      }
+    }
+    this.#canvas.addEventListener("pointerdown", onDown)
+    window.addEventListener("pointerup", onUp)
+    this.#canvas.addEventListener("wheel", onWheel, {passive: true})
+    this.#pointerDownHandler = onDown
+    this.#pointerUpHandler = onUp
+    this.#wheelHandler = onWheel
+  }
+
+  #detachInteractionListeners(): void {
+    if (this.#pointerDownHandler !== null) {
+      this.#canvas.removeEventListener("pointerdown", this.#pointerDownHandler)
+      this.#pointerDownHandler = null
+    }
+    if (this.#pointerUpHandler !== null) {
+      window.removeEventListener("pointerup", this.#pointerUpHandler)
+      this.#pointerUpHandler = null
+    }
+    if (this.#wheelHandler !== null) {
+      this.#canvas.removeEventListener("wheel", this.#wheelHandler)
+      this.#wheelHandler = null
+    }
   }
 
   #fontSizeWorld(px: number): number {
