@@ -250,6 +250,26 @@ class AgentRuntime {
     await this.#requestSetup("Debugger.setPauseOnDebuggerStatements", {enabled: true})
     await this.#requestSetup("Debugger.setPauseOnExceptions", {state: "none"})
 
+    // Pre-set breakpoints (target запустили с массивом breakpoints через
+    // POST /target/run). Регистрируем сразу после Debugger.enable: Bun ставит
+    // их по url/urlRegex и они срабатывают при будущем scriptParsed с матчем.
+    const pendingBps = this.#target?.consumePendingBreakpoints() ?? []
+    for (const bp of pendingBps) {
+      const params: JsonObject = {
+        lineNumber: Math.max(0, Math.floor(bp.line) - 1), // line 1-based → 0-based
+      }
+      if (typeof bp.url === "string") params["url"] = bp.url
+      else if (typeof bp.urlRegex === "string") params["urlRegex"] = bp.urlRegex
+      if (typeof bp.column === "number") params["columnNumber"] = bp.column
+      if (typeof bp.condition === "string") params["condition"] = bp.condition
+      try {
+        const result = await this.#client.request("Debugger.setBreakpointByUrl", params)
+        this.#logger.event("inspector.breakpoint.set", {spec: bp, result})
+      } catch (error) {
+        this.#logger.event("inspector.breakpoint.failed", {spec: bp, error: serializeError(error)})
+      }
+    }
+
     // Если target был запущен с pauseOnStart, то перед тем как отпустить
     // --inspect-wait через Inspector.initialized — арм-аем Debugger.pause.
     // Bun (1.3.13) не отдаёт second client paused-events стабильно, но

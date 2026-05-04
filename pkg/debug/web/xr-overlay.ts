@@ -40,9 +40,9 @@ export type XrSource = {
 }
 
 const PADDING_PX = 0
-const GUTTER_PX = 110
-const LINE_PX = 32
-const CODE_FONT_PX = 22
+const GUTTER_PX = 76
+const LINE_PX = 22
+const CODE_FONT_PX = 15
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 1)
@@ -85,11 +85,9 @@ export class XrOverlay {
   #disposed = false
   #current: XrSource | null = null
   #layoutDirty = true
-  #interactionLoop = false
-  #idleTimer: ReturnType<typeof setTimeout> | null = null
-  #pointerDownHandler: (() => void) | null = null
-  #pointerUpHandler: (() => void) | null = null
-  #wheelHandler: (() => void) | null = null
+  #scrollOffset = 0  // первый видимый индекс строки в lines (0-based)
+  #scrollAccum = 0   // субпиксельный остаток от wheel
+  #wheelHandler: ((event: WheelEvent) => void) | null = null
 
   private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont) {
     this.#canvas = canvas
@@ -197,13 +195,14 @@ export class XrOverlay {
       padding: PADDING_PX,
     }
 
+    if (this.#current !== null) this.#renderLines()
     this.#layoutDirty = true
     this.#requestRender()
   }
 
   start(): void {
     if (this.#disposed) return
-    this.#attachInteractionListeners()
+    this.#attachWheelListener()
     this.handleResize()
   }
 
@@ -211,12 +210,7 @@ export class XrOverlay {
     if (this.#rafId !== null) cancelAnimationFrame(this.#rafId)
     this.#rafId = null
     this.#renderRequested = false
-    this.#interactionLoop = false
-    if (this.#idleTimer !== null) {
-      clearTimeout(this.#idleTimer)
-      this.#idleTimer = null
-    }
-    this.#detachInteractionListeners()
+    this.#detachWheelListener()
   }
 
   dispose(): void {
@@ -225,8 +219,14 @@ export class XrOverlay {
   }
 
   setSource(source: XrSource): void {
+    const sourceChanged = this.#current?.location !== source.location
     this.#current = source
-    this.#renderLines(source.lines, source.currentLine)
+    if (sourceChanged) {
+      // Новый файл — центрируем окно вокруг currentLine.
+      const visible = this.#visibleLineCount()
+      this.#scrollOffset = Math.max(0, source.currentLine - 1 - Math.floor(visible / 2))
+    }
+    this.#renderLines()
     this.#layoutDirty = true
     this.#requestRender()
   }
@@ -251,7 +251,7 @@ export class XrOverlay {
   }
 
   #requestRender(): void {
-    if (this.#renderRequested || this.#interactionLoop || this.#disposed) return
+    if (this.#renderRequested || this.#disposed) return
     this.#renderRequested = true
     this.#rafId = requestAnimationFrame(() => {
       this.#rafId = null
@@ -260,65 +260,43 @@ export class XrOverlay {
     })
   }
 
-  #startInteractionLoop(): void {
-    if (this.#interactionLoop || this.#disposed) return
-    this.#interactionLoop = true
-    if (this.#rafId !== null) {
-      cancelAnimationFrame(this.#rafId)
-      this.#rafId = null
-      this.#renderRequested = false
-    }
-    const tick = (): void => {
-      if (!this.#interactionLoop || this.#disposed) return
-      this.#renderFrame()
-      this.#rafId = requestAnimationFrame(tick)
-    }
-    this.#rafId = requestAnimationFrame(tick)
+  #visibleLineCount(): number {
+    return Math.max(1, Math.floor((this.#pixelHeight - PADDING_PX * 2) / LINE_PX))
   }
 
-  #stopInteractionLoopSoon(): void {
-    if (this.#idleTimer !== null) clearTimeout(this.#idleTimer)
-    this.#idleTimer = setTimeout(() => {
-      this.#idleTimer = null
-      if (!this.#interactionLoop) return
-      this.#interactionLoop = false
-      if (this.#rafId !== null) {
-        cancelAnimationFrame(this.#rafId)
-        this.#rafId = null
-      }
-      this.#requestRender()
-    }, 150)
-  }
-
-  #attachInteractionListeners(): void {
-    if (this.#pointerDownHandler !== null) return
-    const onDown = (): void => this.#startInteractionLoop()
-    const onUp = (): void => this.#stopInteractionLoopSoon()
-    const onWheel = (): void => {
-      if (!this.#interactionLoop) {
-        this.#startInteractionLoop()
-        this.#stopInteractionLoopSoon()
+  #attachWheelListener(): void {
+    if (this.#wheelHandler !== null) return
+    const handler = (event: WheelEvent): void => {
+      if (this.#current === null) return
+      event.preventDefault()
+      // deltaMode 0 = pixel, 1 = line, 2 = page. Приводим к строкам.
+      const linesDelta = event.deltaMode === 1
+        ? event.deltaY
+        : event.deltaMode === 2
+          ? event.deltaY * this.#visibleLineCount()
+          : (this.#scrollAccum + event.deltaY) / LINE_PX
+      const stepLines = Math.trunc(linesDelta)
+      if (event.deltaMode === 0) {
+        this.#scrollAccum = (this.#scrollAccum + event.deltaY) - stepLines * LINE_PX
       } else {
-        this.#stopInteractionLoopSoon()
+        this.#scrollAccum = 0
       }
+      if (stepLines === 0) return
+      const total = this.#current.lines.length
+      const visible = this.#visibleLineCount()
+      const max = Math.max(0, total - visible)
+      const next = Math.min(max, Math.max(0, this.#scrollOffset + stepLines))
+      if (next === this.#scrollOffset) return
+      this.#scrollOffset = next
+      this.#renderLines()
+      this.#layoutDirty = true
+      this.#requestRender()
     }
-    this.#canvas.addEventListener("pointerdown", onDown)
-    window.addEventListener("pointerup", onUp)
-    this.#canvas.addEventListener("wheel", onWheel, {passive: true})
-    this.#pointerDownHandler = onDown
-    this.#pointerUpHandler = onUp
-    this.#wheelHandler = onWheel
+    this.#canvas.addEventListener("wheel", handler, {passive: false})
+    this.#wheelHandler = handler
   }
 
-  #detachInteractionListeners(): void {
-    if (this.#pointerDownHandler !== null) {
-      this.#canvas.removeEventListener("pointerdown", this.#pointerDownHandler)
-      this.#pointerDownHandler = null
-    }
-    if (this.#pointerUpHandler !== null) {
-      window.removeEventListener("pointerup", this.#pointerUpHandler)
-      this.#pointerUpHandler = null
-    }
+  #detachWheelListener(): void {
     if (this.#wheelHandler !== null) {
       this.#canvas.removeEventListener("wheel", this.#wheelHandler)
       this.#wheelHandler = null
@@ -327,16 +305,21 @@ export class XrOverlay {
 
   // TODO[engine-ui] переиспользовать row-объекты между фреймами вместо
   // полного пересоздания (профайлить когда строк станет больше 100).
-  #renderLines(lines: string[], currentLine: number): void {
+  #renderLines(): void {
     this.#codeContainer.children = []
 
+    if (this.#current === null) return
+    const lines = this.#current.lines
+    const currentLine = this.#current.currentLine
     if (lines.length === 0) return
 
-    const maxLines = Math.max(1, Math.floor((this.#pixelHeight - PADDING_PX * 2) / LINE_PX))
-    const half = Math.floor(maxLines / 2)
-    let start = Math.max(0, currentLine - 1 - half)
+    const maxLines = this.#visibleLineCount()
+    const start = Math.min(
+      Math.max(0, lines.length - maxLines),
+      Math.max(0, this.#scrollOffset),
+    )
+    this.#scrollOffset = start
     const end = Math.min(lines.length, start + maxLines)
-    if (end - start < maxLines) start = Math.max(0, end - maxLines)
 
     const lineFontWorld = lineFontWorldFor(this.#pixelScale)
     const codeWidthPx = this.#pixelWidth - PADDING_PX * 2 - GUTTER_PX
@@ -372,12 +355,16 @@ export class XrOverlay {
         row.add(hl)
       }
 
-      // Эмпирически: WebGPU + LayoutManager в этом движке инвертирует X
-      // относительно ожиданий (gutter оказывается справа). Пока добавляем
-      // элементы в row в порядке [code, gutter] — после mirror gutter
-      // садится слева, как и положено редактору.
-      // TODO[engine-ui] разобраться с настоящим источником зеркала
-      // (lookAt convention / clip-space) и убрать этот swap.
+      const gutter = new Object3D()
+      gutter.layout = {width: GUTTER_PX, height: LINE_PX}
+      const numStr = String(lineNo).padStart(4, " ")
+      const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
+      const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
+      numText.position.y = -lineFontWorld
+      numText.updateMatrix()
+      gutter.add(numText)
+      row.add(gutter)
+
       const code = new Object3D()
       code.layout = {width: codeWidthPx, height: LINE_PX}
       if (text.length > 0) {
@@ -388,16 +375,6 @@ export class XrOverlay {
         code.add(lineText)
       }
       row.add(code)
-
-      const gutter = new Object3D()
-      gutter.layout = {width: GUTTER_PX, height: LINE_PX}
-      const numStr = String(lineNo).padStart(4, " ")
-      const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
-      const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
-      numText.position.y = -lineFontWorld
-      numText.updateMatrix()
-      gutter.add(numText)
-      row.add(gutter)
 
       this.#codeContainer.add(row)
     }

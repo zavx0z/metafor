@@ -23,6 +23,14 @@ export type TargetLine = {
   text: string
 }
 
+export type BreakpointSpec = {
+  url?: string         // file URL: "file:///abs/path/to/foo.ts" или "node:path"
+  urlRegex?: string    // регулярка по url, если url не задан
+  line: number         // 1-based номер строки (как в редакторе)
+  column?: number      // 0-based колонка
+  condition?: string   // выражение, при котором pause срабатывает
+}
+
 export type TargetSnapshot = {
   state: TargetState
   pid: number | null
@@ -35,6 +43,7 @@ export type TargetSnapshot = {
   outputLineCount: number
   output: TargetLine[]
   pauseOnStart: boolean
+  pendingBreakpoints: BreakpointSpec[]
 }
 
 export type TargetEvent =
@@ -60,6 +69,7 @@ export class TargetSupervisor {
   #signalCode: string | null = null
   #buffer: TargetLine[] = []
   #pauseOnStart = false
+  #pendingBreakpoints: BreakpointSpec[] = []
 
   constructor(logger: EventLogger) {
     this.#logger = logger
@@ -69,6 +79,16 @@ export class TargetSupervisor {
     if (!this.#pauseOnStart) return false
     this.#pauseOnStart = false
     return true
+  }
+
+  // Возвращает и очищает список pre-set breakpoints. AgentRuntime вызывает
+  // это сразу после Debugger.enable, чтобы зарегистрировать их в Bun
+  // (через Debugger.setBreakpointByUrl). Список clearить, чтобы при
+  // переподключении не дублировать установку.
+  consumePendingBreakpoints(): BreakpointSpec[] {
+    const out = this.#pendingBreakpoints
+    this.#pendingBreakpoints = []
+    return out
   }
 
   onEvent(handler: TargetEventHandler): () => void {
@@ -89,10 +109,17 @@ export class TargetSupervisor {
       outputLineCount: this.#buffer.length,
       output: [...this.#buffer],
       pauseOnStart: this.#pauseOnStart,
+      pendingBreakpoints: [...this.#pendingBreakpoints],
     }
   }
 
-  start(options: {command: string[]; cwd?: string; env?: Record<string, string>; pauseOnStart?: boolean}): TargetSnapshot {
+  start(options: {
+    command: string[]
+    cwd?: string
+    env?: Record<string, string>
+    pauseOnStart?: boolean
+    breakpoints?: BreakpointSpec[]
+  }): TargetSnapshot {
     if (this.#state === "starting" || this.#state === "running") {
       throw new Error(`target уже запущен (pid=${this.#pid}); сначала /target/stop`)
     }
@@ -108,6 +135,9 @@ export class TargetSupervisor {
     this.#buffer = []
     this.#state = "starting"
     this.#pauseOnStart = options.pauseOnStart ?? false
+    this.#pendingBreakpoints = (options.breakpoints ?? []).filter(
+      (bp) => Number.isFinite(bp.line) && (typeof bp.url === "string" || typeof bp.urlRegex === "string"),
+    )
 
     let subprocess: Subprocess<"ignore", "pipe", "pipe">
     try {
