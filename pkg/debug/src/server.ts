@@ -73,6 +73,9 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
   options.snapshots.onPause((dump) => broadcast({type: "state", dump}))
   options.snapshots.onResume(() => broadcast({type: "resumed"}))
+  options.snapshots.onScriptParsed((scriptId, url) => {
+    broadcast({type: "script", scriptId, url})
+  })
   options.consoleLogs.onEntry((entry) => {
     broadcast({
       type: "console",
@@ -81,6 +84,33 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         level: entry.level ?? entry.type,
         text: entry.text ?? "",
       }],
+    })
+  })
+  options.client.onSocketStateChange((state, error) => {
+    broadcast({
+      type: "connection",
+      state,
+      error: error ?? null,
+      inspectorUrl: options.inspectorUrl,
+    })
+  })
+
+  // verbose-стрим: всё что приходит от Bun-инспектора и всё что наш агент логирует
+  // — отдельными WS-сообщениями. UI умеет фильтровать/выключать.
+  options.client.onEvent((method, params) => {
+    broadcast({
+      type: "inspector-event",
+      ts: new Date().toISOString(),
+      method,
+      params,
+    })
+  })
+  options.logger.onEvent((entry) => {
+    broadcast({
+      type: "agent-event",
+      ts: entry.timestamp,
+      event: entry.event,
+      detail: entry,
     })
   })
 
@@ -94,6 +124,11 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         paused: options.snapshots.paused,
         dump: options.snapshots.dump ?? null,
         scriptCount: options.snapshots.scripts.length,
+        scripts: options.snapshots.scripts,
+        connection: {
+          state: options.client.socketState,
+          error: options.client.lastError ?? null,
+        },
       }
       ws.send(JSON.stringify(hello))
     },

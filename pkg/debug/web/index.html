@@ -11,10 +11,12 @@
       <div class="title">@metafor/bun-debug</div>
       <div class="status">
         <span id="ws-status" class="badge">ws: …</span>
+        <span id="conn-status" class="badge">inspector: …</span>
         <span id="run-status" class="badge">run: …</span>
         <span id="inspector-url" class="muted"></span>
       </div>
       <div class="controls">
+        <label class="toggle"><input id="toggle-verbose" type="checkbox" /> Verbose</label>
         <button id="btn-pause">Pause</button>
         <button id="btn-resume">Resume</button>
         <button id="btn-step-over">Step Over</button>
@@ -52,6 +54,24 @@
       <section id="console-section">
         <h2>Console</h2>
         <pre id="console-log"></pre>
+      </section>
+
+      <section id="verbose-section" hidden>
+        <h2>
+          Inspector Events
+          <span class="muted" id="verbose-count"></span>
+          <span style="margin-left:auto">
+            <input id="verbose-filter" type="text" placeholder="filter: Debugger.scriptParsed, Runtime.*" />
+            <button id="btn-clear-verbose" type="button">Clear</button>
+            <label class="toggle inline"><input id="toggle-pin-verbose" type="checkbox" checked /> autoscroll</label>
+          </span>
+        </h2>
+        <pre id="verbose-log"></pre>
+      </section>
+
+      <section id="welcome-section" hidden>
+        <h2>Waiting for inspector</h2>
+        <div id="welcome-content"></div>
       </section>
     </main>
 

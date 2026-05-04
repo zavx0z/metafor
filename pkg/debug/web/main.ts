@@ -4,11 +4,18 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
+type ConnectionInfo = {state: ConnectionState; error: string | null}
+type ConnectionState = "connecting" | "connected" | "disconnected"
+
 type ServerMessage =
-  | {type: "hello"; inspectorUrl: string; paused: boolean; dump: AgentDump | null}
+  | {type: "hello"; inspectorUrl: string; paused: boolean; dump: AgentDump | null; scripts: Array<{scriptId: string; url: string}>; connection: ConnectionInfo}
   | {type: "state"; dump: AgentDump}
   | {type: "resumed"}
   | {type: "console"; entries: ConsoleEntry[]}
+  | {type: "connection"; state: ConnectionState; error: string | null; inspectorUrl: string}
+  | {type: "script"; scriptId: string; url: string}
+  | {type: "inspector-event"; ts: string; method: string; params: unknown}
+  | {type: "agent-event"; ts: string; event: string; detail: unknown}
   | {type: "result"; requestId: number; ok: boolean; result?: unknown; error?: string}
 
 type AgentDump = {
@@ -74,6 +81,23 @@ const consoleLog = $("console-log")
 const sourceView = $<HTMLPreElement>("source-view")
 const sourceLoc = $("source-loc")
 const sourceCache = new Map<string, string>()
+const connStatus = $("conn-status")
+const verboseSection = $("verbose-section")
+const verboseLog = $<HTMLPreElement>("verbose-log")
+const verboseCount = $("verbose-count")
+const verboseFilter = $<HTMLInputElement>("verbose-filter")
+const togglePinVerbose = $<HTMLInputElement>("toggle-pin-verbose")
+const toggleVerbose = $<HTMLInputElement>("toggle-verbose")
+const btnClearVerbose = $<HTMLButtonElement>("btn-clear-verbose")
+const welcomeSection = $("welcome-section")
+const welcomeContent = $("welcome-content")
+const mainEl = document.querySelector("main") as HTMLElement
+const scriptUrls = new Map<string, string>()
+let inspectorUrl = ""
+let connectionState: ConnectionState = "connecting"
+let connectionError: string | null = null
+let verboseEvents = 0
+const VERBOSE_MAX = 1000
 
 const buttons = {
   pause: $<HTMLButtonElement>("btn-pause"),
@@ -119,34 +143,151 @@ function connect(): void {
 function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case "hello":
+      inspectorUrl = msg.inspectorUrl
       inspectorUrlBadge.textContent = msg.inspectorUrl
+      for (const s of msg.scripts) scriptUrls.set(s.scriptId, s.url)
+      applyConnection(msg.connection)
       if (msg.paused && msg.dump !== null) {
         currentDump = msg.dump
         renderDump(msg.dump)
         setRunStatus("paused", "paused")
-      } else {
+      } else if (connectionState === "connected") {
         setRunStatus("running", "live")
+      } else {
+        setRunStatus("waiting")
       }
+      refreshWelcome()
       return
     case "state":
       currentDump = msg.dump
       renderDump(msg.dump)
       setRunStatus(`paused (${msg.dump.reason})`, "paused")
+      hideWelcome()
       return
     case "resumed":
       currentDump = undefined
       framesList.innerHTML = ""
       scopesContainer.innerHTML = `<div class="muted">running…</div>`
+      sourceView.innerHTML = ""
+      sourceLoc.textContent = ""
       setRunStatus("running", "live")
+      return
+    case "connection":
+      applyConnection({state: msg.state, error: msg.error})
+      refreshWelcome()
+      return
+    case "script":
+      scriptUrls.set(msg.scriptId, msg.url)
       return
     case "console":
       for (const entry of msg.entries) appendConsole(entry)
+      return
+    case "inspector-event":
+      appendVerbose("inspector", msg.ts, msg.method, msg.params)
+      return
+    case "agent-event":
+      appendVerbose("agent", msg.ts, msg.event, msg.detail)
       return
     case "result":
       pendingRequests.get(msg.requestId)?.(msg)
       pendingRequests.delete(msg.requestId)
       return
   }
+}
+
+function applyConnection(info: ConnectionInfo): void {
+  connectionState = info.state
+  connectionError = info.error
+  const cls = info.state === "connected" ? "connected"
+    : info.state === "connecting" ? "connecting"
+    : "disconnected"
+  connStatus.textContent = `inspector: ${info.state}`
+  connStatus.className = `badge ${cls}`
+  if (info.state !== "connected" && currentDump === undefined) {
+    setRunStatus("waiting")
+  }
+}
+
+function hideWelcome(): void {
+  welcomeSection.hidden = true
+  mainEl.classList.remove("welcome")
+}
+
+function refreshWelcome(): void {
+  if (connectionState === "connected" || currentDump !== undefined) {
+    hideWelcome()
+    return
+  }
+  welcomeSection.hidden = false
+  mainEl.classList.add("welcome")
+  welcomeContent.innerHTML = renderWelcome()
+}
+
+function renderWelcome(): string {
+  const url = inspectorUrl || "ws://127.0.0.1:6499/dark"
+  const stateLabel = connectionState === "connecting"
+    ? "<span class=\"pulse\">connecting…</span>"
+    : `<span class=\"pulse\">disconnected</span> ${connectionError ? `(${escapeHtml(connectionError)})` : ""}`
+  return `
+    <p>${stateLabel} → пытаюсь подключиться к <code>${escapeHtml(url)}</code>.</p>
+
+    <h3>1. Запустить отлаживаемый процесс</h3>
+    <pre>bun test --timeout=2147483647 --inspect-wait=${escapeHtml(url)} dark/server.spec.ts</pre>
+    <div class="muted">используй <code>--inspect-wait</code> (а не <code>-brk</code>): Bun ждёт первого клиента, sidecar отправит <code>Inspector.initialized</code>.</div>
+
+    <h3>2. Когда коннект встанет</h3>
+    <ul>
+      <li>в этой панели появится список скриптов и frames на каждом pause</li>
+      <li>можно ставить bp в Chrome <code>https://debug.bun.sh/#${escapeHtml(stripWs(url))}</code></li>
+      <li>включи <strong>Verbose</strong> (вверху справа) чтобы видеть все события Bun-инспектора в реальном времени</li>
+    </ul>
+
+    <h3>REST cheatsheet</h3>
+    <pre>curl -s http://127.0.0.1:6500/health
+curl -s http://127.0.0.1:6500/state
+curl -s -X POST http://127.0.0.1:6500/eval \\
+  -H 'content-type: application/json' \\
+  -d '{"frame":0,"expr":"data.patches[0].path"}'</pre>
+  `
+}
+
+function stripWs(u: string): string {
+  return u.replace(/^wss?:\/\//, "")
+}
+
+function appendVerbose(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
+  const filter = verboseFilter.value.trim()
+  if (filter.length > 0 && !matchFilter(name, filter)) return
+
+  verboseEvents += 1
+  verboseCount.textContent = `(${verboseEvents})`
+  const row = document.createElement("div")
+  row.className = `row ${kind}`
+  const safePayload = payload === undefined ? "" : escapeHtml(truncate(JSON.stringify(payload), 280))
+  row.innerHTML = `<span class="ts">${escapeHtml(ts.slice(11, 23))}</span><span class="method">${kind === "agent" ? "@" : ""}${escapeHtml(name)}</span> <span class="params">${safePayload}</span>`
+  verboseLog.appendChild(row)
+
+  while (verboseLog.childElementCount > VERBOSE_MAX) {
+    verboseLog.firstElementChild?.remove()
+  }
+
+  if (togglePinVerbose.checked) verboseLog.scrollTop = verboseLog.scrollHeight
+}
+
+function matchFilter(name: string, filter: string): boolean {
+  for (const part of filter.split(/[\s,]+/).filter(Boolean)) {
+    const isNeg = part.startsWith("!")
+    const term = isNeg ? part.slice(1) : part
+    const re = new RegExp("^" + term.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*") + "$")
+    const matches = re.test(name)
+    if (isNeg && matches) return false
+    if (!isNeg && matches) return true
+  }
+  return filter.split(/[\s,]+/).filter(Boolean).every((p) => p.startsWith("!"))
+}
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max)}…` : s
 }
 
 function setWsStatus(text: string, kind: "" | "live" | "paused" = ""): void {
@@ -349,5 +490,32 @@ evalInput.addEventListener("keydown", (event) => {
     buttons.eval.click()
   }
 })
+
+toggleVerbose.addEventListener("change", () => {
+  const on = toggleVerbose.checked
+  verboseSection.hidden = !on
+  if (on) mainEl.classList.add("with-verbose")
+  else mainEl.classList.remove("with-verbose")
+  localStorage.setItem("bd:verbose", on ? "1" : "0")
+})
+
+btnClearVerbose.addEventListener("click", () => {
+  verboseLog.innerHTML = ""
+  verboseEvents = 0
+  verboseCount.textContent = ""
+})
+
+verboseFilter.addEventListener("input", () => {
+  localStorage.setItem("bd:verbose:filter", verboseFilter.value)
+})
+
+const persistedVerbose = localStorage.getItem("bd:verbose")
+if (persistedVerbose === "1") {
+  toggleVerbose.checked = true
+  verboseSection.hidden = false
+  mainEl.classList.add("with-verbose")
+}
+const persistedFilter = localStorage.getItem("bd:verbose:filter")
+if (persistedFilter !== null) verboseFilter.value = persistedFilter
 
 connect()

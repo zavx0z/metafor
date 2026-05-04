@@ -12,6 +12,9 @@ type PendingRequest = {
 
 type InspectorEventHandler = (method: string, params: JsonObject) => void
 
+export type SocketState = "connecting" | "connected" | "disconnected"
+export type SocketStateHandler = (state: SocketState, error?: string) => void
+
 export type InspectorClientOptions = {
   url: string
   requestTimeoutMs: number
@@ -27,6 +30,9 @@ export class InspectorClient {
   #nextRequestId = 1
   #pendingRequests = new Map<number, PendingRequest>()
   #eventHandlers = new Set<InspectorEventHandler>()
+  #stateHandlers = new Set<SocketStateHandler>()
+  #socketState: SocketState = "disconnected"
+  #lastError: string | undefined
   #textDecoder = new TextDecoder()
 
   constructor(options: InspectorClientOptions) {
@@ -40,7 +46,35 @@ export class InspectorClient {
     return () => this.#eventHandlers.delete(handler)
   }
 
+  onSocketStateChange(handler: SocketStateHandler): () => void {
+    this.#stateHandlers.add(handler)
+    handler(this.#socketState, this.#lastError)
+    return () => this.#stateHandlers.delete(handler)
+  }
+
+  get socketState(): SocketState {
+    return this.#socketState
+  }
+
+  get lastError(): string | undefined {
+    return this.#lastError
+  }
+
+  #setSocketState(state: SocketState, error?: string): void {
+    if (this.#socketState === state && this.#lastError === error) return
+    this.#socketState = state
+    this.#lastError = error
+    for (const handler of this.#stateHandlers) {
+      try {
+        handler(state, error)
+      } catch (handlerError) {
+        this.#logger.event("socket.state_handler.failed", {error: serializeError(handlerError)})
+      }
+    }
+  }
+
   connect(): Promise<WebSocket> {
+    this.#setSocketState("connecting")
     return new Promise((resolve, reject) => {
       const nextSocket = new WebSocket(this.url)
       let settled = false
@@ -51,6 +85,7 @@ export class InspectorClient {
         settled = true
         this.#logger.status("inspector socket connected")
         this.#logger.event("socket.open", {url: this.url})
+        this.#setSocketState("connected")
         resolve(nextSocket)
       }, {once: true})
 
@@ -62,6 +97,7 @@ export class InspectorClient {
         this.#logger.event("socket.error", {url: this.url})
         if (!settled) {
           settled = true
+          this.#setSocketState("disconnected", `failed to connect to ${this.url}`)
           reject(new Error(`failed to connect to ${this.url}`))
         }
       }, {once: true})
@@ -74,6 +110,8 @@ export class InspectorClient {
           reason: event.reason,
           wasClean: event.wasClean,
         })
+        const reason = event.reason && event.reason.length > 0 ? event.reason : `code ${event.code}`
+        this.#setSocketState("disconnected", `socket closed: ${reason}`)
 
         if (!settled) {
           settled = true

@@ -17,6 +17,7 @@ import {serializeError} from "./errors.ts"
 
 export type SnapshotPauseHandler = (dump: AgentDump) => void
 export type SnapshotResumeHandler = () => void
+export type ScriptParsedHandler = (scriptId: string, url: string) => void
 
 export class SnapshotStore {
   #client: InspectorClient
@@ -29,6 +30,7 @@ export class SnapshotStore {
   #pauseSequence = 0
   #pauseHandlers = new Set<SnapshotPauseHandler>()
   #resumeHandlers = new Set<SnapshotResumeHandler>()
+  #scriptParsedHandlers = new Set<ScriptParsedHandler>()
 
   constructor(options: {
     client: InspectorClient
@@ -72,6 +74,11 @@ export class SnapshotStore {
     return () => this.#resumeHandlers.delete(handler)
   }
 
+  onScriptParsed(handler: ScriptParsedHandler): () => void {
+    this.#scriptParsedHandlers.add(handler)
+    return () => this.#scriptParsedHandlers.delete(handler)
+  }
+
   markRunning(): void {
     this.#paused = false
   }
@@ -85,6 +92,16 @@ export class SnapshotStore {
       scriptId,
       url,
     })
+
+    if (scriptId !== undefined) {
+      for (const handler of this.#scriptParsedHandlers) {
+        try {
+          handler(scriptId, url)
+        } catch (error) {
+          this.#logger.event("snapshot.script_parsed_handler.failed", {error: serializeError(error)})
+        }
+      }
+    }
   }
 
   handleResumed(): void {
