@@ -23,7 +23,7 @@ import {GlassMaterial} from "../materials/GlassMaterial"
 
 // --- Константы для uniform-буферов ---
 const UNIFORM_ALIGNMENT = 256
-const MAX_RENDERABLES = 1000
+const MAX_RENDERABLES = 5000
 const MAX_LIGHTS = 4 // Максимальное количество источников света
 
 // Размер данных для одного объекта: mat4x4 (64) + mat4x4 (64) + vec4 (16) + u32 (4) + 3*padding(12) = 160. Выравниваем до 256.

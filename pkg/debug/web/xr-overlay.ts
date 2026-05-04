@@ -56,10 +56,12 @@ const LINE_PX = 18
 const CODE_FONT_PX = 12
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
 // Overscan по строкам сверху и снизу видимой области. Window = visible + 2*OVERSCAN.
-// Подобран так, чтобы при размере шрифта 12px и contentHeight ~280 visible ≈ 15,
-// window ≈ 15 + 60 = 75 строк × ~6 tokens ≈ 450 Text объектов — ниже движкового
-// MAX_RENDERABLES = 1000.
-const OVERSCAN_LINES = 30
+// Каждая строка с syntax-токенами ≈ 6 Text-объектов, каждый Text проходит
+// stencil+cover → 12 render-items на строку. Плюс gutter number (×2) + execution
+// arrow + highlight + scrollbar (~5). Лимит движка MAX_RENDERABLES=5000:
+// безопасно ≈ 350 строк в окне.
+const OVERSCAN_LINES = 40
+const MAX_RENDERED_LINES = 350
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 1)
 // WebStorm Darcula execution-row: насыщенная синяя плашка по всей ширине строки.
@@ -526,8 +528,13 @@ export class XrOverlay {
       0,
       Math.min(this.#scrollOffset, Math.max(0, lines.length - visible)),
     )
-    // Window: visible + overscan по обеим сторонам, обрезанный длиной файла.
-    this.#windowSize = Math.min(lines.length, visible + 2 * OVERSCAN_LINES)
+    // Window: visible + overscan по обеим сторонам, ограниченный длиной файла
+    // и движковым лимитом MAX_RENDERED_LINES.
+    this.#windowSize = Math.min(
+      lines.length,
+      MAX_RENDERED_LINES,
+      visible + 2 * OVERSCAN_LINES,
+    )
     this.#windowStart = Math.max(
       0,
       Math.min(
