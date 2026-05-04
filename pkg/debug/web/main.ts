@@ -302,17 +302,20 @@ async function startTargetFromCmd(rawCmd: string): Promise<void> {
   const cmd = rawCmd.trim()
   if (cmd.length === 0) return
   localStorage.setItem("bd:target:cmd", cmd)
-  // Простая парсилка: разделяем по пробелам, но поддерживаем "..."- и '...'-quoted сегменты.
   const command = parseShellArgs(cmd)
   if (command.length === 0) return
+
+  const pauseOnStart = (document.getElementById("welcome-cmd-brk") as HTMLInputElement | null)?.checked ?? false
+  localStorage.setItem("bd:target:brk", pauseOnStart ? "1" : "0")
+
   targetState.state = "starting"
   const status = document.getElementById("welcome-target-status")
-  if (status !== null) status.textContent = "starting…"
+  if (status !== null) status.textContent = pauseOnStart ? "starting (pause on start)…" : "starting…"
   try {
     const res = await fetch("/target/run", {
       method: "POST",
       headers: {"content-type": "application/json"},
-      body: JSON.stringify({command}),
+      body: JSON.stringify({command, pauseOnStart}),
     })
     const data = await res.json() as {ok: boolean; error?: string; snapshot?: {pid: number; state: string}}
     if (!data.ok) {
@@ -430,9 +433,13 @@ function renderWelcome(): string {
     <div class="row" style="display:flex;gap:8px;margin:6px 0">
       <textarea id="welcome-cmd-input" rows="2" style="flex:1;background:var(--panel);color:var(--fg);border:1px solid var(--border);border-radius:3px;padding:4px 8px;font-family:inherit;font-size:12px;resize:vertical">${escapeHtml(defaultCmd)}</textarea>
     </div>
-    <div class="row" style="display:flex;gap:8px;margin:6px 0">
+    <div class="row" style="display:flex;gap:8px;margin:6px 0;align-items:center">
       <button id="btn-welcome-run" type="button">Run target</button>
       <button id="btn-welcome-stop" type="button">Stop target</button>
+      <label class="toggle inline" title="sidecar шлёт Debugger.pause до Inspector.initialized — target ловит pause на первой же исполняемой инструкции">
+        <input id="welcome-cmd-brk" type="checkbox" ${localStorage.getItem("bd:target:brk") === "1" ? "checked" : ""} />
+        pause on start
+      </label>
       <span id="welcome-target-status" class="muted">${escapeHtml(describeTargetStatus())}</span>
     </div>
     ${targetRunningHint}

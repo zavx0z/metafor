@@ -34,6 +34,7 @@ export type TargetSnapshot = {
   signalCode: string | null
   outputLineCount: number
   output: TargetLine[]
+  pauseOnStart: boolean
 }
 
 export type TargetEvent =
@@ -58,9 +59,16 @@ export class TargetSupervisor {
   #exitCode: number | null = null
   #signalCode: string | null = null
   #buffer: TargetLine[] = []
+  #pauseOnStart = false
 
   constructor(logger: EventLogger) {
     this.#logger = logger
+  }
+
+  consumePauseOnStart(): boolean {
+    if (!this.#pauseOnStart) return false
+    this.#pauseOnStart = false
+    return true
   }
 
   onEvent(handler: TargetEventHandler): () => void {
@@ -80,10 +88,11 @@ export class TargetSupervisor {
       signalCode: this.#signalCode,
       outputLineCount: this.#buffer.length,
       output: [...this.#buffer],
+      pauseOnStart: this.#pauseOnStart,
     }
   }
 
-  start(options: {command: string[]; cwd?: string; env?: Record<string, string>}): TargetSnapshot {
+  start(options: {command: string[]; cwd?: string; env?: Record<string, string>; pauseOnStart?: boolean}): TargetSnapshot {
     if (this.#state === "starting" || this.#state === "running") {
       throw new Error(`target уже запущен (pid=${this.#pid}); сначала /target/stop`)
     }
@@ -98,6 +107,7 @@ export class TargetSupervisor {
     this.#exitedAt = null
     this.#buffer = []
     this.#state = "starting"
+    this.#pauseOnStart = options.pauseOnStart ?? false
 
     let subprocess: Subprocess<"ignore", "pipe", "pipe">
     try {

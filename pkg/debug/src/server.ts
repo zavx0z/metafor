@@ -351,10 +351,13 @@ async function runTarget(req: Request, options: HttpServerOptions): Promise<Resp
         Object.entries(env).filter(([, v]) => typeof v === "string") as Array<[string, string]>,
       )
 
+  const pauseOnStart = body["pauseOnStart"] === true
+
   try {
-    const opts: {command: string[]; cwd?: string; env?: Record<string, string>} = {command}
+    const opts: {command: string[]; cwd?: string; env?: Record<string, string>; pauseOnStart?: boolean} = {command}
     if (cwd !== undefined) opts.cwd = cwd
     if (envStrings !== undefined) opts.env = envStrings
+    if (pauseOnStart) opts.pauseOnStart = true
     const snapshot = options.target.start(opts)
     return jsonResponse({ok: true, snapshot})
   } catch (error) {

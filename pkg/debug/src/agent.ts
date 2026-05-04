@@ -118,6 +118,7 @@ class AgentRuntime {
   #initializedFallbackTimer: ReturnType<typeof setTimeout> | undefined
   #httpServer: HttpServer | undefined
   #target: TargetSupervisor | undefined
+  #sleepResolver: (() => void) | undefined
 
   constructor(options: AgentRuntimeOptions) {
     this.#config = options.config
@@ -173,7 +174,7 @@ class AgentRuntime {
         }
       }
 
-      await sleep(this.#nextBackoffDelayMs(attempt || 1))
+      await this.#interruptibleSleep(this.#nextBackoffDelayMs(attempt || 1))
     }
   }
 
@@ -195,6 +196,39 @@ class AgentRuntime {
 
   attachTarget(target: TargetSupervisor): void {
     this.#target = target
+    // Когда target стартует через /target/run, не ждём 15-секундный backoff.
+    // Но Bun.spawn возвращает процесс мгновенно, а inspector-сокет открывается
+    // через ~300мс — даём 500мс прежде чем будить sleep.
+    target.onEvent((event) => {
+      if (event.type === "started") {
+        this.#logger.event("agent.kick_reconnect.scheduled", {reason: "target.started", pid: event.pid})
+        setTimeout(() => {
+          this.#logger.event("agent.kick_reconnect.fired", {})
+          this.#kickReconnect()
+        }, 500)
+      }
+    })
+  }
+
+  #kickReconnect(): void {
+    const resolve = this.#sleepResolver
+    if (resolve !== undefined) {
+      this.#sleepResolver = undefined
+      resolve()
+    }
+  }
+
+  #interruptibleSleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (this.#sleepResolver === resolve) this.#sleepResolver = undefined
+        resolve()
+      }, ms)
+      this.#sleepResolver = () => {
+        clearTimeout(timer)
+        resolve()
+      }
+    })
   }
 
   shutdown(code: number): never {
@@ -215,6 +249,15 @@ class AgentRuntime {
     await this.#requestSetup("Debugger.setBreakpointsActive", {active: true})
     await this.#requestSetup("Debugger.setPauseOnDebuggerStatements", {enabled: true})
     await this.#requestSetup("Debugger.setPauseOnExceptions", {state: "none"})
+
+    // Если target был запущен с pauseOnStart, то перед тем как отпустить
+    // --inspect-wait через Inspector.initialized — арм-аем Debugger.pause.
+    // Bun (1.3.13) не отдаёт second client paused-events стабильно, но
+    // Debugger.pause до initialized ловит первую же исполняемую инструкцию.
+    if (this.#target?.consumePauseOnStart() === true) {
+      this.#logger.event("inspector.pause_on_start.armed", {})
+      await this.#requestSetup("Debugger.pause")
+    }
 
     this.#logger.event("inspector.enabled", {})
     this.#scheduleInitializedFallback()
