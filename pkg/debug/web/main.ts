@@ -14,9 +14,15 @@ type ServerMessage =
   | {type: "console"; entries: ConsoleEntry[]}
   | {type: "connection"; state: ConnectionState; error: string | null; inspectorUrl: string}
   | {type: "script"; scriptId: string; url: string}
+  | {type: "target"; event: TargetEvent}
   | {type: "inspector-event"; ts: string; method: string; params: unknown}
   | {type: "agent-event"; ts: string; event: string; detail: unknown}
   | {type: "result"; requestId: number; ok: boolean; result?: unknown; error?: string}
+
+type TargetEvent =
+  | {type: "started"; pid: number; command: string[]; cwd: string | null; startedAt: string}
+  | {type: "line"; line: {ts: string; stream: "stdout" | "stderr"; text: string}}
+  | {type: "exited"; exitCode: number | null; signalCode: string | null; exitedAt: string}
 
 type AgentDump = {
   timestamp: string
@@ -98,6 +104,14 @@ let connectionState: ConnectionState = "connecting"
 let connectionError: string | null = null
 let verboseEvents = 0
 const VERBOSE_MAX = 1000
+
+const targetState = {
+  state: "idle" as "idle" | "starting" | "running" | "exited" | "failed",
+  pid: null as number | null,
+  exitCode: null as number | null,
+  startedAt: null as string | null,
+  exitedAt: null as string | null,
+}
 
 const buttons = {
   pause: $<HTMLButtonElement>("btn-pause"),
@@ -182,6 +196,9 @@ function handleServerMessage(msg: ServerMessage): void {
     case "console":
       for (const entry of msg.entries) appendConsole(entry)
       return
+    case "target":
+      handleTargetEvent(msg.event)
+      return
     case "inspector-event":
       appendVerbose("inspector", msg.ts, msg.method, msg.params)
       return
@@ -242,6 +259,107 @@ function refreshWelcome(): void {
   bindWelcomeApply()
 }
 
+function describeTargetStatus(): string {
+  switch (targetState.state) {
+    case "idle":     return "target не запущен"
+    case "starting": return "starting…"
+    case "running":  return `running (pid=${targetState.pid})`
+    case "exited":   return `exited code=${targetState.exitCode} (pid=${targetState.pid})`
+    case "failed":   return "spawn failed"
+  }
+}
+
+function handleTargetEvent(event: TargetEvent): void {
+  switch (event.type) {
+    case "started":
+      targetState.state = "running"
+      targetState.pid = event.pid
+      targetState.startedAt = event.startedAt
+      targetState.exitedAt = null
+      targetState.exitCode = null
+      break
+    case "exited":
+      targetState.state = "exited"
+      targetState.exitedAt = event.exitedAt
+      targetState.exitCode = event.exitCode
+      break
+    case "line": {
+      // target stdout/stderr попадает в console-tail для удобства
+      const entry: ConsoleEntry = {
+        ts: event.line.ts,
+        text: `[target/${event.line.stream}] ${event.line.text}`,
+      }
+      if (event.line.stream === "stderr") entry.level = "error"
+      appendConsole(entry)
+      return
+    }
+  }
+  const status = document.getElementById("welcome-target-status")
+  if (status !== null) status.textContent = describeTargetStatus()
+}
+
+async function startTargetFromCmd(rawCmd: string): Promise<void> {
+  const cmd = rawCmd.trim()
+  if (cmd.length === 0) return
+  localStorage.setItem("bd:target:cmd", cmd)
+  // Простая парсилка: разделяем по пробелам, но поддерживаем "..."- и '...'-quoted сегменты.
+  const command = parseShellArgs(cmd)
+  if (command.length === 0) return
+  targetState.state = "starting"
+  const status = document.getElementById("welcome-target-status")
+  if (status !== null) status.textContent = "starting…"
+  try {
+    const res = await fetch("/target/run", {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({command}),
+    })
+    const data = await res.json() as {ok: boolean; error?: string; snapshot?: {pid: number; state: string}}
+    if (!data.ok) {
+      targetState.state = "failed"
+      if (status !== null) status.textContent = `spawn failed: ${data.error ?? "unknown"}`
+      return
+    }
+    if (data.snapshot !== undefined) {
+      targetState.pid = data.snapshot.pid
+    }
+  } catch (error) {
+    targetState.state = "failed"
+    if (status !== null) status.textContent = `fetch failed: ${String(error)}`
+  }
+}
+
+async function stopTarget(): Promise<void> {
+  try {
+    await fetch("/target/stop", {method: "POST"})
+  } catch {}
+}
+
+function parseShellArgs(input: string): string[] {
+  const out: string[] = []
+  let buf = ""
+  let quote: '"' | "'" | null = null
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i]!
+    if (quote !== null) {
+      if (c === quote) quote = null
+      else buf += c
+      continue
+    }
+    if (c === '"' || c === "'") {
+      quote = c
+      continue
+    }
+    if (c === " " || c === "\t" || c === "\n") {
+      if (buf.length > 0) { out.push(buf); buf = "" }
+      continue
+    }
+    buf += c
+  }
+  if (buf.length > 0) out.push(buf)
+  return out
+}
+
 function bindWelcomeApply(): void {
   const input = document.getElementById("welcome-url-input") as HTMLInputElement | null
   const button = document.getElementById("btn-welcome-apply") as HTMLButtonElement | null
@@ -277,6 +395,22 @@ function bindWelcomeApply(): void {
       void apply()
     }
   })
+
+  const cmdInput = document.getElementById("welcome-cmd-input") as HTMLTextAreaElement | null
+  const runBtn = document.getElementById("btn-welcome-run") as HTMLButtonElement | null
+  const stopBtn = document.getElementById("btn-welcome-stop") as HTMLButtonElement | null
+  if (cmdInput !== null && runBtn !== null) {
+    runBtn.addEventListener("click", () => void startTargetFromCmd(cmdInput.value))
+    cmdInput.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault()
+        void startTargetFromCmd(cmdInput.value)
+      }
+    })
+  }
+  if (stopBtn !== null) {
+    stopBtn.addEventListener("click", () => void stopTarget())
+  }
 }
 
 function renderWelcome(): string {
@@ -284,8 +418,24 @@ function renderWelcome(): string {
   const stateLabel = connectionState === "connecting"
     ? "<span class=\"pulse\">connecting…</span>"
     : `<span class=\"pulse\">disconnected</span> ${connectionError ? `(${escapeHtml(connectionError)})` : ""}`
+  const defaultCmd = localStorage.getItem("bd:target:cmd")
+    ?? `bun test --timeout=2147483647 --inspect-wait=${url} dark/server.spec.ts`
+  const targetRunningHint = targetState.state === "running"
+    ? `<div class="muted">target уже запущен (pid=${targetState.pid}). Stop → Run чтобы перезапустить.</div>`
+    : ""
   return `
     <p>${stateLabel} → пытаюсь подключиться к <code id="welcome-url">${escapeHtml(url)}</code>.</p>
+
+    <h3>Запустить target из UI</h3>
+    <div class="row" style="display:flex;gap:8px;margin:6px 0">
+      <textarea id="welcome-cmd-input" rows="2" style="flex:1;background:var(--panel);color:var(--fg);border:1px solid var(--border);border-radius:3px;padding:4px 8px;font-family:inherit;font-size:12px;resize:vertical">${escapeHtml(defaultCmd)}</textarea>
+    </div>
+    <div class="row" style="display:flex;gap:8px;margin:6px 0">
+      <button id="btn-welcome-run" type="button">Run target</button>
+      <button id="btn-welcome-stop" type="button">Stop target</button>
+      <span id="welcome-target-status" class="muted">${escapeHtml(describeTargetStatus())}</span>
+    </div>
+    ${targetRunningHint}
 
     <h3>Сменить inspector URL</h3>
     <div class="row" style="display:flex;gap:8px;margin:6px 0">
@@ -293,10 +443,6 @@ function renderWelcome(): string {
       <button id="btn-welcome-apply" type="button">Apply</button>
     </div>
     <div id="welcome-url-status" class="muted"></div>
-
-    <h3>Запуск target'а (с этим URL)</h3>
-    <pre>bun test --timeout=2147483647 --inspect-wait=${escapeHtml(url)} dark/server.spec.ts</pre>
-    <div class="muted">используй <code>--inspect-wait</code> (не <code>-brk</code>): Bun ждёт первого клиента, sidecar отправит <code>Inspector.initialized</code> и target пойдёт.</div>
 
     <h3>Когда коннект встанет</h3>
     <ul>
@@ -307,8 +453,11 @@ function renderWelcome(): string {
 
     <h3>REST cheatsheet</h3>
     <pre>curl -s http://127.0.0.1:6500/health
-curl -s -X POST http://127.0.0.1:6500/inspector -H 'content-type: application/json' -d '{"url":"ws://127.0.0.1:6499/dark"}'
-curl -s -X POST http://127.0.0.1:6500/eval -H 'content-type: application/json' -d '{"frame":0,"expr":"data.patches[0].path"}'</pre>
+curl -s -X POST http://127.0.0.1:6500/target/run -H 'content-type: application/json' \\
+  -d '{"command":["bun","test","--inspect-wait=${escapeHtml(url)}","dark/server.spec.ts"]}'
+curl -s http://127.0.0.1:6500/target
+curl -s -X POST http://127.0.0.1:6500/eval -H 'content-type: application/json' \\
+  -d '{"frame":0,"expr":"data.patches[0].path"}'</pre>
   `
 }
 
