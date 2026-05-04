@@ -55,6 +55,11 @@ const GUTTER_RULE_PX = 1
 const LINE_PX = 18
 const CODE_FONT_PX = 12
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
+// Overscan по строкам сверху и снизу видимой области. Window = visible + 2*OVERSCAN.
+// Подобран так, чтобы при размере шрифта 12px и contentHeight ~280 visible ≈ 15,
+// window ≈ 15 + 60 = 75 строк × ~6 tokens ≈ 450 Text объектов — ниже движкового
+// MAX_RENDERABLES = 1000.
+const OVERSCAN_LINES = 30
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 1)
 // WebStorm Darcula execution-row: насыщенная синяя плашка по всей ширине строки.
@@ -125,7 +130,13 @@ export class XrOverlay {
   #keyHandler: ((event: KeyboardEvent) => void) | null = null
   #scrollbarThumb: Mesh | null = null
   #scrollbarTrack: Mesh | null = null
-  #totalLines = 0  // сколько строк сейчас в codeContainer'е (для clamp scroll)
+  #totalLines = 0
+  // Window rendering: рендерим [windowStart .. windowStart + windowSize) строк.
+  // Scroll внутри окна — translate position.y. Если scrollOffset уходит за
+  // пределы окна, пересобираем Text-объекты с новым windowStart.
+  #windowStart = 0
+  #windowSize = 0
+  #pendingWindowRebuild = false
 
   private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont) {
     this.#canvas = canvas
@@ -344,21 +355,17 @@ export class XrOverlay {
         this.#scrollAccum = 0
       }
       if (stepLines === 0) return
-      const visible = this.#visibleLineCount()
-      const max = Math.max(0, this.#totalLines - visible)
-      const next = Math.min(max, Math.max(0, this.#scrollOffset + stepLines))
-      if (next === this.#scrollOffset) return
-      this.#scrollOffset = next
-      // Сцена не пересоздаётся — двигаем только сдвиг codeContainer по Y.
-      this.#applyScroll()
-      this.#requestRender()
+      this.#setScroll(this.#scrollOffset + stepLines)
     }
     this.#canvas.addEventListener("wheel", handler, {passive: false})
     this.#wheelHandler = handler
   }
 
   #applyScroll(): void {
-    this.#codeContainer.position.y = this.#scrollOffset * LINE_PX * this.#pixelScale
+    // Y-смещение относительно windowStart, а не от 0: codeContainer содержит
+    // строки [windowStart..windowEnd), их локальная y начинается с 0.
+    const offsetWithinWindow = this.#scrollOffset - this.#windowStart
+    this.#codeContainer.position.y = offsetWithinWindow * LINE_PX * this.#pixelScale
     this.#codeContainer.updateMatrix()
     this.#updateScrollbar()
   }
@@ -369,8 +376,30 @@ export class XrOverlay {
     const clamped = Math.max(0, Math.min(max, Math.trunc(next)))
     if (clamped === this.#scrollOffset) return
     this.#scrollOffset = clamped
-    this.#applyScroll()
-    this.#requestRender()
+    // Если scrollOffset вышел за overscan-зону окна — пересобираем window.
+    // Иначе только translate codeContainer.position.y (cheap).
+    const windowEnd = this.#windowStart + this.#windowSize
+    const visibleEnd = this.#scrollOffset + visible
+    const needsRebuild =
+      this.#scrollOffset < this.#windowStart + Math.min(OVERSCAN_LINES, this.#windowStart) ||
+      visibleEnd > windowEnd - Math.min(OVERSCAN_LINES, this.#totalLines - windowEnd)
+    if (needsRebuild) {
+      this.#scheduleWindowRebuild()
+    } else {
+      this.#applyScroll()
+      this.#requestRender()
+    }
+  }
+
+  #scheduleWindowRebuild(): void {
+    if (this.#pendingWindowRebuild) return
+    this.#pendingWindowRebuild = true
+    requestAnimationFrame(() => {
+      if (this.#disposed) return
+      this.#renderLines()
+      this.#applyScroll()
+      this.#requestRender()
+    })
   }
 
   #attachKeyListener(): void {
@@ -471,25 +500,42 @@ export class XrOverlay {
     }
   }
 
-  // Рендерим ВЕСЬ файл один раз — content стабилен между скроллами,
-  // wheel меняет только codeContainer.position.y. GPU-буферы Text
-  // переиспользуются glyph-кэшем движка (Text.geometryCache по GID),
-  // повторных аллокаций при scroll нет → не падает Chrome от OOM.
+  // Window rendering: создаём Text только для [windowStart .. windowStart + windowSize)
+  // строк. Scroll внутри окна — translate codeContainer.position.y. Когда
+  // scrollOffset уходит за пределы window, пересобираем (через RAF throttle).
+  // Это держит число Text-объектов в пределах MAX_RENDERABLES движка и
+  // обеспечивает мгновенный wheel-scroll внутри overscan.
   #renderLines(): void {
     this.#codeContainer.children = []
     this.#hideGutterRule()
-    this.#totalLines = 0
 
-    if (this.#current === null) return
+    if (this.#current === null) {
+      this.#totalLines = 0
+      return
+    }
     const lines = this.#current.lines
     const currentLine = this.#current.currentLine
-    if (lines.length === 0) return
+    if (lines.length === 0) {
+      this.#totalLines = 0
+      return
+    }
 
     this.#totalLines = lines.length
+    const visible = this.#visibleLineCount()
     this.#scrollOffset = Math.max(
       0,
-      Math.min(this.#scrollOffset, Math.max(0, lines.length - this.#visibleLineCount())),
+      Math.min(this.#scrollOffset, Math.max(0, lines.length - visible)),
     )
+    // Window: visible + overscan по обеим сторонам, обрезанный длиной файла.
+    this.#windowSize = Math.min(lines.length, visible + 2 * OVERSCAN_LINES)
+    this.#windowStart = Math.max(
+      0,
+      Math.min(
+        lines.length - this.#windowSize,
+        this.#scrollOffset - OVERSCAN_LINES,
+      ),
+    )
+    const windowEnd = this.#windowStart + this.#windowSize
 
     const lineFontWorld = lineFontWorldFor(this.#pixelScale)
     const gutterPx = this.#gutterWidthPx(lines.length)
@@ -500,8 +546,11 @@ export class XrOverlay {
     const contentWorldW = this.#contentPixelWidth * this.#pixelScale
     const highlightWorldH = LINE_PX * this.#pixelScale
 
-    for (let i = 0; i < lines.length; i++) {
-      const lineIndex = i
+    // Render только строки в окне [windowStart..windowEnd). Локальный y у
+    // каждой строки отсчитывается от windowStart (i=0 → top). codeContainer
+    // двигается на (scrollOffset - windowStart) * LINE_PX * scale в applyScroll.
+    for (let i = 0; i < windowEnd - this.#windowStart; i++) {
+      const lineIndex = this.#windowStart + i
       const lineNo = lineIndex + 1
       const isCurrent = lineNo === currentLine
       const text = lines[lineIndex] ?? ""
@@ -552,6 +601,7 @@ export class XrOverlay {
         }
       }
     }
+    this.#pendingWindowRebuild = false
   }
 
   // Рендерит одну строку как последовательность Text-объектов по категориям
