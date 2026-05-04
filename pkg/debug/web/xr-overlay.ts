@@ -65,7 +65,9 @@ const MAX_RENDERED_LINES = 350
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 1)
 // WebStorm Darcula execution-row: насыщенная синяя плашка по всей ширине строки.
-const COLOR_HIGHLIGHT = new Color(45 / 255, 70 / 255, 97 / 255, 0.85)
+// Alpha=1 потому что MeshBasicMaterial в этом движке рендерится opaque;
+// blending не применяется — поэтому цвет должен «победить» background сам.
+const COLOR_HIGHLIGHT = new Color(45 / 255, 70 / 255, 97 / 255, 1)
 // Жёлто-оранжевая стрелка ▶ + жирный номер — IntelliJ "Execution Point".
 const COLOR_EXEC_ARROW = new Color(255 / 255, 199 / 255, 95 / 255, 1)
 const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
@@ -169,6 +171,9 @@ export class XrOverlay {
       new PlaneGeometry({width: 1, height: 1}),
       new MeshBasicMaterial({color: COLOR_BG}),
     )
+    // Фон далеко позади, чтобы highlight (за текстом) гарантированно
+    // прошёл depth-test в перспективе. Камера в +Z=0.6, near=0.01.
+    this.#background.position.z = -0.02
     this.#card.add(this.#background)
 
     this.#gutterRule = new Mesh(
@@ -571,7 +576,10 @@ export class XrOverlay {
         )
         hl.position.x = contentWorldW / 2
         hl.position.y = rowTopWorld - highlightWorldH / 2
-        hl.position.z = -0.0005
+        // Высокий зазор — depth precision в perspective очень низкий вблизи
+        // near plane. Background.z = -0.02 (далеко), highlight.z = -0.005
+        // в codeContainer (world ~ -0.003), text/arrow.z = 0 (world ~ +0.002).
+        hl.position.z = -0.005
         hl.updateMatrix()
         this.#codeContainer.add(hl)
       }
@@ -593,7 +601,7 @@ export class XrOverlay {
         this.#codeContainer.add(arrow)
       }
 
-      if (text.length > 0) {
+      if (text.trim().length > 0) {
         const trimmed = text.length > 200 ? `${text.slice(0, 199)}…` : text
         const codeStartX = (gutterPx + CODE_LEFT_PAD_PX) * this.#pixelScale
         const lineTokens = this.#current.tokens?.[lineIndex]
@@ -626,13 +634,21 @@ export class XrOverlay {
     let cursorX = startX
     const placeChunk = (chunkText: string, category: string): void => {
       if (chunkText.length === 0) return
+      const width = measureTextWorld(chunkText, this.#font, fontSize)
+      // Whitespace-only чанки не дают glyph-геометрии (Text внутри пропускает
+      // ' ' через continue), Mesh.draw(0) вызывает WebGPU warning. Пропускаем
+      // создание Text, но advance cursor правильно сохраняем.
+      if (chunkText.trim().length === 0) {
+        cursorX += width
+        return
+      }
       const material = this.#tokenMaterials.get(category) ?? this.#lineMaterial
       const t = new Text(chunkText, this.#font, fontSize, material)
       t.position.x = cursorX
       t.position.y = baselineY
       t.updateMatrix()
       this.#codeContainer.add(t)
-      cursorX += measureTextWorld(chunkText, this.#font, fontSize)
+      cursorX += width
     }
     const sorted = [...tokens].sort((a, b) => a.s - b.s)
     for (const tok of sorted) {
