@@ -348,60 +348,52 @@ export class XrOverlay {
     const codeWidthPx = Math.max(1, this.#contentPixelWidth - gutterPx)
     this.#syncGutterRule(gutterPx)
 
+    // Раскладываем строки ВРУЧНУЮ относительно codeContainer (без row-Yoga):
+    //   y = -(i * LINE_PX + lineFontWorld) * scale
+    //   numText.x = right-aligned внутри [0..gutterPx]
+    //   lineText.x = (gutterPx + CODE_LEFT_PAD_PX) * scale
+    // Yoga применяем только к codeContainer (root) — он позиционирует сам
+    // contentContainer относительно карты. Внутри — детерминистичная сетка.
+    void codeWidthPx
+    const contentWorldW = this.#contentPixelWidth * this.#pixelScale
+    const highlightWorldH = LINE_PX * this.#pixelScale
+
     for (let i = 0; i < end - start; i++) {
       const lineIndex = start + i
       const lineNo = lineIndex + 1
       const isCurrent = lineNo === currentLine
       const text = lines[lineIndex] ?? ""
-
-      const row = new Object3D()
-      row.layout = {
-        width: "100%",
-        height: LINE_PX,
-        flexDirection: "row",
-        alignItems: "flex-start",
-      }
+      const rowTopWorld = -(i * LINE_PX) * this.#pixelScale
+      const baselineY = rowTopWorld - lineFontWorld
 
       if (isCurrent) {
-        const highlightWorldH = LINE_PX * this.#pixelScale
-        const contentWorldW = this.#contentPixelWidth * this.#pixelScale
         const hl = new Mesh(
           new PlaneGeometry({width: contentWorldW, height: highlightWorldH}),
           new MeshBasicMaterial({color: COLOR_HIGHLIGHT}),
         )
-        // row якорь — в его верхнем-левом углу. Plane центрирован, поэтому
-        // сдвигаем на половину ширины вправо и половину высоты вниз.
         hl.position.x = contentWorldW / 2
-        hl.position.y = -highlightWorldH / 2
+        hl.position.y = rowTopWorld - highlightWorldH / 2
         hl.position.z = -0.0005
         hl.updateMatrix()
-        row.add(hl)
+        this.#codeContainer.add(hl)
       }
 
-      // Внутри row позиционируем gutter и code ВРУЧНУЮ (без Yoga). Yoga
-      // используем только для column flow — расстановки rows по вертикали.
-      // Это гарантирует что gutter всегда в left edge, code сразу за ним.
       const numStr = String(lineNo)
       const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
       const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
       numText.position.x = this.#lineNumberX(numStr, gutterPx, lineFontWorld)
-      numText.position.y = -lineFontWorld
+      numText.position.y = baselineY
       numText.updateMatrix()
-      row.add(numText)
+      this.#codeContainer.add(numText)
 
       if (text.length > 0) {
         const trimmed = text.length > 200 ? `${text.slice(0, 199)}…` : text
         const lineText = new Text(trimmed, this.#font, lineFontWorld, this.#lineMaterial)
         lineText.position.x = (gutterPx + CODE_LEFT_PAD_PX) * this.#pixelScale
-        lineText.position.y = -lineFontWorld
+        lineText.position.y = baselineY
         lineText.updateMatrix()
-        row.add(lineText)
+        this.#codeContainer.add(lineText)
       }
-      // Передаём в Yoga подсказку о размерах row (без детей с layout) —
-      // нужен только height и width для column-flow.
-      void codeWidthPx
-
-      this.#codeContainer.add(row)
     }
   }
 
