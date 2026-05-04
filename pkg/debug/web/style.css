@@ -317,8 +317,15 @@ section h2 {
   grid-row: 1 / -1;
   grid-column: 3;
   border-left: 1px solid var(--border);
-  display: flex;
   flex-direction: column;
+}
+
+#verbose-section:not([hidden]) {
+  display: flex;
+}
+
+#verbose-section[hidden] {
+  display: none;
 }
 
 #verbose-section h2 {
@@ -372,11 +379,18 @@ main.with-verbose {
 #welcome-section {
   grid-row: 1 / span 4;
   grid-column: 2;
-  display: flex;
   flex-direction: column;
   align-items: stretch;
   padding: 24px 32px;
   overflow: auto;
+}
+
+#welcome-section:not([hidden]) {
+  display: flex;
+}
+
+#welcome-section[hidden] {
+  display: none;
 }
 
 #welcome-content {
