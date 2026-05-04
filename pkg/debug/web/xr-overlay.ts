@@ -48,8 +48,8 @@ const GUTTER_LEFT_PAD_PX = 8
 const GUTTER_RIGHT_PAD_PX = 12
 const CODE_LEFT_PAD_PX = 12
 const GUTTER_RULE_PX = 1
-const LINE_PX = 22
-const CODE_FONT_PX = 15
+const LINE_PX = 18
+const CODE_FONT_PX = 12
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 1)
@@ -378,28 +378,28 @@ export class XrOverlay {
         row.add(hl)
       }
 
-      const gutter = new Object3D()
-      gutter.layout = {width: gutterPx, height: LINE_PX}
+      // Внутри row позиционируем gutter и code ВРУЧНУЮ (без Yoga). Yoga
+      // используем только для column flow — расстановки rows по вертикали.
+      // Это гарантирует что gutter всегда в left edge, code сразу за ним.
       const numStr = String(lineNo)
       const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
       const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
       numText.position.x = this.#lineNumberX(numStr, gutterPx, lineFontWorld)
       numText.position.y = -lineFontWorld
       numText.updateMatrix()
-      gutter.add(numText)
-      row.add(gutter)
+      row.add(numText)
 
-      const code = new Object3D()
-      code.layout = {width: codeWidthPx, height: LINE_PX}
       if (text.length > 0) {
         const trimmed = text.length > 200 ? `${text.slice(0, 199)}…` : text
         const lineText = new Text(trimmed, this.#font, lineFontWorld, this.#lineMaterial)
-        lineText.position.x = CODE_LEFT_PAD_PX * this.#pixelScale
+        lineText.position.x = (gutterPx + CODE_LEFT_PAD_PX) * this.#pixelScale
         lineText.position.y = -lineFontWorld
         lineText.updateMatrix()
-        code.add(lineText)
+        row.add(lineText)
       }
-      row.add(code)
+      // Передаём в Yoga подсказку о размерах row (без детей с layout) —
+      // нужен только height и width для column-flow.
+      void codeWidthPx
 
       this.#codeContainer.add(row)
     }
