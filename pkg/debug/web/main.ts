@@ -87,7 +87,8 @@ const evalFrame = $<HTMLInputElement>("eval-frame")
 const evalOutput = $("eval-output")
 const consoleLog = $("console-log")
 const sourceLoc = $("source-loc")
-const sourceCache = new Map<string, string>()
+type CachedSource = {text: string; tokens?: import("./xr-overlay.ts").XrSourceTokens}
+const sourceCache = new Map<string, CachedSource>()
 const connStatus = $("conn-status")
 const verboseSection = $("verbose-section")
 const verboseLog = $<HTMLPreElement>("verbose-log")
@@ -557,18 +558,22 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
   const location = `${frame.url || "scriptId=" + scriptId}:${frame.line}`
   sourceLoc.textContent = location
 
-  let src = sourceCache.get(scriptId)
-  if (src === undefined) {
+  let cached = sourceCache.get(scriptId)
+  if (cached === undefined) {
     pushSourceToEngine({lines: ["loading…"], currentLine: 0, location})
     try {
       const res = await fetch(`/source?scriptId=${encodeURIComponent(scriptId)}`)
-      const data = await res.json() as {scriptSource?: string; error?: string}
+      const data = await res.json() as {
+        scriptSource?: string
+        tokens?: import("./xr-overlay.ts").XrSourceTokens
+        error?: string
+      }
       if (typeof data.scriptSource !== "string") {
         pushSourceToEngine({lines: [`no source: ${data.error ?? "unknown"}`], currentLine: 0, location})
         return
       }
-      src = data.scriptSource
-      sourceCache.set(scriptId, src)
+      cached = {text: data.scriptSource, ...(data.tokens === undefined ? {} : {tokens: data.tokens})}
+      sourceCache.set(scriptId, cached)
     } catch (error) {
       pushSourceToEngine({lines: [`fetch failed: ${String(error)}`], currentLine: 0, location})
       return
@@ -576,9 +581,10 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
   }
 
   pushSourceToEngine({
-    lines: src.split("\n"),
+    lines: cached.text.split("\n"),
     currentLine: frame.line,
     location,
+    ...(cached.tokens === undefined ? {} : {tokens: cached.tokens}),
   })
 }
 

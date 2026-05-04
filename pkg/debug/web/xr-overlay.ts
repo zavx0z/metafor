@@ -33,10 +33,14 @@ import {
 import {LayoutManager} from "../../engine/src/layout/LayoutManager.ts"
 import YogaService from "../../engine/src/layout/YogaService.ts"
 
+export type XrToken = {s: number; e: number; c: string}
+export type XrSourceTokens = XrToken[][]
+
 export type XrSource = {
   lines: string[]
   currentLine: number
   location: string
+  tokens?: XrSourceTokens
 }
 
 const CONTENT_PAD_TOP_PX = 34
@@ -58,6 +62,20 @@ const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
 const COLOR_GUTTER = new Color(110 / 255, 118 / 255, 129 / 255, 0.8)
 const COLOR_GUTTER_HOT = new Color(247 / 255, 129 / 255, 102 / 255, 1)
 const COLOR_GUTTER_RULE = new Color(48 / 255, 54 / 255, 61 / 255, 1)
+
+// Палитра под GitHub Dark / VS Code Dark+ — соответствует категориям из
+// pkg/debug/src/syntax.ts (k=keyword, s=string, n=number, c=comment,
+// t=type, f=function, p=punctuation, d=default).
+const TOKEN_COLORS: Record<string, Color> = {
+  k: new Color(255 / 255, 123 / 255, 114 / 255, 1),
+  s: new Color(165 / 255, 214 / 255, 255 / 255, 1),
+  n: new Color(121 / 255, 192 / 255, 255 / 255, 1),
+  c: new Color(139 / 255, 148 / 255, 158 / 255, 1),
+  t: new Color(255 / 255, 166 / 255, 87 / 255, 1),
+  f: new Color(210 / 255, 168 / 255, 255 / 255, 1),
+  p: new Color(201 / 255, 209 / 255, 217 / 255, 1),
+  d: new Color(225 / 255, 228 / 255, 233 / 255, 1),
+}
 
 export class XrOverlay {
   static async create(canvas: HTMLCanvasElement): Promise<XrOverlay> {
@@ -83,6 +101,7 @@ export class XrOverlay {
   readonly #lineMaterial: TextMaterial
   readonly #gutterMaterial: TextMaterial
   readonly #gutterHotMaterial: TextMaterial
+  readonly #tokenMaterials: Map<string, TextMaterial> = new Map()
   #physicalHeight = 0.6
   #physicalWidth = 0.6
   #pixelWidth = 600
@@ -141,6 +160,9 @@ export class XrOverlay {
     this.#lineMaterial = new TextMaterial({color: COLOR_TEXT})
     this.#gutterMaterial = new TextMaterial({color: COLOR_GUTTER})
     this.#gutterHotMaterial = new TextMaterial({color: COLOR_GUTTER_HOT})
+    for (const [category, color] of Object.entries(TOKEN_COLORS)) {
+      this.#tokenMaterials.set(category, new TextMaterial({color}))
+    }
 
     this.#contentContainer = new Object3D()
     this.#contentContainer.position.z = 0.002
@@ -388,13 +410,52 @@ export class XrOverlay {
 
       if (text.length > 0) {
         const trimmed = text.length > 200 ? `${text.slice(0, 199)}…` : text
-        const lineText = new Text(trimmed, this.#font, lineFontWorld, this.#lineMaterial)
-        lineText.position.x = (gutterPx + CODE_LEFT_PAD_PX) * this.#pixelScale
-        lineText.position.y = baselineY
-        lineText.updateMatrix()
-        this.#codeContainer.add(lineText)
+        const codeStartX = (gutterPx + CODE_LEFT_PAD_PX) * this.#pixelScale
+        const lineTokens = this.#current.tokens?.[lineIndex]
+        if (lineTokens !== undefined && lineTokens.length > 0) {
+          this.#renderTokenizedLine(trimmed, lineTokens, codeStartX, baselineY, lineFontWorld)
+        } else {
+          const lineText = new Text(trimmed, this.#font, lineFontWorld, this.#lineMaterial)
+          lineText.position.x = codeStartX
+          lineText.position.y = baselineY
+          lineText.updateMatrix()
+          this.#codeContainer.add(lineText)
+        }
       }
     }
+  }
+
+  // Рендерит одну строку как последовательность Text-объектов по категориям
+  // токенов. Между токенами идут промежутки (whitespace, не-описанные
+  // диапазоны) — их рисуем как 'd' (default), чтобы пустоты не вводили
+  // видимых сдвигов.
+  #renderTokenizedLine(
+    text: string,
+    tokens: XrToken[],
+    startX: number,
+    baselineY: number,
+    fontSize: number,
+  ): void {
+    let cursor = 0
+    let cursorX = startX
+    const placeChunk = (chunkText: string, category: string): void => {
+      if (chunkText.length === 0) return
+      const material = this.#tokenMaterials.get(category) ?? this.#lineMaterial
+      const t = new Text(chunkText, this.#font, fontSize, material)
+      t.position.x = cursorX
+      t.position.y = baselineY
+      t.updateMatrix()
+      this.#codeContainer.add(t)
+      cursorX += measureTextWorld(chunkText, this.#font, fontSize)
+    }
+    const sorted = [...tokens].sort((a, b) => a.s - b.s)
+    for (const tok of sorted) {
+      if (tok.s > cursor) placeChunk(text.slice(cursor, tok.s), "d")
+      const span = text.slice(tok.s, Math.min(tok.e, text.length))
+      placeChunk(span, tok.c)
+      cursor = Math.max(cursor, tok.e)
+    }
+    if (cursor < text.length) placeChunk(text.slice(cursor), "d")
   }
 
   #gutterWidthPx(lineCount: number): number {

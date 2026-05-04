@@ -370,6 +370,7 @@ async function dispatchPost(req: Request, cmd: string, ctx: CommandContext): Pro
 }
 
 const sourceCache = new Map<string, string>()
+const tokenCache = new Map<string, import("./syntax.ts").SourceTokens>()
 
 async function runTarget(req: Request, options: HttpServerOptions): Promise<Response> {
   let body: JsonObject = {}
@@ -536,6 +537,7 @@ async function reconnectInspector(req: Request, options: HttpServerOptions): Pro
   options.client.setUrl(url)
   // Скидываем кэш source — у нового target'а будут свои scriptId.
   sourceCache.clear()
+  tokenCache.clear()
   return jsonResponse({ok: true, previous, url})
 }
 
@@ -544,20 +546,45 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
   if (scriptId.length === 0) return jsonResponse({ok: false, error: "scriptId required"}, 400)
 
   const fileUrl = options.snapshots.scriptUrl(scriptId)
+  const includeTokens = url.searchParams.get("tokens") !== "0"
 
-  const cached = sourceCache.get(scriptId)
-  if (cached !== undefined) {
-    return jsonResponse({scriptId, url: fileUrl ?? "", scriptSource: cached, cached: true})
+  const cachedSource = sourceCache.get(scriptId)
+  if (cachedSource !== undefined) {
+    return jsonResponse({
+      scriptId,
+      url: fileUrl ?? "",
+      scriptSource: cachedSource,
+      tokens: includeTokens ? tokensFor(scriptId, cachedSource) : undefined,
+      cached: true,
+    })
   }
 
   try {
     const result = asObject(await options.client.request("Debugger.getScriptSource", {scriptId}))
     const scriptSource = asString(result?.["scriptSource"]) ?? ""
     if (scriptSource.length > 0) sourceCache.set(scriptId, scriptSource)
-    return jsonResponse({scriptId, url: fileUrl ?? "", scriptSource, cached: false})
+    return jsonResponse({
+      scriptId,
+      url: fileUrl ?? "",
+      scriptSource,
+      tokens: includeTokens && scriptSource.length > 0 ? tokensFor(scriptId, scriptSource) : undefined,
+      cached: false,
+    })
   } catch (error) {
     return jsonResponse({ok: false, scriptId, error: serializeError(error)}, 500)
   }
+}
+
+function tokensFor(scriptId: string, source: string): import("./syntax.ts").SourceTokens {
+  const cached = tokenCache.get(scriptId)
+  if (cached !== undefined) return cached
+  // Импорт лениво: ts.createScanner тащит typescript в memory один раз.
+  // Lazy require через import() на require boundary не нужен — typescript
+  // и так лежит в node_modules, оба файла в Bun runtime.
+  const {tokenize} = require("./syntax.ts") as typeof import("./syntax.ts")
+  const tokens = tokenize(source)
+  tokenCache.set(scriptId, tokens)
+  return tokens
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
