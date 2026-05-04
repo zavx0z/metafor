@@ -56,6 +56,7 @@ export class XrOverlay {
     await YogaService.instance.initialize()
     const renderer = new Renderer()
     await renderer.init(canvas)
+    renderer.setPixelRatio(window.devicePixelRatio || 1)
     const font = await TrueTypeFont.fromUrl(FONT_URL)
     return new XrOverlay(canvas, renderer, font)
   }
@@ -154,15 +155,24 @@ export class XrOverlay {
   }
 
   handleResize(): void {
-    const w = this.#canvas.clientWidth || 1
-    const h = this.#canvas.clientHeight || 1
-    this.#renderer.setPixelRatio(window.devicePixelRatio || 1)
+    // Берём CSS-размер из bounding rect (а НЕ clientWidth/Height): после
+    // setSize() canvas.width attribute становится w*devicePixelRatio, и
+    // некоторые браузеры используют его как intrinsic size — clientWidth
+    // тогда удваивается каждый ResizeObserver-tick → петля → texture-size
+    // overflow. Через rect мы получаем реальный CSS-box, заданный стилем
+    // (width: calc(100% - 32px)).
+    const rect = this.#canvas.getBoundingClientRect()
+    const w = Math.max(1, Math.round(rect.width))
+    const h = Math.max(1, Math.round(rect.height))
+    if (w === this.#pixelWidth && h === this.#pixelHeight) return
+
+    // Фиксируем CSS-размер ещё раз стилем — на случай, если intrinsic от
+    // canvas.width пытается распирать его.
+    this.#canvas.style.width = `${w}px`
+    this.#canvas.style.height = `${h}px`
     this.#renderer.setSize(w, h)
     this.#viewPoint.setAspectRatio(w / h)
 
-    // Логические пиксели Yoga = CSS-пиксели canvas (1:1). Физический размер
-    // карты подбирается под fov+distance, чтобы заполнить viewport. pixelScale
-    // = phys/pixels — для перевода Yoga-пикселей в мировые единицы.
     this.#pixelWidth = w
     this.#pixelHeight = h
     this.#physicalHeight = 2 * this.#cameraDistance * Math.tan(this.#viewPoint.fov / 2)

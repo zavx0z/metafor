@@ -412,7 +412,10 @@ main.welcome #welcome-section {
 
 #engine-source-canvas {
   position: absolute;
-  inset: 36px 16px 16px 16px;
+  top: 36px;
+  left: 16px;
+  width: calc(100% - 32px);
+  height: calc(100% - 52px);
   display: block;
   border: 1px solid var(--border);
   border-radius: 3px;
