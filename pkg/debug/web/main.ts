@@ -196,6 +196,7 @@ function handleServerMessage(msg: ServerMessage): void {
 }
 
 function applyConnection(info: ConnectionInfo): void {
+  const previous = connectionState
   connectionState = info.state
   connectionError = info.error
   const cls = info.state === "connected" ? "connected"
@@ -203,9 +204,26 @@ function applyConnection(info: ConnectionInfo): void {
     : "disconnected"
   connStatus.textContent = `inspector: ${info.state}`
   connStatus.className = `badge ${cls}`
-  if (info.state !== "connected" && currentDump === undefined) {
+  if (info.state !== "connected") {
     setRunStatus("waiting")
+    // Любая информация в UI устарела как только инспектор отвалился: очищаем
+    // frames/scopes/source/dump и сбрасываем кэш скриптов. Console и verbose
+    // оставляем — они логи, не state.
+    if (previous === "connected" || currentDump !== undefined) {
+      clearLiveState()
+    }
   }
+}
+
+function clearLiveState(): void {
+  currentDump = undefined
+  activeFrameIndex = 0
+  framesList.innerHTML = ""
+  scopesContainer.innerHTML = `<div class="muted">inspector disconnected — данные устарели</div>`
+  sourceView.innerHTML = ""
+  sourceLoc.textContent = ""
+  scriptUrls.clear()
+  sourceCache.clear()
 }
 
 function hideWelcome(): void {

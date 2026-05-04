@@ -415,9 +415,14 @@ main.with-verbose {
   color: var(--accent-hot);
 }
 
+main.welcome #frames-section,
 main.welcome #scopes-section,
 main.welcome #source-section,
 main.welcome #eval-section,
 main.welcome #console-section {
   display: none;
+}
+
+main.welcome #welcome-section {
+  grid-column: 1 / -1;
 }
