@@ -5,9 +5,20 @@ import {asNumber, asObject, asString} from "./guards.ts"
 import type {EventLogger} from "./logger.ts"
 import type {JsonObject, RemoteObject} from "./types.ts"
 
+export type ConsoleLogEntry = JsonObject & {
+  timestamp: string
+  event: string
+  level?: string | undefined
+  type?: string | undefined
+  text?: string | undefined
+}
+
+export type ConsoleEntryHandler = (entry: ConsoleLogEntry) => void
+
 export class ConsoleLogStore {
   #consoleLogPath: string
   #logger: EventLogger
+  #entryHandlers = new Set<ConsoleEntryHandler>()
 
   constructor(options: {
     consoleLogPath: string
@@ -16,6 +27,11 @@ export class ConsoleLogStore {
     this.#consoleLogPath = options.consoleLogPath
     this.#logger = options.logger
     mkdirSync(dirname(this.#consoleLogPath), {recursive: true})
+  }
+
+  onEntry(handler: ConsoleEntryHandler): () => void {
+    this.#entryHandlers.add(handler)
+    return () => this.#entryHandlers.delete(handler)
   }
 
   handleMessageAdded(params: JsonObject): void {
@@ -73,11 +89,18 @@ export class ConsoleLogStore {
     })
   }
 
-  #append(entry: JsonObject): void {
+  #append(entry: ConsoleLogEntry): void {
     try {
       appendFileSync(this.#consoleLogPath, `${JSON.stringify(entry)}\n`)
     } catch (error) {
       this.#logger.status(`failed to write console log: ${serializeError(error)}`)
+    }
+    for (const handler of this.#entryHandlers) {
+      try {
+        handler(entry)
+      } catch (error) {
+        this.#logger.status(`console entry handler failed: ${serializeError(error)}`)
+      }
     }
   }
 }

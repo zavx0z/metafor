@@ -1,13 +1,22 @@
 /**
- * REST API поверх работающего sidecar'а: маршруты по `Bun.serve`, делегирующие
- * в тот же `executeCommand`, что и stdin/file-loop. Нужен чтобы LLM-агент в чате
- * мог дёргать состояние и команды через curl/fetch без чтения файлов и без
- * polling'а. Файлы (`.agent-events.log`, `.agent-console.log`) сохранены — они
- * остаются полезным архивом и читаются через `GET /events` и `GET /console`.
+ * HTTP+WebSocket сервер: REST API + полнофункциональный web-UI для совместной отладки.
+ *
+ * Архитектура:
+ *   - REST поверх `executeCommand` (то же что stdin/file-loop) — для curl/fetch.
+ *   - WebSocket `/ws` — пуш state/resumed/console/result в браузерный UI и приём
+ *     `{type:"command",...}` сообщений из UI.
+ *   - HTML/JS UI отдаётся через Bun fullstack-bundler: `import indexHtml from "../web/index.html"`,
+ *     все импорты внутри HTML транспилятся Bun'ом на лету.
+ *
+ * Файлы (`.agent-events.log`, `.agent-console.log`) сохранены — остаются архивом
+ * и читаются через `GET /events` и `GET /console`.
  */
 
+import type {ServerWebSocket, WebSocketHandler} from "bun"
 import {existsSync, statSync, openSync, readSync, closeSync} from "node:fs"
+import indexHtml from "../web/index.html"
 import {executeCommand, type CommandContext} from "./commands.ts"
+import type {ConsoleLogStore} from "./console.ts"
 import {serializeError} from "./errors.ts"
 import {asNumber, asObject, asString} from "./guards.ts"
 import type {EventLogger} from "./logger.ts"
@@ -20,6 +29,7 @@ export type HttpServerOptions = {
   port: number
   client: InspectorClient
   snapshots: SnapshotStore
+  consoleLogs: ConsoleLogStore
   logger: EventLogger
   eventLogPath: string
   consoleLogPath: string
@@ -27,6 +37,18 @@ export type HttpServerOptions = {
 }
 
 export type HttpServer = ReturnType<typeof Bun.serve>
+
+type WsClientData = {
+  id: number
+  pendingResponses: Set<number>
+}
+
+type ClientCommand = {
+  type: "command"
+  cmd: string
+  params?: JsonObject
+  requestId?: number
+}
 
 const NDJSON_TAIL_DEFAULT_LIMIT = 200
 const NDJSON_TAIL_MAX_LIMIT = 5_000
@@ -38,16 +60,103 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
     logger: options.logger,
   }
 
+  const wsClients = new Set<ServerWebSocket<WsClientData>>()
+  let nextWsClientId = 1
+
+  const broadcast = (payload: JsonObject): void => {
+    if (wsClients.size === 0) return
+    const text = JSON.stringify(payload)
+    for (const client of wsClients) {
+      if (client.readyState === 1) client.send(text)
+    }
+  }
+
+  options.snapshots.onPause((dump) => broadcast({type: "state", dump}))
+  options.snapshots.onResume(() => broadcast({type: "resumed"}))
+  options.consoleLogs.onEntry((entry) => {
+    broadcast({
+      type: "console",
+      entries: [{
+        ts: entry.timestamp,
+        level: entry.level ?? entry.type,
+        text: entry.text ?? "",
+      }],
+    })
+  })
+
+  const websocket: WebSocketHandler<WsClientData> = {
+    open(ws): void {
+      wsClients.add(ws)
+      options.logger.event("ws.client.opened", {id: ws.data.id, total: wsClients.size})
+      const hello: JsonObject = {
+        type: "hello",
+        inspectorUrl: options.inspectorUrl,
+        paused: options.snapshots.paused,
+        dump: options.snapshots.dump ?? null,
+        scriptCount: options.snapshots.scripts.length,
+      }
+      ws.send(JSON.stringify(hello))
+    },
+    async message(ws, raw): Promise<void> {
+      let parsed: unknown
+      const text = typeof raw === "string" ? raw : new TextDecoder().decode(raw)
+      try {
+        parsed = JSON.parse(text)
+      } catch (error) {
+        ws.send(JSON.stringify({type: "error", error: `invalid JSON: ${serializeError(error)}`}))
+        return
+      }
+
+      const message = asObject(parsed)
+      const messageType = asString(message?.["type"])
+      if (message === undefined || messageType !== "command") {
+        ws.send(JSON.stringify({type: "error", error: 'expected {"type":"command",...}'}))
+        return
+      }
+
+      const cmd = asString(message["cmd"])
+      const requestId = asNumber(message["requestId"])
+      const params = asObject(message["params"]) ?? {}
+      if (cmd === undefined) {
+        ws.send(JSON.stringify({type: "result", requestId, ok: false, error: "missing cmd"}))
+        return
+      }
+
+      options.logger.event("ws.command", {clientId: ws.data.id, cmd, requestId})
+      try {
+        const result = await executeCommand(ctx, params, cmd)
+        ws.send(JSON.stringify({type: "result", requestId, ok: true, result}))
+      } catch (error) {
+        ws.send(JSON.stringify({type: "result", requestId, ok: false, error: serializeError(error)}))
+      }
+    },
+    close(ws): void {
+      wsClients.delete(ws)
+      options.logger.event("ws.client.closed", {id: ws.data.id, total: wsClients.size})
+    },
+  }
+
   const server = Bun.serve({
     hostname: options.host,
     port: options.port,
     development: false,
-    async fetch(req): Promise<Response> {
+    routes: {
+      "/": indexHtml,
+    },
+    async fetch(req, server): Promise<Response | undefined> {
       const url = new URL(req.url)
       const path = url.pathname.replace(/\/+$/, "") || "/"
       const method = req.method.toUpperCase()
-      const start = Date.now()
 
+      if (path === "/ws") {
+        const id = nextWsClientId++
+        const data: WsClientData = {id, pendingResponses: new Set()}
+        const upgraded = server.upgrade(req, {data})
+        if (upgraded) return undefined
+        return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
+      }
+
+      const start = Date.now()
       try {
         const response = await handleRoute(method, path, url, req, options, ctx)
         options.logger.event("http.request", {
@@ -63,13 +172,14 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         return jsonResponse({ok: false, error: message}, 500)
       }
     },
+    websocket,
     error(error: Error): Response {
       options.logger.event("http.fatal", {error: serializeError(error)})
       return jsonResponse({ok: false, error: serializeError(error)}, 500)
     },
   })
 
-  options.logger.status(`http api listening on http://${options.host}:${options.port}`)
+  options.logger.status(`http+ws+ui listening on http://${options.host}:${options.port}`)
   options.logger.event("http.started", {host: options.host, port: options.port})
 
   return server

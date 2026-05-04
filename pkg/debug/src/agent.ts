@@ -62,6 +62,7 @@ export async function runAgent(config: AgentConfig = loadConfig()): Promise<neve
         port: config.httpPort,
         client,
         snapshots,
+        consoleLogs,
         logger,
         eventLogPath: config.eventLogPath,
         consoleLogPath: config.consoleLogPath,

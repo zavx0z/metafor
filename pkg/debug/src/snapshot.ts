@@ -15,6 +15,9 @@ import type {
 } from "./types.ts"
 import {serializeError} from "./errors.ts"
 
+export type SnapshotPauseHandler = (dump: AgentDump) => void
+export type SnapshotResumeHandler = () => void
+
 export class SnapshotStore {
   #client: InspectorClient
   #logger: EventLogger
@@ -24,6 +27,8 @@ export class SnapshotStore {
   #lastDump: AgentDump | undefined
   #paused = false
   #pauseSequence = 0
+  #pauseHandlers = new Set<SnapshotPauseHandler>()
+  #resumeHandlers = new Set<SnapshotResumeHandler>()
 
   constructor(options: {
     client: InspectorClient
@@ -57,6 +62,16 @@ export class SnapshotStore {
     return this.#scriptUrls.get(scriptId)
   }
 
+  onPause(handler: SnapshotPauseHandler): () => void {
+    this.#pauseHandlers.add(handler)
+    return () => this.#pauseHandlers.delete(handler)
+  }
+
+  onResume(handler: SnapshotResumeHandler): () => void {
+    this.#resumeHandlers.add(handler)
+    return () => this.#resumeHandlers.delete(handler)
+  }
+
   markRunning(): void {
     this.#paused = false
   }
@@ -75,6 +90,13 @@ export class SnapshotStore {
   handleResumed(): void {
     this.#paused = false
     this.#logger.event("Debugger.resumed", {})
+    for (const handler of this.#resumeHandlers) {
+      try {
+        handler()
+      } catch (error) {
+        this.#logger.event("snapshot.resume_handler.failed", {error: serializeError(error)})
+      }
+    }
   }
 
   async handlePaused(params: JsonObject): Promise<void> {
@@ -117,6 +139,14 @@ export class SnapshotStore {
       dumpPath: this.#dumpPath,
       frameCount: dump.frames.length,
     })
+
+    for (const handler of this.#pauseHandlers) {
+      try {
+        handler(dump)
+      } catch (error) {
+        this.#logger.event("snapshot.pause_handler.failed", {error: serializeError(error)})
+      }
+    }
   }
 
   describeFrame(frame: CallFrame | undefined): JsonObject | undefined {

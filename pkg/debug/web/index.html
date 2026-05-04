@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>metafor / bun-debug</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="title">@metafor/bun-debug</div>
+      <div class="status">
+        <span id="ws-status" class="badge">ws: …</span>
+        <span id="run-status" class="badge">run: …</span>
+        <span id="inspector-url" class="muted"></span>
+      </div>
+      <div class="controls">
+        <button id="btn-pause">Pause</button>
+        <button id="btn-resume">Resume</button>
+        <button id="btn-step-over">Step Over</button>
+        <button id="btn-step-into">Step Into</button>
+        <button id="btn-step-out">Step Out</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="frames-section">
+        <h2>Call Frames</h2>
+        <ul id="frames"></ul>
+      </section>
+
+      <section id="scopes-section">
+        <h2>Scopes (top frame)</h2>
+        <div id="scopes"></div>
+      </section>
+
+      <section id="eval-section">
+        <h2>Evaluate</h2>
+        <textarea id="eval-input" placeholder="data.patches[0].path"></textarea>
+        <div class="row">
+          <label>frame: <input id="eval-frame" type="number" value="0" min="0" /></label>
+          <button id="btn-eval">Eval</button>
+        </div>
+        <pre id="eval-output"></pre>
+      </section>
+
+      <section id="console-section">
+        <h2>Console</h2>
+        <pre id="console-log"></pre>
+      </section>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
