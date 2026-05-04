@@ -57,10 +57,13 @@ const CODE_FONT_PX = 12
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 1)
-const COLOR_HIGHLIGHT = new Color(56 / 255, 139 / 255, 253 / 255, 0.16)
+// WebStorm Darcula execution-row: насыщенная синяя плашка по всей ширине строки.
+const COLOR_HIGHLIGHT = new Color(45 / 255, 70 / 255, 97 / 255, 0.85)
+// Жёлто-оранжевая стрелка ▶ + жирный номер — IntelliJ "Execution Point".
+const COLOR_EXEC_ARROW = new Color(255 / 255, 199 / 255, 95 / 255, 1)
 const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
 const COLOR_GUTTER = new Color(110 / 255, 118 / 255, 129 / 255, 0.8)
-const COLOR_GUTTER_HOT = new Color(247 / 255, 129 / 255, 102 / 255, 1)
+const COLOR_GUTTER_HOT = new Color(255 / 255, 199 / 255, 95 / 255, 1)
 const COLOR_GUTTER_RULE = new Color(48 / 255, 54 / 255, 61 / 255, 1)
 
 // Палитра под GitHub Dark / VS Code Dark+ — соответствует категориям из
@@ -101,6 +104,7 @@ export class XrOverlay {
   readonly #lineMaterial: TextMaterial
   readonly #gutterMaterial: TextMaterial
   readonly #gutterHotMaterial: TextMaterial
+  readonly #execArrowMaterial: TextMaterial
   readonly #tokenMaterials: Map<string, TextMaterial> = new Map()
   #physicalHeight = 0.6
   #physicalWidth = 0.6
@@ -118,6 +122,10 @@ export class XrOverlay {
   #scrollOffset = 0  // первый видимый индекс строки в lines (0-based)
   #scrollAccum = 0   // субпиксельный остаток от wheel
   #wheelHandler: ((event: WheelEvent) => void) | null = null
+  #keyHandler: ((event: KeyboardEvent) => void) | null = null
+  #scrollbarThumb: Mesh | null = null
+  #scrollbarTrack: Mesh | null = null
+  #totalLines = 0  // сколько строк сейчас в codeContainer'е (для clamp scroll)
 
   private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont) {
     this.#canvas = canvas
@@ -160,6 +168,7 @@ export class XrOverlay {
     this.#lineMaterial = new TextMaterial({color: COLOR_TEXT})
     this.#gutterMaterial = new TextMaterial({color: COLOR_GUTTER})
     this.#gutterHotMaterial = new TextMaterial({color: COLOR_GUTTER_HOT})
+    this.#execArrowMaterial = new TextMaterial({color: COLOR_EXEC_ARROW})
     for (const [category, color] of Object.entries(TOKEN_COLORS)) {
       this.#tokenMaterials.set(category, new TextMaterial({color}))
     }
@@ -246,6 +255,7 @@ export class XrOverlay {
   start(): void {
     if (this.#disposed) return
     this.#attachWheelListener()
+    this.#attachKeyListener()
     this.handleResize()
   }
 
@@ -254,6 +264,7 @@ export class XrOverlay {
     this.#rafId = null
     this.#renderRequested = false
     this.#detachWheelListener()
+    this.#detachKeyListener()
   }
 
   dispose(): void {
@@ -262,14 +273,22 @@ export class XrOverlay {
   }
 
   setSource(source: XrSource): void {
-    const sourceChanged = this.#current?.location !== source.location
+    const prev = this.#current
     this.#current = source
-    if (sourceChanged) {
-      // Новый файл — центрируем окно вокруг currentLine.
+    // Recentering trigger: location URL изменился (другой файл) ИЛИ currentLine
+    // меняется (step внутри файла) ИЛИ это первый source. Просто проверять
+    // location недостаточно — stub "loading…" имеет тот же location что и
+    // реальный source (полная строка `url:line`), поэтому без отдельного
+    // currentLine-сравнения step не центрировал view.
+    const lineChanged = prev?.currentLine !== source.currentLine
+    const fileChanged = stripLine(prev?.location) !== stripLine(source.location)
+    const shouldRecenter = source.currentLine > 0 && (lineChanged || fileChanged || prev === null)
+    if (shouldRecenter) {
       const visible = this.#visibleLineCount()
       this.#scrollOffset = Math.max(0, source.currentLine - 1 - Math.floor(visible / 2))
     }
     this.#renderLines()
+    this.#applyScroll()
     this.#layoutDirty = true
     this.#requestRender()
   }
@@ -325,18 +344,124 @@ export class XrOverlay {
         this.#scrollAccum = 0
       }
       if (stepLines === 0) return
-      const total = this.#current.lines.length
       const visible = this.#visibleLineCount()
-      const max = Math.max(0, total - visible)
+      const max = Math.max(0, this.#totalLines - visible)
       const next = Math.min(max, Math.max(0, this.#scrollOffset + stepLines))
       if (next === this.#scrollOffset) return
       this.#scrollOffset = next
-      this.#renderLines()
-      this.#layoutDirty = true
+      // Сцена не пересоздаётся — двигаем только сдвиг codeContainer по Y.
+      this.#applyScroll()
       this.#requestRender()
     }
     this.#canvas.addEventListener("wheel", handler, {passive: false})
     this.#wheelHandler = handler
+  }
+
+  #applyScroll(): void {
+    this.#codeContainer.position.y = this.#scrollOffset * LINE_PX * this.#pixelScale
+    this.#codeContainer.updateMatrix()
+    this.#updateScrollbar()
+  }
+
+  #setScroll(next: number): void {
+    const visible = this.#visibleLineCount()
+    const max = Math.max(0, this.#totalLines - visible)
+    const clamped = Math.max(0, Math.min(max, Math.trunc(next)))
+    if (clamped === this.#scrollOffset) return
+    this.#scrollOffset = clamped
+    this.#applyScroll()
+    this.#requestRender()
+  }
+
+  #attachKeyListener(): void {
+    if (this.#keyHandler !== null) return
+    // tabIndex нужен чтобы canvas получал focus и стрелки работали.
+    if (this.#canvas.tabIndex < 0) this.#canvas.tabIndex = 0
+    const handler = (event: KeyboardEvent): void => {
+      if (this.#current === null) return
+      const visible = this.#visibleLineCount()
+      let handled = true
+      switch (event.key) {
+        case "ArrowDown": this.#setScroll(this.#scrollOffset + 1); break
+        case "ArrowUp": this.#setScroll(this.#scrollOffset - 1); break
+        case "PageDown": this.#setScroll(this.#scrollOffset + visible); break
+        case "PageUp": this.#setScroll(this.#scrollOffset - visible); break
+        case "Home": this.#setScroll(0); break
+        case "End": this.#setScroll(this.#totalLines); break
+        case "g":
+          // 'g' = "go to current execution line" (как F2 в WebStorm).
+          if (this.#current.currentLine > 0) {
+            this.#setScroll(this.#current.currentLine - 1 - Math.floor(visible / 2))
+          }
+          break
+        default: handled = false
+      }
+      if (handled) event.preventDefault()
+    }
+    this.#canvas.addEventListener("keydown", handler)
+    this.#keyHandler = handler
+  }
+
+  #detachKeyListener(): void {
+    if (this.#keyHandler !== null) {
+      this.#canvas.removeEventListener("keydown", this.#keyHandler)
+      this.#keyHandler = null
+    }
+  }
+
+  // Тонкий scrollbar справа: track всегда видимый, thumb позиционируется
+  // по scrollOffset. При файлах < visibleLines скрыт.
+  #updateScrollbar(): void {
+    if (this.#current === null) return
+    const visible = this.#visibleLineCount()
+    if (this.#totalLines <= visible) {
+      if (this.#scrollbarTrack !== null) this.#scrollbarTrack.visible = false
+      if (this.#scrollbarThumb !== null) this.#scrollbarThumb.visible = false
+      return
+    }
+    const trackWidthPx = 4
+    const trackWidthWorld = trackWidthPx * this.#pixelScale
+    const trackHeightWorld = this.#contentPixelHeight * this.#pixelScale
+    const trackXPx = this.#contentPixelWidth - trackWidthPx
+    const trackXWorld = trackXPx * this.#pixelScale + trackWidthWorld / 2
+
+    if (this.#scrollbarTrack === null) {
+      this.#scrollbarTrack = new Mesh(
+        new PlaneGeometry({width: trackWidthWorld, height: trackHeightWorld}),
+        new MeshBasicMaterial({color: new Color(48 / 255, 54 / 255, 61 / 255, 0.6)}),
+      )
+      this.#scrollbarTrack.position.z = 0.0015
+      this.#contentContainer.add(this.#scrollbarTrack)
+    } else {
+      this.#scrollbarTrack.geometry = new PlaneGeometry({width: trackWidthWorld, height: trackHeightWorld})
+    }
+    this.#scrollbarTrack.visible = true
+    this.#scrollbarTrack.position.x = trackXWorld
+    this.#scrollbarTrack.position.y = -trackHeightWorld / 2
+    this.#scrollbarTrack.updateMatrix()
+
+    const thumbRatio = visible / this.#totalLines
+    const thumbHeightWorld = Math.max(trackWidthWorld * 4, trackHeightWorld * thumbRatio)
+    const scrollProgress = this.#totalLines === visible
+      ? 0
+      : this.#scrollOffset / (this.#totalLines - visible)
+    const thumbCenterY = -(thumbHeightWorld / 2 +
+      (trackHeightWorld - thumbHeightWorld) * scrollProgress)
+
+    if (this.#scrollbarThumb === null) {
+      this.#scrollbarThumb = new Mesh(
+        new PlaneGeometry({width: trackWidthWorld, height: thumbHeightWorld}),
+        new MeshBasicMaterial({color: new Color(110 / 255, 118 / 255, 129 / 255, 0.85)}),
+      )
+      this.#scrollbarThumb.position.z = 0.0016
+      this.#contentContainer.add(this.#scrollbarThumb)
+    } else {
+      this.#scrollbarThumb.geometry = new PlaneGeometry({width: trackWidthWorld, height: thumbHeightWorld})
+    }
+    this.#scrollbarThumb.visible = true
+    this.#scrollbarThumb.position.x = trackXWorld
+    this.#scrollbarThumb.position.y = thumbCenterY
+    this.#scrollbarThumb.updateMatrix()
   }
 
   #detachWheelListener(): void {
@@ -346,42 +471,37 @@ export class XrOverlay {
     }
   }
 
-  // TODO[engine-ui] переиспользовать row-объекты между фреймами вместо
-  // полного пересоздания (профайлить когда строк станет больше 100).
+  // Рендерим ВЕСЬ файл один раз — content стабилен между скроллами,
+  // wheel меняет только codeContainer.position.y. GPU-буферы Text
+  // переиспользуются glyph-кэшем движка (Text.geometryCache по GID),
+  // повторных аллокаций при scroll нет → не падает Chrome от OOM.
   #renderLines(): void {
     this.#codeContainer.children = []
     this.#hideGutterRule()
+    this.#totalLines = 0
 
     if (this.#current === null) return
     const lines = this.#current.lines
     const currentLine = this.#current.currentLine
     if (lines.length === 0) return
 
-    const maxLines = this.#visibleLineCount()
-    const start = Math.min(
-      Math.max(0, lines.length - maxLines),
-      Math.max(0, this.#scrollOffset),
+    this.#totalLines = lines.length
+    this.#scrollOffset = Math.max(
+      0,
+      Math.min(this.#scrollOffset, Math.max(0, lines.length - this.#visibleLineCount())),
     )
-    this.#scrollOffset = start
-    const end = Math.min(lines.length, start + maxLines)
 
     const lineFontWorld = lineFontWorldFor(this.#pixelScale)
     const gutterPx = this.#gutterWidthPx(lines.length)
     const codeWidthPx = Math.max(1, this.#contentPixelWidth - gutterPx)
     this.#syncGutterRule(gutterPx)
 
-    // Раскладываем строки ВРУЧНУЮ относительно codeContainer (без row-Yoga):
-    //   y = -(i * LINE_PX + lineFontWorld) * scale
-    //   numText.x = right-aligned внутри [0..gutterPx]
-    //   lineText.x = (gutterPx + CODE_LEFT_PAD_PX) * scale
-    // Yoga применяем только к codeContainer (root) — он позиционирует сам
-    // contentContainer относительно карты. Внутри — детерминистичная сетка.
     void codeWidthPx
     const contentWorldW = this.#contentPixelWidth * this.#pixelScale
     const highlightWorldH = LINE_PX * this.#pixelScale
 
-    for (let i = 0; i < end - start; i++) {
-      const lineIndex = start + i
+    for (let i = 0; i < lines.length; i++) {
+      const lineIndex = i
       const lineNo = lineIndex + 1
       const isCurrent = lineNo === currentLine
       const text = lines[lineIndex] ?? ""
@@ -407,6 +527,15 @@ export class XrOverlay {
       numText.position.y = baselineY
       numText.updateMatrix()
       this.#codeContainer.add(numText)
+
+      if (isCurrent) {
+        // IntelliJ "Execution Point": стрелка ▶ перед номером строки.
+        const arrow = new Text("▶", this.#font, lineFontWorld * 0.9, this.#execArrowMaterial)
+        arrow.position.x = (GUTTER_LEFT_PAD_PX * 0.4) * this.#pixelScale
+        arrow.position.y = baselineY
+        arrow.updateMatrix()
+        this.#codeContainer.add(arrow)
+      }
 
       if (text.length > 0) {
         const trimmed = text.length > 200 ? `${text.slice(0, 199)}…` : text
@@ -487,6 +616,14 @@ export class XrOverlay {
   #hideGutterRule(): void {
     this.#gutterRule.visible = false
   }
+}
+
+function stripLine(location: string | undefined): string {
+  if (location === undefined) return ""
+  // location формат `${url}:${line}`. Отрезаем `:line` для file-identity.
+  const idx = location.lastIndexOf(":")
+  if (idx < 0) return location
+  return location.slice(0, idx)
 }
 
 function lineFontWorldFor(pixelScale: number): number {
