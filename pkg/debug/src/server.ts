@@ -174,7 +174,10 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   const server = Bun.serve({
     hostname: options.host,
     port: options.port,
-    development: false,
+    // dev-режим: Bun сам выдаёт `Cache-Control: no-store` для bundle'а и поддерживает
+    // hot-reload — без него браузер залипает на старом chunk'е и фикcы из git
+    // не доезжают до UI.
+    development: true,
     routes: {
       "/": indexHtml,
     },
