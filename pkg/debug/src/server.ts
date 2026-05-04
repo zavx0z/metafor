@@ -174,10 +174,10 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   const server = Bun.serve({
     hostname: options.host,
     port: options.port,
-    // dev-режим: Bun сам выдаёт `Cache-Control: no-store` для bundle'а и поддерживает
-    // hot-reload — без него браузер залипает на старом chunk'е и фикcы из git
-    // не доезжают до UI.
-    development: true,
+    // development: true включает HMR-runtime который ломается на нашей странице
+    // ("Failed to construct 'URL': Invalid URL"). Без него — etag/no-cache
+    // выставляем через <meta> в index.html.
+    development: false,
     routes: {
       "/": indexHtml,
     },
