@@ -82,10 +82,10 @@ Sidecar считает это нормальным состоянием втор
 Поэтому default:
 
 ```text
-AGENT_INITIALIZE_FALLBACK_MS=30000
+AGENT_INITIALIZE_FALLBACK_MS=1500
 ```
 
-То есть sidecar ждёт 30 секунд.
+То есть sidecar ждёт 1.5 секунды.
 Если IDE подключилась первой, она сама разблокирует target.
 Если IDE не подключилась, sidecar разблокирует target сам.
 
@@ -97,20 +97,34 @@ AGENT_INITIALIZE_FALLBACK_MS=0 bun run dark/debug/agent-attach.ts
 
 ## Breakpoint-ы
 
-В Bun 1.3.13 программная установка breakpoint-ов через raw WebSocket ненадёжна.
-Наблюдаемое поведение:
+В Bun 1.3.13 нельзя полагаться на early logical URL breakpoint как на готовую точку остановки.
+Наблюдаемое поведение старой схемы:
 
 - `Debugger.setBreakpointByUrl` может вернуть success
 - Bun может прислать `Debugger.breakpointResolved`
 - но `Debugger.paused` при попадании приходит не всегда
 
-Поэтому правило пакета:
+Рабочая схема sidecar:
 
 ```text
-breakpoint-ами управляет человек в WebStorm/Chrome
+1. сохранить BreakpointSpec из /target/run или POST /breakpoint
+2. дождаться Debugger.scriptParsed для matching url
+3. взять sourceMapURL из scriptParsed
+4. перевести editor line/column в generated line/column
+5. вызвать Debugger.setBreakpoint({ location: { scriptId, lineNumber, columnNumber } })
 ```
 
-Sidecar не пытается быть breakpoint manager.
+`line` в REST API остаётся 1-based строкой исходного `.ts` файла, как в редакторе.
+
+Почему нужен source map:
+
+- Bun исполняет transpiled/generated JavaScript.
+- `Debugger.setBreakpoint` принимает generated coordinates.
+- `Debugger.paused` тоже отдаёт generated coordinates.
+- Sidecar маппит breakpoint туда и snapshot обратно в editor coordinates.
+
+Для human-led workflow всё ещё можно ставить breakpoint-ы руками в WebStorm/Chrome.
+Sidecar при этом только слушает `Debugger.paused` и читает state.
 
 ## Подключение Вторым Клиентом К Уже Остановленному Target
 

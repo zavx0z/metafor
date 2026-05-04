@@ -189,9 +189,30 @@ AGENT_INITIALIZE_FALLBACK_MS=0 bun run dark/debug/agent-attach.ts
 Inspector.initialized
 ```
 
-## Breakpoint Через WS Резолвится, Но Не Останавливает
+## Breakpoint Через setBreakpointByUrl Резолвится, Но Не Останавливает
 
-Это известное flaky-поведение Bun 1.3.13.
+Это известное поведение Bun 1.3.13 для early logical URL breakpoint-ов.
 
-Sidecar не должен программно ставить breakpoint-ы.
-Breakpoint-ы ставит человек в WebStorm/Chrome.
+Правильная схема для sidecar:
+
+1. Не полагаться на `locations: []` из `Debugger.setBreakpointByUrl`.
+2. Дождаться `Debugger.scriptParsed` целевого файла.
+3. Использовать `sourceMapURL`, чтобы перевести editor line в generated line.
+4. Ставить `Debugger.setBreakpoint` по конкретному `scriptId`.
+
+Проверить установленные точки:
+
+```sh
+curl -sS http://127.0.0.1:6500/breakpoints
+```
+
+В event log должно быть:
+
+```text
+breakpoint.installed
+Debugger.paused
+agent.dump.written
+```
+
+Если `breakpoint.installed` есть, но `Debugger.paused` нет, проверить `generatedLocation` в event log:
+скорее всего breakpoint был поставлен без source map или на строку, которая не исполняется.

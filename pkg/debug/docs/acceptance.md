@@ -51,8 +51,8 @@ https://debug.bun.sh/#127.0.0.1:6499/dark
 
 Поставить breakpoint в прикладном коде, например в `dark/server.ts`.
 
-Breakpoint ставит человек.
-Sidecar не должен программно ставить breakpoint.
+В human-led режиме breakpoint ставит человек.
+Sidecar только слушает `Debugger.paused` и пишет snapshot.
 
 ## 5. Дождаться Остановки
 
@@ -95,12 +95,24 @@ cat dark/debug/.agent-state.json
 
 Если Bun снова остановился, sidecar должен автоматически записать новый snapshot.
 
-## Automated Smoke
+## Automated Smoke С REST Breakpoint
 
-Для smoke без ручного debugger можно использовать короткий fallback:
+Для smoke без ручного debugger sidecar может сам запустить target и принять breakpoint:
 
 ```sh
-AGENT_INITIALIZE_FALLBACK_MS=1000 bun run dark/debug/agent-attach.ts
+curl -sS -X POST http://127.0.0.1:6500/target/run \
+  -H 'content-type: application/json' \
+  -d '{
+    "command": [
+      "bun", "test", "dark/server.spec.ts",
+      "--timeout=2147483647",
+      "--inspect-wait=ws://127.0.0.1:6499/dark"
+    ],
+    "cwd": "/absolute/path/to/metafor",
+    "breakpoints": [
+      {"url": "/absolute/path/to/metafor/dark/server.ts", "line": 46}
+    ]
+  }'
 ```
 
 Так проверяется:
@@ -108,6 +120,20 @@ AGENT_INITIALIZE_FALLBACK_MS=1000 bun run dark/debug/agent-attach.ts
 - WebSocket connect
 - handshake
 - `Inspector.initialized`
-- прохождение `--inspect-wait`
+- `Debugger.scriptParsed`
+- source-map mapping editor line -> generated line
+- `Debugger.setBreakpoint` по `scriptId`
+- `Debugger.paused`
+- запись snapshot
+- `Debugger.evaluateOnCallFrame`
+- `Debugger.resume`
 
-Полная проверка `Debugger.paused` требует реальной остановки: human breakpoint, `debugger;` во временном smoke target или `pause` command.
+Минимальная проверка после pause:
+
+```sh
+curl -sS http://127.0.0.1:6500/state
+curl -sS -X POST http://127.0.0.1:6500/eval \
+  -H 'content-type: application/json' \
+  -d '{"frame":0,"expr":"wimp.src"}'
+curl -sS -X POST http://127.0.0.1:6500/resume -d '{}'
+```

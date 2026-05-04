@@ -14,16 +14,22 @@ pkg/debug/
   README.md                пользовательская инструкция
   docs/                    подробная документация
   src/agent.ts             lifecycle процесса, reconnect, inspector initialization
+  src/breakpoints.ts       REST breakpoint registry, scriptId install, remove
   src/commands.ts          stdin NDJSON command loop
+  src/console.ts           захват Console/Runtime console events
   src/config.ts            env parsing и defaults
   src/errors.ts            нормализация ошибок
   src/fs.ts                атомарная запись JSON
   src/guards.ts            runtime parsing WebKit Inspector payloads
   src/inspector-client.ts  WebSocket JSON-RPC client
   src/logger.ts            event log writer
+  src/server.ts            HTTP + WS + web UI server
   src/snapshot.ts          сборка snapshot на Debugger.paused
+  src/source-map.ts        mapping editor/generated coordinates
+  src/target.ts            запуск/остановка target процесса через REST
   src/time.ts              Bun.sleep wrapper
   src/types.ts             inspector и dump types
+  web/                     встроенный browser UI
 ```
 
 ## agent.ts
@@ -43,8 +49,10 @@ pkg/debug/
 
 ```text
 Debugger.scriptParsed -> SnapshotStore.handleScriptParsed
+Debugger.scriptParsed -> BreakpointStore.handleScriptParsed
 Debugger.paused       -> SnapshotStore.handlePaused
 Debugger.resumed      -> SnapshotStore.handleResumed
+Console.*             -> ConsoleLogStore
 ```
 
 ## inspector-client.ts
@@ -67,6 +75,7 @@ Debugger.resumed      -> SnapshotStore.handleResumed
 
 - сохраняет top 5 call frames
 - строит JSON dump
+- переводит generated frame location обратно в editor coordinates через source map
 - разворачивает `local` и `closure` scopes top frame
 - пишет dump атомарно через `tmp + rename`
 
@@ -83,6 +92,41 @@ Runtime.getProperties
 ```
 
 Это нужно для Bun/JSC `DebuggerScope`: локалы часто не являются own properties.
+
+## breakpoints.ts
+
+`src/breakpoints.ts` отвечает только за breakpoint-ы, пришедшие через REST:
+
+- хранит `BreakpointSpec` из `/target/run` или `POST /breakpoint`
+- матчится на `Debugger.scriptParsed` по `url` или `urlRegex`
+- переводит editor coordinates в generated coordinates через `sourceMapURL`
+- ставит `Debugger.setBreakpoint` по конкретному `scriptId`
+- хранит реальные Bun `breakpointId`
+- снимает точки через `Debugger.removeBreakpoint`
+
+Почему не early `Debugger.setBreakpointByUrl`:
+
+```text
+locations: [] + breakpointResolved в Bun 1.3.13 не гарантируют Debugger.paused
+```
+
+## source-map.ts
+
+`src/source-map.ts` — маленькая обёртка над `source-map-js`.
+
+Она нужна в двух местах:
+
+- перед `Debugger.setBreakpoint`: editor line -> generated line
+- при snapshot: generated callFrame location -> editor line
+
+Если source map отсутствует или не парсится, используется noop mapping.
+
+## server.ts И target.ts
+
+`src/server.ts` поднимает REST, WS и web UI.
+
+`src/target.ts` запускает один target-процесс за раз через `Bun.spawn`, буферизует stdout/stderr
+и отдаёт состояние через `GET /target`.
 
 ## commands.ts
 

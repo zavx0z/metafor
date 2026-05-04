@@ -87,7 +87,25 @@ bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/serve
 - визуальным осмотром stack/scope в IDE/browser
 
 Это сделано намеренно.
-В Bun 1.3.13 программная установка breakpoint-ов через raw WebSocket flaky.
+Такой режим нужен для совместной интерактивной отладки: человек ведёт IDE/browser, sidecar читает live state.
+
+## Роль REST Breakpoint-ов
+
+Для automation и smoke sidecar также умеет принимать breakpoint-ы:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/target/run \
+  -H 'content-type: application/json' \
+  -d '{
+    "command": ["bun","test","dark/server.spec.ts","--timeout=2147483647","--inspect-wait=ws://127.0.0.1:6499/dark"],
+    "cwd": "/absolute/path/to/metafor",
+    "breakpoints": [{"url": "/absolute/path/to/metafor/dark/server.ts", "line": 46}]
+  }'
+```
+
+Sidecar не использует flaky early `setBreakpointByUrl`.
+Он ждёт `Debugger.scriptParsed`, маппит editor coordinates через source map и ставит конкретный
+`Debugger.setBreakpoint` по `scriptId`.
 
 ## Роль Sidecar
 
@@ -97,8 +115,7 @@ Sidecar:
 - слушает `Debugger.paused`
 - пишет snapshot
 - выполняет точечные команды `eval`, `props`, `step`, `resume`, `pause`
-
-Sidecar не ставит breakpoint-ы.
+- ставит REST breakpoint-ы по `scriptId` после `Debugger.scriptParsed`, если они переданы через `/target/run` или `POST /breakpoint`
 
 ## Роль Агента В Чате
 

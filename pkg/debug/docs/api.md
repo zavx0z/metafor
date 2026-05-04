@@ -1,8 +1,10 @@
-# Snapshot И NDJSON API
+# Snapshot, REST И NDJSON API
 
-Sidecar имеет два интерфейса:
+Sidecar имеет несколько интерфейсов:
 
 - JSON snapshot file
+- REST API
+- WebSocket `/ws`
 - stdin/stdout NDJSON command stream
 
 ## Snapshot File
@@ -58,6 +60,104 @@ type AgentDump = {
 - object previews не являются глубоким object graph
 
 Для глубокого чтения использовать `eval` или `props`.
+
+## REST API
+
+Default:
+
+```text
+http://127.0.0.1:6500
+```
+
+Основные routes:
+
+```text
+GET    /health
+GET    /state
+GET    /frames
+GET    /scripts
+GET    /events?since=<iso|seq>&limit=<n>
+GET    /console?since=<iso|seq>&limit=<n>
+GET    /source?scriptId=<id>
+GET    /target
+POST   /target/run
+POST   /target/stop
+GET    /breakpoints
+POST   /breakpoint
+DELETE /breakpoint
+POST   /eval
+POST   /props
+POST   /pause
+POST   /resume
+POST   /step
+POST   /inspector
+```
+
+`POST /target/run`:
+
+```json
+{
+  "command": ["bun", "test", "dark/server.spec.ts", "--timeout=2147483647", "--inspect-wait=ws://127.0.0.1:6499/dark"],
+  "cwd": "/absolute/path/to/metafor",
+  "pauseOnStart": false,
+  "breakpoints": [
+    {"url": "/absolute/path/to/metafor/dark/server.ts", "line": 46}
+  ]
+}
+```
+
+Breakpoint shape:
+
+```ts
+type BreakpointSpec = {
+  url?: string
+  urlRegex?: string
+  line: number
+  column?: number
+  condition?: string
+}
+```
+
+`line` — 1-based строка исходного файла, как в редакторе.
+`column` — 0-based колонка.
+Sidecar переводит координаты через `sourceMapURL` из `Debugger.scriptParsed`.
+
+`POST /breakpoint` добавляет breakpoint к уже подключённому target:
+
+```json
+{"url": "/absolute/path/to/metafor/dark/server.ts", "line": 46}
+```
+
+`DELETE /breakpoint` принимает id регистрации или конкретный Bun `breakpointId`:
+
+```json
+{"id": "agent-bp-1"}
+```
+
+```json
+{"breakpointId": "146:26:0"}
+```
+
+## WebSocket `/ws`
+
+`/ws` отдаёт real-time события UI:
+
+- `hello`
+- `connection`
+- `state`
+- `resumed`
+- `script`
+- `console`
+- `inspector-event`
+- `agent-event`
+- `target`
+- `result`
+
+Client может отправлять:
+
+```json
+{"type":"command","cmd":"eval","params":{"frame":0,"expr":"wimp.src"},"requestId":1}
+```
 
 ## Scope Properties
 
@@ -192,7 +292,7 @@ Debugger.pause
 Mapping:
 
 ```text
-over -> Debugger.stepOver
+over -> Debugger.stepNext
 into -> Debugger.stepInto
 out  -> Debugger.stepOut
 ```
