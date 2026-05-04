@@ -39,10 +39,10 @@ export type XrSource = {
   location: string
 }
 
-const PADDING_PX = 12
-const GUTTER_PX = 60
-const LINE_PX = 18
-const CODE_FONT_PX = 13
+const PADDING_PX = 0
+const GUTTER_PX = 110
+const LINE_PX = 32
+const CODE_FONT_PX = 22
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 1)
@@ -372,16 +372,12 @@ export class XrOverlay {
         row.add(hl)
       }
 
-      const gutter = new Object3D()
-      gutter.layout = {width: GUTTER_PX, height: LINE_PX}
-      const numStr = String(lineNo).padStart(4, " ")
-      const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
-      const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
-      numText.position.y = -lineFontWorld
-      numText.updateMatrix()
-      gutter.add(numText)
-      row.add(gutter)
-
+      // Эмпирически: WebGPU + LayoutManager в этом движке инвертирует X
+      // относительно ожиданий (gutter оказывается справа). Пока добавляем
+      // элементы в row в порядке [code, gutter] — после mirror gutter
+      // садится слева, как и положено редактору.
+      // TODO[engine-ui] разобраться с настоящим источником зеркала
+      // (lookAt convention / clip-space) и убрать этот swap.
       const code = new Object3D()
       code.layout = {width: codeWidthPx, height: LINE_PX}
       if (text.length > 0) {
@@ -392,6 +388,16 @@ export class XrOverlay {
         code.add(lineText)
       }
       row.add(code)
+
+      const gutter = new Object3D()
+      gutter.layout = {width: GUTTER_PX, height: LINE_PX}
+      const numStr = String(lineNo).padStart(4, " ")
+      const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
+      const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
+      numText.position.y = -lineFontWorld
+      numText.updateMatrix()
+      gutter.add(numText)
+      row.add(gutter)
 
       this.#codeContainer.add(row)
     }
