@@ -31,6 +31,7 @@ const YOGA_WASM_PATH = (() => {
   return null
 })()
 import {executeCommand, type CommandContext} from "./commands.ts"
+import type {BreakpointStore} from "./breakpoints.ts"
 import type {ConsoleLogStore} from "./console.ts"
 import {serializeError} from "./errors.ts"
 import {asNumber, asObject, asString, asStringArray} from "./guards.ts"
@@ -46,6 +47,7 @@ export type HttpServerOptions = {
   client: InspectorClient
   snapshots: SnapshotStore
   consoleLogs: ConsoleLogStore
+  breakpoints: BreakpointStore
   target: TargetSupervisor
   logger: EventLogger
   eventLogPath: string
@@ -265,6 +267,7 @@ async function handleRoute(
   }
   if (method === "GET" && path === "/events") return jsonResponse(readNdjsonTail(options.eventLogPath, url))
   if (method === "GET" && path === "/console") return jsonResponse(readNdjsonTail(options.consoleLogPath, url))
+  if (method === "GET" && path === "/breakpoints") return jsonResponse(options.breakpoints.registrations)
   if (method === "GET" && path === "/source") return await getScriptSource(url, options)
 
   if (method === "POST" && path === "/eval") return await dispatchPost(req, "eval", ctx)
@@ -322,8 +325,9 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "GET", path: "/target", description: "состояние target-процесса (если запущен через /target/run)"},
     {method: "POST", path: "/target/run", description: "{command, cwd?, env?, pauseOnStart?, breakpoints?:[{url|urlRegex, line(1-based), column?, condition?}]}"},
     {method: "POST", path: "/target/stop", description: "{signal?} — SIGTERM (по умолчанию) → SIGKILL через 3с"},
-    {method: "POST", path: "/breakpoint", description: "{url|urlRegex, line, column?, condition?} — Debugger.setBreakpointByUrl"},
-    {method: "DELETE", path: "/breakpoint", description: "{breakpointId} — Debugger.removeBreakpoint"},
+    {method: "GET", path: "/breakpoints", description: "agent breakpoint registrations + installed Bun breakpointIds"},
+    {method: "POST", path: "/breakpoint", description: "{url|urlRegex, line, column?, condition?} — pending spec + Debugger.setBreakpoint by scriptId on scriptParsed"},
+    {method: "DELETE", path: "/breakpoint", description: "{id|breakpointId} — remove agent registration or concrete Bun breakpointId"},
   ]
 }
 
@@ -335,6 +339,7 @@ function healthPayload(options: HttpServerOptions): JsonObject {
     inspectorError: options.client.lastError ?? null,
     paused: options.snapshots.paused,
     scriptCount: options.snapshots.scripts.length,
+    breakpointCount: options.breakpoints.registrations.length,
     hasDump: options.snapshots.dump !== undefined,
   }
 }
@@ -430,16 +435,18 @@ async function setBreakpoint(req: Request, options: HttpServerOptions): Promise<
   if (url === undefined && urlRegex === undefined) {
     return jsonResponse({ok: false, error: "either url or urlRegex required"}, 400)
   }
-  const params: JsonObject = {lineNumber: Math.max(0, Math.floor(line) - 1)}
-  if (url !== undefined) params["url"] = url
-  else if (urlRegex !== undefined) params["urlRegex"] = urlRegex
   const column = asNumber(body["column"])
-  if (column !== undefined) params["columnNumber"] = column
   const condition = asString(body["condition"])
-  if (condition !== undefined) params["condition"] = condition
+  const spec: import("./target.ts").BreakpointSpec = {line}
+  if (url !== undefined) spec.url = url
+  if (urlRegex !== undefined) spec.urlRegex = urlRegex
+  if (column !== undefined) spec.column = column
+  if (condition !== undefined) spec.condition = condition
+
   try {
-    const result = await options.client.request("Debugger.setBreakpointByUrl", params)
-    return jsonResponse({ok: true, breakpoint: result, spec: body})
+    const registration = options.breakpoints.add(spec)
+    await options.breakpoints.applyToScripts(options.snapshots.scripts)
+    return jsonResponse({ok: true, breakpoint: registration, breakpoints: options.breakpoints.registrations})
   } catch (error) {
     return jsonResponse({ok: false, error: serializeError(error)}, 500)
   }
@@ -455,13 +462,15 @@ async function removeBreakpoint(req: Request, options: HttpServerOptions): Promi
       return jsonResponse({ok: false, error: `invalid JSON: ${serializeError(error)}`}, 400)
     }
   }
+  const id = asString(body["id"])
   const breakpointId = asString(body["breakpointId"])
-  if (breakpointId === undefined) {
-    return jsonResponse({ok: false, error: "breakpointId required (получи его из POST /breakpoint)"}, 400)
+  const idOrBreakpointId = id ?? breakpointId
+  if (idOrBreakpointId === undefined) {
+    return jsonResponse({ok: false, error: "id or breakpointId required (получи его из POST /breakpoint или GET /breakpoints)"}, 400)
   }
   try {
-    await options.client.request("Debugger.removeBreakpoint", {breakpointId})
-    return jsonResponse({ok: true, breakpointId})
+    const removed = await options.breakpoints.remove(idOrBreakpointId)
+    return jsonResponse({ok: true, removed, breakpoints: options.breakpoints.registrations})
   } catch (error) {
     return jsonResponse({ok: false, error: serializeError(error)}, 500)
   }

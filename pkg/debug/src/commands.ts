@@ -212,7 +212,9 @@ async function stepCommand(context: CommandContext, command: JsonObject): Promis
 
   const kind = asString(command["kind"])
   const methodByKind: Record<string, string> = {
-    over: "Debugger.stepOver",
+    // Bun's own debug adapter maps DAP "next" / UI Step Over to
+    // WebKit Inspector's stepNext. stepOver resumes through async code here.
+    over: "Debugger.stepNext",
     into: "Debugger.stepInto",
     out: "Debugger.stepOut",
   }

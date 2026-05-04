@@ -1,5 +1,6 @@
 import {loadConfig, type AgentConfig} from "./config.ts"
 import {readFileCommands, readStdinCommands} from "./commands.ts"
+import {BreakpointStore} from "./breakpoints.ts"
 import {ConsoleLogStore} from "./console.ts"
 import {ensureParentDir} from "./fs.ts"
 import {InspectorClient} from "./inspector-client.ts"
@@ -32,6 +33,10 @@ export async function runAgent(config: AgentConfig = loadConfig()): Promise<neve
     logger,
     consoleLogPath: config.consoleLogPath,
   })
+  const breakpoints = new BreakpointStore({
+    client,
+    logger,
+  })
   const target = new TargetSupervisor(logger)
 
   const runtime = new AgentRuntime({
@@ -40,6 +45,7 @@ export async function runAgent(config: AgentConfig = loadConfig()): Promise<neve
     logger,
     snapshots,
     consoleLogs,
+    breakpoints,
   })
 
   logger.status(`attaching to ${config.inspectorUrl}`)
@@ -65,6 +71,7 @@ export async function runAgent(config: AgentConfig = loadConfig()): Promise<neve
         client,
         snapshots,
         consoleLogs,
+        breakpoints,
         target,
         logger,
         eventLogPath: config.eventLogPath,
@@ -107,6 +114,7 @@ type AgentRuntimeOptions = {
   logger: EventLogger
   snapshots: SnapshotStore
   consoleLogs: ConsoleLogStore
+  breakpoints: BreakpointStore
 }
 
 class AgentRuntime {
@@ -115,6 +123,7 @@ class AgentRuntime {
   #logger: EventLogger
   #snapshots: SnapshotStore
   #consoleLogs: ConsoleLogStore
+  #breakpoints: BreakpointStore
   #initializedFallbackTimer: ReturnType<typeof setTimeout> | undefined
   #httpServer: HttpServer | undefined
   #target: TargetSupervisor | undefined
@@ -126,6 +135,7 @@ class AgentRuntime {
     this.#logger = options.logger
     this.#snapshots = options.snapshots
     this.#consoleLogs = options.consoleLogs
+    this.#breakpoints = options.breakpoints
 
     this.#client.onEvent((method, params) => {
       this.#handleInspectorEvent(method, params)
@@ -201,6 +211,8 @@ class AgentRuntime {
     // через ~300мс — даём 500мс прежде чем будить sleep.
     target.onEvent((event) => {
       if (event.type === "started") {
+        this.#snapshots.reset()
+        this.#breakpoints.reset()
         this.#logger.event("agent.kick_reconnect.scheduled", {reason: "target.started", pid: event.pid})
         setTimeout(() => {
           this.#logger.event("agent.kick_reconnect.fired", {})
@@ -250,31 +262,23 @@ class AgentRuntime {
     await this.#requestSetup("Debugger.setPauseOnDebuggerStatements", {enabled: true})
     await this.#requestSetup("Debugger.setPauseOnExceptions", {state: "none"})
 
-    // Pre-set breakpoints (target запустили с массивом breakpoints через
-    // POST /target/run). Регистрируем сразу после Debugger.enable: Bun ставит
-    // их по url/urlRegex и они срабатывают при будущем scriptParsed с матчем.
+    // Pre-set breakpoints from POST /target/run. Регистрируем spec'и в store,
+    // но НЕ объявляем их через setBreakpointByUrl заранее: в Bun 1.3.13 такой
+    // logical bp резолвится (breakpointResolved), но часто не даёт paused.
+    // Рабочая точка входа — Debugger.scriptParsed: там уже есть scriptId, и
+    // store ставит конкретный breakpoint через Debugger.setBreakpoint.
     const pendingBps = this.#target?.consumePendingBreakpoints() ?? []
-    for (const bp of pendingBps) {
-      const params: JsonObject = {
-        lineNumber: Math.max(0, Math.floor(bp.line) - 1), // line 1-based → 0-based
-      }
-      if (typeof bp.url === "string") params["url"] = bp.url
-      else if (typeof bp.urlRegex === "string") params["urlRegex"] = bp.urlRegex
-      if (typeof bp.column === "number") params["columnNumber"] = bp.column
-      if (typeof bp.condition === "string") params["condition"] = bp.condition
-      try {
-        const result = await this.#client.request("Debugger.setBreakpointByUrl", params)
-        this.#logger.event("inspector.breakpoint.set", {spec: bp, result})
-      } catch (error) {
-        this.#logger.event("inspector.breakpoint.failed", {spec: bp, error: serializeError(error)})
-      }
+    if (pendingBps.length > 0) {
+      const registrations = this.#breakpoints.addMany(pendingBps)
+      this.#logger.event("breakpoint.pending.registered", {count: registrations.length, registrations})
     }
 
-    // Если target был запущен с pauseOnStart, то перед тем как отпустить
-    // --inspect-wait через Inspector.initialized — арм-аем Debugger.pause.
-    // Bun (1.3.13) не отдаёт second client paused-events стабильно, но
-    // Debugger.pause до initialized ловит первую же исполняемую инструкцию.
-    if (this.#target?.consumePauseOnStart() === true) {
+    // Если пользователь попросил pauseOnStart — честно останавливаемся на
+    // старте. Для обычных pre-set bp не армируем Debugger.pause: он стопорит
+    // VM до парсинга целевого модуля, а значит мешает дождаться scriptParsed.
+    const pauseOnStartRequested = this.#target?.consumePauseOnStart() === true
+
+    if (pauseOnStartRequested) {
       this.#logger.event("inspector.pause_on_start.armed", {})
       await this.#requestSetup("Debugger.pause")
     }
@@ -344,6 +348,7 @@ class AgentRuntime {
     switch (method) {
       case "Debugger.scriptParsed":
         this.#snapshots.handleScriptParsed(params)
+        void this.#handleScriptParsedForBreakpoints(params)
         return
       case "Debugger.paused":
         void this.#snapshots.handlePaused(params)
@@ -360,5 +365,14 @@ class AgentRuntime {
       default:
         this.#logger.event("inspector.event", {method})
     }
+  }
+
+  async #handleScriptParsedForBreakpoints(params: JsonObject): Promise<void> {
+    const scriptId = typeof params["scriptId"] === "string" ? params["scriptId"] : undefined
+    const url = typeof params["url"] === "string" ? params["url"] : ""
+    const sourceMapURL = typeof params["sourceMapURL"] === "string" ? params["sourceMapURL"] : undefined
+    if (scriptId === undefined) return
+    const script = {scriptId, url, ...(sourceMapURL === undefined ? {} : {sourceMapURL})}
+    await this.#breakpoints.handleScriptParsed(script)
   }
 }

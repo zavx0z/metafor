@@ -109,16 +109,24 @@ function asRemoteObjectLoose(value: unknown): RemoteObject | undefined {
   const object = asObject(value)
   if (object === undefined) return undefined
 
-  return {
-    type: asString(object["type"]),
-    subtype: asString(object["subtype"]),
-    className: asString(object["className"]),
-    value: object["value"],
-    unserializableValue: asString(object["unserializableValue"]),
-    description: asString(object["description"]),
-    objectId: asString(object["objectId"]),
-    preview: object["preview"],
-  }
+  const remoteObject: RemoteObject = {}
+  const type = asString(object["type"])
+  const subtype = asString(object["subtype"])
+  const className = asString(object["className"])
+  const unserializableValue = asString(object["unserializableValue"])
+  const description = asString(object["description"])
+  const objectId = asString(object["objectId"])
+
+  if (type !== undefined) remoteObject.type = type
+  if (subtype !== undefined) remoteObject.subtype = subtype
+  if (className !== undefined) remoteObject.className = className
+  if (object["value"] !== undefined) remoteObject.value = object["value"]
+  if (unserializableValue !== undefined) remoteObject.unserializableValue = unserializableValue
+  if (description !== undefined) remoteObject.description = description
+  if (objectId !== undefined) remoteObject.objectId = objectId
+  if (object["preview"] !== undefined) remoteObject.preview = object["preview"]
+
+  return remoteObject
 }
 
 function formatRemoteObject(object: RemoteObject): string {

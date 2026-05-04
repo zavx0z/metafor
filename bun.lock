@@ -727,6 +727,17 @@
       "name": "@zavx0z/git-worktree-worktree",
       "version": "0.1.0",
     },
+    "pkg/debug": {
+      "name": "@metafor/bun-debug",
+      "version": "0.0.1",
+      "bin": {
+        "metafor-bun-debug": "./agent-attach.ts",
+        "bun-debug-agent": "./agent-attach.ts",
+      },
+      "dependencies": {
+        "source-map-js": "^1.2.1",
+      },
+    },
     "pkg/engine": {
       "name": "@metafor/engine",
       "version": "1.0.0",
@@ -802,6 +813,8 @@
     "@metafor/boundary": ["@metafor/boundary@workspace:boundary"],
 
     "@metafor/bulk": ["@metafor/bulk@workspace:bulk"],
+
+    "@metafor/bun-debug": ["@metafor/bun-debug@workspace:pkg/debug"],
 
     "@metafor/dark": ["@metafor/dark@workspace:dark"],
 
@@ -1316,6 +1329,8 @@
     "socks-proxy-agent": ["socks-proxy-agent@8.0.5", "", { "dependencies": { "agent-base": "^7.1.2", "debug": "^4.3.4", "socks": "^2.8.3" } }, "sha512-HehCEsotFqbPW9sJ8WVYB6UbmIMv7kUUORIF2Nncq4VQvBfNBLibW9YZR5dlYCSUhwcD628pRllm7n+E+YTzJw=="],
 
     "source-map": ["source-map@0.6.1", "", {}, "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g=="],
+
+    "source-map-js": ["source-map-js@1.2.1", "", {}, "sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA=="],
 
     "store": ["store@workspace:store"],
 

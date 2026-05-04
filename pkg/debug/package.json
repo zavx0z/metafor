@@ -14,6 +14,9 @@
     "metafor-bun-debug": "./agent-attach.ts",
     "bun-debug-agent": "./agent-attach.ts"
   },
+  "dependencies": {
+    "source-map-js": "^1.2.1"
+  },
   "scripts": {
     "agent": "bun run agent-attach.ts",
     "typecheck": "tsc --noEmit --pretty false"

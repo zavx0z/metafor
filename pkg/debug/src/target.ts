@@ -81,9 +81,9 @@ export class TargetSupervisor {
     return true
   }
 
-  // Возвращает и очищает список pre-set breakpoints. AgentRuntime вызывает
-  // это сразу после Debugger.enable, чтобы зарегистрировать их в Bun
-  // (через Debugger.setBreakpointByUrl). Список clearить, чтобы при
+  // Возвращает и очищает список pre-set breakpoints. AgentRuntime регистрирует
+  // specs в BreakpointStore; конкретные Bun breakpoints ставятся позже на
+  // Debugger.scriptParsed по scriptId. Список clearить, чтобы при
   // переподключении не дублировать установку.
   consumePendingBreakpoints(): BreakpointSpec[] {
     const out = this.#pendingBreakpoints

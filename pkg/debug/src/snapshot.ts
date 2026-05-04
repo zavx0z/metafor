@@ -2,6 +2,7 @@ import {atomicWriteJson} from "./fs.ts"
 import {asCallFrames, asObject, asPropertyDescriptors, asString, asStringArray} from "./guards.ts"
 import type {InspectorClient} from "./inspector-client.ts"
 import type {EventLogger} from "./logger.ts"
+import {sourceMapMapper} from "./source-map.ts"
 import type {
   AgentDump,
   CallFrame,
@@ -18,12 +19,17 @@ import {serializeError} from "./errors.ts"
 export type SnapshotPauseHandler = (dump: AgentDump) => void
 export type SnapshotResumeHandler = () => void
 export type ScriptParsedHandler = (scriptId: string, url: string) => void
+export type ScriptInfo = {
+  scriptId: string
+  url: string
+  sourceMapURL?: string
+}
 
 export class SnapshotStore {
   #client: InspectorClient
   #logger: EventLogger
   #dumpPath: string
-  #scriptUrls = new Map<string, string>()
+  #scripts = new Map<string, ScriptInfo>()
   #lastCallFrames: CallFrame[] = []
   #lastDump: AgentDump | undefined
   #paused = false
@@ -54,14 +60,16 @@ export class SnapshotStore {
     return this.#lastDump
   }
 
-  get scripts(): Array<{scriptId: string; url: string}> {
-    const entries: Array<{scriptId: string; url: string}> = []
-    for (const [scriptId, url] of this.#scriptUrls) entries.push({scriptId, url})
-    return entries
+  get scripts(): ScriptInfo[] {
+    return [...this.#scripts.values()]
   }
 
   scriptUrl(scriptId: string): string | undefined {
-    return this.#scriptUrls.get(scriptId)
+    return this.#scripts.get(scriptId)?.url
+  }
+
+  scriptInfo(scriptId: string): ScriptInfo | undefined {
+    return this.#scripts.get(scriptId)
   }
 
   onPause(handler: SnapshotPauseHandler): () => void {
@@ -79,6 +87,15 @@ export class SnapshotStore {
     return () => this.#scriptParsedHandlers.delete(handler)
   }
 
+  reset(): void {
+    this.#scripts.clear()
+    this.#lastCallFrames = []
+    this.#lastDump = undefined
+    this.#paused = false
+    this.#pauseSequence += 1
+    this.#logger.event("snapshot.reset", {})
+  }
+
   markRunning(): void {
     this.#paused = false
   }
@@ -86,11 +103,17 @@ export class SnapshotStore {
   handleScriptParsed(params: JsonObject): void {
     const scriptId = asString(params["scriptId"])
     const url = asString(params["url"]) ?? ""
-    if (scriptId !== undefined) this.#scriptUrls.set(scriptId, url)
+    const sourceMapURL = asString(params["sourceMapURL"])
+    if (scriptId !== undefined) {
+      const info: ScriptInfo = {scriptId, url}
+      if (sourceMapURL !== undefined) info.sourceMapURL = sourceMapURL
+      this.#scripts.set(scriptId, info)
+    }
 
     this.#logger.event("Debugger.scriptParsed", {
       scriptId,
       url,
+      hasSourceMap: sourceMapURL !== undefined && sourceMapURL.length > 0,
     })
 
     if (scriptId !== undefined) {
@@ -170,27 +193,27 @@ export class SnapshotStore {
     if (frame === undefined) return undefined
 
     const scriptId = frame.location?.scriptId
+    const mapped = this.#originalFrameLocation(frame)
     return {
       function: frame.functionName ?? "(anonymous)",
       scriptId,
-      url: scriptId === undefined ? "" : this.#scriptUrls.get(scriptId) ?? "",
-      line: frame.location?.lineNumber === undefined ? undefined : frame.location.lineNumber + 1,
-      column: frame.location?.columnNumber === undefined ? undefined : frame.location.columnNumber + 1,
+      url: scriptId === undefined ? "" : this.#scripts.get(scriptId)?.url ?? "",
+      line: mapped === undefined ? undefined : mapped.line + 1,
+      column: mapped === undefined ? undefined : mapped.column + 1,
     }
   }
 
   #frameSnapshot(index: number, frame: CallFrame): FrameSnapshot {
     const location = frame.location
     const scriptId = location?.scriptId
-    const lineNumber = location?.lineNumber
-    const columnNumber = location?.columnNumber
+    const mapped = this.#originalFrameLocation(frame)
 
     const snapshot: FrameSnapshot = {
       index,
       function: frame.functionName ?? "(anonymous)",
-      url: scriptId === undefined ? "" : this.#scriptUrls.get(scriptId) ?? "",
-      line: typeof lineNumber === "number" ? lineNumber + 1 : 0,
-      column: typeof columnNumber === "number" ? columnNumber + 1 : 0,
+      url: scriptId === undefined ? "" : this.#scripts.get(scriptId)?.url ?? "",
+      line: mapped === undefined ? 0 : mapped.line + 1,
+      column: mapped === undefined ? 0 : mapped.column + 1,
       scopes: {
         local: [],
         closure: [],
@@ -201,6 +224,23 @@ export class SnapshotStore {
     if (frame.callFrameId !== undefined) snapshot.callFrameId = frame.callFrameId
 
     return snapshot
+  }
+
+  #originalFrameLocation(frame: CallFrame): {line: number; column: number} | undefined {
+    const scriptId = frame.location?.scriptId
+    const line = frame.location?.lineNumber
+    const column = frame.location?.columnNumber
+    if (scriptId === undefined || typeof line !== "number") return undefined
+
+    const script = this.#scripts.get(scriptId)
+    const mapped = sourceMapMapper(script?.sourceMapURL).originalLocation({
+      line,
+      column: typeof column === "number" ? column : 0,
+    })
+    return {
+      line: mapped.line,
+      column: mapped.column,
+    }
   }
 
   async #snapshotTopFrameScopes(frame: CallFrame): Promise<FrameSnapshot["scopes"]> {
