@@ -52,6 +52,11 @@ export function tokenize(source: string): SourceTokens {
     source,
   )
 
+  // Стек глубины template-substitution. Когда мы внутри `${...}`, после
+  // CloseBraceToken нужен reScanTemplateToken — иначе scanner глотает всё
+  // до следующего ` как identifier'ы/regex и подсветка едет на следующих
+  // строках.
+  const templateDepth: number[] = []
   let kind = scanner.scan()
   let prevKind: ts.SyntaxKind | undefined
   while (kind !== ts.SyntaxKind.EndOfFileToken) {
@@ -71,6 +76,39 @@ export function tokenize(source: string): SourceTokens {
       kind !== ts.SyntaxKind.MultiLineCommentTrivia
     ) {
       prevKind = kind
+    }
+
+    // Tracking template substitution: TemplateHead открывает substitution,
+    // CloseBrace внутри substitution либо закрывает её (rescan → TemplateTail)
+    // либо переходит к следующей подстановке (rescan → TemplateMiddle).
+    if (kind === ts.SyntaxKind.TemplateHead || kind === ts.SyntaxKind.TemplateMiddle) {
+      templateDepth.push(0)
+    } else if (kind === ts.SyntaxKind.OpenBraceToken && templateDepth.length > 0) {
+      templateDepth[templateDepth.length - 1]! += 1
+    } else if (kind === ts.SyntaxKind.CloseBraceToken && templateDepth.length > 0) {
+      const top = templateDepth[templateDepth.length - 1]!
+      if (top > 0) {
+        templateDepth[templateDepth.length - 1]! = top - 1
+      } else {
+        // Конец substitution: scanner думает что прочитал просто `}` —
+        // перезапускаем сканирование как template-токен.
+        kind = scanner.reScanTemplateToken(/*isTaggedTemplate*/ false)
+        // Категоризируем заново под TemplateMiddle/Tail.
+        const reStart = scanner.getTokenStart()
+        const reEnd = scanner.getTokenEnd()
+        const reText = scanner.getTokenText()
+        const reCategory = categorize(kind, reText, prevKind)
+        if (reCategory !== null && reStart < reEnd) {
+          pushSpan(result, lines, lineOffsets, reStart, reEnd, reCategory)
+        }
+        if (kind === ts.SyntaxKind.TemplateTail) {
+          templateDepth.pop()
+        }
+        // TemplateMiddle оставляет templateDepth текущий уровень — следующая
+        // подстановка снова пройдёт по той же логике.
+        kind = scanner.scan()
+        continue
+      }
     }
 
     kind = scanner.scan()
