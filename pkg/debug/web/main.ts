@@ -4,8 +4,9 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
-import {XrOverlay, type XrSource} from "./xr-overlay.ts"
-import {XrConsole, type XrConsoleEntry} from "./xr-console.ts"
+import {XrCanvas} from "./xr-canvas.ts"
+import {XrSourceCard, type XrSource} from "./xr-source-card.ts"
+import {XrConsoleCard, type XrConsoleEntry} from "./xr-console-card.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -86,12 +87,9 @@ const scopesContainer = $("scopes")
 const evalInput = $<HTMLTextAreaElement>("eval-input")
 const evalFrame = $<HTMLInputElement>("eval-frame")
 const evalOutput = $("eval-output")
-const consoleCanvas = $<HTMLCanvasElement>("engine-console-canvas")
-let consoleOverlay: XrConsole | null = null
-let consoleResizeObserver: ResizeObserver | null = null
 const consolePending: XrConsoleEntry[] = []
 const sourceLoc = $("source-loc")
-type CachedSource = {text: string; tokens?: import("./xr-overlay.ts").XrSourceTokens}
+type CachedSource = {text: string; tokens?: import("./xr-source-card.ts").XrSourceTokens}
 const sourceCache = new Map<string, CachedSource>()
 const connStatus = $("conn-status")
 const verboseSection = $("verbose-section")
@@ -104,12 +102,14 @@ const btnClearVerbose = $<HTMLButtonElement>("btn-clear-verbose")
 const welcomeSection = $("welcome-section")
 const welcomeContent = $("welcome-content")
 const mainEl = document.querySelector("main") as HTMLElement
-const engineCanvas = $<HTMLCanvasElement>("engine-source-canvas")
+const engineCanvas = $<HTMLCanvasElement>("engine-canvas")
 const sourceStatus = $("source-status")
-let engineOverlay: XrOverlay | null = null
-let engineLoading = false
+let xrCanvas: XrCanvas | null = null
+let sourceCard: XrSourceCard | null = null
+let consoleCard: XrConsoleCard | null = null
+let xrLoading = false
 let engineLastSource: XrSource | null = null
-let engineResizeObserver: ResizeObserver | null = null
+let xrResizeObserver: ResizeObserver | null = null
 const scriptUrls = new Map<string, string>()
 let inspectorUrl = ""
 let connectionState: ConnectionState = "connecting"
@@ -580,7 +580,7 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
       const res = await fetch(`/source?scriptId=${encodeURIComponent(scriptId)}`)
       const data = await res.json() as {
         scriptSource?: string
-        tokens?: import("./xr-overlay.ts").XrSourceTokens
+        tokens?: import("./xr-source-card.ts").XrSourceTokens
         error?: string
       }
       if (typeof data.scriptSource !== "string") {
@@ -684,10 +684,10 @@ function escapeHtml(s: string): string {
 function appendConsole(entry: ConsoleEntry): void {
   const xc: XrConsoleEntry = {ts: entry.ts, text: entry.text}
   if (entry.level !== undefined) xc.level = entry.level
-  if (consoleOverlay !== null) {
-    consoleOverlay.pushEntries([xc])
+  if (consoleCard !== null) {
+    consoleCard.pushEntries([xc])
   } else {
-    // overlay ещё не инициализирован — буферизируем, отдадим в init.
+    // карточка ещё не инициализирована — буферизируем.
     consolePending.push(xc)
   }
 }
@@ -760,61 +760,57 @@ const persistedFilter = localStorage.getItem("bd:verbose:filter")
 if (persistedFilter !== null) verboseFilter.value = persistedFilter
 
 connect()
-void initEngineSourceView()
-void initEngineConsole()
+void initEngine()
 
-async function initEngineConsole(): Promise<void> {
-  if (consoleOverlay !== null) return
-  try {
-    consoleOverlay = await XrConsole.create(consoleCanvas)
-    consoleOverlay.start()
-    consoleResizeObserver = new ResizeObserver(() => {
-      if (consoleOverlay !== null) consoleOverlay.handleResize()
-    })
-    consoleResizeObserver.observe(consoleCanvas)
-    if (consolePending.length > 0) {
-      consoleOverlay.pushEntries(consolePending)
-      consolePending.length = 0
-    }
-    // Cmd/Ctrl+C на canvas консоли копирует все записи в буфер обмена.
-    // Без выделения текста в WebGPU canvas (selection не работает на
-    // glyph-меше) клавиатурный copy — самый простой способ.
-    consoleCanvas.tabIndex = 0
-    consoleCanvas.addEventListener("keydown", (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
-        event.preventDefault()
-        const text = consoleOverlay?.toText() ?? ""
-        if (text.length > 0) void navigator.clipboard.writeText(text)
-      }
-    })
-  } catch (error) {
-    // Engine не поднялся — UI продолжает работать, консоль просто не рисуется.
-    console.error("xr-console init failed:", error)
-  }
-}
-
-async function initEngineSourceView(): Promise<void> {
-  if (engineLoading || engineOverlay !== null) return
-  engineLoading = true
+/**
+ * Инициализация единого engine-canvas: один Renderer/Scene на весь viewport
+ * под header. Source-card занимает верхние 60% высоты, console-card — нижние
+ * 40%, между ними gap 14px по краям и между. Pixel-rect карточек считается
+ * по фактическому размеру canvas (XrCanvas вызывает layout-fn на каждом
+ * resize).
+ */
+async function initEngine(): Promise<void> {
+  if (xrLoading || xrCanvas !== null) return
+  xrLoading = true
   sourceStatus.textContent = "engine: init…"
   try {
-    engineOverlay = await XrOverlay.create(engineCanvas)
-    engineOverlay.start()
-    engineResizeObserver = new ResizeObserver(() => {
-      if (engineOverlay !== null) engineOverlay.handleResize()
+    xrCanvas = await XrCanvas.create(engineCanvas)
+    sourceCard = new XrSourceCard()
+    consoleCard = new XrConsoleCard()
+    const GAP = 14
+    const PAD = 14
+    xrCanvas.addCard(sourceCard, ({w, h}) => {
+      const sourceH = Math.floor((h - 2 * PAD - GAP) * 0.6)
+      return {x: PAD, y: PAD, w: Math.max(1, w - 2 * PAD), h: Math.max(1, sourceH)}
     })
-    engineResizeObserver.observe(engineCanvas)
+    xrCanvas.addCard(consoleCard, ({w, h}) => {
+      const sourceH = Math.floor((h - 2 * PAD - GAP) * 0.6)
+      const consoleY = PAD + sourceH + GAP
+      const consoleH = h - consoleY - PAD
+      return {x: PAD, y: consoleY, w: Math.max(1, w - 2 * PAD), h: Math.max(1, consoleH)}
+    })
+    xrResizeObserver = new ResizeObserver(() => xrCanvas?.handleResize())
+    xrResizeObserver.observe(engineCanvas)
+    requestAnimationFrame(() => xrCanvas?.handleResize())
+    setTimeout(() => xrCanvas?.handleResize(), 200)
+    window.addEventListener("resize", () => xrCanvas?.handleResize())
     sourceStatus.textContent = "engine: webgpu"
-    if (engineLastSource !== null) engineOverlay.setSource(engineLastSource)
+
+    if (engineLastSource !== null) sourceCard.setSource(engineLastSource)
+    if (consolePending.length > 0) {
+      consoleCard.pushEntries(consolePending)
+      consolePending.length = 0
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     sourceStatus.textContent = `engine init failed: ${message}`
+    console.error("xr-canvas init failed:", error)
   } finally {
-    engineLoading = false
+    xrLoading = false
   }
 }
 
 function pushSourceToEngine(payload: XrSource): void {
   engineLastSource = payload
-  if (engineOverlay !== null) engineOverlay.setSource(payload)
+  sourceCard?.setSource(payload)
 }

@@ -28,37 +28,24 @@
     </header>
 
     <main>
-      <div class="bg-blob bg-blob-1"></div>
-      <div class="bg-blob bg-blob-2"></div>
-      <div class="bg-blob bg-blob-3"></div>
-      <aside id="left-stack">
-        <section id="frames-section" class="card">
-          <ul id="frames"></ul>
-        </section>
-        <section id="scopes-section" class="card">
-          <div id="scopes"></div>
-        </section>
-        <section id="eval-section" class="card">
-          <textarea id="eval-input" placeholder="data.patches[0].path"></textarea>
-          <div class="row">
-            <label>frame: <input id="eval-frame" type="number" value="0" min="0" /></label>
-            <button id="btn-eval">Eval</button>
-          </div>
-          <pre id="eval-output"></pre>
-        </section>
-      </aside>
-
-      <div id="engine-stack">
-        <section id="source-section" class="card">
-          <span id="source-loc" class="muted"></span>
-          <span id="source-status" class="muted"></span>
-          <canvas id="engine-source-canvas"></canvas>
-        </section>
-
-        <section id="console-section" class="card">
-          <canvas id="engine-console-canvas"></canvas>
-        </section>
-      </div>
+      <canvas id="engine-canvas"></canvas>
+      <!-- HTML overlay'ы поверх engine-canvas (пока не все секции на engine). -->
+      <section id="frames-section" hidden>
+        <ul id="frames"></ul>
+      </section>
+      <section id="scopes-section" hidden>
+        <div id="scopes"></div>
+      </section>
+      <section id="eval-section" hidden>
+        <textarea id="eval-input" placeholder="data.patches[0].path"></textarea>
+        <div class="row">
+          <label>frame: <input id="eval-frame" type="number" value="0" min="0" /></label>
+          <button id="btn-eval">Eval</button>
+        </div>
+        <pre id="eval-output"></pre>
+      </section>
+      <span id="source-loc" class="muted"></span>
+      <span id="source-status" class="muted"></span>
 
       <section id="verbose-section" hidden>
         <h2>

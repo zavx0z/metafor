@@ -96,51 +96,56 @@ button:disabled {
 
 main {
   position: relative;
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 14px;
-  padding: 14px;
   background: var(--bg);
   height: calc(100vh - 49px);
   overflow: hidden;
 }
 
-/* Декоративные blob'ы за карточками — даёт чему "блюрить" backdrop-filter'у. */
+#engine-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Декоративные blob'ы за карточками — даёт чему "блюрить" backdrop-filter'у.
+   Цвета мягкие, не должны просвечивать сквозь карточки явно. */
 .bg-blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
+  filter: blur(120px);
   pointer-events: none;
   z-index: 0;
 }
+/* Blob'ы внутри aside — только под левой стопкой карточек, не под engine.
+   Engine (source+console) — на прозрачном canvas, blob под ним пробивался бы. */
 .bg-blob-1 {
-  top: -120px; left: 20%;
-  width: 480px; height: 480px;
-  background: rgba(36, 64, 164, 0.55);
+  top: -100px; left: -80px;
+  width: 360px; height: 360px;
+  background: rgba(88, 166, 255, 0.45);
 }
 .bg-blob-2 {
-  bottom: -140px; right: 10%;
-  width: 520px; height: 520px;
+  bottom: -120px; right: -100px;
+  width: 400px; height: 400px;
   background: rgba(247, 129, 102, 0.30);
-}
-.bg-blob-3 {
-  top: 30%; right: 35%;
-  width: 380px; height: 380px;
-  background: rgba(88, 166, 255, 0.30);
 }
 
 #left-stack, #engine-stack { position: relative; z-index: 1; }
 
 #left-stack {
+  position: relative;
   display: grid;
   grid-template-rows: minmax(160px, 2fr) minmax(160px, 2fr) minmax(140px, 1fr);
   gap: 12px;
   min-height: 0;
+  /* Aside содержит blob'ы внутри — клипуем чтобы blob не вылезали в engine-zone. */
+  overflow: hidden;
 }
 
 #engine-stack {
   display: grid;
-  grid-template-rows: minmax(280px, 3fr) minmax(140px, 2fr);
+  grid-template-rows: minmax(280px, 2fr) minmax(180px, 1fr);
   gap: 12px;
   min-height: 0;
 }
@@ -148,21 +153,21 @@ main {
 /* --- Vision Pro card --- */
 .card {
   position: relative;
-  background: rgba(22, 27, 34, 0.7);
-  border: 1px solid rgba(99, 110, 130, 0.25);
-  border-radius: 14px;
+  background: rgba(22, 27, 34, 0.88);
+  border: 1px solid rgba(99, 110, 130, 0.30);
+  border-radius: 16px;
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(32px) saturate(160%);
+  -webkit-backdrop-filter: blur(32px) saturate(160%);
   padding: 14px 16px;
   overflow: auto;
   min-height: 0;
 }
 
 .card:hover {
-  border-color: rgba(99, 110, 130, 0.45);
+  border-color: rgba(99, 110, 130, 0.50);
 }
 
 /* Engine-секции — canvas заполняет card, padding=0, чтобы webgpu рисовал
