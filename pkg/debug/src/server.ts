@@ -219,7 +219,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
       const start = Date.now()
       try {
-        const response = await handleRoute(method, path, url, req, options, ctx)
+        const response = await handleRoute(method, path, url, req, options, ctx, broadcast)
         options.logger.event("http.request", {
           method,
           path,
@@ -253,6 +253,7 @@ async function handleRoute(
   req: Request,
   options: HttpServerOptions,
   ctx: CommandContext,
+  broadcast: (payload: JsonObject) => void,
 ): Promise<Response> {
   if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/bun-debug", routes: routeIndex()})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
@@ -282,6 +283,13 @@ async function handleRoute(
   if (method === "POST" && path === "/target/stop") return await stopTarget(req, options)
   if (method === "POST" && path === "/breakpoint") return await setBreakpoint(req, options)
   if (method === "DELETE" && path === "/breakpoint") return await removeBreakpoint(req, options)
+  // Триггер хард-релоада UI у всех подключённых WS-клиентов: используется
+  // когда мы выкатываем правку в bundle и хотим без юзерских Cmd+Shift+R
+  // увидеть свежий код во вкладке.
+  if (method === "POST" && path === "/reload") {
+    broadcast({type: "reload"})
+    return jsonResponse({ok: true})
+  }
 
   if (method === "GET" && path === "/JetBrainsMono-Bold.ttf") {
     return serveStatic(join(WEB_DIR, "JetBrainsMono-Bold.ttf"), "font/ttf")

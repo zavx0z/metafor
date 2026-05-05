@@ -225,6 +225,11 @@ function handleServerMessage(msg: ServerMessage): void {
       pendingRequests.delete(msg.requestId)
       return
   }
+  // Triggered by sidecar `POST /reload` — релоадим вкладку программно,
+  // чтобы я (claude) не зависел от юзерского Cmd+Shift+R при правке кода.
+  if ((msg as {type: string}).type === "reload") {
+    location.reload()
+  }
 }
 
 function applyConnection(info: ConnectionInfo): void {
@@ -771,6 +776,17 @@ async function initEngineConsole(): Promise<void> {
       consoleOverlay.pushEntries(consolePending)
       consolePending.length = 0
     }
+    // Cmd/Ctrl+C на canvas консоли копирует все записи в буфер обмена.
+    // Без выделения текста в WebGPU canvas (selection не работает на
+    // glyph-меше) клавиатурный copy — самый простой способ.
+    consoleCanvas.tabIndex = 0
+    consoleCanvas.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
+        event.preventDefault()
+        const text = consoleOverlay?.toText() ?? ""
+        if (text.length > 0) void navigator.clipboard.writeText(text)
+      }
+    })
   } catch (error) {
     // Engine не поднялся — UI продолжает работать, консоль просто не рисуется.
     console.error("xr-console init failed:", error)

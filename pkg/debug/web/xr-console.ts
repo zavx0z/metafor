@@ -34,14 +34,14 @@ export type XrConsoleEntry = {
 }
 
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
-const LINE_PX = 20
-const FONT_PX = 13
-const TS_FONT_PX = 11
-const PAD_TOP_PX = 28
-const PAD_LEFT_PX = 12
-const PAD_RIGHT_PX = 8
-const PAD_BOTTOM_PX = 6
-const TS_GUTTER_PX = 84 // ширина колонки timestamp под больший шрифт
+const LINE_PX = 22
+const FONT_PX = 14
+const TS_FONT_PX = 12
+const PAD_TOP_PX = 14
+const PAD_LEFT_PX = 14
+const PAD_RIGHT_PX = 14
+const PAD_BOTTOM_PX = 12
+const TS_GUTTER_PX = 92 // ширина колонки timestamp
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 0)
 const COLOR_TS = new Color(110 / 255, 118 / 255, 129 / 255, 0.85)
@@ -83,6 +83,8 @@ export class XrConsole {
   readonly #warnMaterial: TextMaterial
   readonly #errorMaterial: TextMaterial
   readonly #debugMaterial: TextMaterial
+  #scrollbarTrack: Mesh | null = null
+  #scrollbarThumb: Mesh | null = null
 
   #physicalHeight = 0.4
   #physicalWidth = 0.8
@@ -222,6 +224,11 @@ export class XrConsole {
     this.#requestRender()
   }
 
+  /** Возвращает все строки лога одним текстом (timestamp + tab + body). */
+  toText(): string {
+    return this.#entries.map((e) => `${formatTimestamp(e.data.ts)}\t${e.data.text}`).join("\n")
+  }
+
   #appendEntry(entry: XrConsoleEntry): void {
     const tsFontWorld = TS_FONT_PX * this.#pixelScale
     const fontWorld = FONT_PX * this.#pixelScale
@@ -269,7 +276,6 @@ export class XrConsole {
 
   // Раскладываем все entries сверху вниз, с учётом #scrollOffset.
   #applyScroll(): void {
-    const lineHeightWorld = LINE_PX * this.#pixelScale
     const tsXWorld = 0
     const bodyXWorld = TS_GUTTER_PX * this.#pixelScale
     const tsFontWorld = TS_FONT_PX * this.#pixelScale
@@ -286,6 +292,63 @@ export class XrConsole {
       e.body.position.y = rowTopWorld - fontWorld
       e.body.updateMatrix()
     }
+    this.#updateScrollbar()
+  }
+
+  // Тонкий вертикальный скроллбар справа: track всегда виден когда есть
+  // overflow, thumb позиционируется по scrollOffset / maxScroll.
+  #updateScrollbar(): void {
+    const totalHeight = this.#entries.length * LINE_PX
+    const visibleHeight = this.#contentPixelHeight
+    if (totalHeight <= visibleHeight) {
+      if (this.#scrollbarTrack !== null) this.#scrollbarTrack.visible = false
+      if (this.#scrollbarThumb !== null) this.#scrollbarThumb.visible = false
+      return
+    }
+    const trackWidthPx = 4
+    const trackWidthWorld = trackWidthPx * this.#pixelScale
+    const trackHeightWorld = visibleHeight * this.#pixelScale
+    const trackXPx = this.#contentPixelWidth - trackWidthPx
+    const trackXWorld = trackXPx * this.#pixelScale + trackWidthWorld / 2
+    const physicalCardHalfH = this.#physicalHeight / 2
+    const trackTopWorld = physicalCardHalfH - PAD_TOP_PX * this.#pixelScale
+
+    if (this.#scrollbarTrack === null) {
+      this.#scrollbarTrack = new Mesh(
+        new PlaneGeometry({width: trackWidthWorld, height: trackHeightWorld}),
+        new MeshBasicMaterial({color: new Color(48 / 255, 54 / 255, 61 / 255, 0.6)}),
+      )
+      this.#scrollbarTrack.position.z = 0.0015
+      this.#card.add(this.#scrollbarTrack)
+    } else {
+      this.#scrollbarTrack.geometry = new PlaneGeometry({width: trackWidthWorld, height: trackHeightWorld})
+    }
+    this.#scrollbarTrack.visible = true
+    this.#scrollbarTrack.position.x = trackXWorld - this.#physicalWidth / 2 + PAD_LEFT_PX * this.#pixelScale
+    this.#scrollbarTrack.position.y = trackTopWorld - trackHeightWorld / 2
+    this.#scrollbarTrack.updateMatrix()
+
+    const thumbRatio = visibleHeight / totalHeight
+    const thumbHeightWorld = Math.max(trackWidthWorld * 4, trackHeightWorld * thumbRatio)
+    const maxScroll = totalHeight - visibleHeight
+    const scrollProgress = maxScroll === 0 ? 0 : this.#scrollOffset / maxScroll
+    const thumbCenterY = trackTopWorld - thumbHeightWorld / 2 -
+      (trackHeightWorld - thumbHeightWorld) * scrollProgress
+
+    if (this.#scrollbarThumb === null) {
+      this.#scrollbarThumb = new Mesh(
+        new PlaneGeometry({width: trackWidthWorld, height: thumbHeightWorld}),
+        new MeshBasicMaterial({color: new Color(110 / 255, 118 / 255, 129 / 255, 0.85)}),
+      )
+      this.#scrollbarThumb.position.z = 0.0016
+      this.#card.add(this.#scrollbarThumb)
+    } else {
+      this.#scrollbarThumb.geometry = new PlaneGeometry({width: trackWidthWorld, height: thumbHeightWorld})
+    }
+    this.#scrollbarThumb.visible = true
+    this.#scrollbarThumb.position.x = trackXWorld - this.#physicalWidth / 2 + PAD_LEFT_PX * this.#pixelScale
+    this.#scrollbarThumb.position.y = thumbCenterY
+    this.#scrollbarThumb.updateMatrix()
   }
 
   #isAtBottom(): boolean {
