@@ -1,3 +1,9 @@
+/* @metafor/bun-debug — UI styles.
+ * Архитектура: header + один WebGPU-канвас (#engine-canvas) с карточками
+ * внутри. Verbose-секция — правый HTML-сайдбар, остальные legacy-секции
+ * скрыты (canvas-карточки на их месте).
+ */
+
 :root {
   --bg: #0d1117;
   --fg: #e6edf3;
@@ -22,11 +28,12 @@ html, body {
   line-height: 1.45;
 }
 
+/* --- Header (controls bar) --- */
 header {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 8px 16px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--border);
   background: var(--panel);
   position: sticky;
@@ -37,40 +44,19 @@ header {
 header .title {
   font-weight: 700;
   color: var(--accent);
+  font-size: 12px;
 }
 
 header .status {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 header .controls {
   margin-left: auto;
   display: flex;
-  gap: 6px;
-}
-
-.badge {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.badge.live {
-  border-color: #2ea043;
-  color: #2ea043;
-}
-
-.badge.paused {
-  border-color: var(--accent-hot);
-  color: var(--accent-hot);
-}
-
-.muted {
-  color: var(--muted);
+  gap: 4px;
 }
 
 button {
@@ -78,26 +64,48 @@ button {
   color: var(--fg);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 4px 10px;
+  padding: 3px 8px;
   cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11px;
 }
+button:hover { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+.badge {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11px;
+  color: var(--muted);
 }
+.badge.live      { border-color: #2ea043; color: #2ea043; }
+.badge.paused    { border-color: var(--accent-hot); color: var(--accent-hot); }
+.badge.connected   { border-color: #2ea043; color: #2ea043; }
+.badge.connecting  { border-color: var(--accent); color: var(--accent); }
+.badge.disconnected{ border-color: var(--accent-hot); color: var(--accent-hot); }
 
-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.muted { color: var(--muted); }
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
 }
+.toggle.inline { border: none; padding: 0 4px; }
+.toggle input { accent-color: var(--accent); }
 
+/* --- Main: один WebGPU canvas + опциональный verbose-сайдбар --- */
 main {
   position: relative;
   background: var(--bg);
-  height: calc(100vh - 49px);
+  height: calc(100vh - 33px);
   overflow: hidden;
 }
 
@@ -114,288 +122,35 @@ main > [hidden] { display: none !important; }
   display: block;
 }
 
-/* Verbose-section: правый сайдбар поверх canvas. Когда включён Verbose
-   toggle, mainEl получает .with-verbose, тогда canvas сжимается слева. */
+main.with-verbose #engine-canvas { right: 380px; width: auto; }
+
+/* --- Verbose: правый сайдбар, скрыт по умолчанию --- */
 #verbose-section {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 420px;
-  background: rgba(22, 27, 34, 0.94);
+  width: 380px;
+  background: rgba(22, 27, 34, 0.95);
   border-left: 1px solid var(--border);
-  padding: 14px 16px;
+  padding: 10px 12px;
   overflow: hidden;
-  z-index: 2;
-  flex-direction: column;
   display: flex;
+  flex-direction: column;
+  z-index: 2;
 }
 #verbose-section[hidden] { display: none !important; }
-main.with-verbose #engine-canvas { right: 420px; width: auto; }
-
-/* Декоративные blob'ы за карточками — даёт чему "блюрить" backdrop-filter'у.
-   Цвета мягкие, не должны просвечивать сквозь карточки явно. */
-.bg-blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(120px);
-  pointer-events: none;
-  z-index: 0;
-}
-/* Blob'ы внутри aside — только под левой стопкой карточек, не под engine.
-   Engine (source+console) — на прозрачном canvas, blob под ним пробивался бы. */
-.bg-blob-1 {
-  top: -100px; left: -80px;
-  width: 360px; height: 360px;
-  background: rgba(88, 166, 255, 0.45);
-}
-.bg-blob-2 {
-  bottom: -120px; right: -100px;
-  width: 400px; height: 400px;
-  background: rgba(247, 129, 102, 0.30);
-}
-
-#left-stack, #engine-stack { position: relative; z-index: 1; }
-
-#left-stack {
-  position: relative;
-  display: grid;
-  grid-template-rows: minmax(160px, 2fr) minmax(160px, 2fr) minmax(140px, 1fr);
-  gap: 12px;
-  min-height: 0;
-  /* Aside содержит blob'ы внутри — клипуем чтобы blob не вылезали в engine-zone. */
-  overflow: hidden;
-}
-
-#engine-stack {
-  display: grid;
-  grid-template-rows: minmax(280px, 2fr) minmax(180px, 1fr);
-  gap: 12px;
-  min-height: 0;
-}
-
-/* --- Vision Pro card --- */
-.card {
-  position: relative;
-  background: rgba(22, 27, 34, 0.88);
-  border: 1px solid rgba(99, 110, 130, 0.30);
-  border-radius: 16px;
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(32px) saturate(160%);
-  -webkit-backdrop-filter: blur(32px) saturate(160%);
-  padding: 14px 16px;
-  overflow: auto;
-  min-height: 0;
-}
-
-.card:hover {
-  border-color: rgba(99, 110, 130, 0.50);
-}
-
-/* Engine-секции — canvas заполняет card, padding=0, чтобы webgpu рисовал
-   до самих скруглённых краёв через clip-path. */
-#source-section,
-#console-section {
-  padding: 0;
-  overflow: hidden;
-}
-#source-section #engine-source-canvas,
-#console-section #engine-console-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  /* Скругление наследуем от card border-radius. */
-  border-radius: inherit;
-}
-
-#source-loc { font-size: 11px; }
-
-#frames {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-#frames li {
-  padding: 6px 8px;
-  border-radius: 3px;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-#frames li.active {
-  background: var(--panel);
-  border-left: 2px solid var(--accent);
-}
-
-#frames li .fn {
-  color: var(--accent);
-}
-
-#frames li .loc {
-  color: var(--muted);
-  font-size: 11px;
-  margin-left: 8px;
-}
-
-#scopes details {
-  margin-bottom: 6px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  background: var(--panel);
-}
-
-#scopes summary {
-  cursor: pointer;
-  padding: 4px 8px;
-  user-select: none;
-  color: var(--accent);
-  font-size: 12px;
-}
-
-#scopes .props {
-  padding: 4px 12px 8px;
-  font-size: 12px;
-}
-
-#scopes .prop {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  gap: 8px;
-  padding: 1px 0;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-#scopes .prop .name {
-  color: var(--accent);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-#scopes .prop .value {
-  color: var(--fg);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-#scopes .prop .value.string  { color: #a5d6ff; }
-#scopes .prop .value.number  { color: #79c0ff; }
-#scopes .prop .value.boolean { color: #ff7b72; }
-#scopes .prop .value.fn      { color: #d2a8ff; font-style: italic; }
-#scopes .prop .value.obj     { color: #ffa657; }
-
-#eval-input {
-  width: 100%;
-  background: var(--panel);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 8px;
-  font-family: inherit;
-  font-size: 12px;
-  resize: vertical;
-  min-height: 60px;
-}
-
-#eval-section .row {
-  margin: 6px 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-#eval-section input[type="number"] {
-  width: 60px;
-  background: var(--panel);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 2px 6px;
-  font-family: inherit;
-}
-
-#eval-output {
-  white-space: pre-wrap;
-  word-break: break-word;
-  margin: 0;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 8px;
-  font-size: 12px;
-  max-height: 100%;
-  overflow: auto;
-}
-
-/* Console-section: WebGPU canvas без HTML-заголовка. */
-#console-section {
-  position: relative;
-  padding: 0;
-  overflow: hidden;
-}
-#engine-console-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  background: var(--panel);
-}
-
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 2px 6px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-}
-
-.toggle.inline {
-  border: none;
-  padding: 0 4px;
-}
-
-.toggle input {
-  accent-color: var(--accent);
-}
-
-.badge.connected   { border-color: #2ea043; color: #2ea043; }
-.badge.connecting  { border-color: var(--accent); color: var(--accent); }
-.badge.disconnected{ border-color: var(--accent-hot); color: var(--accent-hot); }
-
-#verbose-section {
-  grid-row: 1 / -1;
-  grid-column: 3;
-  border-left: 1px solid var(--border);
-  flex-direction: column;
-}
-
-#verbose-section:not([hidden]) {
-  display: flex;
-}
-
-#verbose-section[hidden] {
-  display: none;
-}
-
 #verbose-section h2 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
 }
-
 #verbose-section h2 input[type="text"] {
   background: var(--panel);
   color: var(--fg);
@@ -404,9 +159,8 @@ main.with-verbose #engine-canvas { right: 420px; width: auto; }
   padding: 2px 6px;
   font-family: inherit;
   font-size: 11px;
-  width: 240px;
+  width: 200px;
 }
-
 #verbose-log {
   flex: 1;
   margin: 0;
@@ -419,120 +173,39 @@ main.with-verbose #engine-canvas { right: 420px; width: auto; }
   white-space: pre-wrap;
   word-break: break-word;
 }
-
-#verbose-log .row {
-  display: block;
-  padding: 1px 0;
-  border-bottom: 1px dashed transparent;
-}
-
+#verbose-log .row { display: block; padding: 1px 0; }
 #verbose-log .row .ts     { color: var(--muted); margin-right: 6px; }
 #verbose-log .row .method { color: var(--accent); }
 #verbose-log .row .params { color: var(--fg); }
-
 #verbose-log .row.agent .method { color: #d2a8ff; }
-#verbose-log .row.error   .method { color: var(--accent-hot); }
+#verbose-log .row.error .method { color: var(--accent-hot); }
 
-main.with-verbose {
-  grid-template-columns: 320px 1fr 420px;
-}
-
+/* --- Welcome (когда нет inspector connection) — занимает весь main. --- */
 #welcome-section {
-  grid-row: 1 / span 4;
-  grid-column: 2;
-  flex-direction: column;
-  align-items: stretch;
-  padding: 24px 32px;
-  overflow: auto;
-}
-
-#welcome-section:not([hidden]) {
-  display: flex;
-}
-
-#welcome-section[hidden] {
-  display: none;
-}
-
-#welcome-content {
-  max-width: 760px;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-#welcome-content h3 {
-  color: var(--accent);
-  margin: 16px 0 6px;
-  font-size: 13px;
-}
-
-#welcome-content code,
-#welcome-content pre {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 1px 6px;
-  font-family: inherit;
-  font-size: 12px;
-  color: var(--fg);
-}
-
-#welcome-content pre {
-  padding: 8px 12px;
-  overflow: auto;
-}
-
-#welcome-content .step {
-  margin: 8px 0;
-}
-
-#welcome-content .pulse {
-  color: var(--accent-hot);
-}
-
-main.welcome #frames-section,
-main.welcome #scopes-section,
-main.welcome #source-section,
-main.welcome #eval-section,
-main.welcome #console-section {
-  display: none;
-}
-
-main.welcome #welcome-section {
-  grid-column: 1 / -1;
-}
-
-#source-section {
-  position: relative;
-  padding: 0;
-  overflow: hidden;
-}
-
-#engine-source-canvas {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
+  background: var(--bg);
+  padding: 24px 32px;
+  overflow: auto;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+}
+#welcome-section[hidden] { display: none !important; }
+#welcome-section h2 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+#welcome-content { font-size: 13px; line-height: 1.6; }
+#welcome-content code {
   background: var(--panel);
-  aspect-ratio: auto;
-}
-
-/* Source-loc/status — overlay поверх engine-canvas как мини-badge с
-   текущей file:line. По центру верха source-section. */
-#source-section #source-loc,
-#source-section #source-status {
-  position: absolute;
-  top: 8px;
-  z-index: 2;
-  pointer-events: none;
-  background: rgba(22, 27, 34, 0.85);
   border: 1px solid var(--border);
-  padding: 3px 8px;
   border-radius: 3px;
-  font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  color: var(--accent);
+  padding: 1px 4px;
+  font-size: 12px;
 }
-#source-section #source-loc { left: 10px; }
-#source-section #source-status { right: 10px; color: var(--muted); }
+#welcome-content .pulse { color: var(--accent-hot); }
