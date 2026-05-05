@@ -39,6 +39,7 @@
   },
   "scripts": {
     "dev": "bun --filter @app/web dev",
+    "debug": "bun run dark/debug/agent-attach.ts",
     "upd": "bun update --latest && bun i",
     "clear": "rm -rf node_modules && bun run --parallel --filter '*' clear",
     "test:all": "bun test",

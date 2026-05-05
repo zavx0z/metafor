@@ -19,6 +19,10 @@
     },
     "app/space": {
       "name": "@app/space",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metafor/engine": "workspace:*",
+      },
       "devDependencies": {
         "@types/node": "^22.10.0",
         "@webgpu/types": "^0.1.50",
