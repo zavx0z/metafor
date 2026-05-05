@@ -1220,7 +1220,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (bind === null) return
 
     const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
-    passEncoder.setBindGroup(1, this.perObjectBindGroup!, [dynamicOffset])
+    const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
+    // perObjectBindGroupLayout имеет два hasDynamicOffset binding'а (perObject
+    // + skinning bones). Атлас-текст skinning не использует, но offset для
+    // bone-buffer всё равно надо передать — иначе validation бросает
+    // "number of dynamic offsets does not match".
+    passEncoder.setBindGroup(1, this.perObjectBindGroup!, [dynamicOffset, boneMatricesOffset])
     passEncoder.setBindGroup(2, bind.bindGroup)
 
     const buffers = this.getOrCreateGeometryBuffers(text.geometry)
