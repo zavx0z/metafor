@@ -146,7 +146,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         paused: options.snapshots.paused,
         dump: options.snapshots.dump ?? null,
         scriptCount: options.snapshots.scripts.length,
-        scripts: options.snapshots.scripts,
+        scripts: scriptsView(options.snapshots.scripts),
         connection: {
           state: options.client.socketState,
           error: options.client.lastError ?? null,
@@ -257,7 +257,7 @@ async function handleRoute(
   if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/bun-debug", routes: routeIndex()})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
   if (method === "GET" && path === "/state") return jsonResponse(options.snapshots.dump ?? null)
-  if (method === "GET" && path === "/scripts") return jsonResponse(options.snapshots.scripts)
+  if (method === "GET" && path === "/scripts") return jsonResponse(scriptsView(options.snapshots.scripts))
   if (method === "GET" && path === "/frames") {
     return jsonResponse({
       paused: options.snapshots.paused,
@@ -369,8 +369,41 @@ async function dispatchPost(req: Request, cmd: string, ctx: CommandContext): Pro
   }
 }
 
+const SOURCE_CACHE_MAX = 32
 const sourceCache = new Map<string, string>()
 const tokenCache = new Map<string, import("./syntax.ts").SourceTokens>()
+
+function lruSet<V>(cache: Map<string, V>, key: string, value: V, max: number): void {
+  if (cache.has(key)) cache.delete(key)
+  cache.set(key, value)
+  while (cache.size > max) {
+    const oldest = cache.keys().next().value
+    if (oldest === undefined) break
+    cache.delete(oldest)
+  }
+}
+
+function lruGet<V>(cache: Map<string, V>, key: string): V | undefined {
+  const value = cache.get(key)
+  if (value === undefined) return undefined
+  cache.delete(key)
+  cache.set(key, value)
+  return value
+}
+
+// Слим-проекция scripts для внешнего API: data-URL sourceMapURL может весить
+// сотни КБ на скрипт; UI и REST потребители знают только про hasSourceMap.
+function scriptsView(scripts: ReadonlyArray<import("./snapshot.ts").ScriptInfo>): Array<{
+  scriptId: string
+  url: string
+  hasSourceMap: boolean
+}> {
+  return scripts.map((s) => ({
+    scriptId: s.scriptId,
+    url: s.url,
+    hasSourceMap: s.sourceMapURL !== undefined && s.sourceMapURL.length > 0,
+  }))
+}
 
 async function runTarget(req: Request, options: HttpServerOptions): Promise<Response> {
   let body: JsonObject = {}
@@ -548,7 +581,7 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
   const fileUrl = options.snapshots.scriptUrl(scriptId)
   const includeTokens = url.searchParams.get("tokens") !== "0"
 
-  const cachedSource = sourceCache.get(scriptId)
+  const cachedSource = lruGet(sourceCache, scriptId)
   if (cachedSource !== undefined) {
     return jsonResponse({
       scriptId,
@@ -562,7 +595,7 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
   try {
     const result = asObject(await options.client.request("Debugger.getScriptSource", {scriptId}))
     const scriptSource = asString(result?.["scriptSource"]) ?? ""
-    if (scriptSource.length > 0) sourceCache.set(scriptId, scriptSource)
+    if (scriptSource.length > 0) lruSet(sourceCache, scriptId, scriptSource, SOURCE_CACHE_MAX)
     return jsonResponse({
       scriptId,
       url: fileUrl ?? "",
@@ -576,14 +609,11 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
 }
 
 function tokensFor(scriptId: string, source: string): import("./syntax.ts").SourceTokens {
-  const cached = tokenCache.get(scriptId)
+  const cached = lruGet(tokenCache, scriptId)
   if (cached !== undefined) return cached
-  // Импорт лениво: ts.createScanner тащит typescript в memory один раз.
-  // Lazy require через import() на require boundary не нужен — typescript
-  // и так лежит в node_modules, оба файла в Bun runtime.
   const {tokenize} = require("./syntax.ts") as typeof import("./syntax.ts")
   const tokens = tokenize(source)
-  tokenCache.set(scriptId, tokens)
+  lruSet(tokenCache, scriptId, tokens, SOURCE_CACHE_MAX)
   return tokens
 }
 

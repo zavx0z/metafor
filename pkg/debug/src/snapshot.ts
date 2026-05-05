@@ -2,7 +2,7 @@ import {atomicWriteJson} from "./fs.ts"
 import {asCallFrames, asObject, asPropertyDescriptors, asString, asStringArray} from "./guards.ts"
 import type {InspectorClient} from "./inspector-client.ts"
 import type {EventLogger} from "./logger.ts"
-import {sourceMapMapper} from "./source-map.ts"
+import {sourceMapMapper, type SourceMapMapper} from "./source-map.ts"
 import type {
   AgentDump,
   CallFrame,
@@ -30,6 +30,7 @@ export class SnapshotStore {
   #logger: EventLogger
   #dumpPath: string
   #scripts = new Map<string, ScriptInfo>()
+  #mappers = new Map<string, SourceMapMapper>()
   #lastCallFrames: CallFrame[] = []
   #lastDump: AgentDump | undefined
   #paused = false
@@ -89,6 +90,7 @@ export class SnapshotStore {
 
   reset(): void {
     this.#scripts.clear()
+    this.#mappers.clear()
     this.#lastCallFrames = []
     this.#lastDump = undefined
     this.#paused = false
@@ -108,6 +110,7 @@ export class SnapshotStore {
       const info: ScriptInfo = {scriptId, url}
       if (sourceMapURL !== undefined) info.sourceMapURL = sourceMapURL
       this.#scripts.set(scriptId, info)
+      this.#mappers.delete(scriptId)
     }
 
     this.#logger.event("Debugger.scriptParsed", {
@@ -232,8 +235,7 @@ export class SnapshotStore {
     const column = frame.location?.columnNumber
     if (scriptId === undefined || typeof line !== "number") return undefined
 
-    const script = this.#scripts.get(scriptId)
-    const mapped = sourceMapMapper(script?.sourceMapURL).originalLocation({
+    const mapped = this.#mapperFor(scriptId).originalLocation({
       line,
       column: typeof column === "number" ? column : 0,
     })
@@ -241,6 +243,14 @@ export class SnapshotStore {
       line: mapped.line,
       column: mapped.column,
     }
+  }
+
+  #mapperFor(scriptId: string): SourceMapMapper {
+    const cached = this.#mappers.get(scriptId)
+    if (cached !== undefined) return cached
+    const built = sourceMapMapper(this.#scripts.get(scriptId)?.sourceMapURL)
+    this.#mappers.set(scriptId, built)
+    return built
   }
 
   async #snapshotTopFrameScopes(frame: CallFrame): Promise<FrameSnapshot["scopes"]> {
