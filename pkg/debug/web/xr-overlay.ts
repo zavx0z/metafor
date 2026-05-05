@@ -18,16 +18,16 @@
  */
 
 import {
-  AtlasText,
-  AtlasTextMaterial,
   Color,
-  FontAtlas,
   Mesh,
   MeshBasicMaterial,
   Object3D,
   PlaneGeometry,
   Renderer,
   Scene,
+  Text,
+  TextMaterial,
+  TrueTypeFont,
   ViewPoint,
 } from "@metafor/engine"
 import {LayoutManager} from "../../engine/src/layout/LayoutManager.ts"
@@ -44,7 +44,7 @@ export type XrSource = {
 }
 
 type CharAnimItem = {
-  obj: AtlasText
+  obj: Text
   finalText: string
   startFraction: number
   settleFraction: number
@@ -76,10 +76,6 @@ const GUTTER_RULE_PX = 1
 const LINE_PX = 18
 const CODE_FONT_PX = 12
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
-const FONT_FAMILY = "JBMonoBold"
-// Базовый размер шрифта для атласа: рендерится в supersampled-разрешении,
-// затем семплируется bilinear-фильтром при любых масштабах.
-const ATLAS_FONT_PX = CODE_FONT_PX
 // Overscan по строкам сверху и снизу видимой области. Window = visible + 2*OVERSCAN.
 // Каждая строка с syntax-токенами ≈ 6 Text-объектов, каждый Text проходит
 // stencil+cover → 12 render-items на строку. Плюс gutter number (×2) + execution
@@ -123,25 +119,13 @@ export class XrOverlay {
     const renderer = new Renderer()
     await renderer.init(canvas)
     renderer.setPixelRatio(window.devicePixelRatio || 1)
-    await ensureFontFaceLoaded(FONT_FAMILY, FONT_URL)
-    const atlas = await FontAtlas.create({
-      fontFamily: FONT_FAMILY,
-      fontPixelSize: ATLAS_FONT_PX,
-      // SDF параметры tiny-sdf. Cutoff = 0.5 кладёт контур глифа точно на
-      // SDF=0.5 (формула tiny-sdf: SDF = 1 - (d/radius + cutoff)) — это
-      // выравнивает с шейдерным smoothstep(0.5 ± fwidth, sdf): контур и
-      // threshold совпадают, halo вокруг букв уходит.
-      glyphPixelSize: 32,
-      buffer: 4,
-      radius: 8,
-      cutoff: 0.5,
-    })
-    return new XrOverlay(canvas, renderer, atlas)
+    const font = await TrueTypeFont.fromUrl(FONT_URL)
+    return new XrOverlay(canvas, renderer, font)
   }
 
   readonly #canvas: HTMLCanvasElement
   readonly #renderer: Renderer
-  readonly #atlas: FontAtlas
+  readonly #font: TrueTypeFont
   readonly #scene: Scene
   readonly #viewPoint: ViewPoint
   readonly #card: Object3D
@@ -150,17 +134,17 @@ export class XrOverlay {
   readonly #contentContainer: Object3D
   readonly #codeContainer: Object3D
   readonly #layoutManager: LayoutManager
-  readonly #lineMaterial: AtlasTextMaterial
-  readonly #gutterMaterial: AtlasTextMaterial
-  readonly #gutterHotMaterial: AtlasTextMaterial
-  readonly #execArrowMaterial: AtlasTextMaterial
-  readonly #tokenMaterials: Map<string, AtlasTextMaterial> = new Map()
-  // Reused объекты для подсветки и стрелки. Один Mesh / один AtlasText на
-  // весь редактор: при смене текущей строки просто меняем pos/visible.
-  // Без этого каждый renderLines создавал бы новые PlaneGeometry+Material и
-  // GPU-память росла на каждый step.
+  readonly #lineMaterial: TextMaterial
+  readonly #gutterMaterial: TextMaterial
+  readonly #gutterHotMaterial: TextMaterial
+  readonly #execArrowMaterial: TextMaterial
+  readonly #tokenMaterials: Map<string, TextMaterial> = new Map()
+  // Reused объекты для подсветки и стрелки. Один Mesh / один Text на весь
+  // редактор: при смене текущей строки просто меняем pos/visible. Без этого
+  // каждый renderLines создавал бы новые PlaneGeometry+Material и GPU-память
+  // росла на каждый step.
   readonly #execHighlight: Mesh
-  readonly #execArrow: AtlasText
+  readonly #execArrow: Text
   #physicalHeight = 0.6
   #physicalWidth = 0.6
   #pixelWidth = 600
@@ -195,10 +179,10 @@ export class XrOverlay {
   #animActive = false
   #animRunId = 0
 
-  private constructor(canvas: HTMLCanvasElement, renderer: Renderer, atlas: FontAtlas) {
+  private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont) {
     this.#canvas = canvas
     this.#renderer = renderer
-    this.#atlas = atlas
+    this.#font = font
 
     this.#scene = new Scene()
     this.#scene.background = new Color(0, 0, 0, 0)
@@ -236,21 +220,23 @@ export class XrOverlay {
     this.#gutterRule.position.z = 0.001
 
     this.#layoutManager = new LayoutManager()
-    this.#lineMaterial = new AtlasTextMaterial({atlas, color: COLOR_TEXT})
-    this.#gutterMaterial = new AtlasTextMaterial({atlas, color: COLOR_GUTTER})
-    this.#gutterHotMaterial = new AtlasTextMaterial({atlas, color: COLOR_GUTTER_HOT})
-    this.#execArrowMaterial = new AtlasTextMaterial({atlas, color: COLOR_EXEC_ARROW})
+    this.#lineMaterial = new TextMaterial({color: COLOR_TEXT})
+    this.#gutterMaterial = new TextMaterial({color: COLOR_GUTTER})
+    this.#gutterHotMaterial = new TextMaterial({color: COLOR_GUTTER_HOT})
+    this.#execArrowMaterial = new TextMaterial({color: COLOR_EXEC_ARROW})
     for (const [category, color] of Object.entries(TOKEN_COLORS)) {
-      this.#tokenMaterials.set(category, new AtlasTextMaterial({atlas, color}))
+      this.#tokenMaterials.set(category, new TextMaterial({color}))
     }
-    // Создаём reused execution-highlight + arrow один раз.
+    // Создаём reused execution-highlight + arrow один раз. Highlight Mesh
+    // переиспользуется (move + visible), arrow Text — рендерится с фиксированным
+    // символом ▶, на смену строки только pos меняется.
     this.#execHighlight = new Mesh(
       new PlaneGeometry({width: 1, height: 1}),
       new MeshBasicMaterial({color: COLOR_HIGHLIGHT}),
     )
     this.#execHighlight.visible = false
     this.#execHighlight.position.z = -0.005
-    this.#execArrow = new AtlasText("▶", this.#execArrowMaterial, CODE_FONT_PX * 0.9)
+    this.#execArrow = new Text("▶", this.#font, CODE_FONT_PX * 0.9, this.#execArrowMaterial)
     this.#execArrow.visible = false
 
     this.#contentContainer = new Object3D()
@@ -330,6 +316,16 @@ export class XrOverlay {
       alignItems: "stretch",
     }
 
+    // Arrow живёт через все renderLines — пересобираем его геометрию только
+    // на resize, когда меняется pixelScale → world-fontSize.
+    const arrowFontWorld = lineFontWorldFor(this.#pixelScale) * 0.9
+    if (this.#execArrow.fontSize !== arrowFontWorld) {
+      this.#execArrow.fontSize = arrowFontWorld
+      this.#execArrow.updateGeometry()
+      this.#renderer.invalidateGeometry(this.#execArrow.stencilGeometry)
+      this.#renderer.invalidateGeometry(this.#execArrow.coverGeometry)
+    }
+
     if (this.#current !== null) this.#renderLines()
     this.#layoutDirty = true
     this.#requestRender()
@@ -398,8 +394,8 @@ export class XrOverlay {
     const lineHeight = LINE_PX * this.#pixelScale
 
     for (const obj of newObjs) {
-      const text = obj as AtlasText
-      if (text.isAtlasText !== true) continue
+      const text = obj as Text
+      if (text.isText !== true) continue
       if (text.name !== "gutter" && text.name !== "code" && text.name !== "arrow") continue
       const finalText = text.text
       if (finalText.length === 0) continue
@@ -479,10 +475,14 @@ export class XrOverlay {
   // Renderer.geometryCache нужно инвалидировать, чтобы он перезагрузил
   // GPUBuffer'ы с новым содержимым (старые destroy'ятся внутри
   // invalidateGeometry).
-  #applyTextChange(text: AtlasText, nextText: string): void {
+  // Text.updateGeometry() мутирует существующие BufferGeometry, поэтому
+  // Renderer.geometryCache нужно сбросить по reference после замены.
+  #applyTextChange(text: Text, nextText: string): void {
     if (text.text === nextText) return
-    text.setText(nextText)
-    this.#renderer.invalidateGeometry(text.geometry)
+    text.text = nextText
+    text.updateGeometry()
+    this.#renderer.invalidateGeometry(text.stencilGeometry)
+    this.#renderer.invalidateGeometry(text.coverGeometry)
     text.updateMatrix()
   }
 
@@ -754,19 +754,18 @@ export class XrOverlay {
         this.#execHighlight.position.z = -0.005
         this.#execHighlight.visible = true
         this.#execHighlight.updateMatrix()
-        // Reused arrow: переставляем pos и кладём в нужный baseline.
-        this.#execArrow.setFontSize(lineFontWorld * 0.9)
+        // Reused arrow: переставляем pos. fontSize устанавливается в
+        // handleResize, чтобы не пересобирать геометрию на каждый renderLines.
         this.#execArrow.position.x = (GUTTER_LEFT_PAD_PX * 0.4) * this.#pixelScale
         this.#execArrow.position.y = baselineY
         this.#execArrow.visible = true
         this.#execArrow.updateMatrix()
-        this.#renderer.invalidateGeometry(this.#execArrow.geometry)
         highlightPlaced = true
       }
 
       const numStr = String(lineNo)
       const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
-      const numText = new AtlasText(numStr, numMaterial, lineFontWorld)
+      const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
       numText.name = "gutter"
       numText.position.x = this.#lineNumberX(numStr, gutterPx, lineFontWorld)
       numText.position.y = baselineY
@@ -780,7 +779,7 @@ export class XrOverlay {
         if (lineTokens !== undefined && lineTokens.length > 0) {
           this.#renderTokenizedLine(trimmed, lineTokens, codeStartX, baselineY, lineFontWorld)
         } else {
-          const lineText = new AtlasText(trimmed, this.#lineMaterial, lineFontWorld)
+          const lineText = new Text(trimmed, this.#font, lineFontWorld, this.#lineMaterial)
           lineText.name = "code"
           lineText.position.x = codeStartX
           lineText.position.y = baselineY
@@ -797,9 +796,8 @@ export class XrOverlay {
     return [...this.#codeContainer.children]
   }
 
-  // Рендерит одну строку как последовательность AtlasText'ов по категориям
-  // токенов. Между токенами идут промежутки (whitespace, не-описанные
-  // диапазоны) — их рисуем как 'd' (default).
+  // Рендерит одну строку как последовательность Text-объектов по категориям
+  // токенов. Whitespace и неописанные диапазоны идут как 'd' (default).
   #renderTokenizedLine(
     text: string,
     tokens: XrToken[],
@@ -809,17 +807,17 @@ export class XrOverlay {
   ): void {
     let cursor = 0
     let cursorX = startX
-    const advance = this.#advanceWorld(fontSize)
     const placeChunk = (chunkText: string, category: string): void => {
       if (chunkText.length === 0) return
-      const width = chunkText.length * advance
-      // Whitespace-only чанки: cursor пропихиваем без создания Text-объекта.
+      const width = measureTextWorld(chunkText, this.#font, fontSize)
+      // Whitespace-only чанки: cursor пропихиваем без создания Text-объекта
+      // (Text внутри пропускает ' ' через continue, Mesh.draw(0) даст WebGPU warning).
       if (chunkText.trim().length === 0) {
         cursorX += width
         return
       }
       const material = this.#tokenMaterials.get(category) ?? this.#lineMaterial
-      const t = new AtlasText(chunkText, material, fontSize)
+      const t = new Text(chunkText, this.#font, fontSize, material)
       t.name = "code"
       t.position.x = cursorX
       t.position.y = baselineY
@@ -837,22 +835,17 @@ export class XrOverlay {
     if (cursor < text.length) placeChunk(text.slice(cursor), "d")
   }
 
-  #advanceWorld(fontSize: number): number {
-    // Моноширный → ширина advance = atlas.logicalAdvance * (fontSize / atlas.fontPixelSize).
-    return this.#atlas.logicalAdvance * (fontSize / this.#atlas.fontPixelSize)
-  }
-
   #gutterWidthPx(lineCount: number): number {
     const digits = Math.max(2, String(Math.max(1, lineCount)).length)
-    const advancePx = this.#atlas.logicalAdvance * (CODE_FONT_PX / this.#atlas.fontPixelSize)
+    const digitWidthPx = measureTextWorld("8", this.#font, lineFontWorldFor(this.#pixelScale)) / this.#pixelScale
     return Math.ceil(Math.max(
       GUTTER_MIN_PX,
-      GUTTER_LEFT_PAD_PX + advancePx * digits + GUTTER_RIGHT_PAD_PX,
+      GUTTER_LEFT_PAD_PX + digitWidthPx * digits + GUTTER_RIGHT_PAD_PX,
     ))
   }
 
   #lineNumberX(text: string, gutterPx: number, fontSizeWorld: number): number {
-    const widthWorld = text.length * this.#advanceWorld(fontSizeWorld)
+    const widthWorld = measureTextWorld(text, this.#font, fontSizeWorld)
     const rightEdgeWorld = (gutterPx - GUTTER_RIGHT_PAD_PX) * this.#pixelScale
     const leftInsetWorld = GUTTER_LEFT_PAD_PX * this.#pixelScale
     return Math.max(leftInsetWorld, rightEdgeWorld - widthWorld)
@@ -872,7 +865,7 @@ export class XrOverlay {
     this.#gutterRule.visible = false
   }
 
-  // Перед перестройкой строк: освобождаем GPU-буферы предыдущих AtlasText/Mesh.
+  // Перед перестройкой строк: освобождаем GPU-буферы предыдущих Text/Mesh.
   // Renderer.geometryCache — это Map<BufferGeometry, GeometryBuffers> с
   // strong reference на ключ. Без явного invalidateGeometry старые
   // BufferGeometry (вместе с GPUBuffer'ами) живут до GC и копят native-память.
@@ -882,9 +875,10 @@ export class XrOverlay {
   #disposeCodeChildren(): void {
     for (const child of this.#codeContainer.children) {
       if (child === this.#execHighlight || child === this.#execArrow) continue
-      const at = child as AtlasText
-      if (at.isAtlasText === true) {
-        this.#renderer.invalidateGeometry(at.geometry)
+      const text = child as Text
+      if (text.isText === true) {
+        if (text.stencilGeometry !== undefined) this.#renderer.invalidateGeometry(text.stencilGeometry)
+        if (text.coverGeometry !== undefined) this.#renderer.invalidateGeometry(text.coverGeometry)
         continue
       }
       const mesh = child as Mesh
@@ -897,26 +891,6 @@ export class XrOverlay {
   }
 }
 
-// FontFace API: грузим .ttf и регистрируем под нужным family-именем,
-// чтобы Canvas2D в FontAtlas мог рисовать `ctx.font = "Npx <family>"`.
-// Если family уже зарегистрирован (повторный вызов), просто ждём готовности
-// document.fonts и выходим — повторная регистрация безопасна, но избыточна.
-async function ensureFontFaceLoaded(family: string, url: string): Promise<void> {
-  if (typeof document === "undefined") return
-  const doc = document as Document & {fonts?: FontFaceSet}
-  const fontsApi = doc.fonts
-  if (fontsApi === undefined) return
-  // Шорткат: если уже доступно — не грузим повторно.
-  if (typeof fontsApi.check === "function" && fontsApi.check(`12px ${family}`)) {
-    await fontsApi.ready
-    return
-  }
-  const face = new FontFace(family, `url(${url})`)
-  await face.load()
-  fontsApi.add(face)
-  await fontsApi.ready
-}
-
 function stripLine(location: string | undefined): string {
   if (location === undefined) return ""
   // location формат `${url}:${line}`. Отрезаем `:line` для file-identity.
@@ -927,4 +901,19 @@ function stripLine(location: string | undefined): string {
 
 function lineFontWorldFor(pixelScale: number): number {
   return CODE_FONT_PX * pixelScale
+}
+
+function measureTextWorld(text: string, font: TrueTypeFont, fontSize: number): number {
+  const scale = fontSize / font.unitsPerEm
+  const letterSpacing = fontSize * 0.05
+  let width = 0
+  for (const char of text) {
+    if (char === " ") {
+      width += font.unitsPerEm * 0.3 * scale
+      continue
+    }
+    const gid = font.mapCharToGlyph(char.codePointAt(0)!)
+    width += font.getHMetric(gid).advanceWidth * scale + letterSpacing
+  }
+  return width
 }
