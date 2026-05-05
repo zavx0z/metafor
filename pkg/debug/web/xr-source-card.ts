@@ -366,7 +366,14 @@ export class XrSourceCard implements XrCard {
     const highlightWorldH = LINE_PX * this.#pixelScale
 
     let highlightPlaced = false
+    // Clip-check: пропускаем строки которые после applyScroll окажутся выше
+    // верха или ниже низа card-а (overscan-область вне visible). Без этого
+    // строки overscan видны через прозрачный canvas за пределами card-rect.
+    const scrollOffsetWindow = this.#scrollOffset - this.#windowStart
+    const visibleTop = scrollOffsetWindow - 1   // 1 запас сверху
+    const visibleBottom = scrollOffsetWindow + visible + 1  // запас снизу
     for (let i = 0; i < windowEnd - this.#windowStart; i++) {
+      if (i < visibleTop || i > visibleBottom) continue
       const lineIndex = this.#windowStart + i
       const lineNo = lineIndex + 1
       const isCurrent = lineNo === currentLine
