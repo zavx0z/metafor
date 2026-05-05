@@ -30,16 +30,19 @@ export type XrConsoleEntry = {
 const LINE_PX = 16
 const FONT_PX = 12
 const TS_FONT_PX = 10
-const PAD_TOP_PX = 8
+const PAD_TOP_PX = 34
 const PAD_LEFT_PX = 8
 const PAD_RIGHT_PX = 8
 const PAD_BOTTOM_PX = 6
+const HEADER_H_PX = 28
 const TS_GUTTER_PX = 70
 
 const COLOR_BG = new Color(28 / 255, 34 / 255, 42 / 255, 1.0)
-const COLOR_BORDER = new Color(99 / 255, 110 / 255, 130 / 255, 1.0)
+const COLOR_BORDER = new Color(180 / 255, 195 / 255, 220 / 255, 1.0)
+const COLOR_HEADER_RULE = new Color(62 / 255, 74 / 255, 92 / 255, 1.0)
 const COLOR_TS = new Color(110 / 255, 118 / 255, 129 / 255, 0.85)
 const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
+const COLOR_TITLE = new Color(111 / 255, 211 / 255, 255 / 255, 1)
 const COLOR_WARN = new Color(210 / 255, 153 / 255, 34 / 255, 1)
 const COLOR_ERROR = new Color(247 / 255, 129 / 255, 102 / 255, 1)
 const COLOR_DEBUG = new Color(139 / 255, 148 / 255, 158 / 255, 1)
@@ -60,7 +63,11 @@ export class XrConsoleCard implements XrCard {
   readonly #borderBottom: Mesh
   readonly #borderLeft: Mesh
   readonly #borderRight: Mesh
+  readonly #headerRule: Mesh
   readonly #logContainer: Object3D
+  #titleText: Text | null = null
+  #counterText: Text | null = null
+  #emptyText: Text | null = null
 
   #canvas: XrCanvas | null = null
   #font: TrueTypeFont | null = null
@@ -75,6 +82,7 @@ export class XrConsoleCard implements XrCard {
   #scrollbarThumb: Mesh | null = null
 
   #tsMaterial = new TextMaterial({color: COLOR_TS})
+  #titleMaterial = new TextMaterial({color: COLOR_TITLE})
   #infoMaterial = new TextMaterial({color: COLOR_TEXT})
   #warnMaterial = new TextMaterial({color: COLOR_WARN})
   #errorMaterial = new TextMaterial({color: COLOR_ERROR})
@@ -97,6 +105,13 @@ export class XrConsoleCard implements XrCard {
       m.position.z = -0.001
       this.node.add(m)
     }
+
+    this.#headerRule = new Mesh(
+      new PlaneGeometry({width: 1, height: 1}),
+      new MeshBasicMaterial({color: COLOR_HEADER_RULE}),
+    )
+    this.#headerRule.position.z = 0.001
+    this.node.add(this.#headerRule)
 
     this.#logContainer = new Object3D()
     this.#logContainer.position.z = 0.001
@@ -121,7 +136,7 @@ export class XrConsoleCard implements XrCard {
     this.#background.updateMatrix()
 
     // Borders 1px.
-    const bw = 2 * pixelScale
+    const bw = 3 * pixelScale
     const cw = rect.w * pixelScale
     const ch = rect.h * pixelScale
     this.#borderTop.geometry = new PlaneGeometry({width: cw, height: bw})
@@ -141,6 +156,7 @@ export class XrConsoleCard implements XrCard {
     this.#borderRight.position.y = -ch / 2
     this.#borderRight.updateMatrix()
 
+    this.#syncHeader()
     if (this.#pendingEntries.length > 0) {
       const items = this.#pendingEntries
       this.#pendingEntries = []
@@ -164,6 +180,7 @@ export class XrConsoleCard implements XrCard {
     }
     if (wasAtBottom) this.#scrollToBottom()
     this.#applyScroll()
+    this.#syncHeader()
     this.#canvas?.requestRender()
   }
 
@@ -172,6 +189,7 @@ export class XrConsoleCard implements XrCard {
     this.#entries = []
     this.#scrollOffset = 0
     this.#applyScroll()
+    this.#syncHeader()
     this.#canvas?.requestRender()
   }
 
@@ -202,6 +220,39 @@ export class XrConsoleCard implements XrCard {
   dispose(): void {
     for (const entry of this.#entries) this.#disposeEntry(entry)
     this.#entries = []
+    this.#disposeHeaderText()
+  }
+
+  #syncHeader(): void {
+    if (this.#font === null) return
+    this.#disposeHeaderText()
+
+    const ruleH = 1 * this.#pixelScale
+    this.#headerRule.geometry = new PlaneGeometry({width: Math.max(1, this.#rectW - 16) * this.#pixelScale, height: ruleH})
+    this.#headerRule.position.x = (this.#rectW / 2) * this.#pixelScale
+    this.#headerRule.position.y = -HEADER_H_PX * this.#pixelScale
+    this.#headerRule.visible = true
+    this.#headerRule.updateMatrix()
+
+    this.#titleText = new Text("Console / Target", this.#font, 13 * this.#pixelScale, this.#titleMaterial)
+    this.#titleText.position.x = 12 * this.#pixelScale
+    this.#titleText.position.y = -20 * this.#pixelScale
+    this.#titleText.updateMatrix()
+    this.node.add(this.#titleText)
+
+    this.#counterText = new Text(`${this.#entries.length} lines`, this.#font, 11 * this.#pixelScale, this.#tsMaterial)
+    this.#counterText.position.x = Math.max(150, this.#rectW - 90) * this.#pixelScale
+    this.#counterText.position.y = -20 * this.#pixelScale
+    this.#counterText.updateMatrix()
+    this.node.add(this.#counterText)
+
+    if (this.#entries.length === 0) {
+      this.#emptyText = new Text("waiting for target stdout/stderr...", this.#font, 12 * this.#pixelScale, this.#tsMaterial)
+      this.#emptyText.position.x = 12 * this.#pixelScale
+      this.#emptyText.position.y = -(PAD_TOP_PX + 24) * this.#pixelScale
+      this.#emptyText.updateMatrix()
+      this.node.add(this.#emptyText)
+    }
   }
 
   #contentH(): number {
@@ -253,13 +304,16 @@ export class XrConsoleCard implements XrCard {
     const bodyXWorld = (PAD_LEFT_PX + TS_GUTTER_PX) * this.#pixelScale
     const tsFontWorld = TS_FONT_PX * this.#pixelScale
     const fontWorld = FONT_PX * this.#pixelScale
-    const lineHeightWorld = LINE_PX * this.#pixelScale
-    const padTopWorld = PAD_TOP_PX * this.#pixelScale
-    const scrollWorld = this.#scrollOffset * this.#pixelScale
+    const contentBottomPx = Math.max(PAD_TOP_PX, this.#rectH - PAD_BOTTOM_PX)
 
     for (let i = 0; i < this.#entries.length; i++) {
       const e = this.#entries[i]!
-      const rowTopWorld = -(padTopWorld + i * lineHeightWorld) + scrollWorld
+      const rowTopPx = PAD_TOP_PX + i * LINE_PX - this.#scrollOffset
+      const visible = rowTopPx >= PAD_TOP_PX - LINE_PX && rowTopPx <= contentBottomPx
+      e.ts.visible = visible
+      e.body.visible = visible
+      if (!visible) continue
+      const rowTopWorld = -rowTopPx * this.#pixelScale
       e.ts.position.x = tsXWorld
       e.ts.position.y = rowTopWorld - tsFontWorld
       e.ts.updateMatrix()
@@ -342,6 +396,22 @@ export class XrConsoleCard implements XrCard {
     this.#scrollOffset = clamped
     this.#applyScroll()
     this.#canvas?.requestRender()
+  }
+
+  #disposeHeaderText(): void {
+    const renderer = this.#canvas?.renderer
+    for (const text of [this.#titleText, this.#counterText, this.#emptyText]) {
+      if (text === null) continue
+      if (renderer !== undefined) {
+        renderer.invalidateGeometry(text.stencilGeometry)
+        renderer.invalidateGeometry(text.coverGeometry)
+      }
+      const idx = this.node.children.indexOf(text)
+      if (idx >= 0) this.node.children.splice(idx, 1)
+    }
+    this.#titleText = null
+    this.#counterText = null
+    this.#emptyText = null
   }
 }
 

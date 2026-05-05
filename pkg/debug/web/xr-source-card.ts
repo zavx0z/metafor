@@ -34,10 +34,13 @@ export type XrSource = {
   tokens?: XrSourceTokens
 }
 
-const PAD_TOP_PX = 8
+export type XrSourceRuntimeState = "idle" | "loading" | "paused" | "running" | "disconnected"
+
+const PAD_TOP_PX = 34
 const PAD_LEFT_PX = 8
 const PAD_RIGHT_PX = 8
 const PAD_BOTTOM_PX = 6
+const HEADER_H_PX = 28
 const GUTTER_MIN_PX = 44
 const GUTTER_LEFT_PAD_PX = 6
 const GUTTER_RIGHT_PAD_PX = 8
@@ -48,10 +51,13 @@ const OVERSCAN_LINES = 40
 const MAX_RENDERED_LINES = 350
 
 const COLOR_BG = new Color(28 / 255, 34 / 255, 42 / 255, 1.0)
-const COLOR_BORDER = new Color(99 / 255, 110 / 255, 130 / 255, 1.0)
+const COLOR_BORDER = new Color(180 / 255, 195 / 255, 220 / 255, 1.0)
+const COLOR_HEADER_RULE = new Color(62 / 255, 74 / 255, 92 / 255, 1.0)
 const COLOR_HIGHLIGHT = new Color(36 / 255, 64 / 255, 164 / 255, 1)
+const COLOR_SCAN = new Color(111 / 255, 211 / 255, 255 / 255, 0.9)
 const COLOR_EXEC_ARROW = new Color(255 / 255, 199 / 255, 95 / 255, 1)
 const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
+const COLOR_TITLE = new Color(111 / 255, 211 / 255, 255 / 255, 1)
 const COLOR_GUTTER = new Color(110 / 255, 118 / 255, 129 / 255, 0.8)
 const COLOR_GUTTER_HOT = new Color(255 / 255, 199 / 255, 95 / 255, 1)
 const COLOR_GUTTER_RULE = new Color(48 / 255, 54 / 255, 61 / 255, 1)
@@ -74,9 +80,15 @@ export class XrSourceCard implements XrCard {
   readonly #borderBottom: Mesh
   readonly #borderLeft: Mesh
   readonly #borderRight: Mesh
+  readonly #headerRule: Mesh
   readonly #gutterRule: Mesh
+  readonly #scanLine: Mesh
   readonly #codeContainer: Object3D
   #placeholder: Text | null = null
+  #titleText: Text | null = null
+  #locationText: Text | null = null
+  readonly #titleMaterial: TextMaterial
+  readonly #locationMaterial: TextMaterial
   readonly #lineMaterial: TextMaterial
   readonly #gutterMaterial: TextMaterial
   readonly #gutterHotMaterial: TextMaterial
@@ -99,6 +111,10 @@ export class XrSourceCard implements XrCard {
   #pendingWindowRebuild = false
   #scrollbarTrack: Mesh | null = null
   #scrollbarThumb: Mesh | null = null
+  #runtimeState: XrSourceRuntimeState = "idle"
+  #scanRaf: number | null = null
+  #scanStartedAt = 0
+  #scanLoop = false
 
   constructor() {
     this.#background = new Mesh(
@@ -119,6 +135,13 @@ export class XrSourceCard implements XrCard {
       this.node.add(m)
     }
 
+    this.#headerRule = new Mesh(
+      new PlaneGeometry({width: 1, height: 1}),
+      new MeshBasicMaterial({color: COLOR_HEADER_RULE}),
+    )
+    this.#headerRule.position.z = 0.001
+    this.node.add(this.#headerRule)
+
     this.#gutterRule = new Mesh(
       new PlaneGeometry({width: 1, height: 1}),
       new MeshBasicMaterial({color: COLOR_GUTTER_RULE}),
@@ -126,7 +149,17 @@ export class XrSourceCard implements XrCard {
     this.#gutterRule.position.z = 0.001
     this.node.add(this.#gutterRule)
 
+    this.#scanLine = new Mesh(
+      new PlaneGeometry({width: 1, height: 1}),
+      new MeshBasicMaterial({color: COLOR_SCAN}),
+    )
+    this.#scanLine.visible = false
+    this.#scanLine.position.z = 0.003
+    this.node.add(this.#scanLine)
+
     this.#lineMaterial = new TextMaterial({color: COLOR_TEXT})
+    this.#titleMaterial = new TextMaterial({color: COLOR_TITLE})
+    this.#locationMaterial = new TextMaterial({color: COLOR_GUTTER})
     this.#gutterMaterial = new TextMaterial({color: COLOR_GUTTER})
     this.#gutterHotMaterial = new TextMaterial({color: COLOR_GUTTER_HOT})
     this.#execArrowMaterial = new TextMaterial({color: COLOR_EXEC_ARROW})
@@ -168,7 +201,7 @@ export class XrSourceCard implements XrCard {
     this.#background.updateMatrix()
 
     // Borders 1px — вокруг card.
-    const bw = 2 * pixelScale
+    const bw = 3 * pixelScale
     const cw = rect.w * pixelScale
     const ch = rect.h * pixelScale
     this.#borderTop.geometry = new PlaneGeometry({width: cw, height: bw})
@@ -188,6 +221,9 @@ export class XrSourceCard implements XrCard {
     this.#borderRight.position.y = -ch / 2
     this.#borderRight.updateMatrix()
 
+    this.#syncHeader()
+    this.#syncScanGeometry()
+
     // Plaхолдер "waiting for source…" пока source не получен.
     if (this.#current === null) {
       if (this.#placeholder === null) {
@@ -199,8 +235,8 @@ export class XrSourceCard implements XrCard {
         )
         this.node.add(this.#placeholder)
       }
-      this.#placeholder.position.x = (rect.w / 2 - 80) * pixelScale
-      this.#placeholder.position.y = -(rect.h / 2) * pixelScale
+      this.#placeholder.position.x = Math.max(12, rect.w / 2 - 80) * pixelScale
+      this.#placeholder.position.y = -(PAD_TOP_PX + Math.max(1, rect.h - PAD_TOP_PX) / 2) * pixelScale
       this.#placeholder.visible = true
       this.#placeholder.updateMatrix()
     } else if (this.#placeholder !== null) {
@@ -235,6 +271,10 @@ export class XrSourceCard implements XrCard {
     const lineChanged = prev?.currentLine !== source.currentLine
     const fileChanged = stripLine(prev?.location) !== stripLine(source.location)
     this.#current = source
+    if (this.#placeholder !== null) this.#placeholder.visible = false
+    this.#runtimeState = source.currentLine > 0 ? "paused" : this.#runtimeState
+    this.#syncHeader()
+    if (lineChanged || fileChanged || prev === null) this.#startScan(false)
 
     if (source.currentLine > 0 && (lineChanged || fileChanged || prev === null)) {
       const visible = this.#visibleLineCount()
@@ -285,7 +325,50 @@ export class XrSourceCard implements XrCard {
   }
 
   dispose(): void {
+    this.#stopScan()
     this.#disposeCodeChildren()
+    this.#disposeHeaderText()
+  }
+
+  setRuntimeState(state: XrSourceRuntimeState): void {
+    if (this.#runtimeState === state) return
+    this.#runtimeState = state
+    this.#syncHeader()
+    if (state === "running" || state === "loading") this.#startScan(true)
+    else this.#stopScan()
+  }
+
+  #syncHeader(): void {
+    if (this.#font === null) return
+    this.#disposeHeaderText()
+    const ruleH = 1 * this.#pixelScale
+    this.#headerRule.geometry = new PlaneGeometry({width: Math.max(1, this.#rectW - 16) * this.#pixelScale, height: ruleH})
+    this.#headerRule.position.x = (this.#rectW / 2) * this.#pixelScale
+    this.#headerRule.position.y = -HEADER_H_PX * this.#pixelScale
+    this.#headerRule.visible = true
+    this.#headerRule.updateMatrix()
+
+    this.#titleText = new Text(`Source · ${this.#runtimeState}`, this.#font, 13 * this.#pixelScale, this.#titleMaterial)
+    this.#titleText.position.x = 12 * this.#pixelScale
+    this.#titleText.position.y = -20 * this.#pixelScale
+    this.#titleText.updateMatrix()
+    this.node.add(this.#titleText)
+
+    const location = this.#headerLocation()
+    const label = fitText(location, Math.max(80, this.#rectW - 154), 11)
+    this.#locationText = new Text(label, this.#font, 11 * this.#pixelScale, this.#locationMaterial)
+    this.#locationText.position.x = 124 * this.#pixelScale
+    this.#locationText.position.y = -20 * this.#pixelScale
+    this.#locationText.updateMatrix()
+    this.node.add(this.#locationText)
+  }
+
+  #headerLocation(): string {
+    if (this.#runtimeState === "disconnected") return "inspector disconnected"
+    if (this.#runtimeState === "loading") return "loading source..."
+    if (this.#runtimeState === "running" && this.#current !== null) return `last paused frame: ${this.#current.location}`
+    if (this.#runtimeState === "running") return "target running"
+    return this.#current?.location ?? "waiting for paused source"
   }
 
   #applyScroll(): void {
@@ -294,6 +377,47 @@ export class XrSourceCard implements XrCard {
     this.#codeContainer.position.y = -(PAD_TOP_PX) * this.#pixelScale + offsetWithinWindow * LINE_PX * this.#pixelScale
     this.#codeContainer.updateMatrix()
     this.#updateScrollbar()
+  }
+
+  #syncScanGeometry(): void {
+    this.#scanLine.geometry = new PlaneGeometry({
+      width: Math.max(1, this.#rectW - PAD_LEFT_PX - PAD_RIGHT_PX) * this.#pixelScale,
+      height: 2 * this.#pixelScale,
+    })
+    this.#scanLine.position.x = (PAD_LEFT_PX + Math.max(1, this.#rectW - PAD_LEFT_PX - PAD_RIGHT_PX) / 2) * this.#pixelScale
+    this.#scanLine.updateMatrix()
+  }
+
+  #startScan(loop: boolean): void {
+    this.#scanLoop = loop
+    this.#scanStartedAt = performance.now()
+    this.#scanLine.visible = true
+    this.#syncScanGeometry()
+    if (this.#scanRaf !== null) cancelAnimationFrame(this.#scanRaf)
+    this.#scanRaf = requestAnimationFrame((now) => this.#animateScan(now))
+  }
+
+  #stopScan(): void {
+    if (this.#scanRaf !== null) cancelAnimationFrame(this.#scanRaf)
+    this.#scanRaf = null
+    this.#scanLoop = false
+    this.#scanLine.visible = false
+    this.#canvas?.requestRender()
+  }
+
+  #animateScan(now: number): void {
+    const duration = this.#scanLoop ? 1200 : 520
+    const elapsed = Math.max(0, now - this.#scanStartedAt)
+    if (!this.#scanLoop && elapsed >= duration) {
+      this.#stopScan()
+      return
+    }
+    const progress = this.#scanLoop ? (elapsed % duration) / duration : elapsed / duration
+    const contentH = Math.max(1, this.#rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
+    this.#scanLine.position.y = -(PAD_TOP_PX + progress * contentH) * this.#pixelScale
+    this.#scanLine.updateMatrix()
+    this.#canvas?.requestRender()
+    this.#scanRaf = requestAnimationFrame((next) => this.#animateScan(next))
   }
 
   #setScroll(next: number): void {
@@ -559,6 +683,21 @@ export class XrSourceCard implements XrCard {
     }
     this.#codeContainer.children = []
   }
+
+  #disposeHeaderText(): void {
+    const renderer = this.#canvas?.renderer
+    for (const text of [this.#titleText, this.#locationText]) {
+      if (text === null) continue
+      if (renderer !== undefined) {
+        renderer.invalidateGeometry(text.stencilGeometry)
+        renderer.invalidateGeometry(text.coverGeometry)
+      }
+      const idx = this.node.children.indexOf(text)
+      if (idx >= 0) this.node.children.splice(idx, 1)
+    }
+    this.#titleText = null
+    this.#locationText = null
+  }
 }
 
 function stripLine(location: string | undefined): string {
@@ -581,4 +720,11 @@ function measureTextWorld(text: string, font: TrueTypeFont, fontSize: number): n
     width += font.getHMetric(gid).advanceWidth * scale + letterSpacing
   }
   return width
+}
+
+function fitText(value: string, widthPx: number, fontPx: number): string {
+  const max = Math.max(1, Math.floor(widthPx / Math.max(1, fontPx * 0.58)))
+  if (value.length <= max) return value
+  if (max <= 4) return value.slice(0, max)
+  return `${value.slice(0, max - 3)}...`
 }
