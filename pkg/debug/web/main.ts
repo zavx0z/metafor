@@ -763,6 +763,45 @@ async function initEngine(): Promise<void> {
       consoleCard.pushEntries(consolePending)
       consolePending.length = 0
     }
+    // Debug helper: window.__metaforDebug.scanScene() печатает все Mesh
+    // в сцене с их world-position и size. Помогает находить leftover-mesh.
+    ;(window as unknown as {__metaforDebug: unknown}).__metaforDebug = {
+      canvas: xrCanvas,
+      scene: xrCanvas?.scene,
+      scanScene(): void {
+        if (xrCanvas === null) return
+        const out: Array<{name: string; type: string; visible: boolean; pos: [number, number, number]; geomBounds?: [number, number]}> = []
+        const walk = (obj: import("@metafor/engine").Object3D, depth = 0): void => {
+          const m = obj as import("@metafor/engine").Mesh
+          const t = obj as import("@metafor/engine").Text
+          const type = t.isText === true ? "Text" : (m.geometry !== undefined ? "Mesh" : "Object3D")
+          let geomBounds: [number, number] | undefined
+          if (type === "Mesh" && m.geometry !== undefined) {
+            const arr = (m.geometry.attributes.position?.array as Float32Array | undefined) ?? null
+            if (arr !== null && arr.length >= 6) {
+              const xs: number[] = []
+              const ys: number[] = []
+              for (let i = 0; i < arr.length; i += 3) {
+                xs.push(arr[i]!)
+                ys.push(arr[i + 1]!)
+              }
+              geomBounds = [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)]
+            }
+          }
+          const w = obj.matrixWorld.elements
+          out.push({
+            name: obj.name || `(${"  ".repeat(depth)}${type})`,
+            type,
+            visible: obj.visible,
+            pos: [w[12]!, w[13]!, w[14]!],
+            ...(geomBounds === undefined ? {} : {geomBounds}),
+          })
+          for (const c of obj.children) walk(c, depth + 1)
+        }
+        walk(xrCanvas.scene)
+        console.table(out.filter((r) => r.type === "Mesh" && r.visible))
+      },
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     setEngineStatus(`engine failed: ${message}`)
