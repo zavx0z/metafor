@@ -36,6 +36,7 @@ export interface XrCard {
   onKey?(event: KeyboardEvent): void
   onPointerMove?(event: MouseEvent, localX: number, localY: number): void
   onPointerDown?(event: MouseEvent, localX: number, localY: number): void
+  onPointerUp?(event: MouseEvent, localX: number, localY: number): void
   onActivate?(): void
   onDeactivate?(): void
   dispose?(): void
@@ -166,11 +167,16 @@ export class XrCanvas {
   }
 
   // --- Input routing ---
+  #pressedSlot: CardSlot | null = null
   #attachInputListeners(): void {
     this.canvas.addEventListener("wheel", (e) => this.#onWheel(e), {passive: false})
     this.canvas.addEventListener("mousemove", (e) => this.#onMouseMove(e))
     this.canvas.addEventListener("mousedown", (e) => this.#onMouseDown(e))
     this.canvas.addEventListener("keydown", (e) => this.#onKey(e))
+    // mouseup ловим на window — чтобы релиз кнопки за пределами canvas всё
+    // равно сбрасывал pressed-состояние (палец не "залипал").
+    window.addEventListener("mouseup", (e) => this.#onMouseUp(e))
+    this.canvas.addEventListener("mouseleave", () => this.#onMouseLeave())
     if (this.canvas.tabIndex < 0) this.canvas.tabIndex = 0
   }
   #cardAt(localX: number, localY: number): CardSlot | undefined {
@@ -211,8 +217,20 @@ export class XrCanvas {
     if (slot !== undefined) {
       this.canvas.focus()
       this.setFocused(slot.card)
+      this.#pressedSlot = slot
       slot.card.onPointerDown?.(event, x - slot.rect.x, y - slot.rect.y)
     }
+  }
+  #onMouseUp(event: MouseEvent): void {
+    const slot = this.#pressedSlot
+    this.#pressedSlot = null
+    if (slot === undefined || slot === null) return
+    const {x, y} = this.#localCoords(event)
+    slot.card.onPointerUp?.(event, x - slot.rect.x, y - slot.rect.y)
+  }
+  #onMouseLeave(): void {
+    if (this.#focused !== null) this.setFocused(null)
+    this.canvas.style.cursor = "default"
   }
   #onKey(event: KeyboardEvent): void {
     this.#focused?.onKey?.(event)

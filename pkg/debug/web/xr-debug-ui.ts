@@ -88,6 +88,17 @@ type HitBox = {
   action(): void
 }
 
+type Rect = {x: number; y: number; w: number; h: number}
+
+function rectEquals(a: Rect | null, b: Rect | null): boolean {
+  if (a === null || b === null) return a === b
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h
+}
+
+function rectMatches(rect: Rect | null, x: number, y: number, w: number, h: number): boolean {
+  return rect !== null && rect.x === x && rect.y === y && rect.w === w && rect.h === h
+}
+
 const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
 
 const UI = {
@@ -153,6 +164,10 @@ abstract class XrPanelCard implements XrCard {
   readonly #borderRight: Mesh
   readonly #layer = new Object3D()
   #hitBoxes: HitBox[] = []
+  #showBorders = true
+  #showBackground = true
+  protected hoveredRect: Rect | null = null
+  protected pressedRect: Rect | null = null
 
   readonly textMat = new TextMaterial({color: UI.text})
   readonly mutedMat = new TextMaterial({color: UI.muted})
@@ -199,17 +214,37 @@ abstract class XrPanelCard implements XrCard {
     if (this.canvas === null) return
     const hit = this.#hitBoxes.find((box) => pointInBox(localX, localY, box))
     this.canvas.canvas.style.cursor = hit?.cursor ?? "default"
+    const next: Rect | null = hit === undefined ? null : {x: hit.x, y: hit.y, w: hit.w, h: hit.h}
+    if (rectEquals(next, this.hoveredRect)) return
+    this.hoveredRect = next
+    this.render()
+    this.requestRender()
   }
 
   onPointerDown(_event: MouseEvent, localX: number, localY: number): void {
     const hit = this.#hitBoxes.find((box) => pointInBox(localX, localY, box))
     if (hit === undefined) return
+    this.pressedRect = {x: hit.x, y: hit.y, w: hit.w, h: hit.h}
+    this.render()
+    this.requestRender()
     hit.action()
-    this.canvas?.requestRender()
+  }
+
+  onPointerUp(_event: MouseEvent, _localX: number, _localY: number): void {
+    if (this.pressedRect === null) return
+    this.pressedRect = null
+    this.render()
+    this.requestRender()
   }
 
   onDeactivate(): void {
     if (this.canvas !== null) this.canvas.canvas.style.cursor = "default"
+    if (this.hoveredRect !== null || this.pressedRect !== null) {
+      this.hoveredRect = null
+      this.pressedRect = null
+      this.render()
+      this.requestRender()
+    }
   }
 
   dispose(): void {
@@ -254,20 +289,24 @@ abstract class XrPanelCard implements XrCard {
     return mesh
   }
 
-  protected button(label: string, x: number, y: number, w: number, h: number, action: () => void, tone: BadgeKind = "neutral"): void {
-    this.drawRect(x, y, w, h, toneFill(tone), 0)
-    this.drawRect(x, y, w, 1, toneColor(tone), 0.001)
+  protected button(label: string, x: number, y: number, w: number, h: number, action: () => void, tone: BadgeKind = "neutral", disabled = false): void {
+    const hover = !disabled && rectMatches(this.hoveredRect, x, y, w, h)
+    const press = !disabled && rectMatches(this.pressedRect, x, y, w, h)
+    const fillColor = disabled ? toneFillDim(tone) : press ? toneFillPressed(tone) : hover ? toneFillHover(tone) : toneFill(tone)
+    this.drawRect(x, y, w, h, fillColor, 0)
+    this.drawRect(x, y, w, 1, disabled ? UI.borderDim : toneColor(tone), 0.001)
     this.drawRect(x, y + h - 1, w, 1, UI.borderDim, 0.001)
     this.drawRect(x, y, 1, h, UI.borderDim, 0.001)
     this.drawRect(x + w - 1, y, 1, h, UI.borderDim, 0.001)
-    this.drawText(label, x + 8, y + Math.max(0, (h - 12) / 2 - 1), 12, toneText(tone, this), w - 12)
-    this.hit(x, y, w, h, action, "pointer")
+    this.drawText(label, x + 8, y + Math.max(0, (h - 12) / 2 - 1), 12, disabled ? this.mutedMat : toneText(tone, this), w - 12)
+    if (!disabled) this.hit(x, y, w, h, action, "pointer")
   }
 
   protected input(label: string, value: string, x: number, y: number, w: number, h: number, active: boolean, action: () => void): void {
+    const hover = rectMatches(this.hoveredRect, x, y, w, h)
     this.drawText(label, x, y - 16, 11, this.mutedMat, w)
-    this.drawRect(x, y, w, h, active ? UI.bgHot : UI.input, 0)
-    this.drawRect(x, y, w, 1, active ? UI.cyan : UI.borderDim, 0.001)
+    this.drawRect(x, y, w, h, active ? UI.bgHot : hover ? UI.bgElevated : UI.input, 0)
+    this.drawRect(x, y, w, 1, active ? UI.cyan : hover ? UI.border : UI.borderDim, 0.001)
     this.drawRect(x, y + h - 1, w, 1, UI.borderDim, 0.001)
     this.drawRect(x, y, 1, h, UI.borderDim, 0.001)
     this.drawRect(x + w - 1, y, 1, h, UI.borderDim, 0.001)
@@ -307,6 +346,18 @@ abstract class XrPanelCard implements XrCard {
     this.#layer.children = []
   }
 
+  protected setBorders(show: boolean): void {
+    this.#showBorders = show
+    for (const m of [this.#borderTop, this.#borderBottom, this.#borderLeft, this.#borderRight]) {
+      m.visible = show
+    }
+  }
+
+  protected setBackground(show: boolean): void {
+    this.#showBackground = show
+    this.#background.visible = show
+  }
+
   private syncChrome(): void {
     const ps = this.pixelScale
     const w = Math.max(1, this.rectW)
@@ -315,6 +366,7 @@ abstract class XrPanelCard implements XrCard {
     this.#background.position.x = (w / 2) * ps
     this.#background.position.y = -(h / 2) * ps
     this.#background.updateMatrix()
+    this.#background.visible = this.#showBackground
 
     const bw = 2 * ps
     const ww = w * ps
@@ -335,6 +387,9 @@ abstract class XrPanelCard implements XrCard {
     this.#borderRight.position.x = ww - bw / 2
     this.#borderRight.position.y = -hh / 2
     this.#borderRight.updateMatrix()
+    for (const m of [this.#borderTop, this.#borderBottom, this.#borderLeft, this.#borderRight]) {
+      m.visible = this.#showBorders
+    }
   }
 }
 
@@ -355,6 +410,11 @@ export class XrToolbarCard extends XrPanelCard {
   constructor(actions: ToolbarActions) {
     super()
     this.#actions = actions
+    // Тулбар — плоская полоса наверху без рамок: ниже идут карточки с
+    // собственными bordered headers, дополнительная рамка вокруг тулбара
+    // выглядит лишней (две параллельные линии под "WebGPU UI Debugger").
+    this.setBorders(false)
+    this.setBackground(false)
   }
 
   setState(next: Partial<ToolbarState>): void {
@@ -366,7 +426,7 @@ export class XrToolbarCard extends XrPanelCard {
   protected render(): void {
     this.begin()
     const h = Math.max(1, this.rectH)
-    this.drawRect(0, 0, this.rectW, h, rgb(14, 18, 26, 0.98), -0.001)
+    this.drawRect(0, 0, this.rectW, h, rgb(11, 15, 22, 1), -0.001)
     this.drawText("@metafor/bun-debug", 12, 13, 13, this.cyanMat, 160)
     let x = 176
     this.badge(`ws: ${this.#state.ws}`, x, 12, 114, this.#state.wsKind); x += 122
@@ -830,6 +890,25 @@ function toneFill(kind: BadgeKind): Color {
   if (kind === "paused") return rgb(61, 45, 24, 0.98)
   if (kind === "warn") return rgb(58, 32, 28, 0.98)
   return UI.bgElevated
+}
+
+function scaleColor(c: Color, factor: number, alpha?: number): Color {
+  const r = Math.max(0, Math.min(1, c.r * factor))
+  const g = Math.max(0, Math.min(1, c.g * factor))
+  const b = Math.max(0, Math.min(1, c.b * factor))
+  return new Color(r, g, b, alpha ?? c.a)
+}
+
+function toneFillHover(kind: BadgeKind): Color {
+  return scaleColor(toneFill(kind), 1.55)
+}
+
+function toneFillPressed(kind: BadgeKind): Color {
+  return scaleColor(toneFill(kind), 0.6)
+}
+
+function toneFillDim(kind: BadgeKind): Color {
+  return scaleColor(toneFill(kind), 0.55, 0.6)
 }
 
 function toneColor(kind: BadgeKind): Color {
