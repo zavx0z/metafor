@@ -53,7 +53,7 @@ type AnimItem = {
   remove: boolean
 }
 
-const TRANSITION_DURATION_MS = 420
+const TRANSITION_DURATION_MS = 1100
 const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3)
 
 const CONTENT_PAD_TOP_PX = 34
