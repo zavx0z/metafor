@@ -259,9 +259,9 @@ abstract class XrPanelCard implements XrCard {
   }
 
   protected title(label: string, subtitle?: string): void {
-    this.drawText(label, 12, 13, 13, this.cyanMat, Math.max(20, this.rectW * 0.45))
+    this.drawText(label, 14, 12, 13, this.cyanMat, Math.max(20, this.rectW * 0.45))
     if (subtitle !== undefined) this.drawText(subtitle, this.rectW - 190, 14, 11, this.mutedMat, 178)
-    this.drawRect(12, 31, Math.max(1, this.rectW - 24), 1, UI.borderDim, -0.001)
+    this.drawRect(14, 34, Math.max(1, this.rectW - 28), 1, UI.borderDim, -0.001)
   }
 
   protected drawText(value: string, x: number, y: number, fontPx: number, material: TextMaterial, maxWidthPx?: number): Text | null {
@@ -304,7 +304,7 @@ abstract class XrPanelCard implements XrCard {
 
   protected input(label: string, value: string, x: number, y: number, w: number, h: number, active: boolean, action: () => void): void {
     const hover = rectMatches(this.hoveredRect, x, y, w, h)
-    this.drawText(label, x, y - 16, 11, this.mutedMat, w)
+    if (label.length > 0) this.drawText(label, x, y - 16, 11, this.mutedMat, w)
     this.drawRect(x, y, w, h, active ? UI.bgHot : hover ? UI.bgElevated : UI.input, 0)
     this.drawRect(x, y, w, 1, active ? UI.cyan : hover ? UI.border : UI.borderDim, 0.001)
     this.drawRect(x, y + h - 1, w, 1, UI.borderDim, 0.001)
@@ -476,13 +476,13 @@ export class XrFramesCard extends XrPanelCard {
   protected render(): void {
     this.begin()
     this.title("Frames", `${this.#frames.length}`)
-    const rowH = 24
-    const y0 = 42
+    const rowH = 26
+    const y0 = 46
     const visible = Math.max(1, Math.floor((this.rectH - y0 - 12) / rowH))
     this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#frames.length - visible)))
 
     if (this.#frames.length === 0) {
-      this.drawText("waiting for paused frame", 14, 48, 12, this.mutedMat, this.rectW - 28)
+      this.drawText("waiting for paused frame", 16, 52, 12, this.mutedMat, this.rectW - 32)
       return
     }
 
@@ -491,18 +491,18 @@ export class XrFramesCard extends XrPanelCard {
       if (frame === undefined) break
       const y = y0 + i * rowH
       const active = frame.index === this.#active
-      if (active) this.drawRect(8, y - 2, this.rectW - 16, rowH, rgb(43, 73, 117, 0.95), 0)
+      if (active) this.drawRect(10, y - 2, this.rectW - 20, rowH, rgb(43, 73, 117, 0.95), 0)
       const fn = frame.function || "<anonymous>"
       const loc = frame.url ? `${shortenUrl(frame.url)}:${frame.line}` : `(scriptId ?):${frame.line}`
-      this.drawText(`#${frame.index}`, 14, y + 4, 11, active ? this.orangeMat : this.mutedMat, 34)
-      this.drawText(fn, 48, y + 3, 12, active ? this.textMat : this.textMat, this.rectW - 64)
-      this.drawText(loc, 48, y + 15, 9, this.mutedMat, this.rectW - 64)
-      this.hit(8, y - 2, this.rectW - 16, rowH, () => this.#onSelect(frame.index))
+      this.drawText(`#${frame.index}`, 16, y + 4, 11, active ? this.orangeMat : this.mutedMat, 32)
+      this.drawText(fn, 50, y + 3, 12, active ? this.textMat : this.textMat, this.rectW - 70)
+      this.drawText(loc, 50, y + 17, 9, this.mutedMat, this.rectW - 70)
+      this.hit(10, y - 2, this.rectW - 20, rowH, () => this.#onSelect(frame.index))
     }
   }
 
   #setScroll(next: number): void {
-    const visible = Math.max(1, Math.floor((this.rectH - 54) / 24))
+    const visible = Math.max(1, Math.floor((this.rectH - 58) / 26))
     const max = Math.max(0, this.#frames.length - visible)
     const clamped = Math.max(0, Math.min(max, next))
     if (clamped === this.#scroll) return
@@ -590,36 +590,37 @@ export class XrScopesEvalCard extends XrPanelCard {
     const evalTop = this.#evalTop()
     const rows = this.#scopeRows()
     const rowH = 17
-    const visible = Math.max(1, Math.floor((evalTop - 44) / rowH))
+    const visible = Math.max(1, Math.floor((evalTop - 46) / rowH))
     this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, rows.length - visible)))
     if (rows.length === 0) {
-      this.drawText("no scopes for current frame", 14, 48, 12, this.mutedMat, this.rectW - 28)
+      this.drawText("no scopes for current frame", 16, 50, 12, this.mutedMat, this.rectW - 32)
     } else {
       for (let i = 0; i < visible; i++) {
         const row = rows[this.#scroll + i]
         if (row === undefined) break
-        const y = 44 + i * rowH
+        const y = 46 + i * rowH
         if (row.kind === "group") {
-          this.drawText(row.label, 14, y, 11, this.orangeMat, this.rectW - 28)
+          this.drawText(row.label, 16, y, 11, this.orangeMat, this.rectW - 32)
         } else {
-          this.drawText(row.name, 18, y, 11, this.cyanMat, this.rectW * 0.34)
-          this.drawText(row.value, Math.max(120, this.rectW * 0.38), y, 11, row.material, this.rectW * 0.58)
+          this.drawText(row.name, 20, y, 11, this.cyanMat, this.rectW * 0.34)
+          this.drawText(row.value, Math.max(124, this.rectW * 0.38), y, 11, row.material, this.rectW * 0.58)
         }
       }
     }
 
     this.drawRect(12, evalTop, this.rectW - 24, 1, UI.borderDim, 0)
-    this.drawText("Eval on selected frame", 12, evalTop + 12, 11, this.mutedMat, 180)
-    this.input("expression", this.#expr, 12, evalTop + 42, Math.max(40, this.rectW - 92), 28, this.#editingExpr, () => {
+    const heading = this.#frame === null ? "Eval expression" : `Eval on frame ${this.#frame.index}`
+    this.drawText(heading, 12, evalTop + 14, 11, this.mutedMat, this.rectW - 84)
+    this.input("", this.#expr, 12, evalTop + 38, Math.max(40, this.rectW - 92), 28, this.#editingExpr, () => {
       this.#editingExpr = true
     })
-    this.button("Run", this.rectW - 72, evalTop + 42, 60, 28, () => this.#runEval(), "live")
+    this.button("Run", this.rectW - 72, evalTop + 38, 60, 28, () => this.#runEval(), "live")
     const output = this.#output.length === 0 ? "Cmd/Ctrl+Enter runs eval" : this.#output
-    this.drawText(output.replace(/\s+/g, " "), 12, evalTop + 82, 11, this.#output.length === 0 ? this.mutedMat : this.textMat, this.rectW - 24)
+    this.drawText(output.replace(/\s+/g, " "), 12, evalTop + 80, 11, this.#output.length === 0 ? this.mutedMat : this.textMat, this.rectW - 24)
   }
 
   #evalTop(): number {
-    return Math.max(128, this.rectH - 132)
+    return Math.max(120, this.rectH - 124)
   }
 
   #runEval(): void {
@@ -631,7 +632,7 @@ export class XrScopesEvalCard extends XrPanelCard {
 
   #setScroll(next: number): void {
     const rows = this.#scopeRows()
-    const visible = Math.max(1, Math.floor((this.#evalTop() - 44) / 17))
+    const visible = Math.max(1, Math.floor((this.#evalTop() - 46) / 17))
     const max = Math.max(0, rows.length - visible)
     const clamped = Math.max(0, Math.min(max, next))
     if (clamped === this.#scroll) return
@@ -716,26 +717,26 @@ export class XrVerboseCard extends XrPanelCard {
       this.render()
     }, this.#autoscroll ? "live" : "neutral")
 
-    const y0 = 44
+    const y0 = 46
     const rowH = 18
     const visible = Math.max(1, Math.floor((this.rectH - y0 - 12) / rowH))
     this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#entries.length - visible)))
     if (this.#entries.length === 0) {
-      this.drawText("inspector and agent event stream", 14, 50, 12, this.mutedMat, this.rectW - 28)
+      this.drawText("inspector and agent event stream", 16, 52, 12, this.mutedMat, this.rectW - 32)
       return
     }
     for (let i = 0; i < visible; i++) {
       const entry = this.#entries[this.#scroll + i]
       if (entry === undefined) break
       const y = y0 + i * rowH
-      this.drawText(formatTimestamp(entry.ts), 14, y, 10, this.mutedMat, 64)
+      this.drawText(formatTimestamp(entry.ts), 16, y, 10, this.mutedMat, 60)
       this.drawText(entry.kind === "agent" ? `@${entry.name}` : entry.name, 80, y, 10, entry.kind === "agent" ? this.violetMat : this.cyanMat, 150)
-      this.drawText(entry.payload, 236, y, 10, this.textMat, this.rectW - 248)
+      this.drawText(entry.payload, 236, y, 10, this.textMat, this.rectW - 252)
     }
   }
 
   #setScroll(next: number): void {
-    const visible = Math.max(1, Math.floor((this.rectH - 56) / 18))
+    const visible = Math.max(1, Math.floor((this.rectH - 58) / 18))
     const max = Math.max(0, this.#entries.length - visible)
     const clamped = Math.max(0, Math.min(max, next))
     if (clamped === this.#scroll) return
@@ -747,7 +748,7 @@ export class XrVerboseCard extends XrPanelCard {
   }
 
   #scrollToBottom(): void {
-    const visible = Math.max(1, Math.floor((this.rectH - 56) / 18))
+    const visible = Math.max(1, Math.floor((this.rectH - 58) / 18))
     this.#scroll = Math.max(0, this.#entries.length - visible)
   }
 }
