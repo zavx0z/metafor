@@ -353,8 +353,8 @@ export class XrOverlay {
   // Matrix-style transition: новый content стоит на финальных позициях, а
   // буквы волной сверху вниз меняются на случайные и фиксируются в финал.
   #startTransition(): void {
-    this.#codeContainer.children = []
-
+    // children очистит сам #renderLines() через #disposeCodeChildren(),
+    // повторный сброс здесь не нужен.
     const newObjs = this.#renderLines()
     this.#applyScroll()
 
@@ -654,7 +654,7 @@ export class XrOverlay {
   // Это держит число Text-объектов в пределах MAX_RENDERABLES движка и
   // обеспечивает мгновенный wheel-scroll внутри overscan.
   #renderLines(): Object3D[] {
-    this.#codeContainer.children = []
+    this.#disposeCodeChildren()
     this.#hideGutterRule()
 
     if (this.#current === null) {
@@ -834,6 +834,25 @@ export class XrOverlay {
 
   #hideGutterRule(): void {
     this.#gutterRule.visible = false
+  }
+
+  // Перед перестройкой строк: освобождаем GPU-буферы предыдущих Text/Mesh.
+  // Renderer.geometryCache — это Map<BufferGeometry, GeometryBuffers> с
+  // strong reference на ключ. Без явного invalidateGeometry старые
+  // BufferGeometry (вместе с GPUBuffer'ами) живут до GC и копят native-память,
+  // что в долгой debug-сессии (сотни шагов) кладёт GPU-процесс Chrome.
+  #disposeCodeChildren(): void {
+    for (const child of this.#codeContainer.children) {
+      const text = child as Text
+      if (text.isText === true) {
+        if (text.stencilGeometry !== undefined) this.#renderer.invalidateGeometry(text.stencilGeometry)
+        if (text.coverGeometry !== undefined) this.#renderer.invalidateGeometry(text.coverGeometry)
+        continue
+      }
+      const mesh = child as Mesh
+      if (mesh.geometry !== undefined) this.#renderer.invalidateGeometry(mesh.geometry)
+    }
+    this.#codeContainer.children = []
   }
 }
 

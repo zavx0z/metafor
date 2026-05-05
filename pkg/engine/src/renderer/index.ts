@@ -1130,9 +1130,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   /**
    * Очищает кэш геометрии для указанного объекта BufferGeometry.
    * Это заставляет рендерер пересоздать GPU буферы при следующем рендеринге.
+   *
+   * Освобождает GPUBuffer'ы перед удалением записи. Без destroy() WebGPU
+   * импликация держит native-память, а Map.delete сама по себе не триггерит
+   * native cleanup — приводит к утечке GPU-памяти в долгих сессиях
+   * (например, debug-UI пересобирает Text-объекты на каждый step).
    * @param geometry - Геометрия для очистки из кэша
    */
   public invalidateGeometry(geometry: BufferGeometry): void {
+    const buffers = this.geometryCache.get(geometry)
+    if (buffers === undefined) return
+    buffers.positionBuffer.destroy()
+    buffers.normalBuffer?.destroy()
+    buffers.indexBuffer?.destroy()
+    buffers.colorBuffer?.destroy()
+    buffers.skinIndexBuffer?.destroy()
+    buffers.skinWeightBuffer?.destroy()
+    buffers.instanceMatrixBuffer?.destroy()
+    buffers.instanceBuffer?.destroy()
     this.geometryCache.delete(geometry)
   }
 
