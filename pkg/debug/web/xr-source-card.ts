@@ -168,7 +168,7 @@ export class XrSourceCard implements XrCard {
     this.#background.updateMatrix()
 
     // Borders 1px — вокруг card.
-    const bw = 1 * pixelScale
+    const bw = 2 * pixelScale
     const cw = rect.w * pixelScale
     const ch = rect.h * pixelScale
     this.#borderTop.geometry = new PlaneGeometry({width: cw, height: bw})
