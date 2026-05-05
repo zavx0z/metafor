@@ -259,8 +259,15 @@ abstract class XrPanelCard implements XrCard {
   }
 
   protected title(label: string, subtitle?: string): void {
-    this.drawText(label, 20, 12, 13, this.cyanMat, Math.max(20, this.rectW * 0.45))
-    if (subtitle !== undefined) this.drawText(subtitle, this.rectW - 190, 14, 11, this.mutedMat, 178)
+    // Bold mono шрифт: ширина символа ~ 0.7 * fontPx. Считаем title ширину
+    // и ставим subtitle сразу за ним с gap 14, чтобы не перекрывались.
+    const titleCharW = 9
+    const titleW = Math.min(label.length * titleCharW, Math.max(40, this.rectW - 130))
+    this.drawText(label, 20, 12, 13, this.cyanMat, titleW)
+    if (subtitle !== undefined) {
+      const subX = Math.min(this.rectW - 80, 20 + titleW + 14)
+      this.drawText(subtitle, subX, 14, 11, this.mutedMat, Math.max(20, this.rectW - subX - 20))
+    }
     this.drawRect(20, 34, Math.max(1, this.rectW - 40), 1, UI.borderDim, -0.001)
   }
 
