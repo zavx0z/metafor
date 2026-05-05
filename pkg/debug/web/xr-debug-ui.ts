@@ -259,9 +259,9 @@ abstract class XrPanelCard implements XrCard {
   }
 
   protected title(label: string, subtitle?: string): void {
-    this.drawText(label, 14, 12, 13, this.cyanMat, Math.max(20, this.rectW * 0.45))
+    this.drawText(label, 20, 12, 13, this.cyanMat, Math.max(20, this.rectW * 0.45))
     if (subtitle !== undefined) this.drawText(subtitle, this.rectW - 190, 14, 11, this.mutedMat, 178)
-    this.drawRect(14, 34, Math.max(1, this.rectW - 28), 1, UI.borderDim, -0.001)
+    this.drawRect(20, 34, Math.max(1, this.rectW - 40), 1, UI.borderDim, -0.001)
   }
 
   protected drawText(value: string, x: number, y: number, fontPx: number, material: TextMaterial, maxWidthPx?: number): Text | null {
@@ -482,7 +482,7 @@ export class XrFramesCard extends XrPanelCard {
     this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#frames.length - visible)))
 
     if (this.#frames.length === 0) {
-      this.drawText("waiting for paused frame", 16, 52, 12, this.mutedMat, this.rectW - 32)
+      this.drawText("waiting for paused frame", 22, 52, 12, this.mutedMat, this.rectW - 44)
       return
     }
 
@@ -491,13 +491,13 @@ export class XrFramesCard extends XrPanelCard {
       if (frame === undefined) break
       const y = y0 + i * rowH
       const active = frame.index === this.#active
-      if (active) this.drawRect(10, y - 2, this.rectW - 20, rowH - 4, rgb(43, 73, 117, 0.95), 0)
+      if (active) this.drawRect(14, y - 2, this.rectW - 28, rowH - 4, rgb(43, 73, 117, 0.95), 0)
       const fn = frame.function || "<anonymous>"
       const loc = frame.url ? `${shortenUrl(frame.url)}:${frame.line}` : `(scriptId ?):${frame.line}`
-      this.drawText(`#${frame.index}`, 16, y + 4, 11, active ? this.orangeMat : this.mutedMat, 32)
-      this.drawText(fn, 50, y + 2, 12, active ? this.textMat : this.textMat, this.rectW - 70)
-      this.drawText(loc, 50, y + 18, 9, this.mutedMat, this.rectW - 70)
-      this.hit(10, y - 2, this.rectW - 20, rowH - 4, () => this.#onSelect(frame.index))
+      this.drawText(`#${frame.index}`, 22, y + 4, 11, active ? this.orangeMat : this.mutedMat, 30)
+      this.drawText(fn, 56, y + 2, 12, active ? this.textMat : this.textMat, this.rectW - 76)
+      this.drawText(loc, 56, y + 18, 9, this.mutedMat, this.rectW - 76)
+      this.hit(14, y - 2, this.rectW - 28, rowH - 4, () => this.#onSelect(frame.index))
     }
   }
 
@@ -593,30 +593,30 @@ export class XrScopesEvalCard extends XrPanelCard {
     const visible = Math.max(1, Math.floor((evalTop - 46) / rowH))
     this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, rows.length - visible)))
     if (rows.length === 0) {
-      this.drawText("no scopes for current frame", 16, 50, 12, this.mutedMat, this.rectW - 32)
+      this.drawText("no scopes for current frame", 22, 50, 12, this.mutedMat, this.rectW - 44)
     } else {
       for (let i = 0; i < visible; i++) {
         const row = rows[this.#scroll + i]
         if (row === undefined) break
         const y = 46 + i * rowH
         if (row.kind === "group") {
-          this.drawText(row.label, 16, y, 11, this.orangeMat, this.rectW - 32)
+          this.drawText(row.label, 22, y, 11, this.orangeMat, this.rectW - 44)
         } else {
-          this.drawText(row.name, 20, y, 11, this.cyanMat, this.rectW * 0.34)
-          this.drawText(row.value, Math.max(124, this.rectW * 0.38), y, 11, row.material, this.rectW * 0.58)
+          this.drawText(row.name, 26, y, 11, this.cyanMat, this.rectW * 0.32)
+          this.drawText(row.value, Math.max(130, this.rectW * 0.40), y, 11, row.material, this.rectW * 0.55)
         }
       }
     }
 
-    this.drawRect(12, evalTop, this.rectW - 24, 1, UI.borderDim, 0)
+    this.drawRect(20, evalTop, this.rectW - 40, 1, UI.borderDim, 0)
     const heading = this.#frame === null ? "Eval expression" : `Eval on frame ${this.#frame.index}`
-    this.drawText(heading, 12, evalTop + 14, 11, this.mutedMat, this.rectW - 84)
-    this.input("", this.#expr, 12, evalTop + 38, Math.max(40, this.rectW - 92), 28, this.#editingExpr, () => {
+    this.drawText(heading, 20, evalTop + 14, 11, this.mutedMat, this.rectW - 92)
+    this.input("", this.#expr, 20, evalTop + 38, Math.max(40, this.rectW - 108), 28, this.#editingExpr, () => {
       this.#editingExpr = true
     })
-    this.button("Run", this.rectW - 72, evalTop + 38, 60, 28, () => this.#runEval(), "live")
+    this.button("Run", this.rectW - 80, evalTop + 38, 60, 28, () => this.#runEval(), "live")
     const output = this.#output.length === 0 ? "Cmd/Ctrl+Enter runs eval" : this.#output
-    this.drawText(output.replace(/\s+/g, " "), 12, evalTop + 80, 11, this.#output.length === 0 ? this.mutedMat : this.textMat, this.rectW - 24)
+    this.drawText(output.replace(/\s+/g, " "), 20, evalTop + 80, 11, this.#output.length === 0 ? this.mutedMat : this.textMat, this.rectW - 40)
   }
 
   #evalTop(): number {
@@ -722,16 +722,16 @@ export class XrVerboseCard extends XrPanelCard {
     const visible = Math.max(1, Math.floor((this.rectH - y0 - 12) / rowH))
     this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#entries.length - visible)))
     if (this.#entries.length === 0) {
-      this.drawText("inspector and agent event stream", 16, 52, 12, this.mutedMat, this.rectW - 32)
+      this.drawText("inspector and agent event stream", 22, 52, 12, this.mutedMat, this.rectW - 44)
       return
     }
     for (let i = 0; i < visible; i++) {
       const entry = this.#entries[this.#scroll + i]
       if (entry === undefined) break
       const y = y0 + i * rowH
-      this.drawText(formatTimestamp(entry.ts), 16, y, 10, this.mutedMat, 60)
-      this.drawText(entry.kind === "agent" ? `@${entry.name}` : entry.name, 80, y, 10, entry.kind === "agent" ? this.violetMat : this.cyanMat, 150)
-      this.drawText(entry.payload, 236, y, 10, this.textMat, this.rectW - 252)
+      this.drawText(formatTimestamp(entry.ts), 22, y, 10, this.mutedMat, 58)
+      this.drawText(entry.kind === "agent" ? `@${entry.name}` : entry.name, 84, y, 10, entry.kind === "agent" ? this.violetMat : this.cyanMat, 148)
+      this.drawText(entry.payload, 238, y, 10, this.textMat, this.rectW - 258)
     }
   }
 

@@ -235,20 +235,20 @@ export class XrConsoleCard implements XrCard {
     this.#headerRule.updateMatrix()
 
     this.#titleText = new Text("Console / Target", this.#font, 13 * this.#pixelScale, this.#titleMaterial)
-    this.#titleText.position.x = 12 * this.#pixelScale
+    this.#titleText.position.x = 20 * this.#pixelScale
     this.#titleText.position.y = -20 * this.#pixelScale
     this.#titleText.updateMatrix()
     this.node.add(this.#titleText)
 
     this.#counterText = new Text(`${this.#entries.length} lines`, this.#font, 11 * this.#pixelScale, this.#tsMaterial)
-    this.#counterText.position.x = Math.max(150, this.#rectW - 90) * this.#pixelScale
+    this.#counterText.position.x = Math.max(150, this.#rectW - 100) * this.#pixelScale
     this.#counterText.position.y = -20 * this.#pixelScale
     this.#counterText.updateMatrix()
     this.node.add(this.#counterText)
 
     if (this.#entries.length === 0) {
       this.#emptyText = new Text("waiting for target stdout/stderr...", this.#font, 12 * this.#pixelScale, this.#tsMaterial)
-      this.#emptyText.position.x = 12 * this.#pixelScale
+      this.#emptyText.position.x = 20 * this.#pixelScale
       this.#emptyText.position.y = -(PAD_TOP_PX + 24) * this.#pixelScale
       this.#emptyText.updateMatrix()
       this.node.add(this.#emptyText)
