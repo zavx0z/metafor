@@ -43,18 +43,32 @@ export type XrSource = {
   tokens?: XrSourceTokens
 }
 
-type AnimItem = {
-  obj: Object3D
-  startX: number
-  startY: number
-  targetX: number
-  targetY: number
-  /** true → объект удаляется из сцены по завершении (exit-фаза). */
-  remove: boolean
+type CharAnimItem = {
+  obj: Text
+  finalText: string
+  /** Доля общей длительности до старта фазы scramble (волна сверху вниз). */
+  startFraction: number
+  /** Доля общей длительности до фиксации финального текста. */
+  settleFraction: number
+  /** Следующий timestamp смены случайного символа. */
+  nextChangeAt: number
+  /** Charset для скремблинга (gutter — только цифры, остальное — full). */
+  charset: string
 }
 
-const TRANSITION_DURATION_MS = 1100
-const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3)
+const TRANSITION_DURATION_MS = 1300
+// Интервал смены случайного символа per-item — ~60мс ≈ 17 кадров/сек,
+// достаточная «текучесть» Matrix-эффекта без потока updateGeometry.
+const SCRAMBLE_INTERVAL_MS = 60
+const MATRIX_CHARSET = "01<>{}[]()=*+-/?@#$%&!~^|;:.,'\"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const MATRIX_DIGITS = "0123456789"
+const randomChar = (charset: string): string =>
+  charset.charAt(Math.floor(Math.random() * charset.length))
+const randomString = (len: number, charset: string): string => {
+  let out = ""
+  for (let i = 0; i < len; i++) out += randomChar(charset)
+  return out
+}
 
 const CONTENT_PAD_TOP_PX = 34
 const CONTENT_PAD_LEFT_PX = 10
@@ -157,15 +171,14 @@ export class XrOverlay {
   #windowStart = 0
   #windowSize = 0
   #pendingWindowRebuild = false
-  // Transition animation при смене файла: буквы старого source разлетаются
-  // от своих позиций к краям сцены, новые — слетаются с краёв на финальные
-  // позиции. RAF-цикл активен только во время animation, потом обратно
-  // render-on-demand.
-  #animItems: AnimItem[] = []
+  // Transition animation при смене файла — Matrix-style: каждая буква
+  // на своей позиции проходит фазу случайных символов (волной сверху вниз),
+  // потом фиксируется на финальной. RAF-цикл активен только во время
+  // animation, потом обратно render-on-demand.
+  #animItems: CharAnimItem[] = []
   #animStart = 0
   #animDuration = 0
   #animActive = false
-  #exitContainer: Object3D | null = null
 
   private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont) {
     this.#canvas = canvas
@@ -220,14 +233,6 @@ export class XrOverlay {
     this.#contentContainer.position.z = 0.002
     this.#card.add(this.#contentContainer)
     this.#contentContainer.add(this.#gutterRule)
-
-    // Контейнер для exit-Text: они отрываются от scroll-овой системы
-    // codeContainer (иначе при rebuild scroll они бы телепортировались) и
-    // живут в contentContainer на «фиксированных» world-позициях до
-    // завершения transition.
-    this.#exitContainer = new Object3D()
-    this.#exitContainer.position.z = 0.0001
-    this.#contentContainer.add(this.#exitContainer)
 
     this.#codeContainer = new Object3D()
     this.#codeContainer.layout = {
@@ -352,54 +357,62 @@ export class XrOverlay {
     }
   }
 
-  // Запускаем transition: текущий content уходит к "случайным точкам за
-  // экраном", новый content приходит с тех же дальних точек к финальным
-  // позициям. Старый и новый Text живут параллельно во время анимации.
+  // Matrix-style transition: каждая буква (Text-объект) на своей позиции
+  // проходит фазу случайных символов (волной сверху вниз) и фиксируется на
+  // финальной. Позиции не двигаем — меняем только text + updateGeometry.
   #startTransition(): void {
-    if (this.#exitContainer === null) return
-    const flightRadius = Math.max(this.#physicalWidth, this.#physicalHeight) * 1.4
-    const items: AnimItem[] = []
-
-    // 1) Сохраняем exiting объекты с их world-позицией (учитывая scroll
-    //    предыдущего файла). Перекладываем их в exitContainer, чтобы новый
-    //    scroll codeContainer'а их не уносил.
-    const codeScrollY = this.#codeContainer.position.y
-    const exiting = [...this.#codeContainer.children]
+    // 1) Очищаем старый content (exit без анимации позиций — Matrix
+    //    перерисовывает поверх новые буквы).
     this.#codeContainer.children = []
-    for (const obj of exiting) {
-      // local в codeContainer + scroll = local в contentContainer.
-      const startX = obj.position.x
-      const startY = obj.position.y + codeScrollY
-      obj.position.x = startX
-      obj.position.y = startY
-      const angle = Math.random() * Math.PI * 2
-      const targetX = startX + Math.cos(angle) * flightRadius
-      const targetY = startY + Math.sin(angle) * flightRadius
-      obj.updateMatrix()
-      this.#exitContainer.add(obj)
-      items.push({obj, startX, startY, targetX, targetY, remove: true})
-    }
 
     // 2) Рендерим новый content в codeContainer с финальными позициями.
     const newObjs = this.#renderLines()
     this.#applyScroll()
 
-    // 3) Для каждого нового объекта: смещаем стартовую позицию в случайную
-    //    точку за пределами экрана, animate'им к финальной.
+    const items: CharAnimItem[] = []
+    const visibleHeight = this.#contentPixelHeight * this.#pixelScale
+    const now = performance.now()
+
     for (const obj of newObjs) {
-      const finalX = obj.position.x
-      const finalY = obj.position.y
-      const angle = Math.random() * Math.PI * 2
-      const startX = finalX + Math.cos(angle) * flightRadius
-      const startY = finalY + Math.sin(angle) * flightRadius
-      obj.position.x = startX
-      obj.position.y = startY
-      obj.updateMatrix()
-      items.push({obj, startX, startY, targetX: finalX, targetY: finalY, remove: false})
+      // Анимируем только Text-объекты (отбрасываем highlight Mesh, scrollbar).
+      const asText = obj as unknown as Text
+      if (asText.isText !== true) continue
+      const tagged = obj.name
+      if (tagged !== "gutter" && tagged !== "code" && tagged !== "arrow") continue
+      const finalText = asText.text
+      if (finalText.length === 0) continue
+
+      // Волна сверху вниз: чем ниже row, тем позже начинается scramble.
+      // y отрицательный (от 0 вниз). Нормализуем на visibleHeight для линии.
+      const yWorld = obj.position.y
+      const norm = visibleHeight > 0 ? Math.max(0, Math.min(1, -yWorld / visibleHeight)) : 0
+      const startFraction = Math.min(0.55, norm * 0.5)
+      const settleFraction = Math.min(1, startFraction + 0.35)
+
+      // Сразу заменяем text на random чтобы первый кадр был «закодирован».
+      const charset = tagged === "gutter" ? MATRIX_DIGITS : MATRIX_CHARSET
+      asText.text = randomString(finalText.length, charset)
+      asText.updateGeometry()
+      asText.updateMatrix()
+
+      items.push({
+        obj: asText,
+        finalText,
+        startFraction,
+        settleFraction,
+        nextChangeAt: now + Math.random() * SCRAMBLE_INTERVAL_MS,
+        charset,
+      })
+    }
+
+    if (items.length === 0) {
+      // Нечего анимировать — просто финальный кадр.
+      this.#requestRender()
+      return
     }
 
     this.#animItems = items
-    this.#animStart = performance.now()
+    this.#animStart = now
     this.#animDuration = TRANSITION_DURATION_MS
     this.#animActive = true
     this.#layoutDirty = true
@@ -411,12 +424,28 @@ export class XrOverlay {
       if (!this.#animActive || this.#disposed) return
       const now = performance.now()
       const t = Math.min(1, (now - this.#animStart) / this.#animDuration)
-      const eased = easeOutCubic(t)
+
       for (const it of this.#animItems) {
-        it.obj.position.x = it.startX + (it.targetX - it.startX) * eased
-        it.obj.position.y = it.startY + (it.targetY - it.startY) * eased
-        it.obj.updateMatrix()
+        const local = (t - it.startFraction) / Math.max(0.0001, 1 - it.startFraction)
+        if (local < 0) continue
+        const localSettle = (it.settleFraction - it.startFraction) /
+          Math.max(0.0001, 1 - it.startFraction)
+        if (local >= localSettle) {
+          // Settle: финальный текст.
+          if (it.obj.text !== it.finalText) {
+            it.obj.text = it.finalText
+            it.obj.updateGeometry()
+            it.obj.updateMatrix()
+          }
+        } else if (now >= it.nextChangeAt) {
+          // Scramble: новый случайный набор символов той же длины.
+          it.obj.text = randomString(it.finalText.length, it.charset)
+          it.obj.updateGeometry()
+          it.obj.updateMatrix()
+          it.nextChangeAt = now + SCRAMBLE_INTERVAL_MS
+        }
       }
+
       this.#renderFrame()
       if (t >= 1) {
         this.#completeAnimImmediately()
@@ -428,13 +457,14 @@ export class XrOverlay {
   }
 
   #completeAnimImmediately(): void {
-    // Финализация: ставим финальные позиции и удаляем exit-объекты из сцены.
+    // Финализация: ставим финальный текст у всех item'ов которые ещё в scramble.
     for (const it of this.#animItems) {
-      it.obj.position.x = it.targetX
-      it.obj.position.y = it.targetY
-      it.obj.updateMatrix()
+      if (it.obj.text !== it.finalText) {
+        it.obj.text = it.finalText
+        it.obj.updateGeometry()
+        it.obj.updateMatrix()
+      }
     }
-    if (this.#exitContainer !== null) this.#exitContainer.children = []
     this.#animItems = []
     this.#animActive = false
     this.#requestRender()
@@ -716,6 +746,7 @@ export class XrOverlay {
       const numStr = String(lineNo)
       const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
       const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
+      numText.name = "gutter"
       numText.position.x = this.#lineNumberX(numStr, gutterPx, lineFontWorld)
       numText.position.y = baselineY
       numText.updateMatrix()
@@ -724,6 +755,7 @@ export class XrOverlay {
       if (isCurrent) {
         // IntelliJ "Execution Point": стрелка ▶ перед номером строки.
         const arrow = new Text("▶", this.#font, lineFontWorld * 0.9, this.#execArrowMaterial)
+        arrow.name = "arrow"
         arrow.position.x = (GUTTER_LEFT_PAD_PX * 0.4) * this.#pixelScale
         arrow.position.y = baselineY
         arrow.updateMatrix()
@@ -738,6 +770,7 @@ export class XrOverlay {
           this.#renderTokenizedLine(trimmed, lineTokens, codeStartX, baselineY, lineFontWorld)
         } else {
           const lineText = new Text(trimmed, this.#font, lineFontWorld, this.#lineMaterial)
+          lineText.name = "code"
           lineText.position.x = codeStartX
           lineText.position.y = baselineY
           lineText.updateMatrix()
@@ -774,6 +807,7 @@ export class XrOverlay {
       }
       const material = this.#tokenMaterials.get(category) ?? this.#lineMaterial
       const t = new Text(chunkText, this.#font, fontSize, material)
+      t.name = "code"
       t.position.x = cursorX
       t.position.y = baselineY
       t.updateMatrix()
