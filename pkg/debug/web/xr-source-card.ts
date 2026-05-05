@@ -353,16 +353,22 @@ export class XrSourceCard implements XrCard {
     this.#headerRule.visible = true
     this.#headerRule.updateMatrix()
 
-    this.#titleText = new Text(`Source · ${this.#runtimeState}`, this.#font, 13 * this.#pixelScale, this.#titleMaterial)
+    const titleStr = `Source · ${this.#runtimeState}`
+    this.#titleText = new Text(titleStr, this.#font, 13 * this.#pixelScale, this.#titleMaterial)
     this.#titleText.position.x = 20 * this.#pixelScale
     this.#titleText.position.y = -20 * this.#pixelScale
     this.#titleText.updateMatrix()
     this.node.add(this.#titleText)
 
+    // Location ставится сразу за title с gap 14 (bold-mono char ~ 9px),
+    // не наезжает на заголовок при любом runtimeState.
+    const titleEndPx = 20 + titleStr.length * 9
+    const locStartPx = titleEndPx + 14
     const location = this.#headerLocation()
-    const label = fitText(location, Math.max(80, this.#rectW - 170), 11)
+    const maxLocPx = Math.max(40, this.#rectW - locStartPx - 20)
+    const label = fitText(location, maxLocPx, 11)
     this.#locationText = new Text(label, this.#font, 11 * this.#pixelScale, this.#locationMaterial)
-    this.#locationText.position.x = 134 * this.#pixelScale
+    this.#locationText.position.x = locStartPx * this.#pixelScale
     this.#locationText.position.y = -20 * this.#pixelScale
     this.#locationText.updateMatrix()
     this.node.add(this.#locationText)
