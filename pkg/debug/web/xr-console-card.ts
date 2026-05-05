@@ -36,7 +36,8 @@ const PAD_RIGHT_PX = 8
 const PAD_BOTTOM_PX = 6
 const TS_GUTTER_PX = 70
 
-const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 0.92)
+const COLOR_BG = new Color(28 / 255, 34 / 255, 42 / 255, 1.0)
+const COLOR_BORDER = new Color(99 / 255, 110 / 255, 130 / 255, 1.0)
 const COLOR_TS = new Color(110 / 255, 118 / 255, 129 / 255, 0.85)
 const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
 const COLOR_WARN = new Color(210 / 255, 153 / 255, 34 / 255, 1)
@@ -55,6 +56,10 @@ type RenderedEntry = {
 export class XrConsoleCard implements XrCard {
   readonly node = new Object3D()
   readonly #background: Mesh
+  readonly #borderTop: Mesh
+  readonly #borderBottom: Mesh
+  readonly #borderLeft: Mesh
+  readonly #borderRight: Mesh
   readonly #logContainer: Object3D
 
   #canvas: XrCanvas | null = null
@@ -83,6 +88,16 @@ export class XrConsoleCard implements XrCard {
     this.#background.position.z = -0.005
     this.node.add(this.#background)
 
+    const borderMat = new MeshBasicMaterial({color: COLOR_BORDER})
+    this.#borderTop = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
+    this.#borderBottom = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
+    this.#borderLeft = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
+    this.#borderRight = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
+    for (const m of [this.#borderTop, this.#borderBottom, this.#borderLeft, this.#borderRight]) {
+      m.position.z = -0.001
+      this.node.add(m)
+    }
+
     this.#logContainer = new Object3D()
     this.#logContainer.position.z = 0.001
     this.node.add(this.#logContainer)
@@ -104,6 +119,27 @@ export class XrConsoleCard implements XrCard {
     this.#background.position.x = (rect.w / 2) * pixelScale
     this.#background.position.y = -(rect.h / 2) * pixelScale
     this.#background.updateMatrix()
+
+    // Borders 1px.
+    const bw = 1 * pixelScale
+    const cw = rect.w * pixelScale
+    const ch = rect.h * pixelScale
+    this.#borderTop.geometry = new PlaneGeometry({width: cw, height: bw})
+    this.#borderTop.position.x = cw / 2
+    this.#borderTop.position.y = -bw / 2
+    this.#borderTop.updateMatrix()
+    this.#borderBottom.geometry = new PlaneGeometry({width: cw, height: bw})
+    this.#borderBottom.position.x = cw / 2
+    this.#borderBottom.position.y = -ch + bw / 2
+    this.#borderBottom.updateMatrix()
+    this.#borderLeft.geometry = new PlaneGeometry({width: bw, height: ch})
+    this.#borderLeft.position.x = bw / 2
+    this.#borderLeft.position.y = -ch / 2
+    this.#borderLeft.updateMatrix()
+    this.#borderRight.geometry = new PlaneGeometry({width: bw, height: ch})
+    this.#borderRight.position.x = cw - bw / 2
+    this.#borderRight.position.y = -ch / 2
+    this.#borderRight.updateMatrix()
 
     if (this.#pendingEntries.length > 0) {
       const items = this.#pendingEntries
