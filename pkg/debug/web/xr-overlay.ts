@@ -391,7 +391,9 @@ export class XrOverlay {
 
       // Сразу заменяем text на random чтобы первый кадр был «закодирован».
       const charset = tagged === "gutter" ? MATRIX_DIGITS : MATRIX_CHARSET
-      this.#applyTextChange(asText, randomString(finalText.length, charset))
+      asText.text = randomString(finalText.length, charset)
+      asText.updateGeometry()
+      asText.updateMatrix()
 
       items.push({
         obj: asText,
@@ -431,11 +433,15 @@ export class XrOverlay {
         if (local >= localSettle) {
           // Settle: финальный текст.
           if (it.obj.text !== it.finalText) {
-            this.#applyTextChange(it.obj, it.finalText)
+            it.obj.text = it.finalText
+            it.obj.updateGeometry()
+            it.obj.updateMatrix()
           }
         } else if (now >= it.nextChangeAt) {
           // Scramble: новый случайный набор символов той же длины.
-          this.#applyTextChange(it.obj, randomString(it.finalText.length, it.charset))
+          it.obj.text = randomString(it.finalText.length, it.charset)
+          it.obj.updateGeometry()
+          it.obj.updateMatrix()
           it.nextChangeAt = now + SCRAMBLE_INTERVAL_MS
         }
       }
@@ -451,27 +457,17 @@ export class XrOverlay {
   }
 
   #completeAnimImmediately(): void {
+    // Финализация: ставим финальный текст у всех item'ов которые ещё в scramble.
     for (const it of this.#animItems) {
       if (it.obj.text !== it.finalText) {
-        this.#applyTextChange(it.obj, it.finalText)
+        it.obj.text = it.finalText
+        it.obj.updateGeometry()
+        it.obj.updateMatrix()
       }
     }
     this.#animItems = []
     this.#animActive = false
     this.#requestRender()
-  }
-
-  // Меняет text у Text-объекта и сбрасывает GPU-кеш геометрий. В этом
-  // движке Text.updateGeometry() пишет в существующие stencilGeometry/
-  // coverGeometry, но Renderer.geometryCache keyed по BufferGeometry
-  // reference — без явного invalidateGeometry GPU-буферы остаются прежними
-  // и буквы визуально не меняются.
-  #applyTextChange(text: Text, newText: string): void {
-    text.text = newText
-    text.updateGeometry()
-    this.#renderer.invalidateGeometry(text.stencilGeometry)
-    this.#renderer.invalidateGeometry(text.coverGeometry)
-    text.updateMatrix()
   }
 
   refresh(): void {
