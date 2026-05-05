@@ -217,10 +217,12 @@ function handleServerMessage(msg: ServerMessage): void {
       return
   }
   // Triggered by sidecar `POST /reload` — реложим вкладку программно.
-  // Перед reload пробиваем кэш стилей через bump query string —
-  // некоторые правки достаточно и без full reload.
+  // location.reload() оставляет JS-bundle в HTTP-кэше браузера если
+  // chunk-hash не изменился; форсируем обход кэша через query-bump.
   if ((msg as {type: string}).type === "reload") {
-    location.reload()
+    const url = new URL(window.location.href)
+    url.searchParams.set("_r", String(Date.now()))
+    window.location.replace(url.toString())
   }
 }
 

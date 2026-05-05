@@ -492,7 +492,10 @@ export class XrSourceCard implements XrCard {
     const contentPixelHeight = Math.max(1, this.#rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
     this.#syncGutterRule(gutterPx, contentPixelWidth, contentPixelHeight)
     const contentWorldW = contentPixelWidth * this.#pixelScale
-    const highlightWorldH = LINE_PX * this.#pixelScale
+    // Highlight чуть меньше row-height'а: visually центрирован на тексте,
+    // не залезает на нижнюю строку.
+    const highlightHeightPx = CODE_FONT_PX + 4
+    const highlightWorldH = highlightHeightPx * this.#pixelScale
 
     let highlightPlaced = false
     // Clip-check: пропускаем text-render строки которые вне visible card-rect
@@ -512,11 +515,11 @@ export class XrSourceCard implements XrCard {
       if (isCurrent) {
         // codeContainer.position уже учитывает PAD_TOP + scrollOffset, поэтому
         // внутри него нужны только row-relative координаты.
-        // codeContainer origin сидит в (PAD_LEFT_PX, PAD_TOP_PX - scrollOffsetPx),
-        // x внутри = x_in_card - PAD_LEFT_PX.
+        // Highlight: высота CODE_FONT_PX + 4 (≤ LINE_PX), центр над row middle
+        // — визуально лежит на тексте, не залезая на следующую строку.
         this.#execHighlight.geometry = new PlaneGeometry({width: contentWorldW, height: highlightWorldH})
         this.#execHighlight.position.x = (contentPixelWidth / 2) * this.#pixelScale
-        this.#execHighlight.position.y = rowTopWorld - highlightWorldH / 2
+        this.#execHighlight.position.y = rowTopWorld - (LINE_PX / 2) * this.#pixelScale
         this.#execHighlight.position.z = -0.005
         this.#execHighlight.visible = true
         this.#execHighlight.updateMatrix()
