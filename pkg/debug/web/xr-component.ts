@@ -146,6 +146,41 @@ export class Rect extends Component {
   }
 }
 
+/**
+ * Стандартный header карточки: title + опциональный subtitle на одной строке
+ * + 1px divider под ним.
+ */
+export class CardHeader extends Box {
+  constructor(opts: {
+    title: string
+    titleMaterial: TextMaterial
+    subtitle?: string
+    subtitleMaterial?: TextMaterial
+    dividerColor: import("@metafor/engine").Color
+    paddingLeft?: number
+    paddingRight?: number
+  }) {
+    super({
+      flexDirection: "column",
+      paddingLeft: opts.paddingLeft ?? 0,
+      paddingRight: opts.paddingRight ?? 0,
+    })
+    const row = new Box({
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      height: 22,
+      paddingTop: 4,
+    })
+    row.add(new TextBox(opts.title, {fontPx: 13, material: opts.titleMaterial, boxHeight: 18}))
+    if (opts.subtitle !== undefined && opts.subtitleMaterial !== undefined) {
+      row.add(new TextBox(opts.subtitle, {fontPx: 11, material: opts.subtitleMaterial, boxHeight: 14}))
+    }
+    const divider = new Rect(opts.dividerColor, {height: 1, alignSelf: "stretch", marginTop: 6})
+    this.add(row, divider)
+  }
+}
+
 /** Box-with-bg: контейнер + автозаливка фона по computed-bounds. */
 export class FilledBox extends Box {
   readonly #color: Color

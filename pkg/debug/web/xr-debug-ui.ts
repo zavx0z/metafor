@@ -400,61 +400,7 @@ abstract class XrPanelCard implements XrCard {
   }
 }
 
-export class XrToolbarCard extends XrPanelCard {
-  #state: ToolbarState = {
-    ws: "connecting...",
-    wsKind: "neutral",
-    connection: "inspector: connecting",
-    connectionKind: "neutral",
-    run: "waiting",
-    runKind: "neutral",
-    inspectorUrl: "",
-    verbose: false,
-    engine: "engine: init",
-  }
-  readonly #actions: ToolbarActions
-
-  constructor(actions: ToolbarActions) {
-    super()
-    this.#actions = actions
-    // Тулбар — плоская полоса наверху без рамок: ниже идут карточки с
-    // собственными bordered headers, дополнительная рамка вокруг тулбара
-    // выглядит лишней (две параллельные линии под "WebGPU UI Debugger").
-    this.setBorders(false)
-    this.setBackground(false)
-  }
-
-  setState(next: Partial<ToolbarState>): void {
-    this.#state = {...this.#state, ...next}
-    this.render()
-    this.requestRender()
-  }
-
-  protected render(): void {
-    this.begin()
-    const h = Math.max(1, this.rectH)
-    this.drawRect(0, 0, this.rectW, h, rgb(11, 15, 22, 1), -0.001)
-    this.drawText("@metafor/bun-debug", 12, 13, 13, this.cyanMat, 160)
-    let x = 176
-    this.badge(`ws: ${this.#state.ws}`, x, 12, 114, this.#state.wsKind); x += 122
-    this.badge(this.#state.connection, x, 12, 164, this.#state.connectionKind); x += 172
-    this.badge(`run: ${this.#state.run}`, x, 12, 150, this.#state.runKind); x += 158
-    this.drawText(this.#state.engine, x, 17, 11, this.mutedMat, 112); x += 120
-    this.drawText(shortenUrl(this.#state.inspectorUrl), x, 17, 11, this.mutedMat, Math.max(80, this.rectW - x - 450))
-
-    const y = 10
-    const bw = 62
-    let bx = this.rectW - 12 - 6 * (bw + 6) - 92
-    if (bx < 12) bx = 12
-    this.button(this.#state.verbose ? "Hide log" : "Verbose", bx, y, 86, 26, () => this.#actions.onToggleVerbose(), this.#state.verbose ? "paused" : "neutral")
-    bx += 96
-    this.button("Pause", bx, y, bw, 26, () => this.#actions.onPause(), "warn"); bx += bw + 6
-    this.button("Resume", bx, y, bw + 12, 26, () => this.#actions.onResume(), "live"); bx += bw + 18
-    this.button("Over", bx, y, bw, 26, () => this.#actions.onStep("over"), "neutral"); bx += bw + 6
-    this.button("Into", bx, y, bw, 26, () => this.#actions.onStep("into"), "neutral"); bx += bw + 6
-    this.button("Out", bx, y, bw, 26, () => this.#actions.onStep("out"), "neutral")
-  }
-}
+export {XrToolbarCard} from "./xr-toolbar-card.ts"
 
 // XrFramesCard теперь живёт в xr-frames-card.ts (Yoga layout migration).
 export {XrFramesCard} from "./xr-frames-card.ts"
@@ -626,79 +572,7 @@ type VerboseEntry = {
   payload: string
 }
 
-export class XrVerboseCard extends XrPanelCard {
-  #entries: VerboseEntry[] = []
-  #scroll = 0
-  #autoscroll = localStorage.getItem("bd:verbose:pin") !== "0"
-  readonly #max = 1000
-
-  append(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
-    const safePayload = payload === undefined ? "" : truncateJson(payload, 220)
-    this.#entries.push({kind, ts, name, payload: safePayload})
-    while (this.#entries.length > this.#max) this.#entries.shift()
-    if (this.#autoscroll) this.#scrollToBottom()
-    this.render()
-    this.requestRender()
-  }
-
-  clear(): void {
-    this.#entries = []
-    this.#scroll = 0
-    this.render()
-    this.requestRender()
-  }
-
-  onWheel(event: WheelEvent): void {
-    const delta = event.deltaMode === 1 ? event.deltaY : event.deltaY / 18
-    this.#setScroll(this.#scroll + Math.trunc(delta))
-  }
-
-  protected render(): void {
-    this.begin()
-    this.title("Verbose", `${this.#entries.length}`)
-    this.button("Clear", this.rectW - 138, 10, 58, 24, () => this.clear(), "neutral")
-    this.button(this.#autoscroll ? "Auto" : "Manual", this.rectW - 74, 10, 62, 24, () => {
-      this.#autoscroll = !this.#autoscroll
-      localStorage.setItem("bd:verbose:pin", this.#autoscroll ? "1" : "0")
-      if (this.#autoscroll) this.#scrollToBottom()
-      this.render()
-    }, this.#autoscroll ? "live" : "neutral")
-
-    const y0 = 46
-    const rowH = 18
-    const visible = Math.max(1, Math.floor((this.rectH - y0 - 12) / rowH))
-    this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#entries.length - visible)))
-    if (this.#entries.length === 0) {
-      this.drawText("inspector and agent event stream", 22, 52, 12, this.mutedMat, this.rectW - 44)
-      return
-    }
-    for (let i = 0; i < visible; i++) {
-      const entry = this.#entries[this.#scroll + i]
-      if (entry === undefined) break
-      const y = y0 + i * rowH
-      this.drawText(formatTimestamp(entry.ts), 22, y, 10, this.mutedMat, 58)
-      this.drawText(entry.kind === "agent" ? `@${entry.name}` : entry.name, 84, y, 10, entry.kind === "agent" ? this.violetMat : this.cyanMat, 148)
-      this.drawText(entry.payload, 238, y, 10, this.textMat, this.rectW - 258)
-    }
-  }
-
-  #setScroll(next: number): void {
-    const visible = Math.max(1, Math.floor((this.rectH - 58) / 18))
-    const max = Math.max(0, this.#entries.length - visible)
-    const clamped = Math.max(0, Math.min(max, next))
-    if (clamped === this.#scroll) return
-    this.#autoscroll = false
-    localStorage.setItem("bd:verbose:pin", "0")
-    this.#scroll = clamped
-    this.render()
-    this.requestRender()
-  }
-
-  #scrollToBottom(): void {
-    const visible = Math.max(1, Math.floor((this.rectH - 58) / 18))
-    this.#scroll = Math.max(0, this.#entries.length - visible)
-  }
-}
+export {XrVerboseCard} from "./xr-verbose-card.ts"
 
 export class XrWelcomeCard extends XrPanelCard {
   #state: WelcomeState = {
