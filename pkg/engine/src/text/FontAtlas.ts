@@ -116,11 +116,28 @@ export class FontAtlas {
     const fontPx = options.fontPixelSize
     const superscale = options.superscale ?? 2
     const charset = options.charset ?? DEFAULT_CHARSET
-    const cellPixelSize = Math.ceil(fontPx * superscale)
-    // Моноширный → cell ширина обычно ~= 0.6 * fontPx. Берём с запасом 0.65.
-    const cellPixelW = Math.ceil(fontPx * 0.65 * superscale)
+    // Cell-высота — fontPx с запасом на хвосты + по супер-сэмплу.
     const cellPixelH = Math.ceil(fontPx * 1.3 * superscale)
-    void cellPixelSize
+    // Размер шрифта в Canvas2D: ~75% от высоты ячейки.
+    const drawFontPx = Math.round(cellPixelH * 0.75)
+
+    // Замеряем реальный advance моноширного шрифта через ctx.measureText.
+    // Без точного замера cell-width не совпадает с шириной глифа: либо
+    // зазоры между буквами (cellW > advance), либо обрезание (cellW < advance).
+    // Берём максимум из нескольких широких символов с +1px запасом.
+    const probeCanvas = createCanvas(8, 8)
+    const probeCtx = probeCanvas.getContext("2d") as
+      | OffscreenCanvasRenderingContext2D
+      | CanvasRenderingContext2D
+      | null
+    if (probeCtx === null) throw new Error("FontAtlas: 2D context unavailable")
+    probeCtx.font = `${drawFontPx}px ${options.fontFamily}`
+    let measured = 0
+    for (const sample of ["M", "W", "0", "→"]) {
+      const w = probeCtx.measureText(sample).width
+      if (w > measured) measured = w
+    }
+    const cellPixelW = Math.max(1, Math.ceil(measured) + 1)
 
     const cols = 16
     const rows = Math.ceil(charset.length / cols)
@@ -135,7 +152,7 @@ export class FontAtlas {
       | null
     if (ctx === null) throw new Error("FontAtlas: 2D context unavailable")
 
-    const fontCss = `${cellPixelH * 0.75}px ${options.fontFamily}`
+    const fontCss = `${drawFontPx}px ${options.fontFamily}`
     ctx.font = fontCss
     ctx.fillStyle = "#ffffff"
     ctx.textBaseline = "alphabetic"

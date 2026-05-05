@@ -127,7 +127,10 @@ export class XrOverlay {
     const atlas = await FontAtlas.create({
       fontFamily: FONT_FAMILY,
       fontPixelSize: ATLAS_FONT_PX,
-      superscale: 2,
+      // 3x superscale: атлас рендерится в 3*fontPx → 36px Canvas2D, потом
+      // bilinear-фильтр в шейдере при сэмплировании с logical 12px даёт
+      // мягкий AA без блюра 2x варианта.
+      superscale: 3,
     })
     return new XrOverlay(canvas, renderer, atlas)
   }
