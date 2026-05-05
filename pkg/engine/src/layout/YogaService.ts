@@ -42,11 +42,16 @@ export class YogaService {
 
     this.initializationPromise = (async () => {
       try {
-        // @ts-ignore Прямой импорт ES модуля
-        const yogaModule = await import("/yoga-wasm-base64-esm.js")
-        const yogaExport = yogaModule.default || yogaModule
+        // yoga-layout v3 при импорте делает top-level await loadYoga() и
+        // экспортирует уже обёрнутый Yoga (Node, Config) + все константы
+        // (FLEX_DIRECTION_ROW, EDGE_ALL, GUTTER_ALL и т.д.). Импорт по
+        // имени пакета — bundler разрулит резолв.
+        // @ts-ignore — yoga-layout типы не имеют дефолтного экспорта в TS, но JS работает.
+        const yogaModule = await import("yoga-layout")
+        const yogaExport = (yogaModule as any).default ?? yogaModule
 
         if (typeof yogaExport === "function") {
+          // Старый API — функция-loader (на случай fallback'а).
           this._yoga = await yogaExport()
         } else {
           this._yoga = yogaExport
@@ -57,7 +62,7 @@ export class YogaService {
       } catch (error) {
         this._state = YogaLoadingState.ERROR
         this.initializationPromise = null
-        console.error("YogaService: Error loading WASM:", error)
+        console.error("YogaService: Error loading yoga-layout:", error)
         throw error
       }
     })()
