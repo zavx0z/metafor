@@ -826,9 +826,11 @@ function hiddenRect(): CardRect {
 function welcomeRect({w, h}: {w: number; h: number}): CardRect {
   if (!welcomeVisible) return hiddenRect()
   const bodyH = Math.max(1, h - TOOLBAR_H - PAD * 2)
-  const maxW = Math.max(1, Math.min(1440, w - PAD * 2))
-  const cardW = Math.max(320, Math.min(maxW, Math.floor(w * 0.86)))
-  const cardH = Math.max(1, Math.min(560, bodyH))
+  const maxW = Math.max(1, Math.min(1280, w - PAD * 2))
+  const cardW = Math.max(320, Math.min(maxW, Math.floor(w * 0.7)))
+  // welcome content стек: title 36 + status 80 + gap 10 + panels 222 + lower 92 + bottom-pad 18 ≈ 458.
+  // Берём min от bodyH чтобы не вылезать на маленьких окнах.
+  const cardH = Math.max(1, Math.min(478, bodyH))
   return {
     x: Math.floor((w - cardW) / 2),
     y: TOOLBAR_H + PAD + Math.floor(Math.max(0, bodyH - cardH) / 2),

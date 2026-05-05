@@ -476,7 +476,7 @@ export class XrFramesCard extends XrPanelCard {
   protected render(): void {
     this.begin()
     this.title("Frames", `${this.#frames.length}`)
-    const rowH = 26
+    const rowH = 32
     const y0 = 46
     const visible = Math.max(1, Math.floor((this.rectH - y0 - 12) / rowH))
     this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#frames.length - visible)))
@@ -491,18 +491,18 @@ export class XrFramesCard extends XrPanelCard {
       if (frame === undefined) break
       const y = y0 + i * rowH
       const active = frame.index === this.#active
-      if (active) this.drawRect(10, y - 2, this.rectW - 20, rowH, rgb(43, 73, 117, 0.95), 0)
+      if (active) this.drawRect(10, y - 2, this.rectW - 20, rowH - 4, rgb(43, 73, 117, 0.95), 0)
       const fn = frame.function || "<anonymous>"
       const loc = frame.url ? `${shortenUrl(frame.url)}:${frame.line}` : `(scriptId ?):${frame.line}`
       this.drawText(`#${frame.index}`, 16, y + 4, 11, active ? this.orangeMat : this.mutedMat, 32)
-      this.drawText(fn, 50, y + 3, 12, active ? this.textMat : this.textMat, this.rectW - 70)
-      this.drawText(loc, 50, y + 17, 9, this.mutedMat, this.rectW - 70)
-      this.hit(10, y - 2, this.rectW - 20, rowH, () => this.#onSelect(frame.index))
+      this.drawText(fn, 50, y + 2, 12, active ? this.textMat : this.textMat, this.rectW - 70)
+      this.drawText(loc, 50, y + 18, 9, this.mutedMat, this.rectW - 70)
+      this.hit(10, y - 2, this.rectW - 20, rowH - 4, () => this.#onSelect(frame.index))
     }
   }
 
   #setScroll(next: number): void {
-    const visible = Math.max(1, Math.floor((this.rectH - 58) / 26))
+    const visible = Math.max(1, Math.floor((this.rectH - 58) / 32))
     const max = Math.max(0, this.#frames.length - visible)
     const clamped = Math.max(0, Math.min(max, next))
     if (clamped === this.#scroll) return
