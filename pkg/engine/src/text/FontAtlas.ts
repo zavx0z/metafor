@@ -141,11 +141,9 @@ export class FontAtlas {
       | null
     if (probeCtx === null) throw new Error("FontAtlas: 2D context unavailable")
     probeCtx.font = `${drawFontPx}px ${options.fontFamily}`
-    let measured = 0
-    for (const sample of ["M", "W", "0", "→"]) {
-      const w = probeCtx.measureText(sample).width
-      if (w > measured) measured = w
-    }
+    // Моноширный → advance одинаков для всех ASCII; меряем одной 'M'.
+    // Unicode-знаки вроде '→' могут быть шире моноширного и портят cell.
+    const measured = probeCtx.measureText("M").width
     // Cell-stride учитывает 2px padding по обе стороны: bilinear-фильтр
     // на границе UV не должен зачерпывать соседнюю ячейку (UV-bleeding).
     const cellPad = 2
@@ -189,34 +187,18 @@ export class FontAtlas {
       const cellY = row * cellStrideH + cellPad
       const ch = String.fromCodePoint(cp)
       // Pen-точка: левый край cell, baseline внутри cell.
-      const penX = cellX
-      const penY = cellY + baselineWithinCell
-      ctx.fillText(ch, penX, penY)
-
-      // Измеряем фактический bbox глифа. actualBoundingBoxLeft/Right
-      // — расстояние от pen-точки до bbox-краёв (left ≥ 0 для большинства).
-      // Ascent/Descent — высоты от baseline. С их помощью получаем плотный
-      // bbox, который используется как UV в AtlasText: quad привязан к
-      // фактическому рисунку, без прозрачных краёв cell.
-      const m = ctx.measureText(ch)
-      const left = m.actualBoundingBoxLeft ?? 0
-      const right = m.actualBoundingBoxRight ?? 0
-      const ascent = m.actualBoundingBoxAscent ?? 0
-      const descent = m.actualBoundingBoxDescent ?? 0
-      const bboxW = Math.max(1, Math.ceil(left + right))
-      const bboxH = Math.max(1, Math.ceil(ascent + descent))
-      const bboxPx = Math.floor(penX - left)
-      const bboxPy = Math.floor(penY - ascent)
+      ctx.fillText(ch, cellX, cellY + baselineWithinCell)
+      // Простая cell-grid схема: UV покрывает всю cell, AtlasText quad
+      // совпадает с cell. bearingX=0, bearingY=baselineWithinCell — Y-offset
+      // от baseline до верха cell в пикселях атласа (в logical делится на
+      // superscale на стороне AtlasText).
       glyphs.set(cp, {
-        px: bboxPx,
-        py: bboxPy,
-        pw: bboxW,
-        ph: bboxH,
-        // bearing относительно pen-x внутри cell (левый край cell == 0).
-        bearingX: bboxPx - cellX,
-        // bearing относительно baseline cell — в пикселях атласа, положит.
-        // = ascent (вверх от baseline). AtlasText scale'ит на logical.
-        bearingY: ascent,
+        px: cellX,
+        py: cellY,
+        pw: cellPixelW,
+        ph: cellPixelH,
+        bearingX: 0,
+        bearingY: baselineWithinCell,
       })
     }
 
