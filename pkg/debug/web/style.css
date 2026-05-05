@@ -97,11 +97,11 @@ button:disabled {
 main {
   display: grid;
   grid-template-columns: 320px 1fr;
-  /* Engine-карточки сверху (source + console), HTML-панели снизу (scopes,
-     eval). Высоты: source — 1fr (главное место), console — фиксированная
-     зона ~200px, scopes capped 280px, eval — auto. */
-  grid-template-rows: minmax(280px, 1fr) minmax(140px, 200px) minmax(180px, 280px) auto;
-  gap: 1px;
+  /* Engine-карточки сверху (source + console) делят верхнюю половину 60/40,
+     HTML-панели снизу (scopes 180-280, eval auto). Gap 4px = чёткое
+     визуальное разделение карточек. */
+  grid-template-rows: minmax(280px, 3fr) minmax(140px, 2fr) minmax(180px, 280px) auto;
+  gap: 4px;
   background: var(--border);
   height: calc(100vh - 49px);
 }
@@ -429,14 +429,16 @@ main.welcome #welcome-section {
 #source-section #source-loc,
 #source-section #source-status {
   position: absolute;
-  top: 6px;
+  top: 8px;
   z-index: 2;
   pointer-events: none;
-  background: rgba(13, 17, 23, 0.6);
-  padding: 2px 8px;
+  background: rgba(22, 27, 34, 0.85);
+  border: 1px solid var(--border);
+  padding: 3px 8px;
   border-radius: 3px;
-  font-size: 10px;
-  color: var(--muted);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--accent);
 }
 #source-section #source-loc { left: 10px; }
-#source-section #source-status { right: 10px; }
+#source-section #source-status { right: 10px; color: var(--muted); }
