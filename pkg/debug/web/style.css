@@ -101,6 +101,8 @@ main {
   overflow: hidden;
 }
 
+main > [hidden] { display: none !important; }
+
 #engine-canvas {
   position: absolute;
   inset: 0;

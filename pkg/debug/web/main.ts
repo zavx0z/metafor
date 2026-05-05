@@ -759,6 +759,13 @@ if (persistedVerbose === "1") {
 const persistedFilter = localStorage.getItem("bd:verbose:filter")
 if (persistedFilter !== null) verboseFilter.value = persistedFilter
 
+// Forced hide: атрибут hidden в HTML мог быть проигнорирован старым bundle,
+// программно гарантируем display:none для legacy HTML overlay'ев.
+for (const id of ["frames-section", "scopes-section", "eval-section"]) {
+  const el = document.getElementById(id)
+  if (el !== null) (el as HTMLElement).style.display = "none"
+}
+
 connect()
 void initEngine()
 
