@@ -64,10 +64,10 @@ const OVERSCAN_LINES = 40
 const MAX_RENDERED_LINES = 350
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 1)
-// WebStorm Darcula execution-row: насыщенная синяя плашка по всей ширине
-// строки. На фоне COLOR_BG (#161b22) даём более яркий синий чем стандартный
-// IntelliJ — иначе сливается. Alpha=1, MeshBasicMaterial рендерится opaque.
-const COLOR_HIGHLIGHT = new Color(35 / 255, 90 / 255, 145 / 255, 1)
+// WebStorm Darcula execution-row — IntelliJ "Execution Point" background
+// ≈ #2440A4 (насыщенный medium-blue, чётко контрастирует с panel-фоном).
+// Alpha=1, MeshBasicMaterial в этом движке рендерится opaque без блендинга.
+const COLOR_HIGHLIGHT = new Color(36 / 255, 64 / 255, 164 / 255, 1)
 // Жёлто-оранжевая стрелка ▶ + жирный номер — IntelliJ "Execution Point".
 const COLOR_EXEC_ARROW = new Color(255 / 255, 199 / 255, 95 / 255, 1)
 const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
