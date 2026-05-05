@@ -770,36 +770,57 @@ async function initEngine(): Promise<void> {
       scene: xrCanvas?.scene,
       scanScene(): void {
         if (xrCanvas === null) return
-        const out: Array<{name: string; type: string; visible: boolean; pos: [number, number, number]; geomBounds?: [number, number]}> = []
-        const walk = (obj: import("@metafor/engine").Object3D, depth = 0): void => {
+        const canvasW = engineCanvas.getBoundingClientRect().width
+        const canvasH = engineCanvas.getBoundingClientRect().height
+        const ps = (xrCanvas as unknown as {[k: string]: unknown})["#pixelScale"] as number | undefined
+        // Reflection workaround — приватное поле напрямую недоступно;
+        // считаем pixelScale по высоте canvas-а.
+        const physicalH = 2 * 0.6 * Math.tan(Math.PI / 4 / 2)
+        const pixelScale = ps ?? physicalH / canvasH
+        const out: Array<Record<string, unknown>> = []
+        const walk = (obj: import("@metafor/engine").Object3D, parents: string[] = []): void => {
           const m = obj as import("@metafor/engine").Mesh
           const t = obj as import("@metafor/engine").Text
-          const type = t.isText === true ? "Text" : (m.geometry !== undefined ? "Mesh" : "Object3D")
-          let geomBounds: [number, number] | undefined
-          if (type === "Mesh" && m.geometry !== undefined) {
+          const isText = t.isText === true
+          const isMesh = !isText && m.geometry !== undefined
+          const w = obj.matrixWorld.elements
+          const wx = w[12]!
+          const wy = w[13]!
+          // canvas-px: from world → canvas pixel (top-left origin).
+          const pxX = wx / pixelScale + canvasW / 2
+          const pxY = -wy / pixelScale + canvasH / 2
+          let bounds: [number, number] | null = null
+          if (isMesh && m.geometry !== undefined) {
             const arr = (m.geometry.attributes.position?.array as Float32Array | undefined) ?? null
             if (arr !== null && arr.length >= 6) {
-              const xs: number[] = []
-              const ys: number[] = []
+              let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
               for (let i = 0; i < arr.length; i += 3) {
-                xs.push(arr[i]!)
-                ys.push(arr[i + 1]!)
+                const x = arr[i]!, y = arr[i + 1]!
+                if (x < minX) minX = x
+                if (x > maxX) maxX = x
+                if (y < minY) minY = y
+                if (y > maxY) maxY = y
               }
-              geomBounds = [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)]
+              bounds = [Math.round((maxX - minX) / pixelScale), Math.round((maxY - minY) / pixelScale)]
             }
           }
-          const w = obj.matrixWorld.elements
-          out.push({
-            name: obj.name || `(${"  ".repeat(depth)}${type})`,
-            type,
-            visible: obj.visible,
-            pos: [w[12]!, w[13]!, w[14]!],
-            ...(geomBounds === undefined ? {} : {geomBounds}),
-          })
-          for (const c of obj.children) walk(c, depth + 1)
+          if ((isMesh || isText) && obj.visible) {
+            out.push({
+              path: parents.join(" > ") + (obj.name ? ` > ${obj.name}` : ""),
+              type: isText ? "Text" : "Mesh",
+              canvasX: Math.round(pxX),
+              canvasY: Math.round(pxY),
+              boundsW: bounds?.[0] ?? "-",
+              boundsH: bounds?.[1] ?? "-",
+            })
+          }
+          for (const c of obj.children) walk(c, [...parents, obj.name || "(unnamed)"])
         }
         walk(xrCanvas.scene)
-        console.table(out.filter((r) => r.type === "Mesh" && r.visible))
+        // Сортируем по canvasX чтобы группировать кучками.
+        out.sort((a, b) => (a.canvasX as number) - (b.canvasX as number))
+        console.table(out)
+        return undefined
       },
     }
   } catch (error) {

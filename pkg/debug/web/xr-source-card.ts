@@ -117,19 +117,25 @@ export class XrSourceCard implements XrCard {
   #scanLoop = false
 
   constructor() {
+    this.node.name = "SourceCard"
     this.#background = new Mesh(
       new PlaneGeometry({width: 1, height: 1}),
       new MeshBasicMaterial({color: COLOR_BG}),
     )
+    this.#background.name = "SourceCard.background"
     this.#background.position.z = -0.02
     this.node.add(this.#background)
 
     // 4 тонких mesh — top/bottom/left/right границы card.
     const borderMat = new MeshBasicMaterial({color: COLOR_BORDER})
     this.#borderTop = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
+    this.#borderTop.name = "SourceCard.borderTop"
     this.#borderBottom = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
+    this.#borderBottom.name = "SourceCard.borderBottom"
     this.#borderLeft = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
+    this.#borderLeft.name = "SourceCard.borderLeft"
     this.#borderRight = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
+    this.#borderRight.name = "SourceCard.borderRight"
     for (const m of [this.#borderTop, this.#borderBottom, this.#borderLeft, this.#borderRight]) {
       m.position.z = -0.01
       this.node.add(m)
@@ -139,6 +145,7 @@ export class XrSourceCard implements XrCard {
       new PlaneGeometry({width: 1, height: 1}),
       new MeshBasicMaterial({color: COLOR_HEADER_RULE}),
     )
+    this.#headerRule.name = "SourceCard.headerRule"
     this.#headerRule.position.z = 0.001
     this.node.add(this.#headerRule)
 
@@ -146,6 +153,7 @@ export class XrSourceCard implements XrCard {
       new PlaneGeometry({width: 1, height: 1}),
       new MeshBasicMaterial({color: COLOR_GUTTER_RULE}),
     )
+    this.#gutterRule.name = "SourceCard.gutterRule"
     this.#gutterRule.position.z = 0.001
     this.node.add(this.#gutterRule)
 
@@ -153,6 +161,7 @@ export class XrSourceCard implements XrCard {
       new PlaneGeometry({width: 1, height: 1}),
       new MeshBasicMaterial({color: COLOR_SCAN}),
     )
+    this.#scanLine.name = "SourceCard.scanLine"
     this.#scanLine.visible = false
     this.#scanLine.position.z = 0.003
     this.node.add(this.#scanLine)
@@ -168,6 +177,7 @@ export class XrSourceCard implements XrCard {
     }
 
     this.#codeContainer = new Object3D()
+    this.#codeContainer.name = "SourceCard.codeContainer"
     this.#codeContainer.position.z = 0.002
     this.node.add(this.#codeContainer)
 
@@ -179,6 +189,7 @@ export class XrSourceCard implements XrCard {
       new PlaneGeometry({width: 1, height: 1}),
       new MeshBasicMaterial({color: COLOR_HIGHLIGHT}),
     )
+    this.#execHighlight.name = "SourceCard.execHighlight"
     this.#execHighlight.visible = false
     this.#execHighlight.position.z = -0.005
     this.#codeContainer.add(this.#execHighlight)
