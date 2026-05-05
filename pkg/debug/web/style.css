@@ -1,211 +1,31 @@
-/* @metafor/bun-debug — UI styles.
- * Архитектура: header + один WebGPU-канвас (#engine-canvas) с карточками
- * внутри. Verbose-секция — правый HTML-сайдбар, остальные legacy-секции
- * скрыты (canvas-карточки на их месте).
- */
-
-:root {
-  --bg: #0d1117;
-  --fg: #e6edf3;
-  --muted: #8b949e;
-  --accent: #58a6ff;
-  --accent-hot: #f78166;
-  --border: #30363d;
-  --panel: #161b22;
-}
+/* @metafor/bun-debug: WebGPU owns the debugger UI. */
 
 * {
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-/* --- Header (controls bar) --- */
-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-header .title {
-  font-weight: 700;
-  color: var(--accent);
-  font-size: 12px;
-}
-
-header .status {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-header .controls {
-  margin-left: auto;
-  display: flex;
-  gap: 4px;
-}
-
-button {
-  background: var(--panel);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 3px 8px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 11px;
-}
-button:hover { border-color: var(--accent); color: var(--accent); }
-button:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.badge {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 11px;
-  color: var(--muted);
-}
-.badge.live      { border-color: #2ea043; color: #2ea043; }
-.badge.paused    { border-color: var(--accent-hot); color: var(--accent-hot); }
-.badge.connected   { border-color: #2ea043; color: #2ea043; }
-.badge.connecting  { border-color: var(--accent); color: var(--accent); }
-.badge.disconnected{ border-color: var(--accent-hot); color: var(--accent-hot); }
-
-.muted { color: var(--muted); }
-
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 2px 6px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-}
-.toggle.inline { border: none; padding: 0 4px; }
-.toggle input { accent-color: var(--accent); }
-
-/* --- Main: один WebGPU canvas + опциональный verbose-сайдбар --- */
-main {
-  position: relative;
-  background: var(--bg);
-  height: calc(100vh - 33px);
+  width: 100%;
+  height: 100%;
   overflow: hidden;
+  background: #0b0f16;
 }
 
-main > [hidden] { display: none !important; }
+main {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #0b0f16;
+}
 
 #engine-canvas {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;
+  outline: none;
 }
-
-main.with-verbose #engine-canvas { right: 380px; width: auto; }
-
-/* --- Verbose: правый сайдбар, скрыт по умолчанию --- */
-#verbose-section {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 380px;
-  background: rgba(22, 27, 34, 0.95);
-  border-left: 1px solid var(--border);
-  padding: 10px 12px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  z-index: 2;
-}
-#verbose-section[hidden] { display: none !important; }
-#verbose-section h2 {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 0 0 6px;
-  color: var(--muted);
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-#verbose-section h2 input[type="text"] {
-  background: var(--panel);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 2px 6px;
-  font-family: inherit;
-  font-size: 11px;
-  width: 200px;
-}
-#verbose-log {
-  flex: 1;
-  margin: 0;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 6px 8px;
-  font-size: 11px;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-#verbose-log .row { display: block; padding: 1px 0; }
-#verbose-log .row .ts     { color: var(--muted); margin-right: 6px; }
-#verbose-log .row .method { color: var(--accent); }
-#verbose-log .row .params { color: var(--fg); }
-#verbose-log .row.agent .method { color: #d2a8ff; }
-#verbose-log .row.error .method { color: var(--accent-hot); }
-
-/* --- Welcome (когда нет inspector connection) — занимает весь main. --- */
-#welcome-section {
-  position: absolute;
-  inset: 0;
-  background: var(--bg);
-  padding: 24px 32px;
-  overflow: auto;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-}
-#welcome-section[hidden] { display: none !important; }
-#welcome-section h2 {
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 0 0 12px;
-  color: var(--muted);
-  font-weight: 600;
-}
-#welcome-content { font-size: 13px; line-height: 1.6; }
-#welcome-content code {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 1px 4px;
-  font-size: 12px;
-}
-#welcome-content .pulse { color: var(--accent-hot); }

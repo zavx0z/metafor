@@ -9,61 +9,8 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <header>
-      <div class="title">@metafor/bun-debug</div>
-      <div class="status">
-        <span id="ws-status" class="badge">ws: …</span>
-        <span id="conn-status" class="badge">inspector: …</span>
-        <span id="run-status" class="badge">run: …</span>
-        <span id="inspector-url" class="muted"></span>
-      </div>
-      <div class="controls">
-        <label class="toggle"><input id="toggle-verbose" type="checkbox" /> Verbose</label>
-        <button id="btn-pause">Pause</button>
-        <button id="btn-resume">Resume</button>
-        <button id="btn-step-over">Step Over</button>
-        <button id="btn-step-into">Step Into</button>
-        <button id="btn-step-out">Step Out</button>
-      </div>
-    </header>
-
     <main>
       <canvas id="engine-canvas"></canvas>
-      <!-- HTML overlay'ы поверх engine-canvas (пока не все секции на engine). -->
-      <section id="frames-section" hidden>
-        <ul id="frames"></ul>
-      </section>
-      <section id="scopes-section" hidden>
-        <div id="scopes"></div>
-      </section>
-      <section id="eval-section" hidden>
-        <textarea id="eval-input" placeholder="data.patches[0].path"></textarea>
-        <div class="row">
-          <label>frame: <input id="eval-frame" type="number" value="0" min="0" /></label>
-          <button id="btn-eval">Eval</button>
-        </div>
-        <pre id="eval-output"></pre>
-      </section>
-      <span id="source-loc" class="muted"></span>
-      <span id="source-status" class="muted"></span>
-
-      <section id="verbose-section" hidden>
-        <h2>
-          Inspector Events
-          <span class="muted" id="verbose-count"></span>
-          <span style="margin-left:auto">
-            <input id="verbose-filter" type="text" placeholder="filter: Debugger.scriptParsed, Runtime.*" />
-            <button id="btn-clear-verbose" type="button">Clear</button>
-            <label class="toggle inline"><input id="toggle-pin-verbose" type="checkbox" checked /> autoscroll</label>
-          </span>
-        </h2>
-        <pre id="verbose-log"></pre>
-      </section>
-
-      <section id="welcome-section" hidden>
-        <h2>Waiting for inspector</h2>
-        <div id="welcome-content"></div>
-      </section>
     </main>
 
     <script type="module" src="./main.ts"></script>

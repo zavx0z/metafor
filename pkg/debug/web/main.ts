@@ -4,9 +4,19 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
-import {XrCanvas} from "./xr-canvas.ts"
-import {XrSourceCard, type XrSource} from "./xr-source-card.ts"
+import {XrCanvas, type CardRect} from "./xr-canvas.ts"
+import {XrSourceCard, type XrSource, type XrSourceRuntimeState} from "./xr-source-card.ts"
 import {XrConsoleCard, type XrConsoleEntry} from "./xr-console-card.ts"
+import {
+  XrFramesCard,
+  XrScopesEvalCard,
+  XrToolbarCard,
+  XrVerboseCard,
+  XrWelcomeCard,
+  type BadgeKind,
+  type WelcomeState,
+  type XrFrameSnapshot,
+} from "./xr-debug-ui.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -79,34 +89,18 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   return element as T
 }
 
-const wsStatus = $("ws-status")
-const runStatus = $("run-status")
-const inspectorUrlBadge = $("inspector-url")
-const framesList = $<HTMLUListElement>("frames")
-const scopesContainer = $("scopes")
-const evalInput = $<HTMLTextAreaElement>("eval-input")
-const evalFrame = $<HTMLInputElement>("eval-frame")
-const evalOutput = $("eval-output")
+const engineCanvas = $<HTMLCanvasElement>("engine-canvas")
 const consolePending: XrConsoleEntry[] = []
-const sourceLoc = $("source-loc")
 type CachedSource = {text: string; tokens?: import("./xr-source-card.ts").XrSourceTokens}
 const sourceCache = new Map<string, CachedSource>()
-const connStatus = $("conn-status")
-const verboseSection = $("verbose-section")
-const verboseLog = $<HTMLPreElement>("verbose-log")
-const verboseCount = $("verbose-count")
-const verboseFilter = $<HTMLInputElement>("verbose-filter")
-const togglePinVerbose = $<HTMLInputElement>("toggle-pin-verbose")
-const toggleVerbose = $<HTMLInputElement>("toggle-verbose")
-const btnClearVerbose = $<HTMLButtonElement>("btn-clear-verbose")
-const welcomeSection = $("welcome-section")
-const welcomeContent = $("welcome-content")
-const mainEl = document.querySelector("main") as HTMLElement
-const engineCanvas = $<HTMLCanvasElement>("engine-canvas")
-const sourceStatus = $("source-status")
 let xrCanvas: XrCanvas | null = null
 let sourceCard: XrSourceCard | null = null
 let consoleCard: XrConsoleCard | null = null
+let toolbarCard: XrToolbarCard | null = null
+let framesCard: XrFramesCard | null = null
+let scopesEvalCard: XrScopesEvalCard | null = null
+let verboseCard: XrVerboseCard | null = null
+let welcomeCard: XrWelcomeCard | null = null
 let xrLoading = false
 let engineLastSource: XrSource | null = null
 let xrResizeObserver: ResizeObserver | null = null
@@ -115,7 +109,13 @@ let inspectorUrl = ""
 let connectionState: ConnectionState = "connecting"
 let connectionError: string | null = null
 let verboseEvents = 0
-const VERBOSE_MAX = 1000
+let welcomeVisible = false
+let verboseVisible = localStorage.getItem("bd:verbose") === "1"
+let engineStatus = "engine: init"
+let wsStatusText = "connecting..."
+let wsStatusKind: BadgeKind = "neutral"
+let runStatusText = "?"
+let runStatusKind: BadgeKind = "neutral"
 
 const targetState = {
   state: "idle" as "idle" | "starting" | "running" | "exited" | "failed",
@@ -123,15 +123,6 @@ const targetState = {
   exitCode: null as number | null,
   startedAt: null as string | null,
   exitedAt: null as string | null,
-}
-
-const buttons = {
-  pause: $<HTMLButtonElement>("btn-pause"),
-  resume: $<HTMLButtonElement>("btn-resume"),
-  stepOver: $<HTMLButtonElement>("btn-step-over"),
-  stepInto: $<HTMLButtonElement>("btn-step-into"),
-  stepOut: $<HTMLButtonElement>("btn-step-out"),
-  eval: $<HTMLButtonElement>("btn-eval"),
 }
 
 let socket: WebSocket | undefined
@@ -170,7 +161,6 @@ function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case "hello":
       inspectorUrl = msg.inspectorUrl
-      inspectorUrlBadge.textContent = msg.inspectorUrl
       for (const s of msg.scripts) scriptUrls.set(s.scriptId, s.url)
       applyConnection(msg.connection)
       if (msg.paused && msg.dump !== null) {
@@ -179,8 +169,10 @@ function handleServerMessage(msg: ServerMessage): void {
         setRunStatus("paused", "paused")
       } else if (connectionState === "connected") {
         setRunStatus("running", "live")
+        setSourceRuntimeState("running")
       } else {
         setRunStatus("waiting")
+        setSourceRuntimeState("disconnected")
       }
       refreshWelcome()
       return
@@ -188,18 +180,17 @@ function handleServerMessage(msg: ServerMessage): void {
       currentDump = msg.dump
       renderDump(msg.dump)
       setRunStatus(`paused (${msg.dump.reason})`, "paused")
+      setSourceRuntimeState("paused")
       hideWelcome()
       return
     case "resumed":
       currentDump = undefined
-      framesList.innerHTML = ""
-      scopesContainer.innerHTML = `<div class="muted">running…</div>`
-      sourceLoc.textContent = ""
-      // Не сбрасываем engine source — пусть последний кадр держится визуально,
-      // пока target не остановится снова. Иначе каждый resume→paused цикл
-      // даёт два setSource (пустой → реальный) и xr-overlay их интерпретирует
-      // как смену файла → запускает Matrix-анимацию повторно.
+      framesCard?.setFrames([], activeFrameIndex)
+      scopesEvalCard?.setFrame(null)
+      // Держим последнюю source-карточку, но явно маркируем running,
+      // чтобы это не выглядело как не обновляющийся paused editor.
       setRunStatus("running", "live")
+      setSourceRuntimeState("running")
       return
     case "connection":
       applyConnection({state: msg.state, error: msg.error})
@@ -245,13 +236,9 @@ function applyConnection(info: ConnectionInfo): void {
   const previous = connectionState
   connectionState = info.state
   connectionError = info.error
-  const cls = info.state === "connected" ? "connected"
-    : info.state === "connecting" ? "connecting"
-    : "disconnected"
-  connStatus.textContent = `inspector: ${info.state}`
-  connStatus.className = `badge ${cls}`
   if (info.state !== "connected") {
     setRunStatus("waiting")
+    setSourceRuntimeState("disconnected")
     // Любая информация в UI устарела как только инспектор отвалился: очищаем
     // frames/scopes/source/dump и сбрасываем кэш скриптов. Console и verbose
     // оставляем — они логи, не state.
@@ -259,22 +246,25 @@ function applyConnection(info: ConnectionInfo): void {
       clearLiveState()
     }
   }
+  updateToolbar()
+  updateWelcomeCard()
 }
 
 function clearLiveState(): void {
   currentDump = undefined
   activeFrameIndex = 0
-  framesList.innerHTML = ""
-  scopesContainer.innerHTML = `<div class="muted">inspector disconnected — данные устарели</div>`
-  sourceLoc.textContent = ""
+  framesCard?.setFrames([], activeFrameIndex)
+  scopesEvalCard?.setFrame(null)
   pushSourceToEngine({lines: [], currentLine: 0, location: ""})
   scriptUrls.clear()
   sourceCache.clear()
+  setSourceRuntimeState("disconnected")
 }
 
 function hideWelcome(): void {
-  welcomeSection.hidden = true
-  mainEl.classList.remove("welcome")
+  if (!welcomeVisible) return
+  welcomeVisible = false
+  applyEngineLayout()
 }
 
 function refreshWelcome(): void {
@@ -282,10 +272,9 @@ function refreshWelcome(): void {
     hideWelcome()
     return
   }
-  welcomeSection.hidden = false
-  mainEl.classList.add("welcome")
-  welcomeContent.innerHTML = renderWelcome()
-  bindWelcomeApply()
+  welcomeVisible = true
+  updateWelcomeCard()
+  applyEngineLayout()
 }
 
 function describeTargetStatus(): string {
@@ -296,6 +285,12 @@ function describeTargetStatus(): string {
     case "exited":   return `exited code=${targetState.exitCode} (pid=${targetState.pid})`
     case "failed":   return "spawn failed"
   }
+}
+
+function defaultTargetCommand(): string {
+  const url = inspectorUrl || "ws://127.0.0.1:6499/dark"
+  return localStorage.getItem("bd:target:cmd")
+    ?? `bun test --timeout=2147483647 --inspect-wait=${url} dark/server.spec.ts`
 }
 
 function handleTargetEvent(event: TargetEvent): void {
@@ -323,23 +318,20 @@ function handleTargetEvent(event: TargetEvent): void {
       return
     }
   }
-  const status = document.getElementById("welcome-target-status")
-  if (status !== null) status.textContent = describeTargetStatus()
+  updateWelcomeCard()
 }
 
-async function startTargetFromCmd(rawCmd: string): Promise<void> {
+async function startTargetFromCmd(rawCmd: string, pauseOnStart: boolean): Promise<void> {
   const cmd = rawCmd.trim()
   if (cmd.length === 0) return
   localStorage.setItem("bd:target:cmd", cmd)
   const command = parseShellArgs(cmd)
   if (command.length === 0) return
 
-  const pauseOnStart = (document.getElementById("welcome-cmd-brk") as HTMLInputElement | null)?.checked ?? false
   localStorage.setItem("bd:target:brk", pauseOnStart ? "1" : "0")
 
   targetState.state = "starting"
-  const status = document.getElementById("welcome-target-status")
-  if (status !== null) status.textContent = pauseOnStart ? "starting (pause on start)…" : "starting…"
+  updateWelcomeCard()
   try {
     const res = await fetch("/target/run", {
       method: "POST",
@@ -349,7 +341,8 @@ async function startTargetFromCmd(rawCmd: string): Promise<void> {
     const data = await res.json() as {ok: boolean; error?: string; snapshot?: {pid: number; state: string}}
     if (!data.ok) {
       targetState.state = "failed"
-      if (status !== null) status.textContent = `spawn failed: ${data.error ?? "unknown"}`
+      connectionError = `spawn failed: ${data.error ?? "unknown"}`
+      updateWelcomeCard()
       return
     }
     if (data.snapshot !== undefined) {
@@ -357,7 +350,9 @@ async function startTargetFromCmd(rawCmd: string): Promise<void> {
     }
   } catch (error) {
     targetState.state = "failed"
-    if (status !== null) status.textContent = `fetch failed: ${String(error)}`
+    connectionError = `fetch failed: ${String(error)}`
+  } finally {
+    updateWelcomeCard()
   }
 }
 
@@ -365,6 +360,30 @@ async function stopTarget(): Promise<void> {
   try {
     await fetch("/target/stop", {method: "POST"})
   } catch {}
+  updateWelcomeCard()
+}
+
+async function applyInspectorUrl(nextUrl: string): Promise<void> {
+  const next = nextUrl.trim()
+  if (next.length === 0) return
+  try {
+    const res = await fetch("/inspector", {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({url: next}),
+    })
+    const data = await res.json() as {ok: boolean; error?: string; previous?: string}
+    if (!data.ok) connectionError = data.error ?? "unknown inspector error"
+    else {
+      inspectorUrl = next
+      connectionError = null
+    }
+  } catch (error) {
+    connectionError = `fetch failed: ${String(error)}`
+  } finally {
+    updateToolbar()
+    updateWelcomeCard()
+  }
 }
 
 function parseShellArgs(input: string): string[] {
@@ -432,11 +451,11 @@ function bindWelcomeApply(): void {
   const runBtn = document.getElementById("btn-welcome-run") as HTMLButtonElement | null
   const stopBtn = document.getElementById("btn-welcome-stop") as HTMLButtonElement | null
   if (cmdInput !== null && runBtn !== null) {
-    runBtn.addEventListener("click", () => void startTargetFromCmd(cmdInput.value))
+    runBtn.addEventListener("click", () => void startTargetFromCmd(cmdInput.value, localStorage.getItem("bd:target:brk") === "1"))
     cmdInput.addEventListener("keydown", (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault()
-        void startTargetFromCmd(cmdInput.value)
+        void startTargetFromCmd(cmdInput.value, localStorage.getItem("bd:target:brk") === "1")
       }
     })
   }
@@ -502,22 +521,8 @@ function stripWs(u: string): string {
 }
 
 function appendVerbose(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
-  const filter = verboseFilter.value.trim()
-  if (filter.length > 0 && !matchFilter(name, filter)) return
-
   verboseEvents += 1
-  verboseCount.textContent = `(${verboseEvents})`
-  const row = document.createElement("div")
-  row.className = `row ${kind}`
-  const safePayload = payload === undefined ? "" : escapeHtml(truncate(JSON.stringify(payload), 280))
-  row.innerHTML = `<span class="ts">${escapeHtml(ts.slice(11, 23))}</span><span class="method">${kind === "agent" ? "@" : ""}${escapeHtml(name)}</span> <span class="params">${safePayload}</span>`
-  verboseLog.appendChild(row)
-
-  while (verboseLog.childElementCount > VERBOSE_MAX) {
-    verboseLog.firstElementChild?.remove()
-  }
-
-  if (togglePinVerbose.checked) verboseLog.scrollTop = verboseLog.scrollHeight
+  verboseCard?.append(kind, ts, name, payload)
 }
 
 function matchFilter(name: string, filter: string): boolean {
@@ -537,51 +542,75 @@ function truncate(s: string, max: number): string {
 }
 
 function setWsStatus(text: string, kind: "" | "live" | "paused" = ""): void {
-  wsStatus.textContent = `ws: ${text}`
-  wsStatus.className = `badge${kind ? ` ${kind}` : ""}`
+  wsStatusText = text
+  wsStatusKind = kind === "live" ? "live" : kind === "paused" ? "paused" : "neutral"
+  updateToolbar()
 }
 
 function setRunStatus(text: string, kind: "" | "live" | "paused" = ""): void {
-  runStatus.textContent = `run: ${text}`
-  runStatus.className = `badge${kind ? ` ${kind}` : ""}`
+  runStatusText = text
+  runStatusKind = kind === "live" ? "live" : kind === "paused" ? "paused" : "neutral"
+  updateToolbar()
+}
+
+function setEngineStatus(text: string): void {
+  engineStatus = text
+  updateToolbar()
+}
+
+function updateToolbar(): void {
+  const connectionKind: BadgeKind = connectionState === "connected" ? "live"
+    : connectionState === "connecting" ? "neutral"
+    : "warn"
+  toolbarCard?.setState({
+    ws: wsStatusText,
+    wsKind: wsStatusKind,
+    connection: `inspector: ${connectionState}`,
+    connectionKind,
+    run: runStatusText,
+    runKind: runStatusKind,
+    inspectorUrl,
+    verbose: verboseVisible,
+    engine: engineStatus,
+  })
+}
+
+function updateWelcomeCard(): void {
+  const state: WelcomeState = {
+    connectionState,
+    connectionError,
+    inspectorUrl: inspectorUrl || "ws://127.0.0.1:6499/dark",
+    targetStatus: describeTargetStatus(),
+    defaultCommand: defaultTargetCommand(),
+    pauseOnStart: localStorage.getItem("bd:target:brk") === "1",
+  }
+  welcomeCard?.setState(state)
 }
 
 function renderDump(dump: AgentDump): void {
-  framesList.innerHTML = ""
-  for (const frame of dump.frames) {
-    const li = document.createElement("li")
-    if (frame.index === activeFrameIndex) li.classList.add("active")
-    const fn = frame.function || "<anonymous>"
-    const loc = frame.url ? `${shortenUrl(frame.url)}:${frame.line}` : `(scriptId ?):${frame.line}`
-    li.innerHTML = `<span class="fn">${escapeHtml(fn)}</span><span class="loc">${escapeHtml(loc)}</span>`
-    li.addEventListener("click", () => {
-      activeFrameIndex = frame.index
-      evalFrame.value = String(frame.index)
-      renderDump(dump)
-    })
-    framesList.appendChild(li)
-  }
+  framesCard?.setFrames(dump.frames as XrFrameSnapshot[], activeFrameIndex)
 
   const top = dump.frames[activeFrameIndex] ?? dump.frames[0]
   if (top !== undefined) {
-    renderScopes(top)
+    scopesEvalCard?.setFrame(top as XrFrameSnapshot)
     void renderSourceForFrame(top)
+  } else {
+    scopesEvalCard?.setFrame(null)
   }
 }
 
 async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
   const scriptId = frame.scriptId
   if (scriptId === undefined) {
-    sourceLoc.textContent = ""
     pushSourceToEngine({lines: ["scriptId недоступен для этого фрейма"], currentLine: 0, location: ""})
     return
   }
   const location = `${frame.url || "scriptId=" + scriptId}:${frame.line}`
-  sourceLoc.textContent = location
 
   let cached = sourceCache.get(scriptId)
   if (cached === undefined) {
-    sourceStatus.textContent = "engine: webgpu · loading source…"
+    setSourceRuntimeState("loading")
+    setEngineStatus("engine: loading source")
     if (engineLastSource === null || engineLastSource.lines.length === 0) {
       pushSourceToEngine({lines: ["loading…"], currentLine: 0, location})
     }
@@ -594,15 +623,17 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
       }
       if (typeof data.scriptSource !== "string") {
         pushSourceToEngine({lines: [`no source: ${data.error ?? "unknown"}`], currentLine: 0, location})
+        setSourceRuntimeState("paused")
         return
       }
       cached = {text: data.scriptSource, ...(data.tokens === undefined ? {} : {tokens: data.tokens})}
       sourceCache.set(scriptId, cached)
     } catch (error) {
       pushSourceToEngine({lines: [`fetch failed: ${String(error)}`], currentLine: 0, location})
+      setSourceRuntimeState("paused")
       return
     } finally {
-      sourceStatus.textContent = "engine: webgpu"
+      setEngineStatus("engine: webgpu")
     }
   }
 
@@ -612,49 +643,11 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
     location,
     ...(cached.tokens === undefined ? {} : {tokens: cached.tokens}),
   })
+  setSourceRuntimeState("paused")
 }
 
 function renderScopes(frame: FrameSnapshot): void {
-  scopesContainer.innerHTML = ""
-  const groups: Array<[string, ScopeSnapshot[]]> = [
-    ["local", frame.scopes.local],
-    ["closure", frame.scopes.closure],
-  ]
-  for (const [groupName, scopes] of groups) {
-    if (scopes.length === 0) continue
-    for (const scope of scopes) {
-      const details = document.createElement("details")
-      details.open = groupName === "local" || scope.name !== undefined
-      const summary = document.createElement("summary")
-      const propCount = Object.keys(scope.properties).length
-      const label = scope.name !== undefined
-        ? `${groupName} [${scope.name}] (${propCount})`
-        : `${groupName} (${propCount})`
-      summary.textContent = label
-      details.appendChild(summary)
-
-      const props = document.createElement("div")
-      props.className = "props"
-      for (const [name, value] of Object.entries(scope.properties)) {
-        const row = document.createElement("div")
-        row.className = "prop"
-        const nameSpan = document.createElement("span")
-        nameSpan.className = "name"
-        nameSpan.textContent = name
-        const valueSpan = document.createElement("span")
-        valueSpan.className = `value ${valueClass(value)}`
-        valueSpan.textContent = renderValue(value)
-        row.appendChild(nameSpan)
-        row.appendChild(valueSpan)
-        props.appendChild(row)
-      }
-      details.appendChild(props)
-      scopesContainer.appendChild(details)
-    }
-  }
-  if (scopesContainer.childElementCount === 0) {
-    scopesContainer.innerHTML = `<div class="muted">no scopes for this frame</div>`
-  }
+  scopesEvalCard?.setFrame(frame as XrFrameSnapshot)
 }
 
 function valueClass(v: PropertySnapshot): string {
@@ -719,98 +712,49 @@ function send(cmd: string, params: Record<string, unknown> = {}): Promise<Comman
   })
 }
 
-buttons.pause.addEventListener("click", () => void send("pause"))
-buttons.resume.addEventListener("click", () => void send("resume"))
-buttons.stepOver.addEventListener("click", () => void send("step", {kind: "over"}))
-buttons.stepInto.addEventListener("click", () => void send("step", {kind: "into"}))
-buttons.stepOut.addEventListener("click", () => void send("step", {kind: "out"}))
-
-buttons.eval.addEventListener("click", async () => {
-  const expr = evalInput.value.trim()
-  if (expr.length === 0) return
-  const frame = Number(evalFrame.value) || 0
-  evalOutput.textContent = "…"
-  const response = await send("eval", {frame, expr})
-  evalOutput.textContent = JSON.stringify(response, null, 2)
-})
-
-evalInput.addEventListener("keydown", (event) => {
-  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-    event.preventDefault()
-    buttons.eval.click()
-  }
-})
-
-toggleVerbose.addEventListener("change", () => {
-  const on = toggleVerbose.checked
-  verboseSection.hidden = !on
-  if (on) mainEl.classList.add("with-verbose")
-  else mainEl.classList.remove("with-verbose")
-  localStorage.setItem("bd:verbose", on ? "1" : "0")
-})
-
-btnClearVerbose.addEventListener("click", () => {
-  verboseLog.innerHTML = ""
-  verboseEvents = 0
-  verboseCount.textContent = ""
-})
-
-verboseFilter.addEventListener("input", () => {
-  localStorage.setItem("bd:verbose:filter", verboseFilter.value)
-})
-
-const persistedVerbose = localStorage.getItem("bd:verbose")
-if (persistedVerbose === "1") {
-  toggleVerbose.checked = true
-  verboseSection.hidden = false
-  mainEl.classList.add("with-verbose")
-}
-const persistedFilter = localStorage.getItem("bd:verbose:filter")
-if (persistedFilter !== null) verboseFilter.value = persistedFilter
-
-// Forced hide: атрибут hidden в HTML мог быть проигнорирован старым bundle,
-// программно гарантируем display:none для legacy HTML overlay'ев.
-for (const id of ["frames-section", "scopes-section", "eval-section"]) {
-  const el = document.getElementById(id)
-  if (el !== null) (el as HTMLElement).style.display = "none"
-}
-
 connect()
 void initEngine()
 
-/**
- * Инициализация единого engine-canvas: один Renderer/Scene на весь viewport
- * под header. Source-card занимает верхние 60% высоты, console-card — нижние
- * 40%, между ними gap 14px по краям и между. Pixel-rect карточек считается
- * по фактическому размеру canvas (XrCanvas вызывает layout-fn на каждом
- * resize).
- */
 async function initEngine(): Promise<void> {
   if (xrLoading || xrCanvas !== null) return
   xrLoading = true
-  sourceStatus.textContent = "engine: init…"
+  setEngineStatus("engine: init")
   try {
     xrCanvas = await XrCanvas.create(engineCanvas)
+    toolbarCard = new XrToolbarCard({
+      onPause: () => void runDebuggerCommand("pause", {}, "Pause"),
+      onResume: () => void runDebuggerCommand("resume", {}, "Resume"),
+      onStep: (kind) => void runDebuggerCommand("step", {kind}, `Step ${kind}`),
+      onToggleVerbose: () => setVerboseVisible(!verboseVisible),
+    })
+    framesCard = new XrFramesCard((index) => {
+      activeFrameIndex = index
+      if (currentDump !== undefined) renderDump(currentDump)
+    })
+    scopesEvalCard = new XrScopesEvalCard(async (expr, frame) => {
+      scopesEvalCard?.setEvalOutput("...")
+      const response = await send("eval", {frame, expr})
+      scopesEvalCard?.setEvalOutput(JSON.stringify(response))
+    })
     sourceCard = new XrSourceCard()
     consoleCard = new XrConsoleCard()
-    const GAP = 6
-    const PAD = 6
-    xrCanvas.addCard(sourceCard, ({w, h}) => {
-      const sourceH = Math.floor((h - 2 * PAD - GAP) * 0.6)
-      return {x: PAD, y: PAD, w: Math.max(1, w - 2 * PAD), h: Math.max(1, sourceH)}
+    verboseCard = new XrVerboseCard()
+    welcomeCard = new XrWelcomeCard({
+      onRun: (command, pauseOnStart) => void startTargetFromCmd(command, pauseOnStart),
+      onStop: () => void stopTarget(),
+      onApplyInspector: (url) => void applyInspectorUrl(url),
+      onPauseOnStart: (pause) => localStorage.setItem("bd:target:brk", pause ? "1" : "0"),
     })
-    xrCanvas.addCard(consoleCard, ({w, h}) => {
-      const sourceH = Math.floor((h - 2 * PAD - GAP) * 0.6)
-      const consoleY = PAD + sourceH + GAP
-      const consoleH = h - consoleY - PAD
-      return {x: PAD, y: consoleY, w: Math.max(1, w - 2 * PAD), h: Math.max(1, consoleH)}
-    })
+    installEngineCards()
     xrResizeObserver = new ResizeObserver(() => xrCanvas?.handleResize())
     xrResizeObserver.observe(engineCanvas)
     requestAnimationFrame(() => xrCanvas?.handleResize())
     setTimeout(() => xrCanvas?.handleResize(), 200)
     window.addEventListener("resize", () => xrCanvas?.handleResize())
-    sourceStatus.textContent = "engine: webgpu"
+    setEngineStatus("engine: webgpu")
+    updateToolbar()
+    updateWelcomeCard()
+    refreshWelcome()
 
     if (engineLastSource !== null) sourceCard.setSource(engineLastSource)
     if (consolePending.length > 0) {
@@ -819,14 +763,132 @@ async function initEngine(): Promise<void> {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    sourceStatus.textContent = `engine init failed: ${message}`
+    setEngineStatus(`engine failed: ${message}`)
     console.error("xr-canvas init failed:", error)
   } finally {
     xrLoading = false
   }
 }
 
+function setVerboseVisible(on: boolean): void {
+  verboseVisible = on
+  localStorage.setItem("bd:verbose", on ? "1" : "0")
+  updateToolbar()
+  applyEngineLayout()
+}
+
+function applyEngineLayout(): void {
+  xrCanvas?.relayout()
+}
+
+function installEngineCards(): void {
+  if (
+    xrCanvas === null ||
+    toolbarCard === null ||
+    sourceCard === null ||
+    consoleCard === null ||
+    framesCard === null ||
+    scopesEvalCard === null ||
+    verboseCard === null ||
+    welcomeCard === null
+  ) {
+    return
+  }
+
+  xrCanvas.addCard(welcomeCard, welcomeRect)
+  xrCanvas.addCard(framesCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).frames)
+  xrCanvas.addCard(scopesEvalCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).scopes)
+  xrCanvas.addCard(sourceCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).source)
+  xrCanvas.addCard(consoleCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).console)
+  xrCanvas.addCard(verboseCard, (canvas) => {
+    if (welcomeVisible) return hiddenRect()
+    return debuggerRects(canvas).verbose ?? hiddenRect()
+  })
+  xrCanvas.addCard(toolbarCard, ({w}) => ({x: 0, y: 0, w: Math.max(1, w), h: TOOLBAR_H}))
+}
+
+const TOOLBAR_H = 46
+const PAD = 8
+const GAP = 8
+
+type DebuggerRects = {
+  frames: CardRect
+  scopes: CardRect
+  source: CardRect
+  console: CardRect
+  verbose: CardRect | null
+}
+
+function hiddenRect(): CardRect {
+  return {x: -10000, y: -10000, w: 1, h: 1, visible: false}
+}
+
+function welcomeRect({w, h}: {w: number; h: number}): CardRect {
+  if (!welcomeVisible) return hiddenRect()
+  const bodyH = Math.max(1, h - TOOLBAR_H - PAD * 2)
+  const maxW = Math.max(1, Math.min(1440, w - PAD * 2))
+  const cardW = Math.max(320, Math.min(maxW, Math.floor(w * 0.86)))
+  const cardH = Math.max(1, Math.min(560, bodyH))
+  return {
+    x: Math.floor((w - cardW) / 2),
+    y: TOOLBAR_H + PAD + Math.floor(Math.max(0, bodyH - cardH) / 2),
+    w: cardW,
+    h: cardH,
+  }
+}
+
+function debuggerRects({w, h}: {w: number; h: number}): DebuggerRects {
+  const x = PAD
+  const y = TOOLBAR_H + PAD
+  const bodyW = Math.max(1, w - PAD * 2)
+  const bodyH = Math.max(1, h - TOOLBAR_H - PAD * 2)
+  const leftW = w >= 980 ? 310 : Math.max(230, Math.floor(bodyW * 0.28))
+  const showVerbose = verboseVisible && w >= 1180
+  const verboseW = showVerbose ? Math.min(430, Math.max(340, Math.floor(bodyW * 0.24))) : 0
+  const centerX = x + leftW + GAP
+  const centerW = Math.max(1, bodyW - leftW - GAP - (showVerbose ? verboseW + GAP : 0))
+  const consoleH = Math.min(260, Math.max(170, Math.floor(bodyH * 0.28)))
+  const sourceH = Math.max(1, bodyH - consoleH - GAP)
+  const framesH = Math.min(168, Math.max(120, Math.floor(bodyH * 0.18)))
+  const scopesH = Math.max(1, bodyH - framesH - GAP)
+
+  return {
+    frames: {x, y, w: leftW, h: framesH},
+    scopes: {x, y: y + framesH + GAP, w: leftW, h: scopesH},
+    source: {x: centerX, y, w: centerW, h: sourceH},
+    console: {x: centerX, y: y + sourceH + GAP, w: centerW, h: consoleH},
+    verbose: showVerbose
+      ? {x: w - PAD - verboseW, y, w: verboseW, h: bodyH}
+      : null,
+  }
+}
+
 function pushSourceToEngine(payload: XrSource): void {
   engineLastSource = payload
   sourceCard?.setSource(payload)
+}
+
+function setSourceRuntimeState(state: XrSourceRuntimeState): void {
+  sourceCard?.setRuntimeState(state)
+}
+
+async function runDebuggerCommand(cmd: string, params: Record<string, unknown>, label: string): Promise<void> {
+  const started = new Date().toISOString()
+  appendConsole({ts: started, level: "debug", text: `[ui] ${label} requested`})
+  if (cmd === "pause") setRunStatus("pausing…", "paused")
+  if (cmd === "resume") setRunStatus("resuming…", "live")
+  if (cmd === "step") setRunStatus(`${label.toLowerCase()}…`, "paused")
+
+  const response = await send(cmd, params)
+  const finished = new Date().toISOString()
+  if (response.ok) {
+    appendConsole({ts: finished, level: "debug", text: `[ui] ${label} accepted`})
+    return
+  }
+  appendConsole({ts: finished, level: "error", text: `[ui] ${label} failed: ${response.error ?? "unknown error"}`})
+  if (connectionState === "connected") {
+    setRunStatus(currentDump === undefined ? "running" : "paused", currentDump === undefined ? "live" : "paused")
+  } else {
+    setRunStatus("waiting")
+  }
 }
