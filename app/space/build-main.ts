@@ -1,4 +1,4 @@
-import { rmSync } from "node:fs"
+import { copyFileSync, rmSync } from "node:fs"
 import { join } from "node:path"
 
 const root = import.meta.dir
@@ -21,4 +21,7 @@ if (!result.success) {
   process.exit(1)
 }
 
-console.log(`[space] main built → out/main.cjs`)
+// preload script ships as-is (CJS, requires electron at runtime)
+copyFileSync(join(root, "electron/preload.cjs"), join(outdir, "preload.cjs"))
+
+console.log(`[space] main + preload built → out/`)

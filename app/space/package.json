@@ -16,6 +16,9 @@
     "package:dir": "bun run build && electron-builder --mac dir --x64",
     "package": "bun run build && electron-builder --mac dmg --x64"
   },
+  "dependencies": {
+    "@metafor/engine": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@webgpu/types": "^0.1.50",

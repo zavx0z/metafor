@@ -1,4 +1,5 @@
 import { spawn } from "bun"
+import { copyFileSync } from "node:fs"
 import { join } from "node:path"
 
 const root = join(import.meta.dir, "..")
@@ -19,6 +20,7 @@ async function buildMain() {
     for (const log of result.logs) console.error(log)
     throw new Error("main build failed")
   }
+  copyFileSync(join(root, "electron/preload.cjs"), join(root, "out/preload.cjs"))
 }
 
 async function waitForPort(port: number, host = "127.0.0.1", timeoutMs = 15_000) {
@@ -88,8 +90,10 @@ async function main() {
   const electronBin = await findElectronBinary()
   console.log("[dev] launching electron:", electronBin)
 
+  // Pass the package.json dir (not out/main.cjs) so Electron picks app/space
+  // as appPath; otherwise app.getAppPath() returns out/ and preload paths break.
   const electronProc = spawn({
-    cmd: [electronBin, join(root, "out/main.cjs")],
+    cmd: [electronBin, root],
     cwd: root,
     stdout: "inherit",
     stderr: "inherit",

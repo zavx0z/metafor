@@ -6,9 +6,7 @@ const server = Bun.serve({
   port,
   hostname: "127.0.0.1",
   development: true,
-  routes: {
-    "/": index,
-  },
+  routes: { "/": index },
 })
 
 console.log(`[space] dev server: http://${server.hostname}:${server.port}`)
