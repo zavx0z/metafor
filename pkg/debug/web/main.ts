@@ -560,7 +560,10 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
 
   let cached = sourceCache.get(scriptId)
   if (cached === undefined) {
-    pushSourceToEngine({lines: ["loading…"], currentLine: 0, location})
+    sourceStatus.textContent = "engine: webgpu · loading source…"
+    if (engineLastSource === null || engineLastSource.lines.length === 0) {
+      pushSourceToEngine({lines: ["loading…"], currentLine: 0, location})
+    }
     try {
       const res = await fetch(`/source?scriptId=${encodeURIComponent(scriptId)}`)
       const data = await res.json() as {
@@ -577,6 +580,8 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
     } catch (error) {
       pushSourceToEngine({lines: [`fetch failed: ${String(error)}`], currentLine: 0, location})
       return
+    } finally {
+      sourceStatus.textContent = "engine: webgpu"
     }
   }
 
