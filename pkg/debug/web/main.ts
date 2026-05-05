@@ -793,8 +793,8 @@ async function initEngine(): Promise<void> {
     xrCanvas = await XrCanvas.create(engineCanvas)
     sourceCard = new XrSourceCard()
     consoleCard = new XrConsoleCard()
-    const GAP = 14
-    const PAD = 14
+    const GAP = 6
+    const PAD = 6
     xrCanvas.addCard(sourceCard, ({w, h}) => {
       const sourceH = Math.floor((h - 2 * PAD - GAP) * 0.6)
       return {x: PAD, y: PAD, w: Math.max(1, w - 2 * PAD), h: Math.max(1, sourceH)}

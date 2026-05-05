@@ -34,16 +34,16 @@ export type XrSource = {
   tokens?: XrSourceTokens
 }
 
-const PAD_TOP_PX = 14
-const PAD_LEFT_PX = 12
-const PAD_RIGHT_PX = 12
-const PAD_BOTTOM_PX = 8
-const GUTTER_MIN_PX = 56
-const GUTTER_LEFT_PAD_PX = 8
-const GUTTER_RIGHT_PAD_PX = 12
-const CODE_LEFT_PAD_PX = 12
-const LINE_PX = 18
-const CODE_FONT_PX = 13
+const PAD_TOP_PX = 8
+const PAD_LEFT_PX = 8
+const PAD_RIGHT_PX = 8
+const PAD_BOTTOM_PX = 6
+const GUTTER_MIN_PX = 44
+const GUTTER_LEFT_PAD_PX = 6
+const GUTTER_RIGHT_PAD_PX = 8
+const CODE_LEFT_PAD_PX = 8
+const LINE_PX = 16
+const CODE_FONT_PX = 12
 const OVERSCAN_LINES = 40
 const MAX_RENDERED_LINES = 350
 

@@ -27,14 +27,14 @@ export type XrConsoleEntry = {
   text: string
 }
 
-const LINE_PX = 22
-const FONT_PX = 14
-const TS_FONT_PX = 12
-const PAD_TOP_PX = 14
-const PAD_LEFT_PX = 14
-const PAD_RIGHT_PX = 14
-const PAD_BOTTOM_PX = 12
-const TS_GUTTER_PX = 92
+const LINE_PX = 16
+const FONT_PX = 12
+const TS_FONT_PX = 10
+const PAD_TOP_PX = 8
+const PAD_LEFT_PX = 8
+const PAD_RIGHT_PX = 8
+const PAD_BOTTOM_PX = 6
+const TS_GUTTER_PX = 70
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 0.92)
 const COLOR_TS = new Color(110 / 255, 118 / 255, 129 / 255, 0.85)
