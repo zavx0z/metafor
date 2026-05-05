@@ -225,11 +225,20 @@ function handleServerMessage(msg: ServerMessage): void {
       pendingRequests.delete(msg.requestId)
       return
   }
-  // Triggered by sidecar `POST /reload` — релоадим вкладку программно,
-  // чтобы я (claude) не зависел от юзерского Cmd+Shift+R при правке кода.
+  // Triggered by sidecar `POST /reload` — реложим вкладку программно.
+  // Перед reload пробиваем кэш стилей через bump query string —
+  // некоторые правки достаточно и без full reload.
   if ((msg as {type: string}).type === "reload") {
     location.reload()
   }
+}
+
+// Пробиваем CSS-кеш на старте: добавляем ?t=<timestamp> к href стилей,
+// чтобы Chrome подтянул свежий style.css при каждой загрузке страницы.
+for (const link of Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))) {
+  const url = new URL(link.href, location.origin)
+  url.searchParams.set("t", String(Date.now()))
+  link.href = url.toString()
 }
 
 function applyConnection(info: ConnectionInfo): void {

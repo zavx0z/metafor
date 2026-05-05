@@ -105,11 +105,33 @@ main > [hidden] { display: none !important; }
 
 #engine-canvas {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100%;
   height: 100%;
   display: block;
 }
+
+/* Verbose-section: правый сайдбар поверх canvas. Когда включён Verbose
+   toggle, mainEl получает .with-verbose, тогда canvas сжимается слева. */
+#verbose-section {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  background: rgba(22, 27, 34, 0.94);
+  border-left: 1px solid var(--border);
+  padding: 14px 16px;
+  overflow: hidden;
+  z-index: 2;
+  flex-direction: column;
+  display: flex;
+}
+#verbose-section[hidden] { display: none !important; }
+main.with-verbose #engine-canvas { right: 420px; width: auto; }
 
 /* Декоративные blob'ы за карточками — даёт чему "блюрить" backdrop-filter'у.
    Цвета мягкие, не должны просвечивать сквозь карточки явно. */
