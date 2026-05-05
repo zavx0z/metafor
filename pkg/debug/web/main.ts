@@ -191,7 +191,10 @@ function handleServerMessage(msg: ServerMessage): void {
       framesList.innerHTML = ""
       scopesContainer.innerHTML = `<div class="muted">running…</div>`
       sourceLoc.textContent = ""
-      pushSourceToEngine({lines: [], currentLine: 0, location: ""})
+      // Не сбрасываем engine source — пусть последний кадр держится визуально,
+      // пока target не остановится снова. Иначе каждый resume→paused цикл
+      // даёт два setSource (пустой → реальный) и xr-overlay их интерпретирует
+      // как смену файла → запускает Matrix-анимацию повторно.
       setRunStatus("running", "live")
       return
     case "connection":

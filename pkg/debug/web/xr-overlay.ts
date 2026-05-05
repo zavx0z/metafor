@@ -364,10 +364,15 @@ export class XrOverlay {
       this.#scrollOffset = Math.max(0, source.currentLine - 1 - Math.floor(visible / 2))
     }
 
-    // Transition только при смене файла и если что-то уже отрисовано.
-    // Step внутри одного файла рендерится без анимации, чтобы не отвлекать.
+    // Transition только при смене файла между двумя НЕПУСТЫМИ location'ами и
+    // если что-то уже отрисовано. Step внутри одного файла рендерится без
+    // анимации; промежуточный resume-state с пустым location тоже не должен
+    // её триггерить (иначе на каждый paused→resumed→paused цикл анимация
+    // запускалась бы заново и не успевала достроиться).
     const hadContent = this.#codeContainer.children.length > 0
-    const shouldAnimate = prev !== null && fileChanged && hadContent && !this.#disposed
+    const prevHadFile = prev !== null && stripLine(prev.location).length > 0
+    const newHasFile = stripLine(source.location).length > 0
+    const shouldAnimate = prevHadFile && newHasFile && fileChanged && hadContent && !this.#disposed
 
     if (shouldAnimate) {
       if (this.#animActive) this.#completeAnimImmediately()
