@@ -34,14 +34,14 @@ export type XrConsoleEntry = {
 }
 
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
-const LINE_PX = 16
-const FONT_PX = 11
-const TS_FONT_PX = 9
+const LINE_PX = 20
+const FONT_PX = 13
+const TS_FONT_PX = 11
 const PAD_TOP_PX = 28
 const PAD_LEFT_PX = 12
 const PAD_RIGHT_PX = 8
 const PAD_BOTTOM_PX = 6
-const TS_GUTTER_PX = 70 // ширина колонки timestamp
+const TS_GUTTER_PX = 84 // ширина колонки timestamp под больший шрифт
 
 const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 0)
 const COLOR_TS = new Color(110 / 255, 118 / 255, 129 / 255, 0.85)
