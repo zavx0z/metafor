@@ -24,7 +24,7 @@ import {
 
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
 
-export type CardRect = {x: number; y: number; w: number; h: number}
+export type CardRect = {x: number; y: number; w: number; h: number; visible?: boolean}
 export type CardLayoutFn = (canvas: {w: number; h: number}) => CardRect
 
 export interface XrCard {
@@ -34,6 +34,8 @@ export interface XrCard {
   setRect(rect: CardRect, pixelScale: number, font: TrueTypeFont): void
   onWheel?(event: WheelEvent, localX: number, localY: number): void
   onKey?(event: KeyboardEvent): void
+  onPointerMove?(event: MouseEvent, localX: number, localY: number): void
+  onPointerDown?(event: MouseEvent, localX: number, localY: number): void
   onActivate?(): void
   onDeactivate?(): void
   dispose?(): void
@@ -101,9 +103,17 @@ export class XrCanvas {
     this.requestRender()
   }
 
+  relayout(): void {
+    this.#applyLayout()
+    this.requestRender()
+  }
+
   #applyLayout(): void {
     for (const slot of this.#cards) {
       slot.rect = slot.layout({w: this.#pixelWidth, h: this.#pixelHeight})
+      const visible = slot.rect.visible !== false && slot.rect.w > 0 && slot.rect.h > 0
+      slot.card.node.visible = visible
+      if (!visible) continue
       slot.card.node.position.x = (slot.rect.x - this.#pixelWidth / 2) * this.#pixelScale
       slot.card.node.position.y = (this.#pixelHeight / 2 - slot.rect.y) * this.#pixelScale
       slot.card.node.updateMatrix()
@@ -168,6 +178,7 @@ export class XrCanvas {
     for (let i = this.#cards.length - 1; i >= 0; i--) {
       const slot = this.#cards[i]!
       const r = slot.rect
+      if (slot.card.node.visible === false || r.visible === false || r.w <= 0 || r.h <= 0) continue
       if (localX >= r.x && localX <= r.x + r.w && localY >= r.y && localY <= r.y + r.h) return slot
     }
     return undefined
@@ -186,7 +197,13 @@ export class XrCanvas {
   #onMouseMove(event: MouseEvent): void {
     const {x, y} = this.#localCoords(event)
     const slot = this.#cardAt(x, y)
-    if (slot !== undefined && slot.card !== this.#focused) this.setFocused(slot.card)
+    if (slot === undefined) {
+      this.setFocused(null)
+      this.canvas.style.cursor = "default"
+      return
+    }
+    if (slot.card !== this.#focused) this.setFocused(slot.card)
+    slot.card.onPointerMove?.(event, x - slot.rect.x, y - slot.rect.y)
   }
   #onMouseDown(event: MouseEvent): void {
     const {x, y} = this.#localCoords(event)
@@ -194,6 +211,7 @@ export class XrCanvas {
     if (slot !== undefined) {
       this.canvas.focus()
       this.setFocused(slot.card)
+      slot.card.onPointerDown?.(event, x - slot.rect.x, y - slot.rect.y)
     }
   }
   #onKey(event: KeyboardEvent): void {
