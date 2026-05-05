@@ -1,5 +1,5 @@
 import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage} from "@shared/protocol"
-import {MetaFor} from "../metafor"
+import {MetaFor} from ".."
 import {open} from "store/server"
 import {matter} from "./dark.ts"
 
