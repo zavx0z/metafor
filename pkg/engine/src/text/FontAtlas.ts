@@ -1,58 +1,72 @@
 /**
- * FontAtlas — моноширный glyph-atlas в одной RGBA-текстуре.
+ * FontAtlas — атлас глифов в формате Signed Distance Field (SDF).
  *
- * Зачем: per-glyph BufferGeometry (Text.ts через stencil+cover) даёт сотни
- * GPUBuffer'ов на один редактор и копит GPU-память на каждом step debug-UI.
- * Атлас — одна текстура, на каждый символ рендерится один quad с UV в эту
- * текстуру. Геометрия для всего текста собирается в один взмах, BufferGeometry
- * на весь AtlasText — одна.
+ * Зачем SDF: bilinear-rasterized атлас (предыдущая итерация) на маленьких
+ * масштабах даёт блюр, а на больших — пикселизацию. SDF хранит для каждого
+ * пикселя расстояние до ближайшего края глифа; в шейдере применяется
+ * smoothstep вокруг distance=0.5 → идеально гладкие края на любом масштабе,
+ * без блюра. Один атлас работает на любых fontSize.
  *
- * Сейчас целевой шрифт — JetBrainsMono-Bold (моноширный): для всех глифов
- * advanceWidth одинаков, и нам достаточно фиксированной cell-сетки.
+ * Реализация SDF — `tiny-sdf` (Mapbox): browser-side EDT (Euclidean Distance
+ * Transform) Felzenszwalb-Huttenlocher, без WASM. Каждый глиф рисуется
+ * ctx.fillText в свой временный canvas, EDT даёт RGBA с distance в R/G/B
+ * (alpha=255). Атлас собирается в один большой canvas копированием
+ * per-glyph ImageData в координаты cell.
+ *
+ * Шрифт целевой — JetBrainsMono-Bold (моноширный): для всех глифов
+ * advanceWidth одинаков, cell-сетка фиксированная.
  */
+// tiny-sdf — Mapbox EDT SDF generator. Типы задаются в text/tiny-sdf.d.ts.
+/// <reference path="./tiny-sdf.d.ts" />
+import TinySDF from "tiny-sdf"
+
 export type GlyphCell = {
-  /** Левая граница bbox глифа в атласе, в пикселях (от верх-лево атласа).
-   *  Уже учитывает offset внутри cell — quad-маппинг должен брать (px..px+pw). */
+  /** Левая граница cell в атласе, в пикселях. */
   px: number
-  /** Верхняя граница bbox глифа в атласе, в пикселях. */
+  /** Верхняя граница cell в атласе, в пикселях. */
   py: number
-  /** Ширина bbox глифа в пикселях (реальная ширина рисунка, не advance). */
+  /** Ширина cell — для всех глифов одинаковая (TinySDF size). */
   pw: number
-  /** Высота bbox глифа в пикселях. */
+  /** Высота cell — для всех одинаковая. */
   ph: number
-  /** Смещение bbox от left-bearing-точки (где условно стоит pen-x), в пикселях
-   *  атласа. Для большинства моноширных глифов положительное (буква висит
-   *  чуть правее левого края cell), для висящих знаков (`,`, `_`) маленькое.
-   *  AtlasText прибавляет это к pen-x при позиционировании quad'а. */
+  /** Сдвиг "пера" (pen-x) от левого края cell. У TinySDF буква начинается на
+   *  buffer-px от левого края cell (см. tiny-sdf: ctx.fillText(char, buffer, middle)).
+   *  AtlasText использует bearingX чтобы pen-x в логической координате
+   *  попадал на видимое начало буквы. */
   bearingX: number
-  /** Смещение верхушки bbox от baseline, в пикселях атласа. Положительное у
-   *  букв с asc-частью (M, h), отрицательное/ноль у букв с descent (g, y). */
+  /** Сдвиг "верха" cell от baseline. TinySDF ставит букву на y = middle
+   *  (центр cell), значит baseline ≈ middle, верх cell на расстоянии
+   *  middle от baseline. */
   bearingY: number
 }
 
 export type FontAtlasOptions = {
-  /** CSS font-family, по которому будет рисовать Canvas2D. Для отрисовки нужно,
-   *  чтобы шрифт был уже зарегистрирован (через FontFace API или @font-face). */
+  /** CSS font-family, по которому рисует Canvas2D. Шрифт уже должен быть
+   *  загружен (через FontFace API или @font-face) — caller сам управляет. */
   fontFamily: string
-  /** Базовый размер шрифта в пикселях. Атлас рисуется в N×fontPixelSize, а
-   *  AtlasText на runtime скейлит quad'ы под нужный размер. Чем больше базовый
-   *  размер — тем чётче маленький текст (за счёт supersampling). */
+  /** Логический размер шрифта в пикселях, на котором текст «читается» в UI.
+   *  AtlasText на runtime скейлит quad'ы под желаемый fontSize.  */
   fontPixelSize: number
-  /** Множитель supersampling для cell. Cell physical size = fontPixelSize * superscale.
-   *  2 даёт приемлемый AA при bilinear filter. */
-  superscale?: number
-  /** Список Unicode кодпоинтов, которые войдут в атлас. По умолчанию ASCII +
-   *  базовая кириллица + несколько служебных символов из xr-overlay. */
+  /** Размер глифа внутри SDF-cell. Чем больше — тем плавнее smoothstep на
+   *  больших масштабах, но больше памяти. По умолчанию 32 (рабочий компромисс). */
+  glyphPixelSize?: number
+  /** Buffer вокруг глифа в SDF-cell, чтобы distance field имел градиент
+   *  «снаружи» буквы. Default 4. */
+  buffer?: number
+  /** Радиус distance transform: расстояния, превышающие radius, обрезаются
+   *  в SDF (сохраняются с минимумом). Default 8. */
+  radius?: number
+  /** Cutoff: в каком значении SDF считается «контуром» глифа (0..1). 0.25
+   *  — стандарт для tiny-sdf. */
+  cutoff?: number
+  /** Список Unicode кодпоинтов в атласе. По умолчанию ASCII + кириллица + спец. */
   charset?: number[]
 }
 
 const DEFAULT_CHARSET: number[] = (() => {
   const out: number[] = []
-  // ASCII printable: 0x20..0x7E
   for (let cp = 0x20; cp <= 0x7e; cp++) out.push(cp)
-  // Базовая кириллица: 0x0400..0x04FF
   for (let cp = 0x0400; cp <= 0x04ff; cp++) out.push(cp)
-  // Служебное: ▶ (execution arrow), … (ellipsis), → (arrow), ✓ (check)
   out.push(0x25b6, 0x2026, 0x2192, 0x2713)
   return out
 })()
@@ -60,9 +74,9 @@ const DEFAULT_CHARSET: number[] = (() => {
 export class FontAtlas {
   /** ImageBitmap содержит весь атлас, готов к copyExternalImageToTexture. */
   public readonly bitmap: ImageBitmap
-  /** Map: codepoint → cell в атласе. Кодпоинты, которых нет, рендерятся как пустой quad. */
+  /** Map: codepoint → cell в атласе. */
   public readonly glyphs: Map<number, GlyphCell>
-  /** Размер ячейки в пикселях атласа (моноширный → одинаков для всех). */
+  /** Размер ячейки в пикселях атласа. */
   public readonly cellPixelW: number
   public readonly cellPixelH: number
   /** Атлас целиком в пикселях. */
@@ -70,14 +84,17 @@ export class FontAtlas {
   public readonly atlasPixelH: number
   /** Логический размер шрифта (без supersample). */
   public readonly fontPixelSize: number
-  /** Логическая ширина advance (= cellPixelW / superscale). При size = fontPixelSize. */
+  /** Логическая ширина advance моноширного шрифта при fontSize = fontPixelSize. */
   public readonly logicalAdvance: number
-  /** Логическая высота строки (= cellPixelH / superscale). */
+  /** Логическая высота строки. */
   public readonly logicalLineHeight: number
   /** Y-смещение базовой линии шрифта от верха ячейки (в логических px). */
   public readonly logicalBaseline: number
-  /** CSS font-string, которым рисовался атлас. Для дебага. */
-  public readonly fontCss: string
+  /** SDF-параметры для шейдера. radius — реальная distance до края.
+   *  cutoff — значение SDF на контуре. buffer — отступ внутри cell. */
+  public readonly sdfRadius: number
+  public readonly sdfCutoff: number
+  public readonly sdfBuffer: number
 
   private constructor(init: {
     bitmap: ImageBitmap
@@ -90,7 +107,9 @@ export class FontAtlas {
     logicalAdvance: number
     logicalLineHeight: number
     logicalBaseline: number
-    fontCss: string
+    sdfRadius: number
+    sdfCutoff: number
+    sdfBuffer: number
   }) {
     this.bitmap = init.bitmap
     this.glyphs = init.glyphs
@@ -102,120 +121,103 @@ export class FontAtlas {
     this.logicalAdvance = init.logicalAdvance
     this.logicalLineHeight = init.logicalLineHeight
     this.logicalBaseline = init.logicalBaseline
-    this.fontCss = init.fontCss
+    this.sdfRadius = init.sdfRadius
+    this.sdfCutoff = init.sdfCutoff
+    this.sdfBuffer = init.sdfBuffer
   }
 
-  /**
-   * Возвращает glyph cell для кодпоинта или undefined, если не в атласе.
-   * Caller должен либо пропустить, либо нарисовать fallback (например '?').
-   */
   cellOf(codepoint: number): GlyphCell | undefined {
     return this.glyphs.get(codepoint)
   }
 
   /**
-   * Создаёт атлас. Должен вызываться в browser-окружении (нужны OffscreenCanvas/
-   * HTMLCanvasElement и Canvas2D 2D-context).
-   *
-   * Шрифт уже должен быть загружен и доступен по fontFamily — caller сам
-   * управляет FontFace / @font-face. Это намеренно: разные UI могут
-   * по-своему подгружать шрифт (через FontFace API, через CSS, через preload).
+   * Создаёт SDF-атлас. Должен вызываться в browser-окружении (Canvas2D + tiny-sdf).
+   * Шрифт уже должен быть загружен и доступен по fontFamily.
    */
   static async create(options: FontAtlasOptions): Promise<FontAtlas> {
+    if (typeof document === "undefined") {
+      throw new Error("FontAtlas: tiny-sdf requires browser document for canvas")
+    }
     const fontPx = options.fontPixelSize
-    const superscale = options.superscale ?? 2
+    const glyphPx = options.glyphPixelSize ?? 32
+    const buffer = options.buffer ?? 4
+    const radius = options.radius ?? 8
+    const cutoff = options.cutoff ?? 0.25
     const charset = options.charset ?? DEFAULT_CHARSET
-    // Cell-высота — fontPx с запасом на хвосты + по супер-сэмплу.
-    const cellPixelH = Math.ceil(fontPx * 1.3 * superscale)
-    // Размер шрифта в Canvas2D: ~75% от высоты ячейки.
-    const drawFontPx = Math.round(cellPixelH * 0.75)
 
-    // Замеряем реальный advance моноширного шрифта через ctx.measureText.
-    // Без точного замера cell-width не совпадает с шириной глифа: либо
-    // зазоры между буквами (cellW > advance), либо обрезание (cellW < advance).
-    // Берём максимум из нескольких широких символов с +1px запасом.
-    const probeCanvas = createCanvas(8, 8)
-    const probeCtx = probeCanvas.getContext("2d") as
-      | OffscreenCanvasRenderingContext2D
-      | CanvasRenderingContext2D
-      | null
+    // tiny-sdf создаёт собственный canvas glyphPx + 2*buffer.
+    const sdfCellSize = glyphPx + buffer * 2
+    const tinySdf = new TinySDF(glyphPx, buffer, radius, cutoff, options.fontFamily)
+
+    // Замеряем реальный advance моноширного шрифта (без buffer'а):
+    // ctx.measureText("M").width при том же fontSize, что использует tiny-sdf.
+    const probeCanvas = document.createElement("canvas")
+    probeCanvas.width = sdfCellSize
+    probeCanvas.height = sdfCellSize
+    const probeCtx = probeCanvas.getContext("2d")
     if (probeCtx === null) throw new Error("FontAtlas: 2D context unavailable")
-    probeCtx.font = `${drawFontPx}px ${options.fontFamily}`
-    // Моноширный → advance одинаков для всех ASCII; меряем одной 'M'.
-    // Unicode-знаки вроде '→' могут быть шире моноширного и портят cell.
-    const measured = probeCtx.measureText("M").width
-    // Cell-stride учитывает 2px padding по обе стороны: bilinear-фильтр
-    // на границе UV не должен зачерпывать соседнюю ячейку (UV-bleeding).
-    const cellPad = 2
-    const cellStrideW = Math.max(1, Math.ceil(measured) + 1) + cellPad * 2
-    // Логическое cellPixelW — без padding'а, как фактический "слот" глифа.
-    const cellPixelW = cellStrideW - cellPad * 2
-    const cellStrideH = cellPixelH + cellPad * 2
+    probeCtx.font = `${glyphPx}px ${options.fontFamily}`
+    const measuredAdvance = probeCtx.measureText("M").width
 
     const cols = 16
     const rows = Math.ceil(charset.length / cols)
-    // POT для совместимости со старыми GPU-драйверами и аккуратного UV.
-    const atlasW = nextPowerOfTwo(cellStrideW * cols)
-    const atlasH = nextPowerOfTwo(cellStrideH * rows)
+    const atlasW = nextPowerOfTwo(sdfCellSize * cols)
+    const atlasH = nextPowerOfTwo(sdfCellSize * rows)
 
-    const canvas = createCanvas(atlasW, atlasH)
-    const ctx = canvas.getContext("2d") as
-      | OffscreenCanvasRenderingContext2D
-      | CanvasRenderingContext2D
-      | null
-    if (ctx === null) throw new Error("FontAtlas: 2D context unavailable")
-
-    const fontCss = `${drawFontPx}px ${options.fontFamily}`
-    ctx.font = fontCss
-    ctx.fillStyle = "#ffffff"
-    ctx.textBaseline = "alphabetic"
-    ctx.textAlign = "left"
+    const canvas = document.createElement("canvas")
+    canvas.width = atlasW
+    canvas.height = atlasH
+    const ctx = canvas.getContext("2d")
+    if (ctx === null) throw new Error("FontAtlas: 2D context unavailable for atlas")
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, atlasW, atlasH)
-
-    // Базовая линия в ячейке: примерно 80% сверху, чтобы спускающиеся хвосты
-    // (g, y, p, q, ц, щ) умещались.
-    const baselineWithinCell = Math.round(cellPixelH * 0.78)
 
     const glyphs = new Map<number, GlyphCell>()
     for (let i = 0; i < charset.length; i++) {
       const cp = charset[i]!
       const col = i % cols
       const row = Math.floor(i / cols)
-      // Cell-origin со сдвигом на cellPad — резерв padding'а вокруг глифа.
-      const cellX = col * cellStrideW + cellPad
-      const cellY = row * cellStrideH + cellPad
+      const cellX = col * sdfCellSize
+      const cellY = row * sdfCellSize
       const ch = String.fromCodePoint(cp)
-      // Pen-точка: левый край cell, baseline внутри cell.
-      ctx.fillText(ch, cellX, cellY + baselineWithinCell)
-      // Простая cell-grid схема: UV покрывает всю cell, AtlasText quad
-      // совпадает с cell. bearingX=0, bearingY=baselineWithinCell — Y-offset
-      // от baseline до верха cell в пикселях атласа (в logical делится на
-      // superscale на стороне AtlasText).
+      const sdfImage = tinySdf.draw(ch)
+      ctx.putImageData(sdfImage, cellX, cellY)
       glyphs.set(cp, {
         px: cellX,
         py: cellY,
-        pw: cellPixelW,
-        ph: cellPixelH,
-        bearingX: 0,
-        bearingY: baselineWithinCell,
+        pw: sdfCellSize,
+        ph: sdfCellSize,
+        // tiny-sdf рисует букву на (buffer, middle) — pen-x от левого края cell
+        // равен buffer; AtlasText сдвигает quad на -buffer чтобы pen-x совпадал
+        // с видимым началом буквы. Quad размером cell (включая buffer-зону)
+        // — за пределами буквы SDF→0, текст "сам схватывается" smoothstep'ом.
+        bearingX: -buffer,
+        // tiny-sdf ставит baseline на y=middle. cell-верх находится "middle" px
+        // выше baseline. AtlasText сдвигает quad вверх на этот offset.
+        bearingY: Math.round(sdfCellSize / 2),
       })
     }
 
-    const bitmap = await canvasToImageBitmap(canvas, atlasW, atlasH)
+    const bitmap = await createImageBitmap(canvas)
+
+    // Логическая шкала: в SDF-cell глиф размером glyphPx (logical эквивалент
+    // = options.fontPixelSize). Pixel→logical ratio = fontPx / glyphPx.
+    const pixelToLogical = fontPx / glyphPx
 
     return new FontAtlas({
       bitmap,
       glyphs,
-      cellPixelW,
-      cellPixelH,
+      cellPixelW: sdfCellSize,
+      cellPixelH: sdfCellSize,
       atlasPixelW: atlasW,
       atlasPixelH: atlasH,
       fontPixelSize: fontPx,
-      logicalAdvance: cellPixelW / superscale,
-      logicalLineHeight: cellPixelH / superscale,
-      logicalBaseline: baselineWithinCell / superscale,
-      fontCss,
+      logicalAdvance: measuredAdvance * pixelToLogical,
+      logicalLineHeight: sdfCellSize * pixelToLogical,
+      logicalBaseline: (sdfCellSize / 2) * pixelToLogical,
+      sdfRadius: radius,
+      sdfCutoff: cutoff,
+      sdfBuffer: buffer,
     })
   }
 }
@@ -225,26 +227,4 @@ function nextPowerOfTwo(value: number): number {
   let p = 1
   while (p < value) p <<= 1
   return p
-}
-
-type AnyCanvas = OffscreenCanvas | HTMLCanvasElement
-function createCanvas(w: number, h: number): AnyCanvas {
-  if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(w, h)
-  if (typeof document !== "undefined") {
-    const c = document.createElement("canvas")
-    c.width = w
-    c.height = h
-    return c
-  }
-  throw new Error("FontAtlas: no canvas implementation (need browser env)")
-}
-
-async function canvasToImageBitmap(canvas: AnyCanvas, w: number, h: number): Promise<ImageBitmap> {
-  if (typeof createImageBitmap === "undefined") {
-    throw new Error("FontAtlas: createImageBitmap unavailable")
-  }
-  // OffscreenCanvas → transferToImageBitmap дёшево; HTMLCanvas → createImageBitmap.
-  const oc = canvas as OffscreenCanvas
-  if (typeof oc.transferToImageBitmap === "function") return oc.transferToImageBitmap()
-  return createImageBitmap(canvas as CanvasImageSource, 0, 0, w, h)
 }

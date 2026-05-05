@@ -35,5 +35,8 @@
     "typedoc": "^0.28.15",
     "typescript": "^5.4.5",
     "yoga-layout": "^3.2.1"
+  },
+  "dependencies": {
+    "tiny-sdf": "^1.0.2"
   }
 }

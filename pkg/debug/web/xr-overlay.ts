@@ -127,9 +127,12 @@ export class XrOverlay {
     const atlas = await FontAtlas.create({
       fontFamily: FONT_FAMILY,
       fontPixelSize: ATLAS_FONT_PX,
-      // 4x superscale: атлас рисуется в 48px Canvas2D, bilinear-фильтр на
-      // 12px logical даёт чёткий и плотный текст без блюра.
-      superscale: 4,
+      // SDF параметры tiny-sdf: glyph 32px в cell с buffer=4 (опоясывающий
+      // distance gradient) и radius=8 (предел distance в SDF). При 12px logical
+      // smoothstep на основе fwidth даёт чёткие края на любом масштабе.
+      glyphPixelSize: 32,
+      buffer: 4,
+      radius: 8,
     })
     return new XrOverlay(canvas, renderer, atlas)
   }

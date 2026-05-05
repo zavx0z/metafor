@@ -32,10 +32,11 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let sample = textureSample(atlasTexture, atlasSampler, in.uv);
-    // Атлас рендерится белым на прозрачном фоне Canvas2D — alpha-канал
-    // совпадает с luminance. Берём alpha как покрытие глифа и умножаем
-    // на цвет материала.
-    let coverage = sample.a;
-    return vec4<f32>(perObject.color.rgb, perObject.color.a * coverage);
+    // SDF: значение в R-канале (tiny-sdf пишет одинаковый distance в RGB,
+    // alpha=255). 0.5 — контур глифа: > 0.5 внутри, < 0.5 снаружи.
+    // Adaptive smoothstep через fwidth даёт чёткие края на любом масштабе.
+    let sdf = textureSample(atlasTexture, atlasSampler, in.uv).r;
+    let smoothing = fwidth(sdf);
+    let alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, sdf);
+    return vec4<f32>(perObject.color.rgb, perObject.color.a * alpha);
 }
