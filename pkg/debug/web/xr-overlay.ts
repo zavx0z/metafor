@@ -43,6 +43,19 @@ export type XrSource = {
   tokens?: XrSourceTokens
 }
 
+type AnimItem = {
+  obj: Object3D
+  startX: number
+  startY: number
+  targetX: number
+  targetY: number
+  /** true → объект удаляется из сцены по завершении (exit-фаза). */
+  remove: boolean
+}
+
+const TRANSITION_DURATION_MS = 420
+const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3)
+
 const CONTENT_PAD_TOP_PX = 34
 const CONTENT_PAD_LEFT_PX = 10
 const CONTENT_PAD_RIGHT_PX = 10
@@ -63,7 +76,10 @@ const FONT_URL = "/JetBrainsMono-Bold.ttf"
 const OVERSCAN_LINES = 40
 const MAX_RENDERED_LINES = 350
 
-const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 1)
+// alpha=0: при использовании в desktop-overlay (space) под канвасом виден
+// backdrop-blur. В standalone debug-странице за прозрачным canvas — body-фон
+// #0d1117, читаемость не страдает.
+const COLOR_BG = new Color(22 / 255, 27 / 255, 34 / 255, 0)
 // WebStorm Darcula execution-row — IntelliJ "Execution Point" background
 // ≈ #2440A4 (насыщенный medium-blue, чётко контрастирует с panel-фоном).
 // Alpha=1, MeshBasicMaterial в этом движке рендерится opaque без блендинга.
@@ -141,6 +157,15 @@ export class XrOverlay {
   #windowStart = 0
   #windowSize = 0
   #pendingWindowRebuild = false
+  // Transition animation при смене файла: буквы старого source разлетаются
+  // от своих позиций к краям сцены, новые — слетаются с краёв на финальные
+  // позиции. RAF-цикл активен только во время animation, потом обратно
+  // render-on-demand.
+  #animItems: AnimItem[] = []
+  #animStart = 0
+  #animDuration = 0
+  #animActive = false
+  #exitContainer: Object3D | null = null
 
   private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont) {
     this.#canvas = canvas
@@ -195,6 +220,14 @@ export class XrOverlay {
     this.#contentContainer.position.z = 0.002
     this.#card.add(this.#contentContainer)
     this.#contentContainer.add(this.#gutterRule)
+
+    // Контейнер для exit-Text: они отрываются от scroll-овой системы
+    // codeContainer (иначе при rebuild scroll они бы телепортировались) и
+    // живут в contentContainer на «фиксированных» world-позициях до
+    // завершения transition.
+    this.#exitContainer = new Object3D()
+    this.#exitContainer.position.z = 0.0001
+    this.#contentContainer.add(this.#exitContainer)
 
     this.#codeContainer = new Object3D()
     this.#codeContainer.layout = {
@@ -292,22 +325,118 @@ export class XrOverlay {
 
   setSource(source: XrSource): void {
     const prev = this.#current
-    this.#current = source
-    // Recentering trigger: location URL изменился (другой файл) ИЛИ currentLine
-    // меняется (step внутри файла) ИЛИ это первый source. Просто проверять
-    // location недостаточно — stub "loading…" имеет тот же location что и
-    // реальный source (полная строка `url:line`), поэтому без отдельного
-    // currentLine-сравнения step не центрировал view.
     const lineChanged = prev?.currentLine !== source.currentLine
     const fileChanged = stripLine(prev?.location) !== stripLine(source.location)
     const shouldRecenter = source.currentLine > 0 && (lineChanged || fileChanged || prev === null)
+
+    this.#current = source
+
     if (shouldRecenter) {
       const visible = this.#visibleLineCount()
       this.#scrollOffset = Math.max(0, source.currentLine - 1 - Math.floor(visible / 2))
     }
-    this.#renderLines()
+
+    // Transition только при смене файла и если что-то уже отрисовано.
+    // Step внутри одного файла рендерится без анимации, чтобы не отвлекать.
+    const hadContent = this.#codeContainer.children.length > 0
+    const shouldAnimate = prev !== null && fileChanged && hadContent && !this.#disposed
+
+    if (shouldAnimate) {
+      if (this.#animActive) this.#completeAnimImmediately()
+      this.#startTransition()
+    } else {
+      this.#renderLines()
+      this.#applyScroll()
+      this.#layoutDirty = true
+      this.#requestRender()
+    }
+  }
+
+  // Запускаем transition: текущий content уходит к "случайным точкам за
+  // экраном", новый content приходит с тех же дальних точек к финальным
+  // позициям. Старый и новый Text живут параллельно во время анимации.
+  #startTransition(): void {
+    if (this.#exitContainer === null) return
+    const flightRadius = Math.max(this.#physicalWidth, this.#physicalHeight) * 1.4
+    const items: AnimItem[] = []
+
+    // 1) Сохраняем exiting объекты с их world-позицией (учитывая scroll
+    //    предыдущего файла). Перекладываем их в exitContainer, чтобы новый
+    //    scroll codeContainer'а их не уносил.
+    const codeScrollY = this.#codeContainer.position.y
+    const exiting = [...this.#codeContainer.children]
+    this.#codeContainer.children = []
+    for (const obj of exiting) {
+      // local в codeContainer + scroll = local в contentContainer.
+      const startX = obj.position.x
+      const startY = obj.position.y + codeScrollY
+      obj.position.x = startX
+      obj.position.y = startY
+      const angle = Math.random() * Math.PI * 2
+      const targetX = startX + Math.cos(angle) * flightRadius
+      const targetY = startY + Math.sin(angle) * flightRadius
+      obj.updateMatrix()
+      this.#exitContainer.add(obj)
+      items.push({obj, startX, startY, targetX, targetY, remove: true})
+    }
+
+    // 2) Рендерим новый content в codeContainer с финальными позициями.
+    const newObjs = this.#renderLines()
     this.#applyScroll()
+
+    // 3) Для каждого нового объекта: смещаем стартовую позицию в случайную
+    //    точку за пределами экрана, animate'им к финальной.
+    for (const obj of newObjs) {
+      const finalX = obj.position.x
+      const finalY = obj.position.y
+      const angle = Math.random() * Math.PI * 2
+      const startX = finalX + Math.cos(angle) * flightRadius
+      const startY = finalY + Math.sin(angle) * flightRadius
+      obj.position.x = startX
+      obj.position.y = startY
+      obj.updateMatrix()
+      items.push({obj, startX, startY, targetX: finalX, targetY: finalY, remove: false})
+    }
+
+    this.#animItems = items
+    this.#animStart = performance.now()
+    this.#animDuration = TRANSITION_DURATION_MS
+    this.#animActive = true
     this.#layoutDirty = true
+    this.#runAnimLoop()
+  }
+
+  #runAnimLoop(): void {
+    const tick = (): void => {
+      if (!this.#animActive || this.#disposed) return
+      const now = performance.now()
+      const t = Math.min(1, (now - this.#animStart) / this.#animDuration)
+      const eased = easeOutCubic(t)
+      for (const it of this.#animItems) {
+        it.obj.position.x = it.startX + (it.targetX - it.startX) * eased
+        it.obj.position.y = it.startY + (it.targetY - it.startY) * eased
+        it.obj.updateMatrix()
+      }
+      this.#renderFrame()
+      if (t >= 1) {
+        this.#completeAnimImmediately()
+        return
+      }
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }
+
+  #completeAnimImmediately(): void {
+    // Финализация: ставим финальные позиции и удаляем exit-объекты из сцены.
+    for (const it of this.#animItems) {
+      it.obj.position.x = it.targetX
+      it.obj.position.y = it.targetY
+      it.obj.updateMatrix()
+    }
+    if (this.#exitContainer !== null) this.#exitContainer.children = []
+    this.#animItems = []
+    this.#animActive = false
     this.#requestRender()
   }
 
@@ -512,19 +641,19 @@ export class XrOverlay {
   // scrollOffset уходит за пределы window, пересобираем (через RAF throttle).
   // Это держит число Text-объектов в пределах MAX_RENDERABLES движка и
   // обеспечивает мгновенный wheel-scroll внутри overscan.
-  #renderLines(): void {
+  #renderLines(): Object3D[] {
     this.#codeContainer.children = []
     this.#hideGutterRule()
 
     if (this.#current === null) {
       this.#totalLines = 0
-      return
+      return []
     }
     const lines = this.#current.lines
     const currentLine = this.#current.currentLine
     if (lines.length === 0) {
       this.#totalLines = 0
-      return
+      return []
     }
 
     this.#totalLines = lines.length
@@ -617,6 +746,7 @@ export class XrOverlay {
       }
     }
     this.#pendingWindowRebuild = false
+    return [...this.#codeContainer.children]
   }
 
   // Рендерит одну строку как последовательность Text-объектов по категориям
