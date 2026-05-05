@@ -167,17 +167,21 @@ export class XrSourceCard implements XrCard {
       this.#tokenMaterials.set(category, new TextMaterial({color}))
     }
 
+    this.#codeContainer = new Object3D()
+    this.#codeContainer.position.z = 0.002
+    this.node.add(this.#codeContainer)
+
+    // execHighlight + execArrow живут ВНУТРИ codeContainer, чтобы при скролле
+    // codeContainer (translation по Y) подсветка/стрелка двигались вместе с
+    // соответствующей строкой. Иначе они "висели" в одном экранном месте,
+    // пока текст уезжал.
     this.#execHighlight = new Mesh(
       new PlaneGeometry({width: 1, height: 1}),
       new MeshBasicMaterial({color: COLOR_HIGHLIGHT}),
     )
     this.#execHighlight.visible = false
     this.#execHighlight.position.z = -0.005
-    this.node.add(this.#execHighlight)
-
-    this.#codeContainer = new Object3D()
-    this.#codeContainer.position.z = 0.002
-    this.node.add(this.#codeContainer)
+    this.#codeContainer.add(this.#execHighlight)
     // execArrow создаётся лениво в setRect когда font получен.
   }
 
@@ -243,11 +247,12 @@ export class XrSourceCard implements XrCard {
       this.#placeholder.visible = false
     }
 
-    // Lazy-init execArrow когда font получен.
+    // Lazy-init execArrow когда font получен. Тоже внутри codeContainer
+    // чтобы скроллился вместе со строкой.
     if (this.#execArrow === null) {
       this.#execArrow = new Text("▶", font, CODE_FONT_PX * pixelScale * 0.9, this.#execArrowMaterial)
       this.#execArrow.visible = false
-      this.node.add(this.#execArrow)
+      this.#codeContainer.add(this.#execArrow)
     } else {
       // Resize: обновляем fontSize.
       const arrowFontWorld = CODE_FONT_PX * pixelScale * 0.9
@@ -490,42 +495,47 @@ export class XrSourceCard implements XrCard {
     const highlightWorldH = LINE_PX * this.#pixelScale
 
     let highlightPlaced = false
-    // Clip-check: пропускаем строки которые после applyScroll окажутся выше
-    // верха или ниже низа card-а (overscan-область вне visible). Без этого
-    // строки overscan видны через прозрачный canvas за пределами card-rect.
+    // Clip-check: пропускаем text-render строки которые вне visible card-rect
+    // (overscan-область видна через прозрачный canvas за границей карточки).
+    // Highlight/arrow при этом размещаем для всего window — они в codeContainer
+    // и сами клипятся при скролле, но должны быть готовы при возврате в видимую область.
     const scrollOffsetWindow = this.#scrollOffset - this.#windowStart
     const visibleTop = scrollOffsetWindow - 1   // 1 запас сверху
     const visibleBottom = scrollOffsetWindow + visible + 1  // запас снизу
     for (let i = 0; i < windowEnd - this.#windowStart; i++) {
-      if (i < visibleTop || i > visibleBottom) continue
       const lineIndex = this.#windowStart + i
       const lineNo = lineIndex + 1
       const isCurrent = lineNo === currentLine
-      const text = lines[lineIndex] ?? ""
       const rowTopWorld = -(i * LINE_PX) * this.#pixelScale
       const baselineY = rowTopWorld - lineFontWorld
 
       if (isCurrent) {
+        // codeContainer.position уже учитывает PAD_TOP + scrollOffset, поэтому
+        // внутри него нужны только row-relative координаты.
+        // codeContainer origin сидит в (PAD_LEFT_PX, PAD_TOP_PX - scrollOffsetPx),
+        // x внутри = x_in_card - PAD_LEFT_PX.
         this.#execHighlight.geometry = new PlaneGeometry({width: contentWorldW, height: highlightWorldH})
-        this.#execHighlight.position.x = (PAD_LEFT_PX + contentPixelWidth / 2) * this.#pixelScale
-        this.#execHighlight.position.y = -PAD_TOP_PX * this.#pixelScale +
-          (this.#scrollOffset - this.#windowStart) * LINE_PX * this.#pixelScale +
-          rowTopWorld - highlightWorldH / 2
+        this.#execHighlight.position.x = (contentPixelWidth / 2) * this.#pixelScale
+        this.#execHighlight.position.y = rowTopWorld - highlightWorldH / 2
         this.#execHighlight.position.z = -0.005
         this.#execHighlight.visible = true
         this.#execHighlight.updateMatrix()
 
         if (arrow !== null) {
-          arrow.position.x = (PAD_LEFT_PX + GUTTER_LEFT_PAD_PX * 0.4) * this.#pixelScale
-          arrow.position.y = -PAD_TOP_PX * this.#pixelScale +
-            (this.#scrollOffset - this.#windowStart) * LINE_PX * this.#pixelScale +
-            baselineY
+          arrow.position.x = (GUTTER_LEFT_PAD_PX * 0.4) * this.#pixelScale
+          arrow.position.y = baselineY
           arrow.visible = true
           arrow.updateMatrix()
         }
         highlightPlaced = true
       }
 
+      // Текст не создаём для строк вне видимого rect-а (но highlight уже мог
+      // быть placed выше — он скроллится с codeContainer и появится при
+      // возврате currentLine в видимую область).
+      if (i < visibleTop || i > visibleBottom) continue
+
+      const text = lines[lineIndex] ?? ""
       const numStr = String(lineNo)
       const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
       const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
@@ -669,7 +679,15 @@ export class XrSourceCard implements XrCard {
 
   #disposeCodeChildren(): void {
     const renderer = this.#canvas?.renderer
+    // Сохраняем persistent-ноды (highlight/arrow) — они живут в codeContainer
+    // чтобы скроллиться вместе со строками, но переcоздавать их каждый rebuild
+    // не нужно.
+    const keep: Object3D[] = []
     for (const child of this.#codeContainer.children) {
+      if (child === this.#execHighlight || (this.#execArrow !== null && child === this.#execArrow)) {
+        keep.push(child)
+        continue
+      }
       const text = child as Text
       if (text.isText === true) {
         if (renderer !== undefined) {
@@ -681,7 +699,7 @@ export class XrSourceCard implements XrCard {
       const mesh = child as Mesh
       if (mesh.geometry !== undefined && renderer !== undefined) renderer.invalidateGeometry(mesh.geometry)
     }
-    this.#codeContainer.children = []
+    this.#codeContainer.children = keep
   }
 
   #disposeHeaderText(): void {
