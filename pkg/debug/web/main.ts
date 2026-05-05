@@ -5,6 +5,7 @@
  */
 
 import {XrOverlay, type XrSource} from "./xr-overlay.ts"
+import {XrConsole, type XrConsoleEntry} from "./xr-console.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -85,7 +86,10 @@ const scopesContainer = $("scopes")
 const evalInput = $<HTMLTextAreaElement>("eval-input")
 const evalFrame = $<HTMLInputElement>("eval-frame")
 const evalOutput = $("eval-output")
-const consoleLog = $("console-log")
+const consoleCanvas = $<HTMLCanvasElement>("engine-console-canvas")
+let consoleOverlay: XrConsole | null = null
+let consoleResizeObserver: ResizeObserver | null = null
+const consolePending: XrConsoleEntry[] = []
 const sourceLoc = $("source-loc")
 type CachedSource = {text: string; tokens?: import("./xr-overlay.ts").XrSourceTokens}
 const sourceCache = new Map<string, CachedSource>()
@@ -673,11 +677,14 @@ function escapeHtml(s: string): string {
 }
 
 function appendConsole(entry: ConsoleEntry): void {
-  const row = document.createElement("div")
-  row.className = `row${entry.level ? ` ${entry.level}` : ""}`
-  row.innerHTML = `<span class="ts">${escapeHtml(entry.ts)}</span>${escapeHtml(entry.text)}`
-  consoleLog.appendChild(row)
-  consoleLog.scrollTop = consoleLog.scrollHeight
+  const xc: XrConsoleEntry = {ts: entry.ts, text: entry.text}
+  if (entry.level !== undefined) xc.level = entry.level
+  if (consoleOverlay !== null) {
+    consoleOverlay.pushEntries([xc])
+  } else {
+    // overlay ещё не инициализирован — буферизируем, отдадим в init.
+    consolePending.push(xc)
+  }
 }
 
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
@@ -749,6 +756,26 @@ if (persistedFilter !== null) verboseFilter.value = persistedFilter
 
 connect()
 void initEngineSourceView()
+void initEngineConsole()
+
+async function initEngineConsole(): Promise<void> {
+  if (consoleOverlay !== null) return
+  try {
+    consoleOverlay = await XrConsole.create(consoleCanvas)
+    consoleOverlay.start()
+    consoleResizeObserver = new ResizeObserver(() => {
+      if (consoleOverlay !== null) consoleOverlay.handleResize()
+    })
+    consoleResizeObserver.observe(consoleCanvas)
+    if (consolePending.length > 0) {
+      consoleOverlay.pushEntries(consolePending)
+      consolePending.length = 0
+    }
+  } catch (error) {
+    // Engine не поднялся — UI продолжает работать, консоль просто не рисуется.
+    console.error("xr-console init failed:", error)
+  }
+}
 
 async function initEngineSourceView(): Promise<void> {
   if (engineLoading || engineOverlay !== null) return

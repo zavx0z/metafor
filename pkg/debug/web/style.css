@@ -238,7 +238,7 @@ section h2 {
   font-family: inherit;
 }
 
-#eval-output, #console-log {
+#eval-output {
   white-space: pre-wrap;
   word-break: break-word;
   margin: 0;
@@ -251,10 +251,32 @@ section h2 {
   overflow: auto;
 }
 
-#console-log .row { display: block; padding: 1px 0; }
-#console-log .row.warning { color: #d29922; }
-#console-log .row.error   { color: var(--accent-hot); }
-#console-log .row .ts     { color: var(--muted); margin-right: 6px; }
+/* Console-section теперь WebGPU canvas. Section как для source — h2 поверх. */
+#console-section {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+}
+#console-section h2 {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  margin: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: rgba(13, 17, 23, 0.6);
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+#engine-console-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: var(--panel);
+}
 
 .toggle {
   display: inline-flex;
