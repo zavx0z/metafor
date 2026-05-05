@@ -127,12 +127,14 @@ export class XrOverlay {
     const atlas = await FontAtlas.create({
       fontFamily: FONT_FAMILY,
       fontPixelSize: ATLAS_FONT_PX,
-      // SDF параметры tiny-sdf: glyph 32px в cell с buffer=4 (опоясывающий
-      // distance gradient) и radius=8 (предел distance в SDF). При 12px logical
-      // smoothstep на основе fwidth даёт чёткие края на любом масштабе.
+      // SDF параметры tiny-sdf. Cutoff = 0.5 кладёт контур глифа точно на
+      // SDF=0.5 (формула tiny-sdf: SDF = 1 - (d/radius + cutoff)) — это
+      // выравнивает с шейдерным smoothstep(0.5 ± fwidth, sdf): контур и
+      // threshold совпадают, halo вокруг букв уходит.
       glyphPixelSize: 32,
       buffer: 4,
       radius: 8,
+      cutoff: 0.5,
     })
     return new XrOverlay(canvas, renderer, atlas)
   }
