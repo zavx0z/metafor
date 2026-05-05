@@ -54,10 +54,18 @@ export class AtlasText extends Object3D {
     const atlas = this.material.atlas
     const text = this.#text
     const scale = this.fontSize / atlas.fontPixelSize
+    // pixelToLogical: соотношение между пикселями атласа и logical px при
+    // данном fontSize. atlas.fontPixelSize = logical, atlas.cellPixelW в
+    // pixel-атласе = logical * superscale → pixel/logical = superscale.
+    // Формально извлекаем из стабильного отношения logicalAdvance к
+    // (cellPixelW + 2*pad). Проще — считаем через scale + atlas-resolution.
+    const pixelToLogical = atlas.fontPixelSize / atlas.cellPixelH * (atlas.logicalLineHeight / atlas.fontPixelSize)
+    void pixelToLogical
+    // Делаем проще: pixel→world ratio = scale / superscale.
+    // superscale = cellPixelH / logicalLineHeight.
+    const superscale = atlas.cellPixelH / atlas.logicalLineHeight
+    const pxToWorld = scale / superscale
     const advanceLogical = atlas.logicalAdvance * scale + this.letterSpacing
-    const cellWWorld = atlas.logicalAdvance * scale
-    const cellHWorld = atlas.logicalLineHeight * scale
-    const baselineYWorld = atlas.logicalBaseline * scale
     const atlasW = atlas.atlasPixelW
     const atlasH = atlas.atlasPixelH
 
@@ -97,14 +105,18 @@ export class AtlasText extends Object3D {
         continue
       }
 
-      // Quad: правая система координат. Y вверх в локальной плоскости текста,
-      // но в атласе Y вниз — UV.v = py/atlasH (top), py+ph/atlasH (bottom).
-      // Quad стоит баселайном на y=0, верх ячейки на y=baseline,
-      // низ ячейки на y=baseline-cellH.
-      const x0 = pen
-      const x1 = pen + cellWWorld
-      const y1 = baselineYWorld
-      const y0 = baselineYWorld - cellHWorld
+      // Tight bbox: quad точно по реальному рисунку глифа (без прозрачных
+      // полей cell). bearingX/bearingY смещают квад относительно pen-точки.
+      // Y растёт вверх в world; ascent = bearingY → top quad = baseline +
+      // bearingY*pxToWorld.
+      const glyphW = cell.pw * pxToWorld
+      const glyphH = cell.ph * pxToWorld
+      const offX = cell.bearingX * pxToWorld
+      const offY = cell.bearingY * pxToWorld
+      const x0 = pen + offX
+      const x1 = x0 + glyphW
+      const y1 = offY
+      const y0 = y1 - glyphH
 
       const u0 = cell.px / atlasW
       const u1 = (cell.px + cell.pw) / atlasW

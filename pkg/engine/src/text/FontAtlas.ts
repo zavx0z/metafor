@@ -11,14 +11,23 @@
  * advanceWidth одинаков, и нам достаточно фиксированной cell-сетки.
  */
 export type GlyphCell = {
-  /** Левая граница ячейки в атласе, в пикселях (от верх-лево атласа). */
+  /** Левая граница bbox глифа в атласе, в пикселях (от верх-лево атласа).
+   *  Уже учитывает offset внутри cell — quad-маппинг должен брать (px..px+pw). */
   px: number
-  /** Верхняя граница ячейки в атласе, в пикселях. */
+  /** Верхняя граница bbox глифа в атласе, в пикселях. */
   py: number
-  /** Ширина ячейки в пикселях (равна для всех глифов в моноширном шрифте). */
+  /** Ширина bbox глифа в пикселях (реальная ширина рисунка, не advance). */
   pw: number
-  /** Высота ячейки в пикселях. */
+  /** Высота bbox глифа в пикселях. */
   ph: number
+  /** Смещение bbox от left-bearing-точки (где условно стоит pen-x), в пикселях
+   *  атласа. Для большинства моноширных глифов положительное (буква висит
+   *  чуть правее левого края cell), для висящих знаков (`,`, `_`) маленькое.
+   *  AtlasText прибавляет это к pen-x при позиционировании quad'а. */
+  bearingX: number
+  /** Смещение верхушки bbox от baseline, в пикселях атласа. Положительное у
+   *  букв с asc-частью (M, h), отрицательное/ноль у букв с descent (g, y). */
+  bearingY: number
 }
 
 export type FontAtlasOptions = {
@@ -137,13 +146,19 @@ export class FontAtlas {
       const w = probeCtx.measureText(sample).width
       if (w > measured) measured = w
     }
-    const cellPixelW = Math.max(1, Math.ceil(measured) + 1)
+    // Cell-stride учитывает 2px padding по обе стороны: bilinear-фильтр
+    // на границе UV не должен зачерпывать соседнюю ячейку (UV-bleeding).
+    const cellPad = 2
+    const cellStrideW = Math.max(1, Math.ceil(measured) + 1) + cellPad * 2
+    // Логическое cellPixelW — без padding'а, как фактический "слот" глифа.
+    const cellPixelW = cellStrideW - cellPad * 2
+    const cellStrideH = cellPixelH + cellPad * 2
 
     const cols = 16
     const rows = Math.ceil(charset.length / cols)
     // POT для совместимости со старыми GPU-драйверами и аккуратного UV.
-    const atlasW = nextPowerOfTwo(cellPixelW * cols)
-    const atlasH = nextPowerOfTwo(cellPixelH * rows)
+    const atlasW = nextPowerOfTwo(cellStrideW * cols)
+    const atlasH = nextPowerOfTwo(cellStrideH * rows)
 
     const canvas = createCanvas(atlasW, atlasH)
     const ctx = canvas.getContext("2d") as
@@ -169,14 +184,40 @@ export class FontAtlas {
       const cp = charset[i]!
       const col = i % cols
       const row = Math.floor(i / cols)
-      const px = col * cellPixelW
-      const py = row * cellPixelH
+      // Cell-origin со сдвигом на cellPad — резерв padding'а вокруг глифа.
+      const cellX = col * cellStrideW + cellPad
+      const cellY = row * cellStrideH + cellPad
       const ch = String.fromCodePoint(cp)
-      // Рисуем у левого края ячейки. Для моноширного шрифта advance стабильный,
-      // но визуальная ширина (bbox) глифа меньше cellPixelW — это нормально,
-      // UV-quad берёт всю ячейку.
-      ctx.fillText(ch, px, py + baselineWithinCell)
-      glyphs.set(cp, {px, py, pw: cellPixelW, ph: cellPixelH})
+      // Pen-точка: левый край cell, baseline внутри cell.
+      const penX = cellX
+      const penY = cellY + baselineWithinCell
+      ctx.fillText(ch, penX, penY)
+
+      // Измеряем фактический bbox глифа. actualBoundingBoxLeft/Right
+      // — расстояние от pen-точки до bbox-краёв (left ≥ 0 для большинства).
+      // Ascent/Descent — высоты от baseline. С их помощью получаем плотный
+      // bbox, который используется как UV в AtlasText: quad привязан к
+      // фактическому рисунку, без прозрачных краёв cell.
+      const m = ctx.measureText(ch)
+      const left = m.actualBoundingBoxLeft ?? 0
+      const right = m.actualBoundingBoxRight ?? 0
+      const ascent = m.actualBoundingBoxAscent ?? 0
+      const descent = m.actualBoundingBoxDescent ?? 0
+      const bboxW = Math.max(1, Math.ceil(left + right))
+      const bboxH = Math.max(1, Math.ceil(ascent + descent))
+      const bboxPx = Math.floor(penX - left)
+      const bboxPy = Math.floor(penY - ascent)
+      glyphs.set(cp, {
+        px: bboxPx,
+        py: bboxPy,
+        pw: bboxW,
+        ph: bboxH,
+        // bearing относительно pen-x внутри cell (левый край cell == 0).
+        bearingX: bboxPx - cellX,
+        // bearing относительно baseline cell — в пикселях атласа, положит.
+        // = ascent (вверх от baseline). AtlasText scale'ит на logical.
+        bearingY: ascent,
+      })
     }
 
     const bitmap = await canvasToImageBitmap(canvas, atlasW, atlasH)
