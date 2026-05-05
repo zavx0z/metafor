@@ -29,33 +29,30 @@
 
     <main>
       <section id="frames-section">
-        <h2>Call Frames</h2>
         <ul id="frames"></ul>
       </section>
 
       <section id="source-section">
-        <h2>Source <span id="source-loc" class="muted"></span><span id="source-status" class="muted"></span></h2>
+        <span id="source-loc" class="muted"></span>
+        <span id="source-status" class="muted"></span>
         <canvas id="engine-source-canvas"></canvas>
       </section>
 
+      <section id="console-section">
+        <canvas id="engine-console-canvas"></canvas>
+      </section>
+
       <section id="scopes-section">
-        <h2>Scopes (top frame)</h2>
         <div id="scopes"></div>
       </section>
 
       <section id="eval-section">
-        <h2>Evaluate</h2>
         <textarea id="eval-input" placeholder="data.patches[0].path"></textarea>
         <div class="row">
           <label>frame: <input id="eval-frame" type="number" value="0" min="0" /></label>
           <button id="btn-eval">Eval</button>
         </div>
         <pre id="eval-output"></pre>
-      </section>
-
-      <section id="console-section">
-        <h2>Console</h2>
-        <canvas id="engine-console-canvas"></canvas>
       </section>
 
       <section id="verbose-section" hidden>
