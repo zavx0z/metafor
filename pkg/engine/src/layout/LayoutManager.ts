@@ -53,19 +53,30 @@ export class LayoutManager {
 
         if (object.layout) {
             const yoga = this.yoga;
-            if (object.layout.width !== undefined) yogaNode.setWidth(object.layout.width);
-            if (object.layout.height !== undefined) yogaNode.setHeight(object.layout.height);
-            
-            if (object.layout.flexDirection) {
-               const dir = object.layout.flexDirection;
+            const l = object.layout;
+            if (l.width !== undefined) yogaNode.setWidth(l.width);
+            if (l.height !== undefined) yogaNode.setHeight(l.height);
+            if (l.minWidth !== undefined) yogaNode.setMinWidth(l.minWidth);
+            if (l.minHeight !== undefined) yogaNode.setMinHeight(l.minHeight);
+            if (l.maxWidth !== undefined) yogaNode.setMaxWidth(l.maxWidth);
+            if (l.maxHeight !== undefined) yogaNode.setMaxHeight(l.maxHeight);
+            if (l.flex !== undefined) yogaNode.setFlex(l.flex);
+            if (l.flexGrow !== undefined) yogaNode.setFlexGrow(l.flexGrow);
+            if (l.flexShrink !== undefined) yogaNode.setFlexShrink(l.flexShrink);
+            if (l.gap !== undefined && yogaNode.setGap !== undefined && yoga.GUTTER_ALL !== undefined) {
+                yogaNode.setGap(yoga.GUTTER_ALL, l.gap);
+            }
+
+            if (l.flexDirection) {
+               const dir = l.flexDirection;
                if (dir === 'row') yogaNode.setFlexDirection(yoga.FLEX_DIRECTION_ROW);
                if (dir === 'column') yogaNode.setFlexDirection(yoga.FLEX_DIRECTION_COLUMN);
                if (dir === 'row-reverse') yogaNode.setFlexDirection(yoga.FLEX_DIRECTION_ROW_REVERSE);
                if (dir === 'column-reverse') yogaNode.setFlexDirection(yoga.FLEX_DIRECTION_COLUMN_REVERSE);
             }
-            
-            if (object.layout.justifyContent) {
-               const justify = object.layout.justifyContent;
+
+            if (l.justifyContent) {
+               const justify = l.justifyContent;
                if (justify === 'flex-start') yogaNode.setJustifyContent(yoga.JUSTIFY_FLEX_START);
                if (justify === 'center') yogaNode.setJustifyContent(yoga.JUSTIFY_CENTER);
                if (justify === 'flex-end') yogaNode.setJustifyContent(yoga.JUSTIFY_FLEX_END);
@@ -73,9 +84,9 @@ export class LayoutManager {
                if (justify === 'space-around') yogaNode.setJustifyContent(yoga.JUSTIFY_SPACE_AROUND);
                if (justify === 'space-evenly') yogaNode.setJustifyContent(yoga.JUSTIFY_SPACE_EVENLY);
             }
-            
-             if (object.layout.alignItems) {
-               const align = object.layout.alignItems;
+
+             if (l.alignItems) {
+               const align = l.alignItems;
                if (align === 'flex-start') yogaNode.setAlignItems(yoga.ALIGN_FLEX_START);
                if (align === 'center') yogaNode.setAlignItems(yoga.ALIGN_CENTER);
                if (align === 'flex-end') yogaNode.setAlignItems(yoga.ALIGN_FLEX_END);
@@ -83,8 +94,8 @@ export class LayoutManager {
                if (align === 'baseline') yogaNode.setAlignItems(yoga.ALIGN_BASELINE);
             }
 
-            if (object.layout.alignSelf) {
-               const align = object.layout.alignSelf;
+            if (l.alignSelf) {
+               const align = l.alignSelf;
                if (align === 'auto') yogaNode.setAlignSelf(yoga.ALIGN_AUTO);
                if (align === 'flex-start') yogaNode.setAlignSelf(yoga.ALIGN_FLEX_START);
                if (align === 'center') yogaNode.setAlignSelf(yoga.ALIGN_CENTER);
@@ -92,9 +103,17 @@ export class LayoutManager {
                if (align === 'stretch') yogaNode.setAlignSelf(yoga.ALIGN_STRETCH);
                if (align === 'baseline') yogaNode.setAlignSelf(yoga.ALIGN_BASELINE);
             }
-            
-            if (object.layout.padding !== undefined) yogaNode.setPadding(yoga.EDGE_ALL, object.layout.padding);
-            if (object.layout.margin !== undefined) yogaNode.setMargin(yoga.EDGE_ALL, object.layout.margin);
+
+            if (l.padding !== undefined) yogaNode.setPadding(yoga.EDGE_ALL, l.padding);
+            if (l.paddingTop !== undefined) yogaNode.setPadding(yoga.EDGE_TOP, l.paddingTop);
+            if (l.paddingBottom !== undefined) yogaNode.setPadding(yoga.EDGE_BOTTOM, l.paddingBottom);
+            if (l.paddingLeft !== undefined) yogaNode.setPadding(yoga.EDGE_LEFT, l.paddingLeft);
+            if (l.paddingRight !== undefined) yogaNode.setPadding(yoga.EDGE_RIGHT, l.paddingRight);
+            if (l.margin !== undefined) yogaNode.setMargin(yoga.EDGE_ALL, l.margin);
+            if (l.marginTop !== undefined) yogaNode.setMargin(yoga.EDGE_TOP, l.marginTop);
+            if (l.marginBottom !== undefined) yogaNode.setMargin(yoga.EDGE_BOTTOM, l.marginBottom);
+            if (l.marginLeft !== undefined) yogaNode.setMargin(yoga.EDGE_LEFT, l.marginLeft);
+            if (l.marginRight !== undefined) yogaNode.setMargin(yoga.EDGE_RIGHT, l.marginRight);
         }
 
         // Reset children for the current frame to rebuild structure
@@ -119,16 +138,26 @@ export class LayoutManager {
     }
 
     private applyLayout(object: Object3D, yogaNode: YogaNode, scale: number, isRoot: boolean = false): void {
+        const computedWidth = yogaNode.getComputedWidth();
+        const computedHeight = yogaNode.getComputedHeight();
+        // Expose computed dims (logical pixels) на Object3D — потребители
+        // (карточки) могут читать this.computedLayout для размещения content'а.
+        object.computedLayout = {
+            left: yogaNode.getComputedLeft(),
+            top: yogaNode.getComputedTop(),
+            width: computedWidth,
+            height: computedHeight,
+        };
         if (!isRoot) {
             const left = yogaNode.getComputedLeft();
             const top = yogaNode.getComputedTop();
-            
+
             // Convert 2D Layout coordinates (Top-Left 0,0, Y-down) to 3D (Center 0,0, Y-up)
             // We simply map Layout Top to negative Y in 3D.
             object.position.x = left * scale;
             object.position.y = -top * scale;
         }
-        
+
         object.updateMatrix();
         let childIndex = 0;
         for (const child of object.children) {
@@ -141,4 +170,11 @@ export class LayoutManager {
             }
         }
     }
+}
+
+export type ComputedLayout = {
+    left: number
+    top: number
+    width: number
+    height: number
 }

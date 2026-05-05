@@ -456,68 +456,8 @@ export class XrToolbarCard extends XrPanelCard {
   }
 }
 
-export class XrFramesCard extends XrPanelCard {
-  #frames: XrFrameSnapshot[] = []
-  #active = 0
-  #scroll = 0
-  #onSelect: (index: number) => void
-
-  constructor(onSelect: (index: number) => void) {
-    super()
-    this.#onSelect = onSelect
-  }
-
-  setFrames(frames: XrFrameSnapshot[], active: number): void {
-    this.#frames = frames
-    this.#active = active
-    this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, frames.length - 1)))
-    this.render()
-    this.requestRender()
-  }
-
-  onWheel(event: WheelEvent): void {
-    const delta = event.deltaMode === 1 ? event.deltaY : event.deltaY / 20
-    this.#setScroll(this.#scroll + Math.trunc(delta))
-  }
-
-  protected render(): void {
-    this.begin()
-    this.title("Frames", `${this.#frames.length}`)
-    const rowH = 32
-    const y0 = 46
-    const visible = Math.max(1, Math.floor((this.rectH - y0 - 12) / rowH))
-    this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#frames.length - visible)))
-
-    if (this.#frames.length === 0) {
-      this.drawText("waiting for paused frame", 22, 52, 12, this.mutedMat, this.rectW - 44)
-      return
-    }
-
-    for (let i = 0; i < visible; i++) {
-      const frame = this.#frames[this.#scroll + i]
-      if (frame === undefined) break
-      const y = y0 + i * rowH
-      const active = frame.index === this.#active
-      if (active) this.drawRect(14, y - 2, this.rectW - 28, rowH - 4, rgb(43, 73, 117, 0.95), 0)
-      const fn = frame.function || "<anonymous>"
-      const loc = frame.url ? `${shortenUrl(frame.url)}:${frame.line}` : `(scriptId ?):${frame.line}`
-      this.drawText(`#${frame.index}`, 22, y + 4, 11, active ? this.orangeMat : this.mutedMat, 30)
-      this.drawText(fn, 56, y + 2, 12, active ? this.textMat : this.textMat, this.rectW - 76)
-      this.drawText(loc, 56, y + 18, 9, this.mutedMat, this.rectW - 76)
-      this.hit(14, y - 2, this.rectW - 28, rowH - 4, () => this.#onSelect(frame.index))
-    }
-  }
-
-  #setScroll(next: number): void {
-    const visible = Math.max(1, Math.floor((this.rectH - 58) / 32))
-    const max = Math.max(0, this.#frames.length - visible)
-    const clamped = Math.max(0, Math.min(max, next))
-    if (clamped === this.#scroll) return
-    this.#scroll = clamped
-    this.render()
-    this.requestRender()
-  }
-}
+// XrFramesCard теперь живёт в xr-frames-card.ts (Yoga layout migration).
+export {XrFramesCard} from "./xr-frames-card.ts"
 
 export class XrScopesEvalCard extends XrPanelCard {
   #frame: XrFrameSnapshot | null = null

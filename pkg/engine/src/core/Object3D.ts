@@ -1,6 +1,7 @@
 import { Matrix4, Quaternion, Vector3 } from "../math"
 import { Raycaster, type Intersection } from "./Raycaster"
 import type { LayoutProps } from '../layout/LayoutTypes';
+import type { ComputedLayout } from '../layout/LayoutManager';
 
 /**
  * Базовый класс для всех объектов в сцене.
@@ -16,6 +17,8 @@ export class Object3D {
   public parent: Object3D | null = null
   public position: Vector3 = new Vector3()
   public layout?: LayoutProps;
+  /** Заполняется LayoutManager.update — computed-bounds в logical пикселях. */
+  public computedLayout?: ComputedLayout;
   public quaternion: Quaternion = new Quaternion()
 
   // Внутреннее свойство для хранения вращения в углах Эйлера.

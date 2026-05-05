@@ -15,11 +15,13 @@
 
 import {
   Color,
+  LayoutManager,
   Object3D,
   Renderer,
   Scene,
   TrueTypeFont,
   ViewPoint,
+  YogaService,
 } from "@metafor/engine"
 
 const FONT_URL = "/JetBrainsMono-Bold.ttf"
@@ -54,6 +56,9 @@ export class XrCanvas {
     await renderer.init(canvas)
     renderer.setPixelRatio(window.devicePixelRatio || 1)
     const font = await TrueTypeFont.fromUrl(FONT_URL)
+    // Yoga нужен для layout-карточек: грузим WASM до конструкции карточек,
+    // чтобы LayoutManager сразу мог считать.
+    await YogaService.instance.initialize()
     return new XrCanvas(canvas, renderer, font)
   }
 
@@ -62,6 +67,7 @@ export class XrCanvas {
   readonly scene: Scene
   readonly viewPoint: ViewPoint
   readonly font: TrueTypeFont
+  readonly layoutManager = new LayoutManager()
   readonly #cards: CardSlot[] = []
   #focused: XrCard | null = null
   #pixelWidth = 800
