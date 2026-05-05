@@ -204,8 +204,11 @@ export class FilledBox extends Box {
     mesh.position.y = -(cl.height / 2) * ctx.pixelScale
     mesh.position.z = this.#z
     mesh.updateMatrix()
-    // Фон добавляем ПЕРЕД children-Object3D'ами, чтобы он не перекрывал
-    // text/rect-children сверху.
-    this.object.children.unshift(mesh)
+    // КРИТИЧНО: использовать Object3D.add() — он выставляет mesh.parent,
+    // без которого updateWorldMatrix считает mesh root-level и рендерит
+    // его в world-координатах его local-position (т.е. в центре canvas-а).
+    // Раньше я делал children.unshift(mesh) и получал дубликат-фантом
+    // в editor-area. z-buffer и так держит порядок отрисовки через z.
+    this.object.add(mesh)
   }
 }
