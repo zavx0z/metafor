@@ -10,6 +10,7 @@ import {Matrix4, Vector3, Frustum} from "../math"
 import {LineSegments} from "../objects/LineSegments"
 import {Text} from "../objects/Text"
 import {Object3D} from "../core/Object3D"
+import meshBasicWGSL from "./shaders/mesh_basic.wgsl" with {type: "text"}
 import meshStaticWGSL from "./shaders/mesh_static.wgsl" with {type: "text"}
 import meshSkinnedWGSL from "./shaders/mesh_skinned.wgsl" with {type: "text"}
 import meshInstancedWGSL from "./shaders/mesh_instanced.wgsl" with {type: "text"}
@@ -60,6 +61,7 @@ export class Renderer {
   private device: GPUDevice | null = null
   private context: GPUCanvasContext | null = null
   private presentationFormat: GPUTextureFormat | null = null
+  private basicMeshPipeline: GPURenderPipeline | null = null
   private staticMeshPipeline: GPURenderPipeline | null = null
   private instancedMeshPipeline: GPURenderPipeline | null = null
   private skinnedMeshPipeline: GPURenderPipeline | null = null
@@ -240,6 +242,9 @@ export class Renderer {
     })
 
     // --- Shader Modules ---
+    const basicShaderModule = this.device.createShaderModule({
+      code: meshBasicWGSL,
+    })
     const staticShaderModule = this.device.createShaderModule({
       code: meshStaticWGSL,
     })
@@ -256,7 +261,46 @@ export class Renderer {
       code: textShaderCode,
     })
 
-    // --- Pipeline для Static Meshes ---
+    // --- Pipeline для MeshBasicMaterial: без освещения, цвет как задан в material.color ---
+    this.basicMeshPipeline = await this.device.createRenderPipelineAsync({
+      layout: pipelineLayout,
+      vertex: {
+        module: basicShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+        ],
+      },
+      fragment: {
+        module: basicShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: {
+        depthWriteEnabled: true,
+        depthCompare: "less",
+        format: "depth24plus-stencil8",
+      },
+      multisample: {count: this.sampleCount},
+    })
+
+    // --- Pipeline для Static Meshes с освещением ---
     this.staticMeshPipeline = await this.device.createRenderPipelineAsync({
       layout: pipelineLayout,
       vertex: {
@@ -780,6 +824,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (
       !this.device ||
       !this.context ||
+      !this.basicMeshPipeline ||
       !this.staticMeshPipeline ||
       !this.instancedMeshPipeline ||
       !this.skinnedMeshPipeline ||
@@ -1020,7 +1065,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       // Определяем, какой конвейер нужен для текущего объекта
       switch (item.type) {
         case "static-mesh":
-          pipeline = this.staticMeshPipeline
+          {
+            const mesh = item.object as Mesh
+            const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
+            pipeline = material instanceof MeshBasicMaterial ? this.basicMeshPipeline : this.staticMeshPipeline
+          }
           break
         case "skinned-mesh":
           pipeline = this.skinnedMeshPipeline
