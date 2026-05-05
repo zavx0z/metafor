@@ -28,32 +28,34 @@
     </header>
 
     <main>
-      <section id="frames-section">
-        <ul id="frames"></ul>
-      </section>
+      <aside id="left-stack">
+        <section id="frames-section" class="card">
+          <ul id="frames"></ul>
+        </section>
+        <section id="scopes-section" class="card">
+          <div id="scopes"></div>
+        </section>
+        <section id="eval-section" class="card">
+          <textarea id="eval-input" placeholder="data.patches[0].path"></textarea>
+          <div class="row">
+            <label>frame: <input id="eval-frame" type="number" value="0" min="0" /></label>
+            <button id="btn-eval">Eval</button>
+          </div>
+          <pre id="eval-output"></pre>
+        </section>
+      </aside>
 
-      <section id="source-section">
-        <span id="source-loc" class="muted"></span>
-        <span id="source-status" class="muted"></span>
-        <canvas id="engine-source-canvas"></canvas>
-      </section>
+      <div id="engine-stack">
+        <section id="source-section" class="card">
+          <span id="source-loc" class="muted"></span>
+          <span id="source-status" class="muted"></span>
+          <canvas id="engine-source-canvas"></canvas>
+        </section>
 
-      <section id="console-section">
-        <canvas id="engine-console-canvas"></canvas>
-      </section>
-
-      <section id="scopes-section">
-        <div id="scopes"></div>
-      </section>
-
-      <section id="eval-section">
-        <textarea id="eval-input" placeholder="data.patches[0].path"></textarea>
-        <div class="row">
-          <label>frame: <input id="eval-frame" type="number" value="0" min="0" /></label>
-          <button id="btn-eval">Eval</button>
-        </div>
-        <pre id="eval-output"></pre>
-      </section>
+        <section id="console-section" class="card">
+          <canvas id="engine-console-canvas"></canvas>
+        </section>
+      </div>
 
       <section id="verbose-section" hidden>
         <h2>

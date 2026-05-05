@@ -96,27 +96,67 @@ button:disabled {
 
 main {
   display: grid;
-  grid-template-columns: 320px 1fr;
-  /* Engine-карточки сверху (source + console) делят верхнюю половину 60/40,
-     HTML-панели снизу (scopes 180-280, eval auto). Gap 4px = чёткое
-     визуальное разделение карточек. */
-  grid-template-rows: minmax(280px, 3fr) minmax(140px, 2fr) minmax(180px, 280px) auto;
-  gap: 4px;
-  background: var(--border);
+  grid-template-columns: 360px 1fr;
+  gap: 12px;
+  padding: 12px;
+  background: radial-gradient(circle at 30% 20%, rgba(36, 64, 164, 0.10), transparent 60%),
+              radial-gradient(circle at 80% 70%, rgba(247, 129, 102, 0.06), transparent 50%),
+              var(--bg);
   height: calc(100vh - 49px);
+  overflow: hidden;
 }
 
-section {
-  background: var(--bg);
-  padding: 12px 16px;
+#left-stack {
+  display: grid;
+  grid-template-rows: minmax(160px, 2fr) minmax(160px, 2fr) minmax(140px, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+#engine-stack {
+  display: grid;
+  grid-template-rows: minmax(280px, 3fr) minmax(140px, 2fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+/* --- Vision Pro card --- */
+.card {
+  position: relative;
+  background: rgba(22, 27, 34, 0.7);
+  border: 1px solid rgba(99, 110, 130, 0.25);
+  border-radius: 14px;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  padding: 14px 16px;
   overflow: auto;
+  min-height: 0;
 }
 
-#frames-section  { grid-row: 1 / span 4; grid-column: 1; border-right: 1px solid var(--border); }
-#source-section  { grid-row: 1; grid-column: 2; min-height: 0; }
-#console-section { grid-row: 2; grid-column: 2; border-top: 1px solid var(--border); min-height: 0; }
-#scopes-section  { grid-row: 3; grid-column: 2; border-top: 1px solid var(--border); min-height: 0; }
-#eval-section    { grid-row: 4; grid-column: 2; border-top: 1px solid var(--border); }
+.card:hover {
+  border-color: rgba(99, 110, 130, 0.45);
+}
+
+/* Engine-секции — canvas заполняет card, padding=0, чтобы webgpu рисовал
+   до самих скруглённых краёв через clip-path. */
+#source-section,
+#console-section {
+  padding: 0;
+  overflow: hidden;
+}
+#source-section #engine-source-canvas,
+#console-section #engine-console-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Скругление наследуем от card border-radius. */
+  border-radius: inherit;
+}
 
 #source-loc { font-size: 11px; }
 
