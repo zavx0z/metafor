@@ -1,18 +1,31 @@
 {
   "name": "@metafor/engine",
   "version": "1.0.0",
-  "description": "A lightweight WebGPU rendering engine inspired by three.js.",
-  "type": "module",
-  "private": true,
+  "author": "zavx0z",
   "main": "index.ts",
   "module": "index.ts",
-  "types": "index.ts",
+  "devDependencies": {
+    "@types/bun": "^1.3.3",
+    "@webgpu/types": "^0.1.68",
+    "typedoc": "^0.28.15",
+    "typescript": "^5.4.5",
+    "yoga-layout": "^3.2.1"
+  },
   "exports": {
     ".": {
       "types": "./index.ts",
       "default": "./index.ts"
     }
   },
+  "description": "A lightweight WebGPU rendering engine inspired by three.js.",
+  "keywords": [
+    "webgpu",
+    "graphics",
+    "engine",
+    "three.js"
+  ],
+  "license": "ISC",
+  "private": true,
   "scripts": {
     "dev": "bun --hot server",
     "build": "rm -rf dist && bun build ./index.html --outdir ./dist && cp -r ./static/* ./dist && cp ./node_modules/yoga-layout/dist/binaries/yoga-wasm-base64-esm.js ./dist",
@@ -21,22 +34,6 @@
     "deploy:app": "echo 'Deploying app... Instruction for Gemini AI.'",
     "deploy:docs": "echo 'Deploying docs... Instruction for Gemini AI.'"
   },
-  "keywords": [
-    "webgpu",
-    "graphics",
-    "engine",
-    "three.js"
-  ],
-  "author": "zavx0z",
-  "license": "ISC",
-  "devDependencies": {
-    "@types/bun": "^1.3.3",
-    "@webgpu/types": "^0.1.68",
-    "typedoc": "^0.28.15",
-    "typescript": "^5.4.5",
-    "yoga-layout": "^3.2.1"
-  },
-  "dependencies": {
-    "tiny-sdf": "^1.0.2"
-  }
+  "type": "module",
+  "types": "index.ts"
 }

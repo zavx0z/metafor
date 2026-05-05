@@ -9,15 +9,11 @@ import {LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMater
 import {Matrix4, Vector3, Frustum} from "../math"
 import {LineSegments} from "../objects/LineSegments"
 import {Text} from "../objects/Text"
-import {AtlasText} from "../objects/AtlasText"
-import {AtlasTextMaterial} from "../materials/AtlasTextMaterial"
-import {FontAtlas} from "../text/FontAtlas"
 import {Object3D} from "../core/Object3D"
 import meshBasicWGSL from "./shaders/mesh_basic.wgsl" with {type: "text"}
 import meshStaticWGSL from "./shaders/mesh_static.wgsl" with {type: "text"}
 import meshSkinnedWGSL from "./shaders/mesh_skinned.wgsl" with {type: "text"}
 import meshInstancedWGSL from "./shaders/mesh_instanced.wgsl" with {type: "text"}
-import atlasTextWGSL from "./shaders/atlas_text.wgsl" with {type: "text"}
 import blurWGSL from "./shaders/blur.wgsl" with {type: "text"}
 
 import lineShaderCode from "./shaders/line.wgsl" with {type: "text"}
@@ -47,7 +43,6 @@ interface GeometryBuffers {
   normalBuffer?: GPUBuffer
   indexBuffer?: GPUBuffer
   colorBuffer?: GPUBuffer
-  uvBuffer?: GPUBuffer // для AtlasText: vec2 UV в атлас глифов
   skinIndexBuffer?: GPUBuffer
   skinWeightBuffer?: GPUBuffer
   instanceMatrixBuffer?: GPUBuffer // для инстансированных мешей
@@ -74,16 +69,6 @@ export class Renderer {
   private instancedLinePipeline: GPURenderPipeline | null = null
   private textStencilPipeline: GPURenderPipeline | null = null
   private textCoverPipeline: GPURenderPipeline | null = null
-  private atlasTextPipeline: GPURenderPipeline | null = null
-  // Bind group layout(2) для AtlasText: atlas sampler + atlas texture.
-  private atlasBindGroupLayout: GPUBindGroupLayout | null = null
-  // Кэш bind groups по конкретному FontAtlas: один атлас → один GPUTexture +
-  // один Sampler + один BindGroup, переиспользуется всеми AtlasText'ами.
-  private atlasBindGroupCache: WeakMap<FontAtlas, {
-    texture: GPUTexture
-    sampler: GPUSampler
-    bindGroup: GPUBindGroup
-  }> = new WeakMap()
 
   // --- Compute ресурсы для размытия ---
   private blurComputePipelineHorizontal: GPUComputePipeline | null = null
@@ -680,50 +665,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       multisample: {count: this.sampleCount},
     })
 
-    // --- AtlasText pipeline ---
-    // Group(2): один sampler + одна 2D texture (атлас глифов). Caller передаёт
-    // конкретный bind group через setAtlasBindGroup перед draw.
-    this.atlasBindGroupLayout = this.device.createBindGroupLayout({
-      entries: [
-        {binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: {type: "filtering"}},
-        {binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {sampleType: "float", viewDimension: "2d"}},
-      ],
-    })
-    const atlasPipelineLayout = this.device.createPipelineLayout({
-      bindGroupLayouts: [globalBindGroupLayout, perObjectBindGroupLayout, this.atlasBindGroupLayout],
-    })
-    const atlasShaderModule = this.device.createShaderModule({code: atlasTextWGSL})
-    this.atlasTextPipeline = await this.device.createRenderPipelineAsync({
-      layout: atlasPipelineLayout,
-      vertex: {
-        module: atlasShaderModule,
-        entryPoint: "vs_main",
-        buffers: [
-          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
-          {arrayStride: 8, attributes: [{shaderLocation: 1, offset: 0, format: "float32x2"}]},
-        ],
-      },
-      fragment: {
-        module: atlasShaderModule,
-        entryPoint: "fs_main",
-        targets: [{
-          format: this.presentationFormat,
-          blend: {
-            color: {srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add"},
-            alpha: {srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add"},
-          },
-        }],
-      },
-      primitive: {topology: "triangle-list", cullMode: "none"},
-      depthStencil: {
-        // Атлас-текст полупрозрачный (alpha-coverage), depthWrite=false чтобы
-        // не закрывать соседние символы и highlight-плоскости за ним.
-        depthWriteEnabled: false,
-        depthCompare: "less",
-        format: "depth24plus-stencil8",
-      },
-      multisample: {count: this.sampleCount},
-    })
   }
 
   public setPixelRatio(value: number): void {
@@ -892,7 +833,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       !this.instancedLinePipeline ||
       !this.textStencilPipeline ||
       !this.textCoverPipeline ||
-      !this.atlasTextPipeline ||
       !this.globalUniformBuffer ||
       !this.canvas
     )
@@ -1020,23 +960,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         case "text-cover":
           this.updateTextData(item.object as Text, item.worldMatrix, offsetFloats, item.type === "text-stencil")
           break
-        case "atlas-text":
-          this.updateAtlasTextData(item.object as AtlasText, item.worldMatrix, offsetFloats)
-          break
       }
     }
-  }
-
-  private updateAtlasTextData(text: AtlasText, worldMatrix: Matrix4, offsetFloats: number): void {
-    const material = text.material
-    if (!material.visible) return
-    this.perObjectDataCPU!.set(worldMatrix.elements, offsetFloats)
-    // normalMatrix не нужен (нет освещения), но слот выделен — нули.
-    this.perObjectDataCPU!.set(new Float32Array(16), offsetFloats + 16)
-    this.perObjectDataCPU!.set(
-      [material.color.r, material.color.g, material.color.b, material.color.a * material.opacity],
-      offsetFloats + 32,
-    )
   }
 
   private updateSkinnedMeshData(mesh: SkinnedMesh, worldMatrix: Matrix4, offsetFloats: number): void {
@@ -1165,9 +1090,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         case "text-cover":
           pipeline = this.textCoverPipeline
           break
-        case "atlas-text":
-          pipeline = this.atlasTextPipeline
-          break
         default:
           pipeline = null
           break
@@ -1202,77 +1124,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           passEncoder.setStencilReference(0)
           this.renderTextPass(passEncoder, item.object as Text, item.worldMatrix, renderIndex, false)
           break
-        case "atlas-text":
-          this.renderAtlasText(passEncoder, item.object as AtlasText, renderIndex)
-          break
       }
     }
-  }
-
-  private renderAtlasText(passEncoder: GPURenderPassEncoder, text: AtlasText, renderIndex: number): void {
-    const material = text.material
-    if (!material.visible) return
-    const atlas = material.atlas
-    const indexAttr = text.geometry.index
-    if (indexAttr === null || indexAttr.array.length === 0) return
-
-    const bind = this.getOrCreateAtlasBindGroup(atlas)
-    if (bind === null) return
-
-    const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
-    const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
-    // perObjectBindGroupLayout имеет два hasDynamicOffset binding'а (perObject
-    // + skinning bones). Атлас-текст skinning не использует, но offset для
-    // bone-buffer всё равно надо передать — иначе validation бросает
-    // "number of dynamic offsets does not match".
-    passEncoder.setBindGroup(1, this.perObjectBindGroup!, [dynamicOffset, boneMatricesOffset])
-    passEncoder.setBindGroup(2, bind.bindGroup)
-
-    const buffers = this.getOrCreateGeometryBuffers(text.geometry)
-    passEncoder.setVertexBuffer(0, buffers.positionBuffer)
-    if (buffers.uvBuffer !== undefined) passEncoder.setVertexBuffer(1, buffers.uvBuffer)
-    if (buffers.indexBuffer !== undefined) {
-      passEncoder.setIndexBuffer(buffers.indexBuffer, "uint32")
-      passEncoder.drawIndexed(indexAttr.array.length)
-    }
-  }
-
-  private getOrCreateAtlasBindGroup(atlas: FontAtlas): {
-    texture: GPUTexture
-    sampler: GPUSampler
-    bindGroup: GPUBindGroup
-  } | null {
-    const cached = this.atlasBindGroupCache.get(atlas)
-    if (cached !== undefined) return cached
-    if (this.device === null || this.atlasBindGroupLayout === null) return null
-
-    const texture = this.device.createTexture({
-      size: [atlas.atlasPixelW, atlas.atlasPixelH, 1],
-      format: "rgba8unorm",
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-    })
-    this.device.queue.copyExternalImageToTexture(
-      {source: atlas.bitmap},
-      {texture},
-      [atlas.atlasPixelW, atlas.atlasPixelH, 1],
-    )
-    const sampler = this.device.createSampler({
-      magFilter: "linear",
-      minFilter: "linear",
-      mipmapFilter: "nearest",
-      addressModeU: "clamp-to-edge",
-      addressModeV: "clamp-to-edge",
-    })
-    const bindGroup = this.device.createBindGroup({
-      layout: this.atlasBindGroupLayout,
-      entries: [
-        {binding: 0, resource: sampler},
-        {binding: 1, resource: texture.createView()},
-      ],
-    })
-    const entry = {texture, sampler, bindGroup}
-    this.atlasBindGroupCache.set(atlas, entry)
-    return entry
   }
 
   /**
@@ -1292,7 +1145,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     buffers.normalBuffer?.destroy()
     buffers.indexBuffer?.destroy()
     buffers.colorBuffer?.destroy()
-    buffers.uvBuffer?.destroy()
     buffers.skinIndexBuffer?.destroy()
     buffers.skinWeightBuffer?.destroy()
     buffers.instanceMatrixBuffer?.destroy()
@@ -1447,14 +1299,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       )
     }
 
-    let uvBuffer: GPUBuffer | undefined
-    if (geometry.attributes.uv && geometry.attributes.uv.array.length > 0) {
-      uvBuffer = this.createAndUploadBuffer(
-        geometry.attributes.uv.array as ArrayBufferView,
-        GPUBufferUsage.VERTEX,
-      )
-    }
-
     let colorBuffer: GPUBuffer | undefined
     if (geometry.attributes.color) {
       colorBuffer = this.createAndUploadBuffer(
@@ -1485,7 +1329,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     if (normalBuffer) buffers.normalBuffer = normalBuffer
     if (indexBuffer) buffers.indexBuffer = indexBuffer
-    if (uvBuffer) buffers.uvBuffer = uvBuffer
     if (skinIndexBuffer) buffers.skinIndexBuffer = skinIndexBuffer
     if (skinWeightBuffer) buffers.skinWeightBuffer = skinWeightBuffer
     if (instanceMatrixBuffer) buffers.instanceMatrixBuffer = instanceMatrixBuffer

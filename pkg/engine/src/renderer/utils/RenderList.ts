@@ -3,7 +3,6 @@ import { Mesh } from "../../core/Mesh"
 import { InstancedMesh } from "../../core/InstancedMesh"
 import { LineSegments } from "../../objects/LineSegments"
 import { Text } from "../../objects/Text"
-import { AtlasText } from "../../objects/AtlasText"
 import { Light } from "../../lights/Light"
 import { SkinnedMesh } from "../../core/SkinnedMesh"
 import { WireframeInstancedMesh } from "../../core/WireframeInstancedMesh";
@@ -12,8 +11,8 @@ import { Matrix4, Frustum, Sphere, Vector3 } from "../../math";
 const _sphere = new Sphere();
 
 export interface RenderItem {
-  type: "static-mesh" | "skinned-mesh" | "instanced-mesh" | "instanced-line" | "line" | "text-stencil" | "text-cover" | "atlas-text"
-  object: Mesh | InstancedMesh | SkinnedMesh | LineSegments | Text | AtlasText | WireframeInstancedMesh
+  type: "static-mesh" | "skinned-mesh" | "instanced-mesh" | "instanced-line" | "line" | "text-stencil" | "text-cover"
+  object: Mesh | InstancedMesh | SkinnedMesh | LineSegments | Text | WireframeInstancedMesh
   worldMatrix: Matrix4
   originalIndex?: number // для сохранения порядка при сортировке
 }
@@ -54,8 +53,6 @@ export function collectSceneObjects(
     renderList.push({ type: "instanced-line", object, worldMatrix })
   } else if (object instanceof SkinnedMesh) {
     renderList.push({ type: "skinned-mesh", object, worldMatrix })
-  } else if (object instanceof AtlasText) {
-    renderList.push({ type: "atlas-text", object, worldMatrix })
   } else if (object instanceof Mesh) {
     renderList.push({ type: "static-mesh", object, worldMatrix })
   } else if (object instanceof LineSegments) {
