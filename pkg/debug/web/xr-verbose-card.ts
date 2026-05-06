@@ -3,7 +3,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Card} from "./xr-card.ts"
+import {Card, Z} from "./xr-card.ts"
 
 const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
 
@@ -106,7 +106,7 @@ export class XrVerboseCard extends Card {
     this.#button(autoLabel, autoX, btnY, autoW, BTN_H, this.#autoscroll, () => this.#toggleAutoscroll())
 
     // Divider.
-    this.drawRect(PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2, 1, UI.borderDim, 0.001)
+    this.drawRect(PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2, 1, UI.borderDim, Z.SEPARATOR)
 
     // Empty state.
     if (this.#entries.length === 0) {
@@ -156,11 +156,11 @@ export class XrVerboseCard extends Card {
 
   #button(label: string, x: number, y: number, w: number, h: number, active: boolean, action: () => void): void {
     const fill = active ? UI.greenFill : UI.bgElevated
-    this.drawRect(x, y, w, h, fill, -0.001)
-    this.drawRect(x, y, w, 1, active ? UI.green : UI.border, 0.001)
-    this.drawRect(x, y + h - 1, w, 1, UI.border, 0.001)
-    this.drawRect(x, y, 1, h, UI.border, 0.001)
-    this.drawRect(x + w - 1, y, 1, h, UI.border, 0.001)
+    this.drawRect(x, y, w, h, fill, Z.ELEMENT)
+    this.drawRect(x, y, w, 1, active ? UI.green : UI.border, Z.ELEMENT_RULE)
+    this.drawRect(x, y + h - 1, w, 1, UI.border, Z.ELEMENT_RULE)
+    this.drawRect(x, y, 1, h, UI.border, Z.ELEMENT_RULE)
+    this.drawRect(x + w - 1, y, 1, h, UI.border, Z.ELEMENT_RULE)
     const labelW = this.measureText(label, 11)
     const labelX = x + (w - labelW) / 2
     this.drawText(label, labelX, y + (h - 11) / 2, {

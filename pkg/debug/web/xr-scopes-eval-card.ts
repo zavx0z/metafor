@@ -7,7 +7,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Card} from "./xr-card.ts"
+import {Card, Z} from "./xr-card.ts"
 import type {XrFrameSnapshot, XrPropertySnapshot, XrScopeSnapshot} from "./xr-debug-ui.ts"
 
 const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
@@ -140,7 +140,7 @@ export class XrScopesEvalCard extends Card {
         material: this.#mutedMat,
       })
     }
-    this.drawRect(PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2, 1, UI.borderDim, 0.001)
+    this.drawRect(PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2, 1, UI.borderDim, Z.SEPARATOR)
 
     // Scopes list.
     const evalTop = this.#evalTop()
@@ -185,7 +185,7 @@ export class XrScopesEvalCard extends Card {
     }
 
     // Eval section.
-    this.drawRect(PAD_X, evalTop, this.rectW - PAD_X * 2, 1, UI.borderDim, 0.001)
+    this.drawRect(PAD_X, evalTop, this.rectW - PAD_X * 2, 1, UI.borderDim, Z.SEPARATOR)
     const heading = this.#frame === null ? "Eval expression" : `Eval on frame ${this.#frame.index}`
     this.drawText(heading, PAD_X, evalTop + 12, {
       fontPx: 11,
@@ -210,11 +210,11 @@ export class XrScopesEvalCard extends Card {
   }
 
   #input(value: string, x: number, y: number, w: number, h: number, active: boolean): void {
-    this.drawRect(x, y, w, h, active ? UI.bgHot : UI.input, -0.001)
-    this.drawRect(x, y, w, 1, active ? UI.cyan : UI.borderDim, 0.001)
-    this.drawRect(x, y + h - 1, w, 1, UI.borderDim, 0.001)
-    this.drawRect(x, y, 1, h, UI.borderDim, 0.001)
-    this.drawRect(x + w - 1, y, 1, h, UI.borderDim, 0.001)
+    this.drawRect(x, y, w, h, active ? UI.bgHot : UI.input, Z.ELEMENT)
+    this.drawRect(x, y, w, 1, active ? UI.cyan : UI.borderDim, Z.ELEMENT_RULE)
+    this.drawRect(x, y + h - 1, w, 1, UI.borderDim, Z.ELEMENT_RULE)
+    this.drawRect(x, y, 1, h, UI.borderDim, Z.ELEMENT_RULE)
+    this.drawRect(x + w - 1, y, 1, h, UI.borderDim, Z.ELEMENT_RULE)
     const display = active ? `${value}|` : value
     this.drawText(display, x + 8, y + (h - 12) / 2, {
       fontPx: 12,
@@ -230,11 +230,11 @@ export class XrScopesEvalCard extends Card {
   #button(label: string, x: number, y: number, w: number, h: number, kind: "live" | "neutral", action: () => void): void {
     const fill = kind === "live" ? UI.greenFill : UI.bgElevated
     const border = kind === "live" ? UI.green : UI.border
-    this.drawRect(x, y, w, h, fill, -0.001)
-    this.drawRect(x, y, w, 1, border, 0.001)
-    this.drawRect(x, y + h - 1, w, 1, UI.border, 0.001)
-    this.drawRect(x, y, 1, h, UI.border, 0.001)
-    this.drawRect(x + w - 1, y, 1, h, UI.border, 0.001)
+    this.drawRect(x, y, w, h, fill, Z.ELEMENT)
+    this.drawRect(x, y, w, 1, border, Z.ELEMENT_RULE)
+    this.drawRect(x, y + h - 1, w, 1, UI.border, Z.ELEMENT_RULE)
+    this.drawRect(x, y, 1, h, UI.border, Z.ELEMENT_RULE)
+    this.drawRect(x + w - 1, y, 1, h, UI.border, Z.ELEMENT_RULE)
     const labelW = this.measureText(label, 12)
     this.drawText(label, x + (w - labelW) / 2, y + (h - 12) / 2, {
       fontPx: 12,

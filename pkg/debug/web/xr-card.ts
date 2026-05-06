@@ -61,9 +61,29 @@ export type DrawTextOpts = {
   material: TextMaterial
   /** Если задан — текст обрезается через измерение и "...". */
   maxWidthPx?: number
-  /** Z в локальной системе layer'а. Default 0.005 (поверх drawRect 0). */
+  /** Z в локальной системе layer'а. Default Z.TEXT (= 0.05). */
   z?: number
 }
+
+/**
+ * Z-стек слоёв (в layer-frame, прибавляется layer.position.z = 0.001).
+ * Используйте эти константы вместо magic-numbers.
+ *
+ *   CARD_BG       -0.02   // Card-managed, рисуется ВНЕ #layer
+ *   CARD_BORDER   -0.01   // Card-managed
+ *   CONTAINER      0.00   // panel/row backdrop внутри карточки
+ *   SEPARATOR      0.01   // divider, side-stripe — поверх container'а
+ *   ELEMENT        0.02   // button/badge/input bg — поверх container'а
+ *   ELEMENT_RULE   0.03   // border button/badge — поверх element-bg
+ *   TEXT           0.05   // лейблы — над всем
+ */
+export const Z = {
+  CONTAINER: 0,
+  SEPARATOR: 0.01,
+  ELEMENT: 0.02,
+  ELEMENT_RULE: 0.03,
+  TEXT: 0.05,
+} as const
 
 export type FlexAlign = "start" | "center" | "end" | "stretch"
 export type FlexJustify = "start" | "center" | "end" | "space-between" | "space-around"
@@ -210,7 +230,7 @@ export abstract class Card implements XrCard {
     // от baseline вверх, поэтому ставим baseline в y + fontPx (визуально
     // top будет ≈ y + 0.15*fontPx, descender ≈ y + 1.05*fontPx).
     text.position.y = -(y + opts.fontPx) * this.pixelScale
-    text.position.z = opts.z ?? 0.005
+    text.position.z = opts.z ?? Z.TEXT
     text.updateMatrix()
     this.#layer.add(text)
     return this.measureText(fitted, opts.fontPx)

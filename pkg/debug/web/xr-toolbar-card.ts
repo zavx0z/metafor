@@ -3,7 +3,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Card} from "./xr-card.ts"
+import {Card, Z} from "./xr-card.ts"
 import type {BadgeKind, ToolbarActions, ToolbarState} from "./xr-debug-ui.ts"
 
 const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
@@ -122,8 +122,8 @@ export class XrToolbarCard extends Card {
     const padded = Math.ceil(labelW) + 16
     const w = Math.min(padded, rightLimit - x)
     if (w < 24) return x
-    this.drawRect(x, y, w, BADGE_H, toneFill(kind), -0.005)
-    this.drawRect(x, y, w, 1, toneBorder(kind), 0.001)
+    this.drawRect(x, y, w, BADGE_H, toneFill(kind), Z.ELEMENT)
+    this.drawRect(x, y, w, 1, toneBorder(kind), Z.ELEMENT_RULE)
     this.drawText(label, x + 8, y + (BADGE_H - 11) / 2, {
       fontPx: 11,
       material: this.#toneText(kind),
@@ -133,11 +133,11 @@ export class XrToolbarCard extends Card {
   }
 
   #button(label: string, x: number, y: number, w: number, h: number, kind: BadgeKind, action: () => void): void {
-    this.drawRect(x, y, w, h, toneFill(kind), -0.004)
-    this.drawRect(x, y, w, 1, toneBorder(kind), 0.001)
-    this.drawRect(x, y + h - 1, w, 1, UI.border, 0.001)
-    this.drawRect(x, y, 1, h, UI.border, 0.001)
-    this.drawRect(x + w - 1, y, 1, h, UI.border, 0.001)
+    this.drawRect(x, y, w, h, toneFill(kind), Z.ELEMENT)
+    this.drawRect(x, y, w, 1, toneBorder(kind), Z.ELEMENT_RULE)
+    this.drawRect(x, y + h - 1, w, 1, UI.border, Z.ELEMENT_RULE)
+    this.drawRect(x, y, 1, h, UI.border, Z.ELEMENT_RULE)
+    this.drawRect(x + w - 1, y, 1, h, UI.border, Z.ELEMENT_RULE)
     const labelW = this.measureText(label, 12)
     const labelX = x + (w - labelW) / 2
     this.drawText(label, labelX, y + (h - 12) / 2 - 1, {

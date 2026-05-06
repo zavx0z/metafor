@@ -6,7 +6,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Card} from "./xr-card.ts"
+import {Card, Z} from "./xr-card.ts"
 import type {WelcomeActions, WelcomeState} from "./xr-debug-ui.ts"
 
 const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
@@ -116,9 +116,9 @@ export class XrWelcomeCard extends Card {
     const statusY = 46
     const statusH = 72
     const contentW = this.rectW - PAD * 2
-    this.drawRect(PAD, statusY, contentW, statusH, UI.bgElevated, 0)
+    this.drawRect(PAD, statusY, contentW, statusH, UI.bgElevated, Z.CONTAINER)
     const statusKind = this.#state.connectionState === "connected" ? UI.green : UI.red
-    this.drawRect(PAD, statusY, 3, statusH, statusKind, 0.001)
+    this.drawRect(PAD, statusY, 3, statusH, statusKind, Z.SEPARATOR)
     const statusMat = this.#state.connectionState === "connected" ? this.#greenMat
       : this.#state.connectionState === "connecting" ? this.#cyanMat
         : this.#redMat
@@ -140,8 +140,8 @@ export class XrWelcomeCard extends Card {
     const leftW = Math.floor((contentW - GAP) * 0.58)
     const rightW = contentW - GAP - leftW
     const rightX = PAD + leftW + GAP
-    this.drawRect(PAD, panelY, leftW, panelH, UI.bgPanel, 0)
-    this.drawRect(rightX, panelY, rightW, panelH, UI.bgPanel, 0)
+    this.drawRect(PAD, panelY, leftW, panelH, UI.bgPanel, Z.CONTAINER)
+    this.drawRect(rightX, panelY, rightW, panelH, UI.bgPanel, Z.CONTAINER)
 
     // Target panel content.
     this.drawText("Target", PAD + 14, panelY + 14, {
@@ -194,7 +194,7 @@ export class XrWelcomeCard extends Card {
     // Lower badges.
     const lowerY = panelY + panelH + 18
     if (lowerY + 70 <= this.rectH - PAD) {
-      this.drawRect(PAD, lowerY, contentW, 70, UI.bgLower, 0)
+      this.drawRect(PAD, lowerY, contentW, 70, UI.bgLower, Z.CONTAINER)
       let bx = PAD + 16
       bx = this.#badge("renderer: WebGPU", bx, lowerY + 22, "live") + 12
       bx = this.#badge("layout: rects", bx, lowerY + 22, "live") + 12
@@ -205,8 +205,8 @@ export class XrWelcomeCard extends Card {
   #badge(label: string, x: number, y: number, kind: Tone): number {
     const labelW = this.measureText(label, 11)
     const w = Math.ceil(labelW) + 18
-    this.drawRect(x, y, w, 22, toneFill(kind), -0.001)
-    this.drawRect(x, y, w, 1, toneBorder(kind), 0.001)
+    this.drawRect(x, y, w, 22, toneFill(kind), Z.ELEMENT)
+    this.drawRect(x, y, w, 1, toneBorder(kind), Z.ELEMENT_RULE)
     this.drawText(label, x + 9, y + 5, {
       fontPx: 11,
       material: this.#toneText(kind),
@@ -216,11 +216,11 @@ export class XrWelcomeCard extends Card {
   }
 
   #button(label: string, x: number, y: number, w: number, h: number, kind: Tone, action: () => void): void {
-    this.drawRect(x, y, w, h, toneFill(kind), -0.001)
-    this.drawRect(x, y, w, 1, toneBorder(kind), 0.001)
-    this.drawRect(x, y + h - 1, w, 1, UI.border, 0.001)
-    this.drawRect(x, y, 1, h, UI.border, 0.001)
-    this.drawRect(x + w - 1, y, 1, h, UI.border, 0.001)
+    this.drawRect(x, y, w, h, toneFill(kind), Z.ELEMENT)
+    this.drawRect(x, y, w, 1, toneBorder(kind), Z.ELEMENT_RULE)
+    this.drawRect(x, y + h - 1, w, 1, UI.border, Z.ELEMENT_RULE)
+    this.drawRect(x, y, 1, h, UI.border, Z.ELEMENT_RULE)
+    this.drawRect(x + w - 1, y, 1, h, UI.border, Z.ELEMENT_RULE)
     const labelW = this.measureText(label, 12)
     this.drawText(label, x + (w - labelW) / 2, y + (h - 12) / 2, {
       fontPx: 12,
@@ -231,11 +231,11 @@ export class XrWelcomeCard extends Card {
   }
 
   #input(value: string, x: number, y: number, w: number, h: number, active: boolean, onActivate: () => void): void {
-    this.drawRect(x, y, w, h, active ? UI.bgHot : UI.input, -0.001)
-    this.drawRect(x, y, w, 1, active ? UI.cyan : UI.borderDim, 0.001)
-    this.drawRect(x, y + h - 1, w, 1, UI.borderDim, 0.001)
-    this.drawRect(x, y, 1, h, UI.borderDim, 0.001)
-    this.drawRect(x + w - 1, y, 1, h, UI.borderDim, 0.001)
+    this.drawRect(x, y, w, h, active ? UI.bgHot : UI.input, Z.ELEMENT)
+    this.drawRect(x, y, w, 1, active ? UI.cyan : UI.borderDim, Z.ELEMENT_RULE)
+    this.drawRect(x, y + h - 1, w, 1, UI.borderDim, Z.ELEMENT_RULE)
+    this.drawRect(x, y, 1, h, UI.borderDim, Z.ELEMENT_RULE)
+    this.drawRect(x + w - 1, y, 1, h, UI.borderDim, Z.ELEMENT_RULE)
     const display = active ? `${value}|` : value
     this.drawText(display, x + 10, y + (h - 12) / 2, {
       fontPx: 12,

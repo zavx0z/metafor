@@ -4,7 +4,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Card} from "./xr-card.ts"
+import {Card, Z} from "./xr-card.ts"
 import type {XrFrameSnapshot} from "./xr-debug-ui.ts"
 
 const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
@@ -81,7 +81,7 @@ export class XrFramesCard extends Card {
     })
 
     // Title divider.
-    this.drawRect(PAD, HEADER_H + 12, this.rectW - PAD * 2, 1, UI.borderDim, 0.001)
+    this.drawRect(PAD, HEADER_H + 12, this.rectW - PAD * 2, 1, UI.borderDim, Z.SEPARATOR)
 
     const listTop = HEADER_H + 22
     const listH = Math.max(0, this.rectH - listTop - 8)
@@ -121,7 +121,7 @@ export class XrFramesCard extends Card {
     const isActive = frame.index === this.#active
 
     // Active highlight (заполняет row-bounds).
-    if (isActive) this.drawRect(x, y, w, h - 4, UI.active, -0.001)
+    if (isActive) this.drawRect(x, y, w, h - 4, UI.active, Z.ELEMENT)
 
     // Внутри row — flex-row: id-метка + info-column (fn name / location).
     const idLabel = `#${frame.index}`
