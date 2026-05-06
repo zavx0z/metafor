@@ -15,6 +15,7 @@
     "bun-debug-agent": "./agent-attach.ts"
   },
   "dependencies": {
+    "@metafor/ui": "workspace:*",
     "source-map-js": "^1.2.1"
   },
   "scripts": {

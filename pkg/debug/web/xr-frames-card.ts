@@ -4,7 +4,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Card, Z} from "./xr-card.ts"
+import {Card, Z, flexRow, flexColumn} from "./xr-card.ts"
 import type {XrFrameSnapshot} from "./xr-debug-ui.ts"
 
 const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
@@ -62,7 +62,7 @@ export class XrFramesCard extends Card {
     const titleW = this.measureText("Frames", 13)
     const countLabel = `${this.#frames.length}`
     const countW = this.measureText(countLabel, 11)
-    this.flexRow({
+    flexRow({
       x: 0, y: 8,
       w: this.rectW, h: HEADER_H,
       paddingX: PAD,
@@ -108,7 +108,7 @@ export class XrFramesCard extends Card {
         draw: (x: number, y: number, w: number, h: number) => this.#drawRow(frame, x, y, w, h),
       })
     }
-    this.flexColumn({
+    flexColumn({
       x: 0, y: listTop,
       w: this.rectW, h: listH,
       paddingX: PAD,
@@ -129,7 +129,7 @@ export class XrFramesCard extends Card {
     const fnLabel = frame.function || "<anonymous>"
     const locLabel = frame.url ? `${shortenUrl(frame.url)}:${frame.line}` : `(scriptId ?):${frame.line}`
 
-    this.flexRow({
+    flexRow({
       x, y, w, h: h - 4,
       paddingX: 10,
       gap: 8,
@@ -147,7 +147,7 @@ export class XrFramesCard extends Card {
           width: "grow", height: 28,
           draw: (cx, cy, cw, _ch) => {
             // Внутри grow-cell — flexColumn (fn-name + location).
-            this.flexColumn({
+            flexColumn({
               x: cx, y: cy,
               w: cw, h: 28,
               gap: 2,
