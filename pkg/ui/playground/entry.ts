@@ -76,4 +76,23 @@ for (const link of navLinks) {
 
 window.addEventListener("popstate", () => void selectDemo(routeName()))
 
+// Sidecar reload: ws://host/ws → server бросает {type:"reload"}, мы перезагружаем
+// страницу с cache-bust (без HMR, чтобы не ломать WebGPU canvas).
+function attachReloadSocket(): void {
+  const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`
+  const ws = new WebSocket(url)
+  ws.addEventListener("message", (e) => {
+    try {
+      const msg = JSON.parse(typeof e.data === "string" ? e.data : "") as {type?: string}
+      if (msg.type === "reload") {
+        const next = new URL(window.location.href)
+        next.searchParams.set("_r", String(Date.now()))
+        window.location.replace(next.toString())
+      }
+    } catch {}
+  })
+  ws.addEventListener("close", () => setTimeout(attachReloadSocket, 1500))
+}
+attachReloadSocket()
+
 void selectDemo(routeName())

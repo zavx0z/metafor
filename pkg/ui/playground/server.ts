@@ -19,6 +19,15 @@ const PLAYGROUND_DIR = import.meta.dir
 const FONT_PATH = join(PLAYGROUND_DIR, "JetBrainsMono-Bold.ttf")
 const YOGA_WASM = findYogaWasm() // не используется, но оставим reachable если debug-package полагается
 
+const wsClients = new Set<import("bun").ServerWebSocket<unknown>>()
+function broadcastReload(): void {
+  for (const ws of wsClients) {
+    try {
+      ws.send(JSON.stringify({type: "reload"}))
+    } catch {}
+  }
+}
+
 function findYogaWasm(): string | null {
   let dir = import.meta.dir
   for (let i = 0; i < 8; i++) {
@@ -34,7 +43,10 @@ function findYogaWasm(): string | null {
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port: PORT,
-  development: {hmr: true, console: true},
+  // development: true тянет HMR-runtime который падает на странице с
+  // WebGPU-canvas ("Failed to construct 'URL'"). Object-форма {hmr:false}
+  // в Bun 1.3.13 не поддерживается. Поэтому false + reload-роут ниже.
+  development: false,
   routes: {
     // Главная — index.html. Bun bundler сам подтянет entry.ts + style.css
     // и заменит script src/href hash'ами.
@@ -52,6 +64,30 @@ const server = Bun.serve({
       new Response(Bun.file(FONT_PATH), {
         headers: {"content-type": "font/ttf", "cache-control": "public, max-age=86400"},
       }),
+    // POST /reload — sidecar-сигнал клиенту перезагрузиться (cache-bust
+    // через query-bump). Аналог /reload в pkg/debug.
+    "/reload": {
+      POST(): Response {
+        broadcastReload()
+        return Response.json({ok: true})
+      },
+    },
+    "/ws": (req, server): Response | undefined => {
+      const upgraded = server.upgrade(req)
+      if (upgraded) return undefined
+      return new Response("expected websocket upgrade", {status: 426})
+    },
+  },
+  websocket: {
+    open(ws): void {
+      wsClients.add(ws)
+    },
+    close(ws): void {
+      wsClients.delete(ws)
+    },
+    message(): void {
+      /* нет команд от клиента */
+    },
   },
   fetch(req): Response {
     const url = new URL(req.url)
