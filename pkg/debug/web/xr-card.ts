@@ -1,7 +1,7 @@
 /**
- * Re-export Card / flex / Z из @metafor/ui под старыми именами.
+ * Re-export Card / flex / widgets / theme из @metafor/ui под старыми именами.
  *
- * Реализация Card живёт в pkg/ui/src/card.ts; здесь — только alias'ы +
+ * Реализация Card / flex / widgets живёт в pkg/ui; здесь — alias'ы +
  * compatibility-type FlexItem (старое имя для FlexRowItem).
  */
 
@@ -10,6 +10,19 @@ export {
   Z,
   flexRow,
   flexColumn,
+  // theme.
+  palette,
+  toneFill,
+  toneBorder,
+  MaterialPalette,
+  // widgets.
+  button,
+  badge,
+  input,
+  divider,
+  scrollbar,
+  autoButtonWidth,
+  // types.
   type CardOpts,
   type DrawTextOpts,
   type HitBox,
@@ -20,4 +33,9 @@ export {
   type FlexColumnItem,
   type FlexRowOpts,
   type FlexColumnOpts,
+  type Tone,
+  type ButtonOpts,
+  type BadgeOpts,
+  type InputOpts,
+  type ScrollbarOpts,
 } from "@metafor/ui"

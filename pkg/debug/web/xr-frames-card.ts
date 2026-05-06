@@ -1,28 +1,18 @@
 /**
- * Frames card. Layout — через Card.flexRow/flexColumn (flexbox-style),
- * никаких ручных x/y вычислений в render-логике.
+ * Frames card. Layout — flexRow/flexColumn из @metafor/ui.
  */
 
-import {Color, TextMaterial} from "@metafor/engine"
-import {Card, Z, flexRow, flexColumn} from "./xr-card.ts"
+import {Color} from "@metafor/engine"
+import {Card, Z, flexRow, flexColumn, palette, divider, scrollbar} from "./xr-card.ts"
 import type {XrFrameSnapshot} from "./xr-debug-ui.ts"
 
-const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
-
-const UI = {
-  bg: rgb(18, 23, 32, 0.94),
-  borderDim: rgb(62, 74, 92, 1),
-  text: rgb(232, 238, 247, 1),
-  muted: rgb(139, 150, 166, 1),
-  cyan: rgb(111, 211, 255, 1),
-  orange: rgb(255, 190, 111, 1),
-  active: rgb(43, 73, 117, 0.95),
-}
+const ACTIVE_FILL = new Color(43 / 255, 73 / 255, 117 / 255, 0.95)
 
 const PAD = 14
 const HEADER_H = 22
 const ROW_H = 32
 const ROW_GAP = 2
+const SCROLLBAR_W = 4
 
 export class XrFramesCard extends Card {
   #frames: XrFrameSnapshot[] = []
@@ -30,13 +20,8 @@ export class XrFramesCard extends Card {
   #scroll = 0
   readonly #onSelect: (index: number) => void
 
-  readonly #cyanMat = new TextMaterial({color: UI.cyan})
-  readonly #mutedMat = new TextMaterial({color: UI.muted})
-  readonly #textMat = new TextMaterial({color: UI.text})
-  readonly #orangeMat = new TextMaterial({color: UI.orange})
-
   constructor(onSelect: (index: number) => void) {
-    super({bgColor: UI.bg, borderColor: null})
+    super({bgColor: palette.bg, borderColor: null})
     this.#onSelect = onSelect
   }
 
@@ -58,7 +43,7 @@ export class XrFramesCard extends Card {
   }
 
   protected render(): void {
-    // Header row: title слева, count справа.
+    // Header: title слева, count справа.
     const titleW = this.measureText("Frames", 13)
     const countLabel = `${this.#frames.length}`
     const countW = this.measureText(countLabel, 11)
@@ -71,17 +56,16 @@ export class XrFramesCard extends Card {
       items: [
         {
           width: titleW, height: 13,
-          draw: (x, y) => this.drawText("Frames", x, y, {fontPx: 13, material: this.#cyanMat}),
+          draw: (x, y) => this.drawText("Frames", x, y, {fontPx: 13, material: this.materials.cyan}),
         },
         {
           width: countW, height: 11,
-          draw: (x, y) => this.drawText(countLabel, x, y, {fontPx: 11, material: this.#mutedMat}),
+          draw: (x, y) => this.drawText(countLabel, x, y, {fontPx: 11, material: this.materials.muted}),
         },
       ],
     })
 
-    // Title divider.
-    this.drawRect(PAD, HEADER_H + 12, this.rectW - PAD * 2, 1, UI.borderDim, Z.SEPARATOR)
+    divider(this, PAD, HEADER_H + 12, this.rectW - PAD * 2)
 
     const listTop = HEADER_H + 22
     const listH = Math.max(0, this.rectH - listTop - 8)
@@ -90,13 +74,12 @@ export class XrFramesCard extends Card {
     if (this.#frames.length === 0) {
       this.drawText("waiting for paused frame", PAD + 4, listTop + 6, {
         fontPx: 12,
-        material: this.#mutedMat,
+        material: this.materials.muted,
         maxWidthPx: this.rectW - PAD * 2 - 8,
       })
       return
     }
 
-    // Frame list (vertical stack of fixed-height rows).
     const visible = this.#visibleRows()
     this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#frames.length - visible)))
     const rowItems = []
@@ -111,19 +94,22 @@ export class XrFramesCard extends Card {
     flexColumn({
       x: 0, y: listTop,
       w: this.rectW, h: listH,
-      paddingX: PAD,
+      paddingLeft: PAD,
+      paddingRight: PAD + SCROLLBAR_W + 4,
       gap: ROW_GAP,
       items: rowItems,
+    })
+
+    scrollbar(this, this.rectW - PAD - SCROLLBAR_W, listTop, listH, {
+      offset: this.#scroll, visible, total: this.#frames.length, trackWidth: SCROLLBAR_W,
     })
   }
 
   #drawRow(frame: XrFrameSnapshot, x: number, y: number, w: number, h: number): void {
     const isActive = frame.index === this.#active
 
-    // Active highlight (заполняет row-bounds).
-    if (isActive) this.drawRect(x, y, w, h - 4, UI.active, Z.ELEMENT)
+    if (isActive) this.drawRect(x, y, w, h - 4, ACTIVE_FILL, Z.ELEMENT)
 
-    // Внутри row — flex-row: id-метка + info-column (fn name / location).
     const idLabel = `#${frame.index}`
     const idW = 28
     const fnLabel = frame.function || "<anonymous>"
@@ -139,14 +125,13 @@ export class XrFramesCard extends Card {
           width: idW, height: 11,
           draw: (cx, cy) => this.drawText(idLabel, cx, cy, {
             fontPx: 11,
-            material: isActive ? this.#orangeMat : this.#mutedMat,
+            material: isActive ? this.materials.orange : this.materials.muted,
             maxWidthPx: idW,
           }),
         },
         {
           width: "grow", height: 28,
           draw: (cx, cy, cw, _ch) => {
-            // Внутри grow-cell — flexColumn (fn-name + location).
             flexColumn({
               x: cx, y: cy,
               w: cw, h: 28,
@@ -156,7 +141,7 @@ export class XrFramesCard extends Card {
                   height: 13,
                   draw: (tx, ty, tw) => this.drawText(fnLabel, tx, ty, {
                     fontPx: 12,
-                    material: this.#textMat,
+                    material: this.materials.text,
                     maxWidthPx: tw,
                   }),
                 },
@@ -164,7 +149,7 @@ export class XrFramesCard extends Card {
                   height: 10,
                   draw: (tx, ty, tw) => this.drawText(locLabel, tx, ty, {
                     fontPx: 9,
-                    material: this.#mutedMat,
+                    material: this.materials.muted,
                     maxWidthPx: tw,
                   }),
                 },
@@ -175,7 +160,6 @@ export class XrFramesCard extends Card {
       ],
     })
 
-    // Hit-rect для select.
     this.hit(x, y, w, h - 4, () => this.#onSelect(frame.index))
   }
 

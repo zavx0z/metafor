@@ -1,33 +1,14 @@
 /**
- * Scopes / Eval card на Card-системе.
+ * Scopes / Eval card на Card-системе. Widget'ы button/input/divider — из @metafor/ui.
  *
  * Верх — список scopes (group-headers + props). Низ — eval-секция: лейбл,
  * input expression, Run button, output. evalTop = граница между ними,
  * фиксированная относительно низа карточки.
  */
 
-import {Color, TextMaterial} from "@metafor/engine"
-import {Card, Z} from "./xr-card.ts"
+import {TextMaterial} from "@metafor/engine"
+import {Card, palette, button, input, divider, scrollbar} from "./xr-card.ts"
 import type {XrFrameSnapshot, XrPropertySnapshot, XrScopeSnapshot} from "./xr-debug-ui.ts"
-
-const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
-
-const UI = {
-  bg: rgb(18, 23, 32, 0.94),
-  bgElevated: rgb(27, 34, 45, 0.96),
-  bgHot: rgb(38, 49, 66, 0.98),
-  border: rgb(116, 130, 151, 1),
-  borderDim: rgb(62, 74, 92, 1),
-  text: rgb(232, 238, 247, 1),
-  muted: rgb(139, 150, 166, 1),
-  cyan: rgb(111, 211, 255, 1),
-  green: rgb(82, 196, 123, 1),
-  greenFill: rgb(21, 50, 37, 1),
-  orange: rgb(255, 190, 111, 1),
-  blue: rgb(92, 155, 255, 1),
-  violet: rgb(197, 151, 255, 1),
-  input: rgb(10, 14, 21, 0.98),
-}
 
 const PAD_X = 14
 const HEADER_Y = 12
@@ -37,6 +18,7 @@ const DIVIDER_Y = 34
 const SCOPE_LIST_TOP = 44
 const SCOPE_ROW_H = 17
 const EVAL_HEIGHT = 124
+const SCROLLBAR_W = 4
 
 type ScopeRow =
   | {kind: "group"; label: string}
@@ -50,16 +32,8 @@ export class XrScopesEvalCard extends Card {
   #editing = false
   readonly #onEval: (expr: string, frame: number) => void
 
-  readonly #cyanMat = new TextMaterial({color: UI.cyan})
-  readonly #mutedMat = new TextMaterial({color: UI.muted})
-  readonly #textMat = new TextMaterial({color: UI.text})
-  readonly #orangeMat = new TextMaterial({color: UI.orange})
-  readonly #greenMat = new TextMaterial({color: UI.green})
-  readonly #blueMat = new TextMaterial({color: UI.blue})
-  readonly #violetMat = new TextMaterial({color: UI.violet})
-
   constructor(onEval: (expr: string, frame: number) => void) {
-    super({bgColor: UI.bg, borderColor: null})
+    super({bgColor: palette.bg, borderColor: null})
     this.#onEval = onEval
   }
 
@@ -129,7 +103,7 @@ export class XrScopesEvalCard extends Card {
     // Header.
     this.drawText("Scopes / Eval", PAD_X, HEADER_Y, {
       fontPx: TITLE_FONT,
-      material: this.#cyanMat,
+      material: this.materials.cyan,
       maxWidthPx: this.rectW - PAD_X * 2 - 80,
     })
     if (this.#frame !== null) {
@@ -137,10 +111,10 @@ export class XrScopesEvalCard extends Card {
       const subW = this.measureText(subtitle, SUBTITLE_FONT)
       this.drawText(subtitle, this.rectW - PAD_X - subW, HEADER_Y + 2, {
         fontPx: SUBTITLE_FONT,
-        material: this.#mutedMat,
+        material: this.materials.muted,
       })
     }
-    this.drawRect(PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2, 1, UI.borderDim, Z.SEPARATOR)
+    divider(this, PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2)
 
     // Scopes list.
     const evalTop = this.#evalTop()
@@ -150,10 +124,12 @@ export class XrScopesEvalCard extends Card {
     if (rows.length === 0) {
       this.drawText("no scopes for current frame", PAD_X + 4, SCOPE_LIST_TOP + 4, {
         fontPx: 12,
-        material: this.#mutedMat,
+        material: this.materials.muted,
         maxWidthPx: this.rectW - PAD_X * 2 - 8,
       })
     } else {
+      const listH = evalTop - SCOPE_LIST_TOP
+      const contentMaxX = this.rectW - PAD_X - SCROLLBAR_W - 6
       for (let i = 0; i < visible; i++) {
         const row = rows[this.#scroll + i]
         if (row === undefined) break
@@ -161,16 +137,16 @@ export class XrScopesEvalCard extends Card {
         if (row.kind === "group") {
           this.drawText(row.label, PAD_X + 4, y, {
             fontPx: 11,
-            material: this.#orangeMat,
-            maxWidthPx: this.rectW - PAD_X * 2 - 8,
+            material: this.materials.orange,
+            maxWidthPx: contentMaxX - (PAD_X + 4),
           })
         } else {
-          const nameMaxW = Math.floor((this.rectW - PAD_X * 2) * 0.42)
+          const nameMaxW = Math.floor((contentMaxX - PAD_X) * 0.42)
           const valueX = PAD_X + 4 + nameMaxW + 8
-          const valueMaxW = this.rectW - PAD_X - valueX
+          const valueMaxW = contentMaxX - valueX
           this.drawText(row.name, PAD_X + 8, y, {
             fontPx: 11,
-            material: this.#cyanMat,
+            material: this.materials.cyan,
             maxWidthPx: nameMaxW,
           })
           if (valueMaxW > 20) {
@@ -182,14 +158,17 @@ export class XrScopesEvalCard extends Card {
           }
         }
       }
+      scrollbar(this, this.rectW - PAD_X - SCROLLBAR_W, SCOPE_LIST_TOP, listH, {
+        offset: this.#scroll, visible, total: rows.length, trackWidth: SCROLLBAR_W,
+      })
     }
 
     // Eval section.
-    this.drawRect(PAD_X, evalTop, this.rectW - PAD_X * 2, 1, UI.borderDim, Z.SEPARATOR)
+    divider(this, PAD_X, evalTop, this.rectW - PAD_X * 2)
     const heading = this.#frame === null ? "Eval expression" : `Eval on frame ${this.#frame.index}`
     this.drawText(heading, PAD_X, evalTop + 12, {
       fontPx: 11,
-      material: this.#mutedMat,
+      material: this.materials.muted,
       maxWidthPx: this.rectW - PAD_X * 2,
     })
 
@@ -197,51 +176,26 @@ export class XrScopesEvalCard extends Card {
     const inputH = 28
     const runW = 60
     const inputW = this.rectW - PAD_X * 2 - runW - 8
-    this.#input(this.#expr, PAD_X, inputY, inputW, inputH, this.#editing)
-    this.#button("Run", PAD_X + inputW + 8, inputY, runW, inputH, "live", () => this.#runEval())
+    input(this, PAD_X, inputY, inputW, inputH, {
+      value: this.#expr,
+      active: this.#editing,
+      fontPx: 12,
+      onActivate: () => {
+        this.#editing = true
+        this.requestRender()
+      },
+    })
+    button(this, PAD_X + inputW + 8, inputY, runW, inputH, {
+      label: "Run", tone: "live", action: () => this.#runEval(),
+    })
 
     const outputY = inputY + inputH + 8
     const outputText = this.#output.length === 0 ? "Cmd/Ctrl+Enter runs eval" : this.#output
     this.drawText(outputText.replace(/\s+/g, " "), PAD_X, outputY, {
       fontPx: 11,
-      material: this.#output.length === 0 ? this.#mutedMat : this.#textMat,
+      material: this.#output.length === 0 ? this.materials.muted : this.materials.text,
       maxWidthPx: this.rectW - PAD_X * 2,
     })
-  }
-
-  #input(value: string, x: number, y: number, w: number, h: number, active: boolean): void {
-    this.drawRect(x, y, w, h, active ? UI.bgHot : UI.input, Z.ELEMENT)
-    this.drawRect(x, y, w, 1, active ? UI.cyan : UI.borderDim, Z.ELEMENT_RULE)
-    this.drawRect(x, y + h - 1, w, 1, UI.borderDim, Z.ELEMENT_RULE)
-    this.drawRect(x, y, 1, h, UI.borderDim, Z.ELEMENT_RULE)
-    this.drawRect(x + w - 1, y, 1, h, UI.borderDim, Z.ELEMENT_RULE)
-    const display = active ? `${value}|` : value
-    this.drawText(display, x + 8, y + (h - 12) / 2, {
-      fontPx: 12,
-      material: active ? this.#textMat : this.#mutedMat,
-      maxWidthPx: w - 16,
-    })
-    this.hit(x, y, w, h, () => {
-      this.#editing = true
-      this.requestRender()
-    }, "text")
-  }
-
-  #button(label: string, x: number, y: number, w: number, h: number, kind: "live" | "neutral", action: () => void): void {
-    const fill = kind === "live" ? UI.greenFill : UI.bgElevated
-    const border = kind === "live" ? UI.green : UI.border
-    this.drawRect(x, y, w, h, fill, Z.ELEMENT)
-    this.drawRect(x, y, w, 1, border, Z.ELEMENT_RULE)
-    this.drawRect(x, y + h - 1, w, 1, UI.border, Z.ELEMENT_RULE)
-    this.drawRect(x, y, 1, h, UI.border, Z.ELEMENT_RULE)
-    this.drawRect(x + w - 1, y, 1, h, UI.border, Z.ELEMENT_RULE)
-    const labelW = this.measureText(label, 12)
-    this.drawText(label, x + (w - labelW) / 2, y + (h - 12) / 2, {
-      fontPx: 12,
-      material: kind === "live" ? this.#greenMat : this.#textMat,
-      maxWidthPx: w - 6,
-    })
-    this.hit(x, y, w, h, action)
   }
 
   #evalTop(): number {
@@ -282,11 +236,11 @@ export class XrScopesEvalCard extends Card {
   }
 
   #materialFor(prop: XrPropertySnapshot): TextMaterial {
-    if (prop.type === "string") return this.#greenMat
-    if (prop.type === "number" || prop.type === "boolean") return this.#orangeMat
-    if (prop.type === "function") return this.#violetMat
-    if (prop.type === "object") return this.#blueMat
-    return this.#textMat
+    if (prop.type === "string") return this.materials.green
+    if (prop.type === "number" || prop.type === "boolean") return this.materials.orange
+    if (prop.type === "function") return this.materials.violet
+    if (prop.type === "object") return this.materials.blue
+    return this.materials.text
   }
 }
 
