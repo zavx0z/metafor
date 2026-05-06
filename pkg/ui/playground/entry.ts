@@ -1,0 +1,79 @@
+/**
+ * Playground entry. URL-роуты соответствуют demo-модулям в ./demos/*.ts.
+ * Каждый demo экспортирует default async function ({canvas}) которая
+ * создаёт UiCanvas и регистрирует карточки.
+ */
+
+import {UiCanvas} from "@metafor/ui"
+import cardDemo from "./demos/card.ts"
+import flexDemo from "./demos/flex.ts"
+import widgetsDemo from "./demos/widgets.ts"
+import scrollDemo from "./demos/scroll.ts"
+import gridDemo from "./demos/grid.ts"
+
+type DemoFn = (ctx: {canvas: UiCanvas}) => void | Promise<void>
+
+const demos: Record<string, DemoFn> = {
+  card: cardDemo,
+  flex: flexDemo,
+  widgets: widgetsDemo,
+  scroll: scrollDemo,
+  grid: gridDemo,
+}
+
+const stageCanvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
+const labelEl = document.getElementById("demo-label")
+const navLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>("nav.demos a"))
+
+if (stageCanvas === null || labelEl === null) {
+  throw new Error("playground DOM не готов")
+}
+
+let activeUi: UiCanvas | null = null
+
+async function selectDemo(name: string): Promise<void> {
+  const demo = demos[name]
+  if (demo === undefined) {
+    labelEl!.textContent = `unknown demo: ${name}`
+    return
+  }
+  labelEl!.textContent = name
+
+  // Чистим прошлый canvas-state.
+  if (activeUi !== null) {
+    activeUi.dispose()
+    activeUi = null
+  }
+
+  activeUi = await UiCanvas.create(stageCanvas!)
+  await demo({canvas: activeUi})
+
+  const ro = new ResizeObserver(() => activeUi?.handleResize())
+  ro.observe(stageCanvas!)
+  requestAnimationFrame(() => activeUi?.handleResize())
+  setTimeout(() => activeUi?.handleResize(), 100)
+  window.addEventListener("resize", () => activeUi?.handleResize())
+
+  for (const link of navLinks) {
+    link.classList.toggle("active", link.dataset.demo === name)
+  }
+}
+
+function routeName(): string {
+  const path = window.location.pathname.replace(/^\//, "")
+  return path === "" ? "card" : path
+}
+
+for (const link of navLinks) {
+  link.addEventListener("click", (event) => {
+    event.preventDefault()
+    const name = link.dataset.demo
+    if (name === undefined) return
+    history.pushState({demo: name}, "", `/${name}`)
+    void selectDemo(name)
+  })
+}
+
+window.addEventListener("popstate", () => void selectDemo(routeName()))
+
+void selectDemo(routeName())
