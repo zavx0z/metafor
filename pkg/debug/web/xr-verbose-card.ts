@@ -1,25 +1,23 @@
 /**
- * Verbose-card на Yoga: header с counter + Clear/Auto buttons, scrollable
- * список событий inspector/agent.
+ * Verbose card на Card-системе.
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {XrLayoutCard} from "./xr-layout.ts"
-import {Box, CardHeader, Component, FilledBox, TextBox} from "./xr-component.ts"
+import {Card} from "./xr-card.ts"
 
 const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
 
 const UI = {
   bg: rgb(18, 23, 32, 0.94),
-  bgElevated: rgb(27, 34, 45, 0.96),
-  bgHot: rgb(38, 49, 66, 0.98),
   borderDim: rgb(62, 74, 92, 1),
+  bgElevated: rgb(27, 34, 45, 0.98),
   text: rgb(232, 238, 247, 1),
   muted: rgb(139, 150, 166, 1),
   cyan: rgb(111, 211, 255, 1),
   violet: rgb(197, 151, 255, 1),
   green: rgb(82, 196, 123, 1),
-  greenFill: rgb(21, 50, 37, 0.98),
+  greenFill: rgb(21, 50, 37, 1),
+  border: rgb(116, 130, 151, 1),
 }
 
 type VerboseEntry = {
@@ -29,11 +27,19 @@ type VerboseEntry = {
   payload: string
 }
 
+const PAD_X = 14
+const HEADER_Y = 12
+const TITLE_FONT = 13
+const COUNT_FONT = 11
+const DIVIDER_Y = 34
+const LIST_TOP = 44
 const ROW_H = 18
-const PAD = 14
-const HEADER_H = 32
+const TS_W = 56
+const NAME_W = 132
+const BTN_H = 24
+const BTN_PAD = 10
 
-export class XrVerboseCard extends XrLayoutCard {
+export class XrVerboseCard extends Card {
   #entries: VerboseEntry[] = []
   #scroll = 0
   #autoscroll = localStorage.getItem("bd:verbose:pin") !== "0"
@@ -45,18 +51,22 @@ export class XrVerboseCard extends XrLayoutCard {
   readonly #violetMat = new TextMaterial({color: UI.violet})
   readonly #greenMat = new TextMaterial({color: UI.green})
 
+  constructor() {
+    super({bgColor: UI.bg, borderColor: null})
+  }
+
   append(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
     const safePayload = payload === undefined ? "" : truncateJson(payload, 220)
     this.#entries.push({kind, ts, name, payload: safePayload})
     while (this.#entries.length > this.#max) this.#entries.shift()
     if (this.#autoscroll) this.#scrollToBottom()
-    this.requestRebuild()
+    this.requestRender()
   }
 
   clear(): void {
     this.#entries = []
     this.#scroll = 0
-    this.requestRebuild()
+    this.requestRender()
   }
 
   onWheel(event: WheelEvent): void {
@@ -68,90 +78,104 @@ export class XrVerboseCard extends XrLayoutCard {
     this.#autoscroll = false
     localStorage.setItem("bd:verbose:pin", "0")
     this.#scroll = next
-    this.requestRebuild()
+    this.requestRender()
   }
 
-  protected build(): Component {
-    const root = new FilledBox(
-      {flexDirection: "column", padding: PAD, gap: 6},
-      UI.bg,
-      -0.02,
-    )
+  protected render(): void {
+    // Header: title + count + Clear + Auto/Manual.
+    this.drawText("Verbose", PAD_X, HEADER_Y, {
+      fontPx: TITLE_FONT,
+      material: this.#cyanMat,
+      maxWidthPx: 90,
+    })
+    const countX = PAD_X + 80
+    this.drawText(`${this.#entries.length}`, countX, HEADER_Y + 2, {
+      fontPx: COUNT_FONT,
+      material: this.#mutedMat,
+      maxWidthPx: 60,
+    })
 
-    // Header row: title + count + Clear button + Auto/Manual button.
-    const header = new Box({flexDirection: "row", height: HEADER_H, alignItems: "center", gap: 8})
-    header.add(
-      new TextBox("Verbose", {fontPx: 13, material: this.#cyanMat, boxHeight: 18}),
-      new TextBox(`${this.#entries.length}`, {fontPx: 11, material: this.#mutedMat, boxHeight: 14, layout: {flexGrow: 1}}),
-    )
-    header.add(this.#button("Clear", () => this.clear(), false))
-    header.add(this.#button(this.#autoscroll ? "Auto" : "Manual", () => this.#toggleAutoscroll(), this.#autoscroll))
+    // Buttons (Clear, Auto/Manual) — справа.
+    const btnY = 8
+    const autoLabel = this.#autoscroll ? "Auto" : "Manual"
+    const autoW = Math.ceil(this.measureText(autoLabel, 11)) + BTN_PAD * 2
+    const clearW = Math.ceil(this.measureText("Clear", 11)) + BTN_PAD * 2
+    const autoX = this.rectW - PAD_X - autoW
+    const clearX = autoX - 6 - clearW
+    this.#button("Clear", clearX, btnY, clearW, BTN_H, false, () => this.clear())
+    this.#button(autoLabel, autoX, btnY, autoW, BTN_H, this.#autoscroll, () => this.#toggleAutoscroll())
 
     // Divider.
-    const divider = new (class extends Component {
-      protected paint(): void {}
-    })()
-    void divider
+    this.drawRect(PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2, 1, UI.borderDim, 0.001)
 
-    // Content list.
-    const list = new Box({flexDirection: "column", flexGrow: 1, gap: 0})
+    // Empty state.
     if (this.#entries.length === 0) {
-      list.add(new TextBox("inspector and agent event stream", {
+      this.drawText("inspector and agent event stream", PAD_X, LIST_TOP + 4, {
         fontPx: 12,
         material: this.#mutedMat,
-        boxHeight: 16,
-        layout: {marginTop: 4},
-      }))
-    } else {
-      const visible = this.#visibleRows()
-      this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#entries.length - visible)))
-      for (let i = 0; i < visible; i++) {
-        const entry = this.#entries[this.#scroll + i]
-        if (entry === undefined) break
-        list.add(this.#entryRow(entry))
-      }
+        maxWidthPx: this.rectW - PAD_X * 2,
+      })
+      return
     }
 
-    root.add(header, list)
-    return root
+    // Rows.
+    const visible = this.#visibleRows()
+    this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#entries.length - visible)))
+    for (let i = 0; i < visible; i++) {
+      const entry = this.#entries[this.#scroll + i]
+      if (entry === undefined) break
+      const y = LIST_TOP + i * ROW_H
+      this.#drawEntry(entry, y)
+    }
   }
 
-  #entryRow(entry: VerboseEntry): Component {
-    const row = new Box({flexDirection: "row", height: ROW_H, alignItems: "center", gap: 8})
-    row.add(
-      new TextBox(formatTimestamp(entry.ts), {fontPx: 10, material: this.#mutedMat, boxHeight: 12, minWidth: 56}),
-      new TextBox(entry.kind === "agent" ? `@${entry.name}` : entry.name, {
+  #drawEntry(entry: VerboseEntry, y: number): void {
+    const tsX = PAD_X
+    this.drawText(formatTimestamp(entry.ts), tsX, y, {
+      fontPx: 10,
+      material: this.#mutedMat,
+      maxWidthPx: TS_W,
+    })
+    const nameX = tsX + TS_W + 8
+    const nameLabel = entry.kind === "agent" ? `@${entry.name}` : entry.name
+    this.drawText(nameLabel, nameX, y, {
+      fontPx: 10,
+      material: entry.kind === "agent" ? this.#violetMat : this.#cyanMat,
+      maxWidthPx: NAME_W,
+    })
+    const payloadX = nameX + NAME_W + 8
+    const payloadMaxW = this.rectW - PAD_X - payloadX
+    if (payloadMaxW > 20) {
+      this.drawText(entry.payload, payloadX, y, {
         fontPx: 10,
-        material: entry.kind === "agent" ? this.#violetMat : this.#cyanMat,
-        boxHeight: 12,
-        minWidth: 140,
-      }),
-      new TextBox(entry.payload, {fontPx: 10, material: this.#textMat, boxHeight: 12, layout: {flexGrow: 1, flexShrink: 1}}),
-    )
-    return row
+        material: this.#textMat,
+        maxWidthPx: payloadMaxW,
+      })
+    }
   }
 
-  #button(label: string, action: () => void, active: boolean): Component {
+  #button(label: string, x: number, y: number, w: number, h: number, active: boolean, action: () => void): void {
     const fill = active ? UI.greenFill : UI.bgElevated
-    const btn = new FilledBox(
-      {paddingLeft: 8, paddingRight: 8, height: 22, justifyContent: "center", alignItems: "center", flexShrink: 0},
-      fill,
-      -0.001,
-    )
-    btn.add(new TextBox(label, {
+    this.drawRect(x, y, w, h, fill, -0.001)
+    this.drawRect(x, y, w, 1, active ? UI.green : UI.border, 0.001)
+    this.drawRect(x, y + h - 1, w, 1, UI.border, 0.001)
+    this.drawRect(x, y, 1, h, UI.border, 0.001)
+    this.drawRect(x + w - 1, y, 1, h, UI.border, 0.001)
+    const labelW = this.measureText(label, 11)
+    const labelX = x + (w - labelW) / 2
+    this.drawText(label, labelX, y + (h - 11) / 2, {
       fontPx: 11,
       material: active ? this.#greenMat : this.#textMat,
-      boxHeight: 14,
-    }))
-    this.hit(btn, action)
-    return btn
+      maxWidthPx: w - 6,
+    })
+    this.hit(x, y, w, h, action)
   }
 
   #toggleAutoscroll(): void {
     this.#autoscroll = !this.#autoscroll
     localStorage.setItem("bd:verbose:pin", this.#autoscroll ? "1" : "0")
     if (this.#autoscroll) this.#scrollToBottom()
-    this.requestRebuild()
+    this.requestRender()
   }
 
   #scrollToBottom(): void {
@@ -160,7 +184,7 @@ export class XrVerboseCard extends XrLayoutCard {
   }
 
   #visibleRows(): number {
-    return Math.max(1, Math.floor((this.rectH - HEADER_H - PAD * 2 - 6) / ROW_H))
+    return Math.max(1, Math.floor((this.rectH - LIST_TOP - 8) / ROW_H))
   }
 }
 
