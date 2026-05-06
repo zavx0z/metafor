@@ -107,7 +107,7 @@ export class XrSourceCard extends Card {
     const visible = this.#visibleLineCount()
     const total = this.#current.lines.length
     const max = Math.max(0, total - visible)
-    const target = (delta: number): number => Math.max(0, Math.min(max, this.#list.target + delta))
+    const target = (delta: number): number => Math.max(0, Math.min(max, this.#list.scroll + delta))
     let handled = true
     switch (event.key) {
       case "ArrowDown": this.#list.scrollTo(target(1)); break

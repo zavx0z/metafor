@@ -13,35 +13,29 @@
  *     }
  *   }
  *
- * Smooth scrolling:
- *  • state.scroll — float (rows). Render берёт Math.round(scroll) для индексации.
- *  • state.target — куда мы хотим оказаться. wheel обновляет target.
- *  • RAF-loop лerp'ит scroll → target с factor 0.22 на кадр (≈3 кадра до цели).
- *  • Когда |target - scroll| < 0.01 — snap, остановка анимации.
- *  • Trackpad fling → каждый из ~10 wheel-events накапливает target → плавное
- *    "затухание" rather than discrete jumps.
+ * Sub-pixel scroll БЕЗ animation-loop'а:
+ *  • state.scroll — float (rows). Render берёт floor(scroll) для индексации
+ *    + sub-row offset для плавного отображения.
+ *  • applyWheel меняет scroll ровно на event.deltaY/rowH (с pixel-accumulator
+ *    для тачпадных < 0.5px deltaY) и зовёт onChange ОДИН раз. Никаких RAF.
+ *  • Trackpad fling уже даёт ~10 wheel-events с убывающей deltaY (inertia
+ *    инжектится самой macOS), поэтому видимая инерция получается естественно.
  */
 
 import {scrollbar, type ScrollbarOpts} from "./widgets.ts"
 import type {Card} from "./card.ts"
 
-const LERP_FACTOR = 0.22
-const SNAP_EPSILON = 0.01
-
 export type ScrollListStateOpts = {
-  /** Вызывается на каждом animation-tick'е. Card должна позвать requestRender. */
+  /** Вызывается когда scroll реально изменился — Card должна позвать requestRender. */
   onChange?: () => void
 }
 
 export class ScrollListState {
-  /** Текущая позиция (float, в row-units). Render использует Math.round(scroll). */
+  /** Текущая позиция (float, в row-units). Render использует floor(scroll) + subPx. */
   scroll = 0
-  /** Куда стремится scroll. Wheel обновляет target. */
-  target = 0
-  /** Аккумулятор для wheel pixel-mode (subpixel-deltaY). */
+  /** Аккумулятор для wheel pixel-mode (subpixel-deltaY, чтобы не терялись). */
   scrollAccum = 0
   #onChange: () => void
-  #raf: number | null = null
 
   constructor(opts: ScrollListStateOpts = {}) {
     this.#onChange = opts.onChange ?? noop
@@ -52,39 +46,32 @@ export class ScrollListState {
     this.#onChange = cb
   }
 
-  /** Сброс позиции — например после смены items. Останавливает анимацию. */
+  /** Сброс позиции — например после смены items. */
   reset(): void {
-    if (this.#raf !== null) cancelAnimationFrame(this.#raf)
-    this.#raf = null
     this.scroll = 0
-    this.target = 0
     this.scrollAccum = 0
   }
 
-  /** Мгновенный jump (skip анимации). */
+  /** Мгновенный jump (без анимации, без onChange — caller сам решает рендерить). */
   jumpTo(value: number): void {
-    if (this.#raf !== null) cancelAnimationFrame(this.#raf)
-    this.#raf = null
     this.scroll = value
-    this.target = value
     this.scrollAccum = 0
   }
 
-  /** Анимированный переход на новый target (lerp). */
+  /** Установить позицию + onChange. Используется для programmatic update (Arrow/PageDown/...). */
   scrollTo(value: number): void {
-    if (value === this.target) return
-    this.target = value
-    this.#startAnim()
+    if (value === this.scroll) return
+    this.scroll = value
+    this.scrollAccum = 0
+    this.#onChange()
   }
 
   /**
-   * Применить wheel-event. Обновляет target, запускает анимацию.
-   * Возвращает true если target изменился.
+   * Применить wheel-event. Обновляет scroll, зовёт onChange ровно один раз
+   * (если scroll действительно изменился). Возвращает true в этом случае.
    */
   applyWheel(event: WheelEvent, rowH: number, total: number, visible: number): boolean {
     const max = Math.max(0, total - visible)
-    // Сводим все 3 deltaMode к row-units. pixel-mode использует accumulator
-    // чтобы тачпадные субпиксельные deltaY не терялись.
     let rowsDelta: number
     if (event.deltaMode === 1) {
       rowsDelta = event.deltaY
@@ -93,9 +80,9 @@ export class ScrollListState {
       rowsDelta = event.deltaY * visible
       this.scrollAccum = 0
     } else {
+      // pixel-mode. Накапливаем сабпиксельные deltaY чтобы не терялся вход
+      // мелкой прокрутки тачпада. Threshold 0.5px — ниже него считаем noise.
       const px = this.scrollAccum + event.deltaY
-      // pixel: разрешаем sub-row deltas (никакого Math.trunc), накапливаем хвост.
-      // Пороговый шаг 0.5px — отбрасываем ниже него чтобы случайный noise не дрожал target.
       if (Math.abs(px) < 0.5) {
         this.scrollAccum = px
         return false
@@ -103,41 +90,21 @@ export class ScrollListState {
       rowsDelta = px / rowH
       this.scrollAccum = 0
     }
-    const next = Math.max(0, Math.min(max, this.target + rowsDelta))
-    if (next === this.target) return false
-    this.target = next
-    this.#startAnim()
+    const next = Math.max(0, Math.min(max, this.scroll + rowsDelta))
+    if (next === this.scroll) return false
+    this.scroll = next
+    this.#onChange()
     return true
   }
 
   /**
-   * Скорректировать target/scroll к bounds после изменения total/visible.
-   * Не запускает анимацию — просто clamp.
+   * Скорректировать scroll к bounds после изменения total/visible.
+   * Не вызывает onChange — рендер уже идёт.
    */
   clamp(total: number, visible: number): void {
     const max = Math.max(0, total - visible)
-    if (this.target > max) this.target = max
-    if (this.target < 0) this.target = 0
     if (this.scroll > max) this.scroll = max
     if (this.scroll < 0) this.scroll = 0
-  }
-
-  #startAnim(): void {
-    if (this.#raf !== null) return
-    this.#raf = requestAnimationFrame(() => this.#tick())
-  }
-
-  #tick(): void {
-    this.#raf = null
-    const diff = this.target - this.scroll
-    if (Math.abs(diff) < SNAP_EPSILON) {
-      this.scroll = this.target
-      this.#onChange()
-      return
-    }
-    this.scroll += diff * LERP_FACTOR
-    this.#onChange()
-    this.#raf = requestAnimationFrame(() => this.#tick())
   }
 }
 
@@ -170,18 +137,17 @@ export type ScrollListOpts<T> = {
 }
 
 export type ScrollListMetrics = {
-  /** Сколько rows влезает в height (без gap'а в самом последнем slot'е). */
+  /** Сколько rows влезает в height. */
   visible: number
-  /** Сколько items пропущено сверху. После clamp'а гарантированно ∈ [0, total - visible]. */
+  /** Текущий scroll (после clamp'а). */
   scroll: number
 }
 
 /**
- * Рисует видимые rows через drawRow + scrollbar справа. state.scroll —
- * float, рисуем с sub-row offset'ом для smooth animation; нижняя/верхняя
- * partial row рисуется чуть за границей — Card.drawRect клампит, drawText
- * НЕ клампит по y, поэтому caller должен учесть что text вне frame будет
- * виден (если headerY совсем близко).
+ * Рисует видимые rows + scrollbar. state.scroll — float, sub-row offset
+ * рисуется для плавности при дробных значениях (тачпад fling). +1 row
+ * сверху-снизу для smooth boundary, partial rows клампятся drawRect'ом
+ * Card-системы.
  */
 export function scrollList<T>(card: Card, opts: ScrollListOpts<T>): ScrollListMetrics {
   const rowGap = opts.rowGap ?? 0
@@ -195,10 +161,8 @@ export function scrollList<T>(card: Card, opts: ScrollListOpts<T>): ScrollListMe
   const showScrollbar = total > visible || opts.hideScrollbarWhenFits === false
   const itemsW = showScrollbar ? Math.max(1, opts.w - sbW - sbGap) : opts.w
 
-  // Sub-row offset для плавной анимации между integer-positions.
   const startIdx = Math.floor(opts.state.scroll)
   const subPx = (opts.state.scroll - startIdx) * rowStride
-  // +1 row сверху-снизу — partial rows на границах.
   const renderCount = visible + 1
 
   for (let i = 0; i < renderCount; i++) {
@@ -226,8 +190,7 @@ export function scrollList<T>(card: Card, opts: ScrollListOpts<T>): ScrollListMe
 }
 
 /**
- * @deprecated Использовать state.applyWheel(...) — встроенный smooth + inertia.
- * Эта функция оставлена для обратной совместимости (без анимации, integer scroll).
+ * @deprecated Использовать state.applyWheel(...). Оставлен для совместимости.
  */
 export function wheelScrollStep(
   state: ScrollListState,
