@@ -96,3 +96,36 @@ export function divider(card: Card, x: number, y: number, w: number): void {
 export function autoButtonWidth(card: Card, label: string, fontPx = 12, paddingX = 12): number {
   return Math.ceil(card.measureText(label, fontPx)) + paddingX * 2
 }
+
+export type ScrollbarOpts = {
+  /** Текущий scrollOffset (0..maxScroll). */
+  offset: number
+  /** Сколько строк/items видно на экране. */
+  visible: number
+  /** Всего items. */
+  total: number
+  /** Толщина track'а в px. Default 4. */
+  trackWidth?: number
+  /** Min thumb height в px (чтобы не превратилось в точку при огромном total). Default 16. */
+  minThumbHeight?: number
+}
+
+/**
+ * Вертикальный scrollbar (track + thumb). x — правый верхний угол track'а
+ * в card-px coords, y — top, h — высота track'а. Если visible >= total
+ * (всё помещается) — не рисуется.
+ */
+export function scrollbar(card: Card, x: number, y: number, h: number, opts: ScrollbarOpts): void {
+  if (opts.total <= opts.visible) return
+  const tw = opts.trackWidth ?? 4
+  const minThumb = opts.minThumbHeight ?? 16
+  // Track.
+  card.drawRect(x, y, tw, h, palette.borderDim, Z.SEPARATOR)
+  // Thumb.
+  const ratio = opts.visible / opts.total
+  const thumbH = Math.max(minThumb, Math.floor(h * ratio))
+  const range = h - thumbH
+  const maxOffset = Math.max(1, opts.total - opts.visible)
+  const thumbY = y + Math.floor(range * (opts.offset / maxOffset))
+  card.drawRect(x, thumbY, tw, thumbH, palette.muted, Z.ELEMENT)
+}

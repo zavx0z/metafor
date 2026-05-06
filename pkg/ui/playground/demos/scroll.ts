@@ -5,10 +5,11 @@
  * Active row highlight + hit-test для select.
  */
 
-import {Card, type UiCanvas, flexColumn, palette, divider, Z} from "@metafor/ui"
+import {Card, type UiCanvas, flexColumn, palette, divider, scrollbar, Z} from "@metafor/ui"
 
 const ROW_H = 28
 const PAD = 14
+const SCROLLBAR_W = 6
 
 class ScrollListCard extends Card {
   #items: Array<{title: string; subtitle: string}>
@@ -64,11 +65,21 @@ class ScrollListCard extends Card {
         draw: (x: number, y: number, w: number, _h: number) => this.#drawRow(idx, item, x, y, w),
       })
     }
+    // Список занимает rectW минус scrollbar gutter справа.
+    const listRightPad = PAD + SCROLLBAR_W + 6
     flexColumn({
-      x: 0, y: listTop, w: this.rectW, h: listH,
-      paddingX: PAD,
+      x: 0, y: listTop, w: this.rectW - (listRightPad - PAD), h: listH,
+      paddingLeft: PAD, paddingRight: 0,
       gap: 0,
       items: rows,
+    })
+
+    // Scrollbar справа.
+    scrollbar(this, this.rectW - PAD - SCROLLBAR_W, listTop, listH, {
+      offset: this.#scroll,
+      visible,
+      total: this.#items.length,
+      trackWidth: SCROLLBAR_W,
     })
   }
 
