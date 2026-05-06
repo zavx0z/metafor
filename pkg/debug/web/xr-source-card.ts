@@ -234,8 +234,9 @@ export class XrSourceCard implements XrCard {
     this.#background.position.y = -(rect.h / 2) * pixelScale
     this.#background.updateMatrix()
 
-    // Borders 1px — вокруг card.
-    const bw = 3 * pixelScale
+    // Borders 1px — вокруг card. Раньше было 3px и зрительно "заезжало"
+    // внутрь content-area; 1px достаточно как outline.
+    const bw = 1 * pixelScale
     const cw = rect.w * pixelScale
     const ch = rect.h * pixelScale
     this.#borderTop.geometry = new PlaneGeometry({width: cw, height: bw})
@@ -564,8 +565,10 @@ export class XrSourceCard implements XrCard {
     // Highlight/arrow при этом размещаем для всего window — они в codeContainer
     // и сами клипятся при скролле, но должны быть готовы при возврате в видимую область.
     const scrollOffsetWindow = this.#scrollOffset - this.#windowStart
-    const visibleTop = scrollOffsetWindow - 1   // 1 запас сверху
-    const visibleBottom = scrollOffsetWindow + visible + 1  // запас снизу
+    // Строгий clip без overscan-запаса: лишняя строка наверху вылазит
+    // за header в toolbar-area (canvas прозрачный, нет реального clipping).
+    const visibleTop = scrollOffsetWindow
+    const visibleBottom = scrollOffsetWindow + visible
     for (let i = 0; i < windowEnd - this.#windowStart; i++) {
       const lineIndex = this.#windowStart + i
       const lineNo = lineIndex + 1
