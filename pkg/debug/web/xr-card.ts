@@ -66,23 +66,25 @@ export type DrawTextOpts = {
 }
 
 /**
- * Z-стек слоёв (в layer-frame, прибавляется layer.position.z = 0.001).
- * Используйте эти константы вместо magic-numbers.
+ * Z-стек слоёв в WORLD-units (прибавляется layer.position.z = 0.001).
+ * Значения МАЛЕНЬКИЕ — большие смещения по z в perspective-проекции
+ * сдвигают и магнифицируют меши на экране (perspective-divide через
+ * (camDist - z)). Здесь хватает 0.0005 на каждый слой.
  *
- *   CARD_BG       -0.02   // Card-managed, рисуется ВНЕ #layer
- *   CARD_BORDER   -0.01   // Card-managed
- *   CONTAINER      0.00   // panel/row backdrop внутри карточки
- *   SEPARATOR      0.01   // divider, side-stripe — поверх container'а
- *   ELEMENT        0.02   // button/badge/input bg — поверх container'а
- *   ELEMENT_RULE   0.03   // border button/badge — поверх element-bg
- *   TEXT           0.05   // лейблы — над всем
+ *   CARD_BG       -0.02   Card-managed, рисуется ВНЕ #layer
+ *   CARD_BORDER   -0.01   Card-managed
+ *   CONTAINER      0.0    panel/row backdrop
+ *   SEPARATOR      0.0005 divider, side-stripe (над container'ом)
+ *   ELEMENT        0.001  button/badge/input bg
+ *   ELEMENT_RULE   0.0015 border button/badge
+ *   TEXT           0.002  лейблы (над всем)
  */
 export const Z = {
   CONTAINER: 0,
-  SEPARATOR: 0.01,
-  ELEMENT: 0.02,
-  ELEMENT_RULE: 0.03,
-  TEXT: 0.05,
+  SEPARATOR: 0.0005,
+  ELEMENT: 0.001,
+  ELEMENT_RULE: 0.0015,
+  TEXT: 0.002,
 } as const
 
 export type FlexAlign = "start" | "center" | "end" | "stretch"
