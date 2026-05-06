@@ -14,6 +14,7 @@ const SCROLLBAR_W = 6
 class ScrollListCard extends Card {
   #items: Array<{title: string; subtitle: string}>
   #scroll = 0
+  #scrollAccum = 0
   #active = 0
 
   constructor() {
@@ -24,11 +25,25 @@ class ScrollListCard extends Card {
     }))
   }
 
+  // event.deltaY на тачпаде обычно 0.5–3 в pixel-mode, поэтому
+  // event.deltaY/20 < 1 → Math.trunc = 0 → шаг не делается. Накапливаем
+  // дробную часть в #scrollAccum и отщипываем целые row-step'ы.
   onWheel(event: WheelEvent): void {
-    const delta = event.deltaMode === 1 ? event.deltaY : event.deltaY / 20
     const visible = this.#visibleRows()
     const max = Math.max(0, this.#items.length - visible)
-    const next = Math.max(0, Math.min(max, this.#scroll + Math.trunc(delta)))
+    const linesDelta = event.deltaMode === 1
+      ? event.deltaY
+      : event.deltaMode === 2
+        ? event.deltaY * visible
+        : (this.#scrollAccum + event.deltaY) / ROW_H
+    const stepLines = Math.trunc(linesDelta)
+    if (event.deltaMode === 0) {
+      this.#scrollAccum = (this.#scrollAccum + event.deltaY) - stepLines * ROW_H
+    } else {
+      this.#scrollAccum = 0
+    }
+    if (stepLines === 0) return
+    const next = Math.max(0, Math.min(max, this.#scroll + stepLines))
     if (next === this.#scroll) return
     this.#scroll = next
     this.requestRender()
