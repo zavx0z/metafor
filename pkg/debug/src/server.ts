@@ -106,6 +106,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
     })
   })
   options.client.onSocketStateChange((state, error) => {
+    if (state !== "connected") clearSourceCaches()
     broadcast({
       type: "connection",
       state,
@@ -133,6 +134,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
     })
   })
   options.target.onEvent((event) => {
+    if (event.type === "started" || event.type === "exited") clearSourceCaches()
     broadcast({type: "target", event})
   })
 
@@ -381,6 +383,15 @@ const SOURCE_CACHE_MAX = 32
 const sourceCache = new Map<string, string>()
 const tokenCache = new Map<string, import("./syntax.ts").SourceTokens>()
 
+function clearSourceCaches(): void {
+  sourceCache.clear()
+  tokenCache.clear()
+}
+
+function sourceCacheKey(scriptId: string, url: string | undefined): string {
+  return `${scriptId}\0${url ?? ""}`
+}
+
 function lruSet<V>(cache: Map<string, V>, key: string, value: V, max: number): void {
   if (cache.has(key)) cache.delete(key)
   cache.set(key, value)
@@ -577,8 +588,7 @@ async function reconnectInspector(req: Request, options: HttpServerOptions): Pro
   const previous = options.client.url
   options.client.setUrl(url)
   // Скидываем кэш source — у нового target'а будут свои scriptId.
-  sourceCache.clear()
-  tokenCache.clear()
+  clearSourceCaches()
   return jsonResponse({ok: true, previous, url})
 }
 
@@ -588,14 +598,15 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
 
   const fileUrl = options.snapshots.scriptUrl(scriptId)
   const includeTokens = url.searchParams.get("tokens") !== "0"
+  const cacheKey = sourceCacheKey(scriptId, fileUrl)
 
-  const cachedSource = lruGet(sourceCache, scriptId)
+  const cachedSource = lruGet(sourceCache, cacheKey)
   if (cachedSource !== undefined) {
     return jsonResponse({
       scriptId,
       url: fileUrl ?? "",
       scriptSource: cachedSource,
-      tokens: includeTokens ? tokensFor(scriptId, cachedSource) : undefined,
+      tokens: includeTokens ? tokensFor(cacheKey, cachedSource) : undefined,
       cached: true,
     })
   }
@@ -603,12 +614,12 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
   try {
     const result = asObject(await options.client.request("Debugger.getScriptSource", {scriptId}))
     const scriptSource = asString(result?.["scriptSource"]) ?? ""
-    if (scriptSource.length > 0) lruSet(sourceCache, scriptId, scriptSource, SOURCE_CACHE_MAX)
+    if (scriptSource.length > 0) lruSet(sourceCache, cacheKey, scriptSource, SOURCE_CACHE_MAX)
     return jsonResponse({
       scriptId,
       url: fileUrl ?? "",
       scriptSource,
-      tokens: includeTokens && scriptSource.length > 0 ? tokensFor(scriptId, scriptSource) : undefined,
+      tokens: includeTokens && scriptSource.length > 0 ? tokensFor(cacheKey, scriptSource) : undefined,
       cached: false,
     })
   } catch (error) {
@@ -616,12 +627,12 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
   }
 }
 
-function tokensFor(scriptId: string, source: string): import("./syntax.ts").SourceTokens {
-  const cached = lruGet(tokenCache, scriptId)
+function tokensFor(cacheKey: string, source: string): import("./syntax.ts").SourceTokens {
+  const cached = lruGet(tokenCache, cacheKey)
   if (cached !== undefined) return cached
   const {tokenize} = require("./syntax.ts") as typeof import("./syntax.ts")
   const tokens = tokenize(source)
-  lruSet(tokenCache, scriptId, tokens, SOURCE_CACHE_MAX)
+  lruSet(tokenCache, cacheKey, tokens, SOURCE_CACHE_MAX)
   return tokens
 }
 

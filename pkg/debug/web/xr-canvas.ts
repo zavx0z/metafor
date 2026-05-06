@@ -73,6 +73,7 @@ export class XrCanvas {
   #pixelWidth = 800
   #pixelHeight = 600
   #pixelScale = 0.001
+  #sizeInitialized = false
   readonly #cameraDistance = 0.6
   #disposed = false
   #renderRequested = false
@@ -134,7 +135,8 @@ export class XrCanvas {
     const w = Math.round(rect.width)
     const h = Math.round(rect.height)
     if (w < 2 || h < 2) return
-    if (w === this.#pixelWidth && h === this.#pixelHeight) return
+    if (this.#sizeInitialized && w === this.#pixelWidth && h === this.#pixelHeight) return
+    this.#sizeInitialized = true
 
     this.renderer.setSize(w, h)
     this.viewPoint.setAspectRatio(w / h)

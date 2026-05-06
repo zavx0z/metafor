@@ -106,15 +106,24 @@ export class TextBox extends Component {
   }
 
   protected paint(ctx: MountContext): void {
-    const t = new Text(this.#value, ctx.font, this.#fontPx * ctx.pixelScale, this.#material)
+    const cl = this.object.computedLayout
+    const label = cl === undefined ? this.#value : fitText(this.#value, cl.width, this.#fontPx)
+    const t = new Text(label, ctx.font, this.#fontPx * ctx.pixelScale, this.#material)
     // Baseline в boxH-2 от TL бокса → ascender (cap) ≈ boxH-2-0.7*fontPx,
     // descender ≈ boxH-2+0.2*fontPx (≤ boxH).
     t.position.x = 0
     t.position.y = -(this.#boxH - 2) * ctx.pixelScale
-    t.position.z = 0.001
+    t.position.z = 0.006
     t.updateMatrix()
     this.object.add(t)
   }
+}
+
+function fitText(value: string, widthPx: number, fontPx: number): string {
+  const max = Math.max(1, Math.floor(widthPx / Math.max(1, fontPx * 0.7)))
+  if (value.length <= max) return value
+  if (max <= 3) return value.slice(0, max)
+  return `${value.slice(0, max - 3)}...`
 }
 
 /** Прямоугольник в layout-tree. Размер берётся из computedLayout. */

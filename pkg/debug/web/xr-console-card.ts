@@ -265,7 +265,8 @@ export class XrConsoleCard implements XrCard {
     const fontWorld = FONT_PX * this.#pixelScale
     const ts = new Text(formatTimestamp(entry.ts), this.#font, tsFontWorld, this.#tsMaterial)
     ts.name = "ts"
-    const text = entry.text.length > 4096 ? `${entry.text.slice(0, 4096)}…` : entry.text
+    const bodyMaxPx = Math.max(20, this.#rectW - PAD_LEFT_PX - PAD_RIGHT_PX - TS_GUTTER_PX - 16)
+    const text = clipConsoleLine(entry.text.length > 4096 ? `${entry.text.slice(0, 4096)}...` : entry.text, bodyMaxPx, FONT_PX)
     const material = this.#materialForLevel(entry.level)
     const body = new Text(text, this.#font, fontWorld, material)
     body.name = "body"
@@ -420,4 +421,11 @@ function formatTimestamp(ts: string): string {
   if (t < 0) return ts
   const dot = ts.indexOf(".", t)
   return ts.slice(t + 1, dot < 0 ? undefined : dot)
+}
+
+function clipConsoleLine(value: string, widthPx: number, fontPx: number): string {
+  const max = Math.max(1, Math.floor(widthPx / Math.max(1, fontPx * 0.7)))
+  if (value.length <= max) return value
+  if (max <= 3) return value.slice(0, max)
+  return `${value.slice(0, max - 3)}...`
 }

@@ -49,6 +49,7 @@ const LINE_PX = 16
 const CODE_FONT_PX = 12
 const OVERSCAN_LINES = 40
 const MAX_RENDERED_LINES = 350
+const ACTIVITY_SEGMENTS = 18
 
 const COLOR_BG = new Color(28 / 255, 34 / 255, 42 / 255, 1.0)
 const COLOR_BORDER = new Color(180 / 255, 195 / 255, 220 / 255, 1.0)
@@ -83,6 +84,7 @@ export class XrSourceCard implements XrCard {
   readonly #headerRule: Mesh
   readonly #gutterRule: Mesh
   readonly #scanLine: Mesh
+  readonly #activitySegments: Mesh[] = []
   readonly #codeContainer: Object3D
   #placeholder: Text | null = null
   #titleText: Text | null = null
@@ -165,6 +167,23 @@ export class XrSourceCard implements XrCard {
     this.#scanLine.visible = false
     this.#scanLine.position.z = 0.003
     this.node.add(this.#scanLine)
+
+    for (let i = 0; i < ACTIVITY_SEGMENTS; i++) {
+      const color = i % 3 === 0
+        ? new Color(82 / 255, 196 / 255, 123 / 255, 0.85)
+        : i % 3 === 1
+          ? new Color(111 / 255, 211 / 255, 255 / 255, 0.75)
+          : new Color(255 / 255, 190 / 255, 111 / 255, 0.65)
+      const segment = new Mesh(
+        new PlaneGeometry({width: 1, height: 1}),
+        new MeshBasicMaterial({color}),
+      )
+      segment.name = "SourceCard.activity"
+      segment.visible = false
+      segment.position.z = 0.0035
+      this.#activitySegments.push(segment)
+      this.node.add(segment)
+    }
 
     this.#lineMaterial = new TextMaterial({color: COLOR_TEXT})
     this.#titleMaterial = new TextMaterial({color: COLOR_TITLE})
@@ -408,6 +427,7 @@ export class XrSourceCard implements XrCard {
     })
     this.#scanLine.position.x = (PAD_LEFT_PX + Math.max(1, this.#rectW - PAD_LEFT_PX - PAD_RIGHT_PX) / 2) * this.#pixelScale
     this.#scanLine.updateMatrix()
+    this.#syncActivityGeometry()
   }
 
   #startScan(loop: boolean): void {
@@ -415,6 +435,7 @@ export class XrSourceCard implements XrCard {
     this.#scanStartedAt = performance.now()
     this.#scanLine.visible = true
     this.#syncScanGeometry()
+    for (const segment of this.#activitySegments) segment.visible = true
     if (this.#scanRaf !== null) cancelAnimationFrame(this.#scanRaf)
     this.#scanRaf = requestAnimationFrame((now) => this.#animateScan(now))
   }
@@ -424,6 +445,7 @@ export class XrSourceCard implements XrCard {
     this.#scanRaf = null
     this.#scanLoop = false
     this.#scanLine.visible = false
+    for (const segment of this.#activitySegments) segment.visible = false
     this.#canvas?.requestRender()
   }
 
@@ -438,8 +460,29 @@ export class XrSourceCard implements XrCard {
     const contentH = Math.max(1, this.#rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
     this.#scanLine.position.y = -(PAD_TOP_PX + progress * contentH) * this.#pixelScale
     this.#scanLine.updateMatrix()
+    this.#positionActivitySegments(progress, contentH)
     this.#canvas?.requestRender()
     this.#scanRaf = requestAnimationFrame((next) => this.#animateScan(next))
+  }
+
+  #syncActivityGeometry(): void {
+    const segmentW = 2 * this.#pixelScale
+    const segmentH = 8 * this.#pixelScale
+    const x = Math.max(PAD_LEFT_PX + 4, this.#rectW - PAD_RIGHT_PX - 16) * this.#pixelScale
+    for (const segment of this.#activitySegments) {
+      segment.geometry = new PlaneGeometry({width: segmentW, height: segmentH})
+      segment.position.x = x
+      segment.updateMatrix()
+    }
+  }
+
+  #positionActivitySegments(progress: number, contentH: number): void {
+    for (let i = 0; i < this.#activitySegments.length; i++) {
+      const segment = this.#activitySegments[i]!
+      const phase = (progress + i / this.#activitySegments.length) % 1
+      segment.position.y = -(PAD_TOP_PX + phase * contentH) * this.#pixelScale
+      segment.updateMatrix()
+    }
   }
 
   #setScroll(next: number): void {
@@ -507,6 +550,7 @@ export class XrSourceCard implements XrCard {
     const gutterPx = this.#gutterWidthPx(lines.length)
     const contentPixelWidth = Math.max(1, this.#rectW - PAD_LEFT_PX - PAD_RIGHT_PX)
     const contentPixelHeight = Math.max(1, this.#rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
+    const codeMaxPx = Math.max(1, contentPixelWidth - gutterPx - CODE_LEFT_PAD_PX - 36)
     this.#syncGutterRule(gutterPx, contentPixelWidth, contentPixelHeight)
     const contentWorldW = contentPixelWidth * this.#pixelScale
     // Highlight чуть меньше row-height'а: visually центрирован на тексте,
@@ -536,7 +580,7 @@ export class XrSourceCard implements XrCard {
         // — визуально лежит на тексте, не залезая на следующую строку.
         this.#execHighlight.geometry = new PlaneGeometry({width: contentWorldW, height: highlightWorldH})
         this.#execHighlight.position.x = (contentPixelWidth / 2) * this.#pixelScale
-        this.#execHighlight.position.y = rowTopWorld - (LINE_PX / 2) * this.#pixelScale
+        this.#execHighlight.position.y = rowTopWorld - (LINE_PX / 2 - 2) * this.#pixelScale
         this.#execHighlight.position.z = -0.005
         this.#execHighlight.visible = true
         this.#execHighlight.updateMatrix()
@@ -555,7 +599,7 @@ export class XrSourceCard implements XrCard {
       // возврате currentLine в видимую область).
       if (i < visibleTop || i > visibleBottom) continue
 
-      const text = lines[lineIndex] ?? ""
+      const text = clipSourceLine(lines[lineIndex] ?? "", codeMaxPx, CODE_FONT_PX)
       const numStr = String(lineNo)
       const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
       const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
@@ -566,7 +610,7 @@ export class XrSourceCard implements XrCard {
       this.#codeContainer.add(numText)
 
       if (text.trim().length > 0) {
-        const trimmed = text.length > 200 ? `${text.slice(0, 199)}…` : text
+        const trimmed = text
         const codeStartX = (gutterPx + CODE_LEFT_PAD_PX) * this.#pixelScale
         const lineTokens = this.#current.tokens?.[lineIndex]
         if (lineTokens !== undefined && lineTokens.length > 0) {
@@ -764,5 +808,12 @@ function fitText(value: string, widthPx: number, fontPx: number): string {
   const max = Math.max(1, Math.floor(widthPx / Math.max(1, fontPx * 0.58)))
   if (value.length <= max) return value
   if (max <= 4) return value.slice(0, max)
+  return `${value.slice(0, max - 3)}...`
+}
+
+function clipSourceLine(value: string, widthPx: number, fontPx: number): string {
+  const max = Math.max(1, Math.floor(widthPx / Math.max(1, fontPx * 0.72)))
+  if (value.length <= max) return value
+  if (max <= 3) return value.slice(0, max)
   return `${value.slice(0, max - 3)}...`
 }

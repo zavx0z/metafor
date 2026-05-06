@@ -116,6 +116,8 @@ let wsStatusText = "connecting..."
 let wsStatusKind: BadgeKind = "neutral"
 let runStatusText = "?"
 let runStatusKind: BadgeKind = "neutral"
+let pendingPauseTimer: number | null = null
+let pendingPauseStartedAt = 0
 
 const targetState = {
   state: "idle" as "idle" | "starting" | "running" | "exited" | "failed",
@@ -177,6 +179,7 @@ function handleServerMessage(msg: ServerMessage): void {
       refreshWelcome()
       return
     case "state":
+      clearPendingPause()
       currentDump = msg.dump
       renderDump(msg.dump)
       setRunStatus(`paused (${msg.dump.reason})`, "paused")
@@ -184,6 +187,7 @@ function handleServerMessage(msg: ServerMessage): void {
       hideWelcome()
       return
     case "resumed":
+      clearPendingPause()
       currentDump = undefined
       framesCard?.setFrames([], activeFrameIndex)
       scopesEvalCard?.setFrame(null)
@@ -239,7 +243,8 @@ function applyConnection(info: ConnectionInfo): void {
   connectionState = info.state
   connectionError = info.error
   if (info.state !== "connected") {
-    setRunStatus("waiting")
+    clearPendingPause()
+    setRunStatus(targetState.state === "running" || targetState.state === "starting" ? "reconnecting" : "waiting", "warn")
     setSourceRuntimeState("disconnected")
     // Любая информация в UI устарела как только инспектор отвалился: очищаем
     // frames/scopes/source/dump и сбрасываем кэш скриптов. Console и verbose
@@ -252,7 +257,7 @@ function applyConnection(info: ConnectionInfo): void {
   updateWelcomeCard()
 }
 
-function clearLiveState(): void {
+function clearLiveState(runtimeState: XrSourceRuntimeState = "disconnected"): void {
   currentDump = undefined
   activeFrameIndex = 0
   framesCard?.setFrames([], activeFrameIndex)
@@ -260,7 +265,7 @@ function clearLiveState(): void {
   pushSourceToEngine({lines: [], currentLine: 0, location: ""})
   scriptUrls.clear()
   sourceCache.clear()
-  setSourceRuntimeState("disconnected")
+  setSourceRuntimeState(runtimeState)
 }
 
 function hideWelcome(): void {
@@ -298,16 +303,22 @@ function defaultTargetCommand(): string {
 function handleTargetEvent(event: TargetEvent): void {
   switch (event.type) {
     case "started":
+      clearPendingPause()
+      clearLiveState("loading")
       targetState.state = "running"
       targetState.pid = event.pid
       targetState.startedAt = event.startedAt
       targetState.exitedAt = null
       targetState.exitCode = null
+      setRunStatus("target starting")
       break
     case "exited":
+      clearPendingPause()
+      clearLiveState("disconnected")
       targetState.state = "exited"
       targetState.exitedAt = event.exitedAt
       targetState.exitCode = event.exitCode
+      setRunStatus(`exited code=${event.exitCode}`, "warn")
       break
     case "line": {
       // target stdout/stderr попадает в console-tail для удобства
@@ -549,9 +560,9 @@ function setWsStatus(text: string, kind: "" | "live" | "paused" = ""): void {
   updateToolbar()
 }
 
-function setRunStatus(text: string, kind: "" | "live" | "paused" = ""): void {
+function setRunStatus(text: string, kind: BadgeKind | "" = ""): void {
   runStatusText = text
-  runStatusKind = kind === "live" ? "live" : kind === "paused" ? "paused" : "neutral"
+  runStatusKind = kind === "" ? "neutral" : kind
   updateToolbar()
 }
 
@@ -609,7 +620,8 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
   }
   const location = `${frame.url || "scriptId=" + scriptId}:${frame.line}`
 
-  let cached = sourceCache.get(scriptId)
+  const cacheKey = `${scriptId}\0${frame.url}`
+  let cached = sourceCache.get(cacheKey)
   if (cached === undefined) {
     setSourceRuntimeState("loading")
     setEngineStatus("engine: loading source")
@@ -629,7 +641,7 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
         return
       }
       cached = {text: data.scriptSource, ...(data.tokens === undefined ? {} : {tokens: data.tokens})}
-      sourceCache.set(scriptId, cached)
+      sourceCache.set(cacheKey, cached)
     } catch (error) {
       pushSourceToEngine({lines: [`fetch failed: ${String(error)}`], currentLine: 0, location})
       setSourceRuntimeState("paused")
@@ -866,12 +878,19 @@ function installEngineCards(): void {
     if (welcomeVisible) return hiddenRect()
     return debuggerRects(canvas).verbose ?? hiddenRect()
   })
-  xrCanvas.addCard(toolbarCard, ({w}) => ({x: 0, y: 0, w: Math.max(1, w), h: TOOLBAR_H}))
+  xrCanvas.addCard(toolbarCard, ({w}) => ({
+    x: TOOLBAR_INSET,
+    y: TOOLBAR_INSET,
+    w: Math.max(1, w - TOOLBAR_INSET * 2),
+    h: TOOLBAR_H,
+  }))
 }
 
-const TOOLBAR_H = 46
+const TOOLBAR_INSET = 8
+const TOOLBAR_H = 52
 const PAD = 8
 const GAP = 8
+const BODY_TOP = TOOLBAR_INSET + TOOLBAR_H + PAD
 
 type DebuggerRects = {
   frames: CardRect
@@ -887,7 +906,7 @@ function hiddenRect(): CardRect {
 
 function welcomeRect({w, h}: {w: number; h: number}): CardRect {
   if (!welcomeVisible) return hiddenRect()
-  const bodyH = Math.max(1, h - TOOLBAR_H - PAD * 2)
+  const bodyH = Math.max(1, h - BODY_TOP - PAD)
   const maxW = Math.max(1, Math.min(1280, w - PAD * 2))
   const cardW = Math.max(320, Math.min(maxW, Math.floor(w * 0.7)))
   // welcome content стек: title 36 + status 80 + gap 10 + panels 222 + lower 92 + bottom-pad 18 ≈ 458.
@@ -895,7 +914,7 @@ function welcomeRect({w, h}: {w: number; h: number}): CardRect {
   const cardH = Math.max(1, Math.min(478, bodyH))
   return {
     x: Math.floor((w - cardW) / 2),
-    y: TOOLBAR_H + PAD + Math.floor(Math.max(0, bodyH - cardH) / 2),
+    y: BODY_TOP + Math.floor(Math.max(0, bodyH - cardH) / 2),
     w: cardW,
     h: cardH,
   }
@@ -903,9 +922,9 @@ function welcomeRect({w, h}: {w: number; h: number}): CardRect {
 
 function debuggerRects({w, h}: {w: number; h: number}): DebuggerRects {
   const x = PAD
-  const y = TOOLBAR_H + PAD
+  const y = BODY_TOP
   const bodyW = Math.max(1, w - PAD * 2)
-  const bodyH = Math.max(1, h - TOOLBAR_H - PAD * 2)
+  const bodyH = Math.max(1, h - BODY_TOP - PAD)
   const leftW = w >= 980 ? 310 : Math.max(230, Math.floor(bodyW * 0.28))
   const showVerbose = verboseVisible && w >= 1180
   const verboseW = showVerbose ? Math.min(430, Math.max(340, Math.floor(bodyW * 0.24))) : 0
@@ -939,13 +958,20 @@ function setSourceRuntimeState(state: XrSourceRuntimeState): void {
 async function runDebuggerCommand(cmd: string, params: Record<string, unknown>, label: string): Promise<void> {
   const started = new Date().toISOString()
   appendConsole({ts: started, level: "debug", text: `[ui] ${label} requested`})
-  if (cmd === "pause") setRunStatus("pausing…", "paused")
+  if (cmd === "pause") {
+    clearPendingPause()
+    setRunStatus("pause requested", "paused")
+  }
   if (cmd === "resume") setRunStatus("resuming…", "live")
   if (cmd === "step") setRunStatus(`${label.toLowerCase()}…`, "paused")
 
   const response = await send(cmd, params)
   const finished = new Date().toISOString()
   if (response.ok) {
+    if (cmd === "pause") {
+      armPendingPause(finished)
+      return
+    }
     appendConsole({ts: finished, level: "debug", text: `[ui] ${label} accepted`})
     return
   }
@@ -955,4 +981,29 @@ async function runDebuggerCommand(cmd: string, params: Record<string, unknown>, 
   } else {
     setRunStatus("waiting")
   }
+}
+
+function armPendingPause(ts: string): void {
+  pendingPauseStartedAt = Date.now()
+  appendConsole({ts, level: "debug", text: "[ui] Pause accepted; waiting for Debugger.paused"})
+  setRunStatus("pause pending", "paused")
+  pendingPauseTimer = window.setTimeout(() => {
+    pendingPauseTimer = null
+    if (currentDump !== undefined || connectionState !== "connected") return
+    const waitedMs = Date.now() - pendingPauseStartedAt
+    appendConsole({
+      ts: new Date().toISOString(),
+      level: "warn",
+      text: `[ui] Pause is still pending after ${waitedMs}ms; Bun will stop only when the target reaches an interruptible JS point`,
+    })
+    setRunStatus("running (pause pending)", "paused")
+  }, 1800)
+}
+
+function clearPendingPause(): void {
+  if (pendingPauseTimer !== null) {
+    clearTimeout(pendingPauseTimer)
+    pendingPauseTimer = null
+  }
+  pendingPauseStartedAt = 0
 }
