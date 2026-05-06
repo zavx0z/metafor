@@ -1,28 +1,28 @@
 /**
- * XrSourceCard — source-editor как XrCard на общем XrCanvas.
+ * XrSourceCard — source-editor на Card@ui.
  *
- * Перенесено из xr-overlay.ts: рендерит исходник текущего паузнутого фрейма,
- * подсветка строки, gutter с номерами, scrollbar. Отличия:
- *  - не держит свой Renderer/Scene/ViewPoint — node добавлен в общую сцену
- *  - rect получает извне через setRect(rect, pixelScale, font)
- *  - render через canvas.requestRender()
- *  - input wheel/key через onWheel/onKey методы XrCard
- *
- * Координаты внутри node — TL-anchored: child.position.x = px*pixelScale,
- * child.position.y = -px*pixelScale.
+ * Главные принципы:
+ *  • extends Card → bg/border гарантированно clamp'нуты в card-rect
+ *    (никаких "съехал bg вправо/влево из-за parallax").
+ *  • Immediate-mode rendering: каждый requestRender пересчитывает
+ *    видимые строки от #scrollOffset до #scrollOffset+visible и рисует
+ *    их через drawText. Никакого translate(codeContainer) — строки
+ *    физически не существуют вне card-rect, leak'нуть некуда.
+ *  • highlight/exec-arrow рисуются drawRect/drawText — clamp protect.
+ *  • Scan-эффект (animated line) живёт отдельным persistent mesh в
+ *    this.node (вне layer'а, не пересоздаётся на каждый rerender);
+ *    animate через RAF + canvas.requestRender.
  */
 
 import {
   Color,
   Mesh,
   MeshBasicMaterial,
-  Object3D,
   PlaneGeometry,
   Text,
   TextMaterial,
-  TrueTypeFont,
 } from "@metafor/engine"
-import type {CardRect, XrCanvas, XrCard} from "./xr-canvas.ts"
+import {Card, Z, palette, scrollbar} from "./xr-card.ts"
 
 export type XrToken = {s: number; e: number; c: string}
 export type XrSourceTokens = XrToken[][]
@@ -47,21 +47,14 @@ const GUTTER_RIGHT_PAD_PX = 8
 const CODE_LEFT_PAD_PX = 8
 const LINE_PX = 16
 const CODE_FONT_PX = 12
-const OVERSCAN_LINES = 40
-const MAX_RENDERED_LINES = 350
+const SCROLLBAR_W = 4
 const ACTIVITY_SEGMENTS = 18
 
 const COLOR_BG = new Color(28 / 255, 34 / 255, 42 / 255, 1.0)
-const COLOR_BORDER = new Color(180 / 255, 195 / 255, 220 / 255, 1.0)
-const COLOR_HEADER_RULE = new Color(62 / 255, 74 / 255, 92 / 255, 1.0)
 const COLOR_HIGHLIGHT = new Color(36 / 255, 64 / 255, 164 / 255, 1)
-const COLOR_SCAN = new Color(111 / 255, 211 / 255, 255 / 255, 0.9)
-const COLOR_EXEC_ARROW = new Color(255 / 255, 199 / 255, 95 / 255, 1)
-const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
-const COLOR_TITLE = new Color(111 / 255, 211 / 255, 255 / 255, 1)
-const COLOR_GUTTER = new Color(110 / 255, 118 / 255, 129 / 255, 0.8)
-const COLOR_GUTTER_HOT = new Color(255 / 255, 199 / 255, 95 / 255, 1)
+const COLOR_HEADER_RULE = palette.borderDim
 const COLOR_GUTTER_RULE = new Color(48 / 255, 54 / 255, 61 / 255, 1)
+const COLOR_SCAN = new Color(111 / 255, 211 / 255, 255 / 255, 0.9)
 
 const TOKEN_COLORS: Record<string, Color> = {
   k: new Color(255 / 255, 123 / 255, 114 / 255, 1),
@@ -74,90 +67,36 @@ const TOKEN_COLORS: Record<string, Color> = {
   d: new Color(225 / 255, 228 / 255, 233 / 255, 1),
 }
 
-export class XrSourceCard implements XrCard {
-  readonly node = new Object3D()
-  readonly #background: Mesh
-  readonly #borderTop: Mesh
-  readonly #borderBottom: Mesh
-  readonly #borderLeft: Mesh
-  readonly #borderRight: Mesh
-  readonly #headerRule: Mesh
-  readonly #gutterRule: Mesh
-  readonly #scanLine: Mesh
-  readonly #activitySegments: Mesh[] = []
-  readonly #codeContainer: Object3D
-  #placeholder: Text | null = null
-  #titleText: Text | null = null
-  #locationText: Text | null = null
-  readonly #titleMaterial: TextMaterial
-  readonly #locationMaterial: TextMaterial
-  readonly #lineMaterial: TextMaterial
-  readonly #gutterMaterial: TextMaterial
-  readonly #gutterHotMaterial: TextMaterial
-  readonly #execArrowMaterial: TextMaterial
-  readonly #tokenMaterials: Map<string, TextMaterial> = new Map()
-  readonly #execHighlight: Mesh
-  #execArrow: Text | null = null
-
-  #canvas: XrCanvas | null = null
-  #font: TrueTypeFont | null = null
-  #pixelScale = 0.001
-  #rectW = 600
-  #rectH = 400
+export class XrSourceCard extends Card {
   #current: XrSource | null = null
   #scrollOffset = 0
   #scrollAccum = 0
-  #totalLines = 0
-  #windowStart = 0
-  #windowSize = 0
-  #pendingWindowRebuild = false
-  #scrollbarTrack: Mesh | null = null
-  #scrollbarThumb: Mesh | null = null
   #runtimeState: XrSourceRuntimeState = "idle"
+
+  // Persistent scan-mesh + activity dots — живут в this.node, не в layer,
+  // чтобы animate через RAF не дёргал full rerender.
+  readonly #scanLine: Mesh
+  readonly #activitySegments: Mesh[] = []
   #scanRaf: number | null = null
   #scanStartedAt = 0
   #scanLoop = false
 
+  // Cached materials.
+  readonly #titleMaterial = new TextMaterial({color: palette.cyan})
+  readonly #locationMaterial = new TextMaterial({color: palette.muted})
+  readonly #lineMaterial = new TextMaterial({color: palette.text})
+  readonly #gutterMaterial = new TextMaterial({color: palette.muted})
+  readonly #gutterHotMaterial = new TextMaterial({color: palette.orange})
+  readonly #execArrowMaterial = new TextMaterial({color: palette.orange})
+  readonly #tokenMaterials: Map<string, TextMaterial> = new Map()
+
   constructor() {
+    super({bgColor: COLOR_BG, borderColor: palette.borderDim, borderWidthPx: 1})
     this.node.name = "SourceCard"
-    this.#background = new Mesh(
-      new PlaneGeometry({width: 1, height: 1}),
-      new MeshBasicMaterial({color: COLOR_BG}),
-    )
-    this.#background.name = "SourceCard.background"
-    this.#background.position.z = -0.02
-    this.node.add(this.#background)
 
-    // 4 тонких mesh — top/bottom/left/right границы card.
-    const borderMat = new MeshBasicMaterial({color: COLOR_BORDER})
-    this.#borderTop = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
-    this.#borderTop.name = "SourceCard.borderTop"
-    this.#borderBottom = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
-    this.#borderBottom.name = "SourceCard.borderBottom"
-    this.#borderLeft = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
-    this.#borderLeft.name = "SourceCard.borderLeft"
-    this.#borderRight = new Mesh(new PlaneGeometry({width: 1, height: 1}), borderMat)
-    this.#borderRight.name = "SourceCard.borderRight"
-    for (const m of [this.#borderTop, this.#borderBottom, this.#borderLeft, this.#borderRight]) {
-      m.position.z = -0.01
-      this.node.add(m)
+    for (const [category, color] of Object.entries(TOKEN_COLORS)) {
+      this.#tokenMaterials.set(category, new TextMaterial({color}))
     }
-
-    this.#headerRule = new Mesh(
-      new PlaneGeometry({width: 1, height: 1}),
-      new MeshBasicMaterial({color: COLOR_HEADER_RULE}),
-    )
-    this.#headerRule.name = "SourceCard.headerRule"
-    this.#headerRule.position.z = 0.001
-    this.node.add(this.#headerRule)
-
-    this.#gutterRule = new Mesh(
-      new PlaneGeometry({width: 1, height: 1}),
-      new MeshBasicMaterial({color: COLOR_GUTTER_RULE}),
-    )
-    this.#gutterRule.name = "SourceCard.gutterRule"
-    this.#gutterRule.position.z = 0.001
-    this.node.add(this.#gutterRule)
 
     this.#scanLine = new Mesh(
       new PlaneGeometry({width: 1, height: 1}),
@@ -165,7 +104,9 @@ export class XrSourceCard implements XrCard {
     )
     this.#scanLine.name = "SourceCard.scanLine"
     this.#scanLine.visible = false
-    this.#scanLine.position.z = 0.003
+    // Чуть выше border (~-0.0001) и ниже text (Z.TEXT). Микро-z, чтобы
+    // perspective parallax не сдвигал scan относительно строк.
+    this.#scanLine.position.z = Z.SEPARATOR
     this.node.add(this.#scanLine)
 
     for (let i = 0; i < ACTIVITY_SEGMENTS; i++) {
@@ -180,126 +121,10 @@ export class XrSourceCard implements XrCard {
       )
       segment.name = "SourceCard.activity"
       segment.visible = false
-      segment.position.z = 0.0035
+      segment.position.z = Z.SEPARATOR
       this.#activitySegments.push(segment)
       this.node.add(segment)
     }
-
-    this.#lineMaterial = new TextMaterial({color: COLOR_TEXT})
-    this.#titleMaterial = new TextMaterial({color: COLOR_TITLE})
-    this.#locationMaterial = new TextMaterial({color: COLOR_GUTTER})
-    this.#gutterMaterial = new TextMaterial({color: COLOR_GUTTER})
-    this.#gutterHotMaterial = new TextMaterial({color: COLOR_GUTTER_HOT})
-    this.#execArrowMaterial = new TextMaterial({color: COLOR_EXEC_ARROW})
-    for (const [category, color] of Object.entries(TOKEN_COLORS)) {
-      this.#tokenMaterials.set(category, new TextMaterial({color}))
-    }
-
-    this.#codeContainer = new Object3D()
-    this.#codeContainer.name = "SourceCard.codeContainer"
-    this.#codeContainer.position.z = 0.002
-    this.node.add(this.#codeContainer)
-
-    // execHighlight + execArrow живут ВНУТРИ codeContainer, чтобы при скролле
-    // codeContainer (translation по Y) подсветка/стрелка двигались вместе с
-    // соответствующей строкой. Иначе они "висели" в одном экранном месте,
-    // пока текст уезжал.
-    this.#execHighlight = new Mesh(
-      new PlaneGeometry({width: 1, height: 1}),
-      new MeshBasicMaterial({color: COLOR_HIGHLIGHT}),
-    )
-    this.#execHighlight.name = "SourceCard.execHighlight"
-    this.#execHighlight.visible = false
-    this.#execHighlight.position.z = -0.005
-    this.#codeContainer.add(this.#execHighlight)
-    // execArrow создаётся лениво в setRect когда font получен.
-  }
-
-  attachCanvas(canvas: XrCanvas): void {
-    this.#canvas = canvas
-  }
-
-  setRect(rect: CardRect, pixelScale: number, font: TrueTypeFont): void {
-    this.#font = font
-    this.#pixelScale = pixelScale
-    this.#rectW = rect.w
-    this.#rectH = rect.h
-
-    // Background — весь rect.
-    this.#background.geometry = new PlaneGeometry({
-      width: rect.w * pixelScale,
-      height: rect.h * pixelScale,
-    })
-    this.#background.position.x = (rect.w / 2) * pixelScale
-    this.#background.position.y = -(rect.h / 2) * pixelScale
-    this.#background.updateMatrix()
-
-    // Borders 1px — вокруг card. Раньше было 3px и зрительно "заезжало"
-    // внутрь content-area; 1px достаточно как outline.
-    const bw = 1 * pixelScale
-    const cw = rect.w * pixelScale
-    const ch = rect.h * pixelScale
-    this.#borderTop.geometry = new PlaneGeometry({width: cw, height: bw})
-    this.#borderTop.position.x = cw / 2
-    this.#borderTop.position.y = -bw / 2
-    this.#borderTop.updateMatrix()
-    this.#borderBottom.geometry = new PlaneGeometry({width: cw, height: bw})
-    this.#borderBottom.position.x = cw / 2
-    this.#borderBottom.position.y = -ch + bw / 2
-    this.#borderBottom.updateMatrix()
-    this.#borderLeft.geometry = new PlaneGeometry({width: bw, height: ch})
-    this.#borderLeft.position.x = bw / 2
-    this.#borderLeft.position.y = -ch / 2
-    this.#borderLeft.updateMatrix()
-    this.#borderRight.geometry = new PlaneGeometry({width: bw, height: ch})
-    this.#borderRight.position.x = cw - bw / 2
-    this.#borderRight.position.y = -ch / 2
-    this.#borderRight.updateMatrix()
-
-    this.#syncHeader()
-    this.#syncScanGeometry()
-
-    // Plaхолдер "waiting for source…" пока source не получен.
-    if (this.#current === null) {
-      if (this.#placeholder === null) {
-        this.#placeholder = new Text(
-          "waiting for target…",
-          font,
-          14 * pixelScale,
-          new TextMaterial({color: new Color(110/255, 118/255, 129/255, 1)}),
-        )
-        this.node.add(this.#placeholder)
-      }
-      this.#placeholder.position.x = Math.max(12, rect.w / 2 - 80) * pixelScale
-      this.#placeholder.position.y = -(PAD_TOP_PX + Math.max(1, rect.h - PAD_TOP_PX) / 2) * pixelScale
-      this.#placeholder.visible = true
-      this.#placeholder.updateMatrix()
-    } else if (this.#placeholder !== null) {
-      this.#placeholder.visible = false
-    }
-
-    // Lazy-init execArrow когда font получен. Тоже внутри codeContainer
-    // чтобы скроллился вместе со строкой.
-    if (this.#execArrow === null) {
-      this.#execArrow = new Text("▶", font, CODE_FONT_PX * pixelScale * 0.9, this.#execArrowMaterial)
-      this.#execArrow.visible = false
-      this.#codeContainer.add(this.#execArrow)
-    } else {
-      // Resize: обновляем fontSize.
-      const arrowFontWorld = CODE_FONT_PX * pixelScale * 0.9
-      if (this.#execArrow.fontSize !== arrowFontWorld) {
-        this.#execArrow.fontSize = arrowFontWorld
-        this.#execArrow.updateGeometry()
-        if (this.#canvas !== null) {
-          this.#canvas.renderer.invalidateGeometry(this.#execArrow.stencilGeometry)
-          this.#canvas.renderer.invalidateGeometry(this.#execArrow.coverGeometry)
-        }
-      }
-    }
-
-    if (this.#current !== null) this.#renderLines()
-    this.#applyScroll()
-    this.#canvas?.requestRender()
   }
 
   setSource(source: XrSource): void {
@@ -307,19 +132,22 @@ export class XrSourceCard implements XrCard {
     const lineChanged = prev?.currentLine !== source.currentLine
     const fileChanged = stripLine(prev?.location) !== stripLine(source.location)
     this.#current = source
-    if (this.#placeholder !== null) this.#placeholder.visible = false
-    this.#runtimeState = source.currentLine > 0 ? "paused" : this.#runtimeState
-    this.#syncHeader()
+    if (source.currentLine > 0) this.#runtimeState = "paused"
     if (lineChanged || fileChanged || prev === null) this.#startScan(false)
 
     if (source.currentLine > 0 && (lineChanged || fileChanged || prev === null)) {
       const visible = this.#visibleLineCount()
       this.#scrollOffset = Math.max(0, source.currentLine - 1 - Math.floor(visible / 2))
     }
+    this.requestRender()
+  }
 
-    this.#renderLines()
-    this.#applyScroll()
-    this.#canvas?.requestRender()
+  setRuntimeState(state: XrSourceRuntimeState): void {
+    if (this.#runtimeState === state) return
+    this.#runtimeState = state
+    if (state === "running" || state === "loading") this.#startScan(true)
+    else this.#stopScan()
+    this.requestRender()
   }
 
   onWheel(event: WheelEvent): void {
@@ -349,7 +177,7 @@ export class XrSourceCard implements XrCard {
       case "PageDown": this.#setScroll(this.#scrollOffset + visible); break
       case "PageUp": this.#setScroll(this.#scrollOffset - visible); break
       case "Home": this.#setScroll(0); break
-      case "End": this.#setScroll(this.#totalLines); break
+      case "End": this.#setScroll(this.#current.lines.length); break
       case "g":
         if (this.#current.currentLine > 0) {
           this.#setScroll(this.#current.currentLine - 1 - Math.floor(visible / 2))
@@ -360,320 +188,157 @@ export class XrSourceCard implements XrCard {
     if (handled) event.preventDefault()
   }
 
-  dispose(): void {
+  override dispose(): void {
     this.#stopScan()
-    this.#disposeCodeChildren()
-    this.#disposeHeaderText()
+    super.dispose()
   }
 
-  setRuntimeState(state: XrSourceRuntimeState): void {
-    if (this.#runtimeState === state) return
-    this.#runtimeState = state
-    this.#syncHeader()
-    if (state === "running" || state === "loading") this.#startScan(true)
-    else this.#stopScan()
-  }
-
-  #syncHeader(): void {
-    if (this.#font === null) return
-    this.#disposeHeaderText()
-    const ruleH = 1 * this.#pixelScale
-    this.#headerRule.geometry = new PlaneGeometry({width: Math.max(1, this.#rectW - 16) * this.#pixelScale, height: ruleH})
-    this.#headerRule.position.x = (this.#rectW / 2) * this.#pixelScale
-    this.#headerRule.position.y = -HEADER_H_PX * this.#pixelScale
-    this.#headerRule.visible = true
-    this.#headerRule.updateMatrix()
-
+  protected render(): void {
+    // Header.
     const titleStr = `Source · ${this.#runtimeState}`
-    this.#titleText = new Text(titleStr, this.#font, 13 * this.#pixelScale, this.#titleMaterial)
-    this.#titleText.position.x = 20 * this.#pixelScale
-    this.#titleText.position.y = -20 * this.#pixelScale
-    this.#titleText.updateMatrix()
-    this.node.add(this.#titleText)
-
-    // Location ставится сразу за title с gap 14 (bold-mono char ~ 9px),
-    // не наезжает на заголовок при любом runtimeState.
-    const titleEndPx = 20 + titleStr.length * 9
-    const locStartPx = titleEndPx + 14
-    const location = this.#headerLocation()
-    const maxLocPx = Math.max(40, this.#rectW - locStartPx - 20)
-    const label = fitText(location, maxLocPx, 11)
-    this.#locationText = new Text(label, this.#font, 11 * this.#pixelScale, this.#locationMaterial)
-    this.#locationText.position.x = locStartPx * this.#pixelScale
-    this.#locationText.position.y = -20 * this.#pixelScale
-    this.#locationText.updateMatrix()
-    this.node.add(this.#locationText)
-  }
-
-  #headerLocation(): string {
-    if (this.#runtimeState === "disconnected") return "inspector disconnected"
-    if (this.#runtimeState === "loading") return "loading source..."
-    if (this.#runtimeState === "running" && this.#current !== null) return `last paused frame: ${this.#current.location}`
-    if (this.#runtimeState === "running") return "target running"
-    return this.#current?.location ?? "waiting for paused source"
-  }
-
-  #applyScroll(): void {
-    const offsetWithinWindow = this.#scrollOffset - this.#windowStart
-    this.#codeContainer.position.x = (PAD_LEFT_PX) * this.#pixelScale
-    this.#codeContainer.position.y = -(PAD_TOP_PX) * this.#pixelScale + offsetWithinWindow * LINE_PX * this.#pixelScale
-    this.#codeContainer.updateMatrix()
-    this.#clipScrolledChildren()
-    this.#updateScrollbar()
-  }
-
-  /**
-   * Скрывает text/mesh в codeContainer которые выехали за visible content-rect
-   * после scroll'а (canvas прозрачный, без scissor — нужен manual clip).
-   * Вызывается на каждый applyScroll.
-   */
-  #clipScrolledChildren(): void {
-    const visibleTopPx = PAD_TOP_PX
-    const visibleBottomPx = Math.max(visibleTopPx, this.#rectH - PAD_BOTTOM_PX)
-    const containerCardY = PAD_TOP_PX - (this.#scrollOffset - this.#windowStart) * LINE_PX
-    for (const child of this.#codeContainer.children) {
-      // child.position.y в codeContainer-frame, world-up. Card-frame y = -world.y/ps.
-      // World.y = container.world.y + child.position.y. Container.world.y =
-      // node.world.y - PAD_TOP*ps + offset*LINE_PX*ps. Card-frame:
-      //   childCardY = container_card_y - child.position.y / ps
-      // (минус потому что child.position.y отрицательное у Text-baseline вниз).
-      const childLocalY = -child.position.y / this.#pixelScale
-      const childCardY = containerCardY + childLocalY
-      // Высота glyph/mesh ~ LINE_PX → проверяем перекрытие [childCardY-LINE_PX, childCardY+LINE_PX].
-      const inView = childCardY + LINE_PX > visibleTopPx && childCardY - LINE_PX < visibleBottomPx
-      child.visible = inView
-    }
-  }
-
-  #syncScanGeometry(): void {
-    this.#scanLine.geometry = new PlaneGeometry({
-      width: Math.max(1, this.#rectW - PAD_LEFT_PX - PAD_RIGHT_PX) * this.#pixelScale,
-      height: 2 * this.#pixelScale,
+    this.drawText(titleStr, 20, 8, {
+      fontPx: 13,
+      material: this.#titleMaterial,
+      maxWidthPx: this.rectW - 40,
     })
-    this.#scanLine.position.x = (PAD_LEFT_PX + Math.max(1, this.#rectW - PAD_LEFT_PX - PAD_RIGHT_PX) / 2) * this.#pixelScale
-    this.#scanLine.updateMatrix()
-    this.#syncActivityGeometry()
-  }
 
-  #startScan(loop: boolean): void {
-    this.#scanLoop = loop
-    this.#scanStartedAt = performance.now()
-    this.#scanLine.visible = true
+    // Location справа от title.
+    const titleW = this.measureText(titleStr, 13)
+    const locStartX = 20 + titleW + 14
+    const locMaxW = Math.max(40, this.rectW - locStartX - 20)
+    if (locMaxW > 40) {
+      this.drawText(this.#headerLocation(), locStartX, 12, {
+        fontPx: 11,
+        material: this.#locationMaterial,
+        maxWidthPx: locMaxW,
+      })
+    }
+
+    // Header rule.
+    this.drawRect(8, HEADER_H_PX, Math.max(1, this.rectW - 16), 1, COLOR_HEADER_RULE, Z.SEPARATOR)
+
+    // Sync scan/activity geometry под текущий size.
     this.#syncScanGeometry()
-    for (const segment of this.#activitySegments) segment.visible = true
-    if (this.#scanRaf !== null) cancelAnimationFrame(this.#scanRaf)
-    this.#scanRaf = requestAnimationFrame((now) => this.#animateScan(now))
-  }
 
-  #stopScan(): void {
-    if (this.#scanRaf !== null) cancelAnimationFrame(this.#scanRaf)
-    this.#scanRaf = null
-    this.#scanLoop = false
-    this.#scanLine.visible = false
-    for (const segment of this.#activitySegments) segment.visible = false
-    this.#canvas?.requestRender()
-  }
-
-  #animateScan(now: number): void {
-    const duration = this.#scanLoop ? 1200 : 520
-    const elapsed = Math.max(0, now - this.#scanStartedAt)
-    if (!this.#scanLoop && elapsed >= duration) {
-      this.#stopScan()
+    // Empty / placeholder.
+    if (this.#current === null || this.#current.lines.length === 0) {
+      this.drawText("waiting for target…", Math.max(12, this.rectW / 2 - 80), PAD_TOP_PX + 18, {
+        fontPx: 14,
+        material: this.#locationMaterial,
+        maxWidthPx: this.rectW - 24,
+      })
       return
     }
-    const progress = this.#scanLoop ? (elapsed % duration) / duration : elapsed / duration
-    const contentH = Math.max(1, this.#rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
-    this.#scanLine.position.y = -(PAD_TOP_PX + progress * contentH) * this.#pixelScale
-    this.#scanLine.updateMatrix()
-    this.#positionActivitySegments(progress, contentH)
-    this.#canvas?.requestRender()
-    this.#scanRaf = requestAnimationFrame((next) => this.#animateScan(next))
-  }
 
-  #syncActivityGeometry(): void {
-    const segmentW = 2 * this.#pixelScale
-    const segmentH = 8 * this.#pixelScale
-    const x = Math.max(PAD_LEFT_PX + 4, this.#rectW - PAD_RIGHT_PX - 16) * this.#pixelScale
-    for (const segment of this.#activitySegments) {
-      segment.geometry = new PlaneGeometry({width: segmentW, height: segmentH})
-      segment.position.x = x
-      segment.updateMatrix()
-    }
-  }
-
-  #positionActivitySegments(progress: number, contentH: number): void {
-    for (let i = 0; i < this.#activitySegments.length; i++) {
-      const segment = this.#activitySegments[i]!
-      const phase = (progress + i / this.#activitySegments.length) % 1
-      segment.position.y = -(PAD_TOP_PX + phase * contentH) * this.#pixelScale
-      segment.updateMatrix()
-    }
-  }
-
-  #setScroll(next: number): void {
-    const visible = this.#visibleLineCount()
-    const max = Math.max(0, this.#totalLines - visible)
-    const clamped = Math.max(0, Math.min(max, Math.trunc(next)))
-    if (clamped === this.#scrollOffset) return
-    this.#scrollOffset = clamped
-    const windowEnd = this.#windowStart + this.#windowSize
-    const visibleEnd = this.#scrollOffset + visible
-    const needsRebuild =
-      this.#scrollOffset < this.#windowStart + Math.min(OVERSCAN_LINES, this.#windowStart) ||
-      visibleEnd > windowEnd - Math.min(OVERSCAN_LINES, this.#totalLines - windowEnd)
-    if (needsRebuild) {
-      this.#scheduleWindowRebuild()
-    } else {
-      this.#applyScroll()
-      this.#canvas?.requestRender()
-    }
-  }
-
-  #scheduleWindowRebuild(): void {
-    if (this.#pendingWindowRebuild) return
-    this.#pendingWindowRebuild = true
-    requestAnimationFrame(() => {
-      this.#pendingWindowRebuild = false
-      this.#renderLines()
-      this.#applyScroll()
-      this.#canvas?.requestRender()
-    })
-  }
-
-  #visibleLineCount(): number {
-    const contentH = Math.max(1, this.#rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
-    return Math.max(1, Math.floor(contentH / LINE_PX))
-  }
-
-  #renderLines(): void {
-    if (this.#font === null) return
-    this.#disposeCodeChildren()
-    this.#hideGutterRule()
-    this.#execHighlight.visible = false
-    if (this.#execArrow !== null) this.#execArrow.visible = false
-
-    if (this.#current === null) {
-      this.#totalLines = 0
-      return
-    }
     const lines = this.#current.lines
+    const total = lines.length
     const currentLine = this.#current.currentLine
-    if (lines.length === 0) {
-      this.#totalLines = 0
-      return
+    const visible = this.#visibleLineCount()
+    this.#scrollOffset = Math.max(0, Math.min(this.#scrollOffset, Math.max(0, total - visible)))
+
+    const gutterPx = this.#gutterWidthPx(total)
+    const contentW = Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 4)
+    const contentH = Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
+    const codeMaxPx = Math.max(1, contentW - gutterPx - CODE_LEFT_PAD_PX - 8)
+
+    // Gutter rule (вертикальная линия между gutter и code).
+    this.drawRect(
+      PAD_LEFT_PX + gutterPx,
+      PAD_TOP_PX,
+      1,
+      contentH,
+      COLOR_GUTTER_RULE,
+      Z.SEPARATOR,
+    )
+
+    // Highlight под текущей строкой (если она в visible-окне).
+    const currentRowIdx = currentLine - 1 - this.#scrollOffset
+    if (currentLine > 0 && currentRowIdx >= 0 && currentRowIdx < visible) {
+      const highlightY = PAD_TOP_PX + currentRowIdx * LINE_PX
+      const highlightH = Math.min(LINE_PX, CODE_FONT_PX + 4)
+      this.drawRect(
+        PAD_LEFT_PX,
+        highlightY + (LINE_PX - highlightH) / 2,
+        PAD_LEFT_PX + contentW,
+        highlightH,
+        COLOR_HIGHLIGHT,
+        Z.ELEMENT,
+      )
+      // Exec arrow в gutter.
+      this.drawText("▶", PAD_LEFT_PX + GUTTER_LEFT_PAD_PX * 0.4, highlightY + 1, {
+        fontPx: CODE_FONT_PX,
+        material: this.#execArrowMaterial,
+        maxWidthPx: 12,
+      })
     }
 
-    this.#totalLines = lines.length
-    const visible = this.#visibleLineCount()
-    this.#scrollOffset = Math.max(0, Math.min(this.#scrollOffset, Math.max(0, lines.length - visible)))
-    this.#windowSize = Math.min(lines.length, MAX_RENDERED_LINES, visible + 2 * OVERSCAN_LINES)
-    this.#windowStart = Math.max(0, Math.min(lines.length - this.#windowSize, this.#scrollOffset - OVERSCAN_LINES))
-    const windowEnd = this.#windowStart + this.#windowSize
-    const arrow = this.#execArrow
-
-    const lineFontWorld = CODE_FONT_PX * this.#pixelScale
-    const gutterPx = this.#gutterWidthPx(lines.length)
-    const contentPixelWidth = Math.max(1, this.#rectW - PAD_LEFT_PX - PAD_RIGHT_PX)
-    const contentPixelHeight = Math.max(1, this.#rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
-    const codeMaxPx = Math.max(1, contentPixelWidth - gutterPx - CODE_LEFT_PAD_PX - 36)
-    this.#syncGutterRule(gutterPx, contentPixelWidth, contentPixelHeight)
-    const contentWorldW = contentPixelWidth * this.#pixelScale
-    // Highlight чуть меньше row-height'а: visually центрирован на тексте,
-    // не залезает на нижнюю строку.
-    const highlightHeightPx = CODE_FONT_PX + 4
-    const highlightWorldH = highlightHeightPx * this.#pixelScale
-
-    let highlightPlaced = false
-    // Clip-check: пропускаем text-render строки которые вне visible card-rect
-    // (overscan-область видна через прозрачный canvas за границей карточки).
-    // Highlight/arrow при этом размещаем для всего window — они в codeContainer
-    // и сами клипятся при скролле, но должны быть готовы при возврате в видимую область.
-    const scrollOffsetWindow = this.#scrollOffset - this.#windowStart
-    // Строгий clip без overscan-запаса: лишняя строка наверху вылазит
-    // за header в toolbar-area (canvas прозрачный, нет реального clipping).
-    const visibleTop = scrollOffsetWindow
-    const visibleBottom = scrollOffsetWindow + visible
-    for (let i = 0; i < windowEnd - this.#windowStart; i++) {
-      const lineIndex = this.#windowStart + i
+    // Видимые строки.
+    for (let i = 0; i < visible; i++) {
+      const lineIndex = this.#scrollOffset + i
+      if (lineIndex >= total) break
       const lineNo = lineIndex + 1
       const isCurrent = lineNo === currentLine
-      const rowTopWorld = -(i * LINE_PX) * this.#pixelScale
-      const baselineY = rowTopWorld - lineFontWorld
+      const rowY = PAD_TOP_PX + i * LINE_PX
 
-      if (isCurrent) {
-        // codeContainer.position уже учитывает PAD_TOP + scrollOffset, поэтому
-        // внутри него нужны только row-relative координаты.
-        // Highlight: высота CODE_FONT_PX + 4 (≤ LINE_PX), центр над row middle
-        // — визуально лежит на тексте, не залезая на следующую строку.
-        this.#execHighlight.geometry = new PlaneGeometry({width: contentWorldW, height: highlightWorldH})
-        this.#execHighlight.position.x = (contentPixelWidth / 2) * this.#pixelScale
-        this.#execHighlight.position.y = rowTopWorld - (LINE_PX / 2 - 2) * this.#pixelScale
-        this.#execHighlight.position.z = -0.005
-        this.#execHighlight.visible = true
-        this.#execHighlight.updateMatrix()
-
-        if (arrow !== null) {
-          arrow.position.x = (GUTTER_LEFT_PAD_PX * 0.4) * this.#pixelScale
-          arrow.position.y = baselineY
-          arrow.visible = true
-          arrow.updateMatrix()
-        }
-        highlightPlaced = true
-      }
-
-      // Текст не создаём для строк вне видимого rect-а (но highlight уже мог
-      // быть placed выше — он скроллится с codeContainer и появится при
-      // возврате currentLine в видимую область).
-      if (i < visibleTop || i > visibleBottom) continue
-
-      const text = clipSourceLine(lines[lineIndex] ?? "", codeMaxPx, CODE_FONT_PX)
+      // Gutter номер строки (right-aligned в gutter-зоне).
       const numStr = String(lineNo)
-      const numMaterial = isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial
-      const numText = new Text(numStr, this.#font, lineFontWorld, numMaterial)
-      numText.name = "gutter"
-      numText.position.x = this.#lineNumberX(numStr, gutterPx, lineFontWorld)
-      numText.position.y = baselineY
-      numText.updateMatrix()
-      this.#codeContainer.add(numText)
+      const numW = this.measureText(numStr, CODE_FONT_PX)
+      const numX = Math.max(
+        PAD_LEFT_PX + GUTTER_LEFT_PAD_PX,
+        PAD_LEFT_PX + gutterPx - GUTTER_RIGHT_PAD_PX - numW,
+      )
+      this.drawText(numStr, numX, rowY, {
+        fontPx: CODE_FONT_PX,
+        material: isCurrent ? this.#gutterHotMaterial : this.#gutterMaterial,
+        maxWidthPx: gutterPx - GUTTER_LEFT_PAD_PX - GUTTER_RIGHT_PAD_PX,
+      })
 
-      if (text.trim().length > 0) {
-        const trimmed = text
-        const codeStartX = (gutterPx + CODE_LEFT_PAD_PX) * this.#pixelScale
+      // Сама строка кода.
+      const lineText = clipSourceLine(lines[lineIndex] ?? "", codeMaxPx, CODE_FONT_PX)
+      if (lineText.trim().length > 0) {
+        const codeStartX = PAD_LEFT_PX + gutterPx + CODE_LEFT_PAD_PX
         const lineTokens = this.#current.tokens?.[lineIndex]
         if (lineTokens !== undefined && lineTokens.length > 0) {
-          this.#renderTokenizedLine(trimmed, lineTokens, codeStartX, baselineY, lineFontWorld)
+          this.#renderTokenizedLine(lineText, lineTokens, codeStartX, rowY, codeMaxPx)
         } else {
-          const lineText = new Text(trimmed, this.#font, lineFontWorld, this.#lineMaterial)
-          lineText.name = "code"
-          lineText.position.x = codeStartX
-          lineText.position.y = baselineY
-          lineText.updateMatrix()
-          this.#codeContainer.add(lineText)
+          this.drawText(lineText, codeStartX, rowY, {
+            fontPx: CODE_FONT_PX,
+            material: this.#lineMaterial,
+            maxWidthPx: codeMaxPx,
+          })
         }
       }
     }
-    void highlightPlaced
+
+    // Scrollbar.
+    if (total > visible) {
+      scrollbar(this, this.rectW - PAD_RIGHT_PX - SCROLLBAR_W, PAD_TOP_PX, contentH, {
+        offset: this.#scrollOffset,
+        visible,
+        total,
+        trackWidth: SCROLLBAR_W,
+      })
+    }
   }
 
-  #renderTokenizedLine(text: string, tokens: XrToken[], startX: number, baselineY: number, fontSize: number): void {
-    if (this.#font === null) return
+  #renderTokenizedLine(text: string, tokens: XrToken[], startX: number, y: number, maxPx: number): void {
     let cursor = 0
     let cursorX = startX
+    const remaining = (): number => Math.max(0, startX + maxPx - cursorX)
     const placeChunk = (chunkText: string, category: string): void => {
-      if (chunkText.length === 0 || this.#font === null) return
-      const width = measureTextWorld(chunkText, this.#font, fontSize)
+      if (chunkText.length === 0) return
+      const w = this.measureText(chunkText, CODE_FONT_PX)
       if (chunkText.trim().length === 0) {
-        cursorX += width
+        cursorX += w
         return
       }
       const material = this.#tokenMaterials.get(category) ?? this.#lineMaterial
-      const t = new Text(chunkText, this.#font, fontSize, material)
-      t.name = "code"
-      t.position.x = cursorX
-      t.position.y = baselineY
-      t.updateMatrix()
-      this.#codeContainer.add(t)
-      cursorX += width
+      this.drawText(chunkText, cursorX, y, {
+        fontPx: CODE_FONT_PX,
+        material,
+        maxWidthPx: remaining(),
+      })
+      cursorX += w
     }
     const sorted = [...tokens].sort((a, b) => a.s - b.s)
     for (const tok of sorted) {
@@ -685,127 +350,92 @@ export class XrSourceCard implements XrCard {
     if (cursor < text.length) placeChunk(text.slice(cursor), "d")
   }
 
-  #gutterWidthPx(lineCount: number): number {
-    if (this.#font === null) return GUTTER_MIN_PX
-    const digits = Math.max(2, String(Math.max(1, lineCount)).length)
-    const fontWorld = CODE_FONT_PX * this.#pixelScale
-    const digitWidthPx = measureTextWorld("8", this.#font, fontWorld) / this.#pixelScale
-    return Math.ceil(Math.max(GUTTER_MIN_PX, GUTTER_LEFT_PAD_PX + digitWidthPx * digits + GUTTER_RIGHT_PAD_PX))
+  #headerLocation(): string {
+    if (this.#runtimeState === "disconnected") return "inspector disconnected"
+    if (this.#runtimeState === "loading") return "loading source..."
+    if (this.#runtimeState === "running" && this.#current !== null) return `last paused frame: ${this.#current.location}`
+    if (this.#runtimeState === "running") return "target running"
+    return this.#current?.location ?? "waiting for paused source"
   }
 
-  #lineNumberX(text: string, gutterPx: number, fontSizeWorld: number): number {
-    if (this.#font === null) return 0
-    const widthWorld = measureTextWorld(text, this.#font, fontSizeWorld)
-    const rightEdgeWorld = (gutterPx - GUTTER_RIGHT_PAD_PX) * this.#pixelScale
-    const leftInsetWorld = GUTTER_LEFT_PAD_PX * this.#pixelScale
-    return Math.max(leftInsetWorld, rightEdgeWorld - widthWorld)
-  }
-
-  #syncGutterRule(gutterPx: number, contentW: number, contentH: number): void {
-    void contentW
-    const width = 1 * this.#pixelScale
-    const height = contentH * this.#pixelScale
-    this.#gutterRule.geometry = new PlaneGeometry({width, height})
-    this.#gutterRule.visible = true
-    this.#gutterRule.position.x = (PAD_LEFT_PX + gutterPx) * this.#pixelScale + width / 2
-    this.#gutterRule.position.y = -PAD_TOP_PX * this.#pixelScale - height / 2
-    this.#gutterRule.updateMatrix()
-  }
-
-  #hideGutterRule(): void {
-    this.#gutterRule.visible = false
-  }
-
-  #updateScrollbar(): void {
+  #setScroll(next: number): void {
     if (this.#current === null) return
     const visible = this.#visibleLineCount()
-    if (this.#totalLines <= visible) {
-      if (this.#scrollbarTrack !== null) this.#scrollbarTrack.visible = false
-      if (this.#scrollbarThumb !== null) this.#scrollbarThumb.visible = false
+    const max = Math.max(0, this.#current.lines.length - visible)
+    const clamped = Math.max(0, Math.min(max, Math.trunc(next)))
+    if (clamped === this.#scrollOffset) return
+    this.#scrollOffset = clamped
+    this.requestRender()
+  }
+
+  #visibleLineCount(): number {
+    const contentH = Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
+    return Math.max(1, Math.floor(contentH / LINE_PX))
+  }
+
+  #gutterWidthPx(lineCount: number): number {
+    if (this.font === null) return GUTTER_MIN_PX
+    const digits = Math.max(2, String(Math.max(1, lineCount)).length)
+    const digitW = this.measureText("8", CODE_FONT_PX)
+    return Math.ceil(Math.max(GUTTER_MIN_PX, GUTTER_LEFT_PAD_PX + digitW * digits + GUTTER_RIGHT_PAD_PX))
+  }
+
+  // ────────────────────────── Scan animation ──────────────────────────
+
+  #syncScanGeometry(): void {
+    const ps = this.pixelScale
+    const w = Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX) * ps
+    this.#scanLine.geometry = new PlaneGeometry({width: w, height: 2 * ps})
+    this.#scanLine.position.x = (PAD_LEFT_PX + Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX) / 2) * ps
+    this.#scanLine.updateMatrix()
+    const segW = 2 * ps
+    const segH = 8 * ps
+    const segX = Math.max(PAD_LEFT_PX + 4, this.rectW - PAD_RIGHT_PX - 16) * ps
+    for (const seg of this.#activitySegments) {
+      seg.geometry = new PlaneGeometry({width: segW, height: segH})
+      seg.position.x = segX
+      seg.updateMatrix()
+    }
+  }
+
+  #startScan(loop: boolean): void {
+    this.#scanLoop = loop
+    this.#scanStartedAt = performance.now()
+    this.#scanLine.visible = true
+    for (const seg of this.#activitySegments) seg.visible = true
+    if (this.#scanRaf !== null) cancelAnimationFrame(this.#scanRaf)
+    this.#scanRaf = requestAnimationFrame((now) => this.#animateScan(now))
+  }
+
+  #stopScan(): void {
+    if (this.#scanRaf !== null) cancelAnimationFrame(this.#scanRaf)
+    this.#scanRaf = null
+    this.#scanLoop = false
+    this.#scanLine.visible = false
+    for (const seg of this.#activitySegments) seg.visible = false
+    this.canvas?.requestRender()
+  }
+
+  #animateScan(now: number): void {
+    const duration = this.#scanLoop ? 1200 : 520
+    const elapsed = Math.max(0, now - this.#scanStartedAt)
+    if (!this.#scanLoop && elapsed >= duration) {
+      this.#stopScan()
       return
     }
-    const trackWidthPx = 4
-    const trackWidthWorld = trackWidthPx * this.#pixelScale
-    const contentH = Math.max(1, this.#rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
-    const trackHeightWorld = contentH * this.#pixelScale
-    const trackXWorld = (this.#rectW - PAD_RIGHT_PX - trackWidthPx / 2) * this.#pixelScale
-
-    if (this.#scrollbarTrack === null) {
-      this.#scrollbarTrack = new Mesh(
-        new PlaneGeometry({width: trackWidthWorld, height: trackHeightWorld}),
-        new MeshBasicMaterial({color: new Color(48 / 255, 54 / 255, 61 / 255, 0.6)}),
-      )
-      this.#scrollbarTrack.position.z = 0.0015
-      this.node.add(this.#scrollbarTrack)
-    } else {
-      this.#scrollbarTrack.geometry = new PlaneGeometry({width: trackWidthWorld, height: trackHeightWorld})
+    const progress = this.#scanLoop ? (elapsed % duration) / duration : elapsed / duration
+    const ps = this.pixelScale
+    const contentH = Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
+    this.#scanLine.position.y = -(PAD_TOP_PX + progress * contentH) * ps
+    this.#scanLine.updateMatrix()
+    for (let i = 0; i < this.#activitySegments.length; i++) {
+      const seg = this.#activitySegments[i]!
+      const phase = (progress + i / this.#activitySegments.length) % 1
+      seg.position.y = -(PAD_TOP_PX + phase * contentH) * ps
+      seg.updateMatrix()
     }
-    this.#scrollbarTrack.visible = true
-    this.#scrollbarTrack.position.x = trackXWorld
-    this.#scrollbarTrack.position.y = -PAD_TOP_PX * this.#pixelScale - trackHeightWorld / 2
-    this.#scrollbarTrack.updateMatrix()
-
-    const thumbRatio = visible / this.#totalLines
-    const thumbHeightWorld = Math.max(trackWidthWorld * 4, trackHeightWorld * thumbRatio)
-    const scrollProgress = this.#totalLines === visible ? 0 : this.#scrollOffset / (this.#totalLines - visible)
-    const thumbCenterY = -PAD_TOP_PX * this.#pixelScale -
-      thumbHeightWorld / 2 -
-      (trackHeightWorld - thumbHeightWorld) * scrollProgress
-
-    if (this.#scrollbarThumb === null) {
-      this.#scrollbarThumb = new Mesh(
-        new PlaneGeometry({width: trackWidthWorld, height: thumbHeightWorld}),
-        new MeshBasicMaterial({color: new Color(110 / 255, 118 / 255, 129 / 255, 0.85)}),
-      )
-      this.#scrollbarThumb.position.z = 0.0016
-      this.node.add(this.#scrollbarThumb)
-    } else {
-      this.#scrollbarThumb.geometry = new PlaneGeometry({width: trackWidthWorld, height: thumbHeightWorld})
-    }
-    this.#scrollbarThumb.visible = true
-    this.#scrollbarThumb.position.x = trackXWorld
-    this.#scrollbarThumb.position.y = thumbCenterY
-    this.#scrollbarThumb.updateMatrix()
-  }
-
-  #disposeCodeChildren(): void {
-    const renderer = this.#canvas?.renderer
-    // Сохраняем persistent-ноды (highlight/arrow) — они живут в codeContainer
-    // чтобы скроллиться вместе со строками, но переcоздавать их каждый rebuild
-    // не нужно.
-    const keep: Object3D[] = []
-    for (const child of this.#codeContainer.children) {
-      if (child === this.#execHighlight || (this.#execArrow !== null && child === this.#execArrow)) {
-        keep.push(child)
-        continue
-      }
-      const text = child as Text
-      if (text.isText === true) {
-        if (renderer !== undefined) {
-          if (text.stencilGeometry !== undefined) renderer.invalidateGeometry(text.stencilGeometry)
-          if (text.coverGeometry !== undefined) renderer.invalidateGeometry(text.coverGeometry)
-        }
-        continue
-      }
-      const mesh = child as Mesh
-      if (mesh.geometry !== undefined && renderer !== undefined) renderer.invalidateGeometry(mesh.geometry)
-    }
-    this.#codeContainer.children = keep
-  }
-
-  #disposeHeaderText(): void {
-    const renderer = this.#canvas?.renderer
-    for (const text of [this.#titleText, this.#locationText]) {
-      if (text === null) continue
-      if (renderer !== undefined) {
-        renderer.invalidateGeometry(text.stencilGeometry)
-        renderer.invalidateGeometry(text.coverGeometry)
-      }
-      const idx = this.node.children.indexOf(text)
-      if (idx >= 0) this.node.children.splice(idx, 1)
-    }
-    this.#titleText = null
-    this.#locationText = null
+    this.canvas?.requestRender()
+    this.#scanRaf = requestAnimationFrame((next) => this.#animateScan(next))
   }
 }
 
@@ -814,28 +444,6 @@ function stripLine(location: string | undefined): string {
   const idx = location.lastIndexOf(":")
   if (idx < 0) return location
   return location.slice(0, idx)
-}
-
-function measureTextWorld(text: string, font: TrueTypeFont, fontSize: number): number {
-  const scale = fontSize / font.unitsPerEm
-  const letterSpacing = fontSize * 0.05
-  let width = 0
-  for (const char of text) {
-    if (char === " ") {
-      width += font.unitsPerEm * 0.3 * scale
-      continue
-    }
-    const gid = font.mapCharToGlyph(char.codePointAt(0)!)
-    width += font.getHMetric(gid).advanceWidth * scale + letterSpacing
-  }
-  return width
-}
-
-function fitText(value: string, widthPx: number, fontPx: number): string {
-  const max = Math.max(1, Math.floor(widthPx / Math.max(1, fontPx * 0.58)))
-  if (value.length <= max) return value
-  if (max <= 4) return value.slice(0, max)
-  return `${value.slice(0, max - 3)}...`
 }
 
 function clipSourceLine(value: string, widthPx: number, fontPx: number): string {
