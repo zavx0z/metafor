@@ -12,7 +12,6 @@ import {
   divider,
   ScrollListState,
   scrollList,
-  wheelScrollStep,
   Z,
 } from "@metafor/ui"
 
@@ -21,11 +20,12 @@ const PAD = 14
 
 class ScrollListCard extends Card {
   #items: Array<{title: string; subtitle: string}>
-  #list = new ScrollListState()
+  #list: ScrollListState
   #active = 0
 
   constructor() {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1})
+    this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#items = Array.from({length: 64}, (_, i) => ({
       title: `Item #${i + 1}`,
       subtitle: `subtitle for row ${i + 1} — описание чтобы видеть как обрезается длинный текст когда не хватает ширины`,
@@ -33,10 +33,7 @@ class ScrollListCard extends Card {
   }
 
   onWheel(event: WheelEvent): void {
-    const visible = this.#visibleRows()
-    if (wheelScrollStep(this.#list, event, ROW_H, this.#items.length, visible)) {
-      this.requestRender()
-    }
+    this.#list.applyWheel(event, ROW_H, this.#items.length, this.#visibleRows())
   }
 
   protected render(): void {

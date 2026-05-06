@@ -11,7 +11,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Card, Z, palette, scrollbar, ScrollListState, wheelScrollStep} from "./xr-card.ts"
+import {Card, Z, palette, scrollbar, ScrollListState} from "./xr-card.ts"
 
 export type XrToken = {s: number; e: number; c: string}
 export type XrSourceTokens = XrToken[][]
@@ -56,7 +56,7 @@ const TOKEN_COLORS: Record<string, Color> = {
 
 export class XrSourceCard extends Card {
   #current: XrSource | null = null
-  #list = new ScrollListState()
+  readonly #list: ScrollListState
   #runtimeState: XrSourceRuntimeState = "idle"
 
   readonly #titleMaterial = new TextMaterial({color: palette.cyan})
@@ -70,6 +70,7 @@ export class XrSourceCard extends Card {
   constructor() {
     super({bgColor: COLOR_BG, borderColor: palette.borderDim, borderWidthPx: 1})
     this.node.name = "SourceCard"
+    this.#list = new ScrollListState({onChange: () => this.requestRender()})
     for (const [category, color] of Object.entries(TOKEN_COLORS)) {
       this.#tokenMaterials.set(category, new TextMaterial({color}))
     }
@@ -84,7 +85,7 @@ export class XrSourceCard extends Card {
 
     if (source.currentLine > 0 && (lineChanged || fileChanged || prev === null)) {
       const visible = this.#visibleLineCount()
-      this.#list.scroll = Math.max(0, source.currentLine - 1 - Math.floor(visible / 2))
+      this.#list.jumpTo(Math.max(0, source.currentLine - 1 - Math.floor(visible / 2)))
     }
     this.requestRender()
   }
@@ -98,25 +99,26 @@ export class XrSourceCard extends Card {
   onWheel(event: WheelEvent): void {
     if (this.#current === null) return
     const visible = this.#visibleLineCount()
-    if (wheelScrollStep(this.#list, event, LINE_PX, this.#current.lines.length, visible)) {
-      this.requestRender()
-    }
+    this.#list.applyWheel(event, LINE_PX, this.#current.lines.length, visible)
   }
 
   onKey(event: KeyboardEvent): void {
     if (this.#current === null) return
     const visible = this.#visibleLineCount()
+    const total = this.#current.lines.length
+    const max = Math.max(0, total - visible)
+    const target = (delta: number): number => Math.max(0, Math.min(max, this.#list.target + delta))
     let handled = true
     switch (event.key) {
-      case "ArrowDown": this.#setScroll(this.#list.scroll + 1); break
-      case "ArrowUp": this.#setScroll(this.#list.scroll - 1); break
-      case "PageDown": this.#setScroll(this.#list.scroll + visible); break
-      case "PageUp": this.#setScroll(this.#list.scroll - visible); break
-      case "Home": this.#setScroll(0); break
-      case "End": this.#setScroll(this.#current.lines.length); break
+      case "ArrowDown": this.#list.scrollTo(target(1)); break
+      case "ArrowUp": this.#list.scrollTo(target(-1)); break
+      case "PageDown": this.#list.scrollTo(target(visible)); break
+      case "PageUp": this.#list.scrollTo(target(-visible)); break
+      case "Home": this.#list.scrollTo(0); break
+      case "End": this.#list.scrollTo(max); break
       case "g":
         if (this.#current.currentLine > 0) {
-          this.#setScroll(this.#current.currentLine - 1 - Math.floor(visible / 2))
+          this.#list.scrollTo(Math.max(0, Math.min(max, this.#current.currentLine - 1 - Math.floor(visible / 2))))
         }
         break
       default: handled = false
@@ -159,7 +161,10 @@ export class XrSourceCard extends Card {
     const total = lines.length
     const currentLine = this.#current.currentLine
     const visible = this.#visibleLineCount()
-    this.#list.scroll = Math.max(0, Math.min(this.#list.scroll, Math.max(0, total - visible)))
+    this.#list.clamp(total, visible)
+    const scroll = this.#list.scroll
+    const startIdx = Math.floor(scroll)
+    const subPx = (scroll - startIdx) * LINE_PX
 
     const gutterPx = this.#gutterWidthPx(total)
     const contentW = Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 4)
@@ -177,9 +182,9 @@ export class XrSourceCard extends Card {
     )
 
     // Highlight под текущей строкой (если она в visible-окне).
-    const currentRowIdx = currentLine - 1 - this.#list.scroll
-    if (currentLine > 0 && currentRowIdx >= 0 && currentRowIdx < visible) {
-      const highlightY = PAD_TOP_PX + currentRowIdx * LINE_PX
+    const currentRowIdx = currentLine - 1 - startIdx
+    if (currentLine > 0 && currentRowIdx >= -1 && currentRowIdx <= visible) {
+      const highlightY = PAD_TOP_PX + currentRowIdx * LINE_PX - subPx
       const highlightH = Math.min(LINE_PX, CODE_FONT_PX + 4)
       this.drawRect(
         PAD_LEFT_PX,
@@ -196,13 +201,18 @@ export class XrSourceCard extends Card {
       })
     }
 
-    // Видимые строки.
-    for (let i = 0; i < visible; i++) {
-      const lineIndex = this.#list.scroll + i
+    // Видимые строки. +1 row сверху-снизу для smooth scroll'а.
+    const renderCount = visible + 1
+    for (let i = 0; i < renderCount; i++) {
+      const lineIndex = startIdx + i
       if (lineIndex >= total) break
+      if (lineIndex < 0) continue
       const lineNo = lineIndex + 1
       const isCurrent = lineNo === currentLine
-      const rowY = PAD_TOP_PX + i * LINE_PX
+      const rowY = PAD_TOP_PX + i * LINE_PX - subPx
+      // Skip rows за пределами content-area (clip protection).
+      if (rowY + LINE_PX < PAD_TOP_PX - 1) continue
+      if (rowY > PAD_TOP_PX + contentH + 1) break
 
       const numStr = String(lineNo)
       const numW = this.measureText(numStr, CODE_FONT_PX)
@@ -234,7 +244,7 @@ export class XrSourceCard extends Card {
 
     if (total > visible) {
       scrollbar(this, this.rectW - PAD_RIGHT_PX - SCROLLBAR_W, PAD_TOP_PX, contentH, {
-        offset: this.#list.scroll,
+        offset: scroll,
         visible,
         total,
         trackWidth: SCROLLBAR_W,
@@ -277,16 +287,6 @@ export class XrSourceCard extends Card {
     if (this.#runtimeState === "running" && this.#current !== null) return `last paused frame: ${this.#current.location}`
     if (this.#runtimeState === "running") return "target running"
     return this.#current?.location ?? "waiting for paused source"
-  }
-
-  #setScroll(next: number): void {
-    if (this.#current === null) return
-    const visible = this.#visibleLineCount()
-    const max = Math.max(0, this.#current.lines.length - visible)
-    const clamped = Math.max(0, Math.min(max, Math.trunc(next)))
-    if (clamped === this.#list.scroll) return
-    this.#list.scroll = clamped
-    this.requestRender()
   }
 
   #visibleLineCount(): number {

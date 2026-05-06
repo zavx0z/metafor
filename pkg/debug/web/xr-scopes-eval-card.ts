@@ -9,7 +9,7 @@
 import {TextMaterial} from "@metafor/engine"
 import {
   Card, palette, button, input, divider, scrollbar,
-  ScrollListState, wheelScrollStep,
+  ScrollListState,
 } from "./xr-card.ts"
 import type {XrFrameSnapshot, XrPropertySnapshot, XrScopeSnapshot} from "./xr-debug-ui.ts"
 
@@ -29,7 +29,7 @@ type ScopeRow =
 
 export class XrScopesEvalCard extends Card {
   #frame: XrFrameSnapshot | null = null
-  #list = new ScrollListState()
+  readonly #list: ScrollListState
   #expr = localStorage.getItem("bd:eval:expr") ?? "data.patches[0].path"
   #output = ""
   #editing = false
@@ -37,6 +37,7 @@ export class XrScopesEvalCard extends Card {
 
   constructor(onEval: (expr: string, frame: number) => void) {
     super({bgColor: palette.bg, borderColor: null})
+    this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#onEval = onEval
   }
 
@@ -55,9 +56,7 @@ export class XrScopesEvalCard extends Card {
     if (localY > this.#evalTop()) return
     const total = this.#scopeRows().length
     const visible = this.#visibleScopeRows()
-    if (wheelScrollStep(this.#list, event, SCOPE_ROW_H, total, visible)) {
-      this.requestRender()
-    }
+    this.#list.applyWheel(event, SCOPE_ROW_H, total, visible)
   }
 
   onKey(event: KeyboardEvent): void {
@@ -120,7 +119,7 @@ export class XrScopesEvalCard extends Card {
     const evalTop = this.#evalTop()
     const rows = this.#scopeRows()
     const visible = this.#visibleScopeRows()
-    this.#list.scroll = Math.max(0, Math.min(this.#list.scroll, Math.max(0, rows.length - visible)))
+    this.#list.clamp(rows.length, visible)
     if (rows.length === 0) {
       this.drawText("no scopes for current frame", PAD_X + 4, SCOPE_LIST_TOP + 4, {
         fontPx: 12,
@@ -130,10 +129,15 @@ export class XrScopesEvalCard extends Card {
     } else {
       const listH = evalTop - SCOPE_LIST_TOP
       const contentMaxX = this.rectW - PAD_X - SCROLLBAR_W - 6
-      for (let i = 0; i < visible; i++) {
-        const row = rows[this.#list.scroll + i]
+      const startIdx = Math.floor(this.#list.scroll)
+      const subPx = (this.#list.scroll - startIdx) * SCOPE_ROW_H
+      const renderCount = visible + 1
+      for (let i = 0; i < renderCount; i++) {
+        const row = rows[startIdx + i]
         if (row === undefined) break
-        const y = SCOPE_LIST_TOP + i * SCOPE_ROW_H
+        const y = SCOPE_LIST_TOP + i * SCOPE_ROW_H - subPx
+        if (y + SCOPE_ROW_H < SCOPE_LIST_TOP - 1) continue
+        if (y > evalTop + 1) break
         if (row.kind === "group") {
           this.drawText(row.label, PAD_X + 4, y, {
             fontPx: 11,

@@ -5,7 +5,7 @@
 import {Color} from "@metafor/engine"
 import {
   Card, Z, flexRow, flexColumn, palette, divider,
-  ScrollListState, scrollList, wheelScrollStep,
+  ScrollListState, scrollList,
 } from "./xr-card.ts"
 import type {XrFrameSnapshot} from "./xr-debug-ui.ts"
 
@@ -19,11 +19,12 @@ const ROW_GAP = 2
 export class XrFramesCard extends Card {
   #frames: XrFrameSnapshot[] = []
   #active = 0
-  #list = new ScrollListState()
+  readonly #list: ScrollListState
   readonly #onSelect: (index: number) => void
 
   constructor(onSelect: (index: number) => void) {
     super({bgColor: palette.bg, borderColor: null})
+    this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#onSelect = onSelect
   }
 
@@ -34,10 +35,7 @@ export class XrFramesCard extends Card {
   }
 
   onWheel(event: WheelEvent): void {
-    const visible = this.#visibleRows()
-    if (wheelScrollStep(this.#list, event, ROW_H + ROW_GAP, this.#frames.length, visible)) {
-      this.requestRender()
-    }
+    this.#list.applyWheel(event, ROW_H + ROW_GAP, this.#frames.length, this.#visibleRows())
   }
 
   protected render(): void {

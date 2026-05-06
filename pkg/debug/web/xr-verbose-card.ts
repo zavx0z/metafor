@@ -5,7 +5,7 @@
 
 import {
   Card, palette, button, divider, autoButtonWidth,
-  ScrollListState, scrollList, wheelScrollStep,
+  ScrollListState, scrollList,
 } from "./xr-card.ts"
 
 type VerboseEntry = {
@@ -30,12 +30,13 @@ const SCROLLBAR_GAP = 6
 
 export class XrVerboseCard extends Card {
   #entries: VerboseEntry[] = []
-  #list = new ScrollListState()
+  readonly #list: ScrollListState
   #autoscroll = localStorage.getItem("bd:verbose:pin") !== "0"
   readonly #max = 1000
 
   constructor() {
     super({bgColor: palette.bg, borderColor: null})
+    this.#list = new ScrollListState({onChange: () => this.requestRender()})
   }
 
   append(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
@@ -53,11 +54,11 @@ export class XrVerboseCard extends Card {
   }
 
   onWheel(event: WheelEvent): void {
-    const visible = this.#visibleRows()
-    if (!wheelScrollStep(this.#list, event, ROW_H, this.#entries.length, visible)) return
-    this.#autoscroll = false
-    localStorage.setItem("bd:verbose:pin", "0")
-    this.requestRender()
+    if (!this.#list.applyWheel(event, ROW_H, this.#entries.length, this.#visibleRows())) return
+    if (this.#autoscroll) {
+      this.#autoscroll = false
+      localStorage.setItem("bd:verbose:pin", "0")
+    }
   }
 
   protected render(): void {
@@ -141,7 +142,7 @@ export class XrVerboseCard extends Card {
 
   #scrollToBottom(): void {
     const visible = this.#visibleRows()
-    this.#list.scroll = Math.max(0, this.#entries.length - visible)
+    this.#list.jumpTo(Math.max(0, this.#entries.length - visible))
   }
 
   #visibleRows(): number {
