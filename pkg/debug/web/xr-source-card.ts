@@ -418,7 +418,31 @@ export class XrSourceCard implements XrCard {
     this.#codeContainer.position.x = (PAD_LEFT_PX) * this.#pixelScale
     this.#codeContainer.position.y = -(PAD_TOP_PX) * this.#pixelScale + offsetWithinWindow * LINE_PX * this.#pixelScale
     this.#codeContainer.updateMatrix()
+    this.#clipScrolledChildren()
     this.#updateScrollbar()
+  }
+
+  /**
+   * Скрывает text/mesh в codeContainer которые выехали за visible content-rect
+   * после scroll'а (canvas прозрачный, без scissor — нужен manual clip).
+   * Вызывается на каждый applyScroll.
+   */
+  #clipScrolledChildren(): void {
+    const visibleTopPx = PAD_TOP_PX
+    const visibleBottomPx = Math.max(visibleTopPx, this.#rectH - PAD_BOTTOM_PX)
+    const containerCardY = PAD_TOP_PX - (this.#scrollOffset - this.#windowStart) * LINE_PX
+    for (const child of this.#codeContainer.children) {
+      // child.position.y в codeContainer-frame, world-up. Card-frame y = -world.y/ps.
+      // World.y = container.world.y + child.position.y. Container.world.y =
+      // node.world.y - PAD_TOP*ps + offset*LINE_PX*ps. Card-frame:
+      //   childCardY = container_card_y - child.position.y / ps
+      // (минус потому что child.position.y отрицательное у Text-baseline вниз).
+      const childLocalY = -child.position.y / this.#pixelScale
+      const childCardY = containerCardY + childLocalY
+      // Высота glyph/mesh ~ LINE_PX → проверяем перекрытие [childCardY-LINE_PX, childCardY+LINE_PX].
+      const inView = childCardY + LINE_PX > visibleTopPx && childCardY - LINE_PX < visibleBottomPx
+      child.visible = inView
+    }
   }
 
   #syncScanGeometry(): void {
