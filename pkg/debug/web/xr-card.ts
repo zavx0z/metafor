@@ -22,6 +22,10 @@ export {
   divider,
   scrollbar,
   autoButtonWidth,
+  // scroll list.
+  ScrollListState,
+  scrollList,
+  wheelScrollStep,
   // types.
   type CardOpts,
   type DrawTextOpts,
@@ -38,4 +42,6 @@ export {
   type BadgeOpts,
   type InputOpts,
   type ScrollbarOpts,
+  type ScrollListOpts,
+  type ScrollListMetrics,
 } from "@metafor/ui"

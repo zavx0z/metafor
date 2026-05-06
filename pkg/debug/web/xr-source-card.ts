@@ -11,7 +11,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Card, Z, palette, scrollbar} from "./xr-card.ts"
+import {Card, Z, palette, scrollbar, ScrollListState, wheelScrollStep} from "./xr-card.ts"
 
 export type XrToken = {s: number; e: number; c: string}
 export type XrSourceTokens = XrToken[][]
@@ -56,8 +56,7 @@ const TOKEN_COLORS: Record<string, Color> = {
 
 export class XrSourceCard extends Card {
   #current: XrSource | null = null
-  #scrollOffset = 0
-  #scrollAccum = 0
+  #list = new ScrollListState()
   #runtimeState: XrSourceRuntimeState = "idle"
 
   readonly #titleMaterial = new TextMaterial({color: palette.cyan})
@@ -85,7 +84,7 @@ export class XrSourceCard extends Card {
 
     if (source.currentLine > 0 && (lineChanged || fileChanged || prev === null)) {
       const visible = this.#visibleLineCount()
-      this.#scrollOffset = Math.max(0, source.currentLine - 1 - Math.floor(visible / 2))
+      this.#list.scroll = Math.max(0, source.currentLine - 1 - Math.floor(visible / 2))
     }
     this.requestRender()
   }
@@ -98,19 +97,10 @@ export class XrSourceCard extends Card {
 
   onWheel(event: WheelEvent): void {
     if (this.#current === null) return
-    const linesDelta = event.deltaMode === 1
-      ? event.deltaY
-      : event.deltaMode === 2
-        ? event.deltaY * this.#visibleLineCount()
-        : (this.#scrollAccum + event.deltaY) / LINE_PX
-    const stepLines = Math.trunc(linesDelta)
-    if (event.deltaMode === 0) {
-      this.#scrollAccum = (this.#scrollAccum + event.deltaY) - stepLines * LINE_PX
-    } else {
-      this.#scrollAccum = 0
+    const visible = this.#visibleLineCount()
+    if (wheelScrollStep(this.#list, event, LINE_PX, this.#current.lines.length, visible)) {
+      this.requestRender()
     }
-    if (stepLines === 0) return
-    this.#setScroll(this.#scrollOffset + stepLines)
   }
 
   onKey(event: KeyboardEvent): void {
@@ -118,10 +108,10 @@ export class XrSourceCard extends Card {
     const visible = this.#visibleLineCount()
     let handled = true
     switch (event.key) {
-      case "ArrowDown": this.#setScroll(this.#scrollOffset + 1); break
-      case "ArrowUp": this.#setScroll(this.#scrollOffset - 1); break
-      case "PageDown": this.#setScroll(this.#scrollOffset + visible); break
-      case "PageUp": this.#setScroll(this.#scrollOffset - visible); break
+      case "ArrowDown": this.#setScroll(this.#list.scroll + 1); break
+      case "ArrowUp": this.#setScroll(this.#list.scroll - 1); break
+      case "PageDown": this.#setScroll(this.#list.scroll + visible); break
+      case "PageUp": this.#setScroll(this.#list.scroll - visible); break
       case "Home": this.#setScroll(0); break
       case "End": this.#setScroll(this.#current.lines.length); break
       case "g":
@@ -169,7 +159,7 @@ export class XrSourceCard extends Card {
     const total = lines.length
     const currentLine = this.#current.currentLine
     const visible = this.#visibleLineCount()
-    this.#scrollOffset = Math.max(0, Math.min(this.#scrollOffset, Math.max(0, total - visible)))
+    this.#list.scroll = Math.max(0, Math.min(this.#list.scroll, Math.max(0, total - visible)))
 
     const gutterPx = this.#gutterWidthPx(total)
     const contentW = Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 4)
@@ -187,7 +177,7 @@ export class XrSourceCard extends Card {
     )
 
     // Highlight под текущей строкой (если она в visible-окне).
-    const currentRowIdx = currentLine - 1 - this.#scrollOffset
+    const currentRowIdx = currentLine - 1 - this.#list.scroll
     if (currentLine > 0 && currentRowIdx >= 0 && currentRowIdx < visible) {
       const highlightY = PAD_TOP_PX + currentRowIdx * LINE_PX
       const highlightH = Math.min(LINE_PX, CODE_FONT_PX + 4)
@@ -208,7 +198,7 @@ export class XrSourceCard extends Card {
 
     // Видимые строки.
     for (let i = 0; i < visible; i++) {
-      const lineIndex = this.#scrollOffset + i
+      const lineIndex = this.#list.scroll + i
       if (lineIndex >= total) break
       const lineNo = lineIndex + 1
       const isCurrent = lineNo === currentLine
@@ -244,7 +234,7 @@ export class XrSourceCard extends Card {
 
     if (total > visible) {
       scrollbar(this, this.rectW - PAD_RIGHT_PX - SCROLLBAR_W, PAD_TOP_PX, contentH, {
-        offset: this.#scrollOffset,
+        offset: this.#list.scroll,
         visible,
         total,
         trackWidth: SCROLLBAR_W,
@@ -294,8 +284,8 @@ export class XrSourceCard extends Card {
     const visible = this.#visibleLineCount()
     const max = Math.max(0, this.#current.lines.length - visible)
     const clamped = Math.max(0, Math.min(max, Math.trunc(next)))
-    if (clamped === this.#scrollOffset) return
-    this.#scrollOffset = clamped
+    if (clamped === this.#list.scroll) return
+    this.#list.scroll = clamped
     this.requestRender()
   }
 

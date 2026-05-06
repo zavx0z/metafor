@@ -7,7 +7,10 @@
  */
 
 import {TextMaterial} from "@metafor/engine"
-import {Card, palette, button, input, divider, scrollbar} from "./xr-card.ts"
+import {
+  Card, palette, button, input, divider, scrollbar,
+  ScrollListState, wheelScrollStep,
+} from "./xr-card.ts"
 import type {XrFrameSnapshot, XrPropertySnapshot, XrScopeSnapshot} from "./xr-debug-ui.ts"
 
 const PAD_X = 14
@@ -26,7 +29,7 @@ type ScopeRow =
 
 export class XrScopesEvalCard extends Card {
   #frame: XrFrameSnapshot | null = null
-  #scroll = 0
+  #list = new ScrollListState()
   #expr = localStorage.getItem("bd:eval:expr") ?? "data.patches[0].path"
   #output = ""
   #editing = false
@@ -39,7 +42,7 @@ export class XrScopesEvalCard extends Card {
 
   setFrame(frame: XrFrameSnapshot | null): void {
     this.#frame = frame
-    this.#scroll = 0
+    this.#list.reset()
     this.requestRender()
   }
 
@@ -50,14 +53,11 @@ export class XrScopesEvalCard extends Card {
 
   onWheel(event: WheelEvent, _localX: number, localY: number): void {
     if (localY > this.#evalTop()) return
-    const delta = event.deltaMode === 1 ? event.deltaY : event.deltaY / 20
-    const rows = this.#scopeRows()
+    const total = this.#scopeRows().length
     const visible = this.#visibleScopeRows()
-    const max = Math.max(0, rows.length - visible)
-    const next = Math.max(0, Math.min(max, this.#scroll + Math.trunc(delta)))
-    if (next === this.#scroll) return
-    this.#scroll = next
-    this.requestRender()
+    if (wheelScrollStep(this.#list, event, SCOPE_ROW_H, total, visible)) {
+      this.requestRender()
+    }
   }
 
   onKey(event: KeyboardEvent): void {
@@ -120,7 +120,7 @@ export class XrScopesEvalCard extends Card {
     const evalTop = this.#evalTop()
     const rows = this.#scopeRows()
     const visible = this.#visibleScopeRows()
-    this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, rows.length - visible)))
+    this.#list.scroll = Math.max(0, Math.min(this.#list.scroll, Math.max(0, rows.length - visible)))
     if (rows.length === 0) {
       this.drawText("no scopes for current frame", PAD_X + 4, SCOPE_LIST_TOP + 4, {
         fontPx: 12,
@@ -131,7 +131,7 @@ export class XrScopesEvalCard extends Card {
       const listH = evalTop - SCOPE_LIST_TOP
       const contentMaxX = this.rectW - PAD_X - SCROLLBAR_W - 6
       for (let i = 0; i < visible; i++) {
-        const row = rows[this.#scroll + i]
+        const row = rows[this.#list.scroll + i]
         if (row === undefined) break
         const y = SCOPE_LIST_TOP + i * SCOPE_ROW_H
         if (row.kind === "group") {
@@ -159,7 +159,7 @@ export class XrScopesEvalCard extends Card {
         }
       }
       scrollbar(this, this.rectW - PAD_X - SCROLLBAR_W, SCOPE_LIST_TOP, listH, {
-        offset: this.#scroll, visible, total: rows.length, trackWidth: SCROLLBAR_W,
+        offset: this.#list.scroll, visible, total: rows.length, trackWidth: SCROLLBAR_W,
       })
     }
 

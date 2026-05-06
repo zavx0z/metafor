@@ -1,8 +1,12 @@
 /**
- * Verbose card на Card-системе. Кнопки/divider/scrollbar — widget'ы из @metafor/ui.
+ * Verbose card на Card-системе. Список + autoscroll. Scroll-machinery
+ * (state, wheel, render rows, scrollbar) — через scrollList из @metafor/ui.
  */
 
-import {Card, palette, button, divider, scrollbar, autoButtonWidth} from "./xr-card.ts"
+import {
+  Card, palette, button, divider, autoButtonWidth,
+  ScrollListState, scrollList, wheelScrollStep,
+} from "./xr-card.ts"
 
 type VerboseEntry = {
   kind: "inspector" | "agent"
@@ -22,10 +26,11 @@ const TS_W = 56
 const NAME_W = 132
 const BTN_H = 24
 const SCROLLBAR_W = 4
+const SCROLLBAR_GAP = 6
 
 export class XrVerboseCard extends Card {
   #entries: VerboseEntry[] = []
-  #scroll = 0
+  #list = new ScrollListState()
   #autoscroll = localStorage.getItem("bd:verbose:pin") !== "0"
   readonly #max = 1000
 
@@ -43,19 +48,15 @@ export class XrVerboseCard extends Card {
 
   clear(): void {
     this.#entries = []
-    this.#scroll = 0
+    this.#list.reset()
     this.requestRender()
   }
 
   onWheel(event: WheelEvent): void {
-    const delta = event.deltaMode === 1 ? event.deltaY : event.deltaY / 18
     const visible = this.#visibleRows()
-    const max = Math.max(0, this.#entries.length - visible)
-    const next = Math.max(0, Math.min(max, this.#scroll + Math.trunc(delta)))
-    if (next === this.#scroll) return
+    if (!wheelScrollStep(this.#list, event, ROW_H, this.#entries.length, visible)) return
     this.#autoscroll = false
     localStorage.setItem("bd:verbose:pin", "0")
-    this.#scroll = next
     this.requestRender()
   }
 
@@ -73,7 +74,6 @@ export class XrVerboseCard extends Card {
       maxWidthPx: 60,
     })
 
-    // Buttons (Clear, Auto/Manual) — справа.
     const btnY = 8
     const autoLabel = this.#autoscroll ? "Auto" : "Manual"
     const autoW = autoButtonWidth(this, autoLabel, 11, 10)
@@ -85,7 +85,6 @@ export class XrVerboseCard extends Card {
 
     divider(this, PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2)
 
-    // Empty state.
     if (this.#entries.length === 0) {
       this.drawText("inspector and agent event stream", PAD_X, LIST_TOP + 4, {
         fontPx: 12,
@@ -95,30 +94,27 @@ export class XrVerboseCard extends Card {
       return
     }
 
-    // Rows.
-    const listH = this.rectH - LIST_TOP - 8
-    const visible = this.#visibleRows()
-    this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#entries.length - visible)))
-    for (let i = 0; i < visible; i++) {
-      const entry = this.#entries[this.#scroll + i]
-      if (entry === undefined) break
-      const y = LIST_TOP + i * ROW_H
-      this.#drawEntry(entry, y)
-    }
-
-    scrollbar(this, this.rectW - PAD_X - SCROLLBAR_W, LIST_TOP, listH, {
-      offset: this.#scroll, visible, total: this.#entries.length, trackWidth: SCROLLBAR_W,
+    scrollList(this, {
+      state: this.#list,
+      items: this.#entries,
+      rowH: ROW_H,
+      x: PAD_X,
+      y: LIST_TOP,
+      w: this.rectW - PAD_X * 2,
+      h: this.rectH - LIST_TOP - 8,
+      scrollbarWidth: SCROLLBAR_W,
+      scrollbarGap: SCROLLBAR_GAP,
+      drawRow: (entry, _idx, x, y, w, _h) => this.#drawEntry(entry, x, y, w),
     })
   }
 
-  #drawEntry(entry: VerboseEntry, y: number): void {
-    const tsX = PAD_X
-    this.drawText(formatTimestamp(entry.ts), tsX, y, {
+  #drawEntry(entry: VerboseEntry, x: number, y: number, w: number): void {
+    this.drawText(formatTimestamp(entry.ts), x, y, {
       fontPx: 10,
       material: this.materials.muted,
       maxWidthPx: TS_W,
     })
-    const nameX = tsX + TS_W + 8
+    const nameX = x + TS_W + 8
     const nameLabel = entry.kind === "agent" ? `@${entry.name}` : entry.name
     this.drawText(nameLabel, nameX, y, {
       fontPx: 10,
@@ -126,7 +122,7 @@ export class XrVerboseCard extends Card {
       maxWidthPx: NAME_W,
     })
     const payloadX = nameX + NAME_W + 8
-    const payloadMaxW = this.rectW - PAD_X - SCROLLBAR_W - 6 - payloadX
+    const payloadMaxW = x + w - payloadX
     if (payloadMaxW > 20) {
       this.drawText(entry.payload, payloadX, y, {
         fontPx: 10,
@@ -145,7 +141,7 @@ export class XrVerboseCard extends Card {
 
   #scrollToBottom(): void {
     const visible = this.#visibleRows()
-    this.#scroll = Math.max(0, this.#entries.length - visible)
+    this.#list.scroll = Math.max(0, this.#entries.length - visible)
   }
 
   #visibleRows(): number {

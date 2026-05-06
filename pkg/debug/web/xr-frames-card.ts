@@ -1,9 +1,12 @@
 /**
- * Frames card. Layout — flexRow/flexColumn из @metafor/ui.
+ * Frames card. Layout — flexRow/flexColumn + scrollList из @metafor/ui.
  */
 
 import {Color} from "@metafor/engine"
-import {Card, Z, flexRow, flexColumn, palette, divider, scrollbar} from "./xr-card.ts"
+import {
+  Card, Z, flexRow, flexColumn, palette, divider,
+  ScrollListState, scrollList, wheelScrollStep,
+} from "./xr-card.ts"
 import type {XrFrameSnapshot} from "./xr-debug-ui.ts"
 
 const ACTIVE_FILL = new Color(43 / 255, 73 / 255, 117 / 255, 0.95)
@@ -12,12 +15,11 @@ const PAD = 14
 const HEADER_H = 22
 const ROW_H = 32
 const ROW_GAP = 2
-const SCROLLBAR_W = 4
 
 export class XrFramesCard extends Card {
   #frames: XrFrameSnapshot[] = []
   #active = 0
-  #scroll = 0
+  #list = new ScrollListState()
   readonly #onSelect: (index: number) => void
 
   constructor(onSelect: (index: number) => void) {
@@ -28,18 +30,14 @@ export class XrFramesCard extends Card {
   setFrames(frames: XrFrameSnapshot[], active: number): void {
     this.#frames = frames
     this.#active = active
-    this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, frames.length - 1)))
     this.requestRender()
   }
 
   onWheel(event: WheelEvent): void {
-    const delta = event.deltaMode === 1 ? event.deltaY : event.deltaY / 20
     const visible = this.#visibleRows()
-    const max = Math.max(0, this.#frames.length - visible)
-    const next = Math.max(0, Math.min(max, this.#scroll + Math.trunc(delta)))
-    if (next === this.#scroll) return
-    this.#scroll = next
-    this.requestRender()
+    if (wheelScrollStep(this.#list, event, ROW_H + ROW_GAP, this.#frames.length, visible)) {
+      this.requestRender()
+    }
   }
 
   protected render(): void {
@@ -70,7 +68,6 @@ export class XrFramesCard extends Card {
     const listTop = HEADER_H + 22
     const listH = Math.max(0, this.rectH - listTop - 8)
 
-    // Empty state.
     if (this.#frames.length === 0) {
       this.drawText("waiting for paused frame", PAD + 4, listTop + 6, {
         fontPx: 12,
@@ -80,28 +77,16 @@ export class XrFramesCard extends Card {
       return
     }
 
-    const visible = this.#visibleRows()
-    this.#scroll = Math.max(0, Math.min(this.#scroll, Math.max(0, this.#frames.length - visible)))
-    const rowItems = []
-    for (let i = 0; i < visible; i++) {
-      const frame = this.#frames[this.#scroll + i]
-      if (frame === undefined) break
-      rowItems.push({
-        height: ROW_H,
-        draw: (x: number, y: number, w: number, h: number) => this.#drawRow(frame, x, y, w, h),
-      })
-    }
-    flexColumn({
-      x: 0, y: listTop,
-      w: this.rectW, h: listH,
-      paddingLeft: PAD,
-      paddingRight: PAD + SCROLLBAR_W + 4,
-      gap: ROW_GAP,
-      items: rowItems,
-    })
-
-    scrollbar(this, this.rectW - PAD - SCROLLBAR_W, listTop, listH, {
-      offset: this.#scroll, visible, total: this.#frames.length, trackWidth: SCROLLBAR_W,
+    scrollList(this, {
+      state: this.#list,
+      items: this.#frames,
+      rowH: ROW_H,
+      rowGap: ROW_GAP,
+      x: PAD,
+      y: listTop,
+      w: this.rectW - PAD * 2,
+      h: listH,
+      drawRow: (frame, _idx, x, y, w, h) => this.#drawRow(frame, x, y, w, h),
     })
   }
 
@@ -131,26 +116,20 @@ export class XrFramesCard extends Card {
         },
         {
           width: "grow", height: 28,
-          draw: (cx, cy, cw, _ch) => {
+          draw: (cx, cy, cw) => {
             flexColumn({
-              x: cx, y: cy,
-              w: cw, h: 28,
-              gap: 2,
+              x: cx, y: cy, w: cw, h: 28, gap: 2,
               items: [
                 {
                   height: 13,
                   draw: (tx, ty, tw) => this.drawText(fnLabel, tx, ty, {
-                    fontPx: 12,
-                    material: this.materials.text,
-                    maxWidthPx: tw,
+                    fontPx: 12, material: this.materials.text, maxWidthPx: tw,
                   }),
                 },
                 {
                   height: 10,
                   draw: (tx, ty, tw) => this.drawText(locLabel, tx, ty, {
-                    fontPx: 9,
-                    material: this.materials.muted,
-                    maxWidthPx: tw,
+                    fontPx: 9, material: this.materials.muted, maxWidthPx: tw,
                   }),
                 },
               ],
