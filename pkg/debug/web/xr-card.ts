@@ -66,25 +66,26 @@ export type DrawTextOpts = {
 }
 
 /**
- * Z-стек слоёв в WORLD-units (прибавляется layer.position.z = 0.001).
- * Значения МАЛЕНЬКИЕ — большие смещения по z в perspective-проекции
- * сдвигают и магнифицируют меши на экране (perspective-divide через
- * (camDist - z)). Здесь хватает 0.0005 на каждый слой.
+ * Z-стек слоёв в WORLD-units. КРИТИЧНО: значения держим МИКРОСКОПИЧЕСКИЕ
+ * (Δz < 0.0001), потому что engine с perspective-camera применяет
+ * perspective-divide (1/(camDist-z)). Большие z-сдвиги вызывают параллакс
+ * между bg и контентом — на cards, смещённых от центра canvas, bg
+ * "уплывает" вбок относительно текста.
  *
- *   CARD_BG       -0.02   Card-managed, рисуется ВНЕ #layer
- *   CARD_BORDER   -0.01   Card-managed
+ *   CARD_BG       -0.0002 Card-managed (за всем содержимым)
+ *   CARD_BORDER   -0.0001
  *   CONTAINER      0.0    panel/row backdrop
- *   SEPARATOR      0.0005 divider, side-stripe (над container'ом)
- *   ELEMENT        0.001  button/badge/input bg
- *   ELEMENT_RULE   0.0015 border button/badge
- *   TEXT           0.002  лейблы (над всем)
+ *   SEPARATOR      0.00002
+ *   ELEMENT        0.00004 button/badge/input bg
+ *   ELEMENT_RULE   0.00006
+ *   TEXT           0.00008 лейблы
  */
 export const Z = {
   CONTAINER: 0,
-  SEPARATOR: 0.0005,
-  ELEMENT: 0.001,
-  ELEMENT_RULE: 0.0015,
-  TEXT: 0.002,
+  SEPARATOR: 0.00002,
+  ELEMENT: 0.00004,
+  ELEMENT_RULE: 0.00006,
+  TEXT: 0.00008,
 } as const
 
 export type FlexAlign = "start" | "center" | "end" | "stretch"
@@ -157,10 +158,17 @@ export abstract class Card implements XrCard {
 
     this.node.name = this.constructor.name
 
+    // КРИТИЧНО про z. У engine'а perspective camera (z≈0.6, fov=π/4).
+    // Перспективное деление screen_pos = world.x / (camDist - z) меняет
+    // экранную координату при разных z даже у меш-ей с одинаковой world.x.
+    // Если bg на z=-0.02, а text на z=0.002, у них factor отличается на ~3.5%
+    // → у карточек, смещённых от центра canvas, bg выглядит "уплывшим"
+    // вбок (влево/вправо в зависимости от стороны). Поэтому держим ВСЕ слои
+    // ОЧЕНЬ близко по z (Δz < 0.0005 → драма ниже 0.1%, незаметно).
     if (bgColor !== null) {
       this.#bg = new Mesh(new PlaneGeometry({width: 1, height: 1}), new MeshBasicMaterial({color: bgColor}))
       this.#bg.name = `${this.constructor.name}.bg`
-      this.#bg.position.z = -0.02
+      this.#bg.position.z = -0.0002
       this.node.add(this.#bg)
     } else {
       this.#bg = null
@@ -173,7 +181,7 @@ export abstract class Card implements XrCard {
       this.#borderLeft = mkMesh(`${this.constructor.name}.borderLeft`, borderMat)
       this.#borderRight = mkMesh(`${this.constructor.name}.borderRight`, borderMat)
       for (const m of [this.#borderTop, this.#borderBottom, this.#borderLeft, this.#borderRight]) {
-        m.position.z = -0.01
+        m.position.z = -0.0001
         this.node.add(m)
       }
     } else {
@@ -185,7 +193,7 @@ export abstract class Card implements XrCard {
 
     this.#layer = new Object3D()
     this.#layer.name = `${this.constructor.name}.layer`
-    this.#layer.position.z = 0.001
+    this.#layer.position.z = 0
     this.node.add(this.#layer)
   }
 
