@@ -81,10 +81,11 @@ class ScrollListCard extends Card {
       })
     }
     // Список занимает rectW минус scrollbar gutter справа.
-    const listRightPad = PAD + SCROLLBAR_W + 6
+    // paddingRight включает место под scrollbar (6px) + сам scrollbar (SCROLLBAR_W) + правый PAD —
+    // иначе row.w заходит ПОД scrollbar и highlight перекрывает thumb.
     flexColumn({
-      x: 0, y: listTop, w: this.rectW - (listRightPad - PAD), h: listH,
-      paddingLeft: PAD, paddingRight: 0,
+      x: 0, y: listTop, w: this.rectW, h: listH,
+      paddingLeft: PAD, paddingRight: PAD + SCROLLBAR_W + 6,
       gap: 0,
       items: rows,
     })

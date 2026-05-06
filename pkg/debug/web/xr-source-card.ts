@@ -194,7 +194,7 @@ export class XrSourceCard extends Card {
       this.drawRect(
         PAD_LEFT_PX,
         highlightY + (LINE_PX - highlightH) / 2,
-        PAD_LEFT_PX + contentW,
+        contentW,
         highlightH,
         COLOR_HIGHLIGHT,
         Z.ELEMENT,
