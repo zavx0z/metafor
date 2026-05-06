@@ -2,26 +2,15 @@
  * XrSourceCard — source-editor на Card@ui.
  *
  * Главные принципы:
- *  • extends Card → bg/border гарантированно clamp'нуты в card-rect
- *    (никаких "съехал bg вправо/влево из-за parallax").
+ *  • extends Card → bg/border гарантированно clamp'нуты в card-rect.
  *  • Immediate-mode rendering: каждый requestRender пересчитывает
  *    видимые строки от #scrollOffset до #scrollOffset+visible и рисует
- *    их через drawText. Никакого translate(codeContainer) — строки
- *    физически не существуют вне card-rect, leak'нуть некуда.
+ *    их через drawText. Никакого translate'а — строки физически не
+ *    существуют вне card-rect.
  *  • highlight/exec-arrow рисуются drawRect/drawText — clamp protect.
- *  • Scan-эффект (animated line) живёт отдельным persistent mesh в
- *    this.node (вне layer'а, не пересоздаётся на каждый rerender);
- *    animate через RAF + canvas.requestRender.
  */
 
-import {
-  Color,
-  Mesh,
-  MeshBasicMaterial,
-  PlaneGeometry,
-  Text,
-  TextMaterial,
-} from "@metafor/engine"
+import {Color, TextMaterial} from "@metafor/engine"
 import {Card, Z, palette, scrollbar} from "./xr-card.ts"
 
 export type XrToken = {s: number; e: number; c: string}
@@ -48,13 +37,11 @@ const CODE_LEFT_PAD_PX = 8
 const LINE_PX = 16
 const CODE_FONT_PX = 12
 const SCROLLBAR_W = 4
-const ACTIVITY_SEGMENTS = 18
 
 const COLOR_BG = new Color(28 / 255, 34 / 255, 42 / 255, 1.0)
 const COLOR_HIGHLIGHT = new Color(36 / 255, 64 / 255, 164 / 255, 1)
 const COLOR_HEADER_RULE = palette.borderDim
 const COLOR_GUTTER_RULE = new Color(48 / 255, 54 / 255, 61 / 255, 1)
-const COLOR_SCAN = new Color(111 / 255, 211 / 255, 255 / 255, 0.9)
 
 const TOKEN_COLORS: Record<string, Color> = {
   k: new Color(255 / 255, 123 / 255, 114 / 255, 1),
@@ -73,15 +60,6 @@ export class XrSourceCard extends Card {
   #scrollAccum = 0
   #runtimeState: XrSourceRuntimeState = "idle"
 
-  // Persistent scan-mesh + activity dots — живут в this.node, не в layer,
-  // чтобы animate через RAF не дёргал full rerender.
-  readonly #scanLine: Mesh
-  readonly #activitySegments: Mesh[] = []
-  #scanRaf: number | null = null
-  #scanStartedAt = 0
-  #scanLoop = false
-
-  // Cached materials.
   readonly #titleMaterial = new TextMaterial({color: palette.cyan})
   readonly #locationMaterial = new TextMaterial({color: palette.muted})
   readonly #lineMaterial = new TextMaterial({color: palette.text})
@@ -93,37 +71,8 @@ export class XrSourceCard extends Card {
   constructor() {
     super({bgColor: COLOR_BG, borderColor: palette.borderDim, borderWidthPx: 1})
     this.node.name = "SourceCard"
-
     for (const [category, color] of Object.entries(TOKEN_COLORS)) {
       this.#tokenMaterials.set(category, new TextMaterial({color}))
-    }
-
-    this.#scanLine = new Mesh(
-      new PlaneGeometry({width: 1, height: 1}),
-      new MeshBasicMaterial({color: COLOR_SCAN}),
-    )
-    this.#scanLine.name = "SourceCard.scanLine"
-    this.#scanLine.visible = false
-    // Чуть выше border (~-0.0001) и ниже text (Z.TEXT). Микро-z, чтобы
-    // perspective parallax не сдвигал scan относительно строк.
-    this.#scanLine.position.z = Z.SEPARATOR
-    this.node.add(this.#scanLine)
-
-    for (let i = 0; i < ACTIVITY_SEGMENTS; i++) {
-      const color = i % 3 === 0
-        ? new Color(82 / 255, 196 / 255, 123 / 255, 0.85)
-        : i % 3 === 1
-          ? new Color(111 / 255, 211 / 255, 255 / 255, 0.75)
-          : new Color(255 / 255, 190 / 255, 111 / 255, 0.65)
-      const segment = new Mesh(
-        new PlaneGeometry({width: 1, height: 1}),
-        new MeshBasicMaterial({color}),
-      )
-      segment.name = "SourceCard.activity"
-      segment.visible = false
-      segment.position.z = Z.SEPARATOR
-      this.#activitySegments.push(segment)
-      this.node.add(segment)
     }
   }
 
@@ -133,7 +82,6 @@ export class XrSourceCard extends Card {
     const fileChanged = stripLine(prev?.location) !== stripLine(source.location)
     this.#current = source
     if (source.currentLine > 0) this.#runtimeState = "paused"
-    if (lineChanged || fileChanged || prev === null) this.#startScan(false)
 
     if (source.currentLine > 0 && (lineChanged || fileChanged || prev === null)) {
       const visible = this.#visibleLineCount()
@@ -145,8 +93,6 @@ export class XrSourceCard extends Card {
   setRuntimeState(state: XrSourceRuntimeState): void {
     if (this.#runtimeState === state) return
     this.#runtimeState = state
-    if (state === "running" || state === "loading") this.#startScan(true)
-    else this.#stopScan()
     this.requestRender()
   }
 
@@ -188,11 +134,6 @@ export class XrSourceCard extends Card {
     if (handled) event.preventDefault()
   }
 
-  override dispose(): void {
-    this.#stopScan()
-    super.dispose()
-  }
-
   protected render(): void {
     // Header.
     const titleStr = `Source · ${this.#runtimeState}`
@@ -202,7 +143,6 @@ export class XrSourceCard extends Card {
       maxWidthPx: this.rectW - 40,
     })
 
-    // Location справа от title.
     const titleW = this.measureText(titleStr, 13)
     const locStartX = 20 + titleW + 14
     const locMaxW = Math.max(40, this.rectW - locStartX - 20)
@@ -214,13 +154,8 @@ export class XrSourceCard extends Card {
       })
     }
 
-    // Header rule.
     this.drawRect(8, HEADER_H_PX, Math.max(1, this.rectW - 16), 1, COLOR_HEADER_RULE, Z.SEPARATOR)
 
-    // Sync scan/activity geometry под текущий size.
-    this.#syncScanGeometry()
-
-    // Empty / placeholder.
     if (this.#current === null || this.#current.lines.length === 0) {
       this.drawText("waiting for target…", Math.max(12, this.rectW / 2 - 80), PAD_TOP_PX + 18, {
         fontPx: 14,
@@ -241,7 +176,7 @@ export class XrSourceCard extends Card {
     const contentH = Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
     const codeMaxPx = Math.max(1, contentW - gutterPx - CODE_LEFT_PAD_PX - 8)
 
-    // Gutter rule (вертикальная линия между gutter и code).
+    // Gutter rule.
     this.drawRect(
       PAD_LEFT_PX + gutterPx,
       PAD_TOP_PX,
@@ -264,7 +199,6 @@ export class XrSourceCard extends Card {
         COLOR_HIGHLIGHT,
         Z.ELEMENT,
       )
-      // Exec arrow в gutter.
       this.drawText("▶", PAD_LEFT_PX + GUTTER_LEFT_PAD_PX * 0.4, highlightY + 1, {
         fontPx: CODE_FONT_PX,
         material: this.#execArrowMaterial,
@@ -280,7 +214,6 @@ export class XrSourceCard extends Card {
       const isCurrent = lineNo === currentLine
       const rowY = PAD_TOP_PX + i * LINE_PX
 
-      // Gutter номер строки (right-aligned в gutter-зоне).
       const numStr = String(lineNo)
       const numW = this.measureText(numStr, CODE_FONT_PX)
       const numX = Math.max(
@@ -293,7 +226,6 @@ export class XrSourceCard extends Card {
         maxWidthPx: gutterPx - GUTTER_LEFT_PAD_PX - GUTTER_RIGHT_PAD_PX,
       })
 
-      // Сама строка кода.
       const lineText = clipSourceLine(lines[lineIndex] ?? "", codeMaxPx, CODE_FONT_PX)
       if (lineText.trim().length > 0) {
         const codeStartX = PAD_LEFT_PX + gutterPx + CODE_LEFT_PAD_PX
@@ -310,7 +242,6 @@ export class XrSourceCard extends Card {
       }
     }
 
-    // Scrollbar.
     if (total > visible) {
       scrollbar(this, this.rectW - PAD_RIGHT_PX - SCROLLBAR_W, PAD_TOP_PX, contentH, {
         offset: this.#scrollOffset,
@@ -378,64 +309,6 @@ export class XrSourceCard extends Card {
     const digits = Math.max(2, String(Math.max(1, lineCount)).length)
     const digitW = this.measureText("8", CODE_FONT_PX)
     return Math.ceil(Math.max(GUTTER_MIN_PX, GUTTER_LEFT_PAD_PX + digitW * digits + GUTTER_RIGHT_PAD_PX))
-  }
-
-  // ────────────────────────── Scan animation ──────────────────────────
-
-  #syncScanGeometry(): void {
-    const ps = this.pixelScale
-    const w = Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX) * ps
-    this.#scanLine.geometry = new PlaneGeometry({width: w, height: 2 * ps})
-    this.#scanLine.position.x = (PAD_LEFT_PX + Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX) / 2) * ps
-    this.#scanLine.updateMatrix()
-    const segW = 2 * ps
-    const segH = 8 * ps
-    const segX = Math.max(PAD_LEFT_PX + 4, this.rectW - PAD_RIGHT_PX - 16) * ps
-    for (const seg of this.#activitySegments) {
-      seg.geometry = new PlaneGeometry({width: segW, height: segH})
-      seg.position.x = segX
-      seg.updateMatrix()
-    }
-  }
-
-  #startScan(loop: boolean): void {
-    this.#scanLoop = loop
-    this.#scanStartedAt = performance.now()
-    this.#scanLine.visible = true
-    for (const seg of this.#activitySegments) seg.visible = true
-    if (this.#scanRaf !== null) cancelAnimationFrame(this.#scanRaf)
-    this.#scanRaf = requestAnimationFrame((now) => this.#animateScan(now))
-  }
-
-  #stopScan(): void {
-    if (this.#scanRaf !== null) cancelAnimationFrame(this.#scanRaf)
-    this.#scanRaf = null
-    this.#scanLoop = false
-    this.#scanLine.visible = false
-    for (const seg of this.#activitySegments) seg.visible = false
-    this.canvas?.requestRender()
-  }
-
-  #animateScan(now: number): void {
-    const duration = this.#scanLoop ? 1200 : 520
-    const elapsed = Math.max(0, now - this.#scanStartedAt)
-    if (!this.#scanLoop && elapsed >= duration) {
-      this.#stopScan()
-      return
-    }
-    const progress = this.#scanLoop ? (elapsed % duration) / duration : elapsed / duration
-    const ps = this.pixelScale
-    const contentH = Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
-    this.#scanLine.position.y = -(PAD_TOP_PX + progress * contentH) * ps
-    this.#scanLine.updateMatrix()
-    for (let i = 0; i < this.#activitySegments.length; i++) {
-      const seg = this.#activitySegments[i]!
-      const phase = (progress + i / this.#activitySegments.length) % 1
-      seg.position.y = -(PAD_TOP_PX + phase * contentH) * ps
-      seg.updateMatrix()
-    }
-    this.canvas?.requestRender()
-    this.#scanRaf = requestAnimationFrame((next) => this.#animateScan(next))
   }
 }
 
