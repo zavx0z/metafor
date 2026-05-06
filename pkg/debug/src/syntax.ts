@@ -48,7 +48,7 @@ export function tokenize(source: string): SourceTokens {
   const scanner = ts.createScanner(
     ts.ScriptTarget.Latest,
     /*skipTrivia*/ false,
-    ts.LanguageVariant.JSX,
+    ts.LanguageVariant.Standard,
     source,
   )
 
@@ -60,6 +60,21 @@ export function tokenize(source: string): SourceTokens {
   let kind = scanner.scan()
   let prevKind: ts.SyntaxKind | undefined
   while (kind !== ts.SyntaxKind.EndOfFileToken) {
+    // Если scanner отдал `/` (или `/=`) в контексте, где должен быть regex
+    // (после `=`, `(`, `,`, `return`, `[`, `||`, `&&` и т.п.), переключим
+    // его на regex-ре-сканирование. Без этого scanner считает `/` делением,
+    // а внутри character-class regex может оказаться backtick — после чего
+    // scanner ловит "template literal" и съедает весь файл одним string-токеном.
+    if (
+      (kind === ts.SyntaxKind.SlashToken || kind === ts.SyntaxKind.SlashEqualsToken) &&
+      isRegexContext(prevKind)
+    ) {
+      const reKind = scanner.reScanSlashToken()
+      if (reKind === ts.SyntaxKind.RegularExpressionLiteral) {
+        kind = reKind
+      }
+    }
+
     const start = scanner.getTokenStart()
     const end = scanner.getTokenEnd()
     const text = scanner.getTokenText()
@@ -155,6 +170,37 @@ function upperBound(arr: number[], value: number): number {
     else hi = mid
   }
   return lo
+}
+
+/**
+ * Эвристика "после этого токена `/` — это начало regex, не оператор деления".
+ * Стандартный подход без AST: regex может появиться там, где ожидается
+ * выражение (после `=`, `(`, `,`, `return`, операторов и т.п.), а не там
+ * где ожидается оператор (после identifier'а / литерала / `)` / `]`).
+ */
+function isRegexContext(prev: ts.SyntaxKind | undefined): boolean {
+  if (prev === undefined) return true
+  switch (prev) {
+    case ts.SyntaxKind.Identifier:
+    case ts.SyntaxKind.PrivateIdentifier:
+    case ts.SyntaxKind.NumericLiteral:
+    case ts.SyntaxKind.BigIntLiteral:
+    case ts.SyntaxKind.StringLiteral:
+    case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
+    case ts.SyntaxKind.RegularExpressionLiteral:
+    case ts.SyntaxKind.CloseParenToken:
+    case ts.SyntaxKind.CloseBracketToken:
+    case ts.SyntaxKind.PlusPlusToken:
+    case ts.SyntaxKind.MinusMinusToken:
+    case ts.SyntaxKind.ThisKeyword:
+    case ts.SyntaxKind.SuperKeyword:
+    case ts.SyntaxKind.TrueKeyword:
+    case ts.SyntaxKind.FalseKeyword:
+    case ts.SyntaxKind.NullKeyword:
+      return false
+    default:
+      return true
+  }
 }
 
 function categorize(kind: ts.SyntaxKind, text: string, prevKind: ts.SyntaxKind | undefined): TokenCategory | null {
