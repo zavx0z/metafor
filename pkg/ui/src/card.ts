@@ -33,6 +33,7 @@ import {
   Text,
   TextMaterial,
   TrueTypeFont,
+  type BufferGeometry,
 } from "@metafor/engine"
 import type {CardRect, UiCanvas, UiCard} from "./canvas.ts"
 import {MaterialPalette} from "./theme.ts"
@@ -269,7 +270,7 @@ export abstract class Card implements UiCard {
     const h = this.rectH
 
     if (this.#bg !== null) {
-      this.#bg.geometry = new PlaneGeometry({width: w * ps, height: h * ps})
+      this.#replaceGeometry(this.#bg, new PlaneGeometry({width: w * ps, height: h * ps}))
       this.#bg.position.x = (w / 2) * ps
       this.#bg.position.y = -(h / 2) * ps
       this.#bg.updateMatrix()
@@ -280,23 +281,29 @@ export abstract class Card implements UiCard {
       const bwWorld = bw * ps
       const wWorld = w * ps
       const hWorld = h * ps
-      this.#borderTop.geometry = new PlaneGeometry({width: wWorld, height: bwWorld})
+      this.#replaceGeometry(this.#borderTop, new PlaneGeometry({width: wWorld, height: bwWorld}))
       this.#borderTop.position.x = wWorld / 2
       this.#borderTop.position.y = -bwWorld / 2
       this.#borderTop.updateMatrix()
-      this.#borderBottom!.geometry = new PlaneGeometry({width: wWorld, height: bwWorld})
+      this.#replaceGeometry(this.#borderBottom!, new PlaneGeometry({width: wWorld, height: bwWorld}))
       this.#borderBottom!.position.x = wWorld / 2
       this.#borderBottom!.position.y = -hWorld + bwWorld / 2
       this.#borderBottom!.updateMatrix()
-      this.#borderLeft!.geometry = new PlaneGeometry({width: bwWorld, height: hWorld})
+      this.#replaceGeometry(this.#borderLeft!, new PlaneGeometry({width: bwWorld, height: hWorld}))
       this.#borderLeft!.position.x = bwWorld / 2
       this.#borderLeft!.position.y = -hWorld / 2
       this.#borderLeft!.updateMatrix()
-      this.#borderRight!.geometry = new PlaneGeometry({width: bwWorld, height: hWorld})
+      this.#replaceGeometry(this.#borderRight!, new PlaneGeometry({width: bwWorld, height: hWorld}))
       this.#borderRight!.position.x = wWorld - bwWorld / 2
       this.#borderRight!.position.y = -hWorld / 2
       this.#borderRight!.updateMatrix()
     }
+  }
+
+  #replaceGeometry(mesh: Mesh, next: BufferGeometry): void {
+    const previous = mesh.geometry
+    if (previous !== next) this.canvas?.renderer.invalidateGeometry(previous)
+    mesh.geometry = next
   }
 
   #rerender(): void {

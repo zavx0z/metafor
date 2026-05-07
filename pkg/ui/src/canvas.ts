@@ -73,6 +73,12 @@ export class UiCanvas {
   #renderRequested = false
   #rafId: number | null = null
   #pressedSlot: CardSlot | null = null
+  readonly #handleWheel = (event: WheelEvent): void => this.#onWheel(event)
+  readonly #handleMouseMove = (event: MouseEvent): void => this.#onMouseMove(event)
+  readonly #handleMouseDown = (event: MouseEvent): void => this.#onMouseDown(event)
+  readonly #handleMouseUp = (event: MouseEvent): void => this.#onMouseUp(event)
+  readonly #handleMouseLeave = (): void => this.#onMouseLeave()
+  readonly #handleKey = (event: KeyboardEvent): void => this.#onKey(event)
 
   private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont, opts: UiCanvasOpts) {
     this.canvas = canvas
@@ -153,6 +159,14 @@ export class UiCanvas {
   dispose(): void {
     this.#disposed = true
     if (this.#rafId !== null) cancelAnimationFrame(this.#rafId)
+    this.canvas.removeEventListener("wheel", this.#handleWheel)
+    this.canvas.removeEventListener("mousemove", this.#handleMouseMove)
+    this.canvas.removeEventListener("mousedown", this.#handleMouseDown)
+    this.canvas.removeEventListener("keydown", this.#handleKey)
+    this.canvas.removeEventListener("mouseleave", this.#handleMouseLeave)
+    window.removeEventListener("mouseup", this.#handleMouseUp)
+    this.setFocused(null)
+    this.#pressedSlot = null
     for (const slot of this.#cards) slot.card.dispose?.()
     this.#cards.length = 0
   }
@@ -175,13 +189,13 @@ export class UiCanvas {
   // ────────────────────────── Input routing ──────────────────────────
 
   #attachInputListeners(): void {
-    this.canvas.addEventListener("wheel", (e) => this.#onWheel(e), {passive: false})
-    this.canvas.addEventListener("mousemove", (e) => this.#onMouseMove(e))
-    this.canvas.addEventListener("mousedown", (e) => this.#onMouseDown(e))
-    this.canvas.addEventListener("keydown", (e) => this.#onKey(e))
+    this.canvas.addEventListener("wheel", this.#handleWheel, {passive: false})
+    this.canvas.addEventListener("mousemove", this.#handleMouseMove)
+    this.canvas.addEventListener("mousedown", this.#handleMouseDown)
+    this.canvas.addEventListener("keydown", this.#handleKey)
     // mouseup на window — релиз за пределами canvas сбрасывает pressed.
-    window.addEventListener("mouseup", (e) => this.#onMouseUp(e))
-    this.canvas.addEventListener("mouseleave", () => this.#onMouseLeave())
+    window.addEventListener("mouseup", this.#handleMouseUp)
+    this.canvas.addEventListener("mouseleave", this.#handleMouseLeave)
     if (this.canvas.tabIndex < 0) this.canvas.tabIndex = 0
   }
 

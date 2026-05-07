@@ -75,11 +75,11 @@ export class XrConsoleCard implements XrCard {
   #rectW = 100
   #rectH = 100
   #scrollOffset = 0
-  #scrollAccum = 0
   #entries: RenderedEntry[] = []
   #pendingEntries: XrConsoleEntry[] = []
   #scrollbarTrack: Mesh | null = null
   #scrollbarThumb: Mesh | null = null
+  #fadeOverlays: Mesh[] = []
 
   #tsMaterial = new TextMaterial({color: COLOR_TS})
   #titleMaterial = new TextMaterial({color: COLOR_TITLE})
@@ -203,10 +203,7 @@ export class XrConsoleCard implements XrCard {
       : event.deltaMode === 2
         ? event.deltaY * this.#contentH()
         : event.deltaY
-    this.#scrollAccum += pixelDelta
-    const step = Math.trunc(this.#scrollAccum)
-    this.#scrollAccum -= step
-    if (step !== 0) this.#setScroll(this.#scrollOffset + step)
+    if (pixelDelta !== 0) this.#setScroll(this.#scrollOffset + pixelDelta)
   }
 
   onKey(event: KeyboardEvent): void {
@@ -221,6 +218,7 @@ export class XrConsoleCard implements XrCard {
     for (const entry of this.#entries) this.#disposeEntry(entry)
     this.#entries = []
     this.#disposeHeaderText()
+    this.#disposeFadeOverlays()
   }
 
   #syncHeader(): void {
@@ -314,6 +312,8 @@ export class XrConsoleCard implements XrCard {
       e.ts.visible = visible
       e.body.visible = visible
       if (!visible) continue
+      e.ts.material = this.#tsMaterial
+      e.body.material = this.#materialForLevel(e.data.level)
       const rowTopWorld = -rowTopPx * this.#pixelScale
       e.ts.position.x = tsXWorld
       e.ts.position.y = rowTopWorld - tsFontWorld
@@ -323,6 +323,7 @@ export class XrConsoleCard implements XrCard {
       e.body.updateMatrix()
     }
     this.#updateScrollbar()
+    this.#updateEdgeFade()
   }
 
   #updateScrollbar(): void {
@@ -377,6 +378,57 @@ export class XrConsoleCard implements XrCard {
     this.#scrollbarThumb.updateMatrix()
   }
 
+  #updateEdgeFade(): void {
+    const visibleHeight = this.#contentH()
+    if (visibleHeight <= 0 || this.#rectW <= 0) return
+
+    const size = Math.max(0, Math.min(22, visibleHeight / 2))
+    if (size <= 0) return
+
+    const contentW = Math.max(1, this.#rectW - PAD_LEFT_PX - PAD_RIGHT_PX - 8)
+    const x = PAD_LEFT_PX
+    const top = PAD_TOP_PX
+    const steps = 8
+    const stepH = size / steps
+    const maxAlpha = 0.86
+    const overlays: Array<{y: number; h: number; alpha: number}> = []
+
+    for (let i = 0; i < steps; i++) {
+      const t = 1 - i / steps
+      overlays.push({y: top + i * stepH, h: stepH + 0.75, alpha: maxAlpha * t * t})
+    }
+    for (let i = 0; i < steps; i++) {
+      const t = (i + 1) / steps
+      overlays.push({y: top + visibleHeight - size + i * stepH, h: stepH + 0.75, alpha: maxAlpha * t * t})
+    }
+
+    for (let i = 0; i < overlays.length; i++) {
+      const overlay = overlays[i]!
+      const color = COLOR_BG.clone()
+      color.a = overlay.alpha
+      let mesh = this.#fadeOverlays[i]
+      if (mesh === undefined) {
+        mesh = new Mesh(
+          new PlaneGeometry({width: contentW * this.#pixelScale, height: overlay.h * this.#pixelScale}),
+          new MeshBasicMaterial({color}),
+        )
+        mesh.position.z = 0.004
+        this.#fadeOverlays[i] = mesh
+        this.node.add(mesh)
+      } else {
+        this.#canvas?.renderer.invalidateGeometry(mesh.geometry)
+        mesh.geometry = new PlaneGeometry({width: contentW * this.#pixelScale, height: overlay.h * this.#pixelScale})
+        const mat = mesh.material as MeshBasicMaterial
+        mat.color = color
+      }
+      mesh.visible = overlay.h > 0
+      mesh.position.x = (x + contentW / 2) * this.#pixelScale
+      mesh.position.y = -(overlay.y + overlay.h / 2) * this.#pixelScale
+      mesh.updateMatrix()
+    }
+    for (let i = overlays.length; i < this.#fadeOverlays.length; i++) this.#fadeOverlays[i]!.visible = false
+  }
+
   #isAtBottom(): boolean {
     const totalHeight = this.#entries.length * LINE_PX
     if (totalHeight <= this.#contentH()) return true
@@ -413,6 +465,16 @@ export class XrConsoleCard implements XrCard {
     this.#titleText = null
     this.#counterText = null
     this.#emptyText = null
+  }
+
+  #disposeFadeOverlays(): void {
+    const renderer = this.#canvas?.renderer
+    for (const mesh of this.#fadeOverlays) {
+      if (renderer !== undefined) renderer.invalidateGeometry(mesh.geometry)
+      const idx = this.node.children.indexOf(mesh)
+      if (idx >= 0) this.node.children.splice(idx, 1)
+    }
+    this.#fadeOverlays = []
   }
 }
 

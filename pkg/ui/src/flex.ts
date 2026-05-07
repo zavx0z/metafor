@@ -84,10 +84,12 @@ export function flexRow(opts: FlexRowOpts): void {
   for (const item of items) {
     const w = item.width === "grow" ? growSize : item.width
     let y = innerY
+    let h = item.height
     const align = item.alignSelf ?? opts.alignItems ?? "start"
-    if (align === "center") y += (innerH - item.height) / 2
+    if (align === "stretch") h = innerH
+    else if (align === "center") y += (innerH - item.height) / 2
     else if (align === "end") y += innerH - item.height
-    item.draw(cursor, y, w, item.height)
+    item.draw(cursor, y, w, h)
     cursor += w + gap + extraGap
   }
 }

@@ -19,6 +19,7 @@ app/web/tls
 .claude/
 .ai/
 .metafor/debug/
+**/.metafor/debug/
 dark/debug/.agent-*
 **/Снимок экрана*.png
 task/*.png

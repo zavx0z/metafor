@@ -104,11 +104,9 @@ let welcomeCard: XrWelcomeCard | null = null
 let xrLoading = false
 let engineLastSource: XrSource | null = null
 let xrResizeObserver: ResizeObserver | null = null
-const scriptUrls = new Map<string, string>()
 let inspectorUrl = ""
 let connectionState: ConnectionState = "connecting"
 let connectionError: string | null = null
-let verboseEvents = 0
 let welcomeVisible = false
 let verboseVisible = localStorage.getItem("bd:verbose") === "1"
 let engineStatus = "engine: init"
@@ -131,7 +129,11 @@ let socket: WebSocket | undefined
 let currentDump: AgentDump | undefined
 let activeFrameIndex = 0
 let nextRequestId = 1
-const pendingRequests = new Map<number, (msg: Extract<ServerMessage, {type: "result"}>) => void>()
+const COMMAND_TIMEOUT_MS = 10_000
+const pendingRequests = new Map<number, {
+  timer: number
+  resolve: (reply: CommandReply) => void
+}>()
 
 function connect(): void {
   const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`
@@ -153,6 +155,7 @@ function connect(): void {
   })
 
   socket.addEventListener("close", () => {
+    rejectPendingRequests("ws closed")
     setWsStatus("disconnected")
     setRunStatus("?")
     setTimeout(connect, 1500)
@@ -163,7 +166,6 @@ function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case "hello":
       inspectorUrl = msg.inspectorUrl
-      for (const s of msg.scripts) scriptUrls.set(s.scriptId, s.url)
       applyConnection(msg.connection)
       if (msg.paused && msg.dump !== null) {
         currentDump = msg.dump
@@ -201,7 +203,6 @@ function handleServerMessage(msg: ServerMessage): void {
       refreshWelcome()
       return
     case "script":
-      scriptUrls.set(msg.scriptId, msg.url)
       return
     case "console":
       for (const entry of msg.entries) appendConsole(entry)
@@ -216,7 +217,7 @@ function handleServerMessage(msg: ServerMessage): void {
       appendVerbose("agent", msg.ts, msg.event, msg.detail)
       return
     case "result":
-      pendingRequests.get(msg.requestId)?.(msg)
+      resolvePendingRequest(msg)
       pendingRequests.delete(msg.requestId)
       return
   }
@@ -263,7 +264,6 @@ function clearLiveState(runtimeState: XrSourceRuntimeState = "disconnected"): vo
   framesCard?.setFrames([], activeFrameIndex)
   scopesEvalCard?.setFrame(null)
   pushSourceToEngine({lines: [], currentLine: 0, location: ""})
-  scriptUrls.clear()
   sourceCache.clear()
   setSourceRuntimeState(runtimeState)
 }
@@ -424,134 +424,8 @@ function parseShellArgs(input: string): string[] {
   return out
 }
 
-function bindWelcomeApply(): void {
-  const input = document.getElementById("welcome-url-input") as HTMLInputElement | null
-  const button = document.getElementById("btn-welcome-apply") as HTMLButtonElement | null
-  const status = document.getElementById("welcome-url-status")
-  if (input === null || button === null || status === null) return
-
-  const apply = async (): Promise<void> => {
-    const next = input.value.trim()
-    if (next.length === 0) return
-    status.textContent = `→ POST /inspector ${next}`
-    button.disabled = true
-    try {
-      const res = await fetch("/inspector", {
-        method: "POST",
-        headers: {"content-type": "application/json"},
-        body: JSON.stringify({url: next}),
-      })
-      const data = await res.json() as {ok: boolean; error?: string; previous?: string}
-      status.textContent = data.ok
-        ? `→ переключаюсь с ${data.previous ?? "?"} на ${next}`
-        : `ошибка: ${data.error ?? "unknown"}`
-    } catch (error) {
-      status.textContent = `fetch failed: ${String(error)}`
-    } finally {
-      button.disabled = false
-    }
-  }
-
-  button.addEventListener("click", () => void apply())
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault()
-      void apply()
-    }
-  })
-
-  const cmdInput = document.getElementById("welcome-cmd-input") as HTMLTextAreaElement | null
-  const runBtn = document.getElementById("btn-welcome-run") as HTMLButtonElement | null
-  const stopBtn = document.getElementById("btn-welcome-stop") as HTMLButtonElement | null
-  if (cmdInput !== null && runBtn !== null) {
-    runBtn.addEventListener("click", () => void startTargetFromCmd(cmdInput.value, localStorage.getItem("bd:target:brk") === "1"))
-    cmdInput.addEventListener("keydown", (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        event.preventDefault()
-        void startTargetFromCmd(cmdInput.value, localStorage.getItem("bd:target:brk") === "1")
-      }
-    })
-  }
-  if (stopBtn !== null) {
-    stopBtn.addEventListener("click", () => void stopTarget())
-  }
-}
-
-function renderWelcome(): string {
-  const url = inspectorUrl || "ws://127.0.0.1:6499/dark"
-  const stateLabel = connectionState === "connecting"
-    ? "<span class=\"pulse\">connecting…</span>"
-    : `<span class=\"pulse\">disconnected</span> ${connectionError ? `(${escapeHtml(connectionError)})` : ""}`
-  const defaultCmd = localStorage.getItem("bd:target:cmd")
-    ?? `bun test --timeout=2147483647 --inspect-wait=${url} dark/server.spec.ts`
-  const targetRunningHint = targetState.state === "running"
-    ? `<div class="muted">target уже запущен (pid=${targetState.pid}). Stop → Run чтобы перезапустить.</div>`
-    : ""
-  return `
-    <p>${stateLabel} → пытаюсь подключиться к <code id="welcome-url">${escapeHtml(url)}</code>.</p>
-
-    <h3>Запустить target из UI</h3>
-    <div class="row" style="display:flex;gap:8px;margin:6px 0">
-      <textarea id="welcome-cmd-input" rows="2" style="flex:1;background:var(--panel);color:var(--fg);border:1px solid var(--border);border-radius:3px;padding:4px 8px;font-family:inherit;font-size:12px;resize:vertical">${escapeHtml(defaultCmd)}</textarea>
-    </div>
-    <div class="row" style="display:flex;gap:8px;margin:6px 0;align-items:center">
-      <button id="btn-welcome-run" type="button">Run target</button>
-      <button id="btn-welcome-stop" type="button">Stop target</button>
-      <label class="toggle inline" title="sidecar шлёт Debugger.pause до Inspector.initialized — target ловит pause на первой же исполняемой инструкции">
-        <input id="welcome-cmd-brk" type="checkbox" ${localStorage.getItem("bd:target:brk") === "1" ? "checked" : ""} />
-        pause on start
-      </label>
-      <span id="welcome-target-status" class="muted">${escapeHtml(describeTargetStatus())}</span>
-    </div>
-    ${targetRunningHint}
-
-    <h3>Сменить inspector URL</h3>
-    <div class="row" style="display:flex;gap:8px;margin:6px 0">
-      <input id="welcome-url-input" type="text" value="${escapeHtml(url)}" style="flex:1;background:var(--panel);color:var(--fg);border:1px solid var(--border);border-radius:3px;padding:4px 8px;font-family:inherit;font-size:12px" />
-      <button id="btn-welcome-apply" type="button">Apply</button>
-    </div>
-    <div id="welcome-url-status" class="muted"></div>
-
-    <h3>Когда коннект встанет</h3>
-    <ul>
-      <li>в основной панели появятся frames и source с подсветкой текущей строки</li>
-      <li>можно ставить bp в Chrome: <code>https://debug.bun.sh/#${escapeHtml(stripWs(url))}</code></li>
-      <li>тумблер <strong>Verbose</strong> в шапке открывает стрим всех событий Bun-инспектора</li>
-    </ul>
-
-    <h3>REST cheatsheet</h3>
-    <pre>curl -s http://127.0.0.1:6500/health
-curl -s -X POST http://127.0.0.1:6500/target/run -H 'content-type: application/json' \\
-  -d '{"command":["bun","test","--inspect-wait=${escapeHtml(url)}","dark/server.spec.ts"]}'
-curl -s http://127.0.0.1:6500/target
-curl -s -X POST http://127.0.0.1:6500/eval -H 'content-type: application/json' \\
-  -d '{"frame":0,"expr":"data.patches[0].path"}'</pre>
-  `
-}
-
-function stripWs(u: string): string {
-  return u.replace(/^wss?:\/\//, "")
-}
-
 function appendVerbose(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
-  verboseEvents += 1
   verboseCard?.append(kind, ts, name, payload)
-}
-
-function matchFilter(name: string, filter: string): boolean {
-  for (const part of filter.split(/[\s,]+/).filter(Boolean)) {
-    const isNeg = part.startsWith("!")
-    const term = isNeg ? part.slice(1) : part
-    const re = new RegExp("^" + term.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*") + "$")
-    const matches = re.test(name)
-    if (isNeg && matches) return false
-    if (!isNeg && matches) return true
-  }
-  return filter.split(/[\s,]+/).filter(Boolean).every((p) => p.startsWith("!"))
-}
-
-function truncate(s: string, max: number): string {
-  return s.length > max ? `${s.slice(0, max)}…` : s
 }
 
 function setWsStatus(text: string, kind: "" | "live" | "paused" = ""): void {
@@ -660,43 +534,6 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
   setSourceRuntimeState("paused")
 }
 
-function renderScopes(frame: FrameSnapshot): void {
-  scopesEvalCard?.setFrame(frame as XrFrameSnapshot)
-}
-
-function valueClass(v: PropertySnapshot): string {
-  if (v.type === "string") return "string"
-  if (v.type === "number") return "number"
-  if (v.type === "boolean") return "boolean"
-  if (v.type === "function") return "fn"
-  if (v.type === "object") return "obj"
-  return ""
-}
-
-function renderValue(v: PropertySnapshot): string {
-  if (v.value !== undefined) {
-    if (typeof v.value === "string") return JSON.stringify(v.value)
-    return String(v.value)
-  }
-  if (v.description !== undefined) {
-    const desc = String(v.description)
-    return desc.length > 120 ? `${desc.slice(0, 120)}…` : desc
-  }
-  if (v.className !== undefined) return v.className
-  if (v.type !== undefined) return v.type
-  return "?"
-}
-
-function shortenUrl(url: string): string {
-  if (url.length <= 60) return url
-  const tail = url.split("/").slice(-2).join("/")
-  return `…/${tail}`
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]!)
-}
-
 function appendConsole(entry: ConsoleEntry): void {
   const xc: XrConsoleEntry = {ts: entry.ts, text: entry.text}
   if (entry.level !== undefined) xc.level = entry.level
@@ -716,14 +553,31 @@ function send(cmd: string, params: Record<string, unknown> = {}): Promise<Comman
   }
   const requestId = nextRequestId++
   return new Promise<CommandReply>((resolve) => {
-    pendingRequests.set(requestId, (msg) => {
-      const reply: CommandReply = {ok: msg.ok}
-      if (msg.result !== undefined) reply.result = msg.result
-      if (msg.error !== undefined) reply.error = msg.error
-      resolve(reply)
-    })
+    const timer = window.setTimeout(() => {
+      pendingRequests.delete(requestId)
+      resolve({ok: false, error: `${cmd} timed out after ${COMMAND_TIMEOUT_MS}ms`})
+    }, COMMAND_TIMEOUT_MS)
+    pendingRequests.set(requestId, {timer, resolve})
     socket!.send(JSON.stringify({type: "command", cmd, params, requestId}))
   })
+}
+
+function resolvePendingRequest(msg: Extract<ServerMessage, {type: "result"}>): void {
+  const pending = pendingRequests.get(msg.requestId)
+  if (pending === undefined) return
+  window.clearTimeout(pending.timer)
+  const reply: CommandReply = {ok: msg.ok}
+  if (msg.result !== undefined) reply.result = msg.result
+  if (msg.error !== undefined) reply.error = msg.error
+  pending.resolve(reply)
+}
+
+function rejectPendingRequests(error: string): void {
+  for (const [requestId, pending] of pendingRequests) {
+    window.clearTimeout(pending.timer)
+    pending.resolve({ok: false, error})
+    pendingRequests.delete(requestId)
+  }
 }
 
 connect()

@@ -30,6 +30,7 @@ if (stageCanvas === null || labelEl === null) {
 }
 
 let activeUi: UiCanvas | null = null
+let activeCleanup: (() => void) | null = null
 
 async function selectDemo(name: string): Promise<void> {
   const demo = demos[name]
@@ -41,6 +42,8 @@ async function selectDemo(name: string): Promise<void> {
 
   // Чистим прошлый canvas-state.
   if (activeUi !== null) {
+    activeCleanup?.()
+    activeCleanup = null
     activeUi.dispose()
     activeUi = null
   }
@@ -49,10 +52,15 @@ async function selectDemo(name: string): Promise<void> {
   await demo({canvas: activeUi})
 
   const ro = new ResizeObserver(() => activeUi?.handleResize())
+  const resizeHandler = (): void => activeUi?.handleResize()
   ro.observe(stageCanvas!)
   requestAnimationFrame(() => activeUi?.handleResize())
   setTimeout(() => activeUi?.handleResize(), 100)
-  window.addEventListener("resize", () => activeUi?.handleResize())
+  window.addEventListener("resize", resizeHandler)
+  activeCleanup = () => {
+    ro.disconnect()
+    window.removeEventListener("resize", resizeHandler)
+  }
 
   for (const link of navLinks) {
     link.classList.toggle("active", link.dataset.demo === name)

@@ -105,7 +105,8 @@ export class XrVerboseCard extends Card {
       h: this.rectH - LIST_TOP - 8,
       scrollbarWidth: SCROLLBAR_W,
       scrollbarGap: SCROLLBAR_GAP,
-      drawRow: (entry, _idx, x, y, w, _h) => this.#drawEntry(entry, x, y, w),
+      edgeFade: {color: palette.bg, sizePx: 22},
+      drawRow: (entry, _idx, x, y, w) => this.#drawEntry(entry, x, y, w),
     })
   }
 

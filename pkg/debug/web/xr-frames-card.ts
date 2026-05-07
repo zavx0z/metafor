@@ -81,6 +81,7 @@ export class XrFramesCard extends Card {
       y: listTop,
       w: this.rectW - PAD * 2,
       h: listH,
+      edgeFade: {color: palette.bg, sizePx: 20},
       drawRow: (frame, _idx, x, y, w, h) => this.#drawRow(frame, x, y, w, h),
     })
   }

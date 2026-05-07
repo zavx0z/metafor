@@ -62,6 +62,7 @@ class ScrollListCard extends Card {
       y: listTop,
       w: this.rectW - PAD * 2,
       h: listH,
+      edgeFade: {color: palette.bg, sizePx: 22},
       drawRow: (item, idx, x, y, w, h) => this.#drawRow(idx, item, x, y, w, h),
     })
   }

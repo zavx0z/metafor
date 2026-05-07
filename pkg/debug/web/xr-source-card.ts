@@ -11,7 +11,7 @@
  */
 
 import {TextMaterial} from "@metafor/engine"
-import {Card, Z, palette, syntaxTokens, scrollbar, ScrollListState} from "./xr-card.ts"
+import {Card, Z, palette, syntaxTokens, scrollbar, edgeFade, ScrollListState} from "./xr-card.ts"
 
 export type XrToken = {s: number; e: number; c: string}
 export type XrSourceTokens = XrToken[][]
@@ -226,6 +226,15 @@ export class XrSourceCard extends Card {
         }
       }
     }
+
+    edgeFade(this, {
+      x: PAD_LEFT_PX,
+      y: PAD_TOP_PX,
+      w: contentW,
+      h: contentH,
+      color: palette.bgCode,
+      sizePx: LINE_PX * 1.35,
+    })
 
     if (total > visible) {
       scrollbar(this, this.rectW - PAD_RIGHT_PX - SCROLLBAR_W, PAD_TOP_PX, contentH, {

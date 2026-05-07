@@ -26,6 +26,7 @@ export {
   // scroll list.
   ScrollListState,
   scrollList,
+  edgeFade,
   wheelScrollStep,
   // types.
   type CardOpts,
@@ -44,6 +45,7 @@ export {
   type BadgeOpts,
   type InputOpts,
   type ScrollbarOpts,
+  type EdgeFadeOpts,
   type ScrollListOpts,
   type ScrollListMetrics,
 } from "@metafor/ui"

@@ -126,6 +126,9 @@ export class TargetSupervisor {
     if (options.command.length === 0) {
       throw new Error("command must be a non-empty array")
     }
+    if (options.command.some((part) => typeof part !== "string")) {
+      throw new Error("command must contain only strings")
+    }
 
     this.#command = options.command
     this.#cwd = options.cwd ?? process.cwd()
@@ -136,7 +139,7 @@ export class TargetSupervisor {
     this.#state = "starting"
     this.#pauseOnStart = options.pauseOnStart ?? false
     this.#pendingBreakpoints = (options.breakpoints ?? []).filter(
-      (bp) => Number.isFinite(bp.line) && (typeof bp.url === "string" || typeof bp.urlRegex === "string"),
+      (bp) => Number.isInteger(bp.line) && bp.line > 0 && (typeof bp.url === "string" || typeof bp.urlRegex === "string"),
     )
 
     let subprocess: Subprocess<"ignore", "pipe", "pipe">

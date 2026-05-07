@@ -8,7 +8,7 @@
 
 import {TextMaterial} from "@metafor/engine"
 import {
-  Card, palette, button, input, divider, scrollbar,
+  Card, palette, button, input, divider, scrollList,
   ScrollListState,
 } from "./xr-card.ts"
 import type {XrFrameSnapshot, XrPropertySnapshot, XrScopeSnapshot} from "./xr-debug-ui.ts"
@@ -129,41 +129,42 @@ export class XrScopesEvalCard extends Card {
     } else {
       const listH = evalTop - SCOPE_LIST_TOP
       const contentMaxX = this.rectW - PAD_X - SCROLLBAR_W - 6
-      const startIdx = Math.floor(this.#list.scroll)
-      const subPx = (this.#list.scroll - startIdx) * SCOPE_ROW_H
-      const renderCount = visible + 1
-      for (let i = 0; i < renderCount; i++) {
-        const row = rows[startIdx + i]
-        if (row === undefined) break
-        const y = SCOPE_LIST_TOP + i * SCOPE_ROW_H - subPx
-        if (y + SCOPE_ROW_H < SCOPE_LIST_TOP - 1) continue
-        if (y > evalTop + 1) break
-        if (row.kind === "group") {
-          this.drawText(row.label, PAD_X + 4, y, {
-            fontPx: 11,
-            material: this.materials.orange,
-            maxWidthPx: contentMaxX - (PAD_X + 4),
-          })
-        } else {
-          const nameMaxW = Math.floor((contentMaxX - PAD_X) * 0.42)
-          const valueX = PAD_X + 4 + nameMaxW + 8
-          const valueMaxW = contentMaxX - valueX
-          this.drawText(row.name, PAD_X + 8, y, {
-            fontPx: 11,
-            material: this.materials.cyan,
-            maxWidthPx: nameMaxW,
-          })
-          if (valueMaxW > 20) {
-            this.drawText(row.value, valueX, y, {
+      scrollList(this, {
+        state: this.#list,
+        items: rows,
+        rowH: SCOPE_ROW_H,
+        x: PAD_X,
+        y: SCOPE_LIST_TOP,
+        w: this.rectW - PAD_X * 2,
+        h: listH,
+        scrollbarWidth: SCROLLBAR_W,
+        scrollbarGap: 6,
+        edgeFade: {color: palette.bg, sizePx: 18},
+        drawRow: (row, _idx, _x, y) => {
+          if (row.kind === "group") {
+            this.drawText(row.label, PAD_X + 4, y, {
               fontPx: 11,
-              material: row.material,
-              maxWidthPx: valueMaxW,
+              material: this.materials.orange,
+              maxWidthPx: contentMaxX - (PAD_X + 4),
             })
+          } else {
+            const nameMaxW = Math.floor((contentMaxX - PAD_X) * 0.42)
+            const valueX = PAD_X + 4 + nameMaxW + 8
+            const valueMaxW = contentMaxX - valueX
+            this.drawText(row.name, PAD_X + 8, y, {
+              fontPx: 11,
+              material: this.materials.cyan,
+              maxWidthPx: nameMaxW,
+            })
+            if (valueMaxW > 20) {
+              this.drawText(row.value, valueX, y, {
+                fontPx: 11,
+                material: row.material,
+                maxWidthPx: valueMaxW,
+              })
+            }
           }
-        }
-      }
-      scrollbar(this, this.rectW - PAD_X - SCROLLBAR_W, SCOPE_LIST_TOP, listH, {
-        offset: this.#list.scroll, visible, total: rows.length, trackWidth: SCROLLBAR_W,
+        },
       })
     }
 

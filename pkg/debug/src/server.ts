@@ -34,7 +34,7 @@ import {executeCommand, type CommandContext} from "./commands.ts"
 import type {BreakpointStore} from "./breakpoints.ts"
 import type {ConsoleLogStore} from "./console.ts"
 import {serializeError} from "./errors.ts"
-import {asNumber, asObject, asString, asStringArray} from "./guards.ts"
+import {asNumber, asObject, asString} from "./guards.ts"
 import type {EventLogger} from "./logger.ts"
 import type {SnapshotStore} from "./snapshot.ts"
 import type {InspectorClient} from "./inspector-client.ts"
@@ -59,18 +59,11 @@ export type HttpServer = ReturnType<typeof Bun.serve>
 
 type WsClientData = {
   id: number
-  pendingResponses: Set<number>
-}
-
-type ClientCommand = {
-  type: "command"
-  cmd: string
-  params?: JsonObject
-  requestId?: number
 }
 
 const NDJSON_TAIL_DEFAULT_LIMIT = 200
 const NDJSON_TAIL_MAX_LIMIT = 5_000
+const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "SIGQUIT"])
 
 export function startHttpServer(options: HttpServerOptions): HttpServer {
   const ctx: CommandContext = {
@@ -81,6 +74,12 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
   const wsClients = new Set<ServerWebSocket<WsClientData>>()
   let nextWsClientId = 1
+
+  if (!isLoopbackHost(options.host)) {
+    const warning = "/target/run can execute local commands; bind the debug server to loopback unless this is intentional"
+    options.logger.status(`warning: ${warning} (host=${options.host})`)
+    options.logger.event("http.non_loopback_host", {host: options.host, warning})
+  }
 
   const broadcast = (payload: JsonObject): void => {
     if (wsClients.size === 0) return
@@ -213,7 +212,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
       if (path === "/ws") {
         const id = nextWsClientId++
-        const data: WsClientData = {id, pendingResponses: new Set()}
+        const data: WsClientData = {id}
         const upgraded = server.upgrade(req, {data})
         if (upgraded) return undefined
         return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
@@ -354,6 +353,14 @@ function healthPayload(options: HttpServerOptions): JsonObject {
   }
 }
 
+function isLoopbackHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase()
+  return normalized === "127.0.0.1"
+    || normalized === "localhost"
+    || normalized === "::1"
+    || normalized === "[::1]"
+}
+
 async function dispatchPost(req: Request, cmd: string, ctx: CommandContext): Promise<Response> {
   let body: JsonObject = {}
   const text = await req.text()
@@ -424,6 +431,12 @@ function scriptsView(scripts: ReadonlyArray<import("./snapshot.ts").ScriptInfo>)
   }))
 }
 
+function parseCommand(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  if (value.some((item) => typeof item !== "string")) return undefined
+  return value
+}
+
 async function runTarget(req: Request, options: HttpServerOptions): Promise<Response> {
   let body: JsonObject = {}
   const text = await req.text()
@@ -437,7 +450,7 @@ async function runTarget(req: Request, options: HttpServerOptions): Promise<Resp
     body = asObject(parsed) ?? {}
   }
 
-  const command = asStringArray(body["command"])
+  const command = parseCommand(body["command"])
   if (command === undefined || command.length === 0) {
     return jsonResponse({ok: false, error: "command must be non-empty array of strings (e.g. ['bun','test',...])"}, 400)
   }
@@ -450,7 +463,10 @@ async function runTarget(req: Request, options: HttpServerOptions): Promise<Resp
       )
 
   const pauseOnStart = body["pauseOnStart"] === true
-  const breakpoints = parseBreakpoints(body["breakpoints"])
+  const parsedBreakpoints = parseBreakpoints(body["breakpoints"])
+  if (parsedBreakpoints.error !== undefined) {
+    return jsonResponse({ok: false, error: parsedBreakpoints.error}, 400)
+  }
 
   try {
     const opts: {
@@ -463,7 +479,7 @@ async function runTarget(req: Request, options: HttpServerOptions): Promise<Resp
     if (cwd !== undefined) opts.cwd = cwd
     if (envStrings !== undefined) opts.env = envStrings
     if (pauseOnStart) opts.pauseOnStart = true
-    if (breakpoints !== undefined) opts.breakpoints = breakpoints
+    if (parsedBreakpoints.breakpoints !== undefined) opts.breakpoints = parsedBreakpoints.breakpoints
     const snapshot = options.target.start(opts)
     return jsonResponse({ok: true, snapshot})
   } catch (error) {
@@ -482,13 +498,16 @@ async function setBreakpoint(req: Request, options: HttpServerOptions): Promise<
     }
   }
   const line = asNumber(body["line"])
-  if (line === undefined) return jsonResponse({ok: false, error: "line required (1-based)"}, 400)
+  if (!isPositiveInteger(line)) return jsonResponse({ok: false, error: "line must be a positive integer (1-based)"}, 400)
   const url = asString(body["url"])
   const urlRegex = asString(body["urlRegex"])
   if (url === undefined && urlRegex === undefined) {
     return jsonResponse({ok: false, error: "either url or urlRegex required"}, 400)
   }
   const column = asNumber(body["column"])
+  if (column !== undefined && !isNonNegativeInteger(column)) {
+    return jsonResponse({ok: false, error: "column must be a non-negative integer (0-based)"}, 400)
+  }
   const condition = asString(body["condition"])
   const spec: import("./target.ts").BreakpointSpec = {line}
   if (url !== undefined) spec.url = url
@@ -529,27 +548,44 @@ async function removeBreakpoint(req: Request, options: HttpServerOptions): Promi
   }
 }
 
-function parseBreakpoints(value: unknown): import("./target.ts").BreakpointSpec[] | undefined {
-  if (!Array.isArray(value)) return undefined
+function parseBreakpoints(value: unknown): {
+  breakpoints?: import("./target.ts").BreakpointSpec[]
+  error?: string
+} {
+  if (value === undefined) return {}
+  if (!Array.isArray(value)) return {error: "breakpoints must be an array"}
   const out: import("./target.ts").BreakpointSpec[] = []
-  for (const raw of value) {
+  for (const [index, raw] of value.entries()) {
     const obj = asObject(raw)
-    if (obj === undefined) continue
+    if (obj === undefined) return {error: `breakpoints[${index}] must be an object`}
     const line = asNumber(obj["line"])
-    if (line === undefined) continue
+    if (!isPositiveInteger(line)) return {error: `breakpoints[${index}].line must be a positive integer (1-based)`}
     const url = asString(obj["url"])
     const urlRegex = asString(obj["urlRegex"])
-    if (url === undefined && urlRegex === undefined) continue
+    if (url === undefined && urlRegex === undefined) {
+      return {error: `breakpoints[${index}] must include url or urlRegex`}
+    }
     const spec: import("./target.ts").BreakpointSpec = {line}
     if (url !== undefined) spec.url = url
     if (urlRegex !== undefined) spec.urlRegex = urlRegex
     const column = asNumber(obj["column"])
+    if (column !== undefined && !isNonNegativeInteger(column)) {
+      return {error: `breakpoints[${index}].column must be a non-negative integer (0-based)`}
+    }
     if (column !== undefined) spec.column = column
     const condition = asString(obj["condition"])
     if (condition !== undefined) spec.condition = condition
     out.push(spec)
   }
-  return out
+  return {breakpoints: out}
+}
+
+function isPositiveInteger(value: number | undefined): value is number {
+  return value !== undefined && Number.isInteger(value) && value > 0
+}
+
+function isNonNegativeInteger(value: number | undefined): value is number {
+  return value !== undefined && Number.isInteger(value) && value >= 0
 }
 
 async function stopTarget(req: Request, options: HttpServerOptions): Promise<Response> {
@@ -559,8 +595,15 @@ async function stopTarget(req: Request, options: HttpServerOptions): Promise<Res
     try {
       const body = asObject(JSON.parse(text))
       const sig = asString(body?.["signal"])
-      if (sig !== undefined) signal = sig as NodeJS.Signals
-    } catch {}
+      if (sig !== undefined) {
+        if (!VALID_STOP_SIGNALS.has(sig)) {
+          return jsonResponse({ok: false, error: `signal must be one of ${[...VALID_STOP_SIGNALS].join(", ")}`}, 400)
+        }
+        signal = sig as NodeJS.Signals
+      }
+    } catch (error) {
+      return jsonResponse({ok: false, error: `invalid JSON: ${serializeError(error)}`}, 400)
+    }
   }
   const snapshot = await options.target.stop(signal)
   return jsonResponse({ok: true, snapshot})
