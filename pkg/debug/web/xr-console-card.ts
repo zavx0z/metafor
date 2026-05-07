@@ -10,7 +10,6 @@
  */
 
 import {
-  Color,
   Mesh,
   MeshBasicMaterial,
   Object3D,
@@ -20,6 +19,7 @@ import {
   TrueTypeFont,
 } from "@metafor/engine"
 import type {CardRect, XrCanvas, XrCard} from "./xr-canvas.ts"
+import {palette} from "./xr-card.ts"
 
 export type XrConsoleEntry = {
   ts: string
@@ -37,15 +37,15 @@ const PAD_BOTTOM_PX = 6
 const HEADER_H_PX = 28
 const TS_GUTTER_PX = 70
 
-const COLOR_BG = new Color(28 / 255, 34 / 255, 42 / 255, 1.0)
-const COLOR_BORDER = new Color(180 / 255, 195 / 255, 220 / 255, 1.0)
-const COLOR_HEADER_RULE = new Color(62 / 255, 74 / 255, 92 / 255, 1.0)
-const COLOR_TS = new Color(110 / 255, 118 / 255, 129 / 255, 0.85)
-const COLOR_TEXT = new Color(225 / 255, 228 / 255, 233 / 255, 1)
-const COLOR_TITLE = new Color(111 / 255, 211 / 255, 255 / 255, 1)
-const COLOR_WARN = new Color(210 / 255, 153 / 255, 34 / 255, 1)
-const COLOR_ERROR = new Color(247 / 255, 129 / 255, 102 / 255, 1)
-const COLOR_DEBUG = new Color(139 / 255, 148 / 255, 158 / 255, 1)
+const COLOR_BG = palette.bgCode
+const COLOR_BORDER = palette.borderBright
+const COLOR_HEADER_RULE = palette.borderDim
+const COLOR_TS = palette.muted
+const COLOR_TEXT = palette.text
+const COLOR_TITLE = palette.cyan
+const COLOR_WARN = palette.warnText
+const COLOR_ERROR = palette.errorText
+const COLOR_DEBUG = palette.muted
 
 const MAX_ENTRIES = 1000
 const AUTOSCROLL_TOLERANCE_PX = 20
@@ -342,7 +342,7 @@ export class XrConsoleCard implements XrCard {
     if (this.#scrollbarTrack === null) {
       this.#scrollbarTrack = new Mesh(
         new PlaneGeometry({width: trackWidthWorld, height: trackHeightWorld}),
-        new MeshBasicMaterial({color: new Color(48 / 255, 54 / 255, 61 / 255, 0.6)}),
+        new MeshBasicMaterial({color: palette.borderRule}),
       )
       this.#scrollbarTrack.position.z = 0.0015
       this.node.add(this.#scrollbarTrack)
@@ -364,7 +364,7 @@ export class XrConsoleCard implements XrCard {
     if (this.#scrollbarThumb === null) {
       this.#scrollbarThumb = new Mesh(
         new PlaneGeometry({width: trackWidthWorld, height: thumbHeightWorld}),
-        new MeshBasicMaterial({color: new Color(110 / 255, 118 / 255, 129 / 255, 0.85)}),
+        new MeshBasicMaterial({color: palette.muted}),
       )
       this.#scrollbarThumb.position.z = 0.0016
       this.node.add(this.#scrollbarThumb)

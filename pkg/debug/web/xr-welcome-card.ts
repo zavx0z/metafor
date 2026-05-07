@@ -5,13 +5,11 @@
  * Все координаты — pixel от card-TL, никаких эстимейтов.
  */
 
-import {Color} from "@metafor/engine"
 import {Card, Z, palette, button, badge, input, type Tone} from "./xr-card.ts"
 import type {WelcomeActions, WelcomeState} from "./xr-debug-ui.ts"
 
 const STATUS_BG_OK = palette.green
 const STATUS_BG_FAIL = palette.red
-const LOWER_BG = new Color(14 / 255, 19 / 255, 28 / 255, 0.88)
 
 const PAD = 18
 const GAP = 16
@@ -187,7 +185,7 @@ export class XrWelcomeCard extends Card {
     // Lower badges.
     const lowerY = panelY + panelH + 18
     if (lowerY + 70 <= this.rectH - PAD) {
-      this.drawRect(PAD, lowerY, contentW, 70, LOWER_BG, Z.CONTAINER)
+      this.drawRect(PAD, lowerY, contentW, 70, palette.bgPanelDim, Z.CONTAINER)
       const bw = (label: string): number => Math.ceil(this.measureText(label, 11)) + 18
       const labels: Array<{label: string; tone: Tone}> = [
         {label: "renderer: WebGPU", tone: "live"},

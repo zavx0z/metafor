@@ -12,6 +12,7 @@ export {
   flexColumn,
   // theme.
   palette,
+  syntaxTokens,
   toneFill,
   toneBorder,
   MaterialPalette,
@@ -38,6 +39,7 @@ export {
   type FlexRowOpts,
   type FlexColumnOpts,
   type Tone,
+  type SyntaxCategory,
   type ButtonOpts,
   type BadgeOpts,
   type InputOpts,

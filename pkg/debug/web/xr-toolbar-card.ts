@@ -4,11 +4,8 @@
  * look-and-feel с playground-демо).
  */
 
-import {Color} from "@metafor/engine"
-import {Card, button, badge, autoButtonWidth} from "./xr-card.ts"
+import {Card, palette, button, badge, autoButtonWidth} from "./xr-card.ts"
 import type {BadgeKind, ToolbarActions, ToolbarState} from "./xr-debug-ui.ts"
-
-const TOOLBAR_BG = new Color(11 / 255, 15 / 255, 22 / 255, 1)
 
 const PAD_X = 10
 const GAP = 8
@@ -31,7 +28,7 @@ export class XrToolbarCard extends Card {
   readonly #actions: ToolbarActions
 
   constructor(actions: ToolbarActions) {
-    super({bgColor: TOOLBAR_BG, borderColor: null})
+    super({bgColor: palette.bgToolbar, borderColor: null})
     this.#actions = actions
   }
 

@@ -2,14 +2,11 @@
  * Frames card. Layout — flexRow/flexColumn + scrollList из @metafor/ui.
  */
 
-import {Color} from "@metafor/engine"
 import {
   Card, Z, flexRow, flexColumn, palette, divider,
   ScrollListState, scrollList,
 } from "./xr-card.ts"
 import type {XrFrameSnapshot} from "./xr-debug-ui.ts"
-
-const ACTIVE_FILL = new Color(43 / 255, 73 / 255, 117 / 255, 0.95)
 
 const PAD = 14
 const HEADER_H = 22
@@ -91,7 +88,7 @@ export class XrFramesCard extends Card {
   #drawRow(frame: XrFrameSnapshot, x: number, y: number, w: number, h: number): void {
     const isActive = frame.index === this.#active
 
-    if (isActive) this.drawRect(x, y, w, h - 4, ACTIVE_FILL, Z.ELEMENT)
+    if (isActive) this.drawRect(x, y, w, h - 4, palette.activeRowFill, Z.ELEMENT)
 
     const idLabel = `#${frame.index}`
     const idW = 28

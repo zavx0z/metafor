@@ -10,8 +10,8 @@
  *  • highlight/exec-arrow рисуются drawRect/drawText — clamp protect.
  */
 
-import {Color, TextMaterial} from "@metafor/engine"
-import {Card, Z, palette, scrollbar, ScrollListState} from "./xr-card.ts"
+import {TextMaterial} from "@metafor/engine"
+import {Card, Z, palette, syntaxTokens, scrollbar, ScrollListState} from "./xr-card.ts"
 
 export type XrToken = {s: number; e: number; c: string}
 export type XrSourceTokens = XrToken[][]
@@ -38,21 +38,6 @@ const LINE_PX = 16
 const CODE_FONT_PX = 12
 const SCROLLBAR_W = 4
 
-const COLOR_BG = new Color(28 / 255, 34 / 255, 42 / 255, 1.0)
-const COLOR_HIGHLIGHT = new Color(36 / 255, 64 / 255, 164 / 255, 1)
-const COLOR_HEADER_RULE = palette.borderDim
-const COLOR_GUTTER_RULE = new Color(48 / 255, 54 / 255, 61 / 255, 1)
-
-const TOKEN_COLORS: Record<string, Color> = {
-  k: new Color(255 / 255, 123 / 255, 114 / 255, 1),
-  s: new Color(165 / 255, 214 / 255, 255 / 255, 1),
-  n: new Color(121 / 255, 192 / 255, 255 / 255, 1),
-  c: new Color(139 / 255, 148 / 255, 158 / 255, 1),
-  t: new Color(255 / 255, 166 / 255, 87 / 255, 1),
-  f: new Color(210 / 255, 168 / 255, 255 / 255, 1),
-  p: new Color(201 / 255, 209 / 255, 217 / 255, 1),
-  d: new Color(225 / 255, 228 / 255, 233 / 255, 1),
-}
 
 export class XrSourceCard extends Card {
   #current: XrSource | null = null
@@ -68,10 +53,10 @@ export class XrSourceCard extends Card {
   readonly #tokenMaterials: Map<string, TextMaterial> = new Map()
 
   constructor() {
-    super({bgColor: COLOR_BG, borderColor: palette.borderDim, borderWidthPx: 1})
+    super({bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1})
     this.node.name = "SourceCard"
     this.#list = new ScrollListState({onChange: () => this.requestRender()})
-    for (const [category, color] of Object.entries(TOKEN_COLORS)) {
+    for (const [category, color] of Object.entries(syntaxTokens)) {
       this.#tokenMaterials.set(category, new TextMaterial({color}))
     }
   }
@@ -146,7 +131,7 @@ export class XrSourceCard extends Card {
       })
     }
 
-    this.drawRect(8, HEADER_H_PX, Math.max(1, this.rectW - 16), 1, COLOR_HEADER_RULE, Z.SEPARATOR)
+    this.drawRect(8, HEADER_H_PX, Math.max(1, this.rectW - 16), 1, palette.borderDim, Z.SEPARATOR)
 
     if (this.#current === null || this.#current.lines.length === 0) {
       this.drawText("waiting for target…", Math.max(12, this.rectW / 2 - 80), PAD_TOP_PX + 18, {
@@ -177,7 +162,7 @@ export class XrSourceCard extends Card {
       PAD_TOP_PX,
       1,
       contentH,
-      COLOR_GUTTER_RULE,
+      palette.borderRule,
       Z.SEPARATOR,
     )
 
@@ -191,7 +176,7 @@ export class XrSourceCard extends Card {
         highlightY + (LINE_PX - highlightH) / 2,
         contentW,
         highlightH,
-        COLOR_HIGHLIGHT,
+        palette.highlightLine,
         Z.ELEMENT,
       )
       this.drawText("▶", PAD_LEFT_PX + GUTTER_LEFT_PAD_PX * 0.4, highlightY + 1, {
