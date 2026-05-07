@@ -289,15 +289,22 @@ export function scrollList<T>(card: Card, opts: ScrollListOpts<T>): ScrollListMe
   const subPx = (opts.state.scroll - startIdx) * rowStride
   const renderCount = visible + 2
 
-  for (let i = 0; i < renderCount; i++) {
-    const idx = startIdx + i
-    if (idx >= total) break
-    const item = (opts.items as {[index: number]: T})[idx]
-    if (item === undefined) continue
-    const rowY = opts.y + i * rowStride - subPx
-    if (rowY + opts.rowH < opts.y - 1) continue
-    if (rowY > opts.y + opts.h + 1) break
-    opts.drawRow(item, idx, opts.x, rowY, itemsW, opts.rowH)
+  // Pixel-precise clip по списку: text.wgsl discardит фрагменты за этим
+  // rect'ом. Граничные строки (с sub-px смещением) обрезаются ровно по краю.
+  card.pushClip(opts.x, opts.y, itemsW, opts.h)
+  try {
+    for (let i = 0; i < renderCount; i++) {
+      const idx = startIdx + i
+      if (idx >= total) break
+      const item = (opts.items as {[index: number]: T})[idx]
+      if (item === undefined) continue
+      const rowY = opts.y + i * rowStride - subPx
+      if (rowY + opts.rowH < opts.y - 1) continue
+      if (rowY > opts.y + opts.h + 1) break
+      opts.drawRow(item, idx, opts.x, rowY, itemsW, opts.rowH)
+    }
+  } finally {
+    card.popClip()
   }
 
   if (opts.edgeFade !== undefined) {

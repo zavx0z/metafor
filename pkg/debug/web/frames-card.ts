@@ -5,16 +5,16 @@
 import {
   Card, Z, flexRow, flexColumn, palette, divider,
   ScrollListState, scrollList,
-} from "./xr-card.ts"
-import type {XrFrameSnapshot} from "./xr-debug-ui.ts"
+} from "@metafor/ui"
+import type {FrameSnapshot} from "./debug-ui.ts"
 
 const PAD = 14
 const HEADER_H = 22
 const ROW_H = 32
 const ROW_GAP = 2
 
-export class XrFramesCard extends Card {
-  #frames: XrFrameSnapshot[] = []
+export class FramesCard extends Card {
+  #frames: FrameSnapshot[] = []
   #active = 0
   readonly #list: ScrollListState
   readonly #onSelect: (index: number) => void
@@ -25,7 +25,7 @@ export class XrFramesCard extends Card {
     this.#onSelect = onSelect
   }
 
-  setFrames(frames: XrFrameSnapshot[], active: number): void {
+  setFrames(frames: FrameSnapshot[], active: number): void {
     this.#frames = frames
     this.#active = active
     this.requestRender()
@@ -81,12 +81,11 @@ export class XrFramesCard extends Card {
       y: listTop,
       w: this.rectW - PAD * 2,
       h: listH,
-      edgeFade: {color: palette.bg, sizePx: 20},
       drawRow: (frame, _idx, x, y, w, h) => this.#drawRow(frame, x, y, w, h),
     })
   }
 
-  #drawRow(frame: XrFrameSnapshot, x: number, y: number, w: number, h: number): void {
+  #drawRow(frame: FrameSnapshot, x: number, y: number, w: number, h: number): void {
     const isActive = frame.index === this.#active
 
     if (isActive) this.drawRect(x, y, w, h - 4, palette.activeRowFill, Z.ELEMENT)

@@ -1,5 +1,5 @@
 /**
- * XrSourceCard — source-editor на Card@ui.
+ * SourceCard — source-editor на Card@ui.
  *
  * Главные принципы:
  *  • extends Card → bg/border гарантированно clamp'нуты в card-rect.
@@ -11,19 +11,19 @@
  */
 
 import {TextMaterial} from "@metafor/engine"
-import {Card, Z, palette, syntaxTokens, scrollbar, edgeFade, ScrollListState} from "./xr-card.ts"
+import {Card, Z, palette, syntaxTokens, scrollbar, ScrollListState} from "@metafor/ui"
 
-export type XrToken = {s: number; e: number; c: string}
-export type XrSourceTokens = XrToken[][]
+export type SyntaxToken = {s: number; e: number; c: string}
+export type SourceTokens = SyntaxToken[][]
 
-export type XrSource = {
+export type Source = {
   lines: string[]
   currentLine: number
   location: string
-  tokens?: XrSourceTokens
+  tokens?: SourceTokens
 }
 
-export type XrSourceRuntimeState = "idle" | "loading" | "paused" | "running" | "disconnected"
+export type SourceRuntimeState = "idle" | "loading" | "paused" | "running" | "disconnected"
 
 const PAD_TOP_PX = 34
 const PAD_LEFT_PX = 8
@@ -39,10 +39,10 @@ const CODE_FONT_PX = 12
 const SCROLLBAR_W = 4
 
 
-export class XrSourceCard extends Card {
-  #current: XrSource | null = null
+export class SourceCard extends Card {
+  #current: Source | null = null
   readonly #list: ScrollListState
-  #runtimeState: XrSourceRuntimeState = "idle"
+  #runtimeState: SourceRuntimeState = "idle"
 
   readonly #titleMaterial = new TextMaterial({color: palette.cyan})
   readonly #locationMaterial = new TextMaterial({color: palette.muted})
@@ -61,7 +61,7 @@ export class XrSourceCard extends Card {
     }
   }
 
-  setSource(source: XrSource): void {
+  setSource(source: Source): void {
     const prev = this.#current
     const lineChanged = prev?.currentLine !== source.currentLine
     const fileChanged = stripLine(prev?.location) !== stripLine(source.location)
@@ -75,7 +75,7 @@ export class XrSourceCard extends Card {
     this.requestRender()
   }
 
-  setRuntimeState(state: XrSourceRuntimeState): void {
+  setRuntimeState(state: SourceRuntimeState): void {
     if (this.#runtimeState === state) return
     this.#runtimeState = state
     this.requestRender()
@@ -166,6 +166,10 @@ export class XrSourceCard extends Card {
       Z.SEPARATOR,
     )
 
+    // Clip всю code-area (highlight + строки): text-clip → шейдер,
+    // rect-clip → JS в Card.drawRect.
+    this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, contentW, contentH)
+
     // Highlight под текущей строкой (если она в visible-окне).
     const currentRowIdx = currentLine - 1 - startIdx
     if (currentLine > 0 && currentRowIdx >= -1 && currentRowIdx <= visible) {
@@ -227,14 +231,7 @@ export class XrSourceCard extends Card {
       }
     }
 
-    edgeFade(this, {
-      x: PAD_LEFT_PX,
-      y: PAD_TOP_PX,
-      w: contentW,
-      h: contentH,
-      color: palette.bgCode,
-      sizePx: LINE_PX * 1.35,
-    })
+    this.popClip()
 
     if (total > visible) {
       scrollbar(this, this.rectW - PAD_RIGHT_PX - SCROLLBAR_W, PAD_TOP_PX, contentH, {
@@ -246,7 +243,7 @@ export class XrSourceCard extends Card {
     }
   }
 
-  #renderTokenizedLine(text: string, tokens: XrToken[], startX: number, y: number, maxPx: number): void {
+  #renderTokenizedLine(text: string, tokens: SyntaxToken[], startX: number, y: number, maxPx: number): void {
     let cursor = 0
     let cursorX = startX
     const remaining = (): number => Math.max(0, startX + maxPx - cursorX)

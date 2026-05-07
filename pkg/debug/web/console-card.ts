@@ -1,7 +1,7 @@
 /**
- * XrConsoleCard — append-only лог как XrCard на общем XrCanvas.
+ * ConsoleCard — append-only лог как UiCard на общем UiCanvas.
  *
- * Перенесено из xr-console.ts: ring-buffer 1000 строк, ts/level/text;
+ * Ring-buffer 1000 строк, ts/level/text;
  * autoscroll если был у дна; wheel-scroll; scrollbar; Cmd+C copy через
  * toText() (caller сам слушает keydown). Отличия:
  *  - не держит свой Renderer/Scene/ViewPoint — node добавлен в общую сцену
@@ -18,10 +18,10 @@ import {
   TextMaterial,
   TrueTypeFont,
 } from "@metafor/engine"
-import type {CardRect, XrCanvas, XrCard} from "./xr-canvas.ts"
-import {palette} from "./xr-card.ts"
+import type {CardRect, UiCanvas, UiCard} from "@metafor/ui"
+import {palette} from "@metafor/ui"
 
-export type XrConsoleEntry = {
+export type ConsoleEntry = {
   ts: string
   level?: string | undefined
   text: string
@@ -53,10 +53,10 @@ const AUTOSCROLL_TOLERANCE_PX = 20
 type RenderedEntry = {
   ts: Text
   body: Text
-  data: XrConsoleEntry
+  data: ConsoleEntry
 }
 
-export class XrConsoleCard implements XrCard {
+export class ConsoleCard implements UiCard {
   readonly node = new Object3D()
   readonly #background: Mesh
   readonly #borderTop: Mesh
@@ -69,14 +69,14 @@ export class XrConsoleCard implements XrCard {
   #counterText: Text | null = null
   #emptyText: Text | null = null
 
-  #canvas: XrCanvas | null = null
+  #canvas: UiCanvas | null = null
   #font: TrueTypeFont | null = null
   #pixelScale = 0.001
   #rectW = 100
   #rectH = 100
   #scrollOffset = 0
   #entries: RenderedEntry[] = []
-  #pendingEntries: XrConsoleEntry[] = []
+  #pendingEntries: ConsoleEntry[] = []
   #scrollbarTrack: Mesh | null = null
   #scrollbarThumb: Mesh | null = null
   #fadeOverlays: Mesh[] = []
@@ -118,7 +118,7 @@ export class XrConsoleCard implements XrCard {
     this.node.add(this.#logContainer)
   }
 
-  attachCanvas(canvas: XrCanvas): void {
+  attachCanvas(canvas: UiCanvas): void {
     this.#canvas = canvas
   }
 
@@ -165,7 +165,7 @@ export class XrConsoleCard implements XrCard {
     this.#applyScroll()
   }
 
-  pushEntries(entries: XrConsoleEntry[]): void {
+  pushEntries(entries: ConsoleEntry[]): void {
     if (entries.length === 0) return
     if (this.#font === null) {
       this.#pendingEntries.push(...entries)
@@ -257,7 +257,7 @@ export class XrConsoleCard implements XrCard {
     return Math.max(1, this.#rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
   }
 
-  #appendEntry(entry: XrConsoleEntry): void {
+  #appendEntry(entry: ConsoleEntry): void {
     if (this.#font === null) return
     const tsFontWorld = TS_FONT_PX * this.#pixelScale
     const fontWorld = FONT_PX * this.#pixelScale

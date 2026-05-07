@@ -10,8 +10,8 @@ import {TextMaterial} from "@metafor/engine"
 import {
   Card, palette, button, input, divider, scrollList,
   ScrollListState,
-} from "./xr-card.ts"
-import type {XrFrameSnapshot, XrPropertySnapshot, XrScopeSnapshot} from "./xr-debug-ui.ts"
+} from "@metafor/ui"
+import type {FrameSnapshot, PropertySnapshot, ScopeSnapshot} from "./debug-ui.ts"
 
 const PAD_X = 14
 const HEADER_Y = 12
@@ -27,8 +27,8 @@ type ScopeRow =
   | {kind: "group"; label: string}
   | {kind: "prop"; name: string; value: string; material: TextMaterial}
 
-export class XrScopesEvalCard extends Card {
-  #frame: XrFrameSnapshot | null = null
+export class ScopesEvalCard extends Card {
+  #frame: FrameSnapshot | null = null
   readonly #list: ScrollListState
   #expr = localStorage.getItem("bd:eval:expr") ?? "data.patches[0].path"
   #output = ""
@@ -41,7 +41,7 @@ export class XrScopesEvalCard extends Card {
     this.#onEval = onEval
   }
 
-  setFrame(frame: XrFrameSnapshot | null): void {
+  setFrame(frame: FrameSnapshot | null): void {
     this.#frame = frame
     this.#list.reset()
     this.requestRender()
@@ -139,7 +139,6 @@ export class XrScopesEvalCard extends Card {
         h: listH,
         scrollbarWidth: SCROLLBAR_W,
         scrollbarGap: 6,
-        edgeFade: {color: palette.bg, sizePx: 18},
         drawRow: (row, _idx, _x, y) => {
           if (row.kind === "group") {
             this.drawText(row.label, PAD_X + 4, y, {
@@ -221,7 +220,7 @@ export class XrScopesEvalCard extends Card {
   #scopeRows(): ScopeRow[] {
     if (this.#frame === null) return []
     const out: ScopeRow[] = []
-    const groups: Array<[string, XrScopeSnapshot[]]> = [
+    const groups: Array<[string, ScopeSnapshot[]]> = [
       ["local", this.#frame.scopes.local],
       ["closure", this.#frame.scopes.closure],
     ]
@@ -240,7 +239,7 @@ export class XrScopesEvalCard extends Card {
     return out
   }
 
-  #materialFor(prop: XrPropertySnapshot): TextMaterial {
+  #materialFor(prop: PropertySnapshot): TextMaterial {
     if (prop.type === "string") return this.materials.green
     if (prop.type === "number" || prop.type === "boolean") return this.materials.orange
     if (prop.type === "function") return this.materials.violet
@@ -249,7 +248,7 @@ export class XrScopesEvalCard extends Card {
   }
 }
 
-function formatValue(v: XrPropertySnapshot): string {
+function formatValue(v: PropertySnapshot): string {
   if (v.value !== undefined) {
     if (typeof v.value === "string") return JSON.stringify(v.value)
     return String(v.value)

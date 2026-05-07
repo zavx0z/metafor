@@ -1,5 +1,6 @@
 import { Object3D } from "../core/Object3D"
 import { BufferGeometry, BufferAttribute } from "../core/BufferGeometry"
+import { Matrix4 } from "../math/Matrix4"
 import { TrueTypeFont } from "../text/TrueTypeFont"
 import { TextMaterial } from "../materials/TextMaterial"
 
@@ -118,6 +119,16 @@ export class Text extends Object3D {
   public letterSpacing: number
   public stencilGeometry: BufferGeometry = new BufferGeometry()
   public coverGeometry: BufferGeometry = new BufferGeometry()
+
+  /**
+   * Матрица перевода worldPos → clip-local. Если clipBounds задан, фрагменты
+   * с clip-local координатами вне bounds discardятся в шейдере. Обычно
+   * clipMatrix = inverse(parentWorld), а clipBounds — pixel-bounds родителя
+   * в его local-space. null = clipping выключен (pass-through).
+   */
+  public clipMatrix: Matrix4 | null = null
+  /** (minX, minY, maxX, maxY) в clip-local. null = clipping выключен. */
+  public clipBounds: [number, number, number, number] | null = null
 
   private static geometryCache: Map<number, { stencil: BufferGeometry; cover: BufferGeometry }> = new Map()
 

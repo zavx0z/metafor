@@ -4,15 +4,15 @@
  * look-and-feel с playground-демо).
  */
 
-import {Card, palette, button, badge, autoButtonWidth} from "./xr-card.ts"
-import type {BadgeKind, ToolbarActions, ToolbarState} from "./xr-debug-ui.ts"
+import {Card, palette, button, badge, autoButtonWidth} from "@metafor/ui"
+import type {BadgeKind, ToolbarActions, ToolbarState} from "./debug-ui.ts"
 
 const PAD_X = 10
 const GAP = 8
 const BADGE_H = 22
 const BTN_H = 26
 
-export class XrToolbarCard extends Card {
+export class ToolbarCard extends Card {
   #state: ToolbarState = {
     ws: "connecting...",
     wsKind: "neutral",

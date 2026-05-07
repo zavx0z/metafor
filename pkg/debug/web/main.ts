@@ -4,19 +4,21 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
-import {XrCanvas, type CardRect} from "./xr-canvas.ts"
-import {XrSourceCard, type XrSource, type XrSourceRuntimeState} from "./xr-source-card.ts"
-import {XrConsoleCard, type XrConsoleEntry} from "./xr-console-card.ts"
+import {UiCanvas, type CardRect} from "@metafor/ui"
+import {SourceCard, type Source, type SourceRuntimeState} from "./source-card.ts"
+import {ConsoleCard, type ConsoleEntry} from "./console-card.ts"
 import {
-  XrFramesCard,
-  XrScopesEvalCard,
-  XrToolbarCard,
-  XrVerboseCard,
-  XrWelcomeCard,
+  FramesCard,
+  ScopesEvalCard,
+  ToolbarCard,
+  VerboseCard,
+  WelcomeCard,
   type BadgeKind,
   type WelcomeState,
-  type XrFrameSnapshot,
-} from "./xr-debug-ui.ts"
+  type FrameSnapshot,
+  type ScopeSnapshot,
+  type PropertySnapshot,
+} from "./debug-ui.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -45,44 +47,6 @@ type AgentDump = {
   frames: FrameSnapshot[]
 }
 
-type FrameSnapshot = {
-  index: number
-  function: string
-  url: string
-  line: number
-  column: number
-  scriptId?: string
-  callFrameId?: string
-  scopes: {
-    local: ScopeSnapshot[]
-    closure: ScopeSnapshot[]
-  }
-}
-
-type ScopeSnapshot = {
-  type: "local" | "closure"
-  name?: string
-  objectId?: string
-  properties: Record<string, PropertySnapshot>
-  error?: string
-}
-
-type PropertySnapshot = {
-  type?: string
-  subtype?: string
-  className?: string
-  value?: unknown
-  description?: string
-  objectId?: string
-  preview?: unknown
-}
-
-type ConsoleEntry = {
-  ts: string
-  level?: string
-  text: string
-}
-
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
   if (element === null) throw new Error(`#${id} not in DOM`)
@@ -90,20 +54,20 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
 }
 
 const engineCanvas = $<HTMLCanvasElement>("engine-canvas")
-const consolePending: XrConsoleEntry[] = []
-type CachedSource = {text: string; tokens?: import("./xr-source-card.ts").XrSourceTokens}
+const consolePending: ConsoleEntry[] = []
+type CachedSource = {text: string; tokens?: import("./source-card.ts").SourceTokens}
 const sourceCache = new Map<string, CachedSource>()
-let xrCanvas: XrCanvas | null = null
-let sourceCard: XrSourceCard | null = null
-let consoleCard: XrConsoleCard | null = null
-let toolbarCard: XrToolbarCard | null = null
-let framesCard: XrFramesCard | null = null
-let scopesEvalCard: XrScopesEvalCard | null = null
-let verboseCard: XrVerboseCard | null = null
-let welcomeCard: XrWelcomeCard | null = null
-let xrLoading = false
-let engineLastSource: XrSource | null = null
-let xrResizeObserver: ResizeObserver | null = null
+let uiCanvas: UiCanvas | null = null
+let sourceCard: SourceCard | null = null
+let consoleCard: ConsoleCard | null = null
+let toolbarCard: ToolbarCard | null = null
+let framesCard: FramesCard | null = null
+let scopesEvalCard: ScopesEvalCard | null = null
+let verboseCard: VerboseCard | null = null
+let welcomeCard: WelcomeCard | null = null
+let uiLoading = false
+let engineLastSource: Source | null = null
+let resizeObserver: ResizeObserver | null = null
 let inspectorUrl = ""
 let connectionState: ConnectionState = "connecting"
 let connectionError: string | null = null
@@ -258,7 +222,7 @@ function applyConnection(info: ConnectionInfo): void {
   updateWelcomeCard()
 }
 
-function clearLiveState(runtimeState: XrSourceRuntimeState = "disconnected"): void {
+function clearLiveState(runtimeState: SourceRuntimeState = "disconnected"): void {
   currentDump = undefined
   activeFrameIndex = 0
   framesCard?.setFrames([], activeFrameIndex)
@@ -475,11 +439,11 @@ function updateWelcomeCard(): void {
 }
 
 function renderDump(dump: AgentDump): void {
-  framesCard?.setFrames(dump.frames as XrFrameSnapshot[], activeFrameIndex)
+  framesCard?.setFrames(dump.frames as FrameSnapshot[], activeFrameIndex)
 
   const top = dump.frames[activeFrameIndex] ?? dump.frames[0]
   if (top !== undefined) {
-    scopesEvalCard?.setFrame(top as XrFrameSnapshot)
+    scopesEvalCard?.setFrame(top as FrameSnapshot)
     void renderSourceForFrame(top)
   } else {
     scopesEvalCard?.setFrame(null)
@@ -506,7 +470,7 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
       const res = await fetch(`/source?scriptId=${encodeURIComponent(scriptId)}`)
       const data = await res.json() as {
         scriptSource?: string
-        tokens?: import("./xr-source-card.ts").XrSourceTokens
+        tokens?: import("./source-card.ts").SourceTokens
         error?: string
       }
       if (typeof data.scriptSource !== "string") {
@@ -535,7 +499,7 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
 }
 
 function appendConsole(entry: ConsoleEntry): void {
-  const xc: XrConsoleEntry = {ts: entry.ts, text: entry.text}
+  const xc: ConsoleEntry = {ts: entry.ts, text: entry.text}
   if (entry.level !== undefined) xc.level = entry.level
   if (consoleCard !== null) {
     consoleCard.pushEntries([xc])
@@ -584,41 +548,41 @@ connect()
 void initEngine()
 
 async function initEngine(): Promise<void> {
-  if (xrLoading || xrCanvas !== null) return
-  xrLoading = true
+  if (uiLoading || uiCanvas !== null) return
+  uiLoading = true
   setEngineStatus("engine: init")
   try {
-    xrCanvas = await XrCanvas.create(engineCanvas)
-    toolbarCard = new XrToolbarCard({
+    uiCanvas = await UiCanvas.create(engineCanvas)
+    toolbarCard = new ToolbarCard({
       onPause: () => void runDebuggerCommand("pause", {}, "Pause"),
       onResume: () => void runDebuggerCommand("resume", {}, "Resume"),
       onStep: (kind) => void runDebuggerCommand("step", {kind}, `Step ${kind}`),
       onToggleVerbose: () => setVerboseVisible(!verboseVisible),
     })
-    framesCard = new XrFramesCard((index) => {
+    framesCard = new FramesCard((index) => {
       activeFrameIndex = index
       if (currentDump !== undefined) renderDump(currentDump)
     })
-    scopesEvalCard = new XrScopesEvalCard(async (expr, frame) => {
+    scopesEvalCard = new ScopesEvalCard(async (expr, frame) => {
       scopesEvalCard?.setEvalOutput("...")
       const response = await send("eval", {frame, expr})
       scopesEvalCard?.setEvalOutput(JSON.stringify(response))
     })
-    sourceCard = new XrSourceCard()
-    consoleCard = new XrConsoleCard()
-    verboseCard = new XrVerboseCard()
-    welcomeCard = new XrWelcomeCard({
+    sourceCard = new SourceCard()
+    consoleCard = new ConsoleCard()
+    verboseCard = new VerboseCard()
+    welcomeCard = new WelcomeCard({
       onRun: (command, pauseOnStart) => void startTargetFromCmd(command, pauseOnStart),
       onStop: () => void stopTarget(),
       onApplyInspector: (url) => void applyInspectorUrl(url),
       onPauseOnStart: (pause) => localStorage.setItem("bd:target:brk", pause ? "1" : "0"),
     })
     installEngineCards()
-    xrResizeObserver = new ResizeObserver(() => xrCanvas?.handleResize())
-    xrResizeObserver.observe(engineCanvas)
-    requestAnimationFrame(() => xrCanvas?.handleResize())
-    setTimeout(() => xrCanvas?.handleResize(), 200)
-    window.addEventListener("resize", () => xrCanvas?.handleResize())
+    resizeObserver = new ResizeObserver(() => uiCanvas?.handleResize())
+    resizeObserver.observe(engineCanvas)
+    requestAnimationFrame(() => uiCanvas?.handleResize())
+    setTimeout(() => uiCanvas?.handleResize(), 200)
+    window.addEventListener("resize", () => uiCanvas?.handleResize())
     setEngineStatus("engine: webgpu")
     updateToolbar()
     updateWelcomeCard()
@@ -632,13 +596,13 @@ async function initEngine(): Promise<void> {
     // Debug helper: window.__metaforDebug.scanScene() печатает все Mesh
     // в сцене с их world-position и size. Помогает находить leftover-mesh.
     ;(window as unknown as {__metaforDebug: unknown}).__metaforDebug = {
-      canvas: xrCanvas,
-      scene: xrCanvas?.scene,
+      canvas: uiCanvas,
+      scene: uiCanvas?.scene,
       scanScene(): void {
-        if (xrCanvas === null) return
+        if (uiCanvas === null) return
         const canvasW = engineCanvas.getBoundingClientRect().width
         const canvasH = engineCanvas.getBoundingClientRect().height
-        const ps = (xrCanvas as unknown as {[k: string]: unknown})["#pixelScale"] as number | undefined
+        const ps = (uiCanvas as unknown as {[k: string]: unknown})["#pixelScale"] as number | undefined
         // Reflection workaround — приватное поле напрямую недоступно;
         // считаем pixelScale по высоте canvas-а.
         const physicalH = 2 * 0.6 * Math.tan(Math.PI / 4 / 2)
@@ -682,7 +646,7 @@ async function initEngine(): Promise<void> {
           }
           for (const c of obj.children) walk(c, [...parents, obj.name || "(unnamed)"])
         }
-        walk(xrCanvas.scene)
+        walk(uiCanvas.scene)
         // Сортируем по canvasX чтобы группировать кучками.
         out.sort((a, b) => (a.canvasX as number) - (b.canvasX as number))
         console.table(out)
@@ -692,9 +656,9 @@ async function initEngine(): Promise<void> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     setEngineStatus(`engine failed: ${message}`)
-    console.error("xr-canvas init failed:", error)
+    console.error("canvas init failed:", error)
   } finally {
-    xrLoading = false
+    uiLoading = false
   }
 }
 
@@ -706,12 +670,12 @@ function setVerboseVisible(on: boolean): void {
 }
 
 function applyEngineLayout(): void {
-  xrCanvas?.relayout()
+  uiCanvas?.relayout()
 }
 
 function installEngineCards(): void {
   if (
-    xrCanvas === null ||
+    uiCanvas === null ||
     toolbarCard === null ||
     sourceCard === null ||
     consoleCard === null ||
@@ -723,16 +687,16 @@ function installEngineCards(): void {
     return
   }
 
-  xrCanvas.addCard(welcomeCard, welcomeRect)
-  xrCanvas.addCard(framesCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).frames)
-  xrCanvas.addCard(scopesEvalCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).scopes)
-  xrCanvas.addCard(sourceCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).source)
-  xrCanvas.addCard(consoleCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).console)
-  xrCanvas.addCard(verboseCard, (canvas) => {
+  uiCanvas.addCard(welcomeCard, welcomeRect)
+  uiCanvas.addCard(framesCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).frames)
+  uiCanvas.addCard(scopesEvalCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).scopes)
+  uiCanvas.addCard(sourceCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).source)
+  uiCanvas.addCard(consoleCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).console)
+  uiCanvas.addCard(verboseCard, (canvas) => {
     if (welcomeVisible) return hiddenRect()
     return debuggerRects(canvas).verbose ?? hiddenRect()
   })
-  xrCanvas.addCard(toolbarCard, ({w}) => ({
+  uiCanvas.addCard(toolbarCard, ({w}) => ({
     x: TOOLBAR_INSET,
     y: TOOLBAR_INSET,
     w: Math.max(1, w - TOOLBAR_INSET * 2),
@@ -800,12 +764,12 @@ function debuggerRects({w, h}: {w: number; h: number}): DebuggerRects {
   }
 }
 
-function pushSourceToEngine(payload: XrSource): void {
+function pushSourceToEngine(payload: Source): void {
   engineLastSource = payload
   sourceCard?.setSource(payload)
 }
 
-function setSourceRuntimeState(state: XrSourceRuntimeState): void {
+function setSourceRuntimeState(state: SourceRuntimeState): void {
   sourceCard?.setRuntimeState(state)
 }
 

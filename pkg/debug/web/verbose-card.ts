@@ -6,7 +6,7 @@
 import {
   Card, palette, button, divider, autoButtonWidth,
   ScrollListState, scrollList,
-} from "./xr-card.ts"
+} from "@metafor/ui"
 
 type VerboseEntry = {
   kind: "inspector" | "agent"
@@ -28,7 +28,7 @@ const BTN_H = 24
 const SCROLLBAR_W = 4
 const SCROLLBAR_GAP = 6
 
-export class XrVerboseCard extends Card {
+export class VerboseCard extends Card {
   #entries: VerboseEntry[] = []
   readonly #list: ScrollListState
   #autoscroll = localStorage.getItem("bd:verbose:pin") !== "0"
@@ -105,7 +105,6 @@ export class XrVerboseCard extends Card {
       h: this.rectH - LIST_TOP - 8,
       scrollbarWidth: SCROLLBAR_W,
       scrollbarGap: SCROLLBAR_GAP,
-      edgeFade: {color: palette.bg, sizePx: 22},
       drawRow: (entry, _idx, x, y, w) => this.#drawEntry(entry, x, y, w),
     })
   }

@@ -1,7 +1,7 @@
 /**
- * xr-debug-ui.ts — barrel-модуль с типами и re-export'ами карточек.
+ * debug-ui.ts — barrel-модуль с типами и re-export'ами карточек.
  *
- * Все карточки теперь сидят на единой Card-системе (xr-card.ts):
+ * Все карточки теперь сидят на Card-системе из @metafor/ui:
  * фиксированный rect, bg/border managed by Card, текст обрезается через
  * измерение font-метрик. Ничего не вылазит за пределы карточки.
  */
@@ -27,7 +27,7 @@ export type ToolbarActions = {
   onToggleVerbose(): void
 }
 
-export type XrPropertySnapshot = {
+export type PropertySnapshot = {
   type?: string
   subtype?: string
   className?: string
@@ -37,15 +37,15 @@ export type XrPropertySnapshot = {
   preview?: unknown
 }
 
-export type XrScopeSnapshot = {
+export type ScopeSnapshot = {
   type: "local" | "closure"
   name?: string
   objectId?: string
-  properties: Record<string, XrPropertySnapshot>
+  properties: Record<string, PropertySnapshot>
   error?: string
 }
 
-export type XrFrameSnapshot = {
+export type FrameSnapshot = {
   index: number
   function: string
   url: string
@@ -54,8 +54,8 @@ export type XrFrameSnapshot = {
   scriptId?: string
   callFrameId?: string
   scopes: {
-    local: XrScopeSnapshot[]
-    closure: XrScopeSnapshot[]
+    local: ScopeSnapshot[]
+    closure: ScopeSnapshot[]
   }
 }
 
@@ -75,8 +75,8 @@ export type WelcomeActions = {
   onPauseOnStart(pause: boolean): void
 }
 
-export {XrFramesCard} from "./xr-frames-card.ts"
-export {XrVerboseCard} from "./xr-verbose-card.ts"
-export {XrToolbarCard} from "./xr-toolbar-card.ts"
-export {XrScopesEvalCard} from "./xr-scopes-eval-card.ts"
-export {XrWelcomeCard} from "./xr-welcome-card.ts"
+export {FramesCard} from "./frames-card.ts"
+export {VerboseCard} from "./verbose-card.ts"
+export {ToolbarCard} from "./toolbar-card.ts"
+export {ScopesEvalCard} from "./scopes-eval-card.ts"
+export {WelcomeCard} from "./welcome-card.ts"

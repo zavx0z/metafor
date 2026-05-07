@@ -5,8 +5,8 @@
  * Все координаты — pixel от card-TL, никаких эстимейтов.
  */
 
-import {Card, Z, palette, button, badge, input, type Tone} from "./xr-card.ts"
-import type {WelcomeActions, WelcomeState} from "./xr-debug-ui.ts"
+import {Card, Z, palette, button, badge, input, type Tone} from "@metafor/ui"
+import type {WelcomeActions, WelcomeState} from "./debug-ui.ts"
 
 const STATUS_BG_OK = palette.green
 const STATUS_BG_FAIL = palette.red
@@ -14,7 +14,7 @@ const STATUS_BG_FAIL = palette.red
 const PAD = 18
 const GAP = 16
 
-export class XrWelcomeCard extends Card {
+export class WelcomeCard extends Card {
   #state: WelcomeState = {
     connectionState: "connecting",
     connectionError: null,

@@ -26,6 +26,7 @@
 
 import {
   Color,
+  Matrix4,
   Mesh,
   MeshBasicMaterial,
   Object3D,
@@ -99,6 +100,17 @@ export abstract class Card implements UiCard {
   #hits: HitBox[] = []
   protected hoveredHit: HitBox | null = null
   protected pressedHit: HitBox | null = null
+
+  /**
+   * Shared worldPos → Card-local matrix для всех Text-mesh'ей текущего фрейма.
+   * Обновляется в #rerender. Допущение: Card.node.parent.matrixWorld = identity
+   * (текущий UiCanvas кладёт Card напрямую в Scene root). Если появится
+   * нетривиальный parent — нужно обновлять через node.matrixWorld после
+   * scene.updateWorldMatrix(), не через node.modelMatrix.
+   */
+  readonly #clipMatrix = new Matrix4()
+  /** Стек clip-rect'ов в Card-local-px. Первый элемент = вся Card-rect. */
+  #clipStack: Array<{xMin: number; yMin: number; xMax: number; yMax: number}> = []
 
   constructor(opts: CardOpts = {}) {
     const bgColor = opts.bgColor === null ? null : opts.bgColor ?? DEFAULT_BG
@@ -180,18 +192,22 @@ export abstract class Card implements UiCard {
     text.position.y = -(y + opts.fontPx) * this.pixelScale
     text.position.z = opts.z ?? Z.TEXT
     text.updateMatrix()
+    this.#applyClipTo(text)
     this.#layer.add(text)
     return this.measureText(fitted, opts.fontPx)
   }
 
   /**
-   * Рисует прямоугольник в pixel-coords. Клампится к card-bounds.
+   * Рисует прямоугольник в pixel-coords. Клампится к текущему clip-rect
+   * (push/popClip) — для drawRect используем JS-кламп, не шейдер: rect-меши
+   * (MeshBasicMaterial) идут через mesh-pipeline и не имеют clipBounds.
    */
   drawRect(x: number, y: number, w: number, h: number, color: Color, z = Z.CONTAINER): void {
-    const x0 = Math.max(0, x)
-    const y0 = Math.max(0, y)
-    const x1 = Math.min(this.rectW, x + w)
-    const y1 = Math.min(this.rectH, y + h)
+    const clip = this.#clipStack[this.#clipStack.length - 1]!
+    const x0 = Math.max(clip.xMin, x)
+    const y0 = Math.max(clip.yMin, y)
+    const x1 = Math.min(clip.xMax, x + w)
+    const y1 = Math.min(clip.yMax, y + h)
     const cw = x1 - x0
     const ch = y1 - y0
     if (cw <= 0 || ch <= 0) return
@@ -309,7 +325,38 @@ export abstract class Card implements UiCard {
   #rerender(): void {
     this.#clearLayer()
     this.#hits = []
+    // clipMatrix = inverse(Card.modelMatrix). Этого достаточно пока parent identity.
+    this.#clipMatrix.copy(this.node.modelMatrix).invert()
+    this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
     this.render()
+  }
+
+  /**
+   * Сужает текущий clip-rect на пересечение с (x, y, w, h) в Card-local-px.
+   * Все последующие drawText будут клипаться по этому rect'у в шейдере.
+   * Пара push/pop обязательна. drawRect клампится в JS, на него clip-stack
+   * не влияет (см. drawRect).
+   */
+  pushClip(x: number, y: number, w: number, h: number): void {
+    const top = this.#clipStack[this.#clipStack.length - 1]!
+    this.#clipStack.push({
+      xMin: Math.max(top.xMin, x),
+      yMin: Math.max(top.yMin, y),
+      xMax: Math.min(top.xMax, x + w),
+      yMax: Math.min(top.yMax, y + h),
+    })
+  }
+
+  popClip(): void {
+    if (this.#clipStack.length > 1) this.#clipStack.pop()
+  }
+
+  #applyClipTo(text: Text): void {
+    const clip = this.#clipStack[this.#clipStack.length - 1]!
+    const ps = this.pixelScale
+    text.clipMatrix = this.#clipMatrix
+    // Card-local: x ∈ [0, rectW*ps], y ∈ [-rectH*ps, 0] (top-down → −Y).
+    text.clipBounds = [clip.xMin * ps, -clip.yMax * ps, clip.xMax * ps, -clip.yMin * ps]
   }
 
   #hitAt(x: number, y: number): HitBox | null {

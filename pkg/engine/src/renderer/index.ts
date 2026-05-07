@@ -1040,12 +1040,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   private updateTextData(text: Text, worldMatrix: Matrix4, offsetFloats: number, isStencil: boolean): void {
     this.perObjectDataCPU!.set(worldMatrix.elements, offsetFloats)
-    if (!isStencil) {
-      const material = text.material as TextMaterial
-      this.perObjectDataCPU!.set(
-        [material.color.r, material.color.g, material.color.b, material.color.a * material.opacity],
-        offsetFloats + 32,
-      )
+    if (isStencil) return
+    const material = text.material as TextMaterial
+    this.perObjectDataCPU!.set(
+      [material.color.r, material.color.g, material.color.b, material.color.a * material.opacity],
+      offsetFloats + 32,
+    )
+    // clipMatrix (16 floats) at 36..52, clipBounds (4 floats) at 52..56.
+    // perObjectDataCPU обнулён в начале фрейма, поэтому пропуск = clipping off
+    // (clipBounds == zeros сигнализирует шейдеру выключение).
+    if (text.clipMatrix !== null && text.clipBounds !== null) {
+      this.perObjectDataCPU!.set(text.clipMatrix.elements, offsetFloats + 36)
+      this.perObjectDataCPU!.set(text.clipBounds, offsetFloats + 52)
     }
   }
 
