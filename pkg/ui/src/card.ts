@@ -26,7 +26,6 @@
 
 import {
   Color,
-  Matrix4,
   Mesh,
   MeshBasicMaterial,
   Object3D,
@@ -101,14 +100,9 @@ export abstract class Card implements UiCard {
   protected hoveredHit: HitBox | null = null
   protected pressedHit: HitBox | null = null
 
-  /**
-   * Shared worldPos → Card-local matrix для всех Text-mesh'ей текущего фрейма.
-   * Обновляется в #rerender. Допущение: Card.node.parent.matrixWorld = identity
-   * (текущий UiCanvas кладёт Card напрямую в Scene root). Если появится
-   * нетривиальный parent — нужно обновлять через node.matrixWorld после
-   * scene.updateWorldMatrix(), не через node.modelMatrix.
-   */
-  readonly #clipMatrix = new Matrix4()
+  /** Top-left corner of card on canvas в logical-px (для конверсии в screen-px). */
+  #screenOriginX = 0
+  #screenOriginY = 0
   /** Стек clip-rect'ов в Card-local-px. Первый элемент = вся Card-rect. */
   #clipStack: Array<{xMin: number; yMin: number; xMax: number; yMax: number}> = []
 
@@ -160,6 +154,8 @@ export abstract class Card implements UiCard {
     this.pixelScale = pixelScale
     this.rectW = Math.max(1, rect.w)
     this.rectH = Math.max(1, rect.h)
+    this.#screenOriginX = rect.x
+    this.#screenOriginY = rect.y
     this.#syncChrome()
     this.#rerender()
   }
@@ -325,8 +321,6 @@ export abstract class Card implements UiCard {
   #rerender(): void {
     this.#clearLayer()
     this.#hits = []
-    // clipMatrix = inverse(Card.modelMatrix). Этого достаточно пока parent identity.
-    this.#clipMatrix.copy(this.node.modelMatrix).invert()
     this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
     this.render()
   }
@@ -353,10 +347,18 @@ export abstract class Card implements UiCard {
 
   #applyClipTo(text: Text): void {
     const clip = this.#clipStack[this.#clipStack.length - 1]!
-    const ps = this.pixelScale
-    text.clipMatrix = this.#clipMatrix
-    // Card-local: x ∈ [0, rectW*ps], y ∈ [-rectH*ps, 0] (top-down → −Y).
-    text.clipBounds = [clip.xMin * ps, -clip.yMax * ps, clip.xMax * ps, -clip.yMin * ps]
+    // Screen-pixel scissor (framebuffer-pixels). gl_FragCoord уже учитывает
+    // pixelRatio и projection — конвертируем card-local-logical-px в
+    // physical-px через pixelRatio renderer'а.
+    const dpr = this.canvas?.renderer.pixelRatio ?? 1
+    const ox = this.#screenOriginX
+    const oy = this.#screenOriginY
+    text.clipBounds = [
+      (ox + clip.xMin) * dpr,
+      (oy + clip.yMin) * dpr,
+      (ox + clip.xMax) * dpr,
+      (oy + clip.yMax) * dpr,
+    ]
   }
 
   #hitAt(x: number, y: number): HitBox | null {

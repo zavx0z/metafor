@@ -89,7 +89,7 @@ export class Renderer {
   private depthTexture: GPUTexture | null = null
   private multisampleTexture: GPUTexture | null = null
   private sampleCount = 4 // MSAA
-  private pixelRatio = 1
+  public pixelRatio = 1
   private frustum: Frustum = new Frustum()
   public canvas: HTMLCanvasElement | null = null
 
@@ -1046,12 +1046,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       [material.color.r, material.color.g, material.color.b, material.color.a * material.opacity],
       offsetFloats + 32,
     )
-    // clipMatrix (16 floats) at 36..52, clipBounds (4 floats) at 52..56.
-    // perObjectDataCPU обнулён в начале фрейма, поэтому пропуск = clipping off
+    // clipBounds (4 floats) at 36..40 — screen-pixel scissor.
+    // perObjectDataCPU обнулён в начале фрейма; пропуск = clipping off
     // (clipBounds == zeros сигнализирует шейдеру выключение).
-    if (text.clipMatrix !== null && text.clipBounds !== null) {
-      this.perObjectDataCPU!.set(text.clipMatrix.elements, offsetFloats + 36)
-      this.perObjectDataCPU!.set(text.clipBounds, offsetFloats + 52)
+    if (text.clipBounds !== null) {
+      this.perObjectDataCPU!.set(text.clipBounds, offsetFloats + 36)
     }
   }
 

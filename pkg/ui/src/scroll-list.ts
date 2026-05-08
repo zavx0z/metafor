@@ -16,10 +16,11 @@
  * Fractional scroll:
  *  • state.scroll — float в row-units. Render берёт floor(scroll) для
  *    индексации + sub-row offset для плавного отображения.
- *  • pixel-mode wheel применяется сразу, без deadzone: даже маленький deltaY
- *    двигает список и зовёт onChange.
- *  • Если браузер не отдаёт красивый momentum-tail сам, state добавляет
- *    короткую kinetic-инерцию после последнего wheel event.
+ *  • Каждый wheel-event применяется синхронно — никаких setTimeout/RAF.
+ *    macOS trackpad сам генерирует momentum-tail (последовательные wheel-
+ *    events с убывающим deltaY), поверх него custom inertia давала рывки
+ *    и стартовала с задержкой → ощущение «тупняка». Стандартный wheel
+ *    behaviour без надстроек = отзывчиво и плавно из коробки.
  */
 
 import type {Color} from "@metafor/engine"
@@ -29,47 +30,17 @@ import {scrollbar, type ScrollbarOpts} from "./widgets.ts"
 export type ScrollListStateOpts = {
   /** Вызывается когда scroll реально изменился — Card должна позвать requestRender. */
   onChange?: () => void
-  /** Короткий kinetic-tail после wheel. Default true в browser runtime. */
-  inertia?: boolean
 }
 
 export class ScrollListState {
   /** Текущая позиция (float, в row-units). Render использует floor(scroll) + subPx. */
   scroll = 0
-  /** Оставлен для совместимости/debug visibility. Малые deltaY теперь не задерживаются. */
+  /** Оставлен для совместимости — больше не используется (deadzone убран). */
   scrollAccum = 0
   #onChange: () => void
-  readonly #inertiaEnabled: boolean
-  #maxScroll = 0
-  #lastWheelMs = 0
-  #lastInertiaMs = 0
-  #velocityRowsPerMs = 0
-  #inertiaTimer: ReturnType<typeof setTimeout> | undefined
-  #inertiaRaf: number | undefined
-  readonly #runInertia = (timestamp: number): void => {
-    this.#inertiaRaf = undefined
-    if (!this.#canAnimate() || Math.abs(this.#velocityRowsPerMs) < MIN_INERTIA_VELOCITY) {
-      this.#velocityRowsPerMs = 0
-      return
-    }
-
-    const dt = this.#lastInertiaMs === 0 ? 16 : Math.max(1, Math.min(32, timestamp - this.#lastInertiaMs))
-    this.#lastInertiaMs = timestamp
-    const next = clampScroll(this.scroll + this.#velocityRowsPerMs * dt, this.#maxScroll)
-    if (next === this.scroll) {
-      this.#velocityRowsPerMs = 0
-      return
-    }
-
-    this.scroll = next
-    this.#onChange()
-    this.#velocityRowsPerMs *= Math.exp(-dt / INERTIA_DECAY_MS)
-    this.#inertiaRaf = requestAnimationFrame(this.#runInertia)
-  }
 
   constructor(opts: ScrollListStateOpts = {}) {
     this.#onChange = opts.onChange ?? noop
-    this.#inertiaEnabled = opts.inertia ?? true
   }
 
   /** Привязать onChange callback после конструктора. */
@@ -79,61 +50,39 @@ export class ScrollListState {
 
   /** Сброс позиции — например после смены items. */
   reset(): void {
-    this.#stopInertia()
     this.scroll = 0
-    this.scrollAccum = 0
   }
 
-  /** Мгновенный jump (без анимации, без onChange — caller сам решает рендерить). */
+  /** Мгновенный jump (без onChange — caller сам решает рендерить). */
   jumpTo(value: number): void {
-    this.#stopInertia()
     this.scroll = normalizeScroll(value)
-    this.scrollAccum = 0
   }
 
   /** Установить позицию + onChange. Используется для programmatic update (Arrow/PageDown/...). */
   scrollTo(value: number): void {
-    this.#stopInertia()
     const next = normalizeScroll(value)
     if (next === this.scroll) return
     this.scroll = next
-    this.scrollAccum = 0
     this.#onChange()
   }
 
   /**
-   * Применить wheel-event. Обновляет scroll, зовёт onChange ровно один раз
-   * (если scroll действительно изменился). Возвращает true в этом случае.
+   * Применить wheel-event синхронно. Возвращает true если scroll изменился.
+   * Никаких deadzone, аккумуляторов, RAF — просто delta → scroll → onChange.
    */
   applyWheel(event: WheelEvent, rowH: number, total: number, visible: number): boolean {
     const max = Math.max(0, total - visible)
-    this.#maxScroll = max
     const safeRowH = Math.max(1, rowH)
     let rowsDelta: number
-    if (event.deltaMode === 1) {
-      rowsDelta = event.deltaY
-      this.scrollAccum = 0
-    } else if (event.deltaMode === 2) {
-      rowsDelta = event.deltaY * visible
-      this.scrollAccum = 0
-    } else {
-      rowsDelta = event.deltaY / safeRowH
-      this.scrollAccum = 0
-    }
+    if (event.deltaMode === 1) rowsDelta = event.deltaY
+    else if (event.deltaMode === 2) rowsDelta = event.deltaY * visible
+    else rowsDelta = event.deltaY / safeRowH
     if (rowsDelta === 0 || !Number.isFinite(rowsDelta)) return false
 
-    this.#stopInertia()
-    const now = nowMs()
-    const previous = this.scroll
     const next = clampScroll(this.scroll + rowsDelta, max)
-    if (next === this.scroll) {
-      this.#captureVelocity(0, now)
-      return false
-    }
+    if (next === this.scroll) return false
     this.scroll = next
-    this.#captureVelocity(next - previous, now)
     this.#onChange()
-    this.#scheduleInertia()
     return true
   }
 
@@ -143,63 +92,11 @@ export class ScrollListState {
    */
   clamp(total: number, visible: number): void {
     const max = Math.max(0, total - visible)
-    this.#maxScroll = max
     if (this.scroll > max) this.scroll = max
     if (this.scroll < 0) this.scroll = 0
     this.scroll = normalizeScroll(this.scroll)
-    if (this.scroll === 0 || this.scroll === max) this.#velocityRowsPerMs = 0
-  }
-
-  #captureVelocity(deltaRows: number, now: number): void {
-    if (deltaRows === 0) {
-      this.#velocityRowsPerMs = 0
-      this.#lastWheelMs = now
-      return
-    }
-    const dt = this.#lastWheelMs === 0 ? 80 : Math.max(8, Math.min(120, now - this.#lastWheelMs))
-    const instant = deltaRows / dt
-    const mix = this.#lastWheelMs === 0 ? 1 : 0.35
-    this.#velocityRowsPerMs = clampVelocity(this.#velocityRowsPerMs * (1 - mix) + instant * mix)
-    this.#lastWheelMs = now
-  }
-
-  #scheduleInertia(): void {
-    if (!this.#canAnimate()) return
-    if (Math.abs(this.#velocityRowsPerMs) < MIN_START_VELOCITY) return
-    this.#inertiaTimer = setTimeout(() => {
-      this.#inertiaTimer = undefined
-      if (!this.#canAnimate()) return
-      if (nowMs() - this.#lastWheelMs < INERTIA_START_DELAY_MS - 4) return
-      this.#lastInertiaMs = 0
-      this.#inertiaRaf = requestAnimationFrame(this.#runInertia)
-    }, INERTIA_START_DELAY_MS)
-  }
-
-  #stopInertia(): void {
-    if (this.#inertiaTimer !== undefined) {
-      clearTimeout(this.#inertiaTimer)
-      this.#inertiaTimer = undefined
-    }
-    if (this.#inertiaRaf !== undefined && typeof cancelAnimationFrame === "function") {
-      cancelAnimationFrame(this.#inertiaRaf)
-      this.#inertiaRaf = undefined
-    }
-    this.#lastInertiaMs = 0
-  }
-
-  #canAnimate(): boolean {
-    return this.#inertiaEnabled
-      && typeof document !== "undefined"
-      && typeof requestAnimationFrame === "function"
-      && typeof cancelAnimationFrame === "function"
   }
 }
-
-const MAX_VELOCITY_ROWS_PER_MS = 0.02
-const MIN_START_VELOCITY = 0.0012
-const MIN_INERTIA_VELOCITY = 0.00035
-const INERTIA_DECAY_MS = 220
-const INERTIA_START_DELAY_MS = 72
 
 function noop(): void {
   /* no-op */
@@ -212,15 +109,6 @@ function normalizeScroll(value: number): number {
 
 function clampScroll(value: number, max: number): number {
   return Math.max(0, Math.min(max, normalizeScroll(value)))
-}
-
-function clampVelocity(value: number): number {
-  if (!Number.isFinite(value)) return 0
-  return Math.max(-MAX_VELOCITY_ROWS_PER_MS, Math.min(MAX_VELOCITY_ROWS_PER_MS, value))
-}
-
-function nowMs(): number {
-  return typeof performance !== "undefined" ? performance.now() : Date.now()
 }
 
 export type EdgeFadeOpts = {

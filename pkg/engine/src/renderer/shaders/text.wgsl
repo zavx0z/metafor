@@ -16,22 +16,20 @@ struct SceneUniforms {
 };
 @binding(1) @group(0) var<uniform> sceneUniforms: SceneUniforms;
 
-// modelMatrix .. clipBounds занимают 224 bytes; до bones-блока (offset 256) есть запас.
-// clipMatrix переводит worldPos → clip-local (обычно = inverse(parentWorld) карточки).
-// clipBounds — (minX, minY, maxX, maxY) в clip-local. Если clipBounds == (0,0,0,0)
-// или clipMatrix == 0-matrix, считаем что clipping выключен.
+// clipBounds — screen-space rect (framebuffer-pixels): (minX, minY, maxX, maxY).
+// Фрагменты с position.xy вне этого rect'а discardятся. Clip — на стадии
+// фрагмента после projection, поэтому камеру/perspective учитывать не нужно:
+// gl_FragCoord уже учитывает их. Если clipBounds == (0,0,0,0) — clip выключен.
 struct PerObjectUniforms {
     modelMatrix: mat4x4<f32>,
     normalMatrix: mat4x4<f32>,
     color: vec4<f32>,
-    clipMatrix: mat4x4<f32>,
     clipBounds: vec4<f32>,
 };
 @binding(0) @group(1) var<uniform> perObject: PerObjectUniforms;
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
-    @location(0) clipLocalPos: vec2<f32>,
 };
 
 @vertex
@@ -39,7 +37,6 @@ fn vs_main(@location(0) pos: vec3<f32>) -> VertexOutput {
     var out: VertexOutput;
     let worldPosition = perObject.modelMatrix * vec4<f32>(pos, 1.0);
     out.position = globalUniforms.viewProjectionMatrix * worldPosition;
-    out.clipLocalPos = (perObject.clipMatrix * worldPosition).xy;
     return out;
 }
 
@@ -57,7 +54,7 @@ fn isClipDisabled() -> bool {
 @fragment
 fn fs_cover(in: VertexOutput) -> @location(0) vec4<f32> {
     if (!isClipDisabled()) {
-        let p = in.clipLocalPos;
+        let p = in.position.xy;
         let b = perObject.clipBounds;
         if (p.x < b.x || p.x > b.z || p.y < b.y || p.y > b.w) {
             discard;

@@ -37,8 +37,9 @@ describe("scrollList", () => {
   test("draws visible rows without requiring scrollbar when all rows fit", () => {
     const rows: Array<[string, number, number, number, number, number]> = []
     const state = new ScrollListState()
+    const cardStub = {pushClip: () => {}, popClip: () => {}}
 
-    const metrics = scrollList({} as never, {
+    const metrics = scrollList(cardStub as never, {
       state,
       items: ["a", "b"],
       rowH: 10,
