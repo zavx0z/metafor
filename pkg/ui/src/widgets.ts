@@ -58,6 +58,12 @@ export function button(card: Card, x: number, y: number, w: number, h: number, o
 export type RoundedButtonOpts = ButtonOpts & {
   /** border-radius в px. h/2 даёт capsule-форму. Default = min(w,h)/2 (capsule). */
   radius?: number
+  /** Override фона (вместо toneFill). */
+  fill?: Color
+  /** Override рамки (вместо toneBorder). */
+  border?: Color
+  /** Override TextMaterial для лейбла (вместо tone-палитры). */
+  textMaterial?: import("@metafor/engine").TextMaterial
 }
 
 export type CircleButtonOpts = {
@@ -94,17 +100,19 @@ export function roundedButton(
 ): void {
   const tone = opts.tone ?? "neutral"
   const fontPx = opts.fontPx ?? 12
-  const fill = toneFill(tone)
-  const borderColor = toneBorder(tone)
+  const fill = opts.fill ?? toneFill(tone)
+  const borderColor = opts.border ?? toneBorder(tone)
+  const textMat = opts.textMaterial ?? card.materials.toneText(tone)
   const r = Math.min(opts.radius ?? Math.min(w, h) / 2, Math.min(w, h) / 2)
 
   drawRoundedFill(card, x, y, w, h, r, fill)
   drawRoundedBorder(card, x, y, w, h, r, borderColor)
 
-  const labelW = card.measureText(opts.label, fontPx)
-  card.drawText(opts.label, x + (w - labelW) / 2, y + (h - fontPx) / 2, {
+  // drawTextCentered — bbox-aware центровка, работает корректно для любых
+  // глифов (включая кириллицу с разными xHeight'ами).
+  card.drawTextCentered(opts.label, x + w / 2, y + h / 2, {
     fontPx,
-    material: card.materials.toneText(tone),
+    material: textMat,
     maxWidthPx: w - r * 2,
   })
   card.hit(x, y, w, h, opts.action, "pointer")
