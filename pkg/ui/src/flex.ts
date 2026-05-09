@@ -9,6 +9,24 @@
  *
  * Item имеет фикс-размер по main-axis ИЛИ "grow" (распределяется поровну).
  * cross-axis выравнивается через alignItems / item.alignSelf.
+ *
+ * Удобный паттерн с Card: используйте `Card.padding` как outer-отступ от
+ * canvas-краёв, а flex как inner-распределение items. Внутри Card.render():
+ *
+ *   flexRow({
+ *     x: 0, y: 0, w: this.rectW, h: this.rectH,         // rectW/rectH уже без Card.padding
+ *     justifyContent: "space-between",
+ *     alignItems: "center",
+ *     gap: 12,
+ *     items: [
+ *       {width: 32, height: 32, draw: (x, y, w, h) => circleButton(this, ...)},
+ *       {width: "grow", height: 0, draw: () => {}},     // spacer
+ *       {width: 32, height: 32, draw: (x, y, w, h) => circleButton(this, ...)},
+ *     ],
+ *   })
+ *
+ * null/undefined/false items автоматически фильтруются — удобно для
+ * условного отображения (`zoomMode === "spread" && {width:..., draw:...}`).
  */
 
 export type FlexAlign = "start" | "center" | "end" | "stretch"

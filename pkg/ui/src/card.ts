@@ -6,6 +6,9 @@
  *  • Bg/border меши ВЛАДЕНЫ Card. Subclass их не трогает.
  *  • drawText обрезается через ИЗМЕРЕНИЕ font.getHMetric (font advance +
  *    letterSpacing 5%) — точное, не estimate. Бинарный поиск с "...".
+ *  • drawTextCentered учитывает реальный bbox глифа (yMin/yMax из
+ *    TrueTypeFont.getGlyphBounds), а не cap-box — корректно центрирует
+ *    математические символы, guillemets и т.п.
  *  • drawRect клампится к card-bounds.
  *  • Mesh.parent ВСЕГДА выставляется через Object3D.add() (не unshift).
  *  • Между renderами #layer пересобирается; геометрии возвращаются
@@ -22,6 +25,31 @@
  *
  * При больших Δz parallax между bg и контентом виден на смещённых от
  * центра канваса карточках (1/(camDist - z) сильно меняется).
+ *
+ * PADDING:
+ *   Опция CardOpts.padding (число px или {top,right,bottom,left}) даёт
+ *   inner-rect отступ. drawText/drawRect/hit/clipStack работают в координатах
+ *   inner-rect [0..innerW]×[0..innerH] (где innerW = rect.w − padLeft − padRight),
+ *   а bg и border рисуются по полному card-rect.
+ *
+ *   Пример (комбо с flexRow):
+ *
+ *     class Toolbar extends Card {
+ *       constructor() { super({ padding: 12 }) }
+ *       protected render() {
+ *         flexRow({
+ *           x: 0, y: 0, w: this.rectW, h: this.rectH,
+ *           justifyContent: "space-between", alignItems: "center",
+ *           items: [
+ *             {width: 120, height: 32, draw: (x,y,w,h) =>
+ *               button(this, x, y, w, h, {label: "Save", action})},
+ *             {width: 32,  height: 32, draw: (x,y,w,h) =>
+ *               circleButton(this, x + w/2, y + h/2, Math.min(w,h)/2,
+ *                 {label: "+", action})},
+ *           ],
+ *         })
+ *       }
+ *     }
  */
 
 import {
@@ -47,11 +75,23 @@ export type HitBox = {
   cursor: string
 }
 
+export type CardPadding = number | {top?: number; right?: number; bottom?: number; left?: number}
+
 export type CardOpts = {
   bgColor?: Color | null
   /** null = без рамки. Default — серая 1px. */
   borderColor?: Color | null
   borderWidthPx?: number
+  /**
+   * Внутренние отступы в logical px. drawText/drawRect/hit/flex работают в
+   * inner rect [0..innerW]×[0..innerH], где innerW = rect.w - padLeft - padRight,
+   * innerH = rect.h - padTop - padBottom. bg и border рисуются по полному rect
+   * (snug к canvas slot), а контент Card сдвинут внутрь.
+   *
+   * Можно задать число (uniform) или per-side объект.
+   * Default 0.
+   */
+  padding?: CardPadding
 }
 
 export type DrawTextOpts = {
@@ -96,6 +136,11 @@ export abstract class Card implements UiCard {
   readonly #borderRight: Mesh | null
   readonly #borderWidthPx: number
   readonly #layer: Object3D
+  /** Padding в logical px (top, right, bottom, left). */
+  readonly #padTop: number
+  readonly #padRight: number
+  readonly #padBottom: number
+  readonly #padLeft: number
   #hits: HitBox[] = []
   protected hoveredHit: HitBox | null = null
   protected pressedHit: HitBox | null = null
@@ -110,6 +155,18 @@ export abstract class Card implements UiCard {
     const bgColor = opts.bgColor === null ? null : opts.bgColor ?? DEFAULT_BG
     const borderColor = opts.borderColor === null ? null : opts.borderColor ?? DEFAULT_BORDER
     this.#borderWidthPx = opts.borderWidthPx ?? 1
+
+    const p = opts.padding
+    if (typeof p === "number") {
+      this.#padTop = this.#padRight = this.#padBottom = this.#padLeft = Math.max(0, p)
+    } else if (p) {
+      this.#padTop = Math.max(0, p.top ?? 0)
+      this.#padRight = Math.max(0, p.right ?? 0)
+      this.#padBottom = Math.max(0, p.bottom ?? 0)
+      this.#padLeft = Math.max(0, p.left ?? 0)
+    } else {
+      this.#padTop = this.#padRight = this.#padBottom = this.#padLeft = 0
+    }
 
     this.node.name = this.constructor.name
 
@@ -152,11 +209,23 @@ export abstract class Card implements UiCard {
   setRect(rect: CardRect, pixelScale: number, font: TrueTypeFont): void {
     this.font = font
     this.pixelScale = pixelScale
-    this.rectW = Math.max(1, rect.w)
-    this.rectH = Math.max(1, rect.h)
+    // rectW/rectH — это INNER размер (минус padding со всех сторон).
+    // bg/border внутри #syncChrome рисуются по полному rect.w/rect.h.
+    const innerW = Math.max(1, rect.w - this.#padLeft - this.#padRight)
+    const innerH = Math.max(1, rect.h - this.#padTop - this.#padBottom)
+    this.rectW = innerW
+    this.rectH = innerH
+    // screenOrigin — для hit-mapping. Pointermove приходит в card-rect-local
+    // (UiCanvas вычитает rect.x/y), и мы дополнительно вычитаем padding в
+    // onPointerMove/Down/Up перед #hitAt.
     this.#screenOriginX = rect.x
     this.#screenOriginY = rect.y
-    this.#syncChrome()
+    // Сдвигаем #layer на padLeft/padTop, чтобы локальные draw-координаты
+    // [0..innerW] оказались в правильном месте canvas.
+    this.#layer.position.x = this.#padLeft * pixelScale
+    this.#layer.position.y = -this.#padTop * pixelScale
+    this.#layer.updateMatrix()
+    this.#syncChrome(rect.w, rect.h)
     this.#rerender()
   }
 
@@ -286,14 +355,16 @@ export abstract class Card implements UiCard {
 
   onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
     if (this.canvas === null) return
-    const hit = this.#hitAt(localX, localY)
+    // Pointermove приходит в card-rect-local; #hits зарегистрированы в inner-coords
+    // (после сдвига на padding) — субтрагируем padLeft/padTop.
+    const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     this.canvas.canvas.style.cursor = hit?.cursor ?? "default"
     if (hit === this.hoveredHit) return
     this.hoveredHit = hit
   }
 
   onPointerDown(_event: MouseEvent, localX: number, localY: number): void {
-    const hit = this.#hitAt(localX, localY)
+    const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     if (hit === null) return
     this.pressedHit = hit
     hit.action()
@@ -316,10 +387,10 @@ export abstract class Card implements UiCard {
 
   // ────────────────────────── Internal ──────────────────────────
 
-  #syncChrome(): void {
+  #syncChrome(fullW = this.rectW + this.#padLeft + this.#padRight, fullH = this.rectH + this.#padTop + this.#padBottom): void {
     const ps = this.pixelScale
-    const w = this.rectW
-    const h = this.rectH
+    const w = fullW
+    const h = fullH
 
     if (this.#bg !== null) {
       this.#replaceGeometry(this.#bg, new PlaneGeometry({width: w * ps, height: h * ps}))
