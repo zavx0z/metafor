@@ -273,6 +273,39 @@ export class TrueTypeFont {
     return this.getGlyphOutline(gid).points
   }
 
+  /**
+   * Bounding-box глифа в font-units (Y растёт ВВЕРХ от baseline).
+   * yMin может быть отрицательным для descender'ов (j, p, y, и др.).
+   * Пустой глиф (пробел) → нулевой rect. Кэшируется в `boundsCache`.
+   */
+  getGlyphBounds(gid: number): { xMin: number; xMax: number; yMin: number; yMax: number } {
+    const cached = this.boundsCache.get(gid)
+    if (cached) return cached
+    const points = this.getGlyphOutline(gid).points
+    if (points.length === 0) {
+      const empty = { xMin: 0, xMax: 0, yMin: 0, yMax: 0 }
+      this.boundsCache.set(gid, empty)
+      return empty
+    }
+    let xMin = Infinity
+    let xMax = -Infinity
+    let yMin = Infinity
+    let yMax = -Infinity
+    for (let i = 0; i < points.length; i += 2) {
+      const x = points[i]!
+      const y = points[i + 1]!
+      if (x < xMin) xMin = x
+      if (x > xMax) xMax = x
+      if (y < yMin) yMin = y
+      if (y > yMax) yMax = y
+    }
+    const b = { xMin, xMax, yMin, yMax }
+    this.boundsCache.set(gid, b)
+    return b
+  }
+
+  private boundsCache = new Map<number, { xMin: number; xMax: number; yMin: number; yMax: number }>()
+
   private readSimpleOutline(gStart: number): Outline {
     let p = gStart
     const numContours = this.dv.getInt16(p, false)

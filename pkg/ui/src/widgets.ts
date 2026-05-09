@@ -122,12 +122,23 @@ export function circleButton(card: Card, cx: number, cy: number, r: number, opts
   const borderColor = opts.border ?? toneBorder(tone)
   drawDisc(card, cx, cy, r, fill)
   drawRingStroke(card, cx, cy, r, borderColor)
-  const labelW = card.measureText(opts.label, fontPx)
-  const offsetY = (opts.labelOffsetY ?? 0) * fontPx
-  card.drawText(opts.label, cx - labelW / 2, cy - fontPx / 2 + offsetY, {
-    fontPx,
-    material: card.materials.toneText(tone),
-  })
+  // drawTextCentered учитывает реальный bbox глифа (yMin/yMax из getGlyphBounds),
+  // поэтому "+", "−", "‹", "›" и прочие non-cap-letter глифы тоже центрируются
+  // визуально, а не по cap-box. labelOffsetY игнорируется как deprecated;
+  // оставляем как опт-out: если задан, используется старая cap-box-центровка.
+  if (opts.labelOffsetY !== undefined) {
+    const labelW = card.measureText(opts.label, fontPx)
+    const offsetY = opts.labelOffsetY * fontPx
+    card.drawText(opts.label, cx - labelW / 2, cy - fontPx / 2 + offsetY, {
+      fontPx,
+      material: card.materials.toneText(tone),
+    })
+  } else {
+    card.drawTextCentered(opts.label, cx, cy, {
+      fontPx,
+      material: card.materials.toneText(tone),
+    })
+  }
   card.hit(cx - r, cy - r, r * 2, r * 2, opts.action, "pointer")
 }
 

@@ -194,6 +194,46 @@ export abstract class Card implements UiCard {
   }
 
   /**
+   * Рисует текст так, чтобы его **визуальный** bounding-box (по реальным
+   * yMin/yMax глифа, а не cap-box) был отцентрирован относительно (cx, cy).
+   *
+   * Решает классическую проблему drawText: для математических операторов
+   * («+», «−», «±»), guillemets («‹», «›»), знаков и прочих non-cap-letter
+   * глифов центр cap-box ≠ визуальному центру. drawTextCentered измеряет
+   * реальный bbox через `font.getGlyphBounds(gid)` и сдвигает baseline так,
+   * чтобы (yMax + yMin)/2 совпал с cy.
+   *
+   * Возвращает фактическую ширину текста в logical px.
+   */
+  drawTextCentered(value: string, cx: number, cy: number, opts: DrawTextOpts): number {
+    if (this.font === null) return 0
+    const f = this.font
+    const fontPx = opts.fontPx
+    const scale = fontPx / f.unitsPerEm
+
+    // Объединённый bbox строки в font-units (Y вверх от baseline).
+    let yMin = Infinity
+    let yMax = -Infinity
+    for (const ch of value) {
+      if (ch === " ") continue
+      const gid = f.mapCharToGlyph(ch.codePointAt(0)!)
+      const b = f.getGlyphBounds(gid)
+      if (b.yMin === 0 && b.yMax === 0) continue
+      if (b.yMin < yMin) yMin = b.yMin
+      if (b.yMax > yMax) yMax = b.yMax
+    }
+    // Если все глифы пустые (пробелы) — fallback на cap-box центр.
+    const visualCenter = isFinite(yMin) && isFinite(yMax) ? ((yMax + yMin) / 2) * scale : fontPx / 2
+
+    const labelW = this.measureText(value, fontPx)
+    // baseline должен быть на cy + visualCenter (visualCenter — высота над baseline).
+    // drawText: y = baseline - fontPx → y = cy + visualCenter - fontPx.
+    const drawX = cx - labelW / 2
+    const drawY = cy + visualCenter - fontPx
+    return this.drawText(value, drawX, drawY, opts)
+  }
+
+  /**
    * Рисует прямоугольник в pixel-coords. Клампится к текущему clip-rect
    * (push/popClip) — для drawRect используем JS-кламп, не шейдер: rect-меши
    * (MeshBasicMaterial) идут через mesh-pipeline и не имеют clipBounds.
