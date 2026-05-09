@@ -13,6 +13,46 @@ The user is Russian-speaking.
 When communicating directly with the user, prefer Russian and use fewer unnecessary anglicisms in discussion.
 Keep terminology accurate, but avoid English wording when a clear Russian equivalent exists.
 
+## WebGPU Engine (`pkg/engine`)
+
+The engine is a custom WebGPU renderer — no WebGL fallback.
+
+**Coordinate system contract** (`pkg/engine/CONTRACT.md`):
+- **Z-up, Right-Handed** — engineering / CAD convention (same as Blender)
+- **+X** → right, **+Y** → depth (into screen), **+Z** → up
+- **Unit**: 1 world unit = 1 mm. All positions, radii, distances, camera distances, and grid sizes must be in mm.
+- **Depth clip space**: [0, 1] (WebGPU NDC).
+- `store/db` stores data already in Z-up and mm. `bulk` and `app` layers must NOT re-convert axes or units — that belongs inside the engine layer only.
+
+**Canvas**:
+- One `HTMLCanvasElement` per `Renderer`, exposed as `renderer.canvas`.
+- WebGPU context: `alphaMode: 'premultiplied'`.
+- To capture a frame from JS: `renderer.canvas.toDataURL('image/png')`.
+- Via `@meta/chrome` eval: `return document.querySelector('canvas').toDataURL('image/png')`.
+
+**Key abstractions** (`pkg/engine/src/`):
+
+| Class | File | Role |
+|---|---|---|
+| `Renderer` | `renderer/index.ts` | WebGPU device, pipelines, multi-pass render |
+| `ViewPoint` | `core/ViewPoint.ts` | Unified camera + trackball (replaces Camera + OrbitControls) |
+| `Object3D` | `core/Object3D.ts` | Base scene node: `position`, `rotation`, `quaternion`, `scale`, `modelMatrix`, `matrixWorld` |
+| `Scene` | `scenes/Scene.ts` | Root scene graph container |
+| `Mesh` | `core/Mesh.ts` | Geometry + material |
+| `InstancedMesh` | `core/InstancedMesh.ts` | GPU instancing, one `Matrix4` per instance |
+| `WireframeInstancedMesh` | `core/WireframeInstancedMesh.ts` | Instanced wireframe lines, per-instance color + glow |
+| `BufferGeometry` | `core/BufferGeometry.ts` | GPU buffer attributes (position, normal, index) |
+
+**Render pipelines** (all WGSL shaders in `renderer/shaders/`):
+- `basicMeshPipeline` — flat color, no lighting
+- `staticMeshPipeline` — Lambert diffuse lighting
+- `instancedMeshPipeline` — instanced basic/Lambert
+- `linePipeline` — single lines (basic or glow)
+- `instancedLinePipeline` — instanced lines with glow
+- `textStencilPipeline` / `textCoverPipeline` — 3D text
+
+**When reading screenshots of the viewport**: Z is vertical (up). Positive Z = above ground. Grid aligns to XY plane. Camera trackball orbits around a target point. Distances on screen correspond to mm in world space.
+
 ## Core Architectural Reading
 
 Always read the system as:
