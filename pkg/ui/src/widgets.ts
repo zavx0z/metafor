@@ -68,6 +68,14 @@ export type CircleButtonOpts = {
   fill?: Color
   border?: Color
   textColor?: Color
+  /**
+   * Сдвиг текстового лейбла по Y в долях fontPx. drawText располагает текст
+   * по top-of-cap, а не по визуальному центру глифа: для математических
+   * символов ("+", "−") и guillemets ("‹", "›") визуальный центр обычно
+   * выше центра cap-box, поэтому полезно сместить лейбл на -0.05..-0.12.
+   * Default 0 (центр cap-box).
+   */
+  labelOffsetY?: number
   action(): void
 }
 
@@ -115,7 +123,8 @@ export function circleButton(card: Card, cx: number, cy: number, r: number, opts
   drawDisc(card, cx, cy, r, fill)
   drawRingStroke(card, cx, cy, r, borderColor)
   const labelW = card.measureText(opts.label, fontPx)
-  card.drawText(opts.label, cx - labelW / 2, cy - fontPx / 2, {
+  const offsetY = (opts.labelOffsetY ?? 0) * fontPx
+  card.drawText(opts.label, cx - labelW / 2, cy - fontPx / 2 + offsetY, {
     fontPx,
     material: card.materials.toneText(tone),
   })
