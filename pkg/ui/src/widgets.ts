@@ -108,12 +108,15 @@ export function roundedButton(
   drawRoundedFill(card, x, y, w, h, r, fill)
   drawRoundedBorder(card, x, y, w, h, r, borderColor)
 
-  // drawTextCentered — bbox-aware центровка, работает корректно для любых
-  // глифов (включая кириллицу с разными xHeight'ами).
+  // drawTextCentered — bbox-aware центровка. maxWidthPx = w - небольшой
+  // safe-padding от каждого края (а не w - 2r, что обрезало бы текст до
+  // прямой части capsule, что слишком жёстко: текст хорошо помещается до
+  // самих кромок благодаря центру и rounded углам).
+  const safePadH = Math.min(r, 8)
   card.drawTextCentered(opts.label, x + w / 2, y + h / 2, {
     fontPx,
     material: textMat,
-    maxWidthPx: w - r * 2,
+    maxWidthPx: w - safePadH * 2,
   })
   card.hit(x, y, w, h, opts.action, "pointer")
 }
@@ -189,17 +192,22 @@ function drawRoundedBorder(
     card.drawRect(x + w - 1, y, 1, h, color, Z.ELEMENT_RULE)
     return
   }
+  // Левый и правый скруглённые края — рисуем по строкам, заполняя
+  // дельту между соседними строками, чтобы pixel-staircase сомкнулся.
   for (let dy = 0; dy < h; dy++) {
     const dx = cornerInset(dy, h, r)
     const dxNext = cornerInset(dy + 1, h, r)
     const dxPrev = cornerInset(dy - 1, h, r)
-    // в зоне углов толщина рамки + дельта между соседними строками,
-    // чтобы покрыть стыки скруглённой кромки 1-px пикселями.
     const stepDelta = Math.max(Math.abs(dx - dxPrev), Math.abs(dx - dxNext), 1)
-    // Левый край
     card.drawRect(x + dx, y + dy, stepDelta, 1, color, Z.ELEMENT_RULE)
-    // Правый край
     card.drawRect(x + w - dx - stepDelta, y + dy, stepDelta, 1, color, Z.ELEMENT_RULE)
+  }
+  // Прямые верхний/нижний участки (между скруглёнными углами).
+  // Для capsule (r = h/2) длина = w - 2r > 0 если w > h; иначе пропускается.
+  const straight = w - 2 * r
+  if (straight > 0) {
+    card.drawRect(x + r, y, straight, 1, color, Z.ELEMENT_RULE)
+    card.drawRect(x + r, y + h - 1, straight, 1, color, Z.ELEMENT_RULE)
   }
 }
 
