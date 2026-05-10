@@ -54,14 +54,19 @@
 
 import {
   Color,
+  ImageMaterial,
   Mesh,
   MeshBasicMaterial,
   Object3D,
   PlaneGeometry,
   Text,
   TextMaterial,
+  TexturedPlaneGeometry,
   TrueTypeFont,
+  TextureLoader,
   type BufferGeometry,
+  type ImageFit,
+  type ImageViewBox as EngineImageViewBox,
 } from "@metafor/engine"
 import type {CardRect, UiCanvas, UiCard} from "./canvas.ts"
 import {MaterialPalette} from "./theme.ts"
@@ -94,6 +99,22 @@ export type CardOpts = {
   padding?: CardPadding
 }
 
+export type ImageViewBox = EngineImageViewBox
+
+export type DrawImageOpts = {
+  fit?: ImageFit
+  opacity?: number
+  viewBox?: ImageViewBox
+  z?: number
+}
+
+export type BackgroundImageOpts = {
+  src: string
+  fit?: ImageFit
+  opacity?: number
+  viewBox?: ImageViewBox
+}
+
 export type DrawTextOpts = {
   fontPx: number
   material: TextMaterial
@@ -104,6 +125,8 @@ export type DrawTextOpts = {
 
 const DEFAULT_BG = new Color(18 / 255, 23 / 255, 32 / 255, 0.96)
 const DEFAULT_BORDER = new Color(62 / 255, 74 / 255, 92 / 255, 1)
+const IMAGE_PLACEHOLDER = new Color(13 / 255, 12 / 255, 10 / 255, 1)
+const IMAGE_PLACEHOLDER_LINE = new Color(201 / 255, 168 / 255, 76 / 255, 0.3)
 
 export const Z: {
   readonly CONTAINER: number
@@ -135,6 +158,7 @@ export abstract class Card implements UiCard {
   readonly #borderLeft: Mesh | null
   readonly #borderRight: Mesh | null
   readonly #borderWidthPx: number
+  readonly #backgroundLayer: Object3D
   readonly #layer: Object3D
   /** Padding в logical px (top, right, bottom, left). */
   readonly #padTop: number
@@ -144,10 +168,16 @@ export abstract class Card implements UiCard {
   #hits: HitBox[] = []
   protected hoveredHit: HitBox | null = null
   protected pressedHit: HitBox | null = null
+  #backgroundImage: BackgroundImageOpts | null = null
 
   /** Top-left corner of card on canvas в logical-px (для конверсии в screen-px). */
   #screenOriginX = 0
   #screenOriginY = 0
+  #fullRectW = 1
+  #fullRectH = 1
+  readonly #requestRenderOnImageLoad = (): void => {
+    this.requestRender()
+  }
   /** Стек clip-rect'ов в Card-local-px. Первый элемент = вся Card-rect. */
   #clipStack: Array<{xMin: number; yMin: number; xMax: number; yMax: number}> = []
 
@@ -196,6 +226,11 @@ export abstract class Card implements UiCard {
       this.#borderRight = null
     }
 
+    this.#backgroundLayer = new Object3D()
+    this.#backgroundLayer.name = `${this.constructor.name}.backgroundLayer`
+    this.#backgroundLayer.position.z = 0
+    this.node.add(this.#backgroundLayer)
+
     this.#layer = new Object3D()
     this.#layer.name = `${this.constructor.name}.layer`
     this.#layer.position.z = 0
@@ -206,11 +241,18 @@ export abstract class Card implements UiCard {
     this.canvas = canvas
   }
 
+  setBackgroundImage(options: BackgroundImageOpts | null): void {
+    this.#backgroundImage = options ? { ...options, viewBox: options.viewBox ? { ...options.viewBox } : undefined } : null
+    this.requestRender()
+  }
+
   setRect(rect: CardRect, pixelScale: number, font: TrueTypeFont): void {
     this.font = font
     this.pixelScale = pixelScale
     // rectW/rectH — это INNER размер (минус padding со всех сторон).
     // bg/border внутри #syncChrome рисуются по полному rect.w/rect.h.
+    this.#fullRectW = rect.w
+    this.#fullRectH = rect.h
     const innerW = Math.max(1, rect.w - this.#padLeft - this.#padRight)
     const innerH = Math.max(1, rect.h - this.#padTop - this.#padBottom)
     this.rectW = innerW
@@ -327,6 +369,10 @@ export abstract class Card implements UiCard {
     this.#layer.add(mesh)
   }
 
+  drawImage(src: string, x: number, y: number, w: number, h: number, opts: DrawImageOpts = {}): void {
+    this.#drawImageMesh(this.#layer, src, x, y, w, h, opts, opts.z ?? Z.ELEMENT, true)
+  }
+
   /** Точное измерение ширины текста через font advance + letter-spacing. */
   measureText(value: string, fontPx: number): number {
     if (this.font === null) return 0
@@ -383,6 +429,7 @@ export abstract class Card implements UiCard {
 
   dispose(): void {
     this.#clearLayer()
+    this.#clearLayer(this.#backgroundLayer)
   }
 
   // ────────────────────────── Internal ──────────────────────────
@@ -430,10 +477,81 @@ export abstract class Card implements UiCard {
   }
 
   #rerender(): void {
+    this.#clearLayer(this.#backgroundLayer)
+    if (this.#backgroundImage !== null) {
+      this.#drawImageMesh(
+        this.#backgroundLayer,
+        this.#backgroundImage.src,
+        0,
+        0,
+        this.#fullRectW,
+        this.#fullRectH,
+        this.#backgroundImage,
+        -0.00018,
+        false,
+      )
+    }
     this.#clearLayer()
     this.#hits = []
     this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
     this.render()
+  }
+
+  #drawImageMesh(
+    parent: Object3D,
+    src: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    opts: DrawImageOpts,
+    z: number,
+    clipToCurrent: boolean,
+  ): void {
+    if (!src || w <= 0 || h <= 0) return
+    const viewBox = normaliseViewBox(opts.viewBox)
+    const status = TextureLoader.status(src)
+    if (status !== "ready") this.#drawImagePlaceholder(parent, x, y, w, h, z - 0.00001)
+
+    const material = new ImageMaterial({
+      src,
+      fit: opts.fit ?? "cover",
+      opacity: opts.opacity ?? 1,
+      viewBox,
+      boxAspect: w / h,
+      onTextureChange: this.#requestRenderOnImageLoad,
+    })
+    if (clipToCurrent) this.#applyImageClipTo(material)
+    const mesh = new Mesh(
+      new TexturedPlaneGeometry({width: w * this.pixelScale, height: h * this.pixelScale}),
+      material,
+    )
+    mesh.position.x = (x + w / 2) * this.pixelScale
+    mesh.position.y = -(y + h / 2) * this.pixelScale
+    mesh.position.z = z
+    mesh.updateMatrix()
+    parent.add(mesh)
+  }
+
+  #drawImagePlaceholder(parent: Object3D, x: number, y: number, w: number, h: number, z: number): void {
+    this.#drawRawRect(parent, x, y, w, h, IMAGE_PLACEHOLDER, z)
+    this.#drawRawRect(parent, x, y, w, 1, IMAGE_PLACEHOLDER_LINE, z + 0.000001)
+    this.#drawRawRect(parent, x, y + h - 1, w, 1, IMAGE_PLACEHOLDER_LINE, z + 0.000001)
+    this.#drawRawRect(parent, x, y, 1, h, IMAGE_PLACEHOLDER_LINE, z + 0.000001)
+    this.#drawRawRect(parent, x + w - 1, y, 1, h, IMAGE_PLACEHOLDER_LINE, z + 0.000001)
+  }
+
+  #drawRawRect(parent: Object3D, x: number, y: number, w: number, h: number, color: Color, z: number): void {
+    if (w <= 0 || h <= 0) return
+    const mesh = new Mesh(
+      new PlaneGeometry({width: w * this.pixelScale, height: h * this.pixelScale}),
+      new MeshBasicMaterial({color}),
+    )
+    mesh.position.x = (x + w / 2) * this.pixelScale
+    mesh.position.y = -(y + h / 2) * this.pixelScale
+    mesh.position.z = z
+    mesh.updateMatrix()
+    parent.add(mesh)
   }
 
   /**
@@ -472,6 +590,19 @@ export abstract class Card implements UiCard {
     ]
   }
 
+  #applyImageClipTo(material: ImageMaterial): void {
+    const clip = this.#clipStack[this.#clipStack.length - 1]!
+    const dpr = this.canvas?.renderer.pixelRatio ?? 1
+    const ox = this.#screenOriginX
+    const oy = this.#screenOriginY
+    material.clipBounds = [
+      (ox + clip.xMin) * dpr,
+      (oy + clip.yMin) * dpr,
+      (ox + clip.xMax) * dpr,
+      (oy + clip.yMax) * dpr,
+    ]
+  }
+
   #hitAt(x: number, y: number): HitBox | null {
     for (let i = this.#hits.length - 1; i >= 0; i--) {
       const h = this.#hits[i]!
@@ -480,9 +611,9 @@ export abstract class Card implements UiCard {
     return null
   }
 
-  #clearLayer(): void {
+  #clearLayer(layer: Object3D = this.#layer): void {
     const renderer = this.canvas?.renderer
-    for (const obj of this.#layer.children) {
+    for (const obj of layer.children) {
       const text = obj as Text
       if (text.isText === true) {
         if (renderer !== undefined) {
@@ -494,7 +625,7 @@ export abstract class Card implements UiCard {
       const mesh = obj as Mesh
       if (mesh.geometry !== undefined && renderer !== undefined) renderer.invalidateGeometry(mesh.geometry)
     }
-    this.#layer.children = []
+    layer.children = []
   }
 
   #fitText(value: string, maxPx: number, fontPx: number): string {
@@ -520,4 +651,19 @@ function mkMesh(name: string, mat: MeshBasicMaterial): Mesh {
   const m = new Mesh(new PlaneGeometry({width: 1, height: 1}), mat)
   m.name = name
   return m
+}
+
+function normaliseViewBox(viewBox: ImageViewBox | undefined): ImageViewBox {
+  if (!viewBox) return { x: 0, y: 0, w: 1, h: 1 }
+  return {
+    x: clamp01(viewBox.x),
+    y: clamp01(viewBox.y),
+    w: Math.max(0.0001, Math.min(1, viewBox.w)),
+    h: Math.max(0.0001, Math.min(1, viewBox.h)),
+  }
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(1, Math.max(0, value))
 }

@@ -5,7 +5,7 @@ import {InstancedMesh} from "../core/InstancedMesh"
 import {SkinnedMesh} from "../core/SkinnedMesh"
 import {BufferGeometry} from "../core/BufferGeometry"
 import {WireframeInstancedMesh} from "../core/WireframeInstancedMesh"
-import {LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, TextMaterial} from "../materials"
+import {ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, TextMaterial} from "../materials"
 import {Matrix4, Vector3, Frustum} from "../math"
 import {LineSegments} from "../objects/LineSegments"
 import {Text} from "../objects/Text"
@@ -18,9 +18,11 @@ import blurWGSL from "./shaders/blur.wgsl" with {type: "text"}
 
 import lineShaderCode from "./shaders/line.wgsl" with {type: "text"}
 import textShaderCode from "./shaders/text.wgsl" with {type: "text"}
+import imageShaderCode from "./shaders/image.wgsl" with {type: "text"}
 import {TEXT_COVER_FACE_STATE, TEXT_STENCIL_BACK_FACE_STATE, TEXT_STENCIL_FACE_STATE} from "./text-stencil"
 import {collectSceneObjects, type LightItem, type RenderItem} from "./utils/RenderList"
 import {GlassMaterial} from "../materials/GlassMaterial"
+import {TextureLoader} from "../loaders/TextureLoader"
 
 // --- Константы для uniform-буферов ---
 const UNIFORM_ALIGNMENT = 256
@@ -41,6 +43,7 @@ const LIGHT_STRUCT_SIZE = 32
 interface GeometryBuffers {
   positionBuffer: GPUBuffer
   normalBuffer?: GPUBuffer
+  uvBuffer?: GPUBuffer
   indexBuffer?: GPUBuffer
   colorBuffer?: GPUBuffer
   skinIndexBuffer?: GPUBuffer
@@ -69,6 +72,10 @@ export class Renderer {
   private instancedLinePipeline: GPURenderPipeline | null = null
   private textStencilPipeline: GPURenderPipeline | null = null
   private textCoverPipeline: GPURenderPipeline | null = null
+  private imagePipeline: GPURenderPipeline | null = null
+  private imageBindGroupLayout: GPUBindGroupLayout | null = null
+  private imageSampler: GPUSampler | null = null
+  private imageBindGroupCache: WeakMap<GPUTexture, GPUBindGroup> = new WeakMap()
 
   // --- Compute ресурсы для размытия ---
   private blurComputePipelineHorizontal: GPUComputePipeline | null = null
@@ -237,8 +244,35 @@ export class Renderer {
       ],
     })
 
+    this.imageBindGroupLayout = this.device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.FRAGMENT,
+          sampler: { type: "filtering" },
+        },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.FRAGMENT,
+          texture: { sampleType: "float", viewDimension: "2d" },
+        },
+      ],
+    })
+
+    this.imageSampler = this.device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+      mipmapFilter: "linear",
+      addressModeU: "clamp-to-edge",
+      addressModeV: "clamp-to-edge",
+    })
+
     const pipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [globalBindGroupLayout, perObjectBindGroupLayout],
+    })
+
+    const imagePipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts: [globalBindGroupLayout, perObjectBindGroupLayout, this.imageBindGroupLayout],
     })
 
     // --- Shader Modules ---
@@ -260,6 +294,9 @@ export class Renderer {
     const textShaderModule = this.device.createShaderModule({
       code: textShaderCode,
     })
+    const imageShaderModule = this.device.createShaderModule({
+      code: imageShaderCode,
+    })
 
     // --- Pipeline для MeshBasicMaterial: без освещения, цвет как задан в material.color ---
     this.basicMeshPipeline = await this.device.createRenderPipelineAsync({
@@ -274,6 +311,44 @@ export class Renderer {
       },
       fragment: {
         module: basicShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: {
+        depthWriteEnabled: true,
+        depthCompare: "less",
+        format: "depth24plus-stencil8",
+      },
+      multisample: {count: this.sampleCount},
+    })
+
+    this.imagePipeline = await this.device.createRenderPipelineAsync({
+      layout: imagePipelineLayout,
+      vertex: {
+        module: imageShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 8, attributes: [{shaderLocation: 1, offset: 0, format: "float32x2"}]},
+        ],
+      },
+      fragment: {
+        module: imageShaderModule,
         entryPoint: "fs_main",
         targets: [{
           format: this.presentationFormat,
@@ -833,6 +908,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       !this.instancedLinePipeline ||
       !this.textStencilPipeline ||
       !this.textCoverPipeline ||
+      !this.imagePipeline ||
+      !this.imageBindGroupLayout ||
+      !this.imageSampler ||
       !this.globalUniformBuffer ||
       !this.canvas
     )
@@ -982,6 +1060,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (material instanceof MeshBasicMaterial || material instanceof MeshLambertMaterial) {
       this.perObjectDataCPU!.set(material.color.toArray(), offsetFloats + 32)
+    } else if (material instanceof ImageMaterial) {
+      if (material.clipBounds !== null) {
+        this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 36)
+      }
+      const vb = material.viewBox
+      this.perObjectDataCPU!.set([vb.x, vb.y, vb.w, vb.h], offsetFloats + 40)
+      this.perObjectDataCPU!.set(
+        [
+          clamp01(material.opacity),
+          Math.max(0.0001, material.boxAspect),
+          material.fit === "contain" ? 1 : 0,
+          0,
+        ],
+        offsetFloats + 44,
+      )
     } else if ((material as any).isGlassMaterial) {
       this.perObjectDataCPU!.set((material as GlassMaterial).tintColor.toArray(), offsetFloats + 32)
     }
@@ -1074,7 +1167,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           {
             const mesh = item.object as Mesh
             const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
-            pipeline = material instanceof MeshBasicMaterial ? this.basicMeshPipeline : this.staticMeshPipeline
+            pipeline =
+              material instanceof ImageMaterial
+                ? this.imagePipeline
+                : material instanceof MeshBasicMaterial
+                  ? this.basicMeshPipeline
+                  : this.staticMeshPipeline
           }
           break
         case "skinned-mesh":
@@ -1148,6 +1246,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (buffers === undefined) return
     buffers.positionBuffer.destroy()
     buffers.normalBuffer?.destroy()
+    buffers.uvBuffer?.destroy()
     buffers.indexBuffer?.destroy()
     buffers.colorBuffer?.destroy()
     buffers.skinIndexBuffer?.destroy()
@@ -1167,7 +1266,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       size: (typedArray.byteLength + 3) & ~3,
       usage: usage | GPUBufferUsage.COPY_DST,
     })
-    this.device.queue.writeBuffer(buffer, 0, typedArray)
+    this.device.queue.writeBuffer(buffer, 0, typedArray as GPUAllowSharedBufferSource)
     return buffer
   }
 
@@ -1252,6 +1351,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         geometry.attributes.position.needsUpdate = false
       }
 
+      if (geometry.attributes.uv && geometry.attributes.uv.needsUpdate && buffers.uvBuffer) {
+        this.device!.queue.writeBuffer(
+          buffers.uvBuffer,
+          0,
+          geometry.attributes.uv.array as any,
+        )
+        geometry.attributes.uv.needsUpdate = false
+      }
+
       return buffers
     }
 
@@ -1266,6 +1374,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (geometry.attributes.normal) {
       normalBuffer = this.createAndUploadBuffer(
         geometry.attributes.normal.array as ArrayBufferView,
+        GPUBufferUsage.VERTEX,
+      )
+    }
+
+    let uvBuffer: GPUBuffer | undefined
+    if (geometry.attributes.uv) {
+      uvBuffer = this.createAndUploadBuffer(
+        geometry.attributes.uv.array as ArrayBufferView,
         GPUBufferUsage.VERTEX,
       )
     }
@@ -1333,6 +1449,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       colorBuffer,
     }
     if (normalBuffer) buffers.normalBuffer = normalBuffer
+    if (uvBuffer) buffers.uvBuffer = uvBuffer
     if (indexBuffer) buffers.indexBuffer = indexBuffer
     if (skinIndexBuffer) buffers.skinIndexBuffer = skinIndexBuffer
     if (skinWeightBuffer) buffers.skinWeightBuffer = skinWeightBuffer
@@ -1341,6 +1458,27 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     this.geometryCache.set(geometry, buffers)
     return buffers
+  }
+
+  private getImageBindGroup(material: ImageMaterial): GPUBindGroup {
+    if (!this.device || !this.imageBindGroupLayout || !this.imageSampler) {
+      throw new Error("Image pipeline is not initialized")
+    }
+    const entry = TextureLoader.load(this.device, material.src, material.onTextureChange)
+    const texture = entry.status === "ready" && entry.texture
+      ? entry.texture
+      : TextureLoader.fallback(this.device)
+    const cached = this.imageBindGroupCache.get(texture)
+    if (cached) return cached
+    const bindGroup = this.device.createBindGroup({
+      layout: this.imageBindGroupLayout,
+      entries: [
+        { binding: 0, resource: this.imageSampler },
+        { binding: 1, resource: texture.createView() },
+      ],
+    })
+    this.imageBindGroupCache.set(texture, bindGroup)
+    return bindGroup
   }
 
   private renderMesh(
@@ -1359,11 +1497,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (passEncoder) {
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
-      const {positionBuffer, normalBuffer, indexBuffer, skinIndexBuffer, skinWeightBuffer} =
+      const {positionBuffer, normalBuffer, uvBuffer, indexBuffer, skinIndexBuffer, skinWeightBuffer} =
         this.getOrCreateGeometryBuffers(mesh.geometry)
 
       passEncoder.setVertexBuffer(0, positionBuffer)
-      if (normalBuffer) {
+      if (material instanceof ImageMaterial) {
+        if (!uvBuffer) return
+        passEncoder.setVertexBuffer(1, uvBuffer)
+        passEncoder.setBindGroup(2, this.getImageBindGroup(material))
+      } else if (normalBuffer) {
         passEncoder.setVertexBuffer(1, normalBuffer)
       }
 
@@ -1583,4 +1725,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       })
     }
   }
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 1
+  return Math.min(1, Math.max(0, value))
 }
