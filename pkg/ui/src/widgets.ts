@@ -283,9 +283,23 @@ export function input(card: Card, x: number, y: number, w: number, h: number, op
   card.hit(x, y, w, h, opts.onActivate, "text")
 }
 
-/** Горизонтальная разделительная линия 1px, низкий z. */
-export function divider(card: Card, x: number, y: number, w: number): void {
-  card.drawRect(x, y, w, 1, palette.borderDim, Z.SEPARATOR)
+export type DividerOpts = {
+  /** Цвет линии. По умолчанию palette.borderDim. */
+  color?: Color
+  /** Толщина в px. По умолчанию 1. */
+  thickness?: number
+  /** z-уровень. По умолчанию Z.SEPARATOR. */
+  z?: number
+}
+
+/** Горизонтальная разделительная линия. По умолчанию 1px palette.borderDim
+ *  на Z.SEPARATOR. Цвет/толщину/z можно переопределить через opts.
+ *  rectY — координата центра линии (y нарисуется в y - thickness/2). */
+export function divider(card: Card, x: number, y: number, w: number, opts: DividerOpts = {}): void {
+  const t = opts.thickness ?? 1
+  const color = opts.color ?? palette.borderDim
+  const z = opts.z ?? Z.SEPARATOR
+  card.drawRect(x, Math.round(y - t / 2), w, t, color, z)
 }
 
 /**
