@@ -123,8 +123,11 @@ export type DrawTextOpts = {
   z?: number
 }
 
-const DEFAULT_BG = new Color(18 / 255, 23 / 255, 32 / 255, 0.96)
-const DEFAULT_BORDER = new Color(62 / 255, 74 / 255, 92 / 255, 1)
+// Card по умолчанию ПРОЗРАЧНА: ни заливки, ни border'а. Чтобы вернуть
+// «классическую» тёмную карточку с обводкой — передайте bgColor/borderColor
+// явно в CardOpts (см. примеры в playground'е). null отключает явно.
+const DEFAULT_BG: Color | null = null
+const DEFAULT_BORDER: Color | null = null
 const IMAGE_PLACEHOLDER = new Color(13 / 255, 12 / 255, 10 / 255, 1)
 const IMAGE_PLACEHOLDER_LINE = new Color(201 / 255, 168 / 255, 76 / 255, 0.3)
 
