@@ -25,6 +25,7 @@
 export * from "./canvas.ts"
 export * from "./card.ts"
 export * from "./flex.ts"
+export * from "./flexCss.ts"
 export * from "./theme.ts"
 export * from "./widgets.ts"
 export * from "./scroll-list.ts"
