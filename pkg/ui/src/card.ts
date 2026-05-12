@@ -157,6 +157,20 @@ export abstract class Card implements UiCard {
   protected pixelScale = 0.001
   protected rectW = 1
   protected rectH = 1
+  /**
+   * Reference-height: если задан, то `opts.fontPx` в `drawText` /
+   * `drawTextCentered` / `measureText` интерпретируется как пиксели
+   * в reference-системе (например, журнальная страница 1055px), а не
+   * как canvas-px. Внутри умножаем на `rectH / referenceHeight`,
+   * чтобы шрифт пропорционально масштабировался при ресайзе card.
+   * Default = null → fontPx считаем canvas-px (старое поведение).
+   */
+  protected referenceHeight: number | null = null
+
+  /** Коэффициент масштабирования fontPx из reference в canvas-px. */
+  protected get pageScaleFactor(): number {
+    return this.referenceHeight === null ? 1 : this.rectH / this.referenceHeight
+  }
 
   readonly #bg: Mesh | null
   readonly #borderTop: Mesh | null
@@ -299,10 +313,13 @@ export abstract class Card implements UiCard {
     if (maxPx <= 0) return 0
     const fitted = this.#fitText(value, maxPx, opts.fontPx)
     if (fitted.length === 0) return 0
-    const text = new Text(fitted, this.font, opts.fontPx * this.pixelScale, opts.material)
+    // fontPx — в reference-px (если referenceHeight задан); приводим к
+    // canvas-px через pageScaleFactor для размера текста и y-сдвига.
+    const fontPxCanvas = opts.fontPx * this.pageScaleFactor
+    const text = new Text(fitted, this.font, fontPxCanvas * this.pixelScale, opts.material)
     text.position.x = x * this.pixelScale
-    // y — top-of-cap. Baseline ≈ y + fontPx (Text grows up from baseline).
-    text.position.y = -(y + opts.fontPx) * this.pixelScale
+    // y — top-of-cap (canvas-px). Baseline ≈ y + fontPxCanvas.
+    text.position.y = -(y + fontPxCanvas) * this.pixelScale
     text.position.z = opts.z ?? Z.TEXT
     text.updateMatrix()
     this.#applyClipTo(text)
@@ -326,7 +343,9 @@ export abstract class Card implements UiCard {
     if (this.font === null) return 0
     const f = this.font
     const fontPx = opts.fontPx
-    const scale = fontPx / f.unitsPerEm
+    // fontPxCanvas — реальный размер в canvas-px (учёт pageScaleFactor).
+    const fontPxCanvas = fontPx * this.pageScaleFactor
+    const scale = fontPxCanvas / f.unitsPerEm
 
     // Объединённый bbox строки в font-units (Y вверх от baseline).
     let yMin = Infinity
@@ -339,14 +358,14 @@ export abstract class Card implements UiCard {
       if (b.yMin < yMin) yMin = b.yMin
       if (b.yMax > yMax) yMax = b.yMax
     }
-    // Если все глифы пустые (пробелы) — fallback на cap-box центр.
-    const visualCenter = isFinite(yMin) && isFinite(yMax) ? ((yMax + yMin) / 2) * scale : fontPx / 2
+    // Если все глифы пустые (пробелы) — fallback на cap-box центр (canvas-px).
+    const visualCenter = isFinite(yMin) && isFinite(yMax) ? ((yMax + yMin) / 2) * scale : fontPxCanvas / 2
 
     const labelW = this.measureText(value, fontPx)
     // baseline должен быть на cy + visualCenter (visualCenter — высота над baseline).
-    // drawText: y = baseline - fontPx → y = cy + visualCenter - fontPx.
+    // drawText: y = baseline - fontPxCanvas → y = cy + visualCenter - fontPxCanvas.
     const drawX = cx - labelW / 2
-    const drawY = cy + visualCenter - fontPx
+    const drawY = cy + visualCenter - fontPxCanvas
     return this.drawText(value, drawX, drawY, opts)
   }
 
@@ -379,12 +398,16 @@ export abstract class Card implements UiCard {
     this.#drawImageMesh(this.#layer, src, x, y, w, h, opts, opts.z ?? Z.ELEMENT, true)
   }
 
-  /** Точное измерение ширины текста через font advance + letter-spacing. */
+  /** Точное измерение ширины текста через font advance + letter-spacing.
+   *  fontPx интерпретируется как reference-px (если referenceHeight задан) —
+   *  возвращаемая ширина уже в canvas-px (после умножения на pageScaleFactor).
+   */
   measureText(value: string, fontPx: number): number {
     if (this.font === null) return 0
     const f = this.font
-    const scale = fontPx / f.unitsPerEm
-    const letterSpacing = fontPx * 0.05
+    const fontPxCanvas = fontPx * this.pageScaleFactor
+    const scale = fontPxCanvas / f.unitsPerEm
+    const letterSpacing = fontPxCanvas * 0.05
     let w = 0
     for (const ch of value) {
       if (ch === " ") {
