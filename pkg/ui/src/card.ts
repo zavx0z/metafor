@@ -167,9 +167,18 @@ export abstract class Card implements UiCard {
    */
   protected referenceHeight: number | null = null
 
-  /** Коэффициент масштабирования fontPx из reference в canvas-px. */
-  protected get pageScaleFactor(): number {
+  /** Коэффициент масштабирования fontPx из reference в canvas-px.
+   *  Публичен — внешний код (renderText, шаблоны pageTemplates) может
+   *  применять scale к line-height и любой fontPx-арифметике, чтобы
+   *  расстояния между строками и blockH тоже скейлились пропорционально.
+   *  При referenceHeight=null всегда 1. */
+  get pageScale(): number {
     return this.referenceHeight === null ? 1 : this.rectH / this.referenceHeight
+  }
+
+  /** Внутренний alias для pageScale — используется в drawText/measureText. */
+  protected get pageScaleFactor(): number {
+    return this.pageScale
   }
 
   readonly #bg: Mesh | null
