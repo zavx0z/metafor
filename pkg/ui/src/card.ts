@@ -113,6 +113,9 @@ export type BackgroundImageOpts = {
   fit?: ImageFit
   opacity?: number
   viewBox?: ImageViewBox
+  /** 0..1 — масштаб bg-image относительно Card-rect; центрируется.
+   *  1 = заполнить, 0.8 = 80% размера с 10% полем по краям. Default 1. */
+  scale?: number
 }
 
 export type DrawTextOpts = {
@@ -482,13 +485,18 @@ export abstract class Card implements UiCard {
   #rerender(): void {
     this.#clearLayer(this.#backgroundLayer)
     if (this.#backgroundImage !== null) {
+      const scale = this.#backgroundImage.scale ?? 1
+      const bgW = this.#fullRectW * scale
+      const bgH = this.#fullRectH * scale
+      const bgX = (this.#fullRectW - bgW) / 2
+      const bgY = (this.#fullRectH - bgH) / 2
       this.#drawImageMesh(
         this.#backgroundLayer,
         this.#backgroundImage.src,
-        0,
-        0,
-        this.#fullRectW,
-        this.#fullRectH,
+        bgX,
+        bgY,
+        bgW,
+        bgH,
         this.#backgroundImage,
         -0.00018,
         false,
