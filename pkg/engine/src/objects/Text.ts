@@ -182,7 +182,12 @@ export class Text extends Object3D {
             if (y > maxY) maxY = y
           }
 
-          const pad_fu = this.font.unitsPerEm * 0.1 // Padding in font units
+          // Padding cover-rect вокруг глифа. Большое значение (10% em)
+          // даёт видимые штрихи-артефакты по нижней кромке pad-зоны (особенно
+          // на кириллице без descender'ов): stencil не покрывает pad-bottom,
+          // но cover-rect там виден. 0.5% — достаточно для AA-краёв, без
+          // видимого padding.
+          const pad_fu = this.font.unitsPerEm * 0.005
           minX -= pad_fu
           minY -= pad_fu
           maxX += pad_fu
