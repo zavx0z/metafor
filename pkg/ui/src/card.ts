@@ -59,6 +59,7 @@ import {
   MeshBasicMaterial,
   Object3D,
   PlaneGeometry,
+  RoundedRectMaterial,
   Text,
   TextMaterial,
   TexturedPlaneGeometry,
@@ -502,6 +503,51 @@ export abstract class Card implements UiCard {
     this.#drawImageMesh(this.#layer, src, x, y, w, h, opts, opts.z ?? Z.ELEMENT, true)
   }
 
+  /**
+   * Скруглённый прямоугольник (или круг — если radius=min(w,h)/2 и фигура
+   * квадратная) с pixel-perfect SDF-AA в шейдере. Идёт через RoundedRectMaterial
+   * — без strip-loop'ов, лесенки на углах нет.
+   *
+   * Клиппинг работает через шейдер (clipBounds в screen-px), не через JS-кламп —
+   * иначе обрезанный край терял бы скругление.
+   */
+  drawRoundedRect(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    opts: {
+      radius: number | {tl: number; tr: number; br: number; bl: number}
+      fill?: Color | null
+      border?: Color | null
+      borderWidth?: number
+      opacity?: number
+      z?: number
+    },
+  ): void {
+    if (w <= 0 || h <= 0) return
+    const ps = this.pixelScale
+    const material = new RoundedRectMaterial({
+      width: w * ps,
+      height: h * ps,
+      radius:
+        typeof opts.radius === "number"
+          ? opts.radius * ps
+          : {tl: opts.radius.tl * ps, tr: opts.radius.tr * ps, br: opts.radius.br * ps, bl: opts.radius.bl * ps},
+      fill: opts.fill ?? null,
+      border: opts.border ?? null,
+      borderWidth: (opts.borderWidth ?? 0) * ps,
+      opacity: opts.opacity ?? 1,
+    })
+    this.#applyRoundedClipTo(material)
+    const mesh = new Mesh(new PlaneGeometry({width: w * ps, height: h * ps}), material)
+    mesh.position.x = (x + w / 2) * ps
+    mesh.position.y = -(y + h / 2) * ps
+    mesh.position.z = opts.z ?? Z.ELEMENT
+    mesh.updateMatrix()
+    this.#layer.add(mesh)
+  }
+
   /** Точное измерение ширины текста через font advance + letter-spacing.
    *  fontPx интерпретируется как reference-px (если referenceHeight задан) —
    *  возвращаемая ширина уже в canvas-px (после умножения на pageScaleFactor).
@@ -733,6 +779,24 @@ export abstract class Card implements UiCard {
     const dpr = this.canvas?.renderer.pixelRatio ?? 1
     const ox = this.#screenOriginX
     const oy = this.#screenOriginY
+    material.clipBounds = [
+      (ox + clip.xMin) * dpr,
+      (oy + clip.yMin) * dpr,
+      (ox + clip.xMax) * dpr,
+      (oy + clip.yMax) * dpr,
+    ]
+  }
+
+  #applyRoundedClipTo(material: RoundedRectMaterial): void {
+    const clip = this.#clipStack[this.#clipStack.length - 1]!
+    const dpr = this.canvas?.renderer.pixelRatio ?? 1
+    const ox = this.#screenOriginX
+    const oy = this.#screenOriginY
+    // Если clipStack — это вся Card-rect (без активного pushClip), оставляем
+    // zeros — шейдер их детектит и skip'ает scissor (быстрее).
+    if (clip.xMin === 0 && clip.yMin === 0 && clip.xMax === this.rectW && clip.yMax === this.rectH) {
+      return
+    }
     material.clipBounds = [
       (ox + clip.xMin) * dpr,
       (oy + clip.yMin) * dpr,

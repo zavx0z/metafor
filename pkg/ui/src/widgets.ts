@@ -86,9 +86,8 @@ export type CircleButtonOpts = {
 }
 
 /**
- * Кнопка с border-radius. Использует Card primitives drawRect только.
- * radius до min(w,h)/2 (capsule). В отличие от {@link button}, не примыкает
- * к пиксельной сетке углов — фон и рамка скруглены через 1-px strip-rendering.
+ * Кнопка с border-radius. Под капотом — Card.drawRoundedRect с SDF-материалом
+ * в шейдере: один меш на всю кнопку, идеальное AA на углах независимо от dpr.
  */
 export function roundedButton(
   card: Card,
@@ -105,8 +104,13 @@ export function roundedButton(
   const textMat = opts.textMaterial ?? card.materials.toneText(tone)
   const r = Math.min(opts.radius ?? Math.min(w, h) / 2, Math.min(w, h) / 2)
 
-  drawRoundedFill(card, x, y, w, h, r, fill)
-  drawRoundedBorder(card, x, y, w, h, r, borderColor)
+  card.drawRoundedRect(x, y, w, h, {
+    radius: r,
+    fill,
+    border: borderColor,
+    borderWidth: 1,
+    z: Z.ELEMENT,
+  })
 
   // drawTextCentered — bbox-aware центровка. maxWidthPx = w - небольшой
   // safe-padding от каждого края (а не w - 2r, что обрезало бы текст до
@@ -124,15 +128,20 @@ export function roundedButton(
 /**
  * Полностью круглая кнопка. (cx, cy) — центр в card-px, r — радиус.
  * Hit-rect — описанный квадрат (для простоты; расхождения внутри 4 угловых
- * квадратиков не страшны для tap-gestures).
+ * квадратиков не страшны для tap-gestures). Круг = rounded rect с radius=r.
  */
 export function circleButton(card: Card, cx: number, cy: number, r: number, opts: CircleButtonOpts): void {
   const tone = opts.tone ?? "neutral"
   const fontPx = opts.fontPx ?? Math.max(10, Math.round(r * 0.9))
   const fill = opts.fill ?? toneFill(tone)
   const borderColor = opts.border ?? toneBorder(tone)
-  drawDisc(card, cx, cy, r, fill)
-  drawRingStroke(card, cx, cy, r, borderColor)
+  card.drawRoundedRect(cx - r, cy - r, r * 2, r * 2, {
+    radius: r,
+    fill,
+    border: borderColor,
+    borderWidth: 1,
+    z: Z.ELEMENT,
+  })
   // drawTextCentered учитывает реальный bbox глифа (yMin/yMax из getGlyphBounds),
   // поэтому "+", "−", "‹", "›" и прочие non-cap-letter глифы тоже центрируются
   // визуально, а не по cap-box. labelOffsetY игнорируется как deprecated;
@@ -153,105 +162,10 @@ export function circleButton(card: Card, cx: number, cy: number, r: number, opts
   card.hit(cx - r, cy - r, r * 2, r * 2, opts.action, "pointer")
 }
 
-// ─────────────────────── Rounded primitives ───────────────────────
-
-/** Чистая заливка rounded-rect (без рамки) через горизонтальные 1-px strips. */
-function drawRoundedFill(
-  card: Card,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-  color: Color,
-): void {
-  if (r <= 0) {
-    card.drawRect(x, y, w, h, color, Z.ELEMENT)
-    return
-  }
-  for (let dy = 0; dy < h; dy++) {
-    const dx = cornerInset(dy, h, r)
-    card.drawRect(x + dx, y + dy, w - dx * 2, 1, color, Z.ELEMENT)
-  }
-}
-
-/** 1-px рамка вдоль контура rounded-rect. */
-function drawRoundedBorder(
-  card: Card,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-  color: Color,
-): void {
-  if (r <= 0) {
-    card.drawRect(x, y, w, 1, color, Z.ELEMENT_RULE)
-    card.drawRect(x, y + h - 1, w, 1, color, Z.ELEMENT_RULE)
-    card.drawRect(x, y, 1, h, color, Z.ELEMENT_RULE)
-    card.drawRect(x + w - 1, y, 1, h, color, Z.ELEMENT_RULE)
-    return
-  }
-  // Левый и правый скруглённые края — рисуем по строкам, заполняя
-  // дельту между соседними строками, чтобы pixel-staircase сомкнулся.
-  for (let dy = 0; dy < h; dy++) {
-    const dx = cornerInset(dy, h, r)
-    const dxNext = cornerInset(dy + 1, h, r)
-    const dxPrev = cornerInset(dy - 1, h, r)
-    const stepDelta = Math.max(Math.abs(dx - dxPrev), Math.abs(dx - dxNext), 1)
-    card.drawRect(x + dx, y + dy, stepDelta, 1, color, Z.ELEMENT_RULE)
-    card.drawRect(x + w - dx - stepDelta, y + dy, stepDelta, 1, color, Z.ELEMENT_RULE)
-  }
-  // Прямые верхний/нижний участки (между скруглёнными углами).
-  // Для capsule (r = h/2) длина = w - 2r > 0 если w > h; иначе пропускается.
-  const straight = w - 2 * r
-  if (straight > 0) {
-    card.drawRect(x + r, y, straight, 1, color, Z.ELEMENT_RULE)
-    card.drawRect(x + r, y + h - 1, straight, 1, color, Z.ELEMENT_RULE)
-  }
-}
-
-/** Сжатие края rounded-rect для строки `dy` (0..h-1). */
-function cornerInset(dy: number, h: number, r: number): number {
-  if (dy >= r && dy < h - r) return 0
-  // расстояние от центра ближайшей дуги
-  const cy = dy < r ? r - dy - 1 : dy - (h - r)
-  const v = r * r - cy * cy
-  if (v <= 0) return r
-  return Math.max(0, Math.round(r - Math.sqrt(v)))
-}
-
-/** Сплошной диск радиуса r вокруг (cx, cy). */
-function drawDisc(card: Card, cx: number, cy: number, r: number, color: Color): void {
-  for (let dy = -r; dy <= r; dy++) {
-    const w = Math.round(Math.sqrt(r * r - dy * dy)) * 2
-    if (w <= 0) continue
-    card.drawRect(Math.round(cx - w / 2), Math.round(cy + dy), w, 1, color, Z.ELEMENT)
-  }
-}
-
-/** 1-px (по dy) обводка круга: разница между большим и маленьким диском. */
-function drawRingStroke(card: Card, cx: number, cy: number, r: number, color: Color): void {
-  const rIn = Math.max(0, r - 1)
-  for (let dy = -r; dy <= r; dy++) {
-    const wOut = Math.sqrt(r * r - dy * dy)
-    if (wOut <= 0) continue
-    const inSide = Math.abs(dy) <= rIn ? Math.sqrt(rIn * rIn - dy * dy) : 0
-    if (inSide === 0) {
-      card.drawRect(Math.round(cx - wOut), Math.round(cy + dy), Math.round(wOut * 2), 1, color, Z.ELEMENT_RULE)
-    } else {
-      card.drawRect(Math.round(cx - wOut), Math.round(cy + dy), Math.round(wOut - inSide), 1, color, Z.ELEMENT_RULE)
-      card.drawRect(
-        Math.round(cx + inSide),
-        Math.round(cy + dy),
-        Math.round(wOut - inSide),
-        1,
-        color,
-        Z.ELEMENT_RULE,
-      )
-    }
-  }
-}
+// Старые strip-loop утилиты (drawRoundedFill / drawRoundedBorder / drawDisc /
+// drawRingStroke / cornerInset) удалены — теперь Card.drawRoundedRect рисует
+// то же через SDF в шейдере с идеальным AA. Лесенка на углах больше не
+// воспроизводится.
 
 /** Бейдж: tone-fill + colored top-line + label. */
 export function badge(card: Card, x: number, y: number, w: number, h: number, opts: BadgeOpts): void {
