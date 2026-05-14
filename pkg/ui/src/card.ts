@@ -126,6 +126,38 @@ export type DrawTextOpts = {
   z?: number
 }
 
+export type TextBlockAlign = "left" | "center" | "right"
+export type TextBlockVAlign = "top" | "middle" | "bottom"
+
+export type DrawTextBlockOpts = {
+  /** Reference-px if Card.referenceHeight is set, otherwise canvas-px. */
+  fontPx?: number
+  material: TextMaterial
+  lineHeight?: number
+  align?: TextBlockAlign
+  vAlign?: TextBlockVAlign
+  padX?: number
+  padY?: number
+  padTop?: number
+  padRight?: number
+  padBottom?: number
+  padLeft?: number
+  upper?: boolean
+  wrap?: boolean
+  fit?: "none" | "shrink"
+  minFontPx?: number
+  maxLines?: number
+  z?: number
+}
+
+export type TextBlockMetrics = {
+  lines: string[]
+  fontPx: number
+  lineHeightPx: number
+  totalHeightPx: number
+  maxLineWidthPx: number
+}
+
 // Card по умолчанию ПРОЗРАЧНА: ни заливки, ни border'а. Чтобы вернуть
 // «классическую» тёмную карточку с обводкой — передайте bgColor/borderColor
 // явно в CardOpts (см. примеры в playground'е). null отключает явно.
@@ -271,7 +303,18 @@ export abstract class Card implements UiCard {
   }
 
   setBackgroundImage(options: BackgroundImageOpts | null): void {
-    this.#backgroundImage = options ? { ...options, viewBox: options.viewBox ? { ...options.viewBox } : undefined } : null
+    if (options === null) {
+      this.#backgroundImage = null
+    } else {
+      const next: BackgroundImageOpts = {
+        src: options.src,
+      }
+      if (options.fit !== undefined) next.fit = options.fit
+      if (options.opacity !== undefined) next.opacity = options.opacity
+      if (options.scale !== undefined) next.scale = options.scale
+      if (options.viewBox !== undefined) next.viewBox = { ...options.viewBox }
+      this.#backgroundImage = next
+    }
     this.requestRender()
   }
 
@@ -334,6 +377,58 @@ export abstract class Card implements UiCard {
     this.#applyClipTo(text)
     this.#layer.add(text)
     return this.measureText(fitted, opts.fontPx)
+  }
+
+  /**
+   * Deterministic multi-line text inside a fixed box.
+   *
+   * `drawText` deliberately draws one line at a top-left point. For layouts,
+   * use this method instead: font size, line-height and fitting are resolved
+   * in one place, using the same reference-height scaling as `drawText`.
+   */
+  drawTextBlock(
+    value: string | readonly string[],
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    opts: DrawTextBlockOpts,
+  ): TextBlockMetrics {
+    const layout = this.#layoutTextBlock(value, w, h, opts)
+    if (layout.lines.length === 0) return layout
+
+    const pad = textBlockPadding(opts)
+    const innerX = x + pad.left
+    const innerY = y + pad.top
+    const innerW = Math.max(0, w - pad.left - pad.right)
+    const innerH = Math.max(0, h - pad.top - pad.bottom)
+    if (innerW <= 0 || innerH <= 0) return layout
+
+    let cy = innerY
+    if (opts.vAlign === "bottom") cy += Math.max(0, innerH - layout.totalHeightPx)
+    else if (opts.vAlign !== "top") cy += Math.max(0, (innerH - layout.totalHeightPx) / 2)
+
+    for (const line of layout.lines) {
+      const lineW = this.measureText(line, layout.fontPx)
+      let tx = innerX
+      if (opts.align === "right") tx = innerX + innerW - lineW
+      else if (opts.align === "center") tx = innerX + (innerW - lineW) / 2
+      if (line.length > 0) {
+        const drawOpts: DrawTextOpts = {
+          fontPx: layout.fontPx,
+          material: opts.material,
+          maxWidthPx: innerW,
+        }
+        if (opts.z !== undefined) drawOpts.z = opts.z
+        this.drawText(line, tx, cy, drawOpts)
+      }
+      cy += layout.lineHeightPx
+    }
+    return layout
+  }
+
+  measureTextBlock(value: string | readonly string[], w: number, h: number, opts: DrawTextBlockOpts): TextBlockMetrics {
+    return this.#layoutTextBlock(value, w, h, opts)
   }
 
   /**
@@ -688,6 +783,55 @@ export abstract class Card implements UiCard {
     if (lo === 0) return ellipsis
     return value.slice(0, lo) + ellipsis
   }
+
+  #layoutTextBlock(
+    value: string | readonly string[],
+    w: number,
+    h: number,
+    opts: DrawTextBlockOpts,
+  ): TextBlockMetrics {
+    const pad = textBlockPadding(opts)
+    const innerW = Math.max(0, w - pad.left - pad.right)
+    const innerH = Math.max(0, h - pad.top - pad.bottom)
+    const rawLines = normaliseTextBlockLines(value, opts.upper === true)
+    if (rawLines.length === 0 || innerW <= 0 || innerH <= 0) {
+      return { lines: [], fontPx: opts.fontPx ?? 0, lineHeightPx: 0, totalHeightPx: 0, maxLineWidthPx: 0 }
+    }
+
+    const lineHeightRatio = opts.lineHeight ?? 1.25
+    const minFontPx = opts.minFontPx ?? 8
+    let fontPx =
+      opts.fontPx ??
+      Math.max(minFontPx, Math.floor(innerH / Math.max(1, rawLines.length * lineHeightRatio) / this.pageScaleFactor))
+    const fit = opts.fit ?? "shrink"
+    let lines = layoutTextBlockLines(this, rawLines, innerW, fontPx, opts.wrap === true)
+
+    if (fit === "shrink") {
+      for (let i = 0; i < 8; i++) {
+        lines = layoutTextBlockLines(this, rawLines, innerW, fontPx, opts.wrap === true)
+        const limitedLines = limitTextBlockLines(lines, opts.maxLines)
+        const maxLineW = maxTextBlockLineWidth(this, limitedLines, fontPx)
+        const lineH = Math.max(1, fontPx * lineHeightRatio * this.pageScaleFactor)
+        const totalH = limitedLines.length * lineH
+        let next = fontPx
+        if (maxLineW > innerW && maxLineW > 0) next = Math.min(next, (fontPx * innerW) / maxLineW)
+        if (totalH > innerH && totalH > 0) next = Math.min(next, (fontPx * innerH) / totalH)
+        next = Math.max(minFontPx, Math.floor(next))
+        if (next >= fontPx || Math.abs(fontPx - next) < 1) {
+          lines = limitedLines
+          break
+        }
+        fontPx = next
+        lines = limitedLines
+      }
+    }
+
+    lines = limitTextBlockLines(lines, opts.maxLines)
+    const lineHeightPx = Math.round(fontPx * lineHeightRatio * this.pageScaleFactor)
+    const totalHeightPx = lines.length * lineHeightPx
+    const maxLineWidthPx = maxTextBlockLineWidth(this, lines, fontPx)
+    return { lines, fontPx, lineHeightPx, totalHeightPx, maxLineWidthPx }
+  }
 }
 
 function mkMesh(name: string, mat: MeshBasicMaterial): Mesh {
@@ -709,4 +853,58 @@ function normaliseViewBox(viewBox: ImageViewBox | undefined): ImageViewBox {
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.min(1, Math.max(0, value))
+}
+
+function textBlockPadding(opts: DrawTextBlockOpts): {top: number; right: number; bottom: number; left: number} {
+  const x = opts.padX ?? 0
+  const y = opts.padY ?? 0
+  return {
+    top: opts.padTop ?? y,
+    right: opts.padRight ?? x,
+    bottom: opts.padBottom ?? y,
+    left: opts.padLeft ?? x,
+  }
+}
+
+function normaliseTextBlockLines(value: string | readonly string[], upper: boolean): string[] {
+  const lines = typeof value === "string" ? value.split("\n") : [...value]
+  return lines.map((line) => (upper ? line.toUpperCase() : line))
+}
+
+function layoutTextBlockLines(card: Card, rawLines: readonly string[], maxW: number, fontPx: number, wrap: boolean): string[] {
+  if (!wrap) return [...rawLines]
+  const out: string[] = []
+  for (const raw of rawLines) {
+    if (raw.trim().length === 0) {
+      out.push("")
+      continue
+    }
+    let line = ""
+    for (const word of raw.split(/\s+/).filter(Boolean)) {
+      const candidate = line ? `${line} ${word}` : word
+      if (card.measureText(candidate, fontPx) <= maxW || line.length === 0) {
+        line = candidate
+      } else {
+        out.push(line)
+        line = word
+      }
+    }
+    if (line) out.push(line)
+  }
+  return out
+}
+
+function limitTextBlockLines(lines: readonly string[], maxLines: number | undefined): string[] {
+  if (maxLines === undefined || lines.length <= maxLines) return [...lines]
+  if (maxLines <= 0) return []
+  const out = lines.slice(0, maxLines)
+  const last = out[maxLines - 1] ?? ""
+  out[maxLines - 1] = last.endsWith("...") || last.length === 0 ? last : `${last}...`
+  return out
+}
+
+function maxTextBlockLineWidth(card: Card, lines: readonly string[], fontPx: number): number {
+  let max = 0
+  for (const line of lines) max = Math.max(max, card.measureText(line, fontPx))
+  return max
 }
