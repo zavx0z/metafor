@@ -68,6 +68,7 @@ const server = Bun.serve({
     "/divider": index,
     "/scrollbar": index,
     "/scroll-list": index,
+    "/noti-stack": index,
     "/theme": index,
     // Шрифт нужен для UiCanvas.
     "/JetBrainsMono-Bold.ttf": () =>
@@ -126,6 +127,7 @@ console.log(`    /input            → input widget`)
 console.log(`    /divider          → divider widget`)
 console.log(`    /scrollbar        → scrollbar widget`)
 console.log(`    /scroll-list      → ScrollListState + scrollList + edgeFade`)
+console.log(`    /noti-stack       → NotiStack — toast stack controller`)
 console.log(`  Reference:`)
 console.log(`    /theme            → palette + tones + Z stack`)
 void YOGA_WASM

@@ -17,6 +17,7 @@ import inputDemo from "./demos/input.ts"
 import dividerDemo from "./demos/divider.ts"
 import scrollDemo from "./demos/scroll.ts"
 import scrollbarDemo from "./demos/scrollbar.ts"
+import notiStackDemo from "./demos/noti-stack.ts"
 import gridDemo from "./demos/grid.ts"
 import paddingDemo from "./demos/padding.ts"
 import textBlockDemo from "./demos/text-block.ts"
@@ -59,6 +60,7 @@ const nav: NavGroup[] = [
       {slug: "divider", label: "Divider", demo: dividerDemo},
       {slug: "scrollbar", label: "Scrollbar", demo: scrollbarDemo},
       {slug: "scroll-list", label: "Scroll List", demo: scrollDemo},
+      {slug: "noti-stack", label: "Noti Stack", demo: notiStackDemo},
     ],
   },
   {
