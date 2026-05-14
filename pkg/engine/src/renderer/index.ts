@@ -5,7 +5,7 @@ import {InstancedMesh} from "../core/InstancedMesh"
 import {SkinnedMesh} from "../core/SkinnedMesh"
 import {BufferGeometry} from "../core/BufferGeometry"
 import {WireframeInstancedMesh} from "../core/WireframeInstancedMesh"
-import {ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, TextMaterial} from "../materials"
+import {ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, RoundedRectMaterial, TextMaterial} from "../materials"
 import {Matrix4, Vector3, Frustum} from "../math"
 import {LineSegments} from "../objects/LineSegments"
 import {Text} from "../objects/Text"
@@ -19,6 +19,7 @@ import blurWGSL from "./shaders/blur.wgsl" with {type: "text"}
 import lineShaderCode from "./shaders/line.wgsl" with {type: "text"}
 import textShaderCode from "./shaders/text.wgsl" with {type: "text"}
 import imageShaderCode from "./shaders/image.wgsl" with {type: "text"}
+import roundedShaderCode from "./shaders/rounded.wgsl" with {type: "text"}
 import {TEXT_COVER_FACE_STATE, TEXT_STENCIL_BACK_FACE_STATE, TEXT_STENCIL_FACE_STATE} from "./text-stencil"
 import {collectSceneObjects, type LightItem, type RenderItem} from "./utils/RenderList"
 import {GlassMaterial} from "../materials/GlassMaterial"
@@ -73,6 +74,7 @@ export class Renderer {
   private textStencilPipeline: GPURenderPipeline | null = null
   private textCoverPipeline: GPURenderPipeline | null = null
   private imagePipeline: GPURenderPipeline | null = null
+  private roundedPipeline: GPURenderPipeline | null = null
   private imageBindGroupLayout: GPUBindGroupLayout | null = null
   private imageSampler: GPUSampler | null = null
   private imageBindGroupCache: WeakMap<GPUTexture, GPUBindGroup> = new WeakMap()
@@ -297,6 +299,9 @@ export class Renderer {
     const imageShaderModule = this.device.createShaderModule({
       code: imageShaderCode,
     })
+    const roundedShaderModule = this.device.createShaderModule({
+      code: roundedShaderCode,
+    })
 
     // --- Pipeline для MeshBasicMaterial: без освещения, цвет как задан в material.color ---
     this.basicMeshPipeline = await this.device.createRenderPipelineAsync({
@@ -349,6 +354,49 @@ export class Renderer {
       },
       fragment: {
         module: imageShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: {
+        depthWriteEnabled: true,
+        depthCompare: "less",
+        format: "depth24plus-stencil8",
+      },
+      multisample: {count: this.sampleCount},
+    })
+
+    // --- Pipeline для RoundedRectMaterial: SDF rounded box + alpha-blend ---
+    // Layout = базовый perObject (без image-текстур) → используем pipelineLayout.
+    // Vertex buffer 0 = position (float32x3), buffer 1 = normal (float32x3) —
+    // тот же layout что и basicMesh, чтобы PlaneGeometry рендерилась без
+    // изменений buffer setup.
+    this.roundedPipeline = await this.device.createRenderPipelineAsync({
+      layout: pipelineLayout,
+      vertex: {
+        module: roundedShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+        ],
+      },
+      fragment: {
+        module: roundedShaderModule,
         entryPoint: "fs_main",
         targets: [{
           format: this.presentationFormat,
@@ -909,6 +957,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       !this.textStencilPipeline ||
       !this.textCoverPipeline ||
       !this.imagePipeline ||
+      !this.roundedPipeline ||
       !this.imageBindGroupLayout ||
       !this.imageSampler ||
       !this.globalUniformBuffer ||
@@ -1060,6 +1109,34 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (material instanceof MeshBasicMaterial || material instanceof MeshLambertMaterial) {
       this.perObjectDataCPU!.set(material.color.toArray(), offsetFloats + 32)
+    } else if (material instanceof RoundedRectMaterial) {
+      // fill rgba @ 32..35
+      this.perObjectDataCPU!.set(
+        [material.fill.r, material.fill.g, material.fill.b, material.fill.a],
+        offsetFloats + 32,
+      )
+      // border rgba @ 36..39
+      this.perObjectDataCPU!.set(
+        [material.border.r, material.border.g, material.border.b, material.border.a],
+        offsetFloats + 36,
+      )
+      // size.xy + 2 pad @ 40..43
+      this.perObjectDataCPU!.set([material.width, material.height, 0, 0], offsetFloats + 40)
+      // radii tl/tr/br/bl @ 44..47
+      // WGSL ожидает порядок (TR, BR, BL, TL) для quadrant-mapping —
+      // но я переписал внутри sdRoundBox чтобы выбирать по квадранту
+      // явно (см. shader). Передаём в порядке tl/tr/br/bl, в шейдере
+      // комментарий описывает соответствие.
+      this.perObjectDataCPU!.set(material.radii, offsetFloats + 44)
+      // params: borderWidth, opacity, 0, 0 @ 48..51
+      this.perObjectDataCPU!.set(
+        [material.borderWidth, clamp01(material.opacity), 0, 0],
+        offsetFloats + 48,
+      )
+      // clipBounds @ 52..55 (zeros disable clip).
+      if (material.clipBounds !== null) {
+        this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 52)
+      }
     } else if (material instanceof ImageMaterial) {
       if (material.clipBounds !== null) {
         this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 36)
@@ -1170,9 +1247,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             pipeline =
               material instanceof ImageMaterial
                 ? this.imagePipeline
-                : material instanceof MeshBasicMaterial
-                  ? this.basicMeshPipeline
-                  : this.staticMeshPipeline
+                : material instanceof RoundedRectMaterial
+                  ? this.roundedPipeline
+                  : material instanceof MeshBasicMaterial
+                    ? this.basicMeshPipeline
+                    : this.staticMeshPipeline
           }
           break
         case "skinned-mesh":
