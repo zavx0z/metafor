@@ -19,6 +19,9 @@ import {
 import type {ParamsPanel} from "../params.ts"
 import {Color} from "@metafor/engine"
 
+/** Chrome DevTools-style padding tint — мягкий зелёно-салатовый полупрозрачный fill. */
+const PADDING_TINT = new Color(155 / 255, 215 / 255, 130 / 255, 0.18)
+
 type Direction = "row" | "column"
 
 const CELL_COLORS = [palette.cyan, palette.green, palette.orange, palette.violet, palette.red, palette.blue]
@@ -71,16 +74,36 @@ class FlexCard extends Card {
 
     // Frame для flex-области. Outer (palette.border) — границы контейнера,
     // которые получает flex (opts.x/y/w/h). Inner (palette.cyan) — фактическая
-    // зона распределения items, т.е. outer минус paddingX/paddingY. Items в
-    // justify=space-between/-around прижимаются к INNER границам.
+    // зона распределения items, т.е. outer минус paddingX/paddingY.
+    // Padding-зона тонируется зелёным fill'ом по образцу box-model overlay
+    // в Chrome DevTools.
     const frameX = 16
     const frameY = 76
     const frameW = this.rectW - 32
     const frameH = this.rectH - frameY - 16
+
+    // Padding bands — рисуем ПЕРВЫМИ (z=0.00001), чтобы рамки и items лежали
+    // сверху. 4 полосы: top, bottom, left, right. Углы pad-зоны попадают
+    // и в горизонтальную, и в вертикальную полосы — alpha=0.18 даёт лёгкое
+    // удвоение по углам, что визуально подсказывает "тут наслаивается отступ".
+    if (paddingY > 0) {
+      this.drawRect(frameX, frameY, frameW, paddingY, PADDING_TINT, 0.00001)
+      this.drawRect(frameX, frameY + frameH - paddingY, frameW, paddingY, PADDING_TINT, 0.00001)
+    }
+    if (paddingX > 0) {
+      const sideY = frameY + paddingY
+      const sideH = Math.max(0, frameH - paddingY * 2)
+      this.drawRect(frameX, sideY, paddingX, sideH, PADDING_TINT, 0.00001)
+      this.drawRect(frameX + frameW - paddingX, sideY, paddingX, sideH, PADDING_TINT, 0.00001)
+    }
+
+    // Outer frame — граница того, что flex получает как opts.x/y/w/h.
     this.drawRect(frameX, frameY, frameW, 1, palette.border, 0.00002)
     this.drawRect(frameX, frameY + frameH, frameW, 1, palette.border, 0.00002)
     this.drawRect(frameX, frameY, 1, frameH, palette.border, 0.00002)
     this.drawRect(frameX + frameW - 1, frameY, 1, frameH, palette.border, 0.00002)
+    // Inner frame — фактический box, в котором flex распределяет items.
+    // Прерывистый cyan показывает, что это «вспомогательная» граница.
     if (paddingX > 0 || paddingY > 0) {
       const ix = frameX + paddingX
       const iy = frameY + paddingY
