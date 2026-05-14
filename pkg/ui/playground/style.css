@@ -1,62 +1,147 @@
-/* @metafor/ui playground — общие стили. */
-* {
-  box-sizing: border-box;
+/* @metafor/ui playground — docs layout в стиле shadcn/ui. */
+
+:root {
+  --bg: #08090c;
+  --bg-elevated: #0f1218;
+  --bg-panel: #11151c;
+  --bg-hot: #1a2230;
+  --border: #232a36;
+  --border-strong: #2f3847;
+  --text: #e6edf3;
+  --text-dim: #9aa4b3;
+  --text-muted: #6a7384;
+  --accent: #6fd3ff;
+  --accent-soft: #2a4a60;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
+
+* { box-sizing: border-box; }
+
 html, body {
   margin: 0;
   padding: 0;
   width: 100%;
-  height: 100%;
-  background: #0b0f16;
-  color: #e6edf3;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 13px;
-}
-body {
-  display: flex;
   height: 100vh;
-}
-
-/* Sidebar с навигацией. */
-nav.demos {
-  width: 220px;
-  flex-shrink: 0;
-  background: #11161f;
-  border-right: 1px solid #2a3443;
-  padding: 12px 0;
-  overflow-y: auto;
-}
-nav.demos h1 {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #6fd3ff;
-  font-weight: 600;
-  padding: 0 14px;
-  margin: 0 0 10px;
-}
-nav.demos a {
-  display: block;
-  padding: 6px 14px;
-  color: #b8c2cf;
-  text-decoration: none;
-  font-size: 12px;
-  border-left: 2px solid transparent;
-}
-nav.demos a:hover { background: #1a2230; color: #fff; }
-nav.demos a.active {
-  background: #1a2230;
-  color: #6fd3ff;
-  border-left-color: #6fd3ff;
-}
-
-/* Demo-area с canvas. */
-main.stage {
-  flex: 1;
-  position: relative;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.55;
   overflow: hidden;
 }
-main.stage canvas {
+
+body {
+  display: grid;
+  grid-template-columns: 240px 1fr 220px;
+  gap: 0;
+}
+
+/* ─────────── Sidebar (left) ─────────── */
+aside.sidebar {
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  padding: 20px 0;
+}
+.brand {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  padding: 0 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+nav.nav { padding: 12px 0; display: flex; flex-direction: column; gap: 16px; }
+.nav-group { display: flex; flex-direction: column; }
+.nav-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 4px 20px 6px;
+}
+nav.nav a {
+  display: block;
+  padding: 5px 20px;
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 13px;
+  border-left: 2px solid transparent;
+  transition: color 0.12s, background 0.12s;
+}
+nav.nav a:hover { color: var(--text); background: var(--bg-panel); }
+nav.nav a.active {
+  color: var(--accent);
+  background: var(--bg-panel);
+  border-left-color: var(--accent);
+  font-weight: 500;
+}
+
+/* ─────────── Main docs area — split в 2 секции ─────────── */
+/* Верх: header + preview (sticky / fixed). */
+/* Низ: props — отдельный scroll-контейнер. */
+main.docs {
+  min-width: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.doc-fixed {
+  flex: 0 0 auto;
+  padding: 24px 40px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  /* Тонкий градиент-подсветка для разделения с props-секцией. */
+  box-shadow: 0 6px 12px -8px rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
+
+.doc-header {
+  margin-bottom: 14px;
+}
+.breadcrumb {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.doc-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.doc-lede {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ─────────── Preview area ─────────── */
+.doc-preview {
+  /* clamp: минимум 240px, идеально ~50vh, максимум 520px. */
+  height: clamp(240px, 48vh, 520px);
+}
+.preview-frame {
+  position: relative;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+.preview-frame canvas {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -64,15 +149,242 @@ main.stage canvas {
   display: block;
   outline: none;
 }
-main.stage .label {
-  position: absolute;
-  top: 8px;
-  left: 12px;
-  z-index: 5;
+
+/* ─────────── Props section — scrollable ─────────── */
+.doc-props {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 20px 40px 80px;
+  scrollbar-gutter: stable;
+}
+.doc-props h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+  scroll-margin-top: 8px;
+}
+.section-lede {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0 0 18px;
+}
+
+.prop-group {
+  margin-top: 28px;
+}
+.prop-group:first-of-type { margin-top: 4px; }
+.prop-group-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 8px;
+}
+
+.prop {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  scroll-margin-top: 8px;
+}
+.prop-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  margin-bottom: 6px;
+}
+.prop-name {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.prop-type {
+  font-family: var(--mono);
   font-size: 11px;
-  color: #6fd3ff;
+  color: var(--text-muted);
+  background: var(--bg-panel);
+  padding: 1px 7px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+.prop-default {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+.prop-default-label {
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+.prop-description {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+.prop-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.prop-control-value {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  min-width: 48px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* form controls */
+.prop input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+.prop input[type="text"],
+.prop input[type="number"],
+.prop select {
+  flex: 1;
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  padding: 5px 9px;
+  font-family: var(--mono);
+  font-size: 12px;
+  border-radius: 4px;
+  outline: none;
+}
+.prop input:focus,
+.prop select:focus { border-color: var(--accent); }
+.prop textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 56px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  padding: 6px 9px;
+  font-family: var(--mono);
+  font-size: 11px;
+  border-radius: 4px;
+  outline: none;
+  resize: vertical;
+}
+.prop textarea:focus { border-color: var(--accent); }
+.prop input[type="color"] {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  width: 44px;
+  height: 26px;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.prop-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+.prop-checkbox input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+}
+
+.prop-segment {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 2px;
+}
+.prop-segment button {
+  flex: 1;
+  background: transparent;
+  color: var(--text-dim);
+  border: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 0.12s, background 0.12s;
+}
+.prop-segment button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.prop-segment button:hover:not(.active) {
+  color: var(--text);
+}
+
+/* ─────────── TOC (right sidebar) ─────────── */
+aside.toc {
+  height: 100vh;
+  overflow-y: auto;
+  padding: 24px 20px;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
+.toc-title {
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  pointer-events: none;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin: 0 0 8px;
+}
+#toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+#toc-list li { margin: 0; }
+#toc-list a {
+  display: block;
+  padding: 3px 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: var(--mono);
+  border-left: 2px solid transparent;
+  padding-left: 10px;
+  margin-left: -12px;
+  cursor: pointer;
+}
+#toc-list a:hover { color: var(--text); }
+#toc-list a.toc-group {
+  color: var(--text-dim);
+  font-weight: 600;
+  margin-top: 6px;
+  text-transform: lowercase;
+}
+#toc-list a.toc-group:first-child { margin-top: 0; }
+
+/* ─────────── Responsive ─────────── */
+@media (max-width: 1100px) {
+  body { grid-template-columns: 220px 1fr; }
+  aside.toc { display: none; }
+}
+@media (max-width: 760px) {
+  body { grid-template-columns: 1fr; }
+  aside.sidebar { display: none; }
+  .doc-fixed { padding: 16px 16px 12px; }
+  .doc-props { padding: 16px 16px 60px; }
+  .doc-preview { height: clamp(220px, 42vh, 360px); }
 }

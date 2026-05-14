@@ -1,55 +1,145 @@
 /**
  * Playground entry. URL-роуты соответствуют demo-модулям в ./demos/*.ts.
- * Каждый demo экспортирует default async function ({canvas}) которая
- * создаёт UiCanvas и регистрирует карточки.
+ * Каждое demo экспортирует default async function ({canvas, params}) — там
+ * создаются UiCanvas, регистрируются параметры и добавляются cards.
  */
 
 import {UiCanvas} from "@metafor/ui"
+import {ParamsPanel} from "./params.ts"
 import cardDemo from "./demos/card.ts"
 import flexDemo from "./demos/flex.ts"
-import widgetsDemo from "./demos/widgets.ts"
+import flexCssDemo from "./demos/flex-css.ts"
+import buttonDemo from "./demos/button.ts"
+import roundedButtonDemo from "./demos/rounded-button.ts"
+import circleButtonDemo from "./demos/circle-button.ts"
+import badgeDemo from "./demos/badge.ts"
+import inputDemo from "./demos/input.ts"
+import dividerDemo from "./demos/divider.ts"
 import scrollDemo from "./demos/scroll.ts"
+import scrollbarDemo from "./demos/scrollbar.ts"
 import gridDemo from "./demos/grid.ts"
+import paddingDemo from "./demos/padding.ts"
+import textBlockDemo from "./demos/text-block.ts"
+import imageDemo from "./demos/image.ts"
+import themeDemo from "./demos/theme.ts"
 
-type DemoFn = (ctx: {canvas: UiCanvas}) => void | Promise<void>
+export type DemoCtx = {canvas: UiCanvas; params: ParamsPanel}
+type DemoFn = (ctx: DemoCtx) => void | Promise<void>
 
-const demos: Record<string, DemoFn> = {
-  card: cardDemo,
-  flex: flexDemo,
-  widgets: widgetsDemo,
-  scroll: scrollDemo,
-  grid: gridDemo,
-}
+type NavEntry = {slug: string; label: string; demo: DemoFn}
+type NavGroup = {title: string; entries: NavEntry[]}
+
+const nav: NavGroup[] = [
+  {
+    title: "Layout",
+    entries: [
+      {slug: "card", label: "Card", demo: cardDemo},
+      {slug: "padding", label: "Padding", demo: paddingDemo},
+      {slug: "flex", label: "Flex", demo: flexDemo},
+      {slug: "flex-css", label: "Flex CSS", demo: flexCssDemo},
+      {slug: "grid", label: "Multi-Card Grid", demo: gridDemo},
+    ],
+  },
+  {
+    title: "Typography",
+    entries: [{slug: "text-block", label: "Text Block", demo: textBlockDemo}],
+  },
+  {
+    title: "Media",
+    entries: [{slug: "image", label: "Image", demo: imageDemo}],
+  },
+  {
+    title: "Components",
+    entries: [
+      {slug: "button", label: "Button", demo: buttonDemo},
+      {slug: "rounded-button", label: "Rounded Button", demo: roundedButtonDemo},
+      {slug: "circle-button", label: "Circle Button", demo: circleButtonDemo},
+      {slug: "badge", label: "Badge", demo: badgeDemo},
+      {slug: "input", label: "Input", demo: inputDemo},
+      {slug: "divider", label: "Divider", demo: dividerDemo},
+      {slug: "scrollbar", label: "Scrollbar", demo: scrollbarDemo},
+      {slug: "scroll-list", label: "Scroll List", demo: scrollDemo},
+    ],
+  },
+  {
+    title: "Reference",
+    entries: [{slug: "theme", label: "Theme & Palette", demo: themeDemo}],
+  },
+]
+
+const demos = new Map<string, DemoFn>()
+for (const g of nav) for (const e of g.entries) demos.set(e.slug, e.demo)
 
 const stageCanvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
-const labelEl = document.getElementById("demo-label")
-const navLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>("nav.demos a"))
+const navEl = document.getElementById("nav")
+const titleEl = document.getElementById("doc-title")
+const ledeEl = document.getElementById("doc-lede")
+const breadcrumbEl = document.getElementById("doc-breadcrumb")
+const propsBody = document.getElementById("props-body")
+const tocEl = document.getElementById("toc-list")
 
-if (stageCanvas === null || labelEl === null) {
+if (
+  stageCanvas === null ||
+  navEl === null ||
+  titleEl === null ||
+  ledeEl === null ||
+  breadcrumbEl === null ||
+  propsBody === null ||
+  tocEl === null
+) {
   throw new Error("playground DOM не готов")
 }
+
+for (const group of nav) {
+  const groupEl = document.createElement("div")
+  groupEl.className = "nav-group"
+  const titleNode = document.createElement("p")
+  titleNode.className = "nav-group-title"
+  titleNode.textContent = group.title
+  groupEl.append(titleNode)
+  for (const entry of group.entries) {
+    const a = document.createElement("a")
+    a.href = `/${entry.slug}`
+    a.dataset["demo"] = entry.slug
+    a.textContent = entry.label
+    a.addEventListener("click", (event) => {
+      event.preventDefault()
+      history.pushState({demo: entry.slug}, "", `/${entry.slug}`)
+      void selectDemo(entry.slug)
+    })
+    groupEl.append(a)
+  }
+  navEl.append(groupEl)
+}
+
+const paramsPanel = new ParamsPanel({
+  body: propsBody,
+  titleEl,
+  ledeEl,
+  breadcrumbEl,
+  tocEl,
+})
 
 let activeUi: UiCanvas | null = null
 let activeCleanup: (() => void) | null = null
 
 async function selectDemo(name: string): Promise<void> {
-  const demo = demos[name]
+  const demo = demos.get(name)
   if (demo === undefined) {
-    labelEl!.textContent = `unknown demo: ${name}`
+    paramsPanel.reset({title: `Unknown route: /${name}`, description: "Выберите компонент в левой панели."})
     return
   }
-  labelEl!.textContent = name
 
-  // Чистим прошлый canvas-state.
   if (activeUi !== null) {
     activeCleanup?.()
     activeCleanup = null
     activeUi.dispose()
     activeUi = null
   }
+  paramsPanel.reset({title: "", description: ""})
 
   activeUi = await UiCanvas.create(stageCanvas!)
-  await demo({canvas: activeUi})
+  await demo({canvas: activeUi, params: paramsPanel})
 
   const ro = new ResizeObserver(() => activeUi?.handleResize())
   const resizeHandler = (): void => activeUi?.handleResize()
@@ -62,8 +152,8 @@ async function selectDemo(name: string): Promise<void> {
     window.removeEventListener("resize", resizeHandler)
   }
 
-  for (const link of navLinks) {
-    link.classList.toggle("active", link.dataset.demo === name)
+  for (const link of navEl!.querySelectorAll<HTMLAnchorElement>("a[data-demo]")) {
+    link.classList.toggle("active", link.dataset["demo"] === name)
   }
 }
 
@@ -72,20 +162,8 @@ function routeName(): string {
   return path === "" ? "card" : path
 }
 
-for (const link of navLinks) {
-  link.addEventListener("click", (event) => {
-    event.preventDefault()
-    const name = link.dataset.demo
-    if (name === undefined) return
-    history.pushState({demo: name}, "", `/${name}`)
-    void selectDemo(name)
-  })
-}
-
 window.addEventListener("popstate", () => void selectDemo(routeName()))
 
-// Sidecar reload: ws://host/ws → server бросает {type:"reload"}, мы перезагружаем
-// страницу с cache-bust (без HMR, чтобы не ломать WebGPU canvas).
 function attachReloadSocket(): void {
   const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`
   const ws = new WebSocket(url)

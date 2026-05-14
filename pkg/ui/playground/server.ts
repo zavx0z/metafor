@@ -53,12 +53,22 @@ const server = Bun.serve({
     "/": index,
     // Каждый demo-роут возвращает тот же index.html — entry.ts сам
     // прочитает window.location.pathname и подберёт demo-модуль.
-    // Server-side роутинг ON: /card, /flex, etc.
     "/card": index,
+    "/padding": index,
     "/flex": index,
-    "/widgets": index,
-    "/scroll": index,
+    "/flex-css": index,
     "/grid": index,
+    "/text-block": index,
+    "/image": index,
+    "/button": index,
+    "/rounded-button": index,
+    "/circle-button": index,
+    "/badge": index,
+    "/input": index,
+    "/divider": index,
+    "/scrollbar": index,
+    "/scroll-list": index,
+    "/theme": index,
     // Шрифт нужен для UiCanvas.
     "/JetBrainsMono-Bold.ttf": () =>
       new Response(Bun.file(FONT_PATH), {
@@ -97,10 +107,26 @@ const server = Bun.serve({
 
 const url = `http://${server.hostname}:${server.port}`
 console.log(`[@metafor/ui playground] ${url}`)
-console.log(`  / or /card    → Card basics`)
-console.log(`  /flex         → flexRow/flexColumn`)
-console.log(`  /widgets      → button / badge / input`)
-console.log(`  /scroll       → scrollable list`)
-console.log(`  /grid         → multi-card grid`)
+console.log(`  Layout:`)
+console.log(`    /card             → Card`)
+console.log(`    /padding          → Card.padding & drawTextCentered`)
+console.log(`    /flex             → flexRow / flexColumn`)
+console.log(`    /flex-css         → flexRowCss / flexColumnCss (px/%/fr/grow)`)
+console.log(`    /grid             → Multi-card grid`)
+console.log(`  Typography:`)
+console.log(`    /text-block       → drawTextBlock`)
+console.log(`  Media:`)
+console.log(`    /image            → drawImage + setBackgroundImage`)
+console.log(`  Components:`)
+console.log(`    /button           → button widget`)
+console.log(`    /rounded-button   → roundedButton widget`)
+console.log(`    /circle-button    → circleButton widget`)
+console.log(`    /badge            → badge widget`)
+console.log(`    /input            → input widget`)
+console.log(`    /divider          → divider widget`)
+console.log(`    /scrollbar        → scrollbar widget`)
+console.log(`    /scroll-list      → ScrollListState + scrollList + edgeFade`)
+console.log(`  Reference:`)
+console.log(`    /theme            → palette + tones + Z stack`)
 void YOGA_WASM
 void resolve

@@ -4,22 +4,41 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="cache-control" content="no-cache" />
-    <title>@metafor/ui — playground</title>
+    <title>@metafor/ui — components</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <nav class="demos">
-      <h1>@metafor/ui</h1>
-      <a href="/card" data-demo="card">Card basics</a>
-      <a href="/flex" data-demo="flex">Flex row/column</a>
-      <a href="/widgets" data-demo="widgets">Buttons / Badges / Inputs</a>
-      <a href="/scroll" data-demo="scroll">Scrollable list</a>
-      <a href="/grid" data-demo="grid">Multi-card grid</a>
-    </nav>
-    <main class="stage">
-      <span class="label" id="demo-label">Pick a demo</span>
-      <canvas id="stage-canvas"></canvas>
+    <aside class="sidebar">
+      <div class="brand">@metafor/ui</div>
+      <nav class="nav" id="nav"></nav>
+    </aside>
+    <main class="docs">
+      <div class="doc-fixed">
+        <header class="doc-header">
+          <p class="breadcrumb" id="doc-breadcrumb">Components</p>
+          <h1 id="doc-title">Pick a component</h1>
+          <p class="doc-lede" id="doc-lede"></p>
+        </header>
+
+        <section class="doc-preview">
+          <div class="preview-frame">
+            <canvas id="stage-canvas"></canvas>
+          </div>
+        </section>
+      </div>
+
+      <section class="doc-props" id="doc-props">
+        <h2 id="props-heading">Props</h2>
+        <p class="section-lede" id="props-lede">
+          Параметры компонента. Меняйте значения — preview-канва обновляется в реальном времени.
+        </p>
+        <div id="props-body"></div>
+      </section>
     </main>
+    <aside class="toc">
+      <p class="toc-title">On this page</p>
+      <ul id="toc-list"></ul>
+    </aside>
     <script type="module" src="./entry.ts"></script>
   </body>
 </html>
