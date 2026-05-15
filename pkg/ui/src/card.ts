@@ -164,8 +164,6 @@ export type TextBlockMetrics = {
 // явно в CardOpts (см. примеры в playground'е). null отключает явно.
 const DEFAULT_BG: Color | null = null
 const DEFAULT_BORDER: Color | null = null
-const IMAGE_PLACEHOLDER = new Color(13 / 255, 12 / 255, 10 / 255, 1)
-const IMAGE_PLACEHOLDER_LINE = new Color(201 / 255, 168 / 255, 76 / 255, 0.3)
 
 export const Z: {
   readonly CONTAINER: number
@@ -694,8 +692,15 @@ export abstract class Card implements UiCard {
   ): void {
     if (!src || w <= 0 || h <= 0) return
     const viewBox = normaliseViewBox(opts.viewBox)
-    const status = TextureLoader.status(src)
-    if (status !== "ready") this.#drawImagePlaceholder(parent, x, y, w, h, z - 0.00001)
+    // Пока texture status !== "ready" — image-mesh всё равно создаётся и
+    // использует TextureLoader.fallback() (1×1 прозрачную текстуру), поэтому
+    // место под image полностью прозрачно. Никакого placeholder rect под ним
+    // не рисуем: раньше там был dark fill + 4 line-rect'a по периметру
+    // (IMAGE_PLACEHOLDER_LINE = gold с alpha 0.3), что давало flash «пустых
+    // золотых рамок» по всему layout — вокруг каждой фотографии, иконки,
+    // логотипа и т.п. при холодной загрузке. Когда status → "ready",
+    // onTextureChange → requestRender → next frame подхватит настоящую
+    // текстуру в тот же mesh.
 
     const material = new ImageMaterial({
       src,
@@ -709,27 +714,6 @@ export abstract class Card implements UiCard {
     const mesh = new Mesh(
       new TexturedPlaneGeometry({width: w * this.pixelScale, height: h * this.pixelScale}),
       material,
-    )
-    mesh.position.x = (x + w / 2) * this.pixelScale
-    mesh.position.y = -(y + h / 2) * this.pixelScale
-    mesh.position.z = z
-    mesh.updateMatrix()
-    parent.add(mesh)
-  }
-
-  #drawImagePlaceholder(parent: Object3D, x: number, y: number, w: number, h: number, z: number): void {
-    this.#drawRawRect(parent, x, y, w, h, IMAGE_PLACEHOLDER, z)
-    this.#drawRawRect(parent, x, y, w, 1, IMAGE_PLACEHOLDER_LINE, z + 0.000001)
-    this.#drawRawRect(parent, x, y + h - 1, w, 1, IMAGE_PLACEHOLDER_LINE, z + 0.000001)
-    this.#drawRawRect(parent, x, y, 1, h, IMAGE_PLACEHOLDER_LINE, z + 0.000001)
-    this.#drawRawRect(parent, x + w - 1, y, 1, h, IMAGE_PLACEHOLDER_LINE, z + 0.000001)
-  }
-
-  #drawRawRect(parent: Object3D, x: number, y: number, w: number, h: number, color: Color, z: number): void {
-    if (w <= 0 || h <= 0) return
-    const mesh = new Mesh(
-      new PlaneGeometry({width: w * this.pixelScale, height: h * this.pixelScale}),
-      new MeshBasicMaterial({color}),
     )
     mesh.position.x = (x + w / 2) * this.pixelScale
     mesh.position.y = -(y + h / 2) * this.pixelScale
