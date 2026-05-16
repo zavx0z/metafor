@@ -12,6 +12,7 @@
  */
 
 import {Color, Object3D, Renderer, Scene, TrueTypeFont, ViewPoint} from "@metafor/engine"
+import {VirtualInput} from "./virtual-input.ts"
 
 export type CardRect = {x: number; y: number; w: number; h: number; visible?: boolean}
 export type CardLayoutFn = (canvas: {w: number; h: number}) => CardRect
@@ -23,6 +24,13 @@ export interface UiCard {
   setRect(rect: CardRect, pixelScale: number, font: TrueTypeFont): void
   onWheel?(event: WheelEvent, localX: number, localY: number): void
   onKey?(event: KeyboardEvent): void
+  /**
+   * Текстовый ввод, который пришёл НЕ через keydown: emoji-panel, IME-
+   * композиция, dictation, autocorrect-replace. UiCanvas пробрасывает сюда
+   * данные из `VirtualInput`. По умолчанию card может вызывать свой
+   * insertText, как при paste.
+   */
+  onInputText?(text: string): void
   onPointerMove?(event: MouseEvent, localX: number, localY: number): void
   onPointerDown?(event: MouseEvent, localX: number, localY: number): void
   onPointerUp?(event: MouseEvent, localX: number, localY: number): void
@@ -44,6 +52,14 @@ export type UiCanvasOpts = {
   cameraDistance?: number
   /** Field of view. Default π/4. */
   fov?: number
+  /**
+   * Создать VirtualInput — невидимый textarea, через который идут все
+   * keydown'ы и текстовые вставки (emoji, IME, dictation, autocorrect).
+   * Нужен, чтобы macOS показывал нативные инструменты ввода для canvas.
+   * Default true для backward-совместимости — если фокус нужен на canvas,
+   * передайте false.
+   */
+  inputProxy?: boolean
 }
 
 const DEFAULT_FONT_URL = "/JetBrainsMono-Bold.ttf"
@@ -62,6 +78,7 @@ export class UiCanvas {
   readonly scene: Scene
   readonly viewPoint: ViewPoint
   readonly font: TrueTypeFont
+  readonly inputProxy: VirtualInput | null
   readonly #cards: CardSlot[] = []
   #focused: UiCard | null = null
   #pixelWidth = 800
@@ -99,6 +116,16 @@ export class UiCanvas {
     vp.up.set(0, 1, 0)
     this.viewPoint.update()
     this.viewPoint.dispose() // снимаем orbit-listeners — у нас свои обработчики
+
+    // VirtualInput по умолчанию включён — нужен macOS-инструментам ввода.
+    if (opts.inputProxy !== false) {
+      const host = canvas.parentElement ?? document.body
+      this.inputProxy = new VirtualInput(host)
+      this.inputProxy.onKey((e) => this.#focused?.onKey?.(e))
+      this.inputProxy.onText((t) => this.#focused?.onInputText?.(t))
+    } else {
+      this.inputProxy = null
+    }
 
     this.#attachInputListeners()
   }
@@ -167,6 +194,7 @@ export class UiCanvas {
     window.removeEventListener("mouseup", this.#handleMouseUp)
     this.setFocused(null)
     this.#pressedSlot = null
+    this.inputProxy?.dispose()
     for (const slot of this.#cards) slot.card.dispose?.()
     this.#cards.length = 0
   }
@@ -196,7 +224,14 @@ export class UiCanvas {
     // mouseup на window — релиз за пределами canvas сбрасывает pressed.
     window.addEventListener("mouseup", this.#handleMouseUp)
     this.canvas.addEventListener("mouseleave", this.#handleMouseLeave)
-    if (this.canvas.tabIndex < 0) this.canvas.tabIndex = 0
+    // Когда есть VirtualInput, canvas НЕ должен быть focusable: иначе click
+    // переведёт фокус на canvas и отнимет его у textarea (а вместе с ним —
+    // emoji-panel и IME). Без tabIndex Chrome не двигает фокус по клику.
+    if (this.inputProxy === null) {
+      if (this.canvas.tabIndex < 0) this.canvas.tabIndex = 0
+    } else {
+      this.canvas.tabIndex = -1
+    }
   }
 
   #cardAt(localX: number, localY: number): CardSlot | undefined {
@@ -240,11 +275,27 @@ export class UiCanvas {
     const {x, y} = this.#localCoords(event)
     const slot = this.#cardAt(x, y)
     if (slot !== undefined) {
-      this.canvas.focus()
+      // Не даём браузеру передвинуть фокус по умолчанию: VirtualInput
+      // должен остаться сфокусированным, чтобы macOS показывал ему
+      // инструменты ввода.
+      if (this.inputProxy !== null) {
+        event.preventDefault()
+        this.inputProxy.focus()
+      } else {
+        this.canvas.focus()
+      }
+      // Позиционируем 1×1 textarea около курсора, чтобы всплывающие окна
+      // macOS появлялись рядом, а не в углу страницы.
+      this.#positionInputProxy(event.clientX, event.clientY)
       this.setFocused(slot.card)
       this.#pressedSlot = slot
       slot.card.onPointerDown?.(event, x - slot.rect.x, y - slot.rect.y)
     }
+  }
+
+  #positionInputProxy(clientX: number, clientY: number): void {
+    if (this.inputProxy === null) return
+    this.inputProxy.setCaretViewport(clientX, clientY)
   }
 
   #onMouseUp(event: MouseEvent): void {

@@ -144,6 +144,30 @@ export class EditorCard extends Card {
     this.#onSave?.(this.getText())
   }
 
+  /**
+   * Вставка текста в позицию курсора. Используется VirtualInput-прокси
+   * для пробрасывания emoji / IME / dictation, которые не приходят через
+   * keydown. Многострочный текст разбивается по \n как при paste.
+   */
+  insertText(text: string): void {
+    if (text.length === 0) return
+    if (text.includes("\n")) {
+      this.#pushHistory()
+      const parts = text.split(/\r?\n/)
+      const line = this.#lines[this.#cline]!
+      const head = line.slice(0, this.#ccol) + parts[0]!
+      const tail = parts[parts.length - 1]! + line.slice(this.#ccol)
+      const middle = parts.slice(1, -1)
+      this.#lines.splice(this.#cline, 1, head, ...middle, tail)
+      this.#cline += parts.length - 1
+      this.#ccol = parts[parts.length - 1]!.length
+      this.#afterEdit()
+    } else {
+      this.#insertText(text)
+    }
+    this.#pingCursor()
+  }
+
   getText(): string {
     return this.#lines.join("\n")
   }
@@ -192,6 +216,10 @@ export class EditorCard extends Card {
   }
 
   // ────────── input ──────────
+
+  override onInputText(text: string): void {
+    this.insertText(text)
+  }
 
   override onKey(event: KeyboardEvent): void {
     const isMod = event.metaKey || event.ctrlKey
@@ -713,8 +741,10 @@ export class EditorCard extends Card {
       if (bg !== undefined && w > 0) {
         const color = parseHexColor(bg)
         if (color !== null) {
-          // Цветная подложка во всю высоту строки — color-swatch стиль VSCode.
-          // Под токеном; текст рисуется поверх с собственным material.
+          // 1) контрастная тёмная подложка — чтобы alpha-hex (#4444 и т.п.)
+          //    был визуально различим на фоне строки кода.
+          this.drawRect(cursorX, y, w, this.#fontPx + 2, palette.bgInput, Z.CONTAINER)
+          // 2) сам цвет swatch'а поверх — alpha смешивается с подложкой.
           this.drawRect(cursorX, y, w, this.#fontPx + 2, color, Z.ELEMENT)
         }
       }
