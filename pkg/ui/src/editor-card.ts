@@ -87,6 +87,14 @@ export class EditorCard extends Card {
   #hScroll = 0
   /** Для длинных строк (≥ this porog) считаем позицию курсора через #charWidth — O(1). */
   static readonly #LONG_LINE_THRESHOLD = 500
+  /**
+   * Стартовое время enter-анимации (буквы выезжают справа). null — анимация
+   * не активна, текст рисуется на штатных позициях.
+   */
+  #enterAnimStart: number | null = null
+  static readonly #ENTER_DUR_MS = 520
+  static readonly #ENTER_CHAR_DELAY_MS = 9
+  static readonly #ENTER_START_OFFSET_PX = 360
 
   readonly #titleMaterial = new TextMaterial({color: palette.cyan})
   readonly #lineMaterial = new TextMaterial({color: palette.text})
@@ -136,7 +144,45 @@ export class EditorCard extends Card {
     this.#history = []
     this.#future = []
     this.#refreshTokens()
+    this.#startEnterAnim()
     this.requestRender()
+  }
+
+  /** Запустить enter-анимацию: буквы выезжают справа с easeOut-ускорением,
+   *  staggered-задержка по колонке. Любая edit-операция её отменяет. */
+  #startEnterAnim(): void {
+    if (this.#lines.length === 0 || (this.#lines.length === 1 && this.#lines[0] === "")) {
+      this.#enterAnimStart = null
+      return
+    }
+    this.#enterAnimStart = performance.now()
+    const maxLineLen = this.#lines.reduce((m, l) => Math.max(m, l.length), 0)
+    const total = maxLineLen * EditorCard.#ENTER_CHAR_DELAY_MS + EditorCard.#ENTER_DUR_MS + 50
+    const tick = (): void => {
+      if (this.#enterAnimStart === null) return
+      const elapsed = performance.now() - this.#enterAnimStart
+      if (elapsed >= total) {
+        this.#enterAnimStart = null
+        this.requestRender()
+        return
+      }
+      this.requestRender()
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }
+
+  /** Смещение по X (px) для символа в указанной колонке во время enter-анимации.
+   *  Infinity → символ ещё не появился (рисовать пропустить). */
+  #animOffsetFor(absCol: number): number {
+    if (this.#enterAnimStart === null) return 0
+    const elapsed = performance.now() - this.#enterAnimStart
+    const local = elapsed - absCol * EditorCard.#ENTER_CHAR_DELAY_MS
+    if (local <= 0) return Number.POSITIVE_INFINITY
+    if (local >= EditorCard.#ENTER_DUR_MS) return 0
+    const t = local / EditorCard.#ENTER_DUR_MS
+    const e = 1 - (1 - t) ** 3 // easeOutCubic — буквы разгоняются и плавно тормозят
+    return EditorCard.#ENTER_START_OFFSET_PX * (1 - e)
   }
 
   /** Принудительный сейв (Cmd+S или внешняя кнопка). */
@@ -482,6 +528,9 @@ export class EditorCard extends Card {
   }
 
   #afterEdit(): void {
+    // Любая правка отменяет enter-анимацию — иначе свежевставленный символ
+    // окажется в «ещё не появился»-зоне timeline и улетит за правый край.
+    this.#enterAnimStart = null
     this.#refreshTokens()
     this.#scrollCursorIntoView()
     this.requestRender()
@@ -694,13 +743,16 @@ export class EditorCard extends Card {
           // Передаём заведомо большую ширину, чтобы не было ellipsis "..." внутри слайса.
           const maxW = codeMaxPx + this.#hScroll + 1000
           if (visTokens.length > 0) {
-            this.#renderTokenized(visText, visTokens, drawX, textY, maxW)
+            this.#renderTokenized(visText, visTokens, drawX, textY, maxW, slice.start)
           } else {
-            this.drawText(visText, drawX, textY, {
-              fontPx: this.#fontPx,
-              material: this.#lineMaterial,
-              maxWidthPx: maxW,
-            })
+            const animOffset = this.#animOffsetFor(slice.start)
+            if (isFinite(animOffset)) {
+              this.drawText(visText, drawX + animOffset, textY, {
+                fontPx: this.#fontPx,
+                material: this.#lineMaterial,
+                maxWidthPx: maxW,
+              })
+            }
           }
         }
       }
@@ -731,21 +783,26 @@ export class EditorCard extends Card {
     }
   }
 
-  #renderTokenized(text: string, tokens: EditorToken[], startX: number, y: number, maxPx: number): void {
+  #renderTokenized(text: string, tokens: EditorToken[], startX: number, y: number, maxPx: number, sliceStart: number): void {
     let cursor = 0
     let cursorX = startX
     const remaining = (): number => Math.max(0, startX + maxPx - cursorX)
-    const placeChunk = (chunkText: string, category: string, bg?: string): void => {
+    const placeChunk = (chunkText: string, category: string, bg: string | undefined, chunkColStart: number): void => {
       if (chunkText.length === 0) return
       const w = this.measureText(chunkText, this.#fontPx)
+      // Enter-animation: chunk выезжает справа со staggered-задержкой по абс.
+      // колонке первого символа. Infinity → не пришёл ещё, advance без отрисовки.
+      const offset = this.#animOffsetFor(chunkColStart)
+      if (!isFinite(offset)) {
+        cursorX += w
+        return
+      }
+      const ax = cursorX + offset
       if (bg !== undefined && w > 0) {
         const color = parseHexColor(bg)
         if (color !== null) {
-          // 1) контрастная тёмная подложка — чтобы alpha-hex (#4444 и т.п.)
-          //    был визуально различим на фоне строки кода.
-          this.drawRect(cursorX, y, w, this.#fontPx + 2, palette.bgInput, Z.CONTAINER)
-          // 2) сам цвет swatch'а поверх — alpha смешивается с подложкой.
-          this.drawRect(cursorX, y, w, this.#fontPx + 2, color, Z.ELEMENT)
+          this.drawRect(ax, y, w, this.#fontPx + 2, palette.bgInput, Z.CONTAINER)
+          this.drawRect(ax, y, w, this.#fontPx + 2, color, Z.ELEMENT)
         }
       }
       if (chunkText.trim().length === 0) {
@@ -753,7 +810,7 @@ export class EditorCard extends Card {
         return
       }
       const material = this.#tokenMaterials.get(category) ?? this.#lineMaterial
-      this.drawText(chunkText, cursorX, y, {
+      this.drawText(chunkText, ax, y, {
         fontPx: this.#fontPx,
         material,
         maxWidthPx: remaining(),
@@ -762,12 +819,12 @@ export class EditorCard extends Card {
     }
     const sorted = [...tokens].sort((a, b) => a.s - b.s)
     for (const tok of sorted) {
-      if (tok.s > cursor) placeChunk(text.slice(cursor, tok.s), "d")
+      if (tok.s > cursor) placeChunk(text.slice(cursor, tok.s), "d", undefined, sliceStart + cursor)
       const span = text.slice(tok.s, Math.min(tok.e, text.length))
-      placeChunk(span, tok.c, tok.bg)
+      placeChunk(span, tok.c, tok.bg, sliceStart + tok.s)
       cursor = Math.max(cursor, tok.e)
     }
-    if (cursor < text.length) placeChunk(text.slice(cursor), "d")
+    if (cursor < text.length) placeChunk(text.slice(cursor), "d", undefined, sliceStart + cursor)
   }
 
   #visibleLineCount(): number {
