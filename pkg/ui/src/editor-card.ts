@@ -96,6 +96,23 @@ export class EditorCard extends Card {
   static readonly #ENTER_CHAR_DELAY_MS = 9
   static readonly #ENTER_START_OFFSET_PX = 360
 
+  /**
+   * Частицы-точки, разлетающиеся при удалении символа («взрыв сверхновой»).
+   * Каждая хранит позицию/скорость в card-локальных px и время жизни.
+   * Поле демонстрирует управление трансформацией ниже уровня символа —
+   * вплоть до отдельных точек.
+   */
+  #particles: Array<{
+    x: number; y: number
+    vx: number; vy: number
+    bornAt: number
+    lifeMs: number
+    r: number; g: number; b: number
+    size: number
+  }> = []
+  #particleRafId: number | null = null
+  #particleLastTickAt = 0
+
   readonly #titleMaterial = new TextMaterial({color: palette.cyan})
   readonly #lineMaterial = new TextMaterial({color: palette.text})
   readonly #gutterMaterial = new TextMaterial({color: palette.muted})
@@ -170,6 +187,108 @@ export class EditorCard extends Card {
       requestAnimationFrame(tick)
     }
     requestAnimationFrame(tick)
+  }
+
+  // ────────── particle burst (удаление символа) ──────────
+
+  /**
+   * Распыляет ~22 частицы в card-локальной точке (x, y). Цвет в RGB-компонентах
+   * 0..1. Точки разлетаются радиально + лёгкий upward bias, затухают
+   * экспоненциально и падают под мягкой гравитацией.
+   */
+  #spawnBurst(x: number, y: number, color: {r: number; g: number; b: number}): void {
+    const count = 22
+    const now = performance.now()
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5
+      const speed = 90 + Math.random() * 110
+      this.#particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 30,
+        bornAt: now,
+        lifeMs: 650 + Math.random() * 450,
+        r: color.r, g: color.g, b: color.b,
+        size: 1.8 + Math.random() * 1.8,
+      })
+    }
+    this.#startParticleTicker()
+  }
+
+  #startParticleTicker(): void {
+    if (this.#particleRafId !== null) return
+    this.#particleLastTickAt = performance.now()
+    const tick = (): void => {
+      this.#particleRafId = null
+      const now = performance.now()
+      const dt = Math.min(0.1, (now - this.#particleLastTickAt) / 1000)
+      this.#particleLastTickAt = now
+      const gravity = 90
+      const drag = Math.exp(-1.6 * dt)
+      const alive: typeof this.#particles = []
+      for (const p of this.#particles) {
+        if (now - p.bornAt >= p.lifeMs) continue
+        p.x += p.vx * dt
+        p.y += p.vy * dt
+        p.vx *= drag
+        p.vy = p.vy * drag + gravity * dt
+        alive.push(p)
+      }
+      this.#particles = alive
+      this.requestRender()
+      if (this.#particles.length > 0) {
+        this.#particleRafId = requestAnimationFrame(tick)
+      }
+    }
+    this.#particleRafId = requestAnimationFrame(tick)
+  }
+
+  #renderParticles(): void {
+    if (this.#particles.length === 0) return
+    const now = performance.now()
+    for (const p of this.#particles) {
+      const t = (now - p.bornAt) / p.lifeMs
+      if (t >= 1) continue
+      const alpha = 1 - t * t // быстрое затухание к концу
+      const c = new Color(p.r, p.g, p.b, alpha)
+      this.drawRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size, c, Z.ELEMENT_RULE)
+    }
+  }
+
+  /**
+   * Координаты центра символа на (line, col) в card-локальных px. Возвращает
+   * null, если строка вне visible-окна. Используется для spawnBurst при
+   * удалении: точки появляются ровно там, где была буква.
+   */
+  #charLocalPx(line: number, col: number): {x: number; y: number; color: {r: number; g: number; b: number}} | null {
+    const visible = this.#visibleLineCount()
+    this.#list.clamp(this.#lines.length, visible)
+    const scroll = this.#list.scroll
+    const startIdx = Math.floor(scroll)
+    const screenRow = line - startIdx
+    if (screenRow < 0 || screenRow >= visible) return null
+    const rowY = PAD_TOP_PX + screenRow * this.#linePx + (this.#linePx - this.#fontPx) / 2
+    const gutter = this.#gutterWidthPx(this.#lines.length)
+    const codeStartX = PAD_LEFT_PX + gutter + CODE_LEFT_PAD_PX
+    const lineText = this.#lines[line] ?? ""
+    const colX = this.#colToPx(lineText, col)
+    const charW = this.#getCharWidth()
+    const x = codeStartX + colX - this.#hScroll + charW / 2
+    const y = rowY + this.#fontPx / 2
+    // Цвет — из токена, если он покрывает этот col, иначе palette.text.
+    const tokens = this.#tokens?.[line]
+    let cat = "d"
+    if (tokens !== undefined) {
+      for (const tok of tokens) {
+        if (tok.s <= col && col < tok.e) {
+          cat = tok.c
+          break
+        }
+      }
+    }
+    const tokColor = (syntaxTokens as Record<string, Color>)[cat]
+    const c = tokColor ?? palette.text
+    return {x, y, color: {r: c.r, g: c.g, b: c.b}}
   }
 
   /** Смещение по X (px) для символа в указанной колонке во время enter-анимации.
@@ -498,6 +617,10 @@ export class EditorCard extends Card {
 
   #backspace(): void {
     if (this.#ccol > 0) {
+      // Спавним burst на позиции удаляемого символа ДО его удаления —
+      // иначе #charLocalPx уже не сможет посчитать колонку.
+      const pos = this.#charLocalPx(this.#cline, this.#ccol - 1)
+      if (pos !== null) this.#spawnBurst(pos.x, pos.y, pos.color)
       this.#pushHistory()
       const line = this.#lines[this.#cline]!
       this.#lines[this.#cline] = line.slice(0, this.#ccol - 1) + line.slice(this.#ccol)
@@ -516,6 +639,8 @@ export class EditorCard extends Card {
   #delete(): void {
     const line = this.#lines[this.#cline]!
     if (this.#ccol < line.length) {
+      const pos = this.#charLocalPx(this.#cline, this.#ccol)
+      if (pos !== null) this.#spawnBurst(pos.x, pos.y, pos.color)
       this.#pushHistory()
       this.#lines[this.#cline] = line.slice(0, this.#ccol) + line.slice(this.#ccol + 1)
       this.#afterEdit()
@@ -658,6 +783,11 @@ export class EditorCard extends Card {
 
   override dispose?(): void {
     this.#stopBlinkTimer()
+    if (this.#particleRafId !== null) {
+      cancelAnimationFrame(this.#particleRafId)
+      this.#particleRafId = null
+    }
+    this.#particles.length = 0
     super.dispose?.()
   }
 
@@ -781,6 +911,10 @@ export class EditorCard extends Card {
         trackWidth: SCROLLBAR_W,
       })
     }
+
+    // Частицы — поверх всего, в card-локальных px. Без clip — пусть точки
+    // могут улететь за пределы кода, эффект тогда выглядит щедрее.
+    this.#renderParticles()
   }
 
   #renderTokenized(text: string, tokens: EditorToken[], startX: number, y: number, maxPx: number, sliceStart: number): void {
