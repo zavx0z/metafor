@@ -15,13 +15,20 @@
  * Anim/glow эффекты — отдельно, в future EditorAnimatedCard.
  */
 
-import {TextMaterial} from "@metafor/engine"
+import {Color, TextMaterial} from "@metafor/engine"
 import {Card, Z} from "./card.ts"
 import {palette, syntaxTokens} from "./theme.ts"
 import {ScrollListState} from "./scroll-list.ts"
 import {scrollbar} from "./widgets.ts"
 
-export type EditorToken = {s: number; e: number; c: string}
+/**
+ * Один синтаксический токен в строке.
+ *  • `c` — категория (см. syntaxTokens из ./theme): k/s/n/c/t/f/p/d.
+ *  • `bg` — необязательный hex-цвет (#RGB / #RGBA / #RRGGBB / #RRGGBBAA).
+ *    Если задан, под токеном рисуется тонкая цветная полоска — color-swatch
+ *    под hex-литералом в CSS. Невалидный hex молча игнорируется.
+ */
+export type EditorToken = {s: number; e: number; c: string; bg?: string}
 export type EditorTokens = EditorToken[][]
 export type EditorTokenize = (lines: string[]) => EditorTokens
 
@@ -700,9 +707,17 @@ export class EditorCard extends Card {
     let cursor = 0
     let cursorX = startX
     const remaining = (): number => Math.max(0, startX + maxPx - cursorX)
-    const placeChunk = (chunkText: string, category: string): void => {
+    const placeChunk = (chunkText: string, category: string, bg?: string): void => {
       if (chunkText.length === 0) return
       const w = this.measureText(chunkText, this.#fontPx)
+      if (bg !== undefined && w > 0) {
+        const color = parseHexColor(bg)
+        if (color !== null) {
+          // Цветная подложка во всю высоту строки — color-swatch стиль VSCode.
+          // Под токеном; текст рисуется поверх с собственным material.
+          this.drawRect(cursorX, y, w, this.#fontPx + 2, color, Z.ELEMENT)
+        }
+      }
       if (chunkText.trim().length === 0) {
         cursorX += w
         return
@@ -719,7 +734,7 @@ export class EditorCard extends Card {
     for (const tok of sorted) {
       if (tok.s > cursor) placeChunk(text.slice(cursor, tok.s), "d")
       const span = text.slice(tok.s, Math.min(tok.e, text.length))
-      placeChunk(span, tok.c)
+      placeChunk(span, tok.c, tok.bg)
       cursor = Math.max(cursor, tok.e)
     }
     if (cursor < text.length) placeChunk(text.slice(cursor), "d")
@@ -736,4 +751,22 @@ export class EditorCard extends Card {
     const digitW = this.measureText("8", this.#fontPx)
     return Math.ceil(Math.max(GUTTER_MIN_PX, GUTTER_LEFT_PAD_PX + digitW * digits + GUTTER_RIGHT_PAD_PX))
   }
+}
+
+/**
+ * Парсит CSS-hex (#RGB / #RGBA / #RRGGBB / #RRGGBBAA). Невалидный hex → null.
+ * Не выбрасывает — вызывается на каждом render-кадре.
+ */
+function parseHexColor(text: string): Color | null {
+  if (text.length === 0 || text[0] !== "#") return null
+  const hex = text.slice(1)
+  if (!/^[0-9a-fA-F]+$/.test(hex)) return null
+  const n = hex.length
+  const dup = (c: string): number => parseInt(c + c, 16) / 255
+  const hh = (a: string, b: string): number => parseInt(a + b, 16) / 255
+  if (n === 3) return new Color(dup(hex[0]!), dup(hex[1]!), dup(hex[2]!), 1)
+  if (n === 4) return new Color(dup(hex[0]!), dup(hex[1]!), dup(hex[2]!), dup(hex[3]!))
+  if (n === 6) return new Color(hh(hex[0]!, hex[1]!), hh(hex[2]!, hex[3]!), hh(hex[4]!, hex[5]!), 1)
+  if (n === 8) return new Color(hh(hex[0]!, hex[1]!), hh(hex[2]!, hex[3]!), hh(hex[4]!, hex[5]!), hh(hex[6]!, hex[7]!))
+  return null
 }
