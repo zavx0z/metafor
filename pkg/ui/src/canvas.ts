@@ -227,11 +227,12 @@ export class UiCanvas {
     const {x, y} = this.#localCoords(event)
     const slot = this.#cardAt(x, y)
     if (slot === undefined) {
-      this.setFocused(null)
       this.canvas.style.cursor = "default"
       return
     }
-    if (slot.card !== this.#focused) this.setFocused(slot.card)
+    // Focus НЕ меняем по hover — иначе текстовый редактор теряет keydown
+    // как только мышь уезжает на DOM-iframe или в зазор между карточками.
+    // Активная карточка переключается ТОЛЬКО mousedown'ом.
     slot.card.onPointerMove?.(event, x - slot.rect.x, y - slot.rect.y)
   }
 
@@ -255,7 +256,8 @@ export class UiCanvas {
   }
 
   #onMouseLeave(): void {
-    if (this.#focused !== null) this.setFocused(null)
+    // Не сбрасываем focus — пользователь может уйти мышью на toolbar/iframe
+    // и продолжать набирать. Focus снимается только новым mousedown.
     this.canvas.style.cursor = "default"
   }
 
