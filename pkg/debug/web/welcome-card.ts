@@ -5,7 +5,7 @@
  * Все координаты — pixel от card-TL, никаких эстимейтов.
  */
 
-import {Card, Z, palette, button, badge, input, type Tone} from "@metafor/ui"
+import {Card, Z, palette, radii, uiIcons, button, badge, input, type Tone} from "@metafor/ui"
 import type {WelcomeActions, WelcomeState} from "./debug-ui.ts"
 
 const STATUS_BG_OK = palette.green
@@ -29,7 +29,7 @@ export class WelcomeCard extends Card {
   readonly #actions: WelcomeActions
 
   constructor(actions: WelcomeActions) {
-    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1})
+    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.cardLarge})
     this.#actions = actions
   }
 
@@ -87,7 +87,13 @@ export class WelcomeCard extends Card {
     const statusY = 46
     const statusH = 72
     const contentW = this.rectW - PAD * 2
-    this.drawRect(PAD, statusY, contentW, statusH, palette.bgElevated, Z.CONTAINER)
+    this.drawRoundedRect(PAD, statusY, contentW, statusH, {
+      radius: 8,
+      fill: palette.bgElevated,
+      border: palette.borderDim,
+      borderWidth: 1,
+      z: Z.CONTAINER,
+    })
     const statusKind = this.#state.connectionState === "connected" ? STATUS_BG_OK : STATUS_BG_FAIL
     this.drawRect(PAD, statusY, 3, statusH, statusKind, Z.SEPARATOR)
     const statusMat = this.#state.connectionState === "connected" ? this.materials.green
@@ -111,8 +117,20 @@ export class WelcomeCard extends Card {
     const leftW = Math.floor((contentW - GAP) * 0.58)
     const rightW = contentW - GAP - leftW
     const rightX = PAD + leftW + GAP
-    this.drawRect(PAD, panelY, leftW, panelH, palette.bgPanel, Z.CONTAINER)
-    this.drawRect(rightX, panelY, rightW, panelH, palette.bgPanel, Z.CONTAINER)
+    this.drawRoundedRect(PAD, panelY, leftW, panelH, {
+      radius: 8,
+      fill: palette.bgPanel,
+      border: palette.borderDim,
+      borderWidth: 1,
+      z: Z.CONTAINER,
+    })
+    this.drawRoundedRect(rightX, panelY, rightW, panelH, {
+      radius: 8,
+      fill: palette.bgPanel,
+      border: palette.borderDim,
+      borderWidth: 1,
+      z: Z.CONTAINER,
+    })
 
     // Target panel.
     this.drawText("Target", PAD + 14, panelY + 14, {
@@ -128,16 +146,19 @@ export class WelcomeCard extends Card {
         this.requestRender()
       },
     })
-    button(this, PAD + 14, panelY + 112, 104, 30, {
-      label: "Run target", tone: "live",
+    button(this, PAD + 14, panelY + 112, 40, 30, {
+      label: "Run target", iconSrc: uiIcons.run, iconOnly: true, tooltip: "Run target", tone: "live",
       action: () => this.#actions.onRun(this.#command, this.#state.pauseOnStart),
     })
-    button(this, PAD + 124, panelY + 112, 64, 30, {
-      label: "Stop", tone: "warn", action: () => this.#actions.onStop(),
+    button(this, PAD + 62, panelY + 112, 40, 30, {
+      label: "Stop target", iconSrc: uiIcons.stop, iconOnly: true, tooltip: "Stop target", tone: "warn", action: () => this.#actions.onStop(),
     })
     const pauseLabel = this.#state.pauseOnStart ? "pause: on" : "pause: off"
-    button(this, PAD + 194, panelY + 112, 102, 30, {
+    button(this, PAD + 110, panelY + 112, 40, 30, {
       label: pauseLabel,
+      iconSrc: this.#state.pauseOnStart ? uiIcons.pause : uiIcons.run,
+      iconOnly: true,
+      tooltip: pauseLabel,
       tone: this.#state.pauseOnStart ? "paused" : "neutral",
       action: () => {
         const next = !this.#state.pauseOnStart
@@ -166,8 +187,8 @@ export class WelcomeCard extends Card {
         this.requestRender()
       },
     })
-    button(this, rightX + 14, panelY + 112, 74, 30, {
-      label: "Apply", tone: "neutral",
+    button(this, rightX + 14, panelY + 112, 40, 30, {
+      label: "Apply inspector URL", iconSrc: uiIcons.apply, iconOnly: true, tooltip: "Apply inspector URL", tone: "neutral",
       action: () => this.#actions.onApplyInspector(this.#url),
     })
     this.drawText("DevTools mirror", rightX + 14, panelY + 168, {
@@ -185,7 +206,13 @@ export class WelcomeCard extends Card {
     // Lower badges.
     const lowerY = panelY + panelH + 18
     if (lowerY + 70 <= this.rectH - PAD) {
-      this.drawRect(PAD, lowerY, contentW, 70, palette.bgPanelDim, Z.CONTAINER)
+      this.drawRoundedRect(PAD, lowerY, contentW, 70, {
+        radius: 8,
+        fill: palette.bgPanelDim,
+        border: palette.borderDim,
+        borderWidth: 1,
+        z: Z.CONTAINER,
+      })
       const bw = (label: string): number => Math.ceil(this.measureText(label, 11)) + 18
       const labels: Array<{label: string; tone: Tone}> = [
         {label: "renderer: WebGPU", tone: "live"},

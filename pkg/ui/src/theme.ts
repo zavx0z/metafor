@@ -67,6 +67,12 @@ export const syntaxTokens = {
 
 export type SyntaxCategory = keyof typeof syntaxTokens
 
+export const radii = {
+  control: 6,
+  card: 14,
+  cardLarge: 18,
+} as const
+
 export type Tone = "neutral" | "live" | "paused" | "warn"
 
 export function toneFill(kind: Tone): Color {

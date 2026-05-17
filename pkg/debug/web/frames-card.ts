@@ -3,7 +3,7 @@
  */
 
 import {
-  Card, Z, flexRow, flexColumn, palette, divider,
+  Card, Z, flexRow, flexColumn, palette, radii, divider,
   ScrollListState, scrollList,
 } from "@metafor/ui"
 import type {FrameSnapshot} from "./debug-ui.ts"
@@ -20,7 +20,7 @@ export class FramesCard extends Card {
   readonly #onSelect: (index: number) => void
 
   constructor(onSelect: (index: number) => void) {
-    super({bgColor: palette.bg, borderColor: null})
+    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.card})
     this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#onSelect = onSelect
   }
@@ -88,7 +88,13 @@ export class FramesCard extends Card {
   #drawRow(frame: FrameSnapshot, x: number, y: number, w: number, h: number): void {
     const isActive = frame.index === this.#active
 
-    if (isActive) this.drawRect(x, y, w, h - 4, palette.activeRowFill, Z.ELEMENT)
+    if (isActive) {
+      this.drawRoundedRect(x, y, w, h - 4, {
+        radius: 6,
+        fill: palette.activeRowFill,
+        z: Z.ELEMENT,
+      })
+    }
 
     const idLabel = `#${frame.index}`
     const idW = 28

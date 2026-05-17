@@ -4,7 +4,7 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
-import {UiCanvas, type CardRect} from "@metafor/ui"
+import {UiCanvas, type CardRect, type EditorTokens} from "@metafor/ui"
 import {SourceCard, type Source, type SourceRuntimeState} from "./source-card.ts"
 import {ConsoleCard, type ConsoleEntry} from "./console-card.ts"
 import {
@@ -55,7 +55,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
 
 const engineCanvas = $<HTMLCanvasElement>("engine-canvas")
 const consolePending: ConsoleEntry[] = []
-type CachedSource = {text: string; tokens?: import("./source-card.ts").SourceTokens}
+type CachedSource = {text: string; tokens?: EditorTokens}
 const sourceCache = new Map<string, CachedSource>()
 let uiCanvas: UiCanvas | null = null
 let sourceCard: SourceCard | null = null
@@ -250,7 +250,7 @@ function refreshWelcome(): void {
 
 function describeTargetStatus(): string {
   switch (targetState.state) {
-    case "idle":     return "target не запущен"
+    case "idle":     return "не запущен"
     case "starting": return "starting…"
     case "running":  return `running (pid=${targetState.pid})`
     case "exited":   return `exited code=${targetState.exitCode} (pid=${targetState.pid})`
@@ -470,7 +470,7 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
       const res = await fetch(`/source?scriptId=${encodeURIComponent(scriptId)}`)
       const data = await res.json() as {
         scriptSource?: string
-        tokens?: import("./source-card.ts").SourceTokens
+        tokens?: EditorTokens
         error?: string
       }
       if (typeof data.scriptSource !== "string") {
@@ -588,6 +588,12 @@ async function initEngine(): Promise<void> {
     updateWelcomeCard()
     refreshWelcome()
 
+    if (currentDump !== undefined) {
+      hideWelcome()
+      renderDump(currentDump)
+      setRunStatus(`paused (${currentDump.reason})`, "paused")
+      setSourceRuntimeState("paused")
+    }
     if (engineLastSource !== null) sourceCard.setSource(engineLastSource)
     if (consolePending.length > 0) {
       consoleCard.pushEntries(consolePending)
@@ -705,7 +711,7 @@ function installEngineCards(): void {
 }
 
 const TOOLBAR_INSET = 8
-const TOOLBAR_H = 52
+const TOOLBAR_H = 44
 const PAD = 8
 const GAP = 8
 const BODY_TOP = TOOLBAR_INSET + TOOLBAR_H + PAD

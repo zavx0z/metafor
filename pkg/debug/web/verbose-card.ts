@@ -4,7 +4,7 @@
  */
 
 import {
-  Card, palette, button, divider, autoButtonWidth,
+  Card, palette, radii, uiIcons, button, divider,
   ScrollListState, scrollList,
 } from "@metafor/ui"
 
@@ -35,7 +35,7 @@ export class VerboseCard extends Card {
   readonly #max = 1000
 
   constructor() {
-    super({bgColor: palette.bg, borderColor: null})
+    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.card})
     this.#list = new ScrollListState({onChange: () => this.requestRender()})
   }
 
@@ -77,12 +77,29 @@ export class VerboseCard extends Card {
 
     const btnY = 8
     const autoLabel = this.#autoscroll ? "Auto" : "Manual"
-    const autoW = autoButtonWidth(this, autoLabel, 11, 10)
-    const clearW = autoButtonWidth(this, "Clear", 11, 10)
+    const autoIcon = this.#autoscroll ? uiIcons.autoscroll : uiIcons.manual
+    const autoW = 32
+    const clearW = 32
     const autoX = this.rectW - PAD_X - autoW
     const clearX = autoX - 6 - clearW
-    button(this, clearX, btnY, clearW, BTN_H, {label: "Clear", tone: "neutral", fontPx: 11, action: () => this.clear()})
-    button(this, autoX, btnY, autoW, BTN_H, {label: autoLabel, tone: this.#autoscroll ? "live" : "neutral", fontPx: 11, action: () => this.#toggleAutoscroll()})
+    button(this, clearX, btnY, clearW, BTN_H, {
+      label: "Clear verbose log",
+      iconSrc: uiIcons.clear,
+      iconOnly: true,
+      tooltip: "Clear verbose log",
+      tone: "neutral",
+      fontPx: 11,
+      action: () => this.clear(),
+    })
+    button(this, autoX, btnY, autoW, BTN_H, {
+      label: autoLabel,
+      iconSrc: autoIcon,
+      iconOnly: true,
+      tooltip: this.#autoscroll ? "Autoscroll on" : "Autoscroll off",
+      tone: this.#autoscroll ? "live" : "neutral",
+      fontPx: 11,
+      action: () => this.#toggleAutoscroll(),
+    })
 
     divider(this, PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2)
 

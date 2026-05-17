@@ -11,10 +11,24 @@
  */
 
 import {TextMaterial} from "@metafor/engine"
-import {Card, Z, palette, syntaxTokens, scrollbar, ScrollListState} from "@metafor/ui"
+import {
+  Card,
+  Z,
+  palette,
+  radii,
+  scrollbar,
+  ScrollListState,
+  createEditorTokenMaterials,
+  renderEditorTokenizedLine,
+  sourcePathFromLocation,
+  tokensForSourceView,
+  type EditorToken,
+  type EditorTokens,
+  type EditorTokenMaterialMap,
+} from "@metafor/ui"
 
-export type SyntaxToken = {s: number; e: number; c: string}
-export type SourceTokens = SyntaxToken[][]
+export type SyntaxToken = EditorToken
+export type SourceTokens = EditorTokens
 
 export type Source = {
   lines: string[]
@@ -50,22 +64,21 @@ export class SourceCard extends Card {
   readonly #gutterMaterial = new TextMaterial({color: palette.muted})
   readonly #gutterHotMaterial = new TextMaterial({color: palette.orange})
   readonly #execArrowMaterial = new TextMaterial({color: palette.orange})
-  readonly #tokenMaterials: Map<string, TextMaterial> = new Map()
+  readonly #tokenMaterials: EditorTokenMaterialMap
 
   constructor() {
-    super({bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1})
+    super({bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.card})
     this.node.name = "SourceCard"
     this.#list = new ScrollListState({onChange: () => this.requestRender()})
-    for (const [category, color] of Object.entries(syntaxTokens)) {
-      this.#tokenMaterials.set(category, new TextMaterial({color}))
-    }
+    this.#tokenMaterials = createEditorTokenMaterials()
   }
 
   setSource(source: Source): void {
     const prev = this.#current
     const lineChanged = prev?.currentLine !== source.currentLine
-    const fileChanged = stripLine(prev?.location) !== stripLine(source.location)
-    this.#current = source
+    const fileChanged = sourcePathFromLocation(prev?.location) !== sourcePathFromLocation(source.location)
+    const tokens = tokensForSourceView(source)
+    this.#current = tokens === undefined ? source : {...source, tokens}
     if (source.currentLine > 0) this.#runtimeState = "paused"
 
     if (source.currentLine > 0 && (lineChanged || fileChanged || prev === null)) {
@@ -175,14 +188,11 @@ export class SourceCard extends Card {
     if (currentLine > 0 && currentRowIdx >= -1 && currentRowIdx <= visible) {
       const highlightY = PAD_TOP_PX + currentRowIdx * LINE_PX - subPx
       const highlightH = Math.min(LINE_PX, CODE_FONT_PX + 4)
-      this.drawRect(
-        PAD_LEFT_PX,
-        highlightY + (LINE_PX - highlightH) / 2,
-        contentW,
-        highlightH,
-        palette.highlightLine,
-        Z.ELEMENT,
-      )
+      this.drawRoundedRect(PAD_LEFT_PX, highlightY + (LINE_PX - highlightH) / 2, contentW, highlightH, {
+        radius: 4,
+        fill: palette.highlightLine,
+        z: Z.ELEMENT,
+      })
       this.drawText("▶", PAD_LEFT_PX + GUTTER_LEFT_PAD_PX * 0.4, highlightY + 1, {
         fontPx: CODE_FONT_PX,
         material: this.#execArrowMaterial,
@@ -244,32 +254,17 @@ export class SourceCard extends Card {
   }
 
   #renderTokenizedLine(text: string, tokens: SyntaxToken[], startX: number, y: number, maxPx: number): void {
-    let cursor = 0
-    let cursorX = startX
-    const remaining = (): number => Math.max(0, startX + maxPx - cursorX)
-    const placeChunk = (chunkText: string, category: string): void => {
-      if (chunkText.length === 0) return
-      const w = this.measureText(chunkText, CODE_FONT_PX)
-      if (chunkText.trim().length === 0) {
-        cursorX += w
-        return
-      }
-      const material = this.#tokenMaterials.get(category) ?? this.#lineMaterial
-      this.drawText(chunkText, cursorX, y, {
-        fontPx: CODE_FONT_PX,
-        material,
-        maxWidthPx: remaining(),
-      })
-      cursorX += w
-    }
-    const sorted = [...tokens].sort((a, b) => a.s - b.s)
-    for (const tok of sorted) {
-      if (tok.s > cursor) placeChunk(text.slice(cursor, tok.s), "d")
-      const span = text.slice(tok.s, Math.min(tok.e, text.length))
-      placeChunk(span, tok.c)
-      cursor = Math.max(cursor, tok.e)
-    }
-    if (cursor < text.length) placeChunk(text.slice(cursor), "d")
+    renderEditorTokenizedLine({
+      card: this,
+      text,
+      tokens,
+      startX,
+      y,
+      fontPx: CODE_FONT_PX,
+      maxPx,
+      materials: this.#tokenMaterials,
+      fallbackMaterial: this.#lineMaterial,
+    })
   }
 
   #headerLocation(): string {
@@ -291,13 +286,6 @@ export class SourceCard extends Card {
     const digitW = this.measureText("8", CODE_FONT_PX)
     return Math.ceil(Math.max(GUTTER_MIN_PX, GUTTER_LEFT_PAD_PX + digitW * digits + GUTTER_RIGHT_PAD_PX))
   }
-}
-
-function stripLine(location: string | undefined): string {
-  if (location === undefined) return ""
-  const idx = location.lastIndexOf(":")
-  if (idx < 0) return location
-  return location.slice(0, idx)
 }
 
 function clipSourceLine(value: string, widthPx: number, fontPx: number): string {

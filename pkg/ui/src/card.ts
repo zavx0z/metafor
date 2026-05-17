@@ -70,7 +70,7 @@ import {
   type ImageViewBox as EngineImageViewBox,
 } from "@metafor/engine"
 import type {CardRect, UiCanvas, UiCard} from "./canvas.ts"
-import {MaterialPalette} from "./theme.ts"
+import {MaterialPalette, palette} from "./theme.ts"
 
 export type HitBox = {
   x: number
@@ -79,6 +79,12 @@ export type HitBox = {
   h: number
   action(): void
   cursor: string
+  tooltip?: TooltipHit
+}
+
+export type TooltipHit = {
+  label: string
+  delayMs: number
 }
 
 export type CardPadding = number | {top?: number; right?: number; bottom?: number; left?: number}
@@ -88,6 +94,8 @@ export type CardOpts = {
   /** null = без рамки. Default — серая 1px. */
   borderColor?: Color | null
   borderWidthPx?: number
+  /** Скругление внешнего bg/border chrome в logical px. Default 0. */
+  borderRadiusPx?: number
   /**
    * Внутренние отступы в logical px. drawText/drawRect/hit/flex работают в
    * inner rect [0..innerW]×[0..innerH], где innerW = rect.w - padLeft - padRight,
@@ -125,6 +133,8 @@ export type DrawTextOpts = {
   /** Гарантия: текст обрезается через измерение и "...". */
   maxWidthPx?: number
   z?: number
+  /** Default true. Tooltip/UI overlays can opt out to draw outside card rect. */
+  clip?: boolean
 }
 
 export type TextBlockAlign = "left" | "center" | "right"
@@ -218,6 +228,10 @@ export abstract class Card implements UiCard {
   readonly #borderLeft: Mesh | null
   readonly #borderRight: Mesh | null
   readonly #borderWidthPx: number
+  readonly #borderRadiusPx: number
+  readonly #roundedChrome: Mesh | null
+  readonly #bgColor: Color | null
+  readonly #borderColor: Color | null
   readonly #backgroundLayer: Object3D
   readonly #layer: Object3D
   /** Padding в logical px (top, right, bottom, left). */
@@ -228,6 +242,10 @@ export abstract class Card implements UiCard {
   #hits: HitBox[] = []
   protected hoveredHit: HitBox | null = null
   protected pressedHit: HitBox | null = null
+  #hoverTooltipKey: string | null = null
+  #hoverTooltipSince = 0
+  #hoverTooltipDelayMs = 0
+  #hoverTooltipTimer: ReturnType<typeof setTimeout> | null = null
   #backgroundImage: BackgroundImageOpts | null = null
 
   /** Top-left corner of card on canvas в logical-px (для конверсии в screen-px). */
@@ -245,6 +263,9 @@ export abstract class Card implements UiCard {
     const bgColor = opts.bgColor === null ? null : opts.bgColor ?? DEFAULT_BG
     const borderColor = opts.borderColor === null ? null : opts.borderColor ?? DEFAULT_BORDER
     this.#borderWidthPx = opts.borderWidthPx ?? 1
+    this.#borderRadiusPx = Math.max(0, opts.borderRadiusPx ?? 0)
+    this.#bgColor = bgColor
+    this.#borderColor = borderColor
 
     const p = opts.padding
     if (typeof p === "number") {
@@ -260,7 +281,26 @@ export abstract class Card implements UiCard {
 
     this.node.name = this.constructor.name
 
-    if (bgColor !== null) {
+    if (this.#borderRadiusPx > 0 && (bgColor !== null || borderColor !== null)) {
+      this.#roundedChrome = new Mesh(
+        new PlaneGeometry({width: 1, height: 1}),
+        new RoundedRectMaterial({
+          width: 1,
+          height: 1,
+          radius: this.#borderRadiusPx * 0.001,
+          fill: bgColor ?? new Color(1, 1, 1, 0),
+          border: borderColor,
+          borderWidth: this.#borderWidthPx * 0.001,
+        }),
+      )
+      this.#roundedChrome.name = `${this.constructor.name}.roundedChrome`
+      this.#roundedChrome.position.z = -0.0002
+      this.node.add(this.#roundedChrome)
+    } else {
+      this.#roundedChrome = null
+    }
+
+    if (bgColor !== null && this.#roundedChrome === null) {
       this.#bg = new Mesh(new PlaneGeometry({width: 1, height: 1}), new MeshBasicMaterial({color: bgColor}))
       this.#bg.name = `${this.constructor.name}.bg`
       this.#bg.position.z = -0.0002
@@ -269,7 +309,7 @@ export abstract class Card implements UiCard {
       this.#bg = null
     }
 
-    if (borderColor !== null) {
+    if (borderColor !== null && this.#roundedChrome === null) {
       const borderMat = new MeshBasicMaterial({color: borderColor})
       this.#borderTop = mkMesh(`${this.constructor.name}.borderTop`, borderMat)
       this.#borderBottom = mkMesh(`${this.constructor.name}.borderBottom`, borderMat)
@@ -373,7 +413,7 @@ export abstract class Card implements UiCard {
     text.position.y = -(y + fontPxCanvas) * this.pixelScale
     text.position.z = opts.z ?? Z.TEXT
     text.updateMatrix()
-    this.#applyClipTo(text)
+    if (opts.clip !== false) this.#applyClipTo(text)
     this.#layer.add(text)
     return this.measureText(fitted, opts.fontPx)
   }
@@ -501,6 +541,45 @@ export abstract class Card implements UiCard {
     this.#drawImageMesh(this.#layer, src, x, y, w, h, opts, opts.z ?? Z.ELEMENT, true)
   }
 
+  drawTooltipForHit(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    label: string,
+    opts: {delayMs?: number} = {},
+  ): void {
+    if (label.length === 0) return
+    const delayMs = opts.delayMs ?? 450
+    const key = tooltipKey(x, y, w, h, label)
+    if (this.#hoverTooltipKey !== key) return
+    if (performance.now() - this.#hoverTooltipSince < delayMs) return
+
+    const fontPx = 11
+    const padX = 9
+    const tooltipH = 24
+    const maxW = Math.min(220, Math.max(80, this.rectW - 12))
+    const labelW = Math.min(maxW - padX * 2, Math.ceil(this.measureText(label, fontPx)))
+    const tooltipW = labelW + padX * 2
+    const tx = Math.max(0, Math.min(this.rectW - tooltipW, x + w / 2 - tooltipW / 2))
+    const ty = y - tooltipH - 7
+    const tooltipY = this.#screenOriginY + ty < 4 ? y + h + 7 : ty
+    this.drawRoundedRect(tx, tooltipY, tooltipW, tooltipH, {
+      radius: 7,
+      fill: palette.bgElevated,
+      border: palette.border,
+      borderWidth: 1,
+      z: Z.TEXT + 0.0004,
+    })
+    this.drawText(label, tx + padX, tooltipY + 6, {
+      fontPx,
+      material: this.materials.text,
+      maxWidthPx: labelW,
+      z: Z.TEXT + 0.0005,
+      clip: false,
+    })
+  }
+
   /**
    * Скруглённый прямоугольник (или круг — если radius=min(w,h)/2 и фигура
    * квадратная) с pixel-perfect SDF-AA в шейдере. Идёт через RoundedRectMaterial
@@ -570,8 +649,10 @@ export abstract class Card implements UiCard {
   }
 
   /** Регистрирует hit-rect в card-px coords. Поздние побеждают. */
-  hit(x: number, y: number, w: number, h: number, action: () => void, cursor = "pointer"): void {
-    this.#hits.push({x, y, w, h, action, cursor})
+  hit(x: number, y: number, w: number, h: number, action: () => void, cursor = "pointer", tooltip?: TooltipHit): void {
+    const hit: HitBox = {x, y, w, h, action, cursor}
+    if (tooltip !== undefined) hit.tooltip = tooltip
+    this.#hits.push(hit)
   }
 
   // ────────────────────────── Pointer events ──────────────────────────
@@ -582,8 +663,9 @@ export abstract class Card implements UiCard {
     // (после сдвига на padding) — субтрагируем padLeft/padTop.
     const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     this.canvas.canvas.style.cursor = hit?.cursor ?? "default"
-    if (hit === this.hoveredHit) return
     this.hoveredHit = hit
+    const nextTooltipKey = hit?.tooltip === undefined ? null : tooltipKey(hit.x, hit.y, hit.w, hit.h, hit.tooltip.label)
+    if (nextTooltipKey !== this.#hoverTooltipKey) this.#setHoverTooltip(hit)
   }
 
   onPointerDown(_event: MouseEvent, localX: number, localY: number): void {
@@ -602,6 +684,7 @@ export abstract class Card implements UiCard {
     if (this.canvas !== null) this.canvas.canvas.style.cursor = "default"
     this.hoveredHit = null
     this.pressedHit = null
+    this.#setHoverTooltip(null)
   }
 
   dispose(): void {
@@ -615,6 +698,21 @@ export abstract class Card implements UiCard {
     const ps = this.pixelScale
     const w = fullW
     const h = fullH
+
+    if (this.#roundedChrome !== null) {
+      this.#replaceGeometry(this.#roundedChrome, new PlaneGeometry({width: w * ps, height: h * ps}))
+      this.#roundedChrome.material = new RoundedRectMaterial({
+        width: w * ps,
+        height: h * ps,
+        radius: Math.min(this.#borderRadiusPx, Math.min(w, h) / 2) * ps,
+        fill: this.#bgColor ?? new Color(1, 1, 1, 0),
+        border: this.#borderColor,
+        borderWidth: this.#borderWidthPx * ps,
+      })
+      this.#roundedChrome.position.x = (w / 2) * ps
+      this.#roundedChrome.position.y = -(h / 2) * ps
+      this.#roundedChrome.updateMatrix()
+    }
 
     if (this.#bg !== null) {
       this.#replaceGeometry(this.#bg, new PlaneGeometry({width: w * ps, height: h * ps}))
@@ -797,6 +895,29 @@ export abstract class Card implements UiCard {
     return null
   }
 
+  #setHoverTooltip(hit: HitBox | null): void {
+    if (this.#hoverTooltipTimer !== null) {
+      clearTimeout(this.#hoverTooltipTimer)
+      this.#hoverTooltipTimer = null
+    }
+    if (hit?.tooltip === undefined) {
+      const hadTooltip = this.#hoverTooltipKey !== null
+      this.#hoverTooltipKey = null
+      this.#hoverTooltipSince = 0
+      this.#hoverTooltipDelayMs = 0
+      if (hadTooltip) this.requestRender()
+      return
+    }
+    this.#hoverTooltipKey = tooltipKey(hit.x, hit.y, hit.w, hit.h, hit.tooltip.label)
+    this.#hoverTooltipSince = performance.now()
+    this.#hoverTooltipDelayMs = hit.tooltip.delayMs
+    this.#hoverTooltipTimer = setTimeout(() => {
+      this.#hoverTooltipTimer = null
+      this.requestRender()
+    }, this.#hoverTooltipDelayMs)
+    this.requestRender()
+  }
+
   #clearLayer(layer: Object3D = this.#layer): void {
     const renderer = this.canvas?.renderer
     for (const obj of layer.children) {
@@ -912,6 +1033,10 @@ function textBlockPadding(opts: DrawTextBlockOpts): {top: number; right: number;
     bottom: opts.padBottom ?? y,
     left: opts.padLeft ?? x,
   }
+}
+
+function tooltipKey(x: number, y: number, w: number, h: number, label: string): string {
+  return `${Math.round(x)}:${Math.round(y)}:${Math.round(w)}:${Math.round(h)}:${label}`
 }
 
 function normaliseTextBlockLines(value: string | readonly string[], upper: boolean): string[] {

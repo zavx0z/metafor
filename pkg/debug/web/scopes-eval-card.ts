@@ -8,7 +8,7 @@
 
 import {TextMaterial} from "@metafor/engine"
 import {
-  Card, palette, button, input, divider, scrollList,
+  Card, palette, radii, uiIcons, button, input, divider, scrollList,
   ScrollListState,
 } from "@metafor/ui"
 import type {FrameSnapshot, PropertySnapshot, ScopeSnapshot} from "./debug-ui.ts"
@@ -36,7 +36,7 @@ export class ScopesEvalCard extends Card {
   readonly #onEval: (expr: string, frame: number) => void
 
   constructor(onEval: (expr: string, frame: number) => void) {
-    super({bgColor: palette.bg, borderColor: null})
+    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.card})
     this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#onEval = onEval
   }
@@ -178,7 +178,7 @@ export class ScopesEvalCard extends Card {
 
     const inputY = evalTop + 32
     const inputH = 28
-    const runW = 60
+    const runW = 38
     const inputW = this.rectW - PAD_X * 2 - runW - 8
     input(this, PAD_X, inputY, inputW, inputH, {
       value: this.#expr,
@@ -190,7 +190,7 @@ export class ScopesEvalCard extends Card {
       },
     })
     button(this, PAD_X + inputW + 8, inputY, runW, inputH, {
-      label: "Run", tone: "live", action: () => this.#runEval(),
+      label: "Run eval", iconSrc: uiIcons.eval, iconOnly: true, tooltip: "Run eval", tone: "live", action: () => this.#runEval(),
     })
 
     const outputY = inputY + inputH + 8

@@ -8,11 +8,16 @@
  */
 
 import {Z, type Card} from "./card.ts"
-import {palette, type Tone, toneBorder, toneFill} from "./theme.ts"
+import {palette, radii, type Tone, toneBorder, toneFill} from "./theme.ts"
 import type {Color} from "@metafor/engine"
 
 export type ButtonOpts = {
   label: string
+  iconSrc?: string
+  iconOnly?: boolean
+  iconSizePx?: number
+  tooltip?: string
+  tooltipDelayMs?: number
   tone?: Tone
   fontPx?: number
   action(): void
@@ -40,19 +45,64 @@ export function button(card: Card, x: number, y: number, w: number, h: number, o
   const fontPx = opts.fontPx ?? 12
   const fill = toneFill(tone)
   const borderColor = toneBorder(tone)
-  card.drawRect(x, y, w, h, fill, Z.ELEMENT)
-  card.drawRect(x, y, w, 1, borderColor, Z.ELEMENT_RULE)
-  card.drawRect(x, y + h - 1, w, 1, palette.border, Z.ELEMENT_RULE)
-  card.drawRect(x, y, 1, h, palette.border, Z.ELEMENT_RULE)
-  card.drawRect(x + w - 1, y, 1, h, palette.border, Z.ELEMENT_RULE)
-  const labelW = card.measureText(opts.label, fontPx)
-  const labelX = x + (w - labelW) / 2
-  card.drawText(opts.label, labelX, y + (h - fontPx) / 2, {
-    fontPx,
-    material: card.materials.toneText(tone),
-    maxWidthPx: w - 6,
+  const textMaterial = card.materials.toneText(tone)
+  const radius = Math.min(radii.control, h / 2)
+  card.drawRoundedRect(x, y, w, h, {
+    radius,
+    fill,
+    border: borderColor,
+    borderWidth: 1,
+    z: Z.ELEMENT,
   })
-  card.hit(x, y, w, h, opts.action, "pointer")
+
+  if (opts.iconSrc !== undefined && opts.iconSrc.length > 0) {
+    const iconSize = Math.min(opts.iconSizePx ?? Math.max(14, h - 12), Math.max(1, h - 8), Math.max(1, w - 8))
+    const showLabel = opts.iconOnly !== true && opts.label.length > 0
+    const labelW = showLabel ? card.measureText(opts.label, fontPx) : 0
+    const gap = showLabel ? 7 : 0
+    const contentW = Math.min(w - 8, iconSize + gap + labelW)
+    let cx = x + (w - contentW) / 2
+    card.drawImage(opts.iconSrc, cx, y + (h - iconSize) / 2, iconSize, iconSize, {
+      fit: "contain",
+      opacity: 0.95,
+      z: Z.TEXT,
+    })
+    cx += iconSize + gap
+    if (showLabel) {
+      const available = Math.max(1, x + w - 5 - cx)
+      card.drawText(opts.label, cx, y + (h - fontPx) / 2, {
+        fontPx,
+        material: textMaterial,
+        maxWidthPx: available,
+      })
+    }
+  } else {
+    card.drawTextCentered(opts.label, x + w / 2, y + h / 2, {
+      fontPx,
+      material: textMaterial,
+      maxWidthPx: w - 6,
+    })
+  }
+  const tooltipLabel = opts.tooltip ?? (opts.iconOnly === true ? opts.label : "")
+  card.hit(
+    x,
+    y,
+    w,
+    h,
+    opts.action,
+    "pointer",
+    tooltipLabel.length > 0 ? {label: tooltipLabel, delayMs: opts.tooltipDelayMs ?? 450} : undefined,
+  )
+  if (tooltipLabel.length > 0) {
+    card.drawTooltipForHit(
+      x,
+      y,
+      w,
+      h,
+      tooltipLabel,
+      opts.tooltipDelayMs === undefined ? {} : {delayMs: opts.tooltipDelayMs},
+    )
+  }
 }
 
 export type RoundedButtonOpts = ButtonOpts & {
@@ -171,8 +221,13 @@ export function circleButton(card: Card, cx: number, cy: number, r: number, opts
 export function badge(card: Card, x: number, y: number, w: number, h: number, opts: BadgeOpts): void {
   const tone = opts.tone ?? "neutral"
   const fontPx = opts.fontPx ?? 11
-  card.drawRect(x, y, w, h, toneFill(tone), Z.ELEMENT)
-  card.drawRect(x, y, w, 1, toneBorder(tone), Z.ELEMENT_RULE)
+  card.drawRoundedRect(x, y, w, h, {
+    radius: Math.min(radii.control, h / 2),
+    fill: toneFill(tone),
+    border: toneBorder(tone),
+    borderWidth: 1,
+    z: Z.ELEMENT,
+  })
   card.drawText(opts.label, x + 8, y + (h - fontPx) / 2, {
     fontPx,
     material: card.materials.toneText(tone),
@@ -183,11 +238,13 @@ export function badge(card: Card, x: number, y: number, w: number, h: number, op
 /** Текстовый input: bg/border, value, hit для активации. */
 export function input(card: Card, x: number, y: number, w: number, h: number, opts: InputOpts): void {
   const fontPx = opts.fontPx ?? 12
-  card.drawRect(x, y, w, h, opts.active ? palette.bgHot : palette.bgInput, Z.ELEMENT)
-  card.drawRect(x, y, w, 1, opts.active ? palette.cyan : palette.borderDim, Z.ELEMENT_RULE)
-  card.drawRect(x, y + h - 1, w, 1, palette.borderDim, Z.ELEMENT_RULE)
-  card.drawRect(x, y, 1, h, palette.borderDim, Z.ELEMENT_RULE)
-  card.drawRect(x + w - 1, y, 1, h, palette.borderDim, Z.ELEMENT_RULE)
+  card.drawRoundedRect(x, y, w, h, {
+    radius: Math.min(radii.control, h / 2),
+    fill: opts.active ? palette.bgHot : palette.bgInput,
+    border: opts.active ? palette.cyan : palette.borderDim,
+    borderWidth: 1,
+    z: Z.ELEMENT,
+  })
   const display = opts.active ? `${opts.value}|` : opts.value
   card.drawText(display, x + 10, y + (h - fontPx) / 2, {
     fontPx,
@@ -220,8 +277,9 @@ export function divider(card: Card, x: number, y: number, w: number, opts: Divid
  * Помощник для measure-based авто-ширины кнопки с padding.
  * `auto-button` сам считает width = labelW + paddingX*2.
  */
-export function autoButtonWidth(card: Card, label: string, fontPx = 12, paddingX = 12): number {
-  return Math.ceil(card.measureText(label, fontPx)) + paddingX * 2
+export function autoButtonWidth(card: Card, label: string, fontPx = 12, paddingX = 12, iconSrc?: string): number {
+  const iconW = iconSrc === undefined || iconSrc.length === 0 ? 0 : fontPx + 1 + (label.length > 0 ? 7 : 0)
+  return Math.ceil(iconW + card.measureText(label, fontPx)) + paddingX * 2
 }
 
 export type ScrollbarOpts = {
@@ -247,12 +305,20 @@ export function scrollbar(card: Card, x: number, y: number, h: number, opts: Scr
   const tw = opts.trackWidth ?? 4
   const minThumb = opts.minThumbHeight ?? 16
   // Track.
-  card.drawRect(x, y, tw, h, palette.borderDim, Z.SEPARATOR)
+  card.drawRoundedRect(x, y, tw, h, {
+    radius: tw / 2,
+    fill: palette.borderDim,
+    z: Z.SEPARATOR,
+  })
   // Thumb.
   const ratio = opts.visible / opts.total
   const thumbH = Math.max(minThumb, Math.floor(h * ratio))
   const range = h - thumbH
   const maxOffset = Math.max(1, opts.total - opts.visible)
   const thumbY = y + Math.floor(range * (opts.offset / maxOffset))
-  card.drawRect(x, thumbY, tw, thumbH, palette.muted, Z.ELEMENT)
+  card.drawRoundedRect(x, thumbY, tw, thumbH, {
+    radius: tw / 2,
+    fill: palette.muted,
+    z: Z.ELEMENT,
+  })
 }
