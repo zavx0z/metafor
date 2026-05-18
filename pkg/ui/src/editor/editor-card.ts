@@ -62,6 +62,8 @@ const GUTTER_RIGHT_PAD_PX = 8
 const CODE_LEFT_PAD_PX = 8
 const SCROLLBAR_W = 4
 const HISTORY_LIMIT = 200
+const WHEEL_SPEED = 1.55
+const WHEEL_START_BOOST_PX = 18
 
 type Snapshot = {lines: string[]; cline: number; ccol: number}
 type Particle = {
@@ -528,12 +530,15 @@ export class EditorCard extends Card {
     if (event.shiftKey) {
       event.preventDefault()
       const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX
-      this.#hScroll = Math.max(0, this.#hScroll + delta)
+      this.#hScroll = Math.max(0, this.#hScroll + delta * WHEEL_SPEED)
       this.requestRender()
       return
     }
     const visible = this.#visibleLineCount()
-    this.#list.applyWheel(event, this.#linePx, this.#lines.length, visible)
+    this.#list.applyWheel(event, this.#linePx, this.#lines.length, visible, {
+      speed: WHEEL_SPEED,
+      startBoostPx: WHEEL_START_BOOST_PX,
+    })
   }
 
   override onPointerDown(_event: MouseEvent, localX: number, localY: number): void {

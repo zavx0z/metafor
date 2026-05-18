@@ -33,12 +33,17 @@ The editor layer now starts under `pkg/ui/src/editor/`:
 
 ## Verification
 
-- `bun test pkg/ui` passes: 23 tests.
+- `bun test pkg/ui` passes: 33 tests.
 - `bun test pkg/debug` passes: 13 tests.
-- `bun run --filter @metafor/ui typecheck` currently fails before this UI layer on existing `pkg/engine` strict optional-property errors:
-  - `pkg/engine/src/geometries/TexturedPlaneGeometry.ts:10`
-  - `pkg/engine/src/materials/ImageMaterial.ts:38`
-- `bun run --filter @metafor/bun-debug typecheck` fails on the same two `pkg/engine` errors.
+- `bun run --filter @metafor/ui typecheck` passes.
+- `bun run --filter @metafor/bun-debug typecheck` passes.
+
+The previous strict optional-property failures were fixed without changing public engine APIs:
+
+- `pkg/engine/src/geometries/TexturedPlaneGeometry.ts` now only forwards defined optional fields to `PlaneGeometry`.
+- `pkg/engine/src/materials/ImageMaterial.ts` models `onTextureChange` as an explicit `(() => void) | undefined` property.
+
+Additional editor-layer tests cover highlighter resolution/registration, source path extraction, TypeScript token categories and token-range normalization.
 
 Runtime smoke:
 

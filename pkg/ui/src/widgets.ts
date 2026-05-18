@@ -20,6 +20,7 @@ export type ButtonOpts = {
   tooltipDelayMs?: number
   tone?: Tone
   fontPx?: number
+  disabled?: boolean
   action(): void
 }
 
@@ -27,6 +28,18 @@ export type BadgeOpts = {
   label: string
   tone?: Tone
   fontPx?: number
+}
+
+export type StatusChipOpts = {
+  label: string
+  iconSrc?: string
+  indicator?: boolean
+  tone?: Tone
+  fontPx?: number
+  iconSizePx?: number
+  tooltip?: string
+  tooltipDelayMs?: number
+  action?: () => void
 }
 
 export type InputOpts = {
@@ -43,9 +56,10 @@ export type InputOpts = {
 export function button(card: Card, x: number, y: number, w: number, h: number, opts: ButtonOpts): void {
   const tone = opts.tone ?? "neutral"
   const fontPx = opts.fontPx ?? 12
-  const fill = toneFill(tone)
-  const borderColor = toneBorder(tone)
-  const textMaterial = card.materials.toneText(tone)
+  const disabled = opts.disabled === true
+  const fill = disabled ? palette.bgPanel : toneFill(tone)
+  const borderColor = disabled ? palette.borderDim : toneBorder(tone)
+  const textMaterial = disabled ? card.materials.muted : card.materials.toneText(tone)
   const radius = Math.min(radii.control, h / 2)
   card.drawRoundedRect(x, y, w, h, {
     radius,
@@ -64,7 +78,7 @@ export function button(card: Card, x: number, y: number, w: number, h: number, o
     let cx = x + (w - contentW) / 2
     card.drawImage(opts.iconSrc, cx, y + (h - iconSize) / 2, iconSize, iconSize, {
       fit: "contain",
-      opacity: 0.95,
+      opacity: disabled ? 0.36 : 0.95,
       z: Z.TEXT,
     })
     cx += iconSize + gap
@@ -84,6 +98,20 @@ export function button(card: Card, x: number, y: number, w: number, h: number, o
     })
   }
   const tooltipLabel = opts.tooltip ?? (opts.iconOnly === true ? opts.label : "")
+  if (disabled) {
+    if (tooltipLabel.length > 0) {
+      card.hit(x, y, w, h, () => {}, "default", {label: tooltipLabel, delayMs: opts.tooltipDelayMs ?? 450})
+      card.drawTooltipForHit(
+        x,
+        y,
+        w,
+        h,
+        tooltipLabel,
+        opts.tooltipDelayMs === undefined ? {} : {delayMs: opts.tooltipDelayMs},
+      )
+    }
+    return
+  }
   card.hit(
     x,
     y,
@@ -233,6 +261,64 @@ export function badge(card: Card, x: number, y: number, w: number, h: number, op
     material: card.materials.toneText(tone),
     maxWidthPx: w - 16,
   })
+}
+
+/** Status chip: compact read-only state pill with optional SVG icon and delayed tooltip. */
+export function statusChip(card: Card, x: number, y: number, w: number, h: number, opts: StatusChipOpts): void {
+  const tone = opts.tone ?? "neutral"
+  const fontPx = opts.fontPx ?? 11
+  const iconSize = Math.min(opts.iconSizePx ?? Math.max(12, h - 12), Math.max(1, h - 8))
+  card.drawRoundedRect(x, y, w, h, {
+    radius: Math.min(radii.control, h / 2),
+    fill: toneFill(tone),
+    border: toneBorder(tone),
+    borderWidth: 1,
+    z: Z.ELEMENT,
+  })
+
+  let tx = x + 9
+  const hasLabel = opts.label.length > 0
+  if (opts.indicator === true && opts.iconSrc !== undefined && opts.iconSrc.length > 0) {
+    const iconSizeForIndicator = Math.min(iconSize, 13)
+    card.drawImage(opts.iconSrc, tx, y + (h - iconSizeForIndicator) / 2, iconSizeForIndicator, iconSizeForIndicator, {
+      fit: "contain",
+      opacity: 0.95,
+      z: Z.TEXT,
+    })
+    tx += iconSizeForIndicator + 8
+  } else if (opts.indicator === true) {
+    const dot = Math.min(9, h - 16)
+    const dotY = y + (h - dot) / 2
+    card.drawRoundedRect(tx, dotY, dot, dot, {
+      radius: dot / 2,
+      fill: toneBorder(tone),
+      z: Z.TEXT,
+    })
+    tx += dot + 8
+  } else if (opts.iconSrc !== undefined && opts.iconSrc.length > 0) {
+    const iconX = hasLabel ? tx : x + (w - iconSize) / 2
+    card.drawImage(opts.iconSrc, iconX, y + (h - iconSize) / 2, iconSize, iconSize, {
+      fit: "contain",
+      opacity: 0.92,
+      z: Z.TEXT,
+    })
+    tx += iconSize + 7
+  }
+  if (hasLabel) {
+    card.drawText(opts.label, tx, y + (h - fontPx) / 2, {
+      fontPx,
+      material: card.materials.toneText(tone),
+      maxWidthPx: Math.max(1, x + w - tx - 9),
+    })
+  }
+
+  if (opts.tooltip !== undefined && opts.tooltip.length > 0) {
+    const delayMs = opts.tooltipDelayMs ?? 450
+    card.hit(x, y, w, h, opts.action ?? (() => {}), opts.action === undefined ? "default" : "pointer", {label: opts.tooltip, delayMs})
+    card.drawTooltipForHit(x, y, w, h, opts.tooltip, {delayMs})
+  } else if (opts.action !== undefined) {
+    card.hit(x, y, w, h, opts.action, "pointer")
+  }
 }
 
 /** Текстовый input: bg/border, value, hit для активации. */

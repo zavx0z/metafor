@@ -32,12 +32,27 @@ export type ScrollListStateOpts = {
   onChange?: () => void
 }
 
+export type ScrollWheelOpts = {
+  /**
+   * Multiplier over native wheel delta. Canvas text UIs have no browser-native
+   * compositor scroll, so 1.4-1.8 often feels closer to platform scroll speed.
+   */
+  speed?: number
+  /**
+   * Minimum visual movement for the first wheel event after a short rest.
+   * This removes the "stuck at rest" feel of trackpads whose first delta is
+   * often tiny. Pixel-mode wheels use rowH to convert this value to rows.
+   */
+  startBoostPx?: number
+}
+
 export class ScrollListState {
   /** Текущая позиция (float, в row-units). Render использует floor(scroll) + subPx. */
   scroll = 0
   /** Оставлен для совместимости — больше не используется (deadzone убран). */
   scrollAccum = 0
   #onChange: () => void
+  #lastWheelAt = 0
 
   constructor(opts: ScrollListStateOpts = {}) {
     this.#onChange = opts.onChange ?? noop
@@ -70,20 +85,33 @@ export class ScrollListState {
    * Применить wheel-event синхронно. Возвращает true если scroll изменился.
    * Никаких deadzone, аккумуляторов, RAF — просто delta → scroll → onChange.
    */
-  applyWheel(event: WheelEvent, rowH: number, total: number, visible: number): boolean {
+  applyWheel(event: WheelEvent, rowH: number, total: number, visible: number, opts: ScrollWheelOpts = {}): boolean {
     const max = Math.max(0, total - visible)
     const safeRowH = Math.max(1, rowH)
     let rowsDelta: number
     if (event.deltaMode === 1) rowsDelta = event.deltaY
     else if (event.deltaMode === 2) rowsDelta = event.deltaY * visible
     else rowsDelta = event.deltaY / safeRowH
+    rowsDelta *= normalizeSpeed(opts.speed)
     if (rowsDelta === 0 || !Number.isFinite(rowsDelta)) return false
+    rowsDelta = this.#boostStartDelta(rowsDelta, safeRowH, opts)
 
     const next = clampScroll(this.scroll + rowsDelta, max)
     if (next === this.scroll) return false
     this.scroll = next
     this.#onChange()
     return true
+  }
+
+  #boostStartDelta(rowsDelta: number, rowH: number, opts: ScrollWheelOpts): number {
+    const now = performance.now()
+    const isFreshGesture = now - this.#lastWheelAt > 120
+    this.#lastWheelAt = now
+    const minPx = opts.startBoostPx ?? 0
+    if (!isFreshGesture || minPx <= 0) return rowsDelta
+    const currentPx = Math.abs(rowsDelta) * rowH
+    if (currentPx >= minPx) return rowsDelta
+    return Math.sign(rowsDelta) * (minPx / rowH)
   }
 
   /**
@@ -105,6 +133,12 @@ function noop(): void {
 function normalizeScroll(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, value)
+}
+
+function normalizeSpeed(value: number | undefined): number {
+  if (value === undefined) return 1
+  if (!Number.isFinite(value) || value <= 0) return 1
+  return Math.min(4, value)
 }
 
 function clampScroll(value: number, max: number): number {

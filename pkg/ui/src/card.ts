@@ -247,6 +247,7 @@ export abstract class Card implements UiCard {
   #hoverTooltipDelayMs = 0
   #hoverTooltipTimer: ReturnType<typeof setTimeout> | null = null
   #backgroundImage: BackgroundImageOpts | null = null
+  #rerenderRafId: number | null = null
 
   /** Top-left corner of card on canvas в logical-px (для конверсии в screen-px). */
   #screenOriginX = 0
@@ -379,13 +380,20 @@ export abstract class Card implements UiCard {
     this.#layer.position.y = -this.#padTop * pixelScale
     this.#layer.updateMatrix()
     this.#syncChrome(rect.w, rect.h)
-    this.#rerender()
+    this.#rerenderNow()
   }
 
   /** Subclass зовёт при изменении state — re-render без resize. */
   protected requestRender(): void {
     if (this.font === null) return
-    this.#rerender()
+    if (this.#rerenderRafId === null) {
+      this.#rerenderRafId = requestAnimationFrame(() => {
+        this.#rerenderRafId = null
+        if (this.font === null) return
+        this.#rerender()
+        this.canvas?.requestRender()
+      })
+    }
     this.canvas?.requestRender()
   }
 
@@ -688,6 +696,7 @@ export abstract class Card implements UiCard {
   }
 
   dispose(): void {
+    this.#cancelPendingRerender()
     this.#clearLayer()
     this.#clearLayer(this.#backgroundLayer)
   }
@@ -775,6 +784,17 @@ export abstract class Card implements UiCard {
     this.#hits = []
     this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
     this.render()
+  }
+
+  #rerenderNow(): void {
+    this.#cancelPendingRerender()
+    this.#rerender()
+  }
+
+  #cancelPendingRerender(): void {
+    if (this.#rerenderRafId === null) return
+    cancelAnimationFrame(this.#rerenderRafId)
+    this.#rerenderRafId = null
   }
 
   #drawImageMesh(

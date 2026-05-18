@@ -16,20 +16,23 @@ const trashSvg = "<svg id=\"svg5\" height=\"1500\" viewBox=\"0 0 1400 1500\" wid
 const fileRefreshSvg = "<svg height=\"1500\" viewBox=\"0 0 1500 1500\" width=\"1500\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\" xmlns:sodipodi=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\"><sodipodi:namedview pagecolor=\"#303030\" showgrid=\"true\"><inkscape:grid id=\"grid5\" units=\"px\" spacingx=\"100\" spacingy=\"100\" color=\"#4772b3\" opacity=\"0.2\" visible=\"true\" /></sodipodi:namedview><g fill=\"#fff\"><g enable-background=\"new\" stroke=\"none\" transform=\"matrix(0 -100.17897 100 0 -57795.1844 41972.0971)\"><path d=\"m405.46978 579.95581c-.0786.005 1.01466.006 2.75112.002-2.39046 1.17179-3.76136 4.49271-2.99824 7.27846s3.11603 4.49155 5.7784 4.71875l-.00084-1c-2.59859-.27264-4.17102-1.63685-4.81356-3.98242s.50423-5.20147 2.81719-6.15552c.009.80023-.0108 2.01265.00093 2.69464-.008.60881 1.01884.5718.99185-.0157-.002-.49551.001-3.60295.007-4.5362-1.4729.00082-2.81924-.00048-4.52617-.008-.62523.0109-.61936.99943-.009 1.00441z\" transform=\"matrix(-1 0 0 -1 822.986 1170.90388)\"/><path d=\"m405.45285 579.95581c-.0786.005 1.05365-.002 2.79011-.006-2.39046 1.17179-3.8662 4.53149-2.99824 7.28627.8992 2.85391 3.08617 4.49155 5.74854 4.71875l-.00084-1c-2.49653-.35216-4.00508-1.56869-4.7837-3.98242-.74659-2.31444.47303-5.20147 2.78599-6.15552.009.80023-.0108 2.01265.00093 2.69464-.008.60881 1.01884.5718.99185-.0157-.002-.49551.001-3.60295.007-4.5362-1.4729.00082-2.82703-.00048-4.53396-.008-.62523.0109-.61936.99943-.009 1.00441z\"/></g></g></svg>"
 const menuPanelSvg = "<svg id=\"svg5\" height=\"1400\" viewBox=\"0 0 1600 1400\" width=\"1600\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\" xmlns:sodipodi=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\"><sodipodi:namedview pagecolor=\"#303030\" showgrid=\"true\"><inkscape:grid id=\"grid5\" units=\"px\" spacingx=\"100\" spacingy=\"100\" color=\"#4772b3\" opacity=\"0.2\" visible=\"true\" /></sodipodi:namedview><g fill=\"#fff\" transform=\"matrix(100 0 0 100 -29899.991 -64600)\"><path id=\"path2\" d=\"m302 649v8h4v-8zm1 1h2v1h-2zm0 2h2v1h-2zm0 2h2v1h-2z\"/><path id=\"path3\" d=\"m301.5 647c-.82235 0-1.5.67765-1.5 1.5v9c0 .82235.67765 1.5 1.5 1.5h11c.82235 0 1.5-.67765 1.5-1.5v-9c0-.82235-.67765-1.5-1.5-1.5zm-.5 1h12v10h-12z\" opacity=\".6\"/></g></svg>"
 const checkmarkSvg = "<svg height=\"900\" viewBox=\"0 0 1200 900\" width=\"1200\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\" xmlns:sodipodi=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\"><sodipodi:namedview pagecolor=\"#303030\" showgrid=\"true\"><inkscape:grid id=\"grid5\" units=\"px\" spacingx=\"100\" spacingy=\"100\" color=\"#4772b3\" opacity=\"0.2\" visible=\"true\" /></sodipodi:namedview><g fill=\"#fff\"><path d=\"m226.98047 602.99023a1.0001 1.0001 0 0 0 -.6875.30274l-4.29297 4.29297-2.29297-2.29297a1.0001 1.0001 0 1 0 -1.41406 1.41406l3 3a1.0001 1.0001 0 0 0 1.41406 0l5-5a1.0001 1.0001 0 0 0 -.72656-1.7168z\" transform=\"matrix(100 0 0 100 -21699.775 -60199.48)\"/></g></svg>"
+const worldSvg = "<svg height=\"1600\" viewBox=\"0 0 1600 1600\" width=\"1600\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\" xmlns:sodipodi=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\"><sodipodi:namedview pagecolor=\"#303030\" showgrid=\"true\"><inkscape:grid id=\"grid5\" units=\"px\" spacingx=\"100\" spacingy=\"100\" color=\"#4772b3\" opacity=\"0.2\" visible=\"true\" /></sodipodi:namedview><g fill=\"#fff\"><path d=\"m103.49609 556.99023a.50005.50005 0 0 0 -.34375.15039l-1.57031 1.57032c-1.22858-1.06562-2.825838-1.7168-4.576171-1.7168-3.86007 0-7 3.13993-7 7 0 1.75033.649231 3.34954 1.714844 4.57813l-1.568359 1.56835a.50005.50005 0 1 0 .707031.70704l1.568359-1.56836c1.228585 1.06561 2.827793 1.71484 4.578125 1.71484 3.860071 0 7.000001-3.13993 7.000001-7 0-1.75033-.65118-3.34759-1.7168-4.57617l1.57032-1.57031a.50005.50005 0 0 0 -.36329-.85743zm-6.490231 1.00391c3.319631 0 6.000001 2.68037 6.000001 6s-2.68037 6-6.000001 6c-3.31963 0-6-2.68037-6-6 0-.88092.193846-1.71405.533203-2.4668l.466797.4668 1 1v2h2v1l1 1v2h.75 1.25l1-1 1.000001-1v-1l-1.000001-1h-2-1l-1-1h-1l1-1h1l2-2-1-1h-1l-1-1 .894532-.89453c.358617-.0666.727234-.10547 1.105468-.10547z\" opacity=\".99\" transform=\"matrix(100 0 0 100 -8900.42999999999 -55599.566)\"/></g></svg>"
 
 export const uiIcons = {
   run: svgIcon(playSvg),
   resume: svgIcon(playSvg),
+  restart: svgIcon(fileRefreshSvg),
   pause: svgIcon(pauseSvg),
   stop: svgIcon(cancelSvg),
   stepOver: svgIcon(loopForwardsSvg),
-  stepInto: svgIcon(sortDescSvg),
-  stepOut: svgIcon(sortAscSvg),
+  stepInto: svgIcon(sortAscSvg),
+  stepOut: svgIcon(sortDescSvg),
   log: svgIcon(consoleSvg),
   clear: svgIcon(trashSvg),
   autoscroll: svgIcon(fileRefreshSvg),
   manual: svgIcon(menuPanelSvg),
   apply: svgIcon(checkmarkSvg),
+  language: svgIcon(worldSvg),
   eval: svgIcon(playSvg),
 } as const
 

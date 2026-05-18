@@ -28,6 +28,28 @@ export type RenderEditorTokenLineOpts = {
   drawTokenBackground?: (x: number, y: number, w: number, h: number, bg: string) => void
 }
 
+export function normalizeEditorTokensForLine(text: string, tokens: readonly EditorToken[]): EditorToken[] {
+  const len = text.length
+  const out: EditorToken[] = []
+  let cursor = 0
+
+  for (const tok of [...tokens].sort((a, b) => a.s - b.s || a.e - b.e)) {
+    if (!Number.isFinite(tok.s) || !Number.isFinite(tok.e)) continue
+    const rawStart = Math.floor(tok.s)
+    const rawEnd = Math.floor(tok.e)
+    const s = Math.max(cursor, Math.min(len, rawStart))
+    const e = Math.max(s, Math.min(len, rawEnd))
+    if (e <= s) continue
+
+    const normalized: EditorToken = {s, e, c: tok.c}
+    if (tok.bg !== undefined) normalized.bg = tok.bg
+    out.push(normalized)
+    cursor = e
+  }
+
+  return out
+}
+
 export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void {
   let cursor = 0
   let cursorX = opts.startX
@@ -57,12 +79,11 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
     cursorX += w
   }
 
-  const sorted = [...opts.tokens].sort((a, b) => a.s - b.s)
+  const sorted = normalizeEditorTokensForLine(opts.text, opts.tokens)
   for (const tok of sorted) {
     if (tok.s > cursor) placeChunk(opts.text.slice(cursor, tok.s), "d", undefined, cursor)
-    const end = Math.min(tok.e, opts.text.length)
-    if (end > tok.s) placeChunk(opts.text.slice(tok.s, end), tok.c, tok.bg, tok.s)
-    cursor = Math.max(cursor, tok.e)
+    placeChunk(opts.text.slice(tok.s, tok.e), tok.c, tok.bg, tok.s)
+    cursor = tok.e
   }
   if (cursor < opts.text.length) placeChunk(opts.text.slice(cursor), "d", undefined, cursor)
 }

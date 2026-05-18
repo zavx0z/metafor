@@ -23,6 +23,22 @@ describe("ScrollListState", () => {
     expect(changes).toBe(1)
   })
 
+  test("applies optional wheel speed multiplier", () => {
+    const state = new ScrollListState()
+
+    state.applyWheel({deltaMode: 0, deltaY: 5} as WheelEvent, 10, 100, 10, {speed: 1.8})
+
+    expect(state.scroll).toBe(0.9)
+  })
+
+  test("boosts the first tiny wheel delta after rest", () => {
+    const state = new ScrollListState()
+
+    state.applyWheel({deltaMode: 0, deltaY: 0.5} as WheelEvent, 10, 100, 10, {startBoostPx: 12})
+
+    expect(state.scroll).toBe(1.2)
+  })
+
   test("clamps to available rows", () => {
     const state = new ScrollListState()
     state.jumpTo(100)
