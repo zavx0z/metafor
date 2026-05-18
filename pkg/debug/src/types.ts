@@ -79,6 +79,7 @@ export type FrameSnapshot = {
   url: string
   line: number
   column: number
+  sourceKind?: "runtime" | "sourcemap"
   scriptId?: string
   callFrameId?: string
   scopes: {

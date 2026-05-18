@@ -200,7 +200,7 @@ export class SnapshotStore {
     return {
       function: frame.functionName ?? "(anonymous)",
       scriptId,
-      url: scriptId === undefined ? "" : this.#scripts.get(scriptId)?.url ?? "",
+      url: mapped?.source ?? (scriptId === undefined ? "" : this.#scripts.get(scriptId)?.url ?? ""),
       line: mapped === undefined ? undefined : mapped.line + 1,
       column: mapped === undefined ? undefined : mapped.column + 1,
     }
@@ -214,9 +214,10 @@ export class SnapshotStore {
     const snapshot: FrameSnapshot = {
       index,
       function: frame.functionName ?? "(anonymous)",
-      url: scriptId === undefined ? "" : this.#scripts.get(scriptId)?.url ?? "",
+      url: mapped?.source ?? (scriptId === undefined ? "" : this.#scripts.get(scriptId)?.url ?? ""),
       line: mapped === undefined ? 0 : mapped.line + 1,
       column: mapped === undefined ? 0 : mapped.column + 1,
+      sourceKind: mapped?.sourceKind ?? "runtime",
       scopes: {
         local: [],
         closure: [],
@@ -229,20 +230,44 @@ export class SnapshotStore {
     return snapshot
   }
 
-  #originalFrameLocation(frame: CallFrame): {line: number; column: number} | undefined {
+  #originalFrameLocation(frame: CallFrame): {line: number; column: number; sourceKind: "runtime" | "sourcemap"; source?: string} | undefined {
     const scriptId = frame.location?.scriptId
     const line = frame.location?.lineNumber
     const column = frame.location?.columnNumber
     if (scriptId === undefined || typeof line !== "number") return undefined
 
-    const mapped = this.#mapperFor(scriptId).originalLocation({
+    const scriptUrl = this.#scripts.get(scriptId)?.url
+    const mapper = this.#mapperFor(scriptId)
+    const mapped = mapper.originalLocation({
       line,
       column: typeof column === "number" ? column : 0,
     })
-    return {
+    const content = mapper.sourceContent(mapped.source ?? scriptUrl)
+    if (content !== null) {
+      const mappedLine = mapped.source === undefined ? line : mapped.line
+      const mappedColumn = mapped.source === undefined ? (typeof column === "number" ? column : 0) : mapped.column
+      if (mappedLine < lineCount(content.content)) {
+        return {
+          line: mappedLine,
+          column: mappedColumn,
+          sourceKind: "sourcemap",
+          source: content.source,
+        }
+      }
+      return {
+        line,
+        column: typeof column === "number" ? column : 0,
+        sourceKind: "runtime",
+      }
+    }
+
+    const out: {line: number; column: number; sourceKind: "runtime" | "sourcemap"; source?: string} = {
       line: mapped.line,
       column: mapped.column,
+      sourceKind: mapped.source === undefined ? "runtime" : "sourcemap",
     }
+    if (mapped.source !== undefined) out.source = mapped.source
+    return out
   }
 
   #mapperFor(scriptId: string): SourceMapMapper {
@@ -356,4 +381,9 @@ export function remoteSnapshot(object: RemoteObject): RemoteSnapshot {
   if (object.preview !== undefined) snapshot.preview = object.preview
 
   return snapshot
+}
+
+function lineCount(value: string): number {
+  if (value.length === 0) return 0
+  return value.endsWith("\n") ? value.split("\n").length - 1 : value.split("\n").length
 }

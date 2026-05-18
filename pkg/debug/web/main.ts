@@ -4,7 +4,8 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
-import {UiCanvas, type CardRect, type EditorTokens} from "@metafor/ui"
+import {EditorCard, UiCanvas, sourcePathFromLocation, type CardRect, type EditorTokens} from "@metafor/ui"
+import {applyInspectMode} from "../src/inspect-mode.ts"
 import {SourceCard, type Source, type SourceRuntimeState} from "./source-card.ts"
 import {ConsoleCard, type ConsoleEntry} from "./console-card.ts"
 import {
@@ -19,6 +20,7 @@ import {
   type ScopeSnapshot,
   type PropertySnapshot,
 } from "./debug-ui.ts"
+import {getUiLocale, t, toggleUiLocale} from "./i18n.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -56,9 +58,12 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
 const engineCanvas = $<HTMLCanvasElement>("engine-canvas")
 const consolePending: ConsoleEntry[] = []
 type CachedSource = {text: string; tokens?: EditorTokens}
+type DraftState = {baseText: string; text: string; savedText: string; status: "clean" | "dirty" | "saved"}
 const sourceCache = new Map<string, CachedSource>()
+const sourceDrafts = new Map<string, DraftState>()
 let uiCanvas: UiCanvas | null = null
 let sourceCard: SourceCard | null = null
+let draftEditorCard: EditorCard | null = null
 let consoleCard: ConsoleCard | null = null
 let toolbarCard: ToolbarCard | null = null
 let framesCard: FramesCard | null = null
@@ -73,6 +78,8 @@ let connectionState: ConnectionState = "connecting"
 let connectionError: string | null = null
 let welcomeVisible = false
 let verboseVisible = localStorage.getItem("bd:verbose") === "1"
+let draftVisible = false
+let activeSourceKey = ""
 let engineStatus = "engine: init"
 let wsStatusText = "connecting..."
 let wsStatusKind: BadgeKind = "neutral"
@@ -80,6 +87,8 @@ let runStatusText = "?"
 let runStatusKind: BadgeKind = "neutral"
 let pendingPauseTimer: number | null = null
 let pendingPauseStartedAt = 0
+type ActiveDebuggerCommand = {cmd: string; label: string; startedAt: number; timer: number}
+let activeDebuggerCommand: ActiveDebuggerCommand | null = null
 
 const targetState = {
   state: "idle" as "idle" | "starting" | "running" | "exited" | "failed",
@@ -145,6 +154,7 @@ function handleServerMessage(msg: ServerMessage): void {
       refreshWelcome()
       return
     case "state":
+      finishDebuggerCommandForEvent("paused")
       clearPendingPause()
       currentDump = msg.dump
       renderDump(msg.dump)
@@ -153,6 +163,7 @@ function handleServerMessage(msg: ServerMessage): void {
       hideWelcome()
       return
     case "resumed":
+      finishDebuggerCommandForEvent("resumed")
       clearPendingPause()
       currentDump = undefined
       framesCard?.setFrames([], activeFrameIndex)
@@ -208,6 +219,7 @@ function applyConnection(info: ConnectionInfo): void {
   connectionState = info.state
   connectionError = info.error
   if (info.state !== "connected") {
+    clearDebuggerCommand("connection changed")
     clearPendingPause()
     setRunStatus(targetState.state === "running" || targetState.state === "starting" ? "reconnecting" : "waiting", "warn")
     setSourceRuntimeState("disconnected")
@@ -228,7 +240,9 @@ function clearLiveState(runtimeState: SourceRuntimeState = "disconnected"): void
   framesCard?.setFrames([], activeFrameIndex)
   scopesEvalCard?.setFrame(null)
   pushSourceToEngine({lines: [], currentLine: 0, location: ""})
+  activeSourceKey = ""
   sourceCache.clear()
+  syncDraftEditor()
   setSourceRuntimeState(runtimeState)
 }
 
@@ -250,23 +264,32 @@ function refreshWelcome(): void {
 
 function describeTargetStatus(): string {
   switch (targetState.state) {
-    case "idle":     return "не запущен"
-    case "starting": return "starting…"
-    case "running":  return `running (pid=${targetState.pid})`
-    case "exited":   return `exited code=${targetState.exitCode} (pid=${targetState.pid})`
-    case "failed":   return "spawn failed"
+    case "idle":     return t("targetIdle")
+    case "starting": return t("targetStarting")
+    case "running":  return `${t("targetRunning")} (pid=${targetState.pid})`
+    case "exited": {
+      const code = targetState.exitCode === null ? (getUiLocale() === "ru" ? "неизвестно" : "unknown") : String(targetState.exitCode)
+      return targetState.pid === null ? `${t("targetExited")} code=${code}` : `${t("targetExited")} code=${code} (pid=${targetState.pid})`
+    }
+    case "failed":   return t("targetFailed")
   }
 }
 
 function defaultTargetCommand(): string {
   const url = inspectorUrl || "ws://127.0.0.1:6499/dark"
-  return localStorage.getItem("bd:target:cmd")
+  const raw = localStorage.getItem("bd:target:cmd")
     ?? `bun test --timeout=2147483647 --inspect-wait=${url} dark/server.spec.ts`
+  return commandTextWithInspectMode(raw, defaultPauseOnStart(), url)
+}
+
+function defaultPauseOnStart(): boolean {
+  return localStorage.getItem("bd:target:brk") !== "0"
 }
 
 function handleTargetEvent(event: TargetEvent): void {
   switch (event.type) {
     case "started":
+      clearDebuggerCommand("target started")
       clearPendingPause()
       clearLiveState("loading")
       targetState.state = "running"
@@ -277,6 +300,7 @@ function handleTargetEvent(event: TargetEvent): void {
       setRunStatus("target starting")
       break
     case "exited":
+      clearDebuggerCommand("target exited")
       clearPendingPause()
       clearLiveState("disconnected")
       targetState.state = "exited"
@@ -299,7 +323,7 @@ function handleTargetEvent(event: TargetEvent): void {
 }
 
 async function startTargetFromCmd(rawCmd: string, pauseOnStart: boolean): Promise<void> {
-  const cmd = rawCmd.trim()
+  const cmd = commandTextWithInspectMode(rawCmd.trim(), pauseOnStart, inspectorUrl || "ws://127.0.0.1:6499/dark")
   if (cmd.length === 0) return
   localStorage.setItem("bd:target:cmd", cmd)
   const command = parseShellArgs(cmd)
@@ -338,6 +362,62 @@ async function stopTarget(): Promise<void> {
     await fetch("/target/stop", {method: "POST"})
   } catch {}
   updateWelcomeCard()
+}
+
+type TargetSnapshotView = {state?: string}
+
+async function restartTarget(): Promise<void> {
+  clearDebuggerCommand("restart target")
+  clearPendingPause()
+  appendConsole({ts: new Date().toISOString(), level: "debug", text: `[ui] ${t("restartTarget")}`})
+  setRunStatus(t("restartTarget"), "warn")
+  setSourceRuntimeState("loading")
+
+  const command = defaultTargetCommand()
+  const pauseOnStart = defaultPauseOnStart()
+
+  try {
+    await fetch("/target/stop", {method: "POST"})
+    let stopped = await waitForTargetStopped(3500)
+    if (!stopped) {
+      await fetch("/target/stop", {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify({signal: "SIGKILL"}),
+      })
+      stopped = await waitForTargetStopped(2000)
+    }
+    if (!stopped) {
+      appendConsole({
+        ts: new Date().toISOString(),
+        level: "warn",
+        text: getUiLocale() === "ru" ? "[ui] target ещё завершается; перезапуск отложен" : "[ui] target is still stopping; restart postponed",
+      })
+      restoreRunStatus()
+      return
+    }
+    await startTargetFromCmd(command, pauseOnStart)
+  } catch (error) {
+    appendConsole({ts: new Date().toISOString(), level: "error", text: `[ui] ${t("restartTarget")}: ${String(error)}`})
+    restoreRunStatus()
+  }
+}
+
+async function waitForTargetStopped(timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const snapshot = await fetch("/target")
+      .then((res) => res.json() as Promise<TargetSnapshotView>)
+      .catch(() => null)
+    const state = snapshot?.state
+    if (state !== "running" && state !== "starting") return true
+    await delay(120)
+  }
+  return false
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 async function applyInspectorUrl(nextUrl: string): Promise<void> {
@@ -388,13 +468,35 @@ function parseShellArgs(input: string): string[] {
   return out
 }
 
+function commandTextWithInspectMode(raw: string, pauseOnStart: boolean, url: string): string {
+  const parts = parseShellArgs(raw)
+  if (parts.length === 0) return raw
+  const mode = pauseOnStart ? "brk" : "wait"
+  return shellJoin(applyInspectMode(parts, mode, url))
+}
+
+function shellJoin(parts: string[]): string {
+  return parts.map(shellQuote).join(" ")
+}
+
+function shellQuote(part: string): string {
+  if (/^[A-Za-z0-9_./:=@+-]+$/.test(part)) return part
+  return `'${part.replaceAll("'", "'\\''")}'`
+}
+
 function appendVerbose(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
   verboseCard?.append(kind, ts, name, payload)
 }
 
 function setWsStatus(text: string, kind: "" | "live" | "paused" = ""): void {
   wsStatusText = text
-  wsStatusKind = kind === "live" ? "live" : kind === "paused" ? "paused" : "neutral"
+  wsStatusKind = kind === "live"
+    ? "live"
+    : kind === "paused"
+      ? "paused"
+      : text.includes("disconnect") || text.includes("closed")
+        ? "warn"
+        : "neutral"
   updateToolbar()
 }
 
@@ -420,6 +522,13 @@ function updateToolbar(): void {
     connectionKind,
     run: runStatusText,
     runKind: runStatusKind,
+    commandBusy: activeDebuggerCommand !== null,
+    commandCmd: activeDebuggerCommand?.cmd ?? "",
+    commandLabel: activeDebuggerCommand?.label ?? "",
+    draftVisible,
+    draftStatus: draftToolbarStatus(),
+    draftKind: draftToolbarKind(),
+    locale: getUiLocale(),
     inspectorUrl,
     verbose: verboseVisible,
     engine: engineStatus,
@@ -433,7 +542,7 @@ function updateWelcomeCard(): void {
     inspectorUrl: inspectorUrl || "ws://127.0.0.1:6499/dark",
     targetStatus: describeTargetStatus(),
     defaultCommand: defaultTargetCommand(),
-    pauseOnStart: localStorage.getItem("bd:target:brk") === "1",
+    pauseOnStart: defaultPauseOnStart(),
   }
   welcomeCard?.setState(state)
 }
@@ -458,7 +567,8 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
   }
   const location = `${frame.url || "scriptId=" + scriptId}:${frame.line}`
 
-  const cacheKey = `${scriptId}\0${frame.url}`
+  const preferredSourceKind = "sourcemap"
+  const cacheKey = `${scriptId}\0${preferredSourceKind}\0${frame.url}`
   let cached = sourceCache.get(cacheKey)
   if (cached === undefined) {
     setSourceRuntimeState("loading")
@@ -467,7 +577,7 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
       pushSourceToEngine({lines: ["loading…"], currentLine: 0, location})
     }
     try {
-      const res = await fetch(`/source?scriptId=${encodeURIComponent(scriptId)}`)
+      const res = await fetch(`/source?scriptId=${encodeURIComponent(scriptId)}&sourceUrl=${encodeURIComponent(frame.url)}&sourceKind=${encodeURIComponent(preferredSourceKind)}`)
       const data = await res.json() as {
         scriptSource?: string
         tokens?: EditorTokens
@@ -495,6 +605,8 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
     location,
     ...(cached.tokens === undefined ? {} : {tokens: cached.tokens}),
   })
+  activeSourceKey = sourceKeyFromLocation(location, scriptId)
+  ensureDraftForActiveSource(cached.text, location)
   setSourceRuntimeState("paused")
 }
 
@@ -537,6 +649,7 @@ function resolvePendingRequest(msg: Extract<ServerMessage, {type: "result"}>): v
 }
 
 function rejectPendingRequests(error: string): void {
+  clearDebuggerCommand(error)
   for (const [requestId, pending] of pendingRequests) {
     window.clearTimeout(pending.timer)
     pending.resolve({ok: false, error})
@@ -554,9 +667,13 @@ async function initEngine(): Promise<void> {
   try {
     uiCanvas = await UiCanvas.create(engineCanvas)
     toolbarCard = new ToolbarCard({
-      onPause: () => void runDebuggerCommand("pause", {}, "Pause"),
-      onResume: () => void runDebuggerCommand("resume", {}, "Resume"),
-      onStep: (kind) => void runDebuggerCommand("step", {kind}, `Step ${kind}`),
+      onPause: () => void runDebuggerCommand("pause", {}, t("pause")),
+      onResume: () => void runDebuggerCommand("resume", {}, t("resume")),
+      onRestartTarget: () => void restartTarget(),
+      onStep: (kind) => void runDebuggerCommand("step", {kind}, kind === "over" ? t("stepOver") : kind === "into" ? t("stepInto") : t("stepOut")),
+      onToggleDraft: () => setDraftVisible(!draftVisible),
+      onSaveDraft: () => saveActiveDraft(),
+      onToggleLocale: () => toggleLocale(),
       onToggleVerbose: () => setVerboseVisible(!verboseVisible),
     })
     framesCard = new FramesCard((index) => {
@@ -564,18 +681,39 @@ async function initEngine(): Promise<void> {
       if (currentDump !== undefined) renderDump(currentDump)
     })
     scopesEvalCard = new ScopesEvalCard(async (expr, frame) => {
-      scopesEvalCard?.setEvalOutput("...")
-      const response = await send("eval", {frame, expr})
-      scopesEvalCard?.setEvalOutput(JSON.stringify(response))
+      const label = t("runEval")
+      const command = beginDebuggerCommand("eval", label)
+      if (command === null) {
+        scopesEvalCard?.setEvalOutput(`${t("commandAlreadyRunning")}: ${activeDebuggerCommand?.label ?? ""}`)
+        return
+      }
+      scopesEvalCard?.setEvalOutput(t("commandExecuting"))
+      try {
+        const response = await send("eval", {frame, expr})
+        scopesEvalCard?.setEvalOutput(JSON.stringify(response))
+      } finally {
+        clearDebuggerCommandIf(command, "eval finished")
+      }
     })
     sourceCard = new SourceCard()
+    draftEditorCard = new EditorCard({
+      title: t("editDraft"),
+      onChange: (text) => updateActiveDraftText(text),
+      onSave: (text) => saveActiveDraft(text),
+      path: activeSourceKey,
+      fontPx: 12,
+      linePx: 16,
+    })
     consoleCard = new ConsoleCard()
     verboseCard = new VerboseCard()
     welcomeCard = new WelcomeCard({
       onRun: (command, pauseOnStart) => void startTargetFromCmd(command, pauseOnStart),
       onStop: () => void stopTarget(),
       onApplyInspector: (url) => void applyInspectorUrl(url),
-      onPauseOnStart: (pause) => localStorage.setItem("bd:target:brk", pause ? "1" : "0"),
+      onPauseOnStart: (pause) => {
+        localStorage.setItem("bd:target:brk", pause ? "1" : "0")
+        updateWelcomeCard()
+      },
     })
     installEngineCards()
     resizeObserver = new ResizeObserver(() => uiCanvas?.handleResize())
@@ -675,6 +813,95 @@ function setVerboseVisible(on: boolean): void {
   applyEngineLayout()
 }
 
+function setDraftVisible(on: boolean): void {
+  draftVisible = on
+  syncDraftEditor()
+  updateToolbar()
+  applyEngineLayout()
+  if (on && draftEditorCard !== null) uiCanvas?.setFocused(draftEditorCard)
+}
+
+function toggleLocale(): void {
+  toggleUiLocale()
+  updateToolbar()
+  updateWelcomeCard()
+  syncDraftEditorTitle()
+  applyEngineLayout()
+}
+
+function ensureDraftForActiveSource(text: string, location: string): void {
+  const key = sourceKeyFromLocation(location)
+  activeSourceKey = key
+  if (!sourceDrafts.has(key)) sourceDrafts.set(key, {baseText: text, text, savedText: text, status: "clean"})
+  syncDraftEditor()
+  updateToolbar()
+}
+
+function updateActiveDraftText(text: string): void {
+  const draft = activeDraft()
+  if (draft === null) return
+  draft.text = text
+  draft.status = text === draft.savedText ? "saved" : text === draft.baseText ? "clean" : "dirty"
+  updateToolbar()
+}
+
+function saveActiveDraft(text = draftEditorCard?.getText() ?? ""): void {
+  const draft = activeDraft()
+  if (draft === null) {
+    appendConsole({ts: new Date().toISOString(), level: "warn", text: getUiLocale() === "ru" ? "[ui] Черновик не сохранён: source не загружен" : "[ui] Draft save skipped: no source loaded"})
+    return
+  }
+  draft.text = text
+  draft.savedText = text
+  draft.status = text === draft.baseText ? "clean" : "saved"
+  appendConsole({ts: new Date().toISOString(), level: "debug", text: getUiLocale() === "ru" ? "[ui] Черновик сохранён в памяти; файлы не изменялись" : "[ui] Draft saved in memory; files were not modified"})
+  syncDraftEditorTitle()
+  updateToolbar()
+}
+
+function syncDraftEditor(): void {
+  if (draftEditorCard === null) return
+  const draft = activeDraft()
+  if (draft === null) {
+    draftEditorCard.setTitle(`${t("editDraft")} · ${t("draftNoSource")}`)
+    draftEditorCard.setText("")
+    return
+  }
+  draftEditorCard.setText(draft.text)
+  draftEditorCard.setLanguage({path: activeSourceKey})
+  syncDraftEditorTitle()
+}
+
+function syncDraftEditorTitle(): void {
+  const draft = activeDraft()
+  if (draftEditorCard === null) return
+  const location = engineLastSource?.location ?? activeSourceKey
+  const name = sourcePathFromLocation(location) || "source"
+  const marker = draft?.status === "dirty" ? t("dirty") : draft?.status === "saved" ? t("savedInMemory") : t("clean")
+  draftEditorCard.setTitle(`${t("editDraft")} · ${marker} · ${name}`)
+}
+
+function activeDraft(): DraftState | null {
+  if (activeSourceKey.length === 0) return null
+  return sourceDrafts.get(activeSourceKey) ?? null
+}
+
+function draftToolbarStatus(): string {
+  const draft = activeDraft()
+  if (draft === null) return "no source"
+  if (draft.status === "dirty") return "dirty"
+  if (draft.status === "saved") return "saved in memory"
+  return "clean"
+}
+
+function draftToolbarKind(): BadgeKind {
+  const draft = activeDraft()
+  if (draft === null) return draftVisible ? "warn" : "neutral"
+  if (draft.status === "dirty") return "warn"
+  if (draft.status === "saved") return "paused"
+  return "neutral"
+}
+
 function applyEngineLayout(): void {
   uiCanvas?.relayout()
 }
@@ -684,6 +911,7 @@ function installEngineCards(): void {
     uiCanvas === null ||
     toolbarCard === null ||
     sourceCard === null ||
+    draftEditorCard === null ||
     consoleCard === null ||
     framesCard === null ||
     scopesEvalCard === null ||
@@ -696,7 +924,8 @@ function installEngineCards(): void {
   uiCanvas.addCard(welcomeCard, welcomeRect)
   uiCanvas.addCard(framesCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).frames)
   uiCanvas.addCard(scopesEvalCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).scopes)
-  uiCanvas.addCard(sourceCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).source)
+  uiCanvas.addCard(sourceCard, (canvas) => welcomeVisible || draftVisible ? hiddenRect() : debuggerRects(canvas).source)
+  uiCanvas.addCard(draftEditorCard, (canvas) => welcomeVisible || !draftVisible ? hiddenRect() : debuggerRects(canvas).source)
   uiCanvas.addCard(consoleCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).console)
   uiCanvas.addCard(verboseCard, (canvas) => {
     if (welcomeVisible) return hiddenRect()
@@ -733,9 +962,9 @@ function welcomeRect({w, h}: {w: number; h: number}): CardRect {
   const bodyH = Math.max(1, h - BODY_TOP - PAD)
   const maxW = Math.max(1, Math.min(1280, w - PAD * 2))
   const cardW = Math.max(320, Math.min(maxW, Math.floor(w * 0.7)))
-  // welcome content стек: title 36 + status 80 + gap 10 + panels 222 + lower 92 + bottom-pad 18 ≈ 458.
+  // welcome content stack: title + status panel + target/inspector panels.
   // Берём min от bodyH чтобы не вылезать на маленьких окнах.
-  const cardH = Math.max(1, Math.min(478, bodyH))
+  const cardH = Math.max(1, Math.min(398, bodyH))
   return {
     x: Math.floor((w - cardW) / 2),
     y: BODY_TOP + Math.floor(Math.max(0, bodyH - cardH) / 2),
@@ -773,20 +1002,102 @@ function debuggerRects({w, h}: {w: number; h: number}): DebuggerRects {
 function pushSourceToEngine(payload: Source): void {
   engineLastSource = payload
   sourceCard?.setSource(payload)
+  syncDraftEditorTitle()
 }
 
 function setSourceRuntimeState(state: SourceRuntimeState): void {
   sourceCard?.setRuntimeState(state)
 }
 
+function sourceKeyFromLocation(location: string, fallback = ""): string {
+  const sourcePath = sourcePathFromLocation(location)
+  if (sourcePath.length > 0) return sourcePath
+  return fallback
+}
+
+function beginDebuggerCommand(cmd: string, label: string): ActiveDebuggerCommand | null {
+  if (activeDebuggerCommand !== null) {
+    if (cmd === "pause" && activeDebuggerCommand.cmd === "resume") {
+      clearDebuggerCommand("pause interrupts resume")
+    } else {
+      appendConsole({
+        ts: new Date().toISOString(),
+        level: "warn",
+        text: `[ui] ${t("commandAlreadyRunning")}: ${activeDebuggerCommand.label}`,
+      })
+      return null
+    }
+  }
+
+  if (activeDebuggerCommand !== null) {
+    appendConsole({
+      ts: new Date().toISOString(),
+      level: "warn",
+      text: `[ui] ${t("commandAlreadyRunning")}: ${activeDebuggerCommand.label}`,
+    })
+    return null
+  }
+
+  const timer = window.setTimeout(() => {
+    if (activeDebuggerCommand === null) return
+    const waitedMs = Date.now() - activeDebuggerCommand.startedAt
+    appendConsole({
+      ts: new Date().toISOString(),
+      level: "warn",
+      text: `[ui] ${activeDebuggerCommand.label}: ${t("commandFailed")} (${waitedMs}ms timeout)`,
+    })
+    activeDebuggerCommand = null
+    restoreRunStatus()
+    updateToolbar()
+  }, Math.max(COMMAND_TIMEOUT_MS + 5000, 15_000))
+
+  activeDebuggerCommand = {cmd, label, startedAt: Date.now(), timer}
+  updateToolbar()
+  return activeDebuggerCommand
+}
+
+function clearDebuggerCommand(_reason = ""): void {
+  if (activeDebuggerCommand === null) return
+  window.clearTimeout(activeDebuggerCommand.timer)
+  activeDebuggerCommand = null
+  updateToolbar()
+}
+
+function clearDebuggerCommandIf(command: ActiveDebuggerCommand, reason = ""): void {
+  if (activeDebuggerCommand !== command) return
+  clearDebuggerCommand(reason)
+}
+
+function finishDebuggerCommandForEvent(event: "paused" | "resumed"): void {
+  const active = activeDebuggerCommand
+  if (active === null) return
+  if (event === "paused" && (active.cmd === "pause" || active.cmd === "step")) {
+    clearDebuggerCommand("paused")
+  }
+  if (event === "resumed" && active.cmd === "resume") {
+    clearDebuggerCommand("resumed")
+  }
+}
+
+function restoreRunStatus(): void {
+  if (connectionState !== "connected") {
+    setRunStatus("waiting")
+    return
+  }
+  setRunStatus(currentDump === undefined ? "running" : "paused", currentDump === undefined ? "live" : "paused")
+}
+
 async function runDebuggerCommand(cmd: string, params: Record<string, unknown>, label: string): Promise<void> {
+  const command = beginDebuggerCommand(cmd, label)
+  if (command === null) return
+
   const started = new Date().toISOString()
-  appendConsole({ts: started, level: "debug", text: `[ui] ${label} requested`})
+  appendConsole({ts: started, level: "debug", text: `[ui] ${label}: ${t("commandExecuting")}`})
   if (cmd === "pause") {
     clearPendingPause()
-    setRunStatus("pause requested", "paused")
+    setRunStatus(t("pauseRequested"), "paused")
   }
-  if (cmd === "resume") setRunStatus("resuming…", "live")
+  if (cmd === "resume") setRunStatus(getUiLocale() === "ru" ? "продолжение..." : "resuming...", "live")
   if (cmd === "step") setRunStatus(`${label.toLowerCase()}…`, "paused")
 
   const response = await send(cmd, params)
@@ -796,21 +1107,19 @@ async function runDebuggerCommand(cmd: string, params: Record<string, unknown>, 
       armPendingPause(finished)
       return
     }
-    appendConsole({ts: finished, level: "debug", text: `[ui] ${label} accepted`})
+    appendConsole({ts: finished, level: "debug", text: `[ui] ${label}: ${t("commandAccepted")}`})
+    if (cmd !== "step") clearDebuggerCommandIf(command, "accepted")
     return
   }
-  appendConsole({ts: finished, level: "error", text: `[ui] ${label} failed: ${response.error ?? "unknown error"}`})
-  if (connectionState === "connected") {
-    setRunStatus(currentDump === undefined ? "running" : "paused", currentDump === undefined ? "live" : "paused")
-  } else {
-    setRunStatus("waiting")
-  }
+  clearDebuggerCommandIf(command, "failed")
+  appendConsole({ts: finished, level: "error", text: `[ui] ${label}: ${t("commandFailed")}: ${response.error ?? "unknown error"}`})
+  restoreRunStatus()
 }
 
 function armPendingPause(ts: string): void {
   pendingPauseStartedAt = Date.now()
-  appendConsole({ts, level: "debug", text: "[ui] Pause accepted; waiting for Debugger.paused"})
-  setRunStatus("pause pending", "paused")
+  appendConsole({ts, level: "debug", text: `[ui] ${t("pause")}: ${t("commandAccepted")}; ${t("pausePending")}`})
+  setRunStatus(t("pausePending"), "paused")
   pendingPauseTimer = window.setTimeout(() => {
     pendingPauseTimer = null
     if (currentDump !== undefined || connectionState !== "connected") return
@@ -818,9 +1127,11 @@ function armPendingPause(ts: string): void {
     appendConsole({
       ts: new Date().toISOString(),
       level: "warn",
-      text: `[ui] Pause is still pending after ${waitedMs}ms; Bun will stop only when the target reaches an interruptible JS point`,
+      text: getUiLocale() === "ru"
+        ? `[ui] Пауза всё ещё ожидается ${waitedMs}ms; Bun остановится на ближайшей JS-точке`
+        : `[ui] Pause is still pending after ${waitedMs}ms; Bun will stop at the next interruptible JS point`,
     })
-    setRunStatus("running (pause pending)", "paused")
+    setRunStatus(t("pausePending"), "paused")
   }, 1800)
 }
 

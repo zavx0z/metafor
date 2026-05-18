@@ -7,6 +7,7 @@
  */
 
 import {Card, Z, edgeFade, palette, radii, scrollbar} from "@metafor/ui"
+import {t} from "./i18n.ts"
 
 export type ConsoleEntry = {
   ts: string
@@ -24,6 +25,9 @@ const TS_GUTTER_PX = 60
 const SCROLLBAR_W = 4
 const MAX_ENTRIES = 1000
 const AUTOSCROLL_TOLERANCE_PX = 20
+const WHEEL_SPEED = 1.6
+const WHEEL_START_BOOST_PX = 16
+let lastWheelAt = 0
 
 export class ConsoleCard extends Card {
   #scrollOffset = 0
@@ -65,7 +69,9 @@ export class ConsoleCard extends Card {
       : event.deltaMode === 2
         ? event.deltaY * this.#contentH()
         : event.deltaY
-    if (pixelDelta !== 0) this.#setScroll(this.#scrollOffset + pixelDelta)
+    if (pixelDelta === 0) return
+    const scaledDelta = boostedPixelDelta(pixelDelta * WHEEL_SPEED)
+    this.#setScroll(this.#scrollOffset + scaledDelta)
   }
 
   onKey(event: KeyboardEvent): void {
@@ -77,12 +83,12 @@ export class ConsoleCard extends Card {
   }
 
   protected render(): void {
-    this.drawText("Console / Target", 12, 8, {
+    this.drawText(t("consoleTarget"), 12, 8, {
       fontPx: 13,
       material: this.materials.cyan,
       maxWidthPx: Math.max(1, this.rectW - 116),
     })
-    const counter = `${this.#entries.length} lines`
+    const counter = `${this.#entries.length} ${t("lines")}`
     this.drawText(counter, Math.max(12, this.rectW - 90), 10, {
       fontPx: 11,
       material: this.materials.muted,
@@ -92,7 +98,7 @@ export class ConsoleCard extends Card {
 
     const contentH = this.#contentH()
     if (this.#entries.length === 0) {
-      this.drawText("waiting for target stdout/stderr...", 12, CONTENT_TOP_PX + 24, {
+      this.drawText(t("waitingStdout"), 12, CONTENT_TOP_PX + 24, {
         fontPx: 12,
         material: this.materials.muted,
         maxWidthPx: this.rectW - 24,
@@ -206,4 +212,12 @@ function clipConsoleLine(value: string, widthPx: number, fontPx: number): string
   if (value.length <= max) return value
   if (max <= 3) return value.slice(0, max)
   return `${value.slice(0, max - 3)}...`
+}
+
+function boostedPixelDelta(delta: number): number {
+  const now = performance.now()
+  const fresh = now - lastWheelAt > 120
+  lastWheelAt = now
+  if (!fresh || Math.abs(delta) >= WHEEL_START_BOOST_PX) return delta
+  return Math.sign(delta) * WHEEL_START_BOOST_PX
 }

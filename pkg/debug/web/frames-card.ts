@@ -7,11 +7,14 @@ import {
   ScrollListState, scrollList,
 } from "@metafor/ui"
 import type {FrameSnapshot} from "./debug-ui.ts"
+import {t} from "./i18n.ts"
 
 const PAD = 14
 const HEADER_H = 22
 const ROW_H = 32
 const ROW_GAP = 2
+const WHEEL_SPEED = 1.5
+const WHEEL_START_BOOST_PX = 18
 
 export class FramesCard extends Card {
   #frames: FrameSnapshot[] = []
@@ -32,12 +35,16 @@ export class FramesCard extends Card {
   }
 
   onWheel(event: WheelEvent): void {
-    this.#list.applyWheel(event, ROW_H + ROW_GAP, this.#frames.length, this.#visibleRows())
+    this.#list.applyWheel(event, ROW_H + ROW_GAP, this.#frames.length, this.#visibleRows(), {
+      speed: WHEEL_SPEED,
+      startBoostPx: WHEEL_START_BOOST_PX,
+    })
   }
 
   protected render(): void {
     // Header: title слева, count справа.
-    const titleW = this.measureText("Frames", 13)
+    const title = t("frames")
+    const titleW = this.measureText(title, 13)
     const countLabel = `${this.#frames.length}`
     const countW = this.measureText(countLabel, 11)
     flexRow({
@@ -49,7 +56,7 @@ export class FramesCard extends Card {
       items: [
         {
           width: titleW, height: 13,
-          draw: (x, y) => this.drawText("Frames", x, y, {fontPx: 13, material: this.materials.cyan}),
+          draw: (x, y) => this.drawText(title, x, y, {fontPx: 13, material: this.materials.cyan}),
         },
         {
           width: countW, height: 11,
@@ -64,7 +71,7 @@ export class FramesCard extends Card {
     const listH = Math.max(0, this.rectH - listTop - 8)
 
     if (this.#frames.length === 0) {
-      this.drawText("waiting for paused frame", PAD + 4, listTop + 6, {
+      this.drawText(t("waitingFrames"), PAD + 4, listTop + 6, {
         fontPx: 12,
         material: this.materials.muted,
         maxWidthPx: this.rectW - PAD * 2 - 8,

@@ -12,6 +12,7 @@ import {
   ScrollListState,
 } from "@metafor/ui"
 import type {FrameSnapshot, PropertySnapshot, ScopeSnapshot} from "./debug-ui.ts"
+import {t} from "./i18n.ts"
 
 const PAD_X = 14
 const HEADER_Y = 12
@@ -22,6 +23,8 @@ const SCOPE_LIST_TOP = 44
 const SCOPE_ROW_H = 17
 const EVAL_HEIGHT = 124
 const SCROLLBAR_W = 4
+const WHEEL_SPEED = 1.6
+const WHEEL_START_BOOST_PX = 16
 
 type ScopeRow =
   | {kind: "group"; label: string}
@@ -56,7 +59,10 @@ export class ScopesEvalCard extends Card {
     if (localY > this.#evalTop()) return
     const total = this.#scopeRows().length
     const visible = this.#visibleScopeRows()
-    this.#list.applyWheel(event, SCOPE_ROW_H, total, visible)
+    this.#list.applyWheel(event, SCOPE_ROW_H, total, visible, {
+      speed: WHEEL_SPEED,
+      startBoostPx: WHEEL_START_BOOST_PX,
+    })
   }
 
   onKey(event: KeyboardEvent): void {
@@ -100,7 +106,7 @@ export class ScopesEvalCard extends Card {
 
   protected render(): void {
     // Header.
-    this.drawText("Scopes / Eval", PAD_X, HEADER_Y, {
+    this.drawText(t("scopesEval"), PAD_X, HEADER_Y, {
       fontPx: TITLE_FONT,
       material: this.materials.cyan,
       maxWidthPx: this.rectW - PAD_X * 2 - 80,
@@ -121,7 +127,7 @@ export class ScopesEvalCard extends Card {
     const visible = this.#visibleScopeRows()
     this.#list.clamp(rows.length, visible)
     if (rows.length === 0) {
-      this.drawText("no scopes for current frame", PAD_X + 4, SCOPE_LIST_TOP + 4, {
+      this.drawText(t("noScopes"), PAD_X + 4, SCOPE_LIST_TOP + 4, {
         fontPx: 12,
         material: this.materials.muted,
         maxWidthPx: this.rectW - PAD_X * 2 - 8,
@@ -169,7 +175,7 @@ export class ScopesEvalCard extends Card {
 
     // Eval section.
     divider(this, PAD_X, evalTop, this.rectW - PAD_X * 2)
-    const heading = this.#frame === null ? "Eval expression" : `Eval on frame ${this.#frame.index}`
+    const heading = this.#frame === null ? t("evalExpression") : `${t("evalFrame")} ${this.#frame.index}`
     this.drawText(heading, PAD_X, evalTop + 12, {
       fontPx: 11,
       material: this.materials.muted,
@@ -190,11 +196,11 @@ export class ScopesEvalCard extends Card {
       },
     })
     button(this, PAD_X + inputW + 8, inputY, runW, inputH, {
-      label: "Run eval", iconSrc: uiIcons.eval, iconOnly: true, tooltip: "Run eval", tone: "live", action: () => this.#runEval(),
+      label: t("runEval"), iconSrc: uiIcons.eval, iconOnly: true, tooltip: t("runEval"), tone: "live", action: () => this.#runEval(),
     })
 
     const outputY = inputY + inputH + 8
-    const outputText = this.#output.length === 0 ? "Cmd/Ctrl+Enter runs eval" : this.#output
+    const outputText = this.#output.length === 0 ? `${t("runEval")}: Cmd/Ctrl+Enter` : this.#output
     this.drawText(outputText.replace(/\s+/g, " "), PAD_X, outputY, {
       fontPx: 11,
       material: this.#output.length === 0 ? this.materials.muted : this.materials.text,
@@ -221,8 +227,8 @@ export class ScopesEvalCard extends Card {
     if (this.#frame === null) return []
     const out: ScopeRow[] = []
     const groups: Array<[string, ScopeSnapshot[]]> = [
-      ["local", this.#frame.scopes.local],
-      ["closure", this.#frame.scopes.closure],
+      [t("local"), this.#frame.scopes.local],
+      [t("closure"), this.#frame.scopes.closure],
     ]
     for (const [name, scopes] of groups) {
       for (const scope of scopes) {
@@ -251,10 +257,17 @@ export class ScopesEvalCard extends Card {
 function formatValue(v: PropertySnapshot): string {
   if (v.value !== undefined) {
     if (typeof v.value === "string") return JSON.stringify(v.value)
-    return String(v.value)
+    return formatPreviewText(String(v.value))
   }
-  if (v.description !== undefined) return String(v.description)
-  if (v.className !== undefined) return v.className
-  if (v.type !== undefined) return v.type
+  if (v.description !== undefined) return formatPreviewText(String(v.description))
+  if (v.className !== undefined) return formatPreviewText(v.className)
+  if (v.type !== undefined) return formatPreviewText(v.type)
   return "?"
+}
+
+function formatPreviewText(value: string): string {
+  return value
+    .replace(/[\u0000-\u001F\u007F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
 }

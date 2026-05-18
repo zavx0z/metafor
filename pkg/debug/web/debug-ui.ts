@@ -15,6 +15,13 @@ export type ToolbarState = {
   connectionKind: BadgeKind
   run: string
   runKind: BadgeKind
+  commandBusy: boolean
+  commandCmd: string
+  commandLabel: string
+  draftVisible: boolean
+  draftStatus: string
+  draftKind: BadgeKind
+  locale: "ru" | "en"
   inspectorUrl: string
   verbose: boolean
   engine: string
@@ -23,7 +30,11 @@ export type ToolbarState = {
 export type ToolbarActions = {
   onPause(): void
   onResume(): void
+  onRestartTarget(): void
   onStep(kind: "over" | "into" | "out"): void
+  onToggleDraft(): void
+  onSaveDraft(): void
+  onToggleLocale(): void
   onToggleVerbose(): void
 }
 
@@ -51,6 +62,7 @@ export type FrameSnapshot = {
   url: string
   line: number
   column: number
+  sourceKind?: "runtime" | "sourcemap"
   scriptId?: string
   callFrameId?: string
   scopes: {

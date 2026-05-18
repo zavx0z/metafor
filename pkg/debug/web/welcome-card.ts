@@ -1,15 +1,13 @@
 /**
  * Welcome card на Card-системе. Widget'ы button/badge/input — из @metafor/ui.
  *
- * Stack: title + status panel + (target panel | inspector panel) + lower badges.
+ * Stack: title + status panel + target/inspector panels.
  * Все координаты — pixel от card-TL, никаких эстимейтов.
  */
 
-import {Card, Z, palette, radii, uiIcons, button, badge, input, type Tone} from "@metafor/ui"
+import {Card, Z, palette, radii, uiIcons, button, input} from "@metafor/ui"
 import type {WelcomeActions, WelcomeState} from "./debug-ui.ts"
-
-const STATUS_BG_OK = palette.green
-const STATUS_BG_FAIL = palette.red
+import {localizeSystemText, t} from "./i18n.ts"
 
 const PAD = 18
 const GAP = 16
@@ -35,9 +33,10 @@ export class WelcomeCard extends Card {
 
   setState(next: WelcomeState): void {
     const wasEmpty = this.#command.length === 0
+    const previousDefault = this.#state.defaultCommand
     this.#state = next
     if (this.#active !== "url") this.#url = next.inspectorUrl
-    if (this.#active !== "command" && wasEmpty) this.#command = next.defaultCommand
+    if (this.#active !== "command" && (wasEmpty || this.#command === previousDefault)) this.#command = next.defaultCommand
     this.requestRender()
   }
 
@@ -77,7 +76,7 @@ export class WelcomeCard extends Card {
 
   protected render(): void {
     // Title.
-    this.drawText("WebGPU UI Debugger", PAD, 14, {
+    this.drawText(t("interpreter"), PAD, 14, {
       fontPx: 13,
       material: this.materials.cyan,
       maxWidthPx: this.rectW - PAD * 2,
@@ -87,44 +86,53 @@ export class WelcomeCard extends Card {
     const statusY = 46
     const statusH = 72
     const contentW = this.rectW - PAD * 2
+    const online = this.#state.connectionState === "connected"
+    const statusFill = online ? palette.bgPanel : palette.bgElevated
+    const statusBorder = online ? palette.green : palette.borderDim
+    const statusText = online ? t("inspectorConnected") : t("inspectorOffline")
+    const statusDetail = localizeSystemText(this.#state.connectionError)
     this.drawRoundedRect(PAD, statusY, contentW, statusH, {
       radius: 8,
-      fill: palette.bgElevated,
-      border: palette.borderDim,
+      fill: statusFill,
+      border: statusBorder,
       borderWidth: 1,
       z: Z.CONTAINER,
     })
-    const statusKind = this.#state.connectionState === "connected" ? STATUS_BG_OK : STATUS_BG_FAIL
-    this.drawRect(PAD, statusY, 3, statusH, statusKind, Z.SEPARATOR)
-    const statusMat = this.#state.connectionState === "connected" ? this.materials.green
-      : this.#state.connectionState === "connecting" ? this.materials.cyan
-        : this.materials.red
-    const error = this.#state.connectionError === null ? "" : ` (${this.#state.connectionError})`
-    this.drawText(`Inspector ${this.#state.connectionState}${error}`, PAD + 16, statusY + 14, {
-      fontPx: 14,
-      material: statusMat,
-      maxWidthPx: contentW - 32,
+    this.drawRoundedRect(PAD + 14, statusY + 18, 9, 9, {
+      radius: 4.5,
+      fill: online ? palette.green : palette.orange,
+      z: Z.TEXT,
     })
-    this.drawText(`Target ${this.#state.targetStatus}`, PAD + 16, statusY + 42, {
+    this.drawText(statusText, PAD + 32, statusY + 12, {
+      fontPx: 14,
+      material: online ? this.materials.green : this.materials.orange,
+      maxWidthPx: contentW - 46,
+    })
+    this.drawText(statusDetail, PAD + 32, statusY + 38, {
       fontPx: 12,
       material: this.materials.muted,
-      maxWidthPx: contentW - 32,
+      maxWidthPx: Math.max(1, contentW - 46),
+    })
+    this.drawText(`${t("target")}: ${this.#state.targetStatus}`, Math.max(PAD + 32, PAD + contentW - 300), statusY + 54, {
+      fontPx: 12,
+      material: this.materials.muted,
+      maxWidthPx: 280,
     })
 
-    // Two panels: target on left, inspector on right.
-    const panelY = 142
-    const panelH = 222
-    const leftW = Math.floor((contentW - GAP) * 0.58)
-    const rightW = contentW - GAP - leftW
-    const rightX = PAD + leftW + GAP
-    this.drawRoundedRect(PAD, panelY, leftW, panelH, {
+    // Target command gets the full row: the default Bun command is long and
+    // must remain readable/editable without hiding the important tail.
+    const targetY = 132
+    const targetH = 122
+    this.drawRoundedRect(PAD, targetY, contentW, targetH, {
       radius: 8,
       fill: palette.bgPanel,
       border: palette.borderDim,
       borderWidth: 1,
       z: Z.CONTAINER,
     })
-    this.drawRoundedRect(rightX, panelY, rightW, panelH, {
+    const inspectorY = targetY + targetH + GAP
+    const inspectorH = 96
+    this.drawRoundedRect(PAD, inspectorY, contentW, inspectorH, {
       radius: 8,
       fill: palette.bgPanel,
       border: palette.borderDim,
@@ -133,12 +141,12 @@ export class WelcomeCard extends Card {
     })
 
     // Target panel.
-    this.drawText("Target", PAD + 14, panelY + 14, {
+    this.drawText(t("target"), PAD + 14, targetY + 12, {
       fontPx: 13,
       material: this.materials.orange,
-      maxWidthPx: leftW - 28,
+      maxWidthPx: contentW - 28,
     })
-    input(this, PAD + 14, panelY + 56, leftW - 28, 34, {
+    input(this, PAD + 14, targetY + 42, contentW - 28, 34, {
       value: this.#command,
       active: this.#active === "command",
       onActivate: () => {
@@ -146,15 +154,15 @@ export class WelcomeCard extends Card {
         this.requestRender()
       },
     })
-    button(this, PAD + 14, panelY + 112, 40, 30, {
-      label: "Run target", iconSrc: uiIcons.run, iconOnly: true, tooltip: "Run target", tone: "live",
+    button(this, PAD + 14, targetY + 84, 40, 28, {
+      label: t("runTarget"), iconSrc: uiIcons.run, iconOnly: true, tooltip: t("runTarget"), tone: "live",
       action: () => this.#actions.onRun(this.#command, this.#state.pauseOnStart),
     })
-    button(this, PAD + 62, panelY + 112, 40, 30, {
-      label: "Stop target", iconSrc: uiIcons.stop, iconOnly: true, tooltip: "Stop target", tone: "warn", action: () => this.#actions.onStop(),
+    button(this, PAD + 62, targetY + 84, 40, 28, {
+      label: t("stopTarget"), iconSrc: uiIcons.stop, iconOnly: true, tooltip: t("stopTarget"), tone: "warn", action: () => this.#actions.onStop(),
     })
-    const pauseLabel = this.#state.pauseOnStart ? "pause: on" : "pause: off"
-    button(this, PAD + 110, panelY + 112, 40, 30, {
+    const pauseLabel = this.#state.pauseOnStart ? t("pauseOn") : t("pauseOff")
+    button(this, PAD + 110, targetY + 84, 40, 28, {
       label: pauseLabel,
       iconSrc: this.#state.pauseOnStart ? uiIcons.pause : uiIcons.run,
       iconOnly: true,
@@ -167,19 +175,19 @@ export class WelcomeCard extends Card {
         this.requestRender()
       },
     })
-    this.drawText("Run uses the command exactly as typed.", PAD + 14, panelY + 168, {
+    this.drawText(t("commandExact"), PAD + 164, targetY + 91, {
       fontPx: 11,
       material: this.materials.muted,
-      maxWidthPx: leftW - 28,
+      maxWidthPx: contentW - 178,
     })
 
     // Inspector panel.
-    this.drawText("Inspector", rightX + 14, panelY + 14, {
+    this.drawText(t("inspector"), PAD + 14, inspectorY + 12, {
       fontPx: 13,
       material: this.materials.cyan,
-      maxWidthPx: rightW - 28,
+      maxWidthPx: contentW - 28,
     })
-    input(this, rightX + 14, panelY + 56, rightW - 28, 34, {
+    input(this, PAD + 14, inspectorY + 42, contentW - 72, 32, {
       value: this.#url,
       active: this.#active === "url",
       onActivate: () => {
@@ -187,45 +195,17 @@ export class WelcomeCard extends Card {
         this.requestRender()
       },
     })
-    button(this, rightX + 14, panelY + 112, 40, 30, {
-      label: "Apply inspector URL", iconSrc: uiIcons.apply, iconOnly: true, tooltip: "Apply inspector URL", tone: "neutral",
+    button(this, PAD + contentW - 50, inspectorY + 42, 36, 32, {
+      label: t("applyInspector"), iconSrc: uiIcons.apply, iconOnly: true, tooltip: t("applyInspector"), tone: "neutral",
       action: () => this.#actions.onApplyInspector(this.#url),
     })
-    this.drawText("DevTools mirror", rightX + 14, panelY + 168, {
-      fontPx: 11,
-      material: this.materials.muted,
-      maxWidthPx: rightW - 28,
-    })
     const mirrorUrl = `https://debug.bun.sh/#${this.#url.replace(/^wss?:\/\//, "")}`
-    this.drawText(mirrorUrl, rightX + 14, panelY + 188, {
+    this.drawText(mirrorUrl, PAD + 14, inspectorY + 80, {
       fontPx: 11,
       material: this.materials.muted,
-      maxWidthPx: rightW - 28,
+      maxWidthPx: contentW - 28,
     })
 
-    // Lower badges.
-    const lowerY = panelY + panelH + 18
-    if (lowerY + 70 <= this.rectH - PAD) {
-      this.drawRoundedRect(PAD, lowerY, contentW, 70, {
-        radius: 8,
-        fill: palette.bgPanelDim,
-        border: palette.borderDim,
-        borderWidth: 1,
-        z: Z.CONTAINER,
-      })
-      const bw = (label: string): number => Math.ceil(this.measureText(label, 11)) + 18
-      const labels: Array<{label: string; tone: Tone}> = [
-        {label: "renderer: WebGPU", tone: "live"},
-        {label: "layout: rects", tone: "live"},
-        {label: "style: vision cards", tone: "paused"},
-      ]
-      let bx = PAD + 16
-      for (const item of labels) {
-        const w = bw(item.label)
-        badge(this, bx, lowerY + 22, w, 22, {label: item.label, tone: item.tone, fontPx: 11})
-        bx += w + 12
-      }
-    }
   }
 
   #activeValue(): string {

@@ -14,6 +14,7 @@
 import {spawn, type Subprocess} from "bun"
 import type {EventLogger} from "./logger.ts"
 import {serializeError} from "./errors.ts"
+import {applyInspectMode} from "./inspect-mode.ts"
 
 export type TargetState = "idle" | "starting" | "running" | "exited" | "failed"
 
@@ -118,6 +119,7 @@ export class TargetSupervisor {
     cwd?: string
     env?: Record<string, string>
     pauseOnStart?: boolean
+    inspectorUrl?: string
     breakpoints?: BreakpointSpec[]
   }): TargetSnapshot {
     if (this.#state === "starting" || this.#state === "running") {
@@ -130,14 +132,17 @@ export class TargetSupervisor {
       throw new Error("command must contain only strings")
     }
 
-    this.#command = options.command
+    const pauseOnStart = options.pauseOnStart ?? false
+    this.#command = pauseOnStart
+      ? applyInspectMode(options.command, "brk", options.inspectorUrl ?? "ws://127.0.0.1:6499/dark")
+      : [...options.command]
     this.#cwd = options.cwd ?? process.cwd()
     this.#exitCode = null
     this.#signalCode = null
     this.#exitedAt = null
     this.#buffer = []
     this.#state = "starting"
-    this.#pauseOnStart = options.pauseOnStart ?? false
+    this.#pauseOnStart = pauseOnStart
     this.#pendingBreakpoints = (options.breakpoints ?? []).filter(
       (bp) => Number.isInteger(bp.line) && bp.line > 0 && (typeof bp.url === "string" || typeof bp.urlRegex === "string"),
     )
@@ -145,7 +150,7 @@ export class TargetSupervisor {
     let subprocess: Subprocess<"ignore", "pipe", "pipe">
     try {
       subprocess = spawn({
-        cmd: options.command,
+        cmd: this.#command,
         cwd: this.#cwd,
         env: options.env !== undefined
           ? {...process.env, ...options.env}
@@ -156,7 +161,7 @@ export class TargetSupervisor {
       }) as Subprocess<"ignore", "pipe", "pipe">
     } catch (error) {
       this.#state = "failed"
-      this.#logger.event("target.spawn.failed", {error: serializeError(error), command: options.command})
+      this.#logger.event("target.spawn.failed", {error: serializeError(error), command: this.#command})
       throw error
     }
 
@@ -165,7 +170,8 @@ export class TargetSupervisor {
     this.#state = "running"
     this.#startedAt = new Date().toISOString()
 
-    this.#logger.event("target.started", {pid: this.#pid, command: options.command, cwd: this.#cwd})
+    if (pauseOnStart) this.#logger.event("target.inspect_brk.applied", {command: this.#command})
+    this.#logger.event("target.started", {pid: this.#pid, command: this.#command, cwd: this.#cwd})
     this.#emit({
       type: "started",
       pid: this.#pid,

@@ -7,6 +7,7 @@ import {
   Card, palette, radii, uiIcons, button, divider,
   ScrollListState, scrollList,
 } from "@metafor/ui"
+import {t} from "./i18n.ts"
 
 type VerboseEntry = {
   kind: "inspector" | "agent"
@@ -27,12 +28,14 @@ const NAME_W = 132
 const BTN_H = 24
 const SCROLLBAR_W = 4
 const SCROLLBAR_GAP = 6
+const WHEEL_SPEED = 1.6
+const WHEEL_START_BOOST_PX = 16
 
 export class VerboseCard extends Card {
   #entries: VerboseEntry[] = []
   readonly #list: ScrollListState
   #autoscroll = localStorage.getItem("bd:verbose:pin") !== "0"
-  readonly #max = 1000
+  readonly #max = 300
 
   constructor() {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.card})
@@ -40,7 +43,8 @@ export class VerboseCard extends Card {
   }
 
   append(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
-    const safePayload = payload === undefined ? "" : truncateJson(payload, 220)
+    if (isLowValueEvent(kind, name, payload)) return
+    const safePayload = summarizePayload(kind, name, payload)
     this.#entries.push({kind, ts, name, payload: safePayload})
     while (this.#entries.length > this.#max) this.#entries.shift()
     if (this.#autoscroll) this.#scrollToBottom()
@@ -54,7 +58,10 @@ export class VerboseCard extends Card {
   }
 
   onWheel(event: WheelEvent): void {
-    if (!this.#list.applyWheel(event, ROW_H, this.#entries.length, this.#visibleRows())) return
+    if (!this.#list.applyWheel(event, ROW_H, this.#entries.length, this.#visibleRows(), {
+      speed: WHEEL_SPEED,
+      startBoostPx: WHEEL_START_BOOST_PX,
+    })) return
     if (this.#autoscroll) {
       this.#autoscroll = false
       localStorage.setItem("bd:verbose:pin", "0")
@@ -63,7 +70,7 @@ export class VerboseCard extends Card {
 
   protected render(): void {
     // Header: title + count + Clear + Auto/Manual.
-    this.drawText("Verbose", PAD_X, HEADER_Y, {
+    this.drawText(t("verbose"), PAD_X, HEADER_Y, {
       fontPx: TITLE_FONT,
       material: this.materials.cyan,
       maxWidthPx: 90,
@@ -76,17 +83,17 @@ export class VerboseCard extends Card {
     })
 
     const btnY = 8
-    const autoLabel = this.#autoscroll ? "Auto" : "Manual"
+    const autoLabel = this.#autoscroll ? t("auto") : t("manual")
     const autoIcon = this.#autoscroll ? uiIcons.autoscroll : uiIcons.manual
     const autoW = 32
     const clearW = 32
     const autoX = this.rectW - PAD_X - autoW
     const clearX = autoX - 6 - clearW
     button(this, clearX, btnY, clearW, BTN_H, {
-      label: "Clear verbose log",
+      label: t("clearVerbose"),
       iconSrc: uiIcons.clear,
       iconOnly: true,
-      tooltip: "Clear verbose log",
+      tooltip: t("clearVerbose"),
       tone: "neutral",
       fontPx: 11,
       action: () => this.clear(),
@@ -95,7 +102,7 @@ export class VerboseCard extends Card {
       label: autoLabel,
       iconSrc: autoIcon,
       iconOnly: true,
-      tooltip: this.#autoscroll ? "Autoscroll on" : "Autoscroll off",
+      tooltip: this.#autoscroll ? t("autoscrollOn") : t("autoscrollOff"),
       tone: this.#autoscroll ? "live" : "neutral",
       fontPx: 11,
       action: () => this.#toggleAutoscroll(),
@@ -104,7 +111,7 @@ export class VerboseCard extends Card {
     divider(this, PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2)
 
     if (this.#entries.length === 0) {
-      this.drawText("inspector and agent event stream", PAD_X, LIST_TOP + 4, {
+      this.drawText(t("verboseEmpty"), PAD_X, LIST_TOP + 4, {
         fontPx: 12,
         material: this.materials.muted,
         maxWidthPx: this.rectW - PAD_X * 2,
@@ -112,6 +119,7 @@ export class VerboseCard extends Card {
       return
     }
 
+    if (this.#autoscroll) this.#scrollToBottom()
     scrollList(this, {
       state: this.#list,
       items: this.#entries,
@@ -141,7 +149,7 @@ export class VerboseCard extends Card {
     })
     const payloadX = nameX + NAME_W + 8
     const payloadMaxW = x + w - payloadX
-    if (payloadMaxW > 20) {
+    if (payloadMaxW > 20 && entry.payload.length > 0) {
       this.drawText(entry.payload, payloadX, y, {
         fontPx: 10,
         material: this.materials.text,
@@ -182,4 +190,98 @@ function truncateJson(value: unknown, max: number): string {
     text = String(value)
   }
   return text.length > max ? `${text.slice(0, max - 3)}...` : text
+}
+
+function isLowValueEvent(kind: "inspector" | "agent", name: string, payload: unknown): boolean {
+  if (name === "inspector.response.ok") return true
+  if (name === "http.request") {
+    const path = propString(payload, "path")
+    const status = propNumber(payload, "status")
+    return status !== undefined && status < 400 && (path === "/state" || path === "/frames" || path === "/console")
+  }
+  if (name === "inspector.request") {
+    const method = propString(payload, "method")
+    if (method === undefined) return false
+    return !importantInspectorRequest(method)
+  }
+  return kind === "agent" && name === "agent.kick_reconnect.fired"
+}
+
+function importantInspectorRequest(method: string): boolean {
+  return method === "Debugger.pause"
+    || method === "Debugger.resume"
+    || method === "Debugger.stepOver"
+    || method === "Debugger.stepInto"
+    || method === "Debugger.stepOut"
+    || method === "Runtime.evaluate"
+}
+
+function summarizePayload(kind: "inspector" | "agent", name: string, payload: unknown): string {
+  if (name === "Debugger.paused") {
+    const reason = propString(payload, "reason") ?? "pause"
+    const frames = arrayLength(prop(payload, "callFrames"))
+    return frames === undefined ? reason : `${reason} · frames ${frames}`
+  }
+  if (name === "Debugger.resumed") return ""
+  if (name === "Runtime.consoleAPICalled") {
+    const type = propString(payload, "type") ?? "console"
+    const args = arrayLength(prop(payload, "args"))
+    return args === undefined ? type : `${type} · args ${args}`
+  }
+  if (name === "ws.command") {
+    const cmd = propString(payload, "cmd") ?? "command"
+    const requestId = propNumber(payload, "requestId")
+    return requestId === undefined ? cmd : `${cmd} · #${requestId}`
+  }
+  if (name === "http.request") {
+    const method = propString(payload, "method") ?? "HTTP"
+    const path = propString(payload, "path") ?? ""
+    const status = propNumber(payload, "status")
+    const duration = propNumber(payload, "durationMs")
+    return [method, path, status === undefined ? "" : String(status), duration === undefined ? "" : `${duration}ms`]
+      .filter((part) => part.length > 0)
+      .join(" · ")
+  }
+  if (name === "agent.dump.written") {
+    const frameCount = propNumber(payload, "frameCount")
+    return frameCount === undefined ? "" : `frames ${frameCount}`
+  }
+  if (name === "agent.connection.failed") {
+    const attempt = propNumber(payload, "attempt")
+    const hint = propString(payload, "hint") ?? propString(payload, "lastError") ?? ""
+    return attempt === undefined ? hint : `attempt ${attempt} · ${hint}`
+  }
+  if (name === "socket.open") return propString(payload, "url") ?? ""
+  if (name === "socket.close") {
+    const code = propNumber(payload, "code")
+    const reason = propString(payload, "reason")
+    return [code === undefined ? "" : `code ${code}`, reason ?? ""].filter((part) => part.length > 0).join(" · ")
+  }
+  if (name === "inspector.response.error") {
+    const method = propString(payload, "method")
+    const error = propString(payload, "error")
+    return [method ?? "", error ?? ""].filter((part) => part.length > 0).join(" · ")
+  }
+  if (name === "inspector.request") return propString(payload, "method") ?? ""
+  const text = payload === undefined ? "" : truncateJson(payload, kind === "agent" ? 120 : 160)
+  return text === "{}" ? "" : text
+}
+
+function prop(value: unknown, key: string): unknown {
+  if (typeof value !== "object" || value === null) return undefined
+  return (value as Record<string, unknown>)[key]
+}
+
+function propString(value: unknown, key: string): string | undefined {
+  const next = prop(value, key)
+  return typeof next === "string" ? next : undefined
+}
+
+function propNumber(value: unknown, key: string): number | undefined {
+  const next = prop(value, key)
+  return typeof next === "number" ? next : undefined
+}
+
+function arrayLength(value: unknown): number | undefined {
+  return Array.isArray(value) ? value.length : undefined
 }

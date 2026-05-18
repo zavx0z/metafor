@@ -40,6 +40,7 @@ import type {SnapshotStore} from "./snapshot.ts"
 import type {InspectorClient} from "./inspector-client.ts"
 import type {TargetSupervisor} from "./target.ts"
 import type {JsonObject} from "./types.ts"
+import {sourceMapMapper} from "./source-map.ts"
 
 export type HttpServerOptions = {
   host: string
@@ -474,8 +475,9 @@ async function runTarget(req: Request, options: HttpServerOptions): Promise<Resp
       cwd?: string
       env?: Record<string, string>
       pauseOnStart?: boolean
+      inspectorUrl?: string
       breakpoints?: import("./target.ts").BreakpointSpec[]
-    } = {command}
+    } = {command, inspectorUrl: options.inspectorUrl}
     if (cwd !== undefined) opts.cwd = cwd
     if (envStrings !== undefined) opts.env = envStrings
     if (pauseOnStart) opts.pauseOnStart = true
@@ -639,18 +641,36 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
   const scriptId = url.searchParams.get("scriptId") ?? ""
   if (scriptId.length === 0) return jsonResponse({ok: false, error: "scriptId required"}, 400)
 
-  const fileUrl = options.snapshots.scriptUrl(scriptId)
+  const sourceUrl = url.searchParams.get("sourceUrl") ?? undefined
+  const sourceKind = url.searchParams.get("sourceKind")
+  const script = options.snapshots.scriptInfo(scriptId)
+  const fileUrl = script?.url
+  const mappedSource = sourceKind === "runtime" ? null : sourceMapMapper(script?.sourceMapURL).sourceContent(sourceUrl ?? fileUrl)
   const includeTokens = url.searchParams.get("tokens") !== "0"
-  const cacheKey = sourceCacheKey(scriptId, fileUrl)
+  const responseUrl = mappedSource?.source ?? fileUrl ?? ""
+  const cacheKey = sourceCacheKey(scriptId, `${mappedSource === null ? "runtime" : "sourcemap"}\0${responseUrl}`)
 
   const cachedSource = lruGet(sourceCache, cacheKey)
   if (cachedSource !== undefined) {
     return jsonResponse({
       scriptId,
-      url: fileUrl ?? "",
+      url: responseUrl,
       scriptSource: cachedSource,
       tokens: includeTokens ? tokensFor(cacheKey, cachedSource) : undefined,
+      sourceKind: mappedSource === null ? "runtime" : "sourcemap",
       cached: true,
+    })
+  }
+
+  if (mappedSource !== null) {
+    lruSet(sourceCache, cacheKey, mappedSource.content, SOURCE_CACHE_MAX)
+    return jsonResponse({
+      scriptId,
+      url: mappedSource.source,
+      scriptSource: mappedSource.content,
+      tokens: includeTokens ? tokensFor(cacheKey, mappedSource.content) : undefined,
+      sourceKind: "sourcemap",
+      cached: false,
     })
   }
 
@@ -663,6 +683,7 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
       url: fileUrl ?? "",
       scriptSource,
       tokens: includeTokens && scriptSource.length > 0 ? tokensFor(cacheKey, scriptSource) : undefined,
+      sourceKind: "runtime",
       cached: false,
     })
   } catch (error) {

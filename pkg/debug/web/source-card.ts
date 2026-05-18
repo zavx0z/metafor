@@ -26,6 +26,7 @@ import {
   type EditorTokens,
   type EditorTokenMaterialMap,
 } from "@metafor/ui"
+import {t} from "./i18n.ts"
 
 export type SyntaxToken = EditorToken
 export type SourceTokens = EditorTokens
@@ -51,6 +52,8 @@ const CODE_LEFT_PAD_PX = 8
 const LINE_PX = 16
 const CODE_FONT_PX = 12
 const SCROLLBAR_W = 4
+const WHEEL_SPEED = 1.55
+const WHEEL_START_BOOST_PX = 18
 
 
 export class SourceCard extends Card {
@@ -58,7 +61,6 @@ export class SourceCard extends Card {
   readonly #list: ScrollListState
   #runtimeState: SourceRuntimeState = "idle"
 
-  readonly #titleMaterial = new TextMaterial({color: palette.cyan})
   readonly #locationMaterial = new TextMaterial({color: palette.muted})
   readonly #lineMaterial = new TextMaterial({color: palette.text})
   readonly #gutterMaterial = new TextMaterial({color: palette.muted})
@@ -74,16 +76,17 @@ export class SourceCard extends Card {
   }
 
   setSource(source: Source): void {
+    const normalized = normalizeCurrentLine(source)
     const prev = this.#current
-    const lineChanged = prev?.currentLine !== source.currentLine
-    const fileChanged = sourcePathFromLocation(prev?.location) !== sourcePathFromLocation(source.location)
-    const tokens = tokensForSourceView(source)
-    this.#current = tokens === undefined ? source : {...source, tokens}
-    if (source.currentLine > 0) this.#runtimeState = "paused"
+    const lineChanged = prev?.currentLine !== normalized.currentLine
+    const fileChanged = sourcePathFromLocation(prev?.location) !== sourcePathFromLocation(normalized.location)
+    const tokens = tokensForSourceView(normalized)
+    this.#current = tokens === undefined ? normalized : {...normalized, tokens}
+    if (normalized.currentLine > 0) this.#runtimeState = "paused"
 
-    if (source.currentLine > 0 && (lineChanged || fileChanged || prev === null)) {
+    if (normalized.currentLine > 0 && (lineChanged || fileChanged || prev === null)) {
       const visible = this.#visibleLineCount()
-      this.#list.jumpTo(Math.max(0, source.currentLine - 1 - Math.floor(visible / 2)))
+      this.#list.jumpTo(Math.max(0, normalized.currentLine - 1 - Math.floor(visible / 2)))
     }
     this.requestRender()
   }
@@ -97,7 +100,10 @@ export class SourceCard extends Card {
   onWheel(event: WheelEvent): void {
     if (this.#current === null) return
     const visible = this.#visibleLineCount()
-    this.#list.applyWheel(event, LINE_PX, this.#current.lines.length, visible)
+    this.#list.applyWheel(event, LINE_PX, this.#current.lines.length, visible, {
+      speed: WHEEL_SPEED,
+      startBoostPx: WHEEL_START_BOOST_PX,
+    })
   }
 
   onKey(event: KeyboardEvent): void {
@@ -126,28 +132,16 @@ export class SourceCard extends Card {
 
   protected render(): void {
     // Header.
-    const titleStr = `Source · ${this.#runtimeState}`
-    this.drawText(titleStr, 20, 8, {
-      fontPx: 13,
-      material: this.#titleMaterial,
+    this.drawText(this.#headerLocation(), 20, 10, {
+      fontPx: 12,
+      material: this.#locationMaterial,
       maxWidthPx: this.rectW - 40,
     })
-
-    const titleW = this.measureText(titleStr, 13)
-    const locStartX = 20 + titleW + 14
-    const locMaxW = Math.max(40, this.rectW - locStartX - 20)
-    if (locMaxW > 40) {
-      this.drawText(this.#headerLocation(), locStartX, 12, {
-        fontPx: 11,
-        material: this.#locationMaterial,
-        maxWidthPx: locMaxW,
-      })
-    }
 
     this.drawRect(8, HEADER_H_PX, Math.max(1, this.rectW - 16), 1, palette.borderDim, Z.SEPARATOR)
 
     if (this.#current === null || this.#current.lines.length === 0) {
-      this.drawText("waiting for target…", Math.max(12, this.rectW / 2 - 80), PAD_TOP_PX + 18, {
+      this.drawText(t("targetWaiting"), Math.max(12, this.rectW / 2 - 80), PAD_TOP_PX + 18, {
         fontPx: 14,
         material: this.#locationMaterial,
         maxWidthPx: this.rectW - 24,
@@ -190,8 +184,15 @@ export class SourceCard extends Card {
       const highlightH = Math.min(LINE_PX, CODE_FONT_PX + 4)
       this.drawRoundedRect(PAD_LEFT_PX, highlightY + (LINE_PX - highlightH) / 2, contentW, highlightH, {
         radius: 4,
-        fill: palette.highlightLine,
+        fill: palette.pausedFill,
+        border: palette.orange,
+        borderWidth: 1,
         z: Z.ELEMENT,
+      })
+      this.drawRoundedRect(PAD_LEFT_PX + gutterPx + 2, highlightY + 2, 3, LINE_PX - 4, {
+        radius: 1.5,
+        fill: palette.orange,
+        z: Z.ELEMENT_RULE,
       })
       this.drawText("▶", PAD_LEFT_PX + GUTTER_LEFT_PAD_PX * 0.4, highlightY + 1, {
         fontPx: CODE_FONT_PX,
@@ -268,11 +269,11 @@ export class SourceCard extends Card {
   }
 
   #headerLocation(): string {
-    if (this.#runtimeState === "disconnected") return "inspector disconnected"
-    if (this.#runtimeState === "loading") return "loading source..."
-    if (this.#runtimeState === "running" && this.#current !== null) return `last paused frame: ${this.#current.location}`
-    if (this.#runtimeState === "running") return "target running"
-    return this.#current?.location ?? "waiting for paused source"
+    if (this.#runtimeState === "disconnected") return t("sourceDisconnected")
+    if (this.#runtimeState === "loading") return t("sourceLoading")
+    if (this.#runtimeState === "running" && this.#current !== null) return `${t("sourceLastPaused")}: ${this.#current.location}`
+    if (this.#runtimeState === "running") return t("sourceRunning")
+    return this.#current?.location ?? t("sourceWaiting")
   }
 
   #visibleLineCount(): number {
@@ -286,6 +287,11 @@ export class SourceCard extends Card {
     const digitW = this.measureText("8", CODE_FONT_PX)
     return Math.ceil(Math.max(GUTTER_MIN_PX, GUTTER_LEFT_PAD_PX + digitW * digits + GUTTER_RIGHT_PAD_PX))
   }
+}
+
+function normalizeCurrentLine(source: Source): Source {
+  if (source.currentLine <= 0 || source.currentLine <= source.lines.length) return source
+  return {...source, currentLine: 0}
 }
 
 function clipSourceLine(value: string, widthPx: number, fontPx: number): string {

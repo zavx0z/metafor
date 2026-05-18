@@ -279,8 +279,7 @@ class AgentRuntime {
     const pauseOnStartRequested = this.#target?.consumePauseOnStart() === true
 
     if (pauseOnStartRequested) {
-      this.#logger.event("inspector.pause_on_start.armed", {})
-      await this.#requestSetup("Debugger.pause")
+      this.#logger.event("inspector.pause_on_start.inspect_brk", {})
     }
 
     this.#logger.event("inspector.enabled", {})
