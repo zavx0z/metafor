@@ -7,6 +7,9 @@ interface TexturedPlaneGeometryParameters {
 
 export class TexturedPlaneGeometry extends PlaneGeometry {
   constructor(parameters: TexturedPlaneGeometryParameters = {}) {
-    super({ width: parameters.width, height: parameters.height })
+    const planeParameters: TexturedPlaneGeometryParameters = {}
+    if (parameters.width !== undefined) planeParameters.width = parameters.width
+    if (parameters.height !== undefined) planeParameters.height = parameters.height
+    super(planeParameters)
   }
 }

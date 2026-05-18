@@ -26,7 +26,7 @@ export class ImageMaterial extends Material {
   public viewBox: ImageViewBox
   public boxAspect: number
   public clipBounds: [number, number, number, number] | null = null
-  public onTextureChange?: () => void
+  public onTextureChange: (() => void) | undefined
 
   constructor(parameters: ImageMaterialParameters) {
     super(parameters)
