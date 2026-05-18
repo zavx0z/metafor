@@ -74,6 +74,10 @@ export const appWebLayoutConfig: AppWebLayoutConfig = {
     axesSizeMm: 1000,
     camera: {
       fovRad: (2 * Math.PI) / 5,
+      // FIXME(deep-space): текущий диапазон near/far рассчитан на сцену, где
+      // 1 world unit = 1 mm. Для более глубокого пространства нельзя просто
+      // увеличивать `far`: отдельно понадобятся dynamic near/far, split frustum
+      // или origin rebasing. Пока не реализовывать — только фиксируем ограничение.
       near: 1,
       far: 100000,
       position: { x: 3975.6752784123818, y: -2981.756458809286, z: 1650 },

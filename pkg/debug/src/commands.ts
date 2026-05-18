@@ -21,6 +21,7 @@ export type CommandContext = {
 
 export async function readStdinCommands(context: CommandContext): Promise<void> {
   const stdin = context.stdin ?? Bun.stdin.stream()
+  const reader = stdin.getReader()
   let buffer = ""
   let sequence = 0
   const textDecoder = new TextDecoder()
@@ -31,7 +32,10 @@ export async function readStdinCommands(context: CommandContext): Promise<void> 
   }
 
   try {
-    for await (const chunk of stdin) {
+    while (true) {
+      const {done, value} = await reader.read()
+      if (done) break
+      const chunk = value
       buffer += textDecoder.decode(chunk, {stream: true})
 
       let newlineIndex = buffer.indexOf("\n")
@@ -43,11 +47,14 @@ export async function readStdinCommands(context: CommandContext): Promise<void> 
       }
     }
 
+    buffer += textDecoder.decode()
     const tail = buffer.trim()
     if (tail.length > 0) await handleLine(tail)
     context.logger.event("stdin.closed", {})
   } catch (error) {
     context.logger.event("stdin.failed", {error: serializeError(error)})
+  } finally {
+    reader.releaseLock()
   }
 }
 

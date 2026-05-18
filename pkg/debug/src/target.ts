@@ -224,9 +224,13 @@ export class TargetSupervisor {
 
   async #pumpStream(stream: ReadableStream<Uint8Array>, kind: "stdout" | "stderr"): Promise<void> {
     const decoder = new TextDecoder()
+    const reader = stream.getReader()
     let buffer = ""
     try {
-      for await (const chunk of stream) {
+      while (true) {
+        const {done, value} = await reader.read()
+        if (done) break
+        const chunk = value
         buffer += decoder.decode(chunk, {stream: true})
         let newline = buffer.indexOf("\n")
         while (newline >= 0) {
@@ -236,10 +240,13 @@ export class TargetSupervisor {
           newline = buffer.indexOf("\n")
         }
       }
+      buffer += decoder.decode()
       const tail = buffer.trim()
       if (tail.length > 0) this.#appendLine(kind, tail)
     } catch (error) {
       this.#logger.event("target.stream.failed", {kind, error: serializeError(error)})
+    } finally {
+      reader.releaseLock()
     }
   }
 

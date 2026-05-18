@@ -25,7 +25,12 @@ export interface UIDisplayParameters {
  * Это не разрешение физического монитора пользователя.
  *
  * `unitsPerPixel` связывает виртуальную пиксельную сетку с размером дисплея в мире.
+ *
  * `pixelDensity` — производная виртуальная плотность дисплея в px/inch.
+ * Это не DPI/PPI физического устройства пользователя.
+ *
+ * Сам по себе `UIDisplay` не является HUD.
+ * HUD будет отдельным camera/head-locked слоем, который сможет использовать `UIDisplay` как содержимое.
  */
 export class UIDisplay extends Object3D {
   public readonly isUIDisplay: true = true
@@ -112,34 +117,27 @@ export class UIDisplay extends Object3D {
     return pixels * this.unitsPerPixel
   }
 
+  /**
+   * Сколько world units занимает один виртуальный UI-пиксель по горизонтали.
+   */
   public get unitsPerPixel(): number {
     return this.width / this.pixelWidth
   }
 
+  /**
+   * Сколько world units занимает один виртуальный UI-пиксель по вертикали.
+   */
   public get verticalUnitsPerPixel(): number {
     return this.height / this.pixelHeight
   }
 
   /**
-   * Виртуальная плотность дисплея в pixels per inch.
+   * Это виртуальная плотность дисплея в pixels per inch.
    * Это не DPI/PPI физического монитора пользователя.
+   * Значение вычисляется из размера виртуального дисплея в world units
+   * и его логической пиксельной сетки.
    */
   public get pixelDensity(): number {
     return this.pixelWidth / (this.width / 25.4)
-  }
-
-  /** @deprecated use width */
-  public get physicalWidth(): number {
-    return this.width
-  }
-
-  /** @deprecated use height */
-  public get physicalHeight(): number {
-    return this.height
-  }
-
-  /** @deprecated use unitsPerPixel */
-  public get pixelScale(): number {
-    return this.unitsPerPixel
   }
 }
