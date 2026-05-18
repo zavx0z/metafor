@@ -89,23 +89,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   light.updateMatrix()
   scene.add(light)
 
-  // --- Layout Example: Physical Display ---
+  // --- Layout Example: Virtual Display ---
   const layoutManager = new LayoutManager()
 
-  // Создаем дисплей: 0.4м ширина, 0.3м высота (40х30 см)
-  // Разрешение: 800x600 пикселей
+  // Создаем дисплей: 400x300 mm при логической сетке 800x600 px.
   const display = new UIDisplay({
-    width: 0.4,
-    height: 0.3,
+    width: 400,
+    height: 300,
     pixelWidth: 800,
     pixelHeight: 600,
     // Vision Pro Style: Surface-900 (rgb(27, 38, 52)) with 0.5 opacity
     background: new Color(27 / 255, 38 / 255, 52 / 255, 0.5)
   })
 
-  // Позиционируем дисплей в мире (метры)
-  const displayHeight = 1.1 // Высота центра экрана от пола
-  display.position.set(0.8, -0.5, displayHeight)
+  // Позиционируем дисплей в мире (world units = mm)
+  const displayHeight = 1100 // Высота центра экрана от пола
+  display.position.set(800, -500, displayHeight)
   
   // Ориентация: Вертикально, повернут к зрителю
   display.rotation.x = Math.PI / 2 
@@ -127,7 +126,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const poleMat = new LineBasicMaterial({ color: 0x666666, opacity: 0.5 })
   const pole = new Line(poleGeo, poleMat)
   // Сдвигаем ножку немного назад по локальной Z, чтобы она была за экраном
-  pole.position.z = -0.02
+  pole.position.z = -20
   display.add(pole)
 
   // Vision Pro Style: Font Color Surface-50 (rgb(225, 228, 233))
@@ -164,7 +163,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const createUIText = (str: string, fontSizePx: number, marginTopPx: number) => {
     const fontSizeWorld = display.getFontSize(fontSizePx)
     
-    // 1. Точно вычисляем ширину текста в метрах
+    // 1. Точно вычисляем ширину текста в world units.
     const textWidthWorld = measureTextWidth(str, fontLoaded, fontSizeWorld)
 
     // 2. Создаем текст
@@ -184,7 +183,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Точка (0,0) контейнера оказывается смещена вправо на W/2 (центр экрана).
     // Чтобы центрировать текст, сдвигаем его влево на половину ширины экрана (-W/2)
     // и на половину ширины самого текста (-textWidth/2).
-    t.position.x = -display.physicalWidth / 2 - textWidthWorld / 2
+    t.position.x = -display.width / 2 - textWidthWorld / 2
     t.position.y = -fontSizeWorld
     
     t.updateMatrix()
@@ -220,8 +219,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   try {
     const font = await TrueTypeFont.fromUrl("./JetBrainsMono-Bold.ttf")
-    const text = new Text("WebGPU Engine", font, 0.2, new TextMaterial({ color: new Color(1.0, 1.0, 1.0) }))
-    text.position.set(-0.8, 0, 0.1)
+    const text = new Text("WebGPU Engine", font, 200, new TextMaterial({ color: new Color(1.0, 1.0, 1.0) }))
+    text.position.set(-800, 0, 100)
     text.updateMatrix()
     scene.add(text)
   } catch (e) {
@@ -309,12 +308,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     requestAnimationFrame(animate)
 
     // Обновляем лейаут дисплея
-    // Передаем корневой контейнер контента, размеры в ПИКСЕЛЯХ и масштаб (метры/пиксель)
+    // Передаем корневой контейнер контента, размеры в пикселях и масштаб в world units на пиксель.
     layoutManager.update(
         display.contentContainer,
         display.pixelWidth,
         display.pixelHeight,
-        display.pixelScale
+        display.unitsPerPixel
     )
 
     const currentTime = performance.now()

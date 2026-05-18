@@ -5,76 +5,73 @@ import { MeshBasicMaterial } from "../materials/MeshBasicMaterial"
 import { LineSegments } from "../objects/LineSegments"
 import { LineBasicMaterial } from "../materials/LineBasicMaterial"
 import { BufferGeometry, BufferAttribute } from "../core/BufferGeometry"
-import { Line } from "../objects/Line"
 import { Color } from "../math"
-import { type LayoutProps } from "../layout/LayoutTypes"
 
 export interface UIDisplayParameters {
-  width: number // Физическая ширина в метрах
-  height: number // Физическая высота в метрах
-  pixelWidth: number // Разрешение по ширине в пикселях
-  pixelHeight: number // Разрешение по высоте в пикселях
-  background?: Color | number // Цвет фона экрана
+  width: number // Ширина виртуального дисплея в world units; по контракту engine это mm
+  height: number // Высота виртуального дисплея в world units; по контракту engine это mm
+  pixelWidth: number // Ширина логической пиксельной сетки виртуального UI
+  pixelHeight: number // Высота логической пиксельной сетки виртуального UI
+  background?: Color | number // Цвет фона виртуального дисплея
 }
 
 /**
- * Физический дисплей для отображения UI.
- * Конвертирует пиксельную верстку (Yoga) в физические размеры мира (Метры).
+ * Виртуальный дисплей для UI внутри WebGPU-сцены.
+ *
+ * `width` и `height` задают размер дисплея в world units.
+ * По контракту engine world unit = mm.
+ *
+ * `pixelWidth` и `pixelHeight` задают логическую пиксельную сетку UI.
+ * Это не разрешение физического монитора пользователя.
+ *
+ * `unitsPerPixel` связывает виртуальную пиксельную сетку с размером дисплея в мире.
+ * `pixelDensity` — производная виртуальная плотность дисплея в px/inch.
  */
 export class UIDisplay extends Object3D {
   public readonly isUIDisplay: true = true
-  public physicalWidth: number
-  public physicalHeight: number
+  public width: number
+  public height: number
   public pixelWidth: number
   public pixelHeight: number
-  public pixelScale: number // Сколько метров в одном пикселе
   public contentContainer: Object3D
 
   constructor(params: UIDisplayParameters) {
     super()
-    this.physicalWidth = params.width
-    this.physicalHeight = params.height
+    this.width = params.width
+    this.height = params.height
     this.pixelWidth = params.pixelWidth
     this.pixelHeight = params.pixelHeight
 
-    // Вычисляем размер одного пикселя в метрах
-    // Используем ширину как базу для PPI, или среднее значение
-    this.pixelScale = this.physicalWidth / this.pixelWidth
-
-    // 1. Создаем физическую подложку (Корпус/Экран)
-    const bgGeometry = new PlaneGeometry({ 
-        width: this.physicalWidth, 
-        height: this.physicalHeight 
+    // 1. Создаем подложку виртуального дисплея
+    const bgGeometry = new PlaneGeometry({
+      width: this.width,
+      height: this.height,
     })
-    const bgMaterial = new MeshBasicMaterial({ 
-        color: params.background ?? 0x111111 
+    const bgMaterial = new MeshBasicMaterial({
+      color: params.background ?? 0x111111,
     })
     const backgroundMesh = new Mesh(bgGeometry, bgMaterial)
-    
-    // PlaneGeometry создается в XY, для Z-up сцены вертикальный экран должен стоять перпендикулярно Y
-    // Но обычно UI рисуется в локальных XY, а сам объект вращается.
-    // Оставим геометрию как есть (XY), а контейнер повернем при размещении в сцене.
+
     this.add(backgroundMesh)
 
     // 2. Контейнер для контента (Flexbox root)
     this.contentContainer = new Object3D()
-    
-    // Настройка Yoga Layout для корневого элемента (весь экран)
+
+    // Корневой layout задается в виртуальных UI-пикселях.
     this.contentContainer.layout = {
       width: this.pixelWidth,
       height: this.pixelHeight,
-      flexDirection: 'column',
-      // По умолчанию контент начинается сверху
-      justifyContent: 'flex-start',
-      alignItems: 'center',
-      padding: 20 // Отступ от краев экрана в пикселях
+      flexDirection: "column",
+      justifyContent: "flex-start",
+      alignItems: "center",
+      padding: 20,
     }
 
-    // Смещаем контент: (0,0) слоя верстки должен совпадать с верхним левым углом дисплея (-W/2, H/2)
+    // Смещаем контент так, чтобы (0,0) layout-сетки совпадал с верхним левым углом дисплея.
     this.contentContainer.position.set(
-        -this.physicalWidth / 2,
-        this.physicalHeight / 2,
-        0.005
+      -this.width / 2,
+      this.height / 2,
+      0.005,
     )
     this.contentContainer.updateMatrix()
 
@@ -83,21 +80,18 @@ export class UIDisplay extends Object3D {
   }
 
   private createBorder(): void {
-    const w = this.physicalWidth / 2
-    const h = this.physicalHeight / 2
-    // Контур прямоугольника
+    const w = this.width / 2
+    const h = this.height / 2
     const vertices = new Float32Array([
-        -w, h, 0,   w, h, 0,
-        w, h, 0,    w, -h, 0,
-        w, -h, 0,   -w, -h, 0,
-        -w, -h, 0,  -w, h, 0
+      -w, h, 0, w, h, 0,
+      w, h, 0, w, -h, 0,
+      w, -h, 0, -w, -h, 0,
+      -w, -h, 0, -w, h, 0,
     ])
     const borderGeo = new BufferGeometry()
-    borderGeo.setAttribute('position', new BufferAttribute(vertices, 3))
-    // Vision Pro Style: Border Surface-400 (rgb(116, 130, 151) -> 0x748297)
+    borderGeo.setAttribute("position", new BufferAttribute(vertices, 3))
     const borderMat = new LineBasicMaterial({ color: 0x748297 })
     const border = new LineSegments(borderGeo, borderMat)
-    // Сдвигаем рамку чуть вперед, чтобы была поверх фона
     border.position.z = 0.001
     this.add(border)
   }
@@ -111,9 +105,41 @@ export class UIDisplay extends Object3D {
   }
 
   /**
-   * Возвращает размер шрифта в мировых единицах (метрах) для заданного размера в пикселях.
+   * Переводит размер шрифта из виртуальных UI-пикселей в world units.
+   * По контракту engine world unit = mm.
    */
   public getFontSize(pixels: number): number {
-    return pixels * this.pixelScale
+    return pixels * this.unitsPerPixel
+  }
+
+  public get unitsPerPixel(): number {
+    return this.width / this.pixelWidth
+  }
+
+  public get verticalUnitsPerPixel(): number {
+    return this.height / this.pixelHeight
+  }
+
+  /**
+   * Виртуальная плотность дисплея в pixels per inch.
+   * Это не DPI/PPI физического монитора пользователя.
+   */
+  public get pixelDensity(): number {
+    return this.pixelWidth / (this.width / 25.4)
+  }
+
+  /** @deprecated use width */
+  public get physicalWidth(): number {
+    return this.width
+  }
+
+  /** @deprecated use height */
+  public get physicalHeight(): number {
+    return this.height
+  }
+
+  /** @deprecated use unitsPerPixel */
+  public get pixelScale(): number {
+    return this.unitsPerPixel
   }
 }
