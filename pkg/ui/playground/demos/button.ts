@@ -139,13 +139,11 @@ class ButtonCard extends Card {
   }
 
   #drawEventPanel(x: number, y: number, w: number, h: number): void {
-    this.drawRoundedRect(x, y, w, h, {
-      radius: 20,
-      fill: new Color(0.03, 0.045, 0.065, 0.62),
-      border: glassBorder,
-      borderWidth: 1,
-      z: Z.ELEMENT,
-    })
+    this.drawRect(x, y, w, h, new Color(0.015, 0.02, 0.03, 0.94), Z.ELEMENT)
+    this.drawRect(x, y, w, 1, glassBorder, Z.ELEMENT_RULE)
+    this.drawRect(x, y + h - 1, w, 1, glassBorder, Z.ELEMENT_RULE)
+    this.drawRect(x, y, 1, h, glassBorder, Z.ELEMENT_RULE)
+    this.drawRect(x + w - 1, y, 1, h, glassBorder, Z.ELEMENT_RULE)
     this.drawText("Event visualization", x + 14, y + 12, {
       fontPx: 12,
       material: this.materials.cyan,
