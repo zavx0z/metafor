@@ -1,22 +1,55 @@
-import {Element, UiCanvas, button, div, h1, h2, h3, hr, input, p, span, type CssColor} from "@metafor/elements"
+import {
+  Element,
+  UiCanvas,
+  button,
+  div,
+  flexColumn,
+  flexRow,
+  flexRowCss,
+  h1,
+  h2,
+  h3,
+  img,
+  input,
+  p,
+  span,
+  type CssColor,
+  type UiSize,
+} from "@metafor/elements"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
-type ElementRoute = "overview" | "structure" | "css" | "events" | "tokens"
+type ElementRoute =
+  | "overview"
+  | "card"
+  | "padding"
+  | "flex"
+  | "flexCss"
+  | "grid"
+  | "textBlock"
+  | "image"
+  | "css"
+  | "events"
+  | "theme"
 type CssSection = "padding" | "flex" | "border" | "color" | "typography"
 
 type RouteMeta = {
   id: ElementRoute
   label: string
-  hint: string
 }
 
-const ROUTE_IDS = ["overview", "structure", "css", "events", "tokens"] as const
+const ROUTE_IDS = ["overview", "card", "padding", "flex", "flexCss", "grid", "textBlock", "image", "css", "events", "theme"] as const
 const ROUTES: readonly RouteMeta[] = [
-  {id: "overview", label: "Overview", hint: "HTML names"},
-  {id: "structure", label: "Structure", hint: "div / span / input"},
-  {id: "css", label: "CSS", hint: "padding / flex / border"},
-  {id: "events", label: "Events", hint: "hover / press / click"},
-  {id: "tokens", label: "Tokens", hint: "CSS-like values"},
+  {id: "overview", label: "Overview"},
+  {id: "card", label: "Card"},
+  {id: "padding", label: "Padding"},
+  {id: "flex", label: "Flex"},
+  {id: "flexCss", label: "Flex CSS"},
+  {id: "grid", label: "Grid"},
+  {id: "textBlock", label: "Text Block"},
+  {id: "image", label: "Image"},
+  {id: "css", label: "CSS"},
+  {id: "events", label: "Events"},
+  {id: "theme", label: "Theme"},
 ]
 
 const CSS_SECTIONS: readonly CssSection[] = ["padding", "flex", "border", "color", "typography"]
@@ -60,12 +93,12 @@ class ElementsPlayground extends Element {
     const railW = 286
     const gap = 26
     const contentX = stageX + railW + gap + 28
-    const contentY = stageY + 166
+    const contentY = stageY + 34
     const contentW = stageW - railW - gap - 56
-    const contentH = stageH - 204
+    const contentH = stageH - 68
 
     div(this, stageX, stageY, stageW, stageH, {
-      sx: {
+      style: {
         background: "rgba(20, 28, 43, 0.82)",
         borderColor: "rgba(214, 231, 255, 0.42)",
         borderRadius: 44,
@@ -73,7 +106,7 @@ class ElementsPlayground extends Element {
       },
     })
     div(this, stageX + 18, stageY + 18, stageW - 36, stageH - 36, {
-      sx: {
+      style: {
         background: "rgba(255, 255, 255, 0.035)",
         borderColor: "rgba(255, 255, 255, 0.08)",
         borderRadius: 36,
@@ -81,8 +114,7 @@ class ElementsPlayground extends Element {
       },
     })
 
-    this.#header(stageX + 34, stageY + 28, stageW - 68)
-    this.#routeRail(stageX + 34, stageY + 166, railW, contentH)
+    this.#routeRail(stageX + 34, stageY + 34, railW, contentH)
     this.#content(contentX, contentY, contentW, contentH)
 
     const t = transitionProgress(this.#transitionStarted)
@@ -90,135 +122,268 @@ class ElementsPlayground extends Element {
   }
 
   #backdrop(): void {
-    div(this, 0, 0, this.rectW, this.rectH, {sx: {background: "rgba(3, 8, 15, 1)", borderColor: null, borderRadius: 0, zIndex: -1}})
-    div(this, this.rectW * 0.08, this.rectH * 0.12, 560, 560, {
-      sx: {background: "rgba(69, 160, 255, 0.16)", borderColor: null, borderRadius: 280, zIndex: -0.95},
-    })
-    div(this, this.rectW * 0.64, this.rectH * 0.06, 620, 620, {
-      sx: {background: "rgba(116, 226, 255, 0.12)", borderColor: null, borderRadius: 310, zIndex: -0.95},
-    })
-    div(this, this.rectW * 0.58, this.rectH * 0.68, 520, 300, {
-      sx: {background: "rgba(96, 255, 188, 0.10)", borderColor: null, borderRadius: 150, zIndex: -0.95},
-    })
-  }
-
-  #header(x: number, y: number, w: number): void {
-    pill(this, x, y, 154, 30, "@metafor/elements", "rgba(111, 211, 255, 0.12)", "cyan")
-    pill(this, x + 168, y, 128, 30, "canvas only", "rgba(255, 255, 255, 0.06)", "muted")
-    h1(this, x, y + 42, Math.min(620, w - 330), 46, {children: "Vision elements", sx: {fontSize: 30}})
-    p(this, x, y + 86, Math.min(720, w - 330), 30, {
-      children: "Low-level pseudo HTML: div, span, p, h1-h6, input, button, hr with CSS-like sx props.",
-      sx: {fontSize: 13, color: "muted"},
-    })
-
-    const route = routeById(this.#route)
-    div(this, x + w - 310, y + 18, 310, 82, {
-      sx: {background: "rgba(8, 13, 22, 0.72)", borderColor: "rgba(214, 231, 255, 0.18)", borderRadius: 28},
-    })
-    span(this, x + w - 282, y + 40, 260, 24, {children: `virtual route  #/${route.id}`, sx: {fontSize: 12, color: "cyan"}})
-    span(this, x + w - 282, y + 68, 260, 24, {children: route.hint, sx: {fontSize: 12, color: "muted"}})
+    div(this, 0, 0, this.rectW, this.rectH, {style: {background: "rgba(3, 8, 15, 1)", borderColor: null, borderRadius: 0, zIndex: -1}})
   }
 
   #routeRail(x: number, y: number, w: number, h: number): void {
     div(this, x, y, w, h, {
-      sx: {background: "rgba(7, 12, 21, 0.76)", borderColor: "rgba(214, 231, 255, 0.18)", borderRadius: 34},
+      style: {background: "rgba(7, 12, 21, 0.76)", borderColor: "rgba(214, 231, 255, 0.18)", borderRadius: 34},
     })
-    h2(this, x + 26, y + 26, w - 52, 28, {children: "Sections", sx: {fontSize: 17}})
-    p(this, x + 26, y + 58, w - 52, 44, {children: "Hash router, canvas navigation and route transitions.", sx: {fontSize: 12, color: "muted"}})
-    hr(this, x + 26, y + 120, w - 52, {sx: {background: "rgba(214, 231, 255, 0.16)"}})
 
     for (const [i, route] of ROUTES.entries()) {
       const active = route.id === this.#route
-      const by = y + 150 + i * 76
+      const by = y + 24 + i * 54
       if (active) {
-        div(this, x + 18, by - 8, w - 36, 64, {
-          sx: {background: "rgba(111, 211, 255, 0.10)", borderColor: "rgba(111, 211, 255, 0.42)", borderRadius: 24},
+        div(this, x + 18, by - 5, w - 36, 46, {
+          style: {background: "rgba(111, 211, 255, 0.10)", borderColor: "rgba(111, 211, 255, 0.42)", borderRadius: 23},
         })
       }
-      button(this, x + 30, by, w - 60, 42, {
+      button(this, x + 30, by, w - 60, 36, {
         children: route.label,
         onClick: () => this.#router.go(route.id),
-        sx: {
+        style: {
           background: active ? "rgba(62, 92, 122, 0.76)" : "rgba(255, 255, 255, 0.035)",
           borderColor: active ? "cyan" : "rgba(214, 231, 255, 0.18)",
           color: active ? "text" : "muted",
-          fontSize: 12,
-          borderRadius: 21,
+          fontSize: 11,
+          borderRadius: 18,
         },
       })
-      span(this, x + 48, by + 48, w - 96, 18, {children: route.hint, sx: {fontSize: 10, color: active ? "cyan" : "muted"}})
     }
   }
 
   #content(x: number, y: number, w: number, h: number): void {
     div(this, x, y, w, h, {
-      sx: {background: "rgba(8, 13, 22, 0.72)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 38},
+      style: {background: "rgba(8, 13, 22, 0.72)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 38},
     })
     const progress = easeOutCubic(transitionProgress(this.#transitionStarted))
     const direction = ROUTE_IDS.indexOf(this.#route) >= ROUTE_IDS.indexOf(this.#previousRoute) ? 1 : -1
     const slideX = Math.round((1 - progress) * 30 * direction)
-    const shineX = x + 24 + (w - 108) * progress
-    div(this, shineX, y + 18, 84, 4, {sx: {background: "rgba(111, 211, 255, 0.58)", borderColor: null, borderRadius: 2}})
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
     if (this.#route === "overview") this.#overview(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "structure") this.#structure(x + 34 + slideX, y + 34, w - 68, h - 68)
+    else if (this.#route === "card") this.#cardRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
+    else if (this.#route === "padding") this.#paddingRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
+    else if (this.#route === "flex") this.#flexRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
+    else if (this.#route === "flexCss") this.#flexCssRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
+    else if (this.#route === "grid") this.#gridRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
+    else if (this.#route === "textBlock") this.#textBlockRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
+    else if (this.#route === "image") this.#imageRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
     else if (this.#route === "css") this.#css(x + 34 + slideX, y + 34, w - 68, h - 68)
     else if (this.#route === "events") this.#eventsRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else this.#tokens(x + 34 + slideX, y + 34, w - 68, h - 68)
+    else this.#theme(x + 34 + slideX, y + 34, w - 68, h - 68)
     this.popClip()
   }
 
   #overview(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Pseudo HTML, rendered by WebGPU", sx: {fontSize: 22}})
-    p(this, x, y + 42, w, 28, {children: "The demo itself is built with @metafor/elements. No DOM buttons, no native forms.", sx: {fontSize: 13, color: "muted"}})
+    h2(this, x, y, w, 34, {children: "Elements", style: {fontSize: 22}})
 
     const cardW = (w - 32) / 3
-    featureCard(this, x, y + 92, cardW, 156, "HTML names", "div / span / button / input", "Use familiar element names for the low layer.")
-    featureCard(this, x + cardW + 16, y + 92, cardW, 156, "CSS-like sx", "background, borderRadius, color", "Props follow CSS naming and values where practical.")
-    featureCard(this, x + (cardW + 16) * 2, y + 92, cardW, 156, "Vision default", "glass / capsule / glow", "Every primitive starts from the same visual language.")
+    featureCard(this, x, y + 58, cardW, 118, "HTML names", "div / span / button / input / img")
+    featureCard(this, x + cardW + 16, y + 58, cardW, 118, "CSS props", "style.background / padding / flex")
+    featureCard(this, x + (cardW + 16) * 2, y + 58, cardW, 118, "Old coverage", "Card / Flex / Image / Theme")
 
-    div(this, x, y + 286, w, 168, {
-      sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30},
+    div(this, x, y + 214, w, 168, {
+      style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30},
     })
-    h3(this, x + 26, y + 312, w - 52, 24, {children: "Example syntax", sx: {fontSize: 15}})
-    codeLine(this, x + 26, y + 354, w - 52, "button(this, x, y, 180, 46, { children: \"Run\", sx: { borderRadius: 999 } })")
-    codeLine(this, x + 26, y + 392, w - 52, "div(this, x, y, w, h, { sx: { background: \"glass\", padding: 24 } })")
+    h3(this, x + 26, y + 240, w - 52, 24, {children: "API", style: {fontSize: 15}})
+    codeLine(this, x + 26, y + 282, w - 52, "button(this, x, y, 180, 46, { children: \"Run\", style: { borderRadius: 999 } })")
+    codeLine(this, x + 26, y + 320, w - 52, "div(this, x, y, w, h, { style: { background: \"glass\", padding: 24 } })")
   }
 
-  #structure(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Elements compose the surface", sx: {fontSize: 22}})
-    p(this, x, y + 42, w, 28, {children: "Card is the canvas host; pseudo HTML elements define the visual structure inside it.", sx: {fontSize: 13, color: "muted"}})
+  #cardRoute(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "Card", style: {fontSize: 22}})
 
     const leftW = Math.floor(w * 0.52)
-    div(this, x, y + 92, leftW, 358, {sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-    h3(this, x + 28, y + 120, leftW - 56, 24, {children: "Live element stack", sx: {fontSize: 15}})
-    div(this, x + 28, y + 164, leftW - 56, 82, {sx: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.36)", borderRadius: 24}})
-    h2(this, x + 52, y + 188, leftW - 104, 26, {children: "h2 inside div", sx: {fontSize: 16}})
-    p(this, x + 52, y + 218, leftW - 104, 22, {children: "p text is clipped and aligned inside the card.", sx: {fontSize: 11, color: "muted"}})
-    input(this, x + 28, y + 274, leftW - 56, 42, {value: "input value: route=structure", active: true})
-    button(this, x + 28, y + 338, 168, 44, {children: "button"})
-    button(this, x + 212, y + 338, 168, 44, {children: "disabled", disabled: true})
+    div(this, x, y + 58, leftW, 358, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, x + 28, y + 86, leftW - 56, 24, {children: "Card basics", style: {fontSize: 15}})
+    div(this, x + 28, y + 130, leftW - 56, 82, {style: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.36)", borderRadius: 24}})
+    h2(this, x + 52, y + 154, leftW - 104, 26, {children: "h2 inside div", style: {fontSize: 16}})
+    p(this, x + 52, y + 184, leftW - 104, 22, {children: "p text clipped inside the card", style: {fontSize: 11, color: "muted"}})
+    input(this, x + 28, y + 240, leftW - 56, 42, {value: "input value", active: true})
+    button(this, x + 28, y + 304, 168, 44, {children: "button"})
+    button(this, x + 212, y + 304, 168, 44, {children: "disabled", disabled: true})
 
     const rightX = x + leftW + 22
     const rightW = w - leftW - 22
-    div(this, rightX, y + 92, rightW, 358, {sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-    h3(this, rightX + 28, y + 120, rightW - 56, 24, {children: "CSS-like props", sx: {fontSize: 15}})
-    propRow(this, rightX + 28, y + 166, rightW - 56, "background", "\"glass\" | rgba(...) | token")
-    propRow(this, rightX + 28, y + 212, rightW - 56, "borderRadius", "999 | \"24px\"")
-    propRow(this, rightX + 28, y + 258, rightW - 56, "color", "\"cyan\" | \"muted\" | #fff")
-    propRow(this, rightX + 28, y + 304, rightW - 56, "paddingX", "number | \"px\"")
-    propRow(this, rightX + 28, y + 350, rightW - 56, "zIndex", "small layered offsets")
+    div(this, rightX, y + 58, rightW, 358, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, rightX + 28, y + 86, rightW - 56, 24, {children: "Props", style: {fontSize: 15}})
+    propRow(this, rightX + 28, y + 132, rightW - 56, "background", "\"glass\" | rgba(...) | token")
+    propRow(this, rightX + 28, y + 178, rightW - 56, "borderRadius", "999 | \"24px\"")
+    propRow(this, rightX + 28, y + 224, rightW - 56, "color", "\"cyan\" | \"muted\" | #fff")
+    propRow(this, rightX + 28, y + 270, rightW - 56, "paddingX", "number | \"px\"")
+    propRow(this, rightX + 28, y + 316, rightW - 56, "zIndex", "small layered offsets")
+  }
+
+  #paddingRoute(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "Padding", style: {fontSize: 22}})
+
+    div(this, x, y + 58, w, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, x + 28, y + 86, 320, 24, {children: "CSS box spacing", style: {fontSize: 15}})
+    codeLine(this, x + 28, y + 126, Math.min(520, w - 56), "div(..., { style: { padding: 28, paddingX: 36 } })")
+    propRow(this, x + 28, y + 174, Math.min(420, w - 56), "padding", "all sides")
+    propRow(this, x + 28, y + 220, Math.min(420, w - 56), "paddingX/Y", "axis override")
+    propRow(this, x + 28, y + 266, Math.min(420, w - 56), "paddingTop", "per-side override")
+
+    const demoX = x + Math.min(500, w * 0.48)
+    const demoW = w - (demoX - x) - 28
+    div(this, demoX, y + 116, demoW, 210, {
+      style: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.34)", borderRadius: 34},
+    })
+    div(this, demoX + 36, y + 150, demoW - 72, 142, {
+      style: {background: "rgba(255, 255, 255, 0.07)", borderColor: "rgba(255, 255, 255, 0.18)", borderRadius: 26},
+    })
+    span(this, demoX + 64, y + 210, demoW - 128, 24, {children: "content area", style: {fontSize: 12, color: "text"}})
+  }
+
+  #flexRoute(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "Flex", style: {fontSize: 22}})
+
+    const panelW = (w - 24) / 2
+    div(this, x, y + 58, panelW, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, x + 28, y + 86, panelW - 56, 24, {children: "flexRow", style: {fontSize: 15}})
+    flexRow({
+      x: x + 28,
+      y: y + 138,
+      w: panelW - 56,
+      h: 110,
+      gap: 14,
+      alignItems: "center",
+      items: [
+        {width: 86, height: 72, draw: (cx, cy, cw, ch) => demoCell(this, cx, cy, cw, ch, "86", "cyan")},
+        {width: "grow", height: 72, draw: (cx, cy, cw, ch) => demoCell(this, cx, cy, cw, ch, "grow", "green")},
+        {width: 112, height: 72, draw: (cx, cy, cw, ch) => demoCell(this, cx, cy, cw, ch, "112", "orange")},
+      ],
+    })
+    codeLine(this, x + 28, y + 292, panelW - 56, "flexRow({ gap: 14, alignItems: \"center\", items })")
+
+    const rightX = x + panelW + 24
+    div(this, rightX, y + 58, panelW, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, rightX + 28, y + 86, panelW - 56, 24, {children: "flexColumn", style: {fontSize: 15}})
+    flexColumn({
+      x: rightX + 28,
+      y: y + 132,
+      w: panelW - 56,
+      h: 186,
+      gap: 12,
+      alignItems: "stretch",
+      items: [
+        {height: 48, draw: (cx, cy, cw, ch) => demoCell(this, cx, cy, cw, ch, "header", "cyan")},
+        {height: "grow", draw: (cx, cy, cw, ch) => demoCell(this, cx, cy, cw, ch, "grow content", "green")},
+        {height: 44, draw: (cx, cy, cw, ch) => demoCell(this, cx, cy, cw, ch, "footer", "orange")},
+      ],
+    })
+  }
+
+  #flexCssRoute(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "Flex CSS", style: {fontSize: 22}})
+
+    div(this, x, y + 58, w, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, x + 28, y + 86, w - 56, 24, {children: "px / percent / fr / grow", style: {fontSize: 15}})
+    const items: Array<{label: string; width: UiSize; color: CssColor}> = [
+      {label: "120px", width: 120, color: "cyan"},
+      {label: "24%", width: "24%", color: "green"},
+      {label: "1fr", width: "1fr", color: "orange"},
+      {label: "2fr", width: "2fr", color: "red"},
+    ]
+    flexRowCss({
+      x: x + 28,
+      y: y + 138,
+      w: w - 56,
+      h: 112,
+      gap: 14,
+      alignItems: "stretch",
+      items: items.map((item) => ({
+        width: item.width,
+        draw: (cx, cy, cw, ch) => demoCell(this, cx, cy, cw, ch, item.label, item.color),
+      })),
+    })
+    codeLine(this, x + 28, y + 292, w - 56, "flexRowCss({ items: [{ width: 120 }, { width: \"24%\" }, { width: \"1fr\" }] })")
+    propRow(this, x + 28, y + 338, Math.min(480, w - 56), "UiSize", "number | \"42%\" | \"1fr\" | \"grow\"")
+  }
+
+  #gridRoute(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "Multi-Card Grid", style: {fontSize: 22}})
+
+    const gap = 20
+    const cardW = (w - gap) / 2
+    const cardH = 166
+    const cards = [
+      ["Layout", "outer card + inner glass panes", "cyan"],
+      ["State", "one canvas tree, many hit regions", "green"],
+      ["Text", "clipped and measured text", "orange"],
+      ["Theme", "shared Vision tokens", "red"],
+    ] as const
+    for (const [i, [title, body, color]] of cards.entries()) {
+      const cx = x + (i % 2) * (cardW + gap)
+      const cy = y + 58 + Math.floor(i / 2) * (cardH + gap)
+      div(this, cx, cy, cardW, cardH, {style: {background: "rgba(255, 255, 255, 0.04)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+      div(this, cx + 22, cy + 24, 50, 50, {style: {background: color, borderColor: "rgba(255, 255, 255, 0.22)", borderRadius: 20, opacity: 0.72}})
+      h3(this, cx + 92, cy + 26, cardW - 118, 24, {children: title, style: {fontSize: 15}})
+      p(this, cx + 92, cy + 62, cardW - 118, 26, {children: body, style: {fontSize: 12, color: "muted"}})
+      button(this, cx + 22, cy + 104, 148, 40, {children: "Select", style: {fontSize: 11}})
+    }
+  }
+
+  #textBlockRoute(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "Text Block", style: {fontSize: 22}})
+
+    div(this, x, y + 58, w, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, x + 28, y + 86, 280, 24, {children: "Measured multiline text", style: {fontSize: 15}})
+    const copy =
+      "Card.drawTextBlock keeps long content inside a fixed visual box. It wraps, shrinks when needed and clips with predictable canvas metrics."
+    this.drawTextBlock(copy, x + 28, y + 134, Math.min(520, w - 56), 156, {
+      fontPx: 14,
+      lineHeight: 21,
+      material: this.materials.text,
+      wrap: true,
+      fit: "shrink",
+      maxLines: 5,
+      padX: 22,
+      padY: 18,
+    })
+    div(this, x + Math.min(590, w * 0.56), y + 130, w - Math.min(590, w * 0.56), 168, {
+      style: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.30)", borderRadius: 30},
+    })
+    codeLine(this, x + 28, y + 322, w - 56, "drawTextBlock(text, x, y, w, h, { wrap: true, fit: \"shrink\", maxLines: 5 })")
+  }
+
+  #imageRoute(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "Image", style: {fontSize: 22}})
+
+    div(this, x, y + 58, w, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    const artwork = svgDataUrl(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+        <defs>
+          <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+            <stop stop-color="#6fd3ff" offset="0"/>
+            <stop stop-color="#52c47b" offset="0.52"/>
+            <stop stop-color="#ffbe6f" offset="1"/>
+          </linearGradient>
+          <filter id="b"><feGaussianBlur stdDeviation="24"/></filter>
+        </defs>
+        <rect width="640" height="360" fill="#07101c"/>
+        <circle cx="180" cy="154" r="120" fill="#6fd3ff" opacity="0.55" filter="url(#b)"/>
+        <circle cx="440" cy="190" r="142" fill="#52c47b" opacity="0.45" filter="url(#b)"/>
+        <rect x="96" y="78" width="448" height="204" rx="54" fill="url(#g)" opacity="0.72"/>
+      </svg>
+    `)
+    div(this, x + 28, y + 110, Math.min(520, w - 56), 230, {
+      style: {background: "rgba(4, 8, 14, 0.52)", borderColor: "rgba(214, 231, 255, 0.14)", borderRadius: 34},
+    })
+    img(this, x + 42, y + 124, Math.min(492, w - 84), 202, {src: artwork, fit: "cover", style: {opacity: 0.94}})
+    propRow(this, x + Math.min(590, w * 0.56), y + 126, w - Math.min(590, w * 0.56), "fit", "\"cover\" | \"contain\"")
+    propRow(this, x + Math.min(590, w * 0.56), y + 174, w - Math.min(590, w * 0.56), "opacity", "0..1")
+    codeLine(this, x + Math.min(590, w * 0.56), y + 238, w - Math.min(590, w * 0.56), "img(this, x, y, w, h, { src, fit: \"cover\" })")
   }
 
   #eventsRoute(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "HTML-like events with visible states", sx: {fontSize: 22}})
-    p(this, x, y + 42, w, 28, {children: "Hover, press, release, click and disabled state are rendered by the same button primitive.", sx: {fontSize: 13, color: "muted"}})
+    h2(this, x, y, w, 34, {children: "Events", style: {fontSize: 22}})
 
-    div(this, x, y + 92, w, 366, {sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-    h3(this, x + 28, y + 120, 260, 24, {children: "Event visualization", sx: {fontSize: 15}})
-    pill(this, x + w - 278, y + 116, 250, 30, `state=${this.#state} clicks=${this.#clicks}`, "rgba(111, 211, 255, 0.10)", "cyan")
-    button(this, x + 28, y + 174, 190, 50, {
+    div(this, x, y + 58, w, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, x + 28, y + 86, 260, 24, {children: "State", style: {fontSize: 15}})
+    pill(this, x + w - 278, y + 82, 250, 30, `state=${this.#state} clicks=${this.#clicks}`, "rgba(111, 211, 255, 0.10)", "cyan")
+    button(this, x + 28, y + 140, 190, 50, {
       children: "Click element",
       onPointerEnter: () => this.#record("hover", "hover: Click element"),
       onPointerLeave: () => this.#record("idle", "leave: Click element"),
@@ -229,27 +394,23 @@ class ElementsPlayground extends Element {
         this.#record("clicked", "click: Click element")
       },
     })
-    button(this, x + 238, y + 174, 190, 50, {children: "Forbidden", disabled: true})
+    button(this, x + 238, y + 140, 190, 50, {children: "Forbidden", disabled: true})
 
     for (const [i, label] of ["idle", "hover", "active", "clicked", "disabled"].entries()) {
       const active = this.#state === label
-      pill(this, x + 28 + i * 126, y + 264, 106, 32, label, active ? "rgba(111, 211, 255, 0.14)" : "rgba(255, 255, 255, 0.04)", active ? "cyan" : "muted")
+      pill(this, x + 28 + i * 126, y + 230, 106, 32, label, active ? "rgba(111, 211, 255, 0.14)" : "rgba(255, 255, 255, 0.04)", active ? "cyan" : "muted")
     }
 
-    div(this, x + w - 360, y + 166, 332, 216, {sx: {background: "rgba(4, 8, 14, 0.48)", borderColor: "rgba(214, 231, 255, 0.12)", borderRadius: 24}})
+    div(this, x + w - 360, y + 132, 332, 216, {style: {background: "rgba(4, 8, 14, 0.48)", borderColor: "rgba(214, 231, 255, 0.12)", borderRadius: 24}})
     for (const [i, event] of this.#events.entries()) {
-      span(this, x + w - 332, y + 192 + i * 34, 276, 24, {children: event, sx: {fontSize: 12, color: i === 0 ? "text" : "muted"}})
+      span(this, x + w - 332, y + 158 + i * 34, 276, 24, {children: event, style: {fontSize: 12, color: i === 0 ? "text" : "muted"}})
     }
   }
 
   #css(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "CSS-like props and values", sx: {fontSize: 22}})
-    p(this, x, y + 42, w, 28, {
-      children: "Elements expose a practical CSS subset: padding, flex-like layout values, borders, colors and typography.",
-      sx: {fontSize: 13, color: "muted"},
-    })
+    h2(this, x, y, w, 34, {children: "CSS", style: {fontSize: 22}})
 
-    const tabsY = y + 92
+    const tabsY = y + 58
     const tabW = (w - 48) / CSS_SECTIONS.length
     for (const [i, section] of CSS_SECTIONS.entries()) {
       const active = this.#cssSection === section
@@ -259,7 +420,7 @@ class ElementsPlayground extends Element {
           this.#cssSection = section
           this.requestRender()
         },
-        sx: {
+        style: {
           background: active ? "rgba(111, 211, 255, 0.14)" : "rgba(255, 255, 255, 0.035)",
           borderColor: active ? "cyan" : "rgba(214, 231, 255, 0.16)",
           color: active ? "text" : "muted",
@@ -269,75 +430,74 @@ class ElementsPlayground extends Element {
       })
     }
 
-    div(this, x, y + 154, w, 300, {sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-    if (this.#cssSection === "padding") this.#cssPadding(x + 28, y + 184, w - 56)
-    else if (this.#cssSection === "flex") this.#cssFlex(x + 28, y + 184, w - 56)
-    else if (this.#cssSection === "border") this.#cssBorder(x + 28, y + 184, w - 56)
-    else if (this.#cssSection === "color") this.#cssColor(x + 28, y + 184, w - 56)
-    else this.#cssTypography(x + 28, y + 184, w - 56)
+    div(this, x, y + 120, w, 300, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    if (this.#cssSection === "padding") this.#cssPadding(x + 28, y + 150, w - 56)
+    else if (this.#cssSection === "flex") this.#cssFlex(x + 28, y + 150, w - 56)
+    else if (this.#cssSection === "border") this.#cssBorder(x + 28, y + 150, w - 56)
+    else if (this.#cssSection === "color") this.#cssColor(x + 28, y + 150, w - 56)
+    else this.#cssTypography(x + 28, y + 150, w - 56)
   }
 
   #cssPadding(x: number, y: number, w: number): void {
-    h3(this, x, y, w, 24, {children: "padding / paddingX / paddingY", sx: {fontSize: 15}})
+    h3(this, x, y, w, 24, {children: "padding / paddingX / paddingY", style: {fontSize: 15}})
     propRow(this, x, y + 46, Math.min(440, w), "padding", "24 | \"24px\"")
     propRow(this, x, y + 92, Math.min(440, w), "paddingX", "horizontal override")
     propRow(this, x, y + 138, Math.min(440, w), "paddingTop", "per-side override")
     const demoX = x + Math.min(490, w * 0.48)
     const demoW = w - (demoX - x)
-    div(this, demoX, y + 44, demoW, 156, {sx: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.32)", borderRadius: 28, padding: 28}})
-    div(this, demoX + 28, y + 72, demoW - 56, 100, {sx: {background: "rgba(255, 255, 255, 0.07)", borderColor: "rgba(255, 255, 255, 0.18)", borderRadius: 22}})
-    span(this, demoX + 52, y + 108, demoW - 104, 24, {children: "content after padding", sx: {fontSize: 12, color: "text"}})
+    div(this, demoX, y + 44, demoW, 156, {style: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.32)", borderRadius: 28, padding: 28}})
+    div(this, demoX + 28, y + 72, demoW - 56, 100, {style: {background: "rgba(255, 255, 255, 0.07)", borderColor: "rgba(255, 255, 255, 0.18)", borderRadius: 22}})
+    span(this, demoX + 52, y + 108, demoW - 104, 24, {children: "content after padding", style: {fontSize: 12, color: "text"}})
   }
 
   #cssFlex(x: number, y: number, w: number): void {
-    h3(this, x, y, w, 24, {children: "display / gap / alignItems / justifyContent", sx: {fontSize: 15}})
+    h3(this, x, y, w, 24, {children: "display / gap / alignItems / justifyContent", style: {fontSize: 15}})
     propRow(this, x, y + 46, Math.min(460, w), "display", "\"flex\"")
     propRow(this, x, y + 92, Math.min(460, w), "gap", "12 | \"12px\"")
     propRow(this, x, y + 138, Math.min(460, w), "justifyContent", "start | center | space-between")
     const demoX = x + Math.min(510, w * 0.50)
     const itemW = Math.max(62, (w - (demoX - x) - 88) / 3)
-    div(this, demoX, y + 54, w - (demoX - x), 136, {sx: {background: "rgba(255, 255, 255, 0.045)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 28}})
+    div(this, demoX, y + 54, w - (demoX - x), 136, {style: {background: "rgba(255, 255, 255, 0.045)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 28}})
     for (const [i, color] of (["cyan", "green", "orange"] as const).entries()) {
-      div(this, demoX + 28 + i * (itemW + 16), y + 88, itemW, 68, {sx: {background: color, borderColor: "rgba(255, 255, 255, 0.22)", borderRadius: 24}})
+      div(this, demoX + 28 + i * (itemW + 16), y + 88, itemW, 68, {style: {background: color, borderColor: "rgba(255, 255, 255, 0.22)", borderRadius: 24}})
     }
   }
 
   #cssBorder(x: number, y: number, w: number): void {
-    h3(this, x, y, w, 24, {children: "borderRadius / borderColor / borderWidth", sx: {fontSize: 15}})
+    h3(this, x, y, w, 24, {children: "borderRadius / borderColor / borderWidth", style: {fontSize: 15}})
     propRow(this, x, y + 46, Math.min(450, w), "borderRadius", "999 | 32 | \"32px\"")
     propRow(this, x, y + 92, Math.min(450, w), "borderColor", "token | rgba(...) | null")
     propRow(this, x, y + 138, Math.min(450, w), "borderWidth", "1 | 2")
     const demoX = x + Math.min(500, w * 0.50)
-    div(this, demoX, y + 52, 120, 120, {sx: {background: "rgba(111, 211, 255, 0.10)", borderColor: "cyan", borderRadius: 28}})
-    div(this, demoX + 150, y + 52, 180, 58, {sx: {background: "rgba(82, 196, 123, 0.10)", borderColor: "green", borderRadius: 999}})
-    div(this, demoX + 150, y + 130, 180, 58, {sx: {background: "rgba(255, 127, 111, 0.10)", borderColor: "red", borderRadius: 14}})
+    div(this, demoX, y + 52, 120, 120, {style: {background: "rgba(111, 211, 255, 0.10)", borderColor: "cyan", borderRadius: 28}})
+    div(this, demoX + 150, y + 52, 180, 58, {style: {background: "rgba(82, 196, 123, 0.10)", borderColor: "green", borderRadius: 999}})
+    div(this, demoX + 150, y + 130, 180, 58, {style: {background: "rgba(255, 127, 111, 0.10)", borderColor: "red", borderRadius: 14}})
   }
 
   #cssColor(x: number, y: number, w: number): void {
-    h3(this, x, y, w, 24, {children: "background / backgroundColor / color", sx: {fontSize: 15}})
+    h3(this, x, y, w, 24, {children: "background / backgroundColor / color", style: {fontSize: 15}})
     propRow(this, x, y + 46, Math.min(450, w), "background", "\"glass\" | token | rgba(...)")
     propRow(this, x, y + 92, Math.min(450, w), "color", "\"text\" | \"muted\" | \"cyan\"")
     propRow(this, x, y + 138, Math.min(450, w), "opacity", "0..1")
     const demoX = x + Math.min(500, w * 0.50)
     for (const [i, color] of (["cyan", "green", "orange", "red"] as const).entries()) {
-      div(this, demoX + i * 78, y + 62, 58, 104, {sx: {background: color, borderColor: "rgba(255, 255, 255, 0.24)", borderRadius: 24, opacity: 0.84}})
+      div(this, demoX + i * 78, y + 62, 58, 104, {style: {background: color, borderColor: "rgba(255, 255, 255, 0.24)", borderRadius: 24, opacity: 0.84}})
     }
   }
 
   #cssTypography(x: number, y: number, w: number): void {
-    h3(this, x, y, w, 24, {children: "fontSize / lineHeight / text color", sx: {fontSize: 15}})
+    h3(this, x, y, w, 24, {children: "fontSize / lineHeight / text color", style: {fontSize: 15}})
     propRow(this, x, y + 46, Math.min(450, w), "fontSize", "10 | 13 | 22")
     propRow(this, x, y + 92, Math.min(450, w), "lineHeight", "number | px")
     propRow(this, x, y + 138, Math.min(450, w), "maxWidth", "drawText clipping")
     const demoX = x + Math.min(500, w * 0.50)
-    h1(this, demoX, y + 50, w - (demoX - x), 36, {children: "h1 title", sx: {fontSize: 24}})
-    h2(this, demoX, y + 96, w - (demoX - x), 28, {children: "h2 section", sx: {fontSize: 17}})
-    p(this, demoX, y + 134, w - (demoX - x), 28, {children: "p text with muted tone and clipping", sx: {fontSize: 12, color: "muted"}})
+    h1(this, demoX, y + 50, w - (demoX - x), 36, {children: "h1 title", style: {fontSize: 24}})
+    h2(this, demoX, y + 96, w - (demoX - x), 28, {children: "h2 section", style: {fontSize: 17}})
+    p(this, demoX, y + 134, w - (demoX - x), 28, {children: "p text with muted tone and clipping", style: {fontSize: 12, color: "muted"}})
   }
 
-  #tokens(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Vision tokens, CSS values", sx: {fontSize: 22}})
-    p(this, x, y + 42, w, 28, {children: "The low layer accepts palette tokens and CSS colors. Defaults stay glass-first.", sx: {fontSize: 13, color: "muted"}})
+  #theme(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "Theme & Palette", style: {fontSize: 22}})
 
     const colors = [
       ["cyan", "cyan"],
@@ -351,15 +511,15 @@ class ElementsPlayground extends Element {
     const swatchW = (w - 48) / 3
     for (const [i, [label, color]] of colors.entries()) {
       const cx = x + (i % 3) * (swatchW + 24)
-      const cy = y + 100 + Math.floor(i / 3) * 126
-      div(this, cx, cy, swatchW, 96, {sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 28}})
-      div(this, cx + 22, cy + 24, 52, 52, {sx: {background: color, borderColor: "rgba(255, 255, 255, 0.22)", borderRadius: 18}})
-      span(this, cx + 92, cy + 30, swatchW - 112, 24, {children: label, sx: {fontSize: 13, color: label === "glass" ? "text" : color}})
-      span(this, cx + 92, cy + 58, swatchW - 112, 20, {children: `sx={{ color: "${label}" }}`, sx: {fontSize: 10, color: "muted"}})
+      const cy = y + 64 + Math.floor(i / 3) * 126
+      div(this, cx, cy, swatchW, 96, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 28}})
+      div(this, cx + 22, cy + 24, 52, 52, {style: {background: color, borderColor: "rgba(255, 255, 255, 0.22)", borderRadius: 18}})
+      span(this, cx + 92, cy + 30, swatchW - 112, 24, {children: label, style: {fontSize: 13, color: label === "glass" ? "text" : color}})
+      span(this, cx + 92, cy + 58, swatchW - 112, 20, {children: `style={{ color: "${label}" }}`, style: {fontSize: 10, color: "muted"}})
     }
 
-    div(this, x, y + 374, w, 78, {sx: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.28)", borderRadius: 28}})
-    span(this, x + 28, y + 404, w - 56, 24, {children: "borderRadius=999 creates the Vision-style capsule control without another component.", sx: {fontSize: 12, color: "text"}})
+    div(this, x, y + 338, w, 78, {style: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.28)", borderRadius: 28}})
+    span(this, x + 28, y + 368, w - 56, 24, {children: "borderRadius=999 creates the Vision-style capsule control.", style: {fontSize: 12, color: "text"}})
   }
 
   #record(state: string, event: string): void {
@@ -367,10 +527,6 @@ class ElementsPlayground extends Element {
     this.#events = [event, ...this.#events].slice(0, 5)
     this.requestRender()
   }
-}
-
-function routeById(id: ElementRoute): RouteMeta {
-  return ROUTES.find((route) => route.id === id) ?? ROUTES[0]!
 }
 
 function transitionProgress(started: number): number {
@@ -382,26 +538,34 @@ function easeOutCubic(t: number): number {
 }
 
 function pill(host: Element, x: number, y: number, w: number, h: number, label: string, background: CssColor | "glass", color: CssColor): void {
-  div(host, x, y, w, h, {sx: {background, borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 999}})
-  span(host, x + 12, y, w - 24, h, {children: label, sx: {fontSize: 11, color}})
+  div(host, x, y, w, h, {style: {background, borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 999}})
+  span(host, x + 12, y, w - 24, h, {children: label, style: {fontSize: 11, color}})
 }
 
-function featureCard(host: Element, x: number, y: number, w: number, h: number, title: string, value: string, text: string): void {
-  div(host, x, y, w, h, {sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30}})
-  h3(host, x + 24, y + 24, w - 48, 24, {children: title, sx: {fontSize: 15}})
-  span(host, x + 24, y + 62, w - 48, 24, {children: value, sx: {fontSize: 12, color: "text"}})
-  p(host, x + 24, y + 98, w - 48, 38, {children: text, sx: {fontSize: 11, color: "muted"}})
+function featureCard(host: Element, x: number, y: number, w: number, h: number, title: string, value: string): void {
+  div(host, x, y, w, h, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30}})
+  h3(host, x + 24, y + 24, w - 48, 24, {children: title, style: {fontSize: 15}})
+  span(host, x + 24, y + 68, w - 48, 24, {children: value, style: {fontSize: 12, color: "text"}})
 }
 
 function propRow(host: Element, x: number, y: number, w: number, name: string, value: string): void {
-  div(host, x, y, w, 34, {sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 17}})
-  span(host, x + 16, y, 130, 34, {children: name, sx: {fontSize: 11, color: "cyan"}})
-  span(host, x + 152, y, w - 168, 34, {children: value, sx: {fontSize: 11, color: "muted"}})
+  div(host, x, y, w, 34, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 17}})
+  span(host, x + 16, y, 130, 34, {children: name, style: {fontSize: 11, color: "cyan"}})
+  span(host, x + 152, y, w - 168, 34, {children: value, style: {fontSize: 11, color: "muted"}})
 }
 
 function codeLine(host: Element, x: number, y: number, w: number, text: string): void {
-  div(host, x, y, w, 28, {sx: {background: "rgba(4, 8, 14, 0.50)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 14}})
-  span(host, x + 14, y, w - 28, 28, {children: text, sx: {fontSize: 10, color: "text"}})
+  div(host, x, y, w, 28, {style: {background: "rgba(4, 8, 14, 0.50)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 14}})
+  span(host, x + 14, y, w - 28, 28, {children: text, style: {fontSize: 10, color: "text"}})
+}
+
+function demoCell(host: Element, x: number, y: number, w: number, h: number, label: string, color: CssColor): void {
+  div(host, x, y, w, h, {style: {background: color, borderColor: "rgba(255, 255, 255, 0.22)", borderRadius: 24, opacity: 0.74, zIndex: 0.00005}})
+  span(host, x + 14, y, Math.max(1, w - 28), h, {children: label, style: {fontSize: 11, color: "text"}})
+}
+
+function svgDataUrl(svg: string): string {
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg.trim())))}`
 }
 
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null

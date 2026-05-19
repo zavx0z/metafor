@@ -272,7 +272,7 @@ export function edgeFade(card: Card, opts: EdgeFadeOpts & {
   const drawBand = (y: number, alpha: number): void => {
     const color = opts.color.clone()
     color.a = Math.max(0, Math.min(1, alpha))
-    div(card, opts.x, y, opts.w, stepH + 0.75, {sx: {background: color, borderColor: null, borderRadius: 0, zIndex: z}})
+    div(card, opts.x, y, opts.w, stepH + 0.75, {style: {background: color, borderColor: null, borderRadius: 0, zIndex: z}})
   }
 
   if (opts.top !== false) {

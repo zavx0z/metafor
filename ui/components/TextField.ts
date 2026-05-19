@@ -1,5 +1,5 @@
 import {input as renderInput, type InputOpts} from "./internal/renderers.ts"
-import type {Card, SxProps} from "@metafor/elements"
+import type {Card, StyleProps} from "@metafor/elements"
 
 export type TextFieldProps = {
   value?: string
@@ -7,7 +7,7 @@ export type TextFieldProps = {
   active?: boolean
   disabled?: boolean
   fontPx?: number
-  sx?: SxProps
+  sx?: StyleProps
   onClick?: () => void
   onActivate?: () => void
 }

@@ -4,7 +4,7 @@ import {
   type BadgeOpts as RenderBadgeOpts,
   type StatusChipOpts,
 } from "./internal/renderers.ts"
-import type {Card, SxProps, Tone} from "@metafor/elements"
+import type {Card, StyleProps, Tone} from "@metafor/elements"
 
 export type BadgeColor = "primary" | "neutral" | "success" | "warning" | "error"
 export type BadgeProps = {
@@ -13,7 +13,7 @@ export type BadgeProps = {
   color?: BadgeColor
   tone?: Tone
   fontPx?: number
-  sx?: SxProps
+  sx?: StyleProps
 }
 
 export function Badge(host: Card, x: number, y: number, width: number, height: number, props: BadgeProps): void {

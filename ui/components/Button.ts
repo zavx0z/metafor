@@ -1,5 +1,5 @@
 import {button as renderButton, autoButtonWidth, type ButtonOpts as RenderButtonOpts} from "./internal/renderers.ts"
-import {palette, toneBorder, toneFill, type Card, type SxProps} from "@metafor/elements"
+import {palette, toneBorder, toneFill, type Card, type StyleProps} from "@metafor/elements"
 import type {Tone} from "@metafor/elements"
 import type {Color, TextMaterial} from "@metafor/engine"
 
@@ -27,7 +27,7 @@ export type ButtonProps = {
   fill?: Color
   border?: Color
   textMaterial?: TextMaterial
-  sx?: SxProps
+  sx?: StyleProps
   onClick?: () => void
   action?: () => void
   onHover?: () => void

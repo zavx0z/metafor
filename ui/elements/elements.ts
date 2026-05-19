@@ -9,7 +9,7 @@ export type CssAlignItems = "start" | "center" | "end" | "stretch"
 export type CssJustifyContent = "start" | "center" | "end" | "space-between" | "space-around"
 export type CssCursor = "default" | "pointer" | "text"
 
-export type SxProps = {
+export type StyleProps = {
   width?: CssLength
   height?: CssLength
   minWidth?: CssLength
@@ -45,8 +45,9 @@ export type ElementChildren = string | number | false | null | undefined | (() =
 export type HtmlElementProps = {
   children?: ElementChildren
   key?: string
-  sx?: SxProps
-  style?: SxProps
+  style?: StyleProps
+  /** @deprecated Use style in @metafor/elements. sx is reserved for @metafor/components. */
+  sx?: StyleProps
   disabled?: boolean
   title?: string
   onClick?: () => void
@@ -59,14 +60,16 @@ export type HtmlElementProps = {
 const visionGlass = new Color(0.055, 0.075, 0.11, 0.58)
 const visionBorder = new Color(0.82, 0.91, 1, 0.22)
 
+export type SxProps = StyleProps
+
 export function div(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
-  const sx = mergeStyle(props)
-  if (sx.display === "none" || width <= 0 || height <= 0) return
-  const fill = backgroundColor(sx)
-  const border = sx.borderColor === null ? null : sx.borderColor === undefined ? undefined : cssColor(sx.borderColor)
-  const borderWidth = px(sx.borderWidth, 1)
-  const radius = px(sx.borderRadius, Math.min(32, Math.min(width, height) / 2))
-  const z = sx.zIndex ?? Z.CONTAINER
+  const style = mergeStyle(props)
+  if (style.display === "none" || width <= 0 || height <= 0) return
+  const fill = backgroundColor(style)
+  const border = style.borderColor === null ? null : style.borderColor === undefined ? undefined : cssColor(style.borderColor)
+  const borderWidth = px(style.borderWidth, 1)
+  const radius = px(style.borderRadius, Math.min(32, Math.min(width, height) / 2))
+  const z = style.zIndex ?? Z.CONTAINER
 
   if (fill !== null || border !== null) {
     const roundedOpts: {
@@ -83,7 +86,7 @@ export function div(card: Card, x: number, y: number, width: number, height: num
       borderWidth: border === null || border === undefined ? 0 : borderWidth,
       z,
     }
-    if (sx.opacity !== undefined) roundedOpts.opacity = sx.opacity
+    if (style.opacity !== undefined) roundedOpts.opacity = style.opacity
     card.drawRoundedRect(x, y, width, height, roundedOpts)
   }
 
@@ -111,10 +114,10 @@ export function div(card: Card, x: number, y: number, width: number, height: num
 
   if (typeof props.children === "function") props.children()
   else if (props.children !== false && props.children !== null && props.children !== undefined) {
-    const pad = boxPadding(sx)
+    const pad = boxPadding(style)
     const childProps: HtmlElementProps = {
       children: String(props.children),
-      sx,
+      style,
     }
     if (props.disabled !== undefined) childProps.disabled = props.disabled
     span(card, x + pad.left, y + pad.top, width - pad.left - pad.right, height - pad.top - pad.bottom, childProps)
@@ -127,9 +130,9 @@ export function span(card: Card, x: number, y: number, width: number, height: nu
     props.children()
     return
   }
-  const sx = mergeStyle(props)
-  const fontSize = px(sx.fontSize, 12)
-  const material = textMaterial(card, sx.color, props.disabled === true)
+  const style = mergeStyle(props)
+  const fontSize = px(style.fontSize, 12)
+  const material = textMaterial(card, style.color, props.disabled === true)
   card.drawText(String(props.children), x, y + Math.max(0, (height - fontSize) / 2), {
     fontPx: fontSize,
     material,
@@ -138,19 +141,23 @@ export function span(card: Card, x: number, y: number, width: number, height: nu
 }
 
 export function p(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
-  span(card, x, y, width, height, {...props, sx: {...props.sx, fontSize: props.sx?.fontSize ?? 12, color: props.sx?.color ?? "text"}})
+  const style = mergeStyle(props)
+  span(card, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 12, color: style.color ?? "text"}})
 }
 
 export function h1(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
-  span(card, x, y, width, height, {...props, sx: {...props.sx, fontSize: props.sx?.fontSize ?? 22, color: props.sx?.color ?? "cyan"}})
+  const style = mergeStyle(props)
+  span(card, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 22, color: style.color ?? "cyan"}})
 }
 
 export function h2(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
-  span(card, x, y, width, height, {...props, sx: {...props.sx, fontSize: props.sx?.fontSize ?? 16, color: props.sx?.color ?? "cyan"}})
+  const style = mergeStyle(props)
+  span(card, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 16, color: style.color ?? "cyan"}})
 }
 
 export function h3(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
-  span(card, x, y, width, height, {...props, sx: {...props.sx, fontSize: props.sx?.fontSize ?? 13, color: props.sx?.color ?? "cyan"}})
+  const style = mergeStyle(props)
+  span(card, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 13, color: style.color ?? "cyan"}})
 }
 
 export function h4(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
@@ -166,10 +173,10 @@ export function h6(card: Card, x: number, y: number, width: number, height: numb
 }
 
 export function hr(card: Card, x: number, y: number, width: number, props: HtmlElementProps = {}): void {
-  const sx = mergeStyle(props)
-  const thickness = px(sx.height ?? sx.borderWidth, 1)
-  const color = sx.backgroundColor ?? sx.background ?? sx.color ?? "borderDim"
-  card.drawRect(x, Math.round(y - thickness / 2), width, thickness, color === "glass" ? visionBorder : cssColor(color), sx.zIndex ?? Z.SEPARATOR)
+  const style = mergeStyle(props)
+  const thickness = px(style.height ?? style.borderWidth, 1)
+  const color = style.backgroundColor ?? style.background ?? style.color ?? "borderDim"
+  card.drawRect(x, Math.round(y - thickness / 2), width, thickness, color === "glass" ? visionBorder : cssColor(color), style.zIndex ?? Z.SEPARATOR)
 }
 
 export function img(
@@ -181,58 +188,60 @@ export function img(
   props: HtmlElementProps & {src: string; fit?: "cover" | "contain"} ,
 ): void {
   const imageOpts: {fit: "cover" | "contain"; opacity?: number} = {fit: props.fit ?? "contain"}
-  if (props.sx?.opacity !== undefined) imageOpts.opacity = props.sx.opacity
+  const style = mergeStyle(props)
+  if (style.opacity !== undefined) imageOpts.opacity = style.opacity
   card.drawImage(props.src, x, y, width, height, imageOpts)
 }
 
 export function button(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
-  const sx = mergeStyle(props)
+  const style = mergeStyle(props)
   const key = props.key ?? `button:${x}:${y}:${width}:${height}`
   const hit = card.hitState(x, y, width, height, key)
   const state = props.disabled === true ? "disabled" : hit.pressed ? "active" : hit.hovered ? "hover" : "idle"
   const border = state === "disabled" ? "borderDim" : state === "idle" ? "border" : "cyan"
   const fill = state === "disabled" ? "bgPanelDim" : "glass"
   const pressOffsetY = state === "active" ? 1 : 0
-  const pad = boxPadding(sx)
+  const pad = boxPadding(style)
 
   div(card, x, y + (state === "active" ? 1 : 0), width, height - (state === "active" ? 1 : 0), {
     ...props,
     children: typeof props.children === "function" ? props.children : undefined,
     key,
-    sx: {
-      ...sx,
-      background: sx.background ?? fill,
-      borderColor: sx.borderColor ?? border,
-      borderRadius: sx.borderRadius ?? 999,
-      color: sx.color ?? (state === "disabled" ? "muted" : "text"),
-      fontSize: sx.fontSize ?? 12,
-      zIndex: sx.zIndex ?? Z.ELEMENT,
+    style: {
+      ...style,
+      background: style.background ?? fill,
+      borderColor: style.borderColor ?? border,
+      borderRadius: style.borderRadius ?? 999,
+      color: style.color ?? (state === "disabled" ? "muted" : "text"),
+      fontSize: style.fontSize ?? 12,
+      zIndex: style.zIndex ?? Z.ELEMENT,
     },
   })
 
   if (props.children !== false && props.children !== null && props.children !== undefined && typeof props.children !== "function") {
-    const fontSize = px(sx.fontSize, 12)
+    const fontSize = px(style.fontSize, 12)
     const maxWidth = Math.max(1, width - pad.left - pad.right)
     card.drawTextCentered(String(props.children), x + width / 2, y + pressOffsetY + height / 2, {
       fontPx: fontSize,
-      material: textMaterial(card, sx.color ?? (state === "disabled" ? "muted" : "text"), props.disabled === true),
+      material: textMaterial(card, style.color ?? (state === "disabled" ? "muted" : "text"), props.disabled === true),
       maxWidthPx: maxWidth,
     })
   }
 }
 
 export function input(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps & {value?: string; active?: boolean}): void {
+  const style = mergeStyle(props)
   div(card, x, y, width, height, {
     ...props,
     children: props.value ?? "",
-    sx: {
-      ...props.sx,
+    style: {
+      ...style,
       background: props.active === true ? "bgHot" : "bgInput",
       borderColor: props.active === true ? "cyan" : "borderDim",
-      borderRadius: props.sx?.borderRadius ?? 999,
+      borderRadius: style.borderRadius ?? 999,
       color: props.active === true ? "text" : "muted",
-      fontSize: props.sx?.fontSize ?? 12,
-      paddingX: props.sx?.paddingX ?? 10,
+      fontSize: style.fontSize ?? 12,
+      paddingX: style.paddingX ?? 10,
     },
   })
 }
@@ -255,26 +264,26 @@ export function cssColor(value: CssColor): Color {
   return palette.text
 }
 
-function mergeStyle(props: HtmlElementProps): SxProps {
-  return {...props.style, ...props.sx}
+function mergeStyle(props: HtmlElementProps): StyleProps {
+  return {...props.sx, ...props.style}
 }
 
-function backgroundColor(sx: SxProps): Color | null {
-  const value = sx.backgroundColor ?? sx.background ?? "glass"
+function backgroundColor(style: StyleProps): Color | null {
+  const value = style.backgroundColor ?? style.background ?? "glass"
   if (value === null) return null
   if (value === "glass") return visionGlass
   return cssColor(value)
 }
 
-function boxPadding(sx: SxProps): {top: number; right: number; bottom: number; left: number} {
-  const all = px(sx.padding, 0)
-  const x = px(sx.paddingX, all)
-  const y = px(sx.paddingY, all)
+function boxPadding(style: StyleProps): {top: number; right: number; bottom: number; left: number} {
+  const all = px(style.padding, 0)
+  const x = px(style.paddingX, all)
+  const y = px(style.paddingY, all)
   return {
-    top: px(sx.paddingTop, y),
-    right: px(sx.paddingRight, x),
-    bottom: px(sx.paddingBottom, y),
-    left: px(sx.paddingLeft, x),
+    top: px(style.paddingTop, y),
+    right: px(style.paddingRight, x),
+    bottom: px(style.paddingBottom, y),
+    left: px(style.paddingLeft, x),
   }
 }
 
