@@ -1,12 +1,12 @@
 /**
  * Component: button.
  *
- * Прямоугольная кнопка с фоном, рамкой и подписью. Параметры на правой
- * панели позволяют переключать tone, размер шрифта и текст label.
+ * Кнопка и HTML-like события. Demo собирается из стандартных UI-компонентов:
+ * Card / button / badge / divider.
  */
 
 import {Color} from "@metafor/engine"
-import {Card, type UiCanvas, palette, button, autoButtonWidth, flexRow, divider, type Tone, Z} from "@metafor/ui"
+import {Card, type UiCanvas, button, autoButtonWidth, badge, flexRow, divider, type Tone} from "@metafor/ui"
 import type {ParamsPanel} from "../params.ts"
 
 type ButtonEventKind = "hover" | "leave" | "press" | "release" | "click"
@@ -14,13 +14,52 @@ type ButtonStatus = "idle" | "hover" | "active" | "clicked" | "disabled"
 
 const glassShell = new Color(0.055, 0.075, 0.11, 0.56)
 const glassBorder = new Color(0.82, 0.91, 1, 0.20)
-const glassSoft = new Color(1, 1, 1, 0.055)
+const eventShell = new Color(0.012, 0.017, 0.026, 0.96)
 
-class ButtonCard extends Card {
-  #status: ButtonStatus = "idle"
-  #clicks = 0
-  #events: string[] = ["ready: hover, press, release, click"]
+class ButtonSpecCard extends Card {
+  constructor(
+    private readonly p: {
+      tone: () => Tone
+      fontPx: () => number
+      paddingX: () => number
+      height: () => number
+      radius: () => number
+      disabled: () => boolean
+    },
+  ) {
+    super({bgColor: glassShell, borderColor: glassBorder, borderWidthPx: 1, borderRadiusPx: 24})
+  }
 
+  protected render(): void {
+    const x = 24
+    const w = Math.max(1, this.rectW - x * 2)
+
+    this.drawText("button (this, x, y, w, h, opts)", x, 16, {
+      fontPx: 13,
+      material: this.materials.cyan,
+      maxWidthPx: w,
+    })
+    this.drawText("HTML-like states: hover, active press, click, disabled", x, 36, {
+      fontPx: 11,
+      material: this.materials.muted,
+      maxWidthPx: w,
+    })
+    divider(this, x, 58, w, {color: glassBorder})
+
+    this.drawText(
+      `tone="${this.p.tone()}" fontPx=${this.p.fontPx()} paddingX=${this.p.paddingX()} height=${this.p.height()} radius=${this.p.radius()} disabled=${this.p.disabled()}`,
+      x,
+      68,
+      {
+        fontPx: 11,
+        material: this.materials.muted,
+        maxWidthPx: w,
+      },
+    )
+  }
+}
+
+class ButtonControlsCard extends Card {
   constructor(
     private readonly p: {
       label: () => string
@@ -31,30 +70,12 @@ class ButtonCard extends Card {
       radius: () => number
       disabled: () => boolean
     },
+    private readonly events: ButtonEventsCard,
   ) {
     super({bgColor: glassShell, borderColor: glassBorder, borderWidthPx: 1, borderRadiusPx: 28})
   }
 
   protected render(): void {
-    const contentW = Math.min(560, Math.max(1, this.rectW - 48))
-    const contentX = Math.floor((this.rectW - contentW) / 2)
-    const textX = contentX + 16
-    const textW = Math.max(1, contentW - 32)
-
-    this.#drawAtmosphere(contentX, contentW)
-
-    this.drawText("button (this, x, y, w, h, opts)", textX, 20, {
-      fontPx: 13,
-      material: this.materials.cyan,
-      maxWidthPx: textW,
-    })
-    this.drawText("HTML-like states: hover, active press, click, disabled", textX, 40, {
-      fontPx: 11,
-      material: this.materials.muted,
-      maxWidthPx: textW,
-    })
-    divider(this, textX, 62, textW, {color: glassBorder})
-
     const label = this.p.label()
     const tone = this.p.tone()
     const fontPx = this.p.fontPx()
@@ -62,15 +83,10 @@ class ButtonCard extends Card {
     const h = this.p.height()
     const radius = this.p.radius()
     const disabled = this.p.disabled()
+    const contentX = 24
+    const contentW = Math.max(1, this.rectW - 48)
 
-    this.drawText(`tone="${tone}" fontPx=${fontPx} paddingX=${padX} height=${h} radius=${radius} disabled=${disabled}`, textX, 70, {
-      fontPx: 11,
-      material: this.materials.muted,
-      maxWidthPx: textW,
-    })
-
-    const rowY = 106
-    this.drawText("Configured button + tone variants + disabled:", contentX, rowY, {
+    this.drawText("Configured button + tone variants + disabled:", contentX, 18, {
       fontPx: 11,
       material: this.materials.muted,
       maxWidthPx: contentW,
@@ -83,7 +99,7 @@ class ButtonCard extends Card {
     const labels = [label, "Run", "Pause", "Stop", "Forbidden"]
     flexRow({
       x: contentX,
-      y: rowY + 18,
+      y: 42,
       w: contentW,
       h: rowH,
       gap: 8,
@@ -110,12 +126,24 @@ class ButtonCard extends Card {
         },
       })),
     })
-
-    const panelY = rowY + rowH + 46
-    this.#drawEventPanel(contentX, panelY, contentW, 112)
   }
 
   #record(kind: ButtonEventKind, label: string, disabled = false): void {
+    this.events.record(kind, label, disabled)
+    this.requestRender()
+  }
+}
+
+class ButtonEventsCard extends Card {
+  #status: ButtonStatus = "idle"
+  #clicks = 0
+  #events: string[] = ["ready: hover, press, release, click"]
+
+  constructor() {
+    super({bgColor: eventShell, borderColor: glassBorder, borderWidthPx: 1, borderRadiusPx: 22})
+  }
+
+  record(kind: ButtonEventKind, label: string, disabled = false): void {
     if (kind === "click") this.#clicks += 1
     if (disabled) this.#status = "disabled"
     else if (kind === "press") this.#status = "active"
@@ -128,64 +156,49 @@ class ButtonCard extends Card {
     this.requestRender()
   }
 
-  #drawAtmosphere(x: number, w: number): void {
-    this.drawRoundedRect(x, 14, w, 76, {
-      radius: 24,
-      fill: glassSoft,
-      border: new Color(1, 1, 1, 0.08),
-      borderWidth: 1,
-      z: Z.CONTAINER,
-    })
-  }
-
-  #drawEventPanel(x: number, y: number, w: number, h: number): void {
-    this.drawRect(x, y, w, h, new Color(0.015, 0.02, 0.03, 0.94), Z.ELEMENT)
-    this.drawRect(x, y, w, 1, glassBorder, Z.ELEMENT_RULE)
-    this.drawRect(x, y + h - 1, w, 1, glassBorder, Z.ELEMENT_RULE)
-    this.drawRect(x, y, 1, h, glassBorder, Z.ELEMENT_RULE)
-    this.drawRect(x + w - 1, y, 1, h, glassBorder, Z.ELEMENT_RULE)
-    this.drawText("Event visualization", x + 14, y + 12, {
+  protected render(): void {
+    const x = 24
+    const w = Math.max(1, this.rectW - 48)
+    this.drawText("Event visualization", x, 18, {
       fontPx: 12,
       material: this.materials.cyan,
-      maxWidthPx: w - 20,
+      maxWidthPx: w,
     })
-    this.drawText(`state=${this.#status} clicks=${this.#clicks}`, x + 14, y + 34, {
+    this.drawText("ready: hover, press, release, click", x + Math.max(300, w - 230), 18, {
+      fontPx: 10,
+      material: this.materials.text,
+      maxWidthPx: 230,
+    })
+    this.drawText(`state=${this.#status} clicks=${this.#clicks}`, x, 42, {
       fontPx: 11,
       material: this.#status === "disabled" ? this.materials.red : this.materials.muted,
-      maxWidthPx: w - 20,
+      maxWidthPx: w,
     })
 
-    const states: Array<{label: ButtonStatus; active: boolean}> = [
-      {label: "idle", active: this.#status === "idle"},
-      {label: "hover", active: this.#status === "hover"},
-      {label: "active", active: this.#status === "active"},
-      {label: "clicked", active: this.#status === "clicked"},
-      {label: "disabled", active: this.#status === "disabled"},
+    const states: Array<{label: ButtonStatus; active: boolean; tone: Tone}> = [
+      {label: "idle", active: this.#status === "idle", tone: "neutral"},
+      {label: "hover", active: this.#status === "hover", tone: "live"},
+      {label: "active", active: this.#status === "active", tone: "paused"},
+      {label: "clicked", active: this.#status === "clicked", tone: "live"},
+      {label: "disabled", active: this.#status === "disabled", tone: "warn"},
     ]
-    let cx = x + 14
+    let cx = x
     for (const s of states) {
       const chipW = Math.max(62, this.measureText(s.label, 10) + 18)
-      this.drawRoundedRect(cx, y + 60, chipW, 24, {
-        radius: 12,
-        fill: s.active ? new Color(0.38, 0.78, 1, 0.18) : new Color(1, 1, 1, 0.045),
-        border: s.active ? palette.cyan : new Color(1, 1, 1, 0.12),
-        borderWidth: 1,
-        z: Z.ELEMENT,
-      })
-      this.drawTextCentered(s.label, cx + chipW / 2, y + 72, {
+      badge(this, cx, 72, chipW, 24, {
+        label: s.label,
+        tone: s.active ? s.tone : "neutral",
         fontPx: 10,
-        material: s.active ? this.materials.cyan : this.materials.muted,
-        maxWidthPx: chipW - 8,
       })
       cx += chipW + 6
     }
 
-    const logX = x + Math.min(362, w - 230)
+    const logX = x + Math.max(300, w - 230)
     for (let i = 0; i < this.#events.length; i++) {
-      this.drawText(this.#events[i]!, logX, y + 13 + i * 17, {
+      this.drawText(this.#events[i]!, logX, 42 + i * 17, {
         fontPx: 10,
         material: i === 0 ? this.materials.text : this.materials.muted,
-        maxWidthPx: x + w - logX - 10,
+        maxWidthPx: Math.max(1, x + w - logX),
       })
     }
   }
@@ -194,7 +207,7 @@ class ButtonCard extends Card {
 export default function buttonDemo({canvas, params}: {canvas: UiCanvas; params: ParamsPanel}): void {
   params.reset({
     title: "Button",
-    description: "VisionOS-like glass button: hover/active/click/disabled отображаются визуально и регистрируются через hit-rect внутри Card.",
+    description: "VisionOS-like glass button: hover/active/click/disabled отображаются визуально. Demo собрано из Card / button / badge / divider.",
     breadcrumb: "Components / Button",
   })
 
@@ -256,13 +269,25 @@ export default function buttonDemo({canvas, params}: {canvas: UiCanvas; params: 
     default: false,
   })
 
-  const card = new ButtonCard({label, tone, fontPx, paddingX, height, radius, disabled})
+  const specCard = new ButtonSpecCard({tone, fontPx, paddingX, height, radius, disabled})
+  const eventCard = new ButtonEventsCard()
+  const controlsCard = new ButtonControlsCard({label, tone, fontPx, paddingX, height, radius, disabled}, eventCard)
   params.onChange(() => canvas.relayout())
 
-  canvas.addCard(card, ({w, h}) => ({
-    x: Math.floor(w / 2 - 320),
-    y: 24,
-    w: 640,
-    h: Math.min(340, Math.max(300, h - 48)),
+  const cardWidth = (w: number): number => Math.min(640, Math.max(280, w - 32))
+  const centeredX = (w: number): number => Math.floor((w - cardWidth(w)) / 2)
+  const gap = 12
+  const top = 24
+  const specH = 96
+  const controlsH = 126
+  const eventsH = 142
+
+  canvas.addCard(specCard, ({w}) => ({x: centeredX(w), y: top, w: cardWidth(w), h: specH}))
+  canvas.addCard(controlsCard, ({w}) => ({x: centeredX(w), y: top + specH + gap, w: cardWidth(w), h: controlsH}))
+  canvas.addCard(eventCard, ({w}) => ({
+    x: centeredX(w),
+    y: top + specH + gap + controlsH + gap,
+    w: cardWidth(w),
+    h: eventsH,
   }))
 }
