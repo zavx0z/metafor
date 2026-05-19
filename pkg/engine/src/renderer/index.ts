@@ -1,4 +1,5 @@
-import {Scene} from "../scenes/Scene"
+import {Space} from "../scenes/Space"
+import {HUD} from "../scenes/HUD"
 import {ViewPoint} from "../core/ViewPoint"
 import {Mesh} from "../core/Mesh"
 import {InstancedMesh} from "../core/InstancedMesh"
@@ -21,7 +22,7 @@ import textShaderCode from "./shaders/text.wgsl" with {type: "text"}
 import imageShaderCode from "./shaders/image.wgsl" with {type: "text"}
 import roundedShaderCode from "./shaders/rounded.wgsl" with {type: "text"}
 import {TEXT_COVER_FACE_STATE, TEXT_STENCIL_BACK_FACE_STATE, TEXT_STENCIL_FACE_STATE} from "./text-stencil"
-import {collectSceneObjects, type LightItem, type RenderItem} from "./utils/RenderList"
+import {collectSpaceObjects, type LightItem, type RenderItem} from "./utils/RenderList"
 import {GlassMaterial} from "../materials/GlassMaterial"
 import {TextureLoader} from "../loaders/TextureLoader"
 
@@ -51,6 +52,13 @@ interface GeometryBuffers {
   skinWeightBuffer?: GPUBuffer
   instanceMatrixBuffer?: GPUBuffer // для инстансированных мешей
   instanceBuffer?: GPUBuffer // для WireframeInstancedMesh (матрица + параметры материала)
+}
+
+interface PreparedRenderLayer {
+  background: GPUColor | undefined
+  glassObjects: RenderItem[]
+  regularObjects: RenderItem[]
+  uiObjects: RenderItem[]
 }
 
 /**
@@ -868,7 +876,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     })
   }
 
-  private collectSceneObjectsByType(
+  private collectSpaceObjectsByType(
     renderList: RenderItem[]
   ): {
     glassObjects: RenderItem[],
@@ -944,52 +952,112 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     computePass.end()
   }
 
-  public render(scene: Scene, viewPoint: ViewPoint): void {
-    if (
-      !this.device ||
-      !this.context ||
-      !this.basicMeshPipeline ||
-      !this.staticMeshPipeline ||
-      !this.instancedMeshPipeline ||
-      !this.skinnedMeshPipeline ||
-      !this.linePipeline ||
-      !this.instancedLinePipeline ||
-      !this.textStencilPipeline ||
-      !this.textCoverPipeline ||
-      !this.imagePipeline ||
-      !this.roundedPipeline ||
-      !this.imageBindGroupLayout ||
-      !this.imageSampler ||
-      !this.globalUniformBuffer ||
-      !this.canvas
+  private isReadyToRender(): boolean {
+    return !!(
+      this.device &&
+      this.context &&
+      this.basicMeshPipeline &&
+      this.staticMeshPipeline &&
+      this.instancedMeshPipeline &&
+      this.skinnedMeshPipeline &&
+      this.linePipeline &&
+      this.instancedLinePipeline &&
+      this.textStencilPipeline &&
+      this.textCoverPipeline &&
+      this.imagePipeline &&
+      this.roundedPipeline &&
+      this.imageBindGroupLayout &&
+      this.imageSampler &&
+      this.globalUniformBuffer &&
+      this.sceneUniformBuffer &&
+      this.perObjectUniformBuffer &&
+      this.canvas
     )
-      return
+  }
+
+  public render(space: Space, viewPoint: ViewPoint): void {
+    this.renderFrame(space, viewPoint)
+  }
+
+  public renderFrame(space: Space, viewPoint: ViewPoint): void
+  public renderFrame(space: Space, hud: HUD | null | undefined, viewPoint: ViewPoint): void
+  public renderFrame(
+    space: Space,
+    hudOrViewPoint: HUD | ViewPoint | null | undefined,
+    maybeViewPoint?: ViewPoint,
+  ): void {
+    if (!this.isReadyToRender()) return
+
+    const hud = hudOrViewPoint instanceof HUD ? hudOrViewPoint : undefined
+    const viewPoint = maybeViewPoint ?? (hudOrViewPoint as ViewPoint)
+    if (!viewPoint) return
 
     this.updateTextures()
     this.updateOffscreenTextures()
 
-    const commandEncoder = this.device.createCommandEncoder()
-    const textureView = this.context.getCurrentTexture().createView()
+    const commandEncoder = this.device!.createCommandEncoder()
+    const textureView = this.context!.getCurrentTexture().createView()
     const vpMatrix = new Matrix4().multiplyMatrices(viewPoint.projectionMatrix, viewPoint.viewMatrix)
-    this.device.queue.writeBuffer(this.globalUniformBuffer, 0, new Float32Array(vpMatrix.elements))
+    this.device!.queue.writeBuffer(this.globalUniformBuffer!, 0, new Float32Array(vpMatrix.elements))
     this.frustum.setFromProjectionMatrix(vpMatrix)
 
-    // Collect all scene objects once.
-    const allRenderItems: RenderItem[] = []
-    const allLights: LightItem[] = []
-    collectSceneObjects(scene, allRenderItems, allLights, this.frustum)
+    const preparedLayers: PreparedRenderLayer[] = []
+    const frameRenderItems: RenderItem[] = []
+    const frameLights: LightItem[] = []
 
-    const {glassObjects, regularObjects, uiObjects} = this.collectSceneObjectsByType(allRenderItems)
+    preparedLayers.push(this.prepareRenderLayer(space, frameRenderItems, frameLights, space.background.toArray() as unknown as GPUColor))
 
-    // Update uniform buffers once for all objects.
-    this.updateSceneUniforms(allLights, viewPoint.viewMatrix)
-    this.updatePerObjectData(allRenderItems)
-    if (this.perObjectDataCPU && this.perObjectUniformBuffer) {
-      this.device.queue.writeBuffer(this.perObjectUniformBuffer, 0, this.perObjectDataCPU.buffer)
+    if (hud) {
+      hud.updateForViewPoint(viewPoint)
+      preparedLayers.push(this.prepareRenderLayer(hud, frameRenderItems, frameLights))
     }
 
+    // Uniform buffers are written once for the whole frame. Rewriting them between
+    // passes before submit would make earlier passes read the later data.
+    this.updateSceneUniforms(frameLights, viewPoint.viewMatrix)
+    this.updatePerObjectData(frameRenderItems)
+    if (this.perObjectDataCPU && this.perObjectUniformBuffer) {
+      this.device!.queue.writeBuffer(this.perObjectUniformBuffer, 0, this.perObjectDataCPU.buffer)
+    }
+
+    preparedLayers.forEach((layer, index) => {
+      this.renderPreparedLayer(commandEncoder, textureView, layer, frameRenderItems, index === 0)
+    })
+
+    this.device!.queue.submit([commandEncoder.finish()])
+  }
+
+  private prepareRenderLayer(
+    root: Object3D,
+    frameRenderItems: RenderItem[],
+    frameLights: LightItem[],
+    background?: GPUColor,
+  ): PreparedRenderLayer {
+    const allRenderItems: RenderItem[] = []
+    const lights: LightItem[] = []
+    collectSpaceObjects(root, allRenderItems, lights, this.frustum)
+    const {glassObjects, regularObjects, uiObjects} = this.collectSpaceObjectsByType(allRenderItems)
+
+    frameRenderItems.push(...allRenderItems)
+    frameLights.push(...lights)
+
+    return {
+      background,
+      glassObjects,
+      regularObjects,
+      uiObjects,
+    }
+  }
+
+  private renderPreparedLayer(
+    commandEncoder: GPUCommandEncoder,
+    textureView: GPUTextureView,
+    layer: PreparedRenderLayer,
+    frameRenderItems: RenderItem[],
+    clearColor: boolean,
+  ): void {
     // --- Pass 1: Render regular objects to offscreen texture ---
-    if (glassObjects.length > 0 && this.offscreenTexture && this.offscreenResolvedTexture && this.offscreenDepthTexture) {
+    if (layer.glassObjects.length > 0 && this.offscreenTexture && this.offscreenResolvedTexture && this.offscreenDepthTexture) {
       const offscreenPassDescriptor: GPURenderPassDescriptor = {
         colorAttachments: [{
           view: this.offscreenTexture.createView(),
@@ -1010,25 +1078,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       }
       const offscreenPassEncoder = commandEncoder.beginRenderPass(offscreenPassDescriptor)
       offscreenPassEncoder.setBindGroup(0, this.globalBindGroup!)
-      this.renderObjectList(offscreenPassEncoder, regularObjects, allRenderItems)
+      this.renderObjectList(offscreenPassEncoder, layer.regularObjects, frameRenderItems)
       offscreenPassEncoder.end()
     }
 
     // --- Pass 2: Compute Blur Passes ---
-    if (glassObjects.length > 0 && this.offscreenResolvedTexture && this.blurredIntermediateTexture && this.finalBlurredTexture) {
+    if (layer.glassObjects.length > 0 && this.offscreenResolvedTexture && this.blurredIntermediateTexture && this.finalBlurredTexture) {
       this.applyBlur(commandEncoder, this.offscreenResolvedTexture, this.blurredIntermediateTexture, true)
       this.applyBlur(commandEncoder, this.blurredIntermediateTexture, this.finalBlurredTexture, false)
     }
 
     // --- Pass 3: Final Render Pass ---
+    const colorLoadOp: GPULoadOp = clearColor ? "clear" : "load"
     const renderPassDescriptor: GPURenderPassDescriptor = {
       colorAttachments: [
         {
           view: this.multisampleTexture!.createView(),
           resolveTarget: textureView,
-          loadOp: "clear",
+          loadOp: colorLoadOp,
           storeOp: "store",
-          clearValue: scene.background.toArray() as unknown as GPUColor,
+          clearValue: layer.background ?? [0, 0, 0, 0],
         },
       ],
       depthStencilAttachment: {
@@ -1045,14 +1114,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     passEncoder.setBindGroup(0, this.globalBindGroup!)
 
     // Рендерим обычные объекты
-    this.renderObjectList(passEncoder, regularObjects, allRenderItems)
+    this.renderObjectList(passEncoder, layer.regularObjects, frameRenderItems)
     // Рендерим стеклянные объекты (пока как обычные, но с прозрачностью)
-    this.renderObjectList(passEncoder, glassObjects, allRenderItems)
+    this.renderObjectList(passEncoder, layer.glassObjects, frameRenderItems)
     // Рендерим UI объекты
-    this.renderObjectList(passEncoder, uiObjects, allRenderItems)
+    this.renderObjectList(passEncoder, layer.uiObjects, frameRenderItems)
 
     passEncoder.end()
-    this.device.queue.submit([commandEncoder.finish()])
   }
 
 

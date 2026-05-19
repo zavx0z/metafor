@@ -1,5 +1,5 @@
 import { Object3D } from "../core/Object3D"
-import { Scene } from "../scenes/Scene"
+import { Space } from "../scenes/Space"
 import { Vector3, Color, Matrix4, Quaternion } from "../math"
 import { Mesh } from "../core/Mesh"
 import { BufferAttribute, BufferGeometry, type TypedArray } from "../core/BufferGeometry"
@@ -16,7 +16,7 @@ const BIN_CHUNK_TYPE = 0x004e4942 // "BIN\0" в ASCII
 
 // --- GLTF SPECIFICATION INTERFACES ---
 interface GLTF {
-  scenes?: GLTFScene[]
+  scenes?: GLTFSpaceDefinition[]
   scene?: number
   nodes?: GLTFNode[]
   meshes?: GLTFMesh[]
@@ -28,7 +28,7 @@ interface GLTF {
   animations?: GLTFAnimation[]
 }
 
-interface GLTFScene {
+interface GLTFSpaceDefinition {
   nodes: number[]
   name?: string
 }
@@ -116,7 +116,7 @@ interface GLTFLoaderOptions {
 }
 
 interface ParsedGLTF {
-  scene: Scene
+  space: Space
   animations: AnimationClip[]
 }
 
@@ -150,14 +150,14 @@ export class GLTFLoader {
     const materials = this.parseMaterials(gltf)
     const animations = this.parseAnimations(gltf, buffers)
 
-    const scene = new Scene()
-    let parentNode: Object3D = scene
+    const space = new Space()
+    let parentNode: Object3D = space
 
     if (convertToZUp) {
       const modelWrapper = new Object3D()
       modelWrapper.rotation.x = Math.PI / 2
       modelWrapper.updateMatrix()
-      scene.add(modelWrapper)
+      space.add(modelWrapper)
       parentNode = modelWrapper
     }
 
@@ -167,8 +167,8 @@ export class GLTFLoader {
     this.assignSkeletonsToMeshes(nodes, skeletons, gltf)
 
     if (gltf.scene !== undefined && gltf.scenes) {
-      const sceneDef = gltf.scenes[gltf.scene]!
-      for (const nodeIndex of sceneDef.nodes) {
+      const spaceDef = gltf.scenes[gltf.scene]!
+      for (const nodeIndex of spaceDef.nodes) {
         const node = nodes[nodeIndex]
         if (node) {
           parentNode.add(node)
@@ -176,7 +176,7 @@ export class GLTFLoader {
       }
     }
 
-    return { scene, animations }
+    return { space, animations }
   }
 
   private parseGLB(data: ArrayBuffer): { gltf: GLTF; buffers: ArrayBuffer[] } {

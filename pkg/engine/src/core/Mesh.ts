@@ -20,7 +20,7 @@ import { Matrix4, Ray, Sphere, Vector3 } from "../math"
  * const geometry = new TorusGeometry();
  * const material = new MeshBasicMaterial({ color: 0xff0000 });
  * const torus = new Mesh(geometry, material);
- * scene.add(torus);
+ * space.add(torus);
  * ```
  */
 export class Mesh extends Object3D {

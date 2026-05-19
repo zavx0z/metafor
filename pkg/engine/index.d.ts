@@ -122,8 +122,24 @@ export class Object3D {
   updateWorldMatrix(force?: boolean): void
 }
 
-export class Scene extends Object3D {
+export class Space extends Object3D {
+  readonly isSpace: true
   background: Color
+}
+
+export interface HUDOptions {
+  distanceMm?: number
+  widthMm?: number
+  heightMm?: number
+  pixelWidth?: number
+  pixelHeight?: number
+}
+
+export class HUD extends Object3D {
+  readonly isHUD: true
+  distanceMm: number
+  constructor(options?: HUDOptions)
+  updateForViewPoint(viewPoint: ViewPoint): void
 }
 
 export class ViewPoint {
@@ -150,7 +166,9 @@ export class Renderer {
   init(canvas?: HTMLCanvasElement): Promise<void>
   setPixelRatio(value: number): void
   setSize(width: number, height: number): void
-  render(scene: Scene, viewPoint: ViewPoint): void
+  render(space: Space, viewPoint: ViewPoint): void
+  renderFrame(space: Space, viewPoint: ViewPoint): void
+  renderFrame(space: Space, hud: HUD | null | undefined, viewPoint: ViewPoint): void
   invalidateGeometry(geometry: BufferGeometry): void
 }
 

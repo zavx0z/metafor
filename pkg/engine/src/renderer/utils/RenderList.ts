@@ -22,7 +22,7 @@ export interface LightItem {
   worldMatrix: Matrix4
 }
 
-export function collectSceneObjects(
+export function collectSpaceObjects(
   object: Object3D,
   renderList: RenderItem[],
   lights: LightItem[],
@@ -65,6 +65,6 @@ export function collectSceneObjects(
   }
 
   for (const child of object.children) {
-    collectSceneObjects(child, renderList, lights, frustum);
+    collectSpaceObjects(child, renderList, lights, frustum);
   }
 }

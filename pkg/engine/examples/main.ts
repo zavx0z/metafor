@@ -2,7 +2,7 @@ if (import.meta.hot) import.meta.hot.accept()
 
 import {
   Color,
-  Scene,
+  Space,
   ViewPoint,
   Renderer,
   GLTFLoader,
@@ -61,8 +61,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   })
   document.body.appendChild(renderer.canvas)
 
-  const scene = new Scene()
-  scene.background = new Color(0.1, 0.1, 0.1)
+  const space = new Space()
+  space.background = new Color(0.1, 0.1, 0.1)
 
   const viewPoint = new ViewPoint({
     element: renderer.canvas,
@@ -74,7 +74,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   })
 
   const grid = new GridHelper(10, 20)
-  scene.add(grid)
+  space.add(grid)
 
   // --- Raycaster Setup ---
   const raycaster = new Raycaster()
@@ -87,7 +87,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const light = new Light(new Color(1, 1, 1), 1)
   light.position.set(4, -4, 4)
   light.updateMatrix()
-  scene.add(light)
+  space.add(light)
 
   // --- Layout Example: Virtual Display ---
   const layoutManager = new LayoutManager()
@@ -110,7 +110,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   display.rotation.x = Math.PI / 2 
   // display.rotation.z = Math.PI / 4 
   display.updateMatrix()
-  scene.add(display)
+  space.add(display)
 
   // --- Создаем стойку (Ножку) для дисплея ---
   // Рисуем линию от центра дисплея до пола
@@ -201,17 +201,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   const loader = new GLTFLoader()
   const gltf = await loader.load("./models/bots.glb")
 
-  gltf.scene.position.set(0, 0, 0)
-  gltf.scene.rotation.z = Math.PI
-  gltf.scene.updateMatrix()
-  scene.add(gltf.scene)
+  gltf.space.position.set(0, 0, 0)
+  gltf.space.rotation.z = Math.PI
+  gltf.space.updateMatrix()
+  space.add(gltf.space)
 
   let mixer: AnimationMixer | null = null
   if (gltf.animations.length > 0) {
-    mixer = new AnimationMixer(gltf.scene)
-    const modelRoot = gltf.scene.children[0]
+    mixer = new AnimationMixer(gltf.space)
+    const modelRoot = gltf.space.children[0]
     gltf.animations.forEach((clip, index) => {
-      const localRoot = modelRoot && modelRoot.children[index] ? modelRoot.children[index] : gltf.scene
+      const localRoot = modelRoot && modelRoot.children[index] ? modelRoot.children[index] : gltf.space
       const action = mixer!.clipAction(clip, localRoot)
       action.play()
     })
@@ -222,7 +222,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const text = new Text("WebGPU Engine", font, 200, new TextMaterial({ color: new Color(1.0, 1.0, 1.0) }))
     text.position.set(-800, 0, 100)
     text.updateMatrix()
-    scene.add(text)
+    space.add(text)
   } catch (e) {
     console.error("Критическая ошибка при создании текста:", e)
   }
@@ -242,7 +242,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   )
   torus.position.set(0, 0, 1)
   torus.updateMatrix()
-  scene.add(torus)
+  space.add(torus)
 
   const instanceCount = 2
   const spheresInsideTorus = new WireframeInstancedMesh(
@@ -367,13 +367,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     spheresInsideTorus.update()
     torus.updateMatrix()
     spheresInsideTorus.updateMatrix()
-    scene.updateWorldMatrix()
+    space.updateWorldMatrix()
 
-    gltf.scene.traverse((obj: any) => {
+    gltf.space.traverse((obj: any) => {
       if (obj.isSkinnedMesh) obj.skeleton.update()
     })
     
-    renderer.render(scene, viewPoint)
+    renderer.render(space, viewPoint)
   }
   animate()
 })

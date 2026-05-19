@@ -2,7 +2,7 @@
  * UiCanvas — единый WebGPU-canvas для UI-карточек.
  *
  * Контракт:
- *  • Один Renderer + Scene + ViewPoint, perspective camera.
+ *  • Один Renderer + Space + ViewPoint, perspective camera.
  *  • Карточки регистрируются как UiCard с layout-функцией pixel-rect от
  *    размеров canvas. На resize UiCanvas пересчитывает rect'ы и зовёт
  *    setRect у каждой карточки. card.node.origin = TL card-rect в world.
@@ -11,7 +11,7 @@
  *  • Render-on-demand: card.requestRender → UiCanvas сводит в один RAF.
  */
 
-import {Color, Object3D, Renderer, Scene, TrueTypeFont, ViewPoint} from "@metafor/engine"
+import {Color, HUD, Object3D, Renderer, Space, TrueTypeFont, ViewPoint} from "@metafor/engine"
 import {VirtualInput} from "./virtual-input.ts"
 
 export type CardRect = {x: number; y: number; w: number; h: number; visible?: boolean}
@@ -75,7 +75,8 @@ export class UiCanvas {
 
   readonly canvas: HTMLCanvasElement
   readonly renderer: Renderer
-  readonly scene: Scene
+  readonly space: Space
+  readonly hud: HUD
   readonly viewPoint: ViewPoint
   readonly font: TrueTypeFont
   readonly inputProxy: VirtualInput | null
@@ -102,8 +103,9 @@ export class UiCanvas {
     this.renderer = renderer
     this.font = font
     this.#cameraDistance = opts.cameraDistance ?? 0.6
-    this.scene = new Scene()
-    this.scene.background = new Color(0, 0, 0, 0)
+    this.space = new Space()
+    this.space.background = new Color(0, 0, 0, 0)
+    this.hud = new HUD({distanceMm: this.#cameraDistance})
     this.viewPoint = new ViewPoint({
       element: canvas,
       fov: opts.fov ?? Math.PI / 4,
@@ -133,7 +135,17 @@ export class UiCanvas {
   /** Регистрирует card. layout-функция вызывается на каждом resize. */
   addCard(card: UiCard, layout: CardLayoutFn): void {
     card.attachCanvas(this)
-    this.scene.add(card.node)
+    this.space.add(card.node)
+    const rect = layout({w: this.#pixelWidth, h: this.#pixelHeight})
+    this.#cards.push({card, layout, rect})
+    this.#applyLayout()
+    this.requestRender()
+  }
+
+  /** Регистрирует HUD-card поверх Space в camera/head-locked слое. */
+  addHudCard(card: UiCard, layout: CardLayoutFn): void {
+    card.attachCanvas(this)
+    this.hud.add(card.node)
     const rect = layout({w: this.#pixelWidth, h: this.#pixelHeight})
     this.#cards.push({card, layout, rect})
     this.#applyLayout()
@@ -170,8 +182,8 @@ export class UiCanvas {
     this.#rafId = requestAnimationFrame(() => {
       this.#rafId = null
       this.#renderRequested = false
-      this.scene.updateWorldMatrix()
-      this.renderer.render(this.scene, this.viewPoint)
+      this.space.updateWorldMatrix()
+      this.renderer.renderFrame(this.space, this.hud, this.viewPoint)
     })
   }
 

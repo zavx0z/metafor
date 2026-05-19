@@ -26,7 +26,7 @@ import {
 	Object3D,
 	Quaternion,
 	Renderer,
-	Scene,
+	Space,
 	SphereGeometry,
 	Text,
 	TextMaterial,
@@ -502,19 +502,19 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const labelFont = await TrueTypeFont.fromUrl("/engine-static/JetBrainsMono-Bold.ttf").catch(() => null)
 	const viewportConfig = getViewportConfig()
 	const raycaster = new Raycaster()
-	const scene = new Scene()
-	scene.background = ROOT_BACKGROUND.clone()
-	scene.add(createWorkspaceGrid())
+	const space = new Space()
+	space.background = ROOT_BACKGROUND.clone()
+	space.add(createWorkspaceGrid())
 
 	const workspace = new Object3D()
 	workspace.position.set(0, 0, getWorkspaceBaseZ())
 	workspace.updateMatrix()
-	scene.add(workspace)
+	space.add(workspace)
 
 	const labelsLayer = new Object3D()
 	labelsLayer.frustumCulled = false
 	labelsLayer.updateMatrix()
-	scene.add(labelsLayer)
+	space.add(labelsLayer)
 
 	let pickTargets: HoverablePickTarget[] = []
 	let hoveredPickTarget: HoverablePickTarget | null = null
@@ -1308,7 +1308,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const updateSceneWorldState = (): void => {
-		scene.updateWorldMatrix()
+		space.updateWorldMatrix()
 		syncPickTargetsFromScene()
 	}
 
@@ -1735,8 +1735,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 
 		updateLabelTrackers()
-		scene.updateWorldMatrix()
-		renderer.render(scene, viewPoint)
+		space.updateWorldMatrix()
+		renderer.render(space, viewPoint)
 		if (navigationState || hasPendingMotion || timestamp < renderWakeUntilMs) {
 			frameHandle = requestAnimationFrame(animate)
 		}
