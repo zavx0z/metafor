@@ -6,7 +6,7 @@
  * максимальное число строк, заглавные буквы.
  */
 
-import {Card, type UiCanvas, palette, divider, type TextBlockAlign, type TextBlockVAlign} from "@metafor/ui"
+import {Card, type UiCanvas, palette, divider, frame, type TextBlockAlign, type TextBlockVAlign} from "@metafor/ui"
 import type {ParamsPanel} from "../params.ts"
 
 type FitMode = "none" | "shrink"
@@ -46,10 +46,7 @@ class TextBlockCard extends Card {
     const y = 60
 
     // Рамка для визуализации границ блока.
-    this.drawRect(x, y, w, 1, palette.cyan, 0.00006)
-    this.drawRect(x, y + h - 1, w, 1, palette.cyan, 0.00006)
-    this.drawRect(x, y, 1, h, palette.cyan, 0.00006)
-    this.drawRect(x + w - 1, y, 1, h, palette.cyan, 0.00006)
+    frame(this, x, y, w, h, {color: palette.cyan, z: 0.00006})
 
     const maxLines = this.p.maxLines()
     const metrics = this.drawTextBlock(this.p.text(), x, y, w, h, {

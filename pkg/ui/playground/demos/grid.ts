@@ -5,7 +5,7 @@
  * параметры; layout-функции получают canvas-размер и возвращают rect.
  */
 
-import {Card, type UiCanvas, palette} from "@metafor/ui"
+import {Card, type UiCanvas, palette, divider, surface} from "@metafor/ui"
 import type {ParamsPanel} from "../params.ts"
 
 type BgKey = "bg" | "bgElevated" | "bgPanel" | "bgHot"
@@ -26,16 +26,12 @@ class LabelCard extends Card {
   }
 
   protected render(): void {
-    if (this.p.bgEnabled()) {
-      this.drawRect(0, 0, this.rectW, this.rectH, palette[this.p.bgColor()], 0)
-    }
-    if (this.p.borderEnabled()) {
-      const c = palette.borderDim
-      this.drawRect(0, 0, this.rectW, 1, c, 0.00006)
-      this.drawRect(0, this.rectH - 1, this.rectW, 1, c, 0.00006)
-      this.drawRect(0, 0, 1, this.rectH, c, 0.00006)
-      this.drawRect(this.rectW - 1, 0, 1, this.rectH, c, 0.00006)
-    }
+    surface(this, 0, 0, this.rectW, this.rectH, {
+      fill: this.p.bgEnabled() ? palette[this.p.bgColor()] : null,
+      border: this.p.borderEnabled() ? palette.borderDim : null,
+      z: 0,
+      borderZ: 0.00006,
+    })
 
     const prefix = this.p.labelPrefix()
     const fullLabel = prefix.length > 0 ? `${prefix} · ${this.label}` : this.label
@@ -44,7 +40,7 @@ class LabelCard extends Card {
       material: this.materials.cyan,
       maxWidthPx: this.rectW - 28,
     })
-    this.drawRect(14, 36, this.rectW - 28, 1, palette.borderDim, 0.00002)
+    divider(this, 14, 36, this.rectW - 28)
 
     if (this.p.showRect()) {
       this.drawText(`rect ${Math.round(this.rectW)}×${Math.round(this.rectH)}`, 14, 50, {
@@ -96,7 +92,7 @@ export default function gridDemo({canvas, params}: {canvas: UiCanvas; params: Pa
   params.group({title: "Appearance"})
   const bgEnabled = params.boolean("bgEnabled", {
     label: "show bg",
-    description: "Рисовать ли background-fill. Bg рисуется через drawRect (Card.bgColor=null здесь).",
+    description: "Рисовать ли background-fill через стандартный surface widget.",
     default: true,
   })
   const bgColor = params.select<BgKey>("bgColor", {

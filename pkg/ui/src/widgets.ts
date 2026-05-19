@@ -316,6 +316,105 @@ export type DividerOpts = {
   z?: number
 }
 
+export type SurfaceOpts = {
+  /** Fill color. null/undefined = no fill. */
+  fill?: Color | null
+  /** Border color. null/undefined = no border. */
+  border?: Color | null
+  /** Border thickness in px. Default = 1. */
+  borderWidth?: number
+  /** Rounded radius in px. Default = 0. */
+  radius?: number | {tl: number; tr: number; br: number; bl: number}
+  /** Fill z-level. Default = Z.ELEMENT. */
+  z?: number
+  /** Border z-level for square surfaces. Default = z + 0.00002. */
+  borderZ?: number
+}
+
+export type FrameOpts = {
+  /** Border color. Default = palette.borderDim. */
+  color?: Color
+  /** Border thickness in px. Default = 1. */
+  thickness?: number
+  /** Rounded radius in px. Default = 0. */
+  radius?: number | {tl: number; tr: number; br: number; bl: number}
+  /** z-level. Default = Z.ELEMENT_RULE. */
+  z?: number
+}
+
+export type ColorSwatchOpts = {
+  color: Color
+  border?: Color | null
+  borderWidth?: number
+  radius?: number
+  z?: number
+}
+
+/** Generic UI surface: fill + optional border. Demos use this instead of raw drawRect. */
+export function surface(card: Card, x: number, y: number, w: number, h: number, opts: SurfaceOpts = {}): void {
+  if (w <= 0 || h <= 0) return
+  const radius = opts.radius ?? 0
+  const hasRadius = typeof radius === "number" ? radius > 0 : true
+  const fill = opts.fill ?? null
+  const border = opts.border ?? null
+  const z = opts.z ?? Z.ELEMENT
+  const borderWidth = opts.borderWidth ?? 1
+
+  if (hasRadius) {
+    card.drawRoundedRect(x, y, w, h, {
+      radius,
+      fill,
+      border,
+      borderWidth: border === null ? 0 : borderWidth,
+      z,
+    })
+    return
+  }
+
+  if (fill !== null) card.drawRect(x, y, w, h, fill, z)
+  if (border !== null && borderWidth > 0) {
+    frame(card, x, y, w, h, {color: border, thickness: borderWidth, z: opts.borderZ ?? z + 0.00002})
+  }
+}
+
+/** Rectangular/rounded frame component. */
+export function frame(card: Card, x: number, y: number, w: number, h: number, opts: FrameOpts = {}): void {
+  if (w <= 0 || h <= 0) return
+  const color = opts.color ?? palette.borderDim
+  const thickness = Math.max(0, opts.thickness ?? 1)
+  if (thickness <= 0) return
+  const radius = opts.radius ?? 0
+  const z = opts.z ?? Z.ELEMENT_RULE
+  const hasRadius = typeof radius === "number" ? radius > 0 : true
+
+  if (hasRadius) {
+    card.drawRoundedRect(x, y, w, h, {
+      radius,
+      fill: null,
+      border: color,
+      borderWidth: thickness,
+      z,
+    })
+    return
+  }
+
+  card.drawRect(x, y, w, thickness, color, z)
+  card.drawRect(x, y + h - thickness, w, thickness, color, z)
+  card.drawRect(x, y, thickness, h, color, z)
+  card.drawRect(x + w - thickness, y, thickness, h, color, z)
+}
+
+/** Palette/tone preview square used by reference pages. */
+export function colorSwatch(card: Card, x: number, y: number, size: number, opts: ColorSwatchOpts): void {
+  surface(card, x, y, size, size, {
+    fill: opts.color,
+    border: opts.border ?? palette.borderDim,
+    borderWidth: opts.borderWidth ?? 1,
+    radius: opts.radius ?? 0,
+    z: opts.z ?? Z.ELEMENT,
+  })
+}
+
 /** Горизонтальная разделительная линия. По умолчанию 1px palette.borderDim
  *  на Z.SEPARATOR. Цвет/толщину/z можно переопределить через opts.
  *  rectY — координата центра линии (y нарисуется в y - thickness/2). */

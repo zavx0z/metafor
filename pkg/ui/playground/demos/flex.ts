@@ -13,6 +13,9 @@ import {
   flexRow,
   flexColumn,
   palette,
+  divider,
+  frame,
+  surface,
   type FlexAlign,
   type FlexJustify,
 } from "@metafor/ui"
@@ -50,7 +53,7 @@ class FlexCard extends Card {
       material: this.materials.cyan,
       maxWidthPx: this.rectW - 32,
     })
-    this.drawRect(16, 36, this.rectW - 32, 1, palette.borderDim, 0.00002)
+    divider(this, 16, 36, this.rectW - 32)
 
     const direction = this.p.direction()
     const gap = this.p.gap()
@@ -87,21 +90,18 @@ class FlexCard extends Card {
     // и в горизонтальную, и в вертикальную полосы — alpha=0.18 даёт лёгкое
     // удвоение по углам, что визуально подсказывает "тут наслаивается отступ".
     if (paddingY > 0) {
-      this.drawRect(frameX, frameY, frameW, paddingY, PADDING_TINT, 0.00001)
-      this.drawRect(frameX, frameY + frameH - paddingY, frameW, paddingY, PADDING_TINT, 0.00001)
+      surface(this, frameX, frameY, frameW, paddingY, {fill: PADDING_TINT, z: 0.00001})
+      surface(this, frameX, frameY + frameH - paddingY, frameW, paddingY, {fill: PADDING_TINT, z: 0.00001})
     }
     if (paddingX > 0) {
       const sideY = frameY + paddingY
       const sideH = Math.max(0, frameH - paddingY * 2)
-      this.drawRect(frameX, sideY, paddingX, sideH, PADDING_TINT, 0.00001)
-      this.drawRect(frameX + frameW - paddingX, sideY, paddingX, sideH, PADDING_TINT, 0.00001)
+      surface(this, frameX, sideY, paddingX, sideH, {fill: PADDING_TINT, z: 0.00001})
+      surface(this, frameX + frameW - paddingX, sideY, paddingX, sideH, {fill: PADDING_TINT, z: 0.00001})
     }
 
     // Outer frame — граница того, что flex получает как opts.x/y/w/h.
-    this.drawRect(frameX, frameY, frameW, 1, palette.border, 0.00002)
-    this.drawRect(frameX, frameY + frameH, frameW, 1, palette.border, 0.00002)
-    this.drawRect(frameX, frameY, 1, frameH, palette.border, 0.00002)
-    this.drawRect(frameX + frameW - 1, frameY, 1, frameH, palette.border, 0.00002)
+    frame(this, frameX, frameY, frameW, frameH, {color: palette.border, z: 0.00002})
     // Inner frame — фактический box, в котором flex распределяет items.
     // Прерывистый cyan показывает, что это «вспомогательная» граница.
     if (paddingX > 0 || paddingY > 0) {
@@ -109,10 +109,7 @@ class FlexCard extends Card {
       const iy = frameY + paddingY
       const iw = frameW - paddingX * 2
       const ih = frameH - paddingY * 2
-      this.drawRect(ix, iy, iw, 1, palette.cyan, 0.00004)
-      this.drawRect(ix, iy + ih - 1, iw, 1, palette.cyan, 0.00004)
-      this.drawRect(ix, iy, 1, ih, palette.cyan, 0.00004)
-      this.drawRect(ix + iw - 1, iy, 1, ih, palette.cyan, 0.00004)
+      frame(this, ix, iy, iw, ih, {color: palette.cyan, z: 0.00004})
     }
 
     const items = buildItems(count, withGrow, itemMain, itemCross, direction, (label, color, x, y, w, h) =>
@@ -163,8 +160,7 @@ class FlexCard extends Card {
 
   #cell(label: string, color: import("@metafor/engine").Color, x: number, y: number, w: number, h: number): void {
     const fill = new Color(color.r, color.g, color.b, 0.18)
-    this.drawRect(x, y, w, h, fill, 0.00004)
-    this.drawRect(x, y, w, 1, color, 0.00006)
+    surface(this, x, y, w, h, {fill, border: color, z: 0.00004, borderZ: 0.00006})
     this.drawText(label, x + 6, y + Math.max(2, (h - 11) / 2), {
       fontPx: 11,
       material: this.materials.text,

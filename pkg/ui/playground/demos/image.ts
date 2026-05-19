@@ -7,7 +7,7 @@
  * через viewBox и масштаба внутри Card.
  */
 
-import {Card, type UiCanvas, palette, divider} from "@metafor/ui"
+import {Card, type UiCanvas, palette, divider, frame} from "@metafor/ui"
 import type {ParamsPanel} from "../params.ts"
 import type {ImageFit} from "@metafor/engine"
 
@@ -136,10 +136,7 @@ class ImageCard extends Card {
     })
 
     // Граница чтобы видеть rect картинки.
-    this.drawRect(x, y, w, 1, palette.cyan, 0.00006)
-    this.drawRect(x, y + h - 1, w, 1, palette.cyan, 0.00006)
-    this.drawRect(x, y, 1, h, palette.cyan, 0.00006)
-    this.drawRect(x + w - 1, y, 1, h, palette.cyan, 0.00006)
+    frame(this, x, y, w, h, {color: palette.cyan, z: 0.00006})
   }
 }
 

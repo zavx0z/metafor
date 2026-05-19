@@ -1,13 +1,12 @@
 /**
  * Demo: Card basics.
  *
- * Простая карточка по центру canvas. Все примитивы Card (drawText, drawRect,
- * divider, materials) управляются параметрами на правой панели. Bg/border
- * рисуются вручную через drawRect, чтобы их можно было менять без пересоздания
- * Card (Card.bgColor / borderColor задаются только в конструкторе).
+ * Простая карточка по центру canvas. Контент собирается из стандартных
+ * UI widgets (surface/divider) и Card text helpers, чтобы demo не рисовал
+ * геометрию напрямую.
  */
 
-import {Card, type UiCanvas, palette, divider, Z} from "@metafor/ui"
+import {Card, type UiCanvas, palette, divider, surface} from "@metafor/ui"
 import type {ParamsPanel} from "../params.ts"
 import type {TextMaterial} from "@metafor/engine"
 
@@ -36,8 +35,7 @@ class HelloCard extends Card {
       contentPadY: () => number
     },
   ) {
-    // bg/border полностью отключены — рисуем их сами через drawRect, чтобы
-    // менять цвета на лету без recreate.
+    // bg/border управляются через surface widget, чтобы менять цвета без recreate.
     super({bgColor: null, borderColor: null})
   }
 
@@ -47,20 +45,13 @@ class HelloCard extends Card {
     const titleFontPx = this.p.titleFontPx()
     const bodyFontPx = this.p.bodyFontPx()
 
-    // Background и border. Bg на z=CONTAINER (под всем контентом).
-    if (this.p.showBg()) {
-      this.drawRect(0, 0, this.rectW, this.rectH, palette[this.p.bgColor()], Z.CONTAINER)
-    }
-    if (this.p.showBorder()) {
-      const bw = Math.max(0, this.p.borderWidth())
-      const bc = palette[this.p.borderColor()]
-      if (bw > 0) {
-        this.drawRect(0, 0, this.rectW, bw, bc, Z.ELEMENT_RULE)
-        this.drawRect(0, this.rectH - bw, this.rectW, bw, bc, Z.ELEMENT_RULE)
-        this.drawRect(0, 0, bw, this.rectH, bc, Z.ELEMENT_RULE)
-        this.drawRect(this.rectW - bw, 0, bw, this.rectH, bc, Z.ELEMENT_RULE)
-      }
-    }
+    const bw = Math.max(0, this.p.borderWidth())
+    surface(this, 0, 0, this.rectW, this.rectH, {
+      fill: this.p.showBg() ? palette[this.p.bgColor()] : null,
+      border: this.p.showBorder() && bw > 0 ? palette[this.p.borderColor()] : null,
+      borderWidth: bw,
+      z: 0,
+    })
 
     // Title.
     const titleY = padY
@@ -105,7 +96,7 @@ export default function cardDemo({canvas, params}: {canvas: UiCanvas; params: Pa
   params.reset({
     title: "Card",
     description:
-      "Card — корневой контейнер UI. Гарантирует, что bg/border всегда внутри rect, drawText обрезается через измерение font-метрик, drawRect клампится к bounds. Базовый класс для всех виджетов.",
+      "Card — корневой контейнер UI. Гарантирует, что bg/border всегда внутри rect, text обрезается через измерение font-метрик. Базовый класс для всех виджетов.",
     breadcrumb: "Layout / Card",
   })
 
@@ -156,7 +147,7 @@ export default function cardDemo({canvas, params}: {canvas: UiCanvas; params: Pa
   params.group({title: "Background"})
   const showBg = params.boolean("showBg", {
     label: "show bg",
-    description: "Включает фоновую заливку. Card.bgColor=null по умолчанию (прозрачная) — здесь bg рисуется через drawRect.",
+    description: "Включает фоновую заливку через surface widget.",
     default: true,
   })
   const bgColor = params.select<BgKey>("bgColor", {
@@ -169,7 +160,7 @@ export default function cardDemo({canvas, params}: {canvas: UiCanvas; params: Pa
   params.group({title: "Border"})
   const showBorder = params.boolean("showBorder", {
     label: "show border",
-    description: "Включает рамку. Card.borderColor=null по умолчанию — рамка тут рисуется через drawRect.",
+    description: "Включает рамку через surface widget.",
     default: true,
   })
   const borderColor = params.select<BorderKey>("borderColor", {

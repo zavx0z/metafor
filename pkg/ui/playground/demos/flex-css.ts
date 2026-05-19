@@ -14,6 +14,8 @@ import {
   flexColumnCss,
   palette,
   divider,
+  frame,
+  surface,
   type UiSize,
   type FlexAlign,
   type FlexJustify,
@@ -69,10 +71,7 @@ class FlexCssCard extends Card {
     const frameY = 76
     const frameW = this.rectW - 32
     const frameH = this.rectH - frameY - 16
-    this.drawRect(frameX, frameY, frameW, 1, palette.borderRule, 0.00002)
-    this.drawRect(frameX, frameY + frameH, frameW, 1, palette.borderRule, 0.00002)
-    this.drawRect(frameX, frameY, 1, frameH, palette.borderRule, 0.00002)
-    this.drawRect(frameX + frameW - 1, frameY, 1, frameH, palette.borderRule, 0.00002)
+    frame(this, frameX, frameY, frameW, frameH, {color: palette.borderRule, z: 0.00002})
 
     const items = presetItems(preset, direction, (label, color, x, y, w, h) =>
       this.#cell(label, color, x, y, w, h),
@@ -117,8 +116,7 @@ class FlexCssCard extends Card {
 
   #cell(label: string, color: import("@metafor/engine").Color, x: number, y: number, w: number, h: number): void {
     const fill = new Color(color.r, color.g, color.b, 0.18)
-    this.drawRect(x, y, w, h, fill, 0.00004)
-    this.drawRect(x, y, w, 1, color, 0.00006)
+    surface(this, x, y, w, h, {fill, border: color, z: 0.00004, borderZ: 0.00006})
     this.drawText(label, x + 6, y + Math.max(2, (h - 12) / 2), {
       fontPx: 12,
       material: this.materials.text,

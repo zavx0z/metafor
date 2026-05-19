@@ -7,7 +7,7 @@
  * частично видимых строк сверху/снизу.
  */
 
-import {Card, type UiCanvas, palette, divider, ScrollListState, scrollList, Z} from "@metafor/ui"
+import {Card, type UiCanvas, palette, divider, ScrollListState, scrollList, surface, Z} from "@metafor/ui"
 import type {ParamsPanel} from "../params.ts"
 
 const PAD = 14
@@ -111,7 +111,7 @@ class ScrollListCard extends Card {
     h: number,
   ): void {
     const isActive = idx === this.#active
-    if (isActive) this.drawRect(x, y, w, h - 2, palette.bgHot, Z.ELEMENT)
+    if (isActive) surface(this, x, y, w, h - 2, {fill: palette.bgHot, z: Z.ELEMENT})
 
     const numLabel = `#${idx + 1}`
     const showSubtitle = this.p.showSubtitle()

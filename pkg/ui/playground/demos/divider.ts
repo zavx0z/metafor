@@ -74,7 +74,7 @@ class DividerCard extends Card {
 export default function dividerDemo({canvas, params}: {canvas: UiCanvas; params: ParamsPanel}): void {
   params.reset({
     title: "Divider",
-    description: "Горизонтальная разделительная линия. Минимальный widget — обёртка над drawRect, позволяющая управлять цветом, толщиной и z-уровнем.",
+    description: "Горизонтальная разделительная линия. Минимальный widget с управлением цветом, толщиной и z-уровнем.",
     breadcrumb: "Components / Divider",
   })
 

@@ -10,7 +10,7 @@
  * через font.getGlyphBounds yMin/yMax) для асимметричных глифов.
  */
 
-import {Card, type UiCanvas, palette, divider} from "@metafor/ui"
+import {Card, type UiCanvas, palette, divider, frame, surface} from "@metafor/ui"
 import type {ParamsPanel} from "../params.ts"
 
 const PADDING_FRAME_Z = 0.00006
@@ -42,11 +42,7 @@ class InteractivePaddedCard extends Card {
 
     // Cyan inner-rect frame.
     if (this.p.showInnerFrame() && innerW > 0 && innerH > 0) {
-      const accent = palette.cyan
-      this.drawRect(innerX, innerY, innerW, 1, accent, PADDING_FRAME_Z)
-      this.drawRect(innerX, innerY + innerH - 1, innerW, 1, accent, PADDING_FRAME_Z)
-      this.drawRect(innerX, innerY, 1, innerH, accent, PADDING_FRAME_Z)
-      this.drawRect(innerX + innerW - 1, innerY, 1, innerH, accent, PADDING_FRAME_Z)
+      frame(this, innerX, innerY, innerW, innerH, {color: palette.cyan, z: PADDING_FRAME_Z})
     }
 
     if (innerW <= 0 || innerH <= 0) return
@@ -142,8 +138,8 @@ class CenteredTextCard extends Card {
         const slotW = cellW - 16
         const cx = slotX + slotW / 2
         const cy = cellsY + cellH / 2
-        this.drawRect(slotX, cellsY, slotW, cellH, palette.bgPanel, 0.00002)
-        this.drawRect(slotX, cy, slotW, 1, ruleColor, 0.00006)
+        surface(this, slotX, cellsY, slotW, cellH, {fill: palette.bgPanel, z: 0.00002})
+        divider(this, slotX, cy, slotW, {color: ruleColor, z: 0.00006})
         if (method === "raw") {
           const labelW = this.measureText(symbols[i]!, fontPx)
           this.drawText(symbols[i]!, cx - labelW / 2, cy - fontPx / 2, {
@@ -241,7 +237,7 @@ export default function paddingDemo({canvas, params}: {canvas: UiCanvas; params:
     description: "Тело card — рисуется line-by-line внутри inner-rect.",
     multiline: true,
     default:
-      "drawText / drawRect / hit / flex живут внутри inner-rect.\nbg + border рисуются по полному card-rect.",
+      "text / surface / hit / flex живут внутри inner-rect.\nbg + border рисуются по полному card-rect.",
   })
 
   params.group({title: "drawTextCentered demo"})

@@ -8,7 +8,7 @@
  * TEXT).
  */
 
-import {Card, type UiCanvas, palette, toneFill, toneBorder, Z, type Tone, divider} from "@metafor/ui"
+import {Card, type UiCanvas, palette, toneFill, toneBorder, Z, type Tone, divider, colorSwatch} from "@metafor/ui"
 import type {ParamsPanel} from "../params.ts"
 
 const PALETTE_KEYS: Array<keyof typeof palette> = [
@@ -78,11 +78,7 @@ class ThemeCard extends Card {
         break
       }
       const color = palette[key]
-      this.drawRect(PAD, y, sw, sw, color, Z.ELEMENT)
-      this.drawRect(PAD, y, sw, 1, palette.borderDim, Z.ELEMENT_RULE)
-      this.drawRect(PAD, y + sw - 1, sw, 1, palette.borderDim, Z.ELEMENT_RULE)
-      this.drawRect(PAD, y, 1, sw, palette.borderDim, Z.ELEMENT_RULE)
-      this.drawRect(PAD + sw - 1, y, 1, sw, palette.borderDim, Z.ELEMENT_RULE)
+      colorSwatch(this, PAD, y, sw, {color, z: Z.ELEMENT})
       this.drawText(key, PAD + sw + 10, y + (sw - 11) / 2, {
         fontPx: 11,
         material: this.materials.text,
@@ -115,8 +111,8 @@ class ThemeCard extends Card {
         material: this.materials.text,
         maxWidthPx: 120,
       })
-      this.drawRect(colX + 76, ty, sw, sw, toneFill(tone), Z.ELEMENT)
-      this.drawRect(colX + 76 + sw + 6, ty, sw, sw, toneBorder(tone), Z.ELEMENT)
+      colorSwatch(this, colX + 76, ty, sw, {color: toneFill(tone), z: Z.ELEMENT})
+      colorSwatch(this, colX + 76 + sw + 6, ty, sw, {color: toneBorder(tone), z: Z.ELEMENT})
       this.drawText("toneText", colX + 76 + sw * 2 + 16, ty, {
         fontPx: 11,
         material: this.materials.toneText(tone),
