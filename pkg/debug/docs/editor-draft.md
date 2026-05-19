@@ -40,8 +40,8 @@ This step does not change:
 - `bun run --filter @metafor/elements typecheck`
 - `bun run --filter @metafor/components typecheck`
 - `bun run --filter @metafor/bun-debug typecheck`
-- `bun test ui/elements/src`
-- `bun test ui/components/src`
+- `bun test ui/elements`
+- `bun test ui/components`
 - `bun test pkg/debug`
 
 Next step: diff/patch preview before any file write or target rerun flow.

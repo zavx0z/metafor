@@ -4,7 +4,7 @@
  * this file only keeps the low-level drawing path shared and allocation-light.
  */
 
-import {Z, type Card, type HitOptions, palette, radii, type Tone, toneBorder, toneFill} from "@metafor/elements"
+import {Z, type Card, type HitOptions, palette, type Tone, toneBorder, toneFill} from "@metafor/elements"
 import {Color, type TextMaterial} from "@metafor/engine"
 
 export type ButtonOpts = {
@@ -213,7 +213,7 @@ export function badge(card: Card, x: number, y: number, w: number, h: number, op
   const tone = opts.tone ?? "neutral"
   const fontPx = opts.fontPx ?? 11
   card.drawRoundedRect(x, y, w, h, {
-    radius: Math.min(radii.control, h / 2),
+    radius: Math.min(w, h) / 2,
     fill: toneFill(tone),
     border: toneBorder(tone),
     borderWidth: 1,
@@ -232,7 +232,7 @@ export function statusChip(card: Card, x: number, y: number, w: number, h: numbe
   const fontPx = opts.fontPx ?? 11
   const iconSize = Math.min(opts.iconSizePx ?? Math.max(12, h - 12), Math.max(1, h - 8))
   card.drawRoundedRect(x, y, w, h, {
-    radius: Math.min(radii.control, h / 2),
+    radius: Math.min(w, h) / 2,
     fill: toneFill(tone),
     border: toneBorder(tone),
     borderWidth: 1,
@@ -288,7 +288,7 @@ export function statusChip(card: Card, x: number, y: number, w: number, h: numbe
 export function input(card: Card, x: number, y: number, w: number, h: number, opts: InputOpts): void {
   const fontPx = opts.fontPx ?? 12
   card.drawRoundedRect(x, y, w, h, {
-    radius: Math.min(radii.control, h / 2),
+    radius: Math.min(w, h) / 2,
     fill: opts.active ? palette.bgHot : palette.bgInput,
     border: opts.active ? palette.cyan : palette.borderDim,
     borderWidth: 1,

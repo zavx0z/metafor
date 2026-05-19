@@ -66,7 +66,7 @@ export function div(card: Card, x: number, y: number, width: number, height: num
   const border = sx.borderColor === null ? null : sx.borderColor === undefined ? undefined : cssColor(sx.borderColor)
   const borderWidth = px(sx.borderWidth, 1)
   const radius = px(sx.borderRadius, Math.min(32, Math.min(width, height) / 2))
-  const z = sx.zIndex ?? Z.ELEMENT
+  const z = sx.zIndex ?? Z.CONTAINER
 
   if (fill !== null || border !== null) {
     const roundedOpts: {
@@ -187,13 +187,18 @@ export function img(
 
 export function button(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
   const sx = mergeStyle(props)
-  const hit = card.hitState(x, y, width, height)
+  const key = props.key ?? `button:${x}:${y}:${width}:${height}`
+  const hit = card.hitState(x, y, width, height, key)
   const state = props.disabled === true ? "disabled" : hit.pressed ? "active" : hit.hovered ? "hover" : "idle"
   const border = state === "disabled" ? "borderDim" : state === "idle" ? "border" : "cyan"
   const fill = state === "disabled" ? "bgPanelDim" : "glass"
+  const pressOffsetY = state === "active" ? 1 : 0
+  const pad = boxPadding(sx)
+
   div(card, x, y + (state === "active" ? 1 : 0), width, height - (state === "active" ? 1 : 0), {
     ...props,
-    key: props.key ?? `button:${x}:${y}:${width}:${height}`,
+    children: typeof props.children === "function" ? props.children : undefined,
+    key,
     sx: {
       ...sx,
       background: sx.background ?? fill,
@@ -201,8 +206,19 @@ export function button(card: Card, x: number, y: number, width: number, height: 
       borderRadius: sx.borderRadius ?? 999,
       color: sx.color ?? (state === "disabled" ? "muted" : "text"),
       fontSize: sx.fontSize ?? 12,
+      zIndex: sx.zIndex ?? Z.ELEMENT,
     },
   })
+
+  if (props.children !== false && props.children !== null && props.children !== undefined && typeof props.children !== "function") {
+    const fontSize = px(sx.fontSize, 12)
+    const maxWidth = Math.max(1, width - pad.left - pad.right)
+    card.drawTextCentered(String(props.children), x + width / 2, y + pressOffsetY + height / 2, {
+      fontPx: fontSize,
+      material: textMaterial(card, sx.color ?? (state === "disabled" ? "muted" : "text"), props.disabled === true),
+      maxWidthPx: maxWidth,
+    })
+  }
 }
 
 export function input(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps & {value?: string; active?: boolean}): void {

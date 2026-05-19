@@ -1,4 +1,4 @@
-import {div, h2, type Card as ElementHost, type SxProps} from "@metafor/elements"
+import {div, h2, Z, type Card as ElementHost, type SxProps} from "@metafor/elements"
 
 export type CardVariant = "glass" | "outlined" | "filled"
 export type CardProps = {
@@ -16,6 +16,7 @@ export function Card(host: ElementHost, x: number, y: number, width: number, hei
       borderColor: props.variant === "outlined" ? "borderBright" : "borderDim",
       borderRadius: 30,
       padding: 20,
+      zIndex: Z.CONTAINER,
       ...props.sx,
     },
   })
