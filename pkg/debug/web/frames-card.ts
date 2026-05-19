@@ -1,11 +1,15 @@
 /**
- * Frames card. Layout — flexRow/flexColumn + scrollList из @metafor/ui.
+ * Frames card. Layout — flexRow/flexColumn из @metafor/elements +
+ * scrollList из @metafor/components.
  */
 
 import {
-  Card, Z, flexRow, flexColumn, palette, radii, divider,
+  Card, Z, flexRow, flexColumn, palette, radii,
+} from "@metafor/elements"
+import {
+  Divider as divider,
   ScrollListState, scrollList,
-} from "@metafor/ui"
+} from "@metafor/components"
 import type {FrameSnapshot} from "./debug-ui.ts"
 import {t} from "./i18n.ts"
 

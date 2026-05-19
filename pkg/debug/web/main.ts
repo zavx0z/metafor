@@ -4,7 +4,8 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
-import {EditorCard, UiCanvas, sourcePathFromLocation, type CardRect, type EditorTokens} from "@metafor/ui"
+import {UiCanvas, type CardRect} from "@metafor/elements"
+import {EditorCard, sourcePathFromLocation, type EditorTokens} from "@metafor/components"
 import {applyInspectMode} from "../src/inspect-mode.ts"
 import {SourceCard, type Source, type SourceRuntimeState} from "./source-card.ts"
 import {ConsoleCard, type ConsoleEntry} from "./console-card.ts"

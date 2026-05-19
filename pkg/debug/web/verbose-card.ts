@@ -1,12 +1,15 @@
 /**
  * Verbose card на Card-системе. Список + autoscroll. Scroll-machinery
- * (state, wheel, render rows, scrollbar) — через scrollList из @metafor/ui.
+ * (state, wheel, render rows, scrollbar) — через @metafor/components.
  */
 
 import {
-  Card, palette, radii, uiIcons, button, divider,
+  Card, palette, radii, uiIcons,
+} from "@metafor/elements"
+import {
+  Button as button, Divider as divider,
   ScrollListState, scrollList,
-} from "@metafor/ui"
+} from "@metafor/components"
 import {t} from "./i18n.ts"
 
 type VerboseEntry = {

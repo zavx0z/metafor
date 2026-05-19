@@ -6,7 +6,7 @@ Debug UI now has a first safe draft-editing step on top of the shared editor lay
 
 - `SourceCard` remains the default paused-source viewer.
 - The toolbar can switch the central source area into `Edit Draft` mode.
-- `EditorCard` is imported from `@metafor/ui`, receives the current `/source` text and resolves highlighting by source path.
+- `EditorCard` is imported from `@metafor/components`, receives the current `/source` text and resolves highlighting by source path.
 - Draft state is held only in the browser process memory.
 - `Cmd/Ctrl+S` or the toolbar save action marks the draft as saved in memory and writes nothing to disk.
 - The toolbar exposes draft state as `clean`, `dirty`, `saved in memory`, or `no source`.
@@ -37,9 +37,11 @@ This step does not change:
 
 ## Verification
 
-- `bun run --filter @metafor/ui typecheck`
+- `bun run --filter @metafor/elements typecheck`
+- `bun run --filter @metafor/components typecheck`
 - `bun run --filter @metafor/bun-debug typecheck`
-- `bun test pkg/ui`
+- `bun test ui/elements/src`
+- `bun test ui/components/src`
 - `bun test pkg/debug`
 
 Next step: diff/patch preview before any file write or target rerun flow.

@@ -1,10 +1,11 @@
 /**
  * Toolbar — верхняя полоса. Card-system.
- * Кнопки и бейджи через widget-функции из @metafor/ui (одинаковый
- * look-and-feel с playground-демо).
+ * Низкий слой берётся из @metafor/elements, MUI-like контролы — из
+ * @metafor/components.
  */
 
-import {Card, palette, radii, uiIcons, button, statusChip} from "@metafor/ui"
+import {Card, palette, radii, uiIcons} from "@metafor/elements"
+import {Button as button, StatusChip as statusChip} from "@metafor/components"
 import type {BadgeKind, ToolbarActions, ToolbarState} from "./debug-ui.ts"
 import {getUiLocale, t} from "./i18n.ts"
 

@@ -9,9 +9,10 @@
 - `pkg/debug` — рабочий sidecar для Bun WebKit Inspector;
 - `pkg/debug/web/main.ts` — текущий debug UI;
 - `pkg/debug/web/source-card.ts` — карточка отображения source с текущей строкой исполнения;
-- `pkg/ui/src/editor-card.ts` — редактируемая карточка редактора;
-- `pkg/ui` — общий WebGPU UI слой;
-- `@metafor/ui` уже экспортирует `EditorCard`.
+- `ui/components/src/editor-card.ts` — редактируемая карточка редактора;
+- `ui/elements` — псевдо-HTML/CSS низкий WebGPU UI слой;
+- `ui/components` — MUI-like компоненты поверх элементов;
+- `@metafor/components` экспортирует `EditorCard`.
 
 Нужно сделать не “новый интерпретатор”, а первый аккуратный архитектурный шаг:
 привести UI/editor-слой в порядок и подготовить основу для будущего интерпретатора.
@@ -38,15 +39,17 @@
 - `pkg/debug/web/source-card.ts`
 - `pkg/debug/web/debug-ui.ts`
 - `pkg/debug/web/console-card.ts`
-- `pkg/ui/src/editor-card.ts`
-- `pkg/ui/src/card.ts`
-- `pkg/ui/src/widgets.ts`
-- `pkg/ui/src/theme.ts`
-- `pkg/ui/src/index.ts`
-- `pkg/ui/src/virtual-input.ts`
-- `pkg/ui/src/scroll-list.ts`
-- `pkg/ui/src/flex.ts`
-- `pkg/ui/src/flexCss.ts`
+- `ui/components/src/editor-card.ts`
+- `ui/elements/src/card.ts`
+- `ui/components/src/Button.ts`
+- `ui/components/src/Badge.ts`
+- `ui/components/src/TextField.ts`
+- `ui/elements/src/theme.ts`
+- `ui/elements/src/index.ts`
+- `ui/elements/src/virtual-input.ts`
+- `ui/components/src/scroll-list.ts`
+- `ui/elements/src/flex.ts`
+- `ui/elements/src/flexCss.ts`
 
 Нужно понять, какие части уже переиспользуемые, а какие сейчас завязаны только на debug UI.
 
@@ -64,7 +67,7 @@
 Отчёт положить в новый markdown-файл, например:
 
 ```text
-pkg/ui/docs/editor-layer.md
+ui/components/docs/editor-layer.md
 ````
 
 или, если в проекте логичнее другое место, выбери аккуратно.
@@ -78,7 +81,7 @@ pkg/ui/docs/editor-layer.md
 * кнопки сделать более аккуратными;
 * использовать rounded corners;
 * привести badges/buttons/input к единому стилю;
-* сделать визуал ближе к текущему качеству `@metafor/ui`;
+* сделать визуал ближе к текущему качеству `@metafor/elements` + `@metafor/components`;
 * улучшить читаемость toolbar / welcome / scopes / console;
 * не менять поведение команд.
 
@@ -90,21 +93,21 @@ pkg/ui/docs/editor-layer.md
 * не менять смысл кнопок;
 * не менять protocol между UI и server.
 
-Посмотреть текущие widget primitives в `pkg/ui/src/widgets.ts`.
-Если нужно — аккуратно улучшить именно primitives, чтобы весь UI стал лучше, а не править каждую кнопку вручную.
+Посмотреть текущие component renderers в `ui/components/src/internal/renderers.ts`.
+Если нужно — аккуратно улучшить именно базовые renderers, чтобы весь UI стал лучше, а не править каждую кнопку вручную.
 
 ## Задача 3. Подготовить editor package/layer
 
-Сейчас `EditorCard` лежит в `pkg/ui/src/editor-card.ts`.
+Сейчас `EditorCard` лежит в `ui/components/src/editor-card.ts`.
 Нужно аккуратно подготовить editor-слой.
 
 Не обязательно сразу создавать отдельный workspace package, если это приведёт к большим изменениям.
-Можно начать с внутренней структуры внутри `pkg/ui/src/editor/`.
+Можно начать с внутренней структуры внутри `ui/components/src/editor/`.
 
 Предпочтительный безопасный путь:
 
 ```text
-pkg/ui/src/editor/
+ui/components/src/editor/
   editor-card.ts
   source-view-card.ts или source-card-base.ts
   tokens.ts
@@ -117,14 +120,14 @@ pkg/ui/src/editor/
 Но если перенос файла создаёт слишком много каскадных правок — сначала можно оставить совместимый re-export:
 
 ```ts
-// pkg/ui/src/editor-card.ts
+// ui/components/src/editor-card.ts
 export * from "./editor/editor-card.ts"
 ```
 
 Главное — не сломать публичный импорт:
 
 ```ts
-import { EditorCard } from "@metafor/ui"
+import { EditorCard } from "@metafor/components"
 ```
 
 ## Задача 4. Разделить editor core и debug-specific source view
@@ -132,7 +135,7 @@ import { EditorCard } from "@metafor/ui"
 Сейчас есть две похожие вещи:
 
 * `pkg/debug/web/source-card.ts` — показывает source на остановке;
-* `pkg/ui/src/editor-card.ts` — редактирует текст.
+* `ui/components/src/editor-card.ts` — редактирует текст.
 
 Нужно аккуратно подумать и сделать первый шаг к общей базе:
 
@@ -202,9 +205,11 @@ export type LanguageHighlighter = {
 Запустить доступные проверки:
 
 ```sh
-bun run --filter @metafor/ui typecheck
+bun run --filter @metafor/elements typecheck
+bun run --filter @metafor/components typecheck
 bun run --filter @metafor/bun-debug typecheck
-bun test pkg/ui
+bun test ui/elements/src
+bun test ui/components/src
 bun test pkg/debug
 ```
 
@@ -235,7 +240,7 @@ bun test pkg/debug
 3. Подготовленная структура editor-слоя.
 4. Общий формат токенов подсветки.
 5. Минимальный модуль подсветки plaintext/typescript.
-6. Сохранённая совместимость `@metafor/ui`.
+6. Сохранённая работоспособность `@metafor/elements` и `@metafor/components`.
 7. Сохранённая работоспособность `@metafor/bun-debug`.
 
 ## Главная мысль

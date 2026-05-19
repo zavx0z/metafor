@@ -1,5 +1,5 @@
 /**
- * Scopes / Eval card на Card-системе. Widget'ы button/input/divider — из @metafor/ui.
+ * Scopes / Eval card на Card-системе. Controls — из @metafor/components.
  *
  * Верх — список scopes (group-headers + props). Низ — eval-секция: лейбл,
  * input expression, Run button, output. evalTop = граница между ними,
@@ -8,9 +8,12 @@
 
 import {TextMaterial} from "@metafor/engine"
 import {
-  Card, palette, radii, uiIcons, button, input, divider, scrollList,
+  Card, palette, radii, uiIcons,
+} from "@metafor/elements"
+import {
+  Button as button, TextField as input, Divider as divider, scrollList,
   ScrollListState,
-} from "@metafor/ui"
+} from "@metafor/components"
 import type {FrameSnapshot, PropertySnapshot, ScopeSnapshot} from "./debug-ui.ts"
 import {t} from "./i18n.ts"
 

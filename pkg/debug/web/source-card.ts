@@ -16,7 +16,9 @@ import {
   Z,
   palette,
   radii,
-  scrollbar,
+} from "@metafor/elements"
+import {
+  Scrollbar as scrollbar,
   ScrollListState,
   createEditorTokenMaterials,
   renderEditorTokenizedLine,
@@ -25,7 +27,7 @@ import {
   type EditorToken,
   type EditorTokens,
   type EditorTokenMaterialMap,
-} from "@metafor/ui"
+} from "@metafor/components"
 import {t} from "./i18n.ts"
 
 export type SyntaxToken = EditorToken

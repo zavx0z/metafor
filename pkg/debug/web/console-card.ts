@@ -1,12 +1,13 @@
 /**
- * ConsoleCard — append-only target log on the shared @metafor/ui Card system.
+ * ConsoleCard — append-only target log on the shared @metafor/elements Card system.
  *
  * It deliberately uses the same Card chrome, clipping, text measurement and
- * scrollbar primitives as SourceCard so the source/console stack aligns as one
+ * scrollbar component renderer as SourceCard so the source/console stack aligns as one
  * UI surface.
  */
 
-import {Card, Z, edgeFade, palette, radii, scrollbar} from "@metafor/ui"
+import {Card, Z, palette, radii} from "@metafor/elements"
+import {edgeFade, Scrollbar as scrollbar} from "@metafor/components"
 import {t} from "./i18n.ts"
 
 export type ConsoleEntry = {

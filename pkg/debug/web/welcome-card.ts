@@ -1,11 +1,13 @@
 /**
- * Welcome card на Card-системе. Widget'ы button/badge/input — из @metafor/ui.
+ * Welcome card на Card-системе: layout из @metafor/elements, controls из
+ * @metafor/components.
  *
  * Stack: title + status panel + target/inspector panels.
  * Все координаты — pixel от card-TL, никаких эстимейтов.
  */
 
-import {Card, Z, palette, radii, uiIcons, button, input} from "@metafor/ui"
+import {Card, Z, palette, radii, uiIcons} from "@metafor/elements"
+import {Button as button, TextField as input} from "@metafor/components"
 import type {WelcomeActions, WelcomeState} from "./debug-ui.ts"
 import {localizeSystemText, t} from "./i18n.ts"
 
