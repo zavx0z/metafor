@@ -146,12 +146,6 @@ class ButtonCard extends Card {
       borderWidth: 1,
       z: Z.ELEMENT,
     })
-    this.drawRoundedRect(x + 1, y + 1, w - 2, 18, {
-      radius: 9,
-      fill: new Color(1, 1, 1, 0.075),
-      border: null,
-      z: Z.ELEMENT_RULE,
-    })
     this.drawText("Event visualization", x + 14, y + 12, {
       fontPx: 12,
       material: this.materials.cyan,
