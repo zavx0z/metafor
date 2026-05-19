@@ -10,8 +10,6 @@ import cardDemo from "./demos/card.ts"
 import flexDemo from "./demos/flex.ts"
 import flexCssDemo from "./demos/flex-css.ts"
 import buttonDemo from "./demos/button.ts"
-import roundedButtonDemo from "./demos/rounded-button.ts"
-import circleButtonDemo from "./demos/circle-button.ts"
 import badgeDemo from "./demos/badge.ts"
 import inputDemo from "./demos/input.ts"
 import dividerDemo from "./demos/divider.ts"
@@ -53,8 +51,6 @@ const nav: NavGroup[] = [
     title: "Components",
     entries: [
       {slug: "button", label: "Button", demo: buttonDemo},
-      {slug: "rounded-button", label: "Rounded Button", demo: roundedButtonDemo},
-      {slug: "circle-button", label: "Circle Button", demo: circleButtonDemo},
       {slug: "badge", label: "Badge", demo: badgeDemo},
       {slug: "input", label: "Input", demo: inputDemo},
       {slug: "divider", label: "Divider", demo: dividerDemo},

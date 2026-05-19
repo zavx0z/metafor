@@ -7,9 +7,9 @@
  * "draw-this-thing-here" утилиты с консистентным look-and-feel.
  */
 
-import {Z, type Card} from "./card.ts"
+import {Z, type Card, type HitOptions} from "./card.ts"
 import {palette, radii, type Tone, toneBorder, toneFill} from "./theme.ts"
-import type {Color} from "@metafor/engine"
+import {Color, type TextMaterial} from "@metafor/engine"
 
 export type ButtonOpts = {
   label: string
@@ -20,9 +20,23 @@ export type ButtonOpts = {
   tooltipDelayMs?: number
   tone?: Tone
   fontPx?: number
+  /** border-radius в px. Default = min(w,h)/2 (capsule). */
+  radius?: number
+  /** Override фона (вместо toneFill). */
+  fill?: Color
+  /** Override рамки (вместо toneBorder). */
+  border?: Color
+  /** Override TextMaterial для лейбла (вместо tone-палитры). */
+  textMaterial?: TextMaterial
   disabled?: boolean
+  onHover?: () => void
+  onLeave?: () => void
+  onPress?: () => void
+  onRelease?: () => void
   action(): void
 }
+
+type ButtonVisualState = "idle" | "hover" | "active" | "disabled"
 
 export type BadgeOpts = {
   label: string
@@ -57,17 +71,15 @@ export function button(card: Card, x: number, y: number, w: number, h: number, o
   const tone = opts.tone ?? "neutral"
   const fontPx = opts.fontPx ?? 12
   const disabled = opts.disabled === true
-  const fill = disabled ? palette.bgPanel : toneFill(tone)
-  const borderColor = disabled ? palette.borderDim : toneBorder(tone)
-  const textMaterial = disabled ? card.materials.muted : card.materials.toneText(tone)
-  const radius = Math.min(radii.control, h / 2)
-  card.drawRoundedRect(x, y, w, h, {
-    radius,
-    fill,
-    border: borderColor,
-    borderWidth: 1,
-    z: Z.ELEMENT,
-  })
+  const state = resolveButtonState(card, x, y, w, h, disabled)
+  const baseFill = opts.fill ?? toneFill(tone)
+  const baseBorder = opts.border ?? toneBorder(tone)
+  const fill = buttonFill(baseFill, baseBorder, state)
+  const borderColor = buttonBorder(baseBorder, state)
+  const textMaterial = disabled ? card.materials.muted : opts.textMaterial ?? card.materials.toneText(tone)
+  const radius = Math.min(opts.radius ?? Math.min(w, h) / 2, Math.min(w, h) / 2)
+  const pressOffsetY = state === "active" ? 1 : 0
+  drawButtonSurface(card, x, y + pressOffsetY, w, h - pressOffsetY, radius, fill, borderColor, state)
 
   if (opts.iconSrc !== undefined && opts.iconSrc.length > 0) {
     const iconSize = Math.min(opts.iconSizePx ?? Math.max(14, h - 12), Math.max(1, h - 8), Math.max(1, w - 8))
@@ -76,7 +88,7 @@ export function button(card: Card, x: number, y: number, w: number, h: number, o
     const gap = showLabel ? 7 : 0
     const contentW = Math.min(w - 8, iconSize + gap + labelW)
     let cx = x + (w - contentW) / 2
-    card.drawImage(opts.iconSrc, cx, y + (h - iconSize) / 2, iconSize, iconSize, {
+    card.drawImage(opts.iconSrc, cx, y + pressOffsetY + (h - iconSize) / 2, iconSize, iconSize, {
       fit: "contain",
       opacity: disabled ? 0.36 : 0.95,
       z: Z.TEXT,
@@ -84,43 +96,21 @@ export function button(card: Card, x: number, y: number, w: number, h: number, o
     cx += iconSize + gap
     if (showLabel) {
       const available = Math.max(1, x + w - 5 - cx)
-      card.drawText(opts.label, cx, y + (h - fontPx) / 2, {
+      card.drawText(opts.label, cx, y + pressOffsetY + (h - fontPx) / 2, {
         fontPx,
         material: textMaterial,
         maxWidthPx: available,
       })
     }
   } else {
-    card.drawTextCentered(opts.label, x + w / 2, y + h / 2, {
+    card.drawTextCentered(opts.label, x + w / 2, y + pressOffsetY + h / 2, {
       fontPx,
       material: textMaterial,
       maxWidthPx: w - 6,
     })
   }
   const tooltipLabel = opts.tooltip ?? (opts.iconOnly === true ? opts.label : "")
-  if (disabled) {
-    if (tooltipLabel.length > 0) {
-      card.hit(x, y, w, h, () => {}, "default", {label: tooltipLabel, delayMs: opts.tooltipDelayMs ?? 450})
-      card.drawTooltipForHit(
-        x,
-        y,
-        w,
-        h,
-        tooltipLabel,
-        opts.tooltipDelayMs === undefined ? {} : {delayMs: opts.tooltipDelayMs},
-      )
-    }
-    return
-  }
-  card.hit(
-    x,
-    y,
-    w,
-    h,
-    opts.action,
-    "pointer",
-    tooltipLabel.length > 0 ? {label: tooltipLabel, delayMs: opts.tooltipDelayMs ?? 450} : undefined,
-  )
+  card.hit(x, y, w, h, opts.action, buttonHitOptions(opts, tooltipLabel))
   if (tooltipLabel.length > 0) {
     card.drawTooltipForHit(
       x,
@@ -133,111 +123,88 @@ export function button(card: Card, x: number, y: number, w: number, h: number, o
   }
 }
 
-export type RoundedButtonOpts = ButtonOpts & {
-  /** border-radius в px. h/2 даёт capsule-форму. Default = min(w,h)/2 (capsule). */
-  radius?: number
-  /** Override фона (вместо toneFill). */
-  fill?: Color
-  /** Override рамки (вместо toneBorder). */
-  border?: Color
-  /** Override TextMaterial для лейбла (вместо tone-палитры). */
-  textMaterial?: import("@metafor/engine").TextMaterial
+function resolveButtonState(card: Card, x: number, y: number, w: number, h: number, disabled: boolean): ButtonVisualState {
+  if (disabled) return "disabled"
+  const state = card.hitState(x, y, w, h)
+  if (state.pressed) return "active"
+  if (state.hovered) return "hover"
+  return "idle"
 }
 
-export type CircleButtonOpts = {
-  label: string
-  tone?: Tone
-  fontPx?: number
-  /** Дополнительный цвет рамки/заливки (override toneBorder/toneFill). */
-  fill?: Color
-  border?: Color
-  textColor?: Color
-  /**
-   * Сдвиг текстового лейбла по Y в долях fontPx. drawText располагает текст
-   * по top-of-cap, а не по визуальному центру глифа: для математических
-   * символов ("+", "−") и guillemets ("‹", "›") визуальный центр обычно
-   * выше центра cap-box, поэтому полезно сместить лейбл на -0.05..-0.12.
-   * Default 0 (центр cap-box).
-   */
-  labelOffsetY?: number
-  action(): void
+function buttonHitOptions(opts: ButtonOpts, tooltipLabel: string): HitOptions {
+  const hit: HitOptions = {
+    cursor: "pointer",
+    disabled: opts.disabled === true,
+  }
+  if (tooltipLabel.length > 0) hit.tooltip = {label: tooltipLabel, delayMs: opts.tooltipDelayMs ?? 450}
+  if (opts.onHover !== undefined) hit.onPointerEnter = opts.onHover
+  if (opts.onLeave !== undefined) hit.onPointerLeave = opts.onLeave
+  if (opts.onPress !== undefined) hit.onPointerDown = opts.onPress
+  if (opts.onRelease !== undefined) hit.onPointerUp = opts.onRelease
+  return hit
 }
 
-/**
- * Кнопка с border-radius. Под капотом — Card.drawRoundedRect с SDF-материалом
- * в шейдере: один меш на всю кнопку, идеальное AA на углах независимо от dpr.
- */
-export function roundedButton(
+function buttonFill(fill: Color, border: Color, state: ButtonVisualState): Color {
+  if (state === "disabled") return withAlpha(mixColor(palette.bgPanel, palette.bgElevated, 0.28), 0.58)
+  const frost = mixColor(palette.bgElevated, palette.text, 0.10)
+  const glass = mixColor(frost, fill, 0.38)
+  const tint = state === "active" ? 0.40 : state === "hover" ? 0.30 : 0.20
+  const alpha = state === "active" ? 0.96 : state === "hover" ? 0.90 : 0.80
+  return withAlpha(mixColor(glass, border, tint), alpha)
+}
+
+function buttonBorder(border: Color, state: ButtonVisualState): Color {
+  if (state === "disabled") return withAlpha(palette.borderDim, 0.62)
+  const lift = state === "active" ? 0.52 : state === "hover" ? 0.40 : 0.26
+  const alpha = state === "idle" ? 0.78 : 1
+  return withAlpha(mixColor(border, palette.text, lift), alpha)
+}
+
+function drawButtonSurface(
   card: Card,
   x: number,
   y: number,
   w: number,
   h: number,
-  opts: RoundedButtonOpts,
+  radius: number,
+  fill: Color,
+  border: Color,
+  state: ButtonVisualState,
 ): void {
-  const tone = opts.tone ?? "neutral"
-  const fontPx = opts.fontPx ?? 12
-  const fill = opts.fill ?? toneFill(tone)
-  const borderColor = opts.border ?? toneBorder(tone)
-  const textMat = opts.textMaterial ?? card.materials.toneText(tone)
-  const r = Math.min(opts.radius ?? Math.min(w, h) / 2, Math.min(w, h) / 2)
-
-  card.drawRoundedRect(x, y, w, h, {
-    radius: r,
-    fill,
-    border: borderColor,
-    borderWidth: 1,
-    z: Z.ELEMENT,
-  })
-
-  // drawTextCentered — bbox-aware центровка. maxWidthPx = w - небольшой
-  // safe-padding от каждого края (а не w - 2r, что обрезало бы текст до
-  // прямой части capsule, что слишком жёстко: текст хорошо помещается до
-  // самих кромок благодаря центру и rounded углам).
-  const safePadH = Math.min(r, 8)
-  card.drawTextCentered(opts.label, x + w / 2, y + h / 2, {
-    fontPx,
-    material: textMat,
-    maxWidthPx: w - safePadH * 2,
-  })
-  card.hit(x, y, w, h, opts.action, "pointer")
-}
-
-/**
- * Полностью круглая кнопка. (cx, cy) — центр в card-px, r — радиус.
- * Hit-rect — описанный квадрат (для простоты; расхождения внутри 4 угловых
- * квадратиков не страшны для tap-gestures). Круг = rounded rect с radius=r.
- */
-export function circleButton(card: Card, cx: number, cy: number, r: number, opts: CircleButtonOpts): void {
-  const tone = opts.tone ?? "neutral"
-  const fontPx = opts.fontPx ?? Math.max(10, Math.round(r * 0.9))
-  const fill = opts.fill ?? toneFill(tone)
-  const borderColor = opts.border ?? toneBorder(tone)
-  card.drawRoundedRect(cx - r, cy - r, r * 2, r * 2, {
-    radius: r,
-    fill,
-    border: borderColor,
-    borderWidth: 1,
-    z: Z.ELEMENT,
-  })
-  // drawTextCentered учитывает реальный bbox глифа (yMin/yMax из getGlyphBounds),
-  // поэтому "+", "−", "‹", "›" и прочие non-cap-letter глифы тоже центрируются
-  // визуально, а не по cap-box. labelOffsetY игнорируется как deprecated;
-  // оставляем как опт-out: если задан, используется старая cap-box-центровка.
-  if (opts.labelOffsetY !== undefined) {
-    const labelW = card.measureText(opts.label, fontPx)
-    const offsetY = opts.labelOffsetY * fontPx
-    card.drawText(opts.label, cx - labelW / 2, cy - fontPx / 2 + offsetY, {
-      fontPx,
-      material: card.materials.toneText(tone),
-    })
-  } else {
-    card.drawTextCentered(opts.label, cx, cy, {
-      fontPx,
-      material: card.materials.toneText(tone),
+  if (w <= 0 || h <= 0) return
+  const disabled = state === "disabled"
+  if (!disabled && state !== "idle") {
+    card.drawRoundedRect(x - 2, y - 2, w + 4, h + 4, {
+      radius: radius + 2,
+      fill: withAlpha(border, state === "hover" ? 0.16 : 0.10),
+      border: null,
+      z: Z.ELEMENT - 0.00001,
     })
   }
-  card.hit(cx - r, cy - r, r * 2, r * 2, opts.action, "pointer")
+
+  card.drawRoundedRect(x, y, w, h, {
+    radius,
+    fill,
+    border,
+    borderWidth: disabled ? 0.75 : 1,
+    z: Z.ELEMENT,
+  })
+
+  // Keep the idle surface to one rounded rect; hover/active already get one aura layer.
+}
+
+function mixColor(a: Color, b: Color, t: number): Color {
+  const k = Math.min(1, Math.max(0, t))
+  return new Color(
+    a.r + (b.r - a.r) * k,
+    a.g + (b.g - a.g) * k,
+    a.b + (b.b - a.b) * k,
+    a.a + (b.a - a.a) * k,
+  )
+}
+
+function withAlpha(color: Color, alpha: number): Color {
+  return new Color(color.r, color.g, color.b, Math.min(1, Math.max(0, alpha)))
 }
 
 // Старые strip-loop утилиты (drawRoundedFill / drawRoundedBorder / drawDisc /

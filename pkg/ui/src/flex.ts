@@ -19,9 +19,9 @@
  *     alignItems: "center",
  *     gap: 12,
  *     items: [
- *       {width: 32, height: 32, draw: (x, y, w, h) => circleButton(this, ...)},
+ *       {width: 32, height: 32, draw: (x, y, w, h) => button(this, x, y, w, h, {label: "‹", radius: w / 2, action})},
  *       {width: "grow", height: 0, draw: () => {}},     // spacer
- *       {width: 32, height: 32, draw: (x, y, w, h) => circleButton(this, ...)},
+ *       {width: 32, height: 32, draw: (x, y, w, h) => button(this, x, y, w, h, {label: "›", radius: w / 2, action})},
  *     ],
  *   })
  *

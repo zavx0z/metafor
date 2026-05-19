@@ -34,7 +34,7 @@ import {Color, TextMaterial} from "@metafor/engine"
 import type {UiCanvas} from "./canvas.ts"
 import {Card} from "./card.ts"
 import {flexRow} from "./flex.ts"
-import {autoButtonWidth, roundedButton} from "./widgets.ts"
+import {autoButtonWidth, button} from "./widgets.ts"
 
 export interface NotiAction {
   label: string
@@ -250,7 +250,7 @@ class NotificationCard extends Card {
                 width: secondaryW,
                 height: L.btnH,
                 draw: (bx, by, bw, bh) =>
-                  roundedButton(this, bx, by, bw, bh, {
+                  button(this, bx, by, bw, bh, {
                     label: n.secondary!.label,
                     fontPx: L.btnFontPx,
                     fill: panel,
@@ -265,7 +265,7 @@ class NotificationCard extends Card {
                 width: primaryW,
                 height: L.btnH,
                 draw: (bx, by, bw, bh) =>
-                  roundedButton(this, bx, by, bw, bh, {
+                  button(this, bx, by, bw, bh, {
                     label: n.primary!.label,
                     fontPx: L.btnFontPx,
                     fill: accent,

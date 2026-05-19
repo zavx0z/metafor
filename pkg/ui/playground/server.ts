@@ -61,8 +61,6 @@ const server = Bun.serve({
     "/text-block": index,
     "/image": index,
     "/button": index,
-    "/rounded-button": index,
-    "/circle-button": index,
     "/badge": index,
     "/input": index,
     "/divider": index,
@@ -120,8 +118,6 @@ console.log(`  Media:`)
 console.log(`    /image            → drawImage + setBackgroundImage`)
 console.log(`  Components:`)
 console.log(`    /button           → button widget`)
-console.log(`    /rounded-button   → roundedButton widget`)
-console.log(`    /circle-button    → circleButton widget`)
 console.log(`    /badge            → badge widget`)
 console.log(`    /input            → input widget`)
 console.log(`    /divider          → divider widget`)

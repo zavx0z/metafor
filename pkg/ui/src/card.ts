@@ -44,8 +44,7 @@
  *             {width: 120, height: 32, draw: (x,y,w,h) =>
  *               button(this, x, y, w, h, {label: "Save", action})},
  *             {width: 32,  height: 32, draw: (x,y,w,h) =>
- *               circleButton(this, x + w/2, y + h/2, Math.min(w,h)/2,
- *                 {label: "+", action})},
+ *               button(this, x, y, w, h, {label: "+", radius: Math.min(w,h)/2, action})},
  *           ],
  *         })
  *       }
@@ -77,14 +76,36 @@ export type HitBox = {
   y: number
   w: number
   h: number
+  key: string
   action(): void
   cursor: string
   tooltip?: TooltipHit
+  disabled?: boolean
+  onPointerEnter?: () => void
+  onPointerLeave?: () => void
+  onPointerDown?: () => void
+  onPointerUp?: () => void
 }
 
 export type TooltipHit = {
   label: string
   delayMs: number
+}
+
+export type HitOptions = {
+  cursor?: string
+  tooltip?: TooltipHit
+  disabled?: boolean
+  key?: string
+  onPointerEnter?: () => void
+  onPointerLeave?: () => void
+  onPointerDown?: () => void
+  onPointerUp?: () => void
+}
+
+export type HitState = {
+  hovered: boolean
+  pressed: boolean
 }
 
 export type CardPadding = number | {top?: number; right?: number; bottom?: number; left?: number}
@@ -242,6 +263,8 @@ export abstract class Card implements UiCard {
   #hits: HitBox[] = []
   protected hoveredHit: HitBox | null = null
   protected pressedHit: HitBox | null = null
+  #hoveredHitKey: string | null = null
+  #pressedHitKey: string | null = null
   #hoverTooltipKey: string | null = null
   #hoverTooltipSince = 0
   #hoverTooltipDelayMs = 0
@@ -656,10 +679,47 @@ export abstract class Card implements UiCard {
     return w
   }
 
+  /** Текущее pointer-состояние hit-rect'а. Нужно immediate-mode виджетам. */
+  hitState(x: number, y: number, w: number, h: number, key?: string): HitState {
+    const hitKey = key ?? hitKeyFor(x, y, w, h)
+    return {
+      hovered: this.#hoveredHitKey === hitKey,
+      pressed: this.#pressedHitKey === hitKey,
+    }
+  }
+
   /** Регистрирует hit-rect в card-px coords. Поздние побеждают. */
-  hit(x: number, y: number, w: number, h: number, action: () => void, cursor = "pointer", tooltip?: TooltipHit): void {
-    const hit: HitBox = {x, y, w, h, action, cursor}
-    if (tooltip !== undefined) hit.tooltip = tooltip
+  hit(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    action: () => void,
+    cursorOrOptions: string | HitOptions = "pointer",
+    tooltip?: TooltipHit,
+  ): void {
+    const options: HitOptions =
+      typeof cursorOrOptions === "string"
+        ? tooltip === undefined
+          ? {cursor: cursorOrOptions}
+          : {cursor: cursorOrOptions, tooltip}
+        : cursorOrOptions
+    const disabled = options.disabled === true
+    const hit: HitBox = {
+      x,
+      y,
+      w,
+      h,
+      key: options.key ?? hitKeyFor(x, y, w, h),
+      action,
+      cursor: disabled ? "not-allowed" : options.cursor ?? "pointer",
+    }
+    if (options.tooltip !== undefined) hit.tooltip = options.tooltip
+    if (disabled) hit.disabled = true
+    if (options.onPointerEnter !== undefined) hit.onPointerEnter = options.onPointerEnter
+    if (options.onPointerLeave !== undefined) hit.onPointerLeave = options.onPointerLeave
+    if (options.onPointerDown !== undefined) hit.onPointerDown = options.onPointerDown
+    if (options.onPointerUp !== undefined) hit.onPointerUp = options.onPointerUp
     this.#hits.push(hit)
   }
 
@@ -671,7 +731,7 @@ export abstract class Card implements UiCard {
     // (после сдвига на padding) — субтрагируем padLeft/padTop.
     const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     this.canvas.canvas.style.cursor = hit?.cursor ?? "default"
-    this.hoveredHit = hit
+    this.#setHoveredHit(hit)
     const nextTooltipKey = hit?.tooltip === undefined ? null : tooltipKey(hit.x, hit.y, hit.w, hit.h, hit.tooltip.label)
     if (nextTooltipKey !== this.#hoverTooltipKey) this.#setHoverTooltip(hit)
   }
@@ -679,19 +739,37 @@ export abstract class Card implements UiCard {
   onPointerDown(_event: MouseEvent, localX: number, localY: number): void {
     const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     if (hit === null) return
+    if (hit.disabled === true) return
     this.pressedHit = hit
-    hit.action()
+    this.#pressedHitKey = hit.key
+    hit.onPointerDown?.()
+    this.requestRender()
   }
 
-  onPointerUp(_event: MouseEvent, _localX: number, _localY: number): void {
-    if (this.pressedHit === null) return
+  onPointerUp(_event: MouseEvent, localX: number, localY: number): void {
+    const pressed = this.pressedHit
+    if (pressed === null) return
+    const releaseHit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     this.pressedHit = null
+    this.#pressedHitKey = null
+    pressed.onPointerUp?.()
+    if (releaseHit?.key === pressed.key && pressed.disabled !== true) {
+      pressed.action()
+    }
+    this.requestRender()
+  }
+
+  onPointerLeave(): void {
+    this.#setHoveredHit(null)
+    this.#setHoverTooltip(null)
+    if (this.canvas !== null) this.canvas.canvas.style.cursor = "default"
   }
 
   onDeactivate(): void {
     if (this.canvas !== null) this.canvas.canvas.style.cursor = "default"
-    this.hoveredHit = null
+    this.#setHoveredHit(null)
     this.pressedHit = null
+    this.#pressedHitKey = null
     this.#setHoverTooltip(null)
   }
 
@@ -938,6 +1016,19 @@ export abstract class Card implements UiCard {
     this.requestRender()
   }
 
+  #setHoveredHit(hit: HitBox | null): void {
+    if (this.hoveredHit?.key === hit?.key) {
+      this.hoveredHit = hit
+      this.#hoveredHitKey = hit?.key ?? null
+      return
+    }
+    this.hoveredHit?.onPointerLeave?.()
+    this.hoveredHit = hit
+    this.#hoveredHitKey = hit?.key ?? null
+    hit?.onPointerEnter?.()
+    this.requestRender()
+  }
+
   #clearLayer(layer: Object3D = this.#layer): void {
     const renderer = this.canvas?.renderer
     for (const obj of layer.children) {
@@ -1057,6 +1148,10 @@ function textBlockPadding(opts: DrawTextBlockOpts): {top: number; right: number;
 
 function tooltipKey(x: number, y: number, w: number, h: number, label: string): string {
   return `${Math.round(x)}:${Math.round(y)}:${Math.round(w)}:${Math.round(h)}:${label}`
+}
+
+function hitKeyFor(x: number, y: number, w: number, h: number): string {
+  return `${Math.round(x)}:${Math.round(y)}:${Math.round(w)}:${Math.round(h)}`
 }
 
 function normaliseTextBlockLines(value: string | readonly string[], upper: boolean): string[] {

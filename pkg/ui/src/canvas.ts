@@ -34,6 +34,7 @@ export interface UiCard {
   onPointerMove?(event: MouseEvent, localX: number, localY: number): void
   onPointerDown?(event: MouseEvent, localX: number, localY: number): void
   onPointerUp?(event: MouseEvent, localX: number, localY: number): void
+  onPointerLeave?(): void
   onActivate?(): void
   onDeactivate?(): void
   dispose?(): void
@@ -91,6 +92,7 @@ export class UiCanvas {
   #renderRequested = false
   #rafId: number | null = null
   #pressedSlot: CardSlot | null = null
+  #hoveredSlot: CardSlot | null = null
   readonly #handleWheel = (event: WheelEvent): void => this.#onWheel(event)
   readonly #handleMouseMove = (event: MouseEvent): void => this.#onMouseMove(event)
   readonly #handleMouseDown = (event: MouseEvent): void => this.#onMouseDown(event)
@@ -206,6 +208,7 @@ export class UiCanvas {
     window.removeEventListener("mouseup", this.#handleMouseUp)
     this.setFocused(null)
     this.#pressedSlot = null
+    this.#hoveredSlot = null
     this.inputProxy?.dispose()
     for (const slot of this.#cards) slot.card.dispose?.()
     this.#cards.length = 0
@@ -273,6 +276,10 @@ export class UiCanvas {
   #onMouseMove(event: MouseEvent): void {
     const {x, y} = this.#localCoords(event)
     const slot = this.#cardAt(x, y)
+    if (slot !== this.#hoveredSlot) {
+      this.#hoveredSlot?.card.onPointerLeave?.()
+      this.#hoveredSlot = slot ?? null
+    }
     if (slot === undefined) {
       this.canvas.style.cursor = "default"
       return
@@ -322,6 +329,8 @@ export class UiCanvas {
     // Не сбрасываем focus — пользователь может уйти мышью на toolbar/iframe
     // и продолжать набирать. Focus снимается только новым mousedown.
     this.canvas.style.cursor = "default"
+    this.#hoveredSlot?.card.onPointerLeave?.()
+    this.#hoveredSlot = null
   }
 
   #onKey(event: KeyboardEvent): void {
