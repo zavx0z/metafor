@@ -1,4 +1,4 @@
-import {Element, UiCanvas, flexColumn, h2, h3, p, palette, span, uiIcons} from "@metafor/elements"
+import {Element, UiCanvas, flexColumn, flexRow, h2, h3, p, palette, span, uiIcons} from "@metafor/elements"
 import {Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Card, Divider} from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
@@ -10,11 +10,20 @@ type ButtonWidth = "compact" | "regular" | "wide"
 type ButtonHeight = "compact" | "regular" | "large"
 type BasicButtonType = "Text button" | "Contained button" | "Outlined button"
 type ButtonRouteVariant = "text" | "contained" | "outlined"
-type ButtonRoute = "button/basic" | `button/basic/${ButtonRouteVariant}` | "button/sizes" | `button/sizes/${ButtonSize}` | "button/color" | `button/color/${ButtonColor}`
-type ButtonSection = "Basic" | "Sizes" | "Color"
+type ButtonRouteIcon = "svg"
+type ButtonRoute =
+  | "button/basic"
+  | `button/basic/${ButtonRouteVariant}`
+  | "button/sizes"
+  | `button/sizes/${ButtonSize}`
+  | "button/color"
+  | `button/color/${ButtonColor}`
+  | "button/icon"
+  | `button/icon/${ButtonRouteIcon}`
+type ButtonSection = "Basic" | "Sizes" | "Color" | "Icon"
 
 const BASIC_BUTTON_TYPES: readonly BasicButtonType[] = ["Text button", "Contained button", "Outlined button"]
-const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Sizes", "Color"]
+const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Sizes", "Color", "Icon"]
 const BUTTON_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error", "neutral"]
 const BUTTON_DOC_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error"]
 const BUTTON_SIZES: readonly ButtonSize[] = ["small", "medium", "large"]
@@ -33,6 +42,8 @@ const BUTTON_ROUTES: readonly ButtonRoute[] = [
   "button/color/warning",
   "button/color/error",
   "button/color/neutral",
+  "button/icon",
+  "button/icon/svg",
 ]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
 const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
@@ -61,6 +72,8 @@ class ButtonComponentsScreen extends Element {
   #tooltip = false
   #width: ButtonWidth = "regular"
   #height: ButtonHeight = "regular"
+  #customSvgSource: string | null = null
+  #customSvgName = "custom.svg"
   #eventCount = 0
 
   constructor() {
@@ -190,7 +203,11 @@ class ButtonComponentsScreen extends Element {
     })
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    if (this.#routeSection() === "Color") {
+    if (this.#routeSection() === "Icon") {
+      const icon = this.#routeIcon()
+      if (icon === "svg") this.#iconSvgDetail(x, y, w, h)
+      else this.#iconOverview(x, y, w, h)
+    } else if (this.#routeSection() === "Color") {
       const color = this.#routeColor()
       if (color === null) this.#colorOverview(x, y, w, h)
       else this.#colorDetail(x, y, w, h, color)
@@ -508,6 +525,142 @@ class ButtonComponentsScreen extends Element {
     codeBlock(this, codeX, rows.codeY, codeW, codeLines)
   }
 
+  #iconOverview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const codeLines = [
+      'const atomSvg = svgDataUrl("<svg ... />")',
+      'Button(host, x, y, size, size, {',
+      '  label: "Atom", iconSrc: atomSvg, iconOnly: true, variant: "text", color, size })',
+    ]
+    const demoH = iconSvgMatrixHeight()
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, "Icon button", [
+      "Icon buttons use the same Button API with iconOnly and iconSrc.",
+      "The default icon is shown across colors and sizes.",
+    ])
+
+    this.#iconSvgMatrix(x + pad, rows.demoY, w - pad * 2, demoH)
+
+    const codeW = Math.min(520, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #iconSvgDetail(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const codeLines = [
+      'const customSvg = svgDataUrl("<svg ... />")',
+      'Button(host, x, y, size, size, {',
+      '  label: "Upload SVG", iconSrc: customSvg, iconOnly: true, color, size })',
+    ]
+    const demoH = iconSvgMatrixHeight()
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, "SVG icon button", [
+      "Custom SVG sources are passed through iconSrc.",
+      "The same icon button is shown across colors and sizes.",
+    ])
+
+    this.#iconSvgMatrix(x + pad, rows.demoY, w - pad * 2, demoH)
+
+    const codeW = Math.min(520, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #iconSvgMatrix(x: number, y: number, w: number, h: number): void {
+    const headerRowH = 18
+    const rowH = sizeButtonHeight("large")
+    const rowGap = 12
+    flexColumn({
+      x,
+      y,
+      w,
+      h,
+      gap: rowGap,
+      justifyContent: "center",
+      items: [
+        {height: headerRowH, draw: (rowX, rowY, rowW, rowHeight) => this.#iconSizeHeader(rowX, rowY, rowW, rowHeight)},
+        ...BUTTON_DOC_COLORS.map((color) => ({
+          height: rowH,
+          draw: (rowX: number, rowY: number, rowW: number, rowHeight: number) => this.#iconSvgRow(rowX, rowY, rowW, rowHeight, color),
+        })),
+      ],
+    })
+  }
+
+  #iconSizeHeader(x: number, y: number, w: number, h: number): void {
+    flexRow({
+      x,
+      y,
+      w,
+      h,
+      gap: 42,
+      justifyContent: "center",
+      alignItems: "center",
+      items: [
+        {width: 96, height: h, draw: () => {}},
+        ...BUTTON_SIZES.map((size) => ({
+          width: sizeButtonHeight(size),
+          height: h,
+          draw: (itemX: number, itemY: number, itemW: number, itemH: number) => {
+            const fontPx = 9
+            const textW = Math.ceil(this.measureText(size, fontPx))
+            span(this, itemX + (itemW - textW) / 2, itemY, textW, itemH, {children: size, style: {fontSize: fontPx, color: "muted"}})
+          },
+        })),
+      ],
+    })
+  }
+
+  #iconSvgRow(x: number, y: number, w: number, h: number, color: ButtonColor): void {
+    flexRow({
+      x,
+      y,
+      w,
+      h,
+      gap: 42,
+      justifyContent: "center",
+      alignItems: "center",
+      items: [
+        {
+          width: 96,
+          height: h,
+          draw: (itemX, itemY, itemW, itemH) => {
+            const label = colorTitle(color)
+            const fontPx = 11
+            span(this, itemX, itemY, itemW, itemH, {children: label, style: {fontSize: fontPx, color: colorTextStyle(color)}})
+          },
+        },
+        ...BUTTON_SIZES.map((size) => ({
+          width: sizeButtonHeight(size),
+          height: sizeButtonHeight(size),
+          draw: (itemX: number, itemY: number, itemW: number, itemH: number) => {
+            Button(this, itemX, itemY, itemW, itemH, {
+              label: `${colorTitle(color)} ${sizeTitle(size)} SVG`,
+              iconSrc: this.#svgIconSrc(color),
+              iconOnly: true,
+              variant: "text",
+              color,
+              size,
+              radius: 999,
+              iconSizePx: iconSizeForButtonSize(size),
+              tooltip: `${color} ${size} ${this.#customSvgName}`,
+              onClick: () => this.#record(`icon:svg:${color}:${size}`),
+            })
+          },
+        })),
+      ],
+    })
+  }
+
   #textButtonExample(x: number, y: number, w: number, label: string, disabled: boolean): void {
     Button(this, x, y - 3, w, 28, {
       children: label,
@@ -526,6 +679,10 @@ class ButtonComponentsScreen extends Element {
       variant: "glass",
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34, zIndex: LAYOUT_Z},
     })
+    if (this.#routeSection() === "Icon") {
+      this.#iconDock(x, y, w, h)
+      return
+    }
     if (this.#routeSection() === "Color") {
       this.#colorDock(x, y, w, h)
       return
@@ -570,6 +727,18 @@ class ButtonComponentsScreen extends Element {
         onClick: () => this.#goSize(size),
       })
     }
+  }
+
+  #iconDock(x: number, y: number, w: number, h: number): void {
+    const itemW = 118
+    const active = this.#routeIcon() === "svg"
+    Button(this, x + (w - itemW) / 2, y + (h - 42) / 2, itemW, 42, {
+      children: "svg",
+      variant: active ? "contained" : "outlined",
+      color: "primary",
+      radius: this.#radius,
+      onClick: () => this.#openSvgPicker(),
+    })
   }
 
   #colorDock(x: number, y: number, w: number, h: number): void {
@@ -796,7 +965,12 @@ class ButtonComponentsScreen extends Element {
     return routeColorFromRoute(this.#route)
   }
 
+  #routeIcon(): ButtonRouteIcon | null {
+    return routeIconFromRoute(this.#route)
+  }
+
   #routeSection(): ButtonSection {
+    if (this.#route.startsWith("button/icon")) return "Icon"
     if (this.#route.startsWith("button/color")) return "Color"
     if (this.#route.startsWith("button/sizes")) return "Sizes"
     return "Basic"
@@ -823,6 +997,11 @@ class ButtonComponentsScreen extends Element {
       this.#record("route:color")
       return
     }
+    if (section === "Icon") {
+      this.#router.go("button/icon")
+      this.#record("route:icon")
+      return
+    }
     this.#go(null)
   }
 
@@ -836,6 +1015,40 @@ class ButtonComponentsScreen extends Element {
     this.#color = color
     this.#router.go(`button/color/${color}`)
     this.#record(`route:color:${color}`)
+  }
+
+  #openSvgPicker(): void {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = ".svg,image/svg+xml"
+    input.style.display = "none"
+    input.addEventListener("change", () => {
+      const file = input.files?.[0]
+      input.remove()
+      if (file === undefined) return
+      void file.text().then((source) => {
+        if (!/<svg[\s>]/i.test(source)) {
+          this.#record("icon:svg:invalid")
+          return
+        }
+        this.#customSvgSource = source
+        this.#customSvgName = file.name
+        this.#router.go("button/icon/svg")
+        this.#record(`icon:svg:${file.name}`)
+      }).catch(() => {
+        this.#record("icon:svg:error")
+      })
+    }, {once: true})
+    document.body.append(input)
+    input.click()
+    window.setTimeout(() => {
+      if (input.isConnected) input.remove()
+    }, 60000)
+  }
+
+  #svgIconSrc(color: ButtonColor): string {
+    if (this.#customSvgSource !== null) return customSvgIconFromSource(this.#customSvgSource, color)
+    return customSvgIcon(color)
   }
 
   #setSize(size: ButtonSize): void {
@@ -887,6 +1100,11 @@ function routeColorFromRoute(route: ButtonRoute): ButtonColor | null {
   const color = route.slice("button/color/".length)
   if (!BUTTON_COLORS.includes(color as ButtonColor)) return null
   return color as ButtonColor
+}
+
+function routeIconFromRoute(route: ButtonRoute): ButtonRouteIcon | null {
+  if (route === "button/icon/svg") return "svg"
+  return null
 }
 
 function buttonTypeFromRouteVariant(variant: ButtonRouteVariant): BasicButtonType {
@@ -987,6 +1205,66 @@ function colorDescriptionLines(color: ButtonColor): readonly string[] {
   if (color === "error") return ["Error color highlights destructive actions", "and failed states."]
   if (color === "neutral") return ["Neutral color keeps controls quiet", "for secondary interface actions."]
   return ["Primary color is the default action tone", "for standard button interactions."]
+}
+
+function iconSizeForButtonSize(size: ButtonSize): number {
+  if (size === "small") return 17
+  if (size === "large") return 25
+  return 21
+}
+
+function iconSvgMatrixHeight(): number {
+  const headerRowH = 18
+  const rowH = sizeButtonHeight("large")
+  const rowGap = 12
+  return headerRowH + rowGap + rowH * BUTTON_DOC_COLORS.length + rowGap * (BUTTON_DOC_COLORS.length - 1)
+}
+
+function customSvgIcon(color: ButtonColor): string {
+  const stroke = iconStrokeColor(color)
+  return svgDataUrl(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="3.8" fill="${stroke}"/>
+      <ellipse cx="24" cy="24" rx="17" ry="6.5" fill="none" stroke="${stroke}" stroke-width="3"/>
+      <ellipse cx="24" cy="24" rx="17" ry="6.5" fill="none" stroke="${stroke}" stroke-width="3" transform="rotate(60 24 24)"/>
+      <ellipse cx="24" cy="24" rx="17" ry="6.5" fill="none" stroke="${stroke}" stroke-width="3" transform="rotate(120 24 24)"/>
+    </svg>
+  `)
+}
+
+function customSvgIconFromSource(source: string, color: ButtonColor): string {
+  const stroke = iconStrokeColor(color)
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(source, "image/svg+xml")
+  const svg = doc.querySelector("svg")
+  if (svg === null) return customSvgIcon(color)
+
+  doc.querySelectorAll("script, foreignObject").forEach((node) => node.remove())
+  svg.setAttribute("xmlns", "http://www.w3.org/2000/svg")
+  svg.setAttribute("color", stroke)
+
+  const style = doc.createElementNS("http://www.w3.org/2000/svg", "style")
+  style.textContent = [
+    "* { color: currentColor; }",
+    "[fill]:not([fill='none']) { fill: currentColor !important; }",
+    "[stroke]:not([stroke='none']) { stroke: currentColor !important; }",
+    "path:not([fill]):not([stroke]), circle:not([fill]):not([stroke]), rect:not([fill]):not([stroke]), polygon:not([fill]):not([stroke]), polyline:not([fill]):not([stroke]) { fill: currentColor; }",
+  ].join(" ")
+  svg.prepend(style)
+
+  return svgDataUrl(new XMLSerializer().serializeToString(svg))
+}
+
+function iconStrokeColor(color: ButtonColor): string {
+  if (color === "success") return "rgba(82,196,123,1)"
+  if (color === "warning") return "rgba(255,190,111,1)"
+  if (color === "error") return "rgba(255,127,111,1)"
+  if (color === "neutral") return "rgba(139,150,166,1)"
+  return "rgba(111,211,255,1)"
+}
+
+function svgDataUrl(svg: string): string {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`
 }
 
 function contentRows(
