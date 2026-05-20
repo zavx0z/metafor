@@ -7,7 +7,8 @@
  *   flexRow({x, y, w, h, paddingX, gap, alignItems, justifyContent, items})
  *   flexColumn({...})
  *
- * Item имеет фикс-размер по main-axis ИЛИ "grow" (распределяется поровну).
+ * Item имеет фикс-размер по main-axis ИЛИ "grow"/"Nfr".
+ * "grow" = 1fr. Несколько fr-элементов делят остаток пропорционально весу.
  * cross-axis выравнивается через alignItems / item.alignSelf.
  *
  * Удобный паттерн с Card: используйте `Card.padding` как outer-отступ от
@@ -48,9 +49,11 @@ type FlexBoxBase = {
   justifyContent?: FlexJustify
 }
 
+type FlexMainSize = number | "grow" | `${number}fr`
+
 export type FlexRowItem = {
-  /** Фиксированная ширина в logical px, или "grow". */
-  width: number | "grow"
+  /** Фиксированная ширина в logical px, или "grow"/"Nfr". */
+  width: FlexMainSize
   /** Высота для alignItems-вычислений. */
   height: number
   alignSelf?: FlexAlign
@@ -59,8 +62,8 @@ export type FlexRowItem = {
 }
 
 export type FlexColumnItem = {
-  /** Фиксированная высота, или "grow". */
-  height: number | "grow"
+  /** Фиксированная высота, или "grow"/"Nfr". */
+  height: FlexMainSize
   /** Опциональная фикс-ширина (для alignSelf != stretch). */
   width?: number
   alignSelf?: FlexAlign
@@ -80,14 +83,14 @@ export function flexRow(opts: FlexRowOpts): void {
   if (items.length === 0) return
 
   const totalGap = gap * (items.length - 1)
-  const fixedSum = items.reduce((s, i) => s + (i.width === "grow" ? 0 : i.width), 0)
-  const growCount = items.filter((i) => i.width === "grow").length
+  const fixedSum = items.reduce((s, i) => s + (isFlexGrow(i.width) ? 0 : i.width), 0)
+  const growFr = items.reduce((s, i) => s + flexFr(i.width), 0)
   const remaining = innerW - fixedSum - totalGap
-  const growSize = growCount > 0 ? Math.max(0, remaining / growCount) : 0
+  const frUnit = growFr > 0 ? Math.max(0, remaining / growFr) : 0
 
   let startX = innerX
   let extraGap = 0
-  if (growCount === 0) {
+  if (growFr === 0) {
     const slack = Math.max(0, remaining)
     if (opts.justifyContent === "center") startX += slack / 2
     else if (opts.justifyContent === "end") startX += slack
@@ -100,7 +103,7 @@ export function flexRow(opts: FlexRowOpts): void {
 
   let cursor = startX
   for (const item of items) {
-    const w = item.width === "grow" ? growSize : item.width
+    const w = isFlexGrow(item.width) ? frUnit * flexFr(item.width) : item.width
     let y = innerY
     let h = item.height
     const align = item.alignSelf ?? opts.alignItems ?? "start"
@@ -122,14 +125,14 @@ export function flexColumn(opts: FlexColumnOpts): void {
   if (items.length === 0) return
 
   const totalGap = gap * (items.length - 1)
-  const fixedSum = items.reduce((s, i) => s + (i.height === "grow" ? 0 : i.height), 0)
-  const growCount = items.filter((i) => i.height === "grow").length
+  const fixedSum = items.reduce((s, i) => s + (isFlexGrow(i.height) ? 0 : i.height), 0)
+  const growFr = items.reduce((s, i) => s + flexFr(i.height), 0)
   const remaining = innerH - fixedSum - totalGap
-  const growSize = growCount > 0 ? Math.max(0, remaining / growCount) : 0
+  const frUnit = growFr > 0 ? Math.max(0, remaining / growFr) : 0
 
   let startY = innerY
   let extraGap = 0
-  if (growCount === 0) {
+  if (growFr === 0) {
     const slack = Math.max(0, remaining)
     if (opts.justifyContent === "center") startY += slack / 2
     else if (opts.justifyContent === "end") startY += slack
@@ -142,7 +145,7 @@ export function flexColumn(opts: FlexColumnOpts): void {
 
   let cursor = startY
   for (const item of items) {
-    const h = item.height === "grow" ? growSize : item.height
+    const h = isFlexGrow(item.height) ? frUnit * flexFr(item.height) : item.height
     let x = innerX
     let w = innerW
     const align = item.alignSelf ?? opts.alignItems ?? "stretch"
@@ -164,4 +167,17 @@ function paddings(opts: FlexBoxBase): {padL: number; padR: number; padT: number;
     padB: opts.paddingBottom ?? opts.paddingY ?? 0,
     gap: opts.gap ?? 0,
   }
+}
+
+function isFlexGrow(value: FlexMainSize): value is "grow" | `${number}fr` {
+  return value === "grow" || (typeof value === "string" && value.endsWith("fr"))
+}
+
+function flexFr(value: FlexMainSize): number {
+  if (value === "grow") return 1
+  if (typeof value === "string" && value.endsWith("fr")) {
+    const parsed = Number.parseFloat(value.slice(0, -2))
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  }
+  return 0
 }
