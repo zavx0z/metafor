@@ -1,4 +1,4 @@
-import {Element, UiCanvas, flexColumn, flexRow, h2, h3, p, palette, span, uiIcons} from "@metafor/elements"
+import {Element, UiCanvas, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, uiIcons} from "@metafor/elements"
 import {autoButtonWidth, Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Pane, Divider} from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
@@ -13,6 +13,10 @@ type ButtonRouteVariant = "text" | "contained" | "outlined"
 type ButtonRouteIcon = "svg"
 type ButtonRouteIconLabel = "left" | "right"
 type IconLabelPlacement = ButtonRouteIconLabel | "mixed"
+type PaneVariant = "glass" | "outlined" | "filled"
+type PaneRoute = "pane/variants" | `pane/variants/${PaneVariant}`
+type ComponentsRoute = ButtonRoute | PaneRoute
+type ComponentName = "Button" | "Pane"
 type ButtonRoute =
   | "button/basic"
   | `button/basic/${ButtonRouteVariant}`
@@ -25,6 +29,7 @@ type ButtonRoute =
   | "button/icon"
   | `button/icon/${ButtonRouteIcon}`
 type ButtonSection = "Basic" | "Icon" | "Icon+Label" | "Sizes" | "Color"
+type PaneSection = "Variants"
 
 const BASIC_BUTTON_TYPES: readonly BasicButtonType[] = ["Text button", "Contained button", "Outlined button"]
 const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Icon", "Icon+Label", "Sizes", "Color"]
@@ -52,6 +57,14 @@ const BUTTON_ROUTES: readonly ButtonRoute[] = [
   "button/icon",
   "button/icon/svg",
 ]
+const PANE_ROUTES: readonly PaneRoute[] = [
+  "pane/variants",
+  "pane/variants/glass",
+  "pane/variants/outlined",
+  "pane/variants/filled",
+]
+const PANE_VARIANTS: readonly PaneVariant[] = ["glass", "outlined", "filled"]
+const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...BUTTON_ROUTES, ...PANE_ROUTES]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
 const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
 const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
@@ -64,9 +77,9 @@ const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.00012
 const BACKDROP_Z = -0.00018
 class ButtonComponentsScreen extends Element {
-  readonly #router = new VirtualRouter<ButtonRoute>(BUTTON_ROUTES, "button/basic", {mode: "path"})
+  readonly #router = new VirtualRouter<ComponentsRoute>(COMPONENT_ROUTES, "button/basic", {mode: "path"})
   readonly #unsubscribe: () => void
-  #route: ButtonRoute = this.#router.current
+  #route: ComponentsRoute = this.#router.current
   #color: ButtonColor = "primary"
   #size: ButtonSize = "medium"
   #label: ButtonLabel = "Button"
@@ -155,16 +168,21 @@ class ButtonComponentsScreen extends Element {
     const gap = 9
     const rowH = 38
     for (const [i, label] of COMPONENT_NAV.entries()) {
-      const active = label === "Button"
+      const active = label === this.#currentComponent()
+      const enabled = label === "Button" || label === "Pane"
       Button(this, x + pad, top + i * (rowH + gap), w - pad * 2, rowH, {
         children: label,
         variant: active ? "contained" : "glass",
         color: "neutral",
         ...activeNavStyle(active),
-        disabled: !active,
+        disabled: !enabled,
         radius: 999,
         fontPx: 11,
-        onClick: () => this.#record("component:button"),
+        onClick: () => {
+          if (label === "Button") this.#router.go("button/basic")
+          else if (label === "Pane") this.#router.go("pane/variants")
+          this.#record(`component:${label.toLowerCase()}`)
+        },
       })
     }
   }
@@ -181,6 +199,20 @@ class ButtonComponentsScreen extends Element {
     })
 
     const pad = 18
+    if (this.#currentComponent() === "Pane") {
+      h3(this, x, y + 28, w, 24, {children: "Pane", style: {fontSize: 15, textAlign: "center"}})
+      const active = this.#paneSection() === "Variants"
+      Button(this, x + pad, y + 76, w - pad * 2, 38, {
+        children: "Variants",
+        variant: active ? "contained" : "glass",
+        color: "neutral",
+        ...activeNavStyle(active),
+        radius: 999,
+        fontPx: 11,
+        onClick: () => this.#goPaneSection("Variants"),
+      })
+      return
+    }
     h3(this, x, y + 28, w, 24, {children: "Button", style: {fontSize: 15, textAlign: "center"}})
     const top = y + 76
     for (const [i, section] of BUTTON_SECTIONS.entries()) {
@@ -209,7 +241,11 @@ class ButtonComponentsScreen extends Element {
     })
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    if (this.#routeSection() === "Icon") {
+    if (this.#currentComponent() === "Pane") {
+      const variant = this.#routePaneVariant()
+      if (variant === null) this.#paneOverview(x, y, w, h)
+      else this.#paneDetail(x, y, w, h, variant)
+    } else if (this.#routeSection() === "Icon") {
       const icon = this.#routeIcon()
       if (icon === "svg") this.#iconSvgDetail(x, y, w, h)
       else this.#iconOverview(x, y, w, h)
@@ -229,6 +265,94 @@ class ButtonComponentsScreen extends Element {
       else this.#buttonDetail(x, y, w, h, variant)
     }
     this.popClip()
+  }
+
+  #paneOverview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const cardW = Math.min(208, Math.max(156, (w - pad * 2 - 32) / 3))
+    const cardH = Math.min(208, Math.max(156, h * 0.38))
+    const gap = Math.max(16, (w - pad * 2 - cardW * 3) / 2)
+    const cardsY = y + 168
+    const baseX = x + pad
+
+    renderOverviewLayout(this, x, y, w, h, pad, "Pane variants", [
+      "Pane works like a Paper-style surface container with three visual variants.",
+    ], (_slotX, _slotY, _slotW, slotH) => {
+      const centeredY = cardsY + Math.max(0, (slotH - cardH) / 2 - 34)
+      const variants: readonly {variant: PaneVariant; title: string; note: string}[] = [
+      {variant: "glass", title: "Glass", note: "Default quiet surface for layered UI."},
+      {variant: "outlined", title: "Outlined", note: "Adds separation without increasing visual weight."},
+      {variant: "filled", title: "Filled", note: "Useful when the pane should read as a stronger block."},
+      ]
+      for (const [i, item] of variants.entries()) {
+        const cardX = baseX + i * (cardW + gap)
+        Pane(this, cardX, centeredY, cardW, cardH, {
+          variant: item.variant,
+          sx: {
+            ...paneVariantSurfaceStyle(item.variant),
+            borderRadius: 28,
+            padding: 22,
+          },
+        })
+        span(this, cardX + 20, centeredY + 22, cardW - 40, 18, {
+          children: item.variant,
+          style: {fontSize: 10, color: i === 1 ? "cyan" : "muted"},
+        })
+        h3(this, cardX + 20, centeredY + 54, cardW - 40, 24, {
+          children: item.title,
+          style: {fontSize: 15},
+        })
+        p(this, cardX + 20, centeredY + 90, cardW - 40, 40, {
+          children: item.note,
+          style: {fontSize: 11, color: "muted"},
+        })
+      }
+    })
+  }
+
+  #paneDetail(x: number, y: number, w: number, h: number, variant: PaneVariant): void {
+    const pad = 42
+    const headerH = 108
+    const codeLines = [
+      `Pane(host, x, y, 240, 188, { variant: "${variant}" })`,
+      `Pane(host, x, y, 240, 188, { variant: "${variant}", children: "Surface content" })`,
+    ] as const
+    const rows = contentRows(y, h, {
+      headerH,
+      demoH: 208,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, `${paneVariantTitle(variant)} pane`, paneVariantDescriptionLines(variant))
+
+    const paneW = Math.min(260, w - pad * 2)
+    const paneH = 188
+    const paneX = x + (w - paneW) / 2
+    const paneY = rows.demoY + (208 - paneH) / 2
+    Pane(this, paneX, paneY, paneW, paneH, {
+      variant,
+      sx: {
+        ...paneVariantSurfaceStyle(variant),
+        borderRadius: 30,
+        padding: 24,
+      },
+    })
+    h3(this, paneX + 24, paneY + 28, paneW - 48, 24, {
+      children: paneVariantTitle(variant),
+      style: {fontSize: 16},
+    })
+    p(this, paneX + 24, paneY + 64, paneW - 48, 42, {
+      children: paneVariantDescriptionLines(variant).join(" "),
+      style: {fontSize: 11, color: "muted"},
+    })
+    Divider(this, paneX + 24, paneY + 122, paneW - 48, {})
+    span(this, paneX + 24, paneY + 138, paneW - 48, 18, {
+      children: "Surface content",
+      style: {fontSize: 11, color: variant === "outlined" ? "cyan" : "text"},
+    })
+
+    const codeW = Math.min(520, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
   }
 
   #basicOverview(x: number, y: number, w: number, h: number): void {
@@ -772,6 +896,25 @@ class ButtonComponentsScreen extends Element {
       variant: "glass",
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34, zIndex: LAYOUT_Z},
     })
+    if (this.#currentComponent() === "Pane") {
+      const itemGap = 12
+      const itemW = Math.max(94, Math.min(148, (w - 64 - itemGap * (PANE_VARIANTS.length - 1)) / PANE_VARIANTS.length))
+      const rowW = itemW * PANE_VARIANTS.length + itemGap * (PANE_VARIANTS.length - 1)
+      const startX = x + (w - rowW) / 2
+      const routeVariant = this.#routePaneVariant()
+      for (const [i, variant] of PANE_VARIANTS.entries()) {
+        const active = routeVariant === variant
+        Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
+          children: paneVariantDockLabel(variant),
+          variant: active ? "contained" : "glass",
+          color: "neutral",
+          ...activeNavStyle(active),
+          radius: this.#radius,
+          onClick: () => this.#goPaneVariant(variant),
+        })
+      }
+      return
+    }
     if (this.#routeSection() === "Icon") {
       this.#iconDock(x, y, w, h)
       return
@@ -1032,6 +1175,18 @@ class ButtonComponentsScreen extends Element {
     return routeIconLabelPlacementFromRoute(this.#route)
   }
 
+  #routePaneVariant(): PaneVariant | null {
+    return routePaneVariantFromRoute(this.#route)
+  }
+
+  #currentComponent(): ComponentName {
+    return this.#route.startsWith("pane/") ? "Pane" : "Button"
+  }
+
+  #paneSection(): PaneSection {
+    return "Variants"
+  }
+
   #routeSection(): ButtonSection {
     if (this.#route.startsWith("button/icon-label")) return "Icon+Label"
     if (this.#route.startsWith("button/icon")) return "Icon"
@@ -1072,6 +1227,16 @@ class ButtonComponentsScreen extends Element {
       return
     }
     this.#go(null)
+  }
+
+  #goPaneSection(_section: PaneSection): void {
+    this.#router.go("pane/variants")
+    this.#record("route:pane:variants")
+  }
+
+  #goPaneVariant(variant: PaneVariant): void {
+    this.#router.go(`pane/variants/${variant}`)
+    this.#record(`route:pane:variants:${variant}`)
   }
 
   #goSize(size: ButtonSize): void {
@@ -1159,32 +1324,39 @@ function activeNavStyle(active: boolean): Pick<ButtonProps, "fill" | "border"> {
   return {fill: palette.bgHot, border: palette.cyan}
 }
 
-function routeVariantFromRoute(route: ButtonRoute): ButtonRouteVariant | null {
+function routeVariantFromRoute(route: ComponentsRoute): ButtonRouteVariant | null {
   if (!route.startsWith("button/basic/")) return null
   return route.slice("button/basic/".length) as ButtonRouteVariant
 }
 
-function routeSizeFromRoute(route: ButtonRoute): ButtonSize | null {
+function routeSizeFromRoute(route: ComponentsRoute): ButtonSize | null {
   if (!route.startsWith("button/sizes/")) return null
   return route.slice("button/sizes/".length) as ButtonSize
 }
 
-function routeColorFromRoute(route: ButtonRoute): ButtonColor | null {
+function routeColorFromRoute(route: ComponentsRoute): ButtonColor | null {
   if (!route.startsWith("button/color/")) return null
   const color = route.slice("button/color/".length)
   if (!BUTTON_COLORS.includes(color as ButtonColor)) return null
   return color as ButtonColor
 }
 
-function routeIconFromRoute(route: ButtonRoute): ButtonRouteIcon | null {
+function routeIconFromRoute(route: ComponentsRoute): ButtonRouteIcon | null {
   if (route === "button/icon/svg") return "svg"
   return null
 }
 
-function routeIconLabelPlacementFromRoute(route: ButtonRoute): IconLabelPlacement {
+function routeIconLabelPlacementFromRoute(route: ComponentsRoute): IconLabelPlacement {
   if (route === "button/icon-label/left") return "left"
   if (route === "button/icon-label/right") return "right"
   return "mixed"
+}
+
+function routePaneVariantFromRoute(route: ComponentsRoute): PaneVariant | null {
+  if (route === "pane/variants/glass") return "glass"
+  if (route === "pane/variants/outlined") return "outlined"
+  if (route === "pane/variants/filled") return "filled"
+  return null
 }
 
 function buttonTypeFromRouteVariant(variant: ButtonRouteVariant): BasicButtonType {
@@ -1299,6 +1471,54 @@ function colorDescriptionLines(color: ButtonColor): readonly string[] {
 
 function iconSizeForButtonSize(size: ButtonSize): number {
   return Math.round(sizeButtonHeight(size) * 0.6)
+}
+
+function paneVariantTitle(variant: PaneVariant): string {
+  if (variant === "outlined") return "Outlined"
+  if (variant === "filled") return "Filled"
+  return "Glass"
+}
+
+function paneVariantDockLabel(variant: PaneVariant): string {
+  return paneVariantTitle(variant)
+}
+
+function paneVariantDescriptionLines(variant: PaneVariant): readonly string[] {
+  if (variant === "outlined") {
+    return [
+      "Outlined panes add separation through a brighter border",
+      "without making the background heavier.",
+    ]
+  }
+  if (variant === "filled") {
+    return [
+      "Filled panes read as heavier surfaces",
+      "for sections that need stronger grouping.",
+    ]
+  }
+  return [
+    "Glass panes are the quiet default surface",
+    "for layered interfaces and neutral grouping.",
+  ]
+}
+
+function paneVariantSurfaceStyle(variant: PaneVariant): {background: CssColor; borderColor: CssColor} {
+  if (variant === "outlined") {
+    return {
+      background: "rgba(12, 18, 30, 0.72)",
+      borderColor: "rgba(111, 211, 255, 0.34)",
+    }
+  }
+  if (variant === "filled") {
+    return {
+      background: "rgba(24, 32, 46, 0.98)",
+      borderColor: "rgba(214, 231, 255, 0.26)",
+    }
+  }
+  return {
+    background: "rgba(10, 16, 26, 0.82)",
+    borderColor: "rgba(214, 231, 255, 0.18)",
+  }
 }
 
 function iconSvgMatrixHeight(): number {
