@@ -1,5 +1,5 @@
 import {Element, UiCanvas, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, uiIcons} from "@metafor/elements"
-import {autoButtonWidth, Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Pane, Divider} from "@metafor/components"
+import {autoButtonWidth, Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Pane} from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
 type ButtonLabel = "Button" | "Apply" | "Run" | "Delete"
@@ -275,14 +275,12 @@ class ButtonComponentsScreen extends Element {
     const cardsY = y + 168
     const baseX = x + pad
 
-    renderOverviewLayout(this, x, y, w, h, pad, "Pane variants", [
-      "Pane works like a Paper-style surface container with three visual variants.",
-    ], (_slotX, _slotY, _slotW, slotH) => {
+    renderOverviewLayout(this, x, y, w, h, pad, "Pane variants", [""], (_slotX, _slotY, _slotW, slotH) => {
       const centeredY = cardsY + Math.max(0, (slotH - cardH) / 2 - 34)
-      const variants: readonly {variant: PaneVariant; title: string; note: string}[] = [
-      {variant: "glass", title: "Glass", note: "Default quiet surface for layered UI."},
-      {variant: "outlined", title: "Outlined", note: "Adds separation without increasing visual weight."},
-      {variant: "filled", title: "Filled", note: "Useful when the pane should read as a stronger block."},
+      const variants: readonly {variant: PaneVariant; label: string}[] = [
+      {variant: "glass", label: "glass"},
+      {variant: "outlined", label: "outlined"},
+      {variant: "filled", label: "filled"},
       ]
       for (const [i, item] of variants.entries()) {
         const cardX = baseX + i * (cardW + gap)
@@ -294,17 +292,13 @@ class ButtonComponentsScreen extends Element {
             padding: 22,
           },
         })
-        span(this, cardX + 20, centeredY + 22, cardW - 40, 18, {
-          children: item.variant,
-          style: {fontSize: 10, color: i === 1 ? "cyan" : "muted"},
+        h3(this, cardX + 20, centeredY + cardH / 2 - 28, cardW - 40, 26, {
+          children: item.label,
+          style: {fontSize: 18, textAlign: "center"},
         })
-        h3(this, cardX + 20, centeredY + 54, cardW - 40, 24, {
-          children: item.title,
-          style: {fontSize: 15},
-        })
-        p(this, cardX + 20, centeredY + 90, cardW - 40, 40, {
-          children: item.note,
-          style: {fontSize: 11, color: "muted"},
+        h3(this, cardX + 20, centeredY + cardH / 2 + 10, cardW - 40, 26, {
+          children: "variant",
+          style: {fontSize: 18, textAlign: "center"},
         })
       }
     })
@@ -315,7 +309,6 @@ class ButtonComponentsScreen extends Element {
     const headerH = 108
     const codeLines = [
       `Pane(host, x, y, 240, 188, { variant: "${variant}" })`,
-      `Pane(host, x, y, 240, 188, { variant: "${variant}", children: "Surface content" })`,
     ] as const
     const rows = contentRows(y, h, {
       headerH,
@@ -337,17 +330,8 @@ class ButtonComponentsScreen extends Element {
       },
     })
     h3(this, paneX + 24, paneY + 28, paneW - 48, 24, {
-      children: paneVariantTitle(variant),
-      style: {fontSize: 16},
-    })
-    p(this, paneX + 24, paneY + 64, paneW - 48, 42, {
-      children: paneVariantDescriptionLines(variant).join(" "),
-      style: {fontSize: 11, color: "muted"},
-    })
-    Divider(this, paneX + 24, paneY + 122, paneW - 48, {})
-    span(this, paneX + 24, paneY + 138, paneW - 48, 18, {
-      children: "Surface content",
-      style: {fontSize: 11, color: variant === "outlined" ? "cyan" : "text"},
+      children: `${paneVariantTitle(variant).toLowerCase()} variant`,
+      style: {fontSize: 18, textAlign: "center"},
     })
 
     const codeW = Math.min(520, w - pad * 2)
