@@ -1208,9 +1208,7 @@ function colorDescriptionLines(color: ButtonColor): readonly string[] {
 }
 
 function iconSizeForButtonSize(size: ButtonSize): number {
-  if (size === "small") return 17
-  if (size === "large") return 25
-  return 21
+  return Math.round(sizeButtonHeight(size) * 0.6)
 }
 
 function iconSvgMatrixHeight(): number {
@@ -1239,20 +1237,429 @@ function customSvgIconFromSource(source: string, color: ButtonColor): string {
   const svg = doc.querySelector("svg")
   if (svg === null) return customSvgIcon(color)
 
-  doc.querySelectorAll("script, foreignObject").forEach((node) => node.remove())
+  doc.querySelectorAll("script, foreignObject, style").forEach((node) => node.remove())
   svg.setAttribute("xmlns", "http://www.w3.org/2000/svg")
   svg.setAttribute("color", stroke)
+  let hasPaintDeclaration = false
+  for (const node of [svg, ...Array.from(svg.querySelectorAll("*"))]) {
+    const style = node.getAttribute("style")
+    if (style !== null) {
+      const kept: string[] = []
+      for (const declaration of style.split(";")) {
+        const [rawProp, ...rawValue] = declaration.split(":")
+        if (rawProp === undefined) continue
+        const prop = rawProp?.trim().toLowerCase()
+        const value = rawValue.join(":").trim()
+        if (prop === undefined || prop.length === 0 || value.length === 0) continue
+        if (prop === "fill" || prop === "stroke") {
+          hasPaintDeclaration = true
+          node.setAttribute(prop, isNonePaint(value) ? "none" : "currentColor")
+        } else kept.push(`${rawProp.trim()}: ${value}`)
+      }
+      if (kept.length > 0) node.setAttribute("style", kept.join("; "))
+      else node.removeAttribute("style")
+    }
+
+    const fill = node.getAttribute("fill")
+    if (fill !== null) {
+      hasPaintDeclaration = true
+      if (!isNonePaint(fill)) node.setAttribute("fill", "currentColor")
+    }
+    const nodeStroke = node.getAttribute("stroke")
+    if (nodeStroke !== null) {
+      hasPaintDeclaration = true
+      if (!isNonePaint(nodeStroke)) node.setAttribute("stroke", "currentColor")
+    }
+  }
+  if (!hasPaintDeclaration) svg.setAttribute("fill", "currentColor")
+  const bounds = svgContentBounds(svg)
+  if (bounds !== null) {
+    const pad = Math.max(bounds.width, bounds.height) * 0.08
+    svg.setAttribute("viewBox", `${roundViewBox(bounds.x - pad)} ${roundViewBox(bounds.y - pad)} ${roundViewBox(bounds.width + pad * 2)} ${roundViewBox(bounds.height + pad * 2)}`)
+  }
 
   const style = doc.createElementNS("http://www.w3.org/2000/svg", "style")
   style.textContent = [
-    "* { color: currentColor; }",
+    `:root { color: ${stroke}; }`,
     "[fill]:not([fill='none']) { fill: currentColor !important; }",
     "[stroke]:not([stroke='none']) { stroke: currentColor !important; }",
-    "path:not([fill]):not([stroke]), circle:not([fill]):not([stroke]), rect:not([fill]):not([stroke]), polygon:not([fill]):not([stroke]), polyline:not([fill]):not([stroke]) { fill: currentColor; }",
   ].join(" ")
   svg.prepend(style)
 
   return svgDataUrl(new XMLSerializer().serializeToString(svg))
+}
+
+function isNonePaint(value: string): boolean {
+  return value.replace(/\s*!important\s*$/i, "").trim().toLowerCase() === "none"
+}
+
+type SvgBounds = {x: number; y: number; width: number; height: number}
+type SvgPoint = {x: number; y: number}
+type SvgMatrix = {a: number; b: number; c: number; d: number; e: number; f: number}
+
+const SVG_IDENTITY: SvgMatrix = {a: 1, b: 0, c: 0, d: 1, e: 0, f: 0}
+
+function svgContentBounds(svg: globalThis.SVGSVGElement): SvgBounds | null {
+  let bounds: SvgBounds | null = null
+  const rootMatrix = parseSvgTransform(svg.getAttribute("transform"))
+  const rootStrokeWidth = numericAttr(svg, "stroke-width") ?? 0
+  const visit = (node: globalThis.Element, parentMatrix: SvgMatrix, inheritedStrokeWidth: number): void => {
+    const matrix = multiplySvgMatrices(parentMatrix, parseSvgTransform(node.getAttribute("transform")))
+    const strokeWidth = numericAttr(node, "stroke-width") ?? inheritedStrokeWidth
+    const nodeBounds = svgNodeBounds(node, matrix, strokeWidth)
+    if (nodeBounds !== null) bounds = mergeSvgBounds(bounds, nodeBounds)
+    for (const child of Array.from(node.children)) visit(child, matrix, strokeWidth)
+  }
+  for (const child of Array.from(svg.children)) visit(child, rootMatrix, rootStrokeWidth)
+  return bounds
+}
+
+function svgNodeBounds(node: globalThis.Element, matrix: SvgMatrix, strokeWidth: number): SvgBounds | null {
+  const tag = node.tagName.toLowerCase()
+  const pad = transformedStrokePadding(matrix, strokeWidth)
+  if (tag === "circle") {
+    const cx = numericAttr(node, "cx")
+    const cy = numericAttr(node, "cy")
+    const r = numericAttr(node, "r")
+    if (cx === null || cy === null || r === null) return null
+    return ellipseBounds(cx, cy, r, r, matrix, pad)
+  }
+  if (tag === "ellipse") {
+    const cx = numericAttr(node, "cx")
+    const cy = numericAttr(node, "cy")
+    const rx = numericAttr(node, "rx")
+    const ry = numericAttr(node, "ry")
+    if (cx === null || cy === null || rx === null || ry === null) return null
+    return ellipseBounds(cx, cy, rx, ry, matrix, pad)
+  }
+  if (tag === "line") {
+    const x1 = numericAttr(node, "x1")
+    const y1 = numericAttr(node, "y1")
+    const x2 = numericAttr(node, "x2")
+    const y2 = numericAttr(node, "y2")
+    if (x1 === null || y1 === null || x2 === null || y2 === null) return null
+    return boundsFromPoints([{x: x1, y: y1}, {x: x2, y: y2}], matrix, pad)
+  }
+  if (tag === "rect") {
+    const x = numericAttr(node, "x") ?? 0
+    const y = numericAttr(node, "y") ?? 0
+    const width = numericAttr(node, "width")
+    const height = numericAttr(node, "height")
+    if (width === null || height === null) return null
+    return boundsFromPoints([{x, y}, {x: x + width, y}, {x: x + width, y: y + height}, {x, y: y + height}], matrix, pad)
+  }
+  if (tag === "polygon" || tag === "polyline") return boundsFromPoints(svgPointList(node.getAttribute("points")), matrix, pad)
+  if (tag === "path") return svgPathBounds(node.getAttribute("d"), matrix, pad)
+  return null
+}
+
+function svgPathBounds(d: string | null, matrix: SvgMatrix, padding: number): SvgBounds | null {
+  if (d === null) return null
+  const tokens = d.match(/[AaCcHhLlMmQqSsTtVvZz]|[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?/g) ?? []
+  let i = 0
+  let cmd = ""
+  let x = 0
+  let y = 0
+  let startX = 0
+  let startY = 0
+  let lastC: SvgPoint | null = null
+  let lastQ: SvgPoint | null = null
+  let bounds: SvgBounds | null = null
+  const hasNumber = (): boolean => i < tokens.length && !isSvgPathCommand(tokens[i]!)
+  const read = (): number => Number(tokens[i++]!)
+  const merge = (next: SvgBounds | null): void => {
+    if (next !== null) bounds = mergeSvgBounds(bounds, next)
+  }
+  while (i < tokens.length) {
+    if (isSvgPathCommand(tokens[i]!)) cmd = tokens[i++]!
+    if (cmd.length === 0) return bounds
+    const rel = cmd === cmd.toLowerCase()
+    switch (cmd.toLowerCase()) {
+      case "m": {
+        let first = true
+        while (hasNumber()) {
+          const nx = rel ? x + read() : read()
+          const ny = rel ? y + read() : read()
+          if (first) {
+            x = nx
+            y = ny
+            startX = x
+            startY = y
+            merge(boundsFromPoints([{x, y}], matrix, padding))
+            first = false
+          } else {
+            merge(boundsFromPoints([{x, y}, {x: nx, y: ny}], matrix, padding))
+            x = nx
+            y = ny
+          }
+        }
+        lastC = null
+        lastQ = null
+        break
+      }
+      case "l":
+        while (hasNumber()) {
+          const nx = rel ? x + read() : read()
+          const ny = rel ? y + read() : read()
+          merge(boundsFromPoints([{x, y}, {x: nx, y: ny}], matrix, padding))
+          x = nx
+          y = ny
+        }
+        lastC = null
+        lastQ = null
+        break
+      case "h":
+        while (hasNumber()) {
+          const nx = rel ? x + read() : read()
+          merge(boundsFromPoints([{x, y}, {x: nx, y}], matrix, padding))
+          x = nx
+        }
+        lastC = null
+        lastQ = null
+        break
+      case "v":
+        while (hasNumber()) {
+          const ny = rel ? y + read() : read()
+          merge(boundsFromPoints([{x, y}, {x, y: ny}], matrix, padding))
+          y = ny
+        }
+        lastC = null
+        lastQ = null
+        break
+      case "c":
+        while (hasNumber()) {
+          const c1 = {x: rel ? x + read() : read(), y: rel ? y + read() : read()}
+          const c2 = {x: rel ? x + read() : read(), y: rel ? y + read() : read()}
+          const end = {x: rel ? x + read() : read(), y: rel ? y + read() : read()}
+          merge(boundsFromPoints([{x, y}, c1, c2, end], matrix, padding))
+          x = end.x
+          y = end.y
+          lastC = c2
+          lastQ = null
+        }
+        break
+      case "s":
+        while (hasNumber()) {
+          const c1 = lastC === null ? {x, y} : {x: x * 2 - lastC.x, y: y * 2 - lastC.y}
+          const c2 = {x: rel ? x + read() : read(), y: rel ? y + read() : read()}
+          const end = {x: rel ? x + read() : read(), y: rel ? y + read() : read()}
+          merge(boundsFromPoints([{x, y}, c1, c2, end], matrix, padding))
+          x = end.x
+          y = end.y
+          lastC = c2
+          lastQ = null
+        }
+        break
+      case "q":
+        while (hasNumber()) {
+          const c = {x: rel ? x + read() : read(), y: rel ? y + read() : read()}
+          const end = {x: rel ? x + read() : read(), y: rel ? y + read() : read()}
+          merge(boundsFromPoints([{x, y}, c, end], matrix, padding))
+          x = end.x
+          y = end.y
+          lastQ = c
+          lastC = null
+        }
+        break
+      case "t":
+        while (hasNumber()) {
+          const c: SvgPoint = lastQ === null ? {x, y} : {x: x * 2 - lastQ.x, y: y * 2 - lastQ.y}
+          const end = {x: rel ? x + read() : read(), y: rel ? y + read() : read()}
+          merge(boundsFromPoints([{x, y}, c, end], matrix, padding))
+          x = end.x
+          y = end.y
+          lastQ = c
+          lastC = null
+        }
+        break
+      case "a":
+        while (hasNumber()) {
+          const rx = read()
+          const ry = read()
+          const angle = read()
+          const largeArc = read()
+          const sweep = read()
+          const end = {x: rel ? x + read() : read(), y: rel ? y + read() : read()}
+          merge(svgArcBounds({x, y}, rx, ry, angle, largeArc !== 0, sweep !== 0, end, matrix, padding))
+          x = end.x
+          y = end.y
+        }
+        lastC = null
+        lastQ = null
+        break
+      case "z":
+        merge(boundsFromPoints([{x, y}, {x: startX, y: startY}], matrix, padding))
+        x = startX
+        y = startY
+        lastC = null
+        lastQ = null
+        break
+      default:
+        return bounds
+    }
+  }
+  return bounds
+}
+
+function svgArcBounds(start: SvgPoint, rxRaw: number, ryRaw: number, angleDeg: number, largeArc: boolean, sweep: boolean, end: SvgPoint, matrix: SvgMatrix, padding: number): SvgBounds | null {
+  let rx = Math.abs(rxRaw)
+  let ry = Math.abs(ryRaw)
+  if (rx === 0 || ry === 0) return boundsFromPoints([start, end], matrix, padding)
+  const phi = angleDeg * Math.PI / 180
+  const cosPhi = Math.cos(phi)
+  const sinPhi = Math.sin(phi)
+  const dx = (start.x - end.x) / 2
+  const dy = (start.y - end.y) / 2
+  const x1p = cosPhi * dx + sinPhi * dy
+  const y1p = -sinPhi * dx + cosPhi * dy
+  const lambda = x1p ** 2 / rx ** 2 + y1p ** 2 / ry ** 2
+  if (lambda > 1) {
+    const scale = Math.sqrt(lambda)
+    rx *= scale
+    ry *= scale
+  }
+  const sign = largeArc === sweep ? -1 : 1
+  const centerNumerator = Math.max(0, (rx ** 2 * ry ** 2 - rx ** 2 * y1p ** 2 - ry ** 2 * x1p ** 2) / (rx ** 2 * y1p ** 2 + ry ** 2 * x1p ** 2))
+  const centerScale = sign * Math.sqrt(centerNumerator)
+  const cxp = centerScale * rx * y1p / ry
+  const cyp = centerScale * -ry * x1p / rx
+  const cx = cosPhi * cxp - sinPhi * cyp + (start.x + end.x) / 2
+  const cy = sinPhi * cxp + cosPhi * cyp + (start.y + end.y) / 2
+  const theta1 = svgVectorAngle({x: 1, y: 0}, {x: (x1p - cxp) / rx, y: (y1p - cyp) / ry})
+  let delta = svgVectorAngle({x: (x1p - cxp) / rx, y: (y1p - cyp) / ry}, {x: (-x1p - cxp) / rx, y: (-y1p - cyp) / ry})
+  if (!sweep && delta > 0) delta -= Math.PI * 2
+  if (sweep && delta < 0) delta += Math.PI * 2
+  const angles = [theta1, theta1 + delta]
+  for (const candidate of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+    if (svgAngleInSweep(candidate, theta1, delta)) angles.push(candidate)
+  }
+  return boundsFromPoints(angles.map((theta) => ({
+    x: cx + rx * Math.cos(theta) * cosPhi - ry * Math.sin(theta) * sinPhi,
+    y: cy + rx * Math.cos(theta) * sinPhi + ry * Math.sin(theta) * cosPhi,
+  })), matrix, padding)
+}
+
+function svgVectorAngle(a: SvgPoint, b: SvgPoint): number {
+  const sign = a.x * b.y - a.y * b.x < 0 ? -1 : 1
+  const dot = a.x * b.x + a.y * b.y
+  const len = Math.hypot(a.x, a.y) * Math.hypot(b.x, b.y)
+  return sign * Math.acos(Math.max(-1, Math.min(1, dot / len)))
+}
+
+function svgAngleInSweep(angle: number, start: number, delta: number): boolean {
+  let adjusted = angle
+  if (delta >= 0) {
+    while (adjusted < start) adjusted += Math.PI * 2
+    return adjusted <= start + delta + 1e-9
+  }
+  while (adjusted > start) adjusted -= Math.PI * 2
+  return adjusted >= start + delta - 1e-9
+}
+
+function svgPointList(points: string | null): SvgPoint[] {
+  const values = points?.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)?.map(Number) ?? []
+  const parsed: SvgPoint[] = []
+  for (let i = 0; i + 1 < values.length; i += 2) parsed.push({x: values[i]!, y: values[i + 1]!})
+  return parsed
+}
+
+function ellipseBounds(cx: number, cy: number, rx: number, ry: number, matrix: SvgMatrix, padding: number): SvgBounds | null {
+  const points: SvgPoint[] = []
+  for (let i = 0; i < 32; i += 1) {
+    const angle = i / 32 * Math.PI * 2
+    points.push({x: cx + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry})
+  }
+  return boundsFromPoints(points, matrix, padding)
+}
+
+function boundsFromPoints(points: readonly SvgPoint[], matrix: SvgMatrix, padding: number): SvgBounds | null {
+  if (points.length === 0) return null
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const point of points) {
+    const transformed = transformSvgPoint(point, matrix)
+    minX = Math.min(minX, transformed.x)
+    minY = Math.min(minY, transformed.y)
+    maxX = Math.max(maxX, transformed.x)
+    maxY = Math.max(maxY, transformed.y)
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) return null
+  return {x: minX - padding, y: minY - padding, width: Math.max(0, maxX - minX + padding * 2), height: Math.max(0, maxY - minY + padding * 2)}
+}
+
+function mergeSvgBounds(a: SvgBounds | null, b: SvgBounds): SvgBounds {
+  if (a === null) return b
+  const minX = Math.min(a.x, b.x)
+  const minY = Math.min(a.y, b.y)
+  const maxX = Math.max(a.x + a.width, b.x + b.width)
+  const maxY = Math.max(a.y + a.height, b.y + b.height)
+  return {x: minX, y: minY, width: Math.max(0, maxX - minX), height: Math.max(0, maxY - minY)}
+}
+
+function numericAttr(node: globalThis.Element, attr: string): number | null {
+  const value = node.getAttribute(attr)
+  if (value === null) return null
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function parseSvgTransform(value: string | null): SvgMatrix {
+  if (value === null) return SVG_IDENTITY
+  let matrix = SVG_IDENTITY
+  for (const match of value.matchAll(/([a-zA-Z]+)\(([^)]*)\)/g)) {
+    const name = match[1]?.toLowerCase()
+    const nums = svgTransformNumbers(match[2] ?? "")
+    let next = SVG_IDENTITY
+    if (name === "matrix" && nums.length >= 6) next = {a: nums[0]!, b: nums[1]!, c: nums[2]!, d: nums[3]!, e: nums[4]!, f: nums[5]!}
+    else if (name === "translate") next = {a: 1, b: 0, c: 0, d: 1, e: nums[0] ?? 0, f: nums[1] ?? 0}
+    else if (name === "scale") next = {a: nums[0] ?? 1, b: 0, c: 0, d: nums[1] ?? nums[0] ?? 1, e: 0, f: 0}
+    else if (name === "rotate") {
+      const angle = (nums[0] ?? 0) * Math.PI / 180
+      const rotate = {a: Math.cos(angle), b: Math.sin(angle), c: -Math.sin(angle), d: Math.cos(angle), e: 0, f: 0}
+      next = nums.length >= 3
+        ? multiplySvgMatrices(multiplySvgMatrices({a: 1, b: 0, c: 0, d: 1, e: nums[1]!, f: nums[2]!}, rotate), {a: 1, b: 0, c: 0, d: 1, e: -nums[1]!, f: -nums[2]!})
+        : rotate
+    } else if (name === "skewx") {
+      next = {a: 1, b: 0, c: Math.tan((nums[0] ?? 0) * Math.PI / 180), d: 1, e: 0, f: 0}
+    } else if (name === "skewy") {
+      next = {a: 1, b: Math.tan((nums[0] ?? 0) * Math.PI / 180), c: 0, d: 1, e: 0, f: 0}
+    }
+    matrix = multiplySvgMatrices(matrix, next)
+  }
+  return matrix
+}
+
+function svgTransformNumbers(value: string): number[] {
+  return value.match(/[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?/g)?.map(Number) ?? []
+}
+
+function multiplySvgMatrices(a: SvgMatrix, b: SvgMatrix): SvgMatrix {
+  return {
+    a: a.a * b.a + a.c * b.b,
+    b: a.b * b.a + a.d * b.b,
+    c: a.a * b.c + a.c * b.d,
+    d: a.b * b.c + a.d * b.d,
+    e: a.a * b.e + a.c * b.f + a.e,
+    f: a.b * b.e + a.d * b.f + a.f,
+  }
+}
+
+function transformSvgPoint(point: SvgPoint, matrix: SvgMatrix): SvgPoint {
+  return {x: matrix.a * point.x + matrix.c * point.y + matrix.e, y: matrix.b * point.x + matrix.d * point.y + matrix.f}
+}
+
+function transformedStrokePadding(matrix: SvgMatrix, strokeWidth: number): number {
+  return strokeWidth / 2 * Math.max(Math.hypot(matrix.a, matrix.b), Math.hypot(matrix.c, matrix.d), 1)
+}
+
+function isSvgPathCommand(token: string): boolean {
+  return /^[AaCcHhLlMmQqSsTtVvZz]$/.test(token)
+}
+
+function roundViewBox(value: number): number {
+  return Math.round(value * 100) / 100
 }
 
 function iconStrokeColor(color: ButtonColor): string {
