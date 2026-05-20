@@ -281,24 +281,22 @@ class ButtonComponentsScreen extends Element {
     const rowGap = Math.max(22, (contentW - buttonW * 3) / 2)
     const rowX = x + pad
     const primaryLabel = this.#label === "Button" ? "Primary" : this.#label
-    if (variant === "text") {
-      this.#textButtonExample(rowX, rows.demoY + (buttonH - 22) / 2, buttonW, primaryLabel.toUpperCase(), false)
-      this.#textButtonExample(rowX + buttonW + rowGap, rows.demoY + (buttonH - 22) / 2, buttonW, "DISABLED", true)
-      this.#textButtonExample(rowX + (buttonW + rowGap) * 2, rows.demoY + (buttonH - 22) / 2, buttonW, "LINK", false)
-    } else {
-      Button(this, rowX, rows.demoY, buttonW, buttonH, {...this.#buttonProps(), label: primaryLabel, children: primaryLabel})
-      Button(this, rowX + buttonW + rowGap, rows.demoY, buttonW, buttonH, {
-        ...this.#buttonProps(),
-        label: "Disabled",
-        children: "Disabled",
-        disabled: true,
-      })
-      Button(this, rowX + (buttonW + rowGap) * 2, rows.demoY, buttonW, buttonH, {
-        ...this.#buttonProps(),
-        label: "Link",
-        children: "Link",
-      })
-    }
+    Button(this, rowX, rows.demoY, buttonW, buttonH, {
+      ...this.#buttonProps(),
+      label: primaryLabel,
+      children: variant === "text" ? primaryLabel.toUpperCase() : primaryLabel,
+    })
+    Button(this, rowX + buttonW + rowGap, rows.demoY, buttonW, buttonH, {
+      ...this.#buttonProps(),
+      label: "Disabled",
+      children: variant === "text" ? "DISABLED" : "Disabled",
+      disabled: true,
+    })
+    Button(this, rowX + (buttonW + rowGap) * 2, rows.demoY, buttonW, buttonH, {
+      ...this.#buttonProps(),
+      label: "Link",
+      children: variant === "text" ? "LINK" : "Link",
+    })
 
     const codeW = Math.min(520, w - pad * 2)
     const codeX = x + (w - codeW) / 2
@@ -658,19 +656,6 @@ class ButtonComponentsScreen extends Element {
           },
         })),
       ],
-    })
-  }
-
-  #textButtonExample(x: number, y: number, w: number, label: string, disabled: boolean): void {
-    Button(this, x, y - 3, w, 28, {
-      children: label,
-      label,
-      variant: "text",
-      color: this.#color,
-      disabled,
-      radius: 14,
-      fontPx: 14,
-      onClick: () => this.#record(`click:${label.toLowerCase()}`),
     })
   }
 
