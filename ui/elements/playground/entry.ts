@@ -59,6 +59,25 @@ const ELEMENT_TONES: readonly ElementTone[] = ["cyan", "green", "orange", "red"]
 const ELEMENT_DENSITIES: readonly ElementDensity[] = ["compact", "regular", "air"]
 
 const TRANSITION_MS = 260
+const LAYOUT_Z = -0.00012
+const BACKDROP_Z = -0.00018
+const ELEMENTS_BACKDROP = svgDataUrl(`
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+    <defs>
+      <radialGradient id="cyan" cx="25%" cy="20%" r="31%">
+        <stop offset="0%" stop-color="rgb(111,211,255)" stop-opacity="0.16"/>
+        <stop offset="100%" stop-color="rgb(111,211,255)" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="green" cx="76%" cy="70%" r="33%">
+        <stop offset="0%" stop-color="rgb(82,196,123)" stop-opacity="0.12"/>
+        <stop offset="100%" stop-color="rgb(82,196,123)" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <rect width="1920" height="1080" fill="#07101b"/>
+    <rect width="1920" height="1080" fill="url(#cyan)"/>
+    <rect width="1920" height="1080" fill="url(#green)"/>
+  </svg>
+`)
 
 class ElementsPlayground extends Element {
   readonly #router = new VirtualRouter<ElementRoute>(ROUTE_IDS, "overview")
@@ -117,12 +136,12 @@ class ElementsPlayground extends Element {
   }
 
   #backdrop(): void {
-    div(this, 0, 0, this.rectW, this.rectH, {style: {background: "rgba(3, 8, 15, 1)", borderColor: null, borderRadius: 0, zIndex: -1}})
+    this.drawImage(ELEMENTS_BACKDROP, 0, 0, this.rectW, this.rectH, {fit: "cover", z: BACKDROP_Z})
   }
 
   #catalog(x: number, y: number, w: number, h: number): void {
     div(this, x, y, w, h, {
-      style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36},
+      style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
     })
 
     const top = y + 24
@@ -147,7 +166,7 @@ class ElementsPlayground extends Element {
 
   #playground(x: number, y: number, w: number, h: number): void {
     div(this, x, y, w, h, {
-      style: {background: "rgba(8, 13, 22, 0.72)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: this.#radius},
+      style: {background: "rgba(8, 13, 22, 0.72)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: this.#radius, zIndex: LAYOUT_Z},
     })
     const progress = easeOutCubic(transitionProgress(this.#transitionStarted))
     const direction = ROUTE_IDS.indexOf(this.#route) >= ROUTE_IDS.indexOf(this.#previousRoute) ? 1 : -1
@@ -171,7 +190,7 @@ class ElementsPlayground extends Element {
 
   #dock(x: number, y: number, w: number, h: number): void {
     div(this, x, y, w, h, {
-      style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34},
+      style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34, zIndex: LAYOUT_Z},
     })
     const items = this.#dockItems()
     const itemGap = 10
@@ -196,7 +215,7 @@ class ElementsPlayground extends Element {
 
   #parameters(x: number, y: number, w: number, h: number): void {
     div(this, x, y, w, h, {
-      style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36},
+      style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
     })
     this.#segmentedNumber(x + 24, y + 34, w - 48, "radius", [
       ["24", 24],
@@ -358,7 +377,6 @@ class ElementsPlayground extends Element {
   #paddingRoute(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Padding", style: {fontSize: 22}})
 
-    div(this, x, y + 58, w, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, x + 28, y + 86, 320, 24, {children: "CSS box spacing", style: {fontSize: 15}})
     codeLine(this, x + 28, y + 126, Math.min(520, w - 56), "div(..., { style: { padding: 28, paddingX: 36 } })")
     propRow(this, x + 28, y + 174, Math.min(420, w - 56), "padding", "all sides")
@@ -380,7 +398,6 @@ class ElementsPlayground extends Element {
     h2(this, x, y, w, 34, {children: "Flex", style: {fontSize: 22}})
 
     const panelW = (w - 24) / 2
-    div(this, x, y + 58, panelW, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, x + 28, y + 86, panelW - 56, 24, {children: "flexRow", style: {fontSize: 15}})
     flexRow({
       x: x + 28,
@@ -398,7 +415,6 @@ class ElementsPlayground extends Element {
     codeLine(this, x + 28, y + 292, panelW - 56, "flexRow({ gap: 14, alignItems: \"center\", items })")
 
     const rightX = x + panelW + 24
-    div(this, rightX, y + 58, panelW, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, rightX + 28, y + 86, panelW - 56, 24, {children: "flexColumn", style: {fontSize: 15}})
     flexColumn({
       x: rightX + 28,
@@ -418,7 +434,6 @@ class ElementsPlayground extends Element {
   #flexCssRoute(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Flex CSS", style: {fontSize: 22}})
 
-    div(this, x, y + 58, w, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, x + 28, y + 86, w - 56, 24, {children: "px / percent / fr / grow", style: {fontSize: 15}})
     const items: Array<{label: string; width: UiSize; color: CssColor}> = [
       {label: "120px", width: 120, color: "cyan"},
@@ -457,10 +472,9 @@ class ElementsPlayground extends Element {
     for (const [i, [title, body, color]] of cards.entries()) {
       const cx = x + (i % 2) * (cardW + gap)
       const cy = y + 58 + Math.floor(i / 2) * (cardH + gap)
-      div(this, cx, cy, cardW, cardH, {style: {background: "rgba(255, 255, 255, 0.04)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-      div(this, cx + 22, cy + 24, 50, 50, {style: {background: color, borderColor: "rgba(255, 255, 255, 0.22)", borderRadius: 20, opacity: 0.72}})
-      h3(this, cx + 92, cy + 26, cardW - 118, 24, {children: title, style: {fontSize: 15}})
-      p(this, cx + 92, cy + 62, cardW - 118, 26, {children: body, style: {fontSize: 12, color: "muted"}})
+      div(this, cx + 22, cy + 26, 14, 52, {style: {background: color, borderColor: null, borderRadius: 999, opacity: 0.72, zIndex: 0.00002}})
+      h3(this, cx + 58, cy + 26, cardW - 84, 24, {children: title, style: {fontSize: 15}})
+      p(this, cx + 58, cy + 62, cardW - 84, 26, {children: body, style: {fontSize: 12, color: "muted"}})
       button(this, cx + 22, cy + 104, 148, 40, {children: "Select", style: {fontSize: 11}})
     }
   }
@@ -468,7 +482,6 @@ class ElementsPlayground extends Element {
   #textBlockRoute(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Text Block", style: {fontSize: 22}})
 
-    div(this, x, y + 58, w, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, x + 28, y + 86, 280, 24, {children: "Measured multiline text", style: {fontSize: 15}})
     const copy =
       "Card.drawTextBlock keeps long content inside a fixed visual box. It wraps, shrinks when needed and clips with predictable canvas metrics."
@@ -482,16 +495,12 @@ class ElementsPlayground extends Element {
       padX: 22,
       padY: 18,
     })
-    div(this, x + Math.min(590, w * 0.56), y + 130, w - Math.min(590, w * 0.56), 168, {
-      style: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.30)", borderRadius: 30},
-    })
     codeLine(this, x + 28, y + 322, w - 56, "drawTextBlock(text, x, y, w, h, { wrap: true, fit: \"shrink\", maxLines: 5 })")
   }
 
   #imageRoute(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Image", style: {fontSize: 22}})
 
-    div(this, x, y + 58, w, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     const artwork = svgDataUrl(`
       <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
         <defs>
@@ -520,7 +529,6 @@ class ElementsPlayground extends Element {
   #eventsRoute(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Events", style: {fontSize: 22}})
 
-    div(this, x, y + 58, w, 366, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, x + 28, y + 86, 260, 24, {children: "State", style: {fontSize: 15}})
     pill(this, x + w - 278, y + 82, 250, 30, `state=${this.#state} clicks=${this.#clicks}`, "rgba(111, 211, 255, 0.10)", "cyan")
     button(this, x + 28, y + 140, 190, 50, {
@@ -570,7 +578,6 @@ class ElementsPlayground extends Element {
       })
     }
 
-    div(this, x, y + 120, w, 300, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     if (this.#cssSection === "padding") this.#cssPadding(x + 28, y + 150, w - 56)
     else if (this.#cssSection === "flex") this.#cssFlex(x + 28, y + 150, w - 56)
     else if (this.#cssSection === "border") this.#cssBorder(x + 28, y + 150, w - 56)

@@ -42,6 +42,25 @@ const COMPONENT_VARIANTS: readonly ButtonVariant[] = ["glass", "contained", "out
 const COMPONENT_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error", "neutral"]
 const COMPONENT_SIZES: readonly ButtonSize[] = ["small", "medium", "large"]
 const COMPONENT_DENSITIES: readonly ComponentDensity[] = ["compact", "regular", "air"]
+const LAYOUT_Z = -0.00012
+const BACKDROP_Z = -0.00018
+const COMPONENTS_BACKDROP = svgDataUrl(`
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+    <defs>
+      <radialGradient id="cyan" cx="30%" cy="18%" r="33%">
+        <stop offset="0%" stop-color="rgb(111,211,255)" stop-opacity="0.16"/>
+        <stop offset="100%" stop-color="rgb(111,211,255)" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="orange" cx="70%" cy="78%" r="35%">
+        <stop offset="0%" stop-color="rgb(255,190,111)" stop-opacity="0.10"/>
+        <stop offset="100%" stop-color="rgb(255,190,111)" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <rect width="1920" height="1080" fill="#07101b"/>
+    <rect width="1920" height="1080" fill="url(#cyan)"/>
+    <rect width="1920" height="1080" fill="url(#orange)"/>
+  </svg>
+`)
 const SCROLL_ROW_H = 46
 const SCROLL_ROW_GAP = 8
 const SCROLL_ITEMS = Array.from({length: 64}, (_, i) => ({
@@ -118,13 +137,13 @@ class ComponentsPlayground extends Element {
   }
 
   #backdrop(): void {
-    div(this, 0, 0, this.rectW, this.rectH, {style: {background: "rgba(3, 7, 13, 1)", borderColor: null, borderRadius: 0, zIndex: -1}})
+    this.drawImage(COMPONENTS_BACKDROP, 0, 0, this.rectW, this.rectH, {fit: "cover", z: BACKDROP_Z})
   }
 
   #catalog(x: number, y: number, w: number, h: number): void {
     Card(this, x, y, w, h, {
       variant: "glass",
-      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36},
+      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
     })
     const top = y + 24
     const gap = 8
@@ -144,7 +163,12 @@ class ComponentsPlayground extends Element {
   #playground(x: number, y: number, w: number, h: number): void {
     Card(this, x, y, w, h, {
       variant: "glass",
-      sx: {background: "rgba(8, 13, 22, 0.70)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: this.#componentRadius === 999 ? 38 : this.#componentRadius},
+      sx: {
+        background: "rgba(8, 13, 22, 0.70)",
+        borderColor: "rgba(214, 231, 255, 0.22)",
+        borderRadius: this.#componentRadius === 999 ? 38 : this.#componentRadius,
+        zIndex: LAYOUT_Z,
+      },
     })
     const progress = easeOutCubic(transitionProgress(this.#transitionStarted))
     const direction = ROUTE_IDS.indexOf(this.#route) >= ROUTE_IDS.indexOf(this.#previousRoute) ? 1 : -1
@@ -166,7 +190,7 @@ class ComponentsPlayground extends Element {
   #dock(x: number, y: number, w: number, h: number): void {
     Card(this, x, y, w, h, {
       variant: "glass",
-      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34},
+      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34, zIndex: LAYOUT_Z},
     })
     const items = this.#dockItems()
     const itemGap = 10
@@ -189,7 +213,7 @@ class ComponentsPlayground extends Element {
   #parameters(x: number, y: number, w: number, h: number): void {
     Card(this, x, y, w, h, {
       variant: "glass",
-      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36},
+      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
     })
     const previewY = y + h - 148
     let cy = y + 34
@@ -376,7 +400,6 @@ class ComponentsPlayground extends Element {
   #buttons(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Buttons", style: {fontSize: 22}})
 
-    Card(this, x, y + 58, w, 358, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     Divider(this, x + 28, y + 110, w - 56, {color: "neutral"})
     h3(this, x + 28, y + 82, 260, 24, {children: "Variants", style: {fontSize: 15}})
     const buttons = [
@@ -406,7 +429,6 @@ class ComponentsPlayground extends Element {
   #badge(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Badge", style: {fontSize: 22}})
 
-    Card(this, x, y + 58, w, 358, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, x + 28, y + 86, 260, 24, {children: "Variants", style: {fontSize: 15}})
     const badges = [
       ["Primary", "primary"],
@@ -447,7 +469,6 @@ class ComponentsPlayground extends Element {
   #dividerRoute(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Divider", style: {fontSize: 22}})
 
-    Card(this, x, y + 58, w, 358, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, x + 28, y + 86, 260, 24, {children: "Separators", style: {fontSize: 15}})
     const rows = [
       ["neutral", "neutral"],
@@ -466,7 +487,6 @@ class ComponentsPlayground extends Element {
   #scrollbarRoute(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Scrollbar", style: {fontSize: 22}})
 
-    Card(this, x, y + 58, w, 358, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, x + 28, y + 86, 260, 24, {children: "Offsets", style: {fontSize: 15}})
     for (let i = 0; i < 4; i++) {
       const bx = x + 42 + i * 150
@@ -482,7 +502,6 @@ class ComponentsPlayground extends Element {
     h2(this, x, y, w, 34, {children: "Scroll List", style: {fontSize: 22}})
 
     const panelH = Math.min(430, h - 58)
-    Card(this, x, y + 58, w, panelH, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, x + 28, y + 86, 260, 24, {children: "Virtual rows", style: {fontSize: 15}})
     Badge(this, x + w - 180, y + 82, 152, 32, {children: `${SCROLL_ITEMS.length} items`, color: "primary"})
 
@@ -520,7 +539,6 @@ class ComponentsPlayground extends Element {
   #notiStackRoute(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Noti Stack", style: {fontSize: 22}})
 
-    Card(this, x, y + 58, w, 358, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, x + 28, y + 86, 300, 24, {children: "Toast layout", style: {fontSize: 15}})
     const toastW = Math.min(420, w - 56)
     for (let i = 0; i < 3; i++) {
@@ -541,7 +559,6 @@ class ComponentsPlayground extends Element {
   #feedback(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Feedback", style: {fontSize: 22}})
 
-    Card(this, x, y + 58, w, 358, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
     h3(this, x + 28, y + 86, 280, 24, {children: "Interactive event stream", style: {fontSize: 15}})
     Badge(this, x + w - 282, y + 82, 124, 32, {children: `events ${this.#eventCount}`, color: "primary"})
     Badge(this, x + w - 144, y + 82, 116, 32, {children: this.#status, color: colorForStatus(this.#status)})
@@ -614,6 +631,10 @@ function labelsForRoute(route: ComponentRoute): readonly string[] {
   if (route === "scrollbar") return ["offset 0", "offset 6", "offset 11", "thumb"]
   if (route === "notiStack") return ["Push", "Clear", "toast", "stack"]
   return ["sample", "variant", "state", "event"]
+}
+
+function svgDataUrl(svg: string): string {
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg.trim())))}`
 }
 
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null

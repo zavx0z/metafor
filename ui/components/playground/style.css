@@ -4,10 +4,6 @@ body {
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 30% 18%, rgba(111, 211, 255, 0.16), transparent 30rem),
-    radial-gradient(circle at 70% 78%, rgba(255, 190, 111, 0.10), transparent 32rem),
-    #07101b;
 }
 
 #stage-canvas {
