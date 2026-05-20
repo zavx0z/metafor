@@ -1,4 +1,4 @@
-import {Color, type TextMaterial} from "@metafor/engine"
+import {Color, TextMaterial} from "@metafor/engine"
 import {type Card, type HitOptions, Z} from "./card.ts"
 import {palette} from "./theme.ts"
 
@@ -59,6 +59,7 @@ export type HtmlElementProps = {
 
 const visionGlass = new Color(0.055, 0.075, 0.11, 0.58)
 const visionBorder = new Color(0.82, 0.91, 1, 0.22)
+const textMaterialCache = new Map<string, TextMaterial>()
 
 export type SxProps = StyleProps
 
@@ -294,7 +295,14 @@ function textMaterial(card: Card, color: CssColor | undefined, disabled: boolean
     const key = color as "text" | "muted" | "cyan" | "green" | "orange" | "red" | "blue" | "violet"
     return card.materials[key]
   }
-  return card.materials.text
+  const parsed = cssColor(color)
+  const key = `${parsed.r}:${parsed.g}:${parsed.b}:${parsed.a}`
+  let material = textMaterialCache.get(key)
+  if (material === undefined) {
+    material = new TextMaterial({color: parsed})
+    textMaterialCache.set(key, material)
+  }
+  return material
 }
 
 function hexColor(hex: string): Color {

@@ -1,15 +1,5 @@
 import {Element, UiCanvas, h2, h3, p, palette, span, uiIcons} from "@metafor/elements"
-import {
-  Badge,
-  Button,
-  type ButtonColor,
-  type ButtonProps,
-  type ButtonSize,
-  type ButtonVariant,
-  Card,
-  Divider,
-  TextField,
-} from "@metafor/components"
+import {Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Card, Divider} from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
 type ButtonLabel = "Button" | "Apply" | "Run" | "Delete"
@@ -56,8 +46,6 @@ class ButtonComponentsScreen extends Element {
   #width: ButtonWidth = "regular"
   #height: ButtonHeight = "regular"
   #eventCount = 0
-  #status = "ready"
-  #events = ["ready"]
 
   constructor() {
     super({bgColor: null, borderColor: null})
@@ -221,51 +209,66 @@ class ButtonComponentsScreen extends Element {
 
   #buttonDetail(x: number, y: number, w: number, h: number, variant: ButtonRouteVariant): void {
     const pad = 42
-    h2(this, x + pad, y + 34, w - pad * 2, 34, {children: detailTitle(variant), style: {fontSize: 24}})
-    p(this, x + pad, y + 82, w - pad * 2, 42, {
-      children: detailDescription(variant),
-      style: {fontSize: 13, color: "muted"},
-    })
+    const headerY = y + 34
+    const headerH = 108
+    const codeLines = [
+      `Button(host, x, y, w, h, { children: "${this.#label === "Button" ? "Primary" : this.#label}", variant: "${variant}" })`,
+      `Button(host, x, y, w, h, { children: "Disabled", variant: "${variant}", disabled: true })`,
+      `Button(host, x, y, w, h, { children: "Link", variant: "${variant}" })`,
+    ]
+    const codeH = codeBlockHeight(codeLines)
 
-    const buttonW = Math.min(this.#buttonWidth(Math.min(w - pad * 2, 520)), 168)
+    h2(this, x + pad, headerY, w - pad * 2, 34, {children: detailTitle(variant), style: {fontSize: 24}})
+    for (const [i, line] of detailDescriptionLines(variant).entries()) {
+      p(this, x + pad, headerY + 48 + i * 24, w - pad * 2, 22, {
+        children: line,
+        style: {fontSize: 13, color: "muted"},
+      })
+    }
+
+    const contentW = w - pad * 2
+    const buttonW = Math.min(this.#buttonWidth(Math.min(contentW, 520)), 168)
     const buttonH = this.#buttonHeight()
-    const rowGap = 22
-    const rowW = buttonW * 3 + rowGap * 2
-    const rowX = x + (w - rowW) / 2
-    const rowY = y + Math.max(178, h * 0.33)
+    const rowGap = Math.max(22, (contentW - buttonW * 3) / 2)
+    const rowX = x + pad
+    const verticalGap = Math.max(28, (h - pad - 34 - headerH - buttonH - codeH) / 2)
+    const rowY = headerY + headerH + verticalGap
     const primaryLabel = this.#label === "Button" ? "Primary" : this.#label
-    Button(this, rowX, rowY, buttonW, buttonH, {...this.#buttonProps(), label: primaryLabel, children: primaryLabel})
-    Button(this, rowX + buttonW + rowGap, rowY, buttonW, buttonH, {
-      ...this.#buttonProps(),
-      label: "Disabled",
-      children: "Disabled",
-      disabled: true,
-    })
-    Button(this, rowX + (buttonW + rowGap) * 2, rowY, buttonW, buttonH, {
-      ...this.#buttonProps(),
-      label: "Link",
-      children: "Link",
-      endIcon: uiIcons.run,
-    })
+    if (variant === "text") {
+      this.#textButtonExample(rowX, rowY + (buttonH - 22) / 2, buttonW, primaryLabel.toUpperCase(), false)
+      this.#textButtonExample(rowX + buttonW + rowGap, rowY + (buttonH - 22) / 2, buttonW, "DISABLED", true)
+      this.#textButtonExample(rowX + (buttonW + rowGap) * 2, rowY + (buttonH - 22) / 2, buttonW, "LINK", false)
+    } else {
+      Button(this, rowX, rowY, buttonW, buttonH, {...this.#buttonProps(), label: primaryLabel, children: primaryLabel})
+      Button(this, rowX + buttonW + rowGap, rowY, buttonW, buttonH, {
+        ...this.#buttonProps(),
+        label: "Disabled",
+        children: "Disabled",
+        disabled: true,
+      })
+      Button(this, rowX + (buttonW + rowGap) * 2, rowY, buttonW, buttonH, {
+        ...this.#buttonProps(),
+        label: "Link",
+        children: "Link",
+      })
+    }
 
     const codeW = Math.min(520, w - pad * 2)
     const codeX = x + (w - codeW) / 2
-    const codeY = rowY + buttonH + 58
-    codeBlock(this, codeX, codeY, codeW, [
-      `Button(host, x, y, w, h, { children: "${primaryLabel}", variant: "${variant}" })`,
-      `Button(host, x, y, w, h, { children: "Disabled", variant: "${variant}", disabled: true })`,
-    ])
-    codeLine(this, codeX, codeY + 56, codeW, `Button(host, x, y, w, h, { children: "Link", variant: "${variant}", endIcon: uiIcons.run })`)
+    const codeY = rowY + buttonH + verticalGap
+    codeBlock(this, codeX, codeY, codeW, codeLines)
+  }
 
-    TextField(this, codeX, codeY + 100, codeW, 42, {value: `last=${this.#status}`, active: true})
-    const logY = y + h - 86
-    Badge(this, x + pad, logY, 142, 30, {children: this.#currentButtonType(), color: this.#color})
-    Badge(this, x + pad + 156, logY, 110, 30, {children: this.#color, color: this.#color})
-    Badge(this, x + pad + 280, logY, 96, 30, {children: this.#size, color: "neutral"})
-    const recent = this.#events[0] ?? "ready"
-    Badge(this, x + w - pad - 124, logY, 124, 30, {
-      children: recent,
-      color: "neutral",
+  #textButtonExample(x: number, y: number, w: number, label: string, disabled: boolean): void {
+    Button(this, x, y - 3, w, 28, {
+      children: label,
+      label,
+      variant: "text",
+      color: this.#color,
+      disabled,
+      radius: 14,
+      fontPx: 14,
+      onClick: () => this.#record(`click:${label.toLowerCase()}`),
     })
   }
 
@@ -500,10 +503,8 @@ class ButtonComponentsScreen extends Element {
     this.#record(variant === null ? "route:basic" : `route:${variant}`)
   }
 
-  #record(status: string): void {
+  #record(_status: string): void {
     this.#eventCount += 1
-    this.#status = status
-    this.#events = [`${status}:${this.#eventCount}`, ...this.#events].slice(0, 5)
     this.requestRender()
   }
 }
@@ -553,23 +554,23 @@ function detailTitle(variant: ButtonRouteVariant): string {
   return "Text button"
 }
 
-function detailDescription(variant: ButtonRouteVariant): string {
-  if (variant === "contained") return "Contained buttons are used for high-emphasis actions and primary decisions."
-  if (variant === "outlined") return "Outlined buttons are medium-emphasis controls that keep the surface quiet."
-  return "Text buttons are typically used for less-pronounced actions and compact surfaces."
+function detailDescriptionLines(variant: ButtonRouteVariant): readonly string[] {
+  if (variant === "contained") {
+    return ["Contained buttons are used for high-emphasis actions", "and primary decisions."]
+  }
+  if (variant === "outlined") {
+    return ["Outlined buttons are medium-emphasis controls", "that keep the surface quiet."]
+  }
+  return ["Text buttons are typically used for less-pronounced actions,", "including actions in dialogs and cards."]
 }
 
-function codeLine(host: Element, x: number, y: number, w: number, line: string): void {
-  Card(host, x, y, w, 28, {
-    variant: "glass",
-    sx: {background: "rgba(4, 8, 14, 0.50)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 14},
-  })
-  span(host, x + 14, y + 6, w - 28, 16, {children: line, style: {fontSize: 10, color: "muted"}})
+function codeBlockHeight(lines: readonly string[]): number {
+  return 16 + lines.length * 18
 }
 
 function codeBlock(host: Element, x: number, y: number, w: number, lines: readonly string[]): void {
   const lineH = 18
-  const h = 16 + lines.length * lineH
+  const h = codeBlockHeight(lines)
   Card(host, x, y, w, h, {
     variant: "glass",
     sx: {background: "rgba(4, 8, 14, 0.50)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 17},
