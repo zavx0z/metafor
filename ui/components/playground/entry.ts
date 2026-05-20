@@ -23,7 +23,7 @@ type ButtonRoute =
 type ButtonSection = "Basic" | "Sizes" | "Color" | "Icon"
 
 const BASIC_BUTTON_TYPES: readonly BasicButtonType[] = ["Text button", "Contained button", "Outlined button"]
-const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Sizes", "Color", "Icon"]
+const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Icon", "Sizes", "Color"]
 const BUTTON_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error", "neutral"]
 const BUTTON_DOC_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error"]
 const BUTTON_SIZES: readonly ButtonSize[] = ["small", "medium", "large"]
@@ -310,6 +310,7 @@ class ButtonComponentsScreen extends Element {
       'Button(host, x, y, w, h, { children: "Small", size: "small" })',
       'Button(host, x, y, w, h, { children: "Medium", size: "medium" })',
       'Button(host, x, y, w, h, { children: "Large", size: "large" })',
+      'Button(host, x, y, size, size, { iconSrc: atomSvg, iconOnly: true, variant: "text", size })',
     ]
 
     const contentW = w - pad * 2
@@ -318,7 +319,7 @@ class ButtonComponentsScreen extends Element {
     const startX = x + pad
     const controlRowGap = 18
     const controlRowH = sizeButtonHeight("large")
-    const demoH = controlRowH * 3 + controlRowGap * 2
+    const demoH = controlRowH * 4 + controlRowGap * 3
     const rows = contentRows(y, h, {
       headerH: 108,
       demoH,
@@ -329,6 +330,7 @@ class ButtonComponentsScreen extends Element {
     const firstRowY = rows.demoY
     const outlinedY = firstRowY + controlRowH + controlRowGap
     const containedY = outlinedY + controlRowH + controlRowGap
+    const iconY = containedY + controlRowH + controlRowGap
     for (const [i, size] of sizes.entries()) {
       const label = sizeLabel(size)
       const bx = startX + i * (columnW + columnGap)
@@ -360,6 +362,7 @@ class ButtonComponentsScreen extends Element {
         radius: Math.min(this.#radius, 18),
         onClick: () => this.#goSize(size),
       })
+      this.#docIconButton(bx + (columnW - itemH) / 2, itemY(iconY), itemH, size, this.#color, () => this.#goSize(size))
     }
 
     const codeW = Math.min(520, w - pad * 2)
@@ -375,10 +378,11 @@ class ButtonComponentsScreen extends Element {
       `Button(host, x, y, w, h, { children: "Text", variant: "text", size: "${size}" })`,
       `Button(host, x, y, w, h, { children: "Outlined", variant: "outlined", size: "${size}" })`,
       `Button(host, x, y, w, h, { children: "Contained", variant: "contained", size: "${size}" })`,
+      `Button(host, x, y, h, h, { iconSrc: atomSvg, iconOnly: true, variant: "text", size: "${size}" })`,
     ]
 
     const contentW = w - pad * 2
-    const buttonW = Math.min(this.#buttonWidth(Math.min(contentW, 520)), 168)
+    const buttonW = Math.min(136, Math.max(96, (contentW - sizeButtonHeight(size) - 22 * 3) / 3))
     const buttonH = sizeButtonHeight(size)
     const rows = contentRows(y, h, {
       headerH,
@@ -387,7 +391,8 @@ class ButtonComponentsScreen extends Element {
     })
     renderHeader(this, x, w, pad, rows.headerY, `${title} buttons`, sizeDescriptionLines(size))
 
-    const rowGap = Math.max(22, (contentW - buttonW * 3) / 2)
+    const iconW = buttonH
+    const rowGap = Math.max(22, (contentW - buttonW * 3 - iconW) / 3)
     const rowX = x + pad
     Button(this, rowX, rows.demoY, buttonW, buttonH, {
       children: "Text",
@@ -413,6 +418,7 @@ class ButtonComponentsScreen extends Element {
       radius: this.#radius,
       onClick: () => this.#setSize(size),
     })
+    this.#docIconButton(rowX + buttonW * 3 + rowGap * 3, rows.demoY, iconW, size, this.#color, () => this.#setSize(size))
 
     const codeW = Math.min(520, w - pad * 2)
     const codeX = x + (w - codeW) / 2
@@ -423,7 +429,10 @@ class ButtonComponentsScreen extends Element {
     const pad = 42
     const variants: readonly ButtonRouteVariant[] = ["text", "outlined", "contained"]
     const codeLines = BUTTON_DOC_COLORS.flatMap((color) =>
-      variants.map((variant) => `Button(host, x, y, w, h, { children: "${variantLabel(variant)}", variant: "${variant}", color: "${color}" })`),
+      [
+        ...variants.map((variant) => `Button(host, x, y, w, h, { children: "${variantLabel(variant)}", variant: "${variant}", color: "${color}" })`),
+        `Button(host, x, y, h, h, { iconSrc: atomSvg, iconOnly: true, variant: "text", color: "${color}" })`,
+      ],
     )
     const rowH = 38
     const rowGap = 11
@@ -455,8 +464,9 @@ class ButtonComponentsScreen extends Element {
   ): void {
     const labelW = 82
     const gap = 12
-    const buttonW = Math.min(128, Math.max(92, (w - labelW - gap * variants.length) / variants.length))
-    const rowW = labelW + gap + buttonW * variants.length + gap * (variants.length - 1)
+    const iconW = h
+    const buttonW = Math.min(120, Math.max(84, (w - labelW - iconW - gap * 4) / 3))
+    const rowW = labelW + gap + buttonW * variants.length + iconW + gap * variants.length
     const startX = x + (w - rowW) / 2
     span(this, startX, y, labelW, h, {children: colorTitle(color), style: {fontSize: 11, color: colorTextStyle(color)}})
     for (const [i, variant] of variants.entries()) {
@@ -469,6 +479,7 @@ class ButtonComponentsScreen extends Element {
         onClick: () => this.#goColor(color),
       })
     }
+    this.#docIconButton(startX + labelW + gap + variants.length * (buttonW + gap), y, iconW, this.#size, color, () => this.#goColor(color))
   }
 
   #colorDetail(x: number, y: number, w: number, h: number, color: ButtonColor): void {
@@ -479,10 +490,11 @@ class ButtonComponentsScreen extends Element {
       `Button(host, x, y, w, h, { children: "Text", variant: "text", color: "${color}" })`,
       `Button(host, x, y, w, h, { children: "Outlined", variant: "outlined", color: "${color}" })`,
       `Button(host, x, y, w, h, { children: "Contained", variant: "contained", color: "${color}" })`,
+      `Button(host, x, y, h, h, { iconSrc: atomSvg, iconOnly: true, variant: "text", color: "${color}" })`,
     ]
 
     const contentW = w - pad * 2
-    const buttonW = Math.min(this.#buttonWidth(Math.min(contentW, 520)), 168)
+    const buttonW = Math.min(136, Math.max(96, (contentW - this.#buttonHeight() - 22 * 3) / 3))
     const buttonH = this.#buttonHeight()
     const rows = contentRows(y, h, {
       headerH,
@@ -491,7 +503,8 @@ class ButtonComponentsScreen extends Element {
     })
     renderHeader(this, x, w, pad, rows.headerY, `${title} color`, colorDescriptionLines(color))
 
-    const rowGap = Math.max(22, (contentW - buttonW * 3) / 2)
+    const iconW = buttonH
+    const rowGap = Math.max(22, (contentW - buttonW * 3 - iconW) / 3)
     const rowX = x + pad
     Button(this, rowX, rows.demoY, buttonW, buttonH, {
       children: "Text",
@@ -517,6 +530,7 @@ class ButtonComponentsScreen extends Element {
       radius: this.#radius,
       onClick: () => this.#setColor(color),
     })
+    this.#docIconButton(rowX + buttonW * 3 + rowGap * 3, rows.demoY, iconW, this.#size, color, () => this.#setColor(color))
 
     const codeW = Math.min(520, w - pad * 2)
     const codeX = x + (w - codeW) / 2
@@ -656,6 +670,20 @@ class ButtonComponentsScreen extends Element {
           },
         })),
       ],
+    })
+  }
+
+  #docIconButton(x: number, y: number, sizePx: number, size: ButtonSize, color: ButtonColor, onClick: () => void): void {
+    Button(this, x, y, sizePx, sizePx, {
+      label: `${colorTitle(color)} ${sizeTitle(size)} Icon`,
+      iconSrc: this.#svgIconSrc(color),
+      iconOnly: true,
+      variant: "text",
+      color,
+      size,
+      radius: 999,
+      iconSizePx: iconSizeForButtonSize(size),
+      onClick,
     })
   }
 
