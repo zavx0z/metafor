@@ -31,6 +31,8 @@ type ElementRoute =
   | "events"
   | "theme"
 type CssSection = "padding" | "flex" | "border" | "color" | "typography"
+type ElementTone = "cyan" | "green" | "orange" | "red"
+type ElementDensity = "compact" | "regular" | "air"
 
 type RouteMeta = {
   id: ElementRoute
@@ -53,6 +55,8 @@ const ROUTES: readonly RouteMeta[] = [
 ]
 
 const CSS_SECTIONS: readonly CssSection[] = ["padding", "flex", "border", "color", "typography"]
+const ELEMENT_TONES: readonly ElementTone[] = ["cyan", "green", "orange", "red"]
+const ELEMENT_DENSITIES: readonly ElementDensity[] = ["compact", "regular", "air"]
 
 const TRANSITION_MS = 260
 
@@ -63,6 +67,10 @@ class ElementsPlayground extends Element {
   #previousRoute: ElementRoute = this.#router.current
   #transitionStarted = performance.now() - TRANSITION_MS
   #cssSection: CssSection = "padding"
+  #tone: ElementTone = "cyan"
+  #radius = 34
+  #density: ElementDensity = "regular"
+  #dockSelection = "div"
   #clicks = 0
   #state = "idle"
   #events: string[] = ["ready: hover, press, release, click"]
@@ -86,36 +94,23 @@ class ElementsPlayground extends Element {
   protected render(): void {
     this.#backdrop()
 
-    const stageW = Math.max(980, Math.min(1440, this.rectW - 96))
-    const stageH = Math.max(680, Math.min(820, this.rectH - 96))
+    const stageW = Math.max(1040, Math.min(1540, this.rectW - 48))
+    const stageH = Math.max(560, Math.min(860, this.rectH - 36))
     const stageX = (this.rectW - stageW) / 2
     const stageY = (this.rectH - stageH) / 2
-    const railW = 286
-    const gap = 26
-    const contentX = stageX + railW + gap + 28
-    const contentY = stageY + 34
-    const contentW = stageW - railW - gap - 56
-    const contentH = stageH - 68
+    const gap = 18
+    const catalogW = Math.round(Math.max(204, Math.min(250, stageW * 0.19)))
+    const paramsW = Math.round(Math.max(246, Math.min(310, stageW * 0.23)))
+    const dockH = Math.max(86, Math.min(112, stageH * 0.15))
+    const playW = stageW - catalogW - paramsW - gap * 2
+    const playH = stageH - dockH - gap
+    const playX = stageX + catalogW + gap
+    const paramsX = playX + playW + gap
 
-    div(this, stageX, stageY, stageW, stageH, {
-      style: {
-        background: "rgba(20, 28, 43, 0.82)",
-        borderColor: "rgba(214, 231, 255, 0.42)",
-        borderRadius: 44,
-        zIndex: 0.00001,
-      },
-    })
-    div(this, stageX + 18, stageY + 18, stageW - 36, stageH - 36, {
-      style: {
-        background: "rgba(255, 255, 255, 0.035)",
-        borderColor: "rgba(255, 255, 255, 0.08)",
-        borderRadius: 36,
-        zIndex: 0.00002,
-      },
-    })
-
-    this.#routeRail(stageX + 34, stageY + 34, railW, contentH)
-    this.#content(contentX, contentY, contentW, contentH)
+    this.#catalog(stageX, stageY, catalogW, stageH)
+    this.#playground(playX, stageY, playW, playH)
+    this.#dock(playX, stageY + playH + gap, playW, dockH)
+    this.#parameters(paramsX, stageY, paramsW, stageH)
 
     const t = transitionProgress(this.#transitionStarted)
     if (t < 1) requestAnimationFrame(() => this.requestRender())
@@ -125,54 +120,199 @@ class ElementsPlayground extends Element {
     div(this, 0, 0, this.rectW, this.rectH, {style: {background: "rgba(3, 8, 15, 1)", borderColor: null, borderRadius: 0, zIndex: -1}})
   }
 
-  #routeRail(x: number, y: number, w: number, h: number): void {
+  #catalog(x: number, y: number, w: number, h: number): void {
     div(this, x, y, w, h, {
-      style: {background: "rgba(7, 12, 21, 0.76)", borderColor: "rgba(214, 231, 255, 0.18)", borderRadius: 34},
+      style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36},
     })
 
+    const top = y + 24
+    const gap = 8
+    const rowH = Math.max(28, Math.min(38, (h - 48 - gap * (ROUTES.length - 1)) / ROUTES.length))
     for (const [i, route] of ROUTES.entries()) {
       const active = route.id === this.#route
-      const by = y + 24 + i * 54
-      if (active) {
-        div(this, x + 18, by - 5, w - 36, 46, {
-          style: {background: "rgba(111, 211, 255, 0.10)", borderColor: "rgba(111, 211, 255, 0.42)", borderRadius: 23},
-        })
-      }
-      button(this, x + 30, by, w - 60, 36, {
+      const by = top + i * (rowH + gap)
+      button(this, x + 18, by, w - 36, rowH, {
         children: route.label,
         onClick: () => this.#router.go(route.id),
         style: {
-          background: active ? "rgba(62, 92, 122, 0.76)" : "rgba(255, 255, 255, 0.035)",
-          borderColor: active ? "cyan" : "rgba(214, 231, 255, 0.18)",
+          background: active ? "rgba(111, 211, 255, 0.14)" : "rgba(255, 255, 255, 0.035)",
+          borderColor: active ? this.#tone : "rgba(214, 231, 255, 0.16)",
           color: active ? "text" : "muted",
           fontSize: 11,
-          borderRadius: 18,
+          borderRadius: 999,
         },
       })
     }
   }
 
-  #content(x: number, y: number, w: number, h: number): void {
+  #playground(x: number, y: number, w: number, h: number): void {
     div(this, x, y, w, h, {
-      style: {background: "rgba(8, 13, 22, 0.72)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 38},
+      style: {background: "rgba(8, 13, 22, 0.72)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: this.#radius},
     })
     const progress = easeOutCubic(transitionProgress(this.#transitionStarted))
     const direction = ROUTE_IDS.indexOf(this.#route) >= ROUTE_IDS.indexOf(this.#previousRoute) ? 1 : -1
     const slideX = Math.round((1 - progress) * 30 * direction)
+    const pad = this.#contentPad()
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    if (this.#route === "overview") this.#overview(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "card") this.#cardRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "padding") this.#paddingRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "flex") this.#flexRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "flexCss") this.#flexCssRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "grid") this.#gridRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "textBlock") this.#textBlockRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "image") this.#imageRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "css") this.#css(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "events") this.#eventsRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else this.#theme(x + 34 + slideX, y + 34, w - 68, h - 68)
+    if (this.#route === "overview") this.#overview(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "card") this.#cardRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "padding") this.#paddingRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "flex") this.#flexRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "flexCss") this.#flexCssRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "grid") this.#gridRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "textBlock") this.#textBlockRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "image") this.#imageRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "css") this.#css(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "events") this.#eventsRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else this.#theme(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
     this.popClip()
+  }
+
+  #dock(x: number, y: number, w: number, h: number): void {
+    div(this, x, y, w, h, {
+      style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34},
+    })
+    const items = this.#dockItems()
+    const itemGap = 10
+    const itemW = Math.max(82, Math.min(148, (w - 48 - itemGap * (items.length - 1)) / items.length))
+    const rowW = itemW * items.length + itemGap * (items.length - 1)
+    const startX = x + (w - rowW) / 2
+    for (const [i, item] of items.entries()) {
+      const active = item.active ?? this.#dockSelection === item.label
+      button(this, startX + i * (itemW + itemGap), y + (h - 38) / 2, itemW, 38, {
+        children: item.label,
+        onClick: item.onClick,
+        style: {
+          background: active ? "rgba(111, 211, 255, 0.13)" : "rgba(255, 255, 255, 0.035)",
+          borderColor: active ? this.#tone : "rgba(214, 231, 255, 0.16)",
+          color: active ? "text" : "muted",
+          fontSize: 11,
+          borderRadius: 999,
+        },
+      })
+    }
+  }
+
+  #parameters(x: number, y: number, w: number, h: number): void {
+    div(this, x, y, w, h, {
+      style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36},
+    })
+    this.#segmentedNumber(x + 24, y + 34, w - 48, "radius", [
+      ["24", 24],
+      ["34", 34],
+      ["999", 999],
+    ])
+    this.#toneGroup(x + 24, y + 132, w - 48)
+    this.#densityGroup(x + 24, y + 230, w - 48)
+
+    div(this, x + 24, y + h - 148, w - 48, 104, {
+      style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.12)", borderRadius: this.#radius},
+    })
+    button(this, x + 48, y + h - 112, w - 96, 42, {
+      children: `${this.#dockSelection} preview`,
+      style: {borderRadius: this.#radius, borderColor: this.#tone, fontSize: 11},
+    })
+  }
+
+  #segmentedNumber(x: number, y: number, w: number, label: string, values: readonly (readonly [string, number])[]): void {
+    span(this, x, y, w, 22, {children: label, style: {fontSize: 11, color: "muted"}})
+    const gap = 8
+    const btnW = (w - gap * (values.length - 1)) / values.length
+    for (const [i, [title, value]] of values.entries()) {
+      const active = this.#radius === value
+      button(this, x + i * (btnW + gap), y + 32, btnW, 34, {
+        children: title,
+        onClick: () => {
+          this.#radius = value
+          this.requestRender()
+        },
+        style: {background: active ? "rgba(111, 211, 255, 0.13)" : "rgba(255,255,255,0.035)", borderColor: active ? this.#tone : "rgba(214,231,255,0.14)", fontSize: 10},
+      })
+    }
+  }
+
+  #toneGroup(x: number, y: number, w: number): void {
+    span(this, x, y, w, 22, {children: "tone", style: {fontSize: 11, color: "muted"}})
+    const gap = 8
+    const btnW = (w - gap * (ELEMENT_TONES.length - 1)) / ELEMENT_TONES.length
+    for (const [i, tone] of ELEMENT_TONES.entries()) {
+      button(this, x + i * (btnW + gap), y + 32, btnW, 34, {
+        children: tone,
+        onClick: () => {
+          this.#tone = tone
+          this.requestRender()
+        },
+        style: {background: this.#tone === tone ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.035)", borderColor: tone, color: this.#tone === tone ? "text" : "muted", fontSize: 10},
+      })
+    }
+  }
+
+  #densityGroup(x: number, y: number, w: number): void {
+    span(this, x, y, w, 22, {children: "density", style: {fontSize: 11, color: "muted"}})
+    const gap = 8
+    const btnW = (w - gap * (ELEMENT_DENSITIES.length - 1)) / ELEMENT_DENSITIES.length
+    for (const [i, density] of ELEMENT_DENSITIES.entries()) {
+      const active = this.#density === density
+      button(this, x + i * (btnW + gap), y + 32, btnW, 34, {
+        children: density,
+        onClick: () => {
+          this.#density = density
+          this.requestRender()
+        },
+        style: {background: active ? "rgba(111,211,255,0.13)" : "rgba(255,255,255,0.035)", borderColor: active ? this.#tone : "rgba(214,231,255,0.14)", fontSize: 10},
+      })
+    }
+  }
+
+  #contentPad(): number {
+    if (this.#density === "compact") return 24
+    if (this.#density === "air") return 40
+    return 32
+  }
+
+  #dockItems(): Array<{label: string; active?: boolean; onClick: () => void}> {
+    if (this.#route === "css") {
+      return CSS_SECTIONS.map((section) => ({
+        label: section,
+        active: this.#cssSection === section,
+        onClick: () => {
+          this.#cssSection = section
+          this.#dockSelection = section
+          this.requestRender()
+        },
+      }))
+    }
+    if (this.#route === "theme") {
+      return ELEMENT_TONES.map((tone) => ({
+        label: tone,
+        active: this.#tone === tone,
+        onClick: () => {
+          this.#tone = tone
+          this.#dockSelection = tone
+          this.requestRender()
+        },
+      }))
+    }
+    if (this.#route === "events") {
+      return ["hover", "press", "release", "click", "disabled"].map((label) => ({
+        label,
+        active: this.#state === (label === "press" ? "active" : label === "release" ? "released" : label),
+        onClick: () => {
+          if (label === "click") this.#clicks += 1
+          const state = label === "press" ? "active" : label === "release" ? "released" : label
+          this.#record(state, `dock:${label}`)
+          this.#dockSelection = label
+        },
+      }))
+    }
+    return labelsForRoute(this.#route).map((label) => ({
+      label,
+      onClick: () => {
+        this.#dockSelection = label
+        this.requestRender()
+      },
+    }))
   }
 
   #overview(x: number, y: number, w: number, _h: number): void {
@@ -562,6 +702,18 @@ function codeLine(host: Element, x: number, y: number, w: number, text: string):
 function demoCell(host: Element, x: number, y: number, w: number, h: number, label: string, color: CssColor): void {
   div(host, x, y, w, h, {style: {background: color, borderColor: "rgba(255, 255, 255, 0.22)", borderRadius: 24, opacity: 0.74, zIndex: 0.00005}})
   span(host, x + 14, y, Math.max(1, w - 28), h, {children: label, style: {fontSize: 11, color: "text"}})
+}
+
+function labelsForRoute(route: ElementRoute): readonly string[] {
+  if (route === "overview") return ["div", "span", "button", "input", "img"]
+  if (route === "card") return ["container", "nested", "input", "button"]
+  if (route === "padding") return ["padding", "paddingX", "paddingTop", "content"]
+  if (route === "flex") return ["flexRow", "flexColumn", "grow", "stretch"]
+  if (route === "flexCss") return ["px", "percent", "fr", "grow"]
+  if (route === "grid") return ["layout", "state", "text", "theme"]
+  if (route === "textBlock") return ["wrap", "shrink", "clip", "maxLines"]
+  if (route === "image") return ["cover", "contain", "opacity", "src"]
+  return ["style", "tokens", "radius", "glass"]
 }
 
 function svgDataUrl(svg: string): string {

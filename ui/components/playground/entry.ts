@@ -2,6 +2,9 @@ import {Element, UiCanvas, div, h2, h3, p, span, type CssColor} from "@metafor/e
 import {
   Badge,
   Button,
+  type ButtonColor,
+  type ButtonSize,
+  type ButtonVariant,
   Card,
   Divider,
   ScrollListState,
@@ -13,6 +16,7 @@ import {
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
 type ComponentRoute = "overview" | "buttons" | "badge" | "forms" | "divider" | "scrollbar" | "scrollList" | "notiStack" | "feedback"
+type ComponentDensity = "compact" | "regular" | "air"
 
 type RouteMeta = {
   id: ComponentRoute
@@ -34,6 +38,10 @@ const ROUTES: readonly RouteMeta[] = [
 ]
 
 const TRANSITION_MS = 260
+const COMPONENT_VARIANTS: readonly ButtonVariant[] = ["glass", "contained", "outlined", "text"]
+const COMPONENT_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error", "neutral"]
+const COMPONENT_SIZES: readonly ButtonSize[] = ["small", "medium", "large"]
+const COMPONENT_DENSITIES: readonly ComponentDensity[] = ["compact", "regular", "air"]
 const SCROLL_ROW_H = 46
 const SCROLL_ROW_GAP = 8
 const SCROLL_ITEMS = Array.from({length: 64}, (_, i) => ({
@@ -53,6 +61,12 @@ class ComponentsPlayground extends Element {
   #status = "ready"
   #activePlan = "Vision Pro"
   #scrollVisible = 1
+  #componentVariant: ButtonVariant = "glass"
+  #componentColor: ButtonColor = "primary"
+  #componentSize: ButtonSize = "medium"
+  #componentRadius = 999
+  #density: ComponentDensity = "regular"
+  #dockSelection = "Button"
 
   constructor() {
     super({bgColor: null, borderColor: null})
@@ -81,32 +95,23 @@ class ComponentsPlayground extends Element {
   protected render(): void {
     this.#backdrop()
 
-    const stageW = Math.max(1000, Math.min(1460, this.rectW - 96))
-    const stageH = Math.max(690, Math.min(830, this.rectH - 96))
+    const stageW = Math.max(1040, Math.min(1540, this.rectW - 48))
+    const stageH = Math.max(560, Math.min(860, this.rectH - 36))
     const stageX = (this.rectW - stageW) / 2
     const stageY = (this.rectH - stageH) / 2
+    const gap = 18
+    const catalogW = Math.round(Math.max(204, Math.min(250, stageW * 0.19)))
+    const paramsW = Math.round(Math.max(246, Math.min(310, stageW * 0.23)))
+    const dockH = Math.max(86, Math.min(112, stageH * 0.15))
+    const playW = stageW - catalogW - paramsW - gap * 2
+    const playH = stageH - dockH - gap
+    const playX = stageX + catalogW + gap
+    const paramsX = playX + playW + gap
 
-    Card(this, stageX, stageY, stageW, stageH, {
-      variant: "glass",
-      sx: {
-        background: "rgba(20, 27, 42, 0.84)",
-        borderColor: "rgba(226, 240, 255, 0.40)",
-        borderRadius: 44,
-        zIndex: 0.00001,
-      },
-    })
-    Card(this, stageX + 18, stageY + 18, stageW - 36, stageH - 36, {
-      variant: "glass",
-      sx: {
-        background: "rgba(255, 255, 255, 0.035)",
-        borderColor: "rgba(255, 255, 255, 0.08)",
-        borderRadius: 36,
-        zIndex: 0.00002,
-      },
-    })
-
-    this.#routeTabs(stageX + 36, stageY + 34, stageW - 72)
-    this.#content(stageX + 36, stageY + 116, stageW - 72, stageH - 152)
+    this.#catalog(stageX, stageY, catalogW, stageH)
+    this.#playground(playX, stageY, playW, playH)
+    this.#dock(playX, stageY + playH + gap, playW, dockH)
+    this.#parameters(paramsX, stageY, paramsW, stageH)
 
     const t = transitionProgress(this.#transitionStarted)
     if (t < 1) requestAnimationFrame(() => this.requestRender())
@@ -116,44 +121,242 @@ class ComponentsPlayground extends Element {
     div(this, 0, 0, this.rectW, this.rectH, {style: {background: "rgba(3, 7, 13, 1)", borderColor: null, borderRadius: 0, zIndex: -1}})
   }
 
-  #routeTabs(x: number, y: number, w: number): void {
-    Card(this, x, y, w, 62, {
+  #catalog(x: number, y: number, w: number, h: number): void {
+    Card(this, x, y, w, h, {
       variant: "glass",
-      sx: {background: "rgba(7, 12, 21, 0.68)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 31},
+      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36},
     })
-    const tabW = (w - 32) / ROUTES.length
+    const top = y + 24
+    const gap = 8
+    const rowH = Math.max(30, Math.min(40, (h - 48 - gap * (ROUTES.length - 1)) / ROUTES.length))
     for (const [i, route] of ROUTES.entries()) {
       const active = route.id === this.#route
-      const tx = x + 16 + i * tabW
-      Button(this, tx, y + 11, tabW - 12, 40, {
+      Button(this, x + 18, top + i * (rowH + gap), w - 36, rowH, {
         children: route.label,
         variant: active ? "contained" : "glass",
         color: active ? route.color : "neutral",
         onClick: () => this.#router.go(route.id),
-        sx: {borderRadius: 999, fontSize: 10},
+        sx: {borderRadius: 999, fontSize: 11},
       })
     }
   }
 
-  #content(x: number, y: number, w: number, h: number): void {
+  #playground(x: number, y: number, w: number, h: number): void {
     Card(this, x, y, w, h, {
       variant: "glass",
-      sx: {background: "rgba(8, 13, 22, 0.70)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 38},
+      sx: {background: "rgba(8, 13, 22, 0.70)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: this.#componentRadius === 999 ? 38 : this.#componentRadius},
     })
     const progress = easeOutCubic(transitionProgress(this.#transitionStarted))
     const direction = ROUTE_IDS.indexOf(this.#route) >= ROUTE_IDS.indexOf(this.#previousRoute) ? 1 : -1
     const slideX = Math.round((1 - progress) * 32 * direction)
+    const pad = this.#contentPad()
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    if (this.#route === "overview") this.#overview(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "buttons") this.#buttons(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "badge") this.#badge(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "forms") this.#forms(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "divider") this.#dividerRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "scrollbar") this.#scrollbarRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "scrollList") this.#scrollListRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else if (this.#route === "notiStack") this.#notiStackRoute(x + 34 + slideX, y + 34, w - 68, h - 68)
-    else this.#feedback(x + 34 + slideX, y + 34, w - 68, h - 68)
+    if (this.#route === "overview") this.#overview(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "buttons") this.#buttons(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "badge") this.#badge(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "forms") this.#forms(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "divider") this.#dividerRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "scrollbar") this.#scrollbarRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "scrollList") this.#scrollListRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "notiStack") this.#notiStackRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    else this.#feedback(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
     this.popClip()
+  }
+
+  #dock(x: number, y: number, w: number, h: number): void {
+    Card(this, x, y, w, h, {
+      variant: "glass",
+      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34},
+    })
+    const items = this.#dockItems()
+    const itemGap = 10
+    const itemW = Math.max(84, Math.min(148, (w - 48 - itemGap * (items.length - 1)) / items.length))
+    const rowW = itemW * items.length + itemGap * (items.length - 1)
+    const startX = x + (w - rowW) / 2
+    for (const [i, item] of items.entries()) {
+      const active = item.active ?? this.#dockSelection === item.label
+      Button(this, startX + i * (itemW + itemGap), y + (h - 38) / 2, itemW, 38, {
+        children: item.label,
+        variant: active ? "contained" : "glass",
+        color: active ? this.#componentColor : "neutral",
+        radius: this.#componentRadius,
+        onClick: item.onClick,
+        sx: {fontSize: 11},
+      })
+    }
+  }
+
+  #parameters(x: number, y: number, w: number, h: number): void {
+    Card(this, x, y, w, h, {
+      variant: "glass",
+      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36},
+    })
+    const previewY = y + h - 148
+    let cy = y + 34
+    cy += this.#variantGroup(x + 24, cy, w - 48) + 18
+    cy += this.#colorGroup(x + 24, cy, w - 48) + 18
+    cy += this.#sizeGroup(x + 24, cy, w - 48) + 18
+    cy += this.#radiusGroup(x + 24, cy, w - 48) + 18
+    if (previewY - cy > 96) this.#densityGroup(x + 24, cy, w - 48)
+
+    Card(this, x + 24, previewY, w - 48, 104, {
+      variant: "glass",
+      sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.12)", borderRadius: this.#componentRadius === 999 ? 34 : this.#componentRadius},
+    })
+    Button(this, x + 48, previewY + 36, w - 96, 42, {
+      children: `${this.#dockSelection} preview`,
+      variant: this.#componentVariant,
+      color: this.#componentColor,
+      size: this.#componentSize,
+      radius: this.#componentRadius,
+      onClick: () => this.#record("preview"),
+    })
+  }
+
+  #variantGroup(x: number, y: number, w: number): number {
+    span(this, x, y, w, 22, {children: "variant", style: {fontSize: 11, color: "muted"}})
+    return 32 + this.#buttonGroup(x, y + 32, w, COMPONENT_VARIANTS, this.#componentVariant, (value) => {
+      this.#componentVariant = value
+      this.requestRender()
+    }, 92)
+  }
+
+  #colorGroup(x: number, y: number, w: number): number {
+    span(this, x, y, w, 22, {children: "color", style: {fontSize: 11, color: "muted"}})
+    return 32 + this.#buttonGroup(x, y + 32, w, COMPONENT_COLORS, this.#componentColor, (value) => {
+      this.#componentColor = value
+      this.requestRender()
+    }, 86)
+  }
+
+  #sizeGroup(x: number, y: number, w: number): number {
+    span(this, x, y, w, 22, {children: "size", style: {fontSize: 11, color: "muted"}})
+    return 32 + this.#buttonGroup(x, y + 32, w, COMPONENT_SIZES, this.#componentSize, (value) => {
+      this.#componentSize = value
+      this.requestRender()
+    }, 76)
+  }
+
+  #radiusGroup(x: number, y: number, w: number): number {
+    span(this, x, y, w, 22, {children: "radius", style: {fontSize: 11, color: "muted"}})
+    const values = [24, 34, 999] as const
+    const gap = 8
+    const btnW = (w - gap * (values.length - 1)) / values.length
+    for (const [i, value] of values.entries()) {
+      const active = this.#componentRadius === value
+      Button(this, x + i * (btnW + gap), y + 32, btnW, 34, {
+        children: String(value),
+        variant: active ? "contained" : "glass",
+        color: active ? this.#componentColor : "neutral",
+        radius: 999,
+        fontPx: 10,
+        onClick: () => {
+          this.#componentRadius = value
+          this.requestRender()
+        },
+      })
+    }
+    return 66
+  }
+
+  #densityGroup(x: number, y: number, w: number): number {
+    span(this, x, y, w, 22, {children: "density", style: {fontSize: 11, color: "muted"}})
+    return 32 + this.#buttonGroup(x, y + 32, w, COMPONENT_DENSITIES, this.#density, (value) => {
+      this.#density = value
+      this.requestRender()
+    }, 76)
+  }
+
+  #buttonGroup<T extends string>(
+    x: number,
+    y: number,
+    w: number,
+    values: readonly T[],
+    activeValue: T,
+    onSelect: (value: T) => void,
+    minButtonW: number,
+  ): number {
+    const gap = 8
+    const cols = Math.max(1, Math.min(values.length, Math.floor((w + gap) / (minButtonW + gap))))
+    const rows = Math.ceil(values.length / cols)
+    const btnW = (w - gap * (cols - 1)) / cols
+    for (const [i, value] of values.entries()) {
+      const active = activeValue === value
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      Button(this, x + col * (btnW + gap), y + row * (34 + gap), btnW, 34, {
+        children: value,
+        variant: active ? "contained" : "glass",
+        color: active ? this.#componentColor : "neutral",
+        radius: 999,
+        fontPx: 10,
+        onClick: () => onSelect(value),
+      })
+    }
+    return rows * 34 + (rows - 1) * gap
+  }
+
+  #contentPad(): number {
+    if (this.#density === "compact") return 24
+    if (this.#density === "air") return 40
+    return 32
+  }
+
+  #dockItems(): Array<{label: string; active?: boolean; onClick: () => void}> {
+    if (this.#route === "buttons") {
+      return COMPONENT_VARIANTS.map((variant) => ({
+        label: variant,
+        active: this.#componentVariant === variant,
+        onClick: () => {
+          this.#componentVariant = variant
+          this.#dockSelection = variant
+          this.requestRender()
+        },
+      }))
+    }
+    if (this.#route === "badge" || this.#route === "divider") {
+      return COMPONENT_COLORS.map((color) => ({
+        label: color,
+        active: this.#componentColor === color,
+        onClick: () => {
+          this.#componentColor = color
+          this.#dockSelection = color
+          this.requestRender()
+        },
+      }))
+    }
+    if (this.#route === "scrollList") {
+      return [
+        {label: "top", value: 0},
+        {label: "middle", value: 24},
+        {label: "bottom", value: SCROLL_ITEMS.length},
+      ].map((item) => ({
+        label: item.label,
+        active: this.#dockSelection === item.label,
+        onClick: () => {
+          this.#scrollState.scrollTo(item.value)
+          this.#dockSelection = item.label
+          this.requestRender()
+        },
+      }))
+    }
+    if (this.#route === "feedback") {
+      return ["hover", "press", "release", "click", "disabled"].map((label) => ({
+        label,
+        active: this.#status === label,
+        onClick: () => {
+          this.#dockSelection = label
+          this.#record(label)
+        },
+      }))
+    }
+    return labelsForRoute(this.#route).map((label) => ({
+      label,
+      onClick: () => {
+        this.#dockSelection = label
+        this.requestRender()
+      },
+    }))
   }
 
   #overview(x: number, y: number, w: number, _h: number): void {
@@ -403,6 +606,14 @@ function colorForStatus(status: string): "primary" | "success" | "warning" | "er
   if (status === "leave" || status === "cancel") return "neutral"
   if (status === "release") return "primary"
   return "primary"
+}
+
+function labelsForRoute(route: ComponentRoute): readonly string[] {
+  if (route === "overview") return ["Card", "Button", "Badge", "TextField", "Divider"]
+  if (route === "forms") return ["TextField", "Save", "Cancel", "active"]
+  if (route === "scrollbar") return ["offset 0", "offset 6", "offset 11", "thumb"]
+  if (route === "notiStack") return ["Push", "Clear", "toast", "stack"]
+  return ["sample", "variant", "state", "event"]
 }
 
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
