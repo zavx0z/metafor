@@ -16,7 +16,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Pane, Z, palette, radii, syntaxTokens} from "@metafor/elements"
+import {UiSurface, Z, palette, radii, syntaxTokens} from "@metafor/elements"
 import {ScrollListState} from "../scroll-list.ts"
 import {Scrollbar as scrollbar} from "../Scrollbar.ts"
 import {resolveLanguageHighlighter} from "./highlighter.ts"
@@ -78,7 +78,7 @@ type Particle = {
   size: number
 }
 
-export class EditorPane extends Pane {
+export class EditorPane extends UiSurface {
   #lines: string[] = [""]
   #tokens: EditorTokens | null = null
   #cline = 0

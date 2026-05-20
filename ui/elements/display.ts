@@ -1,33 +1,33 @@
 /**
- * UiCanvas — единый WebGPU-canvas для UI-поверхностей.
+ * UiDisplay — единый WebGPU-canvas для UI-поверхностей.
  *
  * Контракт:
  *  • Один Renderer + Space + ViewPoint, perspective camera.
- *  • Поверхности регистрируются как UiPane с layout-функцией pixel-rect от
- *    размеров canvas. На resize UiCanvas пересчитывает rect'ы и зовёт
- *    setRect у каждой pane. pane.node.origin = TL pane-rect в world.
- *  • Координаты внутри node — pixel-coords от pane-TL: x,y → ps-units в world.
- *  • Маршрутизация ввода: wheel/key/mouse → pane под курсором.
- *  • Render-on-demand: pane.requestRender → UiCanvas сводит в один RAF.
+ *  • Поверхности регистрируются как UiSurfaceNode с layout-функцией pixel-rect от
+ *    размеров canvas. На resize UiDisplay пересчитывает rect'ы и зовёт
+ *    setRect у каждой surface. surface.node.origin = TL surface-rect в world.
+ *  • Координаты внутри node — pixel-coords от surface-TL: x,y → ps-units в world.
+ *  • Маршрутизация ввода: wheel/key/mouse → surface под курсором.
+ *  • Render-on-demand: surface.requestRender → UiDisplay сводит в один RAF.
  */
 
 import {Color, HUD, Object3D, Renderer, Space, TrueTypeFont, ViewPoint} from "@metafor/engine"
 import {VirtualInput} from "./virtual-input.ts"
 
-export type PaneRect = {x: number; y: number; w: number; h: number; visible?: boolean}
-export type PaneLayoutFn = (canvas: {w: number; h: number}) => PaneRect
+export type UiSurfaceRect = {x: number; y: number; w: number; h: number; visible?: boolean}
+export type UiSurfaceLayoutFn = (canvas: {w: number; h: number}) => UiSurfaceRect
 
-export interface UiPane {
-  /** Object3D, который UiCanvas позиционирует. node.origin = TL pane-rect. */
+export interface UiSurfaceNode {
+  /** Object3D, который UiDisplay позиционирует. node.origin = TL surface-rect. */
   readonly node: Object3D
-  attachCanvas(canvas: UiCanvas): void
-  setRect(rect: PaneRect, pixelScale: number, font: TrueTypeFont): void
+  attachCanvas(canvas: UiDisplay): void
+  setRect(rect: UiSurfaceRect, pixelScale: number, font: TrueTypeFont): void
   onWheel?(event: WheelEvent, localX: number, localY: number): void
   onKey?(event: KeyboardEvent): void
   /**
    * Текстовый ввод, который пришёл НЕ через keydown: emoji-panel, IME-
-   * композиция, dictation, autocorrect-replace. UiCanvas пробрасывает сюда
-   * данные из `VirtualInput`. По умолчанию pane может вызывать свой
+   * композиция, dictation, autocorrect-replace. UiDisplay пробрасывает сюда
+   * данные из `VirtualInput`. По умолчанию surface может вызывать свой
    * insertText, как при paste.
    */
   onInputText?(text: string): void
@@ -40,13 +40,13 @@ export interface UiPane {
   dispose?(): void
 }
 
-type PaneSlot = {
-  pane: UiPane
-  layout: PaneLayoutFn
-  rect: PaneRect
+type SurfaceSlot = {
+  surface: UiSurfaceNode
+  layout: UiSurfaceLayoutFn
+  rect: UiSurfaceRect
 }
 
-export type UiCanvasOpts = {
+export type UiDisplayOpts = {
   /** Путь к TTF-шрифту. По умолчанию '/JetBrainsMono-Bold.ttf'. */
   fontUrl?: string
   /** Camera distance (z). Меньше = ближе перспектива. Default 0.6. */
@@ -65,13 +65,13 @@ export type UiCanvasOpts = {
 
 const DEFAULT_FONT_URL = "/JetBrainsMono-Bold.ttf"
 
-export class UiCanvas {
-  static async create(canvas: HTMLCanvasElement, opts: UiCanvasOpts = {}): Promise<UiCanvas> {
+export class UiDisplay {
+  static async create(canvas: HTMLCanvasElement, opts: UiDisplayOpts = {}): Promise<UiDisplay> {
     const renderer = new Renderer()
     await renderer.init(canvas)
     renderer.setPixelRatio(window.devicePixelRatio || 1)
     const font = await TrueTypeFont.fromUrl(opts.fontUrl ?? DEFAULT_FONT_URL)
-    return new UiCanvas(canvas, renderer, font, opts)
+    return new UiDisplay(canvas, renderer, font, opts)
   }
 
   readonly canvas: HTMLCanvasElement
@@ -81,8 +81,8 @@ export class UiCanvas {
   readonly viewPoint: ViewPoint
   readonly font: TrueTypeFont
   readonly inputProxy: VirtualInput | null
-  readonly #panes: PaneSlot[] = []
-  #focused: UiPane | null = null
+  readonly #surfaces: SurfaceSlot[] = []
+  #focused: UiSurfaceNode | null = null
   #pixelWidth = 800
   #pixelHeight = 600
   #pixelScale = 0.001
@@ -91,8 +91,8 @@ export class UiCanvas {
   #disposed = false
   #renderRequested = false
   #rafId: number | null = null
-  #pressedSlot: PaneSlot | null = null
-  #hoveredSlot: PaneSlot | null = null
+  #pressedSlot: SurfaceSlot | null = null
+  #hoveredSlot: SurfaceSlot | null = null
   readonly #handleWheel = (event: WheelEvent): void => this.#onWheel(event)
   readonly #handleMouseMove = (event: MouseEvent): void => this.#onMouseMove(event)
   readonly #handleMouseDown = (event: MouseEvent): void => this.#onMouseDown(event)
@@ -100,12 +100,12 @@ export class UiCanvas {
   readonly #handleMouseLeave = (): void => this.#onMouseLeave()
   readonly #handleKey = (event: KeyboardEvent): void => this.#onKey(event)
 
-  /** Compatibility/debug alias for callers that inspect the rendered object tree. */
+  /** Debug alias for callers that inspect the rendered object tree. */
   get scene(): Space {
     return this.space
   }
 
-  private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont, opts: UiCanvasOpts) {
+  private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont, opts: UiDisplayOpts) {
     this.canvas = canvas
     this.renderer = renderer
     this.font = font
@@ -139,22 +139,22 @@ export class UiCanvas {
     this.#attachInputListeners()
   }
 
-  /** Регистрирует pane. layout-функция вызывается на каждом resize. */
-  addPane(pane: UiPane, layout: PaneLayoutFn): void {
-    pane.attachCanvas(this)
-    this.space.add(pane.node)
+  /** Регистрирует surface. layout-функция вызывается на каждом resize. */
+  addSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn): void {
+    surface.attachCanvas(this)
+    this.space.add(surface.node)
     const rect = layout({w: this.#pixelWidth, h: this.#pixelHeight})
-    this.#panes.push({pane, layout, rect})
+    this.#surfaces.push({surface, layout, rect})
     this.#applyLayout()
     this.requestRender()
   }
 
-  /** Регистрирует HUD-pane поверх Space в camera/head-locked слое. */
-  addHudPane(pane: UiPane, layout: PaneLayoutFn): void {
-    pane.attachCanvas(this)
-    this.hud.add(pane.node)
+  /** Регистрирует HUD-surface поверх Space в camera/head-locked слое. */
+  addHudSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn): void {
+    surface.attachCanvas(this)
+    this.hud.add(surface.node)
     const rect = layout({w: this.#pixelWidth, h: this.#pixelHeight})
-    this.#panes.push({pane, layout, rect})
+    this.#surfaces.push({surface, layout, rect})
     this.#applyLayout()
     this.requestRender()
   }
@@ -194,11 +194,11 @@ export class UiCanvas {
     })
   }
 
-  setFocused(pane: UiPane | null): void {
-    if (this.#focused === pane) return
+  setFocused(surface: UiSurfaceNode | null): void {
+    if (this.#focused === surface) return
     this.#focused?.onDeactivate?.()
-    this.#focused = pane
-    pane?.onActivate?.()
+    this.#focused = surface
+    surface?.onActivate?.()
     this.requestRender()
   }
 
@@ -215,22 +215,22 @@ export class UiCanvas {
     this.#pressedSlot = null
     this.#hoveredSlot = null
     this.inputProxy?.dispose()
-    for (const slot of this.#panes) slot.pane.dispose?.()
-    this.#panes.length = 0
+    for (const slot of this.#surfaces) slot.surface.dispose?.()
+    this.#surfaces.length = 0
   }
 
   // ────────────────────────── Internal layout ──────────────────────────
 
   #applyLayout(): void {
-    for (const slot of this.#panes) {
+    for (const slot of this.#surfaces) {
       slot.rect = slot.layout({w: this.#pixelWidth, h: this.#pixelHeight})
       const visible = slot.rect.visible !== false && slot.rect.w > 0 && slot.rect.h > 0
-      slot.pane.node.visible = visible
+      slot.surface.node.visible = visible
       if (!visible) continue
-      slot.pane.node.position.x = (slot.rect.x - this.#pixelWidth / 2) * this.#pixelScale
-      slot.pane.node.position.y = (this.#pixelHeight / 2 - slot.rect.y) * this.#pixelScale
-      slot.pane.node.updateMatrix()
-      slot.pane.setRect(slot.rect, this.#pixelScale, this.font)
+      slot.surface.node.position.x = (slot.rect.x - this.#pixelWidth / 2) * this.#pixelScale
+      slot.surface.node.position.y = (this.#pixelHeight / 2 - slot.rect.y) * this.#pixelScale
+      slot.surface.node.updateMatrix()
+      slot.surface.setRect(slot.rect, this.#pixelScale, this.font)
     }
   }
 
@@ -254,12 +254,12 @@ export class UiCanvas {
     }
   }
 
-  #paneAt(localX: number, localY: number): PaneSlot | undefined {
-    // Reverse iteration — последняя добавленная pane перекрывает предыдущие.
-    for (let i = this.#panes.length - 1; i >= 0; i--) {
-      const slot = this.#panes[i]!
+  #surfaceAt(localX: number, localY: number): SurfaceSlot | undefined {
+    // Reverse iteration — последняя добавленная surface перекрывает предыдущие.
+    for (let i = this.#surfaces.length - 1; i >= 0; i--) {
+      const slot = this.#surfaces[i]!
       const r = slot.rect
-      if (slot.pane.node.visible === false || r.visible === false || r.w <= 0 || r.h <= 0) continue
+      if (slot.surface.node.visible === false || r.visible === false || r.w <= 0 || r.h <= 0) continue
       if (localX >= r.x && localX <= r.x + r.w && localY >= r.y && localY <= r.y + r.h) return slot
     }
     return undefined
@@ -272,17 +272,17 @@ export class UiCanvas {
 
   #onWheel(event: WheelEvent): void {
     const {x, y} = this.#localCoords(event)
-    const slot = this.#paneAt(x, y)
+    const slot = this.#surfaceAt(x, y)
     if (slot === undefined) return
     event.preventDefault()
-    slot.pane.onWheel?.(event, x - slot.rect.x, y - slot.rect.y)
+    slot.surface.onWheel?.(event, x - slot.rect.x, y - slot.rect.y)
   }
 
   #onMouseMove(event: MouseEvent): void {
     const {x, y} = this.#localCoords(event)
-    const slot = this.#paneAt(x, y)
+    const slot = this.#surfaceAt(x, y)
     if (slot !== this.#hoveredSlot) {
-      this.#hoveredSlot?.pane.onPointerLeave?.()
+      this.#hoveredSlot?.surface.onPointerLeave?.()
       this.#hoveredSlot = slot ?? null
     }
     if (slot === undefined) {
@@ -290,14 +290,14 @@ export class UiCanvas {
       return
     }
     // Focus НЕ меняем по hover — иначе текстовый редактор теряет keydown
-    // как только мышь уезжает на DOM-iframe или в зазор между pane.
-    // Активная pane переключается ТОЛЬКО mousedown'ом.
-    slot.pane.onPointerMove?.(event, x - slot.rect.x, y - slot.rect.y)
+    // как только мышь уезжает на DOM-iframe или в зазор между surfaces.
+    // Активная surface переключается ТОЛЬКО mousedown'ом.
+    slot.surface.onPointerMove?.(event, x - slot.rect.x, y - slot.rect.y)
   }
 
   #onMouseDown(event: MouseEvent): void {
     const {x, y} = this.#localCoords(event)
-    const slot = this.#paneAt(x, y)
+    const slot = this.#surfaceAt(x, y)
     if (slot !== undefined) {
       // Не даём браузеру передвинуть фокус по умолчанию: VirtualInput
       // должен остаться сфокусированным, чтобы macOS показывал ему
@@ -311,9 +311,9 @@ export class UiCanvas {
       // Позиционируем 1×1 textarea около курсора, чтобы всплывающие окна
       // macOS появлялись рядом, а не в углу страницы.
       this.#positionInputProxy(event.clientX, event.clientY)
-      this.setFocused(slot.pane)
+      this.setFocused(slot.surface)
       this.#pressedSlot = slot
-      slot.pane.onPointerDown?.(event, x - slot.rect.x, y - slot.rect.y)
+      slot.surface.onPointerDown?.(event, x - slot.rect.x, y - slot.rect.y)
     }
   }
 
@@ -327,14 +327,14 @@ export class UiCanvas {
     this.#pressedSlot = null
     if (slot === undefined || slot === null) return
     const {x, y} = this.#localCoords(event)
-    slot.pane.onPointerUp?.(event, x - slot.rect.x, y - slot.rect.y)
+    slot.surface.onPointerUp?.(event, x - slot.rect.x, y - slot.rect.y)
   }
 
   #onMouseLeave(): void {
     // Не сбрасываем focus — пользователь может уйти мышью на toolbar/iframe
     // и продолжать набирать. Focus снимается только новым mousedown.
     this.canvas.style.cursor = "default"
-    this.#hoveredSlot?.pane.onPointerLeave?.()
+    this.#hoveredSlot?.surface.onPointerLeave?.()
     this.#hoveredSlot = null
   }
 

@@ -1,10 +1,10 @@
 /**
- * Toolbar — верхняя полоса. Pane-system.
+ * Toolbar — верхняя полоса. UiSurface-system.
  * Низкий слой берётся из @metafor/elements, MUI-like контролы — из
  * @metafor/components.
  */
 
-import {Pane, palette, radii, uiIcons} from "@metafor/elements"
+import {UiSurface, palette, radii, uiIcons} from "@metafor/elements"
 import {Button as button, StatusChip as statusChip} from "@metafor/components"
 import type {BadgeKind, ToolbarActions, ToolbarState} from "./debug-ui.ts"
 import {getUiLocale, t} from "./i18n.ts"
@@ -21,7 +21,7 @@ const INSPECTOR_W = 132
 const RUN_W = 128
 const DRAFT_W = 118
 
-export class ToolbarPane extends Pane {
+export class ToolbarPane extends UiSurface {
   #state: ToolbarState = {
     ws: "connecting",
     wsKind: "neutral",

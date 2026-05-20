@@ -1,5 +1,5 @@
 /**
- * Scopes / Eval pane на Pane-системе. Controls — из @metafor/components.
+ * Scopes / Eval pane на UiSurface-системе. Controls — из @metafor/components.
  *
  * Верх — список scopes (group-headers + props). Низ — eval-секция: лейбл,
  * input expression, Run button, output. evalTop = граница между ними,
@@ -8,7 +8,7 @@
 
 import {TextMaterial} from "@metafor/engine"
 import {
-  Pane, palette, radii, uiIcons,
+  UiSurface, palette, radii, uiIcons,
 } from "@metafor/elements"
 import {
   Button as button, TextField as input, Divider as divider, scrollList,
@@ -33,7 +33,7 @@ type ScopeRow =
   | {kind: "group"; label: string}
   | {kind: "prop"; name: string; value: string; material: TextMaterial}
 
-export class ScopesEvalPane extends Pane {
+export class ScopesEvalPane extends UiSurface {
   #frame: FrameSnapshot | null = null
   readonly #list: ScrollListState
   #expr = localStorage.getItem("bd:eval:expr") ?? "data.patches[0].path"

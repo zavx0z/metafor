@@ -1,5 +1,5 @@
 import {input as renderInput, type InputOpts} from "./internal/renderers.ts"
-import type {Pane, StyleProps} from "@metafor/elements"
+import type {UiSurface, StyleProps} from "@metafor/elements"
 
 export type TextFieldProps = {
   value?: string
@@ -12,7 +12,7 @@ export type TextFieldProps = {
   onActivate?: () => void
 }
 
-export function TextField(host: Pane, x: number, y: number, width: number, height: number, props: TextFieldProps): void {
+export function TextField(host: UiSurface, x: number, y: number, width: number, height: number, props: TextFieldProps): void {
   const opts: InputOpts = {
     value: props.value ?? props.children ?? "",
     active: props.active === true,

@@ -1,8 +1,8 @@
 /**
- * SourcePane — source-editor на Pane@ui.
+ * SourcePane — source-editor на UiSurface@ui.
  *
  * Главные принципы:
- *  • extends Pane → bg/border гарантированно clamp'нуты в pane-rect.
+ *  • extends UiSurface → bg/border гарантированно clamp'нуты в pane-rect.
  *  • Immediate-mode rendering: каждый requestRender пересчитывает
  *    видимые строки от #scrollOffset до #scrollOffset+visible и рисует
  *    их через drawText. Никакого translate'а — строки физически не
@@ -12,7 +12,7 @@
 
 import {TextMaterial} from "@metafor/engine"
 import {
-  Pane,
+  UiSurface,
   Z,
   palette,
   radii,
@@ -58,7 +58,7 @@ const WHEEL_SPEED = 1.55
 const WHEEL_START_BOOST_PX = 18
 
 
-export class SourcePane extends Pane {
+export class SourcePane extends UiSurface {
   #current: Source | null = null
   readonly #list: ScrollListState
   #runtimeState: SourceRuntimeState = "idle"
@@ -176,7 +176,7 @@ export class SourcePane extends Pane {
     )
 
     // Clip всю code-area (highlight + строки): text-clip → шейдер,
-    // rect-clip → JS в Pane.drawRect.
+    // rect-clip → JS в UiSurface.drawRect.
     this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, contentW, contentH)
 
     // Highlight под текущей строкой (если она в visible-окне).

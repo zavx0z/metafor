@@ -1,5 +1,5 @@
 import {TextMaterial} from "@metafor/engine"
-import {syntaxTokens, type Pane} from "@metafor/elements"
+import {syntaxTokens, type UiSurface} from "@metafor/elements"
 import type {EditorToken} from "./tokens.ts"
 
 export type EditorTokenMaterialMap = Map<string, TextMaterial>
@@ -13,7 +13,7 @@ export function createEditorTokenMaterials(): EditorTokenMaterialMap {
 }
 
 export type RenderEditorTokenLineOpts = {
-  pane: Pane
+  pane: UiSurface
   text: string
   tokens: readonly EditorToken[]
   startX: number

@@ -1,4 +1,4 @@
-import {Element, UiCanvas, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, uiIcons} from "@metafor/elements"
+import {UiSurface, UiDisplay, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, uiIcons} from "@metafor/elements"
 import {autoButtonWidth, Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Pane} from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
@@ -76,7 +76,7 @@ const BUTTON_RADII = [14, 24, 34, 999] as const
 const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.00012
 const BACKDROP_Z = -0.00018
-class ButtonComponentsScreen extends Element {
+class ButtonComponentsScreen extends UiSurface {
   readonly #router = new VirtualRouter<ComponentsRoute>(COMPONENT_ROUTES, "button/basic", {mode: "path"})
   readonly #unsubscribe: () => void
   #route: ComponentsRoute = this.#router.current
@@ -1401,7 +1401,7 @@ function buttonFontPx(size: ButtonSize): number {
   return 12
 }
 
-function docButtonWidth(host: Element, label: string, size: ButtonSize, iconSrc?: string): number {
+function docButtonWidth(host: UiSurface, label: string, size: ButtonSize, iconSrc?: string): number {
   return autoButtonWidth(host, label, buttonFontPx(size), 24, iconSrc)
 }
 
@@ -2013,7 +2013,7 @@ function contentRows(
   return rows
 }
 
-function renderHeader(host: Element, x: number, w: number, pad: number, y: number, title: string, lines: readonly string[]): void {
+function renderHeader(host: UiSurface, x: number, w: number, pad: number, y: number, title: string, lines: readonly string[]): void {
   h2(host, x + pad, y, w - pad * 2, 34, {children: title, style: {fontSize: 24}})
   for (const [i, line] of lines.entries()) {
     p(host, x + pad, y + 48 + i * 24, w - pad * 2, 22, {
@@ -2024,7 +2024,7 @@ function renderHeader(host: Element, x: number, w: number, pad: number, y: numbe
 }
 
 function renderOverviewLayout(
-  host: Element,
+  host: UiSurface,
   x: number,
   y: number,
   w: number,
@@ -2075,7 +2075,7 @@ function codeBlockHeight(lines: readonly string[]): number {
   return 16 + lines.length * 18
 }
 
-function codeBlock(host: Element, x: number, y: number, w: number, lines: readonly string[]): void {
+function codeBlock(host: UiSurface, x: number, y: number, w: number, lines: readonly string[]): void {
   const lineH = 18
   const h = codeBlockHeight(lines)
   Pane(host, x, y, w, h, {
@@ -2089,8 +2089,8 @@ function codeBlock(host: Element, x: number, y: number, w: number, lines: readon
 
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
-const ui = await UiCanvas.create(canvas)
-ui.addPane(new ButtonComponentsScreen(), ({w, h}) => ({x: 0, y: 0, w, h}))
+const ui = await UiDisplay.create(canvas)
+ui.addSurface(new ButtonComponentsScreen(), ({w, h}) => ({x: 0, y: 0, w, h}))
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)
 window.addEventListener("resize", () => ui.handleResize())

@@ -1,13 +1,13 @@
 import {autoButtonWidth} from "./internal/renderers.ts"
 import {Z} from "@metafor/elements"
-import {button as elementButton, palette, toneBorder, toneFill, type Pane, type HtmlElementProps, type StyleProps} from "@metafor/elements"
+import {button as elementButton, palette, toneBorder, toneFill, type ButtonElementProps, type ButtonElementState, type UiSurface, type StyleProps} from "@metafor/elements"
 import type {Tone} from "@metafor/elements"
 import {Color, TextMaterial} from "@metafor/engine"
 
 export type ButtonVariant = "text" | "outlined" | "contained" | "glass"
 export type ButtonColor = "primary" | "neutral" | "success" | "warning" | "error"
 export type ButtonSize = "small" | "medium" | "large"
-type ButtonVisualState = "idle" | "hover" | "active" | "disabled"
+type ButtonVisualState = ButtonElementState
 
 export type ButtonProps = {
   children?: string
@@ -39,7 +39,7 @@ export type ButtonProps = {
   onRelease?: () => void
 }
 
-export function Button(host: Pane, x: number, y: number, width: number, height: number, props: ButtonProps): void {
+export function Button(host: UiSurface, x: number, y: number, width: number, height: number, props: ButtonProps): void {
   const label = props.label ?? props.children ?? ""
   const tone = props.tone ?? toneFromColor(props.color ?? "primary")
   const fontPx = props.fontPx ?? (props.size === "small" ? 10 : props.size === "large" ? 14 : 12)
@@ -49,8 +49,35 @@ export function Button(host: Pane, x: number, y: number, width: number, height: 
   const iconSrc = props.iconSrc ?? props.startIcon ?? props.endIcon
   const iconPosition = props.iconPosition ?? (props.endIcon !== undefined && props.startIcon === undefined ? "end" : "start")
   const key = `component-button:${x}:${y}:${width}:${height}:${label}`
-  const state = props.disabled === true ? "disabled" : host.hitState(x, y, width, height, key).pressed ? "active" : host.hitState(x, y, width, height, key).hovered ? "hover" : "idle"
   const textColor = buttonTextColor(tone)
+
+  const elementProps: ButtonElementProps = {
+    key,
+    children: (state) => drawButtonContent(host, x, y, width, height, label, textColor, variant, state, props, iconSrc, iconPosition),
+    onClick: action,
+    style: (state) => buttonStyleForState(state, variant, tone, textColor, fontPx, radius, props),
+  }
+  if (props.disabled !== undefined) elementProps.disabled = props.disabled
+  if (props.tooltip !== undefined) elementProps.tooltip = props.tooltip
+  if (props.tooltipDelayMs !== undefined) elementProps.tooltipDelayMs = props.tooltipDelayMs
+  if (props.onHover !== undefined) elementProps.onPointerEnter = props.onHover
+  if (props.onLeave !== undefined) elementProps.onPointerLeave = props.onLeave
+  if (props.onPress !== undefined) elementProps.onPointerDown = props.onPress
+  if (props.onRelease !== undefined) elementProps.onPointerUp = props.onRelease
+  elementButton(host, x, y, width, height, elementProps)
+}
+
+export {autoButtonWidth}
+
+function buttonStyleForState(
+  state: ButtonVisualState,
+  variant: ButtonVariant,
+  tone: Tone,
+  textColor: `rgba(${string})`,
+  fontPx: number,
+  radius: number,
+  props: ButtonProps,
+): StyleProps {
   const style: StyleProps = {
     ...props.sx,
     fontSize: fontPx,
@@ -78,22 +105,8 @@ export function Button(host: Pane, x: number, y: number, width: number, height: 
     style.color = textColor
   }
 
-  const elementProps: HtmlElementProps = {
-    key,
-    children: () => drawButtonContent(host, x, y, width, height, label, textColor, variant, state, props, iconSrc, iconPosition),
-    onClick: action,
-    style,
-  }
-  if (props.disabled !== undefined) elementProps.disabled = props.disabled
-  if (props.tooltip !== undefined) elementProps.title = props.tooltip
-  if (props.onHover !== undefined) elementProps.onPointerEnter = props.onHover
-  if (props.onLeave !== undefined) elementProps.onPointerLeave = props.onLeave
-  if (props.onPress !== undefined) elementProps.onPointerDown = props.onPress
-  if (props.onRelease !== undefined) elementProps.onPointerUp = props.onRelease
-  elementButton(host, x, y, width, height, elementProps)
+  return style
 }
-
-export {autoButtonWidth}
 
 function toneFromColor(color: ButtonColor): Tone {
   if (color === "success") return "live"
@@ -170,7 +183,7 @@ function buttonTextMaterial(color: `rgba(${string})`): TextMaterial {
 }
 
 function drawButtonContent(
-  host: Pane,
+  host: UiSurface,
   x: number,
   y: number,
   width: number,

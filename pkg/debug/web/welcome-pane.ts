@@ -1,12 +1,12 @@
 /**
- * Welcome pane на Pane-системе: layout из @metafor/elements, controls из
+ * Welcome pane на UiSurface-системе: layout из @metafor/elements, controls из
  * @metafor/components.
  *
  * Stack: title + status panel + target/inspector panels.
  * Все координаты — pixel от pane-TL, никаких эстимейтов.
  */
 
-import {Pane, Z, palette, radii, uiIcons} from "@metafor/elements"
+import {UiSurface, Z, palette, radii, uiIcons} from "@metafor/elements"
 import {Button as button, TextField as input} from "@metafor/components"
 import type {WelcomeActions, WelcomeState} from "./debug-ui.ts"
 import {localizeSystemText, t} from "./i18n.ts"
@@ -14,7 +14,7 @@ import {localizeSystemText, t} from "./i18n.ts"
 const PAD = 18
 const GAP = 16
 
-export class WelcomePane extends Pane {
+export class WelcomePane extends UiSurface {
   #state: WelcomeState = {
     connectionState: "connecting",
     connectionError: null,

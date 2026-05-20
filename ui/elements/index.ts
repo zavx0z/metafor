@@ -2,9 +2,8 @@
  * @metafor/elements — HTML-like Vision Pro elements over @metafor/engine.
  */
 
-export * from "./canvas.ts"
-export * from "./pane.ts"
-export {Pane as Element} from "./pane.ts"
+export * from "./display.ts"
+export * from "./surface.ts"
 export * from "./elements.ts"
 export * from "./flex.ts"
 export * from "./flexCss.ts"

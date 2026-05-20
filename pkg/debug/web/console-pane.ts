@@ -1,12 +1,12 @@
 /**
- * ConsolePane — append-only target log on the shared @metafor/elements Pane system.
+ * ConsolePane — append-only target log on the shared @metafor/elements UiSurface system.
  *
- * It deliberately uses the same Pane chrome, clipping, text measurement and
+ * It deliberately uses the same UiSurface chrome, clipping, text measurement and
  * scrollbar component renderer as SourcePane so the source/console stack aligns as one
  * UI surface.
  */
 
-import {Pane, Z, palette, radii} from "@metafor/elements"
+import {UiSurface, Z, palette, radii} from "@metafor/elements"
 import {edgeFade, Scrollbar as scrollbar} from "@metafor/components"
 import {t} from "./i18n.ts"
 
@@ -30,7 +30,7 @@ const WHEEL_SPEED = 1.6
 const WHEEL_START_BOOST_PX = 16
 let lastWheelAt = 0
 
-export class ConsolePane extends Pane {
+export class ConsolePane extends UiSurface {
   #scrollOffset = 0
   #entries: ConsoleEntry[] = []
 

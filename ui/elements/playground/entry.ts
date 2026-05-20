@@ -1,6 +1,6 @@
 import {
-  Element,
-  UiCanvas,
+  UiSurface,
+  UiDisplay,
   button,
   div,
   flexColumn,
@@ -19,40 +19,52 @@ import {
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
 type ElementRoute =
-  | "overview"
-  | "pane"
-  | "padding"
-  | "flex"
-  | "flexCss"
-  | "grid"
-  | "textBlock"
-  | "image"
-  | "css"
+  | "div"
+  | "span"
+  | "button"
+  | "input"
+  | "img"
+  | "layout/flex"
+  | "layout/flex-css"
+  | "style/css"
+  | "style/theme"
   | "events"
-  | "theme"
 type CssSection = "padding" | "flex" | "border" | "color" | "typography"
 type ElementTone = "cyan" | "green" | "orange" | "red"
 type ElementDensity = "compact" | "regular" | "air"
+type ElementGroup = "Primitives" | "Layout" | "Style" | "Events"
 
-type RouteMeta = {
-  id: ElementRoute
+type SectionLink = {
   label: string
+  route: ElementRoute
 }
 
-const ROUTE_IDS = ["overview", "pane", "padding", "flex", "flexCss", "grid", "textBlock", "image", "css", "events", "theme"] as const
-const ROUTES: readonly RouteMeta[] = [
-  {id: "overview", label: "Overview"},
-  {id: "pane", label: "Pane"},
-  {id: "padding", label: "Padding"},
-  {id: "flex", label: "Flex"},
-  {id: "flexCss", label: "Flex CSS"},
-  {id: "grid", label: "Grid"},
-  {id: "textBlock", label: "Text Block"},
-  {id: "image", label: "Image"},
-  {id: "css", label: "CSS"},
-  {id: "events", label: "Events"},
-  {id: "theme", label: "Theme"},
-]
+const ROUTE_IDS = ["div", "span", "button", "input", "img", "layout/flex", "layout/flex-css", "style/css", "style/theme", "events"] as const
+const ELEMENT_GROUPS: readonly ElementGroup[] = ["Primitives", "Layout", "Style", "Events"]
+const SECTION_LINKS: Record<ElementGroup, readonly SectionLink[]> = {
+  Primitives: [
+    {label: "div", route: "div"},
+    {label: "span", route: "span"},
+    {label: "button", route: "button"},
+    {label: "input", route: "input"},
+    {label: "img", route: "img"},
+  ],
+  Layout: [
+    {label: "Flex", route: "layout/flex"},
+    {label: "Flex CSS", route: "layout/flex-css"},
+  ],
+  Style: [
+    {label: "CSS", route: "style/css"},
+    {label: "Theme", route: "style/theme"},
+  ],
+  Events: [{label: "Pointer", route: "events"}],
+}
+const GROUP_DEFAULT_ROUTE: Record<ElementGroup, ElementRoute> = {
+  Primitives: "div",
+  Layout: "layout/flex",
+  Style: "style/css",
+  Events: "events",
+}
 
 const CSS_SECTIONS: readonly CssSection[] = ["padding", "flex", "border", "color", "typography"]
 const ELEMENT_TONES: readonly ElementTone[] = ["cyan", "green", "orange", "red"]
@@ -61,8 +73,8 @@ const ELEMENT_DENSITIES: readonly ElementDensity[] = ["compact", "regular", "air
 const LAYOUT_Z = -0.00012
 const BACKDROP_Z = -0.00018
 
-class ElementsPlayground extends Element {
-  readonly #router = new VirtualRouter<ElementRoute>(ROUTE_IDS, "overview")
+class ElementsPlayground extends UiSurface {
+  readonly #router = new VirtualRouter<ElementRoute>(ROUTE_IDS, "div", {mode: "path"})
   readonly #unsubscribe: () => void
   #route: ElementRoute = this.#router.current
   #cssSection: CssSection = "padding"
@@ -96,15 +108,18 @@ class ElementsPlayground extends Element {
     const stageX = (this.rectW - stageW) / 2
     const stageY = (this.rectH - stageH) / 2
     const gap = 18
-    const catalogW = Math.round(Math.max(204, Math.min(250, stageW * 0.19)))
-    const paramsW = Math.round(Math.max(246, Math.min(310, stageW * 0.23)))
+    const catalogW = Math.round(Math.max(184, Math.min(228, stageW * 0.16)))
+    const sectionW = Math.round(Math.max(132, Math.min(172, stageW * 0.11)))
+    const paramsW = Math.round(Math.max(246, Math.min(310, stageW * 0.20)))
     const dockH = Math.max(86, Math.min(112, stageH * 0.15))
-    const playW = stageW - catalogW - paramsW - gap * 2
+    const playW = stageW - catalogW - sectionW - paramsW - gap * 3
     const playH = stageH - dockH - gap
-    const playX = stageX + catalogW + gap
+    const sectionX = stageX + catalogW + gap
+    const playX = sectionX + sectionW + gap
     const paramsX = playX + playW + gap
 
     this.#catalog(stageX, stageY, catalogW, stageH)
+    this.#sectionPanel(sectionX, stageY, sectionW, stageH)
     this.#playground(playX, stageY, playW, playH)
     this.#dock(playX, stageY + playH + gap, playW, dockH)
     this.#parameters(paramsX, stageY, paramsW, stageH)
@@ -124,15 +139,41 @@ class ElementsPlayground extends Element {
       style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
     })
 
-    const top = y + 24
-    const gap = 8
-    const rowH = Math.max(28, Math.min(38, (h - 48 - gap * (ROUTES.length - 1)) / ROUTES.length))
-    for (const [i, route] of ROUTES.entries()) {
-      const active = route.id === this.#route
+    h3(this, x, y + 28, w, 24, {children: "Elements", style: {fontSize: 15, textAlign: "center"}})
+    const top = y + 76
+    const gap = 9
+    const rowH = 38
+    for (const [i, group] of ELEMENT_GROUPS.entries()) {
+      const active = group === this.#currentGroup()
       const by = top + i * (rowH + gap)
       button(this, x + 18, by, w - 36, rowH, {
-        children: route.label,
-        onClick: () => this.#router.go(route.id),
+        children: group,
+        onClick: () => this.#router.go(GROUP_DEFAULT_ROUTE[group]),
+        style: {
+          background: active ? "rgba(111, 211, 255, 0.14)" : "rgba(255, 255, 255, 0.035)",
+          borderColor: active ? this.#tone : "rgba(214, 231, 255, 0.16)",
+          color: active ? "text" : "muted",
+          fontSize: 11,
+          borderRadius: 999,
+        },
+      })
+    }
+  }
+
+  #sectionPanel(x: number, y: number, w: number, h: number): void {
+    div(this, x, y, w, h, {
+      style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
+    })
+
+    const group = this.#currentGroup()
+    h3(this, x, y + 28, w, 24, {children: group, style: {fontSize: 15, textAlign: "center"}})
+    const pad = 18
+    const top = y + 76
+    for (const [i, section] of SECTION_LINKS[group].entries()) {
+      const active = section.route === this.#route
+      button(this, x + pad, top + i * 47, w - pad * 2, 38, {
+        children: section.label,
+        onClick: () => this.#router.go(section.route),
         style: {
           background: active ? "rgba(111, 211, 255, 0.14)" : "rgba(255, 255, 255, 0.035)",
           borderColor: active ? this.#tone : "rgba(214, 231, 255, 0.16)",
@@ -151,17 +192,16 @@ class ElementsPlayground extends Element {
     const pad = this.#contentPad()
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    if (this.#route === "overview") this.#overview(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "pane") this.#cardRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "padding") this.#paddingRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "flex") this.#flexRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "flexCss") this.#flexCssRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "grid") this.#gridRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "textBlock") this.#textBlockRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "image") this.#imageRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "css") this.#css(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    if (this.#route === "div") this.#divRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "span") this.#spanRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "button") this.#buttonRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "input") this.#inputRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "img") this.#imageRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "layout/flex") this.#flexRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "layout/flex-css") this.#flexCssRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "style/css") this.#css(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "style/theme") this.#theme(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "events") this.#eventsRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else this.#theme(x + pad, y + pad, w - pad * 2, h - pad * 2)
     this.popClip()
   }
 
@@ -193,21 +233,6 @@ class ElementsPlayground extends Element {
   #parameters(x: number, y: number, w: number, h: number): void {
     div(this, x, y, w, h, {
       style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
-    })
-    this.#segmentedNumber(x + 24, y + 34, w - 48, "radius", [
-      ["24", 24],
-      ["34", 34],
-      ["999", 999],
-    ])
-    this.#toneGroup(x + 24, y + 132, w - 48)
-    this.#densityGroup(x + 24, y + 230, w - 48)
-
-    div(this, x + 24, y + h - 148, w - 48, 104, {
-      style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.12)", borderRadius: this.#radius},
-    })
-    button(this, x + 48, y + h - 112, w - 96, 42, {
-      children: `${this.#dockSelection} preview`,
-      style: {borderRadius: this.#radius, borderColor: this.#tone, fontSize: 11},
     })
   }
 
@@ -268,7 +293,7 @@ class ElementsPlayground extends Element {
   }
 
   #dockItems(): Array<{label: string; active?: boolean; onClick: () => void}> {
-    if (this.#route === "css") {
+    if (this.#route === "style/css") {
       return CSS_SECTIONS.map((section) => ({
         label: section,
         active: this.#cssSection === section,
@@ -279,7 +304,7 @@ class ElementsPlayground extends Element {
         },
       }))
     }
-    if (this.#route === "theme") {
+    if (this.#route === "style/theme") {
       return ELEMENT_TONES.map((tone) => ({
         label: tone,
         active: this.#tone === tone,
@@ -317,7 +342,7 @@ class ElementsPlayground extends Element {
     const paneW = (w - 32) / 3
     featurePane(this, x, y + 58, paneW, 118, "HTML names", "div / span / button / input / img")
     featurePane(this, x + paneW + 16, y + 58, paneW, 118, "CSS props", "style.background / padding / flex")
-    featurePane(this, x + (paneW + 16) * 2, y + 58, paneW, 118, "Old coverage", "Pane / Flex / Image / Theme")
+    featurePane(this, x + (paneW + 16) * 2, y + 58, paneW, 118, "Surface", "UiSurface / UiDisplay")
 
     div(this, x, y + 214, w, 168, {
       style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30},
@@ -327,15 +352,15 @@ class ElementsPlayground extends Element {
     codeLine(this, x + 26, y + 320, w - 52, "div(this, x, y, w, h, { style: { background: \"glass\", padding: 24 } })")
   }
 
-  #cardRoute(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Pane", style: {fontSize: 22}})
+  #divRoute(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "div", style: {fontSize: 22}})
 
     const leftW = Math.floor(w * 0.52)
     div(this, x, y + 58, leftW, 358, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-    h3(this, x + 28, y + 86, leftW - 56, 24, {children: "Pane basics", style: {fontSize: 15}})
+    h3(this, x + 28, y + 86, leftW - 56, 24, {children: "Box surface", style: {fontSize: 15}})
     div(this, x + 28, y + 130, leftW - 56, 82, {style: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.36)", borderRadius: 24}})
     h2(this, x + 52, y + 154, leftW - 104, 26, {children: "h2 inside div", style: {fontSize: 16}})
-    p(this, x + 52, y + 184, leftW - 104, 22, {children: "p text clipped inside the pane", style: {fontSize: 11, color: "muted"}})
+    p(this, x + 52, y + 184, leftW - 104, 22, {children: "p text clipped inside the div", style: {fontSize: 11, color: "muted"}})
     input(this, x + 28, y + 240, leftW - 56, 42, {value: "input value", active: true})
     button(this, x + 28, y + 304, 168, 44, {children: "button"})
     button(this, x + 212, y + 304, 168, 44, {children: "disabled", disabled: true})
@@ -349,6 +374,39 @@ class ElementsPlayground extends Element {
     propRow(this, rightX + 28, y + 224, rightW - 56, "color", "\"cyan\" | \"muted\" | #fff")
     propRow(this, rightX + 28, y + 270, rightW - 56, "paddingX", "number | \"px\"")
     propRow(this, rightX + 28, y + 316, rightW - 56, "zIndex", "small layered offsets")
+  }
+
+  #spanRoute(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "span", style: {fontSize: 22}})
+    h3(this, x + 28, y + 86, w - 56, 24, {children: "Text primitive", style: {fontSize: 15}})
+    span(this, x + 28, y + 132, w - 56, 36, {children: "left aligned text", style: {fontSize: 18, color: "text"}})
+    span(this, x + 28, y + 184, w - 56, 36, {children: "center aligned text", style: {fontSize: 18, color: "cyan", textAlign: "center"}})
+    span(this, x + 28, y + 236, w - 56, 36, {children: "right aligned text", style: {fontSize: 18, color: "muted", textAlign: "right"}})
+    codeLine(this, x + 28, y + 318, Math.min(620, w - 56), "span(surface, x, y, w, h, { children: \"text\", style: { textAlign: \"center\" } })")
+  }
+
+  #buttonRoute(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "button", style: {fontSize: 22}})
+    h3(this, x + 28, y + 86, w - 56, 24, {children: "Primitive states", style: {fontSize: 15}})
+    button(this, x + 28, y + 132, 172, 48, {children: "default"})
+    button(this, x + 224, y + 132, 172, 48, {children: "disabled", disabled: true})
+    button(this, x + 420, y + 132, 172, 48, {
+      children: `clicks ${this.#clicks}`,
+      onClick: () => {
+        this.#clicks += 1
+        this.requestRender()
+      },
+    })
+    div(this, x + 28, y + 234, Math.min(520, w - 56), 118, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.14)", borderRadius: 28}})
+    span(this, x + 54, y + 282, Math.min(468, w - 108), 24, {children: "button owns disabled, hit state and press visual hold", style: {fontSize: 12, color: "muted"}})
+  }
+
+  #inputRoute(x: number, y: number, w: number, _h: number): void {
+    h2(this, x, y, w, 34, {children: "input", style: {fontSize: 22}})
+    h3(this, x + 28, y + 86, w - 56, 24, {children: "Input surface", style: {fontSize: 15}})
+    input(this, x + 28, y + 132, Math.min(420, w - 56), 44, {value: "inactive value", active: false})
+    input(this, x + 28, y + 204, Math.min(420, w - 56), 44, {value: "active value", active: true})
+    codeLine(this, x + 28, y + 302, Math.min(620, w - 56), "input(surface, x, y, w, h, { value: \"active value\", active: true })")
   }
 
   #paddingRoute(x: number, y: number, w: number, _h: number): void {
@@ -435,13 +493,13 @@ class ElementsPlayground extends Element {
   }
 
   #gridRoute(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Multi-Pane Grid", style: {fontSize: 22}})
+    h2(this, x, y, w, 34, {children: "Multi-Surface Grid", style: {fontSize: 22}})
 
     const gap = 20
     const paneW = (w - gap) / 2
     const paneH = 166
     const panes = [
-      ["Layout", "outer pane + inner glass panes", "cyan"],
+      ["Layout", "outer div + inner glass boxes", "cyan"],
       ["State", "one canvas tree, many hit regions", "green"],
       ["Text", "clipped and measured text", "orange"],
       ["Theme", "shared Vision tokens", "red"],
@@ -461,7 +519,7 @@ class ElementsPlayground extends Element {
 
     h3(this, x + 28, y + 86, 280, 24, {children: "Measured multiline text", style: {fontSize: 15}})
     const copy =
-      "Pane.drawTextBlock keeps long content inside a fixed visual box. It wraps, shrinks when needed and clips with predictable canvas metrics."
+      "UiSurface.drawTextBlock keeps long content inside a fixed visual box. It wraps, shrinks when needed and clips with predictable canvas metrics."
     this.drawTextBlock(copy, x + 28, y + 134, Math.min(520, w - 56), 156, {
       fontPx: 14,
       lineHeight: 21,
@@ -646,6 +704,13 @@ class ElementsPlayground extends Element {
     span(this, x + 28, y + 368, w - 56, 24, {children: "borderRadius=999 creates the Vision-style capsule control.", style: {fontSize: 12, color: "text"}})
   }
 
+  #currentGroup(): ElementGroup {
+    if (this.#route.startsWith("layout/")) return "Layout"
+    if (this.#route.startsWith("style/")) return "Style"
+    if (this.#route === "events") return "Events"
+    return "Primitives"
+  }
+
   #record(state: string, event: string): void {
     this.#state = state
     this.#events = [event, ...this.#events].slice(0, 5)
@@ -653,42 +718,42 @@ class ElementsPlayground extends Element {
   }
 }
 
-function pill(host: Element, x: number, y: number, w: number, h: number, label: string, background: CssColor | "glass", color: CssColor): void {
+function pill(host: UiSurface, x: number, y: number, w: number, h: number, label: string, background: CssColor | "glass", color: CssColor): void {
   div(host, x, y, w, h, {style: {background, borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 999}})
   span(host, x + 12, y, w - 24, h, {children: label, style: {fontSize: 11, color}})
 }
 
-function featurePane(host: Element, x: number, y: number, w: number, h: number, title: string, value: string): void {
+function featurePane(host: UiSurface, x: number, y: number, w: number, h: number, title: string, value: string): void {
   div(host, x, y, w, h, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30}})
   h3(host, x + 24, y + 24, w - 48, 24, {children: title, style: {fontSize: 15}})
   span(host, x + 24, y + 68, w - 48, 24, {children: value, style: {fontSize: 12, color: "text"}})
 }
 
-function propRow(host: Element, x: number, y: number, w: number, name: string, value: string): void {
+function propRow(host: UiSurface, x: number, y: number, w: number, name: string, value: string): void {
   div(host, x, y, w, 34, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 17}})
   span(host, x + 16, y, 130, 34, {children: name, style: {fontSize: 11, color: "cyan"}})
   span(host, x + 152, y, w - 168, 34, {children: value, style: {fontSize: 11, color: "muted"}})
 }
 
-function codeLine(host: Element, x: number, y: number, w: number, text: string): void {
+function codeLine(host: UiSurface, x: number, y: number, w: number, text: string): void {
   div(host, x, y, w, 28, {style: {background: "rgba(4, 8, 14, 0.50)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 14}})
   span(host, x + 14, y, w - 28, 28, {children: text, style: {fontSize: 10, color: "text"}})
 }
 
-function demoCell(host: Element, x: number, y: number, w: number, h: number, label: string, color: CssColor): void {
+function demoCell(host: UiSurface, x: number, y: number, w: number, h: number, label: string, color: CssColor): void {
   div(host, x, y, w, h, {style: {background: color, borderColor: "rgba(255, 255, 255, 0.22)", borderRadius: 24, opacity: 0.74, zIndex: 0.00005}})
   span(host, x + 14, y, Math.max(1, w - 28), h, {children: label, style: {fontSize: 11, color: "text"}})
 }
 
 function labelsForRoute(route: ElementRoute): readonly string[] {
-  if (route === "overview") return ["div", "span", "button", "input", "img"]
-  if (route === "pane") return ["container", "nested", "input", "button"]
-  if (route === "padding") return ["padding", "paddingX", "paddingTop", "content"]
-  if (route === "flex") return ["flexRow", "flexColumn", "grow", "stretch"]
-  if (route === "flexCss") return ["px", "percent", "fr", "grow"]
-  if (route === "grid") return ["layout", "state", "text", "theme"]
-  if (route === "textBlock") return ["wrap", "shrink", "clip", "maxLines"]
-  if (route === "image") return ["cover", "contain", "opacity", "src"]
+  if (route === "div") return ["background", "border", "padding", "zIndex"]
+  if (route === "span") return ["left", "center", "right", "color"]
+  if (route === "button") return ["default", "disabled", "click", "press"]
+  if (route === "input") return ["inactive", "active", "value", "style"]
+  if (route === "img") return ["cover", "contain", "opacity", "src"]
+  if (route === "layout/flex") return ["flexRow", "flexColumn", "grow", "stretch"]
+  if (route === "layout/flex-css") return ["px", "percent", "fr", "grow"]
+  if (route === "events") return ["hover", "press", "release", "click"]
   return ["style", "tokens", "radius", "glass"]
 }
 
@@ -698,8 +763,8 @@ function svgDataUrl(svg: string): string {
 
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
-const ui = await UiCanvas.create(canvas)
-ui.addPane(new ElementsPlayground(), ({w, h}) => ({x: 0, y: 0, w, h}))
+const ui = await UiDisplay.create(canvas)
+ui.addSurface(new ElementsPlayground(), ({w, h}) => ({x: 0, y: 0, w, h}))
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)
 window.addEventListener("resize", () => ui.handleResize())

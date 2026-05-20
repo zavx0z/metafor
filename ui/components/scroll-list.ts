@@ -3,7 +3,7 @@
  *
  * Использование:
  *
- *   class FramesPane extends Pane {
+ *   class FramesPane extends UiSurface {
  *     #list = new ScrollListState({onChange: () => this.requestRender()})
  *     onWheel(e) { this.#list.applyWheel(e, ROW_H, total, visible) }
  *     render() {
@@ -24,11 +24,11 @@
  */
 
 import type {Color} from "@metafor/engine"
-import {Z, type Pane, div} from "@metafor/elements"
+import {Z, type UiSurface, div} from "@metafor/elements"
 import {Scrollbar as scrollbar, type ScrollbarOpts} from "./Scrollbar.ts"
 
 export type ScrollListStateOpts = {
-  /** Вызывается когда scroll реально изменился — Pane должна позвать requestRender. */
+  /** Вызывается когда scroll реально изменился — UiSurface должна позвать requestRender. */
   onChange?: () => void
   /** Test hook: inject a monotonic clock without changing runtime behavior. */
   now?: () => number
@@ -199,7 +199,7 @@ export type ScrollListMetrics = {
  * Рисует видимые rows + scrollbar. state.scroll — float, sub-row offset
  * рисуется для плавности при дробных значениях.
  */
-export function scrollList<T>(pane: Pane, opts: ScrollListOpts<T>): ScrollListMetrics {
+export function scrollList<T>(pane: UiSurface, opts: ScrollListOpts<T>): ScrollListMetrics {
   const rowGap = opts.rowGap ?? 0
   const rowStride = opts.rowH + rowGap
   const sbW = opts.scrollbarWidth ?? 4
@@ -256,7 +256,7 @@ export function scrollList<T>(pane: Pane, opts: ScrollListOpts<T>): ScrollListMe
   return {visible, scroll: opts.state.scroll}
 }
 
-export function edgeFade(pane: Pane, opts: EdgeFadeOpts & {
+export function edgeFade(pane: UiSurface, opts: EdgeFadeOpts & {
   x: number
   y: number
   w: number

@@ -4,7 +4,7 @@
  * this file only keeps the low-level drawing path shared and allocation-light.
  */
 
-import {Z, type Pane, palette, type Tone, toneBorder, toneFill} from "@metafor/elements"
+import {Z, type UiSurface, palette, type Tone, toneBorder, toneFill} from "@metafor/elements"
 import {Color} from "@metafor/engine"
 
 export type BadgeOpts = {
@@ -47,12 +47,12 @@ function withAlpha(color: Color, alpha: number): Color {
 }
 
 // Старые strip-loop утилиты (drawRoundedFill / drawRoundedBorder / drawDisc /
-// drawRingStroke / cornerInset) удалены — теперь Pane.drawRoundedRect рисует
+// drawRingStroke / cornerInset) удалены — теперь UiSurface.drawRoundedRect рисует
 // то же через SDF в шейдере с идеальным AA. Лесенка на углах больше не
 // воспроизводится.
 
 /** Бейдж: tone-fill + colored top-line + label. */
-export function badge(pane: Pane, x: number, y: number, w: number, h: number, opts: BadgeOpts): void {
+export function badge(pane: UiSurface, x: number, y: number, w: number, h: number, opts: BadgeOpts): void {
   const tone = opts.tone ?? "neutral"
   const fontPx = opts.fontPx ?? 11
   pane.drawRoundedRect(x, y, w, h, {
@@ -70,7 +70,7 @@ export function badge(pane: Pane, x: number, y: number, w: number, h: number, op
 }
 
 /** Status chip: compact read-only state pill with optional SVG icon and delayed tooltip. */
-export function statusChip(pane: Pane, x: number, y: number, w: number, h: number, opts: StatusChipOpts): void {
+export function statusChip(pane: UiSurface, x: number, y: number, w: number, h: number, opts: StatusChipOpts): void {
   const tone = opts.tone ?? "neutral"
   const fontPx = opts.fontPx ?? 11
   const iconSize = Math.min(opts.iconSizePx ?? Math.max(12, h - 12), Math.max(1, h - 8))
@@ -128,7 +128,7 @@ export function statusChip(pane: Pane, x: number, y: number, w: number, h: numbe
 }
 
 /** Текстовый input: bg/border, value, hit для активации. */
-export function input(pane: Pane, x: number, y: number, w: number, h: number, opts: InputOpts): void {
+export function input(pane: UiSurface, x: number, y: number, w: number, h: number, opts: InputOpts): void {
   const fontPx = opts.fontPx ?? 12
   pane.drawRoundedRect(x, y, w, h, {
     radius: Math.min(w, h) / 2,
@@ -158,7 +158,7 @@ export type DividerOpts = {
 /** Горизонтальная разделительная линия. По умолчанию 1px palette.borderDim
  *  на Z.SEPARATOR. Цвет/толщину/z можно переопределить через opts.
  *  rectY — координата центра линии (y нарисуется в y - thickness/2). */
-export function divider(pane: Pane, x: number, y: number, w: number, opts: DividerOpts = {}): void {
+export function divider(pane: UiSurface, x: number, y: number, w: number, opts: DividerOpts = {}): void {
   const t = opts.thickness ?? 1
   const color = opts.color ?? palette.borderDim
   const z = opts.z ?? Z.SEPARATOR
@@ -169,7 +169,7 @@ export function divider(pane: Pane, x: number, y: number, w: number, opts: Divid
  * Помощник для measure-based авто-ширины кнопки с padding.
  * `auto-button` сам считает width = labelW + paddingX*2.
  */
-export function autoButtonWidth(pane: Pane, label: string, fontPx = 12, paddingX = 12, iconSrc?: string): number {
+export function autoButtonWidth(pane: UiSurface, label: string, fontPx = 12, paddingX = 12, iconSrc?: string): number {
   const iconW = iconSrc === undefined || iconSrc.length === 0 ? 0 : fontPx + 1 + (label.length > 0 ? 7 : 0)
   return Math.ceil(iconW + pane.measureText(label, fontPx)) + paddingX * 2
 }
@@ -192,7 +192,7 @@ export type ScrollbarOpts = {
  * в pane-px coords, y — top, h — высота track'а. Если visible >= total
  * (всё помещается) — не рисуется.
  */
-export function scrollbar(pane: Pane, x: number, y: number, h: number, opts: ScrollbarOpts): void {
+export function scrollbar(pane: UiSurface, x: number, y: number, h: number, opts: ScrollbarOpts): void {
   if (opts.total <= opts.visible) return
   const tw = opts.trackWidth ?? 4
   const minThumb = opts.minThumbHeight ?? 16

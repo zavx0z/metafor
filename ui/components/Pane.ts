@@ -1,4 +1,4 @@
-import {div, h2, Z, type Pane as ElementHost, type StyleProps} from "@metafor/elements"
+import {div, h2, Z, type UiSurface, type StyleProps} from "@metafor/elements"
 
 export type PaneVariant = "glass" | "outlined" | "filled"
 export type PaneProps = {
@@ -8,7 +8,7 @@ export type PaneProps = {
   sx?: StyleProps
 }
 
-export function Pane(host: ElementHost, x: number, y: number, width: number, height: number, props: PaneProps = {}): void {
+export function Pane(host: UiSurface, x: number, y: number, width: number, height: number, props: PaneProps = {}): void {
   div(host, x, y, width, height, {
     children: props.children,
     style: {
@@ -22,10 +22,10 @@ export function Pane(host: ElementHost, x: number, y: number, width: number, hei
   })
 }
 
-export function Paper(host: ElementHost, x: number, y: number, width: number, height: number, props: PaneProps = {}): void {
+export function Paper(host: UiSurface, x: number, y: number, width: number, height: number, props: PaneProps = {}): void {
   Pane(host, x, y, width, height, props)
 }
 
-export function PaneTitle(host: ElementHost, x: number, y: number, width: number, height: number, label: string): void {
+export function PaneTitle(host: UiSurface, x: number, y: number, width: number, height: number, label: string): void {
   h2(host, x, y, width, height, {children: label, style: {color: "cyan", fontSize: 14}})
 }

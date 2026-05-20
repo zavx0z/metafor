@@ -4,7 +4,7 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
-import {UiCanvas, type PaneRect} from "@metafor/elements"
+import {UiDisplay, type UiSurfaceRect} from "@metafor/elements"
 import {EditorPane, sourcePathFromLocation, type EditorTokens} from "@metafor/components"
 import {applyInspectMode} from "../src/inspect-mode.ts"
 import {SourcePane, type Source, type SourceRuntimeState} from "./source-pane.ts"
@@ -62,7 +62,7 @@ type CachedSource = {text: string; tokens?: EditorTokens}
 type DraftState = {baseText: string; text: string; savedText: string; status: "clean" | "dirty" | "saved"}
 const sourceCache = new Map<string, CachedSource>()
 const sourceDrafts = new Map<string, DraftState>()
-let uiCanvas: UiCanvas | null = null
+let uiCanvas: UiDisplay | null = null
 let sourcePane: SourcePane | null = null
 let draftEditorPane: EditorPane | null = null
 let consolePane: ConsolePane | null = null
@@ -666,7 +666,7 @@ async function initEngine(): Promise<void> {
   uiLoading = true
   setEngineStatus("engine: init")
   try {
-    uiCanvas = await UiCanvas.create(engineCanvas)
+    uiCanvas = await UiDisplay.create(engineCanvas)
     toolbarPane = new ToolbarPane({
       onPause: () => void runDebuggerCommand("pause", {}, t("pause")),
       onResume: () => void runDebuggerCommand("resume", {}, t("resume")),
@@ -922,17 +922,17 @@ function installEnginePanes(): void {
     return
   }
 
-  uiCanvas.addPane(welcomePane, welcomeRect)
-  uiCanvas.addPane(framesPane, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).frames)
-  uiCanvas.addPane(scopesEvalPane, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).scopes)
-  uiCanvas.addPane(sourcePane, (canvas) => welcomeVisible || draftVisible ? hiddenRect() : debuggerRects(canvas).source)
-  uiCanvas.addPane(draftEditorPane, (canvas) => welcomeVisible || !draftVisible ? hiddenRect() : debuggerRects(canvas).source)
-  uiCanvas.addPane(consolePane, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).console)
-  uiCanvas.addPane(verbosePane, (canvas) => {
+  uiCanvas.addSurface(welcomePane, welcomeRect)
+  uiCanvas.addSurface(framesPane, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).frames)
+  uiCanvas.addSurface(scopesEvalPane, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).scopes)
+  uiCanvas.addSurface(sourcePane, (canvas) => welcomeVisible || draftVisible ? hiddenRect() : debuggerRects(canvas).source)
+  uiCanvas.addSurface(draftEditorPane, (canvas) => welcomeVisible || !draftVisible ? hiddenRect() : debuggerRects(canvas).source)
+  uiCanvas.addSurface(consolePane, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).console)
+  uiCanvas.addSurface(verbosePane, (canvas) => {
     if (welcomeVisible) return hiddenRect()
     return debuggerRects(canvas).verbose ?? hiddenRect()
   })
-  uiCanvas.addPane(toolbarPane, ({w}) => ({
+  uiCanvas.addSurface(toolbarPane, ({w}) => ({
     x: TOOLBAR_INSET,
     y: TOOLBAR_INSET,
     w: Math.max(1, w - TOOLBAR_INSET * 2),
@@ -947,18 +947,18 @@ const GAP = 8
 const BODY_TOP = TOOLBAR_INSET + TOOLBAR_H + PAD
 
 type DebuggerRects = {
-  frames: PaneRect
-  scopes: PaneRect
-  source: PaneRect
-  console: PaneRect
-  verbose: PaneRect | null
+  frames: UiSurfaceRect
+  scopes: UiSurfaceRect
+  source: UiSurfaceRect
+  console: UiSurfaceRect
+  verbose: UiSurfaceRect | null
 }
 
-function hiddenRect(): PaneRect {
+function hiddenRect(): UiSurfaceRect {
   return {x: -10000, y: -10000, w: 1, h: 1, visible: false}
 }
 
-function welcomeRect({w, h}: {w: number; h: number}): PaneRect {
+function welcomeRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (!welcomeVisible) return hiddenRect()
   const bodyH = Math.max(1, h - BODY_TOP - PAD)
   const maxW = Math.max(1, Math.min(1280, w - PAD * 2))

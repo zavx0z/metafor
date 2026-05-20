@@ -1,10 +1,10 @@
 /**
- * Verbose pane на Pane-системе. Список + autoscroll. Scroll-machinery
+ * Verbose pane на UiSurface-системе. Список + autoscroll. Scroll-machinery
  * (state, wheel, render rows, scrollbar) — через @metafor/components.
  */
 
 import {
-  Pane, palette, radii, uiIcons,
+  UiSurface, palette, radii, uiIcons,
 } from "@metafor/elements"
 import {
   Button as button, Divider as divider,
@@ -34,7 +34,7 @@ const SCROLLBAR_GAP = 6
 const WHEEL_SPEED = 1.6
 const WHEEL_START_BOOST_PX = 16
 
-export class VerbosePane extends Pane {
+export class VerbosePane extends UiSurface {
   #entries: VerboseEntry[] = []
   readonly #list: ScrollListState
   #autoscroll = localStorage.getItem("bd:verbose:pin") !== "0"

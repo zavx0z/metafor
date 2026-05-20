@@ -4,7 +4,7 @@
  */
 
 import {
-  Pane, Z, flexRow, flexColumn, palette, radii,
+  UiSurface, Z, flexRow, flexColumn, palette, radii,
 } from "@metafor/elements"
 import {
   Divider as divider,
@@ -20,7 +20,7 @@ const ROW_GAP = 2
 const WHEEL_SPEED = 1.5
 const WHEEL_START_BOOST_PX = 18
 
-export class FramesPane extends Pane {
+export class FramesPane extends UiSurface {
   #frames: FrameSnapshot[] = []
   #active = 0
   readonly #list: ScrollListState

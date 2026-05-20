@@ -30,6 +30,7 @@ const server = Bun.serve({
   routes: {
     "/": index,
     "/manifest.json": () => Response.json(MANIFEST),
+    "/*": index,
     "/JetBrainsMono-Bold.ttf": () => new Response(Bun.file(FONT_PATH), {headers: {"content-type": "font/ttf"}}),
   },
   fetch(req): Response {

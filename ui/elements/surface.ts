@@ -1,15 +1,15 @@
 /**
- * Pane — базовый class для UI-поверхностей поверх UiCanvas.
+ * UiSurface — локальная UI-поверхность поверх UiDisplay.
  *
  * ГАРАНТИИ:
- *  • Background и border всегда внутри pane-rect — не вылазят за границы.
- *  • Bg/border меши ВЛАДЕНЫ Pane. Subclass их не трогает.
+ *  • Background и border всегда внутри surface-rect — не вылазят за границы.
+ *  • Bg/border меши ВЛАДЕНЫ UiSurface. Subclass их не трогает.
  *  • drawText обрезается через ИЗМЕРЕНИЕ font.getHMetric (font advance +
  *    letterSpacing 5%) — точное, не estimate. Бинарный поиск с "...".
  *  • drawTextCentered учитывает реальный bbox глифа (yMin/yMax из
  *    TrueTypeFont.getGlyphBounds), а не cap-box — корректно центрирует
  *    математические символы, guillemets и т.п.
- *  • drawRect клампится к pane-bounds.
+ *  • drawRect клампится к surface-bounds.
  *  • Mesh.parent ВСЕГДА выставляется через Object3D.add() (не unshift).
  *  • Между renderами #layer пересобирается; геометрии возвращаются
  *    в renderer.invalidateGeometry().
@@ -24,17 +24,17 @@
  *   Z.TEXT         +0.00008
  *
  * При больших Δz parallax между bg и контентом виден на смещённых от
- * центра канваса pane (1/(camDist - z) сильно меняется).
+ * центра канваса surface (1/(camDist - z) сильно меняется).
  *
  * PADDING:
- *   Опция PaneOpts.padding (число px или {top,right,bottom,left}) даёт
+ *   Опция UiSurfaceOpts.padding (число px или {top,right,bottom,left}) даёт
  *   inner-rect отступ. drawText/drawRect/hit/clipStack работают в координатах
  *   inner-rect [0..innerW]×[0..innerH] (где innerW = rect.w − padLeft − padRight),
- *   а bg и border рисуются по полному pane-rect.
+ *   а bg и border рисуются по полному surface-rect.
  *
  *   Пример (комбо с flexRow):
  *
- *     class Toolbar extends Pane {
+ *     class Toolbar extends UiSurface {
  *       constructor() { super({ padding: 12 }) }
  *       protected render() {
  *         flexRow({
@@ -69,7 +69,7 @@ import {
   type ImageFit,
   type ImageViewBox as EngineImageViewBox,
 } from "@metafor/engine"
-import type {PaneRect, UiCanvas, UiPane} from "./canvas.ts"
+import type {UiSurfaceRect, UiDisplay, UiSurfaceNode} from "./display.ts"
 import {MaterialPalette, palette} from "./theme.ts"
 
 export type HitBox = {
@@ -81,7 +81,6 @@ export type HitBox = {
   action(): void
   cursor: string
   tooltip?: TooltipHit
-  disabled?: boolean
   onPointerEnter?: () => void
   onPointerLeave?: () => void
   onPointerDown?: () => void
@@ -96,7 +95,6 @@ export type TooltipHit = {
 export type HitOptions = {
   cursor?: string
   tooltip?: TooltipHit
-  disabled?: boolean
   key?: string
   onPointerEnter?: () => void
   onPointerLeave?: () => void
@@ -109,9 +107,9 @@ export type HitState = {
   pressed: boolean
 }
 
-export type PanePadding = number | {top?: number; right?: number; bottom?: number; left?: number}
+export type UiSurfacePadding = number | {top?: number; right?: number; bottom?: number; left?: number}
 
-export type PaneOpts = {
+export type UiSurfaceOpts = {
   bgColor?: Color | null
   /** null = без рамки. Default — серая 1px. */
   borderColor?: Color | null
@@ -122,17 +120,15 @@ export type PaneOpts = {
    * Внутренние отступы в logical px. drawText/drawRect/hit/flex работают в
    * inner rect [0..innerW]×[0..innerH], где innerW = rect.w - padLeft - padRight,
    * innerH = rect.h - padTop - padBottom. bg и border рисуются по полному rect
-   * (snug к canvas slot), а контент Pane сдвинут внутрь.
+   * (snug к canvas slot), а контент UiSurface сдвинут внутрь.
    *
    * Можно задать число (uniform) или per-side объект.
    * Default 0.
    */
-  padding?: PanePadding
+  padding?: UiSurfacePadding
 }
 
 export type ImageViewBox = EngineImageViewBox
-
-const MIN_PRESS_VISUAL_MS = 120
 
 export type DrawImageOpts = {
   fit?: ImageFit
@@ -146,7 +142,7 @@ export type BackgroundImageOpts = {
   fit?: ImageFit
   opacity?: number
   viewBox?: ImageViewBox
-  /** 0..1 — масштаб bg-image относительно Pane-rect; центрируется.
+  /** 0..1 — масштаб bg-image относительно surface-rect; центрируется.
    *  1 = заполнить, 0.8 = 80% размера с 10% полем по краям. Default 1. */
   scale?: number
 }
@@ -172,7 +168,7 @@ export type DrawTextOpts = {
   /** Гарантия: текст обрезается через измерение и "...". */
   maxWidthPx?: number
   z?: number
-  /** Default true. Tooltip/UI overlays can opt out to draw outside pane rect. */
+  /** Default true. Tooltip/UI overlays can opt out to draw outside surface rect. */
   clip?: boolean
 }
 
@@ -180,7 +176,7 @@ export type TextBlockAlign = "left" | "center" | "right"
 export type TextBlockVAlign = "top" | "middle" | "bottom"
 
 export type DrawTextBlockOpts = {
-  /** Reference-px if Pane.referenceHeight is set, otherwise canvas-px. */
+  /** Reference-px if UiSurface.referenceHeight is set, otherwise canvas-px. */
   fontPx?: number
   material: TextMaterial
   lineHeight?: number
@@ -208,9 +204,9 @@ export type TextBlockMetrics = {
   maxLineWidthPx: number
 }
 
-// Pane по умолчанию ПРОЗРАЧНА: ни заливки, ни border'а. Чтобы вернуть
-// «классическую» тёмную pane с обводкой — передайте bgColor/borderColor
-// явно в PaneOpts (см. примеры в playground'е). null отключает явно.
+// UiSurface по умолчанию ПРОЗРАЧНА: ни заливки, ни border'а. Чтобы вернуть
+// «классическую» тёмную surface с обводкой — передайте bgColor/borderColor
+// явно в UiSurfaceOpts (см. примеры в playground'е). null отключает явно.
 const DEFAULT_BG: Color | null = null
 const DEFAULT_BORDER: Color | null = null
 
@@ -228,11 +224,11 @@ export const Z: {
   TEXT: 0.00008,
 }
 
-export abstract class Pane implements UiPane {
+export abstract class UiSurface implements UiSurfaceNode {
   readonly node = new Object3D()
   /** Готовый набор TextMaterial'ов с palette-цветами. Reuse, не GC-friendly create. */
   readonly materials = new MaterialPalette()
-  protected canvas: UiCanvas | null = null
+  protected canvas: UiDisplay | null = null
   protected font: TrueTypeFont | null = null
   protected pixelScale = 0.001
   protected rectW = 1
@@ -242,7 +238,7 @@ export abstract class Pane implements UiPane {
    * `drawTextCentered` / `measureText` интерпретируется как пиксели
    * в reference-системе (например, журнальная страница 1055px), а не
    * как canvas-px. Внутри умножаем на `rectH / referenceHeight`,
-   * чтобы шрифт пропорционально масштабировался при ресайзе pane.
+   * чтобы шрифт пропорционально масштабировался при ресайзе surface.
    * Default = null → fontPx считаем canvas-px (старое поведение).
    */
   protected referenceHeight: number | null = null
@@ -283,8 +279,6 @@ export abstract class Pane implements UiPane {
   protected pressedHit: HitBox | null = null
   #hoveredHitKey: string | null = null
   #pressedHitKey: string | null = null
-  #pressedVisualKey: string | null = null
-  #pressedVisualTimer: ReturnType<typeof setTimeout> | null = null
   #hoverTooltipKey: string | null = null
   #hoverTooltipSince = 0
   #hoverTooltipDelayMs = 0
@@ -292,7 +286,7 @@ export abstract class Pane implements UiPane {
   #backgroundImage: BackgroundImageOpts | null = null
   #rerenderRafId: number | null = null
 
-  /** Top-left corner of pane on canvas в logical-px (для конверсии в screen-px). */
+  /** Top-left corner of surface on canvas в logical-px (для конверсии в screen-px). */
   #screenOriginX = 0
   #screenOriginY = 0
   #fullRectW = 1
@@ -300,10 +294,10 @@ export abstract class Pane implements UiPane {
   readonly #requestRenderOnImageLoad = (): void => {
     this.requestRender()
   }
-  /** Стек clip-rect'ов в Pane-local-px. Первый элемент = вся Pane-rect. */
+  /** Стек clip-rect'ов в surface-local-px. Первый элемент = вся surface-rect. */
   #clipStack: Array<{xMin: number; yMin: number; xMax: number; yMax: number}> = []
 
-  constructor(opts: PaneOpts = {}) {
+  constructor(opts: UiSurfaceOpts = {}) {
     const bgColor = opts.bgColor === null ? null : opts.bgColor ?? DEFAULT_BG
     const borderColor = opts.borderColor === null ? null : opts.borderColor ?? DEFAULT_BORDER
     this.#borderWidthPx = opts.borderWidthPx ?? 1
@@ -381,7 +375,7 @@ export abstract class Pane implements UiPane {
     this.node.add(this.#layer)
   }
 
-  attachCanvas(canvas: UiCanvas): void {
+  attachCanvas(canvas: UiDisplay): void {
     this.canvas = canvas
   }
 
@@ -401,7 +395,7 @@ export abstract class Pane implements UiPane {
     this.requestRender()
   }
 
-  setRect(rect: PaneRect, pixelScale: number, font: TrueTypeFont): void {
+  setRect(rect: UiSurfaceRect, pixelScale: number, font: TrueTypeFont): void {
     this.font = font
     this.pixelScale = pixelScale
     // rectW/rectH — это INNER размер (минус padding со всех сторон).
@@ -412,8 +406,8 @@ export abstract class Pane implements UiPane {
     const innerH = Math.max(1, rect.h - this.#padTop - this.#padBottom)
     this.rectW = innerW
     this.rectH = innerH
-    // screenOrigin — для hit-mapping. Pointermove приходит в pane-rect-local
-    // (UiCanvas вычитает rect.x/y), и мы дополнительно вычитаем padding в
+    // screenOrigin — для hit-mapping. Pointermove приходит в surface-rect-local
+    // (UiDisplay вычитает rect.x/y), и мы дополнительно вычитаем padding в
     // onPointerMove/Down/Up перед #hitAt.
     this.#screenOriginX = rect.x
     this.#screenOriginY = rect.y
@@ -426,8 +420,8 @@ export abstract class Pane implements UiPane {
     this.#rerenderNow()
   }
 
-  /** Subclass зовёт при изменении state — re-render без resize. */
-  protected requestRender(): void {
+  /** Элементы и subclass'ы зовут при изменении state — re-render без resize. */
+  requestRender(): void {
     if (this.font === null) return
     if (this.#rerenderRafId === null) {
       this.#rerenderRafId = requestAnimationFrame(() => {
@@ -724,11 +718,11 @@ export abstract class Pane implements UiPane {
     const hitKey = key ?? hitKeyFor(x, y, w, h)
     return {
       hovered: this.#hoveredHitKey === hitKey,
-      pressed: this.#pressedHitKey === hitKey || this.#pressedVisualKey === hitKey,
+      pressed: this.#pressedHitKey === hitKey,
     }
   }
 
-  /** Регистрирует hit-rect в pane-px coords. Поздние побеждают. */
+  /** Регистрирует hit-rect в surface-px coords. Поздние побеждают. */
   hit(
     x: number,
     y: number,
@@ -744,7 +738,6 @@ export abstract class Pane implements UiPane {
           ? {cursor: cursorOrOptions}
           : {cursor: cursorOrOptions, tooltip}
         : cursorOrOptions
-    const disabled = options.disabled === true
     const hit: HitBox = {
       x,
       y,
@@ -752,10 +745,9 @@ export abstract class Pane implements UiPane {
       h,
       key: options.key ?? hitKeyFor(x, y, w, h),
       action,
-      cursor: disabled ? "not-allowed" : options.cursor ?? "pointer",
+      cursor: options.cursor ?? "pointer",
     }
     if (options.tooltip !== undefined) hit.tooltip = options.tooltip
-    if (disabled) hit.disabled = true
     if (options.onPointerEnter !== undefined) hit.onPointerEnter = options.onPointerEnter
     if (options.onPointerLeave !== undefined) hit.onPointerLeave = options.onPointerLeave
     if (options.onPointerDown !== undefined) hit.onPointerDown = options.onPointerDown
@@ -767,7 +759,7 @@ export abstract class Pane implements UiPane {
 
   onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
     if (this.canvas === null) return
-    // Pointermove приходит в pane-rect-local; #hits зарегистрированы в inner-coords
+    // Pointermove приходит в surface-rect-local; #hits зарегистрированы в inner-coords
     // (после сдвига на padding) — субтрагируем padLeft/padTop.
     const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     this.canvas.canvas.style.cursor = hit?.cursor ?? "default"
@@ -779,8 +771,6 @@ export abstract class Pane implements UiPane {
   onPointerDown(_event: MouseEvent, localX: number, localY: number): void {
     const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     if (hit === null) return
-    if (hit.disabled === true) return
-    this.#setPressedVisual(null)
     this.pressedHit = hit
     this.#pressedHitKey = hit.key
     hit.onPointerDown?.()
@@ -793,9 +783,8 @@ export abstract class Pane implements UiPane {
     const releaseHit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     this.pressedHit = null
     this.#pressedHitKey = null
-    this.#setPressedVisual(pressed.key)
     pressed.onPointerUp?.()
-    if (releaseHit?.key === pressed.key && pressed.disabled !== true) {
+    if (releaseHit?.key === pressed.key) {
       pressed.action()
     }
     this.requestRender()
@@ -812,12 +801,10 @@ export abstract class Pane implements UiPane {
     this.#setHoveredHit(null)
     this.pressedHit = null
     this.#pressedHitKey = null
-    this.#setPressedVisual(null)
     this.#setHoverTooltip(null)
   }
 
   dispose(): void {
-    this.#clearPressedVisualTimer()
     this.#cancelPendingRerender()
     this.#clearLayer()
     this.#clearLayer(this.#backgroundLayer)
@@ -963,7 +950,7 @@ export abstract class Pane implements UiPane {
   }
 
   /**
-   * Сужает текущий clip-rect на пересечение с (x, y, w, h) в Pane-local-px.
+   * Сужает текущий clip-rect на пересечение с (x, y, w, h) в surface-local-px.
    * Все последующие drawText будут клипаться по этому rect'у в шейдере.
    * Пара push/pop обязательна. drawRect клампится в JS, на него clip-stack
    * не влияет (см. drawRect).
@@ -985,7 +972,7 @@ export abstract class Pane implements UiPane {
   #applyClipTo(text: Text): void {
     const clip = this.#clipStack[this.#clipStack.length - 1]!
     // Screen-pixel scissor (framebuffer-pixels). gl_FragCoord уже учитывает
-    // pixelRatio и projection — конвертируем pane-local-logical-px в
+    // pixelRatio и projection — конвертируем surface-local-logical-px в
     // physical-px через pixelRatio renderer'а.
     const dpr = this.canvas?.renderer.pixelRatio ?? 1
     const ox = this.#screenOriginX
@@ -1016,7 +1003,7 @@ export abstract class Pane implements UiPane {
     const dpr = this.canvas?.renderer.pixelRatio ?? 1
     const ox = this.#screenOriginX
     const oy = this.#screenOriginY
-    // Если clipStack — это вся Pane-rect (без активного pushClip), оставляем
+    // Если clipStack — это вся surface-rect (без активного pushClip), оставляем
     // zeros — шейдер их детектит и skip'ает scissor (быстрее).
     if (clip.xMin === 0 && clip.yMin === 0 && clip.xMax === this.rectW && clip.yMax === this.rectH) {
       return
@@ -1071,24 +1058,6 @@ export abstract class Pane implements UiPane {
     this.#hoveredHitKey = hit?.key ?? null
     hit?.onPointerEnter?.()
     this.requestRender()
-  }
-
-  #setPressedVisual(key: string | null): void {
-    this.#clearPressedVisualTimer()
-    this.#pressedVisualKey = key
-    if (key === null) return
-    this.#pressedVisualTimer = setTimeout(() => {
-      this.#pressedVisualTimer = null
-      if (this.#pressedVisualKey !== key) return
-      this.#pressedVisualKey = null
-      this.requestRender()
-    }, MIN_PRESS_VISUAL_MS)
-  }
-
-  #clearPressedVisualTimer(): void {
-    if (this.#pressedVisualTimer === null) return
-    clearTimeout(this.#pressedVisualTimer)
-    this.#pressedVisualTimer = null
   }
 
   #clearLayer(layer: Object3D = this.#layer): void {
@@ -1221,7 +1190,7 @@ function normaliseTextBlockLines(value: string | readonly string[], upper: boole
   return lines.map((line) => (upper ? line.toUpperCase() : line))
 }
 
-function layoutTextBlockLines(pane: Pane, rawLines: readonly string[], maxW: number, fontPx: number, wrap: boolean): string[] {
+function layoutTextBlockLines(surface: UiSurface, rawLines: readonly string[], maxW: number, fontPx: number, wrap: boolean): string[] {
   if (!wrap) return [...rawLines]
   const out: string[] = []
   for (const raw of rawLines) {
@@ -1232,7 +1201,7 @@ function layoutTextBlockLines(pane: Pane, rawLines: readonly string[], maxW: num
     let line = ""
     for (const word of raw.split(/\s+/).filter(Boolean)) {
       const candidate = line ? `${line} ${word}` : word
-      if (pane.measureText(candidate, fontPx) <= maxW || line.length === 0) {
+      if (surface.measureText(candidate, fontPx) <= maxW || line.length === 0) {
         line = candidate
       } else {
         out.push(line)
@@ -1253,8 +1222,8 @@ function limitTextBlockLines(lines: readonly string[], maxLines: number | undefi
   return out
 }
 
-function maxTextBlockLineWidth(pane: Pane, lines: readonly string[], fontPx: number): number {
+function maxTextBlockLineWidth(surface: UiSurface, lines: readonly string[], fontPx: number): number {
   let max = 0
-  for (const line of lines) max = Math.max(max, pane.measureText(line, fontPx))
+  for (const line of lines) max = Math.max(max, surface.measureText(line, fontPx))
   return max
 }

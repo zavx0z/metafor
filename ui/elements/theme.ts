@@ -93,7 +93,7 @@ export function toneBorder(kind: Tone): Color {
 
 /**
  * Кэш TextMaterial'ов по palette-цветам. Создавать TextMaterial каждый
- * render — мусор; этот объект инстанцируется один раз на Pane.
+ * render — мусор; этот объект инстанцируется один раз на UiSurface.
  */
 export class MaterialPalette {
   readonly text = new TextMaterial({color: palette.text})
