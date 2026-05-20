@@ -1,71 +1,63 @@
-import {Element, UiCanvas, div, h2, h3, p, span, uiIcons, type CssColor} from "@metafor/elements"
+import {Element, UiCanvas, h2, h3, p, palette, span, uiIcons} from "@metafor/elements"
 import {
   Badge,
   Button,
   type ButtonColor,
+  type ButtonProps,
   type ButtonSize,
   type ButtonVariant,
   Card,
   Divider,
-  ScrollListState,
-  Scrollbar,
-  StatusChip,
   TextField,
-  scrollList,
 } from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
-type ComponentRoute = "overview" | "buttons" | "badge" | "forms" | "divider" | "scrollbar" | "scrollList" | "notiStack" | "feedback"
-type ComponentDensity = "compact" | "regular" | "air"
+type ButtonLabel = "Button" | "Apply" | "Run" | "Delete"
+type ButtonIcon = "none" | "apply" | "run" | "delete"
+type IconPlacement = "start" | "end" | "only"
+type ButtonState = "enabled" | "disabled"
+type ButtonWidth = "compact" | "regular" | "wide"
+type ButtonHeight = "compact" | "regular" | "large"
+type BasicButtonType = "Text button" | "Contained button" | "Outlined button"
+type ButtonRouteVariant = "text" | "contained" | "outlined"
+type ButtonRoute = "button/basic" | `button/basic/${ButtonRouteVariant}`
+type ButtonSection = "Basic"
 
-type RouteMeta = {
-  id: ComponentRoute
-  label: string
-  color: "primary" | "success" | "warning" | "error" | "neutral"
-}
-
-const ROUTE_IDS = ["overview", "buttons", "badge", "forms", "divider", "scrollbar", "scrollList", "notiStack", "feedback"] as const
-const ROUTES: readonly RouteMeta[] = [
-  {id: "overview", label: "Overview", color: "primary"},
-  {id: "buttons", label: "Buttons", color: "success"},
-  {id: "badge", label: "Badge", color: "primary"},
-  {id: "forms", label: "Forms", color: "warning"},
-  {id: "divider", label: "Divider", color: "neutral"},
-  {id: "scrollbar", label: "Scrollbar", color: "primary"},
-  {id: "scrollList", label: "Scroll List", color: "success"},
-  {id: "notiStack", label: "Noti Stack", color: "warning"},
-  {id: "feedback", label: "Feedback", color: "error"},
-]
-
-const COMPONENT_VARIANTS: readonly ButtonVariant[] = ["glass", "contained", "outlined", "text"]
-const COMPONENT_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error", "neutral"]
-const COMPONENT_SIZES: readonly ButtonSize[] = ["small", "medium", "large"]
-const COMPONENT_DENSITIES: readonly ComponentDensity[] = ["compact", "regular", "air"]
+const BASIC_BUTTON_TYPES: readonly BasicButtonType[] = ["Text button", "Contained button", "Outlined button"]
+const BUTTON_ROUTES: readonly ButtonRoute[] = ["button/basic", "button/basic/text", "button/basic/contained", "button/basic/outlined"]
+const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic"]
+const BUTTON_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error", "neutral"]
+const BUTTON_SIZES: readonly ButtonSize[] = ["small", "medium", "large"]
+const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
+const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
+const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
+const BUTTON_STATES: readonly ButtonState[] = ["enabled", "disabled"]
+const BUTTON_WIDTHS: readonly ButtonWidth[] = ["compact", "regular", "wide"]
+const BUTTON_HEIGHTS: readonly ButtonHeight[] = ["compact", "regular", "large"]
+const COMPONENT_NAV = ["Button", "Card", "Badge", "TextField", "Divider", "Scrollbar", "Scroll List", "Noti Stack"] as const
+const BUTTON_RADII = [14, 24, 34, 999] as const
+const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.00012
 const BACKDROP_Z = -0.00018
-const SCROLL_ROW_H = 46
-const SCROLL_ROW_GAP = 8
-const SCROLL_ITEMS = Array.from({length: 64}, (_, i) => ({
-  title: `Item #${i + 1}`,
-  subtitle: `scrollList row ${i + 1} with clipped subtitle`,
-}))
 
-class ComponentsPlayground extends Element {
-  readonly #router = new VirtualRouter<ComponentRoute>(ROUTE_IDS, "overview")
+class ButtonComponentsScreen extends Element {
+  readonly #router = new VirtualRouter<ButtonRoute>(BUTTON_ROUTES, "button/basic", {mode: "path"})
   readonly #unsubscribe: () => void
-  readonly #scrollState = new ScrollListState({onChange: () => this.requestRender()})
-  #route: ComponentRoute = this.#router.current
-  #events = ["ready: hover, press, release, click"]
+  #route: ButtonRoute = this.#router.current
+  #color: ButtonColor = "primary"
+  #size: ButtonSize = "medium"
+  #label: ButtonLabel = "Button"
+  #icon: ButtonIcon = "none"
+  #iconPlacement: IconPlacement = "start"
+  #radius = 999
+  #iconSize = 20
+  #state: ButtonState = "enabled"
+  #tooltip = false
+  #width: ButtonWidth = "regular"
+  #height: ButtonHeight = "regular"
   #eventCount = 0
   #status = "ready"
-  #activePlan = "Vision Pro"
-  #scrollVisible = 1
-  #componentVariant: ButtonVariant = "glass"
-  #componentColor: ButtonColor = "primary"
-  #componentSize: ButtonSize = "medium"
-  #componentRadius = 999
-  #density: ComponentDensity = "regular"
-  #dockSelection = "Button"
+  #events = ["ready"]
 
   constructor() {
     super({bgColor: null, borderColor: null})
@@ -81,14 +73,6 @@ class ComponentsPlayground extends Element {
     super.dispose()
   }
 
-  onWheel(event: WheelEvent): void {
-    if (this.#route !== "scrollList") return
-    this.#scrollState.applyWheel(event, SCROLL_ROW_H + SCROLL_ROW_GAP, SCROLL_ITEMS.length, this.#scrollVisible, {
-      speed: 1.35,
-      startBoostPx: 14,
-    })
-  }
-
   protected render(): void {
     this.#backdrop()
 
@@ -98,24 +82,27 @@ class ComponentsPlayground extends Element {
     const stageY = (this.rectH - stageH) / 2
     const gap = 18
     const catalogW = Math.round(Math.max(204, Math.min(250, stageW * 0.19)))
-    const paramsW = Math.round(Math.max(246, Math.min(310, stageW * 0.23)))
+    const sectionW = Math.round(Math.max(150, Math.min(190, stageW * 0.13)))
+    const paramsW = Math.round(Math.max(340, Math.min(420, stageW * 0.27)))
     const dockH = Math.max(86, Math.min(112, stageH * 0.15))
-    const playW = stageW - catalogW - paramsW - gap * 2
-    const playH = stageH - dockH - gap
-    const playX = stageX + catalogW + gap
-    const paramsX = playX + playW + gap
+    const previewW = stageW - catalogW - sectionW - paramsW - gap * 3
+    const previewH = stageH - dockH - gap
+    const sectionX = stageX + catalogW + gap
+    const previewX = sectionX + sectionW + gap
+    const paramsX = previewX + previewW + gap
 
     this.#catalog(stageX, stageY, catalogW, stageH)
-    this.#playground(playX, stageY, playW, playH)
-    this.#dock(playX, stageY + playH + gap, playW, dockH)
+    this.#sectionPanel(sectionX, stageY, sectionW, stageH)
+    this.#preview(previewX, stageY, previewW, previewH)
+    this.#dock(previewX, stageY + previewH + gap, previewW, dockH)
     this.#parameters(paramsX, stageY, paramsW, stageH)
   }
 
   #backdrop(): void {
     this.drawBackdropGradient({
       base: 0x07101b,
-      glowA: {color: "rgba(111,211,255,0.16)", cx: 0.30, cy: 0.18, radius: 0.42},
-      glowB: {color: "rgba(255,190,111,0.10)", cx: 0.70, cy: 0.78, radius: 0.44},
+      glowA: {color: "rgba(111,211,255,0.16)", cx: 0.28, cy: 0.18, radius: 0.42},
+      glowB: {color: "rgba(82,196,123,0.10)", cx: 0.76, cy: 0.76, radius: 0.42},
       z: BACKDROP_Z,
     })
   }
@@ -123,45 +110,163 @@ class ComponentsPlayground extends Element {
   #catalog(x: number, y: number, w: number, h: number): void {
     Card(this, x, y, w, h, {
       variant: "glass",
-      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
+      sx: {
+        background: "rgba(12, 18, 30, 0.78)",
+        borderColor: "rgba(214, 231, 255, 0.22)",
+        borderRadius: 36,
+        zIndex: LAYOUT_Z,
+      },
     })
-    const top = y + 24
-    const gap = 8
-    const rowH = Math.max(30, Math.min(40, (h - 48 - gap * (ROUTES.length - 1)) / ROUTES.length))
-    for (const [i, route] of ROUTES.entries()) {
-      const active = route.id === this.#route
-      Button(this, x + 18, top + i * (rowH + gap), w - 36, rowH, {
-        children: route.label,
+
+    const pad = 22
+    h3(this, x + pad, y + 28, w - pad * 2, 24, {children: "Components", style: {fontSize: 15}})
+    const top = y + 76
+    const gap = 9
+    const rowH = 38
+    for (const [i, label] of COMPONENT_NAV.entries()) {
+      const active = label === "Button"
+      Button(this, x + pad, top + i * (rowH + gap), w - pad * 2, rowH, {
+        children: label,
         variant: active ? "contained" : "glass",
-        color: active ? route.color : "neutral",
-        onClick: () => this.#router.go(route.id),
-        sx: {borderRadius: 999, fontSize: 11},
+        color: "neutral",
+        ...activeNavStyle(active),
+        disabled: !active,
+        radius: 999,
+        fontPx: 11,
+        onClick: () => this.#record("component:button"),
       })
     }
   }
 
-  #playground(x: number, y: number, w: number, h: number): void {
+  #sectionPanel(x: number, y: number, w: number, h: number): void {
     Card(this, x, y, w, h, {
       variant: "glass",
       sx: {
-        background: "rgba(8, 13, 22, 0.70)",
+        background: "rgba(12, 18, 30, 0.78)",
         borderColor: "rgba(214, 231, 255, 0.22)",
-        borderRadius: this.#componentRadius === 999 ? 38 : this.#componentRadius,
+        borderRadius: 36,
         zIndex: LAYOUT_Z,
       },
     })
-    const pad = this.#contentPad()
+
+    const pad = 18
+    h3(this, x + pad, y + 28, w - pad * 2, 24, {children: "Button", style: {fontSize: 15}})
+    const top = y + 76
+    for (const [i, section] of BUTTON_SECTIONS.entries()) {
+      Button(this, x + pad, top + i * 47, w - pad * 2, 38, {
+        children: section,
+        variant: "contained",
+        color: "neutral",
+        ...activeNavStyle(true),
+        radius: 999,
+        fontPx: 11,
+        onClick: () => this.#go(null),
+      })
+    }
+  }
+
+  #preview(x: number, y: number, w: number, h: number): void {
+    Card(this, x, y, w, h, {
+      variant: "glass",
+      sx: {
+        background: "rgba(8, 13, 22, 0.72)",
+        borderColor: "rgba(214, 231, 255, 0.22)",
+        borderRadius: 38,
+        zIndex: LAYOUT_Z,
+      },
+    })
+
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    if (this.#route === "overview") this.#overview(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "buttons") this.#buttons(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "badge") this.#badge(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "forms") this.#forms(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "divider") this.#dividerRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "scrollbar") this.#scrollbarRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "scrollList") this.#scrollListRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "notiStack") this.#notiStackRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else this.#feedback(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    const variant = this.#routeVariant()
+    if (variant === null) this.#basicOverview(x, y, w, h)
+    else this.#buttonDetail(x, y, w, h, variant)
     this.popClip()
+  }
+
+  #basicOverview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    h2(this, x + pad, y + 34, w - pad * 2, 34, {children: "Basic button", style: {fontSize: 24}})
+    p(this, x + pad, y + 82, w - pad * 2, 30, {
+      children: "The Button comes with three variants: text, contained, and outlined.",
+      style: {fontSize: 13, color: "muted"},
+    })
+
+    const rowY = y + Math.max(176, h * 0.31)
+    const btnW = Math.min(140, Math.max(102, (w - pad * 2 - 32) / 3))
+    const rowW = btnW * 3 + 32
+    const startX = x + (w - rowW) / 2
+    Button(this, startX, rowY, btnW, 46, {children: "Text", variant: "text", color: this.#color, radius: this.#radius, onClick: () => this.#go("text")})
+    Button(this, startX + btnW + 16, rowY, btnW, 46, {
+      children: "Contained",
+      variant: "contained",
+      color: this.#color,
+      radius: this.#radius,
+      onClick: () => this.#go("contained"),
+    })
+    Button(this, startX + (btnW + 16) * 2, rowY, btnW, 46, {
+      children: "Outlined",
+      variant: "outlined",
+      color: this.#color,
+      radius: this.#radius,
+      onClick: () => this.#go("outlined"),
+    })
+
+    const codeY = rowY + 92
+    codeBlock(this, x + pad, codeY, w - pad * 2, [
+      'Button(host, x, y, w, h, { children: "Text", variant: "text" })',
+      'Button(host, x, y, w, h, { children: "Contained", variant: "contained" })',
+      'Button(host, x, y, w, h, { children: "Outlined", variant: "outlined" })',
+    ])
+  }
+
+  #buttonDetail(x: number, y: number, w: number, h: number, variant: ButtonRouteVariant): void {
+    const pad = 42
+    h2(this, x + pad, y + 34, w - pad * 2, 34, {children: detailTitle(variant), style: {fontSize: 24}})
+    p(this, x + pad, y + 82, w - pad * 2, 42, {
+      children: detailDescription(variant),
+      style: {fontSize: 13, color: "muted"},
+    })
+
+    const buttonW = Math.min(this.#buttonWidth(Math.min(w - pad * 2, 520)), 168)
+    const buttonH = this.#buttonHeight()
+    const rowGap = 22
+    const rowW = buttonW * 3 + rowGap * 2
+    const rowX = x + (w - rowW) / 2
+    const rowY = y + Math.max(178, h * 0.33)
+    const primaryLabel = this.#label === "Button" ? "Primary" : this.#label
+    Button(this, rowX, rowY, buttonW, buttonH, {...this.#buttonProps(), label: primaryLabel, children: primaryLabel})
+    Button(this, rowX + buttonW + rowGap, rowY, buttonW, buttonH, {
+      ...this.#buttonProps(),
+      label: "Disabled",
+      children: "Disabled",
+      disabled: true,
+    })
+    Button(this, rowX + (buttonW + rowGap) * 2, rowY, buttonW, buttonH, {
+      ...this.#buttonProps(),
+      label: "Link",
+      children: "Link",
+      endIcon: uiIcons.run,
+    })
+
+    const codeW = Math.min(520, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    const codeY = rowY + buttonH + 58
+    codeBlock(this, codeX, codeY, codeW, [
+      `Button(host, x, y, w, h, { children: "${primaryLabel}", variant: "${variant}" })`,
+      `Button(host, x, y, w, h, { children: "Disabled", variant: "${variant}", disabled: true })`,
+    ])
+    codeLine(this, codeX, codeY + 56, codeW, `Button(host, x, y, w, h, { children: "Link", variant: "${variant}", endIcon: uiIcons.run })`)
+
+    TextField(this, codeX, codeY + 100, codeW, 42, {value: `last=${this.#status}`, active: true})
+    const logY = y + h - 86
+    Badge(this, x + pad, logY, 142, 30, {children: this.#currentButtonType(), color: this.#color})
+    Badge(this, x + pad + 156, logY, 110, 30, {children: this.#color, color: this.#color})
+    Badge(this, x + pad + 280, logY, 96, 30, {children: this.#size, color: "neutral"})
+    const recent = this.#events[0] ?? "ready"
+    Badge(this, x + w - pad - 124, logY, 124, 30, {
+      children: recent,
+      color: "neutral",
+    })
   }
 
   #dock(x: number, y: number, w: number, h: number): void {
@@ -169,20 +274,20 @@ class ComponentsPlayground extends Element {
       variant: "glass",
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34, zIndex: LAYOUT_Z},
     })
-    const items = this.#dockItems()
-    const itemGap = 10
-    const itemW = Math.max(84, Math.min(148, (w - 48 - itemGap * (items.length - 1)) / items.length))
-    const rowW = itemW * items.length + itemGap * (items.length - 1)
+    const itemGap = 12
+    const itemW = Math.max(94, Math.min(148, (w - 64 - itemGap * (BASIC_BUTTON_TYPES.length - 1)) / BASIC_BUTTON_TYPES.length))
+    const rowW = itemW * BASIC_BUTTON_TYPES.length + itemGap * (BASIC_BUTTON_TYPES.length - 1)
     const startX = x + (w - rowW) / 2
-    for (const [i, item] of items.entries()) {
-      const active = item.active ?? this.#dockSelection === item.label
-      Button(this, startX + i * (itemW + itemGap), y + (h - 38) / 2, itemW, 38, {
-        children: item.label,
+    for (const [i, type] of BASIC_BUTTON_TYPES.entries()) {
+      const variant = routeVariantFromButtonType(type)
+      const active = this.#routeVariant() === variant
+      Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
+        children: dockLabel(type),
         variant: active ? "contained" : "glass",
-        color: active ? this.#componentColor : "neutral",
-        radius: this.#componentRadius,
-        onClick: item.onClick,
-        sx: {fontSize: 11},
+        color: "neutral",
+        ...activeNavStyle(active),
+        radius: this.#radius,
+        onClick: () => this.#go(variant),
       })
     }
   }
@@ -192,92 +297,83 @@ class ComponentsPlayground extends Element {
       variant: "glass",
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
     })
-    const previewY = y + h - 148
-    let cy = y + 34
-    cy += this.#variantGroup(x + 24, cy, w - 48) + 18
-    cy += this.#colorGroup(x + 24, cy, w - 48) + 18
-    cy += this.#sizeGroup(x + 24, cy, w - 48) + 18
-    cy += this.#radiusGroup(x + 24, cy, w - 48) + 18
-    if (previewY - cy > 96) this.#densityGroup(x + 24, cy, w - 48)
+    this.pushClip(x + 2, y + 2, w - 4, h - 4)
 
-    Card(this, x + 24, previewY, w - 48, 104, {
-      variant: "glass",
-      sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.12)", borderRadius: this.#componentRadius === 999 ? 34 : this.#componentRadius},
-    })
-    Button(this, x + 48, previewY + 36, w - 96, 42, {
-      children: `${this.#dockSelection} preview`,
-      variant: this.#componentVariant,
-      color: this.#componentColor,
-      size: this.#componentSize,
-      radius: this.#componentRadius,
-      onClick: () => this.#record("preview"),
-    })
+    let cy = y + 22
+    h3(this, x + 24, cy, w - 48, 24, {children: "Button props", style: {fontSize: 15}})
+    cy += 36
+    cy += this.#optionGroup(x + 24, cy, w - 48, "label", BUTTON_LABELS, this.#label, (value) => {
+      this.#label = value
+      this.#record(`label:${value.toLowerCase()}`)
+    }, 62) + 8
+    cy += this.#optionGroup(x + 24, cy, w - 48, "color", BUTTON_COLORS, this.#color, (value) => {
+      this.#color = value
+      this.#record(`color:${value}`)
+    }, 52, {
+      color: (value, active) => active ? value : "neutral",
+    }) + 8
+    cy += this.#optionGroup(x + 24, cy, w - 48, "size", BUTTON_SIZES, this.#size, (value) => {
+      this.#size = value
+      this.#record(`size:${value}`)
+    }, 62) + 8
+    cy += this.#numberGroup(x + 24, cy, w - 48, "radius", BUTTON_RADII, this.#radius, (value) => {
+      this.#radius = value
+      this.#record(`radius:${value}`)
+    }) + 8
+    cy += this.#optionGroup(x + 24, cy, w - 48, "icon", BUTTON_ICONS, this.#icon, (value) => {
+      this.#icon = value
+      this.#record(`icon:${value}`)
+    }, 62, {display: iconDisplay}) + 8
+    cy += this.#optionGroup(x + 24, cy, w - 48, "icon position", ICON_PLACEMENTS, this.#iconPlacement, (value) => {
+      this.#iconPlacement = value
+      this.#record(`icon:${value}`)
+    }, 74) + 8
+    cy += this.#numberGroup(x + 24, cy, w - 48, "icon size", ICON_SIZES, this.#iconSize, (value) => {
+      this.#iconSize = value
+      this.#record(`iconSize:${value}`)
+    }) + 8
+    cy += this.#optionGroup(x + 24, cy, w - 48, "state", BUTTON_STATES, this.#state, (value) => {
+      this.#state = value
+      this.#record(value)
+    }, 86) + 10
+
+    Divider(this, x + 24, cy + 5, w - 48, {color: "neutral"})
+    cy += 18
+    h3(this, x + 24, cy, w - 48, 24, {children: "Layout", style: {fontSize: 15}})
+    cy += 30
+    cy += this.#optionGroup(x + 24, cy, w - 48, "width", BUTTON_WIDTHS, this.#width, (value) => {
+      this.#width = value
+      this.#record(`width:${value}`)
+    }, 74) + 8
+    cy += this.#optionGroup(x + 24, cy, w - 48, "height", BUTTON_HEIGHTS, this.#height, (value) => {
+      this.#height = value
+      this.#record(`height:${value}`)
+    }, 74) + 8
+    cy += this.#optionGroup(x + 24, cy, w - 48, "tooltip", ["off", "on"] as const, this.#tooltip ? "on" : "off", (value) => {
+      this.#tooltip = value === "on"
+      this.#record(`tooltip:${value}`)
+    }, 74)
+
+    this.popClip()
   }
 
-  #variantGroup(x: number, y: number, w: number): number {
-    span(this, x, y, w, 22, {children: "variant", style: {fontSize: 11, color: "muted"}})
-    return 32 + this.#buttonGroup(x, y + 32, w, COMPONENT_VARIANTS, this.#componentVariant, (value) => {
-      this.#componentVariant = value
-      this.requestRender()
-    }, 92)
-  }
-
-  #colorGroup(x: number, y: number, w: number): number {
-    span(this, x, y, w, 22, {children: "color", style: {fontSize: 11, color: "muted"}})
-    return 32 + this.#buttonGroup(x, y + 32, w, COMPONENT_COLORS, this.#componentColor, (value) => {
-      this.#componentColor = value
-      this.requestRender()
-    }, 86)
-  }
-
-  #sizeGroup(x: number, y: number, w: number): number {
-    span(this, x, y, w, 22, {children: "size", style: {fontSize: 11, color: "muted"}})
-    return 32 + this.#buttonGroup(x, y + 32, w, COMPONENT_SIZES, this.#componentSize, (value) => {
-      this.#componentSize = value
-      this.requestRender()
-    }, 76)
-  }
-
-  #radiusGroup(x: number, y: number, w: number): number {
-    span(this, x, y, w, 22, {children: "radius", style: {fontSize: 11, color: "muted"}})
-    const values = [24, 34, 999] as const
-    const gap = 8
-    const btnW = (w - gap * (values.length - 1)) / values.length
-    for (const [i, value] of values.entries()) {
-      const active = this.#componentRadius === value
-      Button(this, x + i * (btnW + gap), y + 32, btnW, 34, {
-        children: String(value),
-        variant: active ? "contained" : "glass",
-        color: active ? this.#componentColor : "neutral",
-        radius: 999,
-        fontPx: 10,
-        onClick: () => {
-          this.#componentRadius = value
-          this.requestRender()
-        },
-      })
-    }
-    return 66
-  }
-
-  #densityGroup(x: number, y: number, w: number): number {
-    span(this, x, y, w, 22, {children: "density", style: {fontSize: 11, color: "muted"}})
-    return 32 + this.#buttonGroup(x, y + 32, w, COMPONENT_DENSITIES, this.#density, (value) => {
-      this.#density = value
-      this.requestRender()
-    }, 76)
-  }
-
-  #buttonGroup<T extends string>(
+  #optionGroup<T extends string>(
     x: number,
     y: number,
     w: number,
+    label: string,
     values: readonly T[],
     activeValue: T,
     onSelect: (value: T) => void,
     minButtonW: number,
+    options: {
+      color?: (value: T, active: boolean) => ButtonColor
+      display?: (value: T) => string
+    } = {},
   ): number {
-    const gap = 8
+    span(this, x, y, w, 18, {children: label, style: {fontSize: 10, color: "muted"}})
+    const gap = 6
+    const rowH = 28
     const cols = Math.max(1, Math.min(values.length, Math.floor((w + gap) / (minButtonW + gap))))
     const rows = Math.ceil(values.length / cols)
     const btnW = (w - gap * (cols - 1)) / cols
@@ -285,365 +381,208 @@ class ComponentsPlayground extends Element {
       const active = activeValue === value
       const col = i % cols
       const row = Math.floor(i / cols)
-      Button(this, x + col * (btnW + gap), y + row * (34 + gap), btnW, 34, {
-        children: value,
+      Button(this, x + col * (btnW + gap), y + 24 + row * (rowH + gap), btnW, rowH, {
+        children: options.display?.(value) ?? value,
         variant: active ? "contained" : "glass",
-        color: active ? this.#componentColor : "neutral",
+        color: options.color?.(value, active) ?? (active ? this.#color : "neutral"),
         radius: 999,
-        fontPx: 10,
+        fontPx: 9,
         onClick: () => onSelect(value),
       })
     }
-    return rows * 34 + (rows - 1) * gap
+    return 24 + rows * rowH + (rows - 1) * gap
   }
 
-  #contentPad(): number {
-    if (this.#density === "compact") return 24
-    if (this.#density === "air") return 40
-    return 32
-  }
-
-  #dockItems(): Array<{label: string; active?: boolean; onClick: () => void}> {
-    if (this.#route === "buttons") {
-      return COMPONENT_VARIANTS.map((variant) => ({
-        label: variant,
-        active: this.#componentVariant === variant,
-        onClick: () => {
-          this.#componentVariant = variant
-          this.#dockSelection = variant
-          this.requestRender()
-        },
-      }))
-    }
-    if (this.#route === "badge" || this.#route === "divider") {
-      return COMPONENT_COLORS.map((color) => ({
-        label: color,
-        active: this.#componentColor === color,
-        onClick: () => {
-          this.#componentColor = color
-          this.#dockSelection = color
-          this.requestRender()
-        },
-      }))
-    }
-    if (this.#route === "scrollList") {
-      return [
-        {label: "top", value: 0},
-        {label: "middle", value: 24},
-        {label: "bottom", value: SCROLL_ITEMS.length},
-      ].map((item) => ({
-        label: item.label,
-        active: this.#dockSelection === item.label,
-        onClick: () => {
-          this.#scrollState.scrollTo(item.value)
-          this.#dockSelection = item.label
-          this.requestRender()
-        },
-      }))
-    }
-    if (this.#route === "feedback") {
-      return ["hover", "press", "release", "click", "disabled"].map((label) => ({
-        label,
-        active: this.#status === label,
-        onClick: () => {
-          this.#dockSelection = label
-          this.#record(label)
-        },
-      }))
-    }
-    return labelsForRoute(this.#route).map((label) => ({
-      label,
-      onClick: () => {
-        this.#dockSelection = label
-        this.requestRender()
-      },
-    }))
-  }
-
-  #overview(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Components", style: {fontSize: 22}})
-
-    const cardW = (w - 36) / 3
-    metricCard(this, x, y + 58, cardW, 142, "Card", "variant", "glass / outlined / filled")
-    metricCard(this, x + cardW + 18, y + 58, cardW, 142, "Button", "variant + color", "text / outlined / contained")
-    metricCard(this, x + (cardW + 18) * 2, y + 58, cardW, 142, "Full set", "controls", "Badge / TextField / Scroll / Noti")
-
-    Card(this, x, y + 238, w, 150, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30}})
-    h3(this, x + 26, y + 264, w - 52, 24, {children: "API", style: {fontSize: 15}})
-    codeLine(this, x + 26, y + 304, w - 52, "Button(host, x, y, w, h, { variant: \"contained\", color: \"success\", size: \"medium\" })")
-    codeLine(this, x + 26, y + 342, w - 52, "Card(host, x, y, w, h, { variant: \"glass\", sx: { borderRadius: 38 } })")
-  }
-
-  #buttons(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Buttons", style: {fontSize: 22}})
-
-    const top = y + 82
-    Divider(this, x + 28, top + 28, w - 56, {color: "neutral"})
-    const columnGap = 42
-    const leftW = Math.min(560, Math.max(430, Math.round(w * 0.48)))
-    const rightX = x + 28 + leftW + columnGap
-    const rightW = Math.max(260, x + w - 28 - rightX)
-
-    h3(this, x + 28, top, leftW, 24, {children: "Variants", style: {fontSize: 15}})
-    const buttons = [
-      ["Glass", "glass", "primary"],
-      ["Contained", "contained", "success"],
-      ["Outlined", "outlined", "warning"],
-      ["Text", "text", "primary"],
-      ["Error", "contained", "error"],
-      ["Disabled", "glass", "neutral"],
-    ] as const
-    const btnGapX = 18
-    const btnGapY = 34
-    const btnW = Math.min(170, Math.floor((leftW - btnGapX) / 2))
-    for (const [i, [label, variant, color]] of buttons.entries()) {
-      const bx = x + 28 + (i % 2) * (btnW + btnGapX)
-      const by = top + 70 + Math.floor(i / 2) * (48 + btnGapY)
-      Button(this, bx, by, btnW, 48, {
-        children: label,
-        variant,
-        color,
-        disabled: label === "Disabled",
-        onClick: () => this.#record(`button:${label.toLowerCase()}`),
+  #numberGroup<T extends number>(
+    x: number,
+    y: number,
+    w: number,
+    label: string,
+    values: readonly T[],
+    activeValue: T,
+    onSelect: (value: T) => void,
+  ): number {
+    span(this, x, y, w, 18, {children: label, style: {fontSize: 10, color: "muted"}})
+    const gap = 6
+    const rowH = 28
+    const btnW = (w - gap * (values.length - 1)) / values.length
+    for (const [i, value] of values.entries()) {
+      const active = activeValue === value
+      Button(this, x + i * (btnW + gap), y + 24, btnW, rowH, {
+        children: String(value),
+        variant: active ? "contained" : "glass",
+        color: active ? this.#color : "neutral",
+        radius: 999,
+        fontPx: 9,
+        onClick: () => onSelect(value),
       })
     }
-
-    h3(this, rightX, top, rightW, 24, {children: "Icons and state", style: {fontSize: 15}})
-    const iconButtonW = Math.min(190, Math.floor((rightW - 18) / 2))
-    Button(this, rightX, top + 70, iconButtonW, 48, {
-      children: "Apply",
-      variant: "contained",
-      color: "success",
-      startIcon: uiIcons.apply,
-      iconSizePx: 18,
-      onClick: () => this.#record("apply"),
-    })
-    Button(this, rightX + iconButtonW + 18, top + 70, iconButtonW, 48, {
-      children: "Run",
-      variant: "outlined",
-      color: "primary",
-      endIcon: uiIcons.run,
-      iconSizePx: 17,
-      onClick: () => this.#record("run"),
-    })
-    Button(this, rightX, top + 152, 52, 48, {
-      label: "Clear",
-      variant: "glass",
-      color: "neutral",
-      iconSrc: uiIcons.clear,
-      iconOnly: true,
-      tooltip: "Clear",
-      onClick: () => this.#record("clear"),
-    })
-    const badgeW = Math.min(130, Math.floor((rightW - 68 - 14) / 2))
-    Badge(this, rightX + 68, top + 158, badgeW, 32, {children: "hover ready", color: "primary"})
-    Badge(this, rightX + 68 + badgeW + 14, top + 158, badgeW, 32, {children: "disabled safe", color: "neutral"})
-    TextField(this, rightX, top + 232, Math.min(360, rightW), 44, {value: `last=${this.#status}`, active: true})
+    return 52
   }
 
-  #badge(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Badge", style: {fontSize: 22}})
-
-    h3(this, x + 28, y + 86, 260, 24, {children: "Variants", style: {fontSize: 15}})
-    const badges = [
-      ["Primary", "primary"],
-      ["Neutral", "neutral"],
-      ["Success", "success"],
-      ["Warning", "warning"],
-      ["Error", "error"],
-    ] as const
-    for (const [i, [label, color]] of badges.entries()) {
-      Badge(this, x + 28 + i * 148, y + 142, 124, 34, {children: label, color})
-    }
-    StatusChip(this, x + 28, y + 220, 152, 34, {label: "status chip", tone: "live", indicator: true})
-    StatusChip(this, x + 198, y + 220, 162, 34, {label: "with tooltip", tone: "paused", tooltip: "StatusChip tooltip"})
-    codeLine(this, x + 28, y + 306, w - 56, "Badge(host, x, y, w, h, { color: \"success\", children: \"Ready\" })")
-  }
-
-  #forms(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Forms", style: {fontSize: 22}})
-
-    const leftW = Math.floor(w * 0.48)
-    Card(this, x, y + 58, leftW, 358, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-    h3(this, x + 28, y + 86, leftW - 56, 24, {children: "Project form", style: {fontSize: 15}})
-    TextField(this, x + 28, y + 138, leftW - 56, 44, {value: "name=Spatial debug UI", active: true})
-    TextField(this, x + 28, y + 204, leftW - 56, 44, {value: `theme=${this.#activePlan}`, active: false, onClick: () => this.#record("field:theme")})
-    Button(this, x + 28, y + 282, 154, 46, {children: "Save", variant: "contained", color: "success", onClick: () => this.#record("save")})
-    Button(this, x + 198, y + 282, 154, 46, {children: "Cancel", variant: "outlined", color: "neutral", onClick: () => this.#record("cancel")})
-
-    const rightX = x + leftW + 24
-    const rightW = w - leftW - 24
-    Card(this, rightX, y + 58, rightW, 358, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-    h3(this, rightX + 28, y + 86, rightW - 56, 24, {children: "Component props", style: {fontSize: 15}})
-    propRow(this, rightX + 28, y + 138, rightW - 56, "variant", "\"glass\" | \"outlined\" | \"contained\"")
-    propRow(this, rightX + 28, y + 186, rightW - 56, "color", "\"primary\" | \"success\" | \"warning\" | \"error\"")
-    propRow(this, rightX + 28, y + 234, rightW - 56, "size", "\"small\" | \"medium\" | \"large\"")
-    propRow(this, rightX + 28, y + 282, rightW - 56, "sx", "CSS-like style override")
-  }
-
-  #dividerRoute(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Divider", style: {fontSize: 22}})
-
-    h3(this, x + 28, y + 86, 260, 24, {children: "Separators", style: {fontSize: 15}})
-    const rows = [
-      ["neutral", "neutral"],
-      ["primary", "primary"],
-      ["success", "success"],
-      ["warning", "warning"],
-      ["error", "error"],
-    ] as const
-    for (const [i, [label, color]] of rows.entries()) {
-      span(this, x + 28, y + 138 + i * 44, 120, 24, {children: label, style: {fontSize: 12, color: "muted"}})
-      Divider(this, x + 164, y + 150 + i * 44, w - 220, {color})
-    }
-    codeLine(this, x + 28, y + 326, w - 56, "Divider(host, x, y, width, { color: \"primary\", thickness: 1 })")
-  }
-
-  #scrollbarRoute(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Scrollbar", style: {fontSize: 22}})
-
-    h3(this, x + 28, y + 86, 260, 24, {children: "Offsets", style: {fontSize: 15}})
-    for (let i = 0; i < 4; i++) {
-      const bx = x + 42 + i * 150
-      const offset = i * 5.5
-      Card(this, bx, y + 138, 96, 180, {variant: "glass", sx: {background: "rgba(4, 8, 14, 0.42)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 26}})
-      Scrollbar(this, bx + 72, y + 158, 140, {offset, visible: 6, total: 24, trackWidth: 5, minThumbHeight: 24})
-      Badge(this, bx + 14, y + 330, 70, 28, {children: `${Math.round(offset)}`, color: i === 0 ? "neutral" : "primary"})
-    }
-    codeLine(this, x + w - 492, y + 326, 464, "Scrollbar(host, x, y, height, { offset, visible, total })")
-  }
-
-  #scrollListRoute(x: number, y: number, w: number, h: number): void {
-    h2(this, x, y, w, 34, {children: "Scroll List", style: {fontSize: 22}})
-
-    const panelH = Math.min(430, h - 58)
-    h3(this, x + 28, y + 86, 260, 24, {children: "Virtual rows", style: {fontSize: 15}})
-    Badge(this, x + w - 180, y + 82, 152, 32, {children: `${SCROLL_ITEMS.length} items`, color: "primary"})
-
-    const listX = x + 28
-    const listY = y + 132
-    const listW = w - 56
-    const listH = panelH - 164
-    const metrics = scrollList(this, {
-      state: this.#scrollState,
-      items: SCROLL_ITEMS,
-      rowH: SCROLL_ROW_H,
-      rowGap: SCROLL_ROW_GAP,
-      x: listX,
-      y: listY,
-      w: listW,
-      h: listH,
-      scrollbarWidth: 5,
-      scrollbarGap: 10,
-      drawRow: (item, idx, rx, ry, rw, rh) => {
-        Card(this, rx, ry, rw, rh, {
-          variant: "glass",
-          sx: {
-            background: idx % 2 === 0 ? "rgba(111, 211, 255, 0.06)" : "rgba(255, 255, 255, 0.035)",
-            borderColor: idx === 0 ? "rgba(111, 211, 255, 0.22)" : "rgba(214, 231, 255, 0.10)",
-            borderRadius: 18,
-          },
-        })
-        span(this, rx + 16, ry + 6, rw - 32, 18, {children: item.title, style: {fontSize: 12, color: "text"}})
-        span(this, rx + 16, ry + 25, rw - 32, 18, {children: item.subtitle, style: {fontSize: 10, color: "muted"}})
-      },
-    })
-    this.#scrollVisible = metrics.visible
-  }
-
-  #notiStackRoute(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Noti Stack", style: {fontSize: 22}})
-
-    h3(this, x + 28, y + 86, 300, 24, {children: "Toast layout", style: {fontSize: 15}})
-    const toastW = Math.min(420, w - 56)
-    for (let i = 0; i < 3; i++) {
-      const ty = y + 132 + i * 78
-      const tone: CssColor = i === 0 ? "cyan" : i === 1 ? "green" : "orange"
-      Card(this, x + w - toastW - 28, ty, toastW, 62, {
-        variant: "glass",
-        sx: {background: "rgba(4, 8, 14, 0.58)", borderColor: tone, borderRadius: 24},
-      })
-      span(this, x + w - toastW, ty + 10, toastW - 56, 18, {children: `Notification ${i + 1}`, style: {fontSize: 12, color: tone}})
-      span(this, x + w - toastW, ty + 34, toastW - 56, 18, {children: "separate UiCanvas card in production", style: {fontSize: 10, color: "muted"}})
-    }
-    Button(this, x + 28, y + 142, 152, 44, {children: "Push", variant: "contained", color: "success", onClick: () => this.#record("toast:push")})
-    Button(this, x + 196, y + 142, 152, 44, {children: "Clear", variant: "outlined", color: "neutral", onClick: () => this.#record("toast:clear")})
-    codeLine(this, x + 28, y + 250, Math.min(520, w - 56), "new NotiStack(ui, { theme }).push({ title, body, primary })")
-  }
-
-  #feedback(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Feedback", style: {fontSize: 22}})
-
-    h3(this, x + 28, y + 86, 280, 24, {children: "Interactive event stream", style: {fontSize: 15}})
-    Badge(this, x + w - 282, y + 82, 124, 32, {children: `events ${this.#eventCount}`, color: "primary"})
-    Badge(this, x + w - 144, y + 82, 116, 32, {children: this.#status, color: colorForStatus(this.#status)})
-
-    Button(this, x + 28, y + 148, 184, 50, {
-      children: "Event Button",
-      variant: "contained",
-      color: "primary",
+  #buttonProps(): ButtonProps {
+    const props: ButtonProps = {
+      label: this.#label,
+      children: this.#iconPlacement === "only" ? "" : this.#label,
+      variant: buttonVariant(this.#currentButtonType()),
+      color: this.#color,
+      size: this.#size,
+      radius: this.#radius,
+      disabled: this.#state === "disabled",
+      iconSizePx: this.#iconSize,
+      onClick: () => this.#record("click"),
       onHover: () => this.#record("hover"),
-      onLeave: () => this.#record("leave"),
       onPress: () => this.#record("press"),
       onRelease: () => this.#record("release"),
-      onClick: () => this.#record("click"),
-    })
-    Button(this, x + 230, y + 148, 184, 50, {children: "Forbidden", disabled: true})
-    TextField(this, x + 28, y + 230, 386, 44, {value: `status=${this.#status}`, active: true})
-
-    Card(this, x + w - 376, y + 140, 348, 222, {variant: "glass", sx: {background: "rgba(4, 8, 14, 0.46)", borderColor: "rgba(214, 231, 255, 0.12)", borderRadius: 26}})
-    for (const [i, event] of this.#events.entries()) {
-      p(this, x + w - 344, y + 170 + i * 36, 284, 24, {children: event, style: {fontSize: 12, color: i === 0 ? "text" : "muted"}})
     }
+    const iconSrc = this.#iconSrc()
+    if (iconSrc !== undefined) {
+      if (this.#iconPlacement === "end") props.endIcon = iconSrc
+      else if (this.#iconPlacement === "only") {
+        props.iconSrc = iconSrc
+        props.iconOnly = true
+      } else {
+        props.startIcon = iconSrc
+      }
+    }
+    if (this.#tooltip) props.tooltip = this.#label
+    return props
+  }
+
+  #buttonWidth(maxW: number): number {
+    if (this.#width === "compact") return Math.min(maxW, 210)
+    if (this.#width === "wide") return Math.min(maxW, 430)
+    return Math.min(maxW, 310)
+  }
+
+  #buttonHeight(): number {
+    const sizeBase = this.#size === "small" ? 40 : this.#size === "large" ? 58 : 48
+    if (this.#height === "compact") return Math.max(34, sizeBase - 8)
+    if (this.#height === "large") return sizeBase + 8
+    return sizeBase
+  }
+
+  #iconSrc(): string | undefined {
+    if (this.#icon === "apply") return uiIcons.apply
+    if (this.#icon === "run") return uiIcons.run
+    if (this.#icon === "delete") return uiIcons.clear
+    return undefined
+  }
+
+  #codePreview(): readonly [string, string] {
+    const props = this.#iconPlacement === "only" ? [`label: "${this.#label}"`] : [`children: "${this.#label}"`]
+    props.push(`variant: "${buttonVariant(this.#currentButtonType())}"`, `color: "${this.#color}"`, `size: "${this.#size}"`, `radius: ${this.#radius}`)
+    if (this.#icon !== "none") props.push(`${this.#iconProp()}: uiIcons.${this.#icon === "delete" ? "clear" : this.#icon}`)
+    if (this.#icon !== "none") props.push(`iconSizePx: ${this.#iconSize}`)
+    if (this.#iconPlacement === "only") props.push("iconOnly: true")
+    if (this.#state === "disabled") props.push("disabled: true")
+    if (this.#tooltip) props.push(`tooltip: "${this.#label}"`)
+    return ["Button(host, x, y, w, h, {", `  ${props.join(", ")} })`]
+  }
+
+  #iconProp(): "startIcon" | "endIcon" | "iconSrc" {
+    if (this.#iconPlacement === "end") return "endIcon"
+    if (this.#iconPlacement === "only") return "iconSrc"
+    return "startIcon"
+  }
+
+  #routeVariant(): ButtonRouteVariant | null {
+    return routeVariantFromRoute(this.#route)
+  }
+
+  #currentButtonType(): BasicButtonType {
+    return buttonTypeFromRouteVariant(this.#routeVariant() ?? "text")
+  }
+
+  #go(variant: ButtonRouteVariant | null): void {
+    const route: ButtonRoute = variant === null ? "button/basic" : `button/basic/${variant}`
+    this.#router.go(route)
+    this.#record(variant === null ? "route:basic" : `route:${variant}`)
   }
 
   #record(status: string): void {
     this.#eventCount += 1
     this.#status = status
-    this.#events = [`${status}: ${this.#eventCount}`, ...this.#events].slice(0, 5)
-    if (status === "save") this.#activePlan = "Saved"
+    this.#events = [`${status}:${this.#eventCount}`, ...this.#events].slice(0, 5)
     this.requestRender()
   }
 }
 
-function metricCard(host: Element, x: number, y: number, w: number, h: number, title: string, prop: string, value: string): void {
-  Card(host, x, y, w, h, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30}})
-  h3(host, x + 24, y + 24, w - 48, 24, {children: title, style: {fontSize: 15}})
-  Badge(host, x + 24, y + 64, 118, 30, {children: prop, color: "primary"})
-  p(host, x + 24, y + 108, w - 48, 28, {children: value, style: {fontSize: 12, color: "muted"}})
+function iconDisplay(value: ButtonIcon): string {
+  if (value === "delete") return "delete"
+  return value
 }
 
-function propRow(host: Element, x: number, y: number, w: number, name: string, value: string): void {
-  Card(host, x, y, w, 36, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 18}})
-  span(host, x + 16, y, 124, 36, {children: name, style: {fontSize: 11, color: "cyan"}})
-  span(host, x + 148, y, w - 164, 36, {children: value, style: {fontSize: 11, color: "muted"}})
+function activeNavStyle(active: boolean): Pick<ButtonProps, "fill" | "border"> {
+  if (!active) return {}
+  return {fill: palette.bgHot, border: palette.cyan}
 }
 
-function codeLine(host: Element, x: number, y: number, w: number, text: string): void {
-  Card(host, x, y, w, 28, {variant: "glass", sx: {background: "rgba(4, 8, 14, 0.50)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 14}})
-  span(host, x + 14, y, w - 28, 28, {children: text, style: {fontSize: 10, color: "text"}})
+function routeVariantFromRoute(route: ButtonRoute): ButtonRouteVariant | null {
+  if (route === "button/basic") return null
+  return route.slice("button/basic/".length) as ButtonRouteVariant
 }
 
-function colorForStatus(status: string): "primary" | "success" | "warning" | "error" | "neutral" {
-  if (status === "click" || status === "save") return "success"
-  if (status === "press" || status.startsWith("button")) return "warning"
-  if (status === "leave" || status === "cancel") return "neutral"
-  if (status === "release") return "primary"
-  return "primary"
+function buttonTypeFromRouteVariant(variant: ButtonRouteVariant): BasicButtonType {
+  if (variant === "contained") return "Contained button"
+  if (variant === "outlined") return "Outlined button"
+  return "Text button"
 }
 
-function labelsForRoute(route: ComponentRoute): readonly string[] {
-  if (route === "overview") return ["Card", "Button", "Badge", "TextField", "Divider"]
-  if (route === "forms") return ["TextField", "Save", "Cancel", "active"]
-  if (route === "scrollbar") return ["offset 0", "offset 6", "offset 11", "thumb"]
-  if (route === "notiStack") return ["Push", "Clear", "toast", "stack"]
-  return ["sample", "variant", "state", "event"]
+function routeVariantFromButtonType(type: BasicButtonType): ButtonRouteVariant {
+  if (type === "Contained button") return "contained"
+  if (type === "Outlined button") return "outlined"
+  return "text"
+}
+
+function buttonVariant(type: BasicButtonType): ButtonVariant {
+  if (type === "Contained button") return "contained"
+  if (type === "Outlined button") return "outlined"
+  return "text"
+}
+
+function dockLabel(type: BasicButtonType): string {
+  if (type === "Contained button") return "Contained"
+  if (type === "Outlined button") return "Outlined"
+  return "Text"
+}
+
+function detailTitle(variant: ButtonRouteVariant): string {
+  if (variant === "contained") return "Contained button"
+  if (variant === "outlined") return "Outlined button"
+  return "Text button"
+}
+
+function detailDescription(variant: ButtonRouteVariant): string {
+  if (variant === "contained") return "Contained buttons are used for high-emphasis actions and primary decisions."
+  if (variant === "outlined") return "Outlined buttons are medium-emphasis controls that keep the surface quiet."
+  return "Text buttons are typically used for less-pronounced actions and compact surfaces."
+}
+
+function codeLine(host: Element, x: number, y: number, w: number, line: string): void {
+  Card(host, x, y, w, 28, {
+    variant: "glass",
+    sx: {background: "rgba(4, 8, 14, 0.50)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 14},
+  })
+  span(host, x + 14, y + 6, w - 28, 16, {children: line, style: {fontSize: 10, color: "muted"}})
+}
+
+function codeBlock(host: Element, x: number, y: number, w: number, lines: readonly string[]): void {
+  const lineH = 18
+  const h = 16 + lines.length * lineH
+  Card(host, x, y, w, h, {
+    variant: "glass",
+    sx: {background: "rgba(4, 8, 14, 0.50)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 17},
+  })
+  for (const [i, line] of lines.entries()) {
+    span(host, x + 14, y + 7 + i * lineH, w - 28, 16, {children: line, style: {fontSize: 10, color: i === 0 ? "text" : "muted"}})
+  }
 }
 
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
 const ui = await UiCanvas.create(canvas)
-ui.addCard(new ComponentsPlayground(), ({w, h}) => ({x: 0, y: 0, w, h}))
+ui.addCard(new ButtonComponentsScreen(), ({w, h}) => ({x: 0, y: 0, w, h}))
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)
 window.addEventListener("resize", () => ui.handleResize())

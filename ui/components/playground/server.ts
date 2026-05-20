@@ -23,9 +23,10 @@ const server = Bun.serve({
   development: true,
   routes: {
     "/": index,
+    "/*": index,
     "/JetBrainsMono-Bold.ttf": () => new Response(Bun.file(FONT_PATH), {headers: {"content-type": "font/ttf"}}),
   },
-  fetch(req): Response {
+  fetch(req) {
     const url = new URL(req.url)
     return new Response(`not found: ${req.method} ${url.pathname}`, {status: 404})
   },
