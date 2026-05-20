@@ -28,7 +28,7 @@ The editor layer now starts under `ui/components/editor/`:
 - Shared widget primitives in `ui/components/internal/renderers.ts` now use rounded control chrome through the existing `Pane.drawRoundedRect` primitive.
 - `ui/elements/theme.ts` exposes shared `radii` tokens for controls and panes.
 - `Pane` accepts `borderRadiusPx`, so debug panes and `EditorPane` can use the same rounded pane chrome without custom per-pane background meshes.
-- `ConsolePane` now extends `@metafor/elements` `Pane` instead of owning manual background/border meshes. It uses the shared palette, scrollbar, clipping and rounded pane chrome, with content aligned to the source code column and no bottom padding.
+- `ConsolePane` now extends `@metafor/elements` `UiSurface` instead of owning manual background/border meshes. It uses the shared palette, scrollbar, clipping and rounded pane chrome, with content aligned to the source code column and no bottom padding.
 - `VirtualInput` no longer marks the focused hidden textarea with `aria-hidden`, avoiding Chrome's focused-descendant accessibility warning.
 
 ## Verification
@@ -50,5 +50,5 @@ Runtime smoke:
 
 - `bun run dark/debug/agent-attach.ts` starts the sidecar on `http://127.0.0.1:6500/`.
 - Starting the default target through `/target/run` connects Bun Inspector on `ws://127.0.0.1:6499/dark`.
-- Reloading the web UI while already paused now re-applies the saved dump after `UiCanvas` initialization, so frames/scopes/source all render.
+- Reloading the web UI while already paused now re-applies the saved dump after `UiRuntime` initialization, so frames/scopes/source all render.
 - `/ws` command path was smoke-tested with `eval` on frame 0 and returned `2`.

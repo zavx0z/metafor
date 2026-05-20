@@ -1,6 +1,6 @@
 import {
   UiSurface,
-  UiDisplay,
+  UiRuntime,
   button,
   div,
   flexColumn,
@@ -70,8 +70,8 @@ const CSS_SECTIONS: readonly CssSection[] = ["padding", "flex", "border", "color
 const ELEMENT_TONES: readonly ElementTone[] = ["cyan", "green", "orange", "red"]
 const ELEMENT_DENSITIES: readonly ElementDensity[] = ["compact", "regular", "air"]
 
-const LAYOUT_Z = -0.00012
-const BACKDROP_Z = -0.00018
+const LAYOUT_Z = -0.12
+const BACKDROP_Z = -0.18
 
 class ElementsPlayground extends UiSurface {
   readonly #router = new VirtualRouter<ElementRoute>(ROUTE_IDS, "div", {mode: "path"})
@@ -342,7 +342,7 @@ class ElementsPlayground extends UiSurface {
     const paneW = (w - 32) / 3
     featurePane(this, x, y + 58, paneW, 118, "HTML names", "div / span / button / input / img")
     featurePane(this, x + paneW + 16, y + 58, paneW, 118, "CSS props", "style.background / padding / flex")
-    featurePane(this, x + (paneW + 16) * 2, y + 58, paneW, 118, "Surface", "UiSurface / UiDisplay")
+    featurePane(this, x + (paneW + 16) * 2, y + 58, paneW, 118, "Surface", "UiSurface / UiRuntime")
 
     div(this, x, y + 214, w, 168, {
       style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30},
@@ -507,7 +507,7 @@ class ElementsPlayground extends UiSurface {
     for (const [i, [title, body, color]] of panes.entries()) {
       const cx = x + (i % 2) * (paneW + gap)
       const cy = y + 58 + Math.floor(i / 2) * (paneH + gap)
-      div(this, cx + 22, cy + 26, 14, 52, {style: {background: color, borderColor: null, borderRadius: 999, opacity: 0.72, zIndex: 0.00002}})
+      div(this, cx + 22, cy + 26, 14, 52, {style: {background: color, borderColor: null, borderRadius: 999, opacity: 0.72, zIndex: 0.02}})
       h3(this, cx + 58, cy + 26, paneW - 84, 24, {children: title, style: {fontSize: 15}})
       p(this, cx + 58, cy + 62, paneW - 84, 26, {children: body, style: {fontSize: 12, color: "muted"}})
       button(this, cx + 22, cy + 104, 148, 40, {children: "Select", style: {fontSize: 11}})
@@ -741,7 +741,7 @@ function codeLine(host: UiSurface, x: number, y: number, w: number, text: string
 }
 
 function demoCell(host: UiSurface, x: number, y: number, w: number, h: number, label: string, color: CssColor): void {
-  div(host, x, y, w, h, {style: {background: color, borderColor: "rgba(255, 255, 255, 0.22)", borderRadius: 24, opacity: 0.74, zIndex: 0.00005}})
+  div(host, x, y, w, h, {style: {background: color, borderColor: "rgba(255, 255, 255, 0.22)", borderRadius: 24, opacity: 0.74, zIndex: 0.05}})
   span(host, x + 14, y, Math.max(1, w - 28), h, {children: label, style: {fontSize: 11, color: "text"}})
 }
 
@@ -763,7 +763,7 @@ function svgDataUrl(svg: string): string {
 
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
-const ui = await UiDisplay.create(canvas)
+const ui = await UiRuntime.create(canvas)
 ui.addSurface(new ElementsPlayground(), ({w, h}) => ({x: 0, y: 0, w, h}))
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)

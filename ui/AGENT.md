@@ -22,15 +22,24 @@ UI строится как XR-рендер, а не как DOM. Слои дол�
 
 Обязательные правила:
 
-* `UiDisplay` — runtime дисплея: canvas, renderer, resize, input routing и список `UiSurface`.
-* `UiSurface` — локальная поверхность рисования: `drawText`, `drawRoundedRect`, `drawImage`, `measureText`, clip, hit zones, локальный rect и `requestRender`.
+* `UiRuntime` — runtime одного WebGPU canvas: renderer, resize, input routing, render-on-demand, `Space`, HUD-слой и список `UiSurface`.
+* `UIDisplay` — world-space UI-дисплей в 3D-сцене с фиксированным физическим размером в mm и логической pixel-сеткой.
+* `HUD` — существующий head-locked UI target перед камерой/головой. Не создавать внутри него дополнительный `UiHud`.
+* `UITexture` — offscreen target для UI как текстуры/материала на 3D-поверхности; GPU render-to-texture backend развивается отдельно от semantic elements.
+* `UiSurface` — локальная поверхность рисования поверх target/runtime: `drawText`, `drawRoundedRect`, `drawImage`, `measureText`, clip, hit zones, локальный rect и `requestRender`.
 * HTML-like примитивы живут в `@metafor/elements`: `div`, `span`, `button`, `input`, `img`.
 * MUI-like компоненты живут в `@metafor/components`: `Pane`, `Button`, `TextField`, `Badge` и следующие компоненты.
+* `@metafor/elements` отвечает за низкоуровневые HTML-like примитивы и общие runtime-типы. Это не дизайн-система и не слой готовых MUI-like компонентов.
+* `@metafor/components` отвечает за готовые переиспользуемые компоненты дизайн-системы. Он обязан собирать поведение из `@metafor/elements`, а не дублировать базовые primitives.
+* Render target (`UIDisplay`, `HUD`, `UITexture`) не должен протекать в semantic API элементов и компонентов. Элементы работают с `UiSurface`, а не с конкретным способом размещения UI в XR.
+* `UIDisplay`, `HUD` и `UITexture` живут в `ui/elements/targets`. Engine не должен импортировать UI target-классы; renderer принимает generic overlay/object layer.
 * В `@metafor/elements` не должно быть semantic элемента `Pane`. `Pane` — только компонентный surface-контейнер в `@metafor/components`.
 * `UiSurface` не должен владеть button-семантикой: `disabled`, задержка pressed visual и click blocking принадлежат primitive `button`.
 * `div` не должен принимать `disabled` и `tooltip`; это generic box/surface primitive. `disabled` принадлежит интерактивным контролам.
 * Элементы и компоненты сейчас пишутся immediate-mode функциями, а не классами. Классы допустимы для runtime/display/surface lifecycle и stateful экранов.
 * Будущий декларативный DSL и CSS-подобные стили должны садиться поверх этой вертикали, не смешивая render target и semantic element.
+* Предпочтительный публичный API элементов: `import {UiRuntime, UiSurface, UIDisplay, HUD, UITexture, div, span, button, input, img} from "@metafor/elements"`.
+* Нельзя импортировать `Pane` из `@metafor/elements`: такого semantic primitive больше не существует.
 
 ## Правила компонентов
 
@@ -56,6 +65,9 @@ UI строится как XR-рендер, а не как DOM. Слои дол�
 Обязательные правила:
 
 * Компонентные страницы в playground должны иметь одинаковый каркас как у `Button`: `catalog` -> `section panel` -> `preview` + `dock` -> `props`.
+* В playground всегда две левые панели: первая `catalog` выбирает компонент или группу, вторая `section panel` выбирает section внутри выбранного компонента или группы.
+* Нельзя превращать вложенные route в плоские подписи первого каталога. Пункты вида `layout / flex` или `style / css` в первой панели запрещены.
+* Для `ui/elements/playground` первая панель показывает группы `Primitives`, `Layout`, `Style`, `Events`, а вторая панель показывает разделы выбранной группы.
 * Element playground должен быть каталогом primitive API: `div`, `span`, `button`, `input`, `img`, `layout/flex`, `layout/flex-css`, `style/css`, `style/theme`, `events`.
 * В element playground не должно быть route `pane`: surface/runtime показываются как инфраструктура, а не как HTML-like элемент.
 * `Button` в `ui/components/playground` считается каноническим шаблоном структуры для всех остальных компонентов. `Pane`, `Badge`, `TextField` и следующие компоненты должны повторять именно этот scaffold, а не приблизительно похожую локальную версию.

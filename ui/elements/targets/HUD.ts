@@ -1,7 +1,5 @@
-import { Object3D } from "../core/Object3D"
-import type { ViewPoint } from "../core/ViewPoint"
-import { Matrix4, Vector3 } from "../math"
-import { UIDisplay } from "../ui/UIDisplay"
+import {Matrix4, Object3D, Vector3, type ViewPoint} from "@metafor/engine"
+import {UIDisplay} from "./UIDisplay.ts"
 
 export interface HUDOptions {
   distanceMm?: number
@@ -36,8 +34,8 @@ export class HUD extends Object3D {
 
     if (hasDisplaySize(options)) {
       this.display = new UIDisplay({
-        width: options.widthMm,
-        height: options.heightMm,
+        widthMm: options.widthMm,
+        heightMm: options.heightMm,
         pixelWidth: options.pixelWidth,
         pixelHeight: options.pixelHeight,
       })

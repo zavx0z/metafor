@@ -1,5 +1,5 @@
 /**
- * UiSurface — локальная UI-поверхность поверх UiDisplay.
+ * UiSurface — локальная UI-поверхность поверх UiRuntime.
  *
  * ГАРАНТИИ:
  *  • Background и border всегда внутри surface-rect — не вылазят за границы.
@@ -14,14 +14,14 @@
  *  • Между renderами #layer пересобирается; геометрии возвращаются
  *    в renderer.invalidateGeometry().
  *
- * Z-СТЕК (микро-z, чтобы perspective-divide не сдвигал bg/text):
- *   bg     -0.0002
- *   border -0.0001
+ * Z-СТЕК (тонкие mm-offsets, чтобы depth buffer различал UI-слои):
+ *   bg     -0.2
+ *   border -0.1
  *   layer    0.0
- *   Z.SEPARATOR    +0.00002
- *   Z.ELEMENT      +0.00004
- *   Z.ELEMENT_RULE +0.00006
- *   Z.TEXT         +0.00008
+ *   Z.SEPARATOR    +0.02
+ *   Z.ELEMENT      +0.04
+ *   Z.ELEMENT_RULE +0.06
+ *   Z.TEXT         +0.08
  *
  * При больших Δz parallax между bg и контентом виден на смещённых от
  * центра канваса surface (1/(camDist - z) сильно меняется).
@@ -69,7 +69,7 @@ import {
   type ImageFit,
   type ImageViewBox as EngineImageViewBox,
 } from "@metafor/engine"
-import type {UiSurfaceRect, UiDisplay, UiSurfaceNode} from "./display.ts"
+import type {UiSurfaceRect, UiRuntime, UiSurfaceNode} from "./runtime.ts"
 import {MaterialPalette, palette} from "./theme.ts"
 
 export type HitBox = {
@@ -218,17 +218,17 @@ export const Z: {
   readonly TEXT: number
 } = {
   CONTAINER: 0,
-  SEPARATOR: 0.00002,
-  ELEMENT: 0.00004,
-  ELEMENT_RULE: 0.00006,
-  TEXT: 0.00008,
+  SEPARATOR: 0.02,
+  ELEMENT: 0.04,
+  ELEMENT_RULE: 0.06,
+  TEXT: 0.08,
 }
 
 export abstract class UiSurface implements UiSurfaceNode {
   readonly node = new Object3D()
   /** Готовый набор TextMaterial'ов с palette-цветами. Reuse, не GC-friendly create. */
   readonly materials = new MaterialPalette()
-  protected canvas: UiDisplay | null = null
+  protected canvas: UiRuntime | null = null
   protected font: TrueTypeFont | null = null
   protected pixelScale = 0.001
   protected rectW = 1
@@ -332,7 +332,7 @@ export abstract class UiSurface implements UiSurfaceNode {
         }),
       )
       this.#roundedChrome.name = `${this.constructor.name}.roundedChrome`
-      this.#roundedChrome.position.z = -0.0002
+      this.#roundedChrome.position.z = -0.2
       this.node.add(this.#roundedChrome)
     } else {
       this.#roundedChrome = null
@@ -341,7 +341,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (bgColor !== null && this.#roundedChrome === null) {
       this.#bg = new Mesh(new PlaneGeometry({width: 1, height: 1}), new MeshBasicMaterial({color: bgColor}))
       this.#bg.name = `${this.constructor.name}.bg`
-      this.#bg.position.z = -0.0002
+      this.#bg.position.z = -0.2
       this.node.add(this.#bg)
     } else {
       this.#bg = null
@@ -354,7 +354,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       this.#borderLeft = mkMesh(`${this.constructor.name}.borderLeft`, borderMat)
       this.#borderRight = mkMesh(`${this.constructor.name}.borderRight`, borderMat)
       for (const m of [this.#borderTop, this.#borderBottom, this.#borderLeft, this.#borderRight]) {
-        m.position.z = -0.0001
+        m.position.z = -0.1
         this.node.add(m)
       }
     } else {
@@ -375,7 +375,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.node.add(this.#layer)
   }
 
-  attachCanvas(canvas: UiDisplay): void {
+  attachCanvas(canvas: UiRuntime): void {
     this.canvas = canvas
   }
 
@@ -407,7 +407,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.rectW = innerW
     this.rectH = innerH
     // screenOrigin — для hit-mapping. Pointermove приходит в surface-rect-local
-    // (UiDisplay вычитает rect.x/y), и мы дополнительно вычитаем padding в
+    // (UiRuntime вычитает rect.x/y), и мы дополнительно вычитаем padding в
     // onPointerMove/Down/Up перед #hitAt.
     this.#screenOriginX = rect.x
     this.#screenOriginY = rect.y
@@ -601,7 +601,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     const mesh = new Mesh(new PlaneGeometry({width: w * ps, height: h * ps}), material)
     mesh.position.x = (w / 2) * ps
     mesh.position.y = -(h / 2) * ps
-    mesh.position.z = opts.z ?? -0.00018
+    mesh.position.z = opts.z ?? -0.18
     mesh.updateMatrix()
     this.#layer.add(mesh)
   }
@@ -634,13 +634,13 @@ export abstract class UiSurface implements UiSurfaceNode {
       fill: palette.bgElevated,
       border: palette.border,
       borderWidth: 1,
-      z: Z.TEXT + 0.0004,
+      z: Z.TEXT + 0.4,
     })
     this.drawText(label, tx + padX, tooltipY + 6, {
       fontPx,
       material: this.materials.text,
       maxWidthPx: labelW,
-      z: Z.TEXT + 0.0005,
+      z: Z.TEXT + 0.5,
       clip: false,
     })
   }
@@ -885,7 +885,7 @@ export abstract class UiSurface implements UiSurfaceNode {
         bgW,
         bgH,
         this.#backgroundImage,
-        -0.00018,
+        -0.18,
         false,
       )
     }

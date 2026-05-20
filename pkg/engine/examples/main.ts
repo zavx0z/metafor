@@ -27,7 +27,7 @@ import {
 
 import { Matrix4 } from "../src/math/Matrix4"
 import { Vector3 } from "../src/math/Vector3"
-import { UIDisplay } from "../src/ui/UIDisplay"
+import { UIDisplay } from "../../../ui/elements/targets/UIDisplay.ts"
 
 document.addEventListener("DOMContentLoaded", async () => {
   const renderer = new Renderer()
@@ -83,8 +83,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Создаем дисплей: 400x300 mm при логической сетке 800x600 px.
   const display = new UIDisplay({
-    width: 400,
-    height: 300,
+    widthMm: 400,
+    heightMm: 300,
     pixelWidth: 800,
     pixelHeight: 600,
     // Vision Pro Style: Surface-900 (rgb(27, 38, 52)) with 0.5 opacity
@@ -168,7 +168,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     container.position.y = -uiTextCursorY * display.unitsPerPixel
     container.updateMatrix()
 
-    t.position.x = -display.width / 2 - textWidthWorld / 2
+    t.position.x = -display.widthMm / 2 - textWidthWorld / 2
     t.position.y = -fontSizeWorld
     
     t.updateMatrix()

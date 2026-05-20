@@ -4,7 +4,7 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
-import {UiDisplay, type UiSurfaceRect} from "@metafor/elements"
+import {UiRuntime, type UiSurfaceRect} from "@metafor/elements"
 import {EditorPane, sourcePathFromLocation, type EditorTokens} from "@metafor/components"
 import {applyInspectMode} from "../src/inspect-mode.ts"
 import {SourcePane, type Source, type SourceRuntimeState} from "./source-pane.ts"
@@ -62,7 +62,7 @@ type CachedSource = {text: string; tokens?: EditorTokens}
 type DraftState = {baseText: string; text: string; savedText: string; status: "clean" | "dirty" | "saved"}
 const sourceCache = new Map<string, CachedSource>()
 const sourceDrafts = new Map<string, DraftState>()
-let uiCanvas: UiDisplay | null = null
+let uiCanvas: UiRuntime | null = null
 let sourcePane: SourcePane | null = null
 let draftEditorPane: EditorPane | null = null
 let consolePane: ConsolePane | null = null
@@ -666,7 +666,7 @@ async function initEngine(): Promise<void> {
   uiLoading = true
   setEngineStatus("engine: init")
   try {
-    uiCanvas = await UiDisplay.create(engineCanvas)
+    uiCanvas = await UiRuntime.create(engineCanvas)
     toolbarPane = new ToolbarPane({
       onPause: () => void runDebuggerCommand("pause", {}, t("pause")),
       onResume: () => void runDebuggerCommand("resume", {}, t("resume")),

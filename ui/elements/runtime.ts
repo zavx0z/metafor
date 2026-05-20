@@ -1,32 +1,33 @@
 /**
- * UiDisplay — единый WebGPU-canvas для UI-поверхностей.
+ * UiRuntime — единый WebGPU-canvas для UI-поверхностей.
  *
  * Контракт:
  *  • Один Renderer + Space + ViewPoint, perspective camera.
  *  • Поверхности регистрируются как UiSurfaceNode с layout-функцией pixel-rect от
- *    размеров canvas. На resize UiDisplay пересчитывает rect'ы и зовёт
+ *    размеров canvas. На resize UiRuntime пересчитывает rect'ы и зовёт
  *    setRect у каждой surface. surface.node.origin = TL surface-rect в world.
  *  • Координаты внутри node — pixel-coords от surface-TL: x,y → ps-units в world.
  *  • Маршрутизация ввода: wheel/key/mouse → surface под курсором.
- *  • Render-on-demand: surface.requestRender → UiDisplay сводит в один RAF.
+ *  • Render-on-demand: surface.requestRender → UiRuntime сводит в один RAF.
  */
 
-import {Color, HUD, Object3D, Renderer, Space, TrueTypeFont, ViewPoint} from "@metafor/engine"
+import {Color, Object3D, Renderer, Space, TrueTypeFont, ViewPoint} from "@metafor/engine"
+import {HUD} from "./targets/HUD.ts"
 import {VirtualInput} from "./virtual-input.ts"
 
 export type UiSurfaceRect = {x: number; y: number; w: number; h: number; visible?: boolean}
 export type UiSurfaceLayoutFn = (canvas: {w: number; h: number}) => UiSurfaceRect
 
 export interface UiSurfaceNode {
-  /** Object3D, который UiDisplay позиционирует. node.origin = TL surface-rect. */
+  /** Object3D, который UiRuntime позиционирует. node.origin = TL surface-rect. */
   readonly node: Object3D
-  attachCanvas(canvas: UiDisplay): void
+  attachCanvas(canvas: UiRuntime): void
   setRect(rect: UiSurfaceRect, pixelScale: number, font: TrueTypeFont): void
   onWheel?(event: WheelEvent, localX: number, localY: number): void
   onKey?(event: KeyboardEvent): void
   /**
    * Текстовый ввод, который пришёл НЕ через keydown: emoji-panel, IME-
-   * композиция, dictation, autocorrect-replace. UiDisplay пробрасывает сюда
+   * композиция, dictation, autocorrect-replace. UiRuntime пробрасывает сюда
    * данные из `VirtualInput`. По умолчанию surface может вызывать свой
    * insertText, как при paste.
    */
@@ -46,32 +47,32 @@ type SurfaceSlot = {
   rect: UiSurfaceRect
 }
 
-export type UiDisplayOpts = {
+export type UiRuntimeOpts = {
   /** Путь к TTF-шрифту. По умолчанию '/JetBrainsMono-Bold.ttf'. */
   fontUrl?: string
-  /** Camera distance (z). Меньше = ближе перспектива. Default 0.6. */
-  cameraDistance?: number
+  /** Camera distance in engine world units. По контракту engine это mm. Default 600. */
+  cameraDistanceMm?: number
   /** Field of view. Default π/4. */
   fov?: number
   /**
    * Создать VirtualInput — невидимый textarea, через который идут все
    * keydown'ы и текстовые вставки (emoji, IME, dictation, autocorrect).
    * Нужен, чтобы macOS показывал нативные инструменты ввода для canvas.
-   * Default true для backward-совместимости — если фокус нужен на canvas,
-   * передайте false.
+   * Default true: canvas UI должен получать нативный текстовый ввод.
+   * Если фокус нужен прямо на canvas, передайте false.
    */
   inputProxy?: boolean
 }
 
 const DEFAULT_FONT_URL = "/JetBrainsMono-Bold.ttf"
 
-export class UiDisplay {
-  static async create(canvas: HTMLCanvasElement, opts: UiDisplayOpts = {}): Promise<UiDisplay> {
+export class UiRuntime {
+  static async create(canvas: HTMLCanvasElement, opts: UiRuntimeOpts = {}): Promise<UiRuntime> {
     const renderer = new Renderer()
     await renderer.init(canvas)
     renderer.setPixelRatio(window.devicePixelRatio || 1)
     const font = await TrueTypeFont.fromUrl(opts.fontUrl ?? DEFAULT_FONT_URL)
-    return new UiDisplay(canvas, renderer, font, opts)
+    return new UiRuntime(canvas, renderer, font, opts)
   }
 
   readonly canvas: HTMLCanvasElement
@@ -87,7 +88,7 @@ export class UiDisplay {
   #pixelHeight = 600
   #pixelScale = 0.001
   #sizeInitialized = false
-  readonly #cameraDistance: number
+  readonly #cameraDistanceMm: number
   #disposed = false
   #renderRequested = false
   #rafId: number | null = null
@@ -105,20 +106,20 @@ export class UiDisplay {
     return this.space
   }
 
-  private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont, opts: UiDisplayOpts) {
+  private constructor(canvas: HTMLCanvasElement, renderer: Renderer, font: TrueTypeFont, opts: UiRuntimeOpts) {
     this.canvas = canvas
     this.renderer = renderer
     this.font = font
-    this.#cameraDistance = opts.cameraDistance ?? 0.6
+    this.#cameraDistanceMm = opts.cameraDistanceMm ?? 600
     this.space = new Space()
     this.space.background = new Color(0, 0, 0, 0)
-    this.hud = new HUD({distanceMm: this.#cameraDistance})
+    this.hud = new HUD({distanceMm: this.#cameraDistanceMm})
     this.viewPoint = new ViewPoint({
       element: canvas,
       fov: opts.fov ?? Math.PI / 4,
-      near: 0.01,
-      far: 50,
-      position: {x: 0, y: 0, z: this.#cameraDistance},
+      near: 1,
+      far: 5000,
+      position: {x: 0, y: 0, z: this.#cameraDistanceMm},
       target: {x: 0, y: 0, z: 0},
     })
     const vp = this.viewPoint as unknown as {up: {set(x: number, y: number, z: number): void}}
@@ -177,7 +178,7 @@ export class UiDisplay {
     this.viewPoint.setAspectRatio(w / h)
     this.#pixelWidth = w
     this.#pixelHeight = h
-    const physicalHeight = 2 * this.#cameraDistance * Math.tan(this.viewPoint.fov / 2)
+    const physicalHeight = 2 * this.#cameraDistanceMm * Math.tan(this.viewPoint.fov / 2)
     this.#pixelScale = physicalHeight / this.#pixelHeight
     this.#applyLayout()
     this.requestRender()

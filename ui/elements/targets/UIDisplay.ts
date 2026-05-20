@@ -1,15 +1,18 @@
-import { Object3D } from "../core/Object3D"
-import { Mesh } from "../core/Mesh"
-import { PlaneGeometry } from "../geometries/PlaneGeometry"
-import { MeshBasicMaterial } from "../materials/MeshBasicMaterial"
-import { LineSegments } from "../objects/LineSegments"
-import { LineBasicMaterial } from "../materials/LineBasicMaterial"
-import { BufferGeometry, BufferAttribute } from "../core/BufferGeometry"
-import { Color } from "../math"
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  LineBasicMaterial,
+  LineSegments,
+  Mesh,
+  MeshBasicMaterial,
+  Object3D,
+  PlaneGeometry,
+} from "@metafor/engine"
 
 export interface UIDisplayParameters {
-  width: number // Ширина виртуального дисплея в world units; по контракту engine это mm
-  height: number // Высота виртуального дисплея в world units; по контракту engine это mm
+  widthMm: number // Ширина виртуального дисплея в world units; по контракту engine это mm
+  heightMm: number // Высота виртуального дисплея в world units; по контракту engine это mm
   pixelWidth: number // Ширина логической пиксельной сетки виртуального UI
   pixelHeight: number // Высота логической пиксельной сетки виртуального UI
   background?: Color | number // Цвет фона виртуального дисплея
@@ -18,7 +21,7 @@ export interface UIDisplayParameters {
 /**
  * Виртуальный дисплей для UI внутри WebGPU-сцены.
  *
- * `width` и `height` задают размер дисплея в world units.
+ * `widthMm` и `heightMm` задают размер дисплея в world units.
  * По контракту engine world unit = mm.
  *
  * `pixelWidth` и `pixelHeight` задают логическую пиксельную сетку UI.
@@ -30,27 +33,27 @@ export interface UIDisplayParameters {
  * Это не DPI/PPI физического устройства пользователя.
  *
  * Сам по себе `UIDisplay` не является HUD.
- * HUD будет отдельным camera/head-locked слоем, который сможет использовать `UIDisplay` как содержимое.
+ * HUD — отдельный camera/head-locked слой, который может использовать `UIDisplay` как содержимое.
  */
 export class UIDisplay extends Object3D {
   public readonly isUIDisplay: true = true
-  public width: number
-  public height: number
+  public widthMm: number
+  public heightMm: number
   public pixelWidth: number
   public pixelHeight: number
   public contentContainer: Object3D
 
   constructor(params: UIDisplayParameters) {
     super()
-    this.width = params.width
-    this.height = params.height
+    this.widthMm = params.widthMm
+    this.heightMm = params.heightMm
     this.pixelWidth = params.pixelWidth
     this.pixelHeight = params.pixelHeight
 
     // 1. Создаем подложку виртуального дисплея
     const bgGeometry = new PlaneGeometry({
-      width: this.width,
-      height: this.height,
+      width: this.widthMm,
+      height: this.heightMm,
     })
     const bgMaterial = new MeshBasicMaterial({
       color: params.background ?? 0x111111,
@@ -74,9 +77,9 @@ export class UIDisplay extends Object3D {
 
     // Смещаем контент так, чтобы (0,0) layout-сетки совпадал с верхним левым углом дисплея.
     this.contentContainer.position.set(
-      -this.width / 2,
-      this.height / 2,
-      0.005,
+      -this.widthMm / 2,
+      this.heightMm / 2,
+      0.5,
     )
     this.contentContainer.updateMatrix()
 
@@ -85,8 +88,8 @@ export class UIDisplay extends Object3D {
   }
 
   private createBorder(): void {
-    const w = this.width / 2
-    const h = this.height / 2
+    const w = this.widthMm / 2
+    const h = this.heightMm / 2
     const vertices = new Float32Array([
       -w, h, 0, w, h, 0,
       w, h, 0, w, -h, 0,
@@ -97,7 +100,7 @@ export class UIDisplay extends Object3D {
     borderGeo.setAttribute("position", new BufferAttribute(vertices, 3))
     const borderMat = new LineBasicMaterial({ color: 0x748297 })
     const border = new LineSegments(borderGeo, borderMat)
-    border.position.z = 0.001
+    border.position.z = 0.1
     this.add(border)
   }
 
@@ -121,14 +124,14 @@ export class UIDisplay extends Object3D {
    * Сколько world units занимает один виртуальный UI-пиксель по горизонтали.
    */
   public get unitsPerPixel(): number {
-    return this.width / this.pixelWidth
+    return this.widthMm / this.pixelWidth
   }
 
   /**
    * Сколько world units занимает один виртуальный UI-пиксель по вертикали.
    */
   public get verticalUnitsPerPixel(): number {
-    return this.height / this.pixelHeight
+    return this.heightMm / this.pixelHeight
   }
 
   /**
@@ -138,6 +141,6 @@ export class UIDisplay extends Object3D {
    * и его логической пиксельной сетки.
    */
   public get pixelDensity(): number {
-    return this.pixelWidth / (this.width / 25.4)
+    return this.pixelWidth / (this.widthMm / 25.4)
   }
 }

@@ -267,7 +267,7 @@ export function edgeFade(pane: UiSurface, opts: EdgeFadeOpts & {
 
   const steps = Math.max(1, Math.floor(opts.steps ?? 8))
   const stepH = size / steps
-  const z = opts.z ?? Z.TEXT + 0.00003
+  const z = opts.z ?? Z.TEXT + 0.03
   const maxAlpha = opts.maxAlpha ?? 0.86
   const drawBand = (y: number, alpha: number): void => {
     const color = opts.color.clone()

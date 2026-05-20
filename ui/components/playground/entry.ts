@@ -1,4 +1,4 @@
-import {UiSurface, UiDisplay, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, uiIcons} from "@metafor/elements"
+import {UiSurface, UiRuntime, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, uiIcons} from "@metafor/elements"
 import {autoButtonWidth, Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Pane} from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
@@ -74,8 +74,8 @@ const BUTTON_HEIGHTS: readonly ButtonHeight[] = ["compact", "regular", "large"]
 const COMPONENT_NAV = ["Button", "Pane", "Badge", "TextField", "Divider", "Scrollbar", "Scroll List", "Noti Stack"] as const
 const BUTTON_RADII = [14, 24, 34, 999] as const
 const ICON_SIZES = [16, 20, 24] as const
-const LAYOUT_Z = -0.00012
-const BACKDROP_Z = -0.00018
+const LAYOUT_Z = -0.12
+const BACKDROP_Z = -0.18
 class ButtonComponentsScreen extends UiSurface {
   readonly #router = new VirtualRouter<ComponentsRoute>(COMPONENT_ROUTES, "button/basic", {mode: "path"})
   readonly #unsubscribe: () => void
@@ -2089,7 +2089,7 @@ function codeBlock(host: UiSurface, x: number, y: number, w: number, lines: read
 
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
-const ui = await UiDisplay.create(canvas)
+const ui = await UiRuntime.create(canvas)
 ui.addSurface(new ButtonComponentsScreen(), ({w, h}) => ({x: 0, y: 0, w, h}))
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)

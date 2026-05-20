@@ -1,5 +1,4 @@
 import {Space} from "../scenes/Space"
-import {HUD} from "../scenes/HUD"
 import {ViewPoint} from "../core/ViewPoint"
 import {Mesh} from "../core/Mesh"
 import {InstancedMesh} from "../core/InstancedMesh"
@@ -76,6 +75,10 @@ interface PreparedRenderLayer {
   glassObjects: RenderItem[]
   regularObjects: RenderItem[]
   uiObjects: RenderItem[]
+}
+
+export type RenderOverlay = Object3D & {
+  updateForViewPoint?(viewPoint: ViewPoint): void
 }
 
 /**
@@ -931,7 +934,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     regularObjects: RenderItem[],
     uiObjects: RenderItem[]
   } {
-    // Функция для проверки, является ли объект или любой из его родителей UIDisplay
+    // UI targets live outside engine; renderer recognizes them by marker.
     const isUIDisplayOrChildOfUIDisplay = (obj: Object3D): boolean => {
       if ((obj as any).isUIDisplay) return true
       let parent = obj.parent
@@ -1028,17 +1031,23 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   }
 
   public renderFrame(space: Space, viewPoint: ViewPoint): void
-  public renderFrame(space: Space, hud: HUD | null | undefined, viewPoint: ViewPoint): void
+  public renderFrame(space: Space, overlay: RenderOverlay | readonly RenderOverlay[] | null | undefined, viewPoint: ViewPoint): void
   public renderFrame(
     space: Space,
-    hudOrViewPoint: HUD | ViewPoint | null | undefined,
+    overlayOrViewPoint: RenderOverlay | readonly RenderOverlay[] | ViewPoint | null | undefined,
     maybeViewPoint?: ViewPoint,
   ): void {
     if (!this.isReadyToRender()) return
 
-    const hud = hudOrViewPoint instanceof HUD ? hudOrViewPoint : undefined
-    const viewPoint = maybeViewPoint ?? (hudOrViewPoint as ViewPoint)
+    const viewPoint = maybeViewPoint ?? (overlayOrViewPoint as ViewPoint)
     if (!viewPoint) return
+    const overlays = maybeViewPoint === undefined
+      ? []
+      : Array.isArray(overlayOrViewPoint)
+        ? overlayOrViewPoint
+        : overlayOrViewPoint
+          ? [overlayOrViewPoint as RenderOverlay]
+          : []
 
     this.updateTextures()
     this.updateOffscreenTextures()
@@ -1055,9 +1064,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     preparedLayers.push(this.prepareRenderLayer(space, frameRenderItems, frameLights, space.background.toArray() as unknown as GPUColor))
 
-    if (hud) {
-      hud.updateForViewPoint(viewPoint)
-      preparedLayers.push(this.prepareRenderLayer(hud, frameRenderItems, frameLights))
+    for (const overlay of overlays) {
+      overlay.updateForViewPoint?.(viewPoint)
+      preparedLayers.push(this.prepareRenderLayer(overlay, frameRenderItems, frameLights))
     }
 
     // Uniform buffers are written once for the whole frame. Rewriting them between

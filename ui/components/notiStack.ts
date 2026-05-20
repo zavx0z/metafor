@@ -1,20 +1,20 @@
 /**
- * NotiStack — generic стек тостов поверх UiDisplay.
+ * NotiStack — generic стек тостов поверх UiRuntime.
  *
  * Архитектура (важно):
  *   • КАЖДОЕ уведомление — отдельная NotificationPane (UiSurface), которой
- *     UiDisplay даёт свой `rect` через layout-функцию. Это нужно, чтобы
+ *     UiRuntime даёт свой `rect` через layout-функцию. Это нужно, чтобы
  *     `cardAt` не перехватывал клики на пустом пространстве между/около
  *     уведомлений: клик попадает на NotificationPane только в её rect,
  *     иначе пробрасывается ниже (на screen-UiSurface'ы приложения).
  *   • NotiStack — controller-объект, не UiSurface. Он держит список items, их
- *     NotificationPane-инстансы и layout-функции, которые UiDisplay
+ *     NotificationPane-инстансы и layout-функции, которые UiRuntime
  *     пересчитывает на каждом resize.
- *   • Z-уровень: каждая NotificationPane поднята `node.position.z = 0.001`
+ *   • Z-уровень: каждая NotificationPane поднята `node.position.z = 1`
  *     при addSurface, чтобы depth-test ставил её перед screen-UiSurface'ами.
  *     БОЛЬШИЕ z (0.05+) ломают совпадение visual ↔ hit-rect под
  *     perspective camera: mesh масштабируется ~9%, hit остаётся в
- *     исходных pane-px → курсор реагирует «выше». 0.001 даёт правильный
+ *     исходных pane-px → курсор реагирует «выше». 1mm даёт правильный
  *     depth-order и scale-error <0.2%.
  *
  * Tема — обязательный параметр: NotiStack не знает о цветах приложения,
@@ -26,12 +26,12 @@
  *   stack.dismiss(id)
  *   stack.clear()
  *
- * Поведение dismissed: NotificationPane остаётся attached к UiDisplay, но
+ * Поведение dismissed: NotificationPane остаётся attached к UiRuntime, но
  * её layout возвращает {visible:false}. Re-push с тем же id восстанавливает.
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {UiSurface, flexRow, type UiDisplay} from "@metafor/elements"
+import {UiSurface, flexRow, type UiRuntime} from "@metafor/elements"
 import {autoButtonWidth, Button as button} from "./Button.ts"
 
 export interface NotiAction {
@@ -153,7 +153,7 @@ function notifHeight(n: Notification, L: ResolvedLayout): number {
 
 /**
  * UiSurface для одного уведомления. Размер берётся из настроек notification.
- * Layout-функция в UiDisplay даёт ему конкретный rect (x, y, w, h, visible).
+ * Layout-функция в UiRuntime даёт ему конкретный rect (x, y, w, h, visible).
  */
 class NotificationPane extends UiSurface {
   private n: Notification
@@ -285,12 +285,12 @@ interface StackItem {
 }
 
 export class NotiStack {
-  private readonly ui: UiDisplay
+  private readonly ui: UiRuntime
   private readonly theme: NotiStackTheme
   private readonly layout: ResolvedLayout
   private items: StackItem[] = []
 
-  constructor(ui: UiDisplay, opts: NotiStackOpts) {
+  constructor(ui: UiRuntime, opts: NotiStackOpts) {
     this.ui = ui
     this.theme = opts.theme
     this.layout = resolveLayout(opts.layout)
@@ -309,8 +309,8 @@ export class NotiStack {
     const item: StackItem = {n, pane}
     this.items.push(item)
     this.ui.addSurface(pane, ({w, h}) => this.computeRect(item, w, h))
-    // См. JSDoc заголовка про выбор z = 0.001.
-    pane.node.position.z = 0.001
+    // См. JSDoc заголовка про выбор z = 1.
+    pane.node.position.z = 1
     pane.node.updateMatrix()
     this.ui.relayout()
     this.ui.requestRender()
@@ -330,7 +330,7 @@ export class NotiStack {
     this.ui.requestRender()
   }
 
-  /** Layout одного notification-pane: пересчитывается UiDisplay-ом на resize. */
+  /** Layout одного notification-pane: пересчитывается UiRuntime-ом на resize. */
   private computeRect(target: StackItem, W: number, H: number) {
     if (target.pane.isDismissed()) {
       return {x: 0, y: 0, w: 0, h: 0, visible: false}
