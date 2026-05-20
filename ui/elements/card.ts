@@ -58,6 +58,7 @@ import {
   MeshBasicMaterial,
   Object3D,
   PlaneGeometry,
+  RadialBackdropMaterial,
   RoundedRectMaterial,
   Text,
   TextMaterial,
@@ -146,6 +147,21 @@ export type BackgroundImageOpts = {
   /** 0..1 — масштаб bg-image относительно Card-rect; центрируется.
    *  1 = заполнить, 0.8 = 80% размера с 10% полем по краям. Default 1. */
   scale?: number
+}
+
+export type BackdropGlow = {
+  color: Color | number | string
+  cx: number
+  cy: number
+  radius: number
+  opacity?: number
+}
+
+export type DrawBackdropGradientOpts = {
+  base: Color | number | string
+  glowA: BackdropGlow
+  glowB: BackdropGlow
+  z?: number
 }
 
 export type DrawTextOpts = {
@@ -570,6 +586,26 @@ export abstract class Card implements UiCard {
 
   drawImage(src: string, x: number, y: number, w: number, h: number, opts: DrawImageOpts = {}): void {
     this.#drawImageMesh(this.#layer, src, x, y, w, h, opts, opts.z ?? Z.ELEMENT, true)
+  }
+
+  drawBackdropGradient(opts: DrawBackdropGradientOpts): void {
+    const w = this.rectW
+    const h = this.rectH
+    if (w <= 0 || h <= 0) return
+    const ps = this.pixelScale
+    const material = new RadialBackdropMaterial({
+      width: w * ps,
+      height: h * ps,
+      base: opts.base,
+      glowA: opts.glowA,
+      glowB: opts.glowB,
+    })
+    const mesh = new Mesh(new PlaneGeometry({width: w * ps, height: h * ps}), material)
+    mesh.position.x = (w / 2) * ps
+    mesh.position.y = -(h / 2) * ps
+    mesh.position.z = opts.z ?? -0.00018
+    mesh.updateMatrix()
+    this.#layer.add(mesh)
   }
 
   drawTooltipForHit(

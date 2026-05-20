@@ -10,6 +10,7 @@ import {Color, type TextMaterial} from "@metafor/engine"
 export type ButtonOpts = {
   label: string
   iconSrc?: string
+  iconPosition?: "start" | "end"
   iconOnly?: boolean
   iconSizePx?: number
   tooltip?: string
@@ -84,19 +85,36 @@ export function button(card: Card, x: number, y: number, w: number, h: number, o
     const gap = showLabel ? 7 : 0
     const contentW = Math.min(w - 8, iconSize + gap + labelW)
     let cx = x + (w - contentW) / 2
-    card.drawImage(opts.iconSrc, cx, y + pressOffsetY + (h - iconSize) / 2, iconSize, iconSize, {
-      fit: "contain",
-      opacity: disabled ? 0.36 : 0.95,
-      z: Z.TEXT,
-    })
-    cx += iconSize + gap
-    if (showLabel) {
-      const available = Math.max(1, x + w - 5 - cx)
-      card.drawText(opts.label, cx, y + pressOffsetY + (h - fontPx) / 2, {
+    const iconY = y + pressOffsetY + (h - iconSize) / 2
+    const textY = y + pressOffsetY + (h - fontPx) / 2
+    const iconOpacity = disabled ? 0.36 : 0.95
+    if (opts.iconPosition === "end" && showLabel) {
+      const available = Math.max(1, w - iconSize - gap - 10)
+      card.drawText(opts.label, cx, textY, {
         fontPx,
         material: textMaterial,
         maxWidthPx: available,
       })
+      card.drawImage(opts.iconSrc, cx + Math.min(labelW, available) + gap, iconY, iconSize, iconSize, {
+        fit: "contain",
+        opacity: iconOpacity,
+        z: Z.TEXT,
+      })
+    } else {
+      card.drawImage(opts.iconSrc, cx, iconY, iconSize, iconSize, {
+        fit: "contain",
+        opacity: iconOpacity,
+        z: Z.TEXT,
+      })
+      cx += iconSize + gap
+      if (showLabel) {
+        const available = Math.max(1, x + w - 5 - cx)
+        card.drawText(opts.label, cx, textY, {
+          fontPx,
+          material: textMaterial,
+          maxWidthPx: available,
+        })
+      }
     }
   } else {
     card.drawTextCentered(opts.label, x + w / 2, y + pressOffsetY + h / 2, {

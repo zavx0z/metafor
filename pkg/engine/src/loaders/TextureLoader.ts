@@ -109,6 +109,15 @@ async function decodeBitmap(blob: Blob): Promise<ImageBitmap> {
       image.decoding = "async"
       image.src = objectUrl
       await image.decode()
+      const width = image.naturalWidth || image.width
+      const height = image.naturalHeight || image.height
+      if (width > 0 && height > 0) {
+        return await createImageBitmap(image, {
+          resizeWidth: width,
+          resizeHeight: height,
+          resizeQuality: "high",
+        })
+      }
       return await createImageBitmap(image)
     } finally {
       URL.revokeObjectURL(objectUrl)
@@ -119,14 +128,33 @@ async function decodeBitmap(blob: Blob): Promise<ImageBitmap> {
 async function normaliseSvgBlob(blob: Blob): Promise<Blob> {
   if (!blob.type.includes("svg")) return blob
   const text = await blob.text()
-  if (/\swidth=/.test(text) && /\sheight=/.test(text)) return blob
-  const match = text.match(/viewBox=["']\s*[-.\d]+\s+[-.\d]+\s+([.\d]+)\s+([.\d]+)\s*["']/)
-  if (!match) return blob
-  const width = Number(match[1])
-  const height = Number(match[2])
-  if (!Number.isFinite(width) || !Number.isFinite(height)) return blob
-  const patched = text.replace("<svg ", `<svg width="${width}" height="${height}" `)
+  const patched = normaliseSvgRootDimensions(text)
+  if (patched === null) return blob
   return new Blob([patched], { type: "image/svg+xml" })
+}
+
+export function normaliseSvgRootDimensions(text: string): string | null {
+  const svgTagMatch = text.match(/<svg\b[^>]*>/i)
+  if (!svgTagMatch) return null
+
+  const svgTag = svgTagMatch[0]
+  const hasWidth = /\swidth\s*=/.test(svgTag)
+  const hasHeight = /\sheight\s*=/.test(svgTag)
+  if (hasWidth && hasHeight) return text
+
+  const viewBox = svgTag.match(/\sviewBox\s*=\s*["']\s*([-+.\deE]+)[\s,]+([-+.\deE]+)[\s,]+([-+.\deE]+)[\s,]+([-+.\deE]+)\s*["']/i)
+  if (!viewBox) return null
+  const width = Number(viewBox[3])
+  const height = Number(viewBox[4])
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return null
+  if (width <= 0 || height <= 0) return null
+
+  const attrs: string[] = []
+  if (!hasWidth) attrs.push(`width="${width}"`)
+  if (!hasHeight) attrs.push(`height="${height}"`)
+  const patchedTag = svgTag.replace(/<svg\b/i, `<svg ${attrs.join(" ")}`)
+  const start = svgTagMatch.index ?? 0
+  return text.slice(0, start) + patchedTag + text.slice(start + svgTag.length)
 }
 
 function notify(src: string): void {

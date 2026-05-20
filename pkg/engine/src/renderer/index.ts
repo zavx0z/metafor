@@ -6,7 +6,7 @@ import {InstancedMesh} from "../core/InstancedMesh"
 import {SkinnedMesh} from "../core/SkinnedMesh"
 import {BufferGeometry} from "../core/BufferGeometry"
 import {WireframeInstancedMesh} from "../core/WireframeInstancedMesh"
-import {ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, RoundedRectMaterial, TextMaterial} from "../materials"
+import {ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, RadialBackdropMaterial, RoundedRectMaterial, TextMaterial} from "../materials"
 import {Matrix4, Vector3, Frustum} from "../math"
 import {LineSegments} from "../objects/LineSegments"
 import {Text} from "../objects/Text"
@@ -21,6 +21,7 @@ import lineShaderCode from "./shaders/line.wgsl" with {type: "text"}
 import textShaderCode from "./shaders/text.wgsl" with {type: "text"}
 import imageShaderCode from "./shaders/image.wgsl" with {type: "text"}
 import roundedShaderCode from "./shaders/rounded.wgsl" with {type: "text"}
+import radialBackdropShaderCode from "./shaders/radial_backdrop.ts"
 import {TEXT_COVER_FACE_STATE, TEXT_STENCIL_BACK_FACE_STATE, TEXT_STENCIL_FACE_STATE} from "./text-stencil"
 import {collectSpaceObjects, type LightItem, type RenderItem} from "./utils/RenderList"
 import {GlassMaterial} from "../materials/GlassMaterial"
@@ -83,6 +84,7 @@ export class Renderer {
   private textCoverPipeline: GPURenderPipeline | null = null
   private imagePipeline: GPURenderPipeline | null = null
   private roundedPipeline: GPURenderPipeline | null = null
+  private radialBackdropPipeline: GPURenderPipeline | null = null
   private imageBindGroupLayout: GPUBindGroupLayout | null = null
   private imageSampler: GPUSampler | null = null
   private imageBindGroupCache: WeakMap<GPUTexture, GPUBindGroup> = new WeakMap()
@@ -310,6 +312,10 @@ export class Renderer {
     const roundedShaderModule = this.device.createShaderModule({
       code: roundedShaderCode,
     })
+    const radialBackdropShaderModule = this.device.createShaderModule({
+      label: "radialBackdropShader",
+      code: radialBackdropShaderCode,
+    })
 
     // --- Pipeline для MeshBasicMaterial: без освещения, цвет как задан в material.color ---
     this.basicMeshPipeline = await this.device.createRenderPipelineAsync({
@@ -420,6 +426,32 @@ export class Renderer {
               operation: "add",
             },
           },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: {
+        depthWriteEnabled: true,
+        depthCompare: "less",
+        format: "depth24plus-stencil8",
+      },
+      multisample: {count: this.sampleCount},
+    })
+
+    this.radialBackdropPipeline = await this.device.createRenderPipelineAsync({
+      layout: pipelineLayout,
+      vertex: {
+        module: radialBackdropShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+        ],
+      },
+      fragment: {
+        module: radialBackdropShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
         }],
       },
       primitive: {topology: "triangle-list", cullMode: "none"},
@@ -1177,6 +1209,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (material instanceof MeshBasicMaterial || material instanceof MeshLambertMaterial) {
       this.perObjectDataCPU!.set(material.color.toArray(), offsetFloats + 32)
+    } else if (isRadialBackdropMaterial(material)) {
+      this.perObjectDataCPU!.set([material.base.r, material.base.g, material.base.b, material.base.a], offsetFloats + 32)
+      this.perObjectDataCPU!.set([material.glowA.r, material.glowA.g, material.glowA.b, material.glowA.a], offsetFloats + 36)
+      this.perObjectDataCPU!.set([material.glowB.r, material.glowB.g, material.glowB.b, material.glowB.a], offsetFloats + 40)
+      this.perObjectDataCPU!.set([material.width, material.height, 0, 0], offsetFloats + 44)
+      this.perObjectDataCPU!.set(material.glowAParams, offsetFloats + 48)
+      this.perObjectDataCPU!.set(material.glowBParams, offsetFloats + 52)
     } else if (material instanceof RoundedRectMaterial) {
       // fill rgba @ 32..35
       this.perObjectDataCPU!.set(
@@ -1315,11 +1354,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             pipeline =
               material instanceof ImageMaterial
                 ? this.imagePipeline
-                : material instanceof RoundedRectMaterial
-                  ? this.roundedPipeline
-                  : material instanceof MeshBasicMaterial
-                    ? this.basicMeshPipeline
-                    : this.staticMeshPipeline
+                : isRadialBackdropMaterial(material)
+                  ? this.radialBackdropPipeline
+                  : material instanceof RoundedRectMaterial
+                    ? this.roundedPipeline
+                    : material instanceof MeshBasicMaterial
+                      ? this.basicMeshPipeline
+                      : this.staticMeshPipeline
           }
           break
         case "skinned-mesh":
@@ -1877,4 +1918,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 1
   return Math.min(1, Math.max(0, value))
+}
+
+function isRadialBackdropMaterial(material: unknown): material is RadialBackdropMaterial {
+  return (material as RadialBackdropMaterial | undefined)?.isRadialBackdropMaterial === true
 }

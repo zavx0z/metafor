@@ -20,6 +20,7 @@ export type ButtonProps = {
   startIcon?: string
   endIcon?: string
   iconSrc?: string
+  iconPosition?: "start" | "end"
   iconOnly?: boolean
   iconSizePx?: number
   tooltip?: string
@@ -61,6 +62,8 @@ export function Button(host: Card, x: number, y: number, width: number, height: 
   if (props.disabled !== undefined) opts.disabled = props.disabled
   const iconSrc = props.iconSrc ?? props.startIcon ?? props.endIcon
   if (iconSrc !== undefined) opts.iconSrc = iconSrc
+  const iconPosition = props.iconPosition ?? (props.endIcon !== undefined && props.startIcon === undefined ? "end" : undefined)
+  if (iconPosition !== undefined) opts.iconPosition = iconPosition
   if (props.iconOnly !== undefined) opts.iconOnly = props.iconOnly
   if (props.iconSizePx !== undefined) opts.iconSizePx = props.iconSizePx
   if (props.tooltip !== undefined) opts.tooltip = props.tooltip

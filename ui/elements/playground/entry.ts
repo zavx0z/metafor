@@ -58,33 +58,13 @@ const CSS_SECTIONS: readonly CssSection[] = ["padding", "flex", "border", "color
 const ELEMENT_TONES: readonly ElementTone[] = ["cyan", "green", "orange", "red"]
 const ELEMENT_DENSITIES: readonly ElementDensity[] = ["compact", "regular", "air"]
 
-const TRANSITION_MS = 260
 const LAYOUT_Z = -0.00012
 const BACKDROP_Z = -0.00018
-const ELEMENTS_BACKDROP = svgDataUrl(`
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="none">
-    <defs>
-      <radialGradient id="cyan" cx="25%" cy="20%" r="31%">
-        <stop offset="0%" stop-color="rgb(111,211,255)" stop-opacity="0.16"/>
-        <stop offset="100%" stop-color="rgb(111,211,255)" stop-opacity="0"/>
-      </radialGradient>
-      <radialGradient id="green" cx="76%" cy="70%" r="33%">
-        <stop offset="0%" stop-color="rgb(82,196,123)" stop-opacity="0.12"/>
-        <stop offset="100%" stop-color="rgb(82,196,123)" stop-opacity="0"/>
-      </radialGradient>
-    </defs>
-    <rect width="1920" height="1080" fill="#07101b"/>
-    <rect width="1920" height="1080" fill="url(#cyan)"/>
-    <rect width="1920" height="1080" fill="url(#green)"/>
-  </svg>
-`)
 
 class ElementsPlayground extends Element {
   readonly #router = new VirtualRouter<ElementRoute>(ROUTE_IDS, "overview")
   readonly #unsubscribe: () => void
   #route: ElementRoute = this.#router.current
-  #previousRoute: ElementRoute = this.#router.current
-  #transitionStarted = performance.now() - TRANSITION_MS
   #cssSection: CssSection = "padding"
   #tone: ElementTone = "cyan"
   #radius = 34
@@ -96,10 +76,8 @@ class ElementsPlayground extends Element {
 
   constructor() {
     super({bgColor: null, borderColor: null})
-    this.#unsubscribe = this.#router.subscribe((route, previous) => {
-      this.#previousRoute = previous
+    this.#unsubscribe = this.#router.subscribe((route) => {
       this.#route = route
-      this.#transitionStarted = performance.now()
       this.requestRender()
     })
   }
@@ -130,13 +108,15 @@ class ElementsPlayground extends Element {
     this.#playground(playX, stageY, playW, playH)
     this.#dock(playX, stageY + playH + gap, playW, dockH)
     this.#parameters(paramsX, stageY, paramsW, stageH)
-
-    const t = transitionProgress(this.#transitionStarted)
-    if (t < 1) requestAnimationFrame(() => this.requestRender())
   }
 
   #backdrop(): void {
-    this.drawImage(ELEMENTS_BACKDROP, 0, 0, this.rectW, this.rectH, {fit: "cover", z: BACKDROP_Z})
+    this.drawBackdropGradient({
+      base: 0x07101b,
+      glowA: {color: "rgba(111,211,255,0.16)", cx: 0.25, cy: 0.20, radius: 0.39},
+      glowB: {color: "rgba(82,196,123,0.12)", cx: 0.76, cy: 0.70, radius: 0.41},
+      z: BACKDROP_Z,
+    })
   }
 
   #catalog(x: number, y: number, w: number, h: number): void {
@@ -168,23 +148,20 @@ class ElementsPlayground extends Element {
     div(this, x, y, w, h, {
       style: {background: "rgba(8, 13, 22, 0.72)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: this.#radius, zIndex: LAYOUT_Z},
     })
-    const progress = easeOutCubic(transitionProgress(this.#transitionStarted))
-    const direction = ROUTE_IDS.indexOf(this.#route) >= ROUTE_IDS.indexOf(this.#previousRoute) ? 1 : -1
-    const slideX = Math.round((1 - progress) * 30 * direction)
     const pad = this.#contentPad()
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    if (this.#route === "overview") this.#overview(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "card") this.#cardRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "padding") this.#paddingRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "flex") this.#flexRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "flexCss") this.#flexCssRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "grid") this.#gridRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "textBlock") this.#textBlockRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "image") this.#imageRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "css") this.#css(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "events") this.#eventsRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else this.#theme(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    if (this.#route === "overview") this.#overview(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "card") this.#cardRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "padding") this.#paddingRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "flex") this.#flexRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "flexCss") this.#flexCssRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "grid") this.#gridRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "textBlock") this.#textBlockRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "image") this.#imageRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "css") this.#css(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "events") this.#eventsRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else this.#theme(x + pad, y + pad, w - pad * 2, h - pad * 2)
     this.popClip()
   }
 
@@ -676,14 +653,6 @@ class ElementsPlayground extends Element {
   }
 }
 
-function transitionProgress(started: number): number {
-  return Math.min(1, Math.max(0, (performance.now() - started) / TRANSITION_MS))
-}
-
-function easeOutCubic(t: number): number {
-  return 1 - (1 - t) ** 3
-}
-
 function pill(host: Element, x: number, y: number, w: number, h: number, label: string, background: CssColor | "glass", color: CssColor): void {
   div(host, x, y, w, h, {style: {background, borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 999}})
   span(host, x + 12, y, w - 24, h, {children: label, style: {fontSize: 11, color}})
@@ -734,4 +703,4 @@ ui.addCard(new ElementsPlayground(), ({w, h}) => ({x: 0, y: 0, w, h}))
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)
 window.addEventListener("resize", () => ui.handleResize())
-requestAnimationFrame(() => ui.handleResize())
+ui.handleResize()

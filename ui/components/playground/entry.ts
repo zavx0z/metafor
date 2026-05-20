@@ -1,4 +1,4 @@
-import {Element, UiCanvas, div, h2, h3, p, span, type CssColor} from "@metafor/elements"
+import {Element, UiCanvas, div, h2, h3, p, span, uiIcons, type CssColor} from "@metafor/elements"
 import {
   Badge,
   Button,
@@ -37,30 +37,12 @@ const ROUTES: readonly RouteMeta[] = [
   {id: "feedback", label: "Feedback", color: "error"},
 ]
 
-const TRANSITION_MS = 260
 const COMPONENT_VARIANTS: readonly ButtonVariant[] = ["glass", "contained", "outlined", "text"]
 const COMPONENT_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error", "neutral"]
 const COMPONENT_SIZES: readonly ButtonSize[] = ["small", "medium", "large"]
 const COMPONENT_DENSITIES: readonly ComponentDensity[] = ["compact", "regular", "air"]
 const LAYOUT_Z = -0.00012
 const BACKDROP_Z = -0.00018
-const COMPONENTS_BACKDROP = svgDataUrl(`
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="none">
-    <defs>
-      <radialGradient id="cyan" cx="30%" cy="18%" r="33%">
-        <stop offset="0%" stop-color="rgb(111,211,255)" stop-opacity="0.16"/>
-        <stop offset="100%" stop-color="rgb(111,211,255)" stop-opacity="0"/>
-      </radialGradient>
-      <radialGradient id="orange" cx="70%" cy="78%" r="35%">
-        <stop offset="0%" stop-color="rgb(255,190,111)" stop-opacity="0.10"/>
-        <stop offset="100%" stop-color="rgb(255,190,111)" stop-opacity="0"/>
-      </radialGradient>
-    </defs>
-    <rect width="1920" height="1080" fill="#07101b"/>
-    <rect width="1920" height="1080" fill="url(#cyan)"/>
-    <rect width="1920" height="1080" fill="url(#orange)"/>
-  </svg>
-`)
 const SCROLL_ROW_H = 46
 const SCROLL_ROW_GAP = 8
 const SCROLL_ITEMS = Array.from({length: 64}, (_, i) => ({
@@ -73,8 +55,6 @@ class ComponentsPlayground extends Element {
   readonly #unsubscribe: () => void
   readonly #scrollState = new ScrollListState({onChange: () => this.requestRender()})
   #route: ComponentRoute = this.#router.current
-  #previousRoute: ComponentRoute = this.#router.current
-  #transitionStarted = performance.now() - TRANSITION_MS
   #events = ["ready: hover, press, release, click"]
   #eventCount = 0
   #status = "ready"
@@ -89,10 +69,8 @@ class ComponentsPlayground extends Element {
 
   constructor() {
     super({bgColor: null, borderColor: null})
-    this.#unsubscribe = this.#router.subscribe((route, previous) => {
-      this.#previousRoute = previous
+    this.#unsubscribe = this.#router.subscribe((route) => {
       this.#route = route
-      this.#transitionStarted = performance.now()
       this.requestRender()
     })
   }
@@ -131,13 +109,15 @@ class ComponentsPlayground extends Element {
     this.#playground(playX, stageY, playW, playH)
     this.#dock(playX, stageY + playH + gap, playW, dockH)
     this.#parameters(paramsX, stageY, paramsW, stageH)
-
-    const t = transitionProgress(this.#transitionStarted)
-    if (t < 1) requestAnimationFrame(() => this.requestRender())
   }
 
   #backdrop(): void {
-    this.drawImage(COMPONENTS_BACKDROP, 0, 0, this.rectW, this.rectH, {fit: "cover", z: BACKDROP_Z})
+    this.drawBackdropGradient({
+      base: 0x07101b,
+      glowA: {color: "rgba(111,211,255,0.16)", cx: 0.30, cy: 0.18, radius: 0.42},
+      glowB: {color: "rgba(255,190,111,0.10)", cx: 0.70, cy: 0.78, radius: 0.44},
+      z: BACKDROP_Z,
+    })
   }
 
   #catalog(x: number, y: number, w: number, h: number): void {
@@ -170,20 +150,17 @@ class ComponentsPlayground extends Element {
         zIndex: LAYOUT_Z,
       },
     })
-    const progress = easeOutCubic(transitionProgress(this.#transitionStarted))
-    const direction = ROUTE_IDS.indexOf(this.#route) >= ROUTE_IDS.indexOf(this.#previousRoute) ? 1 : -1
-    const slideX = Math.round((1 - progress) * 32 * direction)
     const pad = this.#contentPad()
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    if (this.#route === "overview") this.#overview(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "buttons") this.#buttons(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "badge") this.#badge(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "forms") this.#forms(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "divider") this.#dividerRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "scrollbar") this.#scrollbarRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "scrollList") this.#scrollListRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "notiStack") this.#notiStackRoute(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
-    else this.#feedback(x + pad + slideX, y + pad, w - pad * 2, h - pad * 2)
+    if (this.#route === "overview") this.#overview(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "buttons") this.#buttons(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "badge") this.#badge(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "forms") this.#forms(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "divider") this.#dividerRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "scrollbar") this.#scrollbarRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "scrollList") this.#scrollListRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "notiStack") this.#notiStackRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else this.#feedback(x + pad, y + pad, w - pad * 2, h - pad * 2)
     this.popClip()
   }
 
@@ -400,8 +377,14 @@ class ComponentsPlayground extends Element {
   #buttons(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Buttons", style: {fontSize: 22}})
 
-    Divider(this, x + 28, y + 110, w - 56, {color: "neutral"})
-    h3(this, x + 28, y + 82, 260, 24, {children: "Variants", style: {fontSize: 15}})
+    const top = y + 82
+    Divider(this, x + 28, top + 28, w - 56, {color: "neutral"})
+    const columnGap = 42
+    const leftW = Math.min(560, Math.max(430, Math.round(w * 0.48)))
+    const rightX = x + 28 + leftW + columnGap
+    const rightW = Math.max(260, x + w - 28 - rightX)
+
+    h3(this, x + 28, top, leftW, 24, {children: "Variants", style: {fontSize: 15}})
     const buttons = [
       ["Glass", "glass", "primary"],
       ["Contained", "contained", "success"],
@@ -410,10 +393,13 @@ class ComponentsPlayground extends Element {
       ["Error", "contained", "error"],
       ["Disabled", "glass", "neutral"],
     ] as const
+    const btnGapX = 18
+    const btnGapY = 34
+    const btnW = Math.min(170, Math.floor((leftW - btnGapX) / 2))
     for (const [i, [label, variant, color]] of buttons.entries()) {
-      const bx = x + 28 + (i % 3) * 190
-      const by = y + 150 + Math.floor(i / 3) * 82
-      Button(this, bx, by, 166, 48, {
+      const bx = x + 28 + (i % 2) * (btnW + btnGapX)
+      const by = top + 70 + Math.floor(i / 2) * (48 + btnGapY)
+      Button(this, bx, by, btnW, 48, {
         children: label,
         variant,
         color,
@@ -421,9 +407,38 @@ class ComponentsPlayground extends Element {
         onClick: () => this.#record(`button:${label.toLowerCase()}`),
       })
     }
-    TextField(this, x + w - 368, y + 150, 320, 44, {value: `last=${this.#status}`, active: true})
-    Badge(this, x + w - 368, y + 222, 130, 32, {children: "hover ready", color: "primary"})
-    Badge(this, x + w - 222, y + 222, 130, 32, {children: "disabled safe", color: "neutral"})
+
+    h3(this, rightX, top, rightW, 24, {children: "Icons and state", style: {fontSize: 15}})
+    const iconButtonW = Math.min(190, Math.floor((rightW - 18) / 2))
+    Button(this, rightX, top + 70, iconButtonW, 48, {
+      children: "Apply",
+      variant: "contained",
+      color: "success",
+      startIcon: uiIcons.apply,
+      iconSizePx: 18,
+      onClick: () => this.#record("apply"),
+    })
+    Button(this, rightX + iconButtonW + 18, top + 70, iconButtonW, 48, {
+      children: "Run",
+      variant: "outlined",
+      color: "primary",
+      endIcon: uiIcons.run,
+      iconSizePx: 17,
+      onClick: () => this.#record("run"),
+    })
+    Button(this, rightX, top + 152, 52, 48, {
+      label: "Clear",
+      variant: "glass",
+      color: "neutral",
+      iconSrc: uiIcons.clear,
+      iconOnly: true,
+      tooltip: "Clear",
+      onClick: () => this.#record("clear"),
+    })
+    const badgeW = Math.min(130, Math.floor((rightW - 68 - 14) / 2))
+    Badge(this, rightX + 68, top + 158, badgeW, 32, {children: "hover ready", color: "primary"})
+    Badge(this, rightX + 68 + badgeW + 14, top + 158, badgeW, 32, {children: "disabled safe", color: "neutral"})
+    TextField(this, rightX, top + 232, Math.min(360, rightW), 44, {value: `last=${this.#status}`, active: true})
   }
 
   #badge(x: number, y: number, w: number, _h: number): void {
@@ -591,14 +606,6 @@ class ComponentsPlayground extends Element {
   }
 }
 
-function transitionProgress(started: number): number {
-  return Math.min(1, Math.max(0, (performance.now() - started) / TRANSITION_MS))
-}
-
-function easeOutCubic(t: number): number {
-  return 1 - (1 - t) ** 3
-}
-
 function metricCard(host: Element, x: number, y: number, w: number, h: number, title: string, prop: string, value: string): void {
   Card(host, x, y, w, h, {variant: "glass", sx: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30}})
   h3(host, x + 24, y + 24, w - 48, 24, {children: title, style: {fontSize: 15}})
@@ -633,10 +640,6 @@ function labelsForRoute(route: ComponentRoute): readonly string[] {
   return ["sample", "variant", "state", "event"]
 }
 
-function svgDataUrl(svg: string): string {
-  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg.trim())))}`
-}
-
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
 const ui = await UiCanvas.create(canvas)
@@ -644,4 +647,4 @@ ui.addCard(new ComponentsPlayground(), ({w, h}) => ({x: 0, y: 0, w, h}))
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)
 window.addEventListener("resize", () => ui.handleResize())
-requestAnimationFrame(() => ui.handleResize())
+ui.handleResize()

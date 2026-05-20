@@ -20,7 +20,7 @@ function findYogaWasm(): string | null {
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port: PORT,
-  development: false,
+  development: true,
   routes: {
     "/": index,
     "/JetBrainsMono-Bold.ttf": () => new Response(Bun.file(FONT_PATH), {headers: {"content-type": "font/ttf"}}),

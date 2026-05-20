@@ -11,7 +11,7 @@
     "./playground": "./playground/server.ts"
   },
   "scripts": {
-    "playground": "bun run playground/server.ts",
+    "playground": "bun --hot playground/server.ts",
     "typecheck": "tsc --noEmit --pretty false"
   },
   "dependencies": {
