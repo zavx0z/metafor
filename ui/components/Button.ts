@@ -58,8 +58,8 @@ export function Button(host: Card, x: number, y: number, width: number, height: 
   }
 
   if (variant === "text") {
-    style.background = props.fill ?? palette.transparent
-    style.borderColor = props.border ?? palette.transparent
+    style.background = props.fill ?? textFill(state)
+    style.borderColor = props.border ?? null
     style.color = textColor
   } else if (variant === "outlined") {
     const border = props.border ?? toneBorder(tone)
@@ -131,6 +131,12 @@ function stateFill(fill: Color, border: Color, state: ButtonVisualState): Color 
   return fill
 }
 
+function textFill(state: ButtonVisualState): Color | null {
+  if (state === "active") return withAlpha(palette.bgHot, 0.62)
+  if (state === "hover") return withAlpha(palette.bgHot, 0.46)
+  return null
+}
+
 function stateBorder(border: Color, state: ButtonVisualState): Color {
   if (state === "disabled") return withAlpha(palette.borderDim, 0.62)
   if (state === "active") return withAlpha(mixColor(border, palette.text, 0.50), 1)
@@ -181,18 +187,6 @@ function drawButtonContent(
   const pressOffsetY = state === "active" ? 1 : 0
   const disabled = state === "disabled"
   const material = disabled ? host.materials.muted : props.textMaterial ?? buttonTextMaterial(textColor)
-
-  if (variant === "text" && !disabled && state !== "idle") {
-    const hoverW = width - 8
-    const hoverH = Math.max(16, Math.min(22, fontPx + 8, height - 6))
-    host.drawRoundedRect(x + (width - hoverW) / 2, y + (height - hoverH) / 2 + pressOffsetY, hoverW, hoverH, {
-      radius: Math.min(props.radius ?? hoverH / 2, hoverH / 2),
-      fill: palette.bgHot,
-      border: null,
-      opacity: state === "active" ? 0.62 : 0.46,
-      z: Z.ELEMENT + 0.00001,
-    })
-  }
 
   if (iconSrc === undefined || iconSrc.length === 0) {
     host.drawTextCentered(label, x + width / 2, y + pressOffsetY + height / 2, {

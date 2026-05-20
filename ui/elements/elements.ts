@@ -210,8 +210,8 @@ export function button(card: Card, x: number, y: number, width: number, height: 
     key,
     style: {
       ...style,
-      background: style.background ?? fill,
-      borderColor: style.borderColor ?? border,
+      background: style.background === undefined ? fill : style.background,
+      borderColor: style.borderColor === undefined ? border : style.borderColor,
       borderRadius: style.borderRadius ?? 999,
       color: style.color ?? (state === "disabled" ? "muted" : "text"),
       fontSize: style.fontSize ?? 12,
@@ -270,7 +270,7 @@ function mergeStyle(props: HtmlElementProps): StyleProps {
 }
 
 function backgroundColor(style: StyleProps): Color | null {
-  const value = style.backgroundColor ?? style.background ?? "glass"
+  const value = style.backgroundColor !== undefined ? style.backgroundColor : style.background !== undefined ? style.background : "glass"
   if (value === null) return null
   if (value === "glass") return visionGlass
   return cssColor(value)

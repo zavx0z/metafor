@@ -1,4 +1,4 @@
-import {Element, UiCanvas, h2, h3, p, palette, span, uiIcons} from "@metafor/elements"
+import {Element, UiCanvas, flexColumn, h2, h3, p, palette, span, uiIcons} from "@metafor/elements"
 import {Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Card, Divider} from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
@@ -10,14 +10,23 @@ type ButtonWidth = "compact" | "regular" | "wide"
 type ButtonHeight = "compact" | "regular" | "large"
 type BasicButtonType = "Text button" | "Contained button" | "Outlined button"
 type ButtonRouteVariant = "text" | "contained" | "outlined"
-type ButtonRoute = "button/basic" | `button/basic/${ButtonRouteVariant}`
-type ButtonSection = "Basic"
+type ButtonRoute = "button/basic" | `button/basic/${ButtonRouteVariant}` | "button/sizes" | `button/sizes/${ButtonSize}`
+type ButtonSection = "Basic" | "Sizes"
 
 const BASIC_BUTTON_TYPES: readonly BasicButtonType[] = ["Text button", "Contained button", "Outlined button"]
-const BUTTON_ROUTES: readonly ButtonRoute[] = ["button/basic", "button/basic/text", "button/basic/contained", "button/basic/outlined"]
-const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic"]
+const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Sizes"]
 const BUTTON_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error", "neutral"]
 const BUTTON_SIZES: readonly ButtonSize[] = ["small", "medium", "large"]
+const BUTTON_ROUTES: readonly ButtonRoute[] = [
+  "button/basic",
+  "button/basic/text",
+  "button/basic/contained",
+  "button/basic/outlined",
+  "button/sizes",
+  "button/sizes/small",
+  "button/sizes/medium",
+  "button/sizes/large",
+]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
 const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
 const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
@@ -49,8 +58,12 @@ class ButtonComponentsScreen extends Element {
 
   constructor() {
     super({bgColor: null, borderColor: null})
+    const initialSize = routeSizeFromRoute(this.#route)
+    if (initialSize !== null) this.#size = initialSize
     this.#unsubscribe = this.#router.subscribe((route) => {
       this.#route = route
+      const routeSize = routeSizeFromRoute(route)
+      if (routeSize !== null) this.#size = routeSize
       this.requestRender()
     })
   }
@@ -141,14 +154,15 @@ class ButtonComponentsScreen extends Element {
     h3(this, x + pad, y + 28, w - pad * 2, 24, {children: "Button", style: {fontSize: 15}})
     const top = y + 76
     for (const [i, section] of BUTTON_SECTIONS.entries()) {
+      const active = this.#routeSection() === section
       Button(this, x + pad, top + i * 47, w - pad * 2, 38, {
         children: section,
-        variant: "contained",
+        variant: active ? "contained" : "glass",
         color: "neutral",
-        ...activeNavStyle(true),
+        ...activeNavStyle(active),
         radius: 999,
         fontPx: 11,
-        onClick: () => this.#go(null),
+        onClick: () => this.#goSection(section),
       })
     }
   }
@@ -165,33 +179,44 @@ class ButtonComponentsScreen extends Element {
     })
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    const variant = this.#routeVariant()
-    if (variant === null) this.#basicOverview(x, y, w, h)
-    else this.#buttonDetail(x, y, w, h, variant)
+    if (this.#routeSection() === "Sizes") {
+      const size = this.#routeSize()
+      if (size === null) this.#sizesOverview(x, y, w, h)
+      else this.#sizeDetail(x, y, w, h, size)
+    } else {
+      const variant = this.#routeVariant()
+      if (variant === null) this.#basicOverview(x, y, w, h)
+      else this.#buttonDetail(x, y, w, h, variant)
+    }
     this.popClip()
   }
 
   #basicOverview(x: number, y: number, w: number, h: number): void {
     const pad = 42
-    h2(this, x + pad, y + 34, w - pad * 2, 34, {children: "Basic button", style: {fontSize: 24}})
-    p(this, x + pad, y + 82, w - pad * 2, 30, {
-      children: "The Button comes with three variants: text, contained, and outlined.",
-      style: {fontSize: 13, color: "muted"},
+    const codeLines = [
+      'Button(host, x, y, w, h, { children: "Text", variant: "text" })',
+      'Button(host, x, y, w, h, { children: "Contained", variant: "contained" })',
+      'Button(host, x, y, w, h, { children: "Outlined", variant: "outlined" })',
+    ]
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH: 46,
+      codeH: codeBlockHeight(codeLines),
     })
+    renderHeader(this, x, w, pad, rows.headerY, "Basic button", ["The Button comes with three variants: text, contained, and outlined."])
 
-    const rowY = y + Math.max(176, h * 0.31)
     const btnW = Math.min(140, Math.max(102, (w - pad * 2 - 32) / 3))
     const rowW = btnW * 3 + 32
     const startX = x + (w - rowW) / 2
-    Button(this, startX, rowY, btnW, 46, {children: "Text", variant: "text", color: this.#color, radius: this.#radius, onClick: () => this.#go("text")})
-    Button(this, startX + btnW + 16, rowY, btnW, 46, {
+    Button(this, startX, rows.demoY, btnW, 46, {children: "Text", variant: "text", color: this.#color, radius: this.#radius, onClick: () => this.#go("text")})
+    Button(this, startX + btnW + 16, rows.demoY, btnW, 46, {
       children: "Contained",
       variant: "contained",
       color: this.#color,
       radius: this.#radius,
       onClick: () => this.#go("contained"),
     })
-    Button(this, startX + (btnW + 16) * 2, rowY, btnW, 46, {
+    Button(this, startX + (btnW + 16) * 2, rows.demoY, btnW, 46, {
       children: "Outlined",
       variant: "outlined",
       color: this.#color,
@@ -199,54 +224,44 @@ class ButtonComponentsScreen extends Element {
       onClick: () => this.#go("outlined"),
     })
 
-    const codeY = rowY + 92
-    codeBlock(this, x + pad, codeY, w - pad * 2, [
-      'Button(host, x, y, w, h, { children: "Text", variant: "text" })',
-      'Button(host, x, y, w, h, { children: "Contained", variant: "contained" })',
-      'Button(host, x, y, w, h, { children: "Outlined", variant: "outlined" })',
-    ])
+    codeBlock(this, x + pad, rows.codeY, w - pad * 2, codeLines)
   }
 
   #buttonDetail(x: number, y: number, w: number, h: number, variant: ButtonRouteVariant): void {
     const pad = 42
-    const headerY = y + 34
     const headerH = 108
     const codeLines = [
       `Button(host, x, y, w, h, { children: "${this.#label === "Button" ? "Primary" : this.#label}", variant: "${variant}" })`,
       `Button(host, x, y, w, h, { children: "Disabled", variant: "${variant}", disabled: true })`,
       `Button(host, x, y, w, h, { children: "Link", variant: "${variant}" })`,
     ]
-    const codeH = codeBlockHeight(codeLines)
-
-    h2(this, x + pad, headerY, w - pad * 2, 34, {children: detailTitle(variant), style: {fontSize: 24}})
-    for (const [i, line] of detailDescriptionLines(variant).entries()) {
-      p(this, x + pad, headerY + 48 + i * 24, w - pad * 2, 22, {
-        children: line,
-        style: {fontSize: 13, color: "muted"},
-      })
-    }
 
     const contentW = w - pad * 2
     const buttonW = Math.min(this.#buttonWidth(Math.min(contentW, 520)), 168)
     const buttonH = this.#buttonHeight()
+    const rows = contentRows(y, h, {
+      headerH,
+      demoH: buttonH,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, detailTitle(variant), detailDescriptionLines(variant))
+
     const rowGap = Math.max(22, (contentW - buttonW * 3) / 2)
     const rowX = x + pad
-    const verticalGap = Math.max(28, (h - pad - 34 - headerH - buttonH - codeH) / 2)
-    const rowY = headerY + headerH + verticalGap
     const primaryLabel = this.#label === "Button" ? "Primary" : this.#label
     if (variant === "text") {
-      this.#textButtonExample(rowX, rowY + (buttonH - 22) / 2, buttonW, primaryLabel.toUpperCase(), false)
-      this.#textButtonExample(rowX + buttonW + rowGap, rowY + (buttonH - 22) / 2, buttonW, "DISABLED", true)
-      this.#textButtonExample(rowX + (buttonW + rowGap) * 2, rowY + (buttonH - 22) / 2, buttonW, "LINK", false)
+      this.#textButtonExample(rowX, rows.demoY + (buttonH - 22) / 2, buttonW, primaryLabel.toUpperCase(), false)
+      this.#textButtonExample(rowX + buttonW + rowGap, rows.demoY + (buttonH - 22) / 2, buttonW, "DISABLED", true)
+      this.#textButtonExample(rowX + (buttonW + rowGap) * 2, rows.demoY + (buttonH - 22) / 2, buttonW, "LINK", false)
     } else {
-      Button(this, rowX, rowY, buttonW, buttonH, {...this.#buttonProps(), label: primaryLabel, children: primaryLabel})
-      Button(this, rowX + buttonW + rowGap, rowY, buttonW, buttonH, {
+      Button(this, rowX, rows.demoY, buttonW, buttonH, {...this.#buttonProps(), label: primaryLabel, children: primaryLabel})
+      Button(this, rowX + buttonW + rowGap, rows.demoY, buttonW, buttonH, {
         ...this.#buttonProps(),
         label: "Disabled",
         children: "Disabled",
         disabled: true,
       })
-      Button(this, rowX + (buttonW + rowGap) * 2, rowY, buttonW, buttonH, {
+      Button(this, rowX + (buttonW + rowGap) * 2, rows.demoY, buttonW, buttonH, {
         ...this.#buttonProps(),
         label: "Link",
         children: "Link",
@@ -255,8 +270,123 @@ class ButtonComponentsScreen extends Element {
 
     const codeW = Math.min(520, w - pad * 2)
     const codeX = x + (w - codeW) / 2
-    const codeY = rowY + buttonH + verticalGap
-    codeBlock(this, codeX, codeY, codeW, codeLines)
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #sizesOverview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const sizes: readonly ButtonSize[] = ["small", "medium", "large"]
+    const codeLines = [
+      'Button(host, x, y, w, h, { children: "Small", size: "small" })',
+      'Button(host, x, y, w, h, { children: "Medium", size: "medium" })',
+      'Button(host, x, y, w, h, { children: "Large", size: "large" })',
+    ]
+
+    const contentW = w - pad * 2
+    const columnW = Math.min(150, Math.max(104, (contentW - 52 * 2) / 3))
+    const columnGap = Math.max(28, (contentW - columnW * 3) / 2)
+    const startX = x + pad
+    const controlRowGap = 18
+    const controlRowH = sizeButtonHeight("large")
+    const demoH = controlRowH * 3 + controlRowGap * 2
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, "Sizes", ["For larger or smaller buttons, use the size prop."])
+
+    const firstRowY = rows.demoY
+    const outlinedY = firstRowY + controlRowH + controlRowGap
+    const containedY = outlinedY + controlRowH + controlRowGap
+    for (const [i, size] of sizes.entries()) {
+      const label = sizeLabel(size)
+      const bx = startX + i * (columnW + columnGap)
+      const itemH = sizeButtonHeight(size)
+      const itemY = (rowY: number) => rowY + (controlRowH - itemH) / 2
+      Button(this, bx, itemY(firstRowY), columnW, itemH, {
+        children: label,
+        label,
+        variant: "text",
+        color: this.#color,
+        size,
+        radius: 18,
+        fontPx: sizeFont(size),
+        onClick: () => this.#goSize(size),
+      })
+      Button(this, bx, itemY(outlinedY), columnW, itemH, {
+        children: label,
+        variant: "outlined",
+        color: this.#color,
+        size,
+        radius: Math.min(this.#radius, 18),
+        onClick: () => this.#goSize(size),
+      })
+      Button(this, bx, itemY(containedY), columnW, itemH, {
+        children: label,
+        variant: "contained",
+        color: this.#color,
+        size,
+        radius: Math.min(this.#radius, 18),
+        onClick: () => this.#goSize(size),
+      })
+    }
+
+    const codeW = Math.min(520, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #sizeDetail(x: number, y: number, w: number, h: number, size: ButtonSize): void {
+    const pad = 42
+    const headerH = 108
+    const title = sizeTitle(size)
+    const codeLines = [
+      `Button(host, x, y, w, h, { children: "Text", variant: "text", size: "${size}" })`,
+      `Button(host, x, y, w, h, { children: "Outlined", variant: "outlined", size: "${size}" })`,
+      `Button(host, x, y, w, h, { children: "Contained", variant: "contained", size: "${size}" })`,
+    ]
+
+    const contentW = w - pad * 2
+    const buttonW = Math.min(this.#buttonWidth(Math.min(contentW, 520)), 168)
+    const buttonH = sizeButtonHeight(size)
+    const rows = contentRows(y, h, {
+      headerH,
+      demoH: buttonH,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, `${title} buttons`, sizeDescriptionLines(size))
+
+    const rowGap = Math.max(22, (contentW - buttonW * 3) / 2)
+    const rowX = x + pad
+    Button(this, rowX, rows.demoY, buttonW, buttonH, {
+      children: "Text",
+      variant: "text",
+      color: this.#color,
+      size,
+      radius: this.#radius,
+      onClick: () => this.#setSize(size),
+    })
+    Button(this, rowX + buttonW + rowGap, rows.demoY, buttonW, buttonH, {
+      children: "Outlined",
+      variant: "outlined",
+      color: this.#color,
+      size,
+      radius: this.#radius,
+      onClick: () => this.#setSize(size),
+    })
+    Button(this, rowX + (buttonW + rowGap) * 2, rows.demoY, buttonW, buttonH, {
+      children: "Contained",
+      variant: "contained",
+      color: this.#color,
+      size,
+      radius: this.#radius,
+      onClick: () => this.#setSize(size),
+    })
+
+    const codeW = Math.min(520, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
   }
 
   #textButtonExample(x: number, y: number, w: number, label: string, disabled: boolean): void {
@@ -277,6 +407,11 @@ class ButtonComponentsScreen extends Element {
       variant: "glass",
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34, zIndex: LAYOUT_Z},
     })
+    if (this.#routeSection() === "Sizes") {
+      this.#sizeDock(x, y, w, h)
+      return
+    }
+
     const itemGap = 12
     const itemW = Math.max(94, Math.min(148, (w - 64 - itemGap * (BASIC_BUTTON_TYPES.length - 1)) / BASIC_BUTTON_TYPES.length))
     const rowW = itemW * BASIC_BUTTON_TYPES.length + itemGap * (BASIC_BUTTON_TYPES.length - 1)
@@ -291,6 +426,25 @@ class ButtonComponentsScreen extends Element {
         ...activeNavStyle(active),
         radius: this.#radius,
         onClick: () => this.#go(variant),
+      })
+    }
+  }
+
+  #sizeDock(x: number, y: number, w: number, h: number): void {
+    const itemGap = 12
+    const itemW = Math.max(94, Math.min(148, (w - 64 - itemGap * (BUTTON_SIZES.length - 1)) / BUTTON_SIZES.length))
+    const rowW = itemW * BUTTON_SIZES.length + itemGap * (BUTTON_SIZES.length - 1)
+    const startX = x + (w - rowW) / 2
+    const routeSize = this.#routeSize()
+    for (const [i, size] of BUTTON_SIZES.entries()) {
+      const active = routeSize === size
+      Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
+        children: size,
+        variant: active ? "contained" : "glass",
+        color: active ? this.#color : "neutral",
+        ...activeNavStyle(active),
+        radius: this.#radius,
+        onClick: () => this.#goSize(size),
       })
     }
   }
@@ -493,6 +647,15 @@ class ButtonComponentsScreen extends Element {
     return routeVariantFromRoute(this.#route)
   }
 
+  #routeSize(): ButtonSize | null {
+    return routeSizeFromRoute(this.#route)
+  }
+
+  #routeSection(): ButtonSection {
+    if (this.#route.startsWith("button/sizes")) return "Sizes"
+    return "Basic"
+  }
+
   #currentButtonType(): BasicButtonType {
     return buttonTypeFromRouteVariant(this.#routeVariant() ?? "text")
   }
@@ -501,6 +664,30 @@ class ButtonComponentsScreen extends Element {
     const route: ButtonRoute = variant === null ? "button/basic" : `button/basic/${variant}`
     this.#router.go(route)
     this.#record(variant === null ? "route:basic" : `route:${variant}`)
+  }
+
+  #goSection(section: ButtonSection): void {
+    if (section === "Sizes") {
+      this.#router.go("button/sizes")
+      this.#record("route:sizes")
+      return
+    }
+    this.#go(null)
+  }
+
+  #goSize(size: ButtonSize): void {
+    this.#size = size
+    this.#router.go(`button/sizes/${size}`)
+    this.#record(`route:sizes:${size}`)
+  }
+
+  #setSize(size: ButtonSize): void {
+    if (this.#routeSection() === "Sizes") {
+      this.#goSize(size)
+      return
+    }
+    this.#size = size
+    this.#record(`size:${size}`)
   }
 
   #record(_status: string): void {
@@ -520,8 +707,13 @@ function activeNavStyle(active: boolean): Pick<ButtonProps, "fill" | "border"> {
 }
 
 function routeVariantFromRoute(route: ButtonRoute): ButtonRouteVariant | null {
-  if (route === "button/basic") return null
+  if (!route.startsWith("button/basic/")) return null
   return route.slice("button/basic/".length) as ButtonRouteVariant
+}
+
+function routeSizeFromRoute(route: ButtonRoute): ButtonSize | null {
+  if (!route.startsWith("button/sizes/")) return null
+  return route.slice("button/sizes/".length) as ButtonSize
 }
 
 function buttonTypeFromRouteVariant(variant: ButtonRouteVariant): BasicButtonType {
@@ -562,6 +754,77 @@ function detailDescriptionLines(variant: ButtonRouteVariant): readonly string[] 
     return ["Outlined buttons are medium-emphasis controls", "that keep the surface quiet."]
   }
   return ["Text buttons are typically used for less-pronounced actions,", "including actions in dialogs and cards."]
+}
+
+function sizeFont(size: ButtonSize): number {
+  if (size === "small") return 12
+  if (size === "large") return 16
+  return 14
+}
+
+function sizeLabel(size: ButtonSize): string {
+  if (size === "small") return "SMALL"
+  if (size === "large") return "LARGE"
+  return "MEDIUM"
+}
+
+function sizeTitle(size: ButtonSize): string {
+  if (size === "small") return "Small"
+  if (size === "large") return "Large"
+  return "Medium"
+}
+
+function sizeDescriptionLines(size: ButtonSize): readonly string[] {
+  if (size === "small") return ["Small buttons are compact controls", "for dense layouts and secondary actions."]
+  if (size === "large") return ["Large buttons give primary actions more weight", "and make touch targets easier to scan."]
+  return ["Medium buttons are the default control size", "for common actions across the interface."]
+}
+
+function sizeButtonHeight(size: ButtonSize): number {
+  if (size === "small") return 36
+  if (size === "large") return 52
+  return 44
+}
+
+function contentRows(
+  y: number,
+  h: number,
+  heights: {
+    headerH: number
+    demoH: number
+    codeH: number
+  },
+): {headerY: number; demoY: number; codeY: number} {
+  const rows = {
+    headerY: y + 34,
+    demoY: y + 34 + heights.headerH,
+    codeY: y + h - 42 - heights.codeH,
+  }
+  flexColumn({
+    x: 0,
+    y,
+    w: 1,
+    h,
+    paddingTop: 34,
+    paddingBottom: 42,
+    justifyContent: "space-between",
+    items: [
+      {height: heights.headerH, draw: (_x, rowY) => { rows.headerY = rowY }},
+      {height: heights.demoH, draw: (_x, rowY) => { rows.demoY = rowY }},
+      {height: heights.codeH, draw: (_x, rowY) => { rows.codeY = rowY }},
+    ],
+  })
+  return rows
+}
+
+function renderHeader(host: Element, x: number, w: number, pad: number, y: number, title: string, lines: readonly string[]): void {
+  h2(host, x + pad, y, w - pad * 2, 34, {children: title, style: {fontSize: 24}})
+  for (const [i, line] of lines.entries()) {
+    p(host, x + pad, y + 48 + i * 24, w - pad * 2, 22, {
+      children: line,
+      style: {fontSize: 13, color: "muted"},
+    })
+  }
 }
 
 function codeBlockHeight(lines: readonly string[]): number {
