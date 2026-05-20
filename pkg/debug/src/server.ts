@@ -18,6 +18,12 @@ import {dirname, join} from "node:path"
 import indexHtml from "../web/index.html"
 
 const WEB_DIR = join(import.meta.dir, "..", "web")
+const MANIFEST = {
+  name: "MetaFor Debug",
+  short_name: "debug",
+  start_url: "/",
+  display: "standalone",
+}
 const YOGA_WASM_REL = "node_modules/yoga-layout/dist/binaries/yoga-wasm-base64-esm.js"
 const YOGA_WASM_PATH = (() => {
   let dir = import.meta.dir
@@ -30,6 +36,7 @@ const YOGA_WASM_PATH = (() => {
   }
   return null
 })()
+
 import {executeCommand, type CommandContext} from "./commands.ts"
 import type {BreakpointStore} from "./breakpoints.ts"
 import type {ConsoleLogStore} from "./console.ts"
@@ -198,11 +205,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   const server = Bun.serve({
     hostname: options.host,
     port: options.port,
-    // development: true тянет за собой HMR-runtime, который падает на нашей
-    // странице ("Failed to construct 'URL': Invalid URL"). Object-форма
-    // {hmr: false} в Bun 1.3.13 ещё не поддерживается. Поэтому false +
-    // <meta http-equiv="cache-control"> в index.html.
-    development: false,
+    development: {hmr: true},
     routes: {
       "/": indexHtml,
     },
@@ -210,6 +213,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       const url = new URL(req.url)
       const path = url.pathname.replace(/\/+$/, "") || "/"
       const method = req.method.toUpperCase()
+      if (path === "/manifest.json") return Response.json(MANIFEST)
 
       if (path === "/ws") {
         const id = nextWsClientId++

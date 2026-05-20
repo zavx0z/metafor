@@ -1,12 +1,12 @@
 /**
- * ConsoleCard — append-only target log on the shared @metafor/elements Card system.
+ * ConsolePane — append-only target log on the shared @metafor/elements Pane system.
  *
- * It deliberately uses the same Card chrome, clipping, text measurement and
- * scrollbar component renderer as SourceCard so the source/console stack aligns as one
+ * It deliberately uses the same Pane chrome, clipping, text measurement and
+ * scrollbar component renderer as SourcePane so the source/console stack aligns as one
  * UI surface.
  */
 
-import {Card, Z, palette, radii} from "@metafor/elements"
+import {Pane, Z, palette, radii} from "@metafor/elements"
 import {edgeFade, Scrollbar as scrollbar} from "@metafor/components"
 import {t} from "./i18n.ts"
 
@@ -30,7 +30,7 @@ const WHEEL_SPEED = 1.6
 const WHEEL_START_BOOST_PX = 16
 let lastWheelAt = 0
 
-export class ConsoleCard extends Card {
+export class ConsolePane extends Pane {
   #scrollOffset = 0
   #entries: ConsoleEntry[] = []
 
@@ -39,9 +39,9 @@ export class ConsoleCard extends Card {
       bgColor: palette.bgCode,
       borderColor: palette.borderDim,
       borderWidthPx: 1,
-      borderRadiusPx: radii.card,
+      borderRadiusPx: radii.pane,
     })
-    this.node.name = "ConsoleCard"
+    this.node.name = "ConsolePane"
   }
 
   pushEntries(entries: ConsoleEntry[]): void {

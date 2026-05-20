@@ -1,6 +1,6 @@
 import {autoButtonWidth} from "./internal/renderers.ts"
 import {Z} from "@metafor/elements"
-import {button as elementButton, palette, toneBorder, toneFill, type Card, type HtmlElementProps, type StyleProps} from "@metafor/elements"
+import {button as elementButton, palette, toneBorder, toneFill, type Pane, type HtmlElementProps, type StyleProps} from "@metafor/elements"
 import type {Tone} from "@metafor/elements"
 import {Color, TextMaterial} from "@metafor/engine"
 
@@ -39,7 +39,7 @@ export type ButtonProps = {
   onRelease?: () => void
 }
 
-export function Button(host: Card, x: number, y: number, width: number, height: number, props: ButtonProps): void {
+export function Button(host: Pane, x: number, y: number, width: number, height: number, props: ButtonProps): void {
   const label = props.label ?? props.children ?? ""
   const tone = props.tone ?? toneFromColor(props.color ?? "primary")
   const fontPx = props.fontPx ?? (props.size === "small" ? 10 : props.size === "large" ? 14 : 12)
@@ -170,7 +170,7 @@ function buttonTextMaterial(color: `rgba(${string})`): TextMaterial {
 }
 
 function drawButtonContent(
-  host: Card,
+  host: Pane,
   x: number,
   y: number,
   width: number,

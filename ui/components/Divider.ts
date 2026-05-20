@@ -1,5 +1,5 @@
 import {divider as renderDivider} from "./internal/renderers.ts"
-import {palette, type Card} from "@metafor/elements"
+import {palette, type Pane} from "@metafor/elements"
 import type {Color} from "@metafor/engine"
 
 export type DividerColor = "primary" | "neutral" | "success" | "warning" | "error" | Color
@@ -11,7 +11,7 @@ export type DividerProps = {
   z?: number
 }
 
-export function Divider(host: Card, x: number, y: number, width: number, props: DividerProps = {}): void {
+export function Divider(host: Pane, x: number, y: number, width: number, props: DividerProps = {}): void {
   const opts: {color: Color; thickness?: number; z?: number} = {
     color: resolveColor(props.color ?? "neutral"),
   }

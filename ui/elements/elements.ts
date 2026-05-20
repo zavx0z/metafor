@@ -1,5 +1,5 @@
 import {Color, TextMaterial} from "@metafor/engine"
-import {type Card, type HitOptions, Z} from "./card.ts"
+import {type Pane, type HitOptions, Z} from "./pane.ts"
 import {palette} from "./theme.ts"
 
 export type CssLength = number | `${number}px` | `${number}%` | `${number}fr` | "auto" | "grow"
@@ -65,7 +65,7 @@ const textMaterialCache = new Map<string, TextMaterial>()
 
 export type SxProps = StyleProps
 
-export function div(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
+export function div(pane: Pane, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
   const style = mergeStyle(props)
   if (style.display === "none" || width <= 0 || height <= 0) return
   const fill = backgroundColor(style)
@@ -90,7 +90,7 @@ export function div(card: Card, x: number, y: number, width: number, height: num
       z,
     }
     if (style.opacity !== undefined) roundedOpts.opacity = style.opacity
-    card.drawRoundedRect(x, y, width, height, roundedOpts)
+    pane.drawRoundedRect(x, y, width, height, roundedOpts)
   }
 
   if (
@@ -111,8 +111,8 @@ export function div(card: Card, x: number, y: number, width: number, height: num
     if (props.onPointerLeave !== undefined) hit.onPointerLeave = props.onPointerLeave
     if (props.onPointerDown !== undefined) hit.onPointerDown = props.onPointerDown
     if (props.onPointerUp !== undefined) hit.onPointerUp = props.onPointerUp
-    card.hit(x, y, width, height, props.onClick ?? (() => {}), hit)
-    if (props.title !== undefined) card.drawTooltipForHit(x, y, width, height, props.title)
+    pane.hit(x, y, width, height, props.onClick ?? (() => {}), hit)
+    if (props.title !== undefined) pane.drawTooltipForHit(x, y, width, height, props.title)
   }
 
   if (typeof props.children === "function") props.children()
@@ -123,11 +123,11 @@ export function div(card: Card, x: number, y: number, width: number, height: num
       style,
     }
     if (props.disabled !== undefined) childProps.disabled = props.disabled
-    span(card, x + pad.left, y + pad.top, width - pad.left - pad.right, height - pad.top - pad.bottom, childProps)
+    span(pane, x + pad.left, y + pad.top, width - pad.left - pad.right, height - pad.top - pad.bottom, childProps)
   }
 }
 
-export function span(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
+export function span(pane: Pane, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
   if (props.children === false || props.children === null || props.children === undefined) return
   if (typeof props.children === "function") {
     props.children()
@@ -136,11 +136,11 @@ export function span(card: Card, x: number, y: number, width: number, height: nu
   const style = mergeStyle(props)
   const text = String(props.children)
   const fontSize = px(style.fontSize, 12)
-  const material = textMaterial(card, style.color, props.disabled === true)
+  const material = textMaterial(pane, style.color, props.disabled === true)
   const textY = y + Math.max(0, (height - fontSize) / 2)
   const maxWidthPx = width
   if (style.textAlign === "center") {
-    card.drawTextCentered(text, x + width / 2, y + height / 2, {
+    pane.drawTextCentered(text, x + width / 2, y + height / 2, {
       fontPx: fontSize,
       material,
       maxWidthPx,
@@ -148,62 +148,62 @@ export function span(card: Card, x: number, y: number, width: number, height: nu
     return
   }
   if (style.textAlign === "right") {
-    const textW = Math.min(card.measureText(text, fontSize), width)
-    card.drawText(text, x + width - textW, textY, {
+    const textW = Math.min(pane.measureText(text, fontSize), width)
+    pane.drawText(text, x + width - textW, textY, {
       fontPx: fontSize,
       material,
       maxWidthPx,
     })
     return
   }
-  card.drawText(text, x, textY, {
+  pane.drawText(text, x, textY, {
     fontPx: fontSize,
     material,
     maxWidthPx,
   })
 }
 
-export function p(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
+export function p(pane: Pane, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
   const style = mergeStyle(props)
-  span(card, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 12, color: style.color ?? "text"}})
+  span(pane, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 12, color: style.color ?? "text"}})
 }
 
-export function h1(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
+export function h1(pane: Pane, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
   const style = mergeStyle(props)
-  span(card, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 22, color: style.color ?? "cyan"}})
+  span(pane, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 22, color: style.color ?? "cyan"}})
 }
 
-export function h2(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
+export function h2(pane: Pane, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
   const style = mergeStyle(props)
-  span(card, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 16, color: style.color ?? "cyan"}})
+  span(pane, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 16, color: style.color ?? "cyan"}})
 }
 
-export function h3(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
+export function h3(pane: Pane, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
   const style = mergeStyle(props)
-  span(card, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 13, color: style.color ?? "cyan"}})
+  span(pane, x, y, width, height, {...props, style: {...style, fontSize: style.fontSize ?? 13, color: style.color ?? "cyan"}})
 }
 
-export function h4(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
-  h3(card, x, y, width, height, props)
+export function h4(pane: Pane, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
+  h3(pane, x, y, width, height, props)
 }
 
-export function h5(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
-  h3(card, x, y, width, height, props)
+export function h5(pane: Pane, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
+  h3(pane, x, y, width, height, props)
 }
 
-export function h6(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
-  h3(card, x, y, width, height, props)
+export function h6(pane: Pane, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
+  h3(pane, x, y, width, height, props)
 }
 
-export function hr(card: Card, x: number, y: number, width: number, props: HtmlElementProps = {}): void {
+export function hr(pane: Pane, x: number, y: number, width: number, props: HtmlElementProps = {}): void {
   const style = mergeStyle(props)
   const thickness = px(style.height ?? style.borderWidth, 1)
   const color = style.backgroundColor ?? style.background ?? style.color ?? "borderDim"
-  card.drawRect(x, Math.round(y - thickness / 2), width, thickness, color === "glass" ? visionBorder : cssColor(color), style.zIndex ?? Z.SEPARATOR)
+  pane.drawRect(x, Math.round(y - thickness / 2), width, thickness, color === "glass" ? visionBorder : cssColor(color), style.zIndex ?? Z.SEPARATOR)
 }
 
 export function img(
-  card: Card,
+  pane: Pane,
   x: number,
   y: number,
   width: number,
@@ -213,20 +213,20 @@ export function img(
   const imageOpts: {fit: "cover" | "contain"; opacity?: number} = {fit: props.fit ?? "contain"}
   const style = mergeStyle(props)
   if (style.opacity !== undefined) imageOpts.opacity = style.opacity
-  card.drawImage(props.src, x, y, width, height, imageOpts)
+  pane.drawImage(props.src, x, y, width, height, imageOpts)
 }
 
-export function button(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
+export function button(pane: Pane, x: number, y: number, width: number, height: number, props: HtmlElementProps = {}): void {
   const style = mergeStyle(props)
   const key = props.key ?? `button:${x}:${y}:${width}:${height}`
-  const hit = card.hitState(x, y, width, height, key)
+  const hit = pane.hitState(x, y, width, height, key)
   const state = props.disabled === true ? "disabled" : hit.pressed ? "active" : hit.hovered ? "hover" : "idle"
   const border = state === "disabled" ? "borderDim" : state === "idle" ? "border" : "cyan"
   const fill = state === "disabled" ? "bgPanelDim" : "glass"
   const pressOffsetY = state === "active" ? 1 : 0
   const pad = boxPadding(style)
 
-  div(card, x, y + (state === "active" ? 1 : 0), width, height - (state === "active" ? 1 : 0), {
+  div(pane, x, y + (state === "active" ? 1 : 0), width, height - (state === "active" ? 1 : 0), {
     ...props,
     children: typeof props.children === "function" ? props.children : undefined,
     key,
@@ -244,17 +244,17 @@ export function button(card: Card, x: number, y: number, width: number, height: 
   if (props.children !== false && props.children !== null && props.children !== undefined && typeof props.children !== "function") {
     const fontSize = px(style.fontSize, 12)
     const maxWidth = Math.max(1, width - pad.left - pad.right)
-    card.drawTextCentered(String(props.children), x + width / 2, y + pressOffsetY + height / 2, {
+    pane.drawTextCentered(String(props.children), x + width / 2, y + pressOffsetY + height / 2, {
       fontPx: fontSize,
-      material: textMaterial(card, style.color ?? (state === "disabled" ? "muted" : "text"), props.disabled === true),
+      material: textMaterial(pane, style.color ?? (state === "disabled" ? "muted" : "text"), props.disabled === true),
       maxWidthPx: maxWidth,
     })
   }
 }
 
-export function input(card: Card, x: number, y: number, width: number, height: number, props: HtmlElementProps & {value?: string; active?: boolean}): void {
+export function input(pane: Pane, x: number, y: number, width: number, height: number, props: HtmlElementProps & {value?: string; active?: boolean}): void {
   const style = mergeStyle(props)
-  div(card, x, y, width, height, {
+  div(pane, x, y, width, height, {
     ...props,
     children: props.value ?? "",
     style: {
@@ -310,12 +310,12 @@ function boxPadding(style: StyleProps): {top: number; right: number; bottom: num
   }
 }
 
-function textMaterial(card: Card, color: CssColor | undefined, disabled: boolean): TextMaterial {
-  if (disabled) return card.materials.muted
-  if (color === undefined) return card.materials.text
+function textMaterial(pane: Pane, color: CssColor | undefined, disabled: boolean): TextMaterial {
+  if (disabled) return pane.materials.muted
+  if (color === undefined) return pane.materials.text
   if (color === "text" || color === "muted" || color === "cyan" || color === "green" || color === "orange" || color === "red" || color === "blue" || color === "violet") {
     const key = color as "text" | "muted" | "cyan" | "green" | "orange" | "red" | "blue" | "violet"
-    return card.materials[key]
+    return pane.materials[key]
   }
   const parsed = cssColor(color)
   const key = `${parsed.r}:${parsed.g}:${parsed.b}:${parsed.a}`

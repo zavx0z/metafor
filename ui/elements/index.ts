@@ -3,8 +3,8 @@
  */
 
 export * from "./canvas.ts"
-export * from "./card.ts"
-export {Card as Element} from "./card.ts"
+export * from "./pane.ts"
+export {Pane as Element} from "./pane.ts"
 export * from "./elements.ts"
 export * from "./flex.ts"
 export * from "./flexCss.ts"

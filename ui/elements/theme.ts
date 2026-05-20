@@ -24,7 +24,7 @@ export const palette = {
   border: rgb(116, 130, 151, 1),
   borderDim: rgb(62, 74, 92, 1),
   borderRule: rgb(48, 54, 61, 1),     // Gutter / scrollbar-track / тонкие divider'ы.
-  borderBright: rgb(180, 195, 220, 1), // Outline для контрастных карточек (console).
+  borderBright: rgb(180, 195, 220, 1), // Outline для контрастных поверхностей (console).
 
   // Text.
   text: rgb(232, 238, 247, 1),
@@ -71,8 +71,8 @@ export type SyntaxCategory = keyof typeof syntaxTokens
 
 export const radii = {
   control: 6,
-  card: 14,
-  cardLarge: 18,
+  pane: 14,
+  paneLarge: 18,
 } as const
 
 export type Tone = "neutral" | "live" | "paused" | "warn"
@@ -93,7 +93,7 @@ export function toneBorder(kind: Tone): Color {
 
 /**
  * Кэш TextMaterial'ов по palette-цветам. Создавать TextMaterial каждый
- * render — мусор; этот объект инстанцируется один раз на Card.
+ * render — мусор; этот объект инстанцируется один раз на Pane.
  */
 export class MaterialPalette {
   readonly text = new TextMaterial({color: palette.text})

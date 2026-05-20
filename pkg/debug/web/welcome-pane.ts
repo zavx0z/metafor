@@ -1,12 +1,12 @@
 /**
- * Welcome card на Card-системе: layout из @metafor/elements, controls из
+ * Welcome pane на Pane-системе: layout из @metafor/elements, controls из
  * @metafor/components.
  *
  * Stack: title + status panel + target/inspector panels.
- * Все координаты — pixel от card-TL, никаких эстимейтов.
+ * Все координаты — pixel от pane-TL, никаких эстимейтов.
  */
 
-import {Card, Z, palette, radii, uiIcons} from "@metafor/elements"
+import {Pane, Z, palette, radii, uiIcons} from "@metafor/elements"
 import {Button as button, TextField as input} from "@metafor/components"
 import type {WelcomeActions, WelcomeState} from "./debug-ui.ts"
 import {localizeSystemText, t} from "./i18n.ts"
@@ -14,7 +14,7 @@ import {localizeSystemText, t} from "./i18n.ts"
 const PAD = 18
 const GAP = 16
 
-export class WelcomeCard extends Card {
+export class WelcomePane extends Pane {
   #state: WelcomeState = {
     connectionState: "connecting",
     connectionError: null,
@@ -29,7 +29,7 @@ export class WelcomeCard extends Card {
   readonly #actions: WelcomeActions
 
   constructor(actions: WelcomeActions) {
-    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.cardLarge})
+    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.paneLarge})
     this.#actions = actions
   }
 

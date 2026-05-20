@@ -1,9 +1,9 @@
 /**
- * debug-ui.ts — barrel-модуль с типами и re-export'ами карточек.
+ * debug-ui.ts — barrel-модуль с типами и re-export'ами pane.
  *
- * Все карточки теперь сидят на Card-системе из @metafor/elements:
- * фиксированный rect, bg/border managed by Card, текст обрезается через
- * измерение font-метрик. Ничего не вылазит за пределы карточки.
+ * Все pane теперь сидят на Pane-системе из @metafor/elements:
+ * фиксированный rect, bg/border managed by Pane, текст обрезается через
+ * измерение font-метрик. Ничего не вылазит за пределы pane.
  */
 
 export type BadgeKind = "neutral" | "live" | "paused" | "warn"
@@ -87,8 +87,8 @@ export type WelcomeActions = {
   onPauseOnStart(pause: boolean): void
 }
 
-export {FramesCard} from "./frames-card.ts"
-export {VerboseCard} from "./verbose-card.ts"
-export {ToolbarCard} from "./toolbar-card.ts"
-export {ScopesEvalCard} from "./scopes-eval-card.ts"
-export {WelcomeCard} from "./welcome-card.ts"
+export {FramesPane} from "./frames-pane.ts"
+export {VerbosePane} from "./verbose-pane.ts"
+export {ToolbarPane} from "./toolbar-pane.ts"
+export {ScopesEvalPane} from "./scopes-eval-pane.ts"
+export {WelcomePane} from "./welcome-pane.ts"

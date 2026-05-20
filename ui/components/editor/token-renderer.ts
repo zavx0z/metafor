@@ -1,5 +1,5 @@
 import {TextMaterial} from "@metafor/engine"
-import {syntaxTokens, type Card} from "@metafor/elements"
+import {syntaxTokens, type Pane} from "@metafor/elements"
 import type {EditorToken} from "./tokens.ts"
 
 export type EditorTokenMaterialMap = Map<string, TextMaterial>
@@ -13,7 +13,7 @@ export function createEditorTokenMaterials(): EditorTokenMaterialMap {
 }
 
 export type RenderEditorTokenLineOpts = {
-  card: Card
+  pane: Pane
   text: string
   tokens: readonly EditorToken[]
   startX: number
@@ -57,7 +57,7 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
 
   const placeChunk = (chunkText: string, category: string, bg: string | undefined, chunkColStart: number): void => {
     if (chunkText.length === 0) return
-    const w = opts.card.measureText(chunkText, opts.fontPx)
+    const w = opts.pane.measureText(chunkText, opts.fontPx)
     const offset = opts.animOffsetFor?.(sliceStart + chunkColStart) ?? 0
     if (!Number.isFinite(offset)) {
       cursorX += w
@@ -69,7 +69,7 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
     }
     if (chunkText.trim().length > 0) {
       const material = opts.materials.get(category) ?? opts.fallbackMaterial
-      opts.card.drawText(chunkText, drawX, opts.y, {
+      opts.pane.drawText(chunkText, drawX, opts.y, {
         fontPx: opts.fontPx,
         material,
         maxWidthPx: remaining(),

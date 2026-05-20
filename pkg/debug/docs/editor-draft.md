@@ -4,9 +4,9 @@ Debug UI now has a first safe draft-editing step on top of the shared editor lay
 
 ## Behavior
 
-- `SourceCard` remains the default paused-source viewer.
+- `SourcePane` remains the default paused-source viewer.
 - The toolbar can switch the central source area into `Edit Draft` mode.
-- `EditorCard` is imported from `@metafor/components`, receives the current `/source` text and resolves highlighting by source path.
+- `EditorPane` is imported from `@metafor/components`, receives the current `/source` text and resolves highlighting by source path.
 - Draft state is held only in the browser process memory.
 - `Cmd/Ctrl+S` or the toolbar save action marks the draft as saved in memory and writes nothing to disk.
 - The toolbar exposes draft state as `clean`, `dirty`, `saved in memory`, or `no source`.

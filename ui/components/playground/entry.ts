@@ -1,5 +1,5 @@
 import {Element, UiCanvas, flexColumn, flexRow, h2, h3, p, palette, span, uiIcons} from "@metafor/elements"
-import {autoButtonWidth, Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Card, Divider} from "@metafor/components"
+import {autoButtonWidth, Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Pane, Divider} from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
 type ButtonLabel = "Button" | "Apply" | "Run" | "Delete"
@@ -58,7 +58,7 @@ const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
 const BUTTON_STATES: readonly ButtonState[] = ["enabled", "disabled"]
 const BUTTON_WIDTHS: readonly ButtonWidth[] = ["compact", "regular", "wide"]
 const BUTTON_HEIGHTS: readonly ButtonHeight[] = ["compact", "regular", "large"]
-const COMPONENT_NAV = ["Button", "Card", "Badge", "TextField", "Divider", "Scrollbar", "Scroll List", "Noti Stack"] as const
+const COMPONENT_NAV = ["Button", "Pane", "Badge", "TextField", "Divider", "Scrollbar", "Scroll List", "Noti Stack"] as const
 const BUTTON_RADII = [14, 24, 34, 999] as const
 const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.00012
@@ -139,7 +139,7 @@ class ButtonComponentsScreen extends Element {
   }
 
   #catalog(x: number, y: number, w: number, h: number): void {
-    Card(this, x, y, w, h, {
+    Pane(this, x, y, w, h, {
       variant: "glass",
       sx: {
         background: "rgba(12, 18, 30, 0.78)",
@@ -170,7 +170,7 @@ class ButtonComponentsScreen extends Element {
   }
 
   #sectionPanel(x: number, y: number, w: number, h: number): void {
-    Card(this, x, y, w, h, {
+    Pane(this, x, y, w, h, {
       variant: "glass",
       sx: {
         background: "rgba(12, 18, 30, 0.78)",
@@ -198,7 +198,7 @@ class ButtonComponentsScreen extends Element {
   }
 
   #preview(x: number, y: number, w: number, h: number): void {
-    Card(this, x, y, w, h, {
+    Pane(this, x, y, w, h, {
       variant: "glass",
       sx: {
         background: "rgba(8, 13, 22, 0.72)",
@@ -768,7 +768,7 @@ class ButtonComponentsScreen extends Element {
   }
 
   #dock(x: number, y: number, w: number, h: number): void {
-    Card(this, x, y, w, h, {
+    Pane(this, x, y, w, h, {
       variant: "glass",
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34, zIndex: LAYOUT_Z},
     })
@@ -877,7 +877,7 @@ class ButtonComponentsScreen extends Element {
   }
 
   #parameters(x: number, y: number, w: number, h: number): void {
-    Card(this, x, y, w, h, {
+    Pane(this, x, y, w, h, {
       variant: "glass",
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
     })
@@ -1230,7 +1230,7 @@ function detailDescriptionLines(variant: ButtonRouteVariant): readonly string[] 
   if (variant === "outlined") {
     return ["Outlined buttons are medium-emphasis controls", "that keep the surface quiet."]
   }
-  return ["Text buttons are typically used for less-pronounced actions,", "including actions in dialogs and cards."]
+  return ["Text buttons are typically used for less-pronounced actions,", "including actions in dialogs and panes."]
 }
 
 function sizeFont(size: ButtonSize): number {
@@ -1874,7 +1874,7 @@ function codeBlockHeight(lines: readonly string[]): number {
 function codeBlock(host: Element, x: number, y: number, w: number, lines: readonly string[]): void {
   const lineH = 18
   const h = codeBlockHeight(lines)
-  Card(host, x, y, w, h, {
+  Pane(host, x, y, w, h, {
     variant: "glass",
     sx: {background: "rgba(4, 8, 14, 0.50)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 17},
   })
@@ -1886,7 +1886,7 @@ function codeBlock(host: Element, x: number, y: number, w: number, lines: readon
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
 const ui = await UiCanvas.create(canvas)
-ui.addCard(new ButtonComponentsScreen(), ({w, h}) => ({x: 0, y: 0, w, h}))
+ui.addPane(new ButtonComponentsScreen(), ({w, h}) => ({x: 0, y: 0, w, h}))
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)
 window.addEventListener("resize", () => ui.handleResize())

@@ -4,6 +4,12 @@ import index from "./index.html"
 
 const PORT = Number(process.env["ELEMENTS_PLAYGROUND_PORT"] ?? process.env["UI_PLAYGROUND_PORT"] ?? 7901)
 const FONT_PATH = join(import.meta.dir, "JetBrainsMono-Bold.ttf")
+const MANIFEST = {
+  name: "@metafor/elements playground",
+  short_name: "elements",
+  start_url: "/",
+  display: "standalone",
+}
 
 function findYogaWasm(): string | null {
   let dir = import.meta.dir
@@ -20,9 +26,10 @@ function findYogaWasm(): string | null {
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port: PORT,
-  development: true,
+  development: {hmr: true},
   routes: {
     "/": index,
+    "/manifest.json": () => Response.json(MANIFEST),
     "/JetBrainsMono-Bold.ttf": () => new Response(Bun.file(FONT_PATH), {headers: {"content-type": "font/ttf"}}),
   },
   fetch(req): Response {

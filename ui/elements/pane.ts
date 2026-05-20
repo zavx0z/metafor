@@ -1,15 +1,15 @@
 /**
- * Card — базовый class для UI-карточек поверх UiCanvas.
+ * Pane — базовый class для UI-поверхностей поверх UiCanvas.
  *
  * ГАРАНТИИ:
- *  • Background и border всегда внутри card-rect — не вылазят за границы.
- *  • Bg/border меши ВЛАДЕНЫ Card. Subclass их не трогает.
+ *  • Background и border всегда внутри pane-rect — не вылазят за границы.
+ *  • Bg/border меши ВЛАДЕНЫ Pane. Subclass их не трогает.
  *  • drawText обрезается через ИЗМЕРЕНИЕ font.getHMetric (font advance +
  *    letterSpacing 5%) — точное, не estimate. Бинарный поиск с "...".
  *  • drawTextCentered учитывает реальный bbox глифа (yMin/yMax из
  *    TrueTypeFont.getGlyphBounds), а не cap-box — корректно центрирует
  *    математические символы, guillemets и т.п.
- *  • drawRect клампится к card-bounds.
+ *  • drawRect клампится к pane-bounds.
  *  • Mesh.parent ВСЕГДА выставляется через Object3D.add() (не unshift).
  *  • Между renderами #layer пересобирается; геометрии возвращаются
  *    в renderer.invalidateGeometry().
@@ -24,17 +24,17 @@
  *   Z.TEXT         +0.00008
  *
  * При больших Δz parallax между bg и контентом виден на смещённых от
- * центра канваса карточках (1/(camDist - z) сильно меняется).
+ * центра канваса pane (1/(camDist - z) сильно меняется).
  *
  * PADDING:
- *   Опция CardOpts.padding (число px или {top,right,bottom,left}) даёт
+ *   Опция PaneOpts.padding (число px или {top,right,bottom,left}) даёт
  *   inner-rect отступ. drawText/drawRect/hit/clipStack работают в координатах
  *   inner-rect [0..innerW]×[0..innerH] (где innerW = rect.w − padLeft − padRight),
- *   а bg и border рисуются по полному card-rect.
+ *   а bg и border рисуются по полному pane-rect.
  *
  *   Пример (комбо с flexRow):
  *
- *     class Toolbar extends Card {
+ *     class Toolbar extends Pane {
  *       constructor() { super({ padding: 12 }) }
  *       protected render() {
  *         flexRow({
@@ -69,7 +69,7 @@ import {
   type ImageFit,
   type ImageViewBox as EngineImageViewBox,
 } from "@metafor/engine"
-import type {CardRect, UiCanvas, UiCard} from "./canvas.ts"
+import type {PaneRect, UiCanvas, UiPane} from "./canvas.ts"
 import {MaterialPalette, palette} from "./theme.ts"
 
 export type HitBox = {
@@ -109,9 +109,9 @@ export type HitState = {
   pressed: boolean
 }
 
-export type CardPadding = number | {top?: number; right?: number; bottom?: number; left?: number}
+export type PanePadding = number | {top?: number; right?: number; bottom?: number; left?: number}
 
-export type CardOpts = {
+export type PaneOpts = {
   bgColor?: Color | null
   /** null = без рамки. Default — серая 1px. */
   borderColor?: Color | null
@@ -122,12 +122,12 @@ export type CardOpts = {
    * Внутренние отступы в logical px. drawText/drawRect/hit/flex работают в
    * inner rect [0..innerW]×[0..innerH], где innerW = rect.w - padLeft - padRight,
    * innerH = rect.h - padTop - padBottom. bg и border рисуются по полному rect
-   * (snug к canvas slot), а контент Card сдвинут внутрь.
+   * (snug к canvas slot), а контент Pane сдвинут внутрь.
    *
    * Можно задать число (uniform) или per-side объект.
    * Default 0.
    */
-  padding?: CardPadding
+  padding?: PanePadding
 }
 
 export type ImageViewBox = EngineImageViewBox
@@ -144,7 +144,7 @@ export type BackgroundImageOpts = {
   fit?: ImageFit
   opacity?: number
   viewBox?: ImageViewBox
-  /** 0..1 — масштаб bg-image относительно Card-rect; центрируется.
+  /** 0..1 — масштаб bg-image относительно Pane-rect; центрируется.
    *  1 = заполнить, 0.8 = 80% размера с 10% полем по краям. Default 1. */
   scale?: number
 }
@@ -170,7 +170,7 @@ export type DrawTextOpts = {
   /** Гарантия: текст обрезается через измерение и "...". */
   maxWidthPx?: number
   z?: number
-  /** Default true. Tooltip/UI overlays can opt out to draw outside card rect. */
+  /** Default true. Tooltip/UI overlays can opt out to draw outside pane rect. */
   clip?: boolean
 }
 
@@ -178,7 +178,7 @@ export type TextBlockAlign = "left" | "center" | "right"
 export type TextBlockVAlign = "top" | "middle" | "bottom"
 
 export type DrawTextBlockOpts = {
-  /** Reference-px if Card.referenceHeight is set, otherwise canvas-px. */
+  /** Reference-px if Pane.referenceHeight is set, otherwise canvas-px. */
   fontPx?: number
   material: TextMaterial
   lineHeight?: number
@@ -206,9 +206,9 @@ export type TextBlockMetrics = {
   maxLineWidthPx: number
 }
 
-// Card по умолчанию ПРОЗРАЧНА: ни заливки, ни border'а. Чтобы вернуть
-// «классическую» тёмную карточку с обводкой — передайте bgColor/borderColor
-// явно в CardOpts (см. примеры в playground'е). null отключает явно.
+// Pane по умолчанию ПРОЗРАЧНА: ни заливки, ни border'а. Чтобы вернуть
+// «классическую» тёмную pane с обводкой — передайте bgColor/borderColor
+// явно в PaneOpts (см. примеры в playground'е). null отключает явно.
 const DEFAULT_BG: Color | null = null
 const DEFAULT_BORDER: Color | null = null
 
@@ -226,7 +226,7 @@ export const Z: {
   TEXT: 0.00008,
 }
 
-export abstract class Card implements UiCard {
+export abstract class Pane implements UiPane {
   readonly node = new Object3D()
   /** Готовый набор TextMaterial'ов с palette-цветами. Reuse, не GC-friendly create. */
   readonly materials = new MaterialPalette()
@@ -240,7 +240,7 @@ export abstract class Card implements UiCard {
    * `drawTextCentered` / `measureText` интерпретируется как пиксели
    * в reference-системе (например, журнальная страница 1055px), а не
    * как canvas-px. Внутри умножаем на `rectH / referenceHeight`,
-   * чтобы шрифт пропорционально масштабировался при ресайзе card.
+   * чтобы шрифт пропорционально масштабировался при ресайзе pane.
    * Default = null → fontPx считаем canvas-px (старое поведение).
    */
   protected referenceHeight: number | null = null
@@ -288,7 +288,7 @@ export abstract class Card implements UiCard {
   #backgroundImage: BackgroundImageOpts | null = null
   #rerenderRafId: number | null = null
 
-  /** Top-left corner of card on canvas в logical-px (для конверсии в screen-px). */
+  /** Top-left corner of pane on canvas в logical-px (для конверсии в screen-px). */
   #screenOriginX = 0
   #screenOriginY = 0
   #fullRectW = 1
@@ -296,10 +296,10 @@ export abstract class Card implements UiCard {
   readonly #requestRenderOnImageLoad = (): void => {
     this.requestRender()
   }
-  /** Стек clip-rect'ов в Card-local-px. Первый элемент = вся Card-rect. */
+  /** Стек clip-rect'ов в Pane-local-px. Первый элемент = вся Pane-rect. */
   #clipStack: Array<{xMin: number; yMin: number; xMax: number; yMax: number}> = []
 
-  constructor(opts: CardOpts = {}) {
+  constructor(opts: PaneOpts = {}) {
     const bgColor = opts.bgColor === null ? null : opts.bgColor ?? DEFAULT_BG
     const borderColor = opts.borderColor === null ? null : opts.borderColor ?? DEFAULT_BORDER
     this.#borderWidthPx = opts.borderWidthPx ?? 1
@@ -397,7 +397,7 @@ export abstract class Card implements UiCard {
     this.requestRender()
   }
 
-  setRect(rect: CardRect, pixelScale: number, font: TrueTypeFont): void {
+  setRect(rect: PaneRect, pixelScale: number, font: TrueTypeFont): void {
     this.font = font
     this.pixelScale = pixelScale
     // rectW/rectH — это INNER размер (минус padding со всех сторон).
@@ -408,7 +408,7 @@ export abstract class Card implements UiCard {
     const innerH = Math.max(1, rect.h - this.#padTop - this.#padBottom)
     this.rectW = innerW
     this.rectH = innerH
-    // screenOrigin — для hit-mapping. Pointermove приходит в card-rect-local
+    // screenOrigin — для hit-mapping. Pointermove приходит в pane-rect-local
     // (UiCanvas вычитает rect.x/y), и мы дополнительно вычитаем padding в
     // onPointerMove/Down/Up перед #hitAt.
     this.#screenOriginX = rect.x
@@ -724,7 +724,7 @@ export abstract class Card implements UiCard {
     }
   }
 
-  /** Регистрирует hit-rect в card-px coords. Поздние побеждают. */
+  /** Регистрирует hit-rect в pane-px coords. Поздние побеждают. */
   hit(
     x: number,
     y: number,
@@ -763,7 +763,7 @@ export abstract class Card implements UiCard {
 
   onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
     if (this.canvas === null) return
-    // Pointermove приходит в card-rect-local; #hits зарегистрированы в inner-coords
+    // Pointermove приходит в pane-rect-local; #hits зарегистрированы в inner-coords
     // (после сдвига на padding) — субтрагируем padLeft/padTop.
     const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     this.canvas.canvas.style.cursor = hit?.cursor ?? "default"
@@ -955,7 +955,7 @@ export abstract class Card implements UiCard {
   }
 
   /**
-   * Сужает текущий clip-rect на пересечение с (x, y, w, h) в Card-local-px.
+   * Сужает текущий clip-rect на пересечение с (x, y, w, h) в Pane-local-px.
    * Все последующие drawText будут клипаться по этому rect'у в шейдере.
    * Пара push/pop обязательна. drawRect клампится в JS, на него clip-stack
    * не влияет (см. drawRect).
@@ -977,7 +977,7 @@ export abstract class Card implements UiCard {
   #applyClipTo(text: Text): void {
     const clip = this.#clipStack[this.#clipStack.length - 1]!
     // Screen-pixel scissor (framebuffer-pixels). gl_FragCoord уже учитывает
-    // pixelRatio и projection — конвертируем card-local-logical-px в
+    // pixelRatio и projection — конвертируем pane-local-logical-px в
     // physical-px через pixelRatio renderer'а.
     const dpr = this.canvas?.renderer.pixelRatio ?? 1
     const ox = this.#screenOriginX
@@ -1008,7 +1008,7 @@ export abstract class Card implements UiCard {
     const dpr = this.canvas?.renderer.pixelRatio ?? 1
     const ox = this.#screenOriginX
     const oy = this.#screenOriginY
-    // Если clipStack — это вся Card-rect (без активного pushClip), оставляем
+    // Если clipStack — это вся Pane-rect (без активного pushClip), оставляем
     // zeros — шейдер их детектит и skip'ает scissor (быстрее).
     if (clip.xMin === 0 && clip.yMin === 0 && clip.xMax === this.rectW && clip.yMax === this.rectH) {
       return
@@ -1195,7 +1195,7 @@ function normaliseTextBlockLines(value: string | readonly string[], upper: boole
   return lines.map((line) => (upper ? line.toUpperCase() : line))
 }
 
-function layoutTextBlockLines(card: Card, rawLines: readonly string[], maxW: number, fontPx: number, wrap: boolean): string[] {
+function layoutTextBlockLines(pane: Pane, rawLines: readonly string[], maxW: number, fontPx: number, wrap: boolean): string[] {
   if (!wrap) return [...rawLines]
   const out: string[] = []
   for (const raw of rawLines) {
@@ -1206,7 +1206,7 @@ function layoutTextBlockLines(card: Card, rawLines: readonly string[], maxW: num
     let line = ""
     for (const word of raw.split(/\s+/).filter(Boolean)) {
       const candidate = line ? `${line} ${word}` : word
-      if (card.measureText(candidate, fontPx) <= maxW || line.length === 0) {
+      if (pane.measureText(candidate, fontPx) <= maxW || line.length === 0) {
         line = candidate
       } else {
         out.push(line)
@@ -1227,8 +1227,8 @@ function limitTextBlockLines(lines: readonly string[], maxLines: number | undefi
   return out
 }
 
-function maxTextBlockLineWidth(card: Card, lines: readonly string[], fontPx: number): number {
+function maxTextBlockLineWidth(pane: Pane, lines: readonly string[], fontPx: number): number {
   let max = 0
-  for (const line of lines) max = Math.max(max, card.measureText(line, fontPx))
+  for (const line of lines) max = Math.max(max, pane.measureText(line, fontPx))
   return max
 }

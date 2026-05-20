@@ -6,7 +6,7 @@ import { Material, type MaterialParameters } from "./Material"
  *
  * Все размеры — в WORLD-units (тех же что у PlaneGeometry, к которому
  * привязан меш). Caller сам пересчитывает logical-px → world через свой
- * pixelScale (например `cw * pixelScale` в Card.drawRect).
+ * pixelScale (например `cw * pixelScale` в Pane.drawRect).
  *
  * `radius` — единое значение либо per-corner кортеж {tl, tr, br, bl}.
  * `borderWidth` = 0 даёт чистую заливку без рамки.

@@ -1,10 +1,10 @@
 /**
- * Toolbar — верхняя полоса. Card-system.
+ * Toolbar — верхняя полоса. Pane-system.
  * Низкий слой берётся из @metafor/elements, MUI-like контролы — из
  * @metafor/components.
  */
 
-import {Card, palette, radii, uiIcons} from "@metafor/elements"
+import {Pane, palette, radii, uiIcons} from "@metafor/elements"
 import {Button as button, StatusChip as statusChip} from "@metafor/components"
 import type {BadgeKind, ToolbarActions, ToolbarState} from "./debug-ui.ts"
 import {getUiLocale, t} from "./i18n.ts"
@@ -21,7 +21,7 @@ const INSPECTOR_W = 132
 const RUN_W = 128
 const DRAFT_W = 118
 
-export class ToolbarCard extends Card {
+export class ToolbarPane extends Pane {
   #state: ToolbarState = {
     ws: "connecting",
     wsKind: "neutral",
@@ -44,7 +44,7 @@ export class ToolbarCard extends Card {
   readonly #actions: ToolbarActions
 
   constructor(actions: ToolbarActions) {
-    super({bgColor: palette.bgToolbar, borderColor: null, borderRadiusPx: radii.card})
+    super({bgColor: palette.bgToolbar, borderColor: null, borderRadiusPx: radii.pane})
     this.#actions = actions
   }
 

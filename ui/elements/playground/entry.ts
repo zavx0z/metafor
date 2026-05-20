@@ -20,7 +20,7 @@ import {VirtualRouter} from "../../playground/virtual-router.ts"
 
 type ElementRoute =
   | "overview"
-  | "card"
+  | "pane"
   | "padding"
   | "flex"
   | "flexCss"
@@ -39,10 +39,10 @@ type RouteMeta = {
   label: string
 }
 
-const ROUTE_IDS = ["overview", "card", "padding", "flex", "flexCss", "grid", "textBlock", "image", "css", "events", "theme"] as const
+const ROUTE_IDS = ["overview", "pane", "padding", "flex", "flexCss", "grid", "textBlock", "image", "css", "events", "theme"] as const
 const ROUTES: readonly RouteMeta[] = [
   {id: "overview", label: "Overview"},
-  {id: "card", label: "Card"},
+  {id: "pane", label: "Pane"},
   {id: "padding", label: "Padding"},
   {id: "flex", label: "Flex"},
   {id: "flexCss", label: "Flex CSS"},
@@ -152,7 +152,7 @@ class ElementsPlayground extends Element {
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
     if (this.#route === "overview") this.#overview(x + pad, y + pad, w - pad * 2, h - pad * 2)
-    else if (this.#route === "card") this.#cardRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "pane") this.#cardRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "padding") this.#paddingRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "flex") this.#flexRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "flexCss") this.#flexCssRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
@@ -314,10 +314,10 @@ class ElementsPlayground extends Element {
   #overview(x: number, y: number, w: number, _h: number): void {
     h2(this, x, y, w, 34, {children: "Elements", style: {fontSize: 22}})
 
-    const cardW = (w - 32) / 3
-    featureCard(this, x, y + 58, cardW, 118, "HTML names", "div / span / button / input / img")
-    featureCard(this, x + cardW + 16, y + 58, cardW, 118, "CSS props", "style.background / padding / flex")
-    featureCard(this, x + (cardW + 16) * 2, y + 58, cardW, 118, "Old coverage", "Card / Flex / Image / Theme")
+    const paneW = (w - 32) / 3
+    featurePane(this, x, y + 58, paneW, 118, "HTML names", "div / span / button / input / img")
+    featurePane(this, x + paneW + 16, y + 58, paneW, 118, "CSS props", "style.background / padding / flex")
+    featurePane(this, x + (paneW + 16) * 2, y + 58, paneW, 118, "Old coverage", "Pane / Flex / Image / Theme")
 
     div(this, x, y + 214, w, 168, {
       style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30},
@@ -328,14 +328,14 @@ class ElementsPlayground extends Element {
   }
 
   #cardRoute(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Card", style: {fontSize: 22}})
+    h2(this, x, y, w, 34, {children: "Pane", style: {fontSize: 22}})
 
     const leftW = Math.floor(w * 0.52)
     div(this, x, y + 58, leftW, 358, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-    h3(this, x + 28, y + 86, leftW - 56, 24, {children: "Card basics", style: {fontSize: 15}})
+    h3(this, x + 28, y + 86, leftW - 56, 24, {children: "Pane basics", style: {fontSize: 15}})
     div(this, x + 28, y + 130, leftW - 56, 82, {style: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.36)", borderRadius: 24}})
     h2(this, x + 52, y + 154, leftW - 104, 26, {children: "h2 inside div", style: {fontSize: 16}})
-    p(this, x + 52, y + 184, leftW - 104, 22, {children: "p text clipped inside the card", style: {fontSize: 11, color: "muted"}})
+    p(this, x + 52, y + 184, leftW - 104, 22, {children: "p text clipped inside the pane", style: {fontSize: 11, color: "muted"}})
     input(this, x + 28, y + 240, leftW - 56, 42, {value: "input value", active: true})
     button(this, x + 28, y + 304, 168, 44, {children: "button"})
     button(this, x + 212, y + 304, 168, 44, {children: "disabled", disabled: true})
@@ -435,23 +435,23 @@ class ElementsPlayground extends Element {
   }
 
   #gridRoute(x: number, y: number, w: number, _h: number): void {
-    h2(this, x, y, w, 34, {children: "Multi-Card Grid", style: {fontSize: 22}})
+    h2(this, x, y, w, 34, {children: "Multi-Pane Grid", style: {fontSize: 22}})
 
     const gap = 20
-    const cardW = (w - gap) / 2
-    const cardH = 166
-    const cards = [
-      ["Layout", "outer card + inner glass panes", "cyan"],
+    const paneW = (w - gap) / 2
+    const paneH = 166
+    const panes = [
+      ["Layout", "outer pane + inner glass panes", "cyan"],
       ["State", "one canvas tree, many hit regions", "green"],
       ["Text", "clipped and measured text", "orange"],
       ["Theme", "shared Vision tokens", "red"],
     ] as const
-    for (const [i, [title, body, color]] of cards.entries()) {
-      const cx = x + (i % 2) * (cardW + gap)
-      const cy = y + 58 + Math.floor(i / 2) * (cardH + gap)
+    for (const [i, [title, body, color]] of panes.entries()) {
+      const cx = x + (i % 2) * (paneW + gap)
+      const cy = y + 58 + Math.floor(i / 2) * (paneH + gap)
       div(this, cx + 22, cy + 26, 14, 52, {style: {background: color, borderColor: null, borderRadius: 999, opacity: 0.72, zIndex: 0.00002}})
-      h3(this, cx + 58, cy + 26, cardW - 84, 24, {children: title, style: {fontSize: 15}})
-      p(this, cx + 58, cy + 62, cardW - 84, 26, {children: body, style: {fontSize: 12, color: "muted"}})
+      h3(this, cx + 58, cy + 26, paneW - 84, 24, {children: title, style: {fontSize: 15}})
+      p(this, cx + 58, cy + 62, paneW - 84, 26, {children: body, style: {fontSize: 12, color: "muted"}})
       button(this, cx + 22, cy + 104, 148, 40, {children: "Select", style: {fontSize: 11}})
     }
   }
@@ -461,7 +461,7 @@ class ElementsPlayground extends Element {
 
     h3(this, x + 28, y + 86, 280, 24, {children: "Measured multiline text", style: {fontSize: 15}})
     const copy =
-      "Card.drawTextBlock keeps long content inside a fixed visual box. It wraps, shrinks when needed and clips with predictable canvas metrics."
+      "Pane.drawTextBlock keeps long content inside a fixed visual box. It wraps, shrinks when needed and clips with predictable canvas metrics."
     this.drawTextBlock(copy, x + 28, y + 134, Math.min(520, w - 56), 156, {
       fontPx: 14,
       lineHeight: 21,
@@ -658,7 +658,7 @@ function pill(host: Element, x: number, y: number, w: number, h: number, label: 
   span(host, x + 12, y, w - 24, h, {children: label, style: {fontSize: 11, color}})
 }
 
-function featureCard(host: Element, x: number, y: number, w: number, h: number, title: string, value: string): void {
+function featurePane(host: Element, x: number, y: number, w: number, h: number, title: string, value: string): void {
   div(host, x, y, w, h, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 30}})
   h3(host, x + 24, y + 24, w - 48, 24, {children: title, style: {fontSize: 15}})
   span(host, x + 24, y + 68, w - 48, 24, {children: value, style: {fontSize: 12, color: "text"}})
@@ -682,7 +682,7 @@ function demoCell(host: Element, x: number, y: number, w: number, h: number, lab
 
 function labelsForRoute(route: ElementRoute): readonly string[] {
   if (route === "overview") return ["div", "span", "button", "input", "img"]
-  if (route === "card") return ["container", "nested", "input", "button"]
+  if (route === "pane") return ["container", "nested", "input", "button"]
   if (route === "padding") return ["padding", "paddingX", "paddingTop", "content"]
   if (route === "flex") return ["flexRow", "flexColumn", "grow", "stretch"]
   if (route === "flexCss") return ["px", "percent", "fr", "grow"]
@@ -699,7 +699,7 @@ function svgDataUrl(svg: string): string {
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
 const ui = await UiCanvas.create(canvas)
-ui.addCard(new ElementsPlayground(), ({w, h}) => ({x: 0, y: 0, w, h}))
+ui.addPane(new ElementsPlayground(), ({w, h}) => ({x: 0, y: 0, w, h}))
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)
 window.addEventListener("resize", () => ui.handleResize())

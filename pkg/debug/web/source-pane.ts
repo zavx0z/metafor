@@ -1,18 +1,18 @@
 /**
- * SourceCard — source-editor на Card@ui.
+ * SourcePane — source-editor на Pane@ui.
  *
  * Главные принципы:
- *  • extends Card → bg/border гарантированно clamp'нуты в card-rect.
+ *  • extends Pane → bg/border гарантированно clamp'нуты в pane-rect.
  *  • Immediate-mode rendering: каждый requestRender пересчитывает
  *    видимые строки от #scrollOffset до #scrollOffset+visible и рисует
  *    их через drawText. Никакого translate'а — строки физически не
- *    существуют вне card-rect.
+ *    существуют вне pane-rect.
  *  • highlight/exec-arrow рисуются drawRect/drawText — clamp protect.
  */
 
 import {TextMaterial} from "@metafor/engine"
 import {
-  Card,
+  Pane,
   Z,
   palette,
   radii,
@@ -58,7 +58,7 @@ const WHEEL_SPEED = 1.55
 const WHEEL_START_BOOST_PX = 18
 
 
-export class SourceCard extends Card {
+export class SourcePane extends Pane {
   #current: Source | null = null
   readonly #list: ScrollListState
   #runtimeState: SourceRuntimeState = "idle"
@@ -71,8 +71,8 @@ export class SourceCard extends Card {
   readonly #tokenMaterials: EditorTokenMaterialMap
 
   constructor() {
-    super({bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.card})
-    this.node.name = "SourceCard"
+    super({bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    this.node.name = "SourcePane"
     this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#tokenMaterials = createEditorTokenMaterials()
   }
@@ -176,7 +176,7 @@ export class SourceCard extends Card {
     )
 
     // Clip всю code-area (highlight + строки): text-clip → шейдер,
-    // rect-clip → JS в Card.drawRect.
+    // rect-clip → JS в Pane.drawRect.
     this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, contentW, contentH)
 
     // Highlight под текущей строкой (если она в visible-окне).
@@ -258,7 +258,7 @@ export class SourceCard extends Card {
 
   #renderTokenizedLine(text: string, tokens: SyntaxToken[], startX: number, y: number, maxPx: number): void {
     renderEditorTokenizedLine({
-      card: this,
+      pane: this,
       text,
       tokens,
       startX,

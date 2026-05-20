@@ -11,11 +11,11 @@
  * "grow" = 1fr. Несколько fr-элементов делят остаток пропорционально весу.
  * cross-axis выравнивается через alignItems / item.alignSelf.
  *
- * Удобный паттерн с Card: используйте `Card.padding` как outer-отступ от
- * canvas-краёв, а flex как inner-распределение items. Внутри Card.render():
+ * Удобный паттерн с Pane: используйте `Pane.padding` как outer-отступ от
+ * canvas-краёв, а flex как inner-распределение items. Внутри Pane.render():
  *
  *   flexRow({
- *     x: 0, y: 0, w: this.rectW, h: this.rectH,         // rectW/rectH уже без Card.padding
+ *     x: 0, y: 0, w: this.rectW, h: this.rectH,         // rectW/rectH уже без Pane.padding
  *     justifyContent: "space-between",
  *     alignItems: "center",
  *     gap: 12,

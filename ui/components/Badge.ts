@@ -4,7 +4,7 @@ import {
   type BadgeOpts as RenderBadgeOpts,
   type StatusChipOpts,
 } from "./internal/renderers.ts"
-import type {Card, StyleProps, Tone} from "@metafor/elements"
+import type {Pane, StyleProps, Tone} from "@metafor/elements"
 
 export type BadgeColor = "primary" | "neutral" | "success" | "warning" | "error"
 export type BadgeProps = {
@@ -16,7 +16,7 @@ export type BadgeProps = {
   sx?: StyleProps
 }
 
-export function Badge(host: Card, x: number, y: number, width: number, height: number, props: BadgeProps): void {
+export function Badge(host: Pane, x: number, y: number, width: number, height: number, props: BadgeProps): void {
   const opts: RenderBadgeOpts = {
     label: props.label ?? props.children ?? "",
     tone: props.tone ?? toneFromColor(props.color ?? "neutral"),
@@ -26,7 +26,7 @@ export function Badge(host: Card, x: number, y: number, width: number, height: n
   renderBadge(host, x, y, width, height, opts)
 }
 
-export function StatusChip(host: Card, x: number, y: number, width: number, height: number, props: StatusChipOpts): void {
+export function StatusChip(host: Pane, x: number, y: number, width: number, height: number, props: StatusChipOpts): void {
   renderStatusChip(host, x, y, width, height, props)
 }
 

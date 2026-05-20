@@ -11,21 +11,37 @@ import {Matrix4, Vector3, Frustum} from "../math"
 import {LineSegments} from "../objects/LineSegments"
 import {Text} from "../objects/Text"
 import {Object3D} from "../core/Object3D"
-import meshBasicWGSL from "./shaders/mesh_basic.wgsl" with {type: "text"}
-import meshStaticWGSL from "./shaders/mesh_static.wgsl" with {type: "text"}
-import meshSkinnedWGSL from "./shaders/mesh_skinned.wgsl" with {type: "text"}
-import meshInstancedWGSL from "./shaders/mesh_instanced.wgsl" with {type: "text"}
-import blurWGSL from "./shaders/blur.wgsl" with {type: "text"}
+import meshBasicWGSL from "./shaders/mesh_basic.wgsl"
+import meshStaticWGSL from "./shaders/mesh_static.wgsl"
+import meshSkinnedWGSL from "./shaders/mesh_skinned.wgsl"
+import meshInstancedWGSL from "./shaders/mesh_instanced.wgsl"
+import blurWGSL from "./shaders/blur.wgsl"
 
-import lineShaderCode from "./shaders/line.wgsl" with {type: "text"}
-import textShaderCode from "./shaders/text.wgsl" with {type: "text"}
-import imageShaderCode from "./shaders/image.wgsl" with {type: "text"}
-import roundedShaderCode from "./shaders/rounded.wgsl" with {type: "text"}
+import lineShaderCode from "./shaders/line.wgsl"
+import textShaderCode from "./shaders/text.wgsl"
+import imageShaderCode from "./shaders/image.wgsl"
+import roundedShaderCode from "./shaders/rounded.wgsl"
 import radialBackdropShaderCode from "./shaders/radial_backdrop.ts"
 import {TEXT_COVER_FACE_STATE, TEXT_STENCIL_BACK_FACE_STATE, TEXT_STENCIL_FACE_STATE} from "./text-stencil"
 import {collectSpaceObjects, type LightItem, type RenderItem} from "./utils/RenderList"
 import {GlassMaterial} from "../materials/GlassMaterial"
 import {TextureLoader} from "../loaders/TextureLoader"
+
+if (import.meta.hot) {
+  import.meta.hot.accept([
+    "./shaders/mesh_basic.wgsl",
+    "./shaders/mesh_static.wgsl",
+    "./shaders/mesh_skinned.wgsl",
+    "./shaders/mesh_instanced.wgsl",
+    "./shaders/blur.wgsl",
+    "./shaders/line.wgsl",
+    "./shaders/text.wgsl",
+    "./shaders/image.wgsl",
+    "./shaders/rounded.wgsl",
+  ], () => {
+    if (typeof location !== "undefined") location.reload()
+  })
+}
 
 // --- Константы для uniform-буферов ---
 const UNIFORM_ALIGNMENT = 256

@@ -2,12 +2,12 @@
 
 ## Current Placement
 
-1. Source display is currently owned by `pkg/debug/web/source-card.ts`. It is a debug-specific viewer: it renders the paused source, current execution line, runtime state (`paused`, `running`, `loading`, `disconnected`) and scroll/keyboard navigation.
-2. Editable editor UI is currently `ui/components/editor-card.ts`. It is exported by `@metafor/components` as `EditorCard` and owns text mutation, cursor movement, clipboard, undo/redo, horizontal scroll, optional tokenization and save/change callbacks.
-3. `SourceCard` and `EditorCard` share the same visual model: `Card` base, `ScrollListState`, gutter line numbers, token-colored text chunks, code background, header, line clipping and `syntaxTokens` categories (`k/s/n/c/t/f/p/d`).
-4. The main duplication is token typing and tokenized-line rendering. `SourceCard` had a local `SyntaxToken`/`SourceTokens` type and its own token rendering loop; `EditorCard` had `EditorToken`/`EditorTokens` plus a similar rendering loop. Both also compute gutter width, visible rows and code clipping independently.
+1. Source display is currently owned by `pkg/debug/web/source-pane.ts`. It is a debug-specific viewer: it renders the paused source, current execution line, runtime state (`paused`, `running`, `loading`, `disconnected`) and scroll/keyboard navigation.
+2. Editable editor UI is currently `ui/components/editor-pane.ts`. It is exported by `@metafor/components` as `EditorPane` and owns text mutation, cursor movement, clipboard, undo/redo, horizontal scroll, optional tokenization and save/change callbacks.
+3. `SourcePane` and `EditorPane` share the same visual model: `Pane` base, `ScrollListState`, gutter line numbers, token-colored text chunks, code background, header, line clipping and `syntaxTokens` categories (`k/s/n/c/t/f/p/d`).
+4. The main duplication is token typing and tokenized-line rendering. `SourcePane` had a local `SyntaxToken`/`SourceTokens` type and its own token rendering loop; `EditorPane` had `EditorToken`/`EditorTokens` plus a similar rendering loop. Both also compute gutter width, visible rows and code clipping independently.
 5. The safe common layer is token contracts, language highlighter resolution, shared token material creation and shared tokenized-line rendering. A future step can extract a full source/view base, but doing that now would touch more debug layout and runtime state than necessary.
-6. To keep debug stable, do not change `pkg/debug/src/*`, the `/source` REST shape, `/ws` commands/results, inspector attach flow, `SourceCard` runtime states, current-line highlighting, frames/scopes/console command behavior or `bun run dark/debug/agent-attach.ts` startup.
+6. To keep debug stable, do not change `pkg/debug/src/*`, the `/source` REST shape, `/ws` commands/results, inspector attach flow, `SourcePane` runtime states, current-line highlighting, frames/scopes/console command behavior or `bun run dark/debug/agent-attach.ts` startup.
 
 ## First Extraction
 
@@ -18,17 +18,17 @@ The editor layer now starts under `ui/components/editor/`:
 - `languages/plaintext.ts` is the no-op fallback.
 - `languages/typescript.ts` is a lightweight TypeScript/JavaScript tokenizer with the same compact token categories used by the debug source viewer.
 - `token-renderer.ts` contains shared token material creation and tokenized-line rendering.
-- `source-card-base.ts` contains source-view helper types and filename-to-highlighter fallback for viewers.
-- `editor-card.ts` contains `EditorCard`; the old `ui/components/editor-card.ts` remains a compatibility re-export.
+- `source-pane-base.ts` contains source-view helper types and filename-to-highlighter fallback for viewers.
+- `editor-pane.ts` contains `EditorPane`; the old `ui/components/editor-pane.ts` remains a compatibility re-export.
 
-`SourceCard` remains in `pkg/debug/web` because its paused/running/disconnected behavior is debug-specific. It can now consume the shared `EditorTokens` format and shared token renderer without changing the server protocol.
+`SourcePane` remains in `pkg/debug/web` because its paused/running/disconnected behavior is debug-specific. It can now consume the shared `EditorTokens` format and shared token renderer without changing the server protocol.
 
 ## UI Pass
 
-- Shared widget primitives in `ui/components/internal/renderers.ts` now use rounded control chrome through the existing `Card.drawRoundedRect` primitive.
-- `ui/elements/theme.ts` exposes shared `radii` tokens for controls and cards.
-- `Card` accepts `borderRadiusPx`, so debug cards and `EditorCard` can use the same rounded card chrome without custom per-card background meshes.
-- `ConsoleCard` now extends `@metafor/elements` `Card` instead of owning manual background/border meshes. It uses the shared palette, scrollbar, clipping and rounded card chrome, with content aligned to the source code column and no bottom padding.
+- Shared widget primitives in `ui/components/internal/renderers.ts` now use rounded control chrome through the existing `Pane.drawRoundedRect` primitive.
+- `ui/elements/theme.ts` exposes shared `radii` tokens for controls and panes.
+- `Pane` accepts `borderRadiusPx`, so debug panes and `EditorPane` can use the same rounded pane chrome without custom per-pane background meshes.
+- `ConsolePane` now extends `@metafor/elements` `Pane` instead of owning manual background/border meshes. It uses the shared palette, scrollbar, clipping and rounded pane chrome, with content aligned to the source code column and no bottom padding.
 - `VirtualInput` no longer marks the focused hidden textarea with `aria-hidden`, avoiding Chrome's focused-descendant accessibility warning.
 
 ## Verification

@@ -1,7 +1,7 @@
 /**
- * EditorCard — редактируемая текстовая карточка с подсветкой синтаксиса.
+ * EditorPane — редактируемая текстовая pane с подсветкой синтаксиса.
  *
- * По мотивам SourceCard из @metafor/bun-debug, но c input handling:
+ * По мотивам SourcePane из @metafor/bun-debug, но c input handling:
  *  • cursor (line, col) с отрисовкой
  *  • Backspace/Delete/Enter/Arrow-keys/Home/End/PageUp-Down
  *  • Printable chars вставка
@@ -12,11 +12,11 @@
  *  • Подсветка через pluggable tokenize: (lines) => tokens
  *  • onChange колбэк
  *
- * Anim/glow эффекты — отдельно, в future EditorAnimatedCard.
+ * Anim/glow эффекты — отдельно, в future EditorAnimatedPane.
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Card, Z, palette, radii, syntaxTokens} from "@metafor/elements"
+import {Pane, Z, palette, radii, syntaxTokens} from "@metafor/elements"
 import {ScrollListState} from "../scroll-list.ts"
 import {Scrollbar as scrollbar} from "../Scrollbar.ts"
 import {resolveLanguageHighlighter} from "./highlighter.ts"
@@ -78,7 +78,7 @@ type Particle = {
   size: number
 }
 
-export class EditorCard extends Card {
+export class EditorPane extends Pane {
   #lines: string[] = [""]
   #tokens: EditorTokens | null = null
   #cline = 0
@@ -113,7 +113,7 @@ export class EditorCard extends Card {
 
   /**
    * Частицы-точки, разлетающиеся при удалении символа («взрыв сверхновой»).
-   * Каждая хранит позицию/скорость в card-локальных px и время жизни.
+   * Каждая хранит позицию/скорость в pane-локальных px и время жизни.
    * Поле демонстрирует управление трансформацией ниже уровня символа —
    * вплоть до отдельных точек.
    */
@@ -128,8 +128,8 @@ export class EditorCard extends Card {
   readonly #tokenMaterials: EditorTokenMaterialMap
 
   constructor(opts: EditorOpts = {}) {
-    super({bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.card})
-    this.node.name = "EditorCard"
+    super({bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    this.node.name = "EditorPane"
     this.#title = opts.title ?? "Editor"
     this.#fontPx = opts.fontPx ?? 13
     this.#linePx = opts.linePx ?? 18
@@ -180,7 +180,7 @@ export class EditorCard extends Card {
     }
     this.#enterAnimStart = performance.now()
     const maxLineLen = this.#lines.reduce((m, l) => Math.max(m, l.length), 0)
-    const total = maxLineLen * EditorCard.#ENTER_CHAR_DELAY_MS + EditorCard.#ENTER_DUR_MS + 50
+    const total = maxLineLen * EditorPane.#ENTER_CHAR_DELAY_MS + EditorPane.#ENTER_DUR_MS + 50
     const tick = (): void => {
       if (this.#enterAnimStart === null) return
       const elapsed = performance.now() - this.#enterAnimStart
@@ -198,7 +198,7 @@ export class EditorCard extends Card {
   // ────────── particle burst (удаление символа) ──────────
 
   /**
-   * Распыляет ~22 частицы в card-локальной точке (x, y). Цвет в RGB-компонентах
+   * Распыляет ~22 частицы в pane-локальной точке (x, y). Цвет в RGB-компонентах
    * 0..1. Точки разлетаются радиально + лёгкий upward bias, затухают
    * экспоненциально и падают под мягкой гравитацией.
    */
@@ -262,7 +262,7 @@ export class EditorCard extends Card {
   }
 
   /**
-   * Координаты центра символа на (line, col) в card-локальных px. Возвращает
+   * Координаты центра символа на (line, col) в pane-локальных px. Возвращает
    * null, если строка вне visible-окна. Используется для spawnBurst при
    * удалении: точки появляются ровно там, где была буква.
    */
@@ -302,12 +302,12 @@ export class EditorCard extends Card {
   #animOffsetFor(absCol: number): number {
     if (this.#enterAnimStart === null) return 0
     const elapsed = performance.now() - this.#enterAnimStart
-    const local = elapsed - absCol * EditorCard.#ENTER_CHAR_DELAY_MS
+    const local = elapsed - absCol * EditorPane.#ENTER_CHAR_DELAY_MS
     if (local <= 0) return Number.POSITIVE_INFINITY
-    if (local >= EditorCard.#ENTER_DUR_MS) return 0
-    const t = local / EditorCard.#ENTER_DUR_MS
+    if (local >= EditorPane.#ENTER_DUR_MS) return 0
+    const t = local / EditorPane.#ENTER_DUR_MS
     const e = 1 - (1 - t) ** 3 // easeOutCubic — буквы разгоняются и плавно тормозят
-    return EditorCard.#ENTER_START_OFFSET_PX * (1 - e)
+    return EditorPane.#ENTER_START_OFFSET_PX * (1 - e)
   }
 
   /** Принудительный сейв (Cmd+S или внешняя кнопка). */
@@ -387,7 +387,7 @@ export class EditorCard extends Card {
   #colToPx(line: string, col: number): number {
     if (col <= 0) return 0
     const c = Math.min(col, line.length)
-    if (line.length >= EditorCard.#LONG_LINE_THRESHOLD) {
+    if (line.length >= EditorPane.#LONG_LINE_THRESHOLD) {
       return c * this.#getCharWidth()
     }
     return this.measureText(line.slice(0, c), this.#fontPx)
@@ -760,7 +760,7 @@ export class EditorCard extends Card {
     const padCols = 10
     const start = Math.max(0, Math.floor(this.#hScroll / cw) - padCols)
     const end = Math.min(line.length, Math.ceil((this.#hScroll + codeMaxPx) / cw) + padCols)
-    const startPx = line.length >= EditorCard.#LONG_LINE_THRESHOLD
+    const startPx = line.length >= EditorPane.#LONG_LINE_THRESHOLD
       ? start * cw
       : this.measureText(line.slice(0, start), this.#fontPx)
     return {start, end, startPx}
@@ -768,7 +768,7 @@ export class EditorCard extends Card {
 
   #colAtX(line: string, x: number): number {
     if (x <= 0) return 0
-    if (line.length >= EditorCard.#LONG_LINE_THRESHOLD) {
+    if (line.length >= EditorPane.#LONG_LINE_THRESHOLD) {
       const cw = this.#getCharWidth()
       if (cw <= 0) return 0
       return Math.max(0, Math.min(line.length, Math.round(x / cw)))
@@ -933,14 +933,14 @@ export class EditorCard extends Card {
       })
     }
 
-    // Частицы — поверх всего, в card-локальных px. Без clip — пусть точки
+    // Частицы — поверх всего, в pane-локальных px. Без clip — пусть точки
     // могут улететь за пределы кода, эффект тогда выглядит щедрее.
     this.#renderParticles()
   }
 
   #renderTokenized(text: string, tokens: EditorToken[], startX: number, y: number, maxPx: number, sliceStart: number): void {
     renderEditorTokenizedLine({
-      card: this,
+      pane: this,
       text,
       tokens,
       startX,

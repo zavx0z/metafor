@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {sourcePathFromLocation} from "./source-card-base.ts"
+import {sourcePathFromLocation} from "./source-pane-base.ts"
 
 describe("sourcePathFromLocation", () => {
   test("strips a trailing line number from absolute paths", () => {

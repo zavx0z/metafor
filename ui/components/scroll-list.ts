@@ -3,7 +3,7 @@
  *
  * Использование:
  *
- *   class FramesCard extends Card {
+ *   class FramesPane extends Pane {
  *     #list = new ScrollListState({onChange: () => this.requestRender()})
  *     onWheel(e) { this.#list.applyWheel(e, ROW_H, total, visible) }
  *     render() {
@@ -24,11 +24,11 @@
  */
 
 import type {Color} from "@metafor/engine"
-import {Z, type Card, div} from "@metafor/elements"
+import {Z, type Pane, div} from "@metafor/elements"
 import {Scrollbar as scrollbar, type ScrollbarOpts} from "./Scrollbar.ts"
 
 export type ScrollListStateOpts = {
-  /** Вызывается когда scroll реально изменился — Card должна позвать requestRender. */
+  /** Вызывается когда scroll реально изменился — Pane должна позвать requestRender. */
   onChange?: () => void
   /** Test hook: inject a monotonic clock without changing runtime behavior. */
   now?: () => number
@@ -169,7 +169,7 @@ export type ScrollListOpts<T> = {
   rowH: number
   /** Gap между rows. Default 0. */
   rowGap?: number
-  /** Bounds списка в card-px. */
+  /** Bounds списка в pane-px. */
   x: number
   y: number
   w: number
@@ -184,7 +184,7 @@ export type ScrollListOpts<T> = {
   scrollbarOpts?: Pick<ScrollbarOpts, "minThumbHeight">
   /** Мягко растворяет частично видимые строки сверху/снизу. */
   edgeFade?: EdgeFadeOpts
-  /** Draw-callback для одной row. Координаты — card-px. */
+  /** Draw-callback для одной row. Координаты — pane-px. */
   drawRow(item: T, idx: number, x: number, y: number, w: number, h: number): void
 }
 
@@ -199,7 +199,7 @@ export type ScrollListMetrics = {
  * Рисует видимые rows + scrollbar. state.scroll — float, sub-row offset
  * рисуется для плавности при дробных значениях.
  */
-export function scrollList<T>(card: Card, opts: ScrollListOpts<T>): ScrollListMetrics {
+export function scrollList<T>(pane: Pane, opts: ScrollListOpts<T>): ScrollListMetrics {
   const rowGap = opts.rowGap ?? 0
   const rowStride = opts.rowH + rowGap
   const sbW = opts.scrollbarWidth ?? 4
@@ -217,7 +217,7 @@ export function scrollList<T>(card: Card, opts: ScrollListOpts<T>): ScrollListMe
 
   // Pixel-precise clip по списку: text.wgsl discardит фрагменты за этим
   // rect'ом. Граничные строки (с sub-px смещением) обрезаются ровно по краю.
-  card.pushClip(opts.x, opts.y, itemsW, opts.h)
+  pane.pushClip(opts.x, opts.y, itemsW, opts.h)
   try {
     for (let i = 0; i < renderCount; i++) {
       const idx = startIdx + i
@@ -230,11 +230,11 @@ export function scrollList<T>(card: Card, opts: ScrollListOpts<T>): ScrollListMe
       opts.drawRow(item, idx, opts.x, rowY, itemsW, opts.rowH)
     }
   } finally {
-    card.popClip()
+    pane.popClip()
   }
 
   if (opts.edgeFade !== undefined) {
-    edgeFade(card, {
+    edgeFade(pane, {
       ...opts.edgeFade,
       x: opts.x,
       y: opts.y,
@@ -244,7 +244,7 @@ export function scrollList<T>(card: Card, opts: ScrollListOpts<T>): ScrollListMe
   }
 
   if (showScrollbar) {
-    scrollbar(card, opts.x + opts.w - sbW, opts.y, opts.h, {
+    scrollbar(pane, opts.x + opts.w - sbW, opts.y, opts.h, {
       offset: opts.state.scroll,
       visible,
       total: Math.max(total, visible),
@@ -256,7 +256,7 @@ export function scrollList<T>(card: Card, opts: ScrollListOpts<T>): ScrollListMe
   return {visible, scroll: opts.state.scroll}
 }
 
-export function edgeFade(card: Card, opts: EdgeFadeOpts & {
+export function edgeFade(pane: Pane, opts: EdgeFadeOpts & {
   x: number
   y: number
   w: number
@@ -272,7 +272,7 @@ export function edgeFade(card: Card, opts: EdgeFadeOpts & {
   const drawBand = (y: number, alpha: number): void => {
     const color = opts.color.clone()
     color.a = Math.max(0, Math.min(1, alpha))
-    div(card, opts.x, y, opts.w, stepH + 0.75, {style: {background: color, borderColor: null, borderRadius: 0, zIndex: z}})
+    div(pane, opts.x, y, opts.w, stepH + 0.75, {style: {background: color, borderColor: null, borderRadius: 0, zIndex: z}})
   }
 
   if (opts.top !== false) {

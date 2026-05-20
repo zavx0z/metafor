@@ -5,3 +5,9 @@ depth = 22
 
 [test]
 preload = ["create-metafor"]
+
+[loader]
+".wgsl" = "text"
+
+[serve.static]
+plugins = ["./scripts/wgsl-text-plugin.ts"]

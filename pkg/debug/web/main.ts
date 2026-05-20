@@ -4,17 +4,17 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
-import {UiCanvas, type CardRect} from "@metafor/elements"
-import {EditorCard, sourcePathFromLocation, type EditorTokens} from "@metafor/components"
+import {UiCanvas, type PaneRect} from "@metafor/elements"
+import {EditorPane, sourcePathFromLocation, type EditorTokens} from "@metafor/components"
 import {applyInspectMode} from "../src/inspect-mode.ts"
-import {SourceCard, type Source, type SourceRuntimeState} from "./source-card.ts"
-import {ConsoleCard, type ConsoleEntry} from "./console-card.ts"
+import {SourcePane, type Source, type SourceRuntimeState} from "./source-pane.ts"
+import {ConsolePane, type ConsoleEntry} from "./console-pane.ts"
 import {
-  FramesCard,
-  ScopesEvalCard,
-  ToolbarCard,
-  VerboseCard,
-  WelcomeCard,
+  FramesPane,
+  ScopesEvalPane,
+  ToolbarPane,
+  VerbosePane,
+  WelcomePane,
   type BadgeKind,
   type WelcomeState,
   type FrameSnapshot,
@@ -63,14 +63,14 @@ type DraftState = {baseText: string; text: string; savedText: string; status: "c
 const sourceCache = new Map<string, CachedSource>()
 const sourceDrafts = new Map<string, DraftState>()
 let uiCanvas: UiCanvas | null = null
-let sourceCard: SourceCard | null = null
-let draftEditorCard: EditorCard | null = null
-let consoleCard: ConsoleCard | null = null
-let toolbarCard: ToolbarCard | null = null
-let framesCard: FramesCard | null = null
-let scopesEvalCard: ScopesEvalCard | null = null
-let verboseCard: VerboseCard | null = null
-let welcomeCard: WelcomeCard | null = null
+let sourcePane: SourcePane | null = null
+let draftEditorPane: EditorPane | null = null
+let consolePane: ConsolePane | null = null
+let toolbarPane: ToolbarPane | null = null
+let framesPane: FramesPane | null = null
+let scopesEvalPane: ScopesEvalPane | null = null
+let verbosePane: VerbosePane | null = null
+let welcomePane: WelcomePane | null = null
 let uiLoading = false
 let engineLastSource: Source | null = null
 let resizeObserver: ResizeObserver | null = null
@@ -167,9 +167,9 @@ function handleServerMessage(msg: ServerMessage): void {
       finishDebuggerCommandForEvent("resumed")
       clearPendingPause()
       currentDump = undefined
-      framesCard?.setFrames([], activeFrameIndex)
-      scopesEvalCard?.setFrame(null)
-      // Держим последнюю source-карточку, но явно маркируем running,
+      framesPane?.setFrames([], activeFrameIndex)
+      scopesEvalPane?.setFrame(null)
+      // Держим последнюю source-pane, но явно маркируем running,
       // чтобы это не выглядело как не обновляющийся paused editor.
       setRunStatus("running", "live")
       setSourceRuntimeState("running")
@@ -232,14 +232,14 @@ function applyConnection(info: ConnectionInfo): void {
     }
   }
   updateToolbar()
-  updateWelcomeCard()
+  updateWelcomePane()
 }
 
 function clearLiveState(runtimeState: SourceRuntimeState = "disconnected"): void {
   currentDump = undefined
   activeFrameIndex = 0
-  framesCard?.setFrames([], activeFrameIndex)
-  scopesEvalCard?.setFrame(null)
+  framesPane?.setFrames([], activeFrameIndex)
+  scopesEvalPane?.setFrame(null)
   pushSourceToEngine({lines: [], currentLine: 0, location: ""})
   activeSourceKey = ""
   sourceCache.clear()
@@ -259,7 +259,7 @@ function refreshWelcome(): void {
     return
   }
   welcomeVisible = true
-  updateWelcomeCard()
+  updateWelcomePane()
   applyEngineLayout()
 }
 
@@ -320,7 +320,7 @@ function handleTargetEvent(event: TargetEvent): void {
       return
     }
   }
-  updateWelcomeCard()
+  updateWelcomePane()
 }
 
 async function startTargetFromCmd(rawCmd: string, pauseOnStart: boolean): Promise<void> {
@@ -333,7 +333,7 @@ async function startTargetFromCmd(rawCmd: string, pauseOnStart: boolean): Promis
   localStorage.setItem("bd:target:brk", pauseOnStart ? "1" : "0")
 
   targetState.state = "starting"
-  updateWelcomeCard()
+  updateWelcomePane()
   try {
     const res = await fetch("/target/run", {
       method: "POST",
@@ -344,7 +344,7 @@ async function startTargetFromCmd(rawCmd: string, pauseOnStart: boolean): Promis
     if (!data.ok) {
       targetState.state = "failed"
       connectionError = `spawn failed: ${data.error ?? "unknown"}`
-      updateWelcomeCard()
+      updateWelcomePane()
       return
     }
     if (data.snapshot !== undefined) {
@@ -354,7 +354,7 @@ async function startTargetFromCmd(rawCmd: string, pauseOnStart: boolean): Promis
     targetState.state = "failed"
     connectionError = `fetch failed: ${String(error)}`
   } finally {
-    updateWelcomeCard()
+    updateWelcomePane()
   }
 }
 
@@ -362,7 +362,7 @@ async function stopTarget(): Promise<void> {
   try {
     await fetch("/target/stop", {method: "POST"})
   } catch {}
-  updateWelcomeCard()
+  updateWelcomePane()
 }
 
 type TargetSnapshotView = {state?: string}
@@ -440,7 +440,7 @@ async function applyInspectorUrl(nextUrl: string): Promise<void> {
     connectionError = `fetch failed: ${String(error)}`
   } finally {
     updateToolbar()
-    updateWelcomeCard()
+    updateWelcomePane()
   }
 }
 
@@ -486,7 +486,7 @@ function shellQuote(part: string): string {
 }
 
 function appendVerbose(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
-  verboseCard?.append(kind, ts, name, payload)
+  verbosePane?.append(kind, ts, name, payload)
 }
 
 function setWsStatus(text: string, kind: "" | "live" | "paused" = ""): void {
@@ -516,7 +516,7 @@ function updateToolbar(): void {
   const connectionKind: BadgeKind = connectionState === "connected" ? "live"
     : connectionState === "connecting" ? "neutral"
     : "warn"
-  toolbarCard?.setState({
+  toolbarPane?.setState({
     ws: wsStatusText,
     wsKind: wsStatusKind,
     connection: `inspector: ${connectionState}`,
@@ -536,7 +536,7 @@ function updateToolbar(): void {
   })
 }
 
-function updateWelcomeCard(): void {
+function updateWelcomePane(): void {
   const state: WelcomeState = {
     connectionState,
     connectionError,
@@ -545,18 +545,18 @@ function updateWelcomeCard(): void {
     defaultCommand: defaultTargetCommand(),
     pauseOnStart: defaultPauseOnStart(),
   }
-  welcomeCard?.setState(state)
+  welcomePane?.setState(state)
 }
 
 function renderDump(dump: AgentDump): void {
-  framesCard?.setFrames(dump.frames as FrameSnapshot[], activeFrameIndex)
+  framesPane?.setFrames(dump.frames as FrameSnapshot[], activeFrameIndex)
 
   const top = dump.frames[activeFrameIndex] ?? dump.frames[0]
   if (top !== undefined) {
-    scopesEvalCard?.setFrame(top as FrameSnapshot)
+    scopesEvalPane?.setFrame(top as FrameSnapshot)
     void renderSourceForFrame(top)
   } else {
-    scopesEvalCard?.setFrame(null)
+    scopesEvalPane?.setFrame(null)
   }
 }
 
@@ -614,10 +614,10 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
 function appendConsole(entry: ConsoleEntry): void {
   const xc: ConsoleEntry = {ts: entry.ts, text: entry.text}
   if (entry.level !== undefined) xc.level = entry.level
-  if (consoleCard !== null) {
-    consoleCard.pushEntries([xc])
+  if (consolePane !== null) {
+    consolePane.pushEntries([xc])
   } else {
-    // карточка ещё не инициализирована — буферизируем.
+    // pane ещё не инициализирована — буферизируем.
     consolePending.push(xc)
   }
 }
@@ -667,7 +667,7 @@ async function initEngine(): Promise<void> {
   setEngineStatus("engine: init")
   try {
     uiCanvas = await UiCanvas.create(engineCanvas)
-    toolbarCard = new ToolbarCard({
+    toolbarPane = new ToolbarPane({
       onPause: () => void runDebuggerCommand("pause", {}, t("pause")),
       onResume: () => void runDebuggerCommand("resume", {}, t("resume")),
       onRestartTarget: () => void restartTarget(),
@@ -677,27 +677,27 @@ async function initEngine(): Promise<void> {
       onToggleLocale: () => toggleLocale(),
       onToggleVerbose: () => setVerboseVisible(!verboseVisible),
     })
-    framesCard = new FramesCard((index) => {
+    framesPane = new FramesPane((index) => {
       activeFrameIndex = index
       if (currentDump !== undefined) renderDump(currentDump)
     })
-    scopesEvalCard = new ScopesEvalCard(async (expr, frame) => {
+    scopesEvalPane = new ScopesEvalPane(async (expr, frame) => {
       const label = t("runEval")
       const command = beginDebuggerCommand("eval", label)
       if (command === null) {
-        scopesEvalCard?.setEvalOutput(`${t("commandAlreadyRunning")}: ${activeDebuggerCommand?.label ?? ""}`)
+        scopesEvalPane?.setEvalOutput(`${t("commandAlreadyRunning")}: ${activeDebuggerCommand?.label ?? ""}`)
         return
       }
-      scopesEvalCard?.setEvalOutput(t("commandExecuting"))
+      scopesEvalPane?.setEvalOutput(t("commandExecuting"))
       try {
         const response = await send("eval", {frame, expr})
-        scopesEvalCard?.setEvalOutput(JSON.stringify(response))
+        scopesEvalPane?.setEvalOutput(JSON.stringify(response))
       } finally {
         clearDebuggerCommandIf(command, "eval finished")
       }
     })
-    sourceCard = new SourceCard()
-    draftEditorCard = new EditorCard({
+    sourcePane = new SourcePane()
+    draftEditorPane = new EditorPane({
       title: t("editDraft"),
       onChange: (text) => updateActiveDraftText(text),
       onSave: (text) => saveActiveDraft(text),
@@ -705,18 +705,18 @@ async function initEngine(): Promise<void> {
       fontPx: 12,
       linePx: 16,
     })
-    consoleCard = new ConsoleCard()
-    verboseCard = new VerboseCard()
-    welcomeCard = new WelcomeCard({
+    consolePane = new ConsolePane()
+    verbosePane = new VerbosePane()
+    welcomePane = new WelcomePane({
       onRun: (command, pauseOnStart) => void startTargetFromCmd(command, pauseOnStart),
       onStop: () => void stopTarget(),
       onApplyInspector: (url) => void applyInspectorUrl(url),
       onPauseOnStart: (pause) => {
         localStorage.setItem("bd:target:brk", pause ? "1" : "0")
-        updateWelcomeCard()
+        updateWelcomePane()
       },
     })
-    installEngineCards()
+    installEnginePanes()
     resizeObserver = new ResizeObserver(() => uiCanvas?.handleResize())
     resizeObserver.observe(engineCanvas)
     requestAnimationFrame(() => uiCanvas?.handleResize())
@@ -724,7 +724,7 @@ async function initEngine(): Promise<void> {
     window.addEventListener("resize", () => uiCanvas?.handleResize())
     setEngineStatus("engine: webgpu")
     updateToolbar()
-    updateWelcomeCard()
+    updateWelcomePane()
     refreshWelcome()
 
     if (currentDump !== undefined) {
@@ -733,9 +733,9 @@ async function initEngine(): Promise<void> {
       setRunStatus(`paused (${currentDump.reason})`, "paused")
       setSourceRuntimeState("paused")
     }
-    if (engineLastSource !== null) sourceCard.setSource(engineLastSource)
+    if (engineLastSource !== null) sourcePane.setSource(engineLastSource)
     if (consolePending.length > 0) {
-      consoleCard.pushEntries(consolePending)
+      consolePane.pushEntries(consolePending)
       consolePending.length = 0
     }
     // Debug helper: window.__metaforDebug.scanScene() печатает все Mesh
@@ -819,13 +819,13 @@ function setDraftVisible(on: boolean): void {
   syncDraftEditor()
   updateToolbar()
   applyEngineLayout()
-  if (on && draftEditorCard !== null) uiCanvas?.setFocused(draftEditorCard)
+  if (on && draftEditorPane !== null) uiCanvas?.setFocused(draftEditorPane)
 }
 
 function toggleLocale(): void {
   toggleUiLocale()
   updateToolbar()
-  updateWelcomeCard()
+  updateWelcomePane()
   syncDraftEditorTitle()
   applyEngineLayout()
 }
@@ -846,7 +846,7 @@ function updateActiveDraftText(text: string): void {
   updateToolbar()
 }
 
-function saveActiveDraft(text = draftEditorCard?.getText() ?? ""): void {
+function saveActiveDraft(text = draftEditorPane?.getText() ?? ""): void {
   const draft = activeDraft()
   if (draft === null) {
     appendConsole({ts: new Date().toISOString(), level: "warn", text: getUiLocale() === "ru" ? "[ui] Черновик не сохранён: source не загружен" : "[ui] Draft save skipped: no source loaded"})
@@ -861,25 +861,25 @@ function saveActiveDraft(text = draftEditorCard?.getText() ?? ""): void {
 }
 
 function syncDraftEditor(): void {
-  if (draftEditorCard === null) return
+  if (draftEditorPane === null) return
   const draft = activeDraft()
   if (draft === null) {
-    draftEditorCard.setTitle(`${t("editDraft")} · ${t("draftNoSource")}`)
-    draftEditorCard.setText("")
+    draftEditorPane.setTitle(`${t("editDraft")} · ${t("draftNoSource")}`)
+    draftEditorPane.setText("")
     return
   }
-  draftEditorCard.setText(draft.text)
-  draftEditorCard.setLanguage({path: activeSourceKey})
+  draftEditorPane.setText(draft.text)
+  draftEditorPane.setLanguage({path: activeSourceKey})
   syncDraftEditorTitle()
 }
 
 function syncDraftEditorTitle(): void {
   const draft = activeDraft()
-  if (draftEditorCard === null) return
+  if (draftEditorPane === null) return
   const location = engineLastSource?.location ?? activeSourceKey
   const name = sourcePathFromLocation(location) || "source"
   const marker = draft?.status === "dirty" ? t("dirty") : draft?.status === "saved" ? t("savedInMemory") : t("clean")
-  draftEditorCard.setTitle(`${t("editDraft")} · ${marker} · ${name}`)
+  draftEditorPane.setTitle(`${t("editDraft")} · ${marker} · ${name}`)
 }
 
 function activeDraft(): DraftState | null {
@@ -907,32 +907,32 @@ function applyEngineLayout(): void {
   uiCanvas?.relayout()
 }
 
-function installEngineCards(): void {
+function installEnginePanes(): void {
   if (
     uiCanvas === null ||
-    toolbarCard === null ||
-    sourceCard === null ||
-    draftEditorCard === null ||
-    consoleCard === null ||
-    framesCard === null ||
-    scopesEvalCard === null ||
-    verboseCard === null ||
-    welcomeCard === null
+    toolbarPane === null ||
+    sourcePane === null ||
+    draftEditorPane === null ||
+    consolePane === null ||
+    framesPane === null ||
+    scopesEvalPane === null ||
+    verbosePane === null ||
+    welcomePane === null
   ) {
     return
   }
 
-  uiCanvas.addCard(welcomeCard, welcomeRect)
-  uiCanvas.addCard(framesCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).frames)
-  uiCanvas.addCard(scopesEvalCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).scopes)
-  uiCanvas.addCard(sourceCard, (canvas) => welcomeVisible || draftVisible ? hiddenRect() : debuggerRects(canvas).source)
-  uiCanvas.addCard(draftEditorCard, (canvas) => welcomeVisible || !draftVisible ? hiddenRect() : debuggerRects(canvas).source)
-  uiCanvas.addCard(consoleCard, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).console)
-  uiCanvas.addCard(verboseCard, (canvas) => {
+  uiCanvas.addPane(welcomePane, welcomeRect)
+  uiCanvas.addPane(framesPane, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).frames)
+  uiCanvas.addPane(scopesEvalPane, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).scopes)
+  uiCanvas.addPane(sourcePane, (canvas) => welcomeVisible || draftVisible ? hiddenRect() : debuggerRects(canvas).source)
+  uiCanvas.addPane(draftEditorPane, (canvas) => welcomeVisible || !draftVisible ? hiddenRect() : debuggerRects(canvas).source)
+  uiCanvas.addPane(consolePane, (canvas) => welcomeVisible ? hiddenRect() : debuggerRects(canvas).console)
+  uiCanvas.addPane(verbosePane, (canvas) => {
     if (welcomeVisible) return hiddenRect()
     return debuggerRects(canvas).verbose ?? hiddenRect()
   })
-  uiCanvas.addCard(toolbarCard, ({w}) => ({
+  uiCanvas.addPane(toolbarPane, ({w}) => ({
     x: TOOLBAR_INSET,
     y: TOOLBAR_INSET,
     w: Math.max(1, w - TOOLBAR_INSET * 2),
@@ -947,30 +947,30 @@ const GAP = 8
 const BODY_TOP = TOOLBAR_INSET + TOOLBAR_H + PAD
 
 type DebuggerRects = {
-  frames: CardRect
-  scopes: CardRect
-  source: CardRect
-  console: CardRect
-  verbose: CardRect | null
+  frames: PaneRect
+  scopes: PaneRect
+  source: PaneRect
+  console: PaneRect
+  verbose: PaneRect | null
 }
 
-function hiddenRect(): CardRect {
+function hiddenRect(): PaneRect {
   return {x: -10000, y: -10000, w: 1, h: 1, visible: false}
 }
 
-function welcomeRect({w, h}: {w: number; h: number}): CardRect {
+function welcomeRect({w, h}: {w: number; h: number}): PaneRect {
   if (!welcomeVisible) return hiddenRect()
   const bodyH = Math.max(1, h - BODY_TOP - PAD)
   const maxW = Math.max(1, Math.min(1280, w - PAD * 2))
-  const cardW = Math.max(320, Math.min(maxW, Math.floor(w * 0.7)))
+  const paneW = Math.max(320, Math.min(maxW, Math.floor(w * 0.7)))
   // welcome content stack: title + status panel + target/inspector panels.
   // Берём min от bodyH чтобы не вылезать на маленьких окнах.
-  const cardH = Math.max(1, Math.min(398, bodyH))
+  const paneH = Math.max(1, Math.min(398, bodyH))
   return {
-    x: Math.floor((w - cardW) / 2),
-    y: BODY_TOP + Math.floor(Math.max(0, bodyH - cardH) / 2),
-    w: cardW,
-    h: cardH,
+    x: Math.floor((w - paneW) / 2),
+    y: BODY_TOP + Math.floor(Math.max(0, bodyH - paneH) / 2),
+    w: paneW,
+    h: paneH,
   }
 }
 
@@ -1002,12 +1002,12 @@ function debuggerRects({w, h}: {w: number; h: number}): DebuggerRects {
 
 function pushSourceToEngine(payload: Source): void {
   engineLastSource = payload
-  sourceCard?.setSource(payload)
+  sourcePane?.setSource(payload)
   syncDraftEditorTitle()
 }
 
 function setSourceRuntimeState(state: SourceRuntimeState): void {
-  sourceCard?.setRuntimeState(state)
+  sourcePane?.setRuntimeState(state)
 }
 
 function sourceKeyFromLocation(location: string, fallback = ""): string {

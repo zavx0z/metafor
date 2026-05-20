@@ -1,10 +1,10 @@
 /**
- * Frames card. Layout — flexRow/flexColumn из @metafor/elements +
+ * Frames pane. Layout — flexRow/flexColumn из @metafor/elements +
  * scrollList из @metafor/components.
  */
 
 import {
-  Card, Z, flexRow, flexColumn, palette, radii,
+  Pane, Z, flexRow, flexColumn, palette, radii,
 } from "@metafor/elements"
 import {
   Divider as divider,
@@ -20,14 +20,14 @@ const ROW_GAP = 2
 const WHEEL_SPEED = 1.5
 const WHEEL_START_BOOST_PX = 18
 
-export class FramesCard extends Card {
+export class FramesPane extends Pane {
   #frames: FrameSnapshot[] = []
   #active = 0
   readonly #list: ScrollListState
   readonly #onSelect: (index: number) => void
 
   constructor(onSelect: (index: number) => void) {
-    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.card})
+    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
     this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#onSelect = onSelect
   }

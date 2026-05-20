@@ -2,19 +2,19 @@
  * NotiStack — generic стек тостов поверх UiCanvas.
  *
  * Архитектура (важно):
- *   • КАЖДОЕ уведомление — отдельная NotificationCard (Card), которой
+ *   • КАЖДОЕ уведомление — отдельная NotificationPane (Pane), которой
  *     UiCanvas даёт свой `rect` через layout-функцию. Это нужно, чтобы
  *     `cardAt` не перехватывал клики на пустом пространстве между/около
- *     уведомлений: клик попадает на NotificationCard только в её rect,
- *     иначе пробрасывается ниже (на screen-Card'ы приложения).
- *   • NotiStack — controller-объект, не Card. Он держит список items, их
- *     NotificationCard-инстансы и layout-функции, которые UiCanvas
+ *     уведомлений: клик попадает на NotificationPane только в её rect,
+ *     иначе пробрасывается ниже (на screen-Pane'ы приложения).
+ *   • NotiStack — controller-объект, не Pane. Он держит список items, их
+ *     NotificationPane-инстансы и layout-функции, которые UiCanvas
  *     пересчитывает на каждом resize.
- *   • Z-уровень: каждая NotificationCard поднята `node.position.z = 0.001`
- *     при addCard, чтобы depth-test ставил её перед screen-Card'ами.
+ *   • Z-уровень: каждая NotificationPane поднята `node.position.z = 0.001`
+ *     при addPane, чтобы depth-test ставил её перед screen-Pane'ами.
  *     БОЛЬШИЕ z (0.05+) ломают совпадение visual ↔ hit-rect под
  *     perspective camera: mesh масштабируется ~9%, hit остаётся в
- *     исходных card-px → курсор реагирует «выше». 0.001 даёт правильный
+ *     исходных pane-px → курсор реагирует «выше». 0.001 даёт правильный
  *     depth-order и scale-error <0.2%.
  *
  * Tема — обязательный параметр: NotiStack не знает о цветах приложения,
@@ -26,12 +26,12 @@
  *   stack.dismiss(id)
  *   stack.clear()
  *
- * Поведение dismissed: NotificationCard остаётся attached к UiCanvas, но
+ * Поведение dismissed: NotificationPane остаётся attached к UiCanvas, но
  * её layout возвращает {visible:false}. Re-push с тем же id восстанавливает.
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {Card, flexRow, type UiCanvas} from "@metafor/elements"
+import {Pane, flexRow, type UiCanvas} from "@metafor/elements"
 import {autoButtonWidth, Button as button} from "./Button.ts"
 
 export interface NotiAction {
@@ -152,10 +152,10 @@ function notifHeight(n: Notification, L: ResolvedLayout): number {
 }
 
 /**
- * Card для одного уведомления. Размер берётся из настроек notification.
+ * Pane для одного уведомления. Размер берётся из настроек notification.
  * Layout-функция в UiCanvas даёт ему конкретный rect (x, y, w, h, visible).
  */
-class NotificationCard extends Card {
+class NotificationPane extends Pane {
   private n: Notification
   private dismissed = false
   private readonly theme: NotiStackTheme
@@ -281,7 +281,7 @@ class NotificationCard extends Card {
 
 interface StackItem {
   n: Notification
-  card: NotificationCard
+  pane: NotificationPane
 }
 
 export class NotiStack {
@@ -300,18 +300,18 @@ export class NotiStack {
     const existing = this.items.find((it) => it.n.id === n.id)
     if (existing) {
       existing.n = n
-      existing.card.update(n)
+      existing.pane.update(n)
       this.ui.relayout()
       this.ui.requestRender()
       return
     }
-    const card = new NotificationCard(n, this.theme, this.layout)
-    const item: StackItem = {n, card}
+    const pane = new NotificationPane(n, this.theme, this.layout)
+    const item: StackItem = {n, pane}
     this.items.push(item)
-    this.ui.addCard(card, ({w, h}) => this.computeRect(item, w, h))
+    this.ui.addPane(pane, ({w, h}) => this.computeRect(item, w, h))
     // См. JSDoc заголовка про выбор z = 0.001.
-    card.node.position.z = 0.001
-    card.node.updateMatrix()
+    pane.node.position.z = 0.001
+    pane.node.updateMatrix()
     this.ui.relayout()
     this.ui.requestRender()
   }
@@ -319,29 +319,29 @@ export class NotiStack {
   dismiss(id: string): void {
     const it = this.items.find((x) => x.n.id === id)
     if (!it) return
-    it.card.setDismissed(true)
+    it.pane.setDismissed(true)
     this.ui.relayout()
     this.ui.requestRender()
   }
 
   clear(): void {
-    for (const it of this.items) it.card.setDismissed(true)
+    for (const it of this.items) it.pane.setDismissed(true)
     this.ui.relayout()
     this.ui.requestRender()
   }
 
-  /** Layout одного notification-card: пересчитывается UiCanvas-ом на resize. */
+  /** Layout одного notification-pane: пересчитывается UiCanvas-ом на resize. */
   private computeRect(target: StackItem, W: number, H: number) {
-    if (target.card.isDismissed()) {
+    if (target.pane.isDismissed()) {
       return {x: 0, y: 0, w: 0, h: 0, visible: false}
     }
     const L = this.layout
     const padX = Math.max(L.sidePad.min, Math.round(W * L.sidePad.pct))
     const bottomGap = Math.max(L.bottomGap.min, Math.round(H * L.bottomGap.pct))
-    const cardW = W - padX * 2
+    const paneW = W - padX * 2
     // Считаем суммарную высоту всех ВИДИМЫХ предыдущих уведомлений
     // (тех, что выше в стеке = добавлены раньше).
-    const visibleItems = this.items.filter((x) => !x.card.isDismissed())
+    const visibleItems = this.items.filter((x) => !x.pane.isDismissed())
     const idxFromTop = visibleItems.indexOf(target)
     if (idxFromTop < 0) return {x: 0, y: 0, w: 0, h: 0, visible: false}
 
@@ -352,8 +352,8 @@ export class NotiStack {
     for (let i = 0; i < reverseIdx; i++) {
       offset += notifHeight(visibleItems[visibleItems.length - 1 - i]!.n, L) + L.stackGap
     }
-    const cardH = notifHeight(target.n, L)
-    const y = H - bottomGap - offset - cardH
-    return {x: padX, y, w: cardW, h: cardH, visible: true}
+    const paneH = notifHeight(target.n, L)
+    const y = H - bottomGap - offset - paneH
+    return {x: padX, y, w: paneW, h: paneH, visible: true}
   }
 }

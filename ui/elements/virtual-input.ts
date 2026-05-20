@@ -9,7 +9,7 @@
  * для него ничего из перечисленного. Решение — поставить рядом 1×1
  * `<textarea>` с `opacity:0`, держать на нём фокус, перехватывать ввод и
  * отдавать вверх через колбэки. Это чистый proxy: текст никогда не остаётся
- * в textarea, он сразу же стирается; источником правды остаётся EditorCard.
+ * в textarea, он сразу же стирается; источником правды остаётся EditorPane.
  *
  * API:
  *   • focus() / blur() — управление фокусом proxy.
@@ -68,7 +68,7 @@ export class VirtualInput {
     // beforeinput — единственный канал, через который приходят НЕ-клавиатурные
     // вставки: emoji-panel, autocorrect-replace, IME-композиция (через
     // compositionend ниже). Чтобы не дублировать обычную клавиатуру
-    // (keydown уже доставил её в card), правило: пропускаем сквозь только
+    // (keydown уже доставил её в pane), правило: пропускаем сквозь только
     // multi-character data или явно «не-keydown» inputType.
     ta.addEventListener("beforeinput", (e) => {
       const ie = e as InputEvent

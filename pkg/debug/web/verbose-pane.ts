@@ -1,10 +1,10 @@
 /**
- * Verbose card на Card-системе. Список + autoscroll. Scroll-machinery
+ * Verbose pane на Pane-системе. Список + autoscroll. Scroll-machinery
  * (state, wheel, render rows, scrollbar) — через @metafor/components.
  */
 
 import {
-  Card, palette, radii, uiIcons,
+  Pane, palette, radii, uiIcons,
 } from "@metafor/elements"
 import {
   Button as button, Divider as divider,
@@ -34,14 +34,14 @@ const SCROLLBAR_GAP = 6
 const WHEEL_SPEED = 1.6
 const WHEEL_START_BOOST_PX = 16
 
-export class VerboseCard extends Card {
+export class VerbosePane extends Pane {
   #entries: VerboseEntry[] = []
   readonly #list: ScrollListState
   #autoscroll = localStorage.getItem("bd:verbose:pin") !== "0"
   readonly #max = 300
 
   constructor() {
-    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.card})
+    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
     this.#list = new ScrollListState({onChange: () => this.requestRender()})
   }
 
