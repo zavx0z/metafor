@@ -1,7 +1,7 @@
 import { Matrix4, Quaternion, Vector3 } from "../math"
 import { Raycaster, type Intersection } from "./Raycaster"
 import type { LayoutProps } from '../layout/LayoutTypes';
-import type { ComputedLayout } from '../layout/LayoutManager';
+import type { ComputedLayout } from '../layout/LayoutTypes';
 
 /**
  * Базовый класс для всех объектов в сцене.
@@ -17,7 +17,7 @@ export class Object3D {
   public parent: Object3D | null = null
   public position: Vector3 = new Vector3()
   public layout?: LayoutProps;
-  /** Заполняется LayoutManager.update — computed-bounds в logical пикселях. */
+  /** Computed-bounds в logical пикселях для UI/layout-слоев. */
   public computedLayout?: ComputedLayout;
   public quaternion: Quaternion = new Quaternion()
 

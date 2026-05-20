@@ -14,7 +14,7 @@
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
 import {existsSync, statSync, openSync, readSync, closeSync} from "node:fs"
-import {dirname, join} from "node:path"
+import {join} from "node:path"
 import indexHtml from "../web/index.html"
 
 const WEB_DIR = join(import.meta.dir, "..", "web")
@@ -24,18 +24,6 @@ const MANIFEST = {
   start_url: "/",
   display: "standalone",
 }
-const YOGA_WASM_REL = "node_modules/yoga-layout/dist/binaries/yoga-wasm-base64-esm.js"
-const YOGA_WASM_PATH = (() => {
-  let dir = import.meta.dir
-  for (let i = 0; i < 8; i++) {
-    const candidate = join(dir, YOGA_WASM_REL)
-    if (existsSync(candidate)) return candidate
-    const parent = dirname(dir)
-    if (parent === dir) break
-    dir = parent
-  }
-  return null
-})()
 
 import {executeCommand, type CommandContext} from "./commands.ts"
 import type {BreakpointStore} from "./breakpoints.ts"
@@ -299,12 +287,6 @@ async function handleRoute(
 
   if (method === "GET" && path === "/JetBrainsMono-Bold.ttf") {
     return serveStatic(join(WEB_DIR, "JetBrainsMono-Bold.ttf"), "font/ttf")
-  }
-  if (method === "GET" && path === "/yoga-wasm-base64-esm.js") {
-    if (YOGA_WASM_PATH === null) {
-      return jsonResponse({ok: false, error: "yoga-layout не установлен в workspace"}, 404)
-    }
-    return serveStatic(YOGA_WASM_PATH, "application/javascript")
   }
 
   return jsonResponse({ok: false, error: `not found: ${method} ${path}`}, 404)

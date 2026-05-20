@@ -25,3 +25,10 @@ export type LayoutProps = {
   marginLeft?: number
   marginRight?: number
 }
+
+export type ComputedLayout = {
+  left: number
+  top: number
+  width: number
+  height: number
+}

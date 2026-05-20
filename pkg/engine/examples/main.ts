@@ -27,17 +27,9 @@ import {
 
 import { Matrix4 } from "../src/math/Matrix4"
 import { Vector3 } from "../src/math/Vector3"
-import YogaService from "../src/layout/YogaService"
-import { LayoutManager } from "../src/layout/LayoutManager"
 import { UIDisplay } from "../src/ui/UIDisplay"
 
 document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    await YogaService.instance.initialize();
-  } catch (e) {
-    console.error("⚠️ WARNING: Yoga failed to load. Layouts may not work.", e);
-  }
-
   const renderer = new Renderer()
   const canvas: HTMLCanvasElement = document.body.querySelector("#metafor")!
   
@@ -88,9 +80,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   light.position.set(4, -4, 4)
   light.updateMatrix()
   space.add(light)
-
-  // --- Layout Example: Virtual Display ---
-  const layoutManager = new LayoutManager()
 
   // Создаем дисплей: 400x300 mm при логической сетке 800x600 px.
   const display = new UIDisplay({
@@ -160,6 +149,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Хелпер для создания текстовых элементов с пиксельными размерами
+  let uiTextCursorY = 20
   const createUIText = (str: string, fontSizePx: number, marginTopPx: number) => {
     const fontSizeWorld = display.getFontSize(fontSizePx)
     
@@ -171,23 +161,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     // 3. Создаем контейнер-точку (Pivot)
     const container = new Object3D()
-    container.layout = {
-      margin: marginTopPx,
-      height: fontSizePx * 1.2,
-      // Ширина не задана -> Yoga сожмет контейнер до 0. 
-      // alignSelf: 'center' -> Yoga поместит контейнер по центру (left = W/2).
-      alignSelf: 'center'
-    }
+    uiTextCursorY += marginTopPx
 
     // 4. Позиционируем текст.
-    // Точка (0,0) контейнера оказывается смещена вправо на W/2 (центр экрана).
-    // Чтобы центрировать текст, сдвигаем его влево на половину ширины экрана (-W/2)
-    // и на половину ширины самого текста (-textWidth/2).
+    container.position.x = display.pixelWidth / 2 * display.unitsPerPixel
+    container.position.y = -uiTextCursorY * display.unitsPerPixel
+    container.updateMatrix()
+
     t.position.x = -display.width / 2 - textWidthWorld / 2
     t.position.y = -fontSizeWorld
     
     t.updateMatrix()
     container.add(t)
+    uiTextCursorY += fontSizePx * 1.2
     return container
   }
 
@@ -306,15 +292,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function animate() {
     requestAnimationFrame(animate)
-
-    // Обновляем лейаут дисплея
-    // Передаем корневой контейнер контента, размеры в пикселях и масштаб в world units на пиксель.
-    layoutManager.update(
-        display.contentContainer,
-        display.pixelWidth,
-        display.pixelHeight,
-        display.unitsPerPixel
-    )
 
     const currentTime = performance.now()
     const delta = (currentTime - lastTime) / 1000
