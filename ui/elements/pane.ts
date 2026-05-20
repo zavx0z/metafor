@@ -132,6 +132,8 @@ export type PaneOpts = {
 
 export type ImageViewBox = EngineImageViewBox
 
+const MIN_PRESS_VISUAL_MS = 120
+
 export type DrawImageOpts = {
   fit?: ImageFit
   opacity?: number
@@ -281,6 +283,8 @@ export abstract class Pane implements UiPane {
   protected pressedHit: HitBox | null = null
   #hoveredHitKey: string | null = null
   #pressedHitKey: string | null = null
+  #pressedVisualKey: string | null = null
+  #pressedVisualTimer: ReturnType<typeof setTimeout> | null = null
   #hoverTooltipKey: string | null = null
   #hoverTooltipSince = 0
   #hoverTooltipDelayMs = 0
@@ -720,7 +724,7 @@ export abstract class Pane implements UiPane {
     const hitKey = key ?? hitKeyFor(x, y, w, h)
     return {
       hovered: this.#hoveredHitKey === hitKey,
-      pressed: this.#pressedHitKey === hitKey,
+      pressed: this.#pressedHitKey === hitKey || this.#pressedVisualKey === hitKey,
     }
   }
 
@@ -776,6 +780,7 @@ export abstract class Pane implements UiPane {
     const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     if (hit === null) return
     if (hit.disabled === true) return
+    this.#setPressedVisual(null)
     this.pressedHit = hit
     this.#pressedHitKey = hit.key
     hit.onPointerDown?.()
@@ -788,6 +793,7 @@ export abstract class Pane implements UiPane {
     const releaseHit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     this.pressedHit = null
     this.#pressedHitKey = null
+    this.#setPressedVisual(pressed.key)
     pressed.onPointerUp?.()
     if (releaseHit?.key === pressed.key && pressed.disabled !== true) {
       pressed.action()
@@ -806,10 +812,12 @@ export abstract class Pane implements UiPane {
     this.#setHoveredHit(null)
     this.pressedHit = null
     this.#pressedHitKey = null
+    this.#setPressedVisual(null)
     this.#setHoverTooltip(null)
   }
 
   dispose(): void {
+    this.#clearPressedVisualTimer()
     this.#cancelPendingRerender()
     this.#clearLayer()
     this.#clearLayer(this.#backgroundLayer)
@@ -1063,6 +1071,24 @@ export abstract class Pane implements UiPane {
     this.#hoveredHitKey = hit?.key ?? null
     hit?.onPointerEnter?.()
     this.requestRender()
+  }
+
+  #setPressedVisual(key: string | null): void {
+    this.#clearPressedVisualTimer()
+    this.#pressedVisualKey = key
+    if (key === null) return
+    this.#pressedVisualTimer = setTimeout(() => {
+      this.#pressedVisualTimer = null
+      if (this.#pressedVisualKey !== key) return
+      this.#pressedVisualKey = null
+      this.requestRender()
+    }, MIN_PRESS_VISUAL_MS)
+  }
+
+  #clearPressedVisualTimer(): void {
+    if (this.#pressedVisualTimer === null) return
+    clearTimeout(this.#pressedVisualTimer)
+    this.#pressedVisualTimer = null
   }
 
   #clearLayer(layer: Object3D = this.#layer): void {
