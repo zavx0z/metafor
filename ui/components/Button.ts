@@ -210,8 +210,14 @@ function drawButtonContent(
 
   if (iconPosition === "end" && showLabel) {
     const available = Math.max(1, width - iconSize - gap - 10)
-    host.drawText(label, cx, textY, {fontPx, material, maxWidthPx: available, z: Z.TEXT})
-    host.drawImage(iconSrc, cx + Math.min(labelW, available) + gap, iconY, iconSize, iconSize, {
+    const renderedLabelW = Math.min(labelW, available)
+    host.drawTextCentered(label, cx + renderedLabelW / 2, y + pressOffsetY + height / 2, {
+      fontPx,
+      material,
+      maxWidthPx: available,
+      z: Z.TEXT,
+    })
+    host.drawImage(iconSrc, cx + renderedLabelW + gap, iconY, iconSize, iconSize, {
       fit: "contain",
       opacity: iconOpacity,
       z: Z.TEXT,
@@ -227,6 +233,12 @@ function drawButtonContent(
   cx += iconSize + gap
   if (showLabel) {
     const available = Math.max(1, x + width - 5 - cx)
-    host.drawText(label, cx, textY, {fontPx, material, maxWidthPx: available, z: Z.TEXT})
+    const renderedLabelW = Math.min(labelW, available)
+    host.drawTextCentered(label, cx + renderedLabelW / 2, y + pressOffsetY + height / 2, {
+      fontPx,
+      material,
+      maxWidthPx: available,
+      z: Z.TEXT,
+    })
   }
 }

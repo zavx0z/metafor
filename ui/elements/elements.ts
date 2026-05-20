@@ -8,6 +8,7 @@ export type CssDisplay = "block" | "inline" | "flex" | "none"
 export type CssAlignItems = "start" | "center" | "end" | "stretch"
 export type CssJustifyContent = "start" | "center" | "end" | "space-between" | "space-around"
 export type CssCursor = "default" | "pointer" | "text"
+export type CssTextAlign = "left" | "center" | "right"
 
 export type StyleProps = {
   width?: CssLength
@@ -33,6 +34,7 @@ export type StyleProps = {
   color?: CssColor
   fontSize?: CssLength
   lineHeight?: number | CssLength
+  textAlign?: CssTextAlign
   display?: CssDisplay
   alignItems?: CssAlignItems
   justifyContent?: CssJustifyContent
@@ -132,12 +134,32 @@ export function span(card: Card, x: number, y: number, width: number, height: nu
     return
   }
   const style = mergeStyle(props)
+  const text = String(props.children)
   const fontSize = px(style.fontSize, 12)
   const material = textMaterial(card, style.color, props.disabled === true)
-  card.drawText(String(props.children), x, y + Math.max(0, (height - fontSize) / 2), {
+  const textY = y + Math.max(0, (height - fontSize) / 2)
+  const maxWidthPx = width
+  if (style.textAlign === "center") {
+    card.drawTextCentered(text, x + width / 2, y + height / 2, {
+      fontPx: fontSize,
+      material,
+      maxWidthPx,
+    })
+    return
+  }
+  if (style.textAlign === "right") {
+    const textW = Math.min(card.measureText(text, fontSize), width)
+    card.drawText(text, x + width - textW, textY, {
+      fontPx: fontSize,
+      material,
+      maxWidthPx,
+    })
+    return
+  }
+  card.drawText(text, x, textY, {
     fontPx: fontSize,
     material,
-    maxWidthPx: width,
+    maxWidthPx,
   })
 }
 

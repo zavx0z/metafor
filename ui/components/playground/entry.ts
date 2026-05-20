@@ -1,5 +1,5 @@
 import {Element, UiCanvas, flexColumn, flexRow, h2, h3, p, palette, span, uiIcons} from "@metafor/elements"
-import {Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Card, Divider} from "@metafor/components"
+import {autoButtonWidth, Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Card, Divider} from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
 type ButtonLabel = "Button" | "Apply" | "Run" | "Delete"
@@ -11,19 +11,23 @@ type ButtonHeight = "compact" | "regular" | "large"
 type BasicButtonType = "Text button" | "Contained button" | "Outlined button"
 type ButtonRouteVariant = "text" | "contained" | "outlined"
 type ButtonRouteIcon = "svg"
+type ButtonRouteIconLabel = "left" | "right"
+type IconLabelPlacement = ButtonRouteIconLabel | "mixed"
 type ButtonRoute =
   | "button/basic"
   | `button/basic/${ButtonRouteVariant}`
+  | "button/icon-label"
+  | `button/icon-label/${ButtonRouteIconLabel}`
   | "button/sizes"
   | `button/sizes/${ButtonSize}`
   | "button/color"
   | `button/color/${ButtonColor}`
   | "button/icon"
   | `button/icon/${ButtonRouteIcon}`
-type ButtonSection = "Basic" | "Sizes" | "Color" | "Icon"
+type ButtonSection = "Basic" | "Icon" | "Icon+Label" | "Sizes" | "Color"
 
 const BASIC_BUTTON_TYPES: readonly BasicButtonType[] = ["Text button", "Contained button", "Outlined button"]
-const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Icon", "Sizes", "Color"]
+const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Icon", "Icon+Label", "Sizes", "Color"]
 const BUTTON_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error", "neutral"]
 const BUTTON_DOC_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error"]
 const BUTTON_SIZES: readonly ButtonSize[] = ["small", "medium", "large"]
@@ -32,6 +36,9 @@ const BUTTON_ROUTES: readonly ButtonRoute[] = [
   "button/basic/text",
   "button/basic/contained",
   "button/basic/outlined",
+  "button/icon-label",
+  "button/icon-label/left",
+  "button/icon-label/right",
   "button/sizes",
   "button/sizes/small",
   "button/sizes/medium",
@@ -56,7 +63,6 @@ const BUTTON_RADII = [14, 24, 34, 999] as const
 const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.00012
 const BACKDROP_Z = -0.00018
-
 class ButtonComponentsScreen extends Element {
   readonly #router = new VirtualRouter<ButtonRoute>(BUTTON_ROUTES, "button/basic", {mode: "path"})
   readonly #unsubscribe: () => void
@@ -101,14 +107,14 @@ class ButtonComponentsScreen extends Element {
   protected render(): void {
     this.#backdrop()
 
-    const stageW = Math.max(1040, Math.min(1540, this.rectW - 48))
+    const stageW = Math.max(1040, Math.min(1660, this.rectW - 36))
     const stageH = Math.max(560, Math.min(860, this.rectH - 36))
     const stageX = (this.rectW - stageW) / 2
     const stageY = (this.rectH - stageH) / 2
     const gap = 18
-    const catalogW = Math.round(Math.max(204, Math.min(250, stageW * 0.19)))
-    const sectionW = Math.round(Math.max(150, Math.min(190, stageW * 0.13)))
-    const paramsW = Math.round(Math.max(340, Math.min(420, stageW * 0.27)))
+    const catalogW = Math.round(Math.max(184, Math.min(228, stageW * 0.16)))
+    const sectionW = Math.round(Math.max(132, Math.min(172, stageW * 0.11)))
+    const paramsW = Math.round(Math.max(300, Math.min(372, stageW * 0.23)))
     const dockH = Math.max(86, Math.min(112, stageH * 0.15))
     const previewW = stageW - catalogW - sectionW - paramsW - gap * 3
     const previewH = stageH - dockH - gap
@@ -144,7 +150,7 @@ class ButtonComponentsScreen extends Element {
     })
 
     const pad = 22
-    h3(this, x + pad, y + 28, w - pad * 2, 24, {children: "Components", style: {fontSize: 15}})
+    h3(this, x, y + 28, w, 24, {children: "Components", style: {fontSize: 15, textAlign: "center"}})
     const top = y + 76
     const gap = 9
     const rowH = 38
@@ -175,7 +181,7 @@ class ButtonComponentsScreen extends Element {
     })
 
     const pad = 18
-    h3(this, x + pad, y + 28, w - pad * 2, 24, {children: "Button", style: {fontSize: 15}})
+    h3(this, x, y + 28, w, 24, {children: "Button", style: {fontSize: 15, textAlign: "center"}})
     const top = y + 76
     for (const [i, section] of BUTTON_SECTIONS.entries()) {
       const active = this.#routeSection() === section
@@ -207,6 +213,8 @@ class ButtonComponentsScreen extends Element {
       const icon = this.#routeIcon()
       if (icon === "svg") this.#iconSvgDetail(x, y, w, h)
       else this.#iconOverview(x, y, w, h)
+    } else if (this.#routeSection() === "Icon+Label") {
+      this.#iconLabelOverview(x, y, w, h)
     } else if (this.#routeSection() === "Color") {
       const color = this.#routeColor()
       if (color === null) this.#colorOverview(x, y, w, h)
@@ -237,18 +245,21 @@ class ButtonComponentsScreen extends Element {
     })
     renderHeader(this, x, w, pad, rows.headerY, "Basic button", ["The Button comes with three variants: text, contained, and outlined."])
 
-    const btnW = Math.min(140, Math.max(102, (w - pad * 2 - 32) / 3))
-    const rowW = btnW * 3 + 32
+    const textW = Math.max(90, autoButtonWidth(this, "Text", 12, 24))
+    const containedW = Math.max(112, autoButtonWidth(this, "Contained", 12, 24))
+    const outlinedW = Math.max(108, autoButtonWidth(this, "Outlined", 12, 24))
+    const gap = 16
+    const rowW = textW + containedW + outlinedW + gap * 2
     const startX = x + (w - rowW) / 2
-    Button(this, startX, rows.demoY, btnW, 46, {children: "Text", variant: "text", color: this.#color, radius: this.#radius, onClick: () => this.#go("text")})
-    Button(this, startX + btnW + 16, rows.demoY, btnW, 46, {
+    Button(this, startX, rows.demoY, textW, 46, {children: "Text", variant: "text", color: this.#color, radius: this.#radius, onClick: () => this.#go("text")})
+    Button(this, startX + textW + gap, rows.demoY, containedW, 46, {
       children: "Contained",
       variant: "contained",
       color: this.#color,
       radius: this.#radius,
       onClick: () => this.#go("contained"),
     })
-    Button(this, startX + (btnW + 16) * 2, rows.demoY, btnW, 46, {
+    Button(this, startX + textW + gap + containedW + gap, rows.demoY, outlinedW, 46, {
       children: "Outlined",
       variant: "outlined",
       color: this.#color,
@@ -311,6 +322,7 @@ class ButtonComponentsScreen extends Element {
       'Button(host, x, y, w, h, { children: "Medium", size: "medium" })',
       'Button(host, x, y, w, h, { children: "Large", size: "large" })',
       'Button(host, x, y, size, size, { iconSrc: atomSvg, iconOnly: true, variant: "text", size })',
+      'Button(host, x, y, w, h, { children: "Send", variant: "contained", endIcon: uiIcons.run, size })',
     ]
 
     const contentW = w - pad * 2
@@ -319,7 +331,7 @@ class ButtonComponentsScreen extends Element {
     const startX = x + pad
     const controlRowGap = 18
     const controlRowH = sizeButtonHeight("large")
-    const demoH = controlRowH * 4 + controlRowGap * 3
+    const demoH = controlRowH * 5 + controlRowGap * 4
     const rows = contentRows(y, h, {
       headerH: 108,
       demoH,
@@ -330,13 +342,17 @@ class ButtonComponentsScreen extends Element {
     const firstRowY = rows.demoY
     const outlinedY = firstRowY + controlRowH + controlRowGap
     const containedY = outlinedY + controlRowH + controlRowGap
-    const iconY = containedY + controlRowH + controlRowGap
+    const iconLabelY = containedY + controlRowH + controlRowGap
+    const iconY = iconLabelY + controlRowH + controlRowGap
     for (const [i, size] of sizes.entries()) {
       const label = sizeLabel(size)
       const bx = startX + i * (columnW + columnGap)
       const itemH = sizeButtonHeight(size)
       const itemY = (rowY: number) => rowY + (controlRowH - itemH) / 2
-      Button(this, bx, itemY(firstRowY), columnW, itemH, {
+      const textW = Math.min(columnW, docButtonWidth(this, label, size))
+      const outlinedW = Math.min(columnW, docButtonWidth(this, label, size))
+      const containedW = Math.min(columnW, docButtonWidth(this, label, size))
+      Button(this, bx + (columnW - textW) / 2, itemY(firstRowY), textW, itemH, {
         children: label,
         label,
         variant: "text",
@@ -346,7 +362,7 @@ class ButtonComponentsScreen extends Element {
         fontPx: sizeFont(size),
         onClick: () => this.#goSize(size),
       })
-      Button(this, bx, itemY(outlinedY), columnW, itemH, {
+      Button(this, bx + (columnW - outlinedW) / 2, itemY(outlinedY), outlinedW, itemH, {
         children: label,
         variant: "outlined",
         color: this.#color,
@@ -354,7 +370,7 @@ class ButtonComponentsScreen extends Element {
         radius: Math.min(this.#radius, 18),
         onClick: () => this.#goSize(size),
       })
-      Button(this, bx, itemY(containedY), columnW, itemH, {
+      Button(this, bx + (columnW - containedW) / 2, itemY(containedY), containedW, itemH, {
         children: label,
         variant: "contained",
         color: this.#color,
@@ -362,6 +378,8 @@ class ButtonComponentsScreen extends Element {
         radius: Math.min(this.#radius, 18),
         onClick: () => this.#goSize(size),
       })
+      const iconLabelW = Math.min(columnW, Math.max(96, autoButtonWidth(this, "Send", 12, 24, svgIconTint(uiIcons.run, iconStrokeColor(this.#color)))))
+      this.#docIconLabelButton(bx + (columnW - iconLabelW) / 2, itemY(iconLabelY), iconLabelW, itemH, size, this.#color, () => this.#goSize(size))
       this.#docIconButton(bx + (columnW - itemH) / 2, itemY(iconY), itemH, size, this.#color, () => this.#goSize(size))
     }
 
@@ -379,10 +397,14 @@ class ButtonComponentsScreen extends Element {
       `Button(host, x, y, w, h, { children: "Outlined", variant: "outlined", size: "${size}" })`,
       `Button(host, x, y, w, h, { children: "Contained", variant: "contained", size: "${size}" })`,
       `Button(host, x, y, h, h, { iconSrc: atomSvg, iconOnly: true, variant: "text", size: "${size}" })`,
+      `Button(host, x, y, w, h, { children: "Send", variant: "contained", endIcon: uiIcons.run, size: "${size}" })`,
     ]
 
     const contentW = w - pad * 2
-    const buttonW = Math.min(136, Math.max(96, (contentW - sizeButtonHeight(size) - 22 * 3) / 3))
+    const iconLabelW = Math.max(112, autoButtonWidth(this, "Send", 12, 24, svgIconTint(uiIcons.run, iconStrokeColor(this.#color))))
+    const textW = docButtonWidth(this, "Text", size)
+    const outlinedW = docButtonWidth(this, "Outlined", size)
+    const containedW = docButtonWidth(this, "Contained", size)
     const buttonH = sizeButtonHeight(size)
     const rows = contentRows(y, h, {
       headerH,
@@ -392,9 +414,10 @@ class ButtonComponentsScreen extends Element {
     renderHeader(this, x, w, pad, rows.headerY, `${title} buttons`, sizeDescriptionLines(size))
 
     const iconW = buttonH
-    const rowGap = Math.max(22, (contentW - buttonW * 3 - iconW) / 3)
-    const rowX = x + pad
-    Button(this, rowX, rows.demoY, buttonW, buttonH, {
+    const rowGap = Math.max(12, (contentW - textW - outlinedW - containedW - iconW - iconLabelW) / 4)
+    const rowW = textW + outlinedW + containedW + iconW + iconLabelW + rowGap * 4
+    const rowX = x + pad + Math.max(0, (contentW - rowW) / 2)
+    Button(this, rowX, rows.demoY, textW, buttonH, {
       children: "Text",
       variant: "text",
       color: this.#color,
@@ -402,7 +425,7 @@ class ButtonComponentsScreen extends Element {
       radius: this.#radius,
       onClick: () => this.#setSize(size),
     })
-    Button(this, rowX + buttonW + rowGap, rows.demoY, buttonW, buttonH, {
+    Button(this, rowX + textW + rowGap, rows.demoY, outlinedW, buttonH, {
       children: "Outlined",
       variant: "outlined",
       color: this.#color,
@@ -410,7 +433,7 @@ class ButtonComponentsScreen extends Element {
       radius: this.#radius,
       onClick: () => this.#setSize(size),
     })
-    Button(this, rowX + (buttonW + rowGap) * 2, rows.demoY, buttonW, buttonH, {
+    Button(this, rowX + textW + rowGap + outlinedW + rowGap, rows.demoY, containedW, buttonH, {
       children: "Contained",
       variant: "contained",
       color: this.#color,
@@ -418,7 +441,8 @@ class ButtonComponentsScreen extends Element {
       radius: this.#radius,
       onClick: () => this.#setSize(size),
     })
-    this.#docIconButton(rowX + buttonW * 3 + rowGap * 3, rows.demoY, iconW, size, this.#color, () => this.#setSize(size))
+    this.#docIconButton(rowX + textW + rowGap + outlinedW + rowGap + containedW + rowGap, rows.demoY, iconW, size, this.#color, () => this.#setSize(size))
+    this.#docIconLabelButton(rowX + textW + rowGap + outlinedW + rowGap + containedW + rowGap + iconW + rowGap, rows.demoY, iconLabelW, buttonH, size, this.#color, () => this.#setSize(size))
 
     const codeW = Math.min(520, w - pad * 2)
     const codeX = x + (w - codeW) / 2
@@ -432,6 +456,7 @@ class ButtonComponentsScreen extends Element {
       [
         ...variants.map((variant) => `Button(host, x, y, w, h, { children: "${variantLabel(variant)}", variant: "${variant}", color: "${color}" })`),
         `Button(host, x, y, h, h, { iconSrc: atomSvg, iconOnly: true, variant: "text", color: "${color}" })`,
+        `Button(host, x, y, w, h, { children: "Send", variant: "contained", endIcon: uiIcons.run, color: "${color}" })`,
       ],
     )
     const rowH = 38
@@ -465,21 +490,39 @@ class ButtonComponentsScreen extends Element {
     const labelW = 82
     const gap = 12
     const iconW = h
-    const buttonW = Math.min(120, Math.max(84, (w - labelW - iconW - gap * 4) / 3))
-    const rowW = labelW + gap + buttonW * variants.length + iconW + gap * variants.length
+    const iconLabelW = Math.max(112, autoButtonWidth(this, "Send", 12, 24, svgIconTint(uiIcons.run, iconStrokeColor(color))))
+    const textW = docButtonWidth(this, "Text", this.#size)
+    const outlinedW = docButtonWidth(this, "Outlined", this.#size)
+    const containedW = docButtonWidth(this, "Contained", this.#size)
+    const rowW = labelW + gap + textW + gap + outlinedW + gap + containedW + gap + iconW + gap + iconLabelW
     const startX = x + (w - rowW) / 2
     span(this, startX, y, labelW, h, {children: colorTitle(color), style: {fontSize: 11, color: colorTextStyle(color)}})
-    for (const [i, variant] of variants.entries()) {
-      Button(this, startX + labelW + gap + i * (buttonW + gap), y, buttonW, h, {
-        children: variantLabel(variant),
-        variant,
-        color,
-        radius: this.#radius,
-        fontPx: 10,
-        onClick: () => this.#goColor(color),
-      })
-    }
-    this.#docIconButton(startX + labelW + gap + variants.length * (buttonW + gap), y, iconW, this.#size, color, () => this.#goColor(color))
+    Button(this, startX + labelW + gap, y, textW, h, {
+      children: variantLabel("text"),
+      variant: "text",
+      color,
+      radius: this.#radius,
+      fontPx: 10,
+      onClick: () => this.#goColor(color),
+    })
+    Button(this, startX + labelW + gap + textW + gap, y, outlinedW, h, {
+      children: variantLabel("outlined"),
+      variant: "outlined",
+      color,
+      radius: this.#radius,
+      fontPx: 10,
+      onClick: () => this.#goColor(color),
+    })
+    Button(this, startX + labelW + gap + textW + gap + outlinedW + gap, y, containedW, h, {
+      children: variantLabel("contained"),
+      variant: "contained",
+      color,
+      radius: this.#radius,
+      fontPx: 10,
+      onClick: () => this.#goColor(color),
+    })
+    this.#docIconButton(startX + labelW + gap + textW + gap + outlinedW + gap + containedW + gap, y, iconW, this.#size, color, () => this.#goColor(color))
+    this.#docIconLabelButton(startX + labelW + gap + textW + gap + outlinedW + gap + containedW + gap + iconW + gap, y, iconLabelW, h, this.#size, color, () => this.#goColor(color))
   }
 
   #colorDetail(x: number, y: number, w: number, h: number, color: ButtonColor): void {
@@ -491,10 +534,14 @@ class ButtonComponentsScreen extends Element {
       `Button(host, x, y, w, h, { children: "Outlined", variant: "outlined", color: "${color}" })`,
       `Button(host, x, y, w, h, { children: "Contained", variant: "contained", color: "${color}" })`,
       `Button(host, x, y, h, h, { iconSrc: atomSvg, iconOnly: true, variant: "text", color: "${color}" })`,
+      `Button(host, x, y, w, h, { children: "Send", variant: "contained", endIcon: uiIcons.run, color: "${color}" })`,
     ]
 
     const contentW = w - pad * 2
-    const buttonW = Math.min(136, Math.max(96, (contentW - this.#buttonHeight() - 22 * 3) / 3))
+    const iconLabelW = Math.max(112, autoButtonWidth(this, "Send", 12, 24, svgIconTint(uiIcons.run, iconStrokeColor(color))))
+    const textW = docButtonWidth(this, "Text", this.#size)
+    const outlinedW = docButtonWidth(this, "Outlined", this.#size)
+    const containedW = docButtonWidth(this, "Contained", this.#size)
     const buttonH = this.#buttonHeight()
     const rows = contentRows(y, h, {
       headerH,
@@ -504,9 +551,10 @@ class ButtonComponentsScreen extends Element {
     renderHeader(this, x, w, pad, rows.headerY, `${title} color`, colorDescriptionLines(color))
 
     const iconW = buttonH
-    const rowGap = Math.max(22, (contentW - buttonW * 3 - iconW) / 3)
-    const rowX = x + pad
-    Button(this, rowX, rows.demoY, buttonW, buttonH, {
+    const rowGap = Math.max(12, (contentW - textW - outlinedW - containedW - iconW - iconLabelW) / 4)
+    const rowW = textW + outlinedW + containedW + iconW + iconLabelW + rowGap * 4
+    const rowX = x + pad + Math.max(0, (contentW - rowW) / 2)
+    Button(this, rowX, rows.demoY, textW, buttonH, {
       children: "Text",
       variant: "text",
       color,
@@ -514,7 +562,7 @@ class ButtonComponentsScreen extends Element {
       radius: this.#radius,
       onClick: () => this.#setColor(color),
     })
-    Button(this, rowX + buttonW + rowGap, rows.demoY, buttonW, buttonH, {
+    Button(this, rowX + textW + rowGap, rows.demoY, outlinedW, buttonH, {
       children: "Outlined",
       variant: "outlined",
       color,
@@ -522,7 +570,7 @@ class ButtonComponentsScreen extends Element {
       radius: this.#radius,
       onClick: () => this.#setColor(color),
     })
-    Button(this, rowX + (buttonW + rowGap) * 2, rows.demoY, buttonW, buttonH, {
+    Button(this, rowX + textW + rowGap + outlinedW + rowGap, rows.demoY, containedW, buttonH, {
       children: "Contained",
       variant: "contained",
       color,
@@ -530,7 +578,8 @@ class ButtonComponentsScreen extends Element {
       radius: this.#radius,
       onClick: () => this.#setColor(color),
     })
-    this.#docIconButton(rowX + buttonW * 3 + rowGap * 3, rows.demoY, iconW, this.#size, color, () => this.#setColor(color))
+    this.#docIconButton(rowX + textW + rowGap + outlinedW + rowGap + containedW + rowGap, rows.demoY, iconW, this.#size, color, () => this.#setColor(color))
+    this.#docIconLabelButton(rowX + textW + rowGap + outlinedW + rowGap + containedW + rowGap + iconW + rowGap, rows.demoY, iconLabelW, buttonH, this.#size, color, () => this.#setColor(color))
 
     const codeW = Math.min(520, w - pad * 2)
     const codeX = x + (w - codeW) / 2
@@ -556,6 +605,89 @@ class ButtonComponentsScreen extends Element {
     ])
 
     this.#iconSvgMatrix(x + pad, rows.demoY, w - pad * 2, demoH)
+
+    const codeW = Math.min(520, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #iconLabelOverview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const placement = this.#routeIconLabelPlacement()
+    const addIconProp = placement === "right" ? "endIcon" : "startIcon"
+    const sendIconProp = placement === "left" ? "startIcon" : "endIcon"
+    const deleteIconProp = placement === "right" ? "endIcon" : "startIcon"
+    const codeLines = [
+      'Button(host, x, y, w, h, {',
+      `  children: "Add", variant: "text", ${addIconProp}: uiIcons.apply })`,
+      'Button(host, x, y, w, h, {',
+      `  children: "Send", variant: "contained", ${sendIconProp}: uiIcons.run })`,
+      'Button(host, x, y, w, h, {',
+      `  children: "Delete", variant: "outlined", ${deleteIconProp}: uiIcons.clear })`,
+    ]
+    const rows = contentRows(y, h, {
+      headerH: 132,
+      demoH: 46,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, "Icon+Label button", [
+      "Use icons next to button labels when the action benefits from faster recognition.",
+      "The same Button API supports both leading and trailing icons.",
+    ])
+
+    const gap = 22
+    const buttonH = 38
+    const textIcon = svgIconTint(uiIcons.apply, iconStrokeColor("primary"))
+    const outlinedIcon = svgIconTint(uiIcons.clear, iconStrokeColor("primary"))
+    const containedIcon = svgIconTint(uiIcons.run, iconStrokeColor("primary"))
+    const textW = Math.max(104, autoButtonWidth(this, "Add", 12, 24, textIcon))
+    const leftW = Math.max(120, autoButtonWidth(this, "Delete", 12, 24, outlinedIcon))
+    const rightW = Math.max(120, autoButtonWidth(this, "Send", 12, 24, containedIcon))
+    const rowW = textW + leftW + rightW + gap * 2
+    const startX = x + (w - rowW) / 2
+    const addProps: ButtonProps = {
+      children: "Add",
+      label: "Add",
+      variant: "text",
+      color: "primary",
+      size: "medium",
+      iconSizePx: 18,
+      onClick: () => this.#record("icon-label:add"),
+    }
+    const sendProps: ButtonProps = {
+      children: "Send",
+      label: "Send",
+      variant: "contained",
+      color: "primary",
+      size: "medium",
+      iconSizePx: 18,
+      onClick: () => this.#record("icon-label:send"),
+    }
+    const deleteProps: ButtonProps = {
+      children: "Delete",
+      label: "Delete",
+      variant: "outlined",
+      color: "primary",
+      size: "medium",
+      iconSizePx: 18,
+      onClick: () => this.#record("icon-label:delete"),
+    }
+    if (placement === "right") {
+      addProps.endIcon = textIcon
+      sendProps.endIcon = containedIcon
+      deleteProps.endIcon = outlinedIcon
+    } else if (placement === "left") {
+      addProps.startIcon = textIcon
+      sendProps.startIcon = containedIcon
+      deleteProps.startIcon = outlinedIcon
+    } else {
+      addProps.startIcon = textIcon
+      sendProps.endIcon = containedIcon
+      deleteProps.startIcon = outlinedIcon
+    }
+    Button(this, startX, rows.demoY, textW, buttonH, addProps)
+    Button(this, startX + textW + gap, rows.demoY, rightW, buttonH, sendProps)
+    Button(this, startX + textW + gap + rightW + gap, rows.demoY, leftW, buttonH, deleteProps)
 
     const codeW = Math.min(520, w - pad * 2)
     const codeX = x + (w - codeW) / 2
@@ -687,6 +819,19 @@ class ButtonComponentsScreen extends Element {
     })
   }
 
+  #docIconLabelButton(x: number, y: number, width: number, height: number, size: ButtonSize, color: ButtonColor, onClick: () => void): void {
+    Button(this, x, y, width, height, {
+      children: "Send",
+      endIcon: svgIconTint(uiIcons.run, iconStrokeColor(color)),
+      variant: "contained",
+      color,
+      size,
+      radius: this.#radius,
+      iconSizePx: Math.max(16, Math.round(height * 0.44)),
+      onClick,
+    })
+  }
+
   #dock(x: number, y: number, w: number, h: number): void {
     Card(this, x, y, w, h, {
       variant: "glass",
@@ -694,6 +839,10 @@ class ButtonComponentsScreen extends Element {
     })
     if (this.#routeSection() === "Icon") {
       this.#iconDock(x, y, w, h)
+      return
+    }
+    if (this.#routeSection() === "Icon+Label") {
+      this.#iconLabelDock(x, y, w, h)
       return
     }
     if (this.#routeSection() === "Color") {
@@ -754,6 +903,25 @@ class ButtonComponentsScreen extends Element {
     })
   }
 
+  #iconLabelDock(x: number, y: number, w: number, h: number): void {
+    const itemGap = 12
+    const items: readonly ButtonRouteIconLabel[] = ["left", "right"]
+    const itemW = 112
+    const rowW = itemW * items.length + itemGap
+    const startX = x + (w - rowW) / 2
+    const placement = this.#routeIconLabelPlacement()
+    for (const [i, item] of items.entries()) {
+      const active = placement === item
+      Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
+        children: item,
+        variant: active ? "contained" : "outlined",
+        color: active ? this.#color : "neutral",
+        radius: this.#radius,
+        onClick: () => this.#goIconLabelPlacement(item),
+      })
+    }
+  }
+
   #colorDock(x: number, y: number, w: number, h: number): void {
     const itemGap = 10
     const itemW = Math.max(78, Math.min(112, (w - 64 - itemGap * (BUTTON_DOC_COLORS.length - 1)) / BUTTON_DOC_COLORS.length))
@@ -781,7 +949,7 @@ class ButtonComponentsScreen extends Element {
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
 
     let cy = y + 22
-    h3(this, x + 24, cy, w - 48, 24, {children: "Button props", style: {fontSize: 15}})
+    h3(this, x, cy, w, 24, {children: "Button props", style: {fontSize: 15, textAlign: "center"}})
     cy += 36
     cy += this.#optionGroup(x + 24, cy, w - 48, "label", BUTTON_LABELS, this.#label, (value) => {
       this.#label = value
@@ -982,7 +1150,12 @@ class ButtonComponentsScreen extends Element {
     return routeIconFromRoute(this.#route)
   }
 
+  #routeIconLabelPlacement(): IconLabelPlacement {
+    return routeIconLabelPlacementFromRoute(this.#route)
+  }
+
   #routeSection(): ButtonSection {
+    if (this.#route.startsWith("button/icon-label")) return "Icon+Label"
     if (this.#route.startsWith("button/icon")) return "Icon"
     if (this.#route.startsWith("button/color")) return "Color"
     if (this.#route.startsWith("button/sizes")) return "Sizes"
@@ -1015,6 +1188,11 @@ class ButtonComponentsScreen extends Element {
       this.#record("route:icon")
       return
     }
+    if (section === "Icon+Label") {
+      this.#router.go("button/icon-label")
+      this.#record("route:icon-label")
+      return
+    }
     this.#go(null)
   }
 
@@ -1028,6 +1206,11 @@ class ButtonComponentsScreen extends Element {
     this.#color = color
     this.#router.go(`button/color/${color}`)
     this.#record(`route:color:${color}`)
+  }
+
+  #goIconLabelPlacement(placement: ButtonRouteIconLabel): void {
+    this.#router.go(`button/icon-label/${placement}`)
+    this.#record(`route:icon-label:${placement}`)
   }
 
   #openSvgPicker(): void {
@@ -1120,6 +1303,12 @@ function routeIconFromRoute(route: ButtonRoute): ButtonRouteIcon | null {
   return null
 }
 
+function routeIconLabelPlacementFromRoute(route: ButtonRoute): IconLabelPlacement {
+  if (route === "button/icon-label/left") return "left"
+  if (route === "button/icon-label/right") return "right"
+  return "mixed"
+}
+
 function buttonTypeFromRouteVariant(variant: ButtonRouteVariant): BasicButtonType {
   if (variant === "contained") return "Contained button"
   if (variant === "outlined") return "Outlined button"
@@ -1170,6 +1359,16 @@ function sizeFont(size: ButtonSize): number {
   if (size === "small") return 12
   if (size === "large") return 16
   return 14
+}
+
+function buttonFontPx(size: ButtonSize): number {
+  if (size === "small") return 10
+  if (size === "large") return 14
+  return 12
+}
+
+function docButtonWidth(host: Element, label: string, size: ButtonSize, iconSrc?: string): number {
+  return autoButtonWidth(host, label, buttonFontPx(size), 24, iconSrc)
 }
 
 function sizeLabel(size: ButtonSize): string {
@@ -1244,15 +1443,18 @@ function customSvgIcon(color: ButtonColor): string {
 }
 
 function customSvgIconFromSource(source: string, color: ButtonColor): string {
-  const stroke = iconStrokeColor(color)
+  return svgIconTint(source, iconStrokeColor(color))
+}
+
+function svgIconTint(source: string, color: string): string {
   const parser = new DOMParser()
-  const doc = parser.parseFromString(source, "image/svg+xml")
+  const doc = parser.parseFromString(decodeSvgSource(source), "image/svg+xml")
   const svg = doc.querySelector("svg")
-  if (svg === null) return customSvgIcon(color)
+  if (svg === null) return customSvgIcon("primary")
 
   doc.querySelectorAll("script, foreignObject, style").forEach((node) => node.remove())
   svg.setAttribute("xmlns", "http://www.w3.org/2000/svg")
-  svg.setAttribute("color", stroke)
+  svg.setAttribute("color", color)
   let hasPaintDeclaration = false
   for (const node of [svg, ...Array.from(svg.querySelectorAll("*"))]) {
     const style = node.getAttribute("style")
@@ -1293,13 +1495,20 @@ function customSvgIconFromSource(source: string, color: ButtonColor): string {
 
   const style = doc.createElementNS("http://www.w3.org/2000/svg", "style")
   style.textContent = [
-    `:root { color: ${stroke}; }`,
+    `:root { color: ${color}; }`,
     "[fill]:not([fill='none']) { fill: currentColor !important; }",
     "[stroke]:not([stroke='none']) { stroke: currentColor !important; }",
   ].join(" ")
   svg.prepend(style)
 
   return svgDataUrl(new XMLSerializer().serializeToString(svg))
+}
+
+function decodeSvgSource(source: string): string {
+  if (!source.startsWith("data:image/svg+xml")) return source
+  const comma = source.indexOf(",")
+  if (comma < 0) return source
+  return decodeURIComponent(source.slice(comma + 1))
 }
 
 function isNonePaint(value: string): boolean {
@@ -1681,6 +1890,10 @@ function iconStrokeColor(color: ButtonColor): string {
   if (color === "error") return "rgba(255,127,111,1)"
   if (color === "neutral") return "rgba(139,150,166,1)"
   return "rgba(111,211,255,1)"
+}
+
+function colorToCssRgba(color: {r: number; g: number; b: number; a: number}): string {
+  return `rgba(${Math.round(color.r * 255)},${Math.round(color.g * 255)},${Math.round(color.b * 255)},${Math.round(color.a * 1000) / 1000})`
 }
 
 function svgDataUrl(svg: string): string {
