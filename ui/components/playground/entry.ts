@@ -10,12 +10,13 @@ type ButtonWidth = "compact" | "regular" | "wide"
 type ButtonHeight = "compact" | "regular" | "large"
 type BasicButtonType = "Text button" | "Contained button" | "Outlined button"
 type ButtonRouteVariant = "text" | "contained" | "outlined"
-type ButtonRoute = "button/basic" | `button/basic/${ButtonRouteVariant}` | "button/sizes" | `button/sizes/${ButtonSize}`
-type ButtonSection = "Basic" | "Sizes"
+type ButtonRoute = "button/basic" | `button/basic/${ButtonRouteVariant}` | "button/sizes" | `button/sizes/${ButtonSize}` | "button/color" | `button/color/${ButtonColor}`
+type ButtonSection = "Basic" | "Sizes" | "Color"
 
 const BASIC_BUTTON_TYPES: readonly BasicButtonType[] = ["Text button", "Contained button", "Outlined button"]
-const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Sizes"]
+const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Sizes", "Color"]
 const BUTTON_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error", "neutral"]
+const BUTTON_DOC_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error"]
 const BUTTON_SIZES: readonly ButtonSize[] = ["small", "medium", "large"]
 const BUTTON_ROUTES: readonly ButtonRoute[] = [
   "button/basic",
@@ -26,6 +27,12 @@ const BUTTON_ROUTES: readonly ButtonRoute[] = [
   "button/sizes/small",
   "button/sizes/medium",
   "button/sizes/large",
+  "button/color",
+  "button/color/primary",
+  "button/color/success",
+  "button/color/warning",
+  "button/color/error",
+  "button/color/neutral",
 ]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
 const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
@@ -60,10 +67,14 @@ class ButtonComponentsScreen extends Element {
     super({bgColor: null, borderColor: null})
     const initialSize = routeSizeFromRoute(this.#route)
     if (initialSize !== null) this.#size = initialSize
+    const initialColor = routeColorFromRoute(this.#route)
+    if (initialColor !== null) this.#color = initialColor
     this.#unsubscribe = this.#router.subscribe((route) => {
       this.#route = route
       const routeSize = routeSizeFromRoute(route)
       if (routeSize !== null) this.#size = routeSize
+      const routeColor = routeColorFromRoute(route)
+      if (routeColor !== null) this.#color = routeColor
       this.requestRender()
     })
   }
@@ -179,7 +190,11 @@ class ButtonComponentsScreen extends Element {
     })
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    if (this.#routeSection() === "Sizes") {
+    if (this.#routeSection() === "Color") {
+      const color = this.#routeColor()
+      if (color === null) this.#colorOverview(x, y, w, h)
+      else this.#colorDetail(x, y, w, h, color)
+    } else if (this.#routeSection() === "Sizes") {
       const size = this.#routeSize()
       if (size === null) this.#sizesOverview(x, y, w, h)
       else this.#sizeDetail(x, y, w, h, size)
@@ -389,6 +404,110 @@ class ButtonComponentsScreen extends Element {
     codeBlock(this, codeX, rows.codeY, codeW, codeLines)
   }
 
+  #colorOverview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const variants: readonly ButtonRouteVariant[] = ["text", "outlined", "contained"]
+    const codeLines = BUTTON_DOC_COLORS.flatMap((color) =>
+      variants.map((variant) => `Button(host, x, y, w, h, { children: "${variantLabel(variant)}", variant: "${variant}", color: "${color}" })`),
+    )
+    const rowH = 38
+    const rowGap = 11
+    const demoH = rowH * BUTTON_DOC_COLORS.length + rowGap * (BUTTON_DOC_COLORS.length - 1)
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, "Color", ["Use the color prop to apply semantic button tones."])
+
+    const contentW = w - pad * 2
+    for (const [i, color] of BUTTON_DOC_COLORS.entries()) {
+      this.#colorExampleRow(x + pad, rows.demoY + i * (rowH + rowGap), contentW, rowH, color, variants)
+    }
+
+    const codeW = Math.min(520, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #colorExampleRow(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    color: ButtonColor,
+    variants: readonly ButtonRouteVariant[],
+  ): void {
+    const labelW = 82
+    const gap = 12
+    const buttonW = Math.min(128, Math.max(92, (w - labelW - gap * variants.length) / variants.length))
+    const rowW = labelW + gap + buttonW * variants.length + gap * (variants.length - 1)
+    const startX = x + (w - rowW) / 2
+    span(this, startX, y, labelW, h, {children: colorTitle(color), style: {fontSize: 11, color: colorTextStyle(color)}})
+    for (const [i, variant] of variants.entries()) {
+      Button(this, startX + labelW + gap + i * (buttonW + gap), y, buttonW, h, {
+        children: variantLabel(variant),
+        variant,
+        color,
+        radius: this.#radius,
+        fontPx: 10,
+        onClick: () => this.#goColor(color),
+      })
+    }
+  }
+
+  #colorDetail(x: number, y: number, w: number, h: number, color: ButtonColor): void {
+    const pad = 42
+    const headerH = 108
+    const title = colorTitle(color)
+    const codeLines = [
+      `Button(host, x, y, w, h, { children: "Text", variant: "text", color: "${color}" })`,
+      `Button(host, x, y, w, h, { children: "Outlined", variant: "outlined", color: "${color}" })`,
+      `Button(host, x, y, w, h, { children: "Contained", variant: "contained", color: "${color}" })`,
+    ]
+
+    const contentW = w - pad * 2
+    const buttonW = Math.min(this.#buttonWidth(Math.min(contentW, 520)), 168)
+    const buttonH = this.#buttonHeight()
+    const rows = contentRows(y, h, {
+      headerH,
+      demoH: buttonH,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, `${title} color`, colorDescriptionLines(color))
+
+    const rowGap = Math.max(22, (contentW - buttonW * 3) / 2)
+    const rowX = x + pad
+    Button(this, rowX, rows.demoY, buttonW, buttonH, {
+      children: "Text",
+      variant: "text",
+      color,
+      size: this.#size,
+      radius: this.#radius,
+      onClick: () => this.#setColor(color),
+    })
+    Button(this, rowX + buttonW + rowGap, rows.demoY, buttonW, buttonH, {
+      children: "Outlined",
+      variant: "outlined",
+      color,
+      size: this.#size,
+      radius: this.#radius,
+      onClick: () => this.#setColor(color),
+    })
+    Button(this, rowX + (buttonW + rowGap) * 2, rows.demoY, buttonW, buttonH, {
+      children: "Contained",
+      variant: "contained",
+      color,
+      size: this.#size,
+      radius: this.#radius,
+      onClick: () => this.#setColor(color),
+    })
+
+    const codeW = Math.min(520, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
   #textButtonExample(x: number, y: number, w: number, label: string, disabled: boolean): void {
     Button(this, x, y - 3, w, 28, {
       children: label,
@@ -407,6 +526,10 @@ class ButtonComponentsScreen extends Element {
       variant: "glass",
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34, zIndex: LAYOUT_Z},
     })
+    if (this.#routeSection() === "Color") {
+      this.#colorDock(x, y, w, h)
+      return
+    }
     if (this.#routeSection() === "Sizes") {
       this.#sizeDock(x, y, w, h)
       return
@@ -449,6 +572,25 @@ class ButtonComponentsScreen extends Element {
     }
   }
 
+  #colorDock(x: number, y: number, w: number, h: number): void {
+    const itemGap = 10
+    const itemW = Math.max(78, Math.min(112, (w - 64 - itemGap * (BUTTON_DOC_COLORS.length - 1)) / BUTTON_DOC_COLORS.length))
+    const rowW = itemW * BUTTON_DOC_COLORS.length + itemGap * (BUTTON_DOC_COLORS.length - 1)
+    const startX = x + (w - rowW) / 2
+    const routeColor = this.#routeColor()
+    for (const [i, color] of BUTTON_DOC_COLORS.entries()) {
+      const active = routeColor === color
+      Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
+        children: color,
+        variant: active ? "contained" : "outlined",
+        color,
+        radius: this.#radius,
+        fontPx: 10,
+        onClick: () => this.#goColor(color),
+      })
+    }
+  }
+
   #parameters(x: number, y: number, w: number, h: number): void {
     Card(this, x, y, w, h, {
       variant: "glass",
@@ -464,8 +606,7 @@ class ButtonComponentsScreen extends Element {
       this.#record(`label:${value.toLowerCase()}`)
     }, 62) + 8
     cy += this.#optionGroup(x + 24, cy, w - 48, "color", BUTTON_COLORS, this.#color, (value) => {
-      this.#color = value
-      this.#record(`color:${value}`)
+      this.#setColor(value)
     }, 52, {
       color: (value, active) => active ? value : "neutral",
     }) + 8
@@ -651,7 +792,12 @@ class ButtonComponentsScreen extends Element {
     return routeSizeFromRoute(this.#route)
   }
 
+  #routeColor(): ButtonColor | null {
+    return routeColorFromRoute(this.#route)
+  }
+
   #routeSection(): ButtonSection {
+    if (this.#route.startsWith("button/color")) return "Color"
     if (this.#route.startsWith("button/sizes")) return "Sizes"
     return "Basic"
   }
@@ -672,6 +818,11 @@ class ButtonComponentsScreen extends Element {
       this.#record("route:sizes")
       return
     }
+    if (section === "Color") {
+      this.#router.go("button/color")
+      this.#record("route:color")
+      return
+    }
     this.#go(null)
   }
 
@@ -681,6 +832,12 @@ class ButtonComponentsScreen extends Element {
     this.#record(`route:sizes:${size}`)
   }
 
+  #goColor(color: ButtonColor): void {
+    this.#color = color
+    this.#router.go(`button/color/${color}`)
+    this.#record(`route:color:${color}`)
+  }
+
   #setSize(size: ButtonSize): void {
     if (this.#routeSection() === "Sizes") {
       this.#goSize(size)
@@ -688,6 +845,15 @@ class ButtonComponentsScreen extends Element {
     }
     this.#size = size
     this.#record(`size:${size}`)
+  }
+
+  #setColor(color: ButtonColor): void {
+    if (this.#routeSection() === "Color") {
+      this.#goColor(color)
+      return
+    }
+    this.#color = color
+    this.#record(`color:${color}`)
   }
 
   #record(_status: string): void {
@@ -716,6 +882,13 @@ function routeSizeFromRoute(route: ButtonRoute): ButtonSize | null {
   return route.slice("button/sizes/".length) as ButtonSize
 }
 
+function routeColorFromRoute(route: ButtonRoute): ButtonColor | null {
+  if (!route.startsWith("button/color/")) return null
+  const color = route.slice("button/color/".length)
+  if (!BUTTON_COLORS.includes(color as ButtonColor)) return null
+  return color as ButtonColor
+}
+
 function buttonTypeFromRouteVariant(variant: ButtonRouteVariant): BasicButtonType {
   if (variant === "contained") return "Contained button"
   if (variant === "outlined") return "Outlined button"
@@ -737,6 +910,12 @@ function buttonVariant(type: BasicButtonType): ButtonVariant {
 function dockLabel(type: BasicButtonType): string {
   if (type === "Contained button") return "Contained"
   if (type === "Outlined button") return "Outlined"
+  return "Text"
+}
+
+function variantLabel(variant: ButtonRouteVariant): string {
+  if (variant === "contained") return "Contained"
+  if (variant === "outlined") return "Outlined"
   return "Text"
 }
 
@@ -784,6 +963,30 @@ function sizeButtonHeight(size: ButtonSize): number {
   if (size === "small") return 36
   if (size === "large") return 52
   return 44
+}
+
+function colorTitle(color: ButtonColor): string {
+  if (color === "primary") return "Primary"
+  if (color === "success") return "Success"
+  if (color === "warning") return "Warning"
+  if (color === "error") return "Error"
+  return "Neutral"
+}
+
+function colorTextStyle(color: ButtonColor): "cyan" | "green" | "orange" | "red" | "muted" {
+  if (color === "success") return "green"
+  if (color === "warning") return "orange"
+  if (color === "error") return "red"
+  if (color === "neutral") return "muted"
+  return "cyan"
+}
+
+function colorDescriptionLines(color: ButtonColor): readonly string[] {
+  if (color === "success") return ["Success color is used for positive actions", "and confirmation states."]
+  if (color === "warning") return ["Warning color marks risky actions", "that need extra attention."]
+  if (color === "error") return ["Error color highlights destructive actions", "and failed states."]
+  if (color === "neutral") return ["Neutral color keeps controls quiet", "for secondary interface actions."]
+  return ["Primary color is the default action tone", "for standard button interactions."]
 }
 
 function contentRows(
