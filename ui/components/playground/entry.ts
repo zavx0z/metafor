@@ -881,63 +881,6 @@ class ButtonComponentsScreen extends Element {
       variant: "glass",
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
     })
-    this.pushClip(x + 2, y + 2, w - 4, h - 4)
-
-    let cy = y + 22
-    h3(this, x, cy, w, 24, {children: "Button props", style: {fontSize: 15, textAlign: "center"}})
-    cy += 36
-    cy += this.#optionGroup(x + 24, cy, w - 48, "label", BUTTON_LABELS, this.#label, (value) => {
-      this.#label = value
-      this.#record(`label:${value.toLowerCase()}`)
-    }, 62) + 8
-    cy += this.#optionGroup(x + 24, cy, w - 48, "color", BUTTON_COLORS, this.#color, (value) => {
-      this.#setColor(value)
-    }, 52, {
-      color: (value, active) => active ? value : "neutral",
-    }) + 8
-    cy += this.#optionGroup(x + 24, cy, w - 48, "size", BUTTON_SIZES, this.#size, (value) => {
-      this.#size = value
-      this.#record(`size:${value}`)
-    }, 62) + 8
-    cy += this.#numberGroup(x + 24, cy, w - 48, "radius", BUTTON_RADII, this.#radius, (value) => {
-      this.#radius = value
-      this.#record(`radius:${value}`)
-    }) + 8
-    cy += this.#optionGroup(x + 24, cy, w - 48, "icon", BUTTON_ICONS, this.#icon, (value) => {
-      this.#icon = value
-      this.#record(`icon:${value}`)
-    }, 62, {display: iconDisplay}) + 8
-    cy += this.#optionGroup(x + 24, cy, w - 48, "icon position", ICON_PLACEMENTS, this.#iconPlacement, (value) => {
-      this.#iconPlacement = value
-      this.#record(`icon:${value}`)
-    }, 74) + 8
-    cy += this.#numberGroup(x + 24, cy, w - 48, "icon size", ICON_SIZES, this.#iconSize, (value) => {
-      this.#iconSize = value
-      this.#record(`iconSize:${value}`)
-    }) + 8
-    cy += this.#optionGroup(x + 24, cy, w - 48, "state", BUTTON_STATES, this.#state, (value) => {
-      this.#state = value
-      this.#record(value)
-    }, 86) + 10
-
-    Divider(this, x + 24, cy + 5, w - 48, {color: "neutral"})
-    cy += 18
-    h3(this, x + 24, cy, w - 48, 24, {children: "Layout", style: {fontSize: 15}})
-    cy += 30
-    cy += this.#optionGroup(x + 24, cy, w - 48, "width", BUTTON_WIDTHS, this.#width, (value) => {
-      this.#width = value
-      this.#record(`width:${value}`)
-    }, 74) + 8
-    cy += this.#optionGroup(x + 24, cy, w - 48, "height", BUTTON_HEIGHTS, this.#height, (value) => {
-      this.#height = value
-      this.#record(`height:${value}`)
-    }, 74) + 8
-    cy += this.#optionGroup(x + 24, cy, w - 48, "tooltip", ["off", "on"] as const, this.#tooltip ? "on" : "off", (value) => {
-      this.#tooltip = value === "on"
-      this.#record(`tooltip:${value}`)
-    }, 74)
-
-    this.popClip()
   }
 
   #optionGroup<T extends string>(
