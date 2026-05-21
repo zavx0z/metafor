@@ -524,7 +524,7 @@ export class EditorPane extends UiSurface {
     this.setCursor(this.#cline, col)
   }
 
-  onWheel(event: WheelEvent): void {
+  override onWheel(event: WheelEvent): void {
     // Shift + wheel → горизонтальная прокрутка кода
     if (event.shiftKey) {
       event.preventDefault()

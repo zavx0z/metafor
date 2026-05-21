@@ -282,6 +282,10 @@ export class UiRuntime {
   #onMouseMove(event: MouseEvent): void {
     const {x, y} = this.#localCoords(event)
     const slot = this.#surfaceAt(x, y)
+    if (this.#pressedSlot !== null && this.#pressedSlot !== undefined) {
+      this.#pressedSlot.surface.onPointerMove?.(event, x - this.#pressedSlot.rect.x, y - this.#pressedSlot.rect.y)
+      return
+    }
     if (slot !== this.#hoveredSlot) {
       this.#hoveredSlot?.surface.onPointerLeave?.()
       this.#hoveredSlot = slot ?? null

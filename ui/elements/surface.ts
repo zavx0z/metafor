@@ -83,8 +83,18 @@ export type HitBox = {
   tooltip?: TooltipHit
   onPointerEnter?: () => void
   onPointerLeave?: () => void
-  onPointerDown?: () => void
+  onPointerDown?: (localX: number, localY: number) => void
+  onPointerMove?: (localX: number, localY: number) => void
   onPointerUp?: () => void
+}
+
+export type WheelHitBox = {
+  x: number
+  y: number
+  w: number
+  h: number
+  key: string
+  onWheel(event: WheelEvent): void
 }
 
 export type TooltipHit = {
@@ -98,7 +108,8 @@ export type HitOptions = {
   key?: string
   onPointerEnter?: () => void
   onPointerLeave?: () => void
-  onPointerDown?: () => void
+  onPointerDown?: (localX: number, localY: number) => void
+  onPointerMove?: (localX: number, localY: number) => void
   onPointerUp?: () => void
 }
 
@@ -275,6 +286,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #padBottom: number
   readonly #padLeft: number
   #hits: HitBox[] = []
+  #wheelHits: WheelHitBox[] = []
   protected hoveredHit: HitBox | null = null
   protected pressedHit: HitBox | null = null
   #hoveredHitKey: string | null = null
@@ -751,14 +763,35 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (options.onPointerEnter !== undefined) hit.onPointerEnter = options.onPointerEnter
     if (options.onPointerLeave !== undefined) hit.onPointerLeave = options.onPointerLeave
     if (options.onPointerDown !== undefined) hit.onPointerDown = options.onPointerDown
+    if (options.onPointerMove !== undefined) hit.onPointerMove = options.onPointerMove
     if (options.onPointerUp !== undefined) hit.onPointerUp = options.onPointerUp
     this.#hits.push(hit)
   }
 
+  /** Регистрирует wheel-rect в surface-px coords. Поздние побеждают. */
+  wheel(x: number, y: number, w: number, h: number, onWheel: (event: WheelEvent) => void, key?: string): void {
+    this.#wheelHits.push({
+      x,
+      y,
+      w,
+      h,
+      key: key ?? hitKeyFor(x, y, w, h),
+      onWheel,
+    })
+  }
+
   // ────────────────────────── Pointer events ──────────────────────────
+
+  onWheel(event: WheelEvent, localX: number, localY: number): void {
+    const hit = this.#wheelHitAt(localX - this.#padLeft, localY - this.#padTop)
+    hit?.onWheel(event)
+  }
 
   onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
     if (this.canvas === null) return
+    if (this.pressedHit?.onPointerMove !== undefined) {
+      this.pressedHit.onPointerMove(localX - this.#padLeft, localY - this.#padTop)
+    }
     // Pointermove приходит в surface-rect-local; #hits зарегистрированы в inner-coords
     // (после сдвига на padding) — субтрагируем padLeft/padTop.
     const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
@@ -773,7 +806,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (hit === null) return
     this.pressedHit = hit
     this.#pressedHitKey = hit.key
-    hit.onPointerDown?.()
+    hit.onPointerDown?.(localX - this.#padLeft, localY - this.#padTop)
     this.requestRender()
   }
 
@@ -891,6 +924,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
     this.#clearLayer()
     this.#hits = []
+    this.#wheelHits = []
     this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
     this.render()
   }
@@ -1019,6 +1053,14 @@ export abstract class UiSurface implements UiSurfaceNode {
   #hitAt(x: number, y: number): HitBox | null {
     for (let i = this.#hits.length - 1; i >= 0; i--) {
       const h = this.#hits[i]!
+      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return h
+    }
+    return null
+  }
+
+  #wheelHitAt(x: number, y: number): WheelHitBox | null {
+    for (let i = this.#wheelHits.length - 1; i >= 0; i--) {
+      const h = this.#wheelHits[i]!
       if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return h
     }
     return null

@@ -1,5 +1,4 @@
-import {scrollbar as renderScrollbar, type ScrollbarOpts} from "./internal/renderers.ts"
-import type {UiSurface} from "@metafor/elements"
+import {scrollbar as renderScrollbar, type ScrollbarOpts, type UiSurface} from "@metafor/elements"
 
 export type {ScrollbarOpts}
 

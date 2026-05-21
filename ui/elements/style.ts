@@ -9,6 +9,7 @@ export type CssAlignItems = "start" | "center" | "end" | "stretch"
 export type CssJustifyContent = "start" | "center" | "end" | "space-between" | "space-around"
 export type CssCursor = "default" | "pointer" | "text"
 export type CssTextAlign = "left" | "center" | "right"
+export type CssOverflow = "visible" | "hidden" | "auto" | "scroll"
 
 export type StyleProps = {
   width?: CssLength
@@ -35,6 +36,12 @@ export type StyleProps = {
   fontSize?: CssLength
   lineHeight?: number | CssLength
   textAlign?: CssTextAlign
+  overflow?: CssOverflow
+  overflowX?: CssOverflow
+  overflowY?: CssOverflow
+  scrollbarWidth?: CssLength
+  scrollbarColor?: CssColor
+  scrollbarTrackColor?: CssColor
   display?: CssDisplay
   alignItems?: CssAlignItems
   justifyContent?: CssJustifyContent

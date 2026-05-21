@@ -30,6 +30,7 @@ type ElementRoute =
   | "style/theme"
   | "events"
 type CssSection = "padding" | "flex" | "border" | "color" | "typography"
+type DivDetail = "background" | "border" | "padding" | "zIndex" | "scroll"
 type ElementTone = "cyan" | "green" | "orange" | "red"
 type ElementDensity = "compact" | "regular" | "air"
 type ElementGroup = "Primitives" | "Layout" | "Style" | "Events"
@@ -85,6 +86,32 @@ class ElementsPlayground extends UiSurface {
   #clicks = 0
   #state = "idle"
   #events: string[] = ["ready: hover, press, release, click"]
+  readonly #scrollLines = [
+    "div owns overflow and scrollbar.",
+    "Wheel inside this box.",
+    "The component layer only sets CSS-like style.",
+    "Scrollbar geometry, clipping and wheel input live in elements.",
+    "content line 05",
+    "content line 06",
+    "content line 07",
+    "content line 08",
+    "content line 09",
+    "content line 10",
+    "content line 11",
+    "content line 12",
+    "content line 13",
+    "content line 14",
+    "content line 15",
+    "content line 16",
+    "content line 17",
+    "content line 18",
+    "content line 19",
+    "content line 20",
+    "content line 21",
+    "content line 22",
+    "content line 23",
+    "content line 24",
+  ].join("\n")
 
   constructor() {
     super({bgColor: null, borderColor: null})
@@ -352,8 +379,14 @@ class ElementsPlayground extends UiSurface {
     codeLine(this, x + 26, y + 320, w - 52, "div(this, x, y, w, h, { style: { background: \"glass\", padding: 24 } })")
   }
 
-  #divRoute(x: number, y: number, w: number, _h: number): void {
+  #divRoute(x: number, y: number, w: number, h: number): void {
     h2(this, x, y, w, 34, {children: "div", style: {fontSize: 22}})
+    const detail = this.#divDetail()
+    pill(this, x + w - 176, y + 2, 176, 30, detail, "rgba(111, 211, 255, 0.10)", "cyan")
+    if (detail === "scroll") {
+      this.#divScrollDetail(x, y + 58, w, h - 58)
+      return
+    }
 
     const leftW = Math.floor(w * 0.52)
     div(this, x, y + 58, leftW, 358, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
@@ -374,6 +407,44 @@ class ElementsPlayground extends UiSurface {
     propRow(this, rightX + 28, y + 224, rightW - 56, "color", "\"cyan\" | \"muted\" | #fff")
     propRow(this, rightX + 28, y + 270, rightW - 56, "paddingX", "number | \"px\"")
     propRow(this, rightX + 28, y + 316, rightW - 56, "zIndex", "small layered offsets")
+  }
+
+  #divDetail(): DivDetail {
+    return isDivDetail(this.#dockSelection) ? this.#dockSelection : "background"
+  }
+
+  #divScrollDetail(x: number, y: number, w: number, _h: number): void {
+    const leftW = Math.floor(w * 0.50)
+    h3(this, x + 28, y + 28, leftW - 56, 24, {children: "Scrollable div", style: {fontSize: 15}})
+    div(this, x + 28, y + 82, leftW - 56, 236, {
+      key: "div-playground-scrollbar-detail",
+      children: this.#scrollLines,
+      style: {
+        overflowY: "auto",
+        padding: 22,
+        background: "rgba(255, 255, 255, 0.035)",
+        borderColor: "rgba(111, 211, 255, 0.30)",
+        borderRadius: 28,
+        color: "muted",
+        fontSize: 12,
+        lineHeight: 1.55,
+        scrollbarWidth: 10,
+        scrollbarColor: "rgba(111, 211, 255, 0.52)",
+        scrollbarTrackColor: "rgba(214, 231, 255, 0.12)",
+      },
+    })
+    codeLine(this, x + 28, y + 358, leftW - 56, "div(surface, x, y, w, h, { style: { overflowY: \"auto\" } })")
+
+    const rightX = x + leftW + 22
+    const rightW = w - leftW - 22
+    div(this, rightX, y + 28, rightW, 390, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, rightX + 28, y + 56, rightW - 56, 24, {children: "Scroll props", style: {fontSize: 15}})
+    propRow(this, rightX + 28, y + 102, rightW - 56, "overflowY", "\"visible\" | \"hidden\" | \"auto\" | \"scroll\"")
+    propRow(this, rightX + 28, y + 148, rightW - 56, "scrollbarWidth", "number | \"px\"")
+    propRow(this, rightX + 28, y + 194, rightW - 56, "scrollbarColor", "token | rgba(...)")
+    propRow(this, rightX + 28, y + 240, rightW - 56, "scrollbarTrackColor", "token | rgba(...)")
+    propRow(this, rightX + 28, y + 286, rightW - 56, "clip", "owned by div when overflow is active")
+    propRow(this, rightX + 28, y + 332, rightW - 56, "wheel", "handled by element hit zone")
   }
 
   #spanRoute(x: number, y: number, w: number, _h: number): void {
@@ -746,7 +817,7 @@ function demoCell(host: UiSurface, x: number, y: number, w: number, h: number, l
 }
 
 function labelsForRoute(route: ElementRoute): readonly string[] {
-  if (route === "div") return ["background", "border", "padding", "zIndex"]
+  if (route === "div") return ["background", "border", "padding", "zIndex", "scroll"]
   if (route === "span") return ["left", "center", "right", "color"]
   if (route === "button") return ["default", "disabled", "click", "press"]
   if (route === "input") return ["inactive", "active", "value", "style"]
@@ -755,6 +826,10 @@ function labelsForRoute(route: ElementRoute): readonly string[] {
   if (route === "layout/flex-css") return ["px", "percent", "fr", "grow"]
   if (route === "events") return ["hover", "press", "release", "click"]
   return ["style", "tokens", "radius", "glass"]
+}
+
+function isDivDetail(value: string): value is DivDetail {
+  return value === "background" || value === "border" || value === "padding" || value === "zIndex" || value === "scroll"
 }
 
 function svgDataUrl(svg: string): string {
