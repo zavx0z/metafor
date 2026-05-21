@@ -20,6 +20,7 @@ import {VirtualRouter} from "../../playground/virtual-router.ts"
 
 type ElementRoute =
   | "div"
+  | "div/scroll"
   | "span"
   | "button"
   | "input"
@@ -31,6 +32,7 @@ type ElementRoute =
   | "events"
 type CssSection = "padding" | "flex" | "border" | "color" | "typography"
 type DivDetail = "background" | "border" | "padding" | "zIndex" | "scroll"
+type DivRoute = "div" | "div/scroll"
 type ElementTone = "cyan" | "green" | "orange" | "red"
 type ElementDensity = "compact" | "regular" | "air"
 type ElementGroup = "Primitives" | "Layout" | "Style" | "Events"
@@ -40,7 +42,8 @@ type SectionLink = {
   route: ElementRoute
 }
 
-const ROUTE_IDS = ["div", "span", "button", "input", "img", "layout/flex", "layout/flex-css", "style/css", "style/theme", "events"] as const
+const ROUTE_IDS = ["div", "div/scroll", "span", "button", "input", "img", "layout/flex", "layout/flex-css", "style/css", "style/theme", "events"] as const
+const DIV_DETAILS: readonly DivDetail[] = ["background", "border", "padding", "zIndex", "scroll"]
 const ELEMENT_GROUPS: readonly ElementGroup[] = ["Primitives", "Layout", "Style", "Events"]
 const SECTION_LINKS: Record<ElementGroup, readonly SectionLink[]> = {
   Primitives: [
@@ -197,7 +200,7 @@ class ElementsPlayground extends UiSurface {
     const pad = 18
     const top = y + 76
     for (const [i, section] of SECTION_LINKS[group].entries()) {
-      const active = section.route === this.#route
+      const active = section.route === this.#route || (section.route === "div" && this.#route.startsWith("div/"))
       button(this, x + pad, top + i * 47, w - pad * 2, 38, {
         children: section.label,
         onClick: () => this.#router.go(section.route),
@@ -219,7 +222,7 @@ class ElementsPlayground extends UiSurface {
     const pad = this.#contentPad()
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    if (this.#route === "div") this.#divRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    if (this.#route === "div" || this.#route === "div/scroll") this.#divRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "span") this.#spanRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "button") this.#buttonRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "input") this.#inputRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
@@ -320,6 +323,13 @@ class ElementsPlayground extends UiSurface {
   }
 
   #dockItems(): Array<{label: string; active?: boolean; onClick: () => void}> {
+    if (this.#route === "div" || this.#route === "div/scroll") {
+      return DIV_DETAILS.map((detail) => ({
+        label: detail,
+        active: this.#divDetail() === detail,
+        onClick: () => this.#goDivDetail(detail),
+      }))
+    }
     if (this.#route === "style/css") {
       return CSS_SECTIONS.map((section) => ({
         label: section,
@@ -382,8 +392,8 @@ class ElementsPlayground extends UiSurface {
   #divRoute(x: number, y: number, w: number, h: number): void {
     h2(this, x, y, w, 34, {children: "div", style: {fontSize: 22}})
     const detail = this.#divDetail()
-    pill(this, x + w - 176, y + 2, 176, 30, detail, "rgba(111, 211, 255, 0.10)", "cyan")
     if (detail === "scroll") {
+      pill(this, x + w - 176, y + 2, 176, 30, detail, "rgba(111, 211, 255, 0.10)", "cyan")
       this.#divScrollDetail(x, y + 58, w, h - 58)
       return
     }
@@ -409,8 +419,13 @@ class ElementsPlayground extends UiSurface {
     propRow(this, rightX + 28, y + 316, rightW - 56, "zIndex", "small layered offsets")
   }
 
-  #divDetail(): DivDetail {
-    return isDivDetail(this.#dockSelection) ? this.#dockSelection : "background"
+  #divDetail(): DivDetail | null {
+    if (this.#route === "div/scroll") return "scroll"
+    return null
+  }
+
+  #goDivDetail(detail: DivDetail): void {
+    this.#router.go(divRouteFromDetail(detail))
   }
 
   #divScrollDetail(x: number, y: number, w: number, _h: number): void {
@@ -817,7 +832,7 @@ function demoCell(host: UiSurface, x: number, y: number, w: number, h: number, l
 }
 
 function labelsForRoute(route: ElementRoute): readonly string[] {
-  if (route === "div") return ["background", "border", "padding", "zIndex", "scroll"]
+  if (route === "div" || route === "div/scroll") return DIV_DETAILS
   if (route === "span") return ["left", "center", "right", "color"]
   if (route === "button") return ["default", "disabled", "click", "press"]
   if (route === "input") return ["inactive", "active", "value", "style"]
@@ -828,8 +843,8 @@ function labelsForRoute(route: ElementRoute): readonly string[] {
   return ["style", "tokens", "radius", "glass"]
 }
 
-function isDivDetail(value: string): value is DivDetail {
-  return value === "background" || value === "border" || value === "padding" || value === "zIndex" || value === "scroll"
+function divRouteFromDetail(detail: DivDetail): DivRoute {
+  return detail === "scroll" ? "div/scroll" : "div"
 }
 
 function svgDataUrl(svg: string): string {
