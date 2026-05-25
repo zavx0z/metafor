@@ -1,15 +1,18 @@
-import {div, h2, Z, type UiSurface, type StyleProps} from "@metafor/elements"
+import {div, h2, Z, type DivProps, type UiSurface, type StyleProps} from "@metafor/elements"
 
 export type PaneVariant = "glass" | "outlined" | "filled"
 export type PaneProps = {
-  children?: string
+  children?: DivProps["children"]
+  key?: string
   variant?: PaneVariant
   elevation?: 0 | 1 | 2 | 3
+  scrollContentWidth?: number
+  scrollContentHeight?: number
   sx?: StyleProps
 }
 
 export function Pane(host: UiSurface, x: number, y: number, width: number, height: number, props: PaneProps = {}): void {
-  div(host, x, y, width, height, {
+  const divProps: DivProps = {
     children: props.children,
     style: {
       background: props.variant === "filled" ? "bgElevated" : "glass",
@@ -19,6 +22,12 @@ export function Pane(host: UiSurface, x: number, y: number, width: number, heigh
       zIndex: Z.CONTAINER,
       ...props.sx,
     },
+  }
+  if (props.key !== undefined) divProps.key = props.key
+  if (props.scrollContentWidth !== undefined) divProps.scrollContentWidth = props.scrollContentWidth
+  if (props.scrollContentHeight !== undefined) divProps.scrollContentHeight = props.scrollContentHeight
+  div(host, x, y, width, height, {
+    ...divProps,
   })
 }
 

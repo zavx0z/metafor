@@ -35,6 +35,7 @@ export interface UiSurfaceNode {
   onPointerMove?(event: MouseEvent, localX: number, localY: number): void
   onPointerDown?(event: MouseEvent, localX: number, localY: number): void
   onPointerUp?(event: MouseEvent, localX: number, localY: number): void
+  onContextMenu?(event: MouseEvent, localX: number, localY: number): void
   onPointerLeave?(): void
   onActivate?(): void
   onDeactivate?(): void
@@ -99,6 +100,7 @@ export class UiRuntime {
   readonly #handleMouseDown = (event: MouseEvent): void => this.#onMouseDown(event)
   readonly #handleMouseUp = (event: MouseEvent): void => this.#onMouseUp(event)
   readonly #handleMouseLeave = (): void => this.#onMouseLeave()
+  readonly #handleContextMenu = (event: MouseEvent): void => this.#onContextMenu(event)
   readonly #handleKey = (event: KeyboardEvent): void => this.#onKey(event)
 
   /** Debug alias for callers that inspect the rendered object tree. */
@@ -211,6 +213,7 @@ export class UiRuntime {
     this.canvas.removeEventListener("mousedown", this.#handleMouseDown)
     this.canvas.removeEventListener("keydown", this.#handleKey)
     this.canvas.removeEventListener("mouseleave", this.#handleMouseLeave)
+    this.canvas.removeEventListener("contextmenu", this.#handleContextMenu)
     window.removeEventListener("mouseup", this.#handleMouseUp)
     this.setFocused(null)
     this.#pressedSlot = null
@@ -241,6 +244,7 @@ export class UiRuntime {
     this.canvas.addEventListener("wheel", this.#handleWheel, {passive: false})
     this.canvas.addEventListener("mousemove", this.#handleMouseMove)
     this.canvas.addEventListener("mousedown", this.#handleMouseDown)
+    this.canvas.addEventListener("contextmenu", this.#handleContextMenu)
     this.canvas.addEventListener("keydown", this.#handleKey)
     // mouseup на window — релиз за пределами canvas сбрасывает pressed.
     window.addEventListener("mouseup", this.#handleMouseUp)
@@ -320,6 +324,14 @@ export class UiRuntime {
       this.#pressedSlot = slot
       slot.surface.onPointerDown?.(event, x - slot.rect.x, y - slot.rect.y)
     }
+  }
+
+  #onContextMenu(event: MouseEvent): void {
+    const {x, y} = this.#localCoords(event)
+    const slot = this.#surfaceAt(x, y)
+    event.preventDefault()
+    if (slot === undefined) return
+    slot.surface.onContextMenu?.(event, x - slot.rect.x, y - slot.rect.y)
   }
 
   #positionInputProxy(clientX: number, clientY: number): void {

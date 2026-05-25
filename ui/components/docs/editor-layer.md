@@ -3,8 +3,8 @@
 ## Current Placement
 
 1. Source display is currently owned by `pkg/debug/web/source-pane.ts`. It is a debug-specific viewer: it renders the paused source, current execution line, runtime state (`paused`, `running`, `loading`, `disconnected`) and scroll/keyboard navigation.
-2. Editable editor UI is currently `ui/components/editor-pane.ts`. It is exported by `@metafor/components` as `EditorPane` and owns text mutation, cursor movement, clipboard, undo/redo, horizontal scroll, optional tokenization and save/change callbacks.
-3. `SourcePane` and `EditorPane` share the same visual model: `Pane` base, `ScrollListState`, gutter line numbers, token-colored text chunks, code background, header, line clipping and `syntaxTokens` categories (`k/s/n/c/t/f/p/d`).
+2. Editable editor UI is currently `ui/components/editor-pane.ts`. It is exported by `@metafor/components` as `EditorPane` and owns text mutation, cursor movement, clipboard, undo/redo, optional tokenization and save/change callbacks. Scroll state comes from `@metafor/elements` `div`.
+3. `SourcePane` and `EditorPane` share the same visual model: `Pane` base, div-backed overflow, gutter line numbers, token-colored text chunks, code background, header, line clipping and `syntaxTokens` categories (`k/s/n/c/t/f/p/d`).
 4. The main duplication is token typing and tokenized-line rendering. `SourcePane` had a local `SyntaxToken`/`SourceTokens` type and its own token rendering loop; `EditorPane` had `EditorToken`/`EditorTokens` plus a similar rendering loop. Both also compute gutter width, visible rows and code clipping independently.
 5. The safe common layer is token contracts, language highlighter resolution, shared token material creation and shared tokenized-line rendering. A future step can extract a full source/view base, but doing that now would touch more debug layout and runtime state than necessary.
 6. To keep debug stable, do not change `pkg/debug/src/*`, the `/source` REST shape, `/ws` commands/results, inspector attach flow, `SourcePane` runtime states, current-line highlighting, frames/scopes/console command behavior or `bun run dark/debug/agent-attach.ts` startup.
@@ -28,7 +28,7 @@ The editor layer now starts under `ui/components/editor/`:
 - Shared widget primitives in `ui/components/internal/renderers.ts` now use rounded control chrome through the existing `Pane.drawRoundedRect` primitive.
 - `ui/elements/theme.ts` exposes shared `radii` tokens for controls and panes.
 - `Pane` accepts `borderRadiusPx`, so debug panes and `EditorPane` can use the same rounded pane chrome without custom per-pane background meshes.
-- `ConsolePane` now extends `@metafor/elements` `UiSurface` instead of owning manual background/border meshes. It uses the shared palette, scrollbar, clipping and rounded pane chrome, with content aligned to the source code column and no bottom padding.
+- `ConsolePane` now extends `@metafor/elements` `UiSurface` instead of owning manual background/border meshes. It uses the shared palette, div scroll, clipping and rounded pane chrome, with content aligned to the source code column and no bottom padding.
 - `VirtualInput` no longer marks the focused hidden textarea with `aria-hidden`, avoiding Chrome's focused-descendant accessibility warning.
 
 ## Verification

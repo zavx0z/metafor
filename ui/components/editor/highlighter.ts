@@ -1,3 +1,5 @@
+import {cssHighlighter} from "./languages/css.ts"
+import {htmlHighlighter} from "./languages/html.ts"
 import {plaintextHighlighter} from "./languages/plaintext.ts"
 import {typescriptHighlighter} from "./languages/typescript.ts"
 import type {LanguageHighlighter} from "./tokens.ts"
@@ -11,6 +13,8 @@ export type ResolveHighlighterOpts = {
 const registry: LanguageHighlighter[] = [
   plaintextHighlighter,
   typescriptHighlighter,
+  cssHighlighter,
+  htmlHighlighter,
 ]
 
 export function registerLanguageHighlighter(highlighter: LanguageHighlighter): void {

@@ -8,11 +8,10 @@
 
 import {TextMaterial} from "@metafor/engine"
 import {
-  UiSurface, palette, radii, uiIcons,
+  UiSurface, div, palette, radii, uiIcons,
 } from "@metafor/elements"
 import {
-  Button as button, TextField as input, Divider as divider, scrollList,
-  ScrollListState,
+  Button as button, TextField as input, Divider as divider,
 } from "@metafor/components"
 import type {FrameSnapshot, PropertySnapshot, ScopeSnapshot} from "./debug-ui.ts"
 import {t} from "./i18n.ts"
@@ -26,8 +25,6 @@ const SCOPE_LIST_TOP = 44
 const SCOPE_ROW_H = 17
 const EVAL_HEIGHT = 124
 const SCROLLBAR_W = 4
-const WHEEL_SPEED = 1.6
-const WHEEL_START_BOOST_PX = 16
 
 type ScopeRow =
   | {kind: "group"; label: string}
@@ -35,7 +32,6 @@ type ScopeRow =
 
 export class ScopesEvalPane extends UiSurface {
   #frame: FrameSnapshot | null = null
-  readonly #list: ScrollListState
   #expr = localStorage.getItem("bd:eval:expr") ?? "data.patches[0].path"
   #output = ""
   #editing = false
@@ -43,29 +39,17 @@ export class ScopesEvalPane extends UiSurface {
 
   constructor(onEval: (expr: string, frame: number) => void) {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
-    this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#onEval = onEval
   }
 
   setFrame(frame: FrameSnapshot | null): void {
     this.#frame = frame
-    this.#list.reset()
     this.requestRender()
   }
 
   setEvalOutput(output: string): void {
     this.#output = output
     this.requestRender()
-  }
-
-  override onWheel(event: WheelEvent, _localX: number, localY: number): void {
-    if (localY > this.#evalTop()) return
-    const total = this.#scopeRows().length
-    const visible = this.#visibleScopeRows()
-    this.#list.applyWheel(event, SCOPE_ROW_H, total, visible, {
-      speed: WHEEL_SPEED,
-      startBoostPx: WHEEL_START_BOOST_PX,
-    })
   }
 
   onKey(event: KeyboardEvent): void {
@@ -127,8 +111,6 @@ export class ScopesEvalPane extends UiSurface {
     // Scopes list.
     const evalTop = this.#evalTop()
     const rows = this.#scopeRows()
-    const visible = this.#visibleScopeRows()
-    this.#list.clamp(rows.length, visible)
     if (rows.length === 0) {
       this.drawText(t("noScopes"), PAD_X + 4, SCOPE_LIST_TOP + 4, {
         fontPx: 12,
@@ -138,19 +120,25 @@ export class ScopesEvalPane extends UiSurface {
     } else {
       const listH = evalTop - SCOPE_LIST_TOP
       const contentMaxX = this.rectW - PAD_X - SCROLLBAR_W - 6
-      scrollList(this, {
-        state: this.#list,
-        items: rows,
-        rowH: SCOPE_ROW_H,
-        x: PAD_X,
-        y: SCOPE_LIST_TOP,
-        w: this.rectW - PAD_X * 2,
-        h: listH,
-        scrollbarWidth: SCROLLBAR_W,
-        scrollbarGap: 6,
-        drawRow: (row, _idx, _x, y) => {
+      div(this, PAD_X, SCOPE_LIST_TOP, this.rectW - PAD_X * 2, listH, {
+        key: "debug:scopes:list",
+        scrollContentHeight: Math.max(listH, rows.length * SCOPE_ROW_H),
+        style: {
+          background: null,
+          borderColor: null,
+          borderRadius: 0,
+          padding: 0,
+          overflowY: "auto",
+        },
+        children: (ctx) => {
+          const start = Math.max(0, Math.floor(ctx.scrollTop / SCOPE_ROW_H) - 1)
+          const end = Math.min(rows.length, Math.ceil((ctx.scrollTop + ctx.viewportHeight) / SCOPE_ROW_H) + 1)
+          for (let idx = start; idx < end; idx++) {
+            const row = rows[idx]
+            if (row === undefined) continue
+            const rowY = SCOPE_LIST_TOP + idx * SCOPE_ROW_H - ctx.scrollTop
           if (row.kind === "group") {
-            this.drawText(row.label, PAD_X + 4, y, {
+            this.drawText(row.label, PAD_X + 4, rowY, {
               fontPx: 11,
               material: this.materials.orange,
               maxWidthPx: contentMaxX - (PAD_X + 4),
@@ -159,18 +147,19 @@ export class ScopesEvalPane extends UiSurface {
             const nameMaxW = Math.floor((contentMaxX - PAD_X) * 0.42)
             const valueX = PAD_X + 4 + nameMaxW + 8
             const valueMaxW = contentMaxX - valueX
-            this.drawText(row.name, PAD_X + 8, y, {
+            this.drawText(row.name, PAD_X + 8, rowY, {
               fontPx: 11,
               material: this.materials.cyan,
               maxWidthPx: nameMaxW,
             })
             if (valueMaxW > 20) {
-              this.drawText(row.value, valueX, y, {
+              this.drawText(row.value, valueX, rowY, {
                 fontPx: 11,
                 material: row.material,
                 maxWidthPx: valueMaxW,
               })
             }
+          }
           }
         },
       })
@@ -213,10 +202,6 @@ export class ScopesEvalPane extends UiSurface {
 
   #evalTop(): number {
     return Math.max(SCOPE_LIST_TOP + SCOPE_ROW_H, this.rectH - EVAL_HEIGHT)
-  }
-
-  #visibleScopeRows(): number {
-    return Math.max(1, Math.floor((this.#evalTop() - SCOPE_LIST_TOP - 4) / SCOPE_ROW_H))
   }
 
   #runEval(): void {

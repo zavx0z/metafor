@@ -17,6 +17,7 @@ export type StatusChipOpts = {
   label: string
   iconSrc?: string
   indicator?: boolean
+  variant?: "filled" | "subtle"
   tone?: Tone
   fontPx?: number
   iconSizePx?: number
@@ -72,12 +73,13 @@ export function badge(pane: UiSurface, x: number, y: number, w: number, h: numbe
 /** Status chip: compact read-only state pill with optional SVG icon and delayed tooltip. */
 export function statusChip(pane: UiSurface, x: number, y: number, w: number, h: number, opts: StatusChipOpts): void {
   const tone = opts.tone ?? "neutral"
+  const variant = opts.variant ?? "filled"
   const fontPx = opts.fontPx ?? 11
   const iconSize = Math.min(opts.iconSizePx ?? Math.max(12, h - 12), Math.max(1, h - 8))
   pane.drawRoundedRect(x, y, w, h, {
     radius: Math.min(w, h) / 2,
-    fill: toneFill(tone),
-    border: toneBorder(tone),
+    fill: variant === "subtle" ? withAlpha(palette.bgPanelDim, 0.62) : toneFill(tone),
+    border: variant === "subtle" ? withAlpha(palette.borderDim, 0.86) : toneBorder(tone),
     borderWidth: 1,
     z: Z.ELEMENT,
   })
@@ -113,7 +115,7 @@ export function statusChip(pane: UiSurface, x: number, y: number, w: number, h: 
   if (hasLabel) {
     pane.drawText(opts.label, tx, y + (h - fontPx) / 2, {
       fontPx,
-      material: pane.materials.toneText(tone),
+      material: variant === "subtle" ? pane.materials.text : pane.materials.toneText(tone),
       maxWidthPx: Math.max(1, x + w - tx - 9),
     })
   }

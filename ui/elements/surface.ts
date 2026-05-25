@@ -823,6 +823,8 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.requestRender()
   }
 
+  onContextMenu(_event: MouseEvent, _localX: number, _localY: number): void {}
+
   onPointerLeave(): void {
     this.#setHoveredHit(null)
     this.#setHoverTooltip(null)

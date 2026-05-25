@@ -21,6 +21,13 @@ describe("resolveLanguageHighlighter", () => {
     expect(resolveLanguageHighlighter({path: "foo.jsx"}).id).toBe("typescript")
   })
 
+  test("resolves HTML and CSS by id and file extensions", () => {
+    expect(resolveLanguageHighlighter({languageId: "html"}).id).toBe("html")
+    expect(resolveLanguageHighlighter({languageId: "css"}).id).toBe("css")
+    expect(resolveLanguageHighlighter({path: "proposal.html"}).id).toBe("html")
+    expect(resolveLanguageHighlighter({path: "theme.css"}).id).toBe("css")
+  })
+
   test("falls back to plaintext for unknown extensions", () => {
     expect(resolveLanguageHighlighter({path: "foo.unknown"}).id).toBe("plaintext")
   })

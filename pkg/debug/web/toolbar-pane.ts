@@ -5,20 +5,23 @@
  */
 
 import {UiSurface, palette, radii, uiIcons} from "@metafor/elements"
-import {Button as button, StatusChip as statusChip} from "@metafor/components"
+import {Button as button, Pane as pane, StatusChip as statusChip} from "@metafor/components"
 import type {BadgeKind, ToolbarActions, ToolbarState} from "./debug-ui.ts"
 import {getUiLocale, t} from "./i18n.ts"
 
 const PAD_X = 8
 const GAP = 6
-const STATUS_H = 30
-const BTN_H = 30
-const BTN_W = 36
-const STATUS_FONT = 11
-const LANG_W = 76
-const SOCKET_W = 108
-const INSPECTOR_W = 132
-const RUN_W = 128
+const STATUS_H = 24
+const BTN_H = 34
+const BTN_W = 42
+const STATUS_FONT = 10
+const CONTROL_PAD_X = 8
+const CONTROL_GROUP_GAP = 10
+const DIVIDER_GAP = 8
+const DIVIDER_W = 1
+const SOCKET_W = 78
+const INSPECTOR_W = 102
+const RUN_W = 86
 const DRAFT_W = 118
 
 export class ToolbarPane extends UiSurface {
@@ -60,71 +63,127 @@ export class ToolbarPane extends UiSurface {
     const lockedTooltip = controlsLocked && this.#state.commandLabel.length > 0
       ? `${t("commandAlreadyRunning")}: ${this.#state.commandLabel}`
       : t("commandAlreadyRunning")
-    const buttons: Array<{label: string; iconSrc: string; tone: BadgeKind; disabled?: boolean; action(): void}> = [
-      {label: this.#state.verbose ? t("hideVerbose") : t("showVerbose"), iconSrc: uiIcons.log, tone: this.#state.verbose ? "paused" : "neutral", action: () => this.#actions.onToggleVerbose()},
-      {label: this.#state.draftVisible ? t("showSource") : t("editDraft"), iconSrc: uiIcons.manual, tone: this.#state.draftVisible ? "paused" : "neutral", action: () => this.#actions.onToggleDraft()},
-      {label: t("saveDraft"), iconSrc: uiIcons.apply, tone: this.#state.draftKind, action: () => this.#actions.onSaveDraft()},
-      {label: t("restartTarget"), iconSrc: uiIcons.restart, tone: "neutral", action: () => this.#actions.onRestartTarget()},
-      {label: t("pause"), iconSrc: uiIcons.pause, tone: pauseButtonTone(this.#state.runKind), disabled: pauseLocked, action: () => this.#actions.onPause()},
-      {label: t("resume"), iconSrc: uiIcons.resume, tone: resumeButtonTone(this.#state.runKind), disabled: controlsLocked, action: () => this.#actions.onResume()},
+    const primaryControls: ToolbarButton[] = [
+      this.#state.runKind === "live"
+        ? {label: t("pause"), iconSrc: uiIcons.pause, tone: pauseButtonTone(this.#state.runKind), variant: "contained", disabled: pauseLocked, dividerAfter: true, action: () => this.#actions.onPause()}
+        : {label: t("resume"), iconSrc: uiIcons.resume, tone: resumeButtonTone(this.#state.runKind), variant: "contained", disabled: controlsLocked, dividerAfter: true, action: () => this.#actions.onResume()},
       {label: t("stepOver"), iconSrc: uiIcons.stepOver, tone: stepButtonTone(this.#state.runKind), disabled: controlsLocked, action: () => this.#actions.onStep("over")},
       {label: t("stepInto"), iconSrc: uiIcons.stepInto, tone: stepButtonTone(this.#state.runKind), disabled: controlsLocked, action: () => this.#actions.onStep("into")},
-      {label: t("stepOut"), iconSrc: uiIcons.stepOut, tone: stepButtonTone(this.#state.runKind), disabled: controlsLocked, action: () => this.#actions.onStep("out")},
+      {label: t("stepOut"), iconSrc: uiIcons.stepOut, tone: stepButtonTone(this.#state.runKind), disabled: controlsLocked, dividerAfter: true, action: () => this.#actions.onStep("out")},
+      {label: t("restartTarget"), iconSrc: uiIcons.restart, tone: "neutral", disabled: controlsLocked, action: () => this.#actions.onRestartTarget()},
+      {label: t("stopTarget"), iconSrc: uiIcons.stop, tone: "warn", variant: "contained", action: () => this.#actions.onStopTarget()},
+    ]
+    const secondaryControls: ToolbarButton[] = [
+      {label: this.#state.verbose ? t("hideVerbose") : t("showVerbose"), iconSrc: uiIcons.log, tone: this.#state.verbose ? "paused" : "neutral", action: () => this.#actions.onToggleVerbose()},
+      {label: this.#state.draftVisible ? t("showSource") : t("editDraft"), iconSrc: uiIcons.manual, tone: this.#state.draftVisible ? "paused" : "neutral", action: () => this.#actions.onToggleDraft()},
+      {label: t("saveDraft"), iconSrc: uiIcons.apply, tone: this.#state.draftKind, variant: this.#state.draftKind === "warn" ? "contained" : "outlined", action: () => this.#actions.onSaveDraft()},
+      {label: languageTooltip(this.#state.locale), iconSrc: uiIcons.language, tone: "neutral", action: () => this.#actions.onToggleLocale()},
     ]
 
-    let right = this.rectW - PAD_X
-    for (let i = buttons.length - 1; i >= 0; i--) {
-      const b = buttons[i]!
-      const w = BTN_W
-      right -= w
-      button(this, right, buttonY, w, BTN_H, {
-        label: b.label,
-        iconSrc: b.iconSrc,
-        iconOnly: true,
-        iconSizePx: 16,
-        tooltip: b.disabled === true ? lockedTooltip : b.label,
-        tone: b.tone,
-        ...(b.disabled === undefined ? {} : {disabled: b.disabled}),
-        action: b.action,
-      })
-      right -= GAP
-    }
-    const rightLimit = Math.max(PAD_X, right)
+    const primaryW = this.#buttonGroupWidth(primaryControls) + CONTROL_PAD_X * 2
+    const primaryX = Math.max(PAD_X, Math.floor((this.rectW - primaryW) / 2))
+    this.#drawControlIsland(primaryX, buttonY - 5, primaryW, BTN_H + 10, "debug")
+    this.#drawButtonGroup(primaryControls, primaryX + CONTROL_PAD_X, buttonY, lockedTooltip)
+
+    const secondaryW = this.#buttonGroupWidth(secondaryControls)
+    const secondaryX = Math.max(PAD_X, this.rectW - PAD_X - secondaryW - CONTROL_PAD_X)
+    this.#drawControlIsland(secondaryX - CONTROL_PAD_X, buttonY - 5, secondaryW + CONTROL_PAD_X * 2, BTN_H + 10, "tools")
+    this.#drawButtonGroup(secondaryControls, secondaryX, buttonY, lockedTooltip)
 
     // Левая часть: compact operational state only. Подробности вроде
     // inspector URL/engine лежат в tooltip, а не съедают toolbar.
     const statusY = (this.rectH - STATUS_H) / 2
+    const statusRightLimit = Math.max(PAD_X, Math.min(primaryX - CONTROL_GROUP_GAP, secondaryX - CONTROL_GROUP_GAP))
     let x = PAD_X
-    x = this.#fixedStatus(this.#state.locale.toUpperCase(), "neutral", uiIcons.language, t("langToggle"), x, statusY, rightLimit, LANG_W, () => this.#actions.onToggleLocale(), false)
-    x = this.#fixedStatus(socketLabel(), this.#state.wsKind, statusIcon(this.#state.wsKind), socketTooltip(this.#state.wsKind, this.#state.ws), x, statusY, rightLimit, SOCKET_W)
-    x = this.#fixedStatus(inspectorLabel(), this.#state.connectionKind, statusIcon(this.#state.connectionKind), inspectorTooltip(this.#state.connection, this.#state.inspectorUrl), x, statusY, rightLimit, INSPECTOR_W)
+    x = this.#fixedStatus(socketLabel(), this.#state.wsKind, socketTooltip(this.#state.wsKind, this.#state.ws), x, statusY, statusRightLimit, SOCKET_W)
+    x = this.#fixedStatus(inspectorLabel(), this.#state.connectionKind, inspectorTooltip(this.#state.connection, this.#state.inspectorUrl), x, statusY, statusRightLimit, INSPECTOR_W)
     const runTone = this.#state.commandBusy ? "paused" : this.#state.runKind
     const runText = this.#state.commandBusy ? t("commandExecuting") : runLabel(this.#state.run, this.#state.runKind)
-    const runIcon = this.#state.commandBusy ? uiIcons.autoscroll : runStatusIcon(this.#state.runKind)
     const runTooltip = this.#state.commandBusy && this.#state.commandLabel.length > 0
       ? `${t("commandExecuting")}: ${this.#state.commandLabel}`
       : `${t("runStatus")}: ${compactRunStatus(this.#state.run)}`
-    x = this.#fixedStatus(runText, runTone, runIcon, runTooltip, x, statusY, rightLimit, RUN_W)
+    x = this.#fixedStatus(runText, runTone, runTooltip, x, statusY, statusRightLimit, RUN_W)
     if (this.#state.draftVisible || this.#state.draftKind !== "neutral") {
-      x = this.#fixedStatus(draftLabel(this.#state.draftStatus, this.#state.draftKind), this.#state.draftKind, statusIcon(this.#state.draftKind), `${t("draft")}: ${draftStatusText(this.#state.draftStatus)}`, x, statusY, rightLimit, DRAFT_W)
+      x = this.#fixedStatus(draftLabel(this.#state.draftStatus, this.#state.draftKind), this.#state.draftKind, `${t("draft")}: ${draftStatusText(this.#state.draftStatus)}`, x, statusY, statusRightLimit, DRAFT_W)
     }
   }
 
-  #fixedStatus(label: string, tone: BadgeKind, iconSrc: string | null, tooltip: string, x: number, y: number, rightLimit: number, w: number, action?: () => void, indicator = true): number {
+  #fixedStatus(label: string, tone: BadgeKind, tooltip: string, x: number, y: number, rightLimit: number, w: number, action?: () => void, indicator = true): number {
     // Slot widths are stable per status type. If the toolbar is too narrow,
     // drop low-priority chips instead of squeezing text and shifting layout.
     if (x + w > rightLimit) return x
     statusChip(this, x, y, w, STATUS_H, {
       label,
       tone,
+      variant: "subtle",
       indicator,
-      ...(iconSrc === null ? {} : {iconSrc}),
       fontPx: STATUS_FONT,
+      iconSizePx: 8,
       tooltip,
       ...(action === undefined ? {} : {action}),
     })
     return x + w + GAP
   }
+
+  #drawControlIsland(x: number, y: number, w: number, h: number, _kind: "debug" | "tools"): void {
+    pane(this, x, y, w, h, {
+      variant: "outlined",
+      sx: {
+        background: "bgElevated",
+        borderColor: "borderBright",
+        borderRadius: 10,
+        padding: 0,
+      },
+    })
+  }
+
+  #drawButtonGroup(buttons: ToolbarButton[], x: number, y: number, lockedTooltip: string): number {
+    let cursor = x
+    for (let i = 0; i < buttons.length; i++) {
+      const b = buttons[i]!
+      button(this, cursor, y, BTN_W, BTN_H, {
+        label: b.label,
+        iconSrc: b.iconSrc,
+        iconOnly: true,
+        iconSizePx: 16,
+        variant: b.variant ?? "outlined",
+        radius: 8,
+        tooltip: b.disabled === true ? lockedTooltip : b.label,
+        tooltipDelayMs: 180,
+        tone: b.tone,
+        ...(b.disabled === undefined ? {} : {disabled: b.disabled}),
+        action: b.action,
+        onHover: () => this.requestRender(),
+        onLeave: () => this.requestRender(),
+      })
+      cursor += BTN_W + GAP
+      if (b.dividerAfter === true && i < buttons.length - 1) {
+        cursor += DIVIDER_GAP - GAP
+        this.drawRect(cursor, y + 6, DIVIDER_W, BTN_H - 12, palette.borderDim)
+        cursor += DIVIDER_W + DIVIDER_GAP
+      }
+    }
+    return cursor
+  }
+
+  #buttonGroupWidth(buttons: ToolbarButton[]): number {
+    if (buttons.length === 0) return 0
+    let width = buttons.length * BTN_W + (buttons.length - 1) * GAP
+    for (let i = 0; i < buttons.length - 1; i++) {
+      if (buttons[i]?.dividerAfter === true) width += DIVIDER_GAP * 2 + DIVIDER_W - GAP
+    }
+    return width
+  }
+}
+
+type ToolbarButton = {
+  label: string
+  iconSrc: string
+  tone: BadgeKind
+  variant?: "outlined" | "contained"
+  disabled?: boolean
+  dividerAfter?: boolean
+  action(): void
 }
 
 function compactRunStatus(value: string): string {
@@ -134,7 +193,7 @@ function compactRunStatus(value: string): string {
   if (value === "paused") return getUiLocale() === "ru" ? "пауза" : "paused"
   if (value === "waiting") return getUiLocale() === "ru" ? "ожидание" : "waiting"
   if (value === "reconnecting") return t("reconnecting")
-  if (value === "target starting") return getUiLocale() === "ru" ? "target стартует" : "target starting"
+  if (value === "target starting") return getUiLocale() === "ru" ? "процесс стартует" : "process starting"
   if (value === "pause requested") return getUiLocale() === "ru" ? "пауза запрошена" : "pause requested"
   if (value === "pause pending") return getUiLocale() === "ru" ? "пауза ожидается" : "pause pending"
   return value
@@ -187,20 +246,6 @@ function stepButtonTone(runKind: BadgeKind): BadgeKind {
   return "neutral"
 }
 
-function statusIcon(kind: BadgeKind): string | null {
-  if (kind === "live") return uiIcons.apply
-  if (kind === "paused") return uiIcons.pause
-  if (kind === "warn") return uiIcons.stop
-  return null
-}
-
-function runStatusIcon(kind: BadgeKind): string | null {
-  if (kind === "live") return uiIcons.resume
-  if (kind === "paused") return uiIcons.pause
-  if (kind === "warn") return uiIcons.stop
-  return null
-}
-
 function inspectorTooltip(connection: string, url: string): string {
   const localized = connection.includes("disconnected")
     ? t("inspectorOffline")
@@ -209,4 +254,8 @@ function inspectorTooltip(connection: string, url: string): string {
       : getUiLocale() === "ru" ? "Inspector подключается" : "Inspector connecting"
   if (url.length === 0) return localized
   return `${localized} · ${url}`
+}
+
+function languageTooltip(locale: "ru" | "en"): string {
+  return locale === "ru" ? "Язык: русский" : "Language: English"
 }

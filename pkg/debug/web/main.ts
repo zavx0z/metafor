@@ -671,6 +671,7 @@ async function initEngine(): Promise<void> {
       onPause: () => void runDebuggerCommand("pause", {}, t("pause")),
       onResume: () => void runDebuggerCommand("resume", {}, t("resume")),
       onRestartTarget: () => void restartTarget(),
+      onStopTarget: () => void stopTarget(),
       onStep: (kind) => void runDebuggerCommand("step", {kind}, kind === "over" ? t("stepOver") : kind === "into" ? t("stepInto") : t("stepOut")),
       onToggleDraft: () => setDraftVisible(!draftVisible),
       onSaveDraft: () => saveActiveDraft(),
@@ -941,7 +942,7 @@ function installEnginePanes(): void {
 }
 
 const TOOLBAR_INSET = 8
-const TOOLBAR_H = 44
+const TOOLBAR_H = 60
 const PAD = 8
 const GAP = 8
 const BODY_TOP = TOOLBAR_INSET + TOOLBAR_H + PAD
@@ -979,23 +980,42 @@ function debuggerRects({w, h}: {w: number; h: number}): DebuggerRects {
   const y = BODY_TOP
   const bodyW = Math.max(1, w - PAD * 2)
   const bodyH = Math.max(1, h - BODY_TOP - PAD)
-  const leftW = w >= 980 ? 310 : Math.max(230, Math.floor(bodyW * 0.28))
+  const consoleH = Math.min(260, Math.max(188, Math.floor(bodyH * 0.24)))
+  const workspaceH = Math.max(1, bodyH - consoleH - GAP)
+  const bottomY = y + workspaceH + GAP
+  const showRight = w >= 1180
   const showVerbose = verboseVisible && w >= 1180
-  const verboseW = showVerbose ? Math.min(430, Math.max(340, Math.floor(bodyW * 0.24))) : 0
-  const centerX = x + leftW + GAP
-  const centerW = Math.max(1, bodyW - leftW - GAP - (showVerbose ? verboseW + GAP : 0))
-  const consoleH = Math.min(260, Math.max(170, Math.floor(bodyH * 0.28)))
-  const sourceH = Math.max(1, bodyH - consoleH - GAP)
-  const framesH = Math.min(168, Math.max(120, Math.floor(bodyH * 0.18)))
-  const scopesH = Math.max(1, bodyH - framesH - GAP)
+  const leftW = w >= 980
+    ? Math.min(292, Math.max(238, Math.floor(bodyW * 0.16)))
+    : Math.max(220, Math.floor(bodyW * 0.28))
+  const rightW = showRight
+    ? Math.min(390, Math.max(320, Math.floor(bodyW * 0.22)))
+    : 0
+  const sourceX = x + leftW + GAP
+  const sourceW = Math.max(1, bodyW - leftW - GAP - (showRight ? rightW + GAP : 0))
+  const consoleSplitW = showVerbose
+    ? Math.min(520, Math.max(380, Math.floor(bodyW * 0.34)))
+    : 0
+  const consoleW = showVerbose ? Math.max(1, bodyW - consoleSplitW - GAP) : bodyW
+
+  if (!showRight) {
+    const framesH = Math.min(240, Math.max(142, Math.floor(workspaceH * 0.28)))
+    return {
+      frames: {x, y, w: leftW, h: framesH},
+      scopes: {x, y: y + framesH + GAP, w: leftW, h: Math.max(1, workspaceH - framesH - GAP)},
+      source: {x: sourceX, y, w: sourceW, h: workspaceH},
+      console: {x, y: bottomY, w: bodyW, h: consoleH},
+      verbose: null,
+    }
+  }
 
   return {
-    frames: {x, y, w: leftW, h: framesH},
-    scopes: {x, y: y + framesH + GAP, w: leftW, h: scopesH},
-    source: {x: centerX, y, w: centerW, h: sourceH},
-    console: {x: centerX, y: y + sourceH + GAP, w: centerW, h: consoleH},
+    frames: {x, y, w: leftW, h: workspaceH},
+    scopes: {x: w - PAD - rightW, y, w: rightW, h: workspaceH},
+    source: {x: sourceX, y, w: sourceW, h: workspaceH},
+    console: {x, y: bottomY, w: consoleW, h: consoleH},
     verbose: showVerbose
-      ? {x: w - PAD - verboseW, y, w: verboseW, h: bodyH}
+      ? {x: x + consoleW + GAP, y: bottomY, w: consoleSplitW, h: consoleH}
       : null,
   }
 }

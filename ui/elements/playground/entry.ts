@@ -465,9 +465,6 @@ class ElementsPlayground extends UiSurface {
         color: "muted",
         fontSize: 12,
         lineHeight: 1.55,
-        scrollbarWidth: 10,
-        scrollbarColor: "rgba(111, 211, 255, 0.52)",
-        scrollbarTrackColor: "rgba(214, 231, 255, 0.12)",
       },
     })
     codeLine(this, x + innerPad, cardY + 246, cardW - innerPad * 2, "div(..., { style: { overflowY: \"auto\" } })")

@@ -193,7 +193,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   const server = Bun.serve({
     hostname: options.host,
     port: options.port,
-    development: {hmr: true},
+    development: {hmr: false},
     routes: {
       "/": indexHtml,
     },
@@ -201,6 +201,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       const url = new URL(req.url)
       const path = url.pathname.replace(/\/+$/, "") || "/"
       const method = req.method.toUpperCase()
+      if (method === "GET" && path === "/favicon.ico") return new Response(null, {status: 204})
       if (path === "/manifest.json") return Response.json(MANIFEST)
 
       if (path === "/ws") {
