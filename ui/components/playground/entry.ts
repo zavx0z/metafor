@@ -26,7 +26,9 @@ type IconLabelPlacement = ButtonRouteIconLabel | "mixed"
 type PaneVariant = "glass" | "outlined" | "filled"
 type PaneRoute = "pane/variants" | `pane/variants/${PaneVariant}`
 type EditorLanguageRoute = "typescript" | "javascript" | "html" | "css" | "plaintext"
-type EditorRoute = "editor" | `editor/${EditorLanguageRoute}`
+type EditorSelectionRoute = "menu" | "copied"
+type EditorSection = "Highlighting" | "Selection"
+type EditorRoute = "editor/highlighting" | `editor/highlighting/${EditorLanguageRoute}` | "editor/selection" | `editor/selection/${EditorSelectionRoute}`
 type ComponentsRoute = ButtonRoute | PaneRoute | EditorRoute
 type ComponentName = "Button" | "Pane" | "Editor"
 type ButtonRoute =
@@ -76,7 +78,13 @@ const PANE_ROUTES: readonly PaneRoute[] = [
   "pane/variants/filled",
 ]
 const EDITOR_LANGUAGE_ROUTES: readonly EditorLanguageRoute[] = ["typescript", "javascript", "html", "css", "plaintext"]
-const EDITOR_ROUTES: readonly EditorRoute[] = ["editor", ...EDITOR_LANGUAGE_ROUTES.map((language) => `editor/${language}` as const)]
+const EDITOR_SELECTION_ROUTES: readonly EditorSelectionRoute[] = ["menu", "copied"]
+const EDITOR_ROUTES: readonly EditorRoute[] = [
+  "editor/highlighting",
+  ...EDITOR_LANGUAGE_ROUTES.map((language) => `editor/highlighting/${language}` as const),
+  "editor/selection",
+  ...EDITOR_SELECTION_ROUTES.map((route) => `editor/selection/${route}` as const),
+]
 const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
   typescript: "TypeScript",
   javascript: "JavaScript",
@@ -84,6 +92,7 @@ const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
   css: "CSS",
   plaintext: "Plaintext",
 }
+const EDITOR_SECTIONS: readonly EditorSection[] = ["Highlighting", "Selection"]
 const PANE_VARIANTS: readonly PaneVariant[] = ["glass", "outlined", "filled"]
 const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...BUTTON_ROUTES, ...PANE_ROUTES, ...EDITOR_ROUTES]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
@@ -99,12 +108,18 @@ const LAYOUT_Z = -0.12
 const BACKDROP_Z = -0.18
 type ComponentsScreenOpts = {
   onRouteChange?: (route: ComponentsRoute) => void
+  onEditorCopy?: () => Promise<boolean>
+  onEditorCut?: () => Promise<boolean>
+  onEditorSelectAll?: () => void
 }
 
 class ButtonComponentsScreen extends UiSurface {
   readonly #router = new VirtualRouter<ComponentsRoute>(COMPONENT_ROUTES, "button/basic", {mode: "path"})
   readonly #unsubscribe: () => void
   readonly #onRouteChange: ((route: ComponentsRoute) => void) | undefined
+  readonly #onEditorCopy: (() => Promise<boolean>) | undefined
+  readonly #onEditorCut: (() => Promise<boolean>) | undefined
+  readonly #onEditorSelectAll: (() => void) | undefined
   #route: ComponentsRoute = this.#router.current
   #color: ButtonColor = "primary"
   #size: ButtonSize = "medium"
@@ -120,10 +135,15 @@ class ButtonComponentsScreen extends UiSurface {
   #customSvgSource: string | null = null
   #customSvgName = "custom.svg"
   #eventCount = 0
+  #selectionMenuOpen = false
+  #selectionBufferState: "idle" | "copied" | "error" = "idle"
 
   constructor(opts: ComponentsScreenOpts = {}) {
     super({bgColor: null, borderColor: null})
     this.#onRouteChange = opts.onRouteChange
+    this.#onEditorCopy = opts.onEditorCopy
+    this.#onEditorCut = opts.onEditorCut
+    this.#onEditorSelectAll = opts.onEditorSelectAll
     const initialSize = routeSizeFromRoute(this.#route)
     if (initialSize !== null) this.#size = initialSize
     const initialColor = routeColorFromRoute(this.#route)
@@ -134,6 +154,13 @@ class ButtonComponentsScreen extends UiSurface {
       if (routeSize !== null) this.#size = routeSize
       const routeColor = routeColorFromRoute(route)
       if (routeColor !== null) this.#color = routeColor
+      if (route.startsWith("editor/selection")) {
+        this.#selectionMenuOpen = route === "editor/selection/menu"
+        this.#selectionBufferState = route === "editor/selection/copied" ? "copied" : "idle"
+      } else {
+        this.#selectionMenuOpen = false
+        this.#selectionBufferState = "idle"
+      }
       this.#onRouteChange?.(route)
       this.requestRender()
     })
@@ -205,7 +232,7 @@ class ButtonComponentsScreen extends UiSurface {
         onClick: () => {
           if (label === "Button") this.#router.go("button/basic")
           else if (label === "Pane") this.#router.go("pane/variants")
-          else if (label === "Editor") this.#router.go("editor/typescript")
+          else if (label === "Editor") this.#router.go("editor/highlighting")
           this.#record(`component:${label.toLowerCase()}`)
         },
       })
@@ -240,15 +267,19 @@ class ButtonComponentsScreen extends UiSurface {
     }
     if (this.#currentComponent() === "Editor") {
       h3(this, x, y + 28, w, 24, {children: "Editor", style: {fontSize: 15, textAlign: "center"}})
-      Button(this, x + pad, y + 76, w - pad * 2, 38, {
-        children: "Highlighting",
-        variant: "contained",
-        color: "neutral",
-        ...activeNavStyle(true),
-        radius: 999,
-        fontPx: 11,
-        onClick: () => this.#goEditorLanguage(this.#editorLanguage()),
-      })
+      const top = y + 76
+      for (const [i, section] of EDITOR_SECTIONS.entries()) {
+        const active = this.#editorSection() === section
+        Button(this, x + pad, top + i * 47, w - pad * 2, 38, {
+          children: section,
+          variant: active ? "contained" : "glass",
+          color: "neutral",
+          ...activeNavStyle(active),
+          radius: 999,
+          fontPx: 11,
+          onClick: () => this.#goEditorSection(section),
+        })
+      }
       return
     }
     h3(this, x, y + 28, w, 24, {children: "Button", style: {fontSize: 15, textAlign: "center"}})
@@ -309,10 +340,17 @@ class ButtonComponentsScreen extends UiSurface {
 
   #editorPreview(x: number, y: number, w: number, h: number): void {
     const pad = 42
-    renderHeader(this, x, w, pad, y + 34, "Editor pane", [
-      "Editable source surface with syntax tokens, cursor routing, undo history, and scroll state.",
-      "The live editor below is a separate focusable surface mounted inside this route.",
-    ])
+    if (this.#editorSection() === "Selection") {
+      renderHeader(this, x, w, pad, y + 34, "Selection", [
+        "Selection actions are exposed from the dock while the editor surface stays focusable.",
+        "The menu button opens a compact selection command panel above the source area.",
+      ])
+    } else {
+      renderHeader(this, x, w, pad, y + 34, "Editor pane", [
+        "Editable source surface with syntax tokens, cursor routing, undo history, and scroll state.",
+        "The live editor below is a separate focusable surface mounted inside this route.",
+      ])
+    }
 
     const rect = editorPaneRectForPreview(x, y, w, h)
     Pane(this, rect.x - 14, rect.y - 14, rect.w + 28, rect.h + 28, {
@@ -323,6 +361,9 @@ class ButtonComponentsScreen extends UiSurface {
         borderRadius: 26,
       },
     })
+    if (this.#editorSection() === "Selection" && this.#selectionMenuOpen) {
+      this.#selectionMenu(x + pad, y + 92, w - pad * 2, 38)
+    }
   }
 
   #paneOverview(x: number, y: number, w: number, h: number): void {
@@ -939,11 +980,15 @@ class ButtonComponentsScreen extends UiSurface {
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34, zIndex: LAYOUT_Z},
     })
     if (this.#currentComponent() === "Editor") {
+      if (this.#editorSection() === "Selection") {
+        this.#editorSelectionDock(x, y, w, h)
+        return
+      }
       const itemGap = 12
       const itemW = Math.max(84, Math.min(124, (w - 64 - itemGap * (EDITOR_LANGUAGE_ROUTES.length - 1)) / EDITOR_LANGUAGE_ROUTES.length))
       const rowW = itemW * EDITOR_LANGUAGE_ROUTES.length + itemGap * (EDITOR_LANGUAGE_ROUTES.length - 1)
       const startX = x + (w - rowW) / 2
-      const activeLanguage = this.#editorLanguage()
+      const activeLanguage = routeEditorLanguageFromRoute(this.#route)
       for (const [i, language] of EDITOR_LANGUAGE_ROUTES.entries()) {
         const active = activeLanguage === language
         Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
@@ -1008,6 +1053,68 @@ class ButtonComponentsScreen extends UiSurface {
         ...activeNavStyle(active),
         radius: this.#radius,
         onClick: () => this.#go(variant),
+      })
+    }
+  }
+
+  #editorSelectionDock(x: number, y: number, w: number, h: number): void {
+    const itemGap = 12
+    const itemW = 138
+    const rowW = itemW * 2 + itemGap
+    const startX = x + (w - rowW) / 2
+    const bufferLabel = this.#selectionBufferState === "copied"
+      ? "Copied"
+      : this.#selectionBufferState === "error"
+        ? "Copy failed"
+        : "To buffer"
+    Button(this, startX, y + (h - 42) / 2, itemW, 42, {
+      children: bufferLabel,
+      variant: this.#selectionBufferState === "copied" ? "contained" : "glass",
+      color: this.#selectionBufferState === "error" ? "error" : "neutral",
+      ...activeNavStyle(this.#selectionBufferState === "copied"),
+      radius: this.#radius,
+      fontPx: 10,
+      onClick: () => this.#copySelectionToBuffer(),
+    })
+    Button(this, startX + itemW + itemGap, y + (h - 42) / 2, itemW, 42, {
+      children: "Selection menu",
+      variant: this.#selectionMenuOpen ? "contained" : "glass",
+      color: "neutral",
+      ...activeNavStyle(this.#selectionMenuOpen),
+      radius: this.#radius,
+      fontPx: 10,
+      onClick: () => this.#toggleSelectionMenu(),
+    })
+  }
+
+  #selectionMenu(x: number, y: number, w: number, h: number): void {
+    const menuW = Math.min(374, w)
+    const menuX = x + w - menuW
+    Pane(this, menuX, y, menuW, h, {
+      variant: "glass",
+      sx: {
+        background: "rgba(6, 12, 21, 0.92)",
+        borderColor: "rgba(111, 211, 255, 0.28)",
+        borderRadius: 19,
+      },
+    })
+    const gap = 8
+    const pad = 8
+    const itemW = (menuW - pad * 2 - gap * 2) / 3
+    const items = ["Copy", "Cut", "Select all"] as const
+    for (const [i, item] of items.entries()) {
+      Button(this, menuX + pad + i * (itemW + gap), y + 5, itemW, h - 10, {
+        children: item,
+        variant: item === "Copy" ? "contained" : "glass",
+        color: "neutral",
+        radius: 999,
+        fontPx: 9,
+        onClick: () => {
+          if (item === "Copy") this.#copySelectionToBuffer()
+          else if (item === "Cut") this.#cutSelectionToBuffer()
+          else this.#selectAllInEditor()
+          this.#record(`selection:${item.toLowerCase().replace(" ", "-")}`)
+        },
       })
     }
   }
@@ -1260,6 +1367,10 @@ class ButtonComponentsScreen extends UiSurface {
     return editorLanguageFromRoute(this.#route)
   }
 
+  #editorSection(): EditorSection {
+    return this.#route.startsWith("editor/selection") ? "Selection" : "Highlighting"
+  }
+
   #paneSection(): PaneSection {
     return "Variants"
   }
@@ -1317,8 +1428,60 @@ class ButtonComponentsScreen extends UiSurface {
   }
 
   #goEditorLanguage(language: EditorLanguageRoute): void {
-    this.#router.go(`editor/${language}`)
+    this.#router.go(`editor/highlighting/${language}`)
     this.#record(`route:editor:${language}`)
+  }
+
+  #goEditorSection(section: EditorSection): void {
+    if (section === "Selection") {
+      this.#router.go("editor/selection")
+      this.#record("route:editor:selection")
+      return
+    }
+    this.#router.go("editor/highlighting")
+    this.#record("route:editor:highlighting")
+  }
+
+  #toggleSelectionMenu(): void {
+    this.#router.go(this.#route === "editor/selection/menu" ? "editor/selection" : "editor/selection/menu")
+    this.#record("selection:menu")
+  }
+
+  #copySelectionToBuffer(): void {
+    const copy = this.#onEditorCopy
+    if (copy === undefined) {
+      this.#setSelectionBufferState("error")
+      return
+    }
+    void copy().then((ok) => {
+      if (ok) this.#router.go("editor/selection/copied")
+      this.#setSelectionBufferState(ok ? "copied" : "error")
+    }).catch(() => {
+      this.#setSelectionBufferState("error")
+    })
+  }
+
+  #cutSelectionToBuffer(): void {
+    const cut = this.#onEditorCut
+    if (cut === undefined) {
+      this.#setSelectionBufferState("error")
+      return
+    }
+    void cut().then((ok) => {
+      if (ok) this.#router.go("editor/selection/copied")
+      this.#setSelectionBufferState(ok ? "copied" : "error")
+    }).catch(() => {
+      this.#setSelectionBufferState("error")
+    })
+  }
+
+  #selectAllInEditor(): void {
+    this.#onEditorSelectAll?.()
+  }
+
+  #setSelectionBufferState(state: "idle" | "copied" | "error"): void {
+    this.#selectionBufferState = state
+    this.requestRender()
   }
 
   #goSize(size: ButtonSize): void {
@@ -1407,11 +1570,18 @@ function activeNavStyle(active: boolean): Pick<ButtonProps, "fill" | "border"> {
 }
 
 function editorLanguageFromRoute(route: ComponentsRoute): EditorLanguageRoute {
-  if (route === "editor/javascript") return "javascript"
-  if (route === "editor/html") return "html"
-  if (route === "editor/css") return "css"
-  if (route === "editor/plaintext") return "plaintext"
+  const routeLanguage = routeEditorLanguageFromRoute(route)
+  if (routeLanguage !== null) return routeLanguage
   return "typescript"
+}
+
+function routeEditorLanguageFromRoute(route: ComponentsRoute): EditorLanguageRoute | null {
+  if (route === "editor/highlighting/typescript") return "typescript"
+  if (route === "editor/highlighting/javascript") return "javascript"
+  if (route === "editor/highlighting/html") return "html"
+  if (route === "editor/highlighting/css") return "css"
+  if (route === "editor/highlighting/plaintext") return "plaintext"
+  return null
 }
 
 function editorLanguageId(language: EditorLanguageRoute): string {
@@ -2290,20 +2460,20 @@ const editor = new EditorPane({
 })
 
 editor.setText([
-  "type Route = \\"button/basic\\" | \\"pane/variants\\" | \\"editor\\"",
+  "type Route = \\"button/basic\\" | \\"pane/variants\\" | \\"editor/highlighting\\"",
   "",
   "export function openEditor(route: Route): Route {",
-  "  return route === \\"editor\\" ? route : \\"editor\\"",
+  "  return route === \\"editor/highlighting\\" ? route : \\"editor/highlighting\\"",
   "}",
 ].join("\\n"))
 `,
   javascript: `import {EditorPane} from "@metafor/components"
 
-const routes = ["button/basic", "pane/variants", "editor"]
+const routes = ["button/basic", "pane/variants", "editor/highlighting"]
 
 export function openEditor(route) {
   console.log("route", route)
-  return routes.includes(route) ? route : "editor"
+  return routes.includes(route) ? route : "editor/highlighting"
 }
 `,
   html: `<!doctype html>
@@ -2359,6 +2529,7 @@ const editor = new EditorPane({
 let appliedEditorLanguage: EditorLanguageRoute | null = null
 const syncEditorRoute = (route: ComponentsRoute): void => {
   if (!route.startsWith("editor") && appliedEditorLanguage !== null) return
+  if (route.startsWith("editor/selection") && appliedEditorLanguage !== null) return
   const language = editorLanguageFromRoute(route)
   if (language === appliedEditorLanguage) return
   applyEditorLanguage(editor, route)
@@ -2370,6 +2541,9 @@ const screen = new ButtonComponentsScreen({
     syncEditorRoute(route)
     ui.relayout()
   },
+  onEditorCopy: () => editor.copySelectionToClipboard(),
+  onEditorCut: () => editor.cutSelectionToClipboard(),
+  onEditorSelectAll: () => editor.selectAll(),
 })
 activeRoute = screen.currentRoute
 syncEditorRoute(activeRoute)
