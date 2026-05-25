@@ -281,7 +281,13 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
     surface.wheel(layout.x, layout.y, layout.width, layout.height, (event) => {
       const horizontal = layout.showX && (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY) || !layout.showY)
       if (horizontal) {
-        const delta = event.shiftKey && event.deltaY !== 0 ? event.deltaY : event.deltaX
+        const delta = event.shiftKey && event.deltaY !== 0
+          ? event.deltaY
+          : event.deltaX !== 0
+            ? event.deltaX
+            : !layout.showY
+              ? event.deltaY
+              : 0
         const next = clamp(state.left + wheelDeltaPxFor(delta, event.deltaMode, layout.viewportW), 0, layout.maxScrollX)
         if (next === state.left) return
         event.preventDefault()
@@ -304,14 +310,17 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
     const thumbY = layout.contentY + thumb.y
     const thumbKey = `${scrollbarKey}:thumb`
     const thumbState = surface.hitState(scrollbarX, thumbY, layout.trackWidth, thumb.h, thumbKey)
-    const trackState = surface.hitState(scrollbarX, layout.contentY, layout.trackWidth, layout.viewportH, scrollbarKey)
     const active = thumbState.hovered || thumbState.pressed || state.dragY !== null
-    surface.hit(scrollbarX, layout.contentY, layout.trackWidth, layout.viewportH, () => {
-      const pageDirection = trackState.hovered && !thumbState.hovered ? 1 : 0
-      if (pageDirection === 0) return
-      state.top = clamp(state.top + layout.viewportH * 0.85, 0, layout.maxScrollY)
-      surface.requestRender()
-    }, {key: scrollbarKey, cursor: "pointer"})
+    surface.hit(scrollbarX, layout.contentY, layout.trackWidth, layout.viewportH, () => {}, {
+      key: scrollbarKey,
+      cursor: "pointer",
+      onPointerDown: (_localX, localY) => {
+        const localTrackY = localY - layout.contentY
+        const direction = localTrackY < thumb.y ? -1 : 1
+        state.top = clamp(state.top + direction * layout.viewportH * 0.85, 0, layout.maxScrollY)
+        surface.requestRender()
+      },
+    })
     surface.hit(scrollbarX, thumbY, layout.trackWidth, thumb.h, () => {}, {
       key: thumbKey,
       cursor: "pointer",
@@ -347,14 +356,17 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
     const thumbX = layout.contentX + thumb.y
     const thumbKey = `${scrollbarKey}:thumb`
     const thumbState = surface.hitState(thumbX, scrollbarY, thumb.h, layout.trackWidth, thumbKey)
-    const trackState = surface.hitState(layout.contentX, scrollbarY, layout.viewportW, layout.trackWidth, scrollbarKey)
     const active = thumbState.hovered || thumbState.pressed || state.dragX !== null
-    surface.hit(layout.contentX, scrollbarY, layout.viewportW, layout.trackWidth, () => {
-      const pageDirection = trackState.hovered && !thumbState.hovered ? 1 : 0
-      if (pageDirection === 0) return
-      state.left = clamp(state.left + layout.viewportW * 0.85, 0, layout.maxScrollX)
-      surface.requestRender()
-    }, {key: scrollbarKey, cursor: "pointer"})
+    surface.hit(layout.contentX, scrollbarY, layout.viewportW, layout.trackWidth, () => {}, {
+      key: scrollbarKey,
+      cursor: "pointer",
+      onPointerDown: (localX) => {
+        const localTrackX = localX - layout.contentX
+        const direction = localTrackX < thumb.y ? -1 : 1
+        state.left = clamp(state.left + direction * layout.viewportW * 0.85, 0, layout.maxScrollX)
+        surface.requestRender()
+      },
+    })
     surface.hit(thumbX, scrollbarY, thumb.h, layout.trackWidth, () => {}, {
       key: thumbKey,
       cursor: "pointer",

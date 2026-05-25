@@ -11,6 +11,8 @@ export type ScrollbarOpts = {
   total: number
   /** Scroll axis. Default: vertical. */
   axis?: "vertical" | "horizontal"
+  /** @deprecated Использовать axis. Оставлено для совместимости с ранним elements API. */
+  orientation?: "vertical" | "horizontal"
   /** Track thickness in px. Default 4. */
   trackWidth?: number
   /** Minimum thumb length in px. Default 16. */
@@ -24,7 +26,7 @@ const DEFAULT_THUMB = new Color(0.45, 0.51, 0.60, 0.62)
 
 export function scrollbar(surface: UiSurface, x: number, y: number, h: number, opts: ScrollbarOpts): void {
   if (opts.total <= opts.visible) return
-  const axis = opts.axis ?? "vertical"
+  const axis = opts.axis ?? opts.orientation ?? "vertical"
   const tw = opts.trackWidth ?? 4
   const minThumb = opts.minThumbHeight ?? 16
   const trackColor = opts.trackColor ?? palette.borderDim

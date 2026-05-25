@@ -1,4 +1,4 @@
-import {UiSurface, UiRuntime, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, type UiSurfaceRect, uiIcons} from "@metafor/elements"
+import {UiSurface, UiRuntime, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, type StyleProps, type UiSurfaceRect, uiIcons} from "@metafor/elements"
 import {
   autoButtonWidth,
   Button,
@@ -24,7 +24,8 @@ type ButtonRouteIcon = "svg"
 type ButtonRouteIconLabel = "left" | "right"
 type IconLabelPlacement = ButtonRouteIconLabel | "mixed"
 type PaneVariant = "glass" | "outlined" | "filled"
-type PaneRoute = "pane/variants" | `pane/variants/${PaneVariant}`
+type PaneScrollAxis = "vertical" | "horizontal"
+type PaneRoute = "pane/variants" | `pane/variants/${PaneVariant}` | "pane/scroll" | `pane/scroll/${PaneScrollAxis}`
 type EditorLanguageRoute = "typescript" | "javascript" | "html" | "css" | "plaintext"
 type EditorSelectionRoute = "menu" | "copied" | "right-click" | "shift-cursor"
 type EditorScrollRoute = "vertical" | "horizontal"
@@ -51,7 +52,7 @@ type ButtonRoute =
   | "button/icon"
   | `button/icon/${ButtonRouteIcon}`
 type ButtonSection = "Basic" | "Icon" | "Icon+Label" | "Sizes" | "Color"
-type PaneSection = "Variants"
+type PaneSection = "Variants" | "Scroll"
 
 const BASIC_BUTTON_TYPES: readonly BasicButtonType[] = ["Text button", "Contained button", "Outlined button"]
 const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Icon", "Icon+Label", "Sizes", "Color"]
@@ -84,7 +85,11 @@ const PANE_ROUTES: readonly PaneRoute[] = [
   "pane/variants/glass",
   "pane/variants/outlined",
   "pane/variants/filled",
+  "pane/scroll",
+  "pane/scroll/vertical",
+  "pane/scroll/horizontal",
 ]
+const PANE_SECTIONS: readonly PaneSection[] = ["Variants", "Scroll"]
 const EDITOR_LANGUAGE_ROUTES: readonly EditorLanguageRoute[] = ["typescript", "javascript", "html", "css", "plaintext"]
 const EDITOR_SELECTION_ROUTES: readonly EditorSelectionRoute[] = ["menu", "copied", "right-click", "shift-cursor"]
 const EDITOR_SCROLL_ROUTES: readonly EditorScrollRoute[] = ["vertical", "horizontal"]
@@ -106,6 +111,7 @@ const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
 }
 const EDITOR_SECTIONS: readonly EditorSection[] = ["Editing", "Highlighting", "Selection", "Scroll"]
 const PANE_VARIANTS: readonly PaneVariant[] = ["glass", "outlined", "filled"]
+const PANE_SCROLL_AXES: readonly PaneScrollAxis[] = ["vertical", "horizontal"]
 const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...BUTTON_ROUTES, ...PANE_ROUTES, ...EDITOR_ROUTES]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
 const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
@@ -293,7 +299,7 @@ class ButtonComponentsScreen extends UiSurface {
     const pad = 18
     if (this.#currentComponent() === "Pane") {
       h3(this, x, y + 28, w, 24, {children: "Pane", style: {fontSize: 15, textAlign: "center"}})
-      this.#sectionList(x, y + 76, w, h - 94, ["Variants"], (section) => this.#paneSection() === section, (section) => this.#goPaneSection(section))
+      this.#sectionList(x, y + 76, w, h - 94, PANE_SECTIONS, (section) => this.#paneSection() === section, (section) => this.#goPaneSection(section))
       return
     }
     if (this.#currentComponent() === "Editor") {
@@ -361,9 +367,15 @@ class ButtonComponentsScreen extends UiSurface {
     if (this.#currentComponent() === "Editor") {
       this.#editorPreview(x, y, w, h)
     } else if (this.#currentComponent() === "Pane") {
-      const variant = this.#routePaneVariant()
-      if (variant === null) this.#paneOverview(x, y, w, h)
-      else this.#paneDetail(x, y, w, h, variant)
+      if (this.#paneSection() === "Scroll") {
+        const axis = this.#routePaneScrollAxis()
+        if (axis === null) this.#paneScrollOverview(x, y, w, h)
+        else this.#paneScrollDetail(x, y, w, h, axis)
+      } else {
+        const variant = this.#routePaneVariant()
+        if (variant === null) this.#paneOverview(x, y, w, h)
+        else this.#paneDetail(x, y, w, h, variant)
+      }
     } else if (this.#routeSection() === "Icon") {
       const icon = this.#routeIcon()
       if (icon === "svg") this.#iconSvgDetail(x, y, w, h)
@@ -494,6 +506,60 @@ class ButtonComponentsScreen extends UiSurface {
     })
 
     const codeW = Math.min(520, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #paneScrollOverview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const cardW = Math.min(300, Math.max(220, (w - pad * 2 - 28) / 2))
+    const cardH = Math.min(216, Math.max(168, h * 0.36))
+    const gap = Math.max(28, w - pad * 2 - cardW * 2)
+    const cardsY = y + 170
+    const startX = x + (w - (cardW * 2 + gap)) / 2
+
+    renderOverviewLayout(this, x, y, w, h, pad, "Pane scroll", [
+      "Scrollable panes use element overflow and the shared div scrollbar behavior.",
+    ], (_slotX, _slotY, _slotW, slotH) => {
+      const cardY = cardsY + Math.max(0, (slotH - cardH) / 2 - 36)
+      Pane(this, startX, cardY, cardW, cardH, {
+        key: "components:pane-scroll:overview:vertical",
+        variant: "outlined",
+        children: paneVerticalScrollText(),
+        sx: paneScrollStyle("vertical"),
+      })
+      Pane(this, startX + cardW + gap, cardY, cardW, cardH, {
+        key: "components:pane-scroll:overview:horizontal",
+        variant: "outlined",
+        children: paneHorizontalScrollText(),
+        sx: paneScrollStyle("horizontal"),
+      })
+    })
+  }
+
+  #paneScrollDetail(x: number, y: number, w: number, h: number, axis: PaneScrollAxis): void {
+    const pad = 42
+    const codeLines = paneScrollCodeLines(axis)
+    const demoH = axis === "vertical" ? 242 : 178
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, `${paneScrollTitle(axis)} scroll`, paneScrollDescriptionLines(axis))
+
+    const paneW = Math.min(axis === "vertical" ? 340 : 460, w - pad * 2)
+    const paneH = axis === "vertical" ? 220 : 150
+    const paneX = x + (w - paneW) / 2
+    const paneY = rows.demoY + (demoH - paneH) / 2
+    Pane(this, paneX, paneY, paneW, paneH, {
+      key: `components:pane-scroll:${axis}`,
+      variant: "outlined",
+      children: axis === "vertical" ? paneVerticalScrollText() : paneHorizontalScrollText(),
+      sx: paneScrollStyle(axis),
+    })
+
+    const codeW = Math.min(560, w - pad * 2)
     const codeX = x + (w - codeW) / 2
     codeBlock(this, codeX, rows.codeY, codeW, codeLines)
   }
@@ -1069,6 +1135,29 @@ class ButtonComponentsScreen extends UiSurface {
       return
     }
     if (this.#currentComponent() === "Pane") {
+      if (this.#paneSection() === "Scroll") {
+        const itemGap = 12
+        const buttonH = 42
+        const itemWidths = PANE_SCROLL_AXES.map((axis) => Math.max(124, autoButtonWidth(this, paneScrollDockLabel(axis), 10, 24)))
+        const rowW = itemWidths.reduce((sum, width) => sum + width, 0) + itemGap * (PANE_SCROLL_AXES.length - 1)
+        let itemX = x + (w - rowW) / 2
+        const routeAxis = this.#routePaneScrollAxis()
+        for (const [i, axis] of PANE_SCROLL_AXES.entries()) {
+          const active = routeAxis === axis
+          const itemW = itemWidths[i]!
+          Button(this, itemX, y + (h - buttonH) / 2, itemW, buttonH, {
+            children: paneScrollDockLabel(axis),
+            variant: active ? "contained" : "glass",
+            color: "neutral",
+            ...activeNavStyle(active),
+            radius: this.#radius,
+            fontPx: 10,
+            onClick: () => this.#goPaneScrollAxis(axis),
+          })
+          itemX += itemW + itemGap
+        }
+        return
+      }
       const itemGap = 12
       const itemW = Math.max(94, Math.min(148, (w - 64 - itemGap * (PANE_VARIANTS.length - 1)) / PANE_VARIANTS.length))
       const rowW = itemW * PANE_VARIANTS.length + itemGap * (PANE_VARIANTS.length - 1)
@@ -1440,6 +1529,10 @@ class ButtonComponentsScreen extends UiSurface {
     return routePaneVariantFromRoute(this.#route)
   }
 
+  #routePaneScrollAxis(): PaneScrollAxis | null {
+    return routePaneScrollAxisFromRoute(this.#route)
+  }
+
   #currentComponent(): ComponentName {
     if (this.#route.startsWith("editor")) return "Editor"
     return this.#route.startsWith("pane/") ? "Pane" : "Button"
@@ -1456,6 +1549,7 @@ class ButtonComponentsScreen extends UiSurface {
   }
 
   #paneSection(): PaneSection {
+    if (this.#route.startsWith("pane/scroll")) return "Scroll"
     return "Variants"
   }
 
@@ -1501,7 +1595,12 @@ class ButtonComponentsScreen extends UiSurface {
     this.#go(null)
   }
 
-  #goPaneSection(_section: PaneSection): void {
+  #goPaneSection(section: PaneSection): void {
+    if (section === "Scroll") {
+      this.#router.go("pane/scroll")
+      this.#record("route:pane:scroll")
+      return
+    }
     this.#router.go("pane/variants")
     this.#record("route:pane:variants")
   }
@@ -1509,6 +1608,11 @@ class ButtonComponentsScreen extends UiSurface {
   #goPaneVariant(variant: PaneVariant): void {
     this.#router.go(`pane/variants/${variant}`)
     this.#record(`route:pane:variants:${variant}`)
+  }
+
+  #goPaneScrollAxis(axis: PaneScrollAxis): void {
+    this.#router.go(`pane/scroll/${axis}`)
+    this.#record(`route:pane:scroll:${axis}`)
   }
 
   #goEditorLanguage(language: EditorLanguageRoute): void {
@@ -1879,6 +1983,12 @@ function routePaneVariantFromRoute(route: ComponentsRoute): PaneVariant | null {
   return null
 }
 
+function routePaneScrollAxisFromRoute(route: ComponentsRoute): PaneScrollAxis | null {
+  if (route === "pane/scroll/vertical") return "vertical"
+  if (route === "pane/scroll/horizontal") return "horizontal"
+  return null
+}
+
 function buttonTypeFromRouteVariant(variant: ButtonRouteVariant): BasicButtonType {
   if (variant === "contained") return "Contained button"
   if (variant === "outlined") return "Outlined button"
@@ -2001,6 +2111,96 @@ function paneVariantTitle(variant: PaneVariant): string {
 
 function paneVariantDockLabel(variant: PaneVariant): string {
   return paneVariantTitle(variant)
+}
+
+function paneScrollTitle(axis: PaneScrollAxis): string {
+  return axis === "horizontal" ? "Horizontal" : "Vertical"
+}
+
+function paneScrollDockLabel(axis: PaneScrollAxis): string {
+  return paneScrollTitle(axis)
+}
+
+function paneScrollDescriptionLines(axis: PaneScrollAxis): readonly string[] {
+  if (axis === "horizontal") {
+    return [
+      "Horizontal overflow stays in the element layer.",
+      "Pane only supplies the surface style around shared div scroll behavior.",
+    ]
+  }
+  return [
+    "Vertical overflow stays in the element layer.",
+    "Pane only supplies the surface style around shared div scroll behavior.",
+  ]
+}
+
+function paneScrollStyle(axis: PaneScrollAxis): StyleProps {
+  const base: StyleProps = {
+    ...paneVariantSurfaceStyle("outlined"),
+    borderRadius: 28,
+    padding: 22,
+    fontSize: 13,
+    lineHeight: 1.45,
+    color: "muted",
+  }
+  if (axis === "horizontal") {
+    return {
+      ...base,
+      overflowX: "auto",
+      overflowY: "hidden",
+    }
+  }
+  return {
+    ...base,
+    overflowY: "auto",
+  }
+}
+
+function paneVerticalScrollText(): string {
+  return [
+    "Vertical scroll",
+    "content line 01",
+    "content line 02",
+    "content line 03",
+    "content line 04",
+    "content line 05",
+    "content line 06",
+    "content line 07",
+    "content line 08",
+    "content line 09",
+    "content line 10",
+    "content line 11",
+    "content line 12",
+    "content line 13",
+  ].join("\n")
+}
+
+function paneHorizontalScrollText(): string {
+  return [
+    "horizontal pane content 01",
+    "horizontal pane content 02",
+    "horizontal pane content 03",
+    "horizontal pane content 04",
+    "horizontal pane content 05",
+    "horizontal pane content 06",
+  ].join("    ")
+}
+
+function paneScrollCodeLines(axis: PaneScrollAxis): readonly string[] {
+  if (axis === "horizontal") {
+    return [
+      "Pane(host, x, y, 460, 150, {",
+      '  children: longLine,',
+      '  sx: { overflowX: "auto", overflowY: "hidden" }',
+      "})",
+    ]
+  }
+  return [
+    "Pane(host, x, y, 340, 220, {",
+    '  children: lines.join("\\n"),',
+    '  sx: { overflowY: "auto" }',
+    "})",
+  ]
 }
 
 function paneVariantDescriptionLines(variant: PaneVariant): readonly string[] {
