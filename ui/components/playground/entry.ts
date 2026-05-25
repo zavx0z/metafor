@@ -1,5 +1,15 @@
-import {UiSurface, UiRuntime, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, uiIcons} from "@metafor/elements"
-import {autoButtonWidth, Button, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Pane} from "@metafor/components"
+import {UiSurface, UiRuntime, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, type UiSurfaceRect, uiIcons} from "@metafor/elements"
+import {
+  autoButtonWidth,
+  Button,
+  type ButtonColor,
+  type ButtonProps,
+  type ButtonSize,
+  type ButtonVariant,
+  EditorPane,
+  listLanguageHighlighters,
+  Pane,
+} from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
 type ButtonLabel = "Button" | "Apply" | "Run" | "Delete"
@@ -15,8 +25,10 @@ type ButtonRouteIconLabel = "left" | "right"
 type IconLabelPlacement = ButtonRouteIconLabel | "mixed"
 type PaneVariant = "glass" | "outlined" | "filled"
 type PaneRoute = "pane/variants" | `pane/variants/${PaneVariant}`
-type ComponentsRoute = ButtonRoute | PaneRoute
-type ComponentName = "Button" | "Pane"
+type EditorLanguageRoute = "typescript" | "javascript" | "html" | "css" | "plaintext"
+type EditorRoute = "editor" | `editor/${EditorLanguageRoute}`
+type ComponentsRoute = ButtonRoute | PaneRoute | EditorRoute
+type ComponentName = "Button" | "Pane" | "Editor"
 type ButtonRoute =
   | "button/basic"
   | `button/basic/${ButtonRouteVariant}`
@@ -63,22 +75,36 @@ const PANE_ROUTES: readonly PaneRoute[] = [
   "pane/variants/outlined",
   "pane/variants/filled",
 ]
+const EDITOR_LANGUAGE_ROUTES: readonly EditorLanguageRoute[] = ["typescript", "javascript", "html", "css", "plaintext"]
+const EDITOR_ROUTES: readonly EditorRoute[] = ["editor", ...EDITOR_LANGUAGE_ROUTES.map((language) => `editor/${language}` as const)]
+const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
+  typescript: "TypeScript",
+  javascript: "JavaScript",
+  html: "HTML",
+  css: "CSS",
+  plaintext: "Plaintext",
+}
 const PANE_VARIANTS: readonly PaneVariant[] = ["glass", "outlined", "filled"]
-const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...BUTTON_ROUTES, ...PANE_ROUTES]
+const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...BUTTON_ROUTES, ...PANE_ROUTES, ...EDITOR_ROUTES]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
 const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
 const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
 const BUTTON_STATES: readonly ButtonState[] = ["enabled", "disabled"]
 const BUTTON_WIDTHS: readonly ButtonWidth[] = ["compact", "regular", "wide"]
 const BUTTON_HEIGHTS: readonly ButtonHeight[] = ["compact", "regular", "large"]
-const COMPONENT_NAV = ["Button", "Pane", "Badge", "TextField", "Divider", "Scrollbar", "Scroll List", "Noti Stack"] as const
+const COMPONENT_NAV = ["Button", "Pane", "Editor", "Badge", "TextField", "Divider", "Scrollbar", "Scroll List", "Noti Stack"] as const
 const BUTTON_RADII = [14, 24, 34, 999] as const
 const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.12
 const BACKDROP_Z = -0.18
+type ComponentsScreenOpts = {
+  onRouteChange?: (route: ComponentsRoute) => void
+}
+
 class ButtonComponentsScreen extends UiSurface {
   readonly #router = new VirtualRouter<ComponentsRoute>(COMPONENT_ROUTES, "button/basic", {mode: "path"})
   readonly #unsubscribe: () => void
+  readonly #onRouteChange: ((route: ComponentsRoute) => void) | undefined
   #route: ComponentsRoute = this.#router.current
   #color: ButtonColor = "primary"
   #size: ButtonSize = "medium"
@@ -95,8 +121,9 @@ class ButtonComponentsScreen extends UiSurface {
   #customSvgName = "custom.svg"
   #eventCount = 0
 
-  constructor() {
+  constructor(opts: ComponentsScreenOpts = {}) {
     super({bgColor: null, borderColor: null})
+    this.#onRouteChange = opts.onRouteChange
     const initialSize = routeSizeFromRoute(this.#route)
     if (initialSize !== null) this.#size = initialSize
     const initialColor = routeColorFromRoute(this.#route)
@@ -107,8 +134,13 @@ class ButtonComponentsScreen extends UiSurface {
       if (routeSize !== null) this.#size = routeSize
       const routeColor = routeColorFromRoute(route)
       if (routeColor !== null) this.#color = routeColor
+      this.#onRouteChange?.(route)
       this.requestRender()
     })
+  }
+
+  get currentRoute(): ComponentsRoute {
+    return this.#route
   }
 
   override dispose(): void {
@@ -120,20 +152,12 @@ class ButtonComponentsScreen extends UiSurface {
   protected render(): void {
     this.#backdrop()
 
-    const stageW = Math.max(1040, Math.min(1660, this.rectW - 36))
-    const stageH = Math.max(560, Math.min(860, this.rectH - 36))
-    const stageX = (this.rectW - stageW) / 2
-    const stageY = (this.rectH - stageH) / 2
-    const gap = 18
-    const catalogW = Math.round(Math.max(184, Math.min(228, stageW * 0.16)))
-    const sectionW = Math.round(Math.max(132, Math.min(172, stageW * 0.11)))
-    const paramsW = Math.round(Math.max(300, Math.min(372, stageW * 0.23)))
-    const dockH = Math.max(86, Math.min(112, stageH * 0.15))
-    const previewW = stageW - catalogW - sectionW - paramsW - gap * 3
-    const previewH = stageH - dockH - gap
-    const sectionX = stageX + catalogW + gap
-    const previewX = sectionX + sectionW + gap
-    const paramsX = previewX + previewW + gap
+    const {
+      stageX, stageY, stageH,
+      catalogW, sectionW, paramsW,
+      dockH, previewW, previewH,
+      sectionX, previewX, paramsX, gap,
+    } = componentsPlaygroundLayout(this.rectW, this.rectH)
 
     this.#catalog(stageX, stageY, catalogW, stageH)
     this.#sectionPanel(sectionX, stageY, sectionW, stageH)
@@ -169,7 +193,7 @@ class ButtonComponentsScreen extends UiSurface {
     const rowH = 38
     for (const [i, label] of COMPONENT_NAV.entries()) {
       const active = label === this.#currentComponent()
-      const enabled = label === "Button" || label === "Pane"
+      const enabled = label === "Button" || label === "Pane" || label === "Editor"
       Button(this, x + pad, top + i * (rowH + gap), w - pad * 2, rowH, {
         children: label,
         variant: active ? "contained" : "glass",
@@ -181,6 +205,7 @@ class ButtonComponentsScreen extends UiSurface {
         onClick: () => {
           if (label === "Button") this.#router.go("button/basic")
           else if (label === "Pane") this.#router.go("pane/variants")
+          else if (label === "Editor") this.#router.go("editor/typescript")
           this.#record(`component:${label.toLowerCase()}`)
         },
       })
@@ -213,6 +238,19 @@ class ButtonComponentsScreen extends UiSurface {
       })
       return
     }
+    if (this.#currentComponent() === "Editor") {
+      h3(this, x, y + 28, w, 24, {children: "Editor", style: {fontSize: 15, textAlign: "center"}})
+      Button(this, x + pad, y + 76, w - pad * 2, 38, {
+        children: "Highlighting",
+        variant: "contained",
+        color: "neutral",
+        ...activeNavStyle(true),
+        radius: 999,
+        fontPx: 11,
+        onClick: () => this.#goEditorLanguage(this.#editorLanguage()),
+      })
+      return
+    }
     h3(this, x, y + 28, w, 24, {children: "Button", style: {fontSize: 15, textAlign: "center"}})
     const top = y + 76
     for (const [i, section] of BUTTON_SECTIONS.entries()) {
@@ -241,7 +279,9 @@ class ButtonComponentsScreen extends UiSurface {
     })
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
-    if (this.#currentComponent() === "Pane") {
+    if (this.#currentComponent() === "Editor") {
+      this.#editorPreview(x, y, w, h)
+    } else if (this.#currentComponent() === "Pane") {
       const variant = this.#routePaneVariant()
       if (variant === null) this.#paneOverview(x, y, w, h)
       else this.#paneDetail(x, y, w, h, variant)
@@ -265,6 +305,24 @@ class ButtonComponentsScreen extends UiSurface {
       else this.#buttonDetail(x, y, w, h, variant)
     }
     this.popClip()
+  }
+
+  #editorPreview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    renderHeader(this, x, w, pad, y + 34, "Editor pane", [
+      "Editable source surface with syntax tokens, cursor routing, undo history, and scroll state.",
+      "The live editor below is a separate focusable surface mounted inside this route.",
+    ])
+
+    const rect = editorPaneRectForPreview(x, y, w, h)
+    Pane(this, rect.x - 14, rect.y - 14, rect.w + 28, rect.h + 28, {
+      variant: "outlined",
+      sx: {
+        background: "rgba(4, 8, 14, 0.24)",
+        borderColor: "rgba(111, 211, 255, 0.22)",
+        borderRadius: 26,
+      },
+    })
   }
 
   #paneOverview(x: number, y: number, w: number, h: number): void {
@@ -880,6 +938,26 @@ class ButtonComponentsScreen extends UiSurface {
       variant: "glass",
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34, zIndex: LAYOUT_Z},
     })
+    if (this.#currentComponent() === "Editor") {
+      const itemGap = 12
+      const itemW = Math.max(84, Math.min(124, (w - 64 - itemGap * (EDITOR_LANGUAGE_ROUTES.length - 1)) / EDITOR_LANGUAGE_ROUTES.length))
+      const rowW = itemW * EDITOR_LANGUAGE_ROUTES.length + itemGap * (EDITOR_LANGUAGE_ROUTES.length - 1)
+      const startX = x + (w - rowW) / 2
+      const activeLanguage = this.#editorLanguage()
+      for (const [i, language] of EDITOR_LANGUAGE_ROUTES.entries()) {
+        const active = activeLanguage === language
+        Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
+          children: EDITOR_LANGUAGE_LABELS[language],
+          variant: active ? "contained" : "glass",
+          color: "neutral",
+          ...activeNavStyle(active),
+          radius: this.#radius,
+          fontPx: 10,
+          onClick: () => this.#goEditorLanguage(language),
+        })
+      }
+      return
+    }
     if (this.#currentComponent() === "Pane") {
       const itemGap = 12
       const itemW = Math.max(94, Math.min(148, (w - 64 - itemGap * (PANE_VARIANTS.length - 1)) / PANE_VARIANTS.length))
@@ -1008,6 +1086,16 @@ class ButtonComponentsScreen extends UiSurface {
       variant: "glass",
       sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
     })
+    if (this.#currentComponent() === "Editor") {
+      const pad = 24
+      h3(this, x + pad, y + 30, w - pad * 2, 24, {children: "EditorPane", style: {fontSize: 15}})
+      p(this, x + pad, y + 70, w - pad * 2, 22, {children: "Route", style: {fontSize: 11, color: "muted"}})
+      codeBlock(this, x + pad, y + 104, w - pad * 2, [
+        `new EditorPane({`,
+        `  languageId: "${editorLanguageId(this.#editorLanguage())}",`,
+        `  fontPx: 12, linePx: 17 })`,
+      ])
+    }
   }
 
   #optionGroup<T extends string>(
@@ -1164,7 +1252,12 @@ class ButtonComponentsScreen extends UiSurface {
   }
 
   #currentComponent(): ComponentName {
+    if (this.#route.startsWith("editor")) return "Editor"
     return this.#route.startsWith("pane/") ? "Pane" : "Button"
+  }
+
+  #editorLanguage(): EditorLanguageRoute {
+    return editorLanguageFromRoute(this.#route)
   }
 
   #paneSection(): PaneSection {
@@ -1221,6 +1314,11 @@ class ButtonComponentsScreen extends UiSurface {
   #goPaneVariant(variant: PaneVariant): void {
     this.#router.go(`pane/variants/${variant}`)
     this.#record(`route:pane:variants:${variant}`)
+  }
+
+  #goEditorLanguage(language: EditorLanguageRoute): void {
+    this.#router.go(`editor/${language}`)
+    this.#record(`route:editor:${language}`)
   }
 
   #goSize(size: ButtonSize): void {
@@ -1306,6 +1404,47 @@ function iconDisplay(value: ButtonIcon): string {
 function activeNavStyle(active: boolean): Pick<ButtonProps, "fill" | "border"> {
   if (!active) return {}
   return {fill: palette.bgHot, border: palette.cyan}
+}
+
+function editorLanguageFromRoute(route: ComponentsRoute): EditorLanguageRoute {
+  if (route === "editor/javascript") return "javascript"
+  if (route === "editor/html") return "html"
+  if (route === "editor/css") return "css"
+  if (route === "editor/plaintext") return "plaintext"
+  return "typescript"
+}
+
+function editorLanguageId(language: EditorLanguageRoute): string {
+  if (language === "typescript") return "typescript"
+  if (language === "javascript") return "javascript"
+  if (language === "html") return "html"
+  if (language === "css") return "css"
+  if (language === "plaintext") return "plaintext"
+  return language
+}
+
+function editorLanguagePath(language: EditorLanguageRoute): string {
+  if (language === "javascript") return "playground/demo.js"
+  if (language === "html") return "playground/demo.html"
+  if (language === "css") return "playground/demo.css"
+  if (language === "plaintext") return "playground/demo.txt"
+  return "playground/demo.ts"
+}
+
+function editorHighlighterName(language: EditorLanguageRoute): string {
+  const languageId = editorLanguageId(language).toLowerCase()
+  const highlighter = listLanguageHighlighters().find((item) =>
+    item.id.toLowerCase() === languageId ||
+    (item.aliases ?? []).some((alias) => alias.toLowerCase() === languageId)
+  )
+  return highlighter?.name ?? EDITOR_LANGUAGE_LABELS[language]
+}
+
+function applyEditorLanguage(editor: EditorPane, route: ComponentsRoute): void {
+  const language = editorLanguageFromRoute(route)
+  editor.setLanguage({languageId: editorLanguageId(language), path: editorLanguagePath(language)})
+  editor.setTitle(`${editorHighlighterName(language)} source`)
+  editor.setText(editorDemoSource(language))
 }
 
 function routeVariantFromRoute(route: ComponentsRoute): ButtonRouteVariant | null {
@@ -2087,10 +2226,155 @@ function codeBlock(host: UiSurface, x: number, y: number, w: number, lines: read
   }
 }
 
+function componentsPlaygroundLayout(rectW: number, rectH: number): {
+  stageX: number
+  stageY: number
+  stageW: number
+  stageH: number
+  gap: number
+  catalogW: number
+  sectionW: number
+  paramsW: number
+  dockH: number
+  previewW: number
+  previewH: number
+  sectionX: number
+  previewX: number
+  paramsX: number
+} {
+  const stageW = Math.max(1040, Math.min(1660, rectW - 36))
+  const stageH = Math.max(560, Math.min(860, rectH - 36))
+  const stageX = (rectW - stageW) / 2
+  const stageY = (rectH - stageH) / 2
+  const gap = 18
+  const catalogW = Math.round(Math.max(184, Math.min(228, stageW * 0.16)))
+  const sectionW = Math.round(Math.max(132, Math.min(172, stageW * 0.11)))
+  const paramsW = Math.round(Math.max(300, Math.min(372, stageW * 0.23)))
+  const dockH = Math.max(86, Math.min(112, stageH * 0.15))
+  const previewW = stageW - catalogW - sectionW - paramsW - gap * 3
+  const previewH = stageH - dockH - gap
+  const sectionX = stageX + catalogW + gap
+  const previewX = sectionX + sectionW + gap
+  const paramsX = previewX + previewW + gap
+  return {stageX, stageY, stageW, stageH, gap, catalogW, sectionW, paramsW, dockH, previewW, previewH, sectionX, previewX, paramsX}
+}
+
+function editorPaneRectForPreview(x: number, y: number, w: number, h: number): UiSurfaceRect {
+  const top = y + 142
+  const inset = 56
+  return {
+    x: x + inset,
+    y: top,
+    w: Math.max(260, w - inset * 2),
+    h: Math.max(220, h - 190),
+  }
+}
+
+function editorPaneRectForCanvas(w: number, h: number): UiSurfaceRect {
+  const layout = componentsPlaygroundLayout(w, h)
+  return editorPaneRectForPreview(layout.previewX, layout.stageY, layout.previewW, layout.previewH)
+}
+
+function hiddenRect(): UiSurfaceRect {
+  return {x: 0, y: 0, w: 1, h: 1, visible: false}
+}
+
+const EDITOR_DEMO_SOURCES: Record<EditorLanguageRoute, string> = {
+  typescript: `import {EditorPane} from "@metafor/components"
+
+const editor = new EditorPane({
+  title: "Demo source",
+  path: "playground/demo.ts",
+  fontPx: 12,
+  linePx: 17,
+})
+
+editor.setText([
+  "type Route = \\"button/basic\\" | \\"pane/variants\\" | \\"editor\\"",
+  "",
+  "export function openEditor(route: Route): Route {",
+  "  return route === \\"editor\\" ? route : \\"editor\\"",
+  "}",
+].join("\\n"))
+`,
+  javascript: `import {EditorPane} from "@metafor/components"
+
+const routes = ["button/basic", "pane/variants", "editor"]
+
+export function openEditor(route) {
+  console.log("route", route)
+  return routes.includes(route) ? route : "editor"
+}
+`,
+  html: `<!doctype html>
+<section class="proposal-card">
+  <h1>{{title}}</h1>
+  <style>
+    .proposal-card {
+      display: grid;
+      gap: 12px;
+      color: #f7fbff;
+      padding: 18px;
+    }
+  </style>
+  <script>
+    const title = formatTitle("Editor")
+  </script>
+</section>
+`,
+  css: `.proposal-card {
+  display: grid;
+  gap: 12px;
+  color: #f7fbff;
+  padding: 18px;
+}
+
+@media (min-width: 720px) {
+  .proposal-card {
+    grid-template-columns: 1fr auto;
+  }
+}
+`,
+  plaintext: `EditorPane
+
+Plain text route keeps tokens disabled.
+Use this for logs, notes, and raw source snapshots.
+`,
+}
+
+function editorDemoSource(language: EditorLanguageRoute): string {
+  return EDITOR_DEMO_SOURCES[language]
+}
+
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
 const ui = await UiRuntime.create(canvas)
-ui.addSurface(new ButtonComponentsScreen(), ({w, h}) => ({x: 0, y: 0, w, h}))
+let activeRoute: ComponentsRoute = "button/basic"
+const editor = new EditorPane({
+  title: "Demo source",
+  path: "playground/demo.ts",
+  fontPx: 12,
+  linePx: 17,
+})
+let appliedEditorLanguage: EditorLanguageRoute | null = null
+const syncEditorRoute = (route: ComponentsRoute): void => {
+  if (!route.startsWith("editor") && appliedEditorLanguage !== null) return
+  const language = editorLanguageFromRoute(route)
+  if (language === appliedEditorLanguage) return
+  applyEditorLanguage(editor, route)
+  appliedEditorLanguage = language
+}
+const screen = new ButtonComponentsScreen({
+  onRouteChange: (route) => {
+    activeRoute = route
+    syncEditorRoute(route)
+    ui.relayout()
+  },
+})
+activeRoute = screen.currentRoute
+syncEditorRoute(activeRoute)
+ui.addSurface(screen, ({w, h}) => ({x: 0, y: 0, w, h}))
+ui.addSurface(editor, ({w, h}) => activeRoute.startsWith("editor") ? editorPaneRectForCanvas(w, h) : hiddenRect())
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)
 window.addEventListener("resize", () => ui.handleResize())
