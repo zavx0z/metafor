@@ -201,6 +201,7 @@ type DivScrollLayout = {
   contentW: number
   contentH: number
   trackWidth: number
+  radius: number
   key: string
   style: StyleProps
   state: DivScrollState
@@ -229,11 +230,15 @@ function divScrollLayout(
 ): DivScrollLayout {
   const pad = boxPadding(opts.style)
   const trackWidth = px(opts.style.scrollbarWidth, 4)
+  const radius = Math.max(0, Math.min(
+    px(opts.style.borderRadius, Math.min(32, Math.min(opts.width, opts.height) / 2)),
+    Math.min(opts.width, opts.height) / 2,
+  ))
   const rawViewportW = Math.max(1, opts.width - pad.left - pad.right)
   const rawViewportH = Math.max(1, opts.height - pad.top - pad.bottom)
   const intrinsicW = Math.max(1, opts.contentWidth ?? rawViewportW)
   const intrinsicH = Math.max(1, opts.contentHeight ?? rawViewportH)
-  const scrollGutter = trackWidth + 10
+  const scrollGutter = trackWidth
   let showX = opts.scrollableX && (opts.overflowX === "scroll" || intrinsicW > rawViewportW)
   let showY = opts.scrollableY && (opts.overflowY === "scroll" || intrinsicH > rawViewportH)
   for (let i = 0; i < 2; i++) {
@@ -265,6 +270,7 @@ function divScrollLayout(
     contentW,
     contentH,
     trackWidth,
+    radius,
     key,
     style: opts.style,
     state,
@@ -304,18 +310,23 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
   }
 
   if (layout.showY) {
-    const scrollbarX = layout.x + layout.width - layout.pad.right - layout.trackWidth - 10
+    const edgeInset = roundedScrollbarInset(layout.radius, layout.trackWidth)
+    const topInset = edgeInset
+    const bottomInset = Math.max(edgeInset, layout.showX ? layout.trackWidth : 0)
+    const scrollbarX = layout.x + layout.width - layout.trackWidth
+    const scrollbarY = layout.y + topInset
+    const scrollbarH = Math.max(1, layout.height - topInset - bottomInset)
     const scrollbarKey = `${layout.key}:scrollbar-y`
-    const thumb = scrollbarThumbMetrics(state.top, layout.viewportH, layout.contentH)
-    const thumbY = layout.contentY + thumb.y
+    const thumb = scrollbarThumbMetrics(state.top, layout.viewportH, layout.contentH, scrollbarH)
+    const thumbY = scrollbarY + thumb.y
     const thumbKey = `${scrollbarKey}:thumb`
     const thumbState = surface.hitState(scrollbarX, thumbY, layout.trackWidth, thumb.h, thumbKey)
     const active = thumbState.hovered || thumbState.pressed || state.dragY !== null
-    surface.hit(scrollbarX, layout.contentY, layout.trackWidth, layout.viewportH, () => {}, {
+    surface.hit(scrollbarX, scrollbarY, layout.trackWidth, scrollbarH, () => {}, {
       key: scrollbarKey,
       cursor: "pointer",
       onPointerDown: (_localX, localY) => {
-        const localTrackY = localY - layout.contentY
+        const localTrackY = localY - scrollbarY
         const direction = localTrackY < thumb.y ? -1 : 1
         state.top = clamp(state.top + direction * layout.viewportH * 0.85, 0, layout.maxScrollY)
         surface.requestRender()
@@ -329,7 +340,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
       },
       onPointerMove: (_localX, localY) => {
         if (state.dragY === null) return
-        const range = Math.max(1, layout.viewportH - thumb.h)
+        const range = Math.max(1, scrollbarH - thumb.h)
         const contentRange = Math.max(1, layout.contentH - layout.viewportH)
         const next = state.dragY.startTop + ((localY - state.dragY.startY) / range) * contentRange
         state.top = clamp(next, 0, layout.maxScrollY)
@@ -339,7 +350,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
         state.dragY = null
       },
     })
-    scrollbar(surface, scrollbarX, layout.contentY, layout.viewportH, {
+    scrollbar(surface, scrollbarX, scrollbarY, scrollbarH, {
       offset: state.top,
       visible: layout.viewportH,
       total: layout.contentH,
@@ -350,18 +361,23 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
   }
 
   if (layout.showX) {
-    const scrollbarY = layout.y + layout.height - layout.pad.bottom - layout.trackWidth - 10
+    const edgeInset = roundedScrollbarInset(layout.radius, layout.trackWidth)
+    const leftInset = edgeInset
+    const rightInset = Math.max(edgeInset, layout.showY ? layout.trackWidth : 0)
+    const scrollbarX = layout.x + leftInset
+    const scrollbarY = layout.y + layout.height - layout.trackWidth
+    const scrollbarW = Math.max(1, layout.width - leftInset - rightInset)
     const scrollbarKey = `${layout.key}:scrollbar-x`
-    const thumb = scrollbarThumbMetrics(state.left, layout.viewportW, layout.contentW)
-    const thumbX = layout.contentX + thumb.y
+    const thumb = scrollbarThumbMetrics(state.left, layout.viewportW, layout.contentW, scrollbarW)
+    const thumbX = scrollbarX + thumb.y
     const thumbKey = `${scrollbarKey}:thumb`
     const thumbState = surface.hitState(thumbX, scrollbarY, thumb.h, layout.trackWidth, thumbKey)
     const active = thumbState.hovered || thumbState.pressed || state.dragX !== null
-    surface.hit(layout.contentX, scrollbarY, layout.viewportW, layout.trackWidth, () => {}, {
+    surface.hit(scrollbarX, scrollbarY, scrollbarW, layout.trackWidth, () => {}, {
       key: scrollbarKey,
       cursor: "pointer",
       onPointerDown: (localX) => {
-        const localTrackX = localX - layout.contentX
+        const localTrackX = localX - scrollbarX
         const direction = localTrackX < thumb.y ? -1 : 1
         state.left = clamp(state.left + direction * layout.viewportW * 0.85, 0, layout.maxScrollX)
         surface.requestRender()
@@ -375,7 +391,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
       },
       onPointerMove: (localX) => {
         if (state.dragX === null) return
-        const range = Math.max(1, layout.viewportW - thumb.h)
+        const range = Math.max(1, scrollbarW - thumb.h)
         const contentRange = Math.max(1, layout.contentW - layout.viewportW)
         const next = state.dragX.startLeft + ((localX - state.dragX.startX) / range) * contentRange
         state.left = clamp(next, 0, layout.maxScrollX)
@@ -385,7 +401,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
         state.dragX = null
       },
     })
-    scrollbar(surface, layout.contentX, scrollbarY, layout.viewportW, {
+    scrollbar(surface, scrollbarX, scrollbarY, scrollbarW, {
       axis: "horizontal",
       offset: state.left,
       visible: layout.viewportW,
@@ -418,14 +434,21 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
 
-function scrollbarThumbMetrics(offset: number, visible: number, total: number): {y: number; h: number} {
-  const thumbH = Math.max(16, Math.floor(visible * (visible / total)))
-  const range = visible - thumbH
+function scrollbarThumbMetrics(offset: number, visible: number, total: number, trackSize = visible): {y: number; h: number} {
+  const thumbH = Math.max(16, Math.floor(trackSize * (visible / total)))
+  const range = trackSize - thumbH
   const maxOffset = Math.max(1, total - visible)
   return {
     y: Math.floor(range * (offset / maxOffset)),
     h: thumbH,
   }
+}
+
+function roundedScrollbarInset(radius: number, trackWidth: number): number {
+  if (radius <= 0 || trackWidth <= 0) return 0
+  const centerInset = Math.min(radius, trackWidth / 2)
+  const dx = Math.max(0, radius - centerInset)
+  return Math.ceil(radius - Math.sqrt(Math.max(0, radius * radius - dx * dx)))
 }
 
 function wheelDeltaPxFor(delta: number, deltaMode: number, viewportH: number): number {
