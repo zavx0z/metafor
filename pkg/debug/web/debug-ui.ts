@@ -31,6 +31,7 @@ export type ToolbarActions = {
   onPause(): void
   onResume(): void
   onRestartTarget(): void
+  onStopTarget(): void
   onStep(kind: "over" | "into" | "out"): void
   onToggleDraft(): void
   onSaveDraft(): void
