@@ -26,7 +26,7 @@ type IconLabelPlacement = ButtonRouteIconLabel | "mixed"
 type PaneVariant = "glass" | "outlined" | "filled"
 type PaneRoute = "pane/variants" | `pane/variants/${PaneVariant}`
 type EditorLanguageRoute = "typescript" | "javascript" | "html" | "css" | "plaintext"
-type EditorSelectionRoute = "menu" | "copied"
+type EditorSelectionRoute = "menu" | "copied" | "right-click"
 type EditorSection = "Highlighting" | "Selection"
 type EditorRoute = "editor/highlighting" | `editor/highlighting/${EditorLanguageRoute}` | "editor/selection" | `editor/selection/${EditorSelectionRoute}`
 type ComponentsRoute = ButtonRoute | PaneRoute | EditorRoute
@@ -78,7 +78,7 @@ const PANE_ROUTES: readonly PaneRoute[] = [
   "pane/variants/filled",
 ]
 const EDITOR_LANGUAGE_ROUTES: readonly EditorLanguageRoute[] = ["typescript", "javascript", "html", "css", "plaintext"]
-const EDITOR_SELECTION_ROUTES: readonly EditorSelectionRoute[] = ["menu", "copied"]
+const EDITOR_SELECTION_ROUTES: readonly EditorSelectionRoute[] = ["menu", "copied", "right-click"]
 const EDITOR_ROUTES: readonly EditorRoute[] = [
   "editor/highlighting",
   ...EDITOR_LANGUAGE_ROUTES.map((language) => `editor/highlighting/${language}` as const),
@@ -1065,32 +1065,48 @@ class ButtonComponentsScreen extends UiSurface {
 
   #editorSelectionDock(x: number, y: number, w: number, h: number): void {
     const itemGap = 12
-    const itemW = 138
-    const rowW = itemW * 2 + itemGap
-    const startX = x + (w - rowW) / 2
+    const buttonH = 42
     const bufferLabel = this.#selectionBufferState === "copied"
       ? "Copied"
       : this.#selectionBufferState === "error"
         ? "Copy failed"
         : "To buffer"
-    Button(this, startX, y + (h - 42) / 2, itemW, 42, {
-      children: bufferLabel,
-      variant: this.#selectionBufferState === "copied" ? "contained" : "glass",
-      color: this.#selectionBufferState === "error" ? "error" : "neutral",
-      ...activeNavStyle(this.#selectionBufferState === "copied"),
-      radius: this.#radius,
-      fontPx: 10,
-      onClick: () => this.#copySelectionToBuffer(),
-    })
-    Button(this, startX + itemW + itemGap, y + (h - 42) / 2, itemW, 42, {
-      children: "Selection menu",
-      variant: this.#selectionMenuOpen ? "contained" : "glass",
-      color: "neutral",
-      ...activeNavStyle(this.#selectionMenuOpen),
-      radius: this.#radius,
-      fontPx: 10,
-      onClick: () => this.#toggleSelectionMenu(),
-    })
+    const items = [
+      {
+        label: bufferLabel,
+        active: this.#selectionBufferState === "copied",
+        color: this.#selectionBufferState === "error" ? "error" : "neutral",
+        onClick: () => this.#copySelectionToBuffer(),
+      },
+      {
+        label: "Selection menu",
+        active: this.#selectionMenuOpen,
+        color: "neutral",
+        onClick: () => this.#toggleSelectionMenu(),
+      },
+      {
+        label: "Right click",
+        active: this.#route === "editor/selection/right-click",
+        color: "neutral",
+        onClick: () => this.#goSelectionRightClick(),
+      },
+    ] as const
+    const itemWidths = items.map((item) => Math.max(116, autoButtonWidth(this, item.label, 10, 24)))
+    const rowW = itemWidths.reduce((sum, width) => sum + width, 0) + itemGap * (itemWidths.length - 1)
+    let itemX = x + (w - rowW) / 2
+    for (const [i, item] of items.entries()) {
+      const itemW = itemWidths[i]!
+      Button(this, itemX, y + (h - buttonH) / 2, itemW, buttonH, {
+        children: item.label,
+        variant: item.active ? "contained" : "glass",
+        color: item.color,
+        ...activeNavStyle(item.active),
+        radius: this.#radius,
+        fontPx: 10,
+        onClick: item.onClick,
+      })
+      itemX += itemW + itemGap
+    }
   }
 
   #sizeDock(x: number, y: number, w: number, h: number): void {
@@ -1419,6 +1435,11 @@ class ButtonComponentsScreen extends UiSurface {
   #toggleSelectionMenu(): void {
     this.#router.go(this.#route === "editor/selection/menu" ? "editor/selection" : "editor/selection/menu")
     this.#record("selection:menu")
+  }
+
+  #goSelectionRightClick(): void {
+    this.#router.go("editor/selection/right-click")
+    this.#record("selection:right-click")
   }
 
   #copySelectionToBuffer(): void {
@@ -2516,6 +2537,7 @@ screen = new ButtonComponentsScreen({
     activeRoute = route
     syncEditorRoute(route)
     editor.setSelectionMenuOpen(route === "editor/selection/menu")
+    editor.setSelectionContextMenuEnabled(route === "editor/selection/right-click")
     ui.relayout()
   },
   onEditorCopy: () => editor.copySelectionToClipboard(),
@@ -2525,6 +2547,7 @@ screen = new ButtonComponentsScreen({
 activeRoute = screen.currentRoute
 syncEditorRoute(activeRoute)
 editor.setSelectionMenuOpen(activeRoute === "editor/selection/menu")
+editor.setSelectionContextMenuEnabled(activeRoute === "editor/selection/right-click")
 ui.addSurface(screen, ({w, h}) => ({x: 0, y: 0, w, h}))
 ui.addSurface(editor, ({w, h}) => activeRoute.startsWith("editor") ? editorPaneRectForCanvas(w, h) : hiddenRect())
 const ro = new ResizeObserver(() => ui.handleResize())

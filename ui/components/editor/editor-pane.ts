@@ -97,6 +97,8 @@ export class EditorPane extends UiSurface {
   #dragAnchorLocalX = 0
   #dragAnchorLocalY = 0
   #selectionMenuOpen = false
+  #selectionMenuSticky = false
+  #selectionContextMenuEnabled = false
   #title: string
   #fontPx: number
   #linePx: number
@@ -217,7 +219,13 @@ export class EditorPane extends UiSurface {
   }
 
   setSelectionMenuOpen(open: boolean): void {
-    this.#setSelectionMenuOpen(open)
+    this.#setSelectionMenuOpen(open, open)
+  }
+
+  setSelectionContextMenuEnabled(enabled: boolean): void {
+    if (this.#selectionContextMenuEnabled === enabled) return
+    this.#selectionContextMenuEnabled = enabled
+    if (!enabled && this.#selectionMenuOpen && !this.#selectionMenuSticky) this.#setSelectionMenuOpen(false, false)
   }
 
   hasSelection(): boolean {
@@ -291,12 +299,22 @@ export class EditorPane extends UiSurface {
     this.#selectionFocus = null
     this.#dragSelecting = false
     this.#dragExtendsSelection = false
+    this.#closeTransientSelectionMenu()
   }
 
-  #setSelectionMenuOpen(open: boolean): void {
-    if (this.#selectionMenuOpen === open) return
+  #setSelectionMenuOpen(open: boolean, sticky: boolean): void {
+    if (this.#selectionMenuOpen === open && this.#selectionMenuSticky === sticky) return
     this.#selectionMenuOpen = open
+    this.#selectionMenuSticky = open && sticky
     this.requestRender()
+  }
+
+  #openTransientSelectionMenu(): void {
+    this.#setSelectionMenuOpen(true, false)
+  }
+
+  #closeTransientSelectionMenu(): void {
+    if (this.#selectionMenuOpen && !this.#selectionMenuSticky) this.#setSelectionMenuOpen(false, false)
   }
 
   #selectionRange(): SelectionRange | null {
@@ -588,6 +606,12 @@ export class EditorPane extends UiSurface {
       super.onPointerDown(_event, localX, localY)
       return
     }
+    if (isSecondaryPointer(_event)) {
+      _event.preventDefault()
+      if (this.#selectionContextMenuEnabled && this.#isPointInSelection(localX, localY)) this.#openTransientSelectionMenu()
+      return
+    }
+    this.#closeTransientSelectionMenu()
     const pos = this.#positionFromLocal(localX, localY)
     if (pos === null) return
     this.#dragSelecting = true
@@ -684,6 +708,11 @@ export class EditorPane extends UiSurface {
     this.#dragSelecting = false
     if (this.#selectionRange() === null) this.#clearSelectionState()
     this.requestRender()
+  }
+
+  override onContextMenu(event: MouseEvent, localX: number, localY: number): void {
+    event.preventDefault()
+    if (this.#selectionContextMenuEnabled && this.#isPointInSelection(localX, localY)) this.#openTransientSelectionMenu()
   }
 
   onActivate(): void {
@@ -1118,6 +1147,27 @@ export class EditorPane extends UiSurface {
     })
   }
 
+  #isPointInSelection(localX: number, localY: number): boolean {
+    const range = this.#selectionRange()
+    if (range === null) return false
+    const lineIndex = this.#lineFromLocalY(localY)
+    if (lineIndex === null || lineIndex < range.start.line || lineIndex > range.end.line) return false
+    const lineText = this.#lines[lineIndex] ?? ""
+    const codeStartX = this.#codeStartX()
+    const codeMaxPx = this.#codeMaxPx()
+    const startCol = lineIndex === range.start.line ? range.start.col : 0
+    const endCol = lineIndex === range.end.line ? range.end.col : lineText.length
+    let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#hScroll
+    let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#hScroll
+    if (lineIndex < range.end.line && endCol === lineText.length) x2 += Math.max(5, this.#getCharWidth() * 0.65)
+    if (lineText.length === 0 && lineIndex > range.start.line && lineIndex < range.end.line) x2 = x1 + Math.max(5, this.#getCharWidth() * 0.65)
+    const minX = codeStartX
+    const maxX = codeStartX + codeMaxPx
+    x1 = Math.max(minX, Math.min(maxX, x1))
+    x2 = Math.max(minX, Math.min(maxX, x2))
+    return localX >= Math.min(x1, x2) && localX <= Math.max(x1, x2)
+  }
+
   #renderSelectionMenu(): void {
     const rect = this.#selectionMenuRect()
     if (rect === null) return
@@ -1213,7 +1263,7 @@ export class EditorPane extends UiSurface {
     }
     const task = action === "copy" ? this.#copySelectedTextToClipboard() : this.#cutSelectedTextToClipboard()
     void task.then((ok) => {
-      if (ok) this.#setSelectionMenuOpen(false)
+      if (ok) this.#setSelectionMenuOpen(false, false)
       this.#onSelectionClipboard?.(ok, action)
     }).catch(() => {
       this.#onSelectionClipboard?.(false, action)
@@ -1246,6 +1296,10 @@ function resolveEditorTokenize(opts: EditorOpts): EditorTokenize | undefined {
 
 function pointInRect(x: number, y: number, rect: {x: number; y: number; w: number; h: number}): boolean {
   return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h
+}
+
+function isSecondaryPointer(event: MouseEvent): boolean {
+  return event.button === 2 || (event.ctrlKey && event.button === 0)
 }
 
 /**
