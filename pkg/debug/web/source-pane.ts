@@ -153,7 +153,6 @@ export class SourcePane extends UiSurface {
         borderRadius: 0,
         padding: 0,
         overflowY: "auto",
-        scrollbarWidth: SCROLLBAR_W,
       },
       children: (ctx) => this.#renderSourceViewport(ctx, this.#current!),
     })

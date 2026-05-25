@@ -81,7 +81,6 @@ export class FramesPane extends UiSurface {
         borderRadius: 0,
         padding: 0,
         overflowY: "auto",
-        scrollbarWidth: 4,
       },
       children: (ctx) => {
         const start = Math.max(0, Math.floor(ctx.scrollTop / rowStride) - 1)

@@ -101,7 +101,6 @@ export class ConsolePane extends UiSurface {
         borderRadius: 0,
         padding: 0,
         overflowY: "auto",
-        scrollbarWidth: SCROLLBAR_W,
       },
       children: (ctx) => {
         const startIdx = Math.max(0, Math.floor(ctx.scrollTop / LINE_PX) - 1)

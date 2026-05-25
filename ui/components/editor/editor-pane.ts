@@ -70,7 +70,12 @@ const CARET_BLINK_MS = 530
 const CARET_W_PX = 2
 const CARET_TOP_INSET_PX = 1
 const CARET_Z = Z.TEXT + 0.04
+const GUTTER_RULE_Z = Z.TEXT + 0.025
+const GUTTER_TEXT_Z = Z.TEXT + 0.035
+const GUTTER_HALO_Z = Z.TEXT + 0.03
+const GUTTER_HALO_OFFSET_PX = 1
 const SELECTION_FILL = new Color(92 / 255, 155 / 255, 255 / 255, 0.34)
+const GUTTER_RULE_FILL = new Color(120 / 255, 143 / 255, 166 / 255, 0.16)
 const SELECTION_MENU_BG = new Color(6 / 255, 12 / 255, 21 / 255, 0.96)
 const SELECTION_MENU_BORDER = new Color(111 / 255, 211 / 255, 255 / 255, 0.32)
 const SELECTION_MENU_Z = Z.ELEMENT_RULE + 0.005
@@ -83,11 +88,33 @@ type Snapshot = {lines: string[]; cline: number; ccol: number; selectionAnchor: 
 type ColumnHitBias = "nearest" | "floor" | "ceil"
 type SelectionMenuAction = "copy" | "cut" | "selectAll"
 type SelectionMenuRect = {x: number; y: number; w: number; h: number; anchorX: number}
+type EditorVisibleLine = {
+  lineIndex: number
+  rowY: number
+  textY: number
+  lineText: string
+  isCurrent: boolean
+}
+type EditorGutterMetrics = {
+  x: number
+  y: number
+  w: number
+  h: number
+  ruleX: number
+  numberXMax: number
+  numberW: number
+}
 
 const SELECTION_MENU_ITEMS: readonly {action: SelectionMenuAction; label: string}[] = [
   {action: "copy", label: "Copy"},
   {action: "cut", label: "Cut"},
   {action: "selectAll", label: "Select all"},
+]
+const GUTTER_HALO_OFFSETS: readonly [number, number][] = [
+  [-GUTTER_HALO_OFFSET_PX, 0],
+  [GUTTER_HALO_OFFSET_PX, 0],
+  [0, -GUTTER_HALO_OFFSET_PX],
+  [0, GUTTER_HALO_OFFSET_PX],
 ]
 
 export class EditorPane extends UiSurface {
@@ -132,6 +159,7 @@ export class EditorPane extends UiSurface {
   readonly #lineMaterial = new TextMaterial({color: palette.text})
   readonly #gutterMaterial = new TextMaterial({color: palette.muted})
   readonly #gutterCurMaterial = new TextMaterial({color: palette.cyan})
+  readonly #gutterHaloMaterial = new TextMaterial({color: palette.bgCode})
   readonly #tokenMaterials: EditorTokenMaterialMap
 
   constructor(opts: EditorOpts = {}) {
@@ -1069,7 +1097,6 @@ export class EditorPane extends UiSurface {
         padding: 0,
         overflowX: "auto",
         overflowY: "auto",
-        scrollbarWidth: SCROLLBAR_W,
       },
       children: (ctx) => this.#renderCodeViewport(ctx, gutter),
     })
@@ -1091,8 +1118,10 @@ export class EditorPane extends UiSurface {
     const contentW = ctx.viewportWidth
     const contentH = ctx.viewportHeight
     const codeMaxPx = Math.max(1, contentW - gutter - CODE_LEFT_PAD_PX - 8)
-
-    this.drawRect(PAD_LEFT_PX + gutter, PAD_TOP_PX, 1, contentH, palette.borderDim, Z.SEPARATOR)
+    const codeClipX = PAD_LEFT_PX + gutter
+    const codeClipW = Math.max(1, codeMaxPx + CODE_LEFT_PAD_PX)
+    const codeStartX = PAD_LEFT_PX + gutter + CODE_LEFT_PAD_PX
+    const visibleLines: EditorVisibleLine[] = []
     let caretRect: CaretRect | null = null
 
     const cRowIdx = this.#cline - startIdx
@@ -1115,61 +1144,13 @@ export class EditorPane extends UiSurface {
       if (rowY + this.#linePx < PAD_TOP_PX - 1) continue
       if (rowY > PAD_TOP_PX + contentH + 1) break
 
-      const lineNo = lineIndex + 1
       const isCurrent = lineIndex === this.#cline
-      const numStr = String(lineNo)
-      const numW = this.measureText(numStr, this.#fontPx)
-      const numX = Math.max(
-        PAD_LEFT_PX + GUTTER_LEFT_PAD_PX,
-        PAD_LEFT_PX + gutter - GUTTER_RIGHT_PAD_PX - numW,
-      )
-      this.drawText(numStr, numX, rowY + (this.#linePx - this.#fontPx) / 2, {
-        fontPx: this.#fontPx,
-        material: isCurrent ? this.#gutterCurMaterial : this.#gutterMaterial,
-        maxWidthPx: gutter - GUTTER_LEFT_PAD_PX - GUTTER_RIGHT_PAD_PX,
-      })
-
       const lineText = this.#lines[lineIndex] ?? ""
-      const codeStartX = PAD_LEFT_PX + gutter + CODE_LEFT_PAD_PX
       const textY = rowY + (this.#linePx - this.#fontPx) / 2
+      visibleLines.push({lineIndex, rowY, textY, lineText, isCurrent})
+      this.pushClip(codeClipX, rowY, codeClipW, this.#linePx)
       this.#renderSelectionForLine(lineIndex, lineText, codeStartX, rowY, codeMaxPx)
-      if (lineText.length > 0) {
-        const slice = this.#visibleSlice(lineText)
-        const visText = slice.end > slice.start ? lineText.slice(slice.start, slice.end) : ""
-        if (visText.length > 0) {
-          const drawX = codeStartX - this.#scrollLeftPx + slice.startPx
-          const lineTokens = this.#tokens?.[lineIndex]
-          // Фильтруем токены в видимом диапазоне и сдвигаем индексы.
-          const visTokens: EditorToken[] = []
-          if (lineTokens !== undefined) {
-            for (const t of lineTokens) {
-              if (t.e <= slice.start || t.s >= slice.end) continue
-              const token: EditorToken = {
-                s: Math.max(0, t.s - slice.start),
-                e: Math.min(slice.end - slice.start, t.e - slice.start),
-                c: t.c,
-              }
-              if (t.bg !== undefined) token.bg = t.bg
-              visTokens.push(token)
-            }
-          }
-          // maxWidthPx-clamp на drawText не используем — обрезка через pushClip.
-          // Передаём заведомо большую ширину, чтобы не было ellipsis "..." внутри слайса.
-          const maxW = codeMaxPx + this.#scrollLeftPx + 1000
-          if (visTokens.length > 0) {
-            this.#renderTokenized(lineIndex, visText, visTokens, drawX, textY, maxW, slice.start)
-          } else {
-            const animOffset = this.#animOffsetFor(lineIndex, slice.start)
-            if (isFinite(animOffset)) {
-              this.drawText(visText, drawX + animOffset, textY, {
-                fontPx: this.#fontPx,
-                material: this.#lineMaterial,
-                maxWidthPx: maxW,
-              })
-            }
-          }
-        }
-      }
+      this.#renderCodeLine(lineIndex, lineText, codeStartX, textY, codeMaxPx)
 
       // Cursor
       if (isCurrent) {
@@ -1181,11 +1162,90 @@ export class EditorPane extends UiSurface {
           }
         }
       }
+      this.popClip()
     }
 
     if (caretRect !== null) {
       this.drawRect(caretRect.x, caretRect.y, caretRect.w, caretRect.h, palette.cyan, CARET_Z)
     }
+
+    this.#renderGutterLayer(this.#gutterMetrics(gutter, contentH), visibleLines)
+  }
+
+  #gutterMetrics(gutter: number, contentH: number): EditorGutterMetrics {
+    return {
+      x: PAD_LEFT_PX,
+      y: PAD_TOP_PX,
+      w: gutter,
+      h: contentH,
+      ruleX: PAD_LEFT_PX + gutter,
+      numberXMax: PAD_LEFT_PX + gutter - GUTTER_RIGHT_PAD_PX,
+      numberW: gutter - GUTTER_LEFT_PAD_PX - GUTTER_RIGHT_PAD_PX,
+    }
+  }
+
+  #renderGutterLayer(metrics: EditorGutterMetrics, lines: readonly EditorVisibleLine[]): void {
+    this.drawRect(metrics.ruleX, metrics.y, 1, metrics.h, GUTTER_RULE_FILL, GUTTER_RULE_Z)
+    for (const line of lines) {
+      const label = String(line.lineIndex + 1)
+      const labelW = this.measureText(label, this.#fontPx)
+      const labelX = Math.max(
+        metrics.x + GUTTER_LEFT_PAD_PX,
+        metrics.numberXMax - labelW,
+      )
+      this.#drawGutterLabel(label, labelX, line.textY, metrics.numberW, line.isCurrent)
+    }
+  }
+
+  #drawGutterLabel(label: string, x: number, y: number, maxWidthPx: number, isCurrent: boolean): void {
+    for (const [dx, dy] of GUTTER_HALO_OFFSETS) {
+      this.drawText(label, x + dx, y + dy, {
+        fontPx: this.#fontPx,
+        material: this.#gutterHaloMaterial,
+        maxWidthPx,
+        z: GUTTER_HALO_Z,
+      })
+    }
+    this.drawText(label, x, y, {
+      fontPx: this.#fontPx,
+      material: isCurrent ? this.#gutterCurMaterial : this.#gutterMaterial,
+      maxWidthPx,
+      z: GUTTER_TEXT_Z,
+    })
+  }
+
+  #renderCodeLine(lineIndex: number, lineText: string, codeStartX: number, textY: number, codeMaxPx: number): void {
+    if (lineText.length === 0) return
+    const slice = this.#visibleSlice(lineText)
+    const visText = slice.end > slice.start ? lineText.slice(slice.start, slice.end) : ""
+    if (visText.length === 0) return
+    const drawX = codeStartX - this.#scrollLeftPx + slice.startPx
+    const lineTokens = this.#tokens?.[lineIndex]
+    const visTokens: EditorToken[] = []
+    if (lineTokens !== undefined) {
+      for (const t of lineTokens) {
+        if (t.e <= slice.start || t.s >= slice.end) continue
+        const token: EditorToken = {
+          s: Math.max(0, t.s - slice.start),
+          e: Math.min(slice.end - slice.start, t.e - slice.start),
+          c: t.c,
+        }
+        if (t.bg !== undefined) token.bg = t.bg
+        visTokens.push(token)
+      }
+    }
+    const maxW = codeMaxPx + this.#scrollLeftPx + 1000
+    if (visTokens.length > 0) {
+      this.#renderTokenized(lineIndex, visText, visTokens, drawX, textY, maxW, slice.start)
+      return
+    }
+    const animOffset = this.#animOffsetFor(lineIndex, slice.start)
+    if (!isFinite(animOffset)) return
+    this.drawText(visText, drawX + animOffset, textY, {
+      fontPx: this.#fontPx,
+      material: this.#lineMaterial,
+      maxWidthPx: maxW,
+    })
   }
 
   #renderTokenized(lineIndex: number, text: string, tokens: EditorToken[], startX: number, y: number, maxPx: number, sliceStart: number): void {

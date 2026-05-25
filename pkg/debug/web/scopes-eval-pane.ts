@@ -129,7 +129,6 @@ export class ScopesEvalPane extends UiSurface {
           borderRadius: 0,
           padding: 0,
           overflowY: "auto",
-          scrollbarWidth: SCROLLBAR_W,
         },
         children: (ctx) => {
           const start = Math.max(0, Math.floor(ctx.scrollTop / SCOPE_ROW_H) - 1)

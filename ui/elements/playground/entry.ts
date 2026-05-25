@@ -428,9 +428,6 @@ class ElementsPlayground extends UiSurface {
         color: "muted",
         fontSize: 12,
         lineHeight: 1.55,
-        scrollbarWidth: 10,
-        scrollbarColor: "rgba(111, 211, 255, 0.52)",
-        scrollbarTrackColor: "rgba(214, 231, 255, 0.12)",
       },
     })
     codeLine(this, x + 28, y + 358, leftW - 56, "div(surface, x, y, w, h, { style: { overflowY: \"auto\" } })")

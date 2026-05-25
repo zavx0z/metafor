@@ -252,7 +252,6 @@ class ButtonComponentsScreen extends UiSurface {
         borderRadius: 0,
         padding: 0,
         overflowY: "auto",
-        scrollbarWidth: 4,
       },
       children: (ctx) => {
         for (const [i, label] of COMPONENT_NAV.entries()) {
@@ -327,7 +326,6 @@ class ButtonComponentsScreen extends UiSurface {
         borderRadius: 0,
         padding: 0,
         overflowY: "auto",
-        scrollbarWidth: 4,
       },
       children: (ctx) => {
         for (const [i, section] of sections.entries()) {
