@@ -115,6 +115,13 @@ class ElementsPlayground extends UiSurface {
     "content line 23",
     "content line 24",
   ].join("\n")
+  readonly #horizontalScrollLine = [
+    "horizontal div content 01",
+    "horizontal div content 02",
+    "horizontal div content 03",
+    "horizontal div content 04",
+    "horizontal div content 05",
+  ].join("    ")
 
   constructor() {
     super({bgColor: null, borderColor: null})
@@ -264,6 +271,15 @@ class ElementsPlayground extends UiSurface {
     div(this, x, y, w, h, {
       style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
     })
+    if (this.#route === "div/scroll") {
+      h3(this, x, y + 28, w, 24, {children: "Scroll props", style: {fontSize: 15, textAlign: "center"}})
+      paramRow(this, x + 22, y + 82, w - 44, "overflowX/Y", "\"auto\" | \"scroll\"")
+      paramRow(this, x + 22, y + 144, w - 44, "scrollbarWidth", "number | px")
+      paramRow(this, x + 22, y + 206, w - 44, "scrollbarColor", "token | rgba")
+      paramRow(this, x + 22, y + 268, w - 44, "scrollbarTrackColor", "token | rgba")
+      paramRow(this, x + 22, y + 330, w - 44, "clip", "owned by div")
+      paramRow(this, x + 22, y + 392, w - 44, "wheel / drag", "element hit zones")
+    }
   }
 
   #segmentedNumber(x: number, y: number, w: number, label: string, values: readonly (readonly [string, number])[]): void {
@@ -429,9 +445,15 @@ class ElementsPlayground extends UiSurface {
   }
 
   #divScrollDetail(x: number, y: number, w: number, _h: number): void {
-    const leftW = Math.floor(w * 0.50)
-    h3(this, x + 28, y + 28, leftW - 56, 24, {children: "Scrollable div", style: {fontSize: 15}})
-    div(this, x + 28, y + 82, leftW - 56, 236, {
+    const gap = 22
+    const cardW = Math.max(1, (w - gap) / 2)
+    const cardH = 288
+    const cardY = y + 28
+    const innerPad = 24
+
+    div(this, x, cardY, cardW, cardH, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, x + innerPad, cardY + 24, cardW - innerPad * 2, 24, {children: "Vertical scroll", style: {fontSize: 15}})
+    div(this, x + innerPad, cardY + 72, cardW - innerPad * 2, 160, {
       key: "div-playground-scrollbar-detail",
       children: this.#scrollLines,
       style: {
@@ -448,18 +470,31 @@ class ElementsPlayground extends UiSurface {
         scrollbarTrackColor: "rgba(214, 231, 255, 0.12)",
       },
     })
-    codeLine(this, x + 28, y + 358, leftW - 56, "div(surface, x, y, w, h, { style: { overflowY: \"auto\" } })")
+    codeLine(this, x + innerPad, cardY + 246, cardW - innerPad * 2, "div(..., { style: { overflowY: \"auto\" } })")
 
-    const rightX = x + leftW + 22
-    const rightW = w - leftW - 22
-    div(this, rightX, y + 28, rightW, 390, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-    h3(this, rightX + 28, y + 56, rightW - 56, 24, {children: "Scroll props", style: {fontSize: 15}})
-    propRow(this, rightX + 28, y + 102, rightW - 56, "overflowY", "\"visible\" | \"hidden\" | \"auto\" | \"scroll\"")
-    propRow(this, rightX + 28, y + 148, rightW - 56, "scrollbarWidth", "number | \"px\"")
-    propRow(this, rightX + 28, y + 194, rightW - 56, "scrollbarColor", "token | rgba(...)")
-    propRow(this, rightX + 28, y + 240, rightW - 56, "scrollbarTrackColor", "token | rgba(...)")
-    propRow(this, rightX + 28, y + 286, rightW - 56, "clip", "owned by div when overflow is active")
-    propRow(this, rightX + 28, y + 332, rightW - 56, "wheel", "handled by element hit zone")
+    const rightX = x + cardW + gap
+    div(this, rightX, cardY, cardW, cardH, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, rightX + innerPad, cardY + 24, cardW - innerPad * 2, 24, {children: "Horizontal scroll", style: {fontSize: 15}})
+    div(this, rightX + innerPad, cardY + 104, cardW - innerPad * 2, 98, {
+      key: "div-playground-horizontal-scrollbar-detail",
+      children: this.#horizontalScrollLine,
+      style: {
+        overflowX: "auto",
+        overflowY: "hidden",
+        padding: 22,
+        background: "rgba(255, 255, 255, 0.035)",
+        borderColor: "rgba(111, 211, 255, 0.30)",
+        borderRadius: 24,
+        color: "muted",
+        fontSize: 12,
+        lineHeight: 1.55,
+        scrollbarWidth: 10,
+        scrollbarColor: "rgba(111, 211, 255, 0.52)",
+        scrollbarTrackColor: "rgba(214, 231, 255, 0.12)",
+      },
+    })
+    codeLine(this, rightX + innerPad, cardY + 246, cardW - innerPad * 2, "div(..., { style: { overflowX: \"auto\" } })")
+
   }
 
   #spanRoute(x: number, y: number, w: number, _h: number): void {
@@ -819,6 +854,12 @@ function propRow(host: UiSurface, x: number, y: number, w: number, name: string,
   div(host, x, y, w, 34, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 17}})
   span(host, x + 16, y, 130, 34, {children: name, style: {fontSize: 11, color: "cyan"}})
   span(host, x + 152, y, w - 168, 34, {children: value, style: {fontSize: 11, color: "muted"}})
+}
+
+function paramRow(host: UiSurface, x: number, y: number, w: number, name: string, value: string): void {
+  div(host, x, y, w, 46, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 18}})
+  span(host, x + 16, y + 6, w - 32, 16, {children: name, style: {fontSize: 10, color: "cyan"}})
+  span(host, x + 16, y + 24, w - 32, 16, {children: value, style: {fontSize: 10, color: "muted"}})
 }
 
 function codeLine(host: UiSurface, x: number, y: number, w: number, text: string): void {

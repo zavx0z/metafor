@@ -16,9 +16,8 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {UiSurface, Z, palette, radii, syntaxTokens} from "@metafor/elements"
+import {UiSurface, Z, palette, radii, scrollbar, syntaxTokens} from "@metafor/elements"
 import {ScrollListState} from "../scroll-list.ts"
-import {Scrollbar as scrollbar} from "../Scrollbar.ts"
 import {resolveLanguageHighlighter} from "./highlighter.ts"
 import {
   createEditorTokenMaterials,

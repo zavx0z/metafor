@@ -36,6 +36,7 @@ UI строится как XR-рендер, а не как DOM. Слои дол�
 * В `@metafor/elements` не должно быть semantic элемента `Pane`. `Pane` — только компонентный surface-контейнер в `@metafor/components`.
 * `UiSurface` не должен владеть button-семантикой: `disabled`, задержка pressed visual и click blocking принадлежат primitive `button`.
 * `div` не должен принимать `disabled` и `tooltip`; это generic box/surface primitive. `disabled` принадлежит интерактивным контролам.
+* Scrollbar, `overflow`, clip, wheel-scroll и drag thumb принадлежат `@metafor/elements` (`div` + `scrollbar`). В `@metafor/components` не должно быть standalone `Scrollbar` компонента или собственного renderer scrollbar.
 * Элементы и компоненты сейчас пишутся immediate-mode функциями, а не классами. Классы допустимы для runtime/display/surface lifecycle и stateful экранов.
 * Будущий декларативный DSL и CSS-подобные стили должны садиться поверх этой вертикали, не смешивая render target и semantic element.
 * Предпочтительный публичный API элементов: `import {UiRuntime, UiSurface, UIDisplay, HUD, UITexture, div, span, button, input, img} from "@metafor/elements"`.
@@ -57,6 +58,7 @@ UI строится как XR-рендер, а не как DOM. Слои дол�
 * Компонентный слой может добавлять иконки, варианты, сопоставление API и стили.
 * Компонентный слой не должен обходить базовый `button` из `@metafor/elements` для поверхности кнопки и интерактивности.
 * Компонент `Pane` обязан брать за основу `div` из `@metafor/elements`.
+* Если компоненту или debug/editor слою нужен scrollbar renderer, он импортирует `scrollbar` напрямую из `@metafor/elements`. Компонентный слой не должен реэкспортировать его как компонент.
 
 ## Правила playground и роутов
 
@@ -70,6 +72,7 @@ UI строится как XR-рендер, а не как DOM. Слои дол�
 * Для `ui/elements/playground` первая панель показывает группы `Primitives`, `Layout`, `Style`, `Events`, а вторая панель показывает разделы выбранной группы.
 * Element playground должен быть каталогом primitive API: `div`, `span`, `button`, `input`, `img`, `layout/flex`, `layout/flex-css`, `style/css`, `style/theme`, `events`.
 * В element playground не должно быть route `pane`: surface/runtime показываются как инфраструктура, а не как HTML-like элемент.
+* Raw `scrollbar` не является MUI-like компонентом и не должен появляться в `ui/components/playground` как самостоятельный компонент. Демонстрация scrollbar живёт в element playground как `div/scroll`.
 * `Button` в `ui/components/playground` считается каноническим шаблоном структуры для всех остальных компонентов. `Pane`, `Badge`, `TextField` и следующие компоненты должны повторять именно этот scaffold, а не приблизительно похожую локальную версию.
 * Базовый route раздела показывает обзорный сценарий, а не частный подвариант. Если у состояния есть несколько направлений или режимов, базовый route должен показывать смешанный или обобщённый пример.
 * Дочерние route используются для конкретных детальных состояний: например отдельный вариант, размер, цвет, положение иконки или другой один параметр.

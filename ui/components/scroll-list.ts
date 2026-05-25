@@ -24,8 +24,7 @@
  */
 
 import type {Color} from "@metafor/engine"
-import {Z, type UiSurface, div} from "@metafor/elements"
-import {Scrollbar as scrollbar, type ScrollbarOpts} from "./Scrollbar.ts"
+import {Z, type UiSurface, div, scrollbar, type ScrollbarOpts} from "@metafor/elements"
 
 export type ScrollListStateOpts = {
   /** Вызывается когда scroll реально изменился — UiSurface должна позвать requestRender. */
@@ -180,7 +179,7 @@ export type ScrollListOpts<T> = {
   scrollbarGap?: number
   /** Скрывать scrollbar если items <= visible. Default true. */
   hideScrollbarWhenFits?: boolean
-  /** Опции для scrollbar component renderer (minThumbHeight). */
+  /** Опции для elements scrollbar renderer (minThumbHeight). */
   scrollbarOpts?: Pick<ScrollbarOpts, "minThumbHeight">
   /** Мягко растворяет частично видимые строки сверху/снизу. */
   edgeFade?: EdgeFadeOpts

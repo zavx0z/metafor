@@ -58,7 +58,7 @@ export class ScopesEvalPane extends UiSurface {
     this.requestRender()
   }
 
-  onWheel(event: WheelEvent, _localX: number, localY: number): void {
+  override onWheel(event: WheelEvent, _localX: number, localY: number): void {
     if (localY > this.#evalTop()) return
     const total = this.#scopeRows().length
     const visible = this.#visibleScopeRows()

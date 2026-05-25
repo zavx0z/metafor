@@ -60,7 +60,7 @@ export class VerbosePane extends UiSurface {
     this.requestRender()
   }
 
-  onWheel(event: WheelEvent): void {
+  override onWheel(event: WheelEvent): void {
     if (!this.#list.applyWheel(event, ROW_H, this.#entries.length, this.#visibleRows(), {
       speed: WHEEL_SPEED,
       startBoostPx: WHEEL_START_BOOST_PX,

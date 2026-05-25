@@ -38,7 +38,7 @@ export class FramesPane extends UiSurface {
     this.requestRender()
   }
 
-  onWheel(event: WheelEvent): void {
+  override onWheel(event: WheelEvent): void {
     this.#list.applyWheel(event, ROW_H + ROW_GAP, this.#frames.length, this.#visibleRows(), {
       speed: WHEEL_SPEED,
       startBoostPx: WHEEL_START_BOOST_PX,

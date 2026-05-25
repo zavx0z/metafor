@@ -16,9 +16,9 @@ import {
   Z,
   palette,
   radii,
+  scrollbar,
 } from "@metafor/elements"
 import {
-  Scrollbar as scrollbar,
   ScrollListState,
   createEditorTokenMaterials,
   renderEditorTokenizedLine,
@@ -99,7 +99,7 @@ export class SourcePane extends UiSurface {
     this.requestRender()
   }
 
-  onWheel(event: WheelEvent): void {
+  override onWheel(event: WheelEvent): void {
     if (this.#current === null) return
     const visible = this.#visibleLineCount()
     this.#list.applyWheel(event, LINE_PX, this.#current.lines.length, visible, {

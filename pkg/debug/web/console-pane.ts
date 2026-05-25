@@ -2,12 +2,12 @@
  * ConsolePane — append-only target log on the shared @metafor/elements UiSurface system.
  *
  * It deliberately uses the same UiSurface chrome, clipping, text measurement and
- * scrollbar component renderer as SourcePane so the source/console stack aligns as one
+ * scrollbar renderer as SourcePane so the source/console stack aligns as one
  * UI surface.
  */
 
-import {UiSurface, Z, palette, radii} from "@metafor/elements"
-import {edgeFade, Scrollbar as scrollbar} from "@metafor/components"
+import {UiSurface, Z, palette, radii, scrollbar} from "@metafor/elements"
+import {edgeFade} from "@metafor/components"
 import {t} from "./i18n.ts"
 
 export type ConsoleEntry = {
@@ -64,7 +64,7 @@ export class ConsolePane extends UiSurface {
     return this.#entries.map((entry) => `${formatTimestamp(entry.ts)}\t${entry.text}`).join("\n")
   }
 
-  onWheel(event: WheelEvent): void {
+  override onWheel(event: WheelEvent): void {
     const pixelDelta = event.deltaMode === 1
       ? event.deltaY * LINE_PX
       : event.deltaMode === 2
