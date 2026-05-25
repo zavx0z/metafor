@@ -144,23 +144,10 @@ class ButtonComponentsScreen extends UiSurface {
     this.#onEditorCopy = opts.onEditorCopy
     this.#onEditorCut = opts.onEditorCut
     this.#onEditorSelectAll = opts.onEditorSelectAll
-    const initialSize = routeSizeFromRoute(this.#route)
-    if (initialSize !== null) this.#size = initialSize
-    const initialColor = routeColorFromRoute(this.#route)
-    if (initialColor !== null) this.#color = initialColor
+    this.#syncRouteState(this.#route)
     this.#unsubscribe = this.#router.subscribe((route) => {
       this.#route = route
-      const routeSize = routeSizeFromRoute(route)
-      if (routeSize !== null) this.#size = routeSize
-      const routeColor = routeColorFromRoute(route)
-      if (routeColor !== null) this.#color = routeColor
-      if (route.startsWith("editor/selection")) {
-        this.#selectionMenuOpen = route === "editor/selection/menu"
-        this.#selectionBufferState = route === "editor/selection/copied" ? "copied" : "idle"
-      } else {
-        this.#selectionMenuOpen = false
-        this.#selectionBufferState = "idle"
-      }
+      this.#syncRouteState(route)
       this.#onRouteChange?.(route)
       this.requestRender()
     })
@@ -168,6 +155,28 @@ class ButtonComponentsScreen extends UiSurface {
 
   get currentRoute(): ComponentsRoute {
     return this.#route
+  }
+
+  setEditorSelectionClipboardResult(ok: boolean): void {
+    if (ok) {
+      this.#router.go("editor/selection/copied")
+      return
+    }
+    this.#setSelectionBufferState("error")
+  }
+
+  #syncRouteState(route: ComponentsRoute): void {
+    const routeSize = routeSizeFromRoute(route)
+    if (routeSize !== null) this.#size = routeSize
+    const routeColor = routeColorFromRoute(route)
+    if (routeColor !== null) this.#color = routeColor
+    if (route.startsWith("editor/selection")) {
+      this.#selectionMenuOpen = route === "editor/selection/menu"
+      this.#selectionBufferState = route === "editor/selection/copied" ? "copied" : "idle"
+    } else {
+      this.#selectionMenuOpen = false
+      this.#selectionBufferState = "idle"
+    }
   }
 
   override dispose(): void {
@@ -343,7 +352,7 @@ class ButtonComponentsScreen extends UiSurface {
     if (this.#editorSection() === "Selection") {
       renderHeader(this, x, w, pad, y + 34, "Selection", [
         "Selection actions are exposed from the dock while the editor surface stays focusable.",
-        "The menu button opens a compact selection command panel above the source area.",
+        "The menu button opens a compact command popup above the selected text.",
       ])
     } else {
       renderHeader(this, x, w, pad, y + 34, "Editor pane", [
@@ -361,9 +370,6 @@ class ButtonComponentsScreen extends UiSurface {
         borderRadius: 26,
       },
     })
-    if (this.#editorSection() === "Selection" && this.#selectionMenuOpen) {
-      this.#selectionMenu(x + pad, y + 92, w - pad * 2, 38)
-    }
   }
 
   #paneOverview(x: number, y: number, w: number, h: number): void {
@@ -1085,38 +1091,6 @@ class ButtonComponentsScreen extends UiSurface {
       fontPx: 10,
       onClick: () => this.#toggleSelectionMenu(),
     })
-  }
-
-  #selectionMenu(x: number, y: number, w: number, h: number): void {
-    const menuW = Math.min(374, w)
-    const menuX = x + w - menuW
-    Pane(this, menuX, y, menuW, h, {
-      variant: "glass",
-      sx: {
-        background: "rgba(6, 12, 21, 0.92)",
-        borderColor: "rgba(111, 211, 255, 0.28)",
-        borderRadius: 19,
-      },
-    })
-    const gap = 8
-    const pad = 8
-    const itemW = (menuW - pad * 2 - gap * 2) / 3
-    const items = ["Copy", "Cut", "Select all"] as const
-    for (const [i, item] of items.entries()) {
-      Button(this, menuX + pad + i * (itemW + gap), y + 5, itemW, h - 10, {
-        children: item,
-        variant: item === "Copy" ? "contained" : "glass",
-        color: "neutral",
-        radius: 999,
-        fontPx: 9,
-        onClick: () => {
-          if (item === "Copy") this.#copySelectionToBuffer()
-          else if (item === "Cut") this.#cutSelectionToBuffer()
-          else this.#selectAllInEditor()
-          this.#record(`selection:${item.toLowerCase().replace(" ", "-")}`)
-        },
-      })
-    }
   }
 
   #sizeDock(x: number, y: number, w: number, h: number): void {
@@ -2520,11 +2494,13 @@ const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | nu
 if (canvas === null) throw new Error("stage-canvas not found")
 const ui = await UiRuntime.create(canvas)
 let activeRoute: ComponentsRoute = "button/basic"
+let screen: ButtonComponentsScreen | null = null
 const editor = new EditorPane({
   title: "Demo source",
   path: "playground/demo.ts",
   fontPx: 12,
   linePx: 17,
+  onSelectionClipboard: (ok) => screen?.setEditorSelectionClipboardResult(ok),
 })
 let appliedEditorLanguage: EditorLanguageRoute | null = null
 const syncEditorRoute = (route: ComponentsRoute): void => {
@@ -2535,10 +2511,11 @@ const syncEditorRoute = (route: ComponentsRoute): void => {
   applyEditorLanguage(editor, route)
   appliedEditorLanguage = language
 }
-const screen = new ButtonComponentsScreen({
+screen = new ButtonComponentsScreen({
   onRouteChange: (route) => {
     activeRoute = route
     syncEditorRoute(route)
+    editor.setSelectionMenuOpen(route === "editor/selection/menu")
     ui.relayout()
   },
   onEditorCopy: () => editor.copySelectionToClipboard(),
@@ -2547,6 +2524,7 @@ const screen = new ButtonComponentsScreen({
 })
 activeRoute = screen.currentRoute
 syncEditorRoute(activeRoute)
+editor.setSelectionMenuOpen(activeRoute === "editor/selection/menu")
 ui.addSurface(screen, ({w, h}) => ({x: 0, y: 0, w, h}))
 ui.addSurface(editor, ({w, h}) => activeRoute.startsWith("editor") ? editorPaneRectForCanvas(w, h) : hiddenRect())
 const ro = new ResizeObserver(() => ui.handleResize())

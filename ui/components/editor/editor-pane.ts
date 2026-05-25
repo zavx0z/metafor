@@ -18,6 +18,7 @@
 
 import {Color, TextMaterial} from "@metafor/engine"
 import {UiSurface, Z, palette, radii} from "@metafor/elements"
+import {Button, autoButtonWidth} from "../Button.ts"
 import {ScrollListState} from "../scroll-list.ts"
 import {Scrollbar as scrollbar} from "../Scrollbar.ts"
 import {resolveLanguageHighlighter} from "./highlighter.ts"
@@ -35,6 +36,8 @@ export type EditorOpts = {
   onChange?: (text: string) => void
   /** Колбэк на явное сохранение (Cmd/Ctrl+S или editor.save()). */
   onSave?: (text: string) => void
+  /** Колбэк на copy/cut из floating-menu выделения. */
+  onSelectionClipboard?: (ok: boolean, action: "copy" | "cut") => void
   /** Получает массив строк → возвращает токены той же длины. */
   tokenize?: EditorTokenize
   /** Явный highlighter; используется если `tokenize` не задан. */
@@ -65,11 +68,22 @@ const HISTORY_LIMIT = 200
 const WHEEL_SPEED = 1.55
 const WHEEL_START_BOOST_PX = 18
 const SELECTION_FILL = new Color(92 / 255, 155 / 255, 255 / 255, 0.34)
+const SELECTION_MENU_BG = new Color(6 / 255, 12 / 255, 21 / 255, 0.96)
+const SELECTION_MENU_BORDER = new Color(111 / 255, 211 / 255, 255 / 255, 0.32)
+const SELECTION_MENU_Z = Z.ELEMENT_RULE + 0.005
 
 type CursorPos = {line: number; col: number}
 type SelectionRange = {start: CursorPos; end: CursorPos}
 type Snapshot = {lines: string[]; cline: number; ccol: number; selectionAnchor: CursorPos | null; selectionFocus: CursorPos | null}
 type ColumnHitBias = "nearest" | "floor" | "ceil"
+type SelectionMenuAction = "copy" | "cut" | "selectAll"
+type SelectionMenuRect = {x: number; y: number; w: number; h: number; anchorX: number}
+
+const SELECTION_MENU_ITEMS: readonly {action: SelectionMenuAction; label: string}[] = [
+  {action: "copy", label: "Copy"},
+  {action: "cut", label: "Cut"},
+  {action: "selectAll", label: "Select all"},
+]
 
 export class EditorPane extends UiSurface {
   #lines: string[] = [""]
@@ -82,6 +96,7 @@ export class EditorPane extends UiSurface {
   #dragExtendsSelection = false
   #dragAnchorLocalX = 0
   #dragAnchorLocalY = 0
+  #selectionMenuOpen = false
   #title: string
   #fontPx: number
   #linePx: number
@@ -89,6 +104,7 @@ export class EditorPane extends UiSurface {
   #tokenize: EditorTokenize | undefined
   #onChange: ((text: string) => void) | undefined
   #onSave: ((text: string) => void) | undefined
+  #onSelectionClipboard: ((ok: boolean, action: "copy" | "cut") => void) | undefined
   readonly #list: ScrollListState
   #cursorVisible = true
   #history: Snapshot[] = []
@@ -116,6 +132,7 @@ export class EditorPane extends UiSurface {
     this.#tokenize = opts.tokenize ?? resolveEditorTokenize(opts)
     this.#onChange = opts.onChange
     this.#onSave = opts.onSave
+    this.#onSelectionClipboard = opts.onSelectionClipboard
     this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#tokenMaterials = createEditorTokenMaterials()
     this.#refreshTokens()
@@ -199,6 +216,10 @@ export class EditorPane extends UiSurface {
     this.requestRender()
   }
 
+  setSelectionMenuOpen(open: boolean): void {
+    this.#setSelectionMenuOpen(open)
+  }
+
   hasSelection(): boolean {
     return this.#selectionRange() !== null
   }
@@ -270,6 +291,12 @@ export class EditorPane extends UiSurface {
     this.#selectionFocus = null
     this.#dragSelecting = false
     this.#dragExtendsSelection = false
+  }
+
+  #setSelectionMenuOpen(open: boolean): void {
+    if (this.#selectionMenuOpen === open) return
+    this.#selectionMenuOpen = open
+    this.requestRender()
   }
 
   #selectionRange(): SelectionRange | null {
@@ -490,6 +517,31 @@ export class EditorPane extends UiSurface {
     }
   }
 
+  async #copySelectedTextToClipboard(): Promise<boolean> {
+    try {
+      const selected = this.#selectedText()
+      if (selected === null) return false
+      await navigator.clipboard.writeText(selected)
+      return true
+    } catch (err) {
+      console.warn("clipboard copy failed:", err)
+      return false
+    }
+  }
+
+  async #cutSelectedTextToClipboard(): Promise<boolean> {
+    try {
+      const selected = this.#selectedText()
+      if (selected === null) return false
+      await navigator.clipboard.writeText(selected)
+      this.#deleteSelection()
+      return true
+    } catch (err) {
+      console.warn("clipboard cut failed:", err)
+      return false
+    }
+  }
+
   // ────────── word jump ──────────
 
   #wordJump(direction: 1 | -1, extendSelection = false): void {
@@ -531,6 +583,11 @@ export class EditorPane extends UiSurface {
   }
 
   override onPointerDown(_event: MouseEvent, localX: number, localY: number): void {
+    const menuRect = this.#selectionMenuRect()
+    if (menuRect !== null && pointInRect(localX, localY, menuRect)) {
+      super.onPointerDown(_event, localX, localY)
+      return
+    }
     const pos = this.#positionFromLocal(localX, localY)
     if (pos === null) return
     this.#dragSelecting = true
@@ -552,6 +609,11 @@ export class EditorPane extends UiSurface {
   }
 
   override onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
+    if (this.#selectionMenuOpen || this.pressedHit !== null) {
+      const menuRect = this.#selectionMenuRect()
+      super.onPointerMove(_event, localX, localY)
+      if (this.pressedHit !== null || (menuRect !== null && pointInRect(localX, localY, menuRect))) return
+    }
     if (!this.#dragSelecting) return
     this.#updateDragSelection(localX, localY)
   }
@@ -614,6 +676,10 @@ export class EditorPane extends UiSurface {
   }
 
   override onPointerUp(_event: MouseEvent, localX: number, localY: number): void {
+    if (this.pressedHit !== null) {
+      super.onPointerUp(_event, localX, localY)
+      return
+    }
     if (this.#dragSelecting) this.#updateDragSelection(localX, localY)
     this.#dragSelecting = false
     if (this.#selectionRange() === null) this.#clearSelectionState()
@@ -996,6 +1062,8 @@ export class EditorPane extends UiSurface {
         trackWidth: SCROLLBAR_W,
       })
     }
+
+    this.#renderSelectionMenu()
   }
 
   #renderTokenized(text: string, tokens: EditorToken[], startX: number, y: number, maxPx: number, sliceStart: number): void {
@@ -1050,6 +1118,108 @@ export class EditorPane extends UiSurface {
     })
   }
 
+  #renderSelectionMenu(): void {
+    const rect = this.#selectionMenuRect()
+    if (rect === null) return
+    const notch = 8
+    this.drawRoundedRect(rect.anchorX - notch / 2, rect.y + rect.h - 2, notch, notch, {
+      radius: 2,
+      fill: SELECTION_MENU_BG,
+      border: SELECTION_MENU_BORDER,
+      borderWidth: 1,
+      z: SELECTION_MENU_Z,
+    })
+    this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
+      radius: 17,
+      fill: SELECTION_MENU_BG,
+      border: SELECTION_MENU_BORDER,
+      borderWidth: 1,
+      z: SELECTION_MENU_Z + 0.01,
+    })
+
+    const pad = 6
+    const gap = 6
+    const itemH = rect.h - pad * 2
+    const itemWidths = SELECTION_MENU_ITEMS.map((item) => Math.max(58, autoButtonWidth(this, item.label, 10, 18)))
+    const itemsW = itemWidths.reduce((sum, w) => sum + w, 0) + gap * (itemWidths.length - 1)
+    let itemX = rect.x + (rect.w - itemsW) / 2
+    for (const [i, item] of SELECTION_MENU_ITEMS.entries()) {
+      const itemW = itemWidths[i]!
+      const itemY = rect.y + pad
+      Button(this, itemX, itemY, itemW, itemH, {
+        children: item.label,
+        variant: item.action === "copy" ? "contained" : "glass",
+        color: "neutral",
+        radius: itemH / 2,
+        fontPx: 10,
+        sx: {zIndex: SELECTION_MENU_Z + 0.006},
+        onClick: () => this.#runSelectionMenuAction(item.action),
+      })
+      itemX += itemW + gap
+    }
+  }
+
+  #selectionMenuRect(): SelectionMenuRect | null {
+    if (!this.#selectionMenuOpen) return null
+    const range = this.#selectionRange()
+    if (range === null) return null
+
+    const total = this.#lines.length
+    const visible = this.#visibleLineCount()
+    this.#list.clamp(total, visible)
+    const scroll = this.#list.scroll
+    const startIdx = Math.floor(scroll)
+    const subPx = (scroll - startIdx) * this.#linePx
+    const visibleStart = Math.max(0, startIdx)
+    const visibleEnd = Math.min(total - 1, startIdx + visible)
+    const lineIndex = Math.max(range.start.line, visibleStart)
+    if (lineIndex > range.end.line || lineIndex > visibleEnd) return null
+
+    const lineText = this.#lines[lineIndex] ?? ""
+    const codeStartX = this.#codeStartX()
+    const codeMaxPx = this.#codeMaxPx()
+    const startCol = lineIndex === range.start.line ? range.start.col : 0
+    const endCol = lineIndex === range.end.line ? range.end.col : lineText.length
+    let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#hScroll
+    let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#hScroll
+    if (x2 <= x1) x2 = x1 + Math.max(18, this.#getCharWidth() * 1.5)
+    const minX = codeStartX
+    const maxX = codeStartX + codeMaxPx
+    x1 = Math.max(minX, Math.min(maxX, x1))
+    x2 = Math.max(minX, Math.min(maxX, x2))
+    const anchorX = Math.max(minX, Math.min(maxX, (x1 + x2) / 2))
+
+    const rowY = PAD_TOP_PX + (lineIndex - startIdx) * this.#linePx - subPx
+    const itemWidths = SELECTION_MENU_ITEMS.map((item) => Math.max(58, autoButtonWidth(this, item.label, 10, 18)))
+    const menuContentW = itemWidths.reduce((sum, w) => sum + w, 0) + 6 * (itemWidths.length - 1)
+    const maxMenuW = this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 16
+    const menuW = Math.min(maxMenuW, menuContentW + 12)
+    const menuH = 34
+    const minMenuX = PAD_LEFT_PX + 4
+    const maxMenuX = this.rectW - PAD_RIGHT_PX - SCROLLBAR_W - 4 - menuW
+    const menuX = Math.max(minMenuX, Math.min(maxMenuX, anchorX - menuW / 2))
+    const contentBottom = this.rectH - PAD_BOTTOM_PX
+    const aboveY = rowY - menuH - 8
+    const menuY = aboveY >= HEADER_H_PX + 4
+      ? aboveY
+      : Math.min(contentBottom - menuH - 4, rowY + this.#linePx + 8)
+    return {x: menuX, y: Math.max(4, menuY), w: menuW, h: menuH, anchorX}
+  }
+
+  #runSelectionMenuAction(action: SelectionMenuAction): void {
+    if (action === "selectAll") {
+      this.#selectAll()
+      return
+    }
+    const task = action === "copy" ? this.#copySelectedTextToClipboard() : this.#cutSelectedTextToClipboard()
+    void task.then((ok) => {
+      if (ok) this.#setSelectionMenuOpen(false)
+      this.#onSelectionClipboard?.(ok, action)
+    }).catch(() => {
+      this.#onSelectionClipboard?.(false, action)
+    })
+  }
+
   #visibleLineCount(): number {
     const contentH = Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
     return Math.max(1, Math.floor(contentH / this.#linePx))
@@ -1072,6 +1242,10 @@ function resolveEditorTokenize(opts: EditorOpts): EditorTokenize | undefined {
     return resolveLanguageHighlighter(input).tokenize
   }
   return undefined
+}
+
+function pointInRect(x: number, y: number, rect: {x: number; y: number; w: number; h: number}): boolean {
+  return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h
 }
 
 /**
