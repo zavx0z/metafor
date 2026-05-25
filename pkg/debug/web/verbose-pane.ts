@@ -1,14 +1,12 @@
 /**
- * Verbose pane на UiSurface-системе. Список + autoscroll. Scroll-machinery
- * (state, wheel, render rows, scrollbar) — через @metafor/components.
+ * Verbose pane на UiSurface-системе. Список + autoscroll через div-scroll.
  */
 
 import {
-  UiSurface, palette, radii, uiIcons,
+  UiSurface, div, divScrollPosition, divScrollTo, palette, radii, uiIcons,
 } from "@metafor/elements"
 import {
   Button as button, Divider as divider,
-  ScrollListState, scrollList,
 } from "@metafor/components"
 import {t} from "./i18n.ts"
 
@@ -29,20 +27,15 @@ const ROW_H = 18
 const TS_W = 56
 const NAME_W = 132
 const BTN_H = 24
-const SCROLLBAR_W = 4
-const SCROLLBAR_GAP = 6
-const WHEEL_SPEED = 1.6
-const WHEEL_START_BOOST_PX = 16
+const VERBOSE_SCROLL_KEY = "debug:verbose:list"
 
 export class VerbosePane extends UiSurface {
   #entries: VerboseEntry[] = []
-  readonly #list: ScrollListState
   #autoscroll = localStorage.getItem("bd:verbose:pin") !== "0"
   readonly #max = 300
 
   constructor() {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
-    this.#list = new ScrollListState({onChange: () => this.requestRender()})
   }
 
   append(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
@@ -56,15 +49,15 @@ export class VerbosePane extends UiSurface {
 
   clear(): void {
     this.#entries = []
-    this.#list.reset()
+    divScrollTo(this, VERBOSE_SCROLL_KEY, {top: 0})
     this.requestRender()
   }
 
-  onWheel(event: WheelEvent): void {
-    if (!this.#list.applyWheel(event, ROW_H, this.#entries.length, this.#visibleRows(), {
-      speed: WHEEL_SPEED,
-      startBoostPx: WHEEL_START_BOOST_PX,
-    })) return
+  override onWheel(event: WheelEvent, localX: number, localY: number): void {
+    const before = divScrollPosition(this, VERBOSE_SCROLL_KEY).top
+    super.onWheel(event, localX, localY)
+    const after = divScrollPosition(this, VERBOSE_SCROLL_KEY).top
+    if (before === after || localY < LIST_TOP) return
     if (this.#autoscroll) {
       this.#autoscroll = false
       localStorage.setItem("bd:verbose:pin", "0")
@@ -122,18 +115,28 @@ export class VerbosePane extends UiSurface {
       return
     }
 
+    const listH = this.#listH()
     if (this.#autoscroll) this.#scrollToBottom()
-    scrollList(this, {
-      state: this.#list,
-      items: this.#entries,
-      rowH: ROW_H,
-      x: PAD_X,
-      y: LIST_TOP,
-      w: this.rectW - PAD_X * 2,
-      h: this.rectH - LIST_TOP - 8,
-      scrollbarWidth: SCROLLBAR_W,
-      scrollbarGap: SCROLLBAR_GAP,
-      drawRow: (entry, _idx, x, y, w) => this.#drawEntry(entry, x, y, w),
+    div(this, PAD_X, LIST_TOP, this.rectW - PAD_X * 2, listH, {
+      key: VERBOSE_SCROLL_KEY,
+      scrollContentHeight: Math.max(listH, this.#entries.length * ROW_H),
+      style: {
+        background: null,
+        borderColor: null,
+        borderRadius: 0,
+        padding: 0,
+        overflowY: "auto",
+        scrollbarWidth: 4,
+      },
+      children: (ctx) => {
+        const start = Math.max(0, Math.floor(ctx.scrollTop / ROW_H) - 1)
+        const end = Math.min(this.#entries.length, Math.ceil((ctx.scrollTop + ctx.viewportHeight) / ROW_H) + 1)
+        for (let idx = start; idx < end; idx++) {
+          const entry = this.#entries[idx]
+          if (entry === undefined) continue
+          this.#drawEntry(entry, PAD_X, LIST_TOP + idx * ROW_H - ctx.scrollTop, ctx.viewportWidth)
+        }
+      },
     })
   }
 
@@ -169,12 +172,11 @@ export class VerbosePane extends UiSurface {
   }
 
   #scrollToBottom(): void {
-    const visible = this.#visibleRows()
-    this.#list.jumpTo(Math.max(0, this.#entries.length - visible))
+    divScrollTo(this, VERBOSE_SCROLL_KEY, {top: Math.max(0, this.#entries.length * ROW_H - this.#listH())})
   }
 
-  #visibleRows(): number {
-    return Math.max(1, Math.floor((this.rectH - LIST_TOP - 8) / ROW_H))
+  #listH(): number {
+    return Math.max(1, this.rectH - LIST_TOP - 8)
   }
 }
 

@@ -1,14 +1,12 @@
 /**
- * Frames pane. Layout — flexRow/flexColumn из @metafor/elements +
- * scrollList из @metafor/components.
+ * Frames pane. Layout — flexRow/flexColumn/div из @metafor/elements.
  */
 
 import {
-  UiSurface, Z, flexRow, flexColumn, palette, radii,
+  UiSurface, Z, div, flexRow, flexColumn, palette, radii,
 } from "@metafor/elements"
 import {
   Divider as divider,
-  ScrollListState, scrollList,
 } from "@metafor/components"
 import type {FrameSnapshot} from "./debug-ui.ts"
 import {t} from "./i18n.ts"
@@ -17,18 +15,14 @@ const PAD = 14
 const HEADER_H = 22
 const ROW_H = 32
 const ROW_GAP = 2
-const WHEEL_SPEED = 1.5
-const WHEEL_START_BOOST_PX = 18
 
 export class FramesPane extends UiSurface {
   #frames: FrameSnapshot[] = []
   #active = 0
-  readonly #list: ScrollListState
   readonly #onSelect: (index: number) => void
 
   constructor(onSelect: (index: number) => void) {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
-    this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#onSelect = onSelect
   }
 
@@ -36,13 +30,6 @@ export class FramesPane extends UiSurface {
     this.#frames = frames
     this.#active = active
     this.requestRender()
-  }
-
-  onWheel(event: WheelEvent): void {
-    this.#list.applyWheel(event, ROW_H + ROW_GAP, this.#frames.length, this.#visibleRows(), {
-      speed: WHEEL_SPEED,
-      startBoostPx: WHEEL_START_BOOST_PX,
-    })
   }
 
   protected render(): void {
@@ -83,16 +70,29 @@ export class FramesPane extends UiSurface {
       return
     }
 
-    scrollList(this, {
-      state: this.#list,
-      items: this.#frames,
-      rowH: ROW_H,
-      rowGap: ROW_GAP,
-      x: PAD,
-      y: listTop,
-      w: this.rectW - PAD * 2,
-      h: listH,
-      drawRow: (frame, _idx, x, y, w, h) => this.#drawRow(frame, x, y, w, h),
+    const rowStride = ROW_H + ROW_GAP
+    const listW = this.rectW - PAD * 2
+    div(this, PAD, listTop, listW, listH, {
+      key: "debug:frames:list",
+      scrollContentHeight: Math.max(listH, this.#frames.length * rowStride - ROW_GAP),
+      style: {
+        background: null,
+        borderColor: null,
+        borderRadius: 0,
+        padding: 0,
+        overflowY: "auto",
+        scrollbarWidth: 4,
+      },
+      children: (ctx) => {
+        const start = Math.max(0, Math.floor(ctx.scrollTop / rowStride) - 1)
+        const end = Math.min(this.#frames.length, Math.ceil((ctx.scrollTop + ctx.viewportHeight) / rowStride) + 1)
+        for (let idx = start; idx < end; idx++) {
+          const frame = this.#frames[idx]
+          if (frame === undefined) continue
+          const rowY = listTop + idx * rowStride - ctx.scrollTop
+          this.#drawRow(frame, PAD, rowY, ctx.viewportWidth, ROW_H)
+        }
+      },
     })
   }
 
@@ -154,10 +154,6 @@ export class FramesPane extends UiSurface {
     this.hit(x, y, w, h - 4, () => this.#onSelect(frame.index))
   }
 
-  #visibleRows(): number {
-    const listH = Math.max(0, this.rectH - (HEADER_H + 22) - 8)
-    return Math.max(1, Math.floor((listH + ROW_GAP) / (ROW_H + ROW_GAP)))
-  }
 }
 
 function shortenUrl(url: string): string {

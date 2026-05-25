@@ -26,9 +26,17 @@ type IconLabelPlacement = ButtonRouteIconLabel | "mixed"
 type PaneVariant = "glass" | "outlined" | "filled"
 type PaneRoute = "pane/variants" | `pane/variants/${PaneVariant}`
 type EditorLanguageRoute = "typescript" | "javascript" | "html" | "css" | "plaintext"
-type EditorSelectionRoute = "menu" | "copied" | "right-click"
-type EditorSection = "Highlighting" | "Selection"
-type EditorRoute = "editor/highlighting" | `editor/highlighting/${EditorLanguageRoute}` | "editor/selection" | `editor/selection/${EditorSelectionRoute}`
+type EditorSelectionRoute = "menu" | "copied" | "right-click" | "shift-cursor"
+type EditorScrollRoute = "vertical" | "horizontal"
+type EditorSection = "Editing" | "Highlighting" | "Selection" | "Scroll"
+type EditorRoute =
+  | "editor/editing"
+  | "editor/highlighting"
+  | `editor/highlighting/${EditorLanguageRoute}`
+  | "editor/selection"
+  | `editor/selection/${EditorSelectionRoute}`
+  | "editor/scroll"
+  | `editor/scroll/${EditorScrollRoute}`
 type ComponentsRoute = ButtonRoute | PaneRoute | EditorRoute
 type ComponentName = "Button" | "Pane" | "Editor"
 type ButtonRoute =
@@ -78,12 +86,16 @@ const PANE_ROUTES: readonly PaneRoute[] = [
   "pane/variants/filled",
 ]
 const EDITOR_LANGUAGE_ROUTES: readonly EditorLanguageRoute[] = ["typescript", "javascript", "html", "css", "plaintext"]
-const EDITOR_SELECTION_ROUTES: readonly EditorSelectionRoute[] = ["menu", "copied", "right-click"]
+const EDITOR_SELECTION_ROUTES: readonly EditorSelectionRoute[] = ["menu", "copied", "right-click", "shift-cursor"]
+const EDITOR_SCROLL_ROUTES: readonly EditorScrollRoute[] = ["vertical", "horizontal"]
 const EDITOR_ROUTES: readonly EditorRoute[] = [
+  "editor/editing",
   "editor/highlighting",
   ...EDITOR_LANGUAGE_ROUTES.map((language) => `editor/highlighting/${language}` as const),
   "editor/selection",
   ...EDITOR_SELECTION_ROUTES.map((route) => `editor/selection/${route}` as const),
+  "editor/scroll",
+  ...EDITOR_SCROLL_ROUTES.map((route) => `editor/scroll/${route}` as const),
 ]
 const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
   typescript: "TypeScript",
@@ -92,7 +104,7 @@ const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
   css: "CSS",
   plaintext: "Plaintext",
 }
-const EDITOR_SECTIONS: readonly EditorSection[] = ["Highlighting", "Selection"]
+const EDITOR_SECTIONS: readonly EditorSection[] = ["Editing", "Highlighting", "Selection", "Scroll"]
 const PANE_VARIANTS: readonly PaneVariant[] = ["glass", "outlined", "filled"]
 const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...BUTTON_ROUTES, ...PANE_ROUTES, ...EDITOR_ROUTES]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
@@ -101,13 +113,14 @@ const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
 const BUTTON_STATES: readonly ButtonState[] = ["enabled", "disabled"]
 const BUTTON_WIDTHS: readonly ButtonWidth[] = ["compact", "regular", "wide"]
 const BUTTON_HEIGHTS: readonly ButtonHeight[] = ["compact", "regular", "large"]
-const COMPONENT_NAV = ["Button", "Pane", "Editor", "Badge", "TextField", "Divider", "Scrollbar", "Scroll List", "Noti Stack"] as const
+const COMPONENT_NAV = ["Button", "Pane", "Editor", "Badge", "TextField", "Divider", "Noti Stack"] as const
 const BUTTON_RADII = [14, 24, 34, 999] as const
 const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.12
 const BACKDROP_Z = -0.18
 type ComponentsScreenOpts = {
   onRouteChange?: (route: ComponentsRoute) => void
+  onEditorFocus?: () => void
   onEditorCopy?: () => Promise<boolean>
   onEditorCut?: () => Promise<boolean>
   onEditorSelectAll?: () => void
@@ -117,6 +130,7 @@ class ButtonComponentsScreen extends UiSurface {
   readonly #router = new VirtualRouter<ComponentsRoute>(COMPONENT_ROUTES, "button/basic", {mode: "path"})
   readonly #unsubscribe: () => void
   readonly #onRouteChange: ((route: ComponentsRoute) => void) | undefined
+  readonly #onEditorFocus: (() => void) | undefined
   readonly #onEditorCopy: (() => Promise<boolean>) | undefined
   readonly #onEditorCut: (() => Promise<boolean>) | undefined
   readonly #onEditorSelectAll: (() => void) | undefined
@@ -141,6 +155,7 @@ class ButtonComponentsScreen extends UiSurface {
   constructor(opts: ComponentsScreenOpts = {}) {
     super({bgColor: null, borderColor: null})
     this.#onRouteChange = opts.onRouteChange
+    this.#onEditorFocus = opts.onEditorFocus
     this.#onEditorCopy = opts.onEditorCopy
     this.#onEditorCut = opts.onEditorCut
     this.#onEditorSelectAll = opts.onEditorSelectAll
@@ -227,25 +242,42 @@ class ButtonComponentsScreen extends UiSurface {
     const top = y + 76
     const gap = 9
     const rowH = 38
-    for (const [i, label] of COMPONENT_NAV.entries()) {
-      const active = label === this.#currentComponent()
-      const enabled = label === "Button" || label === "Pane" || label === "Editor"
-      Button(this, x + pad, top + i * (rowH + gap), w - pad * 2, rowH, {
-        children: label,
-        variant: active ? "contained" : "glass",
-        color: "neutral",
-        ...activeNavStyle(active),
-        disabled: !enabled,
-        radius: 999,
-        fontPx: 11,
-        onClick: () => {
-          if (label === "Button") this.#router.go("button/basic")
-          else if (label === "Pane") this.#router.go("pane/variants")
-          else if (label === "Editor") this.#router.go("editor/highlighting")
-          this.#record(`component:${label.toLowerCase()}`)
-        },
-      })
-    }
+    const listH = Math.max(rowH, y + h - top - 18)
+    Pane(this, x + pad, top, w - pad * 2, listH, {
+      key: "components:catalog:list",
+      scrollContentHeight: COMPONENT_NAV.length * (rowH + gap) - gap,
+      sx: {
+        background: null,
+        borderColor: null,
+        borderRadius: 0,
+        padding: 0,
+        overflowY: "auto",
+        scrollbarWidth: 4,
+      },
+      children: (ctx) => {
+        for (const [i, label] of COMPONENT_NAV.entries()) {
+          const rowY = top + i * (rowH + gap) - ctx.scrollTop
+          if (rowY + rowH < top || rowY > top + ctx.viewportHeight) continue
+          const active = label === this.#currentComponent()
+          const enabled = label === "Button" || label === "Pane" || label === "Editor"
+          Button(this, x + pad, rowY, w - pad * 2 - (ctx.contentHeight > ctx.viewportHeight ? 14 : 0), rowH, {
+            children: label,
+            variant: active ? "contained" : "glass",
+            color: "neutral",
+            ...activeNavStyle(active),
+            disabled: !enabled,
+            radius: 999,
+            fontPx: 11,
+            onClick: () => {
+              if (label === "Button") this.#router.go("button/basic")
+              else if (label === "Pane") this.#router.go("pane/variants")
+              else if (label === "Editor") this.#router.go("editor/editing")
+              this.#record(`component:${label.toLowerCase()}`)
+            },
+          })
+        }
+      },
+    })
   }
 
   #sectionPanel(x: number, y: number, w: number, h: number): void {
@@ -262,49 +294,58 @@ class ButtonComponentsScreen extends UiSurface {
     const pad = 18
     if (this.#currentComponent() === "Pane") {
       h3(this, x, y + 28, w, 24, {children: "Pane", style: {fontSize: 15, textAlign: "center"}})
-      const active = this.#paneSection() === "Variants"
-      Button(this, x + pad, y + 76, w - pad * 2, 38, {
-        children: "Variants",
-        variant: active ? "contained" : "glass",
-        color: "neutral",
-        ...activeNavStyle(active),
-        radius: 999,
-        fontPx: 11,
-        onClick: () => this.#goPaneSection("Variants"),
-      })
+      this.#sectionList(x, y + 76, w, h - 94, ["Variants"], (section) => this.#paneSection() === section, (section) => this.#goPaneSection(section))
       return
     }
     if (this.#currentComponent() === "Editor") {
       h3(this, x, y + 28, w, 24, {children: "Editor", style: {fontSize: 15, textAlign: "center"}})
-      const top = y + 76
-      for (const [i, section] of EDITOR_SECTIONS.entries()) {
-        const active = this.#editorSection() === section
-        Button(this, x + pad, top + i * 47, w - pad * 2, 38, {
-          children: section,
-          variant: active ? "contained" : "glass",
-          color: "neutral",
-          ...activeNavStyle(active),
-          radius: 999,
-          fontPx: 11,
-          onClick: () => this.#goEditorSection(section),
-        })
-      }
+      this.#sectionList(x, y + 76, w, h - 94, EDITOR_SECTIONS, (section) => this.#editorSection() === section, (section) => this.#goEditorSection(section))
       return
     }
     h3(this, x, y + 28, w, 24, {children: "Button", style: {fontSize: 15, textAlign: "center"}})
-    const top = y + 76
-    for (const [i, section] of BUTTON_SECTIONS.entries()) {
-      const active = this.#routeSection() === section
-      Button(this, x + pad, top + i * 47, w - pad * 2, 38, {
-        children: section,
-        variant: active ? "contained" : "glass",
-        color: "neutral",
-        ...activeNavStyle(active),
-        radius: 999,
-        fontPx: 11,
-        onClick: () => this.#goSection(section),
-      })
-    }
+    this.#sectionList(x, y + 76, w, h - 94, BUTTON_SECTIONS, (section) => this.#routeSection() === section, (section) => this.#goSection(section))
+  }
+
+  #sectionList<T extends string>(
+    panelX: number,
+    listY: number,
+    panelW: number,
+    listH: number,
+    sections: readonly T[],
+    isActive: (section: T) => boolean,
+    onSelect: (section: T) => void,
+  ): void {
+    const pad = 18
+    const rowH = 38
+    const gap = 9
+    Pane(this, panelX + pad, listY, panelW - pad * 2, Math.max(rowH, listH), {
+      key: `components:sections:${this.#currentComponent()}`,
+      scrollContentHeight: sections.length * (rowH + gap) - gap,
+      sx: {
+        background: null,
+        borderColor: null,
+        borderRadius: 0,
+        padding: 0,
+        overflowY: "auto",
+        scrollbarWidth: 4,
+      },
+      children: (ctx) => {
+        for (const [i, section] of sections.entries()) {
+          const rowY = listY + i * (rowH + gap) - ctx.scrollTop
+          if (rowY + rowH < listY || rowY > listY + ctx.viewportHeight) continue
+          const active = isActive(section)
+          Button(this, panelX + pad, rowY, panelW - pad * 2 - (ctx.contentHeight > ctx.viewportHeight ? 14 : 0), rowH, {
+            children: section,
+            variant: active ? "contained" : "glass",
+            color: "neutral",
+            ...activeNavStyle(active),
+            radius: 999,
+            fontPx: 11,
+            onClick: () => onSelect(section),
+          })
+        }
+      },
+    })
   }
 
   #preview(x: number, y: number, w: number, h: number): void {
@@ -349,13 +390,28 @@ class ButtonComponentsScreen extends UiSurface {
 
   #editorPreview(x: number, y: number, w: number, h: number): void {
     const pad = 42
-    if (this.#editorSection() === "Selection") {
+    if (this.#editorSection() === "Editing") {
+      renderHeader(this, x, w, pad, y + 34, "Editing", [
+        "The editor surface keeps a live cursor and accepts text input after focus.",
+        "Typing, arrow navigation, undo history, and line scrolling stay inside the surface.",
+      ])
+    } else if (this.#editorSection() === "Scroll") {
+      const mode = editorScrollModeFromRoute(this.#route)
+      renderHeader(this, x, w, pad, y + 34, "Scroll", [
+        mode === "horizontal"
+          ? "Long lines keep the caret visible by moving the editor's horizontal scroll position."
+          : "Wheel movement stays inside the editor and uses the built-in vertical scroll state.",
+        "The dock switches between vertical and horizontal scroll scenarios.",
+      ])
+    } else if (this.#editorSection() === "Selection") {
       renderHeader(this, x, w, pad, y + 34, "Selection", [
         "Selection actions are exposed from the dock while the editor surface stays focusable.",
-        "The menu button opens a compact command popup above the selected text.",
+        this.#route === "editor/selection/shift-cursor"
+          ? "The active range is seeded as a Shift+cursor selection with the caret at the focus edge."
+          : "The menu button opens a compact command popup above the selected text.",
       ])
     } else {
-      renderHeader(this, x, w, pad, y + 34, "Editor pane", [
+      renderHeader(this, x, w, pad, y + 34, "Highlighting", [
         "Editable source surface with syntax tokens, cursor routing, undo history, and scroll state.",
         "The live editor below is a separate focusable surface mounted inside this route.",
       ])
@@ -990,6 +1046,11 @@ class ButtonComponentsScreen extends UiSurface {
         this.#editorSelectionDock(x, y, w, h)
         return
       }
+      if (this.#editorSection() === "Scroll") {
+        this.#editorScrollDock(x, y, w, h)
+        return
+      }
+      if (this.#editorSection() === "Editing") return
       const itemGap = 12
       const itemW = Math.max(84, Math.min(124, (w - 64 - itemGap * (EDITOR_LANGUAGE_ROUTES.length - 1)) / EDITOR_LANGUAGE_ROUTES.length))
       const rowW = itemW * EDITOR_LANGUAGE_ROUTES.length + itemGap * (EDITOR_LANGUAGE_ROUTES.length - 1)
@@ -1090,6 +1151,12 @@ class ButtonComponentsScreen extends UiSurface {
         color: "neutral",
         onClick: () => this.#goSelectionRightClick(),
       },
+      {
+        label: "Shift cursor",
+        active: this.#route === "editor/selection/shift-cursor",
+        color: "neutral",
+        onClick: () => this.#goSelectionShiftCursor(),
+      },
     ] as const
     const itemWidths = items.map((item) => Math.max(116, autoButtonWidth(this, item.label, 10, 24)))
     const rowW = itemWidths.reduce((sum, width) => sum + width, 0) + itemGap * (itemWidths.length - 1)
@@ -1104,6 +1171,33 @@ class ButtonComponentsScreen extends UiSurface {
         radius: this.#radius,
         fontPx: 10,
         onClick: item.onClick,
+      })
+      itemX += itemW + itemGap
+    }
+  }
+
+  #editorScrollDock(x: number, y: number, w: number, h: number): void {
+    const itemGap = 12
+    const buttonH = 42
+    const items: readonly {route: EditorScrollRoute; label: string}[] = [
+      {route: "vertical", label: "Vertical"},
+      {route: "horizontal", label: "Horizontal"},
+    ]
+    const itemWidths = items.map((item) => Math.max(124, autoButtonWidth(this, item.label, 10, 24)))
+    const rowW = itemWidths.reduce((sum, width) => sum + width, 0) + itemGap * (items.length - 1)
+    let itemX = x + (w - rowW) / 2
+    const activeMode = editorScrollModeFromRoute(this.#route)
+    for (const [i, item] of items.entries()) {
+      const active = activeMode === item.route
+      const itemW = itemWidths[i]!
+      Button(this, itemX, y + (h - buttonH) / 2, itemW, buttonH, {
+        children: item.label,
+        variant: active ? "contained" : "glass",
+        color: "neutral",
+        ...activeNavStyle(active),
+        radius: this.#radius,
+        fontPx: 10,
+        onClick: () => this.#goEditorScroll(item.route),
       })
       itemX += itemW + itemGap
     }
@@ -1358,6 +1452,8 @@ class ButtonComponentsScreen extends UiSurface {
   }
 
   #editorSection(): EditorSection {
+    if (this.#route === "editor/editing") return "Editing"
+    if (this.#route.startsWith("editor/scroll")) return "Scroll"
     return this.#route.startsWith("editor/selection") ? "Selection" : "Highlighting"
   }
 
@@ -1420,29 +1516,59 @@ class ButtonComponentsScreen extends UiSurface {
   #goEditorLanguage(language: EditorLanguageRoute): void {
     this.#router.go(`editor/highlighting/${language}`)
     this.#record(`route:editor:${language}`)
+    this.#focusEditor()
   }
 
   #goEditorSection(section: EditorSection): void {
+    if (section === "Editing") {
+      this.#router.go("editor/editing")
+      this.#record("route:editor:editing")
+      this.#focusEditor()
+      return
+    }
     if (section === "Selection") {
       this.#router.go("editor/selection")
       this.#record("route:editor:selection")
+      this.#focusEditor()
+      return
+    }
+    if (section === "Scroll") {
+      this.#router.go("editor/scroll")
+      this.#record("route:editor:scroll")
+      this.#focusEditor()
       return
     }
     this.#router.go("editor/highlighting")
     this.#record("route:editor:highlighting")
+    this.#focusEditor()
+  }
+
+  #goEditorScroll(route: EditorScrollRoute): void {
+    this.#router.go(`editor/scroll/${route}`)
+    this.#record(`scroll:${route}`)
+    this.#focusEditor()
   }
 
   #toggleSelectionMenu(): void {
     this.#router.go(this.#route === "editor/selection/menu" ? "editor/selection" : "editor/selection/menu")
     this.#record("selection:menu")
+    this.#focusEditor()
   }
 
   #goSelectionRightClick(): void {
     this.#router.go("editor/selection/right-click")
     this.#record("selection:right-click")
+    this.#focusEditor()
+  }
+
+  #goSelectionShiftCursor(): void {
+    this.#router.go("editor/selection/shift-cursor")
+    this.#record("selection:shift-cursor")
+    this.#focusEditor()
   }
 
   #copySelectionToBuffer(): void {
+    this.#focusEditor()
     const copy = this.#onEditorCopy
     if (copy === undefined) {
       this.#setSelectionBufferState("error")
@@ -1457,6 +1583,7 @@ class ButtonComponentsScreen extends UiSurface {
   }
 
   #cutSelectionToBuffer(): void {
+    this.#focusEditor()
     const cut = this.#onEditorCut
     if (cut === undefined) {
       this.#setSelectionBufferState("error")
@@ -1471,7 +1598,12 @@ class ButtonComponentsScreen extends UiSurface {
   }
 
   #selectAllInEditor(): void {
+    this.#focusEditor()
     this.#onEditorSelectAll?.()
+  }
+
+  #focusEditor(): void {
+    this.#onEditorFocus?.()
   }
 
   #setSelectionBufferState(state: "idle" | "copied" | "error"): void {
@@ -1579,6 +1711,10 @@ function routeEditorLanguageFromRoute(route: ComponentsRoute): EditorLanguageRou
   return null
 }
 
+function editorScrollModeFromRoute(route: ComponentsRoute): EditorScrollRoute {
+  return route === "editor/scroll/horizontal" ? "horizontal" : "vertical"
+}
+
 function editorLanguageId(language: EditorLanguageRoute): string {
   if (language === "typescript") return "typescript"
   if (language === "javascript") return "javascript"
@@ -1610,6 +1746,104 @@ function applyEditorLanguage(editor: EditorPane, route: ComponentsRoute): void {
   editor.setLanguage({languageId: editorLanguageId(language), path: editorLanguagePath(language)})
   editor.setTitle(`${editorHighlighterName(language)} source`)
   editor.setText(editorDemoSource(language))
+}
+
+function editorSurfaceScenario(route: ComponentsRoute): string | null {
+  if (route === "editor/editing") return "editing"
+  if (route === "editor/selection/shift-cursor") return "selection:shift-cursor"
+  if (route.startsWith("editor/selection")) return "selection:actions"
+  if (route.startsWith("editor/scroll")) return `scroll:${editorScrollModeFromRoute(route)}`
+  if (route.startsWith("editor/highlighting")) return `highlighting:${editorLanguageFromRoute(route)}`
+  return null
+}
+
+function applyEditorRoute(editor: EditorPane, route: ComponentsRoute): void {
+  if (route === "editor/editing") {
+    applyEditorEditing(editor)
+    return
+  }
+  if (route.startsWith("editor/selection")) {
+    applyEditorSelection(editor, route)
+    return
+  }
+  if (route.startsWith("editor/scroll")) {
+    applyEditorScroll(editor, route)
+    return
+  }
+  applyEditorLanguage(editor, route)
+}
+
+function applyEditorEditing(editor: EditorPane): void {
+  editor.setLanguage({languageId: "typescript", path: "playground/editable.ts"})
+  editor.setTitle("Editable source")
+  editor.setText(EDITOR_EDITING_SOURCE)
+  setEditorCursorAt(editor, EDITOR_EDITING_SOURCE, "Editable route", "Editable ".length)
+}
+
+function applyEditorSelection(editor: EditorPane, route: ComponentsRoute): void {
+  editor.setLanguage({languageId: "typescript", path: "playground/selection.ts"})
+  editor.setTitle(route === "editor/selection/shift-cursor" ? "Shift cursor selection" : "Selection source")
+  editor.setText(EDITOR_SELECTION_SOURCE)
+  if (route === "editor/selection/shift-cursor") {
+    selectEditorFragment(editor, EDITOR_SELECTION_SOURCE, "const mode = \"extend-selection\"", "start")
+    return
+  }
+  selectEditorFragment(editor, EDITOR_SELECTION_SOURCE, "\"copy\" | \"cut\" | \"selectAll\"")
+}
+
+function applyEditorScroll(editor: EditorPane, route: ComponentsRoute): void {
+  const mode = editorScrollModeFromRoute(route)
+  editor.setLanguage({languageId: "typescript", path: `playground/scroll-${mode}.ts`})
+  editor.setTitle(mode === "horizontal" ? "Horizontal scroll" : "Vertical scroll")
+  if (mode === "horizontal") {
+    editor.setText(EDITOR_SCROLL_HORIZONTAL_SOURCE)
+    setEditorCursorAtLineEnd(editor, EDITOR_SCROLL_HORIZONTAL_SOURCE, "const longTrace")
+    return
+  }
+  editor.setText(EDITOR_SCROLL_VERTICAL_SOURCE)
+  editor.setCursor(34, 2)
+}
+
+function setEditorCursorAt(editor: EditorPane, source: string, fragment: string, offset = 0): void {
+  const pos = editorPositionForFragment(source, fragment)
+  if (pos === null) {
+    editor.setCursor(0, 0)
+    return
+  }
+  editor.setCursor(pos.line, pos.col + offset)
+}
+
+function selectEditorFragment(editor: EditorPane, source: string, fragment: string, focus: "start" | "end" = "end"): void {
+  const pos = editorPositionForFragment(source, fragment)
+  if (pos === null) {
+    editor.setSelection(0, 0, 0, 0)
+    return
+  }
+  if (focus === "start") {
+    editor.setSelection(pos.line, pos.col + fragment.length, pos.line, pos.col)
+    return
+  }
+  editor.setSelection(pos.line, pos.col, pos.line, pos.col + fragment.length)
+}
+
+function setEditorCursorAtLineEnd(editor: EditorPane, source: string, prefix: string): void {
+  const lines = source.split("\n")
+  const line = lines.findIndex((item) => item.startsWith(prefix))
+  if (line < 0) {
+    editor.setCursor(0, 0)
+    return
+  }
+  editor.setCursor(line, lines[line]?.length ?? 0)
+}
+
+function editorPositionForFragment(source: string, fragment: string): {line: number; col: number} | null {
+  const index = source.indexOf(fragment)
+  if (index < 0) return null
+  const prefixLines = source.slice(0, index).split("\n")
+  return {
+    line: prefixLines.length - 1,
+    col: prefixLines[prefixLines.length - 1]?.length ?? 0,
+  }
 }
 
 function routeVariantFromRoute(route: ComponentsRoute): ButtonRouteVariant | null {
@@ -2444,6 +2678,50 @@ function hiddenRect(): UiSurfaceRect {
   return {x: 0, y: 0, w: 1, h: 1, visible: false}
 }
 
+const EDITOR_EDITING_SOURCE = `type Draft = {
+  title: string
+  saved: boolean
+}
+
+const draft: Draft = {
+  title: "Editable route",
+  saved: false,
+}
+
+export function updateTitle(nextTitle: string): Draft {
+  draft.title = nextTitle
+  draft.saved = false
+  return draft
+}
+`
+
+const EDITOR_SELECTION_SOURCE = `type SelectionAction = "copy" | "cut" | "selectAll"
+type SelectionMode = "mouse" | "shift-cursor"
+
+export function moveCursor(shiftKey: boolean): SelectionMode {
+  const mode = "extend-selection"
+  return shiftKey && mode === "extend-selection" ? "shift-cursor" : "mouse"
+}
+
+export function runSelectionAction(action: SelectionAction): SelectionAction {
+  return action
+}
+`
+
+const EDITOR_SCROLL_VERTICAL_SOURCE = Array.from({length: 48}, (_, index) => {
+  const line = String(index + 1).padStart(2, "0")
+  return `export const verticalStep${line} = "wheel keeps line ${line} reachable inside EditorPane"`
+}).join("\n")
+
+const EDITOR_SCROLL_HORIZONTAL_SOURCE = `type ScrollAxis = "vertical" | "horizontal"
+
+const longTrace = "horizontal scroll keeps a very long diagnostics line readable while the caret stays inside the EditorPane surface and the dock remains usable for mode switching"
+
+export function scrollAxis(shiftKey: boolean): ScrollAxis {
+  return shiftKey ? "horizontal" : "vertical"
+}
+`
+
 const EDITOR_DEMO_SOURCES: Record<EditorLanguageRoute, string> = {
   typescript: `import {EditorPane} from "@metafor/components"
 
@@ -2523,14 +2801,17 @@ const editor = new EditorPane({
   linePx: 17,
   onSelectionClipboard: (ok) => screen?.setEditorSelectionClipboardResult(ok),
 })
-let appliedEditorLanguage: EditorLanguageRoute | null = null
+let appliedEditorScenario: string | null = null
 const syncEditorRoute = (route: ComponentsRoute): void => {
-  if (!route.startsWith("editor") && appliedEditorLanguage !== null) return
-  if (route.startsWith("editor/selection") && appliedEditorLanguage !== null) return
-  const language = editorLanguageFromRoute(route)
-  if (language === appliedEditorLanguage) return
-  applyEditorLanguage(editor, route)
-  appliedEditorLanguage = language
+  const scenario = editorSurfaceScenario(route)
+  if (scenario === null || scenario === appliedEditorScenario) return
+  applyEditorRoute(editor, route)
+  appliedEditorScenario = scenario
+}
+const syncEditorFocus = (route: ComponentsRoute): void => {
+  if (!route.startsWith("editor")) return
+  ui.setFocused(editor)
+  ui.inputProxy?.focus()
 }
 screen = new ButtonComponentsScreen({
   onRouteChange: (route) => {
@@ -2539,18 +2820,21 @@ screen = new ButtonComponentsScreen({
     editor.setSelectionMenuOpen(route === "editor/selection/menu")
     editor.setSelectionContextMenuEnabled(route === "editor/selection/right-click")
     ui.relayout()
+    syncEditorFocus(route)
   },
+  onEditorFocus: () => syncEditorFocus(activeRoute),
   onEditorCopy: () => editor.copySelectionToClipboard(),
   onEditorCut: () => editor.cutSelectionToClipboard(),
   onEditorSelectAll: () => editor.selectAll(),
 })
 activeRoute = screen.currentRoute
+ui.addSurface(screen, ({w, h}) => ({x: 0, y: 0, w, h}))
+ui.addSurface(editor, ({w, h}) => activeRoute.startsWith("editor") ? editorPaneRectForCanvas(w, h) : hiddenRect())
+ui.handleResize()
 syncEditorRoute(activeRoute)
 editor.setSelectionMenuOpen(activeRoute === "editor/selection/menu")
 editor.setSelectionContextMenuEnabled(activeRoute === "editor/selection/right-click")
-ui.addSurface(screen, ({w, h}) => ({x: 0, y: 0, w, h}))
-ui.addSurface(editor, ({w, h}) => activeRoute.startsWith("editor") ? editorPaneRectForCanvas(w, h) : hiddenRect())
+syncEditorFocus(activeRoute)
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)
 window.addEventListener("resize", () => ui.handleResize())
-ui.handleResize()

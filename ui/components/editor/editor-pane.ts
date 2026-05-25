@@ -13,14 +13,12 @@
  *  • Подсветка через pluggable tokenize: (lines) => tokens
  *  • onChange колбэк
  *
- * Anim/glow эффекты — отдельно, в future EditorAnimatedPane.
+ * Стартовая анимация текста — короткий one-shot lifecycle без постоянного render loop.
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {UiSurface, Z, palette, radii} from "@metafor/elements"
+import {UiSurface, Z, div, divScrollTo, palette, radii, type DivScrollContext} from "@metafor/elements"
 import {Button, autoButtonWidth} from "../Button.ts"
-import {ScrollListState} from "../scroll-list.ts"
-import {Scrollbar as scrollbar} from "../Scrollbar.ts"
 import {resolveLanguageHighlighter} from "./highlighter.ts"
 import {
   createEditorTokenMaterials,
@@ -65,14 +63,21 @@ const GUTTER_RIGHT_PAD_PX = 8
 const CODE_LEFT_PAD_PX = 8
 const SCROLLBAR_W = 4
 const HISTORY_LIMIT = 200
-const WHEEL_SPEED = 1.55
-const WHEEL_START_BOOST_PX = 18
+const INTRO_ANIM_MS = 420
+const INTRO_ANIM_MAX_DELAY_MS = 180
+const INTRO_ANIM_MAX_OFFSET_PX = 16
+const CARET_BLINK_MS = 530
+const CARET_W_PX = 2
+const CARET_TOP_INSET_PX = 1
+const CARET_Z = Z.TEXT + 0.04
 const SELECTION_FILL = new Color(92 / 255, 155 / 255, 255 / 255, 0.34)
 const SELECTION_MENU_BG = new Color(6 / 255, 12 / 255, 21 / 255, 0.96)
 const SELECTION_MENU_BORDER = new Color(111 / 255, 211 / 255, 255 / 255, 0.32)
 const SELECTION_MENU_Z = Z.ELEMENT_RULE + 0.005
+const EDITOR_SCROLL_KEY = "editor-pane:scroll"
 
 type CursorPos = {line: number; col: number}
+type CaretRect = {x: number; y: number; w: number; h: number}
 type SelectionRange = {start: CursorPos; end: CursorPos}
 type Snapshot = {lines: string[]; cline: number; ccol: number; selectionAnchor: CursorPos | null; selectionFocus: CursorPos | null}
 type ColumnHitBias = "nearest" | "floor" | "ceil"
@@ -107,14 +112,19 @@ export class EditorPane extends UiSurface {
   #onChange: ((text: string) => void) | undefined
   #onSave: ((text: string) => void) | undefined
   #onSelectionClipboard: ((ok: boolean, action: "copy" | "cut") => void) | undefined
-  readonly #list: ScrollListState
   #cursorVisible = true
+  #cursorBlinkTimer: ReturnType<typeof setInterval> | null = null
   #history: Snapshot[] = []
   #future: Snapshot[] = []
   /** Кэшированная ширина одного «эталонного» глифа (M). Сбрасывается при resize/setText. */
   #charWidth = 0
-  /** Горизонтальный скролл кода в px (для длинных строк / base64). */
-  #hScroll = 0
+  #scrollLeftPx = 0
+  #scrollTopPx = 0
+  #viewportW = 1
+  #viewportH = 1
+  #introAnimStartedAt: number | null = null
+  #introAnimRafId: number | null = null
+  #introAnimFinishTimer: ReturnType<typeof setTimeout> | null = null
   /** Для длинных строк (≥ this porog) считаем позицию курсора через #charWidth — O(1). */
   static readonly #LONG_LINE_THRESHOLD = 500
 
@@ -135,7 +145,6 @@ export class EditorPane extends UiSurface {
     this.#onChange = opts.onChange
     this.#onSave = opts.onSave
     this.#onSelectionClipboard = opts.onSelectionClipboard
-    this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#tokenMaterials = createEditorTokenMaterials()
     this.#refreshTokens()
   }
@@ -147,17 +156,30 @@ export class EditorPane extends UiSurface {
     this.#cline = Math.min(this.#cline, this.#lines.length - 1)
     this.#ccol = Math.min(this.#ccol, this.#lines[this.#cline]!.length)
     this.#clearSelectionState()
-    this.#hScroll = 0
+    this.#setScrollPosition(0, 0)
     this.#history = []
     this.#future = []
     this.#refreshTokens()
+    this.#startIntroAnimation()
     this.requestRender()
   }
 
-  /** Смещение по X (px) для символа. Редактор не запускает render-loop, поэтому без анимации. */
-  #animOffsetFor(absCol: number): number {
-    void absCol
-    return 0
+  /** Смещение по X (px) для стартового выстраивания текста. */
+  #animOffsetFor(lineIndex: number, absCol: number): number {
+    if (this.#introAnimStartedAt === null) return 0
+    const elapsed = performance.now() - this.#introAnimStartedAt
+    const totalMs = INTRO_ANIM_MS + INTRO_ANIM_MAX_DELAY_MS
+    if (elapsed >= totalMs) {
+      this.#finishIntroAnimation(false)
+      return 0
+    }
+    const seed = introAnimSeed(lineIndex, absCol)
+    const delay = Math.min(INTRO_ANIM_MAX_DELAY_MS, lineIndex * 18 + absCol * 2.5)
+    const t = clamp01((elapsed - delay) / INTRO_ANIM_MS)
+    if (t >= 1) return 0
+    const direction = seed > 0.5 ? 1 : -1
+    const amplitude = INTRO_ANIM_MAX_OFFSET_PX * (0.35 + seed * 0.65)
+    return direction * amplitude * (1 - easeOutCubic(t))
   }
 
   /** Принудительный сейв (Cmd+S или внешняя кнопка). */
@@ -200,6 +222,7 @@ export class EditorPane extends UiSurface {
   /** Position cursor at (line, col), clamping to bounds. Scrolls into view. */
   setCursor(line: number, col: number): void {
     this.#setCursorPosition({line, col}, {extendSelection: false})
+    this.#pingCursor()
   }
 
   setSelection(anchorLine: number, anchorCol: number, focusLine: number, focusCol: number): void {
@@ -210,6 +233,7 @@ export class EditorPane extends UiSurface {
     this.#cline = focus.line
     this.#ccol = focus.col
     this.#scrollCursorIntoView()
+    this.#pingCursor()
     this.requestRender()
   }
 
@@ -408,13 +432,8 @@ export class EditorPane extends UiSurface {
 
   #lineFromLocalY(localY: number): number | null {
     if (localY < PAD_TOP_PX) return null
-    const visible = this.#visibleLineCount()
-    this.#list.clamp(this.#lines.length, visible)
-    const scroll = this.#list.scroll
-    const startIdx = Math.floor(scroll)
-    const subPx = (scroll - startIdx) * this.#linePx
-    const rowFloat = (localY - PAD_TOP_PX + subPx) / this.#linePx
-    return Math.max(0, Math.min(this.#lines.length - 1, startIdx + Math.floor(rowFloat)))
+    const rowFloat = (localY - PAD_TOP_PX + this.#scrollTopPx) / this.#linePx
+    return Math.max(0, Math.min(this.#lines.length - 1, Math.floor(rowFloat)))
   }
 
   #codeStartX(): number {
@@ -422,7 +441,7 @@ export class EditorPane extends UiSurface {
   }
 
   #colAtLocalX(line: string, localX: number, bias: ColumnHitBias): number {
-    const xInCode = Math.max(0, localX - this.#codeStartX() + this.#hScroll)
+    const xInCode = Math.max(0, localX - this.#codeStartX() + this.#scrollLeftPx)
     return this.#colAtX(line, xInCode, bias)
   }
 
@@ -584,28 +603,9 @@ export class EditorPane extends UiSurface {
     this.#setCursorPosition({line: this.#cline, col}, {extendSelection})
   }
 
-  override onWheel(event: WheelEvent): void {
-    // Shift + wheel → горизонтальная прокрутка кода
-    if (event.shiftKey) {
-      event.preventDefault()
-      const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX
-      this.#hScroll = Math.max(0, this.#hScroll + delta * WHEEL_SPEED)
-      this.requestRender()
-      return
-    }
-    const visible = this.#visibleLineCount()
-    this.#list.applyWheel(event, this.#linePx, this.#lines.length, visible, {
-      speed: WHEEL_SPEED,
-      startBoostPx: WHEEL_START_BOOST_PX,
-    })
-  }
-
   override onPointerDown(_event: MouseEvent, localX: number, localY: number): void {
-    const menuRect = this.#selectionMenuRect()
-    if (menuRect !== null && pointInRect(localX, localY, menuRect)) {
-      super.onPointerDown(_event, localX, localY)
-      return
-    }
+    super.onPointerDown(_event, localX, localY)
+    if (this.pressedHit !== null) return
     if (isSecondaryPointer(_event)) {
       _event.preventDefault()
       if (this.#selectionContextMenuEnabled && this.#isPointInSelection(localX, localY)) this.#openTransientSelectionMenu()
@@ -717,12 +717,14 @@ export class EditorPane extends UiSurface {
 
   onActivate(): void {
     this.#cursorVisible = true
+    this.#startCursorBlink()
     this.requestRender()
   }
 
   override onDeactivate(): void {
     super.onDeactivate?.()
     this.#dragSelecting = false
+    this.#stopCursorBlink()
     this.#cursorVisible = false
     this.requestRender()
   }
@@ -777,6 +779,7 @@ export class EditorPane extends UiSurface {
     this.#cline = endLine
     this.#ccol = endCol
     this.#scrollCursorIntoView()
+    this.#pingCursor()
     this.requestRender()
   }
 
@@ -876,28 +879,48 @@ export class EditorPane extends UiSurface {
   }
 
   #scrollCursorIntoView(): void {
-    // Вертикальный скролл
-    const visible = this.#visibleLineCount()
-    const top = Math.floor(this.#list.scroll)
-    const bottom = top + visible - 1
-    if (this.#cline < top) this.#list.jumpTo(this.#cline)
-    else if (this.#cline > bottom) this.#list.jumpTo(this.#cline - visible + 1)
-    // Горизонтальный
+    let nextTop = this.#scrollTopPx
+    const viewportH = this.#viewportContentH()
+    const cursorTop = this.#cline * this.#linePx
+    const cursorBottom = cursorTop + this.#linePx
+    if (cursorTop < nextTop) nextTop = cursorTop
+    else if (cursorBottom > nextTop + viewportH) nextTop = cursorBottom - viewportH
+
     const lineText = this.#lines[this.#cline] ?? ""
     const cursorPx = this.#colToPx(lineText, this.#ccol)
     const codeMaxPx = this.#codeMaxPx()
     const margin = 40
-    if (cursorPx - this.#hScroll < margin) {
-      this.#hScroll = Math.max(0, cursorPx - margin)
-    } else if (cursorPx - this.#hScroll > codeMaxPx - margin) {
-      this.#hScroll = Math.max(0, cursorPx - codeMaxPx + margin)
+    let nextLeft = this.#scrollLeftPx
+    if (cursorPx - nextLeft < margin) {
+      nextLeft = Math.max(0, cursorPx - margin)
+    } else if (cursorPx - nextLeft > codeMaxPx - margin) {
+      nextLeft = Math.max(0, cursorPx - codeMaxPx + margin)
     }
+    this.#setScrollPosition(nextLeft, nextTop)
+  }
+
+  #setScrollPosition(left: number, top: number): void {
+    this.#scrollLeftPx = Math.max(0, left)
+    this.#scrollTopPx = Math.max(0, top)
+    divScrollTo(this, EDITOR_SCROLL_KEY, {left: this.#scrollLeftPx, top: this.#scrollTopPx})
   }
 
   #codeMaxPx(): number {
     const gutter = this.#gutterWidthPx(this.#lines.length)
-    const contentW = Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 4)
+    const contentW = this.#viewportContentW()
     return Math.max(1, contentW - gutter - CODE_LEFT_PAD_PX - 8)
+  }
+
+  #maxLineWidthPx(): number {
+    let max = 0
+    for (const line of this.#lines) {
+      if (line.length === 0) continue
+      const width = line.length < EditorPane.#LONG_LINE_THRESHOLD
+        ? this.measureText(line, this.#fontPx)
+        : line.length * this.#getCharWidth()
+      if (width > max) max = width
+    }
+    return max
   }
 
   /**
@@ -911,8 +934,8 @@ export class EditorPane extends UiSurface {
     if (cw <= 0) return {start: 0, end: line.length, startPx: 0}
     const codeMaxPx = this.#codeMaxPx()
     const padCols = 10
-    const start = Math.max(0, Math.floor(this.#hScroll / cw) - padCols)
-    const end = Math.min(line.length, Math.ceil((this.#hScroll + codeMaxPx) / cw) + padCols)
+    const start = Math.max(0, Math.floor(this.#scrollLeftPx / cw) - padCols)
+    const end = Math.min(line.length, Math.ceil((this.#scrollLeftPx + codeMaxPx) / cw) + padCols)
     const startPx = start * cw
     return {start, end, startPx}
   }
@@ -960,9 +983,67 @@ export class EditorPane extends UiSurface {
 
   #pingCursor(): void {
     this.#cursorVisible = true
+    if (this.#cursorBlinkTimer !== null) this.#startCursorBlink()
+  }
+
+  #startCursorBlink(): void {
+    this.#stopCursorBlink()
+    if (typeof setInterval !== "function") return
+    this.#cursorBlinkTimer = setInterval(() => {
+      this.#cursorVisible = !this.#cursorVisible
+      this.requestRender()
+    }, CARET_BLINK_MS)
+  }
+
+  #stopCursorBlink(): void {
+    if (this.#cursorBlinkTimer === null || typeof clearInterval !== "function") return
+    clearInterval(this.#cursorBlinkTimer)
+    this.#cursorBlinkTimer = null
+  }
+
+  #startIntroAnimation(): void {
+    this.#finishIntroAnimation(false)
+    if (typeof requestAnimationFrame !== "function" || typeof setTimeout !== "function") return
+    this.#introAnimStartedAt = performance.now()
+    this.#introAnimFinishTimer = setTimeout(() => {
+      this.#finishIntroAnimation(true)
+    }, INTRO_ANIM_MS + INTRO_ANIM_MAX_DELAY_MS + 40)
+    this.#scheduleIntroAnimationFrame()
+  }
+
+  #scheduleIntroAnimationFrame(): void {
+    if (this.#introAnimRafId !== null) return
+    if (typeof requestAnimationFrame !== "function") return
+    this.#introAnimRafId = requestAnimationFrame(() => {
+      this.#introAnimRafId = null
+      if (this.#introAnimStartedAt === null) return
+      const elapsed = performance.now() - this.#introAnimStartedAt
+      if (elapsed >= INTRO_ANIM_MS + INTRO_ANIM_MAX_DELAY_MS) {
+        this.#finishIntroAnimation(true)
+        return
+      }
+      this.requestRender()
+      this.#scheduleIntroAnimationFrame()
+    })
+  }
+
+  #finishIntroAnimation(renderFinalFrame: boolean): void {
+    if (this.#introAnimRafId !== null && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(this.#introAnimRafId)
+    }
+    if (this.#introAnimFinishTimer !== null && typeof clearTimeout === "function") {
+      clearTimeout(this.#introAnimFinishTimer)
+    }
+    this.#introAnimRafId = null
+    this.#introAnimFinishTimer = null
+    const wasRunning = this.#introAnimStartedAt !== null
+    this.#introAnimStartedAt = null
+    if (renderFinalFrame && wasRunning) this.requestRender()
   }
 
   override dispose(): void {
+    this.#stopCursorBlink()
+    this.#finishIntroAnimation(false)
     super.dispose?.()
   }
 
@@ -976,23 +1057,44 @@ export class EditorPane extends UiSurface {
     this.drawRect(8, HEADER_H_PX, Math.max(1, this.rectW - 16), 1, palette.borderDim, Z.SEPARATOR)
 
     const total = this.#lines.length
-    const visible = this.#visibleLineCount()
-    this.#list.clamp(total, visible)
-    const scroll = this.#list.scroll
-    const startIdx = Math.floor(scroll)
-    const subPx = (scroll - startIdx) * this.#linePx
-
     const gutter = this.#gutterWidthPx(total)
-    const contentW = Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 4)
-    const contentH = Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
+    div(this, PAD_LEFT_PX, PAD_TOP_PX, Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX), Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX), {
+      key: EDITOR_SCROLL_KEY,
+      scrollContentWidth: Math.max(1, gutter + CODE_LEFT_PAD_PX + this.#maxLineWidthPx() + 8),
+      scrollContentHeight: Math.max(1, total * this.#linePx),
+      style: {
+        background: null,
+        borderColor: null,
+        borderRadius: 0,
+        padding: 0,
+        overflowX: "auto",
+        overflowY: "auto",
+        scrollbarWidth: SCROLLBAR_W,
+      },
+      children: (ctx) => this.#renderCodeViewport(ctx, gutter),
+    })
+
+    this.#renderSelectionMenu()
+  }
+
+  #renderCodeViewport(ctx: DivScrollContext, gutter: number): void {
+    this.#scrollLeftPx = ctx.scrollLeft
+    this.#scrollTopPx = ctx.scrollTop
+    this.#viewportW = ctx.viewportWidth
+    this.#viewportH = ctx.viewportHeight
+
+    const total = this.#lines.length
+    const scroll = this.#scrollTopPx / this.#linePx
+    const startIdx = Math.floor(scroll)
+    const subPx = this.#scrollTopPx - startIdx * this.#linePx
+    const visible = this.#visibleLineCount()
+    const contentW = ctx.viewportWidth
+    const contentH = ctx.viewportHeight
     const codeMaxPx = Math.max(1, contentW - gutter - CODE_LEFT_PAD_PX - 8)
 
-    // Vertical rule после gutter
     this.drawRect(PAD_LEFT_PX + gutter, PAD_TOP_PX, 1, contentH, palette.borderDim, Z.SEPARATOR)
+    let caretRect: CaretRect | null = null
 
-    this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, contentW, contentH)
-
-    // Cursor row highlight (бледный)
     const cRowIdx = this.#cline - startIdx
     if (cRowIdx >= -1 && cRowIdx <= visible) {
       const hY = PAD_TOP_PX + cRowIdx * this.#linePx - subPx
@@ -1035,7 +1137,7 @@ export class EditorPane extends UiSurface {
         const slice = this.#visibleSlice(lineText)
         const visText = slice.end > slice.start ? lineText.slice(slice.start, slice.end) : ""
         if (visText.length > 0) {
-          const drawX = codeStartX - this.#hScroll + slice.startPx
+          const drawX = codeStartX - this.#scrollLeftPx + slice.startPx
           const lineTokens = this.#tokens?.[lineIndex]
           // Фильтруем токены в видимом диапазоне и сдвигаем индексы.
           const visTokens: EditorToken[] = []
@@ -1053,11 +1155,11 @@ export class EditorPane extends UiSurface {
           }
           // maxWidthPx-clamp на drawText не используем — обрезка через pushClip.
           // Передаём заведомо большую ширину, чтобы не было ellipsis "..." внутри слайса.
-          const maxW = codeMaxPx + this.#hScroll + 1000
+          const maxW = codeMaxPx + this.#scrollLeftPx + 1000
           if (visTokens.length > 0) {
-            this.#renderTokenized(visText, visTokens, drawX, textY, maxW, slice.start)
+            this.#renderTokenized(lineIndex, visText, visTokens, drawX, textY, maxW, slice.start)
           } else {
-            const animOffset = this.#animOffsetFor(slice.start)
+            const animOffset = this.#animOffsetFor(lineIndex, slice.start)
             if (isFinite(animOffset)) {
               this.drawText(visText, drawX + animOffset, textY, {
                 fontPx: this.#fontPx,
@@ -1073,29 +1175,20 @@ export class EditorPane extends UiSurface {
       if (isCurrent) {
         if (this.#cursorVisible) {
           const cursorAbsX = this.#colToPx(lineText, this.#ccol)
-          const curX = codeStartX + cursorAbsX - this.#hScroll
+          const curX = codeStartX + cursorAbsX - this.#scrollLeftPx
           if (curX >= codeStartX - 1 && curX <= codeStartX + codeMaxPx + 1) {
-            this.drawRect(curX, textY - 1, 1.5, this.#fontPx + 2, palette.cyan, Z.ELEMENT_RULE)
+            caretRect = {x: curX, y: textY + CARET_TOP_INSET_PX, w: CARET_W_PX, h: this.#fontPx}
           }
         }
       }
     }
 
-    this.popClip()
-
-    if (total > visible) {
-      scrollbar(this, this.rectW - PAD_RIGHT_PX - SCROLLBAR_W, PAD_TOP_PX, contentH, {
-        offset: scroll,
-        visible,
-        total,
-        trackWidth: SCROLLBAR_W,
-      })
+    if (caretRect !== null) {
+      this.drawRect(caretRect.x, caretRect.y, caretRect.w, caretRect.h, palette.cyan, CARET_Z)
     }
-
-    this.#renderSelectionMenu()
   }
 
-  #renderTokenized(text: string, tokens: EditorToken[], startX: number, y: number, maxPx: number, sliceStart: number): void {
+  #renderTokenized(lineIndex: number, text: string, tokens: EditorToken[], startX: number, y: number, maxPx: number, sliceStart: number): void {
     renderEditorTokenizedLine({
       pane: this,
       text,
@@ -1107,7 +1200,7 @@ export class EditorPane extends UiSurface {
       materials: this.#tokenMaterials,
       fallbackMaterial: this.#lineMaterial,
       sliceStart,
-      animOffsetFor: (absoluteColumn) => this.#animOffsetFor(absoluteColumn),
+      animOffsetFor: (absoluteColumn) => this.#animOffsetFor(lineIndex, absoluteColumn),
       drawTokenBackground: (x, bgY, w, h, bg) => {
         const color = parseHexColor(bg)
         if (color !== null) {
@@ -1125,8 +1218,8 @@ export class EditorPane extends UiSurface {
 
     const startCol = lineIndex === range.start.line ? range.start.col : 0
     const endCol = lineIndex === range.end.line ? range.end.col : lineText.length
-    let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#hScroll
-    let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#hScroll
+    let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#scrollLeftPx
+    let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#scrollLeftPx
     if (lineIndex < range.end.line && endCol === lineText.length) x2 += Math.max(5, this.#getCharWidth() * 0.65)
     if (lineText.length === 0 && lineIndex > range.start.line && lineIndex < range.end.line) x2 = x1 + Math.max(5, this.#getCharWidth() * 0.65)
 
@@ -1157,8 +1250,8 @@ export class EditorPane extends UiSurface {
     const codeMaxPx = this.#codeMaxPx()
     const startCol = lineIndex === range.start.line ? range.start.col : 0
     const endCol = lineIndex === range.end.line ? range.end.col : lineText.length
-    let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#hScroll
-    let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#hScroll
+    let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#scrollLeftPx
+    let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#scrollLeftPx
     if (lineIndex < range.end.line && endCol === lineText.length) x2 += Math.max(5, this.#getCharWidth() * 0.65)
     if (lineText.length === 0 && lineIndex > range.start.line && lineIndex < range.end.line) x2 = x1 + Math.max(5, this.#getCharWidth() * 0.65)
     const minX = codeStartX
@@ -1216,10 +1309,9 @@ export class EditorPane extends UiSurface {
 
     const total = this.#lines.length
     const visible = this.#visibleLineCount()
-    this.#list.clamp(total, visible)
-    const scroll = this.#list.scroll
+    const scroll = this.#scrollTopPx / this.#linePx
     const startIdx = Math.floor(scroll)
-    const subPx = (scroll - startIdx) * this.#linePx
+    const subPx = this.#scrollTopPx - startIdx * this.#linePx
     const visibleStart = Math.max(0, startIdx)
     const visibleEnd = Math.min(total - 1, startIdx + visible)
     const lineIndex = Math.max(range.start.line, visibleStart)
@@ -1230,8 +1322,8 @@ export class EditorPane extends UiSurface {
     const codeMaxPx = this.#codeMaxPx()
     const startCol = lineIndex === range.start.line ? range.start.col : 0
     const endCol = lineIndex === range.end.line ? range.end.col : lineText.length
-    let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#hScroll
-    let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#hScroll
+    let x1 = codeStartX + this.#colToPx(lineText, startCol) - this.#scrollLeftPx
+    let x2 = codeStartX + this.#colToPx(lineText, endCol) - this.#scrollLeftPx
     if (x2 <= x1) x2 = x1 + Math.max(18, this.#getCharWidth() * 1.5)
     const minX = codeStartX
     const maxX = codeStartX + codeMaxPx
@@ -1271,8 +1363,17 @@ export class EditorPane extends UiSurface {
   }
 
   #visibleLineCount(): number {
-    const contentH = Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
-    return Math.max(1, Math.floor(contentH / this.#linePx))
+    return Math.max(1, Math.floor(this.#viewportContentH() / this.#linePx))
+  }
+
+  #viewportContentW(): number {
+    if (this.#viewportW > 1) return this.#viewportW
+    return Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 10)
+  }
+
+  #viewportContentH(): number {
+    if (this.#viewportH > 1) return this.#viewportH
+    return Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX - SCROLLBAR_W - 10)
   }
 
   #gutterWidthPx(lineCount: number): number {
@@ -1300,6 +1401,21 @@ function pointInRect(x: number, y: number, rect: {x: number; y: number; w: numbe
 
 function isSecondaryPointer(event: MouseEvent): boolean {
   return event.button === 2 || (event.ctrlKey && event.button === 0)
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(1, value))
+}
+
+function easeOutCubic(value: number): number {
+  const t = clamp01(value)
+  return 1 - Math.pow(1 - t, 3)
+}
+
+function introAnimSeed(lineIndex: number, absCol: number): number {
+  const raw = Math.sin((lineIndex + 1) * 127.1 + (absCol + 1) * 311.7) * 43758.5453
+  return raw - Math.floor(raw)
 }
 
 /**

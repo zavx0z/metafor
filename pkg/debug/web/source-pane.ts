@@ -12,14 +12,16 @@
 
 import {TextMaterial} from "@metafor/engine"
 import {
+  div,
+  divScrollPosition,
+  divScrollTo,
   UiSurface,
   Z,
   palette,
   radii,
+  type DivScrollContext,
 } from "@metafor/elements"
 import {
-  Scrollbar as scrollbar,
-  ScrollListState,
   createEditorTokenMaterials,
   renderEditorTokenizedLine,
   sourcePathFromLocation,
@@ -54,13 +56,11 @@ const CODE_LEFT_PAD_PX = 8
 const LINE_PX = 16
 const CODE_FONT_PX = 12
 const SCROLLBAR_W = 4
-const WHEEL_SPEED = 1.55
-const WHEEL_START_BOOST_PX = 18
+const SOURCE_SCROLL_KEY = "debug:source:list"
 
 
 export class SourcePane extends UiSurface {
   #current: Source | null = null
-  readonly #list: ScrollListState
   #runtimeState: SourceRuntimeState = "idle"
 
   readonly #locationMaterial = new TextMaterial({color: palette.muted})
@@ -73,7 +73,6 @@ export class SourcePane extends UiSurface {
   constructor() {
     super({bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
     this.node.name = "SourcePane"
-    this.#list = new ScrollListState({onChange: () => this.requestRender()})
     this.#tokenMaterials = createEditorTokenMaterials()
   }
 
@@ -88,7 +87,7 @@ export class SourcePane extends UiSurface {
 
     if (normalized.currentLine > 0 && (lineChanged || fileChanged || prev === null)) {
       const visible = this.#visibleLineCount()
-      this.#list.jumpTo(Math.max(0, normalized.currentLine - 1 - Math.floor(visible / 2)))
+      divScrollTo(this, SOURCE_SCROLL_KEY, {top: Math.max(0, normalized.currentLine - 1 - Math.floor(visible / 2)) * LINE_PX})
     }
     this.requestRender()
   }
@@ -99,32 +98,24 @@ export class SourcePane extends UiSurface {
     this.requestRender()
   }
 
-  onWheel(event: WheelEvent): void {
-    if (this.#current === null) return
-    const visible = this.#visibleLineCount()
-    this.#list.applyWheel(event, LINE_PX, this.#current.lines.length, visible, {
-      speed: WHEEL_SPEED,
-      startBoostPx: WHEEL_START_BOOST_PX,
-    })
-  }
-
   onKey(event: KeyboardEvent): void {
     if (this.#current === null) return
     const visible = this.#visibleLineCount()
     const total = this.#current.lines.length
-    const max = Math.max(0, total - visible)
-    const target = (delta: number): number => Math.max(0, Math.min(max, this.#list.scroll + delta))
+    const max = Math.max(0, total * LINE_PX - this.#contentH())
+    const scrollTop = divScrollPosition(this, SOURCE_SCROLL_KEY).top
+    const target = (deltaRows: number): number => Math.max(0, Math.min(max, scrollTop + deltaRows * LINE_PX))
     let handled = true
     switch (event.key) {
-      case "ArrowDown": this.#list.scrollTo(target(1)); break
-      case "ArrowUp": this.#list.scrollTo(target(-1)); break
-      case "PageDown": this.#list.scrollTo(target(visible)); break
-      case "PageUp": this.#list.scrollTo(target(-visible)); break
-      case "Home": this.#list.scrollTo(0); break
-      case "End": this.#list.scrollTo(max); break
+      case "ArrowDown": divScrollTo(this, SOURCE_SCROLL_KEY, {top: target(1)}); break
+      case "ArrowUp": divScrollTo(this, SOURCE_SCROLL_KEY, {top: target(-1)}); break
+      case "PageDown": divScrollTo(this, SOURCE_SCROLL_KEY, {top: target(visible)}); break
+      case "PageUp": divScrollTo(this, SOURCE_SCROLL_KEY, {top: target(-visible)}); break
+      case "Home": divScrollTo(this, SOURCE_SCROLL_KEY, {top: 0}); break
+      case "End": divScrollTo(this, SOURCE_SCROLL_KEY, {top: max}); break
       case "g":
         if (this.#current.currentLine > 0) {
-          this.#list.scrollTo(Math.max(0, Math.min(max, this.#current.currentLine - 1 - Math.floor(visible / 2))))
+          divScrollTo(this, SOURCE_SCROLL_KEY, {top: Math.max(0, Math.min(max, (this.#current.currentLine - 1 - Math.floor(visible / 2)) * LINE_PX))})
         }
         break
       default: handled = false
@@ -153,16 +144,33 @@ export class SourcePane extends UiSurface {
 
     const lines = this.#current.lines
     const total = lines.length
-    const currentLine = this.#current.currentLine
-    const visible = this.#visibleLineCount()
-    this.#list.clamp(total, visible)
-    const scroll = this.#list.scroll
+    div(this, PAD_LEFT_PX, PAD_TOP_PX, Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX), this.#contentH(), {
+      key: SOURCE_SCROLL_KEY,
+      scrollContentHeight: Math.max(this.#contentH(), total * LINE_PX),
+      style: {
+        background: null,
+        borderColor: null,
+        borderRadius: 0,
+        padding: 0,
+        overflowY: "auto",
+        scrollbarWidth: SCROLLBAR_W,
+      },
+      children: (ctx) => this.#renderSourceViewport(ctx, this.#current!),
+    })
+  }
+
+  #renderSourceViewport(ctx: DivScrollContext, source: Source): void {
+    const lines = source.lines
+    const total = lines.length
+    const currentLine = source.currentLine
+    const visible = Math.max(1, Math.floor(ctx.viewportHeight / LINE_PX))
+    const scroll = ctx.scrollTop / LINE_PX
     const startIdx = Math.floor(scroll)
-    const subPx = (scroll - startIdx) * LINE_PX
+    const subPx = ctx.scrollTop - startIdx * LINE_PX
 
     const gutterPx = this.#gutterWidthPx(total)
-    const contentW = Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX - SCROLLBAR_W - 4)
-    const contentH = Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
+    const contentW = ctx.viewportWidth
+    const contentH = ctx.viewportHeight
     const codeMaxPx = Math.max(1, contentW - gutterPx - CODE_LEFT_PAD_PX - 8)
 
     // Gutter rule.
@@ -177,8 +185,6 @@ export class SourcePane extends UiSurface {
 
     // Clip всю code-area (highlight + строки): text-clip → шейдер,
     // rect-clip → JS в UiSurface.drawRect.
-    this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, contentW, contentH)
-
     // Highlight под текущей строкой (если она в visible-окне).
     const currentRowIdx = currentLine - 1 - startIdx
     if (currentLine > 0 && currentRowIdx >= -1 && currentRowIdx <= visible) {
@@ -231,7 +237,7 @@ export class SourcePane extends UiSurface {
       const lineText = clipSourceLine(lines[lineIndex] ?? "", codeMaxPx, CODE_FONT_PX)
       if (lineText.trim().length > 0) {
         const codeStartX = PAD_LEFT_PX + gutterPx + CODE_LEFT_PAD_PX
-        const lineTokens = this.#current.tokens?.[lineIndex]
+        const lineTokens = source.tokens?.[lineIndex]
         if (lineTokens !== undefined && lineTokens.length > 0) {
           this.#renderTokenizedLine(lineText, lineTokens, codeStartX, rowY, codeMaxPx)
         } else {
@@ -244,16 +250,6 @@ export class SourcePane extends UiSurface {
       }
     }
 
-    this.popClip()
-
-    if (total > visible) {
-      scrollbar(this, this.rectW - PAD_RIGHT_PX - SCROLLBAR_W, PAD_TOP_PX, contentH, {
-        offset: scroll,
-        visible,
-        total,
-        trackWidth: SCROLLBAR_W,
-      })
-    }
   }
 
   #renderTokenizedLine(text: string, tokens: SyntaxToken[], startX: number, y: number, maxPx: number): void {
@@ -279,8 +275,11 @@ export class SourcePane extends UiSurface {
   }
 
   #visibleLineCount(): number {
-    const contentH = Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX)
-    return Math.max(1, Math.floor(contentH / LINE_PX))
+    return Math.max(1, Math.floor(this.#contentH() / LINE_PX))
+  }
+
+  #contentH(): number {
+    return Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX - SCROLLBAR_W - 10)
   }
 
   #gutterWidthPx(lineCount: number): number {
