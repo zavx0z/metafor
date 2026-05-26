@@ -56,6 +56,8 @@ const MOTION_STOP_INTENSITY = 0.01
 const FLIGHT_LINE_DURATION_MS = 260
 const FLIGHT_BUTTON_DURATION_MS = 260
 const FLIGHT_BUTTON_HIT_PROGRESS = 0.92
+const FLIGHT_CONTROL_TRANSFER_DEBOUNCE_MS = 650
+const RETURN_DOCK_TRANSFER_DEBOUNCE_MS = 520
 const FLIGHT_BUTTON_KEY = "display-flight-button"
 const FLIGHT_BUTTON_MIN_SIZE_PX = 34
 const FLIGHT_BUTTON_MAX_SIZE_PX = 48
@@ -157,11 +159,13 @@ export class DisplayHoverOutlinePane extends UiSurface {
   #magnetPhase = 0
   #returnDockPinned = false
   #returnDockExpanded = false
+  #returnDockGraceUntilMs = 0
   #cornerFlightVisible = false
   #lastVisualQuad: Quad | null = null
   #lastDisplaySizePx = 0
   #lastLineProgress = 0
   #lastButtonProgress = 0
+  #controlTransferGraceUntilMs = 0
   #leaveAnimation: LeaveAnimation | null = null
 
   constructor() {
@@ -187,7 +191,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
   override onPointerLeave(): void {
     super.onPointerLeave()
     if (this.#returnDockPinned || !this.#returnDockExpanded) return
-    this.#returnDockExpanded = false
+    this.#returnDockGraceUntilMs = performance.now() + RETURN_DOCK_TRANSFER_DEBOUNCE_MS
     this.requestRender()
   }
 
@@ -199,6 +203,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     } else {
       this.#returnDockPinned = false
       this.#returnDockExpanded = false
+      this.#returnDockGraceUntilMs = 0
     }
 
     const outline = this.canvas?.displayHoverOutline()
@@ -207,7 +212,20 @@ export class DisplayHoverOutlinePane extends UiSurface {
       if (mode !== "near" && this.#flightControlHeld() && this.#lastVisualQuad !== null) {
         this.#leaveAnimation = null
         this.#cornerFlightVisible = true
-        this.#drawLockedReticle(this.#lastVisualQuad, this.#lastDisplaySizePx, 1)
+        this.#controlTransferGraceUntilMs = now + FLIGHT_CONTROL_TRANSFER_DEBOUNCE_MS
+        this.#drawFlightControl(this.#lastVisualQuad, 1, 1)
+        this.requestRender()
+        return
+      }
+      if (
+        mode !== "near" &&
+        this.#lastVisualQuad !== null &&
+        this.#lastDisplaySizePx >= 36 &&
+        this.#lastButtonProgress >= FLIGHT_BUTTON_HIT_PROGRESS &&
+        now < this.#controlTransferGraceUntilMs
+      ) {
+        this.#leaveAnimation = null
+        this.#cornerFlightVisible = true
         this.#drawFlightControl(this.#lastVisualQuad, 1, 1)
         this.requestRender()
         return
@@ -270,6 +288,9 @@ export class DisplayHoverOutlinePane extends UiSurface {
     this.#lastDisplaySizePx = displaySizePx
     this.#lastLineProgress = lineVisualProgress
     this.#lastButtonProgress = buttonVisualProgress
+    if (buttonVisualProgress >= FLIGHT_BUTTON_HIT_PROGRESS) {
+      this.#controlTransferGraceUntilMs = now + FLIGHT_CONTROL_TRANSFER_DEBOUNCE_MS
+    }
 
     if (progress < 0.98) this.#drawApproachGuides(start, current)
     this.#drawLockedReticle(current, displaySizePx, settle)
@@ -347,6 +368,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     this.#lastDisplaySizePx = 0
     this.#lastLineProgress = 0
     this.#lastButtonProgress = 0
+    this.#controlTransferGraceUntilMs = 0
     this.#leaveAnimation = null
   }
 
@@ -528,8 +550,12 @@ export class DisplayHoverOutlinePane extends UiSurface {
     if (dock === null) return
     const islandHit = this.hitState(dock.island.x, dock.island.y, dock.island.w, dock.island.h, RETURN_DOCK_KEY)
     const buttonHit = this.hitState(dock.button.x, dock.button.y, dock.button.w, dock.button.h, RETURN_BUTTON_KEY)
-    const expanded = this.#returnDockPinned || islandHit.hovered || islandHit.pressed || buttonHit.hovered || buttonHit.pressed
+    const now = performance.now()
+    const dockActive = islandHit.hovered || islandHit.pressed || buttonHit.hovered || buttonHit.pressed
+    if (dockActive || this.#returnDockPinned) this.#returnDockGraceUntilMs = now + RETURN_DOCK_TRANSFER_DEBOUNCE_MS
+    const expanded = this.#returnDockPinned || dockActive || now < this.#returnDockGraceUntilMs
     this.#returnDockExpanded = expanded
+    if (expanded && !this.#returnDockPinned && !dockActive) this.requestRender()
 
     this.hit(dock.island.x, dock.island.y, dock.island.w, dock.island.h, () => {
       this.#returnDockPinned = !this.#returnDockPinned
