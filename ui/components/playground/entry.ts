@@ -6,10 +6,12 @@ import {
   type ButtonProps,
   type ButtonSize,
   type ButtonVariant,
+  Divider,
   EditorPane,
   listLanguageHighlighters,
   Pane,
   TextField,
+  Typography,
 } from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
@@ -40,8 +42,22 @@ type EditorRoute =
   | "editor/scroll"
   | `editor/scroll/${EditorScrollRoute}`
 type TextFieldRoute = "text-field"
-type ComponentsRoute = PaneRoute | ButtonRoute | TextFieldRoute | EditorRoute
-type ComponentName = "Pane" | "Button" | "TextField" | "Editor"
+type TypographyRoute = "typography"
+type DividerRouteOrientation = "horizontal" | "vertical"
+type DividerRouteVariant = "fullWidth" | "inset" | "middle"
+type DividerRouteTextAlign = "left" | "center" | "right"
+type DividerRoute =
+  | "divider/basic"
+  | "divider/orientation"
+  | `divider/orientation/${DividerRouteOrientation}`
+  | "divider/variants"
+  | `divider/variants/${DividerRouteVariant}`
+  | "divider/text"
+  | `divider/text/${DividerRouteTextAlign}`
+  | "divider/color"
+  | `divider/color/${ButtonColor}`
+type ComponentsRoute = PaneRoute | ButtonRoute | TextFieldRoute | TypographyRoute | DividerRoute | EditorRoute
+type ComponentName = "Pane" | "Button" | "TextField" | "Typography" | "Divider" | "Editor"
 type ButtonRoute =
   | "button/basic"
   | `button/basic/${ButtonRouteVariant}`
@@ -55,6 +71,7 @@ type ButtonRoute =
   | `button/icon/${ButtonRouteIcon}`
 type ButtonSection = "Basic" | "Icon" | "Icon+Label" | "Sizes" | "Color"
 type PaneSection = "Variants" | "Scroll"
+type DividerSection = "Basic" | "Orientation" | "Variants" | "Text" | "Color"
 
 const BASIC_BUTTON_TYPES: readonly BasicButtonType[] = ["Text button", "Contained button", "Outlined button"]
 const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Icon", "Icon+Label", "Sizes", "Color"]
@@ -112,16 +129,40 @@ const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
   plaintext: "Plaintext",
 }
 const EDITOR_SECTIONS: readonly EditorSection[] = ["Editing", "Highlighting", "Selection", "Scroll"]
+const DIVIDER_SECTIONS: readonly DividerSection[] = ["Basic", "Orientation", "Variants", "Text", "Color"]
+const DIVIDER_ORIENTATIONS: readonly DividerRouteOrientation[] = ["horizontal", "vertical"]
+const DIVIDER_VARIANTS: readonly DividerRouteVariant[] = ["fullWidth", "inset", "middle"]
+const DIVIDER_TEXT_ALIGNS: readonly DividerRouteTextAlign[] = ["left", "center", "right"]
+const DIVIDER_ROUTES: readonly DividerRoute[] = [
+  "divider/basic",
+  "divider/orientation",
+  "divider/orientation/horizontal",
+  "divider/orientation/vertical",
+  "divider/variants",
+  "divider/variants/fullWidth",
+  "divider/variants/inset",
+  "divider/variants/middle",
+  "divider/text",
+  "divider/text/left",
+  "divider/text/center",
+  "divider/text/right",
+  "divider/color",
+  "divider/color/primary",
+  "divider/color/success",
+  "divider/color/warning",
+  "divider/color/error",
+  "divider/color/neutral",
+]
 const PANE_VARIANTS: readonly PaneVariant[] = ["glass", "outlined", "filled"]
 const PANE_SCROLL_AXES: readonly PaneScrollAxis[] = ["vertical", "horizontal"]
-const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...PANE_ROUTES, ...BUTTON_ROUTES, "text-field", ...EDITOR_ROUTES]
+const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...PANE_ROUTES, ...BUTTON_ROUTES, "text-field", "typography", ...DIVIDER_ROUTES, ...EDITOR_ROUTES]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
 const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
 const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
 const BUTTON_STATES: readonly ButtonState[] = ["enabled", "disabled"]
 const BUTTON_WIDTHS: readonly ButtonWidth[] = ["compact", "regular", "wide"]
 const BUTTON_HEIGHTS: readonly ButtonHeight[] = ["compact", "regular", "large"]
-const COMPONENT_NAV = ["Pane", "Button", "TextField", "Editor", "Badge", "Divider", "Noti Stack"] as const
+const COMPONENT_NAV = ["Pane", "Button", "TextField", "Editor", "Typography", "Badge", "Divider", "Noti Stack"] as const
 const BUTTON_RADII = [14, 24, 34, 999] as const
 const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.12
@@ -266,7 +307,7 @@ class ButtonComponentsScreen extends UiSurface {
           const rowY = top + i * (rowH + gap) - ctx.scrollTop
           if (rowY + rowH < top || rowY > top + ctx.viewportHeight) continue
           const active = label === this.#currentComponent()
-          const enabled = label === "Pane" || label === "Button" || label === "TextField" || label === "Editor"
+          const enabled = label === "Pane" || label === "Button" || label === "TextField" || label === "Typography" || label === "Divider" || label === "Editor"
           Button(this, x + pad, rowY, w - pad * 2 - (ctx.contentHeight > ctx.viewportHeight ? 14 : 0), rowH, {
             children: label,
             variant: active ? "contained" : "glass",
@@ -280,6 +321,8 @@ class ButtonComponentsScreen extends UiSurface {
               else if (label === "Button") this.#router.go("button/basic")
               else if (label === "TextField") this.#router.go("text-field")
               else if (label === "Editor") this.#router.go("editor/editing")
+              else if (label === "Typography") this.#router.go("typography")
+              else if (label === "Divider") this.#router.go("divider/basic")
               this.#record(`component:${label.toLowerCase()}`)
             },
           })
@@ -312,6 +355,15 @@ class ButtonComponentsScreen extends UiSurface {
     }
     if (this.#currentComponent() === "TextField") {
       h3(this, x, y + 28, w, 24, {children: "TextField", style: {fontSize: 15, textAlign: "center"}})
+      return
+    }
+    if (this.#currentComponent() === "Typography") {
+      h3(this, x, y + 28, w, 24, {children: "Typography", style: {fontSize: 15, textAlign: "center"}})
+      return
+    }
+    if (this.#currentComponent() === "Divider") {
+      h3(this, x, y + 28, w, 24, {children: "Divider", style: {fontSize: 15, textAlign: "center"}})
+      this.#sectionList(x, y + 76, w, h - 94, DIVIDER_SECTIONS, (section) => this.#dividerSection() === section, (section) => this.#goDividerSection(section))
       return
     }
     h3(this, x, y + 28, w, 24, {children: "Button", style: {fontSize: 15, textAlign: "center"}})
@@ -385,6 +437,28 @@ class ButtonComponentsScreen extends UiSurface {
       }
     } else if (this.#currentComponent() === "TextField") {
       this.#textFieldPreview(x, y, w, h)
+    } else if (this.#currentComponent() === "Typography") {
+      this.#typographyPreview(x, y, w, h)
+    } else if (this.#currentComponent() === "Divider") {
+      if (this.#dividerSection() === "Orientation") {
+        const orientation = routeDividerOrientationFromRoute(this.#route)
+        if (orientation === null) this.#dividerOrientationOverview(x, y, w, h)
+        else this.#dividerOrientationDetail(x, y, w, h, orientation)
+      } else if (this.#dividerSection() === "Variants") {
+        const variant = routeDividerVariantFromRoute(this.#route)
+        if (variant === null) this.#dividerVariantOverview(x, y, w, h)
+        else this.#dividerVariantDetail(x, y, w, h, variant)
+      } else if (this.#dividerSection() === "Text") {
+        const align = routeDividerTextAlignFromRoute(this.#route)
+        if (align === null) this.#dividerTextOverview(x, y, w, h)
+        else this.#dividerTextDetail(x, y, w, h, align)
+      } else if (this.#dividerSection() === "Color") {
+        const color = routeDividerColorFromRoute(this.#route)
+        if (color === null) this.#dividerColorOverview(x, y, w, h)
+        else this.#dividerColorDetail(x, y, w, h, color)
+      } else {
+        this.#dividerBasicPreview(x, y, w, h)
+      }
     } else if (this.#routeSection() === "Icon") {
       const icon = this.#routeIcon()
       if (icon === "svg") this.#iconSvgDetail(x, y, w, h)
@@ -607,6 +681,332 @@ class ButtonComponentsScreen extends UiSurface {
     const codeW = Math.min(560, w - pad * 2)
     const codeX = x + (w - codeW) / 2
     codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #typographyPreview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const codeLines = [
+      `Typography(host, x, y, w, 28, { variant: "title", children: "Title" })`,
+      `Typography(host, x, y, w, 20, { variant: "body", color: "muted", children: "Body text" })`,
+    ] as const
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH: 210,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, "Typography", [
+      "Text component for consistent labels, captions, headings, and muted copy.",
+      "It wraps the base span element and keeps font, color, and fitting in component API.",
+    ])
+
+    const demoW = Math.min(520, w - pad * 2)
+    const demoX = x + (w - demoW) / 2
+    const demoY = rows.demoY + 18
+    Pane(this, demoX, demoY, demoW, 164, {
+      variant: "outlined",
+      sx: {
+        background: "rgba(4, 8, 14, 0.32)",
+        borderColor: "rgba(111, 211, 255, 0.18)",
+        borderRadius: 24,
+        padding: 0,
+      },
+    })
+    Typography(this, demoX + 28, demoY + 24, demoW - 56, 28, {
+      variant: "title",
+      children: "Runtime typography",
+    })
+    Typography(this, demoX + 28, demoY + 63, demoW - 56, 22, {
+      variant: "subtitle",
+      color: "orange",
+      children: "Subtitle / section label",
+    })
+    Typography(this, demoX + 28, demoY + 94, demoW - 56, 20, {
+      variant: "body",
+      children: "Body copy stays aligned with the shared design-system text scale.",
+    })
+    Typography(this, demoX + 28, demoY + 124, demoW - 56, 18, {
+      variant: "caption",
+      children: "Caption text uses muted color by default.",
+    })
+
+    const codeW = Math.min(620, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #dividerBasicPreview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const codeLines = [
+      `Divider(host, x, y, width)`,
+    ] as const
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH: 210,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, "Basic divider", [
+      "Use Divider to separate dense groups without adding another surface.",
+      "The default is a neutral horizontal hairline centered on the given y coordinate.",
+    ])
+
+    const demoW = Math.min(520, w - pad * 2)
+    const demoX = x + (w - demoW) / 2
+    const demoY = rows.demoY + 18
+    Pane(this, demoX, demoY, demoW, 164, {
+      variant: "outlined",
+      sx: {
+        background: "rgba(4, 8, 14, 0.32)",
+        borderColor: "rgba(111, 211, 255, 0.18)",
+        borderRadius: 24,
+        padding: 0,
+      },
+    })
+    Typography(this, demoX + 28, demoY + 24, demoW - 56, 20, {
+      variant: "subtitle",
+      children: "Debug session",
+    })
+    Divider(this, demoX + 28, demoY + 58, demoW - 56)
+    Typography(this, demoX + 28, demoY + 80, demoW - 56, 18, {
+      variant: "body",
+      children: "Frames, scopes, console, and toolbar groups stay visually separated.",
+    })
+    Divider(this, demoX + 28, demoY + 112, demoW - 56, {light: true})
+    Typography(this, demoX + 28, demoY + 132, demoW - 56, 18, {
+      variant: "caption",
+      children: "Light divider for secondary boundaries",
+    })
+
+    const codeW = Math.min(620, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #dividerOrientationOverview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    renderOverviewLayout(this, x, y, w, h, pad, "Orientation", [
+      "Horizontal dividers split vertical content.",
+      "Vertical dividers split toolbars, button groups, and side-by-side regions.",
+    ], (_slotX, slotY, _slotW, slotH) => {
+      const cardW = Math.min(260, Math.max(190, (w - pad * 2 - 28) / 2))
+      const cardH = 170
+      const gap = Math.max(28, w - pad * 2 - cardW * 2)
+      const startX = x + (w - cardW * 2 - gap) / 2
+      const cardY = slotY + (slotH - cardH) / 2
+      this.#dividerOrientationCard(startX, cardY, cardW, cardH, "horizontal")
+      this.#dividerOrientationCard(startX + cardW + gap, cardY, cardW, cardH, "vertical")
+    })
+  }
+
+  #dividerOrientationDetail(x: number, y: number, w: number, h: number, orientation: DividerRouteOrientation): void {
+    const pad = 42
+    const codeLines = orientation === "vertical"
+      ? [
+        `Divider(host, x, y, height, {`,
+        `  orientation: "vertical",`,
+        `  flexItem: true })`,
+      ] as const
+      : [
+        `Divider(host, x, y, width, {`,
+        `  orientation: "horizontal" })`,
+      ] as const
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH: 196,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, `${dividerOrientationTitle(orientation)} divider`, dividerOrientationDescriptionLines(orientation))
+
+    const cardW = Math.min(420, w - pad * 2)
+    const cardH = 172
+    const cardX = x + (w - cardW) / 2
+    const cardY = rows.demoY + (196 - cardH) / 2
+    this.#dividerOrientationCard(cardX, cardY, cardW, cardH, orientation)
+
+    const codeW = Math.min(560, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #dividerVariantOverview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    renderOverviewLayout(this, x, y, w, h, pad, "Variants", [
+      "Use variant to inset the visible line while keeping the same layout slot.",
+    ], (_slotX, slotY, _slotW, slotH) => {
+      const cardW = Math.min(520, w - pad * 2)
+      const cardH = 190
+      const cardX = x + (w - cardW) / 2
+      const cardY = slotY + (slotH - cardH) / 2
+      this.#dividerVariantCard(cardX, cardY, cardW, cardH, null)
+    })
+  }
+
+  #dividerVariantDetail(x: number, y: number, w: number, h: number, variant: DividerRouteVariant): void {
+    const pad = 42
+    const codeLines = [
+      `Divider(host, x, y, width, { variant: "${variant}" })`,
+    ] as const
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH: 196,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, `${dividerVariantTitle(variant)} variant`, dividerVariantDescriptionLines(variant))
+
+    const cardW = Math.min(520, w - pad * 2)
+    const cardH = 170
+    const cardX = x + (w - cardW) / 2
+    const cardY = rows.demoY + (196 - cardH) / 2
+    this.#dividerVariantCard(cardX, cardY, cardW, cardH, variant)
+
+    const codeW = Math.min(560, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #dividerTextOverview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    renderOverviewLayout(this, x, y, w, h, pad, "Text divider", [
+      "A divider can carry short children text when a group label belongs on the separating line.",
+    ], (_slotX, slotY, _slotW, slotH) => {
+      const cardW = Math.min(520, w - pad * 2)
+      const cardH = 190
+      const cardX = x + (w - cardW) / 2
+      const cardY = slotY + (slotH - cardH) / 2
+      this.#dividerTextCard(cardX, cardY, cardW, cardH, null)
+    })
+  }
+
+  #dividerTextDetail(x: number, y: number, w: number, h: number, align: DividerRouteTextAlign): void {
+    const pad = 42
+    const codeLines = [
+      `Divider(host, x, y, width, {`,
+      `  children: "Group",`,
+      `  textAlign: "${align}" })`,
+    ] as const
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH: 196,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, `${dividerTextAlignTitle(align)} text`, dividerTextDescriptionLines(align))
+
+    const cardW = Math.min(520, w - pad * 2)
+    const cardH = 170
+    const cardX = x + (w - cardW) / 2
+    const cardY = rows.demoY + (196 - cardH) / 2
+    this.#dividerTextCard(cardX, cardY, cardW, cardH, align)
+
+    const codeW = Math.min(560, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #dividerColorOverview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    renderOverviewLayout(this, x, y, w, h, pad, "Color", [
+      "Use color for semantic separators that must match a surrounding status or control group.",
+    ], (_slotX, slotY, _slotW, slotH) => {
+      const cardW = Math.min(520, w - pad * 2)
+      const cardH = 210
+      const cardX = x + (w - cardW) / 2
+      const cardY = slotY + (slotH - cardH) / 2
+      this.#dividerColorCard(cardX, cardY, cardW, cardH, null)
+    })
+  }
+
+  #dividerColorDetail(x: number, y: number, w: number, h: number, color: ButtonColor): void {
+    const pad = 42
+    const codeLines = [
+      `Divider(host, x, y, width, { color: "${color}" })`,
+    ] as const
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH: 196,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, `${colorTitle(color)} divider`, dividerColorDescriptionLines(color))
+
+    const cardW = Math.min(520, w - pad * 2)
+    const cardH = 170
+    const cardX = x + (w - cardW) / 2
+    const cardY = rows.demoY + (196 - cardH) / 2
+    this.#dividerColorCard(cardX, cardY, cardW, cardH, color)
+
+    const codeW = Math.min(560, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #dividerDemoCard(x: number, y: number, w: number, h: number): void {
+    Pane(this, x, y, w, h, {
+      variant: "outlined",
+      sx: {
+        background: "rgba(4, 8, 14, 0.32)",
+        borderColor: "rgba(111, 211, 255, 0.18)",
+        borderRadius: 24,
+        padding: 0,
+      },
+    })
+  }
+
+  #dividerOrientationCard(x: number, y: number, w: number, h: number, orientation: DividerRouteOrientation): void {
+    this.#dividerDemoCard(x, y, w, h)
+    Typography(this, x + 24, y + 20, w - 48, 20, {
+      variant: "subtitle",
+      children: dividerOrientationTitle(orientation),
+    })
+    if (orientation === "vertical") {
+      const leftW = Math.max(90, (w - 72) / 2)
+      Typography(this, x + 24, y + 76, leftW, 18, {variant: "caption", children: "Debug"})
+      Divider(this, x + w / 2, y + 54, h - 78, {orientation: "vertical", color: "primary", flexItem: true})
+      Typography(this, x + w / 2 + 28, y + 76, leftW, 18, {variant: "caption", children: "Tools"})
+      return
+    }
+    Typography(this, x + 24, y + 64, w - 48, 18, {variant: "caption", children: "Section header"})
+    Divider(this, x + 24, y + 100, w - 48, {color: "primary"})
+    Typography(this, x + 24, y + 118, w - 48, 18, {variant: "caption", children: "Separated content"})
+  }
+
+  #dividerVariantCard(x: number, y: number, w: number, h: number, activeVariant: DividerRouteVariant | null): void {
+    this.#dividerDemoCard(x, y, w, h)
+    const rows: readonly DividerRouteVariant[] = activeVariant === null ? DIVIDER_VARIANTS : [activeVariant]
+    const rowGap = activeVariant === null ? 34 : 0
+    const contentH = rows.length * 32 + Math.max(0, rows.length - 1) * rowGap
+    let rowY = y + (h - contentH) / 2
+    for (const variant of rows) {
+      Typography(this, x + 24, rowY - 2, 88, 18, {variant: "caption", children: dividerVariantTitle(variant)})
+      Divider(this, x + 122, rowY + 9, w - 146, {variant, color: activeVariant === variant ? "primary" : "neutral"})
+      rowY += 32 + rowGap
+    }
+  }
+
+  #dividerTextCard(x: number, y: number, w: number, h: number, activeAlign: DividerRouteTextAlign | null): void {
+    this.#dividerDemoCard(x, y, w, h)
+    const rows: readonly DividerRouteTextAlign[] = activeAlign === null ? DIVIDER_TEXT_ALIGNS : [activeAlign]
+    const rowGap = activeAlign === null ? 34 : 0
+    const contentH = rows.length * 32 + Math.max(0, rows.length - 1) * rowGap
+    let rowY = y + (h - contentH) / 2
+    for (const align of rows) {
+      Divider(this, x + 32, rowY + 10, w - 64, {
+        children: dividerTextAlignTitle(align),
+        textAlign: align,
+        color: activeAlign === align ? "primary" : "neutral",
+      })
+      rowY += 32 + rowGap
+    }
+  }
+
+  #dividerColorCard(x: number, y: number, w: number, h: number, activeColor: ButtonColor | null): void {
+    this.#dividerDemoCard(x, y, w, h)
+    const colors: readonly ButtonColor[] = activeColor === null ? BUTTON_DOC_COLORS : [activeColor]
+    const rowGap = activeColor === null ? 20 : 0
+    const contentH = colors.length * 26 + Math.max(0, colors.length - 1) * rowGap
+    let rowY = y + (h - contentH) / 2
+    for (const color of colors) {
+      Typography(this, x + 28, rowY - 2, 94, 18, {variant: "caption", color: colorTextStyle(color), children: colorTitle(color)})
+      Divider(this, x + 126, rowY + 9, w - 154, {color, thickness: activeColor === color ? 2 : 1})
+      rowY += 26 + rowGap
+    }
   }
 
   #basicOverview(x: number, y: number, w: number, h: number): void {
@@ -1221,7 +1621,11 @@ class ButtonComponentsScreen extends UiSurface {
       }
       return
     }
-    if (this.#currentComponent() === "TextField") return
+    if (this.#currentComponent() === "Divider") {
+      this.#dividerDock(x, y, w, h)
+      return
+    }
+    if (this.#currentComponent() === "TextField" || this.#currentComponent() === "Typography" || this.#currentComponent() === "Divider") return
     if (this.#routeSection() === "Icon") {
       this.#iconDock(x, y, w, h)
       return
@@ -1342,6 +1746,67 @@ class ButtonComponentsScreen extends UiSurface {
     }
   }
 
+  #dividerDock(x: number, y: number, w: number, h: number): void {
+    const section = this.#dividerSection()
+    if (section === "Basic") return
+    const itemGap = 12
+    const buttonH = 42
+    const items = this.#dividerDockItems(section)
+    const itemWidths = items.map((item) => Math.max(104, autoButtonWidth(this, item.label, 10, 24)))
+    const rowW = itemWidths.reduce((sum, width) => sum + width, 0) + itemGap * Math.max(0, itemWidths.length - 1)
+    let itemX = x + (w - rowW) / 2
+    for (const [i, item] of items.entries()) {
+      const itemW = itemWidths[i]!
+      Button(this, itemX, y + (h - buttonH) / 2, itemW, buttonH, {
+        children: item.label,
+        variant: item.active ? "contained" : "glass",
+        color: item.color ?? "neutral",
+        ...activeNavStyle(item.active),
+        radius: this.#radius,
+        fontPx: 10,
+        onClick: item.onClick,
+      })
+      itemX += itemW + itemGap
+    }
+  }
+
+  #dividerDockItems(section: DividerSection): readonly {label: string; active: boolean; color?: ButtonColor; onClick: () => void}[] {
+    if (section === "Orientation") {
+      const current = routeDividerOrientationFromRoute(this.#route)
+      return DIVIDER_ORIENTATIONS.map((orientation) => ({
+        label: dividerOrientationTitle(orientation),
+        active: current === orientation,
+        onClick: () => this.#goDividerOrientation(orientation),
+      }))
+    }
+    if (section === "Variants") {
+      const current = routeDividerVariantFromRoute(this.#route)
+      return DIVIDER_VARIANTS.map((variant) => ({
+        label: dividerVariantTitle(variant),
+        active: current === variant,
+        onClick: () => this.#goDividerVariant(variant),
+      }))
+    }
+    if (section === "Text") {
+      const current = routeDividerTextAlignFromRoute(this.#route)
+      return DIVIDER_TEXT_ALIGNS.map((align) => ({
+        label: dividerTextAlignTitle(align),
+        active: current === align,
+        onClick: () => this.#goDividerTextAlign(align),
+      }))
+    }
+    if (section === "Color") {
+      const current = routeDividerColorFromRoute(this.#route)
+      return BUTTON_DOC_COLORS.map((color) => ({
+        label: color,
+        active: current === color,
+        color,
+        onClick: () => this.#goDividerColor(color),
+      }))
+    }
+    return []
+  }
+
   #sizeDock(x: number, y: number, w: number, h: number): void {
     const itemGap = 12
     const itemW = Math.max(94, Math.min(148, (w - 64 - itemGap * (BUTTON_SIZES.length - 1)) / BUTTON_SIZES.length))
@@ -1436,6 +1901,29 @@ class ButtonComponentsScreen extends UiSurface {
         `  placeholder: "Type query",`,
         `  submitOnEnter: true })`,
       ])
+      return
+    }
+    if (this.#currentComponent() === "Typography") {
+      const pad = 24
+      h3(this, x + pad, y + 30, w - pad * 2, 24, {children: "Typography", style: {fontSize: 15}})
+      p(this, x + pad, y + 70, w - pad * 2, 22, {children: "Component", style: {fontSize: 11, color: "muted"}})
+      codeBlock(this, x + pad, y + 104, w - pad * 2, [
+        `Typography(host, x, y, w, h, {`,
+        `  variant: "body",`,
+        `  children: "Text" })`,
+      ])
+      return
+    }
+    if (this.#currentComponent() === "Divider") {
+      const pad = 24
+      h3(this, x + pad, y + 30, w - pad * 2, 24, {children: "Divider", style: {fontSize: 15}})
+      p(this, x + pad, y + 70, w - pad * 2, 22, {children: "Component", style: {fontSize: 11, color: "muted"}})
+      codeBlock(this, x + pad, y + 104, w - pad * 2, [
+        `Divider(host, x, y, width, {`,
+        `  color: "neutral",`,
+        `  thickness: 1 })`,
+      ])
+      return
     }
   }
 
@@ -1598,6 +2086,8 @@ class ButtonComponentsScreen extends UiSurface {
 
   #currentComponent(): ComponentName {
     if (this.#route === "text-field") return "TextField"
+    if (this.#route === "typography") return "Typography"
+    if (this.#route.startsWith("divider/")) return "Divider"
     if (this.#route.startsWith("editor")) return "Editor"
     return this.#route.startsWith("pane/") ? "Pane" : "Button"
   }
@@ -1615,6 +2105,14 @@ class ButtonComponentsScreen extends UiSurface {
   #paneSection(): PaneSection {
     if (this.#route.startsWith("pane/scroll")) return "Scroll"
     return "Variants"
+  }
+
+  #dividerSection(): DividerSection {
+    if (this.#route.startsWith("divider/orientation")) return "Orientation"
+    if (this.#route.startsWith("divider/variants")) return "Variants"
+    if (this.#route.startsWith("divider/text")) return "Text"
+    if (this.#route.startsWith("divider/color")) return "Color"
+    return "Basic"
   }
 
   #routeSection(): ButtonSection {
@@ -1677,6 +2175,51 @@ class ButtonComponentsScreen extends UiSurface {
   #goPaneScrollAxis(axis: PaneScrollAxis): void {
     this.#router.go(`pane/scroll/${axis}`)
     this.#record(`route:pane:scroll:${axis}`)
+  }
+
+  #goDividerSection(section: DividerSection): void {
+    if (section === "Orientation") {
+      this.#router.go("divider/orientation")
+      this.#record("route:divider:orientation")
+      return
+    }
+    if (section === "Variants") {
+      this.#router.go("divider/variants")
+      this.#record("route:divider:variants")
+      return
+    }
+    if (section === "Text") {
+      this.#router.go("divider/text")
+      this.#record("route:divider:text")
+      return
+    }
+    if (section === "Color") {
+      this.#router.go("divider/color")
+      this.#record("route:divider:color")
+      return
+    }
+    this.#router.go("divider/basic")
+    this.#record("route:divider:basic")
+  }
+
+  #goDividerOrientation(orientation: DividerRouteOrientation): void {
+    this.#router.go(`divider/orientation/${orientation}`)
+    this.#record(`route:divider:orientation:${orientation}`)
+  }
+
+  #goDividerVariant(variant: DividerRouteVariant): void {
+    this.#router.go(`divider/variants/${variant}`)
+    this.#record(`route:divider:variant:${variant}`)
+  }
+
+  #goDividerTextAlign(align: DividerRouteTextAlign): void {
+    this.#router.go(`divider/text/${align}`)
+    this.#record(`route:divider:text:${align}`)
+  }
+
+  #goDividerColor(color: ButtonColor): void {
+    this.#router.go(`divider/color/${color}`)
+    this.#record(`route:divider:color:${color}`)
   }
 
   #goEditorLanguage(language: EditorLanguageRoute): void {
@@ -2070,6 +2613,33 @@ function routePaneScrollAxisFromRoute(route: ComponentsRoute): PaneScrollAxis | 
   return null
 }
 
+function routeDividerOrientationFromRoute(route: ComponentsRoute): DividerRouteOrientation | null {
+  if (route === "divider/orientation/horizontal") return "horizontal"
+  if (route === "divider/orientation/vertical") return "vertical"
+  return null
+}
+
+function routeDividerVariantFromRoute(route: ComponentsRoute): DividerRouteVariant | null {
+  if (route === "divider/variants/fullWidth") return "fullWidth"
+  if (route === "divider/variants/inset") return "inset"
+  if (route === "divider/variants/middle") return "middle"
+  return null
+}
+
+function routeDividerTextAlignFromRoute(route: ComponentsRoute): DividerRouteTextAlign | null {
+  if (route === "divider/text/left") return "left"
+  if (route === "divider/text/center") return "center"
+  if (route === "divider/text/right") return "right"
+  return null
+}
+
+function routeDividerColorFromRoute(route: ComponentsRoute): ButtonColor | null {
+  if (!route.startsWith("divider/color/")) return null
+  const color = route.slice("divider/color/".length)
+  if (!BUTTON_COLORS.includes(color as ButtonColor)) return null
+  return color as ButtonColor
+}
+
 function buttonTypeFromRouteVariant(variant: ButtonRouteVariant): BasicButtonType {
   if (variant === "contained") return "Contained button"
   if (variant === "outlined") return "Outlined button"
@@ -2213,6 +2783,47 @@ function paneScrollDescriptionLines(axis: PaneScrollAxis): readonly string[] {
     "Vertical overflow stays in the element layer.",
     "Pane only supplies the surface style around shared div scroll behavior.",
   ]
+}
+
+function dividerOrientationTitle(orientation: DividerRouteOrientation): string {
+  return orientation === "vertical" ? "Vertical" : "Horizontal"
+}
+
+function dividerOrientationDescriptionLines(orientation: DividerRouteOrientation): readonly string[] {
+  if (orientation === "vertical") return ["Vertical dividers separate adjacent control groups.", "The length is explicit in immediate-mode coordinates."]
+  return ["Horizontal dividers separate stacked content.", "The y coordinate marks the visual center of the line."]
+}
+
+function dividerVariantTitle(variant: DividerRouteVariant): string {
+  if (variant === "inset") return "Inset"
+  if (variant === "middle") return "Middle"
+  return "Full width"
+}
+
+function dividerVariantDescriptionLines(variant: DividerRouteVariant): readonly string[] {
+  if (variant === "inset") return ["Inset starts after the leading content gutter.", "Use it when rows have leading icons or line numbers."]
+  if (variant === "middle") return ["Middle applies symmetrical side insets.", "Use it for separators inside compact cards."]
+  return ["Full width uses the complete provided length.", "Use it for regular panel and header separators."]
+}
+
+function dividerTextAlignTitle(align: DividerRouteTextAlign): string {
+  if (align === "left") return "Left"
+  if (align === "right") return "Right"
+  return "Center"
+}
+
+function dividerTextDescriptionLines(align: DividerRouteTextAlign): readonly string[] {
+  if (align === "left") return ["Left aligned text labels a following group.", "Keep the label short so the line still reads clearly."]
+  if (align === "right") return ["Right aligned text labels trailing metadata.", "Use it sparingly in dense tool surfaces."]
+  return ["Centered text is useful for neutral group breaks.", "The label is rendered by the component, not by the caller."]
+}
+
+function dividerColorDescriptionLines(color: ButtonColor): readonly string[] {
+  if (color === "success") return ["Success separators mark confirmed or live regions.", "Use them only when the color carries state."]
+  if (color === "warning") return ["Warning separators mark paused or risky regions.", "Keep the rest of the surface quiet."]
+  if (color === "error") return ["Error separators mark failed or destructive groups.", "Avoid using error color as decoration."]
+  if (color === "neutral") return ["Neutral is the default divider color.", "It is best for structural separation."]
+  return ["Primary separators draw attention to an active region.", "Use them for selected or focused groups."]
 }
 
 function paneScrollStyle(axis: PaneScrollAxis): StyleProps {

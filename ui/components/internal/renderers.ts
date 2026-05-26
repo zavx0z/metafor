@@ -149,6 +149,8 @@ export function input(pane: UiSurface, x: number, y: number, w: number, h: numbe
 }
 
 export type DividerOpts = {
+  /** Направление линии. По умолчанию horizontal. */
+  orientation?: "horizontal" | "vertical"
   /** Цвет линии. По умолчанию palette.borderDim. */
   color?: Color
   /** Толщина в px. По умолчанию 1. */
@@ -157,14 +159,18 @@ export type DividerOpts = {
   z?: number
 }
 
-/** Горизонтальная разделительная линия. По умолчанию 1px palette.borderDim
- *  на Z.SEPARATOR. Цвет/толщину/z можно переопределить через opts.
- *  rectY — координата центра линии (y нарисуется в y - thickness/2). */
-export function divider(pane: UiSurface, x: number, y: number, w: number, opts: DividerOpts = {}): void {
+/** Разделительная линия. По умолчанию 1px palette.borderDim на Z.SEPARATOR.
+ *  Для horizontal `y` — координата центра линии.
+ *  Для vertical `x` — координата центра линии, а четвертый аргумент — высота. */
+export function divider(pane: UiSurface, x: number, y: number, length: number, opts: DividerOpts = {}): void {
   const t = opts.thickness ?? 1
   const color = opts.color ?? palette.borderDim
   const z = opts.z ?? Z.SEPARATOR
-  pane.drawRect(x, Math.round(y - t / 2), w, t, color, z)
+  if (opts.orientation === "vertical") {
+    pane.drawRect(Math.round(x - t / 2), y, t, length, color, z)
+    return
+  }
+  pane.drawRect(x, Math.round(y - t / 2), length, t, color, z)
 }
 
 /**
