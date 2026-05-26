@@ -49,6 +49,7 @@ export class UIDisplay extends Object3D {
     this.heightMm = params.heightMm
     this.pixelWidth = params.pixelWidth
     this.pixelHeight = params.pixelHeight
+    this.renderLayer = "ui"
 
     // 1. Создаем подложку виртуального дисплея
     const bgGeometry = new PlaneGeometry({

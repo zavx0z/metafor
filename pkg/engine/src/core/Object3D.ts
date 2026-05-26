@@ -3,6 +3,8 @@ import { Raycaster, type Intersection } from "./Raycaster"
 import type { LayoutProps } from '../layout/LayoutTypes';
 import type { ComputedLayout } from '../layout/LayoutTypes';
 
+export type RenderLayer = "world" | "ui"
+
 /**
  * Базовый класс для всех объектов в сцене.
  * Обеспечивает иерархическую структуру (граф сцены).
@@ -19,6 +21,11 @@ export class Object3D {
   public layout?: LayoutProps;
   /** Computed-bounds в logical пикселях для UI/layout-слоев. */
   public computedLayout?: ComputedLayout;
+  /**
+   * Optional render-layer marker inherited by descendants at render time.
+   * UI roots use this to opt their whole subtree into UI depth semantics.
+   */
+  public renderLayer?: RenderLayer
   public quaternion: Quaternion = new Quaternion()
 
   // Внутреннее свойство для хранения вращения в углах Эйлера.

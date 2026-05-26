@@ -14,7 +14,7 @@
  *  • Между renderами #layer пересобирается; геометрии возвращаются
  *    в renderer.invalidateGeometry().
  *
- * Z-СТЕК (тонкие mm-offsets, чтобы depth buffer различал UI-слои):
+ * Z-СТЕК:
  *   bg     -0.2
  *   border -0.1
  *   layer    0.0
@@ -23,8 +23,9 @@
  *   Z.ELEMENT_RULE +0.06
  *   Z.TEXT         +0.08
  *
- * При больших Δz parallax между bg и контентом виден на смещённых от
- * центра канваса surface (1/(camDist - z) сильно меняется).
+ * `node.renderLayer = "ui"` включает UI-depth модель в renderer: элементы
+ * не пишут depth между собой, поэтому порядок рисования держится деревом
+ * surface, а z остаётся только локальным приоритетом внутри небольшого стека.
  *
  * PADDING:
  *   Опция UiSurfaceOpts.padding (число px или {top,right,bottom,left}) даёт
@@ -330,6 +331,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
 
     this.node.name = this.constructor.name
+    this.node.renderLayer = "ui"
 
     if (this.#borderRadiusPx > 0 && (bgColor !== null || borderColor !== null)) {
       this.#roundedChrome = new Mesh(

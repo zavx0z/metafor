@@ -103,7 +103,11 @@ export class Renderer {
   private textCoverPipeline: GPURenderPipeline | null = null
   private imagePipeline: GPURenderPipeline | null = null
   private roundedPipeline: GPURenderPipeline | null = null
+  private uiBasicMeshPipeline: GPURenderPipeline | null = null
+  private uiImagePipeline: GPURenderPipeline | null = null
+  private uiRoundedPipeline: GPURenderPipeline | null = null
   private radialBackdropPipeline: GPURenderPipeline | null = null
+  private uiRadialBackdropPipeline: GPURenderPipeline | null = null
   private imageBindGroupLayout: GPUBindGroupLayout | null = null
   private imageSampler: GPUSampler | null = null
   private imageBindGroupCache: WeakMap<GPUTexture, GPUBindGroup> = new WeakMap()
@@ -305,6 +309,16 @@ export class Renderer {
     const imagePipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [globalBindGroupLayout, perObjectBindGroupLayout, this.imageBindGroupLayout],
     })
+    const depthStencil: GPUDepthStencilState = {
+      depthWriteEnabled: true,
+      depthCompare: "less",
+      format: "depth24plus-stencil8",
+    }
+    const uiDepthStencil: GPUDepthStencilState = {
+      depthWriteEnabled: false,
+      depthCompare: "less-equal",
+      format: "depth24plus-stencil8",
+    }
 
     // --- Shader Modules ---
     const basicShaderModule = this.device.createShaderModule({
@@ -367,11 +381,41 @@ export class Renderer {
         }],
       },
       primitive: {topology: "triangle-list", cullMode: "none"},
-      depthStencil: {
-        depthWriteEnabled: true,
-        depthCompare: "less",
-        format: "depth24plus-stencil8",
+      depthStencil,
+      multisample: {count: this.sampleCount},
+    })
+
+    this.uiBasicMeshPipeline = await this.device.createRenderPipelineAsync({
+      layout: pipelineLayout,
+      vertex: {
+        module: basicShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+        ],
       },
+      fragment: {
+        module: basicShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: uiDepthStencil,
       multisample: {count: this.sampleCount},
     })
 
@@ -405,11 +449,41 @@ export class Renderer {
         }],
       },
       primitive: {topology: "triangle-list", cullMode: "none"},
-      depthStencil: {
-        depthWriteEnabled: true,
-        depthCompare: "less",
-        format: "depth24plus-stencil8",
+      depthStencil,
+      multisample: {count: this.sampleCount},
+    })
+
+    this.uiImagePipeline = await this.device.createRenderPipelineAsync({
+      layout: imagePipelineLayout,
+      vertex: {
+        module: imageShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 8, attributes: [{shaderLocation: 1, offset: 0, format: "float32x2"}]},
+        ],
       },
+      fragment: {
+        module: imageShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: uiDepthStencil,
       multisample: {count: this.sampleCount},
     })
 
@@ -448,11 +522,41 @@ export class Renderer {
         }],
       },
       primitive: {topology: "triangle-list", cullMode: "none"},
-      depthStencil: {
-        depthWriteEnabled: true,
-        depthCompare: "less",
-        format: "depth24plus-stencil8",
+      depthStencil,
+      multisample: {count: this.sampleCount},
+    })
+
+    this.uiRoundedPipeline = await this.device.createRenderPipelineAsync({
+      layout: pipelineLayout,
+      vertex: {
+        module: roundedShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+        ],
       },
+      fragment: {
+        module: roundedShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: uiDepthStencil,
       multisample: {count: this.sampleCount},
     })
 
@@ -474,11 +578,29 @@ export class Renderer {
         }],
       },
       primitive: {topology: "triangle-list", cullMode: "none"},
-      depthStencil: {
-        depthWriteEnabled: true,
-        depthCompare: "less",
-        format: "depth24plus-stencil8",
+      depthStencil,
+      multisample: {count: this.sampleCount},
+    })
+
+    this.uiRadialBackdropPipeline = await this.device.createRenderPipelineAsync({
+      layout: pipelineLayout,
+      vertex: {
+        module: radialBackdropShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+        ],
       },
+      fragment: {
+        module: radialBackdropShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: uiDepthStencil,
       multisample: {count: this.sampleCount},
     })
 
@@ -934,12 +1056,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     regularObjects: RenderItem[],
     uiObjects: RenderItem[]
   } {
-    // UI targets live outside engine; renderer recognizes them by marker.
-    const isUIDisplayOrChildOfUIDisplay = (obj: Object3D): boolean => {
-      if ((obj as any).isUIDisplay) return true
+    const isUiLayerObject = (obj: Object3D): boolean => {
+      if (obj.renderLayer === "ui" || (obj as any).isUIDisplay) return true
       let parent = obj.parent
       while (parent) {
-        if ((parent as any).isUIDisplay) return true
+        if (parent.renderLayer === "ui" || (parent as any).isUIDisplay) return true
         parent = parent.parent
       }
       return false
@@ -949,9 +1070,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       glassObjects: renderList.filter(item => (item.object.material as any)?.isGlassMaterial === true),
       regularObjects: renderList.filter(item =>
         !(item.object.material as any)?.isGlassMaterial &&
-        !isUIDisplayOrChildOfUIDisplay(item.object)
+        !isUiLayerObject(item.object)
       ),
-      uiObjects: renderList.filter(item => isUIDisplayOrChildOfUIDisplay(item.object))
+      uiObjects: renderList.filter(item => isUiLayerObject(item.object))
     }
   }
 
@@ -1009,6 +1130,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.context &&
       this.basicMeshPipeline &&
       this.staticMeshPipeline &&
+      this.uiBasicMeshPipeline &&
       this.instancedMeshPipeline &&
       this.skinnedMeshPipeline &&
       this.linePipeline &&
@@ -1016,7 +1138,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.textStencilPipeline &&
       this.textCoverPipeline &&
       this.imagePipeline &&
+      this.uiImagePipeline &&
       this.roundedPipeline &&
+      this.uiRoundedPipeline &&
+      this.radialBackdropPipeline &&
+      this.uiRadialBackdropPipeline &&
       this.imageBindGroupLayout &&
       this.imageSampler &&
       this.globalUniformBuffer &&
@@ -1175,7 +1301,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Рендерим стеклянные объекты (пока как обычные, но с прозрачностью)
     this.renderObjectList(passEncoder, layer.glassObjects, frameRenderItems)
     // Рендерим UI объекты
-    this.renderObjectList(passEncoder, layer.uiObjects, frameRenderItems)
+    this.renderObjectList(passEncoder, layer.uiObjects, frameRenderItems, true)
 
     passEncoder.end()
   }
@@ -1359,7 +1485,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   private renderObjectList(
     passEncoder: GPURenderPassEncoder,
     objectsToRender: RenderItem[],
-    allObjects: RenderItem[]
+    allObjects: RenderItem[],
+    isUiLayer = false,
   ): void {
     let currentPipeline: GPURenderPipeline | null = null
 
@@ -1378,13 +1505,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
             pipeline =
               material instanceof ImageMaterial
-                ? this.imagePipeline
+                ? (isUiLayer ? this.uiImagePipeline : this.imagePipeline)
                 : isRadialBackdropMaterial(material)
-                  ? this.radialBackdropPipeline
+                  ? (isUiLayer ? this.uiRadialBackdropPipeline : this.radialBackdropPipeline)
                   : material instanceof RoundedRectMaterial
-                    ? this.roundedPipeline
+                    ? (isUiLayer ? this.uiRoundedPipeline : this.roundedPipeline)
                     : material instanceof MeshBasicMaterial
-                      ? this.basicMeshPipeline
+                      ? (isUiLayer ? this.uiBasicMeshPipeline : this.basicMeshPipeline)
                       : this.staticMeshPipeline
           }
           break
