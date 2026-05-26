@@ -899,7 +899,12 @@ async function initEngine(): Promise<void> {
   uiLoading = true
   setEngineStatus("engine: init")
   try {
-    uiCanvas = await UiRuntime.create(engineCanvas)
+    uiCanvas = await UiRuntime.create(engineCanvas, {
+      virtualDisplay: {
+        initial: "far",
+        farDistanceMm: 1200,
+      },
+    })
     toolbarPane = new ToolbarPane({
       onPause: () => void runDebuggerCommand("pause", {}, t("pause")),
       onResume: () => void runDebuggerCommand("resume", {}, t("resume")),

@@ -18,6 +18,10 @@ export interface UIDisplayParameters {
   background?: Color | number // Цвет фона виртуального дисплея
 }
 
+export type UIDisplayResizeOptions = {
+  invalidateGeometry?: (geometry: BufferGeometry) => void
+}
+
 /**
  * Виртуальный дисплей для UI внутри WebGPU-сцены.
  *
@@ -42,6 +46,8 @@ export class UIDisplay extends Object3D {
   public pixelWidth: number
   public pixelHeight: number
   public contentContainer: Object3D
+  readonly #backgroundMesh: Mesh
+  readonly #border: LineSegments
 
   constructor(params: UIDisplayParameters) {
     super()
@@ -59,9 +65,9 @@ export class UIDisplay extends Object3D {
     const bgMaterial = new MeshBasicMaterial({
       color: params.background ?? 0x111111,
     })
-    const backgroundMesh = new Mesh(bgGeometry, bgMaterial)
+    this.#backgroundMesh = new Mesh(bgGeometry, bgMaterial)
 
-    this.add(backgroundMesh)
+    this.add(this.#backgroundMesh)
 
     // 2. Контейнер для контента (Flexbox root)
     this.contentContainer = new Object3D()
@@ -85,10 +91,58 @@ export class UIDisplay extends Object3D {
     this.contentContainer.updateMatrix()
 
     this.add(this.contentContainer)
-    this.createBorder()
+    this.#border = new LineSegments(this.#borderGeometry(), new LineBasicMaterial({ color: 0x748297 }))
+    this.#border.position.z = 0.1
+    this.add(this.#border)
   }
 
-  private createBorder(): void {
+  public resize(
+    params: Partial<Pick<UIDisplayParameters, "widthMm" | "heightMm" | "pixelWidth" | "pixelHeight">>,
+    options: UIDisplayResizeOptions = {},
+  ): void {
+    const widthMm = params.widthMm ?? this.widthMm
+    const heightMm = params.heightMm ?? this.heightMm
+    const pixelWidth = params.pixelWidth ?? this.pixelWidth
+    const pixelHeight = params.pixelHeight ?? this.pixelHeight
+
+    if (
+      widthMm === this.widthMm &&
+      heightMm === this.heightMm &&
+      pixelWidth === this.pixelWidth &&
+      pixelHeight === this.pixelHeight
+    ) {
+      return
+    }
+
+    this.widthMm = widthMm
+    this.heightMm = heightMm
+    this.pixelWidth = pixelWidth
+    this.pixelHeight = pixelHeight
+
+    const previousBackgroundGeometry = this.#backgroundMesh.geometry
+    const previousBorderGeometry = this.#border.geometry
+
+    this.#backgroundMesh.geometry = new PlaneGeometry({
+      width: this.widthMm,
+      height: this.heightMm,
+    })
+    this.#border.geometry = this.#borderGeometry()
+    options.invalidateGeometry?.(previousBackgroundGeometry)
+    options.invalidateGeometry?.(previousBorderGeometry)
+    this.contentContainer.layout = {
+      ...(this.contentContainer.layout ?? {}),
+      width: this.pixelWidth,
+      height: this.pixelHeight,
+    }
+    this.contentContainer.position.set(
+      -this.widthMm / 2,
+      this.heightMm / 2,
+      0.5,
+    )
+    this.contentContainer.updateMatrix()
+  }
+
+  #borderGeometry(): BufferGeometry {
     const w = this.widthMm / 2
     const h = this.heightMm / 2
     const vertices = new Float32Array([
@@ -99,10 +153,7 @@ export class UIDisplay extends Object3D {
     ])
     const borderGeo = new BufferGeometry()
     borderGeo.setAttribute("position", new BufferAttribute(vertices, 3))
-    const borderMat = new LineBasicMaterial({ color: 0x748297 })
-    const border = new LineSegments(borderGeo, borderMat)
-    border.position.z = 0.1
-    this.add(border)
+    return borderGeo
   }
 
   /**

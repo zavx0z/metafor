@@ -1158,36 +1158,32 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   #applyClipTo(text: Text): void {
     const clip = this.#clipStack[this.#clipStack.length - 1]!
-    // Screen-pixel scissor (framebuffer-pixels). gl_FragCoord уже учитывает
-    // pixelRatio и projection — конвертируем surface-local-logical-px в
-    // physical-px через pixelRatio renderer'а.
-    const dpr = this.canvas?.renderer.pixelRatio ?? 1
+    // Screen-pixel scissor (framebuffer-pixels). Runtime учитывает pixelRatio
+    // и transform виртуального дисплея, если surface отрисован не 1:1 на canvas.
     const ox = this.#screenOriginX
     const oy = this.#screenOriginY
-    text.clipBounds = [
-      (ox + clip.xMin) * dpr,
-      (oy + clip.yMin) * dpr,
-      (ox + clip.xMax) * dpr,
-      (oy + clip.yMax) * dpr,
-    ]
+    text.clipBounds = this.#uiRectToFramebufferClipBounds(
+      ox + clip.xMin,
+      oy + clip.yMin,
+      ox + clip.xMax,
+      oy + clip.yMax,
+    )
   }
 
   #applyImageClipTo(material: ImageMaterial): void {
     const clip = this.#clipStack[this.#clipStack.length - 1]!
-    const dpr = this.canvas?.renderer.pixelRatio ?? 1
     const ox = this.#screenOriginX
     const oy = this.#screenOriginY
-    material.clipBounds = [
-      (ox + clip.xMin) * dpr,
-      (oy + clip.yMin) * dpr,
-      (ox + clip.xMax) * dpr,
-      (oy + clip.yMax) * dpr,
-    ]
+    material.clipBounds = this.#uiRectToFramebufferClipBounds(
+      ox + clip.xMin,
+      oy + clip.yMin,
+      ox + clip.xMax,
+      oy + clip.yMax,
+    )
   }
 
   #applyRoundedClipTo(material: RoundedRectMaterial): void {
     const clip = this.#clipStack[this.#clipStack.length - 1]!
-    const dpr = this.canvas?.renderer.pixelRatio ?? 1
     const ox = this.#screenOriginX
     const oy = this.#screenOriginY
     // Если clipStack — это вся surface-rect (без активного pushClip), оставляем
@@ -1195,12 +1191,17 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (clip.xMin === 0 && clip.yMin === 0 && clip.xMax === this.rectW && clip.yMax === this.rectH) {
       return
     }
-    material.clipBounds = [
-      (ox + clip.xMin) * dpr,
-      (oy + clip.yMin) * dpr,
-      (ox + clip.xMax) * dpr,
-      (oy + clip.yMax) * dpr,
-    ]
+    material.clipBounds = this.#uiRectToFramebufferClipBounds(
+      ox + clip.xMin,
+      oy + clip.yMin,
+      ox + clip.xMax,
+      oy + clip.yMax,
+    )
+  }
+
+  #uiRectToFramebufferClipBounds(xMin: number, yMin: number, xMax: number, yMax: number): [number, number, number, number] {
+    if (this.canvas !== null) return this.canvas.uiRectToFramebufferClipBounds(xMin, yMin, xMax, yMax)
+    return [xMin, yMin, xMax, yMax]
   }
 
   #hitAt(x: number, y: number): HitBox | null {
