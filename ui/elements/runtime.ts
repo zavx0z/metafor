@@ -39,6 +39,7 @@ export interface UiSurfaceNode {
   onPointerUp?(event: MouseEvent, localX: number, localY: number): void
   onContextMenu?(event: MouseEvent, localX: number, localY: number): void
   flushPendingRender?(): void
+  setFramebufferClipSpace?(space: "display" | "screen"): void
   onPointerLeave?(): void
   onActivate?(): void
   onDeactivate?(): void
@@ -49,6 +50,7 @@ type SurfaceSlot = {
   surface: UiSurfaceNode
   layout: UiSurfaceLayoutFn
   rect: UiSurfaceRect
+  target: "display" | "hud"
 }
 
 type ViewPointPose = {
@@ -229,10 +231,11 @@ export class UiRuntime {
   /** Регистрирует surface. layout-функция вызывается на каждом resize. */
   addSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn): void {
     surface.attachCanvas(this)
+    surface.setFramebufferClipSpace?.("display")
     if (this.display === null) this.space.add(surface.node)
     else this.display.add(surface.node)
     const rect = layout({w: this.#pixelWidth, h: this.#pixelHeight})
-    this.#surfaces.push({surface, layout, rect})
+    this.#surfaces.push({surface, layout, rect, target: "display"})
     this.#applyLayout()
     this.requestRender()
   }
@@ -240,9 +243,10 @@ export class UiRuntime {
   /** Регистрирует HUD-surface поверх Space в camera/head-locked слое. */
   addHudSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn): void {
     surface.attachCanvas(this)
+    surface.setFramebufferClipSpace?.("screen")
     this.hud.add(surface.node)
     const rect = layout({w: this.#pixelWidth, h: this.#pixelHeight})
-    this.#surfaces.push({surface, layout, rect})
+    this.#surfaces.push({surface, layout, rect, target: "hud"})
     this.#applyLayout()
     this.requestRender()
   }
@@ -637,10 +641,11 @@ export class UiRuntime {
     }
   }
 
-  #surfaceAt(localX: number, localY: number): SurfaceSlot | undefined {
+  #surfaceAt(localX: number, localY: number, target?: SurfaceSlot["target"]): SurfaceSlot | undefined {
     // Reverse iteration — последняя добавленная surface перекрывает предыдущие.
     for (let i = this.#surfaces.length - 1; i >= 0; i--) {
       const slot = this.#surfaces[i]!
+      if (target !== undefined && slot.target !== target) continue
       const r = slot.rect
       if (slot.surface.node.visible === false || r.visible === false || r.w <= 0 || r.h <= 0) continue
       if (localX >= r.x && localX <= r.x + r.w && localY >= r.y && localY <= r.y + r.h) return slot
@@ -669,15 +674,21 @@ export class UiRuntime {
   }
 
   #onWheel(event: WheelEvent): void {
+    const canvasCoords = this.#localCoords(event)
+    const hudSlot = this.#surfaceAt(canvasCoords.x, canvasCoords.y, "hud")
+    if (hudSlot !== undefined) {
+      event.preventDefault()
+      hudSlot.surface.onWheel?.(event, canvasCoords.x - hudSlot.rect.x, canvasCoords.y - hudSlot.rect.y)
+      return
+    }
     if (this.#isDisplayNavigationMode()) {
       event.preventDefault()
       this.#zoomDisplay(-event.deltaY)
       return
     }
-    const canvasCoords = this.#localCoords(event)
     const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y)
     if (displayCoords === null) return
-    const slot = this.#surfaceAt(displayCoords.x, displayCoords.y)
+    const slot = this.#surfaceAt(displayCoords.x, displayCoords.y, "display")
     if (slot === undefined) return
     event.preventDefault()
     slot.surface.onWheel?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)
@@ -695,6 +706,19 @@ export class UiRuntime {
     }
 
     const canvasCoords = this.#localCoords(event)
+    if (this.#pressedSlot?.target === "hud") {
+      this.#pressedSlot.surface.onPointerMove?.(event, canvasCoords.x - this.#pressedSlot.rect.x, canvasCoords.y - this.#pressedSlot.rect.y)
+      return
+    }
+    const hudSlot = this.#surfaceAt(canvasCoords.x, canvasCoords.y, "hud")
+    if (hudSlot !== undefined) {
+      if (hudSlot !== this.#hoveredSlot) {
+        this.#hoveredSlot?.surface.onPointerLeave?.()
+        this.#hoveredSlot = hudSlot
+      }
+      hudSlot.surface.onPointerMove?.(event, canvasCoords.x - hudSlot.rect.x, canvasCoords.y - hudSlot.rect.y)
+      return
+    }
     const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y)
     if (displayCoords === null) {
       this.canvas.style.cursor = "default"
@@ -708,7 +732,7 @@ export class UiRuntime {
       this.#hoveredSlot = null
       return
     }
-    const slot = this.#surfaceAt(displayCoords.x, displayCoords.y)
+    const slot = this.#surfaceAt(displayCoords.x, displayCoords.y, "display")
     if (this.#pressedSlot !== null && this.#pressedSlot !== undefined) {
       const dragCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y, false) ?? displayCoords
       this.#pressedSlot.surface.onPointerMove?.(event, dragCoords.x - this.#pressedSlot.rect.x, dragCoords.y - this.#pressedSlot.rect.y)
@@ -729,6 +753,21 @@ export class UiRuntime {
   }
 
   #onMouseDown(event: MouseEvent): void {
+    const canvasCoords = this.#localCoords(event)
+    const hudSlot = this.#surfaceAt(canvasCoords.x, canvasCoords.y, "hud")
+    if (hudSlot !== undefined) {
+      if (this.inputProxy !== null) {
+        event.preventDefault()
+        this.inputProxy.focus()
+      } else {
+        this.canvas.focus()
+      }
+      this.#positionInputProxy(event.clientX, event.clientY)
+      this.setFocused(hudSlot.surface)
+      this.#pressedSlot = hudSlot
+      hudSlot.surface.onPointerDown?.(event, canvasCoords.x - hudSlot.rect.x, canvasCoords.y - hudSlot.rect.y)
+      return
+    }
     if (this.#isDisplayTripleClick(event)) {
       event.preventDefault()
       this.#endDisplayNavigation()
@@ -743,10 +782,9 @@ export class UiRuntime {
       return
     }
 
-    const canvasCoords = this.#localCoords(event)
     const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y)
     if (displayCoords === null) return
-    const slot = this.#surfaceAt(displayCoords.x, displayCoords.y)
+    const slot = this.#surfaceAt(displayCoords.x, displayCoords.y, "display")
     if (slot !== undefined) {
       // Не даём браузеру передвинуть фокус по умолчанию: VirtualInput
       // должен остаться сфокусированным, чтобы macOS показывал ему
@@ -768,10 +806,16 @@ export class UiRuntime {
 
   #onContextMenu(event: MouseEvent): void {
     const canvasCoords = this.#localCoords(event)
+    const hudSlot = this.#surfaceAt(canvasCoords.x, canvasCoords.y, "hud")
+    if (hudSlot !== undefined) {
+      event.preventDefault()
+      hudSlot.surface.onContextMenu?.(event, canvasCoords.x - hudSlot.rect.x, canvasCoords.y - hudSlot.rect.y)
+      return
+    }
     const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y)
     event.preventDefault()
     if (displayCoords === null || this.#isDisplayNavigationMode()) return
-    const slot = this.#surfaceAt(displayCoords.x, displayCoords.y)
+    const slot = this.#surfaceAt(displayCoords.x, displayCoords.y, "display")
     if (slot === undefined) return
     slot.surface.onContextMenu?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)
   }
@@ -790,6 +834,10 @@ export class UiRuntime {
     this.#pressedSlot = null
     if (slot === undefined || slot === null) return
     const canvasCoords = this.#localCoords(event)
+    if (slot.target === "hud") {
+      slot.surface.onPointerUp?.(event, canvasCoords.x - slot.rect.x, canvasCoords.y - slot.rect.y)
+      return
+    }
     const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y, false)
     if (displayCoords === null) return
     slot.surface.onPointerUp?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)

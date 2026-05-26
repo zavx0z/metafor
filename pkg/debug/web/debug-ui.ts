@@ -91,5 +91,6 @@ export type WelcomeActions = {
 export {FramesPane} from "./frames-pane.ts"
 export {VerbosePane} from "./verbose-pane.ts"
 export {ToolbarPane} from "./toolbar-pane.ts"
+export {HudProbePane} from "./hud-probe-pane.ts"
 export {ScopesEvalPane} from "./scopes-eval-pane.ts"
 export {WelcomePane} from "./welcome-pane.ts"

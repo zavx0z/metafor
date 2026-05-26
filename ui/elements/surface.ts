@@ -320,6 +320,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   /** Top-left corner of surface on canvas в logical-px (для конверсии в screen-px). */
   #screenOriginX = 0
   #screenOriginY = 0
+  #framebufferClipSpace: "display" | "screen" = "display"
   #fullRectW = 1
   #fullRectH = 1
   readonly #requestRenderOnImageLoad = (): void => {
@@ -429,6 +430,10 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   attachCanvas(canvas: UiRuntime): void {
     this.canvas = canvas
+  }
+
+  setFramebufferClipSpace(space: "display" | "screen"): void {
+    this.#framebufferClipSpace = space
   }
 
   setBackgroundImage(options: BackgroundImageOpts | null): void {
@@ -1200,8 +1205,16 @@ export abstract class UiSurface implements UiSurfaceNode {
   }
 
   #uiRectToFramebufferClipBounds(xMin: number, yMin: number, xMax: number, yMax: number): [number, number, number, number] {
-    if (this.canvas !== null) return this.canvas.uiRectToFramebufferClipBounds(xMin, yMin, xMax, yMax)
-    return [xMin, yMin, xMax, yMax]
+    const dpr = this.canvas?.renderer.pixelRatio ?? 1
+    if (this.canvas === null || this.#framebufferClipSpace === "screen") {
+      return [
+        Math.min(xMin, xMax) * dpr,
+        Math.min(yMin, yMax) * dpr,
+        Math.max(xMin, xMax) * dpr,
+        Math.max(yMin, yMax) * dpr,
+      ]
+    }
+    return this.canvas.uiRectToFramebufferClipBounds(xMin, yMin, xMax, yMax)
   }
 
   #hitAt(x: number, y: number): HitBox | null {
