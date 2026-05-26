@@ -57,6 +57,36 @@ describe("EditorPane selection", () => {
     }
   })
 
+  test("selects a word on double click", () => {
+    const editor = new EditorPane()
+    try {
+      editor.setText("alpha beta")
+      const codeX = 60
+      const charW = 13 * 0.62
+      const y = 39
+      editor.onPointerDown({shiftKey: false, detail: 2} as MouseEvent, codeX + charW * 7.1, y)
+      editor.onPointerUp({shiftKey: false, detail: 2} as MouseEvent, codeX + charW * 7.1, y)
+      expect(editor.getSelectedText()).toBe("beta")
+    } finally {
+      editor.dispose()
+    }
+  })
+
+  test("selects a unicode word in a comment on double click", () => {
+    const editor = new EditorPane()
+    try {
+      editor.setText("// русский комментарий")
+      const codeX = 60
+      const charW = 13 * 0.62
+      const y = 39
+      editor.onPointerDown({shiftKey: false, detail: 2} as MouseEvent, codeX + charW * 5.4, y)
+      editor.onPointerUp({shiftKey: false, detail: 2} as MouseEvent, codeX + charW * 5.4, y)
+      expect(editor.getSelectedText()).toBe("русский")
+    } finally {
+      editor.dispose()
+    }
+  })
+
   test("replaces selection when inserting text", () => {
     const editor = new EditorPane()
     try {

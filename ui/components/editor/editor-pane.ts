@@ -668,18 +668,17 @@ export class EditorPane extends UiSurface {
 
   #wordJump(direction: 1 | -1, extendSelection = false): void {
     const line = this.#lines[this.#cline]!
-    const isWord = (ch: string): boolean => /[\w$]/.test(ch)
     let col = this.#ccol
     if (direction === 1) {
-      while (col < line.length && !isWord(line[col]!)) col++
-      while (col < line.length && isWord(line[col]!)) col++
+      while (col < line.length && !isEditorWordChar(line[col]!)) col++
+      while (col < line.length && isEditorWordChar(line[col]!)) col++
       if (col === this.#ccol && this.#cline < this.#lines.length - 1) {
         this.#setCursorPosition({line: this.#cline + 1, col: 0}, {extendSelection})
         return
       }
     } else {
-      while (col > 0 && !isWord(line[col - 1]!)) col--
-      while (col > 0 && isWord(line[col - 1]!)) col--
+      while (col > 0 && !isEditorWordChar(line[col - 1]!)) col--
+      while (col > 0 && isEditorWordChar(line[col - 1]!)) col--
       if (col === this.#ccol && this.#cline > 0) {
         this.#setCursorPosition({line: this.#cline - 1, col: this.#lines[this.#cline - 1]!.length}, {extendSelection})
         return
@@ -699,6 +698,10 @@ export class EditorPane extends UiSurface {
     this.#closeTransientSelectionMenu()
     const pos = this.#positionFromLocal(localX, localY)
     if (pos === null) return
+    if (_event.detail >= 2 && !_event.shiftKey) {
+      this.#selectWordAt(pos)
+      return
+    }
     this.#dragSelecting = true
     this.#dragExtendsSelection = _event.shiftKey
     this.#dragAnchorLocalX = localX
@@ -718,6 +721,24 @@ export class EditorPane extends UiSurface {
       this.#requestInteractiveRender(prevLeft, prevTop)
     }
     this.#pingCursor()
+  }
+
+  #selectWordAt(pos: CursorPos): void {
+    const next = this.#clampPosition(pos)
+    const line = this.#lines[next.line] ?? ""
+    let index = next.col
+    if (index >= line.length && line.length > 0) index = line.length - 1
+    if (!isEditorWordChar(line[index] ?? "") && index > 0 && isEditorWordChar(line[index - 1]!)) index--
+    if (!isEditorWordChar(line[index] ?? "")) {
+      this.#setCursorPosition(next, {extendSelection: false})
+      return
+    }
+
+    let start = index
+    let end = index + 1
+    while (start > 0 && isEditorWordChar(line[start - 1]!)) start--
+    while (end < line.length && isEditorWordChar(line[end]!)) end++
+    this.#applyDragSelection({line: next.line, col: start}, {line: next.line, col: end})
   }
 
   override onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
@@ -1636,6 +1657,10 @@ function pointInRect(x: number, y: number, rect: {x: number; y: number; w: numbe
 
 function isSecondaryPointer(event: MouseEvent): boolean {
   return event.button === 2 || (event.ctrlKey && event.button === 0)
+}
+
+function isEditorWordChar(ch: string): boolean {
+  return /[\p{L}\p{N}_$]/u.test(ch)
 }
 
 function clamp01(value: number): number {

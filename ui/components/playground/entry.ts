@@ -27,7 +27,7 @@ type PaneVariant = "glass" | "outlined" | "filled"
 type PaneScrollAxis = "vertical" | "horizontal"
 type PaneRoute = "pane/variants" | `pane/variants/${PaneVariant}` | "pane/scroll" | `pane/scroll/${PaneScrollAxis}`
 type EditorLanguageRoute = "typescript" | "javascript" | "html" | "css" | "plaintext"
-type EditorSelectionRoute = "menu" | "copied" | "right-click" | "shift-cursor"
+type EditorSelectionRoute = "menu" | "copied" | "right-click" | "shift-cursor" | "double-click"
 type EditorScrollRoute = "vertical" | "horizontal"
 type EditorSection = "Editing" | "Highlighting" | "Selection" | "Scroll"
 type EditorRoute =
@@ -91,7 +91,7 @@ const PANE_ROUTES: readonly PaneRoute[] = [
 ]
 const PANE_SECTIONS: readonly PaneSection[] = ["Variants", "Scroll"]
 const EDITOR_LANGUAGE_ROUTES: readonly EditorLanguageRoute[] = ["typescript", "javascript", "html", "css", "plaintext"]
-const EDITOR_SELECTION_ROUTES: readonly EditorSelectionRoute[] = ["menu", "copied", "right-click", "shift-cursor"]
+const EDITOR_SELECTION_ROUTES: readonly EditorSelectionRoute[] = ["menu", "copied", "right-click", "shift-cursor", "double-click"]
 const EDITOR_SCROLL_ROUTES: readonly EditorScrollRoute[] = ["vertical", "horizontal"]
 const EDITOR_ROUTES: readonly EditorRoute[] = [
   "editor/editing",
@@ -1244,6 +1244,12 @@ class ButtonComponentsScreen extends UiSurface {
         color: "neutral",
         onClick: () => this.#goSelectionShiftCursor(),
       },
+      {
+        label: "Double click",
+        active: this.#route === "editor/selection/double-click",
+        color: "neutral",
+        onClick: () => this.#goSelectionDoubleClick(),
+      },
     ] as const
     const itemWidths = items.map((item) => Math.max(116, autoButtonWidth(this, item.label, 10, 24)))
     const rowW = itemWidths.reduce((sum, width) => sum + width, 0) + itemGap * (itemWidths.length - 1)
@@ -1669,6 +1675,12 @@ class ButtonComponentsScreen extends UiSurface {
     this.#focusEditor()
   }
 
+  #goSelectionDoubleClick(): void {
+    this.#router.go("editor/selection/double-click")
+    this.#record("selection:double-click")
+    this.#focusEditor()
+  }
+
   #copySelectionToBuffer(): void {
     this.#focusEditor()
     const copy = this.#onEditorCopy
@@ -1853,6 +1865,7 @@ function applyEditorLanguage(editor: EditorPane, route: ComponentsRoute): void {
 function editorSurfaceScenario(route: ComponentsRoute): string | null {
   if (route === "editor/editing") return "editing"
   if (route === "editor/selection/shift-cursor") return "selection:shift-cursor"
+  if (route === "editor/selection/double-click") return "selection:double-click"
   if (route.startsWith("editor/selection")) return "selection:actions"
   if (route.startsWith("editor/scroll")) return `scroll:${editorScrollModeFromRoute(route)}`
   if (route.startsWith("editor/highlighting")) return `highlighting:${editorLanguageFromRoute(route)}`
@@ -1884,10 +1897,20 @@ function applyEditorEditing(editor: EditorPane): void {
 
 function applyEditorSelection(editor: EditorPane, route: ComponentsRoute): void {
   editor.setLanguage({languageId: "typescript", path: "playground/selection.ts"})
-  editor.setTitle(route === "editor/selection/shift-cursor" ? "Shift cursor selection" : "Selection source")
+  editor.setTitle(
+    route === "editor/selection/shift-cursor"
+      ? "Shift cursor selection"
+      : route === "editor/selection/double-click"
+        ? "Double click selection"
+        : "Selection source",
+  )
   editor.setText(EDITOR_SELECTION_SOURCE)
   if (route === "editor/selection/shift-cursor") {
     selectEditorFragment(editor, EDITOR_SELECTION_SOURCE, "const mode = \"extend-selection\"", "start")
+    return
+  }
+  if (route === "editor/selection/double-click") {
+    selectEditorFragment(editor, EDITOR_SELECTION_SOURCE, "double-click")
     return
   }
   selectEditorFragment(editor, EDITOR_SELECTION_SOURCE, "\"copy\" | \"cut\" | \"selectAll\"")
@@ -2894,11 +2917,15 @@ export function updateTitle(nextTitle: string): Draft {
 `
 
 const EDITOR_SELECTION_SOURCE = `type SelectionAction = "copy" | "cut" | "selectAll"
-type SelectionMode = "mouse" | "shift-cursor"
+type SelectionMode = "mouse" | "shift-cursor" | "double-click"
 
 export function moveCursor(shiftKey: boolean): SelectionMode {
   const mode = "extend-selection"
   return shiftKey && mode === "extend-selection" ? "shift-cursor" : "mouse"
+}
+
+export function selectWord(clicks: number): SelectionMode {
+  return clicks >= 2 ? "double-click" : "mouse"
 }
 
 export function runSelectionAction(action: SelectionAction): SelectionAction {
