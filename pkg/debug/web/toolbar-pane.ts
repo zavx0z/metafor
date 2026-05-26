@@ -41,6 +41,7 @@ export class ToolbarPane extends UiSurface {
     inspectorUrl: "",
     verbose: false,
     engine: "engine: init",
+    welcomeVisible: false,
   }
 
   readonly #actions: ToolbarActions
@@ -80,11 +81,11 @@ export class ToolbarPane extends UiSurface {
 
     const primaryW = this.#buttonGroupWidth(primaryControls)
     const primaryX = Math.max(PAD_X, Math.floor((this.rectW - primaryW) / 2))
-    this.#drawButtonGroup(primaryControls, primaryX, buttonY, lockedTooltip)
+    if (!this.#state.welcomeVisible) this.#drawButtonGroup(primaryControls, primaryX, buttonY, lockedTooltip)
 
     const secondaryW = this.#buttonGroupWidth(secondaryControls)
     const secondaryX = Math.max(PAD_X, this.rectW - PAD_X - secondaryW)
-    this.#drawButtonGroup(secondaryControls, secondaryX, buttonY, lockedTooltip)
+    if (!this.#state.welcomeVisible) this.#drawButtonGroup(secondaryControls, secondaryX, buttonY, lockedTooltip)
 
     // Левая часть: compact operational state only. Подробности вроде
     // inspector URL/engine лежат в tooltip, а не съедают toolbar.

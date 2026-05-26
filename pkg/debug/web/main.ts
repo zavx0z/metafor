@@ -753,6 +753,7 @@ function updateToolbar(): void {
     inspectorUrl,
     verbose: verboseVisible,
     engine: engineStatus,
+    welcomeVisible,
   })
 }
 
@@ -764,6 +765,7 @@ function updateWelcomePane(): void {
     targetStatus: describeTargetStatus(),
     defaultCommand: defaultTargetCommand(),
     pauseOnStart: defaultPauseOnStart(),
+    locale: getUiLocale(),
   }
   welcomePane?.setState(state)
 }
@@ -966,6 +968,7 @@ async function initEngine(): Promise<void> {
         localStorage.setItem("bd:target:brk", pause ? "1" : "0")
         updateWelcomePane()
       },
+      onToggleLocale: () => toggleLocale(),
     })
     installEnginePanes()
     resizeObserver = new ResizeObserver(() => uiCanvas?.handleResize())
@@ -1219,11 +1222,9 @@ function hiddenRect(): UiSurfaceRect {
 function welcomeRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (!welcomeVisible) return hiddenRect()
   const bodyH = Math.max(1, h - BODY_TOP - PAD)
-  const maxW = Math.max(1, Math.min(1280, w - PAD * 2))
-  const paneW = Math.max(320, Math.min(maxW, Math.floor(w * 0.7)))
-  // welcome content stack: title + status panel + target/inspector panels.
-  // Берём min от bodyH чтобы не вылезать на маленьких окнах.
-  const paneH = Math.max(1, Math.min(398, bodyH))
+  const maxW = Math.max(1, Math.min(1040, w - PAD * 2))
+  const paneW = Math.max(360, Math.min(maxW, Math.floor(w * 0.58)))
+  const paneH = Math.max(1, Math.min(374, bodyH))
   return {
     x: Math.floor((w - paneW) / 2),
     y: BODY_TOP + Math.floor(Math.max(0, bodyH - paneH) / 2),

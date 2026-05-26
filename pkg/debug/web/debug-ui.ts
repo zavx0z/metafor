@@ -25,6 +25,7 @@ export type ToolbarState = {
   inspectorUrl: string
   verbose: boolean
   engine: string
+  welcomeVisible: boolean
 }
 
 export type ToolbarActions = {
@@ -79,6 +80,7 @@ export type WelcomeState = {
   targetStatus: string
   defaultCommand: string
   pauseOnStart: boolean
+  locale: "ru" | "en"
 }
 
 export type WelcomeActions = {
@@ -86,6 +88,7 @@ export type WelcomeActions = {
   onStop(): void
   onApplyInspector(url: string): void
   onPauseOnStart(pause: boolean): void
+  onToggleLocale(): void
 }
 
 export {DisplayHoverOutlinePane} from "./display-hover-outline-pane.ts"
