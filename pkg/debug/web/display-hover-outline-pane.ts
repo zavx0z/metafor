@@ -604,12 +604,16 @@ export class DisplayHoverOutlinePane extends UiSurface {
       x: quad.topRight.x + nx * 8,
       y: quad.topRight.y + ny * 8,
     }
+    const connectorCorner = {
+      x: anchor.x < cx ? button.x : button.x + button.w,
+      y: anchor.y < cy ? button.y : button.y + button.h,
+    }
     return {
       button,
       hit,
       center: {x: cx, y: cy},
       anchor,
-      lineEnd: pointAlong({x: cx, y: cy}, anchor, size * 0.74),
+      lineEnd: connectorCorner,
       size,
     }
   }
@@ -695,16 +699,16 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const x1 = rect.x + rect.w
     const y1 = rect.y + rect.h
     const segment = clamp(size * 0.26, 9, 13)
-    const color = fade(LOCK, 0.78 * strength)
-    const dim = fade(LOCK_DIM, 0.8 * strength)
-    this.#drawLockLine({x: x0, y: y0 + segment}, {x: x0, y: y0}, dim, 2.4, LOCK_Z + 0.04)
-    this.#drawLockLine({x: x0, y: y0}, {x: x0 + segment, y: y0}, color, 1.55, LOCK_Z + 0.08)
-    this.#drawLockLine({x: x1 - segment, y: y0}, {x: x1, y: y0}, dim, 2.4, LOCK_Z + 0.04)
-    this.#drawLockLine({x: x1, y: y0}, {x: x1, y: y0 + segment}, color, 1.55, LOCK_Z + 0.08)
-    this.#drawLockLine({x: x1, y: y1 - segment}, {x: x1, y: y1}, dim, 2.4, LOCK_Z + 0.04)
-    this.#drawLockLine({x: x1, y: y1}, {x: x1 - segment, y: y1}, color, 1.55, LOCK_Z + 0.08)
-    this.#drawLockLine({x: x0 + segment, y: y1}, {x: x0, y: y1}, dim, 2.4, LOCK_Z + 0.04)
-    this.#drawLockLine({x: x0, y: y1}, {x: x0, y: y1 - segment}, color, 1.55, LOCK_Z + 0.08)
+    const color = fade(LOCK_DIM, 1.1 * strength)
+    const z = LOCK_Z + 0.06
+    this.drawRoundedLine(x0, y0 + segment, x0, y0, color, 1.8, z)
+    this.drawRoundedLine(x0, y0, x0 + segment, y0, color, 1.8, z)
+    this.drawRoundedLine(x1 - segment, y0, x1, y0, color, 1.8, z)
+    this.drawRoundedLine(x1, y0, x1, y0 + segment, color, 1.8, z)
+    this.drawRoundedLine(x1, y1 - segment, x1, y1, color, 1.8, z)
+    this.drawRoundedLine(x1, y1, x1 - segment, y1, color, 1.8, z)
+    this.drawRoundedLine(x0 + segment, y1, x0, y1, color, 1.8, z)
+    this.drawRoundedLine(x0, y1, x0, y1 - segment, color, 1.8, z)
   }
 
   #updateMotion(quad: Quad, now: number): number {
