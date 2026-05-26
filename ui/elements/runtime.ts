@@ -36,6 +36,7 @@ export interface UiSurfaceNode {
   onPointerDown?(event: MouseEvent, localX: number, localY: number): void
   onPointerUp?(event: MouseEvent, localX: number, localY: number): void
   onContextMenu?(event: MouseEvent, localX: number, localY: number): void
+  flushPendingRender?(): void
   onPointerLeave?(): void
   onActivate?(): void
   onDeactivate?(): void
@@ -192,6 +193,7 @@ export class UiRuntime {
     this.#rafId = requestAnimationFrame(() => {
       this.#rafId = null
       this.#renderRequested = false
+      for (const slot of this.#surfaces) slot.surface.flushPendingRender?.()
       this.space.updateWorldMatrix()
       this.renderer.renderFrame(this.space, this.hud, this.viewPoint)
     })

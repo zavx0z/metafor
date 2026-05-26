@@ -82,7 +82,6 @@ const SELECTION_MENU_Z = Z.ELEMENT_RULE + 0.005
 const EDITOR_SCROLL_KEY = "editor-pane:scroll"
 
 type CursorPos = {line: number; col: number}
-type CaretRect = {x: number; y: number; w: number; h: number}
 type SelectionRange = {start: CursorPos; end: CursorPos}
 type Snapshot = {lines: string[]; cline: number; ccol: number; selectionAnchor: CursorPos | null; selectionFocus: CursorPos | null}
 type ColumnHitBias = "nearest" | "floor" | "ceil"
@@ -104,6 +103,19 @@ type EditorGutterMetrics = {
   ruleX: number
   numberXMax: number
   numberW: number
+}
+type EditorViewportLayout = {
+  total: number
+  gutter: number
+  startIdx: number
+  subPx: number
+  visible: number
+  contentW: number
+  contentH: number
+  codeMaxPx: number
+  codeClipX: number
+  codeClipW: number
+  codeStartX: number
 }
 
 const SELECTION_MENU_ITEMS: readonly {action: SelectionMenuAction; label: string}[] = [
@@ -155,6 +167,7 @@ export class EditorPane extends UiSurface {
   #scrollTopPx = 0
   #viewportW = 1
   #viewportH = 1
+  #lastViewportLayout: EditorViewportLayout | null = null
   #introAnimStartedAt: number | null = null
   #introAnimRafId: number | null = null
   #introAnimFinishTimer: ReturnType<typeof setTimeout> | null = null
@@ -695,12 +708,14 @@ export class EditorPane extends UiSurface {
       this.#setCursorPosition(pos, {extendSelection: true})
     } else {
       const next = this.#clampPosition(pos)
+      const prevLeft = this.#scrollLeftPx
+      const prevTop = this.#scrollTopPx
       this.#selectionAnchor = next
       this.#selectionFocus = next
       this.#cline = next.line
       this.#ccol = next.col
       this.#scrollCursorIntoView()
-      this.requestRender()
+      this.#requestInteractiveRender(prevLeft, prevTop)
     }
     this.#pingCursor()
   }
@@ -723,15 +738,14 @@ export class EditorPane extends UiSurface {
     if (!this.#dragExtendsSelection && anchorLine !== null && focusLine === anchorLine) {
       const lineText = this.#lines[anchorLine] ?? ""
       const forward = localX >= this.#dragAnchorLocalX
-      let startCol = this.#colAtLocalX(lineText, Math.min(this.#dragAnchorLocalX, localX), "floor")
-      let endCol = this.#colAtLocalX(lineText, Math.max(this.#dragAnchorLocalX, localX), "ceil")
-      if (startCol === endCol && lineText.length > 0) {
-        if (forward) endCol = Math.min(lineText.length, startCol + 1)
-        else startCol = Math.max(0, endCol - 1)
+      const anchorCol = this.#colAtLocalX(lineText, this.#dragAnchorLocalX, forward ? "floor" : "ceil")
+      let focusCol = this.#colAtLocalX(lineText, localX, "nearest")
+      if (anchorCol === focusCol && lineText.length > 0) {
+        focusCol = forward ? Math.min(lineText.length, anchorCol + 1) : Math.max(0, anchorCol - 1)
       }
       this.#applyDragSelection(
-        {line: anchorLine, col: forward ? startCol : endCol},
-        {line: anchorLine, col: forward ? endCol : startCol},
+        {line: anchorLine, col: anchorCol},
+        {line: anchorLine, col: focusCol},
       )
       return
     }
@@ -740,8 +754,7 @@ export class EditorPane extends UiSurface {
       : localY < this.#dragAnchorLocalY - this.#linePx / 2
         ? false
         : localX >= this.#dragAnchorLocalX
-    const focusBias: ColumnHitBias = forward ? "ceil" : "floor"
-    const pos = this.#positionFromLocal(localX, localY, focusBias)
+    const pos = this.#positionFromLocal(localX, localY, "nearest")
     if (pos === null) return
     let nextAnchor: CursorPos | null = null
     if (this.#dragExtendsSelection) {
@@ -753,19 +766,7 @@ export class EditorPane extends UiSurface {
       if (anchor !== null) nextAnchor = this.#clampPosition(anchor)
     }
     if (nextAnchor === null) return
-    let nextFocus: CursorPos
-    if (!this.#dragExtendsSelection && pos.line === nextAnchor.line) {
-      const deltaCols = Math.max(1, Math.ceil(Math.abs(localX - this.#dragAnchorLocalX) / this.#getCharWidth()))
-      const lineLen = this.#lines[nextAnchor.line]?.length ?? 0
-      nextFocus = {
-        line: nextAnchor.line,
-        col: forward
-          ? Math.min(lineLen, nextAnchor.col + deltaCols)
-          : Math.max(0, nextAnchor.col - deltaCols),
-      }
-    } else {
-      nextFocus = this.#clampPosition(pos)
-    }
+    const nextFocus = this.#clampPosition(pos)
     this.#applyDragSelection(nextAnchor, nextFocus)
   }
 
@@ -785,7 +786,7 @@ export class EditorPane extends UiSurface {
     this.#scrollCursorIntoView()
     if (sameSelection && prevLeft === this.#scrollLeftPx && prevTop === this.#scrollTopPx) return
     this.#pingCursor(false)
-    this.requestRender()
+    this.#requestInteractiveRender(prevLeft, prevTop)
   }
 
   override onPointerUp(_event: MouseEvent, localX: number, localY: number): void {
@@ -793,12 +794,14 @@ export class EditorPane extends UiSurface {
       super.onPointerUp(_event, localX, localY)
       return
     }
+    const prevLeft = this.#scrollLeftPx
+    const prevTop = this.#scrollTopPx
     const wasDragSelecting = this.#dragSelecting
     if (this.#dragSelecting) this.#updateDragSelection(localX, localY)
     this.#dragSelecting = false
     if (this.#selectionRange() === null) this.#clearSelectionState()
     if (wasDragSelecting) this.#resumeCursorBlinkAfterSelection()
-    this.requestRender()
+    this.#requestInteractiveRender(prevLeft, prevTop)
   }
 
   override onContextMenu(event: MouseEvent, localX: number, localY: number): void {
@@ -1107,12 +1110,31 @@ export class EditorPane extends UiSurface {
     this.#startCursorBlink()
   }
 
+  #requestInteractiveRender(prevLeft: number, prevTop: number): void {
+    const scrollChanged = prevLeft !== this.#scrollLeftPx || prevTop !== this.#scrollTopPx
+    if (scrollChanged || !this.#redrawInteractiveLayers()) {
+      this.requestRender()
+    }
+  }
+
+  #redrawInteractiveLayers(): boolean {
+    if (this.font === null || this.#lastViewportLayout === null) return false
+    if (this.#selectionMenuOpen || this.#introAnimStartedAt !== null) return false
+    return this.requestRedrawLayers(["underlay", "selection", "overlay"], () => {
+      const layout = this.#lastViewportLayout
+      if (layout === null) return
+      this.withLayer("underlay", () => this.#renderCurrentLineLayer(layout))
+      this.withLayer("selection", () => this.#renderSelectionLayer(layout))
+      this.withLayer("overlay", () => this.#renderCaretLayer(layout))
+    })
+  }
+
   #startCursorBlink(): void {
     this.#stopCursorBlink()
     if (typeof setInterval !== "function") return
     this.#cursorBlinkTimer = setInterval(() => {
       this.#cursorVisible = !this.#cursorVisible
-      this.requestRender()
+      if (!this.#redrawInteractiveLayers()) this.requestRender()
     }, CARET_BLINK_MS)
   }
 
@@ -1195,7 +1217,7 @@ export class EditorPane extends UiSurface {
       children: (ctx) => this.#renderCodeViewport(ctx, gutter),
     })
 
-    this.#renderSelectionMenu()
+    this.withLayer("overlay", () => this.#renderSelectionMenu())
   }
 
   #renderCodeViewport(ctx: DivScrollContext, gutter: number): void {
@@ -1204,66 +1226,113 @@ export class EditorPane extends UiSurface {
     this.#viewportW = ctx.viewportWidth
     this.#viewportH = ctx.viewportHeight
 
+    const layout = this.#viewportLayout(gutter)
+    this.#lastViewportLayout = layout
+
+    this.withLayer("underlay", () => this.#renderCurrentLineLayer(layout))
+    this.withLayer("selection", () => this.#renderSelectionLayer(layout))
+    const visibleLines = this.#renderCodeTextLayer(layout)
+    this.#renderGutterLayer(this.#gutterMetrics(gutter, layout.contentH), visibleLines)
+    this.withLayer("overlay", () => this.#renderCaretLayer(layout))
+  }
+
+  #viewportLayout(gutter: number): EditorViewportLayout {
     const total = this.#lines.length
     const scroll = this.#scrollTopPx / this.#linePx
     const startIdx = Math.floor(scroll)
     const subPx = this.#scrollTopPx - startIdx * this.#linePx
     const visible = this.#visibleLineCount()
-    const contentW = ctx.viewportWidth
-    const contentH = ctx.viewportHeight
+    const contentW = this.#viewportW
+    const contentH = this.#viewportH
     const codeMaxPx = Math.max(1, contentW - gutter - CODE_LEFT_PAD_PX - 8)
     const codeClipX = PAD_LEFT_PX + gutter
     const codeClipW = Math.max(1, codeMaxPx + CODE_LEFT_PAD_PX)
     const codeStartX = PAD_LEFT_PX + gutter + CODE_LEFT_PAD_PX
-    const visibleLines: EditorVisibleLine[] = []
-    let caretRect: CaretRect | null = null
+    return {total, gutter, startIdx, subPx, visible, contentW, contentH, codeMaxPx, codeClipX, codeClipW, codeStartX}
+  }
 
-    const cRowIdx = this.#cline - startIdx
-    if (cRowIdx >= -1 && cRowIdx <= visible) {
-      const hY = PAD_TOP_PX + cRowIdx * this.#linePx - subPx
-      this.drawRoundedRect(PAD_LEFT_PX, hY, contentW, this.#linePx, {
+  #renderCurrentLineLayer(layout: EditorViewportLayout): void {
+    this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, layout.contentW, layout.contentH)
+    const cRowIdx = this.#cline - layout.startIdx
+    if (cRowIdx >= -1 && cRowIdx <= layout.visible) {
+      const hY = PAD_TOP_PX + cRowIdx * this.#linePx - layout.subPx
+      this.drawRoundedRect(PAD_LEFT_PX, hY, layout.contentW, this.#linePx, {
         radius: 4,
         fill: palette.bg,
         z: Z.ELEMENT,
       })
     }
+    this.popClip()
+  }
 
-    // Видимые строки
-    const renderCount = visible + 1
+  #renderSelectionLayer(layout: EditorViewportLayout): void {
+    this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, layout.contentW, layout.contentH)
+    const renderCount = layout.visible + 1
     for (let i = 0; i < renderCount; i++) {
-      const lineIndex = startIdx + i
-      if (lineIndex >= total) break
+      const lineIndex = layout.startIdx + i
+      if (lineIndex >= layout.total) break
       if (lineIndex < 0) continue
-      const rowY = PAD_TOP_PX + i * this.#linePx - subPx
+      const rowY = PAD_TOP_PX + i * this.#linePx - layout.subPx
       if (rowY + this.#linePx < PAD_TOP_PX - 1) continue
-      if (rowY > PAD_TOP_PX + contentH + 1) break
-
-      const isCurrent = lineIndex === this.#cline
+      if (rowY > PAD_TOP_PX + layout.contentH + 1) break
       const lineText = this.#lines[lineIndex] ?? ""
-      const textY = rowY + (this.#linePx - this.#fontPx) / 2
-      visibleLines.push({lineIndex, rowY, textY, lineText, isCurrent})
-      this.pushClip(codeClipX, rowY, codeClipW, this.#linePx)
-      this.#renderSelectionForLine(lineIndex, lineText, codeStartX, rowY, codeMaxPx)
-      this.#renderCodeLine(lineIndex, lineText, codeStartX, textY, codeMaxPx)
-
-      // Cursor
-      if (isCurrent) {
-        if (this.#cursorVisible) {
-          const cursorAbsX = this.#colToPx(lineText, this.#ccol)
-          const curX = codeStartX + cursorAbsX - this.#scrollLeftPx
-          if (curX >= codeStartX - 1 && curX <= codeStartX + codeMaxPx + 1) {
-            caretRect = {x: curX, y: textY + CARET_TOP_INSET_PX, w: CARET_W_PX, h: this.#fontPx}
-          }
-        }
-      }
+      this.pushClip(layout.codeClipX, rowY, layout.codeClipW, this.#linePx)
+      this.#renderSelectionForLine(lineIndex, lineText, layout.codeStartX, rowY, layout.codeMaxPx)
       this.popClip()
     }
+    this.popClip()
+  }
 
-    if (caretRect !== null) {
-      this.drawRect(caretRect.x, caretRect.y, caretRect.w, caretRect.h, palette.cyan, CARET_Z)
+  #renderCodeTextLayer(layout: EditorViewportLayout): EditorVisibleLine[] {
+    const visibleLines = this.#visibleLines(layout)
+
+    this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, layout.contentW, layout.contentH)
+    for (const line of visibleLines) {
+      this.pushClip(layout.codeClipX, line.rowY, layout.codeClipW, this.#linePx)
+      this.#renderCodeLine(line.lineIndex, line.lineText, layout.codeStartX, line.textY, layout.codeMaxPx)
+      this.popClip()
     }
+    this.popClip()
 
-    this.#renderGutterLayer(this.#gutterMetrics(gutter, contentH), visibleLines)
+    return visibleLines
+  }
+
+  #visibleLines(layout: EditorViewportLayout): EditorVisibleLine[] {
+    const lines: EditorVisibleLine[] = []
+    const renderCount = layout.visible + 1
+    for (let i = 0; i < renderCount; i++) {
+      const lineIndex = layout.startIdx + i
+      if (lineIndex >= layout.total) break
+      if (lineIndex < 0) continue
+      const rowY = PAD_TOP_PX + i * this.#linePx - layout.subPx
+      if (rowY + this.#linePx < PAD_TOP_PX - 1) continue
+      if (rowY > PAD_TOP_PX + layout.contentH + 1) break
+      const lineText = this.#lines[lineIndex] ?? ""
+      lines.push({
+        lineIndex,
+        rowY,
+        textY: rowY + (this.#linePx - this.#fontPx) / 2,
+        lineText,
+        isCurrent: lineIndex === this.#cline,
+      })
+    }
+    return lines
+  }
+
+  #renderCaretLayer(layout: EditorViewportLayout): void {
+    if (!this.#cursorVisible) return
+    const rowIdx = this.#cline - layout.startIdx
+    if (rowIdx < -1 || rowIdx > layout.visible) return
+    const rowY = PAD_TOP_PX + rowIdx * this.#linePx - layout.subPx
+    if (rowY + this.#linePx < PAD_TOP_PX - 1 || rowY > PAD_TOP_PX + layout.contentH + 1) return
+    const lineText = this.#lines[this.#cline] ?? ""
+    const textY = rowY + (this.#linePx - this.#fontPx) / 2
+    const cursorAbsX = this.#colToPx(lineText, this.#ccol)
+    const curX = layout.codeStartX + cursorAbsX - this.#scrollLeftPx
+    if (curX < layout.codeStartX - 1 || curX > layout.codeStartX + layout.codeMaxPx + 1) return
+    this.pushClip(layout.codeClipX, rowY, layout.codeClipW, this.#linePx)
+    this.drawRect(curX, textY + CARET_TOP_INSET_PX, CARET_W_PX, this.#fontPx, palette.cyan, CARET_Z)
+    this.popClip()
   }
 
   #gutterMetrics(gutter: number, contentH: number): EditorGutterMetrics {
@@ -1297,6 +1366,8 @@ export class EditorPane extends UiSurface {
         fontPx: this.#fontPx,
         material: this.#gutterHaloMaterial,
         maxWidthPx,
+        fit: false,
+        measure: false,
         z: GUTTER_HALO_Z,
       })
     }
@@ -1304,6 +1375,8 @@ export class EditorPane extends UiSurface {
       fontPx: this.#fontPx,
       material: isCurrent ? this.#gutterCurMaterial : this.#gutterMaterial,
       maxWidthPx,
+      fit: false,
+      measure: false,
       z: GUTTER_TEXT_Z,
     })
   }
@@ -1364,8 +1437,10 @@ export class EditorPane extends UiSurface {
       drawTokenBackground: (x, bgY, w, h, bg) => {
         const color = parseHexColor(bg)
         if (color !== null) {
-          this.drawRect(x, bgY, w, h, palette.bgInput, Z.CONTAINER)
-          this.drawRect(x, bgY, w, h, color, Z.ELEMENT)
+          this.withLayer("contentUnderlay", () => {
+            this.drawRect(x, bgY, w, h, palette.bgInput, Z.CONTAINER)
+            this.drawRect(x, bgY, w, h, color, Z.ELEMENT)
+          })
         }
       },
     })

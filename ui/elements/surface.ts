@@ -11,7 +11,7 @@
  *    математические символы, guillemets и т.п.
  *  • drawRect клампится к surface-bounds.
  *  • Mesh.parent ВСЕГДА выставляется через Object3D.add() (не unshift).
- *  • Между renderами #layer пересобирается; геометрии возвращаются
+ *  • Между renderами draw-слои пересобираются; геометрии возвращаются
  *    в renderer.invalidateGeometry().
  *
  * Z-СТЕК:
@@ -190,6 +190,8 @@ export type DrawTextOpts = {
   clip?: boolean
 }
 
+export type UiSurfaceDrawLayer = "underlay" | "contentUnderlay" | "selection" | "main" | "overlay"
+
 export type TextBlockAlign = "left" | "center" | "right"
 export type TextBlockVAlign = "top" | "middle" | "bottom"
 
@@ -286,7 +288,12 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #bgColor: Color | null
   readonly #borderColor: Color | null
   readonly #backgroundLayer: Object3D
+  readonly #underlayLayer: Object3D
+  readonly #contentUnderlayLayer: Object3D
+  readonly #selectionLayer: Object3D
   readonly #layer: Object3D
+  readonly #overlayLayer: Object3D
+  #drawLayer: UiSurfaceDrawLayer = "main"
   /** Padding в logical px (top, right, bottom, left). */
   readonly #padTop: number
   readonly #padRight: number
@@ -304,6 +311,9 @@ export abstract class UiSurface implements UiSurfaceNode {
   #hoverTooltipTimer: ReturnType<typeof setTimeout> | null = null
   #backgroundImage: BackgroundImageOpts | null = null
   #rerenderRafId: number | null = null
+  #layerRerenderRafId: number | null = null
+  readonly #layerRerenderLayers = new Set<UiSurfaceDrawLayer>()
+  #layerRerenderDraw: (() => void) | null = null
 
   /** Top-left corner of surface on canvas в logical-px (для конверсии в screen-px). */
   #screenOriginX = 0
@@ -389,10 +399,30 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#backgroundLayer.position.z = 0
     this.node.add(this.#backgroundLayer)
 
+    this.#underlayLayer = new Object3D()
+    this.#underlayLayer.name = `${this.constructor.name}.underlayLayer`
+    this.#underlayLayer.position.z = 0
+    this.node.add(this.#underlayLayer)
+
+    this.#contentUnderlayLayer = new Object3D()
+    this.#contentUnderlayLayer.name = `${this.constructor.name}.contentUnderlayLayer`
+    this.#contentUnderlayLayer.position.z = 0
+    this.node.add(this.#contentUnderlayLayer)
+
+    this.#selectionLayer = new Object3D()
+    this.#selectionLayer.name = `${this.constructor.name}.selectionLayer`
+    this.#selectionLayer.position.z = 0
+    this.node.add(this.#selectionLayer)
+
     this.#layer = new Object3D()
     this.#layer.name = `${this.constructor.name}.layer`
     this.#layer.position.z = 0
     this.node.add(this.#layer)
+
+    this.#overlayLayer = new Object3D()
+    this.#overlayLayer.name = `${this.constructor.name}.overlayLayer`
+    this.#overlayLayer.position.z = 0
+    this.node.add(this.#overlayLayer)
   }
 
   attachCanvas(canvas: UiRuntime): void {
@@ -431,11 +461,13 @@ export abstract class UiSurface implements UiSurfaceNode {
     // onPointerMove/Down/Up перед #hitAt.
     this.#screenOriginX = rect.x
     this.#screenOriginY = rect.y
-    // Сдвигаем #layer на padLeft/padTop, чтобы локальные draw-координаты
+    // Сдвигаем draw-слои на padLeft/padTop, чтобы локальные draw-координаты
     // [0..innerW] оказались в правильном месте canvas.
-    this.#layer.position.x = this.#padLeft * pixelScale
-    this.#layer.position.y = -this.#padTop * pixelScale
-    this.#layer.updateMatrix()
+    for (const layer of this.#contentLayers()) {
+      layer.position.x = this.#padLeft * pixelScale
+      layer.position.y = -this.#padTop * pixelScale
+      layer.updateMatrix()
+    }
     this.#syncChrome(rect.w, rect.h)
     this.#rerenderNow()
   }
@@ -443,6 +475,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   /** Элементы и subclass'ы зовут при изменении state — re-render без resize. */
   requestRender(): void {
     if (this.font === null) return
+    this.#cancelPendingLayerRerender()
     if (this.#rerenderRafId === null) {
       this.#rerenderRafId = requestAnimationFrame(() => {
         this.#rerenderRafId = null
@@ -452,6 +485,53 @@ export abstract class UiSurface implements UiSurfaceNode {
       })
     }
     this.canvas?.requestRender()
+  }
+
+  flushPendingRender(): void {
+    if (this.font === null) return
+    if (this.#rerenderRafId !== null) {
+      this.#rerenderNow()
+      return
+    }
+    if (this.#layerRerenderRafId !== null) this.#redrawRequestedLayers()
+  }
+
+  withLayer(layer: UiSurfaceDrawLayer, draw: () => void): void {
+    const prev = this.#drawLayer
+    this.#drawLayer = layer
+    try {
+      draw()
+    } finally {
+      this.#drawLayer = prev
+    }
+  }
+
+  protected redrawLayers(layers: readonly UiSurfaceDrawLayer[], draw: () => void): void {
+    if (this.font === null) return
+    if (this.#rerenderRafId !== null) this.#rerenderNow()
+    this.#cancelPendingLayerRerender()
+    for (const layer of layers) this.#clearLayer(this.#layerObject(layer))
+    this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
+    draw()
+    this.canvas?.requestRender()
+  }
+
+  protected requestRedrawLayers(layers: readonly UiSurfaceDrawLayer[], draw: () => void): boolean {
+    if (this.font === null) return false
+    if (this.#rerenderRafId !== null) {
+      this.canvas?.requestRender()
+      return true
+    }
+    for (const layer of layers) this.#layerRerenderLayers.add(layer)
+    this.#layerRerenderDraw = draw
+    if (this.#layerRerenderRafId === null) {
+      this.#layerRerenderRafId = requestAnimationFrame(() => {
+        this.#redrawRequestedLayers()
+        this.canvas?.requestRender()
+      })
+    }
+    this.canvas?.requestRender()
+    return true
   }
 
   /** Subclass рисует контент. Вызывается ТОЛЬКО когда font установлен. */
@@ -481,7 +561,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     text.position.z = opts.z ?? Z.TEXT
     text.updateMatrix()
     if (opts.clip !== false) this.#applyClipTo(text)
-    this.#layer.add(text)
+    this.#currentLayer().add(text)
     return opts.measure === false ? 0 : this.measureText(fitted, opts.fontPx)
   }
 
@@ -601,11 +681,11 @@ export abstract class UiSurface implements UiSurfaceNode {
     mesh.position.y = -(y0 + ch / 2) * this.pixelScale
     mesh.position.z = z
     mesh.updateMatrix()
-    this.#layer.add(mesh)
+    this.#currentLayer().add(mesh)
   }
 
   drawImage(src: string, x: number, y: number, w: number, h: number, opts: DrawImageOpts = {}): void {
-    this.#drawImageMesh(this.#layer, src, x, y, w, h, opts, opts.z ?? Z.ELEMENT, true)
+    this.#drawImageMesh(this.#currentLayer(), src, x, y, w, h, opts, opts.z ?? Z.ELEMENT, true)
   }
 
   drawBackdropGradient(opts: DrawBackdropGradientOpts): void {
@@ -625,7 +705,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     mesh.position.y = -(h / 2) * ps
     mesh.position.z = opts.z ?? -0.18
     mesh.updateMatrix()
-    this.#layer.add(mesh)
+    this.#currentLayer().add(mesh)
   }
 
   drawTooltipForHit(
@@ -709,7 +789,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     mesh.position.y = -(y + h / 2) * ps
     mesh.position.z = opts.z ?? Z.ELEMENT
     mesh.updateMatrix()
-    this.#layer.add(mesh)
+    this.#currentLayer().add(mesh)
   }
 
   /** Точное измерение ширины текста через font advance + letter-spacing.
@@ -861,7 +941,8 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   dispose(): void {
     this.#cancelPendingRerender()
-    this.#clearLayer()
+    this.#cancelPendingLayerRerender()
+    for (const layer of this.#contentLayers()) this.#clearLayer(layer)
     this.#clearLayer(this.#backgroundLayer)
   }
 
@@ -944,7 +1025,7 @@ export abstract class UiSurface implements UiSurfaceNode {
         false,
       )
     }
-    this.#clearLayer()
+    for (const layer of this.#contentLayers()) this.#clearLayer(layer)
     this.#hits = []
     this.#wheelHits = []
     this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
@@ -953,13 +1034,61 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   #rerenderNow(): void {
     this.#cancelPendingRerender()
+    this.#cancelPendingLayerRerender()
     this.#rerender()
+  }
+
+  #currentLayer(): Object3D {
+    return this.#layerObject(this.#drawLayer)
+  }
+
+  #layerObject(layer: UiSurfaceDrawLayer): Object3D {
+    switch (layer) {
+      case "underlay":
+        return this.#underlayLayer
+      case "contentUnderlay":
+        return this.#contentUnderlayLayer
+      case "selection":
+        return this.#selectionLayer
+      case "overlay":
+        return this.#overlayLayer
+      case "main":
+        return this.#layer
+    }
+  }
+
+  #contentLayers(): readonly Object3D[] {
+    return [this.#underlayLayer, this.#contentUnderlayLayer, this.#selectionLayer, this.#layer, this.#overlayLayer]
+  }
+
+  #redrawRequestedLayers(): void {
+    if (this.#layerRerenderRafId !== null) {
+      cancelAnimationFrame(this.#layerRerenderRafId)
+      this.#layerRerenderRafId = null
+    }
+    const draw = this.#layerRerenderDraw
+    const layers = [...this.#layerRerenderLayers]
+    this.#layerRerenderLayers.clear()
+    this.#layerRerenderDraw = null
+    if (this.font === null || draw === null) return
+    for (const layer of layers) this.#clearLayer(this.#layerObject(layer))
+    this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
+    draw()
   }
 
   #cancelPendingRerender(): void {
     if (this.#rerenderRafId === null) return
     cancelAnimationFrame(this.#rerenderRafId)
     this.#rerenderRafId = null
+  }
+
+  #cancelPendingLayerRerender(): void {
+    if (this.#layerRerenderRafId !== null) {
+      cancelAnimationFrame(this.#layerRerenderRafId)
+      this.#layerRerenderRafId = null
+    }
+    this.#layerRerenderLayers.clear()
+    this.#layerRerenderDraw = null
   }
 
   #drawImageMesh(

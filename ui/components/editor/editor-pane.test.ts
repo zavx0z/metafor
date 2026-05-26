@@ -42,7 +42,7 @@ describe("EditorPane selection", () => {
     }
   })
 
-  test("selects characters from same-line release coordinates", () => {
+  test("keeps same-line drag focus aligned to the release coordinates", () => {
     const editor = new EditorPane()
     try {
       editor.setText("abcdef")
@@ -51,7 +51,7 @@ describe("EditorPane selection", () => {
       const y = 39
       editor.onPointerDown({shiftKey: false} as MouseEvent, codeX + charW * 1.1, y)
       editor.onPointerUp({shiftKey: false} as MouseEvent, codeX + charW * 4.2, y)
-      expect(editor.getSelectedText()).toBe("bcde")
+      expect(editor.getSelectedText()).toBe("bcd")
     } finally {
       editor.dispose()
     }
