@@ -708,6 +708,31 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#currentLayer().add(mesh)
   }
 
+  drawRoundedLine(x0: number, y0: number, x1: number, y1: number, color: Color, thicknessPx = 2, z = Z.ELEMENT): void {
+    const dx = x1 - x0
+    const dy = y1 - y0
+    const length = Math.hypot(dx, dy)
+    if (length <= 0 || thicknessPx <= 0) return
+    const width = length * this.pixelScale
+    const height = thicknessPx * this.pixelScale
+    const mesh = new Mesh(
+      new PlaneGeometry({width, height}),
+      new RoundedRectMaterial({
+        width,
+        height,
+        radius: height / 2,
+        fill: color,
+        border: null,
+      }),
+    )
+    mesh.position.x = ((x0 + x1) / 2) * this.pixelScale
+    mesh.position.y = -((y0 + y1) / 2) * this.pixelScale
+    mesh.position.z = z
+    mesh.rotation.z = -Math.atan2(dy, dx)
+    mesh.updateMatrix()
+    this.#currentLayer().add(mesh)
+  }
+
   drawImage(src: string, x: number, y: number, w: number, h: number, opts: DrawImageOpts = {}): void {
     this.#drawImageMesh(this.#currentLayer(), src, x, y, w, h, opts, opts.z ?? Z.ELEMENT, true)
   }
