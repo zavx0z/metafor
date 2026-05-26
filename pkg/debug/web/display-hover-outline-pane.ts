@@ -63,6 +63,7 @@ const FLIGHT_BUTTON_MIN_SIZE_PX = 34
 const FLIGHT_BUTTON_MAX_SIZE_PX = 48
 const FLIGHT_BUTTON_HIT_PAD_PX = 12
 const RETURN_DOCK_KEY = "display-return-dock"
+const RETURN_DOCK_BRIDGE_KEY = "display-return-dock-bridge"
 const RETURN_BUTTON_KEY = "display-return-button"
 
 function clamp(value: number, min: number, max: number): number {
@@ -199,17 +200,20 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const mode = this.canvas?.displayMode
     if (mode === "near") {
       this.#cornerFlightVisible = false
+      this.#resetAnimationState()
       this.#drawReturnDock()
+      return
     } else {
       this.#returnDockPinned = false
       this.#returnDockExpanded = false
       this.#returnDockGraceUntilMs = 0
     }
+    this.#drawReturnDock()
 
     const outline = this.canvas?.displayHoverOutline()
     if (outline === undefined || outline === null) {
       const now = performance.now()
-      if (mode !== "near" && this.#flightControlHeld() && this.#lastVisualQuad !== null) {
+      if (this.#flightControlHeld() && this.#lastVisualQuad !== null) {
         this.#leaveAnimation = null
         this.#cornerFlightVisible = true
         this.#controlTransferGraceUntilMs = now + FLIGHT_CONTROL_TRANSFER_DEBOUNCE_MS
@@ -218,7 +222,6 @@ export class DisplayHoverOutlinePane extends UiSurface {
         return
       }
       if (
-        mode !== "near" &&
         this.#lastVisualQuad !== null &&
         this.#lastDisplaySizePx >= 36 &&
         this.#lastButtonProgress >= FLIGHT_BUTTON_HIT_PROGRESS &&
@@ -230,7 +233,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
         this.requestRender()
         return
       }
-      if (mode !== "near" && this.#lastVisualQuad !== null && this.#lastDisplaySizePx >= 36) {
+      if (this.#lastVisualQuad !== null && this.#lastDisplaySizePx >= 36) {
         if (this.#leaveAnimation === null) {
           this.#leaveAnimation = {
             startedAt: now,
@@ -482,7 +485,6 @@ export class DisplayHoverOutlinePane extends UiSurface {
   }
 
   #returnDockControl(): ReturnDockControl | null {
-    if (this.canvas?.displayMode !== "near") return null
     const islandW = clamp(this.rectW * 0.075, 58, 88)
     const islandH = 17
     const islandX = (this.rectW - islandW) / 2
@@ -491,7 +493,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const size = 38
     const buttonX = this.rectW / 2 - size / 2
     const buttonY = islandY - size - 11
-    const hitPad = 11
+    const hitPad = 28
     return {
       island: {x: islandX, y: islandY, w: islandW, h: islandH},
       button: {x: buttonX, y: buttonY, w: size, h: size},
@@ -548,23 +550,34 @@ export class DisplayHoverOutlinePane extends UiSurface {
   #drawReturnDock(): void {
     const dock = this.#returnDockControl()
     if (dock === null) return
-    const islandHit = this.hitState(dock.island.x, dock.island.y, dock.island.w, dock.island.h, RETURN_DOCK_KEY)
-    const buttonHit = this.hitState(dock.button.x, dock.button.y, dock.button.w, dock.button.h, RETURN_BUTTON_KEY)
+    const canReturn = this.canvas?.displayMode === "near"
+    const islandHit = canReturn ? this.hitState(dock.island.x, dock.island.y, dock.island.w, dock.island.h, RETURN_DOCK_KEY) : {hovered: false, pressed: false}
+    const bridgeHit = canReturn ? this.hitState(dock.hit.x, dock.hit.y, dock.hit.w, dock.hit.h, RETURN_DOCK_BRIDGE_KEY) : {hovered: false, pressed: false}
+    const buttonHit = canReturn ? this.hitState(dock.button.x, dock.button.y, dock.button.w, dock.button.h, RETURN_BUTTON_KEY) : {hovered: false, pressed: false}
     const now = performance.now()
-    const dockActive = islandHit.hovered || islandHit.pressed || buttonHit.hovered || buttonHit.pressed
+    const dockActive = islandHit.hovered || islandHit.pressed || bridgeHit.hovered || bridgeHit.pressed || buttonHit.hovered || buttonHit.pressed
     if (dockActive || this.#returnDockPinned) this.#returnDockGraceUntilMs = now + RETURN_DOCK_TRANSFER_DEBOUNCE_MS
-    const expanded = this.#returnDockPinned || dockActive || now < this.#returnDockGraceUntilMs
+    const expanded = canReturn && (this.#returnDockPinned || dockActive || now < this.#returnDockGraceUntilMs)
     this.#returnDockExpanded = expanded
     if (expanded && !this.#returnDockPinned && !dockActive) this.requestRender()
 
-    this.hit(dock.island.x, dock.island.y, dock.island.w, dock.island.h, () => {
-      this.#returnDockPinned = !this.#returnDockPinned
-      this.requestRender()
-    }, {
-      key: RETURN_DOCK_KEY,
-      cursor: "pointer",
-      activeCursor: "pointer",
-    })
+    if (canReturn) {
+      if (expanded) {
+        this.hit(dock.hit.x, dock.hit.y, dock.hit.w, dock.hit.h, () => {}, {
+          key: RETURN_DOCK_BRIDGE_KEY,
+          cursor: "pointer",
+          activeCursor: "pointer",
+        })
+      }
+      this.hit(dock.island.x, dock.island.y, dock.island.w, dock.island.h, () => {
+        this.#returnDockPinned = !this.#returnDockPinned
+        this.requestRender()
+      }, {
+        key: RETURN_DOCK_KEY,
+        cursor: "pointer",
+        activeCursor: "pointer",
+      })
+    }
 
     const islandStrength = expanded ? 1 : 0.62
     this.drawRoundedRect(dock.island.x, dock.island.y, dock.island.w, dock.island.h, {
