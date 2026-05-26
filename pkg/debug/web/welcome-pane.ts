@@ -81,6 +81,7 @@ export class WelcomePane extends UiSurface {
       label: t("langToggle"),
       iconSrc: uiIcons.language,
       iconOnly: true,
+      variant: "text",
       tooltip: t("langToggle"),
       tone: "neutral",
       action: () => this.#actions.onToggleLocale(),
@@ -147,16 +148,18 @@ export class WelcomePane extends UiSurface {
     const actionY = targetY + PROCESS_H - SECTION_PAD - BUTTON
     button(this, PAD + SECTION_PAD, actionY, BUTTON, BUTTON, {
       label: t("runTarget"), iconSrc: uiIcons.run, iconOnly: true, tooltip: t("runTarget"), tone: "live",
+      variant: "text",
       action: () => this.#actions.onRun(this.#command.value, this.#state.pauseOnStart),
     })
     button(this, PAD + SECTION_PAD + BUTTON + 8, actionY, BUTTON, BUTTON, {
-      label: t("stopTarget"), iconSrc: uiIcons.stop, iconOnly: true, tooltip: t("stopTarget"), tone: "warn", action: () => this.#actions.onStop(),
+      label: t("stopTarget"), iconSrc: uiIcons.stop, iconOnly: true, tooltip: t("stopTarget"), tone: "warn", variant: "text", action: () => this.#actions.onStop(),
     })
     const pauseLabel = this.#state.pauseOnStart ? t("pauseOn") : t("pauseOff")
     button(this, PAD + SECTION_PAD + (BUTTON + 8) * 2, actionY, BUTTON, BUTTON, {
       label: pauseLabel,
       iconSrc: this.#state.pauseOnStart ? uiIcons.pause : uiIcons.run,
       iconOnly: true,
+      variant: "text",
       tooltip: pauseLabel,
       tone: this.#state.pauseOnStart ? "paused" : "neutral",
       action: () => {
@@ -197,6 +200,7 @@ export class WelcomePane extends UiSurface {
     })
     button(this, PAD + contentW - SECTION_PAD - applyW, inspectorY + 40, applyW, FIELD_H, {
       label: t("applyInspector"), iconSrc: uiIcons.apply, iconOnly: true, tooltip: t("applyInspector"), tone: "neutral",
+      variant: "text",
       action: () => this.#actions.onApplyInspector(this.#url.value),
     })
     const mirrorUrl = `https://debug.bun.sh/#${this.#url.value.replace(/^wss?:\/\//, "")}`
