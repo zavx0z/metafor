@@ -1,7 +1,7 @@
 /**
  * EditorPane — редактируемая текстовая pane с подсветкой синтаксиса.
  *
- * По мотивам SourcePane из @metafor/bun-debug, но c input handling:
+ * Единая code-pane для редактирования и read-only source-view:
  *  • cursor (line, col) с отрисовкой
  *  • Backspace/Delete/Enter/Arrow-keys/Home/End/PageUp-Down
  *  • Printable chars вставка
@@ -22,6 +22,7 @@ import {Button, autoButtonWidth} from "../Button.ts"
 import {resolveLanguageHighlighter} from "./highlighter.ts"
 import {
   createEditorTokenMaterials,
+  normalizeEditorTokensForLine,
   renderEditorTokenizedLine,
   type EditorTokenMaterialMap,
 } from "./token-renderer.ts"
@@ -50,6 +51,12 @@ export type EditorOpts = {
   linePx?: number
   /** Размер заголовка в px. Default 13. */
   titleFontPx?: number
+  /** Read-only mode keeps navigation, scrolling, selection and copy, but blocks text mutations. */
+  readOnly?: boolean
+  /** Show the blinking caret. Defaults to false when readOnly=true, otherwise true. */
+  showCaret?: boolean
+  /** Run the one-shot text intro animation after setText(). Default true. */
+  introAnimation?: boolean
 }
 
 const HEADER_H_PX = 28
@@ -68,7 +75,7 @@ const INTRO_ANIM_MAX_DELAY_MS = 180
 const INTRO_ANIM_MAX_OFFSET_PX = 16
 const CARET_BLINK_MS = 530
 const CARET_W_PX = 2
-const CARET_TOP_INSET_PX = 1
+const CARET_BOTTOM_PAD_PX = 2
 const CARET_Z = Z.TEXT + 0.04
 const GUTTER_RULE_Z = Z.TEXT + 0.025
 const GUTTER_TEXT_Z = Z.TEXT + 0.035
@@ -94,6 +101,7 @@ type EditorVisibleLine = {
   textY: number
   lineText: string
   isCurrent: boolean
+  isExecution: boolean
 }
 type EditorGutterMetrics = {
   x: number
@@ -152,6 +160,10 @@ export class EditorPane extends UiSurface {
   #onChange: ((text: string) => void) | undefined
   #onSave: ((text: string) => void) | undefined
   #onSelectionClipboard: ((ok: boolean, action: "copy" | "cut") => void) | undefined
+  #readOnly: boolean
+  #showCaret: boolean
+  #introAnimation: boolean
+  #executionLine: number | null = null
   #cursorVisible = true
   #cursorBlinkTimer: ReturnType<typeof setInterval> | null = null
   #cursorBlinkPausedForSelection = false
@@ -178,7 +190,9 @@ export class EditorPane extends UiSurface {
   readonly #lineMaterial = new TextMaterial({color: palette.text})
   readonly #gutterMaterial = new TextMaterial({color: palette.muted})
   readonly #gutterCurMaterial = new TextMaterial({color: palette.cyan})
+  readonly #gutterExecutionMaterial = new TextMaterial({color: palette.orange})
   readonly #gutterHaloMaterial = new TextMaterial({color: palette.bgCode})
+  readonly #executionArrowMaterial = new TextMaterial({color: palette.orange})
   readonly #tokenMaterials: EditorTokenMaterialMap
 
   constructor(opts: EditorOpts = {}) {
@@ -192,6 +206,9 @@ export class EditorPane extends UiSurface {
     this.#onChange = opts.onChange
     this.#onSave = opts.onSave
     this.#onSelectionClipboard = opts.onSelectionClipboard
+    this.#readOnly = opts.readOnly === true
+    this.#showCaret = opts.showCaret ?? !this.#readOnly
+    this.#introAnimation = opts.introAnimation ?? true
     this.#tokenMaterials = createEditorTokenMaterials()
     this.#refreshTokens()
   }
@@ -208,7 +225,8 @@ export class EditorPane extends UiSurface {
     this.#history = []
     this.#future = []
     this.#refreshTokens()
-    this.#startIntroAnimation()
+    if (this.#introAnimation) this.#startIntroAnimation()
+    else this.#finishIntroAnimation(false)
     this.requestRender()
   }
 
@@ -242,6 +260,7 @@ export class EditorPane extends UiSurface {
    */
   insertText(text: string): void {
     if (text.length === 0) return
+    if (this.#readOnly) return
     this.#insertText(text)
     this.#pingCursor()
   }
@@ -256,8 +275,53 @@ export class EditorPane extends UiSurface {
   }
 
   setTokens(tokens: EditorTokens): void {
-    this.#tokens = tokens
+    this.#tokens = this.#normalizeTokens(tokens)
     this.requestRender()
+  }
+
+  setReadOnly(readOnly: boolean): void {
+    if (this.#readOnly === readOnly) return
+    this.#readOnly = readOnly
+    if (this.#showCaret && readOnly) {
+      this.#showCaret = false
+      this.#stopCursorBlink()
+      this.#cursorVisible = false
+    }
+    this.requestRender()
+  }
+
+  setShowCaret(show: boolean): void {
+    if (this.#showCaret === show) return
+    this.#showCaret = show
+    if (show) {
+      this.#cursorVisible = true
+      this.#startCursorBlink()
+    } else {
+      this.#stopCursorBlink()
+      this.#cursorVisible = false
+    }
+    this.requestRender()
+  }
+
+  setIntroAnimation(enabled: boolean): void {
+    if (this.#introAnimation === enabled) return
+    this.#introAnimation = enabled
+    if (!enabled) this.#finishIntroAnimation(false)
+  }
+
+  /**
+   * 1-based execution marker for source viewers/debuggers. Pass null to hide.
+   */
+  setExecutionLine(line: number | null, opts: {scroll?: boolean} = {}): void {
+    const next = line === null ? null : Math.max(1, Math.min(this.#lines.length, Math.floor(line)))
+    const changed = this.#executionLine !== next
+    this.#executionLine = next
+    if (next !== null) {
+      this.#cline = next - 1
+      this.#ccol = Math.min(this.#ccol, this.#lines[this.#cline]?.length ?? 0)
+      if (opts.scroll !== false) this.#scrollLineIntoView(this.#cline, "center")
+    }
+    if (changed || opts.scroll !== false) this.requestRender()
   }
 
   setLanguage(input: LanguageHighlighter | {languageId?: string; path?: string}): void {
@@ -540,10 +604,15 @@ export class EditorPane extends UiSurface {
   // ────────── input ──────────
 
   onInputText(text: string): void {
+    if (this.#readOnly) return
     this.insertText(text)
   }
 
   onKey(event: KeyboardEvent): void {
+    if (this.#readOnly) {
+      this.#handleReadOnlyKey(event)
+      return
+    }
     const isMod = event.metaKey || event.ctrlKey
     const isAlt = event.altKey
     const extendSelection = event.shiftKey
@@ -590,6 +659,41 @@ export class EditorPane extends UiSurface {
     }
   }
 
+  #handleReadOnlyKey(event: KeyboardEvent): void {
+    const isMod = event.metaKey || event.ctrlKey
+    const isAlt = event.altKey
+    const extendSelection = event.shiftKey
+    let handled = true
+
+    if (isMod) {
+      const k = event.key.toLowerCase()
+      if (k === "a") this.#selectAll()
+      else if (k === "c" || k === "x") void this.#copySelectionOrCurrentLine()
+      else if (event.key === "ArrowLeft")  this.#setCursorPosition({line: this.#cline, col: 0}, {extendSelection})
+      else if (event.key === "ArrowRight") this.#setCursorPosition({line: this.#cline, col: this.#lines[this.#cline]!.length}, {extendSelection})
+      else if (event.key === "ArrowUp")    this.#setCursorPosition({line: 0, col: 0}, {extendSelection})
+      else if (event.key === "ArrowDown")  this.#setCursorPosition({line: this.#lines.length - 1, col: this.#lines[this.#lines.length - 1]!.length}, {extendSelection})
+      else if (event.key === "Home")       this.#setCursorPosition({line: 0, col: 0}, {extendSelection})
+      else if (event.key === "End")        this.#setCursorPosition({line: this.#lines.length - 1, col: this.#lines[this.#lines.length - 1]!.length}, {extendSelection})
+      else handled = false
+    } else if (isAlt && event.key === "ArrowLeft")  this.#wordJump(-1, extendSelection)
+    else if (isAlt && event.key === "ArrowRight")   this.#wordJump(1, extendSelection)
+    else if (event.key === "ArrowLeft") this.#moveCursor(-1, 0, extendSelection)
+    else if (event.key === "ArrowRight") this.#moveCursor(1, 0, extendSelection)
+    else if (event.key === "ArrowUp") this.#moveCursor(0, -1, extendSelection)
+    else if (event.key === "ArrowDown") this.#moveCursor(0, 1, extendSelection)
+    else if (event.key === "Home") this.#setCursorPosition({line: this.#cline, col: 0}, {extendSelection})
+    else if (event.key === "End") this.#setCursorPosition({line: this.#cline, col: this.#lines[this.#cline]!.length}, {extendSelection})
+    else if (event.key === "PageUp") this.#movePage(-1, extendSelection)
+    else if (event.key === "PageDown") this.#movePage(1, extendSelection)
+    else handled = false
+
+    if (handled) {
+      event.preventDefault()
+      this.#pingCursor(false)
+    }
+  }
+
   // ────────── clipboard ──────────
 
   async #paste(): Promise<void> {
@@ -613,6 +717,7 @@ export class EditorPane extends UiSurface {
   }
 
   async #cutSelectionOrCurrentLine(): Promise<boolean> {
+    if (this.#readOnly) return this.#copySelectionOrCurrentLine()
     try {
       const selected = this.#selectedText()
       if (selected !== null) {
@@ -652,6 +757,7 @@ export class EditorPane extends UiSurface {
   }
 
   async #cutSelectedTextToClipboard(): Promise<boolean> {
+    if (this.#readOnly) return this.#copySelectedTextToClipboard()
     try {
       const selected = this.#selectedText()
       if (selected === null) return false
@@ -831,8 +937,8 @@ export class EditorPane extends UiSurface {
   }
 
   onActivate(): void {
-    this.#cursorVisible = true
-    this.#startCursorBlink()
+    this.#cursorVisible = this.#showCaret
+    if (this.#showCaret) this.#startCursorBlink()
     this.requestRender()
   }
 
@@ -957,10 +1063,14 @@ export class EditorPane extends UiSurface {
       return
     }
     try {
-      this.#tokens = this.#tokenize(this.#lines)
+      this.#tokens = this.#normalizeTokens(this.#tokenize(this.#lines))
     } catch {
       this.#tokens = null
     }
+  }
+
+  #normalizeTokens(tokens: EditorTokens): EditorTokens {
+    return this.#lines.map((line, index) => normalizeEditorTokensForLine(line, tokens[index] ?? []))
   }
 
   // ────────── cursor positioning ──────────
@@ -1014,6 +1124,20 @@ export class EditorPane extends UiSurface {
       nextLeft = Math.max(0, cursorPx - codeMaxPx + margin)
     }
     this.#setScrollPosition(nextLeft, nextTop)
+  }
+
+  #scrollLineIntoView(lineIndex: number, align: "nearest" | "center" = "nearest"): void {
+    const viewportH = this.#viewportContentH()
+    const lineTop = Math.max(0, lineIndex) * this.#linePx
+    let nextTop = this.#scrollTopPx
+    if (align === "center") {
+      nextTop = Math.max(0, lineTop - Math.max(0, viewportH - this.#linePx) / 2)
+    } else if (lineTop < nextTop) {
+      nextTop = lineTop
+    } else if (lineTop + this.#linePx > nextTop + viewportH) {
+      nextTop = lineTop + this.#linePx - viewportH
+    }
+    this.#setScrollPosition(this.#scrollLeftPx, nextTop)
   }
 
   #setScrollPosition(left: number, top: number): void {
@@ -1274,14 +1398,31 @@ export class EditorPane extends UiSurface {
 
   #renderCurrentLineLayer(layout: EditorViewportLayout): void {
     this.pushClip(PAD_LEFT_PX, PAD_TOP_PX, layout.contentW, layout.contentH)
-    const cRowIdx = this.#cline - layout.startIdx
+    const executionIndex = this.#executionLine === null ? null : this.#executionLine - 1
+    const lineIndex = executionIndex ?? this.#cline
+    const cRowIdx = lineIndex - layout.startIdx
     if (cRowIdx >= -1 && cRowIdx <= layout.visible) {
       const hY = PAD_TOP_PX + cRowIdx * this.#linePx - layout.subPx
-      this.drawRoundedRect(PAD_LEFT_PX, hY, layout.contentW, this.#linePx, {
-        radius: 4,
-        fill: palette.bg,
-        z: Z.ELEMENT,
-      })
+      if (executionIndex !== null) {
+        const highlightH = Math.min(this.#linePx, this.#fontPx + 4)
+        const highlightY = hY + (this.#linePx - highlightH) / 2
+        this.drawRoundedRect(PAD_LEFT_PX, highlightY, layout.contentW, highlightH, {
+          radius: 4,
+          fill: palette.pausedFill,
+          z: Z.ELEMENT,
+        })
+        this.drawText("▶", PAD_LEFT_PX + GUTTER_LEFT_PAD_PX * 0.4, hY + 1, {
+          fontPx: this.#fontPx,
+          material: this.#executionArrowMaterial,
+          maxWidthPx: 12,
+        })
+      } else {
+        this.drawRoundedRect(PAD_LEFT_PX, hY, layout.contentW, this.#linePx, {
+          radius: 4,
+          fill: palette.bg,
+          z: Z.ELEMENT,
+        })
+      }
     }
     this.popClip()
   }
@@ -1335,24 +1476,27 @@ export class EditorPane extends UiSurface {
         textY: rowY + (this.#linePx - this.#fontPx) / 2,
         lineText,
         isCurrent: lineIndex === this.#cline,
+        isExecution: this.#executionLine !== null && lineIndex === this.#executionLine - 1,
       })
     }
     return lines
   }
 
   #renderCaretLayer(layout: EditorViewportLayout): void {
+    if (!this.#showCaret) return
     if (!this.#cursorVisible) return
     const rowIdx = this.#cline - layout.startIdx
     if (rowIdx < -1 || rowIdx > layout.visible) return
     const rowY = PAD_TOP_PX + rowIdx * this.#linePx - layout.subPx
     if (rowY + this.#linePx < PAD_TOP_PX - 1 || rowY > PAD_TOP_PX + layout.contentH + 1) return
     const lineText = this.#lines[this.#cline] ?? ""
-    const textY = rowY + (this.#linePx - this.#fontPx) / 2
     const cursorAbsX = this.#colToPx(lineText, this.#ccol)
-    const curX = layout.codeStartX + cursorAbsX - this.#scrollLeftPx
+    const curX = Math.round(layout.codeStartX + cursorAbsX - this.#scrollLeftPx)
     if (curX < layout.codeStartX - 1 || curX > layout.codeStartX + layout.codeMaxPx + 1) return
-    this.pushClip(layout.codeClipX, rowY, layout.codeClipW, this.#linePx)
-    this.drawRect(curX, textY + CARET_TOP_INSET_PX, CARET_W_PX, this.#fontPx, palette.cyan, CARET_Z)
+    const caretY = Math.round(rowY + (this.#linePx - this.#fontPx) / 2)
+    const caretH = Math.max(1, Math.round(this.#fontPx + CARET_BOTTOM_PAD_PX))
+    this.pushClip(layout.codeClipX, PAD_TOP_PX, layout.codeClipW, layout.contentH)
+    this.drawRect(curX, caretY, CARET_W_PX, caretH, palette.cyan, CARET_Z)
     this.popClip()
   }
 
@@ -1377,11 +1521,11 @@ export class EditorPane extends UiSurface {
         metrics.x + GUTTER_LEFT_PAD_PX,
         metrics.numberXMax - labelW,
       )
-      this.#drawGutterLabel(label, labelX, line.textY, metrics.numberW, line.isCurrent)
+      this.#drawGutterLabel(label, labelX, line.textY, metrics.numberW, line.isCurrent, line.isExecution)
     }
   }
 
-  #drawGutterLabel(label: string, x: number, y: number, maxWidthPx: number, isCurrent: boolean): void {
+  #drawGutterLabel(label: string, x: number, y: number, maxWidthPx: number, isCurrent: boolean, isExecution: boolean): void {
     for (const [dx, dy] of GUTTER_HALO_OFFSETS) {
       this.drawText(label, x + dx, y + dy, {
         fontPx: this.#fontPx,
@@ -1394,7 +1538,7 @@ export class EditorPane extends UiSurface {
     }
     this.drawText(label, x, y, {
       fontPx: this.#fontPx,
-      material: isCurrent ? this.#gutterCurMaterial : this.#gutterMaterial,
+      material: isExecution ? this.#gutterExecutionMaterial : isCurrent ? this.#gutterCurMaterial : this.#gutterMaterial,
       maxWidthPx,
       fit: false,
       measure: false,
@@ -1450,6 +1594,7 @@ export class EditorPane extends UiSurface {
       materials: this.#tokenMaterials,
       fallbackMaterial: this.#lineMaterial,
       sliceStart,
+      tokensNormalized: true,
       chunkWidth: (startCol, endCol, chunkText) => {
         const w = this.#colToPx(text, endCol) - this.#colToPx(text, startCol)
         return w > 0 ? w : this.measureText(chunkText, this.#fontPx)

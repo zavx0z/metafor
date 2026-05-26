@@ -11,7 +11,11 @@ import {
   UiSurface, div, palette, radii, uiIcons,
 } from "@metafor/elements"
 import {
-  Button as button, TextField as input, Divider as divider,
+  Button as button,
+  TextField as input,
+  Divider as divider,
+  createTextFieldState,
+  type TextFieldEditState,
 } from "@metafor/components"
 import type {FrameSnapshot, PropertySnapshot, ScopeSnapshot} from "./debug-ui.ts"
 import {t} from "./i18n.ts"
@@ -32,7 +36,7 @@ type ScopeRow =
 
 export class ScopesEvalPane extends UiSurface {
   #frame: FrameSnapshot | null = null
-  #expr = localStorage.getItem("bd:eval:expr") ?? "data.patches[0].path"
+  #expr: TextFieldEditState = createTextFieldState(localStorage.getItem("bd:eval:expr") ?? "data.patches[0].path")
   #output = ""
   #editing = false
   readonly #onEval: (expr: string, frame: number) => void
@@ -50,37 +54,6 @@ export class ScopesEvalPane extends UiSurface {
   setEvalOutput(output: string): void {
     this.#output = output
     this.requestRender()
-  }
-
-  onKey(event: KeyboardEvent): void {
-    if (!this.#editing) return
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-      event.preventDefault()
-      this.#runEval()
-      return
-    }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") {
-      event.preventDefault()
-      void navigator.clipboard.readText().then((text) => {
-        this.#expr += text
-        localStorage.setItem("bd:eval:expr", this.#expr)
-        this.requestRender()
-      })
-      return
-    }
-    if (event.key === "Backspace") {
-      event.preventDefault()
-      this.#expr = this.#expr.slice(0, -1)
-      localStorage.setItem("bd:eval:expr", this.#expr)
-      this.requestRender()
-      return
-    }
-    if (event.key.length === 1 && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault()
-      this.#expr += event.key
-      localStorage.setItem("bd:eval:expr", this.#expr)
-      this.requestRender()
-    }
   }
 
   override onDeactivate(): void {
@@ -179,11 +152,17 @@ export class ScopesEvalPane extends UiSurface {
     const runW = 38
     const inputW = this.rectW - PAD_X * 2 - runW - 8
     input(this, PAD_X, inputY, inputW, inputH, {
-      value: this.#expr,
+      value: this.#expr.value,
       active: this.#editing,
+      cursor: this.#expr.cursor,
+      selectionAnchor: this.#expr.selectionAnchor,
       fontPx: 12,
+      submitOnEnter: true,
+      onChange: (_value, state) => this.#setExpr(state),
+      onSubmit: () => this.#runEval(),
       onActivate: () => {
         this.#editing = true
+        this.#setExpr(createTextFieldState(this.#expr.value, this.#expr.value.length))
         this.requestRender()
       },
     })
@@ -205,10 +184,16 @@ export class ScopesEvalPane extends UiSurface {
   }
 
   #runEval(): void {
-    const expr = this.#expr.trim()
+    const expr = this.#expr.value.trim()
     if (expr.length === 0) return
     this.#editing = false
     this.#onEval(expr, this.#frame?.index ?? 0)
+  }
+
+  #setExpr(state: TextFieldEditState): void {
+    this.#expr = state
+    localStorage.setItem("bd:eval:expr", state.value)
+    this.requestRender()
   }
 
   #scopeRows(): ScopeRow[] {

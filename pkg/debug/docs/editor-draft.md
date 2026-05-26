@@ -4,7 +4,7 @@ Debug UI now has a first safe draft-editing step on top of the shared editor lay
 
 ## Behavior
 
-- `SourcePane` remains the default paused-source viewer.
+- The central paused-source viewer uses shared `EditorPane` in read-only mode.
 - The toolbar can switch the central source area into `Edit Draft` mode.
 - `EditorPane` is imported from `@metafor/components`, receives the current `/source` text and resolves highlighting by source path.
 - Draft state is held only in the browser process memory.

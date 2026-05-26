@@ -2,12 +2,11 @@
 
 ## Current Placement
 
-1. Source display is currently owned by `pkg/debug/web/source-pane.ts`. It is a debug-specific viewer: it renders the paused source, current execution line, runtime state (`paused`, `running`, `loading`, `disconnected`) and scroll/keyboard navigation.
-2. Editable editor UI is currently `ui/components/editor-pane.ts`. It is exported by `@metafor/components` as `EditorPane` and owns text mutation, cursor movement, clipboard, undo/redo, optional tokenization and save/change callbacks. Scroll state comes from `@metafor/elements` `div`.
-3. `SourcePane` and `EditorPane` share the same visual model: `Pane` base, div-backed overflow, gutter line numbers, token-colored text chunks, code background, header, line clipping and `syntaxTokens` categories (`k/s/n/c/t/f/p/d`).
-4. The main duplication is token typing and tokenized-line rendering. `SourcePane` had a local `SyntaxToken`/`SourceTokens` type and its own token rendering loop; `EditorPane` had `EditorToken`/`EditorTokens` plus a similar rendering loop. Both also compute gutter width, visible rows and code clipping independently.
-5. The safe common layer is token contracts, language highlighter resolution, shared token material creation and shared tokenized-line rendering. A future step can extract a full source/view base, but doing that now would touch more debug layout and runtime state than necessary.
-6. To keep debug stable, do not change `pkg/debug/src/*`, the `/source` REST shape, `/ws` commands/results, inspector attach flow, `SourcePane` runtime states, current-line highlighting, frames/scopes/console command behavior or `bun run dark/debug/agent-attach.ts` startup.
+1. Source display and editable draft UI both use `EditorPane` from `@metafor/components`.
+2. `EditorPane` owns text mutation, cursor movement, clipboard, undo/redo, optional tokenization, save/change callbacks, read-only navigation, source execution-line highlighting and gutter rendering. Scroll state comes from `@metafor/elements` `div`.
+3. Debug runtime state (`paused`, `running`, `loading`, `disconnected`) stays in `pkg/debug/web/main.ts`; the shared component only receives title text, source text, tokens/language and an optional execution line.
+4. The former debug-local `pkg/debug/web/source-pane.ts` was removed so code/source rendering has one implementation.
+5. To keep debug stable, do not change `pkg/debug/src/*`, the `/source` REST shape, `/ws` commands/results, inspector attach flow, current-line semantics, frames/scopes/console command behavior or `bun run dark/debug/agent-attach.ts` startup.
 
 ## First Extraction
 
@@ -21,7 +20,7 @@ The editor layer now starts under `ui/components/editor/`:
 - `source-pane-base.ts` contains source-view helper types and filename-to-highlighter fallback for viewers.
 - `editor-pane.ts` contains `EditorPane`; the old `ui/components/editor-pane.ts` remains a compatibility re-export.
 
-`SourcePane` remains in `pkg/debug/web` because its paused/running/disconnected behavior is debug-specific. It can now consume the shared `EditorTokens` format and shared token renderer without changing the server protocol.
+The debug source viewer now configures `EditorPane` with `readOnly: true`, `showCaret: false` and `introAnimation: false`. Debug-specific paused/running/disconnected labels are handled outside the component.
 
 ## UI Pass
 

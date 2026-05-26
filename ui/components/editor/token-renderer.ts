@@ -23,6 +23,7 @@ export type RenderEditorTokenLineOpts = {
   materials: EditorTokenMaterialMap
   fallbackMaterial: TextMaterial
   sliceStart?: number
+  tokensNormalized?: boolean
   chunkWidth?: (startCol: number, endCol: number, text: string) => number
   animOffsetFor?: (absoluteColumn: number) => number
   drawTokenBackground?: (x: number, y: number, w: number, h: number, bg: string) => void
@@ -82,7 +83,7 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
     cursorX += w
   }
 
-  const sorted = normalizeEditorTokensForLine(opts.text, opts.tokens)
+  const sorted = opts.tokensNormalized === true ? opts.tokens : normalizeEditorTokensForLine(opts.text, opts.tokens)
   for (const tok of sorted) {
     if (tok.s > cursor) placeChunk(opts.text.slice(cursor, tok.s), "d", undefined, cursor)
     placeChunk(opts.text.slice(tok.s, tok.e), tok.c, tok.bg, tok.s)

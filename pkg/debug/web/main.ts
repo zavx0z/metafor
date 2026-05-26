@@ -7,7 +7,6 @@
 import {UiRuntime, type UiSurfaceRect} from "@metafor/elements"
 import {EditorPane, sourcePathFromLocation, type EditorTokens} from "@metafor/components"
 import {applyInspectMode} from "../src/inspect-mode.ts"
-import {SourcePane, type Source, type SourceRuntimeState} from "./source-pane.ts"
 import {ConsolePane, type ConsoleEntry} from "./console-pane.ts"
 import {
   FramesPane,
@@ -50,6 +49,15 @@ type AgentDump = {
   frames: FrameSnapshot[]
 }
 
+type SourceRuntimeState = "idle" | "loading" | "paused" | "running" | "disconnected"
+
+type Source = {
+  lines: string[]
+  currentLine: number
+  location: string
+  tokens?: EditorTokens
+}
+
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
   if (element === null) throw new Error(`#${id} not in DOM`)
@@ -63,7 +71,7 @@ type DraftState = {baseText: string; text: string; savedText: string; status: "c
 const sourceCache = new Map<string, CachedSource>()
 const sourceDrafts = new Map<string, DraftState>()
 let uiCanvas: UiRuntime | null = null
-let sourcePane: SourcePane | null = null
+let sourcePane: EditorPane | null = null
 let draftEditorPane: EditorPane | null = null
 let consolePane: ConsolePane | null = null
 let toolbarPane: ToolbarPane | null = null
@@ -73,6 +81,7 @@ let verbosePane: VerbosePane | null = null
 let welcomePane: WelcomePane | null = null
 let uiLoading = false
 let engineLastSource: Source | null = null
+let sourceRuntimeState: SourceRuntimeState = "idle"
 let resizeObserver: ResizeObserver | null = null
 let inspectorUrl = ""
 let connectionState: ConnectionState = "connecting"
@@ -697,7 +706,15 @@ async function initEngine(): Promise<void> {
         clearDebuggerCommandIf(command, "eval finished")
       }
     })
-    sourcePane = new SourcePane()
+    sourcePane = new EditorPane({
+      title: t("sourceWaiting"),
+      path: "",
+      fontPx: 12,
+      linePx: 16,
+      readOnly: true,
+      showCaret: false,
+      introAnimation: false,
+    })
     draftEditorPane = new EditorPane({
       title: t("editDraft"),
       onChange: (text) => updateActiveDraftText(text),
@@ -734,7 +751,7 @@ async function initEngine(): Promise<void> {
       setRunStatus(`paused (${currentDump.reason})`, "paused")
       setSourceRuntimeState("paused")
     }
-    if (engineLastSource !== null) sourcePane.setSource(engineLastSource)
+    if (engineLastSource !== null) updateSourcePane()
     if (consolePending.length > 0) {
       consolePane.pushEntries(consolePending)
       consolePending.length = 0
@@ -1022,12 +1039,40 @@ function debuggerRects({w, h}: {w: number; h: number}): DebuggerRects {
 
 function pushSourceToEngine(payload: Source): void {
   engineLastSource = payload
-  sourcePane?.setSource(payload)
+  updateSourcePane()
   syncDraftEditorTitle()
 }
 
 function setSourceRuntimeState(state: SourceRuntimeState): void {
-  sourcePane?.setRuntimeState(state)
+  if (sourceRuntimeState === state) return
+  sourceRuntimeState = state
+  updateSourcePaneTitle()
+}
+
+function updateSourcePane(): void {
+  if (sourcePane === null) return
+  updateSourcePaneTitle()
+  if (engineLastSource === null) {
+    sourcePane.setText("")
+    sourcePane.setExecutionLine(null)
+    return
+  }
+  sourcePane.setText(engineLastSource.lines.join("\n"))
+  if (engineLastSource.tokens !== undefined) sourcePane.setTokens(engineLastSource.tokens)
+  else sourcePane.setLanguage({path: sourcePathFromLocation(engineLastSource.location)})
+  sourcePane.setExecutionLine(engineLastSource.currentLine > 0 ? engineLastSource.currentLine : null, {scroll: true})
+}
+
+function updateSourcePaneTitle(): void {
+  sourcePane?.setTitle(sourceHeaderLocation())
+}
+
+function sourceHeaderLocation(): string {
+  if (sourceRuntimeState === "disconnected") return t("sourceDisconnected")
+  if (sourceRuntimeState === "loading") return t("sourceLoading")
+  if (sourceRuntimeState === "running" && engineLastSource !== null) return `${t("sourceLastPaused")}: ${engineLastSource.location}`
+  if (sourceRuntimeState === "running") return t("sourceRunning")
+  return engineLastSource?.location ?? t("sourceWaiting")
 }
 
 function sourceKeyFromLocation(location: string, fallback = ""): string {

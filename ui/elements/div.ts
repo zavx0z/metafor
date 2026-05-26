@@ -101,6 +101,7 @@ export function div(surface: UiSurface, x: number, y: number, width: number, hei
     props.onPointerEnter !== undefined ||
     props.onPointerLeave !== undefined ||
     props.onPointerDown !== undefined ||
+    props.onPointerMove !== undefined ||
     props.onPointerUp !== undefined
   ) {
     const hit: HitOptions = {cursor: "pointer"}
@@ -108,6 +109,7 @@ export function div(surface: UiSurface, x: number, y: number, width: number, hei
     if (props.onPointerEnter !== undefined) hit.onPointerEnter = props.onPointerEnter
     if (props.onPointerLeave !== undefined) hit.onPointerLeave = props.onPointerLeave
     if (props.onPointerDown !== undefined) hit.onPointerDown = props.onPointerDown
+    if (props.onPointerMove !== undefined) hit.onPointerMove = props.onPointerMove
     if (props.onPointerUp !== undefined) hit.onPointerUp = props.onPointerUp
     surface.hit(x, y, width, height, props.onClick ?? (() => {}), hit)
   }

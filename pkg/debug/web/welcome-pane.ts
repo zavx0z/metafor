@@ -6,8 +6,16 @@
  * Все координаты — pixel от pane-TL, никаких эстимейтов.
  */
 
-import {UiSurface, Z, palette, radii, uiIcons} from "@metafor/elements"
-import {Button as button, TextField as input} from "@metafor/components"
+import {UiSurface, palette, radii, uiIcons} from "@metafor/elements"
+import {
+  Button as button,
+  Pane as pane,
+  StatusChip as statusChip,
+  Typography as typography,
+  TextField as input,
+  createTextFieldState,
+  type TextFieldEditState,
+} from "@metafor/components"
 import type {WelcomeActions, WelcomeState} from "./debug-ui.ts"
 import {localizeSystemText, t} from "./i18n.ts"
 
@@ -23,8 +31,8 @@ export class WelcomePane extends UiSurface {
     defaultCommand: "",
     pauseOnStart: false,
   }
-  #url = ""
-  #command = ""
+  #url: TextFieldEditState = createTextFieldState("")
+  #command: TextFieldEditState = createTextFieldState("")
   #active: "command" | "url" | null = null
   readonly #actions: WelcomeActions
 
@@ -34,38 +42,12 @@ export class WelcomePane extends UiSurface {
   }
 
   setState(next: WelcomeState): void {
-    const wasEmpty = this.#command.length === 0
+    const wasEmpty = this.#command.value.length === 0
     const previousDefault = this.#state.defaultCommand
     this.#state = next
-    if (this.#active !== "url") this.#url = next.inspectorUrl
-    if (this.#active !== "command" && (wasEmpty || this.#command === previousDefault)) this.#command = next.defaultCommand
+    if (this.#active !== "url") this.#url = keepInputText(this.#url, next.inspectorUrl)
+    if (this.#active !== "command" && (wasEmpty || this.#command.value === previousDefault)) this.#command = keepInputText(this.#command, next.defaultCommand)
     this.requestRender()
-  }
-
-  onKey(event: KeyboardEvent): void {
-    if (this.#active === null) return
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-      event.preventDefault()
-      if (this.#active === "command") this.#actions.onRun(this.#command, this.#state.pauseOnStart)
-      else this.#actions.onApplyInspector(this.#url)
-      return
-    }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") {
-      event.preventDefault()
-      void navigator.clipboard.readText().then((text) => {
-        this.#setActiveValue(this.#active, this.#activeValue() + text)
-      })
-      return
-    }
-    if (event.key === "Backspace") {
-      event.preventDefault()
-      this.#setActiveValue(this.#active, this.#activeValue().slice(0, -1))
-      return
-    }
-    if (event.key.length === 1 && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault()
-      this.#setActiveValue(this.#active, this.#activeValue() + event.key)
-    }
   }
 
   override onDeactivate(): void {
@@ -77,88 +59,89 @@ export class WelcomePane extends UiSurface {
   }
 
   protected render(): void {
-    // Title.
-    this.drawText(t("interpreter"), PAD, 14, {
-      fontPx: 13,
-      material: this.materials.cyan,
-      maxWidthPx: this.rectW - PAD * 2,
+    typography(this, PAD, 14, this.rectW - PAD * 2, 18, {
+      children: t("interpreter"),
+      variant: "subtitle",
+      color: "cyan",
     })
 
-    // Status panel.
     const statusY = 46
     const statusH = 72
     const contentW = this.rectW - PAD * 2
     const online = this.#state.connectionState === "connected"
-    const statusFill = online ? palette.bgPanel : palette.bgElevated
-    const statusBorder = online ? palette.green : palette.borderDim
     const statusText = online ? t("inspectorConnected") : t("inspectorOffline")
     const statusDetail = localizeSystemText(this.#state.connectionError)
-    this.drawRoundedRect(PAD, statusY, contentW, statusH, {
-      radius: 8,
-      fill: statusFill,
-      border: statusBorder,
-      borderWidth: 1,
-      z: Z.CONTAINER,
+    pane(this, PAD, statusY, contentW, statusH, {
+      sx: {
+        background: online ? "bgPanel" : "bgElevated",
+        borderColor: online ? "green" : "borderDim",
+        borderRadius: 8,
+        padding: 0,
+      },
     })
-    this.drawRoundedRect(PAD + 14, statusY + 18, 9, 9, {
-      radius: 4.5,
-      fill: online ? palette.green : palette.orange,
-      z: Z.TEXT,
-    })
-    this.drawText(statusText, PAD + 32, statusY + 12, {
-      fontPx: 14,
-      material: online ? this.materials.green : this.materials.orange,
-      maxWidthPx: contentW - 46,
-    })
-    this.drawText(statusDetail, PAD + 32, statusY + 38, {
+    statusChip(this, PAD + 14, statusY + 11, Math.min(230, contentW - 28), 26, {
+      label: statusText,
+      indicator: true,
+      variant: "subtle",
+      tone: online ? "live" : "paused",
       fontPx: 12,
-      material: this.materials.muted,
-      maxWidthPx: Math.max(1, contentW - 46),
     })
-    this.drawText(`${t("target")}: ${this.#state.targetStatus}`, Math.max(PAD + 32, PAD + contentW - 300), statusY + 54, {
-      fontPx: 12,
-      material: this.materials.muted,
-      maxWidthPx: 280,
+    typography(this, PAD + 14, statusY + 39, Math.max(1, contentW - 28), 16, {
+      children: statusDetail,
+      variant: "body",
+      color: "muted",
+    })
+    typography(this, Math.max(PAD + 14, PAD + contentW - 300), statusY + 55, 286, 16, {
+      children: `${t("target")}: ${this.#state.targetStatus}`,
+      variant: "body",
+      color: "muted",
     })
 
     // Target command gets the full row: the default Bun command is long and
     // must remain readable/editable without hiding the important tail.
     const targetY = 132
     const targetH = 122
-    this.drawRoundedRect(PAD, targetY, contentW, targetH, {
-      radius: 8,
-      fill: palette.bgPanel,
-      border: palette.borderDim,
-      borderWidth: 1,
-      z: Z.CONTAINER,
+    pane(this, PAD, targetY, contentW, targetH, {
+      sx: {
+        background: "bgPanel",
+        borderColor: "borderDim",
+        borderRadius: 8,
+        padding: 0,
+      },
     })
     const inspectorY = targetY + targetH + GAP
     const inspectorH = 96
-    this.drawRoundedRect(PAD, inspectorY, contentW, inspectorH, {
-      radius: 8,
-      fill: palette.bgPanel,
-      border: palette.borderDim,
-      borderWidth: 1,
-      z: Z.CONTAINER,
+    pane(this, PAD, inspectorY, contentW, inspectorH, {
+      sx: {
+        background: "bgPanel",
+        borderColor: "borderDim",
+        borderRadius: 8,
+        padding: 0,
+      },
     })
 
-    // Target panel.
-    this.drawText(t("target"), PAD + 14, targetY + 12, {
-      fontPx: 13,
-      material: this.materials.orange,
-      maxWidthPx: contentW - 28,
+    typography(this, PAD + 14, targetY + 12, contentW - 28, 18, {
+      children: t("target"),
+      variant: "subtitle",
+      color: "orange",
     })
     input(this, PAD + 14, targetY + 42, contentW - 28, 34, {
-      value: this.#command,
+      value: this.#command.value,
       active: this.#active === "command",
+      cursor: this.#command.cursor,
+      selectionAnchor: this.#command.selectionAnchor,
+      submitOnEnter: true,
+      onChange: (_value, state) => this.#setActiveState("command", state),
+      onSubmit: () => this.#actions.onRun(this.#command.value, this.#state.pauseOnStart),
       onActivate: () => {
         this.#active = "command"
+        this.#command = createTextFieldState(this.#command.value, this.#command.value.length)
         this.requestRender()
       },
     })
     button(this, PAD + 14, targetY + 84, 40, 28, {
       label: t("runTarget"), iconSrc: uiIcons.run, iconOnly: true, tooltip: t("runTarget"), tone: "live",
-      action: () => this.#actions.onRun(this.#command, this.#state.pauseOnStart),
+      action: () => this.#actions.onRun(this.#command.value, this.#state.pauseOnStart),
     })
     button(this, PAD + 62, targetY + 84, 40, 28, {
       label: t("stopTarget"), iconSrc: uiIcons.stop, iconOnly: true, tooltip: t("stopTarget"), tone: "warn", action: () => this.#actions.onStop(),
@@ -177,49 +160,52 @@ export class WelcomePane extends UiSurface {
         this.requestRender()
       },
     })
-    this.drawText(t("commandExact"), PAD + 164, targetY + 91, {
-      fontPx: 11,
-      material: this.materials.muted,
-      maxWidthPx: contentW - 178,
+    typography(this, PAD + 164, targetY + 91, contentW - 178, 14, {
+      children: t("commandExact"),
+      variant: "caption",
     })
 
-    // Inspector panel.
-    this.drawText(t("inspector"), PAD + 14, inspectorY + 12, {
-      fontPx: 13,
-      material: this.materials.cyan,
-      maxWidthPx: contentW - 28,
+    typography(this, PAD + 14, inspectorY + 12, contentW - 28, 18, {
+      children: t("inspector"),
+      variant: "subtitle",
+      color: "cyan",
     })
     input(this, PAD + 14, inspectorY + 42, contentW - 72, 32, {
-      value: this.#url,
+      value: this.#url.value,
       active: this.#active === "url",
+      cursor: this.#url.cursor,
+      selectionAnchor: this.#url.selectionAnchor,
+      submitOnEnter: true,
+      onChange: (_value, state) => this.#setActiveState("url", state),
+      onSubmit: () => this.#actions.onApplyInspector(this.#url.value),
       onActivate: () => {
         this.#active = "url"
+        this.#url = createTextFieldState(this.#url.value, this.#url.value.length)
         this.requestRender()
       },
     })
     button(this, PAD + contentW - 50, inspectorY + 42, 36, 32, {
       label: t("applyInspector"), iconSrc: uiIcons.apply, iconOnly: true, tooltip: t("applyInspector"), tone: "neutral",
-      action: () => this.#actions.onApplyInspector(this.#url),
+      action: () => this.#actions.onApplyInspector(this.#url.value),
     })
-    const mirrorUrl = `https://debug.bun.sh/#${this.#url.replace(/^wss?:\/\//, "")}`
-    this.drawText(mirrorUrl, PAD + 14, inspectorY + 80, {
-      fontPx: 11,
-      material: this.materials.muted,
-      maxWidthPx: contentW - 28,
+    const mirrorUrl = `https://debug.bun.sh/#${this.#url.value.replace(/^wss?:\/\//, "")}`
+    typography(this, PAD + 14, inspectorY + 80, contentW - 28, 14, {
+      children: mirrorUrl,
+      variant: "caption",
     })
 
   }
-
-  #activeValue(): string {
-    return this.#active === "url" ? this.#url : this.#command
-  }
-
-  #setActiveValue(active: "command" | "url" | null, value: string): void {
-    if (active === "url") this.#url = value
+  #setActiveState(active: "command" | "url" | null, state: TextFieldEditState): void {
+    if (active === "url") this.#url = state
     if (active === "command") {
-      this.#command = value
-      localStorage.setItem("bd:target:cmd", value)
+      this.#command = state
+      localStorage.setItem("bd:target:cmd", state.value)
     }
     this.requestRender()
   }
+}
+
+function keepInputText(prev: TextFieldEditState, value: string): TextFieldEditState {
+  if (prev.value === value) return prev
+  return createTextFieldState(value, value.length)
 }

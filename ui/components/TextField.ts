@@ -1,24 +1,59 @@
-import {input as renderInput, type InputOpts} from "./internal/renderers.ts"
+import {
+  input as renderInput,
+  createInputEditState,
+  handleInputKey,
+  insertInputText,
+  type InputEditState,
+  type InputKeyOptions,
+  type InputKeyResult,
+} from "@metafor/elements"
 import type {UiSurface, StyleProps} from "@metafor/elements"
 
 export type TextFieldProps = {
   value?: string
   children?: string
+  placeholder?: string
   active?: boolean
   disabled?: boolean
+  cursor?: number
+  selectionAnchor?: number | null
+  cursorVisible?: boolean
   fontPx?: number
   sx?: StyleProps
+  onChange?: (value: string, state: TextFieldEditState) => void
+  onSubmit?: (value: string, state: TextFieldEditState) => void
+  submitOnEnter?: boolean
+  allowTab?: boolean
   onClick?: () => void
   onActivate?: () => void
 }
 
 export function TextField(host: UiSurface, x: number, y: number, width: number, height: number, props: TextFieldProps): void {
-  const opts: InputOpts = {
+  const inputProps: Parameters<typeof renderInput>[5] = {
     value: props.value ?? props.children ?? "",
-    active: props.active === true,
-    onActivate: props.onClick ?? props.onActivate ?? (() => {}),
   }
+  if (props.active !== undefined) inputProps.active = props.active
+  if (props.sx !== undefined) inputProps.style = props.sx
+  if (props.placeholder !== undefined) inputProps.placeholder = props.placeholder
+  if (props.disabled !== undefined) inputProps.disabled = props.disabled
+  if (props.cursor !== undefined) inputProps.cursor = props.cursor
+  if (props.selectionAnchor !== undefined) inputProps.selectionAnchor = props.selectionAnchor
+  if (props.cursorVisible !== undefined) inputProps.cursorVisible = props.cursorVisible
+  if (props.onChange !== undefined) inputProps.onChange = props.onChange
+  if (props.onSubmit !== undefined) inputProps.onSubmit = props.onSubmit
+  if (props.submitOnEnter !== undefined) inputProps.submitOnEnter = props.submitOnEnter
+  if (props.allowTab !== undefined) inputProps.allowTab = props.allowTab
   const fontPx = props.fontPx ?? (props.sx?.fontSize === undefined ? undefined : Number(props.sx.fontSize))
-  if (fontPx !== undefined) opts.fontPx = fontPx
-  renderInput(host, x, y, width, height, opts)
+  if (fontPx !== undefined) inputProps.fontPx = fontPx
+  const onActivate = props.onClick ?? props.onActivate
+  if (onActivate !== undefined) inputProps.onActivate = onActivate
+  renderInput(host, x, y, width, height, inputProps)
 }
+
+export type TextFieldEditState = InputEditState
+export type TextFieldKeyOptions = InputKeyOptions
+export type TextFieldKeyResult = InputKeyResult
+
+export const createTextFieldState = createInputEditState
+export const handleTextFieldKey = handleInputKey
+export const insertTextFieldText = insertInputText

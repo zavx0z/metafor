@@ -14,6 +14,7 @@
 import {Color, Object3D, Renderer, Space, TrueTypeFont, ViewPoint} from "@metafor/engine"
 import {HUD} from "./targets/HUD.ts"
 import {VirtualInput} from "./virtual-input.ts"
+import {handleActiveInputKey, insertActiveInputText} from "./input.ts"
 
 export type UiSurfaceRect = {x: number; y: number; w: number; h: number; visible?: boolean}
 export type UiSurfaceLayoutFn = (canvas: {w: number; h: number}) => UiSurfaceRect
@@ -134,8 +135,8 @@ export class UiRuntime {
     if (opts.inputProxy !== false) {
       const host = canvas.parentElement ?? document.body
       this.inputProxy = new VirtualInput(host)
-      this.inputProxy.onKey((e) => this.#focused?.onKey?.(e))
-      this.inputProxy.onText((t) => this.#focused?.onInputText?.(t))
+      this.inputProxy.onKey((e) => this.#onKey(e))
+      this.inputProxy.onText((t) => this.#onInputText(t))
     } else {
       this.inputProxy = null
     }
@@ -358,6 +359,18 @@ export class UiRuntime {
   }
 
   #onKey(event: KeyboardEvent): void {
-    this.#focused?.onKey?.(event)
+    const focused = this.#focused
+    if (focused === null) return
+    focused.onKey?.(event)
+    if (!event.defaultPrevented) handleActiveInputKey(focused as UiSurfaceForInput, event)
+  }
+
+  #onInputText(text: string): void {
+    const focused = this.#focused
+    if (focused === null) return
+    focused.onInputText?.(text)
+    insertActiveInputText(focused as UiSurfaceForInput, text)
   }
 }
+
+type UiSurfaceForInput = Parameters<typeof handleActiveInputKey>[0]

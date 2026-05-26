@@ -4,9 +4,18 @@ import { TrueTypeFont } from "../text/TrueTypeFont"
 import { TextMaterial } from "../materials/TextMaterial"
 
 type Point = { x: number; y: number; on: boolean }
+type TextLayoutCacheEntry = {
+  stencilVerts: Float32Array
+  stencilIndices: Uint32Array
+  coverVerts: Float32Array
+  coverIndices: Uint32Array
+  sharedStencilGeometry?: BufferGeometry
+  sharedCoverGeometry?: BufferGeometry
+}
 
 const ADAPTIVE_TOLERANCE_FU = 0.5
 const MAX_SUBDIVISION_DEPTH = 12
+const TEXT_LAYOUT_CACHE_LIMIT = 4096
 
 function pointLineDistance(px: number, py: number, x0: number, y0: number, x1: number, y1: number): number {
   const dx = x1 - x0
@@ -108,6 +117,25 @@ function makeFanIndices(contourEnds: Uint32Array, indexOffset: number): Uint32Ar
   return new Uint32Array(idx)
 }
 
+/**
+ * Изменяемый текстовый узел с собственной геометрией.
+ *
+ * Используйте `Text`, когда текст является частью 3D/2D-сцены и его геометрия
+ * должна принадлежать конкретному экземпляру:
+ *
+ * - текст деформируется вручную через `stencilGeometry` / `coverGeometry`;
+ * - координаты вершин меняются каждый кадр и помечаются `needsUpdate`;
+ * - строка, `fontSize` или `letterSpacing` меняются на лету через
+ *   `updateGeometry()`;
+ * - нужен обычный независимый scene-node без разделения GPU-буферов.
+ *
+ * Внутри `Text` может переиспользовать CPU-раскладку строки, но итоговые
+ * `BufferGeometry` клонируются для каждого экземпляра. Поэтому внешняя мутация
+ * геометрии не затронет другие текстовые узлы.
+ *
+ * Для immediate-mode UI и повторяющихся неизменяемых надписей используйте
+ * {@link CachedText}: он шарит геометрию и GPU-буферы ради производительности.
+ */
 export class Text extends Object3D {
   public readonly isText: true = true
   public type = "Text"
@@ -128,7 +156,20 @@ export class Text extends Object3D {
   public clipBounds: [number, number, number, number] | null = null
 
   private static geometryCache: Map<number, { stencil: BufferGeometry; cover: BufferGeometry }> = new Map()
+  private static layoutCache: Map<string, TextLayoutCacheEntry> = new Map()
+  private static cachedLayoutGeometries: WeakSet<BufferGeometry> = new WeakSet()
+  private static evictedLayoutGeometries: BufferGeometry[] = []
+  private static fontIds: WeakMap<TrueTypeFont, number> = new WeakMap()
+  private static nextFontId = 1
 
+  /**
+   * Создаёт изменяемый текст с собственной геометрией.
+   *
+   * @param text - Строка для отрисовки.
+   * @param font - Загруженный TrueType-шрифт.
+   * @param fontSize - Размер текста в world units.
+   * @param material - Материал заливки текста.
+   */
   constructor(text: string, font: TrueTypeFont, fontSize: number = 10, material: TextMaterial) {
     super()
     this.text = text
@@ -139,7 +180,29 @@ export class Text extends Object3D {
     this.updateGeometry()
   }
 
+  /** @internal */
+  protected useSharedLayout(): boolean {
+    return false
+  }
+
+  /**
+   * Перестраивает геометрию по текущим `text`, `font`, `fontSize` и
+   * `letterSpacing`.
+   *
+   * Вызывайте этот метод после изменения текстовых параметров. Для `Text`
+   * результатом всегда будут новые собственные `BufferGeometry`, которые можно
+   * безопасно мутировать. Для {@link CachedText} результатом будет разделяемая
+   * кэшированная геометрия, которую мутировать вручную нельзя.
+   */
   public updateGeometry(): void {
+    const cacheKey = Text.layoutCacheKey(this.text, this.font, this.fontSize, this.letterSpacing)
+    const cachedLayout = Text.layoutCache.get(cacheKey)
+    if (cachedLayout) {
+      Text.touchLayoutCache(cacheKey, cachedLayout)
+      this.applyLayout(cachedLayout)
+      return
+    }
+
     const allStencilVerts: number[] = []
     const allStencilIndices: number[] = []
     const allCoverVerts: number[] = []
@@ -235,9 +298,125 @@ export class Text extends Object3D {
       penX += metric.advanceWidth * scale + this.letterSpacing
     }
 
-    this.stencilGeometry.setAttribute("position", new BufferAttribute(new Float32Array(allStencilVerts), 3))
-    this.stencilGeometry.setIndex(new BufferAttribute(new Uint32Array(allStencilIndices), 1))
-    this.coverGeometry.setAttribute("position", new BufferAttribute(new Float32Array(allCoverVerts), 3))
-    this.coverGeometry.setIndex(new BufferAttribute(new Uint32Array(allCoverIndices), 1))
+    const layout: TextLayoutCacheEntry = {
+      stencilVerts: new Float32Array(allStencilVerts),
+      stencilIndices: new Uint32Array(allStencilIndices),
+      coverVerts: new Float32Array(allCoverVerts),
+      coverIndices: new Uint32Array(allCoverIndices),
+    }
+    Text.rememberLayout(cacheKey, layout)
+    this.applyLayout(layout)
+  }
+
+  private applyLayout(layout: TextLayoutCacheEntry): void {
+    if (this.useSharedLayout()) {
+      this.stencilGeometry = Text.sharedGeometry(layout, "stencil")
+      this.coverGeometry = Text.sharedGeometry(layout, "cover")
+      return
+    }
+    this.stencilGeometry = Text.createGeometry(layout.stencilVerts, layout.stencilIndices, true)
+    this.coverGeometry = Text.createGeometry(layout.coverVerts, layout.coverIndices, true)
+  }
+
+  private static createGeometry(vertices: Float32Array, indices: Uint32Array, clone: boolean): BufferGeometry {
+    const geometry = new BufferGeometry()
+    geometry.setAttribute("position", new BufferAttribute(clone ? new Float32Array(vertices) : vertices, 3))
+    geometry.setIndex(new BufferAttribute(clone ? new Uint32Array(indices) : indices, 1))
+    return geometry
+  }
+
+  private static sharedGeometry(layout: TextLayoutCacheEntry, kind: "stencil" | "cover"): BufferGeometry {
+    if (kind === "stencil") {
+      layout.sharedStencilGeometry ??= Text.createGeometry(layout.stencilVerts, layout.stencilIndices, false)
+      Text.cachedLayoutGeometries.add(layout.sharedStencilGeometry)
+      return layout.sharedStencilGeometry
+    }
+    layout.sharedCoverGeometry ??= Text.createGeometry(layout.coverVerts, layout.coverIndices, false)
+    Text.cachedLayoutGeometries.add(layout.sharedCoverGeometry)
+    return layout.sharedCoverGeometry
+  }
+
+  private static layoutCacheKey(text: string, font: TrueTypeFont, fontSize: number, letterSpacing: number): string {
+    let fontId = Text.fontIds.get(font)
+    if (fontId === undefined) {
+      fontId = Text.nextFontId++
+      Text.fontIds.set(font, fontId)
+    }
+    return `${fontId}:${fontSize.toFixed(8)}:${letterSpacing.toFixed(8)}:${text}`
+  }
+
+  private static touchLayoutCache(key: string, layout: TextLayoutCacheEntry): void {
+    Text.layoutCache.delete(key)
+    Text.layoutCache.set(key, layout)
+  }
+
+  private static rememberLayout(key: string, layout: TextLayoutCacheEntry): void {
+    Text.layoutCache.set(key, layout)
+    if (Text.layoutCache.size <= TEXT_LAYOUT_CACHE_LIMIT) return
+    const oldest = Text.layoutCache.keys().next().value
+    if (oldest === undefined) return
+    const evicted = Text.layoutCache.get(oldest)
+    if (evicted?.sharedStencilGeometry !== undefined) {
+      Text.cachedLayoutGeometries.delete(evicted.sharedStencilGeometry)
+      Text.evictedLayoutGeometries.push(evicted.sharedStencilGeometry)
+    }
+    if (evicted?.sharedCoverGeometry !== undefined) {
+      Text.cachedLayoutGeometries.delete(evicted.sharedCoverGeometry)
+      Text.evictedLayoutGeometries.push(evicted.sharedCoverGeometry)
+    }
+    Text.layoutCache.delete(oldest)
+  }
+
+  /** @internal */
+  static isCachedLayoutGeometry(geometry: BufferGeometry): boolean {
+    return Text.cachedLayoutGeometries.has(geometry)
+  }
+
+  /** @internal */
+  static consumeEvictedLayoutGeometries(): BufferGeometry[] {
+    const evicted = Text.evictedLayoutGeometries
+    Text.evictedLayoutGeometries = []
+    return evicted
+  }
+}
+
+/**
+ * Кэшируемый текстовый узел для immediate-mode UI.
+ *
+ * Используйте `CachedText`, когда много одинаковых или часто пересоздаваемых
+ * надписей рисуются как UI-элементы: редактор, списки, таблицы, меню, панели,
+ * скроллируемый текст. Экземпляры с одинаковыми `text`, `font`, `fontSize` и
+ * `letterSpacing` получают общую раскладку, общую `BufferGeometry` и один набор
+ * GPU-буферов. Это резко снижает стоимость scroll/render циклов, где одни и те
+ * же строки появляются снова.
+ *
+ * Геометрию `CachedText` нельзя менять вручную: не записывайте в
+ * `stencilGeometry.attributes.position.array`, не изгибайте и не помечайте её
+ * `needsUpdate`. Такая геометрия разделяется между экземплярами. Позицию,
+ * трансформации, материал, видимость и `clipBounds` менять можно, потому что это
+ * состояние конкретного объекта, а не общей геометрии.
+ *
+ * Если текст нужно деформировать, редактировать вершины или хранить как
+ * независимый scene-node, используйте {@link Text}.
+ */
+export class CachedText extends Text {
+  public readonly isCachedText: true = true
+  public override type = "CachedText"
+
+  /**
+   * Создаёт UI-текст с разделяемой кэшированной геометрией.
+   *
+   * @param text - Строка для отрисовки.
+   * @param font - Загруженный TrueType-шрифт.
+   * @param fontSize - Размер текста в world units.
+   * @param material - Материал заливки текста. Материал остаётся per-instance.
+   */
+  constructor(text: string, font: TrueTypeFont, fontSize: number = 10, material: TextMaterial) {
+    super(text, font, fontSize, material)
+  }
+
+  /** @internal */
+  protected override useSharedLayout(): boolean {
+    return true
   }
 }

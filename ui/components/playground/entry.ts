@@ -9,6 +9,7 @@ import {
   EditorPane,
   listLanguageHighlighters,
   Pane,
+  TextField,
 } from "@metafor/components"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
@@ -38,8 +39,9 @@ type EditorRoute =
   | `editor/selection/${EditorSelectionRoute}`
   | "editor/scroll"
   | `editor/scroll/${EditorScrollRoute}`
-type ComponentsRoute = ButtonRoute | PaneRoute | EditorRoute
-type ComponentName = "Button" | "Pane" | "Editor"
+type TextFieldRoute = "text-field"
+type ComponentsRoute = PaneRoute | ButtonRoute | TextFieldRoute | EditorRoute
+type ComponentName = "Pane" | "Button" | "TextField" | "Editor"
 type ButtonRoute =
   | "button/basic"
   | `button/basic/${ButtonRouteVariant}`
@@ -112,14 +114,14 @@ const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
 const EDITOR_SECTIONS: readonly EditorSection[] = ["Editing", "Highlighting", "Selection", "Scroll"]
 const PANE_VARIANTS: readonly PaneVariant[] = ["glass", "outlined", "filled"]
 const PANE_SCROLL_AXES: readonly PaneScrollAxis[] = ["vertical", "horizontal"]
-const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...BUTTON_ROUTES, ...PANE_ROUTES, ...EDITOR_ROUTES]
+const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...PANE_ROUTES, ...BUTTON_ROUTES, "text-field", ...EDITOR_ROUTES]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
 const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
 const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
 const BUTTON_STATES: readonly ButtonState[] = ["enabled", "disabled"]
 const BUTTON_WIDTHS: readonly ButtonWidth[] = ["compact", "regular", "wide"]
 const BUTTON_HEIGHTS: readonly ButtonHeight[] = ["compact", "regular", "large"]
-const COMPONENT_NAV = ["Button", "Pane", "Editor", "Badge", "TextField", "Divider", "Noti Stack"] as const
+const COMPONENT_NAV = ["Pane", "Button", "TextField", "Editor", "Badge", "Divider", "Noti Stack"] as const
 const BUTTON_RADII = [14, 24, 34, 999] as const
 const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.12
@@ -133,7 +135,7 @@ type ComponentsScreenOpts = {
 }
 
 class ButtonComponentsScreen extends UiSurface {
-  readonly #router = new VirtualRouter<ComponentsRoute>(COMPONENT_ROUTES, "button/basic", {mode: "path"})
+  readonly #router = new VirtualRouter<ComponentsRoute>(COMPONENT_ROUTES, "pane/variants", {mode: "path"})
   readonly #unsubscribe: () => void
   readonly #onRouteChange: ((route: ComponentsRoute) => void) | undefined
   readonly #onEditorFocus: (() => void) | undefined
@@ -264,7 +266,7 @@ class ButtonComponentsScreen extends UiSurface {
           const rowY = top + i * (rowH + gap) - ctx.scrollTop
           if (rowY + rowH < top || rowY > top + ctx.viewportHeight) continue
           const active = label === this.#currentComponent()
-          const enabled = label === "Button" || label === "Pane" || label === "Editor"
+          const enabled = label === "Pane" || label === "Button" || label === "TextField" || label === "Editor"
           Button(this, x + pad, rowY, w - pad * 2 - (ctx.contentHeight > ctx.viewportHeight ? 14 : 0), rowH, {
             children: label,
             variant: active ? "contained" : "glass",
@@ -274,8 +276,9 @@ class ButtonComponentsScreen extends UiSurface {
             radius: 999,
             fontPx: 11,
             onClick: () => {
-              if (label === "Button") this.#router.go("button/basic")
-              else if (label === "Pane") this.#router.go("pane/variants")
+              if (label === "Pane") this.#router.go("pane/variants")
+              else if (label === "Button") this.#router.go("button/basic")
+              else if (label === "TextField") this.#router.go("text-field")
               else if (label === "Editor") this.#router.go("editor/editing")
               this.#record(`component:${label.toLowerCase()}`)
             },
@@ -305,6 +308,10 @@ class ButtonComponentsScreen extends UiSurface {
     if (this.#currentComponent() === "Editor") {
       h3(this, x, y + 28, w, 24, {children: "Editor", style: {fontSize: 15, textAlign: "center"}})
       this.#sectionList(x, y + 76, w, h - 94, EDITOR_SECTIONS, (section) => this.#editorSection() === section, (section) => this.#goEditorSection(section))
+      return
+    }
+    if (this.#currentComponent() === "TextField") {
+      h3(this, x, y + 28, w, 24, {children: "TextField", style: {fontSize: 15, textAlign: "center"}})
       return
     }
     h3(this, x, y + 28, w, 24, {children: "Button", style: {fontSize: 15, textAlign: "center"}})
@@ -376,6 +383,8 @@ class ButtonComponentsScreen extends UiSurface {
         if (variant === null) this.#paneOverview(x, y, w, h)
         else this.#paneDetail(x, y, w, h, variant)
       }
+    } else if (this.#currentComponent() === "TextField") {
+      this.#textFieldPreview(x, y, w, h)
     } else if (this.#routeSection() === "Icon") {
       const icon = this.#routeIcon()
       if (icon === "svg") this.#iconSvgDetail(x, y, w, h)
@@ -557,6 +566,42 @@ class ButtonComponentsScreen extends UiSurface {
       variant: "outlined",
       children: axis === "vertical" ? paneVerticalScrollText() : paneHorizontalScrollText(),
       sx: paneScrollStyle(axis),
+    })
+
+    const codeW = Math.min(560, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #textFieldPreview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const codeLines = [
+      `TextField(host, x, y, 360, 46, {`,
+      `  placeholder: "Type query",`,
+      `  submitOnEnter: true })`,
+    ] as const
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH: 174,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, "TextField", [
+      "Text input component built on the base input element.",
+      "Click the field, type text, drag to select, or use Shift+Arrow.",
+    ])
+
+    const fieldW = Math.min(420, w - pad * 2)
+    const fieldX = x + (w - fieldW) / 2
+    const fieldY = rows.demoY + 28
+    TextField(this, fieldX, fieldY, fieldW, 46, {
+      placeholder: "Type query",
+      submitOnEnter: true,
+      sx: {fontSize: 12},
+    })
+    TextField(this, fieldX, fieldY + 72, fieldW, 46, {
+      value: "Disabled field",
+      disabled: true,
+      sx: {fontSize: 12},
     })
 
     const codeW = Math.min(560, w - pad * 2)
@@ -1176,6 +1221,7 @@ class ButtonComponentsScreen extends UiSurface {
       }
       return
     }
+    if (this.#currentComponent() === "TextField") return
     if (this.#routeSection() === "Icon") {
       this.#iconDock(x, y, w, h)
       return
@@ -1379,6 +1425,17 @@ class ButtonComponentsScreen extends UiSurface {
         `  languageId: "${editorLanguageId(this.#editorLanguage())}",`,
         `  fontPx: 12, linePx: 17 })`,
       ])
+      return
+    }
+    if (this.#currentComponent() === "TextField") {
+      const pad = 24
+      h3(this, x + pad, y + 30, w - pad * 2, 24, {children: "TextField", style: {fontSize: 15}})
+      p(this, x + pad, y + 70, w - pad * 2, 22, {children: "Component", style: {fontSize: 11, color: "muted"}})
+      codeBlock(this, x + pad, y + 104, w - pad * 2, [
+        `TextField(host, x, y, w, h, {`,
+        `  placeholder: "Type query",`,
+        `  submitOnEnter: true })`,
+      ])
     }
   }
 
@@ -1540,6 +1597,7 @@ class ButtonComponentsScreen extends UiSurface {
   }
 
   #currentComponent(): ComponentName {
+    if (this.#route === "text-field") return "TextField"
     if (this.#route.startsWith("editor")) return "Editor"
     return this.#route.startsWith("pane/") ? "Pane" : "Button"
   }
@@ -3017,7 +3075,7 @@ function editorDemoSource(language: EditorLanguageRoute): string {
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
 const ui = await UiRuntime.create(canvas)
-let activeRoute: ComponentsRoute = "button/basic"
+let activeRoute: ComponentsRoute = "pane/variants"
 let screen: ButtonComponentsScreen | null = null
 const editor = new EditorPane({
   title: "Demo source",

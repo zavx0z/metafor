@@ -11,8 +11,9 @@
  *    математические символы, guillemets и т.п.
  *  • drawRect клампится к surface-bounds.
  *  • Mesh.parent ВСЕГДА выставляется через Object3D.add() (не unshift).
- *  • Между renderами draw-слои пересобираются; геометрии возвращаются
- *    в renderer.invalidateGeometry().
+ *  • Между renderами draw-слои пересобираются; обычные геометрии возвращаются
+ *    в renderer.invalidateGeometry(). Кэшированные Text-геометрии остаются
+ *    в GPU-кэше до LRU-вытеснения.
  *
  * Z-СТЕК:
  *   bg     -0.2
@@ -61,6 +62,7 @@ import {
   PlaneGeometry,
   RadialBackdropMaterial,
   RoundedRectMaterial,
+  CachedText,
   Text,
   TextMaterial,
   TexturedPlaneGeometry,
@@ -85,9 +87,9 @@ export type HitBox = {
   tooltip?: TooltipHit
   onPointerEnter?: () => void
   onPointerLeave?: () => void
-  onPointerDown?: (localX: number, localY: number) => void
-  onPointerMove?: (localX: number, localY: number) => void
-  onPointerUp?: () => void
+  onPointerDown?: (localX: number, localY: number, event?: MouseEvent) => void
+  onPointerMove?: (localX: number, localY: number, event?: MouseEvent) => void
+  onPointerUp?: (event?: MouseEvent) => void
 }
 
 export type WheelHitBox = {
@@ -111,9 +113,9 @@ export type HitOptions = {
   key?: string
   onPointerEnter?: () => void
   onPointerLeave?: () => void
-  onPointerDown?: (localX: number, localY: number) => void
-  onPointerMove?: (localX: number, localY: number) => void
-  onPointerUp?: () => void
+  onPointerDown?: (localX: number, localY: number, event?: MouseEvent) => void
+  onPointerMove?: (localX: number, localY: number, event?: MouseEvent) => void
+  onPointerUp?: (event?: MouseEvent) => void
 }
 
 export type HitState = {
@@ -554,7 +556,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     // fontPx — в reference-px (если referenceHeight задан); приводим к
     // canvas-px через pageScaleFactor для размера текста и y-сдвига.
     const fontPxCanvas = opts.fontPx * this.pageScaleFactor
-    const text = new Text(fitted, this.font, fontPxCanvas * this.pixelScale, opts.material)
+    const text = new CachedText(fitted, this.font, fontPxCanvas * this.pixelScale, opts.material)
     text.position.x = x * this.pixelScale
     // y — top-of-cap (canvas-px). Baseline ≈ y + fontPxCanvas.
     text.position.y = -(y + fontPxCanvas) * this.pixelScale
@@ -881,7 +883,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
     if (this.canvas === null) return
     if (this.pressedHit !== null) {
-      this.pressedHit.onPointerMove?.(localX - this.#padLeft, localY - this.#padTop)
+      this.pressedHit.onPointerMove?.(localX - this.#padLeft, localY - this.#padTop, _event)
       this.canvas.canvas.style.cursor = this.#cursorFor(this.pressedHit, true)
       return
     }
@@ -899,7 +901,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (hit === null) return
     this.pressedHit = hit
     this.#pressedHitKey = hit.key
-    hit.onPointerDown?.(localX - this.#padLeft, localY - this.#padTop)
+    hit.onPointerDown?.(localX - this.#padLeft, localY - this.#padTop, _event)
     if (this.canvas !== null) this.canvas.canvas.style.cursor = this.#cursorFor(hit, true)
     this.requestRender()
   }
@@ -910,7 +912,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     const releaseHit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     this.pressedHit = null
     this.#pressedHitKey = null
-    pressed.onPointerUp?.()
+    pressed.onPointerUp?.(_event)
     if (releaseHit?.key === pressed.key) {
       pressed.action()
     }
@@ -1255,12 +1257,19 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   #clearLayer(layer: Object3D = this.#layer): void {
     const renderer = this.canvas?.renderer
+    if (renderer !== undefined) {
+      for (const geometry of Text.consumeEvictedLayoutGeometries()) renderer.invalidateGeometry(geometry)
+    }
     for (const obj of layer.children) {
       const text = obj as Text
       if (text.isText === true) {
         if (renderer !== undefined) {
-          if (text.stencilGeometry !== undefined) renderer.invalidateGeometry(text.stencilGeometry)
-          if (text.coverGeometry !== undefined) renderer.invalidateGeometry(text.coverGeometry)
+          if (text.stencilGeometry !== undefined && !Text.isCachedLayoutGeometry(text.stencilGeometry)) {
+            renderer.invalidateGeometry(text.stencilGeometry)
+          }
+          if (text.coverGeometry !== undefined && !Text.isCachedLayoutGeometry(text.coverGeometry)) {
+            renderer.invalidateGeometry(text.coverGeometry)
+          }
         }
         continue
       }

@@ -226,6 +226,17 @@ export class TrueTypeFont {
   getHMetric(gid: number): { advanceWidth: number; lsb: number }
 }
 
+/**
+ * Изменяемый текстовый узел с собственной геометрией.
+ *
+ * Используйте для scene-текста, который может менять строку, размер,
+ * letterSpacing или вершины геометрии на лету. После изменения текстовых
+ * параметров вызывайте `updateGeometry()`. Геометрию `Text` можно безопасно
+ * деформировать вручную, она не разделяется с другими экземплярами.
+ *
+ * Для immediate-mode UI и повторяющихся неизменяемых надписей используйте
+ * `CachedText`.
+ */
 export class Text extends Object3D {
   text: string
   font: TrueTypeFont
@@ -235,7 +246,24 @@ export class Text extends Object3D {
   stencilGeometry: BufferGeometry
   coverGeometry: BufferGeometry
   constructor(text: string, font: TrueTypeFont, fontSize: number, material: TextMaterial)
+  /** Перестраивает собственную геометрию по текущим text/fontSize/letterSpacing. */
   updateGeometry(): void
+}
+
+/**
+ * Кэшируемый текстовый узел для immediate-mode UI.
+ *
+ * Экземпляры с одинаковыми text/font/fontSize/letterSpacing разделяют
+ * раскладку, BufferGeometry и GPU-буферы. Используйте для редакторов, списков,
+ * таблиц, меню и скроллируемого UI-текста.
+ *
+ * Не мутируйте `stencilGeometry` / `coverGeometry` вручную: геометрия общая.
+ * Для деформации и независимой изменяемой геометрии используйте `Text`.
+ */
+export class CachedText extends Text {
+  readonly isCachedText: true
+  type: "CachedText"
+  constructor(text: string, font: TrueTypeFont, fontSize: number, material: TextMaterial)
 }
 
 export class Ray {

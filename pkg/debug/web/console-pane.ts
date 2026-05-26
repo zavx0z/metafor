@@ -2,7 +2,7 @@
  * ConsolePane — append-only target log on the shared @metafor/elements UiSurface system.
  *
  * It deliberately uses the same UiSurface chrome, clipping, text measurement and
- * div scroll primitive as SourcePane so the source/console stack aligns as one UI surface.
+ * div scroll primitive as EditorPane so the source/console stack aligns as one UI surface.
  */
 
 import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii} from "@metafor/elements"

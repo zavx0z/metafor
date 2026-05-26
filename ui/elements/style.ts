@@ -63,8 +63,9 @@ export type InteractiveElementProps = ElementBaseProps & {
   onClick?: () => void
   onPointerEnter?: () => void
   onPointerLeave?: () => void
-  onPointerDown?: () => void
-  onPointerUp?: () => void
+  onPointerDown?: (localX?: number, localY?: number, event?: MouseEvent) => void
+  onPointerMove?: (localX?: number, localY?: number, event?: MouseEvent) => void
+  onPointerUp?: (event?: MouseEvent) => void
 }
 
 export type SxProps = StyleProps
