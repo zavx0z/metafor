@@ -1,5 +1,5 @@
 import {Z, type HitOptions, type UiSurface} from "./surface.ts"
-import {scrollbar} from "./scrollbar.ts"
+import {DEFAULT_ACTIVE_THUMB, scrollbar} from "./scrollbar.ts"
 import {span} from "./span.ts"
 import {
   backgroundColor,
@@ -310,7 +310,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
   }
 
   if (layout.showY) {
-    const edgeInset = roundedScrollbarInset(layout.radius, layout.trackWidth)
+    const edgeInset = scrollbarEdgeInset(layout.radius, layout.height)
     const topInset = edgeInset
     const bottomInset = Math.max(edgeInset, layout.showX ? layout.trackWidth : 0)
     const scrollbarX = layout.x + layout.width - layout.trackWidth
@@ -334,7 +334,8 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
     })
     surface.hit(scrollbarX, thumbY, layout.trackWidth, thumb.h, () => {}, {
       key: thumbKey,
-      cursor: "pointer",
+      cursor: "grab",
+      activeCursor: "grabbing",
       onPointerDown: (_localX, localY) => {
         state.dragY = {startY: localY, startTop: state.top}
       },
@@ -356,12 +357,12 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
       total: layout.contentH,
       trackWidth: layout.trackWidth,
       ...(style.scrollbarTrackColor === undefined ? {} : {trackColor: cssColor(style.scrollbarTrackColor)}),
-      ...(style.scrollbarColor === undefined || !active ? {} : {thumbColor: cssColor(style.scrollbarColor)}),
+      ...(active ? {thumbColor: activeScrollbarThumb(style)} : {}),
     })
   }
 
   if (layout.showX) {
-    const edgeInset = roundedScrollbarInset(layout.radius, layout.trackWidth)
+    const edgeInset = scrollbarEdgeInset(layout.radius, layout.width)
     const leftInset = edgeInset
     const rightInset = Math.max(edgeInset, layout.showY ? layout.trackWidth : 0)
     const scrollbarX = layout.x + leftInset
@@ -385,7 +386,8 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
     })
     surface.hit(thumbX, scrollbarY, thumb.h, layout.trackWidth, () => {}, {
       key: thumbKey,
-      cursor: "pointer",
+      cursor: "grab",
+      activeCursor: "grabbing",
       onPointerDown: (localX) => {
         state.dragX = {startX: localX, startLeft: state.left}
       },
@@ -408,9 +410,13 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
       total: layout.contentW,
       trackWidth: layout.trackWidth,
       ...(style.scrollbarTrackColor === undefined ? {} : {trackColor: cssColor(style.scrollbarTrackColor)}),
-      ...(style.scrollbarColor === undefined || !active ? {} : {thumbColor: cssColor(style.scrollbarColor)}),
+      ...(active ? {thumbColor: activeScrollbarThumb(style)} : {}),
     })
   }
+}
+
+function activeScrollbarThumb(style: StyleProps): Color {
+  return style.scrollbarColor === undefined ? DEFAULT_ACTIVE_THUMB : cssColor(style.scrollbarColor)
 }
 
 function divScrollState(surface: UiSurface, key: string): DivScrollState {
@@ -444,11 +450,9 @@ function scrollbarThumbMetrics(offset: number, visible: number, total: number, t
   }
 }
 
-function roundedScrollbarInset(radius: number, trackWidth: number): number {
-  if (radius <= 0 || trackWidth <= 0) return 0
-  const centerInset = Math.min(radius, trackWidth / 2)
-  const dx = Math.max(0, radius - centerInset)
-  return Math.ceil(radius - Math.sqrt(Math.max(0, radius * radius - dx * dx)))
+function scrollbarEdgeInset(radius: number, axisSize: number): number {
+  if (radius <= 0 || axisSize <= 0) return 0
+  return Math.ceil(Math.min(radius, axisSize / 2))
 }
 
 function wheelDeltaPxFor(delta: number, deltaMode: number, viewportH: number): number {

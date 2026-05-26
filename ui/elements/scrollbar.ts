@@ -23,6 +23,11 @@ export type ScrollbarOpts = {
 }
 
 const DEFAULT_THUMB = new Color(0.45, 0.51, 0.60, 0.62)
+export const DEFAULT_ACTIVE_THUMB = new Color(0.56, 0.65, 0.76, 0.86)
+
+export function scrollbarThumbCross(trackWidth: number, thumbWidth?: number): number {
+  return Math.min(trackWidth, thumbWidth ?? Math.max(3, trackWidth - 2))
+}
 
 export function scrollbar(surface: UiSurface, x: number, y: number, h: number, opts: ScrollbarOpts): void {
   if (opts.total <= opts.visible) return
@@ -31,11 +36,15 @@ export function scrollbar(surface: UiSurface, x: number, y: number, h: number, o
   const minThumb = opts.minThumbHeight ?? 16
   const trackColor = opts.trackColor ?? palette.borderDim
   const thumbColor = opts.thumbColor ?? DEFAULT_THUMB
+  const thumbCross = scrollbarThumbCross(tw, opts.thumbWidth)
+  const crossOffset = (tw - thumbCross) / 2
 
-  const trackW = axis === "horizontal" ? h : tw
-  const trackH = axis === "horizontal" ? tw : h
-  surface.drawRoundedRect(x, y, trackW, trackH, {
-    radius: tw / 2,
+  const trackX = axis === "horizontal" ? x : x + crossOffset
+  const trackY = axis === "horizontal" ? y + crossOffset : y
+  const trackW = axis === "horizontal" ? h : thumbCross
+  const trackH = axis === "horizontal" ? thumbCross : h
+  surface.drawRoundedRect(trackX, trackY, trackW, trackH, {
+    radius: thumbCross / 2,
     fill: trackColor,
     z: Z.SEPARATOR,
   })
@@ -45,7 +54,6 @@ export function scrollbar(surface: UiSurface, x: number, y: number, h: number, o
   const range = h - thumbLength
   const maxOffset = Math.max(1, opts.total - opts.visible)
   const thumbPos = Math.floor(range * (opts.offset / maxOffset))
-  const thumbCross = Math.min(tw, opts.thumbWidth ?? Math.max(3, tw - 2))
   const thumbX = axis === "horizontal" ? x + thumbPos : x + (tw - thumbCross) / 2
   const thumbY = axis === "horizontal" ? y + (tw - thumbCross) / 2 : y + thumbPos
   const thumbW = axis === "horizontal" ? thumbLength : thumbCross

@@ -81,6 +81,7 @@ export type HitBox = {
   key: string
   action(): void
   cursor: string
+  activeCursor?: string
   tooltip?: TooltipHit
   onPointerEnter?: () => void
   onPointerLeave?: () => void
@@ -105,6 +106,7 @@ export type TooltipHit = {
 
 export type HitOptions = {
   cursor?: string
+  activeCursor?: string
   tooltip?: TooltipHit
   key?: string
   onPointerEnter?: () => void
@@ -761,6 +763,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       action,
       cursor: options.cursor ?? "pointer",
     }
+    if (options.activeCursor !== undefined) hit.activeCursor = options.activeCursor
     if (options.tooltip !== undefined) hit.tooltip = options.tooltip
     if (options.onPointerEnter !== undefined) hit.onPointerEnter = options.onPointerEnter
     if (options.onPointerLeave !== undefined) hit.onPointerLeave = options.onPointerLeave
@@ -791,13 +794,15 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
     if (this.canvas === null) return
-    if (this.pressedHit?.onPointerMove !== undefined) {
-      this.pressedHit.onPointerMove(localX - this.#padLeft, localY - this.#padTop)
+    if (this.pressedHit !== null) {
+      this.pressedHit.onPointerMove?.(localX - this.#padLeft, localY - this.#padTop)
+      this.canvas.canvas.style.cursor = this.#cursorFor(this.pressedHit, true)
+      return
     }
     // Pointermove приходит в surface-rect-local; #hits зарегистрированы в inner-coords
     // (после сдвига на padding) — субтрагируем padLeft/padTop.
     const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
-    this.canvas.canvas.style.cursor = hit?.cursor ?? "default"
+    this.canvas.canvas.style.cursor = this.#cursorFor(hit, false)
     this.#setHoveredHit(hit)
     const nextTooltipKey = hit?.tooltip === undefined ? null : tooltipKey(hit.x, hit.y, hit.w, hit.h, hit.tooltip.label)
     if (nextTooltipKey !== this.#hoverTooltipKey) this.#setHoverTooltip(hit)
@@ -809,6 +814,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.pressedHit = hit
     this.#pressedHitKey = hit.key
     hit.onPointerDown?.(localX - this.#padLeft, localY - this.#padTop)
+    if (this.canvas !== null) this.canvas.canvas.style.cursor = this.#cursorFor(hit, true)
     this.requestRender()
   }
 
@@ -822,10 +828,16 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (releaseHit?.key === pressed.key) {
       pressed.action()
     }
+    if (this.canvas !== null) this.canvas.canvas.style.cursor = this.#cursorFor(releaseHit, false)
     this.requestRender()
   }
 
   onContextMenu(_event: MouseEvent, _localX: number, _localY: number): void {}
+
+  #cursorFor(hit: HitBox | null | undefined, active: boolean): string {
+    if (hit === null || hit === undefined) return "default"
+    return active ? hit.activeCursor ?? hit.cursor : hit.cursor
+  }
 
   onPointerLeave(): void {
     this.#setHoveredHit(null)
