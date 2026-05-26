@@ -86,6 +86,7 @@ type CaretRect = {x: number; y: number; w: number; h: number}
 type SelectionRange = {start: CursorPos; end: CursorPos}
 type Snapshot = {lines: string[]; cline: number; ccol: number; selectionAnchor: CursorPos | null; selectionFocus: CursorPos | null}
 type ColumnHitBias = "nearest" | "floor" | "ceil"
+type LineWidthCache = {scale: number; widths: number[]}
 type SelectionMenuAction = "copy" | "cut" | "selectAll"
 type SelectionMenuRect = {x: number; y: number; w: number; h: number; anchorX: number}
 type EditorVisibleLine = {
@@ -143,6 +144,7 @@ export class EditorPane extends UiSurface {
   #onSelectionClipboard: ((ok: boolean, action: "copy" | "cut") => void) | undefined
   #cursorVisible = true
   #cursorBlinkTimer: ReturnType<typeof setInterval> | null = null
+  #cursorBlinkPausedForSelection = false
   #history: Snapshot[] = []
   #future: Snapshot[] = []
   /** Кэшированная ширина одного «эталонного» глифа (M). */
@@ -150,6 +152,7 @@ export class EditorPane extends UiSurface {
   #charWidthScale = 0
   #maxLineWidthPxCache: number | null = null
   #maxLineWidthPxCacheScale = 0
+  readonly #lineWidthCache = new Map<string, LineWidthCache>()
   #scrollLeftPx = 0
   #scrollTopPx = 0
   #viewportW = 1
@@ -324,17 +327,47 @@ export class EditorPane extends UiSurface {
   }
 
   /**
-   * X-смещение колонки от начала строки. Для коротких строк — точно (через
-   * measureText). Для длинных (base64, минифицированный код) — монохромный
-   * approx: charWidth * col (O(1)).
+   * X-смещение колонки от начала строки. Короткие строки держат prefix-cache
+   * ширин, чтобы drag-selection не гонял measureText(slice) в hot path.
    */
   #colToPx(line: string, col: number): number {
     if (col <= 0) return 0
     const c = Math.min(col, line.length)
-    if (this.font !== null && line.length < EditorPane.#LONG_LINE_THRESHOLD) {
-      return this.measureText(line.slice(0, c), this.#fontPx)
-    }
+    const widths = this.#lineWidths(line)
+    if (widths !== null) return widths[c] ?? widths[widths.length - 1] ?? 0
     return c * this.#getCharWidth()
+  }
+
+  #lineWidths(line: string): number[] | null {
+    if (this.font === null || line.length >= EditorPane.#LONG_LINE_THRESHOLD) return null
+    const scaleKey = this.pageScaleFactor
+    const cached = this.#lineWidthCache.get(line)
+    if (cached !== undefined && cached.scale === scaleKey) return cached.widths
+
+    const fontPxCanvas = this.#fontPx * scaleKey
+    const fontScale = fontPxCanvas / this.font.unitsPerEm
+    const letterSpacing = fontPxCanvas * 0.05
+    const widths = new Array<number>(line.length + 1)
+    widths[0] = 0
+    let width = 0
+    for (let i = 0; i < line.length; i++) {
+      const code = line.codePointAt(i) ?? 0
+      if (line[i] === " ") {
+        width += this.font.unitsPerEm * 0.3 * fontScale
+      } else {
+        const gid = this.font.mapCharToGlyph(code)
+        const metric = this.font.getHMetric(gid)
+        width += metric.advanceWidth * fontScale + letterSpacing
+      }
+      widths[i + 1] = width
+      if (code > 0xffff && i + 1 < line.length) {
+        i += 1
+        widths[i + 1] = width
+      }
+    }
+    if (this.#lineWidthCache.size > 256) this.#lineWidthCache.clear()
+    this.#lineWidthCache.set(line, {scale: scaleKey, widths})
+    return widths
   }
 
   // ────────── selection helpers ──────────
@@ -352,6 +385,11 @@ export class EditorPane extends UiSurface {
   #comparePosition(a: CursorPos, b: CursorPos): number {
     if (a.line !== b.line) return a.line - b.line
     return a.col - b.col
+  }
+
+  #samePosition(a: CursorPos | null, b: CursorPos | null): boolean {
+    if (a === null || b === null) return a === b
+    return a.line === b.line && a.col === b.col
   }
 
   #clearSelectionState(): void {
@@ -655,6 +693,7 @@ export class EditorPane extends UiSurface {
     this.#dragExtendsSelection = _event.shiftKey
     this.#dragAnchorLocalX = localX
     this.#dragAnchorLocalY = localY
+    this.#pauseCursorBlinkForSelection()
     if (_event.shiftKey) {
       this.#setCursorPosition(pos, {extendSelection: true})
     } else {
@@ -727,13 +766,10 @@ export class EditorPane extends UiSurface {
         if (forward) endCol = Math.min(lineText.length, startCol + 1)
         else startCol = Math.max(0, endCol - 1)
       }
-      this.#selectionAnchor = {line: anchorLine, col: forward ? startCol : endCol}
-      this.#selectionFocus = {line: anchorLine, col: forward ? endCol : startCol}
-      this.#cline = this.#selectionFocus.line
-      this.#ccol = this.#selectionFocus.col
-      this.#scrollCursorIntoView()
-      this.#pingCursor(false)
-      this.requestRender()
+      this.#applyDragSelection(
+        {line: anchorLine, col: forward ? startCol : endCol},
+        {line: anchorLine, col: forward ? endCol : startCol},
+      )
       return
     }
     const forward = localY > this.#dragAnchorLocalY + this.#linePx / 2
@@ -744,28 +780,47 @@ export class EditorPane extends UiSurface {
     const focusBias: ColumnHitBias = forward ? "ceil" : "floor"
     const pos = this.#positionFromLocal(localX, localY, focusBias)
     if (pos === null) return
+    let nextAnchor: CursorPos | null = null
     if (this.#dragExtendsSelection) {
       if (this.#selectionAnchor === null) this.#selectionAnchor = this.#currentPos()
+      nextAnchor = this.#selectionAnchor
     } else {
       const anchorBias: ColumnHitBias = forward ? "floor" : "ceil"
       const anchor = this.#positionFromLocal(this.#dragAnchorLocalX, this.#dragAnchorLocalY, anchorBias)
-      if (anchor !== null) this.#selectionAnchor = this.#clampPosition(anchor)
+      if (anchor !== null) nextAnchor = this.#clampPosition(anchor)
     }
-    if (!this.#dragExtendsSelection && this.#selectionAnchor !== null && pos.line === this.#selectionAnchor.line) {
+    if (nextAnchor === null) return
+    let nextFocus: CursorPos
+    if (!this.#dragExtendsSelection && pos.line === nextAnchor.line) {
       const deltaCols = Math.max(1, Math.ceil(Math.abs(localX - this.#dragAnchorLocalX) / this.#getCharWidth()))
-      const lineLen = this.#lines[this.#selectionAnchor.line]?.length ?? 0
-      this.#selectionFocus = {
-        line: this.#selectionAnchor.line,
+      const lineLen = this.#lines[nextAnchor.line]?.length ?? 0
+      nextFocus = {
+        line: nextAnchor.line,
         col: forward
-          ? Math.min(lineLen, this.#selectionAnchor.col + deltaCols)
-          : Math.max(0, this.#selectionAnchor.col - deltaCols),
+          ? Math.min(lineLen, nextAnchor.col + deltaCols)
+          : Math.max(0, nextAnchor.col - deltaCols),
       }
     } else {
-      this.#selectionFocus = this.#clampPosition(pos)
+      nextFocus = this.#clampPosition(pos)
     }
+    this.#applyDragSelection(nextAnchor, nextFocus)
+  }
+
+  #applyDragSelection(anchor: CursorPos, focus: CursorPos): void {
+    const nextAnchor = this.#clampPosition(anchor)
+    const nextFocus = this.#clampPosition(focus)
+    const sameSelection = this.#samePosition(this.#selectionAnchor, nextAnchor)
+      && this.#samePosition(this.#selectionFocus, nextFocus)
+      && this.#cline === nextFocus.line
+      && this.#ccol === nextFocus.col
+    const prevLeft = this.#scrollLeftPx
+    const prevTop = this.#scrollTopPx
+    this.#selectionAnchor = nextAnchor
+    this.#selectionFocus = nextFocus
     this.#cline = this.#selectionFocus.line
     this.#ccol = this.#selectionFocus.col
     this.#scrollCursorIntoView()
+    if (sameSelection && prevLeft === this.#scrollLeftPx && prevTop === this.#scrollTopPx) return
     this.#pingCursor(false)
     this.requestRender()
   }
@@ -775,9 +830,11 @@ export class EditorPane extends UiSurface {
       super.onPointerUp(_event, localX, localY)
       return
     }
+    const wasDragSelecting = this.#dragSelecting
     if (this.#dragSelecting) this.#flushDragSelection(localX, localY)
     this.#dragSelecting = false
     if (this.#selectionRange() === null) this.#clearSelectionState()
+    if (wasDragSelecting) this.#resumeCursorBlinkAfterSelection()
     this.requestRender()
   }
 
@@ -796,6 +853,7 @@ export class EditorPane extends UiSurface {
     super.onDeactivate?.()
     this.#dragSelecting = false
     this.#cancelPendingDragSelection()
+    this.#cursorBlinkPausedForSelection = false
     this.#stopCursorBlink()
     this.#cursorVisible = false
     this.requestRender()
@@ -1005,6 +1063,7 @@ export class EditorPane extends UiSurface {
     this.#charWidthScale = 0
     this.#maxLineWidthPxCache = null
     this.#maxLineWidthPxCacheScale = 0
+    this.#lineWidthCache.clear()
   }
 
   /**
@@ -1026,13 +1085,14 @@ export class EditorPane extends UiSurface {
 
   #colAtX(line: string, x: number, bias: ColumnHitBias = "nearest"): number {
     if (x <= 0) return 0
-    if (this.font !== null && line.length < EditorPane.#LONG_LINE_THRESHOLD) {
-      if (bias === "floor") return this.#colAtXFloor(line, x)
-      if (bias === "ceil") return this.#colAtXCeil(line, x)
-      const floor = this.#colAtXFloor(line, x)
+    const widths = this.#lineWidths(line)
+    if (widths !== null) {
+      if (bias === "floor") return this.#colAtXFloor(widths, x)
+      if (bias === "ceil") return this.#colAtXCeil(widths, x)
+      const floor = this.#colAtXFloor(widths, x)
       const ceil = Math.min(line.length, floor + 1)
-      const floorPx = this.#colToPx(line, floor)
-      const ceilPx = this.#colToPx(line, ceil)
+      const floorPx = widths[floor] ?? 0
+      const ceilPx = widths[ceil] ?? floorPx
       return Math.abs(x - floorPx) <= Math.abs(ceilPx - x) ? floor : ceil
     }
     const cw = this.#getCharWidth()
@@ -1041,23 +1101,23 @@ export class EditorPane extends UiSurface {
     return Math.max(0, Math.min(line.length, col))
   }
 
-  #colAtXFloor(line: string, x: number): number {
+  #colAtXFloor(widths: readonly number[], x: number): number {
     let lo = 0
-    let hi = line.length
+    let hi = widths.length - 1
     while (lo < hi) {
       const mid = Math.floor((lo + hi + 1) / 2)
-      if (this.#colToPx(line, mid) <= x) lo = mid
+      if ((widths[mid] ?? 0) <= x) lo = mid
       else hi = mid - 1
     }
     return lo
   }
 
-  #colAtXCeil(line: string, x: number): number {
+  #colAtXCeil(widths: readonly number[], x: number): number {
     let lo = 0
-    let hi = line.length
+    let hi = widths.length - 1
     while (lo < hi) {
       const mid = Math.floor((lo + hi) / 2)
-      if (this.#colToPx(line, mid) < x) lo = mid + 1
+      if ((widths[mid] ?? 0) < x) lo = mid + 1
       else hi = mid
     }
     return lo
@@ -1068,6 +1128,21 @@ export class EditorPane extends UiSurface {
   #pingCursor(resetBlink = true): void {
     this.#cursorVisible = true
     if (resetBlink && this.#cursorBlinkTimer !== null) this.#startCursorBlink()
+  }
+
+  #pauseCursorBlinkForSelection(): void {
+    if (this.#cursorBlinkPausedForSelection) return
+    this.#cursorBlinkPausedForSelection = this.#cursorBlinkTimer !== null
+    this.#cursorVisible = true
+    this.#stopCursorBlink()
+  }
+
+  #resumeCursorBlinkAfterSelection(): void {
+    const shouldResume = this.#cursorBlinkPausedForSelection
+    this.#cursorBlinkPausedForSelection = false
+    if (!shouldResume) return
+    this.#cursorVisible = true
+    this.#startCursorBlink()
   }
 
   #startCursorBlink(): void {
@@ -1127,6 +1202,7 @@ export class EditorPane extends UiSurface {
 
   override dispose(): void {
     this.#cancelPendingDragSelection()
+    this.#cursorBlinkPausedForSelection = false
     this.#stopCursorBlink()
     this.#finishIntroAnimation(false)
     super.dispose?.()
