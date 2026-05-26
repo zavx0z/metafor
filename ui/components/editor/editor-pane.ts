@@ -28,6 +28,17 @@ import {
 } from "./token-renderer.ts"
 import type {EditorToken, EditorTokens, EditorTokenize, LanguageHighlighter} from "./tokens.ts"
 
+export type EditorBreakpoint = {
+  /** 1-based source line. */
+  line: number
+  /** False/pending means the backend has not resolved the breakpoint yet. */
+  verified?: boolean
+  /** Request is currently in flight. */
+  pending?: boolean
+  /** Current pause came from this breakpoint. */
+  hit?: boolean
+}
+
 export type EditorOpts = {
   /** Заголовок над редактором. */
   title?: string
@@ -37,6 +48,10 @@ export type EditorOpts = {
   onSave?: (text: string) => void
   /** Колбэк на copy/cut из floating-menu выделения. */
   onSelectionClipboard?: (ok: boolean, action: "copy" | "cut") => void
+  /** Gutter line-number click for debugger breakpoint toggles. */
+  onBreakpointToggle?: (line: number) => void
+  /** Initial debugger breakpoint markers. */
+  breakpoints?: readonly EditorBreakpoint[]
   /** Получает массив строк → возвращает токены той же длины. */
   tokenize?: EditorTokenize
   /** Явный highlighter; используется если `tokenize` не задан. */
@@ -67,6 +82,7 @@ const PAD_BOTTOM_PX = 6
 const GUTTER_MIN_PX = 44
 const GUTTER_LEFT_PAD_PX = 6
 const GUTTER_RIGHT_PAD_PX = 8
+const GUTTER_BREAKPOINT_LANE_PX = 18
 const CODE_LEFT_PAD_PX = 8
 const SCROLLBAR_W = 4
 const HISTORY_LIMIT = 200
@@ -81,8 +97,14 @@ const GUTTER_RULE_Z = Z.TEXT + 0.025
 const GUTTER_TEXT_Z = Z.TEXT + 0.035
 const GUTTER_HALO_Z = Z.TEXT + 0.03
 const GUTTER_HALO_OFFSET_PX = 1
+const LINE_HIGHLIGHT_TOP_PAD_PX = 3
+const LINE_HIGHLIGHT_BOTTOM_PAD_PX = 0
 const SELECTION_FILL = new Color(92 / 255, 155 / 255, 255 / 255, 0.34)
 const GUTTER_RULE_FILL = new Color(120 / 255, 143 / 255, 166 / 255, 0.16)
+const BREAKPOINT_FILL = new Color(237 / 255, 83 / 255, 86 / 255, 0.96)
+const BREAKPOINT_PENDING_FILL = new Color(237 / 255, 83 / 255, 86 / 255, 0.30)
+const BREAKPOINT_BORDER = new Color(255 / 255, 130 / 255, 130 / 255, 0.92)
+const BREAKPOINT_HIT_BORDER = new Color(255 / 255, 205 / 255, 110 / 255, 1)
 const SELECTION_MENU_BG = new Color(6 / 255, 12 / 255, 21 / 255, 0.96)
 const SELECTION_MENU_BORDER = new Color(111 / 255, 211 / 255, 255 / 255, 0.32)
 const SELECTION_MENU_Z = Z.ELEMENT_RULE + 0.005
@@ -160,6 +182,8 @@ export class EditorPane extends UiSurface {
   #onChange: ((text: string) => void) | undefined
   #onSave: ((text: string) => void) | undefined
   #onSelectionClipboard: ((ok: boolean, action: "copy" | "cut") => void) | undefined
+  #onBreakpointToggle: ((line: number) => void) | undefined
+  #breakpoints = new Map<number, EditorBreakpoint>()
   #readOnly: boolean
   #showCaret: boolean
   #introAnimation: boolean
@@ -192,7 +216,6 @@ export class EditorPane extends UiSurface {
   readonly #gutterCurMaterial = new TextMaterial({color: palette.cyan})
   readonly #gutterExecutionMaterial = new TextMaterial({color: palette.orange})
   readonly #gutterHaloMaterial = new TextMaterial({color: palette.bgCode})
-  readonly #executionArrowMaterial = new TextMaterial({color: palette.orange})
   readonly #tokenMaterials: EditorTokenMaterialMap
 
   constructor(opts: EditorOpts = {}) {
@@ -206,6 +229,8 @@ export class EditorPane extends UiSurface {
     this.#onChange = opts.onChange
     this.#onSave = opts.onSave
     this.#onSelectionClipboard = opts.onSelectionClipboard
+    this.#onBreakpointToggle = opts.onBreakpointToggle
+    this.#breakpoints = normalizeBreakpoints(opts.breakpoints ?? [])
     this.#readOnly = opts.readOnly === true
     this.#showCaret = opts.showCaret ?? !this.#readOnly
     this.#introAnimation = opts.introAnimation ?? true
@@ -307,6 +332,11 @@ export class EditorPane extends UiSurface {
     if (this.#introAnimation === enabled) return
     this.#introAnimation = enabled
     if (!enabled) this.#finishIntroAnimation(false)
+  }
+
+  setBreakpoints(breakpoints: readonly EditorBreakpoint[]): void {
+    this.#breakpoints = normalizeBreakpoints(breakpoints)
+    this.requestRender()
   }
 
   /**
@@ -1403,21 +1433,16 @@ export class EditorPane extends UiSurface {
     const cRowIdx = lineIndex - layout.startIdx
     if (cRowIdx >= -1 && cRowIdx <= layout.visible) {
       const hY = PAD_TOP_PX + cRowIdx * this.#linePx - layout.subPx
+      const highlightY = this.#lineHighlightY(hY)
+      const highlightH = this.#lineHighlightH()
       if (executionIndex !== null) {
-        const highlightH = Math.min(this.#linePx, this.#fontPx + 4)
-        const highlightY = hY + (this.#linePx - highlightH) / 2
         this.drawRoundedRect(PAD_LEFT_PX, highlightY, layout.contentW, highlightH, {
           radius: 4,
           fill: palette.pausedFill,
           z: Z.ELEMENT,
         })
-        this.drawText("▶", PAD_LEFT_PX + GUTTER_LEFT_PAD_PX * 0.4, hY + 1, {
-          fontPx: this.#fontPx,
-          material: this.#executionArrowMaterial,
-          maxWidthPx: 12,
-        })
       } else {
-        this.drawRoundedRect(PAD_LEFT_PX, hY, layout.contentW, this.#linePx, {
+        this.drawRoundedRect(PAD_LEFT_PX, highlightY, layout.contentW, highlightH, {
           radius: 4,
           fill: palette.bg,
           z: Z.ELEMENT,
@@ -1515,14 +1540,55 @@ export class EditorPane extends UiSurface {
   #renderGutterLayer(metrics: EditorGutterMetrics, lines: readonly EditorVisibleLine[]): void {
     this.drawRect(metrics.ruleX, metrics.y, 1, metrics.h, GUTTER_RULE_FILL, GUTTER_RULE_Z)
     for (const line of lines) {
+      const sourceLine = line.lineIndex + 1
       const label = String(line.lineIndex + 1)
       const labelW = this.measureText(label, this.#fontPx)
       const labelX = Math.max(
         metrics.x + GUTTER_LEFT_PAD_PX,
         metrics.numberXMax - labelW,
       )
+      const breakpoint = this.#breakpoints.get(sourceLine)
+      if (breakpoint !== undefined) {
+        this.#drawBreakpointMarker(this.#breakpointMarkerX(metrics), this.#lineCenterY(line.rowY), breakpoint)
+      }
       this.#drawGutterLabel(label, labelX, line.textY, metrics.numberW, line.isCurrent, line.isExecution)
+      if (this.#onBreakpointToggle !== undefined) {
+        this.hit(metrics.x, line.rowY, metrics.w, this.#linePx, () => this.#onBreakpointToggle?.(sourceLine), {
+          key: `editor-breakpoint-gutter:${sourceLine}`,
+          cursor: "pointer",
+          tooltip: {label: "Toggle breakpoint", delayMs: 350},
+        })
+      }
     }
+  }
+
+  #drawBreakpointMarker(cx: number, cy: number, breakpoint: EditorBreakpoint): void {
+    const pending = breakpoint.pending === true || breakpoint.verified === false
+    const r = breakpoint.hit === true ? 5 : 4
+    const border = breakpoint.hit === true ? BREAKPOINT_HIT_BORDER : BREAKPOINT_BORDER
+    this.drawRoundedRect(cx - r, cy - r, r * 2, r * 2, {
+      radius: r,
+      fill: pending ? BREAKPOINT_PENDING_FILL : BREAKPOINT_FILL,
+      border,
+      borderWidth: pending ? 1.25 : 1,
+      z: Z.ELEMENT_RULE,
+    })
+  }
+
+  #lineHighlightY(rowY: number): number {
+    return rowY + Math.min(LINE_HIGHLIGHT_TOP_PAD_PX, Math.max(0, this.#linePx - 1))
+  }
+
+  #lineHighlightH(): number {
+    return Math.max(1, this.#linePx - LINE_HIGHLIGHT_TOP_PAD_PX - LINE_HIGHLIGHT_BOTTOM_PAD_PX)
+  }
+
+  #lineCenterY(rowY: number): number {
+    return this.#lineHighlightY(rowY) + this.#lineHighlightH() / 2
+  }
+
+  #breakpointMarkerX(metrics: EditorGutterMetrics): number {
+    return metrics.x + GUTTER_LEFT_PAD_PX + 5
   }
 
   #drawGutterLabel(label: string, x: number, y: number, maxWidthPx: number, isCurrent: boolean, isExecution: boolean): void {
@@ -1562,6 +1628,7 @@ export class EditorPane extends UiSurface {
           e: Math.min(slice.end - slice.start, t.e - slice.start),
           c: t.c,
         }
+        if (t.fg !== undefined) token.fg = t.fg
         if (t.bg !== undefined) token.bg = t.bg
         visTokens.push(token)
       }
@@ -1781,7 +1848,12 @@ export class EditorPane extends UiSurface {
     if (this.font === null) return GUTTER_MIN_PX
     const digits = Math.max(2, String(Math.max(1, lineCount)).length)
     const digitW = this.measureText("8", this.#fontPx)
-    return Math.ceil(Math.max(GUTTER_MIN_PX, GUTTER_LEFT_PAD_PX + digitW * digits + GUTTER_RIGHT_PAD_PX))
+    const breakpointLane = this.#hasBreakpointLane() ? GUTTER_BREAKPOINT_LANE_PX : 0
+    return Math.ceil(Math.max(GUTTER_MIN_PX, GUTTER_LEFT_PAD_PX + breakpointLane + digitW * digits + GUTTER_RIGHT_PAD_PX))
+  }
+
+  #hasBreakpointLane(): boolean {
+    return this.#onBreakpointToggle !== undefined || this.#breakpoints.size > 0
   }
 }
 
@@ -1794,6 +1866,20 @@ function resolveEditorTokenize(opts: EditorOpts): EditorTokenize | undefined {
     return resolveLanguageHighlighter(input).tokenize
   }
   return undefined
+}
+
+function normalizeBreakpoints(breakpoints: readonly EditorBreakpoint[]): Map<number, EditorBreakpoint> {
+  const out = new Map<number, EditorBreakpoint>()
+  for (const breakpoint of breakpoints) {
+    if (!Number.isInteger(breakpoint.line) || breakpoint.line <= 0) continue
+    const line = Math.floor(breakpoint.line)
+    const next: EditorBreakpoint = {line}
+    if (breakpoint.verified !== undefined) next.verified = breakpoint.verified
+    if (breakpoint.pending !== undefined) next.pending = breakpoint.pending
+    if (breakpoint.hit !== undefined) next.hit = breakpoint.hit
+    out.set(line, next)
+  }
+  return out
 }
 
 function pointInRect(x: number, y: number, rect: {x: number; y: number; w: number; h: number}): boolean {

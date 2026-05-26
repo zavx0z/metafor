@@ -4,6 +4,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
+import islandsDarkTheme from "./themes/islands-dark.color-theme.json"
 
 const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
 
@@ -53,10 +54,31 @@ export const palette = {
 } as const
 
 /**
- * Цвета для синтаксических токенов в code-editor. Категории генерирует
- * server-side TS-scanner в pkg/debug/src/syntax.ts.
+ * Цветовые схемы редакторов обычно публикуются в формате VS Code theme JSON.
+ * Наш редактор пока рендерит компактные категории, поэтому здесь один слой
+ * адаптации из TextMate scopes в локальные категории токенов.
  */
-export const syntaxTokens = {
+export const syntaxTokenCategories = ["k", "s", "n", "c", "t", "f", "p", "d"] as const
+export type SyntaxCategory = (typeof syntaxTokenCategories)[number]
+export type SyntaxTokenColors = Record<SyntaxCategory, Color>
+
+export type VscodeTokenColorRule = {
+  name?: string
+  scope?: string | readonly string[]
+  settings?: {
+    foreground?: string
+    fontStyle?: string
+  }
+}
+
+export type VscodeColorTheme = {
+  name?: string
+  type?: string
+  colors?: Record<string, string>
+  tokenColors?: readonly VscodeTokenColorRule[]
+}
+
+export const metaforDarkSyntaxTokens: SyntaxTokenColors = {
   k: rgb(255, 123, 114, 1),  // keyword
   s: rgb(165, 214, 255, 1),  // string
   n: rgb(121, 192, 255, 1),  // number
@@ -67,7 +89,117 @@ export const syntaxTokens = {
   d: rgb(225, 228, 233, 1),  // default identifier
 } as const
 
-export type SyntaxCategory = keyof typeof syntaxTokens
+const vscodeScopeMap: Record<SyntaxCategory, readonly string[]> = {
+  k: ["keyword", "storage"],
+  s: ["string"],
+  n: ["constant.numeric", "constant.language", "constant"],
+  c: ["comment"],
+  t: ["entity.name.type", "entity.name.class", "support.type", "storage.type"],
+  f: ["entity.name.function", "support.function", "variable.function"],
+  p: ["punctuation.separator.delimiter", "punctuation.terminator.statement", "punctuation.separator", "punctuation", "keyword.operator"],
+  d: [],
+}
+
+function normalizeHexColor(value: string | undefined): string | undefined {
+  const raw = value?.trim()
+  if (raw === undefined) return undefined
+  const match = /^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(raw)
+  if (match === null) return undefined
+  const body = match[1]!
+  if (body.length === 3) return body.split("").map((ch) => ch + ch).join("").toLowerCase()
+  return body.toLowerCase()
+}
+
+function colorFromHex(value: string | undefined, fallback: Color): Color {
+  const hex = normalizeHexColor(value)
+  if (hex === undefined) return fallback.clone()
+  const rgbHex = hex.length === 8 ? hex.slice(0, 6) : hex
+  const alphaHex = hex.length === 8 ? hex.slice(6, 8) : undefined
+  const r = Number.parseInt(rgbHex.slice(0, 2), 16)
+  const g = Number.parseInt(rgbHex.slice(2, 4), 16)
+  const b = Number.parseInt(rgbHex.slice(4, 6), 16)
+  const a = alphaHex === undefined ? 1 : Number.parseInt(alphaHex, 16) / 255
+  return rgb(r, g, b, a)
+}
+
+function ruleScopes(scope: string | readonly string[] | undefined): string[] {
+  const raw = typeof scope === "string" ? [scope] : scope ?? []
+  const out: string[] = []
+  for (const item of raw) {
+    for (const part of item.split(",")) {
+      const trimmed = part.trim()
+      if (trimmed.length > 0) out.push(trimmed)
+    }
+  }
+  return out
+}
+
+function scopeParts(scope: string): string[] {
+  return scope.split(/\s+|>/).map((part) => part.trim()).filter((part) => part.length > 0)
+}
+
+function matchesScope(scope: string, selector: string, exact: boolean): boolean {
+  if (scope === selector) return true
+  for (const part of scopeParts(scope)) {
+    if (part === selector) return true
+    if (!exact && part.startsWith(`${selector}.`)) return true
+  }
+  return false
+}
+
+function foregroundFor(theme: VscodeColorTheme, selectors: readonly string[]): string | undefined {
+  const rules = theme.tokenColors ?? []
+  for (const selector of selectors) {
+    for (let i = rules.length - 1; i >= 0; i--) {
+      const rule = rules[i]
+      const foreground = rule?.settings?.foreground
+      if (foreground === undefined) continue
+      if (ruleScopes(rule?.scope).some((scope) => matchesScope(scope, selector, true))) return foreground
+    }
+  }
+  for (const selector of selectors) {
+    for (let i = rules.length - 1; i >= 0; i--) {
+      const rule = rules[i]
+      const foreground = rule?.settings?.foreground
+      if (foreground === undefined) continue
+      if (ruleScopes(rule?.scope).some((scope) => matchesScope(scope, selector, false))) return foreground
+    }
+  }
+  return undefined
+}
+
+export function resolveVscodeScopeColorHex(
+  theme: VscodeColorTheme,
+  selectors: readonly string[],
+  fallback?: string,
+): string | undefined {
+  const color = foregroundFor(theme, selectors) ?? fallback ?? theme.colors?.["editor.foreground"]
+  const hex = normalizeHexColor(color)
+  return hex === undefined ? undefined : `#${hex}`
+}
+
+export function resolveVscodeSyntaxTokens(
+  theme: VscodeColorTheme,
+  fallback: SyntaxTokenColors = metaforDarkSyntaxTokens,
+): SyntaxTokenColors {
+  const editorForeground = theme.colors?.["editor.foreground"]
+  const out = {} as SyntaxTokenColors
+  for (const category of syntaxTokenCategories) {
+    const color = foregroundFor(theme, vscodeScopeMap[category])
+      ?? (category === "d" ? editorForeground : undefined)
+    out[category] = colorFromHex(color, fallback[category])
+  }
+  return out
+}
+
+export const activeVscodeSyntaxTheme = islandsDarkTheme as VscodeColorTheme
+export const activeSyntaxThemeName = activeVscodeSyntaxTheme.name ?? "Islands Dark"
+
+/**
+ * Цвета для синтаксических токенов в code-editor. Категории генерируют
+ * editor/highlighter и server-side scanner в pkg/debug/src/syntax.ts.
+ */
+export const syntaxTokens = resolveVscodeSyntaxTokens(activeVscodeSyntaxTheme)
 
 export const radii = {
   control: 6,

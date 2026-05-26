@@ -643,7 +643,7 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
       scriptId,
       url: responseUrl,
       scriptSource: cachedSource,
-      tokens: includeTokens ? tokensFor(cacheKey, cachedSource) : undefined,
+      tokens: includeTokens ? tokensFor(cacheKey, cachedSource, responseUrl) : undefined,
       sourceKind: mappedSource === null ? "runtime" : "sourcemap",
       cached: true,
     })
@@ -655,7 +655,7 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
       scriptId,
       url: mappedSource.source,
       scriptSource: mappedSource.content,
-      tokens: includeTokens ? tokensFor(cacheKey, mappedSource.content) : undefined,
+      tokens: includeTokens ? tokensFor(cacheKey, mappedSource.content, mappedSource.source) : undefined,
       sourceKind: "sourcemap",
       cached: false,
     })
@@ -669,7 +669,7 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
       scriptId,
       url: fileUrl ?? "",
       scriptSource,
-      tokens: includeTokens && scriptSource.length > 0 ? tokensFor(cacheKey, scriptSource) : undefined,
+      tokens: includeTokens && scriptSource.length > 0 ? tokensFor(cacheKey, scriptSource, fileUrl ?? "") : undefined,
       sourceKind: "runtime",
       cached: false,
     })
@@ -678,11 +678,11 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
   }
 }
 
-function tokensFor(cacheKey: string, source: string): import("./syntax.ts").SourceTokens {
+function tokensFor(cacheKey: string, source: string, path: string): import("./syntax.ts").SourceTokens {
   const cached = lruGet(tokenCache, cacheKey)
   if (cached !== undefined) return cached
-  const {tokenize} = require("./syntax.ts") as typeof import("./syntax.ts")
-  const tokens = tokenize(source)
+  const {tokenizeSource} = require("./syntax.ts") as typeof import("./syntax.ts")
+  const tokens = tokenizeSource(source, {path})
   lruSet(tokenCache, cacheKey, tokens, SOURCE_CACHE_MAX)
   return tokens
 }

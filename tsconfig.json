@@ -17,6 +17,7 @@
     "checkJs": true,
     // Bundler mode
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,

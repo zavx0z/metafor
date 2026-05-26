@@ -6,7 +6,7 @@ describe("normalizeEditorTokensForLine", () => {
     const tokens = normalizeEditorTokensForLine("abcdef", [
       {s: 4, e: 6, c: "z"},
       {s: 0, e: 2, c: "a"},
-      {s: 1, e: 5, c: "b", bg: "#123456"},
+      {s: 1, e: 5, c: "b", fg: "#abcdef", bg: "#123456"},
       {s: -2, e: 1, c: "n"},
       {s: 6, e: 10, c: "out"},
       {s: 3, e: 3, c: "empty"},
@@ -16,7 +16,7 @@ describe("normalizeEditorTokensForLine", () => {
     expect(tokens).toEqual([
       {s: 0, e: 1, c: "n"},
       {s: 1, e: 2, c: "a"},
-      {s: 2, e: 5, c: "b", bg: "#123456"},
+      {s: 2, e: 5, c: "b", fg: "#abcdef", bg: "#123456"},
       {s: 5, e: 6, c: "z"},
     ])
   })

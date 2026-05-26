@@ -5,7 +5,7 @@
  */
 
 import {UiRuntime, type UiSurfaceRect} from "@metafor/elements"
-import {EditorPane, sourceDisplayLocation, sourcePathFromLocation, type EditorTokens} from "@metafor/components"
+import {EditorPane, sourceDisplayLocation, sourcePathFromLocation, type EditorBreakpoint, type EditorTokens} from "@metafor/components"
 import {applyInspectMode} from "../src/inspect-mode.ts"
 import {ConsolePane, type ConsoleEntry} from "./console-pane.ts"
 import {
@@ -58,6 +58,32 @@ type Source = {
   tokens?: EditorTokens
 }
 
+type BreakpointSpec = {
+  url?: string
+  urlRegex?: string
+  line: number
+  column?: number
+  condition?: string
+}
+
+type BreakpointRegistration = {
+  id: string
+  spec: BreakpointSpec
+  installed: Array<{
+    breakpointId: string
+    scriptId: string
+    url: string
+    result?: unknown
+  }>
+}
+
+type ActiveSource = {
+  scriptId: string
+  scriptUrl: string
+  sourceUrl: string
+  key: string
+}
+
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
   if (element === null) throw new Error(`#${id} not in DOM`)
@@ -66,10 +92,11 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
 
 const engineCanvas = $<HTMLCanvasElement>("engine-canvas")
 const consolePending: ConsoleEntry[] = []
-type CachedSource = {text: string; tokens?: EditorTokens}
+type CachedSource = {text: string; sourceUrl?: string; tokens?: EditorTokens}
 type DraftState = {baseText: string; text: string; savedText: string; status: "clean" | "dirty" | "saved"}
 const sourceCache = new Map<string, CachedSource>()
 const sourceDrafts = new Map<string, DraftState>()
+const scriptUrls = new Map<string, string>()
 let uiCanvas: UiRuntime | null = null
 let sourcePane: EditorPane | null = null
 let draftEditorPane: EditorPane | null = null
@@ -90,6 +117,7 @@ let welcomeVisible = false
 let verboseVisible = localStorage.getItem("bd:verbose") === "1"
 let draftVisible = false
 let activeSourceKey = ""
+let activeSource: ActiveSource | null = null
 let engineStatus = "engine: init"
 let wsStatusText = "connecting..."
 let wsStatusKind: BadgeKind = "neutral"
@@ -99,6 +127,8 @@ let pendingPauseTimer: number | null = null
 let pendingPauseStartedAt = 0
 type ActiveDebuggerCommand = {cmd: string; label: string; startedAt: number; timer: number}
 let activeDebuggerCommand: ActiveDebuggerCommand | null = null
+let breakpointRegistrations: BreakpointRegistration[] = []
+const pendingBreakpointLines = new Set<number>()
 
 const targetState = {
   state: "idle" as "idle" | "starting" | "running" | "exited" | "failed",
@@ -149,6 +179,7 @@ function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case "hello":
       inspectorUrl = msg.inspectorUrl
+      rememberScripts(msg.scripts)
       applyConnection(msg.connection)
       if (msg.paused && msg.dump !== null) {
         currentDump = msg.dump
@@ -161,6 +192,7 @@ function handleServerMessage(msg: ServerMessage): void {
         setRunStatus("waiting")
         setSourceRuntimeState("disconnected")
       }
+      void refreshBreakpoints()
       refreshWelcome()
       return
     case "state":
@@ -168,6 +200,7 @@ function handleServerMessage(msg: ServerMessage): void {
       clearPendingPause()
       currentDump = msg.dump
       renderDump(msg.dump)
+      syncSourceBreakpointMarkers()
       setRunStatus(`paused (${msg.dump.reason})`, "paused")
       setSourceRuntimeState("paused")
       hideWelcome()
@@ -178,6 +211,7 @@ function handleServerMessage(msg: ServerMessage): void {
       currentDump = undefined
       framesPane?.setFrames([], activeFrameIndex)
       scopesEvalPane?.setFrame(null)
+      syncSourceBreakpointMarkers()
       // Держим последнюю source-pane, но явно маркируем running,
       // чтобы это не выглядело как не обновляющийся paused editor.
       setRunStatus("running", "live")
@@ -188,6 +222,7 @@ function handleServerMessage(msg: ServerMessage): void {
       refreshWelcome()
       return
     case "script":
+      rememberScript(msg.scriptId, msg.url)
       return
     case "console":
       for (const entry of msg.entries) appendConsole(entry)
@@ -251,6 +286,11 @@ function clearLiveState(runtimeState: SourceRuntimeState = "disconnected"): void
   scopesEvalPane?.setFrame(null)
   pushSourceToEngine({lines: [], currentLine: 0, location: ""})
   activeSourceKey = ""
+  activeSource = null
+  sourcePane?.setBreakpoints([])
+  scriptUrls.clear()
+  breakpointRegistrations = []
+  pendingBreakpointLines.clear()
   sourceCache.clear()
   syncDraftEditor()
   setSourceRuntimeState(runtimeState)
@@ -498,6 +538,175 @@ function appendVerbose(kind: "inspector" | "agent", ts: string, name: string, pa
   verbosePane?.append(kind, ts, name, payload)
 }
 
+function rememberScripts(scripts: Array<{scriptId: string; url: string}>): void {
+  for (const script of scripts) rememberScript(script.scriptId, script.url)
+}
+
+function rememberScript(scriptId: string, url: string): void {
+  if (scriptId.length === 0) return
+  scriptUrls.set(scriptId, url)
+}
+
+async function refreshBreakpoints(): Promise<void> {
+  try {
+    const res = await fetch("/breakpoints")
+    const data = await res.json() as unknown
+    if (!Array.isArray(data)) return
+    breakpointRegistrations = data.filter(isBreakpointRegistration)
+    syncSourceBreakpointMarkers()
+  } catch (error) {
+    appendConsole({
+      ts: new Date().toISOString(),
+      level: "warn",
+      text: `[ui] breakpoints refresh failed: ${String(error)}`,
+    })
+  }
+}
+
+async function toggleActiveSourceBreakpoint(line: number): Promise<void> {
+  const source = activeSource
+  if (source === null) {
+    appendConsole({
+      ts: new Date().toISOString(),
+      level: "warn",
+      text: getUiLocale() === "ru" ? "[ui] breakpoint не поставлен: source не загружен" : "[ui] breakpoint skipped: no source loaded",
+    })
+    return
+  }
+
+  const sourceLine = Math.max(1, Math.floor(line))
+  const existing = breakpointRegistrationForActiveLine(sourceLine)
+  pendingBreakpointLines.add(sourceLine)
+  syncSourceBreakpointMarkers()
+
+  try {
+    const body = existing === undefined
+      ? {url: source.scriptUrl, line: sourceLine}
+      : {id: existing.id}
+    const res = await fetch("/breakpoint", {
+      method: existing === undefined ? "POST" : "DELETE",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify(body),
+    })
+    const data = await res.json() as {ok?: boolean; error?: string; breakpoints?: unknown}
+    if (data.ok !== true) {
+      appendConsole({
+        ts: new Date().toISOString(),
+        level: "error",
+        text: `[ui] breakpoint: ${data.error ?? "unknown error"}`,
+      })
+      return
+    }
+    if (Array.isArray(data.breakpoints)) {
+      breakpointRegistrations = data.breakpoints.filter(isBreakpointRegistration)
+    } else {
+      await refreshBreakpoints()
+    }
+  } catch (error) {
+    appendConsole({
+      ts: new Date().toISOString(),
+      level: "error",
+      text: `[ui] breakpoint: ${String(error)}`,
+    })
+  } finally {
+    pendingBreakpointLines.delete(sourceLine)
+    syncSourceBreakpointMarkers()
+  }
+}
+
+function breakpointRegistrationForActiveLine(line: number): BreakpointRegistration | undefined {
+  return breakpointRegistrations.find((registration) => registration.spec.line === line && breakpointMatchesActiveSource(registration))
+}
+
+function syncSourceBreakpointMarkers(): void {
+  if (sourcePane === null) return
+  const source = activeSource
+  if (source === null) {
+    sourcePane.setBreakpoints([])
+    return
+  }
+
+  const hitBreakpointIds = new Set(currentDump?.hitBreakpoints ?? [])
+  const byLine = new Map<number, EditorBreakpoint>()
+  for (const registration of breakpointRegistrations) {
+    if (!breakpointMatchesActiveSource(registration)) continue
+    const verified = registration.installed.some((installed) => installed.scriptId === source.scriptId || sameSourceUrl(installed.url, source.scriptUrl))
+    const hit = registration.installed.some((installed) => hitBreakpointIds.has(installed.breakpointId))
+    byLine.set(registration.spec.line, {
+      line: registration.spec.line,
+      verified,
+      pending: !verified,
+      hit,
+    })
+  }
+
+  for (const line of pendingBreakpointLines) {
+    const current = byLine.get(line)
+    byLine.set(line, {
+      line,
+      verified: current?.verified ?? false,
+      pending: true,
+      hit: current?.hit ?? false,
+    })
+  }
+
+  sourcePane.setBreakpoints([...byLine.values()].sort((a, b) => a.line - b.line))
+}
+
+function breakpointMatchesActiveSource(registration: BreakpointRegistration): boolean {
+  const source = activeSource
+  if (source === null) return false
+  if (registration.installed.some((installed) => installed.scriptId === source.scriptId || sameSourceUrl(installed.url, source.scriptUrl))) return true
+
+  const spec = registration.spec
+  if (spec.url !== undefined) {
+    return sameSourceUrl(spec.url, source.scriptUrl)
+      || sameSourceUrl(spec.url, source.sourceUrl)
+      || sameSourceUrl(spec.url, source.key)
+  }
+  if (spec.urlRegex !== undefined) {
+    try {
+      const regex = new RegExp(spec.urlRegex)
+      return [source.scriptUrl, source.sourceUrl, source.key].some((value) => regex.test(value))
+    } catch {
+      return false
+    }
+  }
+  return false
+}
+
+function sameSourceUrl(a: string, b: string): boolean {
+  const bVariants = new Set(sourceUrlVariants(b))
+  return sourceUrlVariants(a).some((value) => bVariants.has(value))
+}
+
+function sourceUrlVariants(value: string): string[] {
+  const variants = new Set<string>()
+  const add = (next: string): void => {
+    if (next.length === 0) return
+    variants.add(next)
+    variants.add(next.replaceAll("\\", "/"))
+  }
+
+  add(value)
+  try {
+    const url = new URL(value)
+    if (url.protocol === "file:") add(decodeURIComponent(url.pathname))
+  } catch {}
+  return [...variants]
+}
+
+function isBreakpointRegistration(value: unknown): value is BreakpointRegistration {
+  if (typeof value !== "object" || value === null) return false
+  const object = value as Record<string, unknown>
+  const spec = object["spec"] as Record<string, unknown> | undefined
+  return typeof object["id"] === "string"
+    && typeof spec === "object"
+    && spec !== null
+    && typeof spec["line"] === "number"
+    && Array.isArray(object["installed"])
+}
+
 function setWsStatus(text: string, kind: "" | "live" | "paused" = ""): void {
   wsStatusText = text
   wsStatusKind = kind === "live"
@@ -589,6 +798,7 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
     try {
       const res = await fetch(`/source?scriptId=${encodeURIComponent(scriptId)}&sourceUrl=${encodeURIComponent(frame.url)}&sourceKind=${encodeURIComponent(preferredSourceKind)}`)
       const data = await res.json() as {
+        url?: string
         scriptSource?: string
         tokens?: EditorTokens
         error?: string
@@ -598,7 +808,11 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
         setSourceRuntimeState("paused")
         return
       }
-      cached = {text: data.scriptSource, ...(data.tokens === undefined ? {} : {tokens: data.tokens})}
+      cached = {
+        text: data.scriptSource,
+        ...(data.url === undefined ? {} : {sourceUrl: data.url}),
+        ...(data.tokens === undefined ? {} : {tokens: data.tokens}),
+      }
       sourceCache.set(cacheKey, cached)
     } catch (error) {
       pushSourceToEngine({lines: [`fetch failed: ${String(error)}`], currentLine: 0, location})
@@ -609,14 +823,24 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
     }
   }
 
+  const scriptUrl = scriptUrls.get(scriptId) ?? frame.url
+  const sourceUrl = cached.sourceUrl ?? frame.url
+  const sourceLocation = `${sourceUrl || "scriptId=" + scriptId}:${frame.line}`
+  activeSource = {
+    scriptId,
+    scriptUrl,
+    sourceUrl,
+    key: sourceKeyFromLocation(sourceLocation, scriptId),
+  }
   pushSourceToEngine({
     lines: cached.text.split("\n"),
     currentLine: frame.line,
-    location,
+    location: sourceLocation,
     ...(cached.tokens === undefined ? {} : {tokens: cached.tokens}),
   })
-  activeSourceKey = sourceKeyFromLocation(location, scriptId)
-  ensureDraftForActiveSource(cached.text, location)
+  activeSourceKey = activeSource.key
+  ensureDraftForActiveSource(cached.text, sourceLocation)
+  syncSourceBreakpointMarkers()
   setSourceRuntimeState("paused")
 }
 
@@ -714,6 +938,7 @@ async function initEngine(): Promise<void> {
       readOnly: true,
       showCaret: false,
       introAnimation: false,
+      onBreakpointToggle: (line) => void toggleActiveSourceBreakpoint(line),
     })
     draftEditorPane = new EditorPane({
       title: t("editDraft"),
@@ -1061,6 +1286,7 @@ function updateSourcePane(): void {
   if (engineLastSource.tokens !== undefined) sourcePane.setTokens(engineLastSource.tokens)
   else sourcePane.setLanguage({path: sourcePathFromLocation(engineLastSource.location)})
   sourcePane.setExecutionLine(engineLastSource.currentLine > 0 ? engineLastSource.currentLine : null, {scroll: true})
+  syncSourceBreakpointMarkers()
 }
 
 function updateSourcePaneTitle(): void {

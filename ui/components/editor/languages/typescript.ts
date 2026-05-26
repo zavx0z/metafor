@@ -1,140 +1,83 @@
-import type {EditorToken, EditorTokens, LanguageHighlighter} from "../tokens.ts"
-
-const KEYWORDS = new Set([
-  "abstract", "as", "async", "await", "break", "case", "catch", "class",
-  "const", "constructor", "continue", "debugger", "declare", "default",
-  "delete", "do", "else", "enum", "export", "extends", "false", "finally",
-  "for", "from", "function", "get", "if", "implements", "import", "in",
-  "infer", "instanceof", "interface", "is", "keyof", "let", "module",
-  "namespace", "new", "null", "of", "package", "private", "protected",
-  "public", "readonly", "return", "satisfies", "set", "static", "super",
-  "switch", "symbol", "this", "throw", "true", "try", "type", "typeof",
-  "undefined", "unique", "unknown", "var", "void", "while", "with", "yield",
-])
-
-const IDENT_RE = /[$_\p{ID_Start}][$_\u200c\u200d\p{ID_Continue}]*/uy
-const NUMBER_RE = /(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d[\d_]*)?n?)/y
+import type {EditorTokens, LanguageHighlighter} from "../tokens.ts"
+import {tokenizePattern, tokenizePatternRanges} from "./pattern-highlighter.ts"
+import {distributeRangeTokens, pushRange, type RangeToken} from "./range-tokens.ts"
 
 export function tokenizeTypeScript(lines: string[]): EditorTokens {
-  const out: EditorTokens = lines.map(() => [])
-  let inBlockComment = false
-  let inTemplate = false
-
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-    const line = lines[lineIndex] ?? ""
-    const tokens = out[lineIndex]
-    if (tokens === undefined) continue
-
-    let i = 0
-    while (i < line.length) {
-      if (inBlockComment) {
-        const end = line.indexOf("*/", i)
-        if (end < 0) {
-          push(tokens, i, line.length, "c")
-          i = line.length
-          continue
-        }
-        push(tokens, i, end + 2, "c")
-        i = end + 2
-        inBlockComment = false
-        continue
-      }
-
-      if (inTemplate) {
-        const end = scanQuoted(line, i, "`")
-        push(tokens, i, end, "s")
-        inTemplate = end > line.length
-        i = Math.min(end, line.length)
-        continue
-      }
-
-      const ch = line[i] ?? ""
-      const next = line[i + 1] ?? ""
-
-      if (isWhitespace(ch)) {
-        i++
-        continue
-      }
-
-      if (ch === "/" && next === "/") {
-        push(tokens, i, line.length, "c")
-        break
-      }
-      if (ch === "/" && next === "*") {
-        const end = line.indexOf("*/", i + 2)
-        if (end < 0) {
-          push(tokens, i, line.length, "c")
-          inBlockComment = true
-          break
-        }
-        push(tokens, i, end + 2, "c")
-        i = end + 2
-        continue
-      }
-
-      if (ch === "\"" || ch === "'") {
-        const end = Math.min(scanQuoted(line, i, ch), line.length)
-        push(tokens, i, end, "s")
-        i = end
-        continue
-      }
-      if (ch === "`") {
-        const end = scanQuoted(line, i, "`")
-        push(tokens, i, Math.min(end, line.length), "s")
-        inTemplate = end > line.length
-        i = Math.min(end, line.length)
-        continue
-      }
-
-      NUMBER_RE.lastIndex = i
-      const numberMatch = NUMBER_RE.exec(line)
-      if (numberMatch !== null && numberMatch.index === i) {
-        const end = i + numberMatch[0].length
-        push(tokens, i, end, "n")
-        i = end
-        continue
-      }
-
-      IDENT_RE.lastIndex = i
-      const identMatch = IDENT_RE.exec(line)
-      if (identMatch !== null && identMatch.index === i) {
-        const text = identMatch[0]
-        const end = i + text.length
-        const kind = classifyIdentifier(text, nextNonWhitespace(line, end))
-        push(tokens, i, end, kind)
-        i = end
-        continue
-      }
-
-      push(tokens, i, i + 1, "p")
-      i++
-    }
-  }
-
-  return out
+  return applySqlTemplateOverlays(tokenizePattern(lines, "typescript"), lines)
 }
 
 export const typescriptHighlighter: LanguageHighlighter = {
   id: "typescript",
   name: "TypeScript / JavaScript",
-  extensions: ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"],
-  aliases: ["ts", "tsx", "js", "jsx", "javascript"],
+  extensions: ["ts", "mts", "cts", "js", "mjs", "cjs"],
+  aliases: ["ts", "js", "javascript"],
   tokenize: tokenizeTypeScript,
 }
 
-function push(tokens: EditorToken[], s: number, e: number, c: string): void {
-  if (e <= s) return
-  tokens.push({s, e, c})
+type SqlTemplateRange = {
+  start: number
+  end: number
+  contentStart: number
+  contentEnd: number
 }
 
-function isWhitespace(ch: string): boolean {
-  return ch === " " || ch === "\t" || ch === "\r"
+function applySqlTemplateOverlays(base: EditorTokens, lines: readonly string[]): EditorTokens {
+  const source = lines.join("\n")
+  const templates = findSqlTemplateRanges(source)
+  if (templates.length === 0) return base
+
+  const offsets = lineOffsets(lines)
+  const tokens: RangeToken[] = []
+  for (let lineIndex = 0; lineIndex < base.length; lineIndex++) {
+    const lineStart = offsets[lineIndex] ?? 0
+    for (const token of base[lineIndex] ?? []) {
+      const abs: RangeToken = {
+        s: lineStart + token.s,
+        e: lineStart + token.e,
+        c: token.c as RangeToken["c"],
+      }
+      if (token.bg !== undefined) abs.bg = token.bg
+      if (!templates.some((template) => rangesOverlap(abs.s, abs.e, template.start, template.end))) tokens.push(abs)
+    }
+  }
+
+  for (const template of templates) {
+    pushRange(tokens, template.start, template.start + 1, "p")
+    if (template.contentEnd > template.contentStart) {
+      tokenizePatternRanges(source.slice(template.contentStart, template.contentEnd), template.contentStart, "sql", (s, e, c, bg, fg) => pushRange(tokens, s, e, c, bg, fg))
+    }
+    if (template.end > template.contentEnd) pushRange(tokens, template.end - 1, template.end, "p")
+  }
+
+  return distributeRangeTokens(tokens, lines)
 }
 
-function scanQuoted(line: string, start: number, quote: string): number {
+function findSqlTemplateRanges(source: string): SqlTemplateRange[] {
+  const ranges: SqlTemplateRange[] = []
+  let i = 0
+  while (i < source.length) {
+    if (source[i] !== "`") {
+      i++
+      continue
+    }
+    const end = scanTemplateEnd(source, i)
+    if (isSqlTaggedTemplateStart(source, i)) {
+      ranges.push({
+        start: i,
+        end,
+        contentStart: i + 1,
+        contentEnd: Math.max(i + 1, end - 1),
+      })
+    }
+    i = Math.max(i + 1, end)
+  }
+  return ranges
+}
+
+function scanTemplateEnd(source: string, start: number): number {
   let escaped = false
-  for (let i = start + 1; i < line.length; i++) {
-    const ch = line[i] ?? ""
+  for (let i = start + 1; i < source.length; i++) {
+    const ch = source[i] ?? ""
     if (escaped) {
       escaped = false
       continue
@@ -143,22 +86,56 @@ function scanQuoted(line: string, start: number, quote: string): number {
       escaped = true
       continue
     }
-    if (ch === quote) return i + 1
+    if (ch === "`") return i + 1
   }
-  return line.length + 1
+  return source.length
 }
 
-function nextNonWhitespace(line: string, start: number): string {
-  for (let i = start; i < line.length; i++) {
-    const ch = line[i] ?? ""
-    if (!isWhitespace(ch)) return ch
-  }
-  return ""
+function isSqlTaggedTemplateStart(source: string, templateStart: number): boolean {
+  let i = skipWhitespaceLeft(source, templateStart - 1)
+  if (source[i] === ">") i = skipTypeArgumentsLeft(source, i)
+  i = skipWhitespaceLeft(source, i)
+
+  let end = i + 1
+  while (i >= 0 && /[$_\p{ID_Continue}]/u.test(source[i] ?? "")) i--
+  const ident = source.slice(i + 1, end)
+  return ident.toLowerCase() === "sql"
 }
 
-function classifyIdentifier(text: string, next: string): string {
-  if (KEYWORDS.has(text)) return "k"
-  if (next === "(") return "f"
-  if (/^[A-Z]/.test(text)) return "t"
-  return "d"
+function skipTypeArgumentsLeft(source: string, start: number): number {
+  let angle = 0
+  let brace = 0
+  let bracket = 0
+  let paren = 0
+  for (let i = start; i >= 0; i--) {
+    const ch = source[i] ?? ""
+    if (ch === ">") angle++
+    else if (ch === "<") {
+      angle--
+      if (angle <= 0 && brace === 0 && bracket === 0 && paren === 0) return i - 1
+    } else if (ch === "}") brace++
+    else if (ch === "{") brace = Math.max(0, brace - 1)
+    else if (ch === "]") bracket++
+    else if (ch === "[") bracket = Math.max(0, bracket - 1)
+    else if (ch === ")") paren++
+    else if (ch === "(") paren = Math.max(0, paren - 1)
+  }
+  return start
+}
+
+function skipWhitespaceLeft(source: string, start: number): number {
+  let i = start
+  while (i >= 0 && /\s/.test(source[i] ?? "")) i--
+  return i
+}
+
+function lineOffsets(lines: readonly string[]): number[] {
+  const offsets = new Array<number>(lines.length + 1)
+  offsets[0] = 0
+  for (let i = 0; i < lines.length; i++) offsets[i + 1] = offsets[i]! + (lines[i]?.length ?? 0) + 1
+  return offsets
+}
+
+function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  return aStart < bEnd && bStart < aEnd
 }

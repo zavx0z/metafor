@@ -5,20 +5,41 @@ import type {EditorToken} from "../tokens.ts"
 describe("tokenizeTypeScript", () => {
   test("highlights common JavaScript and TypeScript token classes", () => {
     const lines = [
+      "import {describe, expect, test} from \"bun:test\"",
       "const Thing = call(\"value\", 42) // tail",
       "/* open",
       "still */ const next = 1",
     ]
     const tokens = tokenizeTypeScript(lines)
 
-    expect(tokenFor(lines[0]!, tokens[0]!, "const")?.c).toBe("k")
-    expect(tokenFor(lines[0]!, tokens[0]!, "\"value\"")?.c).toBe("s")
-    expect(tokenFor(lines[0]!, tokens[0]!, "42")?.c).toBe("n")
-    expect(tokenFor(lines[0]!, tokens[0]!, "// tail")?.c).toBe("c")
-    expect(tokenFor(lines[0]!, tokens[0]!, "call")?.c).toBe("f")
-    expect(tokenFor(lines[0]!, tokens[0]!, "Thing")?.c).toBe("t")
-    expect(tokenFor(lines[1]!, tokens[1]!, "/* open")?.c).toBe("c")
-    expect(tokenFor(lines[2]!, tokens[2]!, "still */")?.c).toBe("c")
+    expect(tokenFor(lines[0]!, tokens[0]!, "import")?.c).toBe("k")
+    expect(tokenFor(lines[0]!, tokens[0]!, "describe")?.c).toBe("f")
+    expect(tokenFor(lines[0]!, tokens[0]!, "expect")?.c).toBe("f")
+    expect(tokenFor(lines[0]!, tokens[0]!, "test")?.c).toBe("f")
+    expect(tokenFor(lines[0]!, tokens[0]!, "\"bun:test\"")?.c).toBe("s")
+    expect(tokenFor(lines[1]!, tokens[1]!, "const")?.c).toBe("k")
+    expect(tokenFor(lines[1]!, tokens[1]!, "\"value\"")?.c).toBe("s")
+    expect(tokenFor(lines[1]!, tokens[1]!, "42")?.c).toBe("n")
+    expect(tokenFor(lines[1]!, tokens[1]!, "// tail")?.c).toBe("c")
+    expect(tokenFor(lines[1]!, tokens[1]!, "call")?.c).toBe("f")
+    expect(tokenFor(lines[1]!, tokens[1]!, "Thing")?.c).toBe("t")
+    expect(tokenFor(lines[2]!, tokens[2]!, "/* open")?.c).toBe("c")
+    expect(tokenFor(lines[3]!, tokens[3]!, "still */")?.c).toBe("c")
+  })
+
+  test("highlights sqlite inside sql tagged template literals", () => {
+    const lines = [
+      "await sql<Array<{src: string}>>`SELECT src FROM wimp WHERE src = 'zavx0z/git-history-commit'`",
+    ]
+    const tokens = tokenizeTypeScript(lines)
+
+    expect(tokenFor(lines[0]!, tokens[0]!, "await")?.c).toBe("k")
+    expect(tokenFor(lines[0]!, tokens[0]!, "sql")?.c).toBe("f")
+    expect(tokenFor(lines[0]!, tokens[0]!, "Array")?.c).toBe("t")
+    expect(tokenFor(lines[0]!, tokens[0]!, "SELECT")?.c).toBe("k")
+    expect(tokenFor(lines[0]!, tokens[0]!, "FROM")?.c).toBe("k")
+    expect(tokenFor(lines[0]!, tokens[0]!, "WHERE")?.c).toBe("k")
+    expect(tokenFor(lines[0]!, tokens[0]!, "'zavx0z/git-history-commit'")?.c).toBe("s")
   })
 })
 

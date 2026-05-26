@@ -5,6 +5,8 @@ export type EditorToken = {
   e: number
   /** Syntax category, matched against `syntaxTokens` from theme. */
   c: string
+  /** Optional resolved foreground color from the active syntax theme. */
+  fg?: string
   /** Optional color swatch/background hint for token-aware editors. */
   bg?: string
 }

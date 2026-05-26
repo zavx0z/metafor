@@ -16,16 +16,17 @@ describe("resolveLanguageHighlighter", () => {
 
   test("resolves TypeScript and JavaScript file extensions", () => {
     expect(resolveLanguageHighlighter({path: "foo.ts"}).id).toBe("typescript")
-    expect(resolveLanguageHighlighter({path: "foo.tsx"}).id).toBe("typescript")
     expect(resolveLanguageHighlighter({path: "foo.js"}).id).toBe("typescript")
-    expect(resolveLanguageHighlighter({path: "foo.jsx"}).id).toBe("typescript")
   })
 
   test("resolves HTML and CSS by id and file extensions", () => {
     expect(resolveLanguageHighlighter({languageId: "html"}).id).toBe("html")
     expect(resolveLanguageHighlighter({languageId: "css"}).id).toBe("css")
+    expect(resolveLanguageHighlighter({languageId: "sqlite"}).id).toBe("sqlite")
+    expect(resolveLanguageHighlighter({languageId: "sql"}).id).toBe("sqlite")
     expect(resolveLanguageHighlighter({path: "proposal.html"}).id).toBe("html")
     expect(resolveLanguageHighlighter({path: "theme.css"}).id).toBe("css")
+    expect(resolveLanguageHighlighter({path: "query.sql"}).id).toBe("sqlite")
   })
 
   test("falls back to plaintext for unknown extensions", () => {

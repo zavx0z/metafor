@@ -1,4 +1,4 @@
-import {TextMaterial} from "@metafor/engine"
+import {Color, TextMaterial} from "@metafor/engine"
 import {syntaxTokens, type UiSurface} from "@metafor/elements"
 import type {EditorToken} from "./tokens.ts"
 
@@ -43,6 +43,7 @@ export function normalizeEditorTokensForLine(text: string, tokens: readonly Edit
     if (e <= s) continue
 
     const normalized: EditorToken = {s, e, c: tok.c}
+    if (tok.fg !== undefined) normalized.fg = tok.fg
     if (tok.bg !== undefined) normalized.bg = tok.bg
     out.push(normalized)
     cursor = e
@@ -57,7 +58,7 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
   const sliceStart = opts.sliceStart ?? 0
   const remaining = (): number => Math.max(0, opts.startX + opts.maxPx - cursorX)
 
-  const placeChunk = (chunkText: string, category: string, bg: string | undefined, chunkColStart: number): void => {
+  const placeChunk = (chunkText: string, category: string, fg: string | undefined, bg: string | undefined, chunkColStart: number): void => {
     if (chunkText.length === 0) return
     const w = opts.chunkWidth?.(chunkColStart, chunkColStart + chunkText.length, chunkText)
       ?? opts.pane.measureText(chunkText, opts.fontPx)
@@ -71,7 +72,7 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
       opts.drawTokenBackground?.(drawX, opts.y, w, opts.fontPx + 2, bg)
     }
     if (chunkText.trim().length > 0) {
-      const material = opts.materials.get(category) ?? opts.fallbackMaterial
+      const material = materialForToken(opts.materials, category, fg) ?? opts.fallbackMaterial
       opts.pane.drawText(chunkText, drawX, opts.y, {
         fontPx: opts.fontPx,
         material,
@@ -85,9 +86,31 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
 
   const sorted = opts.tokensNormalized === true ? opts.tokens : normalizeEditorTokensForLine(opts.text, opts.tokens)
   for (const tok of sorted) {
-    if (tok.s > cursor) placeChunk(opts.text.slice(cursor, tok.s), "d", undefined, cursor)
-    placeChunk(opts.text.slice(tok.s, tok.e), tok.c, tok.bg, tok.s)
+    if (tok.s > cursor) placeChunk(opts.text.slice(cursor, tok.s), "d", undefined, undefined, cursor)
+    placeChunk(opts.text.slice(tok.s, tok.e), tok.c, tok.fg, tok.bg, tok.s)
     cursor = tok.e
   }
-  if (cursor < opts.text.length) placeChunk(opts.text.slice(cursor), "d", undefined, cursor)
+  if (cursor < opts.text.length) placeChunk(opts.text.slice(cursor), "d", undefined, undefined, cursor)
+}
+
+function materialForToken(materials: EditorTokenMaterialMap, category: string, fg: string | undefined): TextMaterial | undefined {
+  const hex = normalizeTokenHexColor(fg)
+  if (hex === undefined) return materials.get(category)
+  const key = `fg:${hex}`
+  let material = materials.get(key)
+  if (material === undefined) {
+    material = new TextMaterial({color: new Color(hex)})
+    materials.set(key, material)
+  }
+  return material
+}
+
+function normalizeTokenHexColor(value: string | undefined): string | undefined {
+  const raw = value?.trim()
+  if (raw === undefined) return undefined
+  const match = /^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(raw)
+  if (match === null) return undefined
+  const body = match[1]!
+  if (body.length === 3) return `#${body.split("").map((ch) => ch + ch).join("").toLowerCase()}`
+  return `#${body.toLowerCase()}`
 }
