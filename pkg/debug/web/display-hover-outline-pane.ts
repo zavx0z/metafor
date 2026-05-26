@@ -16,13 +16,18 @@ const LOCK_HOT = new Color(0.88, 1, 1, 0.86)
 
 const LOCK_Z = Z.TEXT + 0.24
 const LOCK_DURATION_MS = 620
-const MAGNET_PERIOD_MS = 1800
 const MIN_TARGET_OUTSET_PX = 12
 const MAX_TARGET_OUTSET_PX = 26
 const MIN_START_OUTSET_PX = 82
 const MAX_START_OUTSET_PX = 180
-const MIN_MAGNET_SWAY_PX = 4
-const MAX_MAGNET_SWAY_PX = 10
+const MIN_MAGNET_SWAY_PX = 7
+const MAX_MAGNET_SWAY_PX = 22
+const FULL_INTENSITY_SPEED_PX_PER_SEC = 520
+const MIN_MAGNET_SPEED_RAD_PER_SEC = 2.2
+const MAX_MAGNET_SPEED_RAD_PER_SEC = 14
+const MOTION_ATTACK = 0.56
+const MOTION_DECAY = 0.034
+const MOTION_STOP_INTENSITY = 0.01
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -97,8 +102,21 @@ function fade(color: Color, opacity: number): Color {
   return new Color(color.r, color.g, color.b, clamp(color.a * opacity, 0, 1))
 }
 
+function averageQuadDelta(a: Quad, b: Quad): number {
+  return (
+    edgeLength(a.topLeft, b.topLeft) +
+    edgeLength(a.topRight, b.topRight) +
+    edgeLength(a.bottomRight, b.bottomRight) +
+    edgeLength(a.bottomLeft, b.bottomLeft)
+  ) / 4
+}
+
 export class DisplayHoverOutlinePane extends UiSurface {
   #lockStartedAt: number | null = null
+  #lastQuad: Quad | null = null
+  #lastFrameAt: number | null = null
+  #motionIntensity = 0
+  #magnetPhase = 0
 
   constructor() {
     super({bgColor: null, borderColor: null})
@@ -112,6 +130,10 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const outline = this.canvas?.displayHoverOutline()
     if (outline === undefined || outline === null) {
       this.#lockStartedAt = null
+      this.#lastQuad = null
+      this.#lastFrameAt = null
+      this.#motionIntensity = 0
+      this.#magnetPhase = 0
       return
     }
 
@@ -126,20 +148,28 @@ export class DisplayHoverOutlinePane extends UiSurface {
     if (displaySizePx < 36) return
 
     const now = performance.now()
-    if (this.#lockStartedAt === null) this.#lockStartedAt = now
+    if (this.#lockStartedAt === null) {
+      this.#lockStartedAt = now
+      this.#lastQuad = null
+      this.#lastFrameAt = null
+      this.#motionIntensity = 0
+      this.#magnetPhase = 0
+    }
+    const motionIntensity = this.#updateMotion(quad, now)
     const ageMs = now - this.#lockStartedAt
     const progress = clamp(ageMs / LOCK_DURATION_MS, 0, 1)
     const eased = easeOutCubic(progress)
     const center = centerOf(points)
     const baseOutset = clamp(displaySizePx * 0.018, MIN_TARGET_OUTSET_PX, MAX_TARGET_OUTSET_PX)
-    const swayPx = clamp(displaySizePx * 0.011, MIN_MAGNET_SWAY_PX, MAX_MAGNET_SWAY_PX)
-    const magneticWave = Math.sin((ageMs / MAGNET_PERIOD_MS) * Math.PI * 2)
-    const targetOutset = baseOutset + (progress >= 1 ? (0.5 + magneticWave * 0.5) * swayPx : 0)
+    const swayPx = clamp(displaySizePx * 0.02, MIN_MAGNET_SWAY_PX, MAX_MAGNET_SWAY_PX)
+    const magneticWave = Math.sin(this.#magnetPhase)
+    const magneticPull = (0.58 + magneticWave * 0.42) * swayPx * motionIntensity
+    const targetOutset = baseOutset + (progress >= 1 ? magneticPull : 0)
     const startOutset = baseOutset + clamp(displaySizePx * 0.16, MIN_START_OUTSET_PX, MAX_START_OUTSET_PX)
     const target = outsetQuad(quad, center, targetOutset)
     const start = outsetQuad(quad, center, startOutset)
     const current = lerpQuad(start, target, eased)
-    const settle = progress >= 1 ? 0.9 + 0.1 * (0.5 + magneticWave * 0.5) : 0.78 + 0.22 * progress
+    const settle = progress >= 1 ? 0.82 + 0.18 * motionIntensity : 0.78 + 0.22 * progress
 
     if (progress < 0.98) this.#drawApproachGuides(start, current)
     this.#drawCornerLock(current.topLeft, current.topRight, current.bottomLeft, displaySizePx, settle)
@@ -148,7 +178,28 @@ export class DisplayHoverOutlinePane extends UiSurface {
     this.#drawCornerLock(current.bottomLeft, current.bottomRight, current.topLeft, displaySizePx, settle)
     this.#drawSideMarks(current, displaySizePx, settle)
 
-    this.requestRender()
+    if (progress < 1 || motionIntensity > MOTION_STOP_INTENSITY) this.requestRender()
+  }
+
+  #updateMotion(quad: Quad, now: number): number {
+    const previousFrameAt = this.#lastFrameAt
+    const previousQuad = this.#lastQuad
+    if (previousFrameAt === null || previousQuad === null) {
+      this.#lastFrameAt = now
+      this.#lastQuad = quad
+      return this.#motionIntensity
+    }
+
+    const dtMs = Math.max(1, now - previousFrameAt)
+    const speedPxPerSec = averageQuadDelta(previousQuad, quad) / dtMs * 1000
+    const targetIntensity = clamp(speedPxPerSec / FULL_INTENSITY_SPEED_PX_PER_SEC, 0, 1)
+    const response = targetIntensity > this.#motionIntensity ? MOTION_ATTACK : MOTION_DECAY
+    this.#motionIntensity = lerp(this.#motionIntensity, targetIntensity, response)
+    const magnetSpeed = lerp(MIN_MAGNET_SPEED_RAD_PER_SEC, MAX_MAGNET_SPEED_RAD_PER_SEC, this.#motionIntensity)
+    this.#magnetPhase += magnetSpeed * (dtMs / 1000)
+    this.#lastFrameAt = now
+    this.#lastQuad = quad
+    return this.#motionIntensity
   }
 
   #drawApproachGuides(start: Quad, current: Quad): void {
