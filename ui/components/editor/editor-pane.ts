@@ -128,6 +128,8 @@ export class EditorPane extends UiSurface {
   #dragExtendsSelection = false
   #dragAnchorLocalX = 0
   #dragAnchorLocalY = 0
+  #dragSelectionRafId: number | null = null
+  #pendingDragSelection: {localX: number; localY: number} | null = null
   #selectionMenuOpen = false
   #selectionMenuSticky = false
   #selectionContextMenuEnabled = false
@@ -143,8 +145,11 @@ export class EditorPane extends UiSurface {
   #cursorBlinkTimer: ReturnType<typeof setInterval> | null = null
   #history: Snapshot[] = []
   #future: Snapshot[] = []
-  /** Кэшированная ширина одного «эталонного» глифа (M). Сбрасывается при resize/setText. */
+  /** Кэшированная ширина одного «эталонного» глифа (M). */
   #charWidth = 0
+  #charWidthScale = 0
+  #maxLineWidthPxCache: number | null = null
+  #maxLineWidthPxCacheScale = 0
   #scrollLeftPx = 0
   #scrollTopPx = 0
   #viewportW = 1
@@ -181,6 +186,7 @@ export class EditorPane extends UiSurface {
 
   setText(text: string): void {
     this.#lines = text.length === 0 ? [""] : text.split("\n")
+    this.#invalidateTextMetrics()
     this.#cline = Math.min(this.#cline, this.#lines.length - 1)
     this.#ccol = Math.min(this.#ccol, this.#lines[this.#cline]!.length)
     this.#clearSelectionState()
@@ -304,10 +310,12 @@ export class EditorPane extends UiSurface {
 
   /** Возвращает ширину одного глифа JetBrains Mono. Кэшируется (font фиксирован). */
   #getCharWidth(): number {
-    if (this.#charWidth > 0) return this.#charWidth
+    const scale = this.pageScaleFactor
+    if (this.#charWidth > 0 && this.#charWidthScale === scale) return this.#charWidth
     if (this.font === null) return this.#fallbackCharWidth()
     // measureText("M") даёт честную ширину advance + letter-spacing 5%.
     this.#charWidth = Math.max(this.#fallbackCharWidth(), this.measureText("M", this.#fontPx))
+    this.#charWidthScale = scale
     return this.#charWidth
   }
 
@@ -351,6 +359,7 @@ export class EditorPane extends UiSurface {
     this.#selectionFocus = null
     this.#dragSelecting = false
     this.#dragExtendsSelection = false
+    this.#cancelPendingDragSelection()
     this.#closeTransientSelectionMenu()
   }
 
@@ -667,7 +676,41 @@ export class EditorPane extends UiSurface {
       if (this.pressedHit !== null || (menuRect !== null && pointInRect(localX, localY, menuRect))) return
     }
     if (!this.#dragSelecting) return
-    this.#updateDragSelection(localX, localY)
+    this.#scheduleDragSelection(localX, localY)
+  }
+
+  #scheduleDragSelection(localX: number, localY: number): void {
+    this.#pendingDragSelection = {localX, localY}
+    if (this.#dragSelectionRafId !== null) return
+    if (typeof requestAnimationFrame !== "function") {
+      this.#flushDragSelection()
+      return
+    }
+    this.#dragSelectionRafId = requestAnimationFrame(() => {
+      this.#dragSelectionRafId = null
+      this.#flushDragSelection()
+    })
+  }
+
+  #flushDragSelection(localX?: number, localY?: number): void {
+    if (this.#dragSelectionRafId !== null && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(this.#dragSelectionRafId)
+    }
+    this.#dragSelectionRafId = null
+    const pending = localX === undefined || localY === undefined
+      ? this.#pendingDragSelection
+      : {localX, localY}
+    this.#pendingDragSelection = null
+    if (!this.#dragSelecting || pending === null) return
+    this.#updateDragSelection(pending.localX, pending.localY)
+  }
+
+  #cancelPendingDragSelection(): void {
+    if (this.#dragSelectionRafId !== null && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(this.#dragSelectionRafId)
+    }
+    this.#dragSelectionRafId = null
+    this.#pendingDragSelection = null
   }
 
   #updateDragSelection(localX: number, localY: number): void {
@@ -689,7 +732,7 @@ export class EditorPane extends UiSurface {
       this.#cline = this.#selectionFocus.line
       this.#ccol = this.#selectionFocus.col
       this.#scrollCursorIntoView()
-      this.#pingCursor()
+      this.#pingCursor(false)
       this.requestRender()
       return
     }
@@ -723,7 +766,7 @@ export class EditorPane extends UiSurface {
     this.#cline = this.#selectionFocus.line
     this.#ccol = this.#selectionFocus.col
     this.#scrollCursorIntoView()
-    this.#pingCursor()
+    this.#pingCursor(false)
     this.requestRender()
   }
 
@@ -732,7 +775,7 @@ export class EditorPane extends UiSurface {
       super.onPointerUp(_event, localX, localY)
       return
     }
-    if (this.#dragSelecting) this.#updateDragSelection(localX, localY)
+    if (this.#dragSelecting) this.#flushDragSelection(localX, localY)
     this.#dragSelecting = false
     if (this.#selectionRange() === null) this.#clearSelectionState()
     this.requestRender()
@@ -752,6 +795,7 @@ export class EditorPane extends UiSurface {
   override onDeactivate(): void {
     super.onDeactivate?.()
     this.#dragSelecting = false
+    this.#cancelPendingDragSelection()
     this.#stopCursorBlink()
     this.#cursorVisible = false
     this.requestRender()
@@ -856,6 +900,7 @@ export class EditorPane extends UiSurface {
   }
 
   #afterEdit(): void {
+    this.#invalidateTextMetrics()
     this.#refreshTokens()
     this.#scrollCursorIntoView()
     this.requestRender()
@@ -940,6 +985,8 @@ export class EditorPane extends UiSurface {
   }
 
   #maxLineWidthPx(): number {
+    const scale = this.pageScaleFactor
+    if (this.#maxLineWidthPxCache !== null && this.#maxLineWidthPxCacheScale === scale) return this.#maxLineWidthPxCache
     let max = 0
     for (const line of this.#lines) {
       if (line.length === 0) continue
@@ -948,7 +995,16 @@ export class EditorPane extends UiSurface {
         : line.length * this.#getCharWidth()
       if (width > max) max = width
     }
+    this.#maxLineWidthPxCache = max
+    this.#maxLineWidthPxCacheScale = scale
     return max
+  }
+
+  #invalidateTextMetrics(): void {
+    this.#charWidth = 0
+    this.#charWidthScale = 0
+    this.#maxLineWidthPxCache = null
+    this.#maxLineWidthPxCacheScale = 0
   }
 
   /**
@@ -1009,9 +1065,9 @@ export class EditorPane extends UiSurface {
 
   // ────────── rendering ──────────
 
-  #pingCursor(): void {
+  #pingCursor(resetBlink = true): void {
     this.#cursorVisible = true
-    if (this.#cursorBlinkTimer !== null) this.#startCursorBlink()
+    if (resetBlink && this.#cursorBlinkTimer !== null) this.#startCursorBlink()
   }
 
   #startCursorBlink(): void {
@@ -1070,6 +1126,7 @@ export class EditorPane extends UiSurface {
   }
 
   override dispose(): void {
+    this.#cancelPendingDragSelection()
     this.#stopCursorBlink()
     this.#finishIntroAnimation(false)
     super.dispose?.()
