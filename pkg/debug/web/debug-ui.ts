@@ -88,6 +88,7 @@ export type WelcomeActions = {
   onPauseOnStart(pause: boolean): void
 }
 
+export {DisplayHoverOutlinePane} from "./display-hover-outline-pane.ts"
 export {FramesPane} from "./frames-pane.ts"
 export {VerbosePane} from "./verbose-pane.ts"
 export {ToolbarPane} from "./toolbar-pane.ts"
