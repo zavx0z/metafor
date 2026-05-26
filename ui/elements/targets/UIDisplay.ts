@@ -63,7 +63,7 @@ export class UIDisplay extends Object3D {
       height: this.heightMm,
     })
     const bgMaterial = new MeshBasicMaterial({
-      color: params.background ?? 0x111111,
+      color: params.background ?? new Color(0, 0, 0, 0),
     })
     this.#backgroundMesh = new Mesh(bgGeometry, bgMaterial)
 
