@@ -181,6 +181,10 @@ export type DrawTextOpts = {
   material: TextMaterial
   /** Гарантия: текст обрезается через измерение и "...". */
   maxWidthPx?: number
+  /** Default true. false — рисовать без ellipsis-fitting, обычно внутри clip. */
+  fit?: boolean
+  /** Default true. false — не мерить итоговую ширину для return value. */
+  measure?: boolean
   z?: number
   /** Default true. Tooltip/UI overlays can opt out to draw outside surface rect. */
   clip?: boolean
@@ -462,8 +466,10 @@ export abstract class UiSurface implements UiSurfaceNode {
   drawText(value: string, x: number, y: number, opts: DrawTextOpts): number {
     if (this.font === null) return 0
     const maxPx = opts.maxWidthPx ?? Infinity
-    if (maxPx <= 0) return 0
-    const fitted = this.#fitText(value, maxPx, opts.fontPx)
+    if (opts.maxWidthPx !== undefined && maxPx <= 0) return 0
+    const fitted = opts.fit === false || !Number.isFinite(maxPx)
+      ? value
+      : this.#fitText(value, maxPx, opts.fontPx)
     if (fitted.length === 0) return 0
     // fontPx — в reference-px (если referenceHeight задан); приводим к
     // canvas-px через pageScaleFactor для размера текста и y-сдвига.
@@ -476,7 +482,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     text.updateMatrix()
     if (opts.clip !== false) this.#applyClipTo(text)
     this.#layer.add(text)
-    return this.measureText(fitted, opts.fontPx)
+    return opts.measure === false ? 0 : this.measureText(fitted, opts.fontPx)
   }
 
   /**

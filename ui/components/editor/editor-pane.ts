@@ -1339,6 +1339,8 @@ export class EditorPane extends UiSurface {
       fontPx: this.#fontPx,
       material: this.#lineMaterial,
       maxWidthPx: maxW,
+      fit: false,
+      measure: false,
     })
   }
 
@@ -1354,6 +1356,10 @@ export class EditorPane extends UiSurface {
       materials: this.#tokenMaterials,
       fallbackMaterial: this.#lineMaterial,
       sliceStart,
+      chunkWidth: (startCol, endCol, chunkText) => {
+        const w = this.#colToPx(text, endCol) - this.#colToPx(text, startCol)
+        return w > 0 ? w : this.measureText(chunkText, this.#fontPx)
+      },
       animOffsetFor: (absoluteColumn) => this.#animOffsetFor(lineIndex, absoluteColumn),
       drawTokenBackground: (x, bgY, w, h, bg) => {
         const color = parseHexColor(bg)

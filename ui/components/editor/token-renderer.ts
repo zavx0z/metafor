@@ -23,6 +23,7 @@ export type RenderEditorTokenLineOpts = {
   materials: EditorTokenMaterialMap
   fallbackMaterial: TextMaterial
   sliceStart?: number
+  chunkWidth?: (startCol: number, endCol: number, text: string) => number
   animOffsetFor?: (absoluteColumn: number) => number
   drawTokenBackground?: (x: number, y: number, w: number, h: number, bg: string) => void
 }
@@ -57,7 +58,8 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
 
   const placeChunk = (chunkText: string, category: string, bg: string | undefined, chunkColStart: number): void => {
     if (chunkText.length === 0) return
-    const w = opts.pane.measureText(chunkText, opts.fontPx)
+    const w = opts.chunkWidth?.(chunkColStart, chunkColStart + chunkText.length, chunkText)
+      ?? opts.pane.measureText(chunkText, opts.fontPx)
     const offset = opts.animOffsetFor?.(sliceStart + chunkColStart) ?? 0
     if (!Number.isFinite(offset)) {
       cursorX += w
@@ -73,6 +75,8 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
         fontPx: opts.fontPx,
         material,
         maxWidthPx: remaining(),
+        fit: false,
+        measure: false,
       })
     }
     cursorX += w
