@@ -1,6 +1,6 @@
 import {autoButtonWidth} from "./internal/renderers.ts"
 import {Z} from "@metafor/elements"
-import {button as elementButton, palette, toneBorder, toneFill, type ButtonElementProps, type ButtonElementState, type UiSurface, type StyleProps} from "@metafor/elements"
+import {button as elementButton, drawIcon, palette, toneBorder, toneFill, type ButtonElementProps, type ButtonElementState, type UiSurface, type StyleProps} from "@metafor/elements"
 import type {Tone} from "@metafor/elements"
 import {Color, TextMaterial} from "@metafor/engine"
 
@@ -230,16 +230,14 @@ function drawButtonContent(
       maxWidthPx: available,
       z: Z.TEXT,
     })
-    host.drawImage(iconSrc, cx + renderedLabelW + gap, iconY, iconSize, iconSize, {
-      fit: "contain",
+    drawIcon(host, iconSrc, cx + renderedLabelW + gap, iconY, iconSize, {
       opacity: iconOpacity,
       z: Z.TEXT,
     })
     return
   }
 
-  host.drawImage(iconSrc, cx, iconY, iconSize, iconSize, {
-    fit: "contain",
+  drawIcon(host, iconSrc, cx, iconY, iconSize, {
     opacity: iconOpacity,
     z: Z.TEXT,
   })
