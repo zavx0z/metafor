@@ -129,8 +129,6 @@ export class EditorPane extends UiSurface {
   #dragExtendsSelection = false
   #dragAnchorLocalX = 0
   #dragAnchorLocalY = 0
-  #dragSelectionRafId: number | null = null
-  #pendingDragSelection: {localX: number; localY: number} | null = null
   #selectionMenuOpen = false
   #selectionMenuSticky = false
   #selectionContextMenuEnabled = false
@@ -397,7 +395,6 @@ export class EditorPane extends UiSurface {
     this.#selectionFocus = null
     this.#dragSelecting = false
     this.#dragExtendsSelection = false
-    this.#cancelPendingDragSelection()
     this.#closeTransientSelectionMenu()
   }
 
@@ -715,41 +712,7 @@ export class EditorPane extends UiSurface {
       if (this.pressedHit !== null || (menuRect !== null && pointInRect(localX, localY, menuRect))) return
     }
     if (!this.#dragSelecting) return
-    this.#scheduleDragSelection(localX, localY)
-  }
-
-  #scheduleDragSelection(localX: number, localY: number): void {
-    this.#pendingDragSelection = {localX, localY}
-    if (this.#dragSelectionRafId !== null) return
-    if (typeof requestAnimationFrame !== "function") {
-      this.#flushDragSelection()
-      return
-    }
-    this.#dragSelectionRafId = requestAnimationFrame(() => {
-      this.#dragSelectionRafId = null
-      this.#flushDragSelection()
-    })
-  }
-
-  #flushDragSelection(localX?: number, localY?: number): void {
-    if (this.#dragSelectionRafId !== null && typeof cancelAnimationFrame === "function") {
-      cancelAnimationFrame(this.#dragSelectionRafId)
-    }
-    this.#dragSelectionRafId = null
-    const pending = localX === undefined || localY === undefined
-      ? this.#pendingDragSelection
-      : {localX, localY}
-    this.#pendingDragSelection = null
-    if (!this.#dragSelecting || pending === null) return
-    this.#updateDragSelection(pending.localX, pending.localY)
-  }
-
-  #cancelPendingDragSelection(): void {
-    if (this.#dragSelectionRafId !== null && typeof cancelAnimationFrame === "function") {
-      cancelAnimationFrame(this.#dragSelectionRafId)
-    }
-    this.#dragSelectionRafId = null
-    this.#pendingDragSelection = null
+    this.#updateDragSelection(localX, localY)
   }
 
   #updateDragSelection(localX: number, localY: number): void {
@@ -831,7 +794,7 @@ export class EditorPane extends UiSurface {
       return
     }
     const wasDragSelecting = this.#dragSelecting
-    if (this.#dragSelecting) this.#flushDragSelection(localX, localY)
+    if (this.#dragSelecting) this.#updateDragSelection(localX, localY)
     this.#dragSelecting = false
     if (this.#selectionRange() === null) this.#clearSelectionState()
     if (wasDragSelecting) this.#resumeCursorBlinkAfterSelection()
@@ -852,7 +815,6 @@ export class EditorPane extends UiSurface {
   override onDeactivate(): void {
     super.onDeactivate?.()
     this.#dragSelecting = false
-    this.#cancelPendingDragSelection()
     this.#cursorBlinkPausedForSelection = false
     this.#stopCursorBlink()
     this.#cursorVisible = false
@@ -1201,7 +1163,6 @@ export class EditorPane extends UiSurface {
   }
 
   override dispose(): void {
-    this.#cancelPendingDragSelection()
     this.#cursorBlinkPausedForSelection = false
     this.#stopCursorBlink()
     this.#finishIntroAnimation(false)
