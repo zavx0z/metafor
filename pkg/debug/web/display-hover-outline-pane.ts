@@ -482,7 +482,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const lineProgress = clamp(progress, 0, 1)
     if (lineProgress <= 0.001) return
     const lineEnd = lerpPoint(control.anchor, control.lineEnd, lineProgress)
-    this.#drawLockLine(control.anchor, lineEnd, fade(LOCK_DIM, 0.74 * strength * lineProgress), 1.25, LOCK_Z + 0.02)
+    this.#drawTargetLine(control.anchor, lineEnd, strength * lineProgress)
     const s = clamp(control.size * 0.18, 6, 9) * lineProgress
     this.#drawLockLine({x: control.anchor.x - s, y: control.anchor.y}, {x: control.anchor.x + s, y: control.anchor.y}, fade(LOCK, 0.74 * strength * lineProgress), 1.35, LOCK_Z + 0.04)
     this.#drawLockLine({x: control.anchor.x, y: control.anchor.y - s}, {x: control.anchor.x, y: control.anchor.y + s}, fade(LOCK, 0.74 * strength * lineProgress), 1.35, LOCK_Z + 0.04)
@@ -699,16 +699,18 @@ export class DisplayHoverOutlinePane extends UiSurface {
     const x1 = rect.x + rect.w
     const y1 = rect.y + rect.h
     const segment = clamp(size * 0.26, 9, 13)
-    const color = fade(LOCK_DIM, 1.1 * strength)
-    const z = LOCK_Z + 0.06
-    this.drawRoundedLine(x0, y0 + segment, x0, y0, color, 1.8, z)
-    this.drawRoundedLine(x0, y0, x0 + segment, y0, color, 1.8, z)
-    this.drawRoundedLine(x1 - segment, y0, x1, y0, color, 1.8, z)
-    this.drawRoundedLine(x1, y0, x1, y0 + segment, color, 1.8, z)
-    this.drawRoundedLine(x1, y1 - segment, x1, y1, color, 1.8, z)
-    this.drawRoundedLine(x1, y1, x1 - segment, y1, color, 1.8, z)
-    this.drawRoundedLine(x0 + segment, y1, x0, y1, color, 1.8, z)
-    this.drawRoundedLine(x0, y1, x0, y1 - segment, color, 1.8, z)
+    this.#drawTargetLine({x: x0, y: y0 + segment}, {x: x0, y: y0}, strength)
+    this.#drawTargetLine({x: x0, y: y0}, {x: x0 + segment, y: y0}, strength)
+    this.#drawTargetLine({x: x1 - segment, y: y0}, {x: x1, y: y0}, strength)
+    this.#drawTargetLine({x: x1, y: y0}, {x: x1, y: y0 + segment}, strength)
+    this.#drawTargetLine({x: x1, y: y1 - segment}, {x: x1, y: y1}, strength)
+    this.#drawTargetLine({x: x1, y: y1}, {x: x1 - segment, y: y1}, strength)
+    this.#drawTargetLine({x: x0 + segment, y: y1}, {x: x0, y: y1}, strength)
+    this.#drawTargetLine({x: x0, y: y1}, {x: x0, y: y1 - segment}, strength)
+  }
+
+  #drawTargetLine(a: Point, b: Point, strength: number): void {
+    this.drawRoundedLine(a.x, a.y, b.x, b.y, fade(LOCK_DIM, 1.1 * strength), 1.8, LOCK_Z + 0.06)
   }
 
   #updateMotion(quad: Quad, now: number): number {
