@@ -58,18 +58,17 @@ export class ToolbarPane extends UiSurface {
   protected render(): void {
     const buttonY = (this.rectH - BTN_H) / 2
     const controlsLocked = this.#state.commandBusy
-    const pauseLocked = controlsLocked && this.#state.commandCmd !== "resume"
     const lockedTooltip = controlsLocked && this.#state.commandLabel.length > 0
       ? `${t("commandAlreadyRunning")}: ${this.#state.commandLabel}`
       : t("commandAlreadyRunning")
     const primaryControls: ToolbarButton[] = [
       this.#state.runKind === "live"
-        ? {label: t("pause"), iconSrc: uiIcons.pause, tone: pauseButtonTone(this.#state.runKind), variant: "contained", disabled: pauseLocked, dividerAfter: true, action: () => this.#actions.onPause()}
-        : {label: t("resume"), iconSrc: uiIcons.resume, tone: resumeButtonTone(this.#state.runKind), variant: "contained", disabled: controlsLocked, dividerAfter: true, action: () => this.#actions.onResume()},
-      {label: t("stepOver"), iconSrc: uiIcons.stepOver, tone: stepButtonTone(this.#state.runKind), disabled: controlsLocked, action: () => this.#actions.onStep("over")},
-      {label: t("stepInto"), iconSrc: uiIcons.stepInto, tone: stepButtonTone(this.#state.runKind), disabled: controlsLocked, action: () => this.#actions.onStep("into")},
-      {label: t("stepOut"), iconSrc: uiIcons.stepOut, tone: stepButtonTone(this.#state.runKind), disabled: controlsLocked, dividerAfter: true, action: () => this.#actions.onStep("out")},
-      {label: t("restartTarget"), iconSrc: uiIcons.restart, tone: "neutral", disabled: controlsLocked, action: () => this.#actions.onRestartTarget()},
+        ? {label: t("pause"), iconSrc: uiIcons.pause, tone: pauseButtonTone(this.#state.runKind), variant: "contained", dividerAfter: true, action: () => this.#actions.onPause()}
+        : {label: t("resume"), iconSrc: uiIcons.resume, tone: resumeButtonTone(this.#state.runKind), variant: "contained", dividerAfter: true, action: () => this.#actions.onResume()},
+      {label: t("stepOver"), iconSrc: uiIcons.stepOver, tone: stepButtonTone(this.#state.runKind), action: () => this.#actions.onStep("over")},
+      {label: t("stepInto"), iconSrc: uiIcons.stepInto, tone: stepButtonTone(this.#state.runKind), action: () => this.#actions.onStep("into")},
+      {label: t("stepOut"), iconSrc: uiIcons.stepOut, tone: stepButtonTone(this.#state.runKind), dividerAfter: true, action: () => this.#actions.onStep("out")},
+      {label: t("restartTarget"), iconSrc: uiIcons.restart, tone: "neutral", action: () => this.#actions.onRestartTarget()},
       {label: t("stopTarget"), iconSrc: uiIcons.stop, tone: "warn", variant: "contained", action: () => this.#actions.onStopTarget()},
     ]
     const secondaryControls: ToolbarButton[] = [
