@@ -56,12 +56,12 @@ const MOTION_STOP_INTENSITY = 0.01
 const FLIGHT_LINE_DURATION_MS = 260
 const FLIGHT_BUTTON_DURATION_MS = 260
 const FLIGHT_BUTTON_HIT_PROGRESS = 0.92
-const FLIGHT_CONTROL_TRANSFER_DEBOUNCE_MS = 650
+const FLIGHT_CONTROL_TRANSFER_DEBOUNCE_MS = 2600
 const RETURN_DOCK_TRANSFER_DEBOUNCE_MS = 520
 const FLIGHT_BUTTON_KEY = "display-flight-button"
 const FLIGHT_BUTTON_MIN_SIZE_PX = 34
 const FLIGHT_BUTTON_MAX_SIZE_PX = 48
-const FLIGHT_BUTTON_HIT_PAD_PX = 12
+const FLIGHT_BUTTON_HIT_PAD_PX = 28
 const RETURN_DOCK_KEY = "display-return-dock"
 const RETURN_DOCK_BRIDGE_KEY = "display-return-dock-bridge"
 const RETURN_BUTTON_KEY = "display-return-button"
@@ -167,6 +167,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
   #lastLineProgress = 0
   #lastButtonProgress = 0
   #controlTransferGraceUntilMs = 0
+  #controlTransferGraceUsed = false
   #leaveAnimation: LeaveAnimation | null = null
 
   constructor() {
@@ -217,6 +218,8 @@ export class DisplayHoverOutlinePane extends UiSurface {
         this.#leaveAnimation = null
         this.#cornerFlightVisible = true
         this.#controlTransferGraceUntilMs = now + FLIGHT_CONTROL_TRANSFER_DEBOUNCE_MS
+        this.#controlTransferGraceUsed = true
+        this.#drawLockedReticle(this.#lastVisualQuad, this.#lastDisplaySizePx, 0.86)
         this.#drawFlightControl(this.#lastVisualQuad, 1, 1)
         this.requestRender()
         return
@@ -224,14 +227,20 @@ export class DisplayHoverOutlinePane extends UiSurface {
       if (
         this.#lastVisualQuad !== null &&
         this.#lastDisplaySizePx >= 36 &&
-        this.#lastButtonProgress >= FLIGHT_BUTTON_HIT_PROGRESS &&
-        now < this.#controlTransferGraceUntilMs
+        this.#lastButtonProgress >= FLIGHT_BUTTON_HIT_PROGRESS
       ) {
-        this.#leaveAnimation = null
-        this.#cornerFlightVisible = true
-        this.#drawFlightControl(this.#lastVisualQuad, 1, 1)
-        this.requestRender()
-        return
+        if (!this.#controlTransferGraceUsed) {
+          this.#controlTransferGraceUntilMs = now + FLIGHT_CONTROL_TRANSFER_DEBOUNCE_MS
+          this.#controlTransferGraceUsed = true
+        }
+        if (now < this.#controlTransferGraceUntilMs) {
+          this.#leaveAnimation = null
+          this.#cornerFlightVisible = true
+          this.#drawLockedReticle(this.#lastVisualQuad, this.#lastDisplaySizePx, 0.72)
+          this.#drawFlightControl(this.#lastVisualQuad, 1, 1)
+          this.requestRender()
+          return
+        }
       }
       if (this.#lastVisualQuad !== null && this.#lastDisplaySizePx >= 36) {
         if (this.#leaveAnimation === null) {
@@ -267,6 +276,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
       this.#motionIntensity = 0
       this.#magnetPhase = 0
     }
+    this.#controlTransferGraceUsed = false
     const motionIntensity = this.#updateMotion(quad, now)
     const ageMs = now - this.#lockStartedAt
     const progress = clamp(ageMs / LOCK_DURATION_MS, 0, 1)
@@ -372,6 +382,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
     this.#lastLineProgress = 0
     this.#lastButtonProgress = 0
     this.#controlTransferGraceUntilMs = 0
+    this.#controlTransferGraceUsed = false
     this.#leaveAnimation = null
   }
 
@@ -432,6 +443,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
       w: visualSize,
       h: visualSize,
     }
+    this.#drawFlightBackplate(visualCenter, control.size, strength, buttonScale)
     if (visualSize >= 8) this.#drawFlightCorners(visualButton, visualSize, strength * (0.62 + buttonScale * 0.38))
     if (buttonProgress < 0.74) return
     const distance = Math.max(1, Math.round((this.canvas?.displayDistanceMm() ?? 0) / 100))
@@ -441,6 +453,18 @@ export class DisplayHoverOutlinePane extends UiSurface {
       maxWidthPx: Math.max(8, visualSize - 8),
       z: LOCK_Z + 0.1,
       clip: false,
+    })
+  }
+
+  #drawFlightBackplate(center: Point, size: number, strength: number, progress: number): void {
+    const diameter = clamp(size + FLIGHT_BUTTON_HIT_PAD_PX * 1.24, 58, 82) * clamp(progress, 0, 1)
+    if (diameter <= 2) return
+    this.drawRoundedRect(center.x - diameter / 2, center.y - diameter / 2, diameter, diameter, {
+      radius: diameter / 2,
+      fill: fade(LOCK_GLOW, 0.2 * strength),
+      border: fade(LOCK_DIM, 0.42 * strength),
+      borderWidth: 1.1,
+      z: LOCK_Z - 0.03,
     })
   }
 
