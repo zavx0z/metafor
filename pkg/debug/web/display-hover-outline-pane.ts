@@ -8,6 +8,15 @@ type Quad = {
   bottomRight: Point
   bottomLeft: Point
 }
+type Rect = {x: number; y: number; w: number; h: number}
+type FlightControl = {
+  button: Rect
+  hit: Rect
+  center: Point
+  anchor: Point
+  lineEnd: Point
+  size: number
+}
 
 const LOCK = new Color(0.36, 0.94, 1, 0.9)
 const LOCK_DIM = new Color(0.22, 0.68, 0.95, 0.42)
@@ -28,6 +37,10 @@ const MAX_MAGNET_SPEED_RAD_PER_SEC = 14
 const MOTION_ATTACK = 0.56
 const MOTION_DECAY = 0.034
 const MOTION_STOP_INTENSITY = 0.01
+const FLIGHT_BUTTON_KEY = "display-flight-button"
+const FLIGHT_BUTTON_MIN_SIZE_PX = 34
+const FLIGHT_BUTTON_MAX_SIZE_PX = 48
+const FLIGHT_BUTTON_HIT_PAD_PX = 12
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -111,6 +124,10 @@ function averageQuadDelta(a: Quad, b: Quad): number {
   ) / 4
 }
 
+function pointInRect(point: Point, rect: Rect): boolean {
+  return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h
+}
+
 export class DisplayHoverOutlinePane extends UiSurface {
   #lockStartedAt: number | null = null
   #lastQuad: Quad | null = null
@@ -123,10 +140,18 @@ export class DisplayHoverOutlinePane extends UiSurface {
   }
 
   acceptsPointerEvents(): boolean {
-    return false
+    return true
+  }
+
+  containsPointer(localX: number, localY: number): boolean {
+    const control = this.#flightControl()
+    return control !== null && pointInRect({x: localX, y: localY}, control.hit)
   }
 
   protected render(): void {
+    const displayOutline = this.canvas?.displayOutline()
+    if (displayOutline !== undefined && displayOutline !== null) this.#drawFlightControl(this.#outlineQuad(displayOutline))
+
     const outline = this.canvas?.displayHoverOutline()
     if (outline === undefined || outline === null) {
       this.#lockStartedAt = null
@@ -137,12 +162,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
       return
     }
 
-    const quad: Quad = {
-      topLeft: outline.topLeft,
-      topRight: outline.topRight,
-      bottomRight: outline.bottomRight,
-      bottomLeft: outline.bottomLeft,
-    }
+    const quad = this.#outlineQuad(outline)
     const points = [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft]
     const displaySizePx = Math.max(edgeLength(quad.topLeft, quad.topRight), edgeLength(quad.topRight, quad.bottomRight))
     if (displaySizePx < 36) return
@@ -179,6 +199,115 @@ export class DisplayHoverOutlinePane extends UiSurface {
     this.#drawSideMarks(current, displaySizePx, settle)
 
     if (progress < 1 || motionIntensity > MOTION_STOP_INTENSITY) this.requestRender()
+  }
+
+  #outlineQuad(outline: Quad): Quad {
+    return {
+      topLeft: outline.topLeft,
+      topRight: outline.topRight,
+      bottomRight: outline.bottomRight,
+      bottomLeft: outline.bottomLeft,
+    }
+  }
+
+  #flightControl(): FlightControl | null {
+    const outline = this.canvas?.displayOutline()
+    if (outline === undefined || outline === null) return null
+    return this.#flightControlForQuad(this.#outlineQuad(outline))
+  }
+
+  #flightControlForQuad(quad: Quad): FlightControl | null {
+    const points = [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft]
+    const center = centerOf(points)
+    const displaySizePx = Math.max(edgeLength(quad.topLeft, quad.topRight), edgeLength(quad.topRight, quad.bottomRight))
+    if (displaySizePx < 12) return null
+    const size = clamp(displaySizePx * 0.055, FLIGHT_BUTTON_MIN_SIZE_PX, FLIGHT_BUTTON_MAX_SIZE_PX)
+    const gap = clamp(displaySizePx * 0.025, 14, 34)
+    const dx = quad.topRight.x - center.x
+    const dy = quad.topRight.y - center.y
+    const diagonal = Math.max(0.001, Math.hypot(dx, dy))
+    const nx = dx / diagonal
+    const ny = dy / diagonal
+    const rawCx = quad.topRight.x + nx * (gap + size * 0.62)
+    const rawCy = quad.topRight.y + ny * (gap + size * 0.62)
+    const margin = 8
+    const cx = clamp(rawCx, margin + size / 2, this.rectW - margin - size / 2)
+    const cy = clamp(rawCy, margin + size / 2, this.rectH - margin - size / 2)
+    const button = {x: cx - size / 2, y: cy - size / 2, w: size, h: size}
+    const hit = {
+      x: button.x - FLIGHT_BUTTON_HIT_PAD_PX,
+      y: button.y - FLIGHT_BUTTON_HIT_PAD_PX,
+      w: button.w + FLIGHT_BUTTON_HIT_PAD_PX * 2,
+      h: button.h + FLIGHT_BUTTON_HIT_PAD_PX * 2,
+    }
+    const anchor = {
+      x: quad.topRight.x + nx * 8,
+      y: quad.topRight.y + ny * 8,
+    }
+    return {
+      button,
+      hit,
+      center: {x: cx, y: cy},
+      anchor,
+      lineEnd: pointAlong({x: cx, y: cy}, anchor, size * 0.63),
+      size,
+    }
+  }
+
+  #drawFlightControl(quad: Quad): void {
+    const control = this.#flightControlForQuad(quad)
+    if (control === null) return
+    const hit = this.hitState(control.hit.x, control.hit.y, control.hit.w, control.hit.h, FLIGHT_BUTTON_KEY)
+    const strength = hit.pressed ? 1.18 : hit.hovered ? 1 : 0.72
+    this.hit(control.hit.x, control.hit.y, control.hit.w, control.hit.h, () => {
+      this.canvas?.toggleDisplayFlight()
+    }, {
+      key: FLIGHT_BUTTON_KEY,
+      cursor: "pointer",
+      activeCursor: "pointer",
+    })
+
+    this.#drawFlightConnector(control, strength)
+    this.#drawFlightCorners(control.button, control.size, strength)
+    const distance = Math.max(1, Math.round((this.canvas?.displayDistanceMm() ?? 0) / 100))
+    this.drawTextCentered(String(distance), control.center.x, control.center.y + 1, {
+      fontPx: clamp(control.size * 0.43, 14, 19),
+      material: this.materials.cyan,
+      maxWidthPx: control.size - 8,
+      z: LOCK_Z + 0.1,
+      clip: false,
+    })
+  }
+
+  #drawFlightConnector(control: FlightControl, strength: number): void {
+    this.#drawLockLine(control.anchor, control.lineEnd, fade(LOCK_DIM, 0.74 * strength), 1.25, LOCK_Z + 0.02)
+    const s = clamp(control.size * 0.18, 6, 9)
+    this.#drawLockLine({x: control.anchor.x - s, y: control.anchor.y}, {x: control.anchor.x + s, y: control.anchor.y}, fade(LOCK, 0.74 * strength), 1.35, LOCK_Z + 0.04)
+    this.#drawLockLine({x: control.anchor.x, y: control.anchor.y - s}, {x: control.anchor.x, y: control.anchor.y + s}, fade(LOCK, 0.74 * strength), 1.35, LOCK_Z + 0.04)
+    this.drawRoundedRect(control.anchor.x - 2.1, control.anchor.y - 2.1, 4.2, 4.2, {
+      radius: 2.1,
+      fill: fade(LOCK_HOT, 0.72 * strength),
+      border: null,
+      z: LOCK_Z + 0.08,
+    })
+  }
+
+  #drawFlightCorners(rect: Rect, size: number, strength: number): void {
+    const x0 = rect.x
+    const y0 = rect.y
+    const x1 = rect.x + rect.w
+    const y1 = rect.y + rect.h
+    const segment = clamp(size * 0.26, 9, 13)
+    const color = fade(LOCK_HOT, 0.92 * strength)
+    const dim = fade(LOCK_DIM, 0.8 * strength)
+    this.#drawLockLine({x: x0, y: y0 + segment}, {x: x0, y: y0}, dim, 2.4, LOCK_Z + 0.04)
+    this.#drawLockLine({x: x0, y: y0}, {x: x0 + segment, y: y0}, color, 1.55, LOCK_Z + 0.08)
+    this.#drawLockLine({x: x1 - segment, y: y0}, {x: x1, y: y0}, dim, 2.4, LOCK_Z + 0.04)
+    this.#drawLockLine({x: x1, y: y0}, {x: x1, y: y0 + segment}, color, 1.55, LOCK_Z + 0.08)
+    this.#drawLockLine({x: x1, y: y1 - segment}, {x: x1, y: y1}, dim, 2.4, LOCK_Z + 0.04)
+    this.#drawLockLine({x: x1, y: y1}, {x: x1 - segment, y: y1}, color, 1.55, LOCK_Z + 0.08)
+    this.#drawLockLine({x: x0 + segment, y: y1}, {x: x0, y: y1}, dim, 2.4, LOCK_Z + 0.04)
+    this.#drawLockLine({x: x0, y: y1}, {x: x0, y: y1 - segment}, color, 1.55, LOCK_Z + 0.08)
   }
 
   #updateMotion(quad: Quad, now: number): number {

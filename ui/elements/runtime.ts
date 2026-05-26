@@ -47,6 +47,7 @@ export interface UiSurfaceNode {
   flushPendingRender?(): void
   requestRender?(): void
   acceptsPointerEvents?(): boolean
+  containsPointer?(localX: number, localY: number): boolean
   setFramebufferClipSpace?(space: "display" | "screen"): void
   onPointerLeave?(): void
   onActivate?(): void
@@ -157,10 +158,6 @@ export class UiRuntime {
   #displayNavigationActive = false
   #displayNavigationLastX = 0
   #displayNavigationLastY = 0
-  #displayClickCount = 0
-  #displayClickTimeMs = 0
-  #displayClickX = 0
-  #displayClickY = 0
   #displayHoverActive = false
   #cameraAnimationRafId: number | null = null
   #disposed = false
@@ -336,7 +333,12 @@ export class UiRuntime {
   }
 
   displayHoverOutline(): UiDisplayHoverOutline | null {
-    if (!this.#displayHoverActive || this.display === null) return null
+    if (!this.#displayHoverActive) return null
+    return this.displayOutline()
+  }
+
+  displayOutline(): UiDisplayHoverOutline | null {
+    if (this.display === null) return null
     const w = this.display.widthMm / 2
     const h = this.display.heightMm / 2
     this.viewPoint.update()
@@ -348,6 +350,10 @@ export class UiRuntime {
     const bottomLeft = this.#projectWorldPointToCanvas(new Vector3(-w, -h, 0).applyMatrix4(this.display.matrixWorld))
     if (topLeft === null || topRight === null || bottomRight === null || bottomLeft === null) return null
     return {topLeft, topRight, bottomRight, bottomLeft}
+  }
+
+  displayDistanceMm(): number {
+    return this.#currentDisplayDistance()
   }
 
   #projectDisplayUiPoint(x: number, y: number): {x: number; y: number} {
@@ -441,6 +447,7 @@ export class UiRuntime {
       this.viewPoint.update()
       this.#displayDistanceMm = this.viewPoint.position.distanceTo(target)
       this.#applyLayout()
+      this.#requestHudSurfacesRender()
       this.requestRender()
       if (t < 1) {
         this.#cameraAnimationRafId = requestAnimationFrame(step)
@@ -452,6 +459,7 @@ export class UiRuntime {
         this.viewPoint.update()
         this.#displayDistanceMm = finalDistanceMm ?? this.viewPoint.position.distanceTo(endPose.target)
         this.#applyLayout()
+        this.#requestHudSurfacesRender()
         this.requestRender()
       }
     }
@@ -465,7 +473,7 @@ export class UiRuntime {
     this.#cameraAnimationRafId = null
   }
 
-  #toggleDisplayFlight(): void {
+  toggleDisplayFlight(): void {
     this.setDisplayMode(this.displayMode === "near" ? "far" : "near")
   }
 
@@ -535,34 +543,6 @@ export class UiRuntime {
     const distance = -localOrigin.z / localDirection.z
     if (distance < 0) return null
     return localOrigin.clone().add(localDirection.multiplyScalar(distance))
-  }
-
-  #isDisplayTripleClick(event: MouseEvent): boolean {
-    if (this.display === null || event.button !== 0) return false
-    if (event.detail >= 3) {
-      this.#resetDisplayClickCount()
-      return true
-    }
-    return this.#recordDisplayClick(event)
-  }
-
-  #recordDisplayClick(event: MouseEvent): boolean {
-    const now = performance.now()
-    const dx = event.clientX - this.#displayClickX
-    const dy = event.clientY - this.#displayClickY
-    const sameClickCluster = now - this.#displayClickTimeMs < 550 && Math.hypot(dx, dy) < 8
-    this.#displayClickCount = sameClickCluster ? this.#displayClickCount + 1 : 1
-    this.#displayClickTimeMs = now
-    this.#displayClickX = event.clientX
-    this.#displayClickY = event.clientY
-    if (this.#displayClickCount < 3) return false
-    this.#resetDisplayClickCount()
-    return true
-  }
-
-  #resetDisplayClickCount(): void {
-    this.#displayClickCount = 0
-    this.#displayClickTimeMs = 0
   }
 
   #beginDisplayNavigation(event: MouseEvent): void {
@@ -753,7 +733,9 @@ export class UiRuntime {
       if (slot.surface.acceptsPointerEvents?.() === false) continue
       const r = slot.rect
       if (slot.surface.node.visible === false || r.visible === false || r.w <= 0 || r.h <= 0) continue
-      if (localX >= r.x && localX <= r.x + r.w && localY >= r.y && localY <= r.y + r.h) return slot
+      if (localX < r.x || localX > r.x + r.w || localY < r.y || localY > r.y + r.h) continue
+      if (slot.surface.containsPointer?.(localX - r.x, localY - r.y) === false) continue
+      return slot
     }
     return undefined
   }
@@ -875,12 +857,6 @@ export class UiRuntime {
       this.setFocused(hudSlot.surface)
       this.#pressedSlot = hudSlot
       hudSlot.surface.onPointerDown?.(event, canvasCoords.x - hudSlot.rect.x, canvasCoords.y - hudSlot.rect.y)
-      return
-    }
-    if (this.#isDisplayTripleClick(event)) {
-      event.preventDefault()
-      this.#endDisplayNavigation()
-      this.#toggleDisplayFlight()
       return
     }
     if (this.#isDisplayNavigationMode() && event.button === 0) {
