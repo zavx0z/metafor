@@ -5,17 +5,16 @@
  */
 
 import {UiSurface, palette, radii, uiIcons} from "@metafor/elements"
-import {Button as button, Pane as pane, StatusChip as statusChip} from "@metafor/components"
+import {Button as button, Divider as divider, StatusChip as statusChip} from "@metafor/components"
 import type {BadgeKind, ToolbarActions, ToolbarState} from "./debug-ui.ts"
 import {getUiLocale, t} from "./i18n.ts"
 
 const PAD_X = 8
 const GAP = 6
 const STATUS_H = 24
-const BTN_H = 34
-const BTN_W = 42
+const BTN_H = 30
+const BTN_W = 36
 const STATUS_FONT = 10
-const CONTROL_PAD_X = 8
 const CONTROL_GROUP_GAP = 10
 const DIVIDER_GAP = 8
 const DIVIDER_W = 1
@@ -80,14 +79,12 @@ export class ToolbarPane extends UiSurface {
       {label: languageTooltip(this.#state.locale), iconSrc: uiIcons.language, tone: "neutral", action: () => this.#actions.onToggleLocale()},
     ]
 
-    const primaryW = this.#buttonGroupWidth(primaryControls) + CONTROL_PAD_X * 2
+    const primaryW = this.#buttonGroupWidth(primaryControls)
     const primaryX = Math.max(PAD_X, Math.floor((this.rectW - primaryW) / 2))
-    this.#drawControlIsland(primaryX, buttonY - 5, primaryW, BTN_H + 10, "debug")
-    this.#drawButtonGroup(primaryControls, primaryX + CONTROL_PAD_X, buttonY, lockedTooltip)
+    this.#drawButtonGroup(primaryControls, primaryX, buttonY, lockedTooltip)
 
     const secondaryW = this.#buttonGroupWidth(secondaryControls)
-    const secondaryX = Math.max(PAD_X, this.rectW - PAD_X - secondaryW - CONTROL_PAD_X)
-    this.#drawControlIsland(secondaryX - CONTROL_PAD_X, buttonY - 5, secondaryW + CONTROL_PAD_X * 2, BTN_H + 10, "tools")
+    const secondaryX = Math.max(PAD_X, this.rectW - PAD_X - secondaryW)
     this.#drawButtonGroup(secondaryControls, secondaryX, buttonY, lockedTooltip)
 
     // Левая часть: compact operational state only. Подробности вроде
@@ -125,18 +122,6 @@ export class ToolbarPane extends UiSurface {
     return x + w + GAP
   }
 
-  #drawControlIsland(x: number, y: number, w: number, h: number, _kind: "debug" | "tools"): void {
-    pane(this, x, y, w, h, {
-      variant: "outlined",
-      sx: {
-        background: "bgElevated",
-        borderColor: "borderBright",
-        borderRadius: 10,
-        padding: 0,
-      },
-    })
-  }
-
   #drawButtonGroup(buttons: ToolbarButton[], x: number, y: number, lockedTooltip: string): number {
     let cursor = x
     for (let i = 0; i < buttons.length; i++) {
@@ -145,9 +130,10 @@ export class ToolbarPane extends UiSurface {
         label: b.label,
         iconSrc: b.iconSrc,
         iconOnly: true,
-        iconSizePx: 16,
+        iconSizePx: 14,
+        size: "small",
         variant: b.variant ?? "outlined",
-        radius: 8,
+        radius: 7,
         tooltip: b.disabled === true ? lockedTooltip : b.label,
         tooltipDelayMs: 180,
         tone: b.tone,
@@ -159,7 +145,10 @@ export class ToolbarPane extends UiSurface {
       cursor += BTN_W + GAP
       if (b.dividerAfter === true && i < buttons.length - 1) {
         cursor += DIVIDER_GAP - GAP
-        this.drawRect(cursor, y + 6, DIVIDER_W, BTN_H - 12, palette.borderDim)
+        divider(this, cursor + DIVIDER_W / 2, y + 5, BTN_H - 10, {
+          orientation: "vertical",
+          thickness: DIVIDER_W,
+        })
         cursor += DIVIDER_W + DIVIDER_GAP
       }
     }

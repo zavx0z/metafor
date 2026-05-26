@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {sourcePathFromLocation} from "./source-pane-base.ts"
+import {sourceDisplayLocation, sourcePathFromLocation} from "./source-pane-base.ts"
 
 describe("sourcePathFromLocation", () => {
   test("strips a trailing line number from absolute paths", () => {
@@ -17,5 +17,19 @@ describe("sourcePathFromLocation", () => {
   test("handles empty and undefined input", () => {
     expect(sourcePathFromLocation("")).toBe("")
     expect(sourcePathFromLocation(undefined)).toBe("")
+  })
+})
+
+describe("sourceDisplayLocation", () => {
+  test("keeps the useful tail of an absolute source location", () => {
+    expect(sourceDisplayLocation("/Users/me/project/dark/server.spec.ts:22")).toBe("dark/server.spec.ts:22")
+  })
+
+  test("drops sourcemap one-letter prefixes from display", () => {
+    expect(sourceDisplayLocation("r/dark/server.spec.ts:22")).toBe("dark/server.spec.ts:22")
+  })
+
+  test("compacts file URL locations", () => {
+    expect(sourceDisplayLocation("file:///Users/me/project/dark/server.spec.ts:22")).toBe("dark/server.spec.ts:22")
   })
 })

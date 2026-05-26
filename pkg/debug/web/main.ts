@@ -5,7 +5,7 @@
  */
 
 import {UiRuntime, type UiSurfaceRect} from "@metafor/elements"
-import {EditorPane, sourcePathFromLocation, type EditorTokens} from "@metafor/components"
+import {EditorPane, sourceDisplayLocation, sourcePathFromLocation, type EditorTokens} from "@metafor/components"
 import {applyInspectMode} from "../src/inspect-mode.ts"
 import {ConsolePane, type ConsoleEntry} from "./console-pane.ts"
 import {
@@ -958,9 +958,9 @@ function installEnginePanes(): void {
   }))
 }
 
-const TOOLBAR_INSET = 8
-const TOOLBAR_H = 60
-const PAD = 8
+const TOOLBAR_INSET = 4
+const TOOLBAR_H = 38
+const PAD = 6
 const GAP = 8
 const BODY_TOP = TOOLBAR_INSET + TOOLBAR_H + PAD
 
@@ -1070,9 +1070,9 @@ function updateSourcePaneTitle(): void {
 function sourceHeaderLocation(): string {
   if (sourceRuntimeState === "disconnected") return t("sourceDisconnected")
   if (sourceRuntimeState === "loading") return t("sourceLoading")
-  if (sourceRuntimeState === "running" && engineLastSource !== null) return `${t("sourceLastPaused")}: ${engineLastSource.location}`
+  if (sourceRuntimeState === "running" && engineLastSource !== null) return `${t("sourceLastPaused")}: ${sourceDisplayLocation(engineLastSource.location)}`
   if (sourceRuntimeState === "running") return t("sourceRunning")
-  return engineLastSource?.location ?? t("sourceWaiting")
+  return sourceDisplayLocation(engineLastSource?.location) || t("sourceWaiting")
 }
 
 function sourceKeyFromLocation(location: string, fallback = ""): string {
