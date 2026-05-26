@@ -16,6 +16,7 @@ export interface UIDisplayParameters {
   pixelWidth: number // Ширина логической пиксельной сетки виртуального UI
   pixelHeight: number // Высота логической пиксельной сетки виртуального UI
   background?: Color | number // Цвет фона виртуального дисплея
+  border?: Color | number | null // Опциональная физическая рамка дисплея
 }
 
 export type UIDisplayResizeOptions = {
@@ -47,7 +48,7 @@ export class UIDisplay extends Object3D {
   public pixelHeight: number
   public contentContainer: Object3D
   readonly #backgroundMesh: Mesh
-  readonly #border: LineSegments
+  readonly #border: LineSegments | null
 
   constructor(params: UIDisplayParameters) {
     super()
@@ -91,9 +92,14 @@ export class UIDisplay extends Object3D {
     this.contentContainer.updateMatrix()
 
     this.add(this.contentContainer)
-    this.#border = new LineSegments(this.#borderGeometry(), new LineBasicMaterial({ color: 0x748297 }))
-    this.#border.position.z = 0.1
-    this.add(this.#border)
+    const border = params.border ?? null
+    this.#border = border === null
+      ? null
+      : new LineSegments(this.#borderGeometry(), new LineBasicMaterial({color: border}))
+    if (this.#border !== null) {
+      this.#border.position.z = 0.1
+      this.add(this.#border)
+    }
   }
 
   public resize(
@@ -120,15 +126,15 @@ export class UIDisplay extends Object3D {
     this.pixelHeight = pixelHeight
 
     const previousBackgroundGeometry = this.#backgroundMesh.geometry
-    const previousBorderGeometry = this.#border.geometry
+    const previousBorderGeometry = this.#border?.geometry
 
     this.#backgroundMesh.geometry = new PlaneGeometry({
       width: this.widthMm,
       height: this.heightMm,
     })
-    this.#border.geometry = this.#borderGeometry()
+    if (this.#border !== null) this.#border.geometry = this.#borderGeometry()
     options.invalidateGeometry?.(previousBackgroundGeometry)
-    options.invalidateGeometry?.(previousBorderGeometry)
+    if (previousBorderGeometry !== undefined) options.invalidateGeometry?.(previousBorderGeometry)
     this.contentContainer.layout = {
       ...(this.contentContainer.layout ?? {}),
       width: this.pixelWidth,

@@ -7,7 +7,7 @@
  */
 
 import {Color} from "@metafor/engine"
-import {UiSurface, Z, palette, radii, uiIcons} from "@metafor/elements"
+import {UiSurface, Z, palette, uiIcons} from "@metafor/elements"
 import {
   Button as button,
   StatusChip as statusChip,
@@ -22,11 +22,12 @@ import {localizeSystemText, t} from "./i18n.ts"
 const PAD = 18
 const SECTION_PAD = 14
 const GAP = 12
-const SUMMARY_H = 58
-const PROCESS_H = 112
+const SUMMARY_H = 52
+const PROCESS_H = 114
 const FIELD_H = 32
-const BUTTON = 32
-const PANEL_RADIUS = 8
+const BUTTON = 30
+const PANEL_RADIUS = 7
+const OUTER_RADIUS = 10
 
 export class WelcomePane extends UiSurface {
   #state: WelcomeState = {
@@ -44,7 +45,7 @@ export class WelcomePane extends UiSurface {
   readonly #actions: WelcomeActions
 
   constructor(actions: WelcomeActions) {
-    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.paneLarge})
+    super({bgColor: null, borderColor: null})
     this.#actions = actions
   }
 
@@ -71,6 +72,8 @@ export class WelcomePane extends UiSurface {
     const statusText = online ? t("inspectorConnected") : t("inspectorOffline")
     const statusDetail = localizeSystemText(this.#state.connectionError)
 
+    this.#drawOuterShell()
+
     typography(this, PAD, 14, this.rectW - PAD * 2, 18, {
       children: t("interpreter"),
       variant: "subtitle",
@@ -92,10 +95,10 @@ export class WelcomePane extends UiSurface {
       sx: {textAlign: "right"},
     })
 
-    const statusY = 42
+    const statusY = 46
     this.#drawPanel(PAD, statusY, contentW, SUMMARY_H, online ? "live" : "neutral")
     const chipW = clamp(Math.floor(contentW * 0.26), 170, 220)
-    statusChip(this, PAD + SECTION_PAD, statusY + 16, Math.min(chipW, contentW - SECTION_PAD * 2), 26, {
+    statusChip(this, PAD + SECTION_PAD, statusY + 13, Math.min(chipW, contentW - SECTION_PAD * 2), 26, {
       label: statusText,
       indicator: true,
       variant: "subtle",
@@ -105,20 +108,20 @@ export class WelcomePane extends UiSurface {
     const targetW = contentW >= 740 ? clamp(Math.floor(contentW * 0.32), 230, 310) : 0
     const detailX = PAD + SECTION_PAD + chipW + 12
     const detailW = Math.max(1, contentW - SECTION_PAD * 2 - chipW - 12 - (targetW > 0 ? targetW + 14 : 0))
-    typography(this, detailX, statusY + 16, detailW, 16, {
+    typography(this, detailX, statusY + 14, detailW, 16, {
       children: statusDetail,
       variant: "body",
       color: "muted",
     })
     const targetText = `${t("target")}: ${this.#state.targetStatus}`
     if (targetW > 0) {
-      typography(this, PAD + contentW - SECTION_PAD - targetW, statusY + 34, targetW, 14, {
+      typography(this, PAD + contentW - SECTION_PAD - targetW, statusY + 32, targetW, 14, {
         children: targetText,
         variant: "caption",
         sx: {textAlign: "right"},
       })
     } else {
-      typography(this, detailX, statusY + 36, Math.max(1, contentW - detailX + PAD - SECTION_PAD), 14, {
+      typography(this, detailX, statusY + 32, Math.max(1, contentW - detailX + PAD - SECTION_PAD), 14, {
         children: targetText,
         variant: "caption",
       })
@@ -126,12 +129,38 @@ export class WelcomePane extends UiSurface {
 
     const targetY = statusY + SUMMARY_H + GAP
     this.#drawPanel(PAD, targetY, contentW, PROCESS_H)
+    const processActionW = BUTTON * 3 + 8 * 2
+    const processActionX = PAD + contentW - SECTION_PAD - processActionW
+    const processActionY = targetY + 9
     typography(this, PAD + SECTION_PAD, targetY + 12, contentW - SECTION_PAD * 2, 18, {
-      children: `${t("target")}: ${this.#state.targetStatus}`,
+      children: t("target"),
       variant: "subtitle",
       color: "orange",
     })
-    input(this, PAD + SECTION_PAD, targetY + 40, contentW - SECTION_PAD * 2, FIELD_H, {
+    button(this, processActionX, processActionY, BUTTON, BUTTON, {
+      label: t("runTarget"), iconSrc: uiIcons.run, iconOnly: true, tooltip: t("runTarget"), tone: "live",
+      variant: "text",
+      action: () => this.#actions.onRun(this.#command.value, this.#state.pauseOnStart),
+    })
+    button(this, processActionX + BUTTON + 8, processActionY, BUTTON, BUTTON, {
+      label: t("stopTarget"), iconSrc: uiIcons.stop, iconOnly: true, tooltip: t("stopTarget"), tone: "warn", variant: "text", action: () => this.#actions.onStop(),
+    })
+    const pauseLabel = this.#state.pauseOnStart ? t("pauseOn") : t("pauseOff")
+    button(this, processActionX + (BUTTON + 8) * 2, processActionY, BUTTON, BUTTON, {
+      label: pauseLabel,
+      iconSrc: uiIcons.pause,
+      iconOnly: true,
+      variant: "text",
+      tooltip: pauseLabel,
+      tone: this.#state.pauseOnStart ? "paused" : "neutral",
+      action: () => {
+        const next = !this.#state.pauseOnStart
+        this.#state = {...this.#state, pauseOnStart: next}
+        this.#actions.onPauseOnStart(next)
+        this.requestRender()
+      },
+    })
+    input(this, PAD + SECTION_PAD, targetY + 48, contentW - SECTION_PAD * 2, FIELD_H, {
       value: this.#command.value,
       active: this.#active === "command",
       cursor: this.#command.cursor,
@@ -145,31 +174,7 @@ export class WelcomePane extends UiSurface {
         this.requestRender()
       },
     })
-    const actionY = targetY + PROCESS_H - SECTION_PAD - BUTTON
-    button(this, PAD + SECTION_PAD, actionY, BUTTON, BUTTON, {
-      label: t("runTarget"), iconSrc: uiIcons.run, iconOnly: true, tooltip: t("runTarget"), tone: "live",
-      variant: "text",
-      action: () => this.#actions.onRun(this.#command.value, this.#state.pauseOnStart),
-    })
-    button(this, PAD + SECTION_PAD + BUTTON + 8, actionY, BUTTON, BUTTON, {
-      label: t("stopTarget"), iconSrc: uiIcons.stop, iconOnly: true, tooltip: t("stopTarget"), tone: "warn", variant: "text", action: () => this.#actions.onStop(),
-    })
-    const pauseLabel = this.#state.pauseOnStart ? t("pauseOn") : t("pauseOff")
-    button(this, PAD + SECTION_PAD + (BUTTON + 8) * 2, actionY, BUTTON, BUTTON, {
-      label: pauseLabel,
-      iconSrc: this.#state.pauseOnStart ? uiIcons.pause : uiIcons.run,
-      iconOnly: true,
-      variant: "text",
-      tooltip: pauseLabel,
-      tone: this.#state.pauseOnStart ? "paused" : "neutral",
-      action: () => {
-        const next = !this.#state.pauseOnStart
-        this.#state = {...this.#state, pauseOnStart: next}
-        this.#actions.onPauseOnStart(next)
-        this.requestRender()
-      },
-    })
-    typography(this, PAD + SECTION_PAD + (BUTTON + 8) * 3 + 8, actionY + 9, contentW - SECTION_PAD * 2 - (BUTTON + 8) * 3 - 8, 14, {
+    typography(this, PAD + SECTION_PAD + 2, targetY + 86, contentW - SECTION_PAD * 2, 14, {
       children: t("commandExact"),
       variant: "caption",
     })
@@ -177,14 +182,18 @@ export class WelcomePane extends UiSurface {
     const inspectorY = targetY + PROCESS_H + GAP
     const inspectorH = Math.max(88, this.rectH - inspectorY - PAD)
     this.#drawPanel(PAD, inspectorY, contentW, inspectorH)
+    const applyW = 34
     typography(this, PAD + SECTION_PAD, inspectorY + 12, contentW - SECTION_PAD * 2, 18, {
       children: t("inspector"),
       variant: "subtitle",
       color: "cyan",
     })
-    const applyW = 38
-    const inspectorInputW = Math.max(1, contentW - SECTION_PAD * 2 - applyW - 10)
-    input(this, PAD + SECTION_PAD, inspectorY + 40, inspectorInputW, FIELD_H, {
+    button(this, PAD + contentW - SECTION_PAD - applyW, inspectorY + 8, applyW, 30, {
+      label: t("applyInspector"), iconSrc: uiIcons.apply, iconOnly: true, tooltip: t("applyInspector"), tone: "neutral",
+      variant: "text",
+      action: () => this.#actions.onApplyInspector(this.#url.value),
+    })
+    input(this, PAD + SECTION_PAD, inspectorY + 48, contentW - SECTION_PAD * 2, FIELD_H, {
       value: this.#url.value,
       active: this.#active === "url",
       cursor: this.#url.cursor,
@@ -198,17 +207,22 @@ export class WelcomePane extends UiSurface {
         this.requestRender()
       },
     })
-    button(this, PAD + contentW - SECTION_PAD - applyW, inspectorY + 40, applyW, FIELD_H, {
-      label: t("applyInspector"), iconSrc: uiIcons.apply, iconOnly: true, tooltip: t("applyInspector"), tone: "neutral",
-      variant: "text",
-      action: () => this.#actions.onApplyInspector(this.#url.value),
-    })
     const mirrorUrl = `https://debug.bun.sh/#${this.#url.value.replace(/^wss?:\/\//, "")}`
-    typography(this, PAD + SECTION_PAD, inspectorY + inspectorH - 22, contentW - SECTION_PAD * 2, 14, {
+    typography(this, PAD + SECTION_PAD + 2, inspectorY + inspectorH - 22, contentW - SECTION_PAD * 2, 14, {
       children: mirrorUrl,
       variant: "caption",
     })
 
+  }
+
+  #drawOuterShell(): void {
+    this.drawRoundedRect(0, 0, this.rectW, this.rectH, {
+      radius: OUTER_RADIUS,
+      fill: withAlpha(palette.bg, 0.92),
+      border: withAlpha(palette.borderDim, 0.78),
+      borderWidth: 1,
+      z: Z.CONTAINER,
+    })
   }
 
   #drawPanel(x: number, y: number, w: number, h: number, tone: "neutral" | "live" = "neutral"): void {
