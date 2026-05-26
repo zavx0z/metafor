@@ -271,7 +271,14 @@ class ElementsPlayground extends UiSurface {
     div(this, x, y, w, h, {
       style: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
     })
-    if (this.#route === "div/scroll") {
+    if (this.#route === "div") {
+      h3(this, x, y + 28, w, 24, {children: "Props", style: {fontSize: 15, textAlign: "center"}})
+      paramRow(this, x + 22, y + 82, w - 44, "background", "\"glass\" | rgba(...) | token")
+      paramRow(this, x + 22, y + 144, w - 44, "borderRadius", "999 | \"24px\"")
+      paramRow(this, x + 22, y + 206, w - 44, "color", "\"cyan\" | \"muted\" | #fff")
+      paramRow(this, x + 22, y + 268, w - 44, "paddingX", "number | \"px\"")
+      paramRow(this, x + 22, y + 330, w - 44, "zIndex", "small layered offsets")
+    } else if (this.#route === "div/scroll") {
       h3(this, x, y + 28, w, 24, {children: "Scroll props", style: {fontSize: 15, textAlign: "center"}})
       paramRow(this, x + 22, y + 82, w - 44, "overflowX/Y", "\"auto\" | \"scroll\"")
       paramRow(this, x + 22, y + 144, w - 44, "scrollbarWidth", "number | px")
@@ -414,25 +421,19 @@ class ElementsPlayground extends UiSurface {
       return
     }
 
-    const leftW = Math.floor(w * 0.52)
-    div(this, x, y + 58, leftW, 358, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-    h3(this, x + 28, y + 86, leftW - 56, 24, {children: "Box surface", style: {fontSize: 15}})
-    div(this, x + 28, y + 130, leftW - 56, 82, {style: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.36)", borderRadius: 24}})
-    h2(this, x + 52, y + 154, leftW - 104, 26, {children: "h2 inside div", style: {fontSize: 16}})
-    p(this, x + 52, y + 184, leftW - 104, 22, {children: "p text clipped inside the div", style: {fontSize: 11, color: "muted"}})
-    input(this, x + 28, y + 240, leftW - 56, 42, {value: "input value", active: true})
-    button(this, x + 28, y + 304, 168, 44, {children: "button"})
-    button(this, x + 212, y + 304, 168, 44, {children: "disabled", disabled: true})
-
-    const rightX = x + leftW + 22
-    const rightW = w - leftW - 22
-    div(this, rightX, y + 58, rightW, 358, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
-    h3(this, rightX + 28, y + 86, rightW - 56, 24, {children: "Props", style: {fontSize: 15}})
-    propRow(this, rightX + 28, y + 132, rightW - 56, "background", "\"glass\" | rgba(...) | token")
-    propRow(this, rightX + 28, y + 178, rightW - 56, "borderRadius", "999 | \"24px\"")
-    propRow(this, rightX + 28, y + 224, rightW - 56, "color", "\"cyan\" | \"muted\" | #fff")
-    propRow(this, rightX + 28, y + 270, rightW - 56, "paddingX", "number | \"px\"")
-    propRow(this, rightX + 28, y + 316, rightW - 56, "zIndex", "small layered offsets")
+    const cardH = 358
+    const innerX = x + 28
+    const innerW = w - 56
+    div(this, x, y + 58, w, cardH, {style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 32}})
+    h3(this, innerX, y + 86, innerW, 24, {children: "Box surface", style: {fontSize: 15}})
+    div(this, innerX, y + 130, innerW, 82, {style: {background: "rgba(111, 211, 255, 0.08)", borderColor: "rgba(111, 211, 255, 0.36)", borderRadius: 24}})
+    h2(this, x + 52, y + 154, Math.max(1, w - 104), 26, {children: "h2 inside div", style: {fontSize: 16}})
+    p(this, x + 52, y + 184, Math.max(1, w - 104), 22, {children: "p text clipped inside the div", style: {fontSize: 11, color: "muted"}})
+    input(this, innerX, y + 240, innerW, 42, {value: "input value", active: true})
+    const buttonGap = 16
+    const buttonW = Math.min(168, Math.max(1, (innerW - buttonGap) / 2))
+    button(this, innerX, y + 304, buttonW, 44, {children: "button"})
+    button(this, innerX + buttonW + buttonGap, y + 304, buttonW, 44, {children: "disabled", disabled: true})
   }
 
   #divDetail(): DivDetail | null {
