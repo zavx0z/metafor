@@ -530,6 +530,28 @@ export class UiRuntime {
     this.requestRender()
   }
 
+  #panView(deltaX: number, deltaY: number): void {
+    this.#cancelCameraAnimation()
+    this.viewPoint.update()
+    const target = this.viewPoint.getTarget()
+    const offset = new Vector3().subVectors(this.viewPoint.position, target)
+    const panSpeed = 0.001 * Math.max(1, offset.length())
+    const te = this.viewPoint.viewMatrix.elements
+    const panRight = new Vector3(te[0], te[4], te[8])
+    const panUp = new Vector3(te[1], te[5], te[9])
+    const panDelta = new Vector3()
+      .add(panRight.multiplyScalar(deltaX * panSpeed))
+      .add(panUp.multiplyScalar(-deltaY * panSpeed))
+
+    this.viewPoint.position.add(panDelta)
+    target.add(panDelta)
+    this.viewPoint.update()
+    this.#displayDistanceMm = this.#currentDisplayDistance()
+    this.#applyLayout()
+    this.#requestHudSurfacesRender()
+    this.requestRender()
+  }
+
   #displayRayHit(canvasX: number, canvasY: number): Vector3 | null {
     if (this.display === null) return null
     this.viewPoint.update()
@@ -777,7 +799,8 @@ export class UiRuntime {
     if (displayCoords === null || slot === undefined) {
       if (this.#isDisplayNavigationMode()) {
         event.preventDefault()
-        this.#zoomDisplay(-event.deltaY)
+        if (event.ctrlKey) this.#zoomDisplay(-event.deltaY)
+        else this.#panView(event.deltaX, event.deltaY)
       }
       return
     }

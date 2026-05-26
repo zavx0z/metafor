@@ -28,7 +28,6 @@ type ReturnDockControl = {
 type LeaveAnimation = {
   startedAt: number
   quad: Quad
-  edgeQuad: Quad
   displaySizePx: number
   lineStart: number
   buttonStart: number
@@ -293,7 +292,6 @@ export class DisplayHoverOutlinePane extends UiSurface {
           this.#leaveAnimation = {
             startedAt: now,
             quad: this.#lastVisualQuad,
-            edgeQuad: this.#edgeLaunchQuad(this.#lastVisualQuad),
             displaySizePx: this.#lastDisplaySizePx,
             lineStart: this.#lastLineProgress,
             buttonStart: this.#lastButtonProgress,
@@ -397,10 +395,14 @@ export class DisplayHoverOutlinePane extends UiSurface {
       return
     }
 
-    const current = lerpQuad(leave.edgeQuad, leave.quad, reticleProgress)
+    const frame = this.#currentDisplayFrame()
+    const quad = frame?.quad ?? leave.quad
+    const displaySizePx = frame?.displaySizePx ?? leave.displaySizePx
+    const edgeQuad = this.#edgeLaunchQuad(quad)
+    const current = lerpQuad(edgeQuad, quad, reticleProgress)
     const strength = clamp(0.28 + reticleProgress * 0.72, 0, 1)
     this.#cornerFlightVisible = buttonProgress >= FLIGHT_BUTTON_HIT_PROGRESS
-    this.#drawLockedReticle(current, leave.displaySizePx, strength)
+    this.#drawLockedReticle(current, displaySizePx, strength)
     if (lineProgress > 0 || buttonProgress > 0) {
       this.#drawFlightControl(current, lineProgress, buttonProgress, false)
     }
@@ -540,6 +542,16 @@ export class DisplayHoverOutlinePane extends UiSurface {
   }
 
   #retainedDisplayFrame(): RetainedFrame | null {
+    const frame = this.#currentDisplayFrame()
+    if (frame !== null) return frame
+    if (this.#lastVisualQuad === null || this.#lastDisplaySizePx < 36) return null
+    return {
+      quad: this.#lastVisualQuad,
+      displaySizePx: this.#lastDisplaySizePx,
+    }
+  }
+
+  #currentDisplayFrame(): RetainedFrame | null {
     const outline = this.canvas?.displayOutline()
     if (outline !== undefined && outline !== null) {
       const quad = this.#outlineQuad(outline)
@@ -554,11 +566,7 @@ export class DisplayHoverOutlinePane extends UiSurface {
         }
       }
     }
-    if (this.#lastVisualQuad === null || this.#lastDisplaySizePx < 36) return null
-    return {
-      quad: this.#lastVisualQuad,
-      displaySizePx: this.#lastDisplaySizePx,
-    }
+    return null
   }
 
   #rememberRetainedFrame(frame: RetainedFrame): void {
