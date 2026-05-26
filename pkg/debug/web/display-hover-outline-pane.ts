@@ -102,23 +102,55 @@ function centerOf(points: Point[]): Point {
   }
 }
 
-function outsetPoint(p: Point, center: Point, amountPx: number): Point {
-  const dx = p.x - center.x
-  const dy = p.y - center.y
-  const length = Math.hypot(dx, dy)
-  if (length <= 0) return p
+function outsetQuad(quad: Quad, center: Point, amountPx: number): Quad {
+  const top = outsetLine(quad.topLeft, quad.topRight, center, amountPx)
+  const right = outsetLine(quad.topRight, quad.bottomRight, center, amountPx)
+  const bottom = outsetLine(quad.bottomRight, quad.bottomLeft, center, amountPx)
+  const left = outsetLine(quad.bottomLeft, quad.topLeft, center, amountPx)
   return {
-    x: p.x + dx / length * amountPx,
-    y: p.y + dy / length * amountPx,
+    topLeft: intersectLines(left, top) ?? outsetCorner(quad.topLeft, center, amountPx),
+    topRight: intersectLines(top, right) ?? outsetCorner(quad.topRight, center, amountPx),
+    bottomRight: intersectLines(right, bottom) ?? outsetCorner(quad.bottomRight, center, amountPx),
+    bottomLeft: intersectLines(bottom, left) ?? outsetCorner(quad.bottomLeft, center, amountPx),
   }
 }
 
-function outsetQuad(quad: Quad, center: Point, amountPx: number): Quad {
+type Line = {point: Point; direction: Point}
+
+function outsetLine(a: Point, b: Point, center: Point, amountPx: number): Line {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const length = Math.hypot(dx, dy)
+  if (length <= 0) return {point: a, direction: {x: 1, y: 0}}
+  let nx = dy / length
+  let ny = -dx / length
+  const mid = {x: (a.x + b.x) / 2, y: (a.y + b.y) / 2}
+  if (nx * (mid.x - center.x) + ny * (mid.y - center.y) < 0) {
+    nx = -nx
+    ny = -ny
+  }
   return {
-    topLeft: outsetPoint(quad.topLeft, center, amountPx),
-    topRight: outsetPoint(quad.topRight, center, amountPx),
-    bottomRight: outsetPoint(quad.bottomRight, center, amountPx),
-    bottomLeft: outsetPoint(quad.bottomLeft, center, amountPx),
+    point: {x: a.x + nx * amountPx, y: a.y + ny * amountPx},
+    direction: {x: dx, y: dy},
+  }
+}
+
+function intersectLines(a: Line, b: Line): Point | null {
+  const det = a.direction.x * b.direction.y - a.direction.y * b.direction.x
+  if (Math.abs(det) < 0.001) return null
+  const dx = b.point.x - a.point.x
+  const dy = b.point.y - a.point.y
+  const t = (dx * b.direction.y - dy * b.direction.x) / det
+  return {
+    x: a.point.x + a.direction.x * t,
+    y: a.point.y + a.direction.y * t,
+  }
+}
+
+function outsetCorner(p: Point, center: Point, amountPx: number): Point {
+  return {
+    x: p.x + (p.x < center.x ? -amountPx : amountPx),
+    y: p.y + (p.y < center.y ? -amountPx : amountPx),
   }
 }
 
