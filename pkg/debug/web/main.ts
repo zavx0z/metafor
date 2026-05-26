@@ -11,7 +11,6 @@ import {ConsolePane, type ConsoleEntry} from "./console-pane.ts"
 import {
   DisplayHoverOutlinePane,
   FramesPane,
-  HudProbePane,
   ScopesEvalPane,
   ToolbarPane,
   VerbosePane,
@@ -104,7 +103,6 @@ let sourcePane: EditorPane | null = null
 let draftEditorPane: EditorPane | null = null
 let consolePane: ConsolePane | null = null
 let toolbarPane: ToolbarPane | null = null
-let hudProbePane: HudProbePane | null = null
 let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
 let framesPane: FramesPane | null = null
 let scopesEvalPane: ScopesEvalPane | null = null
@@ -920,7 +918,6 @@ async function initEngine(): Promise<void> {
       onToggleLocale: () => toggleLocale(),
       onToggleVerbose: () => setVerboseVisible(!verboseVisible),
     })
-    hudProbePane = new HudProbePane()
     displayHoverOutlinePane = new DisplayHoverOutlinePane()
     framesPane = new FramesPane((index) => {
       activeFrameIndex = index
@@ -1165,7 +1162,6 @@ function installEnginePanes(): void {
   if (
     uiCanvas === null ||
     toolbarPane === null ||
-    hudProbePane === null ||
     displayHoverOutlinePane === null ||
     sourcePane === null ||
     draftEditorPane === null ||
@@ -1200,18 +1196,10 @@ function installEnginePanes(): void {
     w,
     h,
   }))
-  uiCanvas.addHudSurface(hudProbePane, ({w, h}) => ({
-    x: Math.max(TOOLBAR_INSET, Math.floor((w - HUD_PROBE_W) / 2)),
-    y: Math.max(TOOLBAR_INSET + TOOLBAR_H + PAD, h - HUD_PROBE_H - 28),
-    w: HUD_PROBE_W,
-    h: HUD_PROBE_H,
-  }))
 }
 
 const TOOLBAR_INSET = 4
 const TOOLBAR_H = 38
-const HUD_PROBE_W = 210
-const HUD_PROBE_H = 46
 const PAD = 6
 const GAP = 8
 const BODY_TOP = TOOLBAR_INSET + TOOLBAR_H + PAD

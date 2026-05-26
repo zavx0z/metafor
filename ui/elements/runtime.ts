@@ -239,7 +239,11 @@ export class UiRuntime {
         ? {x: 0, y: 0, z: 0}
         : this.#displayCenterMm,
     })
-    this.viewPoint.alignUpToWorldZ()
+    if (virtualDisplay === undefined) {
+      this.viewPoint.getUp().set(0, 1, 0)
+    } else {
+      this.viewPoint.alignUpToWorldZ()
+    }
     this.viewPoint.update()
     this.viewPoint.dispose() // снимаем orbit-listeners — у нас свои обработчики
 
@@ -768,15 +772,15 @@ export class UiRuntime {
       hudSlot.surface.onWheel?.(event, canvasCoords.x - hudSlot.rect.x, canvasCoords.y - hudSlot.rect.y)
       return
     }
-    if (this.#isDisplayNavigationMode()) {
-      event.preventDefault()
-      this.#zoomDisplay(-event.deltaY)
+    const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y)
+    const slot = displayCoords === null ? undefined : this.#surfaceAt(displayCoords.x, displayCoords.y, "display")
+    if (displayCoords === null || slot === undefined) {
+      if (this.#isDisplayNavigationMode()) {
+        event.preventDefault()
+        this.#zoomDisplay(-event.deltaY)
+      }
       return
     }
-    const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y)
-    if (displayCoords === null) return
-    const slot = this.#surfaceAt(displayCoords.x, displayCoords.y, "display")
-    if (slot === undefined) return
     event.preventDefault()
     slot.surface.onWheel?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)
   }
@@ -817,12 +821,6 @@ export class UiRuntime {
       return
     }
     this.#setDisplayHoverActive(true)
-    if (this.#isDisplayNavigationMode()) {
-      this.canvas.style.cursor = "grab"
-      this.#hoveredSlot?.surface.onPointerLeave?.()
-      this.#hoveredSlot = null
-      return
-    }
     const slot = this.#surfaceAt(displayCoords.x, displayCoords.y, "display")
     if (this.#pressedSlot !== null && this.#pressedSlot !== undefined) {
       const dragCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y, false) ?? displayCoords
@@ -834,7 +832,7 @@ export class UiRuntime {
       this.#hoveredSlot = slot ?? null
     }
     if (slot === undefined) {
-      this.canvas.style.cursor = "default"
+      this.canvas.style.cursor = this.#isDisplayNavigationMode() ? "grab" : "default"
       return
     }
     // Focus НЕ меняем по hover — иначе текстовый редактор теряет keydown
@@ -859,34 +857,33 @@ export class UiRuntime {
       hudSlot.surface.onPointerDown?.(event, canvasCoords.x - hudSlot.rect.x, canvasCoords.y - hudSlot.rect.y)
       return
     }
-    if (this.#isDisplayNavigationMode() && event.button === 0) {
-      event.preventDefault()
-      this.#hoveredSlot?.surface.onPointerLeave?.()
-      this.#hoveredSlot = null
-      this.#beginDisplayNavigation(event)
+    const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y)
+    const slot = displayCoords === null ? undefined : this.#surfaceAt(displayCoords.x, displayCoords.y, "display")
+    if (displayCoords === null || slot === undefined) {
+      if (this.#isDisplayNavigationMode() && event.button === 0) {
+        event.preventDefault()
+        this.#hoveredSlot?.surface.onPointerLeave?.()
+        this.#hoveredSlot = null
+        this.#beginDisplayNavigation(event)
+      }
       return
     }
 
-    const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y)
-    if (displayCoords === null) return
-    const slot = this.#surfaceAt(displayCoords.x, displayCoords.y, "display")
-    if (slot !== undefined) {
-      // Не даём браузеру передвинуть фокус по умолчанию: VirtualInput
-      // должен остаться сфокусированным, чтобы macOS показывал ему
-      // инструменты ввода.
-      if (this.inputProxy !== null) {
-        event.preventDefault()
-        this.inputProxy.focus()
-      } else {
-        this.canvas.focus()
-      }
-      // Позиционируем 1×1 textarea около курсора, чтобы всплывающие окна
-      // macOS появлялись рядом, а не в углу страницы.
-      this.#positionInputProxy(event.clientX, event.clientY)
-      this.setFocused(slot.surface)
-      this.#pressedSlot = slot
-      slot.surface.onPointerDown?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)
+    // Не даём браузеру передвинуть фокус по умолчанию: VirtualInput
+    // должен остаться сфокусированным, чтобы macOS показывал ему
+    // инструменты ввода.
+    if (this.inputProxy !== null) {
+      event.preventDefault()
+      this.inputProxy.focus()
+    } else {
+      this.canvas.focus()
     }
+    // Позиционируем 1×1 textarea около курсора, чтобы всплывающие окна
+    // macOS появлялись рядом, а не в углу страницы.
+    this.#positionInputProxy(event.clientX, event.clientY)
+    this.setFocused(slot.surface)
+    this.#pressedSlot = slot
+    slot.surface.onPointerDown?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)
   }
 
   #onContextMenu(event: MouseEvent): void {
@@ -899,7 +896,7 @@ export class UiRuntime {
     }
     const displayCoords = this.#displayCoords(canvasCoords.x, canvasCoords.y)
     event.preventDefault()
-    if (displayCoords === null || this.#isDisplayNavigationMode()) return
+    if (displayCoords === null) return
     const slot = this.#surfaceAt(displayCoords.x, displayCoords.y, "display")
     if (slot === undefined) return
     slot.surface.onContextMenu?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)

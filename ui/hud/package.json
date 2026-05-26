@@ -1,0 +1,22 @@
+{
+  "name": "@metafor/hud",
+  "version": "0.0.1",
+  "description": "HUD-specific Vision Pro components built on @metafor/elements.",
+  "type": "module",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./playground": "./playground/server.ts"
+  },
+  "scripts": {
+    "playground": "bun --hot playground/server.ts",
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@metafor/components": "workspace:*",
+    "@metafor/elements": "workspace:*",
+    "@metafor/engine": "workspace:*"
+  }
+}
