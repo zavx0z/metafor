@@ -230,8 +230,8 @@ export class FramesPane extends UiSurface {
   #drawModuleRow(module: DebugModuleSnapshot, x: number, y: number, w: number, h: number): void {
     const label = moduleDisplayName(module.url)
     const detail = shortenUrl(module.url)
-    const bpLabel = module.breakpointCount > 0 ? `bp ${module.breakpointCount}` : ""
-    const bpW = bpLabel.length === 0 ? 0 : this.measureText(bpLabel, 9) + 10
+    const metaLabel = moduleMetaLabel(module)
+    const metaW = metaLabel.length === 0 ? 0 : this.measureText(metaLabel, 9) + 10
 
     this.drawRoundedRect(x, y, w, h - 4, {
       radius: 6,
@@ -271,12 +271,12 @@ export class FramesPane extends UiSurface {
           },
         },
         {
-          width: bpW, height: 10,
+          width: metaW, height: 10,
           draw: (cx, cy, cw) => {
-            if (bpLabel.length === 0) return
-            this.drawText(bpLabel, cx, cy + 1, {
+            if (metaLabel.length === 0) return
+            this.drawText(metaLabel, cx, cy + 1, {
               fontPx: 9,
-              material: this.materials.orange,
+              material: module.status === "pending" ? this.materials.muted : this.materials.orange,
               maxWidthPx: cw,
             })
           },
@@ -289,17 +289,32 @@ export class FramesPane extends UiSurface {
 
 }
 
+function moduleMetaLabel(module: DebugModuleSnapshot): string {
+  const parts: string[] = []
+  if (module.status === "pending") parts.push("pending")
+  if (module.breakpointCount > 0) parts.push(`bp ${module.breakpointCount}`)
+  return parts.join(" · ")
+}
+
 function shortenUrl(url: string): string {
-  if (url.length <= 60) return url
-  const parts = url.split("/")
+  const clean = displayUrl(url)
+  if (clean.length <= 60) return clean
+  const parts = clean.split("/")
   return `.../${parts.slice(-2).join("/")}`
 }
 
 function moduleDisplayName(url: string): string {
-  const clean = urlPath(url)
+  const clean = displayUrl(url)
   const parts = clean.split(/[\\/]/).filter((part) => part.length > 0 && part !== ".")
   if (parts.length === 0) return clean || "module"
   return parts.slice(-2).join("/")
+}
+
+function displayUrl(url: string): string {
+  return urlPath(url)
+    .replace(/^(?:\.\.\/)+/, "")
+    .replace(/^\.\//, "")
+    .replace(/^r\//, "")
 }
 
 function urlPath(url: string): string {

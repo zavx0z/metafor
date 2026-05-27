@@ -13,8 +13,9 @@
  */
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
-import {existsSync, statSync, openSync, readSync, closeSync} from "node:fs"
-import {join} from "node:path"
+import {existsSync, statSync, openSync, readSync, closeSync, readFileSync} from "node:fs"
+import {join, resolve} from "node:path"
+import {fileURLToPath} from "node:url"
 import indexHtml from "../web/index.html"
 
 const WEB_DIR = join(import.meta.dir, "..", "web")
@@ -652,9 +653,9 @@ async function reconnectInspector(req: Request, options: HttpServerOptions): Pro
 
 async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Response> {
   const scriptId = url.searchParams.get("scriptId") ?? ""
-  if (scriptId.length === 0) return jsonResponse({ok: false, error: "scriptId required"}, 400)
-
   const sourceUrl = url.searchParams.get("sourceUrl") ?? undefined
+  if (scriptId.length === 0) return getSourceFile(sourceUrl, url)
+
   const sourceKind = url.searchParams.get("sourceKind")
   const script = options.snapshots.scriptInfo(scriptId)
   const fileUrl = script?.url
@@ -701,6 +702,73 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
     })
   } catch (error) {
     return jsonResponse({ok: false, scriptId, error: serializeError(error)}, 500)
+  }
+}
+
+function getSourceFile(sourceUrl: string | undefined, url: URL): Response {
+  const optional = url.searchParams.get("optional") === "1"
+  if (sourceUrl === undefined || sourceUrl.trim().length === 0) {
+    return jsonResponse({ok: false, error: "scriptId or sourceUrl required"}, optional ? 200 : 400)
+  }
+
+  const path = sourceFilePath(sourceUrl)
+  if (path === undefined) {
+    return jsonResponse({ok: false, scriptId: "", url: sourceUrl, error: "sourceUrl is not a local file path"}, optional ? 200 : 400)
+  }
+
+  try {
+    const scriptSource = readFileSync(path, "utf8")
+    const includeTokens = url.searchParams.get("tokens") !== "0"
+    const cacheKey = sourceCacheKey("", `file\0${path}`)
+    lruSet(sourceCache, cacheKey, scriptSource, SOURCE_CACHE_MAX)
+    return jsonResponse({
+      scriptId: "",
+      url: sourceUrl,
+      scriptSource,
+      tokens: includeTokens ? tokensFor(cacheKey, scriptSource, sourceUrl) : undefined,
+      sourceKind: "file",
+      cached: false,
+    })
+  } catch (error) {
+    return jsonResponse({ok: false, scriptId: "", url: sourceUrl, error: serializeError(error)}, optional ? 200 : 404)
+  }
+}
+
+function sourceFilePath(sourceUrl: string): string | undefined {
+  const clean = sourceUrl.trim().replaceAll("\\", "/").replace(/[?#].*$/, "")
+  if (clean.startsWith("file:")) {
+    try {
+      return existingSourcePath(fileURLToPath(clean)) ?? fileURLToPath(clean)
+    } catch {
+      return undefined
+    }
+  }
+  if (/^[A-Za-z]:\//.test(clean) || clean.startsWith("/")) return existingSourcePath(clean) ?? clean
+
+  const stripped = clean.replace(/^(?:\.\.\/)+/, "").replace(/^\.\//, "")
+  return existingSourcePath(stripped) ?? resolve(process.cwd(), stripped)
+}
+
+function existingSourcePath(path: string): string | undefined {
+  const normalized = path.replaceAll("\\", "/")
+  const direct = /^[A-Za-z]:\//.test(normalized) || normalized.startsWith("/")
+    ? normalized
+    : resolve(process.cwd(), normalized)
+  if (isReadableFile(direct)) return direct
+
+  const parts = normalized.split("/").filter((part) => part.length > 0 && part !== "." && part !== "..")
+  for (let offset = 1; offset < parts.length; offset++) {
+    const suffix = resolve(process.cwd(), parts.slice(offset).join("/"))
+    if (isReadableFile(suffix)) return suffix
+  }
+  return undefined
+}
+
+function isReadableFile(path: string): boolean {
+  try {
+    return existsSync(path) && statSync(path).isFile()
+  } catch {
+    return false
   }
 }
 

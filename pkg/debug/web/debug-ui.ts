@@ -81,6 +81,7 @@ export type DebugModuleSnapshot = {
   url: string
   /** Runtime script URL used for inspector breakpoint matching. */
   scriptUrl: string
+  status: "pending" | "parsed" | "active"
   breakpointCount: number
 }
 

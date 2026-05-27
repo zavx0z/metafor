@@ -23,6 +23,7 @@ import {
   type PropertySnapshot,
 } from "./debug-ui.ts"
 import {getUiLocale, t, toggleUiLocale} from "./i18n.ts"
+import {canonicalModulePath, localImportsForSource} from "./module-graph.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -81,6 +82,18 @@ type BreakpointRegistration = {
   }>
 }
 
+type DebugModuleCandidate = {
+  scriptId: string
+  url: string
+  scriptUrl: string
+  status: DebugModuleSnapshot["status"]
+}
+
+type PendingDebugModule = {
+  url: string
+  importerUrl?: string
+}
+
 type ActiveSource = {
   scriptId: string
   scriptUrl: string
@@ -99,10 +112,15 @@ const consolePending: ConsoleEntry[] = []
 type CachedSource = {text: string; sourceUrl?: string; tokens?: EditorTokens}
 type DraftState = {baseText: string; text: string; savedText: string; status: "clean" | "dirty" | "saved"}
 const BREAKPOINTS_STORAGE_KEY = "bd:breakpoints:v1"
+const MODULE_GRAPH_LIMIT = 400
 const sourceCache = new Map<string, CachedSource>()
 const sourceDrafts = new Map<string, DraftState>()
 const scriptUrls = new Map<string, string>()
 const scriptSources = new Map<string, string[]>()
+const pendingDebugModules = new Map<string, PendingDebugModule>()
+const moduleGraphSources = new Map<string, string>()
+const moduleGraphFetches = new Set<string>()
+let moduleGraphGeneration = 0
 let uiCanvas: UiRuntime | null = null
 let sourcePane: EditorPane | null = null
 let draftEditorPane: EditorPane | null = null
@@ -297,6 +315,10 @@ function clearLiveState(runtimeState: SourceRuntimeState = "disconnected"): void
   sourcePane?.setBreakpoints([])
   scriptUrls.clear()
   scriptSources.clear()
+  pendingDebugModules.clear()
+  moduleGraphSources.clear()
+  moduleGraphFetches.clear()
+  moduleGraphGeneration += 1
   breakpointRegistrations = []
   pendingBreakpointLines.clear()
   sourceCache.clear()
@@ -351,6 +373,7 @@ function handleTargetEvent(event: TargetEvent): void {
       clearDebuggerCommand("target started")
       clearPendingPause()
       clearLiveState("loading")
+      seedModuleGraphFromCommand(event.command)
       targetState.state = "running"
       targetState.pid = event.pid
       targetState.startedAt = event.startedAt
@@ -600,6 +623,78 @@ function normalizeScriptSources(sources: string[] | undefined): string[] {
 function stringArraysEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false
   return a.every((value, index) => value === b[index])
+}
+
+function seedModuleGraphFromCommand(command: string[]): void {
+  for (const part of command) {
+    if (part.startsWith("-") || !isProjectDebugModule(part)) continue
+    queuePendingModule([part])
+  }
+}
+
+function rememberModuleGraphSource(sourceUrl: string, source: string): void {
+  const key = moduleGraphKey(sourceUrl)
+  if (key.length === 0 || !isProjectDebugModule(sourceUrl)) return
+  if (moduleGraphSources.get(key) === source) return
+
+  moduleGraphSources.set(key, source)
+  addPendingModule(sourceUrl)
+
+  if (pendingDebugModules.size + moduleGraphSources.size > MODULE_GRAPH_LIMIT) {
+    syncDebugModules()
+    return
+  }
+
+  for (const imported of localImportsForSource(sourceUrl, source)) {
+    queuePendingModule(imported.candidates, sourceUrl)
+  }
+  syncDebugModules()
+}
+
+function queuePendingModule(candidates: string[], importerUrl?: string): void {
+  const projectCandidates = candidates.filter(isProjectDebugModule)
+  if (projectCandidates.length === 0) return
+
+  const visible = projectCandidates[0]
+  if (visible !== undefined) addPendingModule(visible, importerUrl)
+  syncDebugModules()
+  void fetchPendingModuleSource(projectCandidates)
+}
+
+function addPendingModule(url: string, importerUrl?: string): void {
+  const key = moduleGraphKey(url)
+  if (key.length === 0 || pendingDebugModules.has(key)) return
+  const module: PendingDebugModule = {url}
+  if (importerUrl !== undefined) module.importerUrl = importerUrl
+  pendingDebugModules.set(key, module)
+}
+
+async function fetchPendingModuleSource(candidates: string[]): Promise<void> {
+  const fetchKey = candidates.map(moduleGraphKey).filter((key) => key.length > 0).join("\0")
+  if (fetchKey.length === 0 || moduleGraphFetches.has(fetchKey)) return
+  if (pendingDebugModules.size + moduleGraphSources.size > MODULE_GRAPH_LIMIT) return
+  const generation = moduleGraphGeneration
+  moduleGraphFetches.add(fetchKey)
+
+  for (const candidate of candidates) {
+    if (generation !== moduleGraphGeneration) return
+    const key = moduleGraphKey(candidate)
+    if (key.length === 0 || moduleGraphSources.has(key)) return
+    try {
+      const res = await fetch(`/source?sourceUrl=${encodeURIComponent(candidate)}&tokens=0&optional=1`)
+      if (generation !== moduleGraphGeneration) return
+      if (!res.ok) continue
+      const data = await res.json() as {url?: string; scriptSource?: string}
+      if (generation !== moduleGraphGeneration) return
+      if (typeof data.scriptSource !== "string") continue
+      rememberModuleGraphSource(data.url ?? candidate, data.scriptSource)
+      return
+    } catch {}
+  }
+}
+
+function moduleGraphKey(url: string): string {
+  return canonicalModulePath(url)
 }
 
 async function refreshBreakpoints(): Promise<void> {
@@ -889,25 +984,30 @@ function syncDebugModules(): void {
 }
 
 function collectDebugModules(): DebugModuleSnapshot[] {
-  const byModule = new Map<string, {scriptId: string; url: string; scriptUrl: string}>()
+  const byModule = new Map<string, DebugModuleCandidate>()
 
   for (const [scriptId, scriptUrl] of scriptUrls) {
     const sources = scriptSources.get(scriptId) ?? []
     if (sources.length === 0) {
-      addDebugModule(byModule, scriptId, scriptUrl, scriptUrl, false)
+      addDebugModule(byModule, scriptId, scriptUrl, scriptUrl, false, "parsed")
     } else {
-      for (const source of sources) addDebugModule(byModule, scriptId, source, scriptUrl, false)
+      for (const source of sources) addDebugModule(byModule, scriptId, source, scriptUrl, false, "parsed")
     }
   }
 
   for (const frame of currentDump?.frames ?? []) {
     if (frame.scriptId === undefined || frame.scriptId.length === 0) continue
     const scriptUrl = scriptUrls.get(frame.scriptId) ?? frame.url
-    addDebugModule(byModule, frame.scriptId, frame.url || scriptUrl, scriptUrl, true)
+    addDebugModule(byModule, frame.scriptId, frame.url || scriptUrl, scriptUrl, true, "active")
   }
 
+  for (const pending of pendingDebugModules.values()) {
+    addDebugModule(byModule, "", pending.url, "", false, "pending")
+  }
+
+  const candidates = mergeDebugModuleCandidates([...byModule.values()])
   const unique = new Map<string, DebugModuleSnapshot>()
-  for (const candidate of byModule.values()) {
+  for (const candidate of candidates) {
     if (!isProjectDebugModule(candidate.url) && !isProjectDebugModule(candidate.scriptUrl)) continue
     const module: DebugModuleSnapshot = {
       ...candidate,
@@ -920,21 +1020,58 @@ function collectDebugModules(): DebugModuleSnapshot[] {
   return [...unique.values()].sort((a, b) => moduleSortName(a.url).localeCompare(moduleSortName(b.url)))
 }
 
+function mergeDebugModuleCandidates(candidates: DebugModuleCandidate[]): DebugModuleCandidate[] {
+  const merged: DebugModuleCandidate[] = []
+  for (const candidate of candidates) {
+    const existingIndex = merged.findIndex((current) => sameDebugModule(current, candidate))
+    if (existingIndex < 0) {
+      merged.push(candidate)
+      continue
+    }
+    merged[existingIndex] = preferredDebugModule(merged[existingIndex]!, candidate)
+  }
+  return merged
+}
+
+function sameDebugModule(a: {url: string; scriptUrl: string}, b: {url: string; scriptUrl: string}): boolean {
+  return sameModulePath(a.url, b.url)
+    || sameModulePath(a.url, b.scriptUrl)
+    || sameModulePath(a.scriptUrl, b.url)
+    || sameModulePath(a.scriptUrl, b.scriptUrl)
+}
+
+function preferredDebugModule<T extends {url: string; scriptUrl: string}>(a: T, b: T): T {
+  if (debugModuleScore(b) > debugModuleScore(a)) return b
+  return a
+}
+
+function debugModuleScore(candidate: {url: string; scriptUrl: string; status?: DebugModuleSnapshot["status"]}): number {
+  let score = 0
+  if (candidate.status === "active") score += 100
+  else if (candidate.status === "parsed") score += 60
+  if (!sameModulePath(candidate.url, candidate.scriptUrl)) score += 20
+  if (!isAbsoluteModulePath(candidate.url)) score += 8
+  score -= Math.max(0, modulePathParts(candidate.url).length - 2)
+  return score
+}
+
 function addDebugModule(
-  modules: Map<string, {scriptId: string; url: string; scriptUrl: string}>,
+  modules: Map<string, DebugModuleCandidate>,
   scriptId: string,
   url: string,
   scriptUrl: string,
   preferDisplayUrl: boolean,
+  status: DebugModuleSnapshot["status"],
 ): void {
   const key = `${scriptId}\0${moduleIdentity(url, scriptUrl)}`
   const existing = modules.get(key)
   if (existing === undefined) {
-    modules.set(key, {scriptId, url, scriptUrl})
+    modules.set(key, {scriptId, url, scriptUrl, status})
     return
   }
   if (preferDisplayUrl && url.length > 0) existing.url = url
   if (existing.scriptUrl.length === 0 && scriptUrl.length > 0) existing.scriptUrl = scriptUrl
+  if (debugModuleScore({...existing, status}) > debugModuleScore(existing)) existing.status = status
 }
 
 function breakpointCountForModule(url: string, scriptUrl: string): number {
@@ -964,7 +1101,38 @@ function breakpointSpecMatchesModule(spec: BreakpointSpec, url: string, scriptUr
 }
 
 function moduleIdentity(url: string, scriptUrl: string): string {
-  return normalizeModuleUrl(url || scriptUrl)
+  return canonicalModulePath(url || scriptUrl) || normalizeModuleUrl(url || scriptUrl)
+}
+
+function sameModulePath(a: string, b: string): boolean {
+  const aParts = modulePathParts(a)
+  const bParts = modulePathParts(b)
+  if (aParts.length === 0 || bParts.length === 0) return false
+  if (aParts.join("/") === bParts.join("/")) return true
+  const shorter = aParts.length <= bParts.length ? aParts : bParts
+  const longer = aParts.length <= bParts.length ? bParts : aParts
+  if (shorter.length < 2) return false
+  return pathEndsWith(longer, shorter)
+}
+
+function pathEndsWith(parts: string[], suffix: string[]): boolean {
+  if (suffix.length > parts.length) return false
+  const offset = parts.length - suffix.length
+  for (let i = 0; i < suffix.length; i++) {
+    if (parts[offset + i] !== suffix[i]) return false
+  }
+  return true
+}
+
+function modulePathParts(url: string): string[] {
+  return canonicalModulePath(url)
+    .split("/")
+    .filter((part) => part.length > 0 && part !== "." && part !== "..")
+}
+
+function isAbsoluteModulePath(url: string): boolean {
+  const clean = normalizeModuleUrl(url)
+  return clean.startsWith("/") || /^[A-Za-z]:\//.test(clean)
 }
 
 function moduleSortName(url: string): string {
@@ -989,7 +1157,7 @@ function isProjectDebugModule(url: string): boolean {
   ) {
     return false
   }
-  return /\.(?:[cm]?[jt]sx?|json)$/i.test(clean)
+  return /\.(?:[cm]?[jt]sx?|json|ya?ml)$/i.test(clean)
 }
 
 function normalizeModuleUrl(url: string): string {
@@ -1163,6 +1331,7 @@ async function renderSourceForScript(input: {
   }
 
   const sourceUrl = cached.sourceUrl ?? input.sourceUrl
+  rememberModuleGraphSource(sourceUrl, cached.text)
   const nextSourceLocation = sourceLocation(sourceUrl, input.scriptId, input.line)
   activeSource = {
     scriptId: input.scriptId,

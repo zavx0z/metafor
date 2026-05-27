@@ -266,7 +266,11 @@ function matchesBreakpointSource(spec: BreakpointSpec, script: BreakpointScript)
 
 function sameScriptUrl(expected: string, actual: string): boolean {
   const expectedVariants = new Set(scriptUrlVariants(expected))
-  return scriptUrlVariants(actual).some((variant) => expectedVariants.has(variant))
+  if (scriptUrlVariants(actual).some((variant) => expectedVariants.has(variant))) return true
+
+  const expectedPaths = scriptUrlVariants(expected).map(scriptPathParts).filter((parts) => parts.length > 0)
+  const actualPaths = scriptUrlVariants(actual).map(scriptPathParts).filter((parts) => parts.length > 0)
+  return expectedPaths.some((expectedPath) => actualPaths.some((actualPath) => samePathSuffix(expectedPath, actualPath)))
 }
 
 function scriptUrlVariants(input: string): string[] {
@@ -286,6 +290,30 @@ function scriptUrlVariants(input: string): string[] {
   }
 
   return [...variants]
+}
+
+function scriptPathParts(input: string): string[] {
+  let clean = input.trim().replaceAll("\\", "/").replace(/[?#].*$/, "")
+  try {
+    const url = new URL(clean)
+    if (url.protocol === "file:" || url.protocol === "http:" || url.protocol === "https:") {
+      clean = decodeURIComponent(url.pathname)
+    }
+  } catch {}
+  const parts = clean.split("/").filter((part) => part.length > 0 && part !== "." && part !== "..")
+  if (parts[0] === "r") parts.shift()
+  return parts
+}
+
+function samePathSuffix(a: string[], b: string[]): boolean {
+  const shorter = a.length <= b.length ? a : b
+  const longer = a.length <= b.length ? b : a
+  if (shorter.length < 2 || shorter.length > longer.length) return false
+  const offset = longer.length - shorter.length
+  for (let idx = 0; idx < shorter.length; idx++) {
+    if (shorter[idx] !== longer[offset + idx]) return false
+  }
+  return true
 }
 
 function breakpointIdFromResult(result: unknown): string | undefined {
