@@ -25,9 +25,9 @@ import {
   LineBasicMaterial,
 } from "../src"
 
-import { Matrix4 } from "../src/math/Matrix4"
-import { Vector3 } from "../src/math/Vector3"
-import { UIDisplay } from "../../../ui/elements/targets/UIDisplay.ts"
+import { Matrix4 } from "../src"
+import { Vector3 } from "../src"
+import { UIDisplay } from "@metafor/elements"
 
 document.addEventListener("DOMContentLoaded", async () => {
   const renderer = new Renderer()
@@ -274,13 +274,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     new Vector3(-0.1, 0, 0),
     new Vector3(0.1, 0, 0),
   ]
-  const torusWiggliParams = {
+  const torusWiggleParams = {
     amplitude: 0.02,
     speedX: 2.8,
     speedY: 3.3,
     speedZ: 2.1,
   }
-  const spheresWiggliParams = [
+  const spheresWiggleParams = [
     { amplitude: 0.015, speedX: 3.5, speedY: 4.2, speedZ: 2.8 },
     { amplitude: 0.018, speedX: 4.1, speedY: 3.7, speedZ: 2.4 },
   ]
@@ -306,7 +306,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const intersects = raycaster.intersectObject(spheresInsideTorus)
     if (intersects.length > 0) {
-      const hit = intersects[0]
+      const hit = intersects[0]!
       if (hit.instanceId !== undefined) {
         spheresInsideTorus.setGlowColorAt(hit.instanceId, new Color(1, 1, 1, 1))
         spheresInsideTorus.setGlowIntensityAt(hit.instanceId, 3.0)
@@ -315,9 +315,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (mixer) mixer.update(delta)
 
-    const torusOffsetX = Math.sin(time * torusWiggliParams.speedX + torusPhase) * torusWiggliParams.amplitude
-    const torusOffsetY = Math.cos(time * torusWiggliParams.speedY + torusPhase * 1.1) * torusWiggliParams.amplitude
-    const torusOffsetZ = Math.sin(time * torusWiggliParams.speedZ + torusPhase * 0.6) * torusWiggliParams.amplitude * 0.5
+    const torusOffsetX = Math.sin(time * torusWiggleParams.speedX + torusPhase) * torusWiggleParams.amplitude
+    const torusOffsetY = Math.cos(time * torusWiggleParams.speedY + torusPhase * 1.1) * torusWiggleParams.amplitude
+    const torusOffsetZ = Math.sin(time * torusWiggleParams.speedZ + torusPhase * 0.6) * torusWiggleParams.amplitude * 0.5
     torus.position.set(
       torusOriginalPos.x + torusOffsetX,
       torusOriginalPos.y + torusOffsetY,
@@ -325,13 +325,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     )
 
     for (let i = 0; i < 2; i++) {
-      const sphereOffsetX = Math.sin(time * spheresWiggliParams[i].speedX + spherePhases[i]) * spheresWiggliParams[i].amplitude
-      const sphereOffsetY = Math.cos(time * spheresWiggliParams[i].speedY + spherePhases[i] * 1.3) * spheresWiggliParams[i].amplitude
-      const sphereOffsetZ = Math.sin(time * spheresWiggliParams[i].speedZ + spherePhases[i] * 0.7) * spheresWiggliParams[i].amplitude * 0.7
+      const spheresWiggleParam = spheresWiggleParams[i]!
+      const spherePhase = spherePhases[i]!
+      const sphereRelativePosition = sphereRelativePositions[i]!
+      const sphereOffsetX = Math.sin(time * spheresWiggleParam.speedX + spherePhase) * spheresWiggleParam.amplitude
+      const sphereOffsetY = Math.cos(time * spheresWiggleParam.speedY + spherePhase * 1.3) * spheresWiggleParam.amplitude
+      const sphereOffsetZ = Math.sin(time * spheresWiggleParam.speedZ + spherePhase * 0.7) * spheresWiggleParam.amplitude * 0.7
       const newPos = new Vector3(
-        sphereRelativePositions[i].x + sphereOffsetX,
-        sphereRelativePositions[i].y + sphereOffsetY,
-        sphereRelativePositions[i].z + sphereOffsetZ,
+        sphereRelativePosition.x + sphereOffsetX,
+        sphereRelativePosition.y + sphereOffsetY,
+        sphereRelativePosition.z + sphereOffsetZ,
       )
 
       tempMatrix.identity()
