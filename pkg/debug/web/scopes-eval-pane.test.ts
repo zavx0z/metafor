@@ -22,8 +22,10 @@ test("scope detail formatter preserves function source newlines", () => {
     isOwn: true,
   })
 
-  expect(code).toContain("const MetaFor = function MetaFor(name) {\n  return name\n}")
-  expect(code).toContain("objectId: {\n    injectedScriptId: 1,\n    id: 27\n  }")
+  expect(code).toContain("MetaFor: ƒ MetaFor(name)")
+  expect(code).toContain("[[FunctionSource]]\n    function MetaFor(name) {\n      return name\n    }")
+  expect(code).toContain("objectId: {\n      injectedScriptId: 1,\n      id: 27\n    }")
+  expect(code).not.toContain("const MetaFor")
   expect(code).not.toContain("\\n")
   expect(code).not.toContain("\\\"")
 })
@@ -34,6 +36,28 @@ test("scope detail formatter renders multiline string values as multiline litera
     value: "first\\nsecond",
   })
 
-  expect(code).toContain("const message = `first\nsecond`")
+  expect(code).toContain("message: `first\nsecond`")
   expect(code).not.toContain("\\n")
+})
+
+test("scope detail formatter renders remote object preview like an inspector", () => {
+  const code = formatScopeDetailCode("event", {
+    type: "object",
+    className: "MessageEvent",
+    description: "MessageEvent",
+    preview: {
+      type: "object",
+      description: "MessageEvent",
+      properties: [
+        {name: "data", type: "undefined", value: "undefined"},
+        {name: "type", type: "string", value: "message"},
+      ],
+    },
+    objectId: "{\"injectedScriptId\":1,\"id\":12}",
+  })
+
+  expect(code).toContain("event: MessageEvent")
+  expect(code).toContain("[[Preview]]\n    data: undefined\n    type: \"message\"")
+  expect(code).toContain("[[Remote]]")
+  expect(code).not.toContain("const event")
 })

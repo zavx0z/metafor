@@ -412,12 +412,32 @@ function detailCode(detail: ScopeDetail): string {
 }
 
 export function formatScopeDetailCode(rawName: string, prop: PropertySnapshot): string {
-  const name = safeIdentifier(rawName)
-  return [
-    `const ${name} = ${primaryValueSource(prop)}`,
-    "",
-    `const ${name}Snapshot = ${stringifyFullData(prop)}`,
-  ].join("\n")
+  const lines = [`${rawName}: ${debuggerValuePreview(prop)}`]
+  const preview = previewPropertyLines(prop.preview)
+  if (preview.length > 0) {
+    lines.push("  [[Preview]]")
+    for (const line of preview) lines.push(`    ${line}`)
+  }
+
+  const descriptor = descriptorLines(prop)
+  if (descriptor.length > 0) {
+    lines.push("  [[Descriptor]]")
+    for (const line of descriptor) lines.push(`    ${line}`)
+  }
+
+  const remote = remoteLines(prop)
+  if (remote.length > 0) {
+    lines.push("  [[Remote]]")
+    for (const line of remote) lines.push(`    ${line}`)
+  }
+
+  const source = functionSource(prop)
+  if (source !== null) {
+    lines.push("  [[FunctionSource]]")
+    for (const line of source.split("\n")) lines.push(`    ${line}`)
+  }
+
+  return lines.join("\n")
 }
 
 function fullValue(prop: PropertySnapshot): unknown {
@@ -428,9 +448,9 @@ function fullValue(prop: PropertySnapshot): unknown {
   return undefined
 }
 
-function stringifyFullData(value: unknown): string {
+function stringifyFullData(value: unknown, depth = 0): string {
   const seen = new WeakSet<object>()
-  return stringifyTsValue(value, 0, seen)
+  return stringifyTsValue(value, depth, seen)
 }
 
 function stringifyTsValue(value: unknown, depth: number, seen: WeakSet<object>): string {
@@ -461,24 +481,140 @@ function stringifyTsValue(value: unknown, depth: number, seen: WeakSet<object>):
   return `{\n${body.join(",\n")}\n${pad}}`
 }
 
-function safeIdentifier(name: string): string {
-  const clean = name.replace(/[^\w$]/g, "_")
-  if (/^[A-Za-z_$][\w$]*$/.test(clean)) return clean
-  return "scopeValue"
-}
-
 function objectKey(name: string): string {
   if (/^[A-Za-z_$][\w$]*$/.test(name)) return name
   return JSON.stringify(name)
 }
 
-function primaryValueSource(prop: PropertySnapshot): string {
+function debuggerValuePreview(prop: PropertySnapshot): string {
   const value = fullValue(prop)
   if (prop.type === "function" && typeof value === "string") {
     const source = normalizeInspectorString(value).trim()
-    if (source.length > 0) return source
+    if (source.length > 0) return functionPreview(source)
   }
-  return stringifyFullData(value)
+  if (prop.type === "string" && typeof value === "string") {
+    return stringifyStringValue(value, 0, new WeakSet<object>())
+  }
+  if (prop.value !== undefined) return stringifyFullData(prop.value)
+  if (prop.description !== undefined) {
+    const normalized = normalizeInspectorString(prop.description).trim()
+    const parsed = parseEmbeddedJson(normalized)
+    if (parsed !== undefined) return stringifyFullData(parsed)
+    return firstPreviewLine(normalized)
+  }
+  if (prop.className !== undefined) return prop.className
+  if (prop.type !== undefined) return prop.type
+  return "undefined"
+}
+
+function functionPreview(source: string): string {
+  const first = firstPreviewLine(source)
+  const decl = first.match(/^(async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/)
+  if (decl !== null) {
+    const asyncPrefix = decl[1] === undefined ? "" : "async "
+    const name = decl[2] === undefined ? "" : decl[2]
+    return `${asyncPrefix}ƒ ${name}(${trimArgs(decl[3] ?? "")})`
+  }
+  const arrow = first.match(/^(async\s+)?(?:\(([^)]*)\)|([A-Za-z_$][\w$]*))\s*=>/)
+  if (arrow !== null) {
+    const asyncPrefix = arrow[1] === undefined ? "" : "async "
+    const args = arrow[2] ?? arrow[3] ?? ""
+    return `${asyncPrefix}ƒ (${trimArgs(args)})`
+  }
+  const method = first.match(/^(async\s+)?([A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*\{/)
+  if (method !== null) {
+    const asyncPrefix = method[1] === undefined ? "" : "async "
+    return `${asyncPrefix}ƒ ${method[2] ?? ""}(${trimArgs(method[3] ?? "")})`
+  }
+  return first.startsWith("ƒ ") ? first : `ƒ ${first}`
+}
+
+function trimArgs(value: string): string {
+  return value.replace(/\s+/g, " ").trim()
+}
+
+function firstPreviewLine(value: string): string {
+  return formatPreviewText(value.split("\n")[0] ?? "")
+}
+
+function previewPropertyLines(preview: unknown): string[] {
+  const root = asRecord(preview)
+  if (root === null) return []
+  const properties = Array.isArray(root["properties"]) ? root["properties"] : []
+  const out: string[] = []
+  for (const item of properties) {
+    const prop = asRecord(item)
+    if (prop === null) continue
+    const name = typeof prop["name"] === "string" ? prop["name"] : undefined
+    if (name === undefined) continue
+    out.push(`${objectKey(name)}: ${previewPropertyValue(prop)}`)
+  }
+  if (root["overflow"] === true) out.push("…")
+  return out
+}
+
+function previewPropertyValue(prop: Record<string, unknown>): string {
+  const type = typeof prop["type"] === "string" ? prop["type"] : undefined
+  const value = typeof prop["value"] === "string" ? prop["value"] : undefined
+  const subtype = typeof prop["subtype"] === "string" ? prop["subtype"] : undefined
+  if (type === "string") return JSON.stringify(value ?? "")
+  if (type === "undefined") return "undefined"
+  if (type === "number" || type === "boolean" || type === "bigint") return value ?? type
+  if (type === "function" && value !== undefined) return functionPreview(normalizeInspectorString(value))
+  if (subtype === "null") return "null"
+  const nested = asRecord(prop["valuePreview"])
+  if (nested !== null) return previewDescription(nested)
+  return value ?? subtype ?? type ?? "unknown"
+}
+
+function previewDescription(preview: Record<string, unknown>): string {
+  const description = typeof preview["description"] === "string" ? preview["description"] : undefined
+  if (description !== undefined) return firstPreviewLine(normalizeInspectorString(description))
+  const type = typeof preview["type"] === "string" ? preview["type"] : undefined
+  return type ?? "Object"
+}
+
+function descriptorLines(prop: PropertySnapshot): string[] {
+  const items: Array<[string, unknown]> = [
+    ["enumerable", prop.enumerable],
+    ["configurable", prop.configurable],
+    ["writable", prop.writable],
+    ["isOwn", prop.isOwn],
+    ["wasThrown", prop.wasThrown],
+  ]
+  if (prop.get !== undefined) items.push(["get", debuggerValuePreview(prop.get)])
+  if (prop.set !== undefined) items.push(["set", debuggerValuePreview(prop.set)])
+  return items
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${key}: ${typeof value === "string" ? value : stringifyFullData(value, 2)}`)
+}
+
+function remoteLines(prop: PropertySnapshot): string[] {
+  const items: Array<[string, unknown]> = [
+    ["type", prop.type],
+    ["subtype", prop.subtype],
+    ["className", prop.className],
+    ["objectId", prop.objectId],
+    ["unserializableValue", prop.unserializableValue],
+  ]
+  return items
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${key}: ${stringifyFullData(value, 2)}`)
+}
+
+function functionSource(prop: PropertySnapshot): string | null {
+  if (prop.type !== "function") return null
+  const value = fullValue(prop)
+  if (typeof value !== "string") return null
+  const source = normalizeInspectorString(value).trim()
+  if (source.length === 0) return null
+  if (!source.includes("\n") && source.length <= 120) return null
+  return source
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null
+  return value as Record<string, unknown>
 }
 
 function stringifyStringValue(value: string, depth: number, seen: WeakSet<object>): string {
