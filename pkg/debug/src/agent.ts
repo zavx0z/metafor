@@ -262,14 +262,13 @@ class AgentRuntime {
     await this.#requestSetup("Debugger.setPauseOnDebuggerStatements", {enabled: true})
     await this.#requestSetup("Debugger.setPauseOnExceptions", {state: "none"})
 
-    // Pre-set breakpoints from POST /target/run. Регистрируем spec'и в store,
-    // но НЕ объявляем их через setBreakpointByUrl заранее: в Bun 1.3.13 такой
-    // logical bp резолвится (breakpointResolved), но часто не даёт paused.
-    // Рабочая точка входа — Debugger.scriptParsed: там уже есть scriptId, и
-    // store ставит конкретный breakpoint через Debugger.setBreakpoint.
+    // Pre-set breakpoints from POST /target/run. Сначала армируем logical
+    // breakpoint by URL, чтобы поймать верх модуля до scriptParsed handler'а;
+    // после scriptParsed store дополнительно ставит конкретный scriptId bp.
     const pendingBps = this.#target?.consumePendingBreakpoints() ?? []
     if (pendingBps.length > 0) {
       const registrations = this.#breakpoints.addMany(pendingBps)
+      await this.#breakpoints.armPendingByUrl(registrations.map((registration) => registration.id))
       this.#logger.event("breakpoint.pending.registered", {count: registrations.length, registrations})
     }
 

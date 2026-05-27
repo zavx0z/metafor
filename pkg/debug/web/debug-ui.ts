@@ -26,6 +26,7 @@ export type ToolbarState = {
   verbose: boolean
   engine: string
   welcomeVisible: boolean
+  canShowExecutionPoint: boolean
 }
 
 export type ToolbarActions = {
@@ -33,6 +34,7 @@ export type ToolbarActions = {
   onResume(): void
   onRestartTarget(): void
   onStopTarget(): void
+  onShowExecutionPoint(): void
   onStep(kind: "over" | "into" | "out"): void
   onToggleDraft(): void
   onSaveDraft(): void
@@ -45,9 +47,17 @@ export type PropertySnapshot = {
   subtype?: string
   className?: string
   value?: unknown
+  unserializableValue?: string
   description?: string
   objectId?: string
   preview?: unknown
+  get?: PropertySnapshot
+  set?: PropertySnapshot
+  wasThrown?: boolean
+  enumerable?: boolean
+  configurable?: boolean
+  writable?: boolean
+  isOwn?: boolean
 }
 
 export type ScopeSnapshot = {
@@ -71,6 +81,16 @@ export type FrameSnapshot = {
     local: ScopeSnapshot[]
     closure: ScopeSnapshot[]
   }
+}
+
+export type DebugModuleSnapshot = {
+  scriptId: string
+  /** Source URL shown to the user; can be source-map original. */
+  url: string
+  /** Runtime script URL used for inspector breakpoint matching. */
+  scriptUrl: string
+  status: "pending" | "parsed" | "active"
+  breakpointCount: number
 }
 
 export type WelcomeState = {

@@ -13,8 +13,9 @@
  */
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
-import {existsSync, statSync, openSync, readSync, closeSync} from "node:fs"
-import {join} from "node:path"
+import {existsSync, statSync, openSync, readSync, closeSync, readFileSync} from "node:fs"
+import {join, resolve} from "node:path"
+import {fileURLToPath} from "node:url"
 import indexHtml from "../web/index.html"
 
 const WEB_DIR = join(import.meta.dir, "..", "web")
@@ -87,8 +88,8 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
   options.snapshots.onPause((dump) => broadcast({type: "state", dump}))
   options.snapshots.onResume(() => broadcast({type: "resumed"}))
-  options.snapshots.onScriptParsed((scriptId, url) => {
-    broadcast({type: "script", scriptId, url})
+  options.snapshots.onScriptParsed((script) => {
+    broadcast({type: "script", ...scriptView(script)})
   })
   options.consoleLogs.onEntry((entry) => {
     broadcast({
@@ -320,10 +321,10 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/resume", description: "Debugger.resume"},
     {method: "POST", path: "/inspector", description: "{url} — переподключиться к другому Bun-инспектору"},
     {method: "GET", path: "/target", description: "состояние target-процесса (если запущен через /target/run)"},
-    {method: "POST", path: "/target/run", description: "{command, cwd?, env?, pauseOnStart?, breakpoints?:[{url|urlRegex, line(1-based), column?, condition?}]}"},
+    {method: "POST", path: "/target/run", description: "{command, cwd?, env?, pauseOnStart?, breakpoints?:[{url|sourceUrl|urlRegex, line(1-based), column?, condition?}]}"},
     {method: "POST", path: "/target/stop", description: "{signal?} — SIGTERM (по умолчанию) → SIGKILL через 3с"},
     {method: "GET", path: "/breakpoints", description: "agent breakpoint registrations + installed Bun breakpointIds"},
-    {method: "POST", path: "/breakpoint", description: "{url|urlRegex, line, column?, condition?} — pending spec + Debugger.setBreakpoint by scriptId on scriptParsed"},
+    {method: "POST", path: "/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — pending spec + Debugger.setBreakpoint by scriptId on scriptParsed"},
     {method: "DELETE", path: "/breakpoint", description: "{id|breakpointId} — remove agent registration or concrete Bun breakpointId"},
   ]
 }
@@ -407,16 +408,38 @@ function lruGet<V>(cache: Map<string, V>, key: string): V | undefined {
 
 // Слим-проекция scripts для внешнего API: data-URL sourceMapURL может весить
 // сотни КБ на скрипт; UI и REST потребители знают только про hasSourceMap.
-function scriptsView(scripts: ReadonlyArray<import("./snapshot.ts").ScriptInfo>): Array<{
+function scriptsView(scripts: ReadonlyArray<import("./snapshot.ts").ScriptInfo>): ScriptView[] {
+  return scripts.map(scriptView)
+}
+
+type ScriptView = {
   scriptId: string
   url: string
   hasSourceMap: boolean
-}> {
-  return scripts.map((s) => ({
-    scriptId: s.scriptId,
-    url: s.url,
-    hasSourceMap: s.sourceMapURL !== undefined && s.sourceMapURL.length > 0,
-  }))
+  sources?: string[]
+}
+
+function scriptView(script: import("./snapshot.ts").ScriptInfo): ScriptView {
+  const sources = sourceMapSources(script.sourceMapURL)
+  const view: ScriptView = {
+    scriptId: script.scriptId,
+    url: script.url,
+    hasSourceMap: script.sourceMapURL !== undefined && script.sourceMapURL.length > 0,
+  }
+  if (sources.length > 0) view.sources = sources
+  return view
+}
+
+function sourceMapSources(sourceMapURL: string | undefined): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const source of sourceMapMapper(sourceMapURL).sources()) {
+    const clean = source.trim()
+    if (clean.length === 0 || seen.has(clean)) continue
+    seen.add(clean)
+    out.push(clean)
+  }
+  return out
 }
 
 function parseCommand(value: unknown): string[] | undefined {
@@ -490,8 +513,9 @@ async function setBreakpoint(req: Request, options: HttpServerOptions): Promise<
   if (!isPositiveInteger(line)) return jsonResponse({ok: false, error: "line must be a positive integer (1-based)"}, 400)
   const url = asString(body["url"])
   const urlRegex = asString(body["urlRegex"])
-  if (url === undefined && urlRegex === undefined) {
-    return jsonResponse({ok: false, error: "either url or urlRegex required"}, 400)
+  const sourceUrl = asString(body["sourceUrl"])
+  if (url === undefined && urlRegex === undefined && sourceUrl === undefined) {
+    return jsonResponse({ok: false, error: "url, sourceUrl or urlRegex required"}, 400)
   }
   const column = asNumber(body["column"])
   if (column !== undefined && !isNonNegativeInteger(column)) {
@@ -500,12 +524,14 @@ async function setBreakpoint(req: Request, options: HttpServerOptions): Promise<
   const condition = asString(body["condition"])
   const spec: import("./target.ts").BreakpointSpec = {line}
   if (url !== undefined) spec.url = url
+  if (sourceUrl !== undefined) spec.sourceUrl = sourceUrl
   if (urlRegex !== undefined) spec.urlRegex = urlRegex
   if (column !== undefined) spec.column = column
   if (condition !== undefined) spec.condition = condition
 
   try {
     const registration = options.breakpoints.add(spec)
+    await options.breakpoints.armPendingByUrl([registration.id])
     await options.breakpoints.applyToScripts(options.snapshots.scripts)
     return jsonResponse({ok: true, breakpoint: registration, breakpoints: options.breakpoints.registrations})
   } catch (error) {
@@ -551,11 +577,13 @@ function parseBreakpoints(value: unknown): {
     if (!isPositiveInteger(line)) return {error: `breakpoints[${index}].line must be a positive integer (1-based)`}
     const url = asString(obj["url"])
     const urlRegex = asString(obj["urlRegex"])
-    if (url === undefined && urlRegex === undefined) {
-      return {error: `breakpoints[${index}] must include url or urlRegex`}
+    const sourceUrl = asString(obj["sourceUrl"])
+    if (url === undefined && urlRegex === undefined && sourceUrl === undefined) {
+      return {error: `breakpoints[${index}] must include url, sourceUrl or urlRegex`}
     }
     const spec: import("./target.ts").BreakpointSpec = {line}
     if (url !== undefined) spec.url = url
+    if (sourceUrl !== undefined) spec.sourceUrl = sourceUrl
     if (urlRegex !== undefined) spec.urlRegex = urlRegex
     const column = asNumber(obj["column"])
     if (column !== undefined && !isNonNegativeInteger(column)) {
@@ -626,9 +654,9 @@ async function reconnectInspector(req: Request, options: HttpServerOptions): Pro
 
 async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Response> {
   const scriptId = url.searchParams.get("scriptId") ?? ""
-  if (scriptId.length === 0) return jsonResponse({ok: false, error: "scriptId required"}, 400)
-
   const sourceUrl = url.searchParams.get("sourceUrl") ?? undefined
+  if (scriptId.length === 0) return getSourceFile(sourceUrl, url)
+
   const sourceKind = url.searchParams.get("sourceKind")
   const script = options.snapshots.scriptInfo(scriptId)
   const fileUrl = script?.url
@@ -675,6 +703,73 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
     })
   } catch (error) {
     return jsonResponse({ok: false, scriptId, error: serializeError(error)}, 500)
+  }
+}
+
+function getSourceFile(sourceUrl: string | undefined, url: URL): Response {
+  const optional = url.searchParams.get("optional") === "1"
+  if (sourceUrl === undefined || sourceUrl.trim().length === 0) {
+    return jsonResponse({ok: false, error: "scriptId or sourceUrl required"}, optional ? 200 : 400)
+  }
+
+  const path = sourceFilePath(sourceUrl)
+  if (path === undefined) {
+    return jsonResponse({ok: false, scriptId: "", url: sourceUrl, error: "sourceUrl is not a local file path"}, optional ? 200 : 400)
+  }
+
+  try {
+    const scriptSource = readFileSync(path, "utf8")
+    const includeTokens = url.searchParams.get("tokens") !== "0"
+    const cacheKey = sourceCacheKey("", `file\0${path}`)
+    lruSet(sourceCache, cacheKey, scriptSource, SOURCE_CACHE_MAX)
+    return jsonResponse({
+      scriptId: "",
+      url: sourceUrl,
+      scriptSource,
+      tokens: includeTokens ? tokensFor(cacheKey, scriptSource, sourceUrl) : undefined,
+      sourceKind: "file",
+      cached: false,
+    })
+  } catch (error) {
+    return jsonResponse({ok: false, scriptId: "", url: sourceUrl, error: serializeError(error)}, optional ? 200 : 404)
+  }
+}
+
+function sourceFilePath(sourceUrl: string): string | undefined {
+  const clean = sourceUrl.trim().replaceAll("\\", "/").replace(/[?#].*$/, "")
+  if (clean.startsWith("file:")) {
+    try {
+      return existingSourcePath(fileURLToPath(clean)) ?? fileURLToPath(clean)
+    } catch {
+      return undefined
+    }
+  }
+  if (/^[A-Za-z]:\//.test(clean) || clean.startsWith("/")) return existingSourcePath(clean) ?? clean
+
+  const stripped = clean.replace(/^(?:\.\.\/)+/, "").replace(/^\.\//, "")
+  return existingSourcePath(stripped) ?? resolve(process.cwd(), stripped)
+}
+
+function existingSourcePath(path: string): string | undefined {
+  const normalized = path.replaceAll("\\", "/")
+  const direct = /^[A-Za-z]:\//.test(normalized) || normalized.startsWith("/")
+    ? normalized
+    : resolve(process.cwd(), normalized)
+  if (isReadableFile(direct)) return direct
+
+  const parts = normalized.split("/").filter((part) => part.length > 0 && part !== "." && part !== "..")
+  for (let offset = 1; offset < parts.length; offset++) {
+    const suffix = resolve(process.cwd(), parts.slice(offset).join("/"))
+    if (isReadableFile(suffix)) return suffix
+  }
+  return undefined
+}
+
+function isReadableFile(path: string): boolean {
+  try {
+    return existsSync(path) && statSync(path).isFile()
+  } catch {
+    return false
   }
 }
 
