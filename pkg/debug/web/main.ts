@@ -24,6 +24,12 @@ import {
 } from "./debug-ui.ts"
 import {getUiLocale, t, toggleUiLocale} from "./i18n.ts"
 import {canonicalModulePath, localImportsForSource} from "./module-graph.ts"
+import {
+  breakpointRegistrationMatchesSource,
+  breakpointSpecMatchesModule,
+  breakpointSpecMatchesSource,
+  sameSourceUrl,
+} from "./breakpoint-matching.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -728,8 +734,17 @@ async function toggleActiveSourceBreakpoint(line: number): Promise<void> {
 
   const sourceLine = Math.max(1, Math.floor(line))
   const existing = breakpointRegistrationForActiveLine(sourceLine)
+  const stored = existing === undefined ? storedBreakpointSpecForActiveLine(sourceLine) : undefined
   pendingBreakpointLines.add(sourceLine)
   syncSourceBreakpointMarkers()
+
+  if (stored !== undefined) {
+    removeStoredBreakpointSpec(stored)
+    pendingBreakpointLines.delete(sourceLine)
+    syncSourceBreakpointMarkers()
+    syncDebugModules()
+    return
+  }
 
   const nextSpec = existing === undefined ? breakpointSpecForSource(source, sourceLine) : null
   if (existing === undefined && nextSpec === null) {
@@ -892,7 +907,19 @@ function breakpointSpecKey(spec: BreakpointSpec): string {
 }
 
 function breakpointRegistrationForActiveLine(line: number): BreakpointRegistration | undefined {
-  return breakpointRegistrations.find((registration) => registration.spec.line === line && breakpointMatchesActiveSource(registration))
+  const source = activeSource
+  if (source === null) return undefined
+  return breakpointRegistrations.find((registration) => (
+    registration.spec.line === line && breakpointRegistrationMatchesSource(registration, source)
+  ))
+}
+
+function storedBreakpointSpecForActiveLine(line: number): BreakpointSpec | undefined {
+  const source = activeSource
+  if (source === null) return undefined
+  return readStoredBreakpointSpecs().find((spec) => (
+    spec.line === line && breakpointSpecMatchesSource(spec, source)
+  ))
 }
 
 function syncSourceBreakpointMarkers(): void {
@@ -906,14 +933,29 @@ function syncSourceBreakpointMarkers(): void {
   const hitBreakpointIds = new Set(currentDump?.hitBreakpoints ?? [])
   const byLine = new Map<number, EditorBreakpoint>()
   for (const registration of breakpointRegistrations) {
-    if (!breakpointMatchesActiveSource(registration)) continue
-    const verified = registration.installed.some((installed) => installed.scriptId === source.scriptId || sameSourceUrl(installed.url, source.scriptUrl))
+    if (!breakpointRegistrationMatchesSource(registration, source)) continue
+    const verified = registration.installed.some((installed) => (
+      (source.scriptId.length > 0 && installed.scriptId === source.scriptId)
+      || sameSourceUrl(installed.url, source.scriptUrl)
+      || sameSourceUrl(installed.url, source.sourceUrl)
+      || sameSourceUrl(installed.url, source.key)
+    ))
     const hit = registration.installed.some((installed) => hitBreakpointIds.has(installed.breakpointId))
     byLine.set(registration.spec.line, {
       line: registration.spec.line,
       verified,
       pending: !verified,
       hit,
+    })
+  }
+
+  for (const spec of readStoredBreakpointSpecs()) {
+    if (!breakpointSpecMatchesSource(spec, source) || byLine.has(spec.line)) continue
+    byLine.set(spec.line, {
+      line: spec.line,
+      verified: false,
+      pending: true,
+      hit: false,
     })
   }
 
@@ -928,55 +970,6 @@ function syncSourceBreakpointMarkers(): void {
   }
 
   sourcePane.setBreakpoints([...byLine.values()].sort((a, b) => a.line - b.line))
-}
-
-function breakpointMatchesActiveSource(registration: BreakpointRegistration): boolean {
-  const source = activeSource
-  if (source === null) return false
-
-  const spec = registration.spec
-  if (spec.sourceUrl !== undefined) {
-    return sameSourceUrl(spec.sourceUrl, source.sourceUrl)
-      || sameSourceUrl(spec.sourceUrl, source.key)
-      || sameSourceUrl(spec.sourceUrl, source.scriptUrl)
-  }
-  if (registration.installed.some((installed) => installed.scriptId === source.scriptId || sameSourceUrl(installed.url, source.scriptUrl))) return true
-
-  if (spec.url !== undefined) {
-    return sameSourceUrl(spec.url, source.scriptUrl)
-      || sameSourceUrl(spec.url, source.sourceUrl)
-      || sameSourceUrl(spec.url, source.key)
-  }
-  if (spec.urlRegex !== undefined) {
-    try {
-      const regex = new RegExp(spec.urlRegex)
-      return [source.scriptUrl, source.sourceUrl, source.key].some((value) => regex.test(value))
-    } catch {
-      return false
-    }
-  }
-  return false
-}
-
-function sameSourceUrl(a: string, b: string): boolean {
-  const bVariants = new Set(sourceUrlVariants(b))
-  return sourceUrlVariants(a).some((value) => bVariants.has(value))
-}
-
-function sourceUrlVariants(value: string): string[] {
-  const variants = new Set<string>()
-  const add = (next: string): void => {
-    if (next.length === 0) return
-    variants.add(next)
-    variants.add(next.replaceAll("\\", "/"))
-  }
-
-  add(value)
-  try {
-    const url = new URL(value)
-    if (url.protocol === "file:") add(decodeURIComponent(url.pathname))
-  } catch {}
-  return [...variants]
 }
 
 function syncDebugModules(): void {
@@ -1080,24 +1073,6 @@ function breakpointCountForModule(url: string, scriptUrl: string): number {
     ...breakpointRegistrations.map((registration) => registration.spec),
   ])
   return specs.filter((spec) => breakpointSpecMatchesModule(spec, url, scriptUrl)).length
-}
-
-function breakpointSpecMatchesModule(spec: BreakpointSpec, url: string, scriptUrl: string): boolean {
-  if (spec.sourceUrl !== undefined) {
-    return sameSourceUrl(spec.sourceUrl, url) || sameSourceUrl(spec.sourceUrl, scriptUrl)
-  }
-  if (spec.url !== undefined) {
-    return sameSourceUrl(spec.url, url) || sameSourceUrl(spec.url, scriptUrl)
-  }
-  if (spec.urlRegex !== undefined) {
-    try {
-      const regex = new RegExp(spec.urlRegex)
-      return [...sourceUrlVariants(url), ...sourceUrlVariants(scriptUrl)].some((variant) => regex.test(variant))
-    } catch {
-      return false
-    }
-  }
-  return false
 }
 
 function moduleIdentity(url: string, scriptUrl: string): string {

@@ -531,6 +531,7 @@ async function setBreakpoint(req: Request, options: HttpServerOptions): Promise<
 
   try {
     const registration = options.breakpoints.add(spec)
+    await options.breakpoints.armPendingByUrl([registration.id])
     await options.breakpoints.applyToScripts(options.snapshots.scripts)
     return jsonResponse({ok: true, breakpoint: registration, breakpoints: options.breakpoints.registrations})
   } catch (error) {
