@@ -8,13 +8,18 @@
 
 import {TextMaterial} from "@metafor/engine"
 import {
-  UiSurface, div, palette, radii, uiIcons,
+  UiSurface, Z, div, palette, radii, uiIcons,
 } from "@metafor/elements"
 import {
   Button as button,
   TextField as input,
   Divider as divider,
+  createEditorTokenMaterials,
   createTextFieldState,
+  renderEditorTokenizedLine,
+  resolveLanguageHighlighter,
+  type EditorTokenMaterialMap,
+  type EditorTokens,
   type TextFieldEditState,
 } from "@metafor/components"
 import type {FrameSnapshot, PropertySnapshot, ScopeSnapshot} from "./debug-ui.ts"
@@ -29,16 +34,28 @@ const SCOPE_LIST_TOP = 44
 const SCOPE_ROW_H = 17
 const EVAL_HEIGHT = 124
 const SCROLLBAR_W = 4
+const DETAIL_LINE_H = 15
+const DETAIL_FONT = 10
+const DETAIL_BG_Z = Z.ELEMENT + 0.34
+const DETAIL_TEXT_Z = Z.TEXT + 0.34
 
 type ScopeRow =
   | {kind: "group"; label: string}
-  | {kind: "prop"; name: string; value: string; material: TextMaterial}
+  | {kind: "prop"; id: string; name: string; value: string; material: TextMaterial; prop: PropertySnapshot}
+
+type ScopeDetail = {
+  id: string
+  name: string
+  prop: PropertySnapshot
+}
 
 export class ScopesEvalPane extends UiSurface {
   #frame: FrameSnapshot | null = null
   #expr: TextFieldEditState = createTextFieldState(localStorage.getItem("bd:eval:expr") ?? "data.patches[0].path")
   #output = ""
   #editing = false
+  #detail: ScopeDetail | null = null
+  readonly #tokenMaterials: EditorTokenMaterialMap = createEditorTokenMaterials()
   readonly #onEval: (expr: string, frame: number) => void
 
   constructor(onEval: (expr: string, frame: number) => void) {
@@ -48,6 +65,7 @@ export class ScopesEvalPane extends UiSurface {
 
   setFrame(frame: FrameSnapshot | null): void {
     this.#frame = frame
+    this.#detail = null
     this.requestRender()
   }
 
@@ -110,29 +128,8 @@ export class ScopesEvalPane extends UiSurface {
             const row = rows[idx]
             if (row === undefined) continue
             const rowY = SCOPE_LIST_TOP + idx * SCOPE_ROW_H - ctx.scrollTop
-          if (row.kind === "group") {
-            this.drawText(row.label, PAD_X + 4, rowY, {
-              fontPx: 11,
-              material: this.materials.orange,
-              maxWidthPx: contentMaxX - (PAD_X + 4),
-            })
-          } else {
-            const nameMaxW = Math.floor((contentMaxX - PAD_X) * 0.42)
-            const valueX = PAD_X + 4 + nameMaxW + 8
-            const valueMaxW = contentMaxX - valueX
-            this.drawText(row.name, PAD_X + 8, rowY, {
-              fontPx: 11,
-              material: this.materials.cyan,
-              maxWidthPx: nameMaxW,
-            })
-            if (valueMaxW > 20) {
-              this.drawText(row.value, valueX, rowY, {
-                fontPx: 11,
-                material: row.material,
-                maxWidthPx: valueMaxW,
-              })
-            }
-          }
+            if (row.kind === "group") this.#drawGroupRow(row, rowY, contentMaxX)
+            else this.#drawPropRow(row, rowY, contentMaxX)
           }
         },
       })
@@ -177,6 +174,8 @@ export class ScopesEvalPane extends UiSurface {
       material: this.#output.length === 0 ? this.materials.muted : this.materials.text,
       maxWidthPx: this.rectW - PAD_X * 2,
     })
+
+    this.#drawDetailPopup()
   }
 
   #evalTop(): number {
@@ -211,7 +210,15 @@ export class ScopesEvalPane extends UiSurface {
           label: scope.name === undefined ? `${name} (${count})` : `${name} [${scope.name}] (${count})`,
         })
         for (const [propName, prop] of Object.entries(scope.properties)) {
-          out.push({kind: "prop", name: propName, value: formatValue(prop), material: this.#materialFor(prop)})
+          const scopeName = scope.name ?? name
+          out.push({
+            kind: "prop",
+            id: `${scopeName}\0${propName}`,
+            name: propName,
+            value: formatValue(prop),
+            material: this.#materialFor(prop),
+            prop,
+          })
         }
       }
     }
@@ -224,6 +231,158 @@ export class ScopesEvalPane extends UiSurface {
     if (prop.type === "function") return this.materials.violet
     if (prop.type === "object") return this.materials.blue
     return this.materials.text
+  }
+
+  #drawGroupRow(row: Extract<ScopeRow, {kind: "group"}>, rowY: number, contentMaxX: number): void {
+    this.drawText(row.label, PAD_X + 4, rowY, {
+      fontPx: 11,
+      material: this.materials.orange,
+      maxWidthPx: contentMaxX - (PAD_X + 4),
+    })
+  }
+
+  #drawPropRow(row: Extract<ScopeRow, {kind: "prop"}>, rowY: number, contentMaxX: number): void {
+    const rowX = PAD_X + 2
+    const rowW = contentMaxX - rowX
+    const active = this.#detail?.id === row.id
+    const hit = this.hitState(rowX, rowY - 1, rowW, SCOPE_ROW_H, `scope-prop:${row.id}`)
+    if (active || hit.hovered) {
+      this.drawRoundedRect(rowX, rowY - 2, rowW, SCOPE_ROW_H, {
+        radius: 5,
+        fill: active ? palette.activeRowFill : palette.bgHot,
+        border: active ? palette.border : null,
+        borderWidth: active ? 1 : 0,
+        opacity: active ? 0.72 : 0.42,
+        z: Z.ELEMENT - 0.01,
+      })
+    }
+
+    const nameMaxW = Math.floor((contentMaxX - PAD_X) * 0.42)
+    const valueX = PAD_X + 4 + nameMaxW + 8
+    const valueMaxW = contentMaxX - valueX
+    this.drawText(row.name, PAD_X + 8, rowY, {
+      fontPx: 11,
+      material: this.materials.cyan,
+      maxWidthPx: nameMaxW,
+    })
+    if (valueMaxW > 20) {
+      this.drawText(row.value, valueX, rowY, {
+        fontPx: 11,
+        material: row.material,
+        maxWidthPx: valueMaxW,
+      })
+    }
+
+    this.hit(rowX, rowY - 1, rowW, SCOPE_ROW_H, () => {
+      this.#detail = {id: row.id, name: row.name, prop: row.prop}
+      this.#editing = false
+      this.requestRender()
+    }, {
+      key: `scope-prop:${row.id}`,
+      cursor: "pointer",
+    })
+  }
+
+  #drawDetailPopup(): void {
+    const detail = this.#detail
+    if (detail === null) return
+
+    this.hit(0, 0, this.rectW, this.rectH, () => {
+      this.#detail = null
+      this.requestRender()
+    }, {key: "scope-detail:backdrop", cursor: "default"})
+
+    const w = Math.max(260, Math.min(620, this.rectW - PAD_X * 2))
+    const h = Math.max(190, Math.min(360, this.rectH - 70))
+    const x = Math.max(PAD_X, Math.round((this.rectW - w) / 2))
+    const y = Math.max(42, Math.round((this.rectH - h) / 2) - 20)
+
+    this.drawRoundedRect(x, y, w, h, {
+      radius: 10,
+      fill: palette.bgElevated,
+      border: palette.border,
+      borderWidth: 1,
+      opacity: 0.98,
+      z: DETAIL_BG_Z,
+    })
+    this.hit(x, y, w, h, () => {}, {key: "scope-detail:popup", cursor: "default"})
+
+    this.drawText(t("scopeValue"), x + 14, y + 11, {
+      fontPx: 10,
+      material: this.materials.muted,
+      maxWidthPx: 120,
+      z: DETAIL_TEXT_Z,
+      clip: false,
+    })
+    this.drawText(detail.name, x + 14, y + 27, {
+      fontPx: 13,
+      material: this.materials.cyan,
+      maxWidthPx: w - 74,
+      z: DETAIL_TEXT_Z,
+      clip: false,
+    })
+    button(this, x + w - 40, y + 12, 26, 24, {
+      label: t("close"),
+      iconSrc: uiIcons.stop,
+      iconOnly: true,
+      tooltip: t("close"),
+      variant: "text",
+      tone: "neutral",
+      action: () => {
+        this.#detail = null
+        this.requestRender()
+      },
+    })
+
+    const code = detailCode(detail)
+    const contentX = x + 12
+    const contentY = y + 54
+    const contentW = w - 24
+    const contentH = h - 66
+    const lines = wrapDetailLines(code.split("\n"), Math.max(34, Math.floor((contentW - 18) / 6.8)))
+    const tokens = resolveLanguageHighlighter({languageId: "typescript"}).tokenize(lines)
+
+    this.drawRoundedRect(contentX, contentY, contentW, contentH, {
+      radius: 7,
+      fill: palette.bgCode,
+      border: palette.borderDim,
+      borderWidth: 1,
+      z: DETAIL_BG_Z + 0.01,
+    })
+    div(this, contentX + 1, contentY + 1, contentW - 2, contentH - 2, {
+      key: "debug:scope-detail:code",
+      scrollContentHeight: Math.max(contentH - 2, lines.length * DETAIL_LINE_H + 12),
+      style: {
+        background: null,
+        borderColor: null,
+        borderRadius: 0,
+        padding: 0,
+        overflowY: "auto",
+      },
+      children: (ctx) => {
+        const start = Math.max(0, Math.floor(ctx.scrollTop / DETAIL_LINE_H) - 1)
+        const end = Math.min(lines.length, Math.ceil((ctx.scrollTop + ctx.viewportHeight) / DETAIL_LINE_H) + 1)
+        for (let idx = start; idx < end; idx++) {
+          const text = lines[idx] ?? ""
+          const rowY = contentY + 7 + idx * DETAIL_LINE_H - ctx.scrollTop
+          this.#drawHighlightedLine(text, tokens, idx, contentX + 9, rowY, contentW - 18)
+        }
+      },
+    })
+  }
+
+  #drawHighlightedLine(text: string, tokens: EditorTokens, lineIndex: number, x: number, y: number, maxW: number): void {
+    renderEditorTokenizedLine({
+      pane: this,
+      text,
+      tokens: tokens[lineIndex] ?? [],
+      startX: x,
+      y,
+      fontPx: DETAIL_FONT,
+      maxPx: maxW,
+      materials: this.#tokenMaterials,
+      fallbackMaterial: this.materials.text,
+    })
   }
 }
 
@@ -243,4 +402,95 @@ function formatPreviewText(value: string): string {
     .replace(/[\u0000-\u001F\u007F]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
+}
+
+function detailCode(detail: ScopeDetail): string {
+  const prop = detail.prop
+  const out = {
+    name: detail.name,
+    value: fullValue(prop),
+    snapshot: prop,
+  }
+  return `const ${safeIdentifier(detail.name)} = ${stringifyFullData(out)}`
+}
+
+function fullValue(prop: PropertySnapshot): unknown {
+  if (prop.value !== undefined) return prop.value
+  if (prop.description !== undefined) return prop.description
+  if (prop.className !== undefined) return prop.className
+  if (prop.type !== undefined) return prop.type
+  return undefined
+}
+
+function stringifyFullData(value: unknown): string {
+  const seen = new WeakSet<object>()
+  return stringifyTsValue(value, 0, seen)
+}
+
+function stringifyTsValue(value: unknown, depth: number, seen: WeakSet<object>): string {
+  const pad = "  ".repeat(depth)
+  const nextPad = "  ".repeat(depth + 1)
+  if (value === undefined) return "undefined"
+  if (value === null) return "null"
+  if (typeof value === "string") return JSON.stringify(value)
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : JSON.stringify(String(value))
+  if (typeof value === "bigint") return `${value}n`
+  if (typeof value === "boolean") return value ? "true" : "false"
+  if (typeof value === "function") return String(value)
+  if (typeof value !== "object") return JSON.stringify(String(value))
+  if (seen.has(value)) return JSON.stringify("[Circular]")
+  seen.add(value)
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]"
+    const items = value.map((item) => `${nextPad}${stringifyTsValue(item, depth + 1, seen)}`)
+    return `[\n${items.join(",\n")}\n${pad}]`
+  }
+
+  const entries = Object.entries(value)
+  if (entries.length === 0) return "{}"
+  const body = entries.map(([key, item]) => (
+    `${nextPad}${objectKey(key)}: ${stringifyTsValue(item, depth + 1, seen)}`
+  ))
+  return `{\n${body.join(",\n")}\n${pad}}`
+}
+
+function safeIdentifier(name: string): string {
+  const clean = name.replace(/[^\w$]/g, "_")
+  if (/^[A-Za-z_$][\w$]*$/.test(clean)) return clean
+  return "scopeValue"
+}
+
+function objectKey(name: string): string {
+  if (/^[A-Za-z_$][\w$]*$/.test(name)) return name
+  return JSON.stringify(name)
+}
+
+function wrapDetailLines(lines: string[], maxChars: number): string[] {
+  const out: string[] = []
+  for (const line of lines) {
+    if (line.length <= maxChars) {
+      out.push(line)
+      continue
+    }
+    let cursor = 0
+    while (cursor < line.length) {
+      const remaining = line.length - cursor
+      if (remaining <= maxChars) {
+        out.push(line.slice(cursor))
+        break
+      }
+      const limit = cursor + maxChars
+      const soft = Math.max(
+        line.lastIndexOf(" ", limit),
+        line.lastIndexOf(",", limit),
+        line.lastIndexOf(".", limit),
+        line.lastIndexOf("/", limit),
+      )
+      const end = soft > cursor + Math.floor(maxChars * 0.45) ? soft + 1 : limit
+      out.push(line.slice(cursor, end))
+      cursor = end
+    }
+  }
+  return out
 }
