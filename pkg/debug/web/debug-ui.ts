@@ -47,9 +47,17 @@ export type PropertySnapshot = {
   subtype?: string
   className?: string
   value?: unknown
+  unserializableValue?: string
   description?: string
   objectId?: string
   preview?: unknown
+  get?: PropertySnapshot
+  set?: PropertySnapshot
+  wasThrown?: boolean
+  enumerable?: boolean
+  configurable?: boolean
+  writable?: boolean
+  isOwn?: boolean
 }
 
 export type ScopeSnapshot = {

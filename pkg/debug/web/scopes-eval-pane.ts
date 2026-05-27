@@ -339,7 +339,8 @@ export class ScopesEvalPane extends UiSurface {
     const contentY = y + 54
     const contentW = w - 24
     const contentH = h - 66
-    const lines = wrapDetailLines(code.split("\n"), Math.max(34, Math.floor((contentW - 18) / 6.8)))
+    const lines = code.split("\n")
+    const contentTextW = Math.max(contentW - 18, ...lines.map((line) => this.measureText(line, DETAIL_FONT))) + 18
     const tokens = resolveLanguageHighlighter({languageId: "typescript"}).tokenize(lines)
 
     this.drawRoundedRect(contentX, contentY, contentW, contentH, {
@@ -351,12 +352,14 @@ export class ScopesEvalPane extends UiSurface {
     })
     div(this, contentX + 1, contentY + 1, contentW - 2, contentH - 2, {
       key: "debug:scope-detail:code",
+      scrollContentWidth: contentTextW,
       scrollContentHeight: Math.max(contentH - 2, lines.length * DETAIL_LINE_H + 12),
       style: {
         background: null,
         borderColor: null,
         borderRadius: 0,
         padding: 0,
+        overflowX: "auto",
         overflowY: "auto",
       },
       children: (ctx) => {
@@ -365,7 +368,7 @@ export class ScopesEvalPane extends UiSurface {
         for (let idx = start; idx < end; idx++) {
           const text = lines[idx] ?? ""
           const rowY = contentY + 7 + idx * DETAIL_LINE_H - ctx.scrollTop
-          this.#drawHighlightedLine(text, tokens, idx, contentX + 9, rowY, contentW - 18)
+          this.#drawHighlightedLine(text, tokens, idx, contentX + 9 - ctx.scrollLeft, rowY, contentTextW)
         }
       },
     })
@@ -405,13 +408,16 @@ function formatPreviewText(value: string): string {
 }
 
 function detailCode(detail: ScopeDetail): string {
-  const prop = detail.prop
-  const out = {
-    name: detail.name,
-    value: fullValue(prop),
-    snapshot: prop,
-  }
-  return `const ${safeIdentifier(detail.name)} = ${stringifyFullData(out)}`
+  return formatScopeDetailCode(detail.name, detail.prop)
+}
+
+export function formatScopeDetailCode(rawName: string, prop: PropertySnapshot): string {
+  const name = safeIdentifier(rawName)
+  return [
+    `const ${name} = ${primaryValueSource(prop)}`,
+    "",
+    `const ${name}Snapshot = ${stringifyFullData(prop)}`,
+  ].join("\n")
 }
 
 function fullValue(prop: PropertySnapshot): unknown {
@@ -432,7 +438,7 @@ function stringifyTsValue(value: unknown, depth: number, seen: WeakSet<object>):
   const nextPad = "  ".repeat(depth + 1)
   if (value === undefined) return "undefined"
   if (value === null) return "null"
-  if (typeof value === "string") return JSON.stringify(value)
+  if (typeof value === "string") return stringifyStringValue(value, depth, seen)
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : JSON.stringify(String(value))
   if (typeof value === "bigint") return `${value}n`
   if (typeof value === "boolean") return value ? "true" : "false"
@@ -466,31 +472,53 @@ function objectKey(name: string): string {
   return JSON.stringify(name)
 }
 
-function wrapDetailLines(lines: string[], maxChars: number): string[] {
-  const out: string[] = []
-  for (const line of lines) {
-    if (line.length <= maxChars) {
-      out.push(line)
-      continue
-    }
-    let cursor = 0
-    while (cursor < line.length) {
-      const remaining = line.length - cursor
-      if (remaining <= maxChars) {
-        out.push(line.slice(cursor))
-        break
-      }
-      const limit = cursor + maxChars
-      const soft = Math.max(
-        line.lastIndexOf(" ", limit),
-        line.lastIndexOf(",", limit),
-        line.lastIndexOf(".", limit),
-        line.lastIndexOf("/", limit),
-      )
-      const end = soft > cursor + Math.floor(maxChars * 0.45) ? soft + 1 : limit
-      out.push(line.slice(cursor, end))
-      cursor = end
-    }
+function primaryValueSource(prop: PropertySnapshot): string {
+  const value = fullValue(prop)
+  if (prop.type === "function" && typeof value === "string") {
+    const source = normalizeInspectorString(value).trim()
+    if (source.length > 0) return source
   }
-  return out
+  return stringifyFullData(value)
+}
+
+function stringifyStringValue(value: string, depth: number, seen: WeakSet<object>): string {
+  const text = normalizeInspectorString(value)
+  const parsed = parseEmbeddedJson(text)
+  if (parsed !== undefined) return stringifyTsValue(parsed, depth, seen)
+  if (text.includes("\n")) return `\`${escapeTemplateLiteral(text)}\``
+  return JSON.stringify(text)
+}
+
+function normalizeInspectorString(value: string): string {
+  const normalized = value.replace(/\r\n?/g, "\n")
+  if (normalized.includes("\n") || !/\\[nrt"\\]/.test(normalized)) return normalized
+  try {
+    const parsed: unknown = JSON.parse(`"${normalized}"`)
+    if (typeof parsed === "string") return parsed.replace(/\r\n?/g, "\n")
+  } catch {
+    // Fall through to conservative replacements below.
+  }
+  return normalized
+    .replaceAll("\\n", "\n")
+    .replaceAll("\\r", "\r")
+    .replaceAll("\\t", "\t")
+}
+
+function parseEmbeddedJson(value: string): unknown {
+  const trimmed = value.trim()
+  if (!((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]")))) {
+    return undefined
+  }
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return undefined
+  }
+}
+
+function escapeTemplateLiteral(value: string): string {
+  return value
+    .replaceAll("\\", "\\\\")
+    .replaceAll("`", "\\`")
+    .replaceAll("${", "\\${")
 }
