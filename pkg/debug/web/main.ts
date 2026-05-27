@@ -26,7 +26,7 @@ import {getUiLocale, t, toggleUiLocale} from "./i18n.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
-type ScriptSnapshot = {scriptId: string; url: string; hasSourceMap?: boolean}
+type ScriptSnapshot = {scriptId: string; url: string; hasSourceMap?: boolean; sources?: string[]}
 
 type ServerMessage =
   | {type: "hello"; inspectorUrl: string; paused: boolean; dump: AgentDump | null; scripts: ScriptSnapshot[]; connection: ConnectionInfo}
@@ -63,6 +63,7 @@ type Source = {
 
 type BreakpointSpec = {
   url?: string
+  sourceUrl?: string
   urlRegex?: string
   line: number
   column?: number
@@ -101,6 +102,7 @@ const BREAKPOINTS_STORAGE_KEY = "bd:breakpoints:v1"
 const sourceCache = new Map<string, CachedSource>()
 const sourceDrafts = new Map<string, DraftState>()
 const scriptUrls = new Map<string, string>()
+const scriptSources = new Map<string, string[]>()
 let uiCanvas: UiRuntime | null = null
 let sourcePane: EditorPane | null = null
 let draftEditorPane: EditorPane | null = null
@@ -227,7 +229,7 @@ function handleServerMessage(msg: ServerMessage): void {
       refreshWelcome()
       return
     case "script":
-      rememberScript(msg.scriptId, msg.url)
+      rememberScript(msg)
       return
     case "console":
       for (const entry of msg.entries) appendConsole(entry)
@@ -294,6 +296,7 @@ function clearLiveState(runtimeState: SourceRuntimeState = "disconnected"): void
   activeSource = null
   sourcePane?.setBreakpoints([])
   scriptUrls.clear()
+  scriptSources.clear()
   breakpointRegistrations = []
   pendingBreakpointLines.clear()
   sourceCache.clear()
@@ -466,6 +469,13 @@ async function restartTarget(): Promise<void> {
   }
 }
 
+function showExecutionPoint(): void {
+  if (currentDump === undefined || currentDump.frames.length === 0) return
+  activeFrameIndex = 0
+  renderDump(currentDump)
+  setSourceRuntimeState("paused")
+}
+
 async function waitForTargetStopped(timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -554,20 +564,42 @@ function appendVerbose(kind: "inspector" | "agent", ts: string, name: string, pa
 function rememberScripts(scripts: ScriptSnapshot[]): void {
   let changed = false
   for (const script of scripts) {
-    changed = rememberScriptOnly(script.scriptId, script.url) || changed
+    changed = rememberScriptOnly(script) || changed
   }
   if (changed) syncDebugModules()
 }
 
-function rememberScript(scriptId: string, url: string): void {
-  if (rememberScriptOnly(scriptId, url)) syncDebugModules()
+function rememberScript(script: ScriptSnapshot): void {
+  if (rememberScriptOnly(script)) syncDebugModules()
 }
 
-function rememberScriptOnly(scriptId: string, url: string): boolean {
+function rememberScriptOnly({scriptId, url, sources}: ScriptSnapshot): boolean {
   if (scriptId.length === 0) return false
-  if (scriptUrls.get(scriptId) === url) return false
+  const nextSources = normalizeScriptSources(sources)
+  const prevSources = scriptSources.get(scriptId) ?? []
+  if (scriptUrls.get(scriptId) === url && stringArraysEqual(prevSources, nextSources)) return false
   scriptUrls.set(scriptId, url)
+  if (nextSources.length > 0) scriptSources.set(scriptId, nextSources)
+  else scriptSources.delete(scriptId)
   return true
+}
+
+function normalizeScriptSources(sources: string[] | undefined): string[] {
+  if (sources === undefined) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const source of sources) {
+    const clean = source.trim()
+    if (clean.length === 0 || seen.has(clean)) continue
+    seen.add(clean)
+    out.push(clean)
+  }
+  return out
+}
+
+function stringArraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((value, index) => value === b[index])
 }
 
 async function refreshBreakpoints(): Promise<void> {
@@ -657,7 +689,11 @@ async function toggleActiveSourceBreakpoint(line: number): Promise<void> {
 function breakpointSpecForSource(source: ActiveSource, line: number): BreakpointSpec | null {
   const url = firstNonEmpty(source.scriptUrl, source.sourceUrl, source.key)
   if (url === null) return null
-  return {url, line}
+  const spec: BreakpointSpec = {url, line}
+  if (source.sourceUrl.trim().length > 0 && !sameSourceUrl(source.sourceUrl, url)) {
+    spec.sourceUrl = source.sourceUrl
+  }
+  return spec
 }
 
 function firstNonEmpty(...values: string[]): string | null {
@@ -715,11 +751,13 @@ function normalizeBreakpointSpec(value: unknown): BreakpointSpec | null {
   if (typeof line !== "number" || !Number.isInteger(line) || line <= 0) return null
 
   const url = typeof object["url"] === "string" ? object["url"].trim() : ""
+  const sourceUrl = typeof object["sourceUrl"] === "string" ? object["sourceUrl"].trim() : ""
   const urlRegex = typeof object["urlRegex"] === "string" ? object["urlRegex"].trim() : ""
-  if (url.length === 0 && urlRegex.length === 0) return null
+  if (url.length === 0 && sourceUrl.length === 0 && urlRegex.length === 0) return null
 
   const spec: BreakpointSpec = {line}
   if (url.length > 0) spec.url = url
+  if (sourceUrl.length > 0) spec.sourceUrl = sourceUrl
   if (urlRegex.length > 0) spec.urlRegex = urlRegex
 
   const column = object["column"]
@@ -739,8 +777,8 @@ function dedupeBreakpointSpecs(specs: BreakpointSpec[]): BreakpointSpec[] {
     byKey.set(breakpointSpecKey(normalized), normalized)
   }
   return [...byKey.values()].sort((a, b) => {
-    const urlA = a.url ?? a.urlRegex ?? ""
-    const urlB = b.url ?? b.urlRegex ?? ""
+    const urlA = a.sourceUrl ?? a.url ?? a.urlRegex ?? ""
+    const urlB = b.sourceUrl ?? b.url ?? b.urlRegex ?? ""
     if (urlA !== urlB) return urlA.localeCompare(urlB)
     if (a.line !== b.line) return a.line - b.line
     return (a.column ?? 0) - (b.column ?? 0)
@@ -750,6 +788,7 @@ function dedupeBreakpointSpecs(specs: BreakpointSpec[]): BreakpointSpec[] {
 function breakpointSpecKey(spec: BreakpointSpec): string {
   return [
     spec.url ?? "",
+    spec.sourceUrl ?? "",
     spec.urlRegex ?? "",
     String(spec.line),
     String(spec.column ?? 0),
@@ -799,9 +838,15 @@ function syncSourceBreakpointMarkers(): void {
 function breakpointMatchesActiveSource(registration: BreakpointRegistration): boolean {
   const source = activeSource
   if (source === null) return false
-  if (registration.installed.some((installed) => installed.scriptId === source.scriptId || sameSourceUrl(installed.url, source.scriptUrl))) return true
 
   const spec = registration.spec
+  if (spec.sourceUrl !== undefined) {
+    return sameSourceUrl(spec.sourceUrl, source.sourceUrl)
+      || sameSourceUrl(spec.sourceUrl, source.key)
+      || sameSourceUrl(spec.sourceUrl, source.scriptUrl)
+  }
+  if (registration.installed.some((installed) => installed.scriptId === source.scriptId || sameSourceUrl(installed.url, source.scriptUrl))) return true
+
   if (spec.url !== undefined) {
     return sameSourceUrl(spec.url, source.scriptUrl)
       || sameSourceUrl(spec.url, source.sourceUrl)
@@ -844,20 +889,25 @@ function syncDebugModules(): void {
 }
 
 function collectDebugModules(): DebugModuleSnapshot[] {
-  const byScriptId = new Map<string, {scriptId: string; url: string; scriptUrl: string}>()
+  const byModule = new Map<string, {scriptId: string; url: string; scriptUrl: string}>()
 
   for (const [scriptId, scriptUrl] of scriptUrls) {
-    addDebugModule(byScriptId, scriptId, scriptUrl, scriptUrl, false)
+    const sources = scriptSources.get(scriptId) ?? []
+    if (sources.length === 0) {
+      addDebugModule(byModule, scriptId, scriptUrl, scriptUrl, false)
+    } else {
+      for (const source of sources) addDebugModule(byModule, scriptId, source, scriptUrl, false)
+    }
   }
 
   for (const frame of currentDump?.frames ?? []) {
     if (frame.scriptId === undefined || frame.scriptId.length === 0) continue
     const scriptUrl = scriptUrls.get(frame.scriptId) ?? frame.url
-    addDebugModule(byScriptId, frame.scriptId, frame.url || scriptUrl, scriptUrl, true)
+    addDebugModule(byModule, frame.scriptId, frame.url || scriptUrl, scriptUrl, true)
   }
 
   const unique = new Map<string, DebugModuleSnapshot>()
-  for (const candidate of byScriptId.values()) {
+  for (const candidate of byModule.values()) {
     if (!isProjectDebugModule(candidate.url) && !isProjectDebugModule(candidate.scriptUrl)) continue
     const module: DebugModuleSnapshot = {
       ...candidate,
@@ -877,9 +927,10 @@ function addDebugModule(
   scriptUrl: string,
   preferDisplayUrl: boolean,
 ): void {
-  const existing = modules.get(scriptId)
+  const key = `${scriptId}\0${moduleIdentity(url, scriptUrl)}`
+  const existing = modules.get(key)
   if (existing === undefined) {
-    modules.set(scriptId, {scriptId, url, scriptUrl})
+    modules.set(key, {scriptId, url, scriptUrl})
     return
   }
   if (preferDisplayUrl && url.length > 0) existing.url = url
@@ -895,6 +946,9 @@ function breakpointCountForModule(url: string, scriptUrl: string): number {
 }
 
 function breakpointSpecMatchesModule(spec: BreakpointSpec, url: string, scriptUrl: string): boolean {
+  if (spec.sourceUrl !== undefined) {
+    return sameSourceUrl(spec.sourceUrl, url) || sameSourceUrl(spec.sourceUrl, scriptUrl)
+  }
   if (spec.url !== undefined) {
     return sameSourceUrl(spec.url, url) || sameSourceUrl(spec.url, scriptUrl)
   }
@@ -1005,6 +1059,7 @@ function updateToolbar(): void {
     verbose: verboseVisible,
     engine: engineStatus,
     welcomeVisible,
+    canShowExecutionPoint: currentDump !== undefined && currentDump.frames.length > 0,
   })
 }
 
@@ -1198,6 +1253,7 @@ async function initEngine(): Promise<void> {
       onResume: () => void runDebuggerCommand("resume", {}, t("resume")),
       onRestartTarget: () => void restartTarget(),
       onStopTarget: () => void stopTarget(),
+      onShowExecutionPoint: () => showExecutionPoint(),
       onStep: (kind) => void runDebuggerCommand("step", {kind}, kind === "over" ? t("stepOver") : kind === "into" ? t("stepInto") : t("stepOut")),
       onToggleDraft: () => setDraftVisible(!draftVisible),
       onSaveDraft: () => saveActiveDraft(),

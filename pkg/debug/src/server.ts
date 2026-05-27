@@ -87,8 +87,8 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
   options.snapshots.onPause((dump) => broadcast({type: "state", dump}))
   options.snapshots.onResume(() => broadcast({type: "resumed"}))
-  options.snapshots.onScriptParsed((scriptId, url) => {
-    broadcast({type: "script", scriptId, url})
+  options.snapshots.onScriptParsed((script) => {
+    broadcast({type: "script", ...scriptView(script)})
   })
   options.consoleLogs.onEntry((entry) => {
     broadcast({
@@ -320,10 +320,10 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/resume", description: "Debugger.resume"},
     {method: "POST", path: "/inspector", description: "{url} — переподключиться к другому Bun-инспектору"},
     {method: "GET", path: "/target", description: "состояние target-процесса (если запущен через /target/run)"},
-    {method: "POST", path: "/target/run", description: "{command, cwd?, env?, pauseOnStart?, breakpoints?:[{url|urlRegex, line(1-based), column?, condition?}]}"},
+    {method: "POST", path: "/target/run", description: "{command, cwd?, env?, pauseOnStart?, breakpoints?:[{url|sourceUrl|urlRegex, line(1-based), column?, condition?}]}"},
     {method: "POST", path: "/target/stop", description: "{signal?} — SIGTERM (по умолчанию) → SIGKILL через 3с"},
     {method: "GET", path: "/breakpoints", description: "agent breakpoint registrations + installed Bun breakpointIds"},
-    {method: "POST", path: "/breakpoint", description: "{url|urlRegex, line, column?, condition?} — pending spec + Debugger.setBreakpoint by scriptId on scriptParsed"},
+    {method: "POST", path: "/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — pending spec + Debugger.setBreakpoint by scriptId on scriptParsed"},
     {method: "DELETE", path: "/breakpoint", description: "{id|breakpointId} — remove agent registration or concrete Bun breakpointId"},
   ]
 }
@@ -407,16 +407,38 @@ function lruGet<V>(cache: Map<string, V>, key: string): V | undefined {
 
 // Слим-проекция scripts для внешнего API: data-URL sourceMapURL может весить
 // сотни КБ на скрипт; UI и REST потребители знают только про hasSourceMap.
-function scriptsView(scripts: ReadonlyArray<import("./snapshot.ts").ScriptInfo>): Array<{
+function scriptsView(scripts: ReadonlyArray<import("./snapshot.ts").ScriptInfo>): ScriptView[] {
+  return scripts.map(scriptView)
+}
+
+type ScriptView = {
   scriptId: string
   url: string
   hasSourceMap: boolean
-}> {
-  return scripts.map((s) => ({
-    scriptId: s.scriptId,
-    url: s.url,
-    hasSourceMap: s.sourceMapURL !== undefined && s.sourceMapURL.length > 0,
-  }))
+  sources?: string[]
+}
+
+function scriptView(script: import("./snapshot.ts").ScriptInfo): ScriptView {
+  const sources = sourceMapSources(script.sourceMapURL)
+  const view: ScriptView = {
+    scriptId: script.scriptId,
+    url: script.url,
+    hasSourceMap: script.sourceMapURL !== undefined && script.sourceMapURL.length > 0,
+  }
+  if (sources.length > 0) view.sources = sources
+  return view
+}
+
+function sourceMapSources(sourceMapURL: string | undefined): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const source of sourceMapMapper(sourceMapURL).sources()) {
+    const clean = source.trim()
+    if (clean.length === 0 || seen.has(clean)) continue
+    seen.add(clean)
+    out.push(clean)
+  }
+  return out
 }
 
 function parseCommand(value: unknown): string[] | undefined {
@@ -490,8 +512,9 @@ async function setBreakpoint(req: Request, options: HttpServerOptions): Promise<
   if (!isPositiveInteger(line)) return jsonResponse({ok: false, error: "line must be a positive integer (1-based)"}, 400)
   const url = asString(body["url"])
   const urlRegex = asString(body["urlRegex"])
-  if (url === undefined && urlRegex === undefined) {
-    return jsonResponse({ok: false, error: "either url or urlRegex required"}, 400)
+  const sourceUrl = asString(body["sourceUrl"])
+  if (url === undefined && urlRegex === undefined && sourceUrl === undefined) {
+    return jsonResponse({ok: false, error: "url, sourceUrl or urlRegex required"}, 400)
   }
   const column = asNumber(body["column"])
   if (column !== undefined && !isNonNegativeInteger(column)) {
@@ -500,6 +523,7 @@ async function setBreakpoint(req: Request, options: HttpServerOptions): Promise<
   const condition = asString(body["condition"])
   const spec: import("./target.ts").BreakpointSpec = {line}
   if (url !== undefined) spec.url = url
+  if (sourceUrl !== undefined) spec.sourceUrl = sourceUrl
   if (urlRegex !== undefined) spec.urlRegex = urlRegex
   if (column !== undefined) spec.column = column
   if (condition !== undefined) spec.condition = condition
@@ -551,11 +575,13 @@ function parseBreakpoints(value: unknown): {
     if (!isPositiveInteger(line)) return {error: `breakpoints[${index}].line must be a positive integer (1-based)`}
     const url = asString(obj["url"])
     const urlRegex = asString(obj["urlRegex"])
-    if (url === undefined && urlRegex === undefined) {
-      return {error: `breakpoints[${index}] must include url or urlRegex`}
+    const sourceUrl = asString(obj["sourceUrl"])
+    if (url === undefined && urlRegex === undefined && sourceUrl === undefined) {
+      return {error: `breakpoints[${index}] must include url, sourceUrl or urlRegex`}
     }
     const spec: import("./target.ts").BreakpointSpec = {line}
     if (url !== undefined) spec.url = url
+    if (sourceUrl !== undefined) spec.sourceUrl = sourceUrl
     if (urlRegex !== undefined) spec.urlRegex = urlRegex
     const column = asNumber(obj["column"])
     if (column !== undefined && !isNonNegativeInteger(column)) {

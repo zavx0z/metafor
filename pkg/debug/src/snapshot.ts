@@ -18,7 +18,7 @@ import {serializeError} from "./errors.ts"
 
 export type SnapshotPauseHandler = (dump: AgentDump) => void
 export type SnapshotResumeHandler = () => void
-export type ScriptParsedHandler = (scriptId: string, url: string) => void
+export type ScriptParsedHandler = (script: ScriptInfo) => void
 export type ScriptInfo = {
   scriptId: string
   url: string
@@ -106,8 +106,9 @@ export class SnapshotStore {
     const scriptId = asString(params["scriptId"])
     const url = asString(params["url"]) ?? ""
     const sourceMapURL = asString(params["sourceMapURL"])
+    let info: ScriptInfo | undefined
     if (scriptId !== undefined) {
-      const info: ScriptInfo = {scriptId, url}
+      info = {scriptId, url}
       if (sourceMapURL !== undefined) info.sourceMapURL = sourceMapURL
       this.#scripts.set(scriptId, info)
       this.#mappers.delete(scriptId)
@@ -119,10 +120,10 @@ export class SnapshotStore {
       hasSourceMap: sourceMapURL !== undefined && sourceMapURL.length > 0,
     })
 
-    if (scriptId !== undefined) {
+    if (info !== undefined) {
       for (const handler of this.#scriptParsedHandlers) {
         try {
-          handler(scriptId, url)
+          handler(info)
         } catch (error) {
           this.#logger.event("snapshot.script_parsed_handler.failed", {error: serializeError(error)})
         }

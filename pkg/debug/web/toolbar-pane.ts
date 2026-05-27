@@ -42,6 +42,7 @@ export class ToolbarPane extends UiSurface {
     verbose: false,
     engine: "engine: init",
     welcomeVisible: false,
+    canShowExecutionPoint: false,
   }
 
   readonly #actions: ToolbarActions
@@ -70,6 +71,14 @@ export class ToolbarPane extends UiSurface {
       {label: t("stepInto"), iconSrc: uiIcons.stepInto, tone: stepButtonTone(this.#state.runKind), action: () => this.#actions.onStep("into")},
       {label: t("stepOut"), iconSrc: uiIcons.stepOut, tone: stepButtonTone(this.#state.runKind), dividerAfter: true, action: () => this.#actions.onStep("out")},
       {label: t("restartTarget"), iconSrc: uiIcons.restart, tone: "neutral", action: () => this.#actions.onRestartTarget()},
+      {
+        label: t("showExecutionPoint"),
+        iconSrc: uiIcons.executionPoint,
+        tone: this.#state.canShowExecutionPoint ? "paused" : "neutral",
+        disabled: !this.#state.canShowExecutionPoint,
+        disabledTooltip: t("waitingFrames"),
+        action: () => this.#actions.onShowExecutionPoint(),
+      },
       {label: t("stopTarget"), iconSrc: uiIcons.stop, tone: "warn", variant: "contained", action: () => this.#actions.onStopTarget()},
     ]
     const secondaryControls: ToolbarButton[] = [
@@ -134,7 +143,7 @@ export class ToolbarPane extends UiSurface {
         size: "small",
         variant: b.variant ?? "outlined",
         radius: 7,
-        tooltip: b.disabled === true ? lockedTooltip : b.label,
+        tooltip: b.disabled === true ? b.disabledTooltip ?? lockedTooltip : b.label,
         tooltipDelayMs: 180,
         tone: b.tone,
         ...(b.disabled === undefined ? {} : {disabled: b.disabled}),
@@ -171,6 +180,7 @@ type ToolbarButton = {
   tone: BadgeKind
   variant?: "outlined" | "contained"
   disabled?: boolean
+  disabledTooltip?: string
   dividerAfter?: boolean
   action(): void
 }

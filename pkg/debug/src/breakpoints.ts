@@ -72,7 +72,7 @@ export class BreakpointStore {
 
   async handleScriptParsed(script: BreakpointScript): Promise<void> {
     for (const tracked of this.#breakpoints.values()) {
-      if (!matchesBreakpointSpec(tracked.spec, script.url)) continue
+      if (!matchesBreakpointSpec(tracked.spec, script.url) && !matchesBreakpointSource(tracked.spec, script)) continue
       await this.#installForScript(tracked, script)
     }
   }
@@ -257,6 +257,13 @@ export function matchesBreakpointSpec(spec: BreakpointSpec, scriptUrl: string): 
   return false
 }
 
+function matchesBreakpointSource(spec: BreakpointSpec, script: BreakpointScript): boolean {
+  if (spec.sourceUrl === undefined) return false
+  return sourceMapMapper(script.sourceMapURL)
+    .sources()
+    .some((source) => sameScriptUrl(spec.sourceUrl!, source))
+}
+
 function sameScriptUrl(expected: string, actual: string): boolean {
   const expectedVariants = new Set(scriptUrlVariants(expected))
   return scriptUrlVariants(actual).some((variant) => expectedVariants.has(variant))
@@ -315,7 +322,7 @@ function generatedBreakpointLocation(spec: BreakpointSpec, script: BreakpointScr
   const generated = sourceMapMapper(script.sourceMapURL).generatedLocation({
     line: requested.lineNumber,
     column: requested.columnNumber,
-    url: script.url,
+    url: spec.sourceUrl ?? spec.url ?? script.url,
   })
   return {
     requested,

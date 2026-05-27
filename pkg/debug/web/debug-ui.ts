@@ -26,6 +26,7 @@ export type ToolbarState = {
   verbose: boolean
   engine: string
   welcomeVisible: boolean
+  canShowExecutionPoint: boolean
 }
 
 export type ToolbarActions = {
@@ -33,6 +34,7 @@ export type ToolbarActions = {
   onResume(): void
   onRestartTarget(): void
   onStopTarget(): void
+  onShowExecutionPoint(): void
   onStep(kind: "over" | "into" | "out"): void
   onToggleDraft(): void
   onSaveDraft(): void

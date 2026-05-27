@@ -102,6 +102,7 @@ export const text = {
   savedInMemory: {ru: "сохранён в памяти", en: "saved in memory"},
   scopesEval: {ru: "Переменные / Eval", en: "Variables / Eval"},
   showSource: {ru: "Показать source", en: "View source"},
+  showExecutionPoint: {ru: "Показать точку остановки", en: "Show execution point"},
   showVerbose: {ru: "Показать события", en: "Show events"},
   socket: {ru: "Сокет", en: "Socket"},
   socketConnected: {ru: "Сокет подключён", en: "Socket connected"},

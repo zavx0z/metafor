@@ -26,6 +26,7 @@ export type TargetLine = {
 
 export type BreakpointSpec = {
   url?: string         // file URL: "file:///abs/path/to/foo.ts" или "node:path"
+  sourceUrl?: string   // original source URL from source map, if it differs from runtime url
   urlRegex?: string    // регулярка по url, если url не задан
   line: number         // 1-based номер строки (как в редакторе)
   column?: number      // 0-based колонка
@@ -143,9 +144,11 @@ export class TargetSupervisor {
     this.#buffer = []
     this.#state = "starting"
     this.#pauseOnStart = pauseOnStart
-    this.#pendingBreakpoints = (options.breakpoints ?? []).filter(
-      (bp) => Number.isInteger(bp.line) && bp.line > 0 && (typeof bp.url === "string" || typeof bp.urlRegex === "string"),
-    )
+    this.#pendingBreakpoints = (options.breakpoints ?? []).filter((bp) => (
+      Number.isInteger(bp.line)
+      && bp.line > 0
+      && (typeof bp.url === "string" || typeof bp.sourceUrl === "string" || typeof bp.urlRegex === "string")
+    ))
 
     let subprocess: Subprocess<"ignore", "pipe", "pipe">
     try {
