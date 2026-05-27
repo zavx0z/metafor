@@ -73,6 +73,15 @@ export type FrameSnapshot = {
   }
 }
 
+export type DebugModuleSnapshot = {
+  scriptId: string
+  /** Source URL shown to the user; can be source-map original. */
+  url: string
+  /** Runtime script URL used for inspector breakpoint matching. */
+  scriptUrl: string
+  breakpointCount: number
+}
+
 export type WelcomeState = {
   connectionState: "connecting" | "connected" | "disconnected"
   connectionError: string | null

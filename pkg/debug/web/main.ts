@@ -17,6 +17,7 @@ import {
   WelcomePane,
   type BadgeKind,
   type WelcomeState,
+  type DebugModuleSnapshot,
   type FrameSnapshot,
   type ScopeSnapshot,
   type PropertySnapshot,
@@ -25,14 +26,15 @@ import {getUiLocale, t, toggleUiLocale} from "./i18n.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
+type ScriptSnapshot = {scriptId: string; url: string; hasSourceMap?: boolean}
 
 type ServerMessage =
-  | {type: "hello"; inspectorUrl: string; paused: boolean; dump: AgentDump | null; scripts: Array<{scriptId: string; url: string}>; connection: ConnectionInfo}
+  | {type: "hello"; inspectorUrl: string; paused: boolean; dump: AgentDump | null; scripts: ScriptSnapshot[]; connection: ConnectionInfo}
   | {type: "state"; dump: AgentDump}
   | {type: "resumed"}
   | {type: "console"; entries: ConsoleEntry[]}
   | {type: "connection"; state: ConnectionState; error: string | null; inspectorUrl: string}
-  | {type: "script"; scriptId: string; url: string}
+  | ({type: "script"} & ScriptSnapshot)
   | {type: "target"; event: TargetEvent}
   | {type: "inspector-event"; ts: string; method: string; params: unknown}
   | {type: "agent-event"; ts: string; event: string; detail: unknown}
@@ -95,6 +97,7 @@ const engineCanvas = $<HTMLCanvasElement>("engine-canvas")
 const consolePending: ConsoleEntry[] = []
 type CachedSource = {text: string; sourceUrl?: string; tokens?: EditorTokens}
 type DraftState = {baseText: string; text: string; savedText: string; status: "clean" | "dirty" | "saved"}
+const BREAKPOINTS_STORAGE_KEY = "bd:breakpoints:v1"
 const sourceCache = new Map<string, CachedSource>()
 const sourceDrafts = new Map<string, DraftState>()
 const scriptUrls = new Map<string, string>()
@@ -294,6 +297,7 @@ function clearLiveState(runtimeState: SourceRuntimeState = "disconnected"): void
   breakpointRegistrations = []
   pendingBreakpointLines.clear()
   sourceCache.clear()
+  syncDebugModules()
   syncDraftEditor()
   setSourceRuntimeState(runtimeState)
 }
@@ -386,10 +390,17 @@ async function startTargetFromCmd(rawCmd: string, pauseOnStart: boolean): Promis
   targetState.state = "starting"
   updateWelcomePane()
   try {
+    const breakpoints = readStoredBreakpointSpecs()
+    const body: {
+      command: string[]
+      pauseOnStart: boolean
+      breakpoints?: BreakpointSpec[]
+    } = {command, pauseOnStart}
+    if (breakpoints.length > 0) body.breakpoints = breakpoints
     const res = await fetch("/target/run", {
       method: "POST",
       headers: {"content-type": "application/json"},
-      body: JSON.stringify({command, pauseOnStart}),
+      body: JSON.stringify(body),
     })
     const data = await res.json() as {ok: boolean; error?: string; snapshot?: {pid: number; state: string}}
     if (!data.ok) {
@@ -540,13 +551,23 @@ function appendVerbose(kind: "inspector" | "agent", ts: string, name: string, pa
   verbosePane?.append(kind, ts, name, payload)
 }
 
-function rememberScripts(scripts: Array<{scriptId: string; url: string}>): void {
-  for (const script of scripts) rememberScript(script.scriptId, script.url)
+function rememberScripts(scripts: ScriptSnapshot[]): void {
+  let changed = false
+  for (const script of scripts) {
+    changed = rememberScriptOnly(script.scriptId, script.url) || changed
+  }
+  if (changed) syncDebugModules()
 }
 
 function rememberScript(scriptId: string, url: string): void {
-  if (scriptId.length === 0) return
+  if (rememberScriptOnly(scriptId, url)) syncDebugModules()
+}
+
+function rememberScriptOnly(scriptId: string, url: string): boolean {
+  if (scriptId.length === 0) return false
+  if (scriptUrls.get(scriptId) === url) return false
   scriptUrls.set(scriptId, url)
+  return true
 }
 
 async function refreshBreakpoints(): Promise<void> {
@@ -555,7 +576,9 @@ async function refreshBreakpoints(): Promise<void> {
     const data = await res.json() as unknown
     if (!Array.isArray(data)) return
     breakpointRegistrations = data.filter(isBreakpointRegistration)
+    mergeStoredBreakpointSpecs(breakpointRegistrations.map((registration) => registration.spec))
     syncSourceBreakpointMarkers()
+    syncDebugModules()
   } catch (error) {
     appendConsole({
       ts: new Date().toISOString(),
@@ -581,9 +604,21 @@ async function toggleActiveSourceBreakpoint(line: number): Promise<void> {
   pendingBreakpointLines.add(sourceLine)
   syncSourceBreakpointMarkers()
 
+  const nextSpec = existing === undefined ? breakpointSpecForSource(source, sourceLine) : null
+  if (existing === undefined && nextSpec === null) {
+    pendingBreakpointLines.delete(sourceLine)
+    syncSourceBreakpointMarkers()
+    appendConsole({
+      ts: new Date().toISOString(),
+      level: "warn",
+      text: getUiLocale() === "ru" ? "[ui] breakpoint не поставлен: у source нет URL" : "[ui] breakpoint skipped: source has no URL",
+    })
+    return
+  }
+
   try {
     const body = existing === undefined
-      ? {url: source.scriptUrl, line: sourceLine}
+      ? nextSpec
       : {id: existing.id}
     const res = await fetch("/breakpoint", {
       method: existing === undefined ? "POST" : "DELETE",
@@ -604,6 +639,9 @@ async function toggleActiveSourceBreakpoint(line: number): Promise<void> {
     } else {
       await refreshBreakpoints()
     }
+    if (nextSpec !== null) mergeStoredBreakpointSpecs([nextSpec])
+    if (existing !== undefined) removeStoredBreakpointSpec(existing.spec)
+    syncDebugModules()
   } catch (error) {
     appendConsole({
       ts: new Date().toISOString(),
@@ -614,6 +652,109 @@ async function toggleActiveSourceBreakpoint(line: number): Promise<void> {
     pendingBreakpointLines.delete(sourceLine)
     syncSourceBreakpointMarkers()
   }
+}
+
+function breakpointSpecForSource(source: ActiveSource, line: number): BreakpointSpec | null {
+  const url = firstNonEmpty(source.scriptUrl, source.sourceUrl, source.key)
+  if (url === null) return null
+  return {url, line}
+}
+
+function firstNonEmpty(...values: string[]): string | null {
+  for (const value of values) {
+    const trimmed = value.trim()
+    if (trimmed.length > 0) return trimmed
+  }
+  return null
+}
+
+function readStoredBreakpointSpecs(): BreakpointSpec[] {
+  const raw = localStorage.getItem(BREAKPOINTS_STORAGE_KEY)
+  if (raw === null) return []
+  try {
+    return dedupeBreakpointSpecs(parseStoredBreakpointSpecs(JSON.parse(raw)))
+  } catch {
+    return []
+  }
+}
+
+function mergeStoredBreakpointSpecs(specs: BreakpointSpec[]): void {
+  const next = dedupeBreakpointSpecs([...readStoredBreakpointSpecs(), ...specs])
+  writeStoredBreakpointSpecs(next)
+}
+
+function removeStoredBreakpointSpec(spec: BreakpointSpec): void {
+  const targetKey = breakpointSpecKey(spec)
+  const next = readStoredBreakpointSpecs().filter((current) => breakpointSpecKey(current) !== targetKey)
+  writeStoredBreakpointSpecs(next)
+}
+
+function writeStoredBreakpointSpecs(specs: BreakpointSpec[]): void {
+  const next = dedupeBreakpointSpecs(specs)
+  if (next.length === 0) {
+    localStorage.removeItem(BREAKPOINTS_STORAGE_KEY)
+    return
+  }
+  localStorage.setItem(BREAKPOINTS_STORAGE_KEY, JSON.stringify(next))
+}
+
+function parseStoredBreakpointSpecs(value: unknown): BreakpointSpec[] {
+  if (!Array.isArray(value)) return []
+  const out: BreakpointSpec[] = []
+  for (const item of value) {
+    const spec = normalizeBreakpointSpec(item)
+    if (spec !== null) out.push(spec)
+  }
+  return out
+}
+
+function normalizeBreakpointSpec(value: unknown): BreakpointSpec | null {
+  if (typeof value !== "object" || value === null) return null
+  const object = value as Record<string, unknown>
+  const line = object["line"]
+  if (typeof line !== "number" || !Number.isInteger(line) || line <= 0) return null
+
+  const url = typeof object["url"] === "string" ? object["url"].trim() : ""
+  const urlRegex = typeof object["urlRegex"] === "string" ? object["urlRegex"].trim() : ""
+  if (url.length === 0 && urlRegex.length === 0) return null
+
+  const spec: BreakpointSpec = {line}
+  if (url.length > 0) spec.url = url
+  if (urlRegex.length > 0) spec.urlRegex = urlRegex
+
+  const column = object["column"]
+  if (typeof column === "number" && Number.isInteger(column) && column >= 0) spec.column = column
+
+  const condition = typeof object["condition"] === "string" ? object["condition"].trim() : ""
+  if (condition.length > 0) spec.condition = condition
+
+  return spec
+}
+
+function dedupeBreakpointSpecs(specs: BreakpointSpec[]): BreakpointSpec[] {
+  const byKey = new Map<string, BreakpointSpec>()
+  for (const spec of specs) {
+    const normalized = normalizeBreakpointSpec(spec)
+    if (normalized === null) continue
+    byKey.set(breakpointSpecKey(normalized), normalized)
+  }
+  return [...byKey.values()].sort((a, b) => {
+    const urlA = a.url ?? a.urlRegex ?? ""
+    const urlB = b.url ?? b.urlRegex ?? ""
+    if (urlA !== urlB) return urlA.localeCompare(urlB)
+    if (a.line !== b.line) return a.line - b.line
+    return (a.column ?? 0) - (b.column ?? 0)
+  })
+}
+
+function breakpointSpecKey(spec: BreakpointSpec): string {
+  return [
+    spec.url ?? "",
+    spec.urlRegex ?? "",
+    String(spec.line),
+    String(spec.column ?? 0),
+    spec.condition ?? "",
+  ].join("\0")
 }
 
 function breakpointRegistrationForActiveLine(line: number): BreakpointRegistration | undefined {
@@ -698,6 +839,116 @@ function sourceUrlVariants(value: string): string[] {
   return [...variants]
 }
 
+function syncDebugModules(): void {
+  framesPane?.setModules(collectDebugModules())
+}
+
+function collectDebugModules(): DebugModuleSnapshot[] {
+  const byScriptId = new Map<string, {scriptId: string; url: string; scriptUrl: string}>()
+
+  for (const [scriptId, scriptUrl] of scriptUrls) {
+    addDebugModule(byScriptId, scriptId, scriptUrl, scriptUrl, false)
+  }
+
+  for (const frame of currentDump?.frames ?? []) {
+    if (frame.scriptId === undefined || frame.scriptId.length === 0) continue
+    const scriptUrl = scriptUrls.get(frame.scriptId) ?? frame.url
+    addDebugModule(byScriptId, frame.scriptId, frame.url || scriptUrl, scriptUrl, true)
+  }
+
+  const unique = new Map<string, DebugModuleSnapshot>()
+  for (const candidate of byScriptId.values()) {
+    if (!isProjectDebugModule(candidate.url) && !isProjectDebugModule(candidate.scriptUrl)) continue
+    const module: DebugModuleSnapshot = {
+      ...candidate,
+      breakpointCount: breakpointCountForModule(candidate.url, candidate.scriptUrl),
+    }
+    const key = moduleIdentity(candidate.url, candidate.scriptUrl)
+    if (!unique.has(key)) unique.set(key, module)
+  }
+
+  return [...unique.values()].sort((a, b) => moduleSortName(a.url).localeCompare(moduleSortName(b.url)))
+}
+
+function addDebugModule(
+  modules: Map<string, {scriptId: string; url: string; scriptUrl: string}>,
+  scriptId: string,
+  url: string,
+  scriptUrl: string,
+  preferDisplayUrl: boolean,
+): void {
+  const existing = modules.get(scriptId)
+  if (existing === undefined) {
+    modules.set(scriptId, {scriptId, url, scriptUrl})
+    return
+  }
+  if (preferDisplayUrl && url.length > 0) existing.url = url
+  if (existing.scriptUrl.length === 0 && scriptUrl.length > 0) existing.scriptUrl = scriptUrl
+}
+
+function breakpointCountForModule(url: string, scriptUrl: string): number {
+  const specs = dedupeBreakpointSpecs([
+    ...readStoredBreakpointSpecs(),
+    ...breakpointRegistrations.map((registration) => registration.spec),
+  ])
+  return specs.filter((spec) => breakpointSpecMatchesModule(spec, url, scriptUrl)).length
+}
+
+function breakpointSpecMatchesModule(spec: BreakpointSpec, url: string, scriptUrl: string): boolean {
+  if (spec.url !== undefined) {
+    return sameSourceUrl(spec.url, url) || sameSourceUrl(spec.url, scriptUrl)
+  }
+  if (spec.urlRegex !== undefined) {
+    try {
+      const regex = new RegExp(spec.urlRegex)
+      return [...sourceUrlVariants(url), ...sourceUrlVariants(scriptUrl)].some((variant) => regex.test(variant))
+    } catch {
+      return false
+    }
+  }
+  return false
+}
+
+function moduleIdentity(url: string, scriptUrl: string): string {
+  return normalizeModuleUrl(url || scriptUrl)
+}
+
+function moduleSortName(url: string): string {
+  const clean = normalizeModuleUrl(url)
+  const parts = clean.split("/").filter((part) => part.length > 0 && part !== ".")
+  return parts.slice(-3).join("/")
+}
+
+function isProjectDebugModule(url: string): boolean {
+  const clean = normalizeModuleUrl(url)
+  if (clean.length === 0) return false
+  const lower = clean.toLowerCase()
+  if (
+    lower.startsWith("node:") ||
+    lower.startsWith("bun:") ||
+    lower.startsWith("data:") ||
+    lower.startsWith("blob:") ||
+    lower.startsWith("internal/") ||
+    lower.startsWith("<") ||
+    lower.includes("/node_modules/") ||
+    lower.includes("/.bun/")
+  ) {
+    return false
+  }
+  return /\.(?:[cm]?[jt]sx?|json)$/i.test(clean)
+}
+
+function normalizeModuleUrl(url: string): string {
+  let clean = url.trim().replaceAll("\\", "/").replace(/[?#].*$/, "")
+  try {
+    const parsed = new URL(clean)
+    if (parsed.protocol === "file:" || parsed.protocol === "http:" || parsed.protocol === "https:") {
+      clean = decodeURIComponent(parsed.pathname)
+    }
+  } catch {}
+  return clean
+}
+
 function isBreakpointRegistration(value: unknown): value is BreakpointRegistration {
   if (typeof value !== "object" || value === null) return false
   const object = value as Record<string, unknown>
@@ -772,6 +1023,7 @@ function updateWelcomePane(): void {
 
 function renderDump(dump: AgentDump): void {
   framesPane?.setFrames(dump.frames as FrameSnapshot[], activeFrameIndex)
+  syncDebugModules()
 
   const top = dump.frames[activeFrameIndex] ?? dump.frames[0]
   if (top !== undefined) {
@@ -788,10 +1040,38 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
     pushSourceToEngine({lines: ["scriptId недоступен для этого фрейма"], currentLine: 0, location: ""})
     return
   }
-  const location = `${frame.url || "scriptId=" + scriptId}:${frame.line}`
+  await renderSourceForScript({
+    scriptId,
+    scriptUrl: scriptUrls.get(scriptId) ?? frame.url,
+    sourceUrl: frame.url,
+    line: frame.line,
+    executionLine: frame.line,
+    runtimeState: "paused",
+  })
+}
 
+async function renderSourceForModule(module: DebugModuleSnapshot): Promise<void> {
+  await renderSourceForScript({
+    scriptId: module.scriptId,
+    scriptUrl: module.scriptUrl,
+    sourceUrl: module.url,
+    line: 0,
+    executionLine: 0,
+    runtimeState: currentDump === undefined ? "idle" : "paused",
+  })
+}
+
+async function renderSourceForScript(input: {
+  scriptId: string
+  scriptUrl: string
+  sourceUrl: string
+  line: number
+  executionLine: number
+  runtimeState: SourceRuntimeState
+}): Promise<void> {
+  const location = sourceLocation(input.sourceUrl, input.scriptId, input.line)
   const preferredSourceKind = "sourcemap"
-  const cacheKey = `${scriptId}\0${preferredSourceKind}\0${frame.url}`
+  const cacheKey = `${input.scriptId}\0${preferredSourceKind}\0${input.sourceUrl}`
   let cached = sourceCache.get(cacheKey)
   if (cached === undefined) {
     setSourceRuntimeState("loading")
@@ -800,7 +1080,7 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
       pushSourceToEngine({lines: ["loading…"], currentLine: 0, location})
     }
     try {
-      const res = await fetch(`/source?scriptId=${encodeURIComponent(scriptId)}&sourceUrl=${encodeURIComponent(frame.url)}&sourceKind=${encodeURIComponent(preferredSourceKind)}`)
+      const res = await fetch(`/source?scriptId=${encodeURIComponent(input.scriptId)}&sourceUrl=${encodeURIComponent(input.sourceUrl)}&sourceKind=${encodeURIComponent(preferredSourceKind)}`)
       const data = await res.json() as {
         url?: string
         scriptSource?: string
@@ -809,7 +1089,7 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
       }
       if (typeof data.scriptSource !== "string") {
         pushSourceToEngine({lines: [`no source: ${data.error ?? "unknown"}`], currentLine: 0, location})
-        setSourceRuntimeState("paused")
+        setSourceRuntimeState(input.runtimeState)
         return
       }
       cached = {
@@ -820,32 +1100,36 @@ async function renderSourceForFrame(frame: FrameSnapshot): Promise<void> {
       sourceCache.set(cacheKey, cached)
     } catch (error) {
       pushSourceToEngine({lines: [`fetch failed: ${String(error)}`], currentLine: 0, location})
-      setSourceRuntimeState("paused")
+      setSourceRuntimeState(input.runtimeState)
       return
     } finally {
       setEngineStatus("engine: webgpu")
     }
   }
 
-  const scriptUrl = scriptUrls.get(scriptId) ?? frame.url
-  const sourceUrl = cached.sourceUrl ?? frame.url
-  const sourceLocation = `${sourceUrl || "scriptId=" + scriptId}:${frame.line}`
+  const sourceUrl = cached.sourceUrl ?? input.sourceUrl
+  const nextSourceLocation = sourceLocation(sourceUrl, input.scriptId, input.line)
   activeSource = {
-    scriptId,
-    scriptUrl,
+    scriptId: input.scriptId,
+    scriptUrl: input.scriptUrl,
     sourceUrl,
-    key: sourceKeyFromLocation(sourceLocation, scriptId),
+    key: sourceKeyFromLocation(nextSourceLocation, input.scriptId),
   }
   pushSourceToEngine({
     lines: cached.text.split("\n"),
-    currentLine: frame.line,
-    location: sourceLocation,
+    currentLine: input.executionLine,
+    location: nextSourceLocation,
     ...(cached.tokens === undefined ? {} : {tokens: cached.tokens}),
   })
   activeSourceKey = activeSource.key
-  ensureDraftForActiveSource(cached.text, sourceLocation)
+  ensureDraftForActiveSource(cached.text, nextSourceLocation)
   syncSourceBreakpointMarkers()
-  setSourceRuntimeState("paused")
+  setSourceRuntimeState(input.runtimeState)
+}
+
+function sourceLocation(sourceUrl: string, scriptId: string, line: number): string {
+  const base = sourceUrl || `scriptId=${scriptId}`
+  return line > 0 ? `${base}:${line}` : base
 }
 
 function appendConsole(entry: ConsoleEntry): void {
@@ -924,7 +1208,10 @@ async function initEngine(): Promise<void> {
     framesPane = new FramesPane((index) => {
       activeFrameIndex = index
       if (currentDump !== undefined) renderDump(currentDump)
+    }, (module) => {
+      void renderSourceForModule(module)
     })
+    syncDebugModules()
     scopesEvalPane = new ScopesEvalPane(async (expr, frame) => {
       const label = t("runEval")
       const command = beginDebuggerCommand("eval", label)

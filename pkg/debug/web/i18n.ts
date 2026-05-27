@@ -81,6 +81,8 @@ export const text = {
   lines: {ru: "строк", en: "lines"},
   local: {ru: "локальные", en: "local"},
   manual: {ru: "Вручную", en: "Manual"},
+  modules: {ru: "Модули", en: "Modules"},
+  modulesEmpty: {ru: "модули появятся после подключения", en: "modules appear after attach"},
   noScopes: {ru: "нет областей для текущего фрейма", en: "no scopes for current frame"},
   noSource: {ru: "нет кода", en: "no source"},
   pause: {ru: "Пауза", en: "Pause"},
