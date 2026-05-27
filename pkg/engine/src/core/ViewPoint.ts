@@ -1,5 +1,7 @@
 import { Matrix4, Quaternion, Vector3 } from "../math"
 
+const LOOK_AT_EPSILON = 1e-6
+
 /**
  * Параметры для создания точки обзора.
  */
@@ -182,6 +184,7 @@ export class ViewPoint {
    * Обновляет матрицу вида на основе текущего положения, цели и вектора 'up'.
    */
   public update = () => {
+    this.sanitizePose()
     this.viewMatrix.makeLookAt(this.position, this.target, this.up)
   }
 
@@ -410,4 +413,42 @@ export class ViewPoint {
 
     this.position.copy(this.target).add(offset)
   }
+
+  private sanitizePose(): void {
+    const back = new Vector3().subVectors(this.position, this.target)
+    if (!isFiniteVector(back) || back.length() < LOOK_AT_EPSILON) {
+      const distance = Math.max(this.near * 2, LOOK_AT_EPSILON)
+      this.position.copy(this.target).add(fallbackBackDirection(this.up).multiplyScalar(distance))
+      back.subVectors(this.position, this.target)
+    }
+
+    back.normalize()
+
+    if (!isFiniteVector(this.up) || this.up.length() < LOOK_AT_EPSILON) {
+      this.up.set(0, 0, 1)
+    }
+
+    const projectedUp = this.up.clone().sub(back.clone().multiplyScalar(this.up.dot(back)))
+    if (!isFiniteVector(projectedUp) || projectedUp.length() < LOOK_AT_EPSILON) {
+      projectedUp.copy(fallbackUpDirection(back))
+    }
+    this.up.copy(projectedUp.normalize())
+  }
+}
+
+function isFiniteVector(v: Vector3): boolean {
+  return Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z)
+}
+
+function fallbackBackDirection(up: Vector3): Vector3 {
+  if (!isFiniteVector(up) || up.length() < LOOK_AT_EPSILON) return new Vector3(0, -1, 0)
+  const normalizedUp = up.clone().normalize()
+  return Math.abs(normalizedUp.z) > 0.9 ? new Vector3(0, -1, 0) : new Vector3(0, 0, 1)
+}
+
+function fallbackUpDirection(back: Vector3): Vector3 {
+  const raw = Math.abs(back.z) > 0.9 ? new Vector3(0, 1, 0) : new Vector3(0, 0, 1)
+  const projected = raw.sub(back.clone().multiplyScalar(raw.dot(back)))
+  if (projected.length() >= LOOK_AT_EPSILON) return projected.normalize()
+  return new Vector3(1, 0, 0)
 }

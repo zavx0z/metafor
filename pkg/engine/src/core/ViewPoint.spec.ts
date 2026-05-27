@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { Matrix4 } from "../math/Matrix4"
 import { Vector3 } from "../math/Vector3"
 import { ViewPoint } from "./ViewPoint"
 
@@ -74,5 +75,46 @@ describe("ViewPoint zoom", () => {
     viewPoint.alignUpToWorldZ()
 
     expect(viewPoint.getUp()).toEqual(new Vector3(0, 0, 1))
+  })
+
+  test("не отдаёт сингулярную viewMatrix, когда up параллелен направлению камеры", () => {
+    const errors: unknown[] = []
+    const originalError = console.error
+    console.error = (...args: unknown[]) => {
+      errors.push(args)
+    }
+
+    try {
+      const viewPoint = new ViewPoint({
+        element: createElementStub(),
+        near: 1,
+        position: { x: 0, y: -10, z: 0 },
+        target: { x: 0, y: 0, z: 0 },
+      })
+      viewPoint.getUp().set(0, -1, 0)
+
+      viewPoint.update()
+      new Matrix4().copy(viewPoint.viewMatrix).invert()
+
+      expect(Math.abs(viewPoint.viewMatrix.determinant())).toBeGreaterThan(0.99)
+      expect(errors).toEqual([])
+    } finally {
+      console.error = originalError
+    }
+  })
+
+  test("разводит position и target, если они совпали", () => {
+    const viewPoint = new ViewPoint({
+      element: createElementStub(),
+      near: 1,
+      position: { x: 0, y: -10, z: 0 },
+      target: { x: 0, y: 0, z: 0 },
+    })
+
+    viewPoint.position.copy(viewPoint.getTarget())
+    viewPoint.update()
+
+    expect(getRadius(viewPoint)).toBeGreaterThan(0)
+    expect(Math.abs(viewPoint.viewMatrix.determinant())).toBeGreaterThan(0.99)
   })
 })
