@@ -15,6 +15,7 @@ import {spawn, type Subprocess} from "bun"
 import type {EventLogger} from "./logger.ts"
 import {serializeError} from "./errors.ts"
 import {applyInspectMode, type InspectMode} from "./inspect-mode.ts"
+import {sleep} from "./time.ts"
 
 export type TargetState = "idle" | "starting" | "running" | "exited" | "failed"
 
@@ -217,11 +218,29 @@ export class TargetSupervisor {
     return this.snapshot()
   }
 
-  shutdown(): void {
-    if (this.#child !== undefined && this.#state === "running") {
-      try {
-        this.#child.kill("SIGTERM")
-      } catch {}
+  async shutdown(): Promise<void> {
+    const child = this.#child
+    if (child === undefined || this.#state !== "running") return
+    try {
+      child.kill("SIGTERM")
+    } catch {}
+
+    await Promise.race([
+      child.exited.then(() => {}),
+      sleep(3000).then(() => {
+        if (this.#child === child && this.#state === "running") {
+          try {
+            child.kill("SIGKILL")
+          } catch {}
+        }
+      }),
+    ])
+
+    if (this.#child === child && this.#state === "running") {
+      await Promise.race([
+        child.exited.then(() => {}),
+        sleep(500),
+      ])
     }
   }
 

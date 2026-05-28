@@ -11,6 +11,7 @@ import {SnapshotStore} from "./snapshot.ts"
 import {TargetSupervisor, type BreakpointSpec, type TargetSnapshot} from "./target.ts"
 import {sleep} from "./time.ts"
 import type {JsonObject} from "./types.ts"
+import type {InterpreterDump} from "./types.ts"
 import {serializeError} from "./errors.ts"
 import type {InspectMode} from "./inspect-mode.ts"
 
@@ -34,6 +35,7 @@ export type InterpreterSessionSnapshot = {
   paused: boolean
   scriptCount: number
   hasDump: boolean
+  dump: InterpreterDump | null
   target: TargetSnapshot
 }
 
@@ -143,12 +145,13 @@ export class InterpreterSession {
       paused: this.snapshots.paused,
       scriptCount: this.snapshots.scripts.length,
       hasDump: this.snapshots.dump !== undefined,
+      dump: this.snapshots.dump ?? null,
       target: this.target.snapshot(),
     }
   }
 
-  shutdown(): void {
-    this.runtime.shutdownWithoutExit()
+  shutdown(): Promise<void> {
+    return this.runtime.shutdownWithoutExit()
   }
 }
 
@@ -226,8 +229,8 @@ export class InterpreterSessionManager {
     return session
   }
 
-  shutdown(): void {
-    for (const session of this.#sessions.values()) session.shutdown()
+  async shutdown(): Promise<void> {
+    await Promise.all([...this.#sessions.values()].map((session) => session.shutdown()))
   }
 
   #allocateSessionId(label: string | undefined): string {
@@ -401,12 +404,12 @@ class InterpreterRuntime {
     })
   }
 
-  shutdownWithoutExit(): void {
+  async shutdownWithoutExit(): Promise<void> {
     this.#closed = true
     this.#clearInitializedFallback()
-    this.#target?.shutdown()
     this.#client.close()
     this.#kickReconnect()
+    await this.#target?.shutdown()
   }
 
   async #initializeInterpreter(): Promise<void> {

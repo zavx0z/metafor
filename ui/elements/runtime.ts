@@ -402,6 +402,18 @@ export class UiRuntime {
     this.requestRender()
   }
 
+  displayMetrics(displayId: UiDisplayId): {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number} | null {
+    this.#applyDisplayGeometry()
+    const slot = this.#displaySlots.get(displayId)
+    if (slot === undefined) return null
+    return {
+      widthMm: slot.display.widthMm,
+      heightMm: slot.display.heightMm,
+      pixelWidth: slot.pixelWidth,
+      pixelHeight: slot.pixelHeight,
+    }
+  }
+
   frameDisplays(displayIds?: readonly UiDisplayId[]): void {
     const slots = (displayIds ?? [...this.#displaySlots.keys()])
       .map((id) => this.#displaySlots.get(id))

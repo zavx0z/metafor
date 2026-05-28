@@ -12,6 +12,7 @@ export type CommandContext = {
   client: InspectorClient
   snapshots: SnapshotStore
   logger: EventLogger
+  signal?: AbortSignal
   stdin?: ReadableStream<Uint8Array>
   stdout?: {
     write(chunk: string): unknown
@@ -28,6 +29,9 @@ export async function readStdinCommands(context: CommandContext): Promise<void> 
     context.logger.event("stdin.failed", {error: serializeError(error)})
     return
   }
+  context.signal?.addEventListener("abort", () => {
+    void reader.cancel()
+  }, {once: true})
   let buffer = ""
   let sequence = 0
   const textDecoder = new TextDecoder()
@@ -72,10 +76,11 @@ export async function readFileCommands(context: CommandContext, commandPath: str
   let sequence = 0
   let offset = existsSync(commandPath) ? statSync(commandPath).size : 0
 
-  while (true) {
+  while (!commandAborted(context)) {
     try {
       if (!existsSync(commandPath)) {
         await sleep(250)
+        if (commandAborted(context)) break
         continue
       }
 
@@ -109,6 +114,10 @@ export async function readFileCommands(context: CommandContext, commandPath: str
 
     await sleep(250)
   }
+}
+
+function commandAborted(context: CommandContext): boolean {
+  return context.signal?.aborted === true
 }
 
 async function handleCommandLine(context: CommandContext, seq: number, line: string): Promise<void> {

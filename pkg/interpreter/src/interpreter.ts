@@ -11,7 +11,18 @@ export type RunInterpreterOptions = {
   startupTargets?: InterpreterSessionRunOptions[]
 }
 
-export async function runInterpreter(config: InterpreterConfig = loadConfig(), options: RunInterpreterOptions = {}): Promise<never> {
+type InterpreterRuntimeHandle = {
+  shutdown(reason: string, code?: number): Promise<void>
+}
+
+type InterpreterGlobalState = typeof globalThis & {
+  __metaforInterpreterRuntime?: InterpreterRuntimeHandle
+}
+
+export async function runInterpreter(config: InterpreterConfig = loadConfig(), options: RunInterpreterOptions = {}): Promise<void> {
+  const globalState = globalThis as InterpreterGlobalState
+  await globalState.__metaforInterpreterRuntime?.shutdown("replace")
+
   ensureParentDir(config.dumpPath)
   ensureParentDir(config.consoleLogPath)
   ensureParentDir(config.commandPath)
@@ -56,6 +67,42 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
       logger.event("http.start.failed", {error: serializeError(error)})
       logger.status(`http api failed to start on ${config.httpHost}:${config.httpPort}`)
     }
+  }
+
+  let resolveRun: (() => void) | undefined
+  let cleanupPromise: Promise<void> | undefined
+  const commandAbort = new AbortController()
+  const shutdownHandle: InterpreterRuntimeHandle = {
+    shutdown: (reason, code) => cleanup(reason, code),
+  }
+  globalState.__metaforInterpreterRuntime = shutdownHandle
+
+  const cleanup = (reason: string, code?: number): Promise<void> => {
+    cleanupPromise ??= (async () => {
+      logger.event("interpreter.shutdown", code === undefined ? {reason} : {reason, code})
+      commandAbort.abort()
+      await sessions.shutdown()
+      httpServer?.stop?.()
+      process.off("SIGINT", onSigint)
+      process.off("SIGTERM", onSigterm)
+      if (globalState.__metaforInterpreterRuntime === shutdownHandle) {
+        delete globalState.__metaforInterpreterRuntime
+      }
+      resolveRun?.()
+      resolveRun = undefined
+    })()
+    return cleanupPromise
+  }
+
+  const shutdown = (code: number): void => {
+    void cleanup("signal", code).finally(() => process.exit(code))
+  }
+  const onSigint = () => shutdown(130)
+  const onSigterm = () => shutdown(143)
+
+  if (import.meta.hot) {
+    import.meta.hot.accept()
+    import.meta.hot.dispose(() => cleanup("hot-reload"))
   }
 
   const startupTargets: InterpreterSessionRunOptions[] = options.startupTargets ?? (
@@ -104,15 +151,8 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
     }
   }
 
-  const shutdown = (code: number): never => {
-    logger.event("interpreter.shutdown", {code})
-    sessions.shutdown()
-    httpServer?.stop?.()
-    process.exit(code)
-  }
-
-  process.on("SIGINT", () => shutdown(130))
-  process.on("SIGTERM", () => shutdown(143))
+  process.on("SIGINT", onSigint)
+  process.on("SIGTERM", onSigterm)
 
   sessions.start()
   void readStdinCommands({
@@ -120,15 +160,18 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
     snapshots: defaultSession.snapshots,
     logger,
     responsePath: config.responsePath,
+    signal: commandAbort.signal,
   })
   void readFileCommands({
     client: defaultSession.client,
     snapshots: defaultSession.snapshots,
     logger,
     responsePath: config.responsePath,
+    signal: commandAbort.signal,
   }, config.commandPath)
 
-  return await new Promise<never>(() => {
+  return await new Promise<void>((resolve) => {
+    resolveRun = resolve
     // WebSocket, reconnect timers, and stdin drive the process lifetime.
   })
 }

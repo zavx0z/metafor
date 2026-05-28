@@ -307,10 +307,14 @@ async function handleRoute(
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
   if (method === "GET" && path === "/sessions") return jsonResponse({sessions: options.sessions.snapshots()})
   if (method === "POST" && path === "/sessions/run") return await runSession(req, options)
+  const sessionRun = /^\/sessions\/([^/]+)\/run$/.exec(path)
+  if (method === "POST" && sessionRun !== null) return await runExistingSession(sessionRun[1]!, req, options)
   const sessionStop = /^\/sessions\/([^/]+)\/stop$/.exec(path)
   if (method === "POST" && sessionStop !== null) return await stopSession(sessionStop[1]!, req, options)
   const sessionCommand = /^\/sessions\/([^/]+)\/command$/.exec(path)
   if (method === "POST" && sessionCommand !== null) return await dispatchSessionCommand(sessionCommand[1]!, req, options)
+  const sessionSource = /^\/sessions\/([^/]+)\/source$/.exec(path)
+  if (method === "GET" && sessionSource !== null) return await getSessionScriptSource(sessionSource[1]!, url, options)
   if (method === "GET" && path === "/state") return jsonResponse(options.snapshots.dump ?? null)
   if (method === "GET" && path === "/scripts") return jsonResponse(scriptsView(options.snapshots.scripts))
   if (method === "GET" && path === "/frames") {
@@ -614,15 +618,41 @@ function envStrings(value: unknown): Record<string, string> | undefined {
 }
 
 async function runSession(req: Request, options: HttpServerOptions): Promise<Response> {
+  const parsed = await readSessionRunOptions(req)
+  if ("response" in parsed) return parsed.response
+
+  try {
+    const session = options.sessions.run(parsed.run)
+    return jsonResponse({ok: true, session: session.snapshot(), sessions: options.sessions.snapshots()})
+  } catch (error) {
+    return jsonResponse({ok: false, error: serializeError(error)}, 409)
+  }
+}
+
+async function runExistingSession(sessionId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+  const session = options.sessions.get(sessionId)
+  if (session === undefined) return jsonResponse({ok: false, error: `session not found: ${sessionId}`}, 404)
+  const parsed = await readSessionRunOptions(req)
+  if ("response" in parsed) return parsed.response
+  try {
+    if (parsed.run.label !== undefined) session.setLabel(parsed.run.label)
+    const target = session.runTarget(parsed.run)
+    return jsonResponse({ok: true, session: session.snapshot(), target})
+  } catch (error) {
+    return jsonResponse({ok: false, error: serializeError(error)}, 409)
+  }
+}
+
+async function readSessionRunOptions(req: Request): Promise<{run: StartupTargetOptions & {label?: string; inspectorUrl?: string}} | {response: Response}> {
   const parsed = await readJsonObject(req)
-  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  if (parsed.error !== undefined) return {response: jsonResponse({ok: false, error: parsed.error}, 400)}
   const body = parsed.body
   const command = parseCommand(body["command"])
   if (command === undefined || command.length === 0) {
-    return jsonResponse({ok: false, error: "command must be non-empty array of strings"}, 400)
+    return {response: jsonResponse({ok: false, error: "command must be non-empty array of strings"}, 400)}
   }
   const parsedBreakpoints = parseBreakpoints(body["breakpoints"])
-  if (parsedBreakpoints.error !== undefined) return jsonResponse({ok: false, error: parsedBreakpoints.error}, 400)
+  if (parsedBreakpoints.error !== undefined) return {response: jsonResponse({ok: false, error: parsedBreakpoints.error}, 400)}
 
   const label = asString(body["label"])
   const inspectorUrl = asString(body["inspectorUrl"])
@@ -635,13 +665,7 @@ async function runSession(req: Request, options: HttpServerOptions): Promise<Res
   if (cwd !== undefined) run.cwd = cwd
   if (env !== undefined) run.env = env
   if (parsedBreakpoints.breakpoints !== undefined) run.breakpoints = parsedBreakpoints.breakpoints
-
-  try {
-    const session = options.sessions.run(run)
-    return jsonResponse({ok: true, session: session.snapshot(), sessions: options.sessions.snapshots()})
-  } catch (error) {
-    return jsonResponse({ok: false, error: serializeError(error)}, 409)
-  }
+  return {run}
 }
 
 async function stopSession(sessionId: string, req: Request, options: HttpServerOptions): Promise<Response> {
@@ -889,17 +913,27 @@ async function reconnectInspector(req: Request, options: HttpServerOptions): Pro
 }
 
 async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Response> {
+  return await getScriptSourceForSession(url, options.sessions.defaultSession, "default")
+}
+
+async function getSessionScriptSource(sessionId: string, url: URL, options: HttpServerOptions): Promise<Response> {
+  const session = options.sessions.get(sessionId)
+  if (session === undefined) return jsonResponse({ok: false, error: `session not found: ${sessionId}`}, 404)
+  return await getScriptSourceForSession(url, session, sessionId)
+}
+
+async function getScriptSourceForSession(url: URL, session: InterpreterSession, cacheScope: string): Promise<Response> {
   const scriptId = url.searchParams.get("scriptId") ?? ""
   const sourceUrl = url.searchParams.get("sourceUrl") ?? undefined
   if (scriptId.length === 0) return getSourceFile(sourceUrl, url)
 
   const sourceKind = url.searchParams.get("sourceKind")
-  const script = options.snapshots.scriptInfo(scriptId)
+  const script = session.snapshots.scriptInfo(scriptId)
   const fileUrl = script?.url
   const mappedSource = sourceKind === "runtime" ? null : sourceMapMapper(script?.sourceMapURL).sourceContent(sourceUrl ?? fileUrl)
   const includeTokens = url.searchParams.get("tokens") !== "0"
   const responseUrl = mappedSource?.source ?? fileUrl ?? ""
-  const cacheKey = sourceCacheKey(scriptId, `${mappedSource === null ? "runtime" : "sourcemap"}\0${responseUrl}`)
+  const cacheKey = sourceCacheKey(`${cacheScope}:${scriptId}`, `${mappedSource === null ? "runtime" : "sourcemap"}\0${responseUrl}`)
 
   const cachedSource = lruGet(sourceCache, cacheKey)
   if (cachedSource !== undefined) {
@@ -926,7 +960,7 @@ async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Re
   }
 
   try {
-    const result = asObject(await options.client.request("Debugger.getScriptSource", {scriptId}))
+    const result = asObject(await session.client.request("Debugger.getScriptSource", {scriptId}))
     const scriptSource = asString(result?.["scriptSource"]) ?? ""
     if (scriptSource.length > 0) lruSet(sourceCache, cacheKey, scriptSource, SOURCE_CACHE_MAX)
     return jsonResponse({

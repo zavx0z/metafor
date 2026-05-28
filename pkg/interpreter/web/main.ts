@@ -8,7 +8,6 @@ import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
 import {EditorPane, sourceDisplayLocation, sourcePathFromLocation, type EditorBreakpoint, type EditorTokens} from "@ui/panes"
 import {applyInspectMode} from "../src/inspect-mode.ts"
 import {ConsolePane, type ConsoleEntry} from "./console-pane.ts"
-import {SessionDisplayPane, type SessionPaneSnapshot} from "./session-display-pane.ts"
 import {
   DisplayHoverOutlinePane,
   FramesPane,
@@ -67,6 +66,36 @@ type TargetSnapshot = {
   startedAt: string | null
   exitedAt: string | null
   exitCode: number | null
+}
+
+type SessionLine = {
+  ts: string
+  stream: "stdout" | "stderr"
+  text: string
+}
+
+type SessionPaneSnapshot = {
+  id: string
+  label: string
+  inspectorUrl: string
+  connection: ConnectionInfo
+  paused: boolean
+  scriptCount: number
+  hasDump: boolean
+  dump: InterpreterDump | null
+  target: {
+    state: "idle" | "starting" | "running" | "exited" | "failed"
+    pid: number | null
+    command: string[]
+    cwd: string | null
+    startedAt: string | null
+    exitedAt: string | null
+    exitCode: number | null
+    signalCode: string | null
+    outputLineCount: number
+    output: SessionLine[]
+    pauseOnStart: boolean
+  }
 }
 
 type InterpreterDump = {
@@ -131,6 +160,20 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
 }
 
 const engineCanvas = $<HTMLCanvasElement>("engine-canvas")
+const interpreterDebugState = window as unknown as {
+  __metaforInterpreter?: unknown
+  __metaforInterpreterInit?: {stage: string; error?: string; stack?: string}
+}
+function setInterpreterDebugInit(state: {stage: string; error?: string; stack?: string}): void {
+  interpreterDebugState.__metaforInterpreterInit = state
+  document.documentElement.dataset.metaforInterpreterInit = state.stage
+  if (state.error === undefined) {
+    delete document.documentElement.dataset.metaforInterpreterError
+  } else {
+    document.documentElement.dataset.metaforInterpreterError = state.error
+  }
+}
+setInterpreterDebugInit({stage: "bootstrap"})
 const consolePending: ConsoleEntry[] = []
 type CachedSource = {text: string; sourceUrl?: string; tokens?: EditorTokens}
 type DraftState = {baseText: string; text: string; savedText: string; status: "clean" | "dirty" | "saved"}
@@ -155,7 +198,7 @@ let scopesEvalPane: ScopesEvalPane | null = null
 let verbosePane: VerbosePane | null = null
 let welcomePane: WelcomePane | null = null
 const sessionSnapshots = new Map<string, SessionPaneSnapshot>()
-const sessionPanes = new Map<string, SessionDisplayPane>()
+const sessionDisplays = new Map<string, SessionDisplayController>()
 const sessionDisplayIds = new Set<string>()
 let sessionOrder: string[] = ["default"]
 let framedSessionKey = ""
@@ -206,6 +249,7 @@ const SESSION_DISPLAY_H_MM = 380
 const SESSION_DISPLAY_GAP_MM = 52
 const SESSION_DISPLAY_CENTER_Y_MM = 0
 const SESSION_DISPLAY_CENTER_Z_MM = 900
+type DisplayLayoutSize = {widthMm: number; heightMm: number}
 const pendingRequests = new Map<number, {
   timer: number
   resolve: (reply: CommandReply) => void
@@ -291,8 +335,16 @@ function handleServerMessage(msg: ServerMessage): void {
       applySessionSnapshots(msg.sessions)
       return
     case "session":
+      applySessionSnapshot(msg.session)
+      return
     case "session-state":
+      applySessionSnapshot(msg.session)
+      applySessionDump(msg.sessionId, msg.dump)
+      return
     case "session-resumed":
+      applySessionSnapshot(msg.session)
+      markSessionResumed(msg.sessionId)
+      return
     case "session-connection":
     case "session-target":
       applySessionSnapshot(msg.session)
@@ -330,14 +382,20 @@ function handleServerMessage(msg: ServerMessage): void {
 function applySessionSnapshots(sessions: SessionPaneSnapshot[]): void {
   if (sessions.length === 0) return
   sessionOrder = sessions.map((session) => session.id)
-  for (const session of sessions) sessionSnapshots.set(session.id, session)
+  for (const session of sessions) {
+    sessionSnapshots.set(session.id, session)
+  }
   syncSessionDisplays()
+  for (const session of sessions) {
+    if (session.dump !== null) applySessionDump(session.id, session.dump)
+  }
 }
 
 function applySessionSnapshot(session: SessionPaneSnapshot): void {
   sessionSnapshots.set(session.id, session)
   if (!sessionOrder.includes(session.id)) sessionOrder.push(session.id)
   syncSessionDisplays()
+  if (session.dump !== null) applySessionDump(session.id, session.dump)
 }
 
 // Пробиваем CSS-кеш на старте: добавляем ?t=<timestamp> к href стилей,
@@ -1458,7 +1516,7 @@ function appendConsole(entry: ConsoleEntry): void {
 
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
 
-function send(cmd: string, params: Record<string, unknown> = {}): Promise<CommandReply> {
+function send(cmd: string, params: Record<string, unknown> = {}, sessionId = "default"): Promise<CommandReply> {
   if (socket === undefined || socket.readyState !== WebSocket.OPEN) {
     return Promise.resolve({ok: false, error: "ws not connected"})
   }
@@ -1469,7 +1527,7 @@ function send(cmd: string, params: Record<string, unknown> = {}): Promise<Comman
       resolve({ok: false, error: `${cmd} timed out after ${COMMAND_TIMEOUT_MS}ms`})
     }, COMMAND_TIMEOUT_MS)
     pendingRequests.set(requestId, {timer, resolve})
-    socket!.send(JSON.stringify({type: "command", cmd, params, requestId}))
+    socket!.send(JSON.stringify({type: "command", cmd, params, requestId, sessionId}))
   })
 }
 
@@ -1499,14 +1557,20 @@ async function initEngine(): Promise<void> {
   if (uiLoading || uiCanvas !== null) return
   uiLoading = true
   setEngineStatus("engine: init")
+  setInterpreterDebugInit({stage: "runtime-create"})
   try {
     uiCanvas = await UiRuntime.create(engineCanvas, {
       virtualDisplay: {
         initial: "near",
+        widthMm: SESSION_DISPLAY_W_MM,
+        heightMm: SESSION_DISPLAY_H_MM,
+        pixelWidth: SESSION_DISPLAY_PIXEL_W,
+        pixelHeight: SESSION_DISPLAY_PIXEL_H,
         centerMm: {x: 0, y: SESSION_DISPLAY_CENTER_Y_MM, z: SESSION_DISPLAY_CENTER_Z_MM},
         farDistanceMm: 1200,
       },
     })
+    setInterpreterDebugInit({stage: "panes-create"})
     toolbarPane = new ToolbarPane({
       onPause: () => void runInterpreterCommand("pause", {}, t("pause")),
       onResume: () => void runInterpreterCommand("resume", {}, t("resume")),
@@ -1572,13 +1636,14 @@ async function initEngine(): Promise<void> {
       onSelectFile: (path) => selectTargetFile(path),
       onToggleLocale: () => toggleLocale(),
     })
+    setInterpreterDebugInit({stage: "install-panes"})
     installEnginePanes()
     syncSessionDisplays()
-    resizeObserver = new ResizeObserver(() => uiCanvas?.handleResize())
+    resizeObserver = new ResizeObserver(handleEngineResize)
     resizeObserver.observe(engineCanvas)
-    requestAnimationFrame(() => uiCanvas?.handleResize())
-    setTimeout(() => uiCanvas?.handleResize(), 200)
-    window.addEventListener("resize", () => uiCanvas?.handleResize())
+    requestAnimationFrame(handleEngineResize)
+    setTimeout(handleEngineResize, 200)
+    window.addEventListener("resize", handleEngineResize)
     setEngineStatus("engine: webgpu")
     updateToolbar()
     updateWelcomePane()
@@ -1598,7 +1663,7 @@ async function initEngine(): Promise<void> {
     }
     // Interpreter helper: window.__metaforInterpreter.scanScene() печатает все Mesh
     // в сцене с их world-position и size. Помогает находить leftover-mesh.
-    ;(window as unknown as {__metaforInterpreter: unknown}).__metaforInterpreter = {
+    interpreterDebugState.__metaforInterpreter = {
       canvas: uiCanvas,
       scene: uiCanvas?.scene,
       scanScene(): void {
@@ -1656,8 +1721,15 @@ async function initEngine(): Promise<void> {
         return undefined
       },
     }
+    setInterpreterDebugInit({stage: "ready"})
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
+    const failedState: {stage: string; error: string; stack?: string} = {
+      stage: "failed",
+      error: message,
+    }
+    if (error instanceof Error && error.stack !== undefined) failedState.stack = error.stack
+    setInterpreterDebugInit(failedState)
     setEngineStatus(`engine failed: ${message}`)
     console.error("canvas init failed:", error)
   } finally {
@@ -1765,6 +1837,289 @@ function applyEngineLayout(): void {
   uiCanvas?.relayout()
 }
 
+type SessionDisplayController = {
+  id: string
+  toolbar: ToolbarPane
+  frames: FramesPane
+  scopes: ScopesEvalPane
+  source: EditorPane
+  console: ConsolePane
+  sourceCache: Map<string, CachedSource>
+  activeFrameIndex: number
+  dump: InterpreterDump | undefined
+  sourceLocation: string
+  sourceRuntimeState: SourceRuntimeState
+  outputLineCount: number
+  activeCommand: ActiveInterpreterCommand | null
+}
+
+function createSessionDisplayController(session: SessionPaneSnapshot): SessionDisplayController {
+  const controller: SessionDisplayController = {
+    id: session.id,
+    toolbar: new ToolbarPane({
+      onPause: () => void runSessionInterpreterCommand(controller, "pause", {}, t("pause")),
+      onResume: () => void runSessionInterpreterCommand(controller, "resume", {}, t("resume")),
+      onRestartTarget: () => void restartSession(session.id),
+      onStopTarget: () => void stopSession(session.id),
+      onShowExecutionPoint: () => renderSessionDump(controller),
+      onStep: (kind) => void runSessionInterpreterCommand(controller, "step", {kind}, kind === "over" ? t("stepOver") : kind === "into" ? t("stepInto") : t("stepOut")),
+      onToggleDraft: () => {},
+      onSaveDraft: () => {},
+      onToggleLocale: () => toggleLocale(),
+      onToggleVerbose: () => {},
+    }),
+    frames: new FramesPane((index) => {
+      controller.activeFrameIndex = index
+      renderSessionDump(controller)
+    }),
+    scopes: new ScopesEvalPane(async (expr, frame) => {
+      controller.scopes.setEvalOutput(t("commandExecuting"))
+      const response = await runSessionInterpreterCommand(controller, "eval", {frame, expr}, t("runEval"))
+      controller.scopes.setEvalOutput(JSON.stringify(response))
+    }),
+    source: new EditorPane({
+      title: t("sourceWaiting"),
+      path: "",
+      fontPx: 12,
+      linePx: 16,
+      readOnly: true,
+      showCaret: false,
+      introAnimation: false,
+    }),
+    console: new ConsolePane(),
+    sourceCache: new Map(),
+    activeFrameIndex: 0,
+    dump: undefined,
+    sourceLocation: "",
+    sourceRuntimeState: "idle",
+    outputLineCount: 0,
+    activeCommand: null,
+  }
+  controller.toolbar.node.name = `InterpreterToolbar:${session.id}`
+  controller.frames.node.name = `InterpreterFrames:${session.id}`
+  controller.scopes.node.name = `InterpreterScopes:${session.id}`
+  controller.source.node.name = `InterpreterSource:${session.id}`
+  controller.console.node.name = `InterpreterConsole:${session.id}`
+  updateSessionDisplay(controller, session)
+  return controller
+}
+
+function updateSessionDisplay(controller: SessionDisplayController, session: SessionPaneSnapshot): void {
+  if (session.dump !== null && controller.dump?.timestamp !== session.dump.timestamp) {
+    controller.dump = session.dump
+  }
+  if (session.target.outputLineCount < controller.outputLineCount) {
+    controller.console.clear()
+    controller.outputLineCount = 0
+  }
+  const nextLines = session.target.output.slice(controller.outputLineCount)
+  if (nextLines.length > 0) {
+    controller.console.pushEntries(nextLines.map((line) => ({
+      ts: line.ts,
+      level: line.stream === "stderr" ? "error" : undefined,
+      text: `[target/${line.stream}] ${line.text}`,
+    })))
+    controller.outputLineCount = session.target.outputLineCount
+  }
+  updateSessionToolbar(controller, session)
+  if (controller.dump !== undefined) renderSessionDump(controller)
+}
+
+function updateSessionToolbar(controller: SessionDisplayController, session: SessionPaneSnapshot): void {
+  const run = sessionRunStatus(session)
+  const connectionKind: BadgeKind = session.connection.state === "connected"
+    ? "live"
+    : session.connection.state === "connecting"
+      ? "neutral"
+      : "warn"
+  controller.toolbar.setState({
+    ws: session.connection.state,
+    wsKind: connectionKind,
+    connection: `context: ${session.connection.state}`,
+    connectionKind,
+    run: controller.activeCommand === null ? run.text : t("commandExecuting"),
+    runKind: controller.activeCommand === null ? run.kind : "paused",
+    commandBusy: controller.activeCommand !== null,
+    commandCmd: controller.activeCommand?.cmd ?? "",
+    commandLabel: controller.activeCommand?.label ?? "",
+    draftVisible: false,
+    draftStatus: "clean",
+    draftKind: "neutral",
+    locale: getUiLocale(),
+    inspectorUrl: session.inspectorUrl,
+    verbose: false,
+    engine: engineStatus,
+    welcomeVisible: false,
+    canShowExecutionPoint: controller.dump !== undefined && controller.dump.frames.length > 0,
+  })
+}
+
+function sessionRunStatus(session: SessionPaneSnapshot): {text: string; kind: BadgeKind} {
+  if (session.paused) return {text: "paused", kind: "paused"}
+  if (session.target.state === "running") return {text: "running", kind: "live"}
+  if (session.target.state === "starting") return {text: "target starting", kind: "neutral"}
+  if (session.target.state === "exited") return {text: `exited code=${session.target.exitCode}`, kind: "warn"}
+  if (session.target.state === "failed") return {text: "failed", kind: "warn"}
+  return {text: "waiting", kind: "neutral"}
+}
+
+function applySessionDump(sessionId: string, dump: InterpreterDump): void {
+  const controller = sessionDisplays.get(sessionId)
+  if (controller === undefined) return
+  controller.dump = dump
+  controller.activeFrameIndex = Math.min(controller.activeFrameIndex, Math.max(0, dump.frames.length - 1))
+  renderSessionDump(controller)
+  const snapshot = sessionSnapshots.get(sessionId)
+  if (snapshot !== undefined) updateSessionToolbar(controller, snapshot)
+}
+
+function markSessionResumed(sessionId: string): void {
+  const controller = sessionDisplays.get(sessionId)
+  if (controller === undefined) return
+  controller.dump = undefined
+  controller.frames.setFrames([], controller.activeFrameIndex)
+  controller.scopes.setFrame(null)
+  setSessionSourceState(controller, "running")
+  const snapshot = sessionSnapshots.get(sessionId)
+  if (snapshot !== undefined) updateSessionToolbar(controller, snapshot)
+}
+
+function renderSessionDump(controller: SessionDisplayController): void {
+  const dump = controller.dump
+  if (dump === undefined) {
+    controller.frames.setFrames([], controller.activeFrameIndex)
+    controller.scopes.setFrame(null)
+    return
+  }
+  controller.frames.setFrames(dump.frames as FrameSnapshot[], controller.activeFrameIndex)
+  const frame = dump.frames[controller.activeFrameIndex] ?? dump.frames[0]
+  if (frame === undefined) {
+    controller.scopes.setFrame(null)
+    return
+  }
+  controller.scopes.setFrame(frame as FrameSnapshot)
+  void renderSessionSourceForFrame(controller, frame as FrameSnapshot)
+}
+
+async function renderSessionSourceForFrame(controller: SessionDisplayController, frame: FrameSnapshot): Promise<void> {
+  const scriptId = frame.scriptId
+  if (scriptId === undefined || scriptId.length === 0) {
+    setSessionSource(controller, {
+      lines: ["scriptId недоступен для этого фрейма"],
+      currentLine: 0,
+      location: "",
+    }, "paused")
+    return
+  }
+  const location = sourceLocation(frame.url, scriptId, frame.line)
+  const cacheKey = `${scriptId}\0sourcemap\0${frame.url}`
+  let cached = controller.sourceCache.get(cacheKey)
+  if (cached === undefined) {
+    setSessionSourceState(controller, "loading")
+    setSessionSource(controller, {lines: ["loading..."], currentLine: 0, location}, "loading")
+    try {
+      const res = await fetch(`/sessions/${encodeURIComponent(controller.id)}/source?scriptId=${encodeURIComponent(scriptId)}&sourceUrl=${encodeURIComponent(frame.url)}&sourceKind=sourcemap`)
+      const data = await res.json() as {
+        url?: string
+        scriptSource?: string
+        tokens?: EditorTokens
+        error?: string
+      }
+      if (typeof data.scriptSource !== "string") {
+        setSessionSource(controller, {lines: [`no source: ${data.error ?? "unknown"}`], currentLine: 0, location}, "paused")
+        return
+      }
+      cached = {
+        text: data.scriptSource,
+        ...(data.url === undefined ? {} : {sourceUrl: data.url}),
+        ...(data.tokens === undefined ? {} : {tokens: data.tokens}),
+      }
+      controller.sourceCache.set(cacheKey, cached)
+    } catch (error) {
+      setSessionSource(controller, {lines: [`fetch failed: ${String(error)}`], currentLine: 0, location}, "paused")
+      return
+    }
+  }
+  const sourceUrl = cached.sourceUrl ?? frame.url
+  setSessionSource(controller, {
+    lines: cached.text.split("\n"),
+    currentLine: frame.line,
+    location: sourceLocation(sourceUrl, scriptId, frame.line),
+    ...(cached.tokens === undefined ? {} : {tokens: cached.tokens}),
+  }, "paused")
+}
+
+function setSessionSource(controller: SessionDisplayController, payload: Source, state: SourceRuntimeState): void {
+  controller.sourceLocation = payload.location
+  controller.sourceRuntimeState = state
+  controller.source.setTitle(sessionSourceTitle(controller))
+  controller.source.setText(payload.lines.join("\n"))
+  if (payload.tokens !== undefined) controller.source.setTokens(payload.tokens)
+  else controller.source.setLanguage({path: sourcePathFromLocation(payload.location)})
+  controller.source.setExecutionLine(payload.currentLine > 0 ? payload.currentLine : null, {scroll: true})
+}
+
+function setSessionSourceState(controller: SessionDisplayController, state: SourceRuntimeState): void {
+  controller.sourceRuntimeState = state
+  controller.source.setTitle(sessionSourceTitle(controller))
+}
+
+function sessionSourceTitle(controller: SessionDisplayController): string {
+  const snapshot = sessionSnapshots.get(controller.id)
+  const label = snapshot?.label ?? controller.id
+  if (controller.sourceRuntimeState === "loading") return `${label} - ${t("sourceLoading")}`
+  if (controller.sourceRuntimeState === "running") return `${label} - ${t("sourceRunning")}`
+  const location = sourceDisplayLocation(controller.sourceLocation) || t("sourceWaiting")
+  return `${label} - ${location}`
+}
+
+async function runSessionInterpreterCommand(controller: SessionDisplayController, cmd: string, params: Record<string, unknown>, label: string): Promise<CommandReply> {
+  if (controller.activeCommand !== null) {
+    return {ok: false, error: `${t("commandAlreadyRunning")}: ${controller.activeCommand.label}`}
+  }
+  const command: ActiveInterpreterCommand = {
+    cmd,
+    label,
+    startedAt: performance.now(),
+    timer: window.setInterval(() => {
+      const snapshot = sessionSnapshots.get(controller.id)
+      if (snapshot !== undefined) updateSessionToolbar(controller, snapshot)
+    }, 250),
+  }
+  controller.activeCommand = command
+  const snapshot = sessionSnapshots.get(controller.id)
+  if (snapshot !== undefined) updateSessionToolbar(controller, snapshot)
+  try {
+    return await send(cmd, params, controller.id)
+  } finally {
+    window.clearInterval(command.timer)
+    if (controller.activeCommand === command) controller.activeCommand = null
+    const nextSnapshot = sessionSnapshots.get(controller.id)
+    if (nextSnapshot !== undefined) updateSessionToolbar(controller, nextSnapshot)
+  }
+}
+
+async function restartSession(sessionId: string): Promise<void> {
+  const snapshot = sessionSnapshots.get(sessionId)
+  const command = snapshot?.target.command
+  if (command === undefined || command.length === 0) return
+  await stopSession(sessionId)
+  await fetch(`/sessions/${encodeURIComponent(sessionId)}/run`, {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({
+      label: snapshot?.label ?? sessionId,
+      command: command.filter((part) => !part.startsWith("--inspect")),
+      pauseOnStart: snapshot?.target.pauseOnStart ?? true,
+    }),
+  })
+}
+
+function handleEngineResize(): void {
+  uiCanvas?.handleResize()
+  syncSessionDisplays()
+}
+
 function syncSessionDisplays(): void {
   if (uiCanvas === null) return
   const orderedSessions = sessionOrder
@@ -1773,10 +2128,15 @@ function syncSessionDisplays(): void {
   if (orderedSessions.length === 0) return
 
   const displayIds = orderedSessions.map((session) => session.id)
-  const totalW = orderedSessions.length * SESSION_DISPLAY_W_MM + Math.max(0, orderedSessions.length - 1) * SESSION_DISPLAY_GAP_MM
+  const displaySizes = displayIds.map((id) => displayLayoutSize(id))
+  const totalW = displaySizes.reduce((sum, size) => sum + size.widthMm, 0)
+    + Math.max(0, orderedSessions.length - 1) * SESSION_DISPLAY_GAP_MM
+  let cursorX = -totalW / 2
   for (let index = 0; index < orderedSessions.length; index++) {
     const session = orderedSessions[index]!
-    const x = -totalW / 2 + SESSION_DISPLAY_W_MM / 2 + index * (SESSION_DISPLAY_W_MM + SESSION_DISPLAY_GAP_MM)
+    const size = displaySizes[index]!
+    const x = cursorX + size.widthMm / 2
+    cursorX += size.widthMm + SESSION_DISPLAY_GAP_MM
     const center = {x, y: SESSION_DISPLAY_CENTER_Y_MM, z: SESSION_DISPLAY_CENTER_Z_MM}
     if (session.id === "default") {
       uiCanvas.setDisplayCenter("default", center)
@@ -1784,12 +2144,8 @@ function syncSessionDisplays(): void {
     }
     if (!sessionDisplayIds.has(session.id)) {
       sessionDisplayIds.add(session.id)
-      const pane = new SessionDisplayPane(session, {
-        onPause: (sessionId) => void runSessionCommand(sessionId, "pause", {}),
-        onResume: (sessionId) => void runSessionCommand(sessionId, "resume", {}),
-        onStop: (sessionId) => void stopSession(sessionId),
-      })
-      sessionPanes.set(session.id, pane)
+      const controller = createSessionDisplayController(session)
+      sessionDisplays.set(session.id, controller)
       uiCanvas.createDisplay({
         id: session.id,
         widthMm: SESSION_DISPLAY_W_MM,
@@ -1800,37 +2156,52 @@ function syncSessionDisplays(): void {
         background: 0x020617,
         border: 0x334155,
       })
-      uiCanvas.addSurfaceToDisplay(session.id, pane, ({w, h}) => ({x: 0, y: 0, w, h}))
+      addInterpreterSurfacesToDisplay(session.id, controller)
     } else {
       uiCanvas.setDisplayCenter(session.id, center)
-      sessionPanes.get(session.id)?.setSnapshot(session)
+      const controller = sessionDisplays.get(session.id)
+      if (controller !== undefined) updateSessionDisplay(controller, session)
     }
   }
   for (const session of orderedSessions) {
-    sessionPanes.get(session.id)?.setSnapshot(session)
+    const controller = sessionDisplays.get(session.id)
+    if (controller !== undefined) updateSessionDisplay(controller, session)
   }
   if (displayIds.length <= 1) {
     framedSessionKey = displayIds.join("\0")
     uiCanvas.setDisplayMode("near")
     return
   }
-  const frameKey = displayIds.join("\0")
+  const frameKey = displayIds.map((id, index) => {
+    const size = displaySizes[index]!
+    return `${id}:${Math.round(size.widthMm)}x${Math.round(size.heightMm)}`
+  }).join("\0")
   if (framedSessionKey !== frameKey) {
     framedSessionKey = frameKey
     uiCanvas.frameDisplays(displayIds)
   }
 }
 
-async function runSessionCommand(sessionId: string, cmd: string, params: Record<string, unknown>): Promise<void> {
-  try {
-    await fetch(`/sessions/${encodeURIComponent(sessionId)}/command`, {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({cmd, params}),
-    })
-  } catch (error) {
-    appendConsole({ts: new Date().toISOString(), level: "error", text: `[ui] session ${sessionId}/${cmd}: ${String(error)}`})
+function addInterpreterSurfacesToDisplay(displayId: string, controller: SessionDisplayController): void {
+  if (uiCanvas === null) return
+  uiCanvas.addSurfaceToDisplay(displayId, controller.frames, (canvas) => interpreterRects(canvas).frames)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.scopes, (canvas) => interpreterRects(canvas).scopes)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.source, (canvas) => interpreterRects(canvas).source)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.console, (canvas) => interpreterRects(canvas).console)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.toolbar, ({w}) => ({
+    x: TOOLBAR_INSET,
+    y: TOOLBAR_INSET,
+    w: Math.max(1, w - TOOLBAR_INSET * 2),
+    h: TOOLBAR_H,
+  }))
+}
+
+function displayLayoutSize(displayId: string): DisplayLayoutSize {
+  const metrics = uiCanvas?.displayMetrics(displayId)
+  if (metrics !== null && metrics !== undefined) {
+    return {widthMm: metrics.widthMm, heightMm: metrics.heightMm}
   }
+  return {widthMm: SESSION_DISPLAY_W_MM, heightMm: SESSION_DISPLAY_H_MM}
 }
 
 async function stopSession(sessionId: string): Promise<void> {

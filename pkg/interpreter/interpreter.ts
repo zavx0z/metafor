@@ -3,19 +3,11 @@
 import {runInterpreter} from "./src/interpreter.ts"
 import {inspectModeFromCommand, type InspectMode} from "./src/inspect-mode.ts"
 
-const startupTargets = consumeStartupTargets(Bun.argv.slice(2))
+const startupTargets = startupTargetsFromArgs(Bun.argv.slice(2))
 
 await runInterpreter(undefined, startupTargets.length === 0 ? {} : {startupTargets})
 
 type CliStartupTarget = {command: string[]; cwd: string; pauseOnStart: boolean; inspectMode: InspectMode; label?: string}
-
-function consumeStartupTargets(rawArgs: string[]): CliStartupTarget[] {
-  const state = globalThis as typeof globalThis & {__metaforInterpreterStartupTargetConsumed?: boolean}
-  if (state.__metaforInterpreterStartupTargetConsumed === true) return []
-  const targets = startupTargetsFromArgs(rawArgs)
-  if (targets.length > 0) state.__metaforInterpreterStartupTargetConsumed = true
-  return targets
-}
 
 function startupTargetsFromArgs(rawArgs: string[]): CliStartupTarget[] {
   const args = stripLeadingSeparator(rawArgs)
