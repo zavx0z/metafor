@@ -399,15 +399,17 @@ export class TerminalPane extends UiSurface {
   }
 
   onKey(event: KeyboardEvent): void {
+    const metaOnly = event.metaKey && !event.ctrlKey && !event.altKey
+    const key = event.key.toLowerCase()
+    if (metaOnly && key === "c") {
+      event.preventDefault()
+      void navigator.clipboard.writeText(this.toText())
+      return
+    }
+
     if (!this.#inputEnabled) return
 
-    if (event.metaKey && !event.ctrlKey && !event.altKey) {
-      const key = event.key.toLowerCase()
-      if (key === "c") {
-        event.preventDefault()
-        void navigator.clipboard.writeText(this.toText())
-        return
-      }
+    if (metaOnly) {
       if (key === "v") {
         event.preventDefault()
         void navigator.clipboard.readText().then((text) => {

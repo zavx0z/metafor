@@ -61,7 +61,7 @@ export const text = {
   commandAlreadyRunning: {ru: "команда уже выполняется", en: "command already running"},
   commandExecuting: {ru: "Выполняется", en: "Executing"},
   commandFailed: {ru: "команда не выполнена", en: "command failed"},
-  consoleTarget: {ru: "Вывод", en: "Output"},
+  terminalTarget: {ru: "Вывод", en: "Output"},
   copyVerbose: {ru: "Скопировать события", en: "Copy events"},
   evalExpression: {ru: "Eval-выражение", en: "Eval expression"},
   evalFrame: {ru: "Eval на фрейме", en: "Eval on frame"},

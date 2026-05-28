@@ -7,8 +7,15 @@
  */
 
 import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
-import {EditorPane, sourceDisplayLocation, sourcePathFromLocation, type EditorBreakpoint, type EditorTokens} from "@ui/panes"
-import {ConsolePane, type ConsoleEntry} from "./console-pane.ts"
+import {
+  EditorPane,
+  TerminalPane,
+  sourceDisplayLocation,
+  sourcePathFromLocation,
+  type EditorBreakpoint,
+  type EditorTokens,
+  type TerminalStatusKind,
+} from "@ui/panes"
 import {
   DisplayHoverOutlinePane,
   FramesPane,
@@ -138,7 +145,7 @@ type ModuleDisplayController = {
   frames: FramesPane
   scopes: ScopesEvalPane
   source: EditorPane
-  console: ConsolePane
+  terminal: TerminalPane
   verbose: VerbosePane
   sourceCache: Map<string, CachedSource>
   sourceTextKey: string
@@ -392,7 +399,8 @@ function toggleLocale(): void {
     controller.source.setTitle(moduleSourceTitle(controller))
     controller.frames.requestRender()
     controller.scopes.requestRender()
-    controller.console.requestRender()
+    controller.terminal.setTitle(t("terminalTarget"))
+    controller.terminal.requestRender()
     controller.verbose.requestRender()
     const snapshot = moduleSnapshots.get(controller.id)
     if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
@@ -495,7 +503,7 @@ function addInterpreterSurfacesToDisplay(displayId: string, controller: ModuleDi
   uiCanvas.addSurfaceToDisplay(displayId, controller.frames, (canvas) => interpreterRects(canvas, controller.verboseVisible).frames)
   uiCanvas.addSurfaceToDisplay(displayId, controller.scopes, (canvas) => interpreterRects(canvas, controller.verboseVisible).scopes)
   uiCanvas.addSurfaceToDisplay(displayId, controller.source, (canvas) => interpreterRects(canvas, controller.verboseVisible).source)
-  uiCanvas.addSurfaceToDisplay(displayId, controller.console, (canvas) => interpreterRects(canvas, controller.verboseVisible).console)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.terminal, (canvas) => interpreterRects(canvas, controller.verboseVisible).terminal)
   uiCanvas.addSurfaceToDisplay(displayId, controller.verbose, (canvas) => interpreterRects(canvas, controller.verboseVisible).verbose ?? hiddenRect())
   uiCanvas.addSurfaceToDisplay(displayId, controller.toolbar, ({w}) => ({
     x: TOOLBAR_INSET,
@@ -538,7 +546,15 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       introAnimation: false,
       onBreakpointToggle: (line) => void toggleModuleBreakpoint(controller, line),
     }),
-    console: new ConsolePane(),
+    terminal: new TerminalPane({
+      title: t("terminalTarget"),
+      status: t("waitingStdout"),
+      statusKind: "idle",
+      fontPx: 12,
+      linePx: 16,
+      cursorBlink: false,
+      inputEnabled: false,
+    }),
     verbose: new VerbosePane(moduleVerboseStorageKey(module.id)),
     sourceCache: new Map<string, CachedSource>(),
     sourceTextKey: "",
@@ -558,7 +574,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
   controller.frames.node.name = `InterpreterFrames:${module.id}`
   controller.scopes.node.name = `InterpreterScopes:${module.id}`
   controller.source.node.name = `InterpreterSource:${module.id}`
-  controller.console.node.name = `InterpreterConsole:${module.id}`
+  controller.terminal.node.name = `InterpreterTerminal:${module.id}`
   controller.verbose.node.name = `InterpreterVerbose:${module.id}`
   updateModuleDisplay(controller, module)
   return controller
@@ -566,18 +582,15 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
 
 function updateModuleDisplay(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
   if (module.target.outputLineCount < controller.outputLineCount) {
-    controller.console.clear()
+    controller.terminal.clear()
     controller.outputLineCount = 0
   }
   const nextLines = module.target.output.slice(controller.outputLineCount)
   if (nextLines.length > 0) {
-    controller.console.pushEntries(nextLines.map((line) => ({
-      ts: line.ts,
-      level: line.stream === "stderr" ? "error" : undefined,
-      text: `[module/${line.stream}] ${line.text}`,
-    })))
+    for (const line of nextLines) appendModuleTargetLine(controller, line)
     controller.outputLineCount = module.target.outputLineCount
   }
+  updateModuleTerminalStatus(controller, module)
 
   const finishedState = module.target.state === "exited"
     ? "exited"
@@ -840,7 +853,7 @@ async function runModuleInterpreterCommand(controller: ModuleDisplayController, 
   try {
     const response = await send(cmd, params, controller.id)
     if (!response.ok) {
-      appendModuleConsole(controller, {
+      appendModuleTerminal(controller, {
         ts: new Date().toISOString(),
         level: "error",
         text: `[ui] ${label}: ${response.error ?? "unknown error"}`,
@@ -875,7 +888,7 @@ async function restartModule(moduleId: string): Promise<void> {
     })
   } catch (error) {
     if (controller !== undefined) {
-      appendModuleConsole(controller, {
+      appendModuleTerminal(controller, {
         ts: new Date().toISOString(),
         level: "error",
         text: `[ui] ${t("restartTarget")}: ${String(error)}`,
@@ -891,7 +904,7 @@ async function stopModule(moduleId: string): Promise<void> {
     await fetch(`/modules/${encodeURIComponent(moduleId)}/stop`, {method: "POST"})
   } catch (error) {
     if (controller !== undefined) {
-      appendModuleConsole(controller, {
+      appendModuleTerminal(controller, {
         ts: new Date().toISOString(),
         level: "error",
         text: `[ui] module ${moduleId}/stop: ${String(error)}`,
@@ -900,8 +913,62 @@ async function stopModule(moduleId: string): Promise<void> {
   }
 }
 
-function appendModuleConsole(controller: ModuleDisplayController, entry: ConsoleEntry): void {
-  controller.console.pushEntries([entry])
+type ModuleTerminalEntry = {
+  ts: string
+  level?: "error" | "warn" | "info"
+  text: string
+}
+
+function appendModuleTerminal(controller: ModuleDisplayController, entry: ModuleTerminalEntry): void {
+  controller.terminal.writeln(`${ansiMuted(formatTimestamp(entry.ts))} ${ansiLevel(entry.level)} ${entry.text}`)
+}
+
+function appendModuleTargetLine(controller: ModuleDisplayController, line: ModuleLine): void {
+  const label = line.stream === "stderr" ? ansiError("err") : ansiCyan("out")
+  controller.terminal.writeln(`${ansiMuted(formatTimestamp(line.ts))} ${label} ${line.text}`)
+}
+
+function updateModuleTerminalStatus(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
+  const status = moduleTerminalStatus(module)
+  controller.terminal.setStatus(status.kind, status.label)
+}
+
+function moduleTerminalStatus(module: ModulePaneSnapshot): {kind: TerminalStatusKind; label: string} {
+  if (module.target.state === "running" || module.target.state === "starting") return {kind: "running", label: moduleRunStatus(module).text}
+  if (module.target.state === "exited") return {kind: module.target.exitCode === 0 ? "idle" : "error", label: `exit ${module.target.exitCode}`}
+  if (module.target.state === "failed") return {kind: "error", label: "failed"}
+  if (module.connection.state === "disconnected") return {kind: "disconnected", label: "disconnected"}
+  if (module.connection.state === "connected") return {kind: "connected", label: "connected"}
+  return {kind: "idle", label: t("waitingStdout")}
+}
+
+function formatTimestamp(ts: string): string {
+  const tIndex = ts.indexOf("T")
+  if (tIndex < 0) return ts
+  const dot = ts.indexOf(".", tIndex)
+  return ts.slice(tIndex + 1, dot < 0 ? undefined : dot)
+}
+
+function ansiLevel(level: ModuleTerminalEntry["level"]): string {
+  if (level === "error") return ansiError("err")
+  if (level === "warn") return ansiWarn("warn")
+  return ansiCyan("ui")
+}
+
+function ansiMuted(value: string): string {
+  return `\x1b[90m${value}\x1b[0m`
+}
+
+function ansiCyan(value: string): string {
+  return `\x1b[36m${value}\x1b[0m`
+}
+
+function ansiError(value: string): string {
+  return `\x1b[31m${value}\x1b[0m`
+}
+
+function ansiWarn(value: string): string {
+  return `\x1b[33m${value}\x1b[0m`
 }
 
 async function refreshModuleBreakpoints(controller: ModuleDisplayController): Promise<void> {
@@ -913,7 +980,7 @@ async function refreshModuleBreakpoints(controller: ModuleDisplayController): Pr
     mergeStoredBreakpointSpecs(controller.breakpointRegistrations.map((registration) => registration.spec))
     syncModuleBreakpointMarkers(controller)
   } catch (error) {
-    appendModuleConsole(controller, {
+    appendModuleTerminal(controller, {
       ts: new Date().toISOString(),
       level: "warn",
       text: `[ui] breakpoints refresh failed: ${String(error)}`,
@@ -924,7 +991,7 @@ async function refreshModuleBreakpoints(controller: ModuleDisplayController): Pr
 async function toggleModuleBreakpoint(controller: ModuleDisplayController, line: number): Promise<void> {
   const source = controller.sourceIdentity
   if (source === null) {
-    appendModuleConsole(controller, {
+    appendModuleTerminal(controller, {
       ts: new Date().toISOString(),
       level: "warn",
       text: getUiLocale() === "ru" ? "[ui] breakpoint не поставлен: source не загружен" : "[ui] breakpoint skipped: no source loaded",
@@ -949,7 +1016,7 @@ async function toggleModuleBreakpoint(controller: ModuleDisplayController, line:
   if (existing === undefined && nextSpec === null) {
     controller.pendingBreakpointLines.delete(sourceLine)
     syncModuleBreakpointMarkers(controller)
-    appendModuleConsole(controller, {
+    appendModuleTerminal(controller, {
       ts: new Date().toISOString(),
       level: "warn",
       text: getUiLocale() === "ru" ? "[ui] breakpoint не поставлен: у source нет URL" : "[ui] breakpoint skipped: source has no URL",
@@ -966,7 +1033,7 @@ async function toggleModuleBreakpoint(controller: ModuleDisplayController, line:
     })
     const data = await res.json() as {ok?: boolean; error?: string; breakpoints?: unknown}
     if (data.ok !== true) {
-      appendModuleConsole(controller, {
+      appendModuleTerminal(controller, {
         ts: new Date().toISOString(),
         level: "error",
         text: `[ui] breakpoint: ${data.error ?? "unknown error"}`,
@@ -981,7 +1048,7 @@ async function toggleModuleBreakpoint(controller: ModuleDisplayController, line:
     if (nextSpec !== null) mergeStoredBreakpointSpecs([nextSpec])
     if (existing !== undefined) removeStoredBreakpointSpec(existing.spec)
   } catch (error) {
-    appendModuleConsole(controller, {
+    appendModuleTerminal(controller, {
       ts: new Date().toISOString(),
       level: "error",
       text: `[ui] breakpoint: ${String(error)}`,
@@ -1179,7 +1246,7 @@ type InterpreterRects = {
   frames: UiSurfaceRect
   scopes: UiSurfaceRect
   source: UiSurfaceRect
-  console: UiSurfaceRect
+  terminal: UiSurfaceRect
   verbose: UiSurfaceRect | null
 }
 
@@ -1192,8 +1259,8 @@ function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolea
   const y = BODY_TOP
   const bodyW = Math.max(1, w - PAD * 2)
   const bodyH = Math.max(1, h - BODY_TOP - PAD)
-  const consoleH = Math.min(260, Math.max(188, Math.floor(bodyH * 0.24)))
-  const workspaceH = Math.max(1, bodyH - consoleH - GAP)
+  const terminalH = Math.min(260, Math.max(188, Math.floor(bodyH * 0.24)))
+  const workspaceH = Math.max(1, bodyH - terminalH - GAP)
   const bottomY = y + workspaceH + GAP
   const showRight = w >= 1180
   const showVerbose = verboseVisible && w >= 1180
@@ -1206,7 +1273,7 @@ function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolea
   const sourceX = x + leftW + GAP
   const sourceW = Math.max(1, bodyW - leftW - GAP - (showRight ? rightW + GAP : 0))
   const verboseW = showVerbose ? Math.min(520, Math.max(380, Math.floor(bodyW * 0.34))) : 0
-  const consoleW = showVerbose ? Math.max(1, bodyW - verboseW - GAP) : bodyW
+  const terminalW = showVerbose ? Math.max(1, bodyW - verboseW - GAP) : bodyW
 
   if (!showRight) {
     const framesH = Math.min(240, Math.max(142, Math.floor(workspaceH * 0.28)))
@@ -1214,7 +1281,7 @@ function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolea
       frames: {x, y, w: leftW, h: framesH},
       scopes: {x, y: y + framesH + GAP, w: leftW, h: Math.max(1, workspaceH - framesH - GAP)},
       source: {x: sourceX, y, w: sourceW, h: workspaceH},
-      console: {x, y: bottomY, w: bodyW, h: consoleH},
+      terminal: {x, y: bottomY, w: bodyW, h: terminalH},
       verbose: null,
     }
   }
@@ -1223,9 +1290,9 @@ function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolea
     frames: {x, y, w: leftW, h: workspaceH},
     scopes: {x: w - PAD - rightW, y, w: rightW, h: workspaceH},
     source: {x: sourceX, y, w: sourceW, h: workspaceH},
-    console: {x, y: bottomY, w: consoleW, h: consoleH},
+    terminal: {x, y: bottomY, w: terminalW, h: terminalH},
     verbose: showVerbose
-      ? {x: x + consoleW + GAP, y: bottomY, w: verboseW, h: consoleH}
+      ? {x: x + terminalW + GAP, y: bottomY, w: verboseW, h: terminalH}
       : null,
   }
 }
