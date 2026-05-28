@@ -59,11 +59,7 @@ export class ToolbarPane extends UiSurface {
 
   protected render(): void {
     const buttonY = (this.rectH - BTN_H) / 2
-    const controlsLocked = this.#state.commandBusy
-    const lockedTooltip = controlsLocked && this.#state.commandLabel.length > 0
-      ? `${t("commandAlreadyRunning")}: ${this.#state.commandLabel}`
-      : t("commandAlreadyRunning")
-    const actionUnavailableTooltip = controlsLocked ? lockedTooltip : t("runtimeActionUnavailable")
+    const actionUnavailableTooltip = t("runtimeActionUnavailable")
     const primaryControls: ToolbarButton[] = [
       this.#state.runKind === "live"
         ? {
@@ -72,7 +68,7 @@ export class ToolbarPane extends UiSurface {
           tone: pauseButtonTone(this.#state.runKind),
           variant: "contained",
           dividerAfter: true,
-          disabled: controlsLocked || !this.#state.canPause,
+          disabled: !this.#state.canPause,
           disabledTooltip: actionUnavailableTooltip,
           action: () => this.#actions.onPause(),
         }
@@ -82,7 +78,7 @@ export class ToolbarPane extends UiSurface {
           tone: resumeButtonTone(this.#state.runKind),
           variant: "contained",
           dividerAfter: true,
-          disabled: controlsLocked || !this.#state.canResume,
+          disabled: !this.#state.canResume,
           disabledTooltip: actionUnavailableTooltip,
           action: () => this.#actions.onResume(),
         },
@@ -90,7 +86,7 @@ export class ToolbarPane extends UiSurface {
         label: t("stepOver"),
         iconSrc: uiIcons.stepOver,
         tone: stepButtonTone(this.#state.runKind),
-        disabled: controlsLocked || !this.#state.canStep,
+        disabled: !this.#state.canStep,
         disabledTooltip: actionUnavailableTooltip,
         action: () => this.#actions.onStep("over"),
       },
@@ -98,7 +94,7 @@ export class ToolbarPane extends UiSurface {
         label: t("stepInto"),
         iconSrc: uiIcons.stepInto,
         tone: stepButtonTone(this.#state.runKind),
-        disabled: controlsLocked || !this.#state.canStep,
+        disabled: !this.#state.canStep,
         disabledTooltip: actionUnavailableTooltip,
         action: () => this.#actions.onStep("into"),
       },
@@ -106,7 +102,7 @@ export class ToolbarPane extends UiSurface {
         label: t("stepOut"),
         iconSrc: uiIcons.stepOut,
         tone: stepButtonTone(this.#state.runKind),
-        disabled: controlsLocked || !this.#state.canStep,
+        disabled: !this.#state.canStep,
         disabledTooltip: actionUnavailableTooltip,
         dividerAfter: true,
         action: () => this.#actions.onStep("out"),
@@ -115,7 +111,7 @@ export class ToolbarPane extends UiSurface {
         label: t("restartTarget"),
         iconSrc: uiIcons.restart,
         tone: "neutral",
-        disabled: controlsLocked || !this.#state.canRestart,
+        disabled: !this.#state.canRestart,
         disabledTooltip: actionUnavailableTooltip,
         action: () => this.#actions.onRestartTarget(),
       },
@@ -123,8 +119,8 @@ export class ToolbarPane extends UiSurface {
         label: t("showExecutionPoint"),
         iconSrc: uiIcons.executionPoint,
         tone: this.#state.canShowExecutionPoint ? "paused" : "neutral",
-        disabled: controlsLocked || !this.#state.canShowExecutionPoint,
-        disabledTooltip: controlsLocked ? lockedTooltip : t("waitingFrames"),
+        disabled: !this.#state.canShowExecutionPoint,
+        disabledTooltip: t("waitingFrames"),
         action: () => this.#actions.onShowExecutionPoint(),
       },
       {
@@ -132,7 +128,7 @@ export class ToolbarPane extends UiSurface {
         iconSrc: uiIcons.stop,
         tone: "warn",
         variant: "contained",
-        disabled: controlsLocked || !this.#state.canStop,
+        disabled: !this.#state.canStop,
         disabledTooltip: actionUnavailableTooltip,
         action: () => this.#actions.onStopTarget(),
       },
@@ -144,11 +140,11 @@ export class ToolbarPane extends UiSurface {
 
     const primaryW = this.#buttonGroupWidth(primaryControls)
     const primaryX = Math.max(PAD_X, Math.floor((this.rectW - primaryW) / 2))
-    this.#drawButtonGroup(primaryControls, primaryX, buttonY, lockedTooltip)
+    this.#drawButtonGroup(primaryControls, primaryX, buttonY)
 
     const secondaryW = this.#buttonGroupWidth(secondaryControls)
     const secondaryX = Math.max(PAD_X, this.rectW - PAD_X - secondaryW)
-    this.#drawButtonGroup(secondaryControls, secondaryX, buttonY, lockedTooltip)
+    this.#drawButtonGroup(secondaryControls, secondaryX, buttonY)
 
     // Левая часть: compact operational state only. Подробности URL/engine
     // лежат в tooltip, а не съедают toolbar.
@@ -182,7 +178,7 @@ export class ToolbarPane extends UiSurface {
     return x + w + GAP
   }
 
-  #drawButtonGroup(buttons: ToolbarButton[], x: number, y: number, lockedTooltip: string): number {
+  #drawButtonGroup(buttons: ToolbarButton[], x: number, y: number): number {
     let cursor = x
     for (let i = 0; i < buttons.length; i++) {
       const b = buttons[i]!
@@ -194,7 +190,7 @@ export class ToolbarPane extends UiSurface {
         size: "small",
         variant: b.variant ?? "outlined",
         radius: 7,
-        tooltip: b.disabled === true ? b.disabledTooltip ?? lockedTooltip : b.label,
+        tooltip: b.disabled === true ? b.disabledTooltip ?? b.label : b.label,
         tooltipDelayMs: 180,
         tone: b.tone,
         ...(b.disabled === undefined ? {} : {disabled: b.disabled}),

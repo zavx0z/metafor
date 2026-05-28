@@ -129,7 +129,7 @@ type CachedSource = {
 }
 
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
-type ActiveInterpreterCommand = {cmd: string; label: string; startedAt: number; timer: number}
+type ActiveInterpreterCommand = {cmd: string; label: string; startedAt: number}
 type DisplayLayoutMetrics = {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}
 
 type ModuleDisplayController = {
@@ -333,7 +333,6 @@ function rejectPendingRequests(error: string): void {
   }
   for (const controller of moduleDisplays.values()) {
     if (controller.activeCommand === null) continue
-    window.clearTimeout(controller.activeCommand.timer)
     controller.activeCommand = null
   }
 }
@@ -826,10 +825,6 @@ async function runModuleInterpreterCommand(controller: ModuleDisplayController, 
     cmd,
     label,
     startedAt: performance.now(),
-    timer: window.setInterval(() => {
-      const snapshot = moduleSnapshots.get(controller.id)
-      if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
-    }, 250),
   }
   controller.activeCommand = command
   const snapshot = moduleSnapshots.get(controller.id)
@@ -845,7 +840,6 @@ async function runModuleInterpreterCommand(controller: ModuleDisplayController, 
     }
     return response
   } finally {
-    window.clearInterval(command.timer)
     if (controller.activeCommand === command) controller.activeCommand = null
     const nextSnapshot = moduleSnapshots.get(controller.id)
     if (nextSnapshot !== undefined) updateModuleToolbar(controller, nextSnapshot)
@@ -855,6 +849,7 @@ async function runModuleInterpreterCommand(controller: ModuleDisplayController, 
 async function restartModule(moduleId: string): Promise<void> {
   const snapshot = moduleSnapshots.get(moduleId)
   const controller = moduleDisplays.get(moduleId)
+  if (controller?.activeCommand !== null && controller?.activeCommand !== undefined) return
   const command = snapshot?.target.command
   if (command === undefined || command.length === 0) return
   await stopModule(moduleId)
@@ -882,10 +877,11 @@ async function restartModule(moduleId: string): Promise<void> {
 }
 
 async function stopModule(moduleId: string): Promise<void> {
+  const controller = moduleDisplays.get(moduleId)
+  if (controller?.activeCommand !== null && controller?.activeCommand !== undefined) return
   try {
     await fetch(`/modules/${encodeURIComponent(moduleId)}/stop`, {method: "POST"})
   } catch (error) {
-    const controller = moduleDisplays.get(moduleId)
     if (controller !== undefined) {
       appendModuleConsole(controller, {
         ts: new Date().toISOString(),
