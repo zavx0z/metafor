@@ -414,6 +414,45 @@ export class UiRuntime {
     }
   }
 
+  resizeDisplay(displayId: UiDisplayId, metrics: {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}): void {
+    const slot = this.#displaySlots.get(displayId)
+    if (slot === undefined) throw new Error(`UIDisplay not found: ${displayId}`)
+    const widthMm = Math.max(1, metrics.widthMm)
+    const heightMm = Math.max(1, metrics.heightMm)
+    const pixelWidth = Math.max(1, Math.round(metrics.pixelWidth))
+    const pixelHeight = Math.max(1, Math.round(metrics.pixelHeight))
+    if (
+      slot.geometryInitialized &&
+      slot.display.widthMm === widthMm &&
+      slot.display.heightMm === heightMm &&
+      slot.pixelWidth === pixelWidth &&
+      slot.pixelHeight === pixelHeight
+    ) {
+      return
+    }
+
+    slot.explicitWidthMm = widthMm
+    slot.explicitHeightMm = heightMm
+    slot.explicitPixelWidth = pixelWidth
+    slot.explicitPixelHeight = pixelHeight
+    slot.pixelWidth = pixelWidth
+    slot.pixelHeight = pixelHeight
+    slot.pixelScale = widthMm / pixelWidth
+    slot.geometryInitialized = true
+    if (displayId === this.#defaultDisplayId) {
+      this.#displayPixelWidth = pixelWidth
+      this.#displayPixelHeight = pixelHeight
+      this.#displayPixelScale = slot.pixelScale
+      this.#displayGeometryInitialized = true
+    }
+    slot.display.resize({widthMm, heightMm, pixelWidth, pixelHeight}, {
+      invalidateGeometry: (geometry) => this.renderer.invalidateGeometry(geometry),
+    })
+    this.#applyDisplayTransform(slot)
+    this.#applyLayout()
+    this.requestRender()
+  }
+
   frameDisplays(displayIds?: readonly UiDisplayId[]): void {
     const slots = (displayIds ?? [...this.#displaySlots.keys()])
       .map((id) => this.#displaySlots.get(id))
@@ -891,25 +930,33 @@ export class UiRuntime {
   #applyDisplayGeometry(): void {
     const defaultSlot = this.#displaySlots.get(this.#defaultDisplayId)
     if (defaultSlot === undefined) return
-    if (!defaultSlot.geometryInitialized) {
-      if (
-        !this.#sizeInitialized &&
-        (this.#virtualDisplayPixelWidth === undefined || this.#virtualDisplayPixelHeight === undefined)
-      ) {
-        this.#applyDisplayTransform(defaultSlot)
-        return
-      }
-      const pixelWidth = Math.max(1, Math.round(defaultSlot.explicitPixelWidth ?? this.#pixelWidth))
-      const pixelHeight = Math.max(1, Math.round(defaultSlot.explicitPixelHeight ?? this.#pixelHeight))
-      const pixelAspect = pixelWidth / pixelHeight
-      const defaultHeightMm = 2 * this.#displayNearDistanceMm * Math.tan(this.viewPoint.fov / 2)
-      const heightMm = Math.max(
-        1,
-        defaultSlot.explicitHeightMm ?? (
-          defaultSlot.explicitWidthMm === undefined ? defaultHeightMm : defaultSlot.explicitWidthMm / pixelAspect
-        ),
-      )
-      const widthMm = Math.max(1, defaultSlot.explicitWidthMm ?? heightMm * pixelAspect)
+
+    if (
+      !this.#sizeInitialized &&
+      (this.#virtualDisplayPixelWidth === undefined || this.#virtualDisplayPixelHeight === undefined)
+    ) {
+      this.#applyDisplayTransform(defaultSlot)
+      return
+    }
+
+    const pixelWidth = Math.max(1, Math.round(defaultSlot.explicitPixelWidth ?? this.#pixelWidth))
+    const pixelHeight = Math.max(1, Math.round(defaultSlot.explicitPixelHeight ?? this.#pixelHeight))
+    const pixelAspect = pixelWidth / pixelHeight
+    const defaultHeightMm = 2 * this.#displayNearDistanceMm * Math.tan(this.viewPoint.fov / 2)
+    const heightMm = Math.max(
+      1,
+      defaultSlot.explicitHeightMm ?? (
+        defaultSlot.explicitWidthMm === undefined ? defaultHeightMm : defaultSlot.explicitWidthMm / pixelAspect
+      ),
+    )
+    const widthMm = Math.max(1, defaultSlot.explicitWidthMm ?? heightMm * pixelAspect)
+    if (
+      !defaultSlot.geometryInitialized ||
+      defaultSlot.display.widthMm !== widthMm ||
+      defaultSlot.display.heightMm !== heightMm ||
+      defaultSlot.pixelWidth !== pixelWidth ||
+      defaultSlot.pixelHeight !== pixelHeight
+    ) {
       this.#displayPixelWidth = pixelWidth
       this.#displayPixelHeight = pixelHeight
       this.#displayPixelScale = widthMm / pixelWidth

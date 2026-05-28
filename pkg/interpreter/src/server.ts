@@ -161,6 +161,15 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       })
       broadcastSessions()
     })
+    session.client.onEvent((method, params) => {
+      broadcast({
+        type: "session-inspector-event",
+        sessionId: session.id,
+        ts: new Date().toISOString(),
+        method,
+        params,
+      })
+    })
     session.target.onEvent((event) => {
       if (event.type === "started" || event.type === "exited") clearSourceCaches()
       broadcast({type: "session-target", sessionId: session.id, event, session: session.snapshot()})

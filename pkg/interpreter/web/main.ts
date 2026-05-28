@@ -47,6 +47,7 @@ type ServerMessage =
   | {type: "session-resumed"; sessionId: string; session: SessionPaneSnapshot}
   | {type: "session-connection"; sessionId: string; state: ConnectionState; error: string | null; inspectorUrl: string; session: SessionPaneSnapshot}
   | {type: "session-target"; sessionId: string; event: TargetEvent; session: SessionPaneSnapshot}
+  | {type: "session-inspector-event"; sessionId: string; ts: string; method: string; params: unknown}
   | ({type: "script"} & ScriptSnapshot)
   | {type: "target"; event: TargetEvent}
   | {type: "inspector-event"; ts: string; method: string; params: unknown}
@@ -242,14 +243,10 @@ let currentDump: InterpreterDump | undefined
 let activeFrameIndex = 0
 let nextRequestId = 1
 const COMMAND_TIMEOUT_MS = 10_000
-const SESSION_DISPLAY_PIXEL_W = 1120
-const SESSION_DISPLAY_PIXEL_H = 760
-const SESSION_DISPLAY_W_MM = 560
-const SESSION_DISPLAY_H_MM = 380
 const SESSION_DISPLAY_GAP_MM = 52
 const SESSION_DISPLAY_CENTER_Y_MM = 0
 const SESSION_DISPLAY_CENTER_Z_MM = 900
-type DisplayLayoutSize = {widthMm: number; heightMm: number}
+type DisplayLayoutMetrics = {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}
 const pendingRequests = new Map<number, {
   timer: number
   resolve: (reply: CommandReply) => void
@@ -361,8 +358,11 @@ function handleServerMessage(msg: ServerMessage): void {
     case "inspector-event":
       appendVerbose("inspector", msg.ts, msg.method, msg.params)
       return
+    case "session-inspector-event":
+      appendVerbose("inspector", msg.ts, msg.method, msg.params, msg.sessionId)
+      return
     case "interpreter-event":
-      appendVerbose("interpreter", msg.ts, msg.event, msg.detail)
+      appendVerbose("interpreter", msg.ts, msg.event, msg.detail, sessionIdFromEventDetail(msg.detail))
       return
     case "result":
       resolvePendingRequest(msg)
@@ -753,8 +753,15 @@ function preferredWorkspaceFile(files: readonly string[]): string | undefined {
   return files.find((file) => file.endsWith(".spec.ts") || file.endsWith(".test.ts")) ?? files[0]
 }
 
-function appendVerbose(kind: "inspector" | "interpreter", ts: string, name: string, payload: unknown): void {
-  verbosePane?.append(kind, ts, name, payload)
+function appendVerbose(kind: "inspector" | "interpreter", ts: string, name: string, payload: unknown, sessionId?: string): void {
+  if (sessionId === undefined || sessionId === "default") verbosePane?.append(kind, ts, name, payload)
+  if (sessionId !== undefined) sessionDisplays.get(sessionId)?.verbose.append(kind, ts, name, payload)
+}
+
+function sessionIdFromEventDetail(detail: unknown): string | undefined {
+  if (typeof detail !== "object" || detail === null) return undefined
+  const sessionId = (detail as Record<string, unknown>)["sessionId"]
+  return typeof sessionId === "string" && sessionId.length > 0 ? sessionId : undefined
 }
 
 function rememberScripts(scripts: ScriptSnapshot[]): void {
@@ -1562,10 +1569,6 @@ async function initEngine(): Promise<void> {
     uiCanvas = await UiRuntime.create(engineCanvas, {
       virtualDisplay: {
         initial: "near",
-        widthMm: SESSION_DISPLAY_W_MM,
-        heightMm: SESSION_DISPLAY_H_MM,
-        pixelWidth: SESSION_DISPLAY_PIXEL_W,
-        pixelHeight: SESSION_DISPLAY_PIXEL_H,
         centerMm: {x: 0, y: SESSION_DISPLAY_CENTER_Y_MM, z: SESSION_DISPLAY_CENTER_Z_MM},
         farDistanceMm: 1200,
       },
@@ -1638,6 +1641,7 @@ async function initEngine(): Promise<void> {
     })
     setInterpreterDebugInit({stage: "install-panes"})
     installEnginePanes()
+    uiCanvas.handleResize()
     syncSessionDisplays()
     resizeObserver = new ResizeObserver(handleEngineResize)
     resizeObserver.observe(engineCanvas)
@@ -1741,6 +1745,10 @@ function setVerboseVisible(on: boolean): void {
   verboseVisible = on
   localStorage.setItem("bd:verbose", on ? "1" : "0")
   updateToolbar()
+  for (const controller of sessionDisplays.values()) {
+    const snapshot = sessionSnapshots.get(controller.id)
+    if (snapshot !== undefined) updateSessionToolbar(controller, snapshot)
+  }
   applyEngineLayout()
 }
 
@@ -1844,6 +1852,7 @@ type SessionDisplayController = {
   scopes: ScopesEvalPane
   source: EditorPane
   console: ConsolePane
+  verbose: VerbosePane
   sourceCache: Map<string, CachedSource>
   activeFrameIndex: number
   dump: InterpreterDump | undefined
@@ -1866,7 +1875,7 @@ function createSessionDisplayController(session: SessionPaneSnapshot): SessionDi
       onToggleDraft: () => {},
       onSaveDraft: () => {},
       onToggleLocale: () => toggleLocale(),
-      onToggleVerbose: () => {},
+      onToggleVerbose: () => setVerboseVisible(!verboseVisible),
     }),
     frames: new FramesPane((index) => {
       controller.activeFrameIndex = index
@@ -1887,6 +1896,7 @@ function createSessionDisplayController(session: SessionPaneSnapshot): SessionDi
       introAnimation: false,
     }),
     console: new ConsolePane(),
+    verbose: new VerbosePane(),
     sourceCache: new Map(),
     activeFrameIndex: 0,
     dump: undefined,
@@ -1900,6 +1910,7 @@ function createSessionDisplayController(session: SessionPaneSnapshot): SessionDi
   controller.scopes.node.name = `InterpreterScopes:${session.id}`
   controller.source.node.name = `InterpreterSource:${session.id}`
   controller.console.node.name = `InterpreterConsole:${session.id}`
+  controller.verbose.node.name = `InterpreterVerbose:${session.id}`
   updateSessionDisplay(controller, session)
   return controller
 }
@@ -1947,7 +1958,7 @@ function updateSessionToolbar(controller: SessionDisplayController, session: Ses
     draftKind: "neutral",
     locale: getUiLocale(),
     inspectorUrl: session.inspectorUrl,
-    verbose: false,
+    verbose: verboseVisible,
     engine: engineStatus,
     welcomeVisible: false,
     canShowExecutionPoint: controller.dump !== undefined && controller.dump.frames.length > 0,
@@ -2127,16 +2138,15 @@ function syncSessionDisplays(): void {
     .filter((session): session is SessionPaneSnapshot => session !== undefined)
   if (orderedSessions.length === 0) return
 
+  const displayMetrics = browserDisplayMetrics()
   const displayIds = orderedSessions.map((session) => session.id)
-  const displaySizes = displayIds.map((id) => displayLayoutSize(id))
-  const totalW = displaySizes.reduce((sum, size) => sum + size.widthMm, 0)
+  const totalW = orderedSessions.length * displayMetrics.widthMm
     + Math.max(0, orderedSessions.length - 1) * SESSION_DISPLAY_GAP_MM
   let cursorX = -totalW / 2
   for (let index = 0; index < orderedSessions.length; index++) {
     const session = orderedSessions[index]!
-    const size = displaySizes[index]!
-    const x = cursorX + size.widthMm / 2
-    cursorX += size.widthMm + SESSION_DISPLAY_GAP_MM
+    const x = cursorX + displayMetrics.widthMm / 2
+    cursorX += displayMetrics.widthMm + SESSION_DISPLAY_GAP_MM
     const center = {x, y: SESSION_DISPLAY_CENTER_Y_MM, z: SESSION_DISPLAY_CENTER_Z_MM}
     if (session.id === "default") {
       uiCanvas.setDisplayCenter("default", center)
@@ -2148,16 +2158,17 @@ function syncSessionDisplays(): void {
       sessionDisplays.set(session.id, controller)
       uiCanvas.createDisplay({
         id: session.id,
-        widthMm: SESSION_DISPLAY_W_MM,
-        heightMm: SESSION_DISPLAY_H_MM,
-        pixelWidth: SESSION_DISPLAY_PIXEL_W,
-        pixelHeight: SESSION_DISPLAY_PIXEL_H,
+        widthMm: displayMetrics.widthMm,
+        heightMm: displayMetrics.heightMm,
+        pixelWidth: displayMetrics.pixelWidth,
+        pixelHeight: displayMetrics.pixelHeight,
         centerMm: center,
         background: 0x020617,
         border: 0x334155,
       })
       addInterpreterSurfacesToDisplay(session.id, controller)
     } else {
+      uiCanvas.resizeDisplay(session.id, displayMetrics)
       uiCanvas.setDisplayCenter(session.id, center)
       const controller = sessionDisplays.get(session.id)
       if (controller !== undefined) updateSessionDisplay(controller, session)
@@ -2173,8 +2184,7 @@ function syncSessionDisplays(): void {
     return
   }
   const frameKey = displayIds.map((id, index) => {
-    const size = displaySizes[index]!
-    return `${id}:${Math.round(size.widthMm)}x${Math.round(size.heightMm)}`
+    return `${id}:${index}:${Math.round(displayMetrics.widthMm)}x${Math.round(displayMetrics.heightMm)}:${displayMetrics.pixelWidth}x${displayMetrics.pixelHeight}`
   }).join("\0")
   if (framedSessionKey !== frameKey) {
     framedSessionKey = frameKey
@@ -2188,6 +2198,7 @@ function addInterpreterSurfacesToDisplay(displayId: string, controller: SessionD
   uiCanvas.addSurfaceToDisplay(displayId, controller.scopes, (canvas) => interpreterRects(canvas).scopes)
   uiCanvas.addSurfaceToDisplay(displayId, controller.source, (canvas) => interpreterRects(canvas).source)
   uiCanvas.addSurfaceToDisplay(displayId, controller.console, (canvas) => interpreterRects(canvas).console)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.verbose, (canvas) => interpreterRects(canvas).verbose ?? hiddenRect())
   uiCanvas.addSurfaceToDisplay(displayId, controller.toolbar, ({w}) => ({
     x: TOOLBAR_INSET,
     y: TOOLBAR_INSET,
@@ -2196,12 +2207,20 @@ function addInterpreterSurfacesToDisplay(displayId: string, controller: SessionD
   }))
 }
 
-function displayLayoutSize(displayId: string): DisplayLayoutSize {
-  const metrics = uiCanvas?.displayMetrics(displayId)
+function browserDisplayMetrics(): DisplayLayoutMetrics {
+  const metrics = uiCanvas?.displayMetrics("default")
   if (metrics !== null && metrics !== undefined) {
-    return {widthMm: metrics.widthMm, heightMm: metrics.heightMm}
+    return metrics
   }
-  return {widthMm: SESSION_DISPLAY_W_MM, heightMm: SESSION_DISPLAY_H_MM}
+  const rect = engineCanvas.getBoundingClientRect()
+  const pixelWidth = Math.max(1, Math.round(rect.width || window.innerWidth || 1))
+  const pixelHeight = Math.max(1, Math.round(rect.height || window.innerHeight || 1))
+  return {
+    widthMm: pixelWidth,
+    heightMm: pixelHeight,
+    pixelWidth,
+    pixelHeight,
+  }
 }
 
 async function stopSession(sessionId: string): Promise<void> {
