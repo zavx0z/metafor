@@ -1,11 +1,10 @@
 # API Интерпретатора
 
-Интерпретатор держит общий runtime/source-контекст человека и ИИ и имеет несколько интерфейсов:
+Интерпретатор держит общий runtime/source-контекст человека и ИИ и имеет module-scoped интерфейсы:
 
 - JSON snapshot file;
 - REST API;
-- WebSocket `/ws`;
-- stdin/stdout NDJSON command stream.
+- WebSocket `/ws`.
 
 ## Snapshot
 
@@ -56,22 +55,12 @@ POST   /modules/:id/run
 POST   /modules/:id/stop
 POST   /modules/:id/command
 GET    /modules/:id/source
-GET    /state
-GET    /frames
-GET    /scripts
+GET    /modules/:id/breakpoints
+POST   /modules/:id/breakpoint
+DELETE /modules/:id/breakpoint
 GET    /events?since=<iso|seq>&limit=<n>
 GET    /console?since=<iso|seq>&limit=<n>
 GET    /workspace/files?q=<text>&limit=<n>
-GET    /source?scriptId=<id>
-GET    /breakpoints
-POST   /breakpoint
-DELETE /breakpoint
-POST   /eval
-POST   /props
-POST   /pause
-POST   /resume
-POST   /step
-POST   /inspector
 ```
 
 `GET /modules`:
@@ -82,7 +71,7 @@ POST   /inspector
     {
       "id": "pkg-interpreter-src-syntax.test.ts",
       "label": "pkg/interpreter/src/syntax.test.ts",
-      "inspectorUrl": "ws://127.0.0.1:6512/",
+      "protocolUrl": "ws://127.0.0.1:6512/",
       "connection": {"state": "connected", "error": null},
       "paused": true,
       "scriptCount": 204,
@@ -136,13 +125,17 @@ type BreakpointSpec = {
 
 `line` — 1-based строка исходного файла, как в редакторе. `column` — 0-based колонка. Интерпретатор переводит координаты через `sourceMapURL` из `Debugger.scriptParsed`.
 
-`POST /breakpoint` добавляет breakpoint к подключённому модулю:
+Breakpoint-ы всегда принадлежат конкретному модулю.
+
+`GET /modules/:id/breakpoints` возвращает registrations модуля.
+
+`POST /modules/:id/breakpoint` добавляет breakpoint:
 
 ```json
 {"url": "/absolute/path/to/metafor/module.ts", "line": 46}
 ```
 
-`DELETE /breakpoint` принимает id регистрации или конкретный Bun `breakpointId`:
+`DELETE /modules/:id/breakpoint` принимает id регистрации или конкретный Bun `breakpointId`:
 
 ```json
 {"id": "interpreter-bp-1"}
@@ -159,15 +152,8 @@ type BreakpointSpec = {
 - `module-resumed`
 - `module-connection`
 - `module-target`
-- `connection`
-- `state`
-- `resumed`
-- `script`
-- `console`
-- `inspector-event`
-- `module-inspector-event`
+- `module-protocol-event`
 - `interpreter-event`
-- `target`
 - `result`
 
 Команда в модуль:
@@ -192,18 +178,4 @@ Fallback:
 
 ```text
 Runtime.getProperties
-```
-
-## NDJSON
-
-Одна строка stdin — одна команда:
-
-```json
-{"cmd":"frames"}
-```
-
-Одна строка stdout — один ответ:
-
-```json
-{"seq":1,"ok":true,"cmd":"frames","result":{}}
 ```

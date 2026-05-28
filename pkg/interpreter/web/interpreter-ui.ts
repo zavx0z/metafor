@@ -18,14 +18,10 @@ export type ToolbarState = {
   commandBusy: boolean
   commandCmd: string
   commandLabel: string
-  draftVisible: boolean
-  draftStatus: string
-  draftKind: BadgeKind
   locale: "ru" | "en"
-  inspectorUrl: string
+  protocolUrl: string
   verbose: boolean
   engine: string
-  welcomeVisible: boolean
   canShowExecutionPoint: boolean
 }
 
@@ -36,8 +32,6 @@ export type ToolbarActions = {
   onStopTarget(): void
   onShowExecutionPoint(): void
   onStep(kind: "over" | "into" | "out"): void
-  onToggleDraft(): void
-  onSaveDraft(): void
   onToggleLocale(): void
   onToggleVerbose(): void
 }
@@ -83,38 +77,8 @@ export type FrameSnapshot = {
   }
 }
 
-export type InterpreterModuleSnapshot = {
-  scriptId: string
-  /** Source URL shown to the user; can be source-map original. */
-  url: string
-  /** Runtime script URL used for inspector breakpoint matching. */
-  scriptUrl: string
-  status: "pending" | "parsed" | "active"
-  breakpointCount: number
-}
-
-export type WelcomeState = {
-  connectionState: "connecting" | "connected" | "disconnected"
-  connectionError: string | null
-  targetStatus: string
-  defaultCommand: string
-  pauseOnStart: boolean
-  workspaceFiles: readonly string[]
-  selectedTargetFile: string
-  locale: "ru" | "en"
-}
-
-export type WelcomeActions = {
-  onRun(command: string, pauseOnStart: boolean): void
-  onStop(): void
-  onPauseOnStart(pause: boolean): void
-  onSelectFile(path: string): void
-  onToggleLocale(): void
-}
-
 export {DisplayHoverOutlinePane} from "./display-hover-outline-pane.ts"
 export {FramesPane} from "./frames-pane.ts"
 export {VerbosePane} from "./verbose-pane.ts"
 export {ToolbarPane} from "./toolbar-pane.ts"
 export {ScopesEvalPane} from "./scopes-eval-pane.ts"
-export {WelcomePane} from "./welcome-pane.ts"

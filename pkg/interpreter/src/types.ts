@@ -1,6 +1,6 @@
 export type JsonObject = Record<string, unknown>
 
-export type InspectorLocation = {
+export type ProtocolLocation = {
   scriptId?: string
   lineNumber?: number
   columnNumber?: number
@@ -33,13 +33,13 @@ export type Scope = {
   type?: string
   name?: string
   object?: RemoteObject
-  location?: InspectorLocation
+  location?: ProtocolLocation
 }
 
 export type CallFrame = {
   callFrameId?: string
   functionName?: string
-  location?: InspectorLocation
+  location?: ProtocolLocation
   scopeChain?: Scope[]
   this?: RemoteObject
 }

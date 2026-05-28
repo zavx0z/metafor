@@ -15,7 +15,7 @@ function inlineSourceMap(): string {
 }
 
 describe("sourceMapMapper", () => {
-  test("maps original editor coordinates to generated inspector coordinates", () => {
+  test("maps original editor coordinates to generated protocol coordinates", () => {
     const mapper = sourceMapMapper(inlineSourceMap())
 
     expect(mapper.generatedLocation({
@@ -29,7 +29,7 @@ describe("sourceMapMapper", () => {
     })
   })
 
-  test("maps generated inspector coordinates back to original editor coordinates", () => {
+  test("maps generated protocol coordinates back to original editor coordinates", () => {
     const mapper = sourceMapMapper(inlineSourceMap())
 
     expect(mapper.originalLocation({line: 9, column: 2})).toEqual({

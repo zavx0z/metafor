@@ -53,7 +53,7 @@ type ScopeDetail = {
 
 export class ScopesEvalPane extends UiSurface {
   #frame: FrameSnapshot | null = null
-  #expr: TextFieldEditState = createTextFieldState(localStorage.getItem("bd:eval:expr") ?? "data.patches[0].path")
+  #expr: TextFieldEditState = createTextFieldState(localStorage.getItem("interpreter:eval:expr") ?? "data.patches[0].path")
   #output = ""
   #editing = false
   #detail: ScopeDetail | null = null
@@ -193,7 +193,7 @@ export class ScopesEvalPane extends UiSurface {
 
   #setExpr(state: TextFieldEditState): void {
     this.#expr = state
-    localStorage.setItem("bd:eval:expr", state.value)
+    localStorage.setItem("interpreter:eval:expr", state.value)
     this.requestRender()
   }
 
@@ -491,7 +491,7 @@ function objectKey(name: string): string {
 function interpreterValuePreview(prop: PropertySnapshot): string {
   const value = fullValue(prop)
   if (prop.type === "function" && typeof value === "string") {
-    const source = normalizeInspectorString(value).trim()
+    const source = normalizeProtocolString(value).trim()
     if (source.length > 0) return functionPreview(source)
   }
   if (prop.type === "string" && typeof value === "string") {
@@ -499,7 +499,7 @@ function interpreterValuePreview(prop: PropertySnapshot): string {
   }
   if (prop.value !== undefined) return stringifyFullData(prop.value)
   if (prop.description !== undefined) {
-    const normalized = normalizeInspectorString(prop.description).trim()
+    const normalized = normalizeProtocolString(prop.description).trim()
     const parsed = parseEmbeddedJson(normalized)
     if (parsed !== undefined) return stringifyFullData(parsed)
     return firstPreviewLine(normalized)
@@ -562,7 +562,7 @@ function previewPropertyValue(prop: Record<string, unknown>): string {
   if (type === "string") return JSON.stringify(value ?? "")
   if (type === "undefined") return "undefined"
   if (type === "number" || type === "boolean" || type === "bigint") return value ?? type
-  if (type === "function" && value !== undefined) return functionPreview(normalizeInspectorString(value))
+  if (type === "function" && value !== undefined) return functionPreview(normalizeProtocolString(value))
   if (subtype === "null") return "null"
   const nested = asRecord(prop["valuePreview"])
   if (nested !== null) return previewDescription(nested)
@@ -571,7 +571,7 @@ function previewPropertyValue(prop: Record<string, unknown>): string {
 
 function previewDescription(preview: Record<string, unknown>): string {
   const description = typeof preview["description"] === "string" ? preview["description"] : undefined
-  if (description !== undefined) return firstPreviewLine(normalizeInspectorString(description))
+  if (description !== undefined) return firstPreviewLine(normalizeProtocolString(description))
   const type = typeof preview["type"] === "string" ? preview["type"] : undefined
   return type ?? "Object"
 }
@@ -608,7 +608,7 @@ function functionSource(prop: PropertySnapshot): string | null {
   if (prop.type !== "function") return null
   const value = fullValue(prop)
   if (typeof value !== "string") return null
-  const source = normalizeInspectorString(value).trim()
+  const source = normalizeProtocolString(value).trim()
   if (source.length === 0) return null
   if (!source.includes("\n") && source.length <= 120) return null
   return source
@@ -620,14 +620,14 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function stringifyStringValue(value: string, depth: number, seen: WeakSet<object>): string {
-  const text = normalizeInspectorString(value)
+  const text = normalizeProtocolString(value)
   const parsed = parseEmbeddedJson(text)
   if (parsed !== undefined) return stringifyTsValue(parsed, depth, seen)
   if (text.includes("\n")) return `\`${escapeTemplateLiteral(text)}\``
   return JSON.stringify(text)
 }
 
-function normalizeInspectorString(value: string): string {
+function normalizeProtocolString(value: string): string {
   const normalized = value.replace(/\r\n?/g, "\n")
   if (normalized.includes("\n") || !/\\[nrt"\\]/.test(normalized)) return normalized
   try {

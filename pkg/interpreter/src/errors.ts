@@ -11,10 +11,10 @@ export function serializeError(error: unknown): string {
   }
 }
 
-export function makeInspectorError(method: string, error: unknown): Error {
+export function makeProtocolError(method: string, error: unknown): Error {
   const data = asObject(error)
   const code = asNumber(data?.["code"])
-  const message = asString(data?.["message"]) ?? "inspector request failed"
+  const message = asString(data?.["message"]) ?? "protocol request failed"
   const details = code === undefined ? message : `${message} (${code})`
   return new Error(`${method}: ${details}`)
 }

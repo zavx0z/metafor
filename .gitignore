@@ -18,7 +18,6 @@ old
 app/web/tls
 .claude/
 .ai/
-.metafor/debug/
-**/.metafor/debug/
 **/Снимок экрана*.png
 task/*.png
+**/.metafor/**/*

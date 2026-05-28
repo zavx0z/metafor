@@ -1,6 +1,6 @@
 import {atomicWriteJson} from "./fs.ts"
 import {asCallFrames, asObject, asPropertyDescriptors, asString, asStringArray} from "./guards.ts"
-import type {InspectorClient} from "./inspector-client.ts"
+import type {ProtocolClient} from "./protocol-client.ts"
 import type {EventLogger} from "./logger.ts"
 import {sourceMapMapper, type SourceMapMapper} from "./source-map.ts"
 import type {
@@ -26,7 +26,7 @@ export type ScriptInfo = {
 }
 
 export class SnapshotStore {
-  #client: InspectorClient
+  #client: ProtocolClient
   #logger: EventLogger
   #dumpPath: string
   #scripts = new Map<string, ScriptInfo>()
@@ -40,7 +40,7 @@ export class SnapshotStore {
   #scriptParsedHandlers = new Set<ScriptParsedHandler>()
 
   constructor(options: {
-    client: InspectorClient
+    client: ProtocolClient
     logger: EventLogger
     dumpPath: string
   }) {

@@ -19,7 +19,7 @@ describe("applyInspectMode", () => {
     ])
   })
 
-  test("inserts inspect-brk for bun commands without an inspector flag", () => {
+  test("inserts inspect-brk for bun commands without a protocol flag", () => {
     expect(applyInspectMode(["bun", "test", "dark/server.spec.ts"], "brk", "ws://127.0.0.1:6499/")).toEqual([
       "bun",
       "--inspect-brk=ws://127.0.0.1:6499/",
@@ -28,7 +28,7 @@ describe("applyInspectMode", () => {
     ])
   })
 
-  test("inserts inspect-wait for bun commands without an inspector flag", () => {
+  test("inserts inspect-wait for bun commands without a protocol flag", () => {
     expect(applyInspectMode(["bun", "test", "dark/server.spec.ts"], "wait", "ws://127.0.0.1:6499/")).toEqual([
       "bun",
       "--inspect-wait=ws://127.0.0.1:6499/",

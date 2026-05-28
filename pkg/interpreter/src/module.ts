@@ -5,7 +5,8 @@ import type {ConsoleLogStore} from "./console.ts"
 import {ConsoleLogStore as ConsoleLogs} from "./console.ts"
 import type {InterpreterConfig} from "./config.ts"
 import {ensureParentDir} from "./fs.ts"
-import {InspectorClient} from "./inspector-client.ts"
+import {ProtocolClient} from "./protocol-client.ts"
+import {protocolCommand, publicProtocolMethod} from "./protocol-names.ts"
 import {EventLogger} from "./logger.ts"
 import {SnapshotStore} from "./snapshot.ts"
 import {TargetSupervisor, type BreakpointSpec, type TargetSnapshot} from "./target.ts"
@@ -28,9 +29,9 @@ export type StartupModuleOptions = {
 export type InterpreterModuleSnapshot = {
   id: string
   label: string
-  inspectorUrl: string
+  protocolUrl: string
   connection: {
-    state: InspectorClient["socketState"]
+    state: ProtocolClient["socketState"]
     error: string | null
   }
   paused: boolean
@@ -47,7 +48,7 @@ export type InterpreterModuleEvent =
 export type InterpreterModuleRunOptions = StartupModuleOptions & {
   id?: string
   label?: string
-  inspectorUrl?: string
+  protocolUrl?: string
 }
 
 type InterpreterModuleOptions = {
@@ -55,14 +56,14 @@ type InterpreterModuleOptions = {
   label: string
   config: InterpreterConfig
   logger: EventLogger
-  inspectorUrl: string
+  protocolUrl: string
   dumpPath: string
   consoleLogPath: string
 }
 
 export class InterpreterModule {
   readonly id: string
-  readonly client: InspectorClient
+  readonly client: ProtocolClient
   readonly snapshots: SnapshotStore
   readonly consoleLogs: ConsoleLogStore
   readonly breakpoints: BreakpointStore
@@ -81,8 +82,8 @@ export class InterpreterModule {
     ensureParentDir(this.dumpPath)
     ensureParentDir(this.consoleLogPath)
 
-    this.client = new InspectorClient({
-      url: options.inspectorUrl,
+    this.client = new ProtocolClient({
+      url: options.protocolUrl,
       requestTimeoutMs: options.config.requestTimeoutMs,
       logger: options.logger,
     })
@@ -131,7 +132,7 @@ export class InterpreterModule {
   runTarget(options: StartupModuleOptions): TargetSnapshot {
     return this.target.start({
       ...options,
-      inspectorUrl: this.client.url,
+      protocolUrl: this.client.url,
     })
   }
 
@@ -139,7 +140,7 @@ export class InterpreterModule {
     return {
       id: this.id,
       label: this.label,
-      inspectorUrl: this.client.url,
+      protocolUrl: this.client.url,
       connection: {
         state: this.client.socketState,
         error: this.client.lastError ?? null,
@@ -158,28 +159,18 @@ export class InterpreterModule {
 }
 
 export class InterpreterModuleManager {
-  readonly initialModule: InterpreterModule
   readonly #config: InterpreterConfig
   readonly #logger: EventLogger
   readonly #modules = new Map<string, InterpreterModule>()
   readonly #handlers = new Set<(event: InterpreterModuleEvent) => void>()
-  #nextId = 2
-  #nextInspectorPort: number
+  #nextId = 1
+  #nextProtocolPort: number
+  #primaryProtocolAllocated = false
 
-  constructor(config: InterpreterConfig, logger: EventLogger, initial: {id?: string; label?: string; modulePath?: string} = {}) {
+  constructor(config: InterpreterConfig, logger: EventLogger) {
     this.#config = config
     this.#logger = logger
-    this.#nextInspectorPort = initialNextInspectorPort(config.inspectorUrl, config.httpPort)
-    this.initialModule = new InterpreterModule({
-      id: this.#allocateModuleId(initial.id ?? initial.label ?? initial.modulePath),
-      label: initial.label?.trim() || "module",
-      config,
-      logger,
-      inspectorUrl: config.inspectorUrl,
-      dumpPath: config.dumpPath,
-      consoleLogPath: config.consoleLogPath,
-    })
-    this.#modules.set(this.initialModule.id, this.initialModule)
+    this.#nextProtocolPort = initialNextProtocolPort(config.protocolUrl, config.httpPort)
   }
 
   onEvent(handler: (event: InterpreterModuleEvent) => void): () => void {
@@ -203,7 +194,7 @@ export class InterpreterModuleManager {
     return this.#modules.get(id)
   }
 
-  create(options: {id?: string; label?: string; inspectorUrl?: string; modulePath?: string} = {}): InterpreterModule {
+  create(options: {id?: string; label?: string; protocolUrl?: string; modulePath?: string} = {}): InterpreterModule {
     const id = this.#allocateModuleId(options.id ?? options.label ?? options.modulePath)
     const baseDir = dirname(this.#config.dumpPath)
     const module = new InterpreterModule({
@@ -211,7 +202,7 @@ export class InterpreterModuleManager {
       label: options.label?.trim() || id,
       config: this.#config,
       logger: this.#logger,
-      inspectorUrl: options.inspectorUrl ?? this.#allocateInspectorUrl(),
+      protocolUrl: options.protocolUrl ?? this.#allocateProtocolUrl(),
       dumpPath: join(baseDir, "modules", id, "state.json"),
       consoleLogPath: join(baseDir, "modules", id, "console.log"),
     })
@@ -222,10 +213,10 @@ export class InterpreterModuleManager {
   }
 
   run(options: InterpreterModuleRunOptions): InterpreterModule {
-    const createOptions: {id?: string; label?: string; inspectorUrl?: string; modulePath?: string} = {}
+    const createOptions: {id?: string; label?: string; protocolUrl?: string; modulePath?: string} = {}
     if (options.id !== undefined) createOptions.id = options.id
     if (options.label !== undefined) createOptions.label = options.label
-    if (options.inspectorUrl !== undefined) createOptions.inspectorUrl = options.inspectorUrl
+    if (options.protocolUrl !== undefined) createOptions.protocolUrl = options.protocolUrl
     if (options.modulePath !== undefined) createOptions.modulePath = options.modulePath
     const module = this.create(createOptions)
     module.runTarget(options)
@@ -251,10 +242,14 @@ export class InterpreterModuleManager {
     return id
   }
 
-  #allocateInspectorUrl(): string {
-    const current = new URL(this.#config.inspectorUrl)
-    while (this.#nextInspectorPort === this.#config.httpPort) this.#nextInspectorPort += 1
-    current.port = String(this.#nextInspectorPort++)
+  #allocateProtocolUrl(): string {
+    if (!this.#primaryProtocolAllocated) {
+      this.#primaryProtocolAllocated = true
+      return this.#config.protocolUrl
+    }
+    const current = new URL(this.#config.protocolUrl)
+    while (this.#nextProtocolPort === this.#config.httpPort) this.#nextProtocolPort += 1
+    current.port = String(this.#nextProtocolPort++)
     current.pathname = "/"
     current.search = ""
     current.hash = ""
@@ -275,7 +270,7 @@ export class InterpreterModuleManager {
 type InterpreterRuntimeOptions = {
   moduleId: string
   config: InterpreterConfig
-  client: InspectorClient
+  client: ProtocolClient
   logger: EventLogger
   snapshots: SnapshotStore
   consoleLogs: ConsoleLogStore
@@ -285,7 +280,7 @@ type InterpreterRuntimeOptions = {
 class InterpreterRuntime {
   #moduleId: string
   #config: InterpreterConfig
-  #client: InspectorClient
+  #client: ProtocolClient
   #logger: EventLogger
   #snapshots: SnapshotStore
   #consoleLogs: ConsoleLogStore
@@ -294,6 +289,7 @@ class InterpreterRuntime {
   #target: TargetSupervisor | undefined
   #sleepResolver: (() => void) | undefined
   #closed = false
+  #waitingForTarget = false
 
   constructor(options: InterpreterRuntimeOptions) {
     this.#moduleId = options.moduleId
@@ -305,7 +301,7 @@ class InterpreterRuntime {
     this.#breakpoints = options.breakpoints
 
     this.#client.onEvent((method, params) => {
-      this.#handleInspectorEvent(method, params)
+      this.#handleProtocolEvent(method, params)
     })
   }
 
@@ -321,6 +317,11 @@ class InterpreterRuntime {
         await this.#client.waitForClose(connectedSocket)
         this.#clearInitializedFallback()
         this.#snapshots.markRunning()
+        await sleep(25)
+        if (!this.#targetAcceptsConnection()) {
+          await this.#waitForTarget()
+          continue
+        }
       } catch (error) {
         this.#clearInitializedFallback()
         this.#snapshots.markRunning()
@@ -330,6 +331,14 @@ class InterpreterRuntime {
           && connectedSocket.readyState !== WebSocket.CLOSING
         ) {
           connectedSocket.close()
+        }
+        if (!this.#targetAcceptsConnection()) {
+          this.#logger.event("interpreter.connection.idle", {
+            moduleId: this.#moduleId,
+            targetState: this.#target?.snapshot().state ?? "none",
+          })
+          await this.#waitForTarget()
+          continue
         }
         const message = serializeError(error)
         const lastError = this.#client.lastError ?? message
@@ -379,10 +388,18 @@ class InterpreterRuntime {
           reason: "target.started",
           pid: event.pid,
         })
+        this.#waitingForTarget = false
         setTimeout(() => {
           this.#logger.event("interpreter.kick_reconnect.fired", {moduleId: this.#moduleId})
           this.#kickReconnect()
         }, 500)
+      } else if (event.type === "exited") {
+        this.#clearInitializedFallback()
+        this.#logger.event("interpreter.connection.completed", {
+          moduleId: this.#moduleId,
+          exitCode: event.exitCode,
+          signalCode: event.signalCode,
+        })
       }
     })
   }
@@ -408,6 +425,28 @@ class InterpreterRuntime {
     })
   }
 
+  #waitForTarget(): Promise<void> {
+    if (this.#closed) return Promise.resolve()
+    if (!this.#waitingForTarget) {
+      this.#waitingForTarget = true
+      this.#logger.event("interpreter.connection.waiting_for_module", {
+        moduleId: this.#moduleId,
+        targetState: this.#target?.snapshot().state ?? "none",
+      })
+    }
+    return new Promise((resolve) => {
+      this.#sleepResolver = () => {
+        this.#sleepResolver = undefined
+        resolve()
+      }
+    })
+  }
+
+  #targetAcceptsConnection(): boolean {
+    const state = this.#target?.snapshot().state
+    return state === "starting" || state === "running"
+  }
+
   async shutdownWithoutExit(): Promise<void> {
     this.#closed = true
     this.#clearInitializedFallback()
@@ -417,7 +456,7 @@ class InterpreterRuntime {
   }
 
   async #initializeInterpreter(): Promise<void> {
-    await this.#requestSetup("Inspector.enable")
+    await this.#requestSetup(protocolCommand.controlEnable)
     await this.#requestSetup("Runtime.enable")
     await this.#requestSetup("Console.enable")
     await this.#requestSetup("Debugger.enable")
@@ -456,17 +495,17 @@ class InterpreterRuntime {
         settled = true
         const message = serializeError(error)
         if (message.includes("domain already enabled")) {
-          this.#logger.event("interpreter.request.ignored_error", {moduleId: this.#moduleId, method, error: message})
+          this.#logger.event("interpreter.request.ignored_error", {moduleId: this.#moduleId, method: publicProtocolMethod(method), error: message})
           return
         }
-        this.#logger.event("interpreter.request.best_effort_failed", {moduleId: this.#moduleId, method, error: message})
+        this.#logger.event("interpreter.request.best_effort_failed", {moduleId: this.#moduleId, method: publicProtocolMethod(method), error: message})
       })
 
     await Promise.race([
       request,
       sleep(softTimeoutMs).then(() => {
         if (settled) return
-        this.#logger.event("interpreter.request.soft_timeout", {moduleId: this.#moduleId, method, afterMs: softTimeoutMs})
+        this.#logger.event("interpreter.request.soft_timeout", {moduleId: this.#moduleId, method: publicProtocolMethod(method), afterMs: softTimeoutMs})
       }),
     ])
   }
@@ -481,7 +520,7 @@ class InterpreterRuntime {
 
     this.#initializedFallbackTimer = setTimeout(() => {
       this.#initializedFallbackTimer = undefined
-      void this.#client.request("Inspector.initialized")
+      void this.#client.request(protocolCommand.controlInitialized)
         .then(() => {
           this.#logger.event("interpreter.initialized_fallback.sent", {
             moduleId: this.#moduleId,
@@ -508,7 +547,7 @@ class InterpreterRuntime {
     this.#initializedFallbackTimer = undefined
   }
 
-  #handleInspectorEvent(method: string, params: JsonObject): void {
+  #handleProtocolEvent(method: string, params: JsonObject): void {
     switch (method) {
       case "Debugger.scriptParsed":
         this.#snapshots.handleScriptParsed(params)
@@ -541,9 +580,9 @@ class InterpreterRuntime {
   }
 }
 
-function initialNextInspectorPort(inspectorUrl: string, httpPort: number): number {
+function initialNextProtocolPort(protocolUrl: string, httpPort: number): number {
   try {
-    const parsed = new URL(inspectorUrl)
+    const parsed = new URL(protocolUrl)
     const port = Number(parsed.port)
     if (Number.isInteger(port) && port > 0) return port + (port + 1 === httpPort ? 2 : 1)
   } catch {}

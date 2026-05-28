@@ -40,7 +40,7 @@ test("scope detail formatter renders multiline string values as multiline litera
   expect(code).not.toContain("\\n")
 })
 
-test("scope detail formatter renders remote object preview like an inspector", () => {
+test("scope detail formatter renders remote object preview from protocol data", () => {
   const code = formatScopeDetailCode("event", {
     type: "object",
     className: "MessageEvent",

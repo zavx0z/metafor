@@ -2,7 +2,7 @@ export type InspectMode = "inspect" | "wait" | "brk"
 
 const INSPECT_RE = /^--inspect(?:-(?:wait|brk))?(?:=(.*))?$/
 
-export function applyInspectMode(command: string[], mode: InspectMode, inspectorUrl: string): string[] {
+export function applyInspectMode(command: string[], mode: InspectMode, protocolUrl: string): string[] {
   const next = [...command]
   const wanted = mode === "brk"
     ? "--inspect-brk"
@@ -19,13 +19,13 @@ export function applyInspectMode(command: string[], mode: InspectMode, inspector
     const separateValue = value === undefined && isInspectEndpoint(next[i + 1])
       ? next[i + 1]
       : undefined
-    next[i] = `${wanted}=${value ?? separateValue ?? inspectorUrl}`
+    next[i] = `${wanted}=${value ?? separateValue ?? protocolUrl}`
     if (separateValue !== undefined) next.splice(i + 1, 1)
     return next
   }
 
   if (isBunCommand(next[0])) {
-    next.splice(1, 0, `${wanted}=${inspectorUrl}`)
+    next.splice(1, 0, `${wanted}=${protocolUrl}`)
   }
 
   return next

@@ -2,27 +2,27 @@
 
 Этот сценарий проверяет реальный collaborative interpreter loop: человек и ИИ находятся в одном runtime/source-контексте.
 
-## 1. Запустить Target
+## 1. Запустить Модуль
 
 ```sh
-bun run interpreter -- bun test --timeout=2147483647 ./module.spec.ts
+bun run interpreter ./module.spec.ts -timeout=2147483647
 ```
 
 `--timeout=2147483647` нужен, чтобы тест не упал, пока человек долго стоит на breakpoint-е.
 Это около 24.8 дней на тест.
 
-Sidecar добавит `--inspect-brk=ws://127.0.0.1:6499/`, запустит target и откроет UI/API на:
+Интерпретатор добавит `--inspect-brk=ws://127.0.0.1:6499/`, запустит модуль и откроет UI/API на:
 
 ```text
 http://127.0.0.1:6500/
 ```
 
-## 2. Проверить Sidecar
+## 2. Проверить Интерпретатор
 
 Ожидаемые строки в stderr:
 
 ```text
-[interpreter] connecting to ws://127.0.0.1:6499/
+[interpreter] connecting to interpreter socket ws://127.0.0.1:6499/
 [interpreter] socket connected
 ```
 
@@ -39,7 +39,7 @@ http://127.0.0.1:6500/
 Поставить breakpoint в прикладном коде через editor gutter.
 
 В режиме общего контекста breakpoint ставит человек в интерпретаторе.
-Sidecar только слушает `Debugger.paused` и пишет snapshot.
+Интерпретатор слушает `Debugger.paused` и пишет snapshot конкретного модуля.
 
 ## 5. Дождаться Остановки
 
@@ -64,32 +64,36 @@ cat .metafor/interpreter/state.json
 
 ## 6. Проверить eval
 
-Отправить в stdin sidecar:
+Отправить REST-команду в конкретный модуль:
 
-```json
-{"cmd":"eval","frame":0,"expr":"wimp.children.length"}
+```sh
+curl -sS -X POST http://127.0.0.1:6500/modules/<module-id>/command \
+  -H 'content-type: application/json' \
+  -d '{"cmd":"eval","params":{"frame":0,"expr":"wimp.children.length"}}'
 ```
 
-Ожидается NDJSON response в stdout:
+Ожидается JSON response:
 
 ```json
-{"seq":1,"ok":true,"cmd":"eval","result":{...}}
+{"ok":true,"cmd":"eval","result":{...}}
 ```
 
 ## 7. Step В Интерпретаторе
 
 Человек делает Step Over/Into/Out в интерпретаторе.
 
-Если Bun снова остановился, sidecar должен автоматически записать новый snapshot.
+Если Bun снова остановился, интерпретатор должен автоматически записать новый snapshot.
 
 ## Automated Smoke С REST Breakpoint
 
-Для smoke без ручного UI sidecar может сам запустить target и принять breakpoint:
+Для smoke без ручного UI можно запустить модуль и передать breakpoint:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/target/run \
+curl -sS -X POST http://127.0.0.1:6500/modules/run \
   -H 'content-type: application/json' \
   -d '{
+    "id": "module-spec",
+    "label": "module.spec.ts",
     "command": [
       "bun", "test", "--timeout=2147483647", "./module.spec.ts"
     ],
@@ -103,8 +107,7 @@ curl -sS -X POST http://127.0.0.1:6500/target/run \
 Так проверяется:
 
 - WebSocket connect
-- handshake
-- `Inspector.initialized`
+- protocol initialization
 - `Debugger.scriptParsed`
 - source-map mapping editor line -> generated line
 - `Debugger.setBreakpoint` по `scriptId`
@@ -116,9 +119,11 @@ curl -sS -X POST http://127.0.0.1:6500/target/run \
 Минимальная проверка после pause:
 
 ```sh
-curl -sS http://127.0.0.1:6500/state
-curl -sS -X POST http://127.0.0.1:6500/eval \
+curl -sS http://127.0.0.1:6500/modules
+curl -sS -X POST http://127.0.0.1:6500/modules/module-spec/command \
   -H 'content-type: application/json' \
-  -d '{"frame":0,"expr":"wimp.src"}'
-curl -sS -X POST http://127.0.0.1:6500/resume -d '{}'
+  -d '{"cmd":"eval","params":{"frame":0,"expr":"wimp.src"}}'
+curl -sS -X POST http://127.0.0.1:6500/modules/module-spec/command \
+  -H 'content-type: application/json' \
+  -d '{"cmd":"resume","params":{}}'
 ```

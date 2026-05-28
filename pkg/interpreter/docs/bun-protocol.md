@@ -1,11 +1,11 @@
-# Bun Inspector Protocol
+# Bun Protocol
 
-Bun использует WebKit Inspector Protocol, а не Chrome DevTools Protocol.
-Это главный источник отличий от Node.js inspector workflow.
+Bun использует WebKit/JSC protocol, а не Chrome DevTools Protocol.
+Это главный источник отличий от Node.js protocol workflow.
 
 ## Важное Отличие
 
-Bun inspector говорит WebKit Inspector Protocol.
+Bun говорит WebKit/JSC protocol.
 Chrome DevTools Protocol clients и команды CDP не являются совместимым frontend для workflow интерпретатора.
 
 CDP-команда:
@@ -29,24 +29,24 @@ http://127.0.0.1:6500/
 
 ## Handshake
 
-Sidecar использует последовательность, совместимую с Bun inspector adapter:
+Интерпретатор использует последовательность, совместимую с Bun protocol adapter:
 
 ```text
-Inspector.enable
+Protocol.enable
 Runtime.enable
 Debugger.enable
 Debugger.setAsyncStackTraceDepth({ depth: 200 })
 Debugger.setBreakpointsActive({ active: true })
 Debugger.setPauseOnDebuggerStatements({ enabled: true })
 Debugger.setPauseOnExceptions({ state: "none" })
-Inspector.initialized
+Protocol.initialized
 ```
 
 Зачем нужны отдельные команды:
 
-`Inspector.enable`
+`Protocol.enable`
 
-Включает inspector domain.
+Включает control domain Bun.
 
 `Runtime.enable`
 
@@ -55,8 +55,8 @@ Inspector.initialized
 `Debugger.enable`
 
 Включает Debugger domain и даёт `Debugger.scriptParsed`, `Debugger.paused`, `Debugger.resumed`.
-Если другой inspector client уже включил Debugger domain, Bun может вернуть `Debugger domain already enabled`.
-Sidecar считает это нормальным состоянием второго клиента и продолжает работу.
+Если другой protocol client уже включил Debugger domain, Bun может вернуть `Debugger domain already enabled`.
+Интерпретатор считает это нормальным состоянием второго клиента и продолжает работу.
 
 `Debugger.setBreakpointsActive`
 
@@ -67,13 +67,13 @@ Sidecar считает это нормальным состоянием втор
 
 Нужно, чтобы `debugger;` давал `Debugger.paused`.
 
-`Inspector.initialized`
+`Protocol.initialized`
 
 Разблокирует `--inspect-wait`.
 
-## Почему Inspector.initialized Отложен
+## Почему Protocol.initialized Отложен
 
-Если sidecar сразу отправит `Inspector.initialized`, тест или daemon начнёт выполняться до того, как интерпретатор успел поставить breakpoint-ы.
+Если интерпретатор сразу отправит protocol initialization command, тест или daemon начнёт выполняться до того, как интерпретатор успел поставить breakpoint-ы.
 
 Поэтому default:
 
@@ -81,9 +81,9 @@ Sidecar считает это нормальным состоянием втор
 INTERPRETER_INITIALIZE_FALLBACK_MS=1500
 ```
 
-То есть sidecar ждёт 1.5 секунды.
-Если UI поставил breakpoint-ы быстро, target остановится на них.
-Если breakpoint-ов нет, sidecar разблокирует target сам после fallback.
+То есть интерпретатор ждёт 1.5 секунды.
+Если UI поставил breakpoint-ы быстро, модуль остановится на них.
+Если breakpoint-ов нет, интерпретатор разблокирует модуль сам после fallback.
 
 Для строгого интерактивного режима:
 
@@ -100,10 +100,10 @@ INTERPRETER_INITIALIZE_FALLBACK_MS=0 bun run interpreter
 - Bun может прислать `Debugger.breakpointResolved`
 - но `Debugger.paused` при попадании приходит не всегда
 
-Рабочая схема sidecar:
+Рабочая схема интерпретатора:
 
 ```text
-1. сохранить BreakpointSpec из /target/run или POST /breakpoint
+1. сохранить BreakpointSpec из /modules/:id/run или POST /modules/:id/breakpoint
 2. дождаться Debugger.scriptParsed для matching url
 3. взять sourceMapURL из scriptParsed
 4. перевести editor line/column в generated line/column
@@ -117,10 +117,10 @@ INTERPRETER_INITIALIZE_FALLBACK_MS=0 bun run interpreter
 - Bun исполняет transpiled/generated JavaScript.
 - `Debugger.setBreakpoint` принимает generated coordinates.
 - `Debugger.paused` тоже отдаёт generated coordinates.
-- Sidecar маппит breakpoint туда и snapshot обратно в editor coordinates.
+- Интерпретатор маппит breakpoint туда и snapshot обратно в editor coordinates.
 
 В интерактивном workflow breakpoint-ы ставятся руками в интерпретаторе.
-Sidecar при этом только слушает `Debugger.paused` и читает state.
+Интерпретатор при этом слушает `Debugger.paused` и читает state.
 
 ## Debugger.pause
 

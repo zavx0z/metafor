@@ -1,171 +1,11 @@
-import {appendFileSync, existsSync, readFileSync, statSync} from "node:fs"
-import {serializeError} from "./errors.ts"
-import {ensureParentDir} from "./fs.ts"
-import {asBoolean, asNumber, asObject, asString} from "./guards.ts"
-import type {InspectorClient} from "./inspector-client.ts"
-import type {EventLogger} from "./logger.ts"
+import {asBoolean, asNumber, asString} from "./guards.ts"
+import type {ProtocolClient} from "./protocol-client.ts"
 import type {SnapshotStore} from "./snapshot.ts"
-import {sleep} from "./time.ts"
 import type {JsonObject} from "./types.ts"
 
 export type CommandContext = {
-  client: InspectorClient
+  client: ProtocolClient
   snapshots: SnapshotStore
-  logger: EventLogger
-  signal?: AbortSignal
-  stdin?: ReadableStream<Uint8Array>
-  stdout?: {
-    write(chunk: string): unknown
-  }
-  responsePath?: string
-}
-
-export async function readStdinCommands(context: CommandContext): Promise<void> {
-  const stdin = context.stdin ?? Bun.stdin.stream()
-  let reader: ReadableStreamDefaultReader<Uint8Array>
-  try {
-    reader = stdin.getReader()
-  } catch (error) {
-    context.logger.event("stdin.failed", {error: serializeError(error)})
-    return
-  }
-  context.signal?.addEventListener("abort", () => {
-    void reader.cancel().catch((error) => {
-      context.logger.event("stdin.cancel.failed", {error: serializeError(error)})
-    })
-  }, {once: true})
-  let buffer = ""
-  let sequence = 0
-  const textDecoder = new TextDecoder()
-
-  const handleLine = async (line: string) => {
-    sequence += 1
-    await handleCommandLine(context, sequence, line)
-  }
-
-  try {
-    while (true) {
-      const {done, value} = await reader.read()
-      if (done) break
-      const chunk = value
-      buffer += textDecoder.decode(chunk, {stream: true})
-
-      let newlineIndex = buffer.indexOf("\n")
-      while (newlineIndex >= 0) {
-        const line = buffer.slice(0, newlineIndex).trim()
-        buffer = buffer.slice(newlineIndex + 1)
-        if (line.length > 0) await handleLine(line)
-        newlineIndex = buffer.indexOf("\n")
-      }
-    }
-
-    buffer += textDecoder.decode()
-    const tail = buffer.trim()
-    if (tail.length > 0) await handleLine(tail)
-    context.logger.event("stdin.closed", {})
-  } catch (error) {
-    context.logger.event("stdin.failed", {error: serializeError(error)})
-  } finally {
-    reader.releaseLock()
-  }
-}
-
-export async function readFileCommands(context: CommandContext, commandPath: string): Promise<void> {
-  ensureParentDir(commandPath)
-  context.logger.event("command_file.started", {commandPath, responsePath: context.responsePath})
-
-  let buffer = ""
-  let sequence = 0
-  let offset = existsSync(commandPath) ? statSync(commandPath).size : 0
-
-  while (!commandAborted(context)) {
-    try {
-      if (!existsSync(commandPath)) {
-        await sleep(250)
-        if (commandAborted(context)) break
-        continue
-      }
-
-      const stat = statSync(commandPath)
-      if (stat.size < offset) {
-        offset = 0
-        buffer = ""
-        context.logger.event("command_file.truncated", {commandPath})
-      }
-
-      if (stat.size > offset) {
-        const file = readFileSync(commandPath)
-        const chunk = file.subarray(offset).toString("utf8")
-        offset = file.byteLength
-        buffer += chunk
-
-        let newlineIndex = buffer.indexOf("\n")
-        while (newlineIndex >= 0) {
-          const line = buffer.slice(0, newlineIndex).trim()
-          buffer = buffer.slice(newlineIndex + 1)
-          if (line.length > 0) {
-            sequence += 1
-            await handleCommandLine(context, sequence, line)
-          }
-          newlineIndex = buffer.indexOf("\n")
-        }
-      }
-    } catch (error) {
-      context.logger.event("command_file.failed", {commandPath, error: serializeError(error)})
-    }
-
-    await sleep(250)
-  }
-}
-
-function commandAborted(context: CommandContext): boolean {
-  return context.signal?.aborted === true
-}
-
-async function handleCommandLine(context: CommandContext, seq: number, line: string): Promise<void> {
-  let parsed: unknown
-
-  try {
-    parsed = JSON.parse(line)
-  } catch (error) {
-    writeCommandResponse(context, {
-      seq,
-      ok: false,
-      error: serializeError(error),
-    })
-    return
-  }
-
-  const command = asObject(parsed)
-  const cmd = asString(command?.["cmd"])
-  const requestId = command?.["id"]
-
-  context.logger.event("interpreter.command.received", {seq, cmd})
-
-  try {
-    if (command === undefined || cmd === undefined) {
-      throw new Error("command must be a JSON object with string field cmd")
-    }
-
-    const result = await executeCommand(context, command, cmd)
-    const response: JsonObject = {
-      seq,
-      ok: true,
-      cmd,
-      result,
-    }
-    if (requestId !== undefined) response["id"] = requestId
-    writeCommandResponse(context, response)
-  } catch (error) {
-    const response: JsonObject = {
-      seq,
-      ok: false,
-      error: serializeError(error),
-    }
-    if (cmd !== undefined) response["cmd"] = cmd
-    if (requestId !== undefined) response["id"] = requestId
-    writeCommandResponse(context, response)
-  }
 }
 
 export async function executeCommand(context: CommandContext, command: JsonObject, cmd: string): Promise<unknown> {
@@ -236,8 +76,8 @@ async function stepCommand(context: CommandContext, command: JsonObject): Promis
 
   const kind = asString(command["kind"])
   const methodByKind: Record<string, string> = {
-    // Bun's own inspector adapter maps DAP "next" / UI Step Over to
-    // WebKit Inspector's stepNext. stepOver resumes through async code here.
+    // Bun's protocol adapter maps DAP "next" / UI Step Over to
+    // WebKit stepNext. stepOver resumes through async code here.
     over: "Debugger.stepNext",
     into: "Debugger.stepInto",
     out: "Debugger.stepOut",
@@ -256,19 +96,4 @@ async function resumeCommand(context: CommandContext): Promise<unknown> {
   const result = await context.client.request("Debugger.resume")
   context.snapshots.markRunning()
   return result
-}
-
-function writeCommandResponse(context: CommandContext, response: JsonObject): void {
-  const stdout = context.stdout ?? process.stdout
-  const line = `${JSON.stringify(response)}\n`
-  stdout.write(line)
-
-  if (context.responsePath !== undefined) {
-    try {
-      ensureParentDir(context.responsePath)
-      appendFileSync(context.responsePath, line)
-    } catch (error) {
-      context.logger.event("interpreter.command.response_file_failed", {error: serializeError(error)})
-    }
-  }
 }

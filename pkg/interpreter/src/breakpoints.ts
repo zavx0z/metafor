@@ -3,7 +3,7 @@ import {extname, resolve} from "node:path"
 import {fileURLToPath, pathToFileURL} from "node:url"
 import {serializeError} from "./errors.ts"
 import {asObject, asString} from "./guards.ts"
-import type {InspectorClient} from "./inspector-client.ts"
+import type {ProtocolClient} from "./protocol-client.ts"
 import type {EventLogger} from "./logger.ts"
 import {sourceMapMapper, type SourceMapLookup} from "./source-map.ts"
 import type {BreakpointSpec} from "./target.ts"
@@ -34,13 +34,13 @@ type TrackedBreakpoint = BreakpointRegistration & {
 }
 
 export class BreakpointStore {
-  #client: InspectorClient
+  #client: ProtocolClient
   #logger: EventLogger
   #nextId = 1
   #breakpoints = new Map<string, TrackedBreakpoint>()
 
   constructor(options: {
-    client: InspectorClient
+    client: ProtocolClient
     logger: EventLogger
   }) {
     this.#client = options.client

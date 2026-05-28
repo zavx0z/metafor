@@ -1,4 +1,4 @@
-import type {CallFrame, InspectorLocation, JsonObject, PropertyDescriptor, RemoteObject, Scope} from "./types.ts"
+import type {CallFrame, JsonObject, PropertyDescriptor, ProtocolLocation, RemoteObject, Scope} from "./types.ts"
 
 export function asObject(value: unknown): JsonObject | undefined {
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {
@@ -51,11 +51,11 @@ export function asCallFrame(value: unknown): CallFrame | undefined {
   return frame
 }
 
-export function asLocation(value: unknown): InspectorLocation | undefined {
+export function asLocation(value: unknown): ProtocolLocation | undefined {
   const object = asObject(value)
   if (object === undefined) return undefined
 
-  const location: InspectorLocation = {}
+  const location: ProtocolLocation = {}
   const scriptId = asString(object["scriptId"])
   const lineNumber = asNumber(object["lineNumber"])
   const columnNumber = asNumber(object["columnNumber"])

@@ -11,7 +11,7 @@ import {
 import {t} from "./i18n.ts"
 
 type VerboseEntry = {
-  kind: "inspector" | "interpreter"
+  kind: "protocol" | "interpreter"
   ts: string
   name: string
   payload: string
@@ -31,14 +31,15 @@ const VERBOSE_SCROLL_KEY = "interpreter:verbose:list"
 
 export class VerbosePane extends UiSurface {
   #entries: VerboseEntry[] = []
-  #autoscroll = localStorage.getItem("bd:verbose:pin") !== "0"
+  #autoscroll = localStorage.getItem("interpreter:verbose:pin") !== "0"
+  #copyStatusUntil = 0
   readonly #max = 300
 
   constructor() {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
   }
 
-  append(kind: "inspector" | "interpreter", ts: string, name: string, payload: unknown): void {
+  append(kind: "protocol" | "interpreter", ts: string, name: string, payload: unknown): void {
     if (isLowValueEvent(kind, name, payload)) return
     const safePayload = summarizePayload(kind, name, payload)
     this.#entries.push({kind, ts, name, payload: safePayload})
@@ -60,12 +61,12 @@ export class VerbosePane extends UiSurface {
     if (before === after || localY < LIST_TOP) return
     if (this.#autoscroll) {
       this.#autoscroll = false
-      localStorage.setItem("bd:verbose:pin", "0")
+      localStorage.setItem("interpreter:verbose:pin", "0")
     }
   }
 
   protected render(): void {
-    // Header: title + count + Clear + Auto/Manual.
+    // Header: title + count + Copy + Clear + Auto/Manual.
     this.drawText(t("verbose"), PAD_X, HEADER_Y, {
       fontPx: TITLE_FONT,
       material: this.materials.cyan,
@@ -83,8 +84,19 @@ export class VerbosePane extends UiSurface {
     const autoIcon = this.#autoscroll ? uiIcons.autoscroll : uiIcons.manual
     const autoW = 32
     const clearW = 32
+    const copyW = 32
     const autoX = this.rectW - PAD_X - autoW
     const clearX = autoX - 6 - clearW
+    const copyX = clearX - 6 - copyW
+    button(this, copyX, btnY, copyW, BTN_H, {
+      label: t("copyVerbose"),
+      iconSrc: uiIcons.copy,
+      iconOnly: true,
+      tooltip: t("copyVerbose"),
+      tone: Date.now() < this.#copyStatusUntil ? "live" : "neutral",
+      fontPx: 11,
+      action: () => void this.#copyEntries(),
+    })
     button(this, clearX, btnY, clearW, BTN_H, {
       label: t("clearVerbose"),
       iconSrc: uiIcons.clear,
@@ -165,9 +177,22 @@ export class VerbosePane extends UiSurface {
 
   #toggleAutoscroll(): void {
     this.#autoscroll = !this.#autoscroll
-    localStorage.setItem("bd:verbose:pin", this.#autoscroll ? "1" : "0")
+    localStorage.setItem("interpreter:verbose:pin", this.#autoscroll ? "1" : "0")
     if (this.#autoscroll) this.#scrollToBottom()
     this.requestRender()
+  }
+
+  async #copyEntries(): Promise<void> {
+    const text = this.#entries.map((entry) => JSON.stringify(entry)).join("\n")
+    try {
+      await navigator.clipboard.writeText(text)
+      this.#copyStatusUntil = Date.now() + 1400
+      this.requestRender()
+      window.setTimeout(() => this.requestRender(), 1500)
+    } catch {
+      this.#copyStatusUntil = 0
+      this.requestRender()
+    }
   }
 
   #scrollToBottom(): void {
@@ -196,22 +221,30 @@ function truncateJson(value: unknown, max: number): string {
   return text.length > max ? `${text.slice(0, max - 3)}...` : text
 }
 
-function isLowValueEvent(kind: "inspector" | "interpreter", name: string, payload: unknown): boolean {
-  if (name === "inspector.response.ok") return true
+function isLowValueEvent(kind: "protocol" | "interpreter", name: string, payload: unknown): boolean {
+  if (name === "Debugger.scriptParsed") return true
+  if (kind === "protocol" && (name === "Console.messageAdded" || name === "Runtime.consoleAPICalled")) return true
+  if (kind === "interpreter" && (name === "interpreter.connection.idle" || name === "interpreter.connection.waiting_for_module")) return true
+  if (name === "socket.close" && propString(payload, "reason") === "Connection ended") return true
+  if (name === "protocol.response.ok") return true
   if (name === "http.request") {
     const path = propString(payload, "path")
     const status = propNumber(payload, "status")
-    return status !== undefined && status < 400 && (path === "/state" || path === "/frames" || path === "/console")
+    return status !== undefined && status < 400 && (
+      path === "/console"
+      || path === "/modules"
+      || /\/modules\/[^/]+\/(?:source|breakpoints)$/.test(path ?? "")
+    )
   }
-  if (name === "inspector.request") {
+  if (name === "protocol.request") {
     const method = propString(payload, "method")
     if (method === undefined) return false
-    return !importantInspectorRequest(method)
+    return !importantProtocolRequest(method)
   }
   return kind === "interpreter" && name === "interpreter.kick_reconnect.fired"
 }
 
-function importantInspectorRequest(method: string): boolean {
+function importantProtocolRequest(method: string): boolean {
   return method === "Debugger.pause"
     || method === "Debugger.resume"
     || method === "Debugger.stepOver"
@@ -220,7 +253,7 @@ function importantInspectorRequest(method: string): boolean {
     || method === "Runtime.evaluate"
 }
 
-function summarizePayload(kind: "inspector" | "interpreter", name: string, payload: unknown): string {
+function summarizePayload(kind: "protocol" | "interpreter", name: string, payload: unknown): string {
   if (name === "Debugger.paused") {
     const reason = propString(payload, "reason") ?? "pause"
     const frames = arrayLength(prop(payload, "callFrames"))
@@ -261,12 +294,12 @@ function summarizePayload(kind: "inspector" | "interpreter", name: string, paylo
     const reason = propString(payload, "reason")
     return [code === undefined ? "" : `code ${code}`, reason ?? ""].filter((part) => part.length > 0).join(" · ")
   }
-  if (name === "inspector.response.error") {
+  if (name === "protocol.response.error") {
     const method = propString(payload, "method")
     const error = propString(payload, "error")
     return [method ?? "", error ?? ""].filter((part) => part.length > 0).join(" · ")
   }
-  if (name === "inspector.request") return propString(payload, "method") ?? ""
+  if (name === "protocol.request") return propString(payload, "method") ?? ""
   const text = payload === undefined ? "" : truncateJson(payload, kind === "interpreter" ? 120 : 160)
   return text === "{}" ? "" : text
 }

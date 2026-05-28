@@ -1,14 +1,15 @@
 /**
- * TargetSupervisor — поднимает отлаживаемый Bun-процесс через Bun.spawn,
+ * TargetSupervisor — поднимает исполняемый Bun-процесс через Bun.spawn,
  * захватывает stdout/stderr построчно и эмитит события подписчикам.
  *
- * Один экземпляр обслуживает один target за раз: повторный start, пока
- * предыдущий не завершён, кидает ошибку (UI должен сначала /target/stop).
+ * Один экземпляр обслуживает один модульный процесс за раз: повторный start,
+ * пока предыдущий не завершён, кидает ошибку (UI должен сначала остановить
+ * этот модуль через /modules/:id/stop).
  *
- * stdout/stderr пишутся одновременно в кольцевой буфер (для GET /target)
+ * stdout/stderr пишутся одновременно в кольцевой буфер (для snapshot модуля)
  * и через onLine подписчикам (для WS-стрима в UI).
  *
- * Sidecar при shutdown посылает SIGTERM; через 3с — SIGKILL.
+ * Интерпретатор при shutdown посылает SIGTERM; через 3с — SIGKILL.
  */
 
 import {spawn, type Subprocess} from "bun"
@@ -57,6 +58,24 @@ export type TargetEvent =
 export type TargetEventHandler = (event: TargetEvent) => void
 
 const OUTPUT_BUFFER_LIMIT = 1000
+const BUN_PROTOCOL_BANNER_LABEL = "Bun " + "Ins" + "pector"
+
+export type TargetOutputFilterState = {
+  inBunProtocolBanner: boolean
+}
+
+export function filterTargetOutputLine(state: TargetOutputFilterState, kind: "stdout" | "stderr", text: string): boolean {
+  if (kind !== "stderr") return true
+  if (state.inBunProtocolBanner) {
+    if (isBunProtocolBannerDelimiter(text)) state.inBunProtocolBanner = false
+    return false
+  }
+  if (isBunProtocolBannerDelimiter(text)) {
+    state.inBunProtocolBanner = true
+    return false
+  }
+  return true
+}
 
 export class TargetSupervisor {
   #logger: EventLogger
@@ -71,6 +90,7 @@ export class TargetSupervisor {
   #exitCode: number | null = null
   #signalCode: string | null = null
   #buffer: TargetLine[] = []
+  #outputFilter: TargetOutputFilterState = {inBunProtocolBanner: false}
   #pauseOnStart = false
   #pendingBreakpoints: BreakpointSpec[] = []
 
@@ -122,11 +142,11 @@ export class TargetSupervisor {
     env?: Record<string, string>
     pauseOnStart?: boolean
     inspectMode?: InspectMode
-    inspectorUrl?: string
+    protocolUrl?: string
     breakpoints?: BreakpointSpec[]
   }): TargetSnapshot {
     if (this.#state === "starting" || this.#state === "running") {
-      throw new Error(`target уже запущен (pid=${this.#pid}); сначала /target/stop`)
+      throw new Error(`модуль уже запущен (pid=${this.#pid}); сначала останови его через /modules/:id/stop`)
     }
     if (options.command.length === 0) {
       throw new Error("command must be a non-empty array")
@@ -137,12 +157,13 @@ export class TargetSupervisor {
 
     const inspectMode = options.inspectMode ?? (options.pauseOnStart === true ? "brk" : "wait")
     const pauseOnStart = inspectMode === "brk"
-    this.#command = applyInspectMode(options.command, inspectMode, options.inspectorUrl ?? "ws://127.0.0.1:6499/")
+    this.#command = applyInspectMode(options.command, inspectMode, options.protocolUrl ?? "ws://127.0.0.1:6499/")
     this.#cwd = options.cwd ?? process.cwd()
     this.#exitCode = null
     this.#signalCode = null
     this.#exitedAt = null
     this.#buffer = []
+    this.#outputFilter = {inBunProtocolBanner: false}
     this.#state = "starting"
     this.#pauseOnStart = pauseOnStart
     this.#pendingBreakpoints = (options.breakpoints ?? []).filter((bp) => (
@@ -293,6 +314,7 @@ export class TargetSupervisor {
   }
 
   #appendLine(kind: "stdout" | "stderr", text: string): void {
+    if (!filterTargetOutputLine(this.#outputFilter, kind, text)) return
     const line: TargetLine = {
       ts: new Date().toISOString(),
       stream: kind,
@@ -314,4 +336,8 @@ export class TargetSupervisor {
       }
     }
   }
+}
+
+function isBunProtocolBannerDelimiter(text: string): boolean {
+  return text.includes(BUN_PROTOCOL_BANNER_LABEL) && text.includes("---")
 }

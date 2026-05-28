@@ -1,20 +1,19 @@
 # Источники
 
-## Bun Inspector
+## Bun Protocol
 
-Bun inspector использует WebKit Inspector Protocol/JSC, а не CDP.
+Bun использует WebKit/JSC protocol, а не CDP.
 
-Внутри интерпретатора эти имена остаются протокольными:
+Внутри интерпретатора wire-домены runtime остаются протокольными:
 
-- `Inspector.*`
 - `Runtime.*`
 - `Debugger.*`
 
-Их нельзя переименовать без разрыва совместимости с Bun inspector.
+Их нельзя переименовать в запросах к Bun без разрыва совместимости. Пользовательские UI/логи/доки используют терминологию интерпретатора.
 
 ## Проверенные Практические Правила
 
-- `Inspector.initialized` разблокирует `--inspect-wait`.
+- protocol initialization разблокирует `--inspect-wait`.
 - Breakpoint-ы для TypeScript ставятся после `Debugger.scriptParsed`.
 - Editor coordinates маппятся в generated coordinates перед `Debugger.setBreakpoint`.
 - Snapshot обновляется на `Debugger.paused`.

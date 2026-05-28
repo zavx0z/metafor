@@ -17,9 +17,6 @@ function context(overrides: Partial<CommandContext> = {}): CommandContext {
       dump: undefined,
       markRunning(): void {},
     } as never,
-    logger: {
-      event(): void {},
-    } as never,
     ...overrides,
   }
 }

@@ -1,6 +1,7 @@
-import {makeInspectorError, serializeError} from "./errors.ts"
+import {makeProtocolError, serializeError} from "./errors.ts"
 import {asNumber, asObject, asString} from "./guards.ts"
 import type {EventLogger} from "./logger.ts"
+import {publicProtocolMethod} from "./protocol-names.ts"
 import type {JsonObject} from "./types.ts"
 
 type PendingRequest = {
@@ -10,18 +11,18 @@ type PendingRequest = {
   reject: (reason: Error) => void
 }
 
-type InspectorEventHandler = (method: string, params: JsonObject) => void
+type ProtocolEventHandler = (method: string, params: JsonObject) => void
 
 export type SocketState = "connecting" | "connected" | "disconnected"
 export type SocketStateHandler = (state: SocketState, error?: string) => void
 
-export type InspectorClientOptions = {
+export type ProtocolClientOptions = {
   url: string
   requestTimeoutMs: number
   logger: EventLogger
 }
 
-export class InspectorClient {
+export class ProtocolClient {
   #url: string
 
   #logger: EventLogger
@@ -29,13 +30,13 @@ export class InspectorClient {
   #socket: WebSocket | undefined
   #nextRequestId = 1
   #pendingRequests = new Map<number, PendingRequest>()
-  #eventHandlers = new Set<InspectorEventHandler>()
+  #eventHandlers = new Set<ProtocolEventHandler>()
   #stateHandlers = new Set<SocketStateHandler>()
   #socketState: SocketState = "disconnected"
   #lastError: string | undefined
   #textDecoder = new TextDecoder()
 
-  constructor(options: InspectorClientOptions) {
+  constructor(options: ProtocolClientOptions) {
     this.#url = options.url
     this.#requestTimeoutMs = options.requestTimeoutMs
     this.#logger = options.logger
@@ -47,13 +48,13 @@ export class InspectorClient {
 
   setUrl(url: string): void {
     if (url === this.#url) return
-    this.#logger.event("inspector.url.changed", {from: this.#url, to: url})
+    this.#logger.event("protocol.url.changed", {from: this.#url, to: url})
     this.#url = url
     // Force-close current socket — `maintainConnection` пойдёт по циклу с новым url.
     this.#socket?.close()
   }
 
-  onEvent(handler: InspectorEventHandler): () => void {
+  onEvent(handler: ProtocolEventHandler): () => void {
     this.#eventHandlers.add(handler)
     return () => this.#eventHandlers.delete(handler)
   }
@@ -116,7 +117,7 @@ export class InspectorClient {
 
       nextSocket.addEventListener("close", (event) => {
         if (this.#socket === nextSocket) this.#socket = undefined
-        this.rejectPendingRequests(new Error("inspector socket closed"))
+        this.rejectPendingRequests(new Error("protocol socket closed"))
         this.#logger.event("socket.close", {
           code: event.code,
           reason: event.reason,
@@ -149,7 +150,7 @@ export class InspectorClient {
   request(method: string, params?: JsonObject): Promise<unknown> {
     const activeSocket = this.#socket
     if (activeSocket === undefined || activeSocket.readyState !== WebSocket.OPEN) {
-      return Promise.reject(new Error(`inspector socket is not open for ${method}`))
+      return Promise.reject(new Error(`protocol socket is not open for ${publicProtocolMethod(method)}`))
     }
 
     const id = this.#nextRequestId++
@@ -159,12 +160,12 @@ export class InspectorClient {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.#pendingRequests.delete(id)
-        reject(new Error(`${method} timed out after ${this.#requestTimeoutMs}ms`))
+        reject(new Error(`${publicProtocolMethod(method)} timed out after ${this.#requestTimeoutMs}ms`))
       }, this.#requestTimeoutMs)
 
       this.#pendingRequests.set(id, {method, timeout, resolve, reject})
       activeSocket.send(JSON.stringify(payload))
-      this.#logger.event("inspector.request", {id, method})
+      this.#logger.event("protocol.request", {id, method: publicProtocolMethod(method)})
     })
   }
 
@@ -177,7 +178,7 @@ export class InspectorClient {
   }
 
   close(): void {
-    this.rejectPendingRequests(new Error("inspector client closing"))
+    this.rejectPendingRequests(new Error("protocol client closing"))
     this.#socket?.close()
   }
 
@@ -220,7 +221,7 @@ export class InspectorClient {
 
     const id = asNumber(message["id"])
     if (id !== undefined) {
-      this.#handleInspectorResponse(id, message)
+      this.#handleProtocolResponse(id, message)
       return
     }
 
@@ -234,10 +235,10 @@ export class InspectorClient {
     for (const handler of this.#eventHandlers) handler(method, params)
   }
 
-  #handleInspectorResponse(id: number, message: JsonObject): void {
+  #handleProtocolResponse(id: number, message: JsonObject): void {
     const pending = this.#pendingRequests.get(id)
     if (pending === undefined) {
-      this.#logger.event("inspector.response.unmatched", {id})
+      this.#logger.event("protocol.response.unmatched", {id})
       return
     }
 
@@ -246,17 +247,17 @@ export class InspectorClient {
 
     const error = message["error"]
     if (error !== undefined) {
-      const inspectorError = makeInspectorError(pending.method, error)
-      this.#logger.event("inspector.response.error", {
+      const protocolError = makeProtocolError(publicProtocolMethod(pending.method), error)
+      this.#logger.event("protocol.response.error", {
         id,
-        method: pending.method,
-        error: serializeError(inspectorError),
+        method: publicProtocolMethod(pending.method),
+        error: serializeError(protocolError),
       })
-      pending.reject(inspectorError)
+      pending.reject(protocolError)
       return
     }
 
-    this.#logger.event("inspector.response.ok", {id, method: pending.method})
+    this.#logger.event("protocol.response.ok", {id, method: publicProtocolMethod(pending.method)})
     pending.resolve(message["result"])
   }
 }

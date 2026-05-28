@@ -1,5 +1,4 @@
 import {loadConfig, type InterpreterConfig} from "./config.ts"
-import {readFileCommands, readStdinCommands} from "./commands.ts"
 import {ensureParentDir} from "./fs.ts"
 import {EventLogger} from "./logger.ts"
 import {startHttpServer, type HttpServer} from "./server.ts"
@@ -25,26 +24,19 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
 
   ensureParentDir(config.dumpPath)
   ensureParentDir(config.consoleLogPath)
-  ensureParentDir(config.commandPath)
-  ensureParentDir(config.responsePath)
 
   const startupModules: InterpreterModuleRunOptions[] = options.startupModules ?? (
     options.startupModule === undefined ? [] : [options.startupModule]
   )
-  const [firstStartupModule, ...additionalStartupModules] = startupModules
-
   const logger = new EventLogger(config.eventLogPath)
-  const modules = new InterpreterModuleManager(config, logger, firstStartupModule)
-  const initialModule = modules.initialModule
+  const modules = new InterpreterModuleManager(config, logger)
 
-  logger.status(`connecting to interpreter socket ${config.inspectorUrl}`)
+  logger.status(`connecting to interpreter socket ${config.protocolUrl}`)
   logger.event("interpreter.started", {
-    inspectorUrl: config.inspectorUrl,
+    protocolUrl: config.protocolUrl,
     dumpPath: config.dumpPath,
     eventLogPath: config.eventLogPath,
     consoleLogPath: config.consoleLogPath,
-    commandPath: config.commandPath,
-    responsePath: config.responsePath,
     initializedFallbackMs: config.initializedFallbackMs,
     httpEnabled: config.httpEnabled,
     httpHost: config.httpHost,
@@ -57,16 +49,10 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
       httpServer = startHttpServer({
         host: config.httpHost,
         port: config.httpPort,
-        client: initialModule.client,
-        snapshots: initialModule.snapshots,
-        consoleLogs: initialModule.consoleLogs,
-        breakpoints: initialModule.breakpoints,
-        target: initialModule.target,
         modules,
         logger,
         eventLogPath: config.eventLogPath,
         consoleLogPath: config.consoleLogPath,
-        inspectorUrl: config.inspectorUrl,
       })
     } catch (error) {
       logger.event("http.start.failed", {error: serializeError(error)})
@@ -76,7 +62,6 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
 
   let resolveRun: (() => void) | undefined
   let cleanupPromise: Promise<void> | undefined
-  const commandAbort = new AbortController()
   const shutdownHandle: InterpreterRuntimeHandle = {
     shutdown: (reason, code) => cleanup(reason, code),
   }
@@ -85,7 +70,6 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
   const cleanup = (reason: string, code?: number): Promise<void> => {
     cleanupPromise ??= (async () => {
       logger.event("interpreter.shutdown", code === undefined ? {reason} : {reason, code})
-      commandAbort.abort()
       await modules.shutdown()
       httpServer?.stop?.()
       process.off("SIGINT", onSigint)
@@ -110,38 +94,19 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
     import.meta.hot.dispose(() => cleanup("hot-reload"))
   }
 
-  if (firstStartupModule !== undefined) {
+  for (const [index, startupModule] of startupModules.entries()) {
     try {
-      if (firstStartupModule.label !== undefined) initialModule.setLabel(firstStartupModule.label)
-      const snapshot = initialModule.runTarget(firstStartupModule)
+      const module = modules.run({
+        ...startupModule,
+        label: startupModule.label ?? startupModule.id ?? `module-${index + 1}`,
+      })
+      const snapshot = module.target.snapshot()
       logger.event("module.startup.started", {
-        moduleId: initialModule.id,
+        moduleId: module.id,
         pid: snapshot.pid,
         command: snapshot.command,
         cwd: snapshot.cwd,
         pauseOnStart: snapshot.pauseOnStart,
-      })
-    } catch (error) {
-      logger.event("module.startup.failed", {
-        moduleId: initialModule.id,
-        command: firstStartupModule.command,
-        error: serializeError(error),
-      })
-      logger.status(`startup module failed: ${serializeError(error)}`)
-    }
-  }
-  for (const [index, startupModule] of additionalStartupModules.entries()) {
-    try {
-      const module = modules.run({
-        ...startupModule,
-        label: startupModule.label ?? startupModule.id ?? `module-${index + 2}`,
-      })
-      logger.event("module.startup.started", {
-        moduleId: module.id,
-        pid: module.target.snapshot().pid,
-        command: module.target.snapshot().command,
-        cwd: module.target.snapshot().cwd,
-        pauseOnStart: module.target.snapshot().pauseOnStart,
       })
     } catch (error) {
       logger.event("module.startup.failed", {
@@ -156,23 +121,9 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
   process.on("SIGTERM", onSigterm)
 
   modules.start()
-  void readStdinCommands({
-    client: initialModule.client,
-    snapshots: initialModule.snapshots,
-    logger,
-    responsePath: config.responsePath,
-    signal: commandAbort.signal,
-  })
-  void readFileCommands({
-    client: initialModule.client,
-    snapshots: initialModule.snapshots,
-    logger,
-    responsePath: config.responsePath,
-    signal: commandAbort.signal,
-  }, config.commandPath)
 
   return await new Promise<void>((resolve) => {
     resolveRun = resolve
-    // WebSocket, reconnect timers, and stdin drive the runtime lifetime.
+    // HTTP/WebSocket and reconnect timers drive the runtime lifetime.
   })
 }

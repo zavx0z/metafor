@@ -1,8 +1,8 @@
 # Архитектура
 
-Интерпретатор MetaFor держит общий live-контекст человека и ИИ: module runtime state, stack/scopes, source, console, eval и draft-код. Несколько запущенных модулей представлены как несколько равноправных `UIDisplay` внутри одного WebGPU `Space`.
+Интерпретатор MetaFor держит общий live-контекст человека и ИИ: module runtime state, stack/scopes, source, console, eval и breakpoint state. Несколько запущенных модулей представлены как несколько равноправных `UIDisplay` внутри одного WebGPU `Space`.
 
-Внутри используется Bun WebKit Inspector Protocol. Это транспорт к runtime, а не отдельный пользовательский IDE/debugger workflow.
+Внутри используется WebKit/JSC protocol Bun. Это транспорт к runtime, а не отдельный пользовательский IDE workflow.
 
 ## Компоненты
 
@@ -16,10 +16,10 @@ pkg/interpreter/
   src/module.ts           per-module socket, snapshots, breakpoints, runtime launcher
   src/module-cli.ts       parser путей и параметров CLI
   src/breakpoints.ts      breakpoint registry, scriptId install, remove
-  src/commands.ts         stdin/REST/WS command execution
+  src/commands.ts         module-scoped REST/WS command execution
   src/console.ts          Console/Runtime console events
   src/config.ts           env parsing и defaults
-  src/inspector-client.ts WebSocket JSON-RPC client для Bun protocol
+  src/protocol-client.ts WebSocket JSON-RPC client для Bun protocol
   src/server.ts           HTTP + WS + web UI server, modules REST API
   src/snapshot.ts         сборка snapshot на Debugger.paused
   src/source-map.ts       mapping editor/generated coordinates
@@ -41,12 +41,12 @@ bun run interpreter dark/server.spec.ts -timeout=2147483647 pkg/interpreter/src/
 
 `src/module.ts` управляет жизненным циклом одного модуля:
 
-- создаёт `InspectorClient`;
+- создаёт `ProtocolClient`;
 - создаёт `SnapshotStore`;
 - создаёт `BreakpointStore`, `ConsoleLogStore`, `TargetSupervisor`;
 - запускает reconnect loop;
 - выполняет initialization Bun protocol domains;
-- планирует fallback `Inspector.initialized`.
+- планирует fallback protocol initialization.
 
 `InterpreterRuntime` маршрутизирует protocol events:
 
@@ -71,6 +71,9 @@ POST /modules/:id/run
 POST /modules/:id/stop
 POST /modules/:id/command
 GET  /modules/:id/source
+GET  /modules/:id/breakpoints
+POST /modules/:id/breakpoint
+DELETE /modules/:id/breakpoint
 ```
 
 `hello` WebSocket-сообщение включает `modules`, поэтому UI сразу строит один `UIDisplay` на каждый модуль.
@@ -80,6 +83,20 @@ GET  /modules/:id/source
 UI интерпретатора создаёт один `UiRuntime`, один `Space` и один WebGPU canvas. Каждый модуль получает свой `UIDisplay` с source/frames/scopes/console/events. Runtime раскладывает дисплеи в ряд и маршрутизирует pointer events по `displayId`.
 
 Все дисплеи и модули в UI-модели равноправны.
+
+## Host Boundary / XR
+
+`web/main.ts` является browser-host: он берёт DOM canvas, открывает WebSocket `/ws`, хранит локальные UI-настройки и создаёт `UiRuntime`.
+
+Интерпретаторная часть не должна зависеть от browser-only display:
+
+- модульные панели добавляются через `addSurfaceToDisplay(displayId, ...)`;
+- каждый модуль создаёт отдельный `UIDisplay`;
+- `surfaceDisplay: false`, встроенный screen/display host не используется для модулей;
+- layout модулей считается от viewport metrics, а не от конкретного браузерного окна как продуктовой сущности;
+- module state приходит через module-scoped snapshot/API и может быть подан в другой host.
+
+Для XR нужно заменить host-слой, который предоставляет `UiRuntime`, input routing и transport к `/ws`; сами pane/controller-ы интерпретатора должны остаться `UIDisplay`-контентом внутри одного `Space`.
 
 ## commands.ts
 

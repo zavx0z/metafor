@@ -2,9 +2,18 @@
 
 Интерпретатор — общий live-контекст человека и ИИ для Bun-модулей. Человек и агент видят один runtime/source-контекст, один stack/scope/source state, могут управлять паузой, stepping, eval и в реальном времени готовить изменения кода в общем редакторе.
 
-Технически внутри используется Bun WebKit Inspector Protocol. Эта деталь не является отдельным пользовательским отладчиком и не требует WebStorm/DevTools: UI MetaFor является основным интерфейсом интерпретатора.
+Технически внутри используется WebKit/JSC protocol Bun. Это транспорт к runtime, а не отдельный пользовательский инструмент: UI MetaFor является основным интерфейсом интерпретатора и не требует WebStorm/DevTools.
 
 Один браузерный UI использует один WebGPU `Space` и один canvas. Каждый запущенный модуль получает свой равноправный `UIDisplay`; несколько дисплеев раскладываются в ряд внутри того же `Space`.
+
+## Архитектурные Правила
+
+- Модуль — основная единица запуска. Имя модуля берётся из пути запуска.
+- Путь без `-` начинает новый модуль; параметры после пути принадлежат этому модулю до следующего пути.
+- REST/WS команды всегда module-scoped: `/modules/:id/...`.
+- В UI нет default/main display: все `UIDisplay` равноправны.
+- Текущий browser UI — только host для одного WebGPU `Space`; интерпретаторные панели должны оставаться `UIDisplay`, чтобы тот же runtime можно было перенести в XR-host.
+- WebStorm/DevTools не являются frontend этого workflow.
 
 ## Быстрый Старт
 
@@ -59,6 +68,9 @@ POST   /modules/:id/run
 POST   /modules/:id/stop
 POST   /modules/:id/command
 GET    /modules/:id/source
+GET    /modules/:id/breakpoints
+POST   /modules/:id/breakpoint
+DELETE /modules/:id/breakpoint
 ```
 
 Пример запуска модуля через REST:
@@ -78,7 +90,7 @@ curl -sS -X POST http://127.0.0.1:6500/modules/run \
 
 | Имя | Default |
 |---|---|
-| `BUN_INSPECTOR_URL` | `ws://127.0.0.1:6499/` |
+| `BUN_PROTOCOL_URL` | `ws://127.0.0.1:6499/` |
 | `INTERPRETER_DUMP_PATH` | `.metafor/interpreter/state.json` |
 | `INTERPRETER_HTTP_HOST` | `127.0.0.1` |
 | `INTERPRETER_HTTP_PORT` | `6500` |
@@ -97,7 +109,7 @@ bun run --filter @metafor/interpreter typecheck
 - [Архитектура](docs/architecture.md)
 - [API](docs/api.md)
 - [Workflow интерпретатора](docs/workflow.md)
-- [Bun Inspector Protocol](docs/bun-inspector.md)
+- [Bun protocol](docs/bun-protocol.md)
 - [Acceptance сценарии](docs/acceptance.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Источники](docs/references.md)

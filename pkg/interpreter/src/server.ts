@@ -2,7 +2,7 @@
  * HTTP+WebSocket сервер: REST API + полнофункциональный web-UI интерпретатора.
  *
  * Архитектура:
- *   - REST поверх `executeCommand` (то же что stdin/file-loop) — для curl/fetch.
+ *   - REST поверх `executeCommand` — для curl/fetch.
  *   - WebSocket `/ws` — пуш state/resumed/console/result в браузерный UI и приём
  *     `{type:"command",...}` сообщений из UI.
  *   - HTML/JS UI отдаётся через Bun fullstack-bundler: `import indexHtml from "../web/index.html"`,
@@ -26,15 +26,10 @@ const MANIFEST = {
   display: "standalone",
 }
 
-import {executeCommand, type CommandContext} from "./commands.ts"
-import type {BreakpointStore} from "./breakpoints.ts"
-import type {ConsoleLogStore} from "./console.ts"
+import {executeCommand} from "./commands.ts"
 import {serializeError} from "./errors.ts"
 import {asNumber, asObject, asString} from "./guards.ts"
 import type {EventLogger} from "./logger.ts"
-import type {SnapshotStore} from "./snapshot.ts"
-import type {InspectorClient} from "./inspector-client.ts"
-import type {TargetSupervisor} from "./target.ts"
 import type {JsonObject} from "./types.ts"
 import {sourceMapMapper} from "./source-map.ts"
 import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} from "./module.ts"
@@ -42,16 +37,10 @@ import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} 
 export type HttpServerOptions = {
   host: string
   port: number
-  client: InspectorClient
-  snapshots: SnapshotStore
-  consoleLogs: ConsoleLogStore
-  breakpoints: BreakpointStore
-  target: TargetSupervisor
   modules: InterpreterModuleManager
   logger: EventLogger
   eventLogPath: string
   consoleLogPath: string
-  inspectorUrl: string
 }
 
 export type HttpServer = ReturnType<typeof Bun.serve>
@@ -65,17 +54,11 @@ const NDJSON_TAIL_MAX_LIMIT = 5_000
 const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "SIGQUIT"])
 
 export function startHttpServer(options: HttpServerOptions): HttpServer {
-  const ctx: CommandContext = {
-    client: options.client,
-    snapshots: options.snapshots,
-    logger: options.logger,
-  }
-
   const wsClients = new Set<ServerWebSocket<WsClientData>>()
   let nextWsClientId = 1
 
   if (!isLoopbackHost(options.host)) {
-    const warning = "/target/run can execute local commands; bind the interpreter to loopback unless this is intentional"
+    const warning = "/modules/run can execute local commands; bind the interpreter to loopback unless this is intentional"
     options.logger.status(`warning: ${warning} (host=${options.host})`)
     options.logger.event("http.non_loopback_host", {host: options.host, warning})
   }
@@ -88,41 +71,8 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
     }
   }
 
-  options.snapshots.onPause((dump) => broadcast({type: "state", dump}))
-  options.snapshots.onResume(() => broadcast({type: "resumed"}))
-  options.snapshots.onScriptParsed((script) => {
-    broadcast({type: "script", ...scriptView(script)})
-  })
-  options.consoleLogs.onEntry((entry) => {
-    broadcast({
-      type: "console",
-      entries: [{
-        ts: entry.timestamp,
-        level: entry.level ?? entry.type,
-        text: entry.text ?? "",
-      }],
-    })
-  })
-  options.client.onSocketStateChange((state, error) => {
-    if (state !== "connected") clearSourceCaches()
-    broadcast({
-      type: "connection",
-      state,
-      error: error ?? null,
-      inspectorUrl: options.client.url,
-    })
-  })
-
-  // verbose-стрим: всё что приходит от Bun-инспектора и всё что наш агент логирует
-  // — отдельными WS-сообщениями. UI умеет фильтровать/выключать.
-  options.client.onEvent((method, params) => {
-    broadcast({
-      type: "inspector-event",
-      ts: new Date().toISOString(),
-      method,
-      params,
-    })
-  })
+  // verbose-стрим: события интерпретатора идут отдельно от module-scoped
+  // protocol events; UI раскладывает их по дисплеям по moduleId.
   options.logger.onEvent((entry) => {
     broadcast({
       type: "interpreter-event",
@@ -130,10 +80,6 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       event: entry.event,
       detail: entry,
     })
-  })
-  options.target.onEvent((event) => {
-    if (event.type === "started" || event.type === "exited") clearSourceCaches()
-    broadcast({type: "target", event})
   })
   const subscribedModules = new Set<string>()
   const broadcastModules = (): void => {
@@ -156,14 +102,14 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         moduleId: module.id,
         state,
         error: error ?? null,
-        inspectorUrl: module.client.url,
+        protocolUrl: module.client.url,
         module: module.snapshot(),
       })
       broadcastModules()
     })
     module.client.onEvent((method, params) => {
       broadcast({
-        type: "module-inspector-event",
+        type: "module-protocol-event",
         moduleId: module.id,
         ts: new Date().toISOString(),
         method,
@@ -189,17 +135,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       options.logger.event("ws.client.opened", {id: ws.data.id, total: wsClients.size})
       const hello: JsonObject = {
         type: "hello",
-        inspectorUrl: options.client.url,
-        paused: options.snapshots.paused,
-        dump: options.snapshots.dump ?? null,
-        scriptCount: options.snapshots.scripts.length,
-        scripts: scriptsView(options.snapshots.scripts),
-        target: options.target.snapshot(),
         modules: options.modules.snapshots(),
-        connection: {
-          state: options.client.socketState,
-          error: options.client.lastError ?? null,
-        },
       }
       ws.send(JSON.stringify(hello))
     },
@@ -243,7 +179,6 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         const result = await executeCommand({
           client: module.client,
           snapshots: module.snapshots,
-          logger: options.logger,
         }, params, cmd)
         ws.send(JSON.stringify({type: "result", requestId, ok: true, result}))
       } catch (error) {
@@ -280,7 +215,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
       const start = Date.now()
       try {
-        const response = await handleRoute(method, path, url, req, options, ctx, broadcast)
+        const response = await handleRoute(method, path, url, req, options, broadcast)
         options.logger.event("http.request", {
           method,
           path,
@@ -313,7 +248,6 @@ async function handleRoute(
   url: URL,
   req: Request,
   options: HttpServerOptions,
-  ctx: CommandContext,
   broadcast: (payload: JsonObject) => void,
 ): Promise<Response> {
   if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: routeIndex()})
@@ -328,33 +262,14 @@ async function handleRoute(
   if (method === "POST" && moduleCommand !== null) return await dispatchModuleCommand(moduleCommand[1]!, req, options)
   const moduleSource = /^\/modules\/([^/]+)\/source$/.exec(path)
   if (method === "GET" && moduleSource !== null) return await getModuleScriptSource(moduleSource[1]!, url, options)
-  if (method === "GET" && path === "/state") return jsonResponse(options.snapshots.dump ?? null)
-  if (method === "GET" && path === "/scripts") return jsonResponse(scriptsView(options.snapshots.scripts))
-  if (method === "GET" && path === "/frames") {
-    return jsonResponse({
-      paused: options.snapshots.paused,
-      frames: options.snapshots.callFrames,
-      dump: options.snapshots.dump ?? null,
-    })
-  }
+  const moduleBreakpoints = /^\/modules\/([^/]+)\/breakpoints$/.exec(path)
+  if (method === "GET" && moduleBreakpoints !== null) return getModuleBreakpoints(moduleBreakpoints[1]!, options)
+  const moduleBreakpoint = /^\/modules\/([^/]+)\/breakpoint$/.exec(path)
+  if (method === "POST" && moduleBreakpoint !== null) return await setModuleBreakpoint(moduleBreakpoint[1]!, req, options)
+  if (method === "DELETE" && moduleBreakpoint !== null) return await removeModuleBreakpoint(moduleBreakpoint[1]!, req, options)
   if (method === "GET" && path === "/events") return jsonResponse(readNdjsonTail(options.eventLogPath, url))
   if (method === "GET" && path === "/console") return jsonResponse(readNdjsonTail(options.consoleLogPath, url))
   if (method === "GET" && path === "/workspace/files") return jsonResponse(workspaceFilesPayload(url))
-  if (method === "GET" && path === "/breakpoints") return jsonResponse(options.breakpoints.registrations)
-  if (method === "GET" && path === "/source") return await getScriptSource(url, options)
-
-  if (method === "POST" && path === "/eval") return await dispatchPost(req, "eval", ctx)
-  if (method === "POST" && path === "/props") return await dispatchPost(req, "props", ctx)
-  if (method === "POST" && path === "/step") return await dispatchPost(req, "step", ctx)
-  if (method === "POST" && path === "/pause") return await dispatchPost(req, "pause", ctx)
-  if (method === "POST" && path === "/resume") return await dispatchPost(req, "resume", ctx)
-  if (method === "POST" && path === "/frames") return await dispatchPost(req, "frames", ctx)
-  if (method === "POST" && path === "/inspector") return await reconnectInspector(req, options)
-  if (method === "GET" && path === "/target") return jsonResponse(options.target.snapshot())
-  if (method === "POST" && path === "/target/run") return await runTarget(req, options)
-  if (method === "POST" && path === "/target/stop") return await stopTarget(req, options)
-  if (method === "POST" && path === "/breakpoint") return await setBreakpoint(req, options)
-  if (method === "DELETE" && path === "/breakpoint") return await removeBreakpoint(req, options)
   // Триггер хард-релоада UI у всех подключённых WS-клиентов: используется
   // когда мы выкатываем правку в bundle и хотим без юзерских Cmd+Shift+R
   // увидеть свежий код во вкладке.
@@ -388,22 +303,13 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/modules/run", description: "{label?, command, cwd?, env?, pauseOnStart?, breakpoints?} — запустить новый модуль"},
     {method: "POST", path: "/modules/:id/stop", description: "{signal?} — остановить модуль"},
     {method: "POST", path: "/modules/:id/command", description: "{cmd, params?} — команда в конкретный модуль"},
-    {method: "GET", path: "/state", description: "последний snapshot Debugger.paused (или null)"},
-    {method: "GET", path: "/scripts", description: "карта scriptId → url"},
-    {method: "GET", path: "/frames", description: "callFrames + dump"},
+    {method: "GET", path: "/modules/:id/source?scriptId=<id>", description: "исходник скрипта конкретного модуля"},
+    {method: "GET", path: "/modules/:id/breakpoints", description: "breakpoint registrations конкретного модуля"},
+    {method: "POST", path: "/modules/:id/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — breakpoint в конкретном модуле"},
+    {method: "DELETE", path: "/modules/:id/breakpoint", description: "{id|breakpointId} — убрать breakpoint из конкретного модуля"},
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
     {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
     {method: "GET", path: "/workspace/files?q=<text>&limit=<n>", description: "workspace entrypoints for module selection"},
-    {method: "GET", path: "/source?scriptId=<id>", description: "исходник скрипта (Debugger.getScriptSource)"},
-    {method: "POST", path: "/eval", description: "{frame?, expr} — Debugger.evaluateOnCallFrame"},
-    {method: "POST", path: "/props", description: "{objectId, ownProperties?} — Runtime.getProperties"},
-    {method: "POST", path: "/step", description: '{kind: "over"|"into"|"out"}'},
-    {method: "POST", path: "/pause", description: "Debugger.pause"},
-    {method: "POST", path: "/resume", description: "Debugger.resume"},
-    {method: "POST", path: "/inspector", description: "{url} — переподключиться к другому Bun-инспектору"},
-    {method: "GET", path: "/breakpoints", description: "agent breakpoint registrations + installed Bun breakpointIds"},
-    {method: "POST", path: "/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — pending spec + Debugger.setBreakpoint by scriptId on scriptParsed"},
-    {method: "DELETE", path: "/breakpoint", description: "{id|breakpointId} — remove agent registration or concrete Bun breakpointId"},
   ]
 }
 
@@ -490,16 +396,11 @@ function clampWorkspaceLimit(value: number): number {
 }
 
 function healthPayload(options: HttpServerOptions): JsonObject {
+  const modules = options.modules.snapshots()
   return {
     ok: true,
-    inspectorUrl: options.client.url,
-    inspectorState: options.client.socketState,
-    inspectorError: options.client.lastError ?? null,
-    paused: options.snapshots.paused,
-    scriptCount: options.snapshots.scripts.length,
-    breakpointCount: options.breakpoints.registrations.length,
-    hasDump: options.snapshots.dump !== undefined,
-    modules: options.modules.snapshots(),
+    moduleCount: modules.length,
+    modules,
   }
 }
 
@@ -509,31 +410,6 @@ function isLoopbackHost(host: string): boolean {
     || normalized === "localhost"
     || normalized === "::1"
     || normalized === "[::1]"
-}
-
-async function dispatchPost(req: Request, cmd: string, ctx: CommandContext): Promise<Response> {
-  let body: JsonObject = {}
-  const text = await req.text()
-  if (text.length > 0) {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(text)
-    } catch (error) {
-      return jsonResponse({ok: false, cmd, error: `invalid JSON body: ${serializeError(error)}`}, 400)
-    }
-    const obj = asObject(parsed)
-    if (obj === undefined) return jsonResponse({ok: false, cmd, error: "body must be a JSON object"}, 400)
-    body = obj
-  }
-
-  ctx.logger.event("http.command", {cmd, hasBody: Object.keys(body).length > 0})
-
-  try {
-    const result = await executeCommand(ctx, body, cmd)
-    return jsonResponse({ok: true, cmd, result})
-  } catch (error) {
-    return jsonResponse({ok: false, cmd, error: serializeError(error)}, 400)
-  }
 }
 
 const SOURCE_CACHE_MAX = 32
@@ -565,42 +441,6 @@ function lruGet<V>(cache: Map<string, V>, key: string): V | undefined {
   cache.delete(key)
   cache.set(key, value)
   return value
-}
-
-// Слим-проекция scripts для внешнего API: data-URL sourceMapURL может весить
-// сотни КБ на скрипт; UI и REST потребители знают только про hasSourceMap.
-function scriptsView(scripts: ReadonlyArray<import("./snapshot.ts").ScriptInfo>): ScriptView[] {
-  return scripts.map(scriptView)
-}
-
-type ScriptView = {
-  scriptId: string
-  url: string
-  hasSourceMap: boolean
-  sources?: string[]
-}
-
-function scriptView(script: import("./snapshot.ts").ScriptInfo): ScriptView {
-  const sources = sourceMapSources(script.sourceMapURL)
-  const view: ScriptView = {
-    scriptId: script.scriptId,
-    url: script.url,
-    hasSourceMap: script.sourceMapURL !== undefined && script.sourceMapURL.length > 0,
-  }
-  if (sources.length > 0) view.sources = sources
-  return view
-}
-
-function sourceMapSources(sourceMapURL: string | undefined): string[] {
-  const seen = new Set<string>()
-  const out: string[] = []
-  for (const source of sourceMapMapper(sourceMapURL).sources()) {
-    const clean = source.trim()
-    if (clean.length === 0 || seen.has(clean)) continue
-    seen.add(clean)
-    out.push(clean)
-  }
-  return out
 }
 
 function parseCommand(value: unknown): string[] | undefined {
@@ -653,7 +493,7 @@ async function runExistingModule(moduleId: string, req: Request, options: HttpSe
   }
 }
 
-async function readModuleRunOptions(req: Request): Promise<{run: StartupModuleOptions & {id?: string; label?: string; inspectorUrl?: string}} | {response: Response}> {
+async function readModuleRunOptions(req: Request): Promise<{run: StartupModuleOptions & {id?: string; label?: string; protocolUrl?: string}} | {response: Response}> {
   const parsed = await readJsonObject(req)
   if (parsed.error !== undefined) return {response: jsonResponse({ok: false, error: parsed.error}, 400)}
   const body = parsed.body
@@ -667,15 +507,15 @@ async function readModuleRunOptions(req: Request): Promise<{run: StartupModuleOp
   const label = asString(body["label"])
   const id = asString(body["id"]) ?? asString(body["moduleId"])
   const modulePath = asString(body["modulePath"])
-  const inspectorUrl = asString(body["inspectorUrl"])
+  const protocolUrl = asString(body["protocolUrl"])
   const cwd = asString(body["cwd"])
   const env = envStrings(body["env"])
   const pauseOnStart = body["pauseOnStart"] === true
-  const run: StartupModuleOptions & {id?: string; label?: string; inspectorUrl?: string} = {command, pauseOnStart}
+  const run: StartupModuleOptions & {id?: string; label?: string; protocolUrl?: string} = {command, pauseOnStart}
   if (id !== undefined) run.id = id
   if (label !== undefined) run.label = label
   if (modulePath !== undefined) run.modulePath = modulePath
-  if (inspectorUrl !== undefined) run.inspectorUrl = inspectorUrl
+  if (protocolUrl !== undefined) run.protocolUrl = protocolUrl
   if (cwd !== undefined) run.cwd = cwd
   if (env !== undefined) run.env = env
   if (parsedBreakpoints.breakpoints !== undefined) run.breakpoints = parsedBreakpoints.breakpoints
@@ -705,7 +545,6 @@ async function dispatchModuleCommand(moduleId: string, req: Request, options: Ht
     const result = await executeCommand({
       client: module.client,
       snapshots: module.snapshots,
-      logger: options.logger,
     }, params, cmd)
     return jsonResponse({ok: true, cmd, result, module: module.snapshot()})
   } catch (error) {
@@ -713,59 +552,25 @@ async function dispatchModuleCommand(moduleId: string, req: Request, options: Ht
   }
 }
 
-async function runTarget(req: Request, options: HttpServerOptions): Promise<Response> {
-  let body: JsonObject = {}
-  const text = await req.text()
-  if (text.length > 0) {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(text)
-    } catch (error) {
-      return jsonResponse({ok: false, error: `invalid JSON: ${serializeError(error)}`}, 400)
-    }
-    body = asObject(parsed) ?? {}
-  }
-
-  const command = parseCommand(body["command"])
-  if (command === undefined || command.length === 0) {
-    return jsonResponse({ok: false, error: "command must be non-empty array of strings (e.g. ['bun','test',...])"}, 400)
-  }
-  const cwd = asString(body["cwd"])
-  const env = asObject(body["env"])
-  const envStrings: Record<string, string> | undefined = env === undefined
-    ? undefined
-    : Object.fromEntries(
-        Object.entries(env).filter(([, v]) => typeof v === "string") as Array<[string, string]>,
-      )
-
-  const pauseOnStart = body["pauseOnStart"] === true
-  const parsedBreakpoints = parseBreakpoints(body["breakpoints"])
-  if (parsedBreakpoints.error !== undefined) {
-    return jsonResponse({ok: false, error: parsedBreakpoints.error}, 400)
-  }
-
-  try {
-    const opts: {
-      command: string[]
-      cwd?: string
-      env?: Record<string, string>
-      pauseOnStart?: boolean
-      inspectMode?: import("./inspect-mode.ts").InspectMode
-      inspectorUrl?: string
-      breakpoints?: import("./target.ts").BreakpointSpec[]
-    } = {command, inspectorUrl: options.inspectorUrl}
-    if (cwd !== undefined) opts.cwd = cwd
-    if (envStrings !== undefined) opts.env = envStrings
-    if (pauseOnStart) opts.pauseOnStart = true
-    if (parsedBreakpoints.breakpoints !== undefined) opts.breakpoints = parsedBreakpoints.breakpoints
-    const snapshot = options.target.start(opts)
-    return jsonResponse({ok: true, snapshot})
-  } catch (error) {
-    return jsonResponse({ok: false, error: serializeError(error)}, 409)
-  }
+function getModuleBreakpoints(moduleId: string, options: HttpServerOptions): Response {
+  const module = options.modules.get(moduleId)
+  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+  return jsonResponse(module.breakpoints.registrations)
 }
 
-async function setBreakpoint(req: Request, options: HttpServerOptions): Promise<Response> {
+async function setModuleBreakpoint(moduleId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+  const module = options.modules.get(moduleId)
+  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+  return await setBreakpoint(req, module)
+}
+
+async function removeModuleBreakpoint(moduleId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+  const module = options.modules.get(moduleId)
+  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+  return await removeBreakpoint(req, module)
+}
+
+async function setBreakpoint(req: Request, module: InterpreterModule): Promise<Response> {
   let body: JsonObject = {}
   const text = await req.text()
   if (text.length > 0) {
@@ -796,16 +601,16 @@ async function setBreakpoint(req: Request, options: HttpServerOptions): Promise<
   if (condition !== undefined) spec.condition = condition
 
   try {
-    const registration = options.breakpoints.add(spec)
-    await options.breakpoints.armPendingByUrl([registration.id])
-    await options.breakpoints.applyToScripts(options.snapshots.scripts)
-    return jsonResponse({ok: true, breakpoint: registration, breakpoints: options.breakpoints.registrations})
+    const registration = module.breakpoints.add(spec)
+    await module.breakpoints.armPendingByUrl([registration.id])
+    await module.breakpoints.applyToScripts(module.snapshots.scripts)
+    return jsonResponse({ok: true, breakpoint: registration, breakpoints: module.breakpoints.registrations})
   } catch (error) {
     return jsonResponse({ok: false, error: serializeError(error)}, 500)
   }
 }
 
-async function removeBreakpoint(req: Request, options: HttpServerOptions): Promise<Response> {
+async function removeBreakpoint(req: Request, module: InterpreterModule): Promise<Response> {
   let body: JsonObject = {}
   const text = await req.text()
   if (text.length > 0) {
@@ -819,11 +624,11 @@ async function removeBreakpoint(req: Request, options: HttpServerOptions): Promi
   const breakpointId = asString(body["breakpointId"])
   const idOrBreakpointId = id ?? breakpointId
   if (idOrBreakpointId === undefined) {
-    return jsonResponse({ok: false, error: "id or breakpointId required (получи его из POST /breakpoint или GET /breakpoints)"}, 400)
+    return jsonResponse({ok: false, error: "id or breakpointId required (получи его из /modules/:id/breakpoint или /modules/:id/breakpoints)"}, 400)
   }
   try {
-    const removed = await options.breakpoints.remove(idOrBreakpointId)
-    return jsonResponse({ok: true, removed, breakpoints: options.breakpoints.registrations})
+    const removed = await module.breakpoints.remove(idOrBreakpointId)
+    return jsonResponse({ok: true, removed, breakpoints: module.breakpoints.registrations})
   } catch (error) {
     return jsonResponse({ok: false, error: serializeError(error)}, 500)
   }
@@ -890,46 +695,6 @@ async function stopTargetFor(module: Pick<InterpreterModule, "target">, req: Req
   return await module.target.stop(signal)
 }
 
-async function stopTarget(req: Request, options: HttpServerOptions): Promise<Response> {
-  let snapshot: import("./target.ts").TargetSnapshot
-  try {
-    snapshot = await stopTargetFor({target: options.target}, req)
-  } catch (error) {
-    return jsonResponse({ok: false, error: serializeError(error)}, 400)
-  }
-  return jsonResponse({ok: true, snapshot})
-}
-
-async function reconnectInspector(req: Request, options: HttpServerOptions): Promise<Response> {
-  let body: JsonObject = {}
-  const text = await req.text()
-  if (text.length > 0) {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(text)
-    } catch (error) {
-      return jsonResponse({ok: false, error: `invalid JSON: ${serializeError(error)}`}, 400)
-    }
-    body = asObject(parsed) ?? {}
-  }
-  const url = asString(body["url"])
-  if (url === undefined || url.length === 0) {
-    return jsonResponse({ok: false, error: "url required (e.g. ws://127.0.0.1:6499/)"}, 400)
-  }
-  if (!url.startsWith("ws://") && !url.startsWith("wss://")) {
-    return jsonResponse({ok: false, error: "url must start with ws:// or wss://"}, 400)
-  }
-  const previous = options.client.url
-  options.client.setUrl(url)
-  // Скидываем кэш source — у нового target'а будут свои scriptId.
-  clearSourceCaches()
-  return jsonResponse({ok: true, previous, url})
-}
-
-async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Response> {
-  return await getScriptSourceForModule(url, options.modules.initialModule, options.modules.initialModule.id)
-}
-
 async function getModuleScriptSource(moduleId: string, url: URL, options: HttpServerOptions): Promise<Response> {
   const module = options.modules.get(moduleId)
   if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
@@ -954,6 +719,7 @@ async function getScriptSourceForModule(url: URL, module: InterpreterModule, cac
     return jsonResponse({
       scriptId,
       url: responseUrl,
+      scriptUrl: fileUrl ?? "",
       scriptSource: cachedSource,
       tokens: includeTokens ? tokensFor(cacheKey, cachedSource, responseUrl) : undefined,
       sourceKind: mappedSource === null ? "runtime" : "sourcemap",
@@ -966,6 +732,7 @@ async function getScriptSourceForModule(url: URL, module: InterpreterModule, cac
     return jsonResponse({
       scriptId,
       url: mappedSource.source,
+      scriptUrl: fileUrl ?? "",
       scriptSource: mappedSource.content,
       tokens: includeTokens ? tokensFor(cacheKey, mappedSource.content, mappedSource.source) : undefined,
       sourceKind: "sourcemap",
@@ -980,6 +747,7 @@ async function getScriptSourceForModule(url: URL, module: InterpreterModule, cac
     return jsonResponse({
       scriptId,
       url: fileUrl ?? "",
+      scriptUrl: fileUrl ?? "",
       scriptSource,
       tokens: includeTokens && scriptSource.length > 0 ? tokensFor(cacheKey, scriptSource, fileUrl ?? "") : undefined,
       sourceKind: "runtime",

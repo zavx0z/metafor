@@ -1,6 +1,6 @@
 import {dirname} from "node:path"
 
-export const DEFAULT_INSPECTOR_URL = "ws://127.0.0.1:6499/"
+export const DEFAULT_PROTOCOL_URL = "ws://127.0.0.1:6499/"
 export const DEFAULT_DUMP_PATH = ".metafor/interpreter/state.json"
 export const DEFAULT_RECONNECT_DELAY_MS = 1_000
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000
@@ -9,12 +9,10 @@ export const DEFAULT_HTTP_HOST = "127.0.0.1"
 export const DEFAULT_HTTP_PORT = 6500
 
 export type InterpreterConfig = {
-  inspectorUrl: string
+  protocolUrl: string
   dumpPath: string
   eventLogPath: string
   consoleLogPath: string
-  commandPath: string
-  responsePath: string
   requestTimeoutMs: number
   initializedFallbackMs: number
   reconnectDelayMs: number
@@ -27,12 +25,10 @@ export function loadConfig(env: Record<string, string | undefined> = Bun.env): I
   const dumpPath = env["INTERPRETER_DUMP_PATH"] ?? DEFAULT_DUMP_PATH
 
   return {
-    inspectorUrl: env["BUN_INSPECTOR_URL"] ?? DEFAULT_INSPECTOR_URL,
+    protocolUrl: env["BUN_PROTOCOL_URL"] ?? DEFAULT_PROTOCOL_URL,
     dumpPath,
     eventLogPath: env["INTERPRETER_EVENT_LOG_PATH"] ?? `${dirname(dumpPath)}/events.log`,
     consoleLogPath: env["INTERPRETER_CONSOLE_LOG_PATH"] ?? `${dirname(dumpPath)}/console.log`,
-    commandPath: env["INTERPRETER_COMMAND_PATH"] ?? `${dirname(dumpPath)}/commands.ndjson`,
-    responsePath: env["INTERPRETER_RESPONSE_PATH"] ?? `${dirname(dumpPath)}/responses.ndjson`,
     requestTimeoutMs: parseNonNegativeInteger(env["INTERPRETER_REQUEST_TIMEOUT_MS"], DEFAULT_REQUEST_TIMEOUT_MS),
     initializedFallbackMs: parseNonNegativeInteger(env["INTERPRETER_INITIALIZE_FALLBACK_MS"], DEFAULT_INITIALIZE_FALLBACK_MS),
     reconnectDelayMs: parseNonNegativeInteger(env["INTERPRETER_RECONNECT_DELAY_MS"], DEFAULT_RECONNECT_DELAY_MS),
