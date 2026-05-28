@@ -1,8 +1,8 @@
 import type {EditorTokens, LanguageHighlighter} from "../tokens.ts"
-import {tokenizePattern, tokenizePatternRanges} from "./pattern-highlighter.ts"
+import {tokenizePatternRanges, tokenizeSqlitePattern} from "./pattern-highlighter.ts"
 
 export function tokenizeSqlite(lines: string[]): EditorTokens {
-  return tokenizePattern(lines, "sql")
+  return tokenizeSqlitePattern(lines)
 }
 
 export {tokenizePatternRanges as tokenizeSqliteRanges}
