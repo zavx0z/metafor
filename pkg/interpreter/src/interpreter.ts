@@ -30,7 +30,7 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
 
   const logger = new EventLogger(config.eventLogPath)
   const sessions = new InterpreterSessionManager(config, logger)
-  const defaultSession = sessions.defaultSession
+  const initialSession = sessions.initialSession
 
   logger.status(`connecting to interpreter socket ${config.inspectorUrl}`)
   logger.event("interpreter.started", {
@@ -52,11 +52,11 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
       httpServer = startHttpServer({
         host: config.httpHost,
         port: config.httpPort,
-        client: defaultSession.client,
-        snapshots: defaultSession.snapshots,
-        consoleLogs: defaultSession.consoleLogs,
-        breakpoints: defaultSession.breakpoints,
-        target: defaultSession.target,
+        client: initialSession.client,
+        snapshots: initialSession.snapshots,
+        consoleLogs: initialSession.consoleLogs,
+        breakpoints: initialSession.breakpoints,
+        target: initialSession.target,
         sessions,
         logger,
         eventLogPath: config.eventLogPath,
@@ -111,10 +111,10 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
   const [firstStartupTarget, ...additionalStartupTargets] = startupTargets
   if (firstStartupTarget !== undefined) {
     try {
-      if (firstStartupTarget.label !== undefined) defaultSession.setLabel(firstStartupTarget.label)
-      const snapshot = defaultSession.runTarget(firstStartupTarget)
+      if (firstStartupTarget.label !== undefined) initialSession.setLabel(firstStartupTarget.label)
+      const snapshot = initialSession.runTarget(firstStartupTarget)
       logger.event("target.startup.started", {
-        sessionId: defaultSession.id,
+        sessionId: initialSession.id,
         pid: snapshot.pid,
         command: snapshot.command,
         cwd: snapshot.cwd,
@@ -122,7 +122,7 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
       })
     } catch (error) {
       logger.event("target.startup.failed", {
-        sessionId: defaultSession.id,
+        sessionId: initialSession.id,
         command: firstStartupTarget.command,
         error: serializeError(error),
       })
@@ -156,15 +156,15 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
 
   sessions.start()
   void readStdinCommands({
-    client: defaultSession.client,
-    snapshots: defaultSession.snapshots,
+    client: initialSession.client,
+    snapshots: initialSession.snapshots,
     logger,
     responsePath: config.responsePath,
     signal: commandAbort.signal,
   })
   void readFileCommands({
-    client: defaultSession.client,
-    snapshots: defaultSession.snapshots,
+    client: initialSession.client,
+    snapshots: initialSession.snapshots,
     logger,
     responsePath: config.responsePath,
     signal: commandAbort.signal,

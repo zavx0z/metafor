@@ -223,7 +223,11 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       const cmd = asString(message["cmd"])
       const requestId = asNumber(message["requestId"])
       const params = asObject(message["params"]) ?? {}
-      const sessionId = asString(message["sessionId"]) ?? "default"
+      const sessionId = asString(message["sessionId"])
+      if (sessionId === undefined) {
+        ws.send(JSON.stringify({type: "result", requestId, ok: false, error: "missing sessionId"}))
+        return
+      }
       if (cmd === undefined) {
         ws.send(JSON.stringify({type: "result", requestId, ok: false, error: "missing cmd"}))
         return
@@ -922,7 +926,7 @@ async function reconnectInspector(req: Request, options: HttpServerOptions): Pro
 }
 
 async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Response> {
-  return await getScriptSourceForSession(url, options.sessions.defaultSession, "default")
+  return await getScriptSourceForSession(url, options.sessions.initialSession, options.sessions.initialSession.id)
 }
 
 async function getSessionScriptSource(sessionId: string, url: URL, options: HttpServerOptions): Promise<Response> {

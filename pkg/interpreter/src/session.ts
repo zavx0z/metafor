@@ -156,7 +156,7 @@ export class InterpreterSession {
 }
 
 export class InterpreterSessionManager {
-  readonly defaultSession: InterpreterSession
+  readonly initialSession: InterpreterSession
   readonly #config: InterpreterConfig
   readonly #logger: EventLogger
   readonly #sessions = new Map<string, InterpreterSession>()
@@ -168,8 +168,8 @@ export class InterpreterSessionManager {
     this.#config = config
     this.#logger = logger
     this.#nextInspectorPort = initialNextInspectorPort(config.inspectorUrl, config.httpPort)
-    this.defaultSession = new InterpreterSession({
-      id: "default",
+    this.initialSession = new InterpreterSession({
+      id: "process-1",
       label: "process 1",
       config,
       logger,
@@ -177,7 +177,7 @@ export class InterpreterSessionManager {
       dumpPath: config.dumpPath,
       consoleLogPath: config.consoleLogPath,
     })
-    this.#sessions.set(this.defaultSession.id, this.defaultSession)
+    this.#sessions.set(this.initialSession.id, this.initialSession)
   }
 
   onEvent(handler: (event: InterpreterSessionEvent) => void): () => void {
@@ -240,7 +240,7 @@ export class InterpreterSessionManager {
       .replace(/[^a-z0-9._-]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 42)
-    const base = slug.length > 0 && slug !== "default" ? slug : `process-${this.#nextId++}`
+    const base = slug.length > 0 ? slug : `process-${this.#nextId++}`
     let id = base
     let suffix = 2
     while (this.#sessions.has(id)) id = `${base}-${suffix++}`

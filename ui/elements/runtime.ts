@@ -133,6 +133,8 @@ export type UiVirtualDisplayOpts = {
   grid?: boolean
   /** Цвет подложки дисплея. Default — фон UIDisplay. */
   background?: Color | number
+  /** Создать встроенный surface-display для addSurface(). */
+  surfaceDisplay?: boolean
 }
 
 export type UiRuntimeOpts = {
@@ -175,8 +177,8 @@ export class UiRuntime {
   readonly inputProxy: VirtualInput | null
   readonly #surfaces: SurfaceSlot[] = []
   readonly #displaySlots = new Map<UiDisplayId, DisplaySlot>()
-  readonly #defaultDisplayId: UiDisplayId = "default"
-  #activeDisplayId: UiDisplayId = this.#defaultDisplayId
+  readonly #surfaceDisplayId: UiDisplayId = "__surface__"
+  #activeDisplayId: UiDisplayId | null = null
   #focused: UiSurfaceNode | null = null
   #pixelWidth = 800
   #pixelHeight = 600
@@ -195,6 +197,7 @@ export class UiRuntime {
   readonly #displayFarDistanceMm: number
   readonly #displayFlyDurationMs: number
   readonly #displayCenterMm: Vector3
+  readonly #displaySpaceEnabled: boolean
   #displayMode: UiVirtualDisplayMode
   #displayReturnPose: ViewPointPose | null = null
   #displayDistanceMm: number
@@ -244,6 +247,7 @@ export class UiRuntime {
     this.#displayCenterMm = virtualDisplay?.centerMm === undefined
       ? new Vector3(0, 0, 900)
       : new Vector3(virtualDisplay.centerMm.x, virtualDisplay.centerMm.y, virtualDisplay.centerMm.z)
+    this.#displaySpaceEnabled = virtualDisplay !== undefined
     this.#displayMode = virtualDisplay?.initial === "far" ? "far" : "near"
     this.#displayDistanceMm = this.#displayMode === "far"
       ? this.#displayFarDistanceMm
@@ -257,7 +261,8 @@ export class UiRuntime {
       grid.frustumCulled = false
       this.space.add(grid)
     }
-    this.display = virtualDisplay === undefined
+    const createSurfaceDisplay = virtualDisplay !== undefined && virtualDisplay.surfaceDisplay !== false
+    this.display = !createSurfaceDisplay
       ? null
       : new UIDisplay({
         widthMm: this.#virtualDisplayWidthMm ?? 1,
@@ -270,8 +275,8 @@ export class UiRuntime {
       this.display.name = "UiRuntimeDisplay"
       this.display.frustumCulled = false
       this.space.add(this.display)
-      this.#displaySlots.set(this.#defaultDisplayId, {
-        id: this.#defaultDisplayId,
+      this.#displaySlots.set(this.#surfaceDisplayId, {
+        id: this.#surfaceDisplayId,
         display: this.display,
         centerMm: this.#displayCenterMm.clone(),
         pixelWidth: this.#displayPixelWidth,
@@ -320,13 +325,16 @@ export class UiRuntime {
 
   /** Регистрирует surface. layout-функция вызывается на каждом resize. */
   addSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn): void {
-    this.addSurfaceToDisplay(this.#defaultDisplayId, surface, layout)
+    if (this.#displaySpaceEnabled && this.display === null) {
+      throw new Error("addSurface requires an explicit UIDisplay in display-space mode")
+    }
+    this.addSurfaceToDisplay(this.#surfaceDisplayId, surface, layout)
   }
 
   /** Регистрирует surface на конкретном UIDisplay внутри общего Space. */
   addSurfaceToDisplay(displayId: UiDisplayId, surface: UiSurfaceNode, layout: UiSurfaceLayoutFn): void {
     const displaySlot = this.#displaySlots.get(displayId)
-    if (this.display !== null && displaySlot === undefined) {
+    if (this.#displaySpaceEnabled && displaySlot === undefined) {
       throw new Error(`UIDisplay not found: ${displayId}`)
     }
     surface.attachCanvas(this)
@@ -396,7 +404,7 @@ export class UiRuntime {
     const slot = this.#displaySlots.get(displayId)
     if (slot === undefined) throw new Error(`UIDisplay not found: ${displayId}`)
     slot.centerMm.set(centerMm.x, centerMm.y, centerMm.z)
-    if (displayId === this.#defaultDisplayId) this.#displayCenterMm.copy(slot.centerMm)
+    if (displayId === this.#surfaceDisplayId) this.#displayCenterMm.copy(slot.centerMm)
     this.#applyDisplayTransform(slot)
     this.#applyLayout()
     this.requestRender()
@@ -411,6 +419,20 @@ export class UiRuntime {
       heightMm: slot.display.heightMm,
       pixelWidth: slot.pixelWidth,
       pixelHeight: slot.pixelHeight,
+    }
+  }
+
+  viewportDisplayMetrics(): {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number} {
+    this.#applyDisplayGeometry()
+    const pixelWidth = Math.max(1, Math.round(this.#pixelWidth))
+    const pixelHeight = Math.max(1, Math.round(this.#pixelHeight))
+    const pixelAspect = pixelWidth / pixelHeight
+    const heightMm = Math.max(1, 2 * this.#displayNearDistanceMm * Math.tan(this.viewPoint.fov / 2))
+    return {
+      widthMm: Math.max(1, heightMm * pixelAspect),
+      heightMm,
+      pixelWidth,
+      pixelHeight,
     }
   }
 
@@ -439,7 +461,7 @@ export class UiRuntime {
     slot.pixelHeight = pixelHeight
     slot.pixelScale = widthMm / pixelWidth
     slot.geometryInitialized = true
-    if (displayId === this.#defaultDisplayId) {
+    if (displayId === this.#surfaceDisplayId) {
       this.#displayPixelWidth = pixelWidth
       this.#displayPixelHeight = pixelHeight
       this.#displayPixelScale = slot.pixelScale
@@ -497,7 +519,7 @@ export class UiRuntime {
   }
 
   setDisplayMode(mode: UiVirtualDisplayMode): void {
-    if (this.display === null) return
+    if (!this.#displaySpaceEnabled) return
     const nextDistance = mode === "near" ? this.#displayNearDistanceMm : this.#displayFarDistanceMm
     if (this.#displayMode === mode && Math.abs(nextDistance - this.#currentDisplayDistance()) < 0.001) return
     const previousMode = this.#displayMode
@@ -518,9 +540,9 @@ export class UiRuntime {
     yMin: number,
     xMax: number,
     yMax: number,
-    displayId = this.#defaultDisplayId,
+    displayId = this.#surfaceDisplayId,
   ): [number, number, number, number] {
-    if (this.display === null) {
+    if (!this.#displaySpaceEnabled) {
       const dpr = this.renderer.pixelRatio
       return [
         Math.min(xMin, xMax) * dpr,
@@ -549,8 +571,10 @@ export class UiRuntime {
     return this.displayOutline(this.#displayHoverDisplayId ?? this.#activeDisplayId)
   }
 
-  displayOutline(displayId?: UiDisplayId): UiDisplayHoverOutline | null {
-    const slot = this.#displaySlots.get(this.#resolveDisplayId(displayId)) ?? this.#displaySlots.get(this.#defaultDisplayId)
+  displayOutline(displayId?: UiDisplayId | null): UiDisplayHoverOutline | null {
+    const resolvedDisplayId = this.#resolveDisplayId(displayId)
+    if (resolvedDisplayId === null) return null
+    const slot = this.#displaySlots.get(resolvedDisplayId)
     if (slot === undefined) return null
     const w = slot.display.widthMm / 2
     const h = slot.display.heightMm / 2
@@ -569,10 +593,10 @@ export class UiRuntime {
     return this.#currentDisplayDistance(this.#activeDisplayId)
   }
 
-  #projectDisplayUiPoint(x: number, y: number, displayId = this.#defaultDisplayId): {x: number; y: number} {
+  #projectDisplayUiPoint(x: number, y: number, displayId = this.#surfaceDisplayId): {x: number; y: number} {
     const dpr = this.renderer.pixelRatio
-    if (this.display === null) return {x: x * dpr, y: y * dpr}
-    const slot = this.#displaySlots.get(displayId) ?? this.#displaySlots.get(this.#defaultDisplayId)
+    if (!this.#displaySpaceEnabled) return {x: x * dpr, y: y * dpr}
+    const slot = this.#displaySlots.get(displayId) ?? this.#displaySlots.get(this.#surfaceDisplayId)
     if (slot === undefined) return {x: x * dpr, y: y * dpr}
     const worldPoint = new Vector3(
       (x - slot.pixelWidth / 2) * slot.pixelScale,
@@ -597,21 +621,22 @@ export class UiRuntime {
     }
   }
 
-  #currentDisplayDistance(displayId = this.#activeDisplayId): number {
+  #currentDisplayDistance(displayId: UiDisplayId | null = this.#activeDisplayId): number {
     const center = this.#displayCenterWorld(displayId)
     if (center === null) return this.#displayDistanceMm
     return this.viewPoint.position.distanceTo(center)
   }
 
-  #resolveDisplayId(displayId?: UiDisplayId | null): UiDisplayId {
+  #resolveDisplayId(displayId?: UiDisplayId | null): UiDisplayId | null {
     if (displayId !== undefined && displayId !== null && this.#displaySlots.has(displayId)) return displayId
     if (this.#displayHoverDisplayId !== null && this.#displaySlots.has(this.#displayHoverDisplayId)) return this.#displayHoverDisplayId
     if (this.#displayNavigationDisplayId !== null && this.#displaySlots.has(this.#displayNavigationDisplayId)) return this.#displayNavigationDisplayId
-    if (this.#displaySlots.has(this.#activeDisplayId)) return this.#activeDisplayId
-    return this.#defaultDisplayId
+    if (this.#activeDisplayId !== null && this.#displaySlots.has(this.#activeDisplayId)) return this.#activeDisplayId
+    return null
   }
 
-  #displayCenterWorld(displayId = this.#defaultDisplayId): Vector3 | null {
+  #displayCenterWorld(displayId: UiDisplayId | null = this.#surfaceDisplayId): Vector3 | null {
+    if (displayId === null) return null
     const slot = this.#displaySlots.get(displayId)
     if (slot === undefined) return null
     this.space.updateWorldMatrix()
@@ -636,8 +661,8 @@ export class UiRuntime {
   }
 
   #animateCameraToDisplayDistance(distanceMm: number): void {
-    if (this.display === null) return
-    const target = this.#displayCenterWorld(this.#activeDisplayId) ?? this.#displayCenterMm.clone()
+    if (!this.#displaySpaceEnabled) return
+    const target = this.#displayCenterWorld(this.#activeDisplayId) ?? this.viewPoint.getTarget().clone()
     this.#animateCameraToPose({
       position: target.clone().add(new Vector3(0, -distanceMm, 0)),
       target,
@@ -703,7 +728,7 @@ export class UiRuntime {
   }
 
   #orbitDisplay(deltaX: number, deltaY: number): void {
-    if (this.display === null) return
+    if (!this.#displaySpaceEnabled) return
     this.#cancelCameraAnimation()
     const target = this.#navigationTarget(this.#displayNavigationDisplayId)
     this.viewPoint.getTarget().copy(target)
@@ -729,7 +754,7 @@ export class UiRuntime {
   }
 
   #zoomDisplay(delta: number, displayId?: UiDisplayId | null): void {
-    if (this.display === null) return
+    if (!this.#displaySpaceEnabled) return
     this.#cancelCameraAnimation()
     const target = this.#navigationTarget(displayId)
     this.viewPoint.getTarget().copy(target)
@@ -782,7 +807,7 @@ export class UiRuntime {
   }
 
   #displayRayHit(canvasX: number, canvasY: number, requireInside = false, onlyDisplayId?: UiDisplayId): DisplayRayHit | null {
-    if (this.display === null) return null
+    if (!this.#displaySpaceEnabled) return null
     this.viewPoint.update()
     this.space.updateWorldMatrix()
     const raycaster = new Raycaster()
@@ -836,7 +861,7 @@ export class UiRuntime {
   }
 
   #isDisplayNavigationMode(): boolean {
-    return this.display !== null && this.displayMode === "far"
+    return this.#displaySpaceEnabled && this.displayMode === "far"
   }
 
   #setDisplayHoverActive(active: boolean, displayId: UiDisplayId | null = null): void {
@@ -932,44 +957,47 @@ export class UiRuntime {
   }
 
   #applyDisplayGeometry(): void {
-    const defaultSlot = this.#displaySlots.get(this.#defaultDisplayId)
-    if (defaultSlot === undefined) return
+    const surfaceSlot = this.#displaySlots.get(this.#surfaceDisplayId)
+    if (surfaceSlot === undefined) {
+      for (const slot of this.#displaySlots.values()) this.#applyDisplayTransform(slot)
+      return
+    }
 
     if (
       !this.#sizeInitialized &&
       (this.#virtualDisplayPixelWidth === undefined || this.#virtualDisplayPixelHeight === undefined)
     ) {
-      this.#applyDisplayTransform(defaultSlot)
+      this.#applyDisplayTransform(surfaceSlot)
       return
     }
 
-    const pixelWidth = Math.max(1, Math.round(defaultSlot.explicitPixelWidth ?? this.#pixelWidth))
-    const pixelHeight = Math.max(1, Math.round(defaultSlot.explicitPixelHeight ?? this.#pixelHeight))
+    const pixelWidth = Math.max(1, Math.round(surfaceSlot.explicitPixelWidth ?? this.#pixelWidth))
+    const pixelHeight = Math.max(1, Math.round(surfaceSlot.explicitPixelHeight ?? this.#pixelHeight))
     const pixelAspect = pixelWidth / pixelHeight
-    const defaultHeightMm = 2 * this.#displayNearDistanceMm * Math.tan(this.viewPoint.fov / 2)
+    const surfaceHeightMm = 2 * this.#displayNearDistanceMm * Math.tan(this.viewPoint.fov / 2)
     const heightMm = Math.max(
       1,
-      defaultSlot.explicitHeightMm ?? (
-        defaultSlot.explicitWidthMm === undefined ? defaultHeightMm : defaultSlot.explicitWidthMm / pixelAspect
+      surfaceSlot.explicitHeightMm ?? (
+        surfaceSlot.explicitWidthMm === undefined ? surfaceHeightMm : surfaceSlot.explicitWidthMm / pixelAspect
       ),
     )
-    const widthMm = Math.max(1, defaultSlot.explicitWidthMm ?? heightMm * pixelAspect)
+    const widthMm = Math.max(1, surfaceSlot.explicitWidthMm ?? heightMm * pixelAspect)
     if (
-      !defaultSlot.geometryInitialized ||
-      defaultSlot.display.widthMm !== widthMm ||
-      defaultSlot.display.heightMm !== heightMm ||
-      defaultSlot.pixelWidth !== pixelWidth ||
-      defaultSlot.pixelHeight !== pixelHeight
+      !surfaceSlot.geometryInitialized ||
+      surfaceSlot.display.widthMm !== widthMm ||
+      surfaceSlot.display.heightMm !== heightMm ||
+      surfaceSlot.pixelWidth !== pixelWidth ||
+      surfaceSlot.pixelHeight !== pixelHeight
     ) {
       this.#displayPixelWidth = pixelWidth
       this.#displayPixelHeight = pixelHeight
       this.#displayPixelScale = widthMm / pixelWidth
       this.#displayGeometryInitialized = true
-      defaultSlot.pixelWidth = pixelWidth
-      defaultSlot.pixelHeight = pixelHeight
-      defaultSlot.pixelScale = this.#displayPixelScale
-      defaultSlot.geometryInitialized = true
-      defaultSlot.display.resize({
+      surfaceSlot.pixelWidth = pixelWidth
+      surfaceSlot.pixelHeight = pixelHeight
+      surfaceSlot.pixelScale = this.#displayPixelScale
+      surfaceSlot.geometryInitialized = true
+      surfaceSlot.display.resize({
         widthMm,
         heightMm,
         pixelWidth,
@@ -981,15 +1009,15 @@ export class UiRuntime {
     for (const slot of this.#displaySlots.values()) this.#applyDisplayTransform(slot)
   }
 
-  #surfaceMetrics(target: SurfaceSlot["target"], displayId = this.#defaultDisplayId): {w: number; h: number; scale: number} {
-    if (target === "display" && this.display !== null) {
-      const slot = this.#displaySlots.get(displayId) ?? this.#displaySlots.get(this.#defaultDisplayId)
+  #surfaceMetrics(target: SurfaceSlot["target"], displayId = this.#surfaceDisplayId): {w: number; h: number; scale: number} {
+    if (target === "display" && this.#displaySpaceEnabled) {
+      const slot = this.#displaySlots.get(displayId) ?? this.#displaySlots.get(this.#surfaceDisplayId)
       if (slot !== undefined) return {w: slot.pixelWidth, h: slot.pixelHeight, scale: slot.pixelScale}
     }
     return {w: this.#pixelWidth, h: this.#pixelHeight, scale: this.#pixelScale}
   }
 
-  #applyDisplayTransform(slot = this.#displaySlots.get(this.#defaultDisplayId)): void {
+  #applyDisplayTransform(slot = this.#displaySlots.get(this.#surfaceDisplayId)): void {
     if (slot === undefined) return
     slot.display.position.copy(slot.centerMm)
     slot.display.rotation.x = Math.PI / 2
@@ -1044,7 +1072,7 @@ export class UiRuntime {
   }
 
   #displayCoords(canvasX: number, canvasY: number, requireInside = true, displayId?: UiDisplayId): DisplayCoords | null {
-    if (this.display === null) return {displayId: this.#defaultDisplayId, x: canvasX, y: canvasY}
+    if (!this.#displaySpaceEnabled) return {displayId: this.#surfaceDisplayId, x: canvasX, y: canvasY}
     const hit = this.#displayRayHit(canvasX, canvasY, requireInside, displayId)
     if (hit === null) return null
     const slot = this.#displaySlots.get(hit.displayId)

@@ -201,7 +201,7 @@ let welcomePane: WelcomePane | null = null
 const sessionSnapshots = new Map<string, SessionPaneSnapshot>()
 const sessionDisplays = new Map<string, SessionDisplayController>()
 const sessionDisplayIds = new Set<string>()
-let sessionOrder: string[] = ["default"]
+let sessionOrder: string[] = []
 let framedSessionKey = ""
 let uiLoading = false
 let engineLastSource: Source | null = null
@@ -754,7 +754,7 @@ function preferredWorkspaceFile(files: readonly string[]): string | undefined {
 }
 
 function appendVerbose(kind: "inspector" | "interpreter", ts: string, name: string, payload: unknown, sessionId?: string): void {
-  if (sessionId === undefined || sessionId === "default") verbosePane?.append(kind, ts, name, payload)
+  if (sessionId === undefined) verbosePane?.append(kind, ts, name, payload)
   if (sessionId !== undefined) sessionDisplays.get(sessionId)?.verbose.append(kind, ts, name, payload)
 }
 
@@ -1523,10 +1523,11 @@ function appendConsole(entry: ConsoleEntry): void {
 
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
 
-function send(cmd: string, params: Record<string, unknown> = {}, sessionId = "default"): Promise<CommandReply> {
+function send(cmd: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<CommandReply> {
   if (socket === undefined || socket.readyState !== WebSocket.OPEN) {
     return Promise.resolve({ok: false, error: "ws not connected"})
   }
+  if (sessionId === undefined) return Promise.resolve({ok: false, error: "sessionId is required"})
   const requestId = nextRequestId++
   return new Promise<CommandReply>((resolve) => {
     const timer = window.setTimeout(() => {
@@ -1569,6 +1570,7 @@ async function initEngine(): Promise<void> {
     uiCanvas = await UiRuntime.create(engineCanvas, {
       virtualDisplay: {
         initial: "near",
+        surfaceDisplay: false,
         centerMm: {x: 0, y: SESSION_DISPLAY_CENTER_Y_MM, z: SESSION_DISPLAY_CENTER_Z_MM},
         farDistanceMm: 1200,
       },
@@ -2139,25 +2141,22 @@ function syncSessionDisplays(): void {
   if (orderedSessions.length === 0) return
 
   const displayMetrics = browserDisplayMetrics()
-  const displayIds = orderedSessions.map((session) => session.id)
+  const displayIds = orderedSessions.map((session) => sessionDisplayId(session.id))
   const totalW = orderedSessions.length * displayMetrics.widthMm
     + Math.max(0, orderedSessions.length - 1) * SESSION_DISPLAY_GAP_MM
   let cursorX = -totalW / 2
   for (let index = 0; index < orderedSessions.length; index++) {
     const session = orderedSessions[index]!
+    const displayId = sessionDisplayId(session.id)
     const x = cursorX + displayMetrics.widthMm / 2
     cursorX += displayMetrics.widthMm + SESSION_DISPLAY_GAP_MM
     const center = {x, y: SESSION_DISPLAY_CENTER_Y_MM, z: SESSION_DISPLAY_CENTER_Z_MM}
-    if (session.id === "default") {
-      uiCanvas.setDisplayCenter("default", center)
-      continue
-    }
     if (!sessionDisplayIds.has(session.id)) {
       sessionDisplayIds.add(session.id)
       const controller = createSessionDisplayController(session)
       sessionDisplays.set(session.id, controller)
       uiCanvas.createDisplay({
-        id: session.id,
+        id: displayId,
         widthMm: displayMetrics.widthMm,
         heightMm: displayMetrics.heightMm,
         pixelWidth: displayMetrics.pixelWidth,
@@ -2166,10 +2165,10 @@ function syncSessionDisplays(): void {
         background: 0x020617,
         border: 0x334155,
       })
-      addInterpreterSurfacesToDisplay(session.id, controller)
+      addInterpreterSurfacesToDisplay(displayId, controller)
     } else {
-      uiCanvas.resizeDisplay(session.id, displayMetrics)
-      uiCanvas.setDisplayCenter(session.id, center)
+      uiCanvas.resizeDisplay(displayId, displayMetrics)
+      uiCanvas.setDisplayCenter(displayId, center)
       const controller = sessionDisplays.get(session.id)
       if (controller !== undefined) updateSessionDisplay(controller, session)
     }
@@ -2192,6 +2191,10 @@ function syncSessionDisplays(): void {
   }
 }
 
+function sessionDisplayId(sessionId: string): string {
+  return `session:${sessionId}`
+}
+
 function addInterpreterSurfacesToDisplay(displayId: string, controller: SessionDisplayController): void {
   if (uiCanvas === null) return
   uiCanvas.addSurfaceToDisplay(displayId, controller.frames, (canvas) => interpreterRects(canvas).frames)
@@ -2208,7 +2211,7 @@ function addInterpreterSurfacesToDisplay(displayId: string, controller: SessionD
 }
 
 function browserDisplayMetrics(): DisplayLayoutMetrics {
-  const metrics = uiCanvas?.displayMetrics("default")
+  const metrics = uiCanvas?.viewportDisplayMetrics()
   if (metrics !== null && metrics !== undefined) {
     return metrics
   }
@@ -2234,35 +2237,11 @@ async function stopSession(sessionId: string): Promise<void> {
 function installEnginePanes(): void {
   if (
     uiCanvas === null ||
-    toolbarPane === null ||
-    displayHoverOutlinePane === null ||
-    sourcePane === null ||
-    draftEditorPane === null ||
-    consolePane === null ||
-    framesPane === null ||
-    scopesEvalPane === null ||
-    verbosePane === null ||
-    welcomePane === null
+    displayHoverOutlinePane === null
   ) {
     return
   }
 
-  uiCanvas.addSurface(welcomePane, welcomeRect)
-  uiCanvas.addSurface(framesPane, (canvas) => welcomeVisible ? hiddenRect() : interpreterRects(canvas).frames)
-  uiCanvas.addSurface(scopesEvalPane, (canvas) => welcomeVisible ? hiddenRect() : interpreterRects(canvas).scopes)
-  uiCanvas.addSurface(sourcePane, (canvas) => welcomeVisible || draftVisible ? hiddenRect() : interpreterRects(canvas).source)
-  uiCanvas.addSurface(draftEditorPane, (canvas) => welcomeVisible || !draftVisible ? hiddenRect() : interpreterRects(canvas).source)
-  uiCanvas.addSurface(consolePane, (canvas) => welcomeVisible ? hiddenRect() : interpreterRects(canvas).console)
-  uiCanvas.addSurface(verbosePane, (canvas) => {
-    if (welcomeVisible) return hiddenRect()
-    return interpreterRects(canvas).verbose ?? hiddenRect()
-  })
-  uiCanvas.addSurface(toolbarPane, ({w}) => ({
-    x: TOOLBAR_INSET,
-    y: TOOLBAR_INSET,
-    w: Math.max(1, w - TOOLBAR_INSET * 2),
-    h: TOOLBAR_H,
-  }))
   uiCanvas.addHudSurface(displayHoverOutlinePane, ({w, h}) => ({
     x: 0,
     y: 0,
