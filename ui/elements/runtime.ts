@@ -176,6 +176,7 @@ export class UiRuntime {
   readonly #surfaces: SurfaceSlot[] = []
   readonly #displaySlots = new Map<UiDisplayId, DisplaySlot>()
   readonly #defaultDisplayId: UiDisplayId = "default"
+  #activeDisplayId: UiDisplayId = this.#defaultDisplayId
   #focused: UiSurfaceNode | null = null
   #pixelWidth = 800
   #pixelHeight = 600
@@ -493,11 +494,11 @@ export class UiRuntime {
 
   displayHoverOutline(): UiDisplayHoverOutline | null {
     if (!this.#displayHoverActive) return null
-    return this.displayOutline(this.#displayHoverDisplayId ?? this.#defaultDisplayId)
+    return this.displayOutline(this.#displayHoverDisplayId ?? this.#activeDisplayId)
   }
 
-  displayOutline(displayId = this.#defaultDisplayId): UiDisplayHoverOutline | null {
-    const slot = this.#displaySlots.get(displayId) ?? this.#displaySlots.get(this.#defaultDisplayId)
+  displayOutline(displayId?: UiDisplayId): UiDisplayHoverOutline | null {
+    const slot = this.#displaySlots.get(this.#resolveDisplayId(displayId)) ?? this.#displaySlots.get(this.#defaultDisplayId)
     if (slot === undefined) return null
     const w = slot.display.widthMm / 2
     const h = slot.display.heightMm / 2
@@ -513,7 +514,7 @@ export class UiRuntime {
   }
 
   displayDistanceMm(): number {
-    return this.#currentDisplayDistance()
+    return this.#currentDisplayDistance(this.#activeDisplayId)
   }
 
   #projectDisplayUiPoint(x: number, y: number, displayId = this.#defaultDisplayId): {x: number; y: number} {
@@ -544,10 +545,18 @@ export class UiRuntime {
     }
   }
 
-  #currentDisplayDistance(): number {
-    const center = this.#displayCenterWorld()
+  #currentDisplayDistance(displayId = this.#activeDisplayId): number {
+    const center = this.#displayCenterWorld(displayId)
     if (center === null) return this.#displayDistanceMm
     return this.viewPoint.position.distanceTo(center)
+  }
+
+  #resolveDisplayId(displayId?: UiDisplayId | null): UiDisplayId {
+    if (displayId !== undefined && displayId !== null && this.#displaySlots.has(displayId)) return displayId
+    if (this.#displayHoverDisplayId !== null && this.#displaySlots.has(this.#displayHoverDisplayId)) return this.#displayHoverDisplayId
+    if (this.#displayNavigationDisplayId !== null && this.#displaySlots.has(this.#displayNavigationDisplayId)) return this.#displayNavigationDisplayId
+    if (this.#displaySlots.has(this.#activeDisplayId)) return this.#activeDisplayId
+    return this.#defaultDisplayId
   }
 
   #displayCenterWorld(displayId = this.#defaultDisplayId): Vector3 | null {
@@ -576,7 +585,7 @@ export class UiRuntime {
 
   #animateCameraToDisplayDistance(distanceMm: number): void {
     if (this.display === null) return
-    const target = this.#displayCenterWorld() ?? this.#displayCenterMm.clone()
+    const target = this.#displayCenterWorld(this.#activeDisplayId) ?? this.#displayCenterMm.clone()
     this.#animateCameraToPose({
       position: target.clone().add(new Vector3(0, -distanceMm, 0)),
       target,
@@ -644,7 +653,7 @@ export class UiRuntime {
   #orbitDisplay(deltaX: number, deltaY: number): void {
     if (this.display === null) return
     this.#cancelCameraAnimation()
-    const target = this.#displayCenterWorld(this.#displayNavigationDisplayId ?? this.#defaultDisplayId)
+    const target = this.#displayCenterWorld(this.#resolveDisplayId(this.#displayNavigationDisplayId))
       ?? this.#displayCenterWorld()
       ?? this.#displayCenterMm.clone()
     this.viewPoint.getTarget().copy(target)
@@ -672,7 +681,7 @@ export class UiRuntime {
   #zoomDisplay(delta: number): void {
     if (this.display === null) return
     this.#cancelCameraAnimation()
-    const target = this.#displayCenterWorld(this.#displayHoverDisplayId ?? this.#displayNavigationDisplayId ?? this.#defaultDisplayId)
+    const target = this.#displayCenterWorld(this.#resolveDisplayId())
       ?? this.#displayCenterWorld()
       ?? this.#displayCenterMm.clone()
     this.viewPoint.getTarget().copy(target)
@@ -710,7 +719,7 @@ export class UiRuntime {
     this.viewPoint.position.add(panDelta)
     target.add(panDelta)
     this.viewPoint.update()
-    this.#displayDistanceMm = this.#currentDisplayDistance()
+    this.#displayDistanceMm = this.#currentDisplayDistance(this.#activeDisplayId)
     this.#applyLayout()
     this.#requestHudSurfacesRender()
     this.requestRender()
@@ -757,6 +766,7 @@ export class UiRuntime {
     this.#cancelCameraAnimation()
     this.#displayNavigationActive = true
     this.#displayNavigationDisplayId = displayId
+    if (displayId !== null) this.#activeDisplayId = displayId
     this.#displayNavigationLastX = event.clientX
     this.#displayNavigationLastY = event.clientY
     this.canvas.style.cursor = "grabbing"
@@ -777,6 +787,7 @@ export class UiRuntime {
     if (this.#displayHoverActive === active && this.#displayHoverDisplayId === displayId) return
     this.#displayHoverActive = active
     this.#displayHoverDisplayId = active ? displayId : null
+    if (active && displayId !== null) this.#activeDisplayId = displayId
     this.#requestHudSurfacesRender()
     this.requestRender()
   }
@@ -1107,6 +1118,7 @@ export class UiRuntime {
     // Позиционируем 1×1 textarea около курсора, чтобы всплывающие окна
     // macOS появлялись рядом, а не в углу страницы.
     this.#positionInputProxy(event.clientX, event.clientY)
+    if (slot.displayId !== undefined) this.#activeDisplayId = slot.displayId
     this.setFocused(slot.surface)
     this.#pressedSlot = slot
     slot.surface.onPointerDown?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)
