@@ -27,16 +27,20 @@ const ROW_H = 18
 const TS_W = 56
 const NAME_W = 132
 const BTN_H = 24
-const VERBOSE_SCROLL_KEY = "interpreter:verbose:list"
 
 export class VerbosePane extends UiSurface {
   #entries: VerboseEntry[] = []
-  #autoscroll = localStorage.getItem("interpreter:verbose:pin") !== "0"
+  #autoscroll: boolean
   #copyStatusUntil = 0
+  readonly #scrollKey: string
+  readonly #pinStorageKey: string
   readonly #max = 300
 
-  constructor() {
+  constructor(storageKey: string) {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    this.#scrollKey = `${storageKey}:list`
+    this.#pinStorageKey = `${storageKey}:pin`
+    this.#autoscroll = localStorage.getItem(this.#pinStorageKey) !== "0"
   }
 
   append(kind: "protocol" | "interpreter", ts: string, name: string, payload: unknown): void {
@@ -50,18 +54,18 @@ export class VerbosePane extends UiSurface {
 
   clear(): void {
     this.#entries = []
-    divScrollTo(this, VERBOSE_SCROLL_KEY, {top: 0})
+    divScrollTo(this, this.#scrollKey, {top: 0})
     this.requestRender()
   }
 
   override onWheel(event: WheelEvent, localX: number, localY: number): void {
-    const before = divScrollPosition(this, VERBOSE_SCROLL_KEY).top
+    const before = divScrollPosition(this, this.#scrollKey).top
     super.onWheel(event, localX, localY)
-    const after = divScrollPosition(this, VERBOSE_SCROLL_KEY).top
+    const after = divScrollPosition(this, this.#scrollKey).top
     if (before === after || localY < LIST_TOP) return
     if (this.#autoscroll) {
       this.#autoscroll = false
-      localStorage.setItem("interpreter:verbose:pin", "0")
+      localStorage.setItem(this.#pinStorageKey, "0")
     }
   }
 
@@ -130,7 +134,7 @@ export class VerbosePane extends UiSurface {
     const listH = this.#listH()
     if (this.#autoscroll) this.#scrollToBottom()
     div(this, PAD_X, LIST_TOP, this.rectW - PAD_X * 2, listH, {
-      key: VERBOSE_SCROLL_KEY,
+      key: this.#scrollKey,
       scrollContentHeight: Math.max(listH, this.#entries.length * ROW_H),
       style: {
         background: null,
@@ -177,7 +181,7 @@ export class VerbosePane extends UiSurface {
 
   #toggleAutoscroll(): void {
     this.#autoscroll = !this.#autoscroll
-    localStorage.setItem("interpreter:verbose:pin", this.#autoscroll ? "1" : "0")
+    localStorage.setItem(this.#pinStorageKey, this.#autoscroll ? "1" : "0")
     if (this.#autoscroll) this.#scrollToBottom()
     this.requestRender()
   }
@@ -196,7 +200,7 @@ export class VerbosePane extends UiSurface {
   }
 
   #scrollToBottom(): void {
-    divScrollTo(this, VERBOSE_SCROLL_KEY, {top: Math.max(0, this.#entries.length * ROW_H - this.#listH())})
+    divScrollTo(this, this.#scrollKey, {top: Math.max(0, this.#entries.length * ROW_H - this.#listH())})
   }
 
   #listH(): number {

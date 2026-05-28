@@ -151,6 +151,7 @@ type ModuleDisplayController = {
   sourceRuntimeState: SourceRuntimeState
   outputLineCount: number
   activeCommand: ActiveInterpreterCommand | null
+  verboseVisible: boolean
 }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
@@ -173,7 +174,6 @@ let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
 let resizeObserver: ResizeObserver | null = null
 let socket: WebSocket | undefined
 let nextRequestId = 1
-let verboseVisible = localStorage.getItem("interpreter:verbose") === "1"
 let engineStatus = "engine: init"
 let framedModuleKey = ""
 
@@ -400,13 +400,11 @@ function toggleLocale(): void {
   uiCanvas?.relayout()
 }
 
-function setVerboseVisible(on: boolean): void {
-  verboseVisible = on
-  localStorage.setItem("interpreter:verbose", on ? "1" : "0")
-  for (const controller of moduleDisplays.values()) {
-    const snapshot = moduleSnapshots.get(controller.id)
-    if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
-  }
+function setVerboseVisible(controller: ModuleDisplayController, on: boolean): void {
+  controller.verboseVisible = on
+  localStorage.setItem(moduleVerboseStorageKey(controller.id), on ? "1" : "0")
+  const snapshot = moduleSnapshots.get(controller.id)
+  if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
   uiCanvas?.relayout()
 }
 
@@ -484,13 +482,21 @@ function moduleDisplayId(moduleId: string): string {
   return `module:${moduleId}`
 }
 
+function moduleVerboseStorageKey(moduleId: string): string {
+  return `interpreter:module:${moduleId}:verbose`
+}
+
+function readModuleVerboseVisible(moduleId: string): boolean {
+  return localStorage.getItem(moduleVerboseStorageKey(moduleId)) === "1"
+}
+
 function addInterpreterSurfacesToDisplay(displayId: string, controller: ModuleDisplayController): void {
   if (uiCanvas === null) return
-  uiCanvas.addSurfaceToDisplay(displayId, controller.frames, (canvas) => interpreterRects(canvas).frames)
-  uiCanvas.addSurfaceToDisplay(displayId, controller.scopes, (canvas) => interpreterRects(canvas).scopes)
-  uiCanvas.addSurfaceToDisplay(displayId, controller.source, (canvas) => interpreterRects(canvas).source)
-  uiCanvas.addSurfaceToDisplay(displayId, controller.console, (canvas) => interpreterRects(canvas).console)
-  uiCanvas.addSurfaceToDisplay(displayId, controller.verbose, (canvas) => interpreterRects(canvas).verbose ?? hiddenRect())
+  uiCanvas.addSurfaceToDisplay(displayId, controller.frames, (canvas) => interpreterRects(canvas, controller.verboseVisible).frames)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.scopes, (canvas) => interpreterRects(canvas, controller.verboseVisible).scopes)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.source, (canvas) => interpreterRects(canvas, controller.verboseVisible).source)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.console, (canvas) => interpreterRects(canvas, controller.verboseVisible).console)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.verbose, (canvas) => interpreterRects(canvas, controller.verboseVisible).verbose ?? hiddenRect())
   uiCanvas.addSurfaceToDisplay(displayId, controller.toolbar, ({w}) => ({
     x: TOOLBAR_INSET,
     y: TOOLBAR_INSET,
@@ -511,7 +517,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       onShowExecutionPoint: () => showModuleExecutionPoint(controller),
       onStep: (kind) => void runModuleInterpreterCommand(controller, "step", {kind}, kind === "over" ? t("stepOver") : kind === "into" ? t("stepInto") : t("stepOut")),
       onToggleLocale: () => toggleLocale(),
-      onToggleVerbose: () => setVerboseVisible(!verboseVisible),
+      onToggleVerbose: () => setVerboseVisible(controller, !controller.verboseVisible),
     }),
     frames: new FramesPane((index) => {
       controller.activeFrameIndex = index
@@ -533,7 +539,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       onBreakpointToggle: (line) => void toggleModuleBreakpoint(controller, line),
     }),
     console: new ConsolePane(),
-    verbose: new VerbosePane(),
+    verbose: new VerbosePane(moduleVerboseStorageKey(module.id)),
     sourceCache: new Map<string, CachedSource>(),
     sourceTextKey: "",
     sourceIdentity: null,
@@ -545,6 +551,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     sourceRuntimeState: "idle" as SourceRuntimeState,
     outputLineCount: 0,
     activeCommand: null,
+    verboseVisible: readModuleVerboseVisible(module.id),
   } satisfies ModuleDisplayController)
 
   controller.toolbar.node.name = `InterpreterToolbar:${module.id}`
@@ -620,7 +627,7 @@ function updateModuleToolbar(controller: ModuleDisplayController, module: Module
     commandLabel: controller.activeCommand?.label ?? "",
     locale: getUiLocale(),
     protocolUrl: module.protocolUrl,
-    verbose: verboseVisible,
+    verbose: controller.verboseVisible,
     engine: engineStatus,
     canPause: canControlExecution && !module.paused,
     canResume: canControlExecution && module.paused,
@@ -1180,7 +1187,7 @@ function hiddenRect(): UiSurfaceRect {
   return {x: -10000, y: -10000, w: 1, h: 1, visible: false}
 }
 
-function interpreterRects({w, h}: {w: number; h: number}): InterpreterRects {
+function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolean): InterpreterRects {
   const x = PAD
   const y = BODY_TOP
   const bodyW = Math.max(1, w - PAD * 2)
