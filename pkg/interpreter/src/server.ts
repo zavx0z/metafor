@@ -754,6 +754,11 @@ async function getScriptSourceForModule(url: URL, module: InterpreterModule, cac
       cached: false,
     })
   } catch (error) {
+    const fallbackUrl = sourceUrl ?? fileUrl
+    if (fallbackUrl !== undefined && fallbackUrl.trim().length > 0) {
+      const fallback = getSourceFile(fallbackUrl, url)
+      if (fallback.status < 400) return fallback
+    }
     return jsonResponse({ok: false, scriptId, error: serializeError(error)}, 500)
   }
 }

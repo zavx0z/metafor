@@ -574,16 +574,22 @@ function updateModuleDisplay(controller: ModuleDisplayController, module: Module
     controller.outputLineCount = module.target.outputLineCount
   }
 
+  const finishedState = module.target.state === "exited"
+    ? "exited"
+    : module.target.state === "failed"
+      ? "failed"
+      : null
   if (module.paused && module.dump !== null) {
     applyModuleDump(module.id, module.dump)
+  } else if (finishedState !== null) {
+    if (controller.dump !== undefined) clearModuleLiveContext(controller)
+    if (!restoreFinishedModuleSource(controller, module, finishedState)) {
+      setModuleSourceState(controller, finishedState)
+    }
   } else if (!module.paused && controller.dump !== undefined) {
     markModuleResumed(module.id)
-    if (module.target.state === "exited") setModuleSourceState(controller, "exited")
-    else if (module.target.state === "failed") setModuleSourceState(controller, "failed")
   } else if (!module.paused) {
-    if (module.target.state === "exited") setModuleSourceState(controller, "exited")
-    else if (module.target.state === "failed") setModuleSourceState(controller, "failed")
-    else if (module.connection.state !== "connected") setModuleSourceState(controller, "disconnected")
+    if (module.connection.state !== "connected") setModuleSourceState(controller, "disconnected")
     else if (module.target.state === "running" || module.target.state === "starting") setModuleSourceState(controller, "running")
   }
 
@@ -648,14 +654,31 @@ function applyModuleDump(moduleId: string, dump: InterpreterDump): void {
   if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
 }
 
-function markModuleResumed(moduleId: string): void {
-  const controller = moduleDisplays.get(moduleId)
-  if (controller === undefined) return
+function clearModuleLiveContext(controller: ModuleDisplayController): void {
   controller.dump = undefined
   controller.frames.setFrames([], controller.activeFrameIndex)
   controller.scopes.setFrame(null)
-  setModuleSourceState(controller, "running")
   syncModuleBreakpointMarkers(controller)
+}
+
+function restoreFinishedModuleSource(controller: ModuleDisplayController, module: ModulePaneSnapshot, state: "exited" | "failed"): boolean {
+  const frame = module.dump?.frames[0]
+  if (frame === undefined) return false
+
+  if (controller.sourceTextKey.length > 0 && controller.sourceLocation.length > 0) {
+    setModuleSourceState(controller, state)
+    return true
+  }
+
+  void renderModuleSourceForFrame(controller, frame as FrameSnapshot, true, state)
+  return true
+}
+
+function markModuleResumed(moduleId: string): void {
+  const controller = moduleDisplays.get(moduleId)
+  if (controller === undefined) return
+  clearModuleLiveContext(controller)
+  setModuleSourceState(controller, "running")
   const snapshot = moduleSnapshots.get(moduleId)
   if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
 }
@@ -685,7 +708,7 @@ function renderModuleDump(controller: ModuleDisplayController, forceScroll = fal
   void renderModuleSourceForFrame(controller, frame as FrameSnapshot, forceScroll)
 }
 
-async function renderModuleSourceForFrame(controller: ModuleDisplayController, frame: FrameSnapshot, forceScroll: boolean): Promise<void> {
+async function renderModuleSourceForFrame(controller: ModuleDisplayController, frame: FrameSnapshot, forceScroll: boolean, finalState: SourceRuntimeState = "paused"): Promise<void> {
   const scriptId = frame.scriptId
   if (scriptId === undefined || scriptId.length === 0) {
     setModuleSource(controller, {
@@ -693,7 +716,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
       currentLine: 0,
       location: "",
       identity: null,
-    }, "paused", forceScroll)
+    }, finalState, forceScroll)
     return
   }
   const location = sourceLocation(frame.url, scriptId, frame.line)
@@ -722,7 +745,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
           currentLine: 0,
           location,
           identity: null,
-        }, "paused", false)
+        }, finalState, false)
         return
       }
       cached = {
@@ -738,7 +761,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
         currentLine: 0,
         location,
         identity: null,
-      }, "paused", false)
+      }, finalState, false)
       return
     }
   }
@@ -756,7 +779,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
       key: sourceUrl || scriptUrl || frame.url,
     },
     ...(cached.tokens === undefined ? {} : {tokens: cached.tokens}),
-  }, "paused", forceScroll)
+  }, finalState, forceScroll)
 }
 
 function setModuleSource(controller: ModuleDisplayController, payload: Source, state: SourceRuntimeState, forceScroll: boolean): void {

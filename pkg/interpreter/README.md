@@ -13,6 +13,7 @@
 - REST/WS команды всегда module-scoped: `/modules/:id/...`.
 - Кнопка UI “Перезапустить модуль” всегда запускает интерактивно: старый `--inspect*` удаляется из команды, новый старт идёт с `pauseOnStart: true`.
 - После завершения модуля UI блокирует pause/resume/step/stop: runtime-контекста уже нет, осмысленным остаётся restart и просмотр логов/событий.
+- После reload страницы завершённый модуль восстанавливает последний видимый source из server snapshot / файла, даже если live protocol уже закрыт.
 - В UI нет default/main display: все `UIDisplay` равноправны.
 - Текущий browser UI — только host для одного WebGPU `Space`; интерпретаторные панели должны оставаться `UIDisplay`, чтобы тот же runtime можно было перенести в XR-host.
 - WebStorm/DevTools не являются frontend этого workflow.
