@@ -22,8 +22,8 @@ http://127.0.0.1:6500/
 Ожидаемые строки в stderr:
 
 ```text
-[bun-debug-agent] connecting to inspector ws://127.0.0.1:6499/
-[bun-debug-agent] inspector socket connected
+[bun-debug-agent] connecting to interpreter ws://127.0.0.1:6499/
+[bun-debug-agent] interpreter socket connected
 ```
 
 ## 3. Открыть Интерпретатор
