@@ -1502,13 +1502,9 @@ async function initEngine(): Promise<void> {
   try {
     uiCanvas = await UiRuntime.create(engineCanvas, {
       virtualDisplay: {
-        initial: "far",
-        widthMm: SESSION_DISPLAY_W_MM,
-        heightMm: SESSION_DISPLAY_H_MM,
-        pixelWidth: SESSION_DISPLAY_PIXEL_W,
-        pixelHeight: SESSION_DISPLAY_PIXEL_H,
+        initial: "near",
         centerMm: {x: 0, y: SESSION_DISPLAY_CENTER_Y_MM, z: SESSION_DISPLAY_CENTER_Z_MM},
-        farDistanceMm: 1500,
+        farDistanceMm: 1200,
       },
     })
     toolbarPane = new ToolbarPane({
@@ -1812,6 +1808,11 @@ function syncSessionDisplays(): void {
   }
   for (const session of orderedSessions) {
     sessionPanes.get(session.id)?.setSnapshot(session)
+  }
+  if (displayIds.length <= 1) {
+    framedSessionKey = displayIds.join("\0")
+    uiCanvas.setDisplayMode("near")
+    return
   }
   const frameKey = displayIds.join("\0")
   if (framedSessionKey !== frameKey) {

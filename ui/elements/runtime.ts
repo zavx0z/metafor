@@ -425,6 +425,7 @@ export class UiRuntime {
     const horizontalDistance = (spanW / 2) / (Math.tan(this.viewPoint.fov / 2) * aspect)
     const distance = Math.max(this.#displayNearDistanceMm, verticalDistance, horizontalDistance) * 1.2
     this.#cancelCameraAnimation()
+    this.#displayMode = "far"
     this.viewPoint.getTarget().copy(target)
     this.viewPoint.position.copy(target).add(new Vector3(0, -distance, 0))
     this.viewPoint.getUp().set(0, 0, 1)
