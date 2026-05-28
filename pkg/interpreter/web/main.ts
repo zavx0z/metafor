@@ -792,13 +792,15 @@ function setModuleSource(controller: ModuleDisplayController, payload: Source, s
     if (payload.tokens !== undefined) controller.source.setTokens(payload.tokens)
     else controller.source.setLanguage({path: sourcePathFromLocation(payload.location)})
   }
-  controller.source.setExecutionLine(payload.currentLine > 0 ? payload.currentLine : null, {scroll: forceScroll !== false})
+  const executionLine = state === "paused" && payload.currentLine > 0 ? payload.currentLine : null
+  controller.source.setExecutionLine(executionLine, {scroll: executionLine !== null && forceScroll !== false})
   syncModuleBreakpointMarkers(controller)
 }
 
 function setModuleSourceState(controller: ModuleDisplayController, state: SourceRuntimeState): void {
   controller.sourceRuntimeState = state
   controller.source.setTitle(moduleSourceTitle(controller))
+  if (state !== "paused") controller.source.setExecutionLine(null, {scroll: false})
 }
 
 function moduleSourceTitle(controller: ModuleDisplayController): string {
