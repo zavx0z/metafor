@@ -1,12 +1,12 @@
 /**
- * ConsolePane — append-only target log on the shared @metafor/elements UiSurface system.
+ * ConsolePane — append-only target log on the shared @ui/elements UiSurface system.
  *
  * It deliberately uses the same UiSurface chrome, clipping, text measurement and
  * div scroll primitive as EditorPane so the source/console stack aligns as one UI surface.
  */
 
-import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii} from "@metafor/elements"
-import {Divider as divider} from "@metafor/components"
+import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii} from "@ui/elements"
+import {Divider as divider} from "@ui/components"
 import {t} from "./i18n.ts"
 
 export type ConsoleEntry = {

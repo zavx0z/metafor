@@ -1,5 +1,5 @@
 import {Color} from "@metafor/engine"
-import {UiSurface, Z, drawIconCentered, uiIcons} from "@metafor/elements"
+import {UiSurface, Z, drawIconCentered, uiIcons} from "@ui/elements"
 
 type Point = {x: number; y: number}
 type Quad = {

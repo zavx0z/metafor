@@ -5,6 +5,9 @@ import {
   backgroundColor,
   boxPadding,
   cssColor,
+  glassTintColor,
+  glassTintOpacity,
+  isGlassBackground,
   mergeStyle,
   px,
   type ElementChildren,
@@ -76,6 +79,7 @@ export function div(surface: UiSurface, x: number, y: number, width: number, hei
   const borderWidth = px(style.borderWidth, 1)
   const radius = px(style.borderRadius, Math.min(32, Math.min(width, height) / 2))
   const z = style.zIndex ?? Z.CONTAINER
+  const isGlass = isGlassBackground(style)
 
   if (fill !== null || border !== null) {
     const roundedOpts: {
@@ -94,6 +98,20 @@ export function div(surface: UiSurface, x: number, y: number, width: number, hei
     }
     if (style.opacity !== undefined) roundedOpts.opacity = style.opacity
     surface.drawRoundedRect(x, y, width, height, roundedOpts)
+    if (isGlass) {
+      const tint = glassTintColor(style)
+      const tintOpacity = glassTintOpacity(style) * (style.opacity ?? 1)
+      if (tint !== null && tintOpacity > 0 && width > 4 && height > 4) {
+        surface.drawRoundedRect(x + 2, y + 2, width - 4, height - 4, {
+          radius: Math.max(0, radius - 2),
+          fill: tint,
+          border: null,
+          borderWidth: 0,
+          opacity: tintOpacity,
+          z: z + 0.01,
+        })
+      }
+    }
   }
 
   if (

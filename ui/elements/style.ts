@@ -32,6 +32,9 @@ export type StyleProps = {
   borderColor?: CssColor | null
   background?: CssColor | "glass" | null
   backgroundColor?: CssColor | "glass" | null
+  glassFill?: CssColor
+  glassTint?: CssColor | null
+  glassTintOpacity?: number
   color?: CssColor
   fontSize?: CssLength
   lineHeight?: number | CssLength
@@ -55,7 +58,7 @@ export type ElementBaseProps = {
   children?: ElementChildren
   key?: string
   style?: StyleProps
-  /** @deprecated Use style in @metafor/elements. sx is reserved for @metafor/components. */
+  /** @deprecated Use style in @ui/elements. sx is reserved for @ui/components. */
   sx?: StyleProps
 }
 
@@ -71,6 +74,8 @@ export type InteractiveElementProps = ElementBaseProps & {
 export type SxProps = StyleProps
 
 export const visionGlass = new Color(0.055, 0.075, 0.11, 0.58)
+export const visionGlassTint = new Color(0.65, 0.91, 1, 1)
+export const visionGlassTintOpacity = 0.08
 export const visionBorder = new Color(0.82, 0.91, 1, 0.22)
 
 const textMaterialCache = new Map<string, TextMaterial>()
@@ -98,10 +103,30 @@ export function mergeStyle(props: {style?: StyleProps; sx?: StyleProps}): StyleP
 }
 
 export function backgroundColor(style: StyleProps): Color | null {
-  const value = style.backgroundColor !== undefined ? style.backgroundColor : style.background !== undefined ? style.background : "glass"
+  const value = backgroundValue(style)
   if (value === null) return null
-  if (value === "glass") return visionGlass
+  if (value === "glass") return style.glassFill === undefined ? visionGlass : cssColor(style.glassFill)
   return cssColor(value)
+}
+
+export function isGlassBackground(style: StyleProps): boolean {
+  return backgroundValue(style) === "glass"
+}
+
+export function glassTintColor(style: StyleProps): Color | null {
+  if (!isGlassBackground(style)) return null
+  if (style.glassTint === null) return null
+  if (style.glassTint === undefined) return visionGlassTint
+  return cssColor(style.glassTint)
+}
+
+export function glassTintOpacity(style: StyleProps): number {
+  if (!isGlassBackground(style)) return 0
+  return style.glassTintOpacity ?? visionGlassTintOpacity
+}
+
+function backgroundValue(style: StyleProps): CssColor | "glass" | null {
+  return style.backgroundColor !== undefined ? style.backgroundColor : style.background !== undefined ? style.background : "glass"
 }
 
 export function boxPadding(style: StyleProps): {top: number; right: number; bottom: number; left: number} {

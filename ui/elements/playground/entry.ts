@@ -15,7 +15,7 @@ import {
   span,
   type CssColor,
   type UiSize,
-} from "@metafor/elements"
+} from "@ui/elements"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
 type ElementRoute =

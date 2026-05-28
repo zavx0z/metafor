@@ -27,7 +27,7 @@ import {
 
 import { Matrix4 } from "../src"
 import { Vector3 } from "../src"
-import { UIDisplay } from "@metafor/elements"
+import { UIDisplay } from "@ui/elements"
 
 document.addEventListener("DOMContentLoaded", async () => {
   const renderer = new Renderer()

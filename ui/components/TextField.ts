@@ -6,8 +6,8 @@ import {
   type InputEditState,
   type InputKeyOptions,
   type InputKeyResult,
-} from "@metafor/elements"
-import type {UiSurface, StyleProps} from "@metafor/elements"
+} from "@ui/elements"
+import type {UiSurface, StyleProps} from "@ui/elements"
 
 export type TextFieldProps = {
   value?: string

@@ -1,13 +1,14 @@
 {
-  "name": "@ui/hud",
+  "name": "@ui/panes",
   "version": "0.0.1",
-  "description": "HUD-specific Vision Pro components built on @ui/elements.",
+  "description": "Reusable WebGPU UI panes for metafor.",
   "type": "module",
   "private": true,
   "main": "index.ts",
   "types": "index.ts",
   "exports": {
     ".": "./index.ts",
+    "./syntax": "./editor/languages/pattern-highlighter.ts",
     "./playground": "./playground/server.ts"
   },
   "scripts": {

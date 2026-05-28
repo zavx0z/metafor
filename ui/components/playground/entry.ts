@@ -1,4 +1,4 @@
-import {UiSurface, UiRuntime, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, type StyleProps, type UiSurfaceRect, uiIcons} from "@metafor/elements"
+import {UiSurface, UiRuntime, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, type StyleProps, type UiSurfaceRect, uiIcons} from "@ui/elements"
 import {
   autoButtonWidth,
   Button,
@@ -7,12 +7,11 @@ import {
   type ButtonSize,
   type ButtonVariant,
   Divider,
-  EditorPane,
-  listLanguageHighlighters,
   Pane,
   TextField,
   Typography,
-} from "@metafor/components"
+} from "@ui/components"
+import {EditorPane, listLanguageHighlighters, TerminalPane} from "@ui/panes"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 import {componentsPlaygroundLayout} from "./layout.ts"
 
@@ -34,6 +33,9 @@ type EditorLanguageRoute = "typescript" | "javascript" | "html" | "css" | "plain
 type EditorSelectionRoute = "menu" | "copied" | "right-click" | "shift-cursor" | "double-click"
 type EditorScrollRoute = "vertical" | "horizontal"
 type EditorSection = "Editing" | "Highlighting" | "Selection" | "Scroll"
+type TerminalSection = "Basic" | "ANSI" | "Scroll" | "Input"
+type TerminalRoute = "terminal/basic" | "terminal/ansi" | "terminal/scroll" | "terminal/input"
+type TerminalPlaygroundAction = "demo" | "ansi" | "scroll" | "focus" | "clear"
 type EditorRoute =
   | "editor/editing"
   | "editor/highlighting"
@@ -57,8 +59,8 @@ type DividerRoute =
   | `divider/text/${DividerRouteTextAlign}`
   | "divider/color"
   | `divider/color/${ButtonColor}`
-type ComponentsRoute = PaneRoute | ButtonRoute | TextFieldRoute | TypographyRoute | DividerRoute | EditorRoute
-type ComponentName = "Pane" | "Button" | "TextField" | "Typography" | "Divider" | "Editor"
+type ComponentsRoute = PaneRoute | ButtonRoute | TextFieldRoute | TypographyRoute | DividerRoute | EditorRoute | TerminalRoute
+type ComponentName = "Pane" | "Button" | "TextField" | "Typography" | "Divider" | "Editor" | "Terminal"
 type ButtonRoute =
   | "button/basic"
   | `button/basic/${ButtonRouteVariant}`
@@ -130,6 +132,8 @@ const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
   plaintext: "Plaintext",
 }
 const EDITOR_SECTIONS: readonly EditorSection[] = ["Editing", "Highlighting", "Selection", "Scroll"]
+const TERMINAL_SECTIONS: readonly TerminalSection[] = ["Basic", "ANSI", "Scroll", "Input"]
+const TERMINAL_ROUTES: readonly TerminalRoute[] = ["terminal/basic", "terminal/ansi", "terminal/scroll", "terminal/input"]
 const DIVIDER_SECTIONS: readonly DividerSection[] = ["Basic", "Orientation", "Variants", "Text", "Color"]
 const DIVIDER_ORIENTATIONS: readonly DividerRouteOrientation[] = ["horizontal", "vertical"]
 const DIVIDER_VARIANTS: readonly DividerRouteVariant[] = ["fullWidth", "inset", "middle"]
@@ -156,14 +160,14 @@ const DIVIDER_ROUTES: readonly DividerRoute[] = [
 ]
 const PANE_VARIANTS: readonly PaneVariant[] = ["glass", "outlined", "filled"]
 const PANE_SCROLL_AXES: readonly PaneScrollAxis[] = ["vertical", "horizontal"]
-const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...PANE_ROUTES, ...BUTTON_ROUTES, "text-field", "typography", ...DIVIDER_ROUTES, ...EDITOR_ROUTES]
+const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...PANE_ROUTES, ...BUTTON_ROUTES, "text-field", "typography", ...DIVIDER_ROUTES, ...EDITOR_ROUTES, ...TERMINAL_ROUTES]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
 const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
 const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
 const BUTTON_STATES: readonly ButtonState[] = ["enabled", "disabled"]
 const BUTTON_WIDTHS: readonly ButtonWidth[] = ["compact", "regular", "wide"]
 const BUTTON_HEIGHTS: readonly ButtonHeight[] = ["compact", "regular", "large"]
-const COMPONENT_NAV = ["Pane", "Button", "TextField", "Editor", "Typography", "Badge", "Divider", "Noti Stack"] as const
+const COMPONENT_NAV = ["Pane", "Button", "TextField", "Editor", "Terminal", "Typography", "Badge", "Divider", "Noti Stack"] as const
 const BUTTON_RADII = [14, 24, 34, 999] as const
 const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.12
@@ -174,6 +178,7 @@ type ComponentsScreenOpts = {
   onEditorCopy?: () => Promise<boolean>
   onEditorCut?: () => Promise<boolean>
   onEditorSelectAll?: () => void
+  onTerminalAction?: (action: TerminalPlaygroundAction) => void
 }
 
 class ButtonComponentsScreen extends UiSurface {
@@ -184,6 +189,7 @@ class ButtonComponentsScreen extends UiSurface {
   readonly #onEditorCopy: (() => Promise<boolean>) | undefined
   readonly #onEditorCut: (() => Promise<boolean>) | undefined
   readonly #onEditorSelectAll: (() => void) | undefined
+  readonly #onTerminalAction: ((action: TerminalPlaygroundAction) => void) | undefined
   #route: ComponentsRoute = this.#router.current
   #color: ButtonColor = "primary"
   #size: ButtonSize = "medium"
@@ -209,6 +215,7 @@ class ButtonComponentsScreen extends UiSurface {
     this.#onEditorCopy = opts.onEditorCopy
     this.#onEditorCut = opts.onEditorCut
     this.#onEditorSelectAll = opts.onEditorSelectAll
+    this.#onTerminalAction = opts.onTerminalAction
     this.#syncRouteState(this.#route)
     this.#unsubscribe = this.#router.subscribe((route) => {
       this.#route = route
@@ -308,7 +315,7 @@ class ButtonComponentsScreen extends UiSurface {
           const rowY = top + i * (rowH + gap) - ctx.scrollTop
           if (rowY + rowH < top || rowY > top + ctx.viewportHeight) continue
           const active = label === this.#currentComponent()
-          const enabled = label === "Pane" || label === "Button" || label === "TextField" || label === "Typography" || label === "Divider" || label === "Editor"
+          const enabled = label === "Pane" || label === "Button" || label === "TextField" || label === "Typography" || label === "Divider" || label === "Editor" || label === "Terminal"
           Button(this, x + pad, rowY, w - pad * 2 - (ctx.contentHeight > ctx.viewportHeight ? 14 : 0), rowH, {
             children: label,
             variant: active ? "contained" : "glass",
@@ -322,6 +329,7 @@ class ButtonComponentsScreen extends UiSurface {
               else if (label === "Button") this.#router.go("button/basic")
               else if (label === "TextField") this.#router.go("text-field")
               else if (label === "Editor") this.#router.go("editor/editing")
+              else if (label === "Terminal") this.#router.go("terminal/basic")
               else if (label === "Typography") this.#router.go("typography")
               else if (label === "Divider") this.#router.go("divider/basic")
               this.#record(`component:${label.toLowerCase()}`)
@@ -352,6 +360,11 @@ class ButtonComponentsScreen extends UiSurface {
     if (this.#currentComponent() === "Editor") {
       h3(this, x, y + 28, w, 24, {children: "Editor", style: {fontSize: 15, textAlign: "center"}})
       this.#sectionList(x, y + 76, w, h - 94, EDITOR_SECTIONS, (section) => this.#editorSection() === section, (section) => this.#goEditorSection(section))
+      return
+    }
+    if (this.#currentComponent() === "Terminal") {
+      h3(this, x, y + 28, w, 24, {children: "Terminal", style: {fontSize: 15, textAlign: "center"}})
+      this.#sectionList(x, y + 76, w, h - 94, TERMINAL_SECTIONS, (section) => this.#terminalSection() === section, (section) => this.#goTerminalSection(section))
       return
     }
     if (this.#currentComponent() === "TextField") {
@@ -426,6 +439,8 @@ class ButtonComponentsScreen extends UiSurface {
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
     if (this.#currentComponent() === "Editor") {
       this.#editorPreview(x, y, w, h)
+    } else if (this.#currentComponent() === "Terminal") {
+      this.#terminalPreview(x, y, w, h)
     } else if (this.#currentComponent() === "Pane") {
       if (this.#paneSection() === "Scroll") {
         const axis = this.#routePaneScrollAxis()
@@ -512,6 +527,41 @@ class ButtonComponentsScreen extends UiSurface {
     }
 
     const rect = editorPaneRectForPreview(x, y, w, h)
+    Pane(this, rect.x - 14, rect.y - 14, rect.w + 28, rect.h + 28, {
+      variant: "outlined",
+      sx: {
+        background: "rgba(4, 8, 14, 0.24)",
+        borderColor: "rgba(111, 211, 255, 0.22)",
+        borderRadius: 26,
+      },
+    })
+  }
+
+  #terminalPreview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    if (this.#terminalSection() === "ANSI") {
+      renderHeader(this, x, w, pad, y + 34, "ANSI rendering", [
+        "TerminalPane parses SGR colors, cursor moves, clear commands, and scrollback.",
+        "External code only feeds bytes into write(); transport stays outside the component.",
+      ])
+    } else if (this.#terminalSection() === "Scroll") {
+      renderHeader(this, x, w, pad, y + 34, "Scrollback", [
+        "Output history is rendered through the elements div scroll primitive.",
+        "The terminal keeps autoscroll while the viewport is already at the bottom.",
+      ])
+    } else if (this.#terminalSection() === "Input") {
+      renderHeader(this, x, w, pad, y + 34, "Input adapter", [
+        "Keyboard events become terminal byte sequences and leave through onInput.",
+        "The playground echoes input locally, but a PTY adapter can send the same data elsewhere.",
+      ])
+    } else {
+      renderHeader(this, x, w, pad, y + 34, "TerminalPane", [
+        "A reusable WebGPU terminal component for PTY, interpreter output, logs, and agents.",
+        "It owns terminal buffer state, ANSI parsing, cursor, resize metrics, and text rendering.",
+      ])
+    }
+
+    const rect = terminalPaneRectForPreview(x, y, w, h)
     Pane(this, rect.x - 14, rect.y - 14, rect.w + 28, rect.h + 28, {
       variant: "outlined",
       sx: {
@@ -1580,6 +1630,10 @@ class ButtonComponentsScreen extends UiSurface {
       }
       return
     }
+    if (this.#currentComponent() === "Terminal") {
+      this.#terminalDock(x, y, w, h)
+      return
+    }
     if (this.#currentComponent() === "Pane") {
       if (this.#paneSection() === "Scroll") {
         const itemGap = 12
@@ -1747,6 +1801,51 @@ class ButtonComponentsScreen extends UiSurface {
     }
   }
 
+  #terminalDock(x: number, y: number, w: number, h: number): void {
+    const itemGap = 12
+    const buttonH = 42
+    const section = this.#terminalSection()
+    const items: readonly {label: string; action: TerminalPlaygroundAction; active?: boolean; color?: ButtonColor}[] =
+      section === "ANSI"
+        ? [
+          {label: "Palette", action: "ansi", active: true, color: "primary"},
+          {label: "Clear", action: "clear", color: "neutral"},
+        ]
+        : section === "Scroll"
+          ? [
+            {label: "Append lines", action: "scroll", active: true, color: "primary"},
+            {label: "Clear", action: "clear", color: "neutral"},
+          ]
+          : section === "Input"
+            ? [
+              {label: "Focus terminal", action: "focus", active: true, color: "success"},
+              {label: "Clear", action: "clear", color: "neutral"},
+            ]
+            : [
+              {label: "Demo output", action: "demo", active: true, color: "primary"},
+              {label: "Clear", action: "clear", color: "neutral"},
+            ]
+    const itemWidths = items.map((item) => Math.max(124, autoButtonWidth(this, item.label, 10, 24)))
+    const rowW = itemWidths.reduce((sum, width) => sum + width, 0) + itemGap * Math.max(0, itemWidths.length - 1)
+    let itemX = x + (w - rowW) / 2
+    for (const [i, item] of items.entries()) {
+      const itemW = itemWidths[i]!
+      Button(this, itemX, y + (h - buttonH) / 2, itemW, buttonH, {
+        children: item.label,
+        variant: item.active ? "contained" : "glass",
+        color: item.color ?? "neutral",
+        ...activeNavStyle(item.active === true),
+        radius: this.#radius,
+        fontPx: 10,
+        onClick: () => {
+          this.#onTerminalAction?.(item.action)
+          this.#record(`terminal:${item.action}`)
+        },
+      })
+      itemX += itemW + itemGap
+    }
+  }
+
   #dividerDock(x: number, y: number, w: number, h: number): void {
     const section = this.#dividerSection()
     if (section === "Basic") return
@@ -1890,6 +1989,18 @@ class ButtonComponentsScreen extends UiSurface {
         `new EditorPane({`,
         `  languageId: "${editorLanguageId(this.#editorLanguage())}",`,
         `  fontPx: 12, linePx: 17 })`,
+      ])
+      return
+    }
+    if (this.#currentComponent() === "Terminal") {
+      const pad = 24
+      h3(this, x + pad, y + 30, w - pad * 2, 24, {children: "TerminalPane", style: {fontSize: 15}})
+      p(this, x + pad, y + 70, w - pad * 2, 22, {children: "Universal API", style: {fontSize: 11, color: "muted"}})
+      codeBlock(this, x + pad, y + 104, w - pad * 2, [
+        `const term = new TerminalPane({`,
+        `  onInput: adapter.write,`,
+        `  onResize: adapter.resize })`,
+        `term.write(outputBytes)`,
       ])
       return
     }
@@ -2090,6 +2201,7 @@ class ButtonComponentsScreen extends UiSurface {
     if (this.#route === "typography") return "Typography"
     if (this.#route.startsWith("divider/")) return "Divider"
     if (this.#route.startsWith("editor")) return "Editor"
+    if (this.#route.startsWith("terminal/")) return "Terminal"
     return this.#route.startsWith("pane/") ? "Pane" : "Button"
   }
 
@@ -2101,6 +2213,13 @@ class ButtonComponentsScreen extends UiSurface {
     if (this.#route === "editor/editing") return "Editing"
     if (this.#route.startsWith("editor/scroll")) return "Scroll"
     return this.#route.startsWith("editor/selection") ? "Selection" : "Highlighting"
+  }
+
+  #terminalSection(): TerminalSection {
+    if (this.#route === "terminal/ansi") return "ANSI"
+    if (this.#route === "terminal/scroll") return "Scroll"
+    if (this.#route === "terminal/input") return "Input"
+    return "Basic"
   }
 
   #paneSection(): PaneSection {
@@ -2166,6 +2285,14 @@ class ButtonComponentsScreen extends UiSurface {
     }
     this.#router.go("pane/variants")
     this.#record("route:pane:variants")
+  }
+
+  #goTerminalSection(section: TerminalSection): void {
+    if (section === "ANSI") this.#router.go("terminal/ansi")
+    else if (section === "Scroll") this.#router.go("terminal/scroll")
+    else if (section === "Input") this.#router.go("terminal/input")
+    else this.#router.go("terminal/basic")
+    this.#record(`route:terminal:${section.toLowerCase()}`)
   }
 
   #goPaneVariant(variant: PaneVariant): void {
@@ -2474,6 +2601,10 @@ function editorSurfaceScenario(route: ComponentsRoute): string | null {
   return null
 }
 
+function terminalSurfaceScenario(route: ComponentsRoute): TerminalRoute | null {
+  return route.startsWith("terminal/") ? route as TerminalRoute : null
+}
+
 function applyEditorRoute(editor: EditorPane, route: ComponentsRoute): void {
   if (route === "editor/editing") {
     applyEditorEditing(editor)
@@ -2488,6 +2619,28 @@ function applyEditorRoute(editor: EditorPane, route: ComponentsRoute): void {
     return
   }
   applyEditorLanguage(editor, route)
+}
+
+function applyTerminalRoute(terminal: TerminalPane, route: ComponentsRoute): void {
+  terminal.reset()
+  terminal.setTitle("TerminalPane")
+  if (route === "terminal/ansi") {
+    terminal.setStatus("connected", "ansi")
+    terminal.write(TERMINAL_ANSI_DEMO)
+    return
+  }
+  if (route === "terminal/scroll") {
+    terminal.setStatus("running", "scrollback")
+    terminal.write(TERMINAL_SCROLL_DEMO)
+    return
+  }
+  if (route === "terminal/input") {
+    terminal.setStatus("connected", "input")
+    terminal.write(TERMINAL_INPUT_DEMO)
+    return
+  }
+  terminal.setStatus("connected", "demo")
+  terminal.write(TERMINAL_BASIC_DEMO)
 }
 
 function applyEditorEditing(editor: EditorPane): void {
@@ -3527,14 +3680,71 @@ function editorPaneRectForPreview(x: number, y: number, w: number, h: number): U
   }
 }
 
+function terminalPaneRectForPreview(x: number, y: number, w: number, h: number): UiSurfaceRect {
+  const top = y + 142
+  const inset = 56
+  return {
+    x: x + inset,
+    y: top,
+    w: Math.max(320, w - inset * 2),
+    h: Math.max(220, h - 190),
+  }
+}
+
 function editorPaneRectForCanvas(w: number, h: number): UiSurfaceRect {
   const layout = componentsPlaygroundLayout(w, h)
   return editorPaneRectForPreview(layout.previewX, layout.stageY, layout.previewW, layout.previewH)
 }
 
+function terminalPaneRectForCanvas(w: number, h: number): UiSurfaceRect {
+  const layout = componentsPlaygroundLayout(w, h)
+  return terminalPaneRectForPreview(layout.previewX, layout.stageY, layout.previewW, layout.previewH)
+}
+
 function hiddenRect(): UiSurfaceRect {
   return {x: 0, y: 0, w: 1, h: 1, visible: false}
 }
+
+const TERMINAL_BASIC_DEMO = [
+  "\x1b[36mMetaFor TerminalPane\x1b[0m",
+  "",
+  "Transport-independent API:",
+  "  write(data)        -> append process output",
+  "  onInput(data)      -> keyboard bytes for any adapter",
+  "  onResize({cols,rows}) -> terminal geometry",
+  "",
+  "$ bun --filter @ui/components typecheck",
+  "\x1b[32mExited with code 0\x1b[0m",
+  "$ ",
+].join("\r\n")
+
+const TERMINAL_ANSI_DEMO = [
+  "\x1b[1mANSI color table\x1b[0m",
+  "",
+  Array.from({length: 8}, (_, i) => `\x1b[3${i}m fg${i} \x1b[0m`).join(" "),
+  Array.from({length: 8}, (_, i) => `\x1b[9${i}m bright${i} \x1b[0m`).join(" "),
+  "",
+  Array.from({length: 8}, (_, i) => `\x1b[4${i};97m bg${i} \x1b[0m`).join(" "),
+  "",
+  "\x1b[38;2;111;211;255mtruecolor cyan\x1b[0m  \x1b[38;5;214m256-color orange\x1b[0m",
+  "\x1b[7minverse video\x1b[0m  normal text",
+  "",
+  "$ ",
+].join("\r\n")
+
+const TERMINAL_SCROLL_DEMO = Array.from({length: 72}, (_, i) => {
+  const n = String(i + 1).padStart(2, "0")
+  const color = i % 4 === 0 ? "\x1b[36m" : i % 4 === 1 ? "\x1b[32m" : i % 4 === 2 ? "\x1b[33m" : "\x1b[35m"
+  return `${color}${n}\x1b[0m scrollback line ${n}: output history stays inside TerminalPane`
+}).join("\r\n") + "\r\n$ "
+
+const TERMINAL_INPUT_DEMO = [
+  "\x1b[36mInput route\x1b[0m",
+  "Click the terminal and type. Enter submits the local playground prompt.",
+  "Ctrl+C, arrows, paste, and regular text leave through onInput().",
+  "",
+  "$ ",
+].join("\r\n")
 
 const EDITOR_EDITING_SOURCE = `type Draft = {
   title: string
@@ -3585,7 +3795,7 @@ export function scrollAxis(shiftKey: boolean): ScrollAxis {
 `
 
 const EDITOR_DEMO_SOURCES: Record<EditorLanguageRoute, string> = {
-  typescript: `import {EditorPane} from "@metafor/components"
+  typescript: `import {EditorPane} from "@ui/panes"
 
 const editor = new EditorPane({
   title: "Demo source",
@@ -3602,7 +3812,7 @@ editor.setText([
   "}",
 ].join("\\n"))
 `,
-  javascript: `import {EditorPane} from "@metafor/components"
+  javascript: `import {EditorPane} from "@ui/panes"
 
 const routes = ["button/basic", "pane/variants", "editor/highlighting"]
 
@@ -3651,6 +3861,14 @@ function editorDemoSource(language: EditorLanguageRoute): string {
   return EDITOR_DEMO_SOURCES[language]
 }
 
+function terminalInputLabel(data: string): string {
+  return data
+    .replaceAll("\x1b", "<ESC>")
+    .replaceAll("\r", "<CR>")
+    .replaceAll("\n", "<LF>")
+    .replaceAll("\t", "<TAB>")
+}
+
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
 const ui = await UiRuntime.create(canvas)
@@ -3663,40 +3881,128 @@ const editor = new EditorPane({
   linePx: 17,
   onSelectionClipboard: (ok) => screen?.setEditorSelectionClipboardResult(ok),
 })
+let terminalPrompt = ""
+const terminal = new TerminalPane({
+  title: "TerminalPane",
+  status: "demo",
+  statusKind: "connected",
+  fontPx: 12,
+  linePx: 17,
+  onInput: (data) => handleTerminalInput(data),
+  onResize: ({cols, rows}) => terminal.setStatus("connected", `${cols}x${rows}`),
+})
 let appliedEditorScenario: string | null = null
+let appliedTerminalScenario: TerminalRoute | null = null
 const syncEditorRoute = (route: ComponentsRoute): void => {
   const scenario = editorSurfaceScenario(route)
   if (scenario === null || scenario === appliedEditorScenario) return
   applyEditorRoute(editor, route)
   appliedEditorScenario = scenario
 }
+const syncTerminalRoute = (route: ComponentsRoute): void => {
+  const scenario = terminalSurfaceScenario(route)
+  if (scenario === null || scenario === appliedTerminalScenario) return
+  terminalPrompt = ""
+  applyTerminalRoute(terminal, route)
+  appliedTerminalScenario = scenario
+}
 const syncEditorFocus = (route: ComponentsRoute): void => {
   if (!route.startsWith("editor")) return
   ui.setFocused(editor)
   ui.inputProxy?.focus()
 }
+const syncTerminalFocus = (route: ComponentsRoute): void => {
+  if (!route.startsWith("terminal")) return
+  terminal.focus()
+}
+function runTerminalAction(action: TerminalPlaygroundAction): void {
+  if (action === "clear") {
+    terminalPrompt = ""
+    terminal.clear()
+    terminal.write("$ ")
+    terminal.focus()
+    return
+  }
+  if (action === "focus") {
+    terminal.focus()
+    return
+  }
+  if (action === "ansi") {
+    terminalPrompt = ""
+    terminal.reset()
+    terminal.write(TERMINAL_ANSI_DEMO)
+    terminal.focus()
+    return
+  }
+  if (action === "scroll") {
+    terminal.write("\r\n")
+    const start = terminal.toText().split("\n").length + 1
+    for (let i = 0; i < 18; i++) terminal.writeln(`\x1b[36m${String(start + i).padStart(3, "0")}\x1b[0m appended terminal output`)
+    terminal.write("$ ")
+    terminal.focus()
+    return
+  }
+  terminalPrompt = ""
+  terminal.reset()
+  terminal.write(TERMINAL_BASIC_DEMO)
+  terminal.focus()
+}
+function handleTerminalInput(data: string): void {
+  if (data === "\r") {
+    terminal.write("\r\n")
+    if (terminalPrompt.trim().length > 0) {
+      terminal.writeln(`\x1b[90mplayground adapter received:\x1b[0m ${terminalPrompt}`)
+    }
+    terminalPrompt = ""
+    terminal.write("$ ")
+    return
+  }
+  if (data === "\x7f") {
+    if (terminalPrompt.length === 0) return
+    terminalPrompt = terminalPrompt.slice(0, -1)
+    terminal.write("\b \b")
+    return
+  }
+  if (data === "\x03") {
+    terminalPrompt = ""
+    terminal.write("^C\r\n$ ")
+    return
+  }
+  if (data.startsWith("\x1b")) {
+    terminal.write(`\r\n\x1b[90mkey:\x1b[0m ${terminalInputLabel(data)}\r\n$ ${terminalPrompt}`)
+    return
+  }
+  terminalPrompt += data
+  terminal.write(data)
+}
 screen = new ButtonComponentsScreen({
   onRouteChange: (route) => {
     activeRoute = route
     syncEditorRoute(route)
+    syncTerminalRoute(route)
     editor.setSelectionMenuOpen(route === "editor/selection/menu")
     editor.setSelectionContextMenuEnabled(route === "editor/selection/right-click")
     ui.relayout()
     syncEditorFocus(route)
+    syncTerminalFocus(route)
   },
   onEditorFocus: () => syncEditorFocus(activeRoute),
   onEditorCopy: () => editor.copySelectionToClipboard(),
   onEditorCut: () => editor.cutSelectionToClipboard(),
   onEditorSelectAll: () => editor.selectAll(),
+  onTerminalAction: runTerminalAction,
 })
 activeRoute = screen.currentRoute
 ui.addSurface(screen, ({w, h}) => ({x: 0, y: 0, w, h}))
 ui.addSurface(editor, ({w, h}) => activeRoute.startsWith("editor") ? editorPaneRectForCanvas(w, h) : hiddenRect())
+ui.addSurface(terminal, ({w, h}) => activeRoute.startsWith("terminal") ? terminalPaneRectForCanvas(w, h) : hiddenRect())
 ui.handleResize()
 syncEditorRoute(activeRoute)
+syncTerminalRoute(activeRoute)
 editor.setSelectionMenuOpen(activeRoute === "editor/selection/menu")
 editor.setSelectionContextMenuEnabled(activeRoute === "editor/selection/right-click")
 syncEditorFocus(activeRoute)
+syncTerminalFocus(activeRoute)
 const ro = new ResizeObserver(() => ui.handleResize())
 ro.observe(canvas)
 window.addEventListener("resize", () => ui.handleResize())

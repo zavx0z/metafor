@@ -1,5 +1,5 @@
 {
-  "name": "@metafor/elements",
+  "name": "@ui/elements",
   "version": "0.0.1",
   "description": "HTML-like WebGPU UI elements for metafor.",
   "type": "module",

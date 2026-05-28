@@ -18,6 +18,8 @@ Keep terminology accurate, but avoid English wording when a clear Russian equiva
 - Reuse the existing Google Chrome window and active tab for local inspection unless the user explicitly asks for a new tab, a new window, or a separate profile.
 - For local URLs, prefer `@meta/chrome` `POST /navigate` on the current tab. Do not launch Chrome with `--app`, `--new-window`, or a temporary `--user-data-dir` for ordinary checks.
 - Before opening anything in Chrome, inspect existing windows/tabs through `@meta/chrome` and carry the selected `windowId`/`tabIndex` through later calls.
+- Do not use Puppeteer, Playwright, or other browser automation libraries for local browser work. Use the `@meta/chrome`, `@meta/screen`, and related REST APIs instead.
+- If the browser REST services are unavailable, report that blocker and do not fall back to Puppeteer or Playwright.
 - Do not start a separate CDP Chrome profile (`bun run cdp`) unless CDP-only functionality is required and the user approves it.
 - If duplicate app-mode Chrome instances already exist, report them and ask before closing or killing any process.
 

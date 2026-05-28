@@ -17,8 +17,8 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {UiSurface, Z, div, divScrollTo, palette, radii, type DivScrollContext} from "@metafor/elements"
-import {Button, autoButtonWidth} from "../Button.ts"
+import {UiSurface, Z, div, divScrollTo, palette, radii, type DivScrollContext} from "@ui/elements"
+import {Button, autoButtonWidth} from "@ui/components"
 import {resolveLanguageHighlighter} from "./highlighter.ts"
 import {
   createEditorTokenMaterials,

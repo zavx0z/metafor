@@ -1,5 +1,5 @@
 import {divider as renderDivider} from "./internal/renderers.ts"
-import {cssColor, palette, px, span, type CssColor, type StyleProps, type UiSurface} from "@metafor/elements"
+import {cssColor, palette, px, span, type CssColor, type StyleProps, type UiSurface} from "@ui/elements"
 import type {Color} from "@metafor/engine"
 import {Color as EngineColor} from "@metafor/engine"
 

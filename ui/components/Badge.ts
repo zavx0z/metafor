@@ -4,7 +4,7 @@ import {
   type BadgeOpts as RenderBadgeOpts,
   type StatusChipOpts,
 } from "./internal/renderers.ts"
-import type {UiSurface, StyleProps, Tone} from "@metafor/elements"
+import type {UiSurface, StyleProps, Tone} from "@ui/elements"
 
 export type BadgeColor = "primary" | "neutral" | "success" | "warning" | "error"
 export type BadgeProps = {

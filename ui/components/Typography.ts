@@ -1,4 +1,4 @@
-import {span, type CssColor, type StyleProps, type UiSurface} from "@metafor/elements"
+import {span, type CssColor, type StyleProps, type UiSurface} from "@ui/elements"
 
 export type TypographyVariant = "title" | "subtitle" | "body" | "caption"
 

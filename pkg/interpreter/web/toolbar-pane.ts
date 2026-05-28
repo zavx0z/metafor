@@ -1,11 +1,11 @@
 /**
  * Toolbar — верхняя полоса. UiSurface-system.
- * Низкий слой берётся из @metafor/elements, MUI-like контролы — из
- * @metafor/components.
+ * Низкий слой берётся из @ui/elements, MUI-like контролы — из
+ * @ui/components.
  */
 
-import {UiSurface, palette, radii, uiIcons} from "@metafor/elements"
-import {Button as button, Divider as divider, StatusChip as statusChip} from "@metafor/components"
+import {UiSurface, palette, radii, uiIcons} from "@ui/elements"
+import {Button as button, Divider as divider, StatusChip as statusChip} from "@ui/components"
 import type {BadgeKind, ToolbarActions, ToolbarState} from "./interpreter-ui.ts"
 import {getUiLocale, t} from "./i18n.ts"
 

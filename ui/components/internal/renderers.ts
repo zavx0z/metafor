@@ -1,10 +1,10 @@
 /**
  * Internal renderers behind MUI-like components.
- * Public code imports Button/Badge/TextField/etc. from @metafor/components;
+ * Public code imports Button/Badge/TextField/etc. from @ui/components;
  * this file only keeps the low-level drawing path shared and allocation-light.
  */
 
-import {Z, type UiSurface, palette, type Tone, toneBorder, toneFill} from "@metafor/elements"
+import {Z, type UiSurface, palette, type Tone, toneBorder, toneFill} from "@ui/elements"
 import {Color} from "@metafor/engine"
 
 export type BadgeOpts = {

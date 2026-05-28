@@ -27,44 +27,57 @@ UI строится как XR-рендер, а не как DOM. Слои дол�
 * `HUD` — существующий head-locked UI target перед камерой/головой. Не создавать внутри него дополнительный `UiHud`.
 * `UITexture` — offscreen target для UI как текстуры/материала на 3D-поверхности; GPU render-to-texture backend развивается отдельно от semantic elements.
 * `UiSurface` — локальная поверхность рисования поверх target/runtime: `drawText`, `drawRoundedRect`, `drawImage`, `measureText`, clip, hit zones, локальный rect и `requestRender`.
-* HTML-like примитивы живут в `@metafor/elements`: `div`, `span`, `button`, `input`, `img`.
-* MUI-like компоненты живут в `@metafor/components`: `Pane`, `Button`, `TextField`, `Badge` и следующие компоненты.
-* `@metafor/elements` отвечает за низкоуровневые HTML-like примитивы и общие runtime-типы. Это не дизайн-система и не слой готовых MUI-like компонентов.
-* `@metafor/components` отвечает за готовые переиспользуемые компоненты дизайн-системы. Он обязан собирать поведение из `@metafor/elements`, а не дублировать базовые primitives.
+* HTML-like примитивы живут в `@ui/elements`: `div`, `span`, `button`, `input`, `img`.
+* MUI-like компоненты живут в `@ui/components`: `Pane`, `Button`, `TextField`, `Badge` и следующие компоненты.
+* Крупные переиспользуемые поверхности живут в `@ui/panes`: `EditorPane`, `TerminalPane`, `NotiStack` и следующие panes.
+* `@ui/elements` отвечает за низкоуровневые HTML-like примитивы и общие runtime-типы. Это не дизайн-система и не слой готовых MUI-like компонентов.
+* `@ui/components` отвечает за готовые переиспользуемые компоненты дизайн-системы. Он обязан собирать поведение из `@ui/elements`, а не дублировать базовые primitives.
+* `@ui/panes` отвечает за stateful panes и overlay-контроллеры уровня приложения. Он может собирать UI из `@ui/elements` и `@ui/components`, но не должен зависеть от конкретного сервера, транспорта или приложения.
 * Render target (`UIDisplay`, `HUD`, `UITexture`) не должен протекать в semantic API элементов и компонентов. Элементы работают с `UiSurface`, а не с конкретным способом размещения UI в XR.
 * `UIDisplay`, `HUD` и `UITexture` живут в `ui/elements/targets`. Engine не должен импортировать UI target-классы; renderer принимает generic overlay/object layer.
-* В `@metafor/elements` не должно быть semantic элемента `Pane`. `Pane` — только компонентный surface-контейнер в `@metafor/components`.
+* В `@ui/elements` не должно быть semantic элемента `Pane`. `Pane` — только компонентный surface-контейнер в `@ui/components`.
 * `UiSurface` не должен владеть button-семантикой: `disabled`, задержка pressed visual и click blocking принадлежат primitive `button`.
 * `div` не должен принимать `disabled` и `tooltip`; это generic box/surface primitive. `disabled` принадлежит интерактивным контролам.
-* Scrollbar, `overflow`, clip, wheel-scroll и drag thumb принадлежат `@metafor/elements` (`div` + `scrollbar`). В `@metafor/components` не должно быть standalone `Scrollbar` компонента или собственного renderer scrollbar.
+* Scrollbar, `overflow`, clip, wheel-scroll и drag thumb принадлежат `@ui/elements` (`div` + `scrollbar`). В `@ui/components` не должно быть standalone `Scrollbar` компонента или собственного renderer scrollbar.
 * Элементы и компоненты сейчас пишутся immediate-mode функциями, а не классами. Классы допустимы для runtime/display/surface lifecycle и stateful экранов.
 * Будущий декларативный DSL и CSS-подобные стили должны садиться поверх этой вертикали, не смешивая render target и semantic element.
-* Предпочтительный публичный API элементов: `import {UiRuntime, UiSurface, UIDisplay, HUD, UITexture, div, span, button, input, img} from "@metafor/elements"`.
-* Нельзя импортировать `Pane` из `@metafor/elements`: такого semantic primitive больше не существует.
+* Предпочтительный публичный API элементов: `import {UiRuntime, UiSurface, UIDisplay, HUD, UITexture, div, span, button, input, img} from "@ui/elements"`.
+* Нельзя импортировать `Pane` из `@ui/elements`: такого semantic primitive больше не существует.
 
 ## Правила компонентов
 
-Компоненты в `ui/components` строятся поверх примитивов из `@metafor/elements`.
+Компоненты в `ui/components` строятся поверх примитивов из `@ui/elements`.
 
 Обязательные правила:
 
 * Компонент должен расширять, объединять и стилизовать примитивы элементов через свой публичный API.
-* Нельзя заново реализовывать локально базовое поведение, если подходящий примитив уже есть в `@metafor/elements`.
-* Если в `ui/components` не хватает привычного HTML/CSS-поведения, его нужно добавлять в `@metafor/elements` как системную возможность, а не обходить проблему локальными костылями в компоненте.
-* CSS-подобные возможности, которые переиспользуются больше одного раза, должны оформляться как стандартный API `@metafor/elements`: стиль, layout-примитив, текстовое выравнивание, поведение поверхности или интерактивность.
-* Общая интерактивность должна приходить из `@metafor/elements`: зоны попадания, состояния указателя, фокус, подсказки и базовая поверхность контрола.
+* Нельзя заново реализовывать локально базовое поведение, если подходящий примитив уже есть в `@ui/elements`.
+* Если в `ui/components` не хватает привычного HTML/CSS-поведения, его нужно добавлять в `@ui/elements` как системную возможность, а не обходить проблему локальными костылями в компоненте.
+* CSS-подобные возможности, которые переиспользуются больше одного раза, должны оформляться как стандартный API `@ui/elements`: стиль, layout-примитив, текстовое выравнивание, поведение поверхности или интерактивность.
+* Общая интерактивность должна приходить из `@ui/elements`: зоны попадания, состояния указателя, фокус, подсказки и базовая поверхность контрола.
 * Контрольная интерактивность вроде `disabled` должна принадлежать конкретному primitive (`button`, `input`), а не generic `div` или `UiSurface`.
-* Scroll-поведение принадлежит только `@metafor/elements`: состояние прокрутки, wheel-routing, drag thumb, overflow и scrollbar-геометрия должны жить в `div` или другом системном element primitive. В `ui/components` и playground нельзя заводить локальный `ScrollListState`, wrapper `Scrollbar`, собственные wheel-обработчики прокрутки или рисовать scrollbar напрямую.
+* Scroll-поведение принадлежит только `@ui/elements`: состояние прокрутки, wheel-routing, drag thumb, overflow и scrollbar-геометрия должны жить в `div` или другом системном element primitive. В `ui/components` и playground нельзя заводить локальный `ScrollListState`, wrapper `Scrollbar`, собственные wheel-обработчики прокрутки или рисовать scrollbar напрямую.
 * Компонентам и примерам, которым нужна прокрутка, нужно компоновать `Pane`/`div` с `overflowX`/`overflowY` и scroll-контекстом `div`, а не наследовать scroll от кастомного компонента.
-* Компоненты `Button` обязаны брать за основу `button` из `@metafor/elements`.
+* Компоненты `Button` обязаны брать за основу `button` из `@ui/elements`.
 * Компонентный слой может добавлять иконки, варианты, сопоставление API и стили.
-* Компонентный слой не должен обходить базовый `button` из `@metafor/elements` для поверхности кнопки и интерактивности.
-* Компонент `Pane` обязан брать за основу `div` из `@metafor/elements`.
-* Если компоненту или debug/editor слою нужен scrollbar renderer, он импортирует `scrollbar` напрямую из `@metafor/elements`. Компонентный слой не должен реэкспортировать его как компонент.
+* Компонентный слой не должен обходить базовый `button` из `@ui/elements` для поверхности кнопки и интерактивности.
+* Компонент `Pane` обязан брать за основу `div` из `@ui/elements`.
+* Если компоненту или debug/editor слою нужен scrollbar renderer, он импортирует `scrollbar` напрямую из `@ui/elements`. Компонентный слой не должен реэкспортировать его как компонент.
+
+## Правила panes
+
+Panes в `ui/panes` — это крупные переиспользуемые UI-поверхности и контроллеры.
+
+Обязательные правила:
+
+* `EditorPane`, `TerminalPane`, `NotiStack` и будущие крупные поверхности импортируются только из `@ui/panes`.
+* `@ui/components` не должен экспортировать panes или syntax API редактора.
+* Pane API не должен зависеть от конкретного сервера, WebSocket, PTY или interpreter. Транспорт подключается внешним adapter-слоем через callbacks и методы pane.
+* Playground для panes живёт в `ui/panes/playground` и повторяет общий scaffold: `catalog` -> `section panel` -> `preview` + `dock` -> `props`.
 
 ## Правила playground и роутов
 
-Роуты в `ui/components/playground` и `ui/elements/playground` должны быть устроены однообразно.
+Роуты в `ui/components/playground`, `ui/panes/playground` и `ui/elements/playground` должны быть устроены однообразно.
 
 Обязательные правила:
 

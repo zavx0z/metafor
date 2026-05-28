@@ -1,4 +1,4 @@
-import {div, h2, Z, type DivProps, type UiSurface, type StyleProps} from "@metafor/elements"
+import {div, h2, Z, type DivProps, type UiSurface, type StyleProps} from "@ui/elements"
 
 export type PaneVariant = "glass" | "outlined" | "filled"
 export type PaneProps = {

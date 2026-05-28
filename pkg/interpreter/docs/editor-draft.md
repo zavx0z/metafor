@@ -7,7 +7,7 @@
 
 - The central paused-source viewer uses shared `EditorPane` in read-only mode.
 - The toolbar can switch the central source area into `Edit Draft` mode.
-- `EditorPane` is imported from `@metafor/components`, receives the current `/source` text and resolves highlighting by source path.
+- `EditorPane` is imported from `@ui/panes`, receives the current `/source` text and resolves highlighting by source path.
 - Draft state is held only in the browser process memory.
 - `Cmd/Ctrl+S` or the toolbar save action marks the draft as saved in memory and writes nothing to disk.
 - The toolbar exposes draft state as `clean`, `dirty`, `saved in memory`, or `no source`.
@@ -38,8 +38,8 @@ This step does not change:
 
 ## Verification
 
-- `bun run --filter @metafor/elements typecheck`
-- `bun run --filter @metafor/components typecheck`
+- `bun run --filter @ui/elements typecheck`
+- `bun run --filter @ui/panes typecheck`
 - `bun run --filter @metafor/interpreter typecheck`
 - `bun test ui/elements`
 - `bun test ui/components`

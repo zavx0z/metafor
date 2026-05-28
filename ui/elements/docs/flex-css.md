@@ -1,4 +1,4 @@
-# @metafor/elements flexCss — browser-like immediate layout
+# @ui/elements flexCss — browser-like immediate layout
 
 `flexCss` — небольшой browser-like adapter поверх immediate-mode `flex.ts`.
 Цель — давать прикладному коду (журналы, шаблонизаторы, presentation-режимы,

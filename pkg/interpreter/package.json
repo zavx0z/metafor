@@ -14,8 +14,9 @@
     "metafor-interpreter": "./interpreter.ts"
   },
   "dependencies": {
-    "@metafor/components": "workspace:*",
-    "@metafor/elements": "workspace:*",
+    "@ui/components": "workspace:*",
+    "@ui/elements": "workspace:*",
+    "@ui/panes": "workspace:*",
     "source-map-js": "^1.2.1"
   },
   "scripts": {

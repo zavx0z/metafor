@@ -1,7 +1,7 @@
 import {Color} from "@metafor/engine"
-import {UiRuntime, UiSurface, h3, p, span, type CssColor} from "@metafor/elements"
-import {Badge, Button, Pane, Typography} from "@metafor/components"
-import {HudCornerButton, HudReturnDock, HudTargetReticle, type HudQuad, type HudRect} from "@metafor/hud"
+import {UiRuntime, UiSurface, h3, p, span, type CssColor} from "@ui/elements"
+import {Badge, Button, Pane, Typography} from "@ui/components"
+import {HudCornerButton, HudReturnDock, HudTargetReticle, type HudQuad, type HudRect} from "@ui/hud"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 import {componentsPlaygroundLayout} from "../../components/playground/layout.ts"
 
@@ -140,7 +140,7 @@ class HudPlaygroundScreen extends UiSurface {
   #params(x: number, y: number, w: number, h: number): void {
     panel(this, x, y, w, h)
     h3(this, x, y + 28, w, 24, {children: "API", style: {fontSize: 15, textAlign: "center"}})
-    Badge(this, x + 26, y + 78, 112, 24, {children: "@metafor/hud", color: "primary"})
+    Badge(this, x + 26, y + 78, 112, 24, {children: "@ui/hud", color: "primary"})
     const lines = this.#apiLines()
     for (const [i, line] of lines.entries()) {
       span(this, x + 26, y + 126 + i * 24, w - 52, 18, {

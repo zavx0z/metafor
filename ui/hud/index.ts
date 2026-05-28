@@ -1,5 +1,5 @@
 import {Color} from "@metafor/engine"
-import {Z, type HitState, type UiSurface} from "@metafor/elements"
+import {Z, type HitState, type UiSurface} from "@ui/elements"
 
 export type HudPoint = {x: number; y: number}
 export type HudRect = {x: number; y: number; w: number; h: number}

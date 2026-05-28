@@ -1,5 +1,5 @@
 /**
- * @metafor/elements — HTML-like Vision Pro elements over @metafor/engine.
+ * @ui/elements — HTML-like Vision Pro elements over @metafor/engine.
  */
 
 export * from "./runtime.ts"

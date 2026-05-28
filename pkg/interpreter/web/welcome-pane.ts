@@ -1,13 +1,13 @@
 /**
- * Welcome pane на UiSurface-системе: layout из @metafor/elements, controls из
- * @metafor/components.
+ * Welcome pane на UiSurface-системе: layout из @ui/elements, controls из
+ * @ui/components.
  *
  * Stack: title + status panel + target/inspector panels.
  * Все координаты — pixel от pane-TL, никаких эстимейтов.
  */
 
 import {Color} from "@metafor/engine"
-import {UiSurface, Z, palette, uiIcons} from "@metafor/elements"
+import {UiSurface, Z, palette, uiIcons} from "@ui/elements"
 import {
   Button as button,
   StatusChip as statusChip,
@@ -15,7 +15,7 @@ import {
   TextField as input,
   createTextFieldState,
   type TextFieldEditState,
-} from "@metafor/components"
+} from "@ui/components"
 import type {WelcomeActions, WelcomeState} from "./interpreter-ui.ts"
 import {localizeSystemText, t} from "./i18n.ts"
 

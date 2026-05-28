@@ -1,4 +1,4 @@
-import {tokenizeSourcePattern} from "@metafor/components/syntax"
+import {tokenizeSourcePattern} from "@ui/panes/syntax"
 
 export type TokenCategory =
   | "k"  // keyword

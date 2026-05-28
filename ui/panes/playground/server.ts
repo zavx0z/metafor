@@ -1,12 +1,12 @@
 import {basename, join} from "node:path"
 
-const PORT = Number(process.env["ELEMENTS_PLAYGROUND_PORT"] ?? process.env["UI_PLAYGROUND_PORT"] ?? 7901)
+const PORT = Number(process.env["PANES_PLAYGROUND_PORT"] ?? process.env["UI_PLAYGROUND_PORT"] ?? 7903)
 const ENTRY_PATH = join(import.meta.dir, "entry.ts")
 const STYLE_PATH = join(import.meta.dir, "style.css")
 const FONT_PATH = join(import.meta.dir, "JetBrainsMono-Bold.ttf")
 const MANIFEST = {
-  name: "@ui/elements playground",
-  short_name: "elements",
+  name: "@ui/panes playground",
+  short_name: "panes",
   start_url: "/",
   display: "standalone",
 }
@@ -17,7 +17,7 @@ const INDEX_HTML = `<!DOCTYPE html>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="cache-control" content="no-cache" />
-    <title>@ui/elements playground</title>
+    <title>@ui/panes playground</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
@@ -50,7 +50,9 @@ async function buildEntry(): Promise<Response> {
     else nextAssets.set(routePath, output)
   }
   buildAssets = nextAssets
-  if (entry === null) return new Response("entry.js was not emitted", {status: 500})
+  if (entry === null) {
+    return new Response("entry.js was not emitted", {status: 500})
+  }
   return new Response(entry, {
     headers: {
       "content-type": "text/javascript; charset=utf-8",
@@ -84,10 +86,10 @@ const server = Bun.serve({
       return indexResponse()
     },
   },
-  fetch(req): Response {
+  fetch(req) {
     const url = new URL(req.url)
     return new Response(`not found: ${req.method} ${url.pathname}`, {status: 404})
   },
 })
 
-console.log(`[@ui/elements playground] http://${server.hostname}:${server.port}`)
+console.log(`[@ui/panes playground] http://${server.hostname}:${server.port}`)

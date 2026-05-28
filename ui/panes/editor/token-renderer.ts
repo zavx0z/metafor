@@ -1,5 +1,5 @@
 import {Color, TextMaterial} from "@metafor/engine"
-import {syntaxTokens, type UiSurface} from "@metafor/elements"
+import {syntaxTokens, type UiSurface} from "@ui/elements"
 import type {EditorToken} from "./tokens.ts"
 
 export type EditorTokenMaterialMap = Map<string, TextMaterial>

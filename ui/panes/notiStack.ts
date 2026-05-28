@@ -31,8 +31,8 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {UiSurface, flexRow, type UiRuntime} from "@metafor/elements"
-import {autoButtonWidth, Button as button} from "./Button.ts"
+import {UiSurface, Z, type UiRuntime} from "@ui/elements"
+import {autoButtonWidth, Button as button, Pane} from "@ui/components"
 
 export interface NotiAction {
   label: string
@@ -48,6 +48,18 @@ export interface Notification {
   secondary?: NotiAction
 }
 
+export interface NotiStackBounds {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export interface NotiStackViewport {
+  w: number
+  h: number
+}
+
 /**
  * Цветовая палитра NotiStack. Приложение передаёт свои инстансы
  * `Color` / `TextMaterial` (reuse, без GC-нагрузки на render).
@@ -57,6 +69,9 @@ export interface Notification {
  *   • `accent` — рамка тоста и заливка primary-кнопки.
  *   • `accentBorder` — рамка primary-кнопки (обычно светлее accent).
  *     Default = accent.
+ *   • `surfaceBorder` — рамка самого toast. Default = accent.
+ *   • `surfaceTint` — лёгкая tint-подложка для дешёвого glass fallback без
+ *     backdrop blur. Default = accent RGB.
  *   • `matTitle` — короткий заголовок (мелкий, тон accent).
  *   • `matBody` — основной текст.
  *   • `matFooter` — приглушённая подпись под body.
@@ -68,6 +83,8 @@ export interface NotiStackTheme {
   panel: Color
   accent: Color
   accentBorder?: Color
+  surfaceBorder?: Color
+  surfaceTint?: Color
   matTitle: TextMaterial
   matBody: TextMaterial
   matFooter: TextMaterial
@@ -80,6 +97,11 @@ export interface NotiStackTheme {
  * широкий экран desktop / tablet (журнальная вёрстка).
  */
 export interface NotiStackLayout {
+  /**
+   * Ограничивающий rect для стека. Без bounds стек позиционируется
+   * относительно всего runtime viewport.
+   */
+  bounds?: NotiStackBounds | ((viewport: NotiStackViewport) => NotiStackBounds)
   padTop?: number
   padBottom?: number
   padInner?: number
@@ -91,13 +113,19 @@ export interface NotiStackLayout {
   btnH?: number
   btnGap?: number
   minHeight?: number
-  /** Нижний отступ стека от bottom-edge: max(min, H * pct). */
+  minWidth?: number
+  maxWidth?: number
+  surfaceOpacity?: number
+  surfaceTintOpacity?: number
+  position?: "bottom-right" | "bottom-left" | "top-right" | "top-left"
+  /** Вертикальный edge-inset стека от top/bottom edge: max(min, bounds.h * pct). */
   bottomGap?: {min: number; pct: number}
-  /** Горизонтальный inset стека от side-edges: max(min, W * pct). */
+  /** Горизонтальный inset стека от side-edges: max(min, bounds.w * pct). */
   sidePad?: {min: number; pct: number}
 }
 
 interface ResolvedLayout {
+  bounds?: NotiStackBounds | ((viewport: NotiStackViewport) => NotiStackBounds)
   padTop: number
   padBottom: number
   padInner: number
@@ -109,6 +137,11 @@ interface ResolvedLayout {
   btnH: number
   btnGap: number
   minHeight: number
+  minWidth: number
+  maxWidth: number
+  surfaceOpacity: number
+  surfaceTintOpacity: number
+  position: "bottom-right" | "bottom-left" | "top-right" | "top-left"
   bottomGap: {min: number; pct: number}
   sidePad: {min: number; pct: number}
 }
@@ -124,7 +157,12 @@ const DEFAULT_LAYOUT: ResolvedLayout = {
   btnFontPx: 16,
   btnH: 42,
   btnGap: 10,
-  minHeight: 96,
+  minHeight: 108,
+  minWidth: 320,
+  maxWidth: 440,
+  surfaceOpacity: 0.80,
+  surfaceTintOpacity: 0.08,
+  position: "bottom-right",
   bottomGap: {min: 28, pct: 0.05},
   sidePad: {min: 20, pct: 0.04},
 }
@@ -144,9 +182,29 @@ function resolveLayout(layout: NotiStackLayout | undefined): ResolvedLayout {
   }
 }
 
+function finiteNumber(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback
+}
+
+function resolveBounds(L: ResolvedLayout, W: number, H: number): NotiStackBounds {
+  const raw = typeof L.bounds === "function" ? L.bounds({w: W, h: H}) : L.bounds
+  if (raw === undefined) return {x: 0, y: 0, w: W, h: H}
+  const x = finiteNumber(raw.x, 0)
+  const y = finiteNumber(raw.y, 0)
+  const maxW = Math.max(1, W - x)
+  const maxH = Math.max(1, H - y)
+  return {
+    x,
+    y,
+    w: Math.max(1, Math.min(finiteNumber(raw.w, maxW), maxW)),
+    h: Math.max(1, Math.min(finiteNumber(raw.h, maxH), maxH)),
+  }
+}
+
 function notifHeight(n: Notification, L: ResolvedLayout): number {
   // Вертикальный layout: текст сверху, кнопки снизу.
-  const textH = L.titleFontPx + 10 + L.bodyFontPx + (n.footer ? 10 + L.footerFontPx : 0)
+  const bodyLines = n.body.length > 52 ? 2 : 1
+  const textH = L.titleFontPx + 8 + Math.ceil(L.bodyFontPx * 1.25) * bodyLines + (n.footer ? 8 + L.footerFontPx : 0)
   const btnsH = (n.primary || n.secondary) ? L.btnGap + L.btnH : 0
   return Math.max(L.minHeight, L.padTop + textH + btnsH + L.padBottom)
 }
@@ -160,12 +218,14 @@ class NotificationPane extends UiSurface {
   private dismissed = false
   private readonly theme: NotiStackTheme
   private readonly L: ResolvedLayout
+  private readonly surfaceTint: Color
 
   constructor(n: Notification, theme: NotiStackTheme, L: ResolvedLayout) {
     super({bgColor: null, borderColor: null, padding: 0})
     this.n = n
     this.theme = theme
     this.L = L
+    this.surfaceTint = theme.surfaceTint ?? new Color(theme.accent.r, theme.accent.g, theme.accent.b, 1)
   }
 
   update(n: Notification): void {
@@ -195,33 +255,46 @@ class NotificationPane extends UiSurface {
     const n = this.n
     const {panel, accent, matTitle, matBody, matFooter, matPrimaryLabel, matSecondaryLabel} = this.theme
     const accentBorder = this.theme.accentBorder ?? accent
+    const surfaceBorder = this.theme.surfaceBorder ?? accent
     const L = this.L
 
-    // Фон + accent-рамка.
-    this.drawRect(0, 0, W, H, panel)
-    this.drawRect(0, 0, W, 1, accent)
-    this.drawRect(0, H - 1, W, 1, accent)
-    this.drawRect(0, 0, 1, H, accent)
-    this.drawRect(W - 1, 0, 1, H, accent)
+    Pane(this, 0, 0, W, H, {
+      variant: "outlined",
+      sx: {
+        background: "glass",
+        glassFill: panel,
+        glassTint: this.surfaceTint,
+        glassTintOpacity: L.surfaceTintOpacity,
+        borderColor: surfaceBorder,
+        borderRadius: 18,
+        opacity: L.surfaceOpacity,
+        padding: 0,
+        zIndex: Z.CONTAINER,
+      },
+    })
 
     // Вертикальный layout: текст сверху, кнопки снизу — полная ширина для текста.
     const textW = W - L.padInner * 2
-    let curY = L.padTop - 4
-    this.drawText(n.title, L.padInner, curY, {
+    const buttonAreaH = n.primary || n.secondary ? L.btnGap + L.btnH : 0
+    const footerH = n.footer ? L.footerFontPx + 8 : 0
+    const bodyY = L.padTop + L.titleFontPx + 8
+    const bodyH = Math.max(20, H - bodyY - L.padBottom - buttonAreaH - footerH)
+    this.drawText(n.title, L.padInner, L.padTop - 2, {
       fontPx: L.titleFontPx,
       material: matTitle,
       maxWidthPx: textW,
     })
-    curY += L.titleFontPx + 10
-    this.drawText(n.body, L.padInner, curY, {
+    this.drawTextBlock(n.body, L.padInner, bodyY, textW, bodyH, {
       fontPx: L.bodyFontPx,
       material: matBody,
-      maxWidthPx: textW,
+      lineHeight: 1.25,
+      wrap: true,
+      fit: "shrink",
+      maxLines: 2,
+      minFontPx: 11,
     })
-    curY += L.bodyFontPx
     if (n.footer) {
-      curY += 10
-      this.drawText(n.footer, L.padInner, curY, {
+      this.drawText(n.footer, L.padInner, H - L.padBottom - buttonAreaH - L.footerFontPx, {
         fontPx: L.footerFontPx,
         material: matFooter,
         maxWidthPx: textW,
@@ -235,46 +308,30 @@ class NotificationPane extends UiSurface {
     const totalBtnsW = primaryW + secondaryW + (n.primary && n.secondary ? L.btnGap : 0)
     if (totalBtnsW > 0) {
       const btnsY = H - L.padBottom - L.btnH
-      flexRow({
-        x: W - L.padInner - totalBtnsW,
-        y: btnsY,
-        w: totalBtnsW,
-        h: L.btnH,
-        gap: L.btnGap,
-        alignItems: "center",
-        items: [
-          n.secondary
-            ? {
-                width: secondaryW,
-                height: L.btnH,
-                draw: (bx, by, bw, bh) =>
-                  button(this, bx, by, bw, bh, {
-                    label: n.secondary!.label,
-                    fontPx: L.btnFontPx,
-                    fill: panel,
-                    border: accent,
-                    textMaterial: matSecondaryLabel,
-                    action: n.secondary!.action,
-                  }),
-              }
-            : null,
-          n.primary
-            ? {
-                width: primaryW,
-                height: L.btnH,
-                draw: (bx, by, bw, bh) =>
-                  button(this, bx, by, bw, bh, {
-                    label: n.primary!.label,
-                    fontPx: L.btnFontPx,
-                    fill: accent,
-                    border: accentBorder,
-                    textMaterial: matPrimaryLabel,
-                    action: n.primary!.action,
-                  }),
-              }
-            : null,
-        ],
-      })
+      let btnX = W - L.padInner - totalBtnsW
+      if (n.secondary) {
+        button(this, btnX, btnsY, secondaryW, L.btnH, {
+          label: n.secondary.label,
+          fontPx: L.btnFontPx,
+          fill: panel,
+          border: accent,
+          textMaterial: matSecondaryLabel,
+          action: n.secondary.action,
+          radius: Math.min(14, L.btnH / 2),
+        })
+        btnX += secondaryW + L.btnGap
+      }
+      if (n.primary) {
+        button(this, btnX, btnsY, primaryW, L.btnH, {
+          label: n.primary.label,
+          fontPx: L.btnFontPx,
+          fill: accent,
+          border: accentBorder,
+          textMaterial: matPrimaryLabel,
+          action: n.primary.action,
+          radius: Math.min(14, L.btnH / 2),
+        })
+      }
     }
   }
 }
@@ -336,9 +393,12 @@ export class NotiStack {
       return {x: 0, y: 0, w: 0, h: 0, visible: false}
     }
     const L = this.layout
-    const padX = Math.max(L.sidePad.min, Math.round(W * L.sidePad.pct))
-    const bottomGap = Math.max(L.bottomGap.min, Math.round(H * L.bottomGap.pct))
-    const paneW = W - padX * 2
+    const bounds = resolveBounds(L, W, H)
+    const padX = Math.max(L.sidePad.min, Math.round(bounds.w * L.sidePad.pct))
+    const edgeGap = Math.max(L.bottomGap.min, Math.round(bounds.h * L.bottomGap.pct))
+    const availableW = Math.max(1, bounds.w - padX * 2)
+    const paneW = Math.max(Math.min(L.minWidth, availableW), Math.min(L.maxWidth, availableW))
+    const x = L.position.endsWith("right") ? bounds.x + bounds.w - padX - paneW : bounds.x + padX
     // Считаем суммарную высоту всех ВИДИМЫХ предыдущих уведомлений
     // (тех, что выше в стеке = добавлены раньше).
     const visibleItems = this.items.filter((x) => !x.pane.isDismissed())
@@ -353,7 +413,9 @@ export class NotiStack {
       offset += notifHeight(visibleItems[visibleItems.length - 1 - i]!.n, L) + L.stackGap
     }
     const paneH = notifHeight(target.n, L)
-    const y = H - bottomGap - offset - paneH
-    return {x: padX, y, w: paneW, h: paneH, visible: true}
+    const y = L.position.startsWith("top")
+      ? bounds.y + edgeGap + offset
+      : bounds.y + bounds.h - edgeGap - offset - paneH
+    return {x, y, w: paneW, h: paneH, visible: true}
   }
 }

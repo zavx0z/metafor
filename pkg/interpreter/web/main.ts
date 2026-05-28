@@ -4,8 +4,8 @@
  * `{type:"command", cmd, params, requestId}` — сервер отвечает `{type:"result", requestId, ok, result|error}`.
  */
 
-import {UiRuntime, type UiSurfaceRect} from "@metafor/elements"
-import {EditorPane, sourceDisplayLocation, sourcePathFromLocation, type EditorBreakpoint, type EditorTokens} from "@metafor/components"
+import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
+import {EditorPane, sourceDisplayLocation, sourcePathFromLocation, type EditorBreakpoint, type EditorTokens} from "@ui/panes"
 import {applyInspectMode} from "../src/inspect-mode.ts"
 import {ConsolePane, type ConsoleEntry} from "./console-pane.ts"
 import {

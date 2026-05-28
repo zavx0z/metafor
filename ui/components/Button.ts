@@ -1,7 +1,7 @@
 import {autoButtonWidth} from "./internal/renderers.ts"
-import {Z} from "@metafor/elements"
-import {button as elementButton, drawIcon, palette, toneBorder, toneFill, type ButtonElementProps, type ButtonElementState, type UiSurface, type StyleProps} from "@metafor/elements"
-import type {Tone} from "@metafor/elements"
+import {Z} from "@ui/elements"
+import {button as elementButton, drawIcon, palette, toneBorder, toneFill, type ButtonElementProps, type ButtonElementState, type UiSurface, type StyleProps} from "@ui/elements"
+import type {Tone} from "@ui/elements"
 import {Color, TextMaterial} from "@metafor/engine"
 
 export type ButtonVariant = "text" | "outlined" | "contained" | "glass"

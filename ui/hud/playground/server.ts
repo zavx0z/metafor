@@ -5,7 +5,7 @@ const ENTRY_PATH = join(import.meta.dir, "entry.ts")
 const STYLE_PATH = join(import.meta.dir, "style.css")
 const FONT_PATH = join(import.meta.dir, "../../components/playground/JetBrainsMono-Bold.ttf")
 const MANIFEST = {
-  name: "@metafor/hud playground",
+  name: "@ui/hud playground",
   short_name: "hud",
   start_url: "/",
   display: "standalone",
@@ -17,7 +17,7 @@ const INDEX_HTML = `<!DOCTYPE html>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="cache-control" content="no-cache" />
-    <title>@metafor/hud playground</title>
+    <title>@ui/hud playground</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
@@ -90,4 +90,4 @@ const server = Bun.serve({
   },
 })
 
-console.log(`[@metafor/hud playground] http://${server.hostname}:${server.port}`)
+console.log(`[@ui/hud playground] http://${server.hostname}:${server.port}`)

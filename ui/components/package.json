@@ -1,14 +1,13 @@
 {
-  "name": "@metafor/components",
+  "name": "@ui/components",
   "version": "0.0.1",
-  "description": "MUI-like Vision Pro components built on @metafor/elements.",
+  "description": "MUI-like Vision Pro components built on @ui/elements.",
   "type": "module",
   "private": true,
   "main": "index.ts",
   "types": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./syntax": "./editor/languages/pattern-highlighter.ts",
     "./playground": "./playground/server.ts"
   },
   "scripts": {
@@ -16,7 +15,7 @@
     "typecheck": "tsc --noEmit --pretty false"
   },
   "dependencies": {
-    "@metafor/elements": "workspace:*",
+    "@ui/elements": "workspace:*",
     "@metafor/engine": "workspace:*"
   }
 }

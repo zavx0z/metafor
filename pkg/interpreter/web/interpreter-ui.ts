@@ -1,7 +1,7 @@
 /**
  * interpreter-ui.ts — barrel-модуль с типами и re-export'ами pane.
  *
- * Все pane теперь сидят на UiSurface-системе из @metafor/elements:
+ * Все pane теперь сидят на UiSurface-системе из @ui/elements:
  * фиксированный rect, bg/border managed by UiSurface, текст обрезается через
  * измерение font-метрик. Ничего не вылазит за пределы pane.
  */

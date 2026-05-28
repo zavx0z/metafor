@@ -1,4 +1,4 @@
-import {activeVscodeSyntaxTheme, resolveVscodeScopeColorHex} from "@metafor/elements"
+import {activeVscodeSyntaxTheme, resolveVscodeScopeColorHex} from "@ui/elements"
 import type {EditorTokens} from "../tokens.ts"
 import {distributeRangeTokens, pushRange, type RangeToken} from "./range-tokens.ts"
 import {type PatternTokenStream, tokenizePatternText} from "./pattern-engine.ts"

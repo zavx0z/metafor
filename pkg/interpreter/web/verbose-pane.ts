@@ -4,10 +4,10 @@
 
 import {
   UiSurface, div, divScrollPosition, divScrollTo, palette, radii, uiIcons,
-} from "@metafor/elements"
+} from "@ui/elements"
 import {
   Button as button, Divider as divider,
-} from "@metafor/components"
+} from "@ui/components"
 import {t} from "./i18n.ts"
 
 type VerboseEntry = {

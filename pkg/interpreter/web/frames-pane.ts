@@ -1,13 +1,13 @@
 /**
- * Frames pane. Layout — flexRow/flexColumn/div из @metafor/elements.
+ * Frames pane. Layout — flexRow/flexColumn/div из @ui/elements.
  */
 
 import {
   UiSurface, Z, div, flexRow, flexColumn, palette, radii,
-} from "@metafor/elements"
+} from "@ui/elements"
 import {
   Divider as divider,
-} from "@metafor/components"
+} from "@ui/components"
 import type {InterpreterModuleSnapshot, FrameSnapshot} from "./interpreter-ui.ts"
 import {t} from "./i18n.ts"
 

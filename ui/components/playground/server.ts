@@ -5,7 +5,7 @@ const ENTRY_PATH = join(import.meta.dir, "entry.ts")
 const STYLE_PATH = join(import.meta.dir, "style.css")
 const FONT_PATH = join(import.meta.dir, "JetBrainsMono-Bold.ttf")
 const MANIFEST = {
-  name: "@metafor/components playground",
+  name: "@ui/components playground",
   short_name: "components",
   start_url: "/",
   display: "standalone",
@@ -17,7 +17,7 @@ const INDEX_HTML = `<!DOCTYPE html>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="cache-control" content="no-cache" />
-    <title>@metafor/components playground</title>
+    <title>@ui/components playground</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
@@ -93,4 +93,4 @@ const server = Bun.serve({
   },
 })
 
-console.log(`[@metafor/components playground] http://${server.hostname}:${server.port}`)
+console.log(`[@ui/components playground] http://${server.hostname}:${server.port}`)

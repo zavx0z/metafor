@@ -1,0 +1,8 @@
+/**
+ * @ui/panes — готовые крупные WebGPU UI-поверхности.
+ */
+
+export * from "./editor/index.ts"
+export * from "./terminal/index.ts"
+export * from "./notiStack.ts"
+export * from "./editor-pane.ts"

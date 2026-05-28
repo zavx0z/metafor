@@ -1,5 +1,5 @@
 /**
- * Scopes / Eval pane на UiSurface-системе. Controls — из @metafor/components.
+ * Scopes / Eval pane на UiSurface-системе. Controls — из @ui/components.
  *
  * Верх — список scopes (group-headers + props). Низ — eval-секция: лейбл,
  * input expression, Run button, output. evalTop = граница между ними,
@@ -9,19 +9,21 @@
 import {TextMaterial} from "@metafor/engine"
 import {
   UiSurface, Z, div, palette, radii, uiIcons,
-} from "@metafor/elements"
+} from "@ui/elements"
 import {
   Button as button,
   TextField as input,
   Divider as divider,
-  createEditorTokenMaterials,
   createTextFieldState,
+  type TextFieldEditState,
+} from "@ui/components"
+import {
+  createEditorTokenMaterials,
   renderEditorTokenizedLine,
   resolveLanguageHighlighter,
   type EditorTokenMaterialMap,
   type EditorTokens,
-  type TextFieldEditState,
-} from "@metafor/components"
+} from "@ui/panes"
 import type {FrameSnapshot, PropertySnapshot, ScopeSnapshot} from "./interpreter-ui.ts"
 import {t} from "./i18n.ts"
 
