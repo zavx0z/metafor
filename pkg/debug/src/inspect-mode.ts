@@ -1,10 +1,14 @@
-export type InspectMode = "wait" | "brk"
+export type InspectMode = "inspect" | "wait" | "brk"
 
 const INSPECT_RE = /^--inspect(?:-(?:wait|brk))?(?:=(.*))?$/
 
 export function applyInspectMode(command: string[], mode: InspectMode, inspectorUrl: string): string[] {
   const next = [...command]
-  const wanted = mode === "brk" ? "--inspect-brk" : "--inspect-wait"
+  const wanted = mode === "brk"
+    ? "--inspect-brk"
+    : mode === "wait"
+      ? "--inspect-wait"
+      : "--inspect"
 
   for (let i = 0; i < next.length; i++) {
     const arg = next[i]!
@@ -20,11 +24,21 @@ export function applyInspectMode(command: string[], mode: InspectMode, inspector
     return next
   }
 
-  if (mode === "brk" && isBunCommand(next[0])) {
+  if (isBunCommand(next[0])) {
     next.splice(1, 0, `${wanted}=${inspectorUrl}`)
   }
 
   return next
+}
+
+export function inspectModeFromCommand(command: readonly string[]): InspectMode | undefined {
+  for (const arg of command) {
+    if (!arg.startsWith("--inspect")) continue
+    if (arg.startsWith("--inspect-brk")) return "brk"
+    if (arg.startsWith("--inspect-wait")) return "wait"
+    if (arg === "--inspect" || arg.startsWith("--inspect=")) return "inspect"
+  }
+  return undefined
 }
 
 function isBunCommand(value: string | undefined): boolean {

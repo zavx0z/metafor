@@ -2,46 +2,49 @@
 
 Sidecar для совместной отладки Bun-процессов через WebKit Inspector Protocol.
 
-Он подключается к тому же inspector WebSocket, что WebStorm или Chrome `https://debug.bun.sh`,
-пишет snapshot текущей остановки, даёт REST/WS API для `eval`, `props`, `step`, `resume`, и умеет
-запускать target-процесс сам.
+Он подключается к Bun inspector WebSocket, пишет snapshot текущей остановки, даёт REST/WS API
+для `eval`, `props`, `step`, `resume`, и умеет запускать target-процесс сам.
 
 ## Быстрый Старт Для `dark`
 
-Терминал 1:
+Обычный запуск UI без target:
 
 ```sh
-bun run dark/debug/agent-attach.ts
+bun run debug
 ```
 
-UI и REST API будут доступны здесь:
+Запуск сразу с target:
+
+```sh
+bun run debug -- ./module.ts
+```
+
+Если нужен тот же набор параметров, что у стандартного Bun debugger, передавай их перед файлом.
+Аргументы программы остаются после `--`:
+
+```sh
+bun run debug -- --inspect-wait ./module.ts -- --flag value
+bun run debug -- bun test --timeout=2147483647 ./module.spec.ts -- --grep case
+```
+
+Если `--inspect*` не указан, sidecar добавит `--inspect-brk=ws://127.0.0.1:6499/`, чтобы UI сразу попал в debugger.
+
+UI и REST API:
 
 ```text
 http://127.0.0.1:6500/
 ```
 
-Терминал 2:
-
-```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/server.spec.ts
-```
-
-Chrome:
-
-```text
-https://debug.bun.sh/#127.0.0.1:6499/dark
-```
-
 WebStorm:
 
 ```text
-Run/Debug Configurations -> Bun Attach -> ws://127.0.0.1:6499/dark
+Run/Debug Configurations -> Bun Attach -> ws://127.0.0.1:6499/
 ```
 
 Когда target остановится на breakpoint-е, snapshot будет здесь:
 
 ```text
-dark/debug/.agent-state.json
+.metafor/debug/agent-state.json
 ```
 
 ## Запуск Target Через REST
@@ -53,13 +56,11 @@ curl -sS -X POST http://127.0.0.1:6500/target/run \
   -H 'content-type: application/json' \
   -d '{
     "command": [
-      "bun", "test", "dark/server.spec.ts",
-      "--timeout=2147483647",
-      "--inspect-wait=ws://127.0.0.1:6499/dark"
+      "bun", "test", "--timeout=2147483647", "./module.spec.ts"
     ],
     "cwd": "/absolute/path/to/metafor",
     "breakpoints": [
-      {"url": "/absolute/path/to/metafor/dark/server.ts", "line": 46}
+      {"url": "/absolute/path/to/metafor/module.ts", "line": 46}
     ]
   }'
 ```
@@ -103,14 +104,12 @@ DELETE /breakpoint
 
 | Имя | Default |
 |---|---|
-| `BUN_INSPECTOR_URL` | `ws://127.0.0.1:6499/bun` |
+| `BUN_INSPECTOR_URL` | `ws://127.0.0.1:6499/` |
 | `AGENT_DUMP_PATH` | `.metafor/debug/agent-state.json` |
 | `AGENT_HTTP_HOST` | `127.0.0.1` |
 | `AGENT_HTTP_PORT` | `6500` |
 | `AGENT_INITIALIZE_FALLBACK_MS` | `1500` |
 | `AGENT_REQUEST_TIMEOUT_MS` | `10000` |
-
-`dark/debug/agent-attach.ts` переопределяет defaults на `/dark` и `dark/debug/.agent-state.json`.
 
 ## Проверка
 
@@ -122,7 +121,7 @@ bun run --filter @metafor/bun-debug typecheck
 
 - [Архитектура](docs/architecture.md)
 - [API](docs/api.md)
-- [Workflow WebStorm/Chrome](docs/workflow.md)
+- [Workflow MetaFor UI/WebStorm](docs/workflow.md)
 - [Bun Inspector Protocol](docs/bun-inspector.md)
 - [Acceptance сценарии](docs/acceptance.md)
 - [Troubleshooting](docs/troubleshooting.md)

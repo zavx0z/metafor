@@ -14,7 +14,7 @@
 import {spawn, type Subprocess} from "bun"
 import type {EventLogger} from "./logger.ts"
 import {serializeError} from "./errors.ts"
-import {applyInspectMode} from "./inspect-mode.ts"
+import {applyInspectMode, type InspectMode} from "./inspect-mode.ts"
 
 export type TargetState = "idle" | "starting" | "running" | "exited" | "failed"
 
@@ -120,6 +120,7 @@ export class TargetSupervisor {
     cwd?: string
     env?: Record<string, string>
     pauseOnStart?: boolean
+    inspectMode?: InspectMode
     inspectorUrl?: string
     breakpoints?: BreakpointSpec[]
   }): TargetSnapshot {
@@ -133,10 +134,9 @@ export class TargetSupervisor {
       throw new Error("command must contain only strings")
     }
 
-    const pauseOnStart = options.pauseOnStart ?? false
-    this.#command = pauseOnStart
-      ? applyInspectMode(options.command, "brk", options.inspectorUrl ?? "ws://127.0.0.1:6499/dark")
-      : [...options.command]
+    const inspectMode = options.inspectMode ?? (options.pauseOnStart === true ? "brk" : "wait")
+    const pauseOnStart = inspectMode === "brk"
+    this.#command = applyInspectMode(options.command, inspectMode, options.inspectorUrl ?? "ws://127.0.0.1:6499/")
     this.#cwd = options.cwd ?? process.cwd()
     this.#exitCode = null
     this.#signalCode = null

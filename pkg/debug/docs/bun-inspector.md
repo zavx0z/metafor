@@ -22,14 +22,13 @@ Runtime.runIfWaitingForDebugger
 Для WebStorm нужен JetBrains Bun plugin.
 Он добавляет Bun-specific run/debug configuration.
 
-Для браузера:
+Основной браузерный интерфейс в MetaFor — локальный UI sidecar:
 
 ```text
-https://debug.bun.sh/#127.0.0.1:<port>/<path>
+http://127.0.0.1:6500/
 ```
 
-Рекомендуется Chrome.
-Safari может блокировать `ws://` с HTTPS-страницы.
+Внешний Bun web debugger можно использовать только как отдельный reference-инструмент.
 
 ## Handshake
 
@@ -59,7 +58,7 @@ Inspector.initialized
 `Debugger.enable`
 
 Включает debugger domain и даёт `Debugger.scriptParsed`, `Debugger.paused`, `Debugger.resumed`.
-Если Chrome или WebStorm уже включили debugger domain, Bun может вернуть `Debugger domain already enabled`.
+Если другой debugger уже включил debugger domain, Bun может вернуть `Debugger domain already enabled`.
 Sidecar считает это нормальным состоянием второго клиента и продолжает работу.
 
 `Debugger.setBreakpointsActive`
@@ -92,7 +91,7 @@ AGENT_INITIALIZE_FALLBACK_MS=1500
 Для строгого human-led режима:
 
 ```sh
-AGENT_INITIALIZE_FALLBACK_MS=0 bun run dark/debug/agent-attach.ts
+AGENT_INITIALIZE_FALLBACK_MS=0 bun run debug
 ```
 
 ## Breakpoint-ы
@@ -123,12 +122,12 @@ AGENT_INITIALIZE_FALLBACK_MS=0 bun run dark/debug/agent-attach.ts
 - `Debugger.paused` тоже отдаёт generated coordinates.
 - Sidecar маппит breakpoint туда и snapshot обратно в editor coordinates.
 
-Для human-led workflow всё ещё можно ставить breakpoint-ы руками в WebStorm/Chrome.
+Для human-led workflow всё ещё можно ставить breakpoint-ы руками в WebStorm или MetaFor UI.
 Sidecar при этом только слушает `Debugger.paused` и читает state.
 
 ## Подключение Вторым Клиентом К Уже Остановленному Target
 
-Практическое ограничение Bun 1.3.13: если Chrome/WebStorm уже остановил target на breakpoint-е,
+Практическое ограничение Bun 1.3.13: если внешний debugger уже остановил target на breakpoint-е,
 а sidecar подключается только после этой остановки, Bun принимает WebSocket, но может не обработать
 `Inspector.enable`/`Runtime.enable`/`Debugger.enable` до выхода из текущей pause.
 
@@ -142,7 +141,7 @@ Sidecar при этом только слушает `Debugger.paused` и чит�
 sidecar должен быть запущен до breakpoint-а, на котором агент должен видеть live state
 ```
 
-Если sidecar запущен уже после остановки в Chrome/WebStorm, он обычно начнёт получать события со
+Если sidecar запущен уже после остановки во внешнем debugger, он обычно начнёт получать события со
 следующего breakpoint/step-pause.
 
 ## Debugger.pause

@@ -5,31 +5,24 @@
 ## 1. Запустить Target
 
 ```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/server.spec.ts
+bun run debug -- bun test --timeout=2147483647 ./module.spec.ts
 ```
 
 `--timeout=2147483647` нужен, чтобы тест не упал, пока человек долго стоит на breakpoint-е.
 Это около 24.8 дней на тест.
 
-Ожидаемый banner:
+Sidecar добавит `--inspect-brk=ws://127.0.0.1:6499/`, запустит target и откроет UI/API на:
 
 ```text
-Listening:
-  ws://127.0.0.1:6499/dark
-Inspect in browser:
-  https://debug.bun.sh/#127.0.0.1:6499/dark
+http://127.0.0.1:6500/
 ```
 
-## 2. Запустить Sidecar
+## 2. Проверить Sidecar
 
-```sh
-bun run dark/debug/agent-attach.ts
-```
-
-Ожидаемый stderr:
+Ожидаемые строки в stderr:
 
 ```text
-[bun-debug-agent] attaching to ws://127.0.0.1:6499/dark
+[bun-debug-agent] attaching to ws://127.0.0.1:6499/
 [bun-debug-agent] inspector socket connected
 ```
 
@@ -38,18 +31,12 @@ bun run dark/debug/agent-attach.ts
 WebStorm:
 
 ```text
-Bun Attach -> ws://127.0.0.1:6499/dark
-```
-
-Или Chrome:
-
-```text
-https://debug.bun.sh/#127.0.0.1:6499/dark
+Bun Attach -> ws://127.0.0.1:6499/
 ```
 
 ## 4. Поставить Breakpoint
 
-Поставить breakpoint в прикладном коде, например в `dark/server.ts`.
+Поставить breakpoint в прикладном коде.
 
 В human-led режиме breakpoint ставит человек.
 Sidecar только слушает `Debugger.paused` и пишет snapshot.
@@ -59,13 +46,13 @@ Sidecar только слушает `Debugger.paused` и пишет snapshot.
 Когда breakpoint сработал, должен появиться файл:
 
 ```text
-dark/debug/.agent-state.json
+.metafor/debug/agent-state.json
 ```
 
 Проверить:
 
 ```sh
-cat dark/debug/.agent-state.json
+cat .metafor/debug/agent-state.json
 ```
 
 Внутри должны быть:
@@ -104,13 +91,11 @@ curl -sS -X POST http://127.0.0.1:6500/target/run \
   -H 'content-type: application/json' \
   -d '{
     "command": [
-      "bun", "test", "dark/server.spec.ts",
-      "--timeout=2147483647",
-      "--inspect-wait=ws://127.0.0.1:6499/dark"
+      "bun", "test", "--timeout=2147483647", "./module.spec.ts"
     ],
     "cwd": "/absolute/path/to/metafor",
     "breakpoints": [
-      {"url": "/absolute/path/to/metafor/dark/server.ts", "line": 46}
+      {"url": "/absolute/path/to/metafor/module.ts", "line": 46}
     ]
   }'
 ```

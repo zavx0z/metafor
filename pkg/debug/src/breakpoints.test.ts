@@ -68,6 +68,17 @@ describe("logicalBreakpointParams", () => {
     })
   })
 
+  test("defers local TypeScript breakpoints until scriptId source-map install", () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const file = join(dir, "server.ts")
+      writeFileSync(file, "const value: number = 1\nconsole.log(value)\n")
+      expect(logicalBreakpointParams({url: file, line: 2})).toBeNull()
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
   test("pre-resolves local TypeScript source breakpoints to runtime coordinates", () => {
     const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
     try {

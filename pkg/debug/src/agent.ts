@@ -7,12 +7,26 @@ import {InspectorClient} from "./inspector-client.ts"
 import {EventLogger} from "./logger.ts"
 import {SnapshotStore} from "./snapshot.ts"
 import {startHttpServer, type HttpServer} from "./server.ts"
-import {TargetSupervisor} from "./target.ts"
+import {TargetSupervisor, type BreakpointSpec} from "./target.ts"
 import {sleep} from "./time.ts"
 import type {JsonObject} from "./types.ts"
 import {serializeError} from "./errors.ts"
+import type {InspectMode} from "./inspect-mode.ts"
 
-export async function runAgent(config: AgentConfig = loadConfig()): Promise<never> {
+export type StartupTargetOptions = {
+  command: string[]
+  cwd?: string
+  env?: Record<string, string>
+  pauseOnStart?: boolean
+  inspectMode?: InspectMode
+  breakpoints?: BreakpointSpec[]
+}
+
+export type RunAgentOptions = {
+  startupTarget?: StartupTargetOptions
+}
+
+export async function runAgent(config: AgentConfig = loadConfig(), options: RunAgentOptions = {}): Promise<never> {
   ensureParentDir(config.dumpPath)
   ensureParentDir(config.consoleLogPath)
   ensureParentDir(config.commandPath)
@@ -85,6 +99,27 @@ export async function runAgent(config: AgentConfig = loadConfig()): Promise<neve
   }
   runtime.attachHttpServer(httpServer)
   runtime.attachTarget(target)
+
+  if (options.startupTarget !== undefined) {
+    try {
+      const snapshot = target.start({
+        ...options.startupTarget,
+        inspectorUrl: config.inspectorUrl,
+      })
+      logger.event("target.startup.started", {
+        pid: snapshot.pid,
+        command: snapshot.command,
+        cwd: snapshot.cwd,
+        pauseOnStart: snapshot.pauseOnStart,
+      })
+    } catch (error) {
+      logger.event("target.startup.failed", {
+        command: options.startupTarget.command,
+        error: serializeError(error),
+      })
+      logger.status(`startup target failed: ${serializeError(error)}`)
+    }
+  }
 
   process.on("SIGINT", () => runtime.shutdown(130))
   process.on("SIGTERM", () => runtime.shutdown(143))
@@ -196,7 +231,7 @@ class AgentRuntime {
 
   #diagnoseConnectError(message: string): string {
     if (message.includes("Expected 101")) {
-      return `target отвечает HTTP, не WebSocket — путь URL ('${this.#client.url}') не совпадает с тем что слушает Bun-инспектор. Используй POST /inspector или env BUN_INSPECTOR_URL чтобы сменить путь (например /dark)`
+      return `target отвечает HTTP, не WebSocket — URL ('${this.#client.url}') не совпадает с тем что слушает Bun-инспектор. Используй POST /inspector или env BUN_INSPECTOR_URL чтобы сменить endpoint`
     }
     if (message.includes("ECONNREFUSED") || message.includes("Failed to connect")) {
       return `target не запущен на ${this.#client.url} — запусти 'bun ... --inspect-wait=${this.#client.url}'`
@@ -262,13 +297,14 @@ class AgentRuntime {
     await this.#requestSetup("Debugger.setPauseOnDebuggerStatements", {enabled: true})
     await this.#requestSetup("Debugger.setPauseOnExceptions", {state: "none"})
 
-    // Pre-set breakpoints from POST /target/run. Сначала армируем logical
-    // breakpoint by URL, чтобы поймать верх модуля до scriptParsed handler'а;
-    // после scriptParsed store дополнительно ставит конкретный scriptId bp.
+    // Pre-set breakpoints from POST /target/run. Logical by URL is used only
+    // where it is stable; local TS files wait for exact scriptId/source-map
+    // placement to avoid invisible runtime-line stops.
     const pendingBps = this.#target?.consumePendingBreakpoints() ?? []
     if (pendingBps.length > 0) {
       const registrations = this.#breakpoints.addMany(pendingBps)
       await this.#breakpoints.armPendingByUrl(registrations.map((registration) => registration.id))
+      await this.#breakpoints.applyToScripts(this.#snapshots.scripts)
       this.#logger.event("breakpoint.pending.registered", {count: registrations.length, registrations})
     }
 

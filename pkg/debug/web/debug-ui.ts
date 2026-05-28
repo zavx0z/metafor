@@ -96,18 +96,19 @@ export type DebugModuleSnapshot = {
 export type WelcomeState = {
   connectionState: "connecting" | "connected" | "disconnected"
   connectionError: string | null
-  inspectorUrl: string
   targetStatus: string
   defaultCommand: string
   pauseOnStart: boolean
+  workspaceFiles: readonly string[]
+  selectedTargetFile: string
   locale: "ru" | "en"
 }
 
 export type WelcomeActions = {
   onRun(command: string, pauseOnStart: boolean): void
   onStop(): void
-  onApplyInspector(url: string): void
   onPauseOnStart(pause: boolean): void
+  onSelectFile(path: string): void
   onToggleLocale(): void
 }
 

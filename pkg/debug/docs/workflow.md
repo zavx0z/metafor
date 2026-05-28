@@ -1,4 +1,4 @@
-# Workflow WebStorm/Chrome
+# Workflow MetaFor UI/WebStorm
 
 ## WebStorm
 
@@ -13,67 +13,58 @@ Attach to Node.js/Chrome
 
 Эта конфигурация говорит CDP, а Bun inspector — WebKit Inspector Protocol.
 
+## Запуск Через MetaFor UI
+
+Запустить sidecar и target одной командой:
+
+```sh
+bun run debug -- ./module.ts
+```
+
+Если нужны стандартные параметры Bun debugger, передать их как обычные Bun args:
+
+```sh
+bun run debug -- --inspect-wait ./module.ts -- --flag value
+bun run debug -- bun test --timeout=2147483647 ./module.spec.ts -- --grep case
+```
+
+Если `--inspect*` не указан, sidecar добавит `--inspect-brk=ws://127.0.0.1:6499/`.
+UI доступен на `http://127.0.0.1:6500/`.
+
 ## Запуск С WebStorm
 
-Терминал 1:
+Можно запустить target отдельно:
 
 ```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/server.spec.ts
+bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/ ./module.spec.ts
+bun run debug
 ```
 
-Терминал 2:
-
-```sh
-bun run dark/debug/agent-attach.ts
-```
-
-WebStorm:
+WebStorm подключается attach-конфигурацией:
 
 ```text
-Run/Debug Configurations -> Bun Attach -> ws://127.0.0.1:6499/dark
+Run/Debug Configurations -> Bun Attach -> ws://127.0.0.1:6499/
 ```
 
 Важно: в этом workflow WebStorm используется именно как Attach.
-Target запускается из терминала с `--inspect-wait=ws://127.0.0.1:6499/dark`.
+Target запускается из терминала с `--inspect-wait=ws://127.0.0.1:6499/`.
 Если нажать Run/Debug прямо в WebStorm, JetBrains Bun plugin может запустить Bun через `BUN_INSPECT=ws+unix://...`; это другой endpoint, и sidecar с TCP default его не увидит.
 
 Дальше:
 
 1. Поставить breakpoint в IDE.
 2. Дождаться остановки.
-3. Агент читает `dark/debug/.agent-state.json`.
+3. Агент читает `.metafor/debug/agent-state.json`.
 4. Агент при необходимости отправляет `eval` в sidecar stdin.
 5. Человек делает Step Over/Into/Out в IDE.
 6. Sidecar автоматически пишет новый dump на следующей остановке.
-
-## Запуск С Chrome
-
-Терминал 1:
-
-```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/server.spec.ts
-```
-
-Терминал 2:
-
-```sh
-bun run dark/debug/agent-attach.ts
-```
-
-Chrome:
-
-```text
-https://debug.bun.sh/#127.0.0.1:6499/dark
-```
-
-Safari лучше не использовать: он может блокировать `ws://` с HTTPS-страницы.
 
 ## Timeout Тестов
 
 При ручной отладке тестов использовать максимальный timeout:
 
 ```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/server.spec.ts
+bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/ ./module.spec.ts
 ```
 
 Если timeout не поднять, тест может завершиться, пока execution стоит на breakpoint-е.
@@ -97,9 +88,9 @@ bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/serve
 curl -sS -X POST http://127.0.0.1:6500/target/run \
   -H 'content-type: application/json' \
   -d '{
-    "command": ["bun","test","dark/server.spec.ts","--timeout=2147483647","--inspect-wait=ws://127.0.0.1:6499/dark"],
+    "command": ["bun","test","--timeout=2147483647","./module.spec.ts"],
     "cwd": "/absolute/path/to/metafor",
-    "breakpoints": [{"url": "/absolute/path/to/metafor/dark/server.ts", "line": 46}]
+    "breakpoints": [{"url": "/absolute/path/to/metafor/module.ts", "line": 46}]
   }'
 ```
 
@@ -122,7 +113,7 @@ Sidecar:
 Агент:
 
 - запускает sidecar
-- читает `.agent-state.json`
+- читает `.metafor/debug/agent-state.json`
 - интерпретирует top-frame locals/closures
 - отправляет NDJSON-команды, когда нужен точный runtime ответ
 
@@ -143,17 +134,17 @@ Sidecar:
 Если человек должен успеть подключиться первым:
 
 ```sh
-AGENT_INITIALIZE_FALLBACK_MS=30000 bun run dark/debug/agent-attach.ts
+AGENT_INITIALIZE_FALLBACK_MS=30000 bun run debug
 ```
 
 Если sidecar не должен разблокировать target вообще:
 
 ```sh
-AGENT_INITIALIZE_FALLBACK_MS=0 bun run dark/debug/agent-attach.ts
+AGENT_INITIALIZE_FALLBACK_MS=0 bun run debug
 ```
 
 Если нужен automation smoke-test:
 
 ```sh
-AGENT_INITIALIZE_FALLBACK_MS=1000 bun run dark/debug/agent-attach.ts
+AGENT_INITIALIZE_FALLBACK_MS=1000 bun run debug
 ```

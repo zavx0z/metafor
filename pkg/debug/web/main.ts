@@ -36,7 +36,7 @@ type ConnectionState = "connecting" | "connected" | "disconnected"
 type ScriptSnapshot = {scriptId: string; url: string; hasSourceMap?: boolean; sources?: string[]}
 
 type ServerMessage =
-  | {type: "hello"; inspectorUrl: string; paused: boolean; dump: AgentDump | null; scripts: ScriptSnapshot[]; connection: ConnectionInfo}
+  | {type: "hello"; inspectorUrl: string; paused: boolean; dump: AgentDump | null; scripts: ScriptSnapshot[]; target: TargetSnapshot; connection: ConnectionInfo}
   | {type: "state"; dump: AgentDump}
   | {type: "resumed"}
   | {type: "console"; entries: ConsoleEntry[]}
@@ -51,6 +51,16 @@ type TargetEvent =
   | {type: "started"; pid: number; command: string[]; cwd: string | null; startedAt: string}
   | {type: "line"; line: {ts: string; stream: "stdout" | "stderr"; text: string}}
   | {type: "exited"; exitCode: number | null; signalCode: string | null; exitedAt: string}
+
+type TargetSnapshot = {
+  state: "idle" | "starting" | "running" | "exited" | "failed"
+  pid: number | null
+  command: string[]
+  cwd: string | null
+  startedAt: string | null
+  exitedAt: string | null
+  exitCode: number | null
+}
 
 type AgentDump = {
   timestamp: string
@@ -169,6 +179,9 @@ const targetState = {
   exitedAt: null as string | null,
 }
 
+let workspaceFiles: string[] = []
+let selectedTargetFile = localStorage.getItem("bd:target:file") ?? ""
+
 let socket: WebSocket | undefined
 let currentDump: AgentDump | undefined
 let activeFrameIndex = 0
@@ -211,6 +224,7 @@ function handleServerMessage(msg: ServerMessage): void {
     case "hello":
       inspectorUrl = msg.inspectorUrl
       rememberScripts(msg.scripts)
+      applyTargetSnapshot(msg.target)
       applyConnection(msg.connection)
       if (msg.paused && msg.dump !== null) {
         currentDump = msg.dump
@@ -235,6 +249,7 @@ function handleServerMessage(msg: ServerMessage): void {
       setRunStatus(`paused (${msg.dump.reason})`, "paused")
       setSourceRuntimeState("paused")
       hideWelcome()
+      void refreshBreakpoints()
       return
     case "resumed":
       finishDebuggerCommandForEvent("resumed")
@@ -340,7 +355,12 @@ function hideWelcome(): void {
 }
 
 function refreshWelcome(): void {
-  if (connectionState === "connected" || currentDump !== undefined) {
+  if (
+    connectionState === "connected"
+    || currentDump !== undefined
+    || targetState.state === "running"
+    || targetState.state === "starting"
+  ) {
     hideWelcome()
     return
   }
@@ -362,11 +382,41 @@ function describeTargetStatus(): string {
   }
 }
 
+function applyTargetSnapshot(snapshot: TargetSnapshot | undefined): void {
+  if (snapshot === undefined) return
+  targetState.state = snapshot.state
+  targetState.pid = snapshot.pid
+  targetState.startedAt = snapshot.startedAt
+  targetState.exitedAt = snapshot.exitedAt
+  targetState.exitCode = snapshot.exitCode
+  if (snapshot.command.length > 0) {
+    seedModuleGraphFromCommand(snapshot.command)
+    const command = shellJoin(snapshot.command)
+    localStorage.setItem("bd:target:cmd", command)
+  }
+  updateToolbar()
+  updateWelcomePane()
+}
+
 function defaultTargetCommand(): string {
-  const url = inspectorUrl || "ws://127.0.0.1:6499/dark"
-  const raw = localStorage.getItem("bd:target:cmd")
-    ?? `bun test --timeout=2147483647 --inspect-wait=${url} dark/server.spec.ts`
+  const url = inspectorUrl || "ws://127.0.0.1:6499/"
+  const stored = localStorage.getItem("bd:target:cmd")
+  const raw = stored !== null && !isLegacyDefaultTargetCommand(stored)
+    ? stored
+    : defaultTargetCommandBase()
   return commandTextWithInspectMode(raw, defaultPauseOnStart(), url)
+}
+
+function defaultTargetCommandBase(): string {
+  const selected = selectedTargetFile.trim()
+  if (selected.length > 0) return targetCommandForFile(selected)
+  const first = workspaceFiles[0]
+  if (first !== undefined) return targetCommandForFile(first)
+  return "bun"
+}
+
+function isLegacyDefaultTargetCommand(command: string): boolean {
+  return command.includes("dark/server.spec.ts") && command.includes("--timeout=2147483647")
 }
 
 function defaultPauseOnStart(): boolean {
@@ -411,7 +461,7 @@ function handleTargetEvent(event: TargetEvent): void {
 }
 
 async function startTargetFromCmd(rawCmd: string, pauseOnStart: boolean): Promise<void> {
-  const cmd = commandTextWithInspectMode(rawCmd.trim(), pauseOnStart, inspectorUrl || "ws://127.0.0.1:6499/dark")
+  const cmd = commandTextWithInspectMode(rawCmd.trim(), pauseOnStart, inspectorUrl || "ws://127.0.0.1:6499/")
   if (cmd.length === 0) return
   localStorage.setItem("bd:target:cmd", cmd)
   const command = parseShellArgs(cmd)
@@ -522,29 +572,6 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function applyInspectorUrl(nextUrl: string): Promise<void> {
-  const next = nextUrl.trim()
-  if (next.length === 0) return
-  try {
-    const res = await fetch("/inspector", {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify({url: next}),
-    })
-    const data = await res.json() as {ok: boolean; error?: string; previous?: string}
-    if (!data.ok) connectionError = data.error ?? "unknown inspector error"
-    else {
-      inspectorUrl = next
-      connectionError = null
-    }
-  } catch (error) {
-    connectionError = `fetch failed: ${String(error)}`
-  } finally {
-    updateToolbar()
-    updateWelcomePane()
-  }
-}
-
 function parseShellArgs(input: string): string[] {
   const out: string[] = []
   let buf = ""
@@ -577,6 +604,13 @@ function commandTextWithInspectMode(raw: string, pauseOnStart: boolean, url: str
   return shellJoin(applyInspectMode(parts, mode, url))
 }
 
+function targetCommandForFile(path: string): string {
+  const command = path.endsWith(".spec.ts") || path.endsWith(".test.ts")
+    ? ["bun", "test", "--timeout=2147483647", path]
+    : ["bun", path]
+  return shellJoin(command)
+}
+
 function shellJoin(parts: string[]): string {
   return parts.map(shellQuote).join(" ")
 }
@@ -584,6 +618,38 @@ function shellJoin(parts: string[]): string {
 function shellQuote(part: string): string {
   if (/^[A-Za-z0-9_./:=@+-]+$/.test(part)) return part
   return `'${part.replaceAll("'", "'\\''")}'`
+}
+
+function selectTargetFile(path: string): void {
+  selectedTargetFile = path
+  localStorage.setItem("bd:target:file", path)
+  localStorage.setItem("bd:target:cmd", targetCommandForFile(path))
+  updateWelcomePane()
+}
+
+async function refreshWorkspaceFiles(): Promise<void> {
+  try {
+    const res = await fetch("/workspace/files?limit=80")
+    const data = await res.json() as {files?: Array<{path?: unknown}>}
+    workspaceFiles = (data.files ?? [])
+      .map((file) => typeof file.path === "string" ? file.path : "")
+      .filter((path) => path.length > 0)
+    if (selectedTargetFile.length === 0) {
+      const preferred = preferredWorkspaceFile(workspaceFiles)
+      if (preferred !== undefined) {
+        selectedTargetFile = preferred
+        localStorage.setItem("bd:target:file", preferred)
+      }
+    }
+  } catch (error) {
+    appendConsole({ts: new Date().toISOString(), level: "warn", text: `[ui] workspace files: ${String(error)}`})
+  } finally {
+    updateWelcomePane()
+  }
+}
+
+function preferredWorkspaceFile(files: readonly string[]): string | undefined {
+  return files.find((file) => file.endsWith(".spec.ts") || file.endsWith(".test.ts")) ?? files[0]
 }
 
 function appendVerbose(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
@@ -634,6 +700,10 @@ function stringArraysEqual(a: string[], b: string[]): boolean {
 function seedModuleGraphFromCommand(command: string[]): void {
   for (const part of command) {
     if (part.startsWith("-") || !isProjectDebugModule(part)) continue
+    if (selectedTargetFile.length === 0) {
+      selectedTargetFile = part
+      localStorage.setItem("bd:target:file", part)
+    }
     queuePendingModule([part])
   }
 }
@@ -1210,10 +1280,11 @@ function updateWelcomePane(): void {
   const state: WelcomeState = {
     connectionState,
     connectionError,
-    inspectorUrl: inspectorUrl || "ws://127.0.0.1:6499/dark",
     targetStatus: describeTargetStatus(),
     defaultCommand: defaultTargetCommand(),
     pauseOnStart: defaultPauseOnStart(),
+    workspaceFiles,
+    selectedTargetFile,
     locale: getUiLocale(),
   }
   welcomePane?.setState(state)
@@ -1450,11 +1521,11 @@ async function initEngine(): Promise<void> {
     welcomePane = new WelcomePane({
       onRun: (command, pauseOnStart) => void startTargetFromCmd(command, pauseOnStart),
       onStop: () => void stopTarget(),
-      onApplyInspector: (url) => void applyInspectorUrl(url),
       onPauseOnStart: (pause) => {
         localStorage.setItem("bd:target:brk", pause ? "1" : "0")
         updateWelcomePane()
       },
+      onSelectFile: (path) => selectTargetFile(path),
       onToggleLocale: () => toggleLocale(),
     })
     installEnginePanes()
@@ -1466,6 +1537,7 @@ async function initEngine(): Promise<void> {
     setEngineStatus("engine: webgpu")
     updateToolbar()
     updateWelcomePane()
+    void refreshWorkspaceFiles()
     refreshWelcome()
 
     if (currentDump !== undefined) {
@@ -1801,7 +1873,12 @@ function sourceHeaderLocation(): string {
   if (sourceRuntimeState === "loading") return t("sourceLoading")
   if (sourceRuntimeState === "running" && engineLastSource !== null) return `${t("sourceLastPaused")}: ${sourceDisplayLocation(engineLastSource.location)}`
   if (sourceRuntimeState === "running") return t("sourceRunning")
-  return sourceDisplayLocation(engineLastSource?.location) || t("sourceWaiting")
+  const location = sourceDisplayLocation(engineLastSource?.location) || t("sourceWaiting")
+  if (sourceRuntimeState === "paused" && currentDump !== undefined) {
+    const hit = currentDump.hitBreakpoints.length > 0 ? ` #${currentDump.hitBreakpoints.join(",")}` : ""
+    return `${location} - ${currentDump.reason}${hit}`
+  }
+  return location
 }
 
 function sourceKeyFromLocation(location: string, fallback = ""): string {
@@ -1886,8 +1963,6 @@ async function runDebuggerCommand(cmd: string, params: Record<string, unknown>, 
   const command = beginDebuggerCommand(cmd, label)
   if (command === null) return
 
-  const started = new Date().toISOString()
-  appendConsole({ts: started, level: "debug", text: `[ui] ${label}: ${t("commandExecuting")}`})
   if (cmd === "pause") {
     clearPendingPause()
     setRunStatus(t("pauseRequested"), "paused")
@@ -1899,10 +1974,9 @@ async function runDebuggerCommand(cmd: string, params: Record<string, unknown>, 
   const finished = new Date().toISOString()
   if (response.ok) {
     if (cmd === "pause") {
-      armPendingPause(finished)
+      armPendingPause()
       return
     }
-    appendConsole({ts: finished, level: "debug", text: `[ui] ${label}: ${t("commandAccepted")}`})
     if (cmd !== "step") clearDebuggerCommandIf(command, "accepted")
     return
   }
@@ -1911,9 +1985,8 @@ async function runDebuggerCommand(cmd: string, params: Record<string, unknown>, 
   restoreRunStatus()
 }
 
-function armPendingPause(ts: string): void {
+function armPendingPause(): void {
   pendingPauseStartedAt = Date.now()
-  appendConsole({ts, level: "debug", text: `[ui] ${t("pause")}: ${t("commandAccepted")}; ${t("pausePending")}`})
   setRunStatus(t("pausePending"), "paused")
   pendingPauseTimer = window.setTimeout(() => {
     pendingPauseTimer = null

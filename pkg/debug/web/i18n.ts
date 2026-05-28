@@ -53,14 +53,12 @@ export const text = {
   autoscrollOff: {ru: "Автоскролл выключен", en: "Autoscroll off"},
   autoscrollOn: {ru: "Автоскролл включён", en: "Autoscroll on"},
   auto: {ru: "Авто", en: "Auto"},
-  applyInspector: {ru: "Применить inspector URL", en: "Apply inspector URL"},
   clean: {ru: "без изменений", en: "clean"},
   close: {ru: "Закрыть", en: "Close"},
   clearVerbose: {ru: "Очистить события", en: "Clear events"},
   closure: {ru: "замыкания", en: "closure"},
   commandAccepted: {ru: "команда принята", en: "command accepted"},
   commandAlreadyRunning: {ru: "команда уже выполняется", en: "command already running"},
-  commandExact: {ru: "BRK на старте использует --inspect-brk.", en: "BRK on start uses --inspect-brk."},
   commandExecuting: {ru: "Выполняется", en: "Executing"},
   commandFailed: {ru: "команда не выполнена", en: "command failed"},
   consoleTarget: {ru: "Вывод", en: "Output"},
@@ -134,6 +132,8 @@ export const text = {
   verboseEmpty: {ru: "поток inspector и agent", en: "inspector and agent stream"},
   waitingFrames: {ru: "ожидание фрейма на паузе", en: "waiting for paused frame"},
   waitingStdout: {ru: "ожидание stdout/stderr процесса...", en: "waiting for process stdout/stderr..."},
+  workspaceFiles: {ru: "Файл", en: "File"},
+  workspaceFilesEmpty: {ru: "файлы workspace не найдены", en: "no workspace files found"},
 } as const
 
 export type TextKey = keyof typeof text

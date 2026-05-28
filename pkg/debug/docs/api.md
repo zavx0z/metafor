@@ -23,12 +23,6 @@ Default package path:
 .metafor/debug/agent-state.json
 ```
 
-Default dark wrapper path:
-
-```text
-dark/debug/.agent-state.json
-```
-
 ## Snapshot Shape
 
 ```ts
@@ -97,11 +91,11 @@ POST   /inspector
 
 ```json
 {
-  "command": ["bun", "test", "dark/server.spec.ts", "--timeout=2147483647", "--inspect-wait=ws://127.0.0.1:6499/dark"],
+  "command": ["bun", "test", "--timeout=2147483647", "./module.spec.ts"],
   "cwd": "/absolute/path/to/metafor",
   "pauseOnStart": false,
   "breakpoints": [
-    {"url": "/absolute/path/to/metafor/dark/server.ts", "line": 46}
+    {"url": "/absolute/path/to/metafor/module.ts", "line": 46}
   ]
 }
 ```
@@ -125,7 +119,7 @@ Sidecar переводит координаты через `sourceMapURL` из `
 `POST /breakpoint` добавляет breakpoint к уже подключённому target:
 
 ```json
-{"url": "/absolute/path/to/metafor/dark/server.ts", "line": 46}
+{"url": "/absolute/path/to/metafor/module.ts", "line": 46}
 ```
 
 `DELETE /breakpoint` принимает id регистрации или конкретный Bun `breakpointId`:

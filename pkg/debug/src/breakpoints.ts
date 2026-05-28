@@ -315,9 +315,6 @@ export class BreakpointStore {
 }
 
 export function logicalBreakpointParams(spec: BreakpointSpec): JsonObject | null {
-  const runtimeParams = runtimeBreakpointParams(spec)
-  if (runtimeParams !== null) return runtimeParams
-
   const params: JsonObject = {
     lineNumber: Math.max(0, Math.floor(spec.line) - 1),
     columnNumber: spec.column ?? 0,
@@ -329,6 +326,7 @@ export function logicalBreakpointParams(spec: BreakpointSpec): JsonObject | null
   }
   const url = spec.sourceUrl ?? spec.url
   if (url === undefined || url.length === 0) return null
+  if (isLocalTranspiledSource(url)) return null
   params["url"] = url
   return params
 }
@@ -418,6 +416,13 @@ function transpilerLoader(path: string): "js" | "jsx" | "ts" | "tsx" | null {
     default:
       return null
   }
+}
+
+function isLocalTranspiledSource(source: string, cwd = process.cwd()): boolean {
+  const path = localSourcePath(source, cwd)
+  if (path === null) return false
+  const loader = transpilerLoader(path)
+  return loader === "ts" || loader === "tsx"
 }
 
 function logicalBreakpointUrl(params: JsonObject): string {

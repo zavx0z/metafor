@@ -17,8 +17,8 @@ lsof -nP -iTCP:6499 -sTCP:LISTEN
 Временно перейти на другой port:
 
 ```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6501/dark dark/server.spec.ts
-BUN_INSPECTOR_URL=ws://127.0.0.1:6501/dark bun run dark/debug/agent-attach.ts
+bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6501/ ./module.spec.ts
+BUN_INSPECTOR_URL=ws://127.0.0.1:6501/ bun run debug
 ```
 
 ## Тест Падает По Timeout Пока Стоит Breakpoint
@@ -26,7 +26,7 @@ BUN_INSPECTOR_URL=ws://127.0.0.1:6501/dark bun run dark/debug/agent-attach.ts
 Запускать тест с максимальным timeout:
 
 ```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/server.spec.ts
+bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/ ./module.spec.ts
 ```
 
 `2147483647` ms — примерно 24.8 дней.
@@ -38,16 +38,15 @@ bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/serve
 
 - inspector target реально запущен
 - port совпадает
-- path совпадает, например `/dark`
 - `BUN_INSPECTOR_URL` указан полностью
 
 Правильно:
 
 ```text
-ws://127.0.0.1:6499/dark
+ws://127.0.0.1:6499/
 ```
 
-Неправильно, если target слушает `/dark`:
+Неправильно, если sidecar/target ожидают canonical URL со slash:
 
 ```text
 ws://127.0.0.1:6499
@@ -63,7 +62,7 @@ ps eww -p <bun-pid> | rg BUN_INSPECT
 Для стандартного workflow перезапустить target из терминала:
 
 ```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/server.spec.ts
+bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/ ./module.spec.ts
 ```
 
 А WebStorm подключить через `Bun Attach`.
@@ -82,7 +81,7 @@ Dump появляется только после `Debugger.paused`.
 Event log:
 
 ```sh
-tail -n 80 dark/debug/.agent-events.log
+tail -n 80 .metafor/debug/agent-events.log
 ```
 
 Если в логе есть:
@@ -91,11 +90,11 @@ tail -n 80 dark/debug/.agent-events.log
 Debugger.enable: Debugger domain already enabled (-32000)
 ```
 
-Это нормальная ситуация, когда Chrome/WebStorm уже включил debugger domain.
+Это нормальная ситуация, когда MetaFor UI, WebStorm или другой debugger уже включил debugger domain.
 Актуальный sidecar игнорирует эту ошибку и продолжает слушать target.
 Если после этой строки идут постоянные reconnect/timeout-сообщения, перезапустить sidecar на свежей версии кода.
 
-## Sidecar Запущен После Того, Как Chrome Уже Стоит На Breakpoint
+## Sidecar Запущен После Того, Как Внешний Debugger Уже Стоит На Breakpoint
 
 В Bun 1.3.13 это отдельный edge case.
 Если target уже paused, новый WebSocket-клиент может подключиться, но Bun не будет обрабатывать его
@@ -113,31 +112,30 @@ inspector.request.soft_timeout method=Debugger.enable
 Что делать:
 
 1. Оставить sidecar запущенным.
-2. В Chrome/WebStorm нажать `Step` или `Resume`.
+2. Во внешнем debugger нажать `Step` или `Resume`.
 3. Дождаться следующей остановки.
-4. Проверить, что timestamp `dark/debug/.agent-state.json` обновился.
+4. Проверить, что timestamp `.metafor/debug/agent-state.json` обновился.
 
 Для надёжного workflow запускать sidecar до попадания на breakpoint:
 
 ```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/dark dark/server.spec.ts
-bun run dark/debug/agent-attach.ts
+bun run debug -- bun test --timeout=2147483647 ./module.spec.ts
 ```
 
-После этого подключать Chrome/WebStorm и ставить breakpoint.
+После этого открывать MetaFor UI или подключать WebStorm и ставить breakpoint.
 
 ## Процесс Начал Выполняться До Подключения IDE
 
 Увеличить fallback:
 
 ```sh
-AGENT_INITIALIZE_FALLBACK_MS=60000 bun run dark/debug/agent-attach.ts
+AGENT_INITIALIZE_FALLBACK_MS=60000 bun run debug
 ```
 
 Или отключить fallback:
 
 ```sh
-AGENT_INITIALIZE_FALLBACK_MS=0 bun run dark/debug/agent-attach.ts
+AGENT_INITIALIZE_FALLBACK_MS=0 bun run debug
 ```
 
 ## Scopes Пустые

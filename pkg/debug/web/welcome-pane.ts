@@ -23,25 +23,26 @@ const PAD = 18
 const SECTION_PAD = 14
 const GAP = 12
 const SUMMARY_H = 52
-const PROCESS_H = 114
 const FIELD_H = 32
 const BUTTON = 30
 const PANEL_RADIUS = 7
 const OUTER_RADIUS = 10
+const FILE_ROW_H = 25
+const FILE_ROW_GAP = 6
 
 export class WelcomePane extends UiSurface {
   #state: WelcomeState = {
     connectionState: "connecting",
     connectionError: null,
-    inspectorUrl: "",
     targetStatus: "target not started",
     defaultCommand: "",
     pauseOnStart: false,
+    workspaceFiles: [],
+    selectedTargetFile: "",
     locale: "ru",
   }
-  #url: TextFieldEditState = createTextFieldState("")
   #command: TextFieldEditState = createTextFieldState("")
-  #active: "command" | "url" | null = null
+  #active: "command" | null = null
   readonly #actions: WelcomeActions
 
   constructor(actions: WelcomeActions) {
@@ -53,7 +54,6 @@ export class WelcomePane extends UiSurface {
     const wasEmpty = this.#command.value.length === 0
     const previousDefault = this.#state.defaultCommand
     this.#state = next
-    if (this.#active !== "url") this.#url = keepInputText(this.#url, next.inspectorUrl)
     if (this.#active !== "command" && (wasEmpty || this.#command.value === previousDefault)) this.#command = keepInputText(this.#command, next.defaultCommand)
     this.requestRender()
   }
@@ -128,7 +128,8 @@ export class WelcomePane extends UiSurface {
     }
 
     const targetY = statusY + SUMMARY_H + GAP
-    this.#drawPanel(PAD, targetY, contentW, PROCESS_H)
+    const processH = Math.max(150, this.rectH - targetY - PAD)
+    this.#drawPanel(PAD, targetY, contentW, processH)
     const processActionW = BUTTON * 3 + 8 * 2
     const processActionX = PAD + contentW - SECTION_PAD - processActionW
     const processActionY = targetY + 9
@@ -160,7 +161,8 @@ export class WelcomePane extends UiSurface {
         this.requestRender()
       },
     })
-    input(this, PAD + SECTION_PAD, targetY + 48, contentW - SECTION_PAD * 2, FIELD_H, {
+    const commandY = targetY + 48
+    input(this, PAD + SECTION_PAD, commandY, contentW - SECTION_PAD * 2, FIELD_H, {
       value: this.#command.value,
       active: this.#active === "command",
       cursor: this.#command.cursor,
@@ -174,45 +176,41 @@ export class WelcomePane extends UiSurface {
         this.requestRender()
       },
     })
-    typography(this, PAD + SECTION_PAD + 2, targetY + 86, contentW - SECTION_PAD * 2, 14, {
-      children: t("commandExact"),
-      variant: "caption",
-    })
 
-    const inspectorY = targetY + PROCESS_H + GAP
-    const inspectorH = Math.max(88, this.rectH - inspectorY - PAD)
-    this.#drawPanel(PAD, inspectorY, contentW, inspectorH)
-    const applyW = 34
-    typography(this, PAD + SECTION_PAD, inspectorY + 12, contentW - SECTION_PAD * 2, 18, {
-      children: t("inspector"),
-      variant: "subtitle",
-      color: "cyan",
-    })
-    button(this, PAD + contentW - SECTION_PAD - applyW, inspectorY + 8, applyW, 30, {
-      label: t("applyInspector"), iconSrc: uiIcons.apply, iconOnly: true, tooltip: t("applyInspector"), tone: "neutral",
-      variant: "text",
-      action: () => this.#actions.onApplyInspector(this.#url.value),
-    })
-    input(this, PAD + SECTION_PAD, inspectorY + 48, contentW - SECTION_PAD * 2, FIELD_H, {
-      value: this.#url.value,
-      active: this.#active === "url",
-      cursor: this.#url.cursor,
-      selectionAnchor: this.#url.selectionAnchor,
-      submitOnEnter: true,
-      onChange: (_value, state) => this.#setActiveState("url", state),
-      onSubmit: () => this.#actions.onApplyInspector(this.#url.value),
-      onActivate: () => {
-        this.#active = "url"
-        this.#url = createTextFieldState(this.#url.value, this.#url.value.length)
-        this.requestRender()
-      },
-    })
-    const mirrorUrl = `https://debug.bun.sh/#${this.#url.value.replace(/^wss?:\/\//, "")}`
-    typography(this, PAD + SECTION_PAD + 2, inspectorY + inspectorH - 22, contentW - SECTION_PAD * 2, 14, {
-      children: mirrorUrl,
+    const filesY = commandY + FIELD_H + 14
+    typography(this, PAD + SECTION_PAD, filesY, contentW - SECTION_PAD * 2, 14, {
+      children: t("workspaceFiles"),
       variant: "caption",
+      color: "muted",
     })
+    this.#drawFileRows(PAD + SECTION_PAD, filesY + 19, contentW - SECTION_PAD * 2, Math.max(1, targetY + processH - filesY - 28))
 
+  }
+
+  #drawFileRows(x: number, y: number, w: number, h: number): void {
+    const maxRows = Math.max(0, Math.floor((h + FILE_ROW_GAP) / (FILE_ROW_H + FILE_ROW_GAP)))
+    const files = this.#state.workspaceFiles.slice(0, maxRows)
+    if (files.length === 0) {
+      typography(this, x + 2, y + 3, w - 4, 14, {
+        children: t("workspaceFilesEmpty"),
+        variant: "caption",
+      })
+      return
+    }
+
+    files.forEach((file, index) => {
+      const rowY = y + index * (FILE_ROW_H + FILE_ROW_GAP)
+      const selected = file === this.#state.selectedTargetFile
+      button(this, x, rowY, w, FILE_ROW_H, {
+        label: file,
+        tooltip: file,
+        variant: selected ? "outlined" : "text",
+        tone: selected ? "paused" : "neutral",
+        radius: 5,
+        fontPx: 11,
+        action: () => this.#actions.onSelectFile(file),
+      })
+    })
   }
 
   #drawOuterShell(): void {
@@ -237,8 +235,7 @@ export class WelcomePane extends UiSurface {
     })
   }
 
-  #setActiveState(active: "command" | "url" | null, state: TextFieldEditState): void {
-    if (active === "url") this.#url = state
+  #setActiveState(active: "command" | null, state: TextFieldEditState): void {
     if (active === "command") {
       this.#command = state
       localStorage.setItem("bd:target:cmd", state.value)
