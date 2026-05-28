@@ -24,6 +24,7 @@ import {
   breakpointSpecMatchesSource,
   sameSourceUrl,
 } from "./breakpoint-matching.ts"
+import {interactiveRestartPayload} from "./restart.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -826,18 +827,12 @@ async function restartModule(moduleId: string): Promise<void> {
   const command = snapshot?.target.command
   if (command === undefined || command.length === 0) return
   await stopModule(moduleId)
-  const body: {
-    label: string
-    command: string[]
-    pauseOnStart: boolean
-    breakpoints?: BreakpointSpec[]
-  } = {
-    label: snapshot?.label ?? moduleId,
-    command: command.filter((part) => !part.startsWith("--inspect")),
-    pauseOnStart: snapshot?.target.pauseOnStart ?? true,
-  }
   const breakpoints = readStoredBreakpointSpecs()
-  if (breakpoints.length > 0) body.breakpoints = breakpoints
+  const body = interactiveRestartPayload({
+    label: snapshot?.label ?? moduleId,
+    command,
+    breakpoints,
+  })
   try {
     await fetch(`/modules/${encodeURIComponent(moduleId)}/run`, {
       method: "POST",

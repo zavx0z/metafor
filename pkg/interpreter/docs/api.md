@@ -108,6 +108,8 @@ curl -sS -X POST http://127.0.0.1:6500/modules/syntax/command \
 
 Если `command` уже содержит `--inspect`, `--inspect-wait` или `--inspect-brk`, выбранный режим сохраняется, endpoint подставляется из URL модуля.
 
+UI-кнопка “Перезапустить модуль” поверх этого API всегда использует интерактивный режим: удаляет старый `--inspect*` из сохранённой команды и отправляет `pauseOnStart: true`.
+
 ## Breakpoints
 
 Breakpoint shape:
