@@ -95,7 +95,7 @@ export class InspectorClient {
 
       nextSocket.addEventListener("open", () => {
         settled = true
-        this.#logger.status("interpreter socket connected")
+        this.#logger.status("socket connected")
         this.#logger.event("socket.open", {url: this.url})
         this.#setSocketState("connected")
         resolve(nextSocket)

@@ -754,8 +754,7 @@
       "name": "@metafor/bun-debug",
       "version": "0.0.1",
       "bin": {
-        "metafor-bun-debug": "./agent-attach.ts",
-        "bun-debug-agent": "./agent-attach.ts",
+        "metafor-interpreter": "./agent-attach.ts",
       },
       "dependencies": {
         "@metafor/components": "workspace:*",

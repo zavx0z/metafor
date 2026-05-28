@@ -5,6 +5,7 @@ import type {JsonObject} from "./types.ts"
 
 export type AgentEventEntry = JsonObject & {timestamp: string; event: string}
 export type AgentEventHandler = (entry: AgentEventEntry) => void
+const STATUS_PREFIX = "[interpreter]"
 
 export class EventLogger {
   readonly eventLogPath: string
@@ -21,7 +22,7 @@ export class EventLogger {
   }
 
   status(message: string): void {
-    process.stderr.write(`[bun-debug-agent] ${message}\n`)
+    process.stderr.write(`${STATUS_PREFIX} ${message}\n`)
   }
 
   event(event: string, detail: JsonObject = {}): void {
@@ -33,13 +34,13 @@ export class EventLogger {
     try {
       appendFileSync(this.eventLogPath, `${JSON.stringify(entry)}\n`)
     } catch (error) {
-      process.stderr.write(`[bun-debug-agent] failed to write event log: ${serializeError(error)}\n`)
+      process.stderr.write(`${STATUS_PREFIX} failed to write event log: ${serializeError(error)}\n`)
     }
     for (const handler of this.#eventHandlers) {
       try {
         handler(entry)
       } catch (handlerError) {
-        process.stderr.write(`[bun-debug-agent] event handler failed: ${serializeError(handlerError)}\n`)
+        process.stderr.write(`${STATUS_PREFIX} event handler failed: ${serializeError(handlerError)}\n`)
       }
     }
   }

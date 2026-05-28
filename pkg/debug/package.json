@@ -11,8 +11,7 @@
     "./agent-attach": "./agent-attach.ts"
   },
   "bin": {
-    "metafor-bun-debug": "./agent-attach.ts",
-    "bun-debug-agent": "./agent-attach.ts"
+    "metafor-interpreter": "./agent-attach.ts"
   },
   "dependencies": {
     "@metafor/components": "workspace:*",
