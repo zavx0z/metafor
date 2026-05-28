@@ -2,8 +2,9 @@
 
 Интерпретатор MetaFor — отдельный Bun-sidecar, который подключается к Bun WebKit Inspector WebSocket.
 Он держит общий live-контекст человека и ИИ: target state, stack/scopes, source, console, eval и draft-код.
+Несколько target-процессов представлены как несколько interpreter sessions.
 
-Цель архитектуры: отделить долгоживущий inspector socket и UI интерпретатора от основного чата.
+Цель архитектуры: отделить долгоживущие interpreter sockets и UI интерпретатора от основного чата.
 Если socket зависнет или sidecar упадёт, основной агент не теряет состояние диалога.
 
 ## Компоненты
@@ -14,7 +15,8 @@ pkg/interpreter/
   index.ts                 package exports
   README.md                пользовательская инструкция интерпретатора
   docs/                    подробная документация
-  src/interpreter.ts             lifecycle процесса, reconnect, inspector initialization
+  src/interpreter.ts       process lifecycle, HTTP startup, CLI startup sessions
+  src/session.ts           per-process session: socket, snapshots, breakpoints, target
   src/breakpoints.ts       REST breakpoint registry, scriptId install, remove
   src/commands.ts          stdin NDJSON command loop
   src/console.ts           захват Console/Runtime console events
@@ -24,7 +26,7 @@ pkg/interpreter/
   src/guards.ts            runtime parsing WebKit Inspector payloads
   src/inspector-client.ts  WebSocket JSON-RPC client
   src/logger.ts            event log writer
-  src/server.ts            HTTP + WS + web UI server
+  src/server.ts            HTTP + WS + web UI server, sessions REST API
   src/snapshot.ts          сборка snapshot на Debugger.paused
   src/source-map.ts        mapping editor/generated coordinates
   src/target.ts            запуск/остановка target процесса через REST
@@ -52,20 +54,27 @@ bun run interpreter -- bun test --timeout=2147483647 ./module.spec.ts
 Если первый аргумент не `bun`, entrypoint трактует аргументы как `bun <args>`.
 Если `--inspect*` уже есть, режим сохраняется. Если inspector-флага нет, target стартует через `--inspect-brk`, чтобы UI сразу открыл paused live-контекст.
 
-## agent.ts
+Несколько процессов запускаются блоками `--session <label> -- <command...>`:
 
-`src/interpreter.ts` управляет жизненным циклом:
+```sh
+bun run interpreter -- \
+  --session dark-server -- bun test --timeout=2147483647 dark/server.spec.ts \
+  --session syntax -- bun test pkg/interpreter/src/syntax.test.ts
+```
+
+## session.ts
+
+`src/session.ts` управляет жизненным циклом одного процесса:
 
 - создаёт `InspectorClient`
 - создаёт `SnapshotStore`
+- создаёт `BreakpointStore`, `ConsoleLogStore`, `TargetSupervisor`
 - запускает reconnect loop
-- запускает stdin command loop
-- выполняет inspector initialization
+- выполняет initialization Bun protocol domains
 - планирует fallback `Inspector.initialized`
-- обрабатывает `SIGINT` и `SIGTERM`
 
 `InterpreterRuntime` не знает деталей snapshot format и NDJSON command parsing.
-Он только маршрутизирует inspector events:
+Он только маршрутизирует protocol events:
 
 ```text
 Debugger.scriptParsed -> SnapshotStore.handleScriptParsed
@@ -145,11 +154,29 @@ locations: [] + breakpointResolved в Bun 1.3.13 не гарантируют Deb
 
 `src/server.ts` поднимает REST, WS и web UI.
 
-`src/target.ts` запускает один target-процесс за раз через `Bun.spawn`, буферизует stdout/stderr
-и отдаёт состояние через `GET /target`.
+`src/target.ts` запускает один target-процесс за раз внутри конкретного session через `Bun.spawn`,
+буферизует stdout/stderr и отдаёт состояние через legacy `GET /target` для default session или через
+`GET /sessions`.
+
+Sessions API:
+
+```text
+GET  /sessions
+POST /sessions/run
+POST /sessions/:id/stop
+POST /sessions/:id/command
+```
 
 `GET /workspace/files` отдаёт список JS/TS entrypoints для стартового экрана. `hello` WebSocket-сообщение
-включает target snapshot, чтобы UI сразу переходил в live layout интерпретатора, если target уже запущен.
+включает target snapshot и sessions snapshot, чтобы UI сразу переходил в live layout интерпретатора, если
+target уже запущен.
+
+## Web UI / Space
+
+UI интерпретатора создаёт один `UiRuntime`, один `Space` и один WebGPU canvas. Default session использует
+основной `UIDisplay` с полноценными панелями source/frames/scopes/console. Дополнительные sessions получают
+свои `UIDisplay` внутри того же `Space`; runtime раскладывает дисплеи в ряд и маршрутизирует pointer events
+по `displayId`.
 
 ## commands.ts
 
@@ -172,4 +199,4 @@ Status messages не пишутся в stdout.
 ## Workspace launcher
 
 Корневой `bun run interpreter` запускает `pkg/interpreter/interpreter.ts` через `bun --hot`.
-Default inspector endpoint — `ws://127.0.0.1:6499/`, файлы интерпретатора пишутся в `.metafor/interpreter/`.
+Default interpreter socket endpoint — `ws://127.0.0.1:6499/`, файлы интерпретатора пишутся в `.metafor/interpreter/`.

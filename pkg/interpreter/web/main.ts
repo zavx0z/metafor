@@ -8,6 +8,7 @@ import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
 import {EditorPane, sourceDisplayLocation, sourcePathFromLocation, type EditorBreakpoint, type EditorTokens} from "@ui/panes"
 import {applyInspectMode} from "../src/inspect-mode.ts"
 import {ConsolePane, type ConsoleEntry} from "./console-pane.ts"
+import {SessionDisplayPane, type SessionPaneSnapshot} from "./session-display-pane.ts"
 import {
   DisplayHoverOutlinePane,
   FramesPane,
@@ -36,11 +37,17 @@ type ConnectionState = "connecting" | "connected" | "disconnected"
 type ScriptSnapshot = {scriptId: string; url: string; hasSourceMap?: boolean; sources?: string[]}
 
 type ServerMessage =
-  | {type: "hello"; inspectorUrl: string; paused: boolean; dump: InterpreterDump | null; scripts: ScriptSnapshot[]; target: TargetSnapshot; connection: ConnectionInfo}
+  | {type: "hello"; inspectorUrl: string; paused: boolean; dump: InterpreterDump | null; scripts: ScriptSnapshot[]; target: TargetSnapshot; sessions?: SessionPaneSnapshot[]; connection: ConnectionInfo}
   | {type: "state"; dump: InterpreterDump}
   | {type: "resumed"}
   | {type: "console"; entries: ConsoleEntry[]}
   | {type: "connection"; state: ConnectionState; error: string | null; inspectorUrl: string}
+  | {type: "sessions"; sessions: SessionPaneSnapshot[]}
+  | {type: "session"; session: SessionPaneSnapshot}
+  | {type: "session-state"; sessionId: string; dump: InterpreterDump; session: SessionPaneSnapshot}
+  | {type: "session-resumed"; sessionId: string; session: SessionPaneSnapshot}
+  | {type: "session-connection"; sessionId: string; state: ConnectionState; error: string | null; inspectorUrl: string; session: SessionPaneSnapshot}
+  | {type: "session-target"; sessionId: string; event: TargetEvent; session: SessionPaneSnapshot}
   | ({type: "script"} & ScriptSnapshot)
   | {type: "target"; event: TargetEvent}
   | {type: "inspector-event"; ts: string; method: string; params: unknown}
@@ -147,6 +154,11 @@ let framesPane: FramesPane | null = null
 let scopesEvalPane: ScopesEvalPane | null = null
 let verbosePane: VerbosePane | null = null
 let welcomePane: WelcomePane | null = null
+const sessionSnapshots = new Map<string, SessionPaneSnapshot>()
+const sessionPanes = new Map<string, SessionDisplayPane>()
+const sessionDisplayIds = new Set<string>()
+let sessionOrder: string[] = ["default"]
+let framedSessionKey = ""
 let uiLoading = false
 let engineLastSource: Source | null = null
 let sourceRuntimeState: SourceRuntimeState = "idle"
@@ -187,6 +199,13 @@ let currentDump: InterpreterDump | undefined
 let activeFrameIndex = 0
 let nextRequestId = 1
 const COMMAND_TIMEOUT_MS = 10_000
+const SESSION_DISPLAY_PIXEL_W = 1120
+const SESSION_DISPLAY_PIXEL_H = 760
+const SESSION_DISPLAY_W_MM = 560
+const SESSION_DISPLAY_H_MM = 380
+const SESSION_DISPLAY_GAP_MM = 52
+const SESSION_DISPLAY_CENTER_Y_MM = 0
+const SESSION_DISPLAY_CENTER_Z_MM = 900
 const pendingRequests = new Map<number, {
   timer: number
   resolve: (reply: CommandReply) => void
@@ -223,6 +242,7 @@ function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case "hello":
       inspectorUrl = msg.inspectorUrl
+      applySessionSnapshots(msg.sessions ?? [])
       rememberScripts(msg.scripts)
       applyTargetSnapshot(msg.target)
       applyConnection(msg.connection)
@@ -267,6 +287,16 @@ function handleServerMessage(msg: ServerMessage): void {
       applyConnection({state: msg.state, error: msg.error})
       refreshWelcome()
       return
+    case "sessions":
+      applySessionSnapshots(msg.sessions)
+      return
+    case "session":
+    case "session-state":
+    case "session-resumed":
+    case "session-connection":
+    case "session-target":
+      applySessionSnapshot(msg.session)
+      return
     case "script":
       rememberScript(msg)
       return
@@ -280,7 +310,7 @@ function handleServerMessage(msg: ServerMessage): void {
       appendVerbose("inspector", msg.ts, msg.method, msg.params)
       return
     case "interpreter-event":
-      appendVerbose("agent", msg.ts, msg.event, msg.detail)
+      appendVerbose("interpreter", msg.ts, msg.event, msg.detail)
       return
     case "result":
       resolvePendingRequest(msg)
@@ -295,6 +325,19 @@ function handleServerMessage(msg: ServerMessage): void {
     url.searchParams.set("_r", String(Date.now()))
     window.location.replace(url.toString())
   }
+}
+
+function applySessionSnapshots(sessions: SessionPaneSnapshot[]): void {
+  if (sessions.length === 0) return
+  sessionOrder = sessions.map((session) => session.id)
+  for (const session of sessions) sessionSnapshots.set(session.id, session)
+  syncSessionDisplays()
+}
+
+function applySessionSnapshot(session: SessionPaneSnapshot): void {
+  sessionSnapshots.set(session.id, session)
+  if (!sessionOrder.includes(session.id)) sessionOrder.push(session.id)
+  syncSessionDisplays()
 }
 
 // Пробиваем CSS-кеш на старте: добавляем ?t=<timestamp> к href стилей,
@@ -652,7 +695,7 @@ function preferredWorkspaceFile(files: readonly string[]): string | undefined {
   return files.find((file) => file.endsWith(".spec.ts") || file.endsWith(".test.ts")) ?? files[0]
 }
 
-function appendVerbose(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
+function appendVerbose(kind: "inspector" | "interpreter", ts: string, name: string, payload: unknown): void {
   verbosePane?.append(kind, ts, name, payload)
 }
 
@@ -1257,7 +1300,7 @@ function updateToolbar(): void {
   toolbarPane?.setState({
     ws: wsStatusText,
     wsKind: wsStatusKind,
-    connection: `inspector: ${connectionState}`,
+    connection: `context: ${connectionState}`,
     connectionKind,
     run: runStatusText,
     runKind: runStatusKind,
@@ -1460,7 +1503,12 @@ async function initEngine(): Promise<void> {
     uiCanvas = await UiRuntime.create(engineCanvas, {
       virtualDisplay: {
         initial: "far",
-        farDistanceMm: 1200,
+        widthMm: SESSION_DISPLAY_W_MM,
+        heightMm: SESSION_DISPLAY_H_MM,
+        pixelWidth: SESSION_DISPLAY_PIXEL_W,
+        pixelHeight: SESSION_DISPLAY_PIXEL_H,
+        centerMm: {x: 0, y: SESSION_DISPLAY_CENTER_Y_MM, z: SESSION_DISPLAY_CENTER_Z_MM},
+        farDistanceMm: 1500,
       },
     })
     toolbarPane = new ToolbarPane({
@@ -1529,6 +1577,7 @@ async function initEngine(): Promise<void> {
       onToggleLocale: () => toggleLocale(),
     })
     installEnginePanes()
+    syncSessionDisplays()
     resizeObserver = new ResizeObserver(() => uiCanvas?.handleResize())
     resizeObserver.observe(engineCanvas)
     requestAnimationFrame(() => uiCanvas?.handleResize())
@@ -1718,6 +1767,77 @@ function draftToolbarKind(): BadgeKind {
 
 function applyEngineLayout(): void {
   uiCanvas?.relayout()
+}
+
+function syncSessionDisplays(): void {
+  if (uiCanvas === null) return
+  const orderedSessions = sessionOrder
+    .map((id) => sessionSnapshots.get(id))
+    .filter((session): session is SessionPaneSnapshot => session !== undefined)
+  if (orderedSessions.length === 0) return
+
+  const displayIds = orderedSessions.map((session) => session.id)
+  const totalW = orderedSessions.length * SESSION_DISPLAY_W_MM + Math.max(0, orderedSessions.length - 1) * SESSION_DISPLAY_GAP_MM
+  for (let index = 0; index < orderedSessions.length; index++) {
+    const session = orderedSessions[index]!
+    const x = -totalW / 2 + SESSION_DISPLAY_W_MM / 2 + index * (SESSION_DISPLAY_W_MM + SESSION_DISPLAY_GAP_MM)
+    const center = {x, y: SESSION_DISPLAY_CENTER_Y_MM, z: SESSION_DISPLAY_CENTER_Z_MM}
+    if (session.id === "default") {
+      uiCanvas.setDisplayCenter("default", center)
+      continue
+    }
+    if (!sessionDisplayIds.has(session.id)) {
+      sessionDisplayIds.add(session.id)
+      const pane = new SessionDisplayPane(session, {
+        onPause: (sessionId) => void runSessionCommand(sessionId, "pause", {}),
+        onResume: (sessionId) => void runSessionCommand(sessionId, "resume", {}),
+        onStop: (sessionId) => void stopSession(sessionId),
+      })
+      sessionPanes.set(session.id, pane)
+      uiCanvas.createDisplay({
+        id: session.id,
+        widthMm: SESSION_DISPLAY_W_MM,
+        heightMm: SESSION_DISPLAY_H_MM,
+        pixelWidth: SESSION_DISPLAY_PIXEL_W,
+        pixelHeight: SESSION_DISPLAY_PIXEL_H,
+        centerMm: center,
+        background: 0x020617,
+        border: 0x334155,
+      })
+      uiCanvas.addSurfaceToDisplay(session.id, pane, ({w, h}) => ({x: 0, y: 0, w, h}))
+    } else {
+      uiCanvas.setDisplayCenter(session.id, center)
+      sessionPanes.get(session.id)?.setSnapshot(session)
+    }
+  }
+  for (const session of orderedSessions) {
+    sessionPanes.get(session.id)?.setSnapshot(session)
+  }
+  const frameKey = displayIds.join("\0")
+  if (framedSessionKey !== frameKey) {
+    framedSessionKey = frameKey
+    uiCanvas.frameDisplays(displayIds)
+  }
+}
+
+async function runSessionCommand(sessionId: string, cmd: string, params: Record<string, unknown>): Promise<void> {
+  try {
+    await fetch(`/sessions/${encodeURIComponent(sessionId)}/command`, {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({cmd, params}),
+    })
+  } catch (error) {
+    appendConsole({ts: new Date().toISOString(), level: "error", text: `[ui] session ${sessionId}/${cmd}: ${String(error)}`})
+  }
+}
+
+async function stopSession(sessionId: string): Promise<void> {
+  try {
+    await fetch(`/sessions/${encodeURIComponent(sessionId)}/stop`, {method: "POST"})
+  } catch (error) {
+    appendConsole({ts: new Date().toISOString(), level: "error", text: `[ui] session ${sessionId}/stop: ${String(error)}`})
+  }
 }
 
 function installEnginePanes(): void {

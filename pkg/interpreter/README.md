@@ -8,6 +8,9 @@
 пишет snapshot текущей остановки, даёт REST/WS API для `eval`, `props`, `step`, `resume`, и умеет запускать
 target-процесс сам.
 
+Один браузерный UI использует один WebGPU `Space` и один canvas. Несколько процессов отображаются как несколько
+`UIDisplay` внутри этого же `Space`, разложенные в ряд.
+
 ## Быстрый Старт
 
 Обычный запуск UI без target:
@@ -33,6 +36,16 @@ bun run interpreter -- bun test --timeout=2147483647 ./module.spec.ts -- --grep 
 Если `--inspect*` не указан, sidecar добавит `--inspect-brk=ws://127.0.0.1:6499/`, чтобы UI сразу попал в live-контекст интерпретатора.
 Если `--inspect`, `--inspect-wait` или `--inspect-brk` уже указан, режим сохраняется, а endpoint согласуется с `BUN_INSPECTOR_URL`.
 
+Запуск нескольких процессов:
+
+```sh
+bun run interpreter -- \
+  --session dark-server -- bun test --timeout=2147483647 dark/server.spec.ts \
+  --session syntax -- bun test pkg/interpreter/src/syntax.test.ts
+```
+
+Первый session использует `ws://127.0.0.1:6499/`; следующие получают соседние порты, пропуская HTTP-порт UI.
+
 UI и REST API:
 
 ```text
@@ -47,7 +60,7 @@ http://127.0.0.1:6500/
 
 ## Запуск Target Через REST
 
-Интерпретатор может сам стартовать target и заранее принять breakpoint-ы в editor coordinates:
+Интерпретатор может сам стартовать target в default session и заранее принять breakpoint-ы в editor coordinates:
 
 ```sh
 curl -sS -X POST http://127.0.0.1:6500/target/run \
@@ -76,6 +89,14 @@ curl -sS -X POST http://127.0.0.1:6500/resume -d '{}'
 Breakpoint-ы из REST ставятся после `Debugger.scriptParsed` по `scriptId` и с учётом source map,
 поэтому `line` указывается как строка в исходном `.ts` файле.
 
+Новый процесс отдельным session:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/sessions/run \
+  -H 'content-type: application/json' \
+  -d '{"label":"syntax","command":["bun","test","pkg/interpreter/src/syntax.test.ts"],"pauseOnStart":false}'
+```
+
 ## Основные REST Endpoints
 
 ```text
@@ -86,6 +107,10 @@ GET    /scripts
 GET    /events?limit=200
 GET    /console?limit=200
 GET    /workspace/files
+GET    /sessions
+POST   /sessions/run
+POST   /sessions/:id/stop
+POST   /sessions/:id/command
 GET    /breakpoints
 GET    /target
 POST   /target/run

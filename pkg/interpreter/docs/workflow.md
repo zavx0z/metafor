@@ -26,6 +26,16 @@ UI доступен на `http://127.0.0.1:6500/`.
 На стартовом экране можно выбрать файл из workspace. Для `.spec.ts` и `.test.ts` UI формирует команду
 `bun test --timeout=2147483647 <file>`, для остальных entrypoints — `bun <file>`.
 
+Несколько процессов:
+
+```sh
+bun run interpreter -- \
+  --session dark-server -- bun test --timeout=2147483647 dark/server.spec.ts \
+  --session syntax -- bun test pkg/interpreter/src/syntax.test.ts
+```
+
+В UI это один WebGPU `Space` и несколько `UIDisplay` в ряд, по одному на process/session.
+
 ## Timeout Тестов
 
 При ручной отладке тестов использовать максимальный timeout:
@@ -64,11 +74,11 @@ curl -sS -X POST http://127.0.0.1:6500/target/run \
 Для локальных TS/TSX файлов он ждёт `Debugger.scriptParsed`, маппит editor coordinates через source map и ставит конкретный
 `Debugger.setBreakpoint` по `scriptId`, чтобы не получить скрытый runtime-line breakpoint.
 
-## Роль Sidecar
+## Роль Runtime-Слоя Интерпретатора
 
-Sidecar:
+Runtime-слой интерпретатора:
 
-- подключается вторым inspector client
+- подключается к Bun protocol socket
 - слушает `Debugger.paused`
 - пишет snapshot
 - выполняет точечные команды `eval`, `props`, `step`, `resume`, `pause`
@@ -78,7 +88,7 @@ Sidecar:
 
 Агент:
 
-- запускает sidecar
+- запускает интерпретатор
 - читает `.metafor/interpreter/state.json`
 - интерпретирует top-frame locals/closures
 - отправляет NDJSON-команды, когда нужен точный runtime ответ

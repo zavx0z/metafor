@@ -72,7 +72,7 @@ import {
   type ImageFit,
   type ImageViewBox as EngineImageViewBox,
 } from "@metafor/engine"
-import type {UiSurfaceRect, UiRuntime, UiSurfaceNode} from "./runtime.ts"
+import type {UiDisplayId, UiSurfaceRect, UiRuntime, UiSurfaceNode} from "./runtime.ts"
 import {MaterialPalette, palette} from "./theme.ts"
 
 export type HitBox = {
@@ -296,6 +296,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #layer: Object3D
   readonly #overlayLayer: Object3D
   #drawLayer: UiSurfaceDrawLayer = "main"
+  #framebufferDisplayId: UiDisplayId = "default"
   /** Padding в logical px (top, right, bottom, left). */
   readonly #padTop: number
   readonly #padRight: number
@@ -434,6 +435,10 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   setFramebufferClipSpace(space: "display" | "screen"): void {
     this.#framebufferClipSpace = space
+  }
+
+  setFramebufferDisplayId(displayId: UiDisplayId): void {
+    this.#framebufferDisplayId = displayId
   }
 
   setBackgroundImage(options: BackgroundImageOpts | null): void {
@@ -1256,7 +1261,7 @@ export abstract class UiSurface implements UiSurfaceNode {
         Math.max(yMin, yMax) * dpr,
       ]
     }
-    return this.canvas.uiRectToFramebufferClipBounds(xMin, yMin, xMax, yMax)
+    return this.canvas.uiRectToFramebufferClipBounds(xMin, yMin, xMax, yMax, this.#framebufferDisplayId)
   }
 
   #hitAt(x: number, y: number): HitBox | null {

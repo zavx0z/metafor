@@ -37,6 +37,7 @@ import type {InspectorClient} from "./inspector-client.ts"
 import type {TargetSupervisor} from "./target.ts"
 import type {JsonObject} from "./types.ts"
 import {sourceMapMapper} from "./source-map.ts"
+import type {InterpreterSession, InterpreterSessionManager, InterpreterSessionSnapshot, StartupTargetOptions} from "./session.ts"
 
 export type HttpServerOptions = {
   host: string
@@ -46,6 +47,7 @@ export type HttpServerOptions = {
   consoleLogs: ConsoleLogStore
   breakpoints: BreakpointStore
   target: TargetSupervisor
+  sessions: InterpreterSessionManager
   logger: EventLogger
   eventLogPath: string
   consoleLogPath: string
@@ -133,6 +135,44 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
     if (event.type === "started" || event.type === "exited") clearSourceCaches()
     broadcast({type: "target", event})
   })
+  const subscribedSessions = new Set<string>()
+  const broadcastSessions = (): void => {
+    broadcast({type: "sessions", sessions: options.sessions.snapshots()})
+  }
+  const subscribeSession = (session: InterpreterSession): void => {
+    if (subscribedSessions.has(session.id)) return
+    subscribedSessions.add(session.id)
+    session.snapshots.onPause((dump) => {
+      broadcast({type: "session-state", sessionId: session.id, dump, session: session.snapshot()})
+      broadcastSessions()
+    })
+    session.snapshots.onResume(() => {
+      broadcast({type: "session-resumed", sessionId: session.id, session: session.snapshot()})
+      broadcastSessions()
+    })
+    session.client.onSocketStateChange((state, error) => {
+      broadcast({
+        type: "session-connection",
+        sessionId: session.id,
+        state,
+        error: error ?? null,
+        inspectorUrl: session.client.url,
+        session: session.snapshot(),
+      })
+      broadcastSessions()
+    })
+    session.target.onEvent((event) => {
+      if (event.type === "started" || event.type === "exited") clearSourceCaches()
+      broadcast({type: "session-target", sessionId: session.id, event, session: session.snapshot()})
+      broadcastSessions()
+    })
+  }
+  for (const session of options.sessions.list()) subscribeSession(session)
+  options.sessions.onEvent((event) => {
+    subscribeSession(event.session)
+    broadcast({type: "session", session: event.session.snapshot()})
+    broadcastSessions()
+  })
 
   const websocket: WebSocketHandler<WsClientData> = {
     open(ws): void {
@@ -146,6 +186,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         scriptCount: options.snapshots.scripts.length,
         scripts: scriptsView(options.snapshots.scripts),
         target: options.target.snapshot(),
+        sessions: options.sessions.snapshots(),
         connection: {
           state: options.client.socketState,
           error: options.client.lastError ?? null,
@@ -173,14 +214,24 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       const cmd = asString(message["cmd"])
       const requestId = asNumber(message["requestId"])
       const params = asObject(message["params"]) ?? {}
+      const sessionId = asString(message["sessionId"]) ?? "default"
       if (cmd === undefined) {
         ws.send(JSON.stringify({type: "result", requestId, ok: false, error: "missing cmd"}))
         return
       }
+      const session = options.sessions.get(sessionId)
+      if (session === undefined) {
+        ws.send(JSON.stringify({type: "result", requestId, ok: false, error: `session not found: ${sessionId}`}))
+        return
+      }
 
-      options.logger.event("ws.command", {clientId: ws.data.id, cmd, requestId})
+      options.logger.event("ws.command", {clientId: ws.data.id, sessionId, cmd, requestId})
       try {
-        const result = await executeCommand(ctx, params, cmd)
+        const result = await executeCommand({
+          client: session.client,
+          snapshots: session.snapshots,
+          logger: options.logger,
+        }, params, cmd)
         ws.send(JSON.stringify({type: "result", requestId, ok: true, result}))
       } catch (error) {
         ws.send(JSON.stringify({type: "result", requestId, ok: false, error: serializeError(error)}))
@@ -254,6 +305,12 @@ async function handleRoute(
 ): Promise<Response> {
   if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: routeIndex()})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
+  if (method === "GET" && path === "/sessions") return jsonResponse({sessions: options.sessions.snapshots()})
+  if (method === "POST" && path === "/sessions/run") return await runSession(req, options)
+  const sessionStop = /^\/sessions\/([^/]+)\/stop$/.exec(path)
+  if (method === "POST" && sessionStop !== null) return await stopSession(sessionStop[1]!, req, options)
+  const sessionCommand = /^\/sessions\/([^/]+)\/command$/.exec(path)
+  if (method === "POST" && sessionCommand !== null) return await dispatchSessionCommand(sessionCommand[1]!, req, options)
   if (method === "GET" && path === "/state") return jsonResponse(options.snapshots.dump ?? null)
   if (method === "GET" && path === "/scripts") return jsonResponse(scriptsView(options.snapshots.scripts))
   if (method === "GET" && path === "/frames") {
@@ -310,6 +367,10 @@ function serveStatic(filePath: string, contentType: string): Response {
 function routeIndex(): Array<{method: string; path: string; description: string}> {
   return [
     {method: "GET", path: "/health", description: "статус коннекта и параметры"},
+    {method: "GET", path: "/sessions", description: "список процессов интерпретатора"},
+    {method: "POST", path: "/sessions/run", description: "{label?, command, cwd?, env?, pauseOnStart?, breakpoints?} — запустить новый процесс"},
+    {method: "POST", path: "/sessions/:id/stop", description: "{signal?} — остановить процесс session"},
+    {method: "POST", path: "/sessions/:id/command", description: "{cmd, params?} — команда в конкретный процесс"},
     {method: "GET", path: "/state", description: "последний snapshot Debugger.paused (или null)"},
     {method: "GET", path: "/scripts", description: "карта scriptId → url"},
     {method: "GET", path: "/frames", description: "callFrames + dump"},
@@ -424,6 +485,7 @@ function healthPayload(options: HttpServerOptions): JsonObject {
     scriptCount: options.snapshots.scripts.length,
     breakpointCount: options.breakpoints.registrations.length,
     hasDump: options.snapshots.dump !== undefined,
+    sessions: options.sessions.snapshots(),
   }
 }
 
@@ -531,6 +593,86 @@ function parseCommand(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined
   if (value.some((item) => typeof item !== "string")) return undefined
   return value
+}
+
+async function readJsonObject(req: Request): Promise<{body: JsonObject; error?: string}> {
+  const text = await req.text()
+  if (text.length === 0) return {body: {}}
+  try {
+    return {body: asObject(JSON.parse(text)) ?? {}}
+  } catch (error) {
+    return {body: {}, error: `invalid JSON: ${serializeError(error)}`}
+  }
+}
+
+function envStrings(value: unknown): Record<string, string> | undefined {
+  const env = asObject(value)
+  if (env === undefined) return undefined
+  return Object.fromEntries(
+    Object.entries(env).filter(([, v]) => typeof v === "string") as Array<[string, string]>,
+  )
+}
+
+async function runSession(req: Request, options: HttpServerOptions): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const body = parsed.body
+  const command = parseCommand(body["command"])
+  if (command === undefined || command.length === 0) {
+    return jsonResponse({ok: false, error: "command must be non-empty array of strings"}, 400)
+  }
+  const parsedBreakpoints = parseBreakpoints(body["breakpoints"])
+  if (parsedBreakpoints.error !== undefined) return jsonResponse({ok: false, error: parsedBreakpoints.error}, 400)
+
+  const label = asString(body["label"])
+  const inspectorUrl = asString(body["inspectorUrl"])
+  const cwd = asString(body["cwd"])
+  const env = envStrings(body["env"])
+  const pauseOnStart = body["pauseOnStart"] === true
+  const run: StartupTargetOptions & {label?: string; inspectorUrl?: string} = {command, pauseOnStart}
+  if (label !== undefined) run.label = label
+  if (inspectorUrl !== undefined) run.inspectorUrl = inspectorUrl
+  if (cwd !== undefined) run.cwd = cwd
+  if (env !== undefined) run.env = env
+  if (parsedBreakpoints.breakpoints !== undefined) run.breakpoints = parsedBreakpoints.breakpoints
+
+  try {
+    const session = options.sessions.run(run)
+    return jsonResponse({ok: true, session: session.snapshot(), sessions: options.sessions.snapshots()})
+  } catch (error) {
+    return jsonResponse({ok: false, error: serializeError(error)}, 409)
+  }
+}
+
+async function stopSession(sessionId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+  const session = options.sessions.get(sessionId)
+  if (session === undefined) return jsonResponse({ok: false, error: `session not found: ${sessionId}`}, 404)
+  try {
+    const stopped = await stopTargetFor(session, req)
+    return jsonResponse({ok: true, session: session.snapshot(), target: stopped})
+  } catch (error) {
+    return jsonResponse({ok: false, error: serializeError(error)}, 400)
+  }
+}
+
+async function dispatchSessionCommand(sessionId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+  const session = options.sessions.get(sessionId)
+  if (session === undefined) return jsonResponse({ok: false, error: `session not found: ${sessionId}`}, 404)
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const cmd = asString(parsed.body["cmd"])
+  if (cmd === undefined) return jsonResponse({ok: false, error: "cmd required"}, 400)
+  const params = asObject(parsed.body["params"]) ?? {}
+  try {
+    const result = await executeCommand({
+      client: session.client,
+      snapshots: session.snapshots,
+      logger: options.logger,
+    }, params, cmd)
+    return jsonResponse({ok: true, cmd, result, session: session.snapshot()})
+  } catch (error) {
+    return jsonResponse({ok: false, cmd, error: serializeError(error)}, 400)
+  }
 }
 
 async function runTarget(req: Request, options: HttpServerOptions): Promise<Response> {
@@ -691,24 +833,32 @@ function isNonNegativeInteger(value: number | undefined): value is number {
   return value !== undefined && Number.isInteger(value) && value >= 0
 }
 
-async function stopTarget(req: Request, options: HttpServerOptions): Promise<Response> {
+async function stopTargetFor(session: Pick<InterpreterSession, "target">, req: Request): Promise<import("./target.ts").TargetSnapshot> {
   let signal: NodeJS.Signals = "SIGTERM"
   const text = await req.text()
   if (text.length > 0) {
+    let body: JsonObject | undefined
     try {
-      const body = asObject(JSON.parse(text))
-      const sig = asString(body?.["signal"])
-      if (sig !== undefined) {
-        if (!VALID_STOP_SIGNALS.has(sig)) {
-          return jsonResponse({ok: false, error: `signal must be one of ${[...VALID_STOP_SIGNALS].join(", ")}`}, 400)
-        }
-        signal = sig as NodeJS.Signals
-      }
+      body = asObject(JSON.parse(text))
     } catch (error) {
-      return jsonResponse({ok: false, error: `invalid JSON: ${serializeError(error)}`}, 400)
+      throw new Error(`invalid JSON: ${serializeError(error)}`)
+    }
+    const sig = asString(body?.["signal"])
+    if (sig !== undefined) {
+      if (!VALID_STOP_SIGNALS.has(sig)) throw new Error(`signal must be one of ${[...VALID_STOP_SIGNALS].join(", ")}`)
+      signal = sig as NodeJS.Signals
     }
   }
-  const snapshot = await options.target.stop(signal)
+  return await session.target.stop(signal)
+}
+
+async function stopTarget(req: Request, options: HttpServerOptions): Promise<Response> {
+  let snapshot: import("./target.ts").TargetSnapshot
+  try {
+    snapshot = await stopTargetFor({target: options.target}, req)
+  } catch (error) {
+    return jsonResponse({ok: false, error: serializeError(error)}, 400)
+  }
   return jsonResponse({ok: true, snapshot})
 }
 

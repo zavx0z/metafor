@@ -11,7 +11,7 @@ import {
 import {t} from "./i18n.ts"
 
 type VerboseEntry = {
-  kind: "inspector" | "agent"
+  kind: "inspector" | "interpreter"
   ts: string
   name: string
   payload: string
@@ -38,7 +38,7 @@ export class VerbosePane extends UiSurface {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
   }
 
-  append(kind: "inspector" | "agent", ts: string, name: string, payload: unknown): void {
+  append(kind: "inspector" | "interpreter", ts: string, name: string, payload: unknown): void {
     if (isLowValueEvent(kind, name, payload)) return
     const safePayload = summarizePayload(kind, name, payload)
     this.#entries.push({kind, ts, name, payload: safePayload})
@@ -146,10 +146,10 @@ export class VerbosePane extends UiSurface {
       maxWidthPx: TS_W,
     })
     const nameX = x + TS_W + 8
-    const nameLabel = entry.kind === "agent" ? `@${entry.name}` : entry.name
+    const nameLabel = entry.kind === "interpreter" ? `@${entry.name}` : entry.name
     this.drawText(nameLabel, nameX, y, {
       fontPx: 10,
-      material: entry.kind === "agent" ? this.materials.violet : this.materials.cyan,
+      material: entry.kind === "interpreter" ? this.materials.violet : this.materials.cyan,
       maxWidthPx: NAME_W,
     })
     const payloadX = nameX + NAME_W + 8
@@ -196,7 +196,7 @@ function truncateJson(value: unknown, max: number): string {
   return text.length > max ? `${text.slice(0, max - 3)}...` : text
 }
 
-function isLowValueEvent(kind: "inspector" | "agent", name: string, payload: unknown): boolean {
+function isLowValueEvent(kind: "inspector" | "interpreter", name: string, payload: unknown): boolean {
   if (name === "inspector.response.ok") return true
   if (name === "http.request") {
     const path = propString(payload, "path")
@@ -208,7 +208,7 @@ function isLowValueEvent(kind: "inspector" | "agent", name: string, payload: unk
     if (method === undefined) return false
     return !importantInspectorRequest(method)
   }
-  return kind === "agent" && name === "interpreter.kick_reconnect.fired"
+  return kind === "interpreter" && name === "interpreter.kick_reconnect.fired"
 }
 
 function importantInspectorRequest(method: string): boolean {
@@ -220,7 +220,7 @@ function importantInspectorRequest(method: string): boolean {
     || method === "Runtime.evaluate"
 }
 
-function summarizePayload(kind: "inspector" | "agent", name: string, payload: unknown): string {
+function summarizePayload(kind: "inspector" | "interpreter", name: string, payload: unknown): string {
   if (name === "Debugger.paused") {
     const reason = propString(payload, "reason") ?? "pause"
     const frames = arrayLength(prop(payload, "callFrames"))
@@ -267,7 +267,7 @@ function summarizePayload(kind: "inspector" | "agent", name: string, payload: un
     return [method ?? "", error ?? ""].filter((part) => part.length > 0).join(" · ")
   }
   if (name === "inspector.request") return propString(payload, "method") ?? ""
-  const text = payload === undefined ? "" : truncateJson(payload, kind === "agent" ? 120 : 160)
+  const text = payload === undefined ? "" : truncateJson(payload, kind === "interpreter" ? 120 : 160)
   return text === "{}" ? "" : text
 }
 

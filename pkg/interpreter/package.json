@@ -21,6 +21,8 @@
   },
   "scripts": {
     "interpreter": "bun --hot run interpreter.ts",
+    "interpreter:dark-server": "bun --hot run interpreter.ts -- bun test --timeout=2147483647 ../../dark/server.spec.ts",
+    "interpreter:multi": "bun --hot run interpreter.ts -- --session dark-server -- bun test --timeout=2147483647 ../../dark/server.spec.ts --session syntax -- bun test src/syntax.test.ts",
     "typecheck": "tsc --noEmit --pretty false"
   }
 }

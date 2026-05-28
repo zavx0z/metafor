@@ -3,18 +3,47 @@
 import {runInterpreter} from "./src/interpreter.ts"
 import {inspectModeFromCommand, type InspectMode} from "./src/inspect-mode.ts"
 
-const startupTarget = consumeStartupTarget(Bun.argv.slice(2))
+const startupTargets = consumeStartupTargets(Bun.argv.slice(2))
 
-await runInterpreter(undefined, startupTarget === undefined ? {} : {startupTarget})
+await runInterpreter(undefined, startupTargets.length === 0 ? {} : {startupTargets})
 
-type CliStartupTarget = {command: string[]; cwd: string; pauseOnStart: boolean; inspectMode: InspectMode}
+type CliStartupTarget = {command: string[]; cwd: string; pauseOnStart: boolean; inspectMode: InspectMode; label?: string}
 
-function consumeStartupTarget(rawArgs: string[]): CliStartupTarget | undefined {
+function consumeStartupTargets(rawArgs: string[]): CliStartupTarget[] {
   const state = globalThis as typeof globalThis & {__metaforInterpreterStartupTargetConsumed?: boolean}
-  if (state.__metaforInterpreterStartupTargetConsumed === true) return undefined
-  const target = startupTargetFromArgs(rawArgs)
-  if (target !== undefined) state.__metaforInterpreterStartupTargetConsumed = true
-  return target
+  if (state.__metaforInterpreterStartupTargetConsumed === true) return []
+  const targets = startupTargetsFromArgs(rawArgs)
+  if (targets.length > 0) state.__metaforInterpreterStartupTargetConsumed = true
+  return targets
+}
+
+function startupTargetsFromArgs(rawArgs: string[]): CliStartupTarget[] {
+  const args = stripLeadingSeparator(rawArgs)
+  if (args.length === 0) return []
+  if (!args.includes("--session")) {
+    const target = startupTargetFromArgs(args)
+    return target === undefined ? [] : [target]
+  }
+
+  const targets: CliStartupTarget[] = []
+  let i = 0
+  while (i < args.length) {
+    if (args[i] !== "--session") {
+      throw new Error("multiple interpreter processes must use --session <label> -- <command...>")
+    }
+    const label = args[i + 1]
+    if (label === undefined || label === "--" || label === "--session") {
+      throw new Error("--session requires a label")
+    }
+    i += 2
+    if (args[i] === "--") i += 1
+    const command: string[] = []
+    while (i < args.length && args[i] !== "--session") command.push(args[i++]!)
+    const target = startupTargetFromArgs(command)
+    if (target === undefined) throw new Error(`--session ${label} requires a command`)
+    targets.push({...target, label})
+  }
+  return targets
 }
 
 function startupTargetFromArgs(rawArgs: string[]): CliStartupTarget | undefined {

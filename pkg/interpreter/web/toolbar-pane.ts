@@ -27,7 +27,7 @@ export class ToolbarPane extends UiSurface {
   #state: ToolbarState = {
     ws: "connecting",
     wsKind: "neutral",
-    connection: "inspector: connecting",
+    connection: "context: connecting",
     connectionKind: "neutral",
     run: "waiting",
     runKind: "neutral",
@@ -250,7 +250,7 @@ function inspectorTooltip(connection: string, url: string): string {
     ? t("inspectorOffline")
     : connection.includes("connected")
       ? t("inspectorConnected")
-      : getUiLocale() === "ru" ? "Inspector подключается" : "Inspector connecting"
+      : getUiLocale() === "ru" ? "Контекст подключается" : "Context connecting"
   if (url.length === 0) return localized
   return `${localized} · ${url}`
 }

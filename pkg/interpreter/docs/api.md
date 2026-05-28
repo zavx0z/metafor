@@ -67,6 +67,10 @@ http://127.0.0.1:6500
 
 ```text
 GET    /health
+GET    /sessions
+POST   /sessions/run
+POST   /sessions/:id/stop
+POST   /sessions/:id/command
 GET    /state
 GET    /frames
 GET    /scripts
@@ -86,6 +90,41 @@ POST   /pause
 POST   /resume
 POST   /step
 POST   /inspector
+```
+
+`GET /sessions`:
+
+```json
+{
+  "sessions": [
+    {
+      "id": "default",
+      "label": "process 1",
+      "inspectorUrl": "ws://127.0.0.1:6499/",
+      "connection": {"state": "connected", "error": null},
+      "paused": false,
+      "scriptCount": 12,
+      "hasDump": false,
+      "target": {"state": "running", "pid": 12345, "command": ["bun", "..."]}
+    }
+  ]
+}
+```
+
+`POST /sessions/run` создаёт новый процесс со своим socket endpoint:
+
+```json
+{
+  "label": "syntax",
+  "command": ["bun", "test", "pkg/interpreter/src/syntax.test.ts"],
+  "pauseOnStart": false
+}
+```
+
+Команды в конкретный session:
+
+```json
+{"cmd":"resume","params":{}}
 ```
 
 `POST /target/run`:
@@ -159,6 +198,12 @@ Sidecar переводит координаты через `sourceMapURL` из `
 `/ws` отдаёт real-time события UI интерпретатора:
 
 - `hello`
+- `sessions`
+- `session`
+- `session-state`
+- `session-resumed`
+- `session-connection`
+- `session-target`
 - `connection`
 - `state`
 - `resumed`
@@ -175,7 +220,14 @@ Client может отправлять:
 {"type":"command","cmd":"eval","params":{"frame":0,"expr":"wimp.src"},"requestId":1}
 ```
 
-`hello` включает `target` snapshot, поэтому UI не показывает стартовый экран, если target уже запущен до открытия страницы.
+Для команды в конкретный session добавить `sessionId`:
+
+```json
+{"type":"command","sessionId":"syntax","cmd":"resume","params":{},"requestId":2}
+```
+
+`hello` включает `target` snapshot и `sessions`, поэтому UI не показывает стартовый экран, если target уже
+запущен до открытия страницы, и сразу создаёт несколько `UIDisplay` для нескольких процессов.
 
 ## Scope Properties
 
