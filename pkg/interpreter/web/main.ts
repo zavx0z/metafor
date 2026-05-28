@@ -357,7 +357,6 @@ async function initEngine(): Promise<void> {
     resizeObserver = new ResizeObserver(handleEngineResize)
     resizeObserver.observe(engineCanvas)
     requestAnimationFrame(handleEngineResize)
-    setTimeout(handleEngineResize, 200)
     window.addEventListener("resize", handleEngineResize)
     setEngineStatus("engine: webgpu")
   } catch (error) {
