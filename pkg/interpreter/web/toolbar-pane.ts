@@ -37,6 +37,11 @@ export class ToolbarPane extends UiSurface {
     protocolUrl: "",
     verbose: false,
     engine: "engine: init",
+    canPause: false,
+    canResume: false,
+    canStep: false,
+    canRestart: false,
+    canStop: false,
     canShowExecutionPoint: false,
   }
 
@@ -58,23 +63,79 @@ export class ToolbarPane extends UiSurface {
     const lockedTooltip = controlsLocked && this.#state.commandLabel.length > 0
       ? `${t("commandAlreadyRunning")}: ${this.#state.commandLabel}`
       : t("commandAlreadyRunning")
+    const actionUnavailableTooltip = controlsLocked ? lockedTooltip : t("runtimeActionUnavailable")
     const primaryControls: ToolbarButton[] = [
       this.#state.runKind === "live"
-        ? {label: t("pause"), iconSrc: uiIcons.pause, tone: pauseButtonTone(this.#state.runKind), variant: "contained", dividerAfter: true, action: () => this.#actions.onPause()}
-        : {label: t("resume"), iconSrc: uiIcons.resume, tone: resumeButtonTone(this.#state.runKind), variant: "contained", dividerAfter: true, action: () => this.#actions.onResume()},
-      {label: t("stepOver"), iconSrc: uiIcons.stepOver, tone: stepButtonTone(this.#state.runKind), action: () => this.#actions.onStep("over")},
-      {label: t("stepInto"), iconSrc: uiIcons.stepInto, tone: stepButtonTone(this.#state.runKind), action: () => this.#actions.onStep("into")},
-      {label: t("stepOut"), iconSrc: uiIcons.stepOut, tone: stepButtonTone(this.#state.runKind), dividerAfter: true, action: () => this.#actions.onStep("out")},
-      {label: t("restartTarget"), iconSrc: uiIcons.restart, tone: "neutral", action: () => this.#actions.onRestartTarget()},
+        ? {
+          label: t("pause"),
+          iconSrc: uiIcons.pause,
+          tone: pauseButtonTone(this.#state.runKind),
+          variant: "contained",
+          dividerAfter: true,
+          disabled: controlsLocked || !this.#state.canPause,
+          disabledTooltip: actionUnavailableTooltip,
+          action: () => this.#actions.onPause(),
+        }
+        : {
+          label: t("resume"),
+          iconSrc: uiIcons.resume,
+          tone: resumeButtonTone(this.#state.runKind),
+          variant: "contained",
+          dividerAfter: true,
+          disabled: controlsLocked || !this.#state.canResume,
+          disabledTooltip: actionUnavailableTooltip,
+          action: () => this.#actions.onResume(),
+        },
+      {
+        label: t("stepOver"),
+        iconSrc: uiIcons.stepOver,
+        tone: stepButtonTone(this.#state.runKind),
+        disabled: controlsLocked || !this.#state.canStep,
+        disabledTooltip: actionUnavailableTooltip,
+        action: () => this.#actions.onStep("over"),
+      },
+      {
+        label: t("stepInto"),
+        iconSrc: uiIcons.stepInto,
+        tone: stepButtonTone(this.#state.runKind),
+        disabled: controlsLocked || !this.#state.canStep,
+        disabledTooltip: actionUnavailableTooltip,
+        action: () => this.#actions.onStep("into"),
+      },
+      {
+        label: t("stepOut"),
+        iconSrc: uiIcons.stepOut,
+        tone: stepButtonTone(this.#state.runKind),
+        disabled: controlsLocked || !this.#state.canStep,
+        disabledTooltip: actionUnavailableTooltip,
+        dividerAfter: true,
+        action: () => this.#actions.onStep("out"),
+      },
+      {
+        label: t("restartTarget"),
+        iconSrc: uiIcons.restart,
+        tone: "neutral",
+        disabled: controlsLocked || !this.#state.canRestart,
+        disabledTooltip: actionUnavailableTooltip,
+        action: () => this.#actions.onRestartTarget(),
+      },
       {
         label: t("showExecutionPoint"),
         iconSrc: uiIcons.executionPoint,
         tone: this.#state.canShowExecutionPoint ? "paused" : "neutral",
-        disabled: !this.#state.canShowExecutionPoint,
-        disabledTooltip: t("waitingFrames"),
+        disabled: controlsLocked || !this.#state.canShowExecutionPoint,
+        disabledTooltip: controlsLocked ? lockedTooltip : t("waitingFrames"),
         action: () => this.#actions.onShowExecutionPoint(),
       },
-      {label: t("stopTarget"), iconSrc: uiIcons.stop, tone: "warn", variant: "contained", action: () => this.#actions.onStopTarget()},
+      {
+        label: t("stopTarget"),
+        iconSrc: uiIcons.stop,
+        tone: "warn",
+        variant: "contained",
+        disabled: controlsLocked || !this.#state.canStop,
+        disabledTooltip: actionUnavailableTooltip,
+        action: () => this.#actions.onStopTarget(),
+      },
     ]
     const secondaryControls: ToolbarButton[] = [
       {label: this.#state.verbose ? t("hideVerbose") : t("showVerbose"), iconSrc: uiIcons.log, tone: this.#state.verbose ? "paused" : "neutral", action: () => this.#actions.onToggleVerbose()},

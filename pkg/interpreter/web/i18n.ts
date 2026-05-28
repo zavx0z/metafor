@@ -87,6 +87,7 @@ export const text = {
   run: {ru: "Идёт", en: "Running"},
   runEval: {ru: "Выполнить eval", en: "Run eval"},
   runStatus: {ru: "Выполнение", en: "Run"},
+  runtimeActionUnavailable: {ru: "команда недоступна в текущем состоянии", en: "command unavailable in current state"},
   scopesEval: {ru: "Переменные / Eval", en: "Variables / Eval"},
   scopeValue: {ru: "значение scope", en: "scope value"},
   showExecutionPoint: {ru: "Показать точку остановки", en: "Show execution point"},

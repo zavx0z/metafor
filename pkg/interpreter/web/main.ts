@@ -593,6 +593,9 @@ function updateModuleDisplay(controller: ModuleDisplayController, module: Module
 function updateModuleToolbar(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
   const run = moduleRunStatus(module)
   const targetFinished = module.target.state === "exited" || module.target.state === "failed"
+  const targetRunning = module.target.state === "starting" || module.target.state === "running"
+  const contextConnected = module.connection.state === "connected"
+  const canControlExecution = contextConnected && targetRunning
   const cleanExit = module.target.state === "exited" && module.target.exitCode === 0
   const socketKind: BadgeKind = targetFinished
     ? cleanExit ? "neutral" : "warn"
@@ -615,7 +618,12 @@ function updateModuleToolbar(controller: ModuleDisplayController, module: Module
     protocolUrl: module.protocolUrl,
     verbose: verboseVisible,
     engine: engineStatus,
-    canShowExecutionPoint: module.paused && controller.dump !== undefined && controller.dump.frames.length > 0,
+    canPause: canControlExecution && !module.paused,
+    canResume: canControlExecution && module.paused,
+    canStep: canControlExecution && module.paused,
+    canRestart: module.target.command.length > 0,
+    canStop: targetRunning,
+    canShowExecutionPoint: canControlExecution && module.paused && controller.dump !== undefined && controller.dump.frames.length > 0,
   })
 }
 

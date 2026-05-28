@@ -22,6 +22,11 @@ export type ToolbarState = {
   protocolUrl: string
   verbose: boolean
   engine: string
+  canPause: boolean
+  canResume: boolean
+  canStep: boolean
+  canRestart: boolean
+  canStop: boolean
   canShowExecutionPoint: boolean
 }
 
