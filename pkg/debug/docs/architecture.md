@@ -1,8 +1,9 @@
 # Архитектура
 
-`@metafor/bun-debug` — отдельный Bun-процесс, который подключается к Bun WebKit Inspector WebSocket.
+Интерпретатор MetaFor — отдельный Bun-sidecar, который подключается к Bun WebKit Inspector WebSocket.
+Он держит общий live-контекст человека и ИИ: target state, stack/scopes, source, console, eval и draft-код.
 
-Цель архитектуры: отделить долгоживущий inspector socket от основного чата.
+Цель архитектуры: отделить долгоживущий inspector socket и UI интерпретатора от основного чата.
 Если socket зависнет или sidecar упадёт, основной агент не теряет состояние диалога.
 
 ## Компоненты
@@ -11,7 +12,7 @@
 pkg/debug/
   agent-attach.ts          CLI entrypoint
   index.ts                 package exports
-  README.md                пользовательская инструкция
+  README.md                пользовательская инструкция интерпретатора
   docs/                    подробная документация
   src/agent.ts             lifecycle процесса, reconnect, inspector initialization
   src/breakpoints.ts       REST breakpoint registry, scriptId install, remove
@@ -29,8 +30,27 @@ pkg/debug/
   src/target.ts            запуск/остановка target процесса через REST
   src/time.ts              Bun.sleep wrapper
   src/types.ts             inspector и dump types
-  web/                     встроенный browser UI
+  web/                     встроенный UI интерпретатора
 ```
+
+## CLI Entrypoint
+
+`agent-attach.ts` можно запускать без target:
+
+```sh
+bun run debug
+```
+
+Или сразу с target:
+
+```sh
+bun run debug -- ./module.ts
+bun run debug -- --inspect-wait ./module.ts -- --flag value
+bun run debug -- bun test --timeout=2147483647 ./module.spec.ts
+```
+
+Если первый аргумент не `bun`, entrypoint трактует аргументы как `bun <args>`.
+Если `--inspect*` уже есть, режим сохраняется. Если inspector-флага нет, target стартует через `--inspect-brk`, чтобы UI сразу открыл paused live-контекст.
 
 ## agent.ts
 
@@ -127,6 +147,9 @@ locations: [] + breakpointResolved в Bun 1.3.13 не гарантируют Deb
 
 `src/target.ts` запускает один target-процесс за раз через `Bun.spawn`, буферизует stdout/stderr
 и отдаёт состояние через `GET /target`.
+
+`GET /workspace/files` отдаёт список JS/TS entrypoints для стартового экрана. `hello` WebSocket-сообщение
+включает target snapshot, чтобы UI сразу переходил в live layout интерпретатора, если target уже запущен.
 
 ## commands.ts
 

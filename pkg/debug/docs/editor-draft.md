@@ -1,6 +1,7 @@
-# Source To Edit Draft
+# Live Code Draft
 
-Debug UI now has a first safe draft-editing step on top of the shared editor layer.
+Интерпретатор имеет safe draft-editing слой поверх shared editor layer: человек и ИИ видят один source-контекст
+и могут готовить изменения кода в реальном времени без немедленной записи в файл.
 
 ## Behavior
 
@@ -16,7 +17,7 @@ Debug UI now has a first safe draft-editing step on top of the shared editor lay
 - The toolbar uses stable fixed-width status chips so labels do not resize the row when state changes.
 - The language switch is the first toolbar chip and persists `ru` / `en` in `localStorage`.
 - Socket, inspector and target states are short visible labels with delayed localized tooltips for details.
-- Debugger control commands are serialized in the browser UI: pause/resume/step/eval allow one active command at a time, disable the control buttons while the command is in flight, and show the active operation in the target status chip.
+- Interpreter control commands are serialized in the UI: pause/resume/step/eval allow one active command at a time, disable the control buttons while the command is in flight, and show the active operation in the target status chip.
 - Paused source highlighting is stronger: the active line has an orange outline/rail in addition to the execution arrow.
 - Verbose events are compacted for UI reading: routine successful inspector responses and polling noise are hidden, important events are summarized, and autoscroll pins to the newest event while enabled.
 

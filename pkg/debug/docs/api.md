@@ -1,6 +1,6 @@
-# Snapshot, REST И NDJSON API
+# API Интерпретатора
 
-Sidecar имеет несколько интерфейсов:
+Интерпретатор держит общий runtime/source-контекст человека и ИИ и имеет несколько технических интерфейсов:
 
 - JSON snapshot file
 - REST API
@@ -72,6 +72,7 @@ GET    /frames
 GET    /scripts
 GET    /events?since=<iso|seq>&limit=<n>
 GET    /console?since=<iso|seq>&limit=<n>
+GET    /workspace/files?q=<text>&limit=<n>
 GET    /source?scriptId=<id>
 GET    /target
 POST   /target/run
@@ -99,6 +100,27 @@ POST   /inspector
   ]
 }
 ```
+
+Если `command` не содержит `--inspect*`, sidecar добавляет inspector flag сам:
+
+- `pauseOnStart: true` -> `--inspect-brk=<BUN_INSPECTOR_URL>`
+- `pauseOnStart: false` -> `--inspect-wait=<BUN_INSPECTOR_URL>`
+
+Если `command` уже содержит `--inspect`, `--inspect-wait` или `--inspect-brk`, выбранный режим сохраняется, endpoint подставляется из `BUN_INSPECTOR_URL`.
+
+`GET /workspace/files`:
+
+```json
+{
+  "root": "/absolute/path/to/metafor",
+  "files": [
+    {"path": "app/example.ts"},
+    {"path": "pkg/example/example.spec.ts"}
+  ]
+}
+```
+
+Этот endpoint используется стартовым экраном интерпретатора для выбора target-файла. Сервер возвращает JS/TS entrypoints из workspace и пропускает `node_modules`, build output и `.d.ts`.
 
 Breakpoint shape:
 
@@ -134,7 +156,7 @@ Sidecar переводит координаты через `sourceMapURL` из `
 
 ## WebSocket `/ws`
 
-`/ws` отдаёт real-time события UI:
+`/ws` отдаёт real-time события UI интерпретатора:
 
 - `hello`
 - `connection`
@@ -152,6 +174,8 @@ Client может отправлять:
 ```json
 {"type":"command","cmd":"eval","params":{"frame":0,"expr":"wimp.src"},"requestId":1}
 ```
+
+`hello` включает `target` snapshot, поэтому UI не показывает стартовый экран, если target уже запущен до открытия страницы.
 
 ## Scope Properties
 

@@ -30,7 +30,7 @@ bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/ ./module.spec.
 ```
 
 `2147483647` ms — примерно 24.8 дней.
-Этого достаточно для ручной отладки без изменения прикладного теста.
+Этого достаточно для интерактивного выполнения без изменения прикладного теста.
 
 ## Sidecar Не Подключается
 
@@ -52,20 +52,11 @@ ws://127.0.0.1:6499/
 ws://127.0.0.1:6499
 ```
 
-Если target запущен кнопкой Run/Debug в WebStorm, проверить env процесса:
+Для стандартного workflow перезапустить target через MetaFor launcher:
 
 ```sh
-ps eww -p <bun-pid> | rg BUN_INSPECT
+bun run debug -- bun test --timeout=2147483647 ./module.spec.ts
 ```
-
-Если там `BUN_INSPECT=ws+unix://...`, это не TCP endpoint из инструкции.
-Для стандартного workflow перезапустить target из терминала:
-
-```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/ ./module.spec.ts
-```
-
-А WebStorm подключить через `Bun Attach`.
 
 ## Dump Не Появляется
 
@@ -90,31 +81,9 @@ tail -n 80 .metafor/debug/agent-events.log
 Debugger.enable: Debugger domain already enabled (-32000)
 ```
 
-Это нормальная ситуация, когда MetaFor UI, WebStorm или другой debugger уже включил debugger domain.
+Это нормальная ситуация, когда интерпретатор уже включил debugger domain.
 Актуальный sidecar игнорирует эту ошибку и продолжает слушать target.
 Если после этой строки идут постоянные reconnect/timeout-сообщения, перезапустить sidecar на свежей версии кода.
-
-## Sidecar Запущен После Того, Как Внешний Debugger Уже Стоит На Breakpoint
-
-В Bun 1.3.13 это отдельный edge case.
-Если target уже paused, новый WebSocket-клиент может подключиться, но Bun не будет обрабатывать его
-inspector messages до выхода из текущей pause.
-
-Симптомы в event log:
-
-```text
-socket.open
-inspector.request.soft_timeout method=Inspector.enable
-inspector.request.soft_timeout method=Runtime.enable
-inspector.request.soft_timeout method=Debugger.enable
-```
-
-Что делать:
-
-1. Оставить sidecar запущенным.
-2. Во внешнем debugger нажать `Step` или `Resume`.
-3. Дождаться следующей остановки.
-4. Проверить, что timestamp `.metafor/debug/agent-state.json` обновился.
 
 Для надёжного workflow запускать sidecar до попадания на breakpoint:
 
@@ -122,9 +91,9 @@ inspector.request.soft_timeout method=Debugger.enable
 bun run debug -- bun test --timeout=2147483647 ./module.spec.ts
 ```
 
-После этого открывать MetaFor UI или подключать WebStorm и ставить breakpoint.
+После этого открывать интерпретатор и ставить breakpoint.
 
-## Процесс Начал Выполняться До Подключения IDE
+## Процесс Начал Выполняться До Breakpoint-а
 
 Увеличить fallback:
 

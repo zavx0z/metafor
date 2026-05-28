@@ -43,7 +43,7 @@ const overlayMsg = $<HTMLDivElement>("overlay-msg")
 let state: PersistedState = {}
 
 function setStatus(text: string, kind: "ok" | "spawning" | "fail" | "neutral"): void {
-  serverStatus.textContent = `debug: ${text}`
+  serverStatus.textContent = `интерпретатор: ${text}`
   serverStatus.classList.remove("ok", "spawning", "fail")
   if (kind !== "neutral") serverStatus.classList.add(kind)
 }
@@ -87,7 +87,7 @@ async function init(): Promise<void> {
     clearError()
   } else {
     setStatus("offline", "fail")
-    showError(`Debug-сервер не отвечает на ${url}. Запусти его вручную (\`bun run debug\`) и нажми Reload (⌘R), либо запусти space заново — он попробует поднять.`)
+    showError(`Интерпретатор не отвечает на ${url}. Запусти его вручную (\`bun run debug\`) и нажми Reload (⌘R), либо запусти space заново — он попробует поднять.`)
   }
 }
 

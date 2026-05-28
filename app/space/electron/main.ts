@@ -347,7 +347,7 @@ function setupIpc(): void {
       if (overlayWindow === undefined) return null
       const opts: Electron.OpenDialogOptions = {
         properties: ["openFile"],
-        title: "Файл-точка входа для отладки",
+        title: "Файл-точка входа для интерпретатора",
       }
       if (args?.defaultPath !== undefined) opts.defaultPath = args.defaultPath
       if (args?.filters !== undefined) opts.filters = args.filters

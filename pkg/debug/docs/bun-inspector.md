@@ -1,12 +1,12 @@
 # Bun Inspector Protocol
 
 Bun использует WebKit Inspector Protocol, а не Chrome DevTools Protocol.
-Это главный источник отличий от Node.js debugging.
+Это главный источник отличий от Node.js inspector workflow.
 
-## Что Не Работает
+## Важное Отличие
 
-WebStorm `Attach to Node.js/Chrome` не подходит.
-Эта конфигурация говорит CDP.
+Bun inspector говорит WebKit Inspector Protocol.
+Chrome DevTools Protocol clients и команды CDP не являются совместимым frontend для workflow интерпретатора.
 
 CDP-команда:
 
@@ -17,18 +17,15 @@ Runtime.runIfWaitingForDebugger
 не разблокирует Bun `--inspect-wait`.
 В Bun 1.3.13 она возвращает `-32601`, потому что метод не реализован.
 
-## Что Работает
+## Frontend
 
-Для WebStorm нужен JetBrains Bun plugin.
-Он добавляет Bun-specific run/debug configuration.
-
-Основной браузерный интерфейс в MetaFor — локальный UI sidecar:
+Основной интерфейс в MetaFor — локальный UI интерпретатора:
 
 ```text
 http://127.0.0.1:6500/
 ```
 
-Внешний Bun web debugger можно использовать только как отдельный reference-инструмент.
+Этот документ фиксирует protocol behavior; рабочий frontend MetaFor остаётся локальным UI интерпретатора.
 
 ## Handshake
 
@@ -58,7 +55,7 @@ Inspector.initialized
 `Debugger.enable`
 
 Включает debugger domain и даёт `Debugger.scriptParsed`, `Debugger.paused`, `Debugger.resumed`.
-Если другой debugger уже включил debugger domain, Bun может вернуть `Debugger domain already enabled`.
+Если другой inspector client уже включил debugger domain, Bun может вернуть `Debugger domain already enabled`.
 Sidecar считает это нормальным состоянием второго клиента и продолжает работу.
 
 `Debugger.setBreakpointsActive`
@@ -76,7 +73,7 @@ Sidecar считает это нормальным состоянием втор
 
 ## Почему Inspector.initialized Отложен
 
-Если sidecar сразу отправит `Inspector.initialized`, тест или daemon начнёт выполняться до того, как человек подключил WebStorm и поставил breakpoint-ы.
+Если sidecar сразу отправит `Inspector.initialized`, тест или daemon начнёт выполняться до того, как интерпретатор успел поставить breakpoint-ы.
 
 Поэтому default:
 
@@ -85,10 +82,10 @@ AGENT_INITIALIZE_FALLBACK_MS=1500
 ```
 
 То есть sidecar ждёт 1.5 секунды.
-Если IDE подключилась первой, она сама разблокирует target.
-Если IDE не подключилась, sidecar разблокирует target сам.
+Если UI поставил breakpoint-ы быстро, target остановится на них.
+Если breakpoint-ов нет, sidecar разблокирует target сам после fallback.
 
-Для строгого human-led режима:
+Для строгого интерактивного режима:
 
 ```sh
 AGENT_INITIALIZE_FALLBACK_MS=0 bun run debug
@@ -122,27 +119,8 @@ AGENT_INITIALIZE_FALLBACK_MS=0 bun run debug
 - `Debugger.paused` тоже отдаёт generated coordinates.
 - Sidecar маппит breakpoint туда и snapshot обратно в editor coordinates.
 
-Для human-led workflow всё ещё можно ставить breakpoint-ы руками в WebStorm или MetaFor UI.
+В интерактивном workflow breakpoint-ы ставятся руками в интерпретаторе.
 Sidecar при этом только слушает `Debugger.paused` и читает state.
-
-## Подключение Вторым Клиентом К Уже Остановленному Target
-
-Практическое ограничение Bun 1.3.13: если внешний debugger уже остановил target на breakpoint-е,
-а sidecar подключается только после этой остановки, Bun принимает WebSocket, но может не обработать
-`Inspector.enable`/`Runtime.enable`/`Debugger.enable` до выхода из текущей pause.
-
-Причина по исходникам Bun: пока VM находится внутри `runWhilePaused`, список inspector connections
-берётся один раз. Новый connection, добавленный во время этой же pause, будет обслужен только после
-`Step`/`Resume`, когда выполнение выйдет из текущего paused-loop.
-
-Практическое правило:
-
-```text
-sidecar должен быть запущен до breakpoint-а, на котором агент должен видеть live state
-```
-
-Если sidecar запущен уже после остановки во внешнем debugger, он обычно начнёт получать события со
-следующего breakpoint/step-pause.
 
 ## Debugger.pause
 
@@ -158,4 +136,4 @@ sidecar должен быть запущен до breakpoint-а, на котор
 Debugger.pause
 ```
 
-Это удобно для force-pause, но основной сценарий совместной отладки — human-owned breakpoint-ы.
+Это удобно для force-pause, но основной сценарий интерпретатора — human-owned breakpoint-ы в общем live-контексте.

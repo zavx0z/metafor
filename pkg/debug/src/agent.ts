@@ -62,7 +62,7 @@ export async function runAgent(config: AgentConfig = loadConfig(), options: RunA
     breakpoints,
   })
 
-  logger.status(`attaching to ${config.inspectorUrl}`)
+  logger.status(`connecting to inspector ${config.inspectorUrl}`)
   logger.event("agent.started", {
     inspectorUrl: config.inspectorUrl,
     dumpPath: config.dumpPath,

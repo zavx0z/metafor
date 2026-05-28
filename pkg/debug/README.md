@@ -1,11 +1,14 @@
-# @metafor/bun-debug
+# MetaFor Интерпретатор
 
-Sidecar для совместной отладки Bun-процессов через WebKit Inspector Protocol.
+Интерпретатор — общий live-контекст человека и ИИ для Bun-процессов. Человек и агент видят один runtime state,
+один stack/scope/source-контекст, могут ставить точки остановки, выполнять eval и в реальном времени готовить
+изменения кода в общем редакторе.
 
-Он подключается к Bun inspector WebSocket, пишет snapshot текущей остановки, даёт REST/WS API
-для `eval`, `props`, `step`, `resume`, и умеет запускать target-процесс сам.
+Технически это sidecar поверх Bun WebKit Inspector Protocol. Он подключается к Bun inspector WebSocket,
+пишет snapshot текущей остановки, даёт REST/WS API для `eval`, `props`, `step`, `resume`, и умеет запускать
+target-процесс сам.
 
-## Быстрый Старт Для `dark`
+## Быстрый Старт
 
 Обычный запуск UI без target:
 
@@ -19,7 +22,7 @@ bun run debug
 bun run debug -- ./module.ts
 ```
 
-Если нужен тот же набор параметров, что у стандартного Bun debugger, передавай их перед файлом.
+Если нужен тот же набор параметров, что у стандартного Bun inspector, передавай их перед файлом.
 Аргументы программы остаются после `--`:
 
 ```sh
@@ -27,18 +30,13 @@ bun run debug -- --inspect-wait ./module.ts -- --flag value
 bun run debug -- bun test --timeout=2147483647 ./module.spec.ts -- --grep case
 ```
 
-Если `--inspect*` не указан, sidecar добавит `--inspect-brk=ws://127.0.0.1:6499/`, чтобы UI сразу попал в debugger.
+Если `--inspect*` не указан, sidecar добавит `--inspect-brk=ws://127.0.0.1:6499/`, чтобы UI сразу попал в live-контекст интерпретатора.
+Если `--inspect`, `--inspect-wait` или `--inspect-brk` уже указан, режим сохраняется, а endpoint согласуется с `BUN_INSPECTOR_URL`.
 
 UI и REST API:
 
 ```text
 http://127.0.0.1:6500/
-```
-
-WebStorm:
-
-```text
-Run/Debug Configurations -> Bun Attach -> ws://127.0.0.1:6499/
 ```
 
 Когда target остановится на breakpoint-е, snapshot будет здесь:
@@ -49,7 +47,7 @@ Run/Debug Configurations -> Bun Attach -> ws://127.0.0.1:6499/
 
 ## Запуск Target Через REST
 
-Sidecar может сам стартовать target и заранее принять breakpoint-ы в editor coordinates:
+Интерпретатор может сам стартовать target и заранее принять breakpoint-ы в editor coordinates:
 
 ```sh
 curl -sS -X POST http://127.0.0.1:6500/target/run \
@@ -87,6 +85,7 @@ GET    /frames
 GET    /scripts
 GET    /events?limit=200
 GET    /console?limit=200
+GET    /workspace/files
 GET    /breakpoints
 GET    /target
 POST   /target/run
@@ -121,7 +120,7 @@ bun run --filter @metafor/bun-debug typecheck
 
 - [Архитектура](docs/architecture.md)
 - [API](docs/api.md)
-- [Workflow MetaFor UI/WebStorm](docs/workflow.md)
+- [Workflow интерпретатора](docs/workflow.md)
 - [Bun Inspector Protocol](docs/bun-inspector.md)
 - [Acceptance сценарии](docs/acceptance.md)
 - [Troubleshooting](docs/troubleshooting.md)

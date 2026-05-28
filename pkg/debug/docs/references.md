@@ -1,14 +1,10 @@
 # Источники
 
-## Bun Web Debugger
+## Bun Web Inspector Reference
 
 https://bun.com/guides/runtime/web-debugger
 
-Официальная документация по browser debugger frontend:
-
-```text
-https://debug.bun.sh
-```
+Официальная документация по inspector-флагам Bun и WebKit-протоколу.
 
 ## Bun Debug Adapter
 
@@ -38,7 +34,7 @@ https://github.com/oven-sh/bun/blob/main/packages/bun-debug-adapter-protocol/src
 
 https://github.com/oven-sh/bun/blob/9bf6ea3312e3716eb26ff4186a527a51d8fc4cac/src/bun.js/bindings/BunDebugger.cpp
 
-Из этого source подтверждено ограничение attach-while-paused:
+Из этого source подтверждено ограничение нового connection во время pause:
 
 - Bun хранит несколько inspector connections
 - во время `runWhilePaused` список connections берётся в локальный `Vector`
@@ -59,4 +55,4 @@ https://github.com/oven-sh/bun/blob/d484fd6e2e9737c90f7370456edd9c4e482fa794/tes
 ## WebKit Inspector Protocol
 
 Bun inspector основан на WebKit Inspector Protocol/JSC, а не CDP.
-Практическое следствие: Chrome/Node debugger clients не являются drop-in replacement.
+Практическое следствие: CDP clients не являются drop-in replacement для интерпретатора.

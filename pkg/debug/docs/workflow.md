@@ -1,19 +1,10 @@
-# Workflow MetaFor UI/WebStorm
+# Workflow Интерпретатора
 
-## WebStorm
+Интерпретатор — общий runtime/source-контекст человека и ИИ. Человек работает в UI, агент читает тот же
+snapshot, stack, scopes, source и может выполнять точные runtime-запросы через sidecar. Черновик кода живёт
+в этом же контексте, поэтому изменения можно обсуждать и готовить в реальном времени.
 
-Установить JetBrains Bun plugin.
-
-Использовать Bun-specific configuration.
-Не использовать:
-
-```text
-Attach to Node.js/Chrome
-```
-
-Эта конфигурация говорит CDP, а Bun inspector — WebKit Inspector Protocol.
-
-## Запуск Через MetaFor UI
+## Запуск
 
 Запустить sidecar и target одной командой:
 
@@ -21,7 +12,7 @@ Attach to Node.js/Chrome
 bun run debug -- ./module.ts
 ```
 
-Если нужны стандартные параметры Bun debugger, передать их как обычные Bun args:
+Если нужны стандартные параметры Bun inspector, передать их как обычные Bun args:
 
 ```sh
 bun run debug -- --inspect-wait ./module.ts -- --flag value
@@ -29,35 +20,11 @@ bun run debug -- bun test --timeout=2147483647 ./module.spec.ts -- --grep case
 ```
 
 Если `--inspect*` не указан, sidecar добавит `--inspect-brk=ws://127.0.0.1:6499/`.
+Если `--inspect`, `--inspect-wait` или `--inspect-brk` уже указан, sidecar сохраняет выбранный режим и только подставляет endpoint.
 UI доступен на `http://127.0.0.1:6500/`.
 
-## Запуск С WebStorm
-
-Можно запустить target отдельно:
-
-```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/ ./module.spec.ts
-bun run debug
-```
-
-WebStorm подключается attach-конфигурацией:
-
-```text
-Run/Debug Configurations -> Bun Attach -> ws://127.0.0.1:6499/
-```
-
-Важно: в этом workflow WebStorm используется именно как Attach.
-Target запускается из терминала с `--inspect-wait=ws://127.0.0.1:6499/`.
-Если нажать Run/Debug прямо в WebStorm, JetBrains Bun plugin может запустить Bun через `BUN_INSPECT=ws+unix://...`; это другой endpoint, и sidecar с TCP default его не увидит.
-
-Дальше:
-
-1. Поставить breakpoint в IDE.
-2. Дождаться остановки.
-3. Агент читает `.metafor/debug/agent-state.json`.
-4. Агент при необходимости отправляет `eval` в sidecar stdin.
-5. Человек делает Step Over/Into/Out в IDE.
-6. Sidecar автоматически пишет новый dump на следующей остановке.
+На стартовом экране можно выбрать файл из workspace. Для `.spec.ts` и `.test.ts` UI формирует команду
+`bun test --timeout=2147483647 <file>`, для остальных entrypoints — `bun <file>`.
 
 ## Timeout Тестов
 
@@ -69,16 +36,15 @@ bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/ ./module.spec.
 
 Если timeout не поднять, тест может завершиться, пока execution стоит на breakpoint-е.
 
-## Роль Человека
+## Единый Контекст
 
-Человек управляет:
+В одном live-контексте находятся:
 
-- breakpoint-ами
-- stepping
-- визуальным осмотром stack/scope в IDE/browser
+- человек, который управляет breakpoint-ами, stepping и визуально смотрит source/stack/scope;
+- ИИ-агент, который читает тот же snapshot, выполняет `eval`/`props` и предлагает изменения;
+- черновик кода в shared editor layer, где можно готовить правку без немедленной записи в файл.
 
-Это сделано намеренно.
-Такой режим нужен для совместной интерактивной отладки: человек ведёт IDE/browser, sidecar читает live state.
+MetaFor UI является основным frontend интерпретатора.
 
 ## Роль REST Breakpoint-ов
 
@@ -94,9 +60,9 @@ curl -sS -X POST http://127.0.0.1:6500/target/run \
   }'
 ```
 
-Sidecar не использует flaky early `setBreakpointByUrl`.
-Он ждёт `Debugger.scriptParsed`, маппит editor coordinates через source map и ставит конкретный
-`Debugger.setBreakpoint` по `scriptId`.
+Интерпретатор не использует flaky early `setBreakpointByUrl`.
+Для локальных TS/TSX файлов он ждёт `Debugger.scriptParsed`, маппит editor coordinates через source map и ставит конкретный
+`Debugger.setBreakpoint` по `scriptId`, чтобы не получить скрытый runtime-line breakpoint.
 
 ## Роль Sidecar
 

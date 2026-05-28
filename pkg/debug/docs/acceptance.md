@@ -1,6 +1,6 @@
-# Acceptance Сценарий
+# Acceptance Сценарий Интерпретатора
 
-Этот сценарий проверяет реальный collaborative debugging loop.
+Этот сценарий проверяет реальный collaborative interpreter loop: человек и ИИ находятся в одном runtime/source-контексте.
 
 ## 1. Запустить Target
 
@@ -22,23 +22,23 @@ http://127.0.0.1:6500/
 Ожидаемые строки в stderr:
 
 ```text
-[bun-debug-agent] attaching to ws://127.0.0.1:6499/
+[bun-debug-agent] connecting to inspector ws://127.0.0.1:6499/
 [bun-debug-agent] inspector socket connected
 ```
 
-## 3. Подключить Человеческий Debugger
+## 3. Открыть Интерпретатор
 
-WebStorm:
+Открыть:
 
 ```text
-Bun Attach -> ws://127.0.0.1:6499/
+http://127.0.0.1:6500/
 ```
 
 ## 4. Поставить Breakpoint
 
-Поставить breakpoint в прикладном коде.
+Поставить breakpoint в прикладном коде через editor gutter.
 
-В human-led режиме breakpoint ставит человек.
+В режиме общего контекста breakpoint ставит человек в интерпретаторе.
 Sidecar только слушает `Debugger.paused` и пишет snapshot.
 
 ## 5. Дождаться Остановки
@@ -76,15 +76,15 @@ cat .metafor/debug/agent-state.json
 {"seq":1,"ok":true,"cmd":"eval","result":{...}}
 ```
 
-## 7. Step В IDE
+## 7. Step В Интерпретаторе
 
-Человек делает Step Over/Into/Out в IDE.
+Человек делает Step Over/Into/Out в интерпретаторе.
 
 Если Bun снова остановился, sidecar должен автоматически записать новый snapshot.
 
 ## Automated Smoke С REST Breakpoint
 
-Для smoke без ручного debugger sidecar может сам запустить target и принять breakpoint:
+Для smoke без ручного UI sidecar может сам запустить target и принять breakpoint:
 
 ```sh
 curl -sS -X POST http://127.0.0.1:6500/target/run \

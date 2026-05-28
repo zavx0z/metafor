@@ -1,7 +1,7 @@
 {
   "name": "@metafor/bun-debug",
   "version": "0.0.1",
-  "description": "Bun WebKit Inspector sidecar for collaborative debugging.",
+  "description": "Bun WebKit Inspector sidecar for the MetaFor interpreter.",
   "type": "module",
   "private": true,
   "main": "index.ts",
