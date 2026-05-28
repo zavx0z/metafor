@@ -30,7 +30,9 @@ export async function readStdinCommands(context: CommandContext): Promise<void> 
     return
   }
   context.signal?.addEventListener("abort", () => {
-    void reader.cancel()
+    void reader.cancel().catch((error) => {
+      context.logger.event("stdin.cancel.failed", {error: serializeError(error)})
+    })
   }, {once: true})
   let buffer = ""
   let sequence = 0
@@ -190,7 +192,7 @@ export async function executeCommand(context: CommandContext, command: JsonObjec
 }
 
 async function evaluateCommand(context: CommandContext, command: JsonObject): Promise<unknown> {
-  if (!context.snapshots.paused) throw new Error("process is not paused")
+  if (!context.snapshots.paused) throw new Error("module is not paused")
 
   const frameIndex = asNumber(command["frame"]) ?? 0
   const expression = asString(command["expr"])
@@ -230,7 +232,7 @@ async function propsCommand(context: CommandContext, command: JsonObject): Promi
 }
 
 async function stepCommand(context: CommandContext, command: JsonObject): Promise<unknown> {
-  if (!context.snapshots.paused) throw new Error("process is not paused")
+  if (!context.snapshots.paused) throw new Error("module is not paused")
 
   const kind = asString(command["kind"])
   const methodByKind: Record<string, string> = {

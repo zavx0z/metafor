@@ -36,18 +36,18 @@ type ConnectionState = "connecting" | "connected" | "disconnected"
 type ScriptSnapshot = {scriptId: string; url: string; hasSourceMap?: boolean; sources?: string[]}
 
 type ServerMessage =
-  | {type: "hello"; inspectorUrl: string; paused: boolean; dump: InterpreterDump | null; scripts: ScriptSnapshot[]; target: TargetSnapshot; sessions?: SessionPaneSnapshot[]; connection: ConnectionInfo}
+  | {type: "hello"; inspectorUrl: string; paused: boolean; dump: InterpreterDump | null; scripts: ScriptSnapshot[]; target: TargetSnapshot; modules?: ModulePaneSnapshot[]; connection: ConnectionInfo}
   | {type: "state"; dump: InterpreterDump}
   | {type: "resumed"}
   | {type: "console"; entries: ConsoleEntry[]}
   | {type: "connection"; state: ConnectionState; error: string | null; inspectorUrl: string}
-  | {type: "sessions"; sessions: SessionPaneSnapshot[]}
-  | {type: "session"; session: SessionPaneSnapshot}
-  | {type: "session-state"; sessionId: string; dump: InterpreterDump; session: SessionPaneSnapshot}
-  | {type: "session-resumed"; sessionId: string; session: SessionPaneSnapshot}
-  | {type: "session-connection"; sessionId: string; state: ConnectionState; error: string | null; inspectorUrl: string; session: SessionPaneSnapshot}
-  | {type: "session-target"; sessionId: string; event: TargetEvent; session: SessionPaneSnapshot}
-  | {type: "session-inspector-event"; sessionId: string; ts: string; method: string; params: unknown}
+  | {type: "modules"; modules: ModulePaneSnapshot[]}
+  | {type: "module"; module: ModulePaneSnapshot}
+  | {type: "module-state"; moduleId: string; dump: InterpreterDump; module: ModulePaneSnapshot}
+  | {type: "module-resumed"; moduleId: string; module: ModulePaneSnapshot}
+  | {type: "module-connection"; moduleId: string; state: ConnectionState; error: string | null; inspectorUrl: string; module: ModulePaneSnapshot}
+  | {type: "module-target"; moduleId: string; event: TargetEvent; module: ModulePaneSnapshot}
+  | {type: "module-inspector-event"; moduleId: string; ts: string; method: string; params: unknown}
   | ({type: "script"} & ScriptSnapshot)
   | {type: "target"; event: TargetEvent}
   | {type: "inspector-event"; ts: string; method: string; params: unknown}
@@ -69,13 +69,13 @@ type TargetSnapshot = {
   exitCode: number | null
 }
 
-type SessionLine = {
+type ModuleLine = {
   ts: string
   stream: "stdout" | "stderr"
   text: string
 }
 
-type SessionPaneSnapshot = {
+type ModulePaneSnapshot = {
   id: string
   label: string
   inspectorUrl: string
@@ -94,7 +94,7 @@ type SessionPaneSnapshot = {
     exitCode: number | null
     signalCode: string | null
     outputLineCount: number
-    output: SessionLine[]
+    output: ModuleLine[]
     pauseOnStart: boolean
   }
 }
@@ -198,11 +198,11 @@ let framesPane: FramesPane | null = null
 let scopesEvalPane: ScopesEvalPane | null = null
 let verbosePane: VerbosePane | null = null
 let welcomePane: WelcomePane | null = null
-const sessionSnapshots = new Map<string, SessionPaneSnapshot>()
-const sessionDisplays = new Map<string, SessionDisplayController>()
-const sessionDisplayIds = new Set<string>()
-let sessionOrder: string[] = []
-let framedSessionKey = ""
+const moduleSnapshots = new Map<string, ModulePaneSnapshot>()
+const moduleDisplays = new Map<string, ModuleDisplayController>()
+const moduleDisplayIds = new Set<string>()
+let moduleOrder: string[] = []
+let framedModuleKey = ""
 let uiLoading = false
 let engineLastSource: Source | null = null
 let sourceRuntimeState: SourceRuntimeState = "idle"
@@ -243,9 +243,9 @@ let currentDump: InterpreterDump | undefined
 let activeFrameIndex = 0
 let nextRequestId = 1
 const COMMAND_TIMEOUT_MS = 10_000
-const SESSION_DISPLAY_GAP_MM = 52
-const SESSION_DISPLAY_CENTER_Y_MM = 0
-const SESSION_DISPLAY_CENTER_Z_MM = 900
+const MODULE_DISPLAY_GAP_MM = 52
+const MODULE_DISPLAY_CENTER_Y_MM = 0
+const MODULE_DISPLAY_CENTER_Z_MM = 900
 type DisplayLayoutMetrics = {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}
 const pendingRequests = new Map<number, {
   timer: number
@@ -283,7 +283,7 @@ function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case "hello":
       inspectorUrl = msg.inspectorUrl
-      applySessionSnapshots(msg.sessions ?? [])
+      applyModuleSnapshots(msg.modules ?? [])
       rememberScripts(msg.scripts)
       applyTargetSnapshot(msg.target)
       applyConnection(msg.connection)
@@ -328,23 +328,23 @@ function handleServerMessage(msg: ServerMessage): void {
       applyConnection({state: msg.state, error: msg.error})
       refreshWelcome()
       return
-    case "sessions":
-      applySessionSnapshots(msg.sessions)
+    case "modules":
+      applyModuleSnapshots(msg.modules)
       return
-    case "session":
-      applySessionSnapshot(msg.session)
+    case "module":
+      applyModuleSnapshot(msg.module)
       return
-    case "session-state":
-      applySessionSnapshot(msg.session)
-      applySessionDump(msg.sessionId, msg.dump)
+    case "module-state":
+      applyModuleSnapshot(msg.module)
+      applyModuleDump(msg.moduleId, msg.dump)
       return
-    case "session-resumed":
-      applySessionSnapshot(msg.session)
-      markSessionResumed(msg.sessionId)
+    case "module-resumed":
+      applyModuleSnapshot(msg.module)
+      markModuleResumed(msg.moduleId)
       return
-    case "session-connection":
-    case "session-target":
-      applySessionSnapshot(msg.session)
+    case "module-connection":
+    case "module-target":
+      applyModuleSnapshot(msg.module)
       return
     case "script":
       rememberScript(msg)
@@ -358,11 +358,11 @@ function handleServerMessage(msg: ServerMessage): void {
     case "inspector-event":
       appendVerbose("inspector", msg.ts, msg.method, msg.params)
       return
-    case "session-inspector-event":
-      appendVerbose("inspector", msg.ts, msg.method, msg.params, msg.sessionId)
+    case "module-inspector-event":
+      appendVerbose("inspector", msg.ts, msg.method, msg.params, msg.moduleId)
       return
     case "interpreter-event":
-      appendVerbose("interpreter", msg.ts, msg.event, msg.detail, sessionIdFromEventDetail(msg.detail))
+      appendVerbose("interpreter", msg.ts, msg.event, msg.detail, moduleIdFromEventDetail(msg.detail))
       return
     case "result":
       resolvePendingRequest(msg)
@@ -379,23 +379,23 @@ function handleServerMessage(msg: ServerMessage): void {
   }
 }
 
-function applySessionSnapshots(sessions: SessionPaneSnapshot[]): void {
-  if (sessions.length === 0) return
-  sessionOrder = sessions.map((session) => session.id)
-  for (const session of sessions) {
-    sessionSnapshots.set(session.id, session)
+function applyModuleSnapshots(modules: ModulePaneSnapshot[]): void {
+  if (modules.length === 0) return
+  moduleOrder = modules.map((module) => module.id)
+  for (const module of modules) {
+    moduleSnapshots.set(module.id, module)
   }
-  syncSessionDisplays()
-  for (const session of sessions) {
-    if (session.dump !== null) applySessionDump(session.id, session.dump)
+  syncModuleDisplays()
+  for (const module of modules) {
+    if (module.dump !== null) applyModuleDump(module.id, module.dump)
   }
 }
 
-function applySessionSnapshot(session: SessionPaneSnapshot): void {
-  sessionSnapshots.set(session.id, session)
-  if (!sessionOrder.includes(session.id)) sessionOrder.push(session.id)
-  syncSessionDisplays()
-  if (session.dump !== null) applySessionDump(session.id, session.dump)
+function applyModuleSnapshot(module: ModulePaneSnapshot): void {
+  moduleSnapshots.set(module.id, module)
+  if (!moduleOrder.includes(module.id)) moduleOrder.push(module.id)
+  syncModuleDisplays()
+  if (module.dump !== null) applyModuleDump(module.id, module.dump)
 }
 
 // Пробиваем CSS-кеш на старте: добавляем ?t=<timestamp> к href стилей,
@@ -536,7 +536,7 @@ function handleTargetEvent(event: TargetEvent): void {
       targetState.startedAt = event.startedAt
       targetState.exitedAt = null
       targetState.exitCode = null
-      setRunStatus("target starting")
+      setRunStatus("module starting")
       break
     case "exited":
       clearInterpreterCommand("target exited")
@@ -551,7 +551,7 @@ function handleTargetEvent(event: TargetEvent): void {
       // target stdout/stderr попадает в console-tail для удобства
       const entry: ConsoleEntry = {
         ts: event.line.ts,
-        text: `[target/${event.line.stream}] ${event.line.text}`,
+        text: `[module/${event.line.stream}] ${event.line.text}`,
       }
       if (event.line.stream === "stderr") entry.level = "error"
       appendConsole(entry)
@@ -753,15 +753,16 @@ function preferredWorkspaceFile(files: readonly string[]): string | undefined {
   return files.find((file) => file.endsWith(".spec.ts") || file.endsWith(".test.ts")) ?? files[0]
 }
 
-function appendVerbose(kind: "inspector" | "interpreter", ts: string, name: string, payload: unknown, sessionId?: string): void {
-  if (sessionId === undefined) verbosePane?.append(kind, ts, name, payload)
-  if (sessionId !== undefined) sessionDisplays.get(sessionId)?.verbose.append(kind, ts, name, payload)
+function appendVerbose(kind: "inspector" | "interpreter", ts: string, name: string, payload: unknown, moduleId?: string): void {
+  if (moduleId === undefined) verbosePane?.append(kind, ts, name, payload)
+  if (moduleId !== undefined) moduleDisplays.get(moduleId)?.verbose.append(kind, ts, name, payload)
 }
 
-function sessionIdFromEventDetail(detail: unknown): string | undefined {
+function moduleIdFromEventDetail(detail: unknown): string | undefined {
   if (typeof detail !== "object" || detail === null) return undefined
-  const sessionId = (detail as Record<string, unknown>)["sessionId"]
-  return typeof sessionId === "string" && sessionId.length > 0 ? sessionId : undefined
+  const event = detail as Record<string, unknown>
+  const moduleId = event["moduleId"]
+  return typeof moduleId === "string" && moduleId.length > 0 ? moduleId : undefined
 }
 
 function rememberScripts(scripts: ScriptSnapshot[]): void {
@@ -1523,11 +1524,11 @@ function appendConsole(entry: ConsoleEntry): void {
 
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
 
-function send(cmd: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<CommandReply> {
+function send(cmd: string, params: Record<string, unknown> = {}, moduleId?: string): Promise<CommandReply> {
   if (socket === undefined || socket.readyState !== WebSocket.OPEN) {
     return Promise.resolve({ok: false, error: "ws not connected"})
   }
-  if (sessionId === undefined) return Promise.resolve({ok: false, error: "sessionId is required"})
+  if (moduleId === undefined) return Promise.resolve({ok: false, error: "moduleId is required"})
   const requestId = nextRequestId++
   return new Promise<CommandReply>((resolve) => {
     const timer = window.setTimeout(() => {
@@ -1535,7 +1536,7 @@ function send(cmd: string, params: Record<string, unknown> = {}, sessionId?: str
       resolve({ok: false, error: `${cmd} timed out after ${COMMAND_TIMEOUT_MS}ms`})
     }, COMMAND_TIMEOUT_MS)
     pendingRequests.set(requestId, {timer, resolve})
-    socket!.send(JSON.stringify({type: "command", cmd, params, requestId, sessionId}))
+    socket!.send(JSON.stringify({type: "command", cmd, params, requestId, moduleId}))
   })
 }
 
@@ -1571,7 +1572,7 @@ async function initEngine(): Promise<void> {
       virtualDisplay: {
         initial: "near",
         surfaceDisplay: false,
-        centerMm: {x: 0, y: SESSION_DISPLAY_CENTER_Y_MM, z: SESSION_DISPLAY_CENTER_Z_MM},
+        centerMm: {x: 0, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM},
         farDistanceMm: 1200,
       },
     })
@@ -1644,7 +1645,7 @@ async function initEngine(): Promise<void> {
     setInterpreterDebugInit({stage: "install-panes"})
     installEnginePanes()
     uiCanvas.handleResize()
-    syncSessionDisplays()
+    syncModuleDisplays()
     resizeObserver = new ResizeObserver(handleEngineResize)
     resizeObserver.observe(engineCanvas)
     requestAnimationFrame(handleEngineResize)
@@ -1747,9 +1748,9 @@ function setVerboseVisible(on: boolean): void {
   verboseVisible = on
   localStorage.setItem("bd:verbose", on ? "1" : "0")
   updateToolbar()
-  for (const controller of sessionDisplays.values()) {
-    const snapshot = sessionSnapshots.get(controller.id)
-    if (snapshot !== undefined) updateSessionToolbar(controller, snapshot)
+  for (const controller of moduleDisplays.values()) {
+    const snapshot = moduleSnapshots.get(controller.id)
+    if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
   }
   applyEngineLayout()
 }
@@ -1847,7 +1848,7 @@ function applyEngineLayout(): void {
   uiCanvas?.relayout()
 }
 
-type SessionDisplayController = {
+type ModuleDisplayController = {
   id: string
   toolbar: ToolbarPane
   frames: FramesPane
@@ -1864,16 +1865,16 @@ type SessionDisplayController = {
   activeCommand: ActiveInterpreterCommand | null
 }
 
-function createSessionDisplayController(session: SessionPaneSnapshot): SessionDisplayController {
-  const controller: SessionDisplayController = {
-    id: session.id,
+function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDisplayController {
+  const controller: ModuleDisplayController = {
+    id: module.id,
     toolbar: new ToolbarPane({
-      onPause: () => void runSessionInterpreterCommand(controller, "pause", {}, t("pause")),
-      onResume: () => void runSessionInterpreterCommand(controller, "resume", {}, t("resume")),
-      onRestartTarget: () => void restartSession(session.id),
-      onStopTarget: () => void stopSession(session.id),
-      onShowExecutionPoint: () => renderSessionDump(controller),
-      onStep: (kind) => void runSessionInterpreterCommand(controller, "step", {kind}, kind === "over" ? t("stepOver") : kind === "into" ? t("stepInto") : t("stepOut")),
+      onPause: () => void runModuleInterpreterCommand(controller, "pause", {}, t("pause")),
+      onResume: () => void runModuleInterpreterCommand(controller, "resume", {}, t("resume")),
+      onRestartTarget: () => void restartModule(module.id),
+      onStopTarget: () => void stopModule(module.id),
+      onShowExecutionPoint: () => renderModuleDump(controller),
+      onStep: (kind) => void runModuleInterpreterCommand(controller, "step", {kind}, kind === "over" ? t("stepOver") : kind === "into" ? t("stepInto") : t("stepOut")),
       onToggleDraft: () => {},
       onSaveDraft: () => {},
       onToggleLocale: () => toggleLocale(),
@@ -1881,11 +1882,11 @@ function createSessionDisplayController(session: SessionPaneSnapshot): SessionDi
     }),
     frames: new FramesPane((index) => {
       controller.activeFrameIndex = index
-      renderSessionDump(controller)
+      renderModuleDump(controller)
     }),
     scopes: new ScopesEvalPane(async (expr, frame) => {
       controller.scopes.setEvalOutput(t("commandExecuting"))
-      const response = await runSessionInterpreterCommand(controller, "eval", {frame, expr}, t("runEval"))
+      const response = await runModuleInterpreterCommand(controller, "eval", {frame, expr}, t("runEval"))
       controller.scopes.setEvalOutput(JSON.stringify(response))
     }),
     source: new EditorPane({
@@ -1907,48 +1908,48 @@ function createSessionDisplayController(session: SessionPaneSnapshot): SessionDi
     outputLineCount: 0,
     activeCommand: null,
   }
-  controller.toolbar.node.name = `InterpreterToolbar:${session.id}`
-  controller.frames.node.name = `InterpreterFrames:${session.id}`
-  controller.scopes.node.name = `InterpreterScopes:${session.id}`
-  controller.source.node.name = `InterpreterSource:${session.id}`
-  controller.console.node.name = `InterpreterConsole:${session.id}`
-  controller.verbose.node.name = `InterpreterVerbose:${session.id}`
-  updateSessionDisplay(controller, session)
+  controller.toolbar.node.name = `InterpreterToolbar:${module.id}`
+  controller.frames.node.name = `InterpreterFrames:${module.id}`
+  controller.scopes.node.name = `InterpreterScopes:${module.id}`
+  controller.source.node.name = `InterpreterSource:${module.id}`
+  controller.console.node.name = `InterpreterConsole:${module.id}`
+  controller.verbose.node.name = `InterpreterVerbose:${module.id}`
+  updateModuleDisplay(controller, module)
   return controller
 }
 
-function updateSessionDisplay(controller: SessionDisplayController, session: SessionPaneSnapshot): void {
-  if (session.dump !== null && controller.dump?.timestamp !== session.dump.timestamp) {
-    controller.dump = session.dump
+function updateModuleDisplay(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
+  if (module.dump !== null && controller.dump?.timestamp !== module.dump.timestamp) {
+    controller.dump = module.dump
   }
-  if (session.target.outputLineCount < controller.outputLineCount) {
+  if (module.target.outputLineCount < controller.outputLineCount) {
     controller.console.clear()
     controller.outputLineCount = 0
   }
-  const nextLines = session.target.output.slice(controller.outputLineCount)
+  const nextLines = module.target.output.slice(controller.outputLineCount)
   if (nextLines.length > 0) {
     controller.console.pushEntries(nextLines.map((line) => ({
       ts: line.ts,
       level: line.stream === "stderr" ? "error" : undefined,
-      text: `[target/${line.stream}] ${line.text}`,
+      text: `[module/${line.stream}] ${line.text}`,
     })))
-    controller.outputLineCount = session.target.outputLineCount
+    controller.outputLineCount = module.target.outputLineCount
   }
-  updateSessionToolbar(controller, session)
-  if (controller.dump !== undefined) renderSessionDump(controller)
+  updateModuleToolbar(controller, module)
+  if (controller.dump !== undefined) renderModuleDump(controller)
 }
 
-function updateSessionToolbar(controller: SessionDisplayController, session: SessionPaneSnapshot): void {
-  const run = sessionRunStatus(session)
-  const connectionKind: BadgeKind = session.connection.state === "connected"
+function updateModuleToolbar(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
+  const run = moduleRunStatus(module)
+  const connectionKind: BadgeKind = module.connection.state === "connected"
     ? "live"
-    : session.connection.state === "connecting"
+    : module.connection.state === "connecting"
       ? "neutral"
       : "warn"
   controller.toolbar.setState({
-    ws: session.connection.state,
+    ws: module.connection.state,
     wsKind: connectionKind,
-    connection: `context: ${session.connection.state}`,
+    connection: `context: ${module.connection.state}`,
     connectionKind,
     run: controller.activeCommand === null ? run.text : t("commandExecuting"),
     runKind: controller.activeCommand === null ? run.kind : "paused",
@@ -1959,7 +1960,7 @@ function updateSessionToolbar(controller: SessionDisplayController, session: Ses
     draftStatus: "clean",
     draftKind: "neutral",
     locale: getUiLocale(),
-    inspectorUrl: session.inspectorUrl,
+    inspectorUrl: module.inspectorUrl,
     verbose: verboseVisible,
     engine: engineStatus,
     welcomeVisible: false,
@@ -1967,37 +1968,37 @@ function updateSessionToolbar(controller: SessionDisplayController, session: Ses
   })
 }
 
-function sessionRunStatus(session: SessionPaneSnapshot): {text: string; kind: BadgeKind} {
-  if (session.paused) return {text: "paused", kind: "paused"}
-  if (session.target.state === "running") return {text: "running", kind: "live"}
-  if (session.target.state === "starting") return {text: "target starting", kind: "neutral"}
-  if (session.target.state === "exited") return {text: `exited code=${session.target.exitCode}`, kind: "warn"}
-  if (session.target.state === "failed") return {text: "failed", kind: "warn"}
+function moduleRunStatus(module: ModulePaneSnapshot): {text: string; kind: BadgeKind} {
+  if (module.paused) return {text: "paused", kind: "paused"}
+  if (module.target.state === "running") return {text: "running", kind: "live"}
+  if (module.target.state === "starting") return {text: "module starting", kind: "neutral"}
+  if (module.target.state === "exited") return {text: `exited code=${module.target.exitCode}`, kind: "warn"}
+  if (module.target.state === "failed") return {text: "failed", kind: "warn"}
   return {text: "waiting", kind: "neutral"}
 }
 
-function applySessionDump(sessionId: string, dump: InterpreterDump): void {
-  const controller = sessionDisplays.get(sessionId)
+function applyModuleDump(moduleId: string, dump: InterpreterDump): void {
+  const controller = moduleDisplays.get(moduleId)
   if (controller === undefined) return
   controller.dump = dump
   controller.activeFrameIndex = Math.min(controller.activeFrameIndex, Math.max(0, dump.frames.length - 1))
-  renderSessionDump(controller)
-  const snapshot = sessionSnapshots.get(sessionId)
-  if (snapshot !== undefined) updateSessionToolbar(controller, snapshot)
+  renderModuleDump(controller)
+  const snapshot = moduleSnapshots.get(moduleId)
+  if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
 }
 
-function markSessionResumed(sessionId: string): void {
-  const controller = sessionDisplays.get(sessionId)
+function markModuleResumed(moduleId: string): void {
+  const controller = moduleDisplays.get(moduleId)
   if (controller === undefined) return
   controller.dump = undefined
   controller.frames.setFrames([], controller.activeFrameIndex)
   controller.scopes.setFrame(null)
-  setSessionSourceState(controller, "running")
-  const snapshot = sessionSnapshots.get(sessionId)
-  if (snapshot !== undefined) updateSessionToolbar(controller, snapshot)
+  setModuleSourceState(controller, "running")
+  const snapshot = moduleSnapshots.get(moduleId)
+  if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
 }
 
-function renderSessionDump(controller: SessionDisplayController): void {
+function renderModuleDump(controller: ModuleDisplayController): void {
   const dump = controller.dump
   if (dump === undefined) {
     controller.frames.setFrames([], controller.activeFrameIndex)
@@ -2011,13 +2012,13 @@ function renderSessionDump(controller: SessionDisplayController): void {
     return
   }
   controller.scopes.setFrame(frame as FrameSnapshot)
-  void renderSessionSourceForFrame(controller, frame as FrameSnapshot)
+  void renderModuleSourceForFrame(controller, frame as FrameSnapshot)
 }
 
-async function renderSessionSourceForFrame(controller: SessionDisplayController, frame: FrameSnapshot): Promise<void> {
+async function renderModuleSourceForFrame(controller: ModuleDisplayController, frame: FrameSnapshot): Promise<void> {
   const scriptId = frame.scriptId
   if (scriptId === undefined || scriptId.length === 0) {
-    setSessionSource(controller, {
+    setModuleSource(controller, {
       lines: ["scriptId недоступен для этого фрейма"],
       currentLine: 0,
       location: "",
@@ -2028,10 +2029,10 @@ async function renderSessionSourceForFrame(controller: SessionDisplayController,
   const cacheKey = `${scriptId}\0sourcemap\0${frame.url}`
   let cached = controller.sourceCache.get(cacheKey)
   if (cached === undefined) {
-    setSessionSourceState(controller, "loading")
-    setSessionSource(controller, {lines: ["loading..."], currentLine: 0, location}, "loading")
+    setModuleSourceState(controller, "loading")
+    setModuleSource(controller, {lines: ["loading..."], currentLine: 0, location}, "loading")
     try {
-      const res = await fetch(`/sessions/${encodeURIComponent(controller.id)}/source?scriptId=${encodeURIComponent(scriptId)}&sourceUrl=${encodeURIComponent(frame.url)}&sourceKind=sourcemap`)
+      const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/source?scriptId=${encodeURIComponent(scriptId)}&sourceUrl=${encodeURIComponent(frame.url)}&sourceKind=sourcemap`)
       const data = await res.json() as {
         url?: string
         scriptSource?: string
@@ -2039,7 +2040,7 @@ async function renderSessionSourceForFrame(controller: SessionDisplayController,
         error?: string
       }
       if (typeof data.scriptSource !== "string") {
-        setSessionSource(controller, {lines: [`no source: ${data.error ?? "unknown"}`], currentLine: 0, location}, "paused")
+        setModuleSource(controller, {lines: [`no source: ${data.error ?? "unknown"}`], currentLine: 0, location}, "paused")
         return
       }
       cached = {
@@ -2049,12 +2050,12 @@ async function renderSessionSourceForFrame(controller: SessionDisplayController,
       }
       controller.sourceCache.set(cacheKey, cached)
     } catch (error) {
-      setSessionSource(controller, {lines: [`fetch failed: ${String(error)}`], currentLine: 0, location}, "paused")
+      setModuleSource(controller, {lines: [`fetch failed: ${String(error)}`], currentLine: 0, location}, "paused")
       return
     }
   }
   const sourceUrl = cached.sourceUrl ?? frame.url
-  setSessionSource(controller, {
+  setModuleSource(controller, {
     lines: cached.text.split("\n"),
     currentLine: frame.line,
     location: sourceLocation(sourceUrl, scriptId, frame.line),
@@ -2062,23 +2063,23 @@ async function renderSessionSourceForFrame(controller: SessionDisplayController,
   }, "paused")
 }
 
-function setSessionSource(controller: SessionDisplayController, payload: Source, state: SourceRuntimeState): void {
+function setModuleSource(controller: ModuleDisplayController, payload: Source, state: SourceRuntimeState): void {
   controller.sourceLocation = payload.location
   controller.sourceRuntimeState = state
-  controller.source.setTitle(sessionSourceTitle(controller))
+  controller.source.setTitle(moduleSourceTitle(controller))
   controller.source.setText(payload.lines.join("\n"))
   if (payload.tokens !== undefined) controller.source.setTokens(payload.tokens)
   else controller.source.setLanguage({path: sourcePathFromLocation(payload.location)})
   controller.source.setExecutionLine(payload.currentLine > 0 ? payload.currentLine : null, {scroll: true})
 }
 
-function setSessionSourceState(controller: SessionDisplayController, state: SourceRuntimeState): void {
+function setModuleSourceState(controller: ModuleDisplayController, state: SourceRuntimeState): void {
   controller.sourceRuntimeState = state
-  controller.source.setTitle(sessionSourceTitle(controller))
+  controller.source.setTitle(moduleSourceTitle(controller))
 }
 
-function sessionSourceTitle(controller: SessionDisplayController): string {
-  const snapshot = sessionSnapshots.get(controller.id)
+function moduleSourceTitle(controller: ModuleDisplayController): string {
+  const snapshot = moduleSnapshots.get(controller.id)
   const label = snapshot?.label ?? controller.id
   if (controller.sourceRuntimeState === "loading") return `${label} - ${t("sourceLoading")}`
   if (controller.sourceRuntimeState === "running") return `${label} - ${t("sourceRunning")}`
@@ -2086,7 +2087,7 @@ function sessionSourceTitle(controller: SessionDisplayController): string {
   return `${label} - ${location}`
 }
 
-async function runSessionInterpreterCommand(controller: SessionDisplayController, cmd: string, params: Record<string, unknown>, label: string): Promise<CommandReply> {
+async function runModuleInterpreterCommand(controller: ModuleDisplayController, cmd: string, params: Record<string, unknown>, label: string): Promise<CommandReply> {
   if (controller.activeCommand !== null) {
     return {ok: false, error: `${t("commandAlreadyRunning")}: ${controller.activeCommand.label}`}
   }
@@ -2095,33 +2096,33 @@ async function runSessionInterpreterCommand(controller: SessionDisplayController
     label,
     startedAt: performance.now(),
     timer: window.setInterval(() => {
-      const snapshot = sessionSnapshots.get(controller.id)
-      if (snapshot !== undefined) updateSessionToolbar(controller, snapshot)
+      const snapshot = moduleSnapshots.get(controller.id)
+      if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
     }, 250),
   }
   controller.activeCommand = command
-  const snapshot = sessionSnapshots.get(controller.id)
-  if (snapshot !== undefined) updateSessionToolbar(controller, snapshot)
+  const snapshot = moduleSnapshots.get(controller.id)
+  if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
   try {
     return await send(cmd, params, controller.id)
   } finally {
     window.clearInterval(command.timer)
     if (controller.activeCommand === command) controller.activeCommand = null
-    const nextSnapshot = sessionSnapshots.get(controller.id)
-    if (nextSnapshot !== undefined) updateSessionToolbar(controller, nextSnapshot)
+    const nextSnapshot = moduleSnapshots.get(controller.id)
+    if (nextSnapshot !== undefined) updateModuleToolbar(controller, nextSnapshot)
   }
 }
 
-async function restartSession(sessionId: string): Promise<void> {
-  const snapshot = sessionSnapshots.get(sessionId)
+async function restartModule(moduleId: string): Promise<void> {
+  const snapshot = moduleSnapshots.get(moduleId)
   const command = snapshot?.target.command
   if (command === undefined || command.length === 0) return
-  await stopSession(sessionId)
-  await fetch(`/sessions/${encodeURIComponent(sessionId)}/run`, {
+  await stopModule(moduleId)
+  await fetch(`/modules/${encodeURIComponent(moduleId)}/run`, {
     method: "POST",
     headers: {"content-type": "application/json"},
     body: JSON.stringify({
-      label: snapshot?.label ?? sessionId,
+      label: snapshot?.label ?? moduleId,
       command: command.filter((part) => !part.startsWith("--inspect")),
       pauseOnStart: snapshot?.target.pauseOnStart ?? true,
     }),
@@ -2130,31 +2131,31 @@ async function restartSession(sessionId: string): Promise<void> {
 
 function handleEngineResize(): void {
   uiCanvas?.handleResize()
-  syncSessionDisplays()
+  syncModuleDisplays()
 }
 
-function syncSessionDisplays(): void {
+function syncModuleDisplays(): void {
   if (uiCanvas === null) return
-  const orderedSessions = sessionOrder
-    .map((id) => sessionSnapshots.get(id))
-    .filter((session): session is SessionPaneSnapshot => session !== undefined)
-  if (orderedSessions.length === 0) return
+  const orderedModules = moduleOrder
+    .map((id) => moduleSnapshots.get(id))
+    .filter((module): module is ModulePaneSnapshot => module !== undefined)
+  if (orderedModules.length === 0) return
 
   const displayMetrics = browserDisplayMetrics()
-  const displayIds = orderedSessions.map((session) => sessionDisplayId(session.id))
-  const totalW = orderedSessions.length * displayMetrics.widthMm
-    + Math.max(0, orderedSessions.length - 1) * SESSION_DISPLAY_GAP_MM
+  const displayIds = orderedModules.map((module) => moduleDisplayId(module.id))
+  const totalW = orderedModules.length * displayMetrics.widthMm
+    + Math.max(0, orderedModules.length - 1) * MODULE_DISPLAY_GAP_MM
   let cursorX = -totalW / 2
-  for (let index = 0; index < orderedSessions.length; index++) {
-    const session = orderedSessions[index]!
-    const displayId = sessionDisplayId(session.id)
+  for (let index = 0; index < orderedModules.length; index++) {
+    const module = orderedModules[index]!
+    const displayId = moduleDisplayId(module.id)
     const x = cursorX + displayMetrics.widthMm / 2
-    cursorX += displayMetrics.widthMm + SESSION_DISPLAY_GAP_MM
-    const center = {x, y: SESSION_DISPLAY_CENTER_Y_MM, z: SESSION_DISPLAY_CENTER_Z_MM}
-    if (!sessionDisplayIds.has(session.id)) {
-      sessionDisplayIds.add(session.id)
-      const controller = createSessionDisplayController(session)
-      sessionDisplays.set(session.id, controller)
+    cursorX += displayMetrics.widthMm + MODULE_DISPLAY_GAP_MM
+    const center = {x, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM}
+    if (!moduleDisplayIds.has(module.id)) {
+      moduleDisplayIds.add(module.id)
+      const controller = createModuleDisplayController(module)
+      moduleDisplays.set(module.id, controller)
       uiCanvas.createDisplay({
         id: displayId,
         widthMm: displayMetrics.widthMm,
@@ -2169,33 +2170,33 @@ function syncSessionDisplays(): void {
     } else {
       uiCanvas.resizeDisplay(displayId, displayMetrics)
       uiCanvas.setDisplayCenter(displayId, center)
-      const controller = sessionDisplays.get(session.id)
-      if (controller !== undefined) updateSessionDisplay(controller, session)
+      const controller = moduleDisplays.get(module.id)
+      if (controller !== undefined) updateModuleDisplay(controller, module)
     }
   }
-  for (const session of orderedSessions) {
-    const controller = sessionDisplays.get(session.id)
-    if (controller !== undefined) updateSessionDisplay(controller, session)
+  for (const module of orderedModules) {
+    const controller = moduleDisplays.get(module.id)
+    if (controller !== undefined) updateModuleDisplay(controller, module)
   }
   if (displayIds.length <= 1) {
-    framedSessionKey = displayIds.join("\0")
+    framedModuleKey = displayIds.join("\0")
     uiCanvas.setDisplayMode("near")
     return
   }
   const frameKey = displayIds.map((id, index) => {
     return `${id}:${index}:${Math.round(displayMetrics.widthMm)}x${Math.round(displayMetrics.heightMm)}:${displayMetrics.pixelWidth}x${displayMetrics.pixelHeight}`
   }).join("\0")
-  if (framedSessionKey !== frameKey) {
-    framedSessionKey = frameKey
+  if (framedModuleKey !== frameKey) {
+    framedModuleKey = frameKey
     uiCanvas.frameDisplays(displayIds)
   }
 }
 
-function sessionDisplayId(sessionId: string): string {
-  return `session:${sessionId}`
+function moduleDisplayId(moduleId: string): string {
+  return `module:${moduleId}`
 }
 
-function addInterpreterSurfacesToDisplay(displayId: string, controller: SessionDisplayController): void {
+function addInterpreterSurfacesToDisplay(displayId: string, controller: ModuleDisplayController): void {
   if (uiCanvas === null) return
   uiCanvas.addSurfaceToDisplay(displayId, controller.frames, (canvas) => interpreterRects(canvas).frames)
   uiCanvas.addSurfaceToDisplay(displayId, controller.scopes, (canvas) => interpreterRects(canvas).scopes)
@@ -2226,11 +2227,11 @@ function browserDisplayMetrics(): DisplayLayoutMetrics {
   }
 }
 
-async function stopSession(sessionId: string): Promise<void> {
+async function stopModule(moduleId: string): Promise<void> {
   try {
-    await fetch(`/sessions/${encodeURIComponent(sessionId)}/stop`, {method: "POST"})
+    await fetch(`/modules/${encodeURIComponent(moduleId)}/stop`, {method: "POST"})
   } catch (error) {
-    appendConsole({ts: new Date().toISOString(), level: "error", text: `[ui] session ${sessionId}/stop: ${String(error)}`})
+    appendConsole({ts: new Date().toISOString(), level: "error", text: `[ui] module ${moduleId}/stop: ${String(error)}`})
   }
 }
 

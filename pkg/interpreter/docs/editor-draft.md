@@ -8,7 +8,7 @@
 - The central paused-source viewer uses shared `EditorPane` in read-only mode.
 - The toolbar can switch the central source area into `Edit Draft` mode.
 - `EditorPane` is imported from `@ui/panes`, receives the current `/source` text and resolves highlighting by source path.
-- Draft state is held only in the browser process memory.
+- Draft state is held only in browser memory.
 - `Cmd/Ctrl+S` or the toolbar save action marks the draft as saved in memory and writes nothing to disk.
 - The toolbar exposes draft state as `clean`, `dirty`, `saved in memory`, or `no source`.
 
@@ -16,7 +16,7 @@
 
 - The toolbar uses stable fixed-width status chips so labels do not resize the row when state changes.
 - The language switch is the first toolbar chip and persists `ru` / `en` in `localStorage`.
-- Socket, inspector and target states are short visible labels with delayed localized tooltips for details.
+- Socket, context and module states are short visible labels with delayed localized tooltips for details.
 - Interpreter control commands are serialized in the UI: pause/resume/step/eval allow one active command at a time, disable the control buttons while the command is in flight, and show the active operation in the target status chip.
 - Paused source highlighting is stronger: the active line has an orange outline/rail in addition to the execution arrow.
 - Verbose events are compacted for UI reading: routine successful inspector responses and polling noise are hidden, important events are summarized, and autoscroll pins to the newest event while enabled.

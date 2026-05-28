@@ -128,7 +128,7 @@ INTERPRETER_INITIALIZE_FALLBACK_MS=0 bun run interpreter
 {"cmd":"frames"}
 ```
 
-## eval Говорит process is not paused
+## eval Говорит module is not paused
 
 `Debugger.evaluateOnCallFrame` работает только пока target paused.
 

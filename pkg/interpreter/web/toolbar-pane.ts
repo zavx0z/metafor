@@ -192,7 +192,7 @@ function compactRunStatus(value: string): string {
   if (value === "paused") return getUiLocale() === "ru" ? "пауза" : "paused"
   if (value === "waiting") return getUiLocale() === "ru" ? "ожидание" : "waiting"
   if (value === "reconnecting") return t("reconnecting")
-  if (value === "target starting") return getUiLocale() === "ru" ? "процесс стартует" : "process starting"
+  if (value === "target starting" || value === "module starting") return getUiLocale() === "ru" ? "модуль стартует" : "module starting"
   if (value === "pause requested") return getUiLocale() === "ru" ? "пауза запрошена" : "pause requested"
   if (value === "pause pending") return getUiLocale() === "ru" ? "пауза ожидается" : "pause pending"
   return value

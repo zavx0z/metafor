@@ -1,50 +1,42 @@
 # MetaFor Интерпретатор
 
-Интерпретатор — общий live-контекст человека и ИИ для Bun-процессов. Человек и агент видят один runtime state,
-один stack/scope/source-контекст, могут ставить точки остановки, выполнять eval и в реальном времени готовить
-изменения кода в общем редакторе.
+Интерпретатор — общий live-контекст человека и ИИ для Bun-модулей. Человек и агент видят один runtime/source-контекст, один stack/scope/source state, могут управлять паузой, stepping, eval и в реальном времени готовить изменения кода в общем редакторе.
 
-Технически это sidecar поверх Bun WebKit Inspector Protocol. Он подключается к Bun inspector WebSocket,
-пишет snapshot текущей остановки, даёт REST/WS API для `eval`, `props`, `step`, `resume`, и умеет запускать
-target-процесс сам.
+Технически внутри используется Bun WebKit Inspector Protocol. Эта деталь не является отдельным пользовательским отладчиком и не требует WebStorm/DevTools: UI MetaFor является основным интерфейсом интерпретатора.
 
-Один браузерный UI использует один WebGPU `Space` и один canvas. Несколько процессов отображаются как несколько
-`UIDisplay` внутри этого же `Space`, разложенные в ряд.
+Один браузерный UI использует один WebGPU `Space` и один canvas. Каждый запущенный модуль получает свой равноправный `UIDisplay`; несколько дисплеев раскладываются в ряд внутри того же `Space`.
 
 ## Быстрый Старт
 
-Обычный запуск UI без target:
+UI без стартового модуля:
 
 ```sh
 bun run interpreter
 ```
 
-Запуск сразу с target:
+Запуск одного модуля:
 
 ```sh
-bun run interpreter -- ./module.ts
+bun run interpreter ./module.ts
 ```
 
-Если нужен тот же набор параметров, что у стандартного Bun inspector, передавай их перед файлом.
-Аргументы программы остаются после `--`:
+Тестовые файлы `*.spec.ts` и `*.test.ts` запускаются через `bun test`, остальные JS/TS entrypoint-ы — через `bun <path>`.
+
+Параметры задаются после пути и принадлежат предыдущему модулю:
 
 ```sh
-bun run interpreter -- --inspect-wait ./module.ts -- --flag value
-bun run interpreter -- bun test --timeout=2147483647 ./module.spec.ts -- --grep case
+bun run interpreter ./module.spec.ts -timeout=2147483647 -grep=case
 ```
 
-Если `--inspect*` не указан, sidecar добавит `--inspect-brk=ws://127.0.0.1:6499/`, чтобы UI сразу попал в live-контекст интерпретатора.
-Если `--inspect`, `--inspect-wait` или `--inspect-brk` уже указан, режим сохраняется, а endpoint согласуется с `BUN_INSPECTOR_URL`.
+Одинарный `-param=value` нормализуется в Bun-форму `--param=value`; уже двойной `--param=value` сохраняется.
 
-Запуск нескольких процессов:
+Несколько модулей:
 
 ```sh
-bun run interpreter -- \
-  --session dark-server -- bun test --timeout=2147483647 dark/server.spec.ts \
-  --session syntax -- bun test pkg/interpreter/src/syntax.test.ts
+bun run interpreter dark/server.spec.ts -timeout=2147483647 pkg/interpreter/src/syntax.test.ts
 ```
 
-Первый session использует `ws://127.0.0.1:6499/`; следующие получают соседние порты, пропуская HTTP-порт UI.
+Относительные и абсолютные пути поддерживаются. Имя модуля в UI берётся из пути запуска.
 
 UI и REST API:
 
@@ -52,76 +44,34 @@ UI и REST API:
 http://127.0.0.1:6500/
 ```
 
-Когда target остановится на breakpoint-е, snapshot будет здесь:
+Snapshot текущей остановки:
 
 ```text
 .metafor/interpreter/state.json
 ```
 
-## Запуск Target Через REST
-
-Интерпретатор может сам стартовать target в default session и заранее принять breakpoint-ы в editor coordinates:
-
-```sh
-curl -sS -X POST http://127.0.0.1:6500/target/run \
-  -H 'content-type: application/json' \
-  -d '{
-    "command": [
-      "bun", "test", "--timeout=2147483647", "./module.spec.ts"
-    ],
-    "cwd": "/absolute/path/to/metafor",
-    "breakpoints": [
-      {"url": "/absolute/path/to/metafor/module.ts", "line": 46}
-    ]
-  }'
-```
-
-После остановки:
-
-```sh
-curl -sS http://127.0.0.1:6500/state
-curl -sS -X POST http://127.0.0.1:6500/eval \
-  -H 'content-type: application/json' \
-  -d '{"frame":0,"expr":"wimp.src"}'
-curl -sS -X POST http://127.0.0.1:6500/resume -d '{}'
-```
-
-Breakpoint-ы из REST ставятся после `Debugger.scriptParsed` по `scriptId` и с учётом source map,
-поэтому `line` указывается как строка в исходном `.ts` файле.
-
-Новый процесс отдельным session:
-
-```sh
-curl -sS -X POST http://127.0.0.1:6500/sessions/run \
-  -H 'content-type: application/json' \
-  -d '{"label":"syntax","command":["bun","test","pkg/interpreter/src/syntax.test.ts"],"pauseOnStart":false}'
-```
-
-## Основные REST Endpoints
+## REST Modules API
 
 ```text
-GET    /health
-GET    /state
-GET    /frames
-GET    /scripts
-GET    /events?limit=200
-GET    /console?limit=200
-GET    /workspace/files
-GET    /sessions
-POST   /sessions/run
-POST   /sessions/:id/stop
-POST   /sessions/:id/command
-GET    /breakpoints
-GET    /target
-POST   /target/run
-POST   /target/stop
-POST   /eval
-POST   /props
-POST   /pause
-POST   /resume
-POST   /step
-POST   /breakpoint
-DELETE /breakpoint
+GET    /modules
+POST   /modules/run
+POST   /modules/:id/run
+POST   /modules/:id/stop
+POST   /modules/:id/command
+GET    /modules/:id/source
+```
+
+Пример запуска модуля через REST:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/modules/run \
+  -H 'content-type: application/json' \
+  -d '{
+    "id": "syntax",
+    "label": "pkg/interpreter/src/syntax.test.ts",
+    "command": ["bun", "test", "pkg/interpreter/src/syntax.test.ts"],
+    "pauseOnStart": true
+  }'
 ```
 
 ## Переменные Окружения
@@ -138,6 +88,7 @@ DELETE /breakpoint
 ## Проверка
 
 ```sh
+bun test pkg/interpreter/src/module-cli.test.ts
 bun run --filter @metafor/interpreter typecheck
 ```
 

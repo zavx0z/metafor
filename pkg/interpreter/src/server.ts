@@ -37,7 +37,7 @@ import type {InspectorClient} from "./inspector-client.ts"
 import type {TargetSupervisor} from "./target.ts"
 import type {JsonObject} from "./types.ts"
 import {sourceMapMapper} from "./source-map.ts"
-import type {InterpreterSession, InterpreterSessionManager, InterpreterSessionSnapshot, StartupTargetOptions} from "./session.ts"
+import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} from "./module.ts"
 
 export type HttpServerOptions = {
   host: string
@@ -47,7 +47,7 @@ export type HttpServerOptions = {
   consoleLogs: ConsoleLogStore
   breakpoints: BreakpointStore
   target: TargetSupervisor
-  sessions: InterpreterSessionManager
+  modules: InterpreterModuleManager
   logger: EventLogger
   eventLogPath: string
   consoleLogPath: string
@@ -135,52 +135,52 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
     if (event.type === "started" || event.type === "exited") clearSourceCaches()
     broadcast({type: "target", event})
   })
-  const subscribedSessions = new Set<string>()
-  const broadcastSessions = (): void => {
-    broadcast({type: "sessions", sessions: options.sessions.snapshots()})
+  const subscribedModules = new Set<string>()
+  const broadcastModules = (): void => {
+    broadcast({type: "modules", modules: options.modules.snapshots()})
   }
-  const subscribeSession = (session: InterpreterSession): void => {
-    if (subscribedSessions.has(session.id)) return
-    subscribedSessions.add(session.id)
-    session.snapshots.onPause((dump) => {
-      broadcast({type: "session-state", sessionId: session.id, dump, session: session.snapshot()})
-      broadcastSessions()
+  const subscribeModule = (module: InterpreterModule): void => {
+    if (subscribedModules.has(module.id)) return
+    subscribedModules.add(module.id)
+    module.snapshots.onPause((dump) => {
+      broadcast({type: "module-state", moduleId: module.id, dump, module: module.snapshot()})
+      broadcastModules()
     })
-    session.snapshots.onResume(() => {
-      broadcast({type: "session-resumed", sessionId: session.id, session: session.snapshot()})
-      broadcastSessions()
+    module.snapshots.onResume(() => {
+      broadcast({type: "module-resumed", moduleId: module.id, module: module.snapshot()})
+      broadcastModules()
     })
-    session.client.onSocketStateChange((state, error) => {
+    module.client.onSocketStateChange((state, error) => {
       broadcast({
-        type: "session-connection",
-        sessionId: session.id,
+        type: "module-connection",
+        moduleId: module.id,
         state,
         error: error ?? null,
-        inspectorUrl: session.client.url,
-        session: session.snapshot(),
+        inspectorUrl: module.client.url,
+        module: module.snapshot(),
       })
-      broadcastSessions()
+      broadcastModules()
     })
-    session.client.onEvent((method, params) => {
+    module.client.onEvent((method, params) => {
       broadcast({
-        type: "session-inspector-event",
-        sessionId: session.id,
+        type: "module-inspector-event",
+        moduleId: module.id,
         ts: new Date().toISOString(),
         method,
         params,
       })
     })
-    session.target.onEvent((event) => {
+    module.target.onEvent((event) => {
       if (event.type === "started" || event.type === "exited") clearSourceCaches()
-      broadcast({type: "session-target", sessionId: session.id, event, session: session.snapshot()})
-      broadcastSessions()
+      broadcast({type: "module-target", moduleId: module.id, event, module: module.snapshot()})
+      broadcastModules()
     })
   }
-  for (const session of options.sessions.list()) subscribeSession(session)
-  options.sessions.onEvent((event) => {
-    subscribeSession(event.session)
-    broadcast({type: "session", session: event.session.snapshot()})
-    broadcastSessions()
+  for (const module of options.modules.list()) subscribeModule(module)
+  options.modules.onEvent((event) => {
+    subscribeModule(event.module)
+    broadcast({type: "module", module: event.module.snapshot()})
+    broadcastModules()
   })
 
   const websocket: WebSocketHandler<WsClientData> = {
@@ -195,7 +195,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         scriptCount: options.snapshots.scripts.length,
         scripts: scriptsView(options.snapshots.scripts),
         target: options.target.snapshot(),
-        sessions: options.sessions.snapshots(),
+        modules: options.modules.snapshots(),
         connection: {
           state: options.client.socketState,
           error: options.client.lastError ?? null,
@@ -223,26 +223,26 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       const cmd = asString(message["cmd"])
       const requestId = asNumber(message["requestId"])
       const params = asObject(message["params"]) ?? {}
-      const sessionId = asString(message["sessionId"])
-      if (sessionId === undefined) {
-        ws.send(JSON.stringify({type: "result", requestId, ok: false, error: "missing sessionId"}))
+      const moduleId = asString(message["moduleId"])
+      if (moduleId === undefined) {
+        ws.send(JSON.stringify({type: "result", requestId, ok: false, error: "missing moduleId"}))
         return
       }
       if (cmd === undefined) {
         ws.send(JSON.stringify({type: "result", requestId, ok: false, error: "missing cmd"}))
         return
       }
-      const session = options.sessions.get(sessionId)
-      if (session === undefined) {
-        ws.send(JSON.stringify({type: "result", requestId, ok: false, error: `session not found: ${sessionId}`}))
+      const module = options.modules.get(moduleId)
+      if (module === undefined) {
+        ws.send(JSON.stringify({type: "result", requestId, ok: false, error: `module not found: ${moduleId}`}))
         return
       }
 
-      options.logger.event("ws.command", {clientId: ws.data.id, sessionId, cmd, requestId})
+      options.logger.event("ws.command", {clientId: ws.data.id, moduleId, cmd, requestId})
       try {
         const result = await executeCommand({
-          client: session.client,
-          snapshots: session.snapshots,
+          client: module.client,
+          snapshots: module.snapshots,
           logger: options.logger,
         }, params, cmd)
         ws.send(JSON.stringify({type: "result", requestId, ok: true, result}))
@@ -318,16 +318,16 @@ async function handleRoute(
 ): Promise<Response> {
   if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: routeIndex()})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
-  if (method === "GET" && path === "/sessions") return jsonResponse({sessions: options.sessions.snapshots()})
-  if (method === "POST" && path === "/sessions/run") return await runSession(req, options)
-  const sessionRun = /^\/sessions\/([^/]+)\/run$/.exec(path)
-  if (method === "POST" && sessionRun !== null) return await runExistingSession(sessionRun[1]!, req, options)
-  const sessionStop = /^\/sessions\/([^/]+)\/stop$/.exec(path)
-  if (method === "POST" && sessionStop !== null) return await stopSession(sessionStop[1]!, req, options)
-  const sessionCommand = /^\/sessions\/([^/]+)\/command$/.exec(path)
-  if (method === "POST" && sessionCommand !== null) return await dispatchSessionCommand(sessionCommand[1]!, req, options)
-  const sessionSource = /^\/sessions\/([^/]+)\/source$/.exec(path)
-  if (method === "GET" && sessionSource !== null) return await getSessionScriptSource(sessionSource[1]!, url, options)
+  if (method === "GET" && path === "/modules") return jsonResponse({modules: options.modules.snapshots()})
+  if (method === "POST" && path === "/modules/run") return await runModule(req, options)
+  const moduleRun = /^\/modules\/([^/]+)\/run$/.exec(path)
+  if (method === "POST" && moduleRun !== null) return await runExistingModule(moduleRun[1]!, req, options)
+  const moduleStop = /^\/modules\/([^/]+)\/stop$/.exec(path)
+  if (method === "POST" && moduleStop !== null) return await stopModule(moduleStop[1]!, req, options)
+  const moduleCommand = /^\/modules\/([^/]+)\/command$/.exec(path)
+  if (method === "POST" && moduleCommand !== null) return await dispatchModuleCommand(moduleCommand[1]!, req, options)
+  const moduleSource = /^\/modules\/([^/]+)\/source$/.exec(path)
+  if (method === "GET" && moduleSource !== null) return await getModuleScriptSource(moduleSource[1]!, url, options)
   if (method === "GET" && path === "/state") return jsonResponse(options.snapshots.dump ?? null)
   if (method === "GET" && path === "/scripts") return jsonResponse(scriptsView(options.snapshots.scripts))
   if (method === "GET" && path === "/frames") {
@@ -384,16 +384,16 @@ function serveStatic(filePath: string, contentType: string): Response {
 function routeIndex(): Array<{method: string; path: string; description: string}> {
   return [
     {method: "GET", path: "/health", description: "статус коннекта и параметры"},
-    {method: "GET", path: "/sessions", description: "список процессов интерпретатора"},
-    {method: "POST", path: "/sessions/run", description: "{label?, command, cwd?, env?, pauseOnStart?, breakpoints?} — запустить новый процесс"},
-    {method: "POST", path: "/sessions/:id/stop", description: "{signal?} — остановить процесс session"},
-    {method: "POST", path: "/sessions/:id/command", description: "{cmd, params?} — команда в конкретный процесс"},
+    {method: "GET", path: "/modules", description: "список модулей интерпретатора"},
+    {method: "POST", path: "/modules/run", description: "{label?, command, cwd?, env?, pauseOnStart?, breakpoints?} — запустить новый модуль"},
+    {method: "POST", path: "/modules/:id/stop", description: "{signal?} — остановить модуль"},
+    {method: "POST", path: "/modules/:id/command", description: "{cmd, params?} — команда в конкретный модуль"},
     {method: "GET", path: "/state", description: "последний snapshot Debugger.paused (или null)"},
     {method: "GET", path: "/scripts", description: "карта scriptId → url"},
     {method: "GET", path: "/frames", description: "callFrames + dump"},
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
     {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
-    {method: "GET", path: "/workspace/files?q=<text>&limit=<n>", description: "workspace entrypoints for target selection"},
+    {method: "GET", path: "/workspace/files?q=<text>&limit=<n>", description: "workspace entrypoints for module selection"},
     {method: "GET", path: "/source?scriptId=<id>", description: "исходник скрипта (Debugger.getScriptSource)"},
     {method: "POST", path: "/eval", description: "{frame?, expr} — Debugger.evaluateOnCallFrame"},
     {method: "POST", path: "/props", description: "{objectId, ownProperties?} — Runtime.getProperties"},
@@ -401,9 +401,6 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/pause", description: "Debugger.pause"},
     {method: "POST", path: "/resume", description: "Debugger.resume"},
     {method: "POST", path: "/inspector", description: "{url} — переподключиться к другому Bun-инспектору"},
-    {method: "GET", path: "/target", description: "состояние target-процесса (если запущен через /target/run)"},
-    {method: "POST", path: "/target/run", description: "{command, cwd?, env?, pauseOnStart?, breakpoints?:[{url|sourceUrl|urlRegex, line(1-based), column?, condition?}]}"},
-    {method: "POST", path: "/target/stop", description: "{signal?} — SIGTERM (по умолчанию) → SIGKILL через 3с"},
     {method: "GET", path: "/breakpoints", description: "agent breakpoint registrations + installed Bun breakpointIds"},
     {method: "POST", path: "/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — pending spec + Debugger.setBreakpoint by scriptId on scriptParsed"},
     {method: "DELETE", path: "/breakpoint", description: "{id|breakpointId} — remove agent registration or concrete Bun breakpointId"},
@@ -502,7 +499,7 @@ function healthPayload(options: HttpServerOptions): JsonObject {
     scriptCount: options.snapshots.scripts.length,
     breakpointCount: options.breakpoints.registrations.length,
     hasDump: options.snapshots.dump !== undefined,
-    sessions: options.sessions.snapshots(),
+    modules: options.modules.snapshots(),
   }
 }
 
@@ -630,33 +627,33 @@ function envStrings(value: unknown): Record<string, string> | undefined {
   )
 }
 
-async function runSession(req: Request, options: HttpServerOptions): Promise<Response> {
-  const parsed = await readSessionRunOptions(req)
+async function runModule(req: Request, options: HttpServerOptions): Promise<Response> {
+  const parsed = await readModuleRunOptions(req)
   if ("response" in parsed) return parsed.response
 
   try {
-    const session = options.sessions.run(parsed.run)
-    return jsonResponse({ok: true, session: session.snapshot(), sessions: options.sessions.snapshots()})
+    const module = options.modules.run(parsed.run)
+    return jsonResponse({ok: true, module: module.snapshot(), modules: options.modules.snapshots()})
   } catch (error) {
     return jsonResponse({ok: false, error: serializeError(error)}, 409)
   }
 }
 
-async function runExistingSession(sessionId: string, req: Request, options: HttpServerOptions): Promise<Response> {
-  const session = options.sessions.get(sessionId)
-  if (session === undefined) return jsonResponse({ok: false, error: `session not found: ${sessionId}`}, 404)
-  const parsed = await readSessionRunOptions(req)
+async function runExistingModule(moduleId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+  const module = options.modules.get(moduleId)
+  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+  const parsed = await readModuleRunOptions(req)
   if ("response" in parsed) return parsed.response
   try {
-    if (parsed.run.label !== undefined) session.setLabel(parsed.run.label)
-    const target = session.runTarget(parsed.run)
-    return jsonResponse({ok: true, session: session.snapshot(), target})
+    if (parsed.run.label !== undefined) module.setLabel(parsed.run.label)
+    const target = module.runTarget(parsed.run)
+    return jsonResponse({ok: true, module: module.snapshot(), target})
   } catch (error) {
     return jsonResponse({ok: false, error: serializeError(error)}, 409)
   }
 }
 
-async function readSessionRunOptions(req: Request): Promise<{run: StartupTargetOptions & {label?: string; inspectorUrl?: string}} | {response: Response}> {
+async function readModuleRunOptions(req: Request): Promise<{run: StartupModuleOptions & {id?: string; label?: string; inspectorUrl?: string}} | {response: Response}> {
   const parsed = await readJsonObject(req)
   if (parsed.error !== undefined) return {response: jsonResponse({ok: false, error: parsed.error}, 400)}
   const body = parsed.body
@@ -668,12 +665,16 @@ async function readSessionRunOptions(req: Request): Promise<{run: StartupTargetO
   if (parsedBreakpoints.error !== undefined) return {response: jsonResponse({ok: false, error: parsedBreakpoints.error}, 400)}
 
   const label = asString(body["label"])
+  const id = asString(body["id"]) ?? asString(body["moduleId"])
+  const modulePath = asString(body["modulePath"])
   const inspectorUrl = asString(body["inspectorUrl"])
   const cwd = asString(body["cwd"])
   const env = envStrings(body["env"])
   const pauseOnStart = body["pauseOnStart"] === true
-  const run: StartupTargetOptions & {label?: string; inspectorUrl?: string} = {command, pauseOnStart}
+  const run: StartupModuleOptions & {id?: string; label?: string; inspectorUrl?: string} = {command, pauseOnStart}
+  if (id !== undefined) run.id = id
   if (label !== undefined) run.label = label
+  if (modulePath !== undefined) run.modulePath = modulePath
   if (inspectorUrl !== undefined) run.inspectorUrl = inspectorUrl
   if (cwd !== undefined) run.cwd = cwd
   if (env !== undefined) run.env = env
@@ -681,20 +682,20 @@ async function readSessionRunOptions(req: Request): Promise<{run: StartupTargetO
   return {run}
 }
 
-async function stopSession(sessionId: string, req: Request, options: HttpServerOptions): Promise<Response> {
-  const session = options.sessions.get(sessionId)
-  if (session === undefined) return jsonResponse({ok: false, error: `session not found: ${sessionId}`}, 404)
+async function stopModule(moduleId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+  const module = options.modules.get(moduleId)
+  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
   try {
-    const stopped = await stopTargetFor(session, req)
-    return jsonResponse({ok: true, session: session.snapshot(), target: stopped})
+    const stopped = await stopTargetFor(module, req)
+    return jsonResponse({ok: true, module: module.snapshot(), target: stopped})
   } catch (error) {
     return jsonResponse({ok: false, error: serializeError(error)}, 400)
   }
 }
 
-async function dispatchSessionCommand(sessionId: string, req: Request, options: HttpServerOptions): Promise<Response> {
-  const session = options.sessions.get(sessionId)
-  if (session === undefined) return jsonResponse({ok: false, error: `session not found: ${sessionId}`}, 404)
+async function dispatchModuleCommand(moduleId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+  const module = options.modules.get(moduleId)
+  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
   const parsed = await readJsonObject(req)
   if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
   const cmd = asString(parsed.body["cmd"])
@@ -702,11 +703,11 @@ async function dispatchSessionCommand(sessionId: string, req: Request, options: 
   const params = asObject(parsed.body["params"]) ?? {}
   try {
     const result = await executeCommand({
-      client: session.client,
-      snapshots: session.snapshots,
+      client: module.client,
+      snapshots: module.snapshots,
       logger: options.logger,
     }, params, cmd)
-    return jsonResponse({ok: true, cmd, result, session: session.snapshot()})
+    return jsonResponse({ok: true, cmd, result, module: module.snapshot()})
   } catch (error) {
     return jsonResponse({ok: false, cmd, error: serializeError(error)}, 400)
   }
@@ -870,7 +871,7 @@ function isNonNegativeInteger(value: number | undefined): value is number {
   return value !== undefined && Number.isInteger(value) && value >= 0
 }
 
-async function stopTargetFor(session: Pick<InterpreterSession, "target">, req: Request): Promise<import("./target.ts").TargetSnapshot> {
+async function stopTargetFor(module: Pick<InterpreterModule, "target">, req: Request): Promise<import("./target.ts").TargetSnapshot> {
   let signal: NodeJS.Signals = "SIGTERM"
   const text = await req.text()
   if (text.length > 0) {
@@ -886,7 +887,7 @@ async function stopTargetFor(session: Pick<InterpreterSession, "target">, req: R
       signal = sig as NodeJS.Signals
     }
   }
-  return await session.target.stop(signal)
+  return await module.target.stop(signal)
 }
 
 async function stopTarget(req: Request, options: HttpServerOptions): Promise<Response> {
@@ -926,22 +927,22 @@ async function reconnectInspector(req: Request, options: HttpServerOptions): Pro
 }
 
 async function getScriptSource(url: URL, options: HttpServerOptions): Promise<Response> {
-  return await getScriptSourceForSession(url, options.sessions.initialSession, options.sessions.initialSession.id)
+  return await getScriptSourceForModule(url, options.modules.initialModule, options.modules.initialModule.id)
 }
 
-async function getSessionScriptSource(sessionId: string, url: URL, options: HttpServerOptions): Promise<Response> {
-  const session = options.sessions.get(sessionId)
-  if (session === undefined) return jsonResponse({ok: false, error: `session not found: ${sessionId}`}, 404)
-  return await getScriptSourceForSession(url, session, sessionId)
+async function getModuleScriptSource(moduleId: string, url: URL, options: HttpServerOptions): Promise<Response> {
+  const module = options.modules.get(moduleId)
+  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+  return await getScriptSourceForModule(url, module, moduleId)
 }
 
-async function getScriptSourceForSession(url: URL, session: InterpreterSession, cacheScope: string): Promise<Response> {
+async function getScriptSourceForModule(url: URL, module: InterpreterModule, cacheScope: string): Promise<Response> {
   const scriptId = url.searchParams.get("scriptId") ?? ""
   const sourceUrl = url.searchParams.get("sourceUrl") ?? undefined
   if (scriptId.length === 0) return getSourceFile(sourceUrl, url)
 
   const sourceKind = url.searchParams.get("sourceKind")
-  const script = session.snapshots.scriptInfo(scriptId)
+  const script = module.snapshots.scriptInfo(scriptId)
   const fileUrl = script?.url
   const mappedSource = sourceKind === "runtime" ? null : sourceMapMapper(script?.sourceMapURL).sourceContent(sourceUrl ?? fileUrl)
   const includeTokens = url.searchParams.get("tokens") !== "0"
@@ -973,7 +974,7 @@ async function getScriptSourceForSession(url: URL, session: InterpreterSession, 
   }
 
   try {
-    const result = asObject(await session.client.request("Debugger.getScriptSource", {scriptId}))
+    const result = asObject(await module.client.request("Debugger.getScriptSource", {scriptId}))
     const scriptSource = asString(result?.["scriptSource"]) ?? ""
     if (scriptSource.length > 0) lruSet(sourceCache, cacheKey, scriptSource, SOURCE_CACHE_MAX)
     return jsonResponse({

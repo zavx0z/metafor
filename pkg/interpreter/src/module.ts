@@ -15,16 +15,17 @@ import type {InterpreterDump} from "./types.ts"
 import {serializeError} from "./errors.ts"
 import type {InspectMode} from "./inspect-mode.ts"
 
-export type StartupTargetOptions = {
+export type StartupModuleOptions = {
   command: string[]
   cwd?: string
   env?: Record<string, string>
   pauseOnStart?: boolean
   inspectMode?: InspectMode
   breakpoints?: BreakpointSpec[]
+  modulePath?: string
 }
 
-export type InterpreterSessionSnapshot = {
+export type InterpreterModuleSnapshot = {
   id: string
   label: string
   inspectorUrl: string
@@ -39,16 +40,17 @@ export type InterpreterSessionSnapshot = {
   target: TargetSnapshot
 }
 
-export type InterpreterSessionEvent =
-  | {type: "created"; session: InterpreterSession}
-  | {type: "changed"; session: InterpreterSession}
+export type InterpreterModuleEvent =
+  | {type: "created"; module: InterpreterModule}
+  | {type: "changed"; module: InterpreterModule}
 
-export type InterpreterSessionRunOptions = StartupTargetOptions & {
+export type InterpreterModuleRunOptions = StartupModuleOptions & {
+  id?: string
   label?: string
   inspectorUrl?: string
 }
 
-type InterpreterSessionOptions = {
+type InterpreterModuleOptions = {
   id: string
   label: string
   config: InterpreterConfig
@@ -58,7 +60,7 @@ type InterpreterSessionOptions = {
   consoleLogPath: string
 }
 
-export class InterpreterSession {
+export class InterpreterModule {
   readonly id: string
   readonly client: InspectorClient
   readonly snapshots: SnapshotStore
@@ -71,7 +73,7 @@ export class InterpreterSession {
   #label: string
   #started = false
 
-  constructor(options: InterpreterSessionOptions) {
+  constructor(options: InterpreterModuleOptions) {
     this.id = options.id
     this.#label = options.label
     this.dumpPath = options.dumpPath
@@ -99,7 +101,7 @@ export class InterpreterSession {
     })
     this.target = new TargetSupervisor(options.logger)
     this.runtime = new InterpreterRuntime({
-      sessionId: this.id,
+      moduleId: this.id,
       config: options.config,
       client: this.client,
       logger: options.logger,
@@ -126,14 +128,14 @@ export class InterpreterSession {
     void this.runtime.maintainConnection()
   }
 
-  runTarget(options: StartupTargetOptions): TargetSnapshot {
+  runTarget(options: StartupModuleOptions): TargetSnapshot {
     return this.target.start({
       ...options,
       inspectorUrl: this.client.url,
     })
   }
 
-  snapshot(): InterpreterSessionSnapshot {
+  snapshot(): InterpreterModuleSnapshot {
     return {
       id: this.id,
       label: this.label,
@@ -155,95 +157,97 @@ export class InterpreterSession {
   }
 }
 
-export class InterpreterSessionManager {
-  readonly initialSession: InterpreterSession
+export class InterpreterModuleManager {
+  readonly initialModule: InterpreterModule
   readonly #config: InterpreterConfig
   readonly #logger: EventLogger
-  readonly #sessions = new Map<string, InterpreterSession>()
-  readonly #handlers = new Set<(event: InterpreterSessionEvent) => void>()
+  readonly #modules = new Map<string, InterpreterModule>()
+  readonly #handlers = new Set<(event: InterpreterModuleEvent) => void>()
   #nextId = 2
   #nextInspectorPort: number
 
-  constructor(config: InterpreterConfig, logger: EventLogger) {
+  constructor(config: InterpreterConfig, logger: EventLogger, initial: {id?: string; label?: string; modulePath?: string} = {}) {
     this.#config = config
     this.#logger = logger
     this.#nextInspectorPort = initialNextInspectorPort(config.inspectorUrl, config.httpPort)
-    this.initialSession = new InterpreterSession({
-      id: "process-1",
-      label: "process 1",
+    this.initialModule = new InterpreterModule({
+      id: this.#allocateModuleId(initial.id ?? initial.label ?? initial.modulePath),
+      label: initial.label?.trim() || "module",
       config,
       logger,
       inspectorUrl: config.inspectorUrl,
       dumpPath: config.dumpPath,
       consoleLogPath: config.consoleLogPath,
     })
-    this.#sessions.set(this.initialSession.id, this.initialSession)
+    this.#modules.set(this.initialModule.id, this.initialModule)
   }
 
-  onEvent(handler: (event: InterpreterSessionEvent) => void): () => void {
+  onEvent(handler: (event: InterpreterModuleEvent) => void): () => void {
     this.#handlers.add(handler)
     return () => this.#handlers.delete(handler)
   }
 
   start(): void {
-    for (const session of this.#sessions.values()) session.startConnectionLoop()
+    for (const module of this.#modules.values()) module.startConnectionLoop()
   }
 
-  list(): InterpreterSession[] {
-    return [...this.#sessions.values()]
+  list(): InterpreterModule[] {
+    return [...this.#modules.values()]
   }
 
-  snapshots(): InterpreterSessionSnapshot[] {
-    return this.list().map((session) => session.snapshot())
+  snapshots(): InterpreterModuleSnapshot[] {
+    return this.list().map((module) => module.snapshot())
   }
 
-  get(id: string): InterpreterSession | undefined {
-    return this.#sessions.get(id)
+  get(id: string): InterpreterModule | undefined {
+    return this.#modules.get(id)
   }
 
-  create(options: {label?: string; inspectorUrl?: string} = {}): InterpreterSession {
-    const id = this.#allocateSessionId(options.label)
+  create(options: {id?: string; label?: string; inspectorUrl?: string; modulePath?: string} = {}): InterpreterModule {
+    const id = this.#allocateModuleId(options.id ?? options.label ?? options.modulePath)
     const baseDir = dirname(this.#config.dumpPath)
-    const session = new InterpreterSession({
+    const module = new InterpreterModule({
       id,
-      label: options.label?.trim() || `process ${this.#nextId - 1}`,
+      label: options.label?.trim() || id,
       config: this.#config,
       logger: this.#logger,
       inspectorUrl: options.inspectorUrl ?? this.#allocateInspectorUrl(),
-      dumpPath: join(baseDir, "sessions", id, "state.json"),
-      consoleLogPath: join(baseDir, "sessions", id, "console.log"),
+      dumpPath: join(baseDir, "modules", id, "state.json"),
+      consoleLogPath: join(baseDir, "modules", id, "console.log"),
     })
-    this.#sessions.set(id, session)
-    session.startConnectionLoop()
-    this.#emit({type: "created", session})
-    return session
+    this.#modules.set(id, module)
+    module.startConnectionLoop()
+    this.#emit({type: "created", module})
+    return module
   }
 
-  run(options: InterpreterSessionRunOptions): InterpreterSession {
-    const createOptions: {label?: string; inspectorUrl?: string} = {}
+  run(options: InterpreterModuleRunOptions): InterpreterModule {
+    const createOptions: {id?: string; label?: string; inspectorUrl?: string; modulePath?: string} = {}
+    if (options.id !== undefined) createOptions.id = options.id
     if (options.label !== undefined) createOptions.label = options.label
     if (options.inspectorUrl !== undefined) createOptions.inspectorUrl = options.inspectorUrl
-    const session = this.create(createOptions)
-    session.runTarget(options)
-    this.#emit({type: "changed", session})
-    return session
+    if (options.modulePath !== undefined) createOptions.modulePath = options.modulePath
+    const module = this.create(createOptions)
+    module.runTarget(options)
+    this.#emit({type: "changed", module})
+    return module
   }
 
   async shutdown(): Promise<void> {
-    await Promise.all([...this.#sessions.values()].map((session) => session.shutdown()))
+    await Promise.all([...this.#modules.values()].map((module) => module.shutdown()))
   }
 
-  #allocateSessionId(label: string | undefined): string {
+  #allocateModuleId(label: string | undefined): string {
     const slug = (label ?? "")
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9._-]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 42)
-    const base = slug.length > 0 ? slug : `process-${this.#nextId++}`
+    const base = slug.length > 0 ? slug : `module-${this.#nextId++}`
     let id = base
     let suffix = 2
-    while (this.#sessions.has(id)) id = `${base}-${suffix++}`
+    while (this.#modules.has(id)) id = `${base}-${suffix++}`
     return id
   }
 
@@ -257,19 +261,19 @@ export class InterpreterSessionManager {
     return current.toString()
   }
 
-  #emit(event: InterpreterSessionEvent): void {
+  #emit(event: InterpreterModuleEvent): void {
     for (const handler of this.#handlers) {
       try {
         handler(event)
       } catch (error) {
-        this.#logger.event("session.handler.failed", {error: serializeError(error)})
+        this.#logger.event("module.handler.failed", {error: serializeError(error)})
       }
     }
   }
 }
 
 type InterpreterRuntimeOptions = {
-  sessionId: string
+  moduleId: string
   config: InterpreterConfig
   client: InspectorClient
   logger: EventLogger
@@ -279,7 +283,7 @@ type InterpreterRuntimeOptions = {
 }
 
 class InterpreterRuntime {
-  #sessionId: string
+  #moduleId: string
   #config: InterpreterConfig
   #client: InspectorClient
   #logger: EventLogger
@@ -292,7 +296,7 @@ class InterpreterRuntime {
   #closed = false
 
   constructor(options: InterpreterRuntimeOptions) {
-    this.#sessionId = options.sessionId
+    this.#moduleId = options.moduleId
     this.#config = options.config
     this.#client = options.client
     this.#logger = options.logger
@@ -332,7 +336,7 @@ class InterpreterRuntime {
         const hint = this.#diagnoseConnectError(lastError)
         const delay = this.#nextBackoffDelayMs(++attempt)
         this.#logger.event("interpreter.connection.failed", {
-          sessionId: this.#sessionId,
+          moduleId: this.#moduleId,
           attempt,
           error: message,
           lastError,
@@ -340,7 +344,7 @@ class InterpreterRuntime {
           nextRetryMs: delay,
         })
         if (attempt === 1 || attempt % 5 === 0) {
-          this.#logger.status(`[${this.#sessionId}] connection unavailable (attempt ${attempt}): ${hint}; retry in ${delay}ms`)
+          this.#logger.status(`[${this.#moduleId}] connection unavailable (attempt ${attempt}): ${hint}; retry in ${delay}ms`)
         }
       }
 
@@ -356,10 +360,10 @@ class InterpreterRuntime {
 
   #diagnoseConnectError(message: string): string {
     if (message.includes("Expected 101")) {
-      return `target отвечает HTTP, не WebSocket — URL ('${this.#client.url}') не совпадает с тем что слушает Bun-инспектор`
+      return `модуль отвечает HTTP, не WebSocket — URL ('${this.#client.url}') не совпадает с тем что слушает Bun protocol`
     }
     if (message.includes("ECONNREFUSED") || message.includes("Failed to connect")) {
-      return `target не запущен на ${this.#client.url} — запусти 'bun ... --inspect-wait=${this.#client.url}'`
+      return `модуль не запущен на ${this.#client.url} — интерпретатор запустит его через protocol flag`
     }
     return message
   }
@@ -371,12 +375,12 @@ class InterpreterRuntime {
         this.#snapshots.reset()
         this.#breakpoints.reset()
         this.#logger.event("interpreter.kick_reconnect.scheduled", {
-          sessionId: this.#sessionId,
+          moduleId: this.#moduleId,
           reason: "target.started",
           pid: event.pid,
         })
         setTimeout(() => {
-          this.#logger.event("interpreter.kick_reconnect.fired", {sessionId: this.#sessionId})
+          this.#logger.event("interpreter.kick_reconnect.fired", {moduleId: this.#moduleId})
           this.#kickReconnect()
         }, 500)
       }
@@ -428,16 +432,16 @@ class InterpreterRuntime {
       await this.#breakpoints.armPendingByUrl(registrations.map((registration) => registration.id))
       await this.#breakpoints.applyToScripts(this.#snapshots.scripts)
       this.#logger.event("breakpoint.pending.registered", {
-        sessionId: this.#sessionId,
+        moduleId: this.#moduleId,
         count: registrations.length,
         registrations,
       })
     }
 
     const pauseOnStartRequested = this.#target?.consumePauseOnStart() === true
-    if (pauseOnStartRequested) this.#logger.event("interpreter.pause_on_start.inspect_brk", {sessionId: this.#sessionId})
+    if (pauseOnStartRequested) this.#logger.event("interpreter.pause_on_start.inspect_brk", {moduleId: this.#moduleId})
 
-    this.#logger.event("interpreter.enabled", {sessionId: this.#sessionId})
+    this.#logger.event("interpreter.enabled", {moduleId: this.#moduleId})
     this.#scheduleInitializedFallback()
   }
 
@@ -452,17 +456,17 @@ class InterpreterRuntime {
         settled = true
         const message = serializeError(error)
         if (message.includes("domain already enabled")) {
-          this.#logger.event("interpreter.request.ignored_error", {sessionId: this.#sessionId, method, error: message})
+          this.#logger.event("interpreter.request.ignored_error", {moduleId: this.#moduleId, method, error: message})
           return
         }
-        this.#logger.event("interpreter.request.best_effort_failed", {sessionId: this.#sessionId, method, error: message})
+        this.#logger.event("interpreter.request.best_effort_failed", {moduleId: this.#moduleId, method, error: message})
       })
 
     await Promise.race([
       request,
       sleep(softTimeoutMs).then(() => {
         if (settled) return
-        this.#logger.event("interpreter.request.soft_timeout", {sessionId: this.#sessionId, method, afterMs: softTimeoutMs})
+        this.#logger.event("interpreter.request.soft_timeout", {moduleId: this.#moduleId, method, afterMs: softTimeoutMs})
       }),
     ])
   }
@@ -471,7 +475,7 @@ class InterpreterRuntime {
     this.#clearInitializedFallback()
 
     if (this.#config.initializedFallbackMs <= 0) {
-      this.#logger.event("interpreter.initialized_fallback.disabled", {sessionId: this.#sessionId})
+      this.#logger.event("interpreter.initialized_fallback.disabled", {moduleId: this.#moduleId})
       return
     }
 
@@ -480,20 +484,20 @@ class InterpreterRuntime {
       void this.#client.request("Inspector.initialized")
         .then(() => {
           this.#logger.event("interpreter.initialized_fallback.sent", {
-            sessionId: this.#sessionId,
+            moduleId: this.#moduleId,
             afterMs: this.#config.initializedFallbackMs,
           })
         })
         .catch((error) => {
           this.#logger.event("interpreter.initialized_fallback.failed", {
-            sessionId: this.#sessionId,
+            moduleId: this.#moduleId,
             error: serializeError(error),
           })
         })
     }, this.#config.initializedFallbackMs)
 
     this.#logger.event("interpreter.initialized_fallback.scheduled", {
-      sessionId: this.#sessionId,
+      moduleId: this.#moduleId,
       afterMs: this.#config.initializedFallbackMs,
     })
   }
@@ -523,7 +527,7 @@ class InterpreterRuntime {
         this.#consoleLogs.handleRuntimeConsoleApiCalled(params)
         return
       default:
-        this.#logger.event("interpreter.event", {sessionId: this.#sessionId, method})
+        this.#logger.event("interpreter.event", {moduleId: this.#moduleId, method})
     }
   }
 

@@ -3,12 +3,12 @@ import {readFileCommands, readStdinCommands} from "./commands.ts"
 import {ensureParentDir} from "./fs.ts"
 import {EventLogger} from "./logger.ts"
 import {startHttpServer, type HttpServer} from "./server.ts"
-import {InterpreterSessionManager, type InterpreterSessionRunOptions, type StartupTargetOptions} from "./session.ts"
+import {InterpreterModuleManager, type InterpreterModuleRunOptions, type StartupModuleOptions} from "./module.ts"
 import {serializeError} from "./errors.ts"
 
 export type RunInterpreterOptions = {
-  startupTarget?: StartupTargetOptions
-  startupTargets?: InterpreterSessionRunOptions[]
+  startupModule?: StartupModuleOptions
+  startupModules?: InterpreterModuleRunOptions[]
 }
 
 type InterpreterRuntimeHandle = {
@@ -28,9 +28,14 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
   ensureParentDir(config.commandPath)
   ensureParentDir(config.responsePath)
 
+  const startupModules: InterpreterModuleRunOptions[] = options.startupModules ?? (
+    options.startupModule === undefined ? [] : [options.startupModule]
+  )
+  const [firstStartupModule, ...additionalStartupModules] = startupModules
+
   const logger = new EventLogger(config.eventLogPath)
-  const sessions = new InterpreterSessionManager(config, logger)
-  const initialSession = sessions.initialSession
+  const modules = new InterpreterModuleManager(config, logger, firstStartupModule)
+  const initialModule = modules.initialModule
 
   logger.status(`connecting to interpreter socket ${config.inspectorUrl}`)
   logger.event("interpreter.started", {
@@ -52,12 +57,12 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
       httpServer = startHttpServer({
         host: config.httpHost,
         port: config.httpPort,
-        client: initialSession.client,
-        snapshots: initialSession.snapshots,
-        consoleLogs: initialSession.consoleLogs,
-        breakpoints: initialSession.breakpoints,
-        target: initialSession.target,
-        sessions,
+        client: initialModule.client,
+        snapshots: initialModule.snapshots,
+        consoleLogs: initialModule.consoleLogs,
+        breakpoints: initialModule.breakpoints,
+        target: initialModule.target,
+        modules,
         logger,
         eventLogPath: config.eventLogPath,
         consoleLogPath: config.consoleLogPath,
@@ -81,7 +86,7 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
     cleanupPromise ??= (async () => {
       logger.event("interpreter.shutdown", code === undefined ? {reason} : {reason, code})
       commandAbort.abort()
-      await sessions.shutdown()
+      await modules.shutdown()
       httpServer?.stop?.()
       process.off("SIGINT", onSigint)
       process.off("SIGTERM", onSigterm)
@@ -105,66 +110,62 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
     import.meta.hot.dispose(() => cleanup("hot-reload"))
   }
 
-  const startupTargets: InterpreterSessionRunOptions[] = options.startupTargets ?? (
-    options.startupTarget === undefined ? [] : [options.startupTarget]
-  )
-  const [firstStartupTarget, ...additionalStartupTargets] = startupTargets
-  if (firstStartupTarget !== undefined) {
+  if (firstStartupModule !== undefined) {
     try {
-      if (firstStartupTarget.label !== undefined) initialSession.setLabel(firstStartupTarget.label)
-      const snapshot = initialSession.runTarget(firstStartupTarget)
-      logger.event("target.startup.started", {
-        sessionId: initialSession.id,
+      if (firstStartupModule.label !== undefined) initialModule.setLabel(firstStartupModule.label)
+      const snapshot = initialModule.runTarget(firstStartupModule)
+      logger.event("module.startup.started", {
+        moduleId: initialModule.id,
         pid: snapshot.pid,
         command: snapshot.command,
         cwd: snapshot.cwd,
         pauseOnStart: snapshot.pauseOnStart,
       })
     } catch (error) {
-      logger.event("target.startup.failed", {
-        sessionId: initialSession.id,
-        command: firstStartupTarget.command,
+      logger.event("module.startup.failed", {
+        moduleId: initialModule.id,
+        command: firstStartupModule.command,
         error: serializeError(error),
       })
-      logger.status(`startup target failed: ${serializeError(error)}`)
+      logger.status(`startup module failed: ${serializeError(error)}`)
     }
   }
-  for (const [index, startupTarget] of additionalStartupTargets.entries()) {
+  for (const [index, startupModule] of additionalStartupModules.entries()) {
     try {
-      const session = sessions.run({
-        ...startupTarget,
-        label: startupTarget.label ?? `process ${index + 2}`,
+      const module = modules.run({
+        ...startupModule,
+        label: startupModule.label ?? startupModule.id ?? `module-${index + 2}`,
       })
-      logger.event("target.startup.started", {
-        sessionId: session.id,
-        pid: session.target.snapshot().pid,
-        command: session.target.snapshot().command,
-        cwd: session.target.snapshot().cwd,
-        pauseOnStart: session.target.snapshot().pauseOnStart,
+      logger.event("module.startup.started", {
+        moduleId: module.id,
+        pid: module.target.snapshot().pid,
+        command: module.target.snapshot().command,
+        cwd: module.target.snapshot().cwd,
+        pauseOnStart: module.target.snapshot().pauseOnStart,
       })
     } catch (error) {
-      logger.event("target.startup.failed", {
-        command: startupTarget.command,
+      logger.event("module.startup.failed", {
+        command: startupModule.command,
         error: serializeError(error),
       })
-      logger.status(`startup target failed: ${serializeError(error)}`)
+      logger.status(`startup module failed: ${serializeError(error)}`)
     }
   }
 
   process.on("SIGINT", onSigint)
   process.on("SIGTERM", onSigterm)
 
-  sessions.start()
+  modules.start()
   void readStdinCommands({
-    client: initialSession.client,
-    snapshots: initialSession.snapshots,
+    client: initialModule.client,
+    snapshots: initialModule.snapshots,
     logger,
     responsePath: config.responsePath,
     signal: commandAbort.signal,
   })
   void readFileCommands({
-    client: initialSession.client,
-    snapshots: initialSession.snapshots,
+    client: initialModule.client,
+    snapshots: initialModule.snapshots,
     logger,
     responsePath: config.responsePath,
     signal: commandAbort.signal,
@@ -172,6 +173,6 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
 
   return await new Promise<void>((resolve) => {
     resolveRun = resolve
-    // WebSocket, reconnect timers, and stdin drive the process lifetime.
+    // WebSocket, reconnect timers, and stdin drive the runtime lifetime.
   })
 }

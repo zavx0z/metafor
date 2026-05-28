@@ -1,47 +1,54 @@
 # Workflow Интерпретатора
 
-Интерпретатор — общий runtime/source-контекст человека и ИИ. Человек работает в UI, агент читает тот же
-snapshot, stack, scopes, source и может выполнять точные runtime-запросы через sidecar. Черновик кода живёт
-в этом же контексте, поэтому изменения можно обсуждать и готовить в реальном времени.
+Интерпретатор — общий runtime/source-контекст человека и ИИ. Человек работает в UI, агент читает тот же snapshot, stack, scopes, source и может выполнять точные runtime-запросы. Черновик кода живёт в этом же контексте, поэтому изменения можно обсуждать и готовить в реальном времени.
 
 ## Запуск
 
-Запустить sidecar и target одной командой:
+UI без стартового модуля:
 
 ```sh
-bun run interpreter -- ./module.ts
+bun run interpreter
 ```
 
-Если нужны стандартные параметры Bun inspector, передать их как обычные Bun args:
+Один модуль:
 
 ```sh
-bun run interpreter -- --inspect-wait ./module.ts -- --flag value
-bun run interpreter -- bun test --timeout=2147483647 ./module.spec.ts -- --grep case
+bun run interpreter ./module.ts
 ```
 
-Если `--inspect*` не указан, sidecar добавит `--inspect-brk=ws://127.0.0.1:6499/`.
-Если `--inspect`, `--inspect-wait` или `--inspect-brk` уже указан, sidecar сохраняет выбранный режим и только подставляет endpoint.
+Тестовый модуль с Bun-параметрами:
+
+```sh
+bun run interpreter ./module.spec.ts -timeout=2147483647 -grep=case
+```
+
+Несколько модулей:
+
+```sh
+bun run interpreter dark/server.spec.ts -timeout=2147483647 pkg/interpreter/src/syntax.test.ts
+```
+
+Правило CLI:
+
+- путь без `-` начинает новый модуль;
+- параметры с `-` после пути относятся к этому модулю;
+- `-param=value` нормализуется в `--param=value`;
+- относительные и абсолютные пути поддерживаются.
+
+Для `*.spec.ts` и `*.test.ts` интерпретатор запускает `bun test <params> <path>`. Для остальных JS/TS entrypoint-ов — `bun <path> <params>`.
+
 UI доступен на `http://127.0.0.1:6500/`.
 
-На стартовом экране можно выбрать файл из workspace. Для `.spec.ts` и `.test.ts` UI формирует команду
-`bun test --timeout=2147483647 <file>`, для остальных entrypoints — `bun <file>`.
+## UIDisplay
 
-Несколько процессов:
-
-```sh
-bun run interpreter -- \
-  --session dark-server -- bun test --timeout=2147483647 dark/server.spec.ts \
-  --session syntax -- bun test pkg/interpreter/src/syntax.test.ts
-```
-
-В UI это один WebGPU `Space` и несколько `UIDisplay` в ряд, по одному на process/session.
+UI создаёт один WebGPU `Space` и несколько равноправных `UIDisplay`, по одному на модуль. Дисплеи раскладываются в ряд; ни один из них не является default/main display.
 
 ## Timeout Тестов
 
-При ручной отладке тестов использовать максимальный timeout:
+При ручной остановке тестов использовать максимальный timeout:
 
 ```sh
-bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/ ./module.spec.ts
+bun run interpreter ./module.spec.ts -timeout=2147483647
 ```
 
 Если timeout не поднять, тест может завершиться, пока execution стоит на breakpoint-е.
@@ -54,44 +61,26 @@ bun test --timeout=2147483647 --inspect-wait=ws://127.0.0.1:6499/ ./module.spec.
 - ИИ-агент, который читает тот же snapshot, выполняет `eval`/`props` и предлагает изменения;
 - черновик кода в shared editor layer, где можно готовить правку без немедленной записи в файл.
 
-MetaFor UI является основным frontend интерпретатора.
+MetaFor UI является основным frontend интерпретатора. Подключение к WebStorm/DevTools в этом workflow не используется.
 
-## Роль REST Breakpoint-ов
-
-Для automation и smoke sidecar также умеет принимать breakpoint-ы:
-
-```sh
-curl -sS -X POST http://127.0.0.1:6500/target/run \
-  -H 'content-type: application/json' \
-  -d '{
-    "command": ["bun","test","--timeout=2147483647","./module.spec.ts"],
-    "cwd": "/absolute/path/to/metafor",
-    "breakpoints": [{"url": "/absolute/path/to/metafor/module.ts", "line": 46}]
-  }'
-```
-
-Интерпретатор не использует flaky early `setBreakpointByUrl`.
-Для локальных TS/TSX файлов он ждёт `Debugger.scriptParsed`, маппит editor coordinates через source map и ставит конкретный
-`Debugger.setBreakpoint` по `scriptId`, чтобы не получить скрытый runtime-line breakpoint.
-
-## Роль Runtime-Слоя Интерпретатора
+## Runtime-Слой
 
 Runtime-слой интерпретатора:
 
-- подключается к Bun protocol socket
-- слушает `Debugger.paused`
-- пишет snapshot
-- выполняет точечные команды `eval`, `props`, `step`, `resume`, `pause`
-- ставит REST breakpoint-ы по `scriptId` после `Debugger.scriptParsed`, если они переданы через `/target/run` или `POST /breakpoint`
+- подключается к Bun protocol socket;
+- слушает `Debugger.paused`;
+- пишет snapshot;
+- выполняет точечные команды `eval`, `props`, `step`, `resume`, `pause`;
+- ставит breakpoint-ы после `Debugger.scriptParsed` по конкретному `scriptId`, чтобы не получить скрытый runtime-line breakpoint.
 
 ## Роль Агента В Чате
 
 Агент:
 
-- запускает интерпретатор
-- читает `.metafor/interpreter/state.json`
-- интерпретирует top-frame locals/closures
-- отправляет NDJSON-команды, когда нужен точный runtime ответ
+- запускает интерпретатор;
+- читает `.metafor/interpreter/state.json`;
+- интерпретирует top-frame locals/closures;
+- отправляет NDJSON/REST/WS-команды, когда нужен точный runtime ответ.
 
 Пример:
 
@@ -99,28 +88,22 @@ Runtime-слой интерпретатора:
 проверь длину wimp.children
 ```
 
-Команда sidecar:
+Команда:
 
 ```json
 {"cmd":"eval","frame":0,"expr":"wimp.children.length"}
 ```
 
-## Настройка Fallback
+## Fallback
 
 Если человек должен успеть подключиться первым:
 
 ```sh
-INTERPRETER_INITIALIZE_FALLBACK_MS=30000 bun run interpreter
+INTERPRETER_INITIALIZE_FALLBACK_MS=30000 bun run interpreter ./module.ts
 ```
 
-Если sidecar не должен разблокировать target вообще:
+Если интерпретатор не должен разблокировать модуль вообще:
 
 ```sh
-INTERPRETER_INITIALIZE_FALLBACK_MS=0 bun run interpreter
-```
-
-Если нужен automation smoke-test:
-
-```sh
-INTERPRETER_INITIALIZE_FALLBACK_MS=1000 bun run interpreter
+INTERPRETER_INITIALIZE_FALLBACK_MS=0 bun run interpreter ./module.ts
 ```

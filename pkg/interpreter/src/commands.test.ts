@@ -43,7 +43,7 @@ describe("executeCommand", () => {
     }])
   })
 
-  test("rejects eval while process is not paused", async () => {
+  test("rejects eval while module is not paused", async () => {
     const ctx = context({
       snapshots: {
         paused: false,
@@ -53,7 +53,7 @@ describe("executeCommand", () => {
       } as never,
     })
 
-    await expect(executeCommand(ctx, {expr: "value"}, "eval")).rejects.toThrow("process is not paused")
+    await expect(executeCommand(ctx, {expr: "value"}, "eval")).rejects.toThrow("module is not paused")
   })
 
   test("marks snapshots running after resume", async () => {
