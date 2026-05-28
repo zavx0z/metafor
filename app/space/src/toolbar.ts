@@ -87,7 +87,7 @@ async function init(): Promise<void> {
     clearError()
   } else {
     setStatus("offline", "fail")
-    showError(`Debug-сервер не отвечает на ${url}. Запусти его вручную (\`bun --filter='@metafor/bun-debug' agent\`) и нажми Reload (⌘R), либо запусти space заново — он попробует поднять.`)
+    showError(`Debug-сервер не отвечает на ${url}. Запусти его вручную (\`bun run debug\`) и нажми Reload (⌘R), либо запусти space заново — он попробует поднять.`)
   }
 }
 

@@ -21,7 +21,13 @@ export type CommandContext = {
 
 export async function readStdinCommands(context: CommandContext): Promise<void> {
   const stdin = context.stdin ?? Bun.stdin.stream()
-  const reader = stdin.getReader()
+  let reader: ReadableStreamDefaultReader<Uint8Array>
+  try {
+    reader = stdin.getReader()
+  } catch (error) {
+    context.logger.event("stdin.failed", {error: serializeError(error)})
+    return
+  }
   let buffer = ""
   let sequence = 0
   const textDecoder = new TextDecoder()

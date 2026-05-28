@@ -146,15 +146,7 @@ locations: [] + breakpointResolved в Bun 1.3.13 не гарантируют Deb
 Status messages не пишутся в stdout.
 Они уходят в stderr и event log.
 
-## dark wrapper
+## Workspace launcher
 
-`dark/debug/agent-attach.ts` сохраняет старые defaults:
-
-```text
-BUN_INSPECTOR_URL=ws://127.0.0.1:6499/dark
-AGENT_DUMP_PATH=dark/debug/.agent-state.json
-AGENT_EVENT_LOG_PATH=dark/debug/.agent-events.log
-```
-
-Wrapper импортирует `runAgent` из `pkg/debug`.
-Реализации в `dark/debug` нет.
+Корневой `bun run debug` запускает `pkg/debug/agent-attach.ts` через `bun --hot`.
+Default inspector endpoint — `ws://127.0.0.1:6499/`, debug-файлы пишутся в `.metafor/debug/`.

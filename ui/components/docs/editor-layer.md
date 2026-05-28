@@ -6,7 +6,7 @@
 2. `EditorPane` owns text mutation, cursor movement, clipboard, undo/redo, optional tokenization, save/change callbacks, read-only navigation, source execution-line highlighting and gutter rendering. Scroll state comes from `@metafor/elements` `div`.
 3. Debug runtime state (`paused`, `running`, `loading`, `disconnected`) stays in `pkg/debug/web/main.ts`; the shared component only receives title text, source text, tokens/language and an optional execution line.
 4. The former debug-local `pkg/debug/web/source-pane.ts` was removed so code/source rendering has one implementation.
-5. To keep debug stable, do not change `pkg/debug/src/*`, the `/source` REST shape, `/ws` commands/results, inspector attach flow, current-line semantics, frames/scopes/console command behavior or `bun run dark/debug/agent-attach.ts` startup.
+5. To keep debug stable, do not change `pkg/debug/src/*`, the `/source` REST shape, `/ws` commands/results, inspector attach flow, current-line semantics, frames/scopes/console command behavior or `bun run debug` startup.
 
 ## First Extraction
 
@@ -47,7 +47,7 @@ Additional editor-layer tests cover highlighter resolution/registration, source 
 
 Runtime smoke:
 
-- `bun run dark/debug/agent-attach.ts` starts the sidecar on `http://127.0.0.1:6500/`.
-- Starting the default target through `/target/run` connects Bun Inspector on `ws://127.0.0.1:6499/dark`.
+- `bun run debug` starts the sidecar on `http://127.0.0.1:6500/`.
+- Starting the default target through `/target/run` connects Bun Inspector on `ws://127.0.0.1:6499/`.
 - Reloading the web UI while already paused now re-applies the saved dump after `UiRuntime` initialization, so frames/scopes/source all render.
 - `/ws` command path was smoke-tested with `eval` on frame 0 and returned `2`.

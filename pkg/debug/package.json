@@ -20,7 +20,7 @@
     "source-map-js": "^1.2.1"
   },
   "scripts": {
-    "agent": "bun run agent-attach.ts",
+    "agent": "bun --hot run agent-attach.ts",
     "typecheck": "tsc --noEmit --pretty false"
   }
 }

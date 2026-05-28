@@ -20,6 +20,5 @@ app/web/tls
 .ai/
 .metafor/debug/
 **/.metafor/debug/
-dark/debug/.agent-*
 **/Снимок экрана*.png
 task/*.png

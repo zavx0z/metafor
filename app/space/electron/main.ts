@@ -122,9 +122,9 @@ async function spawnDebugServer(): Promise<boolean> {
     return false
   }
   const agentEntry = join(wsRoot, "pkg/debug/agent-attach.ts")
-  console.log(`[space] spawning debug-server: ${bun} ${agentEntry}`)
+  console.log(`[space] spawning debug-server: ${bun} --hot ${agentEntry}`)
 
-  debugServerProc = spawn(bun, [agentEntry], {
+  debugServerProc = spawn(bun, ["--hot", agentEntry], {
     cwd: wsRoot,
     env: {
       ...process.env,
