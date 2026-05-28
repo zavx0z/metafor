@@ -705,9 +705,7 @@ export class UiRuntime {
   #orbitDisplay(deltaX: number, deltaY: number): void {
     if (this.display === null) return
     this.#cancelCameraAnimation()
-    const target = this.#displayCenterWorld(this.#resolveDisplayId(this.#displayNavigationDisplayId))
-      ?? this.#displayCenterWorld()
-      ?? this.#displayCenterMm.clone()
+    const target = this.#navigationTarget(this.#displayNavigationDisplayId)
     this.viewPoint.getTarget().copy(target)
     const offset = new Vector3().subVectors(this.viewPoint.position, target)
     if (offset.length() < 0.001) offset.set(0, -this.#displayFarDistanceMm, 0)
@@ -730,12 +728,10 @@ export class UiRuntime {
     this.requestRender()
   }
 
-  #zoomDisplay(delta: number): void {
+  #zoomDisplay(delta: number, displayId?: UiDisplayId | null): void {
     if (this.display === null) return
     this.#cancelCameraAnimation()
-    const target = this.#displayCenterWorld(this.#resolveDisplayId())
-      ?? this.#displayCenterWorld()
-      ?? this.#displayCenterMm.clone()
+    const target = this.#navigationTarget(displayId)
     this.viewPoint.getTarget().copy(target)
     const offset = new Vector3().subVectors(this.viewPoint.position, target)
     const currentRadius = Math.max(0.001, offset.length())
@@ -771,10 +767,18 @@ export class UiRuntime {
     this.viewPoint.position.add(panDelta)
     target.add(panDelta)
     this.viewPoint.update()
-    this.#displayDistanceMm = this.#currentDisplayDistance(this.#activeDisplayId)
+    this.#displayDistanceMm = offset.length()
     this.#applyLayout()
     this.#requestHudSurfacesRender()
     this.requestRender()
+  }
+
+  #navigationTarget(displayId?: UiDisplayId | null): Vector3 {
+    if (displayId !== undefined && displayId !== null) {
+      const displayTarget = this.#displayCenterWorld(displayId)
+      if (displayTarget !== null) return displayTarget
+    }
+    return this.viewPoint.getTarget().clone()
   }
 
   #displayRayHit(canvasX: number, canvasY: number, requireInside = false, onlyDisplayId?: UiDisplayId): DisplayRayHit | null {
@@ -1071,7 +1075,7 @@ export class UiRuntime {
     if (displayCoords === null || slot === undefined) {
       if (this.#isDisplayNavigationMode()) {
         event.preventDefault()
-        if (event.ctrlKey) this.#zoomDisplay(-event.deltaY)
+        if (event.ctrlKey) this.#zoomDisplay(-event.deltaY, displayCoords?.displayId ?? this.#displayHoverDisplayId)
         else this.#panView(event.deltaX, event.deltaY)
       }
       return
