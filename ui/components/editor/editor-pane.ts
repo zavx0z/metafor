@@ -48,9 +48,9 @@ export type EditorOpts = {
   onSave?: (text: string) => void
   /** Колбэк на copy/cut из floating-menu выделения. */
   onSelectionClipboard?: (ok: boolean, action: "copy" | "cut") => void
-  /** Gutter line-number click for debugger breakpoint toggles. */
+  /** Gutter line-number click for interpreter breakpoint toggles. */
   onBreakpointToggle?: (line: number) => void
-  /** Initial debugger breakpoint markers. */
+  /** Initial interpreter breakpoint markers. */
   breakpoints?: readonly EditorBreakpoint[]
   /** Получает массив строк → возвращает токены той же длины. */
   tokenize?: EditorTokenize
@@ -340,7 +340,7 @@ export class EditorPane extends UiSurface {
   }
 
   /**
-   * 1-based execution marker for source viewers/debuggers. Pass null to hide.
+   * 1-based execution marker for source viewers/interpreters. Pass null to hide.
    */
   setExecutionLine(line: number | null, opts: {scroll?: boolean} = {}): void {
     const next = line === null ? null : Math.max(1, Math.min(this.#lines.length, Math.floor(line)))

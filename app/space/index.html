@@ -11,7 +11,7 @@
     <div id="card">
       <header class="space-toolbar">
         <span class="brand">@metafor / space</span>
-        <span class="server" id="server-status">debug: …</span>
+        <span class="server" id="server-status">interpreter: …</span>
         <span class="sep"></span>
         <button id="pick-project" title="Выбрать директорию проекта">📁 project</button>
         <span class="path muted" id="project-path"></span>
@@ -22,7 +22,7 @@
         <button id="run" class="primary">▶ Run</button>
         <button id="stop">■ Stop</button>
       </header>
-      <iframe id="debug-frame" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups"></iframe>
+      <iframe id="interpreter-frame" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups"></iframe>
       <div id="overlay-msg" hidden></div>
     </div>
     <script type="module" src="./src/toolbar.ts"></script>

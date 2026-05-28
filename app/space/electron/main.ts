@@ -38,13 +38,13 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 const DEV_URL = process.env.SPACE_DEV_URL ?? null
-const DEBUG_PORT = Number(process.env.SPACE_DEBUG_PORT ?? 6500)
-const DEBUG_HOST = process.env.SPACE_DEBUG_HOST ?? "127.0.0.1"
-const DEBUG_BASE = `http://${DEBUG_HOST}:${DEBUG_PORT}`
+const INTERPRETER_PORT = Number(process.env.SPACE_INTERPRETER_PORT ?? 6500)
+const INTERPRETER_HOST = process.env.SPACE_INTERPRETER_HOST ?? "127.0.0.1"
+const INTERPRETER_BASE = `http://${INTERPRETER_HOST}:${INTERPRETER_PORT}`
 
-let debugServerUrl = DEBUG_BASE
-let debugServerOwned = false
-let debugServerProc: ChildProcess | null = null
+let interpreterUrl = INTERPRETER_BASE
+let interpreterOwned = false
+let interpreterProc: ChildProcess | null = null
 
 function preloadPath(): string {
   return join(app.getAppPath(), "out", "preload.cjs")
@@ -77,7 +77,7 @@ function writeState(next: PersistedState): void {
   writeFileSync(statePath(), JSON.stringify(next, null, 2), "utf8")
 }
 
-async function probeDebugServer(url: string, timeoutMs = 600): Promise<boolean> {
+async function probeInterpreter(url: string, timeoutMs = 600): Promise<boolean> {
   try {
     const r = await fetch(`${url}/health`, { signal: AbortSignal.timeout(timeoutMs) })
     return r.ok
@@ -89,7 +89,7 @@ async function probeDebugServer(url: string, timeoutMs = 600): Promise<boolean> 
 function findWorkspaceRoot(start: string): string | null {
   let dir = start
   while (true) {
-    if (existsSync(join(dir, "pkg/debug/agent-attach.ts"))) return dir
+    if (existsSync(join(dir, "pkg/interpreter/interpreter.ts"))) return dir
     const parent = dirname(dir)
     if (parent === dir) return null
     dir = parent
@@ -110,68 +110,68 @@ function findBunBinary(): string | null {
   return null
 }
 
-async function spawnDebugServer(): Promise<boolean> {
+async function spawnInterpreter(): Promise<boolean> {
   const wsRoot = findWorkspaceRoot(app.getAppPath())
   if (wsRoot === null) {
-    console.warn("[space] cannot spawn debug-server: workspace root with pkg/debug/agent-attach.ts not found")
+    console.warn("[space] cannot spawn interpreter: workspace root with pkg/interpreter/interpreter.ts not found")
     return false
   }
   const bun = findBunBinary()
   if (bun === null) {
-    console.warn("[space] cannot spawn debug-server: bun binary not found in PATH")
+    console.warn("[space] cannot spawn interpreter: bun binary not found in PATH")
     return false
   }
-  const agentEntry = join(wsRoot, "pkg/debug/agent-attach.ts")
-  console.log(`[space] spawning debug-server: ${bun} --hot ${agentEntry}`)
+  const interpreterEntry = join(wsRoot, "pkg/interpreter/interpreter.ts")
+  console.log(`[space] spawning interpreter: ${bun} --hot ${interpreterEntry}`)
 
-  debugServerProc = spawn(bun, ["--hot", agentEntry], {
+  interpreterProc = spawn(bun, ["--hot", interpreterEntry], {
     cwd: wsRoot,
     env: {
       ...process.env,
-      AGENT_HTTP_HOST: DEBUG_HOST,
-      AGENT_HTTP_PORT: String(DEBUG_PORT),
+      INTERPRETER_HTTP_HOST: INTERPRETER_HOST,
+      INTERPRETER_HTTP_PORT: String(INTERPRETER_PORT),
     },
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
   })
 
-  debugServerProc.stdout?.on("data", (chunk) => process.stdout.write(`[debug] ${String(chunk)}`))
-  debugServerProc.stderr?.on("data", (chunk) => process.stderr.write(`[debug] ${String(chunk)}`))
-  debugServerProc.on("exit", (code) => {
-    console.log(`[space] debug-server exited: code=${code}`)
-    debugServerProc = null
-    debugServerOwned = false
+  interpreterProc.stdout?.on("data", (chunk) => process.stdout.write(`[interpreter] ${String(chunk)}`))
+  interpreterProc.stderr?.on("data", (chunk) => process.stderr.write(`[interpreter] ${String(chunk)}`))
+  interpreterProc.on("exit", (code) => {
+    console.log(`[space] interpreter exited: code=${code}`)
+    interpreterProc = null
+    interpreterOwned = false
   })
 
   // wait health up to 10s
   const deadline = Date.now() + 10_000
   while (Date.now() < deadline) {
-    if (await probeDebugServer(DEBUG_BASE, 400)) {
-      debugServerOwned = true
+    if (await probeInterpreter(INTERPRETER_BASE, 400)) {
+      interpreterOwned = true
       return true
     }
     await new Promise((r) => setTimeout(r, 250))
   }
-  console.warn("[space] debug-server did not become healthy within 10s")
+  console.warn("[space] interpreter did not become healthy within 10s")
   try {
-    debugServerProc?.kill()
+    interpreterProc?.kill()
   } catch {}
-  debugServerProc = null
+  interpreterProc = null
   return false
 }
 
-async function ensureDebugServer(): Promise<void> {
-  if (await probeDebugServer(DEBUG_BASE, 600)) {
-    console.log(`[space] using existing debug-server at ${DEBUG_BASE}`)
-    debugServerUrl = DEBUG_BASE
+async function ensureInterpreter(): Promise<void> {
+  if (await probeInterpreter(INTERPRETER_BASE, 600)) {
+    console.log(`[space] using existing interpreter at ${INTERPRETER_BASE}`)
+    interpreterUrl = INTERPRETER_BASE
     return
   }
-  const ok = await spawnDebugServer()
+  const ok = await spawnInterpreter()
   if (ok) {
-    console.log(`[space] debug-server started at ${DEBUG_BASE}`)
-    debugServerUrl = DEBUG_BASE
+    console.log(`[space] interpreter started at ${INTERPRETER_BASE}`)
+    interpreterUrl = INTERPRETER_BASE
   } else {
-    console.warn(`[space] debug-server unavailable; UI will show offline`)
+    console.warn(`[space] interpreter unavailable; UI will show offline`)
   }
 }
 
@@ -224,7 +224,7 @@ function createOverlay(): BrowserWindow {
     console.error("[space] renderer gone:", details),
   )
 
-  // Cross-origin CSS injection в iframe debug-UI: делаем body/sections прозрачными
+  // Cross-origin CSS injection в iframe interpreter UI: делаем body/sections прозрачными
   // чтобы под канвасом editor'а был виден backdrop-blur карточки.
   win.webContents.on("did-frame-finish-load", (_e, isMainFrame, frameProcessId, frameRoutingId) => {
     if (isMainFrame) return
@@ -322,8 +322,8 @@ const BASE64_TEMPLATE_DOT =
 function setupIpc(): void {
   ipcMain.on("space:set-interactive", (_e, value: unknown) => setInteractive(Boolean(value)))
 
-  ipcMain.handle("space:get-debug-url", () => debugServerUrl)
-  ipcMain.handle("space:debug-server-running", async () => probeDebugServer(debugServerUrl, 400))
+  ipcMain.handle("space:get-interpreter-url", () => interpreterUrl)
+  ipcMain.handle("space:interpreter-running", async () => probeInterpreter(interpreterUrl, 400))
 
   ipcMain.handle("space:get-state", () => readState())
   ipcMain.handle("space:set-state", (_e, next: unknown) => {
@@ -363,7 +363,7 @@ function setupIpc(): void {
       params: { command: string[]; cwd?: string; pauseOnStart?: boolean },
     ): Promise<{ ok: boolean; error?: string; snapshot?: unknown }> => {
       try {
-        const r = await fetch(`${debugServerUrl}/target/run`, {
+        const r = await fetch(`${interpreterUrl}/target/run`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -382,7 +382,7 @@ function setupIpc(): void {
 
   ipcMain.handle("space:stop-target", async (): Promise<{ ok: boolean; error?: string }> => {
     try {
-      const r = await fetch(`${debugServerUrl}/target/stop`, {
+      const r = await fetch(`${interpreterUrl}/target/stop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: "{}",
@@ -409,7 +409,7 @@ app.whenReady().then(async () => {
     app.dock.hide()
   }
 
-  await ensureDebugServer()
+  await ensureInterpreter()
 
   overlayWindow = createOverlay()
   trayIcon = createTray()
@@ -421,9 +421,9 @@ app.whenReady().then(async () => {
 app.on("will-quit", () => {
   globalShortcut.unregisterAll()
   trayIcon?.destroy()
-  if (debugServerOwned && debugServerProc !== null) {
+  if (interpreterOwned && interpreterProc !== null) {
     try {
-      debugServerProc.kill("SIGTERM")
+      interpreterProc.kill("SIGTERM")
     } catch {}
   }
 })

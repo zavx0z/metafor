@@ -1,8 +1,8 @@
 const { contextBridge, ipcRenderer } = require("electron")
 
 contextBridge.exposeInMainWorld("space", {
-  getDebugUrl: () => ipcRenderer.invoke("space:get-debug-url"),
-  isDebugServerRunning: () => ipcRenderer.invoke("space:debug-server-running"),
+  getInterpreterUrl: () => ipcRenderer.invoke("space:get-interpreter-url"),
+  isInterpreterRunning: () => ipcRenderer.invoke("space:interpreter-running"),
   getState: () => ipcRenderer.invoke("space:get-state"),
   setState: (next) => ipcRenderer.invoke("space:set-state", next),
   pickDirectory: (defaultPath) => ipcRenderer.invoke("space:pick-directory", defaultPath),

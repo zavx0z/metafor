@@ -750,18 +750,6 @@
         "typescript": "^5.9.0",
       },
     },
-    "pkg/debug": {
-      "name": "@metafor/bun-debug",
-      "version": "0.0.1",
-      "bin": {
-        "metafor-interpreter": "./agent-attach.ts",
-      },
-      "dependencies": {
-        "@metafor/components": "workspace:*",
-        "@metafor/elements": "workspace:*",
-        "source-map-js": "^1.2.1",
-      },
-    },
     "pkg/engine": {
       "name": "@metafor/engine",
       "version": "1.0.0",
@@ -770,6 +758,18 @@
         "@webgpu/types": "^0.1.68",
         "typedoc": "^0.28.15",
         "typescript": "^5.4.5",
+      },
+    },
+    "pkg/interpreter": {
+      "name": "@metafor/interpreter",
+      "version": "0.0.1",
+      "bin": {
+        "metafor-interpreter": "./interpreter.ts",
+      },
+      "dependencies": {
+        "@metafor/components": "workspace:*",
+        "@metafor/elements": "workspace:*",
+        "source-map-js": "^1.2.1",
       },
     },
     "pkg/protocol": {
@@ -823,6 +823,15 @@
       "name": "@metafor/elements",
       "version": "0.0.1",
       "dependencies": {
+        "@metafor/engine": "workspace:*",
+      },
+    },
+    "ui/hud": {
+      "name": "@metafor/hud",
+      "version": "0.0.1",
+      "dependencies": {
+        "@metafor/components": "workspace:*",
+        "@metafor/elements": "workspace:*",
         "@metafor/engine": "workspace:*",
       },
     },
@@ -892,8 +901,6 @@
 
     "@metafor/bulk": ["@metafor/bulk@workspace:bulk"],
 
-    "@metafor/bun-debug": ["@metafor/bun-debug@workspace:pkg/debug"],
-
     "@metafor/components": ["@metafor/components@workspace:ui/components"],
 
     "@metafor/dark": ["@metafor/dark@workspace:dark"],
@@ -901,6 +908,10 @@
     "@metafor/elements": ["@metafor/elements@workspace:ui/elements"],
 
     "@metafor/engine": ["@metafor/engine@workspace:pkg/engine"],
+
+    "@metafor/hud": ["@metafor/hud@workspace:ui/hud"],
+
+    "@metafor/interpreter": ["@metafor/interpreter@workspace:pkg/interpreter"],
 
     "@metafor/pty": ["@metafor/pty@workspace:pkg/pty"],
 
@@ -1980,7 +1991,6 @@
 
     "yocto-queue": ["yocto-queue@0.1.0", "", {}, "sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q=="],
 
-
     "zip-stream": ["zip-stream@4.1.1", "", { "dependencies": { "archiver-utils": "^3.0.4", "compress-commons": "^4.1.2", "readable-stream": "^3.6.0" } }, "sha512-9qv4rlDiopXg4E69k+vMHjNN63YFMe9sZMrdlvKnCjlCRWeCBswPPMPUfx+ipsAWq1LXHe70RcbaHdJJpS6hyQ=="],
 
     "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
@@ -2015,7 +2025,9 @@
 
     "@metafor/android/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
-    "@metafor/engine/typescript": ["typescript@5.8.3", "https://registry.yarnpkg.com/typescript/-/typescript-5.8.3.tgz", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
+    "@metafor/engine/@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
+
+    "@metafor/engine/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@metafor/pty/@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 
@@ -2130,6 +2142,8 @@
     "@isaacs/cliui/wrap-ansi/ansi-styles": ["ansi-styles@6.2.3", "", {}, "sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg=="],
 
     "@metafor/android/@types/bun/bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
+
+    "@metafor/engine/@types/bun/bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 
     "@metafor/pty/@types/bun/bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 

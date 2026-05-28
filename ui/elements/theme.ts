@@ -197,7 +197,7 @@ export const activeSyntaxThemeName = activeVscodeSyntaxTheme.name ?? "Islands Da
 
 /**
  * Цвета для синтаксических токенов в code-editor. Категории генерируют
- * editor/highlighter и server-side scanner в pkg/debug/src/syntax.ts.
+ * editor/highlighter и server-side scanner в pkg/interpreter/src/syntax.ts.
  */
 export const syntaxTokens = resolveVscodeSyntaxTokens(activeVscodeSyntaxTheme)
 

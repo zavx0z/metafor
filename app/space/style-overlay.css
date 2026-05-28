@@ -102,7 +102,7 @@ body {
 .space-toolbar .path:empty::before { content: "—"; color: #4b5260; }
 .muted { color: #6e7681; }
 
-#debug-frame {
+#interpreter-frame {
   flex: 1 1 auto;
   border: 0;
   width: 100%;

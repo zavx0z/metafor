@@ -10,8 +10,8 @@ type PersistedState = {
 declare global {
   interface Window {
     space: {
-      getDebugUrl(): Promise<string>
-      isDebugServerRunning(): Promise<boolean>
+      getInterpreterUrl(): Promise<string>
+      isInterpreterRunning(): Promise<boolean>
       getState(): Promise<PersistedState>
       setState(next: PersistedState): Promise<void>
       pickDirectory(defaultPath?: string): Promise<string | null>
@@ -37,7 +37,7 @@ const pickFileBtn = $<HTMLButtonElement>("pick-file")
 const runBtn = $<HTMLButtonElement>("run")
 const stopBtn = $<HTMLButtonElement>("stop")
 const pauseCheckbox = $<HTMLInputElement>("pause-on-start")
-const debugFrame = $<HTMLIFrameElement>("debug-frame")
+const interpreterFrame = $<HTMLIFrameElement>("interpreter-frame")
 const overlayMsg = $<HTMLDivElement>("overlay-msg")
 
 let state: PersistedState = {}
@@ -79,15 +79,15 @@ async function init(): Promise<void> {
   setPath(entryPath, state.entryFile)
   pauseCheckbox.checked = state.pauseOnStart === true
 
-  const url = await window.space.getDebugUrl()
-  const running = await window.space.isDebugServerRunning()
+  const url = await window.space.getInterpreterUrl()
+  const running = await window.space.isInterpreterRunning()
   if (running) {
     setStatus(url, "ok")
-    debugFrame.src = url
+    interpreterFrame.src = url
     clearError()
   } else {
     setStatus("offline", "fail")
-    showError(`Интерпретатор не отвечает на ${url}. Запусти его вручную (\`bun run debug\`) и нажми Reload (⌘R), либо запусти space заново — он попробует поднять.`)
+    showError(`Интерпретатор не отвечает на ${url}. Запусти его вручную (\`bun run interpreter\`) и нажми Reload (⌘R), либо запусти space заново — он попробует поднять.`)
   }
 }
 

@@ -1578,7 +1578,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
    * Освобождает GPUBuffer'ы перед удалением записи. Без destroy() WebGPU
    * импликация держит native-память, а Map.delete сама по себе не триггерит
    * native cleanup — приводит к утечке GPU-памяти в долгих сессиях
-   * (например, debug-UI пересобирает Text-объекты на каждый step).
+   * (например, interpreter UI пересобирает Text-объекты на каждый step).
    * @param geometry - Геометрия для очистки из кэша
    */
   public invalidateGeometry(geometry: BufferGeometry): void {
