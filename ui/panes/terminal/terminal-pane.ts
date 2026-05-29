@@ -52,6 +52,7 @@ type TerminalOutputPaneOpts = {
 type TerminalOutputPaneInternalOpts = TerminalOutputPaneOpts & {
   reflowOnResize?: boolean
   wrapMode?: "char" | "word"
+  contentWidthMode?: "grid" | "text"
 }
 
 export type TerminalPaneOpts = TerminalOutputPaneOpts & {
@@ -161,6 +162,7 @@ class TerminalOutputPane extends UiSurface {
   #scrollY: boolean
   #reflowOnResize: boolean
   #wrapMode: "char" | "word"
+  #contentWidthMode: "grid" | "text"
   #cursorBlink: boolean
   #cursorEnabled: boolean
   #onResize: ((size: TerminalSize) => void) | undefined
@@ -220,6 +222,7 @@ class TerminalOutputPane extends UiSurface {
     this.#scrollY = opts.scrollY ?? true
     this.#reflowOnResize = opts.reflowOnResize ?? false
     this.#wrapMode = opts.wrapMode ?? "char"
+    this.#contentWidthMode = opts.contentWidthMode ?? "grid"
     this.#cursorBlink = opts.cursorBlink ?? true
     this.#cursorEnabled = opts.showCursor ?? true
     this.#showCursor = this.#cursorEnabled
@@ -452,7 +455,7 @@ class TerminalOutputPane extends UiSurface {
   #renderBody(): void {
     const body = this.#bodyRect()
     if (body.w <= 0 || body.h <= 0) return
-    const contentW = this.#cols * this.#getCharWidth() + BODY_PAD_X_PX * 2
+    const contentW = this.#contentCols() * this.#getCharWidth() + BODY_PAD_X_PX * 2
     const contentH = this.#totalLineCount() * this.#linePx + BODY_PAD_Y_PX * 2
     div(this, body.x, body.y, body.w, body.h, {
       key: TERMINAL_SCROLL_KEY,
@@ -563,6 +566,15 @@ class TerminalOutputPane extends UiSurface {
       w: Math.max(1, this.rectW - PAD_X_PX * 2),
       h: Math.max(1, this.rectH - y - BOTTOM_PAD_PX),
     }
+  }
+
+  #contentCols(): number {
+    if (this.#contentWidthMode === "grid") return this.#cols
+    let max = 0
+    for (const line of [...this.#scrollback, ...this.#screen]) {
+      max = Math.max(max, terminalLineText(line).length)
+    }
+    return Math.max(1, max)
   }
 
   #syncGridToRect(): void {
@@ -1211,6 +1223,7 @@ export class LogViewerPane extends TerminalOutputPane {
       showCursor: false,
       reflowOnResize: true,
       wrapMode: "word",
+      contentWidthMode: "text",
     })
     this.node.name = "LogViewerPane"
   }

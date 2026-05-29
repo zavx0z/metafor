@@ -16,7 +16,7 @@ type EditorLanguageRoute = "typescript" | "javascript" | "html" | "css" | "plain
 type EditorSelectionRoute = "menu" | "right-click" | "shift-cursor" | "double-click"
 type EditorScrollRoute = "vertical" | "horizontal"
 type LogViewerWrapRoute = "wrap" | "no-wrap"
-type LogViewerScrollRoute = "vertical" | "horizontal" | "both" | "none"
+type LogViewerScrollRoute = "vertical" | "horizontal" | "no-vertical" | "no-horizontal" | "both" | "none"
 type EditorRoute =
   | "editor/editing"
   | "editor/highlighting"
@@ -68,6 +68,8 @@ const LOG_VIEWER_ROUTES: readonly LogViewerRoute[] = [
   "log-viewer/scroll",
   "log-viewer/scroll/vertical",
   "log-viewer/scroll/horizontal",
+  "log-viewer/scroll/no-vertical",
+  "log-viewer/scroll/no-horizontal",
   "log-viewer/scroll/both",
   "log-viewer/scroll/none",
 ]
@@ -456,12 +458,12 @@ class PanesScreen extends UiSurface {
       return
     }
     if (section === "Scroll") {
-      const scroll = logViewerScrollPropsFromRoute(this.#route)
+      const detail = logViewerScrollDockRouteFromRoute(this.#route)
       this.#buttonRow(x, y, w, h, [
-        {label: "Scroll vertical", active: scroll.scrollY, color: "primary", onClick: () => this.#goLogViewerScroll({scrollY: true})},
-        {label: "Scroll horizontal", active: scroll.scrollX, color: "primary", onClick: () => this.#goLogViewerScroll({scrollX: true})},
-        {label: "No vertical", active: !scroll.scrollY, color: "neutral", onClick: () => this.#goLogViewerScroll({scrollY: false})},
-        {label: "No horizontal", active: !scroll.scrollX, color: "neutral", onClick: () => this.#goLogViewerScroll({scrollX: false})},
+        {label: "Scroll vertical", active: detail === "vertical", color: "primary", onClick: () => this.#router.go("log-viewer/scroll/vertical")},
+        {label: "Scroll horizontal", active: detail === "horizontal", color: "primary", onClick: () => this.#router.go("log-viewer/scroll/horizontal")},
+        {label: "No vertical", active: detail === "no-vertical", color: "neutral", onClick: () => this.#router.go("log-viewer/scroll/no-vertical")},
+        {label: "No horizontal", active: detail === "no-horizontal", color: "neutral", onClick: () => this.#router.go("log-viewer/scroll/no-horizontal")},
       ])
       return
     }
@@ -641,14 +643,6 @@ class PanesScreen extends UiSurface {
     else if (section === "Levels") this.#router.go("log-viewer/levels")
     else if (section === "Scroll") this.#router.go("log-viewer/scroll")
     else this.#router.go("log-viewer/basic")
-  }
-
-  #goLogViewerScroll(next: Partial<Pick<LogViewerProps, "scrollX" | "scrollY">>): void {
-    const current = logViewerPropsFromRoute(this.#route)
-    this.#router.go(logViewerScrollRouteFor({
-      scrollX: next.scrollX ?? current.scrollX,
-      scrollY: next.scrollY ?? current.scrollY,
-    }))
   }
 
   #goNotiSection(section: NotiSection): void {
@@ -831,18 +825,25 @@ function logViewerWrapRouteFromRoute(route: PanesRoute): LogViewerWrapRoute {
   return route === "log-viewer/wrap/no-wrap" ? "no-wrap" : "wrap"
 }
 
+function logViewerScrollDockRouteFromRoute(route: PanesRoute): LogViewerScrollRoute | "overview" {
+  if (route === "log-viewer/scroll/vertical") return "vertical"
+  if (route === "log-viewer/scroll/horizontal") return "horizontal"
+  if (route === "log-viewer/scroll/no-vertical") return "no-vertical"
+  if (route === "log-viewer/scroll/no-horizontal") return "no-horizontal"
+  if (route === "log-viewer/scroll/both") return "both"
+  if (route === "log-viewer/scroll/none") return "none"
+  return "overview"
+}
+
 function logViewerScrollPropsFromRoute(route: PanesRoute): Pick<LogViewerProps, "scrollX" | "scrollY"> {
+  if (route === "log-viewer/scroll") return {scrollX: true, scrollY: true}
+  if (route === "log-viewer/scroll/vertical") return {scrollX: false, scrollY: true}
   if (route === "log-viewer/scroll/horizontal") return {scrollX: true, scrollY: false}
+  if (route === "log-viewer/scroll/no-vertical") return {scrollX: true, scrollY: false}
+  if (route === "log-viewer/scroll/no-horizontal") return {scrollX: false, scrollY: true}
   if (route === "log-viewer/scroll/both") return {scrollX: true, scrollY: true}
   if (route === "log-viewer/scroll/none") return {scrollX: false, scrollY: false}
   return {scrollX: false, scrollY: true}
-}
-
-function logViewerScrollRouteFor(props: Pick<LogViewerProps, "scrollX" | "scrollY">): LogViewerRoute {
-  if (props.scrollX && props.scrollY) return "log-viewer/scroll/both"
-  if (props.scrollX) return "log-viewer/scroll/horizontal"
-  if (props.scrollY) return "log-viewer/scroll/vertical"
-  return "log-viewer/scroll/none"
 }
 
 function logViewerPropsFromRoute(route: PanesRoute): LogViewerProps {
@@ -851,6 +852,23 @@ function logViewerPropsFromRoute(route: PanesRoute): LogViewerProps {
     wrapLines: logViewerWrapRouteFromRoute(route) === "wrap",
     ...scroll,
   }
+}
+
+function logViewerScrollStatusLabel(route: PanesRoute): string {
+  const detail = logViewerScrollDockRouteFromRoute(route)
+  if (detail === "vertical") return "y scroll"
+  if (detail === "horizontal") return "x scroll"
+  if (detail === "no-vertical") return "no vertical"
+  if (detail === "no-horizontal") return "no horizontal"
+  if (detail === "none") return "no scroll"
+  return "xy scroll"
+}
+
+function logViewerScrollDemoFromRoute(route: PanesRoute): string {
+  const detail = logViewerScrollDockRouteFromRoute(route)
+  if (detail === "horizontal") return LOG_VIEWER_SCROLL_WIDE_SHORT_DEMO
+  if (detail === "no-horizontal" || detail === "both" || detail === "overview") return LOG_VIEWER_SCROLL_WIDE_TALL_DEMO
+  return LOG_VIEWER_SCROLL_SHORT_DEMO
 }
 
 function notiSurfaceScenario(route: PanesRoute): NotiRoute | null {
@@ -917,12 +935,14 @@ function applyTerminalRoute(terminal: TerminalPane, route: PanesRoute): void {
 
 function applyLogViewerRoute(logViewer: LogViewerPane, route: PanesRoute): void {
   const props = logViewerPropsFromRoute(route)
-  logViewer.reset()
+  const scrollDetail = logViewerScrollDockRouteFromRoute(route)
+  const needsWideLog = scrollDetail === "horizontal" || scrollDetail === "no-horizontal" || scrollDetail === "both" || scrollDetail === "overview"
   logViewer.setTitle("LogViewerPane")
   logViewer.setWrapLines(props.wrapLines)
   logViewer.setScrollX(props.scrollX)
   logViewer.setScrollY(props.scrollY)
-  logViewer.setTerminalSize(props.scrollX ? 180 : 80, 24)
+  logViewer.setTerminalSize(needsWideLog ? 180 : 80, 24)
+  logViewer.reset()
   if (route.startsWith("log-viewer/wrap")) {
     logViewer.setStatus("connected", props.wrapLines ? "wrap" : "clip")
     logViewer.write(props.wrapLines ? LOG_VIEWER_WRAP_DEMO : LOG_VIEWER_NOWRAP_DEMO)
@@ -934,9 +954,8 @@ function applyLogViewerRoute(logViewer: LogViewerPane, route: PanesRoute): void 
     return
   }
   if (route.startsWith("log-viewer/scroll")) {
-    const status = props.scrollX && props.scrollY ? "xy scroll" : props.scrollX ? "x scroll" : props.scrollY ? "y scroll" : "no scroll"
-    logViewer.setStatus("running", status)
-    logViewer.write(LOG_VIEWER_SCROLL_DEMO)
+    logViewer.setStatus("running", logViewerScrollStatusLabel(route))
+    logViewer.write(logViewerScrollDemoFromRoute(route))
     return
   }
   logViewer.setStatus("connected", "output")
@@ -1074,11 +1093,22 @@ const LOG_VIEWER_NOWRAP_DEMO = [
   "\x1b[32m[ok]\x1b[0m renderer kept vertical scrollback only",
 ].join("\r\n")
 
-const LOG_VIEWER_SCROLL_DEMO = Array.from({length: 96}, (_, i) => {
+const LOG_VIEWER_SCROLL_SHORT_DEMO = Array.from({length: 96}, (_, i) => {
   const n = String(i + 1).padStart(3, "0")
   const level = i % 5 === 0 ? "\x1b[33mwarn\x1b[0m" : i % 7 === 0 ? "\x1b[31merror\x1b[0m" : "\x1b[36minfo\x1b[0m"
   return `${n} ${level} worker:${(i % 4) + 1} streamed log line ${n}`
 }).join("\r\n")
+
+const LOG_VIEWER_SCROLL_WIDE_SHORT_DEMO = logViewerWideScrollDemo(18)
+const LOG_VIEWER_SCROLL_WIDE_TALL_DEMO = logViewerWideScrollDemo(96)
+
+function logViewerWideScrollDemo(lines: number): string {
+  return Array.from({length: lines}, (_, i) => {
+    const n = String(i + 1).padStart(3, "0")
+    const level = i % 5 === 0 ? "\x1b[33mwarn\x1b[0m" : i % 7 === 0 ? "\x1b[31merror\x1b[0m" : "\x1b[36minfo\x1b[0m"
+    return `${n} ${level} worker:${(i % 4) + 1} streamed log line ${n} request=6f8a9b3c component=interpreter payload=\"wide log content extends past the pane edge\"`
+  }).join("\r\n")
+}
 
 const EDITOR_EDITING_SOURCE = `import {EditorPane, TerminalPane, NotiStack} from "@ui/panes"
 
