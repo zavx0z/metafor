@@ -7,7 +7,7 @@
     "noEmit": true,
     "strict": true,
     "target": "ESNext",
-    "types": ["bun"]
+    "types": ["bun", "@webgpu/types"]
   },
   "include": ["src/**/*.ts", "src/**/*.html"]
 }

@@ -2,29 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Bun PTY Terminal</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <meta http-equiv="cache-control" content="no-cache" />
+    <title>MetaFor PTY</title>
+    <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <header class="toolbar">
-        <div class="brand">
-          <span class="brand-mark" aria-hidden="true"></span>
-          <span>Bun PTY</span>
-        </div>
-        <div class="status" id="connection-status" data-state="connecting">
-          Connecting
-        </div>
-        <div class="actions">
-          <button type="button" id="reconnect-button">Reconnect</button>
-          <button type="button" id="clear-button">Clear</button>
-        </div>
-      </header>
-      <section class="terminal-surface" aria-label="Terminal">
-        <div id="terminal"></div>
-      </section>
-    </main>
-    <script type="module" src="./client.ts"></script>
+    <canvas id="stage-canvas" aria-label="MetaFor PTY terminal"></canvas>
+    <script type="module" src="/entry.js"></script>
   </body>
 </html>

@@ -220,6 +220,7 @@ export class UiRuntime {
   readonly #handleMouseLeave = (): void => this.#onMouseLeave()
   readonly #handleContextMenu = (event: MouseEvent): void => this.#onContextMenu(event)
   readonly #handleKey = (event: KeyboardEvent): void => this.#onKey(event)
+  readonly #handleWindowKey = (event: KeyboardEvent): void => this.#onWindowKey(event)
 
   /** Debug alias for callers that inspect the rendered object tree. */
   get scene(): Space {
@@ -928,6 +929,7 @@ export class UiRuntime {
     this.canvas.removeEventListener("keydown", this.#handleKey)
     this.canvas.removeEventListener("mouseleave", this.#handleMouseLeave)
     this.canvas.removeEventListener("contextmenu", this.#handleContextMenu)
+    window.removeEventListener("keydown", this.#handleWindowKey)
     window.removeEventListener("mouseup", this.#handleMouseUp)
     this.setFocused(null)
     this.#pressedSlot = null
@@ -1032,6 +1034,7 @@ export class UiRuntime {
     this.canvas.addEventListener("mousedown", this.#handleMouseDown)
     this.canvas.addEventListener("contextmenu", this.#handleContextMenu)
     this.canvas.addEventListener("keydown", this.#handleKey)
+    window.addEventListener("keydown", this.#handleWindowKey)
     // mouseup на window — релиз за пределами canvas сбрасывает pressed.
     window.addEventListener("mouseup", this.#handleMouseUp)
     this.canvas.addEventListener("mouseleave", this.#handleMouseLeave)
@@ -1271,6 +1274,12 @@ export class UiRuntime {
     if (!event.defaultPrevented) handleActiveInputKey(focused as UiSurfaceForInput, event)
   }
 
+  #onWindowKey(event: KeyboardEvent): void {
+    if (this.#focused === null || this.inputProxy?.isFocused() === true) return
+    if (!isRuntimeKeyFallbackTarget(event.target, this.canvas)) return
+    this.#onKey(event)
+  }
+
   #onInputText(text: string): void {
     const focused = this.#focused
     if (focused === null) return
@@ -1280,6 +1289,16 @@ export class UiRuntime {
 }
 
 type UiSurfaceForInput = Parameters<typeof handleActiveInputKey>[0]
+
+function isRuntimeKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanvasElement): boolean {
+  if (target === null || target === window || target === document || target === document.body || target === document.documentElement) {
+    return true
+  }
+  if (target === canvas) return true
+  if (!(target instanceof HTMLElement)) return false
+  if (target.closest("textarea,input,select,[contenteditable='true']") !== null) return false
+  return target === canvas.parentElement || target.contains(canvas)
+}
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t

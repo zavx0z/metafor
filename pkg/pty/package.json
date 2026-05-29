@@ -9,8 +9,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0"
+    "@ui/components": "workspace:*",
+    "@ui/elements": "workspace:*",
+    "@ui/panes": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest",

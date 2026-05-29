@@ -46,6 +46,8 @@ type TerminalOutputPaneOpts = {
   scrollX?: boolean
   scrollY?: boolean
   cursorBlink?: boolean
+  cursorLineHighlight?: boolean
+  cursorLineFill?: Color
   showCursor?: boolean
   onResize?: (size: TerminalSize) => void
 }
@@ -89,15 +91,24 @@ type TerminalAttr = {
   fg: TerminalColor
   bg: TerminalColor | null
   bold: boolean
+  dim: boolean
+  underline: boolean
   inverse: boolean
 }
 
 type TerminalCell = {
   ch: string
   attr: TerminalAttr
+  width: 0 | 1 | 2
 }
 
-type ParserMode = "text" | "esc" | "csi" | "osc"
+type TerminalKeyboardMode = {
+  applicationCursorKeys: boolean
+  applicationKeypad: boolean
+  bracketedPaste: boolean
+}
+
+type ParserMode = "text" | "esc" | "csi" | "osc" | "charset"
 
 const DEFAULT_COLS = 80
 const DEFAULT_ROWS = 24
@@ -117,12 +128,15 @@ const HEADER_RULE = withAlpha(palette.borderDim, 0.82)
 const STATUS_FILL = withAlpha(palette.bgInput, 0.76)
 const STATUS_BORDER = withAlpha(palette.borderBright, 0.12)
 const CURSOR_FILL = withAlpha(palette.cyan, 0.74)
+const CURSOR_LINE_FILL = withAlpha(mixColor(palette.bgCode, palette.text, 0.08), 0.88)
 const SELECTION_FILL = new Color(92 / 255, 155 / 255, 0.34)
 const DEFAULT_FG: TerminalColor = {kind: "default"}
 const DEFAULT_ATTR: TerminalAttr = {
   fg: DEFAULT_FG,
   bg: null,
   bold: false,
+  dim: false,
+  underline: false,
   inverse: false,
 }
 
@@ -163,6 +177,8 @@ class TerminalOutputPane extends UiSurface {
   #wrapMode: "char" | "word"
   #contentWidthMode: "grid" | "text"
   #cursorBlink: boolean
+  #cursorLineHighlight: boolean
+  #cursorLineFill: Color
   #cursorEnabled: boolean
   #onResize: ((size: TerminalSize) => void) | undefined
 
@@ -173,7 +189,13 @@ class TerminalOutputPane extends UiSurface {
   #screen: TerminalCell[][]
   #cursorRow = 0
   #cursorCol = 0
+  #pendingWrap = false
+  #scrollTop = 0
+  #scrollBottom: number
   #savedCursor: {row: number; col: number} | null = null
+  #applicationCursorKeys = false
+  #applicationKeypad = false
+  #bracketedPaste = false
   #selectionAnchor: TextPosition | null = null
   #selectionFocus: TextPosition | null = null
   #dragSelecting = false
@@ -211,6 +233,7 @@ class TerminalOutputPane extends UiSurface {
     this.#preferredCols = clampInt(opts.cols ?? DEFAULT_COLS, 1, 400)
     this.#cols = this.#preferredCols
     this.#rows = clampInt(opts.rows ?? DEFAULT_ROWS, 1, 160)
+    this.#scrollBottom = this.#rows - 1
     this.#minCols = clampInt(opts.minCols ?? DEFAULT_MIN_COLS, 1, 400)
     this.#minRows = clampInt(opts.minRows ?? DEFAULT_MIN_ROWS, 1, 160)
     this.#maxScrollback = clampInt(opts.maxScrollback ?? DEFAULT_MAX_SCROLLBACK, 0, 100000)
@@ -223,6 +246,8 @@ class TerminalOutputPane extends UiSurface {
     this.#wrapMode = opts.wrapMode ?? "char"
     this.#contentWidthMode = opts.contentWidthMode ?? "grid"
     this.#cursorBlink = opts.cursorBlink ?? true
+    this.#cursorLineHighlight = opts.cursorLineHighlight ?? false
+    this.#cursorLineFill = opts.cursorLineFill ?? CURSOR_LINE_FILL
     this.#cursorEnabled = opts.showCursor ?? true
     this.#showCursor = this.#cursorEnabled
     this.#cursorVisible = this.#cursorEnabled
@@ -263,6 +288,9 @@ class TerminalOutputPane extends UiSurface {
     this.#screen = Array.from({length: this.#rows}, () => this.#blankLine())
     this.#cursorRow = 0
     this.#cursorCol = 0
+    this.#pendingWrap = false
+    this.#scrollTop = 0
+    this.#scrollBottom = this.#rows - 1
     this.#wordWrapBuffer = []
     this.#clearSelectionState()
     divScrollTo(this, TERMINAL_SCROLL_KEY, {left: 0, top: 0})
@@ -274,6 +302,9 @@ class TerminalOutputPane extends UiSurface {
     this.#sequence = ""
     this.#oscEsc = false
     this.#showCursor = this.#cursorEnabled
+    this.#applicationCursorKeys = false
+    this.#applicationKeypad = false
+    this.#bracketedPaste = false
     this.#wordWrapBuffer = []
     this.clear()
   }
@@ -482,13 +513,17 @@ class TerminalOutputPane extends UiSurface {
       const line = this.#lineAt(idx)
       if (line === undefined) continue
       const rowY = y + idx * this.#linePx - ctx.scrollTop
-      this.#renderLine(idx, line, x, rowY)
+      this.#renderLine(idx, line, x, rowY, idx === cursorGlobalRow)
       if (idx === cursorGlobalRow) this.#renderCursor(x, rowY)
     }
   }
 
-  #renderLine(lineIndex: number, line: TerminalCell[], x: number, y: number): void {
+  #renderLine(lineIndex: number, line: TerminalCell[], x: number, y: number, isCursorLine: boolean): void {
     const charW = this.#getCharWidth()
+    if (isCursorLine && this.#focused && this.#cursorLineHighlight && this.#cursorEnabled) {
+      this.drawRect(x, y + 1, this.#cols * charW, this.#linePx, this.#cursorLineFill, Z.ELEMENT - 0.02)
+    }
+
     let col = 0
     while (col < this.#cols) {
       const bg = displayBg(line[col] ?? this.#blankCell())
@@ -504,7 +539,7 @@ class TerminalOutputPane extends UiSurface {
     col = 0
     while (col < this.#cols) {
       const cell = line[col] ?? this.#blankCell()
-      if (cell.ch === " ") {
+      if (cell.width === 0 || cell.ch === " ") {
         col++
         continue
       }
@@ -519,13 +554,38 @@ class TerminalOutputPane extends UiSurface {
         value += next.ch
         col++
       }
-      this.drawText(value, x + start * charW, y + 1, {
+      this.drawText(this.#displayText(value), x + start * charW, y + 1, {
         fontPx: this.#fontPx,
         material: this.#materialFor(textColor),
         maxWidthPx: Math.max(1, (col - start) * charW + 1),
         fit: false,
       })
+      if (attr.underline) {
+        this.drawRect(
+          x + start * charW,
+          y + Math.max(1, this.#linePx - 2),
+          (col - start) * charW,
+          1,
+          colorToColor(textColor),
+          Z.TEXT + 0.01,
+        )
+      }
     }
+  }
+
+  #displayText(value: string): string {
+    if (this.font === null) return value
+    let out = ""
+    for (const ch of value) {
+      const code = ch.codePointAt(0) ?? 0
+      if (isZeroWidthTerminalCodePoint(code)) continue
+      if (isTerminalSpaceCodePoint(code)) {
+        out += " "
+        continue
+      }
+      out += this.font.mapCharToGlyph(code) === 0 ? terminalGlyphFallback(ch) : ch
+    }
+    return out
   }
 
   #renderSelectionForLine(lineIndex: number, x: number, y: number): void {
@@ -595,6 +655,19 @@ class TerminalOutputPane extends UiSurface {
 
   onKey(event: KeyboardEvent): void {
     this.handleOutputShortcut(event)
+  }
+
+  protected emitTerminalResponse(_data: string): void {
+    // TerminalOutputPane is output-only. TerminalPane overrides this to feed
+    // terminal protocol answers back through the same input channel as a PTY.
+  }
+
+  protected terminalKeyboardMode(): TerminalKeyboardMode {
+    return {
+      applicationCursorKeys: this.#applicationCursorKeys,
+      applicationKeypad: this.#applicationKeypad,
+      bracketedPaste: this.#bracketedPaste,
+    }
   }
 
   protected handleOutputShortcut(event: KeyboardEvent): boolean {
@@ -750,6 +823,9 @@ class TerminalOutputPane extends UiSurface {
     for (let i = 0; i < this.#scrollback.length; i++) this.#scrollback[i] = this.#fitLine(this.#scrollback[i] ?? [])
     this.#cursorRow = clampInt(this.#cursorRow, 0, this.#rows - 1)
     this.#cursorCol = clampInt(this.#cursorCol, 0, this.#cols - 1)
+    this.#pendingWrap = false
+    this.#scrollTop = 0
+    this.#scrollBottom = this.#rows - 1
     if (wasAtBottom) this.#scrollToBottom()
     if (emit) this.#emitResize()
   }
@@ -765,6 +841,9 @@ class TerminalOutputPane extends UiSurface {
     this.#screen = Array.from({length: this.#rows}, () => this.#blankLine())
     this.#cursorRow = 0
     this.#cursorCol = 0
+    this.#pendingWrap = false
+    this.#scrollTop = 0
+    this.#scrollBottom = this.#rows - 1
     this.#clearSelectionState()
     divScrollTo(this, TERMINAL_SCROLL_KEY, {left: 0, top: 0})
     this.#consume(this.#rawOutput)
@@ -779,7 +858,7 @@ class TerminalOutputPane extends UiSurface {
   }
 
   #blankCell(attr: TerminalAttr = this.#attr): TerminalCell {
-    return {ch: " ", attr: cloneAttr(attr)}
+    return {ch: " ", attr: cloneAttr(attr), width: 1}
   }
 
   #blankLine(attr: TerminalAttr = this.#attr): TerminalCell[] {
@@ -840,6 +919,10 @@ class TerminalOutputPane extends UiSurface {
       this.#consumeOsc(ch)
       return
     }
+    if (this.#parserMode === "charset") {
+      this.#parserMode = "text"
+      return
+    }
     if (ch === "\x1b") {
       this.#parserMode = "esc"
       this.#sequence = ""
@@ -851,17 +934,20 @@ class TerminalOutputPane extends UiSurface {
   #consumeText(ch: string): void {
     if (ch === "\n") {
       this.#flushWordWrapBuffer()
+      this.#pendingWrap = false
       this.#lineFeed()
       if (!this.#wrapLines || this.#wrapMode === "word") this.#cursorCol = 0
       return
     }
     if (ch === "\r") {
       this.#flushWordWrapBuffer()
+      this.#pendingWrap = false
       this.#cursorCol = 0
       return
     }
     if (ch === "\b") {
       this.#flushWordWrapBuffer()
+      this.#pendingWrap = false
       this.#cursorCol = Math.max(0, this.#cursorCol - 1)
       return
     }
@@ -873,13 +959,19 @@ class TerminalOutputPane extends UiSurface {
     }
     const code = ch.codePointAt(0) ?? 0
     if (code < 0x20 || code === 0x7f) return
+    if (isZeroWidthTerminalCodePoint(code)) return
+    if (isTerminalSpaceCodePoint(code)) {
+      this.#flushWordWrapBuffer()
+      this.#putSpace()
+      return
+    }
     if (this.#wrapMode === "word" && this.#wrapLines) {
       if (ch === " ") {
         this.#flushWordWrapBuffer()
         this.#putSpace()
         return
       }
-      this.#wordWrapBuffer.push({ch, attr: cloneAttr(this.#attr)})
+      this.#wordWrapBuffer.push({ch, attr: cloneAttr(this.#attr), width: terminalCharWidth(ch)})
       return
     }
     this.#putChar(ch)
@@ -898,9 +990,34 @@ class TerminalOutputPane extends UiSurface {
       this.#oscEsc = false
       return
     }
+    if ("()*+-./".includes(ch)) {
+      this.#parserMode = "charset"
+      return
+    }
     this.#flushWordWrapBuffer()
     if (ch === "c") {
       this.reset()
+      return
+    }
+    if (ch === "D") {
+      this.#lineFeed()
+      return
+    }
+    if (ch === "E") {
+      this.#lineFeed()
+      this.#cursorCol = 0
+      return
+    }
+    if (ch === "M") {
+      this.#reverseIndex()
+      return
+    }
+    if (ch === "=") {
+      this.#applicationKeypad = true
+      return
+    }
+    if (ch === ">") {
+      this.#applicationKeypad = false
       return
     }
     if (ch === "7") {
@@ -908,6 +1025,7 @@ class TerminalOutputPane extends UiSurface {
       return
     }
     if (ch === "8" && this.#savedCursor !== null) {
+      this.#pendingWrap = false
       this.#cursorRow = clampInt(this.#savedCursor.row, 0, this.#rows - 1)
       this.#cursorCol = clampInt(this.#savedCursor.col, 0, this.#cols - 1)
     }
@@ -926,15 +1044,32 @@ class TerminalOutputPane extends UiSurface {
 
   #consumeOsc(ch: string): void {
     if (this.#oscEsc) {
-      this.#parserMode = ch === "\\" ? "text" : "osc"
+      if (ch === "\\") {
+        this.#parserMode = "text"
+        this.#dispatchOsc(this.#sequence)
+      } else {
+        this.#parserMode = "osc"
+        if (this.#sequence.length < 1024) this.#sequence += `\x1b${ch}`
+      }
       this.#oscEsc = false
       return
     }
     if (ch === "\x07") {
       this.#parserMode = "text"
+      this.#dispatchOsc(this.#sequence)
       return
     }
-    this.#oscEsc = ch === "\x1b"
+    if (ch === "\x1b") {
+      this.#oscEsc = true
+      return
+    }
+    if (this.#sequence.length < 1024) this.#sequence += ch
+  }
+
+  #dispatchOsc(raw: string): void {
+    if (raw === "10;?") this.emitTerminalResponse(`\x1b]10;${oscRgb(palette.text)}\x1b\\`)
+    else if (raw === "11;?") this.emitTerminalResponse(`\x1b]11;${oscRgb(TERMINAL_BG)}\x1b\\`)
+    else if (raw === "12;?") this.emitTerminalResponse(`\x1b]12;${oscRgb(CURSOR_FILL)}\x1b\\`)
   }
 
   #dispatchCsi(raw: string, final: string): void {
@@ -948,6 +1083,11 @@ class TerminalOutputPane extends UiSurface {
       return
     }
     this.#flushWordWrapBuffer()
+    this.#pendingWrap = false
+    if (final === "c") {
+      this.emitTerminalResponse("\x1b[?1;2c")
+      return
+    }
     if (final === "H" || final === "f") {
       this.#cursorRow = clampInt(csiParam(params, 0, 1) - 1, 0, this.#rows - 1)
       this.#cursorCol = clampInt(csiParam(params, 1, 1) - 1, 0, this.#cols - 1)
@@ -967,10 +1107,14 @@ class TerminalOutputPane extends UiSurface {
     else if (final === "d") this.#cursorRow = clampInt(n() - 1, 0, this.#rows - 1)
     else if (final === "J") this.#eraseDisplay(csiParam(params, 0, 0))
     else if (final === "K") this.#eraseLine(csiParam(params, 0, 0))
+    else if (final === "n" && csiParam(params, 0, 0) === 6) {
+      this.emitTerminalResponse(`\x1b[${this.#cursorRow + 1};${this.#cursorCol + 1}R`)
+    }
     else if (final === "P") this.#deleteChars(n())
     else if (final === "@") this.#insertChars(n())
     else if (final === "L") this.#insertLines(n())
     else if (final === "M") this.#deleteLines(n())
+    else if (final === "r") this.#setScrollRegion(csiParam(params, 0, 1) - 1, csiParam(params, 1, this.#rows) - 1)
     else if (final === "S") for (let i = 0; i < n(); i++) this.#scrollUp()
     else if (final === "T") for (let i = 0; i < n(); i++) this.#scrollDown()
     else if (final === "s") this.#savedCursor = {row: this.#cursorRow, col: this.#cursorCol}
@@ -979,6 +1123,9 @@ class TerminalOutputPane extends UiSurface {
       this.#cursorCol = clampInt(this.#savedCursor.col, 0, this.#cols - 1)
     } else if ((final === "h" || final === "l") && privatePrefix.includes("?")) {
       if (params.includes(25)) this.#showCursor = final === "h"
+      if (params.includes(1)) this.#applicationCursorKeys = final === "h"
+      if (params.includes(66)) this.#applicationKeypad = final === "h"
+      if (params.includes(2004)) this.#bracketedPaste = final === "h"
       if (params.includes(1049)) this.clear()
     }
   }
@@ -988,7 +1135,12 @@ class TerminalOutputPane extends UiSurface {
       const p = params[i] ?? 0
       if (p === 0) this.#attr = cloneAttr(DEFAULT_ATTR)
       else if (p === 1) this.#attr.bold = true
-      else if (p === 22) this.#attr.bold = false
+      else if (p === 2) this.#attr.dim = true
+      else if (p === 4 || p === 21) this.#attr.underline = true
+      else if (p === 22) {
+        this.#attr.bold = false
+        this.#attr.dim = false
+      } else if (p === 24) this.#attr.underline = false
       else if (p === 7) this.#attr.inverse = true
       else if (p === 27) this.#attr.inverse = false
       else if (p === 39) this.#attr.fg = DEFAULT_FG
@@ -1009,7 +1161,7 @@ class TerminalOutputPane extends UiSurface {
   }
 
   #putChar(ch: string): void {
-    this.#putCell({ch, attr: cloneAttr(this.#attr)})
+    this.#putCell({ch, attr: cloneAttr(this.#attr), width: terminalCharWidth(ch)})
   }
 
   #putSpace(): void {
@@ -1030,6 +1182,18 @@ class TerminalOutputPane extends UiSurface {
   }
 
   #putCell(cell: TerminalCell): void {
+    if (cell.width === 0) return
+    if (this.#pendingWrap) {
+      if (!this.#wrapLines) return
+      this.#pendingWrap = false
+      this.#cursorCol = 0
+      this.#lineFeed()
+    }
+    if (cell.width === 2 && this.#cursorCol >= this.#cols - 1) {
+      if (!this.#wrapLines) return
+      this.#cursorCol = 0
+      this.#lineFeed()
+    }
     if (this.#cursorCol >= this.#cols) {
       if (!this.#wrapLines) return
       this.#cursorCol = 0
@@ -1037,20 +1201,37 @@ class TerminalOutputPane extends UiSurface {
     }
     const row = this.#screen[this.#cursorRow]
     if (row === undefined) return
-    row[this.#cursorCol] = {ch: cell.ch, attr: cloneAttr(cell.attr)}
+    row[this.#cursorCol] = {ch: cell.ch, attr: cloneAttr(cell.attr), width: cell.width}
+    if (cell.width === 2 && this.#cursorCol + 1 < this.#cols) {
+      row[this.#cursorCol + 1] = {ch: "", attr: cloneAttr(cell.attr), width: 0}
+      if (this.#cursorCol + 1 >= this.#cols - 1) {
+        if (!this.#wrapLines) {
+          this.#cursorCol = this.#cols
+          return
+        }
+        this.#pendingWrap = true
+        return
+      }
+      this.#cursorCol += 2
+      return
+    }
     if (this.#cursorCol >= this.#cols - 1) {
       if (!this.#wrapLines) {
         this.#cursorCol = this.#cols
         return
       }
-      this.#cursorCol = 0
-      this.#lineFeed()
+      this.#pendingWrap = true
       return
     }
     this.#cursorCol++
   }
 
   #lineFeed(): void {
+    this.#pendingWrap = false
+    if (this.#cursorRow === this.#scrollBottom) {
+      this.#scrollUpRegion(this.#scrollTop, this.#scrollBottom)
+      return
+    }
     if (this.#cursorRow >= this.#rows - 1) {
       this.#scrollUp()
       return
@@ -1058,29 +1239,68 @@ class TerminalOutputPane extends UiSurface {
     this.#cursorRow++
   }
 
+  #reverseIndex(): void {
+    this.#pendingWrap = false
+    if (this.#cursorRow === this.#scrollTop) {
+      this.#scrollDownRegion(this.#scrollTop, this.#scrollBottom)
+      return
+    }
+    this.#cursorRow = Math.max(0, this.#cursorRow - 1)
+  }
+
   #wrapLineFeed(): void {
+    this.#pendingWrap = false
     this.#cursorCol = 0
     this.#lineFeed()
   }
 
   #scrollUp(): void {
-    this.#pushScrollback(this.#screen.shift() ?? this.#blankLine())
-    this.#screen.push(this.#blankLine(DEFAULT_ATTR))
+    this.#scrollUpRegion(0, this.#rows - 1)
   }
 
   #scrollDown(): void {
-    this.#screen.unshift(this.#blankLine(DEFAULT_ATTR))
-    const tail = this.#screen.pop()
-    if (tail !== undefined) this.#pushScrollback(tail)
+    this.#scrollDownRegion(0, this.#rows - 1)
+  }
+
+  #scrollUpRegion(top: number, bottom: number): void {
+    const t = clampInt(top, 0, this.#rows - 1)
+    const b = clampInt(bottom, t, this.#rows - 1)
+    if (t === 0 && b === this.#rows - 1) {
+      this.#pushScrollback(this.#screen.shift() ?? this.#blankLine())
+      this.#screen.push(this.#blankLine(DEFAULT_ATTR))
+      return
+    }
+    this.#screen.splice(t, 1)
+    this.#screen.splice(b, 0, this.#blankLine(DEFAULT_ATTR))
+  }
+
+  #scrollDownRegion(top: number, bottom: number): void {
+    const t = clampInt(top, 0, this.#rows - 1)
+    const b = clampInt(bottom, t, this.#rows - 1)
+    this.#screen.splice(b, 1)
+    this.#screen.splice(t, 0, this.#blankLine(DEFAULT_ATTR))
+  }
+
+  #setScrollRegion(top: number, bottom: number): void {
+    if (bottom <= top || top < 0 || bottom >= this.#rows) {
+      this.#scrollTop = 0
+      this.#scrollBottom = this.#rows - 1
+    } else {
+      this.#scrollTop = top
+      this.#scrollBottom = bottom
+    }
+    this.#cursorRow = 0
+    this.#cursorCol = 0
   }
 
   #eraseDisplay(mode: number): void {
     const cursorCol = Math.min(this.#cursorCol, this.#cols)
     const visibleCursorCol = Math.min(cursorCol, this.#cols - 1)
     if (mode === 2) {
-      this.#screen = Array.from({length: this.#rows}, () => this.#blankLine(DEFAULT_ATTR))
+      this.#screen = Array.from({length: this.#rows}, () => this.#blankLine(this.#attr))
       this.#cursorRow = 0
       this.#cursorCol = 0
+      this.#pendingWrap = false
       return
     }
     if (mode === 3) {
@@ -1089,12 +1309,12 @@ class TerminalOutputPane extends UiSurface {
       return
     }
     if (mode === 1) {
-      for (let row = 0; row < this.#cursorRow; row++) this.#screen[row] = this.#blankLine(DEFAULT_ATTR)
-      for (let col = 0; col <= visibleCursorCol; col++) this.#screen[this.#cursorRow]![col] = this.#blankCell(DEFAULT_ATTR)
+      for (let row = 0; row < this.#cursorRow; row++) this.#screen[row] = this.#blankLine(this.#attr)
+      for (let col = 0; col <= visibleCursorCol; col++) this.#screen[this.#cursorRow]![col] = this.#blankCell()
       return
     }
-    for (let col = cursorCol; col < this.#cols; col++) this.#screen[this.#cursorRow]![col] = this.#blankCell(DEFAULT_ATTR)
-    for (let row = this.#cursorRow + 1; row < this.#rows; row++) this.#screen[row] = this.#blankLine(DEFAULT_ATTR)
+    for (let col = cursorCol; col < this.#cols; col++) this.#screen[this.#cursorRow]![col] = this.#blankCell()
+    for (let row = this.#cursorRow + 1; row < this.#rows; row++) this.#screen[row] = this.#blankLine(this.#attr)
   }
 
   #eraseLine(mode: number): void {
@@ -1105,11 +1325,11 @@ class TerminalOutputPane extends UiSurface {
     const start = mode === 1 ? 0 : cursorCol
     const end = mode === 0 ? this.#cols - 1 : visibleCursorCol
     if (mode === 2) {
-      this.#screen[this.#cursorRow] = this.#blankLine(DEFAULT_ATTR)
+      this.#screen[this.#cursorRow] = this.#blankLine(this.#attr)
       return
     }
     if (start > end) return
-    for (let col = start; col <= end; col++) row[col] = this.#blankCell(DEFAULT_ATTR)
+    for (let col = start; col <= end; col++) row[col] = this.#blankCell()
   }
 
   #deleteChars(count: number): void {
@@ -1117,14 +1337,14 @@ class TerminalOutputPane extends UiSurface {
     if (row === undefined) return
     const n = clampInt(count, 1, this.#cols)
     row.splice(this.#cursorCol, n)
-    while (row.length < this.#cols) row.push(this.#blankCell(DEFAULT_ATTR))
+    while (row.length < this.#cols) row.push(this.#blankCell())
   }
 
   #insertChars(count: number): void {
     const row = this.#screen[this.#cursorRow]
     if (row === undefined) return
     const n = clampInt(count, 1, this.#cols)
-    row.splice(this.#cursorCol, 0, ...Array.from({length: n}, () => this.#blankCell(DEFAULT_ATTR)))
+    row.splice(this.#cursorCol, 0, ...Array.from({length: n}, () => this.#blankCell()))
     row.length = this.#cols
   }
 
@@ -1171,7 +1391,8 @@ export class TerminalPane extends TerminalOutputPane {
 
   onInputText(text: string): void {
     if (!this.#inputEnabled || text.length === 0) return
-    this.#emitInput(text, "paste")
+    const data = this.terminalKeyboardMode().bracketedPaste ? `\x1b[200~${text}\x1b[201~` : text
+    this.#emitInput(data, "paste")
   }
 
   override onKey(event: KeyboardEvent): void {
@@ -1196,7 +1417,7 @@ export class TerminalPane extends TerminalOutputPane {
       return
     }
 
-    const data = keyToTerminalInput(event)
+    const data = keyToTerminalInput(event, this.terminalKeyboardMode())
     if (data === null) return
     event.preventDefault()
     this.#emitInput(data, "keyboard")
@@ -1204,6 +1425,10 @@ export class TerminalPane extends TerminalOutputPane {
 
   #emitInput(data: string, source: TerminalInputSource): void {
     this.#onInput?.(data, source)
+  }
+
+  protected override emitTerminalResponse(data: string): void {
+    this.#emitInput(data, "api")
   }
 }
 
@@ -1224,8 +1449,11 @@ export class LogViewerPane extends TerminalOutputPane {
   }
 }
 
-function keyToTerminalInput(event: KeyboardEvent): string | null {
+function keyToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode = defaultTerminalKeyboardMode()): string | null {
   const key = event.key
+  const keypad = keypadToTerminalInput(event, mode)
+  if (keypad !== null) return keypad
+  if (key === "Tab" && event.shiftKey) return "\x1b[Z"
   if (event.ctrlKey && !event.altKey && !event.metaKey) {
     const lower = key.toLowerCase()
     if (lower.length === 1 && lower >= "a" && lower <= "z") return String.fromCharCode(lower.charCodeAt(0) - 96)
@@ -1237,22 +1465,115 @@ function keyToTerminalInput(event: KeyboardEvent): string | null {
     if (key === "_") return "\x1f"
   }
   if (event.altKey && key.length === 1 && !event.ctrlKey && !event.metaKey) return `\x1b${key}`
-  if (event.ctrlKey || event.metaKey) return null
+  if (event.metaKey) return null
   if (key === "Enter") return "\r"
   if (key === "Backspace") return "\x7f"
   if (key === "Tab") return "\t"
   if (key === "Escape") return "\x1b"
-  if (key === "ArrowUp") return "\x1b[A"
-  if (key === "ArrowDown") return "\x1b[B"
-  if (key === "ArrowRight") return "\x1b[C"
-  if (key === "ArrowLeft") return "\x1b[D"
-  if (key === "Home") return "\x1b[H"
-  if (key === "End") return "\x1b[F"
-  if (key === "PageUp") return "\x1b[5~"
-  if (key === "PageDown") return "\x1b[6~"
-  if (key === "Delete") return "\x1b[3~"
+  const special = specialKeyToTerminalInput(event, mode)
+  if (special !== null) return special
+  if (event.ctrlKey) return null
   if (key.length === 1) return key
   return null
+}
+
+function defaultTerminalKeyboardMode(): TerminalKeyboardMode {
+  return {applicationCursorKeys: false, applicationKeypad: false, bracketedPaste: false}
+}
+
+function specialKeyToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode): string | null {
+  const key = event.key
+  const mod = terminalModifierParam(event)
+  const cursorKey = terminalCursorFinal(key)
+  if (cursorKey !== null) {
+    if (mod !== null) return `\x1b[1;${mod}${cursorKey}`
+    return mode.applicationCursorKeys ? `\x1bO${cursorKey}` : `\x1b[${cursorKey}`
+  }
+
+  if (key === "Home") {
+    if (mod !== null) return `\x1b[1;${mod}H`
+    return mode.applicationCursorKeys ? "\x1bOH" : "\x1b[H"
+  }
+  if (key === "End") {
+    if (mod !== null) return `\x1b[1;${mod}F`
+    return mode.applicationCursorKeys ? "\x1bOF" : "\x1b[F"
+  }
+
+  const tilde = terminalTildeKeyParam(key)
+  if (tilde !== null) return mod === null ? `\x1b[${tilde}~` : `\x1b[${tilde};${mod}~`
+
+  const functionKey = terminalFunctionKey(key)
+  if (functionKey === null) return null
+  if (functionKey.ss3 !== null && mod === null) return `\x1bO${functionKey.ss3}`
+  return mod === null ? `\x1b[${functionKey.param}~` : `\x1b[${functionKey.param};${mod}~`
+}
+
+function keypadToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode): string | null {
+  if (!event.code.startsWith("Numpad")) return null
+  const key = event.key
+  if (event.ctrlKey || event.metaKey || event.altKey) return null
+  if (!mode.applicationKeypad) {
+    if (event.code === "NumpadEnter") return "\r"
+    return key.length === 1 ? key : null
+  }
+  const appKey = {
+    Numpad0: "p",
+    Numpad1: "q",
+    Numpad2: "r",
+    Numpad3: "s",
+    Numpad4: "t",
+    Numpad5: "u",
+    Numpad6: "v",
+    Numpad7: "w",
+    Numpad8: "x",
+    Numpad9: "y",
+    NumpadDecimal: "n",
+    NumpadSubtract: "m",
+    NumpadAdd: "k",
+    NumpadEnter: "M",
+    NumpadMultiply: "j",
+    NumpadDivide: "o",
+  }[event.code]
+  return appKey === undefined ? null : `\x1bO${appKey}`
+}
+
+function terminalCursorFinal(key: string): string | null {
+  if (key === "ArrowUp") return "A"
+  if (key === "ArrowDown") return "B"
+  if (key === "ArrowRight") return "C"
+  if (key === "ArrowLeft") return "D"
+  return null
+}
+
+function terminalTildeKeyParam(key: string): number | null {
+  if (key === "Insert") return 2
+  if (key === "Delete") return 3
+  if (key === "PageUp") return 5
+  if (key === "PageDown") return 6
+  return null
+}
+
+function terminalFunctionKey(key: string): {ss3: string | null; param: number} | null {
+  if (!/^F([1-9]|1[0-9]|2[0-4])$/.test(key)) return null
+  const index = Number.parseInt(key.slice(1), 10)
+  const ss3 = ["P", "Q", "R", "S"][index - 1] ?? null
+  const params = [
+    11, 12, 13, 14,
+    15, 17, 18, 19,
+    20, 21, 23, 24,
+    25, 26, 28, 29,
+    31, 32, 33, 34,
+    42, 43, 44, 45,
+  ]
+  return {ss3, param: params[index - 1] ?? 11}
+}
+
+function terminalModifierParam(event: KeyboardEvent): number | null {
+  const shift = event.shiftKey ? 1 : 0
+  const alt = event.altKey ? 2 : 0
+  const ctrl = event.ctrlKey ? 4 : 0
+  const value = shift + alt + ctrl
+  return value === 0 ? null : value + 1
 }
 
 function parseCsiParams(raw: string): number[] {
@@ -1277,17 +1598,74 @@ function parseExtendedColor(params: readonly number[], start: number): {color: T
     return {color: color256(index), nextIndex: start + 1}
   }
   if (mode === 2) {
+    const offset = params[start + 1] === 0 && params.length > start + 4 ? 2 : 1
     return {
       color: {
         kind: "rgb",
-        r: clampInt(params[start + 1] ?? 255, 0, 255),
-        g: clampInt(params[start + 2] ?? 255, 0, 255),
-        b: clampInt(params[start + 3] ?? 255, 0, 255),
+        r: clampInt(params[start + offset] ?? 255, 0, 255),
+        g: clampInt(params[start + offset + 1] ?? 255, 0, 255),
+        b: clampInt(params[start + offset + 2] ?? 255, 0, 255),
       },
-      nextIndex: start + 3,
+      nextIndex: start + offset + 2,
     }
   }
   return null
+}
+
+function isZeroWidthTerminalCodePoint(code: number): boolean {
+  return code === 0x200d ||
+    (code >= 0x0300 && code <= 0x036f) ||
+    (code >= 0x1ab0 && code <= 0x1aff) ||
+    (code >= 0x1dc0 && code <= 0x1dff) ||
+    (code >= 0x20d0 && code <= 0x20ff) ||
+    (code >= 0xfe00 && code <= 0xfe0f)
+}
+
+function isTerminalSpaceCodePoint(code: number): boolean {
+  return code === 0x00a0 ||
+    (code >= 0x2000 && code <= 0x200a) ||
+    code === 0x202f ||
+    code === 0x205f ||
+    code === 0x3000
+}
+
+function terminalCharWidth(ch: string): 0 | 1 | 2 {
+  const code = ch.codePointAt(0) ?? 0
+  if (isZeroWidthTerminalCodePoint(code)) return 0
+  return isWideTerminalCodePoint(code) ? 2 : 1
+}
+
+function isWideTerminalCodePoint(code: number): boolean {
+  return code === 0x2728 ||
+    code === 0x2b50 ||
+    code === 0x2b55 ||
+    (code >= 0x1100 && code <= 0x115f) ||
+    code === 0x2329 ||
+    code === 0x232a ||
+    (code >= 0x2e80 && code <= 0xa4cf && code !== 0x303f) ||
+    (code >= 0xac00 && code <= 0xd7a3) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0xfe10 && code <= 0xfe19) ||
+    (code >= 0xfe30 && code <= 0xfe6f) ||
+    (code >= 0xff00 && code <= 0xff60) ||
+    (code >= 0xffe0 && code <= 0xffe6) ||
+    (code >= 0x1f000 && code <= 0x1faff) ||
+    (code >= 0x20000 && code <= 0x3fffd)
+}
+
+function terminalGlyphFallback(ch: string): string {
+  const code = ch.codePointAt(0) ?? 0
+  if (ch === "✨") return "✶"
+  if (ch === "❯" || ch === "›" || ch === "⟩" || ch === "➜" || ch === "➔" || ch === "▶" || ch === "▸") return ">"
+  if (ch === "❮" || ch === "‹" || ch === "⟨" || ch === "◀" || ch === "◂") return "<"
+  if (ch === "→" || ch === "⇒" || ch === "⟶") return ">"
+  if (ch === "←" || ch === "⇐" || ch === "⟵") return "<"
+  if (ch === "✓" || ch === "✔") return "v"
+  if (ch === "✗" || ch === "✘") return "x"
+  if (ch === "⚠" || ch === "‼") return "!"
+  if (ch === "•" || ch === "◦" || ch === "●" || ch === "○" || ch === "◆" || ch === "◇" || ch === "✦" || ch === "✧") return "*"
+  if ((code >= 0xe000 && code <= 0xf8ff) || (code >= 0x1f000 && code <= 0x1ffff) || (code >= 0x2600 && code <= 0x27bf) || (code >= 0x2800 && code <= 0x28ff)) return "*"
+  return "?"
 }
 
 function color256(index: number): TerminalColor {
@@ -1305,9 +1683,9 @@ function color256(index: number): TerminalColor {
 }
 
 function displayFg(attr: TerminalAttr): TerminalColor {
-  if (attr.inverse) return attr.bg ?? {kind: "ansi", index: 0}
-  if (attr.bold && attr.fg.kind === "ansi" && attr.fg.index < 8) return {kind: "ansi", index: attr.fg.index + 8}
-  return attr.fg
+  let color = attr.inverse ? attr.bg ?? {kind: "ansi", index: 0} : attr.fg
+  if (!attr.inverse && attr.bold && color.kind === "ansi" && color.index < 8) color = {kind: "ansi", index: color.index + 8}
+  return attr.dim ? dimTerminalColor(color) : color
 }
 
 function displayBg(cell: TerminalCell): TerminalColor | null {
@@ -1317,6 +1695,8 @@ function displayBg(cell: TerminalCell): TerminalColor | null {
 
 function sameAttrForText(a: TerminalAttr, b: TerminalAttr): boolean {
   return a.bold === b.bold &&
+    a.dim === b.dim &&
+    a.underline === b.underline &&
     a.inverse === b.inverse &&
     sameColor(displayFg(a), displayFg(b)) &&
     sameColor(a.bg, b.bg)
@@ -1337,10 +1717,28 @@ function colorToColor(color: TerminalColor): Color {
   return new Color(color.r, color.g, color.b, 1)
 }
 
+function dimTerminalColor(color: TerminalColor): TerminalColor {
+  const dimmed = mixColor(colorToColor(color), TERMINAL_BG, 0.42)
+  return {
+    kind: "rgb",
+    r: Math.round(dimmed.r * 255),
+    g: Math.round(dimmed.g * 255),
+    b: Math.round(dimmed.b * 255),
+  }
+}
+
 function colorKey(color: TerminalColor): string {
   if (color.kind === "default") return "default"
   if (color.kind === "ansi") return `ansi:${color.index}`
   return `rgb:${color.r}:${color.g}:${color.b}`
+}
+
+function oscRgb(color: Color): string {
+  const part = (value: number): string => {
+    const channel = clampInt(Math.round(Math.max(0, Math.min(1, value)) * 65535), 0, 65535)
+    return channel.toString(16).padStart(4, "0")
+  }
+  return `rgb:${part(color.r)}/${part(color.g)}/${part(color.b)}`
 }
 
 function cloneAttr(attr: TerminalAttr): TerminalAttr {
@@ -1348,6 +1746,8 @@ function cloneAttr(attr: TerminalAttr): TerminalAttr {
     fg: cloneColor(attr.fg),
     bg: attr.bg === null ? null : cloneColor(attr.bg),
     bold: attr.bold,
+    dim: attr.dim,
+    underline: attr.underline,
     inverse: attr.inverse,
   }
 }

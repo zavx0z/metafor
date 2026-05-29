@@ -1,135 +1,119 @@
-import homepage from "./index.html";
-import type { ServerWebSocket, Subprocess } from "bun";
+import {basename, join} from "node:path"
+import type {ServerWebSocket, Subprocess} from "bun"
+import type {PtyClientMessage, PtyServerMessage, PtyTerminalSize} from "./protocol.ts"
 
 type SocketData = {
-  session?: TerminalSession;
-  connectedAt: number;
-};
+  session?: TerminalSession
+  connectedAt: number
+}
 
-type ClientMessage =
-  | { type: "input"; data: string }
-  | { type: "resize"; cols: number; rows: number };
+const DEFAULT_SIZE: PtyTerminalSize = {cols: 80, rows: 24}
+const MAX_COLS = 300
+const MAX_ROWS = 120
 
-type ServerMessage =
-  | { type: "output"; data: string }
-  | { type: "status"; state: string; detail?: string }
-  | { type: "exit"; code: number | null; signal: string | null }
-  | { type: "error"; message: string };
+const hostname = process.env.HOST ?? "127.0.0.1"
+const port = Number(process.env.PORT ?? "3002")
+const shell = process.env.SHELL ?? "/bin/zsh"
+const ENTRY_PATH = join(import.meta.dir, "client.ts")
+const STYLE_PATH = join(import.meta.dir, "styles.css")
+const INDEX_PATH = join(import.meta.dir, "index.html")
+const FONT_PATH = join(import.meta.dir, "../../../ui/panes/playground/JetBrainsMono-Bold.ttf")
 
-const DEFAULT_COLS = 80;
-const DEFAULT_ROWS = 24;
-const MAX_COLS = 300;
-const MAX_ROWS = 120;
-
-const hostname = process.env.HOST ?? "127.0.0.1";
-const port = Number(process.env.PORT ?? "3002");
-const shell = process.env.SHELL ?? "/bin/zsh";
+let buildAssets = new Map<string, Blob>()
 
 class TerminalSession {
-  private readonly decoder = new TextDecoder();
-  private readonly proc: Subprocess<"ignore", "ignore", "ignore">;
-  private readonly terminal: Bun.Terminal;
-  private disposed = false;
+  readonly #decoder = new TextDecoder()
+  readonly #proc: Subprocess<"ignore", "ignore", "ignore">
+  readonly #terminal: Bun.Terminal
+  readonly #ws: ServerWebSocket<SocketData>
+  #disposed = false
+  #size: PtyTerminalSize
 
-  constructor(
-    private readonly ws: ServerWebSocket<SocketData>,
-    cols: number,
-    rows: number,
-  ) {
-    this.proc = Bun.spawn([shell, "-l"], {
+  constructor(ws: ServerWebSocket<SocketData>, size: PtyTerminalSize) {
+    this.#ws = ws
+    this.#size = clampSize(size)
+    this.#proc = Bun.spawn([shell, "-l"], {
       cwd: process.cwd(),
-      env: {
-        ...process.env,
-        COLORTERM: "truecolor",
-        TERM: "xterm-256color",
-      },
+      env: terminalEnv(),
       stdin: "ignore",
       stdout: "ignore",
       stderr: "ignore",
       terminal: {
-        cols,
-        rows,
+        cols: this.#size.cols,
+        rows: this.#size.rows,
         name: "xterm-256color",
         data: (_terminal, data) => {
-          this.send({
-            type: "output",
-            data: this.decoder.decode(data, { stream: true }),
-          });
+          this.#send({
+            type: "terminal.write",
+            data: this.#decoder.decode(data, {stream: true}),
+          })
         },
         exit: (_terminal, exitCode, signal) => {
-          const tail = this.decoder.decode();
-
-          if (tail) {
-            this.send({ type: "output", data: tail });
-          }
-
-          this.send({
-            type: "status",
-            state: "disconnected",
-            detail: signal ?? `pty closed (${exitCode})`,
-          });
+          const tail = this.#decoder.decode()
+          if (tail) this.#send({type: "terminal.write", data: tail})
+          this.#send({
+            type: "terminal.status",
+            status: {kind: "disconnected", label: signal ?? `closed ${exitCode}`},
+          })
         },
       },
-    });
+    })
 
-    if (!this.proc.terminal) {
-      throw new Error("Bun did not attach a PTY to the shell process");
+    if (!this.#proc.terminal) {
+      throw new Error("Bun did not attach a PTY to the shell process")
     }
 
-    this.terminal = this.proc.terminal;
+    this.#terminal = this.#proc.terminal
 
-    this.proc.exited
+    this.#proc.exited
       .then((code) => {
-        this.send({ type: "exit", code, signal: null });
+        this.#send({type: "terminal.exit", code, signal: null})
       })
       .catch((error) => {
-        this.send({
-          type: "error",
-          message:
-            error instanceof Error ? error.message : "terminal process failed",
-        });
-      });
+        this.#send({
+          type: "terminal.error",
+          message: error instanceof Error ? error.message : "terminal process failed",
+        })
+      })
   }
 
-  write(data: string) {
-    if (!this.disposed && !this.terminal.closed) {
-      this.terminal.write(data);
+  get size(): PtyTerminalSize {
+    return this.#size
+  }
+
+  write(data: string): void {
+    if (!this.#disposed && !this.#terminal.closed) {
+      this.#terminal.write(data)
     }
   }
 
-  resize(cols: number, rows: number) {
-    if (this.disposed || this.terminal.closed) {
-      return;
-    }
-
-    this.terminal.resize(clamp(cols, 1, MAX_COLS), clamp(rows, 1, MAX_ROWS));
+  resize(size: PtyTerminalSize): void {
+    if (this.#disposed || this.#terminal.closed) return
+    const next = clampSize(size)
+    this.#size = next
+    this.#terminal.resize(next.cols, next.rows)
   }
 
-  close() {
-    if (this.disposed) {
-      return;
-    }
-
-    this.disposed = true;
+  close(): void {
+    if (this.#disposed) return
+    this.#disposed = true
 
     try {
-      this.proc.kill("SIGHUP");
+      this.#proc.kill("SIGHUP")
     } catch {
-      // The process may already have exited.
+      // Процесс мог уже завершиться.
     }
 
     try {
-      if (!this.terminal.closed) {
-        this.terminal.close();
-      }
+      if (!this.#terminal.closed) this.#terminal.close()
     } catch {
-      // Closing an already detached PTY is harmless.
+      // Повторное закрытие detached PTY безопасно.
     }
   }
 
-  private send(message: ServerMessage) {
-    if (!this.disposed && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message));
+  #send(message: PtyServerMessage): void {
+    if (!this.#disposed && this.#ws.readyState === WebSocket.OPEN) {
+      this.#ws.send(JSON.stringify(message))
     }
   }
 }
@@ -138,35 +122,25 @@ const server = Bun.serve<SocketData>({
   hostname,
   port,
   routes: {
-    "/": homepage,
+    "/": indexResponse,
+    "/style.css": () => new Response(Bun.file(STYLE_PATH), {headers: {"content-type": "text/css; charset=utf-8", "cache-control": "no-cache"}}),
+    "/entry.js": buildEntry,
+    "/JetBrainsMono-Bold.ttf": () => new Response(Bun.file(FONT_PATH), {headers: {"content-type": "font/ttf"}}),
+    "/favicon.ico": () => new Response(null, {status: 204}),
   },
-  development:
-    process.env.NODE_ENV === "production"
-      ? false
-      : {
-          hmr: true,
-          console: true,
-        },
   fetch(req, bunServer) {
-    const url = new URL(req.url);
+    const url = new URL(req.url)
 
     if (url.pathname === "/terminal") {
-      if (!isAllowedOrigin(req, url)) {
-        return new Response("Forbidden", { status: 403 });
-      }
-
-      const upgraded = bunServer.upgrade(req, {
-        data: {
-          connectedAt: Date.now(),
-        },
-      });
-
-      return upgraded
-        ? undefined
-        : new Response("WebSocket upgrade failed", { status: 400 });
+      if (!isAllowedOrigin(req, url)) return new Response("Forbidden", {status: 403})
+      const upgraded = bunServer.upgrade(req, {data: {connectedAt: Date.now()}})
+      return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 400})
     }
 
-    return new Response("Not Found", { status: 404 });
+    const asset = buildAssets.get(url.pathname)
+    if (asset !== undefined) return new Response(asset)
+    if (req.method === "GET" && acceptsHtml(req)) return indexResponse()
+    return new Response(`not found: ${req.method} ${url.pathname}`, {status: 404})
   },
   websocket: {
     data: {} as SocketData,
@@ -174,95 +148,148 @@ const server = Bun.serve<SocketData>({
     maxPayloadLength: 1024 * 1024,
     open(ws) {
       try {
-        ws.data.session = new TerminalSession(ws, DEFAULT_COLS, DEFAULT_ROWS);
-        ws.send(
-          JSON.stringify({
-            type: "status",
-            state: "connected",
-            detail: shell,
-          } satisfies ServerMessage),
-        );
+        const session = new TerminalSession(ws, DEFAULT_SIZE)
+        ws.data.session = session
+        send(ws, {type: "terminal.ready", shell, size: session.size})
+        send(ws, {type: "terminal.status", status: {kind: "connected", label: basename(shell)}})
       } catch (error) {
-        ws.send(
-          JSON.stringify({
-            type: "error",
-            message: error instanceof Error ? error.message : "shell failed",
-          } satisfies ServerMessage),
-        );
-        ws.close(1011, "shell failed");
+        send(ws, {
+          type: "terminal.error",
+          message: error instanceof Error ? error.message : "shell failed",
+        })
+        ws.close(1011, "shell failed")
       }
     },
     message(ws, message) {
-      const payload = parseClientMessage(message);
-      const session = ws.data.session;
+      const payload = parseClientMessage(message)
+      const session = ws.data.session
+      if (payload === null || session === undefined) return
 
-      if (!payload || !session) {
-        return;
+      if (payload.type === "input.write") {
+        session.write(payload.data)
+        return
       }
 
-      if (payload.type === "input") {
-        session.write(payload.data);
-        return;
-      }
-
-      session.resize(payload.cols, payload.rows);
+      session.resize(payload.size)
     },
     close(ws) {
-      ws.data.session?.close();
-      ws.data.session = undefined;
+      ws.data.session?.close()
+      ws.data.session = undefined
     },
   },
-});
+})
 
-console.log(`Bun PTY terminal listening at ${server.url}`);
+console.log(`MetaFor PTY listening at ${server.url}`)
 
-function parseClientMessage(
-  raw: string | ArrayBuffer | Uint8Array,
-): ClientMessage | null {
-  const text =
-    typeof raw === "string"
-      ? raw
-      : new TextDecoder().decode(raw instanceof Uint8Array ? raw : new Uint8Array(raw));
+async function buildEntry(): Promise<Response> {
+  const result = await Bun.build({
+    entrypoints: [ENTRY_PATH],
+    loader: {
+      ".wgsl": "text",
+    },
+    target: "browser",
+    sourcemap: "inline",
+  })
 
-  try {
-    const value = JSON.parse(text) as Partial<ClientMessage>;
-
-    if (value.type === "input" && typeof value.data === "string") {
-      return value as ClientMessage;
-    }
-
-    if (
-      value.type === "resize" &&
-      typeof value.cols === "number" &&
-      typeof value.rows === "number"
-    ) {
-      return value as ClientMessage;
-    }
-  } catch {
-    return null;
+  if (!result.success) {
+    const body = result.logs.map((log) => String(log)).join("\n")
+    return new Response(body, {status: 500, headers: {"content-type": "text/plain; charset=utf-8"}})
   }
 
-  return null;
+  const nextAssets = new Map<string, Blob>()
+  let entry: Blob | null = null
+  for (const output of result.outputs) {
+    const routePath = `/${basename(output.path)}`
+    if (routePath === "/client.js") entry = output
+    else nextAssets.set(routePath, output)
+  }
+  buildAssets = nextAssets
+
+  if (entry === null) return new Response("entry.js was not emitted", {status: 500})
+  return new Response(entry, {
+    headers: {
+      "content-type": "text/javascript; charset=utf-8",
+      "cache-control": "no-cache",
+    },
+  })
 }
 
-function isAllowedOrigin(req: Request, url: URL) {
-  const origin = req.headers.get("origin");
+function indexResponse(): Response {
+  return new Response(Bun.file(INDEX_PATH), {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-cache",
+    },
+  })
+}
 
-  if (!origin) {
-    return true;
-  }
+function send(ws: ServerWebSocket<SocketData>, message: PtyServerMessage): void {
+  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message))
+}
+
+function parseClientMessage(raw: string | ArrayBuffer | Uint8Array): PtyClientMessage | null {
+  const text = typeof raw === "string" ? raw : new TextDecoder().decode(raw instanceof Uint8Array ? raw : new Uint8Array(raw))
 
   try {
-    return new URL(origin).host === url.host;
+    const value = JSON.parse(text) as Partial<PtyClientMessage>
+    if (value.type === "input.write" && typeof value.data === "string") {
+      return {type: "input.write", data: value.data, source: value.source}
+    }
+    if (value.type === "terminal.resize" && isTerminalSize(value.size)) {
+      return {type: "terminal.resize", size: value.size}
+    }
   } catch {
-    return false;
+    return null
+  }
+
+  return null
+}
+
+function isTerminalSize(value: unknown): value is PtyTerminalSize {
+  if (typeof value !== "object" || value === null) return false
+  const size = value as Partial<PtyTerminalSize>
+  return Number.isFinite(size.cols) && Number.isFinite(size.rows)
+}
+
+function clampSize(size: PtyTerminalSize): PtyTerminalSize {
+  return {
+    cols: clampInt(size.cols, 1, MAX_COLS),
+    rows: clampInt(size.rows, 1, MAX_ROWS),
   }
 }
 
-function clamp(value: number, min: number, max: number) {
-  if (!Number.isFinite(value)) {
-    return min;
-  }
+function clampInt(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.floor(value)))
+}
 
-  return Math.min(max, Math.max(min, Math.floor(value)));
+function isAllowedOrigin(req: Request, url: URL): boolean {
+  const origin = req.headers.get("origin")
+  if (!origin) return true
+  try {
+    return new URL(origin).host === url.host
+  } catch {
+    return false
+  }
+}
+
+function acceptsHtml(req: Request): boolean {
+  const accept = req.headers.get("accept")
+  return accept === null || accept.includes("text/html")
+}
+
+function terminalEnv(): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = {
+    ...process.env,
+    COLORTERM: "truecolor",
+    CLICOLOR: "1",
+    CLICOLOR_FORCE: "1",
+    FORCE_COLOR: process.env.FORCE_COLOR ?? "1",
+    PROMPT_EOL_MARK: "",
+    TERM: "xterm-256color",
+  }
+  delete env.NO_COLOR
+  if (env.LANG === undefined || env.LANG === "C.UTF-8") env.LANG = "en_US.UTF-8"
+  if (env.LC_ALL === "C.UTF-8") delete env.LC_ALL
+  if (env.LC_CTYPE === "C.UTF-8") env.LC_CTYPE = "en_US.UTF-8"
+  return env
 }
