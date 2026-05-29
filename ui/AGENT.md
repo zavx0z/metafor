@@ -27,8 +27,8 @@ UI строится как XR-рендер, а не как DOM. Слои дол�
 * `HUD` — существующий head-locked UI target перед камерой/головой. Не создавать внутри него дополнительный `UiHud`.
 * `UITexture` — offscreen target для UI как текстуры/материала на 3D-поверхности; GPU render-to-texture backend развивается отдельно от semantic elements.
 * `UiSurface` — локальная поверхность рисования поверх target/runtime: `drawText`, `drawRoundedRect`, `drawImage`, `measureText`, clip, hit zones, локальный rect и `requestRender`.
-* HTML-like примитивы живут в `@ui/elements`: `div`, `span`, `button`, `input`, `img`.
-* MUI-like компоненты живут в `@ui/components`: `Pane`, `Button`, `TextField`, `Badge` и следующие компоненты.
+* HTML-like примитивы живут в `@ui/elements`: `div`, `span`, `button`, `input`, `img`, `ul`, `ol`, `li` и следующие primitives.
+* MUI-like компоненты живут в `@ui/components`: `Pane`, `Button`, `TextField`, `Badge`, `List` и следующие компоненты.
 * Крупные переиспользуемые поверхности живут в `@ui/panes`: `EditorPane`, `TerminalPane`, `NotiStack` и следующие panes.
 * `@ui/elements` отвечает за низкоуровневые HTML-like примитивы и общие runtime-типы. Это не дизайн-система и не слой готовых MUI-like компонентов.
 * `@ui/components` отвечает за готовые переиспользуемые компоненты дизайн-системы. Он обязан собирать поведение из `@ui/elements`, а не дублировать базовые primitives.
@@ -36,12 +36,15 @@ UI строится как XR-рендер, а не как DOM. Слои дол�
 * Render target (`UIDisplay`, `HUD`, `UITexture`) не должен протекать в semantic API элементов и компонентов. Элементы работают с `UiSurface`, а не с конкретным способом размещения UI в XR.
 * `UIDisplay`, `HUD` и `UITexture` живут в `ui/elements/targets`. Engine не должен импортировать UI target-классы; renderer принимает generic overlay/object layer.
 * В `@ui/elements` не должно быть semantic элемента `Pane`. `Pane` — только компонентный surface-контейнер в `@ui/components`.
+* Имена primitives в `@ui/elements` должны соответствовать реальным HTML-тегам или уже принятому системному primitive. Нельзя добавлять generic semantic alias вроде `list`, если в HTML есть точные primitives `ul`/`ol`/`li`.
+* `List`, `ListItem`, `ListItemButton`, `ListItemText`, `ListItemIcon`, `ListSubheader` и аналогичные MUI-like сущности живут только в `@ui/components`. В `@ui/elements` допускаются только `ul`/`ol`/`li` как низкоуровневые primitives без component API.
+* `ul`/`ol` отвечают за контейнер списка, row geometry, padding, gap и scroll-контекст на базе `div`. `li` отвечает за базовую строку, hit-state и children. `selected`, `selectedKey`, `disabled`, `dense` как компонентная плотность, иконки, secondary action, subheader и визуальные варианты списка принадлежат `@ui/components`.
 * `UiSurface` не должен владеть button-семантикой: `disabled`, задержка pressed visual и click blocking принадлежат primitive `button`.
 * `div` не должен принимать `disabled` и `tooltip`; это generic box/surface primitive. `disabled` принадлежит интерактивным контролам.
 * Scrollbar, `overflow`, clip, wheel-scroll и drag thumb принадлежат `@ui/elements` (`div` + `scrollbar`). В `@ui/components` не должно быть standalone `Scrollbar` компонента или собственного renderer scrollbar.
 * Элементы и компоненты сейчас пишутся immediate-mode функциями, а не классами. Классы допустимы для runtime/display/surface lifecycle и stateful экранов.
 * Будущий декларативный DSL и CSS-подобные стили должны садиться поверх этой вертикали, не смешивая render target и semantic element.
-* Предпочтительный публичный API элементов: `import {UiRuntime, UiSurface, UIDisplay, HUD, UITexture, div, span, button, input, img} from "@ui/elements"`.
+* Предпочтительный публичный API элементов: `import {UiRuntime, UiSurface, UIDisplay, HUD, UITexture, div, span, button, input, img, ul, ol, li} from "@ui/elements"`.
 * Нельзя импортировать `Pane` из `@ui/elements`: такого semantic primitive больше не существует.
 
 ## Правила компонентов
@@ -62,6 +65,7 @@ UI строится как XR-рендер, а не как DOM. Слои дол�
 * Компонентный слой может добавлять иконки, варианты, сопоставление API и стили.
 * Компонентный слой не должен обходить базовый `button` из `@ui/elements` для поверхности кнопки и интерактивности.
 * Компонент `Pane` обязан брать за основу `div` из `@ui/elements`.
+* Компонент `List` обязан брать за основу `ul`/`li` из `@ui/elements`; он не должен требовать primitive с именем `list` и не должен переносить MUI-like API в `@ui/elements`.
 * Если компоненту или debug/editor слою нужен scrollbar renderer, он импортирует `scrollbar` напрямую из `@ui/elements`. Компонентный слой не должен реэкспортировать его как компонент.
 
 ## Правила panes
@@ -88,7 +92,7 @@ Panes в `ui/panes` — это крупные переиспользуемые U
 * В playground всегда две левые панели: первая `catalog` выбирает компонент или группу, вторая `section panel` выбирает section внутри выбранного компонента или группы.
 * Нельзя превращать вложенные route в плоские подписи первого каталога. Пункты вида `layout / flex` или `style / css` в первой панели запрещены.
 * Для `ui/elements/playground` первая панель показывает группы `Primitives`, `Layout`, `Style`, `Events`, а вторая панель показывает разделы выбранной группы.
-* Element playground должен быть каталогом primitive API: `div`, `span`, `button`, `input`, `img`, `layout/flex`, `layout/flex-css`, `style/css`, `style/theme`, `events`.
+* Element playground должен быть каталогом primitive API: `div`, `span`, `button`, `input`, `img`, `ul`/`ol`/`li`, `layout/flex`, `layout/flex-css`, `style/css`, `style/theme`, `events`.
 * В element playground не должно быть route `pane`: surface/runtime показываются как инфраструктура, а не как HTML-like элемент.
 * Raw `scrollbar` не является MUI-like компонентом и не должен появляться в `ui/components/playground` как самостоятельный компонент. Демонстрация scrollbar живёт в element playground как `div/scroll`.
 * `Button` в `ui/components/playground` считается каноническим шаблоном структуры для всех остальных компонентов. `Pane`, `Badge`, `TextField` и следующие компоненты должны повторять именно этот scaffold, а не приблизительно похожую локальную версию.

@@ -7,6 +7,8 @@ import {
   type ButtonSize,
   type ButtonVariant,
   Divider,
+  List,
+  type ListProps,
   Pane,
   TextField,
   Typography,
@@ -36,6 +38,8 @@ type EditorSection = "Editing" | "Highlighting" | "Selection" | "Scroll"
 type TerminalSection = "Basic" | "ANSI" | "Scroll" | "Input"
 type TerminalRoute = "terminal/basic" | "terminal/ansi" | "terminal/scroll" | "terminal/input"
 type TerminalPlaygroundAction = "demo" | "ansi" | "scroll" | "focus" | "clear"
+type ListSection = "Basic" | "Dense" | "Selection" | "Scroll"
+type ListRoute = "list/basic" | "list/dense" | "list/selection" | "list/scroll"
 type EditorRoute =
   | "editor/editing"
   | "editor/highlighting"
@@ -59,8 +63,8 @@ type DividerRoute =
   | `divider/text/${DividerRouteTextAlign}`
   | "divider/color"
   | `divider/color/${ButtonColor}`
-type ComponentsRoute = PaneRoute | ButtonRoute | TextFieldRoute | TypographyRoute | DividerRoute | EditorRoute | TerminalRoute
-type ComponentName = "Pane" | "Button" | "TextField" | "Typography" | "Divider" | "Editor" | "Terminal"
+type ComponentsRoute = PaneRoute | ButtonRoute | TextFieldRoute | TypographyRoute | DividerRoute | EditorRoute | TerminalRoute | ListRoute
+type ComponentName = "Pane" | "Button" | "TextField" | "Typography" | "Divider" | "Editor" | "Terminal" | "List"
 type ButtonRoute =
   | "button/basic"
   | `button/basic/${ButtonRouteVariant}`
@@ -134,6 +138,8 @@ const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
 const EDITOR_SECTIONS: readonly EditorSection[] = ["Editing", "Highlighting", "Selection", "Scroll"]
 const TERMINAL_SECTIONS: readonly TerminalSection[] = ["Basic", "ANSI", "Scroll", "Input"]
 const TERMINAL_ROUTES: readonly TerminalRoute[] = ["terminal/basic", "terminal/ansi", "terminal/scroll", "terminal/input"]
+const LIST_SECTIONS: readonly ListSection[] = ["Basic", "Dense", "Selection", "Scroll"]
+const LIST_ROUTES: readonly ListRoute[] = ["list/basic", "list/dense", "list/selection", "list/scroll"]
 const DIVIDER_SECTIONS: readonly DividerSection[] = ["Basic", "Orientation", "Variants", "Text", "Color"]
 const DIVIDER_ORIENTATIONS: readonly DividerRouteOrientation[] = ["horizontal", "vertical"]
 const DIVIDER_VARIANTS: readonly DividerRouteVariant[] = ["fullWidth", "inset", "middle"]
@@ -160,14 +166,14 @@ const DIVIDER_ROUTES: readonly DividerRoute[] = [
 ]
 const PANE_VARIANTS: readonly PaneVariant[] = ["glass", "outlined", "filled"]
 const PANE_SCROLL_AXES: readonly PaneScrollAxis[] = ["vertical", "horizontal"]
-const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...PANE_ROUTES, ...BUTTON_ROUTES, "text-field", "typography", ...DIVIDER_ROUTES, ...EDITOR_ROUTES, ...TERMINAL_ROUTES]
+const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...PANE_ROUTES, ...BUTTON_ROUTES, "text-field", "typography", ...DIVIDER_ROUTES, ...EDITOR_ROUTES, ...TERMINAL_ROUTES, ...LIST_ROUTES]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
 const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
 const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
 const BUTTON_STATES: readonly ButtonState[] = ["enabled", "disabled"]
 const BUTTON_WIDTHS: readonly ButtonWidth[] = ["compact", "regular", "wide"]
 const BUTTON_HEIGHTS: readonly ButtonHeight[] = ["compact", "regular", "large"]
-const COMPONENT_NAV = ["Pane", "Button", "TextField", "Editor", "Terminal", "Typography", "Badge", "Divider", "Noti Stack"] as const
+const COMPONENT_NAV = ["Pane", "Button", "TextField", "List", "Editor", "Terminal", "Typography", "Badge", "Divider", "Noti Stack"] as const
 const BUTTON_RADII = [14, 24, 34, 999] as const
 const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.12
@@ -315,7 +321,7 @@ class ButtonComponentsScreen extends UiSurface {
           const rowY = top + i * (rowH + gap) - ctx.scrollTop
           if (rowY + rowH < top || rowY > top + ctx.viewportHeight) continue
           const active = label === this.#currentComponent()
-          const enabled = label === "Pane" || label === "Button" || label === "TextField" || label === "Typography" || label === "Divider" || label === "Editor" || label === "Terminal"
+          const enabled = label === "Pane" || label === "Button" || label === "TextField" || label === "List" || label === "Typography" || label === "Divider" || label === "Editor" || label === "Terminal"
           Button(this, x + pad, rowY, w - pad * 2 - (ctx.contentHeight > ctx.viewportHeight ? 14 : 0), rowH, {
             children: label,
             variant: active ? "contained" : "glass",
@@ -328,6 +334,7 @@ class ButtonComponentsScreen extends UiSurface {
               if (label === "Pane") this.#router.go("pane/variants")
               else if (label === "Button") this.#router.go("button/basic")
               else if (label === "TextField") this.#router.go("text-field")
+              else if (label === "List") this.#router.go("list/basic")
               else if (label === "Editor") this.#router.go("editor/editing")
               else if (label === "Terminal") this.#router.go("terminal/basic")
               else if (label === "Typography") this.#router.go("typography")
@@ -365,6 +372,11 @@ class ButtonComponentsScreen extends UiSurface {
     if (this.#currentComponent() === "Terminal") {
       h3(this, x, y + 28, w, 24, {children: "Terminal", style: {fontSize: 15, textAlign: "center"}})
       this.#sectionList(x, y + 76, w, h - 94, TERMINAL_SECTIONS, (section) => this.#terminalSection() === section, (section) => this.#goTerminalSection(section))
+      return
+    }
+    if (this.#currentComponent() === "List") {
+      h3(this, x, y + 28, w, 24, {children: "List", style: {fontSize: 15, textAlign: "center"}})
+      this.#sectionList(x, y + 76, w, h - 94, LIST_SECTIONS, (section) => this.#listSection() === section, (section) => this.#goListSection(section))
       return
     }
     if (this.#currentComponent() === "TextField") {
@@ -441,6 +453,8 @@ class ButtonComponentsScreen extends UiSurface {
       this.#editorPreview(x, y, w, h)
     } else if (this.#currentComponent() === "Terminal") {
       this.#terminalPreview(x, y, w, h)
+    } else if (this.#currentComponent() === "List") {
+      this.#listPreview(x, y, w, h)
     } else if (this.#currentComponent() === "Pane") {
       if (this.#paneSection() === "Scroll") {
         const axis = this.#routePaneScrollAxis()
@@ -570,6 +584,56 @@ class ButtonComponentsScreen extends UiSurface {
         borderRadius: 26,
       },
     })
+  }
+
+  #listPreview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const section = this.#listSection()
+    const codeLines = listCodeLines(section)
+    const demoAreaH = section === "Scroll" ? 286 : 328
+    const demoH = section === "Scroll" ? 262 : 314
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH: demoAreaH,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, listTitle(section), listDescriptionLines(section))
+
+    const demoW = Math.min(520, w - pad * 2)
+    const demoX = x + (w - demoW) / 2
+    const demoY = rows.demoY + Math.max(0, (demoAreaH - demoH) / 2)
+    Pane(this, demoX, demoY, demoW, demoH, {
+      variant: "outlined",
+      sx: {
+        background: "rgba(4, 8, 14, 0.30)",
+        borderColor: "rgba(111, 211, 255, 0.18)",
+        borderRadius: 24,
+        padding: 0,
+      },
+    })
+
+    const listX = demoX + 18
+    const listY = demoY + 18
+    const listW = demoW - 36
+    const listH = demoH - 36
+    const listProps: ListProps = {
+      key: `components:list:${section}`,
+      dense: section === "Dense",
+      subheader: section === "Scroll" ? "Build queue" : "Runtime panes",
+      items: listDemoItems(section),
+      onItemClick: (item) => this.#record(`list:${String(item.key ?? item.primary ?? "row")}`),
+      sx: {
+        background: "rgba(255, 255, 255, 0.025)",
+        borderColor: "rgba(214, 231, 255, 0.12)",
+        borderRadius: 18,
+      },
+    }
+    if (section === "Selection") listProps.selectedKey = "terminal"
+    List(this, listX, listY, listW, listH, listProps)
+
+    const codeW = Math.min(620, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
   }
 
   #paneOverview(x: number, y: number, w: number, h: number): void {
@@ -1634,6 +1698,10 @@ class ButtonComponentsScreen extends UiSurface {
       this.#terminalDock(x, y, w, h)
       return
     }
+    if (this.#currentComponent() === "List") {
+      this.#listDock(x, y, w, h)
+      return
+    }
     if (this.#currentComponent() === "Pane") {
       if (this.#paneSection() === "Scroll") {
         const itemGap = 12
@@ -1846,6 +1914,29 @@ class ButtonComponentsScreen extends UiSurface {
     }
   }
 
+  #listDock(x: number, y: number, w: number, h: number): void {
+    const itemGap = 12
+    const buttonH = 42
+    const current = this.#listSection()
+    const itemWidths = LIST_SECTIONS.map((section) => Math.max(104, autoButtonWidth(this, section, 10, 24)))
+    const rowW = itemWidths.reduce((sum, width) => sum + width, 0) + itemGap * Math.max(0, itemWidths.length - 1)
+    let itemX = x + (w - rowW) / 2
+    for (const [i, section] of LIST_SECTIONS.entries()) {
+      const active = current === section
+      const itemW = itemWidths[i]!
+      Button(this, itemX, y + (h - buttonH) / 2, itemW, buttonH, {
+        children: section,
+        variant: active ? "contained" : "glass",
+        color: "neutral",
+        ...activeNavStyle(active),
+        radius: this.#radius,
+        fontPx: 10,
+        onClick: () => this.#goListSection(section),
+      })
+      itemX += itemW + itemGap
+    }
+  }
+
   #dividerDock(x: number, y: number, w: number, h: number): void {
     const section = this.#dividerSection()
     if (section === "Basic") return
@@ -2001,6 +2092,18 @@ class ButtonComponentsScreen extends UiSurface {
         `  onInput: adapter.write,`,
         `  onResize: adapter.resize })`,
         `term.write(outputBytes)`,
+      ])
+      return
+    }
+    if (this.#currentComponent() === "List") {
+      const pad = 24
+      h3(this, x + pad, y + 30, w - pad * 2, 24, {children: "List", style: {fontSize: 15}})
+      p(this, x + pad, y + 70, w - pad * 2, 22, {children: "Component", style: {fontSize: 11, color: "muted"}})
+      codeBlock(this, x + pad, y + 104, w - pad * 2, [
+        `List(host, x, y, w, h, {`,
+        `  subheader: "Runtime panes",`,
+        `  items: [{ primary, icon }],`,
+        `  onItemClick })`,
       ])
       return
     }
@@ -2202,6 +2305,7 @@ class ButtonComponentsScreen extends UiSurface {
     if (this.#route.startsWith("divider/")) return "Divider"
     if (this.#route.startsWith("editor")) return "Editor"
     if (this.#route.startsWith("terminal/")) return "Terminal"
+    if (this.#route.startsWith("list/")) return "List"
     return this.#route.startsWith("pane/") ? "Pane" : "Button"
   }
 
@@ -2219,6 +2323,13 @@ class ButtonComponentsScreen extends UiSurface {
     if (this.#route === "terminal/ansi") return "ANSI"
     if (this.#route === "terminal/scroll") return "Scroll"
     if (this.#route === "terminal/input") return "Input"
+    return "Basic"
+  }
+
+  #listSection(): ListSection {
+    if (this.#route === "list/dense") return "Dense"
+    if (this.#route === "list/selection") return "Selection"
+    if (this.#route === "list/scroll") return "Scroll"
     return "Basic"
   }
 
@@ -2293,6 +2404,14 @@ class ButtonComponentsScreen extends UiSurface {
     else if (section === "Input") this.#router.go("terminal/input")
     else this.#router.go("terminal/basic")
     this.#record(`route:terminal:${section.toLowerCase()}`)
+  }
+
+  #goListSection(section: ListSection): void {
+    if (section === "Dense") this.#router.go("list/dense")
+    else if (section === "Selection") this.#router.go("list/selection")
+    else if (section === "Scroll") this.#router.go("list/scroll")
+    else this.#router.go("list/basic")
+    this.#record(`route:list:${section.toLowerCase()}`)
   }
 
   #goPaneVariant(variant: PaneVariant): void {
@@ -2978,6 +3097,86 @@ function dividerColorDescriptionLines(color: ButtonColor): readonly string[] {
   if (color === "error") return ["Error separators mark failed or destructive groups.", "Avoid using error color as decoration."]
   if (color === "neutral") return ["Neutral is the default divider color.", "It is best for structural separation."]
   return ["Primary separators draw attention to an active region.", "Use them for selected or focused groups."]
+}
+
+type ListDemoItem = NonNullable<ListProps["items"]>[number]
+
+function listTitle(section: ListSection): string {
+  if (section === "Dense") return "Dense list"
+  if (section === "Selection") return "Selection states"
+  if (section === "Scroll") return "Scrollable list"
+  return "Basic list"
+}
+
+function listDescriptionLines(section: ListSection): readonly string[] {
+  if (section === "Dense") return ["Dense lists reduce row height for high-frequency panes.", "The component still uses the same list/listItem elements."]
+  if (section === "Selection") return ["Rows expose selected, disabled, button, divider, and secondary action states.", "Selection can be controlled by item flags or selectedKey."]
+  if (section === "Scroll") return ["Long lists reuse element scroll state and scrollbar geometry.", "The component only maps items into virtualized row drawing."]
+  return ["List wraps the elements list primitive with MUI-style row composition.", "Items support primary text, secondary text, leading icons, and trailing metadata."]
+}
+
+function listCodeLines(section: ListSection): readonly string[] {
+  if (section === "Dense") {
+    return [
+      `List(host, x, y, w, h, {`,
+      `  dense: true,`,
+      `  items: rows })`,
+    ]
+  }
+  if (section === "Selection") {
+    return [
+      `List(host, x, y, w, h, {`,
+      `  selectedKey: "terminal",`,
+      `  items: rows })`,
+    ]
+  }
+  if (section === "Scroll") {
+    return [
+      `List(host, x, y, w, h, {`,
+      `  key: "build-queue",`,
+      `  items: longRows })`,
+    ]
+  }
+  return [
+    `List(host, x, y, w, h, {`,
+    `  subheader: "Runtime panes",`,
+    `  items: rows })`,
+  ]
+}
+
+function listDemoItems(section: ListSection): readonly ListDemoItem[] {
+  if (section === "Scroll") {
+    return Array.from({length: 18}, (_, i): ListDemoItem => {
+      const n = i + 1
+      return {
+        key: `job-${n}`,
+        icon: String((i % 4) + 1),
+        primary: `Job ${String(n).padStart(2, "0")}`,
+        secondary: i % 5 === 0 ? "waiting for input" : "streaming output",
+        secondaryAction: i % 3 === 0 ? "warn" : "ok",
+        button: true,
+      }
+    })
+  }
+  const rows: ListDemoItem[] = [
+    {key: "editor", icon: "E", primary: "EditorPane", secondary: "editable source surface", secondaryAction: "open", button: true},
+    {key: "terminal", icon: "T", primary: "TerminalPane", secondary: "transport-independent shell", secondaryAction: "live", button: true},
+    {key: "logs", icon: "L", primary: "LogViewerPane", secondary: "output-only scrollback", secondaryAction: "247", button: true},
+    {key: "noti", icon: "N", primary: "NotiStack", secondary: "overlay notifications", secondaryAction: "3", button: true},
+  ]
+  if (section === "Dense") {
+    rows.push({key: "copy", icon: "C", primary: "Copy module", secondary: "shared editor/list behavior", button: true})
+    return rows
+  }
+  if (section === "Selection") {
+    return [
+      rows[0]!,
+      rows[1]!,
+      rows[2]!,
+      {key: "disabled", icon: "D", primary: "Disabled row", secondary: "cannot receive clicks", disabled: true},
+    ]
+  }
+  return rows
 }
 
 function paneScrollStyle(axis: PaneScrollAxis): StyleProps {

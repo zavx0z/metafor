@@ -13,8 +13,13 @@ import {
   input,
   p,
   span,
+  li,
+  liY,
+  type LiElementProps,
   type CssColor,
   type UiSize,
+  ul,
+  ulContentHeight,
 } from "@ui/elements"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 
@@ -25,6 +30,7 @@ type ElementRoute =
   | "button"
   | "input"
   | "img"
+  | "ul"
   | "layout/flex"
   | "layout/flex-css"
   | "style/css"
@@ -36,14 +42,16 @@ type DivRoute = "div" | "div/scroll"
 type ElementTone = "cyan" | "green" | "orange" | "red"
 type ElementDensity = "compact" | "regular" | "air"
 type ElementGroup = "Primitives" | "Layout" | "Style" | "Events"
+type UlMode = "regular" | "dense" | "interactive" | "scroll"
 
 type SectionLink = {
   label: string
   route: ElementRoute
 }
 
-const ROUTE_IDS = ["div", "div/scroll", "span", "button", "input", "img", "layout/flex", "layout/flex-css", "style/css", "style/theme", "events"] as const
+const ROUTE_IDS = ["div", "div/scroll", "span", "button", "input", "img", "ul", "layout/flex", "layout/flex-css", "style/css", "style/theme", "events"] as const
 const DIV_DETAILS: readonly DivDetail[] = ["background", "border", "padding", "zIndex", "scroll"]
+const UL_MODES: readonly UlMode[] = ["regular", "dense", "interactive", "scroll"]
 const ELEMENT_GROUPS: readonly ElementGroup[] = ["Primitives", "Layout", "Style", "Events"]
 const SECTION_LINKS: Record<ElementGroup, readonly SectionLink[]> = {
   Primitives: [
@@ -52,6 +60,7 @@ const SECTION_LINKS: Record<ElementGroup, readonly SectionLink[]> = {
     {label: "button", route: "button"},
     {label: "input", route: "input"},
     {label: "img", route: "img"},
+    {label: "ul / li", route: "ul"},
   ],
   Layout: [
     {label: "Flex", route: "layout/flex"},
@@ -234,6 +243,7 @@ class ElementsPlayground extends UiSurface {
     else if (this.#route === "button") this.#buttonRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "input") this.#inputRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "img") this.#imageRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
+    else if (this.#route === "ul") this.#ulRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "layout/flex") this.#flexRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "layout/flex-css") this.#flexCssRoute(x + pad, y + pad, w - pad * 2, h - pad * 2)
     else if (this.#route === "style/css") this.#css(x + pad, y + pad, w - pad * 2, h - pad * 2)
@@ -286,6 +296,13 @@ class ElementsPlayground extends UiSurface {
       paramRow(this, x + 22, y + 268, w - 44, "scrollbarTrackColor", "token | rgba")
       paramRow(this, x + 22, y + 330, w - 44, "clip", "owned by div")
       paramRow(this, x + 22, y + 392, w - 44, "wheel / drag", "element hit zones")
+    } else if (this.#route === "ul") {
+      h3(this, x, y + 28, w, 24, {children: "ul / li props", style: {fontSize: 15, textAlign: "center"}})
+      paramRow(this, x + 22, y + 82, w - 44, "ul()", "scrollable list container")
+      paramRow(this, x + 22, y + 144, w - 44, "ol()", "ordered list alias")
+      paramRow(this, x + 22, y + 206, w - 44, "li()", "row hit state + drawing")
+      paramRow(this, x + 22, y + 268, w - 44, "dense/itemHeight", "row geometry only")
+      paramRow(this, x + 22, y + 330, w - 44, "scrollContentHeight", "uses div overflow")
     }
   }
 
@@ -387,6 +404,16 @@ class ElementsPlayground extends UiSurface {
         },
       }))
     }
+    if (this.#route === "ul") {
+      return UL_MODES.map((mode) => ({
+        label: mode,
+        active: this.#ulMode() === mode,
+        onClick: () => {
+          this.#dockSelection = mode
+          this.requestRender()
+        },
+      }))
+    }
     return labelsForRoute(this.#route).map((label) => ({
       label,
       onClick: () => {
@@ -443,6 +470,10 @@ class ElementsPlayground extends UiSurface {
 
   #goDivDetail(detail: DivDetail): void {
     this.#router.go(divRouteFromDetail(detail))
+  }
+
+  #ulMode(): UlMode {
+    return UL_MODES.includes(this.#dockSelection as UlMode) ? this.#dockSelection as UlMode : "regular"
   }
 
   #divScrollDetail(x: number, y: number, w: number, _h: number): void {
@@ -523,6 +554,82 @@ class ElementsPlayground extends UiSurface {
     input(this, x + 28, y + 132, Math.min(420, w - 56), 44, {value: "inactive value", active: false})
     input(this, x + 28, y + 204, Math.min(420, w - 56), 44, {value: "active value", active: true})
     codeLine(this, x + 28, y + 302, Math.min(620, w - 56), "input(surface, x, y, w, h, { value: \"active value\", active: true })")
+  }
+
+  #ulRoute(x: number, y: number, w: number, h: number): void {
+    h2(this, x, y, w, 34, {children: "ul / li", style: {fontSize: 22}})
+    const mode = this.#ulMode()
+    h3(this, x + 28, y + 86, w - 56, 24, {children: "Primitive rows", style: {fontSize: 15}})
+    const rows = [
+      ["MetaFor runtime", "surface tree"],
+      ["WebGPU renderer", "draw pass"],
+      ["Input router", "hit state"],
+      ["Virtual ul", "scroll geometry"],
+      ["li row", "pointer state"],
+      ["Click target", "hit zone"],
+      ["Overflow", "div scrollbar"],
+      ["Shared primitive", "component base"],
+      ["Line 09", "scrollback"],
+      ["Line 10", "scrollback"],
+      ["Line 11", "scrollback"],
+      ["Line 12", "scrollback"],
+    ] as const
+    const dense = mode === "dense"
+    const itemHeight = dense ? 38 : 48
+    const itemGap = dense ? 2 : 4
+    const count = mode === "scroll" ? rows.length : 5
+    const panelW = Math.min(560, w - 56)
+    const panelH = mode === "scroll" ? Math.min(278, h - 142) : 296
+    const panelX = x + (w - panelW) / 2
+    const panelY = y + 132
+
+    div(this, panelX - 16, panelY - 16, panelW + 32, panelH + 32, {
+      style: {background: "rgba(255, 255, 255, 0.035)", borderColor: "rgba(214, 231, 255, 0.16)", borderRadius: 28},
+    })
+    ul(this, panelX, panelY, panelW, panelH, {
+      key: "elements:ul:preview",
+      dense,
+      itemHeight,
+      itemGap,
+      scrollContentHeight: mode === "scroll"
+        ? ulContentHeight(count, {itemHeight, itemGap, paddingTop: 8, paddingBottom: 8})
+        : panelH,
+      style: {
+        background: "rgba(4, 8, 14, 0.28)",
+        borderColor: "rgba(111, 211, 255, 0.22)",
+        borderRadius: 18,
+        overflowY: mode === "scroll" ? "auto" : "hidden",
+      },
+      children: (ctx) => {
+        for (let i = 0; i < count; i += 1) {
+          const rowY = liY(i, {startY: ctx.itemY, itemHeight, itemGap})
+          if (rowY + itemHeight < panelY || rowY > panelY + panelH) continue
+          const row = rows[i] ?? [`Line ${String(i + 1).padStart(2, "0")}`, "virtual row"]
+          const liProps: LiElementProps = {
+            key: `elements:li:row:${i}`,
+            style: (state) => ({
+              background: state.hovered && mode === "interactive" ? "rgba(111, 211, 255, 0.08)" : null,
+              borderColor: state.pressed && mode === "interactive" ? "rgba(111, 211, 255, 0.34)" : null,
+              borderRadius: 14,
+            }),
+            children: () => {
+              span(this, ctx.itemX + 16, rowY + 5, ctx.itemWidth - 32, 18, {
+                children: row[0],
+                style: {fontSize: dense ? 10 : 11, color: "text"},
+              })
+              span(this, ctx.itemX + 16, rowY + (dense ? 21 : 25), ctx.itemWidth - 32, 16, {
+                children: row[1],
+                style: {fontSize: 9, color: "muted"},
+              })
+            },
+          }
+          if (mode === "interactive") liProps.onClick = () => this.#record("click", `li:${row[0]}`)
+          li(this, ctx.itemX, rowY, ctx.itemWidth, itemHeight, liProps)
+        }
+      },
+    })
+
+    codeLine(this, x + 28, y + h - 54, Math.min(650, w - 56), "ul(surface, x, y, w, h, { children: ctx => li(...) })")
   }
 
   #paddingRoute(x: number, y: number, w: number, _h: number): void {
@@ -873,6 +980,7 @@ function labelsForRoute(route: ElementRoute): readonly string[] {
   if (route === "button") return ["default", "disabled", "click", "press"]
   if (route === "input") return ["inactive", "active", "value", "style"]
   if (route === "img") return ["cover", "contain", "opacity", "src"]
+  if (route === "ul") return UL_MODES
   if (route === "layout/flex") return ["flexRow", "flexColumn", "grow", "stretch"]
   if (route === "layout/flex-css") return ["px", "percent", "fr", "grow"]
   if (route === "events") return ["hover", "press", "release", "click"]
