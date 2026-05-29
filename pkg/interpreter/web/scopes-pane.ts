@@ -1,9 +1,9 @@
 /**
- * Scopes / Eval pane на UiSurface-системе. Controls — из @ui/components.
+ * Scopes pane на UiSurface-системе.
  *
- * Верх — список scopes (group-headers + props). Низ — eval-секция: лейбл,
- * input expression, Run button, output. evalTop = граница между ними,
- * фиксированная относительно низа pane.
+ * Показывает текущие local/closure области и detail popup для значения.
+ * Ввод выражений живёт в TerminalPane, чтобы пользователь работал с одним
+ * терминальным контекстом вывода и команд.
  */
 
 import {TextMaterial} from "@metafor/engine"
@@ -12,10 +12,7 @@ import {
 } from "@ui/elements"
 import {
   Button as button,
-  TextField as input,
   Divider as divider,
-  createTextFieldState,
-  type TextFieldEditState,
 } from "@ui/components"
 import {
   createEditorTokenMaterials,
@@ -34,7 +31,7 @@ const SUBTITLE_FONT = 11
 const DIVIDER_Y = 34
 const SCOPE_LIST_TOP = 44
 const SCOPE_ROW_H = 17
-const EVAL_HEIGHT = 124
+const SCOPE_LIST_BOTTOM_PAD = 10
 const SCROLLBAR_W = 4
 const DETAIL_LINE_H = 15
 const DETAIL_FONT = 10
@@ -51,18 +48,13 @@ type ScopeDetail = {
   prop: PropertySnapshot
 }
 
-export class ScopesEvalPane extends UiSurface {
+export class ScopesPane extends UiSurface {
   #frame: FrameSnapshot | null = null
-  #expr: TextFieldEditState = createTextFieldState(localStorage.getItem("interpreter:eval:expr") ?? "data.patches[0].path")
-  #output = ""
-  #editing = false
   #detail: ScopeDetail | null = null
   readonly #tokenMaterials: EditorTokenMaterialMap = createEditorTokenMaterials()
-  readonly #onEval: (expr: string, frame: number) => void
 
-  constructor(onEval: (expr: string, frame: number) => void) {
+  constructor() {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
-    this.#onEval = onEval
   }
 
   setFrame(frame: FrameSnapshot | null): void {
@@ -71,22 +63,9 @@ export class ScopesEvalPane extends UiSurface {
     this.requestRender()
   }
 
-  setEvalOutput(output: string): void {
-    this.#output = output
-    this.requestRender()
-  }
-
-  override onDeactivate(): void {
-    super.onDeactivate()
-    if (this.#editing) {
-      this.#editing = false
-      this.requestRender()
-    }
-  }
-
   protected render(): void {
     // Header.
-    this.drawText(t("scopesEval"), PAD_X, HEADER_Y, {
+    this.drawText(t("variables"), PAD_X, HEADER_Y, {
       fontPx: TITLE_FONT,
       material: this.materials.cyan,
       maxWidthPx: this.rectW - PAD_X * 2 - 80,
@@ -101,8 +80,6 @@ export class ScopesEvalPane extends UiSurface {
     }
     divider(this, PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2)
 
-    // Scopes list.
-    const evalTop = this.#evalTop()
     const rows = this.#scopeRows()
     if (rows.length === 0) {
       this.drawText(t("noScopes"), PAD_X + 4, SCOPE_LIST_TOP + 4, {
@@ -111,7 +88,7 @@ export class ScopesEvalPane extends UiSurface {
         maxWidthPx: this.rectW - PAD_X * 2 - 8,
       })
     } else {
-      const listH = evalTop - SCOPE_LIST_TOP
+      const listH = Math.max(1, this.rectH - SCOPE_LIST_TOP - SCOPE_LIST_BOTTOM_PAD)
       const contentMaxX = this.rectW - PAD_X - SCROLLBAR_W - 6
       div(this, PAD_X, SCOPE_LIST_TOP, this.rectW - PAD_X * 2, listH, {
         key: "interpreter:scopes:list",
@@ -137,64 +114,7 @@ export class ScopesEvalPane extends UiSurface {
       })
     }
 
-    // Eval section.
-    divider(this, PAD_X, evalTop, this.rectW - PAD_X * 2)
-    const heading = this.#frame === null ? t("evalExpression") : `${t("evalFrame")} ${this.#frame.index}`
-    this.drawText(heading, PAD_X, evalTop + 12, {
-      fontPx: 11,
-      material: this.materials.muted,
-      maxWidthPx: this.rectW - PAD_X * 2,
-    })
-
-    const inputY = evalTop + 32
-    const inputH = 28
-    const runW = 38
-    const inputW = this.rectW - PAD_X * 2 - runW - 8
-    input(this, PAD_X, inputY, inputW, inputH, {
-      value: this.#expr.value,
-      active: this.#editing,
-      cursor: this.#expr.cursor,
-      selectionAnchor: this.#expr.selectionAnchor,
-      fontPx: 12,
-      submitOnEnter: true,
-      onChange: (_value, state) => this.#setExpr(state),
-      onSubmit: () => this.#runEval(),
-      onActivate: () => {
-        this.#editing = true
-        this.#setExpr(createTextFieldState(this.#expr.value, this.#expr.value.length))
-        this.requestRender()
-      },
-    })
-    button(this, PAD_X + inputW + 8, inputY, runW, inputH, {
-      label: t("runEval"), iconSrc: uiIcons.eval, iconOnly: true, tooltip: t("runEval"), tone: "live", action: () => this.#runEval(),
-    })
-
-    const outputY = inputY + inputH + 8
-    const outputText = this.#output.length === 0 ? `${t("runEval")}: Cmd/Ctrl+Enter` : this.#output
-    this.drawText(outputText.replace(/\s+/g, " "), PAD_X, outputY, {
-      fontPx: 11,
-      material: this.#output.length === 0 ? this.materials.muted : this.materials.text,
-      maxWidthPx: this.rectW - PAD_X * 2,
-    })
-
     this.#drawDetailPopup()
-  }
-
-  #evalTop(): number {
-    return Math.max(SCOPE_LIST_TOP + SCOPE_ROW_H, this.rectH - EVAL_HEIGHT)
-  }
-
-  #runEval(): void {
-    const expr = this.#expr.value.trim()
-    if (expr.length === 0) return
-    this.#editing = false
-    this.#onEval(expr, this.#frame?.index ?? 0)
-  }
-
-  #setExpr(state: TextFieldEditState): void {
-    this.#expr = state
-    localStorage.setItem("interpreter:eval:expr", state.value)
-    this.requestRender()
   }
 
   #scopeRows(): ScopeRow[] {
@@ -277,7 +197,6 @@ export class ScopesEvalPane extends UiSurface {
 
     this.hit(rowX, rowY - 1, rowW, SCOPE_ROW_H, () => {
       this.#detail = {id: row.id, name: row.name, prop: row.prop}
-      this.#editing = false
       this.requestRender()
     }, {
       key: `scope-prop:${row.id}`,
