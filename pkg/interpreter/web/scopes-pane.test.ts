@@ -9,7 +9,7 @@ Object.defineProperty(globalThis, "localStorage", {
   },
 })
 
-const {formatScopeDetailCode} = await import("./scopes-eval-pane.ts")
+const {formatScopeDetailCode} = await import("./scopes-pane.ts")
 
 test("scope detail formatter preserves function source newlines", () => {
   const code = formatScopeDetailCode("MetaFor", {
