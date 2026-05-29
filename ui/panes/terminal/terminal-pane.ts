@@ -28,7 +28,7 @@ export type TerminalStatusKind = "idle" | "connected" | "running" | "disconnecte
 
 export type TerminalInputSource = "keyboard" | "paste" | "api"
 
-export type TerminalPaneOpts = {
+type TerminalOutputPaneOpts = {
   title?: string
   status?: string
   statusKind?: TerminalStatusKind
@@ -41,11 +41,42 @@ export type TerminalPaneOpts = {
   maxScrollback?: number
   fitToRect?: boolean
   showHeader?: boolean
+  wrapLines?: boolean
+  scrollX?: boolean
+  scrollY?: boolean
   cursorBlink?: boolean
-  inputEnabled?: boolean
-  onInput?: (data: string, source: TerminalInputSource) => void
+  showCursor?: boolean
   onResize?: (size: TerminalSize) => void
 }
+
+type TerminalOutputPaneInternalOpts = TerminalOutputPaneOpts & {
+  reflowOnResize?: boolean
+  wrapMode?: "char" | "word"
+}
+
+export type TerminalPaneOpts = TerminalOutputPaneOpts & {
+  inputEnabled?: boolean
+  onInput?: (data: string, source: TerminalInputSource) => void
+}
+
+export type LogViewerPaneOpts = Pick<
+  TerminalOutputPaneOpts,
+  | "title"
+  | "status"
+  | "statusKind"
+  | "fontPx"
+  | "linePx"
+  | "cols"
+  | "rows"
+  | "minCols"
+  | "minRows"
+  | "maxScrollback"
+  | "fitToRect"
+  | "showHeader"
+  | "wrapLines"
+  | "scrollX"
+  | "scrollY"
+>
 
 type TerminalColor =
   | {kind: "default"}
@@ -114,7 +145,7 @@ const ANSI_COLORS = [
   new Color(1, 1, 1, 1),
 ] as const
 
-export class TerminalPane extends UiSurface {
+class TerminalOutputPane extends UiSurface {
   #title: string
   #status: string
   #statusKind: TerminalStatusKind
@@ -125,11 +156,16 @@ export class TerminalPane extends UiSurface {
   #maxScrollback: number
   #fitToRect: boolean
   #showHeader: boolean
+  #wrapLines: boolean
+  #scrollX: boolean
+  #scrollY: boolean
+  #reflowOnResize: boolean
+  #wrapMode: "char" | "word"
   #cursorBlink: boolean
-  #inputEnabled: boolean
-  #onInput: ((data: string, source: TerminalInputSource) => void) | undefined
+  #cursorEnabled: boolean
   #onResize: ((size: TerminalSize) => void) | undefined
 
+  #preferredCols: number
   #cols: number
   #rows: number
   #scrollback: TerminalCell[][] = []
@@ -143,6 +179,7 @@ export class TerminalPane extends UiSurface {
   #dragAnchorLocalX = 0
   #dragAnchorLocalY = 0
   #attr: TerminalAttr = cloneAttr(DEFAULT_ATTR)
+  #wordWrapBuffer: TerminalCell[] = []
   #parserMode: ParserMode = "text"
   #sequence = ""
   #oscEsc = false
@@ -154,31 +191,39 @@ export class TerminalPane extends UiSurface {
   #charWidthScale = 0
   #lastEmittedSize: TerminalSize | null = null
   #decoder = new TextDecoder()
+  #rawOutput = ""
   readonly #materials = new Map<string, TextMaterial>()
 
-  constructor(opts: TerminalPaneOpts = {}) {
+  constructor(opts: TerminalOutputPaneInternalOpts = {}) {
     super({
       bgColor: TERMINAL_BG,
       borderColor: palette.borderDim,
       borderWidthPx: 1,
       borderRadiusPx: radii.pane,
     })
-    this.node.name = "TerminalPane"
+    this.node.name = "TerminalOutputPane"
     this.#title = opts.title ?? "Terminal"
     this.#status = opts.status ?? "idle"
     this.#statusKind = opts.statusKind ?? "idle"
     this.#fontPx = opts.fontPx ?? 12
     this.#linePx = opts.linePx ?? 17
-    this.#cols = clampInt(opts.cols ?? DEFAULT_COLS, 1, 400)
+    this.#preferredCols = clampInt(opts.cols ?? DEFAULT_COLS, 1, 400)
+    this.#cols = this.#preferredCols
     this.#rows = clampInt(opts.rows ?? DEFAULT_ROWS, 1, 160)
     this.#minCols = clampInt(opts.minCols ?? DEFAULT_MIN_COLS, 1, 400)
     this.#minRows = clampInt(opts.minRows ?? DEFAULT_MIN_ROWS, 1, 160)
     this.#maxScrollback = clampInt(opts.maxScrollback ?? DEFAULT_MAX_SCROLLBACK, 0, 100000)
     this.#fitToRect = opts.fitToRect ?? true
     this.#showHeader = opts.showHeader ?? true
+    this.#wrapLines = opts.wrapLines ?? true
+    this.#scrollX = opts.scrollX ?? false
+    this.#scrollY = opts.scrollY ?? true
+    this.#reflowOnResize = opts.reflowOnResize ?? false
+    this.#wrapMode = opts.wrapMode ?? "char"
     this.#cursorBlink = opts.cursorBlink ?? true
-    this.#inputEnabled = opts.inputEnabled ?? true
-    this.#onInput = opts.onInput
+    this.#cursorEnabled = opts.showCursor ?? true
+    this.#showCursor = this.#cursorEnabled
+    this.#cursorVisible = this.#cursorEnabled
     this.#onResize = opts.onResize
     this.#screen = Array.from({length: this.#rows}, () => this.#blankLine())
   }
@@ -188,9 +233,15 @@ export class TerminalPane extends UiSurface {
   write(data: string | Uint8Array): void {
     const text = typeof data === "string" ? data : this.#decoder.decode(data, {stream: true})
     if (text.length === 0) return
+    if (this.#reflowOnResize) this.#rawOutput += text
+    this.#appendOutput(text)
+  }
+
+  #appendOutput(text: string): void {
     if (!this.#dragSelecting) this.#clearSelectionState()
     const wasAtBottom = this.#isAtBottom()
     this.#consume(text)
+    this.#flushWordWrapBuffer()
     if (wasAtBottom) this.#scrollToBottom()
     this.requestRender()
   }
@@ -200,13 +251,19 @@ export class TerminalPane extends UiSurface {
   }
 
   clear(): void {
+    this.#rawOutput = ""
+    this.#clearBuffer()
+    this.requestRender()
+  }
+
+  #clearBuffer(): void {
     this.#scrollback = []
     this.#screen = Array.from({length: this.#rows}, () => this.#blankLine())
     this.#cursorRow = 0
     this.#cursorCol = 0
+    this.#wordWrapBuffer = []
     this.#clearSelectionState()
-    divScrollTo(this, TERMINAL_SCROLL_KEY, {top: 0})
-    this.requestRender()
+    divScrollTo(this, TERMINAL_SCROLL_KEY, {left: 0, top: 0})
   }
 
   reset(): void {
@@ -214,7 +271,8 @@ export class TerminalPane extends UiSurface {
     this.#parserMode = "text"
     this.#sequence = ""
     this.#oscEsc = false
-    this.#showCursor = true
+    this.#showCursor = this.#cursorEnabled
+    this.#wordWrapBuffer = []
     this.clear()
   }
 
@@ -236,20 +294,35 @@ export class TerminalPane extends UiSurface {
     this.requestRender()
   }
 
-  setInputEnabled(enabled: boolean): void {
-    if (this.#inputEnabled === enabled) return
-    this.#inputEnabled = enabled
-    this.requestRender()
-  }
-
   setFitToRect(enabled: boolean): void {
     if (this.#fitToRect === enabled) return
     this.#fitToRect = enabled
     this.requestRender()
   }
 
+  setWrapLines(enabled: boolean): void {
+    if (this.#wrapLines === enabled) return
+    this.#wrapLines = enabled
+    this.requestRender()
+  }
+
+  setScrollX(enabled: boolean): void {
+    if (this.#scrollX === enabled) return
+    this.#scrollX = enabled
+    if (!enabled) divScrollTo(this, TERMINAL_SCROLL_KEY, {left: 0})
+    this.requestRender()
+  }
+
+  setScrollY(enabled: boolean): void {
+    if (this.#scrollY === enabled) return
+    this.#scrollY = enabled
+    if (!enabled) divScrollTo(this, TERMINAL_SCROLL_KEY, {top: 0})
+    this.requestRender()
+  }
+
   setTerminalSize(cols: number, rows: number): void {
-    this.#resizeGrid(clampInt(cols, 1, 400), clampInt(rows, 1, 160), true)
+    this.#preferredCols = clampInt(cols, 1, 400)
+    this.#resizeGrid(this.#preferredCols, clampInt(rows, 1, 160), true)
     this.requestRender()
   }
 
@@ -379,19 +452,22 @@ export class TerminalPane extends UiSurface {
   #renderBody(): void {
     const body = this.#bodyRect()
     if (body.w <= 0 || body.h <= 0) return
+    const contentW = this.#cols * this.#getCharWidth() + BODY_PAD_X_PX * 2
     const contentH = this.#totalLineCount() * this.#linePx + BODY_PAD_Y_PX * 2
     div(this, body.x, body.y, body.w, body.h, {
       key: TERMINAL_SCROLL_KEY,
+      scrollContentWidth: Math.max(body.w, contentW),
       scrollContentHeight: Math.max(body.h, contentH),
       style: {
         background: null,
         borderColor: null,
         borderRadius: 0,
         padding: 0,
-        overflowY: "auto",
+        overflowX: this.#scrollX ? "auto" : "hidden",
+        overflowY: this.#scrollY ? "auto" : "hidden",
         scrollbarWidth: SCROLLBAR_W_PX,
       },
-      children: (ctx) => this.#renderLines(body.x + BODY_PAD_X_PX, body.y + BODY_PAD_Y_PX, ctx),
+      children: (ctx) => this.#renderLines(body.x + BODY_PAD_X_PX - ctx.scrollLeft, body.y + BODY_PAD_Y_PX, ctx),
     })
   }
 
@@ -470,7 +546,7 @@ export class TerminalPane extends UiSurface {
   }
 
   #renderCursor(x: number, y: number): void {
-    if (!this.#focused || !this.#showCursor || !this.#cursorVisible || this.#cursorCol >= this.#cols) return
+    if (!this.#focused || !this.#cursorEnabled || !this.#showCursor || !this.#cursorVisible || this.#cursorCol >= this.#cols) return
     const charW = this.#getCharWidth()
     this.drawRoundedRect(x + this.#cursorCol * charW, y + 2, Math.max(2, charW), Math.max(4, this.#linePx - 3), {
       radius: 2,
@@ -493,8 +569,11 @@ export class TerminalPane extends UiSurface {
     if (!this.#fitToRect || this.font === null) return
     const body = this.#bodyRect()
     const charW = this.#getCharWidth()
-    const cols = Math.max(this.#minCols, Math.floor((body.w - BODY_PAD_X_PX * 2 - SCROLLBAR_W_PX - 2) / charW))
-    const rows = Math.max(this.#minRows, Math.floor((body.h - BODY_PAD_Y_PX * 2) / this.#linePx))
+    const verticalGutter = this.#scrollY ? SCROLLBAR_W_PX : 0
+    const horizontalGutter = this.#scrollX ? SCROLLBAR_W_PX : 0
+    const visibleCols = Math.max(this.#minCols, Math.floor((body.w - BODY_PAD_X_PX * 2 - verticalGutter - 2) / charW))
+    const cols = this.#scrollX ? Math.max(this.#preferredCols, visibleCols) : visibleCols
+    const rows = Math.max(this.#minRows, Math.floor((body.h - BODY_PAD_Y_PX * 2 - horizontalGutter) / this.#linePx))
     this.#resizeGrid(cols, rows, true)
   }
 
@@ -506,49 +585,26 @@ export class TerminalPane extends UiSurface {
     return this.#charWidth
   }
 
-  // ────────── ввод ──────────
-
-  onInputText(text: string): void {
-    if (!this.#inputEnabled || text.length === 0) return
-    this.#emitInput(text, "paste")
-  }
+  // ────────── ввод/выделение ──────────
 
   onKey(event: KeyboardEvent): void {
+    this.handleOutputShortcut(event)
+  }
+
+  protected handleOutputShortcut(event: KeyboardEvent): boolean {
     const metaOnly = event.metaKey && !event.ctrlKey && !event.altKey
     const key = event.key.toLowerCase()
     if (metaOnly && key === "c") {
       event.preventDefault()
       void this.#copySelectionOrCurrentLine()
-      return
+      return true
     }
     if (metaOnly && key === "a") {
       event.preventDefault()
       this.selectAll()
-      return
+      return true
     }
-
-    if (!this.#inputEnabled) return
-
-    if (metaOnly) {
-      if (key === "v") {
-        event.preventDefault()
-        void readClipboardText().then((text) => {
-          if (text !== null && text.length > 0) this.#emitInput(text, "paste")
-        })
-        return
-      }
-      if (key === "k") {
-        event.preventDefault()
-        this.clear()
-        return
-      }
-      return
-    }
-
-    const data = keyToTerminalInput(event)
-    if (data === null) return
-    event.preventDefault()
-    this.#emitInput(data, "keyboard")
+    return false
   }
 
   override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
@@ -606,9 +662,10 @@ export class TerminalPane extends UiSurface {
     const lines = this.#terminalTextLines()
     if (lines.length === 0) return null
     const scrollTop = divScrollPosition(this, TERMINAL_SCROLL_KEY).top
+    const scrollLeft = divScrollPosition(this, TERMINAL_SCROLL_KEY).left
     const row = clampInt(Math.floor((localY - body.y - BODY_PAD_Y_PX + scrollTop) / this.#linePx), 0, lines.length - 1)
     const charW = this.#getCharWidth()
-    const rawCol = (localX - body.x - BODY_PAD_X_PX) / charW
+    const rawCol = (localX - body.x - BODY_PAD_X_PX + (this.#scrollX ? scrollLeft : 0)) / charW
     const col = bias === "floor" ? Math.floor(rawCol) : bias === "ceil" ? Math.ceil(rawCol) : Math.round(rawCol)
     return this.#clampPosition({line: row, col})
   }
@@ -629,8 +686,8 @@ export class TerminalPane extends UiSurface {
 
   onActivate(): void {
     this.#focused = true
-    this.#cursorVisible = true
-    this.#startCursorBlink()
+    this.#cursorVisible = this.#cursorEnabled && this.#showCursor
+    if (this.#cursorEnabled) this.#startCursorBlink()
     this.requestRender()
   }
 
@@ -647,12 +704,8 @@ export class TerminalPane extends UiSurface {
     super.dispose()
   }
 
-  #emitInput(data: string, source: TerminalInputSource): void {
-    this.#onInput?.(data, source)
-  }
-
   #startCursorBlink(): void {
-    if (!this.#cursorBlink || this.#cursorTimer !== null) return
+    if (!this.#cursorEnabled || !this.#cursorBlink || this.#cursorTimer !== null) return
     this.#cursorTimer = setInterval(() => {
       if (!this.#focused) return
       this.#cursorVisible = !this.#cursorVisible
@@ -676,16 +729,40 @@ export class TerminalPane extends UiSurface {
     }
 
     const wasAtBottom = this.#isAtBottom()
+    const colsChanged = this.#cols !== nextCols
     this.#cols = nextCols
+    this.#rows = nextRows
+    if (this.#reflowOnResize && colsChanged && this.#rawOutput.length > 0) {
+      this.#reflowRawOutput(wasAtBottom)
+      if (emit) this.#emitResize()
+      return
+    }
     while (this.#screen.length < nextRows) this.#screen.push(this.#blankLine())
     while (this.#screen.length > nextRows) this.#pushScrollback(this.#screen.shift() ?? this.#blankLine())
-    this.#rows = nextRows
     for (let i = 0; i < this.#screen.length; i++) this.#screen[i] = this.#fitLine(this.#screen[i] ?? [])
     for (let i = 0; i < this.#scrollback.length; i++) this.#scrollback[i] = this.#fitLine(this.#scrollback[i] ?? [])
     this.#cursorRow = clampInt(this.#cursorRow, 0, this.#rows - 1)
     this.#cursorCol = clampInt(this.#cursorCol, 0, this.#cols - 1)
     if (wasAtBottom) this.#scrollToBottom()
     if (emit) this.#emitResize()
+  }
+
+  #reflowRawOutput(wasAtBottom: boolean): void {
+    this.#attr = cloneAttr(DEFAULT_ATTR)
+    this.#parserMode = "text"
+    this.#sequence = ""
+    this.#oscEsc = false
+    this.#savedCursor = null
+    this.#wordWrapBuffer = []
+    this.#scrollback = []
+    this.#screen = Array.from({length: this.#rows}, () => this.#blankLine())
+    this.#cursorRow = 0
+    this.#cursorCol = 0
+    this.#clearSelectionState()
+    divScrollTo(this, TERMINAL_SCROLL_KEY, {left: 0, top: 0})
+    this.#consume(this.#rawOutput)
+    this.#flushWordWrapBuffer()
+    if (wasAtBottom) this.#scrollToBottom()
   }
 
   #emitResize(): void {
@@ -766,24 +843,38 @@ export class TerminalPane extends UiSurface {
 
   #consumeText(ch: string): void {
     if (ch === "\n") {
+      this.#flushWordWrapBuffer()
       this.#lineFeed()
+      if (!this.#wrapLines || this.#wrapMode === "word") this.#cursorCol = 0
       return
     }
     if (ch === "\r") {
+      this.#flushWordWrapBuffer()
       this.#cursorCol = 0
       return
     }
     if (ch === "\b") {
+      this.#flushWordWrapBuffer()
       this.#cursorCol = Math.max(0, this.#cursorCol - 1)
       return
     }
     if (ch === "\t") {
+      this.#flushWordWrapBuffer()
       const spaces = 8 - (this.#cursorCol % 8)
-      for (let i = 0; i < spaces; i++) this.#putChar(" ")
+      for (let i = 0; i < spaces; i++) this.#putSpace()
       return
     }
     const code = ch.codePointAt(0) ?? 0
     if (code < 0x20 || code === 0x7f) return
+    if (this.#wrapMode === "word" && this.#wrapLines) {
+      if (ch === " ") {
+        this.#flushWordWrapBuffer()
+        this.#putSpace()
+        return
+      }
+      this.#wordWrapBuffer.push({ch, attr: cloneAttr(this.#attr)})
+      return
+    }
     this.#putChar(ch)
   }
 
@@ -800,6 +891,7 @@ export class TerminalPane extends UiSurface {
       this.#oscEsc = false
       return
     }
+    this.#flushWordWrapBuffer()
     if (ch === "c") {
       this.reset()
       return
@@ -848,6 +940,7 @@ export class TerminalPane extends UiSurface {
       this.#applySgr(params.length === 0 ? [0] : params)
       return
     }
+    this.#flushWordWrapBuffer()
     if (final === "H" || final === "f") {
       this.#cursorRow = clampInt(csiParam(params, 0, 1) - 1, 0, this.#rows - 1)
       this.#cursorCol = clampInt(csiParam(params, 1, 1) - 1, 0, this.#cols - 1)
@@ -909,18 +1002,45 @@ export class TerminalPane extends UiSurface {
   }
 
   #putChar(ch: string): void {
+    this.#putCell({ch, attr: cloneAttr(this.#attr)})
+  }
+
+  #putSpace(): void {
+    if (this.#wrapMode === "word" && this.#wrapLines) {
+      if (this.#cursorCol <= 0) return
+      if (this.#cursorCol >= this.#cols - 1) return
+    }
+    this.#putChar(" ")
+  }
+
+  #flushWordWrapBuffer(): void {
+    if (this.#wordWrapBuffer.length === 0) return
+    const cells = this.#wordWrapBuffer
+    this.#wordWrapBuffer = []
+    const remaining = this.#cols - this.#cursorCol
+    if (this.#wrapLines && this.#cursorCol > 0 && cells.length > remaining) this.#wrapLineFeed()
+    for (const cell of cells) this.#putCell(cell)
+  }
+
+  #putCell(cell: TerminalCell): void {
     if (this.#cursorCol >= this.#cols) {
+      if (!this.#wrapLines) return
       this.#cursorCol = 0
       this.#lineFeed()
     }
     const row = this.#screen[this.#cursorRow]
     if (row === undefined) return
-    row[this.#cursorCol] = {ch, attr: cloneAttr(this.#attr)}
-    this.#cursorCol++
-    if (this.#cursorCol >= this.#cols) {
+    row[this.#cursorCol] = {ch: cell.ch, attr: cloneAttr(cell.attr)}
+    if (this.#cursorCol >= this.#cols - 1) {
+      if (!this.#wrapLines) {
+        this.#cursorCol = this.#cols
+        return
+      }
       this.#cursorCol = 0
       this.#lineFeed()
+      return
     }
+    this.#cursorCol++
   }
 
   #lineFeed(): void {
@@ -929,6 +1049,11 @@ export class TerminalPane extends UiSurface {
       return
     }
     this.#cursorRow++
+  }
+
+  #wrapLineFeed(): void {
+    this.#cursorCol = 0
+    this.#lineFeed()
   }
 
   #scrollUp(): void {
@@ -943,6 +1068,8 @@ export class TerminalPane extends UiSurface {
   }
 
   #eraseDisplay(mode: number): void {
+    const cursorCol = Math.min(this.#cursorCol, this.#cols)
+    const visibleCursorCol = Math.min(cursorCol, this.#cols - 1)
     if (mode === 2) {
       this.#screen = Array.from({length: this.#rows}, () => this.#blankLine(DEFAULT_ATTR))
       this.#cursorRow = 0
@@ -956,22 +1083,25 @@ export class TerminalPane extends UiSurface {
     }
     if (mode === 1) {
       for (let row = 0; row < this.#cursorRow; row++) this.#screen[row] = this.#blankLine(DEFAULT_ATTR)
-      for (let col = 0; col <= this.#cursorCol; col++) this.#screen[this.#cursorRow]![col] = this.#blankCell(DEFAULT_ATTR)
+      for (let col = 0; col <= visibleCursorCol; col++) this.#screen[this.#cursorRow]![col] = this.#blankCell(DEFAULT_ATTR)
       return
     }
-    for (let col = this.#cursorCol; col < this.#cols; col++) this.#screen[this.#cursorRow]![col] = this.#blankCell(DEFAULT_ATTR)
+    for (let col = cursorCol; col < this.#cols; col++) this.#screen[this.#cursorRow]![col] = this.#blankCell(DEFAULT_ATTR)
     for (let row = this.#cursorRow + 1; row < this.#rows; row++) this.#screen[row] = this.#blankLine(DEFAULT_ATTR)
   }
 
   #eraseLine(mode: number): void {
     const row = this.#screen[this.#cursorRow]
     if (row === undefined) return
-    const start = mode === 1 ? 0 : this.#cursorCol
-    const end = mode === 0 ? this.#cols - 1 : this.#cursorCol
+    const cursorCol = Math.min(this.#cursorCol, this.#cols)
+    const visibleCursorCol = Math.min(cursorCol, this.#cols - 1)
+    const start = mode === 1 ? 0 : cursorCol
+    const end = mode === 0 ? this.#cols - 1 : visibleCursorCol
     if (mode === 2) {
       this.#screen[this.#cursorRow] = this.#blankLine(DEFAULT_ATTR)
       return
     }
+    if (start > end) return
     for (let col = start; col <= end; col++) row[col] = this.#blankCell(DEFAULT_ATTR)
   }
 
@@ -1012,6 +1142,77 @@ export class TerminalPane extends UiSurface {
       this.#materials.set(key, material)
     }
     return material
+  }
+}
+
+export class TerminalPane extends TerminalOutputPane {
+  #inputEnabled: boolean
+  #onInput: ((data: string, source: TerminalInputSource) => void) | undefined
+
+  constructor(opts: TerminalPaneOpts = {}) {
+    super(opts)
+    this.node.name = "TerminalPane"
+    this.#inputEnabled = opts.inputEnabled ?? true
+    this.#onInput = opts.onInput
+  }
+
+  setInputEnabled(enabled: boolean): void {
+    if (this.#inputEnabled === enabled) return
+    this.#inputEnabled = enabled
+    this.requestRender()
+  }
+
+  onInputText(text: string): void {
+    if (!this.#inputEnabled || text.length === 0) return
+    this.#emitInput(text, "paste")
+  }
+
+  override onKey(event: KeyboardEvent): void {
+    if (this.handleOutputShortcut(event)) return
+    if (!this.#inputEnabled) return
+
+    const metaOnly = event.metaKey && !event.ctrlKey && !event.altKey
+    const key = event.key.toLowerCase()
+    if (metaOnly) {
+      if (key === "v") {
+        event.preventDefault()
+        void readClipboardText().then((text) => {
+          if (text !== null && text.length > 0) this.#emitInput(text, "paste")
+        })
+        return
+      }
+      if (key === "k") {
+        event.preventDefault()
+        this.clear()
+        return
+      }
+      return
+    }
+
+    const data = keyToTerminalInput(event)
+    if (data === null) return
+    event.preventDefault()
+    this.#emitInput(data, "keyboard")
+  }
+
+  #emitInput(data: string, source: TerminalInputSource): void {
+    this.#onInput?.(data, source)
+  }
+}
+
+export class LogViewerPane extends TerminalOutputPane {
+  constructor(opts: LogViewerPaneOpts = {}) {
+    super({
+      ...opts,
+      title: opts.title ?? "LogViewerPane",
+      status: opts.status ?? "logs",
+      statusKind: opts.statusKind ?? "idle",
+      cursorBlink: false,
+      showCursor: false,
+      reflowOnResize: true,
+      wrapMode: "word",
+    })
+    this.node.name = "LogViewerPane"
   }
 }
 

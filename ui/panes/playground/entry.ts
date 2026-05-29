@@ -1,17 +1,22 @@
 import {Color, TextMaterial} from "@metafor/engine"
-import {UiRuntime, UiSurface, flexColumn, h2, h3, p, palette, span, type UiSurfaceRect} from "@ui/elements"
+import {UiRuntime, UiSurface, flexColumn, h2, h3, p, palette, type UiSurfaceRect} from "@ui/elements"
 import {autoButtonWidth, Button, Pane, type ButtonColor, type ButtonProps} from "@ui/components"
-import {EditorPane, NotiStack, TerminalPane, type NotiStackBounds, type NotiStackTheme} from "@ui/panes"
+import {EditorPane, LogViewerPane, NotiStack, TerminalPane, type NotiStackBounds, type NotiStackTheme} from "@ui/panes"
+import {tokenizeTypeScript} from "../editor/languages/typescript.ts"
+import {createEditorTokenMaterials, renderEditorTokenizedLine} from "../editor/token-renderer.ts"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 import {panesPlaygroundLayout} from "./layout.ts"
 
-type PaneCatalog = "EditorPane" | "TerminalPane" | "NotiStack"
+type PaneCatalog = "EditorPane" | "TerminalPane" | "LogViewerPane" | "NotiStack"
 type EditorSection = "Editing" | "Highlighting" | "Selection" | "Scroll"
 type TerminalSection = "Basic" | "ANSI" | "Scroll" | "Input"
+type LogViewerSection = "Basic" | "Wrap" | "Levels" | "Scroll"
 type NotiSection = "Basic" | "Actions" | "Layout"
 type EditorLanguageRoute = "typescript" | "javascript" | "html" | "css" | "plaintext"
 type EditorSelectionRoute = "menu" | "right-click" | "shift-cursor" | "double-click"
 type EditorScrollRoute = "vertical" | "horizontal"
+type LogViewerWrapRoute = "wrap" | "no-wrap"
+type LogViewerScrollRoute = "vertical" | "horizontal" | "both" | "none"
 type EditorRoute =
   | "editor/editing"
   | "editor/highlighting"
@@ -21,16 +26,26 @@ type EditorRoute =
   | "editor/scroll"
   | `editor/scroll/${EditorScrollRoute}`
 type TerminalRoute = "terminal/basic" | "terminal/ansi" | "terminal/scroll" | "terminal/input"
+type LogViewerRoute =
+  | "log-viewer/basic"
+  | "log-viewer/wrap"
+  | `log-viewer/wrap/${LogViewerWrapRoute}`
+  | "log-viewer/levels"
+  | "log-viewer/scroll"
+  | `log-viewer/scroll/${LogViewerScrollRoute}`
 type NotiRoute = "notistack/basic" | "notistack/actions" | "notistack/layout"
-type PanesRoute = EditorRoute | TerminalRoute | NotiRoute
+type PanesRoute = EditorRoute | TerminalRoute | LogViewerRoute | NotiRoute
 type EditorAction = "focus" | "copy" | "cut" | "selectAll"
 type TerminalAction = "demo" | "ansi" | "scroll" | "focus" | "clear"
+type LogViewerAction = "append" | "levels" | "scroll" | "clear"
 type NotiActionName = "basic" | "action" | "stacked" | "clear"
+type LogViewerProps = {wrapLines: boolean; scrollX: boolean; scrollY: boolean}
 
 const EDITOR_SECTIONS: readonly EditorSection[] = ["Editing", "Highlighting", "Selection", "Scroll"]
 const TERMINAL_SECTIONS: readonly TerminalSection[] = ["Basic", "ANSI", "Scroll", "Input"]
+const LOG_VIEWER_SECTIONS: readonly LogViewerSection[] = ["Basic", "Wrap", "Levels", "Scroll"]
 const NOTI_SECTIONS: readonly NotiSection[] = ["Basic", "Actions", "Layout"]
-const PANES_NAV: readonly PaneCatalog[] = ["EditorPane", "TerminalPane", "NotiStack"]
+const PANES_NAV: readonly PaneCatalog[] = ["EditorPane", "TerminalPane", "LogViewerPane", "NotiStack"]
 const EDITOR_LANGUAGE_ROUTES: readonly EditorLanguageRoute[] = ["typescript", "javascript", "html", "css", "plaintext"]
 const EDITOR_SELECTION_ROUTES: readonly EditorSelectionRoute[] = ["menu", "right-click", "shift-cursor", "double-click"]
 const EDITOR_SCROLL_ROUTES: readonly EditorScrollRoute[] = ["vertical", "horizontal"]
@@ -44,8 +59,20 @@ const EDITOR_ROUTES: readonly EditorRoute[] = [
   ...EDITOR_SCROLL_ROUTES.map((route) => `editor/scroll/${route}` as const),
 ]
 const TERMINAL_ROUTES: readonly TerminalRoute[] = ["terminal/basic", "terminal/ansi", "terminal/scroll", "terminal/input"]
+const LOG_VIEWER_ROUTES: readonly LogViewerRoute[] = [
+  "log-viewer/basic",
+  "log-viewer/wrap",
+  "log-viewer/wrap/wrap",
+  "log-viewer/wrap/no-wrap",
+  "log-viewer/levels",
+  "log-viewer/scroll",
+  "log-viewer/scroll/vertical",
+  "log-viewer/scroll/horizontal",
+  "log-viewer/scroll/both",
+  "log-viewer/scroll/none",
+]
 const NOTI_ROUTES: readonly NotiRoute[] = ["notistack/basic", "notistack/actions", "notistack/layout"]
-const PANES_ROUTES: readonly PanesRoute[] = [...EDITOR_ROUTES, ...TERMINAL_ROUTES, ...NOTI_ROUTES]
+const PANES_ROUTES: readonly PanesRoute[] = [...EDITOR_ROUTES, ...TERMINAL_ROUTES, ...LOG_VIEWER_ROUTES, ...NOTI_ROUTES]
 const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
   typescript: "TypeScript",
   javascript: "JavaScript",
@@ -54,11 +81,14 @@ const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
   plaintext: "Plaintext",
 }
 const LAYOUT_Z = -0.12
+const CODE_TOKEN_MATERIALS = createEditorTokenMaterials()
+const CODE_FALLBACK_MATERIAL = new TextMaterial({color: palette.muted})
 
 type PanesScreenOpts = {
   onRouteChange?: (route: PanesRoute) => void
   onEditorAction?: (action: EditorAction) => void
   onTerminalAction?: (action: TerminalAction) => void
+  onLogViewerAction?: (action: LogViewerAction) => void
   onNotiAction?: (action: NotiActionName) => void
 }
 
@@ -75,6 +105,7 @@ class PanesScreen extends UiSurface {
   readonly #onRouteChange: ((route: PanesRoute) => void) | undefined
   readonly #onEditorAction: ((action: EditorAction) => void) | undefined
   readonly #onTerminalAction: ((action: TerminalAction) => void) | undefined
+  readonly #onLogViewerAction: ((action: LogViewerAction) => void) | undefined
   readonly #onNotiAction: ((action: NotiActionName) => void) | undefined
   #route: PanesRoute = this.#router.current
   #selectionBufferState: "idle" | "copied" | "error" = "idle"
@@ -84,6 +115,7 @@ class PanesScreen extends UiSurface {
     this.#onRouteChange = opts.onRouteChange
     this.#onEditorAction = opts.onEditorAction
     this.#onTerminalAction = opts.onTerminalAction
+    this.#onLogViewerAction = opts.onLogViewerAction
     this.#onNotiAction = opts.onNotiAction
     this.#unsubscribe = this.#router.subscribe((route) => {
       this.#route = route
@@ -166,6 +198,10 @@ class PanesScreen extends UiSurface {
       this.#sectionList(x, y + 76, w, h - 94, TERMINAL_SECTIONS, (section) => this.#terminalSection() === section, (section) => this.#goTerminalSection(section))
       return
     }
+    if (current === "LogViewerPane") {
+      this.#sectionList(x, y + 76, w, h - 94, LOG_VIEWER_SECTIONS, (section) => this.#logViewerSection() === section, (section) => this.#goLogViewerSection(section))
+      return
+    }
     this.#sectionList(x, y + 76, w, h - 94, NOTI_SECTIONS, (section) => this.#notiSection() === section, (section) => this.#goNotiSection(section))
   }
 
@@ -212,6 +248,7 @@ class PanesScreen extends UiSurface {
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
     if (this.#currentPane() === "EditorPane") this.#editorPreview(x, y, w, h)
     else if (this.#currentPane() === "TerminalPane") this.#terminalPreview(x, y, w, h)
+    else if (this.#currentPane() === "LogViewerPane") this.#logViewerPreview(x, y, w, h)
     else this.#notiPreview(x, y, w, h)
     this.popClip()
   }
@@ -226,7 +263,7 @@ class PanesScreen extends UiSurface {
     } else if (this.#editorSection() === "Selection") {
       renderHeader(this, x, w, pad, y + 34, "Selection surface", [
         "Selection, copy/cut, context menu state, and cursor routing stay inside the pane.",
-        "The dock drives route states for repeatable interaction scenarios.",
+        "The dock drives route states for repeatable interaction variants.",
       ])
     } else if (this.#editorSection() === "Scroll") {
       renderHeader(this, x, w, pad, y + 34, "Editor scrolling", [
@@ -262,6 +299,31 @@ class PanesScreen extends UiSurface {
       renderHeader(this, x, w, pad, y + 34, "TerminalPane", [
         "A reusable WebGPU terminal pane for PTY, interpreter output, logs, and agents.",
         "The terminal owns buffer state, ANSI parsing, cursor, resize metrics, and rendering.",
+      ])
+    }
+  }
+
+  #logViewerPreview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    if (this.#logViewerSection() === "Levels") {
+      renderHeader(this, x, w, pad, y + 34, "Log levels", [
+        "LogViewerPane keeps ANSI output, scrollback, selection, and copy behavior.",
+        "It has no input adapter, prompt state, or terminal cursor.",
+      ])
+    } else if (this.#logViewerSection() === "Wrap") {
+      renderHeader(this, x, w, pad, y + 34, "Line wrapping", [
+        "Wrap is a LogViewerPane capability; the dock switches its variants.",
+        "No wrap keeps long entries on one visual row and clips unless horizontal scroll is enabled.",
+      ])
+    } else if (this.#logViewerSection() === "Scroll") {
+      renderHeader(this, x, w, pad, y + 34, "Output scrollback", [
+        "Long logs reuse the same virtualized text surface as TerminalPane.",
+        "The public API stays focused on write(), writeln(), clear(), and selection.",
+      ])
+    } else {
+      renderHeader(this, x, w, pad, y + 34, "LogViewerPane", [
+        "Output-only pane for build logs, interpreters, background jobs, and agents.",
+        "No transport or server contract is embedded in the UI component.",
       ])
     }
   }
@@ -309,6 +371,10 @@ class PanesScreen extends UiSurface {
     }
     if (this.#currentPane() === "TerminalPane") {
       this.#terminalDock(x, y, w, h)
+      return
+    }
+    if (this.#currentPane() === "LogViewerPane") {
+      this.#logViewerDock(x, y, w, h)
       return
     }
     this.#notiDock(x, y, w, h)
@@ -376,6 +442,39 @@ class PanesScreen extends UiSurface {
               {label: "Demo output", active: true, color: "primary", onClick: () => this.#onTerminalAction?.("demo")},
               {label: "Clear", onClick: () => this.#onTerminalAction?.("clear")},
             ]
+    this.#buttonRow(x, y, w, h, items)
+  }
+
+  #logViewerDock(x: number, y: number, w: number, h: number): void {
+    const section = this.#logViewerSection()
+    if (section === "Wrap") {
+      const wrapMode = logViewerWrapRouteFromRoute(this.#route)
+      this.#buttonRow(x, y, w, h, [
+        {label: "Wrap", active: wrapMode === "wrap", color: "primary", onClick: () => this.#router.go("log-viewer/wrap/wrap")},
+        {label: "No wrap", active: wrapMode === "no-wrap", color: "primary", onClick: () => this.#router.go("log-viewer/wrap/no-wrap")},
+      ])
+      return
+    }
+    if (section === "Scroll") {
+      const scroll = logViewerScrollPropsFromRoute(this.#route)
+      this.#buttonRow(x, y, w, h, [
+        {label: "Scroll vertical", active: scroll.scrollY, color: "primary", onClick: () => this.#goLogViewerScroll({scrollY: true})},
+        {label: "Scroll horizontal", active: scroll.scrollX, color: "primary", onClick: () => this.#goLogViewerScroll({scrollX: true})},
+        {label: "No vertical", active: !scroll.scrollY, color: "neutral", onClick: () => this.#goLogViewerScroll({scrollY: false})},
+        {label: "No horizontal", active: !scroll.scrollX, color: "neutral", onClick: () => this.#goLogViewerScroll({scrollX: false})},
+      ])
+      return
+    }
+    const items: readonly DockItem[] =
+      section === "Levels"
+        ? [
+          {label: "Append levels", active: true, color: "primary", onClick: () => this.#onLogViewerAction?.("levels")},
+          {label: "Clear", onClick: () => this.#onLogViewerAction?.("clear")},
+        ]
+        : [
+          {label: "Append entry", active: true, color: "primary", onClick: () => this.#onLogViewerAction?.("append")},
+          {label: "Clear", onClick: () => this.#onLogViewerAction?.("clear")},
+        ]
     this.#buttonRow(x, y, w, h, items)
   }
 
@@ -457,6 +556,20 @@ class PanesScreen extends UiSurface {
         `term.write(outputBytes)`,
       ]
     }
+    if (this.#currentPane() === "LogViewerPane") {
+      const props = logViewerPropsFromRoute(this.#route)
+      return [
+        `import {LogViewerPane} from "@ui/panes"`,
+        ``,
+        `const logs = new LogViewerPane({`,
+        `  title: "Build logs",`,
+        `  wrapLines: ${String(props.wrapLines)},`,
+        `  scrollY: ${String(props.scrollY)},`,
+        `  scrollX: ${String(props.scrollX)},`,
+        `  maxScrollback: 5000 })`,
+        `logs.write(logOutput)`,
+      ]
+    }
     return [
       `import {NotiStack} from "@ui/panes"`,
       ``,
@@ -471,12 +584,14 @@ class PanesScreen extends UiSurface {
   #currentPane(): PaneCatalog {
     if (this.#route.startsWith("editor/")) return "EditorPane"
     if (this.#route.startsWith("terminal/")) return "TerminalPane"
+    if (this.#route.startsWith("log-viewer/")) return "LogViewerPane"
     return "NotiStack"
   }
 
   #goPane(pane: PaneCatalog): void {
     if (pane === "EditorPane") this.#router.go("editor/editing")
     else if (pane === "TerminalPane") this.#router.go("terminal/basic")
+    else if (pane === "LogViewerPane") this.#router.go("log-viewer/basic")
     else this.#router.go("notistack/basic")
   }
 
@@ -491,6 +606,13 @@ class PanesScreen extends UiSurface {
     if (this.#route === "terminal/ansi") return "ANSI"
     if (this.#route === "terminal/scroll") return "Scroll"
     if (this.#route === "terminal/input") return "Input"
+    return "Basic"
+  }
+
+  #logViewerSection(): LogViewerSection {
+    if (this.#route.startsWith("log-viewer/wrap")) return "Wrap"
+    if (this.#route === "log-viewer/levels") return "Levels"
+    if (this.#route.startsWith("log-viewer/scroll")) return "Scroll"
     return "Basic"
   }
 
@@ -512,6 +634,21 @@ class PanesScreen extends UiSurface {
     else if (section === "Scroll") this.#router.go("terminal/scroll")
     else if (section === "Input") this.#router.go("terminal/input")
     else this.#router.go("terminal/basic")
+  }
+
+  #goLogViewerSection(section: LogViewerSection): void {
+    if (section === "Wrap") this.#router.go("log-viewer/wrap")
+    else if (section === "Levels") this.#router.go("log-viewer/levels")
+    else if (section === "Scroll") this.#router.go("log-viewer/scroll")
+    else this.#router.go("log-viewer/basic")
+  }
+
+  #goLogViewerScroll(next: Partial<Pick<LogViewerProps, "scrollX" | "scrollY">>): void {
+    const current = logViewerPropsFromRoute(this.#route)
+    this.#router.go(logViewerScrollRouteFor({
+      scrollX: next.scrollX ?? current.scrollX,
+      scrollY: next.scrollY ?? current.scrollY,
+    }))
   }
 
   #goNotiSection(section: NotiSection): void {
@@ -579,9 +716,22 @@ function codeBlock(host: UiSurface, x: number, y: number, w: number, lines: read
     variant: "glass",
     sx: {background: "rgba(4, 8, 14, 0.50)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 17},
   })
+  const tokens = tokenizeTypeScript([...lines])
+  host.pushClip(x + 14, y + 7, Math.max(1, w - 28), Math.max(1, h - 14))
   for (const [i, line] of lines.entries()) {
-    span(host, x + 14, y + 7 + i * lineH, w - 28, 16, {children: line, style: {fontSize: 10, color: i === 0 ? "text" : "muted"}})
+    renderEditorTokenizedLine({
+      pane: host,
+      text: line,
+      tokens: tokens[i] ?? [],
+      startX: x + 14,
+      y: y + 8 + i * lineH,
+      fontPx: 10,
+      maxPx: Math.max(1, w - 28),
+      materials: CODE_TOKEN_MATERIALS,
+      fallbackMaterial: CODE_FALLBACK_MATERIAL,
+    })
   }
+  host.popClip()
 }
 
 function editorPaneRectForPreview(x: number, y: number, w: number, h: number): UiSurfaceRect {
@@ -673,6 +823,36 @@ function terminalSurfaceScenario(route: PanesRoute): TerminalRoute | null {
   return route.startsWith("terminal/") ? route as TerminalRoute : null
 }
 
+function logViewerSurfaceScenario(route: PanesRoute): LogViewerRoute | null {
+  return route.startsWith("log-viewer/") ? route as LogViewerRoute : null
+}
+
+function logViewerWrapRouteFromRoute(route: PanesRoute): LogViewerWrapRoute {
+  return route === "log-viewer/wrap/no-wrap" ? "no-wrap" : "wrap"
+}
+
+function logViewerScrollPropsFromRoute(route: PanesRoute): Pick<LogViewerProps, "scrollX" | "scrollY"> {
+  if (route === "log-viewer/scroll/horizontal") return {scrollX: true, scrollY: false}
+  if (route === "log-viewer/scroll/both") return {scrollX: true, scrollY: true}
+  if (route === "log-viewer/scroll/none") return {scrollX: false, scrollY: false}
+  return {scrollX: false, scrollY: true}
+}
+
+function logViewerScrollRouteFor(props: Pick<LogViewerProps, "scrollX" | "scrollY">): LogViewerRoute {
+  if (props.scrollX && props.scrollY) return "log-viewer/scroll/both"
+  if (props.scrollX) return "log-viewer/scroll/horizontal"
+  if (props.scrollY) return "log-viewer/scroll/vertical"
+  return "log-viewer/scroll/none"
+}
+
+function logViewerPropsFromRoute(route: PanesRoute): LogViewerProps {
+  const scroll = route.startsWith("log-viewer/scroll") ? logViewerScrollPropsFromRoute(route) : {scrollX: false, scrollY: true}
+  return {
+    wrapLines: logViewerWrapRouteFromRoute(route) === "wrap",
+    ...scroll,
+  }
+}
+
 function notiSurfaceScenario(route: PanesRoute): NotiRoute | null {
   return route.startsWith("notistack/") ? route as NotiRoute : null
 }
@@ -733,6 +913,34 @@ function applyTerminalRoute(terminal: TerminalPane, route: PanesRoute): void {
   }
   terminal.setStatus("connected", "demo")
   terminal.write(TERMINAL_BASIC_DEMO)
+}
+
+function applyLogViewerRoute(logViewer: LogViewerPane, route: PanesRoute): void {
+  const props = logViewerPropsFromRoute(route)
+  logViewer.reset()
+  logViewer.setTitle("LogViewerPane")
+  logViewer.setWrapLines(props.wrapLines)
+  logViewer.setScrollX(props.scrollX)
+  logViewer.setScrollY(props.scrollY)
+  logViewer.setTerminalSize(props.scrollX ? 180 : 80, 24)
+  if (route.startsWith("log-viewer/wrap")) {
+    logViewer.setStatus("connected", props.wrapLines ? "wrap" : "clip")
+    logViewer.write(props.wrapLines ? LOG_VIEWER_WRAP_DEMO : LOG_VIEWER_NOWRAP_DEMO)
+    return
+  }
+  if (route === "log-viewer/levels") {
+    logViewer.setStatus("running", "levels")
+    logViewer.write(LOG_VIEWER_LEVELS_DEMO)
+    return
+  }
+  if (route.startsWith("log-viewer/scroll")) {
+    const status = props.scrollX && props.scrollY ? "xy scroll" : props.scrollX ? "x scroll" : props.scrollY ? "y scroll" : "no scroll"
+    logViewer.setStatus("running", status)
+    logViewer.write(LOG_VIEWER_SCROLL_DEMO)
+    return
+  }
+  logViewer.setStatus("connected", "output")
+  logViewer.write(LOG_VIEWER_BASIC_DEMO)
 }
 
 function setEditorCursorAt(editor: EditorPane, source: string, fragment: string, offset = 0): void {
@@ -829,6 +1037,48 @@ const TERMINAL_INPUT_DEMO = [
   "",
   "$ ",
 ].join("\r\n")
+
+const LOG_VIEWER_BASIC_DEMO = [
+  "\x1b[36mMetaFor LogViewerPane\x1b[0m",
+  "",
+  "Output-only API:",
+  "  write(data)    -> append log output",
+  "  writeln(line)  -> append one log line",
+  "  clear()        -> reset visible output",
+  "",
+  "\x1b[32m[ok]\x1b[0m bun --filter @ui/panes typecheck",
+  "\x1b[90m[info]\x1b[0m LogViewerPane has no input adapter or cursor.",
+].join("\r\n")
+
+const LOG_VIEWER_LEVELS_DEMO = [
+  "\x1b[90m[debug]\x1b[0m loaded ui theme palette",
+  "\x1b[36m[info]\x1b[0m  compiling panes playground",
+  "\x1b[33m[warn]\x1b[0m  optional source map skipped",
+  "\x1b[32m[ok]\x1b[0m    emitted webgpu bundle",
+  "\x1b[31m[error]\x1b[0m simulated failure row for color contrast",
+].join("\r\n")
+
+const LOG_VIEWER_WRAP_DEMO = [
+  "\x1b[36mMetaFor LogViewerPane: wrapLines=true\x1b[0m",
+  "",
+  "Long log records wrap into the visible pane width, so every part of the entry remains readable without horizontal scrolling.",
+  "\x1b[90m[trace]\x1b[0m request=6f8a9b3c component=interpreter duration=243ms payload=\"this long structured log line wraps through the pane instead of being clipped\"",
+  "\x1b[32m[ok]\x1b[0m renderer kept vertical scrollback as the primary log navigation",
+].join("\r\n")
+
+const LOG_VIEWER_NOWRAP_DEMO = [
+  "\x1b[36mMetaFor LogViewerPane: wrapLines=false\x1b[0m",
+  "",
+  "Long log records are clipped by the pane width. There is no horizontal scroll state to manage.",
+  "\x1b[90m[trace]\x1b[0m request=6f8a9b3c component=interpreter duration=243ms payload=\"this very long structured log line stays on one row and clips at the right edge\"",
+  "\x1b[32m[ok]\x1b[0m renderer kept vertical scrollback only",
+].join("\r\n")
+
+const LOG_VIEWER_SCROLL_DEMO = Array.from({length: 96}, (_, i) => {
+  const n = String(i + 1).padStart(3, "0")
+  const level = i % 5 === 0 ? "\x1b[33mwarn\x1b[0m" : i % 7 === 0 ? "\x1b[31merror\x1b[0m" : "\x1b[36minfo\x1b[0m"
+  return `${n} ${level} worker:${(i % 4) + 1} streamed log line ${n}`
+}).join("\r\n")
 
 const EDITOR_EDITING_SOURCE = `import {EditorPane, TerminalPane, NotiStack} from "@ui/panes"
 
@@ -936,6 +1186,13 @@ const terminal = new TerminalPane({
   onInput: (data) => handleTerminalInput(data),
   onResize: ({cols, rows}) => terminal.setStatus("connected", `${cols}x${rows}`),
 })
+const logViewer = new LogViewerPane({
+  title: "LogViewerPane",
+  status: "output",
+  statusKind: "connected",
+  fontPx: 12,
+  linePx: 17,
+})
 const stack = new NotiStack(ui, {
   theme: notiTheme,
   layout: {
@@ -957,6 +1214,7 @@ const stack = new NotiStack(ui, {
 })
 let appliedEditorScenario: string | null = null
 let appliedTerminalScenario: TerminalRoute | null = null
+let appliedLogViewerScenario: LogViewerRoute | null = null
 let appliedNotiScenario: NotiRoute | null = null
 
 const syncEditorRoute = (route: PanesRoute): void => {
@@ -972,6 +1230,13 @@ const syncTerminalRoute = (route: PanesRoute): void => {
   terminalPrompt = ""
   applyTerminalRoute(terminal, route)
   appliedTerminalScenario = scenario
+}
+
+const syncLogViewerRoute = (route: PanesRoute): void => {
+  const scenario = logViewerSurfaceScenario(route)
+  if (scenario === null || scenario === appliedLogViewerScenario) return
+  applyLogViewerRoute(logViewer, route)
+  appliedLogViewerScenario = scenario
 }
 
 const syncNotiRoute = (route: PanesRoute): void => {
@@ -1044,6 +1309,32 @@ function runTerminalAction(action: TerminalAction): void {
   terminal.reset()
   terminal.write(TERMINAL_BASIC_DEMO)
   terminal.focus()
+}
+
+function runLogViewerAction(action: LogViewerAction): void {
+  if (action === "clear") {
+    logViewer.clear()
+    return
+  }
+  if (action === "levels") {
+    logViewer.writeln(`\x1b[90m[debug]\x1b[0m ${new Date().toLocaleTimeString()} cache probe completed`)
+    logViewer.writeln(`\x1b[36m[info]\x1b[0m  renderer accepted ${logViewer.getTerminalSize().cols} columns`)
+    logViewer.writeln(`\x1b[32m[ok]\x1b[0m    pane output appended`)
+    return
+  }
+  if (action === "scroll") {
+    const start = logViewer.toText().split("\n").filter((line) => line.length > 0).length + 1
+    for (let i = 0; i < 18; i++) {
+      const n = String(start + i).padStart(3, "0")
+      logViewer.writeln(`${n} \x1b[36minfo\x1b[0m streamed background job event ${n}`)
+    }
+    return
+  }
+  if (!logViewerPropsFromRoute(activeRoute).wrapLines) {
+    logViewer.writeln(`\x1b[36m[info]\x1b[0m ${new Date().toLocaleTimeString()} very long one-line log payload is clipped by LogViewerPane because wrapLines is false and horizontal scroll is disabled`)
+    return
+  }
+  logViewer.writeln(`\x1b[36m[info]\x1b[0m ${new Date().toLocaleTimeString()} appended output-only log entry`)
 }
 
 function handleTerminalInput(data: string): void {
@@ -1124,6 +1415,7 @@ screen = new PanesScreen({
     activeRoute = route
     syncEditorRoute(route)
     syncTerminalRoute(route)
+    syncLogViewerRoute(route)
     syncNotiRoute(route)
     editor.setSelectionMenuOpen(route === "editor/selection/menu")
     editor.setSelectionContextMenuEnabled(route === "editor/selection/right-click")
@@ -1135,15 +1427,18 @@ screen = new PanesScreen({
     void runEditorAction(action)
   },
   onTerminalAction: runTerminalAction,
+  onLogViewerAction: runLogViewerAction,
   onNotiAction: pushNotification,
 })
 activeRoute = screen.currentRoute
 ui.addSurface(screen, ({w, h}) => ({x: 0, y: 0, w, h}))
 ui.addSurface(editor, ({w, h}) => activeRoute.startsWith("editor/") ? editorPaneRectForCanvas(w, h) : hiddenRect())
 ui.addSurface(terminal, ({w, h}) => activeRoute.startsWith("terminal/") ? terminalPaneRectForCanvas(w, h) : hiddenRect())
+ui.addSurface(logViewer, ({w, h}) => activeRoute.startsWith("log-viewer/") ? terminalPaneRectForCanvas(w, h) : hiddenRect())
 ui.handleResize()
 syncEditorRoute(activeRoute)
 syncTerminalRoute(activeRoute)
+syncLogViewerRoute(activeRoute)
 syncNotiRoute(activeRoute)
 editor.setSelectionMenuOpen(activeRoute === "editor/selection/menu")
 editor.setSelectionContextMenuEnabled(activeRoute === "editor/selection/right-click")
