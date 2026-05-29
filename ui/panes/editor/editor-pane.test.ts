@@ -1,4 +1,5 @@
 import {describe, expect, test} from "bun:test"
+import {PANE_FRAME} from "../pane-frame.ts"
 import {EditorPane} from "./editor-pane.ts"
 
 describe("EditorPane selection", () => {
@@ -32,7 +33,7 @@ describe("EditorPane selection", () => {
       editor.setText("abc")
       const codeX = 60
       const charW = 13 * 0.62
-      const y = 39
+      const y = firstEditorLineY()
       editor.onPointerDown({shiftKey: false} as MouseEvent, codeX + charW * 1.75, y)
       editor.onPointerMove({shiftKey: false} as MouseEvent, codeX + charW * 1.9, y)
       editor.onPointerUp({shiftKey: false} as MouseEvent, codeX + charW * 1.9, y)
@@ -48,7 +49,7 @@ describe("EditorPane selection", () => {
       editor.setText("abcdef")
       const codeX = 60
       const charW = 13 * 0.62
-      const y = 39
+      const y = firstEditorLineY()
       editor.onPointerDown({shiftKey: false} as MouseEvent, codeX + charW * 1.1, y)
       editor.onPointerUp({shiftKey: false} as MouseEvent, codeX + charW * 4.2, y)
       expect(editor.getSelectedText()).toBe("bcd")
@@ -63,7 +64,7 @@ describe("EditorPane selection", () => {
       editor.setText("alpha beta")
       const codeX = 60
       const charW = 13 * 0.62
-      const y = 39
+      const y = firstEditorLineY()
       editor.onPointerDown({shiftKey: false, detail: 2} as MouseEvent, codeX + charW * 7.1, y)
       editor.onPointerUp({shiftKey: false, detail: 2} as MouseEvent, codeX + charW * 7.1, y)
       expect(editor.getSelectedText()).toBe("beta")
@@ -78,7 +79,7 @@ describe("EditorPane selection", () => {
       editor.setText("// русский комментарий")
       const codeX = 60
       const charW = 13 * 0.62
-      const y = 39
+      const y = firstEditorLineY()
       editor.onPointerDown({shiftKey: false, detail: 2} as MouseEvent, codeX + charW * 5.4, y)
       editor.onPointerUp({shiftKey: false, detail: 2} as MouseEvent, codeX + charW * 5.4, y)
       expect(editor.getSelectedText()).toBe("русский")
@@ -113,3 +114,7 @@ describe("EditorPane selection", () => {
     }
   })
 })
+
+function firstEditorLineY(): number {
+  return PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap + 5
+}

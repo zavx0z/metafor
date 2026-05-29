@@ -77,6 +77,8 @@ Panes в `ui/panes` — это крупные переиспользуемые U
 * `EditorPane`, `TerminalPane`, `NotiStack` и будущие крупные поверхности импортируются только из `@ui/panes`.
 * `@ui/components` не должен экспортировать panes или syntax API редактора.
 * Pane API не должен зависеть от конкретного сервера, WebSocket, PTY или interpreter. Транспорт подключается внешним adapter-слоем через callbacks и методы pane.
+* Повторяемая геометрия pane chrome (`header` height, header text inset, separator rule, body viewport inset, top gap, bottom inset) должна жить в общем модуле `ui/panes/pane-frame.ts`. Новые panes не должны заводить локальные magic constants для тех же отступов.
+* Стандартные panes должны использовать общий `PANE_FRAME.headerHeight`, чтобы divider заголовка был на одном уровне. Исключения допустимы только для отдельного нестандартного surface с явной причиной в коде, но body/rule/scroll viewport всё равно должны выравниваться через `pane-frame`.
 * Playground для panes живёт в `ui/panes/playground` и повторяет общий scaffold: `catalog` -> `section panel` -> `preview` + `dock` -> `props`.
 * Во второй левой панели panes/playground показываются возможности pane (`Wrap`, `Scroll`, `Selection`, `Actions`), а не конкретные варианты этих возможностей.
 * Конкретные варианты выбранной возможности показываются в `dock`: например `Wrap` / `No wrap`, `Scroll vertical` / `Scroll horizontal` / `No vertical` / `No horizontal`.

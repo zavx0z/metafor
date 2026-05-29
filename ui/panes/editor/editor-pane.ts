@@ -40,6 +40,7 @@ import {
   type TextPosition,
   type TextSelectionRange,
 } from "../text-clipboard.ts"
+import {PANE_FRAME, paneBodyRect, paneHeaderRuleRect} from "../pane-frame.ts"
 
 export type EditorBreakpoint = {
   /** 1-based source line. */
@@ -87,11 +88,11 @@ export type EditorOpts = {
   introAnimation?: boolean
 }
 
-const HEADER_H_PX = 28
-const PAD_TOP_PX = 34
-const PAD_LEFT_PX = 8
-const PAD_RIGHT_PX = 8
-const PAD_BOTTOM_PX = 6
+const HEADER_H_PX = PANE_FRAME.headerHeight
+const PAD_TOP_PX = HEADER_H_PX + PANE_FRAME.bodyTopGap
+const PAD_LEFT_PX = PANE_FRAME.bodyInsetX
+const PAD_RIGHT_PX = PANE_FRAME.bodyInsetX
+const PAD_BOTTOM_PX = PANE_FRAME.bodyBottomInset
 const GUTTER_MIN_PX = 44
 const GUTTER_LEFT_PAD_PX = 6
 const GUTTER_RIGHT_PAD_PX = 8
@@ -1338,16 +1339,18 @@ export class EditorPane extends UiSurface {
 
   protected render(): void {
     // Header
-    this.drawText(this.#title, 16, 8, {
+    this.drawText(this.#title, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
       fontPx: this.#titleFontPx,
       material: this.#titleMaterial,
       maxWidthPx: this.rectW - 32,
     })
-    this.drawRect(8, HEADER_H_PX, Math.max(1, this.rectW - 16), 1, palette.borderDim, Z.SEPARATOR)
+    const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
+    this.drawRect(rule.x, rule.y, rule.w, rule.h, palette.borderDim, Z.SEPARATOR)
 
     const total = this.#lines.length
     const gutter = this.#gutterWidthPx(total)
-    div(this, PAD_LEFT_PX, PAD_TOP_PX, Math.max(1, this.rectW - PAD_LEFT_PX - PAD_RIGHT_PX), Math.max(1, this.rectH - PAD_TOP_PX - PAD_BOTTOM_PX), {
+    const viewport = paneBodyRect(this.rectW, this.rectH, {headerHeight: HEADER_H_PX})
+    div(this, viewport.x, viewport.y, viewport.w, viewport.h, {
       key: EDITOR_SCROLL_KEY,
       scrollContentWidth: Math.max(1, gutter + CODE_LEFT_PAD_PX + this.#maxLineWidthPx() + 8),
       scrollContentHeight: Math.max(1, total * this.#linePx),

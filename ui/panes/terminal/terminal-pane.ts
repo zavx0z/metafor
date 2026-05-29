@@ -18,6 +18,7 @@ import {
   type TextPosition,
   type TextSelectionRange,
 } from "../text-clipboard.ts"
+import {PANE_FRAME, paneBodyRect, paneHeaderRuleRect} from "../pane-frame.ts"
 
 export type TerminalSize = {
   cols: number
@@ -103,11 +104,9 @@ const DEFAULT_ROWS = 24
 const DEFAULT_MIN_COLS = 24
 const DEFAULT_MIN_ROWS = 6
 const DEFAULT_MAX_SCROLLBACK = 5000
-const HEADER_H_PX = 36
-const PAD_X_PX = 16
+const HEADER_H_PX = PANE_FRAME.headerHeight
 const BODY_PAD_X_PX = 0
 const BODY_PAD_Y_PX = 0
-const BOTTOM_PAD_PX = 12
 const STATUS_DOT_PX = 7
 const SCROLLBAR_W_PX = 4
 const CARET_BLINK_MS = 530
@@ -424,13 +423,13 @@ class TerminalOutputPane extends UiSurface {
   #renderHeader(): void {
     if (!this.#showHeader) return
     const headerY = 0
-    this.drawText(this.#title, PAD_X_PX, 11, {
+    this.drawText(this.#title, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
       fontPx: 13,
       material: this.materials.cyan,
-      maxWidthPx: Math.max(1, this.rectW - PAD_X_PX * 2 - 190),
+      maxWidthPx: Math.max(1, this.rectW - PANE_FRAME.headerTextX * 2 - 190),
     })
     const statusW = Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32))
-    const statusX = Math.max(PAD_X_PX, this.rectW - PAD_X_PX - statusW)
+    const statusX = Math.max(PANE_FRAME.headerTextX, this.rectW - PANE_FRAME.headerTextX - statusW)
     const dot = statusColor(this.#statusKind)
     this.drawRoundedRect(statusX, headerY + 8, statusW, 22, {
       radius: 999,
@@ -449,7 +448,8 @@ class TerminalOutputPane extends UiSurface {
       material: this.materials.muted,
       maxWidthPx: statusW - 32,
     })
-    this.drawRect(PAD_X_PX, HEADER_H_PX - 1, Math.max(1, this.rectW - PAD_X_PX * 2), 1, HEADER_RULE, Z.SEPARATOR)
+    const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
+    this.drawRect(rule.x, rule.y, rule.w, rule.h, HEADER_RULE, Z.SEPARATOR)
   }
 
   #renderBody(): void {
@@ -559,13 +559,7 @@ class TerminalOutputPane extends UiSurface {
   }
 
   #bodyRect(): {x: number; y: number; w: number; h: number} {
-    const y = this.#showHeader ? HEADER_H_PX : 0
-    return {
-      x: PAD_X_PX,
-      y,
-      w: Math.max(1, this.rectW - PAD_X_PX * 2),
-      h: Math.max(1, this.rectH - y - BOTTOM_PAD_PX),
-    }
+    return paneBodyRect(this.rectW, this.rectH, {headerHeight: HEADER_H_PX, showHeader: this.#showHeader})
   }
 
   #contentCols(): number {
