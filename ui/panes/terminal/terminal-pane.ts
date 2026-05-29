@@ -221,6 +221,13 @@ export class TerminalPane extends UiSurface {
   setInputEnabled(enabled: boolean): void {
     if (this.#inputEnabled === enabled) return
     this.#inputEnabled = enabled
+    if (!enabled) {
+      this.#stopCursorBlink()
+      this.#cursorVisible = false
+    } else if (this.#focused) {
+      this.#cursorVisible = true
+      this.#startCursorBlink()
+    }
     this.requestRender()
   }
 
@@ -357,6 +364,7 @@ export class TerminalPane extends UiSurface {
   }
 
   #renderCursor(x: number, y: number): void {
+    if (!this.#inputEnabled) return
     if (!this.#focused || !this.#showCursor || !this.#cursorVisible || this.#cursorCol >= this.#cols) return
     const charW = this.#getCharWidth()
     this.drawRoundedRect(x + this.#cursorCol * charW, y + 2, Math.max(2, charW), Math.max(4, this.#linePx - 3), {
@@ -436,7 +444,7 @@ export class TerminalPane extends UiSurface {
   onActivate(): void {
     this.#focused = true
     this.#cursorVisible = true
-    this.#startCursorBlink()
+    if (this.#inputEnabled) this.#startCursorBlink()
     this.requestRender()
   }
 

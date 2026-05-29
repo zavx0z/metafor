@@ -19,7 +19,7 @@ import {
 import {
   DisplayHoverOutlinePane,
   FramesPane,
-  ScopesEvalPane,
+  ScopesPane,
   ToolbarPane,
   VerbosePane,
   type BadgeKind,
@@ -143,7 +143,7 @@ type ModuleDisplayController = {
   id: string
   toolbar: ToolbarPane
   frames: FramesPane
-  scopes: ScopesEvalPane
+  scopes: ScopesPane
   source: EditorPane
   terminal: TerminalPane
   verbose: VerbosePane
@@ -159,6 +159,10 @@ type ModuleDisplayController = {
   outputLineCount: number
   activeCommand: ActiveInterpreterCommand | null
   verboseVisible: boolean
+  terminalInput: {
+    buffer: string
+    promptVisible: boolean
+  }
 }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
@@ -531,11 +535,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       controller.activeFrameIndex = index
       renderModuleDump(controller, true)
     }),
-    scopes: new ScopesEvalPane(async (expr, frame) => {
-      controller.scopes.setEvalOutput(t("commandExecuting"))
-      const response = await runModuleInterpreterCommand(controller, "eval", {frame, expr}, t("runEval"))
-      controller.scopes.setEvalOutput(JSON.stringify(response))
-    }),
+    scopes: new ScopesPane(),
     source: new EditorPane({
       title: t("sourceWaiting"),
       path: "",
@@ -552,8 +552,9 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       statusKind: "idle",
       fontPx: 12,
       linePx: 16,
-      cursorBlink: false,
+      cursorBlink: true,
       inputEnabled: false,
+      onInput: (data) => handleModuleTerminalInput(controller, data),
     }),
     verbose: new VerbosePane(moduleVerboseStorageKey(module.id)),
     sourceCache: new Map<string, CachedSource>(),
@@ -568,6 +569,10 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     outputLineCount: 0,
     activeCommand: null,
     verboseVisible: readModuleVerboseVisible(module.id),
+    terminalInput: {
+      buffer: "",
+      promptVisible: false,
+    },
   } satisfies ModuleDisplayController)
 
   controller.toolbar.node.name = `InterpreterToolbar:${module.id}`
@@ -583,10 +588,13 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
 function updateModuleDisplay(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
   if (module.target.outputLineCount < controller.outputLineCount) {
     controller.terminal.clear()
+    controller.terminalInput.buffer = ""
+    controller.terminalInput.promptVisible = false
     controller.outputLineCount = 0
   }
   const nextLines = module.target.output.slice(controller.outputLineCount)
   if (nextLines.length > 0) {
+    hideModuleTerminalPrompt(controller)
     for (const line of nextLines) appendModuleTargetLine(controller, line)
     controller.outputLineCount = module.target.outputLineCount
   }
@@ -612,6 +620,7 @@ function updateModuleDisplay(controller: ModuleDisplayController, module: Module
   }
 
   updateModuleToolbar(controller, module)
+  syncModuleTerminalInput(controller)
 }
 
 function updateModuleToolbar(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
@@ -850,6 +859,7 @@ async function runModuleInterpreterCommand(controller: ModuleDisplayController, 
   controller.activeCommand = command
   const snapshot = moduleSnapshots.get(controller.id)
   if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
+  syncModuleTerminalInput(controller)
   try {
     const response = await send(cmd, params, controller.id)
     if (!response.ok) {
@@ -864,6 +874,7 @@ async function runModuleInterpreterCommand(controller: ModuleDisplayController, 
     if (controller.activeCommand === command) controller.activeCommand = null
     const nextSnapshot = moduleSnapshots.get(controller.id)
     if (nextSnapshot !== undefined) updateModuleToolbar(controller, nextSnapshot)
+    syncModuleTerminalInput(controller)
   }
 }
 
@@ -920,7 +931,10 @@ type ModuleTerminalEntry = {
 }
 
 function appendModuleTerminal(controller: ModuleDisplayController, entry: ModuleTerminalEntry): void {
+  const restorePrompt = controller.terminalInput.promptVisible && canAcceptTerminalInput(controller)
+  hideModuleTerminalPrompt(controller)
   controller.terminal.writeln(`${ansiMuted(formatTimestamp(entry.ts))} ${ansiLevel(entry.level)} ${entry.text}`)
+  if (restorePrompt) showModuleTerminalPrompt(controller)
 }
 
 function appendModuleTargetLine(controller: ModuleDisplayController, line: ModuleLine): void {
@@ -940,6 +954,147 @@ function moduleTerminalStatus(module: ModulePaneSnapshot): {kind: TerminalStatus
   if (module.connection.state === "disconnected") return {kind: "disconnected", label: "disconnected"}
   if (module.connection.state === "connected") return {kind: "connected", label: "connected"}
   return {kind: "idle", label: t("waitingStdout")}
+}
+
+function syncModuleTerminalInput(controller: ModuleDisplayController): void {
+  const canAccept = canAcceptTerminalInput(controller)
+  controller.terminal.setInputEnabled(canAccept)
+  if (canAccept) showModuleTerminalPrompt(controller)
+  else {
+    hideModuleTerminalPrompt(controller)
+    controller.terminalInput.buffer = ""
+  }
+}
+
+function canAcceptTerminalInput(controller: ModuleDisplayController): boolean {
+  if (controller.activeCommand !== null) return false
+  const module = moduleSnapshots.get(controller.id)
+  if (module === undefined) return false
+  return module.connection.state === "connected"
+    && module.paused
+    && module.dump !== null
+    && module.target.state !== "exited"
+    && module.target.state !== "failed"
+}
+
+function showModuleTerminalPrompt(controller: ModuleDisplayController): void {
+  if (controller.terminalInput.promptVisible) return
+  controller.terminal.write(`${ansiCyan("> ")}${controller.terminalInput.buffer}`)
+  controller.terminalInput.promptVisible = true
+}
+
+function hideModuleTerminalPrompt(controller: ModuleDisplayController): void {
+  if (!controller.terminalInput.promptVisible) return
+  controller.terminal.write("\r\x1b[K")
+  controller.terminalInput.promptVisible = false
+}
+
+function handleModuleTerminalInput(controller: ModuleDisplayController, data: string): void {
+  if (!canAcceptTerminalInput(controller)) return
+  showModuleTerminalPrompt(controller)
+  for (const ch of data) {
+    if (ch === "\r" || ch === "\n") {
+      submitModuleTerminalExpression(controller)
+      continue
+    }
+    if (ch === "\x03") {
+      controller.terminal.write("^C\r\n")
+      controller.terminalInput.buffer = ""
+      controller.terminalInput.promptVisible = false
+      showModuleTerminalPrompt(controller)
+      continue
+    }
+    if (ch === "\x7f" || ch === "\b") {
+      if (controller.terminalInput.buffer.length === 0) continue
+      controller.terminalInput.buffer = controller.terminalInput.buffer.slice(0, -1)
+      controller.terminal.write("\b \b")
+      continue
+    }
+    if (ch === "\t") {
+      appendModuleTerminalInputText(controller, "  ")
+      continue
+    }
+    const code = ch.codePointAt(0) ?? 0
+    if (code < 0x20 || code === 0x7f) continue
+    appendModuleTerminalInputText(controller, ch)
+  }
+}
+
+function appendModuleTerminalInputText(controller: ModuleDisplayController, text: string): void {
+  controller.terminalInput.buffer += text
+  controller.terminal.write(text)
+}
+
+function submitModuleTerminalExpression(controller: ModuleDisplayController): void {
+  const expr = controller.terminalInput.buffer.trim()
+  controller.terminalInput.buffer = ""
+  controller.terminal.write("\r\n")
+  controller.terminalInput.promptVisible = false
+  if (expr.length === 0) {
+    showModuleTerminalPrompt(controller)
+    return
+  }
+  void runModuleTerminalExpression(controller, expr)
+}
+
+async function runModuleTerminalExpression(controller: ModuleDisplayController, expr: string): Promise<void> {
+  if (!canAcceptTerminalInput(controller)) {
+    appendModuleTerminal(controller, {
+      ts: new Date().toISOString(),
+      level: "warn",
+      text: t("expressionUnavailable"),
+    })
+    syncModuleTerminalInput(controller)
+    return
+  }
+  controller.terminal.setInputEnabled(false)
+  const frame = controller.dump?.frames[controller.activeFrameIndex]
+  const response = await runModuleInterpreterCommand(controller, "eval", {
+    frame: frame?.index ?? controller.activeFrameIndex,
+    expr,
+  }, t("runExpression"))
+  if (response.ok) {
+    appendModuleTerminal(controller, {
+      ts: new Date().toISOString(),
+      level: "info",
+      text: `${ansiGreen("=>")} ${formatEvalResult(response.result)}`,
+    })
+  }
+  syncModuleTerminalInput(controller)
+}
+
+function formatEvalResult(result: unknown): string {
+  if (typeof result === "object" && result !== null) {
+    const object = result as Record<string, unknown>
+    const remote = object["result"]
+    if (typeof remote === "object" && remote !== null) return formatRemoteObject(remote as Record<string, unknown>)
+  }
+  return stringifyTerminalValue(result)
+}
+
+function formatRemoteObject(remote: Record<string, unknown>): string {
+  if (remote["wasThrown"] === true) return `thrown ${remoteDescription(remote)}`
+  const type = typeof remote["type"] === "string" ? remote["type"] : ""
+  if ("value" in remote) return stringifyTerminalValue(remote["value"])
+  if (typeof remote["unserializableValue"] === "string") return remote["unserializableValue"]
+  const description = remoteDescription(remote)
+  return type.length > 0 && description.length > 0 && description !== type ? `${type} ${description}` : description || type || stringifyTerminalValue(remote)
+}
+
+function remoteDescription(remote: Record<string, unknown>): string {
+  if (typeof remote["description"] === "string") return remote["description"]
+  if (typeof remote["className"] === "string") return remote["className"]
+  return ""
+}
+
+function stringifyTerminalValue(value: unknown): string {
+  if (typeof value === "string") return JSON.stringify(value)
+  if (value === undefined) return "undefined"
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
 }
 
 function formatTimestamp(ts: string): string {
@@ -969,6 +1124,10 @@ function ansiError(value: string): string {
 
 function ansiWarn(value: string): string {
   return `\x1b[33m${value}\x1b[0m`
+}
+
+function ansiGreen(value: string): string {
+  return `\x1b[32m${value}\x1b[0m`
 }
 
 async function refreshModuleBreakpoints(controller: ModuleDisplayController): Promise<void> {
