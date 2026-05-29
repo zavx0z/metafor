@@ -825,7 +825,7 @@ const TERMINAL_SCROLL_DEMO = Array.from({length: 72}, (_, i) => {
 const TERMINAL_INPUT_DEMO = [
   "\x1b[36mInput route\x1b[0m",
   "Click the terminal and type. Enter submits the local playground prompt.",
-  "Ctrl+C, arrows, paste, and regular text leave through onInput().",
+  "Ctrl+C leaves through onInput(); drag selection and Cmd+C copy terminal text.",
   "",
   "$ ",
 ].join("\r\n")

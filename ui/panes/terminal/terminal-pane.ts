@@ -8,6 +8,16 @@
 
 import {Color, TextMaterial} from "@metafor/engine"
 import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii, type DivScrollContext} from "@ui/elements"
+import {
+  copyTextSelectionOrFallback,
+  orderedTextSelection,
+  readClipboardText,
+  sameTextPosition,
+  textFromRange,
+  wordRangeAt,
+  type TextPosition,
+  type TextSelectionRange,
+} from "../text-clipboard.ts"
 
 export type TerminalSize = {
   cols: number
@@ -63,8 +73,8 @@ const DEFAULT_MIN_ROWS = 6
 const DEFAULT_MAX_SCROLLBACK = 5000
 const HEADER_H_PX = 36
 const PAD_X_PX = 16
-const BODY_PAD_X_PX = 12
-const BODY_PAD_Y_PX = 9
+const BODY_PAD_X_PX = 0
+const BODY_PAD_Y_PX = 0
 const BOTTOM_PAD_PX = 12
 const STATUS_DOT_PX = 7
 const SCROLLBAR_W_PX = 4
@@ -76,6 +86,7 @@ const HEADER_RULE = withAlpha(palette.borderDim, 0.82)
 const STATUS_FILL = withAlpha(palette.bgInput, 0.76)
 const STATUS_BORDER = withAlpha(palette.borderBright, 0.12)
 const CURSOR_FILL = withAlpha(palette.cyan, 0.74)
+const SELECTION_FILL = new Color(92 / 255, 155 / 255, 0.34)
 const DEFAULT_FG: TerminalColor = {kind: "default"}
 const DEFAULT_ATTR: TerminalAttr = {
   fg: DEFAULT_FG,
@@ -126,6 +137,11 @@ export class TerminalPane extends UiSurface {
   #cursorRow = 0
   #cursorCol = 0
   #savedCursor: {row: number; col: number} | null = null
+  #selectionAnchor: TextPosition | null = null
+  #selectionFocus: TextPosition | null = null
+  #dragSelecting = false
+  #dragAnchorLocalX = 0
+  #dragAnchorLocalY = 0
   #attr: TerminalAttr = cloneAttr(DEFAULT_ATTR)
   #parserMode: ParserMode = "text"
   #sequence = ""
@@ -172,6 +188,7 @@ export class TerminalPane extends UiSurface {
   write(data: string | Uint8Array): void {
     const text = typeof data === "string" ? data : this.#decoder.decode(data, {stream: true})
     if (text.length === 0) return
+    if (!this.#dragSelecting) this.#clearSelectionState()
     const wasAtBottom = this.#isAtBottom()
     this.#consume(text)
     if (wasAtBottom) this.#scrollToBottom()
@@ -187,6 +204,7 @@ export class TerminalPane extends UiSurface {
     this.#screen = Array.from({length: this.#rows}, () => this.#blankLine())
     this.#cursorRow = 0
     this.#cursorCol = 0
+    this.#clearSelectionState()
     divScrollTo(this, TERMINAL_SCROLL_KEY, {top: 0})
     this.requestRender()
   }
@@ -239,6 +257,37 @@ export class TerminalPane extends UiSurface {
     return {cols: this.#cols, rows: this.#rows}
   }
 
+  hasSelection(): boolean {
+    return this.#selectionRange() !== null
+  }
+
+  getSelectedText(): string {
+    return this.#selectedText() ?? ""
+  }
+
+  clearSelection(): void {
+    this.#clearSelectionState()
+    this.requestRender()
+  }
+
+  selectAll(): void {
+    const lines = this.#terminalTextLines()
+    const lastLine = lastNonEmptyLineIndex(lines)
+    this.#selectionAnchor = {line: 0, col: 0}
+    this.#selectionFocus = {line: lastLine, col: lines[lastLine]?.length ?? 0}
+    this.requestRender()
+  }
+
+  setSelection(anchorLine: number, anchorCol: number, focusLine: number, focusCol: number): void {
+    this.#selectionAnchor = this.#clampPosition({line: anchorLine, col: anchorCol})
+    this.#selectionFocus = this.#clampPosition({line: focusLine, col: focusCol})
+    this.requestRender()
+  }
+
+  async copySelectionToClipboard(): Promise<boolean> {
+    return await this.#copySelectionOrCurrentLine()
+  }
+
   toText(): string {
     return [...this.#scrollback, ...this.#screen]
       .map((line) => trimRightCells(line.map((cell) => cell.ch).join("")))
@@ -252,6 +301,48 @@ export class TerminalPane extends UiSurface {
     this.#syncGridToRect()
     this.#renderHeader()
     this.#renderBody()
+  }
+
+  #terminalTextLines(): string[] {
+    return [...this.#scrollback, ...this.#screen].map((line) => terminalLineText(line))
+  }
+
+  #lineTextAt(index: number): string {
+    return terminalLineText(this.#lineAt(index) ?? [])
+  }
+
+  #currentLineText(): string {
+    return terminalLineText(this.#screen[this.#cursorRow] ?? [])
+  }
+
+  #selectionRange(): TextSelectionRange | null {
+    return orderedTextSelection(this.#selectionAnchor, this.#selectionFocus)
+  }
+
+  #selectedText(): string | null {
+    return textFromRange(this.#terminalTextLines(), this.#selectionRange())
+  }
+
+  #clearSelectionState(): void {
+    this.#selectionAnchor = null
+    this.#selectionFocus = null
+    this.#dragSelecting = false
+  }
+
+  #clampPosition(pos: TextPosition): TextPosition {
+    const lines = this.#terminalTextLines()
+    const line = clampInt(pos.line, 0, Math.max(0, lines.length - 1))
+    const col = clampInt(pos.col, 0, lines[line]?.length ?? 0)
+    return {line, col}
+  }
+
+  async #copySelectionOrCurrentLine(): Promise<boolean> {
+    return await copyTextSelectionOrFallback({
+      lines: this.#terminalTextLines(),
+      anchor: this.#selectionAnchor,
+      focus: this.#selectionFocus,
+      fallbackText: this.#currentLineText(),
+    })
   }
 
   #renderHeader(): void {
@@ -312,12 +403,12 @@ export class TerminalPane extends UiSurface {
       const line = this.#lineAt(idx)
       if (line === undefined) continue
       const rowY = y + idx * this.#linePx - ctx.scrollTop
-      this.#renderLine(line, x, rowY)
+      this.#renderLine(idx, line, x, rowY)
       if (idx === cursorGlobalRow) this.#renderCursor(x, rowY)
     }
   }
 
-  #renderLine(line: TerminalCell[], x: number, y: number): void {
+  #renderLine(lineIndex: number, line: TerminalCell[], x: number, y: number): void {
     const charW = this.#getCharWidth()
     let col = 0
     while (col < this.#cols) {
@@ -328,6 +419,8 @@ export class TerminalPane extends UiSurface {
         this.drawRect(x + start * charW, y + 1, (col - start) * charW, this.#linePx, colorToColor(bg), Z.ELEMENT)
       }
     }
+
+    this.#renderSelectionForLine(lineIndex, x, y)
 
     col = 0
     while (col < this.#cols) {
@@ -354,6 +447,26 @@ export class TerminalPane extends UiSurface {
         fit: false,
       })
     }
+  }
+
+  #renderSelectionForLine(lineIndex: number, x: number, y: number): void {
+    const range = this.#selectionRange()
+    if (range === null || lineIndex < range.start.line || lineIndex > range.end.line) return
+    const lineText = this.#lineTextAt(lineIndex)
+    const startCol = lineIndex === range.start.line ? range.start.col : 0
+    const endCol = lineIndex === range.end.line ? range.end.col : lineText.length
+    const charW = this.#getCharWidth()
+    let x1 = x + startCol * charW
+    let x2 = x + endCol * charW
+    if (lineIndex < range.end.line && endCol === lineText.length) x2 += Math.max(5, charW * 0.65)
+    if (lineText.length === 0 && lineIndex > range.start.line && lineIndex < range.end.line) x2 = x1 + Math.max(5, charW * 0.65)
+    const w = x2 - x1
+    if (w <= 0) return
+    this.drawRoundedRect(x1, y + 1, w, Math.max(1, this.#linePx), {
+      radius: 3,
+      fill: SELECTION_FILL,
+      z: Z.ELEMENT_RULE - 0.001,
+    })
   }
 
   #renderCursor(x: number, y: number): void {
@@ -405,7 +518,12 @@ export class TerminalPane extends UiSurface {
     const key = event.key.toLowerCase()
     if (metaOnly && key === "c") {
       event.preventDefault()
-      void navigator.clipboard.writeText(this.toText())
+      void this.#copySelectionOrCurrentLine()
+      return
+    }
+    if (metaOnly && key === "a") {
+      event.preventDefault()
+      this.selectAll()
       return
     }
 
@@ -414,8 +532,8 @@ export class TerminalPane extends UiSurface {
     if (metaOnly) {
       if (key === "v") {
         event.preventDefault()
-        void navigator.clipboard.readText().then((text) => {
-          if (text.length > 0) this.#emitInput(text, "paste")
+        void readClipboardText().then((text) => {
+          if (text !== null && text.length > 0) this.#emitInput(text, "paste")
         })
         return
       }
@@ -431,6 +549,82 @@ export class TerminalPane extends UiSurface {
     if (data === null) return
     event.preventDefault()
     this.#emitInput(data, "keyboard")
+  }
+
+  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    super.onPointerDown(event, localX, localY)
+    if (this.pressedHit !== null) return
+    if (isSecondaryPointer(event)) return
+    const pos = this.#positionFromLocal(localX, localY)
+    if (pos === null) return
+    if (event.detail >= 2 && !event.shiftKey) {
+      this.#selectWordAt(pos)
+      return
+    }
+    this.#dragSelecting = true
+    this.#dragAnchorLocalX = localX
+    this.#dragAnchorLocalY = localY
+    if (event.shiftKey && this.#selectionAnchor !== null) {
+      this.#selectionFocus = pos
+    } else {
+      this.#selectionAnchor = pos
+      this.#selectionFocus = pos
+    }
+    this.requestRender()
+  }
+
+  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+    super.onPointerMove(event, localX, localY)
+    if (!this.#dragSelecting) return
+    this.#updateDragSelection(localX, localY)
+  }
+
+  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+    super.onPointerUp(event, localX, localY)
+    if (this.#dragSelecting) this.#updateDragSelection(localX, localY)
+    this.#dragSelecting = false
+    if (this.#selectionRange() === null) this.#clearSelectionState()
+    this.requestRender()
+  }
+
+  #updateDragSelection(localX: number, localY: number): void {
+    const dragDistance = Math.abs(localX - this.#dragAnchorLocalX) + Math.abs(localY - this.#dragAnchorLocalY)
+    if (dragDistance < 0.5) return
+    const anchor = this.#positionFromLocal(this.#dragAnchorLocalX, this.#dragAnchorLocalY, localX >= this.#dragAnchorLocalX ? "floor" : "ceil")
+    const focus = this.#positionFromLocal(localX, localY)
+    if (anchor === null || focus === null) return
+    const nextAnchor = this.#selectionAnchor !== null ? this.#selectionAnchor : anchor
+    if (sameTextPosition(this.#selectionAnchor, nextAnchor) && sameTextPosition(this.#selectionFocus, focus)) return
+    this.#selectionAnchor = nextAnchor
+    this.#selectionFocus = focus
+    this.requestRender()
+  }
+
+  #positionFromLocal(localX: number, localY: number, bias: "nearest" | "floor" | "ceil" = "nearest"): TextPosition | null {
+    const body = this.#bodyRect()
+    if (localY < body.y || localY > body.y + body.h) return null
+    const lines = this.#terminalTextLines()
+    if (lines.length === 0) return null
+    const scrollTop = divScrollPosition(this, TERMINAL_SCROLL_KEY).top
+    const row = clampInt(Math.floor((localY - body.y - BODY_PAD_Y_PX + scrollTop) / this.#linePx), 0, lines.length - 1)
+    const charW = this.#getCharWidth()
+    const rawCol = (localX - body.x - BODY_PAD_X_PX) / charW
+    const col = bias === "floor" ? Math.floor(rawCol) : bias === "ceil" ? Math.ceil(rawCol) : Math.round(rawCol)
+    return this.#clampPosition({line: row, col})
+  }
+
+  #selectWordAt(pos: TextPosition): void {
+    const lineText = this.#lineTextAt(pos.line)
+    const word = wordRangeAt(lineText, pos.col)
+    if (word === null) {
+      this.#selectionAnchor = pos
+      this.#selectionFocus = pos
+      this.requestRender()
+      return
+    }
+    this.#selectionAnchor = {line: pos.line, col: word.start}
+    this.#selectionFocus = {line: pos.line, col: word.end}
+    this.requestRender()
   }
 
   onActivate(): void {
@@ -955,10 +1149,25 @@ function cloneColor(color: TerminalColor): TerminalColor {
   return {kind: "rgb", r: color.r, g: color.g, b: color.b}
 }
 
+function terminalLineText(line: readonly TerminalCell[]): string {
+  return trimRightCells(line.map((cell) => cell.ch).join(""))
+}
+
+function lastNonEmptyLineIndex(lines: readonly string[]): number {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if ((lines[i] ?? "").length > 0) return i
+  }
+  return 0
+}
+
 function statusColor(kind: TerminalStatusKind): Color {
   if (kind === "connected" || kind === "running") return palette.green
   if (kind === "error" || kind === "disconnected") return palette.red
   return palette.orange
+}
+
+function isSecondaryPointer(event: MouseEvent): boolean {
+  return event.button === 2 || event.ctrlKey
 }
 
 function withAlpha(color: Color, alpha: number): Color {

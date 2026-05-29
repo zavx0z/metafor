@@ -27,6 +27,19 @@ import {
   type EditorTokenMaterialMap,
 } from "./token-renderer.ts"
 import type {EditorToken, EditorTokens, EditorTokenize, LanguageHighlighter} from "./tokens.ts"
+import {
+  compareTextPosition,
+  copySelectedText,
+  copyTextSelectionOrFallback,
+  orderedTextSelection,
+  readClipboardText,
+  sameTextPosition,
+  textFromRange,
+  writeClipboardText,
+  wordRangeAt,
+  type TextPosition,
+  type TextSelectionRange,
+} from "../text-clipboard.ts"
 
 export type EditorBreakpoint = {
   /** 1-based source line. */
@@ -110,8 +123,8 @@ const SELECTION_MENU_BORDER = new Color(111 / 255, 211 / 255, 255 / 255, 0.32)
 const SELECTION_MENU_Z = Z.ELEMENT_RULE + 0.005
 const EDITOR_SCROLL_KEY = "editor-pane:scroll"
 
-type CursorPos = {line: number; col: number}
-type SelectionRange = {start: CursorPos; end: CursorPos}
+type CursorPos = TextPosition
+type SelectionRange = TextSelectionRange
 type Snapshot = {lines: string[]; cline: number; ccol: number; selectionAnchor: CursorPos | null; selectionFocus: CursorPos | null}
 type ColumnHitBias = "nearest" | "floor" | "ceil"
 type LineWidthCache = {scale: number; widths: number[]}
@@ -488,13 +501,11 @@ export class EditorPane extends UiSurface {
   }
 
   #comparePosition(a: CursorPos, b: CursorPos): number {
-    if (a.line !== b.line) return a.line - b.line
-    return a.col - b.col
+    return compareTextPosition(a, b)
   }
 
   #samePosition(a: CursorPos | null, b: CursorPos | null): boolean {
-    if (a === null || b === null) return a === b
-    return a.line === b.line && a.col === b.col
+    return sameTextPosition(a, b)
   }
 
   #clearSelectionState(): void {
@@ -521,28 +532,11 @@ export class EditorPane extends UiSurface {
   }
 
   #selectionRange(): SelectionRange | null {
-    if (this.#selectionAnchor === null || this.#selectionFocus === null) return null
-    if (this.#comparePosition(this.#selectionAnchor, this.#selectionFocus) === 0) return null
-    if (this.#comparePosition(this.#selectionAnchor, this.#selectionFocus) < 0) {
-      return {start: this.#selectionAnchor, end: this.#selectionFocus}
-    }
-    return {start: this.#selectionFocus, end: this.#selectionAnchor}
+    return orderedTextSelection(this.#selectionAnchor, this.#selectionFocus)
   }
 
   #selectedText(): string | null {
-    const range = this.#selectionRange()
-    if (range === null) return null
-    const {start, end} = range
-    if (start.line === end.line) {
-      return (this.#lines[start.line] ?? "").slice(start.col, end.col)
-    }
-    const parts: string[] = []
-    parts.push((this.#lines[start.line] ?? "").slice(start.col))
-    for (let line = start.line + 1; line < end.line; line++) {
-      parts.push(this.#lines[line] ?? "")
-    }
-    parts.push((this.#lines[end.line] ?? "").slice(0, end.col))
-    return parts.join("\n")
+    return textFromRange(this.#lines, this.#selectionRange())
   }
 
   #setCursorPosition(pos: CursorPos, opts: {extendSelection: boolean}): void {
@@ -727,77 +721,60 @@ export class EditorPane extends UiSurface {
   // ────────── clipboard ──────────
 
   async #paste(): Promise<void> {
-    try {
-      const text = await navigator.clipboard.readText()
-      if (text.length === 0) return
-      this.#insertText(text)
-    } catch (err) {
-      console.warn("clipboard paste failed:", err)
-    }
+    const text = await readClipboardText()
+    if (text === null || text.length === 0) return
+    this.#insertText(text)
   }
 
   async #copySelectionOrCurrentLine(): Promise<boolean> {
-    try {
-      await navigator.clipboard.writeText(this.#selectedText() ?? (this.#lines[this.#cline] ?? ""))
-      return true
-    } catch (err) {
-      console.warn("clipboard copy failed:", err)
-      return false
-    }
+    return await copyTextSelectionOrFallback({
+      lines: this.#lines,
+      anchor: this.#selectionAnchor,
+      focus: this.#selectionFocus,
+      fallbackText: this.#lines[this.#cline] ?? "",
+    })
   }
 
   async #cutSelectionOrCurrentLine(): Promise<boolean> {
     if (this.#readOnly) return this.#copySelectionOrCurrentLine()
-    try {
-      const selected = this.#selectedText()
-      if (selected !== null) {
-        await navigator.clipboard.writeText(selected)
-        this.#deleteSelection()
+    const selected = this.#selectedText()
+    const text = selected ?? `${this.#lines[this.#cline] ?? ""}\n`
+    const copied = await writeClipboardText(text, "clipboard cut")
+    if (!copied) return false
+    if (selected !== null) {
+      this.#deleteSelection()
+    } else {
+      this.#pushHistory()
+      if (this.#lines.length === 1) {
+        this.#lines[0] = ""
+        this.#ccol = 0
       } else {
-        await navigator.clipboard.writeText((this.#lines[this.#cline] ?? "") + "\n")
-        this.#pushHistory()
-        if (this.#lines.length === 1) {
-          this.#lines[0] = ""
-          this.#ccol = 0
-        } else {
-          this.#lines.splice(this.#cline, 1)
-          if (this.#cline >= this.#lines.length) this.#cline = this.#lines.length - 1
-          this.#ccol = Math.min(this.#ccol, this.#lines[this.#cline]!.length)
-        }
-        this.#clearSelectionState()
-        this.#afterEdit()
+        this.#lines.splice(this.#cline, 1)
+        if (this.#cline >= this.#lines.length) this.#cline = this.#lines.length - 1
+        this.#ccol = Math.min(this.#ccol, this.#lines[this.#cline]!.length)
       }
-      return true
-    } catch (err) {
-      console.warn("clipboard cut failed:", err)
-      return false
+      this.#clearSelectionState()
+      this.#afterEdit()
     }
+    return true
   }
 
   async #copySelectedTextToClipboard(): Promise<boolean> {
-    try {
-      const selected = this.#selectedText()
-      if (selected === null) return false
-      await navigator.clipboard.writeText(selected)
-      return true
-    } catch (err) {
-      console.warn("clipboard copy failed:", err)
-      return false
-    }
+    return await copySelectedText({
+      lines: this.#lines,
+      anchor: this.#selectionAnchor,
+      focus: this.#selectionFocus,
+    })
   }
 
   async #cutSelectedTextToClipboard(): Promise<boolean> {
     if (this.#readOnly) return this.#copySelectedTextToClipboard()
-    try {
-      const selected = this.#selectedText()
-      if (selected === null) return false
-      await navigator.clipboard.writeText(selected)
-      this.#deleteSelection()
-      return true
-    } catch (err) {
-      console.warn("clipboard cut failed:", err)
-      return false
-    }
+    const selected = this.#selectedText()
+    if (selected === null) return false
+    const copied = await writeClipboardText(selected, "clipboard cut")
+    if (!copied) return false
+    this.#deleteSelection()
+    return true
   }
 
   // ────────── word jump ──────────
@@ -862,19 +839,12 @@ export class EditorPane extends UiSurface {
   #selectWordAt(pos: CursorPos): void {
     const next = this.#clampPosition(pos)
     const line = this.#lines[next.line] ?? ""
-    let index = next.col
-    if (index >= line.length && line.length > 0) index = line.length - 1
-    if (!isEditorWordChar(line[index] ?? "") && index > 0 && isEditorWordChar(line[index - 1]!)) index--
-    if (!isEditorWordChar(line[index] ?? "")) {
+    const word = wordRangeAt(line, next.col, isEditorWordChar)
+    if (word === null) {
       this.#setCursorPosition(next, {extendSelection: false})
       return
     }
-
-    let start = index
-    let end = index + 1
-    while (start > 0 && isEditorWordChar(line[start - 1]!)) start--
-    while (end < line.length && isEditorWordChar(line[end]!)) end++
-    this.#applyDragSelection({line: next.line, col: start}, {line: next.line, col: end})
+    this.#applyDragSelection({line: next.line, col: word.start}, {line: next.line, col: word.end})
   }
 
   override onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
