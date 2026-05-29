@@ -32,6 +32,7 @@ import {
   sameSourceUrl,
 } from "./breakpoint-matching.ts"
 import {interactiveRestartPayload} from "./restart.ts"
+import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -1054,47 +1055,21 @@ async function runModuleTerminalExpression(controller: ModuleDisplayController, 
     expr,
   }, t("runExpression"))
   if (response.ok) {
+    const resultText = await formatTerminalExpressionResult(response.result, async (objectId) => {
+      const props = await runModuleInterpreterCommand(controller, "props", {
+        objectId,
+        ownProperties: true,
+      }, t("runExpression"))
+      if (!props.ok) throw new Error(props.error ?? "props failed")
+      return props.result
+    })
     appendModuleTerminal(controller, {
       ts: new Date().toISOString(),
       level: "info",
-      text: `${ansiGreen("=>")} ${formatEvalResult(response.result)}`,
+      text: `${ansiGreen("=>")} ${resultText}`,
     })
   }
   syncModuleTerminalInput(controller)
-}
-
-function formatEvalResult(result: unknown): string {
-  if (typeof result === "object" && result !== null) {
-    const object = result as Record<string, unknown>
-    const remote = object["result"]
-    if (typeof remote === "object" && remote !== null) return formatRemoteObject(remote as Record<string, unknown>)
-  }
-  return stringifyTerminalValue(result)
-}
-
-function formatRemoteObject(remote: Record<string, unknown>): string {
-  if (remote["wasThrown"] === true) return `thrown ${remoteDescription(remote)}`
-  const type = typeof remote["type"] === "string" ? remote["type"] : ""
-  if ("value" in remote) return stringifyTerminalValue(remote["value"])
-  if (typeof remote["unserializableValue"] === "string") return remote["unserializableValue"]
-  const description = remoteDescription(remote)
-  return type.length > 0 && description.length > 0 && description !== type ? `${type} ${description}` : description || type || stringifyTerminalValue(remote)
-}
-
-function remoteDescription(remote: Record<string, unknown>): string {
-  if (typeof remote["description"] === "string") return remote["description"]
-  if (typeof remote["className"] === "string") return remote["className"]
-  return ""
-}
-
-function stringifyTerminalValue(value: unknown): string {
-  if (typeof value === "string") return JSON.stringify(value)
-  if (value === undefined) return "undefined"
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
 }
 
 function formatTimestamp(ts: string): string {
