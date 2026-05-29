@@ -71,9 +71,11 @@ const SCROLLBAR_W_PX = 4
 const CARET_BLINK_MS = 530
 const AUTOSCROLL_TOLERANCE_PX = 20
 const TERMINAL_SCROLL_KEY = "terminal-pane:scroll"
-const TERMINAL_BG = new Color("#191a1c")
-const HEADER_RULE = new Color(111 / 255, 211 / 255, 255 / 255, 0.14)
-const CURSOR_FILL = new Color(206 / 255, 208 / 255, 214 / 255, 0.72)
+const TERMINAL_BG = palette.bgCode
+const HEADER_RULE = withAlpha(palette.borderDim, 0.82)
+const STATUS_FILL = withAlpha(palette.bgInput, 0.76)
+const STATUS_BORDER = withAlpha(palette.borderBright, 0.12)
+const CURSOR_FILL = withAlpha(palette.cyan, 0.74)
 const DEFAULT_FG: TerminalColor = {kind: "default"}
 const DEFAULT_ATTR: TerminalAttr = {
   fg: DEFAULT_FG,
@@ -82,23 +84,23 @@ const DEFAULT_ATTR: TerminalAttr = {
   inverse: false,
 }
 
-const ANSI_HEX = [
-  "#191a1c",
-  "#f75464",
-  "#6aab73",
-  "#e0bb65",
-  "#56a8f5",
-  "#c77dbb",
-  "#2aacb8",
-  "#bcbec4",
-  "#6f737a",
-  "#fa6675",
-  "#73bd79",
-  "#f2c55c",
-  "#70aeff",
-  "#cf84cf",
-  "#42c3d4",
-  "#ced0d6",
+const ANSI_COLORS = [
+  palette.bgInput,
+  palette.red,
+  palette.green,
+  palette.orange,
+  palette.blue,
+  palette.violet,
+  palette.cyan,
+  palette.text,
+  palette.muted,
+  mixColor(palette.red, palette.text, 0.20),
+  mixColor(palette.green, palette.text, 0.18),
+  mixColor(palette.orange, palette.text, 0.18),
+  mixColor(palette.blue, palette.text, 0.20),
+  mixColor(palette.violet, palette.text, 0.18),
+  mixColor(palette.cyan, palette.text, 0.16),
+  new Color(1, 1, 1, 1),
 ] as const
 
 export class TerminalPane extends UiSurface {
@@ -265,8 +267,8 @@ export class TerminalPane extends UiSurface {
     const dot = statusColor(this.#statusKind)
     this.drawRoundedRect(statusX, headerY + 8, statusW, 22, {
       radius: 999,
-      fill: new Color(10 / 255, 14 / 255, 21 / 255, 0.76),
-      border: new Color(214 / 255, 231 / 255, 255 / 255, 0.12),
+      fill: STATUS_FILL,
+      border: STATUS_BORDER,
       borderWidth: 1,
       z: Z.ELEMENT,
     })
@@ -928,7 +930,7 @@ function sameColor(a: TerminalColor | null, b: TerminalColor | null): boolean {
 
 function colorToColor(color: TerminalColor): Color {
   if (color.kind === "default") return palette.text
-  if (color.kind === "ansi") return new Color(ANSI_HEX[clampInt(color.index, 0, ANSI_HEX.length - 1)])
+  if (color.kind === "ansi") return ANSI_COLORS[clampInt(color.index, 0, ANSI_COLORS.length - 1)] ?? palette.text
   return new Color(color.r, color.g, color.b, 1)
 }
 
@@ -957,6 +959,20 @@ function statusColor(kind: TerminalStatusKind): Color {
   if (kind === "connected" || kind === "running") return palette.green
   if (kind === "error" || kind === "disconnected") return palette.red
   return palette.orange
+}
+
+function withAlpha(color: Color, alpha: number): Color {
+  return new Color(color.r, color.g, color.b, alpha)
+}
+
+function mixColor(a: Color, b: Color, t: number): Color {
+  const k = Math.min(1, Math.max(0, t))
+  return new Color(
+    a.r + (b.r - a.r) * k,
+    a.g + (b.g - a.g) * k,
+    a.b + (b.b - a.b) * k,
+    a.a + (b.a - a.a) * k,
+  )
 }
 
 function trimRightCells(value: string): string {
