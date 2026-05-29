@@ -26,6 +26,32 @@ describe("TerminalPane selection", () => {
   })
 })
 
+describe("TerminalPane focus", () => {
+  test("focuses its runtime input proxy on terminal body click", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
+    let focusedSurface: unknown = null
+    let inputFocused = false
+    try {
+      terminal.attachCanvas({
+        setFocused: (surface: unknown) => {
+          focusedSurface = surface
+        },
+        inputProxy: {
+          focus: () => {
+            inputFocused = true
+          },
+        },
+        requestRender: () => {},
+      } as never)
+      terminal.onPointerDown({shiftKey: false, detail: 1} as MouseEvent, 2, 40)
+      expect(focusedSurface).toBe(terminal)
+      expect(inputFocused).toBe(true)
+    } finally {
+      terminal.dispose()
+    }
+  })
+})
+
 describe("LogViewerPane", () => {
   test("reuses terminal output rendering without accepting input", () => {
     const logViewer = new LogViewerPane({cols: 32, rows: 4, fitToRect: false})

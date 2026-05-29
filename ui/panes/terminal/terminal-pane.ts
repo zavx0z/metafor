@@ -620,6 +620,7 @@ class TerminalOutputPane extends UiSurface {
   }
 
   override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    this.focus()
     super.onPointerDown(event, localX, localY)
     if (this.pressedHit !== null) return
     if (isSecondaryPointer(event)) return
