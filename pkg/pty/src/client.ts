@@ -7,9 +7,11 @@ const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | nu
 if (canvas === null) throw new Error("stage-canvas not found")
 
 const ui = await UiRuntime.create(canvas)
+const SESSION_STORAGE_KEY = "metafor.pty.sessionId"
 let socket: WebSocket | null = null
 let terminalSize: TerminalSize | null = null
 let connectionState: PtyStatusKind = "idle"
+let sessionId = readStoredSessionId()
 let dock: PtyDockPane
 
 const terminal = new TerminalPane({
@@ -41,7 +43,7 @@ function connect(userInitiated: boolean): void {
   terminal.setInputEnabled(false)
   dock.setBusy(true)
 
-  const nextSocket = new WebSocket(websocketURL())
+  const nextSocket = new WebSocket(websocketURL({replay: !userInitiated}))
   socket = nextSocket
 
   nextSocket.addEventListener("open", () => {
@@ -76,9 +78,12 @@ function connect(userInitiated: boolean): void {
   })
 }
 
-function websocketURL(): string {
+function websocketURL(opts: {replay: boolean}): string {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:"
-  return `${protocol}//${location.host}/terminal`
+  const url = new URL(`${protocol}//${location.host}/terminal`)
+  url.searchParams.set("replay", opts.replay ? "1" : "0")
+  if (sessionId !== null) url.searchParams.set("session", sessionId)
+  return url.toString()
 }
 
 function sendInput(data: string, source: TerminalInputSource): void {
@@ -101,6 +106,8 @@ function handleServerMessage(event: MessageEvent<string>): void {
   }
 
   if (message.type === "terminal.ready") {
+    sessionId = message.sessionId
+    writeStoredSessionId(sessionId)
     setTerminalStatus("connected", shellLabel(message.shell))
     if (terminalSize !== null) send({type: "terminal.resize", size: terminalSize})
     return
@@ -150,6 +157,32 @@ function statusKindForPane(kind: PtyStatusKind): TerminalStatusKind {
 function shellLabel(shell: string): string {
   const parts = shell.split("/")
   return parts[parts.length - 1] || shell
+}
+
+function readStoredSessionId(): string | null {
+  try {
+    const value = localStorage.getItem(SESSION_STORAGE_KEY)
+    return value === null || value.length < 8 ? null : value
+  } catch {
+    return null
+  }
+}
+
+function writeStoredSessionId(value: string): void {
+  try {
+    localStorage.setItem(SESSION_STORAGE_KEY, value)
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function forgetStoredSessionId(): void {
+  sessionId = null
+  try {
+    localStorage.removeItem(SESSION_STORAGE_KEY)
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
 }
 
 function terminalRect(w: number, h: number): {x: number; y: number; w: number; h: number} {
@@ -280,6 +313,7 @@ dock = new PtyDockPane({
   onReconnect: () => connect(true),
   onClear: () => {
     terminal.clear()
+    send({type: "terminal.clear"})
     terminal.focus()
   },
   onFocus: () => terminal.focus(),
@@ -301,6 +335,7 @@ declare global {
     __metaforPty?: {
       terminal: TerminalPane
       reconnect: () => void
+      newSession: () => void
       clear: () => void
       size: () => PtyTerminalSize | null
     }
@@ -310,6 +345,14 @@ declare global {
 window.__metaforPty = {
   terminal,
   reconnect: () => connect(true),
-  clear: () => terminal.clear(),
+  newSession: () => {
+    forgetStoredSessionId()
+    terminal.clear()
+    connect(false)
+  },
+  clear: () => {
+    terminal.clear()
+    send({type: "terminal.clear"})
+  },
   size: () => terminalSize,
 }

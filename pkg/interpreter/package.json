@@ -14,6 +14,7 @@
     "metafor-interpreter": "./interpreter.ts"
   },
   "dependencies": {
+    "@metafor/pty": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",
     "@ui/panes": "workspace:*",

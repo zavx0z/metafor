@@ -32,6 +32,7 @@ import {asNumber, asObject, asString} from "./guards.ts"
 import type {EventLogger} from "./logger.ts"
 import type {JsonObject} from "./types.ts"
 import {sourceMapMapper} from "./source-map.ts"
+import {createPtySessionManager, parsePtyClientMessage, type PtySocketData, type TerminalSession} from "@metafor/pty/server"
 import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} from "./module.ts"
 
 export type HttpServerOptions = {
@@ -45,9 +46,17 @@ export type HttpServerOptions = {
 
 export type HttpServer = ReturnType<typeof Bun.serve>
 
-type WsClientData = {
+type UiWsClientData = {
+  kind: "ui"
   id: number
 }
+
+type TerminalWsClientData = PtySocketData & {
+  kind: "terminal"
+  id: number
+}
+
+type WsClientData = UiWsClientData | TerminalWsClientData
 
 const NDJSON_TAIL_DEFAULT_LIMIT = 200
 const NDJSON_TAIL_MAX_LIMIT = 5_000
@@ -55,7 +64,9 @@ const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "S
 
 export function startHttpServer(options: HttpServerOptions): HttpServer {
   const wsClients = new Set<ServerWebSocket<WsClientData>>()
+  const terminalSessions = createPtySessionManager()
   let nextWsClientId = 1
+  let nextTerminalClientId = 1
 
   if (!isLoopbackHost(options.host)) {
     const warning = "/modules/run can execute local commands; bind the interpreter to loopback unless this is intentional"
@@ -131,6 +142,21 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
   const websocket: WebSocketHandler<WsClientData> = {
     open(ws): void {
+      if (ws.data.kind === "terminal") {
+        options.logger.event("terminal.client.opened", {id: ws.data.id})
+        try {
+          const session = terminalSessions.attach(ws as ServerWebSocket<TerminalWsClientData>)
+          options.logger.event("terminal.session.attached", {clientId: ws.data.id, sessionId: session.id})
+        } catch (error) {
+          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({
+            type: "terminal.error",
+            message: error instanceof Error ? error.message : "shell failed",
+          }))
+          ws.close(1011, "shell failed")
+        }
+        return
+      }
+
       wsClients.add(ws)
       options.logger.event("ws.client.opened", {id: ws.data.id, total: wsClients.size})
       const hello: JsonObject = {
@@ -140,6 +166,22 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       ws.send(JSON.stringify(hello))
     },
     async message(ws, raw): Promise<void> {
+      if (ws.data.kind === "terminal") {
+        const payload = parsePtyClientMessage(raw)
+        const session = ws.data.session
+        if (payload === null || session === undefined) return
+        if (payload.type === "input.write") {
+          session.write(payload.data)
+          return
+        }
+        if (payload.type === "terminal.clear") {
+          session.clearScrollback()
+          return
+        }
+        session.resize(payload.size)
+        return
+      }
+
       let parsed: unknown
       const text = typeof raw === "string" ? raw : new TextDecoder().decode(raw)
       try {
@@ -186,6 +228,13 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       }
     },
     close(ws): void {
+      if (ws.data.kind === "terminal") {
+        ws.data.session?.detach(ws as ServerWebSocket<TerminalWsClientData>)
+        delete ws.data.session
+        options.logger.event("terminal.client.closed", {id: ws.data.id})
+        return
+      }
+
       wsClients.delete(ws)
       options.logger.event("ws.client.closed", {id: ws.data.id, total: wsClients.size})
     },
@@ -207,7 +256,22 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
       if (path === "/ws") {
         const id = nextWsClientId++
-        const data: WsClientData = {id}
+        const data: WsClientData = {kind: "ui", id}
+        const upgraded = server.upgrade(req, {data})
+        if (upgraded) return undefined
+        return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
+      }
+      if (path === "/terminal") {
+        if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
+        const id = nextTerminalClientId++
+        const requestedSession = url.searchParams.get("session")
+        const data: TerminalWsClientData = {
+          kind: "terminal",
+          id,
+          connectedAt: Date.now(),
+          replay: url.searchParams.get("replay") !== "0",
+          ...(requestedSession === null ? {} : {sessionId: requestedSession}),
+        }
         const upgraded = server.upgrade(req, {data})
         if (upgraded) return undefined
         return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
@@ -310,7 +374,18 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
     {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
     {method: "GET", path: "/workspace/files?q=<text>&limit=<n>", description: "workspace entrypoints for module selection"},
+    {method: "WS", path: "/terminal", description: "host PTY terminal stream"},
   ]
+}
+
+function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
+  const origin = req.headers.get("origin")
+  if (!origin) return true
+  try {
+    return new URL(origin).host === url.host
+  } catch {
+    return false
+  }
 }
 
 const WORKSPACE_FILE_EXTENSIONS = new Set([

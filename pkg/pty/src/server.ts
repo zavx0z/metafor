@@ -2,38 +2,133 @@ import {basename, join} from "node:path"
 import type {ServerWebSocket, Subprocess} from "bun"
 import type {PtyClientMessage, PtyServerMessage, PtyTerminalSize} from "./protocol.ts"
 
-type SocketData = {
+export type {PtyClientMessage, PtyInputSource, PtyServerMessage, PtyStatusKind, PtyTerminalSize} from "./protocol.ts"
+
+export type PtySocketData = {
   session?: TerminalSession
+  sessionId?: string
+  replay: boolean
   connectedAt: number
 }
 
-const DEFAULT_SIZE: PtyTerminalSize = {cols: 80, rows: 24}
-const MAX_COLS = 300
-const MAX_ROWS = 120
+export type PtyServerOptions = {
+  hostname?: string
+  port?: number
+  shell?: string
+  cwd?: string
+  defaultSize?: PtyTerminalSize
+  maxCols?: number
+  maxRows?: number
+  maxSessions?: number
+  sessionTtlMs?: number
+  scrollbackBytes?: number
+  entryPath?: string
+  stylePath?: string
+  indexPath?: string
+  fontPath?: string
+}
 
-const hostname = process.env.HOST ?? "127.0.0.1"
-const port = Number(process.env.PORT ?? "3002")
-const shell = process.env.SHELL ?? "/bin/zsh"
-const ENTRY_PATH = join(import.meta.dir, "client.ts")
-const STYLE_PATH = join(import.meta.dir, "styles.css")
-const INDEX_PATH = join(import.meta.dir, "index.html")
-const FONT_PATH = join(import.meta.dir, "../../../ui/panes/playground/JetBrainsMono-Bold.ttf")
+export type PtySessionInfo = {
+  id: string
+  shell: string
+  cwd: string
+  size: PtyTerminalSize
+  clients: number
+  createdAt: number
+  updatedAt: number
+  detachedAt: number | null
+  exited: boolean
+  scrollbackBytes: number
+}
+
+type PtyRuntimeOptions = Required<PtyServerOptions>
+
+const DEFAULT_SIZE: PtyTerminalSize = {cols: 80, rows: 24}
+const DEFAULT_MAX_COLS = 300
+const DEFAULT_MAX_ROWS = 120
+const DEFAULT_MAX_SESSIONS = 8
+const DEFAULT_SESSION_TTL_MS = 30 * 60_000
+const DEFAULT_SCROLLBACK_BYTES = 2 * 1024 * 1024
 
 let buildAssets = new Map<string, Blob>()
 
-class TerminalSession {
+export class PtySessionManager {
+  readonly #sessions = new Map<string, TerminalSession>()
+  readonly #options: PtyRuntimeOptions
+
+  constructor(options: PtyRuntimeOptions) {
+    this.#options = options
+  }
+
+  attach(ws: ServerWebSocket<PtySocketData>): TerminalSession {
+    const requestedId = normalizeSessionId(ws.data.sessionId)
+    const existing = requestedId === null ? undefined : this.#sessions.get(requestedId)
+    if (existing !== undefined && !existing.exited) {
+      existing.attach(ws, ws.data.replay)
+      return existing
+    }
+
+    this.#evictDetachedIfNeeded()
+    const session = new TerminalSession(this.#options, (id) => this.#sessions.delete(id))
+    this.#sessions.set(session.id, session)
+    session.attach(ws, false)
+    return session
+  }
+
+  list(): PtySessionInfo[] {
+    return [...this.#sessions.values()].map((session) => session.info())
+  }
+
+  close(id: string): boolean {
+    const session = this.#sessions.get(id)
+    if (session === undefined) return false
+    session.close()
+    this.#sessions.delete(id)
+    return true
+  }
+
+  #evictDetachedIfNeeded(): void {
+    if (this.#sessions.size < this.#options.maxSessions) return
+    const candidates = [...this.#sessions.values()]
+      .filter((session) => session.clientCount === 0)
+      .sort((a, b) => (a.detachedAt ?? a.updatedAt) - (b.detachedAt ?? b.updatedAt))
+
+    for (const session of candidates) {
+      if (this.#sessions.size < this.#options.maxSessions) return
+      session.close()
+      this.#sessions.delete(session.id)
+    }
+  }
+}
+
+export function createPtySessionManager(options: PtyServerOptions = {}): PtySessionManager {
+  return new PtySessionManager(normalizeOptions(options))
+}
+
+export class TerminalSession {
   readonly #decoder = new TextDecoder()
   readonly #proc: Subprocess<"ignore", "ignore", "ignore">
   readonly #terminal: Bun.Terminal
-  readonly #ws: ServerWebSocket<SocketData>
+  readonly #clients = new Set<ServerWebSocket<PtySocketData>>()
+  readonly #options: PtyRuntimeOptions
+  readonly #onDispose: (id: string) => void
+  readonly #scrollback: string[] = []
+  readonly id = crypto.randomUUID()
+  readonly createdAt = Date.now()
+  #disposeTimer: ReturnType<typeof setTimeout> | null = null
   #disposed = false
+  #exited = false
   #size: PtyTerminalSize
+  #scrollbackBytes = 0
+  #updatedAt = this.createdAt
+  #detachedAt: number | null = null
 
-  constructor(ws: ServerWebSocket<SocketData>, size: PtyTerminalSize) {
-    this.#ws = ws
-    this.#size = clampSize(size)
-    this.#proc = Bun.spawn([shell, "-l"], {
-      cwd: process.cwd(),
+  constructor(options: PtyRuntimeOptions, onDispose: (id: string) => void) {
+    this.#options = options
+    this.#onDispose = onDispose
+    this.#size = clampSize(options.defaultSize, options)
+    this.#proc = Bun.spawn([options.shell, "-l"], {
+      cwd: options.cwd,
       env: terminalEnv(),
       stdin: "ignore",
       stdout: "ignore",
@@ -43,14 +138,12 @@ class TerminalSession {
         rows: this.#size.rows,
         name: "xterm-256color",
         data: (_terminal, data) => {
-          this.#send({
-            type: "terminal.write",
-            data: this.#decoder.decode(data, {stream: true}),
-          })
+          this.#write(this.#decoder.decode(data, {stream: true}))
         },
         exit: (_terminal, exitCode, signal) => {
           const tail = this.#decoder.decode()
-          if (tail) this.#send({type: "terminal.write", data: tail})
+          if (tail) this.#write(tail)
+          this.#exited = true
           this.#send({
             type: "terminal.status",
             status: {kind: "disconnected", label: signal ?? `closed ${exitCode}`},
@@ -67,36 +160,97 @@ class TerminalSession {
 
     this.#proc.exited
       .then((code) => {
+        this.#exited = true
         this.#send({type: "terminal.exit", code, signal: null})
+        this.#scheduleDispose()
       })
       .catch((error) => {
+        this.#exited = true
         this.#send({
           type: "terminal.error",
           message: error instanceof Error ? error.message : "terminal process failed",
         })
+        this.#scheduleDispose()
       })
+  }
+
+  get clientCount(): number {
+    return this.#clients.size
+  }
+
+  get detachedAt(): number | null {
+    return this.#detachedAt
+  }
+
+  get exited(): boolean {
+    return this.#exited
   }
 
   get size(): PtyTerminalSize {
     return this.#size
   }
 
+  get updatedAt(): number {
+    return this.#updatedAt
+  }
+
+  attach(ws: ServerWebSocket<PtySocketData>, replay: boolean): void {
+    this.#clearDisposeTimer()
+    const restored = this.#detachedAt !== null || this.#clients.size > 0
+    this.#detachedAt = null
+    this.#clients.add(ws)
+    ws.data.session = this
+    ws.data.sessionId = this.id
+
+    send(ws, {
+      type: "terminal.ready",
+      shell: this.#options.shell,
+      size: this.#size,
+      sessionId: this.id,
+      restored,
+      replayBytes: replay ? this.#scrollbackBytes : 0,
+    })
+    send(ws, {
+      type: "terminal.status",
+      status: {kind: this.#exited ? "disconnected" : "connected", label: this.#statusLabel(restored)},
+    })
+    if (replay && this.#scrollback.length > 0) {
+      send(ws, {type: "terminal.write", data: this.#scrollback.join("")})
+    }
+  }
+
+  detach(ws: ServerWebSocket<PtySocketData>): void {
+    this.#clients.delete(ws)
+    if (this.#clients.size === 0) {
+      this.#detachedAt = Date.now()
+      this.#scheduleDispose()
+    }
+  }
+
   write(data: string): void {
-    if (!this.#disposed && !this.#terminal.closed) {
+    if (!this.#disposed && !this.#terminal.closed && !this.#exited) {
       this.#terminal.write(data)
+      this.#updatedAt = Date.now()
     }
   }
 
   resize(size: PtyTerminalSize): void {
-    if (this.#disposed || this.#terminal.closed) return
-    const next = clampSize(size)
+    if (this.#disposed || this.#terminal.closed || this.#exited) return
+    const next = clampSize(size, this.#options)
     this.#size = next
+    this.#updatedAt = Date.now()
     this.#terminal.resize(next.cols, next.rows)
+  }
+
+  clearScrollback(): void {
+    this.#scrollback.length = 0
+    this.#scrollbackBytes = 0
   }
 
   close(): void {
     if (this.#disposed) return
     this.#disposed = true
+    this.#clearDisposeTimer()
 
     try {
       this.#proc.kill("SIGHUP")
@@ -109,81 +263,165 @@ class TerminalSession {
     } catch {
       // Повторное закрытие detached PTY безопасно.
     }
+
+    for (const ws of this.#clients) {
+      try {
+        ws.close(1001, "terminal session closed")
+      } catch {
+        // Socket might already be closed.
+      }
+    }
+    this.#clients.clear()
+    this.#onDispose(this.id)
+  }
+
+  info(): PtySessionInfo {
+    return {
+      id: this.id,
+      shell: this.#options.shell,
+      cwd: this.#options.cwd,
+      size: this.#size,
+      clients: this.#clients.size,
+      createdAt: this.createdAt,
+      updatedAt: this.#updatedAt,
+      detachedAt: this.#detachedAt,
+      exited: this.#exited,
+      scrollbackBytes: this.#scrollbackBytes,
+    }
+  }
+
+  #write(data: string): void {
+    if (data.length === 0 || this.#disposed) return
+    this.#remember(data)
+    this.#send({type: "terminal.write", data})
+  }
+
+  #remember(data: string): void {
+    this.#scrollback.push(data)
+    this.#scrollbackBytes += byteLength(data)
+    while (this.#scrollbackBytes > this.#options.scrollbackBytes && this.#scrollback.length > 0) {
+      const removed = this.#scrollback.shift()
+      if (removed !== undefined) this.#scrollbackBytes -= byteLength(removed)
+    }
+    this.#updatedAt = Date.now()
   }
 
   #send(message: PtyServerMessage): void {
-    if (!this.#disposed && this.#ws.readyState === WebSocket.OPEN) {
-      this.#ws.send(JSON.stringify(message))
+    if (this.#disposed) return
+    const encoded = JSON.stringify(message)
+    for (const ws of this.#clients) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(encoded)
     }
+  }
+
+  #scheduleDispose(): void {
+    if (this.#clients.size > 0 || this.#disposeTimer !== null) return
+    this.#disposeTimer = setTimeout(() => this.close(), this.#options.sessionTtlMs)
+  }
+
+  #clearDisposeTimer(): void {
+    if (this.#disposeTimer === null) return
+    clearTimeout(this.#disposeTimer)
+    this.#disposeTimer = null
+  }
+
+  #statusLabel(restored: boolean): string {
+    if (this.#exited) return "exited"
+    return restored ? `restored ${basename(this.#options.shell)}` : basename(this.#options.shell)
   }
 }
 
-const server = Bun.serve<SocketData>({
-  hostname,
-  port,
-  routes: {
-    "/": indexResponse,
-    "/style.css": () => new Response(Bun.file(STYLE_PATH), {headers: {"content-type": "text/css; charset=utf-8", "cache-control": "no-cache"}}),
-    "/entry.js": buildEntry,
-    "/JetBrainsMono-Bold.ttf": () => new Response(Bun.file(FONT_PATH), {headers: {"content-type": "font/ttf"}}),
-    "/favicon.ico": () => new Response(null, {status: 204}),
-  },
-  fetch(req, bunServer) {
-    const url = new URL(req.url)
+export function createPtyServer(options: PtyServerOptions = {}): ReturnType<typeof Bun.serve<PtySocketData>> {
+  const runtime = normalizeOptions(options)
+  const manager = new PtySessionManager(runtime)
+  return Bun.serve<PtySocketData>({
+    hostname: runtime.hostname,
+    port: runtime.port,
+    routes: {
+      "/": () => indexResponse(runtime),
+      "/style.css": () => new Response(Bun.file(runtime.stylePath), {headers: {"content-type": "text/css; charset=utf-8", "cache-control": "no-cache"}}),
+      "/entry.js": () => buildEntry(runtime),
+      "/JetBrainsMono-Bold.ttf": () => new Response(Bun.file(runtime.fontPath), {headers: {"content-type": "font/ttf"}}),
+      "/favicon.ico": () => new Response(null, {status: 204}),
+      "/terminal/sessions": {
+        GET: () => Response.json({sessions: manager.list()}),
+      },
+    },
+    fetch(req, bunServer) {
+      const url = new URL(req.url)
 
-    if (url.pathname === "/terminal") {
-      if (!isAllowedOrigin(req, url)) return new Response("Forbidden", {status: 403})
-      const upgraded = bunServer.upgrade(req, {data: {connectedAt: Date.now()}})
-      return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 400})
-    }
-
-    const asset = buildAssets.get(url.pathname)
-    if (asset !== undefined) return new Response(asset)
-    if (req.method === "GET" && acceptsHtml(req)) return indexResponse()
-    return new Response(`not found: ${req.method} ${url.pathname}`, {status: 404})
-  },
-  websocket: {
-    data: {} as SocketData,
-    idleTimeout: 0,
-    maxPayloadLength: 1024 * 1024,
-    open(ws) {
-      try {
-        const session = new TerminalSession(ws, DEFAULT_SIZE)
-        ws.data.session = session
-        send(ws, {type: "terminal.ready", shell, size: session.size})
-        send(ws, {type: "terminal.status", status: {kind: "connected", label: basename(shell)}})
-      } catch (error) {
-        send(ws, {
-          type: "terminal.error",
-          message: error instanceof Error ? error.message : "shell failed",
+      if (url.pathname === "/terminal") {
+        if (!isAllowedOrigin(req, url)) return new Response("Forbidden", {status: 403})
+        const requestedSession = url.searchParams.get("session")
+        const data: PtySocketData = {
+          connectedAt: Date.now(),
+          replay: url.searchParams.get("replay") !== "0",
+          ...(requestedSession === null ? {} : {sessionId: requestedSession}),
+        }
+        const upgraded = bunServer.upgrade(req, {
+          data,
         })
-        ws.close(1011, "shell failed")
-      }
-    },
-    message(ws, message) {
-      const payload = parseClientMessage(message)
-      const session = ws.data.session
-      if (payload === null || session === undefined) return
-
-      if (payload.type === "input.write") {
-        session.write(payload.data)
-        return
+        return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 400})
       }
 
-      session.resize(payload.size)
-    },
-    close(ws) {
-      ws.data.session?.close()
-      ws.data.session = undefined
-    },
-  },
-})
+      if (req.method === "DELETE" && url.pathname.startsWith("/terminal/sessions/")) {
+        const id = decodeURIComponent(url.pathname.slice("/terminal/sessions/".length))
+        return manager.close(id) ? Response.json({ok: true}) : Response.json({error: "not found"}, {status: 404})
+      }
 
-console.log(`MetaFor PTY listening at ${server.url}`)
+      const asset = buildAssets.get(url.pathname)
+      if (asset !== undefined) return new Response(asset)
+      if (req.method === "GET" && acceptsHtml(req)) return indexResponse(runtime)
+      return new Response(`not found: ${req.method} ${url.pathname}`, {status: 404})
+    },
+    websocket: {
+      data: {} as PtySocketData,
+      idleTimeout: 0,
+      maxPayloadLength: 1024 * 1024,
+      open(ws) {
+        try {
+          manager.attach(ws)
+        } catch (error) {
+          send(ws, {
+            type: "terminal.error",
+            message: error instanceof Error ? error.message : "shell failed",
+          })
+          ws.close(1011, "shell failed")
+        }
+      },
+      message(ws, message) {
+        const payload = parsePtyClientMessage(message)
+        const session = ws.data.session
+        if (payload === null || session === undefined) return
 
-async function buildEntry(): Promise<Response> {
+        if (payload.type === "input.write") {
+          session.write(payload.data)
+          return
+        }
+
+        if (payload.type === "terminal.clear") {
+          session.clearScrollback()
+          return
+        }
+
+        session.resize(payload.size)
+      },
+      close(ws) {
+        ws.data.session?.detach(ws)
+        delete ws.data.session
+      },
+    },
+  })
+}
+
+if (import.meta.main) {
+  const server = createPtyServer()
+  console.log(`MetaFor PTY listening at ${server.url}`)
+}
+
+async function buildEntry(options: PtyRuntimeOptions): Promise<Response> {
   const result = await Bun.build({
-    entrypoints: [ENTRY_PATH],
+    entrypoints: [options.entryPath],
     loader: {
       ".wgsl": "text",
     },
@@ -214,8 +452,8 @@ async function buildEntry(): Promise<Response> {
   })
 }
 
-function indexResponse(): Response {
-  return new Response(Bun.file(INDEX_PATH), {
+function indexResponse(options: PtyRuntimeOptions): Response {
+  return new Response(Bun.file(options.indexPath), {
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-cache",
@@ -223,20 +461,25 @@ function indexResponse(): Response {
   })
 }
 
-function send(ws: ServerWebSocket<SocketData>, message: PtyServerMessage): void {
+function send(ws: ServerWebSocket<PtySocketData>, message: PtyServerMessage): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message))
 }
 
-function parseClientMessage(raw: string | ArrayBuffer | Uint8Array): PtyClientMessage | null {
+export function parsePtyClientMessage(raw: string | ArrayBuffer | Uint8Array): PtyClientMessage | null {
   const text = typeof raw === "string" ? raw : new TextDecoder().decode(raw instanceof Uint8Array ? raw : new Uint8Array(raw))
 
   try {
     const value = JSON.parse(text) as Partial<PtyClientMessage>
     if (value.type === "input.write" && typeof value.data === "string") {
-      return {type: "input.write", data: value.data, source: value.source}
+      return value.source === undefined
+        ? {type: "input.write", data: value.data}
+        : {type: "input.write", data: value.data, source: value.source}
     }
     if (value.type === "terminal.resize" && isTerminalSize(value.size)) {
       return {type: "terminal.resize", size: value.size}
+    }
+    if (value.type === "terminal.clear") {
+      return {type: "terminal.clear"}
     }
   } catch {
     return null
@@ -251,10 +494,10 @@ function isTerminalSize(value: unknown): value is PtyTerminalSize {
   return Number.isFinite(size.cols) && Number.isFinite(size.rows)
 }
 
-function clampSize(size: PtyTerminalSize): PtyTerminalSize {
+function clampSize(size: PtyTerminalSize, options: PtyRuntimeOptions): PtyTerminalSize {
   return {
-    cols: clampInt(size.cols, 1, MAX_COLS),
-    rows: clampInt(size.rows, 1, MAX_ROWS),
+    cols: clampInt(size.cols, 1, options.maxCols),
+    rows: clampInt(size.rows, 1, options.maxRows),
   }
 }
 
@@ -292,4 +535,32 @@ function terminalEnv(): Record<string, string | undefined> {
   if (env.LC_ALL === "C.UTF-8") delete env.LC_ALL
   if (env.LC_CTYPE === "C.UTF-8") env.LC_CTYPE = "en_US.UTF-8"
   return env
+}
+
+function normalizeOptions(options: PtyServerOptions): PtyRuntimeOptions {
+  return {
+    hostname: options.hostname ?? process.env.HOST ?? "127.0.0.1",
+    port: options.port ?? Number(process.env.PORT ?? "3002"),
+    shell: options.shell ?? process.env.SHELL ?? "/bin/zsh",
+    cwd: options.cwd ?? process.cwd(),
+    defaultSize: options.defaultSize ?? DEFAULT_SIZE,
+    maxCols: options.maxCols ?? Number(process.env.PTY_MAX_COLS ?? DEFAULT_MAX_COLS),
+    maxRows: options.maxRows ?? Number(process.env.PTY_MAX_ROWS ?? DEFAULT_MAX_ROWS),
+    maxSessions: options.maxSessions ?? Number(process.env.PTY_MAX_SESSIONS ?? DEFAULT_MAX_SESSIONS),
+    sessionTtlMs: options.sessionTtlMs ?? Number(process.env.PTY_SESSION_TTL_MS ?? DEFAULT_SESSION_TTL_MS),
+    scrollbackBytes: options.scrollbackBytes ?? Number(process.env.PTY_SCROLLBACK_BYTES ?? DEFAULT_SCROLLBACK_BYTES),
+    entryPath: options.entryPath ?? join(import.meta.dir, "client.ts"),
+    stylePath: options.stylePath ?? join(import.meta.dir, "styles.css"),
+    indexPath: options.indexPath ?? join(import.meta.dir, "index.html"),
+    fontPath: options.fontPath ?? join(import.meta.dir, "../../../ui/panes/playground/JetBrainsMono-Bold.ttf"),
+  }
+}
+
+function normalizeSessionId(value: string | undefined): string | null {
+  if (value === undefined || value.length < 8 || value.length > 128) return null
+  return /^[a-zA-Z0-9._:-]+$/.test(value) ? value : null
+}
+
+function byteLength(value: string): number {
+  return new TextEncoder().encode(value).byteLength
 }

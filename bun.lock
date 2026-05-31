@@ -765,6 +765,7 @@
         "metafor-interpreter": "./interpreter.ts",
       },
       "dependencies": {
+        "@metafor/pty": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "@ui/panes": "workspace:*",
@@ -778,8 +779,9 @@
       "name": "@metafor/pty",
       "version": "0.1.0",
       "dependencies": {
-        "@xterm/addon-fit": "^0.11.0",
-        "@xterm/xterm": "^6.0.0",
+        "@ui/components": "workspace:*",
+        "@ui/elements": "workspace:*",
+        "@ui/panes": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -1126,10 +1128,6 @@
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
 
     "@xmldom/xmldom": ["@xmldom/xmldom@0.9.10", "", {}, "sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw=="],
-
-    "@xterm/addon-fit": ["@xterm/addon-fit@0.11.0", "", {}, "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g=="],
-
-    "@xterm/xterm": ["@xterm/xterm@6.0.0", "", {}, "sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg=="],
 
     "@zavx0z/git": ["@zavx0z/git@workspace:github/zavx0z/git"],
 

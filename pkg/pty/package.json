@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/server.ts",
+    "./server": "./src/server.ts",
+    "./protocol": "./src/protocol.ts",
+    "./client": "./src/client.ts"
+  },
   "scripts": {
     "dev": "bun --hot src/server.ts",
     "start": "bun src/server.ts",

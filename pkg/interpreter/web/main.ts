@@ -1,9 +1,9 @@
 /**
- * Module-only interpreter UI.
+ * Interpreter UI.
  *
- * One WebGPU Space contains one equal UIDisplay per launched module. There is
- * no hidden display here: every runtime action is scoped
- * to `/modules/:id/...`.
+ * One WebGPU Space contains one equal UIDisplay per launched module plus one
+ * host terminal UIDisplay. Module runtime actions stay scoped to
+ * `/modules/:id/...`.
  */
 
 import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
@@ -14,6 +14,8 @@ import {
   sourcePathFromLocation,
   type EditorBreakpoint,
   type EditorTokens,
+  type TerminalInputSource,
+  type TerminalSize,
   type TerminalStatusKind,
 } from "@ui/panes"
 import {
@@ -139,6 +141,17 @@ type CachedSource = {
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
 type ActiveInterpreterCommand = {cmd: string; label: string; startedAt: number}
 type DisplayLayoutMetrics = {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}
+type PtyStatusKind = "idle" | "connected" | "running" | "disconnected" | "error"
+type PtyClientMessage =
+  | {type: "input.write"; data: string; source?: TerminalInputSource}
+  | {type: "terminal.resize"; size: TerminalSize}
+  | {type: "terminal.clear"}
+type PtyServerMessage =
+  | {type: "terminal.ready"; shell: string; size: TerminalSize; sessionId: string; restored: boolean; replayBytes: number}
+  | {type: "terminal.write"; data: string}
+  | {type: "terminal.status"; status: {kind: PtyStatusKind; label: string; detail?: string}}
+  | {type: "terminal.exit"; code: number | null; signal: string | null}
+  | {type: "terminal.error"; message: string}
 
 type ModuleDisplayController = {
   id: string
@@ -166,6 +179,14 @@ type ModuleDisplayController = {
   }
 }
 
+type HostTerminalController = {
+  terminal: TerminalPane
+  socket: WebSocket | null
+  sessionId: string | null
+  terminalSize: TerminalSize | null
+  connectionState: PtyStatusKind
+}
+
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
   if (element === null) throw new Error(`#${id} not in DOM`)
@@ -179,10 +200,15 @@ const COMMAND_TIMEOUT_MS = 10_000
 const MODULE_DISPLAY_GAP_MM = 52
 const MODULE_DISPLAY_CENTER_Y_MM = 0
 const MODULE_DISPLAY_CENTER_Z_MM = 900
+const HOST_TERMINAL_DISPLAY_ID = "host:terminal"
+const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sessionId"
 
 let uiCanvas: UiRuntime | null = null
 let uiLoading = false
 let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
+let hostTerminal: HostTerminalController | null = null
+let hostTerminalDisplayCreated = false
+let hostTerminalUnloadInstalled = false
 let resizeObserver: ResizeObserver | null = null
 let socket: WebSocket | undefined
 let nextRequestId = 1
@@ -400,6 +426,8 @@ function installEnginePanes(): void {
 
 function toggleLocale(): void {
   toggleUiLocale()
+  hostTerminal?.terminal.setTitle(t("hostTerminal"))
+  hostTerminal?.terminal.requestRender()
   for (const controller of moduleDisplays.values()) {
     controller.source.setTitle(moduleSourceTitle(controller))
     controller.frames.requestRender()
@@ -426,12 +454,12 @@ function syncModuleDisplays(): void {
   const orderedModules = moduleOrder
     .map((id) => moduleSnapshots.get(id))
     .filter((module): module is ModulePaneSnapshot => module !== undefined)
-  if (orderedModules.length === 0) return
 
   const displayMetrics = viewportDisplayMetrics()
-  const displayIds = orderedModules.map((module) => moduleDisplayId(module.id))
-  const totalW = orderedModules.length * displayMetrics.widthMm
-    + Math.max(0, orderedModules.length - 1) * MODULE_DISPLAY_GAP_MM
+  const moduleDisplayIdList = orderedModules.map((module) => moduleDisplayId(module.id))
+  const displayIds = [...moduleDisplayIdList, HOST_TERMINAL_DISPLAY_ID]
+  const totalW = displayIds.length * displayMetrics.widthMm
+    + Math.max(0, displayIds.length - 1) * MODULE_DISPLAY_GAP_MM
   let cursorX = -totalW / 2
 
   for (const module of orderedModules) {
@@ -465,6 +493,13 @@ function syncModuleDisplays(): void {
     if (controller !== undefined) updateModuleDisplay(controller, module)
   }
 
+  const terminalCenter = {
+    x: cursorX + displayMetrics.widthMm / 2,
+    y: MODULE_DISPLAY_CENTER_Y_MM,
+    z: MODULE_DISPLAY_CENTER_Z_MM,
+  }
+  syncHostTerminalDisplay(displayMetrics, terminalCenter)
+
   const frameKey = displayIds.map((id, index) => {
     return `${id}:${index}:${Math.round(displayMetrics.widthMm)}x${Math.round(displayMetrics.heightMm)}:${displayMetrics.pixelWidth}x${displayMetrics.pixelHeight}`
   }).join("\0")
@@ -479,6 +514,201 @@ function syncModuleDisplays(): void {
   if (framedModuleKey !== frameKey) {
     framedModuleKey = frameKey
     uiCanvas.frameDisplays(displayIds)
+  }
+}
+
+function syncHostTerminalDisplay(displayMetrics: DisplayLayoutMetrics, center: {x: number; y: number; z: number}): void {
+  if (uiCanvas === null) return
+  const controller = ensureHostTerminalController()
+  if (!hostTerminalDisplayCreated) {
+    hostTerminalDisplayCreated = true
+    uiCanvas.createDisplay({
+      id: HOST_TERMINAL_DISPLAY_ID,
+      widthMm: displayMetrics.widthMm,
+      heightMm: displayMetrics.heightMm,
+      pixelWidth: displayMetrics.pixelWidth,
+      pixelHeight: displayMetrics.pixelHeight,
+      centerMm: center,
+      background: 0x020617,
+      border: 0x334155,
+    })
+    uiCanvas.addSurfaceToDisplay(HOST_TERMINAL_DISPLAY_ID, controller.terminal, terminalDisplayRect)
+    connectHostTerminal(controller)
+    return
+  }
+
+  uiCanvas.resizeDisplay(HOST_TERMINAL_DISPLAY_ID, displayMetrics)
+  uiCanvas.setDisplayCenter(HOST_TERMINAL_DISPLAY_ID, center)
+}
+
+function ensureHostTerminalController(): HostTerminalController {
+  if (hostTerminal !== null) return hostTerminal
+  const controller = {} as HostTerminalController
+  const terminal = new TerminalPane({
+    title: t("hostTerminal"),
+    status: t("terminalConnecting"),
+    statusKind: "idle",
+    fontPx: 13,
+    linePx: 18,
+    maxScrollback: 10000,
+    cursorLineHighlight: true,
+    inputEnabled: false,
+    onInput: (data, source) => sendHostTerminalInput(controller, data, source),
+    onResize: (size) => {
+      controller.terminalSize = size
+      sendHostTerminal(controller, {type: "terminal.resize", size})
+    },
+  })
+  terminal.node.name = "InterpreterHostTerminal"
+  Object.assign(controller, {
+    terminal,
+    socket: null,
+    sessionId: readStoredHostTerminalSessionId(),
+    terminalSize: null,
+    connectionState: "idle" as PtyStatusKind,
+  } satisfies HostTerminalController)
+  hostTerminal = controller
+  if (!hostTerminalUnloadInstalled) {
+    hostTerminalUnloadInstalled = true
+    window.addEventListener("beforeunload", () => hostTerminal?.socket?.close())
+  }
+  return controller
+}
+
+function connectHostTerminal(controller: HostTerminalController): void {
+  if (controller.socket !== null) {
+    controller.socket.close()
+    controller.socket = null
+  }
+
+  setHostTerminalStatus(controller, "idle", t("terminalConnecting"))
+  controller.terminal.setInputEnabled(false)
+
+  const nextSocket = new WebSocket(hostTerminalWebSocketURL(controller))
+  controller.socket = nextSocket
+
+  nextSocket.addEventListener("open", () => {
+    if (controller.socket !== nextSocket) return
+    setHostTerminalStatus(controller, "connected", t("terminalConnected"))
+    controller.terminal.setInputEnabled(true)
+    if (controller.terminalSize !== null) sendHostTerminal(controller, {type: "terminal.resize", size: controller.terminalSize})
+  })
+
+  nextSocket.addEventListener("message", (event) => {
+    if (controller.socket !== nextSocket) return
+    handleHostTerminalMessage(controller, event)
+  })
+
+  nextSocket.addEventListener("close", () => {
+    if (controller.socket !== nextSocket) return
+    controller.socket = null
+    controller.terminal.setInputEnabled(false)
+    if (controller.connectionState !== "error" && controller.connectionState !== "disconnected") {
+      setHostTerminalStatus(controller, "disconnected", t("terminalClosed"))
+    }
+  })
+
+  nextSocket.addEventListener("error", () => {
+    if (controller.socket !== nextSocket) return
+    controller.terminal.setInputEnabled(false)
+    setHostTerminalStatus(controller, "error", t("terminalWebsocket"))
+  })
+}
+
+function hostTerminalWebSocketURL(controller: HostTerminalController): string {
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:"
+  const url = new URL(`${protocol}//${location.host}/terminal`)
+  url.searchParams.set("replay", "1")
+  if (controller.sessionId !== null) url.searchParams.set("session", controller.sessionId)
+  return url.toString()
+}
+
+function sendHostTerminalInput(controller: HostTerminalController, data: string, source: TerminalInputSource): void {
+  sendHostTerminal(controller, {type: "input.write", data, source})
+}
+
+function sendHostTerminal(controller: HostTerminalController, message: PtyClientMessage): void {
+  if (controller.socket?.readyState === WebSocket.OPEN) {
+    controller.socket.send(JSON.stringify(message))
+  }
+}
+
+function handleHostTerminalMessage(controller: HostTerminalController, event: MessageEvent<string>): void {
+  const message = parseHostTerminalServerMessage(event.data)
+  if (message === null) return
+
+  if (message.type === "terminal.write") {
+    controller.terminal.write(message.data)
+    return
+  }
+
+  if (message.type === "terminal.ready") {
+    controller.sessionId = message.sessionId
+    writeStoredHostTerminalSessionId(message.sessionId)
+    setHostTerminalStatus(controller, "connected", shellLabel(message.shell))
+    if (controller.terminalSize !== null) sendHostTerminal(controller, {type: "terminal.resize", size: controller.terminalSize})
+    return
+  }
+
+  if (message.type === "terminal.status") {
+    setHostTerminalStatus(controller, message.status.kind, message.status.label)
+    return
+  }
+
+  if (message.type === "terminal.exit") {
+    setHostTerminalStatus(controller, "disconnected", t("terminalExited"))
+    controller.terminal.setInputEnabled(false)
+    controller.terminal.writeln(`${ansiMuted(`process exited: code=${message.code ?? "null"} signal=${message.signal ?? "null"}`)}`)
+    return
+  }
+
+  setHostTerminalStatus(controller, "error", t("terminalError"))
+  controller.terminal.setInputEnabled(false)
+  controller.terminal.writeln(`${ansiError(message.message)}`)
+}
+
+function parseHostTerminalServerMessage(raw: string): PtyServerMessage | null {
+  try {
+    const value = JSON.parse(raw) as PtyServerMessage
+    if (typeof value === "object" && value !== null && "type" in value) return value
+  } catch {
+    return null
+  }
+  return null
+}
+
+function setHostTerminalStatus(controller: HostTerminalController, kind: PtyStatusKind, label: string): void {
+  controller.connectionState = kind
+  controller.terminal.setStatus(statusKindForHostTerminal(kind), label)
+}
+
+function statusKindForHostTerminal(kind: PtyStatusKind): TerminalStatusKind {
+  if (kind === "running") return "running"
+  if (kind === "connected") return "connected"
+  if (kind === "disconnected") return "disconnected"
+  if (kind === "error") return "error"
+  return "idle"
+}
+
+function shellLabel(shell: string): string {
+  const parts = shell.split("/")
+  return parts[parts.length - 1] || shell
+}
+
+function readStoredHostTerminalSessionId(): string | null {
+  try {
+    const value = localStorage.getItem(HOST_TERMINAL_SESSION_STORAGE_KEY)
+    return value === null || value.length < 8 ? null : value
+  } catch {
+    return null
+  }
+}
+
+function writeStoredHostTerminalSessionId(value: string): void {
+  try {
+    localStorage.setItem(HOST_TERMINAL_SESSION_STORAGE_KEY, value)
+  } catch {
+    // Storage can be disabled in private contexts.
   }
 }
 
@@ -1386,6 +1616,15 @@ type InterpreterRects = {
 
 function hiddenRect(): UiSurfaceRect {
   return {x: -10000, y: -10000, w: 1, h: 1, visible: false}
+}
+
+function terminalDisplayRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  return {
+    x: PAD,
+    y: PAD,
+    w: Math.max(1, w - PAD * 2),
+    h: Math.max(1, h - PAD * 2),
+  }
 }
 
 function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolean): InterpreterRects {

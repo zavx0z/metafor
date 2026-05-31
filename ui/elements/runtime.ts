@@ -221,6 +221,10 @@ export class UiRuntime {
   readonly #handleContextMenu = (event: MouseEvent): void => this.#onContextMenu(event)
   readonly #handleKey = (event: KeyboardEvent): void => this.#onKey(event)
   readonly #handleWindowKey = (event: KeyboardEvent): void => this.#onWindowKey(event)
+  readonly #handleWindowBlur = (): void => this.#clearKeyboardFocus()
+  readonly #handleVisibilityChange = (): void => {
+    if (document.visibilityState !== "visible") this.#clearKeyboardFocus()
+  }
 
   /** Debug alias for callers that inspect the rendered object tree. */
   get scene(): Space {
@@ -526,7 +530,7 @@ export class UiRuntime {
     const previousMode = this.#displayMode
     if (mode === "near" && previousMode === "far") this.#displayReturnPose = this.#captureViewPointPose()
     this.#displayMode = mode
-    if (mode === "far") this.setFocused(null)
+    if (mode === "far") this.#clearKeyboardFocus()
     if (mode === "far" && this.#displayReturnPose !== null) {
       const pose = this.#displayReturnPose
       this.#displayReturnPose = null
@@ -919,6 +923,12 @@ export class UiRuntime {
     this.requestRender()
   }
 
+  #clearKeyboardFocus(): void {
+    this.setFocused(null)
+    this.inputProxy?.blur()
+    this.#pressedSlot = null
+  }
+
   dispose(): void {
     this.#disposed = true
     if (this.#rafId !== null) cancelAnimationFrame(this.#rafId)
@@ -930,8 +940,10 @@ export class UiRuntime {
     this.canvas.removeEventListener("mouseleave", this.#handleMouseLeave)
     this.canvas.removeEventListener("contextmenu", this.#handleContextMenu)
     window.removeEventListener("keydown", this.#handleWindowKey)
+    window.removeEventListener("blur", this.#handleWindowBlur)
+    document.removeEventListener("visibilitychange", this.#handleVisibilityChange)
     window.removeEventListener("mouseup", this.#handleMouseUp)
-    this.setFocused(null)
+    this.#clearKeyboardFocus()
     this.#pressedSlot = null
     this.#hoveredSlot = null
     this.#displayNavigationActive = false
@@ -1035,6 +1047,8 @@ export class UiRuntime {
     this.canvas.addEventListener("contextmenu", this.#handleContextMenu)
     this.canvas.addEventListener("keydown", this.#handleKey)
     window.addEventListener("keydown", this.#handleWindowKey)
+    window.addEventListener("blur", this.#handleWindowBlur)
+    document.addEventListener("visibilitychange", this.#handleVisibilityChange)
     // mouseup на window — релиз за пределами canvas сбрасывает pressed.
     window.addEventListener("mouseup", this.#handleMouseUp)
     this.canvas.addEventListener("mouseleave", this.#handleMouseLeave)
@@ -1192,6 +1206,7 @@ export class UiRuntime {
       ? undefined
       : this.#surfaceAt(displayCoords.x, displayCoords.y, "display", displayCoords.displayId)
     if (displayCoords === null || slot === undefined) {
+      this.#clearKeyboardFocus()
       if (this.#isDisplayNavigationMode() && event.button === 0) {
         event.preventDefault()
         this.#hoveredSlot?.surface.onPointerLeave?.()
