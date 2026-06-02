@@ -119,6 +119,12 @@ Local native smoke test:
 bun run smoke
 ```
 
+From the workspace root:
+
+```sh
+bun run voice:smoke
+```
+
 Local generated sample:
 
 ```sh

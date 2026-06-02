@@ -11,8 +11,9 @@
   },
   "scripts": {
     "assets": "bun run scripts/install-assets.ts",
-    "dev": "bun --hot src/web/server.ts",
-    "playground": "bun --hot src/web/server.ts",
+    "dev": "bun src/web/server.ts",
+    "dev:hot": "bun --hot src/web/server.ts",
+    "playground": "bun src/web/server.ts",
     "start": "bun src/web/server.ts",
     "recognize": "bun run examples/recognize-file.ts",
     "recognize:mic": "bun run examples/recognize-mic.ts",

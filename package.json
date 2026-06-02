@@ -45,6 +45,7 @@
     "interpreter:multi": "bun --hot run pkg/interpreter/interpreter.ts dark/server.spec.ts -timeout=2147483647 pkg/interpreter/src/syntax.test.ts",
     "voice:assets": "bun --filter @metafor/voice assets",
     "voice:playground": "bun --filter @metafor/voice playground",
+    "voice:smoke": "bun --filter @metafor/voice smoke",
     "voice:asr:tunnel": "ssh -N -L 8877:127.0.0.1:8787 ai-srv",
     "voice:asr:health": "curl -fsS http://127.0.0.1:8877/health",
     "voice:vosk:health": "curl -fsS http://127.0.0.1:4765/health",
