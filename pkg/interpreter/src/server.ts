@@ -61,10 +61,20 @@ type WsClientData = UiWsClientData | TerminalWsClientData
 const NDJSON_TAIL_DEFAULT_LIMIT = 200
 const NDJSON_TAIL_MAX_LIMIT = 5_000
 const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "SIGQUIT"])
+type InterpreterTerminalSessionManager = ReturnType<typeof createPtySessionManager>
+
+const terminalSessionsGlobal = globalThis as typeof globalThis & {
+  __metaforInterpreterTerminalSessions?: InterpreterTerminalSessionManager
+}
+
+function interpreterTerminalSessions(): InterpreterTerminalSessionManager {
+  terminalSessionsGlobal.__metaforInterpreterTerminalSessions ??= createPtySessionManager()
+  return terminalSessionsGlobal.__metaforInterpreterTerminalSessions
+}
 
 export function startHttpServer(options: HttpServerOptions): HttpServer {
   const wsClients = new Set<ServerWebSocket<WsClientData>>()
-  const terminalSessions = createPtySessionManager()
+  const terminalSessions = interpreterTerminalSessions()
   let nextWsClientId = 1
   let nextTerminalClientId = 1
 
@@ -171,7 +181,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         const session = ws.data.session
         if (payload === null || session === undefined) return
         if (payload.type === "input.write") {
-          session.write(payload.data)
+          session.write(payload.data, payload.localEchoId)
           return
         }
         if (payload.type === "terminal.clear") {
@@ -276,6 +286,9 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         if (upgraded) return undefined
         return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
       }
+      if (method === "GET" && path === "/terminal/sessions") {
+        return jsonResponse({sessions: terminalSessions.list()})
+      }
 
       const start = Date.now()
       try {
@@ -375,6 +388,7 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
     {method: "GET", path: "/workspace/files?q=<text>&limit=<n>", description: "workspace entrypoints for module selection"},
     {method: "WS", path: "/terminal", description: "host PTY terminal stream"},
+    {method: "GET", path: "/terminal/sessions", description: "host PTY session diagnostics"},
   ]
 }
 

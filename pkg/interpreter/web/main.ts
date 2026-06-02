@@ -143,13 +143,24 @@ type CommandReply = {ok: boolean; result?: unknown; error?: string}
 type ActiveInterpreterCommand = {cmd: string; label: string; startedAt: number}
 type DisplayLayoutMetrics = {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}
 type PtyStatusKind = "idle" | "connected" | "running" | "disconnected" | "error"
+type PtyTerminalState = {
+  echo: boolean
+  localEcho: boolean
+  alternateScreen: boolean
+  applicationCursorKeys: boolean
+  applicationKeypad: boolean
+  bracketedPaste: boolean
+  cursorVisible: boolean
+}
 type PtyClientMessage =
-  | {type: "input.write"; data: string; source?: TerminalInputSource}
+  | {type: "input.write"; data: string; source?: TerminalInputSource; localEchoId?: number}
   | {type: "terminal.resize"; size: TerminalSize}
   | {type: "terminal.clear"}
 type PtyServerMessage =
-  | {type: "terminal.ready"; shell: string; size: TerminalSize; sessionId: string; restored: boolean; replayBytes: number}
-  | {type: "terminal.write"; data: string}
+  | {type: "terminal.ready"; shell: string; size: TerminalSize; sessionId: string; restored: boolean; replayBytes: number; state: PtyTerminalState}
+  | {type: "terminal.write"; data: string; state?: PtyTerminalState}
+  | {type: "terminal.state"; state: PtyTerminalState}
+  | {type: "terminal.local-echo"; id: number; accepted: boolean; state: PtyTerminalState}
   | {type: "terminal.status"; status: {kind: PtyStatusKind; label: string; detail?: string}}
   | {type: "terminal.exit"; code: number | null; signal: string | null}
   | {type: "terminal.error"; message: string}
@@ -186,6 +197,8 @@ type HostTerminalController = {
   sessionId: string | null
   terminalSize: TerminalSize | null
   connectionState: PtyStatusKind
+  terminalState: PtyTerminalState | null
+  localEchoId: number
 }
 
 type VoiceInputTarget =
@@ -1188,6 +1201,8 @@ function ensureHostTerminalController(): HostTerminalController {
     sessionId: readStoredHostTerminalSessionId(),
     terminalSize: null,
     connectionState: "idle" as PtyStatusKind,
+    terminalState: null,
+    localEchoId: 0,
   } satisfies HostTerminalController)
   hostTerminal = controller
   if (!hostTerminalUnloadInstalled) {
@@ -1205,6 +1220,8 @@ function connectHostTerminal(controller: HostTerminalController): void {
 
   setHostTerminalStatus(controller, "idle", t("terminalConnecting"))
   controller.terminal.setInputEnabled(false)
+  controller.terminal.rejectLocalEcho()
+  controller.terminalState = null
 
   const nextSocket = new WebSocket(hostTerminalWebSocketURL(controller))
   controller.socket = nextSocket
@@ -1248,7 +1265,26 @@ function hostTerminalWebSocketURL(controller: HostTerminalController): string {
 }
 
 function sendHostTerminalInput(controller: HostTerminalController, data: string, source: TerminalInputSource): void {
-  sendHostTerminal(controller, {type: "input.write", data, source})
+  const localEchoId = tryHostTerminalLocalEcho(controller, data, source) ? ++controller.localEchoId : undefined
+  sendHostTerminal(controller, {
+    type: "input.write",
+    data,
+    source,
+    ...(localEchoId === undefined ? {} : {localEchoId}),
+  })
+}
+
+function tryHostTerminalLocalEcho(controller: HostTerminalController, data: string, source: TerminalInputSource): boolean {
+  const serverState = controller.terminalState
+  const clientState = controller.terminal.getTerminalState()
+  if (
+    source !== "keyboard" ||
+    controller.socket?.readyState !== WebSocket.OPEN ||
+    serverState === null ||
+    !serverState.localEcho ||
+    !clientState.localEcho
+  ) return false
+  return controller.terminal.tryLocalEcho(data)
 }
 
 function sendHostTerminal(controller: HostTerminalController, message: PtyClientMessage): void {
@@ -1262,12 +1298,25 @@ function handleHostTerminalMessage(controller: HostTerminalController, event: Me
   if (message === null) return
 
   if (message.type === "terminal.write") {
-    controller.terminal.write(message.data)
+    controller.terminal.writeAuthoritative(message.data)
+    if (message.state !== undefined) controller.terminalState = message.state
+    return
+  }
+
+  if (message.type === "terminal.state") {
+    controller.terminalState = message.state
+    return
+  }
+
+  if (message.type === "terminal.local-echo") {
+    controller.terminalState = message.state
+    if (!message.accepted) controller.terminal.rejectLocalEcho()
     return
   }
 
   if (message.type === "terminal.ready") {
     controller.sessionId = message.sessionId
+    controller.terminalState = message.state
     writeStoredHostTerminalSessionId(message.sessionId)
     setHostTerminalStatus(controller, "connected", shellLabel(message.shell))
     if (voiceActiveTarget === null) setVoiceActiveTarget({kind: "host", controller})

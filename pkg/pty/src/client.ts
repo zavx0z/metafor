@@ -1,7 +1,7 @@
 import {UiRuntime, UiSurface} from "@ui/elements"
 import {Button, Pane, autoButtonWidth} from "@ui/components"
 import {TerminalPane, type TerminalInputSource, type TerminalSize, type TerminalStatusKind} from "@ui/panes"
-import type {PtyClientMessage, PtyServerMessage, PtyStatusKind, PtyTerminalSize} from "./protocol.ts"
+import type {PtyClientMessage, PtyServerMessage, PtyStatusKind, PtyTerminalSize, PtyTerminalState} from "./protocol.ts"
 
 const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
 if (canvas === null) throw new Error("stage-canvas not found")
@@ -12,6 +12,8 @@ let socket: WebSocket | null = null
 let terminalSize: TerminalSize | null = null
 let connectionState: PtyStatusKind = "idle"
 let sessionId = readStoredSessionId()
+let terminalState: PtyTerminalState | null = null
+let localEchoId = 0
 let dock: PtyDockPane
 
 const terminal = new TerminalPane({
@@ -41,6 +43,8 @@ function connect(userInitiated: boolean): void {
 
   setTerminalStatus("idle", "connecting")
   terminal.setInputEnabled(false)
+  terminal.rejectLocalEcho()
+  terminalState = null
   dock.setBusy(true)
 
   const nextSocket = new WebSocket(websocketURL({replay: !userInitiated}))
@@ -87,7 +91,26 @@ function websocketURL(opts: {replay: boolean}): string {
 }
 
 function sendInput(data: string, source: TerminalInputSource): void {
-  send({type: "input.write", data, source})
+  const nextLocalEchoId = tryLocalEcho(data, source) ? ++localEchoId : undefined
+  send({
+    type: "input.write",
+    data,
+    source,
+    ...(nextLocalEchoId === undefined ? {} : {localEchoId: nextLocalEchoId}),
+  })
+}
+
+function tryLocalEcho(data: string, source: TerminalInputSource): boolean {
+  const serverState = terminalState
+  const clientState = terminal.getTerminalState()
+  if (
+    source !== "keyboard" ||
+    socket?.readyState !== WebSocket.OPEN ||
+    serverState === null ||
+    !serverState.localEcho ||
+    !clientState.localEcho
+  ) return false
+  return terminal.tryLocalEcho(data)
 }
 
 function send(message: PtyClientMessage): void {
@@ -101,12 +124,25 @@ function handleServerMessage(event: MessageEvent<string>): void {
   if (message === null) return
 
   if (message.type === "terminal.write") {
-    terminal.write(message.data)
+    terminal.writeAuthoritative(message.data)
+    if (message.state !== undefined) terminalState = message.state
+    return
+  }
+
+  if (message.type === "terminal.state") {
+    terminalState = message.state
+    return
+  }
+
+  if (message.type === "terminal.local-echo") {
+    terminalState = message.state
+    if (!message.accepted) terminal.rejectLocalEcho()
     return
   }
 
   if (message.type === "terminal.ready") {
     sessionId = message.sessionId
+    terminalState = message.state
     writeStoredSessionId(sessionId)
     setTerminalStatus("connected", shellLabel(message.shell))
     if (terminalSize !== null) send({type: "terminal.resize", size: terminalSize})

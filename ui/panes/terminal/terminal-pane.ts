@@ -103,10 +103,48 @@ type TerminalCell = {
   width: 0 | 1 | 2
 }
 
-type TerminalKeyboardMode = {
+export type TerminalKeyboardMode = {
   applicationCursorKeys: boolean
   applicationKeypad: boolean
   bracketedPaste: boolean
+}
+
+export type TerminalPaneState = TerminalKeyboardMode & {
+  alternateScreen: boolean
+  cursorVisible: boolean
+  localEcho: boolean
+}
+
+type TerminalOutputSnapshot = {
+  scrollback: TerminalCell[][]
+  screen: TerminalCell[][]
+  cursorRow: number
+  cursorCol: number
+  pendingWrap: boolean
+  scrollTop: number
+  scrollBottom: number
+  savedCursor: {row: number; col: number} | null
+  applicationCursorKeys: boolean
+  applicationKeypad: boolean
+  bracketedPaste: boolean
+  alternateScreen: boolean
+  selectionAnchor: TextPosition | null
+  selectionFocus: TextPosition | null
+  dragSelecting: boolean
+  attr: TerminalAttr
+  wordWrapBuffer: TerminalCell[]
+  parserMode: ParserMode
+  sequence: string
+  oscEsc: boolean
+  showCursor: boolean
+  rawOutput: string
+  scrollPosition: {left: number; top: number}
+}
+
+type PendingLocalEcho = {
+  snapshot: TerminalOutputSnapshot
+  pending: string[]
+  confirmed: string[]
 }
 
 type ParserMode = "text" | "esc" | "csi" | "osc" | "charset"
@@ -198,6 +236,7 @@ class TerminalOutputPane extends UiSurface {
   #applicationCursorKeys = false
   #applicationKeypad = false
   #bracketedPaste = false
+  #alternateScreen = false
   #selectionAnchor: TextPosition | null = null
   #selectionFocus: TextPosition | null = null
   #dragSelecting = false
@@ -308,6 +347,7 @@ class TerminalOutputPane extends UiSurface {
     this.#applicationCursorKeys = false
     this.#applicationKeypad = false
     this.#bracketedPaste = false
+    this.#alternateScreen = false
     this.#wordWrapBuffer = []
     this.clear()
   }
@@ -671,6 +711,73 @@ class TerminalOutputPane extends UiSurface {
       applicationKeypad: this.#applicationKeypad,
       bracketedPaste: this.#bracketedPaste,
     }
+  }
+
+  getTerminalState(): TerminalPaneState {
+    return {
+      applicationCursorKeys: this.#applicationCursorKeys,
+      applicationKeypad: this.#applicationKeypad,
+      bracketedPaste: this.#bracketedPaste,
+      alternateScreen: this.#alternateScreen,
+      cursorVisible: this.#showCursor,
+      localEcho: !this.#alternateScreen,
+    }
+  }
+
+  protected captureOutputState(): TerminalOutputSnapshot {
+    const scrollPosition = divScrollPosition(this, TERMINAL_SCROLL_KEY)
+    return {
+      scrollback: cloneCellLines(this.#scrollback),
+      screen: cloneCellLines(this.#screen),
+      cursorRow: this.#cursorRow,
+      cursorCol: this.#cursorCol,
+      pendingWrap: this.#pendingWrap,
+      scrollTop: this.#scrollTop,
+      scrollBottom: this.#scrollBottom,
+      savedCursor: this.#savedCursor === null ? null : {...this.#savedCursor},
+      applicationCursorKeys: this.#applicationCursorKeys,
+      applicationKeypad: this.#applicationKeypad,
+      bracketedPaste: this.#bracketedPaste,
+      alternateScreen: this.#alternateScreen,
+      selectionAnchor: this.#selectionAnchor === null ? null : {...this.#selectionAnchor},
+      selectionFocus: this.#selectionFocus === null ? null : {...this.#selectionFocus},
+      dragSelecting: this.#dragSelecting,
+      attr: cloneAttr(this.#attr),
+      wordWrapBuffer: cloneCells(this.#wordWrapBuffer),
+      parserMode: this.#parserMode,
+      sequence: this.#sequence,
+      oscEsc: this.#oscEsc,
+      showCursor: this.#showCursor,
+      rawOutput: this.#rawOutput,
+      scrollPosition,
+    }
+  }
+
+  protected restoreOutputState(snapshot: TerminalOutputSnapshot): void {
+    this.#scrollback = cloneCellLines(snapshot.scrollback)
+    this.#screen = cloneCellLines(snapshot.screen)
+    this.#cursorRow = snapshot.cursorRow
+    this.#cursorCol = snapshot.cursorCol
+    this.#pendingWrap = snapshot.pendingWrap
+    this.#scrollTop = snapshot.scrollTop
+    this.#scrollBottom = snapshot.scrollBottom
+    this.#savedCursor = snapshot.savedCursor === null ? null : {...snapshot.savedCursor}
+    this.#applicationCursorKeys = snapshot.applicationCursorKeys
+    this.#applicationKeypad = snapshot.applicationKeypad
+    this.#bracketedPaste = snapshot.bracketedPaste
+    this.#alternateScreen = snapshot.alternateScreen
+    this.#selectionAnchor = snapshot.selectionAnchor === null ? null : {...snapshot.selectionAnchor}
+    this.#selectionFocus = snapshot.selectionFocus === null ? null : {...snapshot.selectionFocus}
+    this.#dragSelecting = snapshot.dragSelecting
+    this.#attr = cloneAttr(snapshot.attr)
+    this.#wordWrapBuffer = cloneCells(snapshot.wordWrapBuffer)
+    this.#parserMode = snapshot.parserMode
+    this.#sequence = snapshot.sequence
+    this.#oscEsc = snapshot.oscEsc
+    this.#showCursor = snapshot.showCursor
+    this.#rawOutput = snapshot.rawOutput
+    divScrollTo(this, TERMINAL_SCROLL_KEY, snapshot.scrollPosition)
+    this.requestRender()
   }
 
   protected handleOutputShortcut(event: KeyboardEvent): boolean {
@@ -1131,7 +1238,10 @@ class TerminalOutputPane extends UiSurface {
       if (params.includes(1)) this.#applicationCursorKeys = final === "h"
       if (params.includes(66)) this.#applicationKeypad = final === "h"
       if (params.includes(2004)) this.#bracketedPaste = final === "h"
-      if (params.includes(1049)) this.clear()
+      if (params.includes(47) || params.includes(1047) || params.includes(1049)) {
+        this.#alternateScreen = final === "h"
+        this.clear()
+      }
     }
   }
 
@@ -1380,6 +1490,7 @@ class TerminalOutputPane extends UiSurface {
 export class TerminalPane extends TerminalOutputPane {
   #inputEnabled: boolean
   #onInput: ((data: string, source: TerminalInputSource) => void) | undefined
+  #pendingLocalEcho: PendingLocalEcho | null = null
 
   constructor(opts: TerminalPaneOpts = {}) {
     super(opts)
@@ -1388,10 +1499,47 @@ export class TerminalPane extends TerminalOutputPane {
     this.#onInput = opts.onInput
   }
 
+  override clear(): void {
+    this.#pendingLocalEcho = null
+    super.clear()
+  }
+
+  override reset(): void {
+    this.#pendingLocalEcho = null
+    super.reset()
+  }
+
   setInputEnabled(enabled: boolean): void {
     if (this.#inputEnabled === enabled) return
     this.#inputEnabled = enabled
     this.requestRender()
+  }
+
+  tryLocalEcho(data: string): boolean {
+    if (!this.#inputEnabled || !isLocalEchoInput(data) || !this.getTerminalState().localEcho) return false
+    if (this.#pendingLocalEcho === null) {
+      this.#pendingLocalEcho = {
+        snapshot: this.captureOutputState(),
+        pending: [],
+        confirmed: [],
+      }
+    }
+    this.#pendingLocalEcho.pending.push(data)
+    super.write(data)
+    return true
+  }
+
+  rejectLocalEcho(): void {
+    if (this.#pendingLocalEcho === null) return
+    this.restoreOutputState(this.#pendingLocalEcho.snapshot)
+    this.#pendingLocalEcho = null
+  }
+
+  writeAuthoritative(data: string | Uint8Array): void {
+    const text = typeof data === "string" ? data : new TextDecoder().decode(data)
+    if (text.length === 0) return
+    const reconciled = this.#reconcileLocalEcho(text)
+    if (reconciled.length > 0) super.write(reconciled)
   }
 
   onInputText(text: string): void {
@@ -1432,6 +1580,30 @@ export class TerminalPane extends TerminalOutputPane {
     this.#onInput?.(data, source)
   }
 
+  #reconcileLocalEcho(data: string): string {
+    const echo = this.#pendingLocalEcho
+    if (echo === null) return data
+
+    const incoming = [...data]
+    let index = 0
+    while (index < incoming.length && echo.pending.length > 0 && incoming[index] === echo.pending[0]) {
+      echo.confirmed.push(echo.pending.shift() ?? "")
+      index++
+    }
+
+    if (echo.pending.length === 0) {
+      this.#pendingLocalEcho = null
+      return incoming.slice(index).join("")
+    }
+
+    if (index === incoming.length) return ""
+
+    const authoritative = [...echo.confirmed, ...incoming.slice(index)].join("")
+    this.restoreOutputState(echo.snapshot)
+    this.#pendingLocalEcho = null
+    return authoritative
+  }
+
   protected override emitTerminalResponse(data: string): void {
     this.#emitInput(data, "api")
   }
@@ -1452,6 +1624,13 @@ export class LogViewerPane extends TerminalOutputPane {
     })
     this.node.name = "LogViewerPane"
   }
+}
+
+function isLocalEchoInput(data: string): boolean {
+  const chars = [...data]
+  if (chars.length !== 1) return false
+  const code = chars[0]?.codePointAt(0) ?? 0
+  return code >= 0x20 && code !== 0x7f && code !== 0x1b
 }
 
 function keyToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode = defaultTerminalKeyboardMode()): string | null {
@@ -1755,6 +1934,14 @@ function cloneAttr(attr: TerminalAttr): TerminalAttr {
     underline: attr.underline,
     inverse: attr.inverse,
   }
+}
+
+function cloneCells(cells: readonly TerminalCell[]): TerminalCell[] {
+  return cells.map((cell) => ({ch: cell.ch, attr: cloneAttr(cell.attr), width: cell.width}))
+}
+
+function cloneCellLines(lines: readonly TerminalCell[][]): TerminalCell[][] {
+  return lines.map((line) => cloneCells(line))
 }
 
 function cloneColor(color: TerminalColor): TerminalColor {

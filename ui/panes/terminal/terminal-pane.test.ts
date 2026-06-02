@@ -181,6 +181,65 @@ describe("TerminalPane control sequences", () => {
   })
 })
 
+describe("TerminalPane local echo", () => {
+  test("renders a printable key immediately and suppresses matching PTY echo", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
+    try {
+      terminal.write("prompt ")
+      expect(terminal.tryLocalEcho("a")).toBe(true)
+      expect(terminal.toText()).toBe("prompt a")
+      terminal.writeAuthoritative("a")
+      expect(terminal.toText()).toBe("prompt a")
+      terminal.writeAuthoritative("b")
+      expect(terminal.toText()).toBe("prompt ab")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("rolls back optimistic echo when PTY output disagrees", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
+    try {
+      terminal.write("prompt ")
+      expect(terminal.tryLocalEcho("a")).toBe(true)
+      terminal.writeAuthoritative("x")
+      expect(terminal.toText()).toBe("prompt x")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("keeps pending local echo across partial authoritative matches", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
+    try {
+      terminal.write("prompt ")
+      expect(terminal.tryLocalEcho("a")).toBe(true)
+      expect(terminal.tryLocalEcho("b")).toBe(true)
+      terminal.writeAuthoritative("a")
+      expect(terminal.toText()).toBe("prompt ab")
+      terminal.writeAuthoritative("x")
+      expect(terminal.toText()).toBe("prompt ax")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("disables local echo state in alternate screen mode", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
+    try {
+      expect(terminal.getTerminalState().localEcho).toBe(true)
+      terminal.write("\x1b[?1049h")
+      expect(terminal.getTerminalState().alternateScreen).toBe(true)
+      expect(terminal.getTerminalState().localEcho).toBe(false)
+      terminal.write("\x1b[?1049l")
+      expect(terminal.getTerminalState().alternateScreen).toBe(false)
+      expect(terminal.getTerminalState().localEcho).toBe(true)
+    } finally {
+      terminal.dispose()
+    }
+  })
+})
+
 function keyEvent(
   key: string,
   init: Partial<Pick<KeyboardEvent, "altKey" | "code" | "ctrlKey" | "metaKey" | "shiftKey">> = {},

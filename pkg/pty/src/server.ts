@@ -1,8 +1,8 @@
 import {basename, join} from "node:path"
 import type {ServerWebSocket, Subprocess} from "bun"
-import type {PtyClientMessage, PtyServerMessage, PtyTerminalSize} from "./protocol.ts"
+import type {PtyClientMessage, PtyServerMessage, PtyTerminalSize, PtyTerminalState} from "./protocol.ts"
 
-export type {PtyClientMessage, PtyInputSource, PtyServerMessage, PtyStatusKind, PtyTerminalSize} from "./protocol.ts"
+export type {PtyClientMessage, PtyInputSource, PtyServerMessage, PtyStatusKind, PtyTerminalSize, PtyTerminalState} from "./protocol.ts"
 
 export type PtySocketData = {
   session?: TerminalSession
@@ -49,6 +49,7 @@ const DEFAULT_MAX_ROWS = 120
 const DEFAULT_MAX_SESSIONS = 8
 const DEFAULT_SESSION_TTL_MS = 30 * 60_000
 const DEFAULT_SCROLLBACK_BYTES = 2 * 1024 * 1024
+const TERMIOS_ECHO = 0x00000008
 
 let buildAssets = new Map<string, Blob>()
 
@@ -113,6 +114,7 @@ export class TerminalSession {
   readonly #options: PtyRuntimeOptions
   readonly #onDispose: (id: string) => void
   readonly #scrollback: string[] = []
+  readonly #stateTracker = new PtyTerminalStateTracker()
   readonly id = crypto.randomUUID()
   readonly createdAt = Date.now()
   #disposeTimer: ReturnType<typeof setTimeout> | null = null
@@ -209,6 +211,7 @@ export class TerminalSession {
       sessionId: this.id,
       restored,
       replayBytes: replay ? this.#scrollbackBytes : 0,
+      state: this.#terminalState(),
     })
     send(ws, {
       type: "terminal.status",
@@ -227,8 +230,12 @@ export class TerminalSession {
     }
   }
 
-  write(data: string): void {
+  write(data: string, localEchoId?: number): void {
     if (!this.#disposed && !this.#terminal.closed && !this.#exited) {
+      if (localEchoId !== undefined) {
+        const state = this.#terminalState()
+        this.#send({type: "terminal.local-echo", id: localEchoId, accepted: state.localEcho, state})
+      }
       this.#terminal.write(data)
       this.#updatedAt = Date.now()
     }
@@ -292,8 +299,9 @@ export class TerminalSession {
 
   #write(data: string): void {
     if (data.length === 0 || this.#disposed) return
+    this.#stateTracker.write(data)
     this.#remember(data)
-    this.#send({type: "terminal.write", data})
+    this.#send({type: "terminal.write", data, state: this.#terminalState()})
   }
 
   #remember(data: string): void {
@@ -314,6 +322,11 @@ export class TerminalSession {
     }
   }
 
+  #terminalState(): PtyTerminalState {
+    const echo = !this.#terminal.closed && (this.#terminal.localFlags & TERMIOS_ECHO) !== 0
+    return this.#stateTracker.state(echo)
+  }
+
   #scheduleDispose(): void {
     if (this.#clients.size > 0 || this.#disposeTimer !== null) return
     this.#disposeTimer = setTimeout(() => this.close(), this.#options.sessionTtlMs)
@@ -328,6 +341,125 @@ export class TerminalSession {
   #statusLabel(restored: boolean): string {
     if (this.#exited) return "exited"
     return restored ? `restored ${basename(this.#options.shell)}` : basename(this.#options.shell)
+  }
+}
+
+type PtyStateParserMode = "text" | "esc" | "csi" | "osc" | "charset"
+
+class PtyTerminalStateTracker {
+  #applicationCursorKeys = false
+  #applicationKeypad = false
+  #bracketedPaste = false
+  #alternateScreen = false
+  #cursorVisible = true
+  #parserMode: PtyStateParserMode = "text"
+  #sequence = ""
+  #oscEsc = false
+
+  write(data: string): void {
+    for (const ch of data) this.#consume(ch)
+  }
+
+  state(echo: boolean): PtyTerminalState {
+    return {
+      echo,
+      localEcho: echo && !this.#alternateScreen,
+      alternateScreen: this.#alternateScreen,
+      applicationCursorKeys: this.#applicationCursorKeys,
+      applicationKeypad: this.#applicationKeypad,
+      bracketedPaste: this.#bracketedPaste,
+      cursorVisible: this.#cursorVisible,
+    }
+  }
+
+  #consume(ch: string): void {
+    if (this.#parserMode === "esc") {
+      this.#consumeEsc(ch)
+      return
+    }
+    if (this.#parserMode === "csi") {
+      this.#consumeCsi(ch)
+      return
+    }
+    if (this.#parserMode === "osc") {
+      this.#consumeOsc(ch)
+      return
+    }
+    if (this.#parserMode === "charset") {
+      this.#parserMode = "text"
+      return
+    }
+    if (ch === "\x1b") {
+      this.#parserMode = "esc"
+      this.#sequence = ""
+    }
+  }
+
+  #consumeEsc(ch: string): void {
+    this.#parserMode = "text"
+    if (ch === "[") {
+      this.#parserMode = "csi"
+      this.#sequence = ""
+      return
+    }
+    if (ch === "]") {
+      this.#parserMode = "osc"
+      this.#sequence = ""
+      this.#oscEsc = false
+      return
+    }
+    if ("()*+-./".includes(ch)) {
+      this.#parserMode = "charset"
+      return
+    }
+    if (ch === "c") {
+      this.#applicationCursorKeys = false
+      this.#applicationKeypad = false
+      this.#bracketedPaste = false
+      this.#alternateScreen = false
+      this.#cursorVisible = true
+      return
+    }
+    if (ch === "=") this.#applicationKeypad = true
+    else if (ch === ">") this.#applicationKeypad = false
+  }
+
+  #consumeCsi(ch: string): void {
+    const code = ch.charCodeAt(0)
+    if (code >= 0x40 && code <= 0x7e) {
+      this.#parserMode = "text"
+      this.#dispatchCsi(this.#sequence, ch)
+      this.#sequence = ""
+      return
+    }
+    if (this.#sequence.length < 256) this.#sequence += ch
+  }
+
+  #consumeOsc(ch: string): void {
+    if (this.#oscEsc) {
+      this.#parserMode = ch === "\\" ? "text" : "osc"
+      this.#oscEsc = false
+      return
+    }
+    if (ch === "\x07") {
+      this.#parserMode = "text"
+      return
+    }
+    if (ch === "\x1b") this.#oscEsc = true
+  }
+
+  #dispatchCsi(raw: string, final: string): void {
+    if (final !== "h" && final !== "l") return
+    const privatePrefix = /^[?><=]+/.exec(raw)?.[0] ?? ""
+    if (!privatePrefix.includes("?")) return
+    const body = privatePrefix.length > 0 ? raw.slice(privatePrefix.length) : raw
+    const enabled = final === "h"
+    const params = parseStateCsiParams(body)
+    if (params.includes(25)) this.#cursorVisible = enabled
+    if (params.includes(1)) this.#applicationCursorKeys = enabled
+    if (params.includes(66)) this.#applicationKeypad = enabled
+    if (params.includes(2004)) this.#bracketedPaste = enabled
+    if (params.includes(47) || params.includes(1047) || params.includes(1049)) this.#alternateScreen = enabled
   }
 }
 
@@ -395,7 +527,7 @@ export function createPtyServer(options: PtyServerOptions = {}): ReturnType<type
         if (payload === null || session === undefined) return
 
         if (payload.type === "input.write") {
-          session.write(payload.data)
+          session.write(payload.data, payload.localEchoId)
           return
         }
 
@@ -471,9 +603,12 @@ export function parsePtyClientMessage(raw: string | ArrayBuffer | Uint8Array): P
   try {
     const value = JSON.parse(text) as Partial<PtyClientMessage>
     if (value.type === "input.write" && typeof value.data === "string") {
-      return value.source === undefined
-        ? {type: "input.write", data: value.data}
-        : {type: "input.write", data: value.data, source: value.source}
+      return {
+        type: "input.write",
+        data: value.data,
+        ...(value.source === undefined ? {} : {source: value.source}),
+        ...(Number.isSafeInteger(value.localEchoId) ? {localEchoId: value.localEchoId} : {}),
+      }
     }
     if (value.type === "terminal.resize" && isTerminalSize(value.size)) {
       return {type: "terminal.resize", size: value.size}
@@ -486,6 +621,14 @@ export function parsePtyClientMessage(raw: string | ArrayBuffer | Uint8Array): P
   }
 
   return null
+}
+
+function parseStateCsiParams(raw: string): number[] {
+  if (raw.length === 0) return []
+  return raw
+    .split(/[;:]/)
+    .map((part) => Number.parseInt(part, 10))
+    .filter((value) => Number.isFinite(value))
 }
 
 function isTerminalSize(value: unknown): value is PtyTerminalSize {
