@@ -10,6 +10,7 @@
     "./wav": "./src/wav.ts"
   },
   "scripts": {
+    "assets": "bun run scripts/install-assets.ts",
     "dev": "bun --hot src/web/server.ts",
     "playground": "bun --hot src/web/server.ts",
     "start": "bun src/web/server.ts",

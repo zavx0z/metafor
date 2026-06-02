@@ -24,6 +24,18 @@ Local native/runtime assets are expected next to this package:
 
 These assets are intentionally ignored by Git because they are large and machine-specific. You can also point to them explicitly:
 
+Download the Vosk native library and the small Russian model:
+
+```sh
+bun run voice:assets
+```
+
+From this package directly:
+
+```sh
+bun run assets
+```
+
 ```sh
 export VOSK_LIB="$PWD/lib/libvosk.dylib"
 export VOSK_MODEL="$PWD/models/ru"
@@ -45,6 +57,12 @@ From the production workspace root:
 bun --filter @metafor/voice playground
 ```
 
+or:
+
+```sh
+bun run voice:playground
+```
+
 Then open:
 
 ```text
@@ -60,6 +78,18 @@ For `ai-srv`, keep a local tunnel open:
 
 ```sh
 ssh -N -L 8877:127.0.0.1:8787 ai-srv
+```
+
+or:
+
+```sh
+bun run voice:asr:tunnel
+```
+
+Check both local voice endpoints:
+
+```sh
+bun run voice:health
 ```
 
 The remote ASR service accepts a context prompt from the playground's `Context` field and passes it to Whisper as `initial_prompt`.
