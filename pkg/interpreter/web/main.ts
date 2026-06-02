@@ -1,8 +1,9 @@
 /**
  * Interpreter UI.
  *
- * One WebGPU Space contains one equal UIDisplay per launched module plus one
- * host terminal UIDisplay. Module runtime actions stay scoped to
+ * One WebGPU Space contains one equal UIDisplay per launched module. The host
+ * terminal is mounted as a HUD overlay so it stays screen-locked while module
+ * displays are framed/orbited. Module runtime actions stay scoped to
  * `/modules/:id/...`.
  */
 
@@ -231,7 +232,6 @@ const COMMAND_TIMEOUT_MS = 10_000
 const MODULE_DISPLAY_GAP_MM = 52
 const MODULE_DISPLAY_CENTER_Y_MM = 0
 const MODULE_DISPLAY_CENTER_Z_MM = 900
-const HOST_TERMINAL_DISPLAY_ID = "host:terminal"
 const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sessionId"
 const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
 const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
@@ -243,6 +243,10 @@ const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2_500
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
 const VOICE_HUD_W = 246
 const VOICE_HUD_H = 174
+const HOST_TERMINAL_HUD_MIN_H = 220
+const HOST_TERMINAL_HUD_MAX_H = 420
+const HOST_TERMINAL_HUD_DESKTOP_W = 780
+const HOST_TERMINAL_HUD_MARGIN = 16
 
 let uiCanvas: UiRuntime | null = null
 let uiLoading = false
@@ -268,7 +272,7 @@ let voiceServiceDetail = t("voiceServiceUnknown")
 let voiceServiceCheckedAt: Date | null = null
 let voiceServiceCheckInFlight = false
 let voiceServiceCheckTimer: number | null = null
-let hostTerminalDisplayCreated = false
+let hostTerminalHudCreated = false
 let hostTerminalUnloadInstalled = false
 let resizeObserver: ResizeObserver | null = null
 let socket: WebSocket | undefined
@@ -485,6 +489,7 @@ function handleEngineResize(): void {
 function installEnginePanes(): void {
   if (uiCanvas === null || displayHoverOutlinePane === null) return
   uiCanvas.addHudSurface(displayHoverOutlinePane, ({w, h}) => ({x: 0, y: 0, w, h}))
+  installHostTerminalHud()
   if (voiceHudPane !== null) {
     uiCanvas.addHudSurface(voiceHudPane, ({w, h}) => ({
       x: Math.max(8, w - VOICE_HUD_W - 16),
@@ -495,6 +500,14 @@ function installEnginePanes(): void {
   }
   updateVoiceHud()
   scheduleVoiceAutoWake(500)
+}
+
+function installHostTerminalHud(): void {
+  if (uiCanvas === null || hostTerminalHudCreated) return
+  const controller = ensureHostTerminalController()
+  hostTerminalHudCreated = true
+  uiCanvas.addHudSurface(controller.terminal, hostTerminalHudRect)
+  connectHostTerminal(controller)
 }
 
 function toggleLocale(): void {
@@ -1089,7 +1102,7 @@ function syncModuleDisplays(): void {
 
   const displayMetrics = viewportDisplayMetrics()
   const moduleDisplayIdList = orderedModules.map((module) => moduleDisplayId(module.id))
-  const displayIds = [...moduleDisplayIdList, HOST_TERMINAL_DISPLAY_ID]
+  const displayIds = moduleDisplayIdList
   const totalW = displayIds.length * displayMetrics.widthMm
     + Math.max(0, displayIds.length - 1) * MODULE_DISPLAY_GAP_MM
   let cursorX = -totalW / 2
@@ -1125,13 +1138,6 @@ function syncModuleDisplays(): void {
     if (controller !== undefined) updateModuleDisplay(controller, module)
   }
 
-  const terminalCenter = {
-    x: cursorX + displayMetrics.widthMm / 2,
-    y: MODULE_DISPLAY_CENTER_Y_MM,
-    z: MODULE_DISPLAY_CENTER_Z_MM,
-  }
-  syncHostTerminalDisplay(displayMetrics, terminalCenter)
-
   const frameKey = displayIds.map((id, index) => {
     return `${id}:${index}:${Math.round(displayMetrics.widthMm)}x${Math.round(displayMetrics.heightMm)}:${displayMetrics.pixelWidth}x${displayMetrics.pixelHeight}`
   }).join("\0")
@@ -1147,30 +1153,6 @@ function syncModuleDisplays(): void {
     framedModuleKey = frameKey
     uiCanvas.frameDisplays(displayIds)
   }
-}
-
-function syncHostTerminalDisplay(displayMetrics: DisplayLayoutMetrics, center: {x: number; y: number; z: number}): void {
-  if (uiCanvas === null) return
-  const controller = ensureHostTerminalController()
-  if (!hostTerminalDisplayCreated) {
-    hostTerminalDisplayCreated = true
-    uiCanvas.createDisplay({
-      id: HOST_TERMINAL_DISPLAY_ID,
-      widthMm: displayMetrics.widthMm,
-      heightMm: displayMetrics.heightMm,
-      pixelWidth: displayMetrics.pixelWidth,
-      pixelHeight: displayMetrics.pixelHeight,
-      centerMm: center,
-      background: 0x020617,
-      border: 0x334155,
-    })
-    uiCanvas.addSurfaceToDisplay(HOST_TERMINAL_DISPLAY_ID, controller.terminal, terminalDisplayRect)
-    connectHostTerminal(controller)
-    return
-  }
-
-  uiCanvas.resizeDisplay(HOST_TERMINAL_DISPLAY_ID, displayMetrics)
-  uiCanvas.setDisplayCenter(HOST_TERMINAL_DISPLAY_ID, center)
 }
 
 function ensureHostTerminalController(): HostTerminalController {
@@ -2296,12 +2278,21 @@ function hiddenRect(): UiSurfaceRect {
   return {x: -10000, y: -10000, w: 1, h: 1, visible: false}
 }
 
-function terminalDisplayRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  const margin = Math.max(8, Math.min(HOST_TERMINAL_HUD_MARGIN, Math.floor(w * 0.04)))
+  const maxW = Math.max(1, w - margin * 2)
+  const terminalW = w >= 1180 ? Math.min(HOST_TERMINAL_HUD_DESKTOP_W, maxW) : maxW
+  const maxH = Math.max(1, h - margin * 2)
+  const preferredH = Math.floor(h * (w >= 1180 ? 0.32 : 0.38))
+  const terminalH = Math.min(
+    maxH,
+    Math.min(HOST_TERMINAL_HUD_MAX_H, Math.max(HOST_TERMINAL_HUD_MIN_H, preferredH)),
+  )
   return {
-    x: PAD,
-    y: PAD,
-    w: Math.max(1, w - PAD * 2),
-    h: Math.max(1, h - PAD * 2),
+    x: margin,
+    y: Math.max(margin, h - terminalH - margin),
+    w: terminalW,
+    h: terminalH,
   }
 }
 
