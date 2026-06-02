@@ -35,7 +35,19 @@ type AsrMessage = {
 
 const TARGET_SAMPLE_RATE = 16_000
 const WAKE_WORD = "завхоз"
-const WAKE_ALIASES = ["завхоз", "зав хоз", "завхос", "зав хос", "совхоз", "за вход"]
+const WAKE_ALIASES = [
+  "завхоз",
+  "зав хоз",
+  "завхос",
+  "зав хос",
+  "запхоз",
+  "зап хоз",
+  "совхоз",
+  "за вход",
+  "агент",
+  "слышь долбоеб",
+  "слыш долбоеб",
+]
 const STOP_COMMAND_RE = /(^|[\s,.;:!?…-]+)(?:выключи|выключу|отключи|отключу|выруби|вырублю|останови|остановлю)\s+(?:микрофон|голос(?:овой\s+ввод)?)(?=$|[\s,.;:!?…-]+)/giu
 const VOICE_RMS_THRESHOLD = 0.012
 const SILENCE_COMMIT_MS = 1_550
@@ -579,7 +591,15 @@ function recognitionText(msg: AsrMessage): string {
 function isWakePhrase(text: string): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
-  if (normalized.includes("завхоз") || normalized.includes("завхос")) return true
+  if (
+    normalized.includes("завхоз") ||
+    normalized.includes("завхос") ||
+    normalized.includes("запхоз") ||
+    normalized === "агент" ||
+    normalized.startsWith("агент ") ||
+    normalized.includes("слышь долбоеб") ||
+    normalized.includes("слыш долбоеб")
+  ) return true
 
   const words = normalized.split(/\s+/)
   const shortWakeUtterance = words.length <= 3
@@ -594,11 +614,26 @@ function isWakePhrase(text: string): boolean {
 function isFastWakePartial(text: string): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
-  if (normalized === "завхоз" || normalized === "завхос" || normalized === "зав хоз" || normalized === "зав хос") return true
+  if (
+    normalized === "завхоз" ||
+    normalized === "завхос" ||
+    normalized === "зав хоз" ||
+    normalized === "зав хос" ||
+    normalized === "запхоз" ||
+    normalized === "зап хоз" ||
+    normalized === "агент" ||
+    normalized === "слышь долбоеб" ||
+    normalized === "слыш долбоеб"
+  ) return true
   return normalized.startsWith("завхоз ")
     || normalized.startsWith("завхос ")
     || normalized.startsWith("зав хоз ")
     || normalized.startsWith("зав хос ")
+    || normalized.startsWith("запхоз ")
+    || normalized.startsWith("зап хоз ")
+    || normalized.startsWith("агент ")
+    || normalized.startsWith("слышь долбоеб ")
+    || normalized.startsWith("слыш долбоеб ")
 }
 
 function normalizeWakeText(text: string): string {
@@ -667,7 +702,7 @@ function cleanupVoiceParagraph(paragraph: string): string {
 
 function stripWakePrefix(text: string): string {
   return text
-    .replace(/^(?:завхоз|завхос|зав\s+хоз|зав\s+хос|совхоз|за\s+вход)[\s,.;:!?…-]*/iu, "")
+    .replace(/^(?:завхоз|завхос|запхоз|зав\s+хоз|зав\s+хос|зап\s+хоз|совхоз|за\s+вход|агент|слышь\s+долбо[её]б|слыш\s+долбо[её]б)[\s,.;:!?…-]*/iu, "")
     .trim()
 }
 

@@ -6,7 +6,8 @@
  * `/modules/:id/...`.
  */
 
-import {UiRuntime, UiSurface, button, drawIconCentered, palette, uiIcons, type UiSurfaceRect} from "@ui/elements"
+import {UiRuntime, UiSurface, uiIcons, type UiSurfaceRect} from "@ui/elements"
+import {VoiceInputHud, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
@@ -209,19 +210,6 @@ type VoiceInputTarget =
   | {kind: "module"; controller: ModuleDisplayController}
   | {kind: "host"; controller: HostTerminalController}
 
-type VoiceServiceState = "unknown" | "ok" | "down"
-
-type VoiceHudSnapshot = {
-  status: VoiceInputStatus
-  statusLine: string
-  targetLine: string
-  autoEnterLine: string
-  detailLine: string
-  serviceLine: string
-  serviceState: VoiceServiceState
-  level: number
-}
-
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
   if (element === null) throw new Error(`#${id} not in DOM`)
@@ -243,13 +231,14 @@ const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTermin
 const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
 const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
 const VOICE_INPUT_CONTEXT_STORAGE_KEY = "metafor.interpreter.voice.context"
+const VOICE_HUD_RECT_STORAGE_KEY = "metafor.interpreter.voice.hudRect:v1"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
 const VOICE_SERVICE_CHECK_INTERVAL_MS = 12_000
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2_500
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
-const VOICE_HUD_W = 246
-const VOICE_HUD_H = 174
+const VOICE_HUD_W = 128
+const VOICE_HUD_H = 128
 const HOST_TERMINAL_HUD_MAX_W = 980
 const HOST_TERMINAL_HUD_MAX_H = 340
 const HOST_TERMINAL_HUD_MIN_W = 720
@@ -273,7 +262,7 @@ let hostTerminal: HostTerminalController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let hostTerminalDockPlacement = readStoredHostTerminalDockPlacement()
-let voiceHudPane: VoiceHudPane | null = null
+let voiceHudPane: VoiceInputHud | null = null
 let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
 let voiceHudErrorTimer: number | null = null
@@ -288,7 +277,7 @@ let voiceAutoWakeInFlight = false
 let voiceAutoWakePaused = false
 let voiceAutoEnterCount = 0
 let voiceAutoEnterAt: Date | null = null
-let voiceServiceState: VoiceServiceState = "unknown"
+let voiceServiceState: VoiceInputHudServiceState = "unknown"
 let voiceServiceDetail = t("voiceServiceUnknown")
 let voiceServiceCheckedAt: Date | null = null
 let voiceServiceCheckInFlight = false
@@ -476,7 +465,12 @@ async function initEngine(): Promise<void> {
       },
     })
     displayHoverOutlinePane = new DisplayHoverOutlinePane()
-    voiceHudPane = new VoiceHudPane(() => void toggleVoiceInput())
+    voiceHudPane = new VoiceInputHud({
+      onToggle: () => void toggleVoiceInput(),
+      onMove: storeVoiceHudRect,
+      startTooltip: () => t("voiceStart"),
+      stopTooltip: () => t("voiceStop"),
+    })
     installEnginePanes()
     uiCanvas.handleResize()
     syncModuleDisplays()
@@ -515,12 +509,7 @@ function installEnginePanes(): void {
   hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
   uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect)
   if (voiceHudPane !== null) {
-    uiCanvas.addHudSurface(voiceHudPane, ({w, h}) => ({
-      x: Math.max(8, w - VOICE_HUD_W - 16),
-      y: 64,
-      w: Math.min(VOICE_HUD_W, Math.max(1, w - 16)),
-      h: VOICE_HUD_H,
-    }))
+    uiCanvas.addHudSurface(voiceHudPane, voiceHudRect)
   }
   updateVoiceHud()
   scheduleVoiceAutoWake(500)
@@ -554,106 +543,6 @@ function setVerboseVisible(controller: ModuleDisplayController, on: boolean): vo
   const snapshot = moduleSnapshots.get(controller.id)
   if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
   uiCanvas?.relayout()
-}
-
-class VoiceHudPane extends UiSurface {
-  #snapshot: VoiceHudSnapshot = {
-    status: "idle",
-    statusLine: "",
-    targetLine: "",
-    autoEnterLine: "",
-    detailLine: "",
-    serviceLine: "",
-    serviceState: "unknown",
-    level: 0,
-  }
-
-  constructor(private readonly onToggle: () => void) {
-    super({bgColor: null, borderColor: null})
-  }
-
-  setSnapshot(snapshot: VoiceHudSnapshot): void {
-    this.#snapshot = snapshot
-    this.requestRender()
-  }
-
-  protected render(): void {
-    const status = this.#snapshot.status
-    const active = status === "waitingWake" || status === "listening" || status === "committing"
-    const warn = status === "connecting" || status === "waitingWake" || status === "committing"
-    const error = status === "error" || this.#snapshot.serviceState === "down"
-    const border = error ? palette.red : warn ? palette.orange : active ? palette.green : palette.borderDim
-    const textMaterial = error ? this.materials.red : warn ? this.materials.orange : active ? this.materials.green : this.materials.text
-    const buttonSize = 58
-    const buttonX = Math.max(0, (this.rectW - buttonSize) / 2)
-    const buttonY = 8
-    const centerX = buttonX + buttonSize / 2
-    const centerY = buttonY + buttonSize / 2
-
-    this.#drawRadialMeter(centerX, centerY, buttonSize / 2 + 7, 18)
-
-    const buttonBorder = error ? "red" : warn ? "orange" : active ? "green" : "border"
-    button(this, buttonX, buttonY, buttonSize, buttonSize, {
-      key: "engine-voice-hud-toggle",
-      tooltip: status === "listening" || status === "committing" || status === "connecting" ? t("voiceStop") : t("voiceStart"),
-      onClick: this.onToggle,
-      style: (state) => ({
-        background: state === "hover" ? "rgba(22, 36, 55, 0.94)" : "rgba(15, 23, 42, 0.9)",
-        borderColor: buttonBorder,
-        borderRadius: buttonSize / 2,
-        zIndex: 0.3,
-      }),
-      children: () => drawIconCentered(this, uiIcons.mic, centerX, centerY, 22, {z: 0.55}),
-    })
-
-    const panelY = buttonY + buttonSize + 22
-    const panelW = this.rectW
-    const panelH = Math.max(1, this.rectH - panelY)
-    this.drawRoundedRect(0, panelY, panelW, panelH, {
-      radius: 8,
-      fill: palette.bgPanelDim,
-      border,
-      borderWidth: 1,
-      opacity: 0.88,
-      z: 0,
-    })
-
-    const x = 10
-    const textW = panelW - x * 2
-    const lines = [
-      this.#snapshot.statusLine,
-      this.#snapshot.targetLine,
-      this.#snapshot.autoEnterLine,
-      this.#snapshot.detailLine,
-      this.#snapshot.serviceLine,
-    ].filter(Boolean)
-    for (let index = 0; index < Math.min(4, lines.length); index += 1) {
-      this.drawText(lines[index]!, x, panelY + 8 + index * 15, {
-        fontPx: index === 0 ? 12 : 11,
-        material: index === 0 ? textMaterial : this.materials.muted,
-        maxWidthPx: textW,
-      })
-    }
-  }
-
-  #drawRadialMeter(cx: number, cy: number, radius: number, maxBar: number): void {
-    const count = 24
-    const level = Math.max(0, Math.min(1, this.#snapshot.level))
-    for (let index = 0; index < count; index += 1) {
-      const threshold = (index + 1) / count
-      const phase = (index / count) * Math.PI * 2
-      const peak = 0.55 + 0.45 * Math.sin(phase * 3 + level * Math.PI)
-      const amount = Math.max(0.16, Math.min(1, level * (0.55 + peak * 0.65)))
-      const inner = radius
-      const outer = radius + 5 + amount * maxBar
-      const x0 = cx + Math.cos(phase) * inner
-      const y0 = cy + Math.sin(phase) * inner
-      const x1 = cx + Math.cos(phase) * outer
-      const y1 = cy + Math.sin(phase) * outer
-      const color = level >= threshold * 0.78 ? palette.cyan : palette.borderDim
-      this.drawRoundedLine(x0, y0, x1, y1, color, 3, 0.2)
-    }
-  }
 }
 
 class HostTerminalDockPane extends UiSurface {
@@ -1005,6 +894,11 @@ function cleanupVoiceInputText(text: string): string {
 }
 
 function updateVoiceLevel(level: number): void {
+  if (voiceHudStatus === "waitingWake") {
+    voiceInputLevel = 0
+    return
+  }
+
   const next = Math.max(0, Math.min(1, level * 12))
   voiceInputLevel = voiceInputLevel * 0.72 + next * 0.28
   if (voiceMeterRaf !== null) return
@@ -1041,7 +935,7 @@ function renderVoiceHud(): void {
     detailLine: voiceHudDetail,
     serviceLine: voiceServiceLine(),
     serviceState: voiceServiceState,
-    level: voiceHudStatus === "waitingWake" || voiceHudStatus === "listening" || voiceHudStatus === "committing" ? voiceInputLevel : 0,
+    level: voiceHudStatus === "listening" || voiceHudStatus === "committing" ? voiceInputLevel : 0,
   })
 }
 
@@ -1614,6 +1508,24 @@ function storeHostTerminalHudRect(rect: UiSurfaceRect): void {
   if (normalized === null) return
   try {
     localStorage.setItem(HOST_TERMINAL_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function readStoredVoiceHudRect(): UiSurfaceRect | null {
+  try {
+    return parseStoredPaneRect(localStorage.getItem(VOICE_HUD_RECT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+function storeVoiceHudRect(rect: UiSurfaceRect): void {
+  const normalized = normalizeStoredPaneRect({...rect, w: VOICE_HUD_W, h: VOICE_HUD_H})
+  if (normalized === null) return
+  try {
+    localStorage.setItem(VOICE_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
   } catch {
     // Storage can be disabled in private contexts.
   }
@@ -2650,6 +2562,31 @@ function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
     w: Math.max(1, terminalW),
     h: Math.max(1, terminalH),
   }, w, h)
+}
+
+function voiceHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  const stored = readStoredVoiceHudRect()
+  if (stored !== null) return clampVoiceHudRect(stored, w, h)
+  return clampVoiceHudRect({
+    x: w - VOICE_HUD_W - 16,
+    y: h - VOICE_HUD_H - 16,
+    w: VOICE_HUD_W,
+    h: VOICE_HUD_H,
+  }, w, h)
+}
+
+function clampVoiceHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+  const bw = Math.max(1, Math.round(boundsW))
+  const bh = Math.max(1, Math.round(boundsH))
+  const margin = bw >= 32 && bh >= 32 ? 8 : 0
+  const rectW = Math.min(VOICE_HUD_W, Math.max(1, bw - margin * 2))
+  const rectH = Math.min(VOICE_HUD_H, Math.max(1, bh - margin * 2))
+  return {
+    x: clampNumber(rect.x, margin, Math.max(margin, bw - margin - rectW)),
+    y: clampNumber(rect.y, margin, Math.max(margin, bh - margin - rectH)),
+    w: rectW,
+    h: rectH,
+  }
 }
 
 function hostTerminalDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
