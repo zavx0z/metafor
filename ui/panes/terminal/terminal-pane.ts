@@ -881,7 +881,7 @@ class TerminalOutputPane extends UiSurface {
 
   protected handleOutputShortcut(event: KeyboardEvent): boolean {
     const metaOnly = event.metaKey && !event.ctrlKey && !event.altKey
-    const key = event.key.toLowerCase()
+    const key = shortcutLetter(event)
     if (metaOnly && key === "c") {
       event.preventDefault()
       void this.#copySelectionOrCurrentLine()
@@ -1660,7 +1660,7 @@ export class TerminalPane extends TerminalOutputPane {
     if (!this.#inputEnabled) return
 
     const metaOnly = event.metaKey && !event.ctrlKey && !event.altKey
-    const key = event.key.toLowerCase()
+    const key = shortcutLetter(event)
     if (metaOnly) {
       if (key === "v") {
         event.preventDefault()
@@ -1746,14 +1746,8 @@ function keyToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode = d
   if (keypad !== null) return keypad
   if (key === "Tab" && event.shiftKey) return "\x1b[Z"
   if (event.ctrlKey && !event.altKey && !event.metaKey) {
-    const lower = key.toLowerCase()
-    if (lower.length === 1 && lower >= "a" && lower <= "z") return String.fromCharCode(lower.charCodeAt(0) - 96)
-    if (key === " ") return "\x00"
-    if (key === "[") return "\x1b"
-    if (key === "\\") return "\x1c"
-    if (key === "]") return "\x1d"
-    if (key === "^") return "\x1e"
-    if (key === "_") return "\x1f"
+    const control = ctrlShortcutToTerminalInput(event)
+    if (control !== null) return control
   }
   if (event.altKey && key.length === 1 && !event.ctrlKey && !event.metaKey) return `\x1b${key}`
   if (event.metaKey) return null
@@ -1765,6 +1759,44 @@ function keyToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode = d
   if (special !== null) return special
   if (event.ctrlKey) return null
   if (key.length === 1) return key
+  return null
+}
+
+function shortcutLetter(event: KeyboardEvent): string | null {
+  const code = event.code
+  if (code.length === 4 && code.startsWith("Key")) {
+    const letter = code[3]?.toLowerCase() ?? ""
+    if (letter >= "a" && letter <= "z") return letter
+  }
+  const key = event.key.toLowerCase()
+  if (key.length === 1 && key >= "a" && key <= "z") return key
+  return null
+}
+
+function ctrlShortcutToTerminalInput(event: KeyboardEvent): string | null {
+  const letter = shortcutLetter(event)
+  if (letter !== null) return String.fromCharCode(letter.charCodeAt(0) - 96)
+  switch (event.code) {
+    case "Space":
+      return "\x00"
+    case "BracketLeft":
+      return "\x1b"
+    case "Backslash":
+      return "\x1c"
+    case "BracketRight":
+      return "\x1d"
+    case "Digit6":
+      return "\x1e"
+    case "Minus":
+      return "\x1f"
+  }
+  const key = event.key
+  if (key === " ") return "\x00"
+  if (key === "[") return "\x1b"
+  if (key === "\\") return "\x1c"
+  if (key === "]") return "\x1d"
+  if (key === "^") return "\x1e"
+  if (key === "_") return "\x1f"
   return null
 }
 

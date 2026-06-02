@@ -7,7 +7,7 @@
  */
 
 import {UiRuntime, UiSurface, button, drawIconCentered, palette, uiIcons, type UiSurfaceRect} from "@ui/elements"
-import {HudSideTab} from "@ui/hud"
+import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
   TerminalPane,
@@ -239,6 +239,7 @@ const HOST_TERMINAL_DISPLAY_ID = "host:terminal"
 const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sessionId"
 const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudRect:v1"
 const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
+const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTerminal.dockPlacement:v1"
 const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
 const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
 const VOICE_INPUT_CONTEXT_STORAGE_KEY = "metafor.interpreter.voice.context"
@@ -255,8 +256,15 @@ const HOST_TERMINAL_HUD_MIN_W = 720
 const HOST_TERMINAL_HUD_MIN_H = 560
 const HOST_TERMINAL_HUD_PANEL_MIN_W = 260
 const HOST_TERMINAL_HUD_PANEL_MIN_H = 160
-const HOST_TERMINAL_DOCK_W = 36
-const HOST_TERMINAL_DOCK_H = 128
+const HOST_TERMINAL_DOCK_SHORT = 36
+const HOST_TERMINAL_DOCK_LONG = 128
+const HOST_TERMINAL_DOCK_MARGIN = 8
+const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
+
+type HostTerminalDockPlacement = {
+  edge: HudSideTabEdge
+  offset: number
+}
 
 let uiCanvas: UiRuntime | null = null
 let uiLoading = false
@@ -264,6 +272,7 @@ let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
 let hostTerminal: HostTerminalController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
+let hostTerminalDockPlacement = readStoredHostTerminalDockPlacement()
 let voiceHudPane: VoiceHudPane | null = null
 let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
@@ -648,6 +657,14 @@ class VoiceHudPane extends UiSurface {
 }
 
 class HostTerminalDockPane extends UiSurface {
+  #press: {
+    lastX: number
+    lastY: number
+    dragging: boolean
+    timer: ReturnType<typeof setTimeout> | null
+  } | null = null
+  #suppressRestoreClick = false
+
   constructor(private readonly onRestore: () => void) {
     super({bgColor: null, borderColor: null})
     this.node.name = "HostTerminalDockPane"
@@ -657,13 +674,102 @@ class HostTerminalDockPane extends UiSurface {
     HudSideTab(this, {
       rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
       key: "host-terminal-dock-restore",
-      edge: "left",
+      edge: currentHostTerminalDockEdge(),
       icon: uiIcons.log,
       label: t("hostTerminal"),
       tone: "neutral",
       tooltip: t("hostTerminal"),
-      onClick: this.onRestore,
+      onClick: () => this.#restoreFromClick(),
     })
+  }
+
+  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    super.onPointerDown(event, localX, localY)
+    if (event.button !== 0 || this.pressedHit === null) return
+    const point = this.#canvasPoint(event)
+    if (point === null) return
+    const press = {
+      lastX: point.x,
+      lastY: point.y,
+      dragging: false,
+      timer: null as ReturnType<typeof setTimeout> | null,
+    }
+    press.timer = setTimeout(() => {
+      if (this.#press !== press) return
+      press.dragging = true
+      this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
+    }, HOST_TERMINAL_DOCK_LONG_PRESS_MS)
+    this.#press = press
+  }
+
+  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+    const press = this.#press
+    if (press === null) {
+      super.onPointerMove(event, localX, localY)
+      return
+    }
+    const point = this.#canvasPoint(event)
+    if (point !== null) {
+      press.lastX = point.x
+      press.lastY = point.y
+    }
+    if (!press.dragging) {
+      super.onPointerMove(event, localX, localY)
+      return
+    }
+    event.preventDefault()
+    this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
+    if (this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = "grabbing"
+  }
+
+  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+    const press = this.#press
+    this.#press = null
+    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
+    const wasDragging = press?.dragging === true
+    if (wasDragging) this.#suppressRestoreClick = true
+    super.onPointerUp(event, localX, localY)
+    if (wasDragging) this.#suppressRestoreClick = false
+  }
+
+  override onPointerLeave(): void {
+    super.onPointerLeave()
+    this.#cancelPress()
+  }
+
+  override onDeactivate(): void {
+    super.onDeactivate()
+    this.#cancelPress()
+  }
+
+  override dispose(): void {
+    this.#cancelPress()
+    super.dispose()
+  }
+
+  #restoreFromClick(): void {
+    if (this.#suppressRestoreClick) return
+    this.onRestore()
+  }
+
+  #cancelPress(): void {
+    const press = this.#press
+    this.#press = null
+    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
+  }
+
+  #moveDockToCanvasPoint(point: {x: number; y: number}): void {
+    const frame = this.canvas?.surfaceFrame(this)
+    if (frame === undefined || frame === null) return
+    const placement = hostTerminalDockPlacementFromPoint(point, frame.bounds)
+    setHostTerminalDockPlacement(placement)
+  }
+
+  #canvasPoint(event: MouseEvent): {x: number; y: number} | null {
+    const canvas = this.canvas?.canvas
+    if (canvas === undefined) return null
+    const rect = canvas.getBoundingClientRect()
+    return {x: event.clientX - rect.left, y: event.clientY - rect.top}
   }
 }
 
@@ -1529,6 +1635,35 @@ function writeStoredHostTerminalHudDocked(docked: boolean): void {
   }
 }
 
+function readStoredHostTerminalDockPlacement(): HostTerminalDockPlacement | null {
+  try {
+    const raw = localStorage.getItem(HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY)
+    if (raw === null) return null
+    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
+    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
+    return {edge: value.edge, offset: value.offset}
+  } catch {
+    return null
+  }
+}
+
+function writeStoredHostTerminalDockPlacement(placement: HostTerminalDockPlacement): void {
+  try {
+    localStorage.setItem(HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function setHostTerminalDockPlacement(placement: HostTerminalDockPlacement): void {
+  const previous = hostTerminalDockPlacement
+  if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
+  hostTerminalDockPlacement = placement
+  writeStoredHostTerminalDockPlacement(placement)
+  hostTerminalDockPane?.requestRender()
+  uiCanvas?.relayout()
+}
+
 function setHostTerminalHudDocked(docked: boolean): void {
   if (hostTerminalHudDocked === docked) return
   hostTerminalHudDocked = docked
@@ -1544,6 +1679,14 @@ function setHostTerminalHudDocked(docked: boolean): void {
   controller?.hudTerminal.requestRender()
   hostTerminalDockPane?.requestRender()
   uiCanvas?.relayout()
+}
+
+function isHostTerminalDockEdge(value: unknown): value is HudSideTabEdge {
+  return value === "left" || value === "right" || value === "top" || value === "bottom"
+}
+
+function currentHostTerminalDockEdge(): HudSideTabEdge {
+  return hostTerminalDockPlacement?.edge ?? "left"
 }
 
 function parseStoredPaneRect(raw: string | null): UiSurfaceRect | null {
@@ -2510,16 +2653,78 @@ function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
 }
 
 function hostTerminalDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
-  if (!hostTerminalHudDocked || w < 80 || h < 140) return hiddenRect()
-  const dockW = Math.min(HOST_TERMINAL_DOCK_W, Math.max(1, w - 8))
-  const dockH = Math.min(HOST_TERMINAL_DOCK_H, Math.max(1, h - 32))
-  const stored = readStoredHostTerminalHudRect()
-  const targetY = stored?.y ?? h - dockH - 16
+  if (!hostTerminalHudDocked || w < 80 || h < 80) return hiddenRect()
+  return hostTerminalDockRectForPlacement(hostTerminalDockPlacement ?? defaultHostTerminalDockPlacement({w, h}), {w, h})
+}
+
+function hostTerminalDockRectForPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): UiSurfaceRect {
+  const vertical = placement.edge === "left" || placement.edge === "right"
+  const dockW = vertical
+    ? Math.min(HOST_TERMINAL_DOCK_SHORT, Math.max(1, bounds.w - HOST_TERMINAL_DOCK_MARGIN))
+    : Math.min(HOST_TERMINAL_DOCK_LONG, Math.max(1, bounds.w - HOST_TERMINAL_DOCK_MARGIN * 2))
+  const dockH = vertical
+    ? Math.min(HOST_TERMINAL_DOCK_LONG, Math.max(1, bounds.h - HOST_TERMINAL_DOCK_MARGIN * 2))
+    : Math.min(HOST_TERMINAL_DOCK_SHORT, Math.max(1, bounds.h - HOST_TERMINAL_DOCK_MARGIN))
+  if (vertical) {
+    const centerY = clampNumber(
+      placement.offset,
+      HOST_TERMINAL_DOCK_MARGIN + dockH / 2,
+      Math.max(HOST_TERMINAL_DOCK_MARGIN + dockH / 2, bounds.h - HOST_TERMINAL_DOCK_MARGIN - dockH / 2),
+    )
+    return {
+      x: placement.edge === "left" ? 0 : Math.max(0, bounds.w - dockW),
+      y: centerY - dockH / 2,
+      w: dockW,
+      h: dockH,
+    }
+  }
+  const centerX = clampNumber(
+    placement.offset,
+    HOST_TERMINAL_DOCK_MARGIN + dockW / 2,
+    Math.max(HOST_TERMINAL_DOCK_MARGIN + dockW / 2, bounds.w - HOST_TERMINAL_DOCK_MARGIN - dockW / 2),
+  )
   return {
-    x: 0,
-    y: clampNumber(targetY, 48, Math.max(48, h - dockH - 16)),
+    x: centerX - dockW / 2,
+    y: placement.edge === "top" ? 0 : Math.max(0, bounds.h - dockH),
     w: dockW,
     h: dockH,
+  }
+}
+
+function defaultHostTerminalDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  const dockH = Math.min(HOST_TERMINAL_DOCK_LONG, Math.max(1, bounds.h - HOST_TERMINAL_DOCK_MARGIN * 2))
+  const stored = readStoredHostTerminalHudRect()
+  const fallbackCenterY = stored === null
+    ? bounds.h - dockH / 2 - 16
+    : stored.y + Math.min(stored.h, dockH) / 2
+  return {
+    edge: "left",
+    offset: clampNumber(
+      fallbackCenterY,
+      HOST_TERMINAL_DOCK_MARGIN + dockH / 2,
+      Math.max(HOST_TERMINAL_DOCK_MARGIN + dockH / 2, bounds.h - HOST_TERMINAL_DOCK_MARGIN - dockH / 2),
+    ),
+  }
+}
+
+function hostTerminalDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  const distances: Array<{edge: HudSideTabEdge; distance: number}> = [
+    {edge: "left", distance: point.x},
+    {edge: "right", distance: bounds.w - point.x},
+    {edge: "top", distance: point.y},
+    {edge: "bottom", distance: bounds.h - point.y},
+  ]
+  let best = distances[0]!
+  for (const item of distances.slice(1)) {
+    if (item.distance < best.distance) best = item
+  }
+  const rect = hostTerminalDockRectForPlacement({
+    edge: best.edge,
+    offset: best.edge === "left" || best.edge === "right" ? point.y : point.x,
+  }, bounds)
+  return {
+    edge: best.edge,
+    offset: best.edge === "left" || best.edge === "right" ? rect.y + rect.h / 2 : rect.x + rect.w / 2,
   }
 }
 

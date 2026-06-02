@@ -48,7 +48,7 @@ export type HudReturnDockProps = {
   z?: number
 }
 
-export type HudSideTabEdge = "left" | "right"
+export type HudSideTabEdge = "left" | "right" | "top" | "bottom"
 export type HudSideTabTone = "neutral" | "active" | "warning" | "danger"
 
 export type HudSideTabProps = {
@@ -170,12 +170,11 @@ export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualSt
   const fill = sideTabFill(active, hovered)
   const vertical = edge === "left" || edge === "right"
   const outerRadius = clamp(Math.min(props.rect.w, props.rect.h) * 0.5, 10, 18)
-  const radius = edge === "left"
-    ? {tl: 0, tr: outerRadius, br: outerRadius, bl: 0}
-    : {tl: outerRadius, tr: 0, br: 0, bl: outerRadius}
-  const pressX = active ? (edge === "left" ? 1 : -1) : 0
+  const radius = sideTabRadius(edge, outerRadius)
+  const pressX = active ? (edge === "left" ? 1 : edge === "right" ? -1 : 0) : 0
+  const pressY = active ? (edge === "top" ? 1 : edge === "bottom" ? -1 : 0) : 0
   const tabX = props.rect.x + pressX
-  const flatX = edge === "left" ? tabX : tabX + props.rect.w - 2
+  const tabY = props.rect.y + pressY
   const contentPad = vertical
     ? Math.min(10, Math.max(7, props.rect.w * 0.25))
     : Math.min(10, Math.max(6, props.rect.h * 0.22))
@@ -194,20 +193,20 @@ export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualSt
   const gap = iconSize > 0 && measuredLabelW > 0 ? reservedGap : 0
   const centeredSpan = iconSize + gap + measuredLabelW
   const groupStart = vertical
-    ? props.rect.y + Math.max(contentPad, (props.rect.h - centeredSpan) / 2)
+    ? tabY + Math.max(contentPad, (props.rect.h - centeredSpan) / 2)
     : tabX + Math.max(contentPad, (props.rect.w - centeredSpan) / 2)
   const iconCx = vertical
     ? tabX + props.rect.w / 2
     : groupStart + iconSize / 2
-  const iconCy = vertical ? groupStart + iconSize / 2 : props.rect.y + props.rect.h / 2
+  const iconCy = vertical ? groupStart + iconSize / 2 : tabY + props.rect.h / 2
   const labelX = vertical
     ? tabX + props.rect.w / 2 - labelFontPx / 2
     : groupStart + iconSize + gap
   const labelY = vertical
     ? groupStart + iconSize + gap
-    : props.rect.y + props.rect.h / 2 - labelFontPx / 2 - 1
+    : tabY + props.rect.h / 2 - labelFontPx / 2 - 1
 
-  host.drawRoundedRect(tabX, props.rect.y, props.rect.w, props.rect.h, {
+  host.drawRoundedRect(tabX, tabY, props.rect.w, props.rect.h, {
     radius,
     fill,
     border: accent,
@@ -215,7 +214,7 @@ export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualSt
     opacity: 0.92,
     z,
   })
-  host.drawRect(flatX, props.rect.y + 1, 2, Math.max(1, props.rect.h - 2), fill, z + 0.02)
+  drawSideTabFlatEdge(host, edge, {x: tabX, y: tabY, w: props.rect.w, h: props.rect.h}, fill, z + 0.02)
   if (props.icon !== undefined && props.icon.length > 0) {
     drawIconCentered(host, props.icon, iconCx, iconCy, iconSize, {opacity: hovered ? 0.92 : 0.76, z: z + 0.16})
   }
@@ -231,7 +230,8 @@ export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualSt
     host.drawText(label, labelX, labelY, textOpts)
   }
   if (props.indicatorColor !== undefined && props.indicatorColor !== null) {
-    host.drawRoundedRect(tabX + props.rect.w - (edge === "left" ? 10 : props.rect.w - 4), props.rect.y + props.rect.h - 15, 5, 5, {
+    const indicator = sideTabIndicatorRect(edge, {x: tabX, y: tabY, w: props.rect.w, h: props.rect.h})
+    host.drawRoundedRect(indicator.x, indicator.y, indicator.w, indicator.h, {
       radius: 2.5,
       fill: props.indicatorColor,
       border: fade(hudColors.hot, 0.18),
@@ -339,6 +339,36 @@ function sideTabAccent(tone: HudSideTabTone, strength: number): Color {
   if (tone === "warning") return new Color(1.0, 0.78, 0.52, clamp(0.30 * strength, 0, 0.46))
   if (tone === "danger") return new Color(1.0, 0.48, 0.42, clamp(0.34 * strength, 0, 0.5))
   return new Color(0.90, 0.94, 1.0, clamp(0.22 * strength, 0, 0.34))
+}
+
+function sideTabRadius(edge: HudSideTabEdge, radius: number): {tl: number; tr: number; br: number; bl: number} {
+  if (edge === "left") return {tl: 0, tr: radius, br: radius, bl: 0}
+  if (edge === "right") return {tl: radius, tr: 0, br: 0, bl: radius}
+  if (edge === "top") return {tl: 0, tr: 0, br: radius, bl: radius}
+  return {tl: radius, tr: radius, br: 0, bl: 0}
+}
+
+function drawSideTabFlatEdge(host: UiSurface, edge: HudSideTabEdge, rect: HudRect, fill: Color, z: number): void {
+  if (edge === "left") {
+    host.drawRect(rect.x, rect.y + 1, 2, Math.max(1, rect.h - 2), fill, z)
+    return
+  }
+  if (edge === "right") {
+    host.drawRect(rect.x + rect.w - 2, rect.y + 1, 2, Math.max(1, rect.h - 2), fill, z)
+    return
+  }
+  if (edge === "top") {
+    host.drawRect(rect.x + 1, rect.y, Math.max(1, rect.w - 2), 2, fill, z)
+    return
+  }
+  host.drawRect(rect.x + 1, rect.y + rect.h - 2, Math.max(1, rect.w - 2), 2, fill, z)
+}
+
+function sideTabIndicatorRect(edge: HudSideTabEdge, rect: HudRect): HudRect {
+  if (edge === "left") return {x: rect.x + rect.w - 10, y: rect.y + rect.h - 15, w: 5, h: 5}
+  if (edge === "right") return {x: rect.x + 4, y: rect.y + rect.h - 15, w: 5, h: 5}
+  if (edge === "top") return {x: rect.x + rect.w - 15, y: rect.y + rect.h - 10, w: 5, h: 5}
+  return {x: rect.x + rect.w - 15, y: rect.y + 4, w: 5, h: 5}
 }
 
 function clamp(value: number, min: number, max: number): number {

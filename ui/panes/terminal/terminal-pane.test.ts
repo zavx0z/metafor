@@ -275,6 +275,46 @@ describe("TerminalPane control sequences", () => {
     }
   })
 
+  test("maps ctrl letter chords by physical key code across keyboard layouts", () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, onInput: (data) => responses.push(data)})
+    try {
+      const ctrlC = keyEvent("с", {code: "KeyC", ctrlKey: true})
+      const ctrlV = keyEvent("м", {code: "KeyV", ctrlKey: true})
+      const ctrlA = keyEvent("ф", {code: "KeyA", ctrlKey: true})
+      const ctrlEsc = keyEvent("х", {code: "BracketLeft", ctrlKey: true})
+      terminal.onKey(ctrlC)
+      terminal.onKey(ctrlV)
+      terminal.onKey(ctrlA)
+      terminal.onKey(ctrlEsc)
+      expect(responses).toEqual(["\x03", "\x16", "\x01", "\x1b"])
+      expect(ctrlC.defaultPrevented).toBe(true)
+      expect(ctrlV.defaultPrevented).toBe(true)
+      expect(ctrlA.defaultPrevented).toBe(true)
+      expect(ctrlEsc.defaultPrevented).toBe(true)
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("maps meta shortcuts by physical key code across keyboard layouts", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
+    try {
+      terminal.write("alpha\r\nbeta")
+      const selectAll = keyEvent("ф", {code: "KeyA", metaKey: true})
+      terminal.onKey(selectAll)
+      expect(selectAll.defaultPrevented).toBe(true)
+      expect(terminal.getSelectedText()).toBe("alpha\nbeta")
+
+      const clear = keyEvent("л", {code: "KeyK", metaKey: true})
+      terminal.onKey(clear)
+      expect(clear.defaultPrevented).toBe(true)
+      expect(terminal.toText()).toBe("")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
   test("normalizes terminal spacing around wide emoji glyphs", () => {
     const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
     try {
