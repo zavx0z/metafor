@@ -193,13 +193,6 @@ export const defaultVoiceCommands: VoiceCommand[] = [
       console.log(`action: webgpu.check text="${normalizedText}"`);
     },
   },
-  {
-    id: "test.mistress",
-    phrases: ["слышь долбоеб"],
-    run: () => {
-      console.log("Да моя госпожа");
-    },
-  },
 ];
 
 function createRecognitionPhrases(

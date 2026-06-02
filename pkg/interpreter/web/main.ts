@@ -265,6 +265,7 @@ let hostTerminalDockPlacement = readStoredHostTerminalDockPlacement()
 let voiceHudPane: VoiceInputHud | null = null
 let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
+let voicePartialPreviewTarget: VoiceInputTarget | null = null
 let voiceHudErrorTimer: number | null = null
 let voiceModuleSubmitQueue: Promise<void> = Promise.resolve()
 let voiceHudStatus: VoiceInputStatus = "idle"
@@ -664,6 +665,7 @@ class HostTerminalDockPane extends UiSurface {
 
 function setVoiceActiveTarget(target: VoiceInputTarget): void {
   const changed = voiceActiveTarget?.kind !== target.kind || voiceActiveTarget.controller !== target.controller
+  if (changed) clearVoicePartialPreview()
   voiceActiveTarget = target
   updateVoiceHud()
   if (changed && !voiceAutoWakeInFlight) scheduleVoiceAutoWake()
@@ -678,6 +680,7 @@ function ensureVoiceInputClient(): VoiceInputClient {
     context: readVoiceInputContext,
     onStatus: handleVoiceStatus,
     onWake: () => updateVoiceHud("connecting", readVoiceInputUrl()),
+    onPartial: handleVoicePartial,
     onChunk: handleVoiceInputChunk,
     onLevel: updateVoiceLevel,
   })
@@ -685,6 +688,7 @@ function ensureVoiceInputClient(): VoiceInputClient {
 }
 
 function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
+  if (status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) clearVoicePartialPreview()
   updateVoiceHud(status, detail)
 }
 
@@ -779,9 +783,54 @@ async function ensureVoiceAutoWake(): Promise<void> {
 }
 
 function handleVoiceInputChunk(chunk: VoiceInputChunk): void {
+  clearVoicePartialPreview()
   const messages = voiceMessagesFromChunk(chunk)
   if (messages.length === 0) return
   for (const message of messages) insertVoiceMessage(message)
+}
+
+function handleVoicePartial(raw: string): void {
+  const target = voiceActiveTarget
+  if (target === null || !voiceTargetCanAcceptInput(target)) {
+    clearVoicePartialPreview()
+    return
+  }
+
+  const text = cleanupVoiceInputText(raw)
+  if (!text) {
+    clearVoicePartialPreview()
+    return
+  }
+
+  if (target.kind === "module") showModuleTerminalPrompt(target.controller)
+  showVoicePartialPreview(target, text)
+}
+
+function showVoicePartialPreview(target: VoiceInputTarget, text: string): void {
+  if (voicePartialPreviewTarget !== null && !sameVoiceInputTarget(voicePartialPreviewTarget, target)) clearVoicePartialPreview()
+  voicePartialPreviewTarget = target
+  for (const terminal of voicePreviewTerminals(target)) terminal.setInputPreview(text)
+}
+
+function clearVoicePartialPreview(): void {
+  const target = voicePartialPreviewTarget
+  if (target === null) return
+  for (const terminal of voicePreviewTerminals(target)) terminal.clearInputPreview()
+  voicePartialPreviewTarget = null
+}
+
+function clearVoicePartialPreviewForTarget(target: VoiceInputTarget): void {
+  if (voicePartialPreviewTarget === null || !sameVoiceInputTarget(voicePartialPreviewTarget, target)) return
+  clearVoicePartialPreview()
+}
+
+function sameVoiceInputTarget(a: VoiceInputTarget, b: VoiceInputTarget): boolean {
+  return a.kind === b.kind && a.controller === b.controller
+}
+
+function voicePreviewTerminals(target: VoiceInputTarget): TerminalPane[] {
+  if (target.kind === "host") return hostTerminalPanes(target.controller)
+  return [target.controller.terminal]
 }
 
 function insertVoiceMessage(raw: string): void {
@@ -832,8 +881,22 @@ async function submitVoiceModuleExpression(controller: ModuleDisplayController, 
 }
 
 function sendHostTerminalVoiceSubmit(controller: HostTerminalController, text: string): void {
-  sendHostTerminalInput(controller, text, "api")
-  sendHostTerminalInput(controller, "\r", "keyboard")
+  const payload = hostTerminalVoiceSubmitPayload(controller, text)
+  if (payload.length === 0) return
+  sendHostTerminalInput(controller, payload, "api")
+}
+
+function hostTerminalVoiceSubmitPayload(controller: HostTerminalController, text: string): string {
+  const body = sanitizeHostTerminalVoiceInput(text)
+  if (body.length === 0) return ""
+  if (controller.terminalState?.bracketedPaste) return `\x1b[200~${body}\x1b[201~\r`
+  return `${body}\r`
+}
+
+function sanitizeHostTerminalVoiceInput(text: string): string {
+  return cleanupVoiceInputText(text)
+    .replace(/\x1b\[201~/g, "")
+    .replace(/\x1b/g, "")
 }
 
 function voiceMessagesFromChunk(chunk: VoiceInputChunk): string[] {
@@ -1224,17 +1287,12 @@ function ensureHostTerminalController(): HostTerminalController {
   const terminal = createHostTerminalPane(controller, "InterpreterHostTerminal", {
     fontPx: 13,
     linePx: 18,
-    onResize: (size) => {
-      controller.terminalSize = size
-      controller.hudTerminal?.setTerminalSize(size.cols, size.rows)
-      sendHostTerminal(controller, {type: "terminal.resize", size})
-    },
+    onResize: (size) => resizeHostTerminalFromPane(controller, terminal, size),
   })
   const hudTerminal = createHostTerminalPane(controller, "InterpreterHostTerminalHud", {
     fontPx: 12,
     linePx: 17,
-    fitToRect: false,
-    scrollX: true,
+    onResize: (size) => resizeHostTerminalFromPane(controller, hudTerminal, size),
     onFrameRectChange: storeHostTerminalHudRect,
     onFrameDockRequest: () => setHostTerminalHudDocked(true),
   })
@@ -1285,6 +1343,7 @@ function createHostTerminalPane(
       if (!focused) return
       if (terminal !== null) controller.focusedTerminal = terminal
       setVoiceActiveTarget({kind: "host", controller})
+      if (terminal !== null) resizeHostTerminalFromPane(controller, terminal, terminal.getTerminalSize())
     },
   }
   if (opts.fitToRect !== undefined) terminalOpts.fitToRect = opts.fitToRect
@@ -1295,6 +1354,22 @@ function createHostTerminalPane(
   terminal = new TerminalPane(terminalOpts)
   terminal.node.name = name
   return terminal
+}
+
+function resizeHostTerminalFromPane(controller: HostTerminalController, pane: TerminalPane, size: TerminalSize): void {
+  if (hostTerminalResizeOwner(controller) !== pane) return
+  const next = {
+    cols: Math.max(1, Math.round(size.cols)),
+    rows: Math.max(1, Math.round(size.rows)),
+  }
+  if (controller.terminalSize?.cols === next.cols && controller.terminalSize.rows === next.rows) return
+  controller.terminalSize = next
+  sendHostTerminal(controller, {type: "terminal.resize", size: next})
+}
+
+function hostTerminalResizeOwner(controller: HostTerminalController): TerminalPane {
+  if (!hostTerminalHudDocked && controller.focusedTerminal === controller.hudTerminal) return controller.hudTerminal
+  return controller.terminal
 }
 
 function connectHostTerminal(controller: HostTerminalController): void {
@@ -1350,6 +1425,7 @@ function hostTerminalWebSocketURL(controller: HostTerminalController): string {
 }
 
 function sendHostTerminalInput(controller: HostTerminalController, data: string, source: TerminalInputSource): void {
+  if (source === "keyboard" || source === "paste") clearVoicePartialPreviewForTarget({kind: "host", controller})
   const localEchoId = tryHostTerminalLocalEcho(controller, data, source) ? ++controller.localEchoId : undefined
   sendHostTerminal(controller, {
     type: "input.write",
@@ -2131,7 +2207,7 @@ function canAcceptTerminalInput(controller: ModuleDisplayController): boolean {
 
 function showModuleTerminalPrompt(controller: ModuleDisplayController): void {
   if (controller.terminalInput.promptVisible) return
-  controller.terminal.write(`${ansiCyan("> ")}${controller.terminalInput.buffer}`)
+  controller.terminal.write(`${ansiCyan("> ")}${moduleTerminalInputDisplayText(controller.terminalInput.buffer)}`)
   controller.terminalInput.promptVisible = true
 }
 
@@ -2143,10 +2219,15 @@ function hideModuleTerminalPrompt(controller: ModuleDisplayController): void {
 
 function handleModuleTerminalInput(controller: ModuleDisplayController, data: string): void {
   if (!canAcceptTerminalInput(controller)) return
+  clearVoicePartialPreviewForTarget({kind: "module", controller})
   showModuleTerminalPrompt(controller)
   for (const ch of data) {
-    if (ch === "\r" || ch === "\n") {
+    if (ch === "\r") {
       submitModuleTerminalExpression(controller)
+      continue
+    }
+    if (ch === "\n") {
+      appendModuleTerminalInputText(controller, "\n")
       continue
     }
     if (ch === "\x03") {
@@ -2174,7 +2255,11 @@ function handleModuleTerminalInput(controller: ModuleDisplayController, data: st
 
 function appendModuleTerminalInputText(controller: ModuleDisplayController, text: string): void {
   controller.terminalInput.buffer += text
-  controller.terminal.write(text)
+  controller.terminal.write(moduleTerminalInputDisplayText(text))
+}
+
+function moduleTerminalInputDisplayText(text: string): string {
+  return text.replace(/\r\n?/g, "\n").replace(/\n/g, "\r\n")
 }
 
 function submitModuleTerminalExpression(controller: ModuleDisplayController): void {

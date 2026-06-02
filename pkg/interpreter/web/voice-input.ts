@@ -19,6 +19,7 @@ type VoiceInputClientOptions = {
   context(): string
   onStatus(status: VoiceInputStatus, detail?: string): void
   onWake(text: string): void
+  onPartial(text: string): void
   onChunk(chunk: VoiceInputChunk): void
   onLevel(level: number): void
 }
@@ -50,10 +51,12 @@ const WAKE_ALIASES = [
 ]
 const STOP_COMMAND_RE = /(^|[\s,.;:!?…-]+)(?:выключи|выключу|отключи|отключу|выруби|вырублю|останови|остановлю)\s+(?:микрофон|голос(?:овой\s+ввод)?)(?=$|[\s,.;:!?…-]+)/giu
 const VOICE_RMS_THRESHOLD = 0.012
+const VOICE_WAKE_GAIN = 2.4
 const SILENCE_COMMIT_MS = 1_550
 const MIN_COMMIT_AUDIO_MS = 1_500
 const MIN_COMMIT_INTERVAL_MS = 2_200
 const COMMIT_TIMEOUT_MS = 15_000
+const FINAL_SETTLE_MS = 450
 const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024
 
 export class VoiceInputClient {
@@ -77,6 +80,8 @@ export class VoiceInputClient {
   #lastCommitAt = 0
   #pcmSinceCommitBytes = 0
   #queuedPcmAfterCommit: ArrayBuffer[] = []
+  #pendingCommittedChunk: VoiceInputChunk | null = null
+  #pendingChunkFlushTimer: number | null = null
 
   constructor(private readonly options: VoiceInputClientOptions) {}
 
@@ -248,9 +253,10 @@ export class VoiceInputClient {
       const samples = event.data
       if (!(samples instanceof Float32Array)) return
       const pcm = floatToPcm16(samples)
+      const wakePcm = floatToPcm16(applyAudioGain(samples, VOICE_WAKE_GAIN))
       this.#pcmSinceCommitBytes += pcm.byteLength
       this.#trackSpeechAndMaybeCommit(samples)
-      this.#sendPcm(pcm)
+      this.#sendPcm(pcm, wakePcm)
     }
 
     this.#sourceNode.connect(this.#captureNode)
@@ -331,17 +337,27 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "partial") {
-      this.#setStatus("listening", compactDetail(msg.text ?? ""))
+      const text = recognitionText(msg)
+      this.#setStatus("listening", compactDetail(text))
+      this.options.onPartial(removeCommandTextFromString(text))
       return
     }
 
-    if (msg.type === "final") {
+    if (msg.type === "result" || msg.type === "final") {
       const chunk = removeCommandText(chunkFromAsrMessage(msg))
-      if (chunk.text.length > 0 || chunk.messages.length > 0) this.options.onChunk(chunk)
+      if (voiceChunkHasText(chunk)) {
+        this.#pendingCommittedChunk = chunk
+        this.options.onPartial(voiceChunkPreviewText(chunk))
+        this.#schedulePendingChunkFlush()
+      }
       return
     }
 
     if (msg.type === "committed") {
+      const committedChunk = removeCommandText(chunkFromAsrMessage(msg))
+      if (voiceChunkHasText(committedChunk)) this.#pendingCommittedChunk = committedChunk
+      this.#clearPendingChunkFlushTimer()
+      this.#flushPendingCommittedChunk()
       this.#finishCommit()
       if (!this.#stopRequested) this.#setStatus("listening")
       return
@@ -388,8 +404,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#setStatus("committing")
   }
 
-  #sendPcm(pcm: ArrayBuffer): void {
-    if (this.#commandWs?.readyState === WebSocket.OPEN) this.#commandWs.send(pcm)
+  #sendPcm(pcm: ArrayBuffer, commandPcm: ArrayBuffer): void {
+    if (this.#commandWs?.readyState === WebSocket.OPEN) this.#commandWs.send(commandPcm)
     if (!this.#asrEnabled) return
 
     if (this.#asrWs?.readyState !== WebSocket.OPEN) {
@@ -427,6 +443,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#clearCommitTimer()
     this.#commitTimer = window.setTimeout(() => {
       if (!this.#commitPending) return
+      this.#flushPendingCommittedChunk()
       this.#finishCommit()
       if (!this.#stopRequested && this.#asrWs?.readyState === WebSocket.OPEN) {
         this.#setStatus("listening", "commit timeout")
@@ -448,7 +465,9 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
   #resetCommitState(): void {
     this.#clearCommitTimer()
+    this.#clearPendingChunkFlushTimer()
     this.#commitPending = false
+    this.#pendingCommittedChunk = null
     this.#hasSpeechSinceCommit = false
     this.#lastSpeechAt = performance.now()
     this.#lastCommitAt = 0
@@ -509,6 +528,27 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#stopRequested = false
     this.options.onLevel(0)
   }
+
+  #flushPendingCommittedChunk(): void {
+    this.#clearPendingChunkFlushTimer()
+    const chunk = this.#pendingCommittedChunk
+    this.#pendingCommittedChunk = null
+    if (chunk !== null && voiceChunkHasText(chunk)) this.options.onChunk(chunk)
+  }
+
+  #schedulePendingChunkFlush(): void {
+    this.#clearPendingChunkFlushTimer()
+    this.#pendingChunkFlushTimer = window.setTimeout(() => {
+      this.#pendingChunkFlushTimer = null
+      this.#flushPendingCommittedChunk()
+    }, FINAL_SETTLE_MS)
+  }
+
+  #clearPendingChunkFlushTimer(): void {
+    if (this.#pendingChunkFlushTimer === null) return
+    window.clearTimeout(this.#pendingChunkFlushTimer)
+    this.#pendingChunkFlushTimer = null
+  }
 }
 
 function chunkFromAsrMessage(msg: AsrMessage): VoiceInputChunk {
@@ -534,6 +574,10 @@ function cleanupAsrText(text: string): string {
   return stripWakePrefix(cleanupVoiceText(text))
 }
 
+function removeCommandTextFromString(text: string): string {
+  return stripStopCommand(cleanupAsrText(text)).text
+}
+
 function removeCommandText(chunk: VoiceInputChunk): VoiceInputChunk {
   const textResult = stripStopCommand(chunk.text)
   let command = textResult.stop
@@ -548,6 +592,16 @@ function removeCommandText(chunk: VoiceInputChunk): VoiceInputChunk {
     messages,
     segments: command ? [] : chunk.segments,
   }
+}
+
+function voiceChunkHasText(chunk: VoiceInputChunk): boolean {
+  return chunk.text.length > 0 || chunk.messages.length > 0 || chunk.segments.some((segment) => typeof segment.text === "string" && segment.text.trim().length > 0)
+}
+
+function voiceChunkPreviewText(chunk: VoiceInputChunk): string {
+  if (chunk.messages.length > 0) return chunk.messages.join("\n\n")
+  if (chunk.text) return chunk.text
+  return chunk.segments.map((segment) => segment.text ?? "").filter(Boolean).join(" ")
 }
 
 function stripStopCommand(text: string): {text: string; stop: boolean} {
@@ -681,6 +735,15 @@ function rmsLevel(samples: Float32Array): number {
   let sum = 0
   for (const sample of samples) sum += sample * sample
   return Math.sqrt(sum / samples.length)
+}
+
+function applyAudioGain(samples: Float32Array, gain: number): Float32Array {
+  if (gain === 1) return samples
+  const amplified = new Float32Array(samples.length)
+  for (let index = 0; index < samples.length; index += 1) {
+    amplified[index] = Math.max(-1, Math.min(1, (samples[index] ?? 0) * gain))
+  }
+  return amplified
 }
 
 function cleanupVoiceText(text: string): string {

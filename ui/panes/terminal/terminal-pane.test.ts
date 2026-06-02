@@ -262,6 +262,18 @@ describe("TerminalPane control sequences", () => {
     }
   })
 
+  test("maps Shift+Enter to an input newline without submitting CR", () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, onInput: (data) => responses.push(data)})
+    try {
+      terminal.onKey(keyEvent("Enter", {shiftKey: true}))
+      terminal.onKey(keyEvent("Enter"))
+      expect(responses).toEqual(["\n", "\r"])
+    } finally {
+      terminal.dispose()
+    }
+  })
+
   test("maps application keypad and bracketed paste modes", () => {
     const responses: string[] = []
     const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, onInput: (data) => responses.push(data)})
@@ -369,6 +381,46 @@ describe("TerminalPane local echo", () => {
     }
   })
 
+  test("shows replaceable input preview without committing terminal output", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
+    try {
+      terminal.write("prompt ")
+      terminal.setInputPreview("альфа")
+      expect(terminal.toText()).toBe("prompt альфа")
+      terminal.setInputPreview("альфа бета")
+      expect(terminal.toText()).toBe("prompt альфа бета")
+      terminal.clearInputPreview()
+      expect(terminal.toText()).toBe("prompt")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("clears input preview before committed input output", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
+    try {
+      terminal.write("prompt ")
+      terminal.setInputPreview("draft")
+      terminal.clearInputPreview()
+      terminal.writeAuthoritative("server")
+      expect(terminal.toText()).toBe("prompt server")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("keeps input preview visible across authoritative repaints", () => {
+    const terminal = new TerminalPane({cols: 30, rows: 4, fitToRect: false})
+    try {
+      terminal.write("prompt ")
+      terminal.setInputPreview("говорю")
+      terminal.writeAuthoritative("\rprompt ")
+      expect(terminal.toText()).toBe("prompt говорю")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
   test("disables local echo state in alternate screen mode", () => {
     const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
     try {
@@ -468,6 +520,29 @@ describe("LogViewerPane", () => {
       expect(lines.every((line) => line.length <= 32)).toBe(true)
     } finally {
       logViewer.dispose()
+    }
+  })
+})
+
+describe("TerminalPane wrapping", () => {
+  test("keeps terminal wrapping immediate for active PTY input", () => {
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
+    try {
+      terminal.write("prompt ")
+      terminal.write("command")
+      expect(terminal.toText()).toBe("prompt command")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("wraps terminal output without horizontal scroll by default", () => {
+    const terminal = new TerminalPane({cols: 10, rows: 4, fitToRect: false})
+    try {
+      terminal.write("0123456789abc")
+      expect(terminal.toText()).toBe("0123456789\nabc")
+    } finally {
+      terminal.dispose()
     }
   })
 })

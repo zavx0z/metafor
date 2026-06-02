@@ -54,6 +54,8 @@ type TerminalOutputPaneOpts = {
   fitToRect?: boolean
   showHeader?: boolean
   wrapLines?: boolean
+  wrapMode?: "char" | "word"
+  reflowOnResize?: boolean
   scrollX?: boolean
   scrollY?: boolean
   cursorBlink?: boolean
@@ -67,8 +69,6 @@ type TerminalOutputPaneOpts = {
 }
 
 type TerminalOutputPaneInternalOpts = TerminalOutputPaneOpts & {
-  reflowOnResize?: boolean
-  wrapMode?: "char" | "word"
   contentWidthMode?: "grid" | "text"
 }
 
@@ -414,9 +414,9 @@ class TerminalOutputPane extends UiSurface {
     this.requestRender()
   }
 
-  setTerminalSize(cols: number, rows: number): void {
+  setTerminalSize(cols: number, rows: number, opts: {emit?: boolean} = {}): void {
     this.#preferredCols = clampInt(cols, 1, 400)
-    this.#resizeGrid(this.#preferredCols, clampInt(rows, 1, 160), true)
+    this.#resizeGrid(this.#preferredCols, clampInt(rows, 1, 160), opts.emit ?? true)
     this.requestRender()
   }
 
@@ -1598,6 +1598,8 @@ export class TerminalPane extends TerminalOutputPane {
   #inputEnabled: boolean
   #onInput: ((data: string, source: TerminalInputSource) => void) | undefined
   #pendingLocalEcho: PendingLocalEcho | null = null
+  #inputPreviewSnapshot: TerminalOutputSnapshot | null = null
+  #inputPreviewText: string | null = null
 
   constructor(opts: TerminalPaneOpts = {}) {
     super(opts)
@@ -1608,11 +1610,15 @@ export class TerminalPane extends TerminalOutputPane {
 
   override clear(): void {
     this.#pendingLocalEcho = null
+    this.#inputPreviewSnapshot = null
+    this.#inputPreviewText = null
     super.clear()
   }
 
   override reset(): void {
     this.#pendingLocalEcho = null
+    this.#inputPreviewSnapshot = null
+    this.#inputPreviewText = null
     super.reset()
   }
 
@@ -1624,6 +1630,7 @@ export class TerminalPane extends TerminalOutputPane {
 
   tryLocalEcho(data: string): boolean {
     if (!this.#inputEnabled || !isLocalEchoInput(data) || !this.getTerminalState().localEcho) return false
+    this.clearInputPreview()
     if (this.#pendingLocalEcho === null) {
       this.#pendingLocalEcho = {
         snapshot: this.captureOutputState(),
@@ -1638,6 +1645,7 @@ export class TerminalPane extends TerminalOutputPane {
 
   rejectLocalEcho(): void {
     if (this.#pendingLocalEcho === null) return
+    this.clearInputPreview()
     this.restoreOutputState(this.#pendingLocalEcho.snapshot)
     this.#pendingLocalEcho = null
   }
@@ -1645,8 +1653,31 @@ export class TerminalPane extends TerminalOutputPane {
   writeAuthoritative(data: string | Uint8Array): void {
     const text = typeof data === "string" ? data : new TextDecoder().decode(data)
     if (text.length === 0) return
+    const previewText = this.#inputPreviewText
+    this.clearInputPreview()
     const reconciled = this.#reconcileLocalEcho(text)
     if (reconciled.length > 0) super.write(reconciled)
+    if (previewText !== null) this.setInputPreview(previewText)
+  }
+
+  setInputPreview(text: string): void {
+    if (text.length === 0) {
+      this.clearInputPreview()
+      return
+    }
+    const snapshot = this.#inputPreviewSnapshot ?? this.captureOutputState()
+    if (this.#inputPreviewSnapshot !== null) this.restoreOutputState(this.#inputPreviewSnapshot)
+    this.#inputPreviewSnapshot = snapshot
+    this.#inputPreviewText = text
+    super.write(terminalInputPreviewText(text))
+  }
+
+  clearInputPreview(): void {
+    const snapshot = this.#inputPreviewSnapshot
+    this.#inputPreviewText = null
+    if (snapshot === null) return
+    this.#inputPreviewSnapshot = null
+    this.restoreOutputState(snapshot)
   }
 
   onInputText(text: string): void {
@@ -1751,6 +1782,7 @@ function keyToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode = d
   }
   if (event.altKey && key.length === 1 && !event.ctrlKey && !event.metaKey) return `\x1b${key}`
   if (event.metaKey) return null
+  if (key === "Enter" && event.shiftKey && !event.ctrlKey && !event.altKey) return "\n"
   if (key === "Enter") return "\r"
   if (key === "Backspace") return "\x7f"
   if (key === "Tab") return "\t"
@@ -1836,6 +1868,7 @@ function keypadToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode)
   const key = event.key
   if (event.ctrlKey || event.metaKey || event.altKey) return null
   if (!mode.applicationKeypad) {
+    if (event.code === "NumpadEnter" && event.shiftKey) return "\n"
     if (event.code === "NumpadEnter") return "\r"
     return key.length === 1 ? key : null
   }
@@ -1858,6 +1891,10 @@ function keypadToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode)
     NumpadDivide: "o",
   }[event.code]
   return appKey === undefined ? null : `\x1bO${appKey}`
+}
+
+function terminalInputPreviewText(text: string): string {
+  return text.replace(/\r\n?/g, "\n").replace(/\n/g, "\r\n")
 }
 
 function terminalCursorFinal(key: string): string | null {

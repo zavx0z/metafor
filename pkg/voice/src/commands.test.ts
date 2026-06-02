@@ -30,24 +30,7 @@ describe("command routing", () => {
     expect(router.match("включи свет")?.command.id).toBe("lights.on");
     expect(router.match("открой гит хаб")?.command.id).toBe("github.open");
     expect(router.match("проверь веб джи пи ю")?.command.id).toBe("webgpu.check");
-    expect(router.match("Слышь долбоёб")?.command.id).toBe("test.mistress");
-  });
-
-  test("prints the test response", async () => {
-    const router = createCommandRouter(defaultVoiceCommands);
-    const logs: unknown[][] = [];
-    const originalLog = console.log;
-    console.log = (...args: unknown[]) => {
-      logs.push(args);
-    };
-
-    try {
-      await router.dispatch("Слышь долбоёб");
-    } finally {
-      console.log = originalLog;
-    }
-
-    expect(logs).toContainEqual(["Да моя госпожа"]);
+    expect(router.match("Слышь долбоёб")).toBeNull();
   });
 
   test("exposes Russian recognition grammar phrases for alias commands", () => {
