@@ -195,9 +195,7 @@ type ModuleDisplayController = {
 }
 
 type HostTerminalController = {
-  terminal: TerminalPane
   hudTerminal: TerminalPane
-  focusedTerminal: TerminalPane | null
   socket: WebSocket | null
   sessionId: string | null
   terminalSize: TerminalSize | null
@@ -223,7 +221,6 @@ const COMMAND_TIMEOUT_MS = 10_000
 const MODULE_DISPLAY_GAP_MM = 52
 const MODULE_DISPLAY_CENTER_Y_MM = 0
 const MODULE_DISPLAY_CENTER_Z_MM = 900
-const HOST_TERMINAL_DISPLAY_ID = "host:terminal"
 const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sessionId"
 const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudRect:v1"
 const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
@@ -283,7 +280,6 @@ let voiceServiceDetail = t("voiceServiceUnknown")
 let voiceServiceCheckedAt: Date | null = null
 let voiceServiceCheckInFlight = false
 let voiceServiceCheckTimer: number | null = null
-let hostTerminalDisplayCreated = false
 let hostTerminalUnloadInstalled = false
 let resizeObserver: ResizeObserver | null = null
 let socket: WebSocket | undefined
@@ -507,6 +503,7 @@ function installEnginePanes(): void {
   uiCanvas.addHudSurface(displayHoverOutlinePane, ({w, h}) => ({x: 0, y: 0, w, h}))
   const host = ensureHostTerminalController()
   uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect)
+  if (host.socket === null) connectHostTerminal(host)
   hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
   uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect)
   if (voiceHudPane !== null) {
@@ -727,7 +724,7 @@ async function toggleVoiceInput(): Promise<void> {
 function focusVoiceTarget(): void {
   const target = voiceActiveTarget
   if (target === null) return
-  const terminal = target.kind === "host" ? target.controller.focusedTerminal ?? target.controller.hudTerminal : target.controller.terminal
+  const terminal = target.kind === "host" ? target.controller.hudTerminal : target.controller.terminal
   uiCanvas?.setFocused(terminal)
 }
 
@@ -1194,7 +1191,7 @@ function syncModuleDisplays(): void {
 
   const displayMetrics = viewportDisplayMetrics()
   const moduleDisplayIdList = orderedModules.map((module) => moduleDisplayId(module.id))
-  const displayIds = [...moduleDisplayIdList, HOST_TERMINAL_DISPLAY_ID]
+  const displayIds = moduleDisplayIdList
   const totalW = displayIds.length * displayMetrics.widthMm
     + Math.max(0, displayIds.length - 1) * MODULE_DISPLAY_GAP_MM
   let cursorX = -totalW / 2
@@ -1230,13 +1227,6 @@ function syncModuleDisplays(): void {
     if (controller !== undefined) updateModuleDisplay(controller, module)
   }
 
-  const terminalCenter = {
-    x: cursorX + displayMetrics.widthMm / 2,
-    y: MODULE_DISPLAY_CENTER_Y_MM,
-    z: MODULE_DISPLAY_CENTER_Z_MM,
-  }
-  syncHostTerminalDisplay(displayMetrics, terminalCenter)
-
   const frameKey = displayIds.map((id, index) => {
     return `${id}:${index}:${Math.round(displayMetrics.widthMm)}x${Math.round(displayMetrics.heightMm)}:${displayMetrics.pixelWidth}x${displayMetrics.pixelHeight}`
   }).join("\0")
@@ -1254,38 +1244,9 @@ function syncModuleDisplays(): void {
   }
 }
 
-function syncHostTerminalDisplay(displayMetrics: DisplayLayoutMetrics, center: {x: number; y: number; z: number}): void {
-  if (uiCanvas === null) return
-  const controller = ensureHostTerminalController()
-  if (!hostTerminalDisplayCreated) {
-    hostTerminalDisplayCreated = true
-    uiCanvas.createDisplay({
-      id: HOST_TERMINAL_DISPLAY_ID,
-      widthMm: displayMetrics.widthMm,
-      heightMm: displayMetrics.heightMm,
-      pixelWidth: displayMetrics.pixelWidth,
-      pixelHeight: displayMetrics.pixelHeight,
-      centerMm: center,
-      background: 0x020617,
-      border: 0x334155,
-    })
-    uiCanvas.addSurfaceToDisplay(HOST_TERMINAL_DISPLAY_ID, controller.terminal, terminalDisplayRect)
-    connectHostTerminal(controller)
-    return
-  }
-
-  uiCanvas.resizeDisplay(HOST_TERMINAL_DISPLAY_ID, displayMetrics)
-  uiCanvas.setDisplayCenter(HOST_TERMINAL_DISPLAY_ID, center)
-}
-
 function ensureHostTerminalController(): HostTerminalController {
   if (hostTerminal !== null) return hostTerminal
   const controller = {} as HostTerminalController
-  const terminal = createHostTerminalPane(controller, "InterpreterHostTerminal", {
-    fontPx: 13,
-    linePx: 18,
-    onResize: (size) => resizeHostTerminalFromPane(controller, terminal, size),
-  })
   const hudTerminal = createHostTerminalPane(controller, "InterpreterHostTerminalHud", {
     fontPx: 12,
     linePx: 17,
@@ -1294,9 +1255,7 @@ function ensureHostTerminalController(): HostTerminalController {
     onFrameDockRequest: () => setHostTerminalHudDocked(true),
   })
   Object.assign(controller, {
-    terminal,
     hudTerminal,
-    focusedTerminal: null,
     socket: null,
     sessionId: readStoredHostTerminalSessionId(),
     terminalSize: null,
@@ -1338,7 +1297,6 @@ function createHostTerminalPane(
     onInput: (data, source) => sendHostTerminalInput(controller, data, source),
     onFocusChange: (focused) => {
       if (!focused) return
-      if (terminal !== null) controller.focusedTerminal = terminal
       setVoiceActiveTarget({kind: "host", controller})
       if (terminal !== null) resizeHostTerminalFromPane(controller, terminal, terminal.getTerminalSize())
     },
@@ -1365,8 +1323,7 @@ function resizeHostTerminalFromPane(controller: HostTerminalController, pane: Te
 }
 
 function hostTerminalResizeOwner(controller: HostTerminalController): TerminalPane {
-  if (!hostTerminalHudDocked && controller.focusedTerminal === controller.hudTerminal) return controller.hudTerminal
-  return controller.terminal
+  return controller.hudTerminal
 }
 
 function connectHostTerminal(controller: HostTerminalController): void {
@@ -1519,7 +1476,7 @@ function setHostTerminalStatus(controller: HostTerminalController, kind: PtyStat
 }
 
 function hostTerminalPanes(controller: HostTerminalController): TerminalPane[] {
-  return [controller.terminal, controller.hudTerminal]
+  return [controller.hudTerminal]
 }
 
 function setHostTerminalInputEnabled(controller: HostTerminalController, enabled: boolean): void {
@@ -1655,7 +1612,6 @@ function setHostTerminalHudDocked(docked: boolean): void {
   writeStoredHostTerminalHudDocked(docked)
   const controller = hostTerminal
   if (docked) {
-    if (controller !== null && controller.focusedTerminal === controller.hudTerminal) controller.focusedTerminal = null
     uiCanvas?.setFocused(null)
     uiCanvas?.inputProxy?.blur()
   } else {
@@ -2619,15 +2575,6 @@ type InterpreterRects = {
 
 function hiddenRect(): UiSurfaceRect {
   return {x: -10000, y: -10000, w: 1, h: 1, visible: false}
-}
-
-function terminalDisplayRect({w, h}: {w: number; h: number}): UiSurfaceRect {
-  return {
-    x: PAD,
-    y: PAD,
-    w: Math.max(1, w - PAD * 2),
-    h: Math.max(1, h - PAD * 2),
-  }
 }
 
 function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
