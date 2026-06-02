@@ -50,6 +50,7 @@ type TerminalOutputPaneOpts = {
   cursorLineFill?: Color
   showCursor?: boolean
   onResize?: (size: TerminalSize) => void
+  onFocusChange?: (focused: boolean) => void
 }
 
 type TerminalOutputPaneInternalOpts = TerminalOutputPaneOpts & {
@@ -181,6 +182,7 @@ class TerminalOutputPane extends UiSurface {
   #cursorLineFill: Color
   #cursorEnabled: boolean
   #onResize: ((size: TerminalSize) => void) | undefined
+  #onFocusChange: ((focused: boolean) => void) | undefined
 
   #preferredCols: number
   #cols: number
@@ -252,6 +254,7 @@ class TerminalOutputPane extends UiSurface {
     this.#showCursor = this.#cursorEnabled
     this.#cursorVisible = this.#cursorEnabled
     this.#onResize = opts.onResize
+    this.#onFocusChange = opts.onFocusChange
     this.#screen = Array.from({length: this.#rows}, () => this.#blankLine())
   }
 
@@ -766,6 +769,7 @@ class TerminalOutputPane extends UiSurface {
 
   onActivate(): void {
     this.#focused = true
+    this.#onFocusChange?.(true)
     this.#cursorVisible = this.#cursorEnabled && this.#showCursor
     if (this.#cursorEnabled) this.#startCursorBlink()
     this.requestRender()
@@ -774,6 +778,7 @@ class TerminalOutputPane extends UiSurface {
   override onDeactivate(): void {
     super.onDeactivate?.()
     this.#focused = false
+    this.#onFocusChange?.(false)
     this.#stopCursorBlink()
     this.#cursorVisible = false
     this.requestRender()

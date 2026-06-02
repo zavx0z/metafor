@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Voice Playground</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="mark" aria-hidden="true"></span>
+          <div>
+            <h1>Voice Playground</h1>
+            <p id="statusText">offline</p>
+          </div>
+        </div>
+
+        <div class="controls" aria-label="Microphone controls">
+          <select id="engineSelect" aria-label="Recognition engine">
+            <option value="local">Local Vosk</option>
+            <option value="remote" selected>Remote ASR</option>
+          </select>
+          <label class="toggle">
+            <input id="grammarToggle" type="checkbox" checked />
+            <span>Grammar</span>
+          </label>
+          <button id="startBtn" type="button">Start</button>
+          <button id="stopBtn" type="button" disabled>Stop</button>
+          <button id="resetBtn" type="button" disabled>Reset</button>
+        </div>
+      </header>
+
+      <section class="endpointBar" aria-label="Remote ASR endpoint">
+        <label for="remoteUrl">Remote URL</label>
+        <input id="remoteUrl" value="ws://127.0.0.1:8877/ws" spellcheck="false" />
+        <label for="contextText">Context</label>
+        <input
+          id="contextText"
+          value=""
+          placeholder="Необязательно: словарь, имена, термины"
+          spellcheck="true"
+        />
+      </section>
+
+      <section class="meters" aria-label="Recognition status">
+        <div class="stat">
+          <span>Sample rate</span>
+          <strong id="sampleRate">16000</strong>
+        </div>
+        <div class="stat">
+          <span>PCM</span>
+          <strong id="pcmBytes">0 KB</strong>
+        </div>
+        <div class="stat">
+          <span>Partial</span>
+          <strong id="partialText">-</strong>
+        </div>
+      </section>
+
+      <section class="stage" aria-label="Audio stream">
+        <canvas id="waveform" width="1200" height="260"></canvas>
+      </section>
+
+      <section class="workspace">
+        <section class="panel transcript" aria-label="Transcript">
+          <div class="panelHead">
+            <h2>Transcript</h2>
+            <button id="clearTranscriptBtn" type="button">Clear</button>
+          </div>
+          <div id="transcriptList" class="list"></div>
+        </section>
+
+        <section class="panel commandsPanel" aria-label="Commands">
+          <div class="panelHead">
+            <h2>Commands</h2>
+            <span id="commandCount">0</span>
+          </div>
+          <div id="commandList" class="list"></div>
+        </section>
+
+        <section class="panel logPanel" aria-label="Events">
+          <div class="panelHead">
+            <h2>Events</h2>
+            <button id="clearLogBtn" type="button">Clear</button>
+          </div>
+          <pre id="eventLog"></pre>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js?v=20260531-transcript-history"></script>
+  </body>
+</html>

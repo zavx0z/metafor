@@ -1,0 +1,10 @@
+node_modules/
+tmp/
+lib/
+models/
+samples/
+bin/ffmpeg
+.DS_Store
+*.wav
+*.aiff
+*.pcm

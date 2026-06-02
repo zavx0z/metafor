@@ -6,7 +6,7 @@
  * `/modules/:id/...`.
  */
 
-import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
+import {UiRuntime, UiSurface, button, drawIconCentered, palette, uiIcons, type UiSurfaceRect} from "@ui/elements"
 import {
   EditorPane,
   TerminalPane,
@@ -35,6 +35,7 @@ import {
 } from "./breakpoint-matching.ts"
 import {interactiveRestartPayload} from "./restart.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
+import {VoiceInputClient, type VoiceInputChunk, type VoiceInputSegment, type VoiceInputStatus} from "./voice-input.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -187,6 +188,23 @@ type HostTerminalController = {
   connectionState: PtyStatusKind
 }
 
+type VoiceInputTarget =
+  | {kind: "module"; controller: ModuleDisplayController}
+  | {kind: "host"; controller: HostTerminalController}
+
+type VoiceServiceState = "unknown" | "ok" | "down"
+
+type VoiceHudSnapshot = {
+  status: VoiceInputStatus
+  statusLine: string
+  targetLine: string
+  autoEnterLine: string
+  detailLine: string
+  serviceLine: string
+  serviceState: VoiceServiceState
+  level: number
+}
+
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
   if (element === null) throw new Error(`#${id} not in DOM`)
@@ -202,11 +220,41 @@ const MODULE_DISPLAY_CENTER_Y_MM = 0
 const MODULE_DISPLAY_CENTER_Z_MM = 900
 const HOST_TERMINAL_DISPLAY_ID = "host:terminal"
 const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sessionId"
+const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
+const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
+const VOICE_INPUT_CONTEXT_STORAGE_KEY = "metafor.interpreter.voice.context"
+const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
+const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
+const VOICE_SERVICE_CHECK_INTERVAL_MS = 12_000
+const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2_500
+const VOICE_AUTO_WAKE_RETRY_MS = 3_000
+const VOICE_HUD_W = 246
+const VOICE_HUD_H = 174
 
 let uiCanvas: UiRuntime | null = null
 let uiLoading = false
 let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
 let hostTerminal: HostTerminalController | null = null
+let voiceHudPane: VoiceHudPane | null = null
+let voiceInputClient: VoiceInputClient | null = null
+let voiceActiveTarget: VoiceInputTarget | null = null
+let voiceHudErrorTimer: number | null = null
+let voiceModuleSubmitQueue: Promise<void> = Promise.resolve()
+let voiceHudStatus: VoiceInputStatus = "idle"
+let voiceHudDetail = ""
+let voiceHudUpdatedAt = new Date()
+let voiceInputLevel = 0
+let voiceMeterRaf: number | null = null
+let voiceAutoWakeTimer: number | null = null
+let voiceAutoWakeInFlight = false
+let voiceAutoWakePaused = false
+let voiceAutoEnterCount = 0
+let voiceAutoEnterAt: Date | null = null
+let voiceServiceState: VoiceServiceState = "unknown"
+let voiceServiceDetail = t("voiceServiceUnknown")
+let voiceServiceCheckedAt: Date | null = null
+let voiceServiceCheckInFlight = false
+let voiceServiceCheckTimer: number | null = null
 let hostTerminalDisplayCreated = false
 let hostTerminalUnloadInstalled = false
 let resizeObserver: ResizeObserver | null = null
@@ -231,6 +279,7 @@ for (const link of Array.from(document.querySelectorAll<HTMLLinkElement>('link[r
   link.href = url.toString()
 }
 
+installVoiceServiceMonitor()
 connect()
 void initEngine()
 
@@ -389,6 +438,7 @@ async function initEngine(): Promise<void> {
       },
     })
     displayHoverOutlinePane = new DisplayHoverOutlinePane()
+    voiceHudPane = new VoiceHudPane(() => void toggleVoiceInput())
     installEnginePanes()
     uiCanvas.handleResize()
     syncModuleDisplays()
@@ -422,12 +472,23 @@ function handleEngineResize(): void {
 function installEnginePanes(): void {
   if (uiCanvas === null || displayHoverOutlinePane === null) return
   uiCanvas.addHudSurface(displayHoverOutlinePane, ({w, h}) => ({x: 0, y: 0, w, h}))
+  if (voiceHudPane !== null) {
+    uiCanvas.addHudSurface(voiceHudPane, ({w, h}) => ({
+      x: Math.max(8, w - VOICE_HUD_W - 16),
+      y: 64,
+      w: Math.min(VOICE_HUD_W, Math.max(1, w - 16)),
+      h: VOICE_HUD_H,
+    }))
+  }
+  updateVoiceHud()
+  scheduleVoiceAutoWake(500)
 }
 
 function toggleLocale(): void {
   toggleUiLocale()
   hostTerminal?.terminal.setTitle(t("hostTerminal"))
   hostTerminal?.terminal.requestRender()
+  updateVoiceHud()
   for (const controller of moduleDisplays.values()) {
     controller.source.setTitle(moduleSourceTitle(controller))
     controller.frames.requestRender()
@@ -447,6 +508,564 @@ function setVerboseVisible(controller: ModuleDisplayController, on: boolean): vo
   const snapshot = moduleSnapshots.get(controller.id)
   if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
   uiCanvas?.relayout()
+}
+
+class VoiceHudPane extends UiSurface {
+  #snapshot: VoiceHudSnapshot = {
+    status: "idle",
+    statusLine: "",
+    targetLine: "",
+    autoEnterLine: "",
+    detailLine: "",
+    serviceLine: "",
+    serviceState: "unknown",
+    level: 0,
+  }
+
+  constructor(private readonly onToggle: () => void) {
+    super({bgColor: null, borderColor: null})
+  }
+
+  setSnapshot(snapshot: VoiceHudSnapshot): void {
+    this.#snapshot = snapshot
+    this.requestRender()
+  }
+
+  protected render(): void {
+    const status = this.#snapshot.status
+    const active = status === "waitingWake" || status === "listening" || status === "committing"
+    const warn = status === "connecting" || status === "waitingWake" || status === "committing"
+    const error = status === "error" || this.#snapshot.serviceState === "down"
+    const border = error ? palette.red : warn ? palette.orange : active ? palette.green : palette.borderDim
+    const textMaterial = error ? this.materials.red : warn ? this.materials.orange : active ? this.materials.green : this.materials.text
+    const buttonSize = 58
+    const buttonX = Math.max(0, (this.rectW - buttonSize) / 2)
+    const buttonY = 8
+    const centerX = buttonX + buttonSize / 2
+    const centerY = buttonY + buttonSize / 2
+
+    this.#drawRadialMeter(centerX, centerY, buttonSize / 2 + 7, 18)
+
+    const buttonBorder = error ? "red" : warn ? "orange" : active ? "green" : "border"
+    button(this, buttonX, buttonY, buttonSize, buttonSize, {
+      key: "engine-voice-hud-toggle",
+      tooltip: status === "listening" || status === "committing" || status === "connecting" ? t("voiceStop") : t("voiceStart"),
+      onClick: this.onToggle,
+      style: (state) => ({
+        background: state === "hover" ? "rgba(22, 36, 55, 0.94)" : "rgba(15, 23, 42, 0.9)",
+        borderColor: buttonBorder,
+        borderRadius: buttonSize / 2,
+        zIndex: 0.3,
+      }),
+      children: () => drawIconCentered(this, uiIcons.mic, centerX, centerY, 22, {z: 0.55}),
+    })
+
+    const panelY = buttonY + buttonSize + 22
+    const panelW = this.rectW
+    const panelH = Math.max(1, this.rectH - panelY)
+    this.drawRoundedRect(0, panelY, panelW, panelH, {
+      radius: 8,
+      fill: palette.bgPanelDim,
+      border,
+      borderWidth: 1,
+      opacity: 0.88,
+      z: 0,
+    })
+
+    const x = 10
+    const textW = panelW - x * 2
+    const lines = [
+      this.#snapshot.statusLine,
+      this.#snapshot.targetLine,
+      this.#snapshot.autoEnterLine,
+      this.#snapshot.detailLine,
+      this.#snapshot.serviceLine,
+    ].filter(Boolean)
+    for (let index = 0; index < Math.min(4, lines.length); index += 1) {
+      this.drawText(lines[index]!, x, panelY + 8 + index * 15, {
+        fontPx: index === 0 ? 12 : 11,
+        material: index === 0 ? textMaterial : this.materials.muted,
+        maxWidthPx: textW,
+      })
+    }
+  }
+
+  #drawRadialMeter(cx: number, cy: number, radius: number, maxBar: number): void {
+    const count = 24
+    const level = Math.max(0, Math.min(1, this.#snapshot.level))
+    for (let index = 0; index < count; index += 1) {
+      const threshold = (index + 1) / count
+      const phase = (index / count) * Math.PI * 2
+      const peak = 0.55 + 0.45 * Math.sin(phase * 3 + level * Math.PI)
+      const amount = Math.max(0.16, Math.min(1, level * (0.55 + peak * 0.65)))
+      const inner = radius
+      const outer = radius + 5 + amount * maxBar
+      const x0 = cx + Math.cos(phase) * inner
+      const y0 = cy + Math.sin(phase) * inner
+      const x1 = cx + Math.cos(phase) * outer
+      const y1 = cy + Math.sin(phase) * outer
+      const color = level >= threshold * 0.78 ? palette.cyan : palette.borderDim
+      this.drawRoundedLine(x0, y0, x1, y1, color, 3, 0.2)
+    }
+  }
+}
+
+function setVoiceActiveTarget(target: VoiceInputTarget): void {
+  const changed = voiceActiveTarget?.kind !== target.kind || voiceActiveTarget.controller !== target.controller
+  voiceActiveTarget = target
+  updateVoiceHud()
+  if (changed && !voiceAutoWakeInFlight) scheduleVoiceAutoWake()
+}
+
+function ensureVoiceInputClient(): VoiceInputClient {
+  if (voiceInputClient !== null) return voiceInputClient
+  voiceInputClient = new VoiceInputClient({
+    url: readVoiceInputUrl,
+    wakeUrl: readVoiceWakeUrl,
+    language: "ru",
+    context: readVoiceInputContext,
+    onStatus: handleVoiceStatus,
+    onWake: () => updateVoiceHud("connecting", readVoiceInputUrl()),
+    onChunk: handleVoiceInputChunk,
+    onLevel: updateVoiceLevel,
+  })
+  return voiceInputClient
+}
+
+function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
+  updateVoiceHud(status, detail)
+}
+
+async function toggleVoiceInput(): Promise<void> {
+  const client = ensureVoiceInputClient()
+  try {
+    if (client.active) {
+      if (client.status === "waitingWake") {
+        voiceAutoWakePaused = false
+        await client.startDictation()
+        return
+      }
+      voiceAutoWakePaused = false
+      await client.sleepToWake()
+      return
+    }
+
+    voiceAutoWakePaused = false
+    if (voiceActiveTarget === null || !voiceTargetCanAcceptInput(voiceActiveTarget)) {
+      flashVoiceHudError(t("voiceNoActiveInput"))
+      return
+    }
+    const serviceOk = await checkVoiceService()
+    if (!serviceOk) {
+      flashVoiceHudError(voiceServiceDetail)
+      return
+    }
+    await client.startDictation()
+  } catch (error) {
+    flashVoiceHudError(error instanceof Error ? error.message : String(error))
+  } finally {
+    focusVoiceTarget()
+  }
+}
+
+function focusVoiceTarget(): void {
+  const target = voiceActiveTarget
+  if (target === null) return
+  uiCanvas?.setFocused(target.controller.terminal)
+}
+
+async function startVoiceWake(reportErrors: boolean): Promise<boolean> {
+  const client = ensureVoiceInputClient()
+  if (client.active) return true
+  if (client.status === "error") client.reset()
+
+  if (voiceActiveTarget === null || !voiceTargetCanAcceptInput(voiceActiveTarget)) {
+    if (reportErrors) flashVoiceHudError(t("voiceNoActiveInput"))
+    return false
+  }
+
+  const serviceOk = await checkVoiceService()
+  if (!serviceOk) {
+    if (reportErrors) flashVoiceHudError(voiceServiceDetail)
+    return false
+  }
+
+  try {
+    await client.start()
+    return true
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (reportErrors) flashVoiceHudError(message)
+    else updateVoiceHud("error", message)
+    if (/permission denied|notallowederror|not allowed/i.test(message)) voiceAutoWakePaused = true
+    return false
+  }
+}
+
+function scheduleVoiceAutoWake(delayMs = 0): void {
+  if (voiceAutoWakePaused || voiceAutoWakeTimer !== null) return
+  voiceAutoWakeTimer = window.setTimeout(() => {
+    voiceAutoWakeTimer = null
+    void ensureVoiceAutoWake()
+  }, delayMs)
+}
+
+async function ensureVoiceAutoWake(): Promise<void> {
+  if (voiceAutoWakePaused || voiceAutoWakeInFlight) return
+  if (voiceActiveTarget === null && hostTerminal !== null) setVoiceActiveTarget({kind: "host", controller: hostTerminal})
+  const client = ensureVoiceInputClient()
+  if (client.active) return
+
+  voiceAutoWakeInFlight = true
+  try {
+    const started = await startVoiceWake(false)
+    if (!started && !voiceAutoWakePaused) scheduleVoiceAutoWake(VOICE_AUTO_WAKE_RETRY_MS)
+  } finally {
+    voiceAutoWakeInFlight = false
+  }
+}
+
+function handleVoiceInputChunk(chunk: VoiceInputChunk): void {
+  const messages = voiceMessagesFromChunk(chunk)
+  if (messages.length === 0) return
+  for (const message of messages) insertVoiceMessage(message)
+}
+
+function insertVoiceMessage(raw: string): void {
+  const text = cleanupVoiceInputText(raw)
+  if (!text) return
+
+  const target = voiceActiveTarget
+  if (target === null) {
+    flashVoiceHudError(t("voiceNoActiveInput"))
+    return
+  }
+
+  if (target.kind === "host") {
+    if (!voiceTargetCanAcceptInput(target)) {
+      flashVoiceHudError(t("voiceNoActiveInput"))
+      return
+    }
+    sendHostTerminalVoiceSubmit(target.controller, text)
+    recordVoiceAutoEnter()
+    updateVoiceHud(undefined, `${t("voiceInserted")}: ${text}`)
+    return
+  }
+
+  voiceModuleSubmitQueue = voiceModuleSubmitQueue.then(() => submitVoiceModuleExpression(target.controller, text))
+  void voiceModuleSubmitQueue.catch((error) => flashVoiceHudError(error instanceof Error ? error.message : String(error)))
+}
+
+async function submitVoiceModuleExpression(controller: ModuleDisplayController, text: string): Promise<void> {
+  if (!canAcceptTerminalInput(controller)) {
+    appendModuleTerminal(controller, {
+      ts: new Date().toISOString(),
+      level: "warn",
+      text: `[ui] ${t("voiceNoActiveInput")}`,
+    })
+    syncModuleTerminalInput(controller)
+    flashVoiceHudError(t("voiceNoActiveInput"))
+    return
+  }
+
+  showModuleTerminalPrompt(controller)
+  appendModuleTerminalInputText(controller, text)
+  controller.terminal.write("\r\n")
+  controller.terminalInput.buffer = ""
+  controller.terminalInput.promptVisible = false
+  recordVoiceAutoEnter()
+  updateVoiceHud(undefined, `${t("voiceInserted")}: ${text}`)
+  await runModuleTerminalExpression(controller, text)
+}
+
+function sendHostTerminalVoiceSubmit(controller: HostTerminalController, text: string): void {
+  sendHostTerminalInput(controller, text, "api")
+  sendHostTerminalInput(controller, "\r", "keyboard")
+}
+
+function voiceMessagesFromChunk(chunk: VoiceInputChunk): string[] {
+  if (chunk.messages.length > 1) return chunk.messages.map(cleanupVoiceInputText).filter(Boolean)
+
+  const byPause = voiceMessagesFromSegments(chunk.segments)
+  if (byPause.length > 1) return byPause
+
+  const source = chunk.messages[0] ?? chunk.text
+  return splitVoiceParagraphs(source)
+}
+
+const VOICE_MESSAGE_PAUSE_SECONDS = 0.65
+
+function voiceMessagesFromSegments(segments: VoiceInputSegment[]): string[] {
+  if (segments.length < 2) return []
+
+  const messages: string[] = []
+  let current = ""
+  let lastEnd: number | null = null
+
+  for (const segment of segments) {
+    const text = cleanupVoiceInputText(segment.text ?? "")
+    if (!text) continue
+
+    const start = segment.start
+    const end = segment.end
+    const hasPause =
+      current.length > 0 &&
+      typeof start === "number" &&
+      typeof lastEnd === "number" &&
+      start - lastEnd >= VOICE_MESSAGE_PAUSE_SECONDS
+
+    if (hasPause) {
+      messages.push(current)
+      current = text
+    } else {
+      current = current ? `${current} ${text}` : text
+    }
+
+    if (typeof end === "number") lastEnd = end
+  }
+
+  if (current) messages.push(current)
+  return messages
+}
+
+function splitVoiceParagraphs(text: string): string[] {
+  return String(text)
+    .replace(/\r\n?/g, "\n")
+    .split(/\n\s*\n+/)
+    .map(cleanupVoiceInputText)
+    .filter(Boolean)
+}
+
+function cleanupVoiceInputText(text: string): string {
+  return text.replace(/\s+/g, " ").trim()
+}
+
+function updateVoiceLevel(level: number): void {
+  const next = Math.max(0, Math.min(1, level * 12))
+  voiceInputLevel = voiceInputLevel * 0.72 + next * 0.28
+  if (voiceMeterRaf !== null) return
+  voiceMeterRaf = window.requestAnimationFrame(() => {
+    voiceMeterRaf = null
+    renderVoiceMeter()
+  })
+}
+
+function recordVoiceAutoEnter(): void {
+  voiceAutoEnterCount += 1
+  voiceAutoEnterAt = new Date()
+}
+
+function updateVoiceHud(status?: VoiceInputStatus, detail?: string): void {
+  const currentStatus = status ?? voiceInputClient?.status ?? "idle"
+  const detailText = voiceReadableDetail(detail ?? voiceStatusDetail(currentStatus))
+  if (status !== undefined || detail !== undefined || currentStatus !== voiceHudStatus) {
+    voiceHudStatus = currentStatus
+    voiceHudDetail = detailText
+    voiceHudUpdatedAt = new Date()
+  }
+  renderVoiceHud()
+}
+
+function renderVoiceHud(): void {
+  const currentStatus = voiceHudStatus
+  const target = voiceTargetLabel()
+  voiceHudPane?.setSnapshot({
+    status: currentStatus,
+    statusLine: `${formatHudTime(voiceHudUpdatedAt)} · ${voiceStatusLabel(currentStatus)}`,
+    targetLine: target ? `${t("voiceTarget")}: ${target}` : t("voiceNoTarget"),
+    autoEnterLine: voiceAutoEnterLine(),
+    detailLine: voiceHudDetail,
+    serviceLine: voiceServiceLine(),
+    serviceState: voiceServiceState,
+    level: voiceHudStatus === "waitingWake" || voiceHudStatus === "listening" || voiceHudStatus === "committing" ? voiceInputLevel : 0,
+  })
+}
+
+function flashVoiceHudError(detail: string): void {
+  if (voiceHudErrorTimer !== null) window.clearTimeout(voiceHudErrorTimer)
+  updateVoiceHud("error", detail)
+  voiceHudErrorTimer = window.setTimeout(() => {
+    voiceHudErrorTimer = null
+    if (voiceInputClient?.status !== "error") updateVoiceHud()
+  }, 2_400)
+}
+
+function voiceStatusDetail(status: VoiceInputStatus): string {
+  if (status === "listening") return t("voiceListening")
+  if (status === "waitingWake") return t("voiceWaitingWake")
+  if (status === "connecting") return t("voiceConnecting")
+  if (status === "committing") return t("voiceCommitting")
+  if (status === "error") return t("voiceError")
+  return ""
+}
+
+function voiceStatusLabel(status: VoiceInputStatus): string {
+  if (status === "idle") return t("voiceIdle")
+  return voiceStatusDetail(status)
+}
+
+function voiceReadableDetail(detail: string): string {
+  const text = detail.trim()
+  if (!text) return ""
+  if (/websocket failed|websocket closed|failed to construct/i.test(text)) return `${t("voiceServiceDown")}: ${voiceSocketErrorEndpoint(text) ?? voiceServiceEndpointLabel()}`
+  if (/permission denied|notallowederror|not allowed/i.test(text)) return getUiLocale() === "ru" ? "нет доступа к микрофону" : "microphone access denied"
+  if (/notfounderror|not found|device not found/i.test(text)) return getUiLocale() === "ru" ? "микрофон не найден" : "microphone not found"
+  if (/commit timeout/i.test(text)) return getUiLocale() === "ru" ? "таймаут распознавания фрагмента" : "voice commit timeout"
+  return text
+}
+
+function voiceSocketErrorEndpoint(text: string): string | null {
+  const match = text.match(/wss?:\/\/\S+/i)
+  if (match === null) return null
+  return voiceEndpointLabel(match[0]!)
+}
+
+function voiceServiceLine(): string {
+  const time = voiceServiceCheckedAt === null ? "--:--:--" : formatHudTime(voiceServiceCheckedAt)
+  return `${time} · ${voiceServiceDetail}`
+}
+
+function voiceAutoEnterLine(): string {
+  if (voiceAutoEnterAt === null) return `${t("voiceAutoEnter")}: 0`
+  return `${formatHudTime(voiceAutoEnterAt)} · ${t("voiceAutoEnter")} #${voiceAutoEnterCount}`
+}
+
+function renderVoiceMeter(): void {
+  renderVoiceHud()
+}
+
+function formatHudTime(date: Date): string {
+  return date.toLocaleTimeString(getUiLocale() === "ru" ? "ru-RU" : "en-US", {hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit"})
+}
+
+function installVoiceServiceMonitor(): void {
+  if (voiceServiceCheckTimer !== null) return
+  void checkVoiceService()
+  voiceServiceCheckTimer = window.setInterval(() => {
+    if (document.visibilityState === "visible") void checkVoiceService()
+  }, VOICE_SERVICE_CHECK_INTERVAL_MS)
+  window.addEventListener("focus", () => {
+    void checkVoiceService()
+    scheduleVoiceAutoWake()
+  })
+  window.addEventListener("online", () => {
+    void checkVoiceService()
+    scheduleVoiceAutoWake()
+  })
+}
+
+async function checkVoiceService(): Promise<boolean> {
+  if (voiceServiceCheckInFlight) return voiceServiceState === "ok"
+  voiceServiceCheckInFlight = true
+  try {
+    const data = await probeVoiceService()
+    const model = typeof data?.model === "string" ? data.model : ""
+    const device = typeof data?.device === "string" ? data.device : ""
+    const compute = typeof data?.computeType === "string" ? data.computeType : ""
+    voiceServiceState = "ok"
+    voiceServiceDetail = [t("voiceServiceOk"), model, [device, compute].filter(Boolean).join("/")].filter(Boolean).join(" · ")
+    voiceServiceCheckedAt = new Date()
+    renderVoiceHud()
+    return true
+  } catch (error) {
+    voiceServiceState = "down"
+    voiceServiceDetail = `${t("voiceServiceDown")}: ${voiceServiceEndpointLabel()}`
+    if (error instanceof Error && error.name !== "AbortError") voiceServiceDetail = `${voiceServiceDetail} · ${error.message}`
+    voiceServiceCheckedAt = new Date()
+    renderVoiceHud()
+    return false
+  } finally {
+    voiceServiceCheckInFlight = false
+  }
+}
+
+function probeVoiceService(): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    let openFallback: number | null = null
+    const ws = new WebSocket(readVoiceInputUrl())
+    const timeout = window.setTimeout(() => finish(null, new Error("timeout")), VOICE_SERVICE_CHECK_TIMEOUT_MS)
+
+    const finish = (data: Record<string, unknown> | null, error?: Error): void => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(timeout)
+      if (openFallback !== null) window.clearTimeout(openFallback)
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close()
+      if (error !== undefined) reject(error)
+      else resolve(data)
+    }
+
+    ws.addEventListener("open", () => {
+      openFallback = window.setTimeout(() => finish(null), 350)
+    })
+    ws.addEventListener("message", (event) => {
+      if (typeof event.data !== "string") return
+      try {
+        const msg = JSON.parse(event.data) as {type?: string; config?: unknown}
+        if (msg.type === "ready") {
+          finish(typeof msg.config === "object" && msg.config !== null ? msg.config as Record<string, unknown> : null)
+        }
+      } catch {
+        finish(null)
+      }
+    })
+    ws.addEventListener("error", () => finish(null, new Error("websocket failed")))
+    ws.addEventListener("close", () => finish(null, new Error("websocket closed")))
+  })
+}
+
+function voiceServiceEndpointLabel(): string {
+  return voiceEndpointLabel(readVoiceInputUrl())
+}
+
+function voiceEndpointLabel(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl, location.href)
+    return url.host || rawUrl
+  } catch {
+    return rawUrl
+  }
+}
+
+function voiceTargetLabel(): string {
+  const target = voiceActiveTarget
+  if (target === null) return ""
+  if (target.kind === "host") return t("voiceTargetHost")
+  const snapshot = moduleSnapshots.get(target.controller.id)
+  return `${t("voiceTargetModule")}: ${snapshot?.label ?? target.controller.id}`
+}
+
+function voiceTargetCanAcceptInput(target: VoiceInputTarget): boolean {
+  if (target.kind === "host") {
+    return target.controller.socket?.readyState === WebSocket.OPEN
+      && target.controller.connectionState === "connected"
+  }
+  return canAcceptTerminalInput(target.controller)
+}
+
+function readVoiceInputUrl(): string {
+  try {
+    return localStorage.getItem(VOICE_INPUT_URL_STORAGE_KEY) || DEFAULT_VOICE_INPUT_URL
+  } catch {
+    return DEFAULT_VOICE_INPUT_URL
+  }
+}
+
+function readVoiceWakeUrl(): string {
+  try {
+    return localStorage.getItem(VOICE_WAKE_URL_STORAGE_KEY) || DEFAULT_VOICE_WAKE_URL
+  } catch {
+    return DEFAULT_VOICE_WAKE_URL
+  }
+}
+
+function readVoiceInputContext(): string {
+  try {
+    return localStorage.getItem(VOICE_INPUT_CONTEXT_STORAGE_KEY) || ""
+  } catch {
+    return ""
+  }
 }
 
 function syncModuleDisplays(): void {
@@ -554,6 +1173,9 @@ function ensureHostTerminalController(): HostTerminalController {
     cursorLineHighlight: true,
     inputEnabled: false,
     onInput: (data, source) => sendHostTerminalInput(controller, data, source),
+    onFocusChange: (focused) => {
+      if (focused) setVoiceActiveTarget({kind: "host", controller})
+    },
     onResize: (size) => {
       controller.terminalSize = size
       sendHostTerminal(controller, {type: "terminal.resize", size})
@@ -591,6 +1213,8 @@ function connectHostTerminal(controller: HostTerminalController): void {
     if (controller.socket !== nextSocket) return
     setHostTerminalStatus(controller, "connected", t("terminalConnected"))
     controller.terminal.setInputEnabled(true)
+    if (voiceActiveTarget === null) setVoiceActiveTarget({kind: "host", controller})
+    else scheduleVoiceAutoWake()
     if (controller.terminalSize !== null) sendHostTerminal(controller, {type: "terminal.resize", size: controller.terminalSize})
   })
 
@@ -646,6 +1270,8 @@ function handleHostTerminalMessage(controller: HostTerminalController, event: Me
     controller.sessionId = message.sessionId
     writeStoredHostTerminalSessionId(message.sessionId)
     setHostTerminalStatus(controller, "connected", shellLabel(message.shell))
+    if (voiceActiveTarget === null) setVoiceActiveTarget({kind: "host", controller})
+    else scheduleVoiceAutoWake()
     if (controller.terminalSize !== null) sendHostTerminal(controller, {type: "terminal.resize", size: controller.terminalSize})
     return
   }
@@ -786,6 +1412,9 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       cursorBlink: true,
       inputEnabled: false,
       onInput: (data) => handleModuleTerminalInput(controller, data),
+      onFocusChange: (focused) => {
+        if (focused) setVoiceActiveTarget({kind: "module", controller})
+      },
     }),
     verbose: new VerbosePane(moduleVerboseStorageKey(module.id)),
     sourceCache: new Map<string, CachedSource>(),
