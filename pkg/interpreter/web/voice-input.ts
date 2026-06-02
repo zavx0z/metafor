@@ -48,10 +48,26 @@ const WAKE_ALIASES = [
   "агент",
   "слышь долбоеб",
   "слыш долбоеб",
+  "слышь долбоёб",
+  "слыш долбоёб",
 ]
+const STOP_COMMAND_PHRASES = [
+  "выключи микрофон",
+  "выключу микрофон",
+  "отключи микрофон",
+  "отключу микрофон",
+  "выруби микрофон",
+  "вырублю микрофон",
+  "останови голосовой ввод",
+  "остановлю голосовой ввод",
+]
+const WAKE_RECOGNITION_GRAMMAR = [...WAKE_ALIASES, ...STOP_COMMAND_PHRASES]
 const STOP_COMMAND_RE = /(^|[\s,.;:!?…-]+)(?:выключи|выключу|отключи|отключу|выруби|вырублю|останови|остановлю)\s+(?:микрофон|голос(?:овой\s+ввод)?)(?=$|[\s,.;:!?…-]+)/giu
 const VOICE_RMS_THRESHOLD = 0.012
-const VOICE_WAKE_GAIN = 2.4
+const VOICE_WAKE_BASE_GAIN = 2.8
+const VOICE_WAKE_MAX_GAIN = 6
+const VOICE_WAKE_TARGET_RMS = 0.055
+const VOICE_WAKE_MIN_RMS = 0.002
 const SILENCE_COMMIT_MS = 1_550
 const MIN_COMMIT_AUDIO_MS = 1_500
 const MIN_COMMIT_INTERVAL_MS = 2_200
@@ -155,7 +171,8 @@ export class VoiceInputClient {
     this.#sendCommand({
       type: "start",
       sampleRate: this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE,
-      useGrammar: false,
+      useGrammar: true,
+      grammar: WAKE_RECOGNITION_GRAMMAR,
       words: true,
     })
     this.#setStatus("waitingWake", WAKE_WORD)
@@ -253,7 +270,7 @@ export class VoiceInputClient {
       const samples = event.data
       if (!(samples instanceof Float32Array)) return
       const pcm = floatToPcm16(samples)
-      const wakePcm = floatToPcm16(applyAudioGain(samples, VOICE_WAKE_GAIN))
+      const wakePcm = floatToPcm16(applyWakeAudioGain(samples))
       this.#pcmSinceCommitBytes += pcm.byteLength
       this.#trackSpeechAndMaybeCommit(samples)
       this.#sendPcm(pcm, wakePcm)
@@ -737,8 +754,11 @@ function rmsLevel(samples: Float32Array): number {
   return Math.sqrt(sum / samples.length)
 }
 
-function applyAudioGain(samples: Float32Array, gain: number): Float32Array {
-  if (gain === 1) return samples
+function applyWakeAudioGain(samples: Float32Array): Float32Array {
+  const rms = rmsLevel(samples)
+  const gain = rms >= VOICE_WAKE_MIN_RMS
+    ? Math.min(VOICE_WAKE_MAX_GAIN, Math.max(VOICE_WAKE_BASE_GAIN, VOICE_WAKE_TARGET_RMS / rms))
+    : VOICE_WAKE_BASE_GAIN
   const amplified = new Float32Array(samples.length)
   for (let index = 0; index < samples.length; index += 1) {
     amplified[index] = Math.max(-1, Math.min(1, (samples[index] ?? 0) * gain))
