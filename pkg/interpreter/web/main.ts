@@ -7,6 +7,7 @@
  */
 
 import {UiRuntime, UiSurface, button, drawIconCentered, palette, uiIcons, type UiSurfaceRect} from "@ui/elements"
+import {HudSideTab} from "@ui/hud"
 import {
   EditorPane,
   TerminalPane,
@@ -15,6 +16,7 @@ import {
   type EditorBreakpoint,
   type EditorTokens,
   type TerminalInputSource,
+  type TerminalPaneOpts,
   type TerminalSize,
   type TerminalStatusKind,
 } from "@ui/panes"
@@ -193,6 +195,8 @@ type ModuleDisplayController = {
 
 type HostTerminalController = {
   terminal: TerminalPane
+  hudTerminal: TerminalPane
+  focusedTerminal: TerminalPane | null
   socket: WebSocket | null
   sessionId: string | null
   terminalSize: TerminalSize | null
@@ -233,6 +237,8 @@ const MODULE_DISPLAY_CENTER_Y_MM = 0
 const MODULE_DISPLAY_CENTER_Z_MM = 900
 const HOST_TERMINAL_DISPLAY_ID = "host:terminal"
 const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sessionId"
+const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudRect:v1"
+const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
 const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
 const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
 const VOICE_INPUT_CONTEXT_STORAGE_KEY = "metafor.interpreter.voice.context"
@@ -243,11 +249,21 @@ const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2_500
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
 const VOICE_HUD_W = 246
 const VOICE_HUD_H = 174
+const HOST_TERMINAL_HUD_MAX_W = 980
+const HOST_TERMINAL_HUD_MAX_H = 340
+const HOST_TERMINAL_HUD_MIN_W = 720
+const HOST_TERMINAL_HUD_MIN_H = 560
+const HOST_TERMINAL_HUD_PANEL_MIN_W = 260
+const HOST_TERMINAL_HUD_PANEL_MIN_H = 160
+const HOST_TERMINAL_DOCK_W = 36
+const HOST_TERMINAL_DOCK_H = 128
 
 let uiCanvas: UiRuntime | null = null
 let uiLoading = false
 let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
 let hostTerminal: HostTerminalController | null = null
+let hostTerminalDockPane: HostTerminalDockPane | null = null
+let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let voiceHudPane: VoiceHudPane | null = null
 let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
@@ -485,6 +501,10 @@ function handleEngineResize(): void {
 function installEnginePanes(): void {
   if (uiCanvas === null || displayHoverOutlinePane === null) return
   uiCanvas.addHudSurface(displayHoverOutlinePane, ({w, h}) => ({x: 0, y: 0, w, h}))
+  const host = ensureHostTerminalController()
+  uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect)
+  hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
+  uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect)
   if (voiceHudPane !== null) {
     uiCanvas.addHudSurface(voiceHudPane, ({w, h}) => ({
       x: Math.max(8, w - VOICE_HUD_W - 16),
@@ -499,8 +519,12 @@ function installEnginePanes(): void {
 
 function toggleLocale(): void {
   toggleUiLocale()
-  hostTerminal?.terminal.setTitle(t("hostTerminal"))
-  hostTerminal?.terminal.requestRender()
+  if (hostTerminal !== null) {
+    for (const pane of hostTerminalPanes(hostTerminal)) {
+      pane.setTitle(t("hostTerminal"))
+      pane.requestRender()
+    }
+  }
   updateVoiceHud()
   for (const controller of moduleDisplays.values()) {
     controller.source.setTitle(moduleSourceTitle(controller))
@@ -623,6 +647,26 @@ class VoiceHudPane extends UiSurface {
   }
 }
 
+class HostTerminalDockPane extends UiSurface {
+  constructor(private readonly onRestore: () => void) {
+    super({bgColor: null, borderColor: null})
+    this.node.name = "HostTerminalDockPane"
+  }
+
+  protected render(): void {
+    HudSideTab(this, {
+      rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
+      key: "host-terminal-dock-restore",
+      edge: "left",
+      icon: uiIcons.log,
+      label: t("hostTerminal"),
+      tone: "neutral",
+      tooltip: t("hostTerminal"),
+      onClick: this.onRestore,
+    })
+  }
+}
+
 function setVoiceActiveTarget(target: VoiceInputTarget): void {
   const changed = voiceActiveTarget?.kind !== target.kind || voiceActiveTarget.controller !== target.controller
   voiceActiveTarget = target
@@ -684,7 +728,8 @@ async function toggleVoiceInput(): Promise<void> {
 function focusVoiceTarget(): void {
   const target = voiceActiveTarget
   if (target === null) return
-  uiCanvas?.setFocused(target.controller.terminal)
+  const terminal = target.kind === "host" ? target.controller.focusedTerminal ?? target.controller.hudTerminal : target.controller.terminal
+  uiCanvas?.setFocused(terminal)
 }
 
 async function startVoiceWake(reportErrors: boolean): Promise<boolean> {
@@ -1176,27 +1221,27 @@ function syncHostTerminalDisplay(displayMetrics: DisplayLayoutMetrics, center: {
 function ensureHostTerminalController(): HostTerminalController {
   if (hostTerminal !== null) return hostTerminal
   const controller = {} as HostTerminalController
-  const terminal = new TerminalPane({
-    title: t("hostTerminal"),
-    status: t("terminalConnecting"),
-    statusKind: "idle",
+  const terminal = createHostTerminalPane(controller, "InterpreterHostTerminal", {
     fontPx: 13,
     linePx: 18,
-    maxScrollback: 10000,
-    cursorLineHighlight: true,
-    inputEnabled: false,
-    onInput: (data, source) => sendHostTerminalInput(controller, data, source),
-    onFocusChange: (focused) => {
-      if (focused) setVoiceActiveTarget({kind: "host", controller})
-    },
     onResize: (size) => {
       controller.terminalSize = size
+      controller.hudTerminal?.setTerminalSize(size.cols, size.rows)
       sendHostTerminal(controller, {type: "terminal.resize", size})
     },
   })
-  terminal.node.name = "InterpreterHostTerminal"
+  const hudTerminal = createHostTerminalPane(controller, "InterpreterHostTerminalHud", {
+    fontPx: 12,
+    linePx: 17,
+    fitToRect: false,
+    scrollX: true,
+    onFrameRectChange: storeHostTerminalHudRect,
+    onFrameDockRequest: () => setHostTerminalHudDocked(true),
+  })
   Object.assign(controller, {
     terminal,
+    hudTerminal,
+    focusedTerminal: null,
     socket: null,
     sessionId: readStoredHostTerminalSessionId(),
     terminalSize: null,
@@ -1212,6 +1257,46 @@ function ensureHostTerminalController(): HostTerminalController {
   return controller
 }
 
+function createHostTerminalPane(
+  controller: HostTerminalController,
+  name: string,
+  opts: {
+    fontPx: number
+    linePx: number
+    fitToRect?: boolean
+    scrollX?: boolean
+    onResize?: (size: TerminalSize) => void
+    onFrameRectChange?: TerminalPaneOpts["onFrameRectChange"]
+    onFrameDockRequest?: TerminalPaneOpts["onFrameDockRequest"]
+  },
+): TerminalPane {
+  let terminal: TerminalPane | null = null
+  const terminalOpts: TerminalPaneOpts = {
+    title: t("hostTerminal"),
+    status: t("terminalConnecting"),
+    statusKind: "idle",
+    fontPx: opts.fontPx,
+    linePx: opts.linePx,
+    maxScrollback: 10000,
+    cursorLineHighlight: true,
+    inputEnabled: false,
+    onInput: (data, source) => sendHostTerminalInput(controller, data, source),
+    onFocusChange: (focused) => {
+      if (!focused) return
+      if (terminal !== null) controller.focusedTerminal = terminal
+      setVoiceActiveTarget({kind: "host", controller})
+    },
+  }
+  if (opts.fitToRect !== undefined) terminalOpts.fitToRect = opts.fitToRect
+  if (opts.scrollX !== undefined) terminalOpts.scrollX = opts.scrollX
+  if (opts.onResize !== undefined) terminalOpts.onResize = opts.onResize
+  if (opts.onFrameRectChange !== undefined) terminalOpts.onFrameRectChange = opts.onFrameRectChange
+  if (opts.onFrameDockRequest !== undefined) terminalOpts.onFrameDockRequest = opts.onFrameDockRequest
+  terminal = new TerminalPane(terminalOpts)
+  terminal.node.name = name
+  return terminal
+}
+
 function connectHostTerminal(controller: HostTerminalController): void {
   if (controller.socket !== null) {
     controller.socket.close()
@@ -1219,8 +1304,8 @@ function connectHostTerminal(controller: HostTerminalController): void {
   }
 
   setHostTerminalStatus(controller, "idle", t("terminalConnecting"))
-  controller.terminal.setInputEnabled(false)
-  controller.terminal.rejectLocalEcho()
+  setHostTerminalInputEnabled(controller, false)
+  rejectHostTerminalLocalEcho(controller)
   controller.terminalState = null
 
   const nextSocket = new WebSocket(hostTerminalWebSocketURL(controller))
@@ -1229,7 +1314,7 @@ function connectHostTerminal(controller: HostTerminalController): void {
   nextSocket.addEventListener("open", () => {
     if (controller.socket !== nextSocket) return
     setHostTerminalStatus(controller, "connected", t("terminalConnected"))
-    controller.terminal.setInputEnabled(true)
+    setHostTerminalInputEnabled(controller, true)
     if (voiceActiveTarget === null) setVoiceActiveTarget({kind: "host", controller})
     else scheduleVoiceAutoWake()
     if (controller.terminalSize !== null) sendHostTerminal(controller, {type: "terminal.resize", size: controller.terminalSize})
@@ -1243,7 +1328,7 @@ function connectHostTerminal(controller: HostTerminalController): void {
   nextSocket.addEventListener("close", () => {
     if (controller.socket !== nextSocket) return
     controller.socket = null
-    controller.terminal.setInputEnabled(false)
+    setHostTerminalInputEnabled(controller, false)
     if (controller.connectionState !== "error" && controller.connectionState !== "disconnected") {
       setHostTerminalStatus(controller, "disconnected", t("terminalClosed"))
     }
@@ -1251,7 +1336,7 @@ function connectHostTerminal(controller: HostTerminalController): void {
 
   nextSocket.addEventListener("error", () => {
     if (controller.socket !== nextSocket) return
-    controller.terminal.setInputEnabled(false)
+    setHostTerminalInputEnabled(controller, false)
     setHostTerminalStatus(controller, "error", t("terminalWebsocket"))
   })
 }
@@ -1276,15 +1361,17 @@ function sendHostTerminalInput(controller: HostTerminalController, data: string,
 
 function tryHostTerminalLocalEcho(controller: HostTerminalController, data: string, source: TerminalInputSource): boolean {
   const serverState = controller.terminalState
-  const clientState = controller.terminal.getTerminalState()
+  const panes = hostTerminalPanes(controller)
   if (
     source !== "keyboard" ||
     controller.socket?.readyState !== WebSocket.OPEN ||
     serverState === null ||
     !serverState.localEcho ||
-    !clientState.localEcho
+    panes.some((pane) => !pane.getTerminalState().localEcho)
   ) return false
-  return controller.terminal.tryLocalEcho(data)
+  let echoed = false
+  for (const pane of panes) echoed = pane.tryLocalEcho(data) || echoed
+  return echoed
 }
 
 function sendHostTerminal(controller: HostTerminalController, message: PtyClientMessage): void {
@@ -1298,7 +1385,7 @@ function handleHostTerminalMessage(controller: HostTerminalController, event: Me
   if (message === null) return
 
   if (message.type === "terminal.write") {
-    controller.terminal.writeAuthoritative(message.data)
+    writeHostTerminalAuthoritative(controller, message.data)
     if (message.state !== undefined) controller.terminalState = message.state
     return
   }
@@ -1310,7 +1397,7 @@ function handleHostTerminalMessage(controller: HostTerminalController, event: Me
 
   if (message.type === "terminal.local-echo") {
     controller.terminalState = message.state
-    if (!message.accepted) controller.terminal.rejectLocalEcho()
+    if (!message.accepted) rejectHostTerminalLocalEcho(controller)
     return
   }
 
@@ -1332,14 +1419,14 @@ function handleHostTerminalMessage(controller: HostTerminalController, event: Me
 
   if (message.type === "terminal.exit") {
     setHostTerminalStatus(controller, "disconnected", t("terminalExited"))
-    controller.terminal.setInputEnabled(false)
-    controller.terminal.writeln(`${ansiMuted(`process exited: code=${message.code ?? "null"} signal=${message.signal ?? "null"}`)}`)
+    setHostTerminalInputEnabled(controller, false)
+    writeHostTerminalLine(controller, `${ansiMuted(`process exited: code=${message.code ?? "null"} signal=${message.signal ?? "null"}`)}`)
     return
   }
 
   setHostTerminalStatus(controller, "error", t("terminalError"))
-  controller.terminal.setInputEnabled(false)
-  controller.terminal.writeln(`${ansiError(message.message)}`)
+  setHostTerminalInputEnabled(controller, false)
+  writeHostTerminalLine(controller, `${ansiError(message.message)}`)
 }
 
 function parseHostTerminalServerMessage(raw: string): PtyServerMessage | null {
@@ -1354,7 +1441,28 @@ function parseHostTerminalServerMessage(raw: string): PtyServerMessage | null {
 
 function setHostTerminalStatus(controller: HostTerminalController, kind: PtyStatusKind, label: string): void {
   controller.connectionState = kind
-  controller.terminal.setStatus(statusKindForHostTerminal(kind), label)
+  const paneKind = statusKindForHostTerminal(kind)
+  for (const pane of hostTerminalPanes(controller)) pane.setStatus(paneKind, label)
+}
+
+function hostTerminalPanes(controller: HostTerminalController): TerminalPane[] {
+  return [controller.terminal, controller.hudTerminal]
+}
+
+function setHostTerminalInputEnabled(controller: HostTerminalController, enabled: boolean): void {
+  for (const pane of hostTerminalPanes(controller)) pane.setInputEnabled(enabled)
+}
+
+function rejectHostTerminalLocalEcho(controller: HostTerminalController): void {
+  for (const pane of hostTerminalPanes(controller)) pane.rejectLocalEcho()
+}
+
+function writeHostTerminalAuthoritative(controller: HostTerminalController, data: string): void {
+  for (const pane of hostTerminalPanes(controller)) pane.writeAuthoritative(data)
+}
+
+function writeHostTerminalLine(controller: HostTerminalController, line: string): void {
+  for (const pane of hostTerminalPanes(controller)) pane.writeln(line)
 }
 
 function statusKindForHostTerminal(kind: PtyStatusKind): TerminalStatusKind {
@@ -1385,6 +1493,86 @@ function writeStoredHostTerminalSessionId(value: string): void {
   } catch {
     // Storage can be disabled in private contexts.
   }
+}
+
+function readStoredHostTerminalHudRect(): UiSurfaceRect | null {
+  try {
+    return parseStoredPaneRect(localStorage.getItem(HOST_TERMINAL_HUD_RECT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+function storeHostTerminalHudRect(rect: UiSurfaceRect): void {
+  const normalized = normalizeStoredPaneRect(rect)
+  if (normalized === null) return
+  try {
+    localStorage.setItem(HOST_TERMINAL_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function readStoredHostTerminalHudDocked(): boolean {
+  try {
+    return localStorage.getItem(HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function writeStoredHostTerminalHudDocked(docked: boolean): void {
+  try {
+    localStorage.setItem(HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function setHostTerminalHudDocked(docked: boolean): void {
+  if (hostTerminalHudDocked === docked) return
+  hostTerminalHudDocked = docked
+  writeStoredHostTerminalHudDocked(docked)
+  const controller = hostTerminal
+  if (docked) {
+    if (controller !== null && controller.focusedTerminal === controller.hudTerminal) controller.focusedTerminal = null
+    uiCanvas?.setFocused(null)
+    uiCanvas?.inputProxy?.blur()
+  } else {
+    controller?.hudTerminal.focus()
+  }
+  controller?.hudTerminal.requestRender()
+  hostTerminalDockPane?.requestRender()
+  uiCanvas?.relayout()
+}
+
+function parseStoredPaneRect(raw: string | null): UiSurfaceRect | null {
+  if (raw === null) return null
+  try {
+    return normalizeStoredPaneRect(JSON.parse(raw))
+  } catch {
+    return null
+  }
+}
+
+function normalizeStoredPaneRect(value: unknown): UiSurfaceRect | null {
+  if (typeof value !== "object" || value === null) return null
+  const record = value as Record<string, unknown>
+  const x = finiteStoredNumber(record.x)
+  const y = finiteStoredNumber(record.y)
+  const w = finiteStoredNumber(record.w)
+  const h = finiteStoredNumber(record.h)
+  if (x === null || y === null || w === null || h === null || w <= 0 || h <= 0) return null
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    w: Math.round(w),
+    h: Math.round(h),
+  }
+}
+
+function finiteStoredNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
 function viewportDisplayMetrics(): DisplayLayoutMetrics {
@@ -2303,6 +2491,55 @@ function terminalDisplayRect({w, h}: {w: number; h: number}): UiSurfaceRect {
     w: Math.max(1, w - PAD * 2),
     h: Math.max(1, h - PAD * 2),
   }
+}
+
+function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (hostTerminalHudDocked) return hiddenRect()
+  if (w < HOST_TERMINAL_HUD_MIN_W || h < HOST_TERMINAL_HUD_MIN_H) return hiddenRect()
+  const stored = readStoredHostTerminalHudRect()
+  if (stored !== null) return clampHostTerminalHudRect(stored, w, h)
+  const pad = 16
+  const terminalW = Math.min(HOST_TERMINAL_HUD_MAX_W, Math.max(1, w - pad * 2 - VOICE_HUD_W - 20))
+  const terminalH = Math.min(HOST_TERMINAL_HUD_MAX_H, Math.max(220, Math.floor(h * 0.31)))
+  return clampHostTerminalHudRect({
+    x: pad,
+    y: Math.max(pad, h - terminalH - pad),
+    w: Math.max(1, terminalW),
+    h: Math.max(1, terminalH),
+  }, w, h)
+}
+
+function hostTerminalDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (!hostTerminalHudDocked || w < 80 || h < 140) return hiddenRect()
+  const dockW = Math.min(HOST_TERMINAL_DOCK_W, Math.max(1, w - 8))
+  const dockH = Math.min(HOST_TERMINAL_DOCK_H, Math.max(1, h - 32))
+  const stored = readStoredHostTerminalHudRect()
+  const targetY = stored?.y ?? h - dockH - 16
+  return {
+    x: 0,
+    y: clampNumber(targetY, 48, Math.max(48, h - dockH - 16)),
+    w: dockW,
+    h: dockH,
+  }
+}
+
+function clampHostTerminalHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+  const bw = Math.max(1, Math.round(boundsW))
+  const bh = Math.max(1, Math.round(boundsH))
+  const minW = Math.min(HOST_TERMINAL_HUD_PANEL_MIN_W, bw)
+  const minH = Math.min(HOST_TERMINAL_HUD_PANEL_MIN_H, bh)
+  const rectW = clampNumber(rect.w, minW, bw)
+  const rectH = clampNumber(rect.h, minH, bh)
+  return {
+    x: clampNumber(rect.x, 0, Math.max(0, bw - rectW)),
+    y: clampNumber(rect.y, 0, Math.max(0, bh - rectH)),
+    w: rectW,
+    h: rectH,
+  }
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolean): InterpreterRects {

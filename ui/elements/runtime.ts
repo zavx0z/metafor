@@ -42,6 +42,7 @@ export interface UiSurfaceNode {
   readonly node: Object3D
   attachCanvas(canvas: UiRuntime): void
   setRect(rect: UiSurfaceRect, pixelScale: number, font: TrueTypeFont): void
+  moveRect?(rect: UiSurfaceRect, pixelScale: number, font: TrueTypeFont): void
   onWheel?(event: WheelEvent, localX: number, localY: number): void
   onKey?(event: KeyboardEvent): void
   /**
@@ -71,6 +72,7 @@ type SurfaceSlot = {
   surface: UiSurfaceNode
   layout: UiSurfaceLayoutFn
   rect: UiSurfaceRect
+  rectOverride?: UiSurfaceRect
   target: "display" | "hud"
   displayId?: UiDisplayId
 }
@@ -519,6 +521,35 @@ export class UiRuntime {
     this.requestRender()
   }
 
+  surfaceFrame(surface: UiSurfaceNode): {rect: UiSurfaceRect; bounds: {w: number; h: number}} | null {
+    const slot = this.#surfaces.find((item) => item.surface === surface)
+    if (slot === undefined) return null
+    const metrics = this.#surfaceMetrics(slot.target, slot.displayId)
+    return {
+      rect: {...slot.rect},
+      bounds: {w: metrics.w, h: metrics.h},
+    }
+  }
+
+  setSurfaceRect(surface: UiSurfaceNode, rect: UiSurfaceRect): UiSurfaceRect | null {
+    const slot = this.#surfaces.find((item) => item.surface === surface)
+    if (slot === undefined) return null
+    const metrics = this.#surfaceMetrics(slot.target, slot.displayId)
+    const next = clampSurfaceRect(rect, metrics.w, metrics.h)
+    slot.rectOverride = next
+    this.#applySurfaceSlotRect(slot, next, metrics, false)
+    this.requestRender()
+    return {...next}
+  }
+
+  clearSurfaceRect(surface: UiSurfaceNode): void {
+    const slot = this.#surfaces.find((item) => item.surface === surface)
+    if (slot === undefined || slot.rectOverride === undefined) return
+    delete slot.rectOverride
+    this.#applyLayout()
+    this.requestRender()
+  }
+
   get displayMode(): UiVirtualDisplayMode {
     return this.#displayMode
   }
@@ -959,14 +990,36 @@ export class UiRuntime {
     this.space.updateWorldMatrix()
     for (const slot of this.#surfaces) {
       const metrics = this.#surfaceMetrics(slot.target, slot.displayId)
-      slot.rect = slot.layout({w: metrics.w, h: metrics.h})
-      const visible = slot.rect.visible !== false && slot.rect.w > 0 && slot.rect.h > 0
-      slot.surface.node.visible = visible
-      if (!visible) continue
-      slot.surface.node.position.x = (slot.rect.x - metrics.w / 2) * metrics.scale
-      slot.surface.node.position.y = (metrics.h / 2 - slot.rect.y) * metrics.scale
-      slot.surface.node.updateMatrix()
-      slot.surface.setRect(slot.rect, metrics.scale, this.font)
+      const layoutRect = slot.layout({w: metrics.w, h: metrics.h})
+      const nextRect = layoutRect.visible === false || slot.rectOverride === undefined
+        ? layoutRect
+        : clampSurfaceRect(slot.rectOverride, metrics.w, metrics.h)
+      if (layoutRect.visible !== false && slot.rectOverride !== undefined) slot.rectOverride = nextRect
+      this.#applySurfaceSlotRect(slot, nextRect, metrics, true)
+    }
+  }
+
+  #applySurfaceSlotRect(
+    slot: SurfaceSlot,
+    rect: UiSurfaceRect,
+    metrics: {w: number; h: number; scale: number},
+    forceSetRect: boolean,
+  ): void {
+    const previous = slot.rect
+    slot.rect = rect
+    const visible = rect.visible !== false && rect.w > 0 && rect.h > 0
+    slot.surface.node.visible = visible
+    if (!visible) return
+
+    slot.surface.node.position.x = (rect.x - metrics.w / 2) * metrics.scale
+    slot.surface.node.position.y = (metrics.h / 2 - rect.y) * metrics.scale
+    slot.surface.node.updateMatrix()
+
+    const sizeChanged = previous.w !== rect.w || previous.h !== rect.h || previous.visible === false || rect.visible === false
+    if (forceSetRect || sizeChanged) {
+      slot.surface.setRect(rect, metrics.scale, this.font)
+    } else if (previous.x !== rect.x || previous.y !== rect.y) {
+      slot.surface.moveRect?.(rect, metrics.scale, this.font) ?? slot.surface.setRect(rect, metrics.scale, this.font)
     }
   }
 
@@ -1313,6 +1366,26 @@ function isRuntimeKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanv
   if (!(target instanceof HTMLElement)) return false
   if (target.closest("textarea,input,select,[contenteditable='true']") !== null) return false
   return target === canvas.parentElement || target.contains(canvas)
+}
+
+function clampSurfaceRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+  const bw = Math.max(1, Math.floor(boundsW))
+  const bh = Math.max(1, Math.floor(boundsH))
+  const w = clampNumber(finiteOr(rect.w, 1), 1, bw)
+  const h = clampNumber(finiteOr(rect.h, 1), 1, bh)
+  const x = clampNumber(finiteOr(rect.x, 0), 0, Math.max(0, bw - w))
+  const y = clampNumber(finiteOr(rect.y, 0), 0, Math.max(0, bh - h))
+  const next: UiSurfaceRect = {x, y, w, h}
+  if (rect.visible !== undefined) next.visible = rect.visible
+  return next
+}
+
+function finiteOr(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function lerp(a: number, b: number, t: number): number {

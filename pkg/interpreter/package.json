@@ -17,6 +17,7 @@
     "@metafor/pty": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",
+    "@ui/hud": "workspace:*",
     "@ui/panes": "workspace:*",
     "source-map-js": "^1.2.1"
   },

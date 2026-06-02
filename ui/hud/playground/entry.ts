@@ -1,7 +1,7 @@
 import {Color} from "@metafor/engine"
-import {UiRuntime, UiSurface, h3, p, span, type CssColor} from "@ui/elements"
+import {UiRuntime, UiSurface, h3, p, span, uiIcons, type CssColor} from "@ui/elements"
 import {Badge, Button, Pane, Typography} from "@ui/components"
-import {HudCornerButton, HudReturnDock, HudTargetReticle, type HudQuad, type HudRect} from "@ui/hud"
+import {HudCornerButton, HudReturnDock, HudSideTab, HudTargetReticle, type HudQuad, type HudRect, type HudSideTabTone} from "@ui/hud"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 import {componentsPlaygroundLayout} from "../../components/playground/layout.ts"
 
@@ -12,10 +12,14 @@ type HudRoute =
   | "corner/overview"
   | "corner/state/idle"
   | "corner/state/labeled"
+  | "side-tab/overview"
+  | "side-tab/state/active"
+  | "side-tab/state/warning"
+  | "side-tab/state/danger"
   | "dock/overview"
   | "dock/state/collapsed"
   | "dock/state/expanded"
-type HudComponent = "Target" | "Corner" | "Dock"
+type HudComponent = "Target" | "Corner" | "SideTab" | "Dock"
 type HudSection = "Overview" | "Intensity" | "State"
 
 const ROUTES: readonly HudRoute[] = [
@@ -25,11 +29,15 @@ const ROUTES: readonly HudRoute[] = [
   "corner/overview",
   "corner/state/idle",
   "corner/state/labeled",
+  "side-tab/overview",
+  "side-tab/state/active",
+  "side-tab/state/warning",
+  "side-tab/state/danger",
   "dock/overview",
   "dock/state/collapsed",
   "dock/state/expanded",
 ]
-const COMPONENTS: readonly HudComponent[] = ["Target", "Corner", "Dock"]
+const COMPONENTS: readonly HudComponent[] = ["Target", "Corner", "SideTab", "Dock"]
 const LAYOUT_Z = -0.12
 const BACKDROP_Z = -0.18
 
@@ -85,6 +93,7 @@ class HudPlaygroundScreen extends UiSurface {
         onClick: () => {
           if (label === "Target") this.#router.go("target/overview")
           else if (label === "Corner") this.#router.go("corner/overview")
+          else if (label === "SideTab") this.#router.go("side-tab/overview")
           else this.#router.go("dock/overview")
         },
       })
@@ -116,6 +125,7 @@ class HudPlaygroundScreen extends UiSurface {
     const route = this.#route
     if (route.startsWith("target/")) this.#targetPreview(x, y, w, h)
     else if (route.startsWith("corner/")) this.#cornerPreview(x, y, w, h)
+    else if (route.startsWith("side-tab/")) this.#sideTabPreview(x, y, w, h)
     else this.#dockPreview(x, y, w, h)
     this.popClip()
   }
@@ -192,6 +202,29 @@ class HudPlaygroundScreen extends UiSurface {
     })
   }
 
+  #sideTabPreview(x: number, y: number, w: number, h: number): void {
+    previewTitle(this, x, y, w, "Side Tab", "An edge-attached HUD tab for minimized panels.")
+    const tone = this.#sideTabTone()
+    const tab: HudRect = {x, y: y + h / 2 - 64, w: 36, h: 128}
+    this.drawRoundedRect(x, tab.y - 18, 2, tab.h + 36, {
+      radius: 2,
+      fill: new Color(0.82, 0.88, 0.96, 0.16),
+      z: -0.03,
+    })
+    HudSideTab(this, {
+      rect: tab,
+      edge: "left",
+      icon: uiIcons.log,
+      label: "Interpreter Terminal",
+      tone,
+      tooltip: "Side tab",
+      onClick: () => {
+        const next = tone === "active" ? "side-tab/state/warning" : tone === "warning" ? "side-tab/state/danger" : "side-tab/state/active"
+        this.#router.go(next)
+      },
+    })
+  }
+
   #drawPreviewGrid(x: number, y: number, w: number, h: number): void {
     const baseY = y + h - 86
     for (let i = 0; i < 9; i++) this.drawLine(x + 40 + i * 52, baseY, x + 90 + i * 52, baseY - 120, new Color(0.15, 0.28, 0.42, 0.22), 1, -0.05)
@@ -200,6 +233,7 @@ class HudPlaygroundScreen extends UiSurface {
 
   #component(): HudComponent {
     if (this.#route.startsWith("corner/")) return "Corner"
+    if (this.#route.startsWith("side-tab/")) return "SideTab"
     if (this.#route.startsWith("dock/")) return "Dock"
     return "Target"
   }
@@ -214,19 +248,29 @@ class HudPlaygroundScreen extends UiSurface {
     const component = this.#component()
     if (component === "Target") this.#router.go(section === "Intensity" ? "target/intensity/magnetic" : "target/overview")
     else if (component === "Corner") this.#router.go(section === "State" ? "corner/state/labeled" : "corner/overview")
+    else if (component === "SideTab") this.#router.go(section === "State" ? "side-tab/state/active" : "side-tab/overview")
     else this.#router.go(section === "State" ? "dock/state/expanded" : "dock/overview")
   }
 
   #detailRoutes(): readonly HudRoute[] {
     if (this.#component() === "Target") return ["target/overview", "target/intensity/idle", "target/intensity/magnetic"]
     if (this.#component() === "Corner") return ["corner/overview", "corner/state/idle", "corner/state/labeled"]
+    if (this.#component() === "SideTab") return ["side-tab/overview", "side-tab/state/active", "side-tab/state/warning", "side-tab/state/danger"]
     return ["dock/overview", "dock/state/collapsed", "dock/state/expanded"]
   }
 
   #apiLines(): readonly string[] {
     if (this.#component() === "Target") return ["HudTargetReticle(surface, { quad })", "quad: projected display perimeter", "strength: hover / motion intensity"]
     if (this.#component() === "Corner") return ["HudCornerButton(surface, { rect })", "anchor: optional connector point", "label: distance or status value"]
+    if (this.#component() === "SideTab") return ["HudSideTab(surface, { rect, edge })", "edge: left | right", "tone: neutral | active | warning | danger"]
     return ["HudReturnDock(surface, props)", "island: always-visible bottom affordance", "button: expanded return control"]
+  }
+
+  #sideTabTone(): HudSideTabTone {
+    if (this.#route === "side-tab/state/warning") return "warning"
+    if (this.#route === "side-tab/state/danger") return "danger"
+    if (this.#route === "side-tab/overview") return "neutral"
+    return "active"
   }
 }
 

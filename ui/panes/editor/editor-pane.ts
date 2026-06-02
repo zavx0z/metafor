@@ -40,7 +40,18 @@ import {
   type TextPosition,
   type TextSelectionRange,
 } from "../text-clipboard.ts"
-import {PANE_FRAME, paneBodyRect, paneHeaderRuleRect} from "../pane-frame.ts"
+import {
+  PANE_FRAME,
+  beginPaneFrameDrag,
+  paneBodyRect,
+  paneFrameCursor,
+  paneFrameDragRect,
+  paneFrameHit,
+  paneHeaderRuleRect,
+  type PaneFrameDrag,
+  type PaneFrameInteractionOpts,
+  type PaneRect,
+} from "../pane-frame.ts"
 
 export type EditorBreakpoint = {
   /** 1-based source line. */
@@ -86,6 +97,8 @@ export type EditorOpts = {
   showCaret?: boolean
   /** Run the one-shot text intro animation after setText(). Default true. */
   introAnimation?: boolean
+  /** Emits the final pane frame after header move or edge resize. Persistence belongs to the host app. */
+  onFrameRectChange?: (rect: PaneRect) => void
 }
 
 const HEADER_H_PX = PANE_FRAME.headerHeight
@@ -197,6 +210,7 @@ export class EditorPane extends UiSurface {
   #onSave: ((text: string) => void) | undefined
   #onSelectionClipboard: ((ok: boolean, action: "copy" | "cut") => void) | undefined
   #onBreakpointToggle: ((line: number) => void) | undefined
+  #onFrameRectChange: ((rect: PaneRect) => void) | undefined
   #breakpoints = new Map<number, EditorBreakpoint>()
   #readOnly: boolean
   #showCaret: boolean
@@ -221,6 +235,7 @@ export class EditorPane extends UiSurface {
   #introAnimStartedAt: number | null = null
   #introAnimRafId: number | null = null
   #introAnimFinishTimer: ReturnType<typeof setTimeout> | null = null
+  #frameDrag: PaneFrameDrag | null = null
   /** Для длинных строк (≥ this porog) считаем позицию курсора через #charWidth — O(1). */
   static readonly #LONG_LINE_THRESHOLD = 500
 
@@ -244,6 +259,7 @@ export class EditorPane extends UiSurface {
     this.#onSave = opts.onSave
     this.#onSelectionClipboard = opts.onSelectionClipboard
     this.#onBreakpointToggle = opts.onBreakpointToggle
+    this.#onFrameRectChange = opts.onFrameRectChange
     this.#breakpoints = normalizeBreakpoints(opts.breakpoints ?? [])
     this.#readOnly = opts.readOnly === true
     this.#showCaret = opts.showCaret ?? !this.#readOnly
@@ -443,6 +459,57 @@ export class EditorPane extends UiSurface {
 
   #fallbackCharWidth(): number {
     return Math.max(1, this.#fontPx * this.pageScaleFactor * 0.62)
+  }
+
+  #frameInteractionOpts(): PaneFrameInteractionOpts {
+    return {
+      showHeader: true,
+      minW: Math.max(300, PAD_LEFT_PX + GUTTER_MIN_PX + CODE_LEFT_PAD_PX + this.#getCharWidth() * 24 + PAD_RIGHT_PX + SCROLLBAR_W),
+      minH: Math.max(180, PAD_TOP_PX + this.#linePx * 6 + PAD_BOTTOM_PX + SCROLLBAR_W),
+    }
+  }
+
+  #beginFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+    const opts = this.#frameInteractionOpts()
+    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, opts)
+    if (kind === null) return false
+    const frame = this.canvas?.surfaceFrame(this)
+    if (frame === undefined || frame === null) return false
+    this.#frameDrag = beginPaneFrameDrag(kind, event, frame.rect, opts)
+    event.preventDefault()
+    const cursor = paneFrameCursor(kind, true)
+    const canvasElement = this.canvas?.canvas
+    if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+    return true
+  }
+
+  #updateFrameInteraction(event: MouseEvent): boolean {
+    const drag = this.#frameDrag
+    const frame = this.canvas?.surfaceFrame(this)
+    if (drag === null || frame === undefined || frame === null) return false
+    this.canvas?.setSurfaceRect(this, paneFrameDragRect(drag, event, frame.bounds))
+    const cursor = paneFrameCursor(drag.kind, true)
+    const canvasElement = this.canvas?.canvas
+    if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+    return true
+  }
+
+  #endFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+    if (this.#frameDrag === null) return false
+    this.#updateFrameInteraction(event)
+    const frame = this.canvas?.surfaceFrame(this)
+    this.#frameDrag = null
+    this.#syncFrameCursor(localX, localY)
+    if (frame !== undefined && frame !== null) this.#onFrameRectChange?.(frame.rect)
+    return true
+  }
+
+  #syncFrameCursor(localX: number, localY: number): void {
+    if (this.canvas === null || this.pressedHit !== null || this.hoveredHit !== null) return
+    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
+    const cursor = paneFrameCursor(kind, false)
+    const canvasElement = this.canvas.canvas
+    if (canvasElement !== undefined) canvasElement.style.cursor = cursor ?? "default"
   }
 
   /**
@@ -810,6 +877,7 @@ export class EditorPane extends UiSurface {
       return
     }
     this.#closeTransientSelectionMenu()
+    if (this.#beginFrameInteraction(_event, localX, localY)) return
     const pos = this.#positionFromLocal(localX, localY)
     if (pos === null) return
     if (_event.detail >= 2 && !_event.shiftKey) {
@@ -849,11 +917,16 @@ export class EditorPane extends UiSurface {
   }
 
   override onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
+    if (this.#frameDrag !== null) {
+      this.#updateFrameInteraction(_event)
+      return
+    }
     if (this.#selectionMenuOpen || this.pressedHit !== null) {
       const menuRect = this.#selectionMenuRect()
       super.onPointerMove(_event, localX, localY)
       if (this.pressedHit !== null || (menuRect !== null && pointInRect(localX, localY, menuRect))) return
     }
+    if (!this.#dragSelecting) this.#syncFrameCursor(localX, localY)
     if (!this.#dragSelecting) return
     this.#updateDragSelection(localX, localY)
   }
@@ -918,6 +991,7 @@ export class EditorPane extends UiSurface {
   }
 
   override onPointerUp(_event: MouseEvent, localX: number, localY: number): void {
+    if (this.#endFrameInteraction(_event, localX, localY)) return
     if (this.pressedHit !== null) {
       super.onPointerUp(_event, localX, localY)
       return
@@ -945,6 +1019,7 @@ export class EditorPane extends UiSurface {
 
   override onDeactivate(): void {
     super.onDeactivate?.()
+    this.#frameDrag = null
     this.#dragSelecting = false
     this.#cursorBlinkPausedForSelection = false
     this.#stopCursorBlink()

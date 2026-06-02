@@ -1,5 +1,5 @@
 import {Color} from "@metafor/engine"
-import {Z, type HitState, type UiSurface} from "@ui/elements"
+import {Z, drawIconCentered, type DrawTextOpts, type HitState, type UiSurface} from "@ui/elements"
 
 export type HudPoint = {x: number; y: number}
 export type HudRect = {x: number; y: number; w: number; h: number}
@@ -45,6 +45,23 @@ export type HudReturnDockProps = {
   buttonKey?: string
   onDockClick?: () => void
   onReturnClick?: () => void
+  z?: number
+}
+
+export type HudSideTabEdge = "left" | "right"
+export type HudSideTabTone = "neutral" | "active" | "warning" | "danger"
+
+export type HudSideTabProps = {
+  rect: HudRect
+  key?: string
+  edge?: HudSideTabEdge
+  icon?: string
+  label?: string
+  tone?: HudSideTabTone
+  indicatorColor?: Color | null
+  tooltip?: string
+  tooltipDelayMs?: number
+  onClick?: () => void
   z?: number
 }
 
@@ -140,6 +157,109 @@ export function HudReturnDock(host: UiSurface, props: HudReturnDockProps): {dock
   return {dock, button}
 }
 
+export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualState {
+  const key = props.key ?? `hud-side-tab:${props.rect.x}:${props.rect.y}:${props.rect.w}:${props.rect.h}`
+  const state = host.hitState(props.rect.x, props.rect.y, props.rect.w, props.rect.h, key)
+  const z = props.z ?? DEFAULT_Z
+  const edge = props.edge ?? "left"
+  const tone = props.tone ?? "neutral"
+  const active = state.pressed
+  const hovered = state.hovered
+  const strength = active ? 1.08 : hovered ? 1 : 0.78
+  const accent = sideTabAccent(tone, strength)
+  const fill = sideTabFill(active, hovered)
+  const vertical = edge === "left" || edge === "right"
+  const outerRadius = clamp(Math.min(props.rect.w, props.rect.h) * 0.5, 10, 18)
+  const radius = edge === "left"
+    ? {tl: 0, tr: outerRadius, br: outerRadius, bl: 0}
+    : {tl: outerRadius, tr: 0, br: 0, bl: outerRadius}
+  const pressX = active ? (edge === "left" ? 1 : -1) : 0
+  const tabX = props.rect.x + pressX
+  const flatX = edge === "left" ? tabX : tabX + props.rect.w - 2
+  const contentPad = vertical
+    ? Math.min(10, Math.max(7, props.rect.w * 0.25))
+    : Math.min(10, Math.max(6, props.rect.h * 0.22))
+  const iconSize = props.icon === undefined || props.icon.length === 0
+    ? 0
+    : vertical
+      ? Math.min(18, Math.max(12, props.rect.w * 0.52))
+      : Math.min(18, Math.max(12, props.rect.h * 0.48))
+  const label = props.label ?? ""
+  const labelFontPx = vertical ? clamp(props.rect.w * 0.31, 10, 12) : clamp(props.rect.h * 0.31, 10, 12)
+  const reservedGap = iconSize > 0 && label.length > 0 ? 7 : 0
+  const labelW = vertical
+    ? Math.max(1, props.rect.h - contentPad * 2 - iconSize - reservedGap)
+    : Math.max(1, props.rect.w - contentPad * 2 - iconSize - reservedGap)
+  const measuredLabelW = label.length > 0 ? Math.min(labelW, host.measureText(label, labelFontPx)) : 0
+  const gap = iconSize > 0 && measuredLabelW > 0 ? reservedGap : 0
+  const centeredSpan = iconSize + gap + measuredLabelW
+  const groupStart = vertical
+    ? props.rect.y + Math.max(contentPad, (props.rect.h - centeredSpan) / 2)
+    : tabX + Math.max(contentPad, (props.rect.w - centeredSpan) / 2)
+  const iconCx = vertical
+    ? tabX + props.rect.w / 2
+    : groupStart + iconSize / 2
+  const iconCy = vertical ? groupStart + iconSize / 2 : props.rect.y + props.rect.h / 2
+  const labelX = vertical
+    ? tabX + props.rect.w / 2 - labelFontPx / 2
+    : groupStart + iconSize + gap
+  const labelY = vertical
+    ? groupStart + iconSize + gap
+    : props.rect.y + props.rect.h / 2 - labelFontPx / 2 - 1
+
+  host.drawRoundedRect(tabX, props.rect.y, props.rect.w, props.rect.h, {
+    radius,
+    fill,
+    border: accent,
+    borderWidth: 1,
+    opacity: 0.92,
+    z,
+  })
+  host.drawRect(flatX, props.rect.y + 1, 2, Math.max(1, props.rect.h - 2), fill, z + 0.02)
+  if (props.icon !== undefined && props.icon.length > 0) {
+    drawIconCentered(host, props.icon, iconCx, iconCy, iconSize, {opacity: hovered ? 0.92 : 0.76, z: z + 0.16})
+  }
+  if (label.length > 0) {
+    const textOpts: DrawTextOpts = {
+      fontPx: labelFontPx,
+      material: tone === "danger" ? host.materials.red : host.materials.text,
+      maxWidthPx: labelW,
+      z: z + 0.17,
+      clip: false,
+    }
+    if (vertical) textOpts.rotationRad = Math.PI / 2
+    host.drawText(label, labelX, labelY, textOpts)
+  }
+  if (props.indicatorColor !== undefined && props.indicatorColor !== null) {
+    host.drawRoundedRect(tabX + props.rect.w - (edge === "left" ? 10 : props.rect.w - 4), props.rect.y + props.rect.h - 15, 5, 5, {
+      radius: 2.5,
+      fill: props.indicatorColor,
+      border: fade(hudColors.hot, 0.18),
+      borderWidth: 1,
+      z: z + 0.18,
+    })
+  }
+
+  const hitOptions = {
+    key,
+    cursor: "pointer",
+    activeCursor: "pointer",
+  }
+  if (props.tooltip !== undefined && props.tooltip.length > 0) {
+    host.hit(props.rect.x, props.rect.y, props.rect.w, props.rect.h, props.onClick ?? (() => {}), {
+      ...hitOptions,
+      tooltip: {label: props.tooltip, delayMs: props.tooltipDelayMs ?? 450},
+    })
+    const tooltipOptions: {delayMs?: number} = {}
+    if (props.tooltipDelayMs !== undefined) tooltipOptions.delayMs = props.tooltipDelayMs
+    host.drawTooltipForHit(props.rect.x, props.rect.y, props.rect.w, props.rect.h, props.tooltip, tooltipOptions)
+  } else {
+    host.hit(props.rect.x, props.rect.y, props.rect.w, props.rect.h, props.onClick ?? (() => {}), hitOptions)
+  }
+
+  return state
+}
+
 function drawCorner(host: UiSurface, corner: HudPoint, edgeA: HudPoint, edgeB: HudPoint, length: number, strength: number, z: number): void {
   const hotLength = length * 0.46
   drawLockLine(host, corner, pointAlong(corner, edgeA, length), fade(hudColors.cyanDim, strength), 3.4, z)
@@ -206,6 +326,19 @@ function lerpPoint(a: HudPoint, b: HudPoint, t: number): HudPoint {
 
 function fade(color: Color, opacity: number): Color {
   return new Color(color.r, color.g, color.b, clamp(color.a * opacity, 0, 1))
+}
+
+function sideTabFill(active: boolean, hovered: boolean): Color {
+  if (active) return new Color(0.13, 0.15, 0.18, 0.94)
+  if (hovered) return new Color(0.10, 0.12, 0.15, 0.92)
+  return new Color(0.07, 0.08, 0.10, 0.86)
+}
+
+function sideTabAccent(tone: HudSideTabTone, strength: number): Color {
+  if (tone === "active") return new Color(0.72, 0.86, 0.96, clamp(0.36 * strength, 0, 0.52))
+  if (tone === "warning") return new Color(1.0, 0.78, 0.52, clamp(0.30 * strength, 0, 0.46))
+  if (tone === "danger") return new Color(1.0, 0.48, 0.42, clamp(0.34 * strength, 0, 0.5))
+  return new Color(0.90, 0.94, 1.0, clamp(0.22 * strength, 0, 0.34))
 }
 
 function clamp(value: number, min: number, max: number): number {

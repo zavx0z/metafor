@@ -1,5 +1,25 @@
 import {describe, expect, test} from "bun:test"
+import {TrueTypeFont} from "@metafor/engine"
 import {LogViewerPane, TerminalPane} from "./terminal-pane.ts"
+
+let testFontPromise: Promise<TrueTypeFont> | null = null
+
+function testFont(): Promise<TrueTypeFont> {
+  testFontPromise ??= Bun.file(new URL("../playground/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
+    .then((buffer) => new TrueTypeFont(buffer))
+  return testFontPromise
+}
+
+function installRafStub(): () => void {
+  const previousRaf = globalThis.requestAnimationFrame
+  const previousCancel = globalThis.cancelAnimationFrame
+  globalThis.requestAnimationFrame = (() => 1) as typeof requestAnimationFrame
+  globalThis.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame
+  return () => {
+    globalThis.requestAnimationFrame = previousRaf
+    globalThis.cancelAnimationFrame = previousCancel
+  }
+}
 
 describe("TerminalPane selection", () => {
   test("tracks selected terminal text across lines", () => {
@@ -48,6 +68,91 @@ describe("TerminalPane focus", () => {
       expect(inputFocused).toBe(true)
     } finally {
       terminal.dispose()
+    }
+  })
+
+  test("emits final frame rect after header drag", () => {
+    const changes: Array<{x: number; y: number; w: number; h: number}> = []
+    const terminal = new TerminalPane({
+      cols: 20,
+      rows: 4,
+      fitToRect: false,
+      onFrameRectChange: (rect) => changes.push(rect),
+    })
+    let frameRect = {x: 10, y: 20, w: 300, h: 180}
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 300, rectH: 180})
+      terminal.attachCanvas({
+        canvas: {style: {cursor: "default"}},
+        setFocused: () => {},
+        inputProxy: {focus: () => {}},
+        requestRender: () => {},
+        surfaceFrame: () => ({rect: {...frameRect}, bounds: {w: 1000, h: 800}}),
+        setSurfaceRect: (_surface: unknown, rect: typeof frameRect) => {
+          frameRect = {...rect}
+          return {...frameRect}
+        },
+      } as never)
+      terminal.onPointerDown({
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        detail: 1,
+        preventDefault: () => {},
+      } as MouseEvent, 1, 1)
+      terminal.onPointerMove({clientX: 150, clientY: 130} as MouseEvent, 51, 31)
+      terminal.onPointerUp({clientX: 150, clientY: 130} as MouseEvent, 51, 31)
+      expect(changes).toEqual([{x: 60, y: 50, w: 300, h: 180}])
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("emits dock request from header button without starting frame drag", async () => {
+    let dockRequests = 0
+    const changes: Array<{x: number; y: number; w: number; h: number}> = []
+    const terminal = new TerminalPane({
+      cols: 20,
+      rows: 4,
+      fitToRect: false,
+      onFrameDockRequest: () => {
+        dockRequests += 1
+      },
+      onFrameRectChange: (rect) => changes.push(rect),
+    })
+    let frameRect = {x: 10, y: 20, w: 300, h: 180}
+    const restoreRaf = installRafStub()
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 300, rectH: 180})
+      terminal.attachCanvas({
+        canvas: {style: {cursor: "default"}},
+        renderer: {invalidateGeometry: () => {}},
+        uiRectToFramebufferClipBounds: (xMin: number, yMin: number, xMax: number, yMax: number) => [xMin, yMin, xMax, yMax],
+        setFocused: () => {},
+        inputProxy: {focus: () => {}},
+        requestRender: () => {},
+        surfaceFrame: () => ({rect: {...frameRect}, bounds: {w: 1000, h: 800}}),
+        setSurfaceRect: (_surface: unknown, rect: typeof frameRect) => {
+          frameRect = {...rect}
+          return {...frameRect}
+        },
+      } as never)
+      terminal.setRect({x: 10, y: 20, w: 300, h: 180}, 1, await testFont())
+      terminal.onPointerDown({
+        button: 0,
+        clientX: 80,
+        clientY: 100,
+        detail: 1,
+        preventDefault: () => {},
+      } as MouseEvent, 173, 19)
+      terminal.onPointerMove({clientX: 130, clientY: 120} as MouseEvent, 173, 19)
+      terminal.onPointerUp({clientX: 130, clientY: 120} as MouseEvent, 173, 19)
+      expect(dockRequests).toBe(1)
+      expect(changes).toEqual([])
+      expect(frameRect).toEqual({x: 10, y: 20, w: 300, h: 180})
+    } finally {
+      terminal.dispose()
+      restoreRaf()
     }
   })
 })

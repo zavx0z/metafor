@@ -190,6 +190,10 @@ export type DrawTextOpts = {
   z?: number
   /** Default true. Tooltip/UI overlays can opt out to draw outside surface rect. */
   clip?: boolean
+  /** Screen-space radians, clockwise-positive. */
+  rotationRad?: number
+  /** Screen-space rotation origin. Defaults to the text baseline origin. */
+  rotationOrigin?: {x: number; y: number}
 }
 
 export type UiSurfaceDrawLayer = "underlay" | "contentUnderlay" | "selection" | "main" | "overlay"
@@ -231,6 +235,15 @@ export type TextBlockMetrics = {
 // явно в UiSurfaceOpts (см. примеры в playground'е). null отключает явно.
 const DEFAULT_BG: Color | null = null
 const DEFAULT_BORDER: Color | null = null
+const CLIP_LOCAL_RECT: unique symbol = Symbol("UiSurface.clipLocalRect")
+
+type ClipLocalRect = {xMin: number; yMin: number; xMax: number; yMax: number}
+type ClipTagged = {
+  [CLIP_LOCAL_RECT]?: ClipLocalRect
+}
+type ClipBoundsHost = ClipTagged & {
+  clipBounds: [number, number, number, number] | null
+}
 
 export const Z: {
   readonly CONTAINER: number
@@ -484,6 +497,14 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#rerenderNow()
   }
 
+  moveRect(rect: UiSurfaceRect, pixelScale: number, font: TrueTypeFont): void {
+    this.font = font
+    this.pixelScale = pixelScale
+    this.#screenOriginX = rect.x
+    this.#screenOriginY = rect.y
+    this.#refreshClipBounds()
+  }
+
   /** Элементы и subclass'ы зовут при изменении state — re-render без resize. */
   requestRender(): void {
     if (this.font === null) return
@@ -571,6 +592,22 @@ export abstract class UiSurface implements UiSurfaceNode {
     // y — top-of-cap (canvas-px). Baseline ≈ y + fontPxCanvas.
     text.position.y = -(y + fontPxCanvas) * this.pixelScale
     text.position.z = opts.z ?? Z.TEXT
+    if (opts.rotationRad !== undefined) {
+      const rotation = -opts.rotationRad
+      if (opts.rotationOrigin !== undefined) {
+        const ox = opts.rotationOrigin.x * this.pixelScale
+        const oy = -opts.rotationOrigin.y * this.pixelScale
+        const px = text.position.x
+        const py = text.position.y
+        const dx = px - ox
+        const dy = py - oy
+        const cos = Math.cos(rotation)
+        const sin = Math.sin(rotation)
+        text.position.x = ox + dx * cos - dy * sin
+        text.position.y = oy + dx * sin + dy * cos
+      }
+      text.rotation.z = rotation
+    }
     text.updateMatrix()
     if (opts.clip !== false) this.#applyClipTo(text)
     this.#currentLayer().add(text)
@@ -1210,28 +1247,12 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   #applyClipTo(text: Text): void {
     const clip = this.#clipStack[this.#clipStack.length - 1]!
-    // Screen-pixel scissor (framebuffer-pixels). Runtime учитывает pixelRatio
-    // и transform виртуального дисплея, если surface отрисован не 1:1 на canvas.
-    const ox = this.#screenOriginX
-    const oy = this.#screenOriginY
-    text.clipBounds = this.#uiRectToFramebufferClipBounds(
-      ox + clip.xMin,
-      oy + clip.yMin,
-      ox + clip.xMax,
-      oy + clip.yMax,
-    )
+    this.#tagClipBounds(text as Text & ClipBoundsHost, clip)
   }
 
   #applyImageClipTo(material: ImageMaterial): void {
     const clip = this.#clipStack[this.#clipStack.length - 1]!
-    const ox = this.#screenOriginX
-    const oy = this.#screenOriginY
-    material.clipBounds = this.#uiRectToFramebufferClipBounds(
-      ox + clip.xMin,
-      oy + clip.yMin,
-      ox + clip.xMax,
-      oy + clip.yMax,
-    )
+    this.#tagClipBounds(material as ImageMaterial & ClipBoundsHost, clip)
   }
 
   #applyRoundedClipTo(material: RoundedRectMaterial): void {
@@ -1243,12 +1264,44 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (clip.xMin === 0 && clip.yMin === 0 && clip.xMax === this.rectW && clip.yMax === this.rectH) {
       return
     }
-    material.clipBounds = this.#uiRectToFramebufferClipBounds(
+    this.#tagClipBounds(material as RoundedRectMaterial & ClipBoundsHost, clip)
+  }
+
+  #tagClipBounds(host: ClipBoundsHost, clip: ClipLocalRect): void {
+    const localClip = {...clip}
+    host[CLIP_LOCAL_RECT] = localClip
+    host.clipBounds = this.#clipBoundsForLocal(localClip)
+  }
+
+  #clipBoundsForLocal(clip: ClipLocalRect): [number, number, number, number] {
+    const ox = this.#screenOriginX
+    const oy = this.#screenOriginY
+    // Screen-pixel scissor (framebuffer-pixels). Runtime учитывает pixelRatio
+    // и transform виртуального дисплея, если surface отрисован не 1:1 на canvas.
+    return this.#uiRectToFramebufferClipBounds(
       ox + clip.xMin,
       oy + clip.yMin,
       ox + clip.xMax,
       oy + clip.yMax,
     )
+  }
+
+  #refreshClipBounds(): void {
+    for (const layer of [this.#backgroundLayer, ...this.#contentLayers()]) this.#refreshClipBoundsForObject(layer)
+  }
+
+  #refreshClipBoundsForObject(obj: Object3D): void {
+    const text = obj as Text & ClipBoundsHost
+    if (text.isText === true && text[CLIP_LOCAL_RECT] !== undefined) {
+      text.clipBounds = this.#clipBoundsForLocal(text[CLIP_LOCAL_RECT])
+    }
+
+    const material = (obj as {material?: unknown}).material as (ClipBoundsHost | undefined)
+    if (material?.[CLIP_LOCAL_RECT] !== undefined) {
+      material.clipBounds = this.#clipBoundsForLocal(material[CLIP_LOCAL_RECT])
+    }
+
+    for (const child of obj.children) this.#refreshClipBoundsForObject(child)
   }
 
   #uiRectToFramebufferClipBounds(xMin: number, yMin: number, xMax: number, yMax: number): [number, number, number, number] {

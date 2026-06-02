@@ -18,7 +18,18 @@ import {
   type TextPosition,
   type TextSelectionRange,
 } from "../text-clipboard.ts"
-import {PANE_FRAME, paneBodyRect, paneHeaderRuleRect} from "../pane-frame.ts"
+import {
+  PANE_FRAME,
+  beginPaneFrameDrag,
+  paneBodyRect,
+  paneFrameCursor,
+  paneFrameDragRect,
+  paneFrameHit,
+  paneHeaderRuleRect,
+  type PaneFrameDrag,
+  type PaneFrameInteractionOpts,
+  type PaneRect,
+} from "../pane-frame.ts"
 
 export type TerminalSize = {
   cols: number
@@ -51,6 +62,8 @@ type TerminalOutputPaneOpts = {
   showCursor?: boolean
   onResize?: (size: TerminalSize) => void
   onFocusChange?: (focused: boolean) => void
+  onFrameRectChange?: (rect: PaneRect) => void
+  onFrameDockRequest?: () => void
 }
 
 type TerminalOutputPaneInternalOpts = TerminalOutputPaneOpts & {
@@ -221,6 +234,8 @@ class TerminalOutputPane extends UiSurface {
   #cursorEnabled: boolean
   #onResize: ((size: TerminalSize) => void) | undefined
   #onFocusChange: ((focused: boolean) => void) | undefined
+  #onFrameRectChange: ((rect: PaneRect) => void) | undefined
+  #onFrameDockRequest: (() => void) | undefined
 
   #preferredCols: number
   #cols: number
@@ -256,6 +271,7 @@ class TerminalOutputPane extends UiSurface {
   #lastEmittedSize: TerminalSize | null = null
   #decoder = new TextDecoder()
   #rawOutput = ""
+  #frameDrag: PaneFrameDrag | null = null
   readonly #materials = new Map<string, TextMaterial>()
 
   constructor(opts: TerminalOutputPaneInternalOpts = {}) {
@@ -294,6 +310,8 @@ class TerminalOutputPane extends UiSurface {
     this.#cursorVisible = this.#cursorEnabled
     this.#onResize = opts.onResize
     this.#onFocusChange = opts.onFocusChange
+    this.#onFrameRectChange = opts.onFrameRectChange
+    this.#onFrameDockRequest = opts.onFrameDockRequest
     this.#screen = Array.from({length: this.#rows}, () => this.#blankLine())
   }
 
@@ -497,13 +515,18 @@ class TerminalOutputPane extends UiSurface {
   #renderHeader(): void {
     if (!this.#showHeader) return
     const headerY = 0
+    const statusW = Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32))
+    const statusX = Math.max(PANE_FRAME.headerTextX, this.rectW - PANE_FRAME.headerTextX - statusW)
+    const dockButtonSize = 22
+    const dockButtonGap = 8
+    const dockButtonX = statusX - dockButtonGap - dockButtonSize
+    const titleRight = this.#onFrameDockRequest === undefined ? statusX - 10 : dockButtonX - 10
     this.drawText(this.#title, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
       fontPx: 13,
       material: this.materials.cyan,
-      maxWidthPx: Math.max(1, this.rectW - PANE_FRAME.headerTextX * 2 - 190),
+      maxWidthPx: Math.max(1, titleRight - PANE_FRAME.headerTextX),
     })
-    const statusW = Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32))
-    const statusX = Math.max(PANE_FRAME.headerTextX, this.rectW - PANE_FRAME.headerTextX - statusW)
+    if (this.#onFrameDockRequest !== undefined) this.#renderFrameDockButton(dockButtonX, headerY + 8, dockButtonSize)
     const dot = statusColor(this.#statusKind)
     this.drawRoundedRect(statusX, headerY + 8, statusW, 22, {
       radius: 999,
@@ -524,6 +547,27 @@ class TerminalOutputPane extends UiSurface {
     })
     const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
     this.drawRect(rule.x, rule.y, rule.w, rule.h, HEADER_RULE, Z.SEPARATOR)
+  }
+
+  #renderFrameDockButton(x: number, y: number, size: number): void {
+    const onDock = this.#onFrameDockRequest
+    if (onDock === undefined) return
+    const key = "terminal-pane:frame-dock"
+    const state = this.hitState(x, y, size, size, key)
+    const active = state.pressed
+    const fill = active ? palette.bgHot : state.hovered ? palette.bgElevated : STATUS_FILL
+    const border = active || state.hovered ? palette.border : STATUS_BORDER
+    const offsetY = active ? 1 : 0
+    this.drawRoundedRect(x, y + offsetY, size, size - offsetY, {
+      radius: 999,
+      fill,
+      border,
+      borderWidth: 1,
+      z: Z.ELEMENT + 0.02,
+    })
+    const lineY = y + offsetY + size / 2
+    this.drawRoundedLine(x + 7, lineY, x + size - 7, lineY, state.hovered ? palette.cyan : palette.muted, 2, Z.TEXT + 0.04)
+    this.hit(x, y, size, size, onDock, {cursor: "pointer", key})
   }
 
   #renderBody(): void {
@@ -694,6 +738,61 @@ class TerminalOutputPane extends UiSurface {
     return this.#charWidth
   }
 
+  #frameInteractionOpts(): PaneFrameInteractionOpts {
+    const headerH = this.#showHeader ? HEADER_H_PX + PANE_FRAME.bodyTopGap : 0
+    const scrollY = this.#scrollY ? SCROLLBAR_W_PX : 0
+    const scrollX = this.#scrollX ? SCROLLBAR_W_PX : 0
+    return {
+      showHeader: this.#showHeader,
+      minW: Math.max(260, PANE_FRAME.bodyInsetX * 2 + this.#minCols * this.#getCharWidth() + scrollY + 2),
+      minH: Math.max(160, headerH + this.#minRows * this.#linePx + scrollX + PANE_FRAME.bodyBottomInset),
+    }
+  }
+
+  #beginFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+    const opts = this.#frameInteractionOpts()
+    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, opts)
+    if (kind === null) return false
+    const frame = this.canvas?.surfaceFrame(this)
+    if (frame === undefined || frame === null) return false
+    this.#frameDrag = beginPaneFrameDrag(kind, event, frame.rect, opts)
+    event.preventDefault()
+    const cursor = paneFrameCursor(kind, true)
+    const canvasElement = this.canvas?.canvas
+    if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+    return true
+  }
+
+  #updateFrameInteraction(event: MouseEvent): boolean {
+    const drag = this.#frameDrag
+    const frame = this.canvas?.surfaceFrame(this)
+    if (drag === null || frame === undefined || frame === null) return false
+    const next = paneFrameDragRect(drag, event, frame.bounds)
+    this.canvas?.setSurfaceRect(this, next)
+    const cursor = paneFrameCursor(drag.kind, true)
+    const canvasElement = this.canvas?.canvas
+    if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor
+    return true
+  }
+
+  #endFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+    if (this.#frameDrag === null) return false
+    this.#updateFrameInteraction(event)
+    const frame = this.canvas?.surfaceFrame(this)
+    this.#frameDrag = null
+    this.#syncFrameCursor(localX, localY)
+    if (frame !== undefined && frame !== null) this.#onFrameRectChange?.(frame.rect)
+    return true
+  }
+
+  #syncFrameCursor(localX: number, localY: number): void {
+    if (this.canvas === null || this.pressedHit !== null || this.hoveredHit !== null) return
+    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
+    const cursor = paneFrameCursor(kind, false)
+    const canvasElement = this.canvas.canvas
+    if (canvasElement !== undefined) canvasElement.style.cursor = cursor ?? "default"
+  }
+
   // ────────── ввод/выделение ──────────
 
   onKey(event: KeyboardEvent): void {
@@ -801,6 +900,7 @@ class TerminalOutputPane extends UiSurface {
     super.onPointerDown(event, localX, localY)
     if (this.pressedHit !== null) return
     if (isSecondaryPointer(event)) return
+    if (this.#beginFrameInteraction(event, localX, localY)) return
     const pos = this.#positionFromLocal(localX, localY)
     if (pos === null) return
     if (event.detail >= 2 && !event.shiftKey) {
@@ -820,12 +920,18 @@ class TerminalOutputPane extends UiSurface {
   }
 
   override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+    if (this.#frameDrag !== null) {
+      this.#updateFrameInteraction(event)
+      return
+    }
     super.onPointerMove(event, localX, localY)
+    if (!this.#dragSelecting) this.#syncFrameCursor(localX, localY)
     if (!this.#dragSelecting) return
     this.#updateDragSelection(localX, localY)
   }
 
   override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+    if (this.#endFrameInteraction(event, localX, localY)) return
     super.onPointerUp(event, localX, localY)
     if (this.#dragSelecting) this.#updateDragSelection(localX, localY)
     this.#dragSelecting = false
@@ -884,6 +990,7 @@ class TerminalOutputPane extends UiSurface {
 
   override onDeactivate(): void {
     super.onDeactivate?.()
+    this.#frameDrag = null
     this.#focused = false
     this.#onFocusChange?.(false)
     this.#stopCursorBlink()

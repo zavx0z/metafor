@@ -1,5 +1,12 @@
 import {describe, expect, test} from "bun:test"
-import {PANE_FRAME, paneBodyRect, paneHeaderRuleRect} from "./pane-frame.ts"
+import {
+  PANE_FRAME,
+  beginPaneFrameDrag,
+  paneBodyRect,
+  paneFrameDragRect,
+  paneFrameHit,
+  paneHeaderRuleRect,
+} from "./pane-frame.ts"
 
 describe("pane frame", () => {
   test("uses one shared body inset and header gap", () => {
@@ -26,6 +33,41 @@ describe("pane frame", () => {
       y: PANE_FRAME.headerHeight,
       w: 100 - PANE_FRAME.bodyInsetX * 2,
       h: PANE_FRAME.ruleHeight,
+    })
+  })
+
+  test("hits only framed pane header and resize zones", () => {
+    expect(paneFrameHit(24, 12, 320, 220)).toBe("move")
+    expect(paneFrameHit(318, 80, 320, 220)).toBe("resize-right")
+    expect(paneFrameHit(100, 218, 320, 220)).toBe("resize-bottom")
+    expect(paneFrameHit(318, 218, 320, 220)).toBe("resize-bottom-right")
+    expect(paneFrameHit(24, 12, 320, 220, {showHeader: false})).toBeNull()
+  })
+
+  test("clamps move and resize interactions to bounds", () => {
+    const drag = beginPaneFrameDrag(
+      "move",
+      {clientX: 10, clientY: 20} as MouseEvent,
+      {x: 40, y: 50, w: 200, h: 120},
+    )
+    expect(paneFrameDragRect(drag, {clientX: -100, clientY: 900} as MouseEvent, {w: 500, h: 400})).toEqual({
+      x: 0,
+      y: 280,
+      w: 200,
+      h: 120,
+    })
+
+    const resize = beginPaneFrameDrag(
+      "resize-bottom-right",
+      {clientX: 0, clientY: 0} as MouseEvent,
+      {x: 420, y: 330, w: 70, h: 60},
+      {minW: 160, minH: 120},
+    )
+    expect(paneFrameDragRect(resize, {clientX: 80, clientY: 80} as MouseEvent, {w: 500, h: 400})).toEqual({
+      x: 340,
+      y: 280,
+      w: 160,
+      h: 120,
     })
   })
 })
