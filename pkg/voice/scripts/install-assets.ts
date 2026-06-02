@@ -1,10 +1,13 @@
-import {chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync} from "node:fs"
+import {chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync} from "node:fs"
 import {basename, join, resolve} from "node:path"
 import {spawnSync} from "node:child_process"
 
 const VOSK_VERSION = "0.3.42"
 const RU_MODEL_NAME = "vosk-model-small-ru-0.22"
-const RU_MODEL_URL = `https://alphacephei.com/vosk/models/${RU_MODEL_NAME}.zip`
+const RU_MODEL_URLS = [
+  `https://huggingface.co/rhasspy/vosk-models/resolve/main/ru/${RU_MODEL_NAME}.zip`,
+  `https://alphacephei.com/vosk/models/${RU_MODEL_NAME}.zip`,
+]
 const RELEASE_BASE_URL = `https://github.com/alphacep/vosk-api/releases/download/v${VOSK_VERSION}`
 
 type NativeAsset = {
@@ -77,7 +80,7 @@ async function installNativeLibrary(native: NativeAsset): Promise<void> {
   }
 
   const archivePath = join(downloadsDir, native.archiveName)
-  await downloadFile(process.env.VOSK_LIB_URL || native.url, archivePath)
+  downloadFile(process.env.VOSK_LIB_URL ? [process.env.VOSK_LIB_URL] : [native.url], archivePath)
   const unpackedDir = await extractArchive(archivePath, `lib-${process.platform}`)
   const sourcePath = findFirstFile(unpackedDir, native.libraryNames)
   if (sourcePath === null) {
@@ -97,7 +100,7 @@ async function installRussianModel(): Promise<void> {
   }
 
   const archivePath = join(downloadsDir, `${RU_MODEL_NAME}.zip`)
-  await downloadFile(process.env.VOSK_MODEL_URL || RU_MODEL_URL, archivePath)
+  downloadFile(process.env.VOSK_MODEL_URL ? [process.env.VOSK_MODEL_URL] : RU_MODEL_URLS, archivePath)
   const unpackedDir = await extractArchive(archivePath, "model-ru")
   const sourceDir = findFirstDirectory(unpackedDir, RU_MODEL_NAME)
   if (sourceDir === null) {
@@ -110,18 +113,54 @@ async function installRussianModel(): Promise<void> {
   console.log(`[voice:assets] installed Russian model: ${relative(modelDir)}`)
 }
 
-async function downloadFile(url: string, outputPath: string): Promise<void> {
-  if (!force && existsSync(outputPath)) {
+function downloadFile(urls: string[], outputPath: string): void {
+  if (!force && isUsableFile(outputPath)) {
     console.log(`[voice:assets] using cached download: ${relative(outputPath)}`)
     return
   }
 
+  let lastError: Error | null = null
+  for (const url of urls) {
+    try {
+      downloadFileFromUrl(url, outputPath)
+      return
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      console.warn(`[voice:assets] download failed, trying next source: ${lastError.message}`)
+    }
+  }
+  throw lastError ?? new Error(`No download URLs configured for ${outputPath}`)
+}
+
+function downloadFileFromUrl(url: string, outputPath: string): void {
   console.log(`[voice:assets] downloading ${url}`)
-  const response = await fetch(url)
-  if (!response.ok) throw new Error(`Download failed (${response.status}) ${url}`)
-  const buffer = await response.arrayBuffer()
-  await Bun.write(outputPath, buffer)
-  console.log(`[voice:assets] saved: ${relative(outputPath)} (${formatBytes(buffer.byteLength)})`)
+  const partialPath = `${outputPath}.partial`
+  rmSync(partialPath, {force: true})
+
+  const curl = spawnSync("curl", [
+    "-fL",
+    "--retry", "3",
+    "--retry-delay", "2",
+    "--connect-timeout", "20",
+    "--max-time", "600",
+    "--speed-limit", "10240",
+    "--speed-time", "30",
+    "--output", partialPath,
+    url,
+  ], {stdio: "inherit"})
+  if (curl.error !== undefined) {
+    throw new Error(`Failed to run curl. Install curl or download ${url} to ${outputPath}. ${curl.error.message}`)
+  }
+  if (curl.status !== 0) {
+    rmSync(partialPath, {force: true})
+    throw new Error(`curl failed with exit code ${curl.status ?? "unknown"}: ${url}`)
+  }
+  if (!isUsableFile(partialPath)) {
+    rmSync(partialPath, {force: true})
+    throw new Error(`Downloaded empty file: ${url}`)
+  }
+  renameSync(partialPath, outputPath)
+  console.log(`[voice:assets] saved: ${relative(outputPath)} (${formatBytes(statSync(outputPath).size)})`)
 }
 
 async function extractArchive(archivePath: string, name: string): Promise<string> {
@@ -164,6 +203,14 @@ function findFirstDirectory(dir: string, name: string): string | null {
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function isUsableFile(path: string): boolean {
+  try {
+    return statSync(path).isFile() && statSync(path).size > 0
+  } catch {
+    return false
+  }
 }
 
 function relative(path: string): string {
