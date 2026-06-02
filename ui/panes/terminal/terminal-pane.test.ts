@@ -381,6 +381,32 @@ describe("TerminalPane local echo", () => {
     }
   })
 
+  test("renders multi-character local echo and reconciles by character", () => {
+    const terminal = new TerminalPane({cols: 30, rows: 4, fitToRect: false})
+    try {
+      terminal.write("prompt ")
+      expect(terminal.tryLocalEcho("voice submit")).toBe(true)
+      expect(terminal.toText()).toBe("prompt voice submit")
+      terminal.writeAuthoritative("voice ")
+      expect(terminal.toText()).toBe("prompt voice submit")
+      terminal.writeAuthoritative("submit")
+      expect(terminal.toText()).toBe("prompt voice submit")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("does not local echo control characters in multi-character input", () => {
+    const terminal = new TerminalPane({cols: 30, rows: 4, fitToRect: false})
+    try {
+      terminal.write("prompt ")
+      expect(terminal.tryLocalEcho("voice submit\r")).toBe(false)
+      expect(terminal.toText()).toBe("prompt")
+    } finally {
+      terminal.dispose()
+    }
+  })
+
   test("shows replaceable input preview without committing terminal output", () => {
     const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
     try {

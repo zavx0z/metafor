@@ -1629,7 +1629,8 @@ export class TerminalPane extends TerminalOutputPane {
   }
 
   tryLocalEcho(data: string): boolean {
-    if (!this.#inputEnabled || !isLocalEchoInput(data) || !this.getTerminalState().localEcho) return false
+    const echo = localEchoText(data)
+    if (!this.#inputEnabled || echo === null || !this.getTerminalState().localEcho) return false
     this.clearInputPreview()
     if (this.#pendingLocalEcho === null) {
       this.#pendingLocalEcho = {
@@ -1638,8 +1639,8 @@ export class TerminalPane extends TerminalOutputPane {
         confirmed: [],
       }
     }
-    this.#pendingLocalEcho.pending.push(data)
-    super.write(data)
+    this.#pendingLocalEcho.pending.push(...[...echo])
+    super.write(echo)
     return true
   }
 
@@ -1764,11 +1765,14 @@ export class LogViewerPane extends TerminalOutputPane {
   }
 }
 
-function isLocalEchoInput(data: string): boolean {
+function localEchoText(data: string): string | null {
   const chars = [...data]
-  if (chars.length !== 1) return false
-  const code = chars[0]?.codePointAt(0) ?? 0
-  return code >= 0x20 && code !== 0x7f && code !== 0x1b
+  if (chars.length === 0) return null
+  for (const char of chars) {
+    const code = char.codePointAt(0) ?? 0
+    if (code < 0x20 || code === 0x7f || code === 0x1b) return null
+  }
+  return data
 }
 
 function keyToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode = defaultTerminalKeyboardMode()): string | null {

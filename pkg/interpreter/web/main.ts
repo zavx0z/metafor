@@ -848,7 +848,7 @@ function insertVoiceMessage(raw: string): void {
       flashVoiceHudError(t("voiceNoActiveInput"))
       return
     }
-    sendHostTerminalVoiceSubmit(target.controller, text)
+    if (!sendHostTerminalVoiceSubmit(target.controller, text)) return
     recordVoiceAutoEnter()
     updateVoiceHud(undefined, `${t("voiceInserted")}: ${text}`)
     return
@@ -880,17 +880,14 @@ async function submitVoiceModuleExpression(controller: ModuleDisplayController, 
   await runModuleTerminalExpression(controller, text)
 }
 
-function sendHostTerminalVoiceSubmit(controller: HostTerminalController, text: string): void {
-  const payload = hostTerminalVoiceSubmitPayload(controller, text)
-  if (payload.length === 0) return
-  sendHostTerminalInput(controller, payload, "api")
-}
-
-function hostTerminalVoiceSubmitPayload(controller: HostTerminalController, text: string): string {
+function sendHostTerminalVoiceSubmit(controller: HostTerminalController, text: string): boolean {
   const body = sanitizeHostTerminalVoiceInput(text)
-  if (body.length === 0) return ""
-  if (controller.terminalState?.bracketedPaste) return `\x1b[200~${body}\x1b[201~\r`
-  return `${body}\r`
+  if (body.length === 0) return false
+  const payload = controller.terminalState?.bracketedPaste
+    ? `\x1b[200~${body}\x1b[201~\r`
+    : `${body}\r`
+  sendHostTerminalInput(controller, payload, "api", body)
+  return true
 }
 
 function sanitizeHostTerminalVoiceInput(text: string): string {
@@ -1424,9 +1421,9 @@ function hostTerminalWebSocketURL(controller: HostTerminalController): string {
   return url.toString()
 }
 
-function sendHostTerminalInput(controller: HostTerminalController, data: string, source: TerminalInputSource): void {
+function sendHostTerminalInput(controller: HostTerminalController, data: string, source: TerminalInputSource, localEchoText = data): void {
   if (source === "keyboard" || source === "paste") clearVoicePartialPreviewForTarget({kind: "host", controller})
-  const localEchoId = tryHostTerminalLocalEcho(controller, data, source) ? ++controller.localEchoId : undefined
+  const localEchoId = tryHostTerminalLocalEcho(controller, localEchoText, source) ? ++controller.localEchoId : undefined
   sendHostTerminal(controller, {
     type: "input.write",
     data,
@@ -1439,7 +1436,7 @@ function tryHostTerminalLocalEcho(controller: HostTerminalController, data: stri
   const serverState = controller.terminalState
   const panes = hostTerminalPanes(controller)
   if (
-    source !== "keyboard" ||
+    (source !== "keyboard" && source !== "api") ||
     controller.socket?.readyState !== WebSocket.OPEN ||
     serverState === null ||
     !serverState.localEcho ||
