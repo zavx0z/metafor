@@ -39,8 +39,14 @@ export type VoiceInputHudSettings = {
   phraseGroups: VoiceInputHudPhraseGroup[]
   signalVolumeLabel: string
   signalVolumeValue: number
+  signalVolumeMaxValue: number
   signalVolumeDownLabel: string
   signalVolumeUpLabel: string
+  agentVolumeLabel: string
+  agentVolumeValue: number
+  agentVolumeMaxValue: number
+  agentVolumeDownLabel: string
+  agentVolumeUpLabel: string
   fuzzyDownLabel: string
   fuzzyUpLabel: string
   wakeEndpoint: string
@@ -58,6 +64,7 @@ export type VoiceInputHudOptions = {
   onRemovePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
   onResetPhrases(groupId: VoiceInputHudPhraseGroupId): void
   onSignalVolumeChange(value: number): void
+  onAgentVolumeChange(value: number): void
   onPhraseFuzzyChange(groupId: VoiceInputHudPhraseGroupId, value: number): void
   startTooltip(): string
   stopTooltip(): string
@@ -69,7 +76,7 @@ const COMPACT_W = 128
 const COMPACT_H = 128
 const BUTTON_SIZE = 58
 const SETTINGS_W = 430
-const SETTINGS_H = 620
+const SETTINGS_H = 660
 type VoiceInputHudTab = VoiceInputHudPhraseGroupId | "debug"
 
 export class VoiceInputHud extends UiSurface {
@@ -395,7 +402,8 @@ export class VoiceInputHud extends UiSurface {
       z: 0.46,
     })
     y += 20
-    y = this.#drawSignalVolumeControl(settings, left, y, Math.max(1, right - left)) + 12
+    y = this.#drawSignalVolumeControl(settings, left, y, Math.max(1, right - left)) + 8
+    y = this.#drawAgentVolumeControl(settings, left, y, Math.max(1, right - left)) + 12
     this.drawRect(left, y, Math.max(1, right - left), 1, fade(palette.borderDim, 0.72), 0.2)
     y += 10
 
@@ -463,11 +471,27 @@ export class VoiceInputHud extends UiSurface {
       downLabel: settings.signalVolumeDownLabel,
       upLabel: settings.signalVolumeUpLabel,
       step: 0.1,
-      maxValue: 1,
+      maxValue: settings.signalVolumeMaxValue,
       x,
       y,
       w,
       onChange: (value) => this.options.onSignalVolumeChange(value),
+    })
+  }
+
+  #drawAgentVolumeControl(settings: VoiceInputHudSettings, x: number, y: number, w: number): number {
+    return this.#drawPercentControl({
+      key: "voice-agent-volume",
+      label: settings.agentVolumeLabel,
+      value: settings.agentVolumeValue,
+      downLabel: settings.agentVolumeDownLabel,
+      upLabel: settings.agentVolumeUpLabel,
+      step: 0.1,
+      maxValue: settings.agentVolumeMaxValue,
+      x,
+      y,
+      w,
+      onChange: (value) => this.options.onAgentVolumeChange(value),
     })
   }
 

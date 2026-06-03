@@ -251,10 +251,15 @@ const VOICE_ACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.activation
 const VOICE_DEACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.deactivationFuzzy:v1"
 const VOICE_STOP_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.stopFuzzy:v1"
 const VOICE_HUD_RECT_STORAGE_KEY = "metafor.interpreter.voice.hudRect:v1"
-const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
+const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
+const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v2"
+const VOICE_AGENT_READY_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
-const DEFAULT_VOICE_SIGNAL_VOLUME = 1
+const DEFAULT_VOICE_SIGNAL_VOLUME = 3
+const DEFAULT_VOICE_AGENT_READY_VOLUME = 1
+const MAX_VOICE_SIGNAL_VOLUME = 3
+const MAX_AGENT_READY_VOLUME = 1
 const VOICE_SERVICE_CHECK_INTERVAL_MS = 12_000
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2_500
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
@@ -516,10 +521,16 @@ async function initEngine(): Promise<void> {
         title: t("voiceInput"),
         debugTabLabel: t("voiceDebugTab"),
         phraseGroups: voicePhraseGroupsForHud(),
-        signalVolumeLabel: t("voiceSignalVolume"),
+        signalVolumeLabel: t("voiceMicSignalVolume"),
         signalVolumeValue: readVoiceSignalVolume(),
+        signalVolumeMaxValue: MAX_VOICE_SIGNAL_VOLUME,
         signalVolumeDownLabel: t("voiceSignalVolumeDown"),
         signalVolumeUpLabel: t("voiceSignalVolumeUp"),
+        agentVolumeLabel: t("voiceAgentReadyVolume"),
+        agentVolumeValue: readAgentReadyVolume(),
+        agentVolumeMaxValue: MAX_AGENT_READY_VOLUME,
+        agentVolumeDownLabel: t("voiceAgentReadyVolumeDown"),
+        agentVolumeUpLabel: t("voiceAgentReadyVolumeUp"),
         fuzzyDownLabel: t("voiceFuzzyToleranceDown"),
         fuzzyUpLabel: t("voiceFuzzyToleranceUp"),
         wakeEndpoint: voiceEndpointLabel(readVoiceWakeUrl()),
@@ -532,6 +543,7 @@ async function initEngine(): Promise<void> {
       onRemovePhrase: removeVoicePhrase,
       onResetPhrases: resetVoicePhrases,
       onSignalVolumeChange: storeVoiceSignalVolume,
+      onAgentVolumeChange: storeAgentReadyVolume,
       onPhraseFuzzyChange: storeVoiceFuzzyTolerance,
       startTooltip: () => t("voiceStart"),
       stopTooltip: () => t("voiceStop"),
@@ -1076,7 +1088,12 @@ function splitVoiceParagraphs(text: string): string[] {
 }
 
 function cleanupVoiceInputText(text: string): string {
-  return text.replace(/\s+/g, " ").trim()
+  const cleaned = text.replace(/\s+/g, " ").trim()
+  return voiceTextHasContent(cleaned) ? cleaned : ""
+}
+
+function voiceTextHasContent(text: string): boolean {
+  return /[\p{L}\p{N}]/u.test(text)
 }
 
 function updateVoiceLevel(level: number): void {
@@ -1203,7 +1220,8 @@ function voiceDebugLines(): string[] {
     `${ru ? "chunk время" : "chunk at"}: ${formatDebugTime(voiceLastChunkAt)}`,
     `${ru ? "последняя ошибка" : "last error"}: ${debugVoiceText(voiceLastErrorText)}`,
     `${ru ? "ошибка время" : "error at"}: ${formatDebugTime(voiceLastErrorAt)}`,
-    `${ru ? "громкость сигнала" : "signal volume"}: ${Math.round(readVoiceSignalVolume() * 100)}%`,
+    `${ru ? "громкость микрофона" : "mic signal volume"}: ${Math.round(readVoiceSignalVolume() * 100)}%`,
+    `${ru ? "громкость агента" : "agent ready volume"}: ${Math.round(readAgentReadyVolume() * 100)}%`,
     `${ru ? "левенштейн" : "levenshtein"}: a ${Math.round(readVoiceFuzzyTolerance("activation") * 100)}% · d ${Math.round(readVoiceFuzzyTolerance("deactivation") * 100)}% · s ${Math.round(readVoiceFuzzyTolerance("stop") * 100)}%`,
     `${ru ? "звук" : "sound"}: ${hudNotificationDebugLine()}`,
   ]
@@ -1259,6 +1277,10 @@ async function checkVoiceService(): Promise<boolean> {
     voiceServiceState = "ok"
     voiceServiceDetail = [t("voiceServiceOk"), model, [device, compute].filter(Boolean).join("/")].filter(Boolean).join(" · ")
     voiceServiceCheckedAt = new Date()
+    if (voiceHudStatus !== "error" && isVoiceServiceErrorText(voiceLastErrorText)) {
+      voiceLastErrorText = ""
+      voiceLastErrorAt = null
+    }
     renderVoiceHud()
     return true
   } catch (error) {
@@ -1271,6 +1293,10 @@ async function checkVoiceService(): Promise<boolean> {
   } finally {
     voiceServiceCheckInFlight = false
   }
+}
+
+function isVoiceServiceErrorText(text: string): boolean {
+  return /ASR недоступен|ASR unavailable|websocket failed|websocket closed/i.test(text)
 }
 
 function probeVoiceService(): Promise<Record<string, unknown> | null> {
@@ -1343,7 +1369,7 @@ function ensureHudNotificationAudioContext(): AudioContext | null {
 }
 
 function playHudNotificationSound(kind: HudNotificationKind): void {
-  const volume = readVoiceSignalVolume()
+  const volume = hudNotificationVolume(kind)
   if (volume <= 0) {
     recordHudNotificationSound(kind, "muted")
     return
@@ -1354,12 +1380,16 @@ function playHudNotificationSound(kind: HudNotificationKind): void {
   playBrowserHudNotificationSound(kind, volume)
 }
 
+function hudNotificationVolume(kind: HudNotificationKind): number {
+  return kind === "agent" ? readAgentReadyVolume() : readVoiceSignalVolume()
+}
+
 function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number): void {
   if (playHudNotificationWebAudioTone(kind, volume, (reason) => playHudNotificationHtmlAudio(kind, reason, volume))) return
   playHudNotificationHtmlAudio(kind, "no webaudio", volume)
 }
 
-function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallback", volume = readVoiceSignalVolume()): void {
+function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallback", volume = hudNotificationVolume(kind)): void {
   const audio = ensureHudNotificationAudioElement(kind)
   if (audio !== null) {
     try {
@@ -1384,7 +1414,7 @@ function ensureHudNotificationAudioElement(kind: HudNotificationKind): HTMLAudio
   try {
     const audio = new Audio(hudNotificationWavDataUrl(kind))
     audio.preload = "auto"
-    audio.volume = htmlNotificationVolume(readVoiceSignalVolume())
+    audio.volume = htmlNotificationVolume(hudNotificationVolume(kind))
     hudNotificationAudioElements.set(kind, audio)
     return audio
   } catch {
@@ -1407,7 +1437,7 @@ function primeHudNotificationAudioElement(kind: HudNotificationKind): void {
       // Some browsers reject seeking before media metadata is available.
     }
     audio.muted = false
-    audio.volume = htmlNotificationVolume(readVoiceSignalVolume())
+    audio.volume = htmlNotificationVolume(hudNotificationVolume(kind))
   }
   audio.muted = true
   audio.volume = 0
@@ -1519,7 +1549,7 @@ function hudNotificationTone(kind: HudNotificationKind): {
   if (kind === "activation") return {startHz: 640, endHz: 960, duration: 0.24, gain: 0.34, type: "triangle"}
   if (kind === "deactivation") return {startHz: 740, endHz: 430, duration: 0.22, gain: 0.32, type: "sine"}
   if (kind === "stop") return {startHz: 360, endHz: 210, duration: 0.34, gain: 0.38, type: "square"}
-  return {startHz: 587.33, endHz: 880, duration: 0.28, gain: 0.3, type: "triangle"}
+  return {startHz: 520, endHz: 520, duration: 0.12, gain: 0.22, type: "sine"}
 }
 
 function hudNotificationWavDataUrl(kind: HudNotificationKind): string {
@@ -1624,11 +1654,36 @@ function readVoiceInputContext(): string {
 function readVoiceSignalVolume(): number {
   try {
     const raw = localStorage.getItem(VOICE_SIGNAL_VOLUME_STORAGE_KEY)
-    if (raw === null) return DEFAULT_VOICE_SIGNAL_VOLUME
+    if (raw === null) {
+      const legacy = readLegacyVoiceSignalVolume()
+      return legacy === null ? DEFAULT_VOICE_SIGNAL_VOLUME : clampVoiceSignalVolume(legacy * MAX_VOICE_SIGNAL_VOLUME)
+    }
     const value = Number(raw)
     return Number.isFinite(value) ? clampVoiceSignalVolume(value) : DEFAULT_VOICE_SIGNAL_VOLUME
   } catch {
     return DEFAULT_VOICE_SIGNAL_VOLUME
+  }
+}
+
+function readLegacyVoiceSignalVolume(): number | null {
+  try {
+    const raw = localStorage.getItem(VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY)
+    if (raw === null) return null
+    const value = Number(raw)
+    return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null
+  } catch {
+    return null
+  }
+}
+
+function readAgentReadyVolume(): number {
+  try {
+    const raw = localStorage.getItem(VOICE_AGENT_READY_VOLUME_STORAGE_KEY)
+    if (raw === null) return DEFAULT_VOICE_AGENT_READY_VOLUME
+    const value = Number(raw)
+    return Number.isFinite(value) ? clampAgentReadyVolume(value) : DEFAULT_VOICE_AGENT_READY_VOLUME
+  } catch {
+    return DEFAULT_VOICE_AGENT_READY_VOLUME
   }
 }
 
@@ -1639,14 +1694,35 @@ function storeVoiceSignalVolume(value: number): void {
   } catch {
     // Storage can be disabled in private contexts.
   }
-  for (const audio of hudNotificationAudioElements.values()) {
-    audio.volume = htmlNotificationVolume(next)
-  }
+  syncHudNotificationAudioVolume("activation")
+  syncHudNotificationAudioVolume("deactivation")
+  syncHudNotificationAudioVolume("stop")
   renderVoiceHud()
 }
 
+function storeAgentReadyVolume(value: number): void {
+  const next = clampAgentReadyVolume(value)
+  try {
+    localStorage.setItem(VOICE_AGENT_READY_VOLUME_STORAGE_KEY, String(next))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+  syncHudNotificationAudioVolume("agent")
+  renderVoiceHud()
+}
+
+function syncHudNotificationAudioVolume(kind: HudNotificationKind): void {
+  const audio = hudNotificationAudioElements.get(kind)
+  if (audio === undefined) return
+  audio.volume = htmlNotificationVolume(hudNotificationVolume(kind))
+}
+
 function clampVoiceSignalVolume(value: number): number {
-  return Math.min(1, Math.max(0, value))
+  return Math.min(MAX_VOICE_SIGNAL_VOLUME, Math.max(0, value))
+}
+
+function clampAgentReadyVolume(value: number): number {
+  return Math.min(MAX_AGENT_READY_VOLUME, Math.max(0, value))
 }
 
 function voicePhraseGroupsForHud(): Array<{
@@ -2193,7 +2269,6 @@ function maybePlayAgentReadyNotification(controller: HostTerminalController): vo
 }
 
 function playAgentReadySignal(): void {
-  voiceHudPane?.flashSoundIndicator()
   playHudNotificationSound("agent")
 }
 

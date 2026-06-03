@@ -49,6 +49,7 @@ type AsrTunnelConfig = {
   checkTimeoutMs: number;
   reconnectDelayMs: number;
   maxFailures: number;
+  startupGraceMs: number;
   serverAliveInterval: number;
   serverAliveCountMax: number;
   connectTimeout: number;
@@ -442,6 +443,7 @@ function readAsrTunnelConfig(): AsrTunnelConfig {
     checkTimeoutMs: positiveNumberFromEnv("VOICE_ASR_TUNNEL_CHECK_TIMEOUT_MS", 1_500),
     reconnectDelayMs: positiveNumberFromEnv("VOICE_ASR_TUNNEL_RECONNECT_DELAY_MS", 2_000),
     maxFailures: positiveNumberFromEnv("VOICE_ASR_TUNNEL_MAX_FAILURES", 2),
+    startupGraceMs: positiveNumberFromEnv("VOICE_ASR_TUNNEL_STARTUP_GRACE_MS", 12_000),
     serverAliveInterval: positiveNumberFromEnv("VOICE_ASR_TUNNEL_SERVER_ALIVE_INTERVAL", 15),
     serverAliveCountMax: positiveNumberFromEnv("VOICE_ASR_TUNNEL_SERVER_ALIVE_COUNT_MAX", 2),
     connectTimeout: positiveNumberFromEnv("VOICE_ASR_TUNNEL_CONNECT_TIMEOUT", 8),
@@ -475,6 +477,7 @@ class AsrTunnelSupervisor {
   #lastOkAt: Date | null = null;
   #lastCheckAt: Date | null = null;
   #lastError: string | null = null;
+  #startedAtMs = 0;
 
   constructor(readonly config: AsrTunnelConfig) {
     this.#status = config.enabled ? "disconnected" : "disabled";
@@ -526,11 +529,11 @@ class AsrTunnelSupervisor {
       this.#lastError = null;
       this.#lastOkAt = new Date();
       this.#status = this.#process === null ? "external" : "connected";
+      this.#startedAtMs = 0;
       this.#scheduleCheck(this.config.checkIntervalMs);
       return;
     }
 
-    this.#failures += 1;
     this.#lastError = result.error;
     if (this.#process === null) {
       this.#spawn();
@@ -538,6 +541,12 @@ class AsrTunnelSupervisor {
       return;
     }
 
+    if (this.#status === "starting" && Date.now() - this.#startedAtMs < this.config.startupGraceMs) {
+      this.#scheduleCheck(this.config.reconnectDelayMs);
+      return;
+    }
+
+    this.#failures += 1;
     if (this.#failures >= this.config.maxFailures) {
       console.warn(`[voice] asr tunnel unhealthy after ${this.#failures} checks: ${result.error}`);
       this.#restart("health check failed");
@@ -588,6 +597,7 @@ class AsrTunnelSupervisor {
     this.#restarts += 1;
     this.#failures = 0;
     this.#lastError = null;
+    this.#startedAtMs = Date.now();
     console.log(`[voice] asr tunnel start: ssh ${args.join(" ")}`);
 
     try {
@@ -601,6 +611,7 @@ class AsrTunnelSupervisor {
       void process.exited.then((code) => {
         if (this.#process !== process) return;
         this.#process = null;
+        this.#startedAtMs = 0;
         if (this.#stopping) return;
         this.#status = "disconnected";
         this.#lastError = `ssh exited ${code}`;
@@ -609,6 +620,7 @@ class AsrTunnelSupervisor {
       });
     } catch (error) {
       this.#process = null;
+      this.#startedAtMs = 0;
       this.#status = "error";
       this.#lastError = error instanceof Error ? error.message : String(error);
       console.error(`[voice] asr tunnel spawn failed: ${this.#lastError}`);
@@ -624,6 +636,7 @@ class AsrTunnelSupervisor {
   #stopProcess(reason: string): void {
     const process = this.#process;
     this.#process = null;
+    this.#startedAtMs = 0;
     if (process === null) return;
     console.warn(`[voice] asr tunnel stop pid=${process.pid}: ${reason}`);
     try {

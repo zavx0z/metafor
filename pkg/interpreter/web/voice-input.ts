@@ -92,6 +92,7 @@ const VOICE_WAKE_BASE_GAIN = 2.8
 const VOICE_WAKE_MAX_GAIN = 6
 const VOICE_WAKE_TARGET_RMS = 0.055
 const VOICE_WAKE_MIN_RMS = 0.002
+const MAX_SIGNAL_TONE_VOLUME = 3
 const SILENCE_COMMIT_MS = 1_550
 const MIN_COMMIT_AUDIO_MS = 1_500
 const MIN_COMMIT_INTERVAL_MS = 2_200
@@ -169,7 +170,7 @@ export class VoiceInputClient {
   playSignalTone(kind: VoiceInputSignalTone, volume: number, onResult?: (kind: VoiceInputSignalTone, method: string, error?: unknown) => void): boolean {
     const context = this.#audioContext
     if (context === null || context.state === "closed") return false
-    const signalVolume = Math.min(1, Math.max(0, volume))
+    const signalVolume = Math.min(MAX_SIGNAL_TONE_VOLUME, Math.max(0, volume))
     if (signalVolume <= 0) {
       onResult?.(kind, "capture muted")
       return true
@@ -234,7 +235,12 @@ export class VoiceInputClient {
   async startDictation(): Promise<void> {
     if (!this.active) await this.start()
     if (this.#asrEnabled) return
-    await this.#activateAsr("")
+    try {
+      await this.#activateAsr("")
+    } catch (error) {
+      this.#recoverAsrFailure(error)
+      throw error
+    }
   }
 
   async #startCommandRecognizer(): Promise<void> {
@@ -306,8 +312,7 @@ export class VoiceInputClient {
       this.#asrEnabled = false
       this.#asrActivatedAt = 0
       if (this.#stopRequested || this.#status === "idle") return
-      this.#cleanup()
-      this.#setStatus("error", `voice ASR websocket closed: ${ws.url}`)
+      this.#recoverAsrFailure(`voice ASR websocket closed: ${ws.url}`)
     })
 
     await new Promise<void>((resolve, reject) => {
@@ -426,10 +431,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (msg.type === "partial" && !isFastActivationPartial(text, activationPhrases)) return
     if (!isActivationPhrase(text, activationPhrases, activationTolerance)) return
 
-    void this.#activateAsr(text).catch((error) => {
-      this.#setStatus("error", error instanceof Error ? error.message : String(error))
-      this.#cleanup()
-    })
+    void this.#activateAsr(text).catch((error) => this.#recoverAsrFailure(error))
   }
 
   #handleAsrMessage(event: MessageEvent<unknown>): void {
@@ -624,6 +626,23 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const ws = this.#asrWs
     this.#asrWs = null
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close()
+  }
+
+  #recoverAsrFailure(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error)
+    this.#disconnectAsrSocket()
+    this.#asrEnabled = false
+    this.#asrActivatedAt = 0
+    this.#wakeMatched = false
+    this.#resetCommitState()
+
+    if (!this.#stopRequested && this.#stream !== null && this.#commandWs?.readyState === WebSocket.OPEN) {
+      this.#setStatus("waitingWake", message)
+      return
+    }
+
+    this.#cleanup()
+    this.#setStatus("error", message)
   }
 
   #setStatus(status: VoiceInputStatus, detail = ""): void {

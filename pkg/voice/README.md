@@ -115,6 +115,7 @@ VOICE_ASR_TUNNEL_LOCAL_PORT=8877
 VOICE_ASR_TUNNEL_REMOTE_HOST=127.0.0.1
 VOICE_ASR_TUNNEL_REMOTE_PORT=8787
 VOICE_ASR_TUNNEL_HEALTH_URL=http://127.0.0.1:8877/health
+VOICE_ASR_TUNNEL_STARTUP_GRACE_MS=12000
 ```
 
 The browser captures microphone audio, asks for a 16 kHz `AudioContext`, converts mono float samples to 16-bit PCM, streams chunks to `/ws`, and renders partial/final recognition plus command matches.
