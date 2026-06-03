@@ -7,7 +7,7 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii, type DivScrollContext} from "@ui/elements"
+import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii, visionBorder, visionGlass, type DivScrollContext} from "@ui/elements"
 import {
   copyTextSelectionOrFallback,
   orderedTextSelection,
@@ -175,12 +175,13 @@ const SCROLLBAR_W_PX = 4
 const CARET_BLINK_MS = 530
 const AUTOSCROLL_TOLERANCE_PX = 20
 const TERMINAL_SCROLL_KEY = "terminal-pane:scroll"
-const TERMINAL_BG = palette.bgCode
+const TERMINAL_BG = visionGlass
+const TERMINAL_BORDER = visionBorder
 const HEADER_RULE = withAlpha(palette.borderDim, 0.82)
 const STATUS_FILL = withAlpha(palette.bgInput, 0.76)
 const STATUS_BORDER = withAlpha(palette.borderBright, 0.12)
 const CURSOR_FILL = withAlpha(palette.cyan, 0.74)
-const CURSOR_LINE_FILL = withAlpha(mixColor(palette.bgCode, palette.text, 0.08), 0.88)
+const CURSOR_LINE_FILL = withAlpha(mixColor(TERMINAL_BG, palette.text, 0.08), 0.88)
 const SELECTION_FILL = new Color(92 / 255, 155 / 255, 0.34)
 const DEFAULT_FG: TerminalColor = {kind: "default"}
 const DEFAULT_ATTR: TerminalAttr = {
@@ -277,7 +278,7 @@ class TerminalOutputPane extends UiSurface {
   constructor(opts: TerminalOutputPaneInternalOpts = {}) {
     super({
       bgColor: TERMINAL_BG,
-      borderColor: palette.borderDim,
+      borderColor: TERMINAL_BORDER,
       borderWidthPx: 1,
       borderRadiusPx: radii.pane,
     })
