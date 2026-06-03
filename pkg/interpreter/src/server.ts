@@ -476,7 +476,7 @@ function routeIndex(): Array<{method: string; path: string; description: string}
   return [
     {method: "GET", path: "/health", description: "статус коннекта и параметры"},
     {method: "GET", path: "/agent/displays", description: "agent API: список UI-дисплеев и их экранная геометрия"},
-    {method: "POST", path: "/agent/displays/focus", description: "{selector:{side|displayId|moduleId|label|order}, view?} — сфокусировать дисплей"},
+    {method: "POST", path: "/agent/displays/focus", description: "{selector:{side|displayId|moduleId|label|order}, view?, dockHostTerminal?} — сфокусировать дисплей; terminal HUD не трогается без явного dockHostTerminal:true"},
     {method: "POST", path: "/agent/displays/frame", description: "agent API: вернуть обзор всех дисплеев"},
     {method: "GET", path: "/agent/terminal", description: "agent API: состояние host terminal HUD"},
     {method: "POST", path: "/agent/terminal/dock", description: "agent API: свернуть host terminal HUD"},

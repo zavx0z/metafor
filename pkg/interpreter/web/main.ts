@@ -269,9 +269,9 @@ const HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY = "metafor.interpreter.hostTe
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
-const DEFAULT_VOICE_SIGNAL_VOLUME = 3
-const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase"
-const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 12
+const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
+const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase-timeout"
+const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED = true
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const MAX_VOICE_SIGNAL_VOLUME = 3
@@ -304,8 +304,8 @@ const HOST_TERMINAL_AGENT_SIGNAL_PANEL_H = 112
 const AGENT_READY_SOUND_IDLE_MS = 2_500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1_200
 const VOICE_SIGNAL_COOLDOWN_MS = 900
-const DEFAULT_VOICE_ACTIVATION_FUZZY = 0.25
-const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.08
+const DEFAULT_VOICE_ACTIVATION_FUZZY = 0.05
+const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.05
 const DEFAULT_VOICE_STOP_FUZZY = 0.06
 
 type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
@@ -315,6 +315,10 @@ type HostTerminalDockPlacement = {
   offset: number
 }
 
+const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
+const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
+const DEFAULT_VOICE_HUD_RECT: UiSurfaceRect = {x: 1783, y: 960, w: VOICE_HUD_W, h: VOICE_HUD_H}
+
 let uiCanvas: UiRuntime | null = null
 let uiLoading = false
 let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
@@ -323,7 +327,7 @@ let hostTerminalDockPane: HostTerminalDockPane | null = null
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
 let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
-let hostTerminalDockPlacement = readStoredHostTerminalDockPlacement()
+let hostTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredHostTerminalDockPlacement() ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
 let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let voiceHudPane: VoiceInputHud | null = null
 let voiceInputClient: VoiceInputClient | null = null
@@ -530,7 +534,7 @@ function focusAgentDisplay(params: unknown): unknown {
   const view = stringParam(body["view"]) ?? "full"
   const display = resolveAgentDisplay(selector)
   if (display === null) throw new Error("display not found")
-  if (view === "full" && body["dockHostTerminal"] !== false) setHostTerminalHudDocked(true)
+  if (view === "full" && body["dockHostTerminal"] === true) setHostTerminalHudDocked(true)
   const focused = uiCanvas.focusDisplay(display.displayId)
   if (!focused) throw new Error(`display not found: ${display.displayId}`)
   return {
@@ -766,6 +770,9 @@ async function initEngine(): Promise<void> {
         signalVolumeUpLabel: t("voiceSignalVolumeUp"),
         fuzzyDownLabel: t("voiceFuzzyToleranceDown"),
         fuzzyUpLabel: t("voiceFuzzyToleranceUp"),
+        fuzzyHintLabel: t("voiceFuzzyToleranceHint"),
+        fuzzyStrictLabel: t("voiceFuzzyToleranceStrict"),
+        fuzzyLooseLabel: t("voiceFuzzyToleranceLoose"),
         wakeEndpoint: voiceEndpointLabel(readVoiceWakeUrl()),
         inputEndpoint: voiceEndpointLabel(readVoiceInputUrl()),
         serviceLine: voiceServiceLine(),
@@ -3009,7 +3016,7 @@ function isHostTerminalDockEdge(value: unknown): value is HudSideTabEdge {
 }
 
 function currentHostTerminalDockEdge(): HudSideTabEdge {
-  return hostTerminalDockPlacement?.edge ?? "left"
+  return hostTerminalDockPlacement?.edge ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT.edge
 }
 
 function parseStoredPaneRect(raw: string | null): UiSurfaceRect | null {
@@ -3964,15 +3971,7 @@ function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (hostTerminalHudRectPreview !== null) return clampHostTerminalHudRect(hostTerminalHudRectPreview, w, h)
   const stored = readStoredHostTerminalHudRect()
   if (stored !== null) return clampHostTerminalHudRect(stored, w, h)
-  const pad = 16
-  const terminalW = Math.min(HOST_TERMINAL_HUD_MAX_W, Math.max(1, w - pad * 2 - VOICE_HUD_W - 20))
-  const terminalH = Math.min(HOST_TERMINAL_HUD_MAX_H, Math.max(220, Math.floor(h * 0.31)))
-  return clampHostTerminalHudRect({
-    x: pad,
-    y: Math.max(pad, h - terminalH - pad),
-    w: Math.max(1, terminalW),
-    h: Math.max(1, terminalH),
-  }, w, h)
+  return clampHostTerminalHudRect(DEFAULT_HOST_TERMINAL_HUD_RECT, w, h)
 }
 
 function hostTerminalAgentSignalRect(bounds: {w: number; h: number}): UiSurfaceRect {
@@ -4029,12 +4028,7 @@ function hostTerminalAgentSignalButtonX(terminal: UiSurfaceRect): number {
 function voiceHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   const stored = readStoredVoiceHudRect()
   if (stored !== null) return clampVoiceHudRect(stored, w, h)
-  return clampVoiceHudRect({
-    x: w - VOICE_HUD_W - 16,
-    y: h - VOICE_HUD_H - 16,
-    w: VOICE_HUD_W,
-    h: VOICE_HUD_H,
-  }, w, h)
+  return clampVoiceHudRect(DEFAULT_VOICE_HUD_RECT, w, h)
 }
 
 function clampVoiceHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
@@ -4091,17 +4085,26 @@ function hostTerminalDockRectForPlacement(placement: HostTerminalDockPlacement, 
 }
 
 function defaultHostTerminalDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
-  const dockH = Math.min(HOST_TERMINAL_DOCK_LONG, Math.max(1, bounds.h - HOST_TERMINAL_DOCK_MARGIN * 2))
-  const stored = readStoredHostTerminalHudRect()
-  const fallbackCenterY = stored === null
-    ? bounds.h - dockH / 2 - 16
-    : stored.y + Math.min(stored.h, dockH) / 2
+  const placement = DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
+  const vertical = placement.edge === "left" || placement.edge === "right"
+  const dockW = vertical
+    ? Math.min(HOST_TERMINAL_DOCK_SHORT, Math.max(1, bounds.w - HOST_TERMINAL_DOCK_MARGIN))
+    : Math.min(HOST_TERMINAL_DOCK_LONG, Math.max(1, bounds.w - HOST_TERMINAL_DOCK_MARGIN * 2))
+  const dockH = vertical
+    ? Math.min(HOST_TERMINAL_DOCK_LONG, Math.max(1, bounds.h - HOST_TERMINAL_DOCK_MARGIN * 2))
+    : Math.min(HOST_TERMINAL_DOCK_SHORT, Math.max(1, bounds.h - HOST_TERMINAL_DOCK_MARGIN))
+  const minOffset = vertical
+    ? HOST_TERMINAL_DOCK_MARGIN + dockH / 2
+    : HOST_TERMINAL_DOCK_MARGIN + dockW / 2
+  const maxOffset = vertical
+    ? Math.max(minOffset, bounds.h - HOST_TERMINAL_DOCK_MARGIN - dockH / 2)
+    : Math.max(minOffset, bounds.w - HOST_TERMINAL_DOCK_MARGIN - dockW / 2)
   return {
-    edge: "left",
+    edge: placement.edge,
     offset: clampNumber(
-      fallbackCenterY,
-      HOST_TERMINAL_DOCK_MARGIN + dockH / 2,
-      Math.max(HOST_TERMINAL_DOCK_MARGIN + dockH / 2, bounds.h - HOST_TERMINAL_DOCK_MARGIN - dockH / 2),
+      placement.offset,
+      minOffset,
+      maxOffset,
     ),
   }
 }

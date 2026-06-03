@@ -55,6 +55,66 @@ All runtime actions are module-scoped:
 
 The API surface intentionally has no global `/breakpoint`, no global `/source`, no global `/command`, and no implicit current module.
 
+## Agent UI REST API
+
+The interpreter exposes a small REST API for agent control of the browser UI. Use it instead of clicking the UI when the user asks to move between interpreter displays or to show/dock the host terminal HUD.
+
+Default base URL:
+
+```text
+http://127.0.0.1:6500
+```
+
+Before acting, read current state:
+
+```sh
+curl -s http://127.0.0.1:6500/agent/displays
+curl -s http://127.0.0.1:6500/agent/terminal
+```
+
+Display API:
+
+- `GET /agent/displays` returns `mode`, `activeDisplayId`, and `displays[]`.
+- Each display includes `displayId`, `moduleId`, `label`, `order`, `screenCenter`, `screenRect`, `visible`, `active`, and `hovered`.
+- `POST /agent/displays/focus` focuses one display.
+- `POST /agent/displays/frame` returns the overview of all displays.
+
+Display selectors accepted by `/agent/displays/focus`:
+
+```json
+{"selector":{"side":"left"}}
+{"selector":{"side":"right"}}
+{"selector":{"displayId":"module:dark-server.spec.ts"}}
+{"selector":{"moduleId":"dark-server.spec.ts"}}
+{"selector":{"label":"dark/server.spec.ts"}}
+{"selector":{"order":0}}
+```
+
+Focusing a display must not change the host terminal HUD unless the user explicitly asks for that. Do not dock, hide, show, or toggle the terminal while answering a display-only request such as "open the left display". If the terminal should be docked as part of a focus request, the API requires explicit intent:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"side":"left"},"dockHostTerminal":true}'
+```
+
+For normal display focus, omit `dockHostTerminal`:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"side":"left"}}'
+```
+
+Terminal HUD API:
+
+- `GET /agent/terminal` returns `docked`, `sessionId`, `status`, `statusLabel`, `rect`, and `dockPlacement`.
+- `POST /agent/terminal/show` opens the host terminal HUD.
+- `POST /agent/terminal/dock` docks/hides the host terminal HUD.
+- `POST /agent/terminal/toggle` switches between those states.
+
+Use terminal endpoints only for terminal requests. If the user says "show terminal", call `/agent/terminal/show`. If the user says "hide/dock terminal", call `/agent/terminal/dock`. If the user asks for a display transition, call only `/agent/displays/*`.
+
 ## UI Architecture
 
 `web/main.ts` is the browser host/controller layer. It creates `UiRuntime`, maps modules to `UIDisplay`, and wires module-scoped snapshots to panes.

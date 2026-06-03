@@ -55,6 +55,9 @@ export type VoiceInputHudSettings = {
   signalVolumeUpLabel: string
   fuzzyDownLabel: string
   fuzzyUpLabel: string
+  fuzzyHintLabel: string
+  fuzzyStrictLabel: string
+  fuzzyLooseLabel: string
   wakeEndpoint: string
   inputEndpoint: string
   serviceLine: string
@@ -543,6 +546,9 @@ export class VoiceInputHud extends UiSurface {
       value: group.fuzzyValue,
       downLabel: settings.fuzzyDownLabel,
       upLabel: settings.fuzzyUpLabel,
+      hintLabel: settings.fuzzyHintLabel,
+      rangeStartLabel: settings.fuzzyStrictLabel,
+      rangeEndLabel: settings.fuzzyLooseLabel,
       step: 0.05,
       maxValue: 0.5,
       x: left,
@@ -662,6 +668,9 @@ export class VoiceInputHud extends UiSurface {
     value: number
     downLabel: string
     upLabel: string
+    hintLabel?: string
+    rangeStartLabel?: string
+    rangeEndLabel?: string
     step: number
     maxValue?: number
     x: number
@@ -686,7 +695,15 @@ export class VoiceInputHud extends UiSurface {
       z: 0.46,
     })
 
-    const rowY = opts.y + 16
+    const rowY = opts.y + (opts.hintLabel === undefined ? 16 : 30)
+    if (opts.hintLabel !== undefined) {
+      this.drawText(opts.hintLabel, opts.x, opts.y + 14, {
+        fontPx: 8,
+        material: this.materials.muted,
+        maxWidthPx: Math.max(1, opts.w),
+        z: 0.46,
+      })
+    }
     const buttonW = 28
     button(this, opts.x, rowY, buttonW, 22, {
       key: `${opts.key}:down`,
@@ -742,6 +759,26 @@ export class VoiceInputHud extends UiSurface {
       const tx = trackX + trackW * tick
       this.drawRect(tx, trackY + 10, 1, 3, fade(palette.borderDim, 0.68), 0.18)
     }
+    if (opts.rangeStartLabel !== undefined || opts.rangeEndLabel !== undefined) {
+      const labelY = rowY + 27
+      if (opts.rangeStartLabel !== undefined) {
+        this.drawText(opts.rangeStartLabel, trackX, labelY, {
+          fontPx: 8,
+          material: this.materials.muted,
+          maxWidthPx: Math.max(1, trackW / 2 - 4),
+          z: 0.46,
+        })
+      }
+      if (opts.rangeEndLabel !== undefined) {
+        const endW = Math.max(1, trackW / 2 - 4)
+        this.drawText(opts.rangeEndLabel, trackX + trackW - endW, labelY, {
+          fontPx: 8,
+          material: this.materials.muted,
+          maxWidthPx: endW,
+          z: 0.46,
+        })
+      }
+    }
     const setFromPointer = (localX: number): void => this.#setPercentValue(((localX - trackX) / trackW) * maxValue, maxValue, opts.onChange)
     this.hit(trackX - 4, rowY, trackW + 8, 22, () => undefined, {
       key: `${opts.key}:track`,
@@ -749,7 +786,7 @@ export class VoiceInputHud extends UiSurface {
       onPointerDown: (localX) => setFromPointer(localX),
       onPointerMove: (localX) => setFromPointer(localX),
     })
-    return rowY + 22
+    return rowY + (opts.rangeStartLabel === undefined && opts.rangeEndLabel === undefined ? 22 : 39)
   }
 
   #drawSecondsControl(opts: {

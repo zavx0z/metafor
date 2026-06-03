@@ -63,6 +63,104 @@ GET    /console?since=<iso|seq>&limit=<n>
 GET    /workspace/files?q=<text>&limit=<n>
 ```
 
+## Agent UI API
+
+Этот API предназначен для AI-агента, который управляет видимым UI без кликов по интерфейсу.
+
+Routes:
+
+```text
+GET    /agent/displays
+POST   /agent/displays/focus
+POST   /agent/displays/frame
+GET    /agent/terminal
+POST   /agent/terminal/show
+POST   /agent/terminal/dock
+POST   /agent/terminal/toggle
+```
+
+`GET /agent/displays` возвращает режим пространства, активный display и список module `UIDisplay`:
+
+```json
+{
+  "ok": true,
+  "command": "displays.list",
+  "result": {
+    "mode": "far",
+    "activeDisplayId": null,
+    "displays": [
+      {
+        "displayId": "module:dark-server.spec.ts",
+        "moduleId": "dark-server.spec.ts",
+        "label": "dark/server.spec.ts",
+        "order": 0,
+        "visible": true,
+        "active": false,
+        "screenCenter": {"x": 548.5, "y": 544},
+        "screenRect": {"x": 160, "y": 324, "w": 777, "h": 440}
+      }
+    ]
+  }
+}
+```
+
+`POST /agent/displays/focus` фокусирует один display. Selector можно задавать по стороне, id, module id, label или порядку:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"side":"left"}}'
+```
+
+Другие selector shapes:
+
+```json
+{"selector":{"side":"right"}}
+{"selector":{"displayId":"module:dark-server.spec.ts"}}
+{"selector":{"moduleId":"dark-server.spec.ts"}}
+{"selector":{"label":"dark/server.spec.ts"}}
+{"selector":{"order":0}}
+```
+
+Важно: focus display не меняет host terminal HUD. Агент не должен сворачивать, раскрывать или переключать terminal pane при запросах вида "открой левый дисплей". Терминал меняется только отдельными terminal endpoints или явным `dockHostTerminal:true`:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"side":"left"},"dockHostTerminal":true}'
+```
+
+`POST /agent/displays/frame` возвращает обзор всех module displays:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/agent/displays/frame -d '{}'
+```
+
+`GET /agent/terminal` возвращает состояние host terminal HUD:
+
+```json
+{
+  "ok": true,
+  "command": "terminal.get",
+  "result": {
+    "docked": false,
+    "sessionId": "21534e34-5b71-409a-97e4-98557f18f02c",
+    "status": "connected",
+    "statusLabel": "restored zsh",
+    "rect": {"x": 643, "y": 60, "w": 755, "h": 943},
+    "dockPlacement": {"edge": "top", "offset": 858}
+  }
+}
+```
+
+Terminal HUD commands:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/agent/terminal/show -d '{}'
+curl -sS -X POST http://127.0.0.1:6500/agent/terminal/dock -d '{}'
+curl -sS -X POST http://127.0.0.1:6500/agent/terminal/toggle -d '{}'
+```
+
 `GET /modules`:
 
 ```json
