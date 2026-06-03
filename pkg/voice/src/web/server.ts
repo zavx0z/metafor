@@ -1,5 +1,6 @@
 import { extname, resolve } from "node:path";
 import { existsSync } from "node:fs";
+import type { Subprocess } from "bun";
 import {
   createCommandRouter,
   defaultVoiceCommands,
@@ -34,12 +35,46 @@ type StartRecognizerOptions = {
 };
 
 type VoiceSocket = Bun.ServerWebSocket<WsData>;
+type TunnelStatus = "disabled" | "starting" | "connected" | "external" | "disconnected" | "error";
+
+type AsrTunnelConfig = {
+  enabled: boolean;
+  sshHost: string;
+  localBind: string;
+  localPort: number;
+  remoteHost: string;
+  remotePort: number;
+  healthUrl: string;
+  checkIntervalMs: number;
+  checkTimeoutMs: number;
+  reconnectDelayMs: number;
+  maxFailures: number;
+  serverAliveInterval: number;
+  serverAliveCountMax: number;
+  connectTimeout: number;
+};
+
+type AsrTunnelInfo = {
+  enabled: boolean;
+  status: TunnelStatus;
+  local: string;
+  remote: string;
+  healthUrl: string;
+  sshHost: string;
+  pid: number | null;
+  restarts: number;
+  failures: number;
+  lastOkAt: string | null;
+  lastCheckAt: string | null;
+  lastError: string | null;
+};
 
 const HOST = Bun.env.HOST ?? "127.0.0.1";
 const PORT = numberFromEnv("PORT", 4765);
 const DEFAULT_SAMPLE_RATE = numberFromEnv("VOICE_SAMPLE_RATE", 16_000);
 const LOG_LEVEL = numberFromEnv("VOSK_LOG_LEVEL", -1);
 const USE_GRAMMAR = Bun.env.VOICE_GRAMMAR !== "0";
+const ASR_TUNNEL_CONFIG = readAsrTunnelConfig();
 const WEB_ROOT = import.meta.dir;
 
 const router = createCommandRouter(defaultVoiceCommands);
@@ -50,6 +85,7 @@ const library = loadVosk(libraryPath);
 library.symbols.vosk_set_log_level(LOG_LEVEL);
 const model = openVoskModel(modelPath, library);
 const sockets = new Set<VoiceSocket>();
+let asrTunnel: AsrTunnelSupervisor | null = null;
 
 const server = Bun.serve<WsData>({
   hostname: HOST,
@@ -108,7 +144,7 @@ async function handleRequest(
   }
 
   if (url.pathname === "/health") {
-    return json({ ok: true, service: "@metafor/voice", sockets: sockets.size });
+    return json({ ok: true, service: "@metafor/voice", sockets: sockets.size, asrTunnel: asrTunnelInfo() });
   }
 
   if (url.pathname === "/api/info") {
@@ -314,6 +350,7 @@ function serviceConfig() {
     defaultSampleRate: DEFAULT_SAMPLE_RATE,
     grammar: USE_GRAMMAR,
     phrases: router.recognitionPhrases,
+    asrTunnel: asrTunnelInfo(),
   };
 }
 
@@ -377,6 +414,249 @@ function numberFromEnv(name: string, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function positiveNumberFromEnv(name: string, fallback: number): number {
+  const value = numberFromEnv(name, fallback);
+  return value > 0 ? value : fallback;
+}
+
+function booleanFromEnv(name: string, fallback: boolean): boolean {
+  const raw = Bun.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  return !/^(0|false|no|off)$/i.test(raw.trim());
+}
+
+function readAsrTunnelConfig(): AsrTunnelConfig {
+  const localBind = Bun.env.VOICE_ASR_TUNNEL_LOCAL_BIND ?? "127.0.0.1";
+  const localPort = positiveNumberFromEnv("VOICE_ASR_TUNNEL_LOCAL_PORT", 8877);
+  const remoteHost = Bun.env.VOICE_ASR_TUNNEL_REMOTE_HOST ?? "127.0.0.1";
+  const remotePort = positiveNumberFromEnv("VOICE_ASR_TUNNEL_REMOTE_PORT", 8787);
+  return {
+    enabled: booleanFromEnv("VOICE_ASR_TUNNEL", true),
+    sshHost: Bun.env.VOICE_ASR_TUNNEL_SSH_HOST ?? "ai-srv",
+    localBind,
+    localPort,
+    remoteHost,
+    remotePort,
+    healthUrl: Bun.env.VOICE_ASR_TUNNEL_HEALTH_URL ?? `http://${localBind}:${localPort}/health`,
+    checkIntervalMs: positiveNumberFromEnv("VOICE_ASR_TUNNEL_CHECK_INTERVAL_MS", 5_000),
+    checkTimeoutMs: positiveNumberFromEnv("VOICE_ASR_TUNNEL_CHECK_TIMEOUT_MS", 1_500),
+    reconnectDelayMs: positiveNumberFromEnv("VOICE_ASR_TUNNEL_RECONNECT_DELAY_MS", 2_000),
+    maxFailures: positiveNumberFromEnv("VOICE_ASR_TUNNEL_MAX_FAILURES", 2),
+    serverAliveInterval: positiveNumberFromEnv("VOICE_ASR_TUNNEL_SERVER_ALIVE_INTERVAL", 15),
+    serverAliveCountMax: positiveNumberFromEnv("VOICE_ASR_TUNNEL_SERVER_ALIVE_COUNT_MAX", 2),
+    connectTimeout: positiveNumberFromEnv("VOICE_ASR_TUNNEL_CONNECT_TIMEOUT", 8),
+  };
+}
+
+function asrTunnelInfo(): AsrTunnelInfo {
+  return asrTunnel?.info() ?? {
+    enabled: ASR_TUNNEL_CONFIG.enabled,
+    status: ASR_TUNNEL_CONFIG.enabled ? "disconnected" : "disabled",
+    local: `${ASR_TUNNEL_CONFIG.localBind}:${ASR_TUNNEL_CONFIG.localPort}`,
+    remote: `${ASR_TUNNEL_CONFIG.remoteHost}:${ASR_TUNNEL_CONFIG.remotePort}`,
+    healthUrl: ASR_TUNNEL_CONFIG.healthUrl,
+    sshHost: ASR_TUNNEL_CONFIG.sshHost,
+    pid: null,
+    restarts: 0,
+    failures: 0,
+    lastOkAt: null,
+    lastCheckAt: null,
+    lastError: null,
+  };
+}
+
+class AsrTunnelSupervisor {
+  #status: TunnelStatus;
+  #process: Subprocess<"ignore", "ignore", "pipe"> | null = null;
+  #timer: ReturnType<typeof setTimeout> | null = null;
+  #stopping = false;
+  #restarts = 0;
+  #failures = 0;
+  #lastOkAt: Date | null = null;
+  #lastCheckAt: Date | null = null;
+  #lastError: string | null = null;
+
+  constructor(readonly config: AsrTunnelConfig) {
+    this.#status = config.enabled ? "disconnected" : "disabled";
+  }
+
+  start(): void {
+    if (!this.config.enabled || this.#stopping) return;
+    this.#scheduleCheck(0);
+  }
+
+  stop(): void {
+    this.#stopping = true;
+    this.#clearTimer();
+    this.#stopProcess("server shutdown");
+    this.#status = this.config.enabled ? "disconnected" : "disabled";
+  }
+
+  info(): AsrTunnelInfo {
+    return {
+      enabled: this.config.enabled,
+      status: this.#status,
+      local: `${this.config.localBind}:${this.config.localPort}`,
+      remote: `${this.config.remoteHost}:${this.config.remotePort}`,
+      healthUrl: this.config.healthUrl,
+      sshHost: this.config.sshHost,
+      pid: this.#process?.pid ?? null,
+      restarts: this.#restarts,
+      failures: this.#failures,
+      lastOkAt: this.#lastOkAt?.toISOString() ?? null,
+      lastCheckAt: this.#lastCheckAt?.toISOString() ?? null,
+      lastError: this.#lastError,
+    };
+  }
+
+  #scheduleCheck(delayMs: number): void {
+    if (this.#stopping || !this.config.enabled) return;
+    this.#clearTimer();
+    this.#timer = setTimeout(() => {
+      this.#timer = null;
+      void this.#check();
+    }, delayMs);
+  }
+
+  async #check(): Promise<void> {
+    if (this.#stopping || !this.config.enabled) return;
+    const result = await this.#healthCheck();
+    if (result.ok) {
+      this.#failures = 0;
+      this.#lastError = null;
+      this.#lastOkAt = new Date();
+      this.#status = this.#process === null ? "external" : "connected";
+      this.#scheduleCheck(this.config.checkIntervalMs);
+      return;
+    }
+
+    this.#failures += 1;
+    this.#lastError = result.error;
+    if (this.#process === null) {
+      this.#spawn();
+      this.#scheduleCheck(this.config.reconnectDelayMs);
+      return;
+    }
+
+    if (this.#failures >= this.config.maxFailures) {
+      console.warn(`[voice] asr tunnel unhealthy after ${this.#failures} checks: ${result.error}`);
+      this.#restart("health check failed");
+      this.#scheduleCheck(this.config.reconnectDelayMs);
+      return;
+    }
+
+    this.#scheduleCheck(this.config.checkIntervalMs);
+  }
+
+  async #healthCheck(): Promise<{ ok: true } | { ok: false; error: string }> {
+    this.#lastCheckAt = new Date();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.config.checkTimeoutMs);
+    try {
+      const response = await fetch(this.config.healthUrl, {
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      if (response.ok) return { ok: true };
+      return { ok: false, error: `health ${response.status}` };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  #spawn(): void {
+    if (this.#stopping || this.#process !== null) return;
+    const args = [
+      "-N",
+      "-L",
+      `${this.config.localBind}:${this.config.localPort}:${this.config.remoteHost}:${this.config.remotePort}`,
+      "-o",
+      "ExitOnForwardFailure=yes",
+      "-o",
+      "BatchMode=yes",
+      "-o",
+      `ConnectTimeout=${this.config.connectTimeout}`,
+      "-o",
+      `ServerAliveInterval=${this.config.serverAliveInterval}`,
+      "-o",
+      `ServerAliveCountMax=${this.config.serverAliveCountMax}`,
+      this.config.sshHost,
+    ];
+    this.#status = "starting";
+    this.#restarts += 1;
+    this.#failures = 0;
+    this.#lastError = null;
+    console.log(`[voice] asr tunnel start: ssh ${args.join(" ")}`);
+
+    try {
+      const process = Bun.spawn(["ssh", ...args], {
+        stdin: "ignore",
+        stdout: "ignore",
+        stderr: "pipe",
+      }) as Subprocess<"ignore", "ignore", "pipe">;
+      this.#process = process;
+      this.#consumeStderr(process);
+      void process.exited.then((code) => {
+        if (this.#process !== process) return;
+        this.#process = null;
+        if (this.#stopping) return;
+        this.#status = "disconnected";
+        this.#lastError = `ssh exited ${code}`;
+        console.warn(`[voice] asr tunnel exited code=${code}`);
+        this.#scheduleCheck(this.config.reconnectDelayMs);
+      });
+    } catch (error) {
+      this.#process = null;
+      this.#status = "error";
+      this.#lastError = error instanceof Error ? error.message : String(error);
+      console.error(`[voice] asr tunnel spawn failed: ${this.#lastError}`);
+      this.#scheduleCheck(this.config.reconnectDelayMs);
+    }
+  }
+
+  #restart(reason: string): void {
+    this.#stopProcess(reason);
+    this.#spawn();
+  }
+
+  #stopProcess(reason: string): void {
+    const process = this.#process;
+    this.#process = null;
+    if (process === null) return;
+    console.warn(`[voice] asr tunnel stop pid=${process.pid}: ${reason}`);
+    try {
+      process.kill("SIGTERM");
+    } catch (error) {
+      console.warn("[voice] asr tunnel kill failed", error);
+    }
+  }
+
+  async #consumeStderr(process: Subprocess<"ignore", "ignore", "pipe">): Promise<void> {
+    if (process.stderr === null) return;
+    const decoder = new TextDecoder();
+    try {
+      for await (const chunk of process.stderr) {
+        const text = decoder.decode(chunk).trim();
+        if (text) console.warn(`[voice] asr tunnel ssh: ${text}`);
+      }
+    } catch (error) {
+      if (!this.#stopping) console.warn("[voice] asr tunnel stderr failed", error);
+    }
+  }
+
+  #clearTimer(): void {
+    if (this.#timer === null) return;
+    clearTimeout(this.#timer);
+    this.#timer = null;
+  }
+}
+
+asrTunnel = new AsrTunnelSupervisor(ASR_TUNNEL_CONFIG);
+asrTunnel.start();
+console.log(`[voice] asr tunnel ${asrTunnel.info().enabled ? "enabled" : "disabled"} ${asrTunnel.info().local} -> ${asrTunnel.info().remote}`);
+
 function json(payload: unknown, status = 200): Response {
   return Response.json(payload, {
     status,
@@ -414,6 +694,7 @@ function sendError(ws: VoiceSocket, error: unknown): void {
 }
 
 function shutdown(exitCode: number): void {
+  asrTunnel?.stop();
   for (const ws of sockets) {
     void closeRecognizer(ws, false, false);
     ws.close(1001, "server shutdown");

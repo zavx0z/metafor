@@ -74,13 +74,19 @@ The playground has two recognition engines:
 - `Local Vosk` streams microphone PCM to the local Bun/Vosk server at `/ws`.
 - `Remote ASR` streams the same PCM to a configurable WebSocket URL. The default is `ws://127.0.0.1:8877/ws`, intended for an SSH tunnel to `ai-srv`.
 
-For `ai-srv`, keep a local tunnel open:
+The playground server starts and monitors the `ai-srv` SSH tunnel automatically:
 
 ```sh
-ssh -N -L 8877:127.0.0.1:8787 ai-srv
+ssh -N -L 127.0.0.1:8877:127.0.0.1:8787 ai-srv
 ```
 
-or:
+If the tunnel process exits or `/health` stops responding, the server restarts it. Disable the managed tunnel with:
+
+```sh
+VOICE_ASR_TUNNEL=0 bun run voice:playground
+```
+
+Manual tunnel startup is still available for diagnostics:
 
 ```sh
 bun run voice:asr:tunnel
@@ -102,6 +108,13 @@ HOST=127.0.0.1
 VOICE_SAMPLE_RATE=16000
 VOICE_GRAMMAR=1
 VOSK_LOG_LEVEL=-1
+VOICE_ASR_TUNNEL=1
+VOICE_ASR_TUNNEL_SSH_HOST=ai-srv
+VOICE_ASR_TUNNEL_LOCAL_BIND=127.0.0.1
+VOICE_ASR_TUNNEL_LOCAL_PORT=8877
+VOICE_ASR_TUNNEL_REMOTE_HOST=127.0.0.1
+VOICE_ASR_TUNNEL_REMOTE_PORT=8787
+VOICE_ASR_TUNNEL_HEALTH_URL=http://127.0.0.1:8877/health
 ```
 
 The browser captures microphone audio, asks for a 16 kHz `AudioContext`, converts mono float samples to 16-bit PCM, streams chunks to `/ws`, and renders partial/final recognition plus command matches.

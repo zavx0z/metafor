@@ -46,7 +46,7 @@
     "voice:assets": "bun --filter @metafor/voice assets",
     "voice:playground": "bun --filter @metafor/voice playground",
     "voice:smoke": "bun --filter @metafor/voice smoke",
-    "voice:asr:tunnel": "ssh -N -L 8877:127.0.0.1:8787 ai-srv",
+    "voice:asr:tunnel": "ssh -N -L 127.0.0.1:8877:127.0.0.1:8787 ai-srv",
     "voice:asr:health": "curl -fsS http://127.0.0.1:8877/health",
     "voice:vosk:health": "curl -fsS http://127.0.0.1:4765/health",
     "voice:health": "bun run voice:vosk:health && printf '\\n' && bun run voice:asr:health",
