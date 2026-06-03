@@ -64,6 +64,7 @@ type TerminalOutputPaneOpts = {
   showCursor?: boolean
   onResize?: (size: TerminalSize) => void
   onFocusChange?: (focused: boolean) => void
+  onFrameRectPreview?: (rect: PaneRect) => void
   onFrameRectChange?: (rect: PaneRect) => void
   onFrameDockRequest?: () => void
 }
@@ -175,7 +176,7 @@ const SCROLLBAR_W_PX = 4
 const CARET_BLINK_MS = 530
 const AUTOSCROLL_TOLERANCE_PX = 20
 const TERMINAL_SCROLL_KEY = "terminal-pane:scroll"
-const TERMINAL_BG = visionGlass
+const TERMINAL_BG = withAlpha(visionGlass, 0.86)
 const TERMINAL_BORDER = visionBorder
 const HEADER_RULE = withAlpha(palette.borderDim, 0.82)
 const STATUS_FILL = withAlpha(palette.bgInput, 0.76)
@@ -235,6 +236,7 @@ class TerminalOutputPane extends UiSurface {
   #cursorEnabled: boolean
   #onResize: ((size: TerminalSize) => void) | undefined
   #onFocusChange: ((focused: boolean) => void) | undefined
+  #onFrameRectPreview: ((rect: PaneRect) => void) | undefined
   #onFrameRectChange: ((rect: PaneRect) => void) | undefined
   #onFrameDockRequest: (() => void) | undefined
 
@@ -311,6 +313,7 @@ class TerminalOutputPane extends UiSurface {
     this.#cursorVisible = this.#cursorEnabled
     this.#onResize = opts.onResize
     this.#onFocusChange = opts.onFocusChange
+    this.#onFrameRectPreview = opts.onFrameRectPreview
     this.#onFrameRectChange = opts.onFrameRectChange
     this.#onFrameDockRequest = opts.onFrameDockRequest
     this.#screen = Array.from({length: this.#rows}, () => this.#blankLine())
@@ -769,7 +772,8 @@ class TerminalOutputPane extends UiSurface {
     const frame = this.canvas?.surfaceFrame(this)
     if (drag === null || frame === undefined || frame === null) return false
     const next = paneFrameDragRect(drag, event, frame.bounds)
-    this.canvas?.setSurfaceRect(this, next)
+    const applied = this.canvas?.setSurfaceRect(this, next)
+    if (applied !== undefined && applied !== null) this.#onFrameRectPreview?.(applied)
     const cursor = paneFrameCursor(drag.kind, true)
     const canvasElement = this.canvas?.canvas
     if (cursor !== null && canvasElement !== undefined) canvasElement.style.cursor = cursor

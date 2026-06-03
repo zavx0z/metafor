@@ -60,8 +60,26 @@ type WsClientData = UiWsClientData | TerminalWsClientData
 
 const NDJSON_TAIL_DEFAULT_LIMIT = 200
 const NDJSON_TAIL_MAX_LIMIT = 5_000
+const AGENT_COMMAND_TIMEOUT_MS = 8_000
 const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "SIGQUIT"])
 type InterpreterTerminalSessionManager = ReturnType<typeof createPtySessionManager>
+type AgentCommandDispatcher = (command: string, params: JsonObject) => Promise<JsonObject>
+type AgentPendingRequest = {
+  clientId: number
+  command: string
+  resolve: (value: JsonObject) => void
+  reject: (error: Error) => void
+  timer: ReturnType<typeof setTimeout>
+}
+
+class AgentCommandError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
 
 const terminalSessionsGlobal = globalThis as typeof globalThis & {
   __metaforInterpreterTerminalSessions?: InterpreterTerminalSessionManager
@@ -77,6 +95,8 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   const terminalSessions = interpreterTerminalSessions()
   let nextWsClientId = 1
   let nextTerminalClientId = 1
+  let nextAgentRequestId = 1
+  const pendingAgentRequests = new Map<number, AgentPendingRequest>()
 
   if (!isLoopbackHost(options.host)) {
     const warning = "/modules/run can execute local commands; bind the interpreter to loopback unless this is intentional"
@@ -90,6 +110,28 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
     for (const client of wsClients) {
       if (client.readyState === 1) client.send(text)
     }
+  }
+
+  const dispatchAgentCommand: AgentCommandDispatcher = (command, params) => {
+    const client = [...wsClients].find((item) => item.readyState === WebSocket.OPEN)
+    if (client === undefined) {
+      throw new AgentCommandError("no connected interpreter UI client", 503)
+    }
+    const requestId = nextAgentRequestId++
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        pendingAgentRequests.delete(requestId)
+        reject(new AgentCommandError(`agent command timed out: ${command}`, 504))
+      }, AGENT_COMMAND_TIMEOUT_MS)
+      pendingAgentRequests.set(requestId, {
+        clientId: client.data.id,
+        command,
+        resolve,
+        reject,
+        timer,
+      })
+      client.send(JSON.stringify({type: "agent-command", requestId, command, params}))
+    })
   }
 
   // verbose-стрим: события интерпретатора идут отдельно от module-scoped
@@ -203,6 +245,11 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
       const message = asObject(parsed)
       const messageType = asString(message?.["type"])
+      if (message !== undefined && messageType === "agent-result") {
+        acceptAgentResult(message, pendingAgentRequests)
+        return
+      }
+
       if (message === undefined || messageType !== "command") {
         ws.send(JSON.stringify({type: "error", error: 'expected {"type":"command",...}'}))
         return
@@ -246,6 +293,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       }
 
       wsClients.delete(ws)
+      rejectPendingAgentRequestsForClient(ws.data.id, pendingAgentRequests)
       options.logger.event("ws.client.closed", {id: ws.data.id, total: wsClients.size})
     },
   }
@@ -292,7 +340,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
       const start = Date.now()
       try {
-        const response = await handleRoute(method, path, url, req, options, broadcast)
+        const response = await handleRoute(method, path, url, req, options, broadcast, dispatchAgentCommand)
         options.logger.event("http.request", {
           method,
           path,
@@ -319,6 +367,49 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   return server
 }
 
+function acceptAgentResult(message: JsonObject, pending: Map<number, AgentPendingRequest>): void {
+  const requestId = asNumber(message["requestId"])
+  if (requestId === undefined) return
+  const request = pending.get(requestId)
+  if (request === undefined) return
+  pending.delete(requestId)
+  clearTimeout(request.timer)
+  if (message["ok"] === true) {
+    request.resolve({
+      ok: true,
+      command: request.command,
+      result: message["result"] ?? null,
+    })
+    return
+  }
+  const error = asString(message["error"]) ?? "agent command failed"
+  request.reject(new AgentCommandError(error, 400))
+}
+
+function rejectPendingAgentRequestsForClient(clientId: number, pending: Map<number, AgentPendingRequest>): void {
+  for (const [requestId, request] of pending) {
+    if (request.clientId !== clientId) continue
+    pending.delete(requestId)
+    clearTimeout(request.timer)
+    request.reject(new AgentCommandError(`agent UI client disconnected during ${request.command}`, 503))
+  }
+}
+
+async function dispatchAgentRouteFromBody(command: string, req: Request, dispatch: AgentCommandDispatcher): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  return await dispatchAgentRoute(command, parsed.body, dispatch)
+}
+
+async function dispatchAgentRoute(command: string, params: JsonObject, dispatch: AgentCommandDispatcher): Promise<Response> {
+  try {
+    return jsonResponse(await dispatch(command, params))
+  } catch (error) {
+    const status = error instanceof AgentCommandError ? error.status : 500
+    return jsonResponse({ok: false, command, error: serializeError(error)}, status)
+  }
+}
+
 async function handleRoute(
   method: string,
   path: string,
@@ -326,9 +417,17 @@ async function handleRoute(
   req: Request,
   options: HttpServerOptions,
   broadcast: (payload: JsonObject) => void,
+  dispatchAgentCommand: AgentCommandDispatcher,
 ): Promise<Response> {
   if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: routeIndex()})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
+  if (method === "GET" && path === "/agent/displays") return await dispatchAgentRoute("displays.list", {}, dispatchAgentCommand)
+  if (method === "POST" && path === "/agent/displays/focus") return await dispatchAgentRouteFromBody("displays.focus", req, dispatchAgentCommand)
+  if (method === "POST" && path === "/agent/displays/frame") return await dispatchAgentRouteFromBody("displays.frame", req, dispatchAgentCommand)
+  if (method === "GET" && path === "/agent/terminal") return await dispatchAgentRoute("terminal.get", {}, dispatchAgentCommand)
+  if (method === "POST" && path === "/agent/terminal/dock") return await dispatchAgentRouteFromBody("terminal.dock", req, dispatchAgentCommand)
+  if (method === "POST" && path === "/agent/terminal/show") return await dispatchAgentRouteFromBody("terminal.show", req, dispatchAgentCommand)
+  if (method === "POST" && path === "/agent/terminal/toggle") return await dispatchAgentRouteFromBody("terminal.toggle", req, dispatchAgentCommand)
   if (method === "GET" && path === "/modules") return jsonResponse({modules: options.modules.snapshots()})
   if (method === "POST" && path === "/modules/run") return await runModule(req, options)
   const moduleRun = /^\/modules\/([^/]+)\/run$/.exec(path)
@@ -376,6 +475,13 @@ function serveStatic(filePath: string, contentType: string): Response {
 function routeIndex(): Array<{method: string; path: string; description: string}> {
   return [
     {method: "GET", path: "/health", description: "статус коннекта и параметры"},
+    {method: "GET", path: "/agent/displays", description: "agent API: список UI-дисплеев и их экранная геометрия"},
+    {method: "POST", path: "/agent/displays/focus", description: "{selector:{side|displayId|moduleId|label|order}, view?} — сфокусировать дисплей"},
+    {method: "POST", path: "/agent/displays/frame", description: "agent API: вернуть обзор всех дисплеев"},
+    {method: "GET", path: "/agent/terminal", description: "agent API: состояние host terminal HUD"},
+    {method: "POST", path: "/agent/terminal/dock", description: "agent API: свернуть host terminal HUD"},
+    {method: "POST", path: "/agent/terminal/show", description: "agent API: развернуть host terminal HUD"},
+    {method: "POST", path: "/agent/terminal/toggle", description: "agent API: переключить host terminal HUD"},
     {method: "GET", path: "/modules", description: "список модулей интерпретатора"},
     {method: "POST", path: "/modules/run", description: "{label?, command, cwd?, env?, pauseOnStart?, breakpoints?} — запустить новый модуль"},
     {method: "POST", path: "/modules/:id/stop", description: "{signal?} — остановить модуль"},

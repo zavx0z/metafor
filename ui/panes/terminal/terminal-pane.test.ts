@@ -72,11 +72,13 @@ describe("TerminalPane focus", () => {
   })
 
   test("emits final frame rect after header drag", () => {
+    const previews: Array<{x: number; y: number; w: number; h: number}> = []
     const changes: Array<{x: number; y: number; w: number; h: number}> = []
     const terminal = new TerminalPane({
       cols: 20,
       rows: 4,
       fitToRect: false,
+      onFrameRectPreview: (rect) => previews.push(rect),
       onFrameRectChange: (rect) => changes.push(rect),
     })
     let frameRect = {x: 10, y: 20, w: 300, h: 180}
@@ -101,6 +103,8 @@ describe("TerminalPane focus", () => {
         preventDefault: () => {},
       } as MouseEvent, 1, 1)
       terminal.onPointerMove({clientX: 150, clientY: 130} as MouseEvent, 51, 31)
+      expect(previews).toEqual([{x: 60, y: 50, w: 300, h: 180}])
+      expect(changes).toEqual([])
       terminal.onPointerUp({clientX: 150, clientY: 130} as MouseEvent, 51, 31)
       expect(changes).toEqual([{x: 60, y: 50, w: 300, h: 180}])
     } finally {

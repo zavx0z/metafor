@@ -6,7 +6,7 @@
  * `/modules/:id/...`.
  */
 
-import {UiRuntime, UiSurface, button, drawIconCentered, palette, uiIcons, type UiSurfaceRect} from "@ui/elements"
+import {UiRuntime, UiSurface, button, drawIconCentered, palette, uiIcons, type UiRuntimeDisplaySnapshot, type UiSurfaceRect} from "@ui/elements"
 import {Switcher, VoiceInputHud, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
@@ -65,6 +65,7 @@ type ServerMessage =
   | {type: "module-protocol-event"; moduleId: string; ts: string; method: string; params: unknown}
   | {type: "interpreter-event"; ts: string; event: string; detail: unknown}
   | {type: "result"; requestId: number; ok: boolean; result?: unknown; error?: string}
+  | {type: "agent-command"; requestId: number; command: string; params?: unknown}
   | {type: "reload"}
 
 type TargetEvent =
@@ -156,6 +157,13 @@ type CachedSource = {
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
 type ActiveInterpreterCommand = {cmd: string; label: string; startedAt: number}
 type DisplayLayoutMetrics = {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}
+type AgentDisplaySelectorSide = "left" | "right" | "top" | "bottom" | "center"
+type AgentDisplayInfo = UiRuntimeDisplaySnapshot & {
+  displayId: string
+  moduleId: string
+  label: string
+  order: number
+}
 type PtyStatusKind = "idle" | "connected" | "running" | "disconnected" | "error"
 type PtyTerminalState = {
   echo: boolean
@@ -316,6 +324,7 @@ let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
 let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let hostTerminalDockPlacement = readStoredHostTerminalDockPlacement()
+let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let voiceHudPane: VoiceInputHud | null = null
 let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
@@ -441,6 +450,9 @@ function handleServerMessage(msg: ServerMessage): void {
       resolvePendingRequest(msg)
       pendingRequests.delete(msg.requestId)
       return
+    case "agent-command":
+      void handleAgentCommand(msg)
+      return
     case "reload": {
       const url = new URL(window.location.href)
       url.searchParams.set("_r", String(Date.now()))
@@ -448,6 +460,197 @@ function handleServerMessage(msg: ServerMessage): void {
       return
     }
   }
+}
+
+function handleAgentCommand(msg: Extract<ServerMessage, {type: "agent-command"}>): void {
+  try {
+    const result = executeAgentCommand(msg.command, msg.params)
+    sendAgentResult(msg.requestId, {ok: true, result})
+  } catch (error) {
+    sendAgentResult(msg.requestId, {ok: false, error: error instanceof Error ? error.message : String(error)})
+  }
+}
+
+function sendAgentResult(requestId: number, reply: CommandReply): void {
+  if (socket === undefined || socket.readyState !== WebSocket.OPEN) return
+  socket.send(JSON.stringify({
+    type: "agent-result",
+    requestId,
+    ok: reply.ok,
+    ...(reply.result === undefined ? {} : {result: reply.result}),
+    ...(reply.error === undefined ? {} : {error: reply.error}),
+  }))
+}
+
+function executeAgentCommand(command: string, params: unknown): unknown {
+  switch (command) {
+    case "displays.list":
+    case "agent.displays.list":
+      return agentDisplayPayload()
+    case "displays.focus":
+    case "agent.displays.focus":
+      return focusAgentDisplay(params)
+    case "displays.frame":
+    case "agent.displays.frame":
+      return frameAgentDisplays()
+    case "terminal.get":
+    case "agent.terminal.get":
+      return agentTerminalPayload()
+    case "terminal.dock":
+    case "agent.terminal.dock":
+      return setAgentTerminalDocked(true)
+    case "terminal.show":
+    case "agent.terminal.show":
+      return setAgentTerminalDocked(false)
+    case "terminal.toggle":
+    case "agent.terminal.toggle":
+      return setAgentTerminalDocked(!hostTerminalHudDocked)
+    default:
+      throw new Error(`unknown agent command: ${command}`)
+  }
+}
+
+function agentDisplayPayload(): {
+  mode: string
+  activeDisplayId: string | null
+  displays: AgentDisplayInfo[]
+} {
+  if (uiCanvas === null) throw new Error("ui runtime is not ready")
+  return {
+    mode: uiCanvas.displayMode,
+    activeDisplayId: uiCanvas.activeDisplayId,
+    displays: agentDisplayInfos(),
+  }
+}
+
+function focusAgentDisplay(params: unknown): unknown {
+  if (uiCanvas === null) throw new Error("ui runtime is not ready")
+  const body = objectParam(params)
+  const selector = objectParamMaybe(body["selector"]) ?? body
+  const view = stringParam(body["view"]) ?? "full"
+  const display = resolveAgentDisplay(selector)
+  if (display === null) throw new Error("display not found")
+  if (view === "full" && body["dockHostTerminal"] !== false) setHostTerminalHudDocked(true)
+  const focused = uiCanvas.focusDisplay(display.displayId)
+  if (!focused) throw new Error(`display not found: ${display.displayId}`)
+  return {
+    resolved: display,
+    view,
+    ...agentDisplayPayload(),
+  }
+}
+
+function frameAgentDisplays(): unknown {
+  if (uiCanvas === null) throw new Error("ui runtime is not ready")
+  uiCanvas.frameDisplays(moduleOrder.map((moduleId) => moduleDisplayId(moduleId)))
+  return agentDisplayPayload()
+}
+
+function setAgentTerminalDocked(docked: boolean): unknown {
+  ensureHostTerminalController()
+  setHostTerminalHudDocked(docked)
+  return agentTerminalPayload()
+}
+
+function agentTerminalPayload(): unknown {
+  const controller = hostTerminal
+  const frame = controller === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(controller.hudTerminal)
+  return {
+    docked: hostTerminalHudDocked,
+    sessionId: controller?.sessionId ?? readStoredHostTerminalSessionId(),
+    status: controller?.connectionState ?? "idle",
+    statusLabel: hostTerminalStatusLabelForLayout,
+    rect: frame?.rect ?? null,
+    dockPlacement: hostTerminalDockPlacement,
+  }
+}
+
+function agentDisplayInfos(): AgentDisplayInfo[] {
+  if (uiCanvas === null) return []
+  const runtimeDisplays = new Map(uiCanvas.displaySnapshots().map((display) => [display.id, display]))
+  const displays: AgentDisplayInfo[] = []
+  for (const [order, moduleId] of moduleOrder.entries()) {
+    const displayId = moduleDisplayId(moduleId)
+    const runtimeDisplay = runtimeDisplays.get(displayId)
+    const snapshot = moduleSnapshots.get(moduleId)
+    if (runtimeDisplay === undefined || snapshot === undefined) continue
+    displays.push({
+      ...runtimeDisplay,
+      displayId,
+      moduleId,
+      label: snapshot.label,
+      order,
+    })
+  }
+  return displays
+}
+
+function resolveAgentDisplay(selector: Record<string, unknown>): AgentDisplayInfo | null {
+  const displays = agentDisplayInfos()
+  if (displays.length === 0) return null
+
+  const displayId = stringParam(selector["displayId"]) ?? stringParam(selector["id"])
+  if (displayId !== undefined) return displays.find((display) => display.displayId === displayId || display.id === displayId) ?? null
+
+  const moduleId = stringParam(selector["moduleId"])
+  if (moduleId !== undefined) return displays.find((display) => display.moduleId === moduleId) ?? null
+
+  const order = numberParam(selector["order"]) ?? numberParam(selector["index"])
+  if (order !== undefined && Number.isInteger(order)) return displays.find((display) => display.order === order) ?? null
+
+  const label = stringParam(selector["label"])
+  if (label !== undefined) {
+    const normalized = label.trim().toLowerCase()
+    const found = displays.find((display) => display.label.toLowerCase() === normalized)
+      ?? displays.find((display) => display.label.toLowerCase().includes(normalized))
+    if (found !== undefined) return found
+  }
+
+  const side = sideParam(selector["side"])
+  if (side !== undefined) return resolveAgentDisplaySide(displays, side)
+
+  return displays.find((display) => display.active) ?? displays[0] ?? null
+}
+
+function resolveAgentDisplaySide(displays: AgentDisplayInfo[], side: AgentDisplaySelectorSide): AgentDisplayInfo | null {
+  const visible = displays.filter((display) => display.visible && display.screenCenter !== null)
+  const candidates = visible.length > 0 ? visible : displays.filter((display) => display.screenCenter !== null)
+  if (candidates.length === 0) return displays[0] ?? null
+  const sorted = [...candidates]
+  if (side === "left") sorted.sort((left, right) => left.screenCenter!.x - right.screenCenter!.x)
+  else if (side === "right") sorted.sort((left, right) => right.screenCenter!.x - left.screenCenter!.x)
+  else if (side === "top") sorted.sort((left, right) => left.screenCenter!.y - right.screenCenter!.y)
+  else if (side === "bottom") sorted.sort((left, right) => right.screenCenter!.y - left.screenCenter!.y)
+  else {
+    const viewportCenter = {x: engineCanvas.clientWidth / 2, y: engineCanvas.clientHeight / 2}
+    sorted.sort((left, right) => {
+      const leftDistance = Math.hypot(left.screenCenter!.x - viewportCenter.x, left.screenCenter!.y - viewportCenter.y)
+      const rightDistance = Math.hypot(right.screenCenter!.x - viewportCenter.x, right.screenCenter!.y - viewportCenter.y)
+      return leftDistance - rightDistance
+    })
+  }
+  return sorted[0] ?? null
+}
+
+function objectParam(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function objectParamMaybe(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+}
+
+function stringParam(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined
+}
+
+function numberParam(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function sideParam(value: unknown): AgentDisplaySelectorSide | undefined {
+  if (value !== "left" && value !== "right" && value !== "top" && value !== "bottom" && value !== "center") return undefined
+  return value
 }
 
 function applyModuleSnapshots(modules: ModulePaneSnapshot[]): void {
@@ -2331,7 +2534,8 @@ function ensureHostTerminalController(): HostTerminalController {
     fontPx: 12,
     linePx: 17,
     onResize: (size) => resizeHostTerminalFromPane(controller, hudTerminal, size),
-    onFrameRectChange: storeHostTerminalHudRect,
+    onFrameRectPreview: previewHostTerminalHudRect,
+    onFrameRectChange: storeHostTerminalHudRectAndRelayout,
     onFrameDockRequest: () => setHostTerminalHudDocked(true),
   })
   Object.assign(controller, {
@@ -2365,6 +2569,7 @@ function createHostTerminalPane(
     fitToRect?: boolean
     scrollX?: boolean
     onResize?: (size: TerminalSize) => void
+    onFrameRectPreview?: TerminalPaneOpts["onFrameRectPreview"]
     onFrameRectChange?: TerminalPaneOpts["onFrameRectChange"]
     onFrameDockRequest?: TerminalPaneOpts["onFrameDockRequest"]
   },
@@ -2389,6 +2594,7 @@ function createHostTerminalPane(
   if (opts.fitToRect !== undefined) terminalOpts.fitToRect = opts.fitToRect
   if (opts.scrollX !== undefined) terminalOpts.scrollX = opts.scrollX
   if (opts.onResize !== undefined) terminalOpts.onResize = opts.onResize
+  if (opts.onFrameRectPreview !== undefined) terminalOpts.onFrameRectPreview = opts.onFrameRectPreview
   if (opts.onFrameRectChange !== undefined) terminalOpts.onFrameRectChange = opts.onFrameRectChange
   if (opts.onFrameDockRequest !== undefined) terminalOpts.onFrameDockRequest = opts.onFrameDockRequest
   terminal = new TerminalPane(terminalOpts)
@@ -2706,6 +2912,17 @@ function storeHostTerminalHudRect(rect: UiSurfaceRect): void {
   } catch {
     // Storage can be disabled in private contexts.
   }
+}
+
+function previewHostTerminalHudRect(rect: UiSurfaceRect): void {
+  hostTerminalHudRectPreview = rect
+  uiCanvas?.relayout()
+}
+
+function storeHostTerminalHudRectAndRelayout(rect: UiSurfaceRect): void {
+  hostTerminalHudRectPreview = null
+  storeHostTerminalHudRect(rect)
+  uiCanvas?.relayout()
 }
 
 function readStoredVoiceHudRect(): UiSurfaceRect | null {
@@ -3744,6 +3961,7 @@ function hiddenRect(): UiSurfaceRect {
 function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   if (hostTerminalHudDocked) return hiddenRect()
   if (w < HOST_TERMINAL_HUD_MIN_W || h < HOST_TERMINAL_HUD_MIN_H) return hiddenRect()
+  if (hostTerminalHudRectPreview !== null) return clampHostTerminalHudRect(hostTerminalHudRectPreview, w, h)
   const stored = readStoredHostTerminalHudRect()
   if (stored !== null) return clampHostTerminalHudRect(stored, w, h)
   const pad = 16

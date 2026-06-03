@@ -37,6 +37,18 @@ export type UiDisplayHoverOutline = {
   bottomLeft: {x: number; y: number}
 }
 
+export type UiRuntimeDisplaySnapshot = {
+  id: UiDisplayId
+  active: boolean
+  hovered: boolean
+  visible: boolean
+  centerMm: {x: number; y: number; z: number}
+  metrics: {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}
+  screenCenter: {x: number; y: number} | null
+  screenRect: {x: number; y: number; w: number; h: number} | null
+  outline: UiDisplayHoverOutline | null
+}
+
 export interface UiSurfaceNode {
   /** Object3D, который UiRuntime позиционирует. node.origin = TL surface-rect. */
   readonly node: Object3D
@@ -554,6 +566,10 @@ export class UiRuntime {
     return this.#displayMode
   }
 
+  get activeDisplayId(): UiDisplayId | null {
+    return this.#activeDisplayId
+  }
+
   setDisplayMode(mode: UiVirtualDisplayMode): void {
     if (!this.#displaySpaceEnabled) return
     const nextDistance = mode === "near" ? this.#displayNearDistanceMm : this.#displayFarDistanceMm
@@ -569,6 +585,49 @@ export class UiRuntime {
       return
     }
     this.#animateCameraToDisplayDistance(nextDistance)
+  }
+
+  focusDisplay(displayId: UiDisplayId): boolean {
+    if (!this.#displaySpaceEnabled || !this.#displaySlots.has(displayId)) return false
+    if (this.#displayMode === "far") this.#displayReturnPose = this.#captureViewPointPose()
+    this.#activeDisplayId = displayId
+    this.#displayHoverDisplayId = displayId
+    this.#displayNavigationDisplayId = null
+    this.#displayMode = "near"
+    this.#animateCameraToDisplayDistance(this.#displayNearDistanceMm)
+    return true
+  }
+
+  displaySnapshots(): UiRuntimeDisplaySnapshot[] {
+    this.#applyDisplayGeometry()
+    const snapshots: UiRuntimeDisplaySnapshot[] = []
+    for (const slot of this.#displaySlots.values()) {
+      const outline = this.displayOutline(slot.id)
+      const screenRect = outline === null ? null : rectFromOutline(outline)
+      const screenCenter = outline === null ? null : centerFromOutline(outline)
+      const visible = screenRect !== null
+        && screenRect.x + screenRect.w >= 0
+        && screenRect.y + screenRect.h >= 0
+        && screenRect.x <= this.#pixelWidth
+        && screenRect.y <= this.#pixelHeight
+      snapshots.push({
+        id: slot.id,
+        active: slot.id === this.#activeDisplayId,
+        hovered: slot.id === this.#displayHoverDisplayId,
+        visible,
+        centerMm: {x: slot.centerMm.x, y: slot.centerMm.y, z: slot.centerMm.z},
+        metrics: {
+          widthMm: slot.display.widthMm,
+          heightMm: slot.display.heightMm,
+          pixelWidth: slot.pixelWidth,
+          pixelHeight: slot.pixelHeight,
+        },
+        screenCenter,
+        screenRect,
+        outline,
+      })
+    }
+    return snapshots
   }
 
   uiRectToFramebufferClipBounds(
@@ -1366,6 +1425,23 @@ function isRuntimeKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanv
   if (!(target instanceof HTMLElement)) return false
   if (target.closest("textarea,input,select,[contenteditable='true']") !== null) return false
   return target === canvas.parentElement || target.contains(canvas)
+}
+
+function centerFromOutline(outline: UiDisplayHoverOutline): {x: number; y: number} {
+  return {
+    x: (outline.topLeft.x + outline.topRight.x + outline.bottomRight.x + outline.bottomLeft.x) / 4,
+    y: (outline.topLeft.y + outline.topRight.y + outline.bottomRight.y + outline.bottomLeft.y) / 4,
+  }
+}
+
+function rectFromOutline(outline: UiDisplayHoverOutline): {x: number; y: number; w: number; h: number} {
+  const xs = [outline.topLeft.x, outline.topRight.x, outline.bottomRight.x, outline.bottomLeft.x]
+  const ys = [outline.topLeft.y, outline.topRight.y, outline.bottomRight.y, outline.bottomLeft.y]
+  const xMin = Math.min(...xs)
+  const yMin = Math.min(...ys)
+  const xMax = Math.max(...xs)
+  const yMax = Math.max(...ys)
+  return {x: xMin, y: yMin, w: xMax - xMin, h: yMax - yMin}
 }
 
 function clampSurfaceRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
