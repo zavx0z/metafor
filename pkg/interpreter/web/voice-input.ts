@@ -13,6 +13,7 @@ export type VoiceInputChunk = {
 }
 
 export type VoiceInputSignalTone = "activation" | "deactivation" | "stop"
+export type VoiceInputPhraseGroupId = "activation" | "deactivation" | "stop"
 
 type VoiceInputClientOptions = {
   url(): string
@@ -20,10 +21,12 @@ type VoiceInputClientOptions = {
   activationPhrases(): readonly string[]
   deactivationPhrases(): readonly string[]
   stopPhrases(): readonly string[]
+  phraseFuzzyTolerance(groupId: VoiceInputPhraseGroupId): number
   language: string
   context(): string
   onStatus(status: VoiceInputStatus, detail?: string): void
   onWake(text: string): void
+  onCommandText(text: string): void
   onPartial(text: string): void
   onChunk(chunk: VoiceInputChunk): void
   onLevel(level: number): void
@@ -44,6 +47,7 @@ type VoiceCommandPhraseGroups = {
   deactivation: readonly string[]
   stop: readonly string[]
 }
+type VoicePhraseTolerance = (groupId: VoiceInputPhraseGroupId) => number
 type VoiceControlCommand = "deactivation" | "stop"
 type VoiceControlText = {
   text: string
@@ -59,29 +63,15 @@ const WAKE_WORD = "завхоз"
 export const VOICE_STOP_COMMAND_DETAIL = "voice stop command"
 export const DEFAULT_VOICE_ACTIVATION_PHRASES = [
   "Завхоз",
-  "Зав хоз",
-  "Завхос",
-  "Зав хос",
-  "Запхоз",
-  "Зап хоз",
-  "Совхоз",
-  "За вход",
   "Агент",
-  "Слышь долбоеб",
-  "Слыш долбоеб",
   "Слышь долбоёб",
-  "Слыш долбоёб",
 ] as const
 export const DEFAULT_VOICE_WAKE_PHRASES = DEFAULT_VOICE_ACTIVATION_PHRASES
 export const DEFAULT_VOICE_DEACTIVATION_PHRASES = [
   "выключи микрофон",
-  "выключу микрофон",
   "отключи микрофон",
-  "отключу микрофон",
   "выруби микрофон",
-  "вырублю микрофон",
   "останови голосовой ввод",
-  "остановлю голосовой ввод",
   "Засыпай",
   "Режим ожидания",
   "Жди команду",
@@ -176,9 +166,14 @@ export class VoiceInputClient {
     this.#cleanup(detail === VOICE_STOP_COMMAND_DETAIL ? 420 : 0)
   }
 
-  playSignalTone(kind: VoiceInputSignalTone, onResult?: (kind: VoiceInputSignalTone, method: string, error?: unknown) => void): boolean {
+  playSignalTone(kind: VoiceInputSignalTone, volume: number, onResult?: (kind: VoiceInputSignalTone, method: string, error?: unknown) => void): boolean {
     const context = this.#audioContext
     if (context === null || context.state === "closed") return false
+    const signalVolume = Math.min(1, Math.max(0, volume))
+    if (signalVolume <= 0) {
+      onResult?.(kind, "capture muted")
+      return true
+    }
     const play = (): void => {
       try {
         const spec = voiceInputSignalTone(kind)
@@ -189,9 +184,10 @@ export class VoiceInputClient {
         oscillator.type = spec.type
         oscillator.frequency.setValueAtTime(spec.startHz, start)
         oscillator.frequency.exponentialRampToValueAtTime(spec.endHz, end)
+        const peakGain = spec.gain * signalVolume
         gain.gain.setValueAtTime(0.0001, start)
-        gain.gain.exponentialRampToValueAtTime(spec.gain, start + 0.018)
-        gain.gain.exponentialRampToValueAtTime(spec.gain * 0.4, start + spec.duration * 0.45)
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peakGain), start + 0.018)
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peakGain * 0.4), start + spec.duration * 0.45)
         gain.gain.exponentialRampToValueAtTime(0.0001, end)
         oscillator.connect(gain)
         gain.connect(context.destination)
@@ -400,16 +396,17 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
     const text = recognitionText(msg)
     if (!text) return
+    this.options.onCommandText(cleanupVoiceText(text))
 
     const phraseGroups = this.#commandPhrases()
     if (this.#asrEnabled) {
       const commandsArmed = performance.now() - this.#asrActivatedAt >= STOP_COMMAND_ARM_DELAY_MS
       if (commandsArmed && isFinalRecognitionMessage(msg)) {
-        if (hasStopCommand(text, phraseGroups.stop)) {
+        if (hasStopCommand(text, phraseGroups.stop, this.#phraseFuzzyTolerance("stop"))) {
           this.stop(VOICE_STOP_COMMAND_DETAIL)
           return
         }
-        if (hasCommandPhrase(text, phraseGroups.deactivation)) {
+        if (hasCommandPhrase(text, phraseGroups.deactivation, this.#phraseFuzzyTolerance("deactivation"))) {
           void this.sleepToWake().catch((error) => {
             this.#setStatus("error", error instanceof Error ? error.message : String(error))
             this.#cleanup()
@@ -420,13 +417,14 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     this.#setStatus("waitingWake", WAKE_WORD)
-    if (isFinalRecognitionMessage(msg) && hasStopCommand(text, phraseGroups.stop)) {
+    if (isFinalRecognitionMessage(msg) && hasStopCommand(text, phraseGroups.stop, this.#phraseFuzzyTolerance("stop"))) {
       this.stop(VOICE_STOP_COMMAND_DETAIL)
       return
     }
     const activationPhrases = phraseGroups.activation
+    const activationTolerance = this.#phraseFuzzyTolerance("activation")
     if (msg.type === "partial" && !isFastActivationPartial(text, activationPhrases)) return
-    if (!isActivationPhrase(text, activationPhrases)) return
+    if (!isActivationPhrase(text, activationPhrases, activationTolerance)) return
 
     void this.#activateAsr(text).catch((error) => {
       this.#setStatus("error", error instanceof Error ? error.message : String(error))
@@ -446,13 +444,13 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (msg.type === "partial") {
       const text = recognitionText(msg)
       this.#setStatus("listening", compactDetail(text))
-      const partial = removeCommandTextFromString(text, this.#commandPhrases())
+      const partial = removeCommandTextFromString(text, this.#commandPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
       if (partial.text || partial.command === null) this.options.onPartial(partial.text)
       return
     }
 
     if (msg.type === "result" || msg.type === "final") {
-      const result = removeCommandText(chunkFromAsrMessage(msg, this.#commandPhrases()), this.#commandPhrases())
+      const result = removeCommandText(chunkFromAsrMessage(msg, this.#commandPhrases()), this.#commandPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
       const chunk = result.chunk
       if (voiceChunkHasText(chunk)) {
         this.#pendingCommittedChunk = chunk
@@ -469,7 +467,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "committed") {
-      const result = removeCommandText(chunkFromAsrMessage(msg, this.#commandPhrases()), this.#commandPhrases())
+      const result = removeCommandText(chunkFromAsrMessage(msg, this.#commandPhrases()), this.#commandPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
       const committedChunk = result.chunk
       if (voiceChunkHasText(committedChunk)) this.#pendingCommittedChunk = committedChunk
       this.#clearPendingChunkFlushTimer()
@@ -696,6 +694,11 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       stop: normalizeVoicePhrases(this.options.stopPhrases()),
     }
   }
+
+  #phraseFuzzyTolerance(groupId: VoiceInputPhraseGroupId): number {
+    const value = this.options.phraseFuzzyTolerance(groupId)
+    return Number.isFinite(value) ? Math.min(0.5, Math.max(0, value)) : 0
+  }
 }
 
 function voiceInputSignalTone(kind: VoiceInputSignalTone): {
@@ -733,16 +736,16 @@ function cleanupAsrText(text: string, activationPhrases: readonly string[]): str
   return stripPhrasePrefix(cleanupVoiceText(text), activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
 }
 
-function removeCommandTextFromString(text: string, phraseGroups: VoiceCommandPhraseGroups): VoiceControlText {
-  return stripControlCommandText(cleanupAsrText(text, phraseGroups.activation), phraseGroups)
+function removeCommandTextFromString(text: string, phraseGroups: VoiceCommandPhraseGroups, toleranceFor: VoicePhraseTolerance): VoiceControlText {
+  return stripControlCommandText(cleanupAsrText(text, phraseGroups.activation), phraseGroups, toleranceFor)
 }
 
-function removeCommandText(chunk: VoiceInputChunk, phraseGroups: VoiceCommandPhraseGroups): VoiceControlChunk {
-  const textResult = stripControlCommandText(chunk.text, phraseGroups)
+function removeCommandText(chunk: VoiceInputChunk, phraseGroups: VoiceCommandPhraseGroups, toleranceFor: VoicePhraseTolerance): VoiceControlChunk {
+  const textResult = stripControlCommandText(chunk.text, phraseGroups, toleranceFor)
   let command = textResult.command
   const messages: string[] = []
   for (const message of chunk.messages) {
-    const result = stripControlCommandText(message, phraseGroups)
+    const result = stripControlCommandText(message, phraseGroups, toleranceFor)
     command = mergeControlCommand(command, result.command)
     if (result.text) messages.push(result.text)
   }
@@ -766,26 +769,26 @@ function voiceChunkPreviewText(chunk: VoiceInputChunk): string {
   return chunk.segments.map((segment) => segment.text ?? "").filter(Boolean).join(" ")
 }
 
-function stripControlCommandText(text: string, phraseGroups: VoiceCommandPhraseGroups): VoiceControlText {
+function stripControlCommandText(text: string, phraseGroups: VoiceCommandPhraseGroups, toleranceFor: VoicePhraseTolerance): VoiceControlText {
   const controlPhrases = [
     ...normalizePhrasesForRecognition(phraseGroups.deactivation, DEFAULT_VOICE_DEACTIVATION_PHRASES),
     ...normalizePhrasesForRecognition(phraseGroups.stop, DEFAULT_VOICE_STOP_PHRASES),
   ]
-  let command = detectControlCommand(text, phraseGroups)
+  let command = detectControlCommand(text, phraseGroups, toleranceFor)
   let out = text
   for (const phrase of controlPhrases.sort((a, b) => b.length - a.length)) {
     const next = out.replace(new RegExp(`(^|[\\s,.;:!?…-]+)${voicePhraseRegexSource(phrase)}(?=$|[\\s,.;:!?…-]+)`, "giu"), " ")
-    if (next !== out && command === null) command = detectControlCommand(phrase, phraseGroups)
+    if (next !== out && command === null) command = detectControlCommand(phrase, phraseGroups, toleranceFor)
     out = next
   }
   if (command !== null && out === text) return {text: "", command}
   return {text: cleanupVoiceText(out), command}
 }
 
-function detectControlCommand(text: string, phraseGroups: VoiceCommandPhraseGroups): VoiceControlCommand | null {
-  if (hasStopCommand(text, phraseGroups.stop)) return "stop"
+function detectControlCommand(text: string, phraseGroups: VoiceCommandPhraseGroups, toleranceFor: VoicePhraseTolerance): VoiceControlCommand | null {
+  if (hasStopCommand(text, phraseGroups.stop, toleranceFor("stop"))) return "stop"
   const deactivationPhrases = normalizePhrasesForRecognition(phraseGroups.deactivation, DEFAULT_VOICE_DEACTIVATION_PHRASES)
-  return hasCommandPhrase(text, deactivationPhrases) ? "deactivation" : null
+  return hasCommandPhrase(text, deactivationPhrases, toleranceFor("deactivation")) ? "deactivation" : null
 }
 
 function mergeControlCommand(a: VoiceControlCommand | null, b: VoiceControlCommand | null): VoiceControlCommand | null {
@@ -793,11 +796,11 @@ function mergeControlCommand(a: VoiceControlCommand | null, b: VoiceControlComma
   return a ?? b
 }
 
-function hasStopCommand(text: string, stopPhrases: readonly string[]): boolean {
+function hasStopCommand(text: string, stopPhrases: readonly string[], tolerance: number): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
   const phrases = normalizePhrasesForRecognition(stopPhrases, DEFAULT_VOICE_STOP_PHRASES)
-  return phrases.some((phrase) => phraseInText(normalized, phrase))
+  return phrases.some((phrase) => phraseMatchesText(normalized, phrase, tolerance))
 }
 
 function isFinalRecognitionMessage(msg: AsrMessage): boolean {
@@ -814,7 +817,7 @@ function recognitionText(msg: AsrMessage): string {
   return ""
 }
 
-function isActivationPhrase(text: string, activationPhrases: readonly string[]): boolean {
+function isActivationPhrase(text: string, activationPhrases: readonly string[], tolerance: number): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
   const phrases = normalizePhrasesForRecognition(activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
@@ -823,20 +826,23 @@ function isActivationPhrase(text: string, activationPhrases: readonly string[]):
   const words = normalized.split(/\s+/)
   const shortWakeUtterance = words.length <= 3
   if (!shortWakeUtterance) return false
+  if (tolerance > 0 && phrases.some((phrase) => fuzzyPhraseInText(normalized, phrase, tolerance))) return true
 
-  return words.some((word) => phrases.some((phrase) => fuzzyWakeWordMatch(word, phrase)))
+  if (tolerance <= 0) return false
+  return words.some((word) => phrases.some((phrase) => fuzzyWakeWordMatch(word, phrase, tolerance)))
 }
 
 function isFastActivationPartial(text: string, activationPhrases: readonly string[]): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
-  return normalizePhrasesForRecognition(activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES).some((phrase) => phraseInText(normalized, phrase))
+  const phrases = normalizePhrasesForRecognition(activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
+  return phrases.some((phrase) => phraseInText(normalized, phrase))
 }
 
-function hasCommandPhrase(text: string, phrases: readonly string[]): boolean {
+function hasCommandPhrase(text: string, phrases: readonly string[], tolerance: number): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
-  return phrases.some((phrase) => phraseInText(normalized, normalizeWakeText(phrase)))
+  return phrases.some((phrase) => phraseMatchesText(normalized, normalizeWakeText(phrase), tolerance))
 }
 
 function normalizeWakeText(text: string): string {
@@ -983,11 +989,45 @@ function phraseInText(text: string, phrase: string): boolean {
     || text.includes(` ${phrase} `)
 }
 
-function fuzzyWakeWordMatch(word: string, phrase: string): boolean {
+function phraseMatchesText(text: string, phrase: string, tolerance: number): boolean {
+  if (!phrase) return false
+  if (phraseInText(text, phrase)) return true
+  return fuzzyPhraseInText(text, phrase, tolerance)
+}
+
+function fuzzyPhraseInText(text: string, phrase: string, tolerance: number): boolean {
+  if (tolerance <= 0 || !text || !phrase) return false
+  const phraseWords = phrase.split(/\s+/).filter(Boolean)
+  const textWords = text.split(/\s+/).filter(Boolean)
+  if (phraseWords.length === 0 || textWords.length === 0) return false
+
+  const minWindow = Math.max(1, phraseWords.length - 1)
+  const maxWindow = Math.min(textWords.length, phraseWords.length + 1)
+  const compactPhrase = phrase.replace(/\s+/g, "")
+  for (let size = minWindow; size <= maxWindow; size += 1) {
+    for (let start = 0; start + size <= textWords.length; start += 1) {
+      const candidate = textWords.slice(start, start + size).join(" ")
+      const compactCandidate = candidate.replace(/\s+/g, "")
+      const score = Math.min(
+        normalizedLevenshtein(candidate, phrase),
+        normalizedLevenshtein(compactCandidate, compactPhrase),
+      )
+      if (score <= tolerance) return true
+    }
+  }
+  return false
+}
+
+function normalizedLevenshtein(a: string, b: string): number {
+  const length = Math.max(a.length, b.length)
+  if (length === 0) return 0
+  return levenshtein(a, b) / length
+}
+
+function fuzzyWakeWordMatch(word: string, phrase: string, tolerance: number): boolean {
   if (phrase.includes(" ")) return false
   if (word.length < 5 || word.length > Math.max(8, phrase.length + 2)) return false
-  const threshold = phrase.length >= 8 ? 2 : 1
-  return levenshtein(word, phrase) <= threshold
+  return normalizedLevenshtein(word, phrase) <= tolerance
 }
 
 function escapeRegExp(value: string): string {

@@ -247,9 +247,14 @@ const VOICE_WAKE_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.wakePhrases:v1
 const VOICE_ACTIVATION_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.activationPhrases:v1"
 const VOICE_DEACTIVATION_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.deactivationPhrases:v1"
 const VOICE_STOP_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.stopPhrases:v1"
+const VOICE_ACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.activationFuzzy:v1"
+const VOICE_DEACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.deactivationFuzzy:v1"
+const VOICE_STOP_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.stopFuzzy:v1"
 const VOICE_HUD_RECT_STORAGE_KEY = "metafor.interpreter.voice.hudRect:v1"
+const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
+const DEFAULT_VOICE_SIGNAL_VOLUME = 1
 const VOICE_SERVICE_CHECK_INTERVAL_MS = 12_000
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2_500
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
@@ -268,6 +273,9 @@ const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
 const AGENT_READY_SOUND_IDLE_MS = 2_500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1_200
 const VOICE_SIGNAL_COOLDOWN_MS = 900
+const DEFAULT_VOICE_ACTIVATION_FUZZY = 0.25
+const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.08
+const DEFAULT_VOICE_STOP_FUZZY = 0.06
 
 type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 
@@ -299,6 +307,9 @@ let voiceAutoWakeInFlight = false
 let voiceAutoWakePaused = false
 let voiceAutoEnterCount = 0
 let voiceAutoEnterAt: Date | null = null
+let voiceWakePreviewText = ""
+let voiceWakePreviewAt: Date | null = null
+const voiceWakePreviewHistory: Array<{text: string; at: Date}> = []
 let voiceLastPartialText = ""
 let voiceLastPartialAt: Date | null = null
 let voiceLastChunkText = ""
@@ -505,14 +516,23 @@ async function initEngine(): Promise<void> {
         title: t("voiceInput"),
         debugTabLabel: t("voiceDebugTab"),
         phraseGroups: voicePhraseGroupsForHud(),
+        signalVolumeLabel: t("voiceSignalVolume"),
+        signalVolumeValue: readVoiceSignalVolume(),
+        signalVolumeDownLabel: t("voiceSignalVolumeDown"),
+        signalVolumeUpLabel: t("voiceSignalVolumeUp"),
+        fuzzyDownLabel: t("voiceFuzzyToleranceDown"),
+        fuzzyUpLabel: t("voiceFuzzyToleranceUp"),
         wakeEndpoint: voiceEndpointLabel(readVoiceWakeUrl()),
         inputEndpoint: voiceEndpointLabel(readVoiceInputUrl()),
         serviceLine: voiceServiceLine(),
+        liveLine: voiceSettingsLiveLine(),
         debugLines: voiceDebugLines(),
       }),
       onAddPhrase: addVoicePhrase,
       onRemovePhrase: removeVoicePhrase,
       onResetPhrases: resetVoicePhrases,
+      onSignalVolumeChange: storeVoiceSignalVolume,
+      onPhraseFuzzyChange: storeVoiceFuzzyTolerance,
       startTooltip: () => t("voiceStart"),
       stopTooltip: () => t("voiceStop"),
     })
@@ -724,10 +744,12 @@ function ensureVoiceInputClient(): VoiceInputClient {
     activationPhrases: () => readVoicePhrases("activation"),
     deactivationPhrases: () => readVoicePhrases("deactivation"),
     stopPhrases: () => readVoicePhrases("stop"),
+    phraseFuzzyTolerance: readVoiceFuzzyTolerance,
     language: "ru",
     context: readVoiceInputContext,
     onStatus: handleVoiceStatus,
     onWake: () => updateVoiceHud("connecting", readVoiceInputUrl()),
+    onCommandText: handleVoiceCommandText,
     onPartial: handleVoicePartial,
     onChunk: handleVoiceInputChunk,
     onLevel: updateVoiceLevel,
@@ -743,6 +765,7 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
     voiceLastErrorText = voiceReadableDetail(detail ?? voiceStatusDetail(status))
     voiceLastErrorAt = new Date()
   }
+  if (status === "idle") clearVoiceWakePreview()
   if (status !== "error" && status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) clearVoicePartialPreview()
   updateVoiceHud(status, detail)
   if (voiceSignal !== null) playVoiceSignal(voiceSignal)
@@ -864,6 +887,25 @@ function handleVoiceInputChunk(chunk: VoiceInputChunk): void {
   renderVoiceHud()
 }
 
+function handleVoiceCommandText(raw: string): void {
+  const text = cleanupVoiceInputText(raw)
+  if (!text) return
+  voiceWakePreviewText = text
+  voiceWakePreviewAt = new Date()
+  recordVoiceWakePreview(text, voiceWakePreviewAt)
+  renderVoiceHud()
+}
+
+function recordVoiceWakePreview(text: string, at: Date): void {
+  const last = voiceWakePreviewHistory[0]
+  if (last?.text === text) {
+    last.at = at
+    return
+  }
+  voiceWakePreviewHistory.unshift({text, at})
+  voiceWakePreviewHistory.splice(5)
+}
+
 function handleVoicePartial(raw: string): void {
   const target = voiceActiveTarget
   if (target === null || !voiceTargetCanAcceptInput(target)) {
@@ -895,6 +937,12 @@ function clearVoicePartialPreview(): void {
   if (target === null) return
   for (const terminal of voicePreviewTerminals(target)) terminal.clearInputPreview()
   voicePartialPreviewTarget = null
+}
+
+function clearVoiceWakePreview(): void {
+  voiceWakePreviewText = ""
+  voiceWakePreviewAt = null
+  voiceWakePreviewHistory.splice(0)
 }
 
 function clearVoicePartialPreviewForTarget(target: VoiceInputTarget): void {
@@ -1129,6 +1177,13 @@ function voiceAutoEnterLine(): string {
   return `${formatHudTime(voiceAutoEnterAt)} · ${t("voiceAutoEnter")} #${voiceAutoEnterCount}`
 }
 
+function voiceSettingsLiveLine(): string {
+  const ru = getUiLocale() === "ru"
+  if (voiceHudStatus === "waitingWake") return `wake-up: ${debugVoiceText(voiceWakePreviewText)}`
+  if (voiceHudStatus === "listening" || voiceHudStatus === "committing") return `asr: ${debugVoiceText(voiceLastPartialText)}`
+  return `${ru ? "голос" : "voice"}: -`
+}
+
 function voiceDebugLines(): string[] {
   const ru = getUiLocale() === "ru"
   const target = voiceTargetLabel()
@@ -1137,6 +1192,8 @@ function voiceDebugLines(): string[] {
     `${ru ? "статус" : "status"}: ${voiceStatusLabel(voiceHudStatus)}`,
     `${ru ? "деталь" : "detail"}: ${voiceHudDetail || "-"}`,
     `${ru ? "цель" : "target"}: ${target || "-"}`,
+    `${ru ? "wake слышит" : "wake heard"}: ${debugVoiceText(voiceWakePreviewText)}`,
+    `${ru ? "wake время" : "wake at"}: ${formatDebugTime(voiceWakePreviewAt)}`,
     `${ru ? "preview активен" : "preview active"}: ${previewActive ? "yes" : "no"}`,
     `${ru ? "preview символов" : "preview chars"}: ${voiceLastPartialText.length}`,
     `${ru ? "partial" : "partial"}: ${debugVoiceText(voiceLastPartialText)}`,
@@ -1146,6 +1203,8 @@ function voiceDebugLines(): string[] {
     `${ru ? "chunk время" : "chunk at"}: ${formatDebugTime(voiceLastChunkAt)}`,
     `${ru ? "последняя ошибка" : "last error"}: ${debugVoiceText(voiceLastErrorText)}`,
     `${ru ? "ошибка время" : "error at"}: ${formatDebugTime(voiceLastErrorAt)}`,
+    `${ru ? "громкость сигнала" : "signal volume"}: ${Math.round(readVoiceSignalVolume() * 100)}%`,
+    `${ru ? "левенштейн" : "levenshtein"}: a ${Math.round(readVoiceFuzzyTolerance("activation") * 100)}% · d ${Math.round(readVoiceFuzzyTolerance("deactivation") * 100)}% · s ${Math.round(readVoiceFuzzyTolerance("stop") * 100)}%`,
     `${ru ? "звук" : "sound"}: ${hudNotificationDebugLine()}`,
   ]
 }
@@ -1284,18 +1343,23 @@ function ensureHudNotificationAudioContext(): AudioContext | null {
 }
 
 function playHudNotificationSound(kind: HudNotificationKind): void {
-  if (kind !== "agent" && voiceInputClient?.playSignalTone(kind, recordHudNotificationSound) === true) {
+  const volume = readVoiceSignalVolume()
+  if (volume <= 0) {
+    recordHudNotificationSound(kind, "muted")
     return
   }
-  playBrowserHudNotificationSound(kind)
+  if (kind !== "agent" && voiceInputClient?.playSignalTone(kind, volume, recordHudNotificationSound) === true) {
+    return
+  }
+  playBrowserHudNotificationSound(kind, volume)
 }
 
-function playBrowserHudNotificationSound(kind: HudNotificationKind): void {
-  if (playHudNotificationWebAudioTone(kind, (reason) => playHudNotificationHtmlAudio(kind, reason))) return
-  playHudNotificationHtmlAudio(kind, "no webaudio")
+function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number): void {
+  if (playHudNotificationWebAudioTone(kind, volume, (reason) => playHudNotificationHtmlAudio(kind, reason, volume))) return
+  playHudNotificationHtmlAudio(kind, "no webaudio", volume)
 }
 
-function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallback"): void {
+function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallback", volume = readVoiceSignalVolume()): void {
   const audio = ensureHudNotificationAudioElement(kind)
   if (audio !== null) {
     try {
@@ -1305,7 +1369,7 @@ function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallb
       // Some browsers reject seeking before media metadata is available.
     }
     audio.muted = false
-    audio.volume = 0.9
+    audio.volume = htmlNotificationVolume(volume)
     void audio.play()
       .then(() => recordHudNotificationSound(kind, `html · ${reason}`))
       .catch((error) => recordHudNotificationSound(kind, "html blocked", error))
@@ -1320,7 +1384,7 @@ function ensureHudNotificationAudioElement(kind: HudNotificationKind): HTMLAudio
   try {
     const audio = new Audio(hudNotificationWavDataUrl(kind))
     audio.preload = "auto"
-    audio.volume = 0.9
+    audio.volume = htmlNotificationVolume(readVoiceSignalVolume())
     hudNotificationAudioElements.set(kind, audio)
     return audio
   } catch {
@@ -1343,7 +1407,7 @@ function primeHudNotificationAudioElement(kind: HudNotificationKind): void {
       // Some browsers reject seeking before media metadata is available.
     }
     audio.muted = false
-    audio.volume = 0.9
+    audio.volume = htmlNotificationVolume(readVoiceSignalVolume())
   }
   audio.muted = true
   audio.volume = 0
@@ -1376,7 +1440,7 @@ function primeHudNotificationAudioContext(): void {
   prime()
 }
 
-function playHudNotificationWebAudioTone(kind: HudNotificationKind, onError?: (reason: string) => void): boolean {
+function playHudNotificationWebAudioTone(kind: HudNotificationKind, volume: number, onError?: (reason: string) => void): boolean {
   const context = ensureHudNotificationAudioContext()
   if (context === null) return false
 
@@ -1390,9 +1454,10 @@ function playHudNotificationWebAudioTone(kind: HudNotificationKind, onError?: (r
     tone.type = toneSpec.type
     tone.frequency.setValueAtTime(toneSpec.startHz, start)
     tone.frequency.exponentialRampToValueAtTime(toneSpec.endHz, end)
+    const peakGain = toneSpec.gain * clampVoiceSignalVolume(volume)
     gain.gain.setValueAtTime(0.0001, start)
-    gain.gain.exponentialRampToValueAtTime(toneSpec.gain, start + 0.018)
-    gain.gain.exponentialRampToValueAtTime(toneSpec.gain * 0.42, start + toneSpec.duration * 0.45)
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peakGain), start + 0.018)
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peakGain * 0.42), start + toneSpec.duration * 0.45)
     gain.gain.exponentialRampToValueAtTime(0.0001, end)
     tone.connect(gain)
     gain.connect(context.destination)
@@ -1434,6 +1499,10 @@ function playHudNotificationWebAudioTone(kind: HudNotificationKind, onError?: (r
   }
   play()
   return true
+}
+
+function htmlNotificationVolume(volume: number): number {
+  return Math.min(1, clampVoiceSignalVolume(volume) * 0.9)
 }
 
 function hudNotificationKinds(): HudNotificationKind[] {
@@ -1552,6 +1621,34 @@ function readVoiceInputContext(): string {
   }
 }
 
+function readVoiceSignalVolume(): number {
+  try {
+    const raw = localStorage.getItem(VOICE_SIGNAL_VOLUME_STORAGE_KEY)
+    if (raw === null) return DEFAULT_VOICE_SIGNAL_VOLUME
+    const value = Number(raw)
+    return Number.isFinite(value) ? clampVoiceSignalVolume(value) : DEFAULT_VOICE_SIGNAL_VOLUME
+  } catch {
+    return DEFAULT_VOICE_SIGNAL_VOLUME
+  }
+}
+
+function storeVoiceSignalVolume(value: number): void {
+  const next = clampVoiceSignalVolume(value)
+  try {
+    localStorage.setItem(VOICE_SIGNAL_VOLUME_STORAGE_KEY, String(next))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+  for (const audio of hudNotificationAudioElements.values()) {
+    audio.volume = htmlNotificationVolume(next)
+  }
+  renderVoiceHud()
+}
+
+function clampVoiceSignalVolume(value: number): number {
+  return Math.min(1, Math.max(0, value))
+}
+
 function voicePhraseGroupsForHud(): Array<{
   id: VoiceInputHudPhraseGroupId
   title: string
@@ -1562,6 +1659,10 @@ function voicePhraseGroupsForHud(): Array<{
   addLabel: string
   placeholder: string
   resetLabel: string
+  fuzzyLabel: string
+  fuzzyValue: number
+  receivedLabel?: string
+  receivedLines?: string[]
 }> {
   return [
     {
@@ -1574,6 +1675,10 @@ function voicePhraseGroupsForHud(): Array<{
       addLabel: t("voicePhraseAdd"),
       placeholder: t("voiceActivationPhrasePrompt"),
       resetLabel: t("voicePhraseReset"),
+      fuzzyLabel: t("voiceFuzzyTolerance"),
+      fuzzyValue: readVoiceFuzzyTolerance("activation"),
+      receivedLabel: t("voiceActivationReceived"),
+      receivedLines: voiceActivationReceivedLines(),
     },
     {
       id: "deactivation",
@@ -1585,6 +1690,8 @@ function voicePhraseGroupsForHud(): Array<{
       addLabel: t("voicePhraseAdd"),
       placeholder: t("voiceDeactivationPhrasePrompt"),
       resetLabel: t("voicePhraseReset"),
+      fuzzyLabel: t("voiceFuzzyTolerance"),
+      fuzzyValue: readVoiceFuzzyTolerance("deactivation"),
     },
     {
       id: "stop",
@@ -1596,8 +1703,15 @@ function voicePhraseGroupsForHud(): Array<{
       addLabel: t("voicePhraseAdd"),
       placeholder: t("voiceStopPhrasePrompt"),
       resetLabel: t("voicePhraseReset"),
+      fuzzyLabel: t("voiceFuzzyTolerance"),
+      fuzzyValue: readVoiceFuzzyTolerance("stop"),
     },
   ]
+}
+
+function voiceActivationReceivedLines(): string[] {
+  if (voiceWakePreviewHistory.length === 0) return [getUiLocale() === "ru" ? "пока нет данных" : "no data yet"]
+  return voiceWakePreviewHistory.map(({text, at}) => `${formatHudTime(at)} · ${debugVoiceText(text)}`)
 }
 
 function readVoicePhrases(groupId: VoiceInputHudPhraseGroupId): string[] {
@@ -1627,6 +1741,28 @@ function storeVoicePhrases(groupId: VoiceInputHudPhraseGroupId, phrases: readonl
   const next = normalized.length > 0 ? normalized : [...defaultVoicePhrases(groupId)]
   try {
     localStorage.setItem(voicePhraseStorageKey(groupId), JSON.stringify(next))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+  renderVoiceHud()
+  restartVoiceCommandRecognizerAfterSettingsChange()
+}
+
+function readVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId): number {
+  try {
+    const raw = localStorage.getItem(voiceFuzzyStorageKey(groupId))
+    if (raw === null) return defaultVoiceFuzzyTolerance(groupId)
+    const value = Number(raw)
+    return Number.isFinite(value) ? clampVoiceFuzzyTolerance(value) : defaultVoiceFuzzyTolerance(groupId)
+  } catch {
+    return defaultVoiceFuzzyTolerance(groupId)
+  }
+}
+
+function storeVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId, value: number): void {
+  const next = clampVoiceFuzzyTolerance(value)
+  try {
+    localStorage.setItem(voiceFuzzyStorageKey(groupId), String(next))
   } catch {
     // Storage can be disabled in private contexts.
   }
@@ -1666,6 +1802,22 @@ function voicePhraseStorageKey(groupId: VoiceInputHudPhraseGroupId): string {
   if (groupId === "activation") return VOICE_ACTIVATION_PHRASES_STORAGE_KEY
   if (groupId === "deactivation") return VOICE_DEACTIVATION_PHRASES_STORAGE_KEY
   return VOICE_STOP_PHRASES_STORAGE_KEY
+}
+
+function voiceFuzzyStorageKey(groupId: VoiceInputHudPhraseGroupId): string {
+  if (groupId === "activation") return VOICE_ACTIVATION_FUZZY_STORAGE_KEY
+  if (groupId === "deactivation") return VOICE_DEACTIVATION_FUZZY_STORAGE_KEY
+  return VOICE_STOP_FUZZY_STORAGE_KEY
+}
+
+function defaultVoiceFuzzyTolerance(groupId: VoiceInputHudPhraseGroupId): number {
+  if (groupId === "activation") return DEFAULT_VOICE_ACTIVATION_FUZZY
+  if (groupId === "deactivation") return DEFAULT_VOICE_DEACTIVATION_FUZZY
+  return DEFAULT_VOICE_STOP_FUZZY
+}
+
+function clampVoiceFuzzyTolerance(value: number): number {
+  return Math.min(0.5, Math.max(0, value))
 }
 
 function restartVoiceCommandRecognizerAfterSettingsChange(): void {

@@ -27,15 +27,26 @@ export type VoiceInputHudPhraseGroup = {
   addLabel: string
   placeholder: string
   resetLabel: string
+  fuzzyLabel: string
+  fuzzyValue: number
+  receivedLabel?: string
+  receivedLines?: string[]
 }
 
 export type VoiceInputHudSettings = {
   title: string
   debugTabLabel: string
   phraseGroups: VoiceInputHudPhraseGroup[]
+  signalVolumeLabel: string
+  signalVolumeValue: number
+  signalVolumeDownLabel: string
+  signalVolumeUpLabel: string
+  fuzzyDownLabel: string
+  fuzzyUpLabel: string
   wakeEndpoint: string
   inputEndpoint: string
   serviceLine: string
+  liveLine: string
   debugLines: string[]
 }
 
@@ -46,6 +57,8 @@ export type VoiceInputHudOptions = {
   onAddPhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
   onRemovePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
   onResetPhrases(groupId: VoiceInputHudPhraseGroupId): void
+  onSignalVolumeChange(value: number): void
+  onPhraseFuzzyChange(groupId: VoiceInputHudPhraseGroupId, value: number): void
   startTooltip(): string
   stopTooltip(): string
 }
@@ -381,7 +394,8 @@ export class VoiceInputHud extends UiSurface {
       maxWidthPx: Math.max(1, right - left),
       z: 0.46,
     })
-    y += 22
+    y += 20
+    y = this.#drawSignalVolumeControl(settings, left, y, Math.max(1, right - left)) + 12
     this.drawRect(left, y, Math.max(1, right - left), 1, fade(palette.borderDim, 0.72), 0.2)
     y += 10
 
@@ -390,16 +404,16 @@ export class VoiceInputHud extends UiSurface {
       this.#drawDebugTab(settings.debugLines, left, y, Math.max(1, right - left), rect.y + rect.h - 47)
     } else {
       const group = this.#activePhraseGroup(settings.phraseGroups)
-      if (group !== null) this.#drawPhraseGroup(group, left, right, y, rect.y + rect.h - 47)
+      if (group !== null) this.#drawPhraseGroup(settings, group, left, right, y, rect.y + rect.h - 47)
     }
 
-    this.drawText(`wake · ${settings.wakeEndpoint}`, left, rect.y + rect.h - 39, {
+    this.drawText(settings.liveLine, left, rect.y + rect.h - 39, {
       fontPx: 9,
-      material: this.materials.muted,
+      material: this.materials.text,
       maxWidthPx: Math.max(1, right - left),
       z: 0.46,
     })
-    this.drawText(`asr · ${settings.inputEndpoint}`, left, rect.y + rect.h - 22, {
+    this.drawText(`wake · ${settings.wakeEndpoint}   asr · ${settings.inputEndpoint}`, left, rect.y + rect.h - 22, {
       fontPx: 9,
       material: this.materials.muted,
       maxWidthPx: Math.max(1, right - left),
@@ -441,13 +455,29 @@ export class VoiceInputHud extends UiSurface {
     })
   }
 
+  #drawSignalVolumeControl(settings: VoiceInputHudSettings, x: number, y: number, w: number): number {
+    return this.#drawPercentControl({
+      key: "voice-signal-volume",
+      label: settings.signalVolumeLabel,
+      value: settings.signalVolumeValue,
+      downLabel: settings.signalVolumeDownLabel,
+      upLabel: settings.signalVolumeUpLabel,
+      step: 0.1,
+      maxValue: 1,
+      x,
+      y,
+      w,
+      onChange: (value) => this.options.onSignalVolumeChange(value),
+    })
+  }
+
   #activePhraseGroup(groups: readonly VoiceInputHudPhraseGroup[]): VoiceInputHudPhraseGroup | null {
     const selected = groups.find((group) => group.id === this.#settingsTab)
     if (selected !== undefined) return selected
     return groups[0] ?? null
   }
 
-  #drawPhraseGroup(group: VoiceInputHudPhraseGroup, left: number, right: number, y: number, maxY: number): number {
+  #drawPhraseGroup(settings: VoiceInputHudSettings, group: VoiceInputHudPhraseGroup, left: number, right: number, y: number, maxY: number): number {
     const actionY = y - 5
     button(this, right - 60, actionY, 60, 20, {
       key: `voice-phrases-reset:${group.id}`,
@@ -488,7 +518,21 @@ export class VoiceInputHud extends UiSurface {
       maxWidthPx: Math.max(1, right - left),
       z: 0.46,
     })
-    y += 22
+    y += 18
+    y = this.#drawReceivedLines(group, left, right, y, maxY)
+    y = this.#drawPercentControl({
+      key: `voice-fuzzy:${group.id}`,
+      label: group.fuzzyLabel,
+      value: group.fuzzyValue,
+      downLabel: settings.fuzzyDownLabel,
+      upLabel: settings.fuzzyUpLabel,
+      step: 0.05,
+      maxValue: 0.5,
+      x: left,
+      y,
+      w: Math.max(1, right - left),
+      onChange: (value) => this.options.onPhraseFuzzyChange(group.id, value),
+    }) + 10
     const inputW = Math.max(1, right - left - 66)
     input(this, left, y, inputW, 22, {
       key: `voice-phrase-input:${group.id}`,
@@ -521,6 +565,132 @@ export class VoiceInputHud extends UiSurface {
     })
     y += 30
     return this.#drawPhraseChips(group, left, y, Math.max(1, right - left), maxY)
+  }
+
+  #drawReceivedLines(group: VoiceInputHudPhraseGroup, left: number, right: number, y: number, maxY: number): number {
+    const lines = group.receivedLines ?? []
+    if (lines.length === 0) return y + 2
+    if (y + 15 > maxY) return y
+    this.drawText(group.receivedLabel ?? "", left, y, {
+      fontPx: 9,
+      material: this.materials.cyan,
+      maxWidthPx: Math.max(1, right - left),
+      z: 0.46,
+    })
+    y += 14
+    for (const line of lines.slice(0, 3)) {
+      if (y + 14 > maxY) break
+      this.drawText(line, left, y, {
+        fontPx: 9,
+        material: this.materials.muted,
+        maxWidthPx: Math.max(1, right - left),
+        z: 0.46,
+      })
+      y += 14
+    }
+    return y + 6
+  }
+
+  #drawPercentControl(opts: {
+    key: string
+    label: string
+    value: number
+    downLabel: string
+    upLabel: string
+    step: number
+    maxValue?: number
+    x: number
+    y: number
+    w: number
+    onChange(value: number): void
+  }): number {
+    const maxValue = Math.max(0.01, opts.maxValue ?? 1)
+    const value = clampNumber(opts.value, 0, maxValue)
+    const ratio = value / maxValue
+    const percent = Math.round(value * 100)
+    this.drawText(opts.label, opts.x, opts.y, {
+      fontPx: 9,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, opts.w - 52),
+      z: 0.46,
+    })
+    this.drawText(`${percent}%`, opts.x + opts.w - 45, opts.y, {
+      fontPx: 9,
+      material: this.materials.text,
+      maxWidthPx: 45,
+      z: 0.46,
+    })
+
+    const rowY = opts.y + 16
+    const buttonW = 28
+    button(this, opts.x, rowY, buttonW, 22, {
+      key: `${opts.key}:down`,
+      children: "-",
+      tooltip: opts.downLabel,
+      onClick: () => this.#setPercentValue(value - opts.step, maxValue, opts.onChange),
+      style: {
+        background: "rgba(38, 49, 66, 0.42)",
+        borderColor: "borderDim",
+        borderRadius: 6,
+        color: "muted",
+        fontSize: 12,
+      },
+    })
+    button(this, opts.x + opts.w - buttonW, rowY, buttonW, 22, {
+      key: `${opts.key}:up`,
+      children: "+",
+      tooltip: opts.upLabel,
+      onClick: () => this.#setPercentValue(value + opts.step, maxValue, opts.onChange),
+      style: {
+        background: "rgba(38, 49, 66, 0.42)",
+        borderColor: "borderDim",
+        borderRadius: 6,
+        color: "muted",
+        fontSize: 12,
+      },
+    })
+
+    const trackX = opts.x + buttonW + 10
+    const trackW = Math.max(1, opts.w - buttonW * 2 - 20)
+    const trackY = rowY + 8
+    this.drawRoundedRect(trackX, trackY, trackW, 6, {
+      radius: 3,
+      fill: fade(palette.borderDim, 0.44),
+      border: null,
+      z: 0.16,
+    })
+    this.drawRoundedRect(trackX, trackY, Math.max(3, trackW * ratio), 6, {
+      radius: 3,
+      fill: fade(palette.cyan, 0.64),
+      border: null,
+      z: 0.18,
+    })
+    const knobX = trackX + trackW * ratio
+    this.drawRoundedRect(knobX - 5, trackY - 4, 10, 14, {
+      radius: 5,
+      fill: fade(palette.cyan, 0.82),
+      border: fade(palette.text, 0.24),
+      borderWidth: 1,
+      z: 0.22,
+    })
+    for (const tick of [0, 0.25, 0.5, 0.75, 1]) {
+      const tx = trackX + trackW * tick
+      this.drawRect(tx, trackY + 10, 1, 3, fade(palette.borderDim, 0.68), 0.18)
+    }
+    const setFromPointer = (localX: number): void => this.#setPercentValue(((localX - trackX) / trackW) * maxValue, maxValue, opts.onChange)
+    this.hit(trackX - 4, rowY, trackW + 8, 22, () => undefined, {
+      key: `${opts.key}:track`,
+      cursor: "pointer",
+      onPointerDown: (localX) => setFromPointer(localX),
+      onPointerMove: (localX) => setFromPointer(localX),
+    })
+    return rowY + 22
+  }
+
+  #setPercentValue(value: number, maxValue: number, onChange: (value: number) => void): void {
+    const stepped = Math.round(clampNumber(value, 0, maxValue) * 20) / 20
+    onChange(stepped)
+    this.requestRender()
   }
 
   #drawDebugTab(lines: readonly string[], x: number, y: number, w: number, maxY: number): void {
