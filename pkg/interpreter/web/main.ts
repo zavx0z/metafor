@@ -202,6 +202,11 @@ type HostTerminalController = {
   connectionState: PtyStatusKind
   terminalState: PtyTerminalState | null
   localEchoId: number
+  agentNotifyArmed: boolean
+  agentNotifySawOutput: boolean
+  agentNotifyLastOutputAt: number
+  agentNotifyLastPlayedAt: number
+  agentNotifyTimer: number | null
 }
 
 type VoiceInputTarget =
@@ -246,6 +251,9 @@ const HOST_TERMINAL_DOCK_SHORT = 36
 const HOST_TERMINAL_DOCK_LONG = 128
 const HOST_TERMINAL_DOCK_MARGIN = 8
 const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
+const AGENT_READY_SOUND_IDLE_MS = 2_500
+const AGENT_READY_SOUND_COOLDOWN_MS = 1_200
+const VOICE_ACTIVATION_SIGNAL_COOLDOWN_MS = 900
 
 type HostTerminalDockPlacement = {
   edge: HudSideTabEdge
@@ -281,6 +289,9 @@ let voiceServiceCheckedAt: Date | null = null
 let voiceServiceCheckInFlight = false
 let voiceServiceCheckTimer: number | null = null
 let hostTerminalUnloadInstalled = false
+let hudNotificationAudioContext: AudioContext | null = null
+let hudNotificationAudioElement: HTMLAudioElement | null = null
+let voiceActivationSignalLastPlayedAt = 0
 let resizeObserver: ResizeObserver | null = null
 let socket: WebSocket | undefined
 let nextRequestId = 1
@@ -304,6 +315,7 @@ for (const link of Array.from(document.querySelectorAll<HTMLLinkElement>('link[r
 }
 
 installVoiceServiceMonitor()
+installHudNotificationSoundUnlock()
 connect()
 void initEngine()
 
@@ -685,8 +697,22 @@ function ensureVoiceInputClient(): VoiceInputClient {
 }
 
 function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
+  const previousStatus = voiceHudStatus
   if (status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) clearVoicePartialPreview()
   updateVoiceHud(status, detail)
+  if (shouldPlayVoiceActivationSignal(previousStatus, status)) playVoiceActivationSignal()
+}
+
+function shouldPlayVoiceActivationSignal(previousStatus: VoiceInputStatus, nextStatus: VoiceInputStatus): boolean {
+  return nextStatus === "listening" && previousStatus !== "listening" && previousStatus !== "committing"
+}
+
+function playVoiceActivationSignal(): void {
+  const now = performance.now()
+  if (now - voiceActivationSignalLastPlayedAt < VOICE_ACTIVATION_SIGNAL_COOLDOWN_MS) return
+  voiceActivationSignalLastPlayedAt = now
+  voiceHudPane?.flashSoundIndicator()
+  playHudNotificationSound()
 }
 
 async function toggleVoiceInput(): Promise<void> {
@@ -695,6 +721,7 @@ async function toggleVoiceInput(): Promise<void> {
     if (client.active) {
       if (client.status === "waitingWake") {
         voiceAutoWakePaused = false
+        playVoiceActivationSignal()
         await client.startDictation()
         return
       }
@@ -708,6 +735,7 @@ async function toggleVoiceInput(): Promise<void> {
       flashVoiceHudError(t("voiceNoActiveInput"))
       return
     }
+    playVoiceActivationSignal()
     const serviceOk = await checkVoiceService()
     if (!serviceOk) {
       flashVoiceHudError(voiceServiceDetail)
@@ -1143,6 +1171,188 @@ function voiceEndpointLabel(rawUrl: string): string {
   }
 }
 
+function installHudNotificationSoundUnlock(): void {
+  const unlock = (): void => {
+    primeHudNotificationAudioElement()
+    primeHudNotificationAudioContext()
+  }
+  window.addEventListener("pointerdown", unlock, {capture: true})
+  window.addEventListener("keydown", unlock, {capture: true})
+  window.addEventListener("touchstart", unlock, {capture: true})
+}
+
+function ensureHudNotificationAudioContext(): AudioContext | null {
+  if (hudNotificationAudioContext !== null) return hudNotificationAudioContext
+  try {
+    hudNotificationAudioContext = new AudioContext()
+    return hudNotificationAudioContext
+  } catch {
+    return null
+  }
+}
+
+function playHudNotificationSound(): void {
+  if (playHudNotificationWebAudioTone(() => playHudNotificationHtmlAudio())) return
+  playHudNotificationHtmlAudio()
+}
+
+function playHudNotificationHtmlAudio(): void {
+  const audio = ensureHudNotificationAudioElement()
+  if (audio !== null) {
+    try {
+      audio.pause()
+      audio.currentTime = 0
+    } catch {
+      // Some browsers reject seeking before media metadata is available.
+    }
+    audio.muted = false
+    audio.volume = 0.9
+    void audio.play().catch(() => undefined)
+  }
+}
+
+function ensureHudNotificationAudioElement(): HTMLAudioElement | null {
+  if (hudNotificationAudioElement !== null) return hudNotificationAudioElement
+  try {
+    const audio = new Audio(hudNotificationWavDataUrl())
+    audio.preload = "auto"
+    audio.volume = 0.9
+    hudNotificationAudioElement = audio
+    return audio
+  } catch {
+    return null
+  }
+}
+
+function primeHudNotificationAudioElement(): void {
+  const audio = ensureHudNotificationAudioElement()
+  if (audio === null) return
+  const restore = (): void => {
+    try {
+      audio.pause()
+      audio.currentTime = 0
+    } catch {
+      // Some browsers reject seeking before media metadata is available.
+    }
+    audio.muted = false
+    audio.volume = 0.9
+  }
+  audio.muted = true
+  audio.volume = 0
+  try {
+    audio.currentTime = 0
+  } catch {
+    // Best-effort unlock; restore handles state after the play attempt.
+  }
+  void audio.play().then(restore).catch(restore)
+}
+
+function primeHudNotificationAudioContext(): void {
+  const context = ensureHudNotificationAudioContext()
+  if (context === null) return
+  const prime = (): void => {
+    try {
+      const source = context.createBufferSource()
+      source.buffer = context.createBuffer(1, 1, context.sampleRate)
+      source.connect(context.destination)
+      source.start()
+      source.addEventListener("ended", () => source.disconnect(), {once: true})
+    } catch {
+      // Audio unlock is best-effort; actual playback has the HTMLAudio fallback.
+    }
+  }
+  if (context.state === "suspended") {
+    void context.resume().then(prime).catch(() => undefined)
+    return
+  }
+  prime()
+}
+
+function playHudNotificationWebAudioTone(onError?: () => void): boolean {
+  const context = ensureHudNotificationAudioContext()
+  if (context === null) return false
+
+  const play = (): void => {
+    const start = context.currentTime + 0.005
+    const end = start + 0.34
+    const gain = context.createGain()
+    const tone = context.createOscillator()
+
+    tone.type = "triangle"
+    tone.frequency.setValueAtTime(587.33, start)
+    tone.frequency.exponentialRampToValueAtTime(880, end)
+    gain.gain.setValueAtTime(0.0001, start)
+    gain.gain.exponentialRampToValueAtTime(0.22, start + 0.018)
+    gain.gain.exponentialRampToValueAtTime(0.11, start + 0.14)
+    gain.gain.exponentialRampToValueAtTime(0.0001, end)
+    tone.connect(gain)
+    gain.connect(context.destination)
+    tone.start(start)
+    tone.stop(end + 0.03)
+    tone.addEventListener("ended", () => {
+      tone.disconnect()
+      gain.disconnect()
+    }, {once: true})
+  }
+
+  if (context.state === "suspended") {
+    void context.resume().then(play).catch(() => onError?.())
+    return true
+  }
+  play()
+  return true
+}
+
+function hudNotificationWavDataUrl(): string {
+  const sampleRate = 44_100
+  const durationSeconds = 0.24
+  const sampleCount = Math.floor(sampleRate * durationSeconds)
+  const bytes = new Uint8Array(44 + sampleCount * 2)
+  const view = new DataView(bytes.buffer)
+  writeAscii(bytes, 0, "RIFF")
+  view.setUint32(4, 36 + sampleCount * 2, true)
+  writeAscii(bytes, 8, "WAVE")
+  writeAscii(bytes, 12, "fmt ")
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeAscii(bytes, 36, "data")
+  view.setUint32(40, sampleCount * 2, true)
+
+  let phase = 0
+  for (let index = 0; index < sampleCount; index += 1) {
+    const t = index / sampleRate
+    const progress = t / durationSeconds
+    const frequency = 587.33 * Math.pow(880 / 587.33, progress)
+    const attack = Math.min(1, t / 0.025)
+    const release = Math.min(1, Math.max(0, (durationSeconds - t) / 0.09))
+    const envelope = Math.sin(Math.min(1, progress) * Math.PI) * Math.min(attack, release)
+    const sample = Math.sin(phase) * envelope * 0.9
+    phase += (Math.PI * 2 * frequency) / sampleRate
+    view.setInt16(44 + index * 2, Math.round(sample * 32767), true)
+  }
+
+  return `data:audio/wav;base64,${base64Bytes(bytes)}`
+}
+
+function writeAscii(bytes: Uint8Array, offset: number, value: string): void {
+  for (let index = 0; index < value.length; index += 1) bytes[offset + index] = value.charCodeAt(index)
+}
+
+function base64Bytes(bytes: Uint8Array): string {
+  let binary = ""
+  const chunkSize = 0x8000
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, offset + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+  return btoa(binary)
+}
+
 function voiceTargetLabel(): string {
   const target = voiceActiveTarget
   if (target === null) return ""
@@ -1262,6 +1472,11 @@ function ensureHostTerminalController(): HostTerminalController {
     connectionState: "idle" as PtyStatusKind,
     terminalState: null,
     localEchoId: 0,
+    agentNotifyArmed: false,
+    agentNotifySawOutput: false,
+    agentNotifyLastOutputAt: 0,
+    agentNotifyLastPlayedAt: 0,
+    agentNotifyTimer: null,
   } satisfies HostTerminalController)
   hostTerminal = controller
   if (!hostTerminalUnloadInstalled) {
@@ -1335,6 +1550,7 @@ function connectHostTerminal(controller: HostTerminalController): void {
   setHostTerminalStatus(controller, "idle", t("terminalConnecting"))
   setHostTerminalInputEnabled(controller, false)
   rejectHostTerminalLocalEcho(controller)
+  disarmAgentReadyNotification(controller)
   controller.terminalState = null
 
   const nextSocket = new WebSocket(hostTerminalWebSocketURL(controller))
@@ -1357,6 +1573,7 @@ function connectHostTerminal(controller: HostTerminalController): void {
   nextSocket.addEventListener("close", () => {
     if (controller.socket !== nextSocket) return
     controller.socket = null
+    disarmAgentReadyNotification(controller)
     setHostTerminalInputEnabled(controller, false)
     if (controller.connectionState !== "error" && controller.connectionState !== "disconnected") {
       setHostTerminalStatus(controller, "disconnected", t("terminalClosed"))
@@ -1365,6 +1582,7 @@ function connectHostTerminal(controller: HostTerminalController): void {
 
   nextSocket.addEventListener("error", () => {
     if (controller.socket !== nextSocket) return
+    disarmAgentReadyNotification(controller)
     setHostTerminalInputEnabled(controller, false)
     setHostTerminalStatus(controller, "error", t("terminalWebsocket"))
   })
@@ -1380,6 +1598,7 @@ function hostTerminalWebSocketURL(controller: HostTerminalController): string {
 
 function sendHostTerminalInput(controller: HostTerminalController, data: string, source: TerminalInputSource, localEchoText = data): void {
   if (source === "keyboard" || source === "paste") clearVoicePartialPreviewForTarget({kind: "host", controller})
+  if (isHostTerminalSubmitInput(data)) armAgentReadyNotification(controller)
   const localEchoId = tryHostTerminalLocalEcho(controller, localEchoText, source) ? ++controller.localEchoId : undefined
   sendHostTerminal(controller, {
     type: "input.write",
@@ -1404,6 +1623,24 @@ function tryHostTerminalLocalEcho(controller: HostTerminalController, data: stri
   return echoed
 }
 
+function isHostTerminalSubmitInput(data: string): boolean {
+  return data.includes("\r") || data.includes("\n")
+}
+
+function armAgentReadyNotification(controller: HostTerminalController): void {
+  clearAgentReadyNotificationTimer(controller)
+  controller.agentNotifyArmed = true
+  controller.agentNotifySawOutput = false
+  controller.agentNotifyLastOutputAt = 0
+}
+
+function disarmAgentReadyNotification(controller: HostTerminalController): void {
+  clearAgentReadyNotificationTimer(controller)
+  controller.agentNotifyArmed = false
+  controller.agentNotifySawOutput = false
+  controller.agentNotifyLastOutputAt = 0
+}
+
 function sendHostTerminal(controller: HostTerminalController, message: PtyClientMessage): void {
   if (controller.socket?.readyState === WebSocket.OPEN) {
     controller.socket.send(JSON.stringify(message))
@@ -1416,24 +1653,24 @@ function handleHostTerminalMessage(controller: HostTerminalController, event: Me
 
   if (message.type === "terminal.write") {
     writeHostTerminalAuthoritative(controller, message.data)
-    if (message.state !== undefined) controller.terminalState = message.state
+    if (message.state !== undefined) updateHostTerminalState(controller, message.state, message.data.length > 0)
     return
   }
 
   if (message.type === "terminal.state") {
-    controller.terminalState = message.state
+    updateHostTerminalState(controller, message.state)
     return
   }
 
   if (message.type === "terminal.local-echo") {
-    controller.terminalState = message.state
+    updateHostTerminalState(controller, message.state)
     if (!message.accepted) rejectHostTerminalLocalEcho(controller)
     return
   }
 
   if (message.type === "terminal.ready") {
     controller.sessionId = message.sessionId
-    controller.terminalState = message.state
+    updateHostTerminalState(controller, message.state)
     writeStoredHostTerminalSessionId(message.sessionId)
     setHostTerminalStatus(controller, "connected", shellLabel(message.shell))
     if (voiceActiveTarget === null) setVoiceActiveTarget({kind: "host", controller})
@@ -1448,12 +1685,14 @@ function handleHostTerminalMessage(controller: HostTerminalController, event: Me
   }
 
   if (message.type === "terminal.exit") {
+    disarmAgentReadyNotification(controller)
     setHostTerminalStatus(controller, "disconnected", t("terminalExited"))
     setHostTerminalInputEnabled(controller, false)
     writeHostTerminalLine(controller, `${ansiMuted(`process exited: code=${message.code ?? "null"} signal=${message.signal ?? "null"}`)}`)
     return
   }
 
+  disarmAgentReadyNotification(controller)
   setHostTerminalStatus(controller, "error", t("terminalError"))
   setHostTerminalInputEnabled(controller, false)
   writeHostTerminalLine(controller, `${ansiError(message.message)}`)
@@ -1467,6 +1706,61 @@ function parseHostTerminalServerMessage(raw: string): PtyServerMessage | null {
     return null
   }
   return null
+}
+
+function updateHostTerminalState(controller: HostTerminalController, state: PtyTerminalState, output = false): void {
+  controller.terminalState = state
+  if (!controller.agentNotifyArmed) return
+
+  if (output) {
+    controller.agentNotifySawOutput = true
+    controller.agentNotifyLastOutputAt = performance.now()
+  }
+  if (controller.agentNotifySawOutput) scheduleAgentReadyNotificationCheck(controller)
+}
+
+function scheduleAgentReadyNotificationCheck(controller: HostTerminalController): void {
+  if (controller.agentNotifyTimer !== null) clearTimeout(controller.agentNotifyTimer)
+  const elapsed = performance.now() - controller.agentNotifyLastOutputAt
+  const delay = Math.max(0, AGENT_READY_SOUND_IDLE_MS - elapsed)
+  controller.agentNotifyTimer = window.setTimeout(() => {
+    controller.agentNotifyTimer = null
+    maybePlayAgentReadyNotification(controller)
+  }, delay)
+}
+
+function clearAgentReadyNotificationTimer(controller: HostTerminalController): void {
+  if (controller.agentNotifyTimer === null) return
+  clearTimeout(controller.agentNotifyTimer)
+  controller.agentNotifyTimer = null
+}
+
+function maybePlayAgentReadyNotification(controller: HostTerminalController): void {
+  if (!controller.agentNotifyArmed || !controller.agentNotifySawOutput) return
+  const state = controller.terminalState
+  if (state === null || !state.cursorVisible) {
+    scheduleAgentReadyNotificationCheck(controller)
+    return
+  }
+
+  const elapsed = performance.now() - controller.agentNotifyLastOutputAt
+  if (elapsed < AGENT_READY_SOUND_IDLE_MS) {
+    scheduleAgentReadyNotificationCheck(controller)
+    return
+  }
+
+  const now = performance.now()
+  controller.agentNotifyArmed = false
+  clearAgentReadyNotificationTimer(controller)
+  if (now - controller.agentNotifyLastPlayedAt < AGENT_READY_SOUND_COOLDOWN_MS) return
+
+  controller.agentNotifyLastPlayedAt = now
+  playAgentReadySignal()
+}
+
+function playAgentReadySignal(): void {
+  voiceHudPane?.flashSoundIndicator()
+  playHudNotificationSound()
 }
 
 function setHostTerminalStatus(controller: HostTerminalController, kind: PtyStatusKind, label: string): void {

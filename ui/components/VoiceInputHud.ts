@@ -23,6 +23,7 @@ export type VoiceInputHudOptions = {
 }
 
 const VOICE_HUD_LONG_PRESS_MS = 450
+const SOUND_PULSE_MS = 680
 
 export class VoiceInputHud extends UiSurface {
   #press: {
@@ -34,6 +35,8 @@ export class VoiceInputHud extends UiSurface {
     timer: ReturnType<typeof setTimeout> | null
   } | null = null
   #suppressToggleClick = false
+  #soundPulseStartedAt = 0
+  #soundPulseRaf: number | null = null
   #snapshot: VoiceInputHudSnapshot = {
     status: "idle",
     statusLine: "",
@@ -54,6 +57,12 @@ export class VoiceInputHud extends UiSurface {
     this.requestRender()
   }
 
+  flashSoundIndicator(): void {
+    this.#soundPulseStartedAt = performance.now()
+    this.#scheduleSoundPulseFrame()
+    this.requestRender()
+  }
+
   protected render(): void {
     const status = this.#snapshot.status
     const error = status === "error" || this.#snapshot.serviceState === "down"
@@ -65,15 +74,18 @@ export class VoiceInputHud extends UiSurface {
     const active = status === "listening" || status === "committing"
     const waiting = status === "waitingWake"
     const connecting = status === "connecting" || status === "committing"
+    const soundPulse = this.#soundPulseAmount()
     const iconColor = error
       ? palette.red
       : connecting
         ? palette.orange
         : active
           ? palette.cyan
-          : waiting
-            ? fade(palette.cyan, 0.68)
-            : palette.muted
+          : soundPulse > 0
+            ? mixColor(palette.cyan, palette.text, 0.28)
+            : waiting
+              ? fade(palette.cyan, 0.68)
+              : palette.muted
     const tooltip = status === "listening" || status === "committing" || status === "connecting"
       ? this.options.stopTooltip()
       : this.options.startTooltip()
@@ -86,6 +98,7 @@ export class VoiceInputHud extends UiSurface {
         active ? 18 : 0,
       )
     }
+    if (soundPulse > 0) this.#drawSoundPulse(centerX, centerY, buttonSize, soundPulse)
 
     button(this, buttonX, buttonY, buttonSize, buttonSize, {
       key: "voice-input-hud-toggle",
@@ -96,12 +109,12 @@ export class VoiceInputHud extends UiSurface {
         borderColor: error ? "red" : connecting ? "orange" : active ? "cyan" : waiting ? "border" : "borderDim",
         borderRadius: buttonSize / 2,
         borderWidth: active || connecting || error ? 1.2 : 1,
-        glassTint: active ? "cyan" : null,
-        glassTintOpacity: active ? 0.08 : 0,
+        glassTint: active || soundPulse > 0 ? "cyan" : null,
+        glassTintOpacity: active ? 0.08 : soundPulse > 0 ? 0.06 * soundPulse : 0,
         zIndex: 0.3,
       }),
       children: (state) => drawIconCentered(this, micIcon(iconColor), centerX, centerY, 22, {
-        opacity: state === "hover" || active ? 0.96 : waiting || connecting ? 0.84 : 0.72,
+        opacity: state === "hover" || active || soundPulse > 0 ? 0.96 : waiting || connecting ? 0.84 : 0.72,
         z: 0.55,
       }),
     })
@@ -174,6 +187,8 @@ export class VoiceInputHud extends UiSurface {
 
   override dispose(): void {
     this.#cancelPress()
+    if (this.#soundPulseRaf !== null) cancelAnimationFrame(this.#soundPulseRaf)
+    this.#soundPulseRaf = null
     super.dispose()
   }
 
@@ -198,6 +213,49 @@ export class VoiceInputHud extends UiSurface {
       h: frame.rect.h,
     })
     if (applied !== undefined && applied !== null) this.options.onMove?.(applied)
+  }
+
+  #soundPulseAmount(): number {
+    if (this.#soundPulseStartedAt <= 0) return 0
+    const elapsed = performance.now() - this.#soundPulseStartedAt
+    if (elapsed >= SOUND_PULSE_MS) return 0
+    const progress = elapsed / SOUND_PULSE_MS
+    return 1 - progress
+  }
+
+  #scheduleSoundPulseFrame(): void {
+    if (this.#soundPulseRaf !== null) return
+    this.#soundPulseRaf = requestAnimationFrame(() => {
+      this.#soundPulseRaf = null
+      if (this.#soundPulseAmount() <= 0) {
+        this.#soundPulseStartedAt = 0
+        this.requestRender()
+        return
+      }
+      this.requestRender()
+      this.#scheduleSoundPulseFrame()
+    })
+  }
+
+  #drawSoundPulse(cx: number, cy: number, buttonSize: number, amount: number): void {
+    const progress = 1 - amount
+    const ringSize = buttonSize + 8 + progress * 20
+    const alpha = amount * amount
+    this.drawRoundedRect(cx - ringSize / 2, cy - ringSize / 2, ringSize, ringSize, {
+      radius: ringSize / 2,
+      fill: fade(palette.cyan, 0.045 * alpha),
+      border: fade(palette.cyan, 0.58 * alpha),
+      borderWidth: 1.4,
+      opacity: 1,
+      z: 0.24,
+    })
+    const innerSize = buttonSize - 6
+    this.drawRoundedRect(cx - innerSize / 2, cy - innerSize / 2, innerSize, innerSize, {
+      radius: innerSize / 2,
+      fill: fade(palette.cyan, 0.065 * alpha),
+      border: null,
+      z: 0.26,
+    })
   }
 
   #canvasPoint(event: MouseEvent): {x: number; y: number} | null {
@@ -250,4 +308,14 @@ function roundAlpha(value: number): number {
 
 function fade(color: Color, opacity: number): Color {
   return new Color(color.r, color.g, color.b, Math.max(0, Math.min(1, color.a * opacity)))
+}
+
+function mixColor(a: Color, b: Color, t: number): Color {
+  const k = Math.max(0, Math.min(1, t))
+  return new Color(
+    a.r + (b.r - a.r) * k,
+    a.g + (b.g - a.g) * k,
+    a.b + (b.b - a.b) * k,
+    a.a + (b.a - a.a) * k,
+  )
 }
