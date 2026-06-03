@@ -15,7 +15,9 @@ export type VoiceInputChunk = {
 type VoiceInputClientOptions = {
   url(): string
   wakeUrl(): string
-  wakePhrases(): readonly string[]
+  activationPhrases(): readonly string[]
+  deactivationPhrases(): readonly string[]
+  stopPhrases(): readonly string[]
   language: string
   context(): string
   onStatus(status: VoiceInputStatus, detail?: string): void
@@ -35,9 +37,25 @@ type AsrMessage = {
   error?: string
 }
 
+type VoiceCommandPhraseGroups = {
+  activation: readonly string[]
+  deactivation: readonly string[]
+  stop: readonly string[]
+}
+type VoiceControlCommand = "deactivation" | "stop"
+type VoiceControlText = {
+  text: string
+  command: VoiceControlCommand | null
+}
+type VoiceControlChunk = {
+  chunk: VoiceInputChunk
+  command: VoiceControlCommand | null
+}
+
 const TARGET_SAMPLE_RATE = 16_000
 const WAKE_WORD = "завхоз"
-export const DEFAULT_VOICE_WAKE_PHRASES = [
+export const VOICE_STOP_COMMAND_DETAIL = "voice stop command"
+export const DEFAULT_VOICE_ACTIVATION_PHRASES = [
   "Завхоз",
   "Зав хоз",
   "Завхос",
@@ -52,7 +70,8 @@ export const DEFAULT_VOICE_WAKE_PHRASES = [
   "Слышь долбоёб",
   "Слыш долбоёб",
 ] as const
-const STOP_COMMAND_PHRASES = [
+export const DEFAULT_VOICE_WAKE_PHRASES = DEFAULT_VOICE_ACTIVATION_PHRASES
+export const DEFAULT_VOICE_DEACTIVATION_PHRASES = [
   "выключи микрофон",
   "выключу микрофон",
   "отключи микрофон",
@@ -61,8 +80,21 @@ const STOP_COMMAND_PHRASES = [
   "вырублю микрофон",
   "останови голосовой ввод",
   "остановлю голосовой ввод",
-]
-const STOP_COMMAND_RE = /(^|[\s,.;:!?…-]+)(?:выключи|выключу|отключи|отключу|выруби|вырублю|останови|остановлю)\s+(?:микрофон|голос(?:овой\s+ввод)?)(?=$|[\s,.;:!?…-]+)/giu
+  "Засыпай",
+  "Режим ожидания",
+  "Жди команду",
+  "Пауза диктовки",
+  "Стоп диктовка",
+  "Останови диктовку",
+] as const
+export const DEFAULT_VOICE_STOP_PHRASES = [
+  "полная остановка",
+  "полностью выключи микрофон",
+  "полностью отключи микрофон",
+  "выключи голосовой ввод полностью",
+  "останови голосовой ввод полностью",
+  "заверши голосовой ввод",
+] as const
 const VOICE_RMS_THRESHOLD = 0.012
 const VOICE_WAKE_BASE_GAIN = 2.8
 const VOICE_WAKE_MAX_GAIN = 6
@@ -133,13 +165,13 @@ export class VoiceInputClient {
     }
   }
 
-  stop(): void {
+  stop(detail = ""): void {
     if (!this.active) return
     this.#stopRequested = true
     this.#sendCommand({type: "stop"})
     this.#sendAsr({type: "stop"})
     this.#cleanup()
-    this.#setStatus("idle")
+    this.#setStatus("idle", detail)
   }
 
   async sleepToWake(): Promise<void> {
@@ -175,7 +207,7 @@ export class VoiceInputClient {
       type: "start",
       sampleRate: this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE,
       useGrammar: true,
-      grammar: createWakeRecognitionGrammar(this.#wakePhrases()),
+      grammar: createVoiceRecognitionGrammar(this.#commandPhrases()),
       words: true,
     })
     this.#setStatus("waitingWake", WAKE_WORD)
@@ -329,21 +361,32 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     const text = recognitionText(msg)
     if (!text) return
 
+    const phraseGroups = this.#commandPhrases()
     if (this.#asrEnabled) {
-      const stopCommandsArmed = performance.now() - this.#asrActivatedAt >= STOP_COMMAND_ARM_DELAY_MS
-      if (stopCommandsArmed && isFinalRecognitionMessage(msg) && hasStopCommand(text)) {
-        void this.sleepToWake().catch((error) => {
-          this.#setStatus("error", error instanceof Error ? error.message : String(error))
-          this.#cleanup()
-        })
+      const commandsArmed = performance.now() - this.#asrActivatedAt >= STOP_COMMAND_ARM_DELAY_MS
+      if (commandsArmed && isFinalRecognitionMessage(msg)) {
+        if (hasStopCommand(text, phraseGroups.stop)) {
+          this.stop(VOICE_STOP_COMMAND_DETAIL)
+          return
+        }
+        if (hasCommandPhrase(text, phraseGroups.deactivation)) {
+          void this.sleepToWake().catch((error) => {
+            this.#setStatus("error", error instanceof Error ? error.message : String(error))
+            this.#cleanup()
+          })
+        }
       }
       return
     }
 
     this.#setStatus("waitingWake", WAKE_WORD)
-    const wakePhrases = this.#wakePhrases()
-    if (msg.type === "partial" && !isFastWakePartial(text, wakePhrases)) return
-    if (!isWakePhrase(text, wakePhrases)) return
+    if (isFinalRecognitionMessage(msg) && hasStopCommand(text, phraseGroups.stop)) {
+      this.stop(VOICE_STOP_COMMAND_DETAIL)
+      return
+    }
+    const activationPhrases = phraseGroups.activation
+    if (msg.type === "partial" && !isFastActivationPartial(text, activationPhrases)) return
+    if (!isActivationPhrase(text, activationPhrases)) return
 
     void this.#activateAsr(text).catch((error) => {
       this.#setStatus("error", error instanceof Error ? error.message : String(error))
@@ -363,26 +406,39 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (msg.type === "partial") {
       const text = recognitionText(msg)
       this.#setStatus("listening", compactDetail(text))
-      this.options.onPartial(removeCommandTextFromString(text, this.#wakePhrases()))
+      const partial = removeCommandTextFromString(text, this.#commandPhrases())
+      if (partial.text || partial.command === null) this.options.onPartial(partial.text)
       return
     }
 
     if (msg.type === "result" || msg.type === "final") {
-      const chunk = removeCommandText(chunkFromAsrMessage(msg, this.#wakePhrases()))
+      const result = removeCommandText(chunkFromAsrMessage(msg, this.#commandPhrases()), this.#commandPhrases())
+      const chunk = result.chunk
       if (voiceChunkHasText(chunk)) {
         this.#pendingCommittedChunk = chunk
-        this.options.onPartial(voiceChunkPreviewText(chunk))
-        this.#schedulePendingChunkFlush()
+        if (result.command === null) {
+          this.options.onPartial(voiceChunkPreviewText(chunk))
+          this.#schedulePendingChunkFlush()
+        }
+      }
+      if (result.command !== null) {
+        this.#flushPendingCommittedChunk()
+        this.#executeControlCommand(result.command)
       }
       return
     }
 
     if (msg.type === "committed") {
-      const committedChunk = removeCommandText(chunkFromAsrMessage(msg, this.#wakePhrases()))
+      const result = removeCommandText(chunkFromAsrMessage(msg, this.#commandPhrases()), this.#commandPhrases())
+      const committedChunk = result.chunk
       if (voiceChunkHasText(committedChunk)) this.#pendingCommittedChunk = committedChunk
       this.#clearPendingChunkFlushTimer()
       this.#flushPendingCommittedChunk()
       this.#finishCommit()
+      if (result.command !== null) {
+        this.#executeControlCommand(result.command)
+        return
+      }
       if (!this.#stopRequested) this.#setStatus("listening")
       return
     }
@@ -396,6 +452,17 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (msg.type === "error") {
       this.#setStatus("error", msg.error ?? "voice error")
     }
+  }
+
+  #executeControlCommand(command: VoiceControlCommand): void {
+    if (command === "stop") {
+      this.stop(VOICE_STOP_COMMAND_DETAIL)
+      return
+    }
+    void this.sleepToWake().catch((error) => {
+      this.#setStatus("error", error instanceof Error ? error.message : String(error))
+      this.#cleanup()
+    })
   }
 
   #trackSpeechAndMaybeCommit(samples: Float32Array): void {
@@ -575,15 +642,19 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#pendingChunkFlushTimer = null
   }
 
-  #wakePhrases(): string[] {
-    return normalizeVoiceWakePhrases(this.options.wakePhrases())
+  #commandPhrases(): VoiceCommandPhraseGroups {
+    return {
+      activation: normalizeVoicePhrases(this.options.activationPhrases()),
+      deactivation: normalizeVoicePhrases(this.options.deactivationPhrases()),
+      stop: normalizeVoicePhrases(this.options.stopPhrases()),
+    }
   }
 }
 
-function chunkFromAsrMessage(msg: AsrMessage, wakePhrases: readonly string[]): VoiceInputChunk {
-  const text = cleanupAsrText(msg.text ?? "", wakePhrases)
+function chunkFromAsrMessage(msg: AsrMessage, phraseGroups: VoiceCommandPhraseGroups): VoiceInputChunk {
+  const text = cleanupAsrText(msg.text ?? "", phraseGroups.activation)
   const messages = Array.isArray(msg.messages)
-    ? msg.messages.map((message) => cleanupAsrText(String(message), wakePhrases)).filter(Boolean)
+    ? msg.messages.map((message) => cleanupAsrText(String(message), phraseGroups.activation)).filter(Boolean)
     : []
   const segments = Array.isArray(msg.segments)
     ? msg.segments
@@ -599,27 +670,30 @@ function chunkFromAsrMessage(msg: AsrMessage, wakePhrases: readonly string[]): V
   return {text, messages, segments}
 }
 
-function cleanupAsrText(text: string, wakePhrases: readonly string[]): string {
-  return stripWakePrefix(cleanupVoiceText(text), wakePhrases)
+function cleanupAsrText(text: string, activationPhrases: readonly string[]): string {
+  return stripPhrasePrefix(cleanupVoiceText(text), activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
 }
 
-function removeCommandTextFromString(text: string, wakePhrases: readonly string[]): string {
-  return stripStopCommand(cleanupAsrText(text, wakePhrases)).text
+function removeCommandTextFromString(text: string, phraseGroups: VoiceCommandPhraseGroups): VoiceControlText {
+  return stripControlCommandText(cleanupAsrText(text, phraseGroups.activation), phraseGroups)
 }
 
-function removeCommandText(chunk: VoiceInputChunk): VoiceInputChunk {
-  const textResult = stripStopCommand(chunk.text)
-  let command = textResult.stop
+function removeCommandText(chunk: VoiceInputChunk, phraseGroups: VoiceCommandPhraseGroups): VoiceControlChunk {
+  const textResult = stripControlCommandText(chunk.text, phraseGroups)
+  let command = textResult.command
   const messages: string[] = []
   for (const message of chunk.messages) {
-    const result = stripStopCommand(message)
-    command ||= result.stop
+    const result = stripControlCommandText(message, phraseGroups)
+    command = mergeControlCommand(command, result.command)
     if (result.text) messages.push(result.text)
   }
   return {
-    text: textResult.text,
-    messages,
-    segments: command ? [] : chunk.segments,
+    chunk: {
+      text: textResult.text,
+      messages,
+      segments: command ? [] : chunk.segments,
+    },
+    command,
   }
 }
 
@@ -633,32 +707,38 @@ function voiceChunkPreviewText(chunk: VoiceInputChunk): string {
   return chunk.segments.map((segment) => segment.text ?? "").filter(Boolean).join(" ")
 }
 
-function stripStopCommand(text: string): {text: string; stop: boolean} {
-  let stop = hasStopCommand(text)
-  const withoutCommand = text.replace(STOP_COMMAND_RE, " ")
-  if (withoutCommand !== text) stop = true
-  if (stop && withoutCommand === text) return {text: "", stop}
-  const stripped = cleanupVoiceText(withoutCommand)
-  return {text: stripped, stop}
+function stripControlCommandText(text: string, phraseGroups: VoiceCommandPhraseGroups): VoiceControlText {
+  const controlPhrases = [
+    ...normalizePhrasesForRecognition(phraseGroups.deactivation, DEFAULT_VOICE_DEACTIVATION_PHRASES),
+    ...normalizePhrasesForRecognition(phraseGroups.stop, DEFAULT_VOICE_STOP_PHRASES),
+  ]
+  let command = detectControlCommand(text, phraseGroups)
+  let out = text
+  for (const phrase of controlPhrases.sort((a, b) => b.length - a.length)) {
+    const next = out.replace(new RegExp(`(^|[\\s,.;:!?…-]+)${voicePhraseRegexSource(phrase)}(?=$|[\\s,.;:!?…-]+)`, "giu"), " ")
+    if (next !== out && command === null) command = detectControlCommand(phrase, phraseGroups)
+    out = next
+  }
+  if (command !== null && out === text) return {text: "", command}
+  return {text: cleanupVoiceText(out), command}
 }
 
-function hasStopCommand(text: string): boolean {
+function detectControlCommand(text: string, phraseGroups: VoiceCommandPhraseGroups): VoiceControlCommand | null {
+  if (hasStopCommand(text, phraseGroups.stop)) return "stop"
+  const deactivationPhrases = normalizePhrasesForRecognition(phraseGroups.deactivation, DEFAULT_VOICE_DEACTIVATION_PHRASES)
+  return hasCommandPhrase(text, deactivationPhrases) ? "deactivation" : null
+}
+
+function mergeControlCommand(a: VoiceControlCommand | null, b: VoiceControlCommand | null): VoiceControlCommand | null {
+  if (a === "stop" || b === "stop") return "stop"
+  return a ?? b
+}
+
+function hasStopCommand(text: string, stopPhrases: readonly string[]): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
-  if (
-    normalized.includes("выключи микрофон") ||
-    normalized.includes("выключу микрофон") ||
-    normalized.includes("отключи микрофон") ||
-    normalized.includes("отключу микрофон") ||
-    normalized.includes("выруби микрофон") ||
-    normalized.includes("вырублю микрофон") ||
-    normalized.includes("останови голосовой ввод") ||
-    normalized.includes("остановлю голосовой ввод")
-  ) return true
-
-  const words = normalized.split(/\s+/)
-  return words.some((word) => ["выключи", "выключу", "отключи", "отключу", "выруби", "вырублю", "останови", "остановлю"].some((cmd) => levenshtein(word, cmd) <= 1))
-    && words.some((word) => ["микрофон", "голос"].some((target) => levenshtein(word, target) <= 2))
+  const phrases = normalizePhrasesForRecognition(stopPhrases, DEFAULT_VOICE_STOP_PHRASES)
+  return phrases.some((phrase) => phraseInText(normalized, phrase))
 }
 
 function isFinalRecognitionMessage(msg: AsrMessage): boolean {
@@ -675,10 +755,10 @@ function recognitionText(msg: AsrMessage): string {
   return ""
 }
 
-function isWakePhrase(text: string, wakePhrases: readonly string[]): boolean {
+function isActivationPhrase(text: string, activationPhrases: readonly string[]): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
-  const phrases = normalizeWakePhrasesForRecognition(wakePhrases)
+  const phrases = normalizePhrasesForRecognition(activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
   if (phrases.some((phrase) => phraseInText(normalized, phrase))) return true
 
   const words = normalized.split(/\s+/)
@@ -688,10 +768,16 @@ function isWakePhrase(text: string, wakePhrases: readonly string[]): boolean {
   return words.some((word) => phrases.some((phrase) => fuzzyWakeWordMatch(word, phrase)))
 }
 
-function isFastWakePartial(text: string, wakePhrases: readonly string[]): boolean {
+function isFastActivationPartial(text: string, activationPhrases: readonly string[]): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
-  return normalizeWakePhrasesForRecognition(wakePhrases).some((phrase) => phraseInText(normalized, phrase))
+  return normalizePhrasesForRecognition(activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES).some((phrase) => phraseInText(normalized, phrase))
+}
+
+function hasCommandPhrase(text: string, phrases: readonly string[]): boolean {
+  const normalized = normalizeWakeText(text)
+  if (!normalized) return false
+  return phrases.some((phrase) => phraseInText(normalized, normalizeWakeText(phrase)))
 }
 
 function normalizeWakeText(text: string): string {
@@ -770,10 +856,10 @@ function cleanupVoiceParagraph(paragraph: string): string {
   return isNoisePhrase(cleaned) ? "" : cleaned
 }
 
-function stripWakePrefix(text: string, wakePhrases: readonly string[]): string {
+function stripPhrasePrefix(text: string, phrases: readonly string[], fallback: readonly string[]): string {
   let out = text.trim()
-  for (const phrase of normalizeWakePhrasesForRecognition(wakePhrases).sort((a, b) => b.length - a.length)) {
-    out = out.replace(new RegExp(`^${wakePhraseRegexSource(phrase)}[\\s,.;:!?…-]*`, "iu"), "").trim()
+  for (const phrase of normalizePhrasesForRecognition(phrases, fallback).sort((a, b) => b.length - a.length)) {
+    out = out.replace(new RegExp(`^${voicePhraseRegexSource(phrase)}[\\s,.;:!?…-]*`, "iu"), "").trim()
   }
   return out
 }
@@ -790,7 +876,7 @@ function compactDetail(text: string): string {
   return cleaned.length <= 90 ? cleaned : `${cleaned.slice(0, 87)}...`
 }
 
-export function normalizeVoiceWakePhrases(phrases: readonly string[]): string[] {
+export function normalizeVoicePhrases(phrases: readonly string[]): string[] {
   const out: string[] = []
   const seen = new Set<string>()
   for (const phrase of phrases) {
@@ -803,13 +889,32 @@ export function normalizeVoiceWakePhrases(phrases: readonly string[]): string[] 
   return out
 }
 
-function createWakeRecognitionGrammar(wakePhrases: readonly string[]): string[] {
-  return [...normalizeWakePhrasesForRecognition(wakePhrases), ...STOP_COMMAND_PHRASES]
+export function normalizeVoiceWakePhrases(phrases: readonly string[]): string[] {
+  return normalizeVoicePhrases(phrases)
 }
 
-function normalizeWakePhrasesForRecognition(wakePhrases: readonly string[]): string[] {
-  const normalized = normalizeVoiceWakePhrases(wakePhrases).map(normalizeWakeText).filter(Boolean)
-  return normalized.length > 0 ? normalized : [...DEFAULT_VOICE_WAKE_PHRASES].map(normalizeWakeText)
+function createVoiceRecognitionGrammar(phraseGroups: VoiceCommandPhraseGroups): string[] {
+  return uniqueStrings([
+    ...normalizePhrasesForRecognition(phraseGroups.activation, DEFAULT_VOICE_ACTIVATION_PHRASES),
+    ...normalizePhrasesForRecognition(phraseGroups.deactivation, DEFAULT_VOICE_DEACTIVATION_PHRASES),
+    ...normalizePhrasesForRecognition(phraseGroups.stop, DEFAULT_VOICE_STOP_PHRASES),
+  ])
+}
+
+function normalizePhrasesForRecognition(phrases: readonly string[], fallback: readonly string[]): string[] {
+  const normalized = normalizeVoicePhrases(phrases).map(normalizeWakeText).filter(Boolean)
+  return normalized.length > 0 ? normalized : [...fallback].map(normalizeWakeText).filter(Boolean)
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const value of values) {
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    out.push(value)
+  }
+  return out
 }
 
 function phraseInText(text: string, phrase: string): boolean {
@@ -830,7 +935,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
-function wakePhraseRegexSource(phrase: string): string {
+function voicePhraseRegexSource(phrase: string): string {
   return phrase
     .split(/\s+/)
     .map((part) => escapeRegExp(part).replace(/е/giu, "[её]"))

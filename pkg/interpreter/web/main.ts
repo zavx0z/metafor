@@ -7,7 +7,7 @@
  */
 
 import {UiRuntime, UiSurface, uiIcons, type UiSurfaceRect} from "@ui/elements"
-import {VoiceInputHud, type VoiceInputHudServiceState} from "@ui/components"
+import {VoiceInputHud, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
@@ -39,9 +39,12 @@ import {
 import {interactiveRestartPayload} from "./restart.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
 import {
-  DEFAULT_VOICE_WAKE_PHRASES,
+  DEFAULT_VOICE_ACTIVATION_PHRASES,
+  DEFAULT_VOICE_DEACTIVATION_PHRASES,
+  DEFAULT_VOICE_STOP_PHRASES,
   VoiceInputClient,
-  normalizeVoiceWakePhrases,
+  VOICE_STOP_COMMAND_DETAIL,
+  normalizeVoicePhrases,
   type VoiceInputChunk,
   type VoiceInputSegment,
   type VoiceInputStatus,
@@ -241,6 +244,9 @@ const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
 const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
 const VOICE_INPUT_CONTEXT_STORAGE_KEY = "metafor.interpreter.voice.context"
 const VOICE_WAKE_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.wakePhrases:v1"
+const VOICE_ACTIVATION_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.activationPhrases:v1"
+const VOICE_DEACTIVATION_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.deactivationPhrases:v1"
+const VOICE_STOP_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.stopPhrases:v1"
 const VOICE_HUD_RECT_STORAGE_KEY = "metafor.interpreter.voice.hudRect:v1"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
@@ -291,6 +297,12 @@ let voiceAutoWakeInFlight = false
 let voiceAutoWakePaused = false
 let voiceAutoEnterCount = 0
 let voiceAutoEnterAt: Date | null = null
+let voiceLastPartialText = ""
+let voiceLastPartialAt: Date | null = null
+let voiceLastChunkText = ""
+let voiceLastChunkAt: Date | null = null
+let voiceLastErrorText = ""
+let voiceLastErrorAt: Date | null = null
 let voiceServiceState: VoiceInputHudServiceState = "unknown"
 let voiceServiceDetail = t("voiceServiceUnknown")
 let voiceServiceCheckedAt: Date | null = null
@@ -487,18 +499,16 @@ async function initEngine(): Promise<void> {
       onMove: storeVoiceHudRect,
       settings: () => ({
         title: t("voiceInput"),
-        wakeTitle: t("voiceWakePhrases"),
-        wakePhrases: readVoiceWakePhrases(),
-        addWakePhraseLabel: t("voiceWakeAdd"),
-        wakePhrasePlaceholder: t("voiceWakePhrasePrompt"),
-        resetWakePhrasesLabel: t("voiceWakeReset"),
+        debugTabLabel: t("voiceDebugTab"),
+        phraseGroups: voicePhraseGroupsForHud(),
         wakeEndpoint: voiceEndpointLabel(readVoiceWakeUrl()),
         inputEndpoint: voiceEndpointLabel(readVoiceInputUrl()),
         serviceLine: voiceServiceLine(),
+        debugLines: voiceDebugLines(),
       }),
-      onAddWakePhrase: addVoiceWakePhrase,
-      onRemoveWakePhrase: removeVoiceWakePhrase,
-      onResetWakePhrases: resetVoiceWakePhrases,
+      onAddPhrase: addVoicePhrase,
+      onRemovePhrase: removeVoicePhrase,
+      onResetPhrases: resetVoicePhrases,
       startTooltip: () => t("voiceStart"),
       stopTooltip: () => t("voiceStop"),
     })
@@ -707,7 +717,9 @@ function ensureVoiceInputClient(): VoiceInputClient {
   voiceInputClient = new VoiceInputClient({
     url: readVoiceInputUrl,
     wakeUrl: readVoiceWakeUrl,
-    wakePhrases: readVoiceWakePhrases,
+    activationPhrases: () => readVoicePhrases("activation"),
+    deactivationPhrases: () => readVoicePhrases("deactivation"),
+    stopPhrases: () => readVoicePhrases("stop"),
     language: "ru",
     context: readVoiceInputContext,
     onStatus: handleVoiceStatus,
@@ -721,7 +733,12 @@ function ensureVoiceInputClient(): VoiceInputClient {
 
 function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
   const previousStatus = voiceHudStatus
-  if (status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) clearVoicePartialPreview()
+  if (status === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) voiceAutoWakePaused = true
+  if (status === "error") {
+    voiceLastErrorText = voiceReadableDetail(detail ?? voiceStatusDetail(status))
+    voiceLastErrorAt = new Date()
+  }
+  if (status !== "error" && status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) clearVoicePartialPreview()
   updateVoiceHud(status, detail)
   if (shouldPlayVoiceActivationSignal(previousStatus, status)) playVoiceActivationSignal()
 }
@@ -834,7 +851,10 @@ function handleVoiceInputChunk(chunk: VoiceInputChunk): void {
   clearVoicePartialPreview()
   const messages = voiceMessagesFromChunk(chunk)
   if (messages.length === 0) return
+  voiceLastChunkText = messages.join("\n\n")
+  voiceLastChunkAt = new Date()
   for (const message of messages) insertVoiceMessage(message)
+  renderVoiceHud()
 }
 
 function handleVoicePartial(raw: string): void {
@@ -850,8 +870,11 @@ function handleVoicePartial(raw: string): void {
     return
   }
 
+  voiceLastPartialText = text
+  voiceLastPartialAt = new Date()
   if (target.kind === "module") showModuleTerminalPrompt(target.controller)
   showVoicePartialPreview(target, text)
+  renderVoiceHud()
 }
 
 function showVoicePartialPreview(target: VoiceInputTarget, text: string): void {
@@ -1049,6 +1072,8 @@ function renderVoiceHud(): void {
 
 function flashVoiceHudError(detail: string): void {
   if (voiceHudErrorTimer !== null) window.clearTimeout(voiceHudErrorTimer)
+  voiceLastErrorText = voiceReadableDetail(detail)
+  voiceLastErrorAt = new Date()
   updateVoiceHud("error", detail)
   voiceHudErrorTimer = window.setTimeout(() => {
     voiceHudErrorTimer = null
@@ -1077,6 +1102,7 @@ function voiceReadableDetail(detail: string): string {
   if (/permission denied|notallowederror|not allowed/i.test(text)) return getUiLocale() === "ru" ? "нет доступа к микрофону" : "microphone access denied"
   if (/notfounderror|not found|device not found/i.test(text)) return getUiLocale() === "ru" ? "микрофон не найден" : "microphone not found"
   if (/commit timeout/i.test(text)) return getUiLocale() === "ru" ? "таймаут распознавания фрагмента" : "voice commit timeout"
+  if (text === VOICE_STOP_COMMAND_DETAIL) return getUiLocale() === "ru" ? "остановлено голосовой командой" : "stopped by voice command"
   return text
 }
 
@@ -1094,6 +1120,36 @@ function voiceServiceLine(): string {
 function voiceAutoEnterLine(): string {
   if (voiceAutoEnterAt === null) return `${t("voiceAutoEnter")}: 0`
   return `${formatHudTime(voiceAutoEnterAt)} · ${t("voiceAutoEnter")} #${voiceAutoEnterCount}`
+}
+
+function voiceDebugLines(): string[] {
+  const ru = getUiLocale() === "ru"
+  const target = voiceTargetLabel()
+  const previewActive = voicePartialPreviewTarget !== null
+  return [
+    `${ru ? "статус" : "status"}: ${voiceStatusLabel(voiceHudStatus)}`,
+    `${ru ? "деталь" : "detail"}: ${voiceHudDetail || "-"}`,
+    `${ru ? "цель" : "target"}: ${target || "-"}`,
+    `${ru ? "preview активен" : "preview active"}: ${previewActive ? "yes" : "no"}`,
+    `${ru ? "preview символов" : "preview chars"}: ${voiceLastPartialText.length}`,
+    `${ru ? "partial" : "partial"}: ${debugVoiceText(voiceLastPartialText)}`,
+    `${ru ? "partial время" : "partial at"}: ${formatDebugTime(voiceLastPartialAt)}`,
+    `${ru ? "chunk символов" : "chunk chars"}: ${voiceLastChunkText.length}`,
+    `${ru ? "chunk" : "chunk"}: ${debugVoiceText(voiceLastChunkText)}`,
+    `${ru ? "chunk время" : "chunk at"}: ${formatDebugTime(voiceLastChunkAt)}`,
+    `${ru ? "последняя ошибка" : "last error"}: ${debugVoiceText(voiceLastErrorText)}`,
+    `${ru ? "ошибка время" : "error at"}: ${formatDebugTime(voiceLastErrorAt)}`,
+  ]
+}
+
+function debugVoiceText(text: string): string {
+  const cleaned = cleanupVoiceInputText(text)
+  if (!cleaned) return "-"
+  return cleaned.length <= 72 ? cleaned : `${cleaned.slice(0, 69)}...`
+}
+
+function formatDebugTime(date: Date | null): string {
+  return date === null ? "--:--:--" : formatHudTime(date)
 }
 
 function renderVoiceMeter(): void {
@@ -1416,51 +1472,123 @@ function readVoiceInputContext(): string {
   }
 }
 
-function readVoiceWakePhrases(): string[] {
+function voicePhraseGroupsForHud(): Array<{
+  id: VoiceInputHudPhraseGroupId
+  title: string
+  description: string
+  whenLine: string
+  effectLine: string
+  phrases: string[]
+  addLabel: string
+  placeholder: string
+  resetLabel: string
+}> {
+  return [
+    {
+      id: "activation",
+      title: t("voiceActivationPhrases"),
+      description: t("voiceActivationDescription"),
+      whenLine: t("voiceActivationWhen"),
+      effectLine: t("voiceActivationEffect"),
+      phrases: readVoicePhrases("activation"),
+      addLabel: t("voicePhraseAdd"),
+      placeholder: t("voiceActivationPhrasePrompt"),
+      resetLabel: t("voicePhraseReset"),
+    },
+    {
+      id: "deactivation",
+      title: t("voiceDeactivationPhrases"),
+      description: t("voiceDeactivationDescription"),
+      whenLine: t("voiceDeactivationWhen"),
+      effectLine: t("voiceDeactivationEffect"),
+      phrases: readVoicePhrases("deactivation"),
+      addLabel: t("voicePhraseAdd"),
+      placeholder: t("voiceDeactivationPhrasePrompt"),
+      resetLabel: t("voicePhraseReset"),
+    },
+    {
+      id: "stop",
+      title: t("voiceStopPhrases"),
+      description: t("voiceStopDescription"),
+      whenLine: t("voiceStopWhen"),
+      effectLine: t("voiceStopEffect"),
+      phrases: readVoicePhrases("stop"),
+      addLabel: t("voicePhraseAdd"),
+      placeholder: t("voiceStopPhrasePrompt"),
+      resetLabel: t("voicePhraseReset"),
+    },
+  ]
+}
+
+function readVoicePhrases(groupId: VoiceInputHudPhraseGroupId): string[] {
   try {
-    const raw = localStorage.getItem(VOICE_WAKE_PHRASES_STORAGE_KEY)
+    const raw = readVoicePhraseStorage(groupId)
     if (raw !== null) {
       const parsed = JSON.parse(raw) as unknown
       if (Array.isArray(parsed)) {
-        const phrases = normalizeVoiceWakePhrases(parsed.map((item) => String(item)))
+        const phrases = normalizeVoicePhrases(parsed.map((item) => String(item)))
         if (phrases.length > 0) return phrases
       }
     }
   } catch {
     // Storage can be disabled or manually edited.
   }
-  return [...DEFAULT_VOICE_WAKE_PHRASES]
+  return [...defaultVoicePhrases(groupId)]
 }
 
-function storeVoiceWakePhrases(phrases: readonly string[]): void {
-  const normalized = normalizeVoiceWakePhrases(phrases)
-  const next = normalized.length > 0 ? normalized : [...DEFAULT_VOICE_WAKE_PHRASES]
+function readVoicePhraseStorage(groupId: VoiceInputHudPhraseGroupId): string | null {
+  const raw = localStorage.getItem(voicePhraseStorageKey(groupId))
+  if (raw !== null || groupId !== "activation") return raw
+  return localStorage.getItem(VOICE_WAKE_PHRASES_STORAGE_KEY)
+}
+
+function storeVoicePhrases(groupId: VoiceInputHudPhraseGroupId, phrases: readonly string[]): void {
+  const normalized = normalizeVoicePhrases(phrases)
+  const next = normalized.length > 0 ? normalized : [...defaultVoicePhrases(groupId)]
   try {
-    localStorage.setItem(VOICE_WAKE_PHRASES_STORAGE_KEY, JSON.stringify(next))
+    localStorage.setItem(voicePhraseStorageKey(groupId), JSON.stringify(next))
   } catch {
     // Storage can be disabled in private contexts.
   }
   renderVoiceHud()
-  restartWakeRecognizerAfterSettingsChange()
+  restartVoiceCommandRecognizerAfterSettingsChange()
 }
 
-function addVoiceWakePhrase(phrase: string): void {
-  const phrases = normalizeVoiceWakePhrases([...readVoiceWakePhrases(), phrase])
-  storeVoiceWakePhrases(phrases)
+function addVoicePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void {
+  const phrases = normalizeVoicePhrases([...readVoicePhrases(groupId), phrase])
+  storeVoicePhrases(groupId, phrases)
 }
 
-function removeVoiceWakePhrase(phrase: string): void {
-  const normalizedTarget = normalizeVoiceWakePhrases([phrase])[0]
+function removeVoicePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void {
+  const normalizedTarget = voicePhraseKey(phrase)
   if (normalizedTarget === undefined) return
-  const phrases = readVoiceWakePhrases().filter((item) => normalizeVoiceWakePhrases([item])[0] !== normalizedTarget)
-  storeVoiceWakePhrases(phrases)
+  const phrases = readVoicePhrases(groupId).filter((item) => voicePhraseKey(item) !== normalizedTarget)
+  storeVoicePhrases(groupId, phrases)
 }
 
-function resetVoiceWakePhrases(): void {
-  storeVoiceWakePhrases(DEFAULT_VOICE_WAKE_PHRASES)
+function resetVoicePhrases(groupId: VoiceInputHudPhraseGroupId): void {
+  storeVoicePhrases(groupId, defaultVoicePhrases(groupId))
 }
 
-function restartWakeRecognizerAfterSettingsChange(): void {
+function voicePhraseKey(phrase: string): string | undefined {
+  const normalized = normalizeVoicePhrases([phrase])[0]
+  if (normalized === undefined) return undefined
+  return normalized.toLocaleLowerCase("ru-RU").replace(/ё/g, "е")
+}
+
+function defaultVoicePhrases(groupId: VoiceInputHudPhraseGroupId): readonly string[] {
+  if (groupId === "activation") return DEFAULT_VOICE_ACTIVATION_PHRASES
+  if (groupId === "deactivation") return DEFAULT_VOICE_DEACTIVATION_PHRASES
+  return DEFAULT_VOICE_STOP_PHRASES
+}
+
+function voicePhraseStorageKey(groupId: VoiceInputHudPhraseGroupId): string {
+  if (groupId === "activation") return VOICE_ACTIVATION_PHRASES_STORAGE_KEY
+  if (groupId === "deactivation") return VOICE_DEACTIVATION_PHRASES_STORAGE_KEY
+  return VOICE_STOP_PHRASES_STORAGE_KEY
+}
+
+function restartVoiceCommandRecognizerAfterSettingsChange(): void {
   const client = voiceInputClient
   if (client?.status !== "waitingWake") return
   client.stop()

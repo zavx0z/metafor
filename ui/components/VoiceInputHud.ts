@@ -15,25 +15,37 @@ export type VoiceInputHudSnapshot = {
   level: number
 }
 
+export type VoiceInputHudPhraseGroupId = "activation" | "deactivation" | "stop"
+
+export type VoiceInputHudPhraseGroup = {
+  id: VoiceInputHudPhraseGroupId
+  title: string
+  description: string
+  whenLine: string
+  effectLine: string
+  phrases: string[]
+  addLabel: string
+  placeholder: string
+  resetLabel: string
+}
+
 export type VoiceInputHudSettings = {
   title: string
-  wakeTitle: string
-  wakePhrases: string[]
-  addWakePhraseLabel: string
-  wakePhrasePlaceholder: string
-  resetWakePhrasesLabel: string
+  debugTabLabel: string
+  phraseGroups: VoiceInputHudPhraseGroup[]
   wakeEndpoint: string
   inputEndpoint: string
   serviceLine: string
+  debugLines: string[]
 }
 
 export type VoiceInputHudOptions = {
   onToggle(): void
   onMove?(rect: UiSurfaceRect): void
   settings(): VoiceInputHudSettings
-  onAddWakePhrase(phrase: string): void
-  onRemoveWakePhrase(phrase: string): void
-  onResetWakePhrases(): void
+  onAddPhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
+  onRemovePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
+  onResetPhrases(groupId: VoiceInputHudPhraseGroupId): void
   startTooltip(): string
   stopTooltip(): string
 }
@@ -43,8 +55,9 @@ const SOUND_PULSE_MS = 680
 const COMPACT_W = 128
 const COMPACT_H = 128
 const BUTTON_SIZE = 58
-const SETTINGS_W = 360
-const SETTINGS_H = 392
+const SETTINGS_W = 430
+const SETTINGS_H = 620
+type VoiceInputHudTab = VoiceInputHudPhraseGroupId | "debug"
 
 export class VoiceInputHud extends UiSurface {
   #press: {
@@ -59,7 +72,8 @@ export class VoiceInputHud extends UiSurface {
   #settingsOpen = false
   #compactRectBeforeSettings: UiSurfaceRect | null = null
   #settingsContextToggleAt = 0
-  #wakePhraseDraft = ""
+  #settingsTab: VoiceInputHudTab = "activation"
+  #phraseDrafts = new Map<VoiceInputHudPhraseGroupId, string>()
   #soundPulseStartedAt = 0
   #soundPulseRaf: number | null = null
   #snapshot: VoiceInputHudSnapshot = {
@@ -369,59 +383,15 @@ export class VoiceInputHud extends UiSurface {
     })
     y += 22
     this.drawRect(left, y, Math.max(1, right - left), 1, fade(palette.borderDim, 0.72), 0.2)
-    y += 12
+    y += 10
 
-    const actionY = y - 6
-    button(this, right - 68, actionY, 68, 22, {
-      key: "voice-wake-reset",
-      children: settings.resetWakePhrasesLabel,
-      onClick: () => this.options.onResetWakePhrases(),
-      style: {
-        background: "rgba(38, 49, 66, 0.42)",
-        borderColor: "borderDim",
-        borderRadius: 6,
-        color: "muted",
-        fontSize: 10,
-      },
-    })
-    this.drawText(settings.wakeTitle, left, y, {
-      fontPx: 10,
-      material: this.materials.cyan,
-      maxWidthPx: Math.max(1, right - left - 78),
-      z: 0.46,
-    })
-    y += 24
-    input(this, left, y, Math.max(1, right - left - 78), 24, {
-      key: "voice-wake-phrase-input",
-      value: this.#wakePhraseDraft,
-      placeholder: settings.wakePhrasePlaceholder,
-      submitOnEnter: true,
-      fontPx: 10,
-      onChange: (value) => {
-        this.#wakePhraseDraft = value
-      },
-      onSubmit: () => this.#submitWakePhraseDraft(),
-      style: {
-        background: "rgba(10, 14, 21, 0.88)",
-        borderColor: "borderDim",
-        borderRadius: 6,
-        color: "text",
-        paddingX: 8,
-      },
-    })
-    button(this, right - 72, y, 72, 24, {
-      key: "voice-wake-add",
-      children: settings.addWakePhraseLabel,
-      onClick: () => this.#submitWakePhraseDraft(),
-      style: {
-        background: "rgba(38, 49, 66, 0.58)",
-        borderColor: "borderDim",
-        borderRadius: 6,
-        fontSize: 10,
-      },
-    })
-    y += 34
-    y = this.#drawWakePhraseChips(settings.wakePhrases, left, y, Math.max(1, right - left), rect.y + rect.h - 47)
+    y = this.#drawSettingsTabs(settings, left, y, Math.max(1, right - left)) + 12
+    if (this.#settingsTab === "debug") {
+      this.#drawDebugTab(settings.debugLines, left, y, Math.max(1, right - left), rect.y + rect.h - 47)
+    } else {
+      const group = this.#activePhraseGroup(settings.phraseGroups)
+      if (group !== null) this.#drawPhraseGroup(group, left, right, y, rect.y + rect.h - 47)
+    }
 
     this.drawText(`wake · ${settings.wakeEndpoint}`, left, rect.y + rect.h - 39, {
       fontPx: 9,
@@ -437,22 +407,158 @@ export class VoiceInputHud extends UiSurface {
     })
   }
 
-  #submitWakePhraseDraft(): void {
-    const phrase = this.#wakePhraseDraft.replace(/\s+/g, " ").trim()
+  #drawSettingsTabs(settings: VoiceInputHudSettings, x: number, y: number, w: number): number {
+    const gap = 6
+    const tabs: Array<{id: VoiceInputHudTab; label: string}> = [
+      ...settings.phraseGroups.map((group) => ({id: group.id, label: group.title})),
+      {id: "debug", label: settings.debugTabLabel},
+    ]
+    const tabW = Math.max(1, (w - gap * Math.max(0, tabs.length - 1)) / Math.max(1, tabs.length))
+    let cx = x
+    for (const tab of tabs) {
+      this.#drawSettingsTabButton(tab.id, tab.label, cx, y, tabW, 24)
+      cx += tabW + gap
+    }
+    return y + 24
+  }
+
+  #drawSettingsTabButton(tab: VoiceInputHudTab, label: string, x: number, y: number, w: number, h: number): void {
+    const active = this.#settingsTab === tab
+    button(this, x, y, w, h, {
+      key: `voice-settings-tab:${tab}`,
+      children: label,
+      onClick: () => {
+        this.#settingsTab = tab
+        this.requestRender()
+      },
+      style: {
+        background: active ? "rgba(111, 211, 255, 0.12)" : "rgba(38, 49, 66, 0.36)",
+        borderColor: active ? "cyan" : "borderDim",
+        borderRadius: 6,
+        color: active ? "text" : "muted",
+        fontSize: 10,
+      },
+    })
+  }
+
+  #activePhraseGroup(groups: readonly VoiceInputHudPhraseGroup[]): VoiceInputHudPhraseGroup | null {
+    const selected = groups.find((group) => group.id === this.#settingsTab)
+    if (selected !== undefined) return selected
+    return groups[0] ?? null
+  }
+
+  #drawPhraseGroup(group: VoiceInputHudPhraseGroup, left: number, right: number, y: number, maxY: number): number {
+    const actionY = y - 5
+    button(this, right - 60, actionY, 60, 20, {
+      key: `voice-phrases-reset:${group.id}`,
+      children: group.resetLabel,
+      onClick: () => this.options.onResetPhrases(group.id),
+      style: {
+        background: "rgba(38, 49, 66, 0.42)",
+        borderColor: "borderDim",
+        borderRadius: 6,
+        color: "muted",
+        fontSize: 9,
+      },
+    })
+    this.drawText(group.title, left, y, {
+      fontPx: 10,
+      material: this.materials.cyan,
+      maxWidthPx: Math.max(1, right - left - 68),
+      z: 0.46,
+    })
+    y += 16
+    this.drawText(group.description, left, y, {
+      fontPx: 9,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, right - left),
+      z: 0.46,
+    })
+    y += 18
+    this.drawText(group.whenLine, left, y, {
+      fontPx: 9,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, right - left),
+      z: 0.46,
+    })
+    y += 16
+    this.drawText(group.effectLine, left, y, {
+      fontPx: 9,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, right - left),
+      z: 0.46,
+    })
+    y += 22
+    const inputW = Math.max(1, right - left - 66)
+    input(this, left, y, inputW, 22, {
+      key: `voice-phrase-input:${group.id}`,
+      value: this.#phraseDraft(group.id),
+      placeholder: group.placeholder,
+      submitOnEnter: true,
+      fontPx: 10,
+      onChange: (value) => {
+        this.#phraseDrafts.set(group.id, value)
+      },
+      onSubmit: () => this.#submitPhraseDraft(group.id),
+      style: {
+        background: "rgba(10, 14, 21, 0.88)",
+        borderColor: "borderDim",
+        borderRadius: 6,
+        color: "text",
+        paddingX: 8,
+      },
+    })
+    button(this, right - 60, y, 60, 22, {
+      key: `voice-phrases-add:${group.id}`,
+      children: group.addLabel,
+      onClick: () => this.#submitPhraseDraft(group.id),
+      style: {
+        background: "rgba(38, 49, 66, 0.58)",
+        borderColor: "borderDim",
+        borderRadius: 6,
+        fontSize: 9,
+      },
+    })
+    y += 30
+    return this.#drawPhraseChips(group, left, y, Math.max(1, right - left), maxY)
+  }
+
+  #drawDebugTab(lines: readonly string[], x: number, y: number, w: number, maxY: number): void {
+    const lineH = 16
+    let cy = y
+    for (const line of lines) {
+      if (cy + lineH > maxY) break
+      const warn = /error|ошибка|ASR недоступен|unavailable|closed|failed/i.test(line)
+      this.drawText(line, x, cy + 2, {
+        fontPx: 9,
+        material: warn ? this.materials.orange : this.materials.muted,
+        maxWidthPx: w,
+        z: 0.46,
+      })
+      cy += lineH
+    }
+  }
+
+  #phraseDraft(groupId: VoiceInputHudPhraseGroupId): string {
+    return this.#phraseDrafts.get(groupId) ?? ""
+  }
+
+  #submitPhraseDraft(groupId: VoiceInputHudPhraseGroupId): void {
+    const phrase = this.#phraseDraft(groupId).replace(/\s+/g, " ").trim()
     if (!phrase) return
-    this.options.onAddWakePhrase(phrase)
-    this.#wakePhraseDraft = ""
+    this.options.onAddPhrase(groupId, phrase)
+    this.#phraseDrafts.set(groupId, "")
     this.requestRender()
   }
 
-  #drawWakePhraseChips(phrases: readonly string[], x: number, y: number, w: number, maxY: number): number {
+  #drawPhraseChips(group: VoiceInputHudPhraseGroup, x: number, y: number, w: number, maxY: number): number {
     let cx = x
     let cy = y
-    const gap = 6
-    const chipH = 20
-    for (const phrase of phrases) {
+    const gap = 5
+    const chipH = 18
+    for (const phrase of group.phrases) {
       if (cy + chipH > maxY) break
-      const chipW = Math.min(w, Math.ceil(this.measureText(phrase, 10)) + 28)
+      const chipW = Math.min(w, Math.ceil(this.measureText(phrase, 9)) + 25)
       if (cx > x && cx + chipW > x + w) {
         cx = x
         cy += chipH + gap
@@ -465,21 +571,21 @@ export class VoiceInputHud extends UiSurface {
         borderWidth: 1,
         z: 0.16,
       })
-      this.drawText(phrase, cx + 9, cy + 5, {
-        fontPx: 10,
+      this.drawText(phrase, cx + 8, cy + 4, {
+        fontPx: 9,
         material: this.materials.text,
-        maxWidthPx: Math.max(1, chipW - 28),
+        maxWidthPx: Math.max(1, chipW - 25),
         z: 0.46,
       })
-      this.drawText("x", cx + chipW - 14, cy + 5, {
-        fontPx: 10,
+      this.drawText("x", cx + chipW - 13, cy + 4, {
+        fontPx: 9,
         material: this.materials.muted,
         maxWidthPx: 8,
         z: 0.46,
       })
-      this.hit(cx, cy, chipW, chipH, () => this.options.onRemoveWakePhrase(phrase), {
+      this.hit(cx, cy, chipW, chipH, () => this.options.onRemovePhrase(group.id, phrase), {
         cursor: "pointer",
-        key: `voice-wake-remove:${phrase}`,
+        key: `voice-phrase-remove:${group.id}:${phrase}`,
       })
       cx += chipW + gap
     }
