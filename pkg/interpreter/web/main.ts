@@ -267,7 +267,9 @@ const HOST_TERMINAL_DOCK_MARGIN = 8
 const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
 const AGENT_READY_SOUND_IDLE_MS = 2_500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1_200
-const VOICE_ACTIVATION_SIGNAL_COOLDOWN_MS = 900
+const VOICE_SIGNAL_COOLDOWN_MS = 900
+
+type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 
 type HostTerminalDockPlacement = {
   edge: HudSideTabEdge
@@ -310,8 +312,10 @@ let voiceServiceCheckInFlight = false
 let voiceServiceCheckTimer: number | null = null
 let hostTerminalUnloadInstalled = false
 let hudNotificationAudioContext: AudioContext | null = null
-let hudNotificationAudioElement: HTMLAudioElement | null = null
-let voiceActivationSignalLastPlayedAt = 0
+const hudNotificationAudioElements = new Map<HudNotificationKind, HTMLAudioElement>()
+const voiceSignalLastPlayedAt = new Map<HudNotificationKind, number>()
+let hudNotificationLastLine = ""
+let hudNotificationLastAt: Date | null = null
 let resizeObserver: ResizeObserver | null = null
 let socket: WebSocket | undefined
 let nextRequestId = 1
@@ -734,25 +738,30 @@ function ensureVoiceInputClient(): VoiceInputClient {
 function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
   const previousStatus = voiceHudStatus
   if (status === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) voiceAutoWakePaused = true
+  const voiceSignal = voiceSignalForStatusChange(previousStatus, status, detail)
   if (status === "error") {
     voiceLastErrorText = voiceReadableDetail(detail ?? voiceStatusDetail(status))
     voiceLastErrorAt = new Date()
   }
   if (status !== "error" && status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) clearVoicePartialPreview()
   updateVoiceHud(status, detail)
-  if (shouldPlayVoiceActivationSignal(previousStatus, status)) playVoiceActivationSignal()
+  if (voiceSignal !== null) playVoiceSignal(voiceSignal)
 }
 
-function shouldPlayVoiceActivationSignal(previousStatus: VoiceInputStatus, nextStatus: VoiceInputStatus): boolean {
-  return nextStatus === "listening" && previousStatus !== "listening" && previousStatus !== "committing"
+function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus: VoiceInputStatus, detail?: string): HudNotificationKind | null {
+  if (nextStatus === "listening" && previousStatus !== "listening" && previousStatus !== "committing") return "activation"
+  if (nextStatus === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing" || previousStatus === "connecting")) return "deactivation"
+  if (nextStatus === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) return "stop"
+  return null
 }
 
-function playVoiceActivationSignal(): void {
+function playVoiceSignal(kind: HudNotificationKind): void {
   const now = performance.now()
-  if (now - voiceActivationSignalLastPlayedAt < VOICE_ACTIVATION_SIGNAL_COOLDOWN_MS) return
-  voiceActivationSignalLastPlayedAt = now
+  const lastPlayedAt = voiceSignalLastPlayedAt.get(kind) ?? 0
+  if (now - lastPlayedAt < VOICE_SIGNAL_COOLDOWN_MS) return
+  voiceSignalLastPlayedAt.set(kind, now)
   voiceHudPane?.flashSoundIndicator()
-  playHudNotificationSound()
+  playHudNotificationSound(kind)
 }
 
 async function toggleVoiceInput(): Promise<void> {
@@ -761,7 +770,6 @@ async function toggleVoiceInput(): Promise<void> {
     if (client.active) {
       if (client.status === "waitingWake") {
         voiceAutoWakePaused = false
-        playVoiceActivationSignal()
         await client.startDictation()
         return
       }
@@ -775,7 +783,6 @@ async function toggleVoiceInput(): Promise<void> {
       flashVoiceHudError(t("voiceNoActiveInput"))
       return
     }
-    playVoiceActivationSignal()
     const serviceOk = await checkVoiceService()
     if (!serviceOk) {
       flashVoiceHudError(voiceServiceDetail)
@@ -1139,6 +1146,7 @@ function voiceDebugLines(): string[] {
     `${ru ? "chunk время" : "chunk at"}: ${formatDebugTime(voiceLastChunkAt)}`,
     `${ru ? "последняя ошибка" : "last error"}: ${debugVoiceText(voiceLastErrorText)}`,
     `${ru ? "ошибка время" : "error at"}: ${formatDebugTime(voiceLastErrorAt)}`,
+    `${ru ? "звук" : "sound"}: ${hudNotificationDebugLine()}`,
   ]
 }
 
@@ -1150,6 +1158,11 @@ function debugVoiceText(text: string): string {
 
 function formatDebugTime(date: Date | null): string {
   return date === null ? "--:--:--" : formatHudTime(date)
+}
+
+function hudNotificationDebugLine(): string {
+  if (!hudNotificationLastLine) return "-"
+  return `${formatDebugTime(hudNotificationLastAt)} · ${hudNotificationLastLine}`
 }
 
 function renderVoiceMeter(): void {
@@ -1252,7 +1265,7 @@ function voiceEndpointLabel(rawUrl: string): string {
 
 function installHudNotificationSoundUnlock(): void {
   const unlock = (): void => {
-    primeHudNotificationAudioElement()
+    primeHudNotificationAudioElements()
     primeHudNotificationAudioContext()
   }
   window.addEventListener("pointerdown", unlock, {capture: true})
@@ -1270,13 +1283,20 @@ function ensureHudNotificationAudioContext(): AudioContext | null {
   }
 }
 
-function playHudNotificationSound(): void {
-  if (playHudNotificationWebAudioTone(() => playHudNotificationHtmlAudio())) return
-  playHudNotificationHtmlAudio()
+function playHudNotificationSound(kind: HudNotificationKind): void {
+  if (kind !== "agent" && voiceInputClient?.playSignalTone(kind, recordHudNotificationSound) === true) {
+    return
+  }
+  playBrowserHudNotificationSound(kind)
 }
 
-function playHudNotificationHtmlAudio(): void {
-  const audio = ensureHudNotificationAudioElement()
+function playBrowserHudNotificationSound(kind: HudNotificationKind): void {
+  if (playHudNotificationWebAudioTone(kind, (reason) => playHudNotificationHtmlAudio(kind, reason))) return
+  playHudNotificationHtmlAudio(kind, "no webaudio")
+}
+
+function playHudNotificationHtmlAudio(kind: HudNotificationKind, reason = "fallback"): void {
+  const audio = ensureHudNotificationAudioElement(kind)
   if (audio !== null) {
     try {
       audio.pause()
@@ -1286,25 +1306,34 @@ function playHudNotificationHtmlAudio(): void {
     }
     audio.muted = false
     audio.volume = 0.9
-    void audio.play().catch(() => undefined)
+    void audio.play()
+      .then(() => recordHudNotificationSound(kind, `html · ${reason}`))
+      .catch((error) => recordHudNotificationSound(kind, "html blocked", error))
+    return
   }
+  recordHudNotificationSound(kind, "html unavailable", reason)
 }
 
-function ensureHudNotificationAudioElement(): HTMLAudioElement | null {
-  if (hudNotificationAudioElement !== null) return hudNotificationAudioElement
+function ensureHudNotificationAudioElement(kind: HudNotificationKind): HTMLAudioElement | null {
+  const cached = hudNotificationAudioElements.get(kind)
+  if (cached !== undefined) return cached
   try {
-    const audio = new Audio(hudNotificationWavDataUrl())
+    const audio = new Audio(hudNotificationWavDataUrl(kind))
     audio.preload = "auto"
     audio.volume = 0.9
-    hudNotificationAudioElement = audio
+    hudNotificationAudioElements.set(kind, audio)
     return audio
   } catch {
     return null
   }
 }
 
-function primeHudNotificationAudioElement(): void {
-  const audio = ensureHudNotificationAudioElement()
+function primeHudNotificationAudioElements(): void {
+  for (const kind of hudNotificationKinds()) primeHudNotificationAudioElement(kind)
+}
+
+function primeHudNotificationAudioElement(kind: HudNotificationKind): void {
+  const audio = ensureHudNotificationAudioElement(kind)
   if (audio === null) return
   const restore = (): void => {
     try {
@@ -1347,22 +1376,23 @@ function primeHudNotificationAudioContext(): void {
   prime()
 }
 
-function playHudNotificationWebAudioTone(onError?: () => void): boolean {
+function playHudNotificationWebAudioTone(kind: HudNotificationKind, onError?: (reason: string) => void): boolean {
   const context = ensureHudNotificationAudioContext()
   if (context === null) return false
 
   const play = (): void => {
     const start = context.currentTime + 0.005
-    const end = start + 0.34
+    const toneSpec = hudNotificationTone(kind)
+    const end = start + toneSpec.duration
     const gain = context.createGain()
     const tone = context.createOscillator()
 
-    tone.type = "triangle"
-    tone.frequency.setValueAtTime(587.33, start)
-    tone.frequency.exponentialRampToValueAtTime(880, end)
+    tone.type = toneSpec.type
+    tone.frequency.setValueAtTime(toneSpec.startHz, start)
+    tone.frequency.exponentialRampToValueAtTime(toneSpec.endHz, end)
     gain.gain.setValueAtTime(0.0001, start)
-    gain.gain.exponentialRampToValueAtTime(0.22, start + 0.018)
-    gain.gain.exponentialRampToValueAtTime(0.11, start + 0.14)
+    gain.gain.exponentialRampToValueAtTime(toneSpec.gain, start + 0.018)
+    gain.gain.exponentialRampToValueAtTime(toneSpec.gain * 0.42, start + toneSpec.duration * 0.45)
     gain.gain.exponentialRampToValueAtTime(0.0001, end)
     tone.connect(gain)
     gain.connect(context.destination)
@@ -1372,19 +1402,61 @@ function playHudNotificationWebAudioTone(onError?: () => void): boolean {
       tone.disconnect()
       gain.disconnect()
     }, {once: true})
+    recordHudNotificationSound(kind, `webaudio · ${context.state}`)
   }
 
   if (context.state === "suspended") {
-    void context.resume().then(play).catch(() => onError?.())
+    let settled = false
+    const fallbackTimer = window.setTimeout(() => {
+      if (settled) return
+      settled = true
+      onError?.("resume timeout")
+    }, 180)
+    void context.resume()
+      .then(() => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(fallbackTimer)
+        if (context.state !== "running") {
+          onError?.(`context ${context.state}`)
+          return
+        }
+        play()
+      })
+      .catch((error) => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(fallbackTimer)
+        recordHudNotificationSound(kind, "webaudio blocked", error)
+        onError?.("resume blocked")
+      })
     return true
   }
   play()
   return true
 }
 
-function hudNotificationWavDataUrl(): string {
+function hudNotificationKinds(): HudNotificationKind[] {
+  return ["activation", "deactivation", "stop", "agent"]
+}
+
+function hudNotificationTone(kind: HudNotificationKind): {
+  startHz: number
+  endHz: number
+  duration: number
+  gain: number
+  type: OscillatorType
+} {
+  if (kind === "activation") return {startHz: 640, endHz: 960, duration: 0.24, gain: 0.34, type: "triangle"}
+  if (kind === "deactivation") return {startHz: 740, endHz: 430, duration: 0.22, gain: 0.32, type: "sine"}
+  if (kind === "stop") return {startHz: 360, endHz: 210, duration: 0.34, gain: 0.38, type: "square"}
+  return {startHz: 587.33, endHz: 880, duration: 0.28, gain: 0.3, type: "triangle"}
+}
+
+function hudNotificationWavDataUrl(kind: HudNotificationKind): string {
   const sampleRate = 44_100
-  const durationSeconds = 0.24
+  const tone = hudNotificationTone(kind)
+  const durationSeconds = tone.duration
   const sampleCount = Math.floor(sampleRate * durationSeconds)
   const bytes = new Uint8Array(44 + sampleCount * 2)
   const view = new DataView(bytes.buffer)
@@ -1406,16 +1478,24 @@ function hudNotificationWavDataUrl(): string {
   for (let index = 0; index < sampleCount; index += 1) {
     const t = index / sampleRate
     const progress = t / durationSeconds
-    const frequency = 587.33 * Math.pow(880 / 587.33, progress)
+    const frequency = tone.startHz * Math.pow(tone.endHz / tone.startHz, progress)
     const attack = Math.min(1, t / 0.025)
     const release = Math.min(1, Math.max(0, (durationSeconds - t) / 0.09))
     const envelope = Math.sin(Math.min(1, progress) * Math.PI) * Math.min(attack, release)
-    const sample = Math.sin(phase) * envelope * 0.9
+    const wave = tone.type === "square" ? Math.sign(Math.sin(phase)) : Math.sin(phase)
+    const sample = wave * envelope * Math.min(0.95, tone.gain + 0.44)
     phase += (Math.PI * 2 * frequency) / sampleRate
     view.setInt16(44 + index * 2, Math.round(sample * 32767), true)
   }
 
   return `data:audio/wav;base64,${base64Bytes(bytes)}`
+}
+
+function recordHudNotificationSound(kind: HudNotificationKind, method: string, error?: unknown): void {
+  hudNotificationLastAt = new Date()
+  const errorText = error instanceof Error ? error.message : typeof error === "string" ? error : ""
+  hudNotificationLastLine = [kind, method, errorText].filter(Boolean).join(" · ")
+  renderVoiceHud()
 }
 
 function writeAscii(bytes: Uint8Array, offset: number, value: string): void {
@@ -1962,7 +2042,7 @@ function maybePlayAgentReadyNotification(controller: HostTerminalController): vo
 
 function playAgentReadySignal(): void {
   voiceHudPane?.flashSoundIndicator()
-  playHudNotificationSound()
+  playHudNotificationSound("agent")
 }
 
 function setHostTerminalStatus(controller: HostTerminalController, kind: PtyStatusKind, label: string): void {

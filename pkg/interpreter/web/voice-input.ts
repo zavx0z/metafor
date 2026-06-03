@@ -12,6 +12,8 @@ export type VoiceInputChunk = {
   segments: VoiceInputSegment[]
 }
 
+export type VoiceInputSignalTone = "activation" | "deactivation" | "stop"
+
 type VoiceInputClientOptions = {
   url(): string
   wakeUrl(): string
@@ -170,8 +172,46 @@ export class VoiceInputClient {
     this.#stopRequested = true
     this.#sendCommand({type: "stop"})
     this.#sendAsr({type: "stop"})
-    this.#cleanup()
     this.#setStatus("idle", detail)
+    this.#cleanup(detail === VOICE_STOP_COMMAND_DETAIL ? 420 : 0)
+  }
+
+  playSignalTone(kind: VoiceInputSignalTone, onResult?: (kind: VoiceInputSignalTone, method: string, error?: unknown) => void): boolean {
+    const context = this.#audioContext
+    if (context === null || context.state === "closed") return false
+    const play = (): void => {
+      try {
+        const spec = voiceInputSignalTone(kind)
+        const start = context.currentTime + 0.005
+        const end = start + spec.duration
+        const gain = context.createGain()
+        const oscillator = context.createOscillator()
+        oscillator.type = spec.type
+        oscillator.frequency.setValueAtTime(spec.startHz, start)
+        oscillator.frequency.exponentialRampToValueAtTime(spec.endHz, end)
+        gain.gain.setValueAtTime(0.0001, start)
+        gain.gain.exponentialRampToValueAtTime(spec.gain, start + 0.018)
+        gain.gain.exponentialRampToValueAtTime(spec.gain * 0.4, start + spec.duration * 0.45)
+        gain.gain.exponentialRampToValueAtTime(0.0001, end)
+        oscillator.connect(gain)
+        gain.connect(context.destination)
+        oscillator.start(start)
+        oscillator.stop(end + 0.03)
+        oscillator.addEventListener("ended", () => {
+          oscillator.disconnect()
+          gain.disconnect()
+        }, {once: true})
+        onResult?.(kind, `capture webaudio · ${context.state}`)
+      } catch (error) {
+        onResult?.(kind, "capture webaudio failed", error)
+      }
+    }
+    if (context.state === "suspended") {
+      void context.resume().then(play).catch((error) => onResult?.(kind, "capture resume blocked", error))
+      return true
+    }
+    play()
+    return true
   }
 
   async sleepToWake(): Promise<void> {
@@ -593,13 +633,14 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.options.onStatus(status, detail)
   }
 
-  #stopAudioOnly(): void {
+  #stopAudioOnly(closeDelayMs = 0): void {
+    const audioContext = this.#audioContext
+    const workletUrl = this.#workletUrl
+
     this.#captureNode?.disconnect()
     this.#sourceNode?.disconnect()
     this.#sinkNode?.disconnect()
     for (const track of this.#stream?.getTracks() ?? []) track.stop()
-    if (this.#audioContext !== null) void this.#audioContext.close()
-    if (this.#workletUrl !== null) URL.revokeObjectURL(this.#workletUrl)
 
     this.#stream = null
     this.#audioContext = null
@@ -607,10 +648,16 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#captureNode = null
     this.#sinkNode = null
     this.#workletUrl = null
+
+    if (audioContext !== null) {
+      if (closeDelayMs > 0) window.setTimeout(() => void audioContext.close(), closeDelayMs)
+      else void audioContext.close()
+    }
+    if (workletUrl !== null) URL.revokeObjectURL(workletUrl)
   }
 
-  #cleanup(): void {
-    this.#stopAudioOnly()
+  #cleanup(closeAudioDelayMs = 0): void {
+    this.#stopAudioOnly(closeAudioDelayMs)
     this.#disconnectAsrSocket()
     this.#disconnectCommandSocket()
     this.#resetCommitState()
@@ -649,6 +696,18 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       stop: normalizeVoicePhrases(this.options.stopPhrases()),
     }
   }
+}
+
+function voiceInputSignalTone(kind: VoiceInputSignalTone): {
+  startHz: number
+  endHz: number
+  duration: number
+  gain: number
+  type: OscillatorType
+} {
+  if (kind === "activation") return {startHz: 640, endHz: 960, duration: 0.24, gain: 0.34, type: "triangle"}
+  if (kind === "deactivation") return {startHz: 740, endHz: 430, duration: 0.22, gain: 0.32, type: "sine"}
+  return {startHz: 360, endHz: 210, duration: 0.34, gain: 0.38, type: "square"}
 }
 
 function chunkFromAsrMessage(msg: AsrMessage, phraseGroups: VoiceCommandPhraseGroups): VoiceInputChunk {
