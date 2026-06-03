@@ -6,8 +6,8 @@
  * `/modules/:id/...`.
  */
 
-import {UiRuntime, UiSurface, uiIcons, type UiSurfaceRect} from "@ui/elements"
-import {VoiceInputHud, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
+import {UiRuntime, UiSurface, button, drawIconCentered, palette, uiIcons, type UiSurfaceRect} from "@ui/elements"
+import {Switcher, VoiceInputHud, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
@@ -253,13 +253,16 @@ const VOICE_STOP_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.stopFuzzy:v1"
 const VOICE_HUD_RECT_STORAGE_KEY = "metafor.interpreter.voice.hudRect:v1"
 const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
 const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v2"
-const VOICE_AGENT_READY_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
+const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
+const HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundVolume:v1"
+const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
 const DEFAULT_VOICE_SIGNAL_VOLUME = 3
-const DEFAULT_VOICE_AGENT_READY_VOLUME = 1
+const DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED = true
+const DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const MAX_VOICE_SIGNAL_VOLUME = 3
-const MAX_AGENT_READY_VOLUME = 1
+const MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const VOICE_SERVICE_CHECK_INTERVAL_MS = 12_000
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2_500
 const VOICE_AUTO_WAKE_RETRY_MS = 3_000
@@ -275,6 +278,14 @@ const HOST_TERMINAL_DOCK_SHORT = 36
 const HOST_TERMINAL_DOCK_LONG = 128
 const HOST_TERMINAL_DOCK_MARGIN = 8
 const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
+const HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE = 22
+const HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y = 8
+const HOST_TERMINAL_AGENT_SIGNAL_HEADER_GAP = 8
+const HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X = 16
+const HOST_TERMINAL_AGENT_SIGNAL_STATUS_MIN_W = 96
+const HOST_TERMINAL_AGENT_SIGNAL_STATUS_MAX_W = 210
+const HOST_TERMINAL_AGENT_SIGNAL_PANEL_W = 300
+const HOST_TERMINAL_AGENT_SIGNAL_PANEL_H = 112
 const AGENT_READY_SOUND_IDLE_MS = 2_500
 const AGENT_READY_SOUND_COOLDOWN_MS = 1_200
 const VOICE_SIGNAL_COOLDOWN_MS = 900
@@ -294,6 +305,8 @@ let uiLoading = false
 let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
 let hostTerminal: HostTerminalController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
+let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
+let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let hostTerminalDockPlacement = readStoredHostTerminalDockPlacement()
 let voiceHudPane: VoiceInputHud | null = null
@@ -526,11 +539,6 @@ async function initEngine(): Promise<void> {
         signalVolumeMaxValue: MAX_VOICE_SIGNAL_VOLUME,
         signalVolumeDownLabel: t("voiceSignalVolumeDown"),
         signalVolumeUpLabel: t("voiceSignalVolumeUp"),
-        agentVolumeLabel: t("voiceAgentReadyVolume"),
-        agentVolumeValue: readAgentReadyVolume(),
-        agentVolumeMaxValue: MAX_AGENT_READY_VOLUME,
-        agentVolumeDownLabel: t("voiceAgentReadyVolumeDown"),
-        agentVolumeUpLabel: t("voiceAgentReadyVolumeUp"),
         fuzzyDownLabel: t("voiceFuzzyToleranceDown"),
         fuzzyUpLabel: t("voiceFuzzyToleranceUp"),
         wakeEndpoint: voiceEndpointLabel(readVoiceWakeUrl()),
@@ -543,7 +551,6 @@ async function initEngine(): Promise<void> {
       onRemovePhrase: removeVoicePhrase,
       onResetPhrases: resetVoicePhrases,
       onSignalVolumeChange: storeVoiceSignalVolume,
-      onAgentVolumeChange: storeAgentReadyVolume,
       onPhraseFuzzyChange: storeVoiceFuzzyTolerance,
       startTooltip: () => t("voiceStart"),
       stopTooltip: () => t("voiceStop"),
@@ -584,6 +591,8 @@ function installEnginePanes(): void {
   const host = ensureHostTerminalController()
   uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect)
   if (host.socket === null) connectHostTerminal(host)
+  hostTerminalAgentSignalPane ??= new HostTerminalAgentSignalPane()
+  uiCanvas.addHudSurface(hostTerminalAgentSignalPane, hostTerminalAgentSignalRect)
   hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
   uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect)
   if (voiceHudPane !== null) {
@@ -601,6 +610,7 @@ function toggleLocale(): void {
       pane.requestRender()
     }
   }
+  hostTerminalAgentSignalPane?.requestRender()
   updateVoiceHud()
   for (const controller of moduleDisplays.values()) {
     controller.source.setTitle(moduleSourceTitle(controller))
@@ -738,6 +748,209 @@ class HostTerminalDockPane extends UiSurface {
     const rect = canvas.getBoundingClientRect()
     return {x: event.clientX - rect.left, y: event.clientY - rect.top}
   }
+}
+
+class HostTerminalAgentSignalPane extends UiSurface {
+  #open = false
+
+  constructor() {
+    super({bgColor: null, borderColor: null})
+    this.node.name = "HostTerminalAgentSignalPane"
+  }
+
+  isOpen(): boolean {
+    return this.#open
+  }
+
+  protected render(): void {
+    if (this.#open) this.#drawPanel()
+    this.#drawToggleButton()
+  }
+
+  containsPointer(localX: number, localY: number): boolean {
+    const size = HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE
+    const buttonX = Math.max(0, this.rectW - size)
+    if (localX >= buttonX && localX <= buttonX + size && localY >= 0 && localY <= size) return true
+    if (!this.#open) return false
+    const panelY = this.#panelY()
+    return localX >= 0 && localX <= this.rectW && localY >= panelY && localY <= this.rectH
+  }
+
+  #drawToggleButton(): void {
+    const size = HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE
+    const x = Math.max(0, this.rectW - size)
+    const enabled = readHostTerminalAgentSoundEnabled()
+    button(this, x, 0, size, size, {
+      key: "host-terminal-agent-signal-toggle",
+      tooltip: t("terminalAgentSignal"),
+      onClick: () => this.#setOpen(!this.#open),
+      style: (state) => ({
+        background: state === "active"
+          ? "rgba(38, 49, 66, 0.98)"
+          : state === "hover"
+            ? "rgba(27, 34, 45, 0.98)"
+            : "rgba(10, 14, 21, 0.76)",
+        borderColor: this.#open || state === "hover" || state === "active" ? "border" : enabled ? "borderDim" : "borderDim",
+        borderRadius: 999,
+        borderWidth: this.#open ? 1.2 : 1,
+        glassTint: null,
+        glassTintOpacity: 0,
+      }),
+      children: () => drawIconCentered(this, agentSignalIcon(enabled), x + size / 2, size / 2, 14, {
+        opacity: this.#open || enabled ? 0.95 : 0.72,
+        z: 0.48,
+      }),
+    })
+  }
+
+  #drawPanel(): void {
+    const w = this.rectW
+    const panelY = this.#panelY()
+    const panelH = Math.max(1, this.rectH - panelY)
+    const pad = 12
+    const enabled = readHostTerminalAgentSoundEnabled()
+    const volume = readHostTerminalAgentSoundVolume()
+    this.drawRoundedRect(0, panelY, w, panelH, {
+      radius: 8,
+      fill: palette.bgPanel,
+      border: palette.borderDim,
+      borderWidth: 1,
+      opacity: 0.96,
+      z: 0.1,
+    })
+    this.drawText(t("terminalAgentSignal"), pad, panelY + 10, {
+      fontPx: 11,
+      material: this.materials.text,
+      maxWidthPx: Math.max(1, w - pad * 2 - HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE - 8),
+      z: 0.32,
+    })
+    const switchW = 44
+    const switchH = 22
+    const switchX = Math.max(pad, w - pad - switchW)
+    const switchY = panelY + 38
+    this.drawText(t("terminalAgentSignalDescription"), pad, panelY + 43, {
+      fontPx: 9,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, switchX - pad - 10),
+      z: 0.32,
+    })
+    Switcher(this, switchX, switchY, switchW, switchH, {
+      checked: enabled,
+      color: "primary",
+      key: "host-terminal-agent-signal-enabled-switch",
+      tooltip: t("terminalAgentSignal"),
+      onChange: storeHostTerminalAgentSoundEnabled,
+      sx: {zIndex: 0.18},
+    })
+    this.#drawVolumeControl(pad, panelY + 76, Math.max(1, w - pad * 2), volume)
+  }
+
+  #drawVolumeControl(x: number, y: number, w: number, value: number): void {
+    const maxValue = MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME
+    const clamped = clampHostTerminalAgentSoundVolume(value)
+    const ratio = maxValue <= 0 ? 0 : clamped / maxValue
+    const label = `${t("terminalAgentSignalVolume")}: ${Math.round(clamped * 100)}%`
+    this.drawText(label, x, y - 17, {
+      fontPx: 9,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, w),
+      z: 0.32,
+    })
+
+    const buttonW = 28
+    button(this, x, y, buttonW, 22, {
+      key: "host-terminal-agent-signal-volume-down",
+      children: "-",
+      tooltip: t("terminalAgentSignalVolumeDown"),
+      onClick: () => this.#setVolume(clamped - 0.1),
+      style: {
+        background: "rgba(38, 49, 66, 0.42)",
+        borderColor: "borderDim",
+        borderRadius: 6,
+        color: "muted",
+        fontSize: 12,
+      },
+    })
+    button(this, x + w - buttonW, y, buttonW, 22, {
+      key: "host-terminal-agent-signal-volume-up",
+      children: "+",
+      tooltip: t("terminalAgentSignalVolumeUp"),
+      onClick: () => this.#setVolume(clamped + 0.1),
+      style: {
+        background: "rgba(38, 49, 66, 0.42)",
+        borderColor: "borderDim",
+        borderRadius: 6,
+        color: "muted",
+        fontSize: 12,
+      },
+    })
+
+    const trackX = x + buttonW + 10
+    const trackW = Math.max(1, w - buttonW * 2 - 20)
+    const trackY = y + 8
+    this.drawRoundedRect(trackX, trackY, trackW, 6, {
+      radius: 3,
+      fill: palette.borderDim,
+      border: null,
+      opacity: 0.42,
+      z: 0.16,
+    })
+    this.drawRoundedRect(trackX, trackY, Math.max(3, trackW * ratio), 6, {
+      radius: 3,
+      fill: palette.cyan,
+      border: null,
+      opacity: 0.64,
+      z: 0.18,
+    })
+    const knobX = trackX + trackW * ratio
+    this.drawRoundedRect(knobX - 5, trackY - 4, 10, 14, {
+      radius: 5,
+      fill: palette.cyan,
+      border: palette.borderBright,
+      borderWidth: 1,
+      opacity: 0.86,
+      z: 0.22,
+    })
+    const setFromPointer = (localX: number): void => this.#setVolume(((localX - trackX) / trackW) * maxValue)
+    this.hit(trackX - 4, y, trackW + 8, 22, () => undefined, {
+      key: "host-terminal-agent-signal-volume-track",
+      cursor: "pointer",
+      onPointerDown: (localX) => setFromPointer(localX),
+      onPointerMove: (localX) => setFromPointer(localX),
+    })
+  }
+
+  #setVolume(value: number): void {
+    storeHostTerminalAgentSoundVolume(Math.round(clampHostTerminalAgentSoundVolume(value) * 20) / 20)
+    this.requestRender()
+  }
+
+  #setOpen(open: boolean): void {
+    if (this.#open === open) return
+    this.#open = open
+    uiCanvas?.relayout()
+    this.requestRender()
+  }
+
+  #panelY(): number {
+    return HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE + 6
+  }
+}
+
+const agentSignalIconCache = new Map<string, string>()
+
+function agentSignalIcon(enabled: boolean): string {
+  const key = enabled ? "on" : "off"
+  const cached = agentSignalIconCache.get(key)
+  if (cached !== undefined) return cached
+  const stroke = enabled ? "#6fd3ff" : "#8b96a6"
+  const slash = enabled
+    ? ""
+    : `<path d="M290 910 910 290" stroke="#ff7f6f" stroke-width="92" stroke-linecap="round"/>`
+  const source = `<svg width="1200" height="1200" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="${stroke}" stroke-width="86" stroke-linecap="round" stroke-linejoin="round"><path d="M210 690H380L610 870V330L380 510H210v180Z"/><path d="M725 455c66 86 66 204 0 290"/><path d="M850 350c132 146 132 354 0 500"/></g>${slash}</svg>`
+  const icon = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`
+  agentSignalIconCache.set(key, icon)
+  return icon
 }
 
 function setVoiceActiveTarget(target: VoiceInputTarget): void {
@@ -1221,7 +1434,6 @@ function voiceDebugLines(): string[] {
     `${ru ? "последняя ошибка" : "last error"}: ${debugVoiceText(voiceLastErrorText)}`,
     `${ru ? "ошибка время" : "error at"}: ${formatDebugTime(voiceLastErrorAt)}`,
     `${ru ? "громкость микрофона" : "mic signal volume"}: ${Math.round(readVoiceSignalVolume() * 100)}%`,
-    `${ru ? "громкость агента" : "agent ready volume"}: ${Math.round(readAgentReadyVolume() * 100)}%`,
     `${ru ? "левенштейн" : "levenshtein"}: a ${Math.round(readVoiceFuzzyTolerance("activation") * 100)}% · d ${Math.round(readVoiceFuzzyTolerance("deactivation") * 100)}% · s ${Math.round(readVoiceFuzzyTolerance("stop") * 100)}%`,
     `${ru ? "звук" : "sound"}: ${hudNotificationDebugLine()}`,
   ]
@@ -1369,6 +1581,10 @@ function ensureHudNotificationAudioContext(): AudioContext | null {
 }
 
 function playHudNotificationSound(kind: HudNotificationKind): void {
+  if (kind === "agent" && !readHostTerminalAgentSoundEnabled()) {
+    recordHudNotificationSound(kind, "disabled")
+    return
+  }
   const volume = hudNotificationVolume(kind)
   if (volume <= 0) {
     recordHudNotificationSound(kind, "muted")
@@ -1381,7 +1597,7 @@ function playHudNotificationSound(kind: HudNotificationKind): void {
 }
 
 function hudNotificationVolume(kind: HudNotificationKind): number {
-  return kind === "agent" ? readAgentReadyVolume() : readVoiceSignalVolume()
+  return kind === "agent" ? readHostTerminalAgentSoundVolume() : readVoiceSignalVolume()
 }
 
 function playBrowserHudNotificationSound(kind: HudNotificationKind, volume: number): void {
@@ -1676,14 +1892,38 @@ function readLegacyVoiceSignalVolume(): number | null {
   }
 }
 
-function readAgentReadyVolume(): number {
+function readHostTerminalAgentSoundEnabled(): boolean {
   try {
-    const raw = localStorage.getItem(VOICE_AGENT_READY_VOLUME_STORAGE_KEY)
-    if (raw === null) return DEFAULT_VOICE_AGENT_READY_VOLUME
-    const value = Number(raw)
-    return Number.isFinite(value) ? clampAgentReadyVolume(value) : DEFAULT_VOICE_AGENT_READY_VOLUME
+    const raw = localStorage.getItem(HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY)
+    if (raw === null) return DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED
+    return raw !== "0"
   } catch {
-    return DEFAULT_VOICE_AGENT_READY_VOLUME
+    return DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED
+  }
+}
+
+function storeHostTerminalAgentSoundEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY, enabled ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+  hostTerminalAgentSignalPane?.requestRender()
+}
+
+function readHostTerminalAgentSoundVolume(): number {
+  try {
+    const raw = localStorage.getItem(HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY)
+    if (raw === null) {
+      const legacy = localStorage.getItem(HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY)
+      if (legacy === null) return DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
+      const legacyValue = Number(legacy)
+      return Number.isFinite(legacyValue) ? clampHostTerminalAgentSoundVolume(legacyValue) : DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
+    }
+    const value = Number(raw)
+    return Number.isFinite(value) ? clampHostTerminalAgentSoundVolume(value) : DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
+  } catch {
+    return DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME
   }
 }
 
@@ -1700,15 +1940,15 @@ function storeVoiceSignalVolume(value: number): void {
   renderVoiceHud()
 }
 
-function storeAgentReadyVolume(value: number): void {
-  const next = clampAgentReadyVolume(value)
+function storeHostTerminalAgentSoundVolume(value: number): void {
+  const next = clampHostTerminalAgentSoundVolume(value)
   try {
-    localStorage.setItem(VOICE_AGENT_READY_VOLUME_STORAGE_KEY, String(next))
+    localStorage.setItem(HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY, String(next))
   } catch {
     // Storage can be disabled in private contexts.
   }
   syncHudNotificationAudioVolume("agent")
-  renderVoiceHud()
+  hostTerminalAgentSignalPane?.requestRender()
 }
 
 function syncHudNotificationAudioVolume(kind: HudNotificationKind): void {
@@ -1721,8 +1961,8 @@ function clampVoiceSignalVolume(value: number): number {
   return Math.min(MAX_VOICE_SIGNAL_VOLUME, Math.max(0, value))
 }
 
-function clampAgentReadyVolume(value: number): number {
-  return Math.min(MAX_AGENT_READY_VOLUME, Math.max(0, value))
+function clampHostTerminalAgentSoundVolume(value: number): number {
+  return Math.min(MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME, Math.max(0, value))
 }
 
 function voicePhraseGroupsForHud(): Array<{
@@ -2273,6 +2513,8 @@ function playAgentReadySignal(): void {
 }
 
 function setHostTerminalStatus(controller: HostTerminalController, kind: PtyStatusKind, label: string): void {
+  hostTerminalStatusLabelForLayout = label
+  hostTerminalAgentSignalPane?.requestRender()
   controller.connectionState = kind
   const paneKind = statusKindForHostTerminal(kind)
   for (const pane of hostTerminalPanes(controller)) pane.setStatus(paneKind, label)
@@ -3394,6 +3636,57 @@ function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
     w: Math.max(1, terminalW),
     h: Math.max(1, terminalH),
   }, w, h)
+}
+
+function hostTerminalAgentSignalRect(bounds: {w: number; h: number}): UiSurfaceRect {
+  const terminal = hostTerminalHudRect(bounds)
+  if (terminal.visible === false) return hiddenRect()
+  const open = hostTerminalAgentSignalPane?.isOpen() === true
+  const buttonX = hostTerminalAgentSignalButtonX(terminal)
+  const buttonY = terminal.y + HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y
+  if (!open) {
+    return {
+      x: buttonX,
+      y: buttonY,
+      w: HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE,
+      h: HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE,
+    }
+  }
+
+  const panelW = Math.min(HOST_TERMINAL_AGENT_SIGNAL_PANEL_W, Math.max(1, terminal.w - HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X * 2))
+  const panelH = Math.min(
+    HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE + 6 + HOST_TERMINAL_AGENT_SIGNAL_PANEL_H,
+    Math.max(1, terminal.h - HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y - 6),
+  )
+  const x = clampNumber(
+    buttonX - (panelW - HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE),
+    terminal.x + HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X,
+    Math.max(terminal.x + HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X, terminal.x + terminal.w - panelW - HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X),
+  )
+  return {
+    x,
+    y: buttonY,
+    w: panelW,
+    h: panelH,
+  }
+}
+
+function hostTerminalAgentSignalButtonX(terminal: UiSurfaceRect): number {
+  const statusW = Math.min(
+    HOST_TERMINAL_AGENT_SIGNAL_STATUS_MAX_W,
+    Math.max(HOST_TERMINAL_AGENT_SIGNAL_STATUS_MIN_W, Math.ceil(hostTerminalStatusLabelForLayout.length * 7) + 32),
+  )
+  const dockButtonX = terminal.x
+    + terminal.w
+    - HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X
+    - statusW
+    - HOST_TERMINAL_AGENT_SIGNAL_HEADER_GAP
+    - HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE
+  return clampNumber(
+    dockButtonX - HOST_TERMINAL_AGENT_SIGNAL_HEADER_GAP - HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE,
+    terminal.x + HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X,
+    terminal.x + terminal.w - HOST_TERMINAL_AGENT_SIGNAL_HEADER_TEXT_X - HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE,
+  )
 }
 
 function voiceHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {

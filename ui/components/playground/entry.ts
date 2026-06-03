@@ -10,6 +10,9 @@ import {
   List,
   type ListProps,
   Pane,
+  Switcher,
+  type SwitcherColor,
+  type SwitcherProps,
   TextField,
   Typography,
 } from "@ui/components"
@@ -49,6 +52,7 @@ type EditorRoute =
   | "editor/scroll"
   | `editor/scroll/${EditorScrollRoute}`
 type TextFieldRoute = "text-field"
+type SwitcherRoute = "switcher"
 type TypographyRoute = "typography"
 type DividerRouteOrientation = "horizontal" | "vertical"
 type DividerRouteVariant = "fullWidth" | "inset" | "middle"
@@ -63,8 +67,8 @@ type DividerRoute =
   | `divider/text/${DividerRouteTextAlign}`
   | "divider/color"
   | `divider/color/${ButtonColor}`
-type ComponentsRoute = PaneRoute | ButtonRoute | TextFieldRoute | TypographyRoute | DividerRoute | EditorRoute | TerminalRoute | ListRoute
-type ComponentName = "Pane" | "Button" | "TextField" | "Typography" | "Divider" | "Editor" | "Terminal" | "List"
+type ComponentsRoute = PaneRoute | ButtonRoute | TextFieldRoute | SwitcherRoute | TypographyRoute | DividerRoute | EditorRoute | TerminalRoute | ListRoute
+type ComponentName = "Pane" | "Button" | "TextField" | "Switcher" | "Typography" | "Divider" | "Editor" | "Terminal" | "List"
 type ButtonRoute =
   | "button/basic"
   | `button/basic/${ButtonRouteVariant}`
@@ -166,14 +170,14 @@ const DIVIDER_ROUTES: readonly DividerRoute[] = [
 ]
 const PANE_VARIANTS: readonly PaneVariant[] = ["glass", "outlined", "filled"]
 const PANE_SCROLL_AXES: readonly PaneScrollAxis[] = ["vertical", "horizontal"]
-const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...PANE_ROUTES, ...BUTTON_ROUTES, "text-field", "typography", ...DIVIDER_ROUTES, ...EDITOR_ROUTES, ...TERMINAL_ROUTES, ...LIST_ROUTES]
+const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...PANE_ROUTES, ...BUTTON_ROUTES, "text-field", "switcher", "typography", ...DIVIDER_ROUTES, ...EDITOR_ROUTES, ...TERMINAL_ROUTES, ...LIST_ROUTES]
 const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
 const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
 const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
 const BUTTON_STATES: readonly ButtonState[] = ["enabled", "disabled"]
 const BUTTON_WIDTHS: readonly ButtonWidth[] = ["compact", "regular", "wide"]
 const BUTTON_HEIGHTS: readonly ButtonHeight[] = ["compact", "regular", "large"]
-const COMPONENT_NAV = ["Pane", "Button", "TextField", "List", "Editor", "Terminal", "Typography", "Badge", "Divider", "Noti Stack"] as const
+const COMPONENT_NAV = ["Pane", "Button", "TextField", "Switcher", "List", "Editor", "Terminal", "Typography", "Badge", "Divider", "Noti Stack"] as const
 const BUTTON_RADII = [14, 24, 34, 999] as const
 const ICON_SIZES = [16, 20, 24] as const
 const LAYOUT_Z = -0.12
@@ -208,6 +212,8 @@ class ButtonComponentsScreen extends UiSurface {
   #tooltip = false
   #width: ButtonWidth = "regular"
   #height: ButtonHeight = "regular"
+  #switcherChecked = true
+  #switcherMuted = false
   #customSvgSource: string | null = null
   #customSvgName = "custom.svg"
   #eventCount = 0
@@ -321,7 +327,7 @@ class ButtonComponentsScreen extends UiSurface {
           const rowY = top + i * (rowH + gap) - ctx.scrollTop
           if (rowY + rowH < top || rowY > top + ctx.viewportHeight) continue
           const active = label === this.#currentComponent()
-          const enabled = label === "Pane" || label === "Button" || label === "TextField" || label === "List" || label === "Typography" || label === "Divider" || label === "Editor" || label === "Terminal"
+          const enabled = label === "Pane" || label === "Button" || label === "TextField" || label === "Switcher" || label === "List" || label === "Typography" || label === "Divider" || label === "Editor" || label === "Terminal"
           Button(this, x + pad, rowY, w - pad * 2 - (ctx.contentHeight > ctx.viewportHeight ? 14 : 0), rowH, {
             children: label,
             variant: active ? "contained" : "glass",
@@ -334,6 +340,7 @@ class ButtonComponentsScreen extends UiSurface {
               if (label === "Pane") this.#router.go("pane/variants")
               else if (label === "Button") this.#router.go("button/basic")
               else if (label === "TextField") this.#router.go("text-field")
+              else if (label === "Switcher") this.#router.go("switcher")
               else if (label === "List") this.#router.go("list/basic")
               else if (label === "Editor") this.#router.go("editor/editing")
               else if (label === "Terminal") this.#router.go("terminal/basic")
@@ -381,6 +388,10 @@ class ButtonComponentsScreen extends UiSurface {
     }
     if (this.#currentComponent() === "TextField") {
       h3(this, x, y + 28, w, 24, {children: "TextField", style: {fontSize: 15, textAlign: "center"}})
+      return
+    }
+    if (this.#currentComponent() === "Switcher") {
+      h3(this, x, y + 28, w, 24, {children: "Switcher", style: {fontSize: 15, textAlign: "center"}})
       return
     }
     if (this.#currentComponent() === "Typography") {
@@ -467,6 +478,8 @@ class ButtonComponentsScreen extends UiSurface {
       }
     } else if (this.#currentComponent() === "TextField") {
       this.#textFieldPreview(x, y, w, h)
+    } else if (this.#currentComponent() === "Switcher") {
+      this.#switcherPreview(x, y, w, h)
     } else if (this.#currentComponent() === "Typography") {
       this.#typographyPreview(x, y, w, h)
     } else if (this.#currentComponent() === "Divider") {
@@ -792,6 +805,85 @@ class ButtonComponentsScreen extends UiSurface {
       disabled: true,
       sx: {fontSize: 12},
     })
+
+    const codeW = Math.min(560, w - pad * 2)
+    const codeX = x + (w - codeW) / 2
+    codeBlock(this, codeX, rows.codeY, codeW, codeLines)
+  }
+
+  #switcherPreview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    const codeLines = [
+      `Switcher(host, x, y, 44, 22, {`,
+      `  checked,`,
+      `  onChange: setChecked })`,
+      `Switcher(host, x, y, 44, 22, { disabled: true })`,
+    ] as const
+    const rows = contentRows(y, h, {
+      headerH: 108,
+      demoH: 232,
+      codeH: codeBlockHeight(codeLines),
+    })
+    renderHeader(this, x, w, pad, rows.headerY, "Switcher", [
+      "Small binary control for settings, mode toggles, and compact HUD panels.",
+      "Default styling is neutral; color only adds a restrained accent.",
+    ])
+
+    const cardW = Math.min(520, w - pad * 2)
+    const cardH = 198
+    const cardX = x + (w - cardW) / 2
+    const cardY = rows.demoY + Math.max(0, (232 - cardH) / 2)
+    Pane(this, cardX, cardY, cardW, cardH, {
+      variant: "outlined",
+      sx: {
+        background: "rgba(4, 8, 14, 0.30)",
+        borderColor: "rgba(214, 231, 255, 0.14)",
+        borderRadius: 24,
+      },
+    })
+
+    const rowX = cardX + 34
+    const controlX = cardX + cardW - 86
+    const rowW = Math.max(1, controlX - rowX - 18)
+    const rowsData: readonly {label: string; hint: string; checked: boolean; disabled?: boolean; color?: SwitcherColor; onChange?: (checked: boolean) => void}[] = [
+      {
+        label: "Default",
+        hint: "Neutral checked state",
+        checked: this.#switcherChecked,
+        onChange: (checked) => {
+          this.#switcherChecked = checked
+          this.#record(`switcher:${checked ? "on" : "off"}`)
+          this.requestRender()
+        },
+      },
+      {
+        label: "Muted setting",
+        hint: "Neutral off state",
+        checked: this.#switcherMuted,
+        onChange: (checked) => {
+          this.#switcherMuted = checked
+          this.#record(`switcher:muted:${checked ? "on" : "off"}`)
+          this.requestRender()
+        },
+      },
+      {label: "Primary accent", hint: "Compact HUD usage", checked: true, color: "primary"},
+      {label: "Disabled", hint: "No hit target", checked: false, disabled: true},
+    ]
+
+    for (const [i, row] of rowsData.entries()) {
+      const rowY = cardY + 24 + i * 40
+      span(this, rowX, rowY, rowW, 16, {children: row.label, style: {fontSize: 11, color: "text"}})
+      span(this, rowX, rowY + 16, rowW, 14, {children: row.hint, style: {fontSize: 9, color: "muted"}})
+      const switcherProps: SwitcherProps = {
+        checked: row.checked,
+        key: `components:switcher:${i}`,
+        tooltip: row.label,
+      }
+      if (row.disabled !== undefined) switcherProps.disabled = row.disabled
+      if (row.color !== undefined) switcherProps.color = row.color
+      if (row.onChange !== undefined) switcherProps.onChange = row.onChange
+      Switcher(this, controlX, rowY + 4, 44, 22, switcherProps)
+    }
 
     const codeW = Math.min(560, w - pad * 2)
     const codeX = x + (w - codeW) / 2
@@ -1748,7 +1840,7 @@ class ButtonComponentsScreen extends UiSurface {
       this.#dividerDock(x, y, w, h)
       return
     }
-    if (this.#currentComponent() === "TextField" || this.#currentComponent() === "Typography" || this.#currentComponent() === "Divider") return
+    if (this.#currentComponent() === "TextField" || this.#currentComponent() === "Switcher" || this.#currentComponent() === "Typography" || this.#currentComponent() === "Divider") return
     if (this.#routeSection() === "Icon") {
       this.#iconDock(x, y, w, h)
       return
@@ -2118,6 +2210,18 @@ class ButtonComponentsScreen extends UiSurface {
       ])
       return
     }
+    if (this.#currentComponent() === "Switcher") {
+      const pad = 24
+      h3(this, x + pad, y + 30, w - pad * 2, 24, {children: "Switcher", style: {fontSize: 15}})
+      p(this, x + pad, y + 70, w - pad * 2, 22, {children: "Component", style: {fontSize: 11, color: "muted"}})
+      codeBlock(this, x + pad, y + 104, w - pad * 2, [
+        `Switcher(host, x, y, 44, 22, {`,
+        `  checked,`,
+        `  color: "primary",`,
+        `  onChange })`,
+      ])
+      return
+    }
     if (this.#currentComponent() === "Typography") {
       const pad = 24
       h3(this, x + pad, y + 30, w - pad * 2, 24, {children: "Typography", style: {fontSize: 15}})
@@ -2301,6 +2405,7 @@ class ButtonComponentsScreen extends UiSurface {
 
   #currentComponent(): ComponentName {
     if (this.#route === "text-field") return "TextField"
+    if (this.#route === "switcher") return "Switcher"
     if (this.#route === "typography") return "Typography"
     if (this.#route.startsWith("divider/")) return "Divider"
     if (this.#route.startsWith("editor")) return "Editor"
