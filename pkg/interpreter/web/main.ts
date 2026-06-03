@@ -38,7 +38,14 @@ import {
 } from "./breakpoint-matching.ts"
 import {interactiveRestartPayload} from "./restart.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
-import {VoiceInputClient, type VoiceInputChunk, type VoiceInputSegment, type VoiceInputStatus} from "./voice-input.ts"
+import {
+  DEFAULT_VOICE_WAKE_PHRASES,
+  VoiceInputClient,
+  normalizeVoiceWakePhrases,
+  type VoiceInputChunk,
+  type VoiceInputSegment,
+  type VoiceInputStatus,
+} from "./voice-input.ts"
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
@@ -233,6 +240,7 @@ const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTermin
 const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
 const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
 const VOICE_INPUT_CONTEXT_STORAGE_KEY = "metafor.interpreter.voice.context"
+const VOICE_WAKE_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.wakePhrases:v1"
 const VOICE_HUD_RECT_STORAGE_KEY = "metafor.interpreter.voice.hudRect:v1"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
@@ -477,6 +485,20 @@ async function initEngine(): Promise<void> {
     voiceHudPane = new VoiceInputHud({
       onToggle: () => void toggleVoiceInput(),
       onMove: storeVoiceHudRect,
+      settings: () => ({
+        title: t("voiceInput"),
+        wakeTitle: t("voiceWakePhrases"),
+        wakePhrases: readVoiceWakePhrases(),
+        addWakePhraseLabel: t("voiceWakeAdd"),
+        wakePhrasePlaceholder: t("voiceWakePhrasePrompt"),
+        resetWakePhrasesLabel: t("voiceWakeReset"),
+        wakeEndpoint: voiceEndpointLabel(readVoiceWakeUrl()),
+        inputEndpoint: voiceEndpointLabel(readVoiceInputUrl()),
+        serviceLine: voiceServiceLine(),
+      }),
+      onAddWakePhrase: addVoiceWakePhrase,
+      onRemoveWakePhrase: removeVoiceWakePhrase,
+      onResetWakePhrases: resetVoiceWakePhrases,
       startTooltip: () => t("voiceStart"),
       stopTooltip: () => t("voiceStop"),
     })
@@ -685,6 +707,7 @@ function ensureVoiceInputClient(): VoiceInputClient {
   voiceInputClient = new VoiceInputClient({
     url: readVoiceInputUrl,
     wakeUrl: readVoiceWakeUrl,
+    wakePhrases: readVoiceWakePhrases,
     language: "ru",
     context: readVoiceInputContext,
     onStatus: handleVoiceStatus,
@@ -1391,6 +1414,57 @@ function readVoiceInputContext(): string {
   } catch {
     return ""
   }
+}
+
+function readVoiceWakePhrases(): string[] {
+  try {
+    const raw = localStorage.getItem(VOICE_WAKE_PHRASES_STORAGE_KEY)
+    if (raw !== null) {
+      const parsed = JSON.parse(raw) as unknown
+      if (Array.isArray(parsed)) {
+        const phrases = normalizeVoiceWakePhrases(parsed.map((item) => String(item)))
+        if (phrases.length > 0) return phrases
+      }
+    }
+  } catch {
+    // Storage can be disabled or manually edited.
+  }
+  return [...DEFAULT_VOICE_WAKE_PHRASES]
+}
+
+function storeVoiceWakePhrases(phrases: readonly string[]): void {
+  const normalized = normalizeVoiceWakePhrases(phrases)
+  const next = normalized.length > 0 ? normalized : [...DEFAULT_VOICE_WAKE_PHRASES]
+  try {
+    localStorage.setItem(VOICE_WAKE_PHRASES_STORAGE_KEY, JSON.stringify(next))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+  renderVoiceHud()
+  restartWakeRecognizerAfterSettingsChange()
+}
+
+function addVoiceWakePhrase(phrase: string): void {
+  const phrases = normalizeVoiceWakePhrases([...readVoiceWakePhrases(), phrase])
+  storeVoiceWakePhrases(phrases)
+}
+
+function removeVoiceWakePhrase(phrase: string): void {
+  const normalizedTarget = normalizeVoiceWakePhrases([phrase])[0]
+  if (normalizedTarget === undefined) return
+  const phrases = readVoiceWakePhrases().filter((item) => normalizeVoiceWakePhrases([item])[0] !== normalizedTarget)
+  storeVoiceWakePhrases(phrases)
+}
+
+function resetVoiceWakePhrases(): void {
+  storeVoiceWakePhrases(DEFAULT_VOICE_WAKE_PHRASES)
+}
+
+function restartWakeRecognizerAfterSettingsChange(): void {
+  const client = voiceInputClient
+  if (client?.status !== "waitingWake") return
+  client.stop()
+  scheduleVoiceAutoWake(0)
 }
 
 function syncModuleDisplays(): void {

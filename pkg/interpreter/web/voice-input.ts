@@ -15,6 +15,7 @@ export type VoiceInputChunk = {
 type VoiceInputClientOptions = {
   url(): string
   wakeUrl(): string
+  wakePhrases(): readonly string[]
   language: string
   context(): string
   onStatus(status: VoiceInputStatus, detail?: string): void
@@ -36,21 +37,21 @@ type AsrMessage = {
 
 const TARGET_SAMPLE_RATE = 16_000
 const WAKE_WORD = "завхоз"
-const WAKE_ALIASES = [
-  "завхоз",
-  "зав хоз",
-  "завхос",
-  "зав хос",
-  "запхоз",
-  "зап хоз",
-  "совхоз",
-  "за вход",
-  "агент",
-  "слышь долбоеб",
-  "слыш долбоеб",
-  "слышь долбоёб",
-  "слыш долбоёб",
-]
+export const DEFAULT_VOICE_WAKE_PHRASES = [
+  "Завхоз",
+  "Зав хоз",
+  "Завхос",
+  "Зав хос",
+  "Запхоз",
+  "Зап хоз",
+  "Совхоз",
+  "За вход",
+  "Агент",
+  "Слышь долбоеб",
+  "Слыш долбоеб",
+  "Слышь долбоёб",
+  "Слыш долбоёб",
+] as const
 const STOP_COMMAND_PHRASES = [
   "выключи микрофон",
   "выключу микрофон",
@@ -61,7 +62,6 @@ const STOP_COMMAND_PHRASES = [
   "останови голосовой ввод",
   "остановлю голосовой ввод",
 ]
-const WAKE_RECOGNITION_GRAMMAR = [...WAKE_ALIASES, ...STOP_COMMAND_PHRASES]
 const STOP_COMMAND_RE = /(^|[\s,.;:!?…-]+)(?:выключи|выключу|отключи|отключу|выруби|вырублю|останови|остановлю)\s+(?:микрофон|голос(?:овой\s+ввод)?)(?=$|[\s,.;:!?…-]+)/giu
 const VOICE_RMS_THRESHOLD = 0.012
 const VOICE_WAKE_BASE_GAIN = 2.8
@@ -73,6 +73,7 @@ const MIN_COMMIT_AUDIO_MS = 1_500
 const MIN_COMMIT_INTERVAL_MS = 2_200
 const COMMIT_TIMEOUT_MS = 15_000
 const FINAL_SETTLE_MS = 450
+const STOP_COMMAND_ARM_DELAY_MS = 1_800
 const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024
 
 export class VoiceInputClient {
@@ -88,6 +89,7 @@ export class VoiceInputClient {
   #stopRequested = false
   #wakeMatched = false
   #asrEnabled = false
+  #asrActivatedAt = 0
 
   #commitPending = false
   #commitTimer: number | null = null
@@ -150,6 +152,7 @@ export class VoiceInputClient {
     this.#sendAsr({type: "stop"})
     this.#disconnectAsrSocket()
     this.#asrEnabled = false
+    this.#asrActivatedAt = 0
     this.#resetCommitState()
     this.#wakeMatched = false
     if (this.#stream === null) {
@@ -172,7 +175,7 @@ export class VoiceInputClient {
       type: "start",
       sampleRate: this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE,
       useGrammar: true,
-      grammar: WAKE_RECOGNITION_GRAMMAR,
+      grammar: createWakeRecognitionGrammar(this.#wakePhrases()),
       words: true,
     })
     this.#setStatus("waitingWake", WAKE_WORD)
@@ -184,6 +187,7 @@ export class VoiceInputClient {
     this.options.onWake(wakeText)
     this.#resetCommitState()
     this.#asrEnabled = true
+    this.#asrActivatedAt = performance.now()
     this.#setStatus("connecting", this.options.url())
     await this.#connectAsr(this.options.url())
     this.#sendAsr({
@@ -232,6 +236,7 @@ export class VoiceInputClient {
       if (this.#asrWs !== ws) return
       this.#asrWs = null
       this.#asrEnabled = false
+      this.#asrActivatedAt = 0
       if (this.#stopRequested || this.#status === "idle") return
       this.#cleanup()
       this.#setStatus("error", `voice ASR websocket closed: ${ws.url}`)
@@ -325,7 +330,8 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (!text) return
 
     if (this.#asrEnabled) {
-      if (hasStopCommand(text)) {
+      const stopCommandsArmed = performance.now() - this.#asrActivatedAt >= STOP_COMMAND_ARM_DELAY_MS
+      if (stopCommandsArmed && isFinalRecognitionMessage(msg) && hasStopCommand(text)) {
         void this.sleepToWake().catch((error) => {
           this.#setStatus("error", error instanceof Error ? error.message : String(error))
           this.#cleanup()
@@ -335,8 +341,9 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     this.#setStatus("waitingWake", WAKE_WORD)
-    if (msg.type === "partial" && !isFastWakePartial(text)) return
-    if (!isWakePhrase(text)) return
+    const wakePhrases = this.#wakePhrases()
+    if (msg.type === "partial" && !isFastWakePartial(text, wakePhrases)) return
+    if (!isWakePhrase(text, wakePhrases)) return
 
     void this.#activateAsr(text).catch((error) => {
       this.#setStatus("error", error instanceof Error ? error.message : String(error))
@@ -356,12 +363,12 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (msg.type === "partial") {
       const text = recognitionText(msg)
       this.#setStatus("listening", compactDetail(text))
-      this.options.onPartial(removeCommandTextFromString(text))
+      this.options.onPartial(removeCommandTextFromString(text, this.#wakePhrases()))
       return
     }
 
     if (msg.type === "result" || msg.type === "final") {
-      const chunk = removeCommandText(chunkFromAsrMessage(msg))
+      const chunk = removeCommandText(chunkFromAsrMessage(msg, this.#wakePhrases()))
       if (voiceChunkHasText(chunk)) {
         this.#pendingCommittedChunk = chunk
         this.options.onPartial(voiceChunkPreviewText(chunk))
@@ -371,7 +378,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "committed") {
-      const committedChunk = removeCommandText(chunkFromAsrMessage(msg))
+      const committedChunk = removeCommandText(chunkFromAsrMessage(msg, this.#wakePhrases()))
       if (voiceChunkHasText(committedChunk)) this.#pendingCommittedChunk = committedChunk
       this.#clearPendingChunkFlushTimer()
       this.#flushPendingCommittedChunk()
@@ -542,6 +549,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#resetCommitState()
     this.#wakeMatched = false
     this.#asrEnabled = false
+    this.#asrActivatedAt = 0
     this.#stopRequested = false
     this.options.onLevel(0)
   }
@@ -566,12 +574,16 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     window.clearTimeout(this.#pendingChunkFlushTimer)
     this.#pendingChunkFlushTimer = null
   }
+
+  #wakePhrases(): string[] {
+    return normalizeVoiceWakePhrases(this.options.wakePhrases())
+  }
 }
 
-function chunkFromAsrMessage(msg: AsrMessage): VoiceInputChunk {
-  const text = cleanupAsrText(msg.text ?? "")
+function chunkFromAsrMessage(msg: AsrMessage, wakePhrases: readonly string[]): VoiceInputChunk {
+  const text = cleanupAsrText(msg.text ?? "", wakePhrases)
   const messages = Array.isArray(msg.messages)
-    ? msg.messages.map((message) => cleanupAsrText(String(message))).filter(Boolean)
+    ? msg.messages.map((message) => cleanupAsrText(String(message), wakePhrases)).filter(Boolean)
     : []
   const segments = Array.isArray(msg.segments)
     ? msg.segments
@@ -587,12 +599,12 @@ function chunkFromAsrMessage(msg: AsrMessage): VoiceInputChunk {
   return {text, messages, segments}
 }
 
-function cleanupAsrText(text: string): string {
-  return stripWakePrefix(cleanupVoiceText(text))
+function cleanupAsrText(text: string, wakePhrases: readonly string[]): string {
+  return stripWakePrefix(cleanupVoiceText(text), wakePhrases)
 }
 
-function removeCommandTextFromString(text: string): string {
-  return stripStopCommand(cleanupAsrText(text)).text
+function removeCommandTextFromString(text: string, wakePhrases: readonly string[]): string {
+  return stripStopCommand(cleanupAsrText(text, wakePhrases)).text
 }
 
 function removeCommandText(chunk: VoiceInputChunk): VoiceInputChunk {
@@ -649,6 +661,10 @@ function hasStopCommand(text: string): boolean {
     && words.some((word) => ["микрофон", "голос"].some((target) => levenshtein(word, target) <= 2))
 }
 
+function isFinalRecognitionMessage(msg: AsrMessage): boolean {
+  return msg.type === "result" || msg.type === "final"
+}
+
 function recognitionText(msg: AsrMessage): string {
   if (typeof msg.text === "string" && msg.text.trim()) return msg.text
   if (typeof msg.json === "object" && msg.json !== null) {
@@ -659,52 +675,23 @@ function recognitionText(msg: AsrMessage): string {
   return ""
 }
 
-function isWakePhrase(text: string): boolean {
+function isWakePhrase(text: string, wakePhrases: readonly string[]): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
-  if (
-    normalized.includes("завхоз") ||
-    normalized.includes("завхос") ||
-    normalized.includes("запхоз") ||
-    normalized === "агент" ||
-    normalized.startsWith("агент ") ||
-    normalized.includes("слышь долбоеб") ||
-    normalized.includes("слыш долбоеб")
-  ) return true
+  const phrases = normalizeWakePhrasesForRecognition(wakePhrases)
+  if (phrases.some((phrase) => phraseInText(normalized, phrase))) return true
 
   const words = normalized.split(/\s+/)
   const shortWakeUtterance = words.length <= 3
   if (!shortWakeUtterance) return false
 
-  if (WAKE_ALIASES.some((alias) => normalized === alias)) return true
-  return normalized
-    .split(/\s+/)
-    .some((word) => word.length >= 5 && word.length <= 8 && levenshtein(word, WAKE_WORD) <= 1)
+  return words.some((word) => phrases.some((phrase) => fuzzyWakeWordMatch(word, phrase)))
 }
 
-function isFastWakePartial(text: string): boolean {
+function isFastWakePartial(text: string, wakePhrases: readonly string[]): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
-  if (
-    normalized === "завхоз" ||
-    normalized === "завхос" ||
-    normalized === "зав хоз" ||
-    normalized === "зав хос" ||
-    normalized === "запхоз" ||
-    normalized === "зап хоз" ||
-    normalized === "агент" ||
-    normalized === "слышь долбоеб" ||
-    normalized === "слыш долбоеб"
-  ) return true
-  return normalized.startsWith("завхоз ")
-    || normalized.startsWith("завхос ")
-    || normalized.startsWith("зав хоз ")
-    || normalized.startsWith("зав хос ")
-    || normalized.startsWith("запхоз ")
-    || normalized.startsWith("зап хоз ")
-    || normalized.startsWith("агент ")
-    || normalized.startsWith("слышь долбоеб ")
-    || normalized.startsWith("слыш долбоеб ")
+  return normalizeWakePhrasesForRecognition(wakePhrases).some((phrase) => phraseInText(normalized, phrase))
 }
 
 function normalizeWakeText(text: string): string {
@@ -783,10 +770,12 @@ function cleanupVoiceParagraph(paragraph: string): string {
   return isNoisePhrase(cleaned) ? "" : cleaned
 }
 
-function stripWakePrefix(text: string): string {
-  return text
-    .replace(/^(?:завхоз|завхос|запхоз|зав\s+хоз|зав\s+хос|зап\s+хоз|совхоз|за\s+вход|агент|слышь\s+долбо[её]б|слыш\s+долбо[её]б)[\s,.;:!?…-]*/iu, "")
-    .trim()
+function stripWakePrefix(text: string, wakePhrases: readonly string[]): string {
+  let out = text.trim()
+  for (const phrase of normalizeWakePhrasesForRecognition(wakePhrases).sort((a, b) => b.length - a.length)) {
+    out = out.replace(new RegExp(`^${wakePhraseRegexSource(phrase)}[\\s,.;:!?…-]*`, "iu"), "").trim()
+  }
+  return out
 }
 
 function isNoisePhrase(text: string): boolean {
@@ -799,4 +788,51 @@ function isNoisePhrase(text: string): boolean {
 function compactDetail(text: string): string {
   const cleaned = cleanupVoiceText(text).replace(/\s+/g, " ")
   return cleaned.length <= 90 ? cleaned : `${cleaned.slice(0, 87)}...`
+}
+
+export function normalizeVoiceWakePhrases(phrases: readonly string[]): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const phrase of phrases) {
+    const cleaned = phrase.replace(/\s+/g, " ").trim()
+    const normalized = normalizeWakeText(cleaned)
+    if (!cleaned || !normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    out.push(cleaned)
+  }
+  return out
+}
+
+function createWakeRecognitionGrammar(wakePhrases: readonly string[]): string[] {
+  return [...normalizeWakePhrasesForRecognition(wakePhrases), ...STOP_COMMAND_PHRASES]
+}
+
+function normalizeWakePhrasesForRecognition(wakePhrases: readonly string[]): string[] {
+  const normalized = normalizeVoiceWakePhrases(wakePhrases).map(normalizeWakeText).filter(Boolean)
+  return normalized.length > 0 ? normalized : [...DEFAULT_VOICE_WAKE_PHRASES].map(normalizeWakeText)
+}
+
+function phraseInText(text: string, phrase: string): boolean {
+  return text === phrase
+    || text.startsWith(`${phrase} `)
+    || text.endsWith(` ${phrase}`)
+    || text.includes(` ${phrase} `)
+}
+
+function fuzzyWakeWordMatch(word: string, phrase: string): boolean {
+  if (phrase.includes(" ")) return false
+  if (word.length < 5 || word.length > Math.max(8, phrase.length + 2)) return false
+  const threshold = phrase.length >= 8 ? 2 : 1
+  return levenshtein(word, phrase) <= threshold
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function wakePhraseRegexSource(phrase: string): string {
+  return phrase
+    .split(/\s+/)
+    .map((part) => escapeRegExp(part).replace(/е/giu, "[её]"))
+    .join("[\\s,.;:!?…-]+")
 }

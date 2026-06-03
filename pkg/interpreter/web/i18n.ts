@@ -145,6 +145,10 @@ export const text = {
   voiceTargetHost: {ru: "терминал", en: "terminal"},
   voiceTargetModule: {ru: "интерпретатор", en: "interpreter"},
   voiceWaitingWake: {ru: "жду: Завхоз", en: "waiting: Zavhoz"},
+  voiceWakeAdd: {ru: "Добавить", en: "Add"},
+  voiceWakePhrasePrompt: {ru: "Wake-up фраза", en: "Wake-up phrase"},
+  voiceWakePhrases: {ru: "Wake-up фразы", en: "Wake-up phrases"},
+  voiceWakeReset: {ru: "Сброс", en: "Reset"},
   waitingFrames: {ru: "ожидание фрейма на паузе", en: "waiting for paused frame"},
   waitingStdout: {ru: "ожидание stdout/stderr модуля...", en: "waiting for module stdout/stderr..."},
 } as const
