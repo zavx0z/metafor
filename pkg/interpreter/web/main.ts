@@ -773,7 +773,7 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
 
 function voiceSignalForStatusChange(previousStatus: VoiceInputStatus, nextStatus: VoiceInputStatus, detail?: string): HudNotificationKind | null {
   if (nextStatus === "listening" && previousStatus !== "listening" && previousStatus !== "committing") return "activation"
-  if (nextStatus === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing" || previousStatus === "connecting")) return "deactivation"
+  if (nextStatus === "waitingWake" && (previousStatus === "listening" || previousStatus === "committing")) return "deactivation"
   if (nextStatus === "idle" && detail === VOICE_STOP_COMMAND_DETAIL) return "stop"
   return null
 }
