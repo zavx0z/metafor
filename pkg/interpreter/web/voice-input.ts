@@ -14,6 +14,7 @@ export type VoiceInputChunk = {
 
 export type VoiceInputSignalTone = "activation" | "deactivation" | "stop"
 export type VoiceInputPhraseGroupId = "activation" | "deactivation" | "stop"
+export type VoiceDeactivationMode = "phrase" | "timeout" | "phrase-timeout"
 
 type VoiceInputClientOptions = {
   url(): string
@@ -22,6 +23,8 @@ type VoiceInputClientOptions = {
   deactivationPhrases(): readonly string[]
   stopPhrases(): readonly string[]
   phraseFuzzyTolerance(groupId: VoiceInputPhraseGroupId): number
+  deactivationMode(): VoiceDeactivationMode
+  recognitionTimeoutMs(): number
   language: string
   context(): string
   onStatus(status: VoiceInputStatus, detail?: string): void
@@ -121,6 +124,8 @@ export class VoiceInputClient {
   #hasSpeechSinceCommit = false
   #lastSpeechAt = 0
   #lastCommitAt = 0
+  #lastRecognitionAt = 0
+  #recognitionTimeoutTimer: number | null = null
   #pcmSinceCommitBytes = 0
   #queuedPcmAfterCommit: ArrayBuffer[] = []
   #pendingCommittedChunk: VoiceInputChunk | null = null
@@ -222,6 +227,7 @@ export class VoiceInputClient {
     this.#disconnectAsrSocket()
     this.#asrEnabled = false
     this.#asrActivatedAt = 0
+    this.#clearRecognitionTimeoutTimer()
     this.#resetCommitState()
     this.#wakeMatched = false
     if (this.#stream === null) {
@@ -241,6 +247,10 @@ export class VoiceInputClient {
       this.#recoverAsrFailure(error)
       throw error
     }
+  }
+
+  refreshDeactivationSettings(): void {
+    this.#scheduleRecognitionTimeoutCheck()
   }
 
   async #startCommandRecognizer(): Promise<void> {
@@ -274,6 +284,7 @@ export class VoiceInputClient {
     })
     this.#flushQueuedPcm()
     this.#setStatus("listening")
+    this.#touchRecognitionActivity()
   }
 
   async #connectCommand(url: string): Promise<void> {
@@ -411,7 +422,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
           this.stop(VOICE_STOP_COMMAND_DETAIL)
           return
         }
-        if (hasCommandPhrase(text, phraseGroups.deactivation, this.#phraseFuzzyTolerance("deactivation"))) {
+        if (deactivationModeAllowsPhrase(this.options.deactivationMode()) && hasCommandPhrase(text, phraseGroups.deactivation, this.#phraseFuzzyTolerance("deactivation"))) {
           void this.sleepToWake().catch((error) => {
             this.#setStatus("error", error instanceof Error ? error.message : String(error))
             this.#cleanup()
@@ -446,15 +457,18 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (msg.type === "partial") {
       const text = recognitionText(msg)
       this.#setStatus("listening", compactDetail(text))
-      const partial = removeCommandTextFromString(text, this.#commandPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
+      const partial = removeCommandTextFromString(text, this.#asrControlPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
+      if (partial.text) this.#touchRecognitionActivity()
       if (partial.text || partial.command === null) this.options.onPartial(partial.text)
       return
     }
 
     if (msg.type === "result" || msg.type === "final") {
-      const result = removeCommandText(chunkFromAsrMessage(msg, this.#commandPhrases()), this.#commandPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
+      const phraseGroups = this.#asrControlPhrases()
+      const result = removeCommandText(chunkFromAsrMessage(msg, phraseGroups), phraseGroups, (groupId) => this.#phraseFuzzyTolerance(groupId))
       const chunk = result.chunk
       if (voiceChunkHasText(chunk)) {
+        this.#touchRecognitionActivity()
         this.#pendingCommittedChunk = chunk
         if (result.command === null) {
           this.options.onPartial(voiceChunkPreviewText(chunk))
@@ -469,9 +483,13 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
 
     if (msg.type === "committed") {
-      const result = removeCommandText(chunkFromAsrMessage(msg, this.#commandPhrases()), this.#commandPhrases(), (groupId) => this.#phraseFuzzyTolerance(groupId))
+      const phraseGroups = this.#asrControlPhrases()
+      const result = removeCommandText(chunkFromAsrMessage(msg, phraseGroups), phraseGroups, (groupId) => this.#phraseFuzzyTolerance(groupId))
       const committedChunk = result.chunk
-      if (voiceChunkHasText(committedChunk)) this.#pendingCommittedChunk = committedChunk
+      if (voiceChunkHasText(committedChunk)) {
+        this.#touchRecognitionActivity()
+        this.#pendingCommittedChunk = committedChunk
+      }
       this.#clearPendingChunkFlushTimer()
       this.#flushPendingCommittedChunk()
       this.#finishCommit()
@@ -606,6 +624,46 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#queuedPcmAfterCommit = []
   }
 
+  #touchRecognitionActivity(): void {
+    this.#lastRecognitionAt = performance.now()
+    this.#scheduleRecognitionTimeoutCheck()
+  }
+
+  #scheduleRecognitionTimeoutCheck(): void {
+    this.#clearRecognitionTimeoutTimer()
+    if (!this.#asrEnabled || this.#stopRequested || !deactivationModeAllowsTimeout(this.options.deactivationMode())) return
+    const timeoutMs = clampRecognitionTimeoutMs(this.options.recognitionTimeoutMs())
+    if (timeoutMs <= 0) return
+    const now = performance.now()
+    const lastRecognitionAt = this.#lastRecognitionAt > 0 ? this.#lastRecognitionAt : now
+    const delay = Math.max(0, timeoutMs - (now - lastRecognitionAt))
+    this.#recognitionTimeoutTimer = window.setTimeout(() => {
+      this.#recognitionTimeoutTimer = null
+      this.#handleRecognitionTimeout()
+    }, delay)
+  }
+
+  #handleRecognitionTimeout(): void {
+    if (!this.#asrEnabled || this.#stopRequested || !deactivationModeAllowsTimeout(this.options.deactivationMode())) return
+    const timeoutMs = clampRecognitionTimeoutMs(this.options.recognitionTimeoutMs())
+    if (timeoutMs <= 0) return
+    const elapsed = performance.now() - this.#lastRecognitionAt
+    if (elapsed < timeoutMs) {
+      this.#scheduleRecognitionTimeoutCheck()
+      return
+    }
+    void this.sleepToWake().catch((error) => {
+      this.#setStatus("error", error instanceof Error ? error.message : String(error))
+      this.#cleanup()
+    })
+  }
+
+  #clearRecognitionTimeoutTimer(): void {
+    if (this.#recognitionTimeoutTimer === null) return
+    window.clearTimeout(this.#recognitionTimeoutTimer)
+    this.#recognitionTimeoutTimer = null
+  }
+
   #sendCommand(payload: unknown): void {
     if (this.#commandWs?.readyState === WebSocket.OPEN) this.#commandWs.send(JSON.stringify(payload))
   }
@@ -634,6 +692,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#asrEnabled = false
     this.#asrActivatedAt = 0
     this.#wakeMatched = false
+    this.#clearRecognitionTimeoutTimer()
     this.#resetCommitState()
 
     if (!this.#stopRequested && this.#stream !== null && this.#commandWs?.readyState === WebSocket.OPEN) {
@@ -678,6 +737,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#disconnectAsrSocket()
     this.#disconnectCommandSocket()
     this.#resetCommitState()
+    this.#clearRecognitionTimeoutTimer()
     this.#wakeMatched = false
     this.#asrEnabled = false
     this.#asrActivatedAt = 0
@@ -711,6 +771,15 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       activation: normalizeVoicePhrases(this.options.activationPhrases()),
       deactivation: normalizeVoicePhrases(this.options.deactivationPhrases()),
       stop: normalizeVoicePhrases(this.options.stopPhrases()),
+    }
+  }
+
+  #asrControlPhrases(): VoiceCommandPhraseGroups {
+    const phrases = this.#commandPhrases()
+    if (deactivationModeAllowsPhrase(this.options.deactivationMode())) return phrases
+    return {
+      ...phrases,
+      deactivation: [],
     }
   }
 
@@ -999,6 +1068,19 @@ function uniqueStrings(values: readonly string[]): string[] {
     out.push(value)
   }
   return out
+}
+
+function deactivationModeAllowsPhrase(mode: VoiceDeactivationMode): boolean {
+  return mode === "phrase" || mode === "phrase-timeout"
+}
+
+function deactivationModeAllowsTimeout(mode: VoiceDeactivationMode): boolean {
+  return mode === "timeout" || mode === "phrase-timeout"
+}
+
+function clampRecognitionTimeoutMs(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(120_000, Math.max(0, value))
 }
 
 function phraseInText(text: string, phrase: string): boolean {

@@ -7,7 +7,7 @@
  */
 
 import {UiRuntime, UiSurface, button, drawIconCentered, palette, uiIcons, type UiSurfaceRect} from "@ui/elements"
-import {Switcher, VoiceInputHud, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
+import {Switcher, VoiceInputHud, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
@@ -45,6 +45,7 @@ import {
   VoiceInputClient,
   VOICE_STOP_COMMAND_DETAIL,
   normalizeVoicePhrases,
+  type VoiceDeactivationMode,
   type VoiceInputChunk,
   type VoiceInputSegment,
   type VoiceInputStatus,
@@ -250,6 +251,8 @@ const VOICE_STOP_PHRASES_STORAGE_KEY = "metafor.interpreter.voice.stopPhrases:v1
 const VOICE_ACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.activationFuzzy:v1"
 const VOICE_DEACTIVATION_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.deactivationFuzzy:v1"
 const VOICE_STOP_FUZZY_STORAGE_KEY = "metafor.interpreter.voice.stopFuzzy:v1"
+const VOICE_DEACTIVATION_MODE_STORAGE_KEY = "metafor.interpreter.voice.deactivationMode:v1"
+const VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY = "metafor.interpreter.voice.recognitionTimeoutSeconds:v1"
 const VOICE_HUD_RECT_STORAGE_KEY = "metafor.interpreter.voice.hudRect:v1"
 const VOICE_SIGNAL_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v1"
 const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:v2"
@@ -259,9 +262,13 @@ const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
 const DEFAULT_VOICE_SIGNAL_VOLUME = 3
+const DEFAULT_VOICE_DEACTIVATION_MODE: VoiceDeactivationMode = "phrase"
+const DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS = 12
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_ENABLED = true
 const DEFAULT_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const MAX_VOICE_SIGNAL_VOLUME = 3
+const MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS = 3
+const MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS = 60
 const MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME = 1
 const VOICE_SERVICE_CHECK_INTERVAL_MS = 12_000
 const VOICE_SERVICE_CHECK_TIMEOUT_MS = 2_500
@@ -313,6 +320,7 @@ let voiceHudPane: VoiceInputHud | null = null
 let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
 let voicePartialPreviewTarget: VoiceInputTarget | null = null
+let voicePartialPreviewText = ""
 let voiceHudErrorTimer: number | null = null
 let voiceModuleSubmitQueue: Promise<void> = Promise.resolve()
 let voiceHudStatus: VoiceInputStatus = "idle"
@@ -534,6 +542,20 @@ async function initEngine(): Promise<void> {
         title: t("voiceInput"),
         debugTabLabel: t("voiceDebugTab"),
         phraseGroups: voicePhraseGroupsForHud(),
+        deactivationModeLabel: t("voiceDeactivationMode"),
+        deactivationModeValue: voiceHudDeactivationMode(readVoiceDeactivationMode()),
+        deactivationModeOptions: [
+          {value: "phrase", label: t("voiceDeactivationModePhrase")},
+          {value: "timeout", label: t("voiceDeactivationModeTimeout")},
+          {value: "phrase-timeout", label: t("voiceDeactivationModeBoth")},
+        ],
+        recognitionTimeoutLabel: t("voiceRecognitionTimeout"),
+        recognitionTimeoutValue: readVoiceRecognitionTimeoutSeconds(),
+        recognitionTimeoutMinValue: MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS,
+        recognitionTimeoutMaxValue: MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS,
+        recognitionTimeoutUnitLabel: t("voiceRecognitionTimeoutUnit"),
+        recognitionTimeoutDownLabel: t("voiceRecognitionTimeoutDown"),
+        recognitionTimeoutUpLabel: t("voiceRecognitionTimeoutUp"),
         signalVolumeLabel: t("voiceMicSignalVolume"),
         signalVolumeValue: readVoiceSignalVolume(),
         signalVolumeMaxValue: MAX_VOICE_SIGNAL_VOLUME,
@@ -551,6 +573,8 @@ async function initEngine(): Promise<void> {
       onRemovePhrase: removeVoicePhrase,
       onResetPhrases: resetVoicePhrases,
       onSignalVolumeChange: storeVoiceSignalVolume,
+      onDeactivationModeChange: storeVoiceDeactivationMode,
+      onRecognitionTimeoutChange: storeVoiceRecognitionTimeoutSeconds,
       onPhraseFuzzyChange: storeVoiceFuzzyTolerance,
       startTooltip: () => t("voiceStart"),
       stopTooltip: () => t("voiceStop"),
@@ -970,6 +994,8 @@ function ensureVoiceInputClient(): VoiceInputClient {
     deactivationPhrases: () => readVoicePhrases("deactivation"),
     stopPhrases: () => readVoicePhrases("stop"),
     phraseFuzzyTolerance: readVoiceFuzzyTolerance,
+    deactivationMode: readVoiceDeactivationMode,
+    recognitionTimeoutMs: () => readVoiceRecognitionTimeoutSeconds() * 1000,
     language: "ru",
     context: readVoiceInputContext,
     onStatus: handleVoiceStatus,
@@ -991,7 +1017,11 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
     voiceLastErrorAt = new Date()
   }
   if (status === "idle") clearVoiceWakePreview()
-  if (status !== "error" && status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) clearVoicePartialPreview()
+  if (shouldPreserveVoicePartialForStatus(previousStatus, status, detail)) {
+    preserveVoicePartialAsTerminalInput()
+  } else if (status !== "error" && status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) {
+    clearVoicePartialPreview()
+  }
   updateVoiceHud(status, detail)
   if (voiceSignal !== null) playVoiceSignal(voiceSignal)
 }
@@ -1154,6 +1184,7 @@ function handleVoicePartial(raw: string): void {
 function showVoicePartialPreview(target: VoiceInputTarget, text: string): void {
   if (voicePartialPreviewTarget !== null && !sameVoiceInputTarget(voicePartialPreviewTarget, target)) clearVoicePartialPreview()
   voicePartialPreviewTarget = target
+  voicePartialPreviewText = text
   for (const terminal of voicePreviewTerminals(target)) terminal.setInputPreview(text)
 }
 
@@ -1162,6 +1193,7 @@ function clearVoicePartialPreview(): void {
   if (target === null) return
   for (const terminal of voicePreviewTerminals(target)) terminal.clearInputPreview()
   voicePartialPreviewTarget = null
+  voicePartialPreviewText = ""
 }
 
 function clearVoiceWakePreview(): void {
@@ -1182,6 +1214,37 @@ function sameVoiceInputTarget(a: VoiceInputTarget, b: VoiceInputTarget): boolean
 function voicePreviewTerminals(target: VoiceInputTarget): TerminalPane[] {
   if (target.kind === "host") return hostTerminalPanes(target.controller)
   return [target.controller.terminal]
+}
+
+function shouldPreserveVoicePartialForStatus(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
+  if (voicePartialPreviewTarget === null || voicePartialPreviewText.trim().length === 0) return false
+  if (previousStatus !== "listening" && previousStatus !== "committing") return false
+  if (status === "error") return isVoiceConnectionLossDetail(detail)
+  return status === "waitingWake" && isVoiceConnectionLossDetail(detail)
+}
+
+function isVoiceConnectionLossDetail(detail: string | undefined): boolean {
+  if (detail === undefined || detail.length === 0) return false
+  return /websocket|socket|closed|failed|asr|недоступ|закрыт/i.test(detail)
+}
+
+function preserveVoicePartialAsTerminalInput(): void {
+  const target = voicePartialPreviewTarget
+  const text = cleanupVoiceInputText(voicePartialPreviewText)
+  if (target === null || text.length === 0) return
+
+  if (target.kind === "module") {
+    clearVoicePartialPreview()
+    showModuleTerminalPrompt(target.controller)
+    appendModuleTerminalInputText(target.controller, text)
+    return
+  }
+
+  if (!voiceTargetCanAcceptInput(target)) return
+  const body = sanitizeHostTerminalVoiceInput(text)
+  if (body.length === 0) return
+  clearVoicePartialPreview()
+  sendHostTerminalInput(target.controller, body, "api", body)
 }
 
 function insertVoiceMessage(raw: string): void {
@@ -1434,6 +1497,8 @@ function voiceDebugLines(): string[] {
     `${ru ? "последняя ошибка" : "last error"}: ${debugVoiceText(voiceLastErrorText)}`,
     `${ru ? "ошибка время" : "error at"}: ${formatDebugTime(voiceLastErrorAt)}`,
     `${ru ? "громкость микрофона" : "mic signal volume"}: ${Math.round(readVoiceSignalVolume() * 100)}%`,
+    `${ru ? "режим деактивации" : "deactivation mode"}: ${readVoiceDeactivationMode()}`,
+    `${ru ? "тайм-аут распознавания" : "recognition timeout"}: ${readVoiceRecognitionTimeoutSeconds()}s`,
     `${ru ? "левенштейн" : "levenshtein"}: a ${Math.round(readVoiceFuzzyTolerance("activation") * 100)}% · d ${Math.round(readVoiceFuzzyTolerance("deactivation") * 100)}% · s ${Math.round(readVoiceFuzzyTolerance("stop") * 100)}%`,
     `${ru ? "звук" : "sound"}: ${hudNotificationDebugLine()}`,
   ]
@@ -1963,6 +2028,61 @@ function clampVoiceSignalVolume(value: number): number {
 
 function clampHostTerminalAgentSoundVolume(value: number): number {
   return Math.min(MAX_HOST_TERMINAL_AGENT_SOUND_VOLUME, Math.max(0, value))
+}
+
+function readVoiceDeactivationMode(): VoiceDeactivationMode {
+  try {
+    const raw = localStorage.getItem(VOICE_DEACTIVATION_MODE_STORAGE_KEY)
+    if (raw === "timeout" || raw === "phrase-timeout" || raw === "phrase") return raw
+    return DEFAULT_VOICE_DEACTIVATION_MODE
+  } catch {
+    return DEFAULT_VOICE_DEACTIVATION_MODE
+  }
+}
+
+function storeVoiceDeactivationMode(value: VoiceInputHudDeactivationMode): void {
+  const next = voiceClientDeactivationMode(value)
+  try {
+    localStorage.setItem(VOICE_DEACTIVATION_MODE_STORAGE_KEY, next)
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+  renderVoiceHud()
+  voiceInputClient?.refreshDeactivationSettings()
+}
+
+function readVoiceRecognitionTimeoutSeconds(): number {
+  try {
+    const raw = localStorage.getItem(VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY)
+    if (raw === null) return DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS
+    const value = Number(raw)
+    return Number.isFinite(value) ? clampVoiceRecognitionTimeoutSeconds(value) : DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS
+  } catch {
+    return DEFAULT_VOICE_RECOGNITION_TIMEOUT_SECONDS
+  }
+}
+
+function storeVoiceRecognitionTimeoutSeconds(value: number): void {
+  const next = clampVoiceRecognitionTimeoutSeconds(value)
+  try {
+    localStorage.setItem(VOICE_RECOGNITION_TIMEOUT_STORAGE_KEY, String(next))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+  renderVoiceHud()
+  voiceInputClient?.refreshDeactivationSettings()
+}
+
+function clampVoiceRecognitionTimeoutSeconds(value: number): number {
+  return Math.round(Math.min(MAX_VOICE_RECOGNITION_TIMEOUT_SECONDS, Math.max(MIN_VOICE_RECOGNITION_TIMEOUT_SECONDS, value)))
+}
+
+function voiceHudDeactivationMode(mode: VoiceDeactivationMode): VoiceInputHudDeactivationMode {
+  return mode
+}
+
+function voiceClientDeactivationMode(mode: VoiceInputHudDeactivationMode): VoiceDeactivationMode {
+  return mode
 }
 
 function voicePhraseGroupsForHud(): Array<{
@@ -3188,7 +3308,6 @@ function syncModuleTerminalInput(controller: ModuleDisplayController): void {
   if (canAccept) showModuleTerminalPrompt(controller)
   else {
     hideModuleTerminalPrompt(controller)
-    controller.terminalInput.buffer = ""
   }
 }
 

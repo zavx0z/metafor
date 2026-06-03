@@ -16,6 +16,7 @@ export type VoiceInputHudSnapshot = {
 }
 
 export type VoiceInputHudPhraseGroupId = "activation" | "deactivation" | "stop"
+export type VoiceInputHudDeactivationMode = "phrase" | "timeout" | "phrase-timeout"
 
 export type VoiceInputHudPhraseGroup = {
   id: VoiceInputHudPhraseGroupId
@@ -37,6 +38,16 @@ export type VoiceInputHudSettings = {
   title: string
   debugTabLabel: string
   phraseGroups: VoiceInputHudPhraseGroup[]
+  deactivationModeLabel: string
+  deactivationModeValue: VoiceInputHudDeactivationMode
+  deactivationModeOptions: Array<{value: VoiceInputHudDeactivationMode; label: string}>
+  recognitionTimeoutLabel: string
+  recognitionTimeoutValue: number
+  recognitionTimeoutMinValue: number
+  recognitionTimeoutMaxValue: number
+  recognitionTimeoutUnitLabel: string
+  recognitionTimeoutDownLabel: string
+  recognitionTimeoutUpLabel: string
   signalVolumeLabel: string
   signalVolumeValue: number
   signalVolumeMaxValue: number
@@ -59,6 +70,8 @@ export type VoiceInputHudOptions = {
   onRemovePhrase(groupId: VoiceInputHudPhraseGroupId, phrase: string): void
   onResetPhrases(groupId: VoiceInputHudPhraseGroupId): void
   onSignalVolumeChange(value: number): void
+  onDeactivationModeChange(value: VoiceInputHudDeactivationMode): void
+  onRecognitionTimeoutChange(value: number): void
   onPhraseFuzzyChange(groupId: VoiceInputHudPhraseGroupId, value: number): void
   startTooltip(): string
   stopTooltip(): string
@@ -520,6 +533,9 @@ export class VoiceInputHud extends UiSurface {
       z: 0.46,
     })
     y += 18
+    if (group.id === "deactivation") {
+      y = this.#drawDeactivationControls(settings, left, right, y, maxY) + 10
+    }
     y = this.#drawReceivedLines(group, left, right, y, maxY)
     y = this.#drawPercentControl({
       key: `voice-fuzzy:${group.id}`,
@@ -566,6 +582,54 @@ export class VoiceInputHud extends UiSurface {
     })
     y += 30
     return this.#drawPhraseChips(group, left, y, Math.max(1, right - left), maxY)
+  }
+
+  #drawDeactivationControls(settings: VoiceInputHudSettings, left: number, right: number, y: number, maxY: number): number {
+    const w = Math.max(1, right - left)
+    if (y + 70 > maxY) return y
+    this.drawText(settings.deactivationModeLabel, left, y, {
+      fontPx: 9,
+      material: this.materials.muted,
+      maxWidthPx: w,
+      z: 0.46,
+    })
+    const gap = 6
+    const rowY = y + 15
+    const buttonH = 22
+    const options = settings.deactivationModeOptions
+    const buttonW = Math.max(1, (w - gap * Math.max(0, options.length - 1)) / Math.max(1, options.length))
+    let cx = left
+    for (const option of options) {
+      const active = settings.deactivationModeValue === option.value
+      button(this, cx, rowY, buttonW, buttonH, {
+        key: `voice-deactivation-mode:${option.value}`,
+        children: option.label,
+        onClick: () => this.options.onDeactivationModeChange(option.value),
+        style: {
+          background: active ? "rgba(111, 211, 255, 0.12)" : "rgba(38, 49, 66, 0.36)",
+          borderColor: active ? "cyan" : "borderDim",
+          borderRadius: 6,
+          color: active ? "text" : "muted",
+          fontSize: 9,
+        },
+      })
+      cx += buttonW + gap
+    }
+    return this.#drawSecondsControl({
+      key: "voice-recognition-timeout",
+      label: settings.recognitionTimeoutLabel,
+      value: settings.recognitionTimeoutValue,
+      minValue: settings.recognitionTimeoutMinValue,
+      maxValue: settings.recognitionTimeoutMaxValue,
+      unitLabel: settings.recognitionTimeoutUnitLabel,
+      downLabel: settings.recognitionTimeoutDownLabel,
+      upLabel: settings.recognitionTimeoutUpLabel,
+      step: 1,
+      x: left,
+      y: rowY + buttonH + 10,
+      w,
+      onChange: (value) => this.options.onRecognitionTimeoutChange(value),
+    })
   }
 
   #drawReceivedLines(group: VoiceInputHudPhraseGroup, left: number, right: number, y: number, maxY: number): number {
@@ -688,9 +752,109 @@ export class VoiceInputHud extends UiSurface {
     return rowY + 22
   }
 
+  #drawSecondsControl(opts: {
+    key: string
+    label: string
+    value: number
+    minValue: number
+    maxValue: number
+    unitLabel: string
+    downLabel: string
+    upLabel: string
+    step: number
+    x: number
+    y: number
+    w: number
+    onChange(value: number): void
+  }): number {
+    const minValue = Math.min(opts.minValue, opts.maxValue)
+    const maxValue = Math.max(opts.minValue, opts.maxValue)
+    const value = clampNumber(opts.value, minValue, maxValue)
+    const range = Math.max(1, maxValue - minValue)
+    const ratio = (value - minValue) / range
+    this.drawText(opts.label, opts.x, opts.y, {
+      fontPx: 9,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, opts.w - 52),
+      z: 0.46,
+    })
+    this.drawText(`${Math.round(value)} ${opts.unitLabel}`, opts.x + opts.w - 45, opts.y, {
+      fontPx: 9,
+      material: this.materials.text,
+      maxWidthPx: 45,
+      z: 0.46,
+    })
+
+    const rowY = opts.y + 16
+    const buttonW = 28
+    button(this, opts.x, rowY, buttonW, 22, {
+      key: `${opts.key}:down`,
+      children: "-",
+      tooltip: opts.downLabel,
+      onClick: () => this.#setNumberValue(value - opts.step, minValue, maxValue, opts.onChange),
+      style: {
+        background: "rgba(38, 49, 66, 0.42)",
+        borderColor: "borderDim",
+        borderRadius: 6,
+        color: "muted",
+        fontSize: 12,
+      },
+    })
+    button(this, opts.x + opts.w - buttonW, rowY, buttonW, 22, {
+      key: `${opts.key}:up`,
+      children: "+",
+      tooltip: opts.upLabel,
+      onClick: () => this.#setNumberValue(value + opts.step, minValue, maxValue, opts.onChange),
+      style: {
+        background: "rgba(38, 49, 66, 0.42)",
+        borderColor: "borderDim",
+        borderRadius: 6,
+        color: "muted",
+        fontSize: 12,
+      },
+    })
+
+    const trackX = opts.x + buttonW + 10
+    const trackW = Math.max(1, opts.w - buttonW * 2 - 20)
+    const trackY = rowY + 8
+    this.drawRoundedRect(trackX, trackY, trackW, 6, {
+      radius: 3,
+      fill: fade(palette.borderDim, 0.44),
+      border: null,
+      z: 0.16,
+    })
+    this.drawRoundedRect(trackX, trackY, Math.max(3, trackW * ratio), 6, {
+      radius: 3,
+      fill: fade(palette.cyan, 0.64),
+      border: null,
+      z: 0.18,
+    })
+    const knobX = trackX + trackW * ratio
+    this.drawRoundedRect(knobX - 5, trackY - 4, 10, 14, {
+      radius: 5,
+      fill: fade(palette.cyan, 0.82),
+      border: fade(palette.text, 0.24),
+      borderWidth: 1,
+      z: 0.22,
+    })
+    const setFromPointer = (localX: number): void => this.#setNumberValue(minValue + ((localX - trackX) / trackW) * range, minValue, maxValue, opts.onChange)
+    this.hit(trackX - 4, rowY, trackW + 8, 22, () => undefined, {
+      key: `${opts.key}:track`,
+      cursor: "pointer",
+      onPointerDown: (localX) => setFromPointer(localX),
+      onPointerMove: (localX) => setFromPointer(localX),
+    })
+    return rowY + 22
+  }
+
   #setPercentValue(value: number, maxValue: number, onChange: (value: number) => void): void {
     const stepped = Math.round(clampNumber(value, 0, maxValue) * 20) / 20
     onChange(stepped)
+    this.requestRender()
+  }
+
+  #setNumberValue(value: number, minValue: number, maxValue: number, onChange: (value: number) => void): void {
+    onChange(Math.round(clampNumber(value, minValue, maxValue)))
     this.requestRender()
   }
 
