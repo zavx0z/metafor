@@ -56,6 +56,25 @@ export class BreakpointStore {
     this.#logger.event("breakpoint.store.reset", {})
   }
 
+  clearInstalled(reason: string): void {
+    let registrations = 0
+    let installed = 0
+    let logical = 0
+
+    for (const tracked of this.#breakpoints.values()) {
+      if (tracked.installed.length === 0 && tracked.installedByScriptId.size === 0 && tracked.logicalBreakpointIds.size === 0) continue
+      registrations += 1
+      installed += tracked.installed.length
+      logical += tracked.logicalBreakpointIds.size
+      tracked.installed = []
+      tracked.installedByScriptId.clear()
+      tracked.logicalBreakpointIds.clear()
+    }
+
+    if (registrations === 0) return
+    this.#logger.event("breakpoint.installed.clear", {reason, registrations, installed, logical})
+  }
+
   add(spec: BreakpointSpec): BreakpointRegistration {
     const id = `interpreter-bp-${this.#nextId++}`
     const tracked: TrackedBreakpoint = {
@@ -98,12 +117,16 @@ export class BreakpointStore {
   async remove(idOrBreakpointId: string): Promise<BreakpointRegistration | {breakpointId: string}> {
     const tracked = this.#breakpoints.get(idOrBreakpointId)
     if (tracked !== undefined) {
+      const attempted = new Set<string>()
       for (const installed of tracked.installedByScriptId.values()) {
-        await this.#removeBunBreakpoint(installed.breakpointId)
+        if (attempted.has(installed.breakpointId)) continue
+        attempted.add(installed.breakpointId)
+        await this.#removeBunBreakpoint(installed.breakpointId, {id: tracked.id})
       }
       for (const breakpointId of tracked.logicalBreakpointIds) {
-        if (tracked.installed.some((installed) => installed.breakpointId === breakpointId)) continue
-        await this.#removeBunBreakpoint(breakpointId)
+        if (attempted.has(breakpointId)) continue
+        attempted.add(breakpointId)
+        await this.#removeBunBreakpoint(breakpointId, {id: tracked.id})
       }
       this.#breakpoints.delete(idOrBreakpointId)
       this.#logger.event("breakpoint.removed", {id: idOrBreakpointId})
@@ -113,7 +136,7 @@ export class BreakpointStore {
     for (const current of this.#breakpoints.values()) {
       for (const [scriptId, installed] of current.installedByScriptId) {
         if (installed.breakpointId !== idOrBreakpointId) continue
-        await this.#removeBunBreakpoint(idOrBreakpointId)
+        await this.#removeBunBreakpoint(idOrBreakpointId, {id: current.id, scriptId})
         current.installedByScriptId.delete(scriptId)
         current.installed = current.installed.filter((item) => item.breakpointId !== idOrBreakpointId)
         current.logicalBreakpointIds.delete(idOrBreakpointId)
@@ -302,8 +325,21 @@ export class BreakpointStore {
     tracked.installed.push(installed)
   }
 
-  async #removeBunBreakpoint(breakpointId: string): Promise<void> {
-    await this.#client.request("Debugger.removeBreakpoint", {breakpointId})
+  async #removeBunBreakpoint(
+    breakpointId: string,
+    detail: {id?: string; scriptId?: string} = {},
+  ): Promise<boolean> {
+    try {
+      await this.#client.request("Debugger.removeBreakpoint", {breakpointId})
+      return true
+    } catch (error) {
+      this.#logger.event("breakpoint.remove.failed", {
+        ...detail,
+        breakpointId,
+        error: serializeError(error),
+      })
+      return false
+    }
   }
 
   async #activateBreakpoints(): Promise<void> {

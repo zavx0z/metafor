@@ -148,3 +148,70 @@ describe("logicalBreakpointParams", () => {
     }
   })
 })
+
+describe("BreakpointStore", () => {
+  test("removes local registrations when inspector remove fails", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const requests: Array<{method: string; params: Record<string, unknown> | undefined}> = []
+      const client = {
+        async request(method: string, params?: Record<string, unknown>): Promise<unknown> {
+          requests.push({method, params})
+          if (method === "Debugger.setBreakpointByUrl") {
+            return {
+              breakpointId: "logical:1",
+              locations: [{scriptId: "future", lineNumber: 2, columnNumber: 0}],
+            }
+          }
+          if (method === "Debugger.removeBreakpoint") throw new Error("protocol socket closed")
+          return {}
+        },
+      } as unknown as ProtocolClient
+      const logger = new EventLogger(join(dir, "events.log"))
+      const store = new BreakpointStore({client, logger})
+      const registration = store.add({url: "https://example.test/app.js", line: 3})
+
+      await store.armPendingByUrl([registration.id])
+      expect(store.registrations[0]?.installed).toHaveLength(1)
+
+      const removed = await store.remove(registration.id)
+
+      expect("id" in removed ? removed.id : "").toBe(registration.id)
+      expect(store.registrations).toEqual([])
+      expect(requests.map((request) => request.method)).toContain("Debugger.removeBreakpoint")
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test("clears stale installed breakpoint ids without removing specs", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const client = {
+        async request(method: string): Promise<unknown> {
+          if (method === "Debugger.setBreakpointByUrl") {
+            return {
+              breakpointId: "logical:1",
+              locations: [{scriptId: "future", lineNumber: 2, columnNumber: 0}],
+            }
+          }
+          return {}
+        },
+      } as unknown as ProtocolClient
+      const logger = new EventLogger(join(dir, "events.log"))
+      const store = new BreakpointStore({client, logger})
+      const registration = store.add({url: "https://example.test/app.js", line: 3})
+
+      await store.armPendingByUrl([registration.id])
+      store.clearInstalled("target.exited")
+
+      expect(store.registrations).toEqual([{
+        id: registration.id,
+        spec: registration.spec,
+        installed: [],
+      }])
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+})

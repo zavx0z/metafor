@@ -416,6 +416,7 @@ class InterpreterRuntime {
         }, 500)
       } else if (event.type === "exited") {
         this.#clearInitializedFallback()
+        this.#breakpoints.clearInstalled("target.exited")
         this.#logger.event("interpreter.connection.completed", {
           moduleId: this.#moduleId,
           exitCode: event.exitCode,
