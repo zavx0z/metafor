@@ -70,4 +70,56 @@ describe("executeCommand", () => {
 
     expect(markedRunning).toBe(true)
   })
+
+  test("steps over by continuing to the next source location in the current frame", async () => {
+    let markedRunning = false
+    const ctx = context({
+      snapshots: {
+        paused: true,
+        callFrames: [{callFrameId: "frame-1"}],
+        dump: undefined,
+        sourceStepOverTarget() {
+          return {
+            location: {scriptId: "script-1", lineNumber: 7, columnNumber: 0},
+            source: {url: "r/dark/server.ts", line: 24, column: 1},
+            generated: {line: 7, column: 0},
+          }
+        },
+        markRunning(): void {
+          markedRunning = true
+        },
+      } as never,
+    })
+
+    await executeCommand(ctx, {kind: "over"}, "step")
+
+    expect((ctx.client as never as {requests: unknown[]}).requests).toEqual([{
+      method: "Debugger.continueToLocation",
+      params: {
+        location: {scriptId: "script-1", lineNumber: 7, columnNumber: 0},
+        targetCallFrames: "current",
+      },
+    }])
+    expect(markedRunning).toBe(true)
+  })
+
+  test("falls back to Bun stepNext when source step-over target is unavailable", async () => {
+    const ctx = context({
+      snapshots: {
+        paused: true,
+        callFrames: [{callFrameId: "frame-1"}],
+        dump: undefined,
+        sourceStepOverTarget() {
+          return null
+        },
+        markRunning(): void {},
+      } as never,
+    })
+
+    await executeCommand(ctx, {kind: "over"}, "step")
+
+    expect((ctx.client as never as {requests: unknown[]}).requests).toEqual([{
+      method: "Debugger.stepNext",
+    }])
+  })
 })

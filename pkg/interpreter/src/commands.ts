@@ -1,4 +1,4 @@
-import {asBoolean, asNumber, asString} from "./guards.ts"
+import {asBoolean, asNumber, asObject, asString} from "./guards.ts"
 import type {ProtocolClient} from "./protocol-client.ts"
 import type {SnapshotStore} from "./snapshot.ts"
 import type {JsonObject} from "./types.ts"
@@ -75,6 +75,26 @@ async function stepCommand(context: CommandContext, command: JsonObject): Promis
   if (!context.snapshots.paused) throw new Error("module is not paused")
 
   const kind = asString(command["kind"])
+  if (kind === "over") {
+    const target = context.snapshots.sourceStepOverTarget()
+    if (target !== null) {
+      try {
+        const result = await context.client.request("Debugger.continueToLocation", {
+          location: target.location,
+          targetCallFrames: "current",
+        })
+        context.snapshots.markRunning()
+        return {
+          mode: "source-over",
+          target,
+          result: asObject(result) ?? result,
+        }
+      } catch {
+        // Bun versions that do not support continueToLocation should still step.
+      }
+    }
+  }
+
   const methodByKind: Record<string, string> = {
     // Bun's protocol adapter maps DAP "next" / UI Step Over to
     // WebKit stepNext. stepOver resumes through async code here.

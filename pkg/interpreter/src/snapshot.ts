@@ -24,6 +24,22 @@ export type ScriptInfo = {
   url: string
   sourceMapURL?: string
 }
+export type SourceStepTarget = {
+  location: {
+    scriptId: string
+    lineNumber: number
+    columnNumber: number
+  }
+  source: {
+    url: string
+    line: number
+    column: number
+  }
+  generated: {
+    line: number
+    column: number
+  }
+}
 
 export class SnapshotStore {
   #client: ProtocolClient
@@ -71,6 +87,57 @@ export class SnapshotStore {
 
   scriptInfo(scriptId: string): ScriptInfo | undefined {
     return this.#scripts.get(scriptId)
+  }
+
+  sourceStepOverTarget(frameIndex = 0): SourceStepTarget | null {
+    const frame = this.#lastCallFrames[frameIndex]
+    if (frame === undefined) return null
+    const scriptId = frame?.location?.scriptId
+    const generatedLine = frame?.location?.lineNumber
+    const generatedColumn = frame?.location?.columnNumber ?? 0
+    if (scriptId === undefined || generatedLine === undefined) return null
+
+    const script = this.#scripts.get(scriptId)
+    if (script === undefined) return null
+
+    const mapped = this.#originalFrameLocation(frame)
+    if (mapped === undefined || mapped.sourceKind !== "sourcemap") return null
+
+    const mapper = this.#mapperFor(scriptId)
+    const content = mapper.sourceContent(mapped.source ?? script.url)
+    if (content === null) return null
+
+    const lines = content.content.split("\n")
+    for (let line = mapped.line + 1; line < lines.length; line++) {
+      if (!isSourceStepCandidateLine(lines[line] ?? "")) continue
+
+      const generated = mapper.generatedLocation({
+        url: content.source,
+        line,
+        column: 0,
+      })
+      if (!generated.verified) continue
+      if (!isAfterLocation(generated.line, generated.column, generatedLine, generatedColumn)) continue
+
+      return {
+        location: {
+          scriptId,
+          lineNumber: generated.line,
+          columnNumber: generated.column,
+        },
+        source: {
+          url: content.source,
+          line: line + 1,
+          column: 1,
+        },
+        generated: {
+          line: generated.line,
+          column: generated.column,
+        },
+      }
+    }
+
+    return null
   }
 
   onPause(handler: SnapshotPauseHandler): () => void {
@@ -387,4 +454,17 @@ export function remoteSnapshot(object: RemoteObject): RemoteSnapshot {
 function lineCount(value: string): number {
   if (value.length === 0) return 0
   return value.endsWith("\n") ? value.split("\n").length - 1 : value.split("\n").length
+}
+
+function isSourceStepCandidateLine(value: string): boolean {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return false
+  if (trimmed.startsWith("//")) return false
+  if (trimmed.startsWith("/*")) return false
+  if (trimmed.startsWith("*")) return false
+  return true
+}
+
+function isAfterLocation(line: number, column: number, currentLine: number, currentColumn: number): boolean {
+  return line > currentLine || (line === currentLine && column > currentColumn)
 }
