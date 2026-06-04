@@ -1,22 +1,24 @@
 import {Color, TextMaterial} from "@metafor/engine"
 import {UiRuntime, UiSurface, flexColumn, h2, h3, p, palette, type UiSurfaceRect} from "@ui/elements"
 import {autoButtonWidth, Button, Pane, type ButtonColor, type ButtonProps} from "@ui/components"
-import {EditorPane, LogViewerPane, NotiStack, TerminalPane, type NotiStackBounds, type NotiStackTheme} from "@ui/panes"
+import {EditorPane, FileListPane, LogViewerPane, NotiStack, TerminalPane, type FileListItem, type NotiStackBounds, type NotiStackTheme} from "@ui/panes"
 import {tokenizeTypeScript} from "../editor/languages/typescript.ts"
 import {createEditorTokenMaterials, renderEditorTokenizedLine} from "../editor/token-renderer.ts"
 import {VirtualRouter} from "../../playground/virtual-router.ts"
 import {panesPlaygroundLayout} from "./layout.ts"
 
-type PaneCatalog = "EditorPane" | "TerminalPane" | "LogViewerPane" | "NotiStack"
+type PaneCatalog = "EditorPane" | "TerminalPane" | "LogViewerPane" | "FileListPane" | "NotiStack"
 type EditorSection = "Editing" | "Highlighting" | "Selection" | "Scroll"
 type TerminalSection = "Basic" | "ANSI" | "Scroll" | "Input"
 type LogViewerSection = "Basic" | "Wrap" | "Levels" | "Scroll"
+type FileListSection = "Basic" | "Directories" | "Selection" | "Scroll"
 type NotiSection = "Basic" | "Actions" | "Layout"
 type EditorLanguageRoute = "typescript" | "javascript" | "html" | "css" | "plaintext"
 type EditorSelectionRoute = "menu" | "right-click" | "shift-cursor" | "double-click"
 type EditorScrollRoute = "vertical" | "horizontal"
 type LogViewerWrapRoute = "wrap" | "no-wrap"
 type LogViewerScrollRoute = "vertical" | "horizontal" | "no-vertical" | "no-horizontal" | "both" | "none"
+type FileListSelectionRoute = "single" | "multiple"
 type EditorRoute =
   | "editor/editing"
   | "editor/highlighting"
@@ -33,19 +35,27 @@ type LogViewerRoute =
   | "log-viewer/levels"
   | "log-viewer/scroll"
   | `log-viewer/scroll/${LogViewerScrollRoute}`
+type FileListRoute =
+  | "file-list/basic"
+  | "file-list/directories"
+  | "file-list/selection"
+  | `file-list/selection/${FileListSelectionRoute}`
+  | "file-list/scroll"
 type NotiRoute = "notistack/basic" | "notistack/actions" | "notistack/layout"
-type PanesRoute = EditorRoute | TerminalRoute | LogViewerRoute | NotiRoute
+type PanesRoute = EditorRoute | TerminalRoute | LogViewerRoute | FileListRoute | NotiRoute
 type EditorAction = "focus" | "copy" | "cut" | "selectAll"
 type TerminalAction = "demo" | "ansi" | "scroll" | "focus" | "clear"
 type LogViewerAction = "append" | "levels" | "scroll" | "clear"
+type FileListAction = "expand" | "collapse" | "selectAll" | "clearSelection"
 type NotiActionName = "basic" | "action" | "stacked" | "clear"
 type LogViewerProps = {wrapLines: boolean; scrollX: boolean; scrollY: boolean}
 
 const EDITOR_SECTIONS: readonly EditorSection[] = ["Editing", "Highlighting", "Selection", "Scroll"]
 const TERMINAL_SECTIONS: readonly TerminalSection[] = ["Basic", "ANSI", "Scroll", "Input"]
 const LOG_VIEWER_SECTIONS: readonly LogViewerSection[] = ["Basic", "Wrap", "Levels", "Scroll"]
+const FILE_LIST_SECTIONS: readonly FileListSection[] = ["Basic", "Directories", "Selection", "Scroll"]
 const NOTI_SECTIONS: readonly NotiSection[] = ["Basic", "Actions", "Layout"]
-const PANES_NAV: readonly PaneCatalog[] = ["EditorPane", "TerminalPane", "LogViewerPane", "NotiStack"]
+const PANES_NAV: readonly PaneCatalog[] = ["EditorPane", "TerminalPane", "LogViewerPane", "FileListPane", "NotiStack"]
 const EDITOR_LANGUAGE_ROUTES: readonly EditorLanguageRoute[] = ["typescript", "javascript", "html", "css", "plaintext"]
 const EDITOR_SELECTION_ROUTES: readonly EditorSelectionRoute[] = ["menu", "right-click", "shift-cursor", "double-click"]
 const EDITOR_SCROLL_ROUTES: readonly EditorScrollRoute[] = ["vertical", "horizontal"]
@@ -73,8 +83,16 @@ const LOG_VIEWER_ROUTES: readonly LogViewerRoute[] = [
   "log-viewer/scroll/both",
   "log-viewer/scroll/none",
 ]
+const FILE_LIST_ROUTES: readonly FileListRoute[] = [
+  "file-list/basic",
+  "file-list/directories",
+  "file-list/selection",
+  "file-list/selection/single",
+  "file-list/selection/multiple",
+  "file-list/scroll",
+]
 const NOTI_ROUTES: readonly NotiRoute[] = ["notistack/basic", "notistack/actions", "notistack/layout"]
-const PANES_ROUTES: readonly PanesRoute[] = [...EDITOR_ROUTES, ...TERMINAL_ROUTES, ...LOG_VIEWER_ROUTES, ...NOTI_ROUTES]
+const PANES_ROUTES: readonly PanesRoute[] = [...EDITOR_ROUTES, ...TERMINAL_ROUTES, ...LOG_VIEWER_ROUTES, ...FILE_LIST_ROUTES, ...NOTI_ROUTES]
 const EDITOR_LANGUAGE_LABELS: Record<EditorLanguageRoute, string> = {
   typescript: "TypeScript",
   javascript: "JavaScript",
@@ -91,6 +109,7 @@ type PanesScreenOpts = {
   onEditorAction?: (action: EditorAction) => void
   onTerminalAction?: (action: TerminalAction) => void
   onLogViewerAction?: (action: LogViewerAction) => void
+  onFileListAction?: (action: FileListAction) => void
   onNotiAction?: (action: NotiActionName) => void
 }
 
@@ -108,6 +127,7 @@ class PanesScreen extends UiSurface {
   readonly #onEditorAction: ((action: EditorAction) => void) | undefined
   readonly #onTerminalAction: ((action: TerminalAction) => void) | undefined
   readonly #onLogViewerAction: ((action: LogViewerAction) => void) | undefined
+  readonly #onFileListAction: ((action: FileListAction) => void) | undefined
   readonly #onNotiAction: ((action: NotiActionName) => void) | undefined
   #route: PanesRoute = this.#router.current
   #selectionBufferState: "idle" | "copied" | "error" = "idle"
@@ -118,6 +138,7 @@ class PanesScreen extends UiSurface {
     this.#onEditorAction = opts.onEditorAction
     this.#onTerminalAction = opts.onTerminalAction
     this.#onLogViewerAction = opts.onLogViewerAction
+    this.#onFileListAction = opts.onFileListAction
     this.#onNotiAction = opts.onNotiAction
     this.#unsubscribe = this.#router.subscribe((route) => {
       this.#route = route
@@ -204,6 +225,10 @@ class PanesScreen extends UiSurface {
       this.#sectionList(x, y + 76, w, h - 94, LOG_VIEWER_SECTIONS, (section) => this.#logViewerSection() === section, (section) => this.#goLogViewerSection(section))
       return
     }
+    if (current === "FileListPane") {
+      this.#sectionList(x, y + 76, w, h - 94, FILE_LIST_SECTIONS, (section) => this.#fileListSection() === section, (section) => this.#goFileListSection(section))
+      return
+    }
     this.#sectionList(x, y + 76, w, h - 94, NOTI_SECTIONS, (section) => this.#notiSection() === section, (section) => this.#goNotiSection(section))
   }
 
@@ -251,6 +276,7 @@ class PanesScreen extends UiSurface {
     if (this.#currentPane() === "EditorPane") this.#editorPreview(x, y, w, h)
     else if (this.#currentPane() === "TerminalPane") this.#terminalPreview(x, y, w, h)
     else if (this.#currentPane() === "LogViewerPane") this.#logViewerPreview(x, y, w, h)
+    else if (this.#currentPane() === "FileListPane") this.#fileListPreview(x, y, w, h)
     else this.#notiPreview(x, y, w, h)
     this.popClip()
   }
@@ -330,6 +356,31 @@ class PanesScreen extends UiSurface {
     }
   }
 
+  #fileListPreview(x: number, y: number, w: number, h: number): void {
+    const pad = 42
+    if (this.#fileListSection() === "Directories") {
+      renderHeader(this, x, w, pad, y + 34, "Expandable directories", [
+        "FileListPane renders a tree-shaped file list as visible rows.",
+        "Directory expansion belongs to the pane state; scroll and row hits come from @ui/elements.",
+      ])
+    } else if (this.#fileListSection() === "Selection") {
+      renderHeader(this, x, w, pad, y + 34, "Single and multi selection", [
+        "Click selects, Command/Ctrl-click toggles, and Shift-click extends a visible range.",
+        "The host receives selected item ids through one pane-level callback.",
+      ])
+    } else if (this.#fileListSection() === "Scroll") {
+      renderHeader(this, x, w, pad, y + 34, "Large file lists", [
+        "Long lists use the shared ul/div scroll path rather than a custom scrollbar.",
+        "Only visible rows are drawn inside the mounted FileListPane surface.",
+      ])
+    } else {
+      renderHeader(this, x, w, pad, y + 34, "FileListPane", [
+        "A reusable pane for project files, asset browsers, and file pickers.",
+        "It is not bound to fs, RPC, or a particular app data source.",
+      ])
+    }
+  }
+
   #notiPreview(x: number, y: number, w: number, h: number): void {
     const pad = 42
     if (this.#notiSection() === "Actions") {
@@ -377,6 +428,10 @@ class PanesScreen extends UiSurface {
     }
     if (this.#currentPane() === "LogViewerPane") {
       this.#logViewerDock(x, y, w, h)
+      return
+    }
+    if (this.#currentPane() === "FileListPane") {
+      this.#fileListDock(x, y, w, h)
       return
     }
     this.#notiDock(x, y, w, h)
@@ -480,6 +535,32 @@ class PanesScreen extends UiSurface {
     this.#buttonRow(x, y, w, h, items)
   }
 
+  #fileListDock(x: number, y: number, w: number, h: number): void {
+    const section = this.#fileListSection()
+    if (section === "Selection") {
+      const selectionMode = fileListSelectionModeFromRoute(this.#route)
+      this.#buttonRow(x, y, w, h, [
+        {label: "Single", active: selectionMode === "single", color: "primary", onClick: () => this.#router.go("file-list/selection/single")},
+        {label: "Multiple", active: selectionMode === "multiple", color: "primary", onClick: () => this.#router.go("file-list/selection/multiple")},
+        {label: "Select all", onClick: () => this.#onFileListAction?.("selectAll")},
+        {label: "Clear", onClick: () => this.#onFileListAction?.("clearSelection")},
+      ])
+      return
+    }
+    if (section === "Directories") {
+      this.#buttonRow(x, y, w, h, [
+        {label: "Expand all", active: true, color: "primary", onClick: () => this.#onFileListAction?.("expand")},
+        {label: "Collapse all", onClick: () => this.#onFileListAction?.("collapse")},
+      ])
+      return
+    }
+    this.#buttonRow(x, y, w, h, [
+      {label: "Expand all", color: "primary", onClick: () => this.#onFileListAction?.("expand")},
+      {label: "Select all", onClick: () => this.#onFileListAction?.("selectAll")},
+      {label: "Clear", onClick: () => this.#onFileListAction?.("clearSelection")},
+    ])
+  }
+
   #notiDock(x: number, y: number, w: number, h: number): void {
     const section = this.#notiSection()
     const items: readonly DockItem[] =
@@ -572,6 +653,18 @@ class PanesScreen extends UiSurface {
         `logs.write(logOutput)`,
       ]
     }
+    if (this.#currentPane() === "FileListPane") {
+      const selectionMode = fileListSelectionModeFromRoute(this.#route)
+      return [
+        `import {FileListPane} from "@ui/panes"`,
+        ``,
+        `const files = new FileListPane({`,
+        `  items: projectTree,`,
+        `  selectionMode: "${selectionMode}",`,
+        `  onSelectionChange: (ids) => select(ids) })`,
+        `files.setExpandedIds(["src", "src/ui"])`,
+      ]
+    }
     return [
       `import {NotiStack} from "@ui/panes"`,
       ``,
@@ -587,6 +680,7 @@ class PanesScreen extends UiSurface {
     if (this.#route.startsWith("editor/")) return "EditorPane"
     if (this.#route.startsWith("terminal/")) return "TerminalPane"
     if (this.#route.startsWith("log-viewer/")) return "LogViewerPane"
+    if (this.#route.startsWith("file-list/")) return "FileListPane"
     return "NotiStack"
   }
 
@@ -594,6 +688,7 @@ class PanesScreen extends UiSurface {
     if (pane === "EditorPane") this.#router.go("editor/editing")
     else if (pane === "TerminalPane") this.#router.go("terminal/basic")
     else if (pane === "LogViewerPane") this.#router.go("log-viewer/basic")
+    else if (pane === "FileListPane") this.#router.go("file-list/basic")
     else this.#router.go("notistack/basic")
   }
 
@@ -615,6 +710,13 @@ class PanesScreen extends UiSurface {
     if (this.#route.startsWith("log-viewer/wrap")) return "Wrap"
     if (this.#route === "log-viewer/levels") return "Levels"
     if (this.#route.startsWith("log-viewer/scroll")) return "Scroll"
+    return "Basic"
+  }
+
+  #fileListSection(): FileListSection {
+    if (this.#route === "file-list/directories") return "Directories"
+    if (this.#route.startsWith("file-list/selection")) return "Selection"
+    if (this.#route === "file-list/scroll") return "Scroll"
     return "Basic"
   }
 
@@ -643,6 +745,13 @@ class PanesScreen extends UiSurface {
     else if (section === "Levels") this.#router.go("log-viewer/levels")
     else if (section === "Scroll") this.#router.go("log-viewer/scroll")
     else this.#router.go("log-viewer/basic")
+  }
+
+  #goFileListSection(section: FileListSection): void {
+    if (section === "Directories") this.#router.go("file-list/directories")
+    else if (section === "Selection") this.#router.go("file-list/selection")
+    else if (section === "Scroll") this.#router.go("file-list/scroll")
+    else this.#router.go("file-list/basic")
   }
 
   #goNotiSection(section: NotiSection): void {
@@ -750,6 +859,17 @@ function terminalPaneRectForPreview(x: number, y: number, w: number, h: number):
   }
 }
 
+function fileListPaneRectForPreview(x: number, y: number, w: number, h: number): UiSurfaceRect {
+  const top = y + 142
+  const inset = 74
+  return {
+    x: x + inset,
+    y: top,
+    w: Math.max(320, w - inset * 2),
+    h: Math.max(240, h - 190),
+  }
+}
+
 function editorPaneRectForCanvas(w: number, h: number): UiSurfaceRect {
   const layout = panesPlaygroundLayout(w, h)
   return editorPaneRectForPreview(layout.previewX, layout.stageY, layout.previewW, layout.previewH)
@@ -758,6 +878,11 @@ function editorPaneRectForCanvas(w: number, h: number): UiSurfaceRect {
 function terminalPaneRectForCanvas(w: number, h: number): UiSurfaceRect {
   const layout = panesPlaygroundLayout(w, h)
   return terminalPaneRectForPreview(layout.previewX, layout.stageY, layout.previewW, layout.previewH)
+}
+
+function fileListPaneRectForCanvas(w: number, h: number): UiSurfaceRect {
+  const layout = panesPlaygroundLayout(w, h)
+  return fileListPaneRectForPreview(layout.previewX, layout.stageY, layout.previewW, layout.previewH)
 }
 
 function notiStackBoundsForCanvas(w: number, h: number): NotiStackBounds {
@@ -821,6 +946,10 @@ function logViewerSurfaceScenario(route: PanesRoute): LogViewerRoute | null {
   return route.startsWith("log-viewer/") ? route as LogViewerRoute : null
 }
 
+function fileListSurfaceScenario(route: PanesRoute): FileListRoute | null {
+  return route.startsWith("file-list/") ? route as FileListRoute : null
+}
+
 function logViewerWrapRouteFromRoute(route: PanesRoute): LogViewerWrapRoute {
   return route === "log-viewer/wrap/no-wrap" ? "no-wrap" : "wrap"
 }
@@ -869,6 +998,10 @@ function logViewerScrollDemoFromRoute(route: PanesRoute): string {
   if (detail === "horizontal") return LOG_VIEWER_SCROLL_WIDE_SHORT_DEMO
   if (detail === "no-horizontal" || detail === "both" || detail === "overview") return LOG_VIEWER_SCROLL_WIDE_TALL_DEMO
   return LOG_VIEWER_SCROLL_SHORT_DEMO
+}
+
+function fileListSelectionModeFromRoute(route: PanesRoute): "single" | "multiple" {
+  return route === "file-list/selection/single" ? "single" : "multiple"
 }
 
 function notiSurfaceScenario(route: PanesRoute): NotiRoute | null {
@@ -962,6 +1095,33 @@ function applyLogViewerRoute(logViewer: LogViewerPane, route: PanesRoute): void 
   logViewer.write(LOG_VIEWER_BASIC_DEMO)
 }
 
+function applyFileListRoute(fileList: FileListPane, route: PanesRoute): void {
+  const selectionMode = fileListSelectionModeFromRoute(route)
+  fileList.setSelectionMode(selectionMode)
+  fileList.clearSelection()
+  if (route === "file-list/scroll") {
+    fileList.setTitle("Generated files")
+    fileList.setItems(FILE_LIST_SCROLL_ITEMS)
+    fileList.setExpandedIds(["generated"])
+    fileList.setSelectedIds(["generated/build-010.log"])
+    return
+  }
+  fileList.setItems(FILE_LIST_DEMO_ITEMS)
+  fileList.setTitle(route.startsWith("file-list/selection") ? "Selectable files" : "Project files")
+  if (route === "file-list/directories") {
+    fileList.setExpandedIds(["src", "src/ui", "src/ui/panes", "assets"])
+    fileList.setSelectedIds(["src/ui/panes/file-list.ts"])
+    return
+  }
+  if (route.startsWith("file-list/selection")) {
+    fileList.setExpandedIds(["src", "src/ui", "src/ui/panes", "docs"])
+    fileList.setSelectedIds(selectionMode === "multiple" ? ["src/ui/panes/file-list.ts", "src/ui/panes/terminal.ts"] : ["src/ui/panes/file-list.ts"])
+    return
+  }
+  fileList.setExpandedIds(["src", "src/ui", "src/ui/panes"])
+  fileList.setSelectedIds(["src/ui/panes/file-list.ts"])
+}
+
 function setEditorCursorAt(editor: EditorPane, source: string, fragment: string, offset = 0): void {
   const pos = editorPositionForFragment(source, fragment)
   if (pos === null) {
@@ -1015,6 +1175,90 @@ function terminalInputLabel(data: string): string {
     .replaceAll("\n", "<LF>")
     .replaceAll("\t", "<TAB>")
 }
+
+const FILE_LIST_DEMO_ITEMS: readonly FileListItem[] = [
+  {
+    id: "src",
+    name: "src",
+    kind: "directory",
+    path: "app source",
+    modifiedLabel: "today",
+    children: [
+      {id: "src/main.ts", name: "main.ts", kind: "file", path: "entry module", sizeLabel: "8 KB", modifiedLabel: "09:42"},
+      {
+        id: "src/ui",
+        name: "ui",
+        kind: "directory",
+        path: "WebGPU UI package",
+        modifiedLabel: "today",
+        children: [
+          {
+            id: "src/ui/panes",
+            name: "panes",
+            kind: "directory",
+            path: "stateful panes",
+            modifiedLabel: "today",
+            children: [
+              {id: "src/ui/panes/file-list.ts", name: "file-list-pane.ts", kind: "file", path: "FileListPane implementation", sizeLabel: "21 KB", modifiedLabel: "now"},
+              {id: "src/ui/panes/terminal.ts", name: "terminal-pane.ts", kind: "file", path: "terminal surface", sizeLabel: "72 KB", modifiedLabel: "yesterday"},
+            ],
+          },
+          {id: "src/ui/components.ts", name: "List.ts", kind: "file", path: "@ui/components", sizeLabel: "14 KB", modifiedLabel: "Jun 04"},
+          {id: "src/ui/elements.ts", name: "list.ts", kind: "file", path: "ul/li primitives", sizeLabel: "5 KB", modifiedLabel: "Jun 04"},
+        ],
+      },
+      {id: "src/router.ts", name: "router.ts", kind: "file", path: "virtual routes", sizeLabel: "3 KB", modifiedLabel: "Jun 03"},
+    ],
+  },
+  {
+    id: "assets",
+    name: "assets",
+    kind: "directory",
+    path: "icons and fonts",
+    modifiedLabel: "Jun 01",
+    children: [
+      {id: "assets/font", name: "JetBrainsMono-Bold.ttf", kind: "file", path: "playground font", sizeLabel: "136 KB", modifiedLabel: "Jun 01"},
+      {id: "assets/icons", name: "icons", kind: "directory", path: "svg source", modifiedLabel: "May 30", children: [
+        {id: "assets/icons/file", name: "file_refresh.svg", kind: "file", sizeLabel: "2 KB", modifiedLabel: "May 30"},
+        {id: "assets/icons/menu", name: "menu_panel.svg", kind: "file", sizeLabel: "1 KB", modifiedLabel: "May 30"},
+      ]},
+    ],
+  },
+  {
+    id: "docs",
+    name: "docs",
+    kind: "directory",
+    path: "project notes",
+    modifiedLabel: "Jun 02",
+    children: [
+      {id: "docs/architecture.md", name: "architecture.md", kind: "file", path: "system boundaries", sizeLabel: "12 KB", modifiedLabel: "Jun 02"},
+      {id: "docs/rules.md", name: "rules.md", kind: "file", path: "agent rules", sizeLabel: "9 KB", modifiedLabel: "Jun 02"},
+    ],
+  },
+  {id: "package", name: "package.json", kind: "file", path: "workspace manifest", sizeLabel: "4 KB", modifiedLabel: "Jun 04"},
+  {id: "readme", name: "README.md", kind: "file", path: "overview", sizeLabel: "7 KB", modifiedLabel: "May 28"},
+]
+
+const FILE_LIST_SCROLL_ITEMS: readonly FileListItem[] = [
+  {
+    id: "generated",
+    name: "generated",
+    kind: "directory",
+    path: "long output folder",
+    modifiedLabel: "today",
+    children: Array.from({length: 80}, (_, i): FileListItem => {
+      const n = String(i + 1).padStart(3, "0")
+      return {
+        id: `generated/build-${n}.log`,
+        name: `build-${n}.log`,
+        kind: "file",
+        path: i % 5 === 0 ? "warning output" : "background job output",
+        sizeLabel: `${12 + (i % 9) * 3} KB`,
+        modifiedLabel: `10:${String(i % 60).padStart(2, "0")}`,
+      }
+    }),
+  },
+]
 
 const TERMINAL_BASIC_DEMO = [
   "\x1b[36mMetaFor TerminalPane\x1b[0m",
@@ -1223,6 +1467,13 @@ const logViewer = new LogViewerPane({
   fontPx: 12,
   linePx: 17,
 })
+const fileList = new FileListPane({
+  title: "Project files",
+  items: FILE_LIST_DEMO_ITEMS,
+  selectionMode: "multiple",
+  expandedIds: ["src", "src/ui", "src/ui/panes"],
+  selectedIds: ["src/ui/panes/file-list.ts"],
+})
 const stack = new NotiStack(ui, {
   theme: notiTheme,
   layout: {
@@ -1245,6 +1496,7 @@ const stack = new NotiStack(ui, {
 let appliedEditorScenario: string | null = null
 let appliedTerminalScenario: TerminalRoute | null = null
 let appliedLogViewerScenario: LogViewerRoute | null = null
+let appliedFileListScenario: FileListRoute | null = null
 let appliedNotiScenario: NotiRoute | null = null
 
 const syncEditorRoute = (route: PanesRoute): void => {
@@ -1267,6 +1519,13 @@ const syncLogViewerRoute = (route: PanesRoute): void => {
   if (scenario === null || scenario === appliedLogViewerScenario) return
   applyLogViewerRoute(logViewer, route)
   appliedLogViewerScenario = scenario
+}
+
+const syncFileListRoute = (route: PanesRoute): void => {
+  const scenario = fileListSurfaceScenario(route)
+  if (scenario === null || scenario === appliedFileListScenario) return
+  applyFileListRoute(fileList, route)
+  appliedFileListScenario = scenario
 }
 
 const syncNotiRoute = (route: PanesRoute): void => {
@@ -1367,6 +1626,23 @@ function runLogViewerAction(action: LogViewerAction): void {
   logViewer.writeln(`\x1b[36m[info]\x1b[0m ${new Date().toLocaleTimeString()} appended output-only log entry`)
 }
 
+function runFileListAction(action: FileListAction): void {
+  if (action === "expand") {
+    fileList.expandAll()
+    return
+  }
+  if (action === "collapse") {
+    fileList.collapseAll()
+    return
+  }
+  if (action === "selectAll") {
+    fileList.setSelectionMode("multiple")
+    fileList.selectAllVisible()
+    return
+  }
+  fileList.clearSelection()
+}
+
 function handleTerminalInput(data: string): void {
   if (data === "\r") {
     terminal.write("\r\n")
@@ -1446,6 +1722,7 @@ screen = new PanesScreen({
     syncEditorRoute(route)
     syncTerminalRoute(route)
     syncLogViewerRoute(route)
+    syncFileListRoute(route)
     syncNotiRoute(route)
     editor.setSelectionMenuOpen(route === "editor/selection/menu")
     editor.setSelectionContextMenuEnabled(route === "editor/selection/right-click")
@@ -1458,6 +1735,7 @@ screen = new PanesScreen({
   },
   onTerminalAction: runTerminalAction,
   onLogViewerAction: runLogViewerAction,
+  onFileListAction: runFileListAction,
   onNotiAction: pushNotification,
 })
 activeRoute = screen.currentRoute
@@ -1465,10 +1743,12 @@ ui.addSurface(screen, ({w, h}) => ({x: 0, y: 0, w, h}))
 ui.addSurface(editor, ({w, h}) => activeRoute.startsWith("editor/") ? editorPaneRectForCanvas(w, h) : hiddenRect())
 ui.addSurface(terminal, ({w, h}) => activeRoute.startsWith("terminal/") ? terminalPaneRectForCanvas(w, h) : hiddenRect())
 ui.addSurface(logViewer, ({w, h}) => activeRoute.startsWith("log-viewer/") ? terminalPaneRectForCanvas(w, h) : hiddenRect())
+ui.addSurface(fileList, ({w, h}) => activeRoute.startsWith("file-list/") ? fileListPaneRectForCanvas(w, h) : hiddenRect())
 ui.handleResize()
 syncEditorRoute(activeRoute)
 syncTerminalRoute(activeRoute)
 syncLogViewerRoute(activeRoute)
+syncFileListRoute(activeRoute)
 syncNotiRoute(activeRoute)
 editor.setSelectionMenuOpen(activeRoute === "editor/selection/menu")
 editor.setSelectionContextMenuEnabled(activeRoute === "editor/selection/right-click")

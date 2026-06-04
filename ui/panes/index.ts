@@ -4,5 +4,6 @@
 
 export * from "./editor/index.ts"
 export * from "./terminal/index.ts"
+export * from "./file-list/index.ts"
 export * from "./notiStack.ts"
 export * from "./editor-pane.ts"
