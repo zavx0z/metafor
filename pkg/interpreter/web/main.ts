@@ -382,6 +382,8 @@ let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
 let voicePartialPreviewTarget: VoiceInputTarget | null = null
 let voicePartialPreviewText = ""
+let voicePendingSubmitTarget: VoiceInputTarget | null = null
+let voicePendingSubmitNeedsSeparator = false
 let voiceHudErrorTimer: number | null = null
 let voiceModuleSubmitQueue: Promise<void> = Promise.resolve()
 let voiceHudStatus: VoiceInputStatus = "idle"
@@ -1622,9 +1624,28 @@ async function ensureVoiceAutoWake(): Promise<void> {
 function handleVoiceInputChunk(chunk: VoiceInputChunk): void {
   clearVoicePartialPreview()
   const messages = voiceMessagesFromChunk(chunk)
+  if (chunk.finalize === true && messages.length === 0) {
+    finalizeVoicePendingSubmit()
+    renderVoiceHud()
+    return
+  }
   if (messages.length === 0) return
   voiceLastChunkText = messages.join("\n\n")
   voiceLastChunkAt = new Date()
+
+  if (chunk.submit === false) {
+    appendVoicePendingSubmitText(messages.join(" "))
+    renderVoiceHud()
+    return
+  }
+
+  if (voicePendingSubmitTarget !== null) {
+    appendVoicePendingSubmitText(messages.join(" "))
+    finalizeVoicePendingSubmit()
+    renderVoiceHud()
+    return
+  }
+
   for (const message of messages) insertVoiceMessage(message)
   renderVoiceHud()
 }
@@ -1698,6 +1719,11 @@ function sameVoiceInputTarget(a: VoiceInputTarget, b: VoiceInputTarget): boolean
   return a.kind === b.kind && a.controller === b.controller
 }
 
+function voiceTargetName(target: VoiceInputTarget): string {
+  if (target.kind === "host") return "host"
+  return target.controller.id
+}
+
 function voicePreviewTerminals(target: VoiceInputTarget): TerminalPane[] {
   if (target.kind === "host") return hostTerminalPanes(target.controller)
   return [target.controller.terminal]
@@ -1732,6 +1758,53 @@ function preserveVoicePartialAsTerminalInput(): void {
   if (body.length === 0) return
   clearVoicePartialPreview()
   sendHostTerminalInput(target.controller, body, "api", body)
+}
+
+function appendVoicePendingSubmitText(raw: string): void {
+  const text = cleanupVoiceInputText(raw)
+  if (!text) return
+
+  const target = voicePendingSubmitTarget ?? voiceActiveTarget
+  if (target === null) {
+    flashVoiceHudError(t("voiceNoActiveInput"))
+    return
+  }
+  if (!voiceTargetCanAcceptInput(target)) {
+    flashVoiceHudError(t("voiceNoActiveInput"))
+    return
+  }
+
+  const body = `${voicePendingSubmitNeedsSeparator ? " " : ""}${text}`
+  if (target.kind === "host") {
+    if (!sendHostTerminalVoiceText(target.controller, body)) return
+  } else {
+    showModuleTerminalPrompt(target.controller)
+    appendModuleTerminalInputText(target.controller, body)
+  }
+
+  voicePendingSubmitTarget = target
+  voicePendingSubmitNeedsSeparator = true
+  updateVoiceHud(undefined, `${t("voiceInserted")}: ${text}`)
+}
+
+function finalizeVoicePendingSubmit(): void {
+  const target = voicePendingSubmitTarget
+  if (target === null) return
+  if (!voiceTargetCanAcceptInput(target)) {
+    flashVoiceHudError(t("voiceNoActiveInput"))
+    return
+  }
+
+  if (target.kind === "host") {
+    sendHostTerminalInput(target.controller, "\r", "api", "")
+  } else {
+    submitPendingVoiceModuleExpression(target.controller)
+  }
+
+  voicePendingSubmitTarget = null
+  voicePendingSubmitNeedsSeparator = false
+  recordVoiceAutoEnter()
+  updateVoiceHud(undefined, `${t("voiceInserted")}: ${voiceTargetName(target)}`)
 }
 
 function insertVoiceMessage(raw: string): void {
@@ -1781,6 +1854,32 @@ async function submitVoiceModuleExpression(controller: ModuleDisplayController, 
   await runModuleTerminalExpression(controller, text)
 }
 
+function submitPendingVoiceModuleExpression(controller: ModuleDisplayController): void {
+  if (!canAcceptTerminalInput(controller)) {
+    appendModuleTerminal(controller, {
+      ts: new Date().toISOString(),
+      level: "warn",
+      text: `[ui] ${t("voiceNoActiveInput")}`,
+    })
+    syncModuleTerminalInput(controller)
+    flashVoiceHudError(t("voiceNoActiveInput"))
+    return
+  }
+
+  showModuleTerminalPrompt(controller)
+  submitModuleTerminalExpression(controller)
+}
+
+function sendHostTerminalVoiceText(controller: HostTerminalController, text: string): boolean {
+  const body = sanitizeHostTerminalVoiceFragment(text)
+  if (body.length === 0) return false
+  const payload = controller.terminalState?.bracketedPaste
+    ? `\x1b[200~${body}\x1b[201~`
+    : body
+  sendHostTerminalInput(controller, payload, "api", body)
+  return true
+}
+
 function sendHostTerminalVoiceSubmit(controller: HostTerminalController, text: string): boolean {
   const body = sanitizeHostTerminalVoiceInput(text)
   if (body.length === 0) return false
@@ -1797,17 +1896,27 @@ function sanitizeHostTerminalVoiceInput(text: string): string {
     .replace(/\x1b/g, "")
 }
 
+function sanitizeHostTerminalVoiceFragment(text: string): string {
+  const cleaned = text
+    .replace(/\s+/g, " ")
+    .replace(/\x1b\[201~/g, "")
+    .replace(/\x1b/g, "")
+  return voiceTextHasContent(cleaned) ? cleaned : ""
+}
+
 function voiceMessagesFromChunk(chunk: VoiceInputChunk): string[] {
-  if (chunk.messages.length > 1) return chunk.messages.map(cleanupVoiceInputText).filter(Boolean)
+  const serverParagraphs = chunk.messages.flatMap(splitVoiceParagraphs)
+  if (serverParagraphs.length > 1) return serverParagraphs
 
   const byPause = voiceMessagesFromSegments(chunk.segments)
   if (byPause.length > 1) return byPause
 
   const source = chunk.messages[0] ?? chunk.text
-  return splitVoiceParagraphs(source)
+  const textParagraphs = splitVoiceParagraphs(source)
+  return textParagraphs.length ? textParagraphs : [cleanupVoiceInputText(chunk.text)].filter(Boolean)
 }
 
-const VOICE_MESSAGE_PAUSE_SECONDS = 0.65
+const VOICE_MESSAGE_PAUSE_SECONDS = 1.1
 
 function voiceMessagesFromSegments(segments: VoiceInputSegment[]): string[] {
   if (segments.length < 2) return []

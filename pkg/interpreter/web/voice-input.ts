@@ -10,6 +10,8 @@ export type VoiceInputChunk = {
   text: string
   messages: string[]
   segments: VoiceInputSegment[]
+  submit?: boolean
+  finalize?: boolean
 }
 
 export type VoiceInputSignalTone = "activation" | "deactivation" | "stop"
@@ -60,6 +62,7 @@ type VoiceControlChunk = {
   chunk: VoiceInputChunk
   command: VoiceControlCommand | null
 }
+type VoiceCommitReason = "silence" | "duration"
 
 const TARGET_SAMPLE_RATE = 16_000
 const WAKE_WORD = "завхоз"
@@ -102,8 +105,10 @@ const VOICE_WAKE_MIN_RMS = 0.002
 const MAX_SIGNAL_TONE_VOLUME = 3
 const SILENCE_COMMIT_MS = 1_550
 const MIN_COMMIT_AUDIO_MS = 1_500
+const MAX_COMMIT_AUDIO_MS = 22_000
 const MIN_COMMIT_INTERVAL_MS = 2_200
 const COMMIT_TIMEOUT_MS = 15_000
+const MAX_COMMIT_TIMEOUT_MS = 45_000
 const FINAL_SETTLE_MS = 450
 const STOP_COMMAND_ARM_DELAY_MS = 1_800
 const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024
@@ -125,6 +130,8 @@ export class VoiceInputClient {
 
   #commitPending = false
   #commitTimer: number | null = null
+  #commitReason: VoiceCommitReason | null = null
+  #hasUnsubmittedChunk = false
   #hasSpeechSinceCommit = false
   #lastSpeechAt = 0
   #lastCommitAt = 0
@@ -347,9 +354,9 @@ export class VoiceInputClient {
       audio: {
         channelCount: {ideal: 1},
         sampleRate: {ideal: TARGET_SAMPLE_RATE},
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
       },
       video: false,
     })
@@ -469,7 +476,11 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
     if (msg.type === "result" || msg.type === "final") {
       const phraseGroups = this.#asrControlPhrases()
-      const result = removeCommandText(chunkFromAsrMessage(msg, phraseGroups), phraseGroups, (groupId) => this.#phraseFuzzyTolerance(groupId))
+      const result = removeCommandText(
+        chunkFromAsrMessage(msg, phraseGroups, this.#commitReason !== "duration"),
+        phraseGroups,
+        (groupId) => this.#phraseFuzzyTolerance(groupId),
+      )
       const chunk = result.chunk
       if (voiceChunkHasText(chunk)) {
         this.#touchRecognitionActivity()
@@ -488,7 +499,12 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
     if (msg.type === "committed") {
       const phraseGroups = this.#asrControlPhrases()
-      const result = removeCommandText(chunkFromAsrMessage(msg, phraseGroups), phraseGroups, (groupId) => this.#phraseFuzzyTolerance(groupId))
+      const submitsChunk = this.#commitReason !== "duration"
+      const result = removeCommandText(
+        chunkFromAsrMessage(msg, phraseGroups, submitsChunk),
+        phraseGroups,
+        (groupId) => this.#phraseFuzzyTolerance(groupId),
+      )
       const committedChunk = result.chunk
       if (voiceChunkHasText(committedChunk)) {
         this.#touchRecognitionActivity()
@@ -496,6 +512,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       }
       this.#clearPendingChunkFlushTimer()
       this.#flushPendingCommittedChunk()
+      if (submitsChunk && !voiceChunkHasText(committedChunk)) this.#finalizeUnsubmittedChunk()
       this.#finishCommit()
       if (result.command !== null) {
         this.#executeControlCommand(result.command)
@@ -540,17 +557,21 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
 
     const sampleRate = this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE
     const minCommitBytes = Math.round(sampleRate * 2 * (MIN_COMMIT_AUDIO_MS / 1000))
+    const maxCommitBytes = Math.round(sampleRate * 2 * (MAX_COMMIT_AUDIO_MS / 1000))
+    const hasEnoughAudio = this.#pcmSinceCommitBytes >= minCommitBytes
+    const silenceCommit = hasEnoughAudio && now - this.#lastSpeechAt >= SILENCE_COMMIT_MS
+    const durationCommit = this.#pcmSinceCommitBytes >= maxCommitBytes
     const shouldCommit =
       this.#hasSpeechSinceCommit &&
       !this.#commitPending &&
       this.#asrWs?.readyState === WebSocket.OPEN &&
-      this.#pcmSinceCommitBytes >= minCommitBytes &&
-      now - this.#lastSpeechAt >= SILENCE_COMMIT_MS &&
+      (silenceCommit || durationCommit) &&
       now - this.#lastCommitAt >= MIN_COMMIT_INTERVAL_MS
 
     if (!shouldCommit) return
 
-    this.#beginCommit()
+    const commitAudioMs = Math.round((this.#pcmSinceCommitBytes / 2 / sampleRate) * 1000)
+    this.#beginCommit(silenceCommit ? "silence" : "duration", commitAudioMs)
     this.#hasSpeechSinceCommit = false
     this.#lastCommitAt = now
     this.#pcmSinceCommitBytes = 0
@@ -592,9 +613,14 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     }
   }
 
-  #beginCommit(): void {
+  #beginCommit(reason: VoiceCommitReason, audioMs: number): void {
     this.#commitPending = true
+    this.#commitReason = reason
     this.#clearCommitTimer()
+    const timeoutMs = Math.min(
+      MAX_COMMIT_TIMEOUT_MS,
+      Math.max(COMMIT_TIMEOUT_MS, Math.round(audioMs * 2 + 4_000)),
+    )
     this.#commitTimer = window.setTimeout(() => {
       if (!this.#commitPending) return
       this.#flushPendingCommittedChunk()
@@ -602,11 +628,12 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
       if (!this.#stopRequested && this.#asrWs?.readyState === WebSocket.OPEN) {
         this.#setStatus("listening", "commit timeout")
       }
-    }, COMMIT_TIMEOUT_MS)
+    }, timeoutMs)
   }
 
   #finishCommit(): void {
     this.#commitPending = false
+    this.#commitReason = null
     this.#clearCommitTimer()
     this.#flushQueuedPcm()
   }
@@ -621,7 +648,9 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#clearCommitTimer()
     this.#clearPendingChunkFlushTimer()
     this.#commitPending = false
+    this.#commitReason = null
     this.#pendingCommittedChunk = null
+    this.#hasUnsubmittedChunk = false
     this.#hasSpeechSinceCommit = false
     this.#lastSpeechAt = performance.now()
     this.#lastCommitAt = 0
@@ -754,7 +783,16 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     this.#clearPendingChunkFlushTimer()
     const chunk = this.#pendingCommittedChunk
     this.#pendingCommittedChunk = null
-    if (chunk !== null && voiceChunkHasText(chunk)) this.options.onChunk(chunk)
+    if (chunk !== null && voiceChunkHasText(chunk)) {
+      this.options.onChunk(chunk)
+      this.#hasUnsubmittedChunk = chunk.submit === false
+    }
+  }
+
+  #finalizeUnsubmittedChunk(): void {
+    if (!this.#hasUnsubmittedChunk) return
+    this.options.onChunk({text: "", messages: [], segments: [], finalize: true})
+    this.#hasUnsubmittedChunk = false
   }
 
   #schedulePendingChunkFlush(): void {
@@ -806,7 +844,7 @@ function voiceInputSignalTone(kind: VoiceInputSignalTone): {
   return {startHz: 360, endHz: 210, duration: 0.34, gain: 0.38, type: "square"}
 }
 
-function chunkFromAsrMessage(msg: AsrMessage, phraseGroups: VoiceCommandPhraseGroups): VoiceInputChunk {
+function chunkFromAsrMessage(msg: AsrMessage, phraseGroups: VoiceCommandPhraseGroups, submit = true): VoiceInputChunk {
   const text = cleanupAsrText(msg.text ?? "", phraseGroups.activation)
   const messages = Array.isArray(msg.messages)
     ? msg.messages.map((message) => cleanupAsrText(String(message), phraseGroups.activation)).filter(Boolean)
@@ -822,7 +860,7 @@ function chunkFromAsrMessage(msg: AsrMessage, phraseGroups: VoiceCommandPhraseGr
         return out
       })
     : []
-  return {text, messages, segments}
+  return {text, messages, segments, submit}
 }
 
 function cleanupAsrText(text: string, activationPhrases: readonly string[]): string {
@@ -842,12 +880,15 @@ function removeCommandText(chunk: VoiceInputChunk, phraseGroups: VoiceCommandPhr
     command = mergeControlCommand(command, result.command)
     if (result.text) messages.push(result.text)
   }
+  const nextChunk: VoiceInputChunk = {
+    text: textResult.text,
+    messages,
+    segments: command ? [] : chunk.segments,
+  }
+  if (chunk.submit !== undefined) nextChunk.submit = chunk.submit
+  if (chunk.finalize !== undefined) nextChunk.finalize = chunk.finalize
   return {
-    chunk: {
-      text: textResult.text,
-      messages,
-      segments: command ? [] : chunk.segments,
-    },
+    chunk: nextChunk,
     command,
   }
 }
