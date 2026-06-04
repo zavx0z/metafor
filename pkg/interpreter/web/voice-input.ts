@@ -487,7 +487,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
         this.#pendingCommittedChunk = chunk
         if (result.command === null) {
           this.options.onPartial(voiceChunkPreviewText(chunk))
-          this.#schedulePendingChunkFlush()
+          if (!this.#commitPending) this.#schedulePendingChunkFlush()
         }
       }
       if (result.command !== null) {
