@@ -66,7 +66,6 @@ export class ToolbarPane extends UiSurface {
           label: t("pause"),
           iconSrc: uiIcons.pause,
           tone: pauseButtonTone(this.#state.runKind),
-          variant: "contained",
           dividerAfter: true,
           disabled: !this.#state.canPause,
           disabledTooltip: actionUnavailableTooltip,
@@ -76,7 +75,6 @@ export class ToolbarPane extends UiSurface {
           label: t("resume"),
           iconSrc: uiIcons.resume,
           tone: resumeButtonTone(this.#state.runKind),
-          variant: "contained",
           dividerAfter: true,
           disabled: !this.#state.canResume,
           disabledTooltip: actionUnavailableTooltip,
@@ -127,7 +125,6 @@ export class ToolbarPane extends UiSurface {
         label: t("stopTarget"),
         iconSrc: uiIcons.stop,
         tone: "warn",
-        variant: "contained",
         disabled: !this.#state.canStop,
         disabledTooltip: actionUnavailableTooltip,
         action: () => this.#actions.onStopTarget(),
@@ -188,8 +185,8 @@ export class ToolbarPane extends UiSurface {
         iconOnly: true,
         iconSizePx: 14,
         size: "small",
-        variant: b.variant ?? "outlined",
-        radius: 7,
+        variant: "text",
+        radius: 999,
         tooltip: b.disabled === true ? b.disabledTooltip ?? b.label : b.label,
         tooltipDelayMs: 180,
         tone: b.tone,
@@ -225,7 +222,6 @@ type ToolbarButton = {
   label: string
   iconSrc: string
   tone: BadgeKind
-  variant?: "outlined" | "contained"
   disabled?: boolean
   disabledTooltip?: string
   dividerAfter?: boolean
