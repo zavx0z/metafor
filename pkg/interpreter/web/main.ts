@@ -382,8 +382,6 @@ let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
 let voicePartialPreviewTarget: VoiceInputTarget | null = null
 let voicePartialPreviewText = ""
-let voicePendingSubmitTarget: VoiceInputTarget | null = null
-let voicePendingSubmitText = ""
 let voiceHudErrorTimer: number | null = null
 let voiceModuleSubmitQueue: Promise<void> = Promise.resolve()
 let voiceHudStatus: VoiceInputStatus = "idle"
@@ -1469,7 +1467,6 @@ function agentSignalIcon(enabled: boolean): string {
 function setVoiceActiveTarget(target: VoiceInputTarget): void {
   const changed = voiceActiveTarget?.kind !== target.kind || voiceActiveTarget.controller !== target.controller
   if (changed) clearVoicePartialPreview()
-  if (changed) clearVoicePendingSubmit()
   voiceActiveTarget = target
   updateVoiceHud()
   if (changed && !voiceAutoWakeInFlight) scheduleVoiceAutoWake()
@@ -1509,7 +1506,7 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
   if (status === "idle") clearVoiceWakePreview()
   if (shouldPreserveVoicePartialForStatus(previousStatus, status, detail)) {
     preserveVoicePartialAsTerminalInput()
-  } else if (!shouldKeepVoicePendingPreview(status) && status !== "error" && status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) {
+  } else if (status !== "error" && status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) {
     clearVoicePartialPreview()
   }
   updateVoiceHud(status, detail)
@@ -1625,28 +1622,9 @@ async function ensureVoiceAutoWake(): Promise<void> {
 function handleVoiceInputChunk(chunk: VoiceInputChunk): void {
   clearVoicePartialPreview()
   const messages = voiceMessagesFromChunk(chunk)
-  if (chunk.finalize === true && messages.length === 0) {
-    finalizeVoicePendingSubmit()
-    renderVoiceHud()
-    return
-  }
   if (messages.length === 0) return
   voiceLastChunkText = messages.join("\n\n")
   voiceLastChunkAt = new Date()
-
-  if (chunk.submit === false) {
-    appendVoicePendingSubmitText(messages.join(" "))
-    renderVoiceHud()
-    return
-  }
-
-  if (voicePendingSubmitTarget !== null) {
-    appendVoicePendingSubmitText(messages.join(" "))
-    finalizeVoicePendingSubmit()
-    renderVoiceHud()
-    return
-  }
-
   for (const message of messages) insertVoiceMessage(message)
   renderVoiceHud()
 }
@@ -1686,7 +1664,7 @@ function handleVoicePartial(raw: string): void {
   voiceLastPartialText = text
   voiceLastPartialAt = new Date()
   if (target.kind === "module") showModuleTerminalPrompt(target.controller)
-  showVoicePartialPreview(target, voicePartialDisplayText(target, text))
+  showVoicePartialPreview(target, text)
   renderVoiceHud()
 }
 
@@ -1712,8 +1690,8 @@ function clearVoiceWakePreview(): void {
 }
 
 function clearVoicePartialPreviewForTarget(target: VoiceInputTarget): void {
-  if (voicePartialPreviewTarget !== null && sameVoiceInputTarget(voicePartialPreviewTarget, target)) clearVoicePartialPreview()
-  clearVoicePendingSubmitForTarget(target)
+  if (voicePartialPreviewTarget === null || !sameVoiceInputTarget(voicePartialPreviewTarget, target)) return
+  clearVoicePartialPreview()
 }
 
 function sameVoiceInputTarget(a: VoiceInputTarget, b: VoiceInputTarget): boolean {
@@ -1723,18 +1701,6 @@ function sameVoiceInputTarget(a: VoiceInputTarget, b: VoiceInputTarget): boolean
 function voicePreviewTerminals(target: VoiceInputTarget): TerminalPane[] {
   if (target.kind === "host") return hostTerminalPanes(target.controller)
   return [target.controller.terminal]
-}
-
-function shouldKeepVoicePendingPreview(status: VoiceInputStatus): boolean {
-  return status === "listening"
-    && voicePendingSubmitTarget !== null
-    && voicePartialPreviewTarget !== null
-    && sameVoiceInputTarget(voicePendingSubmitTarget, voicePartialPreviewTarget)
-}
-
-function voicePartialDisplayText(target: VoiceInputTarget, text: string): string {
-  if (voicePendingSubmitTarget === null || !sameVoiceInputTarget(voicePendingSubmitTarget, target) || !voicePendingSubmitText) return text
-  return `${voicePendingSubmitText} ${text}`
 }
 
 function shouldPreserveVoicePartialForStatus(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
@@ -1758,7 +1724,6 @@ function preserveVoicePartialAsTerminalInput(): void {
     clearVoicePartialPreview()
     showModuleTerminalPrompt(target.controller)
     appendModuleTerminalInputText(target.controller, text)
-    clearVoicePendingSubmitForTarget(target)
     return
   }
 
@@ -1767,64 +1732,6 @@ function preserveVoicePartialAsTerminalInput(): void {
   if (body.length === 0) return
   clearVoicePartialPreview()
   sendHostTerminalInput(target.controller, body, "api", body)
-  clearVoicePendingSubmitForTarget(target)
-}
-
-function appendVoicePendingSubmitText(raw: string): void {
-  const text = cleanupVoiceInputText(raw)
-  if (!text) return
-
-  const target = voicePendingSubmitTarget ?? voiceActiveTarget
-  if (target === null) {
-    flashVoiceHudError(t("voiceNoActiveInput"))
-    return
-  }
-  if (!voiceTargetCanAcceptInput(target)) {
-    flashVoiceHudError(t("voiceNoActiveInput"))
-    return
-  }
-
-  voicePendingSubmitTarget = target
-  voicePendingSubmitText = voicePendingSubmitText ? `${voicePendingSubmitText} ${text}` : text
-  if (target.kind === "module") showModuleTerminalPrompt(target.controller)
-  showVoicePartialPreview(target, voicePendingSubmitText)
-  updateVoiceHud(undefined, `${t("voiceInserted")}: ${text}`)
-}
-
-function finalizeVoicePendingSubmit(): void {
-  const target = voicePendingSubmitTarget
-  if (target === null) return
-  const text = cleanupVoiceInputText(voicePendingSubmitText)
-  if (!text) {
-    clearVoicePendingSubmit()
-    return
-  }
-  if (!voiceTargetCanAcceptInput(target)) {
-    flashVoiceHudError(t("voiceNoActiveInput"))
-    return
-  }
-
-  if (voicePartialPreviewTarget !== null && sameVoiceInputTarget(voicePartialPreviewTarget, target)) clearVoicePartialPreview()
-  if (target.kind === "host") {
-    if (!sendHostTerminalVoiceSubmit(target.controller, text)) return
-    recordVoiceAutoEnter()
-    updateVoiceHud(undefined, `${t("voiceInserted")}: ${text}`)
-  } else {
-    voiceModuleSubmitQueue = voiceModuleSubmitQueue.then(() => submitVoiceModuleExpression(target.controller, text))
-    void voiceModuleSubmitQueue.catch((error) => flashVoiceHudError(error instanceof Error ? error.message : String(error)))
-  }
-
-  clearVoicePendingSubmit()
-}
-
-function clearVoicePendingSubmitForTarget(target: VoiceInputTarget): void {
-  if (voicePendingSubmitTarget === null || !sameVoiceInputTarget(voicePendingSubmitTarget, target)) return
-  clearVoicePendingSubmit()
-}
-
-function clearVoicePendingSubmit(): void {
-  voicePendingSubmitTarget = null
-  voicePendingSubmitText = ""
 }
 
 function insertVoiceMessage(raw: string): void {
@@ -1891,18 +1798,16 @@ function sanitizeHostTerminalVoiceInput(text: string): string {
 }
 
 function voiceMessagesFromChunk(chunk: VoiceInputChunk): string[] {
-  const serverParagraphs = chunk.messages.flatMap(splitVoiceParagraphs)
-  if (serverParagraphs.length > 1) return serverParagraphs
+  if (chunk.messages.length > 1) return chunk.messages.map(cleanupVoiceInputText).filter(Boolean)
 
   const byPause = voiceMessagesFromSegments(chunk.segments)
   if (byPause.length > 1) return byPause
 
   const source = chunk.messages[0] ?? chunk.text
-  const textParagraphs = splitVoiceParagraphs(source)
-  return textParagraphs.length ? textParagraphs : [cleanupVoiceInputText(chunk.text)].filter(Boolean)
+  return splitVoiceParagraphs(source)
 }
 
-const VOICE_MESSAGE_PAUSE_SECONDS = 1.1
+const VOICE_MESSAGE_PAUSE_SECONDS = 0.65
 
 function voiceMessagesFromSegments(segments: VoiceInputSegment[]): string[] {
   if (segments.length < 2) return []
