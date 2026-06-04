@@ -1583,7 +1583,7 @@ class HostTerminalAgentSignalPane extends UiSurface {
   #setOpen(open: boolean): void {
     if (this.#open === open) return
     this.#open = open
-    uiCanvas?.relayout()
+    relayoutHudSurfaces()
     this.requestRender()
   }
 
@@ -3344,13 +3344,13 @@ function storeHostTerminalHudRect(rect: UiSurfaceRect): void {
 
 function previewHostTerminalHudRect(rect: UiSurfaceRect): void {
   hostTerminalHudRectPreview = rect
-  uiCanvas?.relayout()
+  relayoutHudSurfaces()
 }
 
 function storeHostTerminalHudRectAndRelayout(rect: UiSurfaceRect): void {
   hostTerminalHudRectPreview = null
   storeHostTerminalHudRect(rect)
-  uiCanvas?.relayout()
+  relayoutHudSurfaces()
 }
 
 function readStoredVoiceHudPlacement(): VoiceHudAnchorPlacement | UiSurfaceRect | null {
@@ -3424,7 +3424,7 @@ function setHostTerminalDockPlacement(placement: HostTerminalDockPlacement): voi
   hostTerminalDockPlacement = placement
   writeStoredHostTerminalDockPlacement(placement)
   hostTerminalDockPane?.requestRender()
-  uiCanvas?.relayout()
+  relayoutHudSurfaces()
 }
 
 function setHostTerminalHudDocked(docked: boolean): void {
@@ -3440,7 +3440,11 @@ function setHostTerminalHudDocked(docked: boolean): void {
   }
   controller?.hudTerminal.requestRender()
   hostTerminalDockPane?.requestRender()
-  uiCanvas?.relayout()
+  relayoutHudSurfaces()
+}
+
+function relayoutHudSurfaces(): void {
+  uiCanvas?.relayout({scope: "hud", forceSetRect: false})
 }
 
 function isHostTerminalDockEdge(value: unknown): value is HudSideTabEdge {

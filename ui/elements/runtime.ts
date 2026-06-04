@@ -19,6 +19,11 @@ import {handleActiveInputKey, insertActiveInputText} from "./input.ts"
 
 export type UiSurfaceRect = {x: number; y: number; w: number; h: number; visible?: boolean}
 export type UiSurfaceLayoutFn = (canvas: {w: number; h: number}) => UiSurfaceRect
+export type UiRuntimeRelayoutScope = "space" | "hud" | "all"
+export type UiRuntimeRelayoutOpts = {
+  scope?: UiRuntimeRelayoutScope
+  forceSetRect?: boolean
+}
 export type UiDisplayId = string
 export type UiRuntimeDisplayOpts = {
   id: UiDisplayId
@@ -365,7 +370,7 @@ export class UiRuntime {
     const metrics = this.#surfaceMetrics("display", displayId)
     const rect = layout({w: metrics.w, h: metrics.h})
     this.#surfaces.push({surface, layout, rect, target: "display", displayId})
-    this.#applyLayout()
+    this.#applyLayout({scope: "space"})
     this.requestRender()
   }
 
@@ -377,7 +382,7 @@ export class UiRuntime {
     const metrics = this.#surfaceMetrics("hud")
     const rect = layout({w: metrics.w, h: metrics.h})
     this.#surfaces.push({surface, layout, rect, target: "hud"})
-    this.#applyLayout()
+    this.#applyLayout({scope: "hud"})
     this.requestRender()
   }
 
@@ -415,7 +420,7 @@ export class UiRuntime {
     }
     this.#displaySlots.set(id, slot)
     this.#applyDisplayTransform(slot)
-    this.#applyLayout()
+    this.#applyLayout({scope: "space"})
     this.requestRender()
     return display
   }
@@ -426,7 +431,7 @@ export class UiRuntime {
     slot.centerMm.set(centerMm.x, centerMm.y, centerMm.z)
     if (displayId === this.#surfaceDisplayId) this.#displayCenterMm.copy(slot.centerMm)
     this.#applyDisplayTransform(slot)
-    this.#applyLayout()
+    this.#applyLayout({scope: "space"})
     this.requestRender()
   }
 
@@ -491,7 +496,7 @@ export class UiRuntime {
       invalidateGeometry: (geometry) => this.renderer.invalidateGeometry(geometry),
     })
     this.#applyDisplayTransform(slot)
-    this.#applyLayout()
+    this.#applyLayout({scope: "space"})
     this.requestRender()
   }
 
@@ -524,13 +529,13 @@ export class UiRuntime {
     this.viewPoint.getUp().set(0, 0, 1)
     this.viewPoint.update()
     this.#displayDistanceMm = distance
-    this.#applyLayout()
+    this.#applyLayout({scope: "space"})
     this.#requestHudSurfacesRender()
     this.requestRender()
   }
 
-  relayout(): void {
-    this.#applyLayout()
+  relayout(opts: UiRuntimeRelayoutOpts = {}): void {
+    this.#applyLayout(opts)
     this.requestRender()
   }
 
@@ -559,7 +564,7 @@ export class UiRuntime {
     const slot = this.#surfaces.find((item) => item.surface === surface)
     if (slot === undefined || slot.rectOverride === undefined) return
     delete slot.rectOverride
-    this.#applyLayout()
+    this.#applyLayout({scope: slot.target === "hud" ? "hud" : "space"})
     this.requestRender()
   }
 
@@ -792,7 +797,7 @@ export class UiRuntime {
       this.viewPoint.getUp().copy(slerpOffset(startUp, endPose.up, eased).normalize())
       this.viewPoint.update()
       this.#displayDistanceMm = this.viewPoint.position.distanceTo(target)
-      this.#applyLayout()
+      this.#applyLayout({scope: "space"})
       this.#requestHudSurfacesRender()
       this.requestRender()
       if (t < 1) {
@@ -804,7 +809,7 @@ export class UiRuntime {
         this.viewPoint.getUp().copy(endPose.up)
         this.viewPoint.update()
         this.#displayDistanceMm = finalDistanceMm ?? this.viewPoint.position.distanceTo(endPose.target)
-        this.#applyLayout()
+        this.#applyLayout({scope: "space"})
         this.#requestHudSurfacesRender()
         this.requestRender()
       }
@@ -844,7 +849,7 @@ export class UiRuntime {
     this.viewPoint.position.copy(target).add(offset)
     this.viewPoint.update()
     this.#displayDistanceMm = offset.length()
-    this.#applyLayout()
+    this.#applyLayout({scope: "space"})
     this.#requestHudSurfacesRender()
     this.requestRender()
   }
@@ -867,7 +872,7 @@ export class UiRuntime {
     this.viewPoint.position.copy(target).add(offset)
     this.viewPoint.update()
     this.#displayDistanceMm = nextRadius
-    this.#applyLayout()
+    this.#applyLayout({scope: "space"})
     this.#requestHudSurfacesRender()
     this.requestRender()
   }
@@ -889,7 +894,7 @@ export class UiRuntime {
     target.add(panDelta)
     this.viewPoint.update()
     this.#displayDistanceMm = offset.length()
-    this.#applyLayout()
+    this.#applyLayout({scope: "space"})
     this.#requestHudSurfacesRender()
     this.requestRender()
   }
@@ -1045,17 +1050,19 @@ export class UiRuntime {
 
   // ────────────────────────── Internal layout ──────────────────────────
 
-  #applyLayout(): void {
+  #applyLayout(opts: UiRuntimeRelayoutOpts = {}): void {
     this.#applyDisplayGeometry()
     this.space.updateWorldMatrix()
     for (const slot of this.#surfaces) {
+      if (opts.scope === "hud" && slot.target !== "hud") continue
+      if (opts.scope === "space" && slot.target !== "display") continue
       const metrics = this.#surfaceMetrics(slot.target, slot.displayId)
       const layoutRect = slot.layout({w: metrics.w, h: metrics.h})
       const nextRect = layoutRect.visible === false || slot.rectOverride === undefined
         ? layoutRect
         : clampSurfaceRect(slot.rectOverride, metrics.w, metrics.h)
       if (layoutRect.visible !== false && slot.rectOverride !== undefined) slot.rectOverride = nextRect
-      this.#applySurfaceSlotRect(slot, nextRect, metrics, false)
+      this.#applySurfaceSlotRect(slot, nextRect, metrics, opts.forceSetRect ?? true)
     }
   }
 
