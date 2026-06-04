@@ -18,6 +18,14 @@ const ITEMS: readonly FileListItem[] = [
 ]
 
 describe("FileListPane", () => {
+  test("starts collapsed by default", () => {
+    const pane = new FileListPane({
+      items: ITEMS,
+    })
+
+    expect(pane.expandedIds()).toEqual([])
+  })
+
   test("exposes directory expansion controls", () => {
     const changes: string[][] = []
     const pane = new FileListPane({

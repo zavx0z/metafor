@@ -5,15 +5,11 @@
 import {
   UiSurface, Z, div, flexRow, flexColumn, palette, radii,
 } from "@ui/elements"
-import {
-  Divider as divider,
-} from "@ui/components"
 import type {FrameSnapshot} from "./interpreter-ui.ts"
 import {t} from "./i18n.ts"
 
 const PAD = 14
-const TAB_H = 24
-const HEADER_Y = 8
+const LIST_TOP = 10
 const ROW_H = 32
 const ROW_GAP = 2
 
@@ -34,10 +30,7 @@ export class FramesPane extends UiSurface {
   }
 
   protected render(): void {
-    this.#drawHeader()
-    divider(this, PAD, HEADER_Y + TAB_H + 10, this.rectW - PAD * 2)
-
-    const listTop = HEADER_Y + TAB_H + 20
+    const listTop = LIST_TOP
     const listH = Math.max(0, this.rectH - listTop - 8)
 
     if (this.#frames.length === 0) {
@@ -71,37 +64,6 @@ export class FramesPane extends UiSurface {
           this.#drawRow(frame, PAD, rowY, ctx.viewportWidth, ROW_H)
         }
       },
-    })
-  }
-
-  #drawHeader(): void {
-    const countPad = 18
-    const stackLabel = t("frames")
-    const stackW = Math.max(74, this.measureText(stackLabel, 12) + this.measureText(String(this.#frames.length), 10) + countPad + 18)
-
-    this.#drawTab(PAD, HEADER_Y, stackW, TAB_H, stackLabel, this.#frames.length)
-  }
-
-  #drawTab(x: number, y: number, w: number, h: number, label: string, count: number): void {
-    this.drawRoundedRect(x, y, w, h, {
-      radius: 7,
-      fill: palette.bgHot,
-      border: palette.border,
-      borderWidth: 1,
-      z: Z.ELEMENT,
-    })
-
-    const countLabel = String(count)
-    const countW = this.measureText(countLabel, 10)
-    this.drawText(label, x + 9, y + 6, {
-      fontPx: 12,
-      material: this.materials.cyan,
-      maxWidthPx: Math.max(10, w - countW - 24),
-    })
-    this.drawText(countLabel, x + w - countW - 9, y + 7, {
-      fontPx: 10,
-      material: this.materials.text,
-      maxWidthPx: countW + 1,
     })
   }
 

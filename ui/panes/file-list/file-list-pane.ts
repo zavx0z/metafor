@@ -163,6 +163,34 @@ export const FILE_LIST_MATERIAL_THEME: FileListPaneTheme = {
   },
 }
 
+export const FILE_LIST_DEFAULT_THEME: FileListPaneTheme = {
+  surface: {
+    background: palette.bg,
+    border: palette.borderDim,
+    borderWidthPx: 1,
+    borderRadiusPx: radii.pane,
+  },
+  header: {
+    ...FILE_LIST_INTELLIJ_THEME.header,
+    rule: palette.borderDim,
+  },
+  row: {
+    ...FILE_LIST_INTELLIJ_THEME.row,
+    height: 22,
+    radius: 3,
+    indent: 14,
+    disclosureWidth: 12,
+    iconWidth: 16,
+    hoverFill: palette.bgHot,
+    activeFill: palette.activeRowFill,
+    selectedFill: palette.activeRowFill,
+    selectedBorder: palette.border,
+  },
+  icon: {
+    ...FILE_LIST_INTELLIJ_THEME.icon,
+  },
+}
+
 export class FileListPane extends UiSurface {
   #title: string
   #items: readonly FileListItem[]
@@ -502,7 +530,8 @@ export class FileListPane extends UiSurface {
     const indent = theme.row.paddingX + row.depth * theme.row.indent
     const disclosureX = x + indent
     const iconX = disclosureX + theme.row.disclosureWidth + 4
-    const iconY = y + (h - 18) / 2
+    const iconSize = Math.min(theme.row.iconWidth, Math.max(14, h - 4))
+    const iconY = y + (h - iconSize) / 2
     const nameX = iconX + theme.row.iconWidth + 4
     const metaW = Math.min(theme.row.metaWidth, Math.max(0, w * 0.30))
     const nameW = Math.max(24, x + w - nameX - metaW - 10)
@@ -510,13 +539,17 @@ export class FileListPane extends UiSurface {
     const mutedColor = disabled ? theme.row.disabledText : selected ? theme.row.selectedText : theme.row.muted
 
     if (row.expandable) {
-      span(this, disclosureX, y, theme.row.disclosureWidth, h, {
-        children: row.expanded ? "v" : ">",
-        style: {fontSize: 11, color: state.hovered || active ? theme.header.title : theme.row.muted, textAlign: "center"},
-      })
+      this.#drawDisclosureChevron(
+        disclosureX,
+        y,
+        theme.row.disclosureWidth,
+        h,
+        row.expanded,
+        state.hovered || active ? theme.header.title : theme.row.muted,
+      )
     }
 
-    this.#drawKindIcon(row.item, iconX, iconY, disabled)
+    this.#drawKindIcon(row.item, iconX, iconY, iconSize, disabled)
     span(this, nameX, y, nameW, h, {
       children: row.item.name,
       style: {fontSize: 11, color: textColor},
@@ -532,30 +565,81 @@ export class FileListPane extends UiSurface {
     }
   }
 
-  #drawKindIcon(item: FileListItem, x: number, y: number, disabled: boolean): void {
+  #drawDisclosureChevron(x: number, y: number, w: number, h: number, expanded: boolean, color: Color): void {
+    const cx = x + w / 2
+    const cy = y + h / 2
+    const size = Math.min(6, Math.max(4, h * 0.28))
+    const half = size / 2
+    const z = Z.TEXT + 0.01
+
+    if (expanded) {
+      this.drawLine(cx - half, cy - half / 2, cx, cy + half, color, 1.4, z)
+      this.drawLine(cx + half, cy - half / 2, cx, cy + half, color, 1.4, z)
+      return
+    }
+
+    this.drawLine(cx - half / 2, cy - half, cx + half, cy, color, 1.4, z)
+    this.drawLine(cx - half / 2, cy + half, cx + half, cy, color, 1.4, z)
+  }
+
+  #drawKindIcon(item: FileListItem, x: number, y: number, size: number, disabled: boolean): void {
     const directory = item.kind === "directory"
     const fill = disabled ? this.#theme.icon.disabledFill : directory ? this.#theme.icon.directoryFill : this.#theme.icon.fileFill
     if (directory) {
-      this.drawRoundedRect(x + 3, y + 5, 13, 11, {
-        radius: 2,
-        fill,
-        border: null,
-        borderWidth: 0,
+      const tabX = x + size * 0.14
+      const tabY = y + size * 0.20
+      const tabW = size * 0.42
+      const tabH = size * 0.26
+      const backX = x + size * 0.07
+      const backY = y + size * 0.34
+      const backW = size * 0.82
+      const backH = size * 0.24
+      const bodyX = x + size * 0.07
+      const bodyY = y + size * 0.42
+      const bodyW = size * 0.86
+      const bodyH = size * 0.46
+      const border = disabled ? null : withAlpha(palette.borderBright, 0.24)
+
+      this.drawRoundedRect(tabX, tabY, tabW, tabH, {
+        radius: {tl: 1.8, tr: 1.8, br: 0.8, bl: 0.8},
+        fill: mixColor(fill, palette.text, disabled ? 0 : 0.12),
+        border,
+        borderWidth: 0.8,
         z: Z.ELEMENT_RULE,
       })
+      this.drawRoundedRect(backX, backY, backW, backH, {
+        radius: {tl: 1.8, tr: 1.8, br: 0.8, bl: 0.8},
+        fill: mixColor(fill, palette.text, disabled ? 0 : 0.08),
+        border,
+        borderWidth: 0.8,
+        z: Z.ELEMENT_RULE + 0.01,
+      })
+      this.drawRoundedRect(bodyX, bodyY, bodyW, bodyH, {
+        radius: 2.2,
+        fill,
+        border,
+        borderWidth: 0.8,
+        z: Z.ELEMENT_RULE + 0.02,
+      })
+      this.drawRect(bodyX + 1.4, bodyY + 1.4, Math.max(1, bodyW - 2.8), 1, withAlpha(palette.text, disabled ? 0.06 : 0.14), Z.ELEMENT_RULE + 0.03)
       return
     }
-    this.drawRoundedRect(x + 5, y + 2, 10, 14, {
+
+    const fileW = size * 0.58
+    const fileH = size * 0.76
+    const fileX = x + (size - fileW) / 2
+    const fileY = y + (size - fileH) / 2
+    this.drawRoundedRect(fileX, fileY, fileW, fileH, {
       radius: 2,
       fill,
       border: null,
       borderWidth: 0,
       z: Z.ELEMENT_RULE,
     })
-    this.drawTextCentered(iconLabel(item), x + 10, y + 9, {
-      fontPx: 5,
+    this.drawTextCentered(iconLabel(item), x + size / 2, y + size / 2 + 0.5, {
+      fontPx: Math.max(4, size * 0.30),
       material: disabled ? this.#mutedMaterial : this.#statusMaterial,
-      maxWidthPx: 9,
+      maxWidthPx: Math.max(8, fileW - 1),
       z: Z.TEXT + 0.02,
     })
   }
@@ -775,14 +859,13 @@ function rowFill(theme: FileListPaneTheme, state: LiElementState, selected: bool
 }
 
 function rowMeta(item: FileListItem): string | null {
-  if (item.kind === "directory") return item.sizeLabel ?? "folder"
   return item.sizeLabel ?? null
 }
 
 function resolveFileListPaneTheme(input: FileListPaneThemeInput | undefined): FileListPaneTheme {
-  if (input === undefined) return cloneTheme(FILE_LIST_INTELLIJ_THEME)
+  if (input === undefined) return cloneTheme(FILE_LIST_DEFAULT_THEME)
   if (typeof input === "string") return cloneTheme(themePreset(input))
-  const base = cloneTheme(themePreset(input.preset ?? "intellij"))
+  const base = cloneTheme(input.preset === undefined ? FILE_LIST_DEFAULT_THEME : themePreset(input.preset))
   return {
     surface: {...base.surface, ...input.surface},
     header: {...base.header, ...input.header},
@@ -855,6 +938,20 @@ function findFileListItem(items: readonly FileListItem[], id: string): FileListI
 function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   return a.every((value, index) => value === b[index])
+}
+
+function mixColor(a: Color, b: Color, t: number): Color {
+  const k = Math.min(1, Math.max(0, t))
+  return new Color(
+    a.r + (b.r - a.r) * k,
+    a.g + (b.g - a.g) * k,
+    a.b + (b.b - a.b) * k,
+    a.a + (b.a - a.a) * k,
+  )
+}
+
+function withAlpha(color: Color, alpha: number): Color {
+  return new Color(color.r, color.g, color.b, Math.min(1, Math.max(0, alpha)))
 }
 
 function clampInt(value: number, min: number, max: number): number {

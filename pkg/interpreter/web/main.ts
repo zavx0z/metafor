@@ -6,16 +6,19 @@
  * `/modules/:id/...`.
  */
 
-import {UiRuntime, UiSurface, button, drawIconCentered, palette, uiIcons, type UiRuntimeDisplaySnapshot, type UiSurfaceRect} from "@ui/elements"
+import {UiRuntime, UiSurface, button, drawIconCentered, palette, radii, uiIcons, type UiRuntimeDisplaySnapshot, type UiSurfaceRect} from "@ui/elements"
 import {Switcher, VoiceInputHud, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
+  FileListPane,
   TerminalPane,
+  normalizeFileListSelection,
   sourceDisplayLocation,
   sourcePathFromLocation,
   type EditorBreakpoint,
   type EditorTokens,
+  type FileListItem,
   type TerminalInputSource,
   type TerminalPaneOpts,
   type TerminalSize,
@@ -154,6 +157,16 @@ type CachedSource = {
   tokens?: EditorTokens
 }
 
+type WorkspaceFilesPayload = {
+  root?: string
+  files?: Array<{path?: string}>
+}
+
+type WorkspaceFilesStoredState = {
+  expandedIds: string[]
+  selectedIds: string[]
+}
+
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
 type ActiveInterpreterCommand = {cmd: string; label: string; startedAt: number}
 type DisplayLayoutMetrics = {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}
@@ -236,6 +249,9 @@ type ModuleDisplayController = {
   id: string
   toolbar: ToolbarPane
   frames: FramesPane
+  filesChrome: WorkspaceFilesChromePane
+  filesHeader: WorkspaceFilesHeaderPane
+  files: FileListPane
   scopes: ScopesPane
   source: EditorPane
   terminal: TerminalPane
@@ -315,6 +331,7 @@ const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:
 const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundVolume:v1"
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
+const WORKSPACE_FILES_STATE_STORAGE_PREFIX = "metafor.interpreter.workspaceFiles:v1"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
 const DEFAULT_VOICE_SIGNAL_VOLUME = 0.2
@@ -355,12 +372,22 @@ const VOICE_SIGNAL_COOLDOWN_MS = 900
 const DEFAULT_VOICE_ACTIVATION_FUZZY = 0.05
 const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.05
 const DEFAULT_VOICE_STOP_FUZZY = 0.06
+const WORKSPACE_FILES_LIMIT = 500
 
 type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 
 type HostTerminalDockPlacement = {
   edge: HudSideTabEdge
   offset: number
+}
+
+type VoiceHudHorizontalAnchor = "left" | "right"
+type VoiceHudVerticalAnchor = "top" | "bottom"
+type VoiceHudAnchorPlacement = {
+  horizontal: VoiceHudHorizontalAnchor
+  vertical: VoiceHudVerticalAnchor
+  offsetX: number
+  offsetY: number
 }
 
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
@@ -378,6 +405,12 @@ let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let hostTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredHostTerminalDockPlacement() ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
 let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let voiceHudPane: VoiceInputHud | null = null
+let workspaceFileItems: readonly FileListItem[] = []
+let workspaceFileExpandedIds: readonly string[] = []
+let workspaceFileSelectedIds: readonly string[] = []
+let workspaceFilesStateStorageKey = workspaceFilesStorageKey(undefined)
+let workspaceFilesRootLabel: string | null = null
+let workspaceFilesLoading: Promise<void> | null = null
 let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
 let voicePartialPreviewTarget: VoiceInputTarget | null = null
@@ -1067,6 +1100,7 @@ async function initEngine(): Promise<void> {
       stopTooltip: () => t("voiceStop"),
     })
     installEnginePanes()
+    void refreshWorkspaceFiles()
     uiCanvas.handleResize()
     syncModuleDisplays()
     resizeObserver = new ResizeObserver(handleEngineResize)
@@ -1126,6 +1160,9 @@ function toggleLocale(): void {
   for (const controller of moduleDisplays.values()) {
     controller.source.setTitle(moduleSourceTitle(controller))
     controller.frames.requestRender()
+    controller.filesHeader.requestRender()
+    controller.files.setTitle(t("sourceFiles"))
+    controller.files.requestRender()
     controller.scopes.requestRender()
     controller.terminal.setTitle(t("terminalTarget"))
     controller.terminal.requestRender()
@@ -1142,6 +1179,113 @@ function setVerboseVisible(controller: ModuleDisplayController, on: boolean): vo
   const snapshot = moduleSnapshots.get(controller.id)
   if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
   uiCanvas?.relayout()
+}
+
+class WorkspaceFilesHeaderPane extends UiSurface {
+  readonly #onCollapseAll: () => void
+  readonly #onExpandAll: () => void
+
+  constructor(onCollapseAll: () => void, onExpandAll: () => void) {
+    super({bgColor: null, borderColor: null})
+    this.node.name = "WorkspaceFilesHeaderPane"
+    this.#onCollapseAll = onCollapseAll
+    this.#onExpandAll = onExpandAll
+  }
+
+  protected render(): void {
+    const pad = 8
+    const titleX = 16
+    const buttonY = 6
+    const buttonSize = 24
+    const gap = 6
+    const expandLabel = t("sourceExpandAll")
+    const collapseLabel = t("sourceCollapseAll")
+    const expandX = Math.max(pad, this.rectW - pad - buttonSize)
+    const collapseX = Math.max(pad, expandX - gap - buttonSize)
+    const titleW = Math.max(1, collapseX - titleX - 8)
+
+    this.drawText(workspaceFilesRootLabel ?? t("sourceFiles"), titleX, 9, {
+      fontPx: 13,
+      material: this.materials.cyan,
+      maxWidthPx: titleW,
+    })
+    this.#drawHeaderAction(collapseX, buttonY, buttonSize, collapseLabel, "collapse", this.#onCollapseAll, "workspace-files-collapse-all")
+    this.#drawHeaderAction(expandX, buttonY, buttonSize, expandLabel, "expand", this.#onExpandAll, "workspace-files-expand-all")
+    this.drawRect(pad, Math.max(0, this.rectH - 1), Math.max(1, this.rectW - pad * 2), 1, palette.borderDim)
+  }
+
+  #drawHeaderAction(x: number, y: number, size: number, label: string, kind: "collapse" | "expand", action: () => void, key: string): void {
+    button(this, x, y, size, size, {
+      key,
+      children: (state) => this.#drawCornerActionIcon(x + size / 2, y + size / 2, kind, state !== "idle"),
+      tooltip: label,
+      tooltipDelayMs: 180,
+      onClick: action,
+      style: (state) => ({
+        background: state === "active"
+          ? "rgba(38, 49, 66, 0.72)"
+          : state === "hover"
+            ? "rgba(38, 49, 66, 0.52)"
+            : "rgba(10, 14, 21, 0.62)",
+        borderColor: state === "idle" ? "borderDim" : "border",
+        borderRadius: 6,
+        color: state === "idle" ? "muted" : "text",
+        fontSize: 9,
+        glassTint: null,
+        glassTintOpacity: 0,
+      }),
+    })
+  }
+
+  #drawCornerActionIcon(cx: number, cy: number, kind: "collapse" | "expand", active: boolean): void {
+    const color = active ? palette.text : palette.violet
+    const z = 0.48
+    const stroke = 2
+    const leg = 6
+    const offset = 6
+
+    const drawTopLeft = (): void => {
+      const x = cx - offset
+      const y = cy - offset
+      this.drawRect(x, y, leg, stroke, color, z)
+      this.drawRect(x, y, stroke, leg, color, z)
+    }
+    const drawTopRight = (): void => {
+      const x = cx + offset - leg
+      const y = cy - offset
+      this.drawRect(x, y, leg, stroke, color, z)
+      this.drawRect(cx + offset - stroke, y, stroke, leg, color, z)
+    }
+    const drawBottomLeft = (): void => {
+      const x = cx - offset
+      const y = cy + offset - leg
+      this.drawRect(x, cy + offset - stroke, leg, stroke, color, z)
+      this.drawRect(x, y, stroke, leg, color, z)
+    }
+    const drawBottomRight = (): void => {
+      const x = cx + offset - leg
+      const y = cy + offset - leg
+      this.drawRect(x, cy + offset - stroke, leg, stroke, color, z)
+      this.drawRect(cx + offset - stroke, y, stroke, leg, color, z)
+    }
+
+    if (kind === "collapse") {
+      drawTopRight()
+      drawBottomLeft()
+    } else {
+      drawTopLeft()
+      drawBottomRight()
+    }
+  }
+}
+
+class WorkspaceFilesChromePane extends UiSurface {
+  constructor() {
+    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    this.node.name = "WorkspaceFilesChromePane"
+  }
+
+  protected render(): void {}
 }
 
 class HostTerminalDockPane extends UiSurface {
@@ -3209,9 +3353,14 @@ function storeHostTerminalHudRectAndRelayout(rect: UiSurfaceRect): void {
   uiCanvas?.relayout()
 }
 
-function readStoredVoiceHudRect(): UiSurfaceRect | null {
+function readStoredVoiceHudPlacement(): VoiceHudAnchorPlacement | UiSurfaceRect | null {
   try {
-    return parseStoredPaneRect(localStorage.getItem(VOICE_HUD_RECT_STORAGE_KEY))
+    const raw = localStorage.getItem(VOICE_HUD_RECT_STORAGE_KEY)
+    if (raw === null) return null
+    const parsed = JSON.parse(raw) as unknown
+    const anchor = normalizeStoredVoiceHudAnchor(parsed)
+    if (anchor !== null) return anchor
+    return normalizeStoredPaneRect(parsed)
   } catch {
     return null
   }
@@ -3220,8 +3369,14 @@ function readStoredVoiceHudRect(): UiSurfaceRect | null {
 function storeVoiceHudRect(rect: UiSurfaceRect): void {
   const normalized = normalizeStoredPaneRect({...rect, w: VOICE_HUD_W, h: VOICE_HUD_H})
   if (normalized === null) return
+  const metrics = viewportDisplayMetrics()
+  const placement = voiceHudAnchorFromRect(normalized, metrics.pixelWidth, metrics.pixelHeight)
+  writeStoredVoiceHudAnchor(placement)
+}
+
+function writeStoredVoiceHudAnchor(placement: VoiceHudAnchorPlacement): void {
   try {
-    localStorage.setItem(VOICE_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
+    localStorage.setItem(VOICE_HUD_RECT_STORAGE_KEY, JSON.stringify(placement))
   } catch {
     // Storage can be disabled in private contexts.
   }
@@ -3325,6 +3480,30 @@ function finiteStoredNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
+function normalizeStoredVoiceHudAnchor(value: unknown): VoiceHudAnchorPlacement | null {
+  if (typeof value !== "object" || value === null) return null
+  const record = value as Record<string, unknown>
+  const horizontal = record.horizontal
+  const vertical = record.vertical
+  const offsetX = finiteStoredNumber(record.offsetX)
+  const offsetY = finiteStoredNumber(record.offsetY)
+  if (!isVoiceHudHorizontalAnchor(horizontal) || !isVoiceHudVerticalAnchor(vertical) || offsetX === null || offsetY === null) return null
+  return {
+    horizontal,
+    vertical,
+    offsetX: Math.max(0, Math.round(offsetX)),
+    offsetY: Math.max(0, Math.round(offsetY)),
+  }
+}
+
+function isVoiceHudHorizontalAnchor(value: unknown): value is VoiceHudHorizontalAnchor {
+  return value === "left" || value === "right"
+}
+
+function isVoiceHudVerticalAnchor(value: unknown): value is VoiceHudVerticalAnchor {
+  return value === "top" || value === "bottom"
+}
+
 function viewportDisplayMetrics(): DisplayLayoutMetrics {
   const metrics = uiCanvas?.viewportDisplayMetrics()
   if (metrics !== null && metrics !== undefined) return metrics
@@ -3411,10 +3590,13 @@ function normalizeAgentModuleTerminalEntry(value: unknown): AgentModuleTerminalE
 
 function addInterpreterSurfacesToDisplay(displayId: string, controller: ModuleDisplayController): void {
   if (uiCanvas === null) return
-  uiCanvas.addSurfaceToDisplay(displayId, controller.frames, (canvas) => interpreterRects(canvas, controller.verboseVisible).frames)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.filesChrome, (canvas) => interpreterRects(canvas, controller.verboseVisible).filesChrome)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.filesHeader, (canvas) => interpreterRects(canvas, controller.verboseVisible).filesHeader)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.files, (canvas) => interpreterRects(canvas, controller.verboseVisible).files)
   uiCanvas.addSurfaceToDisplay(displayId, controller.scopes, (canvas) => interpreterRects(canvas, controller.verboseVisible).scopes)
   uiCanvas.addSurfaceToDisplay(displayId, controller.source, (canvas) => interpreterRects(canvas, controller.verboseVisible).source)
   uiCanvas.addSurfaceToDisplay(displayId, controller.terminal, (canvas) => interpreterRects(canvas, controller.verboseVisible).terminal)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.frames, (canvas) => interpreterRects(canvas, controller.verboseVisible).frames)
   uiCanvas.addSurfaceToDisplay(displayId, controller.verbose, (canvas) => interpreterRects(canvas, controller.verboseVisible).verbose ?? hiddenRect())
   uiCanvas.addSurfaceToDisplay(displayId, controller.toolbar, ({w}) => ({
     x: TOOLBAR_INSET,
@@ -3441,6 +3623,35 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     frames: new FramesPane((index) => {
       controller.activeFrameIndex = index
       renderModuleDump(controller, true)
+    }),
+    filesChrome: new WorkspaceFilesChromePane(),
+    filesHeader: new WorkspaceFilesHeaderPane(
+      () => setWorkspaceFilesExpandedIds([]),
+      () => setWorkspaceFilesExpandedIds(workspaceDirectoryIds(workspaceFileItems)),
+    ),
+    files: new FileListPane({
+      title: t("sourceFiles"),
+      items: workspaceFileItems,
+      expandedIds: workspaceFileExpandedIds,
+      selectedIds: workspaceFileSelectedIds,
+      selectionMode: "single",
+      showHeader: false,
+      theme: {
+        surface: {
+          background: null,
+          border: null,
+          borderWidthPx: 0,
+        },
+      },
+      onSelectionChange: (ids, items) => {
+        setWorkspaceFilesSelectedIds(ids)
+        const item = items[0]
+        if (item?.kind === "file") void openWorkspaceFile(controller, item)
+      },
+      onItemOpen: (item) => {
+        if (item.kind === "file") void openWorkspaceFile(controller, item)
+      },
+      onExpandedChange: setWorkspaceFilesExpandedIds,
     }),
     scopes: new ScopesPane(),
     source: new EditorPane({
@@ -3491,6 +3702,9 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
 
   controller.toolbar.node.name = `InterpreterToolbar:${module.id}`
   controller.frames.node.name = `InterpreterFrames:${module.id}`
+  controller.filesChrome.node.name = `InterpreterFilesChrome:${module.id}`
+  controller.filesHeader.node.name = `InterpreterFilesHeader:${module.id}`
+  controller.files.node.name = `InterpreterFiles:${module.id}`
   controller.scopes.node.name = `InterpreterScopes:${module.id}`
   controller.source.node.name = `InterpreterSource:${module.id}`
   controller.terminal.node.name = `InterpreterTerminal:${module.id}`
@@ -3542,6 +3756,248 @@ function updateModuleDisplay(controller: ModuleDisplayController, module: Module
 
   updateModuleToolbar(controller, module)
   syncModuleTerminalInput(controller)
+}
+
+async function refreshWorkspaceFiles(): Promise<void> {
+  if (workspaceFilesLoading !== null) return workspaceFilesLoading
+  workspaceFilesLoading = (async () => {
+    try {
+      const res = await fetch(`/workspace/files?limit=${WORKSPACE_FILES_LIMIT}`)
+      const data = await res.json() as WorkspaceFilesPayload
+      const paths = Array.isArray(data.files)
+        ? data.files.map((file) => typeof file.path === "string" ? file.path : "").filter((path) => path.length > 0)
+        : []
+      workspaceFilesStateStorageKey = workspaceFilesStorageKey(data.root)
+      workspaceFilesRootLabel = workspaceRootLabel(data.root)
+      workspaceFileItems = workspaceFileTree(paths)
+      const storedState = readStoredWorkspaceFilesState(workspaceFilesStateStorageKey)
+      workspaceFileExpandedIds = normalizeWorkspaceExpandedIds(storedState.expandedIds, workspaceFileItems)
+      workspaceFileSelectedIds = normalizeFileListSelection(storedState.selectedIds, workspaceFileItems, "single")
+      applyWorkspaceFilesToModuleDisplays()
+    } catch (error) {
+      console.warn("workspace files refresh failed:", error)
+      workspaceFilesStateStorageKey = workspaceFilesStorageKey(undefined)
+      workspaceFilesRootLabel = null
+      workspaceFileItems = []
+      workspaceFileExpandedIds = []
+      workspaceFileSelectedIds = []
+      applyWorkspaceFilesToModuleDisplays()
+    } finally {
+      workspaceFilesLoading = null
+    }
+  })()
+  return workspaceFilesLoading
+}
+
+function applyWorkspaceFilesToModuleDisplays(): void {
+  const expandedIds = workspaceFileExpandedIds
+  const selectedIds = workspaceFileSelectedIds
+  for (const controller of moduleDisplays.values()) {
+    controller.filesHeader.requestRender()
+    controller.files.setTitle(t("sourceFiles"))
+    controller.files.setItems(workspaceFileItems)
+    controller.files.setExpandedIds(expandedIds)
+    controller.files.setSelectedIds(selectedIds)
+  }
+  workspaceFileExpandedIds = expandedIds
+  workspaceFileSelectedIds = selectedIds
+}
+
+function setWorkspaceFilesExpandedIds(ids: readonly string[]): void {
+  workspaceFileExpandedIds = normalizeWorkspaceExpandedIds(ids, workspaceFileItems)
+  writeStoredWorkspaceFilesState()
+  for (const controller of moduleDisplays.values()) controller.files.setExpandedIds(workspaceFileExpandedIds)
+}
+
+function setWorkspaceFilesSelectedIds(ids: readonly string[]): void {
+  workspaceFileSelectedIds = normalizeFileListSelection(ids, workspaceFileItems, "single")
+  writeStoredWorkspaceFilesState()
+  for (const controller of moduleDisplays.values()) controller.files.setSelectedIds(workspaceFileSelectedIds)
+}
+
+async function openWorkspaceFile(controller: ModuleDisplayController, item: FileListItem): Promise<void> {
+  const sourceUrl = typeof item.path === "string" && item.path.length > 0 ? item.path : item.id
+  const location = sourceUrl
+  const identity: BreakpointSourceIdentity = {
+    scriptId: "",
+    scriptUrl: "",
+    sourceUrl,
+    key: sourceUrl,
+  }
+  setModuleSource(controller, {
+    text: "loading...",
+    currentLine: 0,
+    location,
+    identity,
+  }, "loading", false)
+
+  try {
+    const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/source?sourceUrl=${encodeURIComponent(sourceUrl)}`)
+    const data = await res.json() as {
+      url?: string
+      scriptUrl?: string
+      scriptSource?: string
+      tokens?: EditorTokens
+      error?: string
+    }
+    if (typeof data.scriptSource !== "string") {
+      setModuleSource(controller, {
+        text: `no source: ${data.error ?? "unknown"}`,
+        currentLine: 0,
+        location,
+        identity,
+      }, "idle", false)
+      return
+    }
+    const responseSourceUrl = data.url ?? sourceUrl
+    const responseScriptUrl = data.scriptUrl ?? ""
+    setModuleSource(controller, {
+      text: data.scriptSource,
+      currentLine: 0,
+      location: responseSourceUrl,
+      identity: {
+        scriptId: "",
+        scriptUrl: responseScriptUrl,
+        sourceUrl: responseSourceUrl,
+        key: responseSourceUrl,
+      },
+      ...(data.tokens === undefined ? {} : {tokens: data.tokens}),
+    }, "idle", false)
+  } catch (error) {
+    setModuleSource(controller, {
+      text: `fetch failed: ${String(error)}`,
+      currentLine: 0,
+      location,
+      identity,
+    }, "idle", false)
+  }
+}
+
+function workspaceFileTree(paths: readonly string[]): FileListItem[] {
+  const root: WorkspaceTreeNode = {id: "", name: "", dirs: new Map(), files: []}
+  for (const rawPath of paths) {
+    const path = normalizeWorkspaceFilePath(rawPath)
+    if (path === null) continue
+    const parts = path.split("/")
+    const fileName = parts.pop()
+    if (fileName === undefined || fileName.length === 0) continue
+    let node = root
+    let currentPath = ""
+    for (const part of parts) {
+      currentPath = currentPath.length === 0 ? part : `${currentPath}/${part}`
+      let child = node.dirs.get(part)
+      if (child === undefined) {
+        child = {id: currentPath, name: part, dirs: new Map(), files: []}
+        node.dirs.set(part, child)
+      }
+      node = child
+    }
+    node.files.push({
+      id: path,
+      name: fileName,
+      kind: "file",
+      path,
+    })
+  }
+  return workspaceTreeChildren(root)
+}
+
+type WorkspaceTreeNode = {
+  id: string
+  name: string
+  dirs: Map<string, WorkspaceTreeNode>
+  files: FileListItem[]
+}
+
+function workspaceTreeChildren(node: WorkspaceTreeNode): FileListItem[] {
+  const dirs = [...node.dirs.values()]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((dir): FileListItem => ({
+      id: dir.id,
+      name: dir.name,
+      kind: "directory",
+      path: dir.id,
+      children: workspaceTreeChildren(dir),
+    }))
+  const files = [...node.files].sort((a, b) => a.name.localeCompare(b.name))
+  return [...dirs, ...files]
+}
+
+function normalizeWorkspaceFilePath(path: string): string | null {
+  const normalized = path.trim().replaceAll("\\", "/")
+  if (normalized.length === 0) return null
+  const parts = normalized.split("/").filter((part) => part.length > 0 && part !== ".")
+  if (parts.length === 0 || parts.some((part) => part === "..")) return null
+  return parts.join("/")
+}
+
+function workspaceDirectoryIds(items: readonly FileListItem[]): string[] {
+  const ids: string[] = []
+  for (const item of items) {
+    if (item.kind !== "directory") continue
+    ids.push(item.id)
+    if (item.children !== undefined) ids.push(...workspaceDirectoryIds(item.children))
+  }
+  return ids
+}
+
+function normalizeWorkspaceExpandedIds(ids: readonly string[], items: readonly FileListItem[]): string[] {
+  const known = new Set(workspaceDirectoryIds(items))
+  const next: string[] = []
+  for (const id of ids) {
+    if (!known.has(id) || next.includes(id)) continue
+    next.push(id)
+  }
+  return next
+}
+
+function workspaceRootLabel(root: string | undefined): string | null {
+  if (root === undefined) return null
+  const normalized = root.trim().replaceAll("\\", "/").replace(/\/+$/, "")
+  if (normalized.length === 0) return null
+  const parts = normalized.split("/").filter((part) => part.length > 0)
+  return parts[parts.length - 1] ?? normalized
+}
+
+function workspaceFilesStorageKey(root: string | undefined): string {
+  const normalized = root?.trim().replaceAll("\\", "/").replace(/\/+$/, "")
+  const rootKey = normalized === undefined || normalized.length === 0 ? "default" : normalized
+  return `${WORKSPACE_FILES_STATE_STORAGE_PREFIX}:${rootKey}`
+}
+
+function readStoredWorkspaceFilesState(storageKey: string): WorkspaceFilesStoredState {
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (raw === null) return {expandedIds: [], selectedIds: []}
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    return {
+      expandedIds: storedStringArray(parsed.expandedIds),
+      selectedIds: storedStringArray(parsed.selectedIds),
+    }
+  } catch {
+    return {expandedIds: [], selectedIds: []}
+  }
+}
+
+function writeStoredWorkspaceFilesState(): void {
+  try {
+    localStorage.setItem(workspaceFilesStateStorageKey, JSON.stringify({
+      expandedIds: workspaceFileExpandedIds,
+      selectedIds: workspaceFileSelectedIds,
+    }))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function storedStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const next: string[] = []
+  for (const item of value) {
+    if (typeof item !== "string" || item.length === 0 || next.includes(item)) continue
+    next.push(item)
+  }
+  return next
 }
 
 function updateModuleToolbar(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
@@ -4365,12 +4821,16 @@ const TOOLBAR_H = 38
 const PAD = 6
 const GAP = 8
 const BODY_TOP = TOOLBAR_INSET + TOOLBAR_H + PAD
+const WORKSPACE_FILES_HEADER_H = 36
 
 type InterpreterRects = {
-  frames: UiSurfaceRect
+  filesChrome: UiSurfaceRect
+  filesHeader: UiSurfaceRect
+  files: UiSurfaceRect
   scopes: UiSurfaceRect
   source: UiSurfaceRect
   terminal: UiSurfaceRect
+  frames: UiSurfaceRect
   verbose: UiSurfaceRect | null
 }
 
@@ -4439,23 +4899,63 @@ function hostTerminalAgentSignalButtonX(terminal: UiSurfaceRect): number {
 }
 
 function voiceHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
-  const stored = readStoredVoiceHudRect()
-  if (stored !== null) return clampVoiceHudRect(stored, w, h)
-  return clampVoiceHudRect(DEFAULT_VOICE_HUD_RECT, w, h)
+  const stored = readStoredVoiceHudPlacement()
+  if (stored !== null) {
+    if (isVoiceHudAnchorPlacement(stored)) return voiceHudRectFromAnchor(stored, w, h)
+    const placement = voiceHudAnchorFromRect(stored, w, h)
+    writeStoredVoiceHudAnchor(placement)
+    return voiceHudRectFromAnchor(placement, w, h)
+  }
+  return voiceHudRectFromAnchor(voiceHudAnchorFromRect(DEFAULT_VOICE_HUD_RECT, w, h), w, h)
 }
 
 function clampVoiceHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+  const frame = voiceHudFrameForBounds(boundsW, boundsH)
+  return {
+    x: clampNumber(rect.x, frame.margin, Math.max(frame.margin, frame.bw - frame.margin - frame.rectW)),
+    y: clampNumber(rect.y, frame.margin, Math.max(frame.margin, frame.bh - frame.margin - frame.rectH)),
+    w: frame.rectW,
+    h: frame.rectH,
+  }
+}
+
+function voiceHudFrameForBounds(boundsW: number, boundsH: number): {bw: number; bh: number; margin: number; rectW: number; rectH: number} {
   const bw = Math.max(1, Math.round(boundsW))
   const bh = Math.max(1, Math.round(boundsH))
   const margin = bw >= 32 && bh >= 32 ? 8 : 0
   const rectW = Math.min(VOICE_HUD_W, Math.max(1, bw - margin * 2))
   const rectH = Math.min(VOICE_HUD_H, Math.max(1, bh - margin * 2))
+  return {bw, bh, margin, rectW, rectH}
+}
+
+function voiceHudRectFromAnchor(anchor: VoiceHudAnchorPlacement, boundsW: number, boundsH: number): UiSurfaceRect {
+  const frame = voiceHudFrameForBounds(boundsW, boundsH)
+  const x = anchor.horizontal === "left"
+    ? frame.margin + anchor.offsetX
+    : frame.bw - frame.margin - frame.rectW - anchor.offsetX
+  const y = anchor.vertical === "top"
+    ? frame.margin + anchor.offsetY
+    : frame.bh - frame.margin - frame.rectH - anchor.offsetY
+  return clampVoiceHudRect({x, y, w: frame.rectW, h: frame.rectH}, boundsW, boundsH)
+}
+
+function voiceHudAnchorFromRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): VoiceHudAnchorPlacement {
+  const frame = voiceHudFrameForBounds(boundsW, boundsH)
+  const clamped = clampVoiceHudRect(rect, boundsW, boundsH)
+  const leftOffset = Math.max(0, clamped.x - frame.margin)
+  const rightOffset = Math.max(0, frame.bw - frame.margin - clamped.x - clamped.w)
+  const topOffset = Math.max(0, clamped.y - frame.margin)
+  const bottomOffset = Math.max(0, frame.bh - frame.margin - clamped.y - clamped.h)
   return {
-    x: clampNumber(rect.x, margin, Math.max(margin, bw - margin - rectW)),
-    y: clampNumber(rect.y, margin, Math.max(margin, bh - margin - rectH)),
-    w: rectW,
-    h: rectH,
+    horizontal: leftOffset <= rightOffset ? "left" : "right",
+    vertical: topOffset <= bottomOffset ? "top" : "bottom",
+    offsetX: Math.round(Math.min(leftOffset, rightOffset)),
+    offsetY: Math.round(Math.min(topOffset, bottomOffset)),
   }
+}
+
+function isVoiceHudAnchorPlacement(value: VoiceHudAnchorPlacement | UiSurfaceRect): value is VoiceHudAnchorPlacement {
+  return "horizontal" in value && "vertical" in value
 }
 
 function hostTerminalDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
@@ -4581,26 +5081,35 @@ function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolea
   const sourceX = x + leftW + GAP
   const sourceW = Math.max(1, bodyW - leftW - GAP - (showRight ? rightW + GAP : 0))
   const verboseW = showVerbose ? Math.min(520, Math.max(380, Math.floor(bodyW * 0.34))) : 0
-  const terminalW = showVerbose ? Math.max(1, bodyW - verboseW - GAP) : bodyW
+  const terminalX = sourceX
+  const terminalW = Math.max(1, bodyW - leftW - GAP - (showVerbose ? verboseW + GAP : 0))
+  const verboseX = terminalX + terminalW + GAP
 
   if (!showRight) {
-    const framesH = Math.min(240, Math.max(142, Math.floor(workspaceH * 0.28)))
+    const filesH = Math.min(320, Math.max(168, Math.floor(workspaceH * 0.42)))
+    const filesHeaderH = Math.min(WORKSPACE_FILES_HEADER_H, Math.max(1, filesH))
     return {
-      frames: {x, y, w: leftW, h: framesH},
-      scopes: {x, y: y + framesH + GAP, w: leftW, h: Math.max(1, workspaceH - framesH - GAP)},
+      filesChrome: {x, y, w: leftW, h: filesH},
+      filesHeader: {x, y, w: leftW, h: filesHeaderH},
+      files: {x, y: y + filesHeaderH, w: leftW, h: Math.max(1, filesH - filesHeaderH)},
+      scopes: {x, y: y + filesH + GAP, w: leftW, h: Math.max(1, workspaceH - filesH - GAP)},
       source: {x: sourceX, y, w: sourceW, h: workspaceH},
-      terminal: {x, y: bottomY, w: bodyW, h: terminalH},
+      terminal: {x: terminalX, y: bottomY, w: terminalW, h: terminalH},
+      frames: {x, y: bottomY, w: leftW, h: terminalH},
       verbose: null,
     }
   }
 
   return {
-    frames: {x, y, w: leftW, h: workspaceH},
+    filesChrome: {x, y, w: leftW, h: workspaceH},
+    filesHeader: {x, y, w: leftW, h: WORKSPACE_FILES_HEADER_H},
+    files: {x, y: y + WORKSPACE_FILES_HEADER_H, w: leftW, h: Math.max(1, workspaceH - WORKSPACE_FILES_HEADER_H)},
     scopes: {x: w - PAD - rightW, y, w: rightW, h: workspaceH},
     source: {x: sourceX, y, w: sourceW, h: workspaceH},
-    terminal: {x, y: bottomY, w: terminalW, h: terminalH},
+    terminal: {x: terminalX, y: bottomY, w: terminalW, h: terminalH},
+    frames: {x, y: bottomY, w: leftW, h: terminalH},
     verbose: showVerbose
-      ? {x: x + terminalW + GAP, y: bottomY, w: verboseW, h: terminalH}
+      ? {x: verboseX, y: bottomY, w: verboseW, h: terminalH}
       : null,
   }
 }

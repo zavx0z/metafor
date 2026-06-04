@@ -4,7 +4,7 @@
  * @ui/components.
  */
 
-import {UiSurface, palette, radii, uiIcons} from "@ui/elements"
+import {UiSurface, radii, uiIcons} from "@ui/elements"
 import {Button as button, Divider as divider, StatusChip as statusChip} from "@ui/components"
 import type {BadgeKind, ToolbarActions, ToolbarState} from "./interpreter-ui.ts"
 import {getUiLocale, t} from "./i18n.ts"
@@ -48,7 +48,7 @@ export class ToolbarPane extends UiSurface {
   readonly #actions: ToolbarActions
 
   constructor(actions: ToolbarActions) {
-    super({bgColor: palette.bgToolbar, borderColor: null, borderRadiusPx: radii.pane})
+    super({bgColor: null, borderColor: null, borderRadiusPx: radii.pane})
     this.#actions = actions
   }
 
