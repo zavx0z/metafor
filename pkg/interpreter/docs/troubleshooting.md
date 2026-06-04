@@ -1,5 +1,28 @@
 # Troubleshooting
 
+## FIXME: Длинная Голосовая Диктовка Теряет Текст
+
+Известная проблема: при длинной диктовке, примерно от 30 секунд и дольше,
+ASR partial-текст начинает долго корректироваться, а финальная отправка в host/module terminal
+может потерять часть текста или отправить текст с форматированием, отличающимся от preview.
+
+Что уже проверено:
+
+- нельзя использовать terminal input / `TerminalPane` preview как промежуточный буфер для длинной диктовки
+- нельзя писать промежуточные ASR chunks напрямую через `sendHostTerminalInput` или `appendModuleTerminalInputText`
+- такой подход конфликтует с `setInputPreview`, local echo, authoritative terminal output и очисткой preview по статусам
+
+Безопасное направление будущего fix:
+
+1. Оставить текущий короткий voice input path без изменений.
+2. Для длинной диктовки держать отдельный JS draft buffer вне terminal input.
+3. Показывать preview как `stableDraft + currentPartial`, не мутируя terminal input.
+4. В terminal отправлять только один финальный текст после silence/final commit.
+5. Перед повторной реализацией добавить тестовый harness, который симулирует sequence:
+   `partial -> duration chunk -> partial -> final chunk`.
+
+До отдельной реализации long-dictation fix этот сценарий не трогать в production-коде.
+
 ## EADDRINUSE
 
 Если protocol socket Bun не может стартовать:
