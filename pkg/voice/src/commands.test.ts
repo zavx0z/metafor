@@ -75,4 +75,19 @@ describe("command routing", () => {
     expect(router.match("аген 2")).toBeNull();
     expect(router.match("о агент")).toBeNull();
   });
+
+  test("does not fuzzy-match different numeric suffixes", () => {
+    const router = createCommandRouter([
+      {
+        id: "agent.two",
+        phrases: ["агент 2"],
+        run: () => {},
+      },
+    ]);
+
+    expect(router.match("агент 2")?.command.id).toBe("agent.two");
+    expect(router.match("агент 1")).toBeNull();
+    expect(router.match("агент")).toBeNull();
+    expect(router.match("агент 12")).toBeNull();
+  });
 });

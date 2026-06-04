@@ -1154,7 +1154,8 @@ function wakeGrammarNumberVariants(phrase: string): string[] {
 
 function voiceGrammarTokenVariants(token: string): string[] {
   const spoken = digitToSpokenWakeTokens(token)
-  return spoken.length === 0 ? [token] : [token, ...spoken]
+  if (spoken.length === 0) return [token]
+  return uniqueStrings([token, ...spoken, ...wakeNumberConfuserTokens()])
 }
 
 function digitToSpokenWakeTokens(token: string): string[] {
@@ -1170,6 +1171,14 @@ function digitToSpokenWakeTokens(token: string): string[] {
   if (token === "9") return ["девять"]
   if (token === "10") return ["десять"]
   return []
+}
+
+function wakeNumberConfuserTokens(): string[] {
+  const out: string[] = []
+  for (const token of ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]) {
+    out.push(token, ...digitToSpokenWakeTokens(token))
+  }
+  return out
 }
 
 function normalizeWakeToken(token: string): string {
@@ -1240,6 +1249,7 @@ function fuzzyPhraseInText(text: string, phrase: string, tolerance: number): boo
   for (let size = minWindow; size <= maxWindow; size += 1) {
     for (let start = 0; start + size <= textWords.length; start += 1) {
       const candidate = textWords.slice(start, start + size).join(" ")
+      if (wakeNumberSignatureMismatch(candidate, phrase)) continue
       const compactCandidate = candidate.replace(/\s+/g, "")
       const score = Math.min(
         normalizedLevenshtein(candidate, phrase),
@@ -1262,6 +1272,7 @@ function fuzzyActivationPhraseAtStart(text: string, phrase: string, tolerance: n
   const compactPhrase = phrase.replace(/\s+/g, "")
   for (let size = minWindow; size <= maxWindow; size += 1) {
     const candidate = textWords.slice(0, size).join(" ")
+    if (wakeNumberSignatureMismatch(candidate, phrase)) continue
     const compactCandidate = candidate.replace(/\s+/g, "")
     const score = Math.min(
       normalizedLevenshtein(candidate, phrase),
@@ -1270,6 +1281,20 @@ function fuzzyActivationPhraseAtStart(text: string, phrase: string, tolerance: n
     if (score <= tolerance) return true
   }
   return false
+}
+
+function wakeNumberSignatureMismatch(text: string, phrase: string): boolean {
+  const textNumbers = wakeNumberSignature(text)
+  const phraseNumbers = wakeNumberSignature(phrase)
+  if (textNumbers.length === 0 && phraseNumbers.length === 0) return false
+  if (textNumbers.length !== phraseNumbers.length) return true
+  return textNumbers.some((number, index) => number !== phraseNumbers[index])
+}
+
+function wakeNumberSignature(text: string): string[] {
+  return normalizeWakeText(text)
+    .split(/\s+/)
+    .filter((token) => /^\d+$/.test(token))
 }
 
 function normalizedLevenshtein(a: string, b: string): number {

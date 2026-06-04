@@ -15,6 +15,15 @@ describe("voice activation matching", () => {
     expect(isActivationPhrase("о агент", ["агент 2"], 0)).toBe(false)
   })
 
+  test("does not fuzzy activate a different numbered agent", () => {
+    expect(isActivationPhrase("агент 2", ["агент 2"], 0.25)).toBe(true)
+    expect(isActivationPhrase("агент 1", ["агент 2"], 0.25)).toBe(false)
+    expect(isActivationPhrase("агент один", ["агент 2"], 0.25)).toBe(false)
+    expect(isActivationPhrase("агент 2", ["агент 1"], 0.25)).toBe(false)
+    expect(isActivationPhrase("агент два", ["агент 1"], 0.25)).toBe(false)
+    expect(isActivationPhrase("агент", ["агент 2"], 0.25)).toBe(false)
+  })
+
   test("requires wake phrases to start the utterance", () => {
     expect(isActivationPhrase("агент открой терминал", ["агент"], 0)).toBe(true)
     expect(isActivationPhrase("о агент", ["агент"], 0)).toBe(false)
@@ -34,6 +43,8 @@ describe("voice activation matching", () => {
     })
 
     expect(grammar).toContain("агент")
+    expect(grammar).toContain("агент 1")
+    expect(grammar).toContain("агент один")
     expect(grammar).toContain("агент 2")
     expect(grammar).toContain("агент два")
     expect(grammar).toContain("выключи")

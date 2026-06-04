@@ -65,7 +65,7 @@ export function createCommandRouter(
 
       const containsMatch = entries.find(
         (entry) =>
-          normalizedText.includes(entry.normalizedPhrase),
+          containsTokenPhrase(normalizedText, entry.normalizedPhrase),
       );
       if (containsMatch) {
         return toMatch(containsMatch, "contains", 0, normalizedText);
@@ -86,6 +86,7 @@ export function createCommandRouter(
 
           return maxDistance > 0
             && distance <= maxDistance
+            && !hasNumericTokenMismatch(normalizedText, entry.normalizedPhrase)
             && !hasUnsafeVerbPrefix(normalizedText, entry.normalizedPhrase);
         })
         .sort((left, right) => left.distance - right.distance);
@@ -297,6 +298,18 @@ function hasUnsafeVerbPrefix(text: string, phrase: string): boolean {
     (phraseVerb.startsWith("в") && textVerb === `вы${phraseVerb.slice(1)}`) ||
     (textVerb.startsWith("в") && phraseVerb === `вы${textVerb.slice(1)}`)
   );
+}
+
+function hasNumericTokenMismatch(text: string, phrase: string): boolean {
+  const textNumbers = numericTokenSignature(text);
+  const phraseNumbers = numericTokenSignature(phrase);
+  if (textNumbers.length === 0 && phraseNumbers.length === 0) return false;
+  if (textNumbers.length !== phraseNumbers.length) return true;
+  return textNumbers.some((number, index) => number !== phraseNumbers[index]);
+}
+
+function numericTokenSignature(text: string): string[] {
+  return text.split(" ").filter((token) => /^\d+$/.test(token));
 }
 
 function toMatch(
