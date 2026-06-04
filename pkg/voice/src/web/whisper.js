@@ -6,7 +6,6 @@ const els = {
   remoteUrl: $("remoteUrl"),
   contextText: $("contextText"),
   startBtn: $("startBtn"),
-  commitBtn: $("commitBtn"),
   stopSaveBtn: $("stopSaveBtn"),
   saveBtn: $("saveBtn"),
   sampleRate: $("sampleRate"),
@@ -14,8 +13,31 @@ const els = {
   partialText: $("partialText"),
   savedCount: $("savedCount"),
   waveform: $("waveform"),
+  selectedSessionText: $("selectedSessionText"),
+  sampleAudioLabel: $("sampleAudioLabel"),
+  sampleTextLabel: $("sampleTextLabel"),
+  sourceAudio: $("sourceAudio"),
   transcriptText: $("transcriptText"),
   clearTranscriptBtn: $("clearTranscriptBtn"),
+  referenceAudio: $("referenceAudio"),
+  referenceTextEditor: $("referenceTextEditor"),
+  finalizeSampleBtn: $("finalizeSampleBtn"),
+  ttsReferenceInfo: $("ttsReferenceInfo"),
+  ttsText: $("ttsText"),
+  ttsRecordStatus: $("ttsRecordStatus"),
+  ttsAccentBtn: $("ttsAccentBtn"),
+  ttsRecordBtn: $("ttsRecordBtn"),
+  ttsStopBtn: $("ttsStopBtn"),
+  ttsPlanText: $("ttsPlanText"),
+  ttsServiceInfo: $("ttsServiceInfo"),
+  ttsOutputInfo: $("ttsOutputInfo"),
+  ttsSpeed: $("ttsSpeed"),
+  ttsSeed: $("ttsSeed"),
+  ttsNfeSteps: $("ttsNfeSteps"),
+  ttsCrossFade: $("ttsCrossFade"),
+  generateTtsBtn: $("generateTtsBtn"),
+  ttsEmptyHint: $("ttsEmptyHint"),
+  ttsAudio: $("ttsAudio"),
   refreshSavedBtn: $("refreshSavedBtn"),
   savedList: $("savedList"),
   eventLog: $("eventLog"),
@@ -47,6 +69,15 @@ let drawQueued = false;
 let commitPending = false;
 let queuedPcmAfterCommit = [];
 let waiters = [];
+let savedSessions = [];
+let selectedSessionId = null;
+let referenceEditorSessionId = null;
+let transcriptEditorSessionId = null;
+let referenceBusy = false;
+let sampleBusyStage = "";
+let ttsBusy = false;
+let ttsAccentBusy = false;
+let captureMode = null;
 
 const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024;
 
@@ -62,6 +93,7 @@ init().catch((error) => {
 
 async function init() {
   restoreSettings();
+  normalizeKnownAccentTextareas();
   drawWaveform();
   await loadInfo();
   bindEvents();
@@ -85,19 +117,31 @@ async function loadInfo() {
 }
 
 function bindEvents() {
-  els.startBtn.addEventListener("click", () => start().catch(showError));
-  els.commitBtn.addEventListener("click", () => requestCommit().catch(showError));
+  els.startBtn.addEventListener("click", () => startCapture("reference").catch(showError));
   els.stopSaveBtn.addEventListener("click", () => stopAndSave().catch(showError));
   els.saveBtn.addEventListener("click", () => saveSession().catch(showError));
+  els.ttsAccentBtn.addEventListener("click", () => accentTtsText(els.ttsText.value.trim()).catch(showError));
+  els.ttsRecordBtn.addEventListener("click", () => startCapture("tts").catch(showError));
+  els.ttsStopBtn.addEventListener("click", () => stopTtsDictation().catch(showError));
   els.remoteUrl.addEventListener("input", saveSettings);
   els.contextText.addEventListener("input", saveSettings);
+  els.ttsText.addEventListener("input", renderSelectedSession);
+  for (const input of [els.ttsSpeed, els.ttsSeed, els.ttsNfeSteps, els.ttsCrossFade]) {
+    input.addEventListener("input", renderSelectedSession);
+    input.addEventListener("change", renderSelectedSession);
+  }
+  els.referenceTextEditor.addEventListener("input", renderSelectedSession);
   els.clearTranscriptBtn.addEventListener("click", () => {
     finalMessages = [];
     receivedSegments = [];
     partialText = "";
+    els.referenceTextEditor.value = "";
     renderTranscript();
+    renderSelectedSession();
   });
   els.refreshSavedBtn.addEventListener("click", () => refreshSaved().catch(showError));
+  els.finalizeSampleBtn.addEventListener("click", () => finalizeSample().catch(showError));
+  els.generateTtsBtn.addEventListener("click", () => generateTts().catch(showError));
   els.clearLogBtn.addEventListener("click", () => {
     els.eventLog.textContent = "";
   });
@@ -113,10 +157,12 @@ function saveSettings() {
   localStorage.setItem(storageKeys.context, els.contextText.value.trim());
 }
 
-async function start() {
+async function startCapture(mode) {
   if (stream) return;
 
   saveSettings();
+  if (mode === "reference") clearPreparation();
+  captureMode = mode;
   resetCaptureState();
   await connectWs();
 
@@ -175,8 +221,8 @@ async function start() {
 
   els.sampleRate.textContent = String(audioContext.sampleRate);
   setRunning(true);
-  setStatus("recording", true);
-  log("audio:start", { sampleRate: audioContext.sampleRate });
+  setRecordingStatus();
+  log("audio:start", { mode, sampleRate: audioContext.sampleRate });
 }
 
 async function connectWs() {
@@ -230,14 +276,14 @@ function handleServerMessage(msg) {
 
   if (msg.type === "partial") {
     partialText = cleanupTranscriptText(msg.text);
-    els.partialText.textContent = partialText || "-";
+    setLivePartial(partialText);
     renderTranscript();
     return;
   }
 
   if (msg.type === "result" || msg.type === "final") {
     partialText = "";
-    els.partialText.textContent = "-";
+    setLivePartial("");
     if (Array.isArray(msg.segments)) receivedSegments.push(...msg.segments);
     const messages = transcriptMessagesFrom(msg.text, msg.messages, msg.segments);
     for (const message of messages) {
@@ -250,7 +296,7 @@ function handleServerMessage(msg) {
   if (msg.type === "committed") {
     commitPending = false;
     flushQueuedPcm();
-    if (stream) setStatus("recording", true);
+    if (stream) setRecordingStatus();
     return;
   }
 
@@ -268,6 +314,7 @@ async function requestCommit() {
 }
 
 async function stopAndSave() {
+  if (captureMode && captureMode !== "reference") return;
   if (stream && ws?.readyState === WebSocket.OPEN && recordedBytes > 0) {
     await requestCommit();
   }
@@ -286,6 +333,30 @@ async function stopAndSave() {
   }
 }
 
+async function stopTtsDictation() {
+  if (captureMode && captureMode !== "tts") return;
+  if (stream && ws?.readyState === WebSocket.OPEN && recordedBytes > 0) {
+    await requestCommit();
+  }
+
+  if (ws?.readyState === WebSocket.OPEN) {
+    send({ type: "stop" });
+    await waitForServer(["stopped", "final", "close"], 800);
+  }
+
+  stopAudioOnly();
+  setRunning(false);
+
+  const text = els.ttsText.value.trim() || els.transcriptText.value.trim();
+  if (!text) {
+    els.ttsRecordStatus.textContent = "текст не распознан";
+    setStatus("ready", false);
+    return;
+  }
+
+  await accentTtsText(text);
+}
+
 function stopAudioOnly() {
   if (captureNode) captureNode.disconnect();
   if (sourceNode) sourceNode.disconnect();
@@ -300,6 +371,7 @@ function stopAudioOnly() {
   captureNode = null;
   sinkNode = null;
   workletUrl = null;
+  captureMode = null;
   latestWaveform = new Float32Array(0);
   scheduleWaveformDraw();
 }
@@ -340,26 +412,38 @@ async function saveSession() {
 
   setStatus("saved", false);
   log("save:ok", { id: data.session?.id, bytes: data.session?.audioBytes });
-  await refreshSaved();
+  await refreshSaved(data.session?.id);
+  if (data.session?.id) {
+    await prepareSample(data.session.id, transcript || data.session.transcript || "");
+  }
 }
 
-async function refreshSaved() {
+async function refreshSaved(preferredSessionId = selectedSessionId) {
   const response = await fetch("/api/whisper/sessions", { cache: "no-store" });
   const data = await response.json();
   if (!response.ok || !data.ok) {
     throw new Error(data.error || `List failed: ${response.status}`);
   }
-  renderSavedSessions(data.sessions || []);
+  savedSessions = data.sessions || [];
+  els.savedCount.textContent = String(savedSessions.length);
+  if (preferredSessionId === null) {
+    selectedSessionId = null;
+  } else {
+    const preferred = savedSessions.find((session) => session.id === preferredSessionId);
+    const previous = savedSessions.find((session) => session.id === selectedSessionId);
+    selectedSessionId = (preferred || previous || savedSessions[0] || null)?.id ?? null;
+  }
+  renderSavedSessions(readySessions());
+  renderSelectedSession();
 }
 
 function renderSavedSessions(sessions) {
   els.savedList.textContent = "";
-  els.savedCount.textContent = String(sessions.length);
 
   if (!sessions.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.textContent = "Нет записей";
+    empty.textContent = "Нет готовых образцов";
     els.savedList.append(empty);
     return;
   }
@@ -368,16 +452,37 @@ function renderSavedSessions(sessions) {
     const item = document.createElement("article");
     item.className = "item savedItem";
 
-    const title = document.createElement("strong");
-    title.textContent = firstLine(session.transcript) || session.id;
-
     const meta = document.createElement("span");
+    meta.className = "savedMeta";
     meta.textContent = `${formatDate(session.createdAt)} · ${formatBytes(session.audioBytes || 0)} · ${formatDuration(session.durationMs)}`;
 
     const audio = document.createElement("audio");
     audio.controls = true;
     audio.preload = "none";
-    audio.src = session.audioUrl;
+    audio.src = session.referenceUrl || session.audioUrl;
+
+    const referenceEditor = document.createElement("textarea");
+    referenceEditor.className = "savedReferenceEditor";
+    referenceEditor.spellcheck = true;
+    referenceEditor.value = session.referenceText || session.transcript || "";
+    referenceEditor.setAttribute("aria-label", "Текст образца с ударениями");
+
+    const controls = document.createElement("div");
+    controls.className = "savedActions";
+
+    const saveReferenceBtn = document.createElement("button");
+    saveReferenceBtn.type = "button";
+    saveReferenceBtn.textContent = "Сохранить ударения";
+    saveReferenceBtn.addEventListener("click", () => {
+      updateSessionReference(session.id, referenceEditor.value, false).catch(showError);
+    });
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "deleteButton";
+    deleteBtn.textContent = "Удалить";
+    deleteBtn.addEventListener("click", () => deleteSession(session.id).catch(showError));
+    controls.append(saveReferenceBtn, deleteBtn);
 
     const links = document.createElement("div");
     links.className = "savedLinks";
@@ -386,10 +491,324 @@ function renderSavedSessions(sessions) {
       fileLink(session.transcriptUrl, "transcript.txt"),
       fileLink(session.metaUrl, "meta.json"),
     );
+    if (session.referenceUrl) {
+      links.append(fileLink(session.referenceUrl, "reference.wav"));
+    }
+    if (session.ttsUrl) {
+      links.append(fileLink(session.ttsUrl, "tts.wav"));
+    }
 
-    item.append(title, meta, audio, links);
+    item.append(meta, audio, referenceEditor, controls, links);
     els.savedList.append(item);
   }
+}
+
+function selectSession(id) {
+  selectedSessionId = id;
+  renderSavedSessions(readySessions());
+  renderSelectedSession();
+}
+
+function selectedSession() {
+  return savedSessions.find((session) => session.id === selectedSessionId) || null;
+}
+
+function readySessions() {
+  return savedSessions.filter(isReadySample);
+}
+
+function latestReadySession() {
+  return readySessions()[0] || null;
+}
+
+function isReadySample(session) {
+  return Boolean(session?.readyAt && session?.referenceUrl && session?.referenceText && looksAccented(session.referenceText));
+}
+
+function looksAccented(text) {
+  return /\+[аеёиоуыэюяАЕЁИОУЫЭЮЯ]/.test(String(text || ""));
+}
+
+function renderSelectedSession() {
+  const session = selectedSession();
+  const sessionId = session?.id ?? null;
+  const ttsSample = latestReadySession();
+  const ttsText = els.ttsText.value.trim();
+  const readyCount = readySessions().length;
+  els.selectedSessionText.textContent = session ? shortId(session.id) : "образец не выбран";
+
+  if (sessionId !== transcriptEditorSessionId) {
+    els.transcriptText.value = session?.transcript || "";
+    transcriptEditorSessionId = sessionId;
+  }
+  if (sessionId !== referenceEditorSessionId) {
+    els.referenceTextEditor.value = session?.referenceText || session?.transcript || "";
+    referenceEditorSessionId = sessionId;
+  }
+
+  const hasReference = Boolean(session?.referenceUrl);
+  if (session?.audioUrl) {
+    els.sourceAudio.src = cacheBust(session.audioUrl);
+    els.sourceAudio.hidden = hasReference;
+  } else {
+    els.sourceAudio.removeAttribute("src");
+    els.sourceAudio.hidden = true;
+  }
+  if (session?.referenceUrl) {
+    els.referenceAudio.src = cacheBust(session.referenceUrl);
+    els.referenceAudio.hidden = false;
+  } else {
+    els.referenceAudio.removeAttribute("src");
+    els.referenceAudio.hidden = true;
+  }
+  els.sampleAudioLabel.textContent = hasReference ? "Обрезанный звук" : "Записанный звук";
+  els.sampleTextLabel.textContent = hasReference ? "Текст с ударениями" : "Распознанный текст";
+
+  const referenceText = els.referenceTextEditor.value.trim();
+  const transcriptText = els.transcriptText.value.trim();
+  const sourceText = referenceText || transcriptText;
+  const sampleBusy = Boolean(sampleBusyStage || referenceBusy);
+  const anyCaptureRunning = Boolean(stream);
+  els.finalizeSampleBtn.textContent = sampleBusy ? sampleBusyStage || "Готовлю..." : "Готово";
+  els.finalizeSampleBtn.disabled = !session || sampleBusy || !sourceText;
+  els.ttsAccentBtn.disabled = ttsBusy || ttsAccentBusy || anyCaptureRunning || !ttsText;
+  els.generateTtsBtn.disabled = ttsBusy || ttsAccentBusy || anyCaptureRunning || !ttsSample || !ttsText;
+  els.ttsReferenceInfo.textContent = sampleStatusText(session);
+  els.ttsServiceInfo.textContent = ttsBusy
+    ? "синтез..."
+    : ttsAccentBusy
+      ? "автоударения..."
+    : readyCount
+      ? `${readyCount} готов. · ${shortId(ttsSample.id)}`
+      : "нет готовых образцов";
+  els.ttsOutputInfo.textContent = ttsSample?.ttsUrl ? `tts.wav · ${formatBytes(ttsSample.ttsAudioBytes || 0)}` : "-";
+  els.ttsPlanText.textContent = summarizeProsodyText(els.ttsText.value);
+
+  const hint = !ttsSample
+    ? "Нужен готовый образец"
+    : !ttsText
+      ? "Нужен текст для синтеза"
+      : ttsBusy
+        ? "Синтез выполняется"
+        : ttsAccentBusy
+          ? "Ставлю ударения"
+        : "Готово к синтезу";
+  els.ttsEmptyHint.textContent = hint;
+
+  if (ttsSample?.ttsUrl) {
+    els.ttsAudio.hidden = false;
+    els.ttsAudio.src = cacheBust(ttsSample.ttsUrl);
+    els.ttsEmptyHint.hidden = true;
+  } else {
+    els.ttsAudio.hidden = true;
+    els.ttsAudio.removeAttribute("src");
+    els.ttsEmptyHint.hidden = false;
+  }
+}
+
+function sampleStatusText(session) {
+  if (sampleBusyStage) return sampleBusyStage;
+  if (!session) return "образец не выбран";
+  if (isReadySample(session)) {
+    return `образец готов · ${formatBytes(session.referenceAudioBytes || session.audioBytes || 0)}`;
+  }
+  if (session.referenceUrl && looksAccented(session.referenceText || els.referenceTextEditor.value)) {
+    return `подготовлен · нажми Готово · ${formatBytes(session.referenceAudioBytes || session.audioBytes || 0)}`;
+  }
+  const sourceText = els.referenceTextEditor.value.trim() || els.transcriptText.value.trim();
+  if (sourceText) return `готов к обработке · ${formatBytes(session.audioBytes || 0)}`;
+  return "нет текста для образца";
+}
+
+async function finalizeSample() {
+  const session = selectedSession();
+  if (!session) throw new Error("Сначала выбери запись");
+  const sourceText =
+    els.referenceTextEditor.value.trim() ||
+    els.transcriptText.value.trim() ||
+    session?.referenceText ||
+    session?.transcript ||
+    "";
+  if (!sourceText) throw new Error("Нет текста для образца");
+
+  const needsPreparation = !session.referenceUrl || !looksAccented(sourceText);
+  if (needsPreparation) {
+    await prepareSample(session.id, sourceText);
+  } else if (sourceText !== session.referenceText) {
+    sampleBusyStage = "обновляю...";
+    renderSelectedSession();
+    await updateSessionReference(session.id, sourceText, false, false);
+  }
+
+  sampleBusyStage = "сохраняю...";
+  renderSelectedSession();
+  try {
+    await markSessionReady(session.id);
+    log("sample:ready", { id: session.id });
+    clearPreparation();
+    await refreshSaved(null);
+    setStatus("ready", false);
+  } finally {
+    sampleBusyStage = "";
+    renderSelectedSession();
+  }
+}
+
+async function prepareSample(sessionId, sourceText) {
+  if (!sourceText) throw new Error("Нет текста для образца");
+
+  sampleBusyStage = "автоударения...";
+  renderSelectedSession();
+  setStatus("accent", true);
+
+  try {
+    const accentedText = await accentText(sourceText);
+    els.referenceTextEditor.value = accentedText;
+    log("accent:ok", { id: sessionId });
+
+    sampleBusyStage = "обрезка...";
+    renderSelectedSession();
+    await updateSessionReference(sessionId, accentedText, false, false);
+    setStatus("ready", false);
+  } finally {
+    sampleBusyStage = "";
+    renderSelectedSession();
+  }
+}
+
+async function accentTtsText(text) {
+  if (!text) throw new Error("Нет текста для ударений");
+  ttsAccentBusy = true;
+  els.ttsRecordStatus.textContent = "автоударения...";
+  setStatus("accent", true);
+  renderSelectedSession();
+
+  try {
+    const accentedText = await accentText(text);
+    els.ttsText.value = accentedText;
+    els.ttsRecordStatus.textContent = "текст с ударениями";
+    log("tts:accent:ok");
+    setStatus("ready", false);
+    renderSelectedSession();
+  } finally {
+    ttsAccentBusy = false;
+    setRunning(Boolean(stream));
+    renderSelectedSession();
+  }
+}
+
+async function accentText(text) {
+  const response = await fetch("/api/whisper/accent", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || `Accent failed: ${response.status}`);
+  }
+  return data.text || text;
+}
+
+async function updateSessionReference(sessionId, referenceText, clearAfter, ready) {
+  referenceBusy = true;
+  renderSelectedSession();
+  setStatus("reference", false);
+  try {
+    const payload = { referenceText: String(referenceText || "").trim() };
+    if (typeof ready === "boolean") payload.ready = ready;
+    const response = await fetch(`/api/whisper/sessions/${encodeURIComponent(sessionId)}/reference`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || `Reference failed: ${response.status}`);
+    }
+    log("reference:ok", { id: sessionId });
+    if (clearAfter) clearPreparation();
+    await refreshSaved(clearAfter ? null : sessionId);
+  } finally {
+    referenceBusy = false;
+    renderSelectedSession();
+  }
+}
+
+async function markSessionReady(sessionId) {
+  const response = await fetch(`/api/whisper/sessions/${encodeURIComponent(sessionId)}/ready`, {
+    method: "POST",
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || `Ready failed: ${response.status}`);
+  }
+  return data.session;
+}
+
+async function generateTts() {
+  const session = latestReadySession();
+  if (!session) throw new Error("Нет готового образца");
+
+  normalizeKnownAccentTextareas();
+  const text = els.ttsText.value.trim();
+  if (!text) throw new Error("Нет текста для синтеза");
+
+  ttsBusy = true;
+  renderSelectedSession();
+  setStatus("tts", true);
+
+  try {
+    const response = await fetch(`/api/whisper/sessions/${encodeURIComponent(session.id)}/tts`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        text,
+        referenceText: session.referenceText || session.transcript || "",
+        speed: numberInputValue(els.ttsSpeed, 1),
+        seed: Math.round(numberInputValue(els.ttsSeed, 42)),
+        nfeSteps: Math.round(numberInputValue(els.ttsNfeSteps, 32)),
+        crossFadeDuration: numberInputValue(els.ttsCrossFade, 0.15),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || `TTS failed: ${response.status}`);
+    }
+    log("tts:ok", { id: session.id, bytes: data.session?.ttsAudioBytes });
+    await refreshSaved(session.id);
+    setStatus("ready", false);
+  } finally {
+    ttsBusy = false;
+    renderSelectedSession();
+  }
+}
+
+function clearPreparation() {
+  selectedSessionId = null;
+  referenceEditorSessionId = null;
+  transcriptEditorSessionId = null;
+  els.sourceAudio.removeAttribute("src");
+  els.referenceAudio.removeAttribute("src");
+  els.transcriptText.value = "";
+  els.referenceTextEditor.value = "";
+}
+
+async function deleteSession(id) {
+  const session = savedSessions.find((item) => item.id === id);
+  const label = firstLine(session?.referenceText || session?.transcript) || shortId(id);
+  if (!window.confirm(`Удалить образец?\n\n${label}`)) return;
+
+  const response = await fetch(`/api/whisper/sessions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || `Delete failed: ${response.status}`);
+  }
+  log("sample:delete", { id });
+  if (selectedSessionId === id) clearPreparation();
+  await refreshSaved();
 }
 
 function fileLink(url, label) {
@@ -507,7 +926,18 @@ function writeAscii(view, offset, text) {
 function renderTranscript() {
   const lines = [...finalMessages];
   if (partialText) lines.push(partialText);
-  els.transcriptText.value = lines.join("\n\n");
+  const text = lines.join("\n\n");
+  els.transcriptText.value = text;
+  if (captureMode === "tts") {
+    els.ttsText.value = text;
+    els.ttsRecordStatus.textContent = partialText ? "распознаю..." : text ? "текст получен" : "запись...";
+    renderSelectedSession();
+    return;
+  }
+  if (stream || !selectedSession()) {
+    els.referenceTextEditor.value = text;
+    renderSelectedSession();
+  }
 }
 
 function transcriptMessagesFrom(text, serverMessages, segments) {
@@ -647,17 +1077,40 @@ function resetCaptureState() {
   commitPending = false;
   queuedPcmAfterCommit = [];
   els.audioBytes.textContent = "0 KB";
-  els.partialText.textContent = "-";
+  setLivePartial("");
   renderTranscript();
 }
 
 function setRunning(running) {
-  els.startBtn.disabled = running;
-  els.commitBtn.disabled = !running;
-  els.stopSaveBtn.disabled = !running;
-  els.saveBtn.disabled = recordedBytes === 0;
+  const referenceRunning = running && captureMode === "reference";
+  const ttsRunning = running && captureMode === "tts";
+  els.startBtn.disabled = running || ttsAccentBusy;
+  els.stopSaveBtn.disabled = !referenceRunning;
+  els.saveBtn.disabled = !referenceRunning || recordedBytes === 0;
+  els.ttsRecordBtn.disabled = running || ttsAccentBusy;
+  els.ttsAccentBtn.disabled = running || ttsAccentBusy || !els.ttsText.value.trim();
+  els.ttsStopBtn.disabled = !ttsRunning;
   els.remoteUrl.disabled = running;
   els.contextText.disabled = running;
+  renderSelectedSession();
+}
+
+function setRecordingStatus() {
+  if (captureMode === "tts") {
+    els.ttsRecordStatus.textContent = "запись...";
+    setStatus("tts recording", true);
+    return;
+  }
+  setStatus("recording", true);
+}
+
+function setLivePartial(text) {
+  const value = String(text || "");
+  if (captureMode === "tts") {
+    els.ttsRecordStatus.textContent = value || (stream ? "запись..." : "готов к диктовке");
+  } else {
+    els.partialText.textContent = value || "-";
+  }
 }
 
 function setStatus(text, live) {
@@ -684,8 +1137,48 @@ function compact(msg) {
   return msg;
 }
 
+function normalizeKnownAccentTextareas() {
+  for (const textarea of [els.ttsText, els.referenceTextEditor]) {
+    if (!textarea) continue;
+    textarea.value = normalizeKnownAccents(textarea.value);
+  }
+}
+
+function normalizeKnownAccents(text) {
+  return String(text || "").replace(/([Мм])едл\+еннее/g, "$1+едленнее");
+}
+
 function firstLine(text) {
   return String(text || "").split(/\n+/)[0]?.trim() || "";
+}
+
+function shortId(id) {
+  return String(id || "").replace(/^(\d{8}T\d{6}Z)-/, "$1 ");
+}
+
+function cacheBust(url) {
+  if (!url) return "";
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}t=${Date.now()}`;
+}
+
+function summarizeProsodyText(text) {
+  const source = String(text || "");
+  const speech = source
+    .replace(/\[\[\s*(pause|speed)\s*:\s*[0-9]+(?:\.[0-9]+)?\s*\]\]/gi, " ")
+    .trim();
+  if (!speech) return "нет текста";
+  const pauseCount = [...source.matchAll(/\[\[\s*pause\s*:/gi)].length;
+  const speedCount = [...source.matchAll(/\[\[\s*speed\s*:/gi)].length;
+  const parts = [`${speech.split(/\n\s*\n+/).filter(Boolean).length} фрагм.`];
+  if (pauseCount) parts.push(`${pauseCount} пауз`);
+  if (speedCount) parts.push(`${speedCount} темп`);
+  return parts.join(" · ");
+}
+
+function numberInputValue(input, fallback) {
+  const number = Number(String(input.value || "").replace(",", "."));
+  return Number.isFinite(number) ? number : fallback;
 }
 
 function formatBytes(bytes) {

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Whisper Capture</title>
+    <title>Misha Voice Lab</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
@@ -13,82 +13,187 @@
         <div class="brand">
           <span class="mark" aria-hidden="true"></span>
           <div>
-            <h1>Whisper Capture</h1>
+            <h1>Misha Voice Lab</h1>
             <p id="statusText">offline</p>
           </div>
         </div>
 
-        <div class="controls" aria-label="Whisper controls">
+        <div class="controls" aria-label="Navigation">
           <a class="navLink" href="/playground">Playground</a>
-          <button id="startBtn" type="button">Старт</button>
-          <button id="commitBtn" type="button" disabled>Абзац</button>
-          <button id="stopSaveBtn" type="button" disabled>Стоп и сохранить</button>
-          <button id="saveBtn" type="button" disabled>Сохранить</button>
         </div>
       </header>
 
-      <section class="endpointBar whisperEndpointBar" aria-label="Whisper endpoint">
-        <label for="remoteUrl">Whisper URL</label>
-        <input id="remoteUrl" value="ws://127.0.0.1:8877/ws" spellcheck="false" />
-        <label for="contextText">Контекст</label>
-        <input
-          id="contextText"
-          value=""
-          placeholder="Имена, термины, словарь"
-          spellcheck="true"
-        />
-      </section>
-
-      <section class="meters whisperMeters" aria-label="Capture status">
-        <div class="stat">
-          <span>Sample rate</span>
-          <strong id="sampleRate">16000</strong>
-        </div>
-        <div class="stat">
-          <span>Аудио</span>
-          <strong id="audioBytes">0 KB</strong>
-        </div>
-        <div class="stat">
-          <span>Partial</span>
-          <strong id="partialText">-</strong>
-        </div>
-        <div class="stat">
-          <span>Записи</span>
-          <strong id="savedCount">0</strong>
-        </div>
-      </section>
-
-      <section class="stage" aria-label="Audio stream">
-        <canvas id="waveform" width="1200" height="260"></canvas>
-      </section>
-
-      <section class="workspace whisperWorkspace">
-        <section class="panel transcript" aria-label="Transcript">
-          <div class="panelHead">
-            <h2>Текст</h2>
-            <button id="clearTranscriptBtn" type="button">Очистить</button>
+      <section class="voiceLabGrid" aria-label="Misha voice lab">
+        <section class="panel referencePanel" aria-label="References">
+          <div class="panelHead compactPanelHead">
+            <h2>Референсы</h2>
+            <span id="selectedSessionText">образец не выбран</span>
           </div>
-          <textarea id="transcriptText" class="transcriptEditor" spellcheck="true"></textarea>
+
+          <div class="referenceColumn">
+            <section class="referenceBlock recorderBlock" aria-label="Record reference">
+              <div class="sectionTitle">
+                <strong>Запись</strong>
+                <span id="partialText">-</span>
+              </div>
+
+              <div class="recordControls">
+                <button id="startBtn" type="button">Старт</button>
+                <button id="stopSaveBtn" type="button" disabled>Стоп и сохранить</button>
+                <button id="saveBtn" type="button" disabled>Сохранить</button>
+              </div>
+
+              <div class="endpointBar labEndpointBar" aria-label="Whisper endpoint">
+                <label for="remoteUrl">ASR URL</label>
+                <input id="remoteUrl" value="ws://127.0.0.1:8877/ws" spellcheck="false" />
+                <label for="contextText">Контекст</label>
+                <input
+                  id="contextText"
+                  value=""
+                  placeholder="Имена, термины, словарь"
+                  spellcheck="true"
+                />
+              </div>
+
+              <section class="meters referenceMeters" aria-label="Capture status">
+                <div class="stat">
+                  <span>Sample rate</span>
+                  <strong id="sampleRate">16000</strong>
+                </div>
+                <div class="stat">
+                  <span>Аудио</span>
+                  <strong id="audioBytes">0 KB</strong>
+                </div>
+                <div class="stat">
+                  <span>Записи</span>
+                  <strong id="savedCount">0</strong>
+                </div>
+              </section>
+
+              <section class="stage compactStage" aria-label="Audio stream">
+                <canvas id="waveform" width="1200" height="96"></canvas>
+              </section>
+            </section>
+
+            <section class="referenceBlock preparedBlock" aria-label="Voice samples">
+              <div class="sectionTitle">
+                <strong>Образец</strong>
+                <span id="ttsReferenceInfo">образец не готов</span>
+              </div>
+              <div class="samplePairGrid">
+                <div class="samplePane sampleAudioPane">
+                  <span id="sampleAudioLabel">Звук</span>
+                  <audio id="sourceAudio" controls preload="none" hidden></audio>
+                  <audio id="referenceAudio" controls preload="none"></audio>
+                  <div class="sampleActionBar">
+                    <button id="finalizeSampleBtn" type="button" disabled>Готово</button>
+                    <button id="clearTranscriptBtn" class="ghostButton" type="button">Очистить текст</button>
+                  </div>
+                </div>
+                <label class="field samplePane">
+                  <span id="sampleTextLabel">Текст с ударениями</span>
+                  <textarea id="transcriptText" class="transcriptEditor compactTranscript" spellcheck="true" hidden></textarea>
+                  <textarea
+                    id="referenceTextEditor"
+                    class="ttsEditor referenceEditor"
+                    spellcheck="true"
+                  ></textarea>
+                </label>
+              </div>
+
+              <div class="readySamplesArea" aria-label="Ready samples">
+                <div class="sectionTitle">
+                  <strong>Готовые образцы</strong>
+                  <button id="refreshSavedBtn" type="button">Обновить</button>
+                </div>
+                <div id="savedList" class="list"></div>
+              </div>
+            </section>
+          </div>
         </section>
 
-        <section class="panel savedPanel" aria-label="Saved recordings">
-          <div class="panelHead">
-            <h2>Сохранено</h2>
-            <button id="refreshSavedBtn" type="button">Обновить</button>
+        <section class="panel synthesisPanel" aria-label="TTS generation">
+          <div class="panelHead compactPanelHead">
+            <h2>Синтез</h2>
+            <span id="ttsPlanText">-</span>
           </div>
-          <div id="savedList" class="list"></div>
-        </section>
 
-        <section class="panel logPanel" aria-label="Events">
-          <div class="panelHead">
-            <h2>События</h2>
-            <button id="clearLogBtn" type="button">Очистить</button>
+          <div class="synthesisColumn">
+            <label class="field synthesisTextField">
+              <span class="ttsTextHeader">
+                <span>Текст для Misha</span>
+                <span id="ttsRecordStatus">готов к диктовке и ручной правке</span>
+              </span>
+              <textarea
+                id="ttsText"
+                class="ttsEditor ttsTextEditor"
+                spellcheck="true"
+              >Добрый день. Это пров+ерка управл+ения п+аузами.
+
+[[pause:1200]]
+[[speed:0.85]]Теперь втор+ая часть звуч+ит м+едленнее и после дл+инной паузы.</textarea>
+            </label>
+            <div class="ttsRecordControls" aria-label="Dictate synthesis text">
+              <button id="ttsAccentBtn" type="button">Расставить ударения</button>
+              <button id="ttsRecordBtn" type="button">Надиктовать</button>
+              <button id="ttsStopBtn" type="button" disabled>Стоп</button>
+            </div>
+            <div class="prosodyQuickRef" aria-label="Prosody syntax">
+              <span>+ударение <span class="helpIcon" tabindex="0" data-tip="Подсказка для русских ударений: поставь + перед ударной гласной. Пример: произв+одство, управл+ение. В звук знак + не читается.">?</span></span>
+              <span>[[pause]] <span class="helpIcon" tabindex="0" data-tip="Добавляет тишину в синтезированном аудио. [[pause:700]] означает паузу 700 мс между фразами.">?</span></span>
+              <span>[[speed]] <span class="helpIcon" tabindex="0" data-tip="Меняет скорость следующих фраз до нового маркера скорости. 1 - обычный темп, 0.85 - медленнее, 1.15 - быстрее.">?</span></span>
+            </div>
+
+            <div class="ttsSettings">
+              <div class="settingsTitle">
+                <strong>Настройки голоса</strong>
+                <span id="ttsServiceInfo">-</span>
+              </div>
+              <div class="settingsGrid">
+                <label class="miniField">
+                  <span class="settingLabel">Speed <span class="helpIcon" tabindex="0" data-tip="Базовый темп для текста без [[speed]]. 1 - обычная скорость, меньше 1 медленнее, больше 1 быстрее.">?</span></span>
+                  <input id="ttsSpeed" type="number" min="0.3" max="2" step="0.1" value="1" />
+                </label>
+                <label class="miniField">
+                  <span class="settingLabel">Seed <span class="helpIcon" tabindex="0" data-tip="Фиксирует случайность генерации. Один и тот же seed помогает получать похожий результат при повторном синтезе.">?</span></span>
+                  <input id="ttsSeed" type="number" min="0" max="2147483647" step="1" value="42" />
+                </label>
+                <label class="miniField">
+                  <span class="settingLabel">NFE <span class="helpIcon" tabindex="0" data-tip="Количество шагов модели. Больше шагов обычно стабильнее и медленнее, меньше шагов быстрее и грубее.">?</span></span>
+                  <input id="ttsNfeSteps" type="number" min="4" max="64" step="4" value="32" />
+                </label>
+                <label class="miniField">
+                  <span class="settingLabel">Crossfade <span class="helpIcon" tabindex="0" data-tip="Сглаживает стыки между отдельными фрагментами, когда текст разбит паузами или сменой скорости.">?</span></span>
+                  <input id="ttsCrossFade" type="number" min="0" max="1" step="0.05" value="0.15" />
+                </label>
+              </div>
+            </div>
+
+            <div class="ttsOutputBar">
+              <button id="generateTtsBtn" type="button" disabled>Синтез</button>
+              <span id="ttsEmptyHint" class="ttsEmptyHint">Нужен готовый образец</span>
+              <audio id="ttsAudio" controls preload="none" hidden></audio>
+            </div>
+
+            <div class="ttsInfoGrid" aria-label="TTS diagnostics">
+              <div>
+                <span>Синтез</span>
+                <strong id="ttsOutputInfo">-</strong>
+              </div>
+            </div>
+
+            <section class="logPanel labLog" aria-label="Events">
+              <div class="sectionTitle">
+                <strong>События</strong>
+                <button id="clearLogBtn" type="button">Очистить</button>
+              </div>
+              <pre id="eventLog"></pre>
+            </section>
           </div>
-          <pre id="eventLog"></pre>
         </section>
       </section>
     </main>
 
-    <script type="module" src="/whisper.js?v=20260604-capture-save"></script>
+    <script type="module" src="/whisper.js?v=20260604-no-new-paragraph-button"></script>
   </body>
 </html>

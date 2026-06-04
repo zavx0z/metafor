@@ -12,6 +12,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   min-width: 320px;
   min-height: 100vh;
@@ -70,7 +74,7 @@ button:disabled {
 .shell {
   width: min(1380px, calc(100vw - 32px));
   margin: 0 auto;
-  padding: 20px 0 32px;
+  padding: 8px 0 24px;
 }
 
 .topbar,
@@ -83,22 +87,23 @@ button:disabled {
 .topbar {
   grid-template-columns: 1fr auto;
   align-items: center;
+  min-height: 34px;
 }
 
 .brand {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .mark {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   border: 2px solid #7db7c6;
   border-radius: 50%;
   background: #25343a;
-  box-shadow: 0 0 0 5px rgba(125, 183, 198, 0.12);
+  box-shadow: 0 0 0 4px rgba(125, 183, 198, 0.12);
 }
 
 .mark.isLive {
@@ -114,8 +119,9 @@ p {
 }
 
 h1 {
-  font-size: 24px;
+  font-size: 17px;
   font-weight: 760;
+  line-height: 1.05;
 }
 
 h2 {
@@ -124,9 +130,10 @@ h2 {
 }
 
 #statusText {
-  margin-top: 2px;
+  margin-top: 0;
   color: #9aa79d;
-  font-size: 13px;
+  font-size: 11px;
+  line-height: 1.15;
 }
 
 .controls {
@@ -373,6 +380,498 @@ select,
   text-decoration: underline;
 }
 
+.voiceLabGrid {
+  display: grid;
+  grid-template-columns: minmax(420px, 0.92fr) minmax(520px, 1.08fr);
+  align-items: start;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.referencePanel,
+.synthesisPanel {
+  min-height: 0;
+  overflow: visible;
+}
+
+.compactPanelHead {
+  min-height: 34px;
+}
+
+.referenceColumn,
+.synthesisColumn {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 10px;
+}
+
+.referenceBlock {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  border: 1px solid #2b3631;
+  border-radius: 7px;
+  padding: 10px;
+  background: #101613;
+}
+
+.sectionTitle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.sectionTitle strong {
+  color: #edf2ef;
+  font-size: 13px;
+}
+
+.sectionTitle span {
+  overflow: hidden;
+  color: #9aa79d;
+  font-size: 12px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recordControls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.recordControls button {
+  padding: 0 10px;
+}
+
+.labEndpointBar {
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  margin-top: 0;
+}
+
+.referenceMeters {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0;
+}
+
+.referenceMeters .stat {
+  padding: 8px 10px;
+}
+
+.referenceMeters .stat strong {
+  font-size: 14px;
+}
+
+.compactStage {
+  margin-top: 0;
+}
+
+.compactStage #waveform {
+  height: clamp(52px, 7vh, 74px);
+}
+
+.samplePairGrid {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.58fr) minmax(0, 1.42fr);
+  gap: 10px;
+}
+
+.samplePane {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
+}
+
+.sampleAudioPane {
+  align-self: end;
+  align-content: end;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  width: 100%;
+  gap: 6px;
+}
+
+.samplePane > span,
+.field > span,
+.miniField > span,
+.ttsInfoGrid span {
+  color: #9aa79d;
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.samplePane audio,
+.ttsOutputBar audio {
+  width: 100%;
+  height: 34px;
+}
+
+.compactTranscript {
+  height: 142px;
+  min-height: 82px;
+  border: 1px solid #334039;
+  border-radius: 6px;
+}
+
+.ghostButton {
+  justify-self: start;
+  min-height: 32px;
+  border-color: #34413b;
+  background: #121815;
+  color: #dfe7e2;
+}
+
+.sampleActionBar,
+.inlineActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sampleActionBar {
+  justify-content: flex-start;
+}
+
+.sampleActionBar button,
+.preparedBlock .inlineActions button {
+  min-width: 0;
+  flex: 1 1 112px;
+}
+
+.readySamplesArea {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #27312d;
+  padding-top: 10px;
+}
+
+.ttsEditor {
+  display: block;
+  width: 100%;
+  min-height: 82px;
+  resize: vertical;
+  border: 1px solid #334039;
+  border-radius: 6px;
+  padding: 10px;
+  outline: none;
+  background: #101613;
+  color: #eef5ef;
+  line-height: 1.5;
+}
+
+.ttsEditor.referenceEditor {
+  min-height: 180px;
+}
+
+.ttsTextEditor {
+  max-width: none;
+  min-height: 390px;
+}
+
+.synthesisTextField {
+  width: 100%;
+}
+
+.ttsTextHeader {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ttsTextHeader span:last-child {
+  overflow: hidden;
+  color: #9aa79d;
+  font-size: 12px;
+  font-weight: 680;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ttsRecordControls {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr 0.8fr;
+  gap: 8px;
+}
+
+.ttsRecordControls button {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.prosodyQuickRef {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prosodyQuickRef > span {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #2d3934;
+  border-radius: 999px;
+  padding: 0 8px;
+  background: #121815;
+  color: #c8d2cc;
+  font-size: 12px;
+}
+
+.ttsSettings,
+.ttsInfoGrid,
+.ttsOutputBar,
+.labLog {
+  border: 1px solid #2b3631;
+  border-radius: 7px;
+  background: #101613;
+}
+
+.ttsSettings,
+.prosodyQuickRef {
+  overflow: visible;
+}
+
+.settingsTitle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #27312d;
+  padding: 8px 10px;
+}
+
+.settingsTitle strong {
+  color: #edf2ef;
+  font-size: 13px;
+}
+
+.settingsTitle span {
+  overflow: hidden;
+  color: #9aa79d;
+  font-size: 12px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+}
+
+.miniField {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.miniField input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #334039;
+  border-radius: 6px;
+  padding: 0 8px;
+  background: #101613;
+  color: #eef5ef;
+}
+
+.compactToggle {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #334039;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #101613;
+  color: #dfe7e2;
+  font-size: 12px;
+}
+
+.compactToggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: #7db7c6;
+}
+
+.helpIcon {
+  position: relative;
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 1px solid #46534d;
+  border-radius: 50%;
+  color: #aebbb3;
+  cursor: help;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  outline: none;
+}
+
+.helpIcon::after {
+  position: absolute;
+  z-index: 50;
+  right: -8px;
+  bottom: calc(100% + 8px);
+  width: min(280px, 72vw);
+  border: 1px solid #52615a;
+  border-radius: 7px;
+  padding: 9px 10px;
+  background: #202824;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
+  color: #eef5ef;
+  content: attr(data-tip);
+  font-size: 12px;
+  font-weight: 520;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  transform: translateY(4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+  visibility: hidden;
+  white-space: normal;
+}
+
+.helpIcon:hover::after,
+.helpIcon:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
+.ttsOutputBar {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+}
+
+.ttsEmptyHint {
+  overflow: hidden;
+  color: #9aa79d;
+  font-size: 12px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ttsOutputBar audio[hidden],
+.ttsEmptyHint[hidden] {
+  display: none;
+}
+
+.ttsInfoGrid div {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.ttsInfoGrid strong {
+  overflow: hidden;
+  color: #edf2ef;
+  font-size: 12px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labLog {
+  display: grid;
+  min-height: 0;
+  gap: 8px;
+  padding: 10px;
+}
+
+.labLog .sectionTitle {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.labLog .sectionTitle button,
+.readySamplesArea .sectionTitle button,
+.recordingsBlock .sectionTitle button {
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+.labLog #eventLog {
+  max-height: 180px;
+  border: 1px solid #27312d;
+  border-radius: 6px;
+  background: #0e1411;
+}
+
+.readySamplesArea .sectionTitle,
+.recordingsBlock .sectionTitle {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.readySamplesArea .list,
+.recordingsBlock .list {
+  max-height: 360px;
+  padding: 0;
+}
+
+.readySamplesArea .item,
+.recordingsBlock .item {
+  padding: 9px 10px;
+}
+
+.savedActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.savedActions button {
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+.savedReferenceEditor {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+  border: 1px solid #334039;
+  border-radius: 6px;
+  padding: 8px;
+  outline: none;
+  background: #101613;
+  color: #eef5ef;
+  font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.deleteButton {
+  border-color: #5c3939;
+  background: #211616;
+  color: #e7c7c7;
+}
+
+.deleteButton:hover:not(:disabled) {
+  border-color: #9b5555;
+  background: #2a1b1b;
+}
+
 @media (max-width: 980px) {
   .topbar {
     grid-template-columns: 1fr;
@@ -384,7 +883,19 @@ select,
 
   .meters,
   .endpointBar,
-  .workspace {
+  .workspace,
+  .voiceLabGrid,
+  .samplePairGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .recordControls,
+  .referenceMeters,
+  .settingsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ttsOutputBar {
     grid-template-columns: 1fr;
   }
 

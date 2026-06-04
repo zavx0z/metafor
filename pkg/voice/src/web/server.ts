@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import type { Subprocess } from "bun";
 import {
@@ -71,7 +71,57 @@ type AsrTunnelInfo = {
   lastError: string | null;
 };
 
-type WhisperSessionFileName = "audio.wav" | "transcript.txt" | "meta.json";
+type TtsConfig = {
+  enabled: boolean;
+  sshHost: string;
+  remoteUrl: string;
+  remoteWorkdir: string;
+  remotePython: string;
+  seed: number;
+  nfeSteps: number;
+  speed: number;
+  crossFadeDuration: number;
+  removeSilence: boolean;
+};
+
+type AccentConfig = {
+  enabled: boolean;
+  sshHost: string;
+  remotePython: string;
+  workdir: string;
+  modelSize: string;
+  useDictionary: boolean;
+  device: string;
+};
+
+type TtsOptions = {
+  seed: number;
+  nfeSteps: number;
+  speed: number;
+  crossFadeDuration: number;
+  removeSilence: boolean;
+};
+
+type TtsSegment =
+  | {
+      kind: "speech";
+      text: string;
+      speed: number;
+    }
+  | {
+      kind: "pause";
+      ms: number;
+    };
+
+type WhisperSessionFileName =
+  | "audio.wav"
+  | "transcript.txt"
+  | "meta.json"
+  | "reference.wav"
+  | "reference.txt"
+  | "tts.wav"
+  | "tts.txt"
+  | "tts-meta.json";
 
 type WhisperSessionSummary = {
   id: string;
@@ -83,6 +133,16 @@ type WhisperSessionSummary = {
   audioUrl: string;
   transcriptUrl: string;
   metaUrl: string;
+  referenceUrl: string | null;
+  referenceTextUrl: string | null;
+  referenceText: string;
+  referenceAudioBytes: number | null;
+  ttsUrl: string | null;
+  ttsTextUrl: string | null;
+  ttsText: string;
+  ttsAudioBytes: number | null;
+  ttsCreatedAt: string | null;
+  readyAt: string | null;
 };
 
 const HOST = Bun.env.HOST ?? "127.0.0.1";
@@ -91,6 +151,11 @@ const DEFAULT_SAMPLE_RATE = numberFromEnv("VOICE_SAMPLE_RATE", 16_000);
 const LOG_LEVEL = numberFromEnv("VOSK_LOG_LEVEL", -1);
 const USE_GRAMMAR = Bun.env.VOICE_GRAMMAR !== "0";
 const ASR_TUNNEL_CONFIG = readAsrTunnelConfig();
+const TTS_CONFIG = readTtsConfig();
+const ACCENT_CONFIG = readAccentConfig();
+const ACCENT_OVERRIDES = new Map<string, number>([
+  ["медленнее", 0],
+]);
 const WEB_ROOT = import.meta.dir;
 const WHISPER_RECORDINGS_ROOT = resolve(WEB_ROOT, "../../recordings/whisper");
 const MAX_WHISPER_AUDIO_BYTES = positiveNumberFromEnv("VOICE_WHISPER_MAX_AUDIO_BYTES", 80 * 1024 * 1024);
@@ -179,6 +244,30 @@ async function handleRequest(
 
   if (url.pathname === "/api/whisper/sessions" && req.method === "POST") {
     return saveWhisperSession(req);
+  }
+
+  if (url.pathname === "/api/whisper/accent" && req.method === "POST") {
+    return accentWhisperText(req);
+  }
+
+  const whisperSession = matchWhisperSession(url.pathname);
+  if (whisperSession && req.method === "DELETE") {
+    return deleteWhisperSession(whisperSession.sessionId);
+  }
+
+  const whisperReference = matchWhisperSessionAction(url.pathname, "reference");
+  if (whisperReference && req.method === "POST") {
+    return prepareWhisperReference(req, whisperReference.sessionId);
+  }
+
+  const whisperTts = matchWhisperSessionAction(url.pathname, "tts");
+  if (whisperTts && req.method === "POST") {
+    return generateWhisperTts(req, whisperTts.sessionId);
+  }
+
+  const whisperReady = matchWhisperSessionAction(url.pathname, "ready");
+  if (whisperReady && req.method === "POST") {
+    return markWhisperSessionReady(whisperReady.sessionId);
   }
 
   const whisperSessionFile = matchWhisperSessionFile(url.pathname);
@@ -297,6 +386,110 @@ async function saveWhisperSession(req: Request): Promise<Response> {
 
     const session = await readWhisperSession(id);
     return json({ ok: true, session });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      400,
+    );
+  }
+}
+
+async function deleteWhisperSession(sessionId: string): Promise<Response> {
+  try {
+    if (!isSafePathSegment(sessionId)) return json({ ok: false, error: "invalid_session" }, 400);
+    await rm(join(WHISPER_RECORDINGS_ROOT, sessionId), { recursive: true, force: true });
+    return json({ ok: true, id: sessionId });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      400,
+    );
+  }
+}
+
+async function prepareWhisperReference(req: Request, sessionId: string): Promise<Response> {
+  try {
+    if (!isSafePathSegment(sessionId)) return json({ ok: false, error: "invalid_session" }, 400);
+    const body = await parseJsonRequest(req);
+    const referenceText = typeof body.referenceText === "string" ? cleanupOneLine(body.referenceText) : "";
+    const ready = typeof body.ready === "boolean" ? body.ready : undefined;
+    const session = await writeWhisperReference(sessionId, referenceText, ready);
+    return json({ ok: true, session });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      400,
+    );
+  }
+}
+
+async function markWhisperSessionReady(sessionId: string): Promise<Response> {
+  try {
+    if (!isSafePathSegment(sessionId)) return json({ ok: false, error: "invalid_session" }, 400);
+    const dir = join(WHISPER_RECORDINGS_ROOT, sessionId);
+    if (!existsSync(join(dir, "reference.wav"))) return json({ ok: false, error: "reference_required" }, 400);
+    const referenceText = cleanupOneLine(await readTextFile(join(dir, "reference.txt")));
+    if (!referenceText) return json({ ok: false, error: "reference_text_required" }, 400);
+
+    const meta = await readJson(join(dir, "meta.json"));
+    const metaRecord = isPlainRecord(meta) ? meta : {};
+    await Bun.write(
+      join(dir, "meta.json"),
+      JSON.stringify(
+        {
+          ...metaRecord,
+          ready: true,
+          readyAt: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+    );
+    return json({ ok: true, session: await readWhisperSession(sessionId) });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      400,
+    );
+  }
+}
+
+async function accentWhisperText(req: Request): Promise<Response> {
+  try {
+    if (!ACCENT_CONFIG.enabled) return json({ ok: false, error: "accent_disabled" }, 503);
+
+    const body = await parseJsonRequest(req);
+    const text = normalizeTtsText(typeof body.text === "string" ? body.text : "");
+    if (!text) return json({ ok: false, error: "accent_text_required" }, 400);
+
+    const rawText = await runRemoteAccent(text);
+    const projectedText = projectStressMarks(text, rawText);
+    const accentedText = applyAccentOverrides(removeSingleSyllableStress(projectedText ?? rawText));
+
+    return json({
+      ok: true,
+      text: accentedText,
+      rawText,
+      projected: projectedText !== null,
+      accent: {
+        sshHost: ACCENT_CONFIG.sshHost,
+        modelSize: ACCENT_CONFIG.modelSize,
+        useDictionary: ACCENT_CONFIG.useDictionary,
+        device: ACCENT_CONFIG.device,
+      },
+    });
   } catch (error) {
     return json(
       {
@@ -478,6 +671,23 @@ function serviceConfig() {
     phrases: router.recognitionPhrases,
     asrTunnel: asrTunnelInfo(),
     remoteAsrUrl: `ws://${ASR_TUNNEL_CONFIG.localBind}:${ASR_TUNNEL_CONFIG.localPort}/ws`,
+    tts: {
+      enabled: TTS_CONFIG.enabled,
+      sshHost: TTS_CONFIG.sshHost,
+      remoteUrl: TTS_CONFIG.remoteUrl,
+      seed: TTS_CONFIG.seed,
+      nfeSteps: TTS_CONFIG.nfeSteps,
+      speed: TTS_CONFIG.speed,
+      crossFadeDuration: TTS_CONFIG.crossFadeDuration,
+      removeSilence: TTS_CONFIG.removeSilence,
+    },
+    accent: {
+      enabled: ACCENT_CONFIG.enabled,
+      sshHost: ACCENT_CONFIG.sshHost,
+      modelSize: ACCENT_CONFIG.modelSize,
+      useDictionary: ACCENT_CONFIG.useDictionary,
+      device: ACCENT_CONFIG.device,
+    },
     whisperRecordingsRoot: WHISPER_RECORDINGS_ROOT,
   };
 }
@@ -511,14 +721,32 @@ function contentTypeFor(path: string): string {
 function matchWhisperSessionFile(
   pathname: string,
 ): { sessionId: string; fileName: WhisperSessionFileName } | null {
-  const match = /^\/api\/whisper\/sessions\/([^/]+)\/(audio\.wav|transcript\.txt|meta\.json)$/.exec(
-    pathname,
-  );
+  const match =
+    /^\/api\/whisper\/sessions\/([^/]+)\/(audio\.wav|transcript\.txt|meta\.json|reference\.wav|reference\.txt|tts\.wav|tts\.txt|tts-meta\.json)$/.exec(
+      pathname,
+    );
   if (!match) return null;
   const sessionId = decodeURIComponent(match[1] ?? "");
   const fileName = match[2] as WhisperSessionFileName | undefined;
   if (!fileName || !isSafePathSegment(sessionId)) return null;
   return { sessionId, fileName };
+}
+
+function matchWhisperSession(pathname: string): { sessionId: string } | null {
+  const match = /^\/api\/whisper\/sessions\/([^/]+)$/.exec(pathname);
+  if (!match) return null;
+  const sessionId = decodeURIComponent(match[1] ?? "");
+  return isSafePathSegment(sessionId) ? { sessionId } : null;
+}
+
+function matchWhisperSessionAction(
+  pathname: string,
+  action: "reference" | "tts" | "ready",
+): { sessionId: string } | null {
+  const match = new RegExp(`^/api/whisper/sessions/([^/]+)/${action}$`).exec(pathname);
+  if (!match) return null;
+  const sessionId = decodeURIComponent(match[1] ?? "");
+  return isSafePathSegment(sessionId) ? { sessionId } : null;
 }
 
 async function serveWhisperSessionFile(
@@ -530,9 +758,9 @@ async function serveWhisperSessionFile(
   if (!existsSync(path)) return text("Not found", 404);
 
   const contentType =
-    fileName === "audio.wav"
+    fileName.endsWith(".wav")
       ? "audio/wav"
-      : fileName === "transcript.txt"
+      : fileName.endsWith(".txt")
         ? "text/plain; charset=utf-8"
         : "application/json; charset=utf-8";
 
@@ -549,15 +777,31 @@ async function readWhisperSession(id: string): Promise<WhisperSessionSummary | n
   if (!isSafePathSegment(id)) return null;
 
   const dir = join(WHISPER_RECORDINGS_ROOT, id);
-  const [meta, transcript] = await Promise.all([
+  const [meta, transcript, referenceText, ttsText, ttsMeta] = await Promise.all([
     readJson(join(dir, "meta.json")),
     readTextFile(join(dir, "transcript.txt")),
+    readTextFile(join(dir, "reference.txt")),
+    readTextFile(join(dir, "tts.txt")),
+    readJson(join(dir, "tts-meta.json")),
   ]);
   if (!existsSync(join(dir, "audio.wav")) && !transcript && meta === null) return null;
 
   const metaRecord = isPlainRecord(meta) ? meta : {};
   const audioRecord = isPlainRecord(metaRecord.audio) ? metaRecord.audio : {};
+  const referenceRecord = isPlainRecord(metaRecord.reference) ? metaRecord.reference : {};
+  const ttsMetaRecord = isPlainRecord(ttsMeta) ? ttsMeta : {};
+  const ttsAudioRecord = isPlainRecord(ttsMetaRecord.audio) ? ttsMetaRecord.audio : {};
   const createdAt = typeof metaRecord.createdAt === "string" ? metaRecord.createdAt : id;
+  const referenceExists = existsSync(join(dir, "reference.wav"));
+  const ttsExists = existsSync(join(dir, "tts.wav"));
+  const readyAt =
+    metaRecord.ready === false
+      ? null
+      : typeof metaRecord.readyAt === "string"
+        ? metaRecord.readyAt
+        : referenceExists && referenceText && typeof referenceRecord.createdAt === "string"
+          ? referenceRecord.createdAt
+          : null;
 
   return {
     id,
@@ -569,7 +813,470 @@ async function readWhisperSession(id: string): Promise<WhisperSessionSummary | n
     audioUrl: `/api/whisper/sessions/${encodeURIComponent(id)}/audio.wav`,
     transcriptUrl: `/api/whisper/sessions/${encodeURIComponent(id)}/transcript.txt`,
     metaUrl: `/api/whisper/sessions/${encodeURIComponent(id)}/meta.json`,
+    referenceUrl: referenceExists ? `/api/whisper/sessions/${encodeURIComponent(id)}/reference.wav` : null,
+    referenceTextUrl: referenceText || referenceExists
+      ? `/api/whisper/sessions/${encodeURIComponent(id)}/reference.txt`
+      : null,
+    referenceText,
+    referenceAudioBytes: finiteNumberFromUnknown(referenceRecord.bytes),
+    ttsUrl: ttsExists ? `/api/whisper/sessions/${encodeURIComponent(id)}/tts.wav` : null,
+    ttsTextUrl: ttsText || ttsExists ? `/api/whisper/sessions/${encodeURIComponent(id)}/tts.txt` : null,
+    ttsText,
+    ttsAudioBytes: finiteNumberFromUnknown(ttsAudioRecord.bytes),
+    ttsCreatedAt: typeof ttsMetaRecord.createdAt === "string" ? ttsMetaRecord.createdAt : null,
+    readyAt,
   };
+}
+
+async function writeWhisperReference(
+  sessionId: string,
+  referenceTextOverride?: string,
+  ready?: boolean,
+): Promise<WhisperSessionSummary | null> {
+  const dir = join(WHISPER_RECORDINGS_ROOT, sessionId);
+  const audioPath = join(dir, "audio.wav");
+  const referenceAudioPath = join(dir, "reference.wav");
+  const referenceTextPath = join(dir, "reference.txt");
+  if (!existsSync(audioPath)) throw new Error("audio_not_found");
+
+  const referenceText = referenceTextOverride || cleanupOneLine(await readTextFile(join(dir, "transcript.txt")));
+  if (!referenceText) throw new Error("reference_text_required");
+
+  try {
+    await runCommand([
+      "ffmpeg",
+      "-hide_banner",
+      "-y",
+      "-i",
+      audioPath,
+      "-af",
+      "silenceremove=start_periods=1:start_duration=0.1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_duration=0.1:start_threshold=-45dB,areverse,loudnorm=I=-18:TP=-1.5:LRA=11",
+      "-ar",
+      "16000",
+      "-ac",
+      "1",
+      referenceAudioPath,
+    ]);
+  } catch {
+    await Bun.write(referenceAudioPath, Bun.file(audioPath));
+  }
+
+  const meta = await readJson(join(dir, "meta.json"));
+  const metaRecord = isPlainRecord(meta) ? meta : {};
+  const referenceFile = Bun.file(referenceAudioPath);
+  const createdAt = new Date().toISOString();
+  const nextMeta: Record<string, unknown> = {
+    ...metaRecord,
+    reference: {
+      file: "reference.wav",
+      textFile: "reference.txt",
+      createdAt,
+      bytes: referenceFile.size,
+    },
+  };
+  if (ready === true) {
+    nextMeta.readyAt = createdAt;
+    nextMeta.ready = true;
+  } else if (ready === false) {
+    delete nextMeta.readyAt;
+    nextMeta.ready = false;
+  }
+  await Bun.write(referenceTextPath, referenceText);
+  await Bun.write(
+    join(dir, "meta.json"),
+    JSON.stringify(nextMeta, null, 2),
+  );
+
+  return readWhisperSession(sessionId);
+}
+
+async function generateWhisperTts(req: Request, sessionId: string): Promise<Response> {
+  try {
+    if (!TTS_CONFIG.enabled) return json({ ok: false, error: "tts_disabled" }, 503);
+    if (!isSafePathSegment(sessionId)) return json({ ok: false, error: "invalid_session" }, 400);
+
+    const body = await parseJsonRequest(req);
+    const text = normalizeTtsText(typeof body.text === "string" ? body.text : "");
+    if (!text) return json({ ok: false, error: "tts_text_required" }, 400);
+
+    const session = await readWhisperSession(sessionId);
+    if (!session) return json({ ok: false, error: "session_not_found" }, 404);
+
+    const referenceText = cleanupOneLine(
+      typeof body.referenceText === "string"
+        ? body.referenceText
+        : session.referenceText || session.transcript,
+    );
+    if (!referenceText) return json({ ok: false, error: "reference_text_required" }, 400);
+
+    const options = ttsOptionsFromBody(body);
+    const segments = parseTtsSegments(text, options.speed);
+    if (!segments.some((segment) => segment.kind === "speech")) {
+      return json({ ok: false, error: "tts_speech_required" }, 400);
+    }
+
+    const dir = join(WHISPER_RECORDINGS_ROOT, sessionId);
+    const referenceAudioPath = join(dir, "reference.wav");
+    const referenceTextPath = join(dir, "reference.txt");
+    if (!existsSync(referenceAudioPath)) {
+      await writeWhisperReference(sessionId, referenceText);
+    } else {
+      await Bun.write(referenceTextPath, referenceText);
+    }
+
+    const createdAt = new Date().toISOString();
+    const ttsTextPath = join(dir, "tts.txt");
+    const ttsSegmentsPath = join(dir, "tts-segments.json");
+    const ttsRunnerPath = join(dir, "tts-runner.py");
+    const ttsAudioPath = join(dir, "tts.wav");
+    const remoteDir = `${TTS_CONFIG.remoteWorkdir.replace(/\/+$/, "")}/${sessionId}-${Date.now()}`;
+
+    await Bun.write(ttsTextPath, text);
+    await Bun.write(ttsSegmentsPath, JSON.stringify({ segments }, null, 2));
+    await Bun.write(ttsRunnerPath, remoteTtsRunnerScript(remoteDir, TTS_CONFIG, options));
+
+    await runCommand(["ssh", TTS_CONFIG.sshHost, `mkdir -p ${shellQuote(remoteDir)}`]);
+    await runCommand([
+      "scp",
+      referenceAudioPath,
+      referenceTextPath,
+      ttsTextPath,
+      ttsSegmentsPath,
+      ttsRunnerPath,
+      `${TTS_CONFIG.sshHost}:${remoteDir}/`,
+    ]);
+    await runCommand([
+      "ssh",
+      TTS_CONFIG.sshHost,
+      `cd ${shellQuote(remoteDir)} && ${shellQuote(TTS_CONFIG.remotePython)} ${shellQuote(`${remoteDir}/tts-runner.py`)}`,
+    ]);
+    await runCommand(["scp", `${TTS_CONFIG.sshHost}:${remoteDir}/tts.wav`, ttsAudioPath]);
+
+    const ttsFile = Bun.file(ttsAudioPath);
+    await Bun.write(
+      join(dir, "tts-meta.json"),
+      JSON.stringify(
+        {
+          createdAt,
+          text,
+          audio: {
+            file: "tts.wav",
+            bytes: ttsFile.size,
+          },
+          reference: {
+            file: "reference.wav",
+            textFile: "reference.txt",
+            text: referenceText,
+          },
+          segments,
+          tts: {
+            sshHost: TTS_CONFIG.sshHost,
+            remoteUrl: TTS_CONFIG.remoteUrl,
+            seed: options.seed,
+            nfeSteps: options.nfeSteps,
+            speed: options.speed,
+            crossFadeDuration: options.crossFadeDuration,
+            removeSilence: options.removeSilence,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const updated = await readWhisperSession(sessionId);
+    return json({ ok: true, session: updated });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      400,
+    );
+  }
+}
+
+function ttsOptionsFromBody(body: Record<string, unknown>): TtsOptions {
+  return {
+    seed: Math.round(clampNumber(body.seed, 0, 2_147_483_647, TTS_CONFIG.seed)),
+    nfeSteps: Math.round(clampNumber(body.nfeSteps, 4, 64, TTS_CONFIG.nfeSteps)),
+    speed: clampNumber(body.speed, 0.3, 2, TTS_CONFIG.speed),
+    crossFadeDuration: clampNumber(body.crossFadeDuration, 0, 1, TTS_CONFIG.crossFadeDuration),
+    removeSilence:
+      typeof body.removeSilence === "boolean" ? body.removeSilence : TTS_CONFIG.removeSilence,
+  };
+}
+
+function parseTtsSegments(text: string, baseSpeed: number): TtsSegment[] {
+  const segments: TtsSegment[] = [];
+  const marker = /\[\[\s*(pause|speed)(?:\s*:\s*([0-9]+(?:[\.,][0-9]+)?))?\s*\]\]/gi;
+  let cursor = 0;
+  let speed = baseSpeed;
+  let match: RegExpExecArray | null;
+
+  while ((match = marker.exec(text)) !== null) {
+    pushTtsSpeechSegment(segments, text.slice(cursor, match.index), speed);
+    const kind = match[1]?.toLowerCase();
+    const value = parseMarkerNumber(match[2]);
+    if (kind === "pause") {
+      segments.push({ kind: "pause", ms: Math.round(clampNumber(value, 120, 10_000, 650)) });
+    } else if (kind === "speed") {
+      speed = clampNumber(value, 0.3, 2, baseSpeed);
+    }
+    cursor = marker.lastIndex;
+  }
+
+  pushTtsSpeechSegment(segments, text.slice(cursor), speed);
+  return segments;
+}
+
+function pushTtsSpeechSegment(segments: TtsSegment[], text: string, speed: number): void {
+  const speech = text
+    .replace(/\r\n?/g, "\n")
+    .split(/\n\s*\n+/)
+    .map((part) => part.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  for (const part of speech) {
+    segments.push({ kind: "speech", text: part, speed });
+  }
+}
+
+function normalizeTtsText(text: string): string {
+  return String(text || "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+}
+
+function parseMarkerNumber(value: string | undefined): number | null {
+  if (!value) return null;
+  const number = Number(value.replace(",", "."));
+  return Number.isFinite(number) ? number : null;
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === "string" && value.trim() === "") return fallback;
+  const number = typeof value === "number" ? value : Number(String(value).replace(",", "."));
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+function remoteTtsRunnerScript(
+  remoteDir: string,
+  config: TtsConfig,
+  options: TtsOptions,
+): string {
+  return `
+from pathlib import Path
+from gradio_client import Client, handle_file
+import json
+import shutil
+import subprocess
+
+base = Path(${JSON.stringify(remoteDir)})
+ref_audio = base / "reference.wav"
+ref_text = (base / "reference.txt").read_text(encoding="utf-8").strip()
+segments = json.loads((base / "tts-segments.json").read_text(encoding="utf-8"))["segments"]
+parts_dir = base / "parts"
+parts_dir.mkdir(exist_ok=True)
+client = Client(${JSON.stringify(config.remoteUrl)})
+part_paths = []
+results = []
+
+def normalize_audio(src, dst):
+    subprocess.run([
+        "ffmpeg", "-hide_banner", "-y", "-i", str(src),
+        "-ar", "24000", "-ac", "1", "-c:a", "pcm_s16le", str(dst),
+    ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+def silence(ms, dst):
+    subprocess.run([
+        "ffmpeg", "-hide_banner", "-y", "-f", "lavfi",
+        "-i", "anullsrc=channel_layout=mono:sample_rate=24000",
+        "-t", f"{ms / 1000:.3f}", "-acodec", "pcm_s16le", str(dst),
+    ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+def first_audio_path(value):
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return value.get("path") or value.get("name")
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            found = first_audio_path(item)
+            if found:
+                return found
+    return None
+
+for index, segment in enumerate(segments):
+    kind = segment.get("kind")
+    part = parts_dir / f"{index:03d}-{kind}.wav"
+    if kind == "pause":
+        silence(int(segment.get("ms", 650)), part)
+        part_paths.append(part)
+        continue
+
+    if kind != "speech":
+        continue
+
+    result = client.predict(
+        handle_file(str(ref_audio)),
+        ref_text,
+        str(segment.get("text", "")).strip(),
+        ${pythonBool(options.removeSilence)},
+        False,
+        ${options.seed},
+        ${options.crossFadeDuration},
+        ${options.nfeSteps},
+        float(segment.get("speed", ${options.speed})),
+        api_name="/basic_tts",
+    )
+    audio_path = first_audio_path(result)
+    if not audio_path:
+        raise RuntimeError("no_audio_output")
+    normalize_audio(audio_path, part)
+    part_paths.append(part)
+    results.append({"segment": segment, "result": result})
+
+if not part_paths:
+    raise RuntimeError("no_audio_parts")
+
+out = base / "tts.wav"
+if len(part_paths) == 1:
+    shutil.copy(part_paths[0], out)
+else:
+    concat_file = base / "concat.txt"
+    concat_file.write_text("\\n".join(f"file '{path}'" for path in part_paths), encoding="utf-8")
+    subprocess.run([
+        "ffmpeg", "-hide_banner", "-y", "-f", "concat", "-safe", "0",
+        "-i", str(concat_file), "-c", "copy", str(out),
+    ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+(base / "result.json").write_text(
+    json.dumps({"segments": segments, "results": results}, ensure_ascii=False, default=str),
+    encoding="utf-8",
+)
+print(json.dumps({"ok": True, "audio": str(out)}, ensure_ascii=False))
+`;
+}
+
+function pythonBool(value: boolean): string {
+  return value ? "True" : "False";
+}
+
+async function runRemoteAccent(text: string): Promise<string> {
+  const script = `
+import json
+import sys
+from ruaccent import RUAccent
+
+payload = json.loads(sys.stdin.read())
+accentizer = RUAccent()
+accentizer.load(
+    omograph_model_size=payload["model_size"],
+    use_dictionary=payload["use_dictionary"],
+    tiny_mode=False,
+    device=payload["device"],
+    workdir=payload["workdir"],
+)
+text = accentizer.process_all(payload["text"], skip_regex=r"\\[\\[[^\\]]+\\]\\]")
+print(json.dumps({"text": text}, ensure_ascii=False))
+`;
+  const payload = JSON.stringify({
+    text,
+    model_size: ACCENT_CONFIG.modelSize,
+    use_dictionary: ACCENT_CONFIG.useDictionary,
+    device: ACCENT_CONFIG.device,
+    workdir: ACCENT_CONFIG.workdir,
+  });
+  const stdout = await runCommandWithInput(
+    [
+      "ssh",
+      ACCENT_CONFIG.sshHost,
+      `${shellQuote(ACCENT_CONFIG.remotePython)} -c ${shellQuote(script)}`,
+    ],
+    payload,
+  );
+  const lines = stdout.trim().split(/\n+/);
+  const lastLine = lines.at(-1) ?? "";
+  const parsed = JSON.parse(lastLine) as unknown;
+  if (!isPlainRecord(parsed) || typeof parsed.text !== "string") {
+    throw new Error("accent_invalid_response");
+  }
+  return parsed.text;
+}
+
+function projectStressMarks(original: string, accented: string): string | null {
+  let result = "";
+  let accentedIndex = 0;
+  let pendingStress = false;
+
+  for (const originalChar of original) {
+    while (accented[accentedIndex] === "+") {
+      pendingStress = true;
+      accentedIndex += 1;
+    }
+
+    const accentedChar = accented[accentedIndex];
+    if (!accentedChar || !sameTextChar(originalChar, accentedChar)) return null;
+
+    if (pendingStress && isRussianVowel(originalChar)) result += "+";
+    result += originalChar;
+    pendingStress = false;
+    accentedIndex += 1;
+  }
+
+  while (accented[accentedIndex] === "+") accentedIndex += 1;
+  return accented.slice(accentedIndex).trim() ? null : result;
+}
+
+function removeSingleSyllableStress(text: string): string {
+  return text.replace(/[А-Яа-яЁё+]+/g, (word) => {
+    const vowelCount = [...word.replace(/\+/g, "")].filter(isRussianVowel).length;
+    return vowelCount <= 1 ? word.replace(/\+/g, "") : word;
+  });
+}
+
+function applyAccentOverrides(text: string): string {
+  return text.replace(/[А-Яа-яЁё+]+/g, (word) => {
+    const cleanWord = word.replace(/\+/g, "");
+    const stressedVowelIndex = ACCENT_OVERRIDES.get(normalizeTextChar(cleanWord));
+    if (stressedVowelIndex === undefined) return word;
+
+    let result = "";
+    let vowelIndex = 0;
+    let applied = false;
+    for (const char of cleanWord) {
+      if (isRussianVowel(char)) {
+        if (vowelIndex === stressedVowelIndex) {
+          result += "+";
+          applied = true;
+        }
+        vowelIndex += 1;
+      }
+      result += char;
+    }
+    return applied ? result : cleanWord;
+  });
+}
+
+function sameTextChar(left: string, right: string): boolean {
+  return normalizeTextChar(left) === normalizeTextChar(right);
+}
+
+function normalizeTextChar(value: string): string {
+  return value.toLocaleLowerCase("ru").replace(/ё/g, "е");
+}
+
+function isRussianVowel(value: string): boolean {
+  return /[аеёиоуыэюяАЕЁИОУЫЭЮЯ]/.test(value);
+}
+
+function shellQuote(value: string): string {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
 async function readTextFile(path: string): Promise<string> {
@@ -604,6 +1311,15 @@ function parseJsonFormValue(value: FormDataEntryValue | null, fallback: unknown)
   }
 }
 
+async function parseJsonRequest(req: Request): Promise<Record<string, unknown>> {
+  try {
+    const body = await req.json();
+    return isPlainRecord(body) ? body : {};
+  } catch {
+    return {};
+  }
+}
+
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -615,6 +1331,44 @@ function finiteNumberFromUnknown(value: unknown): number | null {
 
 function isSafePathSegment(value: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._-]{0,140}$/.test(value);
+}
+
+function cleanupOneLine(value: string): string {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+async function runCommand(args: string[]): Promise<void> {
+  const proc = Bun.spawn(args, {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  if (exitCode !== 0) {
+    throw new Error(`${args[0]} failed (${exitCode}): ${stderr || stdout}`);
+  }
+}
+
+async function runCommandWithInput(args: string[], input: string): Promise<string> {
+  const proc = Bun.spawn(args, {
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  proc.stdin.write(input);
+  proc.stdin.end();
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  if (exitCode !== 0) {
+    throw new Error(`${args[0]} failed (${exitCode}): ${stderr || stdout}`);
+  }
+  return stdout;
 }
 
 function toUint8Array(value: unknown): Uint8Array | null {
@@ -683,6 +1437,35 @@ function readAsrTunnelConfig(): AsrTunnelConfig {
     serverAliveInterval: positiveNumberFromEnv("VOICE_ASR_TUNNEL_SERVER_ALIVE_INTERVAL", 15),
     serverAliveCountMax: positiveNumberFromEnv("VOICE_ASR_TUNNEL_SERVER_ALIVE_COUNT_MAX", 2),
     connectTimeout: positiveNumberFromEnv("VOICE_ASR_TUNNEL_CONNECT_TIMEOUT", 8),
+  };
+}
+
+function readTtsConfig(): TtsConfig {
+  return {
+    enabled: booleanFromEnv("VOICE_TTS", true),
+    sshHost: Bun.env.VOICE_TTS_SSH_HOST ?? "ai-srv",
+    remoteUrl: Bun.env.VOICE_TTS_REMOTE_URL ?? "http://127.0.0.1:7860/",
+    remoteWorkdir: Bun.env.VOICE_TTS_REMOTE_WORKDIR ?? "/tmp/metafor-voice-tts",
+    remotePython:
+      Bun.env.VOICE_TTS_REMOTE_PYTHON ?? "/home/zavx0z/apps/f5-tts-misha/.venv/bin/python",
+    seed: Math.round(clampNumber(Bun.env.VOICE_TTS_SEED, 0, 2_147_483_647, 42)),
+    nfeSteps: Math.round(clampNumber(Bun.env.VOICE_TTS_NFE_STEPS, 4, 64, 32)),
+    speed: clampNumber(Bun.env.VOICE_TTS_SPEED, 0.3, 2, 1),
+    crossFadeDuration: clampNumber(Bun.env.VOICE_TTS_CROSS_FADE, 0, 1, 0.15),
+    removeSilence: booleanFromEnv("VOICE_TTS_REMOVE_SILENCE", true),
+  };
+}
+
+function readAccentConfig(): AccentConfig {
+  return {
+    enabled: booleanFromEnv("VOICE_ACCENT", true),
+    sshHost: Bun.env.VOICE_ACCENT_SSH_HOST ?? "ai-srv",
+    remotePython:
+      Bun.env.VOICE_ACCENT_REMOTE_PYTHON ?? "/home/zavx0z/apps/ruaccent/.venv/bin/python",
+    workdir: Bun.env.VOICE_ACCENT_WORKDIR ?? "/home/zavx0z/apps/ruaccent/models",
+    modelSize: Bun.env.VOICE_ACCENT_MODEL_SIZE ?? "turbo3.1",
+    useDictionary: booleanFromEnv("VOICE_ACCENT_USE_DICTIONARY", true),
+    device: Bun.env.VOICE_ACCENT_DEVICE ?? "CPU",
   };
 }
 
