@@ -13,6 +13,11 @@ const els = {
   partialText: $("partialText"),
   savedCount: $("savedCount"),
   waveform: $("waveform"),
+  userCountText: $("userCountText"),
+  userList: $("userList"),
+  userNameInput: $("userNameInput"),
+  addUserBtn: $("addUserBtn"),
+  deleteUserBtn: $("deleteUserBtn"),
   selectedSessionText: $("selectedSessionText"),
   sampleAudioLabel: $("sampleAudioLabel"),
   sampleTextLabel: $("sampleTextLabel"),
@@ -47,7 +52,10 @@ const els = {
 const storageKeys = {
   remoteUrl: "voice.whisper.remoteUrl",
   context: "voice.whisper.context",
+  userId: "voice.whisper.userId",
 };
+
+const DEFAULT_USER_ID = "default";
 
 let info = null;
 let ws = null;
@@ -68,7 +76,14 @@ let latestWaveform = new Float32Array(0);
 let drawQueued = false;
 let commitPending = false;
 let queuedPcmAfterCommit = [];
+let outboundPcmChunks = [];
+let outboundPcmBytes = 0;
+let outboundFlushTimer = null;
+let lastCommitAt = 0;
+let lastCommitBytes = 0;
 let waiters = [];
+let voiceUsers = [];
+let selectedUserId = localStorage.getItem(storageKeys.userId) || DEFAULT_USER_ID;
 let savedSessions = [];
 let selectedSessionId = null;
 let referenceEditorSessionId = null;
@@ -78,8 +93,13 @@ let sampleBusyStage = "";
 let ttsBusy = false;
 let ttsAccentBusy = false;
 let captureMode = null;
+let captureSaved = false;
 
 const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024;
+const PCM_FLUSH_BYTES = 4096;
+const PCM_FLUSH_MS = 120;
+const AUTO_COMMIT_MS = 12_000;
+const AUTO_COMMIT_MIN_BYTES = 32_000;
 
 globalThis.whisperCaptureDebug = {
   receive: handleServerMessage,
@@ -93,10 +113,12 @@ init().catch((error) => {
 
 async function init() {
   restoreSettings();
+  resetTtsTextField();
   normalizeKnownAccentTextareas();
   drawWaveform();
   await loadInfo();
   bindEvents();
+  await refreshUsers();
   await refreshSaved();
   setRunning(false);
 }
@@ -120,6 +142,13 @@ function bindEvents() {
   els.startBtn.addEventListener("click", () => startCapture("reference").catch(showError));
   els.stopSaveBtn.addEventListener("click", () => stopAndSave().catch(showError));
   els.saveBtn.addEventListener("click", () => saveSession().catch(showError));
+  els.addUserBtn.addEventListener("click", () => addUser().catch(showError));
+  els.deleteUserBtn.addEventListener("click", () => deleteSelectedUser().catch(showError));
+  els.userNameInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addUser().catch(showError);
+  });
   els.ttsAccentBtn.addEventListener("click", () => accentTtsText(els.ttsText.value.trim()).catch(showError));
   els.ttsRecordBtn.addEventListener("click", () => startCapture("tts").catch(showError));
   els.ttsStopBtn.addEventListener("click", () => stopTtsDictation().catch(showError));
@@ -155,6 +184,10 @@ function restoreSettings() {
 function saveSettings() {
   localStorage.setItem(storageKeys.remoteUrl, els.remoteUrl.value.trim());
   localStorage.setItem(storageKeys.context, els.contextText.value.trim());
+}
+
+function resetTtsTextField() {
+  els.ttsText.value = "";
 }
 
 async function startCapture(mode) {
@@ -202,8 +235,9 @@ async function startCapture(mode) {
     recordedChunks.push(chunk);
     recordedBytes += chunk.byteLength;
     els.audioBytes.textContent = formatBytes(recordedBytes);
-    els.saveBtn.disabled = recordedBytes === 0;
-    sendPcm(pcm);
+    els.saveBtn.disabled = recordedBytes === 0 || captureSaved;
+    enqueuePcm(chunk);
+    maybeAutoCommit();
   };
 
   sourceNode.connect(captureNode);
@@ -244,10 +278,22 @@ async function connectWs() {
   ws.addEventListener("close", (event) => {
     notifyWaiters("close");
     log("ws:close", { code: event.code, reason: event.reason });
+    clearOutboundPcm();
     if (stream) {
+      const mode = captureMode;
       stopAudioOnly();
       setRunning(false);
-      setStatus("offline", false);
+      if (mode === "reference" && recordedBytes > 0 && !captureSaved) {
+        els.saveBtn.disabled = false;
+        setStatus("asr closed; можно сохранить", false);
+      } else if (mode === "tts") {
+        els.ttsRecordStatus.textContent = els.ttsText.value.trim()
+          ? "соединение закрыто, текст можно править"
+          : "соединение закрыто";
+        setStatus("asr closed", false);
+      } else {
+        setStatus("offline", false);
+      }
     }
   });
 
@@ -275,7 +321,7 @@ function handleServerMessage(msg) {
   }
 
   if (msg.type === "partial") {
-    partialText = cleanupTranscriptText(msg.text);
+    partialText = trimStableTranscriptPrefix(cleanupTranscriptText(msg.text));
     setLivePartial(partialText);
     renderTranscript();
     return;
@@ -286,9 +332,7 @@ function handleServerMessage(msg) {
     setLivePartial("");
     if (Array.isArray(msg.segments)) receivedSegments.push(...msg.segments);
     const messages = transcriptMessagesFrom(msg.text, msg.messages, msg.segments);
-    for (const message of messages) {
-      if (message) finalMessages.push(message);
-    }
+    appendFinalMessages(messages);
     renderTranscript();
     return;
   }
@@ -305,12 +349,23 @@ function handleServerMessage(msg) {
   }
 }
 
-async function requestCommit() {
+async function requestCommit(options = {}) {
   if (ws?.readyState !== WebSocket.OPEN || commitPending) return;
+  flushOutboundPcm();
   commitPending = true;
+  lastCommitAt = Date.now();
+  lastCommitBytes = recordedBytes;
   send({ type: "commit" });
-  setStatus("committing", true);
+  if (!options.silent) setStatus("committing", true);
   await waitForServer(["committed", "result", "final", "close"], 1800);
+  if (stream && !options.silent) setRecordingStatus();
+}
+
+function maybeAutoCommit() {
+  if (!stream || ws?.readyState !== WebSocket.OPEN || commitPending) return;
+  if (Date.now() - lastCommitAt < AUTO_COMMIT_MS) return;
+  if (recordedBytes - lastCommitBytes < AUTO_COMMIT_MIN_BYTES) return;
+  void requestCommit({ silent: true }).catch(showError);
 }
 
 async function stopAndSave() {
@@ -358,6 +413,7 @@ async function stopTtsDictation() {
 }
 
 function stopAudioOnly() {
+  clearOutboundPcm();
   if (captureNode) captureNode.disconnect();
   if (sourceNode) sourceNode.disconnect();
   if (sinkNode) sinkNode.disconnect();
@@ -410,12 +466,76 @@ async function saveSession() {
     throw new Error(data.error || `Save failed: ${response.status}`);
   }
 
+  captureSaved = true;
+  setRunning(Boolean(stream));
   setStatus("saved", false);
   log("save:ok", { id: data.session?.id, bytes: data.session?.audioBytes });
   await refreshSaved(data.session?.id);
   if (data.session?.id) {
     await prepareSample(data.session.id, transcript || data.session.transcript || "");
   }
+}
+
+async function refreshUsers(preferredUserId = selectedUserId) {
+  const response = await fetch("/api/whisper/users", { cache: "no-store" });
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || `Users failed: ${response.status}`);
+  }
+  voiceUsers = data.users || [];
+  if (!voiceUsers.length) {
+    voiceUsers = [{ id: DEFAULT_USER_ID, name: "Основной" }];
+  }
+  const preferred = voiceUsers.find((user) => user.id === preferredUserId);
+  selectedUserId = (preferred || voiceUsers[0])?.id || DEFAULT_USER_ID;
+  localStorage.setItem(storageKeys.userId, selectedUserId);
+  renderUsers();
+}
+
+async function addUser() {
+  const name = els.userNameInput.value.trim();
+  if (!name) throw new Error("Введи имя пользователя");
+
+  const response = await fetch("/api/whisper/users", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || `Add user failed: ${response.status}`);
+  }
+  els.userNameInput.value = "";
+  voiceUsers = data.users || voiceUsers;
+  selectedUserId = data.user?.id || selectedUserId;
+  localStorage.setItem(storageKeys.userId, selectedUserId);
+  renderUsers();
+  renderSavedSessions(readySessions());
+  renderSelectedSession();
+}
+
+async function deleteSelectedUser() {
+  const user = selectedUser();
+  if (!user || user.id === DEFAULT_USER_ID) return;
+  const readyCount = readySessionsForUser(user.id).length;
+  const suffix = readyCount
+    ? `\n\n${pluralRu(readyCount, "готовый образец будет перенесен", "готовых образца будут перенесены", "готовых образцов будут перенесены")} в Основной.`
+    : "";
+  if (!window.confirm(`Удалить пользователя "${user.name}"?${suffix}`)) return;
+
+  const response = await fetch(`/api/whisper/users/${encodeURIComponent(user.id)}`, {
+    method: "DELETE",
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || `Delete user failed: ${response.status}`);
+  }
+  voiceUsers = data.users || [];
+  selectedUserId = DEFAULT_USER_ID;
+  localStorage.setItem(storageKeys.userId, selectedUserId);
+  selectedSessionId = null;
+  await refreshSaved(null);
+  renderUsers();
 }
 
 async function refreshSaved(preferredSessionId = selectedSessionId) {
@@ -434,6 +554,41 @@ async function refreshSaved(preferredSessionId = selectedSessionId) {
     selectedSessionId = (preferred || previous || savedSessions[0] || null)?.id ?? null;
   }
   renderSavedSessions(readySessions());
+  renderUsers();
+  renderSelectedSession();
+}
+
+function renderUsers() {
+  els.userList.textContent = "";
+  els.userCountText.textContent = pluralRu(voiceUsers.length, "пользователь", "пользователя", "пользователей");
+
+  for (const user of voiceUsers) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "userItem";
+    button.classList.toggle("isSelected", user.id === selectedUserId);
+    button.addEventListener("click", () => selectUser(user.id));
+
+    const name = document.createElement("strong");
+    name.textContent = user.name;
+
+    const count = document.createElement("span");
+    count.textContent = pluralRu(readySessionsForUser(user.id).length, "готовый", "готовых", "готовых");
+
+    button.append(name, count);
+    els.userList.append(button);
+  }
+
+  els.deleteUserBtn.disabled = selectedUserId === DEFAULT_USER_ID || !selectedUser();
+}
+
+function selectUser(userId) {
+  if (!voiceUsers.some((user) => user.id === userId)) return;
+  selectedUserId = userId;
+  localStorage.setItem(storageKeys.userId, selectedUserId);
+  selectedSessionId = null;
+  renderUsers();
+  renderSavedSessions(readySessions());
   renderSelectedSession();
 }
 
@@ -443,7 +598,7 @@ function renderSavedSessions(sessions) {
   if (!sessions.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.textContent = "Нет готовых образцов";
+    empty.textContent = "Нет готовых образцов для пользователя";
     els.savedList.append(empty);
     return;
   }
@@ -513,8 +668,16 @@ function selectedSession() {
   return savedSessions.find((session) => session.id === selectedSessionId) || null;
 }
 
+function selectedUser() {
+  return voiceUsers.find((user) => user.id === selectedUserId) || null;
+}
+
 function readySessions() {
-  return savedSessions.filter(isReadySample);
+  return readySessionsForUser(selectedUserId);
+}
+
+function readySessionsForUser(userId) {
+  return savedSessions.filter((session) => isReadySample(session) && sessionUserId(session) === userId);
 }
 
 function latestReadySession() {
@@ -523,6 +686,10 @@ function latestReadySession() {
 
 function isReadySample(session) {
   return Boolean(session?.readyAt && session?.referenceUrl && session?.referenceText && looksAccented(session.referenceText));
+}
+
+function sessionUserId(session) {
+  return session?.userId || DEFAULT_USER_ID;
 }
 
 function looksAccented(text) {
@@ -535,6 +702,7 @@ function renderSelectedSession() {
   const ttsSample = latestReadySession();
   const ttsText = els.ttsText.value.trim();
   const readyCount = readySessions().length;
+  const userName = selectedUser()?.name || "Основной";
   els.selectedSessionText.textContent = session ? shortId(session.id) : "образец не выбран";
 
   if (sessionId !== transcriptEditorSessionId) {
@@ -579,8 +747,8 @@ function renderSelectedSession() {
     : ttsAccentBusy
       ? "автоударения..."
     : readyCount
-      ? `${readyCount} готов. · ${shortId(ttsSample.id)}`
-      : "нет готовых образцов";
+      ? `${pluralRu(readyCount, "готовый", "готовых", "готовых")} · ${userName}`
+      : `${userName}: нет образцов`;
   els.ttsOutputInfo.textContent = ttsSample?.ttsUrl ? `tts.wav · ${formatBytes(ttsSample.ttsAudioBytes || 0)}` : "-";
   els.ttsPlanText.textContent = summarizeProsodyText(els.ttsText.value);
 
@@ -738,6 +906,8 @@ async function updateSessionReference(sessionId, referenceText, clearAfter, read
 async function markSessionReady(sessionId) {
   const response = await fetch(`/api/whisper/sessions/${encodeURIComponent(sessionId)}/ready`, {
     method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ userId: selectedUserId }),
   });
   const data = await response.json();
   if (!response.ok || !data.ok) {
@@ -818,6 +988,46 @@ function fileLink(url, label) {
   link.rel = "noreferrer";
   link.textContent = label;
   return link;
+}
+
+function enqueuePcm(chunk) {
+  if (ws?.readyState !== WebSocket.OPEN) return;
+  outboundPcmChunks.push(chunk);
+  outboundPcmBytes += chunk.byteLength;
+  if (outboundPcmBytes >= PCM_FLUSH_BYTES) {
+    flushOutboundPcm();
+    return;
+  }
+  if (outboundFlushTimer === null) {
+    outboundFlushTimer = window.setTimeout(flushOutboundPcm, PCM_FLUSH_MS);
+  }
+}
+
+function flushOutboundPcm() {
+  if (outboundFlushTimer !== null) {
+    window.clearTimeout(outboundFlushTimer);
+    outboundFlushTimer = null;
+  }
+  if (outboundPcmBytes <= 0) return;
+
+  const payload = new Uint8Array(outboundPcmBytes);
+  let offset = 0;
+  for (const chunk of outboundPcmChunks) {
+    payload.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  outboundPcmChunks = [];
+  outboundPcmBytes = 0;
+  sendPcm(payload);
+}
+
+function clearOutboundPcm() {
+  if (outboundFlushTimer !== null) {
+    window.clearTimeout(outboundFlushTimer);
+    outboundFlushTimer = null;
+  }
+  outboundPcmChunks = [];
+  outboundPcmBytes = 0;
 }
 
 function sendPcm(pcm) {
@@ -924,9 +1134,7 @@ function writeAscii(view, offset, text) {
 }
 
 function renderTranscript() {
-  const lines = [...finalMessages];
-  if (partialText) lines.push(partialText);
-  const text = lines.join("\n\n");
+  const text = formatTranscriptText(finalMessages, partialText);
   els.transcriptText.value = text;
   if (captureMode === "tts") {
     els.ttsText.value = text;
@@ -940,17 +1148,76 @@ function renderTranscript() {
   }
 }
 
+function formatTranscriptText(stableChunks, draftText) {
+  const stable = stableChunks.join(" ");
+  const draft = String(draftText || "");
+  return formatTranscriptSentences(cleanupTranscriptText(`${stable} ${draft}`));
+}
+
+function formatTranscriptSentences(text) {
+  const source = cleanupTranscriptText(text);
+  if (!source) return "";
+
+  const lines = [];
+  let start = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (!isSentenceEnd(char)) continue;
+
+    const next = source[index + 1] || "";
+    if (next && !/\s/.test(next)) continue;
+
+    const sentence = source.slice(start, index + 1).trim();
+    if (sentence) lines.push(sentence);
+    start = index + 1;
+    while (start < source.length && /\s/.test(source[start])) start += 1;
+    index = start - 1;
+  }
+
+  const tail = source.slice(start).trim();
+  if (tail) lines.push(tail);
+  return lines.join("\n");
+}
+
+function isSentenceEnd(char) {
+  return char === "." || char === "!" || char === "?" || char === "…";
+}
+
+function appendFinalMessages(messages) {
+  for (const message of messages) {
+    appendFinalMessage(message);
+  }
+}
+
+function appendFinalMessage(message) {
+  const cleaned = cleanupTranscriptText(message);
+  if (!cleaned) return;
+
+  const tail = trimStableTranscriptPrefix(cleaned);
+  if (!tail) return;
+
+  const last = finalMessages[finalMessages.length - 1] || "";
+  const lastKey = normalizeTranscriptForCompare(last);
+  const tailKey = normalizeTranscriptForCompare(tail);
+  if (!tailKey || tailKey === lastKey) return;
+  if (lastKey && lastKey.includes(tailKey)) return;
+
+  finalMessages.push(tail);
+}
+
 function transcriptMessagesFrom(text, serverMessages, segments) {
-  const serverParagraphs = Array.isArray(serverMessages)
-    ? serverMessages.flatMap(splitBlankLineParagraphs)
-    : [];
-  if (serverParagraphs.length > 1) return serverParagraphs;
+  const cleanText = cleanupTranscriptText(text);
+  if (cleanText) return [cleanText];
 
-  const segmentMessages = segmentPauseMessages(segments);
-  if (segmentMessages.length > 1) return segmentMessages;
+  const messageText = Array.isArray(serverMessages)
+    ? cleanupTranscriptText(serverMessages.join(" "))
+    : "";
+  if (messageText) return [messageText];
 
-  const textParagraphs = splitBlankLineParagraphs(text);
-  return textParagraphs.length ? textParagraphs : [cleanupTranscriptText(text)].filter(Boolean);
+  const segmentText = Array.isArray(segments)
+    ? cleanupTranscriptText(segments.map((segment) => segment?.text || "").join(" "))
+    : "";
+  return segmentText ? [segmentText] : [];
 }
 
 function splitBlankLineParagraphs(text) {
@@ -961,41 +1228,84 @@ function splitBlankLineParagraphs(text) {
     .filter(Boolean);
 }
 
-function segmentPauseMessages(segments) {
-  if (!Array.isArray(segments) || segments.length < 2) return [];
-
-  const messages = [];
-  let current = "";
-  let lastEnd = null;
-
-  for (const segment of segments) {
-    const text = cleanupTranscriptText(segment?.text);
-    if (!text) continue;
-
-    const start = Number(segment?.start);
-    const end = Number(segment?.end);
-    const hasPause =
-      current &&
-      Number.isFinite(start) &&
-      Number.isFinite(lastEnd) &&
-      start - lastEnd >= 1.1;
-
-    if (hasPause) {
-      messages.push(current);
-      current = text;
-    } else {
-      current = current ? `${current} ${text}` : text;
-    }
-
-    if (Number.isFinite(end)) lastEnd = end;
-  }
-
-  if (current) messages.push(current);
-  return messages;
+function cleanupTranscriptText(text) {
+  const cleaned = String(text || "")
+    .replace(/(?:^|[\n.!?…]\s*)субтитры[^\n.!?…]*/giu, " ")
+    .replace(/(?:^|[\n.!?…]\s*)редактор\s+субтитров[^\n.!?…]*/giu, " ")
+    .replace(/(?:^|[\n.!?…]\s*)продолжение\s+следует[^\n.!?…]*/giu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return isNoiseTranscript(cleaned) ? "" : cleaned;
 }
 
-function cleanupTranscriptText(text) {
-  return String(text || "").replace(/\s+/g, " ").trim();
+function isNoiseTranscript(text) {
+  const normalized = normalizeTranscriptForCompare(text);
+  return normalized === "продолжение следует"
+    || normalized.includes("dimatorzok")
+    || normalized.startsWith("субтитры")
+    || normalized.startsWith("редактор субтитров")
+    || normalized.startsWith("subtitles");
+}
+
+function trimStableTranscriptPrefix(text) {
+  const cleaned = cleanupTranscriptText(text);
+  if (!cleaned || !finalMessages.length) return cleaned;
+
+  const stableKey = normalizeTranscriptForCompare(finalMessages.join(" "));
+  const textKey = normalizeTranscriptForCompare(cleaned);
+  if (!textKey || (stableKey && stableKey.includes(textKey))) return "";
+
+  const overlap = stableTranscriptOverlap(cleaned);
+  return removeFirstTranscriptWords(cleaned, overlap);
+}
+
+function stableTranscriptOverlap(text) {
+  const stableTokens = transcriptTokens(finalMessages.join(" "));
+  const textTokens = transcriptTokens(text);
+  const max = Math.min(80, stableTokens.length, textTokens.length);
+  for (let count = max; count > 0; count -= 1) {
+    let same = true;
+    for (let index = 0; index < count; index += 1) {
+      if (stableTokens[stableTokens.length - count + index]?.value !== textTokens[index]?.value) {
+        same = false;
+        break;
+      }
+    }
+    if (same) return count;
+  }
+  return 0;
+}
+
+function removeFirstTranscriptWords(text, count) {
+  if (count <= 0) return text;
+  const tokens = transcriptTokens(text);
+  if (count >= tokens.length) return "";
+  return text.slice(tokens[count].start).replace(/^[\s,.;:!?…—-]+/, "").trim();
+}
+
+function normalizeTranscriptForCompare(text) {
+  return transcriptTokens(text).map((token) => token.value).join(" ");
+}
+
+function transcriptTokens(text) {
+  const tokens = [];
+  const source = String(text || "");
+  const pattern = /[\p{L}\p{N}]+/gu;
+  for (const match of source.matchAll(pattern)) {
+    const raw = match[0] || "";
+    const value = raw
+      .toLocaleLowerCase("ru")
+      .replace(/ё/g, "е")
+      .normalize("NFKD")
+      .replace(/\p{M}/gu, "");
+    if (!value) continue;
+    tokens.push({
+      value,
+      start: match.index || 0,
+      end: (match.index || 0) + raw.length,
+    });
+  }
+  return tokens;
 }
 
 function waitForServer(types, timeoutMs) {
@@ -1076,6 +1386,10 @@ function resetCaptureState() {
   partialText = "";
   commitPending = false;
   queuedPcmAfterCommit = [];
+  clearOutboundPcm();
+  lastCommitAt = Date.now();
+  lastCommitBytes = 0;
+  captureSaved = false;
   els.audioBytes.textContent = "0 KB";
   setLivePartial("");
   renderTranscript();
@@ -1084,9 +1398,10 @@ function resetCaptureState() {
 function setRunning(running) {
   const referenceRunning = running && captureMode === "reference";
   const ttsRunning = running && captureMode === "tts";
+  const canSaveReference = recordedBytes > 0 && !captureSaved && (referenceRunning || (!running && !stream));
   els.startBtn.disabled = running || ttsAccentBusy;
   els.stopSaveBtn.disabled = !referenceRunning;
-  els.saveBtn.disabled = !referenceRunning || recordedBytes === 0;
+  els.saveBtn.disabled = !canSaveReference;
   els.ttsRecordBtn.disabled = running || ttsAccentBusy;
   els.ttsAccentBtn.disabled = running || ttsAccentBusy || !els.ttsText.value.trim();
   els.ttsStopBtn.disabled = !ttsRunning;
@@ -1197,6 +1512,18 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value || "");
   return date.toLocaleString("ru-RU", { hour12: false });
+}
+
+function pluralRu(count, one, few, many) {
+  const abs = Math.abs(count);
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  const word = mod10 === 1 && mod100 !== 11
+    ? one
+    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+      ? few
+      : many;
+  return `${count} ${word}`;
 }
 
 function time() {

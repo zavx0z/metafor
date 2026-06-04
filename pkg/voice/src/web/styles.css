@@ -416,6 +416,72 @@ select,
   background: #101613;
 }
 
+.usersBlock {
+  gap: 8px;
+}
+
+.userList {
+  display: grid;
+  max-height: 112px;
+  gap: 6px;
+  overflow: auto;
+}
+
+.userItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border-color: #334039;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.userItem strong,
+.userItem span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userItem strong {
+  color: #edf2ef;
+  font-size: 13px;
+}
+
+.userItem span {
+  color: #9aa79d;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.userItem.isSelected {
+  border-color: #7db7c6;
+  background: #14211f;
+}
+
+.userControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+}
+
+.userControls input {
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid #334039;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #101613;
+  color: #eef5ef;
+}
+
+.userControls button {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
 .sectionTitle {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -475,7 +541,7 @@ select,
 
 .samplePairGrid {
   display: grid;
-  grid-template-columns: minmax(170px, 0.58fr) minmax(0, 1.42fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 
@@ -487,8 +553,13 @@ select,
 }
 
 .sampleAudioPane {
-  align-self: end;
-  align-content: end;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1fr);
+  align-items: end;
+  gap: 8px;
+}
+
+.sampleAudioPane > span {
+  grid-column: 1 / -1;
 }
 
 .field {

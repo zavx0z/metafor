@@ -31,6 +31,19 @@
           </div>
 
           <div class="referenceColumn">
+            <section class="referenceBlock usersBlock" aria-label="Voice users">
+              <div class="sectionTitle">
+                <strong>Пользователи</strong>
+                <span id="userCountText">-</span>
+              </div>
+              <div id="userList" class="userList" aria-label="User list"></div>
+              <div class="userControls">
+                <input id="userNameInput" type="text" placeholder="Имя пользователя" spellcheck="true" />
+                <button id="addUserBtn" type="button">Добавить</button>
+                <button id="deleteUserBtn" class="deleteButton" type="button">Удалить</button>
+              </div>
+            </section>
+
             <section class="referenceBlock recorderBlock" aria-label="Record reference">
               <div class="sectionTitle">
                 <strong>Запись</strong>
@@ -81,15 +94,6 @@
                 <span id="ttsReferenceInfo">образец не готов</span>
               </div>
               <div class="samplePairGrid">
-                <div class="samplePane sampleAudioPane">
-                  <span id="sampleAudioLabel">Звук</span>
-                  <audio id="sourceAudio" controls preload="none" hidden></audio>
-                  <audio id="referenceAudio" controls preload="none"></audio>
-                  <div class="sampleActionBar">
-                    <button id="finalizeSampleBtn" type="button" disabled>Готово</button>
-                    <button id="clearTranscriptBtn" class="ghostButton" type="button">Очистить текст</button>
-                  </div>
-                </div>
                 <label class="field samplePane">
                   <span id="sampleTextLabel">Текст с ударениями</span>
                   <textarea id="transcriptText" class="transcriptEditor compactTranscript" spellcheck="true" hidden></textarea>
@@ -99,6 +103,15 @@
                     spellcheck="true"
                   ></textarea>
                 </label>
+                <div class="samplePane sampleAudioPane">
+                  <span id="sampleAudioLabel">Звук</span>
+                  <audio id="sourceAudio" controls preload="none" hidden></audio>
+                  <audio id="referenceAudio" controls preload="none"></audio>
+                  <div class="sampleActionBar">
+                    <button id="finalizeSampleBtn" type="button" disabled>Готово</button>
+                    <button id="clearTranscriptBtn" class="ghostButton" type="button">Очистить текст</button>
+                  </div>
+                </div>
               </div>
 
               <div class="readySamplesArea" aria-label="Ready samples">
@@ -127,11 +140,9 @@
               <textarea
                 id="ttsText"
                 class="ttsEditor ttsTextEditor"
+                autocomplete="off"
                 spellcheck="true"
-              >Добрый день. Это пров+ерка управл+ения п+аузами.
-
-[[pause:1200]]
-[[speed:0.85]]Теперь втор+ая часть звуч+ит м+едленнее и после дл+инной паузы.</textarea>
+              ></textarea>
             </label>
             <div class="ttsRecordControls" aria-label="Dictate synthesis text">
               <button id="ttsAccentBtn" type="button">Расставить ударения</button>
@@ -194,6 +205,6 @@
       </section>
     </main>
 
-    <script type="module" src="/whisper.js?v=20260604-no-new-paragraph-button"></script>
+    <script type="module" src="/whisper.js?v=20260604-sentence-transcript"></script>
   </body>
 </html>

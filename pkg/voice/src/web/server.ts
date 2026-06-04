@@ -113,6 +113,12 @@ type TtsSegment =
       ms: number;
     };
 
+type WhisperUser = {
+  id: string;
+  name: string;
+  createdAt: string;
+};
+
 type WhisperSessionFileName =
   | "audio.wav"
   | "transcript.txt"
@@ -125,6 +131,7 @@ type WhisperSessionFileName =
 
 type WhisperSessionSummary = {
   id: string;
+  userId: string;
   createdAt: string;
   transcript: string;
   durationMs: number | null;
@@ -156,8 +163,11 @@ const ACCENT_CONFIG = readAccentConfig();
 const ACCENT_OVERRIDES = new Map<string, number>([
   ["медленнее", 0],
 ]);
+const DEFAULT_WHISPER_USER_ID = "default";
+const DEFAULT_WHISPER_USER_NAME = "Основной";
 const WEB_ROOT = import.meta.dir;
 const WHISPER_RECORDINGS_ROOT = resolve(WEB_ROOT, "../../recordings/whisper");
+const WHISPER_USERS_PATH = join(WHISPER_RECORDINGS_ROOT, "users.json");
 const MAX_WHISPER_AUDIO_BYTES = positiveNumberFromEnv("VOICE_WHISPER_MAX_AUDIO_BYTES", 80 * 1024 * 1024);
 
 const router = createCommandRouter(defaultVoiceCommands);
@@ -238,6 +248,19 @@ async function handleRequest(
     return matchCommand(req);
   }
 
+  if (url.pathname === "/api/whisper/users" && req.method === "GET") {
+    return listWhisperUsers();
+  }
+
+  if (url.pathname === "/api/whisper/users" && req.method === "POST") {
+    return createWhisperUser(req);
+  }
+
+  const whisperUser = matchWhisperUser(url.pathname);
+  if (whisperUser && req.method === "DELETE") {
+    return deleteWhisperUser(whisperUser.userId);
+  }
+
   if (url.pathname === "/api/whisper/sessions" && req.method === "GET") {
     return listWhisperSessions();
   }
@@ -267,7 +290,7 @@ async function handleRequest(
 
   const whisperReady = matchWhisperSessionAction(url.pathname, "ready");
   if (whisperReady && req.method === "POST") {
-    return markWhisperSessionReady(whisperReady.sessionId);
+    return markWhisperSessionReady(req, whisperReady.sessionId);
   }
 
   const whisperSessionFile = matchWhisperSessionFile(url.pathname);
@@ -296,6 +319,73 @@ async function matchCommand(req: Request): Promise<Response> {
     const text = typeof body.text === "string" ? body.text : "";
     const match = router.match(text);
     return json({ ok: true, match: match ? serializeMatch(match) : null });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      400,
+    );
+  }
+}
+
+async function listWhisperUsers(): Promise<Response> {
+  try {
+    const users = await readWhisperUsers();
+    return json({ ok: true, users });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      500,
+    );
+  }
+}
+
+async function createWhisperUser(req: Request): Promise<Response> {
+  try {
+    const body = await parseJsonRequest(req);
+    const name = cleanupUserName(typeof body.name === "string" ? body.name : "");
+    if (!name) return json({ ok: false, error: "user_name_required" }, 400);
+
+    const users = await readWhisperUsers();
+    const existing = users.find((user) => normalizeUserName(user.name) === normalizeUserName(name));
+    if (existing) return json({ ok: true, user: existing, users });
+
+    const user: WhisperUser = {
+      id: uniqueWhisperUserId(name, users),
+      name,
+      createdAt: new Date().toISOString(),
+    };
+    const nextUsers = [...users, user];
+    await writeWhisperUsers(nextUsers);
+    return json({ ok: true, user, users: nextUsers });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      400,
+    );
+  }
+}
+
+async function deleteWhisperUser(userId: string): Promise<Response> {
+  try {
+    if (!isSafePathSegment(userId)) return json({ ok: false, error: "invalid_user" }, 400);
+    if (userId === DEFAULT_WHISPER_USER_ID) return json({ ok: false, error: "default_user_required" }, 400);
+
+    const users = await readWhisperUsers();
+    const nextUsers = users.filter((user) => user.id !== userId);
+    if (nextUsers.length === users.length) return json({ ok: false, error: "user_not_found" }, 404);
+
+    const reassigned = await reassignWhisperSessionsUser(userId, DEFAULT_WHISPER_USER_ID);
+    await writeWhisperUsers(nextUsers);
+    return json({ ok: true, users: nextUsers, reassigned });
   } catch (error) {
     return json(
       {
@@ -432,13 +522,19 @@ async function prepareWhisperReference(req: Request, sessionId: string): Promise
   }
 }
 
-async function markWhisperSessionReady(sessionId: string): Promise<Response> {
+async function markWhisperSessionReady(req: Request, sessionId: string): Promise<Response> {
   try {
     if (!isSafePathSegment(sessionId)) return json({ ok: false, error: "invalid_session" }, 400);
     const dir = join(WHISPER_RECORDINGS_ROOT, sessionId);
     if (!existsSync(join(dir, "reference.wav"))) return json({ ok: false, error: "reference_required" }, 400);
     const referenceText = cleanupOneLine(await readTextFile(join(dir, "reference.txt")));
     if (!referenceText) return json({ ok: false, error: "reference_text_required" }, 400);
+
+    const body = await parseJsonRequest(req);
+    const userId = typeof body.userId === "string" && isSafePathSegment(body.userId)
+      ? body.userId
+      : DEFAULT_WHISPER_USER_ID;
+    if (!(await whisperUserExists(userId))) return json({ ok: false, error: "user_not_found" }, 404);
 
     const meta = await readJson(join(dir, "meta.json"));
     const metaRecord = isPlainRecord(meta) ? meta : {};
@@ -447,6 +543,7 @@ async function markWhisperSessionReady(sessionId: string): Promise<Response> {
       JSON.stringify(
         {
           ...metaRecord,
+          userId,
           ready: true,
           readyAt: new Date().toISOString(),
         },
@@ -739,6 +836,13 @@ function matchWhisperSession(pathname: string): { sessionId: string } | null {
   return isSafePathSegment(sessionId) ? { sessionId } : null;
 }
 
+function matchWhisperUser(pathname: string): { userId: string } | null {
+  const match = /^\/api\/whisper\/users\/([^/]+)$/.exec(pathname);
+  if (!match) return null;
+  const userId = decodeURIComponent(match[1] ?? "");
+  return isSafePathSegment(userId) ? { userId } : null;
+}
+
 function matchWhisperSessionAction(
   pathname: string,
   action: "reference" | "tts" | "ready",
@@ -794,6 +898,9 @@ async function readWhisperSession(id: string): Promise<WhisperSessionSummary | n
   const createdAt = typeof metaRecord.createdAt === "string" ? metaRecord.createdAt : id;
   const referenceExists = existsSync(join(dir, "reference.wav"));
   const ttsExists = existsSync(join(dir, "tts.wav"));
+  const userId = typeof metaRecord.userId === "string" && isSafePathSegment(metaRecord.userId)
+    ? metaRecord.userId
+    : DEFAULT_WHISPER_USER_ID;
   const readyAt =
     metaRecord.ready === false
       ? null
@@ -805,6 +912,7 @@ async function readWhisperSession(id: string): Promise<WhisperSessionSummary | n
 
   return {
     id,
+    userId,
     createdAt,
     transcript,
     durationMs: finiteNumberFromUnknown(metaRecord.durationMs),
@@ -1295,6 +1403,107 @@ async function readJson(path: string): Promise<unknown | null> {
   } catch {
     return null;
   }
+}
+
+async function readWhisperUsers(): Promise<WhisperUser[]> {
+  await mkdir(WHISPER_RECORDINGS_ROOT, { recursive: true });
+  const data = await readJson(WHISPER_USERS_PATH);
+  const source = Array.isArray(data)
+    ? data
+    : isPlainRecord(data) && Array.isArray(data.users)
+      ? data.users
+      : [];
+  const users = source
+    .map(normalizeWhisperUser)
+    .filter((user): user is WhisperUser => user !== null);
+  return ensureDefaultWhisperUser(users);
+}
+
+async function writeWhisperUsers(users: readonly WhisperUser[]): Promise<void> {
+  await mkdir(WHISPER_RECORDINGS_ROOT, { recursive: true });
+  await Bun.write(
+    WHISPER_USERS_PATH,
+    JSON.stringify({ users: ensureDefaultWhisperUser(users) }, null, 2),
+  );
+}
+
+async function whisperUserExists(userId: string): Promise<boolean> {
+  return (await readWhisperUsers()).some((user) => user.id === userId);
+}
+
+function normalizeWhisperUser(value: unknown): WhisperUser | null {
+  if (!isPlainRecord(value)) return null;
+  const id = typeof value.id === "string" && isSafePathSegment(value.id) ? value.id : "";
+  const name = cleanupUserName(typeof value.name === "string" ? value.name : "");
+  if (!id || !name) return null;
+  return {
+    id,
+    name,
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : new Date().toISOString(),
+  };
+}
+
+function ensureDefaultWhisperUser(users: readonly WhisperUser[]): WhisperUser[] {
+  const result: WhisperUser[] = [];
+  const seen = new Set<string>();
+  const defaultUser = users.find((user) => user.id === DEFAULT_WHISPER_USER_ID) ?? {
+    id: DEFAULT_WHISPER_USER_ID,
+    name: DEFAULT_WHISPER_USER_NAME,
+    createdAt: "1970-01-01T00:00:00.000Z",
+  };
+
+  for (const user of [defaultUser, ...users]) {
+    if (seen.has(user.id)) continue;
+    seen.add(user.id);
+    result.push(user);
+  }
+  return result;
+}
+
+function cleanupUserName(value: string): string {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
+function normalizeUserName(value: string): string {
+  return cleanupUserName(value).toLocaleLowerCase("ru");
+}
+
+function uniqueWhisperUserId(name: string, users: readonly WhisperUser[]): string {
+  const used = new Set(users.map((user) => user.id));
+  const base = slugUserName(name) || "user";
+  let id = base;
+  let index = 2;
+  while (used.has(id)) {
+    id = `${base}-${index}`;
+    index += 1;
+  }
+  return id;
+}
+
+function slugUserName(name: string): string {
+  const ascii = cleanupUserName(name)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("ru")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return ascii || `user-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+async function reassignWhisperSessionsUser(fromUserId: string, toUserId: string): Promise<number> {
+  await mkdir(WHISPER_RECORDINGS_ROOT, { recursive: true });
+  const entries = await readdir(WHISPER_RECORDINGS_ROOT, { withFileTypes: true });
+  let changed = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !isSafePathSegment(entry.name)) continue;
+    const metaPath = join(WHISPER_RECORDINGS_ROOT, entry.name, "meta.json");
+    const meta = await readJson(metaPath);
+    const metaRecord = isPlainRecord(meta) ? meta : {};
+    if (metaRecord.userId !== fromUserId) continue;
+    await Bun.write(metaPath, JSON.stringify({ ...metaRecord, userId: toUserId }, null, 2));
+    changed += 1;
+  }
+  return changed;
 }
 
 function formText(value: FormDataEntryValue | null): string {
