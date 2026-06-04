@@ -85,6 +85,7 @@ type SurfaceSlot = {
   layout: UiSurfaceLayoutFn
   rect: UiSurfaceRect
   rectOverride?: UiSurfaceRect
+  pixelScale?: number
   target: "display" | "hud"
   displayId?: UiDisplayId
 }
@@ -1054,7 +1055,7 @@ export class UiRuntime {
         ? layoutRect
         : clampSurfaceRect(slot.rectOverride, metrics.w, metrics.h)
       if (layoutRect.visible !== false && slot.rectOverride !== undefined) slot.rectOverride = nextRect
-      this.#applySurfaceSlotRect(slot, nextRect, metrics, true)
+      this.#applySurfaceSlotRect(slot, nextRect, metrics, false)
     }
   }
 
@@ -1065,7 +1066,9 @@ export class UiRuntime {
     forceSetRect: boolean,
   ): void {
     const previous = slot.rect
+    const previousScale = slot.pixelScale
     slot.rect = rect
+    slot.pixelScale = metrics.scale
     const visible = rect.visible !== false && rect.w > 0 && rect.h > 0
     slot.surface.node.visible = visible
     if (!visible) return
@@ -1075,7 +1078,8 @@ export class UiRuntime {
     slot.surface.node.updateMatrix()
 
     const sizeChanged = previous.w !== rect.w || previous.h !== rect.h || previous.visible === false || rect.visible === false
-    if (forceSetRect || sizeChanged) {
+    const scaleChanged = previousScale === undefined || previousScale !== metrics.scale
+    if (forceSetRect || sizeChanged || scaleChanged) {
       slot.surface.setRect(rect, metrics.scale, this.font)
     } else if (previous.x !== rect.x || previous.y !== rect.y) {
       slot.surface.moveRect?.(rect, metrics.scale, this.font) ?? slot.surface.setRect(rect, metrics.scale, this.font)

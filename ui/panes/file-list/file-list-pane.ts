@@ -197,6 +197,7 @@ export class FileListPane extends UiSurface {
   #selectionMode: FileListSelectionMode
   #selectedIds: string[]
   #expandedIds: Set<string>
+  #visibleRows: FileListVisibleRow[] | null = null
   #activeId: string | null
   #selectionAnchorId: string | null
   #showHeader: boolean
@@ -251,6 +252,7 @@ export class FileListPane extends UiSurface {
 
   setItems(items: readonly FileListItem[]): void {
     this.#items = items
+    this.#visibleRows = null
     const nextSelection = normalizeFileListSelection(this.#selectedIds, this.#items, this.#selectionMode)
     const selectionChanged = !sameStringArray(nextSelection, this.#selectedIds)
     this.#selectedIds = nextSelection
@@ -300,6 +302,7 @@ export class FileListPane extends UiSurface {
     const next = new Set(ids.filter((id) => knownIds.has(id)))
     if (sameStringArray([...next], [...this.#expandedIds])) return
     this.#expandedIds = next
+    this.#visibleRows = null
     this.#emitExpandedChange()
     this.requestRender()
   }
@@ -402,10 +405,10 @@ export class FileListPane extends UiSurface {
 
   protected render(): void {
     this.#renderSurfaceChrome()
-    this.#syncActiveToVisibleRows()
+    const rows = this.#rows()
+    this.#syncActiveToVisibleRows(rows)
     if (this.#showHeader) this.#renderHeader()
     const body = paneBodyRect(this.rectW, this.rectH, {showHeader: this.#showHeader})
-    const rows = this.#rows()
     if (rows.length === 0) {
       span(this, body.x + 12, body.y + 12, Math.max(1, body.w - 24), 24, {
         children: "No files",
@@ -484,7 +487,7 @@ export class FileListPane extends UiSurface {
       children: this.#title,
       style: {fontSize: 13, color: this.#theme.header.title},
     })
-    const status = this.#headerStatus()
+    const status = this.#headerStatus(this.#rows())
     const statusW = Math.max(72, Math.min(180, this.rectW * 0.34))
     span(this, this.rectW - PANE_FRAME.headerTextX - statusW, PANE_FRAME.headerTextY - 3, statusW, 22, {
       children: status,
@@ -590,14 +593,10 @@ export class FileListPane extends UiSurface {
       const tabY = y + size * 0.20
       const tabW = size * 0.42
       const tabH = size * 0.26
-      const backX = x + size * 0.07
-      const backY = y + size * 0.34
-      const backW = size * 0.82
-      const backH = size * 0.24
       const bodyX = x + size * 0.07
-      const bodyY = y + size * 0.42
+      const bodyY = y + size * 0.36
       const bodyW = size * 0.86
-      const bodyH = size * 0.46
+      const bodyH = size * 0.52
       const border = disabled ? null : withAlpha(palette.borderBright, 0.24)
 
       this.drawRoundedRect(tabX, tabY, tabW, tabH, {
@@ -607,13 +606,6 @@ export class FileListPane extends UiSurface {
         borderWidth: 0.8,
         z: Z.ELEMENT_RULE,
       })
-      this.drawRoundedRect(backX, backY, backW, backH, {
-        radius: {tl: 1.8, tr: 1.8, br: 0.8, bl: 0.8},
-        fill: mixColor(fill, palette.text, disabled ? 0 : 0.08),
-        border,
-        borderWidth: 0.8,
-        z: Z.ELEMENT_RULE + 0.01,
-      })
       this.drawRoundedRect(bodyX, bodyY, bodyW, bodyH, {
         radius: 2.2,
         fill,
@@ -621,7 +613,6 @@ export class FileListPane extends UiSurface {
         borderWidth: 0.8,
         z: Z.ELEMENT_RULE + 0.02,
       })
-      this.drawRect(bodyX + 1.4, bodyY + 1.4, Math.max(1, bodyW - 2.8), 1, withAlpha(palette.text, disabled ? 0.06 : 0.14), Z.ELEMENT_RULE + 0.03)
       return
     }
 
@@ -738,6 +729,7 @@ export class FileListPane extends UiSurface {
     if (expanded) this.#expandedIds.add(item.id)
     else this.#expandedIds.delete(item.id)
     if (wasExpanded === expanded) return
+    this.#visibleRows = null
     this.#onDirectoryToggle?.(item, expanded)
     this.#emitExpandedChange()
     this.requestRender()
@@ -764,7 +756,8 @@ export class FileListPane extends UiSurface {
   }
 
   #rows(): FileListVisibleRow[] {
-    return fileListVisibleRows(this.#items, this.#expandedIds)
+    this.#visibleRows ??= fileListVisibleRows(this.#items, this.#expandedIds)
+    return this.#visibleRows
   }
 
   #activeRow(): FileListVisibleRow | null {
@@ -772,8 +765,7 @@ export class FileListPane extends UiSurface {
     return rows.find((row) => row.id === this.#activeId) ?? rows.find((row) => row.item.disabled !== true) ?? null
   }
 
-  #syncActiveToVisibleRows(): void {
-    const rows = this.#rows()
+  #syncActiveToVisibleRows(rows: readonly FileListVisibleRow[] = this.#rows()): void {
     if (rows.length === 0) {
       this.#activeId = null
       return
@@ -794,8 +786,8 @@ export class FileListPane extends UiSurface {
     else if (rowBottom > scroll.top + this.#lastViewportH) divScrollTo(this, FILE_LIST_SCROLL_KEY, {top: rowBottom - this.#lastViewportH})
   }
 
-  #headerStatus(): string {
-    const visible = this.#rows().length
+  #headerStatus(rows: readonly FileListVisibleRow[] = this.#rows()): string {
+    const visible = rows.length
     if (this.#selectedIds.length > 0) return `${this.#selectedIds.length} selected`
     return `${visible} visible`
   }
