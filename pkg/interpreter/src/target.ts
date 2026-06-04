@@ -93,6 +93,7 @@ export class TargetSupervisor {
   #outputFilter: TargetOutputFilterState = {inBunProtocolBanner: false}
   #pauseOnStart = false
   #pendingBreakpoints: BreakpointSpec[] = []
+  #exitHandled: Promise<void> | undefined
 
   constructor(logger: EventLogger) {
     this.#logger = logger
@@ -207,7 +208,8 @@ export class TargetSupervisor {
 
     void this.#pumpStream(subprocess.stdout, "stdout")
     void this.#pumpStream(subprocess.stderr, "stderr")
-    void this.#waitForExit(subprocess)
+    this.#exitHandled = this.#waitForExit(subprocess)
+    void this.#exitHandled
 
     return this.snapshot()
   }
@@ -225,16 +227,7 @@ export class TargetSupervisor {
     }
 
     // Через 3с эскалируем до SIGKILL если процесс ещё жив.
-    setTimeout(() => {
-      if (this.#child === child && this.#state === "running") {
-        try {
-          child.kill("SIGKILL")
-          this.#logger.event("target.kill.escalated", {pid: this.#pid, signal: "SIGKILL"})
-        } catch (error) {
-          this.#logger.event("target.kill.escalate_failed", {pid: this.#pid, error: serializeError(error)})
-        }
-      }
-    }, 3000)
+    await this.#waitForStoppedChild(child)
 
     return this.snapshot()
   }
@@ -246,20 +239,28 @@ export class TargetSupervisor {
       child.kill("SIGTERM")
     } catch {}
 
+    await this.#waitForStoppedChild(child)
+  }
+
+  async #waitForStoppedChild(child: Subprocess<"ignore", "pipe", "pipe">): Promise<void> {
+    const exitHandled = this.#exitHandled ?? child.exited.then(() => {})
     await Promise.race([
-      child.exited.then(() => {}),
+      exitHandled,
       sleep(3000).then(() => {
         if (this.#child === child && this.#state === "running") {
           try {
             child.kill("SIGKILL")
-          } catch {}
+            this.#logger.event("target.kill.escalated", {pid: this.#pid, signal: "SIGKILL"})
+          } catch (error) {
+            this.#logger.event("target.kill.escalate_failed", {pid: this.#pid, error: serializeError(error)})
+          }
         }
       }),
     ])
 
     if (this.#child === child && this.#state === "running") {
       await Promise.race([
-        child.exited.then(() => {}),
+        exitHandled,
         sleep(500),
       ])
     }

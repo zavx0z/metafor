@@ -2,7 +2,9 @@ import {describe, expect, test} from "bun:test"
 import {mkdtempSync, rmSync, writeFileSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
-import {logicalBreakpointParams, matchesBreakpointSpec, runtimeBreakpointParams} from "./breakpoints.ts"
+import {BreakpointStore, logicalBreakpointParams, matchesBreakpointSpec, runtimeBreakpointParams} from "./breakpoints.ts"
+import {EventLogger} from "./logger.ts"
+import type {ProtocolClient} from "./protocol-client.ts"
 
 describe("matchesBreakpointSpec", () => {
   test("matches file URL and absolute path variants", () => {
@@ -95,6 +97,52 @@ describe("logicalBreakpointParams", () => {
       expect(params?.["url"]).toBe(join(dir, "server.ts"))
       expect(params?.["lineNumber"]).toBe(1)
       expect(params?.["columnNumber"]).toBe(0)
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test("arms local TypeScript breakpoints before the script is parsed", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const file = join(dir, "server.ts")
+      writeFileSync(file, [
+        "import {join} from 'node:path'",
+        "",
+        "type State = {value: string}",
+        "const state: State = {value: join('a', 'b')}",
+        "console.log(state.value)",
+        "",
+      ].join("\n"))
+
+      const requests: Array<{method: string; params: Record<string, unknown> | undefined}> = []
+      const client = {
+        async request(method: string, params?: Record<string, unknown>): Promise<unknown> {
+          requests.push({method, params})
+          if (method === "Debugger.setBreakpointByUrl") {
+            return {
+              breakpointId: "runtime:1",
+              locations: [{scriptId: "future", lineNumber: 1, columnNumber: 0}],
+            }
+          }
+          return {}
+        },
+      } as unknown as ProtocolClient
+      const logger = new EventLogger(join(dir, "events.log"))
+      const store = new BreakpointStore({client, logger})
+      const registration = store.add({url: file, line: 4})
+
+      await store.armPendingByUrl([registration.id])
+
+      expect(requests[0]).toEqual({
+        method: "Debugger.setBreakpointByUrl",
+        params: {
+          url: file,
+          lineNumber: 1,
+          columnNumber: 0,
+        },
+      })
+      expect(requests.map((request) => request.method)).toContain("Debugger.setBreakpointsActive")
     } finally {
       rmSync(dir, {recursive: true, force: true})
     }

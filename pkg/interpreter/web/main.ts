@@ -4442,9 +4442,18 @@ async function restartModule(moduleId: string): Promise<void> {
   const snapshot = moduleSnapshots.get(moduleId)
   const controller = moduleDisplays.get(moduleId)
   if (controller?.activeCommand !== null && controller?.activeCommand !== undefined) return
-  const command = snapshot?.target.command
-  if (command === undefined || command.length === 0) return
-  await stopModule(moduleId)
+  if (snapshot === undefined || snapshot.target.command.length === 0) return
+  const command = snapshot.target.command
+  const activeCommand: ActiveInterpreterCommand = {
+    cmd: "restart",
+    label: t("restartTarget"),
+    startedAt: performance.now(),
+  }
+  if (controller !== undefined) {
+    controller.activeCommand = activeCommand
+    updateModuleToolbar(controller, snapshot)
+    syncModuleTerminalInput(controller)
+  }
   const breakpoints = readStoredBreakpointSpecs()
   const body = interactiveRestartPayload({
     label: snapshot?.label ?? moduleId,
@@ -4452,11 +4461,21 @@ async function restartModule(moduleId: string): Promise<void> {
     breakpoints,
   })
   try {
-    await fetch(`/modules/${encodeURIComponent(moduleId)}/run`, {
+    const stopped = await stopModule(moduleId, {force: true})
+    if (!stopped) return
+    const res = await fetch(`/modules/${encodeURIComponent(moduleId)}/run`, {
       method: "POST",
       headers: {"content-type": "application/json"},
       body: JSON.stringify(body),
     })
+    const data = await res.json().catch(() => null) as {ok?: boolean; error?: string} | null
+    if ((!res.ok || data?.ok === false) && controller !== undefined) {
+      appendModuleTerminal(controller, {
+        ts: new Date().toISOString(),
+        level: "error",
+        text: `[ui] ${t("restartTarget")}: ${data?.error ?? res.statusText}`,
+      })
+    }
   } catch (error) {
     if (controller !== undefined) {
       appendModuleTerminal(controller, {
@@ -4465,14 +4484,28 @@ async function restartModule(moduleId: string): Promise<void> {
         text: `[ui] ${t("restartTarget")}: ${String(error)}`,
       })
     }
+  } finally {
+    if (controller?.activeCommand === activeCommand) controller.activeCommand = null
+    const nextSnapshot = moduleSnapshots.get(moduleId)
+    if (controller !== undefined && nextSnapshot !== undefined) updateModuleToolbar(controller, nextSnapshot)
+    if (controller !== undefined) syncModuleTerminalInput(controller)
   }
 }
 
-async function stopModule(moduleId: string): Promise<void> {
+async function stopModule(moduleId: string, options: {force?: boolean} = {}): Promise<boolean> {
   const controller = moduleDisplays.get(moduleId)
-  if (controller?.activeCommand !== null && controller?.activeCommand !== undefined) return
+  if (options.force !== true && controller?.activeCommand !== null && controller?.activeCommand !== undefined) return false
   try {
-    await fetch(`/modules/${encodeURIComponent(moduleId)}/stop`, {method: "POST"})
+    const res = await fetch(`/modules/${encodeURIComponent(moduleId)}/stop`, {method: "POST"})
+    const data = await res.json().catch(() => null) as {ok?: boolean; error?: string} | null
+    if ((!res.ok || data?.ok === false) && controller !== undefined) {
+      appendModuleTerminal(controller, {
+        ts: new Date().toISOString(),
+        level: "error",
+        text: `[ui] module ${moduleId}/stop: ${data?.error ?? res.statusText}`,
+      })
+    }
+    return res.ok && data?.ok !== false
   } catch (error) {
     if (controller !== undefined) {
       appendModuleTerminal(controller, {
@@ -4481,6 +4514,7 @@ async function stopModule(moduleId: string): Promise<void> {
         text: `[ui] module ${moduleId}/stop: ${String(error)}`,
       })
     }
+    return false
   }
 }
 

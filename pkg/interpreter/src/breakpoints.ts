@@ -193,7 +193,7 @@ export class BreakpointStore {
   async #installLogicalByUrl(tracked: TrackedBreakpoint): Promise<boolean> {
     if (tracked.logicalBreakpointIds.size > 0) return true
 
-    const params = logicalBreakpointParams(tracked.spec)
+    const params = logicalBreakpointParams(tracked.spec) ?? runtimeBreakpointParams(tracked.spec)
     if (params === null) return false
 
     try {
@@ -217,6 +217,7 @@ export class BreakpointStore {
         url: logicalBreakpointUrl(params),
         result,
       }, `logical:${breakpointId}`)
+      await this.#activateBreakpoints()
       return true
     } catch (error) {
       this.#logger.event("breakpoint.logical_by_url.failed", {
