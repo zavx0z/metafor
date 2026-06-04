@@ -513,6 +513,28 @@ select,
   padding: 0 10px;
 }
 
+.readPromptField {
+  gap: 6px;
+}
+
+.readPromptEditor {
+  min-height: 96px;
+  max-height: 180px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.referenceRecordOptions {
+  display: grid;
+  grid-template-columns: minmax(112px, 0.42fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.referenceRecordOptions button {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
 .labEndpointBar {
   grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
   margin-top: 0;
@@ -961,6 +983,7 @@ select,
   }
 
   .recordControls,
+  .referenceRecordOptions,
   .referenceMeters,
   .settingsGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

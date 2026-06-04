@@ -102,6 +102,13 @@ type TtsOptions = {
   removeSilence: boolean;
 };
 
+type TtsReferencePrompt = {
+  audioPath: string;
+  textPath: string;
+  text: string;
+  seconds: number;
+};
+
 type TtsSegment =
   | {
       kind: "speech";
@@ -169,6 +176,13 @@ const WEB_ROOT = import.meta.dir;
 const WHISPER_RECORDINGS_ROOT = resolve(WEB_ROOT, "../../recordings/whisper");
 const WHISPER_USERS_PATH = join(WHISPER_RECORDINGS_ROOT, "users.json");
 const MAX_WHISPER_AUDIO_BYTES = positiveNumberFromEnv("VOICE_WHISPER_MAX_AUDIO_BYTES", 80 * 1024 * 1024);
+const TTS_REFERENCE_PROMPT_SECONDS = positiveNumberFromEnv("VOICE_TTS_REFERENCE_PROMPT_SECONDS", 5);
+const TTS_REFERENCE_PROMPT_MAX_SENTENCES = Math.round(
+  positiveNumberFromEnv("VOICE_TTS_REFERENCE_PROMPT_MAX_SENTENCES", 3),
+);
+const TTS_REFERENCE_PROMPT_MAX_CHARS = Math.round(
+  positiveNumberFromEnv("VOICE_TTS_REFERENCE_PROMPT_MAX_CHARS", 120),
+);
 
 const router = createCommandRouter(defaultVoiceCommands);
 const grammar = USE_GRAMMAR ? commandGrammar(router.recognitionPhrases) : undefined;
@@ -1025,12 +1039,10 @@ async function generateWhisperTts(req: Request, sessionId: string): Promise<Resp
 
     const dir = join(WHISPER_RECORDINGS_ROOT, sessionId);
     const referenceAudioPath = join(dir, "reference.wav");
-    const referenceTextPath = join(dir, "reference.txt");
     if (!existsSync(referenceAudioPath)) {
       await writeWhisperReference(sessionId, referenceText);
-    } else {
-      await Bun.write(referenceTextPath, referenceText);
     }
+    const promptReference = await prepareTtsReferencePrompt(dir, referenceText);
 
     const createdAt = new Date().toISOString();
     const ttsTextPath = join(dir, "tts.txt");
@@ -1046,8 +1058,8 @@ async function generateWhisperTts(req: Request, sessionId: string): Promise<Resp
     await runCommand(["ssh", TTS_CONFIG.sshHost, `mkdir -p ${shellQuote(remoteDir)}`]);
     await runCommand([
       "scp",
-      referenceAudioPath,
-      referenceTextPath,
+      promptReference.audioPath,
+      promptReference.textPath,
       ttsTextPath,
       ttsSegmentsPath,
       ttsRunnerPath,
@@ -1076,6 +1088,12 @@ async function generateWhisperTts(req: Request, sessionId: string): Promise<Resp
             textFile: "reference.txt",
             text: referenceText,
           },
+          promptReference: {
+            file: "tts-reference.wav",
+            textFile: "tts-reference.txt",
+            text: promptReference.text,
+            seconds: promptReference.seconds,
+          },
           segments,
           tts: {
             sshHost: TTS_CONFIG.sshHost,
@@ -1103,6 +1121,87 @@ async function generateWhisperTts(req: Request, sessionId: string): Promise<Resp
       400,
     );
   }
+}
+
+async function prepareTtsReferencePrompt(dir: string, referenceText: string): Promise<TtsReferencePrompt> {
+  const sourceAudioPath = join(dir, "reference.wav");
+  const audioPath = join(dir, "tts-reference.wav");
+  const textPath = join(dir, "tts-reference.txt");
+  const text = shortTtsReferenceText(referenceText);
+  const seconds = Math.max(1, TTS_REFERENCE_PROMPT_SECONDS);
+
+  await runCommand([
+    "ffmpeg",
+    "-hide_banner",
+    "-y",
+    "-i",
+    sourceAudioPath,
+    "-t",
+    String(seconds),
+    "-ar",
+    "16000",
+    "-ac",
+    "1",
+    audioPath,
+  ]);
+  await Bun.write(textPath, text);
+
+  return {
+    audioPath,
+    textPath,
+    text,
+    seconds,
+  };
+}
+
+function shortTtsReferenceText(referenceText: string): string {
+  const source = cleanupOneLine(referenceText);
+  if (!source) return "";
+
+  const maxSentences = Math.max(1, TTS_REFERENCE_PROMPT_MAX_SENTENCES);
+  const maxChars = Math.max(24, TTS_REFERENCE_PROMPT_MAX_CHARS);
+  const selected: string[] = [];
+  let length = 0;
+
+  for (const sentence of splitSentences(source)) {
+    const nextLength = length + (selected.length > 0 ? 1 : 0) + sentence.length;
+    if (selected.length > 0 && nextLength > maxChars) break;
+    selected.push(sentence);
+    length = nextLength;
+    if (selected.length >= maxSentences) break;
+  }
+
+  const result = cleanupOneLine(selected.join(" "));
+  if (result) return result.length <= maxChars ? result : trimTextAtWord(result, maxChars);
+  return trimTextAtWord(source, maxChars);
+}
+
+function splitSentences(text: string): string[] {
+  const sentences: string[] = [];
+  let start = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (!/[.!?…]/.test(char)) continue;
+
+    const next = text[index + 1] ?? "";
+    if (next && !/\s/.test(next)) continue;
+
+    const sentence = text.slice(start, index + 1).trim();
+    if (sentence) sentences.push(sentence);
+    start = index + 1;
+  }
+
+  const tail = text.slice(start).trim();
+  if (tail) sentences.push(tail);
+  return sentences;
+}
+
+function trimTextAtWord(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const sliced = text.slice(0, maxChars);
+  const lastSpace = sliced.lastIndexOf(" ");
+  return (lastSpace > 24 ? sliced.slice(0, lastSpace) : sliced).trim();
 }
 
 function ttsOptionsFromBody(body: Record<string, unknown>): TtsOptions {
@@ -1185,8 +1284,8 @@ import shutil
 import subprocess
 
 base = Path(${JSON.stringify(remoteDir)})
-ref_audio = base / "reference.wav"
-ref_text = (base / "reference.txt").read_text(encoding="utf-8").strip()
+ref_audio = base / "tts-reference.wav"
+ref_text = (base / "tts-reference.txt").read_text(encoding="utf-8").strip()
 segments = json.loads((base / "tts-segments.json").read_text(encoding="utf-8"))["segments"]
 parts_dir = base / "parts"
 parts_dir.mkdir(exist_ok=True)

@@ -8,6 +8,10 @@ const els = {
   startBtn: $("startBtn"),
   stopSaveBtn: $("stopSaveBtn"),
   saveBtn: $("saveBtn"),
+  referenceReadText: $("referenceReadText"),
+  referenceRecordSeconds: $("referenceRecordSeconds"),
+  referenceTimerText: $("referenceTimerText"),
+  nextReferenceTextBtn: $("nextReferenceTextBtn"),
   sampleRate: $("sampleRate"),
   audioBytes: $("audioBytes"),
   partialText: $("partialText"),
@@ -53,9 +57,20 @@ const storageKeys = {
   remoteUrl: "voice.whisper.remoteUrl",
   context: "voice.whisper.context",
   userId: "voice.whisper.userId",
+  referencePrompt: "voice.whisper.referencePrompt",
+  referencePromptIndex: "voice.whisper.referencePromptIndex",
+  referenceSeconds: "voice.whisper.referenceSeconds",
 };
 
 const DEFAULT_USER_ID = "default";
+const DEFAULT_REFERENCE_SECONDS = 10;
+const REFERENCE_READ_PROMPTS = [
+  "Добрый день. Это короткий голосовой образец для синтеза речи. Я говорю ровно, спокойно и без спешки.",
+  "Сегодня мы записываем пример голоса. Фраза должна звучать естественно, с обычной интонацией и понятными паузами.",
+  "Производство номер один проверяет качество речи. Управление паузами, ударениями и скоростью должно работать стабильно.",
+  "Этот текст нужен для референса голоса. Я читаю его уверенно, в среднем темпе, без лишнего шума и резких остановок.",
+  "Проверяем дикторский стиль. Голос остается ровным, слова произносятся четко, а предложения разделяются короткими паузами.",
+];
 
 let info = null;
 let ws = null;
@@ -94,6 +109,11 @@ let ttsBusy = false;
 let ttsAccentBusy = false;
 let captureMode = null;
 let captureSaved = false;
+let referencePromptIndex = Number(localStorage.getItem(storageKeys.referencePromptIndex) || 0);
+let referenceTimerId = null;
+let referenceTimerStartedAt = 0;
+let referenceTimerDurationMs = 0;
+let referenceAutoStopRequested = false;
 
 const MAX_QUEUED_PCM_BYTES = 8 * 1024 * 1024;
 const PCM_FLUSH_BYTES = 4096;
@@ -139,9 +159,20 @@ async function loadInfo() {
 }
 
 function bindEvents() {
-  els.startBtn.addEventListener("click", () => startCapture("reference").catch(showError));
+  els.startBtn.addEventListener("click", () => startTimedReferenceCapture().catch(showError));
   els.stopSaveBtn.addEventListener("click", () => stopAndSave().catch(showError));
-  els.saveBtn.addEventListener("click", () => saveSession().catch(showError));
+  els.saveBtn.addEventListener("click", () => saveSession("reference").catch(showError));
+  els.referenceReadText.addEventListener("input", saveSettings);
+  els.referenceRecordSeconds.addEventListener("input", () => {
+    saveSettings();
+    renderReferenceTimerIdle();
+  });
+  els.referenceRecordSeconds.addEventListener("change", () => {
+    els.referenceRecordSeconds.value = String(referenceRecordSeconds());
+    saveSettings();
+    renderReferenceTimerIdle();
+  });
+  els.nextReferenceTextBtn.addEventListener("click", () => nextReferencePrompt());
   els.addUserBtn.addEventListener("click", () => addUser().catch(showError));
   els.deleteUserBtn.addEventListener("click", () => deleteSelectedUser().catch(showError));
   els.userNameInput.addEventListener("keydown", (event) => {
@@ -179,15 +210,110 @@ function bindEvents() {
 function restoreSettings() {
   els.remoteUrl.value = localStorage.getItem(storageKeys.remoteUrl) || els.remoteUrl.value;
   els.contextText.value = localStorage.getItem(storageKeys.context) || els.contextText.value;
+  els.referenceRecordSeconds.value = localStorage.getItem(storageKeys.referenceSeconds) || String(DEFAULT_REFERENCE_SECONDS);
+  referencePromptIndex = safePromptIndex(referencePromptIndex);
+  els.referenceReadText.value = localStorage.getItem(storageKeys.referencePrompt)
+    || REFERENCE_READ_PROMPTS[referencePromptIndex];
+  renderReferenceTimerIdle();
 }
 
 function saveSettings() {
   localStorage.setItem(storageKeys.remoteUrl, els.remoteUrl.value.trim());
   localStorage.setItem(storageKeys.context, els.contextText.value.trim());
+  localStorage.setItem(storageKeys.referencePrompt, els.referenceReadText.value.trim());
+  localStorage.setItem(storageKeys.referenceSeconds, String(referenceRecordSeconds()));
 }
 
 function resetTtsTextField() {
   els.ttsText.value = "";
+}
+
+function safePromptIndex(index) {
+  const value = Number.isFinite(index) ? Math.trunc(index) : 0;
+  return ((value % REFERENCE_READ_PROMPTS.length) + REFERENCE_READ_PROMPTS.length) % REFERENCE_READ_PROMPTS.length;
+}
+
+function setReferencePrompt(text) {
+  els.referenceReadText.value = text;
+  saveSettings();
+}
+
+function nextReferencePrompt() {
+  referencePromptIndex = safePromptIndex(referencePromptIndex + 1);
+  localStorage.setItem(storageKeys.referencePromptIndex, String(referencePromptIndex));
+  setReferencePrompt(REFERENCE_READ_PROMPTS[referencePromptIndex]);
+}
+
+function referenceRecordSeconds() {
+  const value = Math.round(numberInputValue(els.referenceRecordSeconds, DEFAULT_REFERENCE_SECONDS));
+  return Math.min(20, Math.max(4, value));
+}
+
+function referenceTextForSave() {
+  return els.referenceReadText.value.trim() || els.transcriptText.value.trim();
+}
+
+function startReferenceTimer(seconds) {
+  clearReferenceTimer();
+  referenceTimerDurationMs = seconds * 1000;
+  referenceTimerStartedAt = Date.now();
+  referenceAutoStopRequested = false;
+  updateReferenceTimer();
+  referenceTimerId = window.setInterval(updateReferenceTimer, 250);
+}
+
+function clearReferenceTimer(statusText = null) {
+  if (referenceTimerId !== null) {
+    window.clearInterval(referenceTimerId);
+    referenceTimerId = null;
+  }
+  referenceTimerStartedAt = 0;
+  referenceTimerDurationMs = 0;
+  referenceAutoStopRequested = false;
+  if (statusText !== null) {
+    els.referenceTimerText.textContent = statusText;
+  }
+}
+
+function updateReferenceTimer() {
+  if (!stream || captureMode !== "reference" || referenceTimerDurationMs <= 0) {
+    clearReferenceTimer();
+    renderReferenceTimerIdle();
+    return;
+  }
+
+  updateReferenceTimerText();
+  const elapsedMs = Date.now() - referenceTimerStartedAt;
+  if (elapsedMs < referenceTimerDurationMs || referenceAutoStopRequested) return;
+
+  referenceAutoStopRequested = true;
+  clearReferenceTimer("сохраняю...");
+  stopAndSave().catch(showError);
+}
+
+function updateReferenceTimerText() {
+  if (captureMode !== "reference" || !stream || referenceTimerDurationMs <= 0) {
+    renderReferenceTimerIdle();
+    return;
+  }
+  const remainingMs = Math.max(0, referenceTimerDurationMs - (Date.now() - referenceTimerStartedAt));
+  els.referenceTimerText.textContent = `${Math.ceil(remainingMs / 1000)} с`;
+}
+
+function renderReferenceTimerIdle() {
+  if (stream && captureMode === "reference") return;
+  els.referenceTimerText.textContent = `${referenceRecordSeconds()} с`;
+}
+
+async function startTimedReferenceCapture() {
+  if (stream) return;
+  if (!els.referenceReadText.value.trim()) {
+    setReferencePrompt(REFERENCE_READ_PROMPTS[safePromptIndex(referencePromptIndex)]);
+  }
+  const seconds = referenceRecordSeconds();
+  els.referenceRecordSeconds.value = String(seconds);
+  await startCapture("reference");
+  startReferenceTimer(seconds);
 }
 
 async function startCapture(mode) {
@@ -370,6 +496,7 @@ function maybeAutoCommit() {
 
 async function stopAndSave() {
   if (captureMode && captureMode !== "reference") return;
+  clearReferenceTimer("сохраняю...");
   if (stream && ws?.readyState === WebSocket.OPEN && recordedBytes > 0) {
     await requestCommit();
   }
@@ -382,9 +509,10 @@ async function stopAndSave() {
   stopAudioOnly();
   setRunning(false);
   if (recordedBytes > 0) {
-    await saveSession();
+    await saveSession("reference");
   } else {
     setStatus("ready", false);
+    renderReferenceTimerIdle();
   }
 }
 
@@ -413,6 +541,7 @@ async function stopTtsDictation() {
 }
 
 function stopAudioOnly() {
+  clearReferenceTimer();
   clearOutboundPcm();
   if (captureNode) captureNode.disconnect();
   if (sourceNode) sourceNode.disconnect();
@@ -432,13 +561,15 @@ function stopAudioOnly() {
   scheduleWaveformDraw();
 }
 
-async function saveSession() {
+async function saveSession(mode = captureMode) {
   if (recordedBytes <= 0) {
     throw new Error("Нет записанного аудио");
   }
 
   setStatus("saving", false);
-  const transcript = els.transcriptText.value.trim();
+  const transcript = mode === "reference"
+    ? referenceTextForSave()
+    : els.transcriptText.value.trim();
   const wav = pcmChunksToWav(recordedChunks, recordedSampleRate);
   const meta = {
     sampleRate: recordedSampleRate,
@@ -474,6 +605,7 @@ async function saveSession() {
   if (data.session?.id) {
     await prepareSample(data.session.id, transcript || data.session.transcript || "");
   }
+  renderReferenceTimerIdle();
 }
 
 async function refreshUsers(preferredUserId = selectedUserId) {
@@ -1393,6 +1525,7 @@ function resetCaptureState() {
   els.audioBytes.textContent = "0 KB";
   setLivePartial("");
   renderTranscript();
+  renderReferenceTimerIdle();
 }
 
 function setRunning(running) {
@@ -1402,12 +1535,16 @@ function setRunning(running) {
   els.startBtn.disabled = running || ttsAccentBusy;
   els.stopSaveBtn.disabled = !referenceRunning;
   els.saveBtn.disabled = !canSaveReference;
+  els.referenceReadText.disabled = running;
+  els.referenceRecordSeconds.disabled = running;
+  els.nextReferenceTextBtn.disabled = running;
   els.ttsRecordBtn.disabled = running || ttsAccentBusy;
   els.ttsAccentBtn.disabled = running || ttsAccentBusy || !els.ttsText.value.trim();
   els.ttsStopBtn.disabled = !ttsRunning;
   els.remoteUrl.disabled = running;
   els.contextText.disabled = running;
   renderSelectedSession();
+  if (!referenceRunning) renderReferenceTimerIdle();
 }
 
 function setRecordingStatus() {
@@ -1417,6 +1554,7 @@ function setRecordingStatus() {
     return;
   }
   setStatus("recording", true);
+  updateReferenceTimerText();
 }
 
 function setLivePartial(text) {

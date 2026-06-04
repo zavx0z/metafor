@@ -50,6 +50,26 @@
                 <span id="partialText">-</span>
               </div>
 
+              <label class="field readPromptField">
+                <span class="ttsTextHeader">
+                  <span>Текст для чтения</span>
+                  <span id="referenceTimerText">-</span>
+                </span>
+                <textarea
+                  id="referenceReadText"
+                  class="ttsEditor readPromptEditor"
+                  spellcheck="true"
+                ></textarea>
+              </label>
+
+              <div class="referenceRecordOptions">
+                <label class="miniField">
+                  <span class="settingLabel">Секунды <span class="helpIcon" tabindex="0" data-tip="Длительность записи образца. По окончании запись сама остановится и сохранится.">?</span></span>
+                  <input id="referenceRecordSeconds" type="number" min="4" max="20" step="1" value="8" />
+                </label>
+                <button id="nextReferenceTextBtn" type="button">Новый текст</button>
+              </div>
+
               <div class="recordControls">
                 <button id="startBtn" type="button">Старт</button>
                 <button id="stopSaveBtn" type="button" disabled>Стоп и сохранить</button>
@@ -205,6 +225,6 @@
       </section>
     </main>
 
-    <script type="module" src="/whisper.js?v=20260604-sentence-transcript"></script>
+    <script type="module" src="/whisper.js?v=20260604-reference-timer"></script>
   </body>
 </html>
