@@ -79,6 +79,15 @@ Display API:
 - `POST /agent/displays/focus` focuses one display.
 - `POST /agent/displays/frame` returns the overview of all displays.
 
+Interpreter workspace API:
+
+- `GET /agent/interpreters` returns each module interpreter as an agent workspace: display geometry, runtime status, current UI source/frame context, terminal input state with `textTail`, and supported actions.
+- `POST /agent/interpreters/resolve` resolves one interpreter from the same selector shape as display focus and returns its workspace payload.
+- `POST /agent/interpreters/focus` focuses one interpreter display and returns that interpreter workspace payload.
+- `POST /agent/interpreters/action` runs a display-scoped action in one interpreter. Body shape: `{"selector":{...},"action":"pause|resume|step|evaluate|restart|stop|showExecutionPoint","params":{...}}`.
+- `evaluate` accepts `{"expr":"...","frame":0}` and writes the agent expression/result into the module terminal so the human sees the shared action. Agent terminal entries are replayed after UI reload for the same target run.
+- `step` accepts `{"kind":"over"|"into"|"out"}`.
+
 Display selectors accepted by `/agent/displays/focus`:
 
 ```json
@@ -104,6 +113,16 @@ For normal display focus, omit `dockHostTerminal`:
 curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
   -H 'content-type: application/json' \
   -d '{"selector":{"side":"left"}}'
+```
+
+For agent collaboration on a concrete interpreter, use `/agent/interpreters/*` instead of guessing the module id from screen position:
+
+```sh
+curl -sS http://127.0.0.1:6500/agent/interpreters
+
+curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/action \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"side":"left"},"action":"evaluate","params":{"expr":"globalThis.location","frame":0}}'
 ```
 
 Terminal HUD API:

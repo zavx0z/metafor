@@ -529,6 +529,7 @@ registerProcessor("voice-capture", VoiceCaptureProcessor);
     if (rms >= VOICE_RMS_THRESHOLD) {
       this.#hasSpeechSinceCommit = true
       this.#lastSpeechAt = now
+      this.#lastRecognitionAt = now
     }
 
     const sampleRate = this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE

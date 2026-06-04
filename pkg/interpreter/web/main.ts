@@ -164,6 +164,51 @@ type AgentDisplayInfo = UiRuntimeDisplaySnapshot & {
   label: string
   order: number
 }
+type AgentInterpreterInfo = {
+  id: string
+  moduleId: string
+  displayId: string
+  label: string
+  order: number
+  display: AgentDisplayInfo | null
+  runtime: {
+    protocolUrl: string
+    connection: ConnectionInfo
+    paused: boolean
+    scriptCount: number
+    hasDump: boolean
+    target: Omit<ModulePaneSnapshot["target"], "output"> & {
+      outputTail: ModuleLine[]
+    }
+  }
+  ui: {
+    source: {
+      state: SourceRuntimeState | null
+      location: string
+      identity: BreakpointSourceIdentity | null
+    }
+    activeFrameIndex: number | null
+    currentFrame: FrameSnapshot | null
+    terminal: {
+      canAcceptInput: boolean
+      focused: boolean
+      pendingInput: string
+      promptVisible: boolean
+      textTail: string[]
+    }
+    activeCommand: ActiveInterpreterCommand | null
+    verboseVisible: boolean
+  }
+  capabilities: {
+    pause: boolean
+    resume: boolean
+    step: boolean
+    evaluate: boolean
+    restart: boolean
+    stop: boolean
+    showExecutionPoint: boolean
+  }
+}
 type PtyStatusKind = "idle" | "connected" | "running" | "disconnected" | "error"
 type PtyTerminalState = {
   echo: boolean
@@ -205,6 +250,9 @@ type ModuleDisplayController = {
   sourceLocation: string
   sourceRuntimeState: SourceRuntimeState
   outputLineCount: number
+  agentTerminalEntries: AgentModuleTerminalEntry[]
+  agentOutputLineCount: number
+  agentTerminalTargetStartedAt: string | null
   activeCommand: ActiveInterpreterCommand | null
   verboseVisible: boolean
   terminalInput: {
@@ -466,9 +514,9 @@ function handleServerMessage(msg: ServerMessage): void {
   }
 }
 
-function handleAgentCommand(msg: Extract<ServerMessage, {type: "agent-command"}>): void {
+async function handleAgentCommand(msg: Extract<ServerMessage, {type: "agent-command"}>): Promise<void> {
   try {
-    const result = executeAgentCommand(msg.command, msg.params)
+    const result = await executeAgentCommand(msg.command, msg.params)
     sendAgentResult(msg.requestId, {ok: true, result})
   } catch (error) {
     sendAgentResult(msg.requestId, {ok: false, error: error instanceof Error ? error.message : String(error)})
@@ -486,7 +534,7 @@ function sendAgentResult(requestId: number, reply: CommandReply): void {
   }))
 }
 
-function executeAgentCommand(command: string, params: unknown): unknown {
+async function executeAgentCommand(command: string, params: unknown): Promise<unknown> {
   switch (command) {
     case "displays.list":
     case "agent.displays.list":
@@ -497,6 +545,18 @@ function executeAgentCommand(command: string, params: unknown): unknown {
     case "displays.frame":
     case "agent.displays.frame":
       return frameAgentDisplays()
+    case "interpreters.list":
+    case "agent.interpreters.list":
+      return agentInterpretersPayload()
+    case "interpreters.resolve":
+    case "agent.interpreters.resolve":
+      return resolveAgentInterpreterPayload(params)
+    case "interpreters.focus":
+    case "agent.interpreters.focus":
+      return focusAgentInterpreter(params)
+    case "interpreters.action":
+    case "agent.interpreters.action":
+      return await runAgentInterpreterAction(params)
     case "terminal.get":
     case "agent.terminal.get":
       return agentTerminalPayload()
@@ -537,6 +597,8 @@ function focusAgentDisplay(params: unknown): unknown {
   if (view === "full" && body["dockHostTerminal"] === true) setHostTerminalHudDocked(true)
   const focused = uiCanvas.focusDisplay(display.displayId)
   if (!focused) throw new Error(`display not found: ${display.displayId}`)
+  const controller = moduleDisplays.get(display.moduleId)
+  if (controller !== undefined) scrollAgentModuleTerminalToBottom(controller)
   return {
     resolved: display,
     view,
@@ -548,6 +610,148 @@ function frameAgentDisplays(): unknown {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
   uiCanvas.frameDisplays(moduleOrder.map((moduleId) => moduleDisplayId(moduleId)))
   return agentDisplayPayload()
+}
+
+function agentInterpretersPayload(): {
+  mode: string
+  activeDisplayId: string | null
+  interpreters: AgentInterpreterInfo[]
+} {
+  if (uiCanvas === null) throw new Error("ui runtime is not ready")
+  const displays = new Map(agentDisplayInfos().map((display) => [display.moduleId, display]))
+  return {
+    mode: uiCanvas.displayMode,
+    activeDisplayId: uiCanvas.activeDisplayId,
+    interpreters: moduleOrder
+      .map((moduleId) => agentInterpreterInfo(moduleId, displays.get(moduleId) ?? null))
+      .filter((info): info is AgentInterpreterInfo => info !== null),
+  }
+}
+
+function resolveAgentInterpreterPayload(params: unknown): unknown {
+  const display = resolveAgentInterpreterDisplay(params)
+  const interpreter = agentInterpreterInfo(display.moduleId, display)
+  if (interpreter === null) throw new Error(`interpreter not found: ${display.moduleId}`)
+  return interpreter
+}
+
+function focusAgentInterpreter(params: unknown): unknown {
+  const focused = focusAgentDisplay(params) as {resolved?: AgentDisplayInfo; view?: unknown}
+  const resolved = focused.resolved
+  if (resolved === undefined) throw new Error("interpreter display not found")
+  focusAgentInterpreterTerminal(resolved.moduleId)
+  const interpreter = agentInterpreterInfo(resolved.moduleId, agentDisplayInfoForModule(resolved.moduleId))
+  if (interpreter === null) throw new Error(`interpreter not found: ${resolved.moduleId}`)
+  return {
+    resolved,
+    view: focused.view,
+    interpreter,
+    displays: agentDisplayPayload(),
+  }
+}
+
+function focusAgentInterpreterTerminal(moduleId: string): void {
+  const controller = moduleDisplays.get(moduleId)
+  if (controller === undefined || !canAcceptTerminalInput(controller)) return
+  rebuildModuleTerminalOutput(controller)
+  syncModuleTerminalInput(controller)
+  showModuleTerminalPrompt(controller)
+  controller.terminal.moveCursorToLastTextLineEnd()
+  controller.terminal.focus()
+  scrollAgentModuleTerminalToBottom(controller)
+}
+
+async function runAgentInterpreterAction(params: unknown): Promise<unknown> {
+  const body = objectParam(params)
+  const action = stringParam(body["action"]) ?? stringParam(body["cmd"]) ?? stringParam(body["command"])
+  if (action === undefined) throw new Error("agent interpreter action must be a string")
+
+  const display = resolveAgentInterpreterDisplay(body)
+  const controller = moduleDisplays.get(display.moduleId)
+  if (controller === undefined) throw new Error(`interpreter display controller not found: ${display.moduleId}`)
+  const actionParams = objectParamMaybe(body["params"]) ?? body
+  let reply: unknown
+
+  switch (action) {
+    case "pause":
+      reply = await runModuleInterpreterCommand(controller, "pause", {}, t("pause"))
+      break
+    case "resume":
+      reply = await runModuleInterpreterCommand(controller, "resume", {}, t("resume"))
+      break
+    case "step": {
+      const kind = stringParam(actionParams["kind"])
+      if (kind !== "over" && kind !== "into" && kind !== "out") throw new Error('step kind must be "over", "into", or "out"')
+      reply = await runModuleInterpreterCommand(controller, "step", {kind}, kind === "over" ? t("stepOver") : kind === "into" ? t("stepInto") : t("stepOut"))
+      break
+    }
+    case "eval":
+    case "evaluate":
+      reply = await evaluateAgentInterpreterExpression(controller, actionParams)
+      break
+    case "restart":
+      await restartModule(controller.id)
+      reply = {ok: true}
+      break
+    case "stop":
+      await stopModule(controller.id)
+      reply = {ok: true}
+      break
+    case "showExecutionPoint":
+    case "show-execution-point":
+      showModuleExecutionPoint(controller)
+      reply = {ok: true}
+      break
+    default:
+      throw new Error(`unknown agent interpreter action: ${action}`)
+  }
+
+  return {
+    resolved: display,
+    action,
+    reply,
+    interpreter: agentInterpreterInfo(controller.id, agentDisplayInfoForModule(controller.id)),
+  }
+}
+
+async function evaluateAgentInterpreterExpression(controller: ModuleDisplayController, params: Record<string, unknown>): Promise<unknown> {
+  const expr = stringParam(params["expr"]) ?? stringParam(params["expression"])
+  if (expr === undefined) throw new Error("evaluate expr must be a string")
+  const frame = numberParam(params["frame"]) ?? controller.activeFrameIndex
+  if (!Number.isInteger(frame) || frame < 0) throw new Error("evaluate frame must be a non-negative integer")
+
+  rebuildModuleTerminalOutput(controller)
+  appendAgentModuleTerminal(controller, {
+    ts: new Date().toISOString(),
+    level: "agent",
+    text: `> ${expr}`,
+  })
+
+  const response = await runModuleInterpreterCommand(controller, "eval", {frame, expr}, t("runExpression"))
+  if (!response.ok) {
+    syncModuleTerminalInput(controller)
+    return response
+  }
+
+  const formattedAnsi = await formatTerminalExpressionResult(response.result, async (objectId) => {
+    const props = await runModuleInterpreterCommand(controller, "props", {
+      objectId,
+      ownProperties: true,
+    }, t("runExpression"))
+    if (!props.ok) throw new Error(props.error ?? "props failed")
+    return props.result
+  })
+  appendAgentModuleTerminal(controller, {
+    ts: new Date().toISOString(),
+    level: "agent",
+    text: `=> ${formattedAnsi}`,
+  })
+  syncModuleTerminalInput(controller)
+  return {
+    ...response,
+    formatted: stripAnsi(formattedAnsi),
+    formattedAnsi,
+  }
 }
 
 function setAgentTerminalDocked(docked: boolean): unknown {
@@ -587,6 +791,79 @@ function agentDisplayInfos(): AgentDisplayInfo[] {
     })
   }
   return displays
+}
+
+function agentDisplayInfoForModule(moduleId: string): AgentDisplayInfo | null {
+  return agentDisplayInfos().find((display) => display.moduleId === moduleId) ?? null
+}
+
+function agentInterpreterInfo(moduleId: string, display: AgentDisplayInfo | null): AgentInterpreterInfo | null {
+  const module = moduleSnapshots.get(moduleId)
+  if (module === undefined) return null
+  const controller = moduleDisplays.get(moduleId)
+  const currentFrame = controller?.dump?.frames[controller.activeFrameIndex]
+    ?? module.dump?.frames[0]
+    ?? null
+  const {output: _output, ...targetWithoutOutput} = module.target
+  const commandIdle = controller?.activeCommand === null
+  const targetRunning = module.target.state === "starting" || module.target.state === "running"
+  const targetFinished = module.target.state === "exited" || module.target.state === "failed"
+  const connected = module.connection.state === "connected"
+  const pausedWithContext = connected && module.paused && module.dump !== null && !targetFinished
+  return {
+    id: module.id,
+    moduleId: module.id,
+    displayId: moduleDisplayId(module.id),
+    label: module.label,
+    order: display?.order ?? moduleOrder.indexOf(module.id),
+    display,
+    runtime: {
+      protocolUrl: module.protocolUrl,
+      connection: module.connection,
+      paused: module.paused,
+      scriptCount: module.scriptCount,
+      hasDump: module.hasDump,
+      target: {
+        ...targetWithoutOutput,
+        outputTail: module.target.output.slice(-50),
+      },
+    },
+    ui: {
+      source: {
+        state: controller?.sourceRuntimeState ?? null,
+        location: controller?.sourceLocation ?? "",
+        identity: controller?.sourceIdentity ?? null,
+      },
+      activeFrameIndex: controller?.activeFrameIndex ?? null,
+      currentFrame,
+      terminal: {
+        canAcceptInput: controller === undefined ? false : canAcceptTerminalInput(controller),
+        focused: controller?.terminal.isFocused() ?? false,
+        pendingInput: controller?.terminalInput.buffer ?? "",
+        promptVisible: controller?.terminalInput.promptVisible ?? false,
+        textTail: controller === undefined ? [] : terminalTextTail(controller.terminal, 20),
+      },
+      activeCommand: controller?.activeCommand ?? null,
+      verboseVisible: controller?.verboseVisible ?? false,
+    },
+    capabilities: {
+      pause: commandIdle && connected && targetRunning && !module.paused,
+      resume: commandIdle && pausedWithContext,
+      step: commandIdle && pausedWithContext,
+      evaluate: commandIdle && controller !== undefined && canAcceptTerminalInput(controller),
+      restart: commandIdle && module.target.command.length > 0,
+      stop: commandIdle && targetRunning,
+      showExecutionPoint: commandIdle && pausedWithContext && currentFrame !== null,
+    },
+  }
+}
+
+function resolveAgentInterpreterDisplay(params: unknown): AgentDisplayInfo {
+  const body = objectParam(params)
+  const selector = objectParamMaybe(body["selector"]) ?? body
+  const display = resolveAgentDisplay(selector)
+  if (display === null) throw new Error("interpreter display not found")
+  return display
 }
 
 function resolveAgentDisplay(selector: Record<string, unknown>): AgentDisplayInfo | null {
@@ -3065,8 +3342,71 @@ function moduleVerboseStorageKey(moduleId: string): string {
   return `interpreter:module:${moduleId}:verbose`
 }
 
+function moduleAgentTerminalStorageKey(moduleId: string): string {
+  return `interpreter:module:${moduleId}:agent-terminal:v1`
+}
+
 function readModuleVerboseVisible(moduleId: string): boolean {
   return localStorage.getItem(moduleVerboseStorageKey(moduleId)) === "1"
+}
+
+function readStoredModuleAgentTerminalEntries(moduleId: string, targetStartedAt: string | null): AgentModuleTerminalEntry[] {
+  try {
+    const raw = localStorage.getItem(moduleAgentTerminalStorageKey(moduleId))
+    if (raw === null) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map(normalizeAgentModuleTerminalEntry)
+      .filter((entry): entry is AgentModuleTerminalEntry => entry !== null && entry.targetStartedAt === targetStartedAt)
+      .slice(-200)
+  } catch {
+    return []
+  }
+}
+
+function storeModuleAgentTerminalEntries(moduleId: string, entries: AgentModuleTerminalEntry[]): void {
+  try {
+    localStorage.setItem(moduleAgentTerminalStorageKey(moduleId), JSON.stringify(entries.slice(-200)))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function normalizeAgentModuleTerminalEntry(value: unknown): AgentModuleTerminalEntry | null {
+  if (typeof value !== "object" || value === null) return null
+  const record = value as Record<string, unknown>
+  const ts = stringParam(record.ts)
+  const rawText = typeof record.text === "string" ? record.text : undefined
+  if (ts === undefined || rawText === undefined) return null
+  let text = rawText
+  let level: ModuleTerminalEntry["level"] = record.level === "error"
+    || record.level === "warn"
+    || record.level === "info"
+    || record.level === "agent"
+    ? record.level
+    : "agent"
+  if (level === "info") {
+    const clean = stripAnsi(text).trimStart()
+    if (clean.startsWith("agent >")) {
+      level = "agent"
+      text = clean.slice("agent".length).trimStart()
+    } else if (clean.startsWith("ai >")) {
+      level = "agent"
+      text = clean.slice("ai".length).trimStart()
+    } else if (clean.startsWith("=>")) {
+      level = "agent"
+      text = clean
+    }
+  }
+  const rawTargetStartedAt = record.targetStartedAt
+  const targetStartedAt = typeof rawTargetStartedAt === "string" ? rawTargetStartedAt : null
+  return {
+    ts,
+    text,
+    level,
+    targetStartedAt,
+  }
 }
 
 function addInterpreterSurfacesToDisplay(displayId: string, controller: ModuleDisplayController): void {
@@ -3119,6 +3459,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       statusKind: "idle",
       fontPx: 12,
       linePx: 16,
+      contentHeightMode: "text",
       cursorBlink: true,
       inputEnabled: false,
       onInput: (data) => handleModuleTerminalInput(controller, data),
@@ -3137,6 +3478,9 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     sourceLocation: "",
     sourceRuntimeState: "idle" as SourceRuntimeState,
     outputLineCount: 0,
+    agentTerminalEntries: readStoredModuleAgentTerminalEntries(module.id, module.target.startedAt),
+    agentOutputLineCount: 0,
+    agentTerminalTargetStartedAt: module.target.startedAt,
     activeCommand: null,
     verboseVisible: readModuleVerboseVisible(module.id),
     terminalInput: {
@@ -3156,11 +3500,17 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
 }
 
 function updateModuleDisplay(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
+  if (module.target.startedAt !== controller.agentTerminalTargetStartedAt) {
+    controller.agentTerminalTargetStartedAt = module.target.startedAt
+    controller.agentTerminalEntries = readStoredModuleAgentTerminalEntries(module.id, module.target.startedAt)
+    controller.agentOutputLineCount = 0
+  }
   if (module.target.outputLineCount < controller.outputLineCount) {
     controller.terminal.clear()
     controller.terminalInput.buffer = ""
     controller.terminalInput.promptVisible = false
     controller.outputLineCount = 0
+    controller.agentOutputLineCount = 0
   }
   const nextLines = module.target.output.slice(controller.outputLineCount)
   if (nextLines.length > 0) {
@@ -3168,6 +3518,7 @@ function updateModuleDisplay(controller: ModuleDisplayController, module: Module
     for (const line of nextLines) appendModuleTargetLine(controller, line)
     controller.outputLineCount = module.target.outputLineCount
   }
+  syncModuleAgentTerminalEntries(controller)
   updateModuleTerminalStatus(controller, module)
 
   const finishedState = module.target.state === "exited"
@@ -3496,20 +3847,69 @@ async function stopModule(moduleId: string): Promise<void> {
 
 type ModuleTerminalEntry = {
   ts: string
-  level?: "error" | "warn" | "info"
+  level?: "error" | "warn" | "info" | "agent"
   text: string
 }
 
-function appendModuleTerminal(controller: ModuleDisplayController, entry: ModuleTerminalEntry): void {
-  const restorePrompt = controller.terminalInput.promptVisible && canAcceptTerminalInput(controller)
+type AgentModuleTerminalEntry = ModuleTerminalEntry & {
+  targetStartedAt: string | null
+}
+
+function appendModuleTerminal(controller: ModuleDisplayController, entry: ModuleTerminalEntry, opts: {restorePrompt?: boolean} = {}): void {
+  const restorePrompt = opts.restorePrompt !== false && controller.terminalInput.promptVisible && canAcceptTerminalInput(controller)
   hideModuleTerminalPrompt(controller)
   controller.terminal.writeln(`${ansiMuted(formatTimestamp(entry.ts))} ${ansiLevel(entry.level)} ${entry.text}`)
   if (restorePrompt) showModuleTerminalPrompt(controller)
 }
 
+function appendAgentModuleTerminal(controller: ModuleDisplayController, entry: ModuleTerminalEntry): void {
+  const module = moduleSnapshots.get(controller.id)
+  const targetStartedAt = module?.target.startedAt ?? null
+  const next: AgentModuleTerminalEntry = {
+    ...entry,
+    targetStartedAt,
+  }
+  controller.agentTerminalTargetStartedAt = targetStartedAt
+  controller.agentTerminalEntries.push(next)
+  if (controller.agentTerminalEntries.length > 200) {
+    controller.agentTerminalEntries = controller.agentTerminalEntries.slice(-200)
+    controller.agentOutputLineCount = Math.min(controller.agentOutputLineCount, controller.agentTerminalEntries.length)
+  }
+  storeModuleAgentTerminalEntries(controller.id, controller.agentTerminalEntries)
+  appendModuleTerminal(controller, next, {restorePrompt: false})
+  scrollAgentModuleTerminalToBottom(controller)
+  controller.agentOutputLineCount = controller.agentTerminalEntries.length
+}
+
+function syncModuleAgentTerminalEntries(controller: ModuleDisplayController): void {
+  if (controller.agentOutputLineCount >= controller.agentTerminalEntries.length) return
+  const next = controller.agentTerminalEntries.slice(controller.agentOutputLineCount)
+  for (const entry of next) appendModuleTerminal(controller, entry, {restorePrompt: false})
+  scrollAgentModuleTerminalToBottom(controller)
+  controller.agentOutputLineCount = controller.agentTerminalEntries.length
+}
+
+function scrollAgentModuleTerminalToBottom(controller: ModuleDisplayController): void {
+  controller.terminal.scrollToBottom()
+  requestAnimationFrame(() => controller.terminal.scrollToBottom())
+}
+
 function appendModuleTargetLine(controller: ModuleDisplayController, line: ModuleLine): void {
   const label = line.stream === "stderr" ? ansiError("err") : ansiCyan("out")
   controller.terminal.writeln(`${ansiMuted(formatTimestamp(line.ts))} ${label} ${line.text}`)
+}
+
+function rebuildModuleTerminalOutput(controller: ModuleDisplayController): void {
+  const module = moduleSnapshots.get(controller.id)
+  if (module === undefined) return
+  controller.terminal.clear()
+  controller.terminalInput.promptVisible = false
+  controller.outputLineCount = 0
+  controller.agentOutputLineCount = 0
+
+  for (const line of module.target.output) appendModuleTargetLine(controller, line)
+  controller.outputLineCount = module.target.outputLineCount
+  syncModuleAgentTerminalEntries(controller)
 }
 
 function updateModuleTerminalStatus(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
@@ -3659,6 +4059,7 @@ function formatTimestamp(ts: string): string {
 function ansiLevel(level: ModuleTerminalEntry["level"]): string {
   if (level === "error") return ansiError("err")
   if (level === "warn") return ansiWarn("warn")
+  if (level === "agent") return ansiCyan("ai")
   return ansiCyan("ui")
 }
 
@@ -3680,6 +4081,18 @@ function ansiWarn(value: string): string {
 
 function ansiGreen(value: string): string {
   return `\x1b[32m${value}\x1b[0m`
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(/\x1b\[[0-9;]*m/g, "")
+}
+
+function terminalTextTail(terminal: TerminalPane, limit: number): string[] {
+  return terminal.toText()
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+    .slice(-Math.max(0, limit))
 }
 
 async function refreshModuleBreakpoints(controller: ModuleDisplayController): Promise<void> {

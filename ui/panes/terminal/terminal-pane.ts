@@ -55,6 +55,7 @@ type TerminalOutputPaneOpts = {
   showHeader?: boolean
   wrapLines?: boolean
   wrapMode?: "char" | "word"
+  contentHeightMode?: "grid" | "text"
   reflowOnResize?: boolean
   scrollX?: boolean
   scrollY?: boolean
@@ -230,6 +231,7 @@ class TerminalOutputPane extends UiSurface {
   #reflowOnResize: boolean
   #wrapMode: "char" | "word"
   #contentWidthMode: "grid" | "text"
+  #contentHeightMode: "grid" | "text"
   #cursorBlink: boolean
   #cursorLineHighlight: boolean
   #cursorLineFill: Color
@@ -305,6 +307,7 @@ class TerminalOutputPane extends UiSurface {
     this.#reflowOnResize = opts.reflowOnResize ?? false
     this.#wrapMode = opts.wrapMode ?? "char"
     this.#contentWidthMode = opts.contentWidthMode ?? "grid"
+    this.#contentHeightMode = opts.contentHeightMode ?? "grid"
     this.#cursorBlink = opts.cursorBlink ?? true
     this.#cursorLineHighlight = opts.cursorLineHighlight ?? false
     this.#cursorLineFill = opts.cursorLineFill ?? CURSOR_LINE_FILL
@@ -377,6 +380,10 @@ class TerminalOutputPane extends UiSurface {
   focus(): void {
     this.canvas?.setFocused(this)
     this.canvas?.inputProxy?.focus()
+  }
+
+  isFocused(): boolean {
+    return this.#focused
   }
 
   setTitle(title: string): void {
@@ -464,6 +471,23 @@ class TerminalOutputPane extends UiSurface {
       .map((line) => trimRightCells(line.map((cell) => cell.ch).join("")))
       .join("\n")
       .replace(/\n+$/g, "")
+  }
+
+  scrollToBottom(): void {
+    this.#scrollToBottom()
+    this.requestRender()
+  }
+
+  moveCursorToLastTextLineEnd(): void {
+    const lines = this.#terminalTextLines()
+    const lineIndex = lastNonEmptyLineIndex(lines)
+    const screenRow = lineIndex - this.#scrollback.length
+    if (screenRow < 0 || screenRow >= this.#screen.length) return
+    this.#cursorRow = screenRow
+    this.#cursorCol = clampInt((lines[lineIndex] ?? "").length, 0, this.#cols - 1)
+    this.#pendingWrap = false
+    this.#scrollToBottom()
+    this.requestRender()
   }
 
   // ────────── render ──────────
@@ -578,7 +602,7 @@ class TerminalOutputPane extends UiSurface {
     const body = this.#bodyRect()
     if (body.w <= 0 || body.h <= 0) return
     const contentW = this.#contentCols() * this.#getCharWidth() + BODY_PAD_X_PX * 2
-    const contentH = this.#totalLineCount() * this.#linePx + BODY_PAD_Y_PX * 2
+    const contentH = this.#contentLineCount() * this.#linePx + BODY_PAD_Y_PX * 2
     div(this, body.x, body.y, body.w, body.h, {
       key: TERMINAL_SCROLL_KEY,
       scrollContentWidth: Math.max(body.w, contentW),
@@ -598,7 +622,7 @@ class TerminalOutputPane extends UiSurface {
 
   #renderLines(x: number, y: number, ctx: DivScrollContext): void {
     const startIdx = Math.max(0, Math.floor(ctx.scrollTop / this.#linePx) - 1)
-    const endIdx = Math.min(this.#totalLineCount(), Math.ceil((ctx.scrollTop + ctx.viewportHeight) / this.#linePx) + 1)
+    const endIdx = Math.min(this.#contentLineCount(), Math.ceil((ctx.scrollTop + ctx.viewportHeight) / this.#linePx) + 1)
     const cursorGlobalRow = this.#scrollback.length + this.#cursorRow
     for (let idx = startIdx; idx < endIdx; idx++) {
       const line = this.#lineAt(idx)
@@ -720,6 +744,15 @@ class TerminalOutputPane extends UiSurface {
       max = Math.max(max, terminalLineText(line).length)
     }
     return Math.max(1, max)
+  }
+
+  #contentLineCount(): number {
+    const total = this.#totalLineCount()
+    if (this.#contentHeightMode === "grid") return total
+    const lines = this.#terminalTextLines()
+    const lastLine = lastNonEmptyLineIndex(lines)
+    const cursorGlobalRow = this.#scrollback.length + this.#cursorRow
+    return clampInt(Math.max(lastLine + 1, cursorGlobalRow + 1, 1), 1, total)
   }
 
   #syncGridToRect(): void {
@@ -1112,7 +1145,7 @@ class TerminalOutputPane extends UiSurface {
 
   #isAtBottom(): boolean {
     const body = this.#bodyRect()
-    const totalH = this.#totalLineCount() * this.#linePx + BODY_PAD_Y_PX * 2
+    const totalH = this.#contentLineCount() * this.#linePx + BODY_PAD_Y_PX * 2
     if (totalH <= body.h) return true
     const maxScroll = totalH - body.h
     return divScrollPosition(this, TERMINAL_SCROLL_KEY).top >= maxScroll - AUTOSCROLL_TOLERANCE_PX
@@ -1120,7 +1153,7 @@ class TerminalOutputPane extends UiSurface {
 
   #scrollToBottom(): void {
     const body = this.#bodyRect()
-    const totalH = this.#totalLineCount() * this.#linePx + BODY_PAD_Y_PX * 2
+    const totalH = this.#contentLineCount() * this.#linePx + BODY_PAD_Y_PX * 2
     divScrollTo(this, TERMINAL_SCROLL_KEY, {top: Math.max(0, totalH - body.h)})
   }
 

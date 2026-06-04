@@ -85,8 +85,8 @@ const SOUND_PULSE_MS = 680
 const COMPACT_W = 128
 const COMPACT_H = 128
 const BUTTON_SIZE = 58
-const SETTINGS_W = 430
-const SETTINGS_H = 620
+const SETTINGS_W = 460
+const SETTINGS_H = 760
 type VoiceInputHudTab = VoiceInputHudPhraseGroupId | "debug"
 
 export class VoiceInputHud extends UiSurface {

@@ -424,6 +424,10 @@ async function handleRoute(
   if (method === "GET" && path === "/agent/displays") return await dispatchAgentRoute("displays.list", {}, dispatchAgentCommand)
   if (method === "POST" && path === "/agent/displays/focus") return await dispatchAgentRouteFromBody("displays.focus", req, dispatchAgentCommand)
   if (method === "POST" && path === "/agent/displays/frame") return await dispatchAgentRouteFromBody("displays.frame", req, dispatchAgentCommand)
+  if (method === "GET" && path === "/agent/interpreters") return await dispatchAgentRoute("interpreters.list", {}, dispatchAgentCommand)
+  if (method === "POST" && path === "/agent/interpreters/resolve") return await dispatchAgentRouteFromBody("interpreters.resolve", req, dispatchAgentCommand)
+  if (method === "POST" && path === "/agent/interpreters/focus") return await dispatchAgentRouteFromBody("interpreters.focus", req, dispatchAgentCommand)
+  if (method === "POST" && path === "/agent/interpreters/action") return await dispatchAgentRouteFromBody("interpreters.action", req, dispatchAgentCommand)
   if (method === "GET" && path === "/agent/terminal") return await dispatchAgentRoute("terminal.get", {}, dispatchAgentCommand)
   if (method === "POST" && path === "/agent/terminal/dock") return await dispatchAgentRouteFromBody("terminal.dock", req, dispatchAgentCommand)
   if (method === "POST" && path === "/agent/terminal/show") return await dispatchAgentRouteFromBody("terminal.show", req, dispatchAgentCommand)
@@ -478,6 +482,10 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "GET", path: "/agent/displays", description: "agent API: список UI-дисплеев и их экранная геометрия"},
     {method: "POST", path: "/agent/displays/focus", description: "{selector:{side|displayId|moduleId|label|order}, view?, dockHostTerminal?} — сфокусировать дисплей; terminal HUD не трогается без явного dockHostTerminal:true"},
     {method: "POST", path: "/agent/displays/frame", description: "agent API: вернуть обзор всех дисплеев"},
+    {method: "GET", path: "/agent/interpreters", description: "agent API: список module interpreters как рабочих станций: display + runtime + текущий UI context"},
+    {method: "POST", path: "/agent/interpreters/resolve", description: "{selector:{side|displayId|moduleId|label|order}} — найти один interpreter display"},
+    {method: "POST", path: "/agent/interpreters/focus", description: "{selector, view?, dockHostTerminal?} — сфокусировать interpreter display и вернуть его состояние"},
+    {method: "POST", path: "/agent/interpreters/action", description: "{selector, action, params?} — выполнить pause|resume|step|evaluate|restart|stop|showExecutionPoint в выбранном interpreter"},
     {method: "GET", path: "/agent/terminal", description: "agent API: состояние host terminal HUD"},
     {method: "POST", path: "/agent/terminal/dock", description: "agent API: свернуть host terminal HUD"},
     {method: "POST", path: "/agent/terminal/show", description: "agent API: развернуть host terminal HUD"},

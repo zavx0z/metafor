@@ -73,6 +73,10 @@ Routes:
 GET    /agent/displays
 POST   /agent/displays/focus
 POST   /agent/displays/frame
+GET    /agent/interpreters
+POST   /agent/interpreters/resolve
+POST   /agent/interpreters/focus
+POST   /agent/interpreters/action
 GET    /agent/terminal
 POST   /agent/terminal/show
 POST   /agent/terminal/dock
@@ -134,6 +138,128 @@ curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
 
 ```sh
 curl -sS -X POST http://127.0.0.1:6500/agent/displays/frame -d '{}'
+```
+
+## Agent Interpreter Workspace API
+
+Этот слой нужен для совместной работы человека и AI-агента в нескольких серверных интерпретаторах. Он связывает `UIDisplay` с `moduleId`, runtime-состоянием и текущим UI-контекстом.
+
+`GET /agent/interpreters`:
+
+```json
+{
+  "ok": true,
+  "command": "interpreters.list",
+  "result": {
+    "mode": "far",
+    "activeDisplayId": "module:dark-server.spec.ts",
+    "interpreters": [
+      {
+        "id": "dark-server.spec.ts",
+        "moduleId": "dark-server.spec.ts",
+        "displayId": "module:dark-server.spec.ts",
+        "label": "dark/server.spec.ts",
+        "order": 0,
+        "display": {"screenRect": {"x": 160, "y": 324, "w": 777, "h": 440}},
+        "runtime": {
+          "protocolUrl": "ws://127.0.0.1:6499/",
+          "connection": {"state": "connected", "error": null},
+          "paused": true,
+          "scriptCount": 204,
+          "hasDump": true,
+          "target": {
+            "state": "running",
+            "pid": 12345,
+            "outputTail": []
+          }
+        },
+        "ui": {
+          "source": {
+            "state": "paused",
+            "location": "dark/server.ts:42",
+            "identity": {"scriptId": "12", "scriptUrl": "file:///...", "sourceUrl": "dark/server.ts", "key": "dark/server.ts"}
+          },
+          "activeFrameIndex": 0,
+          "currentFrame": {"index": 0, "function": "handler", "url": "dark/server.ts", "line": 42, "column": 5},
+          "terminal": {"canAcceptInput": true, "focused": true, "pendingInput": "", "promptVisible": true, "textTail": ["ai > 7 + 8", "ai => 15"]},
+          "activeCommand": null,
+          "verboseVisible": false
+        },
+        "capabilities": {
+          "pause": false,
+          "resume": true,
+          "step": true,
+          "evaluate": true,
+          "restart": true,
+          "stop": true,
+          "showExecutionPoint": true
+        }
+      }
+    ]
+  }
+}
+```
+
+`POST /agent/interpreters/resolve` принимает те же selector shapes, что и `/agent/displays/focus`, и возвращает один interpreter workspace:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/resolve \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"side":"left"}}'
+```
+
+`POST /agent/interpreters/focus` фокусирует выбранный display и возвращает состояние выбранного interpreter. Как и display focus, он не меняет host terminal HUD без явного `dockHostTerminal:true`:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/focus \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"moduleId":"dark-server.spec.ts"}}'
+```
+
+`POST /agent/interpreters/action` выполняет действие в выбранном interpreter display:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/action \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"side":"left"},"action":"step","params":{"kind":"over"}}'
+```
+
+Поддерживаемые actions:
+
+- `pause`
+- `resume`
+- `step` с `params.kind`: `over`, `into`, `out`
+- `evaluate` / `eval` с `params.expr` и опциональным `params.frame`
+- `restart`
+- `stop`
+- `showExecutionPoint`
+
+`evaluate` возвращает raw reply runtime, чистый `formatted` и терминальную версию `formattedAnsi`, а также пишет AI-выражение и результат в module terminal, чтобы человек видел действие AI в общем контексте. AI-записи переигрываются после UI reload для того же target-запуска.
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/action \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"side":"right"},"action":"evaluate","params":{"expr":"state.currentUser","frame":0}}'
+```
+
+Ответ:
+
+```json
+{
+  "ok": true,
+  "command": "interpreters.action",
+  "result": {
+    "resolved": {"moduleId": "pkg-interpreter-src-syntax.test.ts", "label": "pkg/interpreter/src/syntax.test.ts"},
+    "action": "evaluate",
+    "reply": {
+      "ok": true,
+      "result": {"result": {"type": "object", "description": "Object"}},
+      "formatted": "{ id: 42, name: \"Ada\" }",
+      "formattedAnsi": "\u001b[2m{\u001b[0m id: \u001b[33m42\u001b[0m, name: \u001b[32m\"Ada\"\u001b[0m \u001b[2m}\u001b[0m"
+    },
+    "interpreter": {"moduleId": "pkg-interpreter-src-syntax.test.ts"}
+  }
+}
 ```
 
 `GET /agent/terminal` возвращает состояние host terminal HUD:
