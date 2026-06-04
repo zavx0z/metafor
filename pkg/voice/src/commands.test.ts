@@ -57,4 +57,22 @@ describe("command routing", () => {
     expect(router.match("выключи свет")).toBeNull();
     expect(router.match("свет")).toBeNull();
   });
+
+  test("honors zero Levenshtein tolerance", () => {
+    const router = createCommandRouter(
+      [
+        {
+          id: "agent.two",
+          phrases: ["агент 2"],
+          run: () => {},
+        },
+      ],
+      { maxRelativeDistance: 0 },
+    );
+
+    expect(router.match("агент 2")?.command.id).toBe("agent.two");
+    expect(router.match("агент")).toBeNull();
+    expect(router.match("аген 2")).toBeNull();
+    expect(router.match("о агент")).toBeNull();
+  });
 });

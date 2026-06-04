@@ -45,7 +45,7 @@ type AsrMessage = {
   error?: string
 }
 
-type VoiceCommandPhraseGroups = {
+export type VoiceCommandPhraseGroups = {
   activation: readonly string[]
   deactivation: readonly string[]
   stop: readonly string[]
@@ -72,8 +72,14 @@ export const DEFAULT_VOICE_ACTIVATION_PHRASES = [
 export const DEFAULT_VOICE_WAKE_PHRASES = DEFAULT_VOICE_ACTIVATION_PHRASES
 export const DEFAULT_VOICE_DEACTIVATION_PHRASES = [
   "выключи микрофон",
+  "выключим микрофон",
+  "выключу микрофон",
   "отключи микрофон",
+  "отключим микрофон",
+  "отключу микрофон",
   "выруби микрофон",
+  "вырубим микрофон",
+  "вырублю микрофон",
   "останови голосовой ввод",
   "Засыпай",
   "Режим ожидания",
@@ -257,7 +263,7 @@ export class VoiceInputClient {
       type: "start",
       sampleRate: this.#audioContext?.sampleRate ?? TARGET_SAMPLE_RATE,
       useGrammar: true,
-      grammar: createVoiceRecognitionGrammar(this.#commandPhrases()),
+      grammar: createWakeRecognitionGrammar(this.#commandPhrases()),
       words: true,
     })
     this.#setStatus("waitingWake", WAKE_WORD)
@@ -874,8 +880,7 @@ function stripControlCommandText(text: string, phraseGroups: VoiceCommandPhraseG
 
 function detectControlCommand(text: string, phraseGroups: VoiceCommandPhraseGroups, toleranceFor: VoicePhraseTolerance): VoiceControlCommand | null {
   if (hasStopCommand(text, phraseGroups.stop, toleranceFor("stop"))) return "stop"
-  const deactivationPhrases = normalizePhrasesForRecognition(phraseGroups.deactivation, DEFAULT_VOICE_DEACTIVATION_PHRASES)
-  return hasCommandPhrase(text, deactivationPhrases, toleranceFor("deactivation")) ? "deactivation" : null
+  return isDeactivationPhrase(text, phraseGroups.deactivation, toleranceFor("deactivation")) ? "deactivation" : null
 }
 
 function mergeControlCommand(a: VoiceControlCommand | null, b: VoiceControlCommand | null): VoiceControlCommand | null {
@@ -888,6 +893,11 @@ function hasStopCommand(text: string, stopPhrases: readonly string[], tolerance:
   if (!normalized) return false
   const phrases = normalizePhrasesForRecognition(stopPhrases, DEFAULT_VOICE_STOP_PHRASES)
   return phrases.some((phrase) => phraseMatchesText(normalized, phrase, tolerance))
+}
+
+export function isDeactivationPhrase(text: string, deactivationPhrases: readonly string[], tolerance: number): boolean {
+  const phrases = normalizePhrasesForRecognition(deactivationPhrases, DEFAULT_VOICE_DEACTIVATION_PHRASES)
+  return hasCommandPhrase(text, phrases, tolerance)
 }
 
 function isFinalRecognitionMessage(msg: AsrMessage): boolean {
@@ -904,26 +914,37 @@ function recognitionText(msg: AsrMessage): string {
   return ""
 }
 
-function isActivationPhrase(text: string, activationPhrases: readonly string[], tolerance: number): boolean {
+export function isActivationPhrase(text: string, activationPhrases: readonly string[], tolerance: number): boolean {
+  return activationPhraseMatch(text, activationPhrases, tolerance) !== null
+}
+
+function activationPhraseMatch(text: string, activationPhrases: readonly string[], tolerance: number): {phrase: string} | null {
   const normalized = normalizeWakeText(text)
-  if (!normalized) return false
+  if (!normalized) return null
   const phrases = normalizePhrasesForRecognition(activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
-  if (phrases.some((phrase) => phraseInText(normalized, phrase))) return true
+  const exactPhrase = phrases.find((phrase) => activationPhraseInText(normalized, phrase))
+  if (exactPhrase !== undefined) return {phrase: exactPhrase}
 
   const words = normalized.split(/\s+/)
   const shortWakeUtterance = words.length <= 3
-  if (!shortWakeUtterance) return false
-  if (tolerance > 0 && phrases.some((phrase) => fuzzyPhraseInText(normalized, phrase, tolerance))) return true
+  if (!shortWakeUtterance) return null
+  if (tolerance > 0) {
+    const fuzzyPhrase = phrases.find((phrase) => fuzzyActivationPhraseAtStart(normalized, phrase, tolerance))
+    if (fuzzyPhrase !== undefined) return {phrase: fuzzyPhrase}
+  }
 
-  if (tolerance <= 0) return false
-  return words.some((word) => phrases.some((phrase) => fuzzyWakeWordMatch(word, phrase, tolerance)))
+  if (tolerance <= 0) return null
+  const [firstWord] = words
+  if (!firstWord) return null
+  const fuzzyWakeWord = phrases.find((phrase) => fuzzyWakeWordMatch(firstWord, phrase, tolerance))
+  return fuzzyWakeWord === undefined ? null : {phrase: fuzzyWakeWord}
 }
 
-function isFastActivationPartial(text: string, activationPhrases: readonly string[]): boolean {
+export function isFastActivationPartial(text: string, activationPhrases: readonly string[]): boolean {
   const normalized = normalizeWakeText(text)
   if (!normalized) return false
   const phrases = normalizePhrasesForRecognition(activationPhrases, DEFAULT_VOICE_ACTIVATION_PHRASES)
-  return phrases.some((phrase) => phraseInText(normalized, phrase))
+  return phrases.some((phrase) => activationPhraseInText(normalized, phrase))
 }
 
 function hasCommandPhrase(text: string, phrases: readonly string[], tolerance: number): boolean {
@@ -933,12 +954,13 @@ function hasCommandPhrase(text: string, phrases: readonly string[], tolerance: n
 }
 
 function normalizeWakeText(text: string): string {
-  return text
+  const normalized = text
     .toLocaleLowerCase("ru-RU")
     .replace(/ё/g, "е")
     .replace(/[^а-яa-z0-9\s]+/giu, " ")
     .replace(/\s+/g, " ")
     .trim()
+  return normalized.split(/\s+/).filter(Boolean).map(normalizeWakeToken).join(" ")
 }
 
 function levenshtein(a: string, b: string): number {
@@ -1045,17 +1067,124 @@ export function normalizeVoiceWakePhrases(phrases: readonly string[]): string[] 
   return normalizeVoicePhrases(phrases)
 }
 
-function createVoiceRecognitionGrammar(phraseGroups: VoiceCommandPhraseGroups): string[] {
+export function createWakeRecognitionGrammar(phraseGroups: VoiceCommandPhraseGroups): string[] {
   return uniqueStrings([
-    ...normalizePhrasesForRecognition(phraseGroups.activation, DEFAULT_VOICE_ACTIVATION_PHRASES),
-    ...normalizePhrasesForRecognition(phraseGroups.deactivation, DEFAULT_VOICE_DEACTIVATION_PHRASES),
-    ...normalizePhrasesForRecognition(phraseGroups.stop, DEFAULT_VOICE_STOP_PHRASES),
+    ...wakeGrammarPhraseVariants(phraseGroups.activation, DEFAULT_VOICE_ACTIVATION_PHRASES),
+    ...wakeGrammarPhraseVariants(phraseGroups.deactivation, DEFAULT_VOICE_DEACTIVATION_PHRASES),
+    ...wakeGrammarPhraseVariants(phraseGroups.stop, DEFAULT_VOICE_STOP_PHRASES),
   ])
 }
 
 function normalizePhrasesForRecognition(phrases: readonly string[], fallback: readonly string[]): string[] {
   const normalized = normalizeVoicePhrases(phrases).map(normalizeWakeText).filter(Boolean)
-  return normalized.length > 0 ? normalized : [...fallback].map(normalizeWakeText).filter(Boolean)
+  const base = normalized.length > 0 ? normalized : [...fallback].map(normalizeWakeText).filter(Boolean)
+  return uniqueStrings(base.flatMap(voicePhraseMatchVariants))
+}
+
+function wakeGrammarPhraseVariants(phrases: readonly string[], fallback: readonly string[]): string[] {
+  const out: string[] = []
+  for (const phrase of normalizePhrasesForRecognition(phrases, fallback)) {
+    for (const variant of wakeGrammarNumberVariants(phrase)) {
+      const tokens = variant.split(/\s+/).filter(Boolean)
+      for (let count = 1; count <= tokens.length; count += 1) {
+        out.push(tokens.slice(0, count).join(" "))
+      }
+    }
+  }
+  out.push("[unk]")
+  return out
+}
+
+function voicePhraseMatchVariants(phrase: string): string[] {
+  const variants = [""]
+  for (const token of phrase.split(/\s+/).filter(Boolean)) {
+    const tokenVariants = voiceMatchTokenVariants(token)
+    const next: string[] = []
+    for (const prefix of variants) {
+      for (const tokenVariant of tokenVariants) {
+        next.push(prefix ? `${prefix} ${tokenVariant}` : tokenVariant)
+      }
+    }
+    variants.splice(0, variants.length, ...next)
+  }
+  return variants
+}
+
+function voiceMatchTokenVariants(token: string): string[] {
+  switch (token) {
+    case "выключи":
+    case "выключим":
+    case "выключу":
+    case "выключить":
+      return ["выключи", "выключим", "выключу", "выключить"]
+    case "отключи":
+    case "отключим":
+    case "отключу":
+    case "отключить":
+      return ["отключи", "отключим", "отключу", "отключить"]
+    case "выруби":
+    case "вырубим":
+    case "вырублю":
+    case "вырубить":
+      return ["выруби", "вырубим", "вырублю", "вырубить"]
+    case "останови":
+    case "остановим":
+    case "остановлю":
+    case "остановить":
+      return ["останови", "остановим", "остановлю", "остановить"]
+    default:
+      return [token]
+  }
+}
+
+function wakeGrammarNumberVariants(phrase: string): string[] {
+  const variants = [""]
+  for (const token of phrase.split(/\s+/).filter(Boolean)) {
+    const tokenVariants = voiceGrammarTokenVariants(token)
+    const next: string[] = []
+    for (const prefix of variants) {
+      for (const tokenVariant of tokenVariants) {
+        next.push(prefix ? `${prefix} ${tokenVariant}` : tokenVariant)
+      }
+    }
+    variants.splice(0, variants.length, ...next)
+  }
+  return variants
+}
+
+function voiceGrammarTokenVariants(token: string): string[] {
+  const spoken = digitToSpokenWakeTokens(token)
+  return spoken.length === 0 ? [token] : [token, ...spoken]
+}
+
+function digitToSpokenWakeTokens(token: string): string[] {
+  if (token === "0") return ["ноль"]
+  if (token === "1") return ["один", "одна"]
+  if (token === "2") return ["два", "две"]
+  if (token === "3") return ["три"]
+  if (token === "4") return ["четыре"]
+  if (token === "5") return ["пять"]
+  if (token === "6") return ["шесть"]
+  if (token === "7") return ["семь"]
+  if (token === "8") return ["восемь"]
+  if (token === "9") return ["девять"]
+  if (token === "10") return ["десять"]
+  return []
+}
+
+function normalizeWakeToken(token: string): string {
+  if (token === "ноль") return "0"
+  if (token === "один" || token === "одна") return "1"
+  if (token === "два" || token === "две") return "2"
+  if (token === "три") return "3"
+  if (token === "четыре") return "4"
+  if (token === "пять") return "5"
+  if (token === "шесть") return "6"
+  if (token === "семь") return "7"
+  if (token === "восемь") return "8"
+  if (token === "девять") return "9"
+  if (token === "десять") return "10"
+  return token
 }
 
 function uniqueStrings(values: readonly string[]): string[] {
@@ -1089,6 +1218,10 @@ function phraseInText(text: string, phrase: string): boolean {
     || text.includes(` ${phrase} `)
 }
 
+function activationPhraseInText(text: string, phrase: string): boolean {
+  return text === phrase || text.startsWith(`${phrase} `)
+}
+
 function phraseMatchesText(text: string, phrase: string, tolerance: number): boolean {
   if (!phrase) return false
   if (phraseInText(text, phrase)) return true
@@ -1114,6 +1247,27 @@ function fuzzyPhraseInText(text: string, phrase: string, tolerance: number): boo
       )
       if (score <= tolerance) return true
     }
+  }
+  return false
+}
+
+function fuzzyActivationPhraseAtStart(text: string, phrase: string, tolerance: number): boolean {
+  if (tolerance <= 0 || !text || !phrase) return false
+  const phraseWords = phrase.split(/\s+/).filter(Boolean)
+  const textWords = text.split(/\s+/).filter(Boolean)
+  if (phraseWords.length === 0 || textWords.length === 0) return false
+
+  const minWindow = Math.max(1, phraseWords.length - 1)
+  const maxWindow = Math.min(textWords.length, phraseWords.length + 1)
+  const compactPhrase = phrase.replace(/\s+/g, "")
+  for (let size = minWindow; size <= maxWindow; size += 1) {
+    const candidate = textWords.slice(0, size).join(" ")
+    const compactCandidate = candidate.replace(/\s+/g, "")
+    const score = Math.min(
+      normalizedLevenshtein(candidate, phrase),
+      normalizedLevenshtein(compactCandidate, compactPhrase),
+    )
+    if (score <= tolerance) return true
   }
   return false
 }

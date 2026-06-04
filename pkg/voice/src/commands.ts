@@ -77,12 +77,16 @@ export function createCommandRouter(
           distance: phraseDistance(normalizedText, entry.normalizedPhrase),
         }))
         .filter(({ entry, distance }) => {
-          const maxDistance = Math.min(
-            configuredMaxDistance,
-            Math.max(1, Math.floor(entry.normalizedPhrase.length * maxRelativeDistance)),
-          );
+          const maxDistance = maxRelativeDistance <= 0 || configuredMaxDistance <= 0
+            ? 0
+            : Math.min(
+              configuredMaxDistance,
+              Math.max(1, Math.floor(entry.normalizedPhrase.length * maxRelativeDistance)),
+            );
 
-          return distance <= maxDistance && !hasUnsafeVerbPrefix(normalizedText, entry.normalizedPhrase);
+          return maxDistance > 0
+            && distance <= maxDistance
+            && !hasUnsafeVerbPrefix(normalizedText, entry.normalizedPhrase);
         })
         .sort((left, right) => left.distance - right.distance);
 
