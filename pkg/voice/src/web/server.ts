@@ -1,5 +1,6 @@
-import { extname, resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { mkdir, readdir, readFile } from "node:fs/promises";
+import { extname, join, resolve } from "node:path";
 import type { Subprocess } from "bun";
 import {
   createCommandRouter,
@@ -70,6 +71,20 @@ type AsrTunnelInfo = {
   lastError: string | null;
 };
 
+type WhisperSessionFileName = "audio.wav" | "transcript.txt" | "meta.json";
+
+type WhisperSessionSummary = {
+  id: string;
+  createdAt: string;
+  transcript: string;
+  durationMs: number | null;
+  sampleRate: number | null;
+  audioBytes: number | null;
+  audioUrl: string;
+  transcriptUrl: string;
+  metaUrl: string;
+};
+
 const HOST = Bun.env.HOST ?? "127.0.0.1";
 const PORT = numberFromEnv("PORT", 4765);
 const DEFAULT_SAMPLE_RATE = numberFromEnv("VOICE_SAMPLE_RATE", 16_000);
@@ -77,6 +92,8 @@ const LOG_LEVEL = numberFromEnv("VOSK_LOG_LEVEL", -1);
 const USE_GRAMMAR = Bun.env.VOICE_GRAMMAR !== "0";
 const ASR_TUNNEL_CONFIG = readAsrTunnelConfig();
 const WEB_ROOT = import.meta.dir;
+const WHISPER_RECORDINGS_ROOT = resolve(WEB_ROOT, "../../recordings/whisper");
+const MAX_WHISPER_AUDIO_BYTES = positiveNumberFromEnv("VOICE_WHISPER_MAX_AUDIO_BYTES", 80 * 1024 * 1024);
 
 const router = createCommandRouter(defaultVoiceCommands);
 const grammar = USE_GRAMMAR ? commandGrammar(router.recognitionPhrases) : undefined;
@@ -156,12 +173,30 @@ async function handleRequest(
     return matchCommand(req);
   }
 
+  if (url.pathname === "/api/whisper/sessions" && req.method === "GET") {
+    return listWhisperSessions();
+  }
+
+  if (url.pathname === "/api/whisper/sessions" && req.method === "POST") {
+    return saveWhisperSession(req);
+  }
+
+  const whisperSessionFile = matchWhisperSessionFile(url.pathname);
+  if (whisperSessionFile) {
+    return serveWhisperSessionFile(whisperSessionFile.sessionId, whisperSessionFile.fileName);
+  }
+
   if (url.pathname === "/" || url.pathname === "/playground") {
     return serveStatic("index.html");
   }
 
+  if (url.pathname === "/whisper" || url.pathname === "/whisper/") {
+    return serveStatic("whisper.html");
+  }
+
   if (url.pathname === "/styles.css") return serveStatic("styles.css");
   if (url.pathname === "/app.js") return serveStatic("app.js");
+  if (url.pathname === "/whisper.js") return serveStatic("whisper.js");
 
   return text("Not found", 404);
 }
@@ -172,6 +207,96 @@ async function matchCommand(req: Request): Promise<Response> {
     const text = typeof body.text === "string" ? body.text : "";
     const match = router.match(text);
     return json({ ok: true, match: match ? serializeMatch(match) : null });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      400,
+    );
+  }
+}
+
+async function listWhisperSessions(): Promise<Response> {
+  try {
+    await mkdir(WHISPER_RECORDINGS_ROOT, { recursive: true });
+    const entries = await readdir(WHISPER_RECORDINGS_ROOT, { withFileTypes: true });
+    const sessions = (
+      await Promise.all(
+        entries
+          .filter((entry) => entry.isDirectory() && isSafePathSegment(entry.name))
+          .map((entry) => readWhisperSession(entry.name)),
+      )
+    ).filter((session): session is WhisperSessionSummary => session !== null);
+
+    sessions.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    return json({ ok: true, root: WHISPER_RECORDINGS_ROOT, sessions });
+  } catch (error) {
+    return json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      500,
+    );
+  }
+}
+
+async function saveWhisperSession(req: Request): Promise<Response> {
+  try {
+    const form = await req.formData();
+    const audio = form.get("audio");
+    if (!(audio instanceof File)) {
+      return json({ ok: false, error: "audio_required" }, 400);
+    }
+    if (audio.size <= 0) {
+      return json({ ok: false, error: "audio_empty" }, 400);
+    }
+    if (audio.size > MAX_WHISPER_AUDIO_BYTES) {
+      return json({ ok: false, error: "audio_too_large", maxBytes: MAX_WHISPER_AUDIO_BYTES }, 413);
+    }
+
+    const transcript = formText(form.get("transcript")).trim();
+    const createdAt = new Date().toISOString();
+    const id = `${createdAt.replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z")}-${crypto.randomUUID().slice(0, 8)}`;
+    const dir = join(WHISPER_RECORDINGS_ROOT, id);
+    const messages = parseJsonFormValue(form.get("messages"), []);
+    const segments = parseJsonFormValue(form.get("segments"), []);
+    const meta = parseJsonFormValue(form.get("meta"), {});
+    const metaRecord = isPlainRecord(meta) ? meta : {};
+    const durationMs = finiteNumberFromUnknown(metaRecord.durationMs);
+    const sampleRate = finiteNumberFromUnknown(metaRecord.sampleRate);
+
+    await mkdir(dir, { recursive: true });
+    await Bun.write(join(dir, "audio.wav"), audio);
+    await Bun.write(join(dir, "transcript.txt"), transcript);
+    await Bun.write(
+      join(dir, "meta.json"),
+      JSON.stringify(
+        {
+          ...metaRecord,
+          id,
+          createdAt,
+          transcriptBytes: new TextEncoder().encode(transcript).byteLength,
+          messages,
+          segments,
+          durationMs,
+          sampleRate,
+          audio: {
+            file: "audio.wav",
+            originalName: audio.name,
+            type: audio.type || "audio/wav",
+            bytes: audio.size,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const session = await readWhisperSession(id);
+    return json({ ok: true, session });
   } catch (error) {
     return json(
       {
@@ -352,6 +477,8 @@ function serviceConfig() {
     grammar: USE_GRAMMAR,
     phrases: router.recognitionPhrases,
     asrTunnel: asrTunnelInfo(),
+    remoteAsrUrl: `ws://${ASR_TUNNEL_CONFIG.localBind}:${ASR_TUNNEL_CONFIG.localPort}/ws`,
+    whisperRecordingsRoot: WHISPER_RECORDINGS_ROOT,
   };
 }
 
@@ -379,6 +506,115 @@ function contentTypeFor(path: string): string {
     default:
       return "application/octet-stream";
   }
+}
+
+function matchWhisperSessionFile(
+  pathname: string,
+): { sessionId: string; fileName: WhisperSessionFileName } | null {
+  const match = /^\/api\/whisper\/sessions\/([^/]+)\/(audio\.wav|transcript\.txt|meta\.json)$/.exec(
+    pathname,
+  );
+  if (!match) return null;
+  const sessionId = decodeURIComponent(match[1] ?? "");
+  const fileName = match[2] as WhisperSessionFileName | undefined;
+  if (!fileName || !isSafePathSegment(sessionId)) return null;
+  return { sessionId, fileName };
+}
+
+async function serveWhisperSessionFile(
+  sessionId: string,
+  fileName: WhisperSessionFileName,
+): Promise<Response> {
+  if (!isSafePathSegment(sessionId)) return text("Not found", 404);
+  const path = join(WHISPER_RECORDINGS_ROOT, sessionId, fileName);
+  if (!existsSync(path)) return text("Not found", 404);
+
+  const contentType =
+    fileName === "audio.wav"
+      ? "audio/wav"
+      : fileName === "transcript.txt"
+        ? "text/plain; charset=utf-8"
+        : "application/json; charset=utf-8";
+
+  return new Response(Bun.file(path), {
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "no-store",
+      "X-Robots-Tag": "noindex, nofollow",
+    },
+  });
+}
+
+async function readWhisperSession(id: string): Promise<WhisperSessionSummary | null> {
+  if (!isSafePathSegment(id)) return null;
+
+  const dir = join(WHISPER_RECORDINGS_ROOT, id);
+  const [meta, transcript] = await Promise.all([
+    readJson(join(dir, "meta.json")),
+    readTextFile(join(dir, "transcript.txt")),
+  ]);
+  if (!existsSync(join(dir, "audio.wav")) && !transcript && meta === null) return null;
+
+  const metaRecord = isPlainRecord(meta) ? meta : {};
+  const audioRecord = isPlainRecord(metaRecord.audio) ? metaRecord.audio : {};
+  const createdAt = typeof metaRecord.createdAt === "string" ? metaRecord.createdAt : id;
+
+  return {
+    id,
+    createdAt,
+    transcript,
+    durationMs: finiteNumberFromUnknown(metaRecord.durationMs),
+    sampleRate: finiteNumberFromUnknown(metaRecord.sampleRate),
+    audioBytes: finiteNumberFromUnknown(audioRecord.bytes),
+    audioUrl: `/api/whisper/sessions/${encodeURIComponent(id)}/audio.wav`,
+    transcriptUrl: `/api/whisper/sessions/${encodeURIComponent(id)}/transcript.txt`,
+    metaUrl: `/api/whisper/sessions/${encodeURIComponent(id)}/meta.json`,
+  };
+}
+
+async function readTextFile(path: string): Promise<string> {
+  try {
+    return await readFile(path, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+async function readJson(path: string): Promise<unknown | null> {
+  const text = await readTextFile(path);
+  if (!text.trim()) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function formText(value: FormDataEntryValue | null): string {
+  return typeof value === "string" ? value : "";
+}
+
+function parseJsonFormValue(value: FormDataEntryValue | null, fallback: unknown): unknown {
+  const text = formText(value);
+  if (!text.trim()) return fallback;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return fallback;
+  }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function finiteNumberFromUnknown(value: unknown): number | null {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function isSafePathSegment(value: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,140}$/.test(value);
 }
 
 function toUint8Array(value: unknown): Uint8Array | null {

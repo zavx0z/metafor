@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Whisper Capture</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="mark" aria-hidden="true"></span>
+          <div>
+            <h1>Whisper Capture</h1>
+            <p id="statusText">offline</p>
+          </div>
+        </div>
+
+        <div class="controls" aria-label="Whisper controls">
+          <a class="navLink" href="/playground">Playground</a>
+          <button id="startBtn" type="button">Старт</button>
+          <button id="commitBtn" type="button" disabled>Абзац</button>
+          <button id="stopSaveBtn" type="button" disabled>Стоп и сохранить</button>
+          <button id="saveBtn" type="button" disabled>Сохранить</button>
+        </div>
+      </header>
+
+      <section class="endpointBar whisperEndpointBar" aria-label="Whisper endpoint">
+        <label for="remoteUrl">Whisper URL</label>
+        <input id="remoteUrl" value="ws://127.0.0.1:8877/ws" spellcheck="false" />
+        <label for="contextText">Контекст</label>
+        <input
+          id="contextText"
+          value=""
+          placeholder="Имена, термины, словарь"
+          spellcheck="true"
+        />
+      </section>
+
+      <section class="meters whisperMeters" aria-label="Capture status">
+        <div class="stat">
+          <span>Sample rate</span>
+          <strong id="sampleRate">16000</strong>
+        </div>
+        <div class="stat">
+          <span>Аудио</span>
+          <strong id="audioBytes">0 KB</strong>
+        </div>
+        <div class="stat">
+          <span>Partial</span>
+          <strong id="partialText">-</strong>
+        </div>
+        <div class="stat">
+          <span>Записи</span>
+          <strong id="savedCount">0</strong>
+        </div>
+      </section>
+
+      <section class="stage" aria-label="Audio stream">
+        <canvas id="waveform" width="1200" height="260"></canvas>
+      </section>
+
+      <section class="workspace whisperWorkspace">
+        <section class="panel transcript" aria-label="Transcript">
+          <div class="panelHead">
+            <h2>Текст</h2>
+            <button id="clearTranscriptBtn" type="button">Очистить</button>
+          </div>
+          <textarea id="transcriptText" class="transcriptEditor" spellcheck="true"></textarea>
+        </section>
+
+        <section class="panel savedPanel" aria-label="Saved recordings">
+          <div class="panelHead">
+            <h2>Сохранено</h2>
+            <button id="refreshSavedBtn" type="button">Обновить</button>
+          </div>
+          <div id="savedList" class="list"></div>
+        </section>
+
+        <section class="panel logPanel" aria-label="Events">
+          <div class="panelHead">
+            <h2>События</h2>
+            <button id="clearLogBtn" type="button">Очистить</button>
+          </div>
+          <pre id="eventLog"></pre>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/whisper.js?v=20260604-capture-save"></script>
+  </body>
+</html>

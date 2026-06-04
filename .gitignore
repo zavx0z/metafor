@@ -7,6 +7,7 @@ __snapshots__
 .idea
 .DS_Store
 public
+pkg/voice/recordings/
 .firebase/*
 *.sqlite*
 *.db*
