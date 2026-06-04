@@ -85,6 +85,7 @@ type ModuleLine = {
 type ModulePaneSnapshot = {
   id: string
   label: string
+  modulePath: string | null
   protocolUrl: string
   connection: ConnectionInfo
   paused: boolean
@@ -159,12 +160,27 @@ type CachedSource = {
 
 type WorkspaceFilesPayload = {
   root?: string
+  workspacePath?: string
+  modulePath?: string
   files?: Array<{path?: string}>
 }
 
 type WorkspaceFilesStoredState = {
   expandedIds: string[]
   selectedIds: string[]
+}
+
+type WorkspaceFilesState = {
+  root: string | null
+  workspacePath: string
+  modulePath: string | null
+  rootLabel: string | null
+  items: readonly FileListItem[]
+  expandedIds: readonly string[]
+  selectedIds: readonly string[]
+  storageKey: string
+  loading: Promise<void> | null
+  suppressSelectionOpen: boolean
 }
 
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
@@ -275,6 +291,7 @@ type ModuleDisplayController = {
     buffer: string
     promptVisible: boolean
   }
+  workspaceFiles: WorkspaceFilesState
 }
 
 type HostTerminalController = {
@@ -405,12 +422,6 @@ let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let hostTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredHostTerminalDockPlacement() ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
 let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let voiceHudPane: VoiceInputHud | null = null
-let workspaceFileItems: readonly FileListItem[] = []
-let workspaceFileExpandedIds: readonly string[] = []
-let workspaceFileSelectedIds: readonly string[] = []
-let workspaceFilesStateStorageKey = workspaceFilesStorageKey(undefined)
-let workspaceFilesRootLabel: string | null = null
-let workspaceFilesLoading: Promise<void> | null = null
 let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
 let voicePartialPreviewTarget: VoiceInputTarget | null = null
@@ -1100,7 +1111,6 @@ async function initEngine(): Promise<void> {
       stopTooltip: () => t("voiceStop"),
     })
     installEnginePanes()
-    void refreshWorkspaceFiles()
     uiCanvas.handleResize()
     syncModuleDisplays()
     resizeObserver = new ResizeObserver(handleEngineResize)
@@ -1182,14 +1192,23 @@ function setVerboseVisible(controller: ModuleDisplayController, on: boolean): vo
 }
 
 class WorkspaceFilesHeaderPane extends UiSurface {
+  #rootLabel: string | null = null
+  readonly #onRevealCurrent: () => void
   readonly #onCollapseAll: () => void
   readonly #onExpandAll: () => void
 
-  constructor(onCollapseAll: () => void, onExpandAll: () => void) {
+  constructor(onRevealCurrent: () => void, onCollapseAll: () => void, onExpandAll: () => void) {
     super({bgColor: null, borderColor: null})
     this.node.name = "WorkspaceFilesHeaderPane"
+    this.#onRevealCurrent = onRevealCurrent
     this.#onCollapseAll = onCollapseAll
     this.#onExpandAll = onExpandAll
+  }
+
+  setRootLabel(label: string | null): void {
+    if (this.#rootLabel === label) return
+    this.#rootLabel = label
+    this.requestRender()
   }
 
   protected render(): void {
@@ -1198,26 +1217,29 @@ class WorkspaceFilesHeaderPane extends UiSurface {
     const buttonY = 6
     const buttonSize = 24
     const gap = 6
+    const revealCurrentLabel = t("sourceRevealCurrent")
     const expandLabel = t("sourceExpandAll")
     const collapseLabel = t("sourceCollapseAll")
     const expandX = Math.max(pad, this.rectW - pad - buttonSize)
     const collapseX = Math.max(pad, expandX - gap - buttonSize)
-    const titleW = Math.max(1, collapseX - titleX - 8)
+    const revealCurrentX = Math.max(pad, collapseX - gap - buttonSize)
+    const titleW = Math.max(1, revealCurrentX - titleX - 8)
 
-    this.drawText(workspaceFilesRootLabel ?? t("sourceFiles"), titleX, 9, {
+    this.drawText(this.#rootLabel ?? t("sourceFiles"), titleX, 9, {
       fontPx: 13,
       material: this.materials.cyan,
       maxWidthPx: titleW,
     })
+    this.#drawHeaderAction(revealCurrentX, buttonY, buttonSize, revealCurrentLabel, "revealCurrent", this.#onRevealCurrent, "workspace-files-reveal-current")
     this.#drawHeaderAction(collapseX, buttonY, buttonSize, collapseLabel, "collapse", this.#onCollapseAll, "workspace-files-collapse-all")
     this.#drawHeaderAction(expandX, buttonY, buttonSize, expandLabel, "expand", this.#onExpandAll, "workspace-files-expand-all")
     this.drawRect(pad, Math.max(0, this.rectH - 1), Math.max(1, this.rectW - pad * 2), 1, palette.borderDim)
   }
 
-  #drawHeaderAction(x: number, y: number, size: number, label: string, kind: "collapse" | "expand", action: () => void, key: string): void {
+  #drawHeaderAction(x: number, y: number, size: number, label: string, kind: "revealCurrent" | "collapse" | "expand", action: () => void, key: string): void {
     button(this, x, y, size, size, {
       key,
-      children: (state) => this.#drawCornerActionIcon(x + size / 2, y + size / 2, kind, state !== "idle"),
+      children: (state) => this.#drawHeaderActionIcon(x + size / 2, y + size / 2, kind, state !== "idle"),
       tooltip: label,
       tooltipDelayMs: 180,
       onClick: action,
@@ -1237,7 +1259,12 @@ class WorkspaceFilesHeaderPane extends UiSurface {
     })
   }
 
-  #drawCornerActionIcon(cx: number, cy: number, kind: "collapse" | "expand", active: boolean): void {
+  #drawHeaderActionIcon(cx: number, cy: number, kind: "revealCurrent" | "collapse" | "expand", active: boolean): void {
+    if (kind === "revealCurrent") {
+      drawIconCentered(this, uiIcons.executionPoint, cx, cy, 13, {opacity: active ? 0.98 : 0.72, z: 0.48})
+      return
+    }
+
     const color = active ? palette.text : palette.violet
     const z = 0.48
     const stroke = 2
@@ -2929,6 +2956,7 @@ function syncModuleDisplays(): void {
       })
       addInterpreterSurfacesToDisplay(displayId, controller)
       void refreshModuleBreakpoints(controller)
+      void refreshWorkspaceFiles(controller)
     } else {
       uiCanvas.resizeDisplay(displayId, displayMetrics)
       uiCanvas.setDisplayCenter(displayId, center)
@@ -3612,6 +3640,7 @@ function addInterpreterSurfacesToDisplay(displayId: string, controller: ModuleDi
 
 function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDisplayController {
   const controller = {} as ModuleDisplayController
+  const workspaceFiles = initialWorkspaceFilesState(module)
   Object.assign(controller, {
     id: module.id,
     toolbar: new ToolbarPane({
@@ -3630,14 +3659,15 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     }),
     filesChrome: new WorkspaceFilesChromePane(),
     filesHeader: new WorkspaceFilesHeaderPane(
-      () => setWorkspaceFilesExpandedIds([]),
-      () => setWorkspaceFilesExpandedIds(workspaceDirectoryIds(workspaceFileItems)),
+      () => revealCurrentWorkspaceFile(controller),
+      () => setWorkspaceFilesExpandedIds(controller, []),
+      () => setWorkspaceFilesExpandedIds(controller, workspaceDirectoryIds(controller.workspaceFiles.items)),
     ),
     files: new FileListPane({
       title: t("sourceFiles"),
-      items: workspaceFileItems,
-      expandedIds: workspaceFileExpandedIds,
-      selectedIds: workspaceFileSelectedIds,
+      items: workspaceFiles.items,
+      expandedIds: workspaceFiles.expandedIds,
+      selectedIds: workspaceFiles.selectedIds,
       selectionMode: "single",
       showHeader: false,
       theme: {
@@ -3648,14 +3678,15 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
         },
       },
       onSelectionChange: (ids, items) => {
-        setWorkspaceFilesSelectedIds(ids)
+        updateWorkspaceFilesSelectedState(controller, ids)
+        if (controller.workspaceFiles.suppressSelectionOpen) return
         const item = items[0]
         if (item?.kind === "file") void openWorkspaceFile(controller, item)
       },
       onItemOpen: (item) => {
         if (item.kind === "file") void openWorkspaceFile(controller, item)
       },
-      onExpandedChange: setWorkspaceFilesExpandedIds,
+      onExpandedChange: (ids) => setWorkspaceFilesExpandedIds(controller, ids),
     }),
     scopes: new ScopesPane(),
     source: new EditorPane({
@@ -3698,6 +3729,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     agentTerminalTargetStartedAt: module.target.startedAt,
     activeCommand: null,
     verboseVisible: readModuleVerboseVisible(module.id),
+    workspaceFiles,
     terminalInput: {
       buffer: "",
       promptVisible: false,
@@ -3718,6 +3750,12 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
 }
 
 function updateModuleDisplay(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
+  const nextWorkspaceModulePath = module.modulePath ?? null
+  if (controller.workspaceFiles.modulePath !== nextWorkspaceModulePath) {
+    controller.workspaceFiles.modulePath = nextWorkspaceModulePath
+    void refreshWorkspaceFiles(controller)
+  }
+
   if (module.target.startedAt !== controller.agentTerminalTargetStartedAt) {
     controller.agentTerminalTargetStartedAt = module.target.startedAt
     controller.agentTerminalEntries = readStoredModuleAgentTerminalEntries(module.id, module.target.startedAt)
@@ -3762,65 +3800,97 @@ function updateModuleDisplay(controller: ModuleDisplayController, module: Module
   syncModuleTerminalInput(controller)
 }
 
-async function refreshWorkspaceFiles(): Promise<void> {
-  if (workspaceFilesLoading !== null) return workspaceFilesLoading
-  workspaceFilesLoading = (async () => {
+function initialWorkspaceFilesState(module: ModulePaneSnapshot): WorkspaceFilesState {
+  const storageKey = workspaceFilesStorageKey(undefined, module.id)
+  const storedState = readStoredWorkspaceFilesState(storageKey)
+  return {
+    root: null,
+    workspacePath: "",
+    modulePath: module.modulePath ?? null,
+    rootLabel: null,
+    items: [],
+    expandedIds: storedState.expandedIds,
+    selectedIds: storedState.selectedIds,
+    storageKey,
+    loading: null,
+    suppressSelectionOpen: false,
+  }
+}
+
+async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promise<void> {
+  if (controller.workspaceFiles.loading !== null) return controller.workspaceFiles.loading
+  controller.workspaceFiles.loading = (async () => {
     try {
-      const res = await fetch(`/workspace/files?limit=${WORKSPACE_FILES_LIMIT}`)
+      const res = await fetch(`/workspace/files?moduleId=${encodeURIComponent(controller.id)}&limit=${WORKSPACE_FILES_LIMIT}`)
       const data = await res.json() as WorkspaceFilesPayload
       const paths = Array.isArray(data.files)
         ? data.files.map((file) => typeof file.path === "string" ? file.path : "").filter((path) => path.length > 0)
         : []
-      workspaceFilesStateStorageKey = workspaceFilesStorageKey(data.root)
-      workspaceFilesRootLabel = workspaceRootLabel(data.root)
-      workspaceFileItems = workspaceFileTree(paths)
-      const storedState = readStoredWorkspaceFilesState(workspaceFilesStateStorageKey)
-      workspaceFileExpandedIds = normalizeWorkspaceExpandedIds(storedState.expandedIds, workspaceFileItems)
-      workspaceFileSelectedIds = normalizeFileListSelection(storedState.selectedIds, workspaceFileItems, "single")
-      applyWorkspaceFilesToModuleDisplays()
+      const items = workspaceFileTree(paths)
+      const storageKey = workspaceFilesStorageKey(data.root, controller.id)
+      const storedState = readStoredWorkspaceFilesState(storageKey)
+      controller.workspaceFiles.root = data.root ?? null
+      controller.workspaceFiles.workspacePath = normalizeWorkspacePath(data.workspacePath ?? "")
+      controller.workspaceFiles.modulePath = data.modulePath ?? controller.workspaceFiles.modulePath
+      controller.workspaceFiles.rootLabel = workspaceRootLabel(data.root)
+      controller.workspaceFiles.items = items
+      controller.workspaceFiles.storageKey = storageKey
+      controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(storedState.expandedIds, items)
+      controller.workspaceFiles.selectedIds = normalizeFileListSelection(storedState.selectedIds, items, "single")
+      applyWorkspaceFilesToModuleDisplay(controller)
     } catch (error) {
-      console.warn("workspace files refresh failed:", error)
-      workspaceFilesStateStorageKey = workspaceFilesStorageKey(undefined)
-      workspaceFilesRootLabel = null
-      workspaceFileItems = []
-      workspaceFileExpandedIds = []
-      workspaceFileSelectedIds = []
-      applyWorkspaceFilesToModuleDisplays()
+      console.warn(`workspace files refresh failed for ${controller.id}:`, error)
+      controller.workspaceFiles.root = null
+      controller.workspaceFiles.workspacePath = ""
+      controller.workspaceFiles.rootLabel = null
+      controller.workspaceFiles.items = []
+      controller.workspaceFiles.expandedIds = []
+      controller.workspaceFiles.selectedIds = []
+      applyWorkspaceFilesToModuleDisplay(controller)
     } finally {
-      workspaceFilesLoading = null
+      controller.workspaceFiles.loading = null
     }
   })()
-  return workspaceFilesLoading
+  return controller.workspaceFiles.loading
 }
 
-function applyWorkspaceFilesToModuleDisplays(): void {
-  const expandedIds = workspaceFileExpandedIds
-  const selectedIds = workspaceFileSelectedIds
-  for (const controller of moduleDisplays.values()) {
-    controller.filesHeader.requestRender()
+function applyWorkspaceFilesToModuleDisplay(controller: ModuleDisplayController): void {
+  const state = controller.workspaceFiles
+  state.suppressSelectionOpen = true
+  try {
+    controller.filesHeader.setRootLabel(state.rootLabel)
     controller.files.setTitle(t("sourceFiles"))
-    controller.files.setItems(workspaceFileItems)
-    controller.files.setExpandedIds(expandedIds)
-    controller.files.setSelectedIds(selectedIds)
+    controller.files.setItems(state.items)
+    controller.files.setExpandedIds(state.expandedIds)
+    controller.files.setSelectedIds(state.selectedIds)
+  } finally {
+    state.suppressSelectionOpen = false
   }
-  workspaceFileExpandedIds = expandedIds
-  workspaceFileSelectedIds = selectedIds
 }
 
-function setWorkspaceFilesExpandedIds(ids: readonly string[]): void {
-  workspaceFileExpandedIds = normalizeWorkspaceExpandedIds(ids, workspaceFileItems)
-  writeStoredWorkspaceFilesState()
-  for (const controller of moduleDisplays.values()) controller.files.setExpandedIds(workspaceFileExpandedIds)
+function setWorkspaceFilesExpandedIds(controller: ModuleDisplayController, ids: readonly string[]): void {
+  controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(ids, controller.workspaceFiles.items)
+  writeStoredWorkspaceFilesState(controller)
+  controller.files.setExpandedIds(controller.workspaceFiles.expandedIds)
 }
 
-function setWorkspaceFilesSelectedIds(ids: readonly string[]): void {
-  workspaceFileSelectedIds = normalizeFileListSelection(ids, workspaceFileItems, "single")
-  writeStoredWorkspaceFilesState()
-  for (const controller of moduleDisplays.values()) controller.files.setSelectedIds(workspaceFileSelectedIds)
+function updateWorkspaceFilesSelectedState(controller: ModuleDisplayController, ids: readonly string[]): void {
+  controller.workspaceFiles.selectedIds = normalizeFileListSelection(ids, controller.workspaceFiles.items, "single")
+  writeStoredWorkspaceFilesState(controller)
+}
+
+function setWorkspaceFilesSelectedIds(controller: ModuleDisplayController, ids: readonly string[]): void {
+  updateWorkspaceFilesSelectedState(controller, ids)
+  controller.workspaceFiles.suppressSelectionOpen = true
+  try {
+    controller.files.setSelectedIds(controller.workspaceFiles.selectedIds)
+  } finally {
+    controller.workspaceFiles.suppressSelectionOpen = false
+  }
 }
 
 async function openWorkspaceFile(controller: ModuleDisplayController, item: FileListItem): Promise<void> {
-  const sourceUrl = typeof item.path === "string" && item.path.length > 0 ? item.path : item.id
+  const sourceUrl = workspaceFileSourceUrl(controller, item)
   const location = sourceUrl
   const identity: BreakpointSourceIdentity = {
     scriptId: "",
@@ -3875,6 +3945,13 @@ async function openWorkspaceFile(controller: ModuleDisplayController, item: File
       identity,
     }, "idle", false)
   }
+}
+
+function workspaceFileSourceUrl(controller: ModuleDisplayController, item: FileListItem): string {
+  const itemPath = typeof item.path === "string" && item.path.length > 0 ? item.path : item.id
+  const root = controller.workspaceFiles.root
+  if (root === null || root.trim().length === 0) return itemPath
+  return `${root.replaceAll("\\", "/").replace(/\/+$/, "")}/${itemPath.replaceAll("\\", "/").replace(/^\/+/, "")}`
 }
 
 function workspaceFileTree(paths: readonly string[]): FileListItem[] {
@@ -3945,6 +4022,85 @@ function workspaceDirectoryIds(items: readonly FileListItem[]): string[] {
   return ids
 }
 
+function revealCurrentWorkspaceFile(controller: ModuleDisplayController): void {
+  const fileId = currentWorkspaceFileId(controller)
+  if (fileId === null) return
+  setWorkspaceFilesExpandedIds(controller, [...new Set([...controller.workspaceFiles.expandedIds, ...workspaceParentIds(fileId)])])
+  setWorkspaceFilesSelectedIds(controller, [fileId])
+}
+
+function currentWorkspaceFileId(controller: ModuleDisplayController): string | null {
+  const knownIds = new Set(workspaceFileIds(controller.workspaceFiles.items))
+  const candidates = [
+    controller.sourceLocation,
+    controller.sourceIdentity?.sourceUrl,
+    controller.sourceIdentity?.scriptUrl,
+    controller.sourceIdentity?.key,
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+
+  for (const candidate of candidates) {
+    const direct = workspaceFileIdCandidates(candidate, controller.workspaceFiles)
+    for (const id of direct) {
+      if (knownIds.has(id)) return id
+    }
+  }
+
+  for (const candidate of candidates) {
+    const normalized = normalizeSourceFilePath(candidate)
+    if (normalized.length === 0) continue
+    const suffixMatches = [...knownIds].filter((id) => normalized === id || normalized.endsWith(`/${id}`))
+    if (suffixMatches.length === 1) return suffixMatches[0]!
+  }
+  return null
+}
+
+function workspaceFileIdCandidates(source: string, state: WorkspaceFilesState): string[] {
+  const candidates = new Set<string>()
+  const add = (value: string): void => {
+    const normalized = normalizeWorkspacePath(value)
+    if (normalized.length === 0) return
+    candidates.add(normalized)
+    const withoutPrefix = stripWorkspacePathPrefix(normalized, state.workspacePath)
+    if (withoutPrefix.length > 0) candidates.add(withoutPrefix)
+  }
+
+  const normalized = normalizeSourceFilePath(source)
+  add(normalized)
+  if (normalized.startsWith("r/")) add(normalized.slice(2))
+
+  const root = normalizeSourceFilePath(state.root ?? "")
+  if (root.length > 0 && normalized.startsWith(`${root}/`)) add(normalized.slice(root.length + 1))
+
+  return [...candidates]
+}
+
+function stripWorkspacePathPrefix(path: string, workspacePath: string): string {
+  const prefix = normalizeWorkspacePath(workspacePath)
+  if (prefix.length === 0) return path
+  if (path === prefix) return ""
+  return path.startsWith(`${prefix}/`) ? path.slice(prefix.length + 1) : path
+}
+
+function workspaceParentIds(fileId: string): string[] {
+  const parts = fileId.split("/")
+  const parents: string[] = []
+  let current = ""
+  for (let idx = 0; idx < parts.length - 1; idx++) {
+    current = current.length === 0 ? parts[idx]! : `${current}/${parts[idx]!}`
+    parents.push(current)
+  }
+  return parents
+}
+
+function workspaceFileIds(items: readonly FileListItem[]): string[] {
+  const ids: string[] = []
+  for (const item of items) {
+    if (item.kind === "file") ids.push(item.id)
+    if (item.children !== undefined) ids.push(...workspaceFileIds(item.children))
+  }
+  return ids
+}
+
 function normalizeWorkspaceExpandedIds(ids: readonly string[], items: readonly FileListItem[]): string[] {
   const known = new Set(workspaceDirectoryIds(items))
   const next: string[] = []
@@ -3963,10 +4119,10 @@ function workspaceRootLabel(root: string | undefined): string | null {
   return parts[parts.length - 1] ?? normalized
 }
 
-function workspaceFilesStorageKey(root: string | undefined): string {
+function workspaceFilesStorageKey(root: string | undefined, moduleId: string): string {
   const normalized = root?.trim().replaceAll("\\", "/").replace(/\/+$/, "")
   const rootKey = normalized === undefined || normalized.length === 0 ? "default" : normalized
-  return `${WORKSPACE_FILES_STATE_STORAGE_PREFIX}:${rootKey}`
+  return `${WORKSPACE_FILES_STATE_STORAGE_PREFIX}:${moduleId}:${rootKey}`
 }
 
 function readStoredWorkspaceFilesState(storageKey: string): WorkspaceFilesStoredState {
@@ -3983,15 +4139,38 @@ function readStoredWorkspaceFilesState(storageKey: string): WorkspaceFilesStored
   }
 }
 
-function writeStoredWorkspaceFilesState(): void {
+function writeStoredWorkspaceFilesState(controller: ModuleDisplayController): void {
   try {
-    localStorage.setItem(workspaceFilesStateStorageKey, JSON.stringify({
-      expandedIds: workspaceFileExpandedIds,
-      selectedIds: workspaceFileSelectedIds,
+    localStorage.setItem(controller.workspaceFiles.storageKey, JSON.stringify({
+      expandedIds: controller.workspaceFiles.expandedIds,
+      selectedIds: controller.workspaceFiles.selectedIds,
     }))
   } catch {
     // Storage can be disabled in private contexts.
   }
+}
+
+function normalizeSourceFilePath(path: string): string {
+  const clean = stripSourceLine(path).trim().replaceAll("\\", "/").replace(/[?#].*$/, "")
+  if (clean.startsWith("file:")) {
+    try {
+      const url = new URL(clean)
+      return normalizeWorkspacePath(decodeURIComponent(url.pathname))
+    } catch {
+      return normalizeWorkspacePath(clean)
+    }
+  }
+  return normalizeWorkspacePath(clean)
+}
+
+function stripSourceLine(path: string): string {
+  const idx = path.lastIndexOf(":")
+  if (idx < 0) return path
+  return /^\d+$/.test(path.slice(idx + 1)) ? path.slice(0, idx) : path
+}
+
+function normalizeWorkspacePath(path: string): string {
+  return path.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "")
 }
 
 function storedStringArray(value: unknown): string[] {

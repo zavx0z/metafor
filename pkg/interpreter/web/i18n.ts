@@ -103,6 +103,7 @@ export const text = {
   sourceLastPaused: {ru: "последняя пауза", en: "last paused frame"},
   sourceLoading: {ru: "код загружается...", en: "loading source..."},
   sourceFiles: {ru: "Исходники", en: "Source files"},
+  sourceRevealCurrent: {ru: "Выделить текущий файл", en: "Select current file"},
   sourceCollapseAll: {ru: "Свернуть все", en: "Collapse all"},
   sourceExpandAll: {ru: "Развернуть все", en: "Expand all"},
   sourceRunning: {ru: "модуль выполняется", en: "module running"},

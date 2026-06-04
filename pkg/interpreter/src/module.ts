@@ -29,6 +29,7 @@ export type StartupModuleOptions = {
 export type InterpreterModuleSnapshot = {
   id: string
   label: string
+  modulePath: string | null
   protocolUrl: string
   connection: {
     state: ProtocolClient["socketState"]
@@ -54,6 +55,7 @@ export type InterpreterModuleRunOptions = StartupModuleOptions & {
 type InterpreterModuleOptions = {
   id: string
   label: string
+  modulePath?: string
   config: InterpreterConfig
   logger: EventLogger
   protocolUrl: string
@@ -72,11 +74,13 @@ export class InterpreterModule {
   readonly dumpPath: string
   readonly consoleLogPath: string
   #label: string
+  #modulePath: string | null
   #started = false
 
   constructor(options: InterpreterModuleOptions) {
     this.id = options.id
     this.#label = options.label
+    this.#modulePath = normalizeModulePath(options.modulePath)
     this.dumpPath = options.dumpPath
     this.consoleLogPath = options.consoleLogPath
     ensureParentDir(this.dumpPath)
@@ -117,10 +121,18 @@ export class InterpreterModule {
     return this.#label
   }
 
+  get modulePath(): string | null {
+    return this.#modulePath
+  }
+
   setLabel(label: string): void {
     const next = label.trim()
     if (next.length === 0 || next === this.#label) return
     this.#label = next
+  }
+
+  setModulePath(modulePath: string | undefined): void {
+    this.#modulePath = normalizeModulePath(modulePath)
   }
 
   startConnectionLoop(): void {
@@ -130,6 +142,7 @@ export class InterpreterModule {
   }
 
   runTarget(options: StartupModuleOptions): TargetSnapshot {
+    if (options.modulePath !== undefined) this.setModulePath(options.modulePath)
     return this.target.start({
       ...options,
       protocolUrl: this.client.url,
@@ -140,6 +153,7 @@ export class InterpreterModule {
     return {
       id: this.id,
       label: this.label,
+      modulePath: this.modulePath,
       protocolUrl: this.client.url,
       connection: {
         state: this.client.socketState,
@@ -197,7 +211,7 @@ export class InterpreterModuleManager {
   create(options: {id?: string; label?: string; protocolUrl?: string; modulePath?: string} = {}): InterpreterModule {
     const id = this.#allocateModuleId(options.id ?? options.label ?? options.modulePath)
     const baseDir = dirname(this.#config.dumpPath)
-    const module = new InterpreterModule({
+    const moduleOptions: InterpreterModuleOptions = {
       id,
       label: options.label?.trim() || id,
       config: this.#config,
@@ -205,7 +219,9 @@ export class InterpreterModuleManager {
       protocolUrl: options.protocolUrl ?? this.#allocateProtocolUrl(),
       dumpPath: join(baseDir, "modules", id, "state.json"),
       consoleLogPath: join(baseDir, "modules", id, "console.log"),
-    })
+    }
+    if (options.modulePath !== undefined) moduleOptions.modulePath = options.modulePath
+    const module = new InterpreterModule(moduleOptions)
     this.#modules.set(id, module)
     module.startConnectionLoop()
     this.#emit({type: "created", module})
@@ -265,6 +281,11 @@ export class InterpreterModuleManager {
       }
     }
   }
+}
+
+function normalizeModulePath(modulePath: string | undefined): string | null {
+  const next = modulePath?.trim()
+  return next === undefined || next.length === 0 ? null : next
 }
 
 type InterpreterRuntimeOptions = {

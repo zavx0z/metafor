@@ -13,8 +13,8 @@
  */
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
-import {existsSync, statSync, openSync, readSync, closeSync, readFileSync, readdirSync, type Dirent} from "node:fs"
-import {join, relative, resolve} from "node:path"
+import {existsSync, statSync, openSync, readSync, closeSync, readFileSync} from "node:fs"
+import {join, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
 import indexHtml from "../web/index.html"
 
@@ -34,6 +34,7 @@ import type {JsonObject} from "./types.ts"
 import {sourceMapMapper} from "./source-map.ts"
 import {createPtySessionManager, parsePtyClientMessage, type PtySocketData, type TerminalSession} from "@metafor/pty/server"
 import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} from "./module.ts"
+import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspace-files.ts"
 
 export type HttpServerOptions = {
   host: string
@@ -449,7 +450,10 @@ async function handleRoute(
   if (method === "DELETE" && moduleBreakpoint !== null) return await removeModuleBreakpoint(moduleBreakpoint[1]!, req, options)
   if (method === "GET" && path === "/events") return jsonResponse(readNdjsonTail(options.eventLogPath, url))
   if (method === "GET" && path === "/console") return jsonResponse(readNdjsonTail(options.consoleLogPath, url))
-  if (method === "GET" && path === "/workspace/files") return jsonResponse(workspaceFilesPayload(url))
+  if (method === "GET" && path === "/workspace/files") {
+    const module = workspaceFilesModuleContext(url, options)
+    return jsonResponse(workspaceFilesPayload(url, module === undefined ? {} : {module}))
+  }
   // Триггер хард-релоада UI у всех подключённых WS-клиентов: используется
   // когда мы выкатываем правку в bundle и хотим без юзерских Cmd+Shift+R
   // увидеть свежий код во вкладке.
@@ -500,7 +504,7 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "DELETE", path: "/modules/:id/breakpoint", description: "{id|breakpointId} — убрать breakpoint из конкретного модуля"},
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
     {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
-    {method: "GET", path: "/workspace/files?q=<text>&limit=<n>", description: "workspace entrypoints for module selection"},
+    {method: "GET", path: "/workspace/files?moduleId=<id>&q=<text>&limit=<n>", description: "module-scoped workspace files"},
     {method: "WS", path: "/terminal", description: "host PTY terminal stream"},
     {method: "GET", path: "/terminal/sessions", description: "host PTY session diagnostics"},
   ]
@@ -516,86 +520,21 @@ function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
   }
 }
 
-const WORKSPACE_FILE_EXTENSIONS = new Set([
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-  ".ts",
-  ".tsx",
-  ".mts",
-  ".cts",
-])
-const WORKSPACE_SKIP_DIRS = new Set([
-  ".cache",
-  ".git",
-  ".next",
-  ".turbo",
-  "build",
-  "coverage",
-  "dist",
-  "node_modules",
-  "out",
-  "tmp",
-])
-
-function workspaceFilesPayload(url: URL): JsonObject {
-  const root = process.cwd()
-  const query = (url.searchParams.get("q") ?? "").trim().toLowerCase()
-  const limit = clampWorkspaceLimit(url.searchParams.get("limit") === null ? 120 : Number(url.searchParams.get("limit")))
-  const files: Array<{path: string}> = []
-  const stack = [root]
-
-  while (stack.length > 0 && files.length < limit) {
-    const dir = stack.pop()!
-    let entries: Dirent[]
-    try {
-      entries = readdirSync(dir, {withFileTypes: true})
-    } catch {
-      continue
-    }
-
-    entries.sort((a, b) => {
-      if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1
-      return a.name.localeCompare(b.name)
-    })
-
-    for (const entry of entries) {
-      if (entry.name.startsWith(".") && entry.name !== ".storybook") continue
-      const abs = join(dir, entry.name)
-      if (entry.isDirectory()) {
-        if (!WORKSPACE_SKIP_DIRS.has(entry.name)) stack.push(abs)
-        continue
-      }
-      if (!entry.isFile()) continue
-      if (entry.name.endsWith(".d.ts")) continue
-      if (!WORKSPACE_FILE_EXTENSIONS.has(extensionOf(entry.name))) continue
-      const rel = relative(root, abs).replaceAll("\\", "/")
-      if (query.length > 0 && !rel.toLowerCase().includes(query)) continue
-      files.push({path: rel})
-      if (files.length >= limit) break
-    }
+function workspaceFilesModuleContext(url: URL, options: HttpServerOptions): WorkspaceFilesModuleContext | undefined {
+  const moduleId = url.searchParams.get("moduleId") ?? url.searchParams.get("module")
+  if (moduleId === null || moduleId.trim().length === 0) return undefined
+  const module = options.modules.get(moduleId)
+  if (module === undefined) return undefined
+  const snapshot = module.snapshot()
+  return {
+    id: snapshot.id,
+    label: snapshot.label,
+    modulePath: snapshot.modulePath,
+    target: {
+      command: snapshot.target.command,
+      cwd: snapshot.target.cwd,
+    },
   }
-
-  files.sort((a, b) => fileRank(a.path) - fileRank(b.path) || a.path.localeCompare(b.path))
-  return {root, files}
-}
-
-function extensionOf(path: string): string {
-  const dot = path.lastIndexOf(".")
-  return dot < 0 ? "" : path.slice(dot).toLowerCase()
-}
-
-function fileRank(path: string): number {
-  if (path.endsWith(".spec.ts") || path.endsWith(".test.ts")) return 0
-  if (path.endsWith(".spec.tsx") || path.endsWith(".test.tsx")) return 1
-  if (path.endsWith(".ts") || path.endsWith(".tsx")) return 2
-  return 3
-}
-
-function clampWorkspaceLimit(value: number): number {
-  if (!Number.isFinite(value) || !Number.isInteger(value) || value <= 0) return 120
-  return Math.min(value, 500)
 }
 
 function healthPayload(options: HttpServerOptions): JsonObject {

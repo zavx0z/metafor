@@ -60,8 +60,13 @@ POST   /modules/:id/breakpoint
 DELETE /modules/:id/breakpoint
 GET    /events?since=<iso|seq>&limit=<n>
 GET    /console?since=<iso|seq>&limit=<n>
-GET    /workspace/files?q=<text>&limit=<n>
+GET    /workspace/files?moduleId=<id>&q=<text>&limit=<n>
 ```
+
+`/workspace/files` без `moduleId` остается fallback-списком от `process.cwd()`.
+С `moduleId` сервер выбирает ближайший package/root для entrypoint этого модуля
+и возвращает пути относительно этого root, чтобы файловые панели разных displays
+не шарили один глобальный список.
 
 ## Agent UI API
 
