@@ -6,8 +6,18 @@
  * `/modules/:id/...`.
  */
 
-import {UiRuntime, UiSurface, button, drawIconCentered, palette, radii, uiIcons, type UiRuntimeDisplaySnapshot, type UiSurfaceRect} from "@ui/elements"
-import {Switcher, VoiceInputHud, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
+import {
+  UiRuntime,
+  UiSurface,
+  palette,
+  radii,
+  uiIcons,
+  type UiRuntimeDisplaySnapshot,
+  type UiRuntimeViewPointSnapshot,
+  type UiRuntimeViewPointVector,
+  type UiSurfaceRect,
+} from "@ui/elements"
+import {Button as iconButton, Switcher, VoiceInputHud, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
@@ -346,6 +356,8 @@ const VOICE_SIGNAL_VOLUME_STORAGE_KEY = "metafor.interpreter.voice.signalVolume:
 const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundEnabled:v1"
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundVolume:v1"
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
+const INTERPRETER_VIEWPOINT_STORAGE_KEY = "metafor.interpreter.viewPoint:v1"
+const INTERPRETER_VIEWPOINT_STORE_DELAY_MS = 120
 const WORKSPACE_FILES_STATE_STORAGE_PREFIX = "metafor.interpreter.workspaceFiles:v1"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
@@ -373,6 +385,7 @@ const HOST_TERMINAL_DOCK_SHORT = 36
 const HOST_TERMINAL_DOCK_LONG = 128
 const HOST_TERMINAL_DOCK_MARGIN = 8
 const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
+const INTERPRETER_ICON_BUTTON_RADIUS = 6
 const HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE = 22
 const HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y = 8
 const HOST_TERMINAL_AGENT_SIGNAL_HEADER_GAP = 8
@@ -460,6 +473,9 @@ let resizeObserver: ResizeObserver | null = null
 let socket: WebSocket | undefined
 let nextRequestId = 1
 let framedModuleKey = ""
+let interpreterViewPointRestoreAttempted = false
+let pendingInterpreterViewPointSnapshot: UiRuntimeViewPointSnapshot | null = null
+let interpreterViewPointStoreTimer: number | null = null
 
 const moduleSnapshots = new Map<string, ModulePaneSnapshot>()
 const moduleDisplays = new Map<string, ModuleDisplayController>()
@@ -476,6 +492,11 @@ for (const link of Array.from(document.querySelectorAll<HTMLLinkElement>('link[r
   url.searchParams.set("t", String(Date.now()))
   link.href = url.toString()
 }
+
+window.addEventListener("beforeunload", () => flushInterpreterViewPointStorage())
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") flushInterpreterViewPointStorage()
+})
 
 installVoiceServiceMonitor()
 installHudNotificationSoundUnlock()
@@ -975,6 +996,69 @@ function sideParam(value: unknown): AgentDisplaySelectorSide | undefined {
   return value
 }
 
+function scheduleInterpreterViewPointStorage(snapshot: UiRuntimeViewPointSnapshot): void {
+  pendingInterpreterViewPointSnapshot = snapshot
+  if (interpreterViewPointStoreTimer !== null) return
+  interpreterViewPointStoreTimer = window.setTimeout(() => {
+    interpreterViewPointStoreTimer = null
+    flushInterpreterViewPointStorage()
+  }, INTERPRETER_VIEWPOINT_STORE_DELAY_MS)
+}
+
+function flushInterpreterViewPointStorage(): void {
+  if (interpreterViewPointStoreTimer !== null) {
+    window.clearTimeout(interpreterViewPointStoreTimer)
+    interpreterViewPointStoreTimer = null
+  }
+  const snapshot = pendingInterpreterViewPointSnapshot ?? uiCanvas?.viewPointSnapshot() ?? null
+  if (snapshot === null) return
+  pendingInterpreterViewPointSnapshot = null
+  try {
+    localStorage.setItem(INTERPRETER_VIEWPOINT_STORAGE_KEY, JSON.stringify(snapshot))
+  } catch {
+    // Storage can be unavailable in private contexts.
+  }
+}
+
+function readStoredInterpreterViewPoint(): UiRuntimeViewPointSnapshot | null {
+  try {
+    const raw = localStorage.getItem(INTERPRETER_VIEWPOINT_STORAGE_KEY)
+    if (raw === null) return null
+    return normalizeStoredInterpreterViewPoint(JSON.parse(raw))
+  } catch {
+    return null
+  }
+}
+
+function normalizeStoredInterpreterViewPoint(value: unknown): UiRuntimeViewPointSnapshot | null {
+  const object = objectParamMaybe(value)
+  if (object === undefined) return null
+  const displayMode = object["displayMode"]
+  if (displayMode !== "near" && displayMode !== "far") return null
+  const position = viewPointVectorParam(object["position"])
+  const target = viewPointVectorParam(object["target"])
+  const up = viewPointVectorParam(object["up"])
+  if (position === null || target === null || up === null) return null
+  const rawActiveDisplayId = object["activeDisplayId"]
+  let activeDisplayId: string | null = null
+  if (rawActiveDisplayId !== null && rawActiveDisplayId !== undefined) {
+    const parsedActiveDisplayId = stringParam(rawActiveDisplayId)
+    if (parsedActiveDisplayId === undefined) return null
+    activeDisplayId = parsedActiveDisplayId
+  }
+  return {displayMode, activeDisplayId, position, target, up}
+}
+
+function viewPointVectorParam(value: unknown): UiRuntimeViewPointVector | null {
+  const object = objectParamMaybe(value)
+  if (object === undefined) return null
+  const x = numberParam(object["x"])
+  const y = numberParam(object["y"])
+  const z = numberParam(object["z"])
+  if (x === undefined || y === undefined || z === undefined) return null
+  return {x, y, z}
+}
+
 function applyModuleSnapshots(modules: ModulePaneSnapshot[]): void {
   if (modules.length === 0) return
   moduleOrder = modules.map((module) => module.id)
@@ -1051,6 +1135,7 @@ async function initEngine(): Promise<void> {
   uiLoading = true
   try {
     uiCanvas = await UiRuntime.create(engineCanvas, {
+      onViewPointChange: scheduleInterpreterViewPointStorage,
       virtualDisplay: {
         initial: "near",
         surfaceDisplay: false,
@@ -1215,80 +1300,35 @@ class WorkspaceFilesHeaderPane extends UiSurface {
       material: this.materials.cyan,
       maxWidthPx: titleW,
     })
-    this.#drawHeaderAction(revealCurrentX, buttonY, buttonSize, revealCurrentLabel, "revealCurrent", this.#onRevealCurrent, "workspace-files-reveal-current")
-    this.#drawHeaderAction(collapseX, buttonY, buttonSize, collapseLabel, "collapse", this.#onCollapseAll, "workspace-files-collapse-all")
-    this.#drawHeaderAction(expandX, buttonY, buttonSize, expandLabel, "expand", this.#onExpandAll, "workspace-files-expand-all")
+    this.#drawHeaderAction(revealCurrentX, buttonY, buttonSize, revealCurrentLabel, "revealCurrent", this.#onRevealCurrent)
+    this.#drawHeaderAction(collapseX, buttonY, buttonSize, collapseLabel, "collapse", this.#onCollapseAll)
+    this.#drawHeaderAction(expandX, buttonY, buttonSize, expandLabel, "expand", this.#onExpandAll)
     this.drawRect(pad, Math.max(0, this.rectH - 1), Math.max(1, this.rectW - pad * 2), 1, palette.borderDim)
   }
 
-  #drawHeaderAction(x: number, y: number, size: number, label: string, kind: "revealCurrent" | "collapse" | "expand", action: () => void, key: string): void {
-    button(this, x, y, size, size, {
-      key,
-      children: (state) => this.#drawHeaderActionIcon(x + size / 2, y + size / 2, kind, state !== "idle"),
+  #drawHeaderAction(x: number, y: number, size: number, label: string, kind: WorkspaceHeaderActionKind, action: () => void): void {
+    iconButton(this, x, y, size, size, {
+      label,
+      iconSrc: workspaceHeaderIcon(kind),
+      iconOnly: true,
+      iconSizePx: kind === "revealCurrent" ? 13 : 14,
       tooltip: label,
       tooltipDelayMs: 180,
-      onClick: action,
-      style: (state) => ({
-        background: state === "active"
-          ? "rgba(38, 49, 66, 0.72)"
-          : state === "hover"
-            ? "rgba(38, 49, 66, 0.52)"
-            : "rgba(10, 14, 21, 0.62)",
-        borderColor: state === "idle" ? "borderDim" : "border",
-        borderRadius: 6,
-        color: state === "idle" ? "muted" : "text",
-        fontSize: 9,
-        glassTint: null,
-        glassTintOpacity: 0,
-      }),
+      variant: "outlined",
+      radius: INTERPRETER_ICON_BUTTON_RADIUS,
+      tone: "neutral",
+      size: "small",
+      action,
     })
   }
+}
 
-  #drawHeaderActionIcon(cx: number, cy: number, kind: "revealCurrent" | "collapse" | "expand", active: boolean): void {
-    if (kind === "revealCurrent") {
-      drawIconCentered(this, uiIcons.executionPoint, cx, cy, 13, {opacity: active ? 0.98 : 0.72, z: 0.48})
-      return
-    }
+type WorkspaceHeaderActionKind = "revealCurrent" | "collapse" | "expand"
 
-    const color = active ? palette.text : palette.violet
-    const z = 0.48
-    const stroke = 2
-    const leg = 6
-    const offset = 6
-
-    const drawTopLeft = (): void => {
-      const x = cx - offset
-      const y = cy - offset
-      this.drawRect(x, y, leg, stroke, color, z)
-      this.drawRect(x, y, stroke, leg, color, z)
-    }
-    const drawTopRight = (): void => {
-      const x = cx + offset - leg
-      const y = cy - offset
-      this.drawRect(x, y, leg, stroke, color, z)
-      this.drawRect(cx + offset - stroke, y, stroke, leg, color, z)
-    }
-    const drawBottomLeft = (): void => {
-      const x = cx - offset
-      const y = cy + offset - leg
-      this.drawRect(x, cy + offset - stroke, leg, stroke, color, z)
-      this.drawRect(x, y, stroke, leg, color, z)
-    }
-    const drawBottomRight = (): void => {
-      const x = cx + offset - leg
-      const y = cy + offset - leg
-      this.drawRect(x, cy + offset - stroke, leg, stroke, color, z)
-      this.drawRect(cx + offset - stroke, y, stroke, leg, color, z)
-    }
-
-    if (kind === "collapse") {
-      drawTopRight()
-      drawBottomLeft()
-    } else {
-      drawTopLeft()
-      drawBottomRight()
-    }
-  }
+function workspaceHeaderIcon(kind: WorkspaceHeaderActionKind): string {
+  if (kind === "revealCurrent") return uiIcons.executionPoint
+  if (kind === "collapse") return uiIcons.collapse
+  return uiIcons.expand
 }
 
 class WorkspaceFilesChromePane extends UiSurface {
@@ -1447,26 +1487,18 @@ class HostTerminalAgentSignalPane extends UiSurface {
     const size = HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE
     const x = Math.max(0, this.rectW - size)
     const enabled = readHostTerminalAgentSoundEnabled()
-    button(this, x, 0, size, size, {
-      key: "host-terminal-agent-signal-toggle",
+    iconButton(this, x, 0, size, size, {
+      label: t("terminalAgentSignal"),
+      iconSrc: agentSignalIcon(enabled),
+      iconOnly: true,
+      iconSizePx: 14,
       tooltip: t("terminalAgentSignal"),
-      onClick: () => this.#setOpen(!this.#open),
-      style: (state) => ({
-        background: state === "active"
-          ? "rgba(38, 49, 66, 0.98)"
-          : state === "hover"
-            ? "rgba(27, 34, 45, 0.98)"
-            : "rgba(10, 14, 21, 0.76)",
-        borderColor: this.#open || state === "hover" || state === "active" ? "border" : enabled ? "borderDim" : "borderDim",
-        borderRadius: 999,
-        borderWidth: this.#open ? 1.2 : 1,
-        glassTint: null,
-        glassTintOpacity: 0,
-      }),
-      children: () => drawIconCentered(this, agentSignalIcon(enabled), x + size / 2, size / 2, 14, {
-        opacity: this.#open || enabled ? 0.95 : 0.72,
-        z: 0.48,
-      }),
+      tooltipDelayMs: 180,
+      variant: "outlined",
+      radius: INTERPRETER_ICON_BUTTON_RADIUS,
+      tone: "neutral",
+      size: "small",
+      action: () => this.#setOpen(!this.#open),
     })
   }
 
@@ -1525,31 +1557,31 @@ class HostTerminalAgentSignalPane extends UiSurface {
     })
 
     const buttonW = 28
-    button(this, x, y, buttonW, 22, {
-      key: "host-terminal-agent-signal-volume-down",
-      children: "-",
+    iconButton(this, x, y, buttonW, 22, {
+      label: t("terminalAgentSignalVolumeDown"),
+      iconSrc: uiIcons.minus,
+      iconOnly: true,
+      iconSizePx: 12,
       tooltip: t("terminalAgentSignalVolumeDown"),
-      onClick: () => this.#setVolume(clamped - 0.1),
-      style: {
-        background: "rgba(38, 49, 66, 0.42)",
-        borderColor: "borderDim",
-        borderRadius: 6,
-        color: "muted",
-        fontSize: 12,
-      },
+      tooltipDelayMs: 180,
+      variant: "outlined",
+      radius: INTERPRETER_ICON_BUTTON_RADIUS,
+      tone: "neutral",
+      size: "small",
+      action: () => this.#setVolume(clamped - 0.1),
     })
-    button(this, x + w - buttonW, y, buttonW, 22, {
-      key: "host-terminal-agent-signal-volume-up",
-      children: "+",
+    iconButton(this, x + w - buttonW, y, buttonW, 22, {
+      label: t("terminalAgentSignalVolumeUp"),
+      iconSrc: uiIcons.plus,
+      iconOnly: true,
+      iconSizePx: 12,
       tooltip: t("terminalAgentSignalVolumeUp"),
-      onClick: () => this.#setVolume(clamped + 0.1),
-      style: {
-        background: "rgba(38, 49, 66, 0.42)",
-        borderColor: "borderDim",
-        borderRadius: 6,
-        color: "muted",
-        fontSize: 12,
-      },
+      tooltipDelayMs: 180,
+      variant: "outlined",
+      radius: INTERPRETER_ICON_BUTTON_RADIUS,
+      tone: "neutral",
+      size: "small",
+      action: () => this.#setVolume(clamped + 0.1),
     })
 
     const trackX = x + buttonW + 10
@@ -2955,6 +2987,8 @@ function syncModuleDisplays(): void {
     return `${id}:${index}:${Math.round(displayMetrics.widthMm)}x${Math.round(displayMetrics.heightMm)}:${displayMetrics.pixelWidth}x${displayMetrics.pixelHeight}`
   }).join("\0")
 
+  if (restoreInterpreterViewPointOnce(frameKey)) return
+
   if (displayIds.length <= 1) {
     if (framedModuleKey !== frameKey) {
       framedModuleKey = frameKey
@@ -2966,6 +3000,17 @@ function syncModuleDisplays(): void {
     framedModuleKey = frameKey
     uiCanvas.frameDisplays(displayIds)
   }
+}
+
+function restoreInterpreterViewPointOnce(frameKey: string): boolean {
+  if (uiCanvas === null || interpreterViewPointRestoreAttempted) return false
+  interpreterViewPointRestoreAttempted = true
+  const snapshot = readStoredInterpreterViewPoint()
+  if (snapshot === null) return false
+  const restored = uiCanvas.restoreViewPointSnapshot(snapshot)
+  if (!restored) return false
+  framedModuleKey = frameKey
+  return true
 }
 
 function ensureHostTerminalController(): HostTerminalController {

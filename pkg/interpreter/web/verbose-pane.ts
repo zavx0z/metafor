@@ -27,6 +27,7 @@ const ROW_H = 18
 const TS_W = 56
 const NAME_W = 132
 const BTN_H = 24
+const ICON_BUTTON_RADIUS = 6
 
 export class VerbosePane extends UiSurface {
   #entries: VerboseEntry[] = []
@@ -96,7 +97,11 @@ export class VerbosePane extends UiSurface {
       label: t("copyVerbose"),
       iconSrc: uiIcons.copy,
       iconOnly: true,
+      iconSizePx: 14,
       tooltip: t("copyVerbose"),
+      tooltipDelayMs: 180,
+      variant: "outlined",
+      radius: ICON_BUTTON_RADIUS,
       tone: Date.now() < this.#copyStatusUntil ? "live" : "neutral",
       fontPx: 11,
       action: () => void this.#copyEntries(),
@@ -105,7 +110,11 @@ export class VerbosePane extends UiSurface {
       label: t("clearVerbose"),
       iconSrc: uiIcons.clear,
       iconOnly: true,
+      iconSizePx: 14,
       tooltip: t("clearVerbose"),
+      tooltipDelayMs: 180,
+      variant: "outlined",
+      radius: ICON_BUTTON_RADIUS,
       tone: "neutral",
       fontPx: 11,
       action: () => this.clear(),
@@ -114,7 +123,11 @@ export class VerbosePane extends UiSurface {
       label: autoLabel,
       iconSrc: autoIcon,
       iconOnly: true,
+      iconSizePx: 14,
       tooltip: this.#autoscroll ? t("autoscrollOn") : t("autoscrollOff"),
+      tooltipDelayMs: 180,
+      variant: "outlined",
+      radius: ICON_BUTTON_RADIUS,
       tone: this.#autoscroll ? "live" : "neutral",
       fontPx: 11,
       action: () => this.#toggleAutoscroll(),

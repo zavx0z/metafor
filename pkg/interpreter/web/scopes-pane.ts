@@ -37,6 +37,7 @@ const DETAIL_LINE_H = 15
 const DETAIL_FONT = 10
 const DETAIL_BG_Z = Z.ELEMENT + 0.34
 const DETAIL_TEXT_Z = Z.TEXT + 0.34
+const ICON_BUTTON_RADIUS = 6
 
 type ScopeRow =
   | {kind: "group"; label: string}
@@ -246,8 +247,11 @@ export class ScopesPane extends UiSurface {
       label: t("close"),
       iconSrc: uiIcons.stop,
       iconOnly: true,
+      iconSizePx: 14,
       tooltip: t("close"),
-      variant: "text",
+      tooltipDelayMs: 180,
+      variant: "outlined",
+      radius: ICON_BUTTON_RADIUS,
       tone: "neutral",
       action: () => {
         this.#detail = null

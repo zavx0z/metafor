@@ -193,6 +193,8 @@ const HEADER_CONTROL_W_PX = 32
 const HEADER_CONTROL_GAP_PX = 5
 const HEADER_CONTROL_DIVIDER_GAP_PX = 7
 const HEADER_CONTROL_DIVIDER_W_PX = 1
+const HEADER_ICON_BUTTON_RADIUS_PX = 6
+const HEADER_STATUS_RADIUS_PX = 6
 const BODY_PAD_X_PX = 0
 const BODY_PAD_Y_PX = 0
 const STATUS_DOT_PX = 7
@@ -591,7 +593,7 @@ class TerminalOutputPane extends UiSurface {
     if (this.#onFrameDockRequest !== undefined) this.#renderFrameDockButton(dockButtonX, headerY + 8, dockButtonSize)
     const dot = statusColor(this.#statusKind)
     this.drawRoundedRect(statusX, headerY + 8, statusW, 22, {
-      radius: 999,
+      radius: HEADER_STATUS_RADIUS_PX,
       fill: STATUS_FILL,
       border: STATUS_BORDER,
       borderWidth: 1,
@@ -642,7 +644,7 @@ class TerminalOutputPane extends UiSurface {
   #renderHeaderStatus(statusX: number, headerY: number, statusW: number): void {
     const dot = statusColor(this.#statusKind)
     this.drawRoundedRect(statusX, headerY + 8, statusW, 22, {
-      radius: 999,
+      radius: HEADER_STATUS_RADIUS_PX,
       fill: STATUS_FILL,
       border: STATUS_BORDER,
       borderWidth: 1,
@@ -671,8 +673,8 @@ class TerminalOutputPane extends UiSurface {
         iconOnly: true,
         iconSizePx: 14,
         size: "small",
-        variant: "text",
-        radius: 999,
+        variant: "outlined",
+        radius: HEADER_ICON_BUTTON_RADIUS_PX,
         tooltip: b.disabled === true ? b.disabledTooltip ?? b.label : b.label,
         tooltipDelayMs: 180,
         tone: b.tone ?? "neutral",
@@ -715,7 +717,7 @@ class TerminalOutputPane extends UiSurface {
     const border = active || state.hovered ? palette.border : STATUS_BORDER
     const offsetY = active ? 1 : 0
     this.drawRoundedRect(x, y + offsetY, size, size - offsetY, {
-      radius: 999,
+      radius: HEADER_ICON_BUTTON_RADIUS_PX,
       fill,
       border,
       borderWidth: 1,

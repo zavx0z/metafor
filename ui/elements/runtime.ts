@@ -130,6 +130,20 @@ type ViewPointPose = {
 
 export type UiVirtualDisplayMode = "near" | "far"
 
+export type UiRuntimeViewPointVector = {x: number; y: number; z: number}
+
+export type UiRuntimeViewPointSnapshot = {
+  displayMode: UiVirtualDisplayMode
+  activeDisplayId: UiDisplayId | null
+  position: UiRuntimeViewPointVector
+  target: UiRuntimeViewPointVector
+  up: UiRuntimeViewPointVector
+}
+
+export type UiRuntimeViewPointRestoreOpts = {
+  emit?: boolean
+}
+
 export type UiVirtualDisplayOpts = {
   /** Начальное состояние дистанции. Default "near" сохраняет текущий плоский вид. */
   initial?: UiVirtualDisplayMode
@@ -174,6 +188,8 @@ export type UiRuntimeOpts = {
   inputProxy?: boolean
   /** Опциональный live UIDisplay, который содержит screen-space surfaces. */
   virtualDisplay?: UiVirtualDisplayOpts
+  /** Вызывается при пользовательском или программном изменении камеры. */
+  onViewPointChange?: (snapshot: UiRuntimeViewPointSnapshot) => void
 }
 
 const DEFAULT_FONT_URL = "/JetBrainsMono-Bold.ttf"
@@ -227,6 +243,7 @@ export class UiRuntime {
   #displayHoverActive = false
   #displayHoverDisplayId: UiDisplayId | null = null
   #displayNavigationDisplayId: UiDisplayId | null = null
+  readonly #onViewPointChange: ((snapshot: UiRuntimeViewPointSnapshot) => void) | undefined
   #cameraAnimationRafId: number | null = null
   #disposed = false
   #renderRequested = false
@@ -255,6 +272,7 @@ export class UiRuntime {
     this.canvas = canvas
     this.renderer = renderer
     this.font = font
+    this.#onViewPointChange = opts.onViewPointChange
     this.#cameraDistanceMm = opts.cameraDistanceMm ?? 600
     const virtualDisplay = opts.virtualDisplay
     this.#virtualDisplayWidthMm = virtualDisplay?.widthMm
@@ -532,6 +550,7 @@ export class UiRuntime {
     this.#applyLayout({scope: "space"})
     this.#requestHudSurfacesRender()
     this.requestRender()
+    this.#emitViewPointChange()
   }
 
   relayout(opts: UiRuntimeRelayoutOpts = {}): void {
@@ -574,6 +593,39 @@ export class UiRuntime {
 
   get activeDisplayId(): UiDisplayId | null {
     return this.#activeDisplayId
+  }
+
+  viewPointSnapshot(): UiRuntimeViewPointSnapshot {
+    return this.#viewPointSnapshot()
+  }
+
+  restoreViewPointSnapshot(snapshot: UiRuntimeViewPointSnapshot, opts: UiRuntimeViewPointRestoreOpts = {}): boolean {
+    const position = vectorFromSnapshot(snapshot.position)
+    const target = vectorFromSnapshot(snapshot.target)
+    const up = vectorFromSnapshot(snapshot.up)
+    if (position === null || target === null || up === null) return false
+    if (position.distanceTo(target) < 0.001 || up.length() < 0.001) return false
+    const mode = snapshot.displayMode
+    if (mode !== "near" && mode !== "far") return false
+
+    this.#cancelCameraAnimation()
+    this.#displayMode = mode
+    this.#activeDisplayId = snapshot.activeDisplayId !== null && this.#displaySlots.has(snapshot.activeDisplayId)
+      ? snapshot.activeDisplayId
+      : null
+    this.#displayHoverDisplayId = null
+    this.#displayNavigationDisplayId = null
+    this.#displayReturnPose = null
+    this.viewPoint.position.copy(position)
+    this.viewPoint.getTarget().copy(target)
+    this.viewPoint.getUp().copy(up.normalize())
+    this.viewPoint.update()
+    this.#displayDistanceMm = this.viewPoint.position.distanceTo(target)
+    this.#applyLayout({scope: "space"})
+    this.#requestHudSurfacesRender()
+    this.requestRender()
+    if (opts.emit === true) this.#emitViewPointChange()
+    return true
   }
 
   setDisplayMode(mode: UiVirtualDisplayMode): void {
@@ -761,6 +813,20 @@ export class UiRuntime {
     }
   }
 
+  #viewPointSnapshot(): UiRuntimeViewPointSnapshot {
+    return {
+      displayMode: this.#displayMode,
+      activeDisplayId: this.#activeDisplayId,
+      position: vectorSnapshot(this.viewPoint.position),
+      target: vectorSnapshot(this.viewPoint.getTarget()),
+      up: vectorSnapshot(this.viewPoint.getUp()),
+    }
+  }
+
+  #emitViewPointChange(): void {
+    this.#onViewPointChange?.(this.#viewPointSnapshot())
+  }
+
   #animateCameraToDisplayDistance(distanceMm: number): void {
     if (!this.#displaySpaceEnabled) return
     const target = this.#displayCenterWorld(this.#activeDisplayId) ?? this.viewPoint.getTarget().clone()
@@ -812,6 +878,7 @@ export class UiRuntime {
         this.#applyLayout({scope: "space"})
         this.#requestHudSurfacesRender()
         this.requestRender()
+        this.#emitViewPointChange()
       }
     }
 
@@ -852,6 +919,7 @@ export class UiRuntime {
     this.#applyLayout({scope: "space"})
     this.#requestHudSurfacesRender()
     this.requestRender()
+    this.#emitViewPointChange()
   }
 
   #zoomDisplay(delta: number, displayId?: UiDisplayId | null): void {
@@ -875,6 +943,7 @@ export class UiRuntime {
     this.#applyLayout({scope: "space"})
     this.#requestHudSurfacesRender()
     this.requestRender()
+    this.#emitViewPointChange()
   }
 
   #panView(deltaX: number, deltaY: number): void {
@@ -897,6 +966,7 @@ export class UiRuntime {
     this.#applyLayout({scope: "space"})
     this.#requestHudSurfacesRender()
     this.requestRender()
+    this.#emitViewPointChange()
   }
 
   #navigationTarget(displayId?: UiDisplayId | null): Vector3 {
@@ -1351,7 +1421,10 @@ export class UiRuntime {
     // Позиционируем 1×1 textarea около курсора, чтобы всплывающие окна
     // macOS появлялись рядом, а не в углу страницы.
     this.#positionInputProxy(event.clientX, event.clientY)
-    if (slot.displayId !== undefined) this.#activeDisplayId = slot.displayId
+    if (slot.displayId !== undefined && this.#activeDisplayId !== slot.displayId) {
+      this.#activeDisplayId = slot.displayId
+      this.#emitViewPointChange()
+    }
     this.setFocused(slot.surface)
     this.#pressedSlot = slot
     slot.surface.onPointerDown?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)
@@ -1453,6 +1526,19 @@ function rectFromOutline(outline: UiDisplayHoverOutline): {x: number; y: number;
   const xMax = Math.max(...xs)
   const yMax = Math.max(...ys)
   return {x: xMin, y: yMin, w: xMax - xMin, h: yMax - yMin}
+}
+
+function vectorSnapshot(vector: Vector3): UiRuntimeViewPointVector {
+  return {x: vector.x, y: vector.y, z: vector.z}
+}
+
+function vectorFromSnapshot(value: UiRuntimeViewPointVector): Vector3 | null {
+  if (!isFiniteNumber(value.x) || !isFiniteNumber(value.y) || !isFiniteNumber(value.z)) return null
+  return new Vector3(value.x, value.y, value.z)
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value)
 }
 
 function clampSurfaceRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
