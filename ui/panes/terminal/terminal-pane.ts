@@ -7,7 +7,8 @@
  */
 
 import {Color, TextMaterial} from "@metafor/engine"
-import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii, visionBorder, visionGlass, type DivScrollContext} from "@ui/elements"
+import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii, visionBorder, visionGlass, type DivScrollContext, type Tone} from "@ui/elements"
+import {Button as controlButton, Divider as controlDivider} from "@ui/components"
 import {
   copyTextSelectionOrFallback,
   orderedTextSelection,
@@ -40,10 +41,26 @@ export type TerminalStatusKind = "idle" | "connected" | "running" | "disconnecte
 
 export type TerminalInputSource = "keyboard" | "paste" | "api"
 
+export type TerminalHeaderControl = {
+  label: string
+  iconSrc: string
+  tone?: Tone
+  disabled?: boolean
+  disabledTooltip?: string
+  dividerAfter?: boolean
+  action(): void
+}
+
+export type TerminalHeaderControls = {
+  primary?: readonly TerminalHeaderControl[]
+  secondary?: readonly TerminalHeaderControl[]
+}
+
 type TerminalOutputPaneOpts = {
   title?: string
   status?: string
   statusKind?: TerminalStatusKind
+  headerControls?: TerminalHeaderControls
   fontPx?: number
   linePx?: number
   cols?: number
@@ -170,6 +187,12 @@ const DEFAULT_MIN_COLS = 24
 const DEFAULT_MIN_ROWS = 6
 const DEFAULT_MAX_SCROLLBACK = 5000
 const HEADER_H_PX = PANE_FRAME.headerHeight
+const HEADER_CONTROL_PAD_X = PANE_FRAME.headerTextX
+const HEADER_CONTROL_H_PX = 28
+const HEADER_CONTROL_W_PX = 32
+const HEADER_CONTROL_GAP_PX = 5
+const HEADER_CONTROL_DIVIDER_GAP_PX = 7
+const HEADER_CONTROL_DIVIDER_W_PX = 1
 const BODY_PAD_X_PX = 0
 const BODY_PAD_Y_PX = 0
 const STATUS_DOT_PX = 7
@@ -218,6 +241,7 @@ class TerminalOutputPane extends UiSurface {
   #title: string
   #status: string
   #statusKind: TerminalStatusKind
+  #headerControls: Required<TerminalHeaderControls>
   #fontPx: number
   #linePx: number
   #minCols: number
@@ -290,6 +314,7 @@ class TerminalOutputPane extends UiSurface {
     this.#title = opts.title ?? "Terminal"
     this.#status = opts.status ?? "idle"
     this.#statusKind = opts.statusKind ?? "idle"
+    this.#headerControls = normalizeHeaderControls(opts.headerControls)
     this.#fontPx = opts.fontPx ?? 12
     this.#linePx = opts.linePx ?? 17
     this.#preferredCols = clampInt(opts.cols ?? DEFAULT_COLS, 1, 400)
@@ -396,6 +421,11 @@ class TerminalOutputPane extends UiSurface {
     if (this.#statusKind === kind && this.#status === label) return
     this.#statusKind = kind
     this.#status = label
+    this.requestRender()
+  }
+
+  setHeaderControls(controls: TerminalHeaderControls): void {
+    this.#headerControls = normalizeHeaderControls(controls)
     this.requestRender()
   }
 
@@ -542,6 +572,10 @@ class TerminalOutputPane extends UiSurface {
 
   #renderHeader(): void {
     if (!this.#showHeader) return
+    if (this.#headerControls.primary.length > 0 || this.#headerControls.secondary.length > 0) {
+      this.#renderHeaderWithControls()
+      return
+    }
     const headerY = 0
     const statusW = Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32))
     const statusX = Math.max(PANE_FRAME.headerTextX, this.rectW - PANE_FRAME.headerTextX - statusW)
@@ -575,6 +609,100 @@ class TerminalOutputPane extends UiSurface {
     })
     const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
     this.drawRect(rule.x, rule.y, rule.w, rule.h, HEADER_RULE, Z.SEPARATOR)
+  }
+
+  #renderHeaderWithControls(): void {
+    const headerY = 0
+    const buttonY = headerY + Math.max(0, (HEADER_H_PX - HEADER_CONTROL_H_PX) / 2)
+    const primaryX = HEADER_CONTROL_PAD_X
+    const secondaryW = this.#buttonGroupWidth(this.#headerControls.secondary)
+    const secondaryX = this.#headerControls.secondary.length === 0
+      ? this.rectW - HEADER_CONTROL_PAD_X
+      : Math.max(HEADER_CONTROL_PAD_X, this.rectW - HEADER_CONTROL_PAD_X - secondaryW)
+    const primaryMaxRight = Math.max(primaryX, secondaryX - 8)
+    const primaryRight = this.#drawButtonGroup(this.#headerControls.primary, primaryX, buttonY, primaryMaxRight)
+
+    const statusW = Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32))
+    const statusRight = this.#headerControls.secondary.length === 0 ? this.rectW - HEADER_CONTROL_PAD_X : secondaryX - 8
+    const statusX = Math.max(HEADER_CONTROL_PAD_X, statusRight - statusW)
+    const canShowStatus = statusRight - statusW >= primaryRight + 8
+    const dockButtonSize = 22
+    const dockButtonGap = 8
+    const dockButtonX = statusX - dockButtonGap - dockButtonSize
+    const canShowDock = this.#onFrameDockRequest !== undefined && dockButtonX >= primaryRight + 8
+
+    if (canShowDock) this.#renderFrameDockButton(dockButtonX, headerY + 8, dockButtonSize)
+    if (canShowStatus) this.#renderHeaderStatus(statusX, headerY, statusW)
+    this.#drawButtonGroup(this.#headerControls.secondary, secondaryX, buttonY)
+
+    const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
+    this.drawRect(rule.x, rule.y, rule.w, rule.h, HEADER_RULE, Z.SEPARATOR)
+  }
+
+  #renderHeaderStatus(statusX: number, headerY: number, statusW: number): void {
+    const dot = statusColor(this.#statusKind)
+    this.drawRoundedRect(statusX, headerY + 8, statusW, 22, {
+      radius: 999,
+      fill: STATUS_FILL,
+      border: STATUS_BORDER,
+      borderWidth: 1,
+      z: Z.ELEMENT,
+    })
+    this.drawRoundedRect(statusX + 10, headerY + 15.5, STATUS_DOT_PX, STATUS_DOT_PX, {
+      radius: STATUS_DOT_PX / 2,
+      fill: dot,
+      z: Z.ELEMENT_RULE,
+    })
+    this.drawText(this.#status, statusX + 24, headerY + 12, {
+      fontPx: 10,
+      material: this.materials.muted,
+      maxWidthPx: statusW - 32,
+    })
+  }
+
+  #drawButtonGroup(buttons: readonly TerminalHeaderControl[], x: number, y: number, maxRight = Number.POSITIVE_INFINITY): number {
+    let cursor = x
+    for (let i = 0; i < buttons.length; i++) {
+      const b = buttons[i]!
+      if (cursor + HEADER_CONTROL_W_PX > maxRight) break
+      controlButton(this, cursor, y, HEADER_CONTROL_W_PX, HEADER_CONTROL_H_PX, {
+        label: b.label,
+        iconSrc: b.iconSrc,
+        iconOnly: true,
+        iconSizePx: 14,
+        size: "small",
+        variant: "text",
+        radius: 999,
+        tooltip: b.disabled === true ? b.disabledTooltip ?? b.label : b.label,
+        tooltipDelayMs: 180,
+        tone: b.tone ?? "neutral",
+        ...(b.disabled === undefined ? {} : {disabled: b.disabled}),
+        action: b.action,
+        onHover: () => this.requestRender(),
+        onLeave: () => this.requestRender(),
+      })
+      cursor += HEADER_CONTROL_W_PX + HEADER_CONTROL_GAP_PX
+      if (b.dividerAfter === true && i < buttons.length - 1) {
+        cursor += HEADER_CONTROL_DIVIDER_GAP_PX - HEADER_CONTROL_GAP_PX
+        if (cursor + HEADER_CONTROL_DIVIDER_W_PX <= maxRight) {
+          controlDivider(this, cursor + HEADER_CONTROL_DIVIDER_W_PX / 2, y + 5, HEADER_CONTROL_H_PX - 10, {
+            orientation: "vertical",
+            thickness: HEADER_CONTROL_DIVIDER_W_PX,
+          })
+        }
+        cursor += HEADER_CONTROL_DIVIDER_W_PX + HEADER_CONTROL_DIVIDER_GAP_PX
+      }
+    }
+    return cursor
+  }
+
+  #buttonGroupWidth(buttons: readonly TerminalHeaderControl[]): number {
+    if (buttons.length === 0) return 0
+    let width = buttons.length * HEADER_CONTROL_W_PX + (buttons.length - 1) * HEADER_CONTROL_GAP_PX
+    for (let i = 0; i < buttons.length - 1; i++) {
+      if (buttons[i]?.dividerAfter === true) width += HEADER_CONTROL_DIVIDER_GAP_PX * 2 + HEADER_CONTROL_DIVIDER_W_PX - HEADER_CONTROL_GAP_PX
+    }
+    return width
   }
 
   #renderFrameDockButton(x: number, y: number, size: number): void {
@@ -1811,6 +1939,13 @@ function localEchoText(data: string): string | null {
     if (code < 0x20 || code === 0x7f || code === 0x1b) return null
   }
   return data
+}
+
+function normalizeHeaderControls(controls: TerminalHeaderControls | undefined): Required<TerminalHeaderControls> {
+  return {
+    primary: [...(controls?.primary ?? [])],
+    secondary: [...(controls?.secondary ?? [])],
+  }
 }
 
 function keyToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode = defaultTerminalKeyboardMode()): string | null {

@@ -6,31 +6,6 @@
  * измерение font-метрик. Ничего не вылазит за пределы pane.
  */
 
-export type BadgeKind = "neutral" | "live" | "paused" | "warn"
-
-export type ToolbarState = {
-  runKind: BadgeKind
-  locale: "ru" | "en"
-  verbose: boolean
-  canPause: boolean
-  canResume: boolean
-  canStep: boolean
-  canRestart: boolean
-  canStop: boolean
-  canShowExecutionPoint: boolean
-}
-
-export type ToolbarActions = {
-  onPause(): void
-  onResume(): void
-  onRestartTarget(): void
-  onStopTarget(): void
-  onShowExecutionPoint(): void
-  onStep(kind: "over" | "into" | "out"): void
-  onToggleLocale(): void
-  onToggleVerbose(): void
-}
-
 export type PropertySnapshot = {
   type?: string
   subtype?: string
@@ -75,5 +50,4 @@ export type FrameSnapshot = {
 export {DisplayHoverOutlinePane} from "./display-hover-outline-pane.ts"
 export {FramesPane} from "./frames-pane.ts"
 export {VerbosePane} from "./verbose-pane.ts"
-export {ToolbarPane} from "./toolbar-pane.ts"
 export {ScopesPane} from "./scopes-pane.ts"

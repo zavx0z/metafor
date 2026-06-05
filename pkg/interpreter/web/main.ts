@@ -28,9 +28,7 @@ import {
   DisplayHoverOutlinePane,
   FramesPane,
   ScopesPane,
-  ToolbarPane,
   VerbosePane,
-  type BadgeKind,
   type FrameSnapshot,
 } from "./interpreter-ui.ts"
 import {getUiLocale, t, toggleUiLocale} from "./i18n.ts"
@@ -56,6 +54,7 @@ import {
 
 type ConnectionInfo = {state: ConnectionState; error: string | null}
 type ConnectionState = "connecting" | "connected" | "disconnected"
+type RuntimeControlTone = "neutral" | "live" | "paused" | "warn"
 
 type ServerMessage =
   | {type: "hello"; modules?: ModulePaneSnapshot[]}
@@ -263,7 +262,6 @@ type PtyServerMessage =
 
 type ModuleDisplayController = {
   id: string
-  toolbar: ToolbarPane
   frames: FramesPane
   filesChrome: WorkspaceFilesChromePane
   filesHeader: WorkspaceFilesHeaderPane
@@ -503,7 +501,7 @@ function connect(): void {
     for (const controller of moduleDisplays.values()) {
       setModuleSourceState(controller, "disconnected")
       const snapshot = moduleSnapshots.get(controller.id)
-      if (snapshot !== undefined) updateModuleToolbar(controller, {
+      if (snapshot !== undefined) updateModuleHeaderControls(controller, {
         ...snapshot,
         connection: {state: "disconnected", error: "ws closed"},
       })
@@ -1165,7 +1163,7 @@ function toggleLocale(): void {
     controller.terminal.requestRender()
     controller.verbose.requestRender()
     const snapshot = moduleSnapshots.get(controller.id)
-    if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
+    if (snapshot !== undefined) updateModuleHeaderControls(controller, snapshot)
   }
   uiCanvas?.relayout()
 }
@@ -1174,7 +1172,7 @@ function setVerboseVisible(controller: ModuleDisplayController, on: boolean): vo
   controller.verboseVisible = on
   localStorage.setItem(moduleVerboseStorageKey(controller.id), on ? "1" : "0")
   const snapshot = moduleSnapshots.get(controller.id)
-  if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
+  if (snapshot !== undefined) updateModuleHeaderControls(controller, snapshot)
   uiCanvas?.relayout()
 }
 
@@ -3617,12 +3615,6 @@ function addInterpreterSurfacesToDisplay(displayId: string, controller: ModuleDi
   uiCanvas.addSurfaceToDisplay(displayId, controller.terminal, (canvas) => interpreterRects(canvas, controller.verboseVisible).terminal)
   uiCanvas.addSurfaceToDisplay(displayId, controller.frames, (canvas) => interpreterRects(canvas, controller.verboseVisible).frames)
   uiCanvas.addSurfaceToDisplay(displayId, controller.verbose, (canvas) => interpreterRects(canvas, controller.verboseVisible).verbose ?? hiddenRect())
-  uiCanvas.addSurfaceToDisplay(displayId, controller.toolbar, ({w}) => ({
-    x: TOOLBAR_INSET,
-    y: TOOLBAR_INSET,
-    w: Math.max(1, w - TOOLBAR_INSET * 2),
-    h: TOOLBAR_H,
-  }))
 }
 
 function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDisplayController {
@@ -3630,16 +3622,6 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
   const workspaceFiles = initialWorkspaceFilesState(module)
   Object.assign(controller, {
     id: module.id,
-    toolbar: new ToolbarPane({
-      onPause: () => void runModuleInterpreterCommand(controller, "pause", {}, t("pause")),
-      onResume: () => void runModuleInterpreterCommand(controller, "resume", {}, t("resume")),
-      onRestartTarget: () => void restartModule(controller.id),
-      onStopTarget: () => void stopModule(controller.id),
-      onShowExecutionPoint: () => showModuleExecutionPoint(controller),
-      onStep: (kind) => void runModuleInterpreterCommand(controller, "step", {kind}, kind === "over" ? t("stepOver") : kind === "into" ? t("stepInto") : t("stepOut")),
-      onToggleLocale: () => toggleLocale(),
-      onToggleVerbose: () => setVerboseVisible(controller, !controller.verboseVisible),
-    }),
     frames: new FramesPane((index) => {
       controller.activeFrameIndex = index
       renderModuleDump(controller, true)
@@ -3723,7 +3705,6 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     },
   } satisfies ModuleDisplayController)
 
-  controller.toolbar.node.name = `InterpreterToolbar:${module.id}`
   controller.frames.node.name = `InterpreterFrames:${module.id}`
   controller.filesChrome.node.name = `InterpreterFilesChrome:${module.id}`
   controller.filesHeader.node.name = `InterpreterFilesHeader:${module.id}`
@@ -3783,7 +3764,7 @@ function updateModuleDisplay(controller: ModuleDisplayController, module: Module
     else if (module.target.state === "running" || module.target.state === "starting") setModuleSourceState(controller, "running")
   }
 
-  updateModuleToolbar(controller, module)
+  updateModuleHeaderControls(controller, module)
   syncModuleTerminalInput(controller)
 }
 
@@ -4170,31 +4151,132 @@ function storedStringArray(value: unknown): string[] {
   return next
 }
 
-function updateModuleToolbar(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
+function updateModuleHeaderControls(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
   const run = moduleRunStatus(module)
+  const runKind = controller.activeCommand === null ? run.kind : "paused"
   const targetRunning = module.target.state === "starting" || module.target.state === "running"
   const contextConnected = module.connection.state === "connected"
   const canControlExecution = contextConnected && targetRunning
-  controller.toolbar.setState({
-    runKind: controller.activeCommand === null ? run.kind : "paused",
-    locale: getUiLocale(),
-    verbose: controller.verboseVisible,
-    canPause: canControlExecution && !module.paused,
-    canResume: canControlExecution && module.paused,
-    canStep: canControlExecution && module.paused,
-    canRestart: module.target.command.length > 0,
-    canStop: targetRunning,
-    canShowExecutionPoint: canControlExecution && module.paused && controller.dump !== undefined && controller.dump.frames.length > 0,
+  const commandIdle = controller.activeCommand === null
+  const canPause = commandIdle && canControlExecution && !module.paused
+  const canResume = commandIdle && canControlExecution && module.paused
+  const canStep = commandIdle && canControlExecution && module.paused
+  const canRestart = commandIdle && module.target.command.length > 0
+  const canStop = commandIdle && targetRunning
+  const canShowExecutionPoint = commandIdle && canControlExecution && module.paused && controller.dump !== undefined && controller.dump.frames.length > 0
+  const actionUnavailableTooltip = t("runtimeActionUnavailable")
+
+  controller.terminal.setHeaderControls({
+    primary: [
+      runKind === "live"
+        ? {
+          label: t("pause"),
+          iconSrc: uiIcons.pause,
+          tone: pauseButtonTone(runKind),
+          dividerAfter: true,
+          disabled: !canPause,
+          disabledTooltip: actionUnavailableTooltip,
+          action: () => void runModuleInterpreterCommand(controller, "pause", {}, t("pause")),
+        }
+        : {
+          label: t("resume"),
+          iconSrc: uiIcons.resume,
+          tone: resumeButtonTone(runKind),
+          dividerAfter: true,
+          disabled: !canResume,
+          disabledTooltip: actionUnavailableTooltip,
+          action: () => void runModuleInterpreterCommand(controller, "resume", {}, t("resume")),
+        },
+      {
+        label: t("stepOver"),
+        iconSrc: uiIcons.stepOver,
+        tone: stepButtonTone(runKind),
+        disabled: !canStep,
+        disabledTooltip: actionUnavailableTooltip,
+        action: () => void runModuleInterpreterCommand(controller, "step", {kind: "over"}, t("stepOver")),
+      },
+      {
+        label: t("stepInto"),
+        iconSrc: uiIcons.stepInto,
+        tone: stepButtonTone(runKind),
+        disabled: !canStep,
+        disabledTooltip: actionUnavailableTooltip,
+        action: () => void runModuleInterpreterCommand(controller, "step", {kind: "into"}, t("stepInto")),
+      },
+      {
+        label: t("stepOut"),
+        iconSrc: uiIcons.stepOut,
+        tone: stepButtonTone(runKind),
+        disabled: !canStep,
+        disabledTooltip: actionUnavailableTooltip,
+        dividerAfter: true,
+        action: () => void runModuleInterpreterCommand(controller, "step", {kind: "out"}, t("stepOut")),
+      },
+      {
+        label: t("restartTarget"),
+        iconSrc: uiIcons.restart,
+        tone: "neutral",
+        disabled: !canRestart,
+        disabledTooltip: actionUnavailableTooltip,
+        action: () => void restartModule(controller.id),
+      },
+      {
+        label: t("showExecutionPoint"),
+        iconSrc: uiIcons.executionPoint,
+        tone: canShowExecutionPoint ? "paused" : "neutral",
+        disabled: !canShowExecutionPoint,
+        disabledTooltip: t("waitingFrames"),
+        action: () => showModuleExecutionPoint(controller),
+      },
+      {
+        label: t("stopTarget"),
+        iconSrc: uiIcons.stop,
+        tone: "warn",
+        disabled: !canStop,
+        disabledTooltip: actionUnavailableTooltip,
+        action: () => void stopModule(controller.id),
+      },
+    ],
+    secondary: [
+      {
+        label: controller.verboseVisible ? t("hideVerbose") : t("showVerbose"),
+        iconSrc: uiIcons.log,
+        tone: controller.verboseVisible ? "paused" : "neutral",
+        action: () => setVerboseVisible(controller, !controller.verboseVisible),
+      },
+      {
+        label: languageTooltip(getUiLocale()),
+        iconSrc: uiIcons.language,
+        tone: "neutral",
+        action: () => toggleLocale(),
+      },
+    ],
   })
 }
 
-function moduleRunStatus(module: ModulePaneSnapshot): {text: string; kind: BadgeKind} {
+function moduleRunStatus(module: ModulePaneSnapshot): {text: string; kind: RuntimeControlTone} {
   if (module.paused) return {text: "paused", kind: "paused"}
   if (module.target.state === "running") return {text: "running", kind: "live"}
   if (module.target.state === "starting") return {text: "module starting", kind: "neutral"}
   if (module.target.state === "exited") return {text: `exited code=${module.target.exitCode}`, kind: module.target.exitCode === 0 ? "neutral" : "warn"}
   if (module.target.state === "failed") return {text: "failed", kind: "warn"}
   return {text: "waiting", kind: "neutral"}
+}
+
+function pauseButtonTone(runKind: RuntimeControlTone): RuntimeControlTone {
+  return runKind === "live" ? "warn" : "neutral"
+}
+
+function resumeButtonTone(runKind: RuntimeControlTone): RuntimeControlTone {
+  return runKind === "paused" ? "live" : "neutral"
+}
+
+function stepButtonTone(runKind: RuntimeControlTone): RuntimeControlTone {
+  return "neutral"
+}
+
+function languageTooltip(locale: "ru" | "en"): string {
+  return locale === "ru" ? "Язык: русский" : "Language: English"
 }
 
 function applyModuleDump(moduleId: string, dump: InterpreterDump): void {
@@ -4206,7 +4288,7 @@ function applyModuleDump(moduleId: string, dump: InterpreterDump): void {
   controller.activeFrameIndex = Math.min(controller.activeFrameIndex, Math.max(0, dump.frames.length - 1))
   renderModuleDump(controller, isNewPause)
   const snapshot = moduleSnapshots.get(moduleId)
-  if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
+  if (snapshot !== undefined) updateModuleHeaderControls(controller, snapshot)
 }
 
 function clearModuleLiveContext(controller: ModuleDisplayController): void {
@@ -4235,7 +4317,7 @@ function markModuleResumed(moduleId: string): void {
   clearModuleLiveContext(controller)
   setModuleSourceState(controller, "running")
   const snapshot = moduleSnapshots.get(moduleId)
-  if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
+  if (snapshot !== undefined) updateModuleHeaderControls(controller, snapshot)
 }
 
 function showModuleExecutionPoint(controller: ModuleDisplayController): void {
@@ -4386,7 +4468,7 @@ async function runModuleInterpreterCommand(controller: ModuleDisplayController, 
   }
   controller.activeCommand = command
   const snapshot = moduleSnapshots.get(controller.id)
-  if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
+  if (snapshot !== undefined) updateModuleHeaderControls(controller, snapshot)
   syncModuleTerminalInput(controller)
   try {
     const response = await send(cmd, params, controller.id)
@@ -4401,7 +4483,7 @@ async function runModuleInterpreterCommand(controller: ModuleDisplayController, 
   } finally {
     if (controller.activeCommand === command) controller.activeCommand = null
     const nextSnapshot = moduleSnapshots.get(controller.id)
-    if (nextSnapshot !== undefined) updateModuleToolbar(controller, nextSnapshot)
+    if (nextSnapshot !== undefined) updateModuleHeaderControls(controller, nextSnapshot)
     syncModuleTerminalInput(controller)
   }
 }
@@ -4419,7 +4501,7 @@ async function restartModule(moduleId: string): Promise<void> {
   }
   if (controller !== undefined) {
     controller.activeCommand = activeCommand
-    updateModuleToolbar(controller, snapshot)
+    updateModuleHeaderControls(controller, snapshot)
     syncModuleTerminalInput(controller)
   }
   const breakpoints = readStoredBreakpointSpecs()
@@ -4455,7 +4537,7 @@ async function restartModule(moduleId: string): Promise<void> {
   } finally {
     if (controller?.activeCommand === activeCommand) controller.activeCommand = null
     const nextSnapshot = moduleSnapshots.get(moduleId)
-    if (controller !== undefined && nextSnapshot !== undefined) updateModuleToolbar(controller, nextSnapshot)
+    if (controller !== undefined && nextSnapshot !== undefined) updateModuleHeaderControls(controller, nextSnapshot)
     if (controller !== undefined) syncModuleTerminalInput(controller)
   }
 }
@@ -5001,11 +5083,9 @@ function breakpointSpecKey(spec: BreakpointSpec): string {
   ].join("\0")
 }
 
-const TOOLBAR_INSET = 4
-const TOOLBAR_H = 38
 const PAD = 6
 const GAP = 8
-const BODY_TOP = TOOLBAR_INSET + TOOLBAR_H + PAD
+const BODY_TOP = PAD
 const WORKSPACE_FILES_HEADER_H = 36
 
 type InterpreterRects = {
