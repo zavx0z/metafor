@@ -536,8 +536,10 @@ export class FileListPane extends UiSurface {
     const iconSize = Math.min(theme.row.iconWidth, Math.max(14, h - 4))
     const iconY = y + (h - iconSize) / 2
     const nameX = iconX + theme.row.iconWidth + 4
-    const metaW = Math.min(theme.row.metaWidth, Math.max(0, w * 0.30))
-    const nameW = Math.max(24, x + w - nameX - metaW - 10)
+    const meta = rowMeta(row.item)
+    const metaW = meta === null ? 0 : Math.min(theme.row.metaWidth, Math.max(0, w * 0.30), Math.ceil(this.measureText(meta, 9)) + 12)
+    const nameRightGap = meta === null ? 8 : metaW + 10
+    const nameW = Math.max(24, x + w - nameX - nameRightGap)
     const textColor = disabled ? theme.row.disabledText : selected || active ? theme.row.selectedText : theme.row.text
     const mutedColor = disabled ? theme.row.disabledText : selected ? theme.row.selectedText : theme.row.muted
 
@@ -556,7 +558,6 @@ export class FileListPane extends UiSurface {
     this.#drawFileName(row.item.name, nameX, y, nameW, h, textColor)
 
     const metaX = x + w - metaW - 8
-    const meta = rowMeta(row.item)
     if (meta !== null) {
       span(this, metaX, y, metaW, h, {
         children: meta,
