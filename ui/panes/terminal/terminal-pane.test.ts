@@ -71,13 +71,52 @@ describe("TerminalPane focus", () => {
     }
   })
 
-  test("emits final frame rect after header drag", () => {
+  test("does not move from header drag by default", () => {
+    const changes: Array<{x: number; y: number; w: number; h: number}> = []
+    const terminal = new TerminalPane({
+      cols: 20,
+      rows: 4,
+      fitToRect: false,
+      onFrameRectChange: (rect) => changes.push(rect),
+    })
+    let frameRect = {x: 10, y: 20, w: 300, h: 180}
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 300, rectH: 180})
+      terminal.attachCanvas({
+        canvas: {style: {cursor: "default"}},
+        setFocused: () => {},
+        inputProxy: {focus: () => {}},
+        requestRender: () => {},
+        surfaceFrame: () => ({rect: {...frameRect}, bounds: {w: 1000, h: 800}}),
+        setSurfaceRect: (_surface: unknown, rect: typeof frameRect) => {
+          frameRect = {...rect}
+          return {...frameRect}
+        },
+      } as never)
+      terminal.onPointerDown({
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        detail: 1,
+        preventDefault: () => {},
+      } as MouseEvent, 1, 1)
+      terminal.onPointerMove({clientX: 150, clientY: 130} as MouseEvent, 51, 31)
+      terminal.onPointerUp({clientX: 150, clientY: 130} as MouseEvent, 51, 31)
+      expect(changes).toEqual([])
+      expect(frameRect).toEqual({x: 10, y: 20, w: 300, h: 180})
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("emits final frame rect after draggable header drag", () => {
     const previews: Array<{x: number; y: number; w: number; h: number}> = []
     const changes: Array<{x: number; y: number; w: number; h: number}> = []
     const terminal = new TerminalPane({
       cols: 20,
       rows: 4,
       fitToRect: false,
+      draggable: true,
       onFrameRectPreview: (rect) => previews.push(rect),
       onFrameRectChange: (rect) => changes.push(rect),
     })

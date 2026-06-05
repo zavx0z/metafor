@@ -76,6 +76,7 @@ type TerminalOutputPaneOpts = {
   reflowOnResize?: boolean
   scrollX?: boolean
   scrollY?: boolean
+  draggable?: boolean
   cursorBlink?: boolean
   cursorLineHighlight?: boolean
   cursorLineFill?: Color
@@ -113,6 +114,7 @@ export type LogViewerPaneOpts = Pick<
   | "wrapLines"
   | "scrollX"
   | "scrollY"
+  | "draggable"
 >
 
 type TerminalColor =
@@ -253,6 +255,7 @@ class TerminalOutputPane extends UiSurface {
   #wrapLines: boolean
   #scrollX: boolean
   #scrollY: boolean
+  #draggable: boolean
   #reflowOnResize: boolean
   #wrapMode: "char" | "word"
   #contentWidthMode: "grid" | "text"
@@ -330,6 +333,7 @@ class TerminalOutputPane extends UiSurface {
     this.#wrapLines = opts.wrapLines ?? true
     this.#scrollX = opts.scrollX ?? false
     this.#scrollY = opts.scrollY ?? true
+    this.#draggable = opts.draggable ?? false
     this.#reflowOnResize = opts.reflowOnResize ?? false
     this.#wrapMode = opts.wrapMode ?? "char"
     this.#contentWidthMode = opts.contentWidthMode ?? "grid"
@@ -453,6 +457,12 @@ class TerminalOutputPane extends UiSurface {
     if (this.#scrollY === enabled) return
     this.#scrollY = enabled
     if (!enabled) divScrollTo(this, TERMINAL_SCROLL_KEY, {top: 0})
+    this.requestRender()
+  }
+
+  setDraggable(enabled: boolean): void {
+    if (this.#draggable === enabled) return
+    this.#draggable = enabled
     this.requestRender()
   }
 
@@ -906,6 +916,7 @@ class TerminalOutputPane extends UiSurface {
     const scrollX = this.#scrollX ? SCROLLBAR_W_PX : 0
     return {
       showHeader: this.#showHeader,
+      movable: this.#draggable,
       minW: Math.max(260, PANE_FRAME.bodyInsetX * 2 + this.#minCols * this.#getCharWidth() + scrollY + 2),
       minH: Math.max(160, headerH + this.#minRows * this.#linePx + scrollX + PANE_FRAME.bodyBottomInset),
     }

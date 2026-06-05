@@ -2986,6 +2986,7 @@ function ensureHostTerminalController(): HostTerminalController {
   const hudTerminal = createHostTerminalPane(controller, "InterpreterHostTerminalHud", {
     fontPx: 12,
     linePx: 17,
+    draggable: true,
     onResize: (size) => resizeHostTerminalFromPane(controller, hudTerminal, size),
     onFrameRectPreview: previewHostTerminalHudRect,
     onFrameRectChange: storeHostTerminalHudRectAndRelayout,
@@ -3021,6 +3022,7 @@ function createHostTerminalPane(
     linePx: number
     fitToRect?: boolean
     scrollX?: boolean
+    draggable?: boolean
     onResize?: (size: TerminalSize) => void
     onFrameRectPreview?: TerminalPaneOpts["onFrameRectPreview"]
     onFrameRectChange?: TerminalPaneOpts["onFrameRectChange"]
@@ -3036,6 +3038,7 @@ function createHostTerminalPane(
     linePx: opts.linePx,
     maxScrollback: 10000,
     cursorLineHighlight: true,
+    draggable: opts.draggable ?? false,
     inputEnabled: false,
     onInput: (data, source) => sendHostTerminalInput(controller, data, source),
     onFocusChange: (focused) => {
