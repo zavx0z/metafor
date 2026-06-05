@@ -1,5 +1,5 @@
 import {Color, TextMaterial} from "@metafor/engine"
-import {UiSurface, Z, divScrollPosition, divScrollTo, li, palette, radii, span, ul, type LiElementState} from "@ui/elements"
+import {UiSurface, Z, divScrollPosition, divScrollTo, li, palette, radii, span, textMaterial, ul, type LiElementState} from "@ui/elements"
 import {
   PANE_FRAME,
   beginPaneFrameDrag,
@@ -553,10 +553,7 @@ export class FileListPane extends UiSurface {
     }
 
     this.#drawKindIcon(row.item, iconX, iconY, iconSize, disabled)
-    span(this, nameX, y, nameW, h, {
-      children: row.item.name,
-      style: {fontSize: 11, color: textColor},
-    })
+    this.#drawFileName(row.item.name, nameX, y, nameW, h, textColor)
 
     const metaX = x + w - metaW - 8
     const meta = rowMeta(row.item)
@@ -565,6 +562,22 @@ export class FileListPane extends UiSurface {
         children: meta,
         style: {fontSize: 9, color: mutedColor, textAlign: "right"},
       })
+    }
+  }
+
+  #drawFileName(name: string, x: number, y: number, w: number, h: number, color: Color): void {
+    const fontPx = 11
+    this.pushClip(x, y, w, h)
+    try {
+      this.drawText(name, x, y + Math.max(0, (h - fontPx) / 2), {
+        fontPx,
+        material: textMaterial(this, color),
+        fit: false,
+        measure: false,
+        z: Z.TEXT,
+      })
+    } finally {
+      this.popClip()
     }
   }
 
