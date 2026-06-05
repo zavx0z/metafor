@@ -244,7 +244,7 @@ export class ScopesPane extends UiSurface {
     })
     IconButton(this, x + w - 40, y + 12, 26, 24, {
       label: t("close"),
-      iconSrc: uiIcons.stop,
+      iconSrc: uiIcons.close,
       action: () => {
         this.#detail = null
         this.requestRender()

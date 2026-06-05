@@ -12,6 +12,7 @@ const runSvg = iconSvg("<path d=\"M8 5v14l11-7-11-7Z\"/>")
 const restartSvg = iconSvg("<path d=\"M20 7v5h-5\"/><path d=\"M20 12a8 8 0 1 0-2.34 5.66\"/>")
 const pauseSvg = iconSvg("<path d=\"M8 5v14\"/><path d=\"M16 5v14\"/>")
 const stopSvg = iconSvg("<path d=\"M7 7h10v10H7z\"/>")
+const closeSvg = iconSvg("<path d=\"M6 6l12 12\"/><path d=\"M18 6 6 18\"/>")
 const stepOverSvg = iconSvg("<path d=\"M4 12a6 6 0 0 1 10.24-4.24L17 10\"/><path d=\"M17 5v5h-5\"/><path d=\"M19 19v-7\"/><path d=\"M15.5 15.5 19 12l3.5 3.5\"/>")
 const stepIntoSvg = iconSvg("<path d=\"M12 4v15\"/><path d=\"M7 14l5 5 5-5\"/>")
 const stepOutSvg = iconSvg("<path d=\"M12 20V5\"/><path d=\"M7 10l5-5 5 5\"/>")
@@ -37,6 +38,7 @@ export const uiIcons = {
   restart: restartSvg,
   pause: pauseSvg,
   stop: stopSvg,
+  close: closeSvg,
   stepOver: stepOverSvg,
   stepInto: stepIntoSvg,
   stepOut: stepOutSvg,
