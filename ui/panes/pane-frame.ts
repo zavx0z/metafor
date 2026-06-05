@@ -79,8 +79,8 @@ export function paneBodyRect(
 
 export function paneFrameHit(localX: number, localY: number, rectW: number, rectH: number, opts: PaneFrameInteractionOpts = {}): PaneFrameInteractionKind | null {
   if (!(opts.showHeader ?? true)) return null
-  const movable = opts.movable ?? true
-  const resizable = opts.resizable ?? true
+  const movable = opts.movable ?? false
+  const resizable = opts.resizable ?? false
   const headerHeight = opts.headerHeight ?? PANE_FRAME.headerHeight
   const handle = Math.max(1, opts.resizeHandlePx ?? 9)
   const inside = localX >= 0 && localY >= 0 && localX <= rectW && localY <= rectH

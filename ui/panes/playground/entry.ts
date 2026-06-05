@@ -634,7 +634,6 @@ class PanesScreen extends UiSurface {
         `import {TerminalPane} from "@ui/panes"`,
         ``,
         `const term = new TerminalPane({`,
-        `  draggable: false,`,
         `  onInput: adapter.write,`,
         `  onResize: adapter.resize })`,
         `term.write(outputBytes)`,
@@ -1359,7 +1358,6 @@ const EDITOR_EDITING_SOURCE = `import {EditorPane, TerminalPane, NotiStack} from
 
 const terminal = new TerminalPane({
   title: "Agent shell",
-  draggable: false,
   onInput: (data) => adapter.write(data),
   onResize: (size) => adapter.resize(size),
 })
@@ -1405,7 +1403,7 @@ editor.setText("export const pane = \\"EditorPane\\"")
 `,
   javascript: `import {TerminalPane} from "@ui/panes"
 
-const term = new TerminalPane({title: "Local shell", draggable: false})
+const term = new TerminalPane({title: "Local shell"})
 term.write("$ cd pkg/interpreter\\r\\n")
 `,
   html: `<!doctype html>

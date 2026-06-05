@@ -97,6 +97,10 @@ export type EditorOpts = {
   showCaret?: boolean
   /** Run the one-shot text intro animation after setText(). Default true. */
   introAnimation?: boolean
+  /** Header drag is opt-in. Default false. */
+  draggable?: boolean
+  /** Edge resize is opt-in. Default false. */
+  resizable?: boolean
   /** Emits the final pane frame after header move or edge resize. Persistence belongs to the host app. */
   onFrameRectChange?: (rect: PaneRect) => void
 }
@@ -211,6 +215,8 @@ export class EditorPane extends UiSurface {
   #onSelectionClipboard: ((ok: boolean, action: "copy" | "cut") => void) | undefined
   #onBreakpointToggle: ((line: number) => void) | undefined
   #onFrameRectChange: ((rect: PaneRect) => void) | undefined
+  #draggable: boolean
+  #resizable: boolean
   #breakpoints = new Map<number, EditorBreakpoint>()
   #readOnly: boolean
   #showCaret: boolean
@@ -260,6 +266,8 @@ export class EditorPane extends UiSurface {
     this.#onSelectionClipboard = opts.onSelectionClipboard
     this.#onBreakpointToggle = opts.onBreakpointToggle
     this.#onFrameRectChange = opts.onFrameRectChange
+    this.#draggable = opts.draggable ?? false
+    this.#resizable = opts.resizable ?? false
     this.#breakpoints = normalizeBreakpoints(opts.breakpoints ?? [])
     this.#readOnly = opts.readOnly === true
     this.#showCaret = opts.showCaret ?? !this.#readOnly
@@ -464,6 +472,8 @@ export class EditorPane extends UiSurface {
   #frameInteractionOpts(): PaneFrameInteractionOpts {
     return {
       showHeader: true,
+      movable: this.#draggable,
+      resizable: this.#resizable,
       minW: Math.max(300, PAD_LEFT_PX + GUTTER_MIN_PX + CODE_LEFT_PAD_PX + this.#getCharWidth() * 24 + PAD_RIGHT_PX + SCROLLBAR_W),
       minH: Math.max(180, PAD_TOP_PX + this.#linePx * 6 + PAD_BOTTOM_PX + SCROLLBAR_W),
     }

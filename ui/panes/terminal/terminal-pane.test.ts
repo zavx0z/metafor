@@ -151,6 +151,86 @@ describe("TerminalPane focus", () => {
     }
   })
 
+  test("does not resize from edge drag by default", () => {
+    const changes: Array<{x: number; y: number; w: number; h: number}> = []
+    const terminal = new TerminalPane({
+      cols: 20,
+      rows: 4,
+      fitToRect: false,
+      onFrameRectChange: (rect) => changes.push(rect),
+    })
+    let frameRect = {x: 10, y: 20, w: 300, h: 180}
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 300, rectH: 180})
+      terminal.attachCanvas({
+        canvas: {style: {cursor: "default"}},
+        setFocused: () => {},
+        inputProxy: {focus: () => {}},
+        requestRender: () => {},
+        surfaceFrame: () => ({rect: {...frameRect}, bounds: {w: 1000, h: 800}}),
+        setSurfaceRect: (_surface: unknown, rect: typeof frameRect) => {
+          frameRect = {...rect}
+          return {...frameRect}
+        },
+      } as never)
+      terminal.onPointerDown({
+        button: 0,
+        clientX: 300,
+        clientY: 180,
+        detail: 1,
+        preventDefault: () => {},
+      } as MouseEvent, 299, 179)
+      terminal.onPointerMove({clientX: 340, clientY: 220} as MouseEvent, 339, 219)
+      terminal.onPointerUp({clientX: 340, clientY: 220} as MouseEvent, 339, 219)
+      expect(changes).toEqual([])
+      expect(frameRect).toEqual({x: 10, y: 20, w: 300, h: 180})
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("emits final frame rect after resizable edge drag", () => {
+    const previews: Array<{x: number; y: number; w: number; h: number}> = []
+    const changes: Array<{x: number; y: number; w: number; h: number}> = []
+    const terminal = new TerminalPane({
+      cols: 20,
+      rows: 4,
+      fitToRect: false,
+      resizable: true,
+      onFrameRectPreview: (rect) => previews.push(rect),
+      onFrameRectChange: (rect) => changes.push(rect),
+    })
+    let frameRect = {x: 10, y: 20, w: 300, h: 180}
+    try {
+      Object.assign(terminal as unknown as {rectW: number; rectH: number}, {rectW: 300, rectH: 180})
+      terminal.attachCanvas({
+        canvas: {style: {cursor: "default"}},
+        setFocused: () => {},
+        inputProxy: {focus: () => {}},
+        requestRender: () => {},
+        surfaceFrame: () => ({rect: {...frameRect}, bounds: {w: 1000, h: 800}}),
+        setSurfaceRect: (_surface: unknown, rect: typeof frameRect) => {
+          frameRect = {...rect}
+          return {...frameRect}
+        },
+      } as never)
+      terminal.onPointerDown({
+        button: 0,
+        clientX: 300,
+        clientY: 180,
+        detail: 1,
+        preventDefault: () => {},
+      } as MouseEvent, 299, 179)
+      terminal.onPointerMove({clientX: 340, clientY: 220} as MouseEvent, 339, 219)
+      expect(previews).toEqual([{x: 10, y: 20, w: 340, h: 220}])
+      expect(changes).toEqual([])
+      terminal.onPointerUp({clientX: 340, clientY: 220} as MouseEvent, 339, 219)
+      expect(changes).toEqual([{x: 10, y: 20, w: 340, h: 220}])
+    } finally {
+      terminal.dispose()
+    }
+  })
+
   test("emits dock request from header button without starting frame drag", async () => {
     let dockRequests = 0
     const changes: Array<{x: number; y: number; w: number; h: number}> = []

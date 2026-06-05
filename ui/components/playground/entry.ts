@@ -2181,7 +2181,6 @@ class ButtonComponentsScreen extends UiSurface {
       p(this, x + pad, y + 70, w - pad * 2, 22, {children: "Universal API", style: {fontSize: 11, color: "muted"}})
       codeBlock(this, x + pad, y + 104, w - pad * 2, [
         `const term = new TerminalPane({`,
-        `  draggable: false,`,
         `  onInput: adapter.write,`,
         `  onResize: adapter.resize })`,
         `term.write(outputBytes)`,

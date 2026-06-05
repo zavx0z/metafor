@@ -31,6 +31,8 @@ export type FileListPaneOpts = {
   expandedIds?: readonly string[]
   theme?: FileListPaneThemeInput
   showHeader?: boolean
+  draggable?: boolean
+  resizable?: boolean
   onSelectionChange?: (selectedIds: readonly string[], selectedItems: readonly FileListItem[]) => void
   onExpandedChange?: (expandedIds: readonly string[]) => void
   onItemOpen?: (item: FileListItem) => void
@@ -201,6 +203,8 @@ export class FileListPane extends UiSurface {
   #activeId: string | null
   #selectionAnchorId: string | null
   #showHeader: boolean
+  #draggable: boolean
+  #resizable: boolean
   #theme: FileListPaneTheme
   #frameDrag: PaneFrameDrag | null = null
   #lastViewportH = 1
@@ -230,6 +234,8 @@ export class FileListPane extends UiSurface {
     this.#activeId = this.#selectedIds[0] ?? firstVisibleSelectableId(this.#items, this.#expandedIds)
     this.#selectionAnchorId = this.#activeId
     this.#showHeader = opts.showHeader ?? true
+    this.#draggable = opts.draggable ?? false
+    this.#resizable = opts.resizable ?? false
     this.#onSelectionChange = opts.onSelectionChange
     this.#onExpandedChange = opts.onExpandedChange
     this.#onItemOpen = opts.onItemOpen
@@ -807,7 +813,13 @@ export class FileListPane extends UiSurface {
   }
 
   #frameInteractionOpts(): PaneFrameInteractionOpts {
-    return {showHeader: this.#showHeader, minW: MIN_PANE_W, minH: MIN_PANE_H}
+    return {
+      showHeader: this.#showHeader,
+      movable: this.#draggable,
+      resizable: this.#resizable,
+      minW: MIN_PANE_W,
+      minH: MIN_PANE_H,
+    }
   }
 
   #beginFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {

@@ -36,12 +36,14 @@ describe("pane frame", () => {
     })
   })
 
-  test("hits only framed pane header and resize zones", () => {
-    expect(paneFrameHit(24, 12, 320, 220)).toBe("move")
-    expect(paneFrameHit(318, 80, 320, 220)).toBe("resize-right")
-    expect(paneFrameHit(100, 218, 320, 220)).toBe("resize-bottom")
-    expect(paneFrameHit(318, 218, 320, 220)).toBe("resize-bottom-right")
-    expect(paneFrameHit(24, 12, 320, 220, {showHeader: false})).toBeNull()
+  test("requires explicit frame movement and resize flags", () => {
+    expect(paneFrameHit(24, 12, 320, 220)).toBeNull()
+    expect(paneFrameHit(318, 80, 320, 220)).toBeNull()
+    expect(paneFrameHit(24, 12, 320, 220, {movable: true})).toBe("move")
+    expect(paneFrameHit(318, 80, 320, 220, {resizable: true})).toBe("resize-right")
+    expect(paneFrameHit(100, 218, 320, 220, {resizable: true})).toBe("resize-bottom")
+    expect(paneFrameHit(318, 218, 320, 220, {resizable: true})).toBe("resize-bottom-right")
+    expect(paneFrameHit(24, 12, 320, 220, {showHeader: false, movable: true, resizable: true})).toBeNull()
   })
 
   test("clamps move and resize interactions to bounds", () => {
