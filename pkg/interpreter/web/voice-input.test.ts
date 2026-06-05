@@ -43,16 +43,34 @@ describe("voice activation matching", () => {
     })
 
     expect(grammar).toContain("агент")
-    expect(grammar).toContain("агент 1")
     expect(grammar).toContain("агент один")
-    expect(grammar).toContain("агент 2")
     expect(grammar).toContain("агент два")
+    expect(grammar).not.toContain("агент 1")
+    expect(grammar).not.toContain("агент 2")
     expect(grammar).toContain("выключи")
     expect(grammar).toContain("выключи микрофон")
     expect(grammar).toContain("выключим микрофон")
     expect(grammar).toContain("выключу микрофон")
     expect(grammar).toContain("выключить микрофон")
     expect(grammar).toContain("[unk]")
+  })
+
+  test("keeps unsupported Vosk vocabulary out of generated grammar", () => {
+    const grammar = createWakeRecognitionGrammar({
+      activation: ["агент 2"],
+      deactivation: ["выруби микрофон"],
+      stop: ["не подслушивай"],
+    })
+
+    expect(grammar.some((phrase) => /(^| )\d+( |$)/.test(phrase))).toBe(false)
+    expect(grammar).not.toContain("вырубим")
+    expect(grammar).not.toContain("вырубим микрофон")
+    expect(grammar).not.toContain("не подслушивай")
+    expect(grammar).toContain("выруби микрофон")
+    expect(grammar).toContain("вырублю микрофон")
+    expect(grammar).toContain("вырубить микрофон")
+    expect(grammar).toContain("не подслушивать")
+    expect(grammar).toContain("не слушай")
   })
 
   test("matches common deactivation phrase variants", () => {

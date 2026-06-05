@@ -1083,22 +1083,37 @@ function normalizePhrasesForRecognition(phrases: readonly string[], fallback: re
 
 function wakeGrammarPhraseVariants(phrases: readonly string[], fallback: readonly string[]): string[] {
   const out: string[] = []
-  for (const phrase of normalizePhrasesForRecognition(phrases, fallback)) {
-    for (const variant of wakeGrammarNumberVariants(phrase)) {
-      const tokens = variant.split(/\s+/).filter(Boolean)
-      for (let count = 1; count <= tokens.length; count += 1) {
-        out.push(tokens.slice(0, count).join(" "))
-      }
+  for (const phrase of normalizePhrasesForGrammar(phrases, fallback)) {
+    const tokens = phrase.split(/\s+/).filter(Boolean)
+    for (let count = 1; count <= tokens.length; count += 1) {
+      out.push(tokens.slice(0, count).join(" "))
     }
   }
   out.push("[unk]")
   return out
 }
 
+function normalizePhrasesForGrammar(phrases: readonly string[], fallback: readonly string[]): string[] {
+  const normalized = normalizeVoicePhrases(phrases).map(normalizeWakeText).filter(Boolean)
+  const base = normalized.length > 0 ? normalized : [...fallback].map(normalizeWakeText).filter(Boolean)
+  return uniqueStrings(base.flatMap(voicePhraseGrammarVariants))
+}
+
 function voicePhraseMatchVariants(phrase: string): string[] {
+  return voicePhraseTokenVariants(phrase, voiceMatchTokenVariants)
+}
+
+function voicePhraseGrammarVariants(phrase: string): string[] {
+  return voicePhraseTokenVariants(phrase, voiceGrammarTokenVariants)
+}
+
+function voicePhraseTokenVariants(
+  phrase: string,
+  tokenVariantsFor: (token: string) => readonly string[],
+): string[] {
   const variants = [""]
   for (const token of phrase.split(/\s+/).filter(Boolean)) {
-    const tokenVariants = voiceMatchTokenVariants(token)
+    const tokenVariants = tokenVariantsFor(token)
     const next: string[] = []
     for (const prefix of variants) {
       for (const tokenVariant of tokenVariants) {
@@ -1127,6 +1142,10 @@ function voiceMatchTokenVariants(token: string): string[] {
     case "вырублю":
     case "вырубить":
       return ["выруби", "вырубим", "вырублю", "вырубить"]
+    case "подслушивай":
+    case "подслушивать":
+    case "слушай":
+      return ["подслушивай", "подслушивать", "слушай"]
     case "останови":
     case "остановим":
     case "остановлю":
@@ -1137,25 +1156,36 @@ function voiceMatchTokenVariants(token: string): string[] {
   }
 }
 
-function wakeGrammarNumberVariants(phrase: string): string[] {
-  const variants = [""]
-  for (const token of phrase.split(/\s+/).filter(Boolean)) {
-    const tokenVariants = voiceGrammarTokenVariants(token)
-    const next: string[] = []
-    for (const prefix of variants) {
-      for (const tokenVariant of tokenVariants) {
-        next.push(prefix ? `${prefix} ${tokenVariant}` : tokenVariant)
-      }
-    }
-    variants.splice(0, variants.length, ...next)
-  }
-  return variants
-}
-
 function voiceGrammarTokenVariants(token: string): string[] {
   const spoken = digitToSpokenWakeTokens(token)
-  if (spoken.length === 0) return [token]
-  return uniqueStrings([token, ...spoken, ...wakeNumberConfuserTokens()])
+  if (spoken.length > 0) return uniqueStrings([...spoken, ...wakeNumberConfuserTokens()])
+  switch (token) {
+    case "выключи":
+    case "выключим":
+    case "выключу":
+    case "выключить":
+      return ["выключи", "выключим", "выключу", "выключить"]
+    case "отключи":
+    case "отключим":
+    case "отключу":
+    case "отключить":
+      return ["отключи", "отключим", "отключу", "отключить"]
+    case "выруби":
+    case "вырубим":
+    case "вырублю":
+    case "вырубить":
+      return ["выруби", "вырублю", "вырубить"]
+    case "подслушивай":
+    case "подслушивать":
+      return ["подслушивать", "слушай"]
+    case "останови":
+    case "остановим":
+    case "остановлю":
+    case "остановить":
+      return ["останови", "остановим", "остановлю", "остановить"]
+    default:
+      return [token]
+  }
 }
 
 function digitToSpokenWakeTokens(token: string): string[] {
@@ -1176,7 +1206,7 @@ function digitToSpokenWakeTokens(token: string): string[] {
 function wakeNumberConfuserTokens(): string[] {
   const out: string[] = []
   for (const token of ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]) {
-    out.push(token, ...digitToSpokenWakeTokens(token))
+    out.push(...digitToSpokenWakeTokens(token))
   }
   return out
 }
