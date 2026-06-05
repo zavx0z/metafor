@@ -4604,7 +4604,7 @@ type AgentModuleTerminalEntry = ModuleTerminalEntry & {
 function appendModuleTerminal(controller: ModuleDisplayController, entry: ModuleTerminalEntry, opts: {restorePrompt?: boolean} = {}): void {
   const restorePrompt = opts.restorePrompt !== false && controller.terminalInput.promptVisible && canAcceptTerminalInput(controller)
   hideModuleTerminalPrompt(controller)
-  controller.terminal.writeln(`${ansiMuted(formatTimestamp(entry.ts))} ${ansiLevel(entry.level)} ${entry.text}`)
+  controller.terminal.writeln(`${ansiMuted(formatTimestamp(entry.ts))} ${ansiLevel(entry.level)} ${terminalOutputText(entry.text)}`)
   if (restorePrompt) showModuleTerminalPrompt(controller)
 }
 
@@ -4642,7 +4642,11 @@ function scrollAgentModuleTerminalToBottom(controller: ModuleDisplayController):
 
 function appendModuleTargetLine(controller: ModuleDisplayController, line: ModuleLine): void {
   const label = line.stream === "stderr" ? ansiError("err") : ansiCyan("out")
-  controller.terminal.writeln(`${ansiMuted(formatTimestamp(line.ts))} ${label} ${line.text}`)
+  controller.terminal.writeln(`${ansiMuted(formatTimestamp(line.ts))} ${label} ${terminalOutputText(line.text)}`)
+}
+
+function terminalOutputText(text: string): string {
+  return text.replace(/\r\n?/g, "\n").replace(/\n/g, "\r\n")
 }
 
 function rebuildModuleTerminalOutput(controller: ModuleDisplayController): void {

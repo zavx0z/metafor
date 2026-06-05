@@ -71,3 +71,49 @@ test("terminal expression formatter expands arrays as literals", async () => {
     "]",
   ].join("\n"))
 })
+
+test("terminal expression formatter accepts Bun properties payloads", async () => {
+  const formatted = await formatTerminalExpressionResult({
+    result: {
+      type: "object",
+      subtype: "array",
+      description: "Array",
+      objectId: "tokens",
+    },
+  }, async (objectId) => {
+    if (objectId === "tokens") {
+      return {
+        properties: [
+          {name: "0", enumerable: true, value: {type: "object", subtype: "array", description: "Array", objectId: "line-tokens"}},
+        ],
+      }
+    }
+    if (objectId === "line-tokens") {
+      return {
+        properties: [
+          {name: "0", enumerable: true, value: {type: "object", description: "Object", objectId: "token-0"}},
+        ],
+      }
+    }
+    if (objectId === "token-0") {
+      return {
+        properties: [
+          {name: "value", enumerable: true, value: {type: "string", value: "await"}},
+          {name: "kind", enumerable: true, value: {type: "string", value: "keyword"}},
+        ],
+      }
+    }
+    return {properties: []}
+  })
+
+  expect(stripAnsi(formatted)).toBe([
+    "[",
+    "  [",
+    "    {",
+    "      value: \"await\",",
+    "      kind: \"keyword\"",
+    "    }",
+    "  ]",
+    "]",
+  ].join("\n"))
+})

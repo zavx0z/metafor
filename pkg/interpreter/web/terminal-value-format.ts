@@ -131,7 +131,7 @@ async function formatPropertyValue(property: PropertyDescriptorLike, context: Fo
 
 function propertyDescriptors(response: unknown): PropertyDescriptorLike[] {
   const object = asRecord(response)
-  const result = Array.isArray(object?.["result"]) ? object["result"] : []
+  const result = protocolDescriptorItems(object)
   const out: PropertyDescriptorLike[] = []
   for (const item of result) {
     const descriptor = asRecord(item)
@@ -149,6 +149,15 @@ function propertyDescriptors(response: unknown): PropertyDescriptorLike[] {
     if (typeof descriptor["enumerable"] === "boolean") property.enumerable = descriptor["enumerable"]
     out.push(property)
   }
+  return out
+}
+
+function protocolDescriptorItems(object: Record<string, unknown> | null): unknown[] {
+  if (object === null) return []
+  const out: unknown[] = []
+  if (Array.isArray(object["result"])) out.push(...object["result"])
+  if (Array.isArray(object["properties"])) out.push(...object["properties"])
+  if (Array.isArray(object["internalProperties"])) out.push(...object["internalProperties"])
   return out
 }
 

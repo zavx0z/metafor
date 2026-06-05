@@ -442,7 +442,7 @@ function formatValue(v: PropertySnapshot): string {
 
 export function propertySnapshotMapFromProtocolResponse(response: unknown): Record<string, PropertySnapshot> {
   const root = asRecord(response)
-  const descriptors = Array.isArray(root?.["result"]) ? root["result"] : []
+  const descriptors = protocolDescriptorItems(root)
   const properties: Record<string, PropertySnapshot> = {}
   for (const item of descriptors) {
     const descriptor = asRecord(item)
@@ -452,6 +452,15 @@ export function propertySnapshotMapFromProtocolResponse(response: unknown): Reco
     properties[name] = propertySnapshotFromProtocolDescriptor(descriptor)
   }
   return properties
+}
+
+function protocolDescriptorItems(object: Record<string, unknown> | null): unknown[] {
+  if (object === null) return []
+  const out: unknown[] = []
+  if (Array.isArray(object["result"])) out.push(...object["result"])
+  if (Array.isArray(object["properties"])) out.push(...object["properties"])
+  if (Array.isArray(object["internalProperties"])) out.push(...object["internalProperties"])
+  return out
 }
 
 function propertySnapshotFromProtocolDescriptor(descriptor: Record<string, unknown>): PropertySnapshot {

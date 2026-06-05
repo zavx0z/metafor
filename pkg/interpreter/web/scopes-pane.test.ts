@@ -122,3 +122,15 @@ test("scope detail formatter renders lazily loaded array object children", () =>
   expect(code).toContain("Object {\n    type: \"identifier\"\n    text: \"tokens\"\n  }")
   expect(code).not.toContain("[[Preview]]")
 })
+
+test("scope protocol converter accepts Bun properties payloads", () => {
+  const properties = propertySnapshotMapFromProtocolResponse({
+    properties: [
+      {name: "0", enumerable: true, value: {type: "string", value: "await"}},
+      {name: "length", enumerable: false, value: {type: "number", value: 1}},
+    ],
+  })
+
+  expect(properties["0"]?.value).toBe("await")
+  expect(properties["length"]?.value).toBe(1)
+})
