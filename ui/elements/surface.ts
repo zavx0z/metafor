@@ -244,6 +244,13 @@ type ClipTagged = {
 type ClipBoundsHost = ClipTagged & {
   clipBounds: [number, number, number, number] | null
 }
+type PendingTooltipDraw = {
+  x: number
+  y: number
+  w: number
+  h: number
+  label: string
+}
 
 export const Z: {
   readonly CONTAINER: number
@@ -325,6 +332,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   #hoverTooltipSince = 0
   #hoverTooltipDelayMs = 0
   #hoverTooltipTimer: ReturnType<typeof setTimeout> | null = null
+  #pendingTooltipDraws: PendingTooltipDraw[] = []
   #backgroundImage: BackgroundImageOpts | null = null
   #rerenderRafId: number | null = null
   #layerRerenderRafId: number | null = null
@@ -812,7 +820,10 @@ export abstract class UiSurface implements UiSurfaceNode {
     const key = tooltipKey(x, y, w, h, label)
     if (this.#hoverTooltipKey !== key) return
     if (performance.now() - this.#hoverTooltipSince < delayMs) return
+    this.#pendingTooltipDraws.push({x, y, w, h, label})
+  }
 
+  #drawTooltipNow({x, y, w, h, label}: PendingTooltipDraw): void {
     const fontPx = 11
     const padX = 9
     const tooltipH = 24
@@ -835,6 +846,15 @@ export abstract class UiSurface implements UiSurfaceNode {
       maxWidthPx: labelW,
       z: Z.TEXT + 0.5,
       clip: false,
+    })
+  }
+
+  #flushPendingTooltipDraws(): void {
+    const pending = this.#pendingTooltipDraws
+    this.#pendingTooltipDraws = []
+    if (pending.length === 0) return
+    this.withLayer("overlay", () => {
+      for (const tooltip of pending) this.#drawTooltipNow(tooltip)
     })
   }
 
@@ -1119,8 +1139,10 @@ export abstract class UiSurface implements UiSurfaceNode {
     for (const layer of this.#contentLayers()) this.#clearLayer(layer)
     this.#hits = []
     this.#wheelHits = []
+    this.#pendingTooltipDraws = []
     this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
     this.render()
+    this.#flushPendingTooltipDraws()
   }
 
   #rerenderNow(): void {
