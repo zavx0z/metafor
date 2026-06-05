@@ -1187,8 +1187,6 @@ async function initEngine(): Promise<void> {
       onDeactivationModeChange: storeVoiceDeactivationMode,
       onRecognitionTimeoutChange: storeVoiceRecognitionTimeoutSeconds,
       onPhraseFuzzyChange: storeVoiceFuzzyTolerance,
-      startTooltip: () => t("voiceStart"),
-      stopTooltip: () => t("voiceStop"),
     })
     installEnginePanes()
     uiCanvas.handleResize()

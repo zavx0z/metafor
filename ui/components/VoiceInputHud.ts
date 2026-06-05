@@ -76,8 +76,6 @@ export type VoiceInputHudOptions = {
   onDeactivationModeChange(value: VoiceInputHudDeactivationMode): void
   onRecognitionTimeoutChange(value: number): void
   onPhraseFuzzyChange(groupId: VoiceInputHudPhraseGroupId, value: number): void
-  startTooltip(): string
-  stopTooltip(): string
 }
 
 const VOICE_HUD_LONG_PRESS_MS = 450
@@ -155,10 +153,6 @@ export class VoiceInputHud extends UiSurface {
             : waiting
               ? fade(palette.cyan, 0.68)
               : palette.muted
-    const tooltip = status === "listening" || status === "committing" || status === "connecting"
-      ? this.options.stopTooltip()
-      : this.options.startTooltip()
-
     if (this.#settingsOpen) this.#drawSettingsMenu()
 
     if (active || waiting) {
@@ -173,7 +167,6 @@ export class VoiceInputHud extends UiSurface {
 
     button(this, buttonX, buttonY, buttonRect.w, buttonRect.h, {
       key: "voice-input-hud-toggle",
-      tooltip,
       onClick: () => this.#toggleFromClick(),
       style: (state) => ({
         background: state === "hover" ? "rgba(18, 28, 42, 0.82)" : "rgba(10, 16, 24, 0.72)",
