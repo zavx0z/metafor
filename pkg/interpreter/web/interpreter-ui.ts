@@ -9,19 +9,9 @@
 export type BadgeKind = "neutral" | "live" | "paused" | "warn"
 
 export type ToolbarState = {
-  ws: string
-  wsKind: BadgeKind
-  connection: string
-  connectionKind: BadgeKind
-  run: string
   runKind: BadgeKind
-  commandBusy: boolean
-  commandCmd: string
-  commandLabel: string
   locale: "ru" | "en"
-  protocolUrl: string
   verbose: boolean
-  engine: string
   canPause: boolean
   canResume: boolean
   canStep: boolean

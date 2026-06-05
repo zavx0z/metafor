@@ -5,38 +5,22 @@
  */
 
 import {UiSurface, radii, uiIcons} from "@ui/elements"
-import {Button as button, Divider as divider, StatusChip as statusChip} from "@ui/components"
+import {Button as button, Divider as divider} from "@ui/components"
 import type {BadgeKind, ToolbarActions, ToolbarState} from "./interpreter-ui.ts"
 import {getUiLocale, t} from "./i18n.ts"
 
 const PAD_X = 8
 const GAP = 6
-const STATUS_H = 24
 const BTN_H = 30
 const BTN_W = 36
-const STATUS_FONT = 10
-const CONTROL_GROUP_GAP = 10
 const DIVIDER_GAP = 8
 const DIVIDER_W = 1
-const SOCKET_W = 78
-const CONTEXT_W = 102
-const RUN_W = 86
 
 export class ToolbarPane extends UiSurface {
   #state: ToolbarState = {
-    ws: "connecting",
-    wsKind: "neutral",
-    connection: "context: connecting",
-    connectionKind: "neutral",
-    run: "waiting",
     runKind: "neutral",
-    commandBusy: false,
-    commandCmd: "",
-    commandLabel: "",
     locale: getUiLocale(),
-    protocolUrl: "",
     verbose: false,
-    engine: "engine: init",
     canPause: false,
     canResume: false,
     canStep: false,
@@ -142,37 +126,6 @@ export class ToolbarPane extends UiSurface {
     const secondaryW = this.#buttonGroupWidth(secondaryControls)
     const secondaryX = Math.max(PAD_X, this.rectW - PAD_X - secondaryW)
     this.#drawButtonGroup(secondaryControls, secondaryX, buttonY)
-
-    // Левая часть: compact operational state only. Подробности URL/engine
-    // лежат в tooltip, а не съедают toolbar.
-    const statusY = (this.rectH - STATUS_H) / 2
-    const statusRightLimit = Math.max(PAD_X, Math.min(primaryX - CONTROL_GROUP_GAP, secondaryX - CONTROL_GROUP_GAP))
-    let x = PAD_X
-    x = this.#fixedStatus(socketLabel(), this.#state.wsKind, socketTooltip(this.#state.wsKind, this.#state.ws), x, statusY, statusRightLimit, SOCKET_W)
-    x = this.#fixedStatus(contextLabel(), this.#state.connectionKind, contextTooltip(this.#state.connection, this.#state.protocolUrl), x, statusY, statusRightLimit, CONTEXT_W)
-    const runTone = this.#state.commandBusy ? "paused" : this.#state.runKind
-    const runText = this.#state.commandBusy ? t("commandExecuting") : runLabel(this.#state.run, this.#state.runKind)
-    const runTooltip = this.#state.commandBusy && this.#state.commandLabel.length > 0
-      ? `${t("commandExecuting")}: ${this.#state.commandLabel}`
-      : `${t("runStatus")}: ${compactRunStatus(this.#state.run)}`
-    x = this.#fixedStatus(runText, runTone, runTooltip, x, statusY, statusRightLimit, RUN_W)
-  }
-
-  #fixedStatus(label: string, tone: BadgeKind, tooltip: string, x: number, y: number, rightLimit: number, w: number, action?: () => void, indicator = true): number {
-    // Slot widths are stable per status type. If the toolbar is too narrow,
-    // drop low-priority chips instead of squeezing text and shifting layout.
-    if (x + w > rightLimit) return x
-    statusChip(this, x, y, w, STATUS_H, {
-      label,
-      tone,
-      variant: "subtle",
-      indicator,
-      fontPx: STATUS_FONT,
-      iconSizePx: 8,
-      tooltip,
-      ...(action === undefined ? {} : {action}),
-    })
-    return x + w + GAP
   }
 
   #drawButtonGroup(buttons: ToolbarButton[], x: number, y: number): number {
@@ -228,41 +181,6 @@ type ToolbarButton = {
   action(): void
 }
 
-function compactRunStatus(value: string): string {
-  if (value === "paused (PauseOnNextStatement)") return getUiLocale() === "ru" ? "пауза: следующий JS" : "paused: next JS"
-  if (value === "running (pause pending)") return getUiLocale() === "ru" ? "пауза ожидается" : "pause pending"
-  if (value === "running") return getUiLocale() === "ru" ? "идёт" : "running"
-  if (value === "paused") return getUiLocale() === "ru" ? "пауза" : "paused"
-  if (value === "waiting") return getUiLocale() === "ru" ? "ожидание" : "waiting"
-  if (value === "reconnecting") return t("reconnecting")
-  if (value === "target starting" || value === "module starting") return getUiLocale() === "ru" ? "модуль стартует" : "module starting"
-  if (value === "pause requested") return getUiLocale() === "ru" ? "пауза запрошена" : "pause requested"
-  if (value === "pause pending") return getUiLocale() === "ru" ? "пауза ожидается" : "pause pending"
-  return value
-}
-
-function socketLabel(): string {
-  return t("socket")
-}
-
-function socketTooltip(kind: BadgeKind, value: string): string {
-  if (value.includes("closed") || value.includes("finished")) return t("socketClosed")
-  if (kind === "warn" || value.includes("disconnected")) return t("socketDisconnected")
-  if (kind === "live" || value.includes("connected")) return t("socketConnected")
-  return t("socketConnecting")
-}
-
-function contextLabel(): string {
-  return t("context")
-}
-
-function runLabel(value: string, kind: BadgeKind): string {
-  if (kind === "paused") return t("targetPaused")
-  if (kind === "live") return t("targetRunning")
-  if (kind === "warn") return value.startsWith("exited") ? t("targetExited") : t("target")
-  return t("targetIdle")
-}
-
 function pauseButtonTone(runKind: BadgeKind): BadgeKind {
   return runKind === "live" ? "warn" : "neutral"
 }
@@ -273,18 +191,6 @@ function resumeButtonTone(runKind: BadgeKind): BadgeKind {
 
 function stepButtonTone(runKind: BadgeKind): BadgeKind {
   return "neutral"
-}
-
-function contextTooltip(connection: string, url: string): string {
-  const localized = connection.includes("disconnected")
-    ? t("contextOffline")
-    : connection.includes("finished") || connection.includes("closed")
-      ? t("contextFinished")
-    : connection.includes("connected")
-      ? t("contextConnected")
-      : getUiLocale() === "ru" ? "Контекст подключается" : "Context connecting"
-  if (url.length === 0) return localized
-  return `${localized} · ${url}`
 }
 
 function languageTooltip(locale: "ru" | "en"): string {

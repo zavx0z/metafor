@@ -461,7 +461,6 @@ let hudNotificationLastAt: Date | null = null
 let resizeObserver: ResizeObserver | null = null
 let socket: WebSocket | undefined
 let nextRequestId = 1
-let engineStatus = "engine: init"
 let framedModuleKey = ""
 
 const moduleSnapshots = new Map<string, ModulePaneSnapshot>()
@@ -1052,7 +1051,6 @@ function rejectPendingRequests(error: string): void {
 async function initEngine(): Promise<void> {
   if (uiLoading || uiCanvas !== null) return
   uiLoading = true
-  setEngineStatus("engine: init")
   try {
     uiCanvas = await UiRuntime.create(engineCanvas, {
       virtualDisplay: {
@@ -1117,21 +1115,10 @@ async function initEngine(): Promise<void> {
     resizeObserver.observe(engineCanvas)
     requestAnimationFrame(handleEngineResize)
     window.addEventListener("resize", handleEngineResize)
-    setEngineStatus("engine: webgpu")
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    setEngineStatus(`engine failed: ${message}`)
     console.error("interpreter canvas init failed:", error)
   } finally {
     uiLoading = false
-  }
-}
-
-function setEngineStatus(text: string): void {
-  engineStatus = text
-  for (const controller of moduleDisplays.values()) {
-    const snapshot = moduleSnapshots.get(controller.id)
-    if (snapshot !== undefined) updateModuleToolbar(controller, snapshot)
   }
 }
 
@@ -4185,32 +4172,13 @@ function storedStringArray(value: unknown): string[] {
 
 function updateModuleToolbar(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
   const run = moduleRunStatus(module)
-  const targetFinished = module.target.state === "exited" || module.target.state === "failed"
   const targetRunning = module.target.state === "starting" || module.target.state === "running"
   const contextConnected = module.connection.state === "connected"
   const canControlExecution = contextConnected && targetRunning
-  const cleanExit = module.target.state === "exited" && module.target.exitCode === 0
-  const socketKind: BadgeKind = targetFinished
-    ? cleanExit ? "neutral" : "warn"
-    : module.connection.state === "connected"
-    ? "live"
-    : module.connection.state === "connecting"
-      ? "neutral"
-      : "warn"
   controller.toolbar.setState({
-    ws: targetFinished ? "closed" : module.connection.state,
-    wsKind: socketKind,
-    connection: targetFinished ? "context: finished" : `context: ${module.connection.state}`,
-    connectionKind: socketKind,
-    run: controller.activeCommand === null ? run.text : t("commandExecuting"),
     runKind: controller.activeCommand === null ? run.kind : "paused",
-    commandBusy: controller.activeCommand !== null,
-    commandCmd: controller.activeCommand?.cmd ?? "",
-    commandLabel: controller.activeCommand?.label ?? "",
     locale: getUiLocale(),
-    protocolUrl: module.protocolUrl,
     verbose: controller.verboseVisible,
-    engine: engineStatus,
     canPause: canControlExecution && !module.paused,
     canResume: canControlExecution && module.paused,
     canStep: canControlExecution && module.paused,
