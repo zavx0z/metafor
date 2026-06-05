@@ -39,6 +39,7 @@ import {
   FramesPane,
   ScopesPane,
   VerbosePane,
+  propertySnapshotMapFromProtocolResponse,
   type FrameSnapshot,
 } from "./interpreter-ui.ts"
 import {getUiLocale, t, toggleUiLocale} from "./i18n.ts"
@@ -3670,7 +3671,16 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       },
       onExpandedChange: (ids) => setWorkspaceFilesExpandedIds(controller, ids),
     }),
-    scopes: new ScopesPane(),
+    scopes: new ScopesPane({
+      loadProperties: async (objectId) => {
+        const props = await runModuleInterpreterCommand(controller, "props", {
+          objectId,
+          ownProperties: true,
+        }, t("variables"))
+        if (!props.ok) throw new Error(props.error ?? "properties failed")
+        return propertySnapshotMapFromProtocolResponse(props.result)
+      },
+    }),
     source: new EditorPane({
       title: t("sourceWaiting"),
       path: "",

@@ -53,6 +53,9 @@ export type RemoteSnapshot = {
   description?: string
   objectId?: string
   preview?: unknown
+  properties?: Record<string, PropertySnapshot>
+  propertyOverflow?: number
+  propertyError?: string
 }
 
 export type PropertySnapshot = RemoteSnapshot & {

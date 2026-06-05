@@ -1,5 +1,5 @@
-const MAX_DEPTH = 2
-const MAX_PROPERTIES = 80
+const MAX_DEPTH = 5
+const MAX_PROPERTIES = 1000
 const MAX_STRING_LENGTH = 260
 
 export type PropertyLoader = (objectId: string) => Promise<unknown>

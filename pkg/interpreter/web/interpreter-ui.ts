@@ -15,6 +15,9 @@ export type PropertySnapshot = {
   description?: string
   objectId?: string
   preview?: unknown
+  properties?: Record<string, PropertySnapshot>
+  propertyOverflow?: number
+  propertyError?: string
   get?: PropertySnapshot
   set?: PropertySnapshot
   wasThrown?: boolean
@@ -50,4 +53,4 @@ export type FrameSnapshot = {
 export {DisplayHoverOutlinePane} from "./display-hover-outline-pane.ts"
 export {FramesPane} from "./frames-pane.ts"
 export {VerbosePane} from "./verbose-pane.ts"
-export {ScopesPane} from "./scopes-pane.ts"
+export {ScopesPane, propertySnapshotMapFromProtocolResponse} from "./scopes-pane.ts"

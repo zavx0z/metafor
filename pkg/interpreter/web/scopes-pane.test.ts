@@ -9,7 +9,7 @@ Object.defineProperty(globalThis, "localStorage", {
   },
 })
 
-const {formatScopeDetailCode} = await import("./scopes-pane.ts")
+const {formatScopeDetailCode, propertySnapshotMapFromProtocolResponse} = await import("./scopes-pane.ts")
 
 test("scope detail formatter preserves function source newlines", () => {
   const code = formatScopeDetailCode("MetaFor", {
@@ -60,4 +60,65 @@ test("scope detail formatter renders remote object preview from protocol data", 
   expect(code).toContain("[[Preview]]\n    data: undefined\n    type: \"message\"")
   expect(code).toContain("[[Remote]]")
   expect(code).not.toContain("const event")
+})
+
+test("scope detail formatter renders lazily loaded array object children", () => {
+  const properties = propertySnapshotMapFromProtocolResponse({
+    result: [
+      {
+        name: "0",
+        enumerable: true,
+        value: {
+          type: "object",
+          className: "Object",
+          description: "Object",
+          objectId: "token-0",
+          preview: {
+            type: "object",
+            description: "Object",
+            properties: [
+              {name: "type", type: "string", value: "keyword"},
+              {name: "text", type: "string", value: "const"},
+              {name: "line", type: "number", value: "12"},
+            ],
+          },
+        },
+      },
+      {
+        name: "1",
+        enumerable: true,
+        value: {
+          type: "object",
+          className: "Object",
+          description: "Object",
+          objectId: "token-1",
+          preview: {
+            type: "object",
+            description: "Object",
+            properties: [
+              {name: "type", type: "string", value: "identifier"},
+              {name: "text", type: "string", value: "tokens"},
+            ],
+          },
+        },
+      },
+      {name: "length", enumerable: false, value: {type: "number", value: 2}},
+    ],
+  })
+
+  expect(properties["0"]?.objectId).toBe("token-0")
+  expect(properties["length"]?.value).toBe(2)
+
+  const code = formatScopeDetailCode("tokens", {
+    type: "object",
+    subtype: "array",
+    description: "Array(2)",
+    objectId: "tokens-array",
+    properties,
+  })
+
+  expect(code).toContain("tokens: [")
+  expect(code).toContain("Object {\n    type: \"keyword\"\n    text: \"const\"\n    line: 12\n  }")
+  expect(code).toContain("Object {\n    type: \"identifier\"\n    text: \"tokens\"\n  }")
+  expect(code).not.toContain("[[Preview]]")
 })

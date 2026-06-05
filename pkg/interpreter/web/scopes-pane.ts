@@ -37,10 +37,23 @@ const DETAIL_LINE_H = 15
 const DETAIL_FONT = 10
 const DETAIL_BG_Z = Z.ELEMENT + 0.34
 const DETAIL_TEXT_Z = Z.TEXT + 0.34
+const TREE_INDENT_X = 12
+const TREE_TOGGLE_W = 12
 
 type ScopeRow =
   | {kind: "group"; label: string}
-  | {kind: "prop"; id: string; name: string; value: string; material: TextMaterial; prop: PropertySnapshot}
+  | {
+    kind: "prop"
+    id: string
+    depth: number
+    name: string
+    value: string
+    material: TextMaterial
+    prop: PropertySnapshot
+    expandable: boolean
+    expanded: boolean
+  }
+  | {kind: "status"; id: string; depth: number; text: string}
 
 type ScopeDetail = {
   id: string
@@ -48,18 +61,33 @@ type ScopeDetail = {
   prop: PropertySnapshot
 }
 
+export type ScopePropertyLoader = (objectId: string) => Promise<Record<string, PropertySnapshot>>
+
+type ScopePropertyLoadState =
+  | {status: "loading"}
+  | {status: "loaded"; properties: Record<string, PropertySnapshot>}
+  | {status: "error"; error: string}
+
 export class ScopesPane extends UiSurface {
   #frame: FrameSnapshot | null = null
   #detail: ScopeDetail | null = null
+  readonly #loadProperties: ScopePropertyLoader | undefined
+  readonly #propertyCache = new Map<string, ScopePropertyLoadState>()
+  readonly #expanded = new Set<string>()
   readonly #tokenMaterials: EditorTokenMaterialMap = createEditorTokenMaterials()
+  #frameVersion = 0
 
-  constructor() {
+  constructor(options: {loadProperties?: ScopePropertyLoader} = {}) {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    this.#loadProperties = options.loadProperties
   }
 
   setFrame(frame: FrameSnapshot | null): void {
     this.#frame = frame
     this.#detail = null
+    this.#propertyCache.clear()
+    this.#expanded.clear()
+    this.#frameVersion += 1
     this.requestRender()
   }
 
@@ -108,7 +136,8 @@ export class ScopesPane extends UiSurface {
             if (row === undefined) continue
             const rowY = SCOPE_LIST_TOP + idx * SCOPE_ROW_H - ctx.scrollTop
             if (row.kind === "group") this.#drawGroupRow(row, rowY, contentMaxX)
-            else this.#drawPropRow(row, rowY, contentMaxX)
+            else if (row.kind === "prop") this.#drawPropRow(row, rowY, contentMaxX)
+            else this.#drawStatusRow(row, rowY, contentMaxX)
           }
         },
       })
@@ -133,18 +162,50 @@ export class ScopesPane extends UiSurface {
         })
         for (const [propName, prop] of Object.entries(scope.properties)) {
           const scopeName = scope.name ?? name
-          out.push({
-            kind: "prop",
-            id: `${scopeName}\0${propName}`,
-            name: propName,
-            value: formatValue(prop),
-            material: this.#materialFor(prop),
-            prop,
-          })
+          this.#pushPropertyRows(out, `${scopeName}\0${propName}`, propName, prop, 0)
         }
       }
     }
     return out
+  }
+
+  #pushPropertyRows(out: ScopeRow[], id: string, name: string, rawProp: PropertySnapshot, depth: number): void {
+    const prop = this.#resolvedProperty(rawProp)
+    const expandable = this.#isExpandable(prop)
+    const expanded = expandable && this.#expanded.has(id)
+    out.push({
+      kind: "prop",
+      id,
+      depth,
+      name,
+      value: formatValue(prop),
+      material: this.#materialFor(prop),
+      prop,
+      expandable,
+      expanded,
+    })
+    if (!expanded) return
+
+    const objectId = prop.objectId
+    if (objectId === undefined) return
+    const state = this.#propertyCache.get(objectId)
+    if (state === undefined || state.status === "loading") {
+      out.push({kind: "status", id: `${id}\0:loading`, depth: depth + 1, text: "loading properties..."})
+      return
+    }
+    if (state.status === "error") {
+      out.push({kind: "status", id: `${id}\0:error`, depth: depth + 1, text: state.error})
+      return
+    }
+
+    const entries = orderedPropertyEntries(prop)
+    if (entries.length === 0) {
+      out.push({kind: "status", id: `${id}\0:empty`, depth: depth + 1, text: "empty"})
+      return
+    }
+    for (const [childName, childProp] of entries) {
+      this.#pushPropertyRows(out, `${id}\0${childName}`, childName, childProp, depth + 1)
+    }
   }
 
   #materialFor(prop: PropertySnapshot): TextMaterial {
@@ -155,11 +216,67 @@ export class ScopesPane extends UiSurface {
     return this.materials.text
   }
 
+  #resolvedProperty(prop: PropertySnapshot): PropertySnapshot {
+    const objectId = prop.objectId
+    if (objectId === undefined) return prop
+    const state = this.#propertyCache.get(objectId)
+    if (state?.status !== "loaded") return prop
+    return {
+      ...prop,
+      properties: state.properties,
+    }
+  }
+
+  #isExpandable(prop: PropertySnapshot): boolean {
+    if (this.#loadProperties === undefined) return false
+    if (prop.objectId === undefined) return false
+    if (prop.subtype === "null") return false
+    return prop.type === "object" || prop.type === "function"
+  }
+
+  #toggleExpanded(row: Extract<ScopeRow, {kind: "prop"}>): void {
+    if (this.#expanded.has(row.id)) {
+      this.#expanded.delete(row.id)
+      return
+    }
+    this.#expanded.add(row.id)
+    this.#ensureLoaded(row.prop)
+  }
+
+  #ensureLoaded(prop: PropertySnapshot): void {
+    const objectId = prop.objectId
+    if (objectId === undefined || this.#loadProperties === undefined) return
+    if (this.#propertyCache.has(objectId)) return
+
+    const frameVersion = this.#frameVersion
+    this.#propertyCache.set(objectId, {status: "loading"})
+    this.#loadProperties(objectId)
+      .then((properties) => {
+        if (frameVersion !== this.#frameVersion) return
+        this.#propertyCache.set(objectId, {status: "loaded", properties})
+        this.requestRender()
+      })
+      .catch((error: unknown) => {
+        if (frameVersion !== this.#frameVersion) return
+        this.#propertyCache.set(objectId, {status: "error", error: errorMessage(error)})
+        this.requestRender()
+      })
+  }
+
   #drawGroupRow(row: Extract<ScopeRow, {kind: "group"}>, rowY: number, contentMaxX: number): void {
     this.drawText(row.label, PAD_X + 4, rowY, {
       fontPx: 11,
       material: this.materials.orange,
       maxWidthPx: contentMaxX - (PAD_X + 4),
+    })
+  }
+
+  #drawStatusRow(row: Extract<ScopeRow, {kind: "status"}>, rowY: number, contentMaxX: number): void {
+    const x = PAD_X + 8 + row.depth * TREE_INDENT_X + TREE_TOGGLE_W
+    this.drawText(row.text, x, rowY, {
+      fontPx: 11,
+      material: this.materials.muted,
+      maxWidthPx: contentMaxX - x,
     })
   }
 
@@ -179,10 +296,21 @@ export class ScopesPane extends UiSurface {
       })
     }
 
-    const nameMaxW = Math.floor((contentMaxX - PAD_X) * 0.42)
-    const valueX = PAD_X + 4 + nameMaxW + 8
+    const indentX = row.depth * TREE_INDENT_X
+    const toggleX = PAD_X + 8 + indentX
+    const nameX = toggleX + TREE_TOGGLE_W
+    const availableW = Math.max(40, contentMaxX - nameX)
+    const nameMaxW = Math.floor(availableW * 0.42)
+    const valueX = nameX + nameMaxW + 8
     const valueMaxW = contentMaxX - valueX
-    this.drawText(row.name, PAD_X + 8, rowY, {
+    if (row.expandable) {
+      this.drawText(row.expanded ? "-" : "+", toggleX, rowY, {
+        fontPx: 11,
+        material: this.materials.muted,
+        maxWidthPx: TREE_TOGGLE_W,
+      })
+    }
+    this.drawText(row.name, nameX, rowY, {
       fontPx: 11,
       material: this.materials.cyan,
       maxWidthPx: nameMaxW,
@@ -197,6 +325,7 @@ export class ScopesPane extends UiSurface {
 
     this.hit(rowX, rowY - 1, rowW, SCOPE_ROW_H, () => {
       this.#detail = {id: row.id, name: row.name, prop: row.prop}
+      if (row.expandable) this.#toggleExpanded(row)
       this.requestRender()
     }, {
       key: `scope-prop:${row.id}`,
@@ -251,7 +380,8 @@ export class ScopesPane extends UiSurface {
       },
     })
 
-    const code = detailCode(detail)
+    const detailProp = this.#resolvedProperty(detail.prop)
+    const code = detailCode({...detail, prop: detailProp})
     const contentX = x + 12
     const contentY = y + 54
     const contentW = w - 24
@@ -307,14 +437,70 @@ export class ScopesPane extends UiSurface {
 }
 
 function formatValue(v: PropertySnapshot): string {
-  if (v.value !== undefined) {
-    if (typeof v.value === "string") return JSON.stringify(v.value)
-    return formatPreviewText(String(v.value))
+  return oneLineValuePreview(v)
+}
+
+export function propertySnapshotMapFromProtocolResponse(response: unknown): Record<string, PropertySnapshot> {
+  const root = asRecord(response)
+  const descriptors = Array.isArray(root?.["result"]) ? root["result"] : []
+  const properties: Record<string, PropertySnapshot> = {}
+  for (const item of descriptors) {
+    const descriptor = asRecord(item)
+    if (descriptor === null) continue
+    const name = typeof descriptor["name"] === "string" ? descriptor["name"] : undefined
+    if (name === undefined || name === "__proto__") continue
+    properties[name] = propertySnapshotFromProtocolDescriptor(descriptor)
   }
-  if (v.description !== undefined) return formatPreviewText(String(v.description))
-  if (v.className !== undefined) return formatPreviewText(v.className)
-  if (v.type !== undefined) return formatPreviewText(v.type)
-  return "?"
+  return properties
+}
+
+function propertySnapshotFromProtocolDescriptor(descriptor: Record<string, unknown>): PropertySnapshot {
+  const value = remoteSnapshotFromProtocol(descriptor["value"]) ?? {}
+  const get = remoteSnapshotFromProtocol(descriptor["get"])
+  const set = remoteSnapshotFromProtocol(descriptor["set"])
+  if (get !== null) value.get = get
+  if (set !== null) value.set = set
+  if (typeof descriptor["wasThrown"] === "boolean") value.wasThrown = descriptor["wasThrown"]
+  if (typeof descriptor["enumerable"] === "boolean") value.enumerable = descriptor["enumerable"]
+  if (typeof descriptor["configurable"] === "boolean") value.configurable = descriptor["configurable"]
+  if (typeof descriptor["writable"] === "boolean") value.writable = descriptor["writable"]
+  if (typeof descriptor["isOwn"] === "boolean") value.isOwn = descriptor["isOwn"]
+  return value
+}
+
+function remoteSnapshotFromProtocol(value: unknown): PropertySnapshot | null {
+  const object = asRecord(value)
+  if (object === null) return null
+  const snapshot: PropertySnapshot = {}
+  if (typeof object["type"] === "string") snapshot.type = object["type"]
+  if (typeof object["subtype"] === "string") snapshot.subtype = object["subtype"]
+  if (typeof object["className"] === "string") snapshot.className = object["className"]
+  if ("value" in object) snapshot.value = object["value"]
+  if (typeof object["unserializableValue"] === "string") snapshot.unserializableValue = object["unserializableValue"]
+  if (typeof object["description"] === "string") snapshot.description = object["description"]
+  if (typeof object["objectId"] === "string") snapshot.objectId = object["objectId"]
+  if (object["preview"] !== undefined) snapshot.preview = object["preview"]
+  return snapshot
+}
+
+function orderedPropertyEntries(prop: PropertySnapshot): Array<[string, PropertySnapshot]> {
+  const properties = prop.properties
+  if (properties === undefined) return []
+  const entries = Object.entries(properties).filter(([key]) => key !== "__proto__")
+  if (prop.subtype !== "array") return entries.filter(([key]) => key !== "length")
+
+  const indexed = entries
+    .filter(([key]) => /^\d+$/.test(key))
+    .sort(([a], [b]) => Number(a) - Number(b))
+  const named = entries
+    .filter(([key]) => !/^\d+$/.test(key) && key !== "length")
+    .sort(([a], [b]) => a.localeCompare(b))
+  return [...indexed, ...named]
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
 }
 
 function formatPreviewText(value: string): string {
@@ -331,7 +517,7 @@ function detailCode(detail: ScopeDetail): string {
 export function formatScopeDetailCode(rawName: string, prop: PropertySnapshot): string {
   const lines = [`${rawName}: ${interpreterValuePreview(prop)}`]
   const preview = previewPropertyLines(prop.preview)
-  if (preview.length > 0) {
+  if (preview.length > 0 && prop.properties === undefined) {
     lines.push("  [[Preview]]")
     for (const line of preview) lines.push(`    ${line}`)
   }
@@ -404,6 +590,9 @@ function objectKey(name: string): string {
 }
 
 function interpreterValuePreview(prop: PropertySnapshot): string {
+  if (prop.properties !== undefined) {
+    return stringifyPropertyTree(prop, 0, new Set<string>())
+  }
   const value = fullValue(prop)
   if (prop.type === "function" && typeof value === "string") {
     const source = normalizeProtocolString(value).trim()
@@ -422,6 +611,164 @@ function interpreterValuePreview(prop: PropertySnapshot): string {
   if (prop.className !== undefined) return prop.className
   if (prop.type !== undefined) return prop.type
   return "undefined"
+}
+
+function oneLineValuePreview(prop: PropertySnapshot): string {
+  const tree = prop.properties
+  if (tree !== undefined) {
+    const value = stringifyPropertyTree(prop, 0, new Set<string>(), {
+      compact: true,
+      maxItems: 8,
+      maxDepth: 2,
+    })
+    return formatPreviewText(value)
+  }
+  return formatPreviewText(interpreterValuePreview(prop))
+}
+
+type PropertyStringifyOptions = {
+  compact?: boolean
+  maxItems?: number
+  maxDepth?: number
+}
+
+function stringifyPropertyTree(
+  prop: PropertySnapshot,
+  depth: number,
+  seen: Set<string>,
+  options: PropertyStringifyOptions = {},
+): string {
+  const objectId = prop.objectId
+  if (objectId !== undefined) {
+    if (seen.has(objectId)) return '"[Circular]"'
+    seen.add(objectId)
+  }
+  try {
+    const properties = prop.properties
+    if (properties === undefined) return stringifyPropertyLeaf(prop, depth, seen, options)
+    const maxDepth = options.maxDepth ?? Infinity
+    if (depth >= maxDepth) return collapsedRemoteName(prop)
+    if (prop.subtype === "array") return stringifyArrayPropertyTree(prop, properties, depth, seen, options)
+    return stringifyObjectPropertyTree(prop, properties, depth, seen, options)
+  } finally {
+    if (objectId !== undefined) seen.delete(objectId)
+  }
+}
+
+function stringifyArrayPropertyTree(
+  prop: PropertySnapshot,
+  properties: Record<string, PropertySnapshot>,
+  depth: number,
+  seen: Set<string>,
+  options: PropertyStringifyOptions,
+): string {
+  const indexed = Object.entries(properties)
+    .filter(([key]) => /^\d+$/.test(key))
+    .sort(([a], [b]) => Number(a) - Number(b))
+  const maxItems = options.maxItems ?? Infinity
+  const shown = indexed.slice(0, maxItems)
+  const extra = Math.max(0, indexed.length - shown.length) + Math.max(0, prop.propertyOverflow ?? 0)
+  if (shown.length === 0 && extra === 0) return "[]"
+  if (options.compact === true) {
+    const items = shown.map(([, value]) => stringifyPropertyTree(value, depth + 1, seen, options))
+    if (extra > 0) items.push(`... ${extra} more`)
+    return `[${items.join(", ")}]`
+  }
+
+  const pad = "  ".repeat(depth)
+  const childPad = "  ".repeat(depth + 1)
+  const lines = ["["]
+  shown.forEach(([, value], index) => {
+    const comma = index === shown.length - 1 && extra === 0 ? "" : ","
+    lines.push(`${childPad}${stringifyPropertyTree(value, depth + 1, seen, options)}${comma}`)
+  })
+  if (extra > 0) lines.push(`${childPad}... ${extra} more`)
+  lines.push(`${pad}]`)
+  return lines.join("\n")
+}
+
+function stringifyObjectPropertyTree(
+  prop: PropertySnapshot,
+  properties: Record<string, PropertySnapshot>,
+  depth: number,
+  seen: Set<string>,
+  options: PropertyStringifyOptions,
+): string {
+  const entries = Object.entries(properties).filter(([key]) => key !== "__proto__" && key !== "length")
+  const maxItems = options.maxItems ?? Infinity
+  const shown = entries.slice(0, maxItems)
+  const extra = Math.max(0, entries.length - shown.length) + Math.max(0, prop.propertyOverflow ?? 0)
+  if (shown.length === 0 && extra === 0) return "{}"
+  if (options.compact === true) {
+    const parts = shown.map(([key, value]) => `${objectKey(key)}: ${stringifyPropertyTree(value, depth + 1, seen, options)}`)
+    if (extra > 0) parts.push(`... ${extra} more`)
+    return `{ ${parts.join(", ")} }`
+  }
+
+  const pad = "  ".repeat(depth)
+  const childPad = "  ".repeat(depth + 1)
+  const lines = ["{"]
+  shown.forEach(([key, value], index) => {
+    const comma = index === shown.length - 1 && extra === 0 ? "" : ","
+    lines.push(`${childPad}${objectKey(key)}: ${stringifyPropertyTree(value, depth + 1, seen, options)}${comma}`)
+  })
+  if (extra > 0) lines.push(`${childPad}... ${extra} more`)
+  lines.push(`${pad}}`)
+  return lines.join("\n")
+}
+
+function stringifyPropertyLeaf(
+  prop: PropertySnapshot,
+  depth: number,
+  seen: Set<string>,
+  options: PropertyStringifyOptions,
+): string {
+  if (prop.wasThrown === true) return "[Thrown]"
+  if (prop.type === "undefined") return "undefined"
+  if (prop.subtype === "null") return "null"
+  if (prop.unserializableValue !== undefined) return prop.unserializableValue
+  if (prop.type === "function") {
+    const value = fullValue(prop)
+    if (typeof value === "string") return functionPreview(normalizeProtocolString(value).trim())
+    return functionPreview(prop.description ?? prop.className ?? "function")
+  }
+  if (prop.type === "string" && typeof prop.value === "string") {
+    return stringifyStringValue(prop.value, depth, new WeakSet<object>())
+  }
+  if (prop.value !== undefined) return stringifyFullData(prop.value, depth)
+
+  const preview = previewPropertyLines(prop.preview)
+  if (preview.length > 0) {
+    return stringifyPreviewLines(prop, preview, depth, options)
+  }
+
+  if (prop.propertyError !== undefined) return JSON.stringify(prop.propertyError)
+  if (prop.description !== undefined) return firstPreviewLine(normalizeProtocolString(prop.description))
+  if (prop.className !== undefined) return prop.className
+  if (prop.type !== undefined) return prop.type
+  return "undefined"
+}
+
+function stringifyPreviewLines(prop: PropertySnapshot, lines: string[], depth: number, options: PropertyStringifyOptions): string {
+  if (options.compact === true) {
+    const shown = lines.slice(0, options.maxItems ?? 6)
+    return `${collapsedRemoteName(prop)} { ${shown.join(", ")}${shown.length < lines.length ? ", ..." : ""} }`
+  }
+  const pad = "  ".repeat(depth)
+  const childPad = "  ".repeat(depth + 1)
+  return [
+    `${collapsedRemoteName(prop)} {`,
+    ...lines.map((line) => `${childPad}${line}`),
+    `${pad}}`,
+  ].join("\n")
+}
+
+function collapsedRemoteName(prop: PropertySnapshot): string {
+  if (prop.subtype === "array") return prop.description ?? "Array"
+  if (prop.className !== undefined) return prop.className
+  if (prop.description !== undefined) return firstPreviewLine(normalizeProtocolString(prop.description))
+  if (prop.type !== undefined) return prop.type
+  return "Object"
 }
 
 function functionPreview(source: string): string {
