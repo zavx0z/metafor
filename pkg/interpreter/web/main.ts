@@ -1244,7 +1244,7 @@ function toggleLocale(): void {
     controller.files.setTitle(t("sourceFiles"))
     controller.files.requestRender()
     controller.scopes.requestRender()
-    controller.terminal.setTitle(t("terminalTarget"))
+    controller.terminal.setTitle("")
     controller.terminal.requestRender()
     controller.verbose.requestRender()
     const snapshot = moduleSnapshots.get(controller.id)
@@ -3714,7 +3714,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       onBreakpointToggle: (line) => void toggleModuleBreakpoint(controller, line),
     }),
     terminal: new TerminalPane({
-      title: t("terminalTarget"),
+      title: "",
       status: t("waitingStdout"),
       statusKind: "idle",
       fontPx: 12,

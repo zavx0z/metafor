@@ -2,6 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {mkdtempSync, rmSync, writeFileSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
+import {SourceMapGenerator} from "source-map-js"
 import {BreakpointStore, logicalBreakpointParams, matchesBreakpointSpec, runtimeBreakpointParams} from "./breakpoints.ts"
 import {EventLogger} from "./logger.ts"
 import type {ProtocolClient} from "./protocol-client.ts"
@@ -143,6 +144,73 @@ describe("logicalBreakpointParams", () => {
         },
       })
       expect(requests.map((request) => request.method)).toContain("Debugger.setBreakpointsActive")
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test("removes pre-armed local runtime breakpoint after scriptId source-map install", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const file = join(dir, "server.ts")
+      const source = [
+        "import {join} from 'node:path'",
+        "",
+        "type State = {value: string}",
+        "const state: State = {value: join('a', 'b')}",
+        "console.log(state.value)",
+        "",
+      ].join("\n")
+      writeFileSync(file, source)
+      const generator = new SourceMapGenerator({file: "server.js"})
+      generator.addMapping({
+        generated: {line: 2, column: 0},
+        original: {line: 4, column: 0},
+        source: file,
+      })
+      generator.setSourceContent(file, source)
+      const encoded = Buffer.from(generator.toString(), "utf8").toString("base64url")
+      const sourceMapURL = `data:application/json;base64,${encoded}`
+
+      const requests: Array<{method: string; params: Record<string, unknown> | undefined}> = []
+      const client = {
+        async request(method: string, params?: Record<string, unknown>): Promise<unknown> {
+          requests.push({method, params})
+          if (method === "Debugger.setBreakpointByUrl") {
+            return {
+              breakpointId: "runtime:1",
+              locations: [{scriptId: "future", lineNumber: 1, columnNumber: 0}],
+            }
+          }
+          if (method === "Debugger.setBreakpoint") {
+            return {
+              breakpointId: "script:1",
+              actualLocation: {scriptId: "116", lineNumber: 1, columnNumber: 0},
+            }
+          }
+          return {}
+        },
+      } as unknown as ProtocolClient
+      const logger = new EventLogger(join(dir, "events.log"))
+      const store = new BreakpointStore({client, logger})
+      const registration = store.add({url: file, line: 4})
+
+      await store.armPendingByUrl([registration.id])
+      await store.applyToScripts([{scriptId: "116", url: file, sourceMapURL}])
+
+      expect(requests).toContainEqual({
+        method: "Debugger.removeBreakpoint",
+        params: {breakpointId: "runtime:1"},
+      })
+      expect(store.registrations[0]?.installed).toEqual([{
+        breakpointId: "script:1",
+        scriptId: "116",
+        url: file,
+        result: {
+          breakpointId: "script:1",
+          actualLocation: {scriptId: "116", lineNumber: 1, columnNumber: 0},
+        },
+      }])
     } finally {
       rmSync(dir, {recursive: true, force: true})
     }

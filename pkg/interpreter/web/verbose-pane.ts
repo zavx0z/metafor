@@ -1,13 +1,10 @@
-/**
- * Verbose pane на UiSurface-системе. Список + autoscroll через div-scroll.
- */
-
 import {
-  UiSurface, div, divScrollPosition, divScrollTo, palette, radii, uiIcons,
-} from "@ui/elements"
-import {
-  Button as button, Divider as divider,
+  uiIcons,
 } from "@ui/components"
+import {
+  LogViewerPane,
+  PANE_FRAME,
+} from "@ui/panes"
 import {t} from "./i18n.ts"
 
 type VerboseEntry = {
@@ -17,186 +14,74 @@ type VerboseEntry = {
   payload: string
 }
 
-const PAD_X = 14
-const HEADER_Y = 12
-const TITLE_FONT = 13
-const COUNT_FONT = 11
-const DIVIDER_Y = 34
-const LIST_TOP = 44
-const ROW_H = 18
-const TS_W = 56
-const NAME_W = 132
-const BTN_H = 24
-const ICON_BUTTON_RADIUS = 6
+const VERBOSE_LINE_PX = 18
+const VERBOSE_NAME_W = 28
 
-export class VerbosePane extends UiSurface {
+export class VerbosePane extends LogViewerPane {
   #entries: VerboseEntry[] = []
   #autoscroll: boolean
   #copyStatusUntil = 0
-  readonly #scrollKey: string
   readonly #pinStorageKey: string
   readonly #max = 300
+  #headerSignature = ""
 
   constructor(storageKey: string) {
-    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
-    this.#scrollKey = `${storageKey}:list`
+    super({
+      title: t("verbose"),
+      status: "",
+      statusKind: "idle",
+      maxScrollback: 300,
+      fontPx: 10,
+      linePx: VERBOSE_LINE_PX,
+      wrapLines: false,
+      scrollX: false,
+      scrollY: true,
+    })
     this.#pinStorageKey = `${storageKey}:pin`
     this.#autoscroll = localStorage.getItem(this.#pinStorageKey) !== "0"
+    this.node.name = "VerbosePane"
+    this.#syncHeader()
   }
 
   append(kind: "protocol" | "interpreter", ts: string, name: string, payload: unknown): void {
     if (isLowValueEvent(kind, name, payload)) return
     const safePayload = summarizePayload(kind, name, payload)
-    this.#entries.push({kind, ts, name, payload: safePayload})
+    const entry = {kind, ts, name, payload: safePayload}
+    this.#entries.push(entry)
     while (this.#entries.length > this.#max) this.#entries.shift()
-    if (this.#autoscroll) this.#scrollToBottom()
-    this.requestRender()
+    const scrollBefore = this.#autoscroll ? null : this.outputScrollPosition()
+    this.writeln(formatVerboseLine(entry))
+    if (this.#autoscroll) this.scrollToBottom()
+    else if (scrollBefore !== null) this.outputScrollTo(scrollBefore)
+    this.#syncHeader()
   }
 
-  clear(): void {
+  override clear(): void {
     this.#entries = []
-    divScrollTo(this, this.#scrollKey, {top: 0})
-    this.requestRender()
+    super.clear()
+    this.#syncHeader()
   }
 
-  override onWheel(event: WheelEvent, localX: number, localY: number): void {
-    const before = divScrollPosition(this, this.#scrollKey).top
-    super.onWheel(event, localX, localY)
-    const after = divScrollPosition(this, this.#scrollKey).top
-    if (before === after || localY < LIST_TOP) return
-    if (this.#autoscroll) {
-      this.#autoscroll = false
-      localStorage.setItem(this.#pinStorageKey, "0")
-    }
+  override onWheel(event: WheelEvent, _localX: number, localY: number): void {
+    const before = this.outputScrollPosition().top
+    super.onWheel(event, _localX, localY)
+    const after = this.outputScrollPosition().top
+    if (localY <= PANE_FRAME.headerHeight || before === after || !this.#autoscroll) return
+    this.#autoscroll = false
+    localStorage.setItem(this.#pinStorageKey, "0")
+    this.#syncHeader()
   }
 
-  protected render(): void {
-    // Header: title + count + Copy + Clear + Auto/Manual.
-    this.drawText(t("verbose"), PAD_X, HEADER_Y, {
-      fontPx: TITLE_FONT,
-      material: this.materials.cyan,
-      maxWidthPx: 90,
-    })
-    const countX = PAD_X + 80
-    this.drawText(`${this.#entries.length}`, countX, HEADER_Y + 2, {
-      fontPx: COUNT_FONT,
-      material: this.materials.muted,
-      maxWidthPx: 60,
-    })
-
-    const btnY = 8
-    const autoLabel = this.#autoscroll ? t("auto") : t("manual")
-    const autoIcon = this.#autoscroll ? uiIcons.autoscroll : uiIcons.manual
-    const autoW = 32
-    const clearW = 32
-    const copyW = 32
-    const autoX = this.rectW - PAD_X - autoW
-    const clearX = autoX - 6 - clearW
-    const copyX = clearX - 6 - copyW
-    button(this, copyX, btnY, copyW, BTN_H, {
-      label: t("copyVerbose"),
-      iconSrc: uiIcons.copy,
-      iconOnly: true,
-      iconSizePx: 14,
-      tooltip: t("copyVerbose"),
-      tooltipDelayMs: 180,
-      variant: "outlined",
-      radius: ICON_BUTTON_RADIUS,
-      tone: Date.now() < this.#copyStatusUntil ? "live" : "neutral",
-      fontPx: 11,
-      action: () => void this.#copyEntries(),
-    })
-    button(this, clearX, btnY, clearW, BTN_H, {
-      label: t("clearVerbose"),
-      iconSrc: uiIcons.clear,
-      iconOnly: true,
-      iconSizePx: 14,
-      tooltip: t("clearVerbose"),
-      tooltipDelayMs: 180,
-      variant: "outlined",
-      radius: ICON_BUTTON_RADIUS,
-      tone: "neutral",
-      fontPx: 11,
-      action: () => this.clear(),
-    })
-    button(this, autoX, btnY, autoW, BTN_H, {
-      label: autoLabel,
-      iconSrc: autoIcon,
-      iconOnly: true,
-      iconSizePx: 14,
-      tooltip: this.#autoscroll ? t("autoscrollOn") : t("autoscrollOff"),
-      tooltipDelayMs: 180,
-      variant: "outlined",
-      radius: ICON_BUTTON_RADIUS,
-      tone: this.#autoscroll ? "live" : "neutral",
-      fontPx: 11,
-      action: () => this.#toggleAutoscroll(),
-    })
-
-    divider(this, PAD_X, DIVIDER_Y, this.rectW - PAD_X * 2)
-
-    if (this.#entries.length === 0) {
-      this.drawText(t("verboseEmpty"), PAD_X, LIST_TOP + 4, {
-        fontPx: 12,
-        material: this.materials.muted,
-        maxWidthPx: this.rectW - PAD_X * 2,
-      })
-      return
-    }
-
-    const listH = this.#listH()
-    if (this.#autoscroll) this.#scrollToBottom()
-    div(this, PAD_X, LIST_TOP, this.rectW - PAD_X * 2, listH, {
-      key: this.#scrollKey,
-      scrollContentHeight: Math.max(listH, this.#entries.length * ROW_H),
-      style: {
-        background: null,
-        borderColor: null,
-        borderRadius: 0,
-        padding: 0,
-        overflowY: "auto",
-      },
-      children: (ctx) => {
-        const start = Math.max(0, Math.floor(ctx.scrollTop / ROW_H) - 1)
-        const end = Math.min(this.#entries.length, Math.ceil((ctx.scrollTop + ctx.viewportHeight) / ROW_H) + 1)
-        for (let idx = start; idx < end; idx++) {
-          const entry = this.#entries[idx]
-          if (entry === undefined) continue
-          this.#drawEntry(entry, PAD_X, LIST_TOP + idx * ROW_H - ctx.scrollTop, ctx.viewportWidth)
-        }
-      },
-    })
-  }
-
-  #drawEntry(entry: VerboseEntry, x: number, y: number, w: number): void {
-    this.drawText(formatTimestamp(entry.ts), x, y, {
-      fontPx: 10,
-      material: this.materials.muted,
-      maxWidthPx: TS_W,
-    })
-    const nameX = x + TS_W + 8
-    const nameLabel = entry.kind === "interpreter" ? `@${entry.name}` : entry.name
-    this.drawText(nameLabel, nameX, y, {
-      fontPx: 10,
-      material: entry.kind === "interpreter" ? this.materials.violet : this.materials.cyan,
-      maxWidthPx: NAME_W,
-    })
-    const payloadX = nameX + NAME_W + 8
-    const payloadMaxW = x + w - payloadX
-    if (payloadMaxW > 20 && entry.payload.length > 0) {
-      this.drawText(entry.payload, payloadX, y, {
-        fontPx: 10,
-        material: this.materials.text,
-        maxWidthPx: payloadMaxW,
-      })
-    }
+  protected override render(): void {
+    this.#syncHeader()
+    super.render()
   }
 
   #toggleAutoscroll(): void {
     this.#autoscroll = !this.#autoscroll
     localStorage.setItem(this.#pinStorageKey, this.#autoscroll ? "1" : "0")
-    if (this.#autoscroll) this.#scrollToBottom()
-    this.requestRender()
+    if (this.#autoscroll) this.scrollToBottom()
+    this.#syncHeader()
   }
 
   async #copyEntries(): Promise<void> {
@@ -204,21 +89,76 @@ export class VerbosePane extends UiSurface {
     try {
       await navigator.clipboard.writeText(text)
       this.#copyStatusUntil = Date.now() + 1400
+      this.#syncHeader()
       this.requestRender()
-      window.setTimeout(() => this.requestRender(), 1500)
+      window.setTimeout(() => {
+        this.#syncHeader()
+        this.requestRender()
+      }, 1500)
     } catch {
       this.#copyStatusUntil = 0
+      this.#syncHeader()
       this.requestRender()
     }
   }
 
-  #scrollToBottom(): void {
-    divScrollTo(this, this.#scrollKey, {top: Math.max(0, this.#entries.length * ROW_H - this.#listH())})
+  #syncHeader(): void {
+    const copyLive = Date.now() < this.#copyStatusUntil
+    const signature = [
+      t("verbose"),
+      t("copyVerbose"),
+      t("clearVerbose"),
+      this.#autoscroll ? t("autoscrollOn") : t("autoscrollOff"),
+      this.#autoscroll ? "auto" : "manual",
+      copyLive ? "copied" : "copy",
+    ].join("|")
+    this.setTitle(t("verbose"))
+    this.setStatus("idle", "")
+    if (signature === this.#headerSignature) return
+    this.#headerSignature = signature
+    this.setHeaderControls({
+      secondary: [
+        {
+          label: t("copyVerbose"),
+          iconSrc: uiIcons.copy,
+          tone: copyLive ? "live" : "neutral",
+          action: () => void this.#copyEntries(),
+        },
+        {
+          label: t("clearVerbose"),
+          iconSrc: uiIcons.clear,
+          tone: "neutral",
+          action: () => this.clear(),
+        },
+        {
+          label: this.#autoscroll ? t("auto") : t("manual"),
+          iconSrc: this.#autoscroll ? uiIcons.autoscroll : uiIcons.manual,
+          tone: this.#autoscroll ? "live" : "neutral",
+          action: () => this.#toggleAutoscroll(),
+        },
+      ],
+    })
   }
+}
 
-  #listH(): number {
-    return Math.max(1, this.rectH - LIST_TOP - 8)
-  }
+function formatVerboseLine(entry: VerboseEntry): string {
+  const time = ansi("90", fitText(formatTimestamp(entry.ts), 8))
+  const name = entry.kind === "interpreter" ? `@${entry.name}` : entry.name
+  const coloredName = ansi(entry.kind === "interpreter" ? "35" : "36", fitText(name, VERBOSE_NAME_W))
+  return `${time} ${coloredName} ${terminalSafeText(entry.payload)}`
+}
+
+function fitText(value: string, width: number): string {
+  if (value.length <= width) return value.padEnd(width, " ")
+  return `${value.slice(0, Math.max(0, width - 1))}…`
+}
+
+function ansi(code: string, text: string): string {
+  return `\x1b[${code}m${text}\x1b[0m`
+}
+
+function terminalSafeText(value: string): string {
+  return value.replace(/\x1b/g, "")
 }
 
 function formatTimestamp(ts: string): string {

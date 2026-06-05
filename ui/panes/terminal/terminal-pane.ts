@@ -8,7 +8,7 @@
 
 import {Color, TextMaterial} from "@metafor/engine"
 import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii, visionBorder, visionGlass, type DivScrollContext, type Tone} from "@ui/elements"
-import {Button as controlButton, Divider as controlDivider} from "@ui/components"
+import {Divider as controlDivider, IconButton as controlIconButton} from "@ui/components"
 import {
   copyTextSelectionOrFallback,
   orderedTextSelection,
@@ -188,12 +188,12 @@ const DEFAULT_MIN_ROWS = 6
 const DEFAULT_MAX_SCROLLBACK = 5000
 const HEADER_H_PX = PANE_FRAME.headerHeight
 const HEADER_CONTROL_PAD_X = PANE_FRAME.headerTextX
-const HEADER_CONTROL_H_PX = 28
-const HEADER_CONTROL_W_PX = 32
-const HEADER_CONTROL_GAP_PX = 5
+const HEADER_CONTROL_H_PX = 24
+const HEADER_CONTROL_W_PX = 26
+const HEADER_CONTROL_GAP_PX = 3
 const HEADER_CONTROL_DIVIDER_GAP_PX = 7
 const HEADER_CONTROL_DIVIDER_W_PX = 1
-const HEADER_ICON_BUTTON_RADIUS_PX = 6
+const HEADER_ICON_BUTTON_RADIUS_PX = 10
 const HEADER_STATUS_RADIUS_PX = 6
 const BODY_PAD_X_PX = 0
 const BODY_PAD_Y_PX = 0
@@ -510,6 +510,15 @@ class TerminalOutputPane extends UiSurface {
     this.requestRender()
   }
 
+  protected outputScrollPosition(): {left: number; top: number} {
+    const pos = divScrollPosition(this, TERMINAL_SCROLL_KEY)
+    return {left: pos.left, top: pos.top}
+  }
+
+  protected outputScrollTo(pos: {left?: number; top?: number}): void {
+    divScrollTo(this, TERMINAL_SCROLL_KEY, pos)
+  }
+
   moveCursorToLastTextLineEnd(): void {
     const lines = this.#terminalTextLines()
     const lineIndex = lastNonEmptyLineIndex(lines)
@@ -579,36 +588,22 @@ class TerminalOutputPane extends UiSurface {
       return
     }
     const headerY = 0
-    const statusW = Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32))
-    const statusX = Math.max(PANE_FRAME.headerTextX, this.rectW - PANE_FRAME.headerTextX - statusW)
+    const hasStatus = this.#status.length > 0
+    const statusW = hasStatus ? Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32)) : 0
+    const statusX = hasStatus ? Math.max(PANE_FRAME.headerTextX, this.rectW - PANE_FRAME.headerTextX - statusW) : this.rectW - PANE_FRAME.headerTextX
     const dockButtonSize = 22
     const dockButtonGap = 8
-    const dockButtonX = statusX - dockButtonGap - dockButtonSize
-    const titleRight = this.#onFrameDockRequest === undefined ? statusX - 10 : dockButtonX - 10
+    const dockButtonX = hasStatus ? statusX - dockButtonGap - dockButtonSize : this.rectW - PANE_FRAME.headerTextX - dockButtonSize
+    const titleRight = this.#onFrameDockRequest === undefined
+      ? hasStatus ? statusX - 10 : this.rectW - PANE_FRAME.headerTextX
+      : dockButtonX - 10
     this.drawText(this.#title, PANE_FRAME.headerTextX, PANE_FRAME.headerTextY, {
       fontPx: 13,
       material: this.materials.cyan,
       maxWidthPx: Math.max(1, titleRight - PANE_FRAME.headerTextX),
     })
     if (this.#onFrameDockRequest !== undefined) this.#renderFrameDockButton(dockButtonX, headerY + 8, dockButtonSize)
-    const dot = statusColor(this.#statusKind)
-    this.drawRoundedRect(statusX, headerY + 8, statusW, 22, {
-      radius: HEADER_STATUS_RADIUS_PX,
-      fill: STATUS_FILL,
-      border: STATUS_BORDER,
-      borderWidth: 1,
-      z: Z.ELEMENT,
-    })
-    this.drawRoundedRect(statusX + 10, headerY + 15.5, STATUS_DOT_PX, STATUS_DOT_PX, {
-      radius: STATUS_DOT_PX / 2,
-      fill: dot,
-      z: Z.ELEMENT_RULE,
-    })
-    this.drawText(this.#status, statusX + 24, headerY + 12, {
-      fontPx: 10,
-      material: this.materials.muted,
-      maxWidthPx: statusW - 32,
-    })
+    if (hasStatus) this.#renderHeaderStatus(statusX, headerY, statusW)
     const rule = paneHeaderRuleRect(this.rectW, HEADER_H_PX)
     this.drawRect(rule.x, rule.y, rule.w, rule.h, HEADER_RULE, Z.SEPARATOR)
   }
@@ -624,15 +619,33 @@ class TerminalOutputPane extends UiSurface {
     const primaryMaxRight = Math.max(primaryX, secondaryX - 8)
     const primaryRight = this.#drawButtonGroup(this.#headerControls.primary, primaryX, buttonY, primaryMaxRight)
 
-    const statusW = Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32))
+    const hasStatus = this.#status.length > 0
+    const statusW = hasStatus ? Math.min(210, Math.max(96, this.measureText(this.#status, 11) + 32)) : 0
     const statusRight = this.#headerControls.secondary.length === 0 ? this.rectW - HEADER_CONTROL_PAD_X : secondaryX - 8
-    const statusX = Math.max(HEADER_CONTROL_PAD_X, statusRight - statusW)
-    const canShowStatus = statusRight - statusW >= primaryRight + 8
+    const statusX = hasStatus ? Math.max(HEADER_CONTROL_PAD_X, statusRight - statusW) : statusRight
+    const canShowStatus = hasStatus && statusRight - statusW >= primaryRight + 8
     const dockButtonSize = 22
     const dockButtonGap = 8
-    const dockButtonX = statusX - dockButtonGap - dockButtonSize
+    const dockAnchorX = canShowStatus ? statusX : statusRight
+    const dockButtonX = dockAnchorX - dockButtonGap - dockButtonSize
     const canShowDock = this.#onFrameDockRequest !== undefined && dockButtonX >= primaryRight + 8
 
+    const titleX = this.#headerControls.primary.length === 0 ? PANE_FRAME.headerTextX : primaryRight + 8
+    const titleRight = canShowDock
+      ? dockButtonX - 8
+      : canShowStatus
+        ? statusX - 8
+        : this.#headerControls.secondary.length === 0
+          ? this.rectW - HEADER_CONTROL_PAD_X
+          : secondaryX - 8
+    const titleW = titleRight - titleX
+    if (titleW >= 44) {
+      this.drawText(this.#title, titleX, PANE_FRAME.headerTextY, {
+        fontPx: 13,
+        material: this.materials.cyan,
+        maxWidthPx: titleW,
+      })
+    }
     if (canShowDock) this.#renderFrameDockButton(dockButtonX, headerY + 8, dockButtonSize)
     if (canShowStatus) this.#renderHeaderStatus(statusX, headerY, statusW)
     this.#drawButtonGroup(this.#headerControls.secondary, secondaryX, buttonY)
@@ -667,13 +680,11 @@ class TerminalOutputPane extends UiSurface {
     for (let i = 0; i < buttons.length; i++) {
       const b = buttons[i]!
       if (cursor + HEADER_CONTROL_W_PX > maxRight) break
-      controlButton(this, cursor, y, HEADER_CONTROL_W_PX, HEADER_CONTROL_H_PX, {
+      controlIconButton(this, cursor, y, HEADER_CONTROL_W_PX, HEADER_CONTROL_H_PX, {
         label: b.label,
         iconSrc: b.iconSrc,
-        iconOnly: true,
-        iconSizePx: 14,
+        iconSizePx: 13,
         size: "small",
-        variant: "outlined",
         radius: HEADER_ICON_BUTTON_RADIUS_PX,
         tooltip: b.disabled === true ? b.disabledTooltip ?? b.label : b.label,
         tooltipDelayMs: 180,

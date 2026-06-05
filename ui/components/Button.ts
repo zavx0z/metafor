@@ -39,6 +39,11 @@ export type ButtonProps = {
   onRelease?: () => void
 }
 
+export type IconButtonProps = Omit<ButtonProps, "children" | "iconOnly" | "iconPosition" | "startIcon" | "endIcon"> & {
+  label: string
+  iconSrc: string
+}
+
 export function Button(host: UiSurface, x: number, y: number, width: number, height: number, props: ButtonProps): void {
   const label = props.label ?? props.children ?? ""
   const tone = props.tone ?? toneFromColor(props.color ?? "primary")
@@ -65,6 +70,15 @@ export function Button(host: UiSurface, x: number, y: number, width: number, hei
   if (props.onPress !== undefined) elementProps.onPointerDown = props.onPress
   if (props.onRelease !== undefined) elementProps.onPointerUp = props.onRelease
   elementButton(host, x, y, width, height, elementProps)
+}
+
+export function IconButton(host: UiSurface, x: number, y: number, width: number, height: number, props: IconButtonProps): void {
+  Button(host, x, y, width, height, {
+    ...props,
+    variant: props.variant ?? "text",
+    iconOnly: true,
+    tooltip: props.tooltip ?? props.label,
+  })
 }
 
 export {autoButtonWidth}

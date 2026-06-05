@@ -159,7 +159,12 @@ export class BreakpointStore {
     if (tracked.installedByScriptId.has(script.scriptId)) return
 
     const byScriptId = await this.#installByScriptId(tracked, script)
-    if (byScriptId) return
+    if (byScriptId) {
+      if (tracked.installedByScriptId.has(script.scriptId)) {
+        await this.#clearLogicalBreakpoints(tracked, "script_id_installed")
+      }
+      return
+    }
 
     await this.#installByResolvedUrl(tracked, script)
   }
@@ -323,6 +328,29 @@ export class BreakpointStore {
     if (tracked.installed.some((current) => current.breakpointId === installed.breakpointId && current.scriptId === installed.scriptId)) return
     tracked.installedByScriptId.set(key, installed)
     tracked.installed.push(installed)
+  }
+
+  async #clearLogicalBreakpoints(tracked: TrackedBreakpoint, reason: string): Promise<void> {
+    if (tracked.logicalBreakpointIds.size === 0) return
+
+    const pendingIds = [...tracked.logicalBreakpointIds]
+    const removedIds = new Set<string>()
+    for (const breakpointId of pendingIds) {
+      const removed = await this.#removeBunBreakpoint(breakpointId, {id: tracked.id})
+      if (removed) removedIds.add(breakpointId)
+    }
+    if (removedIds.size === 0) return
+
+    for (const breakpointId of removedIds) tracked.logicalBreakpointIds.delete(breakpointId)
+    for (const [key, installed] of tracked.installedByScriptId) {
+      if (removedIds.has(installed.breakpointId)) tracked.installedByScriptId.delete(key)
+    }
+    tracked.installed = tracked.installed.filter((installed) => !removedIds.has(installed.breakpointId))
+    this.#logger.event("breakpoint.logical_cleared", {
+      id: tracked.id,
+      reason,
+      breakpointIds: [...removedIds],
+    })
   }
 
   async #removeBunBreakpoint(
