@@ -17,7 +17,7 @@ import {
   type UiRuntimeViewPointVector,
   type UiSurfaceRect,
 } from "@ui/elements"
-import {Button as iconButton, Switcher, VoiceInputHud, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
+import {IconButton, Switcher, VoiceInputHud, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
@@ -385,7 +385,6 @@ const HOST_TERMINAL_DOCK_SHORT = 36
 const HOST_TERMINAL_DOCK_LONG = 128
 const HOST_TERMINAL_DOCK_MARGIN = 8
 const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
-const INTERPRETER_ICON_BUTTON_RADIUS = 6
 const HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE = 22
 const HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y = 8
 const HOST_TERMINAL_AGENT_SIGNAL_HEADER_GAP = 8
@@ -1307,17 +1306,9 @@ class WorkspaceFilesHeaderPane extends UiSurface {
   }
 
   #drawHeaderAction(x: number, y: number, size: number, label: string, kind: WorkspaceHeaderActionKind, action: () => void): void {
-    iconButton(this, x, y, size, size, {
+    IconButton(this, x, y, size, size, {
       label,
       iconSrc: workspaceHeaderIcon(kind),
-      iconOnly: true,
-      iconSizePx: kind === "revealCurrent" ? 13 : 14,
-      tooltip: label,
-      tooltipDelayMs: 180,
-      variant: "outlined",
-      radius: INTERPRETER_ICON_BUTTON_RADIUS,
-      tone: "neutral",
-      size: "small",
       action,
     })
   }
@@ -1487,17 +1478,9 @@ class HostTerminalAgentSignalPane extends UiSurface {
     const size = HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE
     const x = Math.max(0, this.rectW - size)
     const enabled = readHostTerminalAgentSoundEnabled()
-    iconButton(this, x, 0, size, size, {
+    IconButton(this, x, 0, size, size, {
       label: t("terminalAgentSignal"),
       iconSrc: agentSignalIcon(enabled),
-      iconOnly: true,
-      iconSizePx: 14,
-      tooltip: t("terminalAgentSignal"),
-      tooltipDelayMs: 180,
-      variant: "outlined",
-      radius: INTERPRETER_ICON_BUTTON_RADIUS,
-      tone: "neutral",
-      size: "small",
       action: () => this.#setOpen(!this.#open),
     })
   }
@@ -1557,30 +1540,14 @@ class HostTerminalAgentSignalPane extends UiSurface {
     })
 
     const buttonW = 28
-    iconButton(this, x, y, buttonW, 22, {
+    IconButton(this, x, y, buttonW, 22, {
       label: t("terminalAgentSignalVolumeDown"),
       iconSrc: uiIcons.minus,
-      iconOnly: true,
-      iconSizePx: 12,
-      tooltip: t("terminalAgentSignalVolumeDown"),
-      tooltipDelayMs: 180,
-      variant: "outlined",
-      radius: INTERPRETER_ICON_BUTTON_RADIUS,
-      tone: "neutral",
-      size: "small",
       action: () => this.#setVolume(clamped - 0.1),
     })
-    iconButton(this, x + w - buttonW, y, buttonW, 22, {
+    IconButton(this, x + w - buttonW, y, buttonW, 22, {
       label: t("terminalAgentSignalVolumeUp"),
       iconSrc: uiIcons.plus,
-      iconOnly: true,
-      iconSizePx: 12,
-      tooltip: t("terminalAgentSignalVolumeUp"),
-      tooltipDelayMs: 180,
-      variant: "outlined",
-      radius: INTERPRETER_ICON_BUTTON_RADIUS,
-      tone: "neutral",
-      size: "small",
       action: () => this.#setVolume(clamped + 0.1),
     })
 

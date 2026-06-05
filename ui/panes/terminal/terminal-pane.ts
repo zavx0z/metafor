@@ -8,7 +8,7 @@
 
 import {Color, TextMaterial} from "@metafor/engine"
 import {UiSurface, Z, div, divScrollPosition, divScrollTo, palette, radii, visionBorder, visionGlass, type DivScrollContext, type Tone} from "@ui/elements"
-import {Divider as controlDivider, IconButton as controlIconButton} from "@ui/components"
+import {Divider as controlDivider, IconButton as controlIconButton, uiIcons} from "@ui/components"
 import {
   copyTextSelectionOrFallback,
   orderedTextSelection,
@@ -193,7 +193,6 @@ const HEADER_CONTROL_W_PX = 26
 const HEADER_CONTROL_GAP_PX = 3
 const HEADER_CONTROL_DIVIDER_GAP_PX = 7
 const HEADER_CONTROL_DIVIDER_W_PX = 1
-const HEADER_ICON_BUTTON_RADIUS_PX = 10
 const HEADER_STATUS_RADIUS_PX = 6
 const BODY_PAD_X_PX = 0
 const BODY_PAD_Y_PX = 0
@@ -683,11 +682,7 @@ class TerminalOutputPane extends UiSurface {
       controlIconButton(this, cursor, y, HEADER_CONTROL_W_PX, HEADER_CONTROL_H_PX, {
         label: b.label,
         iconSrc: b.iconSrc,
-        iconSizePx: 13,
-        size: "small",
-        radius: HEADER_ICON_BUTTON_RADIUS_PX,
         tooltip: b.disabled === true ? b.disabledTooltip ?? b.label : b.label,
-        tooltipDelayMs: 180,
         tone: b.tone ?? "neutral",
         ...(b.disabled === undefined ? {} : {disabled: b.disabled}),
         action: b.action,
@@ -721,22 +716,11 @@ class TerminalOutputPane extends UiSurface {
   #renderFrameDockButton(x: number, y: number, size: number): void {
     const onDock = this.#onFrameDockRequest
     if (onDock === undefined) return
-    const key = "terminal-pane:frame-dock"
-    const state = this.hitState(x, y, size, size, key)
-    const active = state.pressed
-    const fill = active ? palette.bgHot : state.hovered ? palette.bgElevated : STATUS_FILL
-    const border = active || state.hovered ? palette.border : STATUS_BORDER
-    const offsetY = active ? 1 : 0
-    this.drawRoundedRect(x, y + offsetY, size, size - offsetY, {
-      radius: HEADER_ICON_BUTTON_RADIUS_PX,
-      fill,
-      border,
-      borderWidth: 1,
-      z: Z.ELEMENT + 0.02,
+    controlIconButton(this, x, y, size, size, {
+      label: "Dock",
+      iconSrc: uiIcons.minus,
+      action: onDock,
     })
-    const lineY = y + offsetY + size / 2
-    this.drawRoundedLine(x + 7, lineY, x + size - 7, lineY, state.hovered ? palette.cyan : palette.muted, 2, Z.TEXT + 0.04)
-    this.hit(x, y, size, size, onDock, {cursor: "pointer", key})
   }
 
   #renderBody(): void {

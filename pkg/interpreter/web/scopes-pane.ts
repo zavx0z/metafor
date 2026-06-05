@@ -11,8 +11,8 @@ import {
   UiSurface, Z, div, palette, radii, uiIcons,
 } from "@ui/elements"
 import {
-  Button as button,
   Divider as divider,
+  IconButton,
 } from "@ui/components"
 import {
   createEditorTokenMaterials,
@@ -37,7 +37,6 @@ const DETAIL_LINE_H = 15
 const DETAIL_FONT = 10
 const DETAIL_BG_Z = Z.ELEMENT + 0.34
 const DETAIL_TEXT_Z = Z.TEXT + 0.34
-const ICON_BUTTON_RADIUS = 6
 
 type ScopeRow =
   | {kind: "group"; label: string}
@@ -243,16 +242,9 @@ export class ScopesPane extends UiSurface {
       z: DETAIL_TEXT_Z,
       clip: false,
     })
-    button(this, x + w - 40, y + 12, 26, 24, {
+    IconButton(this, x + w - 40, y + 12, 26, 24, {
       label: t("close"),
       iconSrc: uiIcons.stop,
-      iconOnly: true,
-      iconSizePx: 14,
-      tooltip: t("close"),
-      tooltipDelayMs: 180,
-      variant: "outlined",
-      radius: ICON_BUTTON_RADIUS,
-      tone: "neutral",
       action: () => {
         this.#detail = null
         this.requestRender()

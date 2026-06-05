@@ -1,6 +1,6 @@
 import {autoButtonWidth} from "./internal/renderers.ts"
 import {Z} from "@ui/elements"
-import {button as elementButton, drawIcon, palette, toneBorder, toneFill, type ButtonElementProps, type ButtonElementState, type UiSurface, type StyleProps} from "@ui/elements"
+import {button as elementButton, drawIcon, palette, radii, toneBorder, toneFill, type ButtonElementProps, type ButtonElementState, type UiSurface, type StyleProps} from "@ui/elements"
 import type {Tone} from "@ui/elements"
 import {Color, TextMaterial} from "@metafor/engine"
 
@@ -76,6 +76,7 @@ export function IconButton(host: UiSurface, x: number, y: number, width: number,
   Button(host, x, y, width, height, {
     ...props,
     variant: props.variant ?? "text",
+    radius: props.radius ?? radii.control,
     iconOnly: true,
     tooltip: props.tooltip ?? props.label,
   })
