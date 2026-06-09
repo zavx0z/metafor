@@ -3724,7 +3724,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       fontPx: 12,
       linePx: 16,
       readOnly: true,
-      showCaret: false,
+      showCaret: true,
       introAnimation: false,
       onBreakpointToggle: (line) => void toggleModuleBreakpoint(controller, line),
     }),

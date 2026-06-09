@@ -5,9 +5,10 @@
  * по подпакетам `runtime`, `program`, `encode`.
  */
 
-export { GPU } from "./device"
-export { weakInit, weakHeapUpdate, weakReadChanges, weakStep, weakRunStep, weak$ } from "./weak"
-export { OP as CONDITION_OP, FIELD_TYPE, OP, VALUE_TYPE as TYPE, VALUE_TYPE } from "./constants"
+export {GPU} from "./device"
+export {weakInit, weakHeapUpdate, weakReadChanges, weakStep, weakRunStep, weak$} from "./weak"
+export {OP as CONDITION_OP, FIELD_TYPE, OP, VALUE_TYPE as TYPE, VALUE_TYPE} from "./constants"
+export {CPUWeakRuntime} from "./cpu"
 export {
   createFieldEncodingContext,
   encodeValue,
@@ -24,5 +25,5 @@ export {
   compileEnsemble,
   compileFlattenedEnsemble,
 } from "./program"
-export type { BoundaryStore } from "@boundary/gravity"
-export type { WeakMode, WeakStore } from "./weak"
+export type {BoundaryStore} from "@boundary/gravity"
+export type {WeakMode, WeakStore} from "./weak"

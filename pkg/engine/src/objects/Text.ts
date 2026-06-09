@@ -144,6 +144,7 @@ export class Text extends Object3D {
   public material: TextMaterial
   public fontSize: number
   public letterSpacing: number
+  public spaceAdvance: number | null
   public stencilGeometry: BufferGeometry = new BufferGeometry()
   public coverGeometry: BufferGeometry = new BufferGeometry()
 
@@ -177,6 +178,7 @@ export class Text extends Object3D {
     this.fontSize = fontSize
     this.material = material
     this.letterSpacing = fontSize * 0.05
+    this.spaceAdvance = null
     this.updateGeometry()
   }
 
@@ -195,7 +197,7 @@ export class Text extends Object3D {
    * кэшированная геометрия, которую мутировать вручную нельзя.
    */
   public updateGeometry(): void {
-    const cacheKey = Text.layoutCacheKey(this.text, this.font, this.fontSize, this.letterSpacing)
+    const cacheKey = Text.layoutCacheKey(this.text, this.font, this.fontSize, this.letterSpacing, this.spaceAdvance)
     const cachedLayout = Text.layoutCache.get(cacheKey)
     if (cachedLayout) {
       Text.touchLayoutCache(cacheKey, cachedLayout)
@@ -213,7 +215,7 @@ export class Text extends Object3D {
 
     for (const char of this.text) {
       if (char === " ") {
-        penX += this.font.unitsPerEm * 0.3 * scale
+        penX += this.spaceAdvance ?? this.font.unitsPerEm * 0.3 * scale
         continue
       }
 
@@ -336,13 +338,13 @@ export class Text extends Object3D {
     return layout.sharedCoverGeometry
   }
 
-  private static layoutCacheKey(text: string, font: TrueTypeFont, fontSize: number, letterSpacing: number): string {
+  private static layoutCacheKey(text: string, font: TrueTypeFont, fontSize: number, letterSpacing: number, spaceAdvance: number | null): string {
     let fontId = Text.fontIds.get(font)
     if (fontId === undefined) {
       fontId = Text.nextFontId++
       Text.fontIds.set(font, fontId)
     }
-    return `${fontId}:${fontSize.toFixed(8)}:${letterSpacing.toFixed(8)}:${text}`
+    return `${fontId}:${fontSize.toFixed(8)}:${letterSpacing.toFixed(8)}:${spaceAdvance?.toFixed(8) ?? "default"}:${text}`
   }
 
   private static touchLayoutCache(key: string, layout: TextLayoutCacheEntry): void {

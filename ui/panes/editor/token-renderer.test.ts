@@ -20,4 +20,15 @@ describe("normalizeEditorTokensForLine", () => {
       {s: 5, e: 6, c: "z"},
     ])
   })
+
+  test("prefers a longer token over punctuation at the same start", () => {
+    const tokens = normalizeEditorTokensForLine("brane.stateCount", [
+      {s: 5, e: 6, c: "p"},
+      {s: 5, e: 16, c: "t", fg: "#c77dbb"},
+    ])
+
+    expect(tokens).toEqual([
+      {s: 5, e: 16, c: "t", fg: "#c77dbb"},
+    ])
+  })
 })

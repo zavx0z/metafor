@@ -97,6 +97,8 @@ export type EditorOpts = {
   showCaret?: boolean
   /** Run the one-shot text intro animation after setText(). Default true. */
   introAnimation?: boolean
+  /** Show vertical indentation guides in code body. Default true. */
+  indentGuides?: boolean
   /** Header drag is opt-in. Default false. */
   draggable?: boolean
   /** Edge resize is opt-in. Default false. */
@@ -114,7 +116,8 @@ const GUTTER_MIN_PX = 44
 const GUTTER_LEFT_PAD_PX = 6
 const GUTTER_RIGHT_PAD_PX = 8
 const GUTTER_BREAKPOINT_LANE_PX = 18
-const CODE_LEFT_PAD_PX = 8
+const CODE_LEFT_PAD_PX = 2
+const CODE_LETTER_SPACING_PX = 0
 const SCROLLBAR_W = 4
 const HISTORY_LIMIT = 200
 const INTRO_ANIM_MS = 420
@@ -131,7 +134,10 @@ const GUTTER_HALO_OFFSET_PX = 1
 const LINE_HIGHLIGHT_TOP_PAD_PX = 3
 const LINE_HIGHLIGHT_BOTTOM_PAD_PX = 0
 const SELECTION_FILL = new Color(92 / 255, 155 / 255, 255 / 255, 0.34)
-const GUTTER_RULE_FILL = new Color(120 / 255, 143 / 255, 166 / 255, 0.16)
+const GUTTER_RULE_FILL = new Color(120 / 255, 143 / 255, 166 / 255, 0.12)
+const INDENT_GUIDE_FILL = new Color(120 / 255, 143 / 255, 166 / 255, 0.12)
+const INDENT_GUIDE_STEP_COLUMNS = 2
+const INDENT_GUIDE_TEXT_OFFSET_PX = 2
 const BREAKPOINT_FILL = new Color(237 / 255, 83 / 255, 86 / 255, 0.96)
 const BREAKPOINT_PENDING_FILL = new Color(237 / 255, 83 / 255, 86 / 255, 0.30)
 const BREAKPOINT_BORDER = new Color(255 / 255, 130 / 255, 130 / 255, 0.92)
@@ -155,6 +161,17 @@ type EditorVisibleLine = {
   lineText: string
   isCurrent: boolean
   isExecution: boolean
+}
+type EditorIndentGuideRange = {
+  column: number
+  startLine: number
+  endLine: number
+  includesEndLine: boolean
+}
+type EditorIndentGuideStackItem = {
+  column: number
+  startLine: number
+  opener: "{" | "["
 }
 type EditorGutterMetrics = {
   x: number
@@ -221,6 +238,7 @@ export class EditorPane extends UiSurface {
   #readOnly: boolean
   #showCaret: boolean
   #introAnimation: boolean
+  #indentGuides: boolean
   #executionLine: number | null = null
   #cursorVisible = true
   #cursorBlinkTimer: ReturnType<typeof setInterval> | null = null
@@ -230,6 +248,8 @@ export class EditorPane extends UiSurface {
   /** Кэшированная ширина одного «эталонного» глифа (M). */
   #charWidth = 0
   #charWidthScale = 0
+  #spaceWidth = 0
+  #spaceWidthScale = 0
   #maxLineWidthPxCache: number | null = null
   #maxLineWidthPxCacheScale = 0
   readonly #lineWidthCache = new Map<string, LineWidthCache>()
@@ -272,6 +292,7 @@ export class EditorPane extends UiSurface {
     this.#readOnly = opts.readOnly === true
     this.#showCaret = opts.showCaret ?? !this.#readOnly
     this.#introAnimation = opts.introAnimation ?? true
+    this.#indentGuides = opts.indentGuides ?? true
     this.#tokenMaterials = createEditorTokenMaterials()
     this.#refreshTokens()
   }
@@ -459,10 +480,18 @@ export class EditorPane extends UiSurface {
     const scale = this.pageScaleFactor
     if (this.#charWidth > 0 && this.#charWidthScale === scale) return this.#charWidth
     if (this.font === null) return this.#fallbackCharWidth()
-    // measureText("M") даёт честную ширину advance + letter-spacing 5%.
-    this.#charWidth = Math.max(this.#fallbackCharWidth(), this.measureText("M", this.#fontPx))
+    // Code editor uses zero tracking; measure with the same spacing as render.
+    this.#charWidth = Math.max(this.#fallbackCharWidth(), this.measureText("M", this.#fontPx, CODE_LETTER_SPACING_PX))
     this.#charWidthScale = scale
     return this.#charWidth
+  }
+
+  #getSpaceWidth(): number {
+    const scale = this.pageScaleFactor
+    if (this.#spaceWidth > 0 && this.#spaceWidthScale === scale) return this.#spaceWidth
+    this.#spaceWidth = this.#getCharWidth()
+    this.#spaceWidthScale = scale
+    return this.#spaceWidth
   }
 
   #fallbackCharWidth(): number {
@@ -542,14 +571,15 @@ export class EditorPane extends UiSurface {
 
     const fontPxCanvas = this.#fontPx * scaleKey
     const fontScale = fontPxCanvas / this.font.unitsPerEm
-    const letterSpacing = fontPxCanvas * 0.05
+    const letterSpacing = CODE_LETTER_SPACING_PX * scaleKey
+    const spaceWidth = this.#getSpaceWidth()
     const widths = new Array<number>(line.length + 1)
     widths[0] = 0
     let width = 0
     for (let i = 0; i < line.length; i++) {
       const code = line.codePointAt(i) ?? 0
       if (line[i] === " ") {
-        width += this.font.unitsPerEm * 0.3 * fontScale
+        width += spaceWidth
       } else {
         const gid = this.font.mapCharToGlyph(code)
         const metric = this.font.getHMetric(gid)
@@ -628,6 +658,7 @@ export class EditorPane extends UiSurface {
     this.#cline = next.line
     this.#ccol = next.col
     this.#scrollCursorIntoView()
+    this.#pingCursor()
     this.requestRender()
   }
 
@@ -1244,9 +1275,10 @@ export class EditorPane extends UiSurface {
     let max = 0
     for (const line of this.#lines) {
       if (line.length === 0) continue
-      const width = line.length < EditorPane.#LONG_LINE_THRESHOLD
-        ? this.measureText(line, this.#fontPx)
-        : line.length * this.#getCharWidth()
+      const widths = this.#lineWidths(line)
+      const width = widths === null
+        ? line.length * this.#getCharWidth()
+        : widths[widths.length - 1] ?? 0
       if (width > max) max = width
     }
     this.#maxLineWidthPxCache = max
@@ -1257,6 +1289,8 @@ export class EditorPane extends UiSurface {
   #invalidateTextMetrics(): void {
     this.#charWidth = 0
     this.#charWidthScale = 0
+    this.#spaceWidth = 0
+    this.#spaceWidthScale = 0
     this.#maxLineWidthPxCache = null
     this.#maxLineWidthPxCacheScale = 0
     this.#lineWidthCache.clear()
@@ -1354,7 +1388,10 @@ export class EditorPane extends UiSurface {
     return this.requestRedrawLayers(["underlay", "selection", "overlay"], () => {
       const layout = this.#lastViewportLayout
       if (layout === null) return
-      this.withLayer("underlay", () => this.#renderCurrentLineLayer(layout))
+      this.withLayer("underlay", () => {
+        this.#renderIndentGuideLayer(layout)
+        this.#renderCurrentLineLayer(layout)
+      })
       this.withLayer("selection", () => this.#renderSelectionLayer(layout))
       this.withLayer("overlay", () => this.#renderCaretLayer(layout))
     })
@@ -1462,7 +1499,10 @@ export class EditorPane extends UiSurface {
     const layout = this.#viewportLayout(gutter)
     this.#lastViewportLayout = layout
 
-    this.withLayer("underlay", () => this.#renderCurrentLineLayer(layout))
+    this.withLayer("underlay", () => {
+      this.#renderIndentGuideLayer(layout)
+      this.#renderCurrentLineLayer(layout)
+    })
     this.withLayer("selection", () => this.#renderSelectionLayer(layout))
     const visibleLines = this.#renderCodeTextLayer(layout)
     this.#renderGutterLayer(this.#gutterMetrics(gutter, layout.contentH), visibleLines)
@@ -1508,6 +1548,78 @@ export class EditorPane extends UiSurface {
       }
     }
     this.popClip()
+  }
+
+  #renderIndentGuideLayer(layout: EditorViewportLayout): void {
+    if (!this.#indentGuides) return
+    const ranges = this.#indentGuideRanges()
+    if (ranges.length === 0) return
+    const firstVisibleLine = layout.startIdx
+    const lastVisibleLine = Math.min(this.#lines.length - 1, layout.startIdx + layout.visible + 1)
+    this.pushClip(layout.codeClipX, PAD_TOP_PX, layout.codeClipW, layout.contentH)
+    for (const range of ranges) {
+      if (range.endLine < firstVisibleLine || range.startLine > lastVisibleLine) continue
+      const rawX = layout.codeStartX + this.#indentGuideColumnToPx(range.column) - INDENT_GUIDE_TEXT_OFFSET_PX - this.#scrollLeftPx
+      if (rawX < layout.codeClipX - 1 || rawX > layout.codeClipX + layout.codeClipW + 1) continue
+      const x = Math.round(rawX) + 0.5
+      const startLine = Math.max(range.startLine, firstVisibleLine)
+      const endLine = Math.min(range.endLine, lastVisibleLine)
+      const y1 = this.#rowYForLine(layout, startLine)
+      const y2 = this.#rowYForLine(layout, endLine) + (range.includesEndLine ? this.#linePx : 0)
+      if (y2 <= y1) continue
+      this.drawLine(x, y1, x, y2, INDENT_GUIDE_FILL, 1, Z.SEPARATOR)
+    }
+    this.popClip()
+  }
+
+  #indentGuideRanges(): EditorIndentGuideRange[] {
+    const ranges: EditorIndentGuideRange[] = []
+    const stack: EditorIndentGuideStackItem[] = []
+    let inBlockComment = false
+
+    for (let lineIndex = 0; lineIndex < this.#lines.length; lineIndex++) {
+      const line = this.#lines[lineIndex] ?? ""
+      const scan = structuralIndentTokens(line, inBlockComment)
+      inBlockComment = scan.inBlockComment
+      for (const token of scan.tokens) {
+        if (token === "{" || token === "[") {
+          const openerIndent = leadingIndentColumns(line, INDENT_GUIDE_STEP_COLUMNS)
+          stack.push({
+            column: this.#indentGuideColumnForBlock(lineIndex, openerIndent),
+            startLine: lineIndex + 1,
+            opener: token,
+          })
+          continue
+        }
+
+        const opener = token === "}" ? "{" : "["
+        for (let i = stack.length - 1; i >= 0; i--) {
+          const item = stack[i]!
+          if (item.opener !== opener) continue
+          stack.splice(i, 1)
+          if (item.startLine <= lineIndex) ranges.push({column: item.column, startLine: item.startLine, endLine: lineIndex, includesEndLine: false})
+          break
+        }
+      }
+    }
+
+    const endLine = Math.max(0, this.#lines.length - 1)
+    for (const item of stack) {
+      if (item.startLine <= endLine) ranges.push({column: item.column, startLine: item.startLine, endLine, includesEndLine: true})
+    }
+    return mergeIndentGuideRanges(ranges)
+  }
+
+  #indentGuideColumnForBlock(_lineIndex: number, openerIndent: number): number {
+    return Math.max(0, openerIndent)
+  }
+
+  #indentGuideColumnToPx(col: number): number {
+    return Math.max(0, col) * this.#getSpaceWidth()
+  }
+
+  #rowYForLine(layout: EditorViewportLayout, lineIndex: number): number {
+    return PAD_TOP_PX + (lineIndex - layout.startIdx) * this.#linePx - layout.subPx
   }
 
   #renderSelectionLayer(layout: EditorViewportLayout): void {
@@ -1578,8 +1690,8 @@ export class EditorPane extends UiSurface {
     if (curX < layout.codeStartX - 1 || curX > layout.codeStartX + layout.codeMaxPx + 1) return
     const caretY = Math.round(rowY + (this.#linePx - this.#fontPx) / 2)
     const caretH = Math.max(1, Math.round(this.#fontPx + CARET_BOTTOM_PAD_PX))
-    this.pushClip(layout.codeClipX, PAD_TOP_PX, layout.codeClipW, layout.contentH)
-    this.drawRect(curX, caretY, CARET_W_PX, caretH, palette.cyan, CARET_Z)
+    this.pushClip(layout.codeClipX - CARET_W_PX, PAD_TOP_PX, layout.codeClipW + CARET_W_PX * 2, layout.contentH)
+    this.drawRect(curX + 1, caretY, CARET_W_PX, caretH, palette.cyan, CARET_Z)
     this.popClip()
   }
 
@@ -1596,7 +1708,8 @@ export class EditorPane extends UiSurface {
   }
 
   #renderGutterLayer(metrics: EditorGutterMetrics, lines: readonly EditorVisibleLine[]): void {
-    this.drawRect(metrics.ruleX, metrics.y, 1, metrics.h, GUTTER_RULE_FILL, GUTTER_RULE_Z)
+    const ruleX = Math.round(metrics.ruleX) + 0.5
+    this.drawLine(ruleX, metrics.y, ruleX, metrics.y + metrics.h, GUTTER_RULE_FILL, 1, GUTTER_RULE_Z)
     for (const line of lines) {
       const sourceLine = line.lineIndex + 1
       const label = String(line.lineIndex + 1)
@@ -1701,6 +1814,8 @@ export class EditorPane extends UiSurface {
     this.drawText(visText, drawX + animOffset, textY, {
       fontPx: this.#fontPx,
       material: this.#lineMaterial,
+      letterSpacingPx: CODE_LETTER_SPACING_PX,
+      spaceAdvancePx: this.#getSpaceWidth(),
       maxWidthPx: maxW,
       fit: false,
       measure: false,
@@ -1715,6 +1830,8 @@ export class EditorPane extends UiSurface {
       startX,
       y,
       fontPx: this.#fontPx,
+      letterSpacingPx: CODE_LETTER_SPACING_PX,
+      spaceAdvancePx: this.#getSpaceWidth(),
       maxPx,
       materials: this.#tokenMaterials,
       fallbackMaterial: this.#lineMaterial,
@@ -1722,8 +1839,9 @@ export class EditorPane extends UiSurface {
       tokensNormalized: true,
       chunkWidth: (startCol, endCol, chunkText) => {
         const w = this.#colToPx(text, endCol) - this.#colToPx(text, startCol)
-        return w > 0 ? w : this.measureText(chunkText, this.#fontPx)
+        return w > 0 ? w : this.measureText(chunkText, this.#fontPx, CODE_LETTER_SPACING_PX, this.#getSpaceWidth())
       },
+      chunkX: (startCol) => this.#colToPx(text, startCol),
       animOffsetFor: (absoluteColumn) => this.#animOffsetFor(lineIndex, absoluteColumn),
       drawTokenBackground: (x, bgY, w, h, bg) => {
         const color = parseHexColor(bg)
@@ -1936,6 +2054,90 @@ function normalizeBreakpoints(breakpoints: readonly EditorBreakpoint[]): Map<num
     if (breakpoint.pending !== undefined) next.pending = breakpoint.pending
     if (breakpoint.hit !== undefined) next.hit = breakpoint.hit
     out.set(line, next)
+  }
+  return out
+}
+
+function leadingIndentColumns(line: string, tabSize: number): number {
+  let columns = 0
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === " ") {
+      columns += 1
+      continue
+    }
+    if (ch === "\t") {
+      const size = Math.max(1, Math.floor(tabSize))
+      columns += size - columns % size
+      continue
+    }
+    break
+  }
+  return columns
+}
+
+function structuralIndentTokens(line: string, inBlockComment: boolean): {tokens: Array<"{" | "[" | "}" | "]">; inBlockComment: boolean} {
+  const out: Array<"{" | "[" | "}" | "]"> = []
+  let quote: "\"" | "'" | "`" | null = null
+  let escaped = false
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    const next = line[i + 1]
+
+    if (inBlockComment) {
+      if (ch === "*" && next === "/") {
+        inBlockComment = false
+        i += 1
+      }
+      continue
+    }
+
+    if (quote !== null) {
+      if (escaped) {
+        escaped = false
+        continue
+      }
+      if (ch === "\\") {
+        escaped = true
+        continue
+      }
+      if (ch === quote) quote = null
+      continue
+    }
+
+    if (ch === "/" && next === "/") break
+    if (ch === "/" && next === "*") {
+      const end = line.indexOf("*/", i + 2)
+      if (end < 0) {
+        inBlockComment = true
+        break
+      }
+      i = end + 1
+      continue
+    }
+
+    if (ch === "\"" || ch === "'" || ch === "`") {
+      quote = ch
+      continue
+    }
+    if (ch === "{" || ch === "[" || ch === "}" || ch === "]") out.push(ch)
+  }
+
+  return {tokens: out, inBlockComment}
+}
+
+function mergeIndentGuideRanges(ranges: readonly EditorIndentGuideRange[]): EditorIndentGuideRange[] {
+  const sorted = [...ranges].sort((a, b) => a.column - b.column || a.startLine - b.startLine || a.endLine - b.endLine)
+  const out: EditorIndentGuideRange[] = []
+  for (const range of sorted) {
+    const prev = out[out.length - 1]
+    if (prev !== undefined && prev.column === range.column && prev.includesEndLine && range.startLine <= prev.endLine + 1) {
+      prev.endLine = Math.max(prev.endLine, range.endLine)
+      prev.includesEndLine = range.includesEndLine
+      continue
+    }
+    out.push({...range})
   }
   return out
 }

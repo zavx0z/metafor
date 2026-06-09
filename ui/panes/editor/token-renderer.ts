@@ -19,12 +19,15 @@ export type RenderEditorTokenLineOpts = {
   startX: number
   y: number
   fontPx: number
+  letterSpacingPx?: number
+  spaceAdvancePx?: number
   maxPx: number
   materials: EditorTokenMaterialMap
   fallbackMaterial: TextMaterial
   sliceStart?: number
   tokensNormalized?: boolean
   chunkWidth?: (startCol: number, endCol: number, text: string) => number
+  chunkX?: (startCol: number) => number
   animOffsetFor?: (absoluteColumn: number) => number
   drawTokenBackground?: (x: number, y: number, w: number, h: number, bg: string) => void
 }
@@ -34,7 +37,7 @@ export function normalizeEditorTokensForLine(text: string, tokens: readonly Edit
   const out: EditorToken[] = []
   let cursor = 0
 
-  for (const tok of [...tokens].sort((a, b) => a.s - b.s || a.e - b.e)) {
+  for (const tok of [...tokens].sort((a, b) => a.s - b.s || b.e - a.e)) {
     if (!Number.isFinite(tok.s) || !Number.isFinite(tok.e)) continue
     const rawStart = Math.floor(tok.s)
     const rawEnd = Math.floor(tok.e)
@@ -56,18 +59,20 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
   let cursor = 0
   let cursorX = opts.startX
   const sliceStart = opts.sliceStart ?? 0
-  const remaining = (): number => Math.max(0, opts.startX + opts.maxPx - cursorX)
 
   const placeChunk = (chunkText: string, category: string, fg: string | undefined, bg: string | undefined, chunkColStart: number): void => {
     if (chunkText.length === 0) return
     const w = opts.chunkWidth?.(chunkColStart, chunkColStart + chunkText.length, chunkText)
-      ?? opts.pane.measureText(chunkText, opts.fontPx)
+      ?? opts.pane.measureText(chunkText, opts.fontPx, opts.letterSpacingPx, opts.spaceAdvancePx)
+    const chunkX = opts.chunkX === undefined
+      ? cursorX
+      : opts.startX + opts.chunkX(chunkColStart)
     const offset = opts.animOffsetFor?.(sliceStart + chunkColStart) ?? 0
     if (!Number.isFinite(offset)) {
       cursorX += w
       return
     }
-    const drawX = cursorX + offset
+    const drawX = chunkX + offset
     if (bg !== undefined && w > 0) {
       opts.drawTokenBackground?.(drawX, opts.y, w, opts.fontPx + 2, bg)
     }
@@ -76,7 +81,9 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
       opts.pane.drawText(chunkText, drawX, opts.y, {
         fontPx: opts.fontPx,
         material,
-        maxWidthPx: remaining(),
+        letterSpacingPx: opts.letterSpacingPx,
+        spaceAdvancePx: opts.spaceAdvancePx,
+        maxWidthPx: Math.max(0, opts.startX + opts.maxPx - drawX),
         fit: false,
         measure: false,
       })

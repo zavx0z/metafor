@@ -214,8 +214,9 @@ function applyMemberAccessOverlays(source: string, base: number, tokens: RangeTo
   for (const match of source.matchAll(memberRe)) {
     const text = match[1]
     if (text === undefined) continue
-    const start = (match.index ?? 0) + match[0].length - text.length
-    pushPropertyToken(base, tokens, start, text.length)
+    const accessorStart = match.index ?? 0
+    const propertyStart = accessorStart + match[0].length - text.length
+    pushMemberPropertyToken(base, tokens, accessorStart, propertyStart, text.length)
   }
 }
 
@@ -232,6 +233,13 @@ function pushPropertyToken(base: number, tokens: RangeToken[], start: number, le
   const absEnd = absStart + length
   if (hasTokenCovering(tokens, absStart, absEnd)) return
   pushRange(tokens, absStart, absEnd, "t", undefined, colorForTypes(["property"]))
+}
+
+function pushMemberPropertyToken(base: number, tokens: RangeToken[], accessorStart: number, propertyStart: number, propertyLength: number): void {
+  const propertyAbsStart = base + propertyStart
+  const propertyAbsEnd = propertyAbsStart + propertyLength
+  if (hasTokenCovering(tokens, propertyAbsStart, propertyAbsEnd)) return
+  pushRange(tokens, base + accessorStart, propertyAbsEnd, "t", undefined, colorForTypes(["property"]))
 }
 
 function nearestContainer(source: string, end: number): string | undefined {

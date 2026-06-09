@@ -243,6 +243,7 @@ export class Text extends Object3D {
   material: TextMaterial
   fontSize: number
   letterSpacing: number
+  spaceAdvance: number | null
   stencilGeometry: BufferGeometry
   coverGeometry: BufferGeometry
   constructor(text: string, font: TrueTypeFont, fontSize: number, material: TextMaterial)

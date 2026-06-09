@@ -31,7 +31,7 @@ describe("EditorPane selection", () => {
     const editor = new EditorPane()
     try {
       editor.setText("abc")
-      const codeX = 60
+      const codeX = firstEditorCodeX()
       const charW = 13 * 0.62
       const y = firstEditorLineY()
       editor.onPointerDown({shiftKey: false} as MouseEvent, codeX + charW * 1.75, y)
@@ -47,7 +47,7 @@ describe("EditorPane selection", () => {
     const editor = new EditorPane()
     try {
       editor.setText("abcdef")
-      const codeX = 60
+      const codeX = firstEditorCodeX()
       const charW = 13 * 0.62
       const y = firstEditorLineY()
       editor.onPointerDown({shiftKey: false} as MouseEvent, codeX + charW * 1.1, y)
@@ -62,7 +62,7 @@ describe("EditorPane selection", () => {
     const editor = new EditorPane()
     try {
       editor.setText("alpha beta")
-      const codeX = 60
+      const codeX = firstEditorCodeX()
       const charW = 13 * 0.62
       const y = firstEditorLineY()
       editor.onPointerDown({shiftKey: false, detail: 2} as MouseEvent, codeX + charW * 7.1, y)
@@ -77,7 +77,7 @@ describe("EditorPane selection", () => {
     const editor = new EditorPane()
     try {
       editor.setText("// русский комментарий")
-      const codeX = 60
+      const codeX = firstEditorCodeX()
       const charW = 13 * 0.62
       const y = firstEditorLineY()
       editor.onPointerDown({shiftKey: false, detail: 2} as MouseEvent, codeX + charW * 5.4, y)
@@ -117,4 +117,8 @@ describe("EditorPane selection", () => {
 
 function firstEditorLineY(): number {
   return PANE_FRAME.headerHeight + PANE_FRAME.bodyTopGap + 5
+}
+
+function firstEditorCodeX(): number {
+  return 54
 }

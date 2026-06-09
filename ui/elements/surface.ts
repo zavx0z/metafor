@@ -181,6 +181,10 @@ export type DrawBackdropGradientOpts = {
 export type DrawTextOpts = {
   fontPx: number
   material: TextMaterial
+  /** Reference-px letter spacing. Default is Text default (5% font size). */
+  letterSpacingPx?: number
+  /** Reference-px width for space glyphs. Default is Text default (0.3em). */
+  spaceAdvancePx?: number
   /** Гарантия: текст обрезается через измерение и "...". */
   maxWidthPx?: number
   /** Default true. false — рисовать без ellipsis-fitting, обычно внутри clip. */
@@ -590,12 +594,21 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (opts.maxWidthPx !== undefined && maxPx <= 0) return 0
     const fitted = opts.fit === false || !Number.isFinite(maxPx)
       ? value
-      : this.#fitText(value, maxPx, opts.fontPx)
+      : this.#fitText(value, maxPx, opts.fontPx, opts.letterSpacingPx, opts.spaceAdvancePx)
     if (fitted.length === 0) return 0
     // fontPx — в reference-px (если referenceHeight задан); приводим к
     // canvas-px через pageScaleFactor для размера текста и y-сдвига.
     const fontPxCanvas = opts.fontPx * this.pageScaleFactor
     const text = new CachedText(fitted, this.font, fontPxCanvas * this.pixelScale, opts.material)
+    if (opts.letterSpacingPx !== undefined) {
+      text.letterSpacing = opts.letterSpacingPx * this.pageScaleFactor * this.pixelScale
+    }
+    if (opts.spaceAdvancePx !== undefined) {
+      text.spaceAdvance = opts.spaceAdvancePx * this.pageScaleFactor * this.pixelScale
+    }
+    if (opts.letterSpacingPx !== undefined || opts.spaceAdvancePx !== undefined) {
+      text.updateGeometry()
+    }
     text.position.x = x * this.pixelScale
     // y — top-of-cap (canvas-px). Baseline ≈ y + fontPxCanvas.
     text.position.y = -(y + fontPxCanvas) * this.pixelScale
@@ -619,7 +632,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     text.updateMatrix()
     if (opts.clip !== false) this.#applyClipTo(text)
     this.#currentLayer().add(text)
-    return opts.measure === false ? 0 : this.measureText(fitted, opts.fontPx)
+    return opts.measure === false ? 0 : this.measureText(fitted, opts.fontPx, opts.letterSpacingPx, opts.spaceAdvancePx)
   }
 
   /**
@@ -907,16 +920,21 @@ export abstract class UiSurface implements UiSurfaceNode {
    *  fontPx интерпретируется как reference-px (если referenceHeight задан) —
    *  возвращаемая ширина уже в canvas-px (после умножения на pageScaleFactor).
    */
-  measureText(value: string, fontPx: number): number {
+  measureText(value: string, fontPx: number, letterSpacingPx?: number, spaceAdvancePx?: number): number {
     if (this.font === null) return 0
     const f = this.font
     const fontPxCanvas = fontPx * this.pageScaleFactor
     const scale = fontPxCanvas / f.unitsPerEm
-    const letterSpacing = fontPxCanvas * 0.05
+    const letterSpacing = letterSpacingPx === undefined
+      ? fontPxCanvas * 0.05
+      : letterSpacingPx * this.pageScaleFactor
+    const spaceAdvance = spaceAdvancePx === undefined
+      ? f.unitsPerEm * 0.3 * scale
+      : spaceAdvancePx * this.pageScaleFactor
     let w = 0
     for (const ch of value) {
       if (ch === " ") {
-        w += f.unitsPerEm * 0.3 * scale
+        w += spaceAdvance
         continue
       }
       const gid = f.mapCharToGlyph(ch.codePointAt(0)!)
@@ -1415,18 +1433,18 @@ export abstract class UiSurface implements UiSurfaceNode {
     layer.children = []
   }
 
-  #fitText(value: string, maxPx: number, fontPx: number): string {
-    const fullW = this.measureText(value, fontPx)
+  #fitText(value: string, maxPx: number, fontPx: number, letterSpacingPx?: number, spaceAdvancePx?: number): string {
+    const fullW = this.measureText(value, fontPx, letterSpacingPx, spaceAdvancePx)
     if (fullW <= maxPx) return value
     const ellipsis = "..."
-    const ellipsisW = this.measureText(ellipsis, fontPx)
+    const ellipsisW = this.measureText(ellipsis, fontPx, letterSpacingPx, spaceAdvancePx)
     if (ellipsisW > maxPx) return ""
     let lo = 0
     let hi = value.length
     while (lo < hi) {
       const mid = Math.floor((lo + hi + 1) / 2)
       const sub = value.slice(0, mid)
-      if (this.measureText(sub, fontPx) + ellipsisW <= maxPx) lo = mid
+      if (this.measureText(sub, fontPx, letterSpacingPx, spaceAdvancePx) + ellipsisW <= maxPx) lo = mid
       else hi = mid - 1
     }
     if (lo === 0) return ellipsis
