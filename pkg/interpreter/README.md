@@ -110,6 +110,7 @@ bun run --filter @metafor/interpreter typecheck
 ## Документация
 
 - [Архитектура](docs/architecture.md)
+- [Interpreter World](docs/interpreter-world.md)
 - [API](docs/api.md)
 - [Workflow интерпретатора](docs/workflow.md)
 - [Bun protocol](docs/bun-protocol.md)
