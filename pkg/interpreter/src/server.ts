@@ -13,7 +13,7 @@
  */
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
-import {existsSync, statSync, openSync, readSync, closeSync, readFileSync} from "node:fs"
+import {existsSync, statSync, openSync, readSync, closeSync, readFileSync, writeFileSync} from "node:fs"
 import {join, relative, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
 import indexHtml from "../web/index.html"
@@ -28,7 +28,7 @@ const MANIFEST = {
 
 import {executeCommand} from "./commands.ts"
 import {serializeError} from "./errors.ts"
-import {asNumber, asObject, asString} from "./guards.ts"
+import {asBoolean, asNumber, asObject, asString} from "./guards.ts"
 import type {EventLogger} from "./logger.ts"
 import type {JsonObject} from "./types.ts"
 import {sourceMapMapper} from "./source-map.ts"
@@ -39,6 +39,14 @@ import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} 
 import type {BreakpointSpec} from "./target.ts"
 import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspace-files.ts"
 import {sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell} from "./sqlite-db.ts"
+import {
+  deleteTodoMarkdownItem,
+  insertTodoMarkdownItem,
+  parseMarkdownTodo,
+  updateTodoMarkdownItem,
+  type TodoMarkdownInsert,
+  type TodoMarkdownPatch,
+} from "@ui/panes/todo-model"
 
 export type HttpServerOptions = {
   host: string
@@ -90,6 +98,7 @@ type SourcePatchReplayResult = {
   reason?: string
   target?: ModuleSnapshot["target"]
 }
+type HudTodoContextStore = {context: JsonObject | null}
 
 class UiHostCommandError extends Error {
   readonly status: number
@@ -117,6 +126,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   let nextUiHostRequestId = 1
   const pendingUiHostRequests = new Map<number, UiHostPendingRequest>()
   const moduleContexts: ModuleContextStore = new Map()
+  const hudTodoContext: HudTodoContextStore = {context: null}
 
   if (!isLoopbackHost(options.host)) {
     const warning = "/processes can execute local commands; bind the interpreter to loopback unless this is intentional"
@@ -271,7 +281,11 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         return
       }
       if (message !== undefined && messageType === "module-context") {
-        acceptModuleContext(message, moduleContexts, options, ws.data.id)
+        acceptModuleContext(message, moduleContexts, hudTodoContext, options, ws.data.id)
+        return
+      }
+      if (message !== undefined && messageType === "hud-todo-context") {
+        acceptHudTodoContext(message, hudTodoContext, options, ws.data.id)
         return
       }
 
@@ -365,7 +379,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
       const start = Date.now()
       try {
-        const response = await handleRoute(method, path, url, req, options, moduleContexts, broadcast, dispatchUiHostCommand)
+        const response = await handleRoute(method, path, url, req, options, moduleContexts, hudTodoContext, broadcast, dispatchUiHostCommand)
         options.logger.event("http.request", {
           method,
           path,
@@ -414,6 +428,7 @@ function acceptUiHostResult(message: JsonObject, pending: Map<number, UiHostPend
 function acceptModuleContext(
   message: JsonObject,
   contexts: ModuleContextStore,
+  hudTodo: HudTodoContextStore,
   options: HttpServerOptions,
   clientId: number,
 ): void {
@@ -421,13 +436,31 @@ function acceptModuleContext(
   const context = asObject(message["context"])
   if (moduleId === undefined || context === undefined) return
   if (options.modules.get(moduleId) === undefined) return
-  contexts.set(moduleId, {
+  const nextContext: JsonObject = {
     ...context,
     moduleId,
     origin: "ui",
     receivedAt: new Date().toISOString(),
-  })
+  }
+  contexts.set(moduleId, nextContext)
+  const todo = asObject(asObject(nextContext["hud"])?.["todo"])
+  if (todo !== undefined) hudTodo.context = todo
   options.logger.event("module.context", {clientId, moduleId})
+}
+
+function acceptHudTodoContext(
+  message: JsonObject,
+  hudTodo: HudTodoContextStore,
+  options: HttpServerOptions,
+  clientId: number,
+): void {
+  const context = asObject(message["context"])
+  if (context === undefined) return
+  hudTodo.context = {
+    ...context,
+    receivedAt: new Date().toISOString(),
+  }
+  options.logger.event("hud.todo.context", {clientId})
 }
 
 function rejectPendingUiHostRequestsForClient(clientId: number, pending: Map<number, UiHostPendingRequest>): void {
@@ -544,6 +577,7 @@ async function handleRoute(
   req: Request,
   options: HttpServerOptions,
   moduleContexts: ModuleContextStore,
+  hudTodoContext: HudTodoContextStore,
   broadcast: (payload: JsonObject) => void,
   dispatchUiHostCommand: UiHostCommandDispatcher,
 ): Promise<Response> {
@@ -552,11 +586,23 @@ async function handleRoute(
   if (method === "GET" && path === "/space") return await dispatchUiHostRoute("space.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/space/focus") return await dispatchUiHostRouteFromBody("space.focus", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/space/frame") return await dispatchUiHostRouteFromBody("space.frame", req, dispatchUiHostCommand)
-  if (method === "GET" && path === "/context") return jsonResponse(contextPayload(options, moduleContexts))
+  if (method === "GET" && path === "/context") return jsonResponse(contextPayload(options, moduleContexts, hudTodoContext))
   if (method === "GET" && path === "/hud/terminal") return await dispatchUiHostRoute("hud.terminal.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/dock") return await dispatchUiHostRouteFromBody("hud.terminal.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/show") return await dispatchUiHostRouteFromBody("hud.terminal.show", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/toggle") return await dispatchUiHostRouteFromBody("hud.terminal.toggle", req, dispatchUiHostCommand)
+  if (method === "GET" && path === "/hud/todo") return todoMarkdownResponse()
+  if (method === "PUT" && path === "/hud/todo") return await replaceTodoMarkdown(req, broadcast)
+  if (method === "POST" && path === "/hud/todo/items") return await createTodoItem(req, broadcast)
+  if (method === "GET" && path === "/hud/todo/panel") return await dispatchUiHostRoute("hud.todo.get", {}, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/todo/highlight") return await dispatchUiHostRouteFromBody("hud.todo.highlight", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/todo/reload") return await dispatchUiHostRoute("hud.todo.reload", {}, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/todo/dock") return await dispatchUiHostRouteFromBody("hud.todo.dock", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/todo/show") return await dispatchUiHostRouteFromBody("hud.todo.show", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/todo/toggle") return await dispatchUiHostRouteFromBody("hud.todo.toggle", req, dispatchUiHostCommand)
+  const todoItem = /^\/hud\/todo\/items\/([^/]+)$/.exec(path)
+  if ((method === "PATCH" || method === "POST") && todoItem !== null) return await patchTodoItem(decodePathParam(todoItem[1]!), req, broadcast)
+  if (method === "DELETE" && todoItem !== null) return deleteTodoItem(decodePathParam(todoItem[1]!), broadcast)
   if (method === "GET" && path === "/sqlite") {
     try {
       return jsonResponse(sqliteDatabasePayload(url))
@@ -583,7 +629,7 @@ async function handleRoute(
   const processAction = /^\/processes\/([^/]+)\/action$/.exec(path)
   if (method === "POST" && processAction !== null) return await processActionRoute(decodePathParam(processAction[1]!), req, options, dispatchUiHostCommand)
   const processContext = /^\/processes\/([^/]+)\/context$/.exec(path)
-  if (method === "GET" && processContext !== null) return getProcessContext(decodePathParam(processContext[1]!), options, moduleContexts)
+  if (method === "GET" && processContext !== null) return getProcessContext(decodePathParam(processContext[1]!), options, moduleContexts, hudTodoContext)
   const processModules = /^\/processes\/([^/]+)\/modules$/.exec(path)
   if (method === "GET" && processModules !== null) return getProcessModules(decodePathParam(processModules[1]!), url, options)
   const processSource = /^\/processes\/([^/]+)\/source$/.exec(path)
@@ -652,12 +698,127 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/hud/terminal/toggle", description: "переключить host terminal HUD"},
     {method: "WS", path: "/hud/terminal/stream", description: "host PTY terminal stream"},
     {method: "GET", path: "/hud/terminal/sessions", description: "host PTY session diagnostics"},
+    {method: "GET", path: "/hud/todo", description: "прочитать TODO.md и parsed items для HUD ToDoPane"},
+    {method: "PUT", path: "/hud/todo", description: "{text} — заменить TODO.md целиком"},
+    {method: "POST", path: "/hud/todo/items", description: "{text, kind?, checked?, depth?, afterId?} — добавить пункт TODO.md"},
+    {method: "PATCH", path: "/hud/todo/items/:id", description: "{text?, checked?} — изменить текст или markdown checkbox пункта"},
+    {method: "DELETE", path: "/hud/todo/items/:id", description: "удалить пункт TODO.md"},
+    {method: "GET", path: "/hud/todo/panel", description: "состояние HUD ToDoPane: rect/dock/highlight"},
+    {method: "POST", path: "/hud/todo/highlight", description: "{id|ids|highlightedIds} — подсветить пункты в HUD для context агента"},
+    {method: "POST", path: "/hud/todo/dock", description: "свернуть TODO HUD"},
+    {method: "POST", path: "/hud/todo/show", description: "развернуть TODO HUD"},
+    {method: "POST", path: "/hud/todo/toggle", description: "переключить TODO HUD"},
     {method: "GET", path: "/sqlite?path=<file.sqlite>&table=<name>", description: "просмотреть SQLite database tables/schema/rows"},
     {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database как отдельный display"},
     {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
     {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
   ]
+}
+
+type TodoMarkdownPayload = {
+  ok: true
+  path: string
+  mtimeMs: number
+  size: number
+  text: string
+  items: ReturnType<typeof parseMarkdownTodo>
+}
+
+function todoMarkdownResponse(): Response {
+  const payload = todoMarkdownPayload()
+  if (payload === null) return jsonResponse({ok: false, path: todoMarkdownPath(), error: "TODO.md not found"}, 404)
+  return jsonResponse(payload)
+}
+
+function todoMarkdownPayload(): TodoMarkdownPayload | null {
+  const path = resolve(process.cwd(), "TODO.md")
+  if (!existsSync(path)) return null
+  const stat = statSync(path)
+  const text = readFileSync(path, "utf8")
+  return {
+    ok: true,
+    path,
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    text,
+    items: parseMarkdownTodo(text),
+  }
+}
+
+function todoMarkdownPath(): string {
+  return resolve(process.cwd(), "TODO.md")
+}
+
+function readTodoMarkdownForEdit(): string {
+  const path = todoMarkdownPath()
+  return existsSync(path) ? readFileSync(path, "utf8") : "# MetaFor TODO\n"
+}
+
+async function replaceTodoMarkdown(req: Request, broadcast: (payload: JsonObject) => void): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const text = asString(parsed.body["text"]) ?? asString(parsed.body["markdown"])
+  if (text === undefined) return jsonResponse({ok: false, error: "text must be a string"}, 400)
+  return writeTodoMarkdown(text, broadcast)
+}
+
+async function createTodoItem(req: Request, broadcast: (payload: JsonObject) => void): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const body = parsed.body
+  const text = asString(body["text"])
+  if (text === undefined) return jsonResponse({ok: false, error: "text must be a string"}, 400)
+  const insert: TodoMarkdownInsert = {text}
+  const kind = asString(body["kind"])
+  if (kind === "heading" || kind === "task" || kind === "note") insert.kind = kind
+  const checked = asBoolean(body["checked"])
+  if (checked !== undefined) insert.checked = checked
+  const depth = asNumber(body["depth"])
+  if (depth !== undefined) insert.depth = depth
+  const afterId = asString(body["afterId"])
+  if (afterId !== undefined) insert.afterId = afterId
+  try {
+    const result = insertTodoMarkdownItem(readTodoMarkdownForEdit(), insert)
+    return writeTodoMarkdown(result.markdown, broadcast, {item: result.item})
+  } catch (error) {
+    return jsonResponse({ok: false, error: serializeError(error)}, 400)
+  }
+}
+
+async function patchTodoItem(id: string, req: Request, broadcast: (payload: JsonObject) => void): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const patch: TodoMarkdownPatch = {}
+  const text = asString(parsed.body["text"])
+  if (text !== undefined) patch.text = text
+  const checked = asBoolean(parsed.body["checked"])
+  if (checked !== undefined) patch.checked = checked
+  if (patch.text === undefined && patch.checked === undefined) return jsonResponse({ok: false, error: "text or checked required"}, 400)
+  try {
+    const result = updateTodoMarkdownItem(readTodoMarkdownForEdit(), id, patch)
+    return writeTodoMarkdown(result.markdown, broadcast, {item: result.item})
+  } catch (error) {
+    return jsonResponse({ok: false, error: serializeError(error)}, 400)
+  }
+}
+
+function deleteTodoItem(id: string, broadcast: (payload: JsonObject) => void): Response {
+  try {
+    const result = deleteTodoMarkdownItem(readTodoMarkdownForEdit(), id)
+    return writeTodoMarkdown(result.markdown, broadcast, {removed: result.removed})
+  } catch (error) {
+    return jsonResponse({ok: false, error: serializeError(error)}, 400)
+  }
+}
+
+function writeTodoMarkdown(text: string, broadcast: (payload: JsonObject) => void, extra: JsonObject = {}): Response {
+  const path = todoMarkdownPath()
+  writeFileSync(path, text, "utf8")
+  const payload = todoMarkdownPayload()
+  if (payload === null) return jsonResponse({ok: false, path, error: "TODO.md not found after write"}, 500)
+  broadcast({type: "hud-todo-changed", todo: payload})
+  return jsonResponse({...payload, ...extra})
 }
 
 function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
@@ -682,8 +843,8 @@ function workspaceFilesModuleContextForSnapshot(snapshot: ModuleSnapshot): Works
   }
 }
 
-function contextPayload(options: HttpServerOptions, contexts: ModuleContextStore): JsonObject {
-  const contextsPayload = processContextsPayload(options, contexts)
+function contextPayload(options: HttpServerOptions, contexts: ModuleContextStore, hudTodo: HudTodoContextStore): JsonObject {
+  const contextsPayload = processContextsPayload(options, contexts, hudTodo)
   const active = contextsPayload.find((item) => asObject(item.context["display"])?.["active"] === true) ?? contextsPayload[0] ?? null
   if (active === null) return {ok: true, context: null}
   return {
@@ -696,16 +857,16 @@ function contextPayload(options: HttpServerOptions, contexts: ModuleContextStore
   }
 }
 
-function processContextsPayload(options: HttpServerOptions, contexts: ModuleContextStore): Array<{processId: string; moduleId: string; label: string; context: JsonObject}> {
+function processContextsPayload(options: HttpServerOptions, contexts: ModuleContextStore, hudTodo: HudTodoContextStore): Array<{processId: string; moduleId: string; label: string; context: JsonObject}> {
   return options.modules.snapshots().map((module) => ({
     processId: module.id,
     moduleId: module.id,
     label: module.label,
-    context: contextForModule(module, contexts),
+    context: contextWithHudTodo(contextForModule(module, contexts), hudTodo),
   }))
 }
 
-function getProcessContext(processId: string, options: HttpServerOptions, contexts: ModuleContextStore): Response {
+function getProcessContext(processId: string, options: HttpServerOptions, contexts: ModuleContextStore, hudTodo: HudTodoContextStore): Response {
   const module = moduleForProcessId(processId, options)
   if (module === undefined) return processNotFoundResponse(processId)
   const snapshot = module.snapshot()
@@ -715,7 +876,7 @@ function getProcessContext(processId: string, options: HttpServerOptions, contex
     processId: snapshot.id,
     moduleId: snapshot.id,
     label: snapshot.label,
-    context: contextForModule(snapshot, contexts),
+    context: contextWithHudTodo(contextForModule(snapshot, contexts), hudTodo),
   })
 }
 
@@ -739,6 +900,18 @@ function getProcessModules(processId: string, url: URL, options: HttpServerOptio
 
 function contextForModule(module: ModuleSnapshot, contexts: ModuleContextStore): JsonObject {
   return contexts.get(module.id) ?? runtimeFallbackContext(module)
+}
+
+function contextWithHudTodo(context: JsonObject, hudTodo: HudTodoContextStore): JsonObject {
+  if (hudTodo.context === null) return context
+  const hud = asObject(context["hud"]) ?? {}
+  return {
+    ...context,
+    hud: {
+      ...hud,
+      todo: hudTodo.context,
+    },
+  }
 }
 
 function runtimeFallbackContext(module: ModuleSnapshot): JsonObject {

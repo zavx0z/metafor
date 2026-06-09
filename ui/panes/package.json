@@ -9,6 +9,7 @@
   "exports": {
     ".": "./index.ts",
     "./syntax": "./editor/languages/pattern-highlighter.ts",
+    "./todo-model": "./todo-model.ts",
     "./playground": "./playground/server.ts"
   },
   "scripts": {

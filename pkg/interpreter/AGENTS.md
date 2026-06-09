@@ -83,6 +83,17 @@ curl -s http://127.0.0.1:6500/space
 
 `GET /context` - главный endpoint для запроса "что сейчас видно/выделено". Он возвращает один текущий active context, а не полный dump всех runtime.
 
+`context.hud.todo` содержит текущее состояние HUD ToDoPane: подсвеченные человеком пункты `TODO.md`, чтобы агент понимал, о чем речь. Подсветка - состояние панели, не данные файла.
+
+TODO HUD API:
+
+- `GET /hud/todo` читает корневой `TODO.md` и parsed items.
+- `PUT /hud/todo` заменяет файл целиком.
+- `POST /hud/todo/items` добавляет пункт.
+- `PATCH /hud/todo/items/:id` меняет текст пункта или markdown checkbox `checked`.
+- `DELETE /hud/todo/items/:id` удаляет пункт.
+- `POST /hud/todo/highlight` подсвечивает пункт в HUD для `context.hud.todo.highlightedItems`.
+
 Process API:
 
 - `GET /processes` возвращает live processes.

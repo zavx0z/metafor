@@ -23,6 +23,7 @@ import {
   EditorPane,
   FileListPane,
   TerminalPane,
+  ToDoPane,
   normalizeFileListSelection,
   sourceDisplayLocation,
   sourcePathFromLocation,
@@ -34,6 +35,8 @@ import {
   type TerminalPaneOpts,
   type TerminalSize,
   type TerminalStatusKind,
+  type ToDoPaneContextSnapshot,
+  type ToDoPanePanelStateSnapshot,
 } from "@ui/panes"
 import {
   DisplayHoverOutlinePane,
@@ -81,6 +84,7 @@ type ServerMessage =
   | {type: "source-patched"; moduleId: string; reason: "save" | "apply_patch"; files: SourcePatchedFile[]; breakpoints?: SourcePatchedBreakpoints[]}
   | {type: "result"; requestId: number; ok: boolean; result?: unknown; error?: string}
   | {type: "ui-host-command"; requestId: number; command: string; params?: unknown}
+  | {type: "hud-todo-changed"; todo?: TodoMarkdownPayload}
   | {type: "reload"}
 
 type SourcePatchedFile = {
@@ -226,6 +230,9 @@ type ModuleCurrentContext = {
     focused: boolean
     pendingInput: string
     promptVisible: boolean
+  }
+  hud: {
+    todo: ToDoPaneContextSnapshot | null
   }
 }
 
@@ -474,6 +481,9 @@ const HOST_TERMINAL_SESSION_STORAGE_KEY = "metafor.interpreter.hostTerminal.sess
 const HOST_TERMINAL_HUD_RECT_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudRect:v1"
 const HOST_TERMINAL_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.hostTerminal.hudDocked:v1"
 const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTerminal.dockPlacement:v1"
+const TODO_HUD_RECT_STORAGE_KEY = "metafor.interpreter.todo.hudRect:v1"
+const TODO_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.todo.hudDocked:v1"
+const TODO_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.todo.dockPlacement:v1"
 const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
 const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
 const VOICE_INPUT_CONTEXT_STORAGE_KEY = "metafor.interpreter.voice.context"
@@ -494,6 +504,7 @@ const HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY = "metafor.interpreter.hostTe
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
 const INTERPRETER_VIEWPOINT_STORAGE_KEY = "metafor.interpreter.viewPoint:v1"
 const INTERPRETER_DISPLAY_POSITIONS_STORAGE_KEY = "metafor.interpreter.displayPositions:v1"
+const TODO_PANEL_STATE_STORAGE_KEY = "metafor.interpreter.todo.panelState:v1"
 const INTERPRETER_VIEWPOINT_STORE_DELAY_MS = 120
 const INTERPRETER_DISPLAY_POSITION_STORE_DELAY_MS = 120
 const WORKSPACE_FILES_STATE_STORAGE_PREFIX = "metafor.interpreter.workspaceFiles:v1"
@@ -523,6 +534,12 @@ const HOST_TERMINAL_DOCK_SHORT = 36
 const HOST_TERMINAL_DOCK_LONG = 128
 const HOST_TERMINAL_DOCK_MARGIN = 8
 const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
+const TODO_HUD_MIN_W = 320
+const TODO_HUD_MIN_H = 220
+const TODO_DOCK_SHORT = 34
+const TODO_DOCK_LONG = 96
+const TODO_DOCK_MARGIN = 8
+const TODO_DOCK_LONG_PRESS_MS = 360
 const HOST_TERMINAL_BRAND_LABEL = "Codex"
 const HOST_TERMINAL_MODEL_LABEL = "GPT 5,5"
 const HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE = 22
@@ -561,10 +578,15 @@ type VoiceHudAnchorPlacement = {
 const DEFAULT_HOST_TERMINAL_HUD_RECT: UiSurfaceRect = {x: 643, y: 60, w: 755, h: 943}
 const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "top", offset: 858}
 const DEFAULT_VOICE_HUD_RECT: UiSurfaceRect = {x: 1783, y: 960, w: VOICE_HUD_W, h: VOICE_HUD_H}
+const DEFAULT_TODO_HUD_RECT: UiSurfaceRect = {x: 16, y: 72, w: 430, h: 560}
+const DEFAULT_TODO_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left", offset: 260}
 
 let uiCanvas: UiRuntime | null = null
 let uiLoading = false
 let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
+let todoPane: ToDoPane | null = null
+let todoDockPane: TodoDockPane | null = null
+let todoContext: ToDoPaneContextSnapshot | null = null
 let hostTerminal: HostTerminalController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
@@ -572,6 +594,9 @@ let hostTerminalStatusLabelForLayout = t("terminalConnecting")
 let hostTerminalHudDocked = readStoredHostTerminalHudDocked()
 let hostTerminalDockPlacement: HostTerminalDockPlacement | null = readStoredHostTerminalDockPlacement() ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
 let hostTerminalHudRectPreview: UiSurfaceRect | null = null
+let todoHudDocked = readStoredTodoHudDocked()
+let todoDockPlacement: HostTerminalDockPlacement | null = readStoredTodoDockPlacement() ?? DEFAULT_TODO_DOCK_PLACEMENT
+let todoHudRectPreview: UiSurfaceRect | null = null
 let voiceHudPane: VoiceInputHud | null = null
 let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
@@ -722,6 +747,9 @@ function handleServerMessage(msg: ServerMessage): void {
     case "ui-host-command":
       void handleUiHostCommand(msg)
       return
+    case "hud-todo-changed":
+      loadTodoPaneFromPayload(msg.todo)
+      return
     case "reload": {
       const url = new URL(window.location.href)
       url.searchParams.set("_r", String(Date.now()))
@@ -775,6 +803,19 @@ async function executeUiHostCommand(command: string, params: unknown): Promise<u
       return setHudTerminalDocked(false)
     case "hud.terminal.toggle":
       return setHudTerminalDocked(!hostTerminalHudDocked)
+    case "hud.todo.get":
+      return hudTodoPayload()
+    case "hud.todo.highlight":
+      return setHudTodoHighlight(params)
+    case "hud.todo.reload":
+      await loadTodoPane()
+      return hudTodoPayload()
+    case "hud.todo.dock":
+      return setHudTodoDocked(true)
+    case "hud.todo.show":
+      return setHudTodoDocked(false)
+    case "hud.todo.toggle":
+      return setHudTodoDocked(!todoHudDocked)
     case "sqlite.open":
       return await openSqliteDisplay(sqliteOpenParams(params))
     default:
@@ -1268,6 +1309,39 @@ function hudTerminalPayload(): unknown {
   }
 }
 
+function setHudTodoDocked(docked: boolean): unknown {
+  setTodoHudDocked(docked)
+  return hudTodoPayload()
+}
+
+function hudTodoPayload(): unknown {
+  const frame = todoPane === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(todoPane)
+  return {
+    docked: todoHudDocked,
+    rect: frame?.rect ?? null,
+    dockPlacement: todoDockPlacement,
+    context: todoContextSnapshot(),
+  }
+}
+
+function setHudTodoHighlight(params: unknown): unknown {
+  if (todoPane === null) throw new Error("TODO pane is not ready")
+  const ids = todoHighlightIdsFromParams(params)
+  todoPane.setHighlightedIds(ids)
+  return hudTodoPayload()
+}
+
+function todoHighlightIdsFromParams(params: unknown): string[] {
+  const body = objectParam(params)
+  const rawIds = body["highlightedIds"] ?? body["ids"]
+  const ids = Array.isArray(rawIds)
+    ? rawIds.filter((item): item is string => typeof item === "string")
+    : []
+  const id = stringParam(body["id"]) ?? stringParam(body["itemId"])
+  if (id !== undefined) ids.push(id)
+  return [...new Set(ids)]
+}
+
 function displayInfos(): DisplayInfo[] {
   if (uiCanvas === null) return []
   const runtimeDisplays = new Map(uiCanvas.displaySnapshots().map((display) => [display.id, display]))
@@ -1458,6 +1532,9 @@ function moduleCurrentContextPayload(controller: ModuleDisplayController): Modul
       focused: controller.terminal.isFocused(),
       pendingInput: controller.terminalInput.buffer,
       promptVisible: controller.terminalInput.promptVisible,
+    },
+    hud: {
+      todo: todoContextSnapshot(),
     },
   }
 }
@@ -1835,6 +1912,23 @@ async function initEngine(): Promise<void> {
       },
     })
     displayHoverOutlinePane = new DisplayHoverOutlinePane()
+    const todoStored = readStoredTodoPanelState()
+    todoPane = new ToDoPane({
+      title: "TODO.md",
+      path: "TODO.md",
+      highlightedIds: todoStored.highlightedIds,
+      expandedCompletedIds: todoStored.expandedCompletedIds,
+      draggable: true,
+      resizable: true,
+      onContextChange: updateTodoContext,
+      onPanelStateChange: storeTodoPanelState,
+      onItemCheckedChange: (id, checked) => {
+        void updateTodoItemChecked(id, checked)
+      },
+      onFrameRectPreview: previewTodoHudRect,
+      onFrameRectChange: storeTodoHudRectAndRelayout,
+      onFrameDockRequest: () => setTodoHudDocked(true),
+    })
     voiceHudPane = new VoiceInputHud({
       onToggle: () => void toggleVoiceInput(),
       onMove: storeVoiceHudRect,
@@ -1881,6 +1975,7 @@ async function initEngine(): Promise<void> {
       onPhraseFuzzyChange: storeVoiceFuzzyTolerance,
     })
     installEnginePanes()
+    void loadTodoPane()
     uiCanvas.handleResize()
     syncModuleDisplays()
     resizeObserver = new ResizeObserver(handleEngineResize)
@@ -1902,6 +1997,11 @@ function handleEngineResize(): void {
 function installEnginePanes(): void {
   if (uiCanvas === null || displayHoverOutlinePane === null) return
   uiCanvas.addHudSurface(displayHoverOutlinePane, ({w, h}) => ({x: 0, y: 0, w, h}))
+  if (todoPane !== null) {
+    uiCanvas.addHudSurface(todoPane, todoHudRect)
+  }
+  todoDockPane ??= new TodoDockPane(() => setTodoHudDocked(false))
+  uiCanvas.addHudSurface(todoDockPane, todoDockRect)
   const host = ensureHostTerminalController()
   uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect)
   if (host.socket === null) connectHostTerminal(host)
@@ -1914,6 +2014,105 @@ function installEnginePanes(): void {
   }
   updateVoiceHud()
   scheduleVoiceAutoWake(500)
+}
+
+type TodoMarkdownPayload = {
+  ok: true
+  path: string
+  mtimeMs: number
+  size: number
+  text: string
+}
+
+async function loadTodoPane(): Promise<void> {
+  const pane = todoPane
+  if (pane === null) return
+  try {
+    const response = await fetch("/hud/todo")
+    if (!response.ok) throw new Error(await response.text())
+    const payload = await response.json() as TodoMarkdownPayload
+    loadTodoPaneFromPayload(payload)
+  } catch (error) {
+    pane.setMarkdown(`- [ ] TODO.md не загружен: ${error instanceof Error ? error.message : String(error)}`, "TODO.md")
+  }
+}
+
+function loadTodoPaneFromPayload(payload: TodoMarkdownPayload | undefined): void {
+  if (payload === undefined || todoPane === null) {
+    void loadTodoPane()
+    return
+  }
+  todoPane.setMarkdown(payload.text, payload.path)
+}
+
+async function updateTodoItemChecked(id: string, checked: boolean): Promise<void> {
+  try {
+    const response = await fetch(`/hud/todo/items/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({checked}),
+    })
+    if (!response.ok) throw new Error(await response.text())
+    const payload = await response.json() as TodoMarkdownPayload
+    loadTodoPaneFromPayload(payload)
+  } catch (error) {
+    console.warn("TODO checkbox update failed:", error)
+    void loadTodoPane()
+  }
+}
+
+function updateTodoContext(context: ToDoPaneContextSnapshot): void {
+  todoContext = context
+  storeTodoPanelState(todoPane?.panelStateSnapshot() ?? {highlightedIds: context.highlightedIds, expandedCompletedIds: []})
+  publishTodoContext(context)
+  queuePublishAllModuleContexts()
+}
+
+function publishTodoContext(context: ToDoPaneContextSnapshot): void {
+  if (socket === undefined || socket.readyState !== WebSocket.OPEN) return
+  socket.send(JSON.stringify({
+    type: "hud-todo-context",
+    context,
+  }))
+}
+
+function todoContextSnapshot(): ToDoPaneContextSnapshot | null {
+  if (todoPane !== null) return todoPane.contextSnapshot()
+  return todoContext
+}
+
+function queuePublishAllModuleContexts(): void {
+  for (const controller of moduleDisplays.values()) queuePublishModuleContext(controller)
+}
+
+function readStoredTodoPanelState(): ToDoPanePanelStateSnapshot {
+  try {
+    const raw = localStorage.getItem(TODO_PANEL_STATE_STORAGE_KEY)
+    if (raw === null) return emptyTodoPanelState()
+    const object = objectParamMaybe(JSON.parse(raw))
+    if (object === undefined) return emptyTodoPanelState()
+    return {
+      highlightedIds: storedStringArray(object["highlightedIds"]),
+      expandedCompletedIds: storedStringArray(object["expandedCompletedIds"]),
+    }
+  } catch {
+    return emptyTodoPanelState()
+  }
+}
+
+function emptyTodoPanelState(): ToDoPanePanelStateSnapshot {
+  return {highlightedIds: [], expandedCompletedIds: []}
+}
+
+function storeTodoPanelState(state: ToDoPanePanelStateSnapshot): void {
+  try {
+    localStorage.setItem(TODO_PANEL_STATE_STORAGE_KEY, JSON.stringify({
+      highlightedIds: state.highlightedIds,
+      expandedCompletedIds: state.expandedCompletedIds,
+    }))
+  } catch {
+    // Storage can be unavailable in private contexts.
+  }
 }
 
 function toggleLocale(): void {
@@ -2390,6 +2589,123 @@ class HostTerminalDockPane extends UiSurface {
     if (frame === undefined || frame === null) return
     const placement = hostTerminalDockPlacementFromPoint(point, frame.bounds)
     setHostTerminalDockPlacement(placement)
+  }
+
+  #canvasPoint(event: MouseEvent): {x: number; y: number} | null {
+    const canvas = this.canvas?.canvas
+    if (canvas === undefined) return null
+    const rect = canvas.getBoundingClientRect()
+    return {x: event.clientX - rect.left, y: event.clientY - rect.top}
+  }
+}
+
+class TodoDockPane extends UiSurface {
+  #press: {
+    lastX: number
+    lastY: number
+    dragging: boolean
+    timer: ReturnType<typeof setTimeout> | null
+  } | null = null
+  #suppressRestoreClick = false
+
+  constructor(private readonly onRestore: () => void) {
+    super({bgColor: null, borderColor: null})
+    this.node.name = "TodoDockPane"
+  }
+
+  protected render(): void {
+    HudSideTab(this, {
+      rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
+      key: "todo-dock-restore",
+      edge: currentTodoDockEdge(),
+      icon: uiIcons.apply,
+      label: "TODO",
+      tone: "neutral",
+      tooltip: "TODO.md",
+      onClick: () => this.#restoreFromClick(),
+    })
+  }
+
+  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    super.onPointerDown(event, localX, localY)
+    if (event.button !== 0 || this.pressedHit === null) return
+    const point = this.#canvasPoint(event)
+    if (point === null) return
+    const press = {
+      lastX: point.x,
+      lastY: point.y,
+      dragging: false,
+      timer: null as ReturnType<typeof setTimeout> | null,
+    }
+    press.timer = setTimeout(() => {
+      if (this.#press !== press) return
+      press.dragging = true
+      this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
+    }, TODO_DOCK_LONG_PRESS_MS)
+    this.#press = press
+  }
+
+  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+    const press = this.#press
+    if (press === null) {
+      super.onPointerMove(event, localX, localY)
+      return
+    }
+    const point = this.#canvasPoint(event)
+    if (point !== null) {
+      press.lastX = point.x
+      press.lastY = point.y
+    }
+    if (!press.dragging) {
+      super.onPointerMove(event, localX, localY)
+      return
+    }
+    event.preventDefault()
+    this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
+    if (this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = "grabbing"
+  }
+
+  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+    const press = this.#press
+    this.#press = null
+    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
+    const wasDragging = press?.dragging === true
+    if (wasDragging) this.#suppressRestoreClick = true
+    super.onPointerUp(event, localX, localY)
+    if (wasDragging) this.#suppressRestoreClick = false
+  }
+
+  override onPointerLeave(): void {
+    super.onPointerLeave()
+    this.#cancelPress()
+  }
+
+  override onDeactivate(): void {
+    super.onDeactivate()
+    this.#cancelPress()
+  }
+
+  override dispose(): void {
+    this.#cancelPress()
+    super.dispose()
+  }
+
+  #restoreFromClick(): void {
+    if (this.#suppressRestoreClick) return
+    this.onRestore()
+  }
+
+  #cancelPress(): void {
+    const press = this.#press
+    this.#press = null
+    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
+  }
+
+  #moveDockToCanvasPoint(point: {x: number; y: number}): void {
+    const frame = this.canvas?.surfaceFrame(this)
+    if (frame === undefined || frame === null) return
+    const placement = todoDockPlacementFromPoint(point, frame.bounds)
+    setTodoDockPlacement(placement)
   }
 
   #canvasPoint(event: MouseEvent): {x: number; y: number} | null {
@@ -4402,6 +4718,35 @@ function storeHostTerminalHudRectAndRelayout(rect: UiSurfaceRect): void {
   relayoutHudSurfaces()
 }
 
+function readStoredTodoHudRect(): UiSurfaceRect | null {
+  try {
+    return parseStoredPaneRect(localStorage.getItem(TODO_HUD_RECT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+function storeTodoHudRect(rect: UiSurfaceRect): void {
+  const normalized = normalizeStoredPaneRect(rect)
+  if (normalized === null) return
+  try {
+    localStorage.setItem(TODO_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
+  } catch {
+    // Storage can be unavailable in private contexts.
+  }
+}
+
+function previewTodoHudRect(rect: UiSurfaceRect): void {
+  todoHudRectPreview = rect
+  relayoutHudSurfaces()
+}
+
+function storeTodoHudRectAndRelayout(rect: UiSurfaceRect): void {
+  todoHudRectPreview = null
+  storeTodoHudRect(rect)
+  relayoutHudSurfaces()
+}
+
 function readStoredVoiceHudPlacement(): VoiceHudAnchorPlacement | UiSurfaceRect | null {
   try {
     const raw = localStorage.getItem(VOICE_HUD_RECT_STORAGE_KEY)
@@ -4447,9 +4792,37 @@ function writeStoredHostTerminalHudDocked(docked: boolean): void {
   }
 }
 
+function readStoredTodoHudDocked(): boolean {
+  try {
+    return localStorage.getItem(TODO_HUD_DOCKED_STORAGE_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function writeStoredTodoHudDocked(docked: boolean): void {
+  try {
+    localStorage.setItem(TODO_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
 function readStoredHostTerminalDockPlacement(): HostTerminalDockPlacement | null {
   try {
     const raw = localStorage.getItem(HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY)
+    if (raw === null) return null
+    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
+    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
+    return {edge: value.edge, offset: value.offset}
+  } catch {
+    return null
+  }
+}
+
+function readStoredTodoDockPlacement(): HostTerminalDockPlacement | null {
+  try {
+    const raw = localStorage.getItem(TODO_DOCK_PLACEMENT_STORAGE_KEY)
     if (raw === null) return null
     const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
     if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
@@ -4467,12 +4840,29 @@ function writeStoredHostTerminalDockPlacement(placement: HostTerminalDockPlaceme
   }
 }
 
+function writeStoredTodoDockPlacement(placement: HostTerminalDockPlacement): void {
+  try {
+    localStorage.setItem(TODO_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
 function setHostTerminalDockPlacement(placement: HostTerminalDockPlacement): void {
   const previous = hostTerminalDockPlacement
   if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
   hostTerminalDockPlacement = placement
   writeStoredHostTerminalDockPlacement(placement)
   hostTerminalDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
+function setTodoDockPlacement(placement: HostTerminalDockPlacement): void {
+  const previous = todoDockPlacement
+  if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
+  todoDockPlacement = placement
+  writeStoredTodoDockPlacement(placement)
+  todoDockPane?.requestRender()
   relayoutHudSurfaces()
 }
 
@@ -4492,6 +4882,19 @@ function setHostTerminalHudDocked(docked: boolean): void {
   relayoutHudSurfaces()
 }
 
+function setTodoHudDocked(docked: boolean): void {
+  if (todoHudDocked === docked) return
+  todoHudDocked = docked
+  writeStoredTodoHudDocked(docked)
+  if (docked && todoPane !== null) {
+    uiCanvas?.setFocused(null)
+    uiCanvas?.inputProxy?.blur()
+  }
+  todoPane?.requestRender()
+  todoDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
 function relayoutHudSurfaces(): void {
   uiCanvas?.relayout({scope: "hud", forceSetRect: false})
 }
@@ -4502,6 +4905,10 @@ function isHostTerminalDockEdge(value: unknown): value is HudSideTabEdge {
 
 function currentHostTerminalDockEdge(): HudSideTabEdge {
   return hostTerminalDockPlacement?.edge ?? DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT.edge
+}
+
+function currentTodoDockEdge(): HudSideTabEdge {
+  return todoDockPlacement?.edge ?? DEFAULT_TODO_DOCK_PLACEMENT.edge
 }
 
 function parseStoredPaneRect(raw: string | null): UiSurfaceRect | null {
@@ -6663,6 +7070,15 @@ function hostTerminalHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return clampHostTerminalHudRect(DEFAULT_HOST_TERMINAL_HUD_RECT, w, h)
 }
 
+function todoHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (todoHudDocked) return hiddenRect()
+  if (w < TODO_HUD_MIN_W || h < TODO_HUD_MIN_H) return hiddenRect()
+  if (todoHudRectPreview !== null) return clampTodoHudRect(todoHudRectPreview, w, h)
+  const stored = readStoredTodoHudRect()
+  if (stored !== null) return clampTodoHudRect(stored, w, h)
+  return clampTodoHudRect(DEFAULT_TODO_HUD_RECT, w, h)
+}
+
 function hostTerminalAgentSignalRect(bounds: {w: number; h: number}): UiSurfaceRect {
   const terminal = hostTerminalHudRect(bounds)
   if (terminal.visible === false) return hiddenRect()
@@ -6779,6 +7195,11 @@ function hostTerminalDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return hostTerminalDockRectForPlacement(hostTerminalDockPlacement ?? defaultHostTerminalDockPlacement({w, h}), {w, h})
 }
 
+function todoDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (!todoHudDocked || w < 80 || h < 80) return hiddenRect()
+  return todoDockRectForPlacement(todoDockPlacement ?? defaultTodoDockPlacement({w, h}), {w, h})
+}
+
 function hostTerminalDockRectForPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): UiSurfaceRect {
   const vertical = placement.edge === "left" || placement.edge === "right"
   const dockW = vertical
@@ -6813,6 +7234,40 @@ function hostTerminalDockRectForPlacement(placement: HostTerminalDockPlacement, 
   }
 }
 
+function todoDockRectForPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): UiSurfaceRect {
+  const vertical = placement.edge === "left" || placement.edge === "right"
+  const dockW = vertical
+    ? Math.min(TODO_DOCK_SHORT, Math.max(1, bounds.w - TODO_DOCK_MARGIN))
+    : Math.min(TODO_DOCK_LONG, Math.max(1, bounds.w - TODO_DOCK_MARGIN * 2))
+  const dockH = vertical
+    ? Math.min(TODO_DOCK_LONG, Math.max(1, bounds.h - TODO_DOCK_MARGIN * 2))
+    : Math.min(TODO_DOCK_SHORT, Math.max(1, bounds.h - TODO_DOCK_MARGIN))
+  if (vertical) {
+    const centerY = clampNumber(
+      placement.offset,
+      TODO_DOCK_MARGIN + dockH / 2,
+      Math.max(TODO_DOCK_MARGIN + dockH / 2, bounds.h - TODO_DOCK_MARGIN - dockH / 2),
+    )
+    return {
+      x: placement.edge === "left" ? 0 : Math.max(0, bounds.w - dockW),
+      y: centerY - dockH / 2,
+      w: dockW,
+      h: dockH,
+    }
+  }
+  const centerX = clampNumber(
+    placement.offset,
+    TODO_DOCK_MARGIN + dockW / 2,
+    Math.max(TODO_DOCK_MARGIN + dockW / 2, bounds.w - TODO_DOCK_MARGIN - dockW / 2),
+  )
+  return {
+    x: centerX - dockW / 2,
+    y: placement.edge === "top" ? 0 : Math.max(0, bounds.h - dockH),
+    w: dockW,
+    h: dockH,
+  }
+}
+
 function defaultHostTerminalDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
   const placement = DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
   const vertical = placement.edge === "left" || placement.edge === "right"
@@ -6838,6 +7293,27 @@ function defaultHostTerminalDockPlacement(bounds: {w: number; h: number}): HostT
   }
 }
 
+function defaultTodoDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  const placement = DEFAULT_TODO_DOCK_PLACEMENT
+  const vertical = placement.edge === "left" || placement.edge === "right"
+  const dockW = vertical
+    ? Math.min(TODO_DOCK_SHORT, Math.max(1, bounds.w - TODO_DOCK_MARGIN))
+    : Math.min(TODO_DOCK_LONG, Math.max(1, bounds.w - TODO_DOCK_MARGIN * 2))
+  const dockH = vertical
+    ? Math.min(TODO_DOCK_LONG, Math.max(1, bounds.h - TODO_DOCK_MARGIN * 2))
+    : Math.min(TODO_DOCK_SHORT, Math.max(1, bounds.h - TODO_DOCK_MARGIN))
+  const minOffset = vertical
+    ? TODO_DOCK_MARGIN + dockH / 2
+    : TODO_DOCK_MARGIN + dockW / 2
+  const maxOffset = vertical
+    ? Math.max(minOffset, bounds.h - TODO_DOCK_MARGIN - dockH / 2)
+    : Math.max(minOffset, bounds.w - TODO_DOCK_MARGIN - dockW / 2)
+  return {
+    edge: placement.edge,
+    offset: clampNumber(placement.offset, minOffset, maxOffset),
+  }
+}
+
 function hostTerminalDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
   const distances: Array<{edge: HudSideTabEdge; distance: number}> = [
     {edge: "left", distance: point.x},
@@ -6859,11 +7335,47 @@ function hostTerminalDockPlacementFromPoint(point: {x: number; y: number}, bound
   }
 }
 
+function todoDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  const distances: Array<{edge: HudSideTabEdge; distance: number}> = [
+    {edge: "left", distance: point.x},
+    {edge: "right", distance: bounds.w - point.x},
+    {edge: "top", distance: point.y},
+    {edge: "bottom", distance: bounds.h - point.y},
+  ]
+  let best = distances[0]!
+  for (const item of distances.slice(1)) {
+    if (item.distance < best.distance) best = item
+  }
+  const rect = todoDockRectForPlacement({
+    edge: best.edge,
+    offset: best.edge === "left" || best.edge === "right" ? point.y : point.x,
+  }, bounds)
+  return {
+    edge: best.edge,
+    offset: best.edge === "left" || best.edge === "right" ? rect.y + rect.h / 2 : rect.x + rect.w / 2,
+  }
+}
+
 function clampHostTerminalHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
   const bw = Math.max(1, Math.round(boundsW))
   const bh = Math.max(1, Math.round(boundsH))
   const minW = Math.min(HOST_TERMINAL_HUD_PANEL_MIN_W, bw)
   const minH = Math.min(HOST_TERMINAL_HUD_PANEL_MIN_H, bh)
+  const rectW = clampNumber(rect.w, minW, bw)
+  const rectH = clampNumber(rect.h, minH, bh)
+  return {
+    x: clampNumber(rect.x, 0, Math.max(0, bw - rectW)),
+    y: clampNumber(rect.y, 0, Math.max(0, bh - rectH)),
+    w: rectW,
+    h: rectH,
+  }
+}
+
+function clampTodoHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+  const bw = Math.max(1, Math.round(boundsW))
+  const bh = Math.max(1, Math.round(boundsH))
+  const minW = Math.min(TODO_HUD_MIN_W, bw)
+  const minH = Math.min(TODO_HUD_MIN_H, bh)
   const rectW = clampNumber(rect.w, minW, bw)
   const rectH = clampNumber(rect.h, minH, bh)
   return {

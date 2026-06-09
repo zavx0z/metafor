@@ -62,6 +62,18 @@ Console.*             -> ConsoleLogStore
 
 `src/server.ts` поднимает REST, WS и web UI.
 
+Environment API:
+
+```text
+GET    /health
+GET    /context
+GET    /space
+POST   /space/focus
+POST   /space/frame
+GET    /hud/todo
+POST   /hud/todo/highlight
+```
+
 Processes API:
 
 ```text
@@ -75,6 +87,8 @@ GET    /processes/:id/breakpoints
 POST   /processes/:id/breakpoint
 DELETE /processes/:id/breakpoint
 ```
+
+`GET /hud/todo` читает корневой `TODO.md` для HUD ToDoPane. Текст пунктов и markdown checkbox `- [ ]` / `- [x]` являются данными файла. Подсветка пунктов является состоянием HUD-панели, не пишется в `TODO.md`, но входит в `context.hud.todo.highlightedItems`, чтобы агент видел, о чем сейчас речь.
 
 `hello` WebSocket-сообщение включает `modules`, поэтому UI сразу строит один `UIDisplay` на каждый модуль.
 

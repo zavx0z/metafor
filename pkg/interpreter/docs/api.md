@@ -9,6 +9,7 @@ Interpreter
   HUD
     terminal
     voice/status
+    todo
   Space
     viewpoint
     displays[]              # визуальные поверхности
@@ -65,6 +66,17 @@ POST   /hud/terminal/toggle
 WS     /hud/terminal/stream
 GET    /hud/terminal/sessions
 
+GET    /hud/todo
+PUT    /hud/todo
+POST   /hud/todo/items
+PATCH  /hud/todo/items/:id
+DELETE /hud/todo/items/:id
+GET    /hud/todo/panel
+POST   /hud/todo/highlight
+POST   /hud/todo/show
+POST   /hud/todo/dock
+POST   /hud/todo/toggle
+
 GET    /sqlite?path=<file.sqlite>&table=<name>
 POST   /sqlite/open
 POST   /sqlite/cell
@@ -98,14 +110,53 @@ GET    /console?since=<iso|seq>&limit=<n>
     },
     "currentFrame": {"index": 0, "url": "r/dark/server.ts", "line": 41, "column": 5},
     "scopes": {"expanded": [], "detail": null},
-    "terminal": {"focused": false, "pendingInput": "", "promptVisible": true}
+    "terminal": {"focused": false, "pendingInput": "", "promptVisible": true},
+    "hud": {
+      "todo": {
+        "path": "/repo/TODO.md",
+        "highlightedIds": ["todo:abc123"],
+        "highlightedItems": [
+          {"kind": "task", "line": 12, "text": "Сделать Boundary adapter", "checked": false}
+        ],
+        "highlightedText": "- [ ] Сделать Boundary adapter"
+      }
+    }
   }
 }
 ```
 
 Позиции в `source.cursor` и `source.selection`: `line` - 1-based, `column` - 0-based. `selection.end.column` end-exclusive.
 
+`context.hud.todo` - состояние HUD ToDoPane. `highlightedItems` содержит пункты `TODO.md`, которые человек подсветил в панели, чтобы агент понимал, о чем сейчас речь. Это состояние панели, а не данные файла.
+
 `origin:"ui"` означает, что context пришел от UI-host и включает реальные caret, selection и scopes detail. `origin:"runtime"` означает fallback из текущей точки исполнения.
+
+## TODO HUD
+
+`GET /hud/todo` читает корневой `TODO.md` и возвращает Markdown плюс parsed items для HUD ToDoPane:
+
+```json
+{"ok": true, "path": "/repo/TODO.md", "mtimeMs": 1710000000000, "size": 1024, "text": "# MetaFor TODO\n", "items": []}
+```
+
+Данные TODO хранятся в файле: текст пунктов и markdown checkbox `- [ ]` / `- [x]`. Подсветка строки хранится как состояние HUD-панели и попадает в `context.hud.todo.highlightedItems`.
+
+Редактирование файла:
+
+```text
+PUT    /hud/todo                # {text}
+POST   /hud/todo/items          # {text, kind?: "task"|"note"|"heading", checked?, depth?, afterId?}
+PATCH  /hud/todo/items/:id      # {text?, checked?}
+DELETE /hud/todo/items/:id
+```
+
+Состояние панели:
+
+```text
+GET    /hud/todo/panel
+POST   /hud/todo/highlight      # {id} или {ids:[...]}
+POST   /hud/todo/show|dock|toggle
+```
 
 ## Space
 
