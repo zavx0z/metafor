@@ -35,7 +35,14 @@ export class Wimp {
 }
 
 export abstract class WimpScalar<T> {
-  constructor(readonly wimp: Wimp) {
+  readonly #wimp: Wimp
+
+  constructor(wimp: Wimp) {
+    this.#wimp = wimp
+  }
+
+  get wimp(): Wimp {
+    return this.#wimp
   }
 
   abstract get(): Promise<T | undefined>

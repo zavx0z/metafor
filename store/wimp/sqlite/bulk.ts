@@ -2,7 +2,15 @@ import type {MetaDSL} from "../../../metafor.t.ts"
 import type {Wimp} from "./wimp.ts"
 
 export class Bulk {
-  constructor(readonly wimp: Wimp) {}
+  readonly #wimp: Wimp
+
+  constructor(wimp: Wimp) {
+    this.#wimp = wimp
+  }
+
+  get wimp(): Wimp {
+    return this.#wimp
+  }
 
   async get(): Promise<MetaDSL["bulk"]> {
     const row = (

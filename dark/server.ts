@@ -6,6 +6,7 @@ import {matter} from "./dark.ts"
 // DSL-файлы `github/.../meta.ts` обращаются к `MetaFor(...)` как к глобальной функции,
 // поэтому регистрируем её до первого dynamic import меты.
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
+
 /**
  * Серверный демон Dark: открывает файловый store через `store/server.open()`,
  * публикует его в `globalThis.store`, и слушает `gravity`-канал на входящие

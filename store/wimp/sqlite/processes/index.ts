@@ -6,7 +6,15 @@ import { Process } from "./process.ts"
 export type ProcessType = `${ProcessTypeEnum}`
 
 export class Processes {
-  constructor(readonly wimp: Wimp) {}
+  readonly #wimp: Wimp
+
+  constructor(wimp: Wimp) {
+    this.#wimp = wimp
+  }
+
+  get wimp(): Wimp {
+    return this.#wimp
+  }
 
   /**
    * INSERT в `process` (UNIQUE по wimp+key).

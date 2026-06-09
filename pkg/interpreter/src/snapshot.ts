@@ -366,11 +366,12 @@ export class SnapshotStore {
     }
 
     for (const scope of frame.scopeChain ?? []) {
-      if (scope.type !== "local" && scope.type !== "closure") continue
+      const type = scopeSnapshotType(scope.type)
+      if (type === undefined) continue
 
       const objectId = scope.object?.objectId
       const snapshot: ScopeSnapshot = {
-        type: scope.type,
+        type,
         properties: {},
       }
 
@@ -387,7 +388,7 @@ export class SnapshotStore {
         }
       }
 
-      scopes[scope.type].push(snapshot)
+      scopes[type].push(snapshot)
     }
 
     return scopes
@@ -406,6 +407,7 @@ export class SnapshotStore {
 
     for (const descriptor of descriptors) {
       if (descriptor.name === undefined) continue
+      if (!isDisplayableScopePropertyName(descriptor.name)) continue
       properties[descriptor.name] = propertySnapshot(descriptor)
     }
 
@@ -433,6 +435,17 @@ export class SnapshotStore {
 
     return asPropertyDescriptors(response?.["result"])
   }
+}
+
+function scopeSnapshotType(type: string | undefined): ScopeSnapshot["type"] | undefined {
+  if (type === "local") return "local"
+  if (type === "nestedLexical") return "local"
+  if (type === "closure") return "closure"
+  return undefined
+}
+
+function isDisplayableScopePropertyName(name: string): boolean {
+  return !/^\d+$/.test(name)
 }
 
 export function propertySnapshot(descriptor: PropertyDescriptor): PropertySnapshot {

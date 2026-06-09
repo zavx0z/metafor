@@ -573,7 +573,7 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/interpreters/resolve", description: "{selector:{side|displayId|moduleId|label|order}} — найти один interpreter display"},
     {method: "POST", path: "/interpreters/focus", description: "{selector, view?, dockHostTerminal?} — сфокусировать interpreter display и вернуть его состояние"},
     {method: "POST", path: "/interpreters/action", description: "{selector, action, params?} — выполнить pause|resume|step|evaluate|source.open|source.openSelection|restart|stop|showExecutionPoint в выбранном interpreter"},
-    {method: "GET", path: "/context", description: "server-owned текущий контекст модулей: display/source cursor/selection/terminal"},
+    {method: "GET", path: "/context", description: "server-owned текущий контекст модулей: display/source cursor/selection/scopes detail/terminal"},
     {method: "GET", path: "/hud/terminal", description: "состояние host terminal HUD"},
     {method: "POST", path: "/hud/terminal/dock", description: "свернуть host terminal HUD"},
     {method: "POST", path: "/hud/terminal/show", description: "развернуть host terminal HUD"},
@@ -587,8 +587,8 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/modules/:id/command", description: "{cmd, params?} — команда в конкретный модуль"},
     {method: "GET", path: "/modules/:id/source?scriptId=<id>", description: "исходник скрипта конкретного модуля"},
     {method: "POST", path: "/modules/:id/source", description: "{sourceUrl, text} — сохранить локальный source file через apply_patch и разослать source-patched"},
-    {method: "POST", path: "/modules/:id/apply_patch", description: "{patch} — применить apply_patch к workspace и разослать source-patched"},
-    {method: "GET", path: "/modules/:id/context", description: "последний текущий контекст конкретного модуля"},
+    {method: "POST", path: "/modules/:id/apply_patch", description: "raw apply_patch text — применить apply_patch к workspace и разослать source-patched"},
+    {method: "GET", path: "/modules/:id/context", description: "последний текущий контекст конкретного модуля, включая source и scopes detail"},
     {method: "GET", path: "/modules/:id/breakpoints", description: "breakpoint registrations конкретного модуля"},
     {method: "POST", path: "/modules/:id/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — breakpoint в конкретном модуле"},
     {method: "DELETE", path: "/modules/:id/breakpoint", description: "{id|breakpointId} — убрать breakpoint из конкретного модуля"},
@@ -768,6 +768,11 @@ async function readJsonObject(req: Request): Promise<{body: JsonObject; error?: 
   } catch (error) {
     return {body: {}, error: `invalid JSON: ${serializeError(error)}`}
   }
+}
+
+async function readPatchText(req: Request): Promise<{patch?: string; error?: string}> {
+  const patch = await req.text()
+  return patch.length === 0 ? {error: "patch required"} : {patch}
 }
 
 function envStrings(value: unknown): Record<string, string> | undefined {
@@ -1206,9 +1211,9 @@ async function applyModulePatch(
   broadcast: (payload: JsonObject) => void,
 ): Promise<Response> {
   if (options.modules.get(moduleId) === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
-  const parsed = await readJsonObject(req)
+  const parsed = await readPatchText(req)
   if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
-  const patch = asString(parsed.body["patch"])
+  const patch = parsed.patch
   if (patch === undefined || patch.trim().length === 0) return jsonResponse({ok: false, error: "patch required"}, 400)
 
   try {

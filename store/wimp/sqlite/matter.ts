@@ -534,11 +534,19 @@ export class MatterChildren {
 }
 
 export class Matter {
+  readonly #parent: Wimp
+
   /**
    * Родительский `Wimp` ORM. Назван `parent` (не `wimp`), чтобы не конфликтовать
    * с одноимённым методом `Matter.wimp(...)` для создания root wimp-particle.
    */
-  constructor(readonly parent: Wimp) {}
+  constructor(parent: Wimp) {
+    this.#parent = parent
+  }
+
+  get parent(): Wimp {
+    return this.#parent
+  }
 
   async wimp(input: {
     src: string

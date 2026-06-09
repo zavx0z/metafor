@@ -7,7 +7,15 @@ import { Reaction } from "./reaction.ts"
  * связи (read/write/states) добавляются через sub-ORM на `Reaction`.
  */
 export class Reactions {
-  constructor(readonly wimp: Wimp) {}
+  readonly #wimp: Wimp
+
+  constructor(wimp: Wimp) {
+    this.#wimp = wimp
+  }
+
+  get wimp(): Wimp {
+    return this.#wimp
+  }
 
   /**
    * INSERT в `reaction` (UNIQUE по wimp+key).

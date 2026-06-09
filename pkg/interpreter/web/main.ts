@@ -43,6 +43,7 @@ import {
   VerbosePane,
   propertySnapshotMapFromProtocolResponse,
   type FrameSnapshot,
+  type ScopeContextSnapshot,
 } from "./interpreter-ui.ts"
 import {getUiLocale, t, toggleUiLocale} from "./i18n.ts"
 import {
@@ -221,6 +222,7 @@ type ModuleCurrentContext = {
   }
   activeFrameIndex: number | null
   currentFrame: Pick<FrameSnapshot, "index" | "function" | "url" | "line" | "column" | "sourceKind" | "scriptId"> | null
+  scopes: ScopeContextSnapshot
   terminal: {
     focused: boolean
     pendingInput: string
@@ -1449,6 +1451,7 @@ function moduleCurrentContextPayload(controller: ModuleDisplayController): Modul
     },
     activeFrameIndex: controller.activeFrameIndex,
     currentFrame: currentFrameContext(currentFrame),
+    scopes: controller.scopes.contextSnapshot(),
     terminal: {
       focused: controller.terminal.isFocused(),
       pendingInput: controller.terminalInput.buffer,
@@ -4739,6 +4742,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       onExpandedChange: (ids) => setWorkspaceFilesExpandedIds(controller, ids),
     }),
     scopes: new ScopesPane({
+      onContextChange: () => queuePublishModuleContext(controller),
       loadProperties: async (objectId) => {
         const props = await runModuleInterpreterCommand(controller, "props", {
           objectId,
@@ -6260,6 +6264,7 @@ async function refreshModuleBreakpoints(controller: ModuleDisplayController): Pr
     controller.breakpointRegistrations = data.filter(isBreakpointRegistration)
     mergeStoredBreakpointSpecs(controller.breakpointRegistrations.map((registration) => registration.spec))
     syncModuleBreakpointMarkers(controller)
+    await syncStoredModuleBreakpoints(controller)
   } catch (error) {
     appendModuleTerminal(controller, {
       ts: new Date().toISOString(),
@@ -6267,6 +6272,108 @@ async function refreshModuleBreakpoints(controller: ModuleDisplayController): Pr
       text: `[ui] breakpoints refresh failed: ${String(error)}`,
     })
   }
+}
+
+async function syncStoredModuleBreakpoints(controller: ModuleDisplayController): Promise<void> {
+  await removeForeignModuleBreakpoints(controller)
+  const registeredKeys = new Set(controller.breakpointRegistrations.map((registration) => breakpointSpecKey(registration.spec)))
+  const missing = readStoredBreakpointSpecs().filter((spec) => (
+    storedBreakpointSpecMatchesModule(spec, controller)
+    && !registeredKeys.has(breakpointSpecKey(spec))
+  ))
+  if (missing.length === 0) return
+
+  const errors: string[] = []
+  for (const spec of missing) {
+    try {
+      const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/breakpoint`, {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify(spec),
+      })
+      const data = await res.json() as {ok?: boolean; error?: string; breakpoints?: unknown}
+      if (!res.ok || data.ok !== true) {
+        errors.push(data.error ?? res.statusText)
+        continue
+      }
+      if (Array.isArray(data.breakpoints)) controller.breakpointRegistrations = data.breakpoints.filter(isBreakpointRegistration)
+    } catch (error) {
+      errors.push(String(error))
+    }
+  }
+
+  if (errors.length > 0) {
+    appendModuleTerminal(controller, {
+      ts: new Date().toISOString(),
+      level: "warn",
+      text: `[ui] breakpoints sync failed: ${errors[0]}`,
+    })
+  }
+  syncModuleBreakpointMarkers(controller)
+}
+
+async function removeForeignModuleBreakpoints(controller: ModuleDisplayController): Promise<void> {
+  const foreign = controller.breakpointRegistrations.filter((registration) => !storedBreakpointSpecMatchesModule(registration.spec, controller))
+  for (const registration of foreign) {
+    try {
+      const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/breakpoint`, {
+        method: "DELETE",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify({id: registration.id}),
+      })
+      const data = await res.json() as {ok?: boolean; breakpoints?: unknown}
+      if (res.ok && data.ok === true && Array.isArray(data.breakpoints)) {
+        controller.breakpointRegistrations = data.breakpoints.filter(isBreakpointRegistration)
+      }
+    } catch {}
+  }
+}
+
+function storedBreakpointSpecMatchesModule(spec: BreakpointSpec, controller: ModuleDisplayController): boolean {
+  if (spec.urlRegex !== undefined) return true
+  const snapshot = moduleSnapshots.get(controller.id)
+  const modulePath = snapshot?.modulePath ?? controller.workspaceFiles.modulePath ?? inferredBreakpointModulePath(controller, snapshot)
+  if (modulePath === null || modulePath.trim().length === 0) return true
+
+  const moduleParts = breakpointPathParts(modulePath)
+  if (moduleParts.length < 2) return true
+  const moduleDirParts = moduleParts.slice(0, -1)
+  const moduleLeafDirParts = moduleDirParts.slice(-1)
+  const candidates = [spec.url, spec.sourceUrl].filter((value): value is string => value !== undefined && value.trim().length > 0)
+  if (candidates.length === 0) return true
+
+  return candidates.some((candidate) => {
+    const candidateParts = breakpointPathParts(candidate)
+    return pathStartsWith(candidateParts, moduleDirParts)
+      || pathStartsWith(candidateParts, moduleLeafDirParts)
+      || samePathParts(candidateParts, moduleParts)
+  })
+}
+
+function inferredBreakpointModulePath(controller: ModuleDisplayController, snapshot: ModulePaneSnapshot | undefined): string | null {
+  for (const candidate of [snapshot?.label, controller.id]) {
+    if (candidate === undefined) continue
+    const normalized = candidate.trim().replaceAll("\\", "/")
+    if (normalized.includes("/")) return normalized
+    const dash = normalized.indexOf("-")
+    if (dash > 0 && normalized.endsWith(".ts")) return `${normalized.slice(0, dash)}/${normalized.slice(dash + 1)}`
+  }
+  return null
+}
+
+function breakpointPathParts(value: string): string[] {
+  const normalized = normalizeSourceFilePath(value).replace(/^r\//, "")
+  return normalized.split("/").filter((part) => part.length > 0 && part !== "." && part !== "..")
+}
+
+function pathStartsWith(parts: readonly string[], prefix: readonly string[]): boolean {
+  if (prefix.length === 0 || parts.length < prefix.length) return false
+  return prefix.every((part, index) => parts[index] === part)
+}
+
+function samePathParts(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((part, index) => b[index] === part)
 }
 
 async function toggleModuleBreakpoint(controller: ModuleDisplayController, line: number): Promise<void> {

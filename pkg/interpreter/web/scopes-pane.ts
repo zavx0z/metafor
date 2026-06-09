@@ -62,6 +62,29 @@ type ScopeDetail = {
 }
 
 export type ScopePropertyLoader = (objectId: string) => Promise<Record<string, PropertySnapshot>>
+export type ScopeContextExpandedItem = {
+  id: string
+  path: string[]
+  name: string
+  value: string
+}
+export type ScopeContextDetail = {
+  id: string
+  path: string[]
+  name: string
+  value: string
+  text: string
+  expandable: boolean
+  expanded: boolean
+  objectId?: string
+  type?: string
+  subtype?: string
+  className?: string
+}
+export type ScopeContextSnapshot = {
+  expanded: ScopeContextExpandedItem[]
+  detail: ScopeContextDetail | null
+}
 
 type ScopePropertyLoadState =
   | {status: "loading"}
@@ -75,11 +98,13 @@ export class ScopesPane extends UiSurface {
   readonly #propertyCache = new Map<string, ScopePropertyLoadState>()
   readonly #expanded = new Set<string>()
   readonly #tokenMaterials: EditorTokenMaterialMap = createEditorTokenMaterials()
+  readonly #onContextChange: (() => void) | undefined
   #frameVersion = 0
 
-  constructor(options: {loadProperties?: ScopePropertyLoader} = {}) {
+  constructor(options: {loadProperties?: ScopePropertyLoader; onContextChange?: () => void} = {}) {
     super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
     this.#loadProperties = options.loadProperties
+    this.#onContextChange = options.onContextChange
   }
 
   setFrame(frame: FrameSnapshot | null): void {
@@ -88,7 +113,26 @@ export class ScopesPane extends UiSurface {
     this.#propertyCache.clear()
     this.#expanded.clear()
     this.#frameVersion += 1
+    this.#emitContextChange()
     this.requestRender()
+  }
+
+  contextSnapshot(): ScopeContextSnapshot {
+    const expanded: ScopeContextExpandedItem[] = []
+    let detail: ScopeContextDetail | null = null
+    for (const row of this.#scopeRows()) {
+      if (row.kind !== "prop") continue
+      if (row.expanded) {
+        expanded.push({
+          id: row.id,
+          path: scopeContextPath(row.id),
+          name: row.name,
+          value: row.value,
+        })
+      }
+      if (this.#detail?.id === row.id) detail = this.#detailContext(row)
+    }
+    return {expanded, detail}
   }
 
   protected render(): void {
@@ -237,10 +281,12 @@ export class ScopesPane extends UiSurface {
   #toggleExpanded(row: Extract<ScopeRow, {kind: "prop"}>): void {
     if (this.#expanded.has(row.id)) {
       this.#expanded.delete(row.id)
+      this.#emitContextChange()
       return
     }
     this.#expanded.add(row.id)
     this.#ensureLoaded(row.prop)
+    this.#emitContextChange()
   }
 
   #ensureLoaded(prop: PropertySnapshot): void {
@@ -254,11 +300,13 @@ export class ScopesPane extends UiSurface {
       .then((properties) => {
         if (frameVersion !== this.#frameVersion) return
         this.#propertyCache.set(objectId, {status: "loaded", properties})
+        this.#emitContextChange()
         this.requestRender()
       })
       .catch((error: unknown) => {
         if (frameVersion !== this.#frameVersion) return
         this.#propertyCache.set(objectId, {status: "error", error: errorMessage(error)})
+        this.#emitContextChange()
         this.requestRender()
       })
   }
@@ -326,6 +374,7 @@ export class ScopesPane extends UiSurface {
     this.hit(rowX, rowY - 1, rowW, SCOPE_ROW_H, () => {
       this.#detail = {id: row.id, name: row.name, prop: row.prop}
       if (row.expandable) this.#toggleExpanded(row)
+      this.#emitContextChange()
       this.requestRender()
     }, {
       key: `scope-prop:${row.id}`,
@@ -339,6 +388,7 @@ export class ScopesPane extends UiSurface {
 
     this.hit(0, 0, this.rectW, this.rectH, () => {
       this.#detail = null
+      this.#emitContextChange()
       this.requestRender()
     }, {key: "scope-detail:backdrop", cursor: "default"})
 
@@ -376,6 +426,7 @@ export class ScopesPane extends UiSurface {
       iconSrc: uiIcons.close,
       action: () => {
         this.#detail = null
+        this.#emitContextChange()
         this.requestRender()
       },
     })
@@ -434,6 +485,31 @@ export class ScopesPane extends UiSurface {
       fallbackMaterial: this.materials.text,
     })
   }
+
+  #detailContext(row: Extract<ScopeRow, {kind: "prop"}>): ScopeContextDetail {
+    const prop = this.#resolvedProperty(row.prop)
+    return {
+      id: row.id,
+      path: scopeContextPath(row.id),
+      name: row.name,
+      value: formatValue(prop),
+      text: formatScopeDetailCode(row.name, prop),
+      expandable: row.expandable,
+      expanded: row.expanded,
+      ...(prop.objectId === undefined ? {} : {objectId: prop.objectId}),
+      ...(prop.type === undefined ? {} : {type: prop.type}),
+      ...(prop.subtype === undefined ? {} : {subtype: prop.subtype}),
+      ...(prop.className === undefined ? {} : {className: prop.className}),
+    }
+  }
+
+  #emitContextChange(): void {
+    this.#onContextChange?.()
+  }
+}
+
+function scopeContextPath(id: string): string[] {
+  return id.split("\0").filter((part) => part.length > 0 && !part.startsWith(":"))
 }
 
 function formatValue(v: PropertySnapshot): string {

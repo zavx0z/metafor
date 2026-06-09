@@ -331,6 +331,7 @@ class InterpreterRuntime {
   #consoleLogs: ConsoleLogStore
   #breakpoints: BreakpointStore
   #initializedFallbackTimer: ReturnType<typeof setTimeout> | undefined
+  #initializedSent = false
   #target: TargetSupervisor | undefined
   #sleepResolver: (() => void) | undefined
   #closed = false
@@ -435,6 +436,8 @@ class InterpreterRuntime {
     this.#target = target
     target.onEvent((event) => {
       if (event.type === "started") {
+        this.#clearInitializedFallback()
+        this.#initializedSent = false
         this.#snapshots.reset()
         this.#breakpoints.clearInstalled("target.started")
         this.#logger.event("interpreter.kick_reconnect.scheduled", {
@@ -537,6 +540,7 @@ class InterpreterRuntime {
     if (pauseOnStartRequested) this.#logger.event("interpreter.pause_on_start.inspect_brk", {moduleId: this.#moduleId})
 
     this.#logger.event("interpreter.enabled", {moduleId: this.#moduleId})
+    if (pauseOnStartRequested) void this.#sendInitialized("pause_on_start")
     this.#scheduleInitializedFallback()
   }
 
@@ -576,19 +580,7 @@ class InterpreterRuntime {
 
     this.#initializedFallbackTimer = setTimeout(() => {
       this.#initializedFallbackTimer = undefined
-      void this.#client.request(protocolCommand.controlInitialized)
-        .then(() => {
-          this.#logger.event("interpreter.initialized_fallback.sent", {
-            moduleId: this.#moduleId,
-            afterMs: this.#config.initializedFallbackMs,
-          })
-        })
-        .catch((error) => {
-          this.#logger.event("interpreter.initialized_fallback.failed", {
-            moduleId: this.#moduleId,
-            error: serializeError(error),
-          })
-        })
+      void this.#sendInitialized("fallback", {afterMs: this.#config.initializedFallbackMs})
     }, this.#config.initializedFallbackMs)
 
     this.#logger.event("interpreter.initialized_fallback.scheduled", {
@@ -601,6 +593,24 @@ class InterpreterRuntime {
     if (this.#initializedFallbackTimer === undefined) return
     clearTimeout(this.#initializedFallbackTimer)
     this.#initializedFallbackTimer = undefined
+  }
+
+  async #sendInitialized(reason: "pause_on_start" | "fallback", detail: JsonObject = {}): Promise<void> {
+    if (this.#initializedSent) return
+    try {
+      await this.#client.request(protocolCommand.controlInitialized)
+      this.#initializedSent = true
+      this.#logger.event(reason === "fallback" ? "interpreter.initialized_fallback.sent" : "interpreter.initialized_pause_on_start.sent", {
+        moduleId: this.#moduleId,
+        ...detail,
+      })
+    } catch (error) {
+      this.#logger.event(reason === "fallback" ? "interpreter.initialized_fallback.failed" : "interpreter.initialized_pause_on_start.failed", {
+        moduleId: this.#moduleId,
+        ...detail,
+        error: serializeError(error),
+      })
+    }
   }
 
   #handleProtocolEvent(method: string, params: JsonObject): void {

@@ -105,7 +105,15 @@ const decodeMassValue = (
 }
 
 export class Mass {
-  constructor(readonly wimp: Wimp) {}
+  readonly #wimp: Wimp
+
+  constructor(wimp: Wimp) {
+    this.#wimp = wimp
+  }
+
+  get wimp(): Wimp {
+    return this.#wimp
+  }
 
   async value(): Promise<MetaDSL["mass"]> {
     const rows = await this.wimp.sql<WimpMassValueRow[]>`

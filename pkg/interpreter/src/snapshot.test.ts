@@ -71,4 +71,58 @@ describe("SnapshotStore", () => {
       rmSync(dir, {recursive: true, force: true})
     }
   })
+
+  test("includes nested lexical variables and hides numeric scope slots", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-snapshot-"))
+    try {
+      const client = {
+        async request(method: string, params?: Record<string, unknown>): Promise<unknown> {
+          if (method !== "Runtime.getDisplayableProperties") return {}
+          if (params?.["objectId"] === "lexical") {
+            return {
+              properties: [
+                {name: "wimp", value: {type: "object", className: "Wimp", description: "Wimp", objectId: "wimp"}},
+                {name: "4", value: {type: "undefined"}, isOwn: true},
+                {name: "6", value: {type: "undefined"}, isOwn: true},
+              ],
+            }
+          }
+          if (params?.["objectId"] === "closure") {
+            return {
+              properties: [
+                {name: "src", value: {type: "string", value: "zavx0z/git"}},
+              ],
+            }
+          }
+          return {}
+        },
+      } as unknown as ProtocolClient
+      const store = new SnapshotStore({
+        client,
+        logger: new EventLogger(join(dir, "events.log")),
+        dumpPath: join(dir, "state.json"),
+      })
+
+      await store.handlePaused({
+        reason: "Breakpoint",
+        callFrames: [{
+          callFrameId: "frame-1",
+          functionName: "handleWimpLoad",
+          location: {scriptId: "146", lineNumber: 23, columnNumber: 4},
+          scopeChain: [
+            {type: "nestedLexical", object: {type: "object", objectId: "lexical"}},
+            {type: "closure", name: "handleWimpLoad", object: {type: "object", objectId: "closure"}},
+          ],
+        }],
+      })
+
+      const frame = store.dump?.frames[0]
+      expect(frame?.scopes.local[0]?.properties["wimp"]?.className).toBe("Wimp")
+      expect(frame?.scopes.local[0]?.properties["4"]).toBeUndefined()
+      expect(frame?.scopes.local[0]?.properties["6"]).toBeUndefined()
+      expect(frame?.scopes.closure[0]?.properties["src"]?.value).toBe("zavx0z/git")
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
 })
