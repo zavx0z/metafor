@@ -128,6 +128,21 @@ type ViewPointPose = {
   up: Vector3
 }
 
+type DisplayDragCandidate = {
+  displayId: UiDisplayId
+  timer: number
+  startClientX: number
+  startClientY: number
+  clientX: number
+  clientY: number
+}
+
+type DisplayDragActive = {
+  displayId: UiDisplayId
+  planeY: number
+  offset: Vector3
+}
+
 export type UiVirtualDisplayMode = "near" | "far"
 
 export type UiRuntimeViewPointVector = {x: number; y: number; z: number}
@@ -142,6 +157,11 @@ export type UiRuntimeViewPointSnapshot = {
 
 export type UiRuntimeViewPointRestoreOpts = {
   emit?: boolean
+}
+
+export type UiRuntimeDisplayCenterChange = {
+  displayId: UiDisplayId
+  centerMm: UiRuntimeViewPointVector
 }
 
 export type UiVirtualDisplayOpts = {
@@ -169,6 +189,8 @@ export type UiVirtualDisplayOpts = {
   background?: Color | number
   /** Создать встроенный surface-display для addSurface(). */
   surfaceDisplay?: boolean
+  /** Long press on a far-mode display starts display positioning. Default 360ms. */
+  displayDragLongPressMs?: number
 }
 
 export type UiRuntimeOpts = {
@@ -190,6 +212,8 @@ export type UiRuntimeOpts = {
   virtualDisplay?: UiVirtualDisplayOpts
   /** Вызывается при пользовательском или программном изменении камеры. */
   onViewPointChange?: (snapshot: UiRuntimeViewPointSnapshot) => void
+  /** Вызывается, когда пользователь переместил UIDisplay long-press drag'ом. */
+  onDisplayCenterChange?: (change: UiRuntimeDisplayCenterChange) => void
 }
 
 const DEFAULT_FONT_URL = "/JetBrainsMono-Bold.ttf"
@@ -232,6 +256,7 @@ export class UiRuntime {
   readonly #displayNearDistanceMm: number
   readonly #displayFarDistanceMm: number
   readonly #displayFlyDurationMs: number
+  readonly #displayDragLongPressMs: number
   readonly #displayCenterMm: Vector3
   readonly #displaySpaceEnabled: boolean
   #displayMode: UiVirtualDisplayMode
@@ -240,10 +265,13 @@ export class UiRuntime {
   #displayNavigationActive = false
   #displayNavigationLastX = 0
   #displayNavigationLastY = 0
+  #displayDragCandidate: DisplayDragCandidate | null = null
+  #displayDragActive: DisplayDragActive | null = null
   #displayHoverActive = false
   #displayHoverDisplayId: UiDisplayId | null = null
   #displayNavigationDisplayId: UiDisplayId | null = null
   readonly #onViewPointChange: ((snapshot: UiRuntimeViewPointSnapshot) => void) | undefined
+  readonly #onDisplayCenterChange: ((change: UiRuntimeDisplayCenterChange) => void) | undefined
   #cameraAnimationRafId: number | null = null
   #disposed = false
   #renderRequested = false
@@ -273,6 +301,7 @@ export class UiRuntime {
     this.renderer = renderer
     this.font = font
     this.#onViewPointChange = opts.onViewPointChange
+    this.#onDisplayCenterChange = opts.onDisplayCenterChange
     this.#cameraDistanceMm = opts.cameraDistanceMm ?? 600
     const virtualDisplay = opts.virtualDisplay
     this.#virtualDisplayWidthMm = virtualDisplay?.widthMm
@@ -287,6 +316,7 @@ export class UiRuntime {
       virtualDisplay?.farDistanceMm ?? this.#displayNearDistanceMm * 2,
     )
     this.#displayFlyDurationMs = Math.max(0, virtualDisplay?.flyDurationMs ?? 700)
+    this.#displayDragLongPressMs = Math.max(0, virtualDisplay?.displayDragLongPressMs ?? 360)
     this.#displayCenterMm = virtualDisplay?.centerMm === undefined
       ? new Vector3(0, 0, 900)
       : new Vector3(virtualDisplay.centerMm.x, virtualDisplay.centerMm.y, virtualDisplay.centerMm.z)
@@ -444,6 +474,10 @@ export class UiRuntime {
   }
 
   setDisplayCenter(displayId: UiDisplayId, centerMm: {x: number; y: number; z: number}): void {
+    this.#setDisplayCenter(displayId, centerMm, false)
+  }
+
+  #setDisplayCenter(displayId: UiDisplayId, centerMm: {x: number; y: number; z: number}, emit: boolean): void {
     const slot = this.#displaySlots.get(displayId)
     if (slot === undefined) throw new Error(`UIDisplay not found: ${displayId}`)
     slot.centerMm.set(centerMm.x, centerMm.y, centerMm.z)
@@ -451,6 +485,12 @@ export class UiRuntime {
     this.#applyDisplayTransform(slot)
     this.#applyLayout({scope: "space"})
     this.requestRender()
+    if (emit) {
+      this.#onDisplayCenterChange?.({
+        displayId,
+        centerMm: vectorSnapshot(slot.centerMm),
+      })
+    }
   }
 
   displayMetrics(displayId: UiDisplayId): {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number} | null {
@@ -797,6 +837,21 @@ export class UiRuntime {
     return new Vector3(e[12]!, e[13]!, e[14]!)
   }
 
+  #worldRayPlaneHit(canvasX: number, canvasY: number, planeY: number): Vector3 | null {
+    if (!this.#displaySpaceEnabled) return null
+    this.viewPoint.update()
+    const raycaster = new Raycaster()
+    raycaster.setFromCamera({
+      x: (canvasX / this.#pixelWidth) * 2 - 1,
+      y: 1 - (canvasY / this.#pixelHeight) * 2,
+    }, this.viewPoint)
+    const directionY = raycaster.ray.direction.y
+    if (Math.abs(directionY) < 0.000001) return null
+    const distance = (planeY - raycaster.ray.origin.y) / directionY
+    if (distance < 0) return null
+    return raycaster.ray.origin.clone().add(raycaster.ray.direction.clone().multiplyScalar(distance))
+  }
+
   #cameraPositionForDisplayDistance(distanceMm: number): {x: number; y: number; z: number} {
     return {
       x: this.#displayCenterMm.x,
@@ -1024,6 +1079,72 @@ export class UiRuntime {
     this.canvas.style.cursor = "grabbing"
   }
 
+  #armDisplayDragCandidate(event: MouseEvent, displayId: UiDisplayId): void {
+    this.#cancelDisplayDragCandidate()
+    if (!this.#isDisplayNavigationMode() || event.button !== 0) return
+    const candidate: DisplayDragCandidate = {
+      displayId,
+      timer: 0,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    }
+    candidate.timer = window.setTimeout(() => this.#beginDisplayDrag(candidate), this.#displayDragLongPressMs)
+    this.#displayDragCandidate = candidate
+  }
+
+  #cancelDisplayDragCandidate(): void {
+    if (this.#displayDragCandidate === null) return
+    window.clearTimeout(this.#displayDragCandidate.timer)
+    this.#displayDragCandidate = null
+  }
+
+  #beginDisplayDrag(candidate: DisplayDragCandidate): void {
+    if (this.#displayDragCandidate !== candidate || this.#displayMode !== "far") return
+    const slot = this.#displaySlots.get(candidate.displayId)
+    if (slot === undefined) {
+      this.#cancelDisplayDragCandidate()
+      return
+    }
+    const canvasCoords = this.#clientToCanvasCoords(candidate.clientX, candidate.clientY)
+    const hit = this.#worldRayPlaneHit(canvasCoords.x, canvasCoords.y, slot.centerMm.y)
+    if (hit === null) {
+      this.#cancelDisplayDragCandidate()
+      return
+    }
+    this.#displayDragActive = {
+      displayId: candidate.displayId,
+      planeY: slot.centerMm.y,
+      offset: slot.centerMm.clone().sub(hit),
+    }
+    this.#pressedSlot = null
+    this.#cancelDisplayDragCandidate()
+    if (candidate.displayId !== this.#surfaceDisplayId) this.#activeDisplayId = candidate.displayId
+    this.canvas.style.cursor = "grabbing"
+    this.#setDisplayHoverActive(true, candidate.displayId)
+    this.requestRender()
+  }
+
+  #updateDisplayDrag(event: MouseEvent): void {
+    const active = this.#displayDragActive
+    if (active === null) return
+    event.preventDefault()
+    const canvasCoords = this.#localCoords(event)
+    const hit = this.#worldRayPlaneHit(canvasCoords.x, canvasCoords.y, active.planeY)
+    if (hit === null) return
+    const nextCenter = hit.add(active.offset)
+    nextCenter.y = active.planeY
+    this.#setDisplayCenter(active.displayId, nextCenter, true)
+    this.#setDisplayHoverActive(true, active.displayId)
+  }
+
+  #endDisplayDrag(): void {
+    if (this.#displayDragActive === null) return
+    this.#displayDragActive = null
+    this.canvas.style.cursor = this.displayMode === "far" ? "grab" : "default"
+  }
+
   #endDisplayNavigation(): void {
     if (!this.#displayNavigationActive) return
     this.#displayNavigationActive = false
@@ -1090,6 +1211,8 @@ export class UiRuntime {
   }
 
   #clearKeyboardFocus(): void {
+    this.#cancelDisplayDragCandidate()
+    this.#endDisplayDrag()
     this.setFocused(null)
     this.inputProxy?.blur()
     this.#pressedSlot = null
@@ -1112,6 +1235,8 @@ export class UiRuntime {
     this.#clearKeyboardFocus()
     this.#pressedSlot = null
     this.#hoveredSlot = null
+    this.#cancelDisplayDragCandidate()
+    this.#displayDragActive = null
     this.#displayNavigationActive = false
     this.inputProxy?.dispose()
     for (const slot of this.#surfaces) slot.surface.dispose?.()
@@ -1281,6 +1406,11 @@ export class UiRuntime {
     return {x: event.clientX - rect.left, y: event.clientY - rect.top}
   }
 
+  #clientToCanvasCoords(clientX: number, clientY: number): {x: number; y: number} {
+    const rect = this.canvas.getBoundingClientRect()
+    return {x: clientX - rect.left, y: clientY - rect.top}
+  }
+
   #displayCoords(canvasX: number, canvasY: number, requireInside = true, displayId?: UiDisplayId): DisplayCoords | null {
     if (!this.#displaySpaceEnabled) return {displayId: this.#surfaceDisplayId, x: canvasX, y: canvasY}
     const hit = this.#displayRayHit(canvasX, canvasY, requireInside, displayId)
@@ -1323,6 +1453,19 @@ export class UiRuntime {
   }
 
   #onMouseMove(event: MouseEvent): void {
+    if (this.#displayDragActive !== null) {
+      this.#updateDisplayDrag(event)
+      return
+    }
+
+    if (this.#displayDragCandidate !== null) {
+      this.#displayDragCandidate.clientX = event.clientX
+      this.#displayDragCandidate.clientY = event.clientY
+      const dx = event.clientX - this.#displayDragCandidate.startClientX
+      const dy = event.clientY - this.#displayDragCandidate.startClientY
+      if (dx * dx + dy * dy > 36) this.#cancelDisplayDragCandidate()
+    }
+
     if (this.#displayNavigationActive) {
       event.preventDefault()
       this.#setDisplayHoverActive(true, this.#displayNavigationDisplayId)
@@ -1379,6 +1522,7 @@ export class UiRuntime {
   }
 
   #onMouseDown(event: MouseEvent): void {
+    this.#cancelDisplayDragCandidate()
     const canvasCoords = this.#localCoords(event)
     const hudSlot = this.#surfaceAt(canvasCoords.x, canvasCoords.y, "hud")
     if (hudSlot !== undefined) {
@@ -1427,6 +1571,7 @@ export class UiRuntime {
     }
     this.setFocused(slot.surface)
     this.#pressedSlot = slot
+    if (displayCoords.displayId !== this.#surfaceDisplayId) this.#armDisplayDragCandidate(event, displayCoords.displayId)
     slot.surface.onPointerDown?.(event, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)
   }
 
@@ -1452,6 +1597,11 @@ export class UiRuntime {
   }
 
   #onMouseUp(event: MouseEvent): void {
+    this.#cancelDisplayDragCandidate()
+    if (this.#displayDragActive !== null) {
+      this.#endDisplayDrag()
+      return
+    }
     if (this.#displayNavigationActive) {
       this.#endDisplayNavigation()
       return
@@ -1470,6 +1620,7 @@ export class UiRuntime {
   }
 
   #onMouseLeave(): void {
+    this.#cancelDisplayDragCandidate()
     // Не сбрасываем focus — пользователь может уйти мышью на toolbar/iframe
     // и продолжать набирать. Focus снимается только новым mousedown.
     this.#setDisplayHoverActive(false)

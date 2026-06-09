@@ -8,6 +8,7 @@ import {serializeError} from "./errors.ts"
 export type RunInterpreterOptions = {
   startupModule?: StartupModuleOptions
   startupModules?: InterpreterModuleRunOptions[]
+  startupSqliteDatabases?: string[]
 }
 
 type InterpreterRuntimeHandle = {
@@ -53,6 +54,7 @@ export async function runInterpreter(config: InterpreterConfig = loadConfig(), o
         logger,
         eventLogPath: config.eventLogPath,
         consoleLogPath: config.consoleLogPath,
+        startupSqliteDatabases: options.startupSqliteDatabases ?? [],
       })
     } catch (error) {
       logger.event("http.start.failed", {error: serializeError(error)})

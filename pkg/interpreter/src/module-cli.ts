@@ -11,11 +11,17 @@ export type CliStartupModule = {
   inspectMode: InspectMode
 }
 
-export function startupModulesFromArgs(rawArgs: string[], cwd = process.cwd()): CliStartupModule[] {
+export type CliStartupTargets = {
+  modules: CliStartupModule[]
+  sqliteDatabases: string[]
+}
+
+export function startupTargetsFromArgs(rawArgs: string[], cwd = process.cwd()): CliStartupTargets {
   const args = stripLeadingSeparator(rawArgs)
-  if (args.length === 0) return []
+  if (args.length === 0) return {modules: [], sqliteDatabases: []}
 
   const modules: CliStartupModule[] = []
+  const sqliteDatabases: string[] = []
   let currentPath: string | undefined
   let currentParams: string[] = []
 
@@ -36,14 +42,19 @@ export function startupModulesFromArgs(rawArgs: string[], cwd = process.cwd()): 
     }
 
     pushCurrent()
-    currentPath = arg
+    if (isSqliteDatabaseArg(arg)) sqliteDatabases.push(resolveStartupPath(arg, cwd))
+    else currentPath = arg
   }
   pushCurrent()
-  return modules
+  return {modules, sqliteDatabases}
+}
+
+export function startupModulesFromArgs(rawArgs: string[], cwd = process.cwd()): CliStartupModule[] {
+  return startupTargetsFromArgs(rawArgs, cwd).modules
 }
 
 function startupModuleFromPath(inputPath: string, params: string[], cwd: string): CliStartupModule {
-  const resolvedPath = isAbsolute(inputPath) ? inputPath : resolve(cwd, inputPath)
+  const resolvedPath = resolveStartupPath(inputPath, cwd)
   const label = displayPath(resolvedPath, cwd)
   const normalizedParams = params.map(normalizeModuleParam)
   const command = isTestModulePath(resolvedPath)
@@ -59,6 +70,14 @@ function startupModuleFromPath(inputPath: string, params: string[], cwd: string)
     pauseOnStart: inspectMode === "brk",
     inspectMode,
   }
+}
+
+function isSqliteDatabaseArg(path: string): boolean {
+  return /\.sqlite$/i.test(path.trim().replaceAll("\\", "/").replace(/[?#].*$/, ""))
+}
+
+function resolveStartupPath(inputPath: string, cwd: string): string {
+  return (isAbsolute(inputPath) ? inputPath : resolve(cwd, inputPath)).replaceAll("\\", "/")
 }
 
 function stripLeadingSeparator(args: string[]): string[] {

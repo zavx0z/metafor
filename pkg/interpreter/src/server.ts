@@ -35,6 +35,7 @@ import {sourceMapMapper} from "./source-map.ts"
 import {createPtySessionManager, parsePtyClientMessage, type PtySocketData, type TerminalSession} from "@metafor/pty/server"
 import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} from "./module.ts"
 import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspace-files.ts"
+import {sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell} from "./sqlite-db.ts"
 
 export type HttpServerOptions = {
   host: string
@@ -43,6 +44,7 @@ export type HttpServerOptions = {
   logger: EventLogger
   eventLogPath: string
   consoleLogPath: string
+  startupSqliteDatabases?: string[]
 }
 
 export type HttpServer = ReturnType<typeof Bun.serve>
@@ -218,6 +220,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       const hello: JsonObject = {
         type: "hello",
         modules: options.modules.snapshots(),
+        sqliteDatabases: options.startupSqliteDatabases ?? [],
       }
       ws.send(JSON.stringify(hello))
     },
@@ -437,6 +440,24 @@ async function dispatchUiHostRoute(command: string, params: JsonObject, dispatch
   }
 }
 
+async function openSqliteDisplayFromBody(req: Request, dispatch: UiHostCommandDispatcher): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const rawPath = asString(parsed.body["path"])
+    ?? asString(parsed.body["sourceUrl"])
+    ?? asString(parsed.body["modulePath"])
+    ?? asString(parsed.body["database"])
+  if (rawPath === undefined) return jsonResponse({ok: false, error: "sqlite.open requires path"}, 400)
+  try {
+    return await dispatchUiHostRoute("sqlite.open", {
+      ...parsed.body,
+      path: sqliteDatabaseInputPath(rawPath),
+    }, dispatch)
+  } catch (error) {
+    return sqliteJsonError(error)
+  }
+}
+
 async function handleRoute(
   method: string,
   path: string,
@@ -461,6 +482,21 @@ async function handleRoute(
   if (method === "POST" && path === "/hud/terminal/dock") return await dispatchUiHostRouteFromBody("hud.terminal.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/show") return await dispatchUiHostRouteFromBody("hud.terminal.show", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/toggle") return await dispatchUiHostRouteFromBody("hud.terminal.toggle", req, dispatchUiHostCommand)
+  if (method === "GET" && path === "/sqlite") {
+    try {
+      return jsonResponse(sqliteDatabasePayload(url))
+    } catch (error) {
+      return sqliteJsonError(error)
+    }
+  }
+  if (method === "POST" && path === "/sqlite/open") return await openSqliteDisplayFromBody(req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/sqlite/cell") {
+    try {
+      return jsonResponse(await updateSqliteCell(req))
+    } catch (error) {
+      return sqliteJsonError(error)
+    }
+  }
   if (method === "GET" && path === "/modules") return jsonResponse({modules: options.modules.snapshots()})
   if (method === "POST" && path === "/modules/run") return await runModule(req, options)
   const moduleRun = /^\/modules\/([^/]+)\/run$/.exec(path)
@@ -525,6 +561,9 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/hud/terminal/dock", description: "свернуть host terminal HUD"},
     {method: "POST", path: "/hud/terminal/show", description: "развернуть host terminal HUD"},
     {method: "POST", path: "/hud/terminal/toggle", description: "переключить host terminal HUD"},
+    {method: "GET", path: "/sqlite?path=<file.sqlite>&table=<name>", description: "просмотреть SQLite database tables/schema/rows"},
+    {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database как отдельный display"},
+    {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
     {method: "GET", path: "/modules", description: "список модулей интерпретатора"},
     {method: "POST", path: "/modules/run", description: "{label?, command, cwd?, env?, pauseOnStart?, breakpoints?} — запустить новый модуль"},
     {method: "POST", path: "/modules/:id/stop", description: "{signal?} — остановить модуль"},

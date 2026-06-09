@@ -75,7 +75,7 @@ curl -s http://127.0.0.1:6500/hud/terminal
 Display API:
 
 - `GET /displays` returns `mode`, `activeDisplayId`, and `displays[]`.
-- Each display includes `displayId`, `moduleId`, `label`, `order`, `screenCenter`, `screenRect`, `visible`, `active`, and `hovered`.
+- Each display includes `displayId`, `kind`, `moduleId`, `label`, `order`, `screenCenter`, `screenRect`, `visible`, `active`, and `hovered`. SQLite displays have `kind:"sqlite"` and `moduleId:null`.
 - `POST /displays/focus` focuses one display.
 - `POST /displays/frame` returns the overview of all displays.
 
@@ -86,9 +86,16 @@ Interpreter workspace API:
 - `POST /interpreters/focus` focuses one interpreter display and returns that interpreter workspace payload.
 - `POST /interpreters/action` runs a display-scoped action in one interpreter. Body shape: `{"selector":{...},"action":"pause|resume|step|evaluate|source.open|source.openSelection|restart|stop|showExecutionPoint","params":{...}}`.
 - `evaluate` accepts `{"expr":"...","frame":0}` and writes the agent expression/result into the module terminal so the human sees the shared action. Agent terminal entries are replayed after UI reload for the same target run.
-- `source.open` accepts `{"sourceUrl":"..."}` or `{"specifier":"./file.ts"}` and opens that source in the interpreter display.
+- `source.open` accepts `{"sourceUrl":"..."}` or `{"specifier":"./file.ts"}` and opens that source in the interpreter display. If the resolved path ends with `.sqlite`, it opens the database as a separate SQLite display instead of treating it as a runnable module.
 - `source.openSelection` resolves the current selected import/path from the interpreter context and opens it in the same display.
 - `step` accepts `{"kind":"over"|"into"|"out"}`.
+
+SQLite display API:
+
+- Startup CLI args ending with `.sqlite` are display inputs, not runnable modules: `bun --hot run pkg/interpreter/interpreter.ts dark/server.spec.ts -timeout=2147483647 boundary/server.spec.ts dark/tmp/boundary.sqlite`. The display can be created before the file exists; UI waits and retries until the runtime creates the database.
+- `GET /sqlite?path=<file.sqlite>&table=<name>` returns tables, schema, and rows for a database.
+- `POST /sqlite/open` with `{"path":"dark/tmp/boundary.sqlite"}` opens a SQLite database as a separate display.
+- `POST /sqlite/cell` with `{"path","table","rowid","column","value"}` edits one table cell by SQLite `rowid`. Views are read-only.
 
 Display selectors accepted by `/displays/focus`:
 

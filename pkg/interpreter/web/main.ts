@@ -12,6 +12,7 @@ import {
   palette,
   radii,
   uiIcons,
+  type UiRuntimeDisplayCenterChange,
   type UiRuntimeDisplaySnapshot,
   type UiRuntimeViewPointSnapshot,
   type UiRuntimeViewPointVector,
@@ -69,7 +70,7 @@ type ConnectionState = "connecting" | "connected" | "disconnected"
 type RuntimeControlTone = "neutral" | "live" | "paused" | "warn"
 
 type ServerMessage =
-  | {type: "hello"; modules?: ModulePaneSnapshot[]}
+  | {type: "hello"; modules?: ModulePaneSnapshot[]; sqliteDatabases?: string[]}
   | {type: "modules"; modules: ModulePaneSnapshot[]}
   | {type: "module"; module: ModulePaneSnapshot}
   | {type: "module-state"; moduleId: string; dump: InterpreterDump; module: ModulePaneSnapshot}
@@ -237,15 +238,62 @@ type WorkspaceFilesState = {
   suppressSelectionOpen: boolean
 }
 
+type SqliteCellValue = string | number | boolean | null | {type?: string; size?: number; hex?: string}
+type SqliteTableSummary = {
+  name: string
+  type: "table" | "view"
+  rowCount: number | null
+}
+type SqliteColumnInfo = {
+  name: string
+  type: string
+  notNull: boolean
+  defaultValue: string | null
+  primaryKey: boolean
+}
+type SqliteDatabasePayload = {
+  ok: true
+  path: string
+  label: string
+  selectedTable: string | null
+  limit: number
+  offset: number
+  tables: SqliteTableSummary[]
+  schema: SqliteColumnInfo[]
+  rows: Array<Record<string, SqliteCellValue>>
+}
+
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
 type ActiveInterpreterCommand = {cmd: string; label: string; startedAt: number}
 type DisplayLayoutMetrics = {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}
 type DisplaySelectorSide = "left" | "right" | "top" | "bottom" | "center"
-type DisplayInfo = UiRuntimeDisplaySnapshot & {
+type DisplayInfoBase = UiRuntimeDisplaySnapshot & {
   displayId: string
-  moduleId: string
   label: string
   order: number
+}
+type ModuleDisplayInfo = DisplayInfoBase & {
+  kind: "module"
+  moduleId: string
+}
+type SqliteDisplayInfo = DisplayInfoBase & {
+  kind: "sqlite"
+  moduleId: null
+  sqliteId: string
+  path: string
+}
+type DisplayInfo = ModuleDisplayInfo | SqliteDisplayInfo
+type SqliteDisplayController = {
+  id: string
+  requestedPath: string
+  path: string
+  label: string
+  selectedTable: string | null
+  payload: SqliteDatabasePayload | null
+  loading: Promise<void> | null
+  suppressTableSelectionOpen: boolean
+  tables: FileListPane
+  rows: SqliteTablePane
 }
 type InterpreterInfo = {
   id: string
@@ -253,7 +301,7 @@ type InterpreterInfo = {
   displayId: string
   label: string
   order: number
-  display: DisplayInfo | null
+  display: ModuleDisplayInfo | null
   runtime: {
     protocolUrl: string
     connection: ConnectionInfo
@@ -408,7 +456,9 @@ const HOST_TERMINAL_AGENT_SOUND_ENABLED_STORAGE_KEY = "metafor.interpreter.hostT
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_STORAGE_KEY = "metafor.interpreter.hostTerminal.agentSoundVolume:v1"
 const HOST_TERMINAL_AGENT_SOUND_VOLUME_LEGACY_STORAGE_KEY = "metafor.interpreter.voice.agentReadyVolume:v1"
 const INTERPRETER_VIEWPOINT_STORAGE_KEY = "metafor.interpreter.viewPoint:v1"
+const INTERPRETER_DISPLAY_POSITIONS_STORAGE_KEY = "metafor.interpreter.displayPositions:v1"
 const INTERPRETER_VIEWPOINT_STORE_DELAY_MS = 120
+const INTERPRETER_DISPLAY_POSITION_STORE_DELAY_MS = 120
 const WORKSPACE_FILES_STATE_STORAGE_PREFIX = "metafor.interpreter.workspaceFiles:v1"
 const DEFAULT_VOICE_INPUT_URL = "ws://127.0.0.1:8877/ws"
 const DEFAULT_VOICE_WAKE_URL = "ws://127.0.0.1:4765/ws"
@@ -453,6 +503,7 @@ const DEFAULT_VOICE_ACTIVATION_FUZZY = 0.05
 const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.05
 const DEFAULT_VOICE_STOP_FUZZY = 0.06
 const WORKSPACE_FILES_LIMIT = 500
+const SQLITE_OPEN_RETRY_MS = 700
 
 type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 
@@ -528,11 +579,16 @@ let framedModuleKey = ""
 let interpreterViewPointRestoreAttempted = false
 let pendingInterpreterViewPointSnapshot: UiRuntimeViewPointSnapshot | null = null
 let interpreterViewPointStoreTimer: number | null = null
+const interpreterDisplayPositions = readStoredInterpreterDisplayPositions()
+let interpreterDisplayPositionsStoreTimer: number | null = null
 
 const moduleSnapshots = new Map<string, ModulePaneSnapshot>()
 const moduleDisplays = new Map<string, ModuleDisplayController>()
 const moduleDisplayIds = new Set<string>()
 let moduleOrder: string[] = []
+const sqliteDisplays = new Map<string, SqliteDisplayController>()
+const sqliteDisplayIds = new Set<string>()
+let sqliteOrder: string[] = []
 
 const pendingRequests = new Map<number, {
   timer: number
@@ -545,9 +601,14 @@ for (const link of Array.from(document.querySelectorAll<HTMLLinkElement>('link[r
   link.href = url.toString()
 }
 
-window.addEventListener("beforeunload", () => flushInterpreterViewPointStorage())
+window.addEventListener("beforeunload", () => {
+  flushInterpreterViewPointStorage()
+  flushInterpreterDisplayPositionsStorage()
+})
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") flushInterpreterViewPointStorage()
+  if (document.visibilityState !== "hidden") return
+  flushInterpreterViewPointStorage()
+  flushInterpreterDisplayPositionsStorage()
 })
 
 installVoiceServiceMonitor()
@@ -587,6 +648,7 @@ function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case "hello":
       applyModuleSnapshots(msg.modules ?? [])
+      for (const path of msg.sqliteDatabases ?? []) void openSqliteDisplay(path).catch((error) => console.error(error))
       return
     case "modules":
       applyModuleSnapshots(msg.modules)
@@ -672,6 +734,8 @@ async function executeUiHostCommand(command: string, params: unknown): Promise<u
       return setHudTerminalDocked(false)
     case "hud.terminal.toggle":
       return setHudTerminalDocked(!hostTerminalHudDocked)
+    case "sqlite.open":
+      return await openSqliteDisplay(sqliteOpenParams(params))
     default:
       throw new Error(`unknown ui-host command: ${command}`)
   }
@@ -700,7 +764,7 @@ function focusDisplay(params: unknown): unknown {
   if (view === "full" && body["dockHostTerminal"] === true) setHostTerminalHudDocked(true)
   const focused = uiCanvas.focusDisplay(display.displayId)
   if (!focused) throw new Error(`display not found: ${display.displayId}`)
-  const controller = moduleDisplays.get(display.moduleId)
+  const controller = display.kind === "module" ? moduleDisplays.get(display.moduleId) : undefined
   if (controller !== undefined) {
     scrollAgentModuleTerminalToBottom(controller)
     queuePublishModuleContext(controller)
@@ -714,7 +778,8 @@ function focusDisplay(params: unknown): unknown {
 
 function frameDisplays(): unknown {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
-  uiCanvas.frameDisplays(moduleOrder.map((moduleId) => moduleDisplayId(moduleId)))
+  const displayIds = displayInfos().map((display) => display.displayId)
+  if (displayIds.length > 0) uiCanvas.frameDisplays(displayIds)
   return displayPayload()
 }
 
@@ -724,7 +789,9 @@ function interpretersPayload(): {
   interpreters: InterpreterInfo[]
 } {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
-  const displays = new Map(displayInfos().map((display) => [display.moduleId, display]))
+  const displays = new Map(displayInfos()
+    .filter((display): display is ModuleDisplayInfo => display.kind === "module")
+    .map((display) => [display.moduleId, display]))
   return {
     mode: uiCanvas.displayMode,
     activeDisplayId: uiCanvas.activeDisplayId,
@@ -742,15 +809,19 @@ function resolveInterpreterPayload(params: unknown): unknown {
 }
 
 function focusInterpreter(params: unknown): unknown {
-  const focused = focusDisplay(params) as {resolved?: DisplayInfo; view?: unknown}
-  const resolved = focused.resolved
-  if (resolved === undefined) throw new Error("interpreter display not found")
+  if (uiCanvas === null) throw new Error("ui runtime is not ready")
+  const body = objectParam(params)
+  const view = stringParam(body["view"]) ?? "full"
+  const resolved = resolveInterpreterDisplay(params)
+  if (view === "full" && body["dockHostTerminal"] === true) setHostTerminalHudDocked(true)
+  const focused = uiCanvas.focusDisplay(resolved.displayId)
+  if (!focused) throw new Error(`display not found: ${resolved.displayId}`)
   focusInterpreterTerminal(resolved.moduleId)
   const interpreter = interpreterInfo(resolved.moduleId, displayInfoForModule(resolved.moduleId))
   if (interpreter === null) throw new Error(`interpreter not found: ${resolved.moduleId}`)
   return {
     resolved,
-    view: focused.view,
+    view,
     interpreter,
     displays: displayPayload(),
   }
@@ -875,6 +946,7 @@ async function openInterpreterSource(controller: ModuleDisplayController, params
   const specifier = stringParam(params["specifier"])
   const sourceUrl = directSourceUrl ?? (specifier === undefined ? undefined : resolveSourceSpecifier(controller, specifier))
   if (sourceUrl === undefined) throw new Error("source.open requires sourceUrl, path, modulePath, or specifier")
+  if (isSqliteSourcePath(sourceUrl)) return await openSqliteDisplay(sourceUrl)
   return await openWorkspaceSource(controller, sourceUrl)
 }
 
@@ -891,6 +963,238 @@ async function openInterpreterSelectedSource(controller: ModuleDisplayController
     sourceUrl,
     result,
   }
+}
+
+type SqliteOpenParams = {
+  path: string
+  table?: string
+}
+
+async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unknown> {
+  const path = typeof input === "string" ? input : input.path
+  const table = typeof input === "string" ? undefined : input.table
+  try {
+    const payload = await fetchSqlitePayload(path, table)
+    const controller = ensureSqliteDisplayController(payload.path)
+    applySqlitePayload(controller, payload)
+    syncModuleDisplays()
+    uiCanvas?.focusDisplay(sqliteDisplayId(controller.id))
+    return sqliteDisplayPayload(controller)
+  } catch (error) {
+    if (!isSqliteMissingError(error)) {
+      throw error
+    }
+    const controller = ensureSqliteDisplayController(path)
+    syncModuleDisplays()
+    uiCanvas?.focusDisplay(sqliteDisplayId(controller.id))
+    waitForSqliteDatabase(controller, path, table)
+    return sqliteDisplayPayload(controller)
+  }
+}
+
+function ensureSqliteDisplayController(path: string): SqliteDisplayController {
+  const existing = sqliteDisplayForPath(path)
+  if (existing !== null) return existing
+  const id = sqliteDisplayKey(path)
+  const controller = createSqliteDisplayController(id, path)
+  sqliteDisplays.set(id, controller)
+  sqliteOrder = [...sqliteOrder.filter((item) => item !== id), id]
+  controller.rows.setStatus(`Waiting for SQLite database: ${sqliteInitialLabel(path)}`)
+  return controller
+}
+
+function sqliteDisplayForPath(path: string): SqliteDisplayController | null {
+  for (const controller of sqliteDisplays.values()) {
+    if (controller.requestedPath === path || controller.path === path) return controller
+  }
+  return sqliteDisplays.get(sqliteDisplayKey(path)) ?? null
+}
+
+function waitForSqliteDatabase(controller: SqliteDisplayController, path: string, table?: string): void {
+  if (controller.loading !== null) return
+  let loading!: Promise<void>
+  loading = (async () => {
+    await Promise.resolve()
+    let attempts = 0
+    while (controller.loading === loading) {
+      attempts += 1
+      controller.rows.setStatus(`Waiting for SQLite database: ${sqliteInitialLabel(path)}`)
+      try {
+        const payload = await fetchSqlitePayload(path, table)
+        if (controller.loading !== loading) return
+        applySqlitePayload(controller, payload)
+        return
+      } catch (error) {
+        if (!isSqliteMissingError(error)) {
+          controller.rows.setStatus(error instanceof Error ? error.message : String(error))
+          return
+        }
+        const nextDelay = Math.min(3_000, SQLITE_OPEN_RETRY_MS + attempts * 100)
+        await delay(nextDelay)
+      }
+    }
+  })()
+  controller.loading = loading
+  void loading.finally(() => {
+    if (controller.loading === loading) controller.loading = null
+  })
+}
+
+function sqliteOpenParams(params: unknown): SqliteOpenParams {
+  const direct = stringParam(params)
+  if (direct !== undefined) return {path: direct}
+  const body = objectParam(params)
+  const path = stringParam(body["path"])
+    ?? stringParam(body["sourceUrl"])
+    ?? stringParam(body["modulePath"])
+    ?? stringParam(body["database"])
+  if (path === undefined) throw new Error("sqlite.open requires path")
+  const table = stringParam(body["table"])
+  return table === undefined ? {path} : {path, table}
+}
+
+async function refreshSqliteDisplay(controller: SqliteDisplayController, table = controller.selectedTable): Promise<SqliteDatabasePayload> {
+  let payload: SqliteDatabasePayload | null = null
+  const loading = (async () => {
+    controller.rows.setStatus("Loading SQLite database")
+    payload = await fetchSqlitePayload(controller.path, table ?? undefined)
+    applySqlitePayload(controller, payload)
+  })()
+  controller.loading = loading
+  try {
+    await loading
+  } catch (error) {
+    controller.rows.setStatus(error instanceof Error ? error.message : String(error))
+    throw error
+  } finally {
+    if (controller.loading === loading) controller.loading = null
+  }
+  if (payload === null) throw new Error("sqlite payload was not loaded")
+  return payload
+}
+
+async function updateSqliteDisplayCell(
+  controller: SqliteDisplayController,
+  rowid: number,
+  column: string,
+  value: SqliteCellValue,
+): Promise<SqliteDatabasePayload> {
+  if (controller.selectedTable === null) throw new Error("sqlite table is not selected")
+  const response = await fetch("/sqlite/cell", {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({
+      path: controller.path,
+      table: controller.selectedTable,
+      rowid,
+      column,
+      value,
+    }),
+  })
+  if (!response.ok) throw await sqliteResponseError(response)
+  const payload = await response.json() as SqliteDatabasePayload
+  applySqlitePayload(controller, payload)
+  return payload
+}
+
+async function fetchSqlitePayload(path: string, table?: string): Promise<SqliteDatabasePayload> {
+  const params = new URLSearchParams({path})
+  if (table !== undefined && table.length > 0) params.set("table", table)
+  const response = await fetch(`/sqlite?${params.toString()}`)
+  if (!response.ok) throw await sqliteResponseError(response)
+  const payload = await response.json() as SqliteDatabasePayload
+  if (payload?.ok !== true) throw new Error("sqlite payload is invalid")
+  return payload
+}
+
+async function sqliteResponseError(response: Response): Promise<Error> {
+  const text = await response.text()
+  try {
+    const parsed = JSON.parse(text) as {error?: unknown}
+    const error = parsed.error
+    if (typeof error === "object" && error !== null && typeof (error as {message?: unknown}).message === "string") {
+      return new Error((error as {message: string}).message)
+    }
+    if (typeof error === "string") return new Error(error)
+  } catch {
+    // Use raw response text below.
+  }
+  return new Error(text.length > 0 ? text : `sqlite request failed: ${response.status}`)
+}
+
+function applySqlitePayload(controller: SqliteDisplayController, payload: SqliteDatabasePayload): void {
+  controller.path = payload.path
+  controller.label = payload.label
+  controller.selectedTable = payload.selectedTable
+  controller.payload = payload
+  controller.suppressTableSelectionOpen = true
+  try {
+    controller.tables.setTitle(payload.label)
+    controller.tables.setItems(sqliteTableItems(payload))
+    controller.tables.setSelectedIds(payload.selectedTable === null ? [] : [sqliteTableItemId(payload.selectedTable)])
+  } finally {
+    controller.suppressTableSelectionOpen = false
+  }
+  controller.rows.setPayload(payload)
+}
+
+function sqliteDisplayPayload(controller: SqliteDisplayController): unknown {
+  return {
+    id: controller.id,
+    displayId: sqliteDisplayId(controller.id),
+    path: controller.path,
+    label: controller.label,
+    selectedTable: controller.selectedTable,
+    ready: controller.payload !== null,
+    loading: controller.loading !== null,
+    tables: controller.payload?.tables ?? [],
+    rowCount: controller.payload?.rows.length ?? 0,
+  }
+}
+
+function sqliteTableItems(payload: SqliteDatabasePayload): FileListItem[] {
+  return payload.tables.map((table) => ({
+    id: sqliteTableItemId(table.name),
+    name: table.name,
+    kind: "file",
+    path: table.name,
+    sizeLabel: table.rowCount === null ? table.type : `${table.rowCount}`,
+    statusLabel: table.type,
+  }))
+}
+
+function sqliteTableItemId(name: string): string {
+  return `sqlite-table:${encodeURIComponent(name)}`
+}
+
+function sqliteDisplayKey(path: string): string {
+  const normalized = path.trim().replaceAll("\\", "/")
+  let hash = 2166136261
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash ^= normalized.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  const leaf = normalized.split("/").pop()?.replace(/\.sqlite$/i, "") ?? "database"
+  const slug = leaf.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "database"
+  return `${slug}-${(hash >>> 0).toString(36)}`
+}
+
+function sqliteInitialLabel(path: string): string {
+  const clean = path.trim().replaceAll("\\", "/").replace(/[?#].*$/, "")
+  return clean.split("/").pop() ?? clean
+}
+
+function isSqliteSourcePath(path: string): boolean {
+  return /\.sqlite(?:[?#].*)?$/i.test(path.trim().replaceAll("\\", "/"))
+}
+
+function isSqliteMissingError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /sqlite database not found|unable to open database file|no such file/i.test(message)
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
 function setHudTerminalDocked(docked: boolean): unknown {
@@ -916,7 +1220,8 @@ function displayInfos(): DisplayInfo[] {
   if (uiCanvas === null) return []
   const runtimeDisplays = new Map(uiCanvas.displaySnapshots().map((display) => [display.id, display]))
   const displays: DisplayInfo[] = []
-  for (const [order, moduleId] of moduleOrder.entries()) {
+  let order = 0
+  for (const moduleId of moduleOrder) {
     const displayId = moduleDisplayId(moduleId)
     const runtimeDisplay = runtimeDisplays.get(displayId)
     const snapshot = moduleSnapshots.get(moduleId)
@@ -924,19 +1229,36 @@ function displayInfos(): DisplayInfo[] {
     displays.push({
       ...runtimeDisplay,
       displayId,
+      kind: "module",
       moduleId,
       label: snapshot.label,
-      order,
+      order: order++,
+    })
+  }
+  for (const sqliteId of sqliteOrder) {
+    const displayId = sqliteDisplayId(sqliteId)
+    const runtimeDisplay = runtimeDisplays.get(displayId)
+    const controller = sqliteDisplays.get(sqliteId)
+    if (runtimeDisplay === undefined || controller === undefined) continue
+    displays.push({
+      ...runtimeDisplay,
+      displayId,
+      kind: "sqlite",
+      moduleId: null,
+      sqliteId,
+      path: controller.path,
+      label: controller.label,
+      order: order++,
     })
   }
   return displays
 }
 
-function displayInfoForModule(moduleId: string): DisplayInfo | null {
-  return displayInfos().find((display) => display.moduleId === moduleId) ?? null
+function displayInfoForModule(moduleId: string): ModuleDisplayInfo | null {
+  return displayInfos().find((display): display is ModuleDisplayInfo => display.kind === "module" && display.moduleId === moduleId) ?? null
 }
 
-function interpreterInfo(moduleId: string, display: DisplayInfo | null): InterpreterInfo | null {
+function interpreterInfo(moduleId: string, display: ModuleDisplayInfo | null): InterpreterInfo | null {
   const module = moduleSnapshots.get(moduleId)
   if (module === undefined) return null
   const controller = moduleDisplays.get(moduleId)
@@ -1094,11 +1416,12 @@ function publishModuleContext(controller: ModuleDisplayController): void {
   }))
 }
 
-function resolveInterpreterDisplay(params: unknown): DisplayInfo {
+function resolveInterpreterDisplay(params: unknown): ModuleDisplayInfo {
   const body = objectParam(params)
   const selector = objectParamMaybe(body["selector"]) ?? body
   const display = resolveDisplay(selector)
   if (display === null) throw new Error("interpreter display not found")
+  if (display.kind !== "module") throw new Error(`display is not an interpreter: ${display.displayId}`)
   return display
 }
 
@@ -1110,7 +1433,13 @@ function resolveDisplay(selector: Record<string, unknown>): DisplayInfo | null {
   if (displayId !== undefined) return displays.find((display) => display.displayId === displayId || display.id === displayId) ?? null
 
   const moduleId = stringParam(selector["moduleId"])
-  if (moduleId !== undefined) return displays.find((display) => display.moduleId === moduleId) ?? null
+  if (moduleId !== undefined) return displays.find((display) => display.kind === "module" && display.moduleId === moduleId) ?? null
+
+  const sqliteId = stringParam(selector["sqliteId"])
+  if (sqliteId !== undefined) return displays.find((display) => display.kind === "sqlite" && display.sqliteId === sqliteId) ?? null
+
+  const path = stringParam(selector["path"])
+  if (path !== undefined) return displays.find((display) => display.kind === "sqlite" && display.path === path) ?? null
 
   const order = numberParam(selector["order"]) ?? numberParam(selector["index"])
   if (order !== undefined && Number.isInteger(order)) return displays.find((display) => display.order === order) ?? null
@@ -1291,6 +1620,59 @@ function viewPointVectorParam(value: unknown): UiRuntimeViewPointVector | null {
   return {x, y, z}
 }
 
+function displayCenterWithStored(displayId: string, fallback: UiRuntimeViewPointVector): UiRuntimeViewPointVector {
+  return interpreterDisplayPositions.get(displayId) ?? fallback
+}
+
+function storeInterpreterDisplayPosition(change: UiRuntimeDisplayCenterChange): void {
+  interpreterDisplayPositions.set(change.displayId, change.centerMm)
+  scheduleInterpreterDisplayPositionsStorage()
+}
+
+function scheduleInterpreterDisplayPositionsStorage(): void {
+  if (interpreterDisplayPositionsStoreTimer !== null) return
+  interpreterDisplayPositionsStoreTimer = window.setTimeout(() => {
+    interpreterDisplayPositionsStoreTimer = null
+    flushInterpreterDisplayPositionsStorage()
+  }, INTERPRETER_DISPLAY_POSITION_STORE_DELAY_MS)
+}
+
+function flushInterpreterDisplayPositionsStorage(): void {
+  if (interpreterDisplayPositionsStoreTimer !== null) {
+    window.clearTimeout(interpreterDisplayPositionsStoreTimer)
+    interpreterDisplayPositionsStoreTimer = null
+  }
+  try {
+    localStorage.setItem(
+      INTERPRETER_DISPLAY_POSITIONS_STORAGE_KEY,
+      JSON.stringify(Object.fromEntries(interpreterDisplayPositions.entries())),
+    )
+  } catch {
+    // Storage can be unavailable in private contexts.
+  }
+}
+
+function readStoredInterpreterDisplayPositions(): Map<string, UiRuntimeViewPointVector> {
+  try {
+    const raw = localStorage.getItem(INTERPRETER_DISPLAY_POSITIONS_STORAGE_KEY)
+    if (raw === null) return new Map()
+    return normalizeStoredInterpreterDisplayPositions(JSON.parse(raw))
+  } catch {
+    return new Map()
+  }
+}
+
+function normalizeStoredInterpreterDisplayPositions(value: unknown): Map<string, UiRuntimeViewPointVector> {
+  const object = objectParamMaybe(value)
+  if (object === undefined) return new Map()
+  const positions = new Map<string, UiRuntimeViewPointVector>()
+  for (const [displayId, rawPosition] of Object.entries(object)) {
+    const position = viewPointVectorParam(rawPosition)
+    if (position !== null) positions.set(displayId, position)
+  }
+  return positions
+}
+
 function applyModuleSnapshots(modules: ModulePaneSnapshot[]): void {
   if (modules.length === 0) return
   moduleOrder = modules.map((module) => module.id)
@@ -1371,6 +1753,7 @@ async function initEngine(): Promise<void> {
   try {
     uiCanvas = await UiRuntime.create(engineCanvas, {
       onViewPointChange: scheduleInterpreterViewPointStorage,
+      onDisplayCenterChange: storeInterpreterDisplayPosition,
       virtualDisplay: {
         initial: "near",
         surfaceDisplay: false,
@@ -1563,6 +1946,260 @@ class WorkspaceFilesChromePane extends UiSurface {
   }
 
   protected render(): void {}
+}
+
+class SqliteTablePane extends UiSurface {
+  #payload: SqliteDatabasePayload | null = null
+  #status = "Open SQLite database"
+  #scrollX = 0
+  #scrollY = 0
+  readonly #onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void
+
+  constructor(onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void) {
+    super({bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    this.node.name = "SqliteTablePane"
+    this.#onCellEdit = onCellEdit
+  }
+
+  setPayload(payload: SqliteDatabasePayload): void {
+    const tableChanged = this.#payload?.path !== payload.path || this.#payload.selectedTable !== payload.selectedTable
+    this.#payload = payload
+    this.#status = payload.selectedTable === null ? "No tables" : `${payload.selectedTable} · ${payload.rows.length} rows`
+    if (tableChanged) {
+      this.#scrollX = 0
+      this.#scrollY = 0
+    }
+    this.requestRender()
+  }
+
+  setStatus(status: string): void {
+    this.#status = status
+    this.requestRender()
+  }
+
+  protected render(): void {
+    const payload = this.#payload
+    const pad = 14
+    const headerH = 58
+    this.drawText("SQLite", pad, 10, {fontPx: 13, material: this.materials.cyan, maxWidthPx: 120})
+    this.drawText(payload?.label ?? this.#status, 78, 10, {
+      fontPx: 12,
+      material: this.materials.text,
+      maxWidthPx: Math.max(1, this.rectW - 78 - pad),
+    })
+    this.drawText(this.#status, pad, 34, {
+      fontPx: 11,
+      material: payload === null ? this.materials.muted : this.materials.green,
+      maxWidthPx: Math.max(1, this.rectW - pad * 2),
+    })
+    this.drawRect(pad, headerH - 1, Math.max(1, this.rectW - pad * 2), 1, palette.borderDim)
+
+    if (payload === null) return
+    if (payload.selectedTable === null) {
+      this.drawText("No tables in database", pad, headerH + 18, {
+        fontPx: 12,
+        material: this.materials.muted,
+        maxWidthPx: Math.max(1, this.rectW - pad * 2),
+      })
+      return
+    }
+
+    const schema = sqliteSchemaSummary(payload.schema)
+    this.drawText(schema, pad, headerH + 10, {
+      fontPx: 10,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, this.rectW - pad * 2),
+    })
+
+    const tableY = headerH + 34
+    const tableH = Math.max(1, this.rectH - tableY - pad)
+    const columns = sqliteTableColumns(payload)
+    const widths = sqliteTableColumnWidths(this, payload, columns)
+    const totalW = widths.reduce((sum, width) => sum + width, 0)
+    const rowH = 24
+    const columnHeaderH = 27
+    const rowsViewportH = Math.max(1, tableH - columnHeaderH)
+    const maxScrollX = Math.max(0, totalW - this.rectW + pad * 2)
+    const maxScrollY = Math.max(0, payload.rows.length * rowH - rowsViewportH)
+    this.#scrollX = clampNumber(this.#scrollX, 0, maxScrollX)
+    this.#scrollY = clampNumber(this.#scrollY, 0, maxScrollY)
+    this.wheel(0, tableY, this.rectW, tableH, (event) => {
+      event.preventDefault()
+      const horizontalDelta = event.shiftKey ? event.deltaY : event.deltaX
+      this.#scrollX = clampNumber(this.#scrollX + horizontalDelta, 0, maxScrollX)
+      this.#scrollY = clampNumber(this.#scrollY + event.deltaY, 0, maxScrollY)
+      this.requestRender()
+    }, "sqlite-table-scroll")
+
+    this.pushClip(pad, tableY, Math.max(1, this.rectW - pad * 2), tableH)
+    try {
+      this.#renderGrid(payload, columns, widths, pad, tableY, tableH, rowH, columnHeaderH)
+    } finally {
+      this.popClip()
+    }
+  }
+
+  #renderGrid(
+    payload: SqliteDatabasePayload,
+    columns: readonly string[],
+    widths: readonly number[],
+    x0: number,
+    y0: number,
+    h: number,
+    rowH: number,
+    columnHeaderH: number,
+  ): void {
+    const selectedSummary = payload.tables.find((table) => table.name === payload.selectedTable)
+    const editableTable = selectedSummary?.type === "table"
+    const firstRow = Math.max(0, Math.floor(this.#scrollY / rowH))
+    const rowOffset = this.#scrollY - firstRow * rowH
+    const visibleRows = Math.ceil(Math.max(1, h - columnHeaderH) / rowH) + 1
+    let x = x0 - this.#scrollX
+
+    this.drawRect(x0, y0, Math.max(1, this.rectW - x0 * 2), columnHeaderH, palette.bgPanel)
+    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
+      const column = columns[columnIndex]!
+      const w = widths[columnIndex]!
+      this.drawRect(x, y0, 1, h, palette.borderRule)
+      this.drawText(column, x + 8, y0 + 8, {
+        fontPx: 10,
+        material: column === "__rowid" ? this.materials.muted : this.materials.cyan,
+        maxWidthPx: Math.max(1, w - 16),
+      })
+      x += w
+    }
+    this.drawRect(x, y0, 1, h, palette.borderRule)
+    this.drawRect(x0, y0 + columnHeaderH - 1, Math.max(1, this.rectW - x0 * 2), 1, palette.borderDim)
+
+    if (payload.rows.length === 0) {
+      this.drawText("No rows", x0 + 10, y0 + columnHeaderH + 16, {
+        fontPx: 12,
+        material: this.materials.muted,
+        maxWidthPx: Math.max(1, this.rectW - x0 * 2 - 20),
+      })
+      return
+    }
+
+    for (let visibleIndex = 0; visibleIndex < visibleRows; visibleIndex += 1) {
+      const rowIndex = firstRow + visibleIndex
+      const row = payload.rows[rowIndex]
+      if (row === undefined) continue
+      const y = y0 + columnHeaderH + visibleIndex * rowH - rowOffset
+      if (rowIndex % 2 === 1) this.drawRect(x0, y, Math.max(1, this.rectW - x0 * 2), rowH, palette.bgPanelDim)
+      this.drawRect(x0, y + rowH - 1, Math.max(1, this.rectW - x0 * 2), 1, palette.borderRule)
+      this.#renderRow(row, rowIndex, columns, widths, x0, y, rowH, editableTable)
+    }
+  }
+
+  #renderRow(
+    row: Record<string, SqliteCellValue>,
+    rowIndex: number,
+    columns: readonly string[],
+    widths: readonly number[],
+    x0: number,
+    y: number,
+    rowH: number,
+    editableTable: boolean,
+  ): void {
+    const rowid = sqliteRowId(row["__rowid"])
+    let x = x0 - this.#scrollX
+    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
+      const column = columns[columnIndex]!
+      const w = widths[columnIndex]!
+      const value = row[column] ?? null
+      const editable = editableTable && rowid !== null && column !== "__rowid"
+      this.drawText(sqliteCellLabel(value), x + 8, y + 7, {
+        fontPx: 10,
+        material: column === "__rowid" ? this.materials.muted : value === null ? this.materials.muted : this.materials.text,
+        maxWidthPx: Math.max(1, w - 16),
+      })
+      if (editable && x < this.rectW && x + w > 0) {
+        this.hit(x, y, w, rowH, () => this.#editCell(rowid, column, value), {
+          key: `sqlite-cell:${rowIndex}:${column}`,
+          cursor: "text",
+        })
+      }
+      x += w
+    }
+  }
+
+  #editCell(rowid: number, column: string, value: SqliteCellValue): void {
+    const raw = window.prompt(`Edit ${column}`, sqliteCellPromptValue(value))
+    if (raw === null) return
+    this.#onCellEdit(rowid, column, sqliteCellInputValue(raw, value))
+  }
+}
+
+function sqliteSchemaSummary(schema: readonly SqliteColumnInfo[]): string {
+  if (schema.length === 0) return "No schema"
+  return schema.map((column) => {
+    const flags = [
+      column.type || "value",
+      column.primaryKey ? "pk" : "",
+      column.notNull ? "not null" : "",
+    ].filter(Boolean).join(" ")
+    return `${column.name}: ${flags}`
+  }).join(" · ")
+}
+
+function sqliteTableColumns(payload: SqliteDatabasePayload): string[] {
+  const out: string[] = []
+  if (payload.rows.some((row) => Object.prototype.hasOwnProperty.call(row, "__rowid"))) out.push("__rowid")
+  for (const column of payload.schema) if (!out.includes(column.name)) out.push(column.name)
+  for (const row of payload.rows) {
+    for (const key of Object.keys(row)) if (!out.includes(key)) out.push(key)
+  }
+  return out
+}
+
+function sqliteTableColumnWidths(surface: UiSurface, payload: SqliteDatabasePayload, columns: readonly string[]): number[] {
+  const sampleRows = payload.rows.slice(0, 40)
+  return columns.map((column) => {
+    let width = surface.measureText(column, 10) + 28
+    const schema = payload.schema.find((item) => item.name === column)
+    if (schema !== undefined) width = Math.max(width, surface.measureText(schema.type || "value", 9) + 28)
+    for (const row of sampleRows) width = Math.max(width, surface.measureText(sqliteCellLabel(row[column] ?? null), 10) + 28)
+    const min = column === "__rowid" ? 76 : 104
+    return Math.min(260, Math.max(min, Math.ceil(width)))
+  })
+}
+
+function sqliteRowId(value: SqliteCellValue | undefined): number | null {
+  if (typeof value === "number" && Number.isInteger(value)) return value
+  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value)
+  return null
+}
+
+function sqliteCellLabel(value: SqliteCellValue | undefined): string {
+  if (value === undefined || value === null) return "NULL"
+  if (typeof value === "string") return value
+  if (typeof value === "number" || typeof value === "boolean") return String(value)
+  if (typeof value === "object") {
+    const size = typeof value.size === "number" ? `${value.size}b` : "blob"
+    const hex = typeof value.hex === "string" && value.hex.length > 0 ? ` ${value.hex}` : ""
+    return `<${size}${hex}>`
+  }
+  return String(value)
+}
+
+function sqliteCellPromptValue(value: SqliteCellValue): string {
+  if (value === null) return "NULL"
+  if (typeof value === "object") return sqliteCellLabel(value)
+  return String(value)
+}
+
+function sqliteCellInputValue(raw: string, previous: SqliteCellValue): SqliteCellValue {
+  const clean = raw.trim()
+  if (/^null$/i.test(clean)) return null
+  if (typeof previous === "number") {
+    const number = Number(clean)
+    return Number.isFinite(number) ? number : raw
+  }
+  if (typeof previous === "boolean") {
+    if (/^true$/i.test(clean)) return true
+    if (/^false$/i.test(clean)) return false
+  }
+  return raw
 }
 
 class HostTerminalDockPane extends UiSurface {
@@ -3172,10 +3809,14 @@ function syncModuleDisplays(): void {
   const orderedModules = moduleOrder
     .map((id) => moduleSnapshots.get(id))
     .filter((module): module is ModulePaneSnapshot => module !== undefined)
+  const orderedSqliteDisplays = sqliteOrder
+    .map((id) => sqliteDisplays.get(id))
+    .filter((display): display is SqliteDisplayController => display !== undefined)
 
   const displayMetrics = viewportDisplayMetrics()
   const moduleDisplayIdList = orderedModules.map((module) => moduleDisplayId(module.id))
-  const displayIds = moduleDisplayIdList
+  const sqliteDisplayIdList = orderedSqliteDisplays.map((controller) => sqliteDisplayId(controller.id))
+  const displayIds = [...moduleDisplayIdList, ...sqliteDisplayIdList]
   const totalW = displayIds.length * displayMetrics.widthMm
     + Math.max(0, displayIds.length - 1) * MODULE_DISPLAY_GAP_MM
   let cursorX = -totalW / 2
@@ -3184,7 +3825,7 @@ function syncModuleDisplays(): void {
     const displayId = moduleDisplayId(module.id)
     const x = cursorX + displayMetrics.widthMm / 2
     cursorX += displayMetrics.widthMm + MODULE_DISPLAY_GAP_MM
-    const center = {x, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM}
+    const center = displayCenterWithStored(displayId, {x, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM})
 
     if (!moduleDisplayIds.has(module.id)) {
       moduleDisplayIds.add(module.id)
@@ -3210,6 +3851,31 @@ function syncModuleDisplays(): void {
 
     const controller = moduleDisplays.get(module.id)
     if (controller !== undefined) updateModuleDisplay(controller, module)
+  }
+
+  for (const controller of orderedSqliteDisplays) {
+    const displayId = sqliteDisplayId(controller.id)
+    const x = cursorX + displayMetrics.widthMm / 2
+    cursorX += displayMetrics.widthMm + MODULE_DISPLAY_GAP_MM
+    const center = displayCenterWithStored(displayId, {x, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM})
+
+    if (!sqliteDisplayIds.has(controller.id)) {
+      sqliteDisplayIds.add(controller.id)
+      uiCanvas.createDisplay({
+        id: displayId,
+        widthMm: displayMetrics.widthMm,
+        heightMm: displayMetrics.heightMm,
+        pixelWidth: displayMetrics.pixelWidth,
+        pixelHeight: displayMetrics.pixelHeight,
+        centerMm: center,
+        background: 0x06111f,
+        border: 0x334155,
+      })
+      addSqliteSurfacesToDisplay(displayId, controller)
+    } else {
+      uiCanvas.resizeDisplay(displayId, displayMetrics)
+      uiCanvas.setDisplayCenter(displayId, center)
+    }
   }
 
   const frameKey = displayIds.map((id, index) => {
@@ -3818,6 +4484,10 @@ function moduleDisplayId(moduleId: string): string {
   return `module:${moduleId}`
 }
 
+function sqliteDisplayId(sqliteId: string): string {
+  return `sqlite:${sqliteId}`
+}
+
 function moduleVerboseStorageKey(moduleId: string): string {
   return `interpreter:module:${moduleId}:verbose`
 }
@@ -3899,6 +4569,55 @@ function addInterpreterSurfacesToDisplay(displayId: string, controller: ModuleDi
   uiCanvas.addSurfaceToDisplay(displayId, controller.terminal, (canvas) => interpreterRects(canvas, controller.verboseVisible).terminal)
   uiCanvas.addSurfaceToDisplay(displayId, controller.frames, (canvas) => interpreterRects(canvas, controller.verboseVisible).frames)
   uiCanvas.addSurfaceToDisplay(displayId, controller.verbose, (canvas) => interpreterRects(canvas, controller.verboseVisible).verbose ?? hiddenRect())
+}
+
+function addSqliteSurfacesToDisplay(displayId: string, controller: SqliteDisplayController): void {
+  if (uiCanvas === null) return
+  uiCanvas.addSurfaceToDisplay(displayId, controller.tables, (canvas) => sqliteRects(canvas).tables)
+  uiCanvas.addSurfaceToDisplay(displayId, controller.rows, (canvas) => sqliteRects(canvas).rows)
+}
+
+function createSqliteDisplayController(id: string, path: string): SqliteDisplayController {
+  const controller = {} as SqliteDisplayController
+  const label = sqliteInitialLabel(path)
+  Object.assign(controller, {
+    id,
+    requestedPath: path,
+    path,
+    label,
+    selectedTable: null,
+    payload: null,
+    loading: null,
+    suppressTableSelectionOpen: false,
+    tables: new FileListPane({
+      title: label,
+      items: [],
+      selectedIds: [],
+      selectionMode: "single",
+      showHeader: true,
+      theme: {
+        surface: {
+          background: palette.bg,
+          border: palette.borderDim,
+          borderWidthPx: 1,
+        },
+      },
+      onSelectionChange: (_ids, items) => {
+        if (controller.suppressTableSelectionOpen) return
+        const table = items[0]?.path ?? items[0]?.name
+        if (table === undefined || table === controller.selectedTable) return
+        void refreshSqliteDisplay(controller, table)
+      },
+    }),
+    rows: new SqliteTablePane((rowid, column, value) => {
+      void updateSqliteDisplayCell(controller, rowid, column, value).catch((error) => {
+        controller.rows.setStatus(error instanceof Error ? error.message : String(error))
+      })
+    }),
+  } satisfies SqliteDisplayController)
+  controller.tables.node.name = `SqliteTables:${id}`
+  controller.rows.node.name = `SqliteRows:${id}`
+  return controller
 }
 
 function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDisplayController {
@@ -5443,6 +6162,11 @@ type InterpreterRects = {
   verbose: UiSurfaceRect | null
 }
 
+type SqliteRects = {
+  tables: UiSurfaceRect
+  rows: UiSurfaceRect
+}
+
 function hiddenRect(): UiSurfaceRect {
   return {x: -10000, y: -10000, w: 1, h: 1, visible: false}
 }
@@ -5669,6 +6393,20 @@ function clampHostTerminalHudRect(rect: UiSurfaceRect, boundsW: number, boundsH:
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
+}
+
+function sqliteRects({w, h}: {w: number; h: number}): SqliteRects {
+  const x = PAD
+  const y = BODY_TOP
+  const bodyW = Math.max(1, w - PAD * 2)
+  const bodyH = Math.max(1, h - BODY_TOP - PAD)
+  const tablesW = w >= 980
+    ? Math.min(330, Math.max(250, Math.floor(bodyW * 0.22)))
+    : Math.min(260, Math.max(190, Math.floor(bodyW * 0.30)))
+  return {
+    tables: {x, y, w: tablesW, h: bodyH},
+    rows: {x: x + tablesW + GAP, y, w: Math.max(1, bodyW - tablesW - GAP), h: bodyH},
+  }
 }
 
 function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolean): InterpreterRects {

@@ -92,9 +92,12 @@ GET    /hud/terminal
 POST   /hud/terminal/show
 POST   /hud/terminal/dock
 POST   /hud/terminal/toggle
+GET    /sqlite
+POST   /sqlite/open
+POST   /sqlite/cell
 ```
 
-`GET /displays` возвращает режим пространства, активный display и список module `UIDisplay`:
+`GET /displays` возвращает режим пространства, активный display и список `UIDisplay`. Module displays имеют `kind:"module"`, SQLite displays имеют `kind:"sqlite"` и `moduleId:null`:
 
 ```json
 {
@@ -106,6 +109,7 @@ POST   /hud/terminal/toggle
     "displays": [
       {
         "displayId": "module:dark-server.spec.ts",
+        "kind": "module",
         "moduleId": "dark-server.spec.ts",
         "label": "dark/server.spec.ts",
         "order": 0,
@@ -117,6 +121,41 @@ POST   /hud/terminal/toggle
     ]
   }
 }
+```
+
+## SQLite Display API
+
+CLI-аргументы, заканчивающиеся на `.sqlite`, считаются входами display, а не
+запускаемыми модулями. Display создается сразу, даже если файла базы еще нет:
+UI показывает ожидание и повторяет чтение, пока runtime не создаст `.sqlite`.
+
+```sh
+bun --hot run pkg/interpreter/interpreter.ts \
+  dark/server.spec.ts -timeout=2147483647 \
+  boundary/server.spec.ts \
+  dark/tmp/boundary.sqlite
+```
+
+`GET /sqlite?path=<file.sqlite>&table=<name>` читает database, список таблиц,
+schema выбранной таблицы и строки:
+
+```sh
+curl -sS "http://127.0.0.1:6500/sqlite?path=dark/tmp/boundary.sqlite"
+```
+
+`POST /sqlite/open` открывает database как отдельный UI display:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/sqlite/open \
+  -H 'content-type: application/json' \
+  -d '{"path":"dark/tmp/boundary.sqlite"}'
+```
+
+`POST /sqlite/cell` редактирует одну ячейку обычной таблицы по SQLite `rowid`.
+Views остаются read-only:
+
+```json
+{"path":"dark/tmp/boundary.sqlite","table":"actors","rowid":1,"column":"name","value":"Boundary"}
 ```
 
 `POST /displays/focus` фокусирует один display. Selector можно задавать по стороне, id, module id, label или порядку:

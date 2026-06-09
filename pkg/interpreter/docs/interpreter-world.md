@@ -529,6 +529,9 @@ GET  /context
 GET  /modules/:id/context
 GET  /interpreters
 POST /interpreters/action
+GET  /sqlite
+POST /sqlite/open
+POST /sqlite/cell
 GET  /events
 GET  /console
 ```
@@ -536,7 +539,7 @@ GET  /console
 Публичный REST слой не имеет отдельного agent namespace: весь API
 интерпретатора предназначен для всех участников и host-клиентов. Endpoints
 называются по смысловым ресурсам среды: `/displays`, `/interpreters`,
-`/hud/terminal`, `/context`, `/modules/:id/context`.
+`/hud/terminal`, `/context`, `/modules/:id/context`, `/sqlite`.
 
 Если нужно понять, где мы находимся, какой модуль активен, где execution point,
 какой frame выбран, какие scopes/values доступны, какие терминальные данные

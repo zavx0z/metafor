@@ -1,8 +1,11 @@
 #!/usr/bin/env bun
 
 import {runInterpreter} from "./src/interpreter.ts"
-import {startupModulesFromArgs} from "./src/module-cli.ts"
+import {startupTargetsFromArgs} from "./src/module-cli.ts"
 
-const startupModules = startupModulesFromArgs(Bun.argv.slice(2))
+const startupTargets = startupTargetsFromArgs(Bun.argv.slice(2))
 
-await runInterpreter(undefined, startupModules.length === 0 ? {} : {startupModules})
+await runInterpreter(undefined, {
+  ...(startupTargets.modules.length === 0 ? {} : {startupModules: startupTargets.modules}),
+  ...(startupTargets.sqliteDatabases.length === 0 ? {} : {startupSqliteDatabases: startupTargets.sqliteDatabases}),
+})

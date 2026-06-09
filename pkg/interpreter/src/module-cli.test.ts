@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {join} from "node:path"
-import {startupModulesFromArgs} from "./module-cli.ts"
+import {startupModulesFromArgs, startupTargetsFromArgs} from "./module-cli.ts"
 
 const cwd = "/repo/metafor"
 
@@ -37,6 +37,21 @@ describe("interpreter module CLI", () => {
 
     expect(module?.label).toBe("module.ts")
     expect(module?.command).toEqual(["bun", modulePath, "--flag=value"])
+  })
+
+  test("separates sqlite database paths from runnable modules", () => {
+    const targets = startupTargetsFromArgs([
+      "dark/server.spec.ts",
+      "-timeout=2147483647",
+      "boundary/server.spec.ts",
+      "dark/tmp/boundary.sqlite",
+    ], cwd)
+
+    expect(targets.modules.map((module) => module.label)).toEqual([
+      "dark/server.spec.ts",
+      "boundary/server.spec.ts",
+    ])
+    expect(targets.sqliteDatabases).toEqual([join(cwd, "dark/tmp/boundary.sqlite")])
   })
 
   test("rejects params before the first module path", () => {
