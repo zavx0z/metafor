@@ -5632,8 +5632,10 @@ function currentEditableSourceUrl(controller: ModuleDisplayController): string |
 
 function handleSourcePatched(msg: Extract<ServerMessage, {type: "source-patched"}>): void {
   applySourcePatchedBreakpoints(msg)
+  const patchedKeys = msg.files.flatMap((file) => sourcePatchFileKeys(file))
   for (const controller of moduleDisplays.values()) {
-    const sourceUrl = controllerPatchedSourceUrl(controller, msg)
+    clearPatchedSourceCache(controller, patchedKeys)
+    const sourceUrl = controllerPatchedSourceUrl(controller, patchedKeys)
     if (sourceUrl === undefined) continue
     if (controller.sourceDirty || controller.sourceSaving) continue
     void refreshOpenSourceFromDisk(controller, sourceUrl)
@@ -5661,9 +5663,8 @@ function applySourcePatchedBreakpoints(msg: Extract<ServerMessage, {type: "sourc
 
 function controllerPatchedSourceUrl(
   controller: ModuleDisplayController,
-  msg: Extract<ServerMessage, {type: "source-patched"}>,
+  changed: readonly string[],
 ): string | undefined {
-  const changed = msg.files.flatMap((file) => sourcePatchFileKeys(file))
   for (const candidate of [
     controller.sourceIdentity?.sourceUrl,
     controller.sourceIdentity?.scriptUrl,
@@ -5675,6 +5676,20 @@ function controllerPatchedSourceUrl(
     }
   }
   return undefined
+}
+
+function clearPatchedSourceCache(controller: ModuleDisplayController, changed: readonly string[]): void {
+  for (const [cacheKey, cached] of controller.sourceCache) {
+    const candidates = [
+      cacheKey.split("\0").at(-1),
+      cached.sourceUrl,
+      cached.scriptUrl,
+    ]
+    const candidateKeys = candidates.flatMap((candidate) => sourceChangeKeyVariants(candidate))
+    if (candidateKeys.some((candidateKey) => changed.some((changedKey) => sourceChangeKeysMatch(candidateKey, changedKey)))) {
+      controller.sourceCache.delete(cacheKey)
+    }
+  }
 }
 
 function sourcePatchFileKeys(file: SourcePatchedFile): string[] {

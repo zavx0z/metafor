@@ -131,6 +131,17 @@ Use the repository root for common tasks:
 
 Prefer the smallest relevant verification for the files you change.
 
+## Interpreter Editing Rule
+
+Когда человек и агент совместно работают над кодом, который открыт или запущен в интерпретаторе, все изменения этого кода выполняются только через API интерпретатора:
+
+- `POST /processes/:id/apply_patch` для raw `apply_patch`;
+- `POST /processes/:id/source` для сохранения полного текста source.
+
+Не правь такой код локальным `apply_patch`, `sed`, редактором, форматтером или shell-write командой в обход интерпретатора. Иначе интерпретатор не видит patch-flow, не обновляет breakpoints, source-patched/replay и текущий runtime/source context.
+
+Обычные локальные инструменты можно использовать для документации, правил, внешних meta-файлов и кода, который не является текущим совместно отлаживаемым process.
+
 ## Cross-Domain Rules
 
 - Production code: direct imports across domains are forbidden.

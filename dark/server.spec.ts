@@ -4,28 +4,26 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage, type GravitonMessage} from "@shared/protocol"
 
-// server.ts открывает store на верхнем уровне через top-level await.
-// Имя зафиксировано — `dark/tmp/boundary.sqlite`, файл не удаляется после теста, чтобы
-// результат разложения git можно было осмотреть руками.
-const tmpDir = join(import.meta.dir, "tmp")
-mkdirSync(tmpDir, {recursive: true})
-const storePath = join(tmpDir, "boundary.sqlite")
-
-// pre-clean: предыдущий запуск мог оставить файл — стартуем с чистого слепка
-rmSync(storePath, {force: true})
-rmSync(`${storePath}-shm`, {force: true})
-rmSync(`${storePath}-wal`, {force: true})
-
-process.env.DARK_STORE_PATH = storePath
-
-// IMPORTANT: top-level await — server поднимается ровно один раз.
-await import("./server.ts")
-
 describe("dark/server разворачивает дерево zavx0z/git по gravity-патчу", () => {
   let outbound: BroadcastChannel
+  let storePath: string
   const observed: GravitonMessage[] = []
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    // Файл не удаляем после теста, чтобы результат разложения git можно было осмотреть руками.
+    const tmpDir = join(import.meta.dir, "tmp")
+    mkdirSync(tmpDir, {recursive: true})
+    storePath = join(tmpDir, "boundary.sqlite")
+
+    // Предыдущий аварийный запуск мог оставить sqlite sidecar-файлы на диске.
+    // Чистим их перед импортом server.ts, потому что server.ts открывает store на этапе import.
+    rmSync(storePath, {force: true})
+    rmSync(`${storePath}-shm`, {force: true})
+    rmSync(`${storePath}-wal`, {force: true})
+
+    process.env.STORE_PATH = storePath
+    await import("./server.ts")
+
     outbound = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
     outbound.addEventListener("message", (event) => {
       const data = (event as MessageEvent<unknown>).data

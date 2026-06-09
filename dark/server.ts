@@ -16,7 +16,7 @@ import {matter} from "./dark.ts"
  * Исходящие сообщения от самого Dark (`source === "dark"`) пропускаются,
  * чтобы не было обратной обработки собственных `/wimp/<id>` add'ов и barrier'ов.
  */
-const STORE_PATH = process.env.DARK_STORE_PATH ?? "./boundary.sqlite"
+const STORE_PATH = process.env.STORE_PATH ?? "./boundary.sqlite"
 
 globalThis.store = await open(STORE_PATH)
 
@@ -69,7 +69,3 @@ const shutdown = async (signal: string): Promise<void> => {
 
 process.on("SIGINT", () => void shutdown("SIGINT"))
 process.on("SIGTERM", () => void shutdown("SIGTERM"))
-
-console.log(
-  `[dark/server] dark store ready at "${STORE_PATH}"; слушаю gravity channel "${GRAVITY_BROADCAST_CHANNEL}" на add /wimp/<src>`,
-)

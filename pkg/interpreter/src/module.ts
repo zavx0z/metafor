@@ -160,7 +160,7 @@ export class InterpreterModule {
     const runToExists = runTo !== undefined && baseBreakpoints.some((spec) => breakpointSpecMatchesRunTo(spec, runTo))
     const breakpoints = runTo === undefined || runToExists ? baseBreakpoints : [...baseBreakpoints, runTo]
     return this.target.restart({
-      inspectMode: "wait",
+      inspectMode: runTo === undefined ? "wait" : "brk",
       pauseOnStart: false,
       breakpoints,
       beforeStart: () => this.runtime.setReplayRunTo(runTo === undefined ? null : {
