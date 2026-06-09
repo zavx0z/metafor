@@ -41,6 +41,22 @@ describe("syntax tokenizer", () => {
     expect(tokenFor(line, tokens[0]!, "FROM")?.c).toBe("k")
     expect(tokenFor(line, tokens[0]!, "'x'")?.c).toBe("s")
   })
+
+  test("highlights object keys and typed parameter names", () => {
+    const lines = [
+      "const store = { fields: [{ type: FIELD_TYPE.F32 }], localValueOffset: 0 }",
+      "function update(braneIndex: number, fieldIndex?: number) { return { scope: \"local\" } }",
+    ]
+    const tokens = tokenize(lines.join("\n"))
+
+    expect(tokenFor(lines[0]!, tokens[0]!, "fields")?.c).toBe("t")
+    expect(tokenFor(lines[0]!, tokens[0]!, "type")?.c).toBe("t")
+    expect(tokenFor(lines[0]!, tokens[0]!, "localValueOffset")?.c).toBe("t")
+    expect(tokenFor(lines[1]!, tokens[1]!, "braneIndex")?.c).toBe("d")
+    expect(tokenFor(lines[1]!, tokens[1]!, "fieldIndex")?.c).toBe("d")
+    expect(tokenFor(lines[1]!, tokens[1]!, "number")?.c).toBe("t")
+    expect(tokenFor(lines[1]!, tokens[1]!, "scope")?.c).toBe("t")
+  })
 })
 
 function tokenFor(line: string, tokens: readonly Token[], fragment: string): Token | undefined {

@@ -117,7 +117,7 @@ export function tokenizePatternRangeTokens(source: string, base: number, languag
   const tokens: RangeToken[] = []
   flattenPatternTokens(tokenizePatternText(source, grammar), base, undefined, tokens)
   if (language === "typescript" || language === "javascript") applySemanticIdentifierOverlays(source, base, tokens)
-  return tokens
+  return tokens.sort(compareRangeTokens)
 }
 
 export function tokenizePatternRanges(source: string, base: number, language: PatternLanguageId, push: (s: number, e: number, c: string, bg?: string, fg?: string) => void): void {
@@ -162,7 +162,14 @@ function categoryForTypes(types: readonly string[]): string {
   return "d"
 }
 
+function compareRangeTokens(left: RangeToken, right: RangeToken): number {
+  return left.s - right.s || left.e - right.e
+}
+
 function applySemanticIdentifierOverlays(source: string, base: number, tokens: RangeToken[]): void {
+  applyObjectKeyOverlays(source, base, tokens)
+  applyParameterOverlays(source, base, tokens)
+
   const identRe = /[$_\p{ID_Start}][$_\u200c\u200d\p{ID_Continue}]*/gu
   for (const match of source.matchAll(identRe)) {
     const text = match[0]
@@ -174,6 +181,75 @@ function applySemanticIdentifierOverlays(source: string, base: number, tokens: R
     } else if (/^[A-Z]/.test(text)) {
       pushRange(tokens, start, end, "t", undefined, colorForTypes(["class-name"]))
     }
+  }
+}
+
+function applyObjectKeyOverlays(source: string, base: number, tokens: RangeToken[]): void {
+  const keyRe = /(^|[,{])([ \t]*)([$_\p{ID_Start}][$_\u200c\u200d\p{ID_Continue}]*)(?=\s*:)/gmu
+  for (const match of source.matchAll(keyRe)) {
+    const text = match[3]
+    if (text === undefined) continue
+    const start = (match.index ?? 0) + match[1]!.length + match[2]!.length
+    if (nearestContainer(source, start) !== "{") continue
+    pushPropertyToken(base, tokens, start, text.length)
+  }
+}
+
+function applyParameterOverlays(source: string, base: number, tokens: RangeToken[]): void {
+  const parameterRe = /[$_\p{ID_Start}][$_\u200c\u200d\p{ID_Continue}]*(?=\s*\??\s*:)/gu
+  for (const match of source.matchAll(parameterRe)) {
+    const text = match[0]
+    const start = match.index ?? 0
+    if (nearestContainer(source, start) !== "(") continue
+    pushParameterToken(source, base, tokens, start, text.length)
+  }
+}
+
+function pushParameterToken(source: string, base: number, tokens: RangeToken[], start: number, length: number): void {
+  const end = start + length
+  const absStart = base + start
+  const absEnd = base + end
+  if (hasTokenCovering(tokens, absStart, absEnd)) return
+  pushRange(tokens, absStart, absEnd, "d", undefined, colorForTypes(["parameter"]))
+}
+
+function pushPropertyToken(base: number, tokens: RangeToken[], start: number, length: number): void {
+  const absStart = base + start
+  const absEnd = absStart + length
+  if (hasTokenCovering(tokens, absStart, absEnd)) return
+  pushRange(tokens, absStart, absEnd, "t", undefined, colorForTypes(["property"]))
+}
+
+function nearestContainer(source: string, end: number): string | undefined {
+  const stack: string[] = []
+  for (let i = 0; i < end; i++) {
+    const ch = source[i] ?? ""
+    if (ch === "\"" || ch === "'" || ch === "`") {
+      i = Math.max(i, scanQuoted(source, i, ch) - 1)
+      continue
+    }
+    if (ch === "/" && source[i + 1] === "/") {
+      const next = source.indexOf("\n", i + 2)
+      i = next < 0 ? end : next
+      continue
+    }
+    if (ch === "/" && source[i + 1] === "*") {
+      const next = source.indexOf("*/", i + 2)
+      i = next < 0 ? end : next + 1
+      continue
+    }
+    if (ch === "{" || ch === "(" || ch === "[") stack.push(ch)
+    else if (ch === "}") popContainer(stack, "{")
+    else if (ch === ")") popContainer(stack, "(")
+    else if (ch === "]") popContainer(stack, "[")
+  }
+  return stack[stack.length - 1]
+}
+
+function popContainer(stack: string[], opener: string): void {
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const current = stack.pop()
+    if (current === opener) return
   }
 }
 

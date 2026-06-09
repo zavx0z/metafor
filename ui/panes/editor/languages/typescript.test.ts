@@ -41,6 +41,23 @@ describe("tokenizeTypeScript", () => {
     expect(tokenFor(lines[0]!, tokens[0]!, "WHERE")?.c).toBe("k")
     expect(tokenFor(lines[0]!, tokens[0]!, "'zavx0z/git-history-commit'")?.c).toBe("s")
   })
+
+  test("highlights object keys and typed parameter names", () => {
+    const lines = [
+      "const store = { fields: [{ type: FIELD_TYPE.F32 }], localValueOffset: 0 }",
+      "function update(braneIndex: number, fieldIndex?: number) { return { scope: \"local\" } }",
+    ]
+    const tokens = tokenizeTypeScript(lines)
+
+    expect(tokenFor(lines[0]!, tokens[0]!, "fields")?.c).toBe("t")
+    expect(tokenFor(lines[0]!, tokens[0]!, "type")?.c).toBe("t")
+    expect(tokenFor(lines[0]!, tokens[0]!, "localValueOffset")?.c).toBe("t")
+    expect(tokenFor(lines[0]!, tokens[0]!, "FIELD_TYPE")?.c).toBe("n")
+    expect(tokenFor(lines[1]!, tokens[1]!, "braneIndex")?.c).toBe("d")
+    expect(tokenFor(lines[1]!, tokens[1]!, "fieldIndex")?.c).toBe("d")
+    expect(tokenFor(lines[1]!, tokens[1]!, "number")?.c).toBe("t")
+    expect(tokenFor(lines[1]!, tokens[1]!, "scope")?.c).toBe("t")
+  })
 })
 
 function tokenFor(line: string, tokens: readonly EditorToken[], fragment: string): EditorToken | undefined {
