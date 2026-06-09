@@ -64,6 +64,18 @@ export type EditorBreakpoint = {
   hit?: boolean
 }
 
+export type EditorSelectionSnapshot = {
+  /** 0-based cursor line inside the editor buffer. */
+  cursor: TextPosition
+  /** Raw anchor/focus positions, if selection exists. 0-based. */
+  anchor: TextPosition | null
+  focus: TextPosition | null
+  /** Ordered range, if selection exists. 0-based, end-exclusive column. */
+  range: TextSelectionRange | null
+  /** Selected text, if selection exists. */
+  text: string
+}
+
 export type EditorOpts = {
   /** Заголовок над редактором. */
   title?: string
@@ -73,6 +85,8 @@ export type EditorOpts = {
   onSave?: (text: string) => void
   /** Колбэк на copy/cut из floating-menu выделения. */
   onSelectionClipboard?: (ok: boolean, action: "copy" | "cut") => void
+  /** Колбэк на изменение cursor/selection. Позиции 0-based. */
+  onSelectionChange?: (snapshot: EditorSelectionSnapshot) => void
   /** Gutter line-number click for interpreter breakpoint toggles. */
   onBreakpointToggle?: (line: number) => void
   /** Initial interpreter breakpoint markers. */
@@ -230,6 +244,7 @@ export class EditorPane extends UiSurface {
   #onChange: ((text: string) => void) | undefined
   #onSave: ((text: string) => void) | undefined
   #onSelectionClipboard: ((ok: boolean, action: "copy" | "cut") => void) | undefined
+  #onSelectionChange: ((snapshot: EditorSelectionSnapshot) => void) | undefined
   #onBreakpointToggle: ((line: number) => void) | undefined
   #onFrameRectChange: ((rect: PaneRect) => void) | undefined
   #draggable: boolean
@@ -284,6 +299,7 @@ export class EditorPane extends UiSurface {
     this.#onChange = opts.onChange
     this.#onSave = opts.onSave
     this.#onSelectionClipboard = opts.onSelectionClipboard
+    this.#onSelectionChange = opts.onSelectionChange
     this.#onBreakpointToggle = opts.onBreakpointToggle
     this.#onFrameRectChange = opts.onFrameRectChange
     this.#draggable = opts.draggable ?? false
@@ -309,6 +325,7 @@ export class EditorPane extends UiSurface {
     this.#history = []
     this.#future = []
     this.#refreshTokens()
+    this.#emitSelectionChange()
     if (this.#introAnimation) this.#startIntroAnimation()
     else this.#finishIntroAnimation(false)
     this.requestRender()
@@ -410,6 +427,7 @@ export class EditorPane extends UiSurface {
       this.#ccol = Math.min(this.#ccol, this.#lines[this.#cline]?.length ?? 0)
       if (opts.scroll !== false) this.#scrollLineIntoView(this.#cline, "center")
     }
+    if (next !== null) this.#emitSelectionChange()
     if (changed || opts.scroll !== false) this.requestRender()
   }
 
@@ -435,11 +453,13 @@ export class EditorPane extends UiSurface {
     this.#ccol = focus.col
     this.#scrollCursorIntoView()
     this.#pingCursor()
+    this.#emitSelectionChange()
     this.requestRender()
   }
 
   clearSelection(): void {
     this.#clearSelectionState()
+    this.#emitSelectionChange()
     this.requestRender()
   }
 
@@ -459,6 +479,22 @@ export class EditorPane extends UiSurface {
 
   getSelectedText(): string {
     return this.#selectedText() ?? ""
+  }
+
+  getSelectionSnapshot(): EditorSelectionSnapshot {
+    const anchor = this.#selectionAnchor === null ? null : {...this.#selectionAnchor}
+    const focus = this.#selectionFocus === null ? null : {...this.#selectionFocus}
+    const range = this.#selectionRange()
+    return {
+      cursor: this.#currentPos(),
+      anchor,
+      focus,
+      range: range === null ? null : {
+        start: {...range.start},
+        end: {...range.end},
+      },
+      text: this.#selectedText() ?? "",
+    }
   }
 
   selectAll(): void {
@@ -647,6 +683,10 @@ export class EditorPane extends UiSurface {
     return textFromRange(this.#lines, this.#selectionRange())
   }
 
+  #emitSelectionChange(): void {
+    this.#onSelectionChange?.(this.getSelectionSnapshot())
+  }
+
   #setCursorPosition(pos: CursorPos, opts: {extendSelection: boolean}): void {
     const next = this.#clampPosition(pos)
     if (opts.extendSelection) {
@@ -659,6 +699,7 @@ export class EditorPane extends UiSurface {
     this.#ccol = next.col
     this.#scrollCursorIntoView()
     this.#pingCursor()
+    this.#emitSelectionChange()
     this.requestRender()
   }
 
@@ -941,6 +982,7 @@ export class EditorPane extends UiSurface {
       this.#cline = next.line
       this.#ccol = next.col
       this.#scrollCursorIntoView()
+      this.#emitSelectionChange()
       this.#requestInteractiveRender(prevLeft, prevTop)
     }
     this.#pingCursor()
@@ -1028,6 +1070,7 @@ export class EditorPane extends UiSurface {
     this.#scrollCursorIntoView()
     if (sameSelection && prevLeft === this.#scrollLeftPx && prevTop === this.#scrollTopPx) return
     this.#pingCursor(false)
+    this.#emitSelectionChange()
     this.#requestInteractiveRender(prevLeft, prevTop)
   }
 
@@ -1119,6 +1162,7 @@ export class EditorPane extends UiSurface {
     this.#ccol = endCol
     this.#scrollCursorIntoView()
     this.#pingCursor()
+    this.#emitSelectionChange()
     this.requestRender()
   }
 
@@ -1170,6 +1214,7 @@ export class EditorPane extends UiSurface {
     this.#invalidateTextMetrics()
     this.#refreshTokens()
     this.#scrollCursorIntoView()
+    this.#emitSelectionChange()
     this.requestRender()
     this.#onChange?.(this.getText())
   }

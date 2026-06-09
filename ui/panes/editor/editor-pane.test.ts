@@ -10,6 +10,40 @@ describe("EditorPane selection", () => {
       editor.setSelection(0, 2, 1, 2)
       expect(editor.hasSelection()).toBe(true)
       expect(editor.getSelectedText()).toBe("pha\nbe")
+      expect(editor.getSelectionSnapshot()).toEqual({
+        cursor: {line: 1, col: 2},
+        anchor: {line: 0, col: 2},
+        focus: {line: 1, col: 2},
+        range: {
+          start: {line: 0, col: 2},
+          end: {line: 1, col: 2},
+        },
+        text: "pha\nbe",
+      })
+    } finally {
+      editor.dispose()
+    }
+  })
+
+  test("emits cursor and selection changes", () => {
+    const snapshots: unknown[] = []
+    const editor = new EditorPane({
+      onSelectionChange: (snapshot) => snapshots.push(snapshot),
+    })
+    try {
+      editor.setText("alpha")
+      editor.setCursor(0, 3)
+      editor.setSelection(0, 1, 0, 4)
+      expect(snapshots.at(-1)).toEqual({
+        cursor: {line: 0, col: 4},
+        anchor: {line: 0, col: 1},
+        focus: {line: 0, col: 4},
+        range: {
+          start: {line: 0, col: 1},
+          end: {line: 0, col: 4},
+        },
+        text: "lph",
+      })
     } finally {
       editor.dispose()
     }

@@ -504,6 +504,77 @@ Step, это одно и то же действие интерпретатора
 - конкретная матрица камеры устройства может быть локальной, если она не
   является общим жестом/указанием в пространстве.
 
+## Самодостаточный API Интерпретатора
+
+Для работы с интерпретатором агент не должен использовать `@meta/macos`,
+desktop automation, Chrome screenshots или другой внешний host API напрямую как
+смысловой канал в обход интерпретатора.
+
+Внешние API допустимы как capabilities/tools, но вызываться они должны через
+API интерпретатора или как действие, зарегистрированное в интерпретаторной
+среде. Тогда действие попадает в общий state, history, permissions/scope и
+становится видимым пользователю, агенту, голосу и будущим hosts.
+
+Прямая работа с внешним API допустима только как низкоуровневая диагностика
+host-окна или инфраструктуры, когда сам интерпретаторный API еще не может дать
+нужный физический сигнал. Это не финальный рабочий маршрут среды.
+
+Рабочий канал агента, пользователя, голоса и будущих hosts - API самого
+интерпретатора:
+
+```text
+GET  /health
+GET  /modules
+GET  /context
+GET  /modules/:id/context
+GET  /interpreters
+POST /interpreters/action
+GET  /events
+GET  /console
+```
+
+Публичный REST слой не имеет отдельного agent namespace: весь API
+интерпретатора предназначен для всех участников и host-клиентов. Endpoints
+называются по смысловым ресурсам среды: `/displays`, `/interpreters`,
+`/hud/terminal`, `/context`, `/modules/:id/context`.
+
+Если нужно понять, где мы находимся, какой модуль активен, где execution point,
+какой frame выбран, какие scopes/values доступны, какие терминальные данные
+есть и какие действия допустимы, это должно читаться из server-owned
+interpreter state.
+
+Текущий контекст среды должен включать не только runtime pause point, но и
+человеческую навигацию по source:
+
+- какой display активен;
+- какой module принадлежит display;
+- какой source открыт;
+- где находится cursor/caret;
+- какой source range выделен;
+- какой текст выделен;
+- какой frame выбран;
+- какой terminal input набран.
+
+Этот контекст читается через API интерпретатора (`/context`,
+`/modules/:id/context`, `/interpreters`), а UI-host только обновляет его
+событиями среды.
+
+Внешний browser/desktop host может показывать это состояние, но не должен быть
+единственным местом, где оно существует.
+
+Текущий важный gap: часть interpreter workspace API уже дает нужный рабочий
+интерфейс, но некоторые значения `ui`/`display` еще зависят от подключенного
+browser-host и его controller state. Это нужно считать временной
+реализационной стадией, а не финальным контрактом.
+
+Финальный инвариант:
+
+- API интерпретатора самодостаточен для навигации, действий и диагностики;
+- UI является клиентом API, а не владельцем interpreter state;
+- агент работает через API интерпретатора, а не через прямые клики/скриншоты;
+- `@meta` и другие desktop tools могут быть подключенными инструментами, но не
+  используются напрямую в обход интерпретатора для управления средой.
+
 ## Пространственная Среда
 
 Текущий browser UI - только один host.
@@ -591,7 +662,7 @@ call stack.
 
 ## Action Layer
 
-Нужен не "agent API" и не "UI API", а единый слой действий интерпретатора.
+Нужен не отдельный API участника и не отдельный UI API, а единый слой действий интерпретатора.
 
 Рабочая форма:
 
@@ -617,6 +688,7 @@ source.edit
 source.apply
 source.save
 source.reveal
+source.openSelection
 
 execution.pause
 execution.resume
@@ -653,7 +725,8 @@ participant.pointAt
 
 Но часть общего live-контекста сейчас слишком сильно живет в browser-host:
 
-- `/agent/*` routes проксируют действия в подключенный UI client;
+- workspace routes (`/displays`, `/interpreters`, `/hud/terminal`) пока
+  проксируют часть действий в подключенный UI-host;
 - active source/frame/terminal context берется из UI controller;
 - source pane в interpreter UI сейчас read-only;
 - workspace files есть как list/read source path, но нет полноценной server-side
@@ -664,11 +737,69 @@ participant.pointAt
 что следующий архитектурный шаг должен переносить смысловое состояние среды на
 сервер, а browser-host оставлять проекцией.
 
+## Ближайший Рубеж MetaFor Runtime
+
+На текущем этапе глобальная задача не в том, чтобы сделать интерпретатор
+готовым продуктом. Интерпретатор будет развиваться в процессе. Ближайшая
+цель - довести саму MetaFor до рабочего runtime-контура, где реально
+исполняется код, проходят процессы, работают протоколы и изменения фиксируются
+в общей реляционной форме.
+
+Минимальный первый контур:
+
+```text
+Dark materializes store
+  -> Boundary observes store
+  -> Boundary emits process/state event
+  -> Bulk executes action/process
+  -> Boundary applies result
+  -> store records value/state change
+  -> Bulk/App sees the changed world
+```
+
+Этот контур важнее полной готовности UI. UI, голос и агент должны работать с
+тем же смысловым action/state layer, но сначала нужна серверная возможность
+прогнать один живой процесс через домены MetaFor.
+
+Текущий фактический разрыв:
+
+- `Dark` уже пишет в новый `store.wimp / store.actor / store.topology`;
+- `Boundary` все еще читает старый отсутствующий `store/db`-контракт;
+- `Bulk process` умеет выполнять action-модуль, но target resolver тоже завязан
+  на старый `DbBackend`;
+- `Bulk render` использует старые render-row exports из `@store/actor`, хотя
+  новый `@store/actor` должен оставаться canonical instance-state, а не render
+  projection;
+- `app/web` поднимает оболочку, но worker entrypoints еще не переведены на
+  новый store path.
+
+Следовательно, ближайшая разработка должна идти не от интерфейса и не от
+agent-specific API, а от первого вертикального server/runtime smoke-сценария.
+
+Рабочая формулировка для следующего кода:
+
+```text
+matter("zavx0z/git")
+  -> creates canonical actors/values/states in store
+  -> Boundary adapter builds runtime branes/fields/states from store
+  -> Weak runtime performs one transition
+  -> process/action target is resolved from store
+  -> action result writes value/state back into shared store
+```
+
+Для этого нужно отдельно решить один архитектурный вопрос: является ли shared
+`value.uuid` достаточной канонической основой для Boundary entanglement и
+process input/output, или в ближайшем рубеже уже нужен минимальный provenance
+слой для source-binding direction.
+
 ## Нельзя Делать Дальше
 
 Нельзя строить новый слой как "AI automation API for UI".
 
 Нельзя добавлять отдельную agent-specific ветку workflow.
+
+Нельзя использовать `@meta` или desktop/browser automation напрямую в обход API
+интерпретатора как основной способ понимать и двигать состояние среды.
 
 Нельзя делать UI владельцем runtime/source state.
 
@@ -690,6 +821,9 @@ participant.pointAt
   claim, apply?
 - Какая часть `store` должна стать долговременной памятью интерпретаторной
   среды, а какая останется runtime state?
+- Для ближайшего MetaFor runtime smoke считать `actor_value.value` единственным
+  source of truth shared-state, или сразу фиксировать direction/provenance
+  source-binding отдельной связью?
 
 ## Рабочее Правило
 

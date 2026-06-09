@@ -27,6 +27,7 @@ import {
   sourceDisplayLocation,
   sourcePathFromLocation,
   type EditorBreakpoint,
+  type EditorSelectionSnapshot,
   type EditorTokens,
   type FileListItem,
   type TerminalInputSource,
@@ -78,7 +79,7 @@ type ServerMessage =
   | {type: "module-protocol-event"; moduleId: string; ts: string; method: string; params: unknown}
   | {type: "interpreter-event"; ts: string; event: string; detail: unknown}
   | {type: "result"; requestId: number; ok: boolean; result?: unknown; error?: string}
-  | {type: "agent-command"; requestId: number; command: string; params?: unknown}
+  | {type: "ui-host-command"; requestId: number; command: string; params?: unknown}
   | {type: "reload"}
 
 type TargetEvent =
@@ -161,6 +162,49 @@ type Source = {
   tokens?: EditorTokens
 }
 
+type SourceContextPosition = {
+  /** 1-based line for API consumers. */
+  line: number
+  /** 0-based column, matching runtime/breakpoint columns. */
+  column: number
+}
+type SourceSelectionContext = {
+  anchor: SourceContextPosition
+  focus: SourceContextPosition
+  start: SourceContextPosition
+  end: SourceContextPosition
+  text: string
+}
+type SourceInteractionContext = {
+  cursor: SourceContextPosition
+  selection: SourceSelectionContext | null
+}
+type ModuleCurrentContext = {
+  moduleId: string
+  displayId: string
+  label: string
+  updatedAt: string
+  display: {
+    active: boolean
+    visible: boolean
+    order: number
+  } | null
+  source: {
+    state: SourceRuntimeState
+    location: string
+    identity: BreakpointSourceIdentity | null
+    cursor: SourceContextPosition
+    selection: SourceSelectionContext | null
+  }
+  activeFrameIndex: number | null
+  currentFrame: Pick<FrameSnapshot, "index" | "function" | "url" | "line" | "column" | "sourceKind" | "scriptId"> | null
+  terminal: {
+    focused: boolean
+    pendingInput: string
+    promptVisible: boolean
+  }
+}
+
 type CachedSource = {
   text: string
   sourceUrl: string
@@ -196,20 +240,20 @@ type WorkspaceFilesState = {
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
 type ActiveInterpreterCommand = {cmd: string; label: string; startedAt: number}
 type DisplayLayoutMetrics = {widthMm: number; heightMm: number; pixelWidth: number; pixelHeight: number}
-type AgentDisplaySelectorSide = "left" | "right" | "top" | "bottom" | "center"
-type AgentDisplayInfo = UiRuntimeDisplaySnapshot & {
+type DisplaySelectorSide = "left" | "right" | "top" | "bottom" | "center"
+type DisplayInfo = UiRuntimeDisplaySnapshot & {
   displayId: string
   moduleId: string
   label: string
   order: number
 }
-type AgentInterpreterInfo = {
+type InterpreterInfo = {
   id: string
   moduleId: string
   displayId: string
   label: string
   order: number
-  display: AgentDisplayInfo | null
+  display: DisplayInfo | null
   runtime: {
     protocolUrl: string
     connection: ConnectionInfo
@@ -225,7 +269,10 @@ type AgentInterpreterInfo = {
       state: SourceRuntimeState | null
       location: string
       identity: BreakpointSourceIdentity | null
+      cursor: SourceContextPosition | null
+      selection: SourceSelectionContext | null
     }
+    context: ModuleCurrentContext | null
     activeFrameIndex: number | null
     currentFrame: FrameSnapshot | null
     terminal: {
@@ -243,6 +290,7 @@ type AgentInterpreterInfo = {
     resume: boolean
     step: boolean
     evaluate: boolean
+    sourceOpen: boolean
     restart: boolean
     stop: boolean
     showExecutionPoint: boolean
@@ -290,12 +338,14 @@ type ModuleDisplayController = {
   dump: InterpreterDump | undefined
   sourceLocation: string
   sourceRuntimeState: SourceRuntimeState
+  sourceContext: SourceInteractionContext
   outputLineCount: number
   agentTerminalEntries: AgentModuleTerminalEntry[]
   agentOutputLineCount: number
   agentTerminalTargetStartedAt: string | null
   activeCommand: ActiveInterpreterCommand | null
   verboseVisible: boolean
+  contextPublishQueued: boolean
   terminalInput: {
     buffer: string
     promptVisible: boolean
@@ -566,8 +616,8 @@ function handleServerMessage(msg: ServerMessage): void {
       resolvePendingRequest(msg)
       pendingRequests.delete(msg.requestId)
       return
-    case "agent-command":
-      void handleAgentCommand(msg)
+    case "ui-host-command":
+      void handleUiHostCommand(msg)
       return
     case "reload": {
       const url = new URL(window.location.href)
@@ -578,19 +628,19 @@ function handleServerMessage(msg: ServerMessage): void {
   }
 }
 
-async function handleAgentCommand(msg: Extract<ServerMessage, {type: "agent-command"}>): Promise<void> {
+async function handleUiHostCommand(msg: Extract<ServerMessage, {type: "ui-host-command"}>): Promise<void> {
   try {
-    const result = await executeAgentCommand(msg.command, msg.params)
-    sendAgentResult(msg.requestId, {ok: true, result})
+    const result = await executeUiHostCommand(msg.command, msg.params)
+    sendUiHostResult(msg.requestId, {ok: true, result})
   } catch (error) {
-    sendAgentResult(msg.requestId, {ok: false, error: error instanceof Error ? error.message : String(error)})
+    sendUiHostResult(msg.requestId, {ok: false, error: error instanceof Error ? error.message : String(error)})
   }
 }
 
-function sendAgentResult(requestId: number, reply: CommandReply): void {
+function sendUiHostResult(requestId: number, reply: CommandReply): void {
   if (socket === undefined || socket.readyState !== WebSocket.OPEN) return
   socket.send(JSON.stringify({
-    type: "agent-result",
+    type: "ui-host-result",
     requestId,
     ok: reply.ok,
     ...(reply.result === undefined ? {} : {result: reply.result}),
@@ -598,123 +648,115 @@ function sendAgentResult(requestId: number, reply: CommandReply): void {
   }))
 }
 
-async function executeAgentCommand(command: string, params: unknown): Promise<unknown> {
+async function executeUiHostCommand(command: string, params: unknown): Promise<unknown> {
   switch (command) {
     case "displays.list":
-    case "agent.displays.list":
-      return agentDisplayPayload()
+      return displayPayload()
     case "displays.focus":
-    case "agent.displays.focus":
-      return focusAgentDisplay(params)
+      return focusDisplay(params)
     case "displays.frame":
-    case "agent.displays.frame":
-      return frameAgentDisplays()
+      return frameDisplays()
     case "interpreters.list":
-    case "agent.interpreters.list":
-      return agentInterpretersPayload()
+      return interpretersPayload()
     case "interpreters.resolve":
-    case "agent.interpreters.resolve":
-      return resolveAgentInterpreterPayload(params)
+      return resolveInterpreterPayload(params)
     case "interpreters.focus":
-    case "agent.interpreters.focus":
-      return focusAgentInterpreter(params)
+      return focusInterpreter(params)
     case "interpreters.action":
-    case "agent.interpreters.action":
-      return await runAgentInterpreterAction(params)
-    case "terminal.get":
-    case "agent.terminal.get":
-      return agentTerminalPayload()
-    case "terminal.dock":
-    case "agent.terminal.dock":
-      return setAgentTerminalDocked(true)
-    case "terminal.show":
-    case "agent.terminal.show":
-      return setAgentTerminalDocked(false)
-    case "terminal.toggle":
-    case "agent.terminal.toggle":
-      return setAgentTerminalDocked(!hostTerminalHudDocked)
+      return await runInterpreterAction(params)
+    case "hud.terminal.get":
+      return hudTerminalPayload()
+    case "hud.terminal.dock":
+      return setHudTerminalDocked(true)
+    case "hud.terminal.show":
+      return setHudTerminalDocked(false)
+    case "hud.terminal.toggle":
+      return setHudTerminalDocked(!hostTerminalHudDocked)
     default:
-      throw new Error(`unknown agent command: ${command}`)
+      throw new Error(`unknown ui-host command: ${command}`)
   }
 }
 
-function agentDisplayPayload(): {
+function displayPayload(): {
   mode: string
   activeDisplayId: string | null
-  displays: AgentDisplayInfo[]
+  displays: DisplayInfo[]
 } {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
   return {
     mode: uiCanvas.displayMode,
     activeDisplayId: uiCanvas.activeDisplayId,
-    displays: agentDisplayInfos(),
+    displays: displayInfos(),
   }
 }
 
-function focusAgentDisplay(params: unknown): unknown {
+function focusDisplay(params: unknown): unknown {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
   const body = objectParam(params)
   const selector = objectParamMaybe(body["selector"]) ?? body
   const view = stringParam(body["view"]) ?? "full"
-  const display = resolveAgentDisplay(selector)
+  const display = resolveDisplay(selector)
   if (display === null) throw new Error("display not found")
   if (view === "full" && body["dockHostTerminal"] === true) setHostTerminalHudDocked(true)
   const focused = uiCanvas.focusDisplay(display.displayId)
   if (!focused) throw new Error(`display not found: ${display.displayId}`)
   const controller = moduleDisplays.get(display.moduleId)
-  if (controller !== undefined) scrollAgentModuleTerminalToBottom(controller)
+  if (controller !== undefined) {
+    scrollAgentModuleTerminalToBottom(controller)
+    queuePublishModuleContext(controller)
+  }
   return {
     resolved: display,
     view,
-    ...agentDisplayPayload(),
+    ...displayPayload(),
   }
 }
 
-function frameAgentDisplays(): unknown {
+function frameDisplays(): unknown {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
   uiCanvas.frameDisplays(moduleOrder.map((moduleId) => moduleDisplayId(moduleId)))
-  return agentDisplayPayload()
+  return displayPayload()
 }
 
-function agentInterpretersPayload(): {
+function interpretersPayload(): {
   mode: string
   activeDisplayId: string | null
-  interpreters: AgentInterpreterInfo[]
+  interpreters: InterpreterInfo[]
 } {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
-  const displays = new Map(agentDisplayInfos().map((display) => [display.moduleId, display]))
+  const displays = new Map(displayInfos().map((display) => [display.moduleId, display]))
   return {
     mode: uiCanvas.displayMode,
     activeDisplayId: uiCanvas.activeDisplayId,
     interpreters: moduleOrder
-      .map((moduleId) => agentInterpreterInfo(moduleId, displays.get(moduleId) ?? null))
-      .filter((info): info is AgentInterpreterInfo => info !== null),
+      .map((moduleId) => interpreterInfo(moduleId, displays.get(moduleId) ?? null))
+      .filter((info): info is InterpreterInfo => info !== null),
   }
 }
 
-function resolveAgentInterpreterPayload(params: unknown): unknown {
-  const display = resolveAgentInterpreterDisplay(params)
-  const interpreter = agentInterpreterInfo(display.moduleId, display)
+function resolveInterpreterPayload(params: unknown): unknown {
+  const display = resolveInterpreterDisplay(params)
+  const interpreter = interpreterInfo(display.moduleId, display)
   if (interpreter === null) throw new Error(`interpreter not found: ${display.moduleId}`)
   return interpreter
 }
 
-function focusAgentInterpreter(params: unknown): unknown {
-  const focused = focusAgentDisplay(params) as {resolved?: AgentDisplayInfo; view?: unknown}
+function focusInterpreter(params: unknown): unknown {
+  const focused = focusDisplay(params) as {resolved?: DisplayInfo; view?: unknown}
   const resolved = focused.resolved
   if (resolved === undefined) throw new Error("interpreter display not found")
-  focusAgentInterpreterTerminal(resolved.moduleId)
-  const interpreter = agentInterpreterInfo(resolved.moduleId, agentDisplayInfoForModule(resolved.moduleId))
+  focusInterpreterTerminal(resolved.moduleId)
+  const interpreter = interpreterInfo(resolved.moduleId, displayInfoForModule(resolved.moduleId))
   if (interpreter === null) throw new Error(`interpreter not found: ${resolved.moduleId}`)
   return {
     resolved,
     view: focused.view,
     interpreter,
-    displays: agentDisplayPayload(),
+    displays: displayPayload(),
   }
 }
 
-function focusAgentInterpreterTerminal(moduleId: string): void {
+function focusInterpreterTerminal(moduleId: string): void {
   const controller = moduleDisplays.get(moduleId)
   if (controller === undefined || !canAcceptTerminalInput(controller)) return
   rebuildModuleTerminalOutput(controller)
@@ -725,12 +767,12 @@ function focusAgentInterpreterTerminal(moduleId: string): void {
   scrollAgentModuleTerminalToBottom(controller)
 }
 
-async function runAgentInterpreterAction(params: unknown): Promise<unknown> {
+async function runInterpreterAction(params: unknown): Promise<unknown> {
   const body = objectParam(params)
   const action = stringParam(body["action"]) ?? stringParam(body["cmd"]) ?? stringParam(body["command"])
-  if (action === undefined) throw new Error("agent interpreter action must be a string")
+  if (action === undefined) throw new Error("interpreter action must be a string")
 
-  const display = resolveAgentInterpreterDisplay(body)
+  const display = resolveInterpreterDisplay(body)
   const controller = moduleDisplays.get(display.moduleId)
   if (controller === undefined) throw new Error(`interpreter display controller not found: ${display.moduleId}`)
   const actionParams = objectParamMaybe(body["params"]) ?? body
@@ -751,7 +793,15 @@ async function runAgentInterpreterAction(params: unknown): Promise<unknown> {
     }
     case "eval":
     case "evaluate":
-      reply = await evaluateAgentInterpreterExpression(controller, actionParams)
+      reply = await evaluateInterpreterExpression(controller, actionParams)
+      break
+    case "source.open":
+    case "openSource":
+      reply = await openInterpreterSource(controller, actionParams)
+      break
+    case "source.openSelection":
+    case "openSelection":
+      reply = await openInterpreterSelectedSource(controller)
       break
     case "restart":
       await restartModule(controller.id)
@@ -767,18 +817,18 @@ async function runAgentInterpreterAction(params: unknown): Promise<unknown> {
       reply = {ok: true}
       break
     default:
-      throw new Error(`unknown agent interpreter action: ${action}`)
+      throw new Error(`unknown interpreter action: ${action}`)
   }
 
   return {
     resolved: display,
     action,
     reply,
-    interpreter: agentInterpreterInfo(controller.id, agentDisplayInfoForModule(controller.id)),
+    interpreter: interpreterInfo(controller.id, displayInfoForModule(controller.id)),
   }
 }
 
-async function evaluateAgentInterpreterExpression(controller: ModuleDisplayController, params: Record<string, unknown>): Promise<unknown> {
+async function evaluateInterpreterExpression(controller: ModuleDisplayController, params: Record<string, unknown>): Promise<unknown> {
   const expr = stringParam(params["expr"]) ?? stringParam(params["expression"])
   if (expr === undefined) throw new Error("evaluate expr must be a string")
   const frame = numberParam(params["frame"]) ?? controller.activeFrameIndex
@@ -818,13 +868,38 @@ async function evaluateAgentInterpreterExpression(controller: ModuleDisplayContr
   }
 }
 
-function setAgentTerminalDocked(docked: boolean): unknown {
-  ensureHostTerminalController()
-  setHostTerminalHudDocked(docked)
-  return agentTerminalPayload()
+async function openInterpreterSource(controller: ModuleDisplayController, params: Record<string, unknown>): Promise<unknown> {
+  const directSourceUrl = stringParam(params["sourceUrl"])
+    ?? stringParam(params["path"])
+    ?? stringParam(params["modulePath"])
+  const specifier = stringParam(params["specifier"])
+  const sourceUrl = directSourceUrl ?? (specifier === undefined ? undefined : resolveSourceSpecifier(controller, specifier))
+  if (sourceUrl === undefined) throw new Error("source.open requires sourceUrl, path, modulePath, or specifier")
+  return await openWorkspaceSource(controller, sourceUrl)
 }
 
-function agentTerminalPayload(): unknown {
+async function openInterpreterSelectedSource(controller: ModuleDisplayController): Promise<unknown> {
+  const selectedText = controller.sourceContext.selection?.text.trim() ?? ""
+  if (selectedText.length === 0) throw new Error("source.openSelection requires selected source text")
+  const specifier = importSpecifierFromText(selectedText)
+  if (specifier === undefined) throw new Error(`selected text does not contain an import specifier: ${selectedText}`)
+  const sourceUrl = resolveSourceSpecifier(controller, specifier)
+  const result = await openWorkspaceSource(controller, sourceUrl)
+  return {
+    specifier,
+    selection: selectedText,
+    sourceUrl,
+    result,
+  }
+}
+
+function setHudTerminalDocked(docked: boolean): unknown {
+  ensureHostTerminalController()
+  setHostTerminalHudDocked(docked)
+  return hudTerminalPayload()
+}
+
+function hudTerminalPayload(): unknown {
   const controller = hostTerminal
   const frame = controller === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(controller.hudTerminal)
   return {
@@ -837,10 +912,10 @@ function agentTerminalPayload(): unknown {
   }
 }
 
-function agentDisplayInfos(): AgentDisplayInfo[] {
+function displayInfos(): DisplayInfo[] {
   if (uiCanvas === null) return []
   const runtimeDisplays = new Map(uiCanvas.displaySnapshots().map((display) => [display.id, display]))
-  const displays: AgentDisplayInfo[] = []
+  const displays: DisplayInfo[] = []
   for (const [order, moduleId] of moduleOrder.entries()) {
     const displayId = moduleDisplayId(moduleId)
     const runtimeDisplay = runtimeDisplays.get(displayId)
@@ -857,11 +932,11 @@ function agentDisplayInfos(): AgentDisplayInfo[] {
   return displays
 }
 
-function agentDisplayInfoForModule(moduleId: string): AgentDisplayInfo | null {
-  return agentDisplayInfos().find((display) => display.moduleId === moduleId) ?? null
+function displayInfoForModule(moduleId: string): DisplayInfo | null {
+  return displayInfos().find((display) => display.moduleId === moduleId) ?? null
 }
 
-function agentInterpreterInfo(moduleId: string, display: AgentDisplayInfo | null): AgentInterpreterInfo | null {
+function interpreterInfo(moduleId: string, display: DisplayInfo | null): InterpreterInfo | null {
   const module = moduleSnapshots.get(moduleId)
   if (module === undefined) return null
   const controller = moduleDisplays.get(moduleId)
@@ -897,7 +972,10 @@ function agentInterpreterInfo(moduleId: string, display: AgentDisplayInfo | null
         state: controller?.sourceRuntimeState ?? null,
         location: controller?.sourceLocation ?? "",
         identity: controller?.sourceIdentity ?? null,
+        cursor: controller?.sourceContext.cursor ?? null,
+        selection: controller?.sourceContext.selection ?? null,
       },
+      context: controller === undefined ? null : moduleCurrentContextPayload(controller),
       activeFrameIndex: controller?.activeFrameIndex ?? null,
       currentFrame,
       terminal: {
@@ -915,6 +993,7 @@ function agentInterpreterInfo(moduleId: string, display: AgentDisplayInfo | null
       resume: commandIdle && pausedWithContext,
       step: commandIdle && pausedWithContext,
       evaluate: commandIdle && controller !== undefined && canAcceptTerminalInput(controller),
+      sourceOpen: controller !== undefined,
       restart: commandIdle && module.target.command.length > 0,
       stop: commandIdle && targetRunning,
       showExecutionPoint: commandIdle && pausedWithContext && currentFrame !== null,
@@ -922,16 +1001,109 @@ function agentInterpreterInfo(moduleId: string, display: AgentDisplayInfo | null
   }
 }
 
-function resolveAgentInterpreterDisplay(params: unknown): AgentDisplayInfo {
+function emptySourceInteractionContext(): SourceInteractionContext {
+  return {
+    cursor: {line: 1, column: 0},
+    selection: null,
+  }
+}
+
+function sourceContextPosition(pos: {line: number; col: number}): SourceContextPosition {
+  return {
+    line: Math.max(1, Math.floor(pos.line) + 1),
+    column: Math.max(0, Math.floor(pos.col)),
+  }
+}
+
+function sourceContextFromEditorSnapshot(snapshot: EditorSelectionSnapshot): SourceInteractionContext {
+  return {
+    cursor: sourceContextPosition(snapshot.cursor),
+    selection: snapshot.range === null || snapshot.anchor === null || snapshot.focus === null
+      ? null
+      : {
+          anchor: sourceContextPosition(snapshot.anchor),
+          focus: sourceContextPosition(snapshot.focus),
+          start: sourceContextPosition(snapshot.range.start),
+          end: sourceContextPosition(snapshot.range.end),
+          text: snapshot.text,
+        },
+  }
+}
+
+function currentFrameContext(frame: FrameSnapshot | null): ModuleCurrentContext["currentFrame"] {
+  if (frame === null) return null
+  return {
+    index: frame.index,
+    function: frame.function,
+    url: frame.url,
+    line: frame.line,
+    column: frame.column,
+    ...(frame.sourceKind === undefined ? {} : {sourceKind: frame.sourceKind}),
+    ...(frame.scriptId === undefined ? {} : {scriptId: frame.scriptId}),
+  }
+}
+
+function moduleCurrentContextPayload(controller: ModuleDisplayController): ModuleCurrentContext {
+  const snapshot = moduleSnapshots.get(controller.id)
+  const display = displayInfoForModule(controller.id)
+  const currentFrame = controller.dump?.frames[controller.activeFrameIndex]
+    ?? snapshot?.dump?.frames[0]
+    ?? null
+  return {
+    moduleId: controller.id,
+    displayId: moduleDisplayId(controller.id),
+    label: snapshot?.label ?? controller.id,
+    updatedAt: new Date().toISOString(),
+    display: display === null ? null : {
+      active: display.active,
+      visible: display.visible,
+      order: display.order,
+    },
+    source: {
+      state: controller.sourceRuntimeState,
+      location: controller.sourceLocation,
+      identity: controller.sourceIdentity,
+      cursor: controller.sourceContext.cursor,
+      selection: controller.sourceContext.selection,
+    },
+    activeFrameIndex: controller.activeFrameIndex,
+    currentFrame: currentFrameContext(currentFrame),
+    terminal: {
+      focused: controller.terminal.isFocused(),
+      pendingInput: controller.terminalInput.buffer,
+      promptVisible: controller.terminalInput.promptVisible,
+    },
+  }
+}
+
+function queuePublishModuleContext(controller: ModuleDisplayController): void {
+  if (controller.contextPublishQueued) return
+  controller.contextPublishQueued = true
+  window.requestAnimationFrame(() => {
+    controller.contextPublishQueued = false
+    publishModuleContext(controller)
+  })
+}
+
+function publishModuleContext(controller: ModuleDisplayController): void {
+  if (socket === undefined || socket.readyState !== WebSocket.OPEN) return
+  socket.send(JSON.stringify({
+    type: "module-context",
+    moduleId: controller.id,
+    context: moduleCurrentContextPayload(controller),
+  }))
+}
+
+function resolveInterpreterDisplay(params: unknown): DisplayInfo {
   const body = objectParam(params)
   const selector = objectParamMaybe(body["selector"]) ?? body
-  const display = resolveAgentDisplay(selector)
+  const display = resolveDisplay(selector)
   if (display === null) throw new Error("interpreter display not found")
   return display
 }
 
-function resolveAgentDisplay(selector: Record<string, unknown>): AgentDisplayInfo | null {
-  const displays = agentDisplayInfos()
+function resolveDisplay(selector: Record<string, unknown>): DisplayInfo | null {
+  const displays = displayInfos()
   if (displays.length === 0) return null
 
   const displayId = stringParam(selector["displayId"]) ?? stringParam(selector["id"])
@@ -952,12 +1124,12 @@ function resolveAgentDisplay(selector: Record<string, unknown>): AgentDisplayInf
   }
 
   const side = sideParam(selector["side"])
-  if (side !== undefined) return resolveAgentDisplaySide(displays, side)
+  if (side !== undefined) return resolveDisplaySide(displays, side)
 
   return displays.find((display) => display.active) ?? displays[0] ?? null
 }
 
-function resolveAgentDisplaySide(displays: AgentDisplayInfo[], side: AgentDisplaySelectorSide): AgentDisplayInfo | null {
+function resolveDisplaySide(displays: DisplayInfo[], side: DisplaySelectorSide): DisplayInfo | null {
   const visible = displays.filter((display) => display.visible && display.screenCenter !== null)
   const candidates = visible.length > 0 ? visible : displays.filter((display) => display.screenCenter !== null)
   if (candidates.length === 0) return displays[0] ?? null
@@ -985,6 +1157,64 @@ function objectParamMaybe(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined
 }
 
+function importSpecifierFromText(text: string): string | undefined {
+  const clean = text.trim().replace(/;$/, "").trim()
+  const direct = /^["'`]([^"'`]+)["'`]$/.exec(clean)
+  if (direct?.[1] !== undefined) return direct[1]
+  const dynamicImport = /\bimport\s*\(\s*["'`]([^"'`]+)["'`]\s*\)/.exec(clean)
+  if (dynamicImport?.[1] !== undefined) return dynamicImport[1]
+  const staticImport = /\bfrom\s*["'`]([^"'`]+)["'`]/.exec(clean)
+  if (staticImport?.[1] !== undefined) return staticImport[1]
+  const sideEffectImport = /^import\s+["'`]([^"'`]+)["'`]/.exec(clean)
+  if (sideEffectImport?.[1] !== undefined) return sideEffectImport[1]
+  return clean.includes("/") || /\.(?:c|m)?(?:t|j)sx?$/.test(clean) ? clean : undefined
+}
+
+function resolveSourceSpecifier(controller: ModuleDisplayController, specifier: string): string {
+  const clean = specifier.trim()
+  if (!clean.startsWith(".")) return clean
+  const base = currentSourceUrlForResolution(controller)
+  if (base === undefined) throw new Error(`cannot resolve relative source specifier without current source: ${specifier}`)
+  if (base.startsWith("file:")) return new URL(clean, base).toString()
+  return joinSourcePath(sourceDirname(base), clean)
+}
+
+function currentSourceUrlForResolution(controller: ModuleDisplayController): string | undefined {
+  const candidates = [
+    controller.sourceIdentity?.scriptUrl,
+    controller.sourceIdentity?.sourceUrl,
+    sourcePathFromLocation(controller.sourceLocation),
+  ]
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim().length > 0) return stripSourceLine(candidate)
+  }
+  return undefined
+}
+
+function sourceDirname(sourceUrl: string): string {
+  const clean = stripSourceLine(sourceUrl).replaceAll("\\", "/").replace(/[?#].*$/, "")
+  const idx = clean.lastIndexOf("/")
+  if (idx < 0) return ""
+  if (idx === 0) return "/"
+  return clean.slice(0, idx)
+}
+
+function joinSourcePath(baseDir: string, path: string): string {
+  const joined = baseDir.length === 0 ? path : `${baseDir.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`
+  const absolute = joined.startsWith("/")
+  const parts: string[] = []
+  for (const part of joined.replaceAll("\\", "/").split("/")) {
+    if (part.length === 0 || part === ".") continue
+    if (part === "..") {
+      if (parts.length > 0 && parts[parts.length - 1] !== "..") parts.pop()
+      else if (!absolute) parts.push(part)
+      continue
+    }
+    parts.push(part)
+  }
+  return absolute ? `/${parts.join("/")}` : parts.join("/")
+}
+
 function stringParam(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined
 }
@@ -993,7 +1223,7 @@ function numberParam(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
-function sideParam(value: unknown): AgentDisplaySelectorSide | undefined {
+function sideParam(value: unknown): DisplaySelectorSide | undefined {
   if (value !== "left" && value !== "right" && value !== "top" && value !== "bottom" && value !== "center") return undefined
   return value
 }
@@ -1068,7 +1298,10 @@ function applyModuleSnapshots(modules: ModulePaneSnapshot[]): void {
   syncModuleDisplays()
   for (const module of modules) {
     const controller = moduleDisplays.get(module.id)
-    if (controller !== undefined) updateModuleDisplay(controller, module)
+    if (controller !== undefined) {
+      updateModuleDisplay(controller, module)
+      queuePublishModuleContext(controller)
+    }
   }
 }
 
@@ -3727,6 +3960,10 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       showCaret: true,
       introAnimation: false,
       onBreakpointToggle: (line) => void toggleModuleBreakpoint(controller, line),
+      onSelectionChange: (snapshot) => {
+        controller.sourceContext = sourceContextFromEditorSnapshot(snapshot)
+        queuePublishModuleContext(controller)
+      },
     }),
     terminal: new TerminalPane({
       title: "",
@@ -3740,6 +3977,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       onInput: (data) => handleModuleTerminalInput(controller, data),
       onFocusChange: (focused) => {
         if (focused) setVoiceActiveTarget({kind: "module", controller})
+        queuePublishModuleContext(controller)
       },
     }),
     verbose: new VerbosePane(moduleVerboseStorageKey(module.id)),
@@ -3752,12 +3990,14 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     dump: undefined,
     sourceLocation: "",
     sourceRuntimeState: "idle" as SourceRuntimeState,
+    sourceContext: emptySourceInteractionContext(),
     outputLineCount: 0,
     agentTerminalEntries: readStoredModuleAgentTerminalEntries(module.id, module.target.startedAt),
     agentOutputLineCount: 0,
     agentTerminalTargetStartedAt: module.target.startedAt,
     activeCommand: null,
     verboseVisible: readModuleVerboseVisible(module.id),
+    contextPublishQueued: false,
     workspaceFiles,
     terminalInput: {
       buffer: "",
@@ -3917,8 +4157,16 @@ function setWorkspaceFilesSelectedIds(controller: ModuleDisplayController, ids: 
   }
 }
 
+type OpenWorkspaceSourceResult =
+  | {ok: true; sourceUrl: string; location: string; scriptUrl: string; sourceKind: string | null}
+  | {ok: false; sourceUrl: string; location: string; error: string}
+
 async function openWorkspaceFile(controller: ModuleDisplayController, item: FileListItem): Promise<void> {
   const sourceUrl = workspaceFileSourceUrl(controller, item)
+  await openWorkspaceSource(controller, sourceUrl)
+}
+
+async function openWorkspaceSource(controller: ModuleDisplayController, sourceUrl: string): Promise<OpenWorkspaceSourceResult> {
   const location = sourceUrl
   const identity: BreakpointSourceIdentity = {
     scriptId: "",
@@ -3926,6 +4174,7 @@ async function openWorkspaceFile(controller: ModuleDisplayController, item: File
     sourceUrl,
     key: sourceUrl,
   }
+  revealWorkspaceSource(controller, sourceUrl)
   setModuleSource(controller, {
     text: "loading...",
     currentLine: 0,
@@ -3940,16 +4189,18 @@ async function openWorkspaceFile(controller: ModuleDisplayController, item: File
       scriptUrl?: string
       scriptSource?: string
       tokens?: EditorTokens
+      sourceKind?: string
       error?: string
     }
     if (typeof data.scriptSource !== "string") {
+      const error = data.error ?? "unknown"
       setModuleSource(controller, {
-        text: `no source: ${data.error ?? "unknown"}`,
+        text: `no source: ${error}`,
         currentLine: 0,
         location,
         identity,
       }, "idle", false)
-      return
+      return {ok: false, sourceUrl, location, error}
     }
     const responseSourceUrl = data.url ?? sourceUrl
     const responseScriptUrl = data.scriptUrl ?? ""
@@ -3965,13 +4216,23 @@ async function openWorkspaceFile(controller: ModuleDisplayController, item: File
       },
       ...(data.tokens === undefined ? {} : {tokens: data.tokens}),
     }, "idle", false)
+    revealWorkspaceSource(controller, responseSourceUrl)
+    return {
+      ok: true,
+      sourceUrl: responseSourceUrl,
+      location: responseSourceUrl,
+      scriptUrl: responseScriptUrl,
+      sourceKind: data.sourceKind ?? null,
+    }
   } catch (error) {
+    const message = String(error)
     setModuleSource(controller, {
-      text: `fetch failed: ${String(error)}`,
+      text: `fetch failed: ${message}`,
       currentLine: 0,
       location,
       identity,
     }, "idle", false)
+    return {ok: false, sourceUrl, location, error: message}
   }
 }
 
@@ -4058,22 +4319,32 @@ function revealCurrentWorkspaceFile(controller: ModuleDisplayController): void {
 }
 
 function currentWorkspaceFileId(controller: ModuleDisplayController): string | null {
-  const knownIds = new Set(workspaceFileIds(controller.workspaceFiles.items))
   const candidates = [
     controller.sourceLocation,
     controller.sourceIdentity?.sourceUrl,
     controller.sourceIdentity?.scriptUrl,
     controller.sourceIdentity?.key,
   ].filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+  return workspaceFileIdForSources(controller, candidates)
+}
 
-  for (const candidate of candidates) {
+function revealWorkspaceSource(controller: ModuleDisplayController, sourceUrl: string): void {
+  const fileId = workspaceFileIdForSources(controller, [sourceUrl])
+  if (fileId === null) return
+  setWorkspaceFilesExpandedIds(controller, [...new Set([...controller.workspaceFiles.expandedIds, ...workspaceParentIds(fileId)])])
+  setWorkspaceFilesSelectedIds(controller, [fileId])
+}
+
+function workspaceFileIdForSources(controller: ModuleDisplayController, sources: readonly string[]): string | null {
+  const knownIds = new Set(workspaceFileIds(controller.workspaceFiles.items))
+  for (const candidate of sources) {
     const direct = workspaceFileIdCandidates(candidate, controller.workspaceFiles)
     for (const id of direct) {
       if (knownIds.has(id)) return id
     }
   }
 
-  for (const candidate of candidates) {
+  for (const candidate of sources) {
     const normalized = normalizeSourceFilePath(candidate)
     if (normalized.length === 0) continue
     const suffixMatches = [...knownIds].filter((id) => normalized === id || normalized.endsWith(`/${id}`))
@@ -4494,12 +4765,14 @@ function setModuleSource(controller: ModuleDisplayController, payload: Source, s
   const executionLine = state === "paused" && payload.currentLine > 0 ? payload.currentLine : null
   controller.source.setExecutionLine(executionLine, {scroll: executionLine !== null && forceScroll !== false})
   syncModuleBreakpointMarkers(controller)
+  queuePublishModuleContext(controller)
 }
 
 function setModuleSourceState(controller: ModuleDisplayController, state: SourceRuntimeState): void {
   controller.sourceRuntimeState = state
   controller.source.setTitle(moduleSourceTitle(controller))
   if (state !== "paused") controller.source.setExecutionLine(null, {scroll: false})
+  queuePublishModuleContext(controller)
 }
 
 function moduleSourceTitle(controller: ModuleDisplayController): string {
@@ -4720,6 +4993,7 @@ function syncModuleTerminalInput(controller: ModuleDisplayController): void {
   else {
     hideModuleTerminalPrompt(controller)
   }
+  queuePublishModuleContext(controller)
 }
 
 function canAcceptTerminalInput(controller: ModuleDisplayController): boolean {
@@ -4737,12 +5011,14 @@ function showModuleTerminalPrompt(controller: ModuleDisplayController): void {
   if (controller.terminalInput.promptVisible) return
   controller.terminal.write(`${ansiCyan("> ")}${moduleTerminalInputDisplayText(controller.terminalInput.buffer)}`)
   controller.terminalInput.promptVisible = true
+  queuePublishModuleContext(controller)
 }
 
 function hideModuleTerminalPrompt(controller: ModuleDisplayController): void {
   if (!controller.terminalInput.promptVisible) return
   controller.terminal.write("\r\x1b[K")
   controller.terminalInput.promptVisible = false
+  queuePublishModuleContext(controller)
 }
 
 function handleModuleTerminalInput(controller: ModuleDisplayController, data: string): void {
@@ -4763,12 +5039,14 @@ function handleModuleTerminalInput(controller: ModuleDisplayController, data: st
       controller.terminalInput.buffer = ""
       controller.terminalInput.promptVisible = false
       showModuleTerminalPrompt(controller)
+      queuePublishModuleContext(controller)
       continue
     }
     if (ch === "\x7f" || ch === "\b") {
       if (controller.terminalInput.buffer.length === 0) continue
       controller.terminalInput.buffer = controller.terminalInput.buffer.slice(0, -1)
       controller.terminal.write("\b \b")
+      queuePublishModuleContext(controller)
       continue
     }
     if (ch === "\t") {
@@ -4784,6 +5062,7 @@ function handleModuleTerminalInput(controller: ModuleDisplayController, data: st
 function appendModuleTerminalInputText(controller: ModuleDisplayController, text: string): void {
   controller.terminalInput.buffer += text
   controller.terminal.write(moduleTerminalInputDisplayText(text))
+  queuePublishModuleContext(controller)
 }
 
 function moduleTerminalInputDisplayText(text: string): string {
@@ -4795,6 +5074,7 @@ function submitModuleTerminalExpression(controller: ModuleDisplayController): vo
   controller.terminalInput.buffer = ""
   controller.terminal.write("\r\n")
   controller.terminalInput.promptVisible = false
+  queuePublishModuleContext(controller)
   if (expr.length === 0) {
     showModuleTerminalPrompt(controller)
     return

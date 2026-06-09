@@ -81,11 +81,11 @@ export function renderEditorTokenizedLine(opts: RenderEditorTokenLineOpts): void
       opts.pane.drawText(chunkText, drawX, opts.y, {
         fontPx: opts.fontPx,
         material,
-        letterSpacingPx: opts.letterSpacingPx,
-        spaceAdvancePx: opts.spaceAdvancePx,
         maxWidthPx: Math.max(0, opts.startX + opts.maxPx - drawX),
         fit: false,
         measure: false,
+        ...(opts.letterSpacingPx === undefined ? {} : {letterSpacingPx: opts.letterSpacingPx}),
+        ...(opts.spaceAdvancePx === undefined ? {} : {spaceAdvancePx: opts.spaceAdvancePx}),
       })
     }
     cursorX += w

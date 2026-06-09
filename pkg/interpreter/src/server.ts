@@ -61,19 +61,21 @@ type WsClientData = UiWsClientData | TerminalWsClientData
 
 const NDJSON_TAIL_DEFAULT_LIMIT = 200
 const NDJSON_TAIL_MAX_LIMIT = 5_000
-const AGENT_COMMAND_TIMEOUT_MS = 8_000
+const UI_HOST_COMMAND_TIMEOUT_MS = 8_000
 const VALID_STOP_SIGNALS = new Set(["SIGTERM", "SIGKILL", "SIGINT", "SIGHUP", "SIGQUIT"])
 type InterpreterTerminalSessionManager = ReturnType<typeof createPtySessionManager>
-type AgentCommandDispatcher = (command: string, params: JsonObject) => Promise<JsonObject>
-type AgentPendingRequest = {
+type UiHostCommandDispatcher = (command: string, params: JsonObject) => Promise<JsonObject>
+type UiHostPendingRequest = {
   clientId: number
   command: string
   resolve: (value: JsonObject) => void
   reject: (error: Error) => void
   timer: ReturnType<typeof setTimeout>
 }
+type ModuleContextStore = Map<string, JsonObject>
+type ModuleSnapshot = ReturnType<InterpreterModule["snapshot"]>
 
-class AgentCommandError extends Error {
+class UiHostCommandError extends Error {
   readonly status: number
 
   constructor(message: string, status: number) {
@@ -96,8 +98,9 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   const terminalSessions = interpreterTerminalSessions()
   let nextWsClientId = 1
   let nextTerminalClientId = 1
-  let nextAgentRequestId = 1
-  const pendingAgentRequests = new Map<number, AgentPendingRequest>()
+  let nextUiHostRequestId = 1
+  const pendingUiHostRequests = new Map<number, UiHostPendingRequest>()
+  const moduleContexts: ModuleContextStore = new Map()
 
   if (!isLoopbackHost(options.host)) {
     const warning = "/modules/run can execute local commands; bind the interpreter to loopback unless this is intentional"
@@ -113,25 +116,25 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
     }
   }
 
-  const dispatchAgentCommand: AgentCommandDispatcher = (command, params) => {
+  const dispatchUiHostCommand: UiHostCommandDispatcher = (command, params) => {
     const client = [...wsClients].find((item) => item.readyState === WebSocket.OPEN)
     if (client === undefined) {
-      throw new AgentCommandError("no connected interpreter UI client", 503)
+      throw new UiHostCommandError("no connected interpreter UI host", 503)
     }
-    const requestId = nextAgentRequestId++
+    const requestId = nextUiHostRequestId++
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        pendingAgentRequests.delete(requestId)
-        reject(new AgentCommandError(`agent command timed out: ${command}`, 504))
-      }, AGENT_COMMAND_TIMEOUT_MS)
-      pendingAgentRequests.set(requestId, {
+        pendingUiHostRequests.delete(requestId)
+        reject(new UiHostCommandError(`ui-host command timed out: ${command}`, 504))
+      }, UI_HOST_COMMAND_TIMEOUT_MS)
+      pendingUiHostRequests.set(requestId, {
         clientId: client.data.id,
         command,
         resolve,
         reject,
         timer,
       })
-      client.send(JSON.stringify({type: "agent-command", requestId, command, params}))
+      client.send(JSON.stringify({type: "ui-host-command", requestId, command, params}))
     })
   }
 
@@ -246,8 +249,12 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
       const message = asObject(parsed)
       const messageType = asString(message?.["type"])
-      if (message !== undefined && messageType === "agent-result") {
-        acceptAgentResult(message, pendingAgentRequests)
+      if (message !== undefined && messageType === "ui-host-result") {
+        acceptUiHostResult(message, pendingUiHostRequests)
+        return
+      }
+      if (message !== undefined && messageType === "module-context") {
+        acceptModuleContext(message, moduleContexts, options, ws.data.id)
         return
       }
 
@@ -294,7 +301,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
       }
 
       wsClients.delete(ws)
-      rejectPendingAgentRequestsForClient(ws.data.id, pendingAgentRequests)
+      rejectPendingUiHostRequestsForClient(ws.data.id, pendingUiHostRequests)
       options.logger.event("ws.client.closed", {id: ws.data.id, total: wsClients.size})
     },
   }
@@ -341,7 +348,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
 
       const start = Date.now()
       try {
-        const response = await handleRoute(method, path, url, req, options, broadcast, dispatchAgentCommand)
+        const response = await handleRoute(method, path, url, req, options, moduleContexts, broadcast, dispatchUiHostCommand)
         options.logger.event("http.request", {
           method,
           path,
@@ -368,7 +375,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   return server
 }
 
-function acceptAgentResult(message: JsonObject, pending: Map<number, AgentPendingRequest>): void {
+function acceptUiHostResult(message: JsonObject, pending: Map<number, UiHostPendingRequest>): void {
   const requestId = asNumber(message["requestId"])
   if (requestId === undefined) return
   const request = pending.get(requestId)
@@ -383,30 +390,49 @@ function acceptAgentResult(message: JsonObject, pending: Map<number, AgentPendin
     })
     return
   }
-  const error = asString(message["error"]) ?? "agent command failed"
-  request.reject(new AgentCommandError(error, 400))
+  const error = asString(message["error"]) ?? "ui-host command failed"
+  request.reject(new UiHostCommandError(error, 400))
 }
 
-function rejectPendingAgentRequestsForClient(clientId: number, pending: Map<number, AgentPendingRequest>): void {
+function acceptModuleContext(
+  message: JsonObject,
+  contexts: ModuleContextStore,
+  options: HttpServerOptions,
+  clientId: number,
+): void {
+  const moduleId = asString(message["moduleId"])
+  const context = asObject(message["context"])
+  if (moduleId === undefined || context === undefined) return
+  if (options.modules.get(moduleId) === undefined) return
+  contexts.set(moduleId, {
+    ...context,
+    moduleId,
+    origin: "ui",
+    receivedAt: new Date().toISOString(),
+  })
+  options.logger.event("module.context", {clientId, moduleId})
+}
+
+function rejectPendingUiHostRequestsForClient(clientId: number, pending: Map<number, UiHostPendingRequest>): void {
   for (const [requestId, request] of pending) {
     if (request.clientId !== clientId) continue
     pending.delete(requestId)
     clearTimeout(request.timer)
-    request.reject(new AgentCommandError(`agent UI client disconnected during ${request.command}`, 503))
+    request.reject(new UiHostCommandError(`interpreter UI host disconnected during ${request.command}`, 503))
   }
 }
 
-async function dispatchAgentRouteFromBody(command: string, req: Request, dispatch: AgentCommandDispatcher): Promise<Response> {
+async function dispatchUiHostRouteFromBody(command: string, req: Request, dispatch: UiHostCommandDispatcher): Promise<Response> {
   const parsed = await readJsonObject(req)
   if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
-  return await dispatchAgentRoute(command, parsed.body, dispatch)
+  return await dispatchUiHostRoute(command, parsed.body, dispatch)
 }
 
-async function dispatchAgentRoute(command: string, params: JsonObject, dispatch: AgentCommandDispatcher): Promise<Response> {
+async function dispatchUiHostRoute(command: string, params: JsonObject, dispatch: UiHostCommandDispatcher): Promise<Response> {
   try {
     return jsonResponse(await dispatch(command, params))
   } catch (error) {
-    const status = error instanceof AgentCommandError ? error.status : 500
+    const status = error instanceof UiHostCommandError ? error.status : 500
     return jsonResponse({ok: false, command, error: serializeError(error)}, status)
   }
 }
@@ -417,22 +443,24 @@ async function handleRoute(
   url: URL,
   req: Request,
   options: HttpServerOptions,
+  moduleContexts: ModuleContextStore,
   broadcast: (payload: JsonObject) => void,
-  dispatchAgentCommand: AgentCommandDispatcher,
+  dispatchUiHostCommand: UiHostCommandDispatcher,
 ): Promise<Response> {
   if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: routeIndex()})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
-  if (method === "GET" && path === "/agent/displays") return await dispatchAgentRoute("displays.list", {}, dispatchAgentCommand)
-  if (method === "POST" && path === "/agent/displays/focus") return await dispatchAgentRouteFromBody("displays.focus", req, dispatchAgentCommand)
-  if (method === "POST" && path === "/agent/displays/frame") return await dispatchAgentRouteFromBody("displays.frame", req, dispatchAgentCommand)
-  if (method === "GET" && path === "/agent/interpreters") return await dispatchAgentRoute("interpreters.list", {}, dispatchAgentCommand)
-  if (method === "POST" && path === "/agent/interpreters/resolve") return await dispatchAgentRouteFromBody("interpreters.resolve", req, dispatchAgentCommand)
-  if (method === "POST" && path === "/agent/interpreters/focus") return await dispatchAgentRouteFromBody("interpreters.focus", req, dispatchAgentCommand)
-  if (method === "POST" && path === "/agent/interpreters/action") return await dispatchAgentRouteFromBody("interpreters.action", req, dispatchAgentCommand)
-  if (method === "GET" && path === "/agent/terminal") return await dispatchAgentRoute("terminal.get", {}, dispatchAgentCommand)
-  if (method === "POST" && path === "/agent/terminal/dock") return await dispatchAgentRouteFromBody("terminal.dock", req, dispatchAgentCommand)
-  if (method === "POST" && path === "/agent/terminal/show") return await dispatchAgentRouteFromBody("terminal.show", req, dispatchAgentCommand)
-  if (method === "POST" && path === "/agent/terminal/toggle") return await dispatchAgentRouteFromBody("terminal.toggle", req, dispatchAgentCommand)
+  if (method === "GET" && path === "/displays") return await dispatchUiHostRoute("displays.list", {}, dispatchUiHostCommand)
+  if (method === "POST" && path === "/displays/focus") return await dispatchUiHostRouteFromBody("displays.focus", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/displays/frame") return await dispatchUiHostRouteFromBody("displays.frame", req, dispatchUiHostCommand)
+  if (method === "GET" && path === "/interpreters") return await dispatchUiHostRoute("interpreters.list", {}, dispatchUiHostCommand)
+  if (method === "POST" && path === "/interpreters/resolve") return await dispatchUiHostRouteFromBody("interpreters.resolve", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/interpreters/focus") return await dispatchUiHostRouteFromBody("interpreters.focus", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/interpreters/action") return await dispatchUiHostRouteFromBody("interpreters.action", req, dispatchUiHostCommand)
+  if (method === "GET" && path === "/context") return jsonResponse(contextPayload(options, moduleContexts))
+  if (method === "GET" && path === "/hud/terminal") return await dispatchUiHostRoute("hud.terminal.get", {}, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/terminal/dock") return await dispatchUiHostRouteFromBody("hud.terminal.dock", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/terminal/show") return await dispatchUiHostRouteFromBody("hud.terminal.show", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/terminal/toggle") return await dispatchUiHostRouteFromBody("hud.terminal.toggle", req, dispatchUiHostCommand)
   if (method === "GET" && path === "/modules") return jsonResponse({modules: options.modules.snapshots()})
   if (method === "POST" && path === "/modules/run") return await runModule(req, options)
   const moduleRun = /^\/modules\/([^/]+)\/run$/.exec(path)
@@ -443,6 +471,8 @@ async function handleRoute(
   if (method === "POST" && moduleCommand !== null) return await dispatchModuleCommand(moduleCommand[1]!, req, options)
   const moduleSource = /^\/modules\/([^/]+)\/source$/.exec(path)
   if (method === "GET" && moduleSource !== null) return await getModuleScriptSource(moduleSource[1]!, url, options)
+  const moduleContext = /^\/modules\/([^/]+)\/context$/.exec(path)
+  if (method === "GET" && moduleContext !== null) return getModuleContext(moduleContext[1]!, options, moduleContexts)
   const moduleBreakpoints = /^\/modules\/([^/]+)\/breakpoints$/.exec(path)
   if (method === "GET" && moduleBreakpoints !== null) return getModuleBreakpoints(moduleBreakpoints[1]!, options)
   const moduleBreakpoint = /^\/modules\/([^/]+)\/breakpoint$/.exec(path)
@@ -483,22 +513,24 @@ function serveStatic(filePath: string, contentType: string): Response {
 function routeIndex(): Array<{method: string; path: string; description: string}> {
   return [
     {method: "GET", path: "/health", description: "статус коннекта и параметры"},
-    {method: "GET", path: "/agent/displays", description: "agent API: список UI-дисплеев и их экранная геометрия"},
-    {method: "POST", path: "/agent/displays/focus", description: "{selector:{side|displayId|moduleId|label|order}, view?, dockHostTerminal?} — сфокусировать дисплей; terminal HUD не трогается без явного dockHostTerminal:true"},
-    {method: "POST", path: "/agent/displays/frame", description: "agent API: вернуть обзор всех дисплеев"},
-    {method: "GET", path: "/agent/interpreters", description: "agent API: список module interpreters как рабочих станций: display + runtime + текущий UI context"},
-    {method: "POST", path: "/agent/interpreters/resolve", description: "{selector:{side|displayId|moduleId|label|order}} — найти один interpreter display"},
-    {method: "POST", path: "/agent/interpreters/focus", description: "{selector, view?, dockHostTerminal?} — сфокусировать interpreter display и вернуть его состояние"},
-    {method: "POST", path: "/agent/interpreters/action", description: "{selector, action, params?} — выполнить pause|resume|step|evaluate|restart|stop|showExecutionPoint в выбранном interpreter"},
-    {method: "GET", path: "/agent/terminal", description: "agent API: состояние host terminal HUD"},
-    {method: "POST", path: "/agent/terminal/dock", description: "agent API: свернуть host terminal HUD"},
-    {method: "POST", path: "/agent/terminal/show", description: "agent API: развернуть host terminal HUD"},
-    {method: "POST", path: "/agent/terminal/toggle", description: "agent API: переключить host terminal HUD"},
+    {method: "GET", path: "/displays", description: "список UI-дисплеев и их экранная геометрия"},
+    {method: "POST", path: "/displays/focus", description: "{selector:{side|displayId|moduleId|label|order}, view?, dockHostTerminal?} — сфокусировать дисплей; terminal HUD не трогается без явного dockHostTerminal:true"},
+    {method: "POST", path: "/displays/frame", description: "вернуть обзор всех дисплеев"},
+    {method: "GET", path: "/interpreters", description: "список module interpreters как рабочих станций: display + runtime + текущий UI context"},
+    {method: "POST", path: "/interpreters/resolve", description: "{selector:{side|displayId|moduleId|label|order}} — найти один interpreter display"},
+    {method: "POST", path: "/interpreters/focus", description: "{selector, view?, dockHostTerminal?} — сфокусировать interpreter display и вернуть его состояние"},
+    {method: "POST", path: "/interpreters/action", description: "{selector, action, params?} — выполнить pause|resume|step|evaluate|source.open|source.openSelection|restart|stop|showExecutionPoint в выбранном interpreter"},
+    {method: "GET", path: "/context", description: "server-owned текущий контекст модулей: display/source cursor/selection/terminal"},
+    {method: "GET", path: "/hud/terminal", description: "состояние host terminal HUD"},
+    {method: "POST", path: "/hud/terminal/dock", description: "свернуть host terminal HUD"},
+    {method: "POST", path: "/hud/terminal/show", description: "развернуть host terminal HUD"},
+    {method: "POST", path: "/hud/terminal/toggle", description: "переключить host terminal HUD"},
     {method: "GET", path: "/modules", description: "список модулей интерпретатора"},
     {method: "POST", path: "/modules/run", description: "{label?, command, cwd?, env?, pauseOnStart?, breakpoints?} — запустить новый модуль"},
     {method: "POST", path: "/modules/:id/stop", description: "{signal?} — остановить модуль"},
     {method: "POST", path: "/modules/:id/command", description: "{cmd, params?} — команда в конкретный модуль"},
     {method: "GET", path: "/modules/:id/source?scriptId=<id>", description: "исходник скрипта конкретного модуля"},
+    {method: "GET", path: "/modules/:id/context", description: "последний текущий контекст конкретного модуля"},
     {method: "GET", path: "/modules/:id/breakpoints", description: "breakpoint registrations конкретного модуля"},
     {method: "POST", path: "/modules/:id/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — breakpoint в конкретном модуле"},
     {method: "DELETE", path: "/modules/:id/breakpoint", description: "{id|breakpointId} — убрать breakpoint из конкретного модуля"},
@@ -533,6 +565,85 @@ function workspaceFilesModuleContext(url: URL, options: HttpServerOptions): Work
     target: {
       command: snapshot.target.command,
       cwd: snapshot.target.cwd,
+    },
+  }
+}
+
+function contextPayload(options: HttpServerOptions, contexts: ModuleContextStore): JsonObject {
+  return {
+    ok: true,
+    modules: options.modules.snapshots().map((module) => ({
+      moduleId: module.id,
+      label: module.label,
+      displayId: `module:${module.id}`,
+      context: contextForModule(module, contexts),
+    })),
+  }
+}
+
+function getModuleContext(moduleId: string, options: HttpServerOptions, contexts: ModuleContextStore): Response {
+  const module = options.modules.get(moduleId)
+  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+  const snapshot = module.snapshot()
+  return jsonResponse({
+    ok: true,
+    moduleId: snapshot.id,
+    label: snapshot.label,
+    displayId: `module:${snapshot.id}`,
+    context: contextForModule(snapshot, contexts),
+  })
+}
+
+function contextForModule(module: ModuleSnapshot, contexts: ModuleContextStore): JsonObject {
+  return contexts.get(module.id) ?? runtimeFallbackContext(module)
+}
+
+function runtimeFallbackContext(module: ModuleSnapshot): JsonObject {
+  const frame = module.dump?.frames[0] ?? null
+  const sourceState = module.connection.state !== "connected"
+    ? "disconnected"
+    : module.target.state === "exited"
+      ? "exited"
+      : module.target.state === "failed"
+        ? "failed"
+        : module.paused
+          ? "paused"
+          : module.target.state === "running" || module.target.state === "starting"
+            ? "running"
+            : "idle"
+  const cursor = {
+    line: Math.max(1, frame?.line ?? 1),
+    column: Math.max(0, frame?.column ?? 0),
+  }
+  return {
+    moduleId: module.id,
+    displayId: `module:${module.id}`,
+    label: module.label,
+    origin: "runtime",
+    updatedAt: module.dump?.timestamp ?? new Date().toISOString(),
+    receivedAt: null,
+    display: null,
+    source: {
+      state: sourceState,
+      location: frame === null ? "" : `${frame.url}:${frame.line}`,
+      identity: null,
+      cursor,
+      selection: null,
+    },
+    activeFrameIndex: frame === null ? null : 0,
+    currentFrame: frame === null ? null : {
+      index: frame.index,
+      function: frame.function,
+      url: frame.url,
+      line: frame.line,
+      column: frame.column,
+      ...(frame.sourceKind === undefined ? {} : {sourceKind: frame.sourceKind}),
+      ...(frame.scriptId === undefined ? {} : {scriptId: frame.scriptId}),
+    },
+    terminal: {
+      focused: false,
+      pendingInput: "",
+      promptVisible: false,
     },
   }
 }

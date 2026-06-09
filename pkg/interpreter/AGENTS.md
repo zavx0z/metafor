@@ -55,9 +55,9 @@ All runtime actions are module-scoped:
 
 The API surface intentionally has no global `/breakpoint`, no global `/source`, no global `/command`, and no implicit current module.
 
-## Agent UI REST API
+## Interpreter REST API
 
-The interpreter exposes a small REST API for agent control of the browser UI. Use it instead of clicking the UI when the user asks to move between interpreter displays or to show/dock the host terminal HUD.
+The interpreter exposes a shared REST API for user, agent, voice, and host control of the interpreter environment. Use it instead of clicking the UI when the user asks to move between interpreter displays or to show/dock the host terminal HUD.
 
 Default base URL:
 
@@ -68,27 +68,29 @@ http://127.0.0.1:6500
 Before acting, read current state:
 
 ```sh
-curl -s http://127.0.0.1:6500/agent/displays
-curl -s http://127.0.0.1:6500/agent/terminal
+curl -s http://127.0.0.1:6500/displays
+curl -s http://127.0.0.1:6500/hud/terminal
 ```
 
 Display API:
 
-- `GET /agent/displays` returns `mode`, `activeDisplayId`, and `displays[]`.
+- `GET /displays` returns `mode`, `activeDisplayId`, and `displays[]`.
 - Each display includes `displayId`, `moduleId`, `label`, `order`, `screenCenter`, `screenRect`, `visible`, `active`, and `hovered`.
-- `POST /agent/displays/focus` focuses one display.
-- `POST /agent/displays/frame` returns the overview of all displays.
+- `POST /displays/focus` focuses one display.
+- `POST /displays/frame` returns the overview of all displays.
 
 Interpreter workspace API:
 
-- `GET /agent/interpreters` returns each module interpreter as an agent workspace: display geometry, runtime status, current UI source/frame context, terminal input state with `textTail`, and supported actions.
-- `POST /agent/interpreters/resolve` resolves one interpreter from the same selector shape as display focus and returns its workspace payload.
-- `POST /agent/interpreters/focus` focuses one interpreter display and returns that interpreter workspace payload.
-- `POST /agent/interpreters/action` runs a display-scoped action in one interpreter. Body shape: `{"selector":{...},"action":"pause|resume|step|evaluate|restart|stop|showExecutionPoint","params":{...}}`.
+- `GET /interpreters` returns each module interpreter workspace: display geometry, runtime status, current UI source/frame context, terminal input state with `textTail`, and supported actions.
+- `POST /interpreters/resolve` resolves one interpreter from the same selector shape as display focus and returns its workspace payload.
+- `POST /interpreters/focus` focuses one interpreter display and returns that interpreter workspace payload.
+- `POST /interpreters/action` runs a display-scoped action in one interpreter. Body shape: `{"selector":{...},"action":"pause|resume|step|evaluate|source.open|source.openSelection|restart|stop|showExecutionPoint","params":{...}}`.
 - `evaluate` accepts `{"expr":"...","frame":0}` and writes the agent expression/result into the module terminal so the human sees the shared action. Agent terminal entries are replayed after UI reload for the same target run.
+- `source.open` accepts `{"sourceUrl":"..."}` or `{"specifier":"./file.ts"}` and opens that source in the interpreter display.
+- `source.openSelection` resolves the current selected import/path from the interpreter context and opens it in the same display.
 - `step` accepts `{"kind":"over"|"into"|"out"}`.
 
-Display selectors accepted by `/agent/displays/focus`:
+Display selectors accepted by `/displays/focus`:
 
 ```json
 {"selector":{"side":"left"}}
@@ -102,7 +104,7 @@ Display selectors accepted by `/agent/displays/focus`:
 Focusing a display must not change the host terminal HUD unless the user explicitly asks for that. Do not dock, hide, show, or toggle the terminal while answering a display-only request such as "open the left display". If the terminal should be docked as part of a focus request, the API requires explicit intent:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
+curl -sS -X POST http://127.0.0.1:6500/displays/focus \
   -H 'content-type: application/json' \
   -d '{"selector":{"side":"left"},"dockHostTerminal":true}'
 ```
@@ -110,29 +112,29 @@ curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
 For normal display focus, omit `dockHostTerminal`:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
+curl -sS -X POST http://127.0.0.1:6500/displays/focus \
   -H 'content-type: application/json' \
   -d '{"selector":{"side":"left"}}'
 ```
 
-For agent collaboration on a concrete interpreter, use `/agent/interpreters/*` instead of guessing the module id from screen position:
+For collaboration on a concrete interpreter, use `/interpreters/*` instead of guessing the module id from screen position:
 
 ```sh
-curl -sS http://127.0.0.1:6500/agent/interpreters
+curl -sS http://127.0.0.1:6500/interpreters
 
-curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/action \
+curl -sS -X POST http://127.0.0.1:6500/interpreters/action \
   -H 'content-type: application/json' \
   -d '{"selector":{"side":"left"},"action":"evaluate","params":{"expr":"globalThis.location","frame":0}}'
 ```
 
 Terminal HUD API:
 
-- `GET /agent/terminal` returns `docked`, `sessionId`, `status`, `statusLabel`, `rect`, and `dockPlacement`.
-- `POST /agent/terminal/show` opens the host terminal HUD.
-- `POST /agent/terminal/dock` docks/hides the host terminal HUD.
-- `POST /agent/terminal/toggle` switches between those states.
+- `GET /hud/terminal` returns `docked`, `sessionId`, `status`, `statusLabel`, `rect`, and `dockPlacement`.
+- `POST /hud/terminal/show` opens the host terminal HUD.
+- `POST /hud/terminal/dock` docks/hides the host terminal HUD.
+- `POST /hud/terminal/toggle` switches between those states.
 
-Use terminal endpoints only for terminal requests. If the user says "show terminal", call `/agent/terminal/show`. If the user says "hide/dock terminal", call `/agent/terminal/dock`. If the user asks for a display transition, call only `/agent/displays/*`.
+Use terminal endpoints only for terminal requests. If the user says "show terminal", call `/hud/terminal/show`. If the user says "hide/dock terminal", call `/hud/terminal/dock`. If the user asks for a display transition, call only `/displays/*`.
 
 ## UI Architecture
 

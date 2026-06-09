@@ -60,6 +60,8 @@ POST   /modules/:id/breakpoint
 DELETE /modules/:id/breakpoint
 GET    /events?since=<iso|seq>&limit=<n>
 GET    /console?since=<iso|seq>&limit=<n>
+GET    /context
+GET    /modules/:id/context
 GET    /workspace/files?moduleId=<id>&q=<text>&limit=<n>
 ```
 
@@ -68,27 +70,31 @@ GET    /workspace/files?moduleId=<id>&q=<text>&limit=<n>
 и возвращает пути относительно этого root, чтобы файловые панели разных displays
 не шарили один глобальный список.
 
-## Agent UI API
+## Interpreter Workspace API
 
-Этот API предназначен для AI-агента, который управляет видимым UI без кликов по интерфейсу.
+REST API интерпретатора общий для пользователя, AI-агента, голоса и
+host-клиентов. Публичные endpoints называются по смысловым ресурсам среды, без
+отдельного agent namespace. Часть команд пока проксируется в подключенный
+browser UI-host, но это реализационная деталь transport-слоя, а не отдельный
+контракт для агента.
 
 Routes:
 
 ```text
-GET    /agent/displays
-POST   /agent/displays/focus
-POST   /agent/displays/frame
-GET    /agent/interpreters
-POST   /agent/interpreters/resolve
-POST   /agent/interpreters/focus
-POST   /agent/interpreters/action
-GET    /agent/terminal
-POST   /agent/terminal/show
-POST   /agent/terminal/dock
-POST   /agent/terminal/toggle
+GET    /displays
+POST   /displays/focus
+POST   /displays/frame
+GET    /interpreters
+POST   /interpreters/resolve
+POST   /interpreters/focus
+POST   /interpreters/action
+GET    /hud/terminal
+POST   /hud/terminal/show
+POST   /hud/terminal/dock
+POST   /hud/terminal/toggle
 ```
 
-`GET /agent/displays` возвращает режим пространства, активный display и список module `UIDisplay`:
+`GET /displays` возвращает режим пространства, активный display и список module `UIDisplay`:
 
 ```json
 {
@@ -113,10 +119,10 @@ POST   /agent/terminal/toggle
 }
 ```
 
-`POST /agent/displays/focus` фокусирует один display. Selector можно задавать по стороне, id, module id, label или порядку:
+`POST /displays/focus` фокусирует один display. Selector можно задавать по стороне, id, module id, label или порядку:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
+curl -sS -X POST http://127.0.0.1:6500/displays/focus \
   -H 'content-type: application/json' \
   -d '{"selector":{"side":"left"}}'
 ```
@@ -134,22 +140,22 @@ curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
 Важно: focus display не меняет host terminal HUD. Агент не должен сворачивать, раскрывать или переключать terminal pane при запросах вида "открой левый дисплей". Терминал меняется только отдельными terminal endpoints или явным `dockHostTerminal:true`:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/agent/displays/focus \
+curl -sS -X POST http://127.0.0.1:6500/displays/focus \
   -H 'content-type: application/json' \
   -d '{"selector":{"side":"left"},"dockHostTerminal":true}'
 ```
 
-`POST /agent/displays/frame` возвращает обзор всех module displays:
+`POST /displays/frame` возвращает обзор всех module displays:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/agent/displays/frame -d '{}'
+curl -sS -X POST http://127.0.0.1:6500/displays/frame -d '{}'
 ```
 
-## Agent Interpreter Workspace API
+## Interpreter Device API
 
-Этот слой нужен для совместной работы человека и AI-агента в нескольких серверных интерпретаторах. Он связывает `UIDisplay` с `moduleId`, runtime-состоянием и текущим UI-контекстом.
+Этот слой нужен для совместной работы человека, AI-агента, голоса и host-клиентов в нескольких серверных интерпретаторах. Он связывает `UIDisplay` с `moduleId`, runtime-состоянием и текущим UI-контекстом.
 
-`GET /agent/interpreters`:
+`GET /interpreters`:
 
 ```json
 {
@@ -182,7 +188,23 @@ curl -sS -X POST http://127.0.0.1:6500/agent/displays/frame -d '{}'
           "source": {
             "state": "paused",
             "location": "dark/server.ts:42",
-            "identity": {"scriptId": "12", "scriptUrl": "file:///...", "sourceUrl": "dark/server.ts", "key": "dark/server.ts"}
+            "identity": {"scriptId": "12", "scriptUrl": "file:///...", "sourceUrl": "dark/server.ts", "key": "dark/server.ts"},
+            "cursor": {"line": 42, "column": 5},
+            "selection": {
+              "anchor": {"line": 42, "column": 5},
+              "focus": {"line": 42, "column": 18},
+              "start": {"line": 42, "column": 5},
+              "end": {"line": 42, "column": 18},
+              "text": "state.current"
+            }
+          },
+          "context": {
+            "moduleId": "dark-server.spec.ts",
+            "displayId": "module:dark-server.spec.ts",
+            "source": {
+              "cursor": {"line": 42, "column": 5},
+              "selection": null
+            }
           },
           "activeFrameIndex": 0,
           "currentFrame": {"index": 0, "function": "handler", "url": "dark/server.ts", "line": 42, "column": 5},
@@ -195,6 +217,7 @@ curl -sS -X POST http://127.0.0.1:6500/agent/displays/frame -d '{}'
           "resume": true,
           "step": true,
           "evaluate": true,
+          "sourceOpen": true,
           "restart": true,
           "stop": true,
           "showExecutionPoint": true
@@ -205,26 +228,71 @@ curl -sS -X POST http://127.0.0.1:6500/agent/displays/frame -d '{}'
 }
 ```
 
-`POST /agent/interpreters/resolve` принимает те же selector shapes, что и `/agent/displays/focus`, и возвращает один interpreter workspace:
+`GET /context` возвращает server-owned текущий контекст всех модулей, который
+UI-host отправляет в интерпретатор по WebSocket при смене cursor/selection,
+активного display, source, frame или terminal input.
+
+```json
+{
+  "ok": true,
+  "modules": [
+    {
+      "moduleId": "dark-server.spec.ts",
+      "label": "dark/server.spec.ts",
+      "displayId": "module:dark-server.spec.ts",
+      "context": {
+        "moduleId": "dark-server.spec.ts",
+        "displayId": "module:dark-server.spec.ts",
+        "origin": "ui",
+        "updatedAt": "2026-06-09T00:00:00.000Z",
+        "receivedAt": "2026-06-09T00:00:00.010Z",
+        "display": {"active": true, "visible": true, "order": 0},
+        "source": {
+          "state": "paused",
+          "location": "r/dark/server.spec.ts:1",
+          "identity": {"scriptId": "116", "scriptUrl": "/repo/dark/server.spec.ts", "sourceUrl": "r/dark/server.spec.ts", "key": "r/dark/server.spec.ts"},
+          "cursor": {"line": 1, "column": 0},
+          "selection": null
+        },
+        "activeFrameIndex": 0,
+        "currentFrame": {"index": 0, "function": "module code", "url": "r/dark/server.spec.ts", "line": 1, "column": 1, "sourceKind": "sourcemap", "scriptId": "116"},
+        "terminal": {"focused": false, "pendingInput": "", "promptVisible": true}
+      }
+    }
+  ]
+}
+```
+
+`GET /modules/:id/context` возвращает тот же payload для одного модуля.
+
+Позиции в `source.cursor` и `source.selection`: `line` — 1-based, `column` —
+0-based. `selection.end.column` end-exclusive.
+
+`origin: "ui"` означает, что context пришел от UI-host и включает реальный
+caret/selection. `origin: "runtime"` означает server fallback из текущего
+execution point; в этом режиме `source.selection` всегда `null`, потому что
+выделение пользователя без UI-события неизвестно.
+
+`POST /interpreters/resolve` принимает те же selector shapes, что и `/displays/focus`, и возвращает один interpreter workspace:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/resolve \
+curl -sS -X POST http://127.0.0.1:6500/interpreters/resolve \
   -H 'content-type: application/json' \
   -d '{"selector":{"side":"left"}}'
 ```
 
-`POST /agent/interpreters/focus` фокусирует выбранный display и возвращает состояние выбранного interpreter. Как и display focus, он не меняет host terminal HUD без явного `dockHostTerminal:true`:
+`POST /interpreters/focus` фокусирует выбранный display и возвращает состояние выбранного interpreter. Как и display focus, он не меняет host terminal HUD без явного `dockHostTerminal:true`:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/focus \
+curl -sS -X POST http://127.0.0.1:6500/interpreters/focus \
   -H 'content-type: application/json' \
   -d '{"selector":{"moduleId":"dark-server.spec.ts"}}'
 ```
 
-`POST /agent/interpreters/action` выполняет действие в выбранном interpreter display:
+`POST /interpreters/action` выполняет действие в выбранном interpreter display:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/action \
+curl -sS -X POST http://127.0.0.1:6500/interpreters/action \
   -H 'content-type: application/json' \
   -d '{"selector":{"side":"left"},"action":"step","params":{"kind":"over"}}'
 ```
@@ -235,14 +303,32 @@ curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/action \
 - `resume`
 - `step` с `params.kind`: `over`, `into`, `out`
 - `evaluate` / `eval` с `params.expr` и опциональным `params.frame`
+- `source.open` с `params.sourceUrl`, `params.path`, `params.modulePath` или `params.specifier`
+- `source.openSelection` открывает import/path из текущего выделения source editor
 - `restart`
 - `stop`
 - `showExecutionPoint`
 
+Открыть модуль, выделенный в текущем source code:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/interpreters/action \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"side":"left"},"action":"source.openSelection"}'
+```
+
+Открыть конкретный source:
+
+```sh
+curl -sS -X POST http://127.0.0.1:6500/interpreters/action \
+  -H 'content-type: application/json' \
+  -d '{"selector":{"moduleId":"dark-server.spec.ts"},"action":"source.open","params":{"specifier":"./server.ts"}}'
+```
+
 `evaluate` возвращает raw reply runtime, чистый `formatted` и терминальную версию `formattedAnsi`, а также пишет AI-выражение и результат в module terminal, чтобы человек видел действие AI в общем контексте. AI-записи переигрываются после UI reload для того же target-запуска.
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/action \
+curl -sS -X POST http://127.0.0.1:6500/interpreters/action \
   -H 'content-type: application/json' \
   -d '{"selector":{"side":"right"},"action":"evaluate","params":{"expr":"state.currentUser","frame":0}}'
 ```
@@ -267,12 +353,12 @@ curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/action \
 }
 ```
 
-`GET /agent/terminal` возвращает состояние host terminal HUD:
+`GET /hud/terminal` возвращает состояние host terminal HUD:
 
 ```json
 {
   "ok": true,
-  "command": "terminal.get",
+  "command": "hud.terminal.get",
   "result": {
     "docked": false,
     "sessionId": "21534e34-5b71-409a-97e4-98557f18f02c",
@@ -287,9 +373,9 @@ curl -sS -X POST http://127.0.0.1:6500/agent/interpreters/action \
 Terminal HUD commands:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/agent/terminal/show -d '{}'
-curl -sS -X POST http://127.0.0.1:6500/agent/terminal/dock -d '{}'
-curl -sS -X POST http://127.0.0.1:6500/agent/terminal/toggle -d '{}'
+curl -sS -X POST http://127.0.0.1:6500/hud/terminal/show -d '{}'
+curl -sS -X POST http://127.0.0.1:6500/hud/terminal/dock -d '{}'
+curl -sS -X POST http://127.0.0.1:6500/hud/terminal/toggle -d '{}'
 ```
 
 `GET /modules`:
