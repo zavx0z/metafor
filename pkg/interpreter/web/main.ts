@@ -577,6 +577,7 @@ let socket: WebSocket | undefined
 let nextRequestId = 1
 let framedModuleKey = ""
 let interpreterViewPointRestoreAttempted = false
+let interpreterViewPointRestored = false
 let pendingInterpreterViewPointSnapshot: UiRuntimeViewPointSnapshot | null = null
 let interpreterViewPointStoreTimer: number | null = null
 const interpreterDisplayPositions = readStoredInterpreterDisplayPositions()
@@ -3891,6 +3892,12 @@ function syncModuleDisplays(): void {
   }).join("\0")
 
   if (restoreInterpreterViewPointOnce(frameKey)) return
+  // После restore новые дисплеи могут доехать асинхронно; не фреймим их
+  // автоматически поверх пользовательской камеры.
+  if (interpreterViewPointRestored) {
+    framedModuleKey = frameKey
+    return
+  }
 
   if (displayIds.length <= 1) {
     if (framedModuleKey !== frameKey) {
@@ -3912,6 +3919,7 @@ function restoreInterpreterViewPointOnce(frameKey: string): boolean {
   if (snapshot === null) return false
   const restored = uiCanvas.restoreViewPointSnapshot(snapshot)
   if (!restored) return false
+  interpreterViewPointRestored = true
   framedModuleKey = frameKey
   return true
 }
