@@ -133,12 +133,16 @@ Prefer the smallest relevant verification for the files you change.
 
 ## Interpreter Editing Rule
 
-Когда человек и агент совместно работают над кодом, который открыт или запущен в интерпретаторе, все изменения этого кода выполняются только через API интерпретатора:
+Когда человек и агент совместно работают над кодом, который открыт или запущен в интерпретаторе, все изменения этого кода выполняются **только через API интерпретатора**. Это строгое правило, а не рекомендация.
 
 - `POST /processes/:id/apply_patch` для raw `apply_patch`;
 - `POST /processes/:id/source` для сохранения полного текста source.
 
-Не правь такой код локальным `apply_patch`, `sed`, редактором, форматтером или shell-write командой в обход интерпретатора. Иначе интерпретатор не видит patch-flow, не обновляет breakpoints, source-patched/replay и текущий runtime/source context.
+Перед правкой кода сначала прочитай `GET /context` и определи текущий `processId` и `source.identity.sourceUrl` / `source.identity.scriptUrl`. Если файл относится к текущему process/display или открыт в source интерпретатора, не правь его локальным `apply_patch`, `sed`, редактором, форматтером или shell-write командой в обход интерпретатора.
+
+После правки через API проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `/context` или `GET /processes/:id/source`.
+
+Иначе интерпретатор не видит patch-flow, не обновляет breakpoints, source-patched/replay и текущий runtime/source context.
 
 Обычные локальные инструменты можно использовать для документации, правил, внешних meta-файлов и кода, который не является текущим совместно отлаживаемым process.
 

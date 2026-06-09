@@ -1,4 +1,4 @@
-import { createProtocolChannel, postProtocolPatches } from "../../protocol.ts"
+import { createProtocolChannel } from "../../protocol.ts"
 
 export const gravityCH = createProtocolChannel()
 
@@ -11,7 +11,7 @@ export interface DarkGravityProtocol {
 }
 
 function emitPatches(patches: Array<{ op: "add" | "remove" | "test"; path: string; value?: unknown }>): void {
-  postProtocolPatches(gravityCH, patches.map((patch) => ({ part: "graviton", ...patch })))
+  gravityCH.postMessage({ patches: patches.map((patch) => ({ part: "graviton", ...patch })) })
 }
 
 export function emitAdd(wimpId: string) {

@@ -235,6 +235,43 @@ describe("BreakpointStore", () => {
     }
   })
 
+  test("installs parsed script breakpoints in source order", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const file = join(dir, "dark.ts")
+      const requests: Array<{method: string; params: Record<string, unknown> | undefined}> = []
+      const client = {
+        async request(method: string, params?: Record<string, unknown>): Promise<unknown> {
+          requests.push({method, params})
+          if (method === "Debugger.setBreakpoint") {
+            const location = params?.["location"] as Record<string, unknown> | undefined
+            return {
+              breakpointId: `script:${location?.["lineNumber"] ?? "unknown"}`,
+              actualLocation: location,
+            }
+          }
+          return {}
+        },
+      } as unknown as ProtocolClient
+      const logger = new EventLogger(join(dir, "events.log"))
+      const store = new BreakpointStore({client, logger})
+
+      store.add({url: file, line: 286})
+      store.add({url: file, line: 31})
+      store.add({url: file, line: 34})
+
+      await store.handleScriptParsed({scriptId: "145", url: file})
+
+      const installedLines = requests
+        .filter((request) => request.method === "Debugger.setBreakpoint")
+        .map((request) => (request.params?.["location"] as Record<string, unknown>)["lineNumber"])
+
+      expect(installedLines).toEqual([30, 33, 285])
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
   test("remaps breakpoint specs after source line deletions", async () => {
     const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
     try {

@@ -1,4 +1,4 @@
-import { createProtocolChannel, postProtocolPatches, protocolPatches, type ProtocolPatch } from "../../protocol.ts"
+import { createProtocolChannel, type ProtocolChannel, type ProtocolMessage, type ProtocolPatch } from "../../protocol.ts"
 
 export type PhotonPayload = { value: string; path: string }
 export type WeakCoordinationKind = "claim" | "accept" | "reject" | "release"
@@ -28,10 +28,10 @@ export interface BulkWeakProtocol {
 }
 
 const createSubscription = (
-  channel: BroadcastChannel,
-  onMessage: (message: unknown) => void,
+  channel: ProtocolChannel,
+  onMessage: (message: ProtocolMessage) => void,
 ): BulkSubscription => {
-  channel.onmessage = (event: MessageEvent<unknown>) => {
+  channel.onmessage = (event) => {
     onMessage(event.data)
   }
 
@@ -54,7 +54,7 @@ export const subscribeBulkPhotons = (
   options: { channelName?: string } = {},
 ): BulkPhotonSubscription => {
   return createSubscription(createProtocolChannel(options.channelName), (message) => {
-    for (const patch of protocolPatches(message)) {
+    for (const patch of message.patches) {
       if (patch.part !== "photon") continue
       listener?.({ path: patch.path, value: String(patch.value ?? "") })
     }
@@ -66,7 +66,7 @@ export const subscribeBulkWeakCoordination = (
   options: { channelName?: string } = {},
 ): BulkWeakCoordinationSubscription => {
   return createSubscription(createProtocolChannel(options.channelName), (message) => {
-    for (const patch of protocolPatches(message)) {
+    for (const patch of message.patches) {
       if (patch.part !== "+z" && patch.part !== "-z") continue
       if (!isWeakCoordinationKind(patch.op)) continue
       const weak = weakPatchMeta(patch)
@@ -84,10 +84,10 @@ export const createBulkWeakProtocol = (options: BulkWeakProtocolOptions = {}): B
     processId: string,
     executorId?: string,
   ): void => {
-    postProtocolPatches(channel, [createBulkZPatch(coordination, wimpId, processId, executorId)])
+    channel.postMessage({ patches: [createBulkZPatch(coordination, wimpId, processId, executorId)] })
   }
   const emitW = (wimpId: string, processId: string, patches: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    postProtocolPatches(channel, createBulkWPatches(wimpId, processId, patches))
+    channel.postMessage({ patches: createBulkWPatches(wimpId, processId, patches) })
   }
   const emitWValues = (wimpId: string, processId: string, values: Record<string, unknown>): void => {
     emitW(wimpId, processId, createWeakResultFieldPatches(values))

@@ -1,17 +1,7 @@
 import {open} from "../store/server.ts"
-import {matter as darkMatter, type MatterOptions} from "./dark.ts"
-import type {SRC} from "../index.ts"
-import {MetaFor} from "../metafor"
-
-// Гарантируем наличие MetaFor в глобальном контексте для DSL файлов
-if (typeof globalThis !== "undefined") {
-  ;(globalThis as any).MetaFor = MetaFor
-}
-
-export async function matter(src: SRC, options?: MatterOptions): Promise<void> {
-  const wimp = (await store.wimp.get(src)) ?? (await store.wimp.create(src))
-  await darkMatter(wimp, options)
-}
+import {matter} from "./dark.ts"
+export {matter}
+export type {MatterOptions} from "./dark.ts"
 
 if (typeof self !== "undefined" && "postMessage" in self) {
   globalThis.store = await open(":memory:")

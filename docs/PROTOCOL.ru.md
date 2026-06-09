@@ -63,7 +63,7 @@
 Один patch несёт ровно одну частицу:
 
 ```ts
-{ part: "graviton", op: "add", path: "/wimp/zavx0z~1git" }
+{ part: "graviton", op: "add", path: "zavx0z/git" }
 { part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
 { part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
 { part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
@@ -71,6 +71,9 @@
 { part: "+z", op: "claim", path: "/wimp/<uuid>/process/<uuid>" }
 { part: "-z", op: "release", path: "/wimp/<uuid>/process/<uuid>" }
 ```
+
+В runtime-протоколе `path` для root/source пишется как прямой source path без ведущего `/`.
+Структурные `/wimp/...` остаются store-патчами.
 
 Batch `patches` может содержать разные `part`, но маршрутизация всегда читается с самого patch, а не с envelope.
 Envelope не должен дублировать `part`, `channel`, `source` или `boson`.

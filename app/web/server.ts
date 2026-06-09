@@ -2,7 +2,7 @@ import { build, file, serve } from "bun"
 import { mkdirSync, rmSync } from "node:fs"
 import { dirname, join, normalize } from "node:path"
 import type { AppWebLayoutSettings } from "./settings.ts"
-import { createProtocolChannel, postProtocolPatches, protocolPatches, type ProtocolPatch } from "../../protocol.ts"
+import { createProtocolChannel, type ProtocolPatch } from "../../protocol.ts"
 
 const ROOT = normalize(join(import.meta.dir, "../../"))
 const APP_CHANNEL = "app-web"
@@ -227,9 +227,8 @@ const getOrCreateRuntime = async (): Promise<AppRuntime> => {
 }
 
 const protocolMirror = createProtocolChannel()
-protocolMirror.onmessage = (event: MessageEvent<unknown>) => {
-	const patches = protocolPatches(event.data)
-	if (patches.length === 0) return
+protocolMirror.onmessage = (event) => {
+	const patches = event.data.patches
 	publish({
 		type: "protocol",
 		patches,
@@ -284,7 +283,7 @@ const server = serve({
 				const protocolBridgePayload = clientProtocolBridgePayload(payload)
 				if (protocolBridgePayload !== null) {
 					await getOrCreateRuntime()
-					postProtocolPatches(protocolInput, protocolBridgePayload.patches)
+					protocolInput.postMessage({ patches: protocolBridgePayload.patches })
 					return
 				}
 

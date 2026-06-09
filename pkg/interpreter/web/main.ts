@@ -1130,7 +1130,9 @@ function sqliteOpenParams(params: unknown): SqliteOpenParams {
 
 function refreshSqliteDisplaysAfterTargetRestart(startedAt: string): void {
   for (const controller of sqliteDisplays.values()) {
-    void refreshSqliteDisplay(controller, controller.selectedTable, startedAt).catch(() => undefined)
+    const selectedTable = controller.selectedTable
+    clearSqlitePayload(controller, `Waiting for SQLite database: ${sqliteInitialLabel(controller.requestedPath)}`)
+    void refreshSqliteDisplay(controller, selectedTable, startedAt).catch(() => undefined)
   }
 }
 

@@ -1,6 +1,6 @@
 import { MetaFor } from "../../../metafor.ts"
 import { openDbMaterializationWriter, openDbSqliteBackend } from "store/db"
-import { createProtocolChannel, postProtocolPatches } from "../../../protocol.ts"
+import { createProtocolChannel } from "../../../protocol.ts"
 import {
 	createMirroredActorStore,
 	createSqliteDbActorStore,
@@ -49,7 +49,7 @@ const darkWorker = globalThis as DarkWorkerScope
 const protocolChannel = createProtocolChannel()
 const dbSyncChannel = {
 	postMessage(message: unknown) {
-		postProtocolPatches(protocolChannel, [{ part: "graviton", op: "replace", path: "/db-sync", value: message }])
+		protocolChannel.postMessage({ patches: [{ part: "graviton", op: "replace", path: "/db-sync", value: message }] })
 	},
 	close() {},
 } as BroadcastChannel
@@ -305,9 +305,9 @@ const publishStructuralSignal = async (
 	)
 
 	// Барьер: «всё применено, можно перерисовывать».
-	postProtocolPatches(protocolChannel, [
-		{ part: "graviton", op: "test", path: "/structural", value: { rootSrc: src, scope: { kind: "world" } } },
-	])
+	protocolChannel.postMessage({
+		patches: [{ part: "graviton", op: "test", path: "/structural", value: { rootSrc: src, scope: { kind: "world" } } }],
+	})
 }
 
 let currentRootSrc: string | null = null

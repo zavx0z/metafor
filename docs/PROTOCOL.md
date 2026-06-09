@@ -63,7 +63,7 @@ The semantic particle is stored inside each patch through the `part` field.
 One patch carries exactly one particle:
 
 ```ts
-{ part: "graviton", op: "add", path: "/wimp/zavx0z~1git" }
+{ part: "graviton", op: "add", path: "zavx0z/git" }
 { part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
 { part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
 { part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
@@ -71,6 +71,9 @@ One patch carries exactly one particle:
 { part: "+z", op: "claim", path: "/wimp/<uuid>/process/<uuid>" }
 { part: "-z", op: "release", path: "/wimp/<uuid>/process/<uuid>" }
 ```
+
+In runtime protocol, root/source `path` is written as a direct source path without a leading `/`.
+Structural `/wimp/...` paths remain store patches.
 
 A `patches` batch may contain different `part` values, but routing is always read from the patch itself, not from the envelope.
 The envelope must not duplicate `part`, `channel`, `source`, or `boson`.

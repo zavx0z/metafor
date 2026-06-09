@@ -1,4 +1,5 @@
-import type {FieldDefinition, FieldKey} from ".."
+import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
+import {createProtocolChannel, type ProtocolPatch} from "../protocol.ts"
 import type {AnyField, Wimp} from "@store/wimp/sqlite"
 import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
 import type {MatterParticlePlan} from "@dark/types/dark"
@@ -6,6 +7,10 @@ import {projectStoreMatterParticles, fillGravityMatter} from "@dark/gravity"
 import {fillWeakDynamics} from "@dark/weak"
 import {loadMeta} from "./load.ts"
 import {finalizeFieldValues, resolveFieldInits, type Continuation, type FieldInit} from "./continuation.ts"
+
+// DSL-файлы `github/.../meta.ts` обращаются к `MetaFor(...)` как к глобальной функции,
+// поэтому Dark регистрирует её до первого dynamic import меты.
+;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
 
 export type ParticleRef = { kind: "actor"; uuid: string } | { kind: "topology"; uuid: string }
 
@@ -18,6 +23,16 @@ export interface MatterMaterializationStep {
 
 export interface MatterOptions {
   onMaterializedStep?: (step: MatterMaterializationStep) => Promise<void> | void
+}
+
+const protocol = createProtocolChannel()
+
+protocol.onmessage = (event) => {
+  for (const patch of event.data.patches) {
+    if (patch.part !== "graviton") continue
+    if (patch.op !== "add") continue
+    void matter(patch.path).catch(() => {})
+  }
 }
 
 const buildValueRecord = async (
@@ -241,10 +256,14 @@ async function* matterWimp(
 /**
  * Публичный entrypoint Dark.
  *
- * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/index.ts`.
- * Принимает уже созданный (минимальный) `Wimp` ORM и наполняет его доменными слоями
- * через тонкие fill-функции (strong/weak/gravity), затем разворачивает дерево через
- * store ORM: создаёт actor + topology rows, рекурсивно материализует дочерние wimps.
+ * Использует `globalThis.store`, установленный в `dark/server.ts` либо в `dark/web.ts`.
+ * Root-вызов принимает `SRC`, создаёт минимальный `Wimp` только если его ещё нет,
+ * затем наполняет его доменными слоями через тонкие fill-функции (strong/weak/gravity)
+ * и разворачивает дерево через store ORM: создаёт actor + topology rows,
+ * рекурсивно материализует дочерние wimps.
+ *
+ * Внутренняя рекурсия принимает уже созданный `Wimp`, чтобы multi-mount мог создавать
+ * новые actor rows для того же child src под разными topology-узлами.
  *
  * Обход дерева — послойный: на каждом BFS-слое топологии родительской wimp сначала
  * создаются все topology-узлы слоя, затем рекурсивно материализуются child wimps этого
@@ -252,12 +271,23 @@ async function* matterWimp(
  *
  * `parent`/`continuation` — внутренние параметры рекурсии, caller'ам передавать не нужно.
  */
+export async function matter(src: SRC, options?: MatterOptions): Promise<void>
+export async function matter(wimp: Wimp, options?: MatterOptions, parent?: ParticleRef | null, continuation?: Continuation): Promise<void>
 export async function matter(
-  wimp: Wimp,
+  root: SRC | Wimp,
   options: MatterOptions = {},
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
+  let wimp: Wimp
+  if (typeof root === "string") {
+    const existing = await store.wimp.get(root)
+    if (existing) return
+    wimp = await store.wimp.create(root)
+  } else {
+    wimp = root
+  }
+
   const generator = matterWimp(wimp, parent, continuation, options)
 
   while (true) {

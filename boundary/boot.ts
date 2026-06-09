@@ -1,12 +1,12 @@
 import { applyStructuralPatchFromDb, applyWeakResultPacket, setValues } from "./boundary.ts"
 import type { DbBackend } from "store/db/core"
-import { createProtocolChannel, protocolPatches, type ProtocolPatch } from "../protocol.ts"
+import { createProtocolChannel, type ProtocolChannel, type ProtocolPatch } from "../protocol.ts"
 
 export type OpenBoundaryDb = () => Promise<DbBackend> | DbBackend
 
 type BoundaryWorkerRuntime = {
   db: Promise<DbBackend>
-  protocol: BroadcastChannel
+  protocol: ProtocolChannel
 }
 
 const boundaryWorker = globalThis as typeof globalThis & {
@@ -35,9 +35,9 @@ export const bootBoundaryDomain = (openDb: OpenBoundaryDb): void => {
     await setValues(values)
   }
 
-  protocol.onmessage = (event: MessageEvent<unknown>) => {
+  protocol.onmessage = (event) => {
     void (async () => {
-      const patches = protocolPatches(event.data)
+      const patches = event.data.patches
       const backend = await db
 
       for (const patch of patches) {

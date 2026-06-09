@@ -107,11 +107,11 @@ describe("SnapshotStore", () => {
         reason: "Breakpoint",
         callFrames: [{
           callFrameId: "frame-1",
-          functionName: "handleWimpLoad",
+          functionName: "matter",
           location: {scriptId: "146", lineNumber: 23, columnNumber: 4},
           scopeChain: [
             {type: "nestedLexical", object: {type: "object", objectId: "lexical"}},
-            {type: "closure", name: "handleWimpLoad", object: {type: "object", objectId: "closure"}},
+            {type: "closure", name: "matter", object: {type: "object", objectId: "closure"}},
           ],
         }],
       })

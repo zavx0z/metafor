@@ -2,10 +2,10 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import {createProtocolChannel} from "../protocol.ts"
+import {createProtocolChannel, type ProtocolChannel} from "../protocol.ts"
 
 describe("dark/server разворачивает дерево zavx0z/git по gravity-патчу", () => {
-  let outbound: BroadcastChannel
+  let outbound: ProtocolChannel
   let storePath: string
 
   beforeAll(async () => {
@@ -31,9 +31,9 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     // НЕ удаляем storePath — файл остаётся в dark/tmp/boundary.sqlite для ручного осмотра
   })
 
-  test("после add /wimp/zavx0z~1git store содержит каноническое дерево git", async () => {
+  test("после add zavx0z/git store содержит каноническое дерево git", async () => {
     outbound.postMessage({
-      patches: [{part: "graviton", op: "add", path: "/wimp/zavx0z~1git"}],
+      patches: [{part: "graviton", op: "add", path: "zavx0z/git"}],
     })
 
     // ждём пока Dark материализует root wimp + child wimps в БД
@@ -89,12 +89,12 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     }
   }, 60_000)
 
-  test("повторный add /wimp/zavx0z~1git идемпотентен — server пропускает уже залитый wimp", async () => {
+  test("повторный add zavx0z/git идемпотентен — server пропускает уже залитый root", async () => {
     const sql = new SQL(`sqlite://${storePath}`)
     const before = await waitForActorCountStable(sql)
 
     outbound.postMessage({
-      patches: [{part: "graviton", op: "add", path: "/wimp/zavx0z~1git"}],
+      patches: [{part: "graviton", op: "add", path: "zavx0z/git"}],
     })
 
     // даём server'у тик — если бы он начал загрузку, он бы уехал в matter()

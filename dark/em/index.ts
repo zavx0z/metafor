@@ -1,4 +1,4 @@
-import { createProtocolChannel, postProtocolPatches, protocolPatches } from "../../protocol.ts"
+import { createProtocolChannel } from "../../protocol.ts"
 
 export type PhotonPayload = { value: string; path: string }
 
@@ -32,8 +32,8 @@ export const subscribeDarkPhotons = (
 ): DarkPhotonSubscription => {
   const channel = createProtocolChannel(options.channelName)
 
-  channel.onmessage = (event: MessageEvent<unknown>) => {
-    for (const patch of protocolPatches(event.data)) {
+  channel.onmessage = (event) => {
+    for (const patch of event.data.patches) {
       if (patch.part !== "photon") continue
       const message: PhotonPayload = { path: patch.path, value: String(patch.value ?? "") }
 
@@ -60,10 +60,10 @@ export const createDarkElectromagnetismProtocol = (
 ): DarkElectromagnetismProtocol => {
   const channel = createProtocolChannel(options.channelName)
   const emitGluonPatches = (patches: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    postProtocolPatches(channel, patches.map((patch) => ({ part: "gluon", ...patch })))
+    channel.postMessage({ patches: patches.map((patch) => ({ part: "gluon", ...patch })) })
   }
   const emitHiggsPatches = (patches: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    postProtocolPatches(channel, patches.map((patch) => ({ part: "higgs", ...patch })))
+    channel.postMessage({ patches: patches.map((patch) => ({ part: "higgs", ...patch })) })
   }
 
   return {

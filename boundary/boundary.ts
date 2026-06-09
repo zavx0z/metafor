@@ -51,7 +51,7 @@ import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundary
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import type { WeakHeapUpdate } from "./weak/weak.t"
 import { createEmptyDbData, type DbBackend, type DbData } from "store/db/core"
-import { createProtocolChannel, postProtocolPatches, protocolPatches, type ProtocolPatch } from "../protocol.ts"
+import { createProtocolChannel, type ProtocolChannel, type ProtocolMessage, type ProtocolPatch } from "../protocol.ts"
 import { gravityCH } from "@boundary/gravity/channel.ts"
 
 export type BoundaryStructuralPatch = { op: "add" | "remove" | "test"; path: string; value?: unknown }
@@ -76,7 +76,7 @@ const updateGate: AsyncGate = { pending: null }
 /** Последний успешно materialized runtime-fragment, соответствующий текущему `boundary$`. */
 let loadedRuntimeFragment: DbData = createEmptyDbData()
 let activeDbBackend: DbBackend | null = null
-let protocolChannel: BroadcastChannel | null = null
+let protocolChannel: ProtocolChannel | null = null
 let protocolChannelName: string | undefined
 const WIMP_PATCH_PATH_PREFIX = "/wimp/"
 const FIELD_PATCH_PATH_PREFIX = "/field/"
@@ -100,10 +100,10 @@ const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise
 }
 
 const createSubscription = (
-  channel: BroadcastChannel,
-  onMessage: (message: unknown) => Promise<void> | void,
+  channel: ProtocolChannel,
+  onMessage: (message: ProtocolMessage) => Promise<void> | void,
 ): BoundaryBroadcastSubscription => {
-  channel.onmessage = (event: MessageEvent) => {
+  channel.onmessage = (event) => {
     void (async () => {
       await onMessage(event.data)
     })()
@@ -214,7 +214,7 @@ const collectPatchedValues = (patches: BoundaryValuePatch[], kind: "gluon" | "hi
   return values
 }
 
-const getProtocolChannel = (): BroadcastChannel => {
+const getProtocolChannel = (): ProtocolChannel => {
   protocolChannel ??= createProtocolChannel(protocolChannelName)
   return protocolChannel
 }
@@ -230,7 +230,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     const stateName = boundary$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
-    postProtocolPatches(channel, [{ part: "photon", op: "replace", path: uuid, value: stateName }])
+    channel.postMessage({ patches: [{ part: "photon", op: "replace", path: uuid, value: stateName }] })
   }
 }
 
@@ -523,7 +523,7 @@ export function subscribeBoundaryGravityBroadcast(
   }
 
   return createSubscription(gravityCH, async (message) => {
-    for (const patch of protocolPatches(message)) {
+    for (const patch of message.patches) {
       if (patch.part !== "graviton") continue
       await applyStructuralPatchFromDb(backend, patch as BoundaryStructuralPatch, runtimeOptions)
     }
@@ -753,7 +753,7 @@ const subscribeBoundaryValueBroadcast = (
 ): BoundaryValueBroadcastSubscription => {
   const channel = createProtocolChannel(options.channelName)
   return createSubscription(channel, async (message) => {
-    const patches = protocolPatches(message)
+    const patches = message.patches
       .filter((patch) => patch.part === kind)
       .map(toBoundaryValuePatch)
       .filter((patch): patch is BoundaryValuePatch => patch !== null)
@@ -777,7 +777,7 @@ export function subscribeBoundaryWeakResultBroadcast(
   options: BoundaryChannelOptions = {},
 ): BoundaryWeakBroadcastSubscription {
   return createSubscription(createProtocolChannel(options.channelName), async (message) => {
-    for (const packet of collectWeakResultPackets(protocolPatches(message))) {
+    for (const packet of collectWeakResultPackets(message.patches)) {
       await applyWeakResultPacket(packet)
     }
   })

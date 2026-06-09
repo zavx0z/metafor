@@ -120,10 +120,10 @@ export class BreakpointStore {
   }
 
   async handleScriptParsed(script: BreakpointScript): Promise<void> {
-    for (const tracked of this.#breakpoints.values()) {
-      if (!matchesBreakpointSpec(tracked.spec, script.url) && !matchesBreakpointSource(tracked.spec, script)) continue
-      await this.#installForScript(tracked, script)
-    }
+    const matching = [...this.#breakpoints.values()]
+      .filter((tracked) => matchesBreakpointSpec(tracked.spec, script.url) || matchesBreakpointSource(tracked.spec, script))
+      .sort((a, b) => breakpointInstallOrder(a.spec, b.spec))
+    for (const tracked of matching) await this.#installForScript(tracked, script)
   }
 
   async applyToScripts(scripts: BreakpointScript[]): Promise<void> {
@@ -707,6 +707,12 @@ function publicRegistration(tracked: TrackedBreakpoint): BreakpointRegistration 
     spec: tracked.spec,
     installed: [...tracked.installed],
   }
+}
+
+function breakpointInstallOrder(a: BreakpointSpec, b: BreakpointSpec): number {
+  const lineDelta = Math.max(1, Math.floor(a.line)) - Math.max(1, Math.floor(b.line))
+  if (lineDelta !== 0) return lineDelta
+  return (a.column ?? 0) - (b.column ?? 0)
 }
 
 export function sameBreakpointSpec(a: BreakpointSpec, b: BreakpointSpec): boolean {
