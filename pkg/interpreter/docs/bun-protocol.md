@@ -103,7 +103,7 @@ INTERPRETER_INITIALIZE_FALLBACK_MS=0 bun run interpreter
 Рабочая схема интерпретатора:
 
 ```text
-1. сохранить BreakpointSpec из /modules/:id/run или POST /modules/:id/breakpoint
+1. сохранить BreakpointSpec из `POST /processes` или `POST /processes/:id/breakpoint`
 2. дождаться Debugger.scriptParsed для matching url
 3. взять sourceMapURL из scriptParsed
 4. перевести editor line/column в generated line/column

@@ -191,7 +191,7 @@ INTERPRETER_INITIALIZE_FALLBACK_MS=0 bun run interpreter
 Проверить установленные точки:
 
 ```sh
-curl -sS http://127.0.0.1:6500/modules/<module-id>/breakpoints
+curl -sS http://127.0.0.1:6500/processes/<process-id>/breakpoints
 ```
 
 В event log должно быть:

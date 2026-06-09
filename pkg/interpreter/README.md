@@ -1,6 +1,6 @@
 # MetaFor Интерпретатор
 
-Интерпретатор — общий live-контекст человека и ИИ для Bun-модулей. Человек и агент видят один runtime/source-контекст, один stack/scope/source state, могут управлять паузой, stepping, eval и в реальном времени готовить изменения кода в общем редакторе.
+Интерпретатор — общий live-контекст человека и ИИ для Bun-модулей. Человек и агент видят один runtime/source-контекст, execution point, stack/scopes/source state, могут управлять паузой, stepping, eval и в реальном времени готовить изменения кода.
 
 Технически внутри используется WebKit/JSC protocol Bun. Это транспорт к runtime, а не отдельный пользовательский инструмент: UI MetaFor является основным интерфейсом интерпретатора и не требует WebStorm/DevTools.
 
@@ -8,9 +8,11 @@
 
 ## Архитектурные Правила
 
-- Модуль — основная единица запуска. Имя модуля берётся из пути запуска.
+- Interpreter один; внутри него есть `HUD` и один `Space`.
+- `Space` содержит независимые `UIDisplay`; display — визуальная поверхность, не единица исполнения.
+- Process — основной адрес действий агента: `/processes/:id/...`.
+- Модуль — текущая единица source/catalog внутри process. Имя модуля берётся из пути запуска.
 - Путь без `-` начинает новый модуль; параметры после пути принадлежат этому модулю до следующего пути.
-- REST/WS команды всегда module-scoped: `/modules/:id/...`.
 - Кнопка UI “Перезапустить модуль” всегда запускает интерактивно: старый `--inspect*` удаляется из команды, новый старт идёт с `pauseOnStart: true`.
 - После завершения модуля UI блокирует pause/resume/step/stop: runtime-контекста уже нет, осмысленным остаётся restart и просмотр логов/событий.
 - После reload страницы завершённый модуль восстанавливает последний видимый source из server snapshot / файла, даже если live protocol уже закрыт.
@@ -62,27 +64,34 @@ Snapshot текущей остановки:
 .metafor/interpreter/state.json
 ```
 
-## REST Modules API
+## REST API
 
 ```text
-GET    /modules
-POST   /modules/run
-POST   /modules/:id/run
-POST   /modules/:id/stop
-POST   /modules/:id/command
-GET    /modules/:id/source
-GET    /modules/:id/breakpoints
-POST   /modules/:id/breakpoint
-DELETE /modules/:id/breakpoint
+GET    /context
+GET    /space
+POST   /space/focus
+POST   /space/frame
+
+GET    /processes
+POST   /processes
+GET    /processes/:id
+GET    /processes/:id/context
+GET    /processes/:id/modules
+POST   /processes/:id/action
+GET    /processes/:id/breakpoints
+POST   /processes/:id/breakpoint
+DELETE /processes/:id/breakpoint
 ```
 
-Пример запуска модуля через REST:
+`GET /context` возвращает один текущий context — то, что сейчас видно/выделено. `GET /processes/:id/modules` возвращает каталог кода в контексте process.
+
+Пример запуска нового Bun process через REST:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/modules/run \
+curl -sS -X POST http://127.0.0.1:6500/processes \
   -H 'content-type: application/json' \
   -d '{
-    "id": "syntax",
+    "processId": "syntax",
     "label": "pkg/interpreter/src/syntax.test.ts",
     "command": ["bun", "test", "pkg/interpreter/src/syntax.test.ts"],
     "pauseOnStart": true

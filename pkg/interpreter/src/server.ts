@@ -119,7 +119,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   const moduleContexts: ModuleContextStore = new Map()
 
   if (!isLoopbackHost(options.host)) {
-    const warning = "/modules/run can execute local commands; bind the interpreter to loopback unless this is intentional"
+    const warning = "/processes can execute local commands; bind the interpreter to loopback unless this is intentional"
     options.logger.status(`warning: ${warning} (host=${options.host})`)
     options.logger.event("http.non_loopback_host", {host: options.host, warning})
   }
@@ -154,8 +154,8 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
     })
   }
 
-  // verbose-стрим: события интерпретатора идут отдельно от module-scoped
-  // protocol events; UI раскладывает их по дисплеям по moduleId.
+  // verbose-стрим: события интерпретатора идут отдельно от protocol events,
+  // которые пока привязаны к внутреннему moduleId текущего process.
   options.logger.onEvent((entry) => {
     broadcast({
       type: "interpreter-event",
@@ -445,6 +445,71 @@ async function dispatchUiHostRouteFromBody(command: string, req: Request, dispat
   return await dispatchUiHostRoute(command, parsed.body, dispatch)
 }
 
+async function dispatchUiHostRouteForProcessFromBody(command: string, processId: string, req: Request, dispatch: UiHostCommandDispatcher): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  return await dispatchUiHostRoute(command, processRouteParams(processId, parsed.body), dispatch)
+}
+
+async function processActionRoute(processId: string, req: Request, options: HttpServerOptions, dispatch: UiHostCommandDispatcher): Promise<Response> {
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const action = asString(parsed.body["action"]) ?? asString(parsed.body["cmd"]) ?? asString(parsed.body["command"])
+  if (action === undefined) return jsonResponse({ok: false, processId, error: "process action must be a string"}, 400)
+  const params = asObject(parsed.body["params"]) ?? parsed.body
+  if (action === "stop") return await stopProcessTarget(processId, params, options)
+  if (action === "restart") return await restartProcessTarget(processId, params, options)
+  return await dispatchUiHostRoute("processes.action", processRouteParams(processId, parsed.body), dispatch)
+}
+
+async function stopProcessTarget(processId: string, params: JsonObject, options: HttpServerOptions): Promise<Response> {
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return processNotFoundResponse(processId)
+  try {
+    const target = await module.target.stop(stopSignalFromParams(params))
+    return jsonResponse({ok: true, processId: module.id, process: processPayload(module.snapshot()), target})
+  } catch (error) {
+    return jsonResponse({ok: false, processId, error: serializeError(error)}, 400)
+  }
+}
+
+async function restartProcessTarget(processId: string, params: JsonObject, options: HttpServerOptions): Promise<Response> {
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return processNotFoundResponse(processId)
+  try {
+    const breakpoints = module.breakpoints.registrations.map((registration) => registration.spec)
+    const target = await module.target.restart({
+      inspectMode: "brk",
+      pauseOnStart: true,
+      signal: stopSignalFromParams(params),
+      breakpoints,
+    })
+    return jsonResponse({ok: true, processId: module.id, process: processPayload(module.snapshot()), target})
+  } catch (error) {
+    return jsonResponse({ok: false, processId, error: serializeError(error)}, 400)
+  }
+}
+
+function stopSignalFromParams(params: JsonObject): NodeJS.Signals {
+  const sig = asString(params["signal"])
+  if (sig === undefined) return "SIGTERM"
+  if (!VALID_STOP_SIGNALS.has(sig)) throw new Error(`signal must be one of ${[...VALID_STOP_SIGNALS].join(", ")}`)
+  return sig as NodeJS.Signals
+}
+
+function processRouteParams(processId: string, body: JsonObject = {}): JsonObject {
+  const selector = asObject(body["selector"]) ?? {}
+  return {
+    ...body,
+    processId,
+    selector: {
+      ...selector,
+      processId,
+      moduleId: processId,
+    },
+  }
+}
+
 async function dispatchUiHostRoute(command: string, params: JsonObject, dispatch: UiHostCommandDispatcher): Promise<Response> {
   try {
     return jsonResponse(await dispatch(command, params))
@@ -484,13 +549,9 @@ async function handleRoute(
 ): Promise<Response> {
   if (method === "GET" && path === "/") return jsonResponse({service: "@metafor/interpreter", routes: routeIndex()})
   if (method === "GET" && path === "/health") return jsonResponse(healthPayload(options))
-  if (method === "GET" && path === "/displays") return await dispatchUiHostRoute("displays.list", {}, dispatchUiHostCommand)
-  if (method === "POST" && path === "/displays/focus") return await dispatchUiHostRouteFromBody("displays.focus", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/displays/frame") return await dispatchUiHostRouteFromBody("displays.frame", req, dispatchUiHostCommand)
-  if (method === "GET" && path === "/interpreters") return await dispatchUiHostRoute("interpreters.list", {}, dispatchUiHostCommand)
-  if (method === "POST" && path === "/interpreters/resolve") return await dispatchUiHostRouteFromBody("interpreters.resolve", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/interpreters/focus") return await dispatchUiHostRouteFromBody("interpreters.focus", req, dispatchUiHostCommand)
-  if (method === "POST" && path === "/interpreters/action") return await dispatchUiHostRouteFromBody("interpreters.action", req, dispatchUiHostCommand)
+  if (method === "GET" && path === "/space") return await dispatchUiHostRoute("space.get", {}, dispatchUiHostCommand)
+  if (method === "POST" && path === "/space/focus") return await dispatchUiHostRouteFromBody("space.focus", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/space/frame") return await dispatchUiHostRouteFromBody("space.frame", req, dispatchUiHostCommand)
   if (method === "GET" && path === "/context") return jsonResponse(contextPayload(options, moduleContexts))
   if (method === "GET" && path === "/hud/terminal") return await dispatchUiHostRoute("hud.terminal.get", {}, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/terminal/dock") return await dispatchUiHostRouteFromBody("hud.terminal.dock", req, dispatchUiHostCommand)
@@ -511,32 +572,32 @@ async function handleRoute(
       return sqliteJsonError(error)
     }
   }
-  if (method === "GET" && path === "/modules") return jsonResponse({modules: options.modules.snapshots()})
-  if (method === "POST" && path === "/modules/run") return await runModule(req, options)
-  const moduleRun = /^\/modules\/([^/]+)\/run$/.exec(path)
-  if (method === "POST" && moduleRun !== null) return await runExistingModule(moduleRun[1]!, req, options)
-  const moduleStop = /^\/modules\/([^/]+)\/stop$/.exec(path)
-  if (method === "POST" && moduleStop !== null) return await stopModule(moduleStop[1]!, req, options)
-  const moduleCommand = /^\/modules\/([^/]+)\/command$/.exec(path)
-  if (method === "POST" && moduleCommand !== null) return await dispatchModuleCommand(moduleCommand[1]!, req, options)
-  const moduleSource = /^\/modules\/([^/]+)\/source$/.exec(path)
-  if (method === "GET" && moduleSource !== null) return await getModuleScriptSource(moduleSource[1]!, url, options)
-  if (method === "POST" && moduleSource !== null) return await saveModuleSource(moduleSource[1]!, req, options, broadcast)
-  const moduleApplyPatch = /^\/modules\/([^/]+)\/apply[-_]patch$/.exec(path)
-  if (method === "POST" && moduleApplyPatch !== null) return await applyModulePatch(moduleApplyPatch[1]!, req, options, broadcast)
-  const moduleContext = /^\/modules\/([^/]+)\/context$/.exec(path)
-  if (method === "GET" && moduleContext !== null) return getModuleContext(moduleContext[1]!, options, moduleContexts)
-  const moduleBreakpoints = /^\/modules\/([^/]+)\/breakpoints$/.exec(path)
-  if (method === "GET" && moduleBreakpoints !== null) return getModuleBreakpoints(moduleBreakpoints[1]!, options)
-  const moduleBreakpoint = /^\/modules\/([^/]+)\/breakpoint$/.exec(path)
-  if (method === "POST" && moduleBreakpoint !== null) return await setModuleBreakpoint(moduleBreakpoint[1]!, req, options)
-  if (method === "DELETE" && moduleBreakpoint !== null) return await removeModuleBreakpoint(moduleBreakpoint[1]!, req, options)
+  if (method === "GET" && path === "/processes") return jsonResponse({processes: processPayloads(options)})
+  if (method === "POST" && path === "/processes") return await runProcess(req, options)
+  if (method === "POST" && path === "/processes/resolve") return await dispatchUiHostRouteFromBody("processes.resolve", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/processes/focus") return await dispatchUiHostRouteFromBody("processes.focus", req, dispatchUiHostCommand)
+  const processDetail = /^\/processes\/([^/]+)$/.exec(path)
+  if (method === "GET" && processDetail !== null) return await dispatchUiHostRoute("processes.get", {processId: decodePathParam(processDetail[1]!)}, dispatchUiHostCommand)
+  const processFocus = /^\/processes\/([^/]+)\/focus$/.exec(path)
+  if (method === "POST" && processFocus !== null) return await dispatchUiHostRouteForProcessFromBody("processes.focus", decodePathParam(processFocus[1]!), req, dispatchUiHostCommand)
+  const processAction = /^\/processes\/([^/]+)\/action$/.exec(path)
+  if (method === "POST" && processAction !== null) return await processActionRoute(decodePathParam(processAction[1]!), req, options, dispatchUiHostCommand)
+  const processContext = /^\/processes\/([^/]+)\/context$/.exec(path)
+  if (method === "GET" && processContext !== null) return getProcessContext(decodePathParam(processContext[1]!), options, moduleContexts)
+  const processModules = /^\/processes\/([^/]+)\/modules$/.exec(path)
+  if (method === "GET" && processModules !== null) return getProcessModules(decodePathParam(processModules[1]!), url, options)
+  const processSource = /^\/processes\/([^/]+)\/source$/.exec(path)
+  if (method === "GET" && processSource !== null) return await getProcessScriptSource(decodePathParam(processSource[1]!), url, options)
+  if (method === "POST" && processSource !== null) return await saveProcessSource(decodePathParam(processSource[1]!), req, options, broadcast)
+  const processApplyPatch = /^\/processes\/([^/]+)\/apply[-_]patch$/.exec(path)
+  if (method === "POST" && processApplyPatch !== null) return await applyProcessPatch(decodePathParam(processApplyPatch[1]!), req, options, broadcast)
+  const processBreakpoints = /^\/processes\/([^/]+)\/breakpoints$/.exec(path)
+  if (method === "GET" && processBreakpoints !== null) return getProcessBreakpoints(decodePathParam(processBreakpoints[1]!), options)
+  const processBreakpoint = /^\/processes\/([^/]+)\/breakpoint$/.exec(path)
+  if (method === "POST" && processBreakpoint !== null) return await setProcessBreakpoint(decodePathParam(processBreakpoint[1]!), req, options)
+  if (method === "DELETE" && processBreakpoint !== null) return await removeProcessBreakpoint(decodePathParam(processBreakpoint[1]!), req, options)
   if (method === "GET" && path === "/events") return jsonResponse(readNdjsonTail(options.eventLogPath, url))
   if (method === "GET" && path === "/console") return jsonResponse(readNdjsonTail(options.consoleLogPath, url))
-  if (method === "GET" && path === "/workspace/files") {
-    const module = workspaceFilesModuleContext(url, options)
-    return jsonResponse(workspaceFilesPayload(url, module === undefined ? {} : {module}))
-  }
   // Триггер хард-релоада UI у всех подключённых WS-клиентов: используется
   // когда мы выкатываем правку в bundle и хотим без юзерских Cmd+Shift+R
   // увидеть свежий код во вкладке.
@@ -566,14 +627,25 @@ function serveStatic(filePath: string, contentType: string): Response {
 function routeIndex(): Array<{method: string; path: string; description: string}> {
   return [
     {method: "GET", path: "/health", description: "статус коннекта и параметры"},
-    {method: "GET", path: "/displays", description: "список UI-дисплеев и их экранная геометрия"},
-    {method: "POST", path: "/displays/focus", description: "{selector:{side|displayId|moduleId|label|order}, view?, dockHostTerminal?} — сфокусировать дисплей; terminal HUD не трогается без явного dockHostTerminal:true"},
-    {method: "POST", path: "/displays/frame", description: "вернуть обзор всех дисплеев"},
-    {method: "GET", path: "/interpreters", description: "список module interpreters как рабочих станций: display + runtime + текущий UI context"},
-    {method: "POST", path: "/interpreters/resolve", description: "{selector:{side|displayId|moduleId|label|order}} — найти один interpreter display"},
-    {method: "POST", path: "/interpreters/focus", description: "{selector, view?, dockHostTerminal?} — сфокусировать interpreter display и вернуть его состояние"},
-    {method: "POST", path: "/interpreters/action", description: "{selector, action, params?} — выполнить pause|resume|step|evaluate|source.open|source.openSelection|restart|stop|showExecutionPoint в выбранном interpreter"},
-    {method: "GET", path: "/context", description: "server-owned текущий контекст модулей: display/source cursor/selection/scopes detail/terminal"},
+    {method: "GET", path: "/space", description: "обзор визуального Space: рабочие поверхности и геометрия"},
+    {method: "POST", path: "/space/focus", description: "{selector:{side|processId|sqliteId|label|order}, dockHostTerminal?} — сфокусировать рабочую поверхность"},
+    {method: "POST", path: "/space/frame", description: "показать все рабочие поверхности Space"},
+    {method: "GET", path: "/context", description: "server-owned текущий active context: ровно текущий display/source/scopes/terminal"},
+    {method: "GET", path: "/processes", description: "список runtime processes интерпретатора"},
+    {method: "POST", path: "/processes", description: "{label?, command, cwd?, env?, pauseOnStart?, breakpoints?} — запустить новый runtime process"},
+    {method: "POST", path: "/processes/resolve", description: "{selector:{side|processId|moduleId|label|order}} — найти process по текущему Space"},
+    {method: "POST", path: "/processes/focus", description: "{selector:{side|processId|moduleId|label|order}, dockHostTerminal?} — сфокусировать process"},
+    {method: "GET", path: "/processes/:id", description: "рабочий payload process: content + runtime/ui state/capabilities"},
+    {method: "POST", path: "/processes/:id/focus", description: "сфокусировать конкретный process"},
+    {method: "POST", path: "/processes/:id/action", description: "{action, params?} — выполнить pause|resume|step|evaluate|source.open|source.openSelection|restart|stop|showExecutionPoint"},
+    {method: "GET", path: "/processes/:id/context", description: "текущий context конкретного process"},
+    {method: "GET", path: "/processes/:id/modules?q=<text>&limit=<n>", description: "каталог кода в контексте process"},
+    {method: "GET", path: "/processes/:id/source?scriptId=<id>", description: "исходник в контексте process"},
+    {method: "POST", path: "/processes/:id/source", description: "{sourceUrl, text} — сохранить локальный source file через apply_patch"},
+    {method: "POST", path: "/processes/:id/apply_patch", description: "raw apply_patch text — применить apply_patch к workspace process"},
+    {method: "GET", path: "/processes/:id/breakpoints", description: "breakpoint registrations конкретного process"},
+    {method: "POST", path: "/processes/:id/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — breakpoint в конкретном process"},
+    {method: "DELETE", path: "/processes/:id/breakpoint", description: "{id|breakpointId} — убрать breakpoint из конкретного process"},
     {method: "GET", path: "/hud/terminal", description: "состояние host terminal HUD"},
     {method: "POST", path: "/hud/terminal/dock", description: "свернуть host terminal HUD"},
     {method: "POST", path: "/hud/terminal/show", description: "развернуть host terminal HUD"},
@@ -581,20 +653,8 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "GET", path: "/sqlite?path=<file.sqlite>&table=<name>", description: "просмотреть SQLite database tables/schema/rows"},
     {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database как отдельный display"},
     {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
-    {method: "GET", path: "/modules", description: "список модулей интерпретатора"},
-    {method: "POST", path: "/modules/run", description: "{label?, command, cwd?, env?, pauseOnStart?, breakpoints?} — запустить новый модуль"},
-    {method: "POST", path: "/modules/:id/stop", description: "{signal?} — остановить модуль"},
-    {method: "POST", path: "/modules/:id/command", description: "{cmd, params?} — команда в конкретный модуль"},
-    {method: "GET", path: "/modules/:id/source?scriptId=<id>", description: "исходник скрипта конкретного модуля"},
-    {method: "POST", path: "/modules/:id/source", description: "{sourceUrl, text} — сохранить локальный source file через apply_patch и разослать source-patched"},
-    {method: "POST", path: "/modules/:id/apply_patch", description: "raw apply_patch text — применить apply_patch к workspace и разослать source-patched"},
-    {method: "GET", path: "/modules/:id/context", description: "последний текущий контекст конкретного модуля, включая source и scopes detail"},
-    {method: "GET", path: "/modules/:id/breakpoints", description: "breakpoint registrations конкретного модуля"},
-    {method: "POST", path: "/modules/:id/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — breakpoint в конкретном модуле"},
-    {method: "DELETE", path: "/modules/:id/breakpoint", description: "{id|breakpointId} — убрать breakpoint из конкретного модуля"},
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
     {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
-    {method: "GET", path: "/workspace/files?moduleId=<id>&q=<text>&limit=<n>", description: "module-scoped workspace files"},
     {method: "WS", path: "/terminal", description: "host PTY terminal stream"},
     {method: "GET", path: "/terminal/sessions", description: "host PTY session diagnostics"},
   ]
@@ -610,12 +670,7 @@ function isAllowedWebSocketOrigin(req: Request, url: URL): boolean {
   }
 }
 
-function workspaceFilesModuleContext(url: URL, options: HttpServerOptions): WorkspaceFilesModuleContext | undefined {
-  const moduleId = url.searchParams.get("moduleId") ?? url.searchParams.get("module")
-  if (moduleId === null || moduleId.trim().length === 0) return undefined
-  const module = options.modules.get(moduleId)
-  if (module === undefined) return undefined
-  const snapshot = module.snapshot()
+function workspaceFilesModuleContextForSnapshot(snapshot: ModuleSnapshot): WorkspaceFilesModuleContext {
   return {
     id: snapshot.id,
     label: snapshot.label,
@@ -628,27 +683,57 @@ function workspaceFilesModuleContext(url: URL, options: HttpServerOptions): Work
 }
 
 function contextPayload(options: HttpServerOptions, contexts: ModuleContextStore): JsonObject {
+  const contextsPayload = processContextsPayload(options, contexts)
+  const active = contextsPayload.find((item) => asObject(item.context["display"])?.["active"] === true) ?? contextsPayload[0] ?? null
+  if (active === null) return {ok: true, context: null}
   return {
     ok: true,
-    modules: options.modules.snapshots().map((module) => ({
-      moduleId: module.id,
-      label: module.label,
-      displayId: `module:${module.id}`,
-      context: contextForModule(module, contexts),
-    })),
+    kind: "process",
+    processId: active.processId,
+    moduleId: active.moduleId,
+    label: active.label,
+    context: active.context,
   }
 }
 
-function getModuleContext(moduleId: string, options: HttpServerOptions, contexts: ModuleContextStore): Response {
-  const module = options.modules.get(moduleId)
-  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+function processContextsPayload(options: HttpServerOptions, contexts: ModuleContextStore): Array<{processId: string; moduleId: string; label: string; context: JsonObject}> {
+  return options.modules.snapshots().map((module) => ({
+    processId: module.id,
+    moduleId: module.id,
+    label: module.label,
+    context: contextForModule(module, contexts),
+  }))
+}
+
+function getProcessContext(processId: string, options: HttpServerOptions, contexts: ModuleContextStore): Response {
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return processNotFoundResponse(processId)
   const snapshot = module.snapshot()
   return jsonResponse({
     ok: true,
+    kind: "process",
+    processId: snapshot.id,
     moduleId: snapshot.id,
     label: snapshot.label,
-    displayId: `module:${snapshot.id}`,
     context: contextForModule(snapshot, contexts),
+  })
+}
+
+function getProcessModules(processId: string, url: URL, options: HttpServerOptions): Response {
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return processNotFoundResponse(processId)
+  const snapshot = module.snapshot()
+  const catalog = workspaceFilesPayload(url, {module: workspaceFilesModuleContextForSnapshot(snapshot)})
+  return jsonResponse({
+    ok: true,
+    processId: snapshot.id,
+    kind: "module",
+    moduleId: snapshot.id,
+    label: snapshot.label,
+    root: catalog.root,
+    workspacePath: catalog.workspacePath,
+    entrypoint: catalog.modulePath ?? null,
+    modules: catalog.files,
   })
 }
 
@@ -674,8 +759,9 @@ function runtimeFallbackContext(module: ModuleSnapshot): JsonObject {
     column: Math.max(0, frame?.column ?? 0),
   }
   return {
+    processId: module.id,
     moduleId: module.id,
-    displayId: `module:${module.id}`,
+    displayId: moduleDisplayId(module.id),
     label: module.label,
     origin: "runtime",
     updatedAt: module.dump?.timestamp ?? new Date().toISOString(),
@@ -706,12 +792,32 @@ function runtimeFallbackContext(module: ModuleSnapshot): JsonObject {
   }
 }
 
+function moduleDisplayId(moduleId: string): string {
+  return `module:${moduleId}`
+}
+
+function decodePathParam(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+function moduleForProcessId(processId: string, options: HttpServerOptions): InterpreterModule | undefined {
+  return options.modules.get(processId)
+}
+
+function processNotFoundResponse(processId: string): Response {
+  return jsonResponse({ok: false, processId, error: `process not found: ${processId}`}, 404)
+}
+
 function healthPayload(options: HttpServerOptions): JsonObject {
   const modules = options.modules.snapshots()
   return {
     ok: true,
-    moduleCount: modules.length,
-    modules,
+    processCount: modules.length,
+    processes: modules.map(processPayload),
   }
 }
 
@@ -783,27 +889,41 @@ function envStrings(value: unknown): Record<string, string> | undefined {
   )
 }
 
-async function runModule(req: Request, options: HttpServerOptions): Promise<Response> {
+function processPayloads(options: HttpServerOptions): JsonObject[] {
+  return options.modules.snapshots().map(processPayload)
+}
+
+function processPayload(snapshot: ModuleSnapshot): JsonObject {
+  return {
+    id: snapshot.id,
+    processId: snapshot.id,
+    moduleId: snapshot.id,
+    label: snapshot.label,
+    space: {
+      displayId: moduleDisplayId(snapshot.id),
+    },
+    content: {
+      kind: "module",
+      modulePath: snapshot.modulePath,
+    },
+    runtime: {
+      protocolUrl: snapshot.protocolUrl,
+      connection: snapshot.connection,
+      paused: snapshot.paused,
+      scriptCount: snapshot.scriptCount,
+      hasDump: snapshot.hasDump,
+      target: snapshot.target,
+    },
+  }
+}
+
+async function runProcess(req: Request, options: HttpServerOptions): Promise<Response> {
   const parsed = await readModuleRunOptions(req)
   if ("response" in parsed) return parsed.response
 
   try {
     const module = options.modules.run(parsed.run)
-    return jsonResponse({ok: true, module: module.snapshot(), modules: options.modules.snapshots()})
-  } catch (error) {
-    return jsonResponse({ok: false, error: serializeError(error)}, 409)
-  }
-}
-
-async function runExistingModule(moduleId: string, req: Request, options: HttpServerOptions): Promise<Response> {
-  const module = options.modules.get(moduleId)
-  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
-  const parsed = await readModuleRunOptions(req)
-  if ("response" in parsed) return parsed.response
-  try {
-    if (parsed.run.label !== undefined) module.setLabel(parsed.run.label)
-    const target = module.runTarget(parsed.run)
-    return jsonResponse({ok: true, module: module.snapshot(), target})
+    return jsonResponse({ok: true, process: processPayload(module.snapshot()), processes: processPayloads(options)})
   } catch (error) {
     return jsonResponse({ok: false, error: serializeError(error)}, 409)
   }
@@ -821,7 +941,7 @@ async function readModuleRunOptions(req: Request): Promise<{run: StartupModuleOp
   if (parsedBreakpoints.error !== undefined) return {response: jsonResponse({ok: false, error: parsedBreakpoints.error}, 400)}
 
   const label = asString(body["label"])
-  const id = asString(body["id"]) ?? asString(body["moduleId"])
+  const id = asString(body["processId"]) ?? asString(body["id"])
   const modulePath = asString(body["modulePath"])
   const protocolUrl = asString(body["protocolUrl"])
   const cwd = asString(body["cwd"])
@@ -838,51 +958,21 @@ async function readModuleRunOptions(req: Request): Promise<{run: StartupModuleOp
   return {run}
 }
 
-async function stopModule(moduleId: string, req: Request, options: HttpServerOptions): Promise<Response> {
-  const module = options.modules.get(moduleId)
-  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
-  try {
-    const stopped = await stopTargetFor(module, req)
-    return jsonResponse({ok: true, module: module.snapshot(), target: stopped})
-  } catch (error) {
-    return jsonResponse({ok: false, error: serializeError(error)}, 400)
-  }
-}
-
-async function dispatchModuleCommand(moduleId: string, req: Request, options: HttpServerOptions): Promise<Response> {
-  const module = options.modules.get(moduleId)
-  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
-  const parsed = await readJsonObject(req)
-  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
-  const cmd = asString(parsed.body["cmd"])
-  if (cmd === undefined) return jsonResponse({ok: false, error: "cmd required"}, 400)
-  const params = asObject(parsed.body["params"]) ?? {}
-  try {
-    const result = await executeCommand({
-      client: module.client,
-      snapshots: module.snapshots,
-    }, params, cmd)
-    return jsonResponse({ok: true, cmd, result, module: module.snapshot()})
-  } catch (error) {
-    return jsonResponse({ok: false, cmd, error: serializeError(error)}, 400)
-  }
-}
-
-function getModuleBreakpoints(moduleId: string, options: HttpServerOptions): Response {
-  const module = options.modules.get(moduleId)
-  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+function getProcessBreakpoints(processId: string, options: HttpServerOptions): Response {
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return processNotFoundResponse(processId)
   return jsonResponse(module.breakpoints.registrations)
 }
 
-async function setModuleBreakpoint(moduleId: string, req: Request, options: HttpServerOptions): Promise<Response> {
-  const module = options.modules.get(moduleId)
-  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+async function setProcessBreakpoint(processId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return processNotFoundResponse(processId)
   return await setBreakpoint(req, module)
 }
 
-async function removeModuleBreakpoint(moduleId: string, req: Request, options: HttpServerOptions): Promise<Response> {
-  const module = options.modules.get(moduleId)
-  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+async function removeProcessBreakpoint(processId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return processNotFoundResponse(processId)
   return await removeBreakpoint(req, module)
 }
 
@@ -940,7 +1030,7 @@ async function removeBreakpoint(req: Request, module: InterpreterModule): Promis
   const breakpointId = asString(body["breakpointId"])
   const idOrBreakpointId = id ?? breakpointId
   if (idOrBreakpointId === undefined) {
-    return jsonResponse({ok: false, error: "id or breakpointId required (получи его из /modules/:id/breakpoint или /modules/:id/breakpoints)"}, 400)
+    return jsonResponse({ok: false, error: "id or breakpointId required (получи его из /processes/:id/breakpoint или /processes/:id/breakpoints)"}, 400)
   }
   try {
     const removed = await module.breakpoints.remove(idOrBreakpointId)
@@ -992,29 +1082,10 @@ function isNonNegativeInteger(value: number | undefined): value is number {
   return value !== undefined && Number.isInteger(value) && value >= 0
 }
 
-async function stopTargetFor(module: Pick<InterpreterModule, "target">, req: Request): Promise<import("./target.ts").TargetSnapshot> {
-  let signal: NodeJS.Signals = "SIGTERM"
-  const text = await req.text()
-  if (text.length > 0) {
-    let body: JsonObject | undefined
-    try {
-      body = asObject(JSON.parse(text))
-    } catch (error) {
-      throw new Error(`invalid JSON: ${serializeError(error)}`)
-    }
-    const sig = asString(body?.["signal"])
-    if (sig !== undefined) {
-      if (!VALID_STOP_SIGNALS.has(sig)) throw new Error(`signal must be one of ${[...VALID_STOP_SIGNALS].join(", ")}`)
-      signal = sig as NodeJS.Signals
-    }
-  }
-  return await module.target.stop(signal)
-}
-
-async function getModuleScriptSource(moduleId: string, url: URL, options: HttpServerOptions): Promise<Response> {
-  const module = options.modules.get(moduleId)
-  if (module === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
-  return await getScriptSourceForModule(url, module, moduleId)
+async function getProcessScriptSource(processId: string, url: URL, options: HttpServerOptions): Promise<Response> {
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return processNotFoundResponse(processId)
+  return await getScriptSourceForModule(url, module, processId)
 }
 
 async function getScriptSourceForModule(url: URL, module: InterpreterModule, cacheScope: string): Promise<Response> {
@@ -1204,6 +1275,17 @@ async function saveModuleSource(
   })
 }
 
+async function saveProcessSource(
+  processId: string,
+  req: Request,
+  options: HttpServerOptions,
+  broadcast: (payload: JsonObject) => void,
+): Promise<Response> {
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return processNotFoundResponse(processId)
+  return await saveModuleSource(module.id, req, options, broadcast)
+}
+
 async function applyModulePatch(
   moduleId: string,
   req: Request,
@@ -1228,6 +1310,17 @@ async function applyModulePatch(
   } catch (error) {
     return jsonResponse({ok: false, moduleId, error: serializeError(error)}, 400)
   }
+}
+
+async function applyProcessPatch(
+  processId: string,
+  req: Request,
+  options: HttpServerOptions,
+  broadcast: (payload: JsonObject) => void,
+): Promise<Response> {
+  const module = moduleForProcessId(processId, options)
+  if (module === undefined) return processNotFoundResponse(processId)
+  return await applyModulePatch(module.id, req, options, broadcast)
 }
 
 async function remapBreakpointsForPatch(

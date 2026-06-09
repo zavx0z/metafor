@@ -1,6 +1,6 @@
 # Архитектура
 
-Интерпретатор MetaFor держит общий live-контекст человека и ИИ: module runtime state, stack/scopes, source, console, eval и breakpoint state. Несколько запущенных модулей представлены как несколько равноправных `UIDisplay` внутри одного WebGPU `Space`.
+Интерпретатор MetaFor держит общий live-контекст человека и ИИ: process runtime state, stack/scopes, source, console, eval и breakpoint state. Несколько запущенных процессов представлены как несколько равноправных `UIDisplay` внутри одного WebGPU `Space`.
 
 Внутри используется WebKit/JSC protocol Bun. Это транспорт к runtime, а не отдельный пользовательский IDE workflow.
 
@@ -16,11 +16,11 @@ pkg/interpreter/
   src/module.ts           per-module socket, snapshots, breakpoints, runtime launcher
   src/module-cli.ts       parser путей и параметров CLI
   src/breakpoints.ts      breakpoint registry, scriptId install, remove
-  src/commands.ts         module-scoped REST/WS command execution
+  src/commands.ts         внутренние WS-команды по moduleId текущего process
   src/console.ts          Console/Runtime console events
   src/config.ts           env parsing и defaults
   src/protocol-client.ts WebSocket JSON-RPC client для Bun protocol
-  src/server.ts           HTTP + WS + web UI server, modules REST API
+  src/server.ts           HTTP + WS + web UI server, processes REST API
   src/snapshot.ts         сборка snapshot на Debugger.paused
   src/source-map.ts       mapping editor/generated coordinates
   src/target.ts           Bun.spawn launcher внутри модуля
@@ -62,18 +62,18 @@ Console.*             -> ConsoleLogStore
 
 `src/server.ts` поднимает REST, WS и web UI.
 
-Modules API:
+Processes API:
 
 ```text
-GET  /modules
-POST /modules/run
-POST /modules/:id/run
-POST /modules/:id/stop
-POST /modules/:id/command
-GET  /modules/:id/source
-GET  /modules/:id/breakpoints
-POST /modules/:id/breakpoint
-DELETE /modules/:id/breakpoint
+GET    /processes
+POST   /processes
+GET    /processes/:id
+POST   /processes/:id/action
+GET    /processes/:id/context
+GET    /processes/:id/source
+GET    /processes/:id/breakpoints
+POST   /processes/:id/breakpoint
+DELETE /processes/:id/breakpoint
 ```
 
 `hello` WebSocket-сообщение включает `modules`, поэтому UI сразу строит один `UIDisplay` на каждый модуль.
@@ -94,7 +94,7 @@ UI интерпретатора создаёт один `UiRuntime`, один `S
 - каждый модуль создаёт отдельный `UIDisplay`;
 - `surfaceDisplay: false`, встроенный screen/display host не используется для модулей;
 - layout модулей считается от viewport metrics, а не от конкретного браузерного окна как продуктовой сущности;
-- module state приходит через module-scoped snapshot/API и может быть подан в другой host.
+- process state приходит через process-scoped REST и внутренний snapshot/WS transport, который пока keyed by `moduleId`; этот state может быть подан в другой host.
 
 Для XR нужно заменить host-слой, который предоставляет `UiRuntime`, input routing и transport к `/ws`; сами pane/controller-ы интерпретатора должны остаться `UIDisplay`-контентом внутри одного `Space`.
 

@@ -439,7 +439,7 @@ Step, это одно и то же действие интерпретатора
 
 Код исполняется в процессе, и разработка происходит вокруг живого процесса:
 
-1. Запущен модульный процесс.
+1. Запущен process по module/entrypoint.
 2. Среда знает source, runtime scripts и source maps.
 3. Конкретный поток/контекст попадает в execution point.
 4. Пользователь и агент видят frames, scopes и values.
@@ -463,7 +463,7 @@ Step, это одно и то же действие интерпретатора
 
 Серверное:
 
-- процессы и lifecycle модулей;
+- processes, их lifecycle и привязка к module/entrypoint;
 - runtime state;
 - source identity и связь source с runtime;
 - breakpoints;
@@ -473,7 +473,7 @@ Step, это одно и то же действие интерпретатора
 - действия участников;
 - история действий;
 - shared navigation: active source, selected frame, revealed execution point;
-- spatial meaning: какие interpreter devices существуют и к чему они привязаны.
+- spatial meaning: какие process displays существуют и к чему они привязаны.
 
 Клиентское:
 
@@ -524,11 +524,11 @@ host-окна или инфраструктуры, когда сам интер�
 
 ```text
 GET  /health
-GET  /modules
 GET  /context
-GET  /modules/:id/context
-GET  /interpreters
-POST /interpreters/action
+GET  /space
+GET  /processes
+GET  /processes/:id/context
+POST /processes/:id/action
 GET  /sqlite
 POST /sqlite/open
 POST /sqlite/cell
@@ -538,8 +538,8 @@ GET  /console
 
 Публичный REST слой не имеет отдельного agent namespace: весь API
 интерпретатора предназначен для всех участников и host-клиентов. Endpoints
-называются по смысловым ресурсам среды: `/displays`, `/interpreters`,
-`/hud/terminal`, `/context`, `/modules/:id/context`, `/sqlite`.
+называются по смысловым ресурсам среды: `/processes`, `/space`,
+`/hud/terminal`, `/context`, `/sqlite`.
 
 Если нужно понять, где мы находимся, какой модуль активен, где execution point,
 какой frame выбран, какие scopes/values доступны, какие терминальные данные
@@ -559,7 +559,7 @@ interpreter state.
 - какой terminal input набран.
 
 Этот контекст читается через API интерпретатора (`/context`,
-`/modules/:id/context`, `/interpreters`), а UI-host только обновляет его
+`/processes/:id/context`, `/processes/:id`), а UI-host только обновляет его
 событиями среды.
 
 Внешний browser/desktop host может показывать это состояние, но не должен быть
@@ -583,8 +583,8 @@ browser-host и его controller state. Это нужно считать вре
 Текущий browser UI - только один host.
 
 Внутри уже используется WebGPU `Space`, `ViewPoint`, `HUD` и `UIDisplay`.
-Каждый модульный `UIDisplay` должен читаться как отдельное физическое
-интерпретаторное устройство, помещенное в общее пространство.
+Каждый process получает свой `UIDisplay`: это отдельная рабочая поверхность,
+помещенная в общее пространство.
 
 Будущие hosts:
 
@@ -598,27 +598,28 @@ browser-host и его controller state. Это нужно считать вре
 Все они должны проецировать одну и ту же интерпретаторную среду, а не владеть
 собственной версией workflow.
 
-## Модульность
+## Код И Запуски
 
-Модуль остается основной единицей запуска и исполнения, но выбор и запуск
-модулей должен происходить внутри самой среды-интерпретатора.
+Module - это source/code unit и возможный entrypoint. Единица исполнения и
+основной адрес действий агента - process. Выбор entrypoint и запуск process
+должны происходить внутри самой среды-интерпретатора.
 
 В конечном результате среда-интерпретатор должна позволять:
 
 - видеть доступные модули/entrypoints;
-- выбирать модуль для запуска;
-- запускать новый модуль;
-- останавливать и перезапускать модуль;
-- менять запущенный модуль;
-- держать несколько модульных interpreter devices в одном пространстве.
+- выбирать entrypoint для запуска;
+- запускать новый process;
+- останавливать и перезапускать process;
+- менять source modules в контексте process;
+- держать несколько process displays в одном пространстве.
 
-Внутри среды-интерпретатора модульный interpreter device является устойчивой
-единицей разработки. Process/run внутри него временный: процесс можно
-перезапустить, завершить или поднять снова, но устройство интерпретатора и его
-контекст разработки продолжают существовать.
+Внутри среды-интерпретатора устойчивой единицей совместной разработки является
+process context. Текущий Bun child run внутри него временный: его можно
+перезапустить, завершить или поднять снова, но рабочий context, display,
+history и breakpoints продолжают существовать.
 
-Несколько модулей - это несколько независимых interpreter devices в одном
-пространстве. Не должно быть:
+Несколько запущенных processes - это несколько независимых рабочих
+поверхностей в одном пространстве. Не должно быть:
 
 - global current module;
 - default display;
@@ -627,8 +628,8 @@ browser-host и его controller state. Это нужно считать вре
 - общих source/frame/scope/terminal состояний между модулями;
 - фокуса одного дисплея, который меняет состояние другого.
 
-Общее пространство может видеть несколько устройств, но runtime/source контекст
-каждого модуля остается module-scoped.
+Общее пространство может видеть несколько process displays, но runtime/source
+context каждого запуска остается process-scoped.
 
 ## Actor Model И Потоки Исполнения
 
@@ -642,7 +643,7 @@ call stack.
 в процессе исполнения взаимодействует сама с собой.
 
 Пока рабочее слово `поток` означает смысловой поток исполнения/акторную линию
-внутри MetaFor, а не обязательно OS thread. Такой поток может быть связан с
+внутри MetaFor, а не системный поток ОС. Такой поток может быть связан с
 модулем, процессом, actor/process entity, worker-ом или будущей доменной
 проекцией. Точное определение нужно уточнить.
 
@@ -719,7 +720,7 @@ participant.pointAt
 
 Сервер уже владеет существенной частью живого процесса:
 
-- `InterpreterModuleManager` создает module-scoped interpreters;
+- `InterpreterModuleManager` создает runtime targets для processes, пока keyed by `moduleId`;
 - `TargetSupervisor` запускает Bun-процесс и собирает stdout/stderr;
 - `ProtocolClient` подключается к runtime;
 - `SnapshotStore` держит paused state, frames и scopes;
@@ -728,7 +729,7 @@ participant.pointAt
 
 Но часть общего live-контекста сейчас слишком сильно живет в browser-host:
 
-- workspace routes (`/displays`, `/interpreters`, `/hud/terminal`) пока
+- environment routes (`/space`, `/processes`, `/hud/terminal`) пока
   проксируют часть действий в подключенный UI-host;
 - active source/frame/terminal context берется из UI controller;
 - source pane в interpreter UI сейчас read-only;

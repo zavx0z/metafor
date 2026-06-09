@@ -1,9 +1,8 @@
 /**
  * Interpreter UI.
  *
- * One WebGPU Space contains one equal UIDisplay per launched module plus one
- * host terminal UIDisplay. Module runtime actions stay scoped to
- * `/modules/:id/...`.
+ * One interpreter owns one HUD and one WebGPU Space. UIDisplays are visual
+ * placements; public runtime/source API is scoped to processes.
  */
 
 import {
@@ -51,7 +50,6 @@ import {
   breakpointSpecMatchesSource,
   sameSourceUrl,
 } from "./breakpoint-matching.ts"
-import {interactiveRestartPayload} from "./restart.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
 import {
   DEFAULT_VOICE_ACTIVATION_PHRASES,
@@ -203,6 +201,7 @@ type SourceInteractionContext = {
   selection: SourceSelectionContext | null
 }
 type ModuleCurrentContext = {
+  processId: string
   moduleId: string
   displayId: string
   label: string
@@ -241,7 +240,9 @@ type WorkspaceFilesPayload = {
   root?: string
   workspacePath?: string
   modulePath?: string
+  entrypoint?: string | null
   files?: Array<{path?: string}>
+  modules?: Array<{path?: string}>
 }
 
 type WorkspaceFilesStoredState = {
@@ -319,12 +320,20 @@ type SqliteDisplayController = {
   tables: FileListPane
   rows: SqliteTablePane
 }
-type InterpreterInfo = {
+type ProcessWorkspaceInfo = {
   id: string
+  processId: string
+  kind: "process"
   moduleId: string
   displayId: string
   label: string
   order: number
+  content: {
+    kind: "module"
+    moduleId: string
+    processId: string
+    modulePath: string | null
+  }
   display: ModuleDisplayInfo | null
   runtime: {
     protocolUrl: string
@@ -744,20 +753,20 @@ function sendUiHostResult(requestId: number, reply: CommandReply): void {
 
 async function executeUiHostCommand(command: string, params: unknown): Promise<unknown> {
   switch (command) {
-    case "displays.list":
-      return displayPayload()
-    case "displays.focus":
-      return focusDisplay(params)
-    case "displays.frame":
-      return frameDisplays()
-    case "interpreters.list":
-      return interpretersPayload()
-    case "interpreters.resolve":
-      return resolveInterpreterPayload(params)
-    case "interpreters.focus":
-      return focusInterpreter(params)
-    case "interpreters.action":
-      return await runInterpreterAction(params)
+    case "space.get":
+      return spacePayload()
+    case "space.focus":
+      return focusSpace(params)
+    case "space.frame":
+      return frameSpace()
+    case "processes.get":
+      return processWorkspacePayload(params)
+    case "processes.resolve":
+      return processWorkspacePayload(params)
+    case "processes.focus":
+      return focusProcess(params)
+    case "processes.action":
+      return await runProcessAction(params)
     case "hud.terminal.get":
       return hudTerminalPayload()
     case "hud.terminal.dock":
@@ -773,7 +782,7 @@ async function executeUiHostCommand(command: string, params: unknown): Promise<u
   }
 }
 
-function displayPayload(): {
+function spacePayload(): {
   mode: string
   activeDisplayId: string | null
   displays: DisplayInfo[]
@@ -786,7 +795,7 @@ function displayPayload(): {
   }
 }
 
-function focusDisplay(params: unknown): unknown {
+function focusSpace(params: unknown): unknown {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
   const body = objectParam(params)
   const selector = objectParamMaybe(body["selector"]) ?? body
@@ -804,62 +813,46 @@ function focusDisplay(params: unknown): unknown {
   return {
     resolved: display,
     view,
-    ...displayPayload(),
+    ...spacePayload(),
   }
 }
 
-function frameDisplays(): unknown {
+function frameSpace(): unknown {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
   const displayIds = displayInfos().map((display) => display.displayId)
   if (displayIds.length > 0) uiCanvas.frameDisplays(displayIds)
-  return displayPayload()
+  return spacePayload()
 }
 
-function interpretersPayload(): {
-  mode: string
-  activeDisplayId: string | null
-  interpreters: InterpreterInfo[]
-} {
-  if (uiCanvas === null) throw new Error("ui runtime is not ready")
-  const displays = new Map(displayInfos()
-    .filter((display): display is ModuleDisplayInfo => display.kind === "module")
-    .map((display) => [display.moduleId, display]))
-  return {
-    mode: uiCanvas.displayMode,
-    activeDisplayId: uiCanvas.activeDisplayId,
-    interpreters: moduleOrder
-      .map((moduleId) => interpreterInfo(moduleId, displays.get(moduleId) ?? null))
-      .filter((info): info is InterpreterInfo => info !== null),
-  }
+function processWorkspacePayload(params: unknown): unknown {
+  const body = objectParam(params)
+  const selector = objectParamMaybe(body["selector"]) ?? body
+  const display = resolveProcessDisplay(selector)
+  const process = processWorkspaceInfo(display.moduleId, display)
+  if (process === null) throw new Error(`process not found: ${display.moduleId}`)
+  return process
 }
 
-function resolveInterpreterPayload(params: unknown): unknown {
-  const display = resolveInterpreterDisplay(params)
-  const interpreter = interpreterInfo(display.moduleId, display)
-  if (interpreter === null) throw new Error(`interpreter not found: ${display.moduleId}`)
-  return interpreter
-}
-
-function focusInterpreter(params: unknown): unknown {
+function focusProcess(params: unknown): unknown {
   if (uiCanvas === null) throw new Error("ui runtime is not ready")
   const body = objectParam(params)
   const view = stringParam(body["view"]) ?? "full"
-  const resolved = resolveInterpreterDisplay(params)
+  const resolved = resolveProcessDisplay(params)
   if (view === "full" && body["dockHostTerminal"] === true) setHostTerminalHudDocked(true)
   const focused = uiCanvas.focusDisplay(resolved.displayId)
   if (!focused) throw new Error(`display not found: ${resolved.displayId}`)
-  focusInterpreterTerminal(resolved.moduleId)
-  const interpreter = interpreterInfo(resolved.moduleId, displayInfoForModule(resolved.moduleId))
-  if (interpreter === null) throw new Error(`interpreter not found: ${resolved.moduleId}`)
+  focusProcessTerminal(resolved.moduleId)
+  const process = processWorkspaceInfo(resolved.moduleId, displayInfoForModule(resolved.moduleId))
+  if (process === null) throw new Error(`process not found: ${resolved.moduleId}`)
   return {
     resolved,
     view,
-    interpreter,
-    displays: displayPayload(),
+    process,
+    space: spacePayload(),
   }
 }
 
-function focusInterpreterTerminal(moduleId: string): void {
+function focusProcessTerminal(moduleId: string): void {
   const controller = moduleDisplays.get(moduleId)
   if (controller === undefined || !canAcceptTerminalInput(controller)) return
   rebuildModuleTerminalOutput(controller)
@@ -870,14 +863,14 @@ function focusInterpreterTerminal(moduleId: string): void {
   scrollAgentModuleTerminalToBottom(controller)
 }
 
-async function runInterpreterAction(params: unknown): Promise<unknown> {
+async function runProcessAction(params: unknown): Promise<unknown> {
   const body = objectParam(params)
   const action = stringParam(body["action"]) ?? stringParam(body["cmd"]) ?? stringParam(body["command"])
-  if (action === undefined) throw new Error("interpreter action must be a string")
+  if (action === undefined) throw new Error("process action must be a string")
 
-  const display = resolveInterpreterDisplay(body)
+  const display = resolveProcessDisplay(body)
   const controller = moduleDisplays.get(display.moduleId)
-  if (controller === undefined) throw new Error(`interpreter display controller not found: ${display.moduleId}`)
+  if (controller === undefined) throw new Error(`process display controller not found: ${display.moduleId}`)
   const actionParams = objectParamMaybe(body["params"]) ?? body
   let reply: unknown
 
@@ -920,14 +913,14 @@ async function runInterpreterAction(params: unknown): Promise<unknown> {
       reply = {ok: true}
       break
     default:
-      throw new Error(`unknown interpreter action: ${action}`)
+      throw new Error(`unknown process action: ${action}`)
   }
 
   return {
     resolved: display,
     action,
     reply,
-    interpreter: interpreterInfo(controller.id, displayInfoForModule(controller.id)),
+    process: processWorkspaceInfo(controller.id, displayInfoForModule(controller.id)),
   }
 }
 
@@ -1317,7 +1310,7 @@ function displayInfoForModule(moduleId: string): ModuleDisplayInfo | null {
   return displayInfos().find((display): display is ModuleDisplayInfo => display.kind === "module" && display.moduleId === moduleId) ?? null
 }
 
-function interpreterInfo(moduleId: string, display: ModuleDisplayInfo | null): InterpreterInfo | null {
+function processWorkspaceInfo(moduleId: string, display: ModuleDisplayInfo | null): ProcessWorkspaceInfo | null {
   const module = moduleSnapshots.get(moduleId)
   if (module === undefined) return null
   const controller = moduleDisplays.get(moduleId)
@@ -1332,10 +1325,18 @@ function interpreterInfo(moduleId: string, display: ModuleDisplayInfo | null): I
   const pausedWithContext = connected && module.paused && module.dump !== null && !targetFinished
   return {
     id: module.id,
+    processId: module.id,
+    kind: "process",
     moduleId: module.id,
     displayId: moduleDisplayId(module.id),
     label: module.label,
     order: display?.order ?? moduleOrder.indexOf(module.id),
+    content: {
+      kind: "module",
+      moduleId: module.id,
+      processId: module.id,
+      modulePath: module.modulePath,
+    },
     display,
     runtime: {
       protocolUrl: module.protocolUrl,
@@ -1432,6 +1433,7 @@ function moduleCurrentContextPayload(controller: ModuleDisplayController): Modul
     ?? snapshot?.dump?.frames[0]
     ?? null
   return {
+    processId: controller.id,
     moduleId: controller.id,
     displayId: moduleDisplayId(controller.id),
     label: snapshot?.label ?? controller.id,
@@ -1478,12 +1480,12 @@ function publishModuleContext(controller: ModuleDisplayController): void {
   }))
 }
 
-function resolveInterpreterDisplay(params: unknown): ModuleDisplayInfo {
+function resolveProcessDisplay(params: unknown): ModuleDisplayInfo {
   const body = objectParam(params)
   const selector = objectParamMaybe(body["selector"]) ?? body
   const display = resolveDisplay(selector)
-  if (display === null) throw new Error("interpreter display not found")
-  if (display.kind !== "module") throw new Error(`display is not an interpreter: ${display.displayId}`)
+  if (display === null) throw new Error("process display not found")
+  if (display.kind !== "module") throw new Error(`display is not a process: ${display.displayId}`)
   return display
 }
 
@@ -1493,6 +1495,9 @@ function resolveDisplay(selector: Record<string, unknown>): DisplayInfo | null {
 
   const displayId = stringParam(selector["displayId"]) ?? stringParam(selector["id"])
   if (displayId !== undefined) return displays.find((display) => display.displayId === displayId || display.id === displayId) ?? null
+
+  const processId = stringParam(selector["processId"])
+  if (processId !== undefined) return displays.find((display) => display.kind === "module" && display.moduleId === processId) ?? null
 
   const moduleId = stringParam(selector["moduleId"])
   if (moduleId !== undefined) return displays.find((display) => display.kind === "module" && display.moduleId === moduleId) ?? null
@@ -4565,6 +4570,10 @@ function moduleDisplayId(moduleId: string): string {
   return `module:${moduleId}`
 }
 
+function processApiPath(processId: string, suffix: string): string {
+  return `/processes/${encodeURIComponent(processId)}${suffix}`
+}
+
 function sqliteDisplayId(sqliteId: string): string {
   return `sqlite:${sqliteId}`
 }
@@ -4895,17 +4904,18 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
   if (controller.workspaceFiles.loading !== null) return controller.workspaceFiles.loading
   controller.workspaceFiles.loading = (async () => {
     try {
-      const res = await fetch(`/workspace/files?moduleId=${encodeURIComponent(controller.id)}&limit=${WORKSPACE_FILES_LIMIT}`)
+      const res = await fetch(processApiPath(controller.id, `/modules?limit=${WORKSPACE_FILES_LIMIT}`))
       const data = await res.json() as WorkspaceFilesPayload
-      const paths = Array.isArray(data.files)
-        ? data.files.map((file) => typeof file.path === "string" ? file.path : "").filter((path) => path.length > 0)
+      const files = Array.isArray(data.modules) ? data.modules : data.files
+      const paths = Array.isArray(files)
+        ? files.map((file) => typeof file.path === "string" ? file.path : "").filter((path) => path.length > 0)
         : []
       const items = workspaceFileTree(paths)
       const storageKey = workspaceFilesStorageKey(data.root, controller.id)
       const storedState = readStoredWorkspaceFilesState(storageKey)
       controller.workspaceFiles.root = data.root ?? null
       controller.workspaceFiles.workspacePath = normalizeWorkspacePath(data.workspacePath ?? "")
-      controller.workspaceFiles.modulePath = data.modulePath ?? controller.workspaceFiles.modulePath
+      controller.workspaceFiles.modulePath = data.entrypoint ?? data.modulePath ?? controller.workspaceFiles.modulePath
       controller.workspaceFiles.rootLabel = workspaceRootLabel(data.root)
       controller.workspaceFiles.items = items
       controller.workspaceFiles.storageKey = storageKey
@@ -4993,7 +5003,7 @@ async function openWorkspaceSource(
   }, "loading", false)
 
   try {
-    const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/source?sourceUrl=${encodeURIComponent(sourceUrl)}`)
+    const res = await fetch(processApiPath(controller.id, `/source?sourceUrl=${encodeURIComponent(sourceUrl)}`))
     const data = await res.json() as {
       url?: string
       scriptUrl?: string
@@ -5059,7 +5069,7 @@ async function saveModuleSource(controller: ModuleDisplayController, text: strin
   controller.sourceSaving = true
   controller.source.setTitle(moduleSourceTitle(controller))
   try {
-    const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/source`, {
+    const res = await fetch(processApiPath(controller.id, "/source"), {
       method: "POST",
       headers: {"content-type": "application/json"},
       body: JSON.stringify({sourceUrl, text}),
@@ -5783,7 +5793,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
       identity: null,
     }, "loading", false)
     try {
-      const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/source?scriptId=${encodeURIComponent(scriptId)}&sourceUrl=${encodeURIComponent(frame.url)}&sourceKind=${sourceKind}`)
+      const res = await fetch(processApiPath(controller.id, `/source?scriptId=${encodeURIComponent(scriptId)}&sourceUrl=${encodeURIComponent(frame.url)}&sourceKind=${sourceKind}`))
       const data = await res.json() as {
         url?: string
         scriptUrl?: string
@@ -5920,7 +5930,6 @@ async function restartModule(moduleId: string): Promise<void> {
   const controller = moduleDisplays.get(moduleId)
   if (controller?.activeCommand !== null && controller?.activeCommand !== undefined) return
   if (snapshot === undefined || snapshot.target.command.length === 0) return
-  const command = snapshot.target.command
   const activeCommand: ActiveInterpreterCommand = {
     cmd: "restart",
     label: t("restartTarget"),
@@ -5931,19 +5940,11 @@ async function restartModule(moduleId: string): Promise<void> {
     updateModuleHeaderControls(controller, snapshot)
     syncModuleTerminalInput(controller)
   }
-  const breakpoints = readStoredBreakpointSpecs()
-  const body = interactiveRestartPayload({
-    label: snapshot?.label ?? moduleId,
-    command,
-    breakpoints,
-  })
   try {
-    const stopped = await stopModule(moduleId, {force: true})
-    if (!stopped) return
-    const res = await fetch(`/modules/${encodeURIComponent(moduleId)}/run`, {
+    const res = await fetch(processApiPath(moduleId, "/action"), {
       method: "POST",
       headers: {"content-type": "application/json"},
-      body: JSON.stringify(body),
+      body: JSON.stringify({action: "restart"}),
     })
     const data = await res.json().catch(() => null) as {ok?: boolean; error?: string} | null
     if ((!res.ok || data?.ok === false) && controller !== undefined) {
@@ -5973,13 +5974,17 @@ async function stopModule(moduleId: string, options: {force?: boolean} = {}): Pr
   const controller = moduleDisplays.get(moduleId)
   if (options.force !== true && controller?.activeCommand !== null && controller?.activeCommand !== undefined) return false
   try {
-    const res = await fetch(`/modules/${encodeURIComponent(moduleId)}/stop`, {method: "POST"})
+    const res = await fetch(processApiPath(moduleId, "/action"), {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({action: "stop"}),
+    })
     const data = await res.json().catch(() => null) as {ok?: boolean; error?: string} | null
     if ((!res.ok || data?.ok === false) && controller !== undefined) {
       appendModuleTerminal(controller, {
         ts: new Date().toISOString(),
         level: "error",
-        text: `[ui] module ${moduleId}/stop: ${data?.error ?? res.statusText}`,
+        text: `[ui] process ${moduleId}/stop: ${data?.error ?? res.statusText}`,
       })
     }
     return res.ok && data?.ok !== false
@@ -5988,7 +5993,7 @@ async function stopModule(moduleId: string, options: {force?: boolean} = {}): Pr
       appendModuleTerminal(controller, {
         ts: new Date().toISOString(),
         level: "error",
-        text: `[ui] module ${moduleId}/stop: ${String(error)}`,
+        text: `[ui] process ${moduleId}/stop: ${String(error)}`,
       })
     }
     return false
@@ -6258,7 +6263,7 @@ function terminalTextTail(terminal: TerminalPane, limit: number): string[] {
 
 async function refreshModuleBreakpoints(controller: ModuleDisplayController): Promise<void> {
   try {
-    const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/breakpoints`)
+    const res = await fetch(processApiPath(controller.id, "/breakpoints"))
     const data = await res.json() as unknown
     if (!Array.isArray(data)) return
     controller.breakpointRegistrations = data.filter(isBreakpointRegistration)
@@ -6286,7 +6291,7 @@ async function syncStoredModuleBreakpoints(controller: ModuleDisplayController):
   const errors: string[] = []
   for (const spec of missing) {
     try {
-      const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/breakpoint`, {
+      const res = await fetch(processApiPath(controller.id, "/breakpoint"), {
         method: "POST",
         headers: {"content-type": "application/json"},
         body: JSON.stringify(spec),
@@ -6316,7 +6321,7 @@ async function removeForeignModuleBreakpoints(controller: ModuleDisplayControlle
   const foreign = controller.breakpointRegistrations.filter((registration) => !storedBreakpointSpecMatchesModule(registration.spec, controller))
   for (const registration of foreign) {
     try {
-      const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/breakpoint`, {
+      const res = await fetch(processApiPath(controller.id, "/breakpoint"), {
         method: "DELETE",
         headers: {"content-type": "application/json"},
         body: JSON.stringify({id: registration.id}),
@@ -6414,7 +6419,7 @@ async function toggleModuleBreakpoint(controller: ModuleDisplayController, line:
 
   try {
     const body = existing === undefined ? nextSpec : {id: existing.id}
-    const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/breakpoint`, {
+    const res = await fetch(processApiPath(controller.id, "/breakpoint"), {
       method: existing === undefined ? "POST" : "DELETE",
       headers: {"content-type": "application/json"},
       body: JSON.stringify(body),

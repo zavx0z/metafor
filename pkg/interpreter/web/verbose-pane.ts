@@ -189,8 +189,8 @@ function isLowValueEvent(kind: "protocol" | "interpreter", name: string, payload
     const status = propNumber(payload, "status")
     return status !== undefined && status < 400 && (
       path === "/console"
-      || path === "/modules"
-      || /\/modules\/[^/]+\/(?:source|breakpoints)$/.test(path ?? "")
+      || path === "/processes"
+      || /\/processes\/[^/]+\/(?:modules|source|breakpoints)$/.test(path ?? "")
     )
   }
   if (name === "protocol.request") {

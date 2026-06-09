@@ -64,18 +64,18 @@ cat .metafor/interpreter/state.json
 
 ## 6. Проверить eval
 
-Отправить REST-команду в конкретный модуль:
+Отправить REST action в конкретный process:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/modules/<module-id>/command \
+curl -sS -X POST http://127.0.0.1:6500/processes/<process-id>/action \
   -H 'content-type: application/json' \
-  -d '{"cmd":"eval","params":{"frame":0,"expr":"wimp.children.length"}}'
+  -d '{"action":"evaluate","params":{"frame":0,"expr":"wimp.children.length"}}'
 ```
 
 Ожидается JSON response:
 
 ```json
-{"ok":true,"cmd":"eval","result":{...}}
+{"ok":true,"action":"evaluate","reply":{...}}
 ```
 
 ## 7. Step В Интерпретаторе
@@ -89,10 +89,10 @@ curl -sS -X POST http://127.0.0.1:6500/modules/<module-id>/command \
 Для smoke без ручного UI можно запустить модуль и передать breakpoint:
 
 ```sh
-curl -sS -X POST http://127.0.0.1:6500/modules/run \
+curl -sS -X POST http://127.0.0.1:6500/processes \
   -H 'content-type: application/json' \
   -d '{
-    "id": "module-spec",
+    "processId": "module-spec",
     "label": "module.spec.ts",
     "command": [
       "bun", "test", "--timeout=2147483647", "./module.spec.ts"
@@ -119,11 +119,11 @@ curl -sS -X POST http://127.0.0.1:6500/modules/run \
 Минимальная проверка после pause:
 
 ```sh
-curl -sS http://127.0.0.1:6500/modules
-curl -sS -X POST http://127.0.0.1:6500/modules/module-spec/command \
+curl -sS http://127.0.0.1:6500/processes
+curl -sS -X POST http://127.0.0.1:6500/processes/module-spec/action \
   -H 'content-type: application/json' \
-  -d '{"cmd":"eval","params":{"frame":0,"expr":"wimp.src"}}'
-curl -sS -X POST http://127.0.0.1:6500/modules/module-spec/command \
+  -d '{"action":"evaluate","params":{"frame":0,"expr":"wimp.src"}}'
+curl -sS -X POST http://127.0.0.1:6500/processes/module-spec/action \
   -H 'content-type: application/json' \
-  -d '{"cmd":"resume","params":{}}'
+  -d '{"action":"resume","params":{}}'
 ```

@@ -1,103 +1,144 @@
-# Interpreter Package Rules
+# Правила Пакета Interpreter
 
-This file defines local development rules for `pkg/interpreter`. Follow it for every change inside this package.
+Этот файл задает локальные правила разработки для `pkg/interpreter`. Следуй им при каждом изменении внутри пакета.
 
-## Product Model
+Документация и правила пакета пишутся на русском. Технические имена endpoint, типов, команд и protocol methods оставляются как literal identifiers.
 
-`@metafor/interpreter` is a live interpreter for MetaFor Bun modules. It is not a WebStorm/Chrome debugger wrapper and UI text must not describe the product as a debugger or inspector.
+## Модель Продукта
 
-The product concept is: a human and AI share one live runtime/source context, can inspect execution, set breakpoints, step, evaluate expressions, and change code while the module is running.
+`@metafor/interpreter` - live-интерпретатор MetaFor. Это не wrapper вокруг WebStorm, Chrome DevTools или отдельного debugger UI.
 
-Protocol names such as `Debugger.paused`, `Debugger.scriptParsed`, `Runtime.getProperties`, and Bun's protocol flags are internal implementation details. They can remain in protocol adapters, tests, and low-level event streams, but user-facing labels, package docs, logs intended for people, and UI controls should use interpreter/module/runtime language.
+Смысл продукта: человек и AI находятся в одном живом runtime/source-контексте, видят execution point, source, stack, scopes, terminal/output, события, могут ставить точки останова, выполнять step/evaluate и менять код во время работы.
 
-## Display Model
+Protocol names вроде `Debugger.paused`, `Debugger.scriptParsed`, `Runtime.getProperties` и Bun inspect flags - внутренние детали adapter-слоя. В adapter-коде, низкоуровневых tests и raw event streams их можно использовать. В пользовательских labels, docs, logs для людей и UI-controls используй язык интерпретатора: process, Space, display, module, expression, execution point, breakpoint.
 
-The interpreter UI uses one WebGPU `Space` and one browser canvas, but every launched module is rendered into its own equal `UIDisplay`.
+## Interpreter / HUD / Space / Process
 
-Treat every module `UIDisplay` as a separate physical device:
+Интерпретатор один. Внутри него есть глобальный `HUD` и один WebGPU `Space`.
 
-- no default display;
-- no primary/main display;
-- no default session;
-- no shared selected module;
-- no global "active interpreter" that affects another display;
-- no UI panel toggle that opens/closes the same panel on multiple displays;
-- no focus stealing between displays;
-- no logic that assumes the left display is special;
-- no cross-display terminal, events, breakpoint, source, frame, scope, or toolbar state.
+`Space` содержит независимые `UIDisplay`. Display - визуальная поверхность. Он не является единицей исполнения.
 
-If two modules are running, the expected mental model is two independent interpreter devices placed in one 3D `Space`. Browser layout is only the current host. Future XR hosts must be able to embed the same displays as independent devices.
+`Process` - основной адрес действий агента. Сейчас это live-запуск Bun process с `pid`, inspect target, source context, stack/scopes, terminal и breakpoints. Позже тот же термин покрывает actor/process MetaFor.
 
-Every display-specific object must be keyed by `moduleId` or owned by `ModuleDisplayController`:
+В Space нет привилегированных display:
+
+- нет default display;
+- нет primary/main display;
+- нет default session;
+- нет глобального selected module;
+- нет глобального active interpreter, который меняет другой display;
+- нет panel toggle, который открывает/закрывает одну панель сразу на нескольких displays;
+- нет focus stealing между displays;
+- нет логики, которая считает левый display особенным;
+- нет общих terminal, events, breakpoints, source, frame, scope или toolbar state между displays.
+
+Если запущены два модуля, это два независимых processes, отображенных на двух независимых surfaces в одном 3D `Space`. Browser layout - только текущий host. Будущие XR/mobile/desktop hosts должны уметь встроить те же surfaces как независимые поверхности.
+
+Состояние, относящееся к одному display, должно быть keyed by `displayId`/`moduleId` или принадлежать `ModuleDisplayController`:
 
 - toolbar state;
 - source state;
 - stack/frame state;
 - scopes state;
-- terminal buffer and terminal input state;
-- events/verbose visibility and scroll state;
-- breakpoint markers and pending breakpoint lines;
+- terminal buffer и terminal input state;
+- events/verbose visibility и scroll state;
+- breakpoint markers и pending breakpoint lines;
 - active command state;
-- focus and caret restoration.
+- focus/caret restoration.
 
-Do not introduce package-level mutable UI state unless it is truly global host state. Locale is global. WebSocket connection to the interpreter host is global. Module/display UI state is not global.
+Не добавляй package-level mutable UI state, если это не действительно глобальный host state. Locale глобален. WebSocket connection к interpreter host глобален. Module/display UI state не глобален.
 
-## Module Scoping
+## Привязка К Process
 
-All runtime actions are module-scoped:
+Все agent-facing runtime-действия привязаны к process:
 
-- REST paths use `/modules/:id/...`;
-- WebSocket commands must include `moduleId`;
-- source loading is module-scoped;
-- breakpoints are stored and applied per module;
-- command replies update only the display for the command's module;
-- protocol events with `moduleId` go only to that module display.
+- REST paths используют основной маршрут `/processes/:id/...`;
+- source loading выполняется в контексте process;
+- breakpoints хранятся и применяются для runtime конкретного process;
+- command replies обновляют только process/display, в котором выполнялась команда;
+- protocol events с `moduleId` уходят только в owning process/display.
 
-The API surface intentionally has no global `/breakpoint`, no global `/source`, no global `/command`, and no implicit current module.
+В API намеренно нет глобального `/breakpoint`, глобального `/source`, глобального `/command` и неявного current module. `module` - source/code unit. Каталог кода доступен как `/processes/:id/modules`.
 
-## Interpreter REST API
+## Правило Инструментов
 
-The interpreter exposes a shared REST API for user, agent, voice, and host control of the interpreter environment. Use it instead of clicking the UI when the user asks to move between interpreter displays or to show/dock the host terminal HUD.
+Через interpreter API применяй patch только к коду, над которым человек и агент прямо сейчас совместно работают в запущенном process.
 
-Default base URL:
+Документацию, правила, внешние meta-файлы и неотлаживаемый код правь обычными локальными инструментами (`apply_patch`, форматтеры, tests). Не отправляй такие правки через `/processes/:id/apply_patch`.
+
+## REST API Интерпретатора
+
+Base URL:
 
 ```text
 http://127.0.0.1:6500
 ```
 
-Before acting, read current state:
+Перед действием читай текущую ситуацию:
 
 ```sh
-curl -s http://127.0.0.1:6500/displays
-curl -s http://127.0.0.1:6500/hud/terminal
+curl -s http://127.0.0.1:6500/context
+curl -s http://127.0.0.1:6500/space
 ```
 
-Display API:
+`GET /context` - главный endpoint для запроса "что сейчас видно/выделено". Он возвращает один текущий active context, а не полный dump всех runtime.
 
-- `GET /displays` returns `mode`, `activeDisplayId`, and `displays[]`.
-- Each display includes `displayId`, `kind`, `moduleId`, `label`, `order`, `screenCenter`, `screenRect`, `visible`, `active`, and `hovered`. SQLite displays have `kind:"sqlite"` and `moduleId:null`.
-- `POST /displays/focus` focuses one display.
-- `POST /displays/frame` returns the overview of all displays.
+Process API:
 
-Interpreter workspace API:
+- `GET /processes` возвращает live processes.
+- `POST /processes` запускает новый process.
+- `POST /processes/resolve` находит process по selector и текущему Space.
+- `POST /processes/focus` фокусирует surface process в Space.
+- `GET /processes/:id` возвращает рабочий payload process: content, runtime status, текущий UI context, tail терминала и capabilities.
+- `GET /processes/:id/context` возвращает текущий source/frame/scope/terminal context одного process.
+- `GET /processes/:id/modules` возвращает каталог кода в контексте process.
+- `GET /processes/:id/source` читает source в контексте process.
+- `POST /processes/:id/source` сохраняет source через серверный apply_patch flow.
+- `POST /processes/:id/apply_patch` принимает raw `apply_patch` text/plain для process.
+- `GET /processes/:id/breakpoints` возвращает точки останова process.
+- `POST /processes/:id/breakpoint` ставит точку останова в process.
+- `DELETE /processes/:id/breakpoint` удаляет точку останова из process.
+- `POST /processes/:id/action` выполняет process action.
 
-- `GET /interpreters` returns each module interpreter workspace: display geometry, runtime status, current UI source/frame context, terminal input state with `textTail`, and supported actions.
-- `POST /interpreters/resolve` resolves one interpreter from the same selector shape as display focus and returns its workspace payload.
-- `POST /interpreters/focus` focuses one interpreter display and returns that interpreter workspace payload.
-- `POST /interpreters/action` runs a display-scoped action in one interpreter. Body shape: `{"selector":{...},"action":"pause|resume|step|evaluate|source.open|source.openSelection|restart|stop|showExecutionPoint","params":{...}}`.
-- `evaluate` accepts `{"expr":"...","frame":0}` and writes the agent expression/result into the module terminal so the human sees the shared action. Agent terminal entries are replayed after UI reload for the same target run.
-- `source.open` accepts `{"sourceUrl":"..."}` or `{"specifier":"./file.ts"}` and opens that source in the interpreter display. If the resolved path ends with `.sqlite`, it opens the database as a separate SQLite display instead of treating it as a runnable module.
-- `source.openSelection` resolves the current selected import/path from the interpreter context and opens it in the same display.
-- `step` accepts `{"kind":"over"|"into"|"out"}`.
+Space API:
+
+- `GET /space` возвращает `mode`, `activeDisplayId` и `displays[]`.
+- `POST /space/focus` фокусирует рабочую поверхность.
+- `POST /space/frame` возвращает обзор всех surfaces.
+
+Поддерживаемые process actions:
+
+- `pause`
+- `resume`
+- `step` с `params.kind`: `over`, `into`, `out`
+- `evaluate` / `eval` с `params.expr` и опциональным `params.frame`
+- `source.open` с `params.sourceUrl`, `params.path`, `params.modulePath` или `params.specifier`
+- `source.openSelection`
+- `restart`
+- `stop`
+- `showExecutionPoint`
+
+`evaluate` пишет выражение и результат агента в terminal process, чтобы человек видел общее действие.
+
+Для совместной работы с конкретным process используй `/context`, затем `/processes/:id/*`:
+
+```sh
+curl -sS http://127.0.0.1:6500/context
+
+curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
+  -H 'content-type: application/json' \
+  -d '{"action":"evaluate","params":{"expr":"globalThis.location","frame":0}}'
+```
 
 SQLite display API:
 
-- Startup CLI args ending with `.sqlite` are display inputs, not runnable modules: `bun --hot run pkg/interpreter/interpreter.ts dark/server.spec.ts -timeout=2147483647 boundary/server.spec.ts dark/tmp/boundary.sqlite`. The display can be created before the file exists; UI waits and retries until the runtime creates the database.
-- `GET /sqlite?path=<file.sqlite>&table=<name>` returns tables, schema, and rows for a database.
-- `POST /sqlite/open` with `{"path":"dark/tmp/boundary.sqlite"}` opens a SQLite database as a separate display.
-- `POST /sqlite/cell` with `{"path","table","rowid","column","value"}` edits one table cell by SQLite `rowid`. Views are read-only.
+- CLI args ending with `.sqlite` считаются входами display, а не runnable modules.
+- Display можно создать до появления файла базы; UI ждет и повторяет чтение, пока runtime не создаст `.sqlite`.
+- `GET /sqlite?path=<file.sqlite>&table=<name>` возвращает tables, schema и rows.
+- `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает database как отдельный display.
+- `POST /sqlite/cell` с `{"path","table","rowid","column","value"}` редактирует одну ячейку по SQLite `rowid`. Views read-only.
 
-Display selectors accepted by `/displays/focus`:
+Display selectors:
 
 ```json
 {"selector":{"side":"left"}}
@@ -108,86 +149,62 @@ Display selectors accepted by `/displays/focus`:
 {"selector":{"order":0}}
 ```
 
-Focusing a display must not change the host terminal HUD unless the user explicitly asks for that. Do not dock, hide, show, or toggle the terminal while answering a display-only request such as "open the left display". If the terminal should be docked as part of a focus request, the API requires explicit intent:
-
-```sh
-curl -sS -X POST http://127.0.0.1:6500/displays/focus \
-  -H 'content-type: application/json' \
-  -d '{"selector":{"side":"left"},"dockHostTerminal":true}'
-```
-
-For normal display focus, omit `dockHostTerminal`:
-
-```sh
-curl -sS -X POST http://127.0.0.1:6500/displays/focus \
-  -H 'content-type: application/json' \
-  -d '{"selector":{"side":"left"}}'
-```
-
-For collaboration on a concrete interpreter, use `/interpreters/*` instead of guessing the module id from screen position:
-
-```sh
-curl -sS http://127.0.0.1:6500/interpreters
-
-curl -sS -X POST http://127.0.0.1:6500/interpreters/action \
-  -H 'content-type: application/json' \
-  -d '{"selector":{"side":"left"},"action":"evaluate","params":{"expr":"globalThis.location","frame":0}}'
-```
+Focus в Space не меняет host terminal HUD. Не dock/hide/show/toggle terminal при запросах вида "открой левый display". Терминал меняется только через terminal endpoints или при явном `dockHostTerminal:true`.
 
 Terminal HUD API:
 
-- `GET /hud/terminal` returns `docked`, `sessionId`, `status`, `statusLabel`, `rect`, and `dockPlacement`.
-- `POST /hud/terminal/show` opens the host terminal HUD.
-- `POST /hud/terminal/dock` docks/hides the host terminal HUD.
-- `POST /hud/terminal/toggle` switches between those states.
+- `GET /hud/terminal` возвращает `docked`, `sessionId`, `status`, `statusLabel`, `rect` и `dockPlacement`.
+- `POST /hud/terminal/show` раскрывает host terminal HUD.
+- `POST /hud/terminal/dock` докает/прячет host terminal HUD.
+- `POST /hud/terminal/toggle` переключает состояние.
 
-Use terminal endpoints only for terminal requests. If the user says "show terminal", call `/hud/terminal/show`. If the user says "hide/dock terminal", call `/hud/terminal/dock`. If the user asks for a display transition, call only `/displays/*`.
+Используй terminal endpoints только для terminal requests. Если пользователь просит визуальный переход, вызывай только `/space/*`; если просит действие исполнения, вызывай `/processes/*`.
 
 ## UI Architecture
 
-`web/main.ts` is the browser host/controller layer. It creates `UiRuntime`, maps modules to `UIDisplay`, and wires module-scoped snapshots to panes.
+`web/main.ts` - browser host/controller layer. Он создает `UiRuntime`, maps processes/modules to `UIDisplay` и wires process-scoped snapshots to panes.
 
-Pane classes under `web/*-pane.ts` must stay reusable and display-local. A pane must not read or write another module display's state.
+Pane classes under `web/*-pane.ts` должны оставаться reusable и display-local. Pane не должен читать или менять state другого module display.
 
-Generic panes under `ui/panes` must not learn interpreter-specific concepts. For example, `TerminalPane` may know about terminal buffers, ANSI, keyboard input, focus, and caret behavior, but it must not know about module state, breakpoints, Bun, protocol commands, or interpreter snapshots. Interpreter-specific terminal behavior belongs in `pkg/interpreter/web/main.ts` or a package-local helper.
+Generic panes under `ui/panes` не должны знать interpreter-specific concepts. Например, `TerminalPane` может знать terminal buffers, ANSI, keyboard input, focus и caret behavior, но не должен знать module state, breakpoints, Bun, protocol commands или interpreter snapshots. Interpreter-specific terminal behavior живет в `pkg/interpreter/web/main.ts` или package-local helper.
 
-The browser page is only a host for one WebGPU canvas. Do not add hidden/default runtime surfaces for interpreter content. Interpreter panels must be attached to module `UIDisplay` instances.
+Browser page - только host одного WebGPU canvas. Не добавляй hidden/default runtime surfaces для interpreter content. Interpreter panels должны быть attached к module `UIDisplay`.
 
 ## Terminal Input
 
-The module terminal is both module output and expression input.
+Module terminal является одновременно module output и expression input.
 
-Interpreter expression input must live in the terminal, not in a separate Eval panel. The user-facing language is "expression"; internal command names may remain `eval` where they map directly to protocol behavior.
+Expression input интерпретатора должен жить в terminal, а не в отдельной Eval panel. Пользовательский язык - "expression"; internal command names могут оставаться `eval`, когда это напрямую мапится на protocol behavior.
 
-Terminal input is available only for the owning module when that module:
+Terminal input доступен только owning module, когда module:
 
-- is connected;
-- is paused;
-- has a current dump/frame context;
+- connected;
+- paused;
+- has current dump/frame context;
 - has not exited or failed;
 - is not already running another command.
 
-Terminal focus/caret behavior is display-local. Clicking or focusing one module terminal must not focus or enable input in another module terminal. Restoring focus after reload must restore only the previously focused module terminal, never the first/left display.
+Terminal focus/caret behavior display-local. Click/focus одного module terminal не должен focus/enable input другого terminal. После reload восстанавливай focus только ранее focused module terminal, а не первый/левый display.
 
-Focused input caret blinking is allowed. Do not add render loops or timer repaint work outside focused input caret behavior.
+Focused input caret blinking разрешен. Не добавляй render loops или timer repaint work вне focused input caret behavior.
 
 ## Rendering Rules
 
-The MetaFor UI engine is request-render based. Do not add continuous render loops, periodic repaint timers, or repeated diagnostic repaints. Repaint only from state changes, input events, WebSocket/module events, resize/layout changes, or focused input caret blink.
+MetaFor UI engine request-render based. Не добавляй continuous render loops, periodic repaint timers или repeated diagnostic repaints. Repaint только от state changes, input events, WebSocket/module events, resize/layout changes или focused input caret blink.
 
-After a browser reload or hot reload, a grey canvas in an immediate screenshot may simply mean WebGPU has not presented yet. Wait before concluding the UI is blank. Do not add permanent repaint logic just to satisfy an early screenshot.
+После browser reload или hot reload серый canvas на моментальном screenshot может означать, что WebGPU еще не presented. Подожди перед выводом, что UI blank. Не добавляй permanent repaint logic ради раннего screenshot.
 
-When testing with screenshots, wait for the UI to settle before capture. For Chrome automation use the local Chrome service and target the exact browser window/tab.
+При screenshot tests жди стабилизации UI перед capture. Для Chrome automation используй local Chrome service и exact browser window/tab.
 
-## CLI And Launching
+## CLI И Запуск
 
-The root package script is the supported entrypoint:
+Root package script - supported entrypoint:
 
 ```sh
 bun run interpreter
 ```
 
-Launching modules directly through the interpreter supports relative and absolute paths:
+Запуск modules через interpreter поддерживает relative и absolute paths:
 
 ```sh
 bun run interpreter ./module.ts
@@ -197,20 +214,21 @@ bun run interpreter dark/server.spec.ts -timeout=2147483647 pkg/interpreter/src/
 
 CLI parsing rules:
 
-- module paths are passed without `--module`;
-- parameters begin with `-`;
-- parameters between two module paths belong to the preceding module;
-- `-param=value` is valid;
-- params before the first module path are invalid;
-- module id/label comes from the launched module path unless explicitly supplied through REST.
+- module paths передаются без `--module`;
+- parameters начинаются с `-`;
+- parameters между двумя module paths принадлежат предыдущему module;
+- `-param=value` валиден;
+- params перед первым module path невалидны;
+- module id/label берется из launched module path, если явно не supplied через REST.
 
-Default startup modules use pause-on-start so the user can set breakpoints before execution continues.
+Default startup modules используют pause-on-start, чтобы пользователь успел поставить breakpoints до продолжения execution.
 
 ## Naming
 
-Use interpreter terminology in user-visible names:
+В user-visible names используй interpreter terminology:
 
 - interpreter;
+- display;
 - module;
 - runtime;
 - expression;
@@ -219,7 +237,7 @@ Use interpreter terminology in user-visible names:
 - event stream;
 - terminal/output.
 
-Avoid user-facing names:
+Избегай user-facing names:
 
 - debugger;
 - inspector;
@@ -228,37 +246,37 @@ Avoid user-facing names:
 - main display;
 - attach to WebStorm.
 
-Internal protocol references may use exact protocol names when necessary.
+Internal protocol references могут использовать точные protocol names, когда это необходимо.
 
 ## State And Persistence
 
-Interpreter state is written under `.metafor/interpreter/`. Per-module state belongs under module-specific ids/paths.
+Interpreter state пишется под `.metafor/interpreter/`. Per-display/module state должен жить под scoped ids/paths.
 
-LocalStorage keys in the UI must be scoped by module id when they affect one display. Shared LocalStorage keys are allowed only for truly global preferences such as locale.
+LocalStorage keys в UI должны быть scoped by module id/display id, если они влияют на один display. Shared LocalStorage keys допустимы только для truly global preferences вроде locale.
 
-Never use `default` as a module/session/display identifier.
+Никогда не используй `default` как module/session/display identifier.
 
 ## Breakpoints
 
-Breakpoints are module-scoped and must be matched against the owning module's source identity.
+Breakpoints process-scoped и должны matched against source identity owning process.
 
-Editor gutter clicks in one display may only set/remove breakpoints for that display's module. Badge counts and marker rendering must use the same module-scoped matching logic.
+Editor gutter clicks в одном display могут set/remove breakpoints только для owning process. Badge counts и marker rendering должны использовать ту же process-scoped matching logic.
 
-Prefer logical source matching helpers from `web/breakpoint-matching.ts` and source map helpers from `src/source-map.ts`; do not reintroduce ad hoc global breakpoint matching.
+Используй logical source matching helpers из `web/breakpoint-matching.ts` и source map helpers из `src/source-map.ts`; не возвращай ad hoc global breakpoint matching.
 
-Existing breakpoints are user-owned runtime state. Before moving execution to a user-requested location, inspect the module's current breakpoints and plan around them. If an existing breakpoint stops execution before the requested location, skip through it with resume/step flow or a temporary agent-owned breakpoint; do not delete, disable, move, or overwrite existing breakpoints unless the user explicitly asks for that. Only agent-created temporary breakpoints may be removed after the requested move is complete.
+Существующие breakpoints принадлежат пользователю. Перед переходом к requested location смотри текущие breakpoints display и планируй вокруг них. Если existing breakpoint остановит execution раньше requested location, пропусти его через resume/step flow или temporary agent-owned breakpoint. Не удаляй, не disable, не move и не overwrite existing breakpoints без явной просьбы. Только agent-created temporary breakpoints можно убрать после завершения перехода.
 
 ## Events
 
-Verbose/event panels are per display. Toggling events on one display must not show/hide cards on any other display.
+Verbose/event panels per display. Toggle events на одном display не должен show/hide cards на другом display.
 
-Interpreter-level events without a `moduleId` may be appended to all displays only when they are genuinely host-level. Module protocol and target events must route by `moduleId`.
+Interpreter-level events без `moduleId` можно append ко всем displays только если они действительно host-level. Module protocol и target events должны route by `moduleId`.
 
-Event copy/clear controls operate only on the display where the user clicked.
+Event copy/clear controls работают только в display, где пользователь нажал control.
 
 ## Tests And Verification
 
-Run focused tests for the files touched, then the package checks when changing shared behavior:
+Запускай focused tests для touched files, затем package checks при изменении shared behavior:
 
 ```sh
 bun run --filter @metafor/interpreter typecheck
@@ -267,25 +285,25 @@ bun test pkg/interpreter/src/*.test.ts pkg/interpreter/web/*.test.ts ui/panes/**
 git diff --check
 ```
 
-For UI changes, verify:
+Для UI changes проверяй:
 
-- one module display works alone;
-- two module displays remain independent;
-- clicking controls on one display does not affect another display;
-- terminal focus/input/caret is per display;
-- breakpoints set in one display do not appear in another unless they belong to that module's source;
-- module completion disables only meaningless controls for that module;
-- reload/hot reload restores displays without creating default/hidden displays.
+- один module display работает один;
+- два module displays остаются независимыми;
+- click controls на одном display не влияет на другой display;
+- terminal focus/input/caret per display;
+- breakpoints, поставленные в одном display, не появляются в другом display, если они не принадлежат source этого display;
+- module completion disables только бессмысленные controls для этого module;
+- reload/hot reload restores displays без default/hidden displays.
 
 ## Documentation
 
-Keep these files aligned when behavior changes:
+Держи эти файлы aligned при изменении behavior:
 
-- `README.md` for primary usage;
-- `docs/architecture.md` for structure and invariants;
-- `docs/api.md` for REST/WS contracts;
-- `docs/workflow.md` for launch and live workflow;
-- `docs/troubleshooting.md` for known failure modes;
-- `docs/acceptance.md` for manual acceptance flow.
+- `README.md` - primary usage;
+- `docs/architecture.md` - структура и invariants;
+- `docs/api.md` - REST/WS contracts;
+- `docs/workflow.md` - launch и live workflow;
+- `docs/troubleshooting.md` - known failure modes;
+- `docs/acceptance.md` - manual acceptance flow.
 
-Remove obsolete debugger/inspector/WebStorm wording when it becomes user-facing documentation. Internal protocol references can remain when they describe Bun's protocol accurately.
+Удаляй obsolete debugger/inspector/WebStorm wording, когда оно становится user-facing documentation. Internal protocol references могут оставаться, когда они точно описывают Bun protocol.

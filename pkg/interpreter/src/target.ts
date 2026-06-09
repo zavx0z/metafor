@@ -4,7 +4,7 @@
  *
  * Один экземпляр обслуживает один модульный процесс за раз: повторный start,
  * пока предыдущий не завершён, кидает ошибку (UI должен сначала остановить
- * этот модуль через /modules/:id/stop).
+ * этот process через /processes/:id/action).
  *
  * stdout/stderr пишутся одновременно в кольцевой буфер (для snapshot модуля)
  * и через onLine подписчикам (для WS-стрима в UI).
@@ -148,7 +148,7 @@ export class TargetSupervisor {
     breakpoints?: BreakpointSpec[]
   }): TargetSnapshot {
     if (this.#state === "starting" || this.#state === "running") {
-      throw new Error(`модуль уже запущен (pid=${this.#pid}); сначала останови его через /modules/:id/stop`)
+      throw new Error(`модуль уже запущен (pid=${this.#pid}); сначала останови process через /processes/:id/action`)
     }
     if (options.command.length === 0) {
       throw new Error("command must be a non-empty array")
