@@ -118,7 +118,10 @@ export function tokenizePatternRangeTokens(source: string, base: number, languag
   const grammar = patternLanguages[language]
   const tokens: RangeToken[] = []
   flattenPatternTokens(tokenizePatternText(source, grammar), base, undefined, tokens)
-  if (language === "typescript" || language === "javascript") applySemanticIdentifierOverlays(source, base, tokens)
+  if (language === "typescript" || language === "javascript") {
+    applySemanticIdentifierOverlays(source, base, tokens)
+    applyTemplateLiteralOverlays(source, base, tokens, "typescript")
+  }
   return tokens.sort(compareRangeTokens)
 }
 
@@ -318,6 +321,176 @@ function scanQuoted(source: string, start: number, quote: string): number {
   return source.length
 }
 
+type TemplateExpressionRange = {
+  openStart: number
+  exprStart: number
+  exprEnd: number
+  closeEnd: number
+}
+
+type TemplateLiteralRange = {
+  start: number
+  end: number
+  contentStart: number
+  contentEnd: number
+  expressions: TemplateExpressionRange[]
+}
+
+type TemplateContentLanguage = "typescript" | "sql"
+
+function applyTemplateLiteralOverlays(
+  source: string,
+  base: number,
+  tokens: RangeToken[],
+  contentLanguage: TemplateContentLanguage,
+  predicate: (templateStart: number) => boolean = () => true,
+): void {
+  const templates = findTemplateLiteralRanges(source, base, tokens).filter((template) =>
+    template.expressions.length > 0 && predicate(template.start)
+  )
+  if (templates.length === 0) return
+
+  const kept = tokens.filter((token) =>
+    !templates.some((template) => rangesOverlap(token.s, token.e, base + template.start, base + template.end))
+  )
+  tokens.length = 0
+  tokens.push(...kept)
+
+  for (const template of templates) pushTemplateLiteralTokens(source, base, tokens, template, contentLanguage)
+}
+
+function pushTemplateLiteralTokens(
+  source: string,
+  base: number,
+  tokens: RangeToken[],
+  template: TemplateLiteralRange,
+  contentLanguage: TemplateContentLanguage,
+): void {
+  pushRange(tokens, base + template.start, base + template.start + 1, "p")
+
+  let cursor = template.contentStart
+  for (const expression of template.expressions) {
+    pushTemplateContentTokens(source, base, tokens, cursor, expression.openStart, contentLanguage)
+    pushRange(tokens, base + expression.openStart, base + expression.exprStart, "p")
+    pushTemplateExpressionTokens(source, base, tokens, expression.exprStart, expression.exprEnd)
+    if (expression.closeEnd > expression.exprEnd) pushRange(tokens, base + expression.exprEnd, base + expression.closeEnd, "p")
+    cursor = expression.closeEnd
+  }
+
+  pushTemplateContentTokens(source, base, tokens, cursor, template.contentEnd, contentLanguage)
+  if (template.end > template.contentEnd) pushRange(tokens, base + template.end - 1, base + template.end, "p")
+}
+
+function pushTemplateContentTokens(
+  source: string,
+  base: number,
+  tokens: RangeToken[],
+  start: number,
+  end: number,
+  contentLanguage: TemplateContentLanguage,
+): void {
+  if (end <= start) return
+  if (contentLanguage === "sql") {
+    tokenizePatternRanges(source.slice(start, end), base + start, "sql", (s, e, c, bg, fg) => pushRange(tokens, s, e, c, bg, fg))
+    return
+  }
+  pushRange(tokens, base + start, base + end, "s", undefined, colorForTypes(["template-string"]))
+}
+
+function pushTemplateExpressionTokens(source: string, base: number, tokens: RangeToken[], start: number, end: number): void {
+  if (end <= start) return
+  const expressionTokens = tokenizePatternRangeTokens(source.slice(start, end), base + start, "typescript")
+  applyDefaultIdentifierOverlays(source.slice(start, end), base + start, expressionTokens)
+  tokens.push(...expressionTokens)
+}
+
+function applyDefaultIdentifierOverlays(source: string, base: number, tokens: RangeToken[]): void {
+  const identRe = /[$_\p{ID_Start}][$_\u200c\u200d\p{ID_Continue}]*/gu
+  for (const match of source.matchAll(identRe)) {
+    const text = match[0]
+    const start = base + (match.index ?? 0)
+    const end = start + text.length
+    if (hasTokenCovering(tokens, start, end)) continue
+    pushRange(tokens, start, end, "d", undefined, colorForTypes(["variable"]))
+  }
+}
+
+function findTemplateLiteralRanges(source: string, base: number, tokens: readonly RangeToken[]): TemplateLiteralRange[] {
+  const ranges: TemplateLiteralRange[] = []
+  for (let i = 0; i < source.length;) {
+    if (source[i] !== "`") {
+      i++
+      continue
+    }
+    const template = scanTemplateLiteral(source, i)
+    if (hasExactTemplateToken(tokens, base + template.start, base + template.end)) ranges.push(template)
+    i = Math.max(i + 1, template.end)
+  }
+  return ranges
+}
+
+function hasExactTemplateToken(tokens: readonly RangeToken[], start: number, end: number): boolean {
+  return tokens.some((token) => token.s === start && token.e === end && token.c === "s")
+}
+
+function scanTemplateLiteral(source: string, start: number): TemplateLiteralRange {
+  const expressions: TemplateExpressionRange[] = []
+  let escaped = false
+  for (let i = start + 1; i < source.length; i++) {
+    const ch = source[i] ?? ""
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (ch === "\\") {
+      escaped = true
+      continue
+    }
+    if (ch === "`") {
+      return {start, end: i + 1, contentStart: start + 1, contentEnd: i, expressions}
+    }
+    if (ch === "$" && source[i + 1] === "{") {
+      const exprStart = i + 2
+      const exprEnd = scanTemplateExpression(source, exprStart)
+      const closeEnd = exprEnd < source.length ? exprEnd + 1 : exprEnd
+      expressions.push({openStart: i, exprStart, exprEnd, closeEnd})
+      i = Math.max(i + 1, closeEnd - 1)
+    }
+  }
+  return {start, end: source.length, contentStart: start + 1, contentEnd: source.length, expressions}
+}
+
+function scanTemplateExpression(source: string, start: number): number {
+  let depth = 1
+  for (let i = start; i < source.length; i++) {
+    const ch = source[i] ?? ""
+    if (ch === "\"" || ch === "'") {
+      i = Math.max(i, scanQuoted(source, i, ch) - 1)
+      continue
+    }
+    if (ch === "`") {
+      i = Math.max(i, scanTemplateLiteral(source, i).end - 1)
+      continue
+    }
+    if (ch === "/" && source[i + 1] === "/") {
+      const next = source.indexOf("\n", i + 2)
+      i = next < 0 ? source.length : next
+      continue
+    }
+    if (ch === "/" && source[i + 1] === "*") {
+      const next = source.indexOf("*/", i + 2)
+      i = next < 0 ? source.length : next + 1
+      continue
+    }
+    if (ch === "{") depth++
+    else if (ch === "}") {
+      depth--
+      if (depth === 0) return i
+    }
+  }
+  return source.length
+}
+
 function nextNonWhitespaceRight(source: string, start: number): string {
   return source[skipWhitespaceRight(source, start)] ?? ""
 }
@@ -326,13 +499,6 @@ function skipWhitespaceRight(source: string, start: number): number {
   let i = start
   while (i < source.length && /\s/.test(source[i] ?? "")) i++
   return i
-}
-
-type SqlTemplateRange = {
-  start: number
-  end: number
-  contentStart: number
-  contentEnd: number
 }
 
 function applySqlTemplateOverlays(base: EditorTokens, lines: readonly string[]): EditorTokens {
@@ -357,39 +523,25 @@ function applySqlTemplateOverlays(base: EditorTokens, lines: readonly string[]):
   }
 
   for (const template of templates) {
-    pushRange(tokens, template.start, template.start + 1, "p")
-    if (template.contentEnd > template.contentStart) {
-      tokenizePatternRanges(
-        source.slice(template.contentStart, template.contentEnd),
-        template.contentStart,
-        "sql",
-        (s, e, c, bg, fg) => pushRange(tokens, s, e, c, bg, fg),
-      )
-    }
-    if (template.end > template.contentEnd) pushRange(tokens, template.end - 1, template.end, "p")
+    pushTemplateLiteralTokens(source, 0, tokens, template, "sql")
   }
 
   return distributeRangeTokens(tokens, lines)
 }
 
-function findSqlTemplateRanges(source: string): SqlTemplateRange[] {
-  const ranges: SqlTemplateRange[] = []
+function findSqlTemplateRanges(source: string): TemplateLiteralRange[] {
+  const ranges: TemplateLiteralRange[] = []
   let i = 0
   while (i < source.length) {
     if (source[i] !== "`") {
       i++
       continue
     }
-    const end = scanQuoted(source, i, "`")
+    const template = scanTemplateLiteral(source, i)
     if (isSqlTaggedTemplateStart(source, i)) {
-      ranges.push({
-        start: i,
-        end,
-        contentStart: i + 1,
-        contentEnd: Math.max(i + 1, end - 1),
-      })
+      ranges.push(template)
     }
-    i = Math.max(i + 1, end)
+    i = Math.max(i + 1, template.end)
   }
   return ranges
 }

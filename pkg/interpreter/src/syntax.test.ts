@@ -42,6 +42,18 @@ describe("syntax tokenizer", () => {
     expect(tokenFor(line, tokens[0]!, "'x'")?.c).toBe("s")
   })
 
+  test("highlights template literal expressions as TypeScript", () => {
+    const line = "const db = new SQL(`sqlite://${storePath}`)"
+    const tokens = tokenize(line)
+
+    expect(tokenFor(line, tokens[0]!, "const")?.c).toBe("k")
+    expect(tokenFor(line, tokens[0]!, "SQL")?.c).toBe("n")
+    expect(tokenFor(line, tokens[0]!, "sqlite://")?.c).toBe("s")
+    expect(tokenFor(line, tokens[0]!, "${")?.c).toBe("p")
+    expect(tokenFor(line, tokens[0]!, "storePath")?.c).toBe("d")
+    expect(stringTokenCovering(line, tokens[0]!, "storePath")).toBeUndefined()
+  })
+
   test("highlights object keys and typed parameter names", () => {
     const lines = [
       "const store = { fields: [{ type: FIELD_TYPE.F32 }], localValueOffset: 0 }",
@@ -72,4 +84,11 @@ function tokenFor(line: string, tokens: readonly Token[], fragment: string): Tok
   if (s < 0) return undefined
   const e = s + fragment.length
   return tokens.find((token) => token.s <= s && token.e >= e)
+}
+
+function stringTokenCovering(line: string, tokens: readonly Token[], fragment: string): Token | undefined {
+  const s = line.indexOf(fragment)
+  if (s < 0) return undefined
+  const e = s + fragment.length
+  return tokens.find((token) => token.c === "s" && token.s <= s && token.e >= e)
 }

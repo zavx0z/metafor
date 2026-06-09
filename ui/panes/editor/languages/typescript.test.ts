@@ -42,6 +42,30 @@ describe("tokenizeTypeScript", () => {
     expect(tokenFor(lines[0]!, tokens[0]!, "'zavx0z/git-history-commit'")?.c).toBe("s")
   })
 
+  test("highlights TypeScript expressions inside template literals", () => {
+    const line = "const db = new SQL(`sqlite://${storePath}`)"
+    const tokens = tokenizeTypeScript([line])
+
+    expect(tokenFor(line, tokens[0]!, "const")?.c).toBe("k")
+    expect(tokenFor(line, tokens[0]!, "SQL")?.c).toBe("n")
+    expect(tokenFor(line, tokens[0]!, "sqlite://")?.c).toBe("s")
+    expect(tokenFor(line, tokens[0]!, "${")?.c).toBe("p")
+    expect(tokenFor(line, tokens[0]!, "storePath")?.c).toBe("d")
+    expect(stringTokenCovering(line, tokens[0]!, "storePath")).toBeUndefined()
+  })
+
+  test("keeps SQL highlighting around TypeScript expressions in sql tagged template literals", () => {
+    const line = "await sql`SELECT src FROM wimp WHERE src = ${storePath}`"
+    const tokens = tokenizeTypeScript([line])
+
+    expect(tokenFor(line, tokens[0]!, "SELECT")?.c).toBe("k")
+    expect(tokenFor(line, tokens[0]!, "FROM")?.c).toBe("k")
+    expect(tokenFor(line, tokens[0]!, "WHERE")?.c).toBe("k")
+    expect(tokenFor(line, tokens[0]!, "${")?.c).toBe("p")
+    expect(tokenFor(line, tokens[0]!, "storePath")?.c).toBe("d")
+    expect(stringTokenCovering(line, tokens[0]!, "storePath")).toBeUndefined()
+  })
+
   test("highlights object keys and typed parameter names", () => {
     const lines = [
       "const store = { fields: [{ type: FIELD_TYPE.F32 }], localValueOffset: 0 }",
@@ -73,4 +97,11 @@ function tokenFor(line: string, tokens: readonly EditorToken[], fragment: string
   if (s < 0) return undefined
   const e = s + fragment.length
   return tokens.find((token) => token.s <= s && token.e >= e)
+}
+
+function stringTokenCovering(line: string, tokens: readonly EditorToken[], fragment: string): EditorToken | undefined {
+  const s = line.indexOf(fragment)
+  if (s < 0) return undefined
+  const e = s + fragment.length
+  return tokens.find((token) => token.c === "s" && token.s <= s && token.e >= e)
 }
