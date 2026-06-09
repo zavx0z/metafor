@@ -4143,7 +4143,7 @@ function connectHostTerminal(controller: HostTerminalController): void {
 
 function hostTerminalWebSocketURL(controller: HostTerminalController): string {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:"
-  const url = new URL(`${protocol}//${location.host}/terminal`)
+  const url = new URL(`${protocol}//${location.host}/hud/terminal/stream`)
   url.searchParams.set("replay", "1")
   if (controller.sessionId !== null) url.searchParams.set("session", controller.sessionId)
   return url.toString()

@@ -344,7 +344,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         if (upgraded) return undefined
         return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
       }
-      if (path === "/terminal") {
+      if (path === "/hud/terminal/stream") {
         if (!isAllowedWebSocketOrigin(req, url)) return jsonResponse({ok: false, error: "forbidden origin"}, 403)
         const id = nextTerminalClientId++
         const requestedSession = url.searchParams.get("session")
@@ -359,7 +359,7 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
         if (upgraded) return undefined
         return jsonResponse({ok: false, error: "expected websocket upgrade"}, 426)
       }
-      if (method === "GET" && path === "/terminal/sessions") {
+      if (method === "GET" && path === "/hud/terminal/sessions") {
         return jsonResponse({sessions: terminalSessions.list()})
       }
 
@@ -650,13 +650,13 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/hud/terminal/dock", description: "свернуть host terminal HUD"},
     {method: "POST", path: "/hud/terminal/show", description: "развернуть host terminal HUD"},
     {method: "POST", path: "/hud/terminal/toggle", description: "переключить host terminal HUD"},
+    {method: "WS", path: "/hud/terminal/stream", description: "host PTY terminal stream"},
+    {method: "GET", path: "/hud/terminal/sessions", description: "host PTY session diagnostics"},
     {method: "GET", path: "/sqlite?path=<file.sqlite>&table=<name>", description: "просмотреть SQLite database tables/schema/rows"},
     {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database как отдельный display"},
     {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
     {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},
-    {method: "WS", path: "/terminal", description: "host PTY terminal stream"},
-    {method: "GET", path: "/terminal/sessions", description: "host PTY session diagnostics"},
   ]
 }
 

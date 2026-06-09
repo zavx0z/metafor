@@ -81,6 +81,13 @@ POST   /processes/:id/action
 GET    /processes/:id/breakpoints
 POST   /processes/:id/breakpoint
 DELETE /processes/:id/breakpoint
+
+GET    /hud/terminal
+POST   /hud/terminal/show
+POST   /hud/terminal/dock
+POST   /hud/terminal/toggle
+WS     /hud/terminal/stream
+GET    /hud/terminal/sessions
 ```
 
 `GET /context` возвращает один текущий context — то, что сейчас видно/выделено. `GET /processes/:id/modules` возвращает каталог кода в контексте process.

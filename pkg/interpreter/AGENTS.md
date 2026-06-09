@@ -157,6 +157,8 @@ Terminal HUD API:
 - `POST /hud/terminal/show` раскрывает host terminal HUD.
 - `POST /hud/terminal/dock` докает/прячет host terminal HUD.
 - `POST /hud/terminal/toggle` переключает состояние.
+- `WS /hud/terminal/stream` - host PTY stream для browser host.
+- `GET /hud/terminal/sessions` возвращает diagnostics host PTY sessions.
 
 Используй terminal endpoints только для terminal requests. Если пользователь просит визуальный переход, вызывай только `/space/*`; если просит действие исполнения, вызывай `/processes/*`.
 

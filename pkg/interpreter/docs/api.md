@@ -62,6 +62,8 @@ GET    /hud/terminal
 POST   /hud/terminal/show
 POST   /hud/terminal/dock
 POST   /hud/terminal/toggle
+WS     /hud/terminal/stream
+GET    /hud/terminal/sessions
 
 GET    /sqlite?path=<file.sqlite>&table=<name>
 POST   /sqlite/open
@@ -286,6 +288,8 @@ GET  /hud/terminal
 POST /hud/terminal/show
 POST /hud/terminal/dock
 POST /hud/terminal/toggle
+WS   /hud/terminal/stream
+GET  /hud/terminal/sessions
 ```
 
 Используй terminal endpoints только для запросов к terminal HUD. Навигация по рабочим поверхностям идет через `/space/*`, действия исполнения - через `/processes/*`.
