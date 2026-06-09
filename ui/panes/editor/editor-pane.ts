@@ -1558,6 +1558,7 @@ export class EditorPane extends UiSurface {
     const lastVisibleLine = Math.min(this.#lines.length - 1, layout.startIdx + layout.visible + 1)
     this.pushClip(layout.codeClipX, PAD_TOP_PX, layout.codeClipW, layout.contentH)
     for (const range of ranges) {
+      if (range.column === 0) continue
       if (range.endLine < firstVisibleLine || range.startLine > lastVisibleLine) continue
       const rawX = layout.codeStartX + this.#indentGuideColumnToPx(range.column) - INDENT_GUIDE_TEXT_OFFSET_PX - this.#scrollLeftPx
       if (rawX < layout.codeClipX - 1 || rawX > layout.codeClipX + layout.codeClipW + 1) continue
