@@ -231,23 +231,26 @@ export class ScopesPane extends UiSurface {
     if (!expanded) return
 
     const objectId = prop.objectId
-    if (objectId === undefined) return
-    const state = this.#propertyCache.get(objectId)
-    if (state === undefined || state.status === "loading") {
-      out.push({kind: "status", id: `${id}\0:loading`, depth: depth + 1, text: "loading properties..."})
-      return
-    }
-    if (state.status === "error") {
-      out.push({kind: "status", id: `${id}\0:error`, depth: depth + 1, text: state.error})
-      return
+    if (objectId !== undefined) {
+      const state = this.#propertyCache.get(objectId)
+      if (state === undefined || state.status === "loading") {
+        out.push({kind: "status", id: `${id}\0:loading`, depth: depth + 1, text: "loading properties..."})
+        return
+      }
+      if (state.status === "error") {
+        out.push({kind: "status", id: `${id}\0:error`, depth: depth + 1, text: state.error})
+        return
+      }
     }
 
     const entries = orderedPropertyEntries(prop)
-    if (entries.length === 0) {
+    const previewEntries = entries.length === 0 ? orderedPropertyEntries({properties: previewPropertyMapFromPreview(prop.preview)}) : []
+    const childEntries = entries.length === 0 ? previewEntries : entries
+    if (childEntries.length === 0) {
       out.push({kind: "status", id: `${id}\0:empty`, depth: depth + 1, text: "empty"})
       return
     }
-    for (const [childName, childProp] of entries) {
+    for (const [childName, childProp] of childEntries) {
       this.#pushPropertyRows(out, `${id}\0${childName}`, childName, childProp, depth + 1)
     }
   }
@@ -272,10 +275,9 @@ export class ScopesPane extends UiSurface {
   }
 
   #isExpandable(prop: PropertySnapshot): boolean {
-    if (this.#loadProperties === undefined) return false
-    if (prop.objectId === undefined) return false
     if (prop.subtype === "null") return false
-    return prop.type === "object" || prop.type === "function"
+    if (this.#loadProperties !== undefined && prop.objectId !== undefined && (prop.type === "object" || prop.type === "function")) return true
+    return orderedPropertyEntries({properties: previewPropertyMapFromPreview(prop.preview)}).length > 0
   }
 
   #toggleExpanded(row: Extract<ScopeRow, {kind: "prop"}>): void {
@@ -431,15 +433,10 @@ export class ScopesPane extends UiSurface {
       },
     })
 
-    const detailProp = this.#resolvedProperty(detail.prop)
-    const code = detailCode({...detail, prop: detailProp})
     const contentX = x + 12
     const contentY = y + 54
     const contentW = w - 24
     const contentH = h - 66
-    const lines = code.split("\n")
-    const contentTextW = Math.max(contentW - 18, ...lines.map((line) => this.measureText(line, DETAIL_FONT))) + 18
-    const tokens = resolveLanguageHighlighter({languageId: "typescript"}).tokenize(lines)
 
     this.drawRoundedRect(contentX, contentY, contentW, contentH, {
       radius: 7,
@@ -448,6 +445,120 @@ export class ScopesPane extends UiSurface {
       borderWidth: 1,
       z: DETAIL_BG_Z + 0.01,
     })
+
+    const detailProp = this.#resolvedProperty(detail.prop)
+    if (this.#isValueTreeDetail(detailProp)) {
+      this.#drawDetailTree(detail, contentX, contentY, contentW, contentH)
+    } else {
+      this.#drawDetailCode(detail, detailProp, contentX, contentY, contentW, contentH)
+    }
+  }
+
+  #isValueTreeDetail(prop: PropertySnapshot): boolean {
+    if (prop.subtype === "null") return false
+    return prop.type === "object" || prop.type === "function" || orderedPropertyEntries({properties: previewPropertyMapFromPreview(prop.preview)}).length > 0
+  }
+
+  #drawDetailTree(detail: ScopeDetail, contentX: number, contentY: number, contentW: number, contentH: number): void {
+    const rows: ScopeRow[] = []
+    this.#pushPropertyRows(rows, detail.id, detail.name, this.#resolvedProperty(detail.prop), 0)
+    const rowH = SCOPE_ROW_H
+    const listW = Math.max(1, contentW - 2)
+    div(this, contentX + 1, contentY + 1, listW, contentH - 2, {
+      key: "interpreter:scope-detail:tree",
+      scrollContentHeight: Math.max(contentH - 2, rows.length * rowH + 12),
+      style: {
+        background: null,
+        borderColor: null,
+        borderRadius: 0,
+        padding: 0,
+        overflowX: "hidden",
+        overflowY: "auto",
+      },
+      children: (ctx) => {
+        const start = Math.max(0, Math.floor(ctx.scrollTop / rowH) - 1)
+        const end = Math.min(rows.length, Math.ceil((ctx.scrollTop + ctx.viewportHeight) / rowH) + 1)
+        for (let idx = start; idx < end; idx++) {
+          const row = rows[idx]
+          if (row === undefined) continue
+          const rowY = contentY + 7 + idx * rowH - ctx.scrollTop
+          if (row.kind === "prop") this.#drawDetailPropRow(row, rowY, contentX + 8, contentX + listW - 8)
+          else if (row.kind === "status") this.#drawDetailStatusRow(row, rowY, contentX + 8, contentX + listW - 8)
+        }
+      },
+    })
+  }
+
+  #drawDetailPropRow(row: Extract<ScopeRow, {kind: "prop"}>, rowY: number, rowX: number, contentMaxX: number): void {
+    const rowW = Math.max(1, contentMaxX - rowX)
+    const active = this.#detail?.id === row.id
+    const hit = this.hitState(rowX, rowY - 1, rowW, SCOPE_ROW_H, `scope-detail-prop:${row.id}`)
+    if (active || hit.hovered) {
+      this.drawRoundedRect(rowX, rowY - 2, rowW, SCOPE_ROW_H, {
+        radius: 5,
+        fill: active ? palette.activeRowFill : palette.bgHot,
+        border: active ? palette.border : null,
+        borderWidth: active ? 1 : 0,
+        opacity: active ? 0.72 : 0.42,
+        z: DETAIL_BG_Z + 0.03,
+      })
+    }
+
+    const indentX = row.depth * TREE_INDENT_X
+    const toggleX = rowX + 4 + indentX
+    const nameX = toggleX + TREE_TOGGLE_W
+    const availableW = Math.max(40, contentMaxX - nameX)
+    const nameMaxW = Math.floor(availableW * 0.42)
+    const valueX = nameX + nameMaxW + 8
+    const valueMaxW = contentMaxX - valueX
+    if (row.expandable) {
+      this.drawText(row.expanded ? "-" : "+", toggleX, rowY, {
+        fontPx: 11,
+        material: this.materials.muted,
+        maxWidthPx: TREE_TOGGLE_W,
+        z: DETAIL_TEXT_Z,
+      })
+    }
+    this.drawText(row.name, nameX, rowY, {
+      fontPx: 11,
+      material: this.materials.cyan,
+      maxWidthPx: nameMaxW,
+      z: DETAIL_TEXT_Z,
+    })
+    if (valueMaxW > 20) {
+      this.drawText(row.value, valueX, rowY, {
+        fontPx: 11,
+        material: row.material,
+        maxWidthPx: valueMaxW,
+        z: DETAIL_TEXT_Z,
+      })
+    }
+
+    this.hit(rowX, rowY - 1, rowW, SCOPE_ROW_H, () => {
+      if (row.expandable) this.#toggleExpanded(row)
+      this.#emitContextChange()
+      this.requestRender()
+    }, {
+      key: `scope-detail-prop:${row.id}`,
+      cursor: row.expandable ? "pointer" : "default",
+    })
+  }
+
+  #drawDetailStatusRow(row: Extract<ScopeRow, {kind: "status"}>, rowY: number, rowX: number, contentMaxX: number): void {
+    const x = rowX + 4 + row.depth * TREE_INDENT_X + TREE_TOGGLE_W
+    this.drawText(row.text, x, rowY, {
+      fontPx: 11,
+      material: this.materials.muted,
+      maxWidthPx: contentMaxX - x,
+      z: DETAIL_TEXT_Z,
+    })
+  }
+
+  #drawDetailCode(detail: ScopeDetail, prop: PropertySnapshot, contentX: number, contentY: number, contentW: number, contentH: number): void {
+    const code = detailCode({...detail, prop})
+    const lines = code.split("\n")
+    const contentTextW = Math.max(1, contentW - 18)
+    const tokens = resolveLanguageHighlighter({languageId: "typescript"}).tokenize(lines)
     div(this, contentX + 1, contentY + 1, contentW - 2, contentH - 2, {
       key: "interpreter:scope-detail:code",
       scrollContentWidth: contentTextW,
@@ -457,7 +568,7 @@ export class ScopesPane extends UiSurface {
         borderColor: null,
         borderRadius: 0,
         padding: 0,
-        overflowX: "auto",
+        overflowX: "hidden",
         overflowY: "auto",
       },
       children: (ctx) => {
@@ -466,7 +577,7 @@ export class ScopesPane extends UiSurface {
         for (let idx = start; idx < end; idx++) {
           const text = lines[idx] ?? ""
           const rowY = contentY + 7 + idx * DETAIL_LINE_H - ctx.scrollTop
-          this.#drawHighlightedLine(text, tokens, idx, contentX + 9 - ctx.scrollLeft, rowY, contentTextW)
+          this.#drawHighlightedLine(text, tokens, idx, contentX + 9, rowY, contentTextW)
         }
       },
     })
@@ -900,6 +1011,51 @@ function previewPropertyLines(preview: unknown): string[] {
   }
   if (root["overflow"] === true) out.push("…")
   return out
+}
+
+function previewPropertyMapFromPreview(preview: unknown): Record<string, PropertySnapshot> {
+  const root = asRecord(preview)
+  if (root === null) return {}
+  const properties = Array.isArray(root["properties"]) ? root["properties"] : []
+  const out: Record<string, PropertySnapshot> = {}
+  for (const item of properties) {
+    const prop = asRecord(item)
+    if (prop === null) continue
+    const name = typeof prop["name"] === "string" ? prop["name"] : undefined
+    if (name === undefined || name === "__proto__") continue
+    out[name] = previewPropertySnapshot(prop)
+  }
+  return out
+}
+
+function previewPropertySnapshot(prop: Record<string, unknown>): PropertySnapshot {
+  const nested = asRecord(prop["valuePreview"])
+  if (nested !== null) return previewRemoteSnapshot(nested)
+
+  const type = typeof prop["type"] === "string" ? prop["type"] : undefined
+  const subtype = typeof prop["subtype"] === "string" ? prop["subtype"] : undefined
+  const value = typeof prop["value"] === "string" ? prop["value"] : undefined
+  const snapshot: PropertySnapshot = {}
+  if (type !== undefined) snapshot.type = type
+  if (subtype !== undefined) snapshot.subtype = subtype
+  if (type === "string") snapshot.value = value ?? ""
+  else if (type === "number" && value !== undefined) snapshot.value = Number(value)
+  else if (type === "boolean") snapshot.value = value === "true"
+  else if (type === "bigint" && value !== undefined) snapshot.unserializableValue = value
+  else if (value !== undefined) snapshot.description = value
+  return snapshot
+}
+
+function previewRemoteSnapshot(preview: Record<string, unknown>): PropertySnapshot {
+  const snapshot: PropertySnapshot = {}
+  const type = typeof preview["type"] === "string" ? preview["type"] : undefined
+  const subtype = typeof preview["subtype"] === "string" ? preview["subtype"] : undefined
+  const description = typeof preview["description"] === "string" ? preview["description"] : undefined
+  if (type !== undefined) snapshot.type = type
+  if (subtype !== undefined) snapshot.subtype = subtype
+  if (description !== undefined) snapshot.description = description
+  snapshot.preview = preview
+  return snapshot
 }
 
 function previewPropertyValue(prop: Record<string, unknown>): string {
