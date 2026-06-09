@@ -7,7 +7,7 @@
 
 import {Color, TextMaterial} from "@metafor/engine"
 import {Checkbox, IconButton, uiIcons} from "@ui/components"
-import {UiSurface, Z, div, palette, radii, textMaterial, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
+import {UiSurface, Z, div, divScrollTo, palette, radii, textMaterial, type DivScrollContext, type UiSurfaceRect} from "@ui/elements"
 import {
   todoCompletedSectionStates,
   parseMarkdownTodo,
@@ -126,6 +126,8 @@ export class ToDoPane extends UiSurface {
   setHighlightedIds(ids: readonly string[]): void {
     this.#highlightedIds = new Set(ids)
     this.#pruneSelection()
+    this.#expandCompletedSectionsForHighlightedIds()
+    this.#scrollFirstHighlightedItemIntoView()
     this.#emitContextChange()
     this.#emitPanelStateChange()
     this.requestRender()
@@ -422,6 +424,26 @@ export class ToDoPane extends UiSurface {
     this.#pruneExpandedCompleted()
     this.#emitPanelStateChange()
     this.requestRender()
+  }
+
+  #expandCompletedSectionsForHighlightedIds(): void {
+    if (this.#highlightedIds.size === 0) return
+    for (const section of todoCompletedSectionStates(this.#items).values()) {
+      if (section.descendantIds.some((id) => this.#highlightedIds.has(id))) this.#expandedCompletedIds.add(section.id)
+    }
+    this.#pruneExpandedCompleted()
+  }
+
+  #scrollFirstHighlightedItemIntoView(): void {
+    if (this.#highlightedIds.size === 0) return
+    const w = Math.max(TODO_MIN_W, this.rectW)
+    const h = Math.max(TODO_HEADER_H + 80, this.rectH)
+    const body = paneBodyRect(w, h, {headerHeight: TODO_HEADER_H, insetX: 8, topGap: 6, bottomInset: 8})
+    const layout = this.#rowLayout(body.w)
+    const row = layout.rows.find((candidate) => this.#highlightedIds.has(candidate.item.id))
+    if (row === undefined) return
+    const top = row.top - Math.max(0, (body.h - row.height) / 2)
+    divScrollTo(this, TODO_SCROLL_KEY, {top})
   }
 
   #emitContextChange(): void {

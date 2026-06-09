@@ -142,6 +142,10 @@ Prefer the smallest relevant verification for the files you change.
 
 Обычные локальные инструменты можно использовать для документации, правил, внешних meta-файлов и кода, который не является текущим совместно отлаживаемым process.
 
+## TODO Discipline
+
+Если агент завершил пункт из `TODO.md`, он обязан отметить этот пункт выполненным в TODO-списке и убедиться, что обновление видно в HUD ToDoPane или в `/context.hud.todo`. Нельзя оставлять выполненную работу как незакрытый пункт.
+
 ## Cross-Domain Rules
 
 - Production code: direct imports across domains are forbidden.

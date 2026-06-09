@@ -1,9 +1,0 @@
-{
-  "name": "@shared/protocol",
-  "type": "module",
-  "main": "index.ts",
-  "exports": {
-    ".": "./index.ts"
-  },
-  "private": true
-}

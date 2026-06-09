@@ -77,21 +77,13 @@
 
 **Что сделано.**
 
-- Удалены `METAFOR_PROTOCOL_KIND`, `protocol`, `target`.
+- `METAFOR_PROTOCOL_KIND`, `protocol`, `target` больше не входят в protocol payload.
+- Текущий payload не содержит `channel`, `source`, `boson`: канал задаётся транспортом, origin не кодируется в business-message.
 - Валидаторы и тесты выровнены.
 
-**Гэп.**
+**Гэп.** Нет по минимизации payload. Если origin снова понадобится, он должен появиться как metadata transport layer, а не как поле protocol message.
 
-- В каждом сообщении (`GravitonMessage`, `PhotonMessage`, `GluonMessage`, `HiggsMessage`, `WMessage`, `ZMessage`, `StructuralSignalMessage`, `DbSyncMessage`) **дублируется поле `channel`** (string-name — `"gravity"`, `"photon"`, `"db-sync"` и т.п.). Канал транспорта (`new BroadcastChannel("metafor.gravity")`) уже задаёт семейство — поле в payload избыточно.
-- Поле `source: ProtocolDomain` (`"dark"` | `"boundary"` | `"bulk"` | `"app"`) во всех сообщениях. Issue прямо называет это «ложной point-to-point адресностью поверх broadcast-транспорта». Подписчик и так знает откуда event пришёл (он подписывается на канал), а если домен внутри одного процесса критичен — это знание boundary-логики, не транспортного слоя.
-- Поле `boson` в `GravitonMessage.boson === "graviton"` всегда равно одному значению (validator-инвариант). Тоже дублирует канал.
-
-**Что нужно для закрытия.**
-
-- Снести `channel` поле из всех payload-shape-ов. Validator не проверяет `channel` (он определяется каналом).
-- Снести `source` поле; если кому-то реально нужен origin — добавляется через метаданные транспортного слоя или реструктурируется как business-payload.
-- Снести `boson` поле; тип канала уже даёт смысл (`gravity` channel несёт graviton-event-ы по definition).
-- Это широкий refactor: каждый publisher / validator / subscriber тронут. Но снижает поверхность типов на ~30%.
+**Что нужно для закрытия.** Закрыть issue после smoke-проверки runtime path.
 
 ---
 
@@ -101,26 +93,24 @@
 
 **Что сделано.**
 
-- `pkg/protocol/index.ts` определяет:
-  - `WMessage { wimpId, processId, patches[] }` — active transition с патчами.
-  - `ZMessage { wimpId, processId, coordination: "claim"|"accept"|"reject"|"release", executorId? }` — neutral mediation.
-  - Channels `WEAK_W_BROADCAST_CHANNEL`, `WEAK_Z_BROADCAST_CHANNEL`.
-  - Validators `isWMessage`, `isZMessage`.
+- `protocol.ts` определяет только имена каналов `WEAK_W_BROADCAST_CHANNEL`, `WEAK_Z_BROADCAST_CHANNEL`.
+- W payload `{ wimpId, processId, patches[] }` — active transition с патчами.
+- Z payload `{ wimpId, processId, coordination: "claim"|"accept"|"reject"|"release", executorId? }` — neutral mediation.
 - `boundary/boundary.ts unlock(indexes: number[])` снимает блок с бран по индексам.
 - `boundary/boundary.ts` имеет `applyWeakResultPacket()` и `subscribeBoundaryWeakResultBroadcast()` — приём W-result envelope и unlock после apply (по docstring модуля).
 - `boundary/weak/cpu/step.ts` ставит `brane.lock = true` при step.
 
 **Гэп.**
 
-- Канал `WEAK_W_BROADCAST_CHANNEL` мирится server-ом в `protocolMirrors`, но **подписчика boundary, который реагирует на `WMessage`** для unlock, в коде Boundary не видно (точнее, есть `subscribeBoundaryWeakResultBroadcast`, но на «result envelope», не на `WMessage`).
-- `ZMessage coordination` flow (`claim` → `accept`/`reject` → `release`) — не подключён к Boundary lock-state. Сейчас bulk не сообщает «возьму процесс, claim», boundary не слышит «release».
+- Канал `WEAK_W_BROADCAST_CHANNEL` мирится server-ом в `protocolMirrors`, но **подписчика boundary, который реагирует на W payload** для unlock, в коде Boundary не видно (точнее, есть `subscribeBoundaryWeakResultBroadcast`, но на result-payload).
+- Z coordination flow (`claim` → `accept`/`reject` → `release`) — не подключён к Boundary lock-state. Сейчас bulk не сообщает «возьму процесс, claim», boundary не слышит «release».
 
 **Что нужно для закрытия.**
 
 - В `boundary/boundary.ts` или отдельном `boundary/weak/protocol-bridge.ts`:
   - Subscriber на `WEAK_Z_BROADCAST_CHANNEL`: на `claim` от bulk-executor — проверка lock и accept/reject. На `release` — `unlock([braneIndex])`.
   - Subscriber на `WEAK_W_BROADCAST_CHANNEL`: применяет `patches` через `update()` и `unlock()`.
-- В `bulk/weak/` (есть `bulk/weak/execute.ts`, `bulk/weak/load.ts`, `bulk/weak/process.ts`) добавить publisher: при старте process — `claim`, в конце — `WMessage{patches}` + `release`.
+- В `bulk/weak/` (есть `bulk/weak/execute.ts`, `bulk/weak/load.ts`, `bulk/weak/process.ts`) добавить publisher: при старте process — `claim`, в конце — W payload `{patches}` + `release`.
 
 ---
 
@@ -229,7 +219,7 @@
 | 31 | Общий Dark pipeline | ✅ закрыт по существу | Закрыть на GitHub | — |
 | 53 | web-gpu-engine как Bulk-инспектор | ✅ активно используется | (видение, оставить open) | — |
 | 64 | Weak W/Z поверх Boundary lock | ⚠️ типы есть, runtime-bridge нет | Subscriber boundary на W/Z; publisher bulk/weak | — |
-| 65 | Минимизация протокола | ⚠️ в процессе | Снести `channel`/`source`/`boson` дубли в payload | — |
+| 65 | Минимизация протокола | ✅ закрыт по существу | Закрыть на GitHub после smoke-проверки | — |
 | 66 | DSL ↔ DB round-trip | ❌ половина (forward есть, reverse нет) | `pkg/dsl-emit` + round-trip тесты | #58 |
 | 68 | Self-authoring мультивселенная | 📌 видение | — | — |
 | 73 | Каноническая dark-проекция из SQLite | ⚠️ ~50% | `loadMeta` через реляционные `meta_*` таблицы, не `readMetaDsl` | — |

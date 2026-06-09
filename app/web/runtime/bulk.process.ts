@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs"
 import { dirname, isAbsolute, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
-import { createBulkWeakProtocol, subscribeBulkPhotons, type PhotonMessage } from "@bulk/em"
+import { createBulkWeakProtocol, subscribeBulkPhotons, type PhotonPayload } from "@bulk/em"
 import { executeProcess, loadAction } from "@bulk/weak"
 import type {
   DbBackend,
@@ -195,7 +195,7 @@ const resolveProcessSelfPath = async (backend: DbBackend, rows: DbWimpRows): Pro
 
 const resolveProcessTarget = async (
   backend: DbBackend,
-  photon: Pick<PhotonMessage, "path" | "value">,
+  photon: Pick<PhotonPayload, "path" | "value">,
 ): Promise<AppBulkProcessTarget | null> => {
   const wimpRows = await backend.readWimpRows(photon.path)
   if (!wimpRows) return null
@@ -232,7 +232,7 @@ const resolveProcessTarget = async (
 
 const resolveFreshProcessTarget = async (
   backend: DbBackend,
-  photon: Pick<PhotonMessage, "path" | "value">,
+  photon: Pick<PhotonPayload, "path" | "value">,
   openTargetBackend?: () => DbBackend | Promise<DbBackend>,
 ): Promise<AppBulkProcessTarget | null> => {
   if (!openTargetBackend) {
@@ -355,8 +355,6 @@ export const createAppBulkProcessRuntime = ({
   const inFlight = new Set<string>()
   const protocol = createBulkWeakProtocol()
   const subscription = subscribeBulkPhotons((message) => {
-    if (message.source !== "boundary") return
-
     void (async () => {
       let target: AppBulkProcessTarget | null = null
       let inFlightKey: string | null = null

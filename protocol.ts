@@ -1,0 +1,8 @@
+export const GRAVITY_BROADCAST_CHANNEL = "metafor.gravity"
+export const ELECTROMAGNETISM_BROADCAST_CHANNEL = "metafor.electromagnetism"
+export const GLUON_BROADCAST_CHANNEL = "metafor.gluon"
+export const HIGGS_BROADCAST_CHANNEL = "metafor.higgs"
+export const WEAK_W_BROADCAST_CHANNEL = "metafor.weak.w"
+export const WEAK_Z_BROADCAST_CHANNEL = "metafor.weak.z"
+export const STRUCTURAL_BROADCAST_CHANNEL = "metafor.structural"
+export const DB_SYNC_BROADCAST_CHANNEL = "metafor.db-sync"

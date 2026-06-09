@@ -1,13 +1,16 @@
 import { MetaFor } from "../../../metafor.ts"
 import { openDbMaterializationWriter, openDbSqliteBackend } from "store/db"
 import {
+	DB_SYNC_BROADCAST_CHANNEL,
+	STRUCTURAL_BROADCAST_CHANNEL,
+} from "../../../protocol.ts"
+import {
 	createMirroredActorStore,
 	createSqliteDbActorStore,
 	type DbActorStore,
 	type DbFieldValueKind,
 	type DbParticleKind,
 } from "@store/actor"
-import { openDbSyncBroadcastChannel, openStructuralBroadcastChannel } from "@shared/protocol"
 import { StoreWimpSqlite, type MatterRelationParticle } from "@store/wimp/sqlite"
 import { SQL } from "bun"
 import { matter } from "../../../dark/dark.ts"
@@ -46,8 +49,8 @@ type DarkWorkerScope = typeof globalThis & {
 }
 
 const darkWorker = globalThis as DarkWorkerScope
-const structuralChannel = openStructuralBroadcastChannel()
-const dbSyncChannel = openDbSyncBroadcastChannel()
+const structuralChannel = new BroadcastChannel(STRUCTURAL_BROADCAST_CHANNEL)
+const dbSyncChannel = new BroadcastChannel(DB_SYNC_BROADCAST_CHANNEL)
 let actorStore: DbActorStore | null = null
 
 const ensureActorStore = (dbFilename: string): DbActorStore => {
@@ -301,8 +304,6 @@ const publishStructuralSignal = async (
 
 	// Барьер: «всё применено, можно перерисовывать».
 	structuralChannel.postMessage({
-		channel: "structural",
-		source: "dark",
 		rootSrc: src,
 		scope: { kind: "world" },
 	})

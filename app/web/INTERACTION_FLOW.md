@@ -18,7 +18,7 @@
 ## Value / State Flow
 
 1. Клиент шлёт через `/ws` `{ type: "protocol", channel: "gluon" | "higgs", patches }`
-2. Server bridge превращает это в обычное protocol message с `source: "app"`
+2. Server bridge публикует `{ patches }` в выбранный protocol channel
 3. `boundary.setValues()` обновляет runtime field values, пишет их в SQLite и делает `weakRunStep()`
 4. Если state сменился, `boundary` публикует `Photon`
 5. Если state не сменился, но update затронул process-bound state, `boundary` всё равно retrigger-ит текущий state

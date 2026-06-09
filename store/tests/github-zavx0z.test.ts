@@ -3,7 +3,7 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {matter} from "../../dark/index.ts"
-import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage, type GravitonMessage} from "@shared/protocol"
+import {GRAVITY_BROADCAST_CHANNEL} from "../../protocol.ts"
 import type {Store} from "../index.ts"
 import {open} from "../server.ts"
 

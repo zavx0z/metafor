@@ -2,12 +2,11 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage, type GravitonMessage} from "@shared/protocol"
+import {GRAVITY_BROADCAST_CHANNEL} from "../protocol.ts"
 
 describe("dark/server разворачивает дерево zavx0z/git по gravity-патчу", () => {
   let outbound: BroadcastChannel
   let storePath: string
-  const observed: GravitonMessage[] = []
 
   beforeAll(async () => {
     // Файл не удаляем после теста, чтобы результат разложения git можно было осмотреть руками.
@@ -25,10 +24,6 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     await import("./server.ts")
 
     outbound = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
-    outbound.addEventListener("message", (event) => {
-      const data = (event as MessageEvent<unknown>).data
-      if (isGravitonMessage(data)) observed.push(data)
-    })
   })
 
   afterAll(() => {
@@ -38,11 +33,8 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
 
   test("после add /wimp/zavx0z~1git store содержит каноническое дерево git", async () => {
     outbound.postMessage({
-      channel: "gravity",
-      boson: "graviton",
-      source: "app",
       patches: [{op: "add", path: "/wimp/zavx0z~1git"}],
-    } satisfies GravitonMessage)
+    })
 
     // ждём пока Dark материализует root wimp + child wimps в БД
     const sql = new SQL(`sqlite://${storePath}`)
@@ -92,35 +84,47 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
       expect(rootRows.length).toBe(1)
       expect(rootRows[0]?.wimp).toBe("zavx0z/git")
 
-      // dark больше не эмитит gravity-патчи в matter() — emitAdd удалён,
-      // механизм sync-сообщений будет переделан отдельно.
-      const darkPatches = observed
-        .filter((m) => m.source === "dark")
-        .flatMap((m) => m.patches)
-      expect(darkPatches).toEqual([])
     } finally {
       await sql.close()
     }
   }, 60_000)
 
   test("повторный add /wimp/zavx0z~1git идемпотентен — server пропускает уже залитый wimp", async () => {
-    const observedBefore = observed.length
+    const sql = new SQL(`sqlite://${storePath}`)
+    const before = await waitForActorCountStable(sql)
 
     outbound.postMessage({
-      channel: "gravity",
-      boson: "graviton",
-      source: "app",
       patches: [{op: "add", path: "/wimp/zavx0z~1git"}],
-    } satisfies GravitonMessage)
+    })
 
     // даём server'у тик — если бы он начал загрузку, он бы уехал в matter()
     await new Promise((resolve) => setTimeout(resolve, 200))
 
-    // никаких новых /wimp/ add'ов и barrier'ов от dark не должно появиться
-    const newDarkPatches = observed
-      .slice(observedBefore)
-      .filter((m) => m.source === "dark")
-      .flatMap((m) => m.patches)
-    expect(newDarkPatches).toEqual([])
+    const after = await waitForActorCountStable(sql)
+    expect(after).toBe(before)
+    await sql.close()
   })
 })
+
+async function actorCount(sql: SQL): Promise<number> {
+  return (await sql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM actor`)[0]?.count ?? 0
+}
+
+async function waitForActorCountStable(sql: SQL): Promise<number> {
+  const deadline = Date.now() + 5_000
+  let count = await actorCount(sql)
+  let stableSince = Date.now()
+
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const next = await actorCount(sql)
+    if (next !== count) {
+      count = next
+      stableSince = Date.now()
+      continue
+    }
+    if (Date.now() - stableSince >= 300) return count
+  }
+
+  throw new Error("actor count did not stabilize")
+}

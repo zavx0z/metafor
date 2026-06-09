@@ -32,8 +32,8 @@
 
 ## 5. Protocol cleanup
 
-- [ ] Сверить `task/issues-audit.md` с текущим `pkg/protocol`.
-- [ ] Решить судьбу `channel`, `source`, `boson` в protocol envelope.
+- [x] Сверить `task/issues-audit.md` с текущим корневым `protocol.ts`.
+- [x] Решить судьбу `channel`, `source`, `boson` в protocol envelope.
 - [ ] Довести W/Z bridge: subscriber, publisher и smoke-сценарий.
 
 ## 6. Interpreter TODO HUD
@@ -42,3 +42,5 @@
 - [x] Использовать markdown checkbox `- [ ]` / `- [x]` как данные файла TODO.
 - [x] Подсвечивать пункты как состояние HUD-панели для попадания в `/context.hud.todo.highlightedItems`.
 - [x] Не смешивать todo state с process runtime state: todo находится в `hud.todo`.
+- [x] Убрать устаревший `source.open` кейс со старым shared protocol bare specifier: shared protocol package удалён, protocol теперь корневой `protocol.ts`.
+- [x] После удаления файлов или директорий через apply_patch обновлять файловую панель интерпретатора без ручной перезагрузки.

@@ -185,7 +185,7 @@ export interface SharedDbBackend {
 
 ### 1.3. Эпоха `DbInstanceStore` (апрель 2026, текущая)
 
-Свежая «третья» абстракция. Появилась в commit `1ff16f62` (`[feat] pkg/db, pkg/protocol - DbInstanceStore (SQLite + IDB) и per-row db-sync канал`) и `415de9bf` (`[feat/refactor] app/web - DB-стриминг через db-sync канал, browser держит свой IDB-зеркало`).
+Свежая «третья» абстракция. Появилась в commit `1ff16f62` (DbInstanceStore SQLite + IDB и per-row db-sync канал) и `415de9bf` (`[feat/refactor] app/web - DB-стриминг через db-sync канал, browser держит свой IDB-зеркало`).
 
 Возникла потому, что:
 - viewport (Bulk) нужно постепенно строить world-граф (`#77` Incremental rendering): не snapshot-replace, а per-row append + lerp.
@@ -220,17 +220,15 @@ export interface DbInstanceStore {
 | `pkg/db/sqlite-instance-store.ts` | 66 | `createSqliteDbInstanceStore({ filename })` — обёртка над `instance.ts` |
 | `pkg/db/idb-instance-store.ts` | 238 | `createIdbDbInstanceStore({ databaseName })` — sentinel-строка `" root"` для null parent (IDB не индексирует null в compound key) |
 | `pkg/db/instance.ts` | 392 | Низкоуровневый sync API над bun:sqlite: `insertDbParticleShell`, `clearDbWorld`, `selectAll*`, `selectBy*` |
-| `pkg/db/instance-store-mirror.ts` | 84 | `createMirroredInstanceStore(local, publisher, source)` — wrap-store, каждый write публикует `DbSyncMessage`; `applyDbSyncMessage(store, msg)` — receive-side |
+| `pkg/db/instance-store-mirror.ts` | 84 | `createMirroredInstanceStore(local, publisher)` — wrap-store, каждый write публикует `DbSyncMessage`; `applyDbSyncMessage(store, msg)` — receive-side |
 | `pkg/db/instance-store.parity.spec.ts` | — | Parity SQLite↔IDB |
 
 #### Sync-канал и барьер
 
 ```ts
-// pkg/protocol/index.ts
+// protocol.ts
 export const DB_SYNC_BROADCAST_CHANNEL = "metafor.db-sync"
-export interface DbSyncMessage {
-  channel: "db-sync"
-  source: ProtocolDomain
+export type DbSyncPayload = {
   rootSrc: string
   op:
     | { kind: "clear-world" }
@@ -239,9 +237,7 @@ export interface DbSyncMessage {
 }
 
 export const STRUCTURAL_BROADCAST_CHANNEL = "metafor.structural"
-export interface StructuralSignalMessage {
-  channel: "structural"
-  source: ProtocolDomain
+export type StructuralSignalPayload = {
   rootSrc: string
   scope: { kind: "world" } | { kind: "subtree"; parentParticleId: string }
 }
@@ -598,18 +594,18 @@ WAL включается в (2) и (3), не в (1). PRAGMA `synchronous=NORMAL`
 
 **Активные в app/web client:** только `metafor-app-instance` + `metafor-app-web-ui`. `metafor-web` — standalone путь boundary, в основном flow не открывается.
 
-### 8.3. BroadcastChannel-каналы (`pkg/protocol/index.ts`)
+### 8.3. BroadcastChannel-каналы (`protocol.ts`)
 
-| Канал | Тип сообщения | Payload | Cемантика |
-|---|---|---|---|
-| `metafor.gravity` | `GravitonMessage` | `{patches: GravityProtocolPatch[]}` (add/remove/test) | UUID-структурные изменения |
-| `metafor.electromagnetism` | `PhotonMessage` | `{path, value}` | string state transfer |
-| `metafor.gluon` | `GluonMessage` | `{patches: ValueProtocolPatch[]}` | value replacements |
-| `metafor.higgs` | `HiggsMessage` | `{patches: ValueProtocolPatch[]}` | topology changes |
-| `metafor.weak.w` | `WMessage` | `{wimpId, processId, patches}` | process state writes |
-| `metafor.weak.z` | `ZMessage` | `{wimpId, processId, coordination: claim/accept/reject/release}` | process mutual exclusion |
-| `metafor.structural` | `StructuralSignalMessage` | `{rootSrc, scope: world/subtree}` | barrier-сигнал «перечитайте всё» |
-| `metafor.db-sync` | `DbSyncMessage` | `{rootSrc, op: clear-world/insert-particle/insert-field}` | per-row sync для browser IDB-зеркала |
+| Канал | Payload | Cемантика |
+|---|---|---|
+| `metafor.gravity` | `{patches}` (add/remove/test) | UUID-структурные изменения |
+| `metafor.electromagnetism` | `{path, value}` | string state transfer |
+| `metafor.gluon` | `{patches}` (replace) | value replacements |
+| `metafor.higgs` | `{patches}` (replace) | topology changes |
+| `metafor.weak.w` | `{wimpId, processId, patches}` | process state writes |
+| `metafor.weak.z` | `{wimpId, processId, coordination: claim/accept/reject/release}` | process mutual exclusion |
+| `metafor.structural` | `{rootSrc, scope: world/subtree}` | barrier-сигнал «перечитайте всё» |
+| `metafor.db-sync` | `{rootSrc, op: clear-world/insert-particle/insert-field}` | per-row sync для browser IDB-зеркала |
 
 Из этих **только два носят persistence-смысл**: `db-sync` (фактические row-вставки) и `structural` (barrier «перечитай»). Остальные шесть — runtime state-transfer, не persistence.
 
@@ -1190,7 +1186,6 @@ Mirror работает поверх контракта, не привязан �
 export interface DbStoreMirrorOptions<TTables> {
   store: DbStore<TTables>
   publisher: DbSyncPublisher
-  source: ProtocolDomain
   /** Какие таблицы зеркалить (whitelist). Render-слой — всегда; meta-слой — опционально. */
   mirroredTables: readonly (keyof TTables)[]
 }
@@ -1201,8 +1196,6 @@ export const createMirroredDbStore = <T>(
 
 // DbSyncMessage расширяется до universal:
 export interface DbSyncMessage {
-  channel: "db-sync"
-  source: ProtocolDomain
   rootSrc: string
   op:
     | { kind: "clear-world" }
@@ -1312,7 +1305,7 @@ SERVER (Bun)                                BROWSER
 
 ### 11.12. Что **остаётся**
 
-- `pkg/protocol/` — без изменений.
+- `protocol.ts` — корневые имена каналов без shared payload types.
 - `dark.worker.ts` `canonicalizeMetaGraph` — упрощается: вместо 3-stage (`relation` → `readDarkParticleModel` → `matter`) остаётся один stage `matter` с per-row writes в общий store. `readMetaDsl` остаётся как JS-import.
 - `boundary/database.ts` operational caches — это derived проекции от store; остаются.
 - BroadcastChannel-каналы — `db-sync` обобщается, остальные без изменений.

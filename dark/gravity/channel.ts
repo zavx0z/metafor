@@ -1,25 +1,18 @@
-import { GRAVITY_BROADCAST_CHANNEL, type GravitonMessage, type GravityProtocolPatch } from "@shared/protocol"
+import { GRAVITY_BROADCAST_CHANNEL } from "../../protocol.ts"
 
 export const gravityCH = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
 
 export interface DarkGravityProtocol {
-  emitPatches(patches: GravityProtocolPatch[]): void
+  emitPatches(patches: Array<{ op: "add" | "remove" | "test"; path: string; value?: unknown }>): void
   emitAdd(wimpId: string): void
   emitRemove(wimpId: string): void
   emitBarrier(value?: null | "" | Record<string, never>): void
   close(): void
 }
 
-const createDarkGravitonMessage = (patches: GravityProtocolPatch[]): GravitonMessage => ({
-  channel: "gravity",
-  boson: "graviton",
-  source: "dark",
-  patches,
-})
-
-function emitPatches(patches: GravityProtocolPatch[]): void {
+function emitPatches(patches: Array<{ op: "add" | "remove" | "test"; path: string; value?: unknown }>): void {
   if (patches.length === 0) return
-  gravityCH.postMessage(createDarkGravitonMessage(patches))
+  gravityCH.postMessage({ patches })
 }
 
 export function emitAdd(wimpId: string) {

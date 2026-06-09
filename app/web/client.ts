@@ -10,7 +10,6 @@ import {
 	createIdbDbActorStore,
 	type DbActorStore,
 } from "@store/actor"
-import { isDbSyncMessage, isStructuralSignalMessage } from "@shared/protocol"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
@@ -392,8 +391,8 @@ socket.onmessage = (event) => {
 	}
 
 	if (message.type === "protocol") {
-		if (message.channel === "db-sync" && isDbSyncMessage(message.message)) {
-			const sync = message.message
+		if (message.channel === "db-sync") {
+			const sync = message.message as Parameters<typeof applyDbSyncMessage>[1]
 			pendingSyncQueue = pendingSyncQueue
 				.then(async () => {
 					const store = localStore ?? (await localStoreReady)
@@ -404,8 +403,8 @@ socket.onmessage = (event) => {
 				})
 			return
 		}
-		if (message.channel === "structural" && isStructuralSignalMessage(message.message)) {
-			const signal = message.message
+		if (message.channel === "structural") {
+			const signal = message.message as { rootSrc: string }
 			pendingSyncQueue = pendingSyncQueue
 				.then(async () => {
 					if (pendingSceneState && pendingSceneState.src === signal.rootSrc) {

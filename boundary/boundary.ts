@@ -52,23 +52,18 @@ import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import type { WeakHeapUpdate } from "./weak/weak.t"
 import { createEmptyDbData, type DbBackend, type DbData } from "store/db/core"
 import {
-  isGluonMessage,
-  isGravitonMessage,
-  isHiggsMessage,
-  isWMessage,
-  openElectromagnetismBroadcastChannel,
-  openGluonBroadcastChannel,
-  openHiggsBroadcastChannel,
-  openWeakWBroadcastChannel,
-  type GravityProtocolPatch,
-  type PhotonMessage,
-  type ProtocolChannelOptions,
-  type ValueProtocolPatch,
-  type WMessage,
-} from "@shared/protocol"
+  ELECTROMAGNETISM_BROADCAST_CHANNEL,
+  GLUON_BROADCAST_CHANNEL,
+  HIGGS_BROADCAST_CHANNEL,
+  WEAK_W_BROADCAST_CHANNEL,
+} from "../protocol.ts"
 import { gravityCH } from "@boundary/gravity/channel.ts"
 
-export type BoundaryStructuralPatch = GravityProtocolPatch
+export type BoundaryStructuralPatch = { op: "add" | "remove" | "test"; path: string; value?: unknown }
+type BoundaryValuePatch = { op: "replace"; path: string; value: unknown }
+type BoundaryChannelOptions = { channelName?: string }
+type BoundaryPhotonPayload = { value: string; path: string }
+type BoundaryWeakResultPayload = { wimpId: string; processId: string; patches: BoundaryValuePatch[] }
 
 export interface BoundaryBroadcastSubscription {
   flush(): Promise<void>
@@ -224,7 +219,7 @@ const requireRuntimeFieldAddress = (wimpFieldId: string): [braneIndex: number, r
   return [braneIndex, runtimeFieldIndex]
 }
 
-const collectPatchedValues = (patches: ValueProtocolPatch[], kind: "gluon" | "higgs"): Record<string, unknown> => {
+const collectPatchedValues = (patches: BoundaryValuePatch[], kind: "gluon" | "higgs"): Record<string, unknown> => {
   const values: Record<string, unknown> = {}
 
   for (const patch of patches) {
@@ -245,9 +240,7 @@ const collectPatchedValues = (patches: ValueProtocolPatch[], kind: "gluon" | "hi
 }
 
 const getElectromagnetismChannel = (): BroadcastChannel => {
-  electromagnetismChannel ??= openElectromagnetismBroadcastChannel(
-    electromagnetismChannelName === undefined ? {} : { channelName: electromagnetismChannelName },
-  )
+  electromagnetismChannel ??= new BroadcastChannel(electromagnetismChannelName ?? ELECTROMAGNETISM_BROADCAST_CHANNEL)
   return electromagnetismChannel
 }
 
@@ -262,10 +255,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     const stateName = boundary$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
-    const message: PhotonMessage = {
-      channel: "electromagnetism",
-      boson: "photon",
-      source: "boundary",
+    const message: BoundaryPhotonPayload = {
       value: stateName,
       path: uuid,
     }
@@ -554,7 +544,7 @@ export async function rebuildRuntime(
 
 export function subscribeBoundaryGravityBroadcast(
   backend: DbBackend,
-  options: ProtocolChannelOptions & BoundaryDbRuntimeOptions = {},
+  options: BoundaryDbRuntimeOptions = {},
 ): BoundaryGravityBroadcastSubscription {
   const runtimeOptions: BoundaryDbRuntimeOptions = {}
   if (options.entanglement !== undefined) {
@@ -562,10 +552,9 @@ export function subscribeBoundaryGravityBroadcast(
   }
 
   return createQueuedSubscription(gravityCH, async (message) => {
-    if (!isGravitonMessage(message)) return
-    if (message.source !== "dark") return
+    const { patches } = message as { patches?: BoundaryStructuralPatch[] }
 
-    for (const patch of message.patches) {
+    for (const patch of patches ?? []) {
       await applyStructuralPatchFromDb(backend, patch, runtimeOptions)
     }
   })
@@ -706,13 +695,13 @@ export async function setValues(values: Record<string, unknown>): Promise<[numbe
 }
 
 const applyValuePatches = async (
-  patches: ValueProtocolPatch[],
+  patches: BoundaryValuePatch[],
   kind: "gluon" | "higgs",
 ): Promise<[number, number][]> => {
   return await setValues(collectPatchedValues(patches, kind))
 }
 
-export async function applyWeakResultPacket(message: WMessage): Promise<[number, number][]> {
+export async function applyWeakResultPacket(message: BoundaryWeakResultPayload): Promise<[number, number][]> {
   requireInitializedStore(boundary$)
 
   const braneIndex = gravity$.getBraneIndex(message.wimpId)
@@ -761,43 +750,38 @@ export async function applyWeakResultPacket(message: WMessage): Promise<[number,
 
 const subscribeBoundaryValueBroadcast = (
   kind: "gluon" | "higgs",
-  options: ProtocolChannelOptions = {},
+  options: BoundaryChannelOptions = {},
 ): BoundaryValueBroadcastSubscription => {
-  const channel = kind === "gluon" ? openGluonBroadcastChannel(options) : openHiggsBroadcastChannel(options)
+  const channelName = kind === "gluon" ? GLUON_BROADCAST_CHANNEL : HIGGS_BROADCAST_CHANNEL
+  const channel = new BroadcastChannel(options.channelName ?? channelName)
   return createQueuedSubscription(channel, async (message) => {
+    const { patches } = message as { patches?: BoundaryValuePatch[] }
     if (kind === "gluon") {
-      if (!isGluonMessage(message)) return
-      if (message.source !== "dark" && message.source !== "boundary") return
-      await applyValuePatches(message.patches, kind)
+      await applyValuePatches(patches ?? [], kind)
       return
     }
 
-    if (!isHiggsMessage(message)) return
-    if (message.source !== "dark" && message.source !== "boundary") return
-    await applyValuePatches(message.patches, kind)
+    await applyValuePatches(patches ?? [], kind)
   })
 }
 
 export function subscribeBoundaryGluonBroadcast(
-  options: ProtocolChannelOptions = {},
+  options: BoundaryChannelOptions = {},
 ): BoundaryValueBroadcastSubscription {
   return subscribeBoundaryValueBroadcast("gluon", options)
 }
 
 export function subscribeBoundaryHiggsBroadcast(
-  options: ProtocolChannelOptions = {},
+  options: BoundaryChannelOptions = {},
 ): BoundaryValueBroadcastSubscription {
   return subscribeBoundaryValueBroadcast("higgs", options)
 }
 
 export function subscribeBoundaryWeakResultBroadcast(
-  options: ProtocolChannelOptions = {},
+  options: BoundaryChannelOptions = {},
 ): BoundaryWeakBroadcastSubscription {
-  return createQueuedSubscription(openWeakWBroadcastChannel(options), async (message) => {
-    if (!isWMessage(message)) return
-    if (message.source !== "bulk") return
-
-    await applyWeakResultPacket(message)
+  return createQueuedSubscription(new BroadcastChannel(options.channelName ?? WEAK_W_BROADCAST_CHANNEL), async (message) => {
+    await applyWeakResultPacket(message as BoundaryWeakResultPayload)
   })
 }
 
@@ -823,7 +807,7 @@ export function closeBoundaryProtocolChannels(): void {
   electromagnetismChannelName = undefined
 }
 
-export function configureBoundaryElectromagnetismBroadcast(options: ProtocolChannelOptions = {}): void {
+export function configureBoundaryElectromagnetismBroadcast(options: BoundaryChannelOptions = {}): void {
   electromagnetismChannel?.close()
   electromagnetismChannel = null
   electromagnetismChannelName = options.channelName

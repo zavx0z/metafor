@@ -1,4 +1,4 @@
-import {GRAVITY_BROADCAST_CHANNEL, isGravitonMessage} from "@shared/protocol"
+import {GRAVITY_BROADCAST_CHANNEL} from "../protocol.ts"
 import {MetaFor} from ".."
 import {open} from "store/server"
 import {matter} from "./dark.ts"
@@ -12,9 +12,6 @@ import {matter} from "./dark.ts"
  * публикует его в `globalThis.store`, и слушает `gravity`-канал на входящие
  * гравитоны вида `add /wimp/<src>` — по такому патчу запускает `matter(src)`,
  * который через ORM пишет wimp + actor + topology rows.
- *
- * Исходящие сообщения от самого Dark (`source === "dark"`) пропускаются,
- * чтобы не было обратной обработки собственных `/wimp/<id>` add'ов и barrier'ов.
  */
 const STORE_PATH = process.env.STORE_PATH ?? "./boundary.sqlite"
 
@@ -49,12 +46,10 @@ const handleWimpLoad = async (src: string): Promise<void> => {
 let processingChain: Promise<void> = Promise.resolve()
 
 gravity.addEventListener("message", (event) => {
-  const data = (event as MessageEvent<unknown>).data
-  if (!isGravitonMessage(data)) return
-  if (data.source === "dark") return // собственные сообщения не обрабатываем
+  const data = (event as MessageEvent<{patches?: Array<{op?: unknown; path?: unknown}>}>).data
 
-  for (const patch of data.patches) {
-    if (patch.op !== "add") continue
+  for (const patch of data.patches ?? []) {
+    if (patch.op !== "add" || typeof patch.path !== "string") continue
     const src = extractWimpSrc(patch.path)
     if (!src) continue
     processingChain = processingChain.then(() => handleWimpLoad(src))

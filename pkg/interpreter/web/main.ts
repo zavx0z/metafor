@@ -1347,6 +1347,7 @@ function hudTodoPayload(): unknown {
 function setHudTodoHighlight(params: unknown): unknown {
   if (todoPane === null) throw new Error("TODO pane is not ready")
   const ids = todoHighlightIdsFromParams(params)
+  if (todoHudDocked) setTodoHudDocked(false)
   todoPane.setHighlightedIds(ids)
   return hudTodoPayload()
 }
@@ -5654,13 +5655,19 @@ function currentEditableSourceUrl(controller: ModuleDisplayController): string |
 function handleSourcePatched(msg: Extract<ServerMessage, {type: "source-patched"}>): void {
   applySourcePatchedBreakpoints(msg)
   const patchedKeys = msg.files.flatMap((file) => sourcePatchFileKeys(file))
+  const refreshFileTree = sourcePatchChangesWorkspaceFileTree(msg)
   for (const controller of moduleDisplays.values()) {
     clearPatchedSourceCache(controller, patchedKeys)
+    if (refreshFileTree) void refreshWorkspaceFiles(controller)
     const sourceUrl = controllerPatchedSourceUrl(controller, patchedKeys)
     if (sourceUrl === undefined) continue
     if (controller.sourceDirty || controller.sourceSaving) continue
     void refreshOpenSourceFromDisk(controller, sourceUrl)
   }
+}
+
+function sourcePatchChangesWorkspaceFileTree(msg: Extract<ServerMessage, {type: "source-patched"}>): boolean {
+  return msg.files.some((file) => file.operation === "add" || file.operation === "delete" || file.operation === "move")
 }
 
 function applySourcePatchedBreakpoints(msg: Extract<ServerMessage, {type: "source-patched"}>): void {

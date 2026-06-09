@@ -4,12 +4,8 @@ import {
   GLUON_BROADCAST_CHANNEL,
   GRAVITY_BROADCAST_CHANNEL,
   HIGGS_BROADCAST_CHANNEL,
-  isGluonMessage,
-  isGravitonMessage,
-  isHiggsMessage,
-  isWMessage,
   WEAK_W_BROADCAST_CHANNEL,
-} from "@shared/protocol"
+} from "../protocol.ts"
 
 export type OpenBoundaryDb = () => Promise<DbBackend> | DbBackend
 
@@ -56,36 +52,30 @@ export const bootBoundaryDomain = (openDb: OpenBoundaryDb): void => {
   }
 
   gravity.onmessage = (event: MessageEvent<unknown>) => {
-    const message = event.data
-    if (!isGravitonMessage(message)) return
-    if (message.source !== "dark") return
+    const message = event.data as { patches?: Array<{ op: "add" | "remove" | "test"; path: string; value?: unknown }> }
 
     enqueue(async () => {
       const backend = await db
-      for (const patch of message.patches) {
+      for (const patch of message.patches ?? []) {
         await applyStructuralPatchFromDb(backend, patch)
       }
     })
   }
 
   gluon.onmessage = (event: MessageEvent<unknown>) => {
-    const message = event.data
-    if (!isGluonMessage(message)) return
+    const message = event.data as { patches?: Array<{ path: string; value: unknown }> }
 
-    enqueue(async () => await applyValuePatches(message.patches))
+    enqueue(async () => await applyValuePatches(message.patches ?? []))
   }
 
   higgs.onmessage = (event: MessageEvent<unknown>) => {
-    const message = event.data
-    if (!isHiggsMessage(message)) return
+    const message = event.data as { patches?: Array<{ path: string; value: unknown }> }
 
-    enqueue(async () => await applyValuePatches(message.patches))
+    enqueue(async () => await applyValuePatches(message.patches ?? []))
   }
 
   weak.onmessage = (event: MessageEvent<unknown>) => {
-    const message = event.data
-    if (!isWMessage(message)) return
-    if (message.source !== "bulk") return
+    const message = event.data as { wimpId: string; processId: string; patches: Array<{ op: "replace"; path: string; value: unknown }> }
 
     enqueue(async () => {
       await applyWeakResultPacket(message)

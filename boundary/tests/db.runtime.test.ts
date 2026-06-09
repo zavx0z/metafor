@@ -477,9 +477,6 @@ describe("boundary runtime from db backend", () => {
       expect(processId).toBeDefined()
 
       const weakResultChanges = await applyWeakResultPacket({
-        channel: "weak-w",
-        boson: "w+",
-        source: "bulk",
         wimpId: root.id,
         processId: processId!,
         patches: [],
@@ -519,9 +516,6 @@ describe("boundary runtime from db backend", () => {
       expect(processId).toBeDefined()
 
       const weakResultChanges = await applyWeakResultPacket({
-        channel: "weak-w",
-        boson: "w+",
-        source: "bulk",
         wimpId: root.id,
         processId: processId!,
         patches: [],
@@ -559,9 +553,6 @@ describe("boundary runtime from db backend", () => {
       expect(boundary$.branes[rootBraneIndex!]?.lock).toBe(true)
 
       const weakResultChanges = await applyWeakResultPacket({
-        channel: "weak-w",
-        boson: "w+",
-        source: "bulk",
         wimpId: root.id,
         processId: rootProcessId!,
         patches: [

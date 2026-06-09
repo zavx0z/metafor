@@ -116,6 +116,25 @@ describe("ToDoPane markdown parser", () => {
       "Следующий пункт",
     ])
   })
+
+  test("подсветка раскрывает completed-секцию с выбранным пунктом", () => {
+    const markdown = [
+      "## Готово",
+      "- [x] Первый пункт",
+      "- [x] Второй пункт",
+      "## В работе",
+      "- [ ] Следующий пункт",
+    ].join("\n")
+    const pane = new ToDoPane({markdown})
+    const taskId = parseMarkdownTodo(markdown).find((item) => item.text === "Второй пункт")?.id
+    const doneId = parseMarkdownTodo(markdown).find((item) => item.text === "Готово")?.id
+    if (taskId === undefined || doneId === undefined) throw new Error("TODO ids not found")
+
+    pane.setHighlightedIds([taskId])
+
+    expect(pane.expandedCompletedIds()).toEqual([doneId])
+    expect(todoVisibleItems(parseMarkdownTodo(markdown), pane.expandedCompletedIds()).map((item) => item.text)).toContain("Второй пункт")
+  })
 })
 
 describe("ToDoPane frame controls", () => {

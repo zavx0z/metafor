@@ -46,7 +46,6 @@
         "@boundary/gravity": "workspace:*",
         "@boundary/strong": "workspace:*",
         "@boundary/weak": "workspace:*",
-        "@shared/protocol": "workspace:*",
         "store": "workspace:*",
       },
     },
@@ -80,9 +79,6 @@
     },
     "bulk/em": {
       "name": "@bulk/em",
-      "dependencies": {
-        "@shared/protocol": "workspace:*",
-      },
     },
     "bulk/gravity": {
       "name": "@bulk/gravity",
@@ -124,14 +120,12 @@
       "name": "@dark/em",
       "dependencies": {
         "@dark/types": "workspace:*",
-        "@shared/protocol": "workspace:*",
       },
     },
     "dark/gravity": {
       "name": "@dark/gravity",
       "dependencies": {
         "@dark/types": "workspace:*",
-        "@shared/protocol": "workspace:*",
         "@store/wimp": "workspace:*",
       },
     },
@@ -773,9 +767,6 @@
         "source-map-js": "^1.2.1",
       },
     },
-    "pkg/protocol": {
-      "name": "@shared/protocol",
-    },
     "pkg/pty": {
       "name": "@metafor/pty",
       "version": "0.1.0",
@@ -1071,8 +1062,6 @@
     "@person/human-wrist-right": ["@person/human-wrist-right@workspace:github/person/human-wrist-right"],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
-
-    "@shared/protocol": ["@shared/protocol@workspace:pkg/protocol"],
 
     "@shikijs/engine-oniguruma": ["@shikijs/engine-oniguruma@3.23.0", "", { "dependencies": { "@shikijs/types": "3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-1nWINwKXxKKLqPibT5f4pAFLej9oZzQTsby8942OTlsJzOBZ0MWKiwzMsd+jhzu8YPCHAswGnnN1YtQfirL35g=="],
 

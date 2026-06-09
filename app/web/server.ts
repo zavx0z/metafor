@@ -11,20 +11,9 @@ import {
 	STRUCTURAL_BROADCAST_CHANNEL,
 	WEAK_W_BROADCAST_CHANNEL,
 	WEAK_Z_BROADCAST_CHANNEL,
-	openGluonBroadcastChannel,
-	openHiggsBroadcastChannel,
-	isDbSyncMessage,
-	isGluonMessage,
-	isGravitonMessage,
-	isHiggsMessage,
-	isPhotonMessage,
-	isStructuralSignalMessage,
-	isWMessage,
-	isZMessage,
-	type GluonMessage,
-	type HiggsMessage,
-	type ValueProtocolPatch,
-} from "@shared/protocol"
+} from "../../protocol.ts"
+
+type ValuePatch = { op: "replace"; path: string; value: unknown }
 
 const ROOT = normalize(join(import.meta.dir, "../../"))
 const APP_CHANNEL = "app-web"
@@ -74,10 +63,10 @@ type ClientRelayoutMessage = {
 	layoutSettings?: Partial<AppWebLayoutSettings>
 }
 
-type ClientProtocolBridgeMessage = {
+type ClientProtocolBridgePayload = {
 	type: "protocol"
 	channel: "gluon" | "higgs"
-	patches: ValueProtocolPatch[]
+	patches: ValuePatch[]
 }
 
 type AppRuntime = {
@@ -100,8 +89,8 @@ const workerStates: Record<WorkerName, WorkerStatus> = {
 let runtime: AppRuntime | null = null
 let runtimeLock: Promise<AppRuntime> | null = null
 const protocolInputs = {
-	gluon: openGluonBroadcastChannel(),
-	higgs: openHiggsBroadcastChannel(),
+	gluon: new BroadcastChannel(GLUON_BROADCAST_CHANNEL),
+	higgs: new BroadcastChannel(HIGGS_BROADCAST_CHANNEL),
 } as const
 
 const workerEntry = (relativePath: string): string => join(ROOT, relativePath)
@@ -136,42 +125,33 @@ const toWorkerMeta = (meta: {
 	return nextMeta
 }
 
-const isValueProtocolPatch = (value: unknown): value is ValueProtocolPatch => {
-	if (!value || typeof value !== "object") return false
+const valuePatchPayload = (value: unknown): ValuePatch | null => {
+	if (!value || typeof value !== "object") return null
 	const patch = value as { op?: unknown; path?: unknown; value?: unknown }
 	return patch.op === "replace" && typeof patch.path === "string" && "value" in patch
+		? { op: "replace", path: patch.path, value: patch.value }
+		: null
 }
 
-const isClientProtocolBridgeMessage = (value: unknown): value is ClientProtocolBridgeMessage => {
-	if (!value || typeof value !== "object") return false
+const clientProtocolBridgePayload = (value: unknown): ClientProtocolBridgePayload | null => {
+	if (!value || typeof value !== "object") return null
 	const message = value as {
 		type?: unknown
 		channel?: unknown
 		patches?: unknown
 	}
+	if (message.type !== "protocol") return null
+	if (message.channel !== "gluon" && message.channel !== "higgs") return null
+	if (!Array.isArray(message.patches)) return null
+	const patches = message.patches.map(valuePatchPayload)
+	if (patches.some((patch) => patch === null)) return null
 
-	return (
-		message.type === "protocol" &&
-		(message.channel === "gluon" || message.channel === "higgs") &&
-		Array.isArray(message.patches) &&
-		message.patches.every(isValueProtocolPatch)
-	)
+	return { type: "protocol", channel: message.channel, patches: patches as ValuePatch[] }
 }
 
-const createProtocolBridgeMessage = (payload: ClientProtocolBridgeMessage): GluonMessage | HiggsMessage =>
-	payload.channel === "gluon"
-		? {
-				channel: "gluon",
-				boson: "gluon",
-				source: "app",
-				patches: payload.patches,
-			}
-		: {
-				channel: "higgs",
-				boson: "higgs",
-				source: "app",
-				patches: payload.patches,
-			}
+const createProtocolBridgeMessage = (payload: ClientProtocolBridgePayload): { patches: ValuePatch[] } => ({
+	patches: payload.patches,
+})
 
 const attachWorker = (
 	workerName: WorkerName,
@@ -268,20 +248,19 @@ const getOrCreateRuntime = async (): Promise<AppRuntime> => {
 }
 
 const protocolMirrors = [
-	{ key: "gravity", channelName: GRAVITY_BROADCAST_CHANNEL, validator: isGravitonMessage },
-	{ key: "electromagnetism", channelName: ELECTROMAGNETISM_BROADCAST_CHANNEL, validator: isPhotonMessage },
-	{ key: "gluon", channelName: GLUON_BROADCAST_CHANNEL, validator: isGluonMessage },
-	{ key: "higgs", channelName: HIGGS_BROADCAST_CHANNEL, validator: isHiggsMessage },
-	{ key: "weak-z", channelName: WEAK_Z_BROADCAST_CHANNEL, validator: isZMessage },
-	{ key: "weak-w", channelName: WEAK_W_BROADCAST_CHANNEL, validator: isWMessage },
-	{ key: "structural", channelName: STRUCTURAL_BROADCAST_CHANNEL, validator: isStructuralSignalMessage },
-	{ key: "db-sync", channelName: DB_SYNC_BROADCAST_CHANNEL, validator: isDbSyncMessage },
+	{ key: "gravity", channelName: GRAVITY_BROADCAST_CHANNEL },
+	{ key: "electromagnetism", channelName: ELECTROMAGNETISM_BROADCAST_CHANNEL },
+	{ key: "gluon", channelName: GLUON_BROADCAST_CHANNEL },
+	{ key: "higgs", channelName: HIGGS_BROADCAST_CHANNEL },
+	{ key: "weak-z", channelName: WEAK_Z_BROADCAST_CHANNEL },
+	{ key: "weak-w", channelName: WEAK_W_BROADCAST_CHANNEL },
+	{ key: "structural", channelName: STRUCTURAL_BROADCAST_CHANNEL },
+	{ key: "db-sync", channelName: DB_SYNC_BROADCAST_CHANNEL },
 ] as const
 
-protocolMirrors.forEach(({ key, channelName, validator }) => {
+protocolMirrors.forEach(({ key, channelName }) => {
 	const channel = new BroadcastChannel(channelName)
 	channel.onmessage = (event: MessageEvent<unknown>) => {
-		if (!validator(event.data)) return
 		publish({
 			type: "protocol",
 			channel: key,
@@ -319,13 +298,13 @@ const server = serve({
 			let payload:
 				| ClientMaterializeMessage
 				| ClientRelayoutMessage
-				| ClientProtocolBridgeMessage
+				| ClientProtocolBridgePayload
 				| null = null
 			try {
 				payload = JSON.parse(String(message)) as
 					| ClientMaterializeMessage
 					| ClientRelayoutMessage
-					| ClientProtocolBridgeMessage
+					| ClientProtocolBridgePayload
 			} catch {
 				return
 			}
@@ -335,11 +314,12 @@ const server = serve({
 			}
 
 			void (async () => {
-				if (isClientProtocolBridgeMessage(payload)) {
+				const protocolBridgePayload = clientProtocolBridgePayload(payload)
+				if (protocolBridgePayload !== null) {
 					await getOrCreateRuntime()
-					const protocolMessage = createProtocolBridgeMessage(payload)
+					const protocolMessage = createProtocolBridgeMessage(protocolBridgePayload)
 
-					if (payload.channel === "gluon") {
+					if (protocolBridgePayload.channel === "gluon") {
 						protocolInputs.gluon.postMessage(protocolMessage)
 					} else {
 						protocolInputs.higgs.postMessage(protocolMessage)
@@ -347,17 +327,21 @@ const server = serve({
 					return
 				}
 
-				if (typeof payload.src !== "string" || (payload.type !== "materialize" && payload.type !== "relayout")) {
+				const runtimePayload = payload as ClientMaterializeMessage | ClientRelayoutMessage
+				if (
+					typeof runtimePayload.src !== "string"
+					|| (runtimePayload.type !== "materialize" && runtimePayload.type !== "relayout")
+				) {
 					return
 				}
 
-				if (payload.type === "materialize") {
+				if (runtimePayload.type === "materialize") {
 					const currentRuntime = await recreateRuntime()
 					currentRuntime.dark.postMessage({
 						type: "materialize",
-						src: payload.src || "zavx0z/git",
+						src: runtimePayload.src || "zavx0z/git",
 						dbFilename: APP_DB_FILENAME,
-						layoutSettings: payload.layoutSettings,
+						layoutSettings: runtimePayload.layoutSettings,
 					})
 					return
 				}
@@ -365,8 +349,8 @@ const server = serve({
 				const currentRuntime = await getOrCreateRuntime()
 				currentRuntime.dark.postMessage({
 					type: "relayout",
-					src: payload.src || "zavx0z/git",
-					layoutSettings: payload.layoutSettings,
+					src: runtimePayload.src || "zavx0z/git",
+					layoutSettings: runtimePayload.layoutSettings,
 				})
 			})()
 		},
