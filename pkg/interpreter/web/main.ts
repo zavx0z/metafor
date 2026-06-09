@@ -947,7 +947,12 @@ async function openInterpreterSource(controller: ModuleDisplayController, params
   const sourceUrl = directSourceUrl ?? (specifier === undefined ? undefined : resolveSourceSpecifier(controller, specifier))
   if (sourceUrl === undefined) throw new Error("source.open requires sourceUrl, path, modulePath, or specifier")
   if (isSqliteSourcePath(sourceUrl)) return await openSqliteDisplay(sourceUrl)
-  return await openWorkspaceSource(controller, sourceUrl)
+  const options: SourceOpenOptions = {}
+  const line = numberParam(params["line"])
+  const column = numberParam(params["column"])
+  if (line !== undefined) options.line = line
+  if (column !== undefined) options.column = column
+  return await openWorkspaceSource(controller, sourceUrl, options)
 }
 
 async function openInterpreterSelectedSource(controller: ModuleDisplayController): Promise<unknown> {
@@ -970,6 +975,11 @@ type SqliteOpenParams = {
   table?: string
 }
 
+type SourceOpenOptions = {
+  line?: number
+  column?: number
+}
+
 async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unknown> {
   const path = typeof input === "string" ? input : input.path
   const table = typeof input === "string" ? undefined : input.table
@@ -978,7 +988,6 @@ async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unkn
     const controller = ensureSqliteDisplayController(payload.path)
     applySqlitePayload(controller, payload)
     syncModuleDisplays()
-    uiCanvas?.focusDisplay(sqliteDisplayId(controller.id))
     return sqliteDisplayPayload(controller)
   } catch (error) {
     if (!isSqliteMissingError(error)) {
@@ -986,7 +995,6 @@ async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unkn
     }
     const controller = ensureSqliteDisplayController(path)
     syncModuleDisplays()
-    uiCanvas?.focusDisplay(sqliteDisplayId(controller.id))
     waitForSqliteDatabase(controller, path, table)
     return sqliteDisplayPayload(controller)
   }
@@ -4885,7 +4893,11 @@ async function openWorkspaceFile(controller: ModuleDisplayController, item: File
   await openWorkspaceSource(controller, sourceUrl)
 }
 
-async function openWorkspaceSource(controller: ModuleDisplayController, sourceUrl: string): Promise<OpenWorkspaceSourceResult> {
+async function openWorkspaceSource(
+  controller: ModuleDisplayController,
+  sourceUrl: string,
+  options: SourceOpenOptions = {},
+): Promise<OpenWorkspaceSourceResult> {
   const location = sourceUrl
   const identity: BreakpointSourceIdentity = {
     scriptId: "",
@@ -4935,6 +4947,7 @@ async function openWorkspaceSource(controller: ModuleDisplayController, sourceUr
       },
       ...(data.tokens === undefined ? {} : {tokens: data.tokens}),
     }, "idle", false)
+    applySourceOpenPosition(controller, options)
     revealWorkspaceSource(controller, responseSourceUrl)
     return {
       ok: true,
@@ -4953,6 +4966,13 @@ async function openWorkspaceSource(controller: ModuleDisplayController, sourceUr
     }, "idle", false)
     return {ok: false, sourceUrl, location, error: message}
   }
+}
+
+function applySourceOpenPosition(controller: ModuleDisplayController, options: SourceOpenOptions): void {
+  if (options.line === undefined) return
+  const line = Math.max(1, Math.floor(options.line))
+  const column = Math.max(0, Math.floor(options.column ?? 0))
+  controller.source.setCursor(line - 1, column)
 }
 
 function workspaceFileSourceUrl(controller: ModuleDisplayController, item: FileListItem): string {

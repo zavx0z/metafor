@@ -438,9 +438,9 @@ export class EditorPane extends UiSurface {
     this.requestRender()
   }
 
-  /** Position cursor at (line, col), clamping to bounds. Scrolls into view. */
-  setCursor(line: number, col: number): void {
-    this.#setCursorPosition({line, col}, {extendSelection: false})
+  /** Position cursor at (line, col), clamping to bounds. Centers the line by default. */
+  setCursor(line: number, col: number, opts: {scroll?: "nearest" | "center" | false} = {}): void {
+    this.#setCursorPosition({line, col}, {extendSelection: false, scroll: opts.scroll ?? "center"})
     this.#pingCursor()
   }
 
@@ -687,7 +687,7 @@ export class EditorPane extends UiSurface {
     this.#onSelectionChange?.(this.getSelectionSnapshot())
   }
 
-  #setCursorPosition(pos: CursorPos, opts: {extendSelection: boolean}): void {
+  #setCursorPosition(pos: CursorPos, opts: {extendSelection: boolean; scroll?: "nearest" | "center" | false}): void {
     const next = this.#clampPosition(pos)
     if (opts.extendSelection) {
       if (this.#selectionAnchor === null) this.#selectionAnchor = this.#currentPos()
@@ -697,7 +697,7 @@ export class EditorPane extends UiSurface {
     }
     this.#cline = next.line
     this.#ccol = next.col
-    this.#scrollCursorIntoView()
+    if (opts.scroll !== false) this.#scrollCursorIntoView(opts.scroll)
     this.#pingCursor()
     this.#emitSelectionChange()
     this.requestRender()
@@ -1267,12 +1267,13 @@ export class EditorPane extends UiSurface {
     this.#setCursorPosition({line: newLine, col: Math.min(this.#ccol, this.#lines[newLine]!.length)}, {extendSelection})
   }
 
-  #scrollCursorIntoView(): void {
+  #scrollCursorIntoView(align: "nearest" | "center" = "nearest"): void {
     let nextTop = this.#scrollTopPx
     const viewportH = this.#viewportContentH()
     const cursorTop = this.#cline * this.#linePx
     const cursorBottom = cursorTop + this.#linePx
-    if (cursorTop < nextTop) nextTop = cursorTop
+    if (align === "center") nextTop = Math.max(0, cursorTop - Math.max(0, viewportH - this.#linePx) / 2)
+    else if (cursorTop < nextTop) nextTop = cursorTop
     else if (cursorBottom > nextTop + viewportH) nextTop = cursorBottom - viewportH
 
     const lineText = this.#lines[this.#cline] ?? ""
