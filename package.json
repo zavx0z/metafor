@@ -42,7 +42,7 @@
     "dev": "bun --filter @app/web dev",
     "interpreter": "bun --hot run pkg/interpreter/interpreter.ts",
     "interpreter:dark-server": "bun --hot run pkg/interpreter/interpreter.ts dark/server.spec.ts -timeout=2147483647",
-    "interpreter:multi": "bun --hot run pkg/interpreter/interpreter.ts dark/server.spec.ts -timeout=2147483647 pkg/interpreter/src/syntax.test.ts",
+    "interpreter:multi": "bun --hot run pkg/interpreter/interpreter.ts dark/server.spec.ts -timeout=2147483647 boundary/server.spec.ts",
     "voice:assets": "bun --filter @metafor/voice assets",
     "voice:playground": "bun --filter @metafor/voice playground",
     "voice:smoke": "bun --filter @metafor/voice smoke",
