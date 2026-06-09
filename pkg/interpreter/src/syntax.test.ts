@@ -46,6 +46,7 @@ describe("syntax tokenizer", () => {
     const lines = [
       "const store = { fields: [{ type: FIELD_TYPE.F32 }], localValueOffset: 0 }",
       "function update(braneIndex: number, fieldIndex?: number) { return { scope: \"local\" } }",
+      "return this.branes[braneIndex] ?? record?.fieldIndex ?? brane.localValueOffset ?? this.getFieldLocation()",
     ]
     const tokens = tokenize(lines.join("\n"))
 
@@ -55,7 +56,12 @@ describe("syntax tokenizer", () => {
     expect(tokenFor(lines[1]!, tokens[1]!, "braneIndex")?.c).toBe("d")
     expect(tokenFor(lines[1]!, tokens[1]!, "fieldIndex")?.c).toBe("d")
     expect(tokenFor(lines[1]!, tokens[1]!, "number")?.c).toBe("t")
+    expect(tokenFor(lines[1]!, tokens[1]!, "number")?.fg).toBe("#cf8e6d")
     expect(tokenFor(lines[1]!, tokens[1]!, "scope")?.c).toBe("t")
+    expect(tokenFor(lines[2]!, tokens[2]!, "branes")?.c).toBe("t")
+    expect(tokenFor(lines[2]!, tokens[2]!, "fieldIndex")?.c).toBe("t")
+    expect(tokenFor(lines[2]!, tokens[2]!, "localValueOffset")?.c).toBe("t")
+    expect(tokenFor(lines[2]!, tokens[2]!, "getFieldLocation")?.c).toBe("f")
   })
 })
 

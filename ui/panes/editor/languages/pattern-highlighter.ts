@@ -35,6 +35,7 @@ const SCOPE_MAP: Record<string, readonly string[]> = {
   "property": ["variable.other.property", "support.variable.property"],
   "prolog": ["meta.tag.preprocessor"],
   "punctuation": ["punctuation.separator", "punctuation"],
+  "primitive-type": ["storage.type", "support.type"],
   "regex": ["string.regexp"],
   "rule": ["keyword.other"],
   "selector": ["entity.other.attribute-name.class.css", "entity.name.tag"],
@@ -78,6 +79,7 @@ const CATEGORY_MAP: Record<string, string> = {
   "property": "t",
   "prolog": "k",
   "punctuation": "p",
+  "primitive-type": "t",
   "regex": "n",
   "rule": "k",
   "selector": "t",
@@ -182,6 +184,8 @@ function applySemanticIdentifierOverlays(source: string, base: number, tokens: R
       pushRange(tokens, start, end, "t", undefined, colorForTypes(["class-name"]))
     }
   }
+
+  applyMemberAccessOverlays(source, base, tokens)
 }
 
 function applyObjectKeyOverlays(source: string, base: number, tokens: RangeToken[]): void {
@@ -202,6 +206,16 @@ function applyParameterOverlays(source: string, base: number, tokens: RangeToken
     const start = match.index ?? 0
     if (nearestContainer(source, start) !== "(") continue
     pushParameterToken(source, base, tokens, start, text.length)
+  }
+}
+
+function applyMemberAccessOverlays(source: string, base: number, tokens: RangeToken[]): void {
+  const memberRe = /(?:\?\.|\.)\s*([$_\p{ID_Start}][$_\u200c\u200d\p{ID_Continue}]*)/gu
+  for (const match of source.matchAll(memberRe)) {
+    const text = match[1]
+    if (text === undefined) continue
+    const start = (match.index ?? 0) + match[0].length - text.length
+    pushPropertyToken(base, tokens, start, text.length)
   }
 }
 

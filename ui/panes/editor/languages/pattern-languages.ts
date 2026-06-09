@@ -121,6 +121,10 @@ const typescriptGrammar = extendGrammar(javascriptGrammar, {
   "builtin": /\b(?:Array|Function|Promise|any|boolean|console|never|number|string|symbol|unknown)\b/,
 })
 
+insertBefore(typescriptGrammar, "builtin", {
+  "primitive-type": /\b(?:any|boolean|never|number|string|symbol|unknown)\b/,
+})
+
 const tsKeyword = typescriptGrammar["keyword"]
 if (Array.isArray(tsKeyword)) {
   tsKeyword.push(
