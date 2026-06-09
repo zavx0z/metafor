@@ -17,6 +17,7 @@ const stepOverSvg = iconSvg("<path d=\"M4 12a6 6 0 0 1 10.24-4.24L17 10\"/><path
 const stepIntoSvg = iconSvg("<path d=\"M12 4v15\"/><path d=\"M7 14l5 5 5-5\"/>")
 const stepOutSvg = iconSvg("<path d=\"M12 20V5\"/><path d=\"M7 10l5-5 5 5\"/>")
 const logSvg = iconSvg("<path d=\"M4 5h16v14H4z\"/><path d=\"m7 9 3 3-3 3\"/><path d=\"M12 15h5\"/>")
+const codexSvg = iconSvg("<path d=\"M17 6.5A7.5 7.5 0 1 0 17 17.5\"/><path d=\"M8.5 9.5 6 12l2.5 2.5\"/><path d=\"M15.5 9.5 18 12l-2.5 2.5\"/><path d=\"M13.5 8 10.5 16\"/>", "#5cf0ff")
 const clearSvg = iconSvg("<path d=\"M4 7h16\"/><path d=\"M10 11v6\"/><path d=\"M14 11v6\"/><path d=\"M6 7l1 14h10l1-14\"/><path d=\"M9 7V4h6v3\"/>")
 const autoscrollSvg = iconSvg("<path d=\"M12 4v11\"/><path d=\"M7 10l5 5 5-5\"/><path d=\"M5 20h14\"/>")
 const manualSvg = iconSvg("<path d=\"M5 5h14v14H5z\"/><path d=\"M9 5v14\"/><path d=\"M12 9h5\"/><path d=\"M12 13h5\"/>")
@@ -43,6 +44,7 @@ export const uiIcons = {
   stepInto: stepIntoSvg,
   stepOut: stepOutSvg,
   log: logSvg,
+  codex: codexSvg,
   clear: clearSvg,
   autoscroll: autoscrollSvg,
   manual: manualSvg,

@@ -386,6 +386,8 @@ const HOST_TERMINAL_DOCK_SHORT = 36
 const HOST_TERMINAL_DOCK_LONG = 128
 const HOST_TERMINAL_DOCK_MARGIN = 8
 const HOST_TERMINAL_DOCK_LONG_PRESS_MS = 360
+const HOST_TERMINAL_BRAND_LABEL = "Codex"
+const HOST_TERMINAL_MODEL_LABEL = "GPT 5,5"
 const HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE = 22
 const HOST_TERMINAL_AGENT_SIGNAL_HEADER_Y = 8
 const HOST_TERMINAL_AGENT_SIGNAL_HEADER_GAP = 8
@@ -1229,7 +1231,7 @@ function toggleLocale(): void {
   toggleUiLocale()
   if (hostTerminal !== null) {
     for (const pane of hostTerminalPanes(hostTerminal)) {
-      pane.setTitle(t("hostTerminal"))
+      pane.setTitle(hostTerminalTitle())
       pane.requestRender()
     }
   }
@@ -1349,10 +1351,10 @@ class HostTerminalDockPane extends UiSurface {
       rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
       key: "host-terminal-dock-restore",
       edge: currentHostTerminalDockEdge(),
-      icon: uiIcons.log,
-      label: t("hostTerminal"),
+      icon: uiIcons.codex,
+      label: HOST_TERMINAL_MODEL_LABEL,
       tone: "neutral",
-      tooltip: t("hostTerminal"),
+      tooltip: hostTerminalTitle(),
       onClick: () => this.#restoreFromClick(),
     })
   }
@@ -1620,7 +1622,7 @@ function agentSignalIcon(enabled: boolean): string {
 
 function setVoiceActiveTarget(target: VoiceInputTarget): void {
   const changed = voiceActiveTarget?.kind !== target.kind || voiceActiveTarget.controller !== target.controller
-  if (changed) clearVoicePartialPreview()
+  if (changed) preserveVoicePartialAsTerminalInput()
   voiceActiveTarget = target
   updateVoiceHud()
   if (changed && !voiceAutoWakeInFlight) scheduleVoiceAutoWake()
@@ -1658,10 +1660,12 @@ function handleVoiceStatus(status: VoiceInputStatus, detail?: string): void {
     voiceLastErrorAt = new Date()
   }
   if (status === "idle") clearVoiceWakePreview()
-  if (shouldPreserveVoicePartialForStatus(previousStatus, status, detail)) {
+  if (shouldSubmitVoicePartialForCompletedCommit(previousStatus, status)) {
+    submitVoicePartialPreview()
+  } else if (shouldPreserveVoicePartialForStatus(previousStatus, status, detail)) {
     preserveVoicePartialAsTerminalInput()
   } else if (status !== "error" && status !== "committing" && (status !== "listening" || detail === undefined || detail === "")) {
-    clearVoicePartialPreview()
+    preserveVoicePartialAsTerminalInput()
   }
   updateVoiceHud(status, detail)
   if (voiceSignal !== null) playVoiceSignal(voiceSignal)
@@ -1774,12 +1778,18 @@ async function ensureVoiceAutoWake(): Promise<void> {
 }
 
 function handleVoiceInputChunk(chunk: VoiceInputChunk): void {
-  clearVoicePartialPreview()
+  const target = voicePartialPreviewTarget ?? voiceActiveTarget
   const messages = voiceMessagesFromChunk(chunk)
   if (messages.length === 0) return
   voiceLastChunkText = messages.join("\n\n")
   voiceLastChunkAt = new Date()
-  for (const message of messages) insertVoiceMessage(message)
+  let inserted = false
+  if (target !== null) {
+    for (const message of messages) inserted = insertVoiceMessageForTarget(target, message) || inserted
+  } else {
+    flashVoiceHudError(t("voiceNoActiveInput"))
+  }
+  if (inserted && target !== null) clearVoicePartialPreviewForTarget(target, "discard")
   renderVoiceHud()
 }
 
@@ -1805,13 +1815,12 @@ function recordVoiceWakePreview(text: string, at: Date): void {
 function handleVoicePartial(raw: string): void {
   const target = voiceActiveTarget
   if (target === null || !voiceTargetCanAcceptInput(target)) {
-    clearVoicePartialPreview()
+    preserveVoicePartialAsTerminalInput()
     return
   }
 
   const text = cleanupVoiceInputText(raw)
   if (!text) {
-    clearVoicePartialPreview()
     return
   }
 
@@ -1823,7 +1832,9 @@ function handleVoicePartial(raw: string): void {
 }
 
 function showVoicePartialPreview(target: VoiceInputTarget, text: string): void {
-  if (voicePartialPreviewTarget !== null && !sameVoiceInputTarget(voicePartialPreviewTarget, target)) clearVoicePartialPreview()
+  if (voicePartialPreviewTarget !== null && !sameVoiceInputTarget(voicePartialPreviewTarget, target)) {
+    if (!preserveVoicePartialAsTerminalInput()) return
+  }
   voicePartialPreviewTarget = target
   voicePartialPreviewText = text
   for (const terminal of voicePreviewTerminals(target)) terminal.setInputPreview(text)
@@ -1843,9 +1854,10 @@ function clearVoiceWakePreview(): void {
   voiceWakePreviewHistory.splice(0)
 }
 
-function clearVoicePartialPreviewForTarget(target: VoiceInputTarget): void {
+function clearVoicePartialPreviewForTarget(target: VoiceInputTarget, mode: "preserve" | "discard" = "preserve"): void {
   if (voicePartialPreviewTarget === null || !sameVoiceInputTarget(voicePartialPreviewTarget, target)) return
-  clearVoicePartialPreview()
+  if (mode === "discard") clearVoicePartialPreview()
+  else preserveVoicePartialAsTerminalInput()
 }
 
 function sameVoiceInputTarget(a: VoiceInputTarget, b: VoiceInputTarget): boolean {
@@ -1855,6 +1867,10 @@ function sameVoiceInputTarget(a: VoiceInputTarget, b: VoiceInputTarget): boolean
 function voicePreviewTerminals(target: VoiceInputTarget): TerminalPane[] {
   if (target.kind === "host") return hostTerminalPanes(target.controller)
   return [target.controller.terminal]
+}
+
+function shouldSubmitVoicePartialForCompletedCommit(previousStatus: VoiceInputStatus, status: VoiceInputStatus): boolean {
+  return previousStatus === "committing" && status === "listening" && voicePartialPreviewTarget !== null && cleanupVoiceInputText(voicePartialPreviewText).length > 0
 }
 
 function shouldPreserveVoicePartialForStatus(previousStatus: VoiceInputStatus, status: VoiceInputStatus, detail?: string): boolean {
@@ -1869,23 +1885,33 @@ function isVoiceConnectionLossDetail(detail: string | undefined): boolean {
   return /websocket|socket|closed|failed|asr|недоступ|закрыт/i.test(detail)
 }
 
-function preserveVoicePartialAsTerminalInput(): void {
+function preserveVoicePartialAsTerminalInput(): boolean {
   const target = voicePartialPreviewTarget
   const text = cleanupVoiceInputText(voicePartialPreviewText)
-  if (target === null || text.length === 0) return
+  if (target === null || text.length === 0) return false
 
   if (target.kind === "module") {
     clearVoicePartialPreview()
     showModuleTerminalPrompt(target.controller)
     appendModuleTerminalInputText(target.controller, text)
-    return
+    return true
   }
 
-  if (!voiceTargetCanAcceptInput(target)) return
+  if (!voiceTargetCanAcceptInput(target)) return false
   const body = sanitizeHostTerminalVoiceInput(text)
-  if (body.length === 0) return
+  if (body.length === 0) return false
   clearVoicePartialPreview()
   sendHostTerminalInput(target.controller, body, "api", body)
+  return true
+}
+
+function submitVoicePartialPreview(): boolean {
+  const target = voicePartialPreviewTarget
+  const text = cleanupVoiceInputText(voicePartialPreviewText)
+  if (target === null || text.length === 0) return false
+  const inserted = insertVoiceMessageForTarget(target, text)
+  if (inserted) clearVoicePartialPreview()
+  return inserted
 }
 
 function insertVoiceMessage(raw: string): void {
@@ -1898,19 +1924,24 @@ function insertVoiceMessage(raw: string): void {
     return
   }
 
+  insertVoiceMessageForTarget(target, text)
+}
+
+function insertVoiceMessageForTarget(target: VoiceInputTarget, text: string): boolean {
   if (target.kind === "host") {
     if (!voiceTargetCanAcceptInput(target)) {
       flashVoiceHudError(t("voiceNoActiveInput"))
-      return
+      return false
     }
-    if (!sendHostTerminalVoiceSubmit(target.controller, text)) return
+    if (!sendHostTerminalVoiceSubmit(target.controller, text)) return false
     recordVoiceAutoEnter()
     updateVoiceHud(undefined, `${t("voiceInserted")}: ${text}`)
-    return
+    return true
   }
 
   voiceModuleSubmitQueue = voiceModuleSubmitQueue.then(() => submitVoiceModuleExpression(target.controller, text))
   void voiceModuleSubmitQueue.catch((error) => flashVoiceHudError(error instanceof Error ? error.message : String(error)))
+  return true
 }
 
 async function submitVoiceModuleExpression(controller: ModuleDisplayController, text: string): Promise<void> {
@@ -1958,14 +1989,13 @@ function voiceMessagesFromChunk(chunk: VoiceInputChunk): string[] {
   if (byPause.length > 1) return byPause
 
   const source = chunk.messages[0] ?? chunk.text
-  return splitVoiceParagraphs(source)
+  const byParagraph = splitVoiceParagraphs(source)
+  return byParagraph.length > 0 ? byParagraph : byPause
 }
 
 const VOICE_MESSAGE_PAUSE_SECONDS = 0.65
 
 function voiceMessagesFromSegments(segments: VoiceInputSegment[]): string[] {
-  if (segments.length < 2) return []
-
   const messages: string[] = []
   let current = ""
   let lastEnd: number | null = null
@@ -3032,7 +3062,7 @@ function createHostTerminalPane(
 ): TerminalPane {
   let terminal: TerminalPane | null = null
   const terminalOpts: TerminalPaneOpts = {
-    title: t("hostTerminal"),
+    title: hostTerminalTitle(),
     status: t("terminalConnecting"),
     statusKind: "idle",
     fontPx: opts.fontPx,
@@ -3058,6 +3088,10 @@ function createHostTerminalPane(
   terminal = new TerminalPane(terminalOpts)
   terminal.node.name = name
   return terminal
+}
+
+function hostTerminalTitle(): string {
+  return `${HOST_TERMINAL_BRAND_LABEL} · ${HOST_TERMINAL_MODEL_LABEL}`
 }
 
 function resizeHostTerminalFromPane(controller: HostTerminalController, pane: TerminalPane, size: TerminalSize): void {
