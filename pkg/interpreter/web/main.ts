@@ -684,7 +684,7 @@ function handleServerMessage(msg: ServerMessage): void {
       applyModuleSnapshot(msg.module)
       return
     case "module-state":
-      applyModuleSnapshot(msg.module)
+      applyModuleSnapshot(msg.module, {renderPausedDump: false})
       applyModuleDump(msg.moduleId, msg.dump)
       return
     case "module-resumed":
@@ -1222,14 +1222,18 @@ function sqliteTableItemId(name: string): string {
 
 function sqliteDisplayKey(path: string): string {
   const normalized = path.trim().replaceAll("\\", "/")
-  let hash = 2166136261
-  for (let i = 0; i < normalized.length; i += 1) {
-    hash ^= normalized.charCodeAt(i)
-    hash = Math.imul(hash, 16777619)
-  }
   const leaf = normalized.split("/").pop()?.replace(/\.sqlite$/i, "") ?? "database"
   const slug = leaf.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "database"
-  return `${slug}-${(hash >>> 0).toString(36)}`
+  return `${slug}-${stableStringHash(normalized)}`
+}
+
+function stableStringHash(value: string): string {
+  let hash = 2166136261
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
 }
 
 function sqliteInitialLabel(path: string): string {
@@ -1730,9 +1734,14 @@ function normalizeStoredInterpreterDisplayPositions(value: unknown): Map<string,
 
 function applyModuleSnapshots(modules: ModulePaneSnapshot[]): void {
   if (modules.length === 0) return
-  moduleOrder = modules.map((module) => module.id)
+  const nextModuleOrder = modules.map((module) => module.id)
+  const orderChanged = nextModuleOrder.length !== moduleOrder.length
+    || nextModuleOrder.some((id, index) => id !== moduleOrder[index])
+  moduleOrder = nextModuleOrder
   for (const module of modules) moduleSnapshots.set(module.id, module)
-  syncModuleDisplays()
+  if (orderChanged || nextModuleOrder.some((id) => !moduleDisplayIds.has(id))) {
+    syncModuleDisplays()
+  }
   for (const module of modules) {
     const controller = moduleDisplays.get(module.id)
     if (controller !== undefined) {
@@ -1742,12 +1751,13 @@ function applyModuleSnapshots(modules: ModulePaneSnapshot[]): void {
   }
 }
 
-function applyModuleSnapshot(module: ModulePaneSnapshot): void {
+function applyModuleSnapshot(module: ModulePaneSnapshot, options: {renderPausedDump?: boolean} = {}): void {
+  const existingModule = moduleOrder.includes(module.id)
   moduleSnapshots.set(module.id, module)
-  if (!moduleOrder.includes(module.id)) moduleOrder.push(module.id)
-  syncModuleDisplays()
+  if (!existingModule) moduleOrder.push(module.id)
+  if (!existingModule || !moduleDisplayIds.has(module.id)) syncModuleDisplays()
   const controller = moduleDisplays.get(module.id)
-  if (controller !== undefined) updateModuleDisplay(controller, module)
+  if (controller !== undefined) updateModuleDisplay(controller, module, options)
 }
 
 function appendVerbose(kind: "protocol" | "interpreter", ts: string, name: string, payload: unknown, moduleId?: string): void {
@@ -3907,13 +3917,11 @@ function syncModuleDisplays(): void {
       addInterpreterSurfacesToDisplay(displayId, controller)
       void refreshModuleBreakpoints(controller)
       void refreshWorkspaceFiles(controller)
+      updateModuleDisplay(controller, module)
     } else {
       uiCanvas.resizeDisplay(displayId, displayMetrics)
       uiCanvas.setDisplayCenter(displayId, center)
     }
-
-    const controller = moduleDisplays.get(module.id)
-    if (controller !== undefined) updateModuleDisplay(controller, module)
   }
 
   for (const controller of orderedSqliteDisplays) {
@@ -4811,7 +4819,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
   return controller
 }
 
-function updateModuleDisplay(controller: ModuleDisplayController, module: ModulePaneSnapshot): void {
+function updateModuleDisplay(controller: ModuleDisplayController, module: ModulePaneSnapshot, options: {renderPausedDump?: boolean} = {}): void {
   const nextWorkspaceModulePath = module.modulePath ?? null
   if (controller.workspaceFiles.modulePath !== nextWorkspaceModulePath) {
     controller.workspaceFiles.modulePath = nextWorkspaceModulePath
@@ -4844,7 +4852,7 @@ function updateModuleDisplay(controller: ModuleDisplayController, module: Module
     : module.target.state === "failed"
       ? "failed"
       : null
-  if (module.paused && module.dump !== null) {
+  if (module.paused && module.dump !== null && options.renderPausedDump !== false) {
     applyModuleDump(module.id, module.dump)
   } else if (finishedState !== null) {
     if (controller.dump !== undefined) clearModuleLiveContext(controller)
@@ -5679,7 +5687,12 @@ function applyModuleDump(moduleId: string, dump: InterpreterDump): void {
   if (controller === undefined) return
   const isNewPause = controller.dump?.timestamp !== dump.timestamp
   controller.dump = dump
-  if (isNewPause) controller.activeFrameIndex = 0
+  if (!isNewPause) {
+    const snapshot = moduleSnapshots.get(moduleId)
+    if (snapshot !== undefined) updateModuleHeaderControls(controller, snapshot)
+    return
+  }
+  controller.activeFrameIndex = 0
   controller.activeFrameIndex = Math.min(controller.activeFrameIndex, Math.max(0, dump.frames.length - 1))
   renderModuleDump(controller, isNewPause)
   const snapshot = moduleSnapshots.get(moduleId)
@@ -5753,9 +5766,10 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
   }
   const location = sourceLocation(frame.url, scriptId, frame.line)
   const sourceKind = frame.sourceKind === "runtime" ? "runtime" : "sourcemap"
-  const cacheKey = `${scriptId}\0${sourceKind}\0${frame.url}`
-  const useFrameSourceCache = sourceKind === "runtime"
-  let cached = useFrameSourceCache ? controller.sourceCache.get(cacheKey) : undefined
+  const cacheKey = sourceKind === "runtime"
+    ? `${scriptId}\0runtime\0${frame.url}`
+    : `sourcemap\0${frame.url}`
+  let cached = controller.sourceCache.get(cacheKey)
   if (cached === undefined) {
     setModuleSourceState(controller, "loading")
     setModuleSource(controller, {
@@ -5788,7 +5802,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
         scriptUrl: data.scriptUrl ?? "",
         ...(data.tokens === undefined ? {} : {tokens: data.tokens}),
       }
-      if (useFrameSourceCache) controller.sourceCache.set(cacheKey, cached)
+      controller.sourceCache.set(cacheKey, cached)
     } catch (error) {
       setModuleSource(controller, {
         text: `fetch failed: ${String(error)}`,
@@ -5822,7 +5836,14 @@ function setModuleSource(controller: ModuleDisplayController, payload: Source, s
   controller.sourceRuntimeState = state
   controller.sourceIdentity = payload.identity
   controller.source.setTitle(moduleSourceTitle(controller))
-  const sourceKey = `${payload.identity?.scriptId ?? ""}\0${payload.location}\0${payload.text.length}\0${payload.text.slice(0, 80)}`
+  const sourceKey = [
+    payload.identity?.scriptId ?? "",
+    payload.identity?.sourceUrl ?? "",
+    payload.identity?.scriptUrl ?? "",
+    payload.identity?.key ?? "",
+    payload.text.length,
+    stableStringHash(payload.text),
+  ].join("\0")
   controller.sourceText = payload.text
   if (controller.sourceTextKey !== sourceKey) {
     controller.sourceTextKey = sourceKey
