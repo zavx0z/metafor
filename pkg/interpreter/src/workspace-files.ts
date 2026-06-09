@@ -1,4 +1,4 @@
-import {existsSync, readdirSync, statSync, type Dirent} from "node:fs"
+import {existsSync, readFileSync, readdirSync, statSync, type Dirent} from "node:fs"
 import {dirname, isAbsolute, join, relative, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
 
@@ -45,6 +45,18 @@ const WORKSPACE_FILE_EXTENSIONS = new Set([
   ".yml",
 ])
 
+const WORKSPACE_RESOLVE_EXTENSIONS = [
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".json",
+]
+
 const WORKSPACE_SKIP_DIRS = new Set([
   ".cache",
   ".git",
@@ -61,10 +73,10 @@ const WORKSPACE_SKIP_DIRS = new Set([
 export function workspaceFilesPayload(url: URL, options: WorkspaceFilesPayloadOptions = {}): WorkspaceFilesPayload {
   const cwd = normalizeAbsolutePath(options.cwd ?? process.cwd())
   const targetPath = resolveModuleTargetPath(options.module, cwd)
-  const root = targetPath === undefined ? cwd : workspaceRootForTarget(targetPath, cwd)
+  const root = workspaceRootForLaunch(options.module, targetPath, cwd)
   const query = (url.searchParams.get("q") ?? "").trim().toLowerCase()
   const limit = clampWorkspaceLimit(url.searchParams.get("limit") === null ? 120 : Number(url.searchParams.get("limit")))
-  const paths = collectWorkspaceFiles(root, query)
+  const paths = (targetPath === undefined ? collectWorkspaceFiles(root, query) : collectImportedWorkspaceFiles(root, targetPath, query))
     .sort((a, b) => fileRank(a) - fileRank(b) || a.localeCompare(b))
     .slice(0, limit)
 
@@ -75,6 +87,12 @@ export function workspaceFilesPayload(url: URL, options: WorkspaceFilesPayloadOp
     ...(targetPath === undefined ? {} : {modulePath: targetPath}),
     files: paths.map((path) => ({path})),
   }
+}
+
+function workspaceRootForLaunch(module: WorkspaceFilesModuleContext | undefined, targetPath: string | undefined, cwd: string): string {
+  const targetCwd = normalizeAbsolutePath(module?.target?.cwd ?? cwd)
+  if (targetPath !== undefined && isSameOrInside(targetPath, targetCwd)) return targetCwd
+  return cwd
 }
 
 export function resolveModuleTargetPath(module: WorkspaceFilesModuleContext | undefined, cwd = process.cwd()): string | undefined {
@@ -145,6 +163,200 @@ function collectWorkspaceFiles(root: string, query: string): string[] {
   return files
 }
 
+function collectImportedWorkspaceFiles(root: string, entrypoint: string, query: string): string[] {
+  const packageMap = workspacePackageMap(root)
+  const files = new Set<string>()
+  const seen = new Set<string>()
+  const queue = [normalizeAbsolutePath(entrypoint)]
+
+  while (queue.length > 0) {
+    const file = queue.shift()!
+    if (seen.has(file)) continue
+    seen.add(file)
+    if (!isSameOrInside(file, root)) continue
+    if (!isWorkspaceCatalogFile(file)) continue
+
+    const rel = relative(root, file).replaceAll("\\", "/")
+    if (query.length === 0 || rel.toLowerCase().includes(query)) files.add(rel)
+
+    const source = readTextFile(file)
+    if (source === undefined) continue
+    for (const specifier of importSpecifiers(source)) {
+      const resolved = resolveImportSpecifier(specifier, dirname(file), root, packageMap)
+      if (resolved !== undefined && !seen.has(resolved)) queue.push(resolved)
+    }
+  }
+
+  return [...files]
+}
+
+type WorkspacePackage = {
+  name: string
+  root: string
+  manifest: Record<string, unknown>
+}
+
+function workspacePackageMap(root: string): Map<string, WorkspacePackage> {
+  const packages = new Map<string, WorkspacePackage>()
+  const stack = [root]
+
+  while (stack.length > 0) {
+    const dir = stack.pop()!
+    let entries: Dirent[]
+    try {
+      entries = readdirSync(dir, {withFileTypes: true})
+    } catch {
+      continue
+    }
+
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") && entry.name !== ".storybook") continue
+      const abs = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (!WORKSPACE_SKIP_DIRS.has(entry.name)) stack.push(abs)
+        continue
+      }
+      if (!entry.isFile() || entry.name !== "package.json") continue
+      const manifest = readJsonFile(abs)
+      if (manifest === undefined) continue
+      const name = typeof manifest["name"] === "string" ? manifest["name"] : undefined
+      if (name !== undefined && name.length > 0) packages.set(name, {name, root: dir, manifest})
+    }
+  }
+
+  return packages
+}
+
+function resolveImportSpecifier(specifier: string, importerDir: string, root: string, packages: Map<string, WorkspacePackage>): string | undefined {
+  if (specifier.startsWith("node:") || specifier.startsWith("bun")) return undefined
+  if (specifier.startsWith(".") || specifier.startsWith("/")) {
+    const base = specifier.startsWith("/") ? specifier : resolve(importerDir, specifier)
+    return resolveFileCandidate(base)
+  }
+
+  const packageRef = packageSpecifier(specifier)
+  if (packageRef === undefined) return undefined
+  const workspacePackage = packages.get(packageRef.name)
+  if (workspacePackage === undefined) return undefined
+  const packageEntry = resolvePackageEntry(workspacePackage, packageRef.subpath)
+  if (packageEntry === undefined) return undefined
+  const resolved = resolveFileCandidate(join(workspacePackage.root, packageEntry))
+  if (resolved === undefined || !isSameOrInside(resolved, root)) return undefined
+  return resolved
+}
+
+function packageSpecifier(specifier: string): {name: string; subpath: string} | undefined {
+  const parts = specifier.split("/")
+  if (specifier.startsWith("@")) {
+    if (parts.length < 2) return undefined
+    return {
+      name: `${parts[0]}/${parts[1]}`,
+      subpath: parts.length > 2 ? `./${parts.slice(2).join("/")}` : ".",
+    }
+  }
+  return {
+    name: parts[0] ?? "",
+    subpath: parts.length > 1 ? `./${parts.slice(1).join("/")}` : ".",
+  }
+}
+
+function resolvePackageEntry(pkg: WorkspacePackage, subpath: string): string | undefined {
+  const exportsValue = pkg.manifest["exports"]
+  const exported = exportedPath(exportsValue, subpath)
+  if (exported !== undefined) return exported
+  if (subpath !== ".") return subpath.slice(2)
+  for (const key of ["module", "main"]) {
+    const value = pkg.manifest[key]
+    if (typeof value === "string") return value
+  }
+  return "index"
+}
+
+function exportedPath(value: unknown, subpath: string): string | undefined {
+  if (typeof value === "string") return subpath === "." ? value : undefined
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const direct = record[subpath]
+  if (direct !== undefined) return exportedPathValue(direct)
+  if (subpath === ".") return exportedPathValue(record["."])
+  return undefined
+}
+
+function exportedPathValue(value: unknown): string | undefined {
+  if (typeof value === "string") return value
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  return exportedPathValue(record["import"])
+    ?? exportedPathValue(record["default"])
+    ?? exportedPathValue(record["module"])
+    ?? exportedPathValue(record["types"])
+}
+
+function resolveFileCandidate(base: string): string | undefined {
+  const normalized = normalizeAbsolutePath(base)
+  const stat = safeStat(normalized)
+  if (stat?.isFile() === true && isWorkspaceCatalogFile(normalized)) return normalized
+  if (stat?.isDirectory() === true) {
+    const packageEntry = resolveDirectoryPackageEntry(normalized)
+    if (packageEntry !== undefined) return packageEntry
+    for (const ext of WORKSPACE_RESOLVE_EXTENSIONS) {
+      const indexed = join(normalized, `index${ext}`)
+      if (safeStat(indexed)?.isFile() === true) return normalizeAbsolutePath(indexed)
+    }
+    return undefined
+  }
+  for (const ext of WORKSPACE_RESOLVE_EXTENSIONS) {
+    const withExt = `${normalized}${ext}`
+    if (safeStat(withExt)?.isFile() === true) return normalizeAbsolutePath(withExt)
+  }
+  return undefined
+}
+
+function resolveDirectoryPackageEntry(dir: string): string | undefined {
+  const manifest = readJsonFile(join(dir, "package.json"))
+  if (manifest === undefined) return undefined
+  const exported = exportedPath(manifest["exports"], ".")
+  const entry = exported
+    ?? (typeof manifest["module"] === "string" ? manifest["module"] : undefined)
+    ?? (typeof manifest["main"] === "string" ? manifest["main"] : undefined)
+  return entry === undefined ? undefined : resolveFileCandidate(join(dir, entry))
+}
+
+function importSpecifiers(source: string): string[] {
+  const specifiers = new Set<string>()
+  const patterns = [
+    /\bimport\s+(?:type\s+)?[^"'()]*?\s+from\s+["']([^"']+)["']/g,
+    /\bimport\s+["']([^"']+)["']/g,
+    /\bexport\s+(?:type\s+)?[^"']*?\s+from\s+["']([^"']+)["']/g,
+    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+  ]
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) {
+      const specifier = match[1]
+      if (specifier !== undefined) specifiers.add(specifier)
+    }
+  }
+  return [...specifiers]
+}
+
+function readTextFile(path: string): string | undefined {
+  if (!isTextImportSource(path)) return undefined
+  try {
+    return readFileSync(path, "utf8")
+  } catch {
+    return undefined
+  }
+}
+
+function readJsonFile(path: string): Record<string, unknown> | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function resolveExistingPathCandidate(candidate: string, cwd: string): string | undefined {
   const clean = cleanPathCandidate(candidate)
   if (clean === undefined) return undefined
@@ -198,6 +410,23 @@ function normalizeAbsolutePath(path: string): string {
 function extensionOf(path: string): string {
   const dot = path.lastIndexOf(".")
   return dot < 0 ? "" : path.slice(dot).toLowerCase()
+}
+
+function isWorkspaceCatalogFile(path: string): boolean {
+  const name = path.split("/").at(-1) ?? path
+  return !name.endsWith(".d.ts") && WORKSPACE_FILE_EXTENSIONS.has(extensionOf(name))
+}
+
+function isTextImportSource(path: string): boolean {
+  const ext = extensionOf(path)
+  return ext === ".ts"
+    || ext === ".tsx"
+    || ext === ".mts"
+    || ext === ".cts"
+    || ext === ".js"
+    || ext === ".jsx"
+    || ext === ".mjs"
+    || ext === ".cjs"
 }
 
 function fileRank(path: string): number {

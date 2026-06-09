@@ -22,7 +22,7 @@ Interpreter
 
 `display` - только визуальная поверхность в `Space`. Через display можно сфокусировать или разложить рабочие поверхности, но разработческие действия идут через `/processes/:id/...`.
 
-`module` - source/code unit. Module catalog живет внутри process context: `/processes/:id/modules`. Глобального `/modules` нет.
+`module` - source/code unit. Module catalog живет внутри process context: `/processes/:id/modules`.
 
 ## REST
 
@@ -210,7 +210,7 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
 
 ## Каталог Кода
 
-`GET /processes/:id/modules` возвращает каталог кода в контексте process: entrypoint, workspace root и source files.
+`GET /processes/:id/modules` возвращает каталог кода в контексте process: entrypoint, launch root и импортированные локальные source files. Каталог строится по import graph, включая workspace package imports, а не рекурсивным обходом всех файлов.
 
 ```json
 {
@@ -218,10 +218,10 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
   "processId": "dark-server.spec.ts",
   "kind": "module",
   "moduleId": "dark-server.spec.ts",
-  "root": "/repo/dark",
-  "workspacePath": "dark",
+  "root": "/repo",
+  "workspacePath": "",
   "entrypoint": "/repo/dark/server.spec.ts",
-  "modules": [{"path":"server.ts"}, {"path":"server.spec.ts"}]
+  "modules": [{"path":"dark/server.spec.ts"}, {"path":"dark/server.ts"}, {"path":"pkg/protocol/index.ts"}]
 }
 ```
 

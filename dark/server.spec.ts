@@ -52,8 +52,14 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     let materialized = false
     while (Date.now() < deadline) {
       try {
-        const rows = await sql<Array<{src: string}>>`SELECT src FROM wimp WHERE src = 'zavx0z/git-history-commit'`
-        if (rows.length > 0) {
+        // git-history-commit появляется до завершения root matter graph;
+        // git-error приходит из later logical branch, поэтому ждём оба sentinel.
+        const rows = await sql<Array<{src: string}>>`
+          SELECT src FROM wimp
+          WHERE src IN ('zavx0z/git-history-commit', 'zavx0z/git-error')
+        `
+        const srcs = new Set(rows.map((row) => row.src))
+        if (srcs.has("zavx0z/git-history-commit") && srcs.has("zavx0z/git-error")) {
           materialized = true
           break
         }

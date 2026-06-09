@@ -58,7 +58,7 @@ Protocol names вроде `Debugger.paused`, `Debugger.scriptParsed`, `Runtime.g
 - command replies обновляют только process/display, в котором выполнялась команда;
 - protocol events с `moduleId` уходят только в owning process/display.
 
-В API намеренно нет глобального `/breakpoint`, глобального `/source`, глобального `/command` и неявного current module. `module` - source/code unit. Каталог кода доступен как `/processes/:id/modules`.
+Runtime-действия адресуются через process. `module` - source/code unit. Каталог кода process доступен как `/processes/:id/modules`.
 
 ## Правило Инструментов
 
@@ -91,7 +91,7 @@ Process API:
 - `POST /processes/focus` фокусирует surface process в Space.
 - `GET /processes/:id` возвращает рабочий payload process: content, runtime status, текущий UI context, tail терминала и capabilities.
 - `GET /processes/:id/context` возвращает текущий source/frame/scope/terminal context одного process.
-- `GET /processes/:id/modules` возвращает каталог кода в контексте process.
+- `GET /processes/:id/modules` возвращает import graph каталога кода process от entrypoint и workspace package imports.
 - `GET /processes/:id/source` читает source в контексте process.
 - `POST /processes/:id/source` сохраняет source через серверный apply_patch flow.
 - `POST /processes/:id/apply_patch` принимает raw `apply_patch` text/plain для process.

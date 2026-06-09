@@ -18,6 +18,7 @@
     "@dark/strong": "workspace:*",
     "@dark/weak": "workspace:*",
     "@dark/em": "workspace:*",
+    "@shared/protocol": "workspace:*",
     "@store/wimp": "workspace:*",
     "store": "workspace:*"
   }

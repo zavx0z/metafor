@@ -90,7 +90,7 @@ WS     /hud/terminal/stream
 GET    /hud/terminal/sessions
 ```
 
-`GET /context` возвращает один текущий context — то, что сейчас видно/выделено. `GET /processes/:id/modules` возвращает каталог кода в контексте process.
+`GET /context` возвращает один текущий context — то, что сейчас видно/выделено. `GET /processes/:id/modules` возвращает import graph каталога кода process от entrypoint и workspace package imports.
 
 Пример запуска нового Bun process через REST:
 
