@@ -246,6 +246,8 @@ Editor gutter clicks in one display may only set/remove breakpoints for that dis
 
 Prefer logical source matching helpers from `web/breakpoint-matching.ts` and source map helpers from `src/source-map.ts`; do not reintroduce ad hoc global breakpoint matching.
 
+Existing breakpoints are user-owned runtime state. Before moving execution to a user-requested location, inspect the module's current breakpoints and plan around them. If an existing breakpoint stops execution before the requested location, skip through it with resume/step flow or a temporary agent-owned breakpoint; do not delete, disable, move, or overwrite existing breakpoints unless the user explicitly asks for that. Only agent-created temporary breakpoints may be removed after the requested move is complete.
+
 ## Events
 
 Verbose/event panels are per display. Toggling events on one display must not show/hide cards on any other display.

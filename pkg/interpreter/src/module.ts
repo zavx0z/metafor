@@ -1,6 +1,6 @@
 import {dirname, join} from "node:path"
 import type {BreakpointStore} from "./breakpoints.ts"
-import {BreakpointStore as Breakpoints} from "./breakpoints.ts"
+import {BreakpointStore as Breakpoints, breakpointSpecMatchesSourceUrl, sameBreakpointSpec} from "./breakpoints.ts"
 import type {ConsoleLogStore} from "./console.ts"
 import {ConsoleLogStore as ConsoleLogs} from "./console.ts"
 import type {InterpreterConfig} from "./config.ts"
@@ -61,6 +61,11 @@ type InterpreterModuleOptions = {
   protocolUrl: string
   dumpPath: string
   consoleLogPath: string
+}
+
+type ReplayRunToTarget = {
+  spec: BreakpointSpec
+  removeWhenReached: boolean
 }
 
 export class InterpreterModule {
@@ -146,6 +151,25 @@ export class InterpreterModule {
     return this.target.start({
       ...options,
       protocolUrl: this.client.url,
+    })
+  }
+
+  replayTarget(options: {breakpoints?: BreakpointSpec[]; runTo?: BreakpointSpec} = {}): Promise<TargetSnapshot> {
+    const baseBreakpoints = options.breakpoints ?? this.breakpoints.registrations.map((registration) => registration.spec)
+    const runTo = options.runTo
+    const runToExists = runTo !== undefined && baseBreakpoints.some((spec) => breakpointSpecMatchesRunTo(spec, runTo))
+    const breakpoints = runTo === undefined || runToExists ? baseBreakpoints : [...baseBreakpoints, runTo]
+    return this.target.restart({
+      inspectMode: "wait",
+      pauseOnStart: false,
+      breakpoints,
+      beforeStart: () => this.runtime.setReplayRunTo(runTo === undefined ? null : {
+        spec: runTo,
+        removeWhenReached: !runToExists,
+      }),
+    }).catch((error) => {
+      this.runtime.setReplayRunTo(null)
+      throw error
     })
   }
 
@@ -311,6 +335,7 @@ class InterpreterRuntime {
   #sleepResolver: (() => void) | undefined
   #closed = false
   #waitingForTarget = false
+  #replayRunTo: ReplayRunToTarget | null = null
 
   constructor(options: InterpreterRuntimeOptions) {
     this.#moduleId = options.moduleId
@@ -323,6 +348,14 @@ class InterpreterRuntime {
 
     this.#client.onEvent((method, params) => {
       this.#handleProtocolEvent(method, params)
+    })
+  }
+
+  setReplayRunTo(target: ReplayRunToTarget | null): void {
+    this.#replayRunTo = target
+    this.#logger.event("source.patch.replay.run_to", {
+      moduleId: this.#moduleId,
+      target,
     })
   }
 
@@ -403,7 +436,7 @@ class InterpreterRuntime {
     target.onEvent((event) => {
       if (event.type === "started") {
         this.#snapshots.reset()
-        this.#breakpoints.reset()
+        this.#breakpoints.clearInstalled("target.started")
         this.#logger.event("interpreter.kick_reconnect.scheduled", {
           moduleId: this.#moduleId,
           reason: "target.started",
@@ -415,6 +448,7 @@ class InterpreterRuntime {
           this.#kickReconnect()
         }, 500)
       } else if (event.type === "exited") {
+        this.#replayRunTo = null
         this.#clearInitializedFallback()
         this.#breakpoints.clearInstalled("target.exited")
         this.#logger.event("interpreter.connection.completed", {
@@ -576,7 +610,7 @@ class InterpreterRuntime {
         void this.#handleScriptParsedForBreakpoints(params)
         return
       case "Debugger.paused":
-        void this.#snapshots.handlePaused(params)
+        void this.#handlePaused(params)
         return
       case "Debugger.resumed":
         this.#snapshots.handleResumed()
@@ -592,6 +626,42 @@ class InterpreterRuntime {
     }
   }
 
+  async #handlePaused(params: JsonObject): Promise<void> {
+    const replay = this.#replayRunTo
+    if (replay !== null) {
+      const paused = this.#snapshots.describePaused(params)
+      if (!replayRunToReached(replay.spec, paused.topFrame)) {
+        this.#logger.event("source.patch.replay.transit_pause", {
+          moduleId: this.#moduleId,
+          target: replay.spec,
+          paused,
+        })
+        try {
+          await this.#client.request("Debugger.resume")
+          this.#snapshots.markRunning()
+        } catch (error) {
+          this.#replayRunTo = null
+          this.#logger.event("source.patch.replay.resume_failed", {
+            moduleId: this.#moduleId,
+            target: replay.spec,
+            error: serializeError(error),
+          })
+          await this.#snapshots.handlePaused(params)
+        }
+        return
+      }
+
+      this.#replayRunTo = null
+      if (replay.removeWhenReached) await this.#breakpoints.removeSpec(replay.spec)
+      this.#logger.event("source.patch.replay.reached", {
+        moduleId: this.#moduleId,
+        target: replay.spec,
+        paused,
+      })
+    }
+    await this.#snapshots.handlePaused(params)
+  }
+
   async #handleScriptParsedForBreakpoints(params: JsonObject): Promise<void> {
     const scriptId = typeof params["scriptId"] === "string" ? params["scriptId"] : undefined
     const url = typeof params["url"] === "string" ? params["url"] : ""
@@ -600,6 +670,22 @@ class InterpreterRuntime {
     const script = {scriptId, url, ...(sourceMapURL === undefined ? {} : {sourceMapURL})}
     await this.#breakpoints.handleScriptParsed(script)
   }
+}
+
+function replayRunToReached(spec: BreakpointSpec, frame: JsonObject | undefined): boolean {
+  if (frame === undefined) return false
+  const url = typeof frame["url"] === "string" ? frame["url"] : ""
+  const line = typeof frame["line"] === "number" ? frame["line"] : 0
+  return line === spec.line && breakpointSpecMatchesSourceUrl(spec, url)
+}
+
+function breakpointSpecMatchesRunTo(spec: BreakpointSpec, runTo: BreakpointSpec): boolean {
+  if (sameBreakpointSpec(spec, runTo)) return true
+  if (spec.line !== runTo.line) return false
+  for (const source of [runTo.sourceUrl, runTo.url]) {
+    if (source !== undefined && breakpointSpecMatchesSourceUrl(spec, source)) return true
+  }
+  return false
 }
 
 function initialNextProtocolPort(protocolUrl: string, httpPort: number): number {

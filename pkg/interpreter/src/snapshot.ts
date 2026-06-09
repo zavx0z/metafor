@@ -260,6 +260,19 @@ export class SnapshotStore {
     }
   }
 
+  describePaused(params: JsonObject): {
+    reason: string
+    hitBreakpoints: string[]
+    topFrame: JsonObject | undefined
+  } {
+    const callFrames = asCallFrames(params["callFrames"])
+    return {
+      reason: asString(params["reason"]) ?? "unknown",
+      hitBreakpoints: asStringArray(params["hitBreakpoints"]),
+      topFrame: this.describeFrame(callFrames[0]),
+    }
+  }
+
   describeFrame(frame: CallFrame | undefined): JsonObject | undefined {
     if (frame === undefined) return undefined
 

@@ -84,6 +84,7 @@ export class TargetSupervisor {
   #state: TargetState = "idle"
   #command: string[] = []
   #cwd: string | null = null
+  #env: Record<string, string> | undefined
   #pid: number | null = null
   #startedAt: string | null = null
   #exitedAt: string | null = null
@@ -160,6 +161,7 @@ export class TargetSupervisor {
     const pauseOnStart = inspectMode === "brk"
     this.#command = applyInspectMode(options.command, inspectMode, options.protocolUrl ?? "ws://127.0.0.1:6499/")
     this.#cwd = options.cwd ?? process.cwd()
+    this.#env = options.env
     this.#exitCode = null
     this.#signalCode = null
     this.#exitedAt = null
@@ -212,6 +214,31 @@ export class TargetSupervisor {
     void this.#exitHandled
 
     return this.snapshot()
+  }
+
+  async restart(options: {
+    inspectMode?: InspectMode
+    pauseOnStart?: boolean
+    breakpoints?: BreakpointSpec[]
+    signal?: NodeJS.Signals
+    beforeStart?: () => void
+  } = {}): Promise<TargetSnapshot> {
+    if (this.#command.length === 0) throw new Error("target has no previous command to replay")
+    const command = [...this.#command]
+    const cwd = this.#cwd ?? process.cwd()
+    const env = this.#env
+    if (this.#state === "starting" || this.#state === "running") {
+      await this.stop(options.signal ?? "SIGTERM")
+    }
+    options.beforeStart?.()
+    return this.start({
+      command,
+      cwd,
+      ...(env === undefined ? {} : {env}),
+      pauseOnStart: options.pauseOnStart ?? false,
+      inspectMode: options.inspectMode ?? "wait",
+      breakpoints: options.breakpoints ?? [],
+    })
   }
 
   async stop(signal: NodeJS.Signals = "SIGTERM"): Promise<TargetSnapshot> {

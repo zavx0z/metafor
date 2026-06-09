@@ -14,7 +14,7 @@
 
 import type {ServerWebSocket, WebSocketHandler} from "bun"
 import {existsSync, statSync, openSync, readSync, closeSync, readFileSync} from "node:fs"
-import {join, resolve} from "node:path"
+import {join, relative, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
 import indexHtml from "../web/index.html"
 
@@ -32,8 +32,11 @@ import {asNumber, asObject, asString} from "./guards.ts"
 import type {EventLogger} from "./logger.ts"
 import type {JsonObject} from "./types.ts"
 import {sourceMapMapper} from "./source-map.ts"
+import {applyPatch, createReplaceFilePatch, type ApplyPatchFileChange, type ApplyPatchResult} from "./apply-patch.ts"
+import {remapBreakpointLine, type BreakpointRegistration} from "./breakpoints.ts"
 import {createPtySessionManager, parsePtyClientMessage, type PtySocketData, type TerminalSession} from "@metafor/pty/server"
 import type {InterpreterModule, InterpreterModuleManager, StartupModuleOptions} from "./module.ts"
+import type {BreakpointSpec} from "./target.ts"
 import {workspaceFilesPayload, type WorkspaceFilesModuleContext} from "./workspace-files.ts"
 import {sqliteDatabaseInputPath, sqliteDatabasePayload, sqliteJsonError, updateSqliteCell} from "./sqlite-db.ts"
 
@@ -76,6 +79,17 @@ type UiHostPendingRequest = {
 }
 type ModuleContextStore = Map<string, JsonObject>
 type ModuleSnapshot = ReturnType<InterpreterModule["snapshot"]>
+type SourcePatchReason = "save" | "apply_patch"
+type SourcePatchBreakpointUpdate = {
+  moduleId: string
+  breakpoints: BreakpointRegistration[]
+}
+type SourcePatchReplayResult = {
+  moduleId: string
+  status: "replayed" | "skipped" | "failed"
+  reason?: string
+  target?: ModuleSnapshot["target"]
+}
 
 class UiHostCommandError extends Error {
   readonly status: number
@@ -507,6 +521,9 @@ async function handleRoute(
   if (method === "POST" && moduleCommand !== null) return await dispatchModuleCommand(moduleCommand[1]!, req, options)
   const moduleSource = /^\/modules\/([^/]+)\/source$/.exec(path)
   if (method === "GET" && moduleSource !== null) return await getModuleScriptSource(moduleSource[1]!, url, options)
+  if (method === "POST" && moduleSource !== null) return await saveModuleSource(moduleSource[1]!, req, options, broadcast)
+  const moduleApplyPatch = /^\/modules\/([^/]+)\/apply[-_]patch$/.exec(path)
+  if (method === "POST" && moduleApplyPatch !== null) return await applyModulePatch(moduleApplyPatch[1]!, req, options, broadcast)
   const moduleContext = /^\/modules\/([^/]+)\/context$/.exec(path)
   if (method === "GET" && moduleContext !== null) return getModuleContext(moduleContext[1]!, options, moduleContexts)
   const moduleBreakpoints = /^\/modules\/([^/]+)\/breakpoints$/.exec(path)
@@ -569,6 +586,8 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/modules/:id/stop", description: "{signal?} — остановить модуль"},
     {method: "POST", path: "/modules/:id/command", description: "{cmd, params?} — команда в конкретный модуль"},
     {method: "GET", path: "/modules/:id/source?scriptId=<id>", description: "исходник скрипта конкретного модуля"},
+    {method: "POST", path: "/modules/:id/source", description: "{sourceUrl, text} — сохранить локальный source file через apply_patch и разослать source-patched"},
+    {method: "POST", path: "/modules/:id/apply_patch", description: "{patch} — применить apply_patch к workspace и разослать source-patched"},
     {method: "GET", path: "/modules/:id/context", description: "последний текущий контекст конкретного модуля"},
     {method: "GET", path: "/modules/:id/breakpoints", description: "breakpoint registrations конкретного модуля"},
     {method: "POST", path: "/modules/:id/breakpoint", description: "{url|sourceUrl|urlRegex, line, column?, condition?} — breakpoint в конкретном модуле"},
@@ -1004,6 +1023,21 @@ async function getScriptSourceForModule(url: URL, module: InterpreterModule, cac
   const mappedSource = sourceKind === "runtime" ? null : sourceMapMapper(script?.sourceMapURL).sourceContent(sourceUrl ?? fileUrl)
   const includeTokens = url.searchParams.get("tokens") !== "0"
   const responseUrl = mappedSource?.source ?? fileUrl ?? ""
+  const mappedSourcePath = mappedSource === null ? undefined : sourceFilePath(mappedSource.source)
+  if (mappedSourcePath !== undefined && isReadableFile(mappedSourcePath)) {
+    try {
+      return sourceFileResponse({
+        scriptId,
+        url: mappedSource?.source ?? responseUrl,
+        scriptUrl: fileUrl ?? "",
+        path: mappedSourcePath,
+        includeTokens,
+        cacheScope: `${cacheScope}:${scriptId}`,
+      })
+    } catch {
+      // Fall back to the embedded source map content if the local file becomes unreadable.
+    }
+  }
   const cacheKey = sourceCacheKey(`${cacheScope}:${scriptId}`, `${mappedSource === null ? "runtime" : "sourcemap"}\0${responseUrl}`)
 
   const cachedSource = lruGet(sourceCache, cacheKey)
@@ -1067,21 +1101,325 @@ function getSourceFile(sourceUrl: string | undefined, url: URL): Response {
   }
 
   try {
-    const scriptSource = readFileSync(path, "utf8")
     const includeTokens = url.searchParams.get("tokens") !== "0"
-    const cacheKey = sourceCacheKey("", `file\0${path}`)
-    lruSet(sourceCache, cacheKey, scriptSource, SOURCE_CACHE_MAX)
-    return jsonResponse({
+    return sourceFileResponse({
       scriptId: "",
       url: sourceUrl,
-      scriptSource,
-      tokens: includeTokens ? tokensFor(cacheKey, scriptSource, sourceUrl) : undefined,
-      sourceKind: "file",
-      cached: false,
+      scriptUrl: "",
+      path,
+      includeTokens,
+      cacheScope: "",
     })
   } catch (error) {
     return jsonResponse({ok: false, scriptId: "", url: sourceUrl, error: serializeError(error)}, optional ? 200 : 404)
   }
+}
+
+function sourceFileResponse(options: {
+  scriptId: string
+  url: string
+  scriptUrl: string
+  path: string
+  includeTokens: boolean
+  cacheScope: string
+}): Response {
+  const scriptSource = readFileSync(options.path, "utf8")
+  const stat = statSync(options.path)
+  const cacheKey = sourceCacheKey(options.cacheScope, `file\0${options.path}\0${stat.size}\0${stat.mtimeMs}`)
+  lruSet(sourceCache, cacheKey, scriptSource, SOURCE_CACHE_MAX)
+  return jsonResponse({
+    scriptId: options.scriptId,
+    url: options.url,
+    scriptUrl: options.scriptUrl,
+    scriptSource,
+    tokens: options.includeTokens ? tokensFor(cacheKey, scriptSource, options.url) : undefined,
+    sourceKind: "file",
+    cached: false,
+  })
+}
+
+async function saveModuleSource(
+  moduleId: string,
+  req: Request,
+  options: HttpServerOptions,
+  broadcast: (payload: JsonObject) => void,
+): Promise<Response> {
+  if (options.modules.get(moduleId) === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const sourceUrl = asString(parsed.body["sourceUrl"])
+    ?? asString(parsed.body["path"])
+    ?? asString(parsed.body["modulePath"])
+  const text = asString(parsed.body["text"])
+    ?? asString(parsed.body["scriptSource"])
+    ?? asString(parsed.body["content"])
+  if (sourceUrl === undefined || sourceUrl.trim().length === 0) return jsonResponse({ok: false, error: "sourceUrl required"}, 400)
+  if (text === undefined) return jsonResponse({ok: false, error: "text required"}, 400)
+
+  const filePath = sourceFilePath(sourceUrl)
+  if (filePath === undefined) return jsonResponse({ok: false, sourceUrl, error: "sourceUrl is not a local file path"}, 400)
+
+  const before = readFileSync(filePath, "utf8")
+  const patch = createReplaceFilePatch(filePath, before, text)
+  let result: ApplyPatchResult = {ok: true, files: []}
+  if (patch !== null) {
+    let breakpointUpdates: SourcePatchBreakpointUpdate[] = []
+    try {
+      result = applyPatch({patch})
+      breakpointUpdates = await remapBreakpointsForPatch(options, result, sourceUrl)
+    } catch (error) {
+      return jsonResponse({ok: false, sourceUrl, path: filePath, error: serializeError(error)}, 400)
+    }
+    clearSourceCaches()
+    broadcastSourcePatched(options, broadcast, moduleId, "save", result, sourceUrl, breakpointUpdates)
+    const replay = await replayModulesForPatch(options, result)
+    return jsonResponse({
+      ok: true,
+      moduleId,
+      sourceUrl,
+      path: filePath,
+      bytes: Buffer.byteLength(text, "utf8"),
+      mtimeMs: statSync(filePath).mtimeMs,
+      size: statSync(filePath).size,
+      patch: result,
+      replay,
+    })
+  }
+  const stat = statSync(filePath)
+  return jsonResponse({
+    ok: true,
+    moduleId,
+    sourceUrl,
+    path: filePath,
+    bytes: Buffer.byteLength(text, "utf8"),
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    patch: result,
+    replay: [],
+  })
+}
+
+async function applyModulePatch(
+  moduleId: string,
+  req: Request,
+  options: HttpServerOptions,
+  broadcast: (payload: JsonObject) => void,
+): Promise<Response> {
+  if (options.modules.get(moduleId) === undefined) return jsonResponse({ok: false, error: `module not found: ${moduleId}`}, 404)
+  const parsed = await readJsonObject(req)
+  if (parsed.error !== undefined) return jsonResponse({ok: false, error: parsed.error}, 400)
+  const patch = asString(parsed.body["patch"])
+  if (patch === undefined || patch.trim().length === 0) return jsonResponse({ok: false, error: "patch required"}, 400)
+
+  try {
+    const result = applyPatch({patch})
+    const breakpointUpdates = await remapBreakpointsForPatch(options, result)
+    if (result.files.length > 0) {
+      clearSourceCaches()
+      broadcastSourcePatched(options, broadcast, moduleId, "apply_patch", result, undefined, breakpointUpdates)
+    }
+    const replay = await replayModulesForPatch(options, result)
+    return jsonResponse({ok: true, moduleId, patch: result, breakpoints: breakpointUpdates, replay})
+  } catch (error) {
+    return jsonResponse({ok: false, moduleId, error: serializeError(error)}, 400)
+  }
+}
+
+async function remapBreakpointsForPatch(
+  options: HttpServerOptions,
+  result: ApplyPatchResult,
+  sourceUrl?: string,
+): Promise<SourcePatchBreakpointUpdate[]> {
+  const byModule = new Map<string, BreakpointRegistration[]>()
+  for (const file of result.files) {
+    if (file.lineChanges.length === 0) continue
+    const changeSourceUrl = sourceUrl ?? sourceUrlFromPath(file.path)
+    for (const module of options.modules.list()) {
+      const remapped = await module.breakpoints.remapLinesForSource({
+        path: file.path,
+        sourceUrl: changeSourceUrl,
+        lineChanges: file.lineChanges,
+      }, module.snapshots.scripts)
+      if (remapped.length === 0) continue
+      byModule.set(module.id, module.breakpoints.registrations)
+    }
+  }
+  return [...byModule].map(([moduleId, breakpoints]) => ({moduleId, breakpoints}))
+}
+
+async function replayModulesForPatch(options: HttpServerOptions, result: ApplyPatchResult): Promise<SourcePatchReplayResult[]> {
+  const modules = affectedModulesForPatch(options, result)
+  const replayed: SourcePatchReplayResult[] = []
+  for (const module of modules) {
+    const snapshot = module.snapshot()
+    if (snapshot.target.command.length === 0) {
+      replayed.push({moduleId: module.id, status: "skipped", reason: "target has no command"})
+      continue
+    }
+    if (snapshot.target.state !== "running" && snapshot.target.state !== "starting") {
+      replayed.push({moduleId: module.id, status: "skipped", reason: `target is ${snapshot.target.state}`})
+      continue
+    }
+    try {
+      const breakpoints = module.breakpoints.registrations.map((registration) => registration.spec)
+      const runTo = replayRunToForPatch(module, result)
+      const target = await module.replayTarget({
+        breakpoints,
+        ...(runTo === undefined ? {} : {runTo}),
+      })
+      replayed.push({moduleId: module.id, status: "replayed", target})
+      options.logger.event("source.patch.replay", {moduleId: module.id, fileCount: result.files.length, runTo, target})
+    } catch (error) {
+      const reason = serializeError(error)
+      replayed.push({moduleId: module.id, status: "failed", reason})
+      options.logger.event("source.patch.replay.failed", {moduleId: module.id, error: reason})
+    }
+  }
+  return replayed
+}
+
+function replayRunToForPatch(module: InterpreterModule, result: ApplyPatchResult): BreakpointSpec | undefined {
+  const frame = module.snapshot().dump?.frames[0]
+  if (frame === undefined || frame.line <= 0 || frame.url.trim().length === 0) return undefined
+
+  let line = frame.line
+  let affected = false
+  for (const file of result.files) {
+    if (!patchFileMatchesSource(file, frame.url)) continue
+    affected = true
+    if (file.lineChanges.length > 0) line = remapBreakpointLine(line, file.lineChanges)
+  }
+  if (!affected) return undefined
+
+  const spec: BreakpointSpec = {line}
+  const scriptUrl = frame.scriptId === undefined ? undefined : module.snapshots.scriptInfo(frame.scriptId)?.url
+  if (frame.sourceKind === "runtime") {
+    spec.url = frame.url
+  } else {
+    spec.sourceUrl = frame.url
+    if (scriptUrl !== undefined && scriptUrl.length > 0) spec.url = scriptUrl
+  }
+  return spec
+}
+
+function affectedModulesForPatch(options: HttpServerOptions, result: ApplyPatchResult): InterpreterModule[] {
+  const out: InterpreterModule[] = []
+  for (const module of options.modules.list()) {
+    if (result.files.some((file) => patchFileAffectsModule(file, module))) out.push(module)
+  }
+  return out
+}
+
+function patchFileAffectsModule(file: ApplyPatchFileChange, module: InterpreterModule): boolean {
+  const paths = [
+    file.path,
+    file.oldPath,
+    sourceUrlFromPath(file.path),
+    ...(file.oldPath === undefined ? [] : [sourceUrlFromPath(file.oldPath)]),
+  ].filter((value): value is string => value !== undefined && value.length > 0)
+
+  if (module.modulePath !== null && paths.some((path) => sameSourcePath(path, module.modulePath!))) return true
+  for (const registration of module.breakpoints.registrations) {
+    for (const source of [registration.spec.url, registration.spec.sourceUrl]) {
+      if (source !== undefined && paths.some((path) => sameSourcePath(path, source))) return true
+    }
+    if (registration.spec.urlRegex !== undefined && paths.some((path) => sourceRegexMatches(registration.spec.urlRegex!, path))) return true
+  }
+  for (const script of module.snapshots.scripts) {
+    if (paths.some((path) => sameSourcePath(path, script.url))) return true
+    const mapper = sourceMapMapper(script.sourceMapURL)
+    if (mapper.sources().some((source) => paths.some((path) => sameSourcePath(path, source)))) return true
+  }
+  return false
+}
+
+function patchFileMatchesSource(file: ApplyPatchFileChange, source: string): boolean {
+  return [
+    file.path,
+    file.oldPath,
+    sourceUrlFromPath(file.path),
+    ...(file.oldPath === undefined ? [] : [sourceUrlFromPath(file.oldPath)]),
+  ]
+    .filter((value): value is string => value !== undefined && value.length > 0)
+    .some((path) => sameSourcePath(path, source))
+}
+
+function broadcastSourcePatched(
+  options: HttpServerOptions,
+  broadcast: (payload: JsonObject) => void,
+  moduleId: string,
+  reason: SourcePatchReason,
+  result: ApplyPatchResult,
+  sourceUrl?: string,
+  breakpoints: SourcePatchBreakpointUpdate[] = [],
+): void {
+  const files = result.files.map((file) => sourcePatchFilePayload(file, sourceUrl))
+  options.logger.event("source.patched", {moduleId, reason, files, breakpoints})
+  broadcast({type: "source-patched", moduleId, reason, files, breakpoints})
+}
+
+function sourcePatchFilePayload(file: ApplyPatchFileChange, sourceUrl: string | undefined): JsonObject {
+  let size: number | undefined
+  let mtimeMs: number | undefined
+  if (file.operation !== "delete") {
+    try {
+      const stat = statSync(file.path)
+      size = stat.size
+      mtimeMs = stat.mtimeMs
+    } catch {
+      // The patch has already been applied; stat failures are diagnostic only.
+    }
+  }
+  return {
+    ...file,
+    sourceUrl: sourceUrl ?? sourceUrlFromPath(file.path),
+    ...(size === undefined ? {} : {size}),
+    ...(mtimeMs === undefined ? {} : {mtimeMs}),
+  }
+}
+
+function sourceUrlFromPath(path: string): string {
+  const rel = relative(process.cwd(), path).replaceAll("\\", "/")
+  return rel.startsWith("..") ? path : rel
+}
+
+function sameSourcePath(a: string, b: string): boolean {
+  const aVariants = sourcePathVariants(a)
+  const bVariants = sourcePathVariants(b)
+  return aVariants.some((left) => bVariants.some((right) => (
+    left === right
+    || left.endsWith(`/${right}`)
+    || right.endsWith(`/${left}`)
+  )))
+}
+
+function sourceRegexMatches(pattern: string, path: string): boolean {
+  try {
+    const regex = new RegExp(pattern)
+    return sourcePathVariants(path).some((variant) => regex.test(variant))
+  } catch {
+    return false
+  }
+}
+
+function sourcePathVariants(input: string): string[] {
+  const out = new Set<string>()
+  const clean = input.trim().replaceAll("\\", "/").replace(/[?#].*$/, "")
+  if (clean.length === 0) return []
+  out.add(clean)
+  if (clean.startsWith("file:")) {
+    try {
+      out.add(fileURLToPath(clean).replaceAll("\\", "/"))
+    } catch {}
+  }
+  const withoutRuntimePrefix = clean.replace(/^r\//, "")
+  out.add(withoutRuntimePrefix)
+  const absolute = sourceFilePath(clean)
+  if (absolute !== undefined) {
+    out.add(absolute.replaceAll("\\", "/"))
+    out.add(sourceUrlFromPath(absolute))
+  }
+  return [...out].filter((item) => item.length > 0)
 }
 
 function sourceFilePath(sourceUrl: string): string | undefined {

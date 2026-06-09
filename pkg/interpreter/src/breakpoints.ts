@@ -28,6 +28,19 @@ export type BreakpointRegistration = {
   installed: InstalledBreakpoint[]
 }
 
+export type BreakpointLineChange = {
+  oldStart: number
+  oldLines: number
+  newStart: number
+  newLines: number
+}
+
+export type BreakpointSourceChange = {
+  path: string
+  sourceUrl?: string
+  lineChanges: BreakpointLineChange[]
+}
+
 type TrackedBreakpoint = BreakpointRegistration & {
   installedByScriptId: Map<string, InstalledBreakpoint>
   logicalBreakpointIds: Set<string>
@@ -76,6 +89,8 @@ export class BreakpointStore {
   }
 
   add(spec: BreakpointSpec): BreakpointRegistration {
+    const existing = this.#registrationForSpec(spec)
+    if (existing !== undefined) return publicRegistration(existing)
     const id = `interpreter-bp-${this.#nextId++}`
     const tracked: TrackedBreakpoint = {
       id,
@@ -91,6 +106,17 @@ export class BreakpointStore {
 
   addMany(specs: BreakpointSpec[]): BreakpointRegistration[] {
     return specs.map((spec) => this.add(spec))
+  }
+
+  async removeSpec(spec: BreakpointSpec): Promise<BreakpointRegistration | undefined> {
+    const tracked = this.#registrationForSpec(spec)
+    if (tracked === undefined) return undefined
+    const removed = await this.remove(tracked.id)
+    return "id" in removed ? removed : undefined
+  }
+
+  #registrationForSpec(spec: BreakpointSpec): TrackedBreakpoint | undefined {
+    return [...this.#breakpoints.values()].find((tracked) => sameBreakpointSpec(tracked.spec, spec))
   }
 
   async handleScriptParsed(script: BreakpointScript): Promise<void> {
@@ -112,6 +138,32 @@ export class BreakpointStore {
       if (idSet !== null && !idSet.has(tracked.id)) continue
       await this.#installLogicalByUrl(tracked)
     }
+  }
+
+  async remapLinesForSource(change: BreakpointSourceChange, scripts: BreakpointScript[] = []): Promise<BreakpointRegistration[]> {
+    if (change.lineChanges.length === 0) return []
+    const remapped: TrackedBreakpoint[] = []
+
+    for (const tracked of this.#breakpoints.values()) {
+      if (!breakpointSpecMatchesSourceChange(tracked.spec, change)) continue
+      const nextLine = remapBreakpointLine(tracked.spec.line, change.lineChanges)
+      if (nextLine === tracked.spec.line) continue
+      await this.#clearInstalledForTracked(tracked, "source_patch_remap")
+      const previous = tracked.spec
+      tracked.spec = {...tracked.spec, line: nextLine}
+      remapped.push(tracked)
+      this.#logger.event("breakpoint.remapped", {
+        id: tracked.id,
+        source: change,
+        previous,
+        next: tracked.spec,
+      })
+    }
+
+    if (remapped.length === 0) return []
+    for (const tracked of remapped) await this.#installLogicalByUrl(tracked)
+    await this.applyToScripts(scripts)
+    return remapped.map(publicRegistration)
   }
 
   async remove(idOrBreakpointId: string): Promise<BreakpointRegistration | {breakpointId: string}> {
@@ -353,6 +405,29 @@ export class BreakpointStore {
     })
   }
 
+  async #clearInstalledForTracked(tracked: TrackedBreakpoint, reason: string): Promise<void> {
+    const attempted = new Set<string>()
+    for (const installed of tracked.installedByScriptId.values()) {
+      if (attempted.has(installed.breakpointId)) continue
+      attempted.add(installed.breakpointId)
+      await this.#removeBunBreakpoint(installed.breakpointId, {id: tracked.id, scriptId: installed.scriptId})
+    }
+    for (const breakpointId of tracked.logicalBreakpointIds) {
+      if (attempted.has(breakpointId)) continue
+      attempted.add(breakpointId)
+      await this.#removeBunBreakpoint(breakpointId, {id: tracked.id})
+    }
+    if (attempted.size === 0) return
+    tracked.installed = []
+    tracked.installedByScriptId.clear()
+    tracked.logicalBreakpointIds.clear()
+    this.#logger.event("breakpoint.installed.removed", {
+      id: tracked.id,
+      reason,
+      breakpointIds: [...attempted],
+    })
+  }
+
   async #removeBunBreakpoint(
     breakpointId: string,
     detail: {id?: string; scriptId?: string} = {},
@@ -394,6 +469,38 @@ export function logicalBreakpointParams(spec: BreakpointSpec): JsonObject | null
   if (isLocalTranspiledSource(url)) return null
   params["url"] = url
   return params
+}
+
+export function remapBreakpointLine(line: number, changes: readonly BreakpointLineChange[]): number {
+  let current = Math.max(1, Math.floor(line))
+  for (const change of changes) {
+    const oldStart = Math.max(1, Math.floor(change.oldStart))
+    const oldLines = Math.max(0, Math.floor(change.oldLines))
+    const newStart = Math.max(1, Math.floor(change.newStart))
+    const newLines = Math.max(0, Math.floor(change.newLines))
+    const delta = newLines - oldLines
+
+    if (oldLines === 0) {
+      if (current >= oldStart) current += newLines
+      continue
+    }
+
+    const oldEnd = oldStart + oldLines - 1
+    if (current < oldStart) continue
+    if (current > oldEnd) {
+      current += delta
+      continue
+    }
+    current = newLines === 0
+      ? Math.max(1, newStart)
+      : newStart + Math.min(current - oldStart, newLines - 1)
+  }
+  return Math.max(1, current)
+}
+
+function breakpointSpecMatchesSourceChange(spec: BreakpointSpec, change: BreakpointSourceChange): boolean {
+  return breakpointSpecMatchesSourceUrl(spec, change.path)
+    || (change.sourceUrl !== undefined && breakpointSpecMatchesSourceUrl(spec, change.sourceUrl))
 }
 
 export function runtimeBreakpointParams(spec: BreakpointSpec, cwd = process.cwd()): JsonObject | null {
@@ -511,6 +618,12 @@ export function matchesBreakpointSpec(spec: BreakpointSpec, scriptUrl: string): 
   return false
 }
 
+export function breakpointSpecMatchesSourceUrl(spec: BreakpointSpec, sourceUrl: string): boolean {
+  if (matchesBreakpointSpec(spec, sourceUrl)) return true
+  if (spec.sourceUrl !== undefined && sameScriptUrl(spec.sourceUrl, sourceUrl)) return true
+  return false
+}
+
 function matchesBreakpointSource(spec: BreakpointSpec, script: BreakpointScript): boolean {
   if (spec.sourceUrl === undefined) return false
   return sourceMapMapper(script.sourceMapURL)
@@ -594,6 +707,21 @@ function publicRegistration(tracked: TrackedBreakpoint): BreakpointRegistration 
     spec: tracked.spec,
     installed: [...tracked.installed],
   }
+}
+
+export function sameBreakpointSpec(a: BreakpointSpec, b: BreakpointSpec): boolean {
+  return breakpointSpecStorageKey(a) === breakpointSpecStorageKey(b)
+}
+
+function breakpointSpecStorageKey(spec: BreakpointSpec): string {
+  return [
+    spec.url ?? "",
+    spec.sourceUrl ?? "",
+    spec.urlRegex ?? "",
+    Math.max(1, Math.floor(spec.line)),
+    spec.column ?? 0,
+    spec.condition ?? "",
+  ].join("\0")
 }
 
 function generatedBreakpointLocation(spec: BreakpointSpec, script: BreakpointScript): {

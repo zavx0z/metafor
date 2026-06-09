@@ -79,9 +79,30 @@ type ServerMessage =
   | {type: "module-target"; moduleId: string; event: TargetEvent; module: ModulePaneSnapshot}
   | {type: "module-protocol-event"; moduleId: string; ts: string; method: string; params: unknown}
   | {type: "interpreter-event"; ts: string; event: string; detail: unknown}
+  | {type: "source-patched"; moduleId: string; reason: "save" | "apply_patch"; files: SourcePatchedFile[]; breakpoints?: SourcePatchedBreakpoints[]}
   | {type: "result"; requestId: number; ok: boolean; result?: unknown; error?: string}
   | {type: "ui-host-command"; requestId: number; command: string; params?: unknown}
   | {type: "reload"}
+
+type SourcePatchedFile = {
+  path: string
+  oldPath?: string
+  sourceUrl: string
+  operation: "add" | "update" | "delete" | "move"
+  added?: number
+  removed?: number
+  bytes?: number
+  size?: number
+  mtimeMs?: number
+  lineChanges?: SourceLineChange[]
+}
+
+type SourceLineChange = {oldStart: number; oldLines: number; newStart: number; newLines: number}
+
+type SourcePatchedBreakpoints = {
+  moduleId: string
+  breakpoints: BreakpointRegistration[]
+}
 
 type TargetEvent =
   | {type: "started"; pid: number; command: string[]; cwd: string | null; startedAt: string}
@@ -194,6 +215,7 @@ type ModuleCurrentContext = {
     state: SourceRuntimeState
     location: string
     identity: BreakpointSourceIdentity | null
+    dirty: boolean
     cursor: SourceContextPosition
     selection: SourceSelectionContext | null
   }
@@ -317,6 +339,7 @@ type InterpreterInfo = {
       state: SourceRuntimeState | null
       location: string
       identity: BreakpointSourceIdentity | null
+      dirty: boolean
       cursor: SourceContextPosition | null
       selection: SourceSelectionContext | null
     }
@@ -379,7 +402,10 @@ type ModuleDisplayController = {
   verbose: VerbosePane
   sourceCache: Map<string, CachedSource>
   sourceTextKey: string
+  sourceText: string
   sourceIdentity: BreakpointSourceIdentity | null
+  sourceDirty: boolean
+  sourceSaving: boolean
   breakpointRegistrations: BreakpointRegistration[]
   pendingBreakpointLines: Set<number>
   activeFrameIndex: number
@@ -674,6 +700,9 @@ function handleServerMessage(msg: ServerMessage): void {
       return
     case "interpreter-event":
       appendVerbose("interpreter", msg.ts, msg.event, msg.detail, moduleIdFromEventDetail(msg.detail))
+      return
+    case "source-patched":
+      handleSourcePatched(msg)
       return
     case "result":
       resolvePendingRequest(msg)
@@ -995,6 +1024,7 @@ async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unkn
       throw error
     }
     const controller = ensureSqliteDisplayController(path)
+    clearSqlitePayload(controller, `Waiting for SQLite database: ${sqliteInitialLabel(path)}`)
     syncModuleDisplays()
     waitForSqliteDatabase(controller, path, table)
     return sqliteDisplayPayload(controller)
@@ -1027,7 +1057,7 @@ function waitForSqliteDatabase(controller: SqliteDisplayController, path: string
     let attempts = 0
     while (controller.loading === loading) {
       attempts += 1
-      controller.rows.setStatus(`Waiting for SQLite database: ${sqliteInitialLabel(path)}`)
+      clearSqlitePayload(controller, `Waiting for SQLite database: ${sqliteInitialLabel(path)}`)
       try {
         const payload = await fetchSqlitePayload(path, table)
         if (controller.loading !== loading) return
@@ -1035,7 +1065,7 @@ function waitForSqliteDatabase(controller: SqliteDisplayController, path: string
         return
       } catch (error) {
         if (!isSqliteMissingError(error)) {
-          controller.rows.setStatus(error instanceof Error ? error.message : String(error))
+          clearSqlitePayload(controller, error instanceof Error ? error.message : String(error))
           return
         }
         const nextDelay = Math.min(3_000, SQLITE_OPEN_RETRY_MS + attempts * 100)
@@ -1073,7 +1103,7 @@ async function refreshSqliteDisplay(controller: SqliteDisplayController, table =
   try {
     await loading
   } catch (error) {
-    controller.rows.setStatus(error instanceof Error ? error.message : String(error))
+    clearSqlitePayload(controller, error instanceof Error ? error.message : String(error))
     throw error
   } finally {
     if (controller.loading === loading) controller.loading = null
@@ -1145,6 +1175,20 @@ function applySqlitePayload(controller: SqliteDisplayController, payload: Sqlite
     controller.suppressTableSelectionOpen = false
   }
   controller.rows.setPayload(payload)
+}
+
+function clearSqlitePayload(controller: SqliteDisplayController, status: string): void {
+  controller.selectedTable = null
+  controller.payload = null
+  controller.suppressTableSelectionOpen = true
+  try {
+    controller.tables.setTitle(controller.label)
+    controller.tables.setItems([])
+    controller.tables.setSelectedIds([])
+  } finally {
+    controller.suppressTableSelectionOpen = false
+  }
+  controller.rows.clearPayload(status)
 }
 
 function sqliteDisplayPayload(controller: SqliteDisplayController): unknown {
@@ -1303,6 +1347,7 @@ function interpreterInfo(moduleId: string, display: ModuleDisplayInfo | null): I
         state: controller?.sourceRuntimeState ?? null,
         location: controller?.sourceLocation ?? "",
         identity: controller?.sourceIdentity ?? null,
+        dirty: controller?.sourceDirty ?? false,
         cursor: controller?.sourceContext.cursor ?? null,
         selection: controller?.sourceContext.selection ?? null,
       },
@@ -1394,6 +1439,7 @@ function moduleCurrentContextPayload(controller: ModuleDisplayController): Modul
       state: controller.sourceRuntimeState,
       location: controller.sourceLocation,
       identity: controller.sourceIdentity,
+      dirty: controller.sourceDirty,
       cursor: controller.sourceContext.cursor,
       selection: controller.sourceContext.selection,
     },
@@ -1983,6 +2029,14 @@ class SqliteTablePane extends UiSurface {
 
   setStatus(status: string): void {
     this.#status = status
+    this.requestRender()
+  }
+
+  clearPayload(status: string): void {
+    this.#payload = null
+    this.#status = status
+    this.#scrollX = 0
+    this.#scrollY = 0
     this.requestRender()
   }
 
@@ -4691,9 +4745,11 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       path: "",
       fontPx: 12,
       linePx: 16,
-      readOnly: true,
+      readOnly: false,
       showCaret: true,
       introAnimation: false,
+      onChange: (text) => handleModuleSourceTextChange(controller, text),
+      onSave: (text) => void saveModuleSource(controller, text),
       onBreakpointToggle: (line) => void toggleModuleBreakpoint(controller, line),
       onSelectionChange: (snapshot) => {
         controller.sourceContext = sourceContextFromEditorSnapshot(snapshot)
@@ -4718,7 +4774,10 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
     verbose: new VerbosePane(moduleVerboseStorageKey(module.id)),
     sourceCache: new Map<string, CachedSource>(),
     sourceTextKey: "",
+    sourceText: "",
     sourceIdentity: null,
+    sourceDirty: false,
+    sourceSaving: false,
     breakpointRegistrations: [],
     pendingBreakpointLines: new Set<number>(),
     activeFrameIndex: 0,
@@ -4943,6 +5002,7 @@ async function openWorkspaceSource(
     }
     const responseSourceUrl = data.url ?? sourceUrl
     const responseScriptUrl = data.scriptUrl ?? ""
+    controller.sourceDirty = false
     setModuleSource(controller, {
       text: data.scriptSource,
       currentLine: 0,
@@ -4974,6 +5034,263 @@ async function openWorkspaceSource(
     }, "idle", false)
     return {ok: false, sourceUrl, location, error: message}
   }
+}
+
+async function saveModuleSource(controller: ModuleDisplayController, text: string): Promise<void> {
+  if (controller.sourceSaving) return
+  const sourceUrl = currentEditableSourceUrl(controller)
+  if (sourceUrl === undefined) {
+    controller.source.setTitle(`${moduleSourceTitle(controller)} - no file`)
+    return
+  }
+
+  controller.sourceSaving = true
+  controller.source.setTitle(moduleSourceTitle(controller))
+  try {
+    const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/source`, {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({sourceUrl, text}),
+    })
+    const data = await res.json() as {ok?: boolean; error?: string}
+    if (!res.ok || data.ok !== true) throw new Error(data.error ?? `save failed: ${res.status}`)
+    controller.sourceDirty = false
+    controller.sourceCache.clear()
+  } catch (error) {
+    controller.source.setTitle(`${moduleSourceTitle(controller)} - ${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    controller.sourceSaving = false
+    controller.source.setTitle(moduleSourceTitle(controller))
+    queuePublishModuleContext(controller)
+  }
+}
+
+function handleModuleSourceTextChange(controller: ModuleDisplayController, text: string): void {
+  const lineChanges = sourceTextLineChanges(controller.sourceText, text)
+  controller.sourceText = text
+  if (lineChanges.length > 0) applyLocalSourceLineChanges(controller, lineChanges)
+  controller.sourceDirty = true
+  controller.source.setTitle(moduleSourceTitle(controller))
+  queuePublishModuleContext(controller)
+}
+
+function applyLocalSourceLineChanges(controller: ModuleDisplayController, lineChanges: readonly SourceLineChange[]): void {
+  const source = controller.sourceIdentity
+  if (source === null || lineChanges.length === 0) return
+
+  let breakpointsChanged = false
+  controller.breakpointRegistrations = controller.breakpointRegistrations.map((registration) => {
+    if (!breakpointRegistrationMatchesSource(registration, source)) return registration
+    const nextLine = remapSourceLine(registration.spec.line, lineChanges)
+    if (nextLine === registration.spec.line) return registration
+    breakpointsChanged = true
+    return {...registration, spec: {...registration.spec, line: nextLine}}
+  })
+
+  const stored = readStoredBreakpointSpecs()
+  const nextStored = stored.map((spec) => {
+    if (!breakpointSpecMatchesSource(spec, source)) return spec
+    const nextLine = remapSourceLine(spec.line, lineChanges)
+    return nextLine === spec.line ? spec : {...spec, line: nextLine}
+  })
+  if (nextStored.some((spec, index) => spec.line !== stored[index]?.line)) {
+    writeStoredBreakpointSpecs(nextStored)
+    breakpointsChanged = true
+  }
+
+  if (controller.pendingBreakpointLines.size > 0) {
+    controller.pendingBreakpointLines = new Set([...controller.pendingBreakpointLines].map((line) => remapSourceLine(line, lineChanges)))
+    breakpointsChanged = true
+  }
+
+  let executionLine: number | null = null
+  const dump = controller.dump
+  if (dump !== undefined) {
+    let dumpChanged = false
+    const frames = dump.frames.map((frame) => {
+      if (!frameMatchesSourceIdentity(frame as FrameSnapshot, source)) return frame
+      const nextLine = remapSourceLine(frame.line, lineChanges)
+      if (nextLine === frame.line) return frame
+      dumpChanged = true
+      return {...frame, line: nextLine}
+    })
+    if (dumpChanged) {
+      controller.dump = {...dump, frames}
+      controller.frames.setFrames(frames as FrameSnapshot[], controller.activeFrameIndex)
+    }
+    const activeFrame = frames[controller.activeFrameIndex] ?? frames[0]
+    if (activeFrame !== undefined && frameMatchesSourceIdentity(activeFrame as FrameSnapshot, source)) {
+      executionLine = activeFrame.line
+    }
+  }
+
+  if (controller.sourceRuntimeState === "paused") controller.source.setExecutionLine(executionLine, {scroll: false})
+  if (breakpointsChanged) syncModuleBreakpointMarkers(controller)
+}
+
+function sourceTextLineChanges(before: string, after: string): SourceLineChange[] {
+  if (before === after) return []
+  const oldLines = before.split("\n")
+  const newLines = after.split("\n")
+  let prefix = 0
+  while (prefix < oldLines.length && prefix < newLines.length && oldLines[prefix] === newLines[prefix]) prefix += 1
+
+  let suffix = 0
+  while (
+    suffix < oldLines.length - prefix
+    && suffix < newLines.length - prefix
+    && oldLines[oldLines.length - 1 - suffix] === newLines[newLines.length - 1 - suffix]
+  ) {
+    suffix += 1
+  }
+
+  const oldChanged = oldLines.length - prefix - suffix
+  const newChanged = newLines.length - prefix - suffix
+  if (oldChanged === newChanged) return []
+  return [{
+    oldStart: prefix + 1,
+    oldLines: oldChanged,
+    newStart: prefix + 1,
+    newLines: newChanged,
+  }]
+}
+
+function remapSourceLine(line: number, changes: readonly SourceLineChange[]): number {
+  let current = Math.max(1, Math.floor(line))
+  for (const change of changes) {
+    const oldStart = Math.max(1, Math.floor(change.oldStart))
+    const oldLines = Math.max(0, Math.floor(change.oldLines))
+    const newStart = Math.max(1, Math.floor(change.newStart))
+    const newLines = Math.max(0, Math.floor(change.newLines))
+    const delta = newLines - oldLines
+
+    if (oldLines === 0) {
+      if (current >= oldStart) current += newLines
+      continue
+    }
+
+    const oldEnd = oldStart + oldLines - 1
+    if (current < oldStart) continue
+    if (current > oldEnd) {
+      current += delta
+      continue
+    }
+    current = newLines === 0
+      ? Math.max(1, newStart)
+      : newStart + Math.min(current - oldStart, newLines - 1)
+  }
+  return Math.max(1, current)
+}
+
+function frameMatchesSourceIdentity(frame: FrameSnapshot, source: BreakpointSourceIdentity): boolean {
+  return [source.sourceUrl, source.scriptUrl, source.key].some((candidate) => (
+    candidate.trim().length > 0 && sameSourceUrl(frame.url, candidate)
+  ))
+}
+
+function currentEditableSourceUrl(controller: ModuleDisplayController): string | undefined {
+  const candidates = [
+    controller.sourceIdentity?.sourceUrl,
+    controller.sourceIdentity?.scriptUrl,
+    sourcePathFromLocation(controller.sourceLocation),
+  ]
+  for (const candidate of candidates) {
+    const clean = typeof candidate === "string" ? stripSourceLine(candidate.trim()) : ""
+    if (clean.length > 0) return clean
+  }
+  return undefined
+}
+
+function handleSourcePatched(msg: Extract<ServerMessage, {type: "source-patched"}>): void {
+  applySourcePatchedBreakpoints(msg)
+  for (const controller of moduleDisplays.values()) {
+    const sourceUrl = controllerPatchedSourceUrl(controller, msg)
+    if (sourceUrl === undefined) continue
+    if (controller.sourceDirty || controller.sourceSaving) continue
+    void refreshOpenSourceFromDisk(controller, sourceUrl)
+  }
+}
+
+function applySourcePatchedBreakpoints(msg: Extract<ServerMessage, {type: "source-patched"}>): void {
+  const updates = msg.breakpoints ?? []
+  if (updates.length === 0) return
+  const patchedKeys = msg.files.flatMap((file) => sourcePatchFileKeys(file))
+  const nextStored = readStoredBreakpointSpecs().filter((spec) => !breakpointSpecMatchesPatchedKeys(spec, patchedKeys))
+  for (const update of updates) {
+    const controller = moduleDisplays.get(update.moduleId)
+    if (controller !== undefined) {
+      controller.breakpointRegistrations = update.breakpoints
+      syncModuleBreakpointMarkers(controller)
+    }
+    for (const registration of update.breakpoints) {
+      if (!breakpointSpecMatchesPatchedKeys(registration.spec, patchedKeys)) continue
+      nextStored.push(registration.spec)
+    }
+  }
+  writeStoredBreakpointSpecs(nextStored)
+}
+
+function controllerPatchedSourceUrl(
+  controller: ModuleDisplayController,
+  msg: Extract<ServerMessage, {type: "source-patched"}>,
+): string | undefined {
+  const changed = msg.files.flatMap((file) => sourcePatchFileKeys(file))
+  for (const candidate of [
+    controller.sourceIdentity?.sourceUrl,
+    controller.sourceIdentity?.scriptUrl,
+    sourcePathFromLocation(controller.sourceLocation),
+  ]) {
+    const candidateKeys = sourceChangeKeyVariants(candidate)
+    if (candidateKeys.some((candidateKey) => changed.some((changedKey) => sourceChangeKeysMatch(candidateKey, changedKey)))) {
+      return currentEditableSourceUrl(controller) ?? changed[0]
+    }
+  }
+  return undefined
+}
+
+function sourcePatchFileKeys(file: SourcePatchedFile): string[] {
+  return [
+    ...sourceChangeKeyVariants(file.sourceUrl),
+    ...sourceChangeKeyVariants(file.path),
+    ...sourceChangeKeyVariants(file.oldPath),
+  ]
+}
+
+function sourceChangeKeyVariants(value: string | undefined): string[] {
+  if (value === undefined) return []
+  const normalized = stripSourceLine(value.trim().replaceAll("\\", "/").replace(/[?#].*$/, ""))
+  if (normalized.length === 0) return []
+  const withoutRuntimePrefix = normalized.replace(/^r\//, "")
+  return normalized === withoutRuntimePrefix ? [normalized] : [normalized, withoutRuntimePrefix]
+}
+
+function sourceChangeKeysMatch(candidate: string, changed: string): boolean {
+  if (candidate === changed) return true
+  return candidate.endsWith(`/${changed}`) || changed.endsWith(`/${candidate}`)
+}
+
+function breakpointSpecMatchesPatchedKeys(spec: BreakpointSpec, patchedKeys: string[]): boolean {
+  if (spec.urlRegex !== undefined) {
+    try {
+      const regex = new RegExp(spec.urlRegex)
+      if (patchedKeys.some((patchedKey) => regex.test(patchedKey))) return true
+    } catch {}
+  }
+  for (const candidate of [
+    spec.url,
+    spec.sourceUrl,
+  ]) {
+    const candidateKeys = sourceChangeKeyVariants(candidate)
+    if (candidateKeys.some((candidateKey) => patchedKeys.some((patchedKey) => sourceChangeKeysMatch(candidateKey, patchedKey)))) return true
+  }
+  return false
+}
+
+async function refreshOpenSourceFromDisk(controller: ModuleDisplayController, sourceUrl: string): Promise<void> {
+  const cursor = controller.sourceContext.cursor
+  const line = Math.max(1, Math.floor(cursor.line))
+  const column = Math.max(0, Math.floor(cursor.column))
+  await openWorkspaceSource(controller, sourceUrl, {line, column})
 }
 
 function applySourceOpenPosition(controller: ModuleDisplayController, options: SourceOpenOptions): void {
@@ -5435,8 +5752,10 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
     return
   }
   const location = sourceLocation(frame.url, scriptId, frame.line)
-  const cacheKey = `${scriptId}\0sourcemap\0${frame.url}`
-  let cached = controller.sourceCache.get(cacheKey)
+  const sourceKind = frame.sourceKind === "runtime" ? "runtime" : "sourcemap"
+  const cacheKey = `${scriptId}\0${sourceKind}\0${frame.url}`
+  const useFrameSourceCache = sourceKind === "runtime"
+  let cached = useFrameSourceCache ? controller.sourceCache.get(cacheKey) : undefined
   if (cached === undefined) {
     setModuleSourceState(controller, "loading")
     setModuleSource(controller, {
@@ -5446,7 +5765,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
       identity: null,
     }, "loading", false)
     try {
-      const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/source?scriptId=${encodeURIComponent(scriptId)}&sourceUrl=${encodeURIComponent(frame.url)}&sourceKind=sourcemap`)
+      const res = await fetch(`/modules/${encodeURIComponent(controller.id)}/source?scriptId=${encodeURIComponent(scriptId)}&sourceUrl=${encodeURIComponent(frame.url)}&sourceKind=${sourceKind}`)
       const data = await res.json() as {
         url?: string
         scriptUrl?: string
@@ -5469,7 +5788,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
         scriptUrl: data.scriptUrl ?? "",
         ...(data.tokens === undefined ? {} : {tokens: data.tokens}),
       }
-      controller.sourceCache.set(cacheKey, cached)
+      if (useFrameSourceCache) controller.sourceCache.set(cacheKey, cached)
     } catch (error) {
       setModuleSource(controller, {
         text: `fetch failed: ${String(error)}`,
@@ -5483,6 +5802,7 @@ async function renderModuleSourceForFrame(controller: ModuleDisplayController, f
 
   const sourceUrl = cached.sourceUrl || frame.url
   const scriptUrl = cached.scriptUrl || frame.url
+  controller.sourceDirty = false
   setModuleSource(controller, {
     text: cached.text,
     currentLine: frame.line,
@@ -5503,6 +5823,7 @@ function setModuleSource(controller: ModuleDisplayController, payload: Source, s
   controller.sourceIdentity = payload.identity
   controller.source.setTitle(moduleSourceTitle(controller))
   const sourceKey = `${payload.identity?.scriptId ?? ""}\0${payload.location}\0${payload.text.length}\0${payload.text.slice(0, 80)}`
+  controller.sourceText = payload.text
   if (controller.sourceTextKey !== sourceKey) {
     controller.sourceTextKey = sourceKey
     controller.source.setText(payload.text)
@@ -5524,7 +5845,8 @@ function setModuleSourceState(controller: ModuleDisplayController, state: Source
 
 function moduleSourceTitle(controller: ModuleDisplayController): string {
   const snapshot = moduleSnapshots.get(controller.id)
-  const label = snapshot?.label ?? controller.id
+  const dirty = controller.sourceDirty ? "*" : ""
+  const label = `${snapshot?.label ?? controller.id}${dirty}`
   if (controller.sourceRuntimeState === "loading") return `${label} - ${t("sourceLoading")}`
   if (controller.sourceRuntimeState === "running" && controller.sourceLocation.length > 0) {
     return `${label} - ${t("sourceLastPaused")}: ${sourceDisplayLocation(controller.sourceLocation)}`

@@ -6,7 +6,6 @@ import {matter} from "./dark.ts"
 // DSL-файлы `github/.../meta.ts` обращаются к `MetaFor(...)` как к глобальной функции,
 // поэтому регистрируем её до первого dynamic import меты.
 ;(globalThis as unknown as {MetaFor: typeof MetaFor}).MetaFor = MetaFor
-
 /**
  * Серверный демон Dark: открывает файловый store через `store/server.open()`,
  * публикует его в `globalThis.store`, и слушает `gravity`-канал на входящие
@@ -16,7 +15,6 @@ import {matter} from "./dark.ts"
  * Исходящие сообщения от самого Dark (`source === "dark"`) пропускаются,
  * чтобы не было обратной обработки собственных `/wimp/<id>` add'ов и barrier'ов.
  */
-
 const STORE_PATH = process.env.DARK_STORE_PATH ?? "./boundary.sqlite"
 
 globalThis.store = await open(STORE_PATH)
@@ -36,18 +34,11 @@ const gravity = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
 
 const handleWimpLoad = async (src: string): Promise<void> => {
   const existing = await globalThis.store.wimp.get(src)
-  if (existing) {
-    console.log(`[dark/server] wimp "${src}" уже в store — пропуск`)
-    return
-  }
-  console.log(`[dark/server] загружаю wimp "${src}"`)
+  if (existing) return
   try {
     const wimp = await globalThis.store.wimp.create(src)
     await matter(wimp)
-    console.log(`[dark/server] wimp "${src}" материализован`)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error(`[dark/server] ошибка загрузки "${src}": ${message}`)
+  } catch {
   }
 }
 
@@ -70,7 +61,6 @@ gravity.addEventListener("message", (event) => {
 })
 
 const shutdown = async (signal: string): Promise<void> => {
-  console.log(`[dark/server] ${signal} — закрываю канал и store`)
   gravity.close()
   await globalThis.store.close()
   process.exit(0)

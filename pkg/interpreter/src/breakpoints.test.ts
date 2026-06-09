@@ -3,7 +3,7 @@ import {mkdtempSync, rmSync, writeFileSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {SourceMapGenerator} from "source-map-js"
-import {BreakpointStore, logicalBreakpointParams, matchesBreakpointSpec, runtimeBreakpointParams} from "./breakpoints.ts"
+import {BreakpointStore, logicalBreakpointParams, matchesBreakpointSpec, remapBreakpointLine, runtimeBreakpointParams} from "./breakpoints.ts"
 import {EventLogger} from "./logger.ts"
 import type {ProtocolClient} from "./protocol-client.ts"
 
@@ -218,6 +218,70 @@ describe("logicalBreakpointParams", () => {
 })
 
 describe("BreakpointStore", () => {
+  test("deduplicates registrations for the same breakpoint spec", () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const client = {request: async () => ({})} as unknown as ProtocolClient
+      const logger = new EventLogger(join(dir, "events.log"))
+      const store = new BreakpointStore({client, logger})
+
+      const first = store.add({url: "r/dark/server.ts", line: 22})
+      const second = store.add({url: "r/dark/server.ts", line: 22})
+
+      expect(second.id).toBe(first.id)
+      expect(store.registrations).toHaveLength(1)
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test("remaps breakpoint specs after source line deletions", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const file = join(dir, "server.ts")
+      writeFileSync(file, "a\nb\nc\nd\n")
+      const requests: Array<{method: string; params: Record<string, unknown> | undefined}> = []
+      const client = {
+        async request(method: string, params?: Record<string, unknown>): Promise<unknown> {
+          requests.push({method, params})
+          if (method === "Debugger.setBreakpointByUrl") {
+            return {
+              breakpointId: `logical:${requests.length}`,
+              locations: [{scriptId: "future", lineNumber: params?.["lineNumber"] ?? 0, columnNumber: 0}],
+            }
+          }
+          return {}
+        },
+      } as unknown as ProtocolClient
+      const logger = new EventLogger(join(dir, "events.log"))
+      const store = new BreakpointStore({client, logger})
+      const registration = store.add({url: file, line: 4})
+
+      await store.armPendingByUrl([registration.id])
+      const remapped = await store.remapLinesForSource({
+        path: file,
+        lineChanges: [{oldStart: 2, oldLines: 1, newStart: 2, newLines: 0}],
+      })
+
+      expect(remapped[0]?.spec.line).toBe(3)
+      expect(store.registrations[0]?.spec.line).toBe(3)
+      expect(requests).toContainEqual({
+        method: "Debugger.removeBreakpoint",
+        params: {breakpointId: "logical:1"},
+      })
+      expect(requests.at(-2)).toEqual({
+        method: "Debugger.setBreakpointByUrl",
+        params: {
+          url: file,
+          lineNumber: 2,
+          columnNumber: 0,
+        },
+      })
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
   test("removes local registrations when inspector remove fails", async () => {
     const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
     try {
@@ -281,5 +345,13 @@ describe("BreakpointStore", () => {
     } finally {
       rmSync(dir, {recursive: true, force: true})
     }
+  })
+})
+
+describe("remapBreakpointLine", () => {
+  test("keeps points on the same code after deletions and insertions", () => {
+    expect(remapBreakpointLine(4, [{oldStart: 2, oldLines: 1, newStart: 2, newLines: 0}])).toBe(3)
+    expect(remapBreakpointLine(4, [{oldStart: 2, oldLines: 0, newStart: 2, newLines: 2}])).toBe(6)
+    expect(remapBreakpointLine(2, [{oldStart: 2, oldLines: 1, newStart: 2, newLines: 0}])).toBe(2)
   })
 })
