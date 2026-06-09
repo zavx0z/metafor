@@ -1,8 +1,4 @@
-import {
-  ELECTROMAGNETISM_BROADCAST_CHANNEL,
-  GLUON_BROADCAST_CHANNEL,
-  HIGGS_BROADCAST_CHANNEL,
-} from "../../protocol.ts"
+import { createProtocolChannel, postProtocolPatches, protocolPatches } from "../../protocol.ts"
 
 export type PhotonPayload = { value: string; path: string }
 
@@ -34,13 +30,16 @@ export const subscribeDarkPhotons = (
   listener?: (message: PhotonPayload) => void,
   options: { channelName?: string } = {},
 ): DarkPhotonSubscription => {
-  const channel = new BroadcastChannel(options.channelName ?? ELECTROMAGNETISM_BROADCAST_CHANNEL)
+  const channel = createProtocolChannel(options.channelName)
 
-  channel.onmessage = (event: MessageEvent<PhotonPayload>) => {
-    const message = event.data
+  channel.onmessage = (event: MessageEvent<unknown>) => {
+    for (const patch of protocolPatches(event.data)) {
+      if (patch.part !== "photon") continue
+      const message: PhotonPayload = { path: patch.path, value: String(patch.value ?? "") }
 
-    darkPhoton$.messages.push(message)
-    listener?.(message)
+      darkPhoton$.messages.push(message)
+      listener?.(message)
+    }
   }
 
   return {
@@ -57,17 +56,14 @@ const createReplacePatch = (wimpFieldId: string, value: unknown): { op: "replace
 })
 
 export const createDarkElectromagnetismProtocol = (
-  options: { gluonChannelName?: string; higgsChannelName?: string } = {},
+  options: { channelName?: string } = {},
 ): DarkElectromagnetismProtocol => {
-  const gluon = new BroadcastChannel(options.gluonChannelName ?? GLUON_BROADCAST_CHANNEL)
-  const higgs = new BroadcastChannel(options.higgsChannelName ?? HIGGS_BROADCAST_CHANNEL)
+  const channel = createProtocolChannel(options.channelName)
   const emitGluonPatches = (patches: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    if (patches.length === 0) return
-    gluon.postMessage({ patches })
+    postProtocolPatches(channel, patches.map((patch) => ({ part: "gluon", ...patch })))
   }
   const emitHiggsPatches = (patches: Array<{ op: "replace"; path: string; value: unknown }>): void => {
-    if (patches.length === 0) return
-    higgs.postMessage({ patches })
+    postProtocolPatches(channel, patches.map((patch) => ({ part: "higgs", ...patch })))
   }
 
   return {
@@ -82,8 +78,7 @@ export const createDarkElectromagnetismProtocol = (
     },
 
     close() {
-      gluon.close()
-      higgs.close()
+      channel.close()
     },
   }
 }

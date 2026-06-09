@@ -3,6 +3,7 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {open} from "./server.ts"
+import type {StorePart, StorePatch} from "./server.ts"
 import {BooleanValue, EnumValue} from "@store/actor"
 import type {Store} from "./index.ts"
 
@@ -54,76 +55,48 @@ describe("store/server smoke", () => {
     const idleStateUuid = crypto.randomUUID()
     const readyStateUuid = crypto.randomUUID()
 
-    await store.update({part: "graviton", patch: [{op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}]})
+    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}])
 
-    await store.update({
-      part: "graviton",
-      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}`, value: {key: "flag", type: "boolean", label: "Flag"}}],
-    })
-    await store.update({
-      part: "graviton",
-      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}/default`, value: {}}],
-    })
-    await store.update({
-      part: "graviton",
-      patch: [
-        {
-          op: "add",
-          path: `/wimp/${enc(SRC)}/field/${flagUuid}/default/scalar`,
-          value: {kind: "boolean", boolean: false},
-        },
-      ],
-    })
+    await update(store, "graviton", [
+      {op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}`, value: {key: "flag", type: "boolean", label: "Flag"}},
+    ])
+    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}/default`, value: {}}])
+    await update(store, "graviton", [
+      {
+        op: "add",
+        path: `/wimp/${enc(SRC)}/field/${flagUuid}/default/scalar`,
+        value: {kind: "boolean", boolean: false},
+      },
+    ])
 
-    await store.update({
-      part: "graviton",
-      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}`, value: {key: "status", type: "enum"}}],
-    })
-    await store.update({
-      part: "graviton",
-      patch: [
-        {
-          op: "add",
-          path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${idleVariantUuid}`,
-          value: {position: 0, item_value: "idle"},
-        },
-      ],
-    })
-    await store.update({
-      part: "graviton",
-      patch: [
-        {
-          op: "add",
-          path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${readyVariantUuid}`,
-          value: {position: 1, item_value: "ready"},
-        },
-      ],
-    })
-    await store.update({
-      part: "graviton",
-      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}/default`, value: {}}],
-    })
-    await store.update({
-      part: "graviton",
-      patch: [
-        {
-          op: "add",
-          path: `/wimp/${enc(SRC)}/field/${statusUuid}/default/variant`,
-          value: {variant: idleVariantUuid},
-        },
-      ],
-    })
+    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}`, value: {key: "status", type: "enum"}}])
+    await update(store, "graviton", [
+      {
+        op: "add",
+        path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${idleVariantUuid}`,
+        value: {position: 0, item_value: "idle"},
+      },
+    ])
+    await update(store, "graviton", [
+      {
+        op: "add",
+        path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${readyVariantUuid}`,
+        value: {position: 1, item_value: "ready"},
+      },
+    ])
+    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}/default`, value: {}}])
+    await update(store, "graviton", [
+      {
+        op: "add",
+        path: `/wimp/${enc(SRC)}/field/${statusUuid}/default/variant`,
+        value: {variant: idleVariantUuid},
+      },
+    ])
 
-    await store.update({
-      part: "graviton",
-      patch: [{op: "add", path: `/wimp/${enc(SRC)}/state/${idleStateUuid}`, value: {name: "idle", position: 0}}],
-    })
-    await store.update({
-      part: "graviton",
-      patch: [
-        {op: "add", path: `/wimp/${enc(SRC)}/state/${readyStateUuid}`, value: {name: "ready", position: 1}},
-      ],
-    })
+    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/state/${idleStateUuid}`, value: {name: "idle", position: 0}}])
+    await update(store, "graviton", [
+      {op: "add", path: `/wimp/${enc(SRC)}/state/${readyStateUuid}`, value: {name: "ready", position: 1}},
+    ])
 
     const meta = await store.wimp.get(SRC)
     if (!meta) throw new Error("meta missing")
@@ -151,56 +124,29 @@ describe("store/server smoke", () => {
     const idleStateUuid = crypto.randomUUID()
 
     // декларация (минимум)
-    await store.update({part: "graviton", patch: [{op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}]})
-    await store.update({
-      part: "graviton",
-      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}`, value: {key: "flag", type: "boolean"}}],
-    })
-    await store.update({
-      part: "graviton",
-      patch: [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}`, value: {key: "status", type: "enum"}}],
-    })
-    await store.update({
-      part: "graviton",
-      patch: [
-        {
-          op: "add",
-          path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${idleVariantUuid}`,
-          value: {position: 0, item_value: "idle"},
-        },
-      ],
-    })
-    await store.update({
-      part: "graviton",
-      patch: [{op: "add", path: `/wimp/${enc(SRC)}/state/${idleStateUuid}`, value: {name: "idle", position: 0}}],
-    })
+    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}`, value: {name: "smoke"}}])
+    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/field/${flagUuid}`, value: {key: "flag", type: "boolean"}}])
+    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/field/${statusUuid}`, value: {key: "status", type: "enum"}}])
+    await update(store, "graviton", [
+      {
+        op: "add",
+        path: `/wimp/${enc(SRC)}/field/${statusUuid}/variant/${idleVariantUuid}`,
+        value: {position: 0, item_value: "idle"},
+      },
+    ])
+    await update(store, "graviton", [{op: "add", path: `/wimp/${enc(SRC)}/state/${idleStateUuid}`, value: {name: "idle", position: 0}}])
 
     // actor-1
     const actorUuid = "actor-1"
     const valueFlag = "v-flag"
     const valueStatus = "v-status"
 
-    await store.update({
-      part: "graviton",
-      patch: [{op: "add", path: `/actor/${actorUuid}`, value: {parent: null, wimp: SRC, position: 0}}],
-    })
-    await store.update({part: "gluon", patch: [{op: "add", path: `/value/${valueFlag}`, value: {kind: "boolean", boolean: true}}]})
-    await store.update({
-      part: "gluon",
-      patch: [{op: "add", path: `/value/${valueStatus}`, value: {kind: "enum", variant: idleVariantUuid}}],
-    })
-    await store.update({
-      part: "gluon",
-      patch: [{op: "add", path: `/actor/${actorUuid}/value/${flagUuid}`, value: {value: valueFlag}}],
-    })
-    await store.update({
-      part: "gluon",
-      patch: [{op: "add", path: `/actor/${actorUuid}/value/${statusUuid}`, value: {value: valueStatus}}],
-    })
-    await store.update({
-      part: "photon",
-      patch: [{op: "add", path: `/actor/${actorUuid}/state`, value: {metaState: idleStateUuid}}],
-    })
+    await update(store, "graviton", [{op: "add", path: `/actor/${actorUuid}`, value: {parent: null, wimp: SRC, position: 0}}])
+    await update(store, "gluon", [{op: "add", path: `/value/${valueFlag}`, value: {kind: "boolean", boolean: true}}])
+    await update(store, "gluon", [{op: "add", path: `/value/${valueStatus}`, value: {kind: "enum", variant: idleVariantUuid}}])
+    await update(store, "gluon", [{op: "add", path: `/actor/${actorUuid}/value/${flagUuid}`, value: {value: valueFlag}}])
+    await update(store, "gluon", [{op: "add", path: `/actor/${actorUuid}/value/${statusUuid}`, value: {value: valueStatus}}])
+    await update(store, "photon", [{op: "add", path: `/actor/${actorUuid}/state`, value: {metaState: idleStateUuid}}])
 
     const actor = await store.actor.get(actorUuid)
     if (!actor) throw new Error("actor missing")
@@ -226,35 +172,17 @@ describe("store/server smoke", () => {
     const valueFlag2 = "v-flag-2"
     const valueStatus2 = "v-status-2"
 
-    await store.update({
-      part: "graviton",
-      patch: [{op: "add", path: `/actor/${actor2Uuid}`, value: {parent: null, wimp: SRC, position: 1}}],
-    })
-    await store.update({part: "gluon", patch: [{op: "add", path: `/value/${valueFlag2}`, value: {kind: "boolean", boolean: true}}]})
-    await store.update({
-      part: "gluon",
-      patch: [{op: "add", path: `/value/${valueStatus2}`, value: {kind: "enum", variant: idleVariantUuid}}],
-    })
-    await store.update({
-      part: "gluon",
-      patch: [{op: "add", path: `/actor/${actor2Uuid}/value/${flagUuid}`, value: {value: valueFlag2}}],
-    })
-    await store.update({
-      part: "gluon",
-      patch: [{op: "add", path: `/actor/${actor2Uuid}/value/${statusUuid}`, value: {value: valueStatus2}}],
-    })
-    await store.update({
-      part: "photon",
-      patch: [{op: "add", path: `/actor/${actor2Uuid}/state`, value: {metaState: idleStateUuid}}],
-    })
+    await update(store, "graviton", [{op: "add", path: `/actor/${actor2Uuid}`, value: {parent: null, wimp: SRC, position: 1}}])
+    await update(store, "gluon", [{op: "add", path: `/value/${valueFlag2}`, value: {kind: "boolean", boolean: true}}])
+    await update(store, "gluon", [{op: "add", path: `/value/${valueStatus2}`, value: {kind: "enum", variant: idleVariantUuid}}])
+    await update(store, "gluon", [{op: "add", path: `/actor/${actor2Uuid}/value/${flagUuid}`, value: {value: valueFlag2}}])
+    await update(store, "gluon", [{op: "add", path: `/actor/${actor2Uuid}/value/${statusUuid}`, value: {value: valueStatus2}}])
+    await update(store, "photon", [{op: "add", path: `/actor/${actor2Uuid}/state`, value: {metaState: idleStateUuid}}])
 
     // share: actor2.flag → valueFlag (тот же, что у actor1)
-    await store.update({
-      part: "gluon",
-      patch: [{op: "replace", path: `/actor/${actor2Uuid}/value/${flagUuid}`, value: {value: valueFlag}}],
-    })
+    await update(store, "gluon", [{op: "replace", path: `/actor/${actor2Uuid}/value/${flagUuid}`, value: {value: valueFlag}}])
     // удаляем осиротевший valueFlag2
-    await store.update({part: "gluon", patch: [{op: "remove", path: `/value/${valueFlag2}`}]})
+    await update(store, "gluon", [{op: "remove", path: `/value/${valueFlag2}`}])
 
     const actor2 = (await store.actor.get(actor2Uuid))!
     const link2 = (await actor2.values.get({field: flagUuid}))!
@@ -271,3 +199,11 @@ describe("store/server smoke", () => {
 })
 
 const enc = (s: string): string => s.replace(/~/g, "~0").replace(/\//g, "~1")
+
+const update = async (
+  store: Store,
+  part: StorePart,
+  patches: Array<Omit<StorePatch, "part">>,
+): Promise<void> => {
+  await store.update({patches: patches.map((patch) => ({part, ...patch}) as StorePatch)})
+}

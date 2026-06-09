@@ -136,7 +136,7 @@ import {
 Для DB-пути `add/remove` мутируют `gravity$`, а `test ""` barrier через `applyStructuralPatchFromDb(...)`
 или явный `rebuildRuntime(backend)` пересобирает `boundary$` и обновляет `uuid <-> braneIndex`.
 UUID field addressing и topology/ordinary field routing живут в `strong$`, а `brane/stateIndex -> metaStateId` для write-back живёт в `weak$`.
-Существующая `lock/unlock` семантика Boundary остаётся как была. `Photon` публикуется как broadcast observable-state signal, `Z` остаётся coordination-каналом исполнителей в `Bulk`, а `W` возвращает один result envelope обратно в `Boundary`; `subscribeBoundaryWeakResultBroadcast()` принимает этот пакет, применяет все UUID field patches за один проход и только потом снимает `lock`.
+Существующая `lock/unlock` семантика Boundary остаётся как была. `Photon`, W, `+Z` и `-Z` идут через единый protocol channel: конкретная частица указывается в каждом patch через `part`. Для Weak используются отдельные частицы: `part: "+z"` и `part: "-z"` обслуживают coordination-patches исполнителя в `Bulk`, `part: "w"` возвращает result-patches в `Boundary`; `subscribeBoundaryWeakResultBroadcast()` группирует W result patches по `wimpId/processId`, применяет UUID field patches за один проход и только потом снимает `lock`.
 
 В контексте визуализации это означает, что `Boundary` уже сейчас способен служить источником:
 

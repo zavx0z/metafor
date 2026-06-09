@@ -4,24 +4,17 @@ import {StoreActorSqlite} from "@store/actor/sqlite"
 import {StoreTopologySqlite} from "@store/topology/sqlite"
 
 import type {Store} from "./index.ts"
+import type {Part} from "../protocol.ts"
 
-export type StoreParticle =
-  | "higgs" // topology-импульс: поля topology и порождение ветвей в meta/actor
-  | "graviton" // gravity-импульс: отношения, адресация и структурная рамка meta/actor
-  | "photon" // state-импульс: изменение состояний actor
-  | "gluon" // value-импульс: изменение значений обычных field
-  | "z" // neutral weak-импульс: координация процессов
-  | "w+" // charged weak-импульс: успешный результат процесса
-  | "w-" // charged weak-импульс: неуспешный результат процесса
+export type StorePart = Part
 
 export type StorePatch =
-  | {op: "add" | "replace" | "test"; path: string; value?: unknown}
-  | {op: "remove"; path: string}
-  | {op: "move" | "copy"; from: string; path: string}
+  | {part: StorePart; op: "add" | "replace" | "test"; path: string; value?: unknown}
+  | {part: StorePart; op: "remove"; path: string}
+  | {part: StorePart; op: "move" | "copy"; from: string; path: string}
 
 export type StoreUpdateMessage = {
-  part: StoreParticle
-  patch: StorePatch[]
+  patches: StorePatch[]
 }
 
 type Tx = SQL | ReservedSQL
@@ -75,7 +68,7 @@ const requireNumber = (value: unknown, key: string, path: string): number => {
   return v
 }
 
-const notSupported = (op: string, path: string, part: StoreParticle): never => {
+const notSupported = (op: string, path: string, part: StorePart): never => {
   throw new Error(`Patch op "${op}" is not supported for "${path}" (part=${part})`)
 }
 
@@ -897,8 +890,8 @@ const applyPhotonPatch = async (tx: Tx, patch: StorePatch): Promise<void> => {
 // dispatcher
 // =============================================================================
 
-const applyOnePatch = async (tx: Tx, part: StoreParticle, patch: StorePatch): Promise<void> => {
-  switch (part) {
+const applyOnePatch = async (tx: Tx, patch: StorePatch): Promise<void> => {
+  switch (patch.part) {
     case "graviton":
       return applyGravitonPatch(tx, patch)
     case "gluon":
@@ -907,20 +900,20 @@ const applyOnePatch = async (tx: Tx, part: StoreParticle, patch: StorePatch): Pr
       return applyPhotonPatch(tx, patch)
     case "higgs":
       throw new Error(`Patch part "higgs" is not implemented yet`)
-    case "z":
-      throw new Error(`Patch part "z" is not implemented yet`)
-    case "w+":
-      throw new Error(`Patch part "w+" is not implemented yet`)
-    case "w-":
-      throw new Error(`Patch part "w-" is not implemented yet`)
+    case "w":
+      throw new Error(`Patch part "w" is not implemented yet`)
+    case "-z":
+      throw new Error(`Patch part "-z" is not implemented yet`)
+    case "+z":
+      throw new Error(`Patch part "+z" is not implemented yet`)
   }
 }
 
 const buildApplyMessage = (sql: SQL) => async (message: StoreUpdateMessage): Promise<void> => {
-  if (message.patch.length === 0) return
+  if (message.patches.length === 0) return
   await sql.begin(async (tx) => {
-    for (const patch of message.patch) {
-      await applyOnePatch(tx, message.part, patch)
+    for (const patch of message.patches) {
+      await applyOnePatch(tx, patch)
     }
   })
 }

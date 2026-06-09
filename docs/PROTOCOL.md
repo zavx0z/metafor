@@ -54,6 +54,30 @@ The protocol relation is therefore:
 - a bosonic subtype defines the concrete force-channel,
 - `Impulse` defines the content of change.
 
+## Transport and `part`
+
+MetaFor uses one physical transport channel: `METAFOR_BROADCAST_CHANNEL`.
+Runtime protocol must not create separate physical channels for `gravity`, `gluon`, `higgs`, `weak`, and so on.
+
+The semantic particle is stored inside each patch through the `part` field.
+One patch carries exactly one particle:
+
+```ts
+{ part: "graviton", op: "add", path: "/wimp/zavx0z~1git" }
+{ part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
+{ part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
+{ part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
+{ part: "w", op: "result", path: "/wimp/<uuid>/process/<uuid>" }
+{ part: "+z", op: "claim", path: "/wimp/<uuid>/process/<uuid>" }
+{ part: "-z", op: "release", path: "/wimp/<uuid>/process/<uuid>" }
+```
+
+A `patches` batch may contain different `part` values, but routing is always read from the patch itself, not from the envelope.
+The envelope must not duplicate `part`, `channel`, `source`, or `boson`.
+
+The transport layer does not build custom queues on top of `BroadcastChannel`.
+If ordering, deduplication, replay, or integrity is required, it belongs to the store transaction, revision/domain tick, or runtime owner rather than to a subscriber-side Promise queue.
+
 ## Field types
 
 Protocol distinguishes:

@@ -1,4 +1,4 @@
-import {GRAVITY_BROADCAST_CHANNEL} from "../protocol.ts"
+import {createProtocolChannel, protocolPatches} from "../protocol.ts"
 import {MetaFor} from ".."
 import {open} from "store/server"
 import {matter} from "./dark.ts"
@@ -9,8 +9,8 @@ import {matter} from "./dark.ts"
 
 /**
  * Серверный демон Dark: открывает файловый store через `store/server.open()`,
- * публикует его в `globalThis.store`, и слушает `gravity`-канал на входящие
- * гравитоны вида `add /wimp/<src>` — по такому патчу запускает `matter(src)`,
+ * публикует его в `globalThis.store`, и слушает единый protocol channel на входящие
+ * graviton-патчи вида `add /wimp/<src>` — по такому патчу запускает `matter(src)`,
  * который через ORM пишет wimp + actor + topology rows.
  */
 const STORE_PATH = process.env.STORE_PATH ?? "./boundary.sqlite"
@@ -27,8 +27,7 @@ const extractWimpSrc = (path: string): string | null => {
   return decodeSegment(rest)
 }
 
-
-const gravity = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
+const protocol = createProtocolChannel()
 
 const handleWimpLoad = async (src: string): Promise<void> => {
   const existing = await globalThis.store.wimp.get(src)
@@ -40,24 +39,18 @@ const handleWimpLoad = async (src: string): Promise<void> => {
   }
 }
 
-// Серилизуем обработку входящих gravity-сообщений: каждый следующий wimp
-// ждёт завершения матерализации предыдущего. Без этого тесты не имеют точки
-// синхронизации (мы убрали emitBarrier).
-let processingChain: Promise<void> = Promise.resolve()
-
-gravity.addEventListener("message", (event) => {
-  const data = (event as MessageEvent<{patches?: Array<{op?: unknown; path?: unknown}>}>).data
-
-  for (const patch of data.patches ?? []) {
+protocol.addEventListener("message", (event) => {
+  for (const patch of protocolPatches(event.data)) {
+    if (patch.part !== "graviton") continue
     if (patch.op !== "add" || typeof patch.path !== "string") continue
     const src = extractWimpSrc(patch.path)
     if (!src) continue
-    processingChain = processingChain.then(() => handleWimpLoad(src))
+    void handleWimpLoad(src)
   }
 })
 
 const shutdown = async (signal: string): Promise<void> => {
-  gravity.close()
+  protocol.close()
   await globalThis.store.close()
   process.exit(0)
 }

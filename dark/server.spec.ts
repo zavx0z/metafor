@@ -2,7 +2,7 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {SQL} from "bun"
 import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
-import {GRAVITY_BROADCAST_CHANNEL} from "../protocol.ts"
+import {createProtocolChannel} from "../protocol.ts"
 
 describe("dark/server разворачивает дерево zavx0z/git по gravity-патчу", () => {
   let outbound: BroadcastChannel
@@ -23,7 +23,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     process.env.STORE_PATH = storePath
     await import("./server.ts")
 
-    outbound = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
+    outbound = createProtocolChannel()
   })
 
   afterAll(() => {
@@ -33,7 +33,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
 
   test("после add /wimp/zavx0z~1git store содержит каноническое дерево git", async () => {
     outbound.postMessage({
-      patches: [{op: "add", path: "/wimp/zavx0z~1git"}],
+      patches: [{part: "graviton", op: "add", path: "/wimp/zavx0z~1git"}],
     })
 
     // ждём пока Dark материализует root wimp + child wimps в БД
@@ -94,7 +94,7 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     const before = await waitForActorCountStable(sql)
 
     outbound.postMessage({
-      patches: [{op: "add", path: "/wimp/zavx0z~1git"}],
+      patches: [{part: "graviton", op: "add", path: "/wimp/zavx0z~1git"}],
     })
 
     // даём server'у тик — если бы он начал загрузку, он бы уехал в matter()

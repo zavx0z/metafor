@@ -54,6 +54,30 @@
 - подтип `Boson` задаёт конкретный силовой канал,
 - `Impulse` задаёт содержимое изменения.
 
+## Транспорт и `part`
+
+Физический транспорт MetaFor использует один `BroadcastChannel`: `METAFOR_BROADCAST_CHANNEL`.
+Отдельных физических каналов `gravity`, `gluon`, `higgs`, `weak` и т.п. в runtime-протоколе быть не должно.
+
+Смысловая частица указывается внутри каждого patch через поле `part`.
+Один patch несёт ровно одну частицу:
+
+```ts
+{ part: "graviton", op: "add", path: "/wimp/zavx0z~1git" }
+{ part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
+{ part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
+{ part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
+{ part: "w", op: "result", path: "/wimp/<uuid>/process/<uuid>" }
+{ part: "+z", op: "claim", path: "/wimp/<uuid>/process/<uuid>" }
+{ part: "-z", op: "release", path: "/wimp/<uuid>/process/<uuid>" }
+```
+
+Batch `patches` может содержать разные `part`, но маршрутизация всегда читается с самого patch, а не с envelope.
+Envelope не должен дублировать `part`, `channel`, `source` или `boson`.
+
+Transport-layer не строит собственные очереди поверх `BroadcastChannel`.
+Если нужен порядок, дедупликация, replay или целостность, это обязанность store transaction, revision/domain tick или владельца runtime, а не Promise-очереди подписчика.
+
 ## Типы полей
 
 Протокол различает:

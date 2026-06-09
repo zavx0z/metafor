@@ -2,6 +2,10 @@
 
 > Актуальность: исторический аудит до текущего разворота на `store`.
 > Текущий план и состояние на 2026-04-26 см. в `task/store-unification.md`.
+> Протокольный транспорт после актуализации 2026-06 использует один
+> `METAFOR_BROADCAST_CHANNEL`, а смысловая частица хранится в `part` каждого
+> patch. Разделы про отдельные BroadcastChannel-каналы ниже описывают старое
+> состояние.
 
 > **Цель документа.** Свести в одно место (а) что было задумано про store/db с самого начала, (б) что было сделано на каждой эпохе, (в) что мы имеем сейчас в `arch`, (г) что хочет user сегодня, (д) разрыв между «хочу» и «имеем», (е) кандидаты-варианты, как закрыть разрыв.
 >
@@ -227,19 +231,14 @@ export interface DbInstanceStore {
 
 ```ts
 // protocol.ts
-export const DB_SYNC_BROADCAST_CHANNEL = "metafor.db-sync"
-export type DbSyncPayload = {
-  rootSrc: string
-  op:
-    | { kind: "clear-world" }
-    | { kind: "insert-particle"; row: DbParticleShellRow }
-    | { kind: "insert-field"; row: DbFieldOrbitRow }
-}
+export const METAFOR_BROADCAST_CHANNEL = "metafor.protocol"
+export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w" | "-z" | "+z"
 
-export const STRUCTURAL_BROADCAST_CHANNEL = "metafor.structural"
-export type StructuralSignalPayload = {
-  rootSrc: string
-  scope: { kind: "world" } | { kind: "subtree"; parentParticleId: string }
+export type ProtocolPatch = {
+  part: Part
+  op: string
+  path: string
+  value?: unknown
 }
 ```
 
@@ -262,25 +261,25 @@ dark.worker (bun)                                client (browser)
   │        → SQLite INSERT                         │
   │        → publish DbSyncMessage{insert-particle}│
   │                                                │
-  ├─ structuralChannel.postMessage(barrier-signal) │
+  ├─ postProtocolPatches([{                       │
+  │     part:"graviton", path:"/structural", …}]) │
   │                                                │
   ▼                                                │
-BroadcastChannel("metafor.db-sync")                │
-BroadcastChannel("metafor.structural")             │
+BroadcastChannel("metafor.protocol")               │
   │                                                │
-server.ts (protocolMirrors): валидирует и          │
-WebSocket.send({type:"protocol", channel, message})│
+server.ts: валидирует и                            │
+WebSocket.send({type:"protocol", patches})         │
   │                                                │
   ▼                                                ▼
                                   socket.onmessage:
-                                    db-sync     → applyDbSyncMessage(idbStore, op)
+                                    /db-sync    → applyDbSyncMessage(idbStore, op)
                                                   → IDB INSERT
-                                    structural  → refreshViewportFromLocalStore
+                                    /structural → refreshViewportFromLocalStore
                                                   → idbStore.selectAll*
                                                   → bulkViewport.applyWorld(rows)
 ```
 
-Гарантия порядка: единая Promise-цепочка `pendingSyncQueue` в client.ts.
+Гарантия порядка не должна жить в Promise-очереди client.ts. Если нужен строгий порядок, он задаётся store revision / transaction.
 
 ---
 
@@ -400,7 +399,7 @@ export { dbRequiredBackendIndexes, createEmptyDbData, normalizeDbData, readDbDat
 
 > вообще нужно на web idxdb аналогично сделать хранилищем как в server sqlite … и механизм синхронизации до момента отправки сигналов … от снепшотов нужно избавляться в пользу db
 
-Это уже сделано на уровне `DbInstanceStore` — снапшоты выпилены, идёт per-row sync через `DB_SYNC_BROADCAST_CHANNEL`, structural barrier триггерит `selectAllParticleShells/Orbits` из IDB. Но **аналогичного per-row sync для `DbBackend` пока нет** — boundary в браузере (`metafor-web`) живёт через `openDbIndexedDbBackend`, наполняется как? — не через стрим из bun-стороны, а через свою materialize-цепочку (нужно проверить отдельно).
+Это уже сделано на уровне `DbInstanceStore` — снапшоты выпилены, per-row sync идёт через единый protocol channel как `/db-sync` patch, structural barrier идёт как `/structural` patch. Но **аналогичного per-row sync для `DbBackend` пока нет** — boundary в браузере (`metafor-web`) живёт через `openDbIndexedDbBackend`, наполняется как? — не через стрим из bun-стороны, а через свою materialize-цепочку (нужно проверить отдельно).
 
 ### 3.3. Source of truth — DB, не in-memory snapshot
 
@@ -594,20 +593,25 @@ WAL включается в (2) и (3), не в (1). PRAGMA `synchronous=NORMAL`
 
 **Активные в app/web client:** только `metafor-app-instance` + `metafor-app-web-ui`. `metafor-web` — standalone путь boundary, в основном flow не открывается.
 
-### 8.3. BroadcastChannel-каналы (`protocol.ts`)
+### 8.3. Protocol channel (`protocol.ts`)
 
-| Канал | Payload | Cемантика |
+| Transport | Payload | Cемантика |
 |---|---|---|
-| `metafor.gravity` | `{patches}` (add/remove/test) | UUID-структурные изменения |
-| `metafor.electromagnetism` | `{path, value}` | string state transfer |
-| `metafor.gluon` | `{patches}` (replace) | value replacements |
-| `metafor.higgs` | `{patches}` (replace) | topology changes |
-| `metafor.weak.w` | `{wimpId, processId, patches}` | process state writes |
-| `metafor.weak.z` | `{wimpId, processId, coordination: claim/accept/reject/release}` | process mutual exclusion |
-| `metafor.structural` | `{rootSrc, scope: world/subtree}` | barrier-сигнал «перечитайте всё» |
-| `metafor.db-sync` | `{rootSrc, op: clear-world/insert-particle/insert-field}` | per-row sync для browser IDB-зеркала |
+| `METAFOR_BROADCAST_CHANNEL` | `{patches: ProtocolPatch[]}` | единый runtime transport |
 
-Из этих **только два носят persistence-смысл**: `db-sync` (фактические row-вставки) и `structural` (barrier «перечитай»). Остальные шесть — runtime state-transfer, не persistence.
+Смысловой маршрут задаётся не физическим каналом, а `part` внутри каждого patch:
+
+| `part` / path | Семантика |
+|---|---|
+| `graviton` | UUID-структурные изменения |
+| `graviton`, `/db-sync` | per-row sync для browser IDB-зеркала |
+| `graviton`, `/structural` | barrier-сигнал «перечитайте всё» |
+| `photon` | string state transfer |
+| `gluon` | value replacements |
+| `higgs` | topology changes |
+| `w` | Weak process result |
+| `+z` | Weak positive coordination: claim/accept |
+| `-z` | Weak negative coordination: reject/release |
 
 ### 8.4. In-memory кэши
 

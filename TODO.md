@@ -34,7 +34,8 @@
 
 - [x] Сверить `task/issues-audit.md` с текущим корневым `protocol.ts`.
 - [x] Решить судьбу `channel`, `source`, `boson` в protocol envelope.
-- [ ] Довести W/Z bridge: subscriber, publisher и smoke-сценарий.
+- [x] Перевести runtime protocol на один `METAFOR_BROADCAST_CHANNEL` и `part` внутри каждого patch.
+- [ ] Довести W/+Z/-Z bridge: Boundary-side Z arbitration и smoke-сценарий.
 
 ## 6. Interpreter TODO HUD
 

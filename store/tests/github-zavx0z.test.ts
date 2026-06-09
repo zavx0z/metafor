@@ -3,7 +3,7 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {matter} from "../../dark/index.ts"
-import {GRAVITY_BROADCAST_CHANNEL} from "../../protocol.ts"
+import {createProtocolChannel} from "../../protocol.ts"
 import type {Store} from "../index.ts"
 import {open} from "../server.ts"
 
@@ -41,7 +41,7 @@ describe("store/tests github/zavx0z startup load", () => {
   })
 
   test("matter() пишет всё дерево zavx0z/git через patch-flow и публикует gravity-сообщения", async () => {
-    const channel = new BroadcastChannel(GRAVITY_BROADCAST_CHANNEL)
+    const channel = createProtocolChannel()
     const messages: unknown[] = []
     const materializedWimps: string[] = []
 

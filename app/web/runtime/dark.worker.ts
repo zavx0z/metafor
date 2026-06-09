@@ -1,9 +1,6 @@
 import { MetaFor } from "../../../metafor.ts"
 import { openDbMaterializationWriter, openDbSqliteBackend } from "store/db"
-import {
-	DB_SYNC_BROADCAST_CHANNEL,
-	STRUCTURAL_BROADCAST_CHANNEL,
-} from "../../../protocol.ts"
+import { createProtocolChannel, postProtocolPatches } from "../../../protocol.ts"
 import {
 	createMirroredActorStore,
 	createSqliteDbActorStore,
@@ -49,8 +46,13 @@ type DarkWorkerScope = typeof globalThis & {
 }
 
 const darkWorker = globalThis as DarkWorkerScope
-const structuralChannel = new BroadcastChannel(STRUCTURAL_BROADCAST_CHANNEL)
-const dbSyncChannel = new BroadcastChannel(DB_SYNC_BROADCAST_CHANNEL)
+const protocolChannel = createProtocolChannel()
+const dbSyncChannel = {
+	postMessage(message: unknown) {
+		postProtocolPatches(protocolChannel, [{ part: "graviton", op: "replace", path: "/db-sync", value: message }])
+	},
+	close() {},
+} as BroadcastChannel
 let actorStore: DbActorStore | null = null
 
 const ensureActorStore = (dbFilename: string): DbActorStore => {
@@ -294,7 +296,7 @@ const publishStructuralSignal = async (
 	const store = ensureActorStore(dbFilename)
 
 	// Layout сразу пишет per-row в `store`, который через mirror публикует sync-events
-	// в db-sync broadcast channel — server потом мирорит их в WS клиентам.
+	// в единый protocol channel — server потом мирорит их в WS клиентам.
 	await streamDbWorldRows(
 		src,
 		descriptorRoots.map((descriptor) => cloneParticleDescriptor(descriptor)),
@@ -303,10 +305,9 @@ const publishStructuralSignal = async (
 	)
 
 	// Барьер: «всё применено, можно перерисовывать».
-	structuralChannel.postMessage({
-		rootSrc: src,
-		scope: { kind: "world" },
-	})
+	postProtocolPatches(protocolChannel, [
+		{ part: "graviton", op: "test", path: "/structural", value: { rootSrc: src, scope: { kind: "world" } } },
+	])
 }
 
 let currentRootSrc: string | null = null
@@ -404,17 +405,12 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 			metaDb = canonicalized.metaDb
 
 			const writer = openDbMaterializationWriter(backend)
-			// Sequential queue: каждый emitSnapshot ждёт предыдущего, чтобы порядок
-			// per-row sync-events на канале совпадал с порядком вызовов.
-			let pendingEmit: Promise<void> = Promise.resolve()
-			const emitSnapshot = (): void => {
+			const emitSnapshot = async (): Promise<void> => {
 				const descriptorRoots = createRuntimeParticleDescriptors(canonicalized.particleModelsBySrc)
 				currentRootSrc = src
 				currentDescriptorRoots = descriptorRoots.map((descriptor) => cloneParticleDescriptor(descriptor))
 				const roots = currentDescriptorRoots
-				pendingEmit = pendingEmit.then(() =>
-					publishStructuralSignal(src, roots, layoutSettings ?? {}, dbFilename),
-				)
+				await publishStructuralSignal(src, roots, layoutSettings ?? {}, dbFilename)
 			}
 			await matter(new Wimp({ src, parent: null }), undefined, {
 				dbWriter: writer,
@@ -422,8 +418,7 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 				onMaterializedStep: emitSnapshot,
 			})
 			await backend.flush()
-			emitSnapshot()
-			await pendingEmit
+			await emitSnapshot()
 
 			darkWorker.postMessage({ type: "worker-status", worker: "dark", status: "done", src })
 		} catch (error) {

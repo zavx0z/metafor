@@ -2,18 +2,7 @@ import { build, file, serve } from "bun"
 import { mkdirSync, rmSync } from "node:fs"
 import { dirname, join, normalize } from "node:path"
 import type { AppWebLayoutSettings } from "./settings.ts"
-import {
-	DB_SYNC_BROADCAST_CHANNEL,
-	ELECTROMAGNETISM_BROADCAST_CHANNEL,
-	GLUON_BROADCAST_CHANNEL,
-	GRAVITY_BROADCAST_CHANNEL,
-	HIGGS_BROADCAST_CHANNEL,
-	STRUCTURAL_BROADCAST_CHANNEL,
-	WEAK_W_BROADCAST_CHANNEL,
-	WEAK_Z_BROADCAST_CHANNEL,
-} from "../../protocol.ts"
-
-type ValuePatch = { op: "replace"; path: string; value: unknown }
+import { createProtocolChannel, postProtocolPatches, protocolPatches, type ProtocolPatch } from "../../protocol.ts"
 
 const ROOT = normalize(join(import.meta.dir, "../../"))
 const APP_CHANNEL = "app-web"
@@ -65,8 +54,7 @@ type ClientRelayoutMessage = {
 
 type ClientProtocolBridgePayload = {
 	type: "protocol"
-	channel: "gluon" | "higgs"
-	patches: ValuePatch[]
+	patches: ProtocolPatch[]
 }
 
 type AppRuntime = {
@@ -88,10 +76,7 @@ const workerStates: Record<WorkerName, WorkerStatus> = {
 
 let runtime: AppRuntime | null = null
 let runtimeLock: Promise<AppRuntime> | null = null
-const protocolInputs = {
-	gluon: new BroadcastChannel(GLUON_BROADCAST_CHANNEL),
-	higgs: new BroadcastChannel(HIGGS_BROADCAST_CHANNEL),
-} as const
+const protocolInput = createProtocolChannel()
 
 const workerEntry = (relativePath: string): string => join(ROOT, relativePath)
 
@@ -125,11 +110,11 @@ const toWorkerMeta = (meta: {
 	return nextMeta
 }
 
-const valuePatchPayload = (value: unknown): ValuePatch | null => {
+const valuePatchPayload = (value: unknown): ProtocolPatch | null => {
 	if (!value || typeof value !== "object") return null
-	const patch = value as { op?: unknown; path?: unknown; value?: unknown }
-	return patch.op === "replace" && typeof patch.path === "string" && "value" in patch
-		? { op: "replace", path: patch.path, value: patch.value }
+	const patch = value as { part?: unknown; op?: unknown; path?: unknown; value?: unknown }
+	return (patch.part === "gluon" || patch.part === "higgs") && patch.op === "replace" && typeof patch.path === "string" && "value" in patch
+		? { part: patch.part, op: "replace", path: patch.path, value: patch.value }
 		: null
 }
 
@@ -137,21 +122,15 @@ const clientProtocolBridgePayload = (value: unknown): ClientProtocolBridgePayloa
 	if (!value || typeof value !== "object") return null
 	const message = value as {
 		type?: unknown
-		channel?: unknown
 		patches?: unknown
 	}
 	if (message.type !== "protocol") return null
-	if (message.channel !== "gluon" && message.channel !== "higgs") return null
 	if (!Array.isArray(message.patches)) return null
 	const patches = message.patches.map(valuePatchPayload)
 	if (patches.some((patch) => patch === null)) return null
 
-	return { type: "protocol", channel: message.channel, patches: patches as ValuePatch[] }
+	return { type: "protocol", patches: patches as ProtocolPatch[] }
 }
-
-const createProtocolBridgeMessage = (payload: ClientProtocolBridgePayload): { patches: ValuePatch[] } => ({
-	patches: payload.patches,
-})
 
 const attachWorker = (
 	workerName: WorkerName,
@@ -247,27 +226,15 @@ const getOrCreateRuntime = async (): Promise<AppRuntime> => {
 	return await runtimeLock
 }
 
-const protocolMirrors = [
-	{ key: "gravity", channelName: GRAVITY_BROADCAST_CHANNEL },
-	{ key: "electromagnetism", channelName: ELECTROMAGNETISM_BROADCAST_CHANNEL },
-	{ key: "gluon", channelName: GLUON_BROADCAST_CHANNEL },
-	{ key: "higgs", channelName: HIGGS_BROADCAST_CHANNEL },
-	{ key: "weak-z", channelName: WEAK_Z_BROADCAST_CHANNEL },
-	{ key: "weak-w", channelName: WEAK_W_BROADCAST_CHANNEL },
-	{ key: "structural", channelName: STRUCTURAL_BROADCAST_CHANNEL },
-	{ key: "db-sync", channelName: DB_SYNC_BROADCAST_CHANNEL },
-] as const
-
-protocolMirrors.forEach(({ key, channelName }) => {
-	const channel = new BroadcastChannel(channelName)
-	channel.onmessage = (event: MessageEvent<unknown>) => {
-		publish({
-			type: "protocol",
-			channel: key,
-			message: event.data,
-		})
-	}
-})
+const protocolMirror = createProtocolChannel()
+protocolMirror.onmessage = (event: MessageEvent<unknown>) => {
+	const patches = protocolPatches(event.data)
+	if (patches.length === 0) return
+	publish({
+		type: "protocol",
+		patches,
+	})
+}
 
 const server = serve({
 	port: APP_PORT,
@@ -317,13 +284,7 @@ const server = serve({
 				const protocolBridgePayload = clientProtocolBridgePayload(payload)
 				if (protocolBridgePayload !== null) {
 					await getOrCreateRuntime()
-					const protocolMessage = createProtocolBridgeMessage(protocolBridgePayload)
-
-					if (protocolBridgePayload.channel === "gluon") {
-						protocolInputs.gluon.postMessage(protocolMessage)
-					} else {
-						protocolInputs.higgs.postMessage(protocolMessage)
-					}
+					postProtocolPatches(protocolInput, protocolBridgePayload.patches)
 					return
 				}
 

@@ -105,13 +105,13 @@ function testWorkspace(): string {
   }))
   writeFile(cwd, "action.spec.ts", "test('root', () => {})")
   writeFile(cwd, "index.ts", "export const MetaFor = () => null")
-  writeFile(cwd, "protocol.ts", "export const GRAVITY_BROADCAST_CHANNEL = 'metafor.gravity'")
+  writeFile(cwd, "protocol.ts", "export const METAFOR_BROADCAST_CHANNEL = 'metafor.protocol'")
   writeFile(cwd, "dark/package.json", JSON.stringify({
     name: "@metafor/dark",
     dependencies: {store: "workspace:*"},
   }))
-  writeFile(cwd, "dark/server.spec.ts", "import {GRAVITY_BROADCAST_CHANNEL} from '../protocol.ts'\nawait import('./server.ts')\ntest('dark', () => GRAVITY_BROADCAST_CHANNEL)")
-  writeFile(cwd, "dark/server.ts", "import {GRAVITY_BROADCAST_CHANNEL} from '../protocol.ts'\nimport {MetaFor} from '..'\nimport {open} from 'store/server'\nexport {GRAVITY_BROADCAST_CHANNEL, MetaFor, open}")
+  writeFile(cwd, "dark/server.spec.ts", "import {METAFOR_BROADCAST_CHANNEL} from '../protocol.ts'\nawait import('./server.ts')\ntest('dark', () => METAFOR_BROADCAST_CHANNEL)")
+  writeFile(cwd, "dark/server.ts", "import {METAFOR_BROADCAST_CHANNEL} from '../protocol.ts'\nimport {MetaFor} from '..'\nimport {open} from 'store/server'\nexport {METAFOR_BROADCAST_CHANNEL, MetaFor, open}")
   writeFile(cwd, "dark/weak/index.ts", "export {}")
   writeFile(cwd, "store/package.json", JSON.stringify({
     name: "store",

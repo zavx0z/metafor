@@ -51,22 +51,15 @@ import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundary
 import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 import type { WeakHeapUpdate } from "./weak/weak.t"
 import { createEmptyDbData, type DbBackend, type DbData } from "store/db/core"
-import {
-  ELECTROMAGNETISM_BROADCAST_CHANNEL,
-  GLUON_BROADCAST_CHANNEL,
-  HIGGS_BROADCAST_CHANNEL,
-  WEAK_W_BROADCAST_CHANNEL,
-} from "../protocol.ts"
+import { createProtocolChannel, postProtocolPatches, protocolPatches, type ProtocolPatch } from "../protocol.ts"
 import { gravityCH } from "@boundary/gravity/channel.ts"
 
 export type BoundaryStructuralPatch = { op: "add" | "remove" | "test"; path: string; value?: unknown }
 type BoundaryValuePatch = { op: "replace"; path: string; value: unknown }
 type BoundaryChannelOptions = { channelName?: string }
-type BoundaryPhotonPayload = { value: string; path: string }
 type BoundaryWeakResultPayload = { wimpId: string; processId: string; patches: BoundaryValuePatch[] }
 
 export interface BoundaryBroadcastSubscription {
-  flush(): Promise<void>
   close(): Promise<void>
 }
 
@@ -83,24 +76,10 @@ const updateGate: AsyncGate = { pending: null }
 /** Последний успешно materialized runtime-fragment, соответствующий текущему `boundary$`. */
 let loadedRuntimeFragment: DbData = createEmptyDbData()
 let activeDbBackend: DbBackend | null = null
-let electromagnetismChannel: BroadcastChannel | null = null
-let electromagnetismChannelName: string | undefined
+let protocolChannel: BroadcastChannel | null = null
+let protocolChannelName: string | undefined
 const WIMP_PATCH_PATH_PREFIX = "/wimp/"
 const FIELD_PATCH_PATH_PREFIX = "/field/"
-const nextTask = async (): Promise<void> =>
-  await new Promise((resolve) => {
-    setTimeout(resolve, 0)
-  })
-
-const drainQueue = async (getQueue: () => Promise<void>): Promise<void> => {
-  for (;;) {
-    const pending = getQueue()
-    await Promise.resolve()
-    await nextTask()
-    await pending
-    if (pending === getQueue()) return
-  }
-}
 
 const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise<T> => {
   const prev = gate.pending
@@ -120,23 +99,19 @@ const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise
   }
 }
 
-const createQueuedSubscription = (
+const createSubscription = (
   channel: BroadcastChannel,
   onMessage: (message: unknown) => Promise<void> | void,
 ): BoundaryBroadcastSubscription => {
-  let queue = Promise.resolve()
-
   channel.onmessage = (event: MessageEvent) => {
-    queue = queue.then(async () => {
+    void (async () => {
       await onMessage(event.data)
-    })
+    })()
   }
 
   return {
-    flush: async () => await drainQueue(() => queue),
-    async close() {
+    close() {
       channel.close()
-      await drainQueue(() => queue)
     },
   }
 }
@@ -239,14 +214,14 @@ const collectPatchedValues = (patches: BoundaryValuePatch[], kind: "gluon" | "hi
   return values
 }
 
-const getElectromagnetismChannel = (): BroadcastChannel => {
-  electromagnetismChannel ??= new BroadcastChannel(electromagnetismChannelName ?? ELECTROMAGNETISM_BROADCAST_CHANNEL)
-  return electromagnetismChannel
+const getProtocolChannel = (): BroadcastChannel => {
+  protocolChannel ??= createProtocolChannel(protocolChannelName)
+  return protocolChannel
 }
 
 const publishPhotonChanges = (changes: [number, number][]): void => {
   if (changes.length === 0) return
-  const channel = getElectromagnetismChannel()
+  const channel = getProtocolChannel()
 
   for (const [braneIndex, stateIndex] of changes) {
     const uuid = gravity$.getWimpId(braneIndex)
@@ -255,11 +230,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
     const stateName = boundary$.getStateName(braneIndex, stateIndex)
     if (!stateName) continue
 
-    const message: BoundaryPhotonPayload = {
-      value: stateName,
-      path: uuid,
-    }
-    channel.postMessage(message)
+    postProtocolPatches(channel, [{ part: "photon", op: "replace", path: uuid, value: stateName }])
   }
 }
 
@@ -551,11 +522,10 @@ export function subscribeBoundaryGravityBroadcast(
     runtimeOptions.entanglement = options.entanglement
   }
 
-  return createQueuedSubscription(gravityCH, async (message) => {
-    const { patches } = message as { patches?: BoundaryStructuralPatch[] }
-
-    for (const patch of patches ?? []) {
-      await applyStructuralPatchFromDb(backend, patch, runtimeOptions)
+  return createSubscription(gravityCH, async (message) => {
+    for (const patch of protocolPatches(message)) {
+      if (patch.part !== "graviton") continue
+      await applyStructuralPatchFromDb(backend, patch as BoundaryStructuralPatch, runtimeOptions)
     }
   })
 }
@@ -748,20 +718,46 @@ export async function applyWeakResultPacket(message: BoundaryWeakResultPayload):
   })
 }
 
+const toBoundaryValuePatch = (patch: ProtocolPatch): BoundaryValuePatch | null => {
+  if (patch.op !== "replace") return null
+  return { op: "replace", path: patch.path, value: patch.value }
+}
+
+const collectWeakResultPackets = (patches: ProtocolPatch[]): BoundaryWeakResultPayload[] => {
+  const packets = new Map<string, BoundaryWeakResultPayload>()
+
+  for (const patch of patches) {
+    if (patch.part !== "w") continue
+    if (patch.op !== "replace" && patch.op !== "result") continue
+    const wimpId = typeof patch.wimpId === "string" ? patch.wimpId : null
+    const processId = typeof patch.processId === "string" ? patch.processId : null
+    if (!wimpId || !processId) continue
+
+    const key = `${wimpId}\0${processId}`
+    let packet = packets.get(key)
+    if (!packet) {
+      packet = { wimpId, processId, patches: [] }
+      packets.set(key, packet)
+    }
+    if (patch.op === "replace") {
+      packet.patches.push({ op: "replace", path: patch.path, value: patch.value })
+    }
+  }
+
+  return [...packets.values()]
+}
+
 const subscribeBoundaryValueBroadcast = (
   kind: "gluon" | "higgs",
   options: BoundaryChannelOptions = {},
 ): BoundaryValueBroadcastSubscription => {
-  const channelName = kind === "gluon" ? GLUON_BROADCAST_CHANNEL : HIGGS_BROADCAST_CHANNEL
-  const channel = new BroadcastChannel(options.channelName ?? channelName)
-  return createQueuedSubscription(channel, async (message) => {
-    const { patches } = message as { patches?: BoundaryValuePatch[] }
-    if (kind === "gluon") {
-      await applyValuePatches(patches ?? [], kind)
-      return
-    }
-
-    await applyValuePatches(patches ?? [], kind)
+  const channel = createProtocolChannel(options.channelName)
+  return createSubscription(channel, async (message) => {
+    const patches = protocolPatches(message)
+      .filter((patch) => patch.part === kind)
+      .map(toBoundaryValuePatch)
+      .filter((patch): patch is BoundaryValuePatch => patch !== null)
+    await applyValuePatches(patches, kind)
   })
 }
 
@@ -780,8 +776,10 @@ export function subscribeBoundaryHiggsBroadcast(
 export function subscribeBoundaryWeakResultBroadcast(
   options: BoundaryChannelOptions = {},
 ): BoundaryWeakBroadcastSubscription {
-  return createQueuedSubscription(new BroadcastChannel(options.channelName ?? WEAK_W_BROADCAST_CHANNEL), async (message) => {
-    await applyWeakResultPacket(message as BoundaryWeakResultPayload)
+  return createSubscription(createProtocolChannel(options.channelName), async (message) => {
+    for (const packet of collectWeakResultPackets(protocolPatches(message))) {
+      await applyWeakResultPacket(packet)
+    }
   })
 }
 
@@ -802,15 +800,15 @@ export function unlock(indexes: number[]): void {
 }
 
 export function closeBoundaryProtocolChannels(): void {
-  electromagnetismChannel?.close()
-  electromagnetismChannel = null
-  electromagnetismChannelName = undefined
+  protocolChannel?.close()
+  protocolChannel = null
+  protocolChannelName = undefined
 }
 
-export function configureBoundaryElectromagnetismBroadcast(options: BoundaryChannelOptions = {}): void {
-  electromagnetismChannel?.close()
-  electromagnetismChannel = null
-  electromagnetismChannelName = options.channelName
+export function configureBoundaryProtocolBroadcast(options: BoundaryChannelOptions = {}): void {
+  protocolChannel?.close()
+  protocolChannel = null
+  protocolChannelName = options.channelName
 }
 
 export type { PreparedData } from "./boundary.t"

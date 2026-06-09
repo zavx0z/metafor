@@ -5,7 +5,7 @@ export {
   applyWeakResultPacket,
   boundary$,
   closeBoundaryProtocolChannels,
-  configureBoundaryElectromagnetismBroadcast,
+  configureBoundaryProtocolBroadcast,
   flattenBoundaryData,
   gravity$,
   listRuntimeWimpIds,

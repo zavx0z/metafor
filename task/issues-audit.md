@@ -16,14 +16,14 @@
 
 **Что сделано на текущем этапе.**
 
-- Per-row sync events идут через `metafor.db-sync` broadcast канал (commits `1ff16f62`, `415de9bf`).
+- Per-row sync events теперь идут через единый `METAFOR_BROADCAST_CHANNEL` как protocol patches с `part: "graviton"` и техническим path `/db-sync`.
 - `dark.worker` пишет per-row через `mirroredStore` (`pkg/db/instance-store-mirror.ts`); каждый `insertParticleShell` / `insertFieldOrbit` публикует event.
 - Browser держит свой `createIdbDbInstanceStore({databaseName:"metafor-app-instance"})` и applies events через тот же `DbInstanceStore` API.
 - Lerp/easeOutCubic уже есть в `bulk/web/index.ts updateAnimatedRecords` и применяется при transition scale/opacity.
 
 **Гэп.**
 
-- Client копит sync events в `pendingSyncQueue`, но **не передаёт их в viewport** до `structural` барьера.
+- Client больше не копит sync events в локальную Promise-очередь; обработка идёт напрямую из protocol patches.
 - На барьер делает batch refresh: `refreshViewportFromLocalStore(rootSrc)` → `selectAllParticleShells + selectAllFieldOrbits + bulkViewport.applyWorld({rootSrc, particles, fields})`. Внутри `applyWorldRowsToScene` пересобирает множество (`upsertShellRecord` для каждой row), а потом удаляет «нелишние» через diff `nextShellIds`.
 - То есть инфраструктурно per-row есть, но контракт viewport-а — `applyWorld(world: DbWorldRows)` — целое множество за раз.
 
@@ -35,8 +35,8 @@
   - `removeParticleShell(particleId: string): void`
   - `removeFieldOrbit(fieldId: string): void`
 - Внутри они делают то же что `applySnapshotToScene` для одного row (есть уже `upsertShellRecord` / `upsertFieldRecord` / `removeShellRecord` / `removeFieldRecord` — нужно вынести в публичный API).
-- В `app/web/client.ts` на каждый WS `db-sync` event сразу зовёт нужный метод viewport-а — без ожидания барьера и без чтения IDB.
-- `structural` барьер становится сигналом «render frame settled» (для метрик / снятия submit-disabled), а не trigger-ом для full re-apply.
+- В `app/web/client.ts` на каждый patch `/db-sync` сразу применяется IDB mirror. Следующий шаг — звать нужный метод viewport-а без чтения IDB.
+- `/structural` patch должен стать сигналом «render frame settled» (для метрик / снятия submit-disabled), а не trigger-ом для full re-apply.
 - `applyWorld(world)` остаётся как convenience для тестов/первичной заливки, но в runtime не зовётся.
 
 **Связанные коммиты.** `1ff16f62`, `415de9bf`, `10e0129c`, `cc552e10`, `0fd219a9`.
@@ -78,7 +78,7 @@
 **Что сделано.**
 
 - `METAFOR_PROTOCOL_KIND`, `protocol`, `target` больше не входят в protocol payload.
-- Текущий payload не содержит `channel`, `source`, `boson`: канал задаётся транспортом, origin не кодируется в business-message.
+- Текущий envelope не содержит `channel`, `source`, `boson` и не содержит общий `part`: частица находится внутри каждого patch.
 - Валидаторы и тесты выровнены.
 
 **Гэп.** Нет по минимизации payload. Если origin снова понадобится, он должен появиться как metadata transport layer, а не как поле protocol message.
@@ -87,30 +87,33 @@
 
 ---
 
-## #64 — Weak-процессы: добавить канал W/Z поверх существующего lock в Boundary
+## #64 — Weak-процессы: добавить W/+Z/-Z поверх существующего lock в Boundary
 
-**Цель issue.** Lock уже принадлежит Boundary (есть `brane.lock`, `unlock(indexes)`). Bulk не должен владеть lock lifecycle. W/Z — это координация executor-а между Boundary и Bulk, не сам lock.
+**Цель issue.** Lock уже принадлежит Boundary (есть `brane.lock`, `unlock(indexes)`). Bulk не должен владеть lock lifecycle. W/+Z/-Z — это координация executor-а между Boundary и Bulk, не сам lock.
 
 **Что сделано.**
 
-- `protocol.ts` определяет только имена каналов `WEAK_W_BROADCAST_CHANNEL`, `WEAK_Z_BROADCAST_CHANNEL`.
-- W payload `{ wimpId, processId, patches[] }` — active transition с патчами.
-- Z payload `{ wimpId, processId, coordination: "claim"|"accept"|"reject"|"release", executorId? }` — neutral mediation.
+- `protocol.ts` определяет один `METAFOR_BROADCAST_CHANNEL` и `Part`.
+- W/Z идут через patches с отдельными `part`: `w`, `+z`, `-z`.
+- Z coordination patch `{ part:"+z"|"-z", op:"claim"|"accept"|"reject"|"release", wimpId, processId, executorId? }` — neutral mediation.
+- W result patches `{ part:"w", op:"replace"|"result", wimpId, processId, ... }` — active transition с патчами.
 - `boundary/boundary.ts unlock(indexes: number[])` снимает блок с бран по индексам.
 - `boundary/boundary.ts` имеет `applyWeakResultPacket()` и `subscribeBoundaryWeakResultBroadcast()` — приём W-result envelope и unlock после apply (по docstring модуля).
+- `bulk/em/index.ts` публикует `+z` для `claim/accept`, `-z` для `reject/release`, `w` для result patches.
+- `app/web/runtime/bulk.process.ts` уже отправляет `+z claim/accept`, `w` result и `-z release` вокруг исполнения process.
 - `boundary/weak/cpu/step.ts` ставит `brane.lock = true` при step.
 
 **Гэп.**
 
-- Канал `WEAK_W_BROADCAST_CHANNEL` мирится server-ом в `protocolMirrors`, но **подписчика boundary, который реагирует на W payload** для unlock, в коде Boundary не видно (точнее, есть `subscribeBoundaryWeakResultBroadcast`, но на result-payload).
-- Z coordination flow (`claim` → `accept`/`reject` → `release`) — не подключён к Boundary lock-state. Сейчас bulk не сообщает «возьму процесс, claim», boundary не слышит «release».
+- Единый protocol channel мирится server-ом в UI, а `subscribeBoundaryWeakResultBroadcast()` группирует W result patches.
+- Boundary-side Z arbitration (`claim` → `accept`/`reject` → `release`) ещё не подключён к lock-state: `+z/-z` публикуются, но Boundary пока не принимает решение по claim/release.
+- Нет smoke-сценария полного Weak path.
 
 **Что нужно для закрытия.**
 
 - В `boundary/boundary.ts` или отдельном `boundary/weak/protocol-bridge.ts`:
-  - Subscriber на `WEAK_Z_BROADCAST_CHANNEL`: на `claim` от bulk-executor — проверка lock и accept/reject. На `release` — `unlock([braneIndex])`.
-  - Subscriber на `WEAK_W_BROADCAST_CHANNEL`: применяет `patches` через `update()` и `unlock()`.
-- В `bulk/weak/` (есть `bulk/weak/execute.ts`, `bulk/weak/load.ts`, `bulk/weak/process.ts`) добавить publisher: при старте process — `claim`, в конце — W payload `{patches}` + `release`.
+  - Subscriber на Z coordination patches: на `claim` от bulk-executor — проверка lock и accept/reject. На `release` — `unlock([braneIndex])`.
+  - Smoke-тест, который проходит `Photon -> +z claim/accept -> w result -> -z release`.
 
 ---
 
@@ -218,7 +221,7 @@
 |---|---|---|---|---|
 | 31 | Общий Dark pipeline | ✅ закрыт по существу | Закрыть на GitHub | — |
 | 53 | web-gpu-engine как Bulk-инспектор | ✅ активно используется | (видение, оставить open) | — |
-| 64 | Weak W/Z поверх Boundary lock | ⚠️ типы есть, runtime-bridge нет | Subscriber boundary на W/Z; publisher bulk/weak | — |
+| 64 | Weak W/+Z/-Z поверх Boundary lock | ⚠️ bridge частично есть | Boundary-side Z arbitration + smoke | — |
 | 65 | Минимизация протокола | ✅ закрыт по существу | Закрыть на GitHub после smoke-проверки | — |
 | 66 | DSL ↔ DB round-trip | ❌ половина (forward есть, reverse нет) | `pkg/dsl-emit` + round-trip тесты | #58 |
 | 68 | Self-authoring мультивселенная | 📌 видение | — | — |
@@ -241,7 +244,7 @@
 
 **Средний приоритет (косметика и расширения).**
 - **#65 минимизация протокола** — низкий риск, но широкий refactor.
-- **#64 W/Z поверх lock** — закрывает белое пятно weak-flow.
+- **#64 W/+Z/-Z поверх lock** — закрывает белое пятно weak-flow.
 
 **Низкий приоритет (требуют архитектурного анализа).**
 - **#57 reset vs compare/update**, **#58 identity**, **#56 granularity** — взаимосвязанный кластер.

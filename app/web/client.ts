@@ -10,6 +10,7 @@ import {
 	createIdbDbActorStore,
 	type DbActorStore,
 } from "@store/actor"
+import type { ProtocolPatch } from "../../protocol.ts"
 import { createBulkViewport, type BulkViewportController, type BulkViewportStats } from "../../bulk/web/index.ts"
 import {
 	APP_WEB_LAYOUT_SETTING_KEYS,
@@ -30,8 +31,7 @@ type WorkerStatusMessage = {
 
 type ProtocolMessage = {
 	type: "protocol"
-	channel: string
-	message: unknown
+	patches: ProtocolPatch[]
 }
 
 type ClientMaterializePayload = {
@@ -89,7 +89,6 @@ const bulkCounter = document.getElementById("bulk-counter") as HTMLSpanElement
 let bulkViewport: BulkViewportController | null = null
 let initialMaterializationRequested = false
 let localStore: DbActorStore | null = null
-let pendingSyncQueue: Promise<void> = Promise.resolve()
 
 const localStoreReady: Promise<DbActorStore> = createIdbDbActorStore({
 	databaseName: "metafor-app-instance",
@@ -391,34 +390,35 @@ socket.onmessage = (event) => {
 	}
 
 	if (message.type === "protocol") {
-		if (message.channel === "db-sync") {
-			const sync = message.message as Parameters<typeof applyDbSyncMessage>[1]
-			pendingSyncQueue = pendingSyncQueue
-				.then(async () => {
+		appendProtocolMessage("protocol", message.patches)
+		for (const patch of message.patches) {
+			if (patch.part === "graviton" && patch.path === "/db-sync") {
+				const sync = patch.value as Parameters<typeof applyDbSyncMessage>[1]
+				void (async () => {
 					const store = localStore ?? (await localStoreReady)
 					await applyDbSyncMessage(store, sync)
-				})
-				.catch((error) => {
+				})().catch((error) => {
 					console.error("db-sync apply error:", error)
 				})
-			return
-		}
-		if (message.channel === "structural") {
-			const signal = message.message as { rootSrc: string }
-			pendingSyncQueue = pendingSyncQueue
-				.then(async () => {
-					if (pendingSceneState && pendingSceneState.src === signal.rootSrc) {
+				continue
+			}
+			if (patch.part === "graviton" && patch.path === "/structural") {
+				const signal = patch.value as { rootSrc?: unknown }
+				const rootSrc = signal.rootSrc
+				if (typeof rootSrc !== "string") continue
+				void (async () => {
+					if (pendingSceneState && pendingSceneState.src === rootSrc) {
 						lastAppliedSceneState = pendingSceneState
 						pendingSceneState = null
 					}
-					await refreshViewportFromLocalStore(signal.rootSrc)
-				})
-				.catch((error) => {
+					await refreshViewportFromLocalStore(rootSrc)
+				})().catch((error) => {
 					console.error("structural barrier error:", error)
 				})
-			return
+				continue
+			}
+			bulkViewport?.handleProtocol(patch.part, patch)
 		}
-		bulkViewport?.handleProtocol(message.channel, message.message)
 		return
 	}
 }
