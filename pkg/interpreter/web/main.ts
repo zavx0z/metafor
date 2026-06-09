@@ -1085,7 +1085,7 @@ function sqliteDisplayForPath(path: string): SqliteDisplayController | null {
   return sqliteDisplays.get(sqliteDisplayKey(path)) ?? null
 }
 
-function waitForSqliteDatabase(controller: SqliteDisplayController, path: string, table?: string): void {
+function waitForSqliteDatabase(controller: SqliteDisplayController, path: string, table?: string, notBefore?: string): void {
   if (controller.loading !== null) return
   let loading!: Promise<void>
   loading = (async () => {
@@ -1095,7 +1095,7 @@ function waitForSqliteDatabase(controller: SqliteDisplayController, path: string
       attempts += 1
       clearSqlitePayload(controller, `Waiting for SQLite database: ${sqliteInitialLabel(path)}`)
       try {
-        const payload = await fetchSqlitePayload(path, table)
+        const payload = await fetchSqlitePayload(path, table, notBefore)
         if (controller.loading !== loading) return
         applySqlitePayload(controller, payload)
         return
@@ -1128,23 +1128,42 @@ function sqliteOpenParams(params: unknown): SqliteOpenParams {
   return table === undefined ? {path} : {path, table}
 }
 
-async function refreshSqliteDisplay(controller: SqliteDisplayController, table = controller.selectedTable): Promise<SqliteDatabasePayload> {
+function refreshSqliteDisplaysAfterTargetRestart(startedAt: string): void {
+  for (const controller of sqliteDisplays.values()) {
+    void refreshSqliteDisplay(controller, controller.selectedTable, startedAt).catch(() => undefined)
+  }
+}
+
+async function refreshSqliteDisplay(controller: SqliteDisplayController, table = controller.selectedTable, notBefore?: string): Promise<SqliteDatabasePayload | null> {
   let payload: SqliteDatabasePayload | null = null
+  let missing = false
   const loading = (async () => {
     controller.rows.setStatus("Loading SQLite database")
-    payload = await fetchSqlitePayload(controller.path, table ?? undefined)
+    payload = await fetchSqlitePayload(controller.path, table ?? undefined, notBefore)
     applySqlitePayload(controller, payload)
   })()
   controller.loading = loading
   try {
     await loading
   } catch (error) {
-    clearSqlitePayload(controller, error instanceof Error ? error.message : String(error))
-    throw error
+    if (isSqliteMissingError(error)) {
+      missing = true
+      clearSqlitePayload(controller, `Waiting for SQLite database: ${sqliteInitialLabel(controller.requestedPath)}`)
+    } else {
+      clearSqlitePayload(controller, error instanceof Error ? error.message : String(error))
+      throw error
+    }
   } finally {
     if (controller.loading === loading) controller.loading = null
   }
-  if (payload === null) throw new Error("sqlite payload was not loaded")
+  if (missing) {
+    waitForSqliteDatabase(controller, controller.requestedPath, table ?? undefined, notBefore)
+    return null
+  }
+  if (payload === null) {
+    clearSqlitePayload(controller, "SQLite payload was not loaded")
+    return null
+  }
   return payload
 }
 
@@ -1172,9 +1191,10 @@ async function updateSqliteDisplayCell(
   return payload
 }
 
-async function fetchSqlitePayload(path: string, table?: string): Promise<SqliteDatabasePayload> {
+async function fetchSqlitePayload(path: string, table?: string, notBefore?: string): Promise<SqliteDatabasePayload> {
   const params = new URLSearchParams({path})
   if (table !== undefined && table.length > 0) params.set("table", table)
+  if (notBefore !== undefined && notBefore.length > 0) params.set("notBefore", notBefore)
   const response = await fetch(`/sqlite?${params.toString()}`)
   if (!response.ok) throw await sqliteResponseError(response)
   const payload = await response.json() as SqliteDatabasePayload
@@ -1283,7 +1303,7 @@ function isSqliteSourcePath(path: string): boolean {
 
 function isSqliteMissingError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
-  return /sqlite database not found|unable to open database file|no such file/i.test(message)
+  return /sqlite database not found|sqlite database not ready|unable to open database file|no such file/i.test(message)
 }
 
 function delay(ms: number): Promise<void> {
@@ -5250,6 +5270,7 @@ function updateModuleDisplay(controller: ModuleDisplayController, module: Module
     controller.agentTerminalTargetStartedAt = module.target.startedAt
     controller.agentTerminalEntries = readStoredModuleAgentTerminalEntries(module.id, module.target.startedAt)
     controller.agentOutputLineCount = 0
+    if (module.target.startedAt !== null) refreshSqliteDisplaysAfterTargetRestart(module.target.startedAt)
   }
   if (module.target.outputLineCount < controller.outputLineCount) {
     controller.terminal.clear()

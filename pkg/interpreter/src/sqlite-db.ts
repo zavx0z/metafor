@@ -56,6 +56,13 @@ function cleanSqliteInputPath(input: string): string {
   return clean
 }
 
+function sqliteNotBeforeMs(value: string | null): number | null {
+  if (value === null || value.trim().length === 0) return null
+  const ms = Date.parse(value)
+  if (!Number.isFinite(ms)) throw new Error(`sqlite notBefore must be an ISO date: ${value}`)
+  return ms
+}
+
 export function sqliteDatabaseLabel(path: string, cwd = process.cwd()): string {
   const rel = relative(cwd, path).replaceAll("\\", "/")
   return rel.length > 0 && !rel.startsWith("../") && rel !== ".." ? rel : path.replaceAll("\\", "/")
@@ -63,6 +70,11 @@ export function sqliteDatabaseLabel(path: string, cwd = process.cwd()): string {
 
 export function sqliteDatabasePayload(url: URL): SqliteDatabasePayload {
   const path = sqliteDatabasePath(url.searchParams.get("path") ?? "")
+  const notBefore = sqliteNotBeforeMs(url.searchParams.get("notBefore"))
+  if (notBefore !== null) {
+    const stat = statSync(path)
+    if (stat.mtimeMs < notBefore) throw new Error(`sqlite database not ready: ${path}`)
+  }
   const selectedTable = optionalParam(url.searchParams.get("table"))
   const limit = clampInt(Number(url.searchParams.get("limit") ?? 80), 1, 250)
   const offset = clampInt(Number(url.searchParams.get("offset") ?? 0), 0, 1_000_000)

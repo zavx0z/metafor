@@ -708,7 +708,7 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/hud/todo/dock", description: "свернуть TODO HUD"},
     {method: "POST", path: "/hud/todo/show", description: "развернуть TODO HUD"},
     {method: "POST", path: "/hud/todo/toggle", description: "переключить TODO HUD"},
-    {method: "GET", path: "/sqlite?path=<file.sqlite>&table=<name>", description: "просмотреть SQLite database tables/schema/rows"},
+    {method: "GET", path: "/sqlite?path=<file.sqlite>&table=<name>&notBefore=<iso>", description: "просмотреть SQLite database tables/schema/rows; notBefore отсекает файл предыдущего запуска"},
     {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database как отдельный display"},
     {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
