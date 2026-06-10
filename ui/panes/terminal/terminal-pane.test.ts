@@ -432,6 +432,30 @@ describe("TerminalPane control sequences", () => {
     }
   })
 
+  test("maps terminal word-delete shortcuts", () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, onInput: (data) => responses.push(data)})
+    try {
+      const altBackspace = keyEvent("Backspace", {altKey: true})
+      const ctrlBackspace = keyEvent("Backspace", {ctrlKey: true})
+      const altDelete = keyEvent("Delete", {altKey: true})
+      const ctrlW = keyEvent("w", {code: "KeyW", ctrlKey: true})
+
+      terminal.onKey(altBackspace)
+      terminal.onKey(ctrlBackspace)
+      terminal.onKey(altDelete)
+      terminal.onKey(ctrlW)
+
+      expect(responses).toEqual(["\x1b\x7f", "\x17", "\x1bd", "\x17"])
+      expect(altBackspace.defaultPrevented).toBe(true)
+      expect(ctrlBackspace.defaultPrevented).toBe(true)
+      expect(altDelete.defaultPrevented).toBe(true)
+      expect(ctrlW.defaultPrevented).toBe(true)
+    } finally {
+      terminal.dispose()
+    }
+  })
+
   test("maps meta shortcuts by physical key code across keyboard layouts", () => {
     const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false})
     try {

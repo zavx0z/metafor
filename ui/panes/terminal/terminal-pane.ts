@@ -1973,9 +1973,12 @@ function keyToTerminalInput(event: KeyboardEvent, mode: TerminalKeyboardMode = d
   if (keypad !== null) return keypad
   if (key === "Tab" && event.shiftKey) return "\x1b[Z"
   if (event.ctrlKey && !event.altKey && !event.metaKey) {
+    if (key === "Backspace") return "\x17"
     const control = ctrlShortcutToTerminalInput(event)
     if (control !== null) return control
   }
+  if (event.altKey && !event.ctrlKey && !event.metaKey && key === "Backspace") return "\x1b\x7f"
+  if (event.altKey && !event.ctrlKey && !event.metaKey && key === "Delete") return "\x1bd"
   if (event.altKey && key.length === 1 && !event.ctrlKey && !event.metaKey) return `\x1b${key}`
   if (event.metaKey) return null
   if (key === "Enter" && event.shiftKey && !event.ctrlKey && !event.altKey) return "\n"
