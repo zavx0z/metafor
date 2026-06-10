@@ -473,6 +473,32 @@ export class UiRuntime {
     return display
   }
 
+  removeDisplay(displayId: UiDisplayId): boolean {
+    if (!this.#displaySpaceEnabled || displayId === this.#surfaceDisplayId) return false
+    const slot = this.#displaySlots.get(displayId)
+    if (slot === undefined) return false
+
+    this.#clearKeyboardFocus()
+    for (let index = this.#surfaces.length - 1; index >= 0; index--) {
+      const surfaceSlot = this.#surfaces[index]!
+      if (surfaceSlot.target !== "display" || surfaceSlot.displayId !== displayId) continue
+      surfaceSlot.surface.dispose?.()
+      this.#surfaces.splice(index, 1)
+    }
+
+    this.#displaySlots.delete(displayId)
+    this.space.remove(slot.display)
+    if (this.#activeDisplayId === displayId) this.#activeDisplayId = null
+    if (this.#displayHoverDisplayId === displayId) this.#displayHoverDisplayId = null
+    if (this.#displayNavigationDisplayId === displayId) this.#displayNavigationDisplayId = null
+    this.#displayDragCandidate = this.#displayDragCandidate?.displayId === displayId ? null : this.#displayDragCandidate
+    if (this.#displayDragActive?.displayId === displayId) this.#displayDragActive = null
+    this.#applyLayout({scope: "space"})
+    this.#requestHudSurfacesRender()
+    this.requestRender()
+    return true
+  }
+
   setDisplayCenter(displayId: UiDisplayId, centerMm: {x: number; y: number; z: number}): void {
     this.#setDisplayCenter(displayId, centerMm, false)
   }

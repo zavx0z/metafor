@@ -95,6 +95,13 @@ export class Object3D {
     child.parent = this
   }
 
+  public remove(child: Object3D): void {
+    const next = this.children.filter(c => c !== child)
+    if (next.length === this.children.length) return
+    this.children = next
+    if (child.parent === this) child.parent = null
+  }
+
   public getObjectByName(name: string): Object3D | undefined {
     if (this.name === name) return this;
     for (const child of this.children) {

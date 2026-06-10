@@ -75,6 +75,7 @@ POST   /space/frame
 GET    /processes
 POST   /processes
 GET    /processes/:id
+DELETE /processes/:id
 GET    /processes/:id/context
 GET    /processes/:id/modules
 POST   /processes/:id/action

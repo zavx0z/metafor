@@ -48,6 +48,7 @@ POST   /processes
 POST   /processes/resolve
 POST   /processes/focus
 GET    /processes/:id
+DELETE /processes/:id
 POST   /processes/:id/focus
 GET    /processes/:id/context
 GET    /processes/:id/modules?q=<text>&limit=<n>
@@ -219,6 +220,8 @@ Selectors для `/space/focus`, `/processes/resolve` и `/processes/focus`:
 
 `GET /processes/:id` возвращает рабочий payload process: `content`, `runtime`, `ui` и `capabilities`.
 
+`DELETE /processes/:id` останавливает runtime process, удаляет его из списка процессов и синхронизирует UI так, чтобы display этого module исчез из Space.
+
 `POST /processes` запускает новый process:
 
 ```json
@@ -255,6 +258,7 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
 - `source.openSelection`
 - `restart`
 - `stop`
+- `close` / `delete` / `remove` - остановить process и убрать display module из Space
 - `showExecutionPoint`
 
 `evaluate` пишет выражение AI и результат в терминал process, чтобы человек видел общее действие.

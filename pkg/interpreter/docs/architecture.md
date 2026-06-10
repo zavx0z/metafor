@@ -80,6 +80,7 @@ Processes API:
 GET    /processes
 POST   /processes
 GET    /processes/:id
+DELETE /processes/:id
 POST   /processes/:id/action
 GET    /processes/:id/context
 GET    /processes/:id/source

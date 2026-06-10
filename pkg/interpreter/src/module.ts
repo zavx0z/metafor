@@ -45,6 +45,7 @@ export type InterpreterModuleSnapshot = {
 export type InterpreterModuleEvent =
   | {type: "created"; module: InterpreterModule}
   | {type: "changed"; module: InterpreterModule}
+  | {type: "removed"; module: InterpreterModule}
 
 export type InterpreterModuleRunOptions = StartupModuleOptions & {
   id?: string
@@ -266,6 +267,15 @@ export class InterpreterModuleManager {
 
   async shutdown(): Promise<void> {
     await Promise.all([...this.#modules.values()].map((module) => module.shutdown()))
+  }
+
+  async remove(id: string): Promise<InterpreterModule | undefined> {
+    const module = this.#modules.get(id)
+    if (module === undefined) return undefined
+    await module.shutdown()
+    if (!this.#modules.delete(id)) return undefined
+    this.#emit({type: "removed", module})
+    return module
   }
 
   #allocateModuleId(label: string | undefined): string {

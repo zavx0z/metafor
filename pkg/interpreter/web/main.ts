@@ -1841,13 +1841,16 @@ function normalizeStoredInterpreterDisplayPositions(value: unknown): Map<string,
 }
 
 function applyModuleSnapshots(modules: ModulePaneSnapshot[]): void {
-  if (modules.length === 0) return
   const nextModuleOrder = modules.map((module) => module.id)
+  const nextModuleIds = new Set(nextModuleOrder)
+  for (const moduleId of [...moduleSnapshots.keys()]) {
+    if (!nextModuleIds.has(moduleId)) moduleSnapshots.delete(moduleId)
+  }
   const orderChanged = nextModuleOrder.length !== moduleOrder.length
     || nextModuleOrder.some((id, index) => id !== moduleOrder[index])
   moduleOrder = nextModuleOrder
   for (const module of modules) moduleSnapshots.set(module.id, module)
-  if (orderChanged || nextModuleOrder.some((id) => !moduleDisplayIds.has(id))) {
+  if (orderChanged || nextModuleOrder.some((id) => !moduleDisplayIds.has(id)) || [...moduleDisplayIds].some((id) => !nextModuleIds.has(id))) {
     syncModuleDisplays()
   }
   for (const module of modules) {
@@ -4226,6 +4229,12 @@ function restartVoiceCommandRecognizerAfterSettingsChange(): void {
 
 function syncModuleDisplays(): void {
   if (uiCanvas === null) return
+  const liveModuleIds = new Set(moduleOrder)
+  for (const moduleId of [...moduleDisplayIds]) {
+    if (liveModuleIds.has(moduleId)) continue
+    removeModuleDisplay(moduleId)
+  }
+
   const orderedModules = moduleOrder
     .map((id) => moduleSnapshots.get(id))
     .filter((module): module is ModulePaneSnapshot => module !== undefined)
@@ -4319,6 +4328,25 @@ function syncModuleDisplays(): void {
     framedModuleKey = frameKey
     uiCanvas.frameDisplays(displayIds)
   }
+}
+
+function removeModuleDisplay(moduleId: string): void {
+  const displayId = moduleDisplayId(moduleId)
+  if (voiceActiveTarget?.kind === "module" && voiceActiveTarget.controller.id === moduleId) voiceActiveTarget = null
+  if (voicePartialPreviewTarget?.kind === "module" && voicePartialPreviewTarget.controller.id === moduleId) clearVoicePartialPreview()
+  moduleDisplays.delete(moduleId)
+  moduleDisplayIds.delete(moduleId)
+  moduleSnapshots.delete(moduleId)
+  interpreterDisplayPositions.delete(displayId)
+  if (uiCanvas?.activeDisplayId === displayId) {
+    const nextModuleId = moduleOrder.find((id) => id !== moduleId && moduleDisplayIds.has(id))
+    const nextSqliteId = nextModuleId === undefined ? sqliteOrder.find((id) => sqliteDisplayIds.has(id)) : undefined
+    const nextDisplayId = nextModuleId === undefined
+      ? nextSqliteId === undefined ? null : sqliteDisplayId(nextSqliteId)
+      : moduleDisplayId(nextModuleId)
+    if (nextDisplayId !== null) uiCanvas.focusDisplay(nextDisplayId)
+  }
+  uiCanvas?.removeDisplay(displayId)
 }
 
 function restoreInterpreterViewPointOnce(frameKey: string): boolean {

@@ -217,8 +217,10 @@ export function startHttpServer(options: HttpServerOptions): HttpServer {
   }
   for (const module of options.modules.list()) subscribeModule(module)
   options.modules.onEvent((event) => {
-    subscribeModule(event.module)
-    broadcast({type: "module", module: event.module.snapshot()})
+    if (event.type !== "removed") {
+      subscribeModule(event.module)
+      broadcast({type: "module", module: event.module.snapshot()})
+    }
     broadcastModules()
   })
 
@@ -490,9 +492,25 @@ async function processActionRoute(processId: string, req: Request, options: Http
   const action = asString(parsed.body["action"]) ?? asString(parsed.body["cmd"]) ?? asString(parsed.body["command"])
   if (action === undefined) return jsonResponse({ok: false, processId, error: "process action must be a string"}, 400)
   const params = asObject(parsed.body["params"]) ?? parsed.body
+  if (action === "close" || action === "delete" || action === "remove") return await closeProcess(processId, params, options)
   if (action === "stop") return await stopProcessTarget(processId, params, options)
   if (action === "restart") return await restartProcessTarget(processId, params, options)
   return await dispatchUiHostRoute("processes.action", processRouteParams(processId, parsed.body), dispatch)
+}
+
+async function closeProcess(processId: string, _params: JsonObject, options: HttpServerOptions): Promise<Response> {
+  try {
+    const removed = await options.modules.remove(processId)
+    if (removed === undefined) return processNotFoundResponse(processId)
+    return jsonResponse({
+      ok: true,
+      processId: removed.id,
+      removed: processPayload(removed.snapshot()),
+      processes: processPayloads(options),
+    })
+  } catch (error) {
+    return jsonResponse({ok: false, processId, error: serializeError(error)}, 400)
+  }
 }
 
 async function stopProcessTarget(processId: string, params: JsonObject, options: HttpServerOptions): Promise<Response> {
@@ -624,6 +642,7 @@ async function handleRoute(
   if (method === "POST" && path === "/processes/focus") return await dispatchUiHostRouteFromBody("processes.focus", req, dispatchUiHostCommand)
   const processDetail = /^\/processes\/([^/]+)$/.exec(path)
   if (method === "GET" && processDetail !== null) return await dispatchUiHostRoute("processes.get", {processId: decodePathParam(processDetail[1]!)}, dispatchUiHostCommand)
+  if (method === "DELETE" && processDetail !== null) return await closeProcess(decodePathParam(processDetail[1]!), {}, options)
   const processFocus = /^\/processes\/([^/]+)\/focus$/.exec(path)
   if (method === "POST" && processFocus !== null) return await dispatchUiHostRouteForProcessFromBody("processes.focus", decodePathParam(processFocus[1]!), req, dispatchUiHostCommand)
   const processAction = /^\/processes\/([^/]+)\/action$/.exec(path)
@@ -683,7 +702,8 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/processes/focus", description: "{selector:{side|processId|moduleId|label|order}, dockHostTerminal?} — сфокусировать process"},
     {method: "GET", path: "/processes/:id", description: "рабочий payload process: content + runtime/ui state/capabilities"},
     {method: "POST", path: "/processes/:id/focus", description: "сфокусировать конкретный process"},
-    {method: "POST", path: "/processes/:id/action", description: "{action, params?} — выполнить pause|resume|step|evaluate|source.open|source.openSelection|restart|stop|showExecutionPoint"},
+    {method: "DELETE", path: "/processes/:id", description: "остановить runtime process и убрать его display из Space"},
+    {method: "POST", path: "/processes/:id/action", description: "{action, params?} — выполнить pause|resume|step|evaluate|source.open|source.openSelection|restart|stop|close|showExecutionPoint"},
     {method: "GET", path: "/processes/:id/context", description: "текущий context конкретного process"},
     {method: "GET", path: "/processes/:id/modules?q=<text>&limit=<n>", description: "каталог кода в контексте process"},
     {method: "GET", path: "/processes/:id/source?scriptId=<id>", description: "исходник в контексте process"},
