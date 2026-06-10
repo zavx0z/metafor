@@ -6502,7 +6502,7 @@ function scrollAgentModuleTerminalToBottom(controller: ModuleDisplayController):
 }
 
 function appendModuleTargetLine(controller: ModuleDisplayController, line: ModuleLine): void {
-  const label = line.stream === "stderr" ? ansiError("err") : ansiCyan("out")
+  const label = line.stream === "stderr" ? ansiMuted("std") : ansiCyan("out")
   controller.terminal.writeln(`${ansiMuted(formatTimestamp(line.ts))} ${label} ${terminalOutputText(line.text)}`)
 }
 

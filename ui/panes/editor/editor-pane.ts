@@ -3,7 +3,7 @@
  *
  * Единая code-pane для редактирования и read-only source-view:
  *  • cursor (line, col) с отрисовкой
- *  • Backspace/Delete/Enter/Arrow-keys/Home/End/PageUp-Down
+ *  • Backspace/Delete/Enter with block indent/Arrow-keys/Home/End/PageUp-Down
  *  • Printable chars вставка
  *  • Tab → 2 пробела
  *  • Cmd/Ctrl+A — select-all
@@ -151,6 +151,7 @@ const SELECTION_FILL = new Color(92 / 255, 155 / 255, 255 / 255, 0.34)
 const GUTTER_RULE_FILL = new Color(120 / 255, 143 / 255, 166 / 255, 0.12)
 const INDENT_GUIDE_FILL = new Color(120 / 255, 143 / 255, 166 / 255, 0.12)
 const INDENT_GUIDE_STEP_COLUMNS = 2
+const EDITOR_INDENT_UNIT = "  "
 const INDENT_GUIDE_TEXT_OFFSET_PX = 2
 const BREAKPOINT_FILL = new Color(237 / 255, 83 / 255, 86 / 255, 0.96)
 const BREAKPOINT_PENDING_FILL = new Color(237 / 255, 83 / 255, 86 / 255, 0.30)
@@ -187,6 +188,9 @@ type EditorIndentGuideStackItem = {
   startLine: number
   opener: "{" | "["
 }
+type EditorIndentOpenerToken = "{" | "[" | "("
+type EditorIndentCloserToken = "}" | "]" | ")"
+type EditorIndentEditToken = EditorIndentOpenerToken | EditorIndentCloserToken
 type EditorGutterMetrics = {
   x: number
   y: number
@@ -423,11 +427,8 @@ export class EditorPane extends UiSurface {
     const changed = this.#executionLine !== next
     this.#executionLine = next
     if (next !== null) {
-      this.#cline = next - 1
-      this.#ccol = Math.min(this.#ccol, this.#lines[this.#cline]?.length ?? 0)
-      if (opts.scroll !== false) this.#scrollLineIntoView(this.#cline, "center")
+      if (opts.scroll !== false) this.#scrollLineIntoView(next - 1, "center")
     }
-    if (next !== null) this.#emitSelectionChange()
     if (changed || opts.scroll !== false) this.requestRender()
   }
 
@@ -1174,7 +1175,22 @@ export class EditorPane extends UiSurface {
   }
 
   #insertNewline(): void {
-    this.#insertText("\n")
+    this.#insertText(`\n${this.#newlineIndentText()}`)
+  }
+
+  #newlineIndentText(): string {
+    const line = this.#lines[this.#cline] ?? ""
+    const beforeCursor = line.slice(0, this.#ccol)
+    if (beforeCursor.trim().length > 0 || line.trim().length > 0) {
+      return leadingWhitespace(line) + (lineOpensIndentBlock(beforeCursor) ? EDITOR_INDENT_UNIT : "")
+    }
+
+    const existingIndent = leadingWhitespace(beforeCursor)
+    if (existingIndent.length > 0) return existingIndent
+
+    const previous = previousNonEmptyLine(this.#lines, this.#cline)
+    if (previous === null) return ""
+    return leadingWhitespace(previous) + (lineOpensIndentBlock(previous) ? EDITOR_INDENT_UNIT : "")
   }
 
   #backspace(): void {
@@ -2105,6 +2121,42 @@ function normalizeBreakpoints(breakpoints: readonly EditorBreakpoint[]): Map<num
   return out
 }
 
+function leadingWhitespace(line: string): string {
+  return line.match(/^[ \t]*/)?.[0] ?? ""
+}
+
+function previousNonEmptyLine(lines: readonly string[], beforeLine: number): string | null {
+  for (let lineIndex = Math.min(lines.length - 1, Math.floor(beforeLine) - 1); lineIndex >= 0; lineIndex--) {
+    const line = lines[lineIndex] ?? ""
+    if (line.trim().length > 0) return line
+  }
+  return null
+}
+
+function lineOpensIndentBlock(line: string): boolean {
+  const stack: EditorIndentOpenerToken[] = []
+  for (const token of structuralEditTokens(line, false).tokens) {
+    if (token === "{" || token === "[" || token === "(") {
+      stack.push(token)
+      continue
+    }
+
+    const opener = matchingIndentOpener(token)
+    for (let i = stack.length - 1; i >= 0; i--) {
+      if (stack[i] !== opener) continue
+      stack.splice(i, 1)
+      break
+    }
+  }
+  return stack.length > 0
+}
+
+function matchingIndentOpener(token: EditorIndentCloserToken): EditorIndentOpenerToken {
+  if (token === "}") return "{"
+  if (token === "]") return "["
+  return "("
+}
+
 function leadingIndentColumns(line: string, tabSize: number): number {
   let columns = 0
   for (let i = 0; i < line.length; i++) {
@@ -2121,6 +2173,57 @@ function leadingIndentColumns(line: string, tabSize: number): number {
     break
   }
   return columns
+}
+
+function structuralEditTokens(line: string, inBlockComment: boolean): {tokens: EditorIndentEditToken[]; inBlockComment: boolean} {
+  const out: EditorIndentEditToken[] = []
+  let quote: "\"" | "'" | "`" | null = null
+  let escaped = false
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    const next = line[i + 1]
+
+    if (inBlockComment) {
+      if (ch === "*" && next === "/") {
+        inBlockComment = false
+        i += 1
+      }
+      continue
+    }
+
+    if (quote !== null) {
+      if (escaped) {
+        escaped = false
+        continue
+      }
+      if (ch === "\\") {
+        escaped = true
+        continue
+      }
+      if (ch === quote) quote = null
+      continue
+    }
+
+    if (ch === "/" && next === "/") break
+    if (ch === "/" && next === "*") {
+      const end = line.indexOf("*/", i + 2)
+      if (end < 0) {
+        inBlockComment = true
+        break
+      }
+      i = end + 1
+      continue
+    }
+
+    if (ch === "\"" || ch === "'" || ch === "`") {
+      quote = ch
+      continue
+    }
+    if (ch === "{" || ch === "[" || ch === "(" || ch === "}" || ch === "]" || ch === ")") out.push(ch)
+  }
+
+  return {tokens: out, inBlockComment}
 }
 
 function structuralIndentTokens(line: string, inBlockComment: boolean): {tokens: Array<"{" | "[" | "}" | "]">; inBlockComment: boolean} {

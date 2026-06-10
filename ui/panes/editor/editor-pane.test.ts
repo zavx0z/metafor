@@ -49,6 +49,86 @@ describe("EditorPane selection", () => {
     }
   })
 
+  test("does not move cursor when execution line changes", () => {
+    const snapshots: unknown[] = []
+    const editor = new EditorPane({
+      onSelectionChange: (snapshot) => snapshots.push(snapshot),
+    })
+    try {
+      editor.setText("alpha\nbeta\ngamma")
+      editor.setCursor(1, 2)
+      const beforeCount = snapshots.length
+
+      editor.setExecutionLine(3)
+
+      expect(editor.getSelectionSnapshot().cursor).toEqual({line: 1, col: 2})
+      expect(snapshots).toHaveLength(beforeCount)
+    } finally {
+      editor.dispose()
+    }
+  })
+
+  test("keeps cursor after newline when execution line refreshes", () => {
+    const editor = new EditorPane()
+    try {
+      editor.setText("alpha\nbeta gamma\ndelta")
+      editor.setCursor(1, 5)
+
+      editor.insertText("\n")
+      expect(editor.getSelectionSnapshot().cursor).toEqual({line: 2, col: 0})
+
+      editor.setExecutionLine(1)
+      expect(editor.getSelectionSnapshot().cursor).toEqual({line: 2, col: 0})
+    } finally {
+      editor.dispose()
+    }
+  })
+
+  test("indents new line after an open block", () => {
+    const editor = new EditorPane()
+    try {
+      editor.setText("if (ok) {")
+      editor.setCursor(0, "if (ok) {".length)
+
+      pressEnter(editor)
+
+      expect(editor.getText()).toBe("if (ok) {\n  ")
+      expect(editor.getSelectionSnapshot().cursor).toEqual({line: 1, col: 2})
+    } finally {
+      editor.dispose()
+    }
+  })
+
+  test("indents new line after an open parenthesis", () => {
+    const editor = new EditorPane()
+    try {
+      editor.setText("const row = (")
+      editor.setCursor(0, "const row = (".length)
+
+      pressEnter(editor)
+
+      expect(editor.getText()).toBe("const row = (\n  ")
+      expect(editor.getSelectionSnapshot().cursor).toEqual({line: 1, col: 2})
+    } finally {
+      editor.dispose()
+    }
+  })
+
+  test("keeps block indentation from the previous non-empty line", () => {
+    const editor = new EditorPane()
+    try {
+      editor.setText("if (ok) {\n  doThing()\n")
+      editor.setCursor(2, 0)
+
+      pressEnter(editor)
+
+      expect(editor.getText()).toBe("if (ok) {\n  doThing()\n\n  ")
+      expect(editor.getSelectionSnapshot().cursor).toEqual({line: 3, col: 2})
+    } finally {
+      editor.dispose()
+    }
+  })
+
   test("tracks a single-character selection", () => {
     const editor = new EditorPane()
     try {
@@ -155,4 +235,15 @@ function firstEditorLineY(): number {
 
 function firstEditorCodeX(): number {
   return 54
+}
+
+function pressEnter(editor: EditorPane): void {
+  editor.onKey({
+    key: "Enter",
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    preventDefault() {},
+  } as KeyboardEvent)
 }

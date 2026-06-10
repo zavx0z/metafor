@@ -58,7 +58,8 @@ export class StoreWimpSqlite {
   async create(src: string): Promise<Wimp> {
     await this.sql`DELETE FROM wimp WHERE src = ${src}`
     await this.sql`INSERT INTO wimp (src) VALUES (${src})`
-    return new Wimp(this.sql, src)
+    const wimp = new Wimp(this.sql, src)
+    return wimp
   }
 
   async get(src: string): Promise<Wimp | null> {
