@@ -82,6 +82,7 @@ type ServerMessage =
   | {type: "module-protocol-event"; moduleId: string; ts: string; method: string; params: unknown}
   | {type: "interpreter-event"; ts: string; event: string; detail: unknown}
   | {type: "source-patched"; moduleId: string; reason: "save" | "apply_patch"; files: SourcePatchedFile[]; breakpoints?: SourcePatchedBreakpoints[]}
+  | {type: "breakpoints-changed"; moduleId: string; reason: "set" | "remove"; breakpoint?: BreakpointRegistration; removed?: BreakpointRegistration | {breakpointId: string}; breakpoints: BreakpointRegistration[]}
   | {type: "result"; requestId: number; ok: boolean; result?: unknown; error?: string}
   | {type: "ui-host-command"; requestId: number; command: string; params?: unknown}
   | {type: "hud-todo-changed"; todo?: TodoMarkdownPayload}
@@ -739,6 +740,9 @@ function handleServerMessage(msg: ServerMessage): void {
       return
     case "source-patched":
       handleSourcePatched(msg)
+      return
+    case "breakpoints-changed":
+      handleBreakpointsChanged(msg)
       return
     case "result":
       resolvePendingRequest(msg)
@@ -5719,6 +5723,23 @@ function applySourcePatchedBreakpoints(msg: Extract<ServerMessage, {type: "sourc
   writeStoredBreakpointSpecs(nextStored)
 }
 
+function handleBreakpointsChanged(msg: Extract<ServerMessage, {type: "breakpoints-changed"}>): void {
+  const registrations = msg.breakpoints.filter(isBreakpointRegistration)
+  const controller = moduleDisplays.get(msg.moduleId)
+  if (controller !== undefined) {
+    controller.breakpointRegistrations = registrations
+    syncStoredBreakpointsForModule(controller, registrations)
+    syncModuleBreakpointMarkers(controller)
+    return
+  }
+
+  if (msg.reason === "set" && isBreakpointRegistration(msg.breakpoint)) {
+    mergeStoredBreakpointSpecs([msg.breakpoint.spec])
+  } else if (msg.reason === "remove" && isBreakpointRegistration(msg.removed)) {
+    removeStoredBreakpointSpec(msg.removed.spec)
+  }
+}
+
 function controllerPatchedSourceUrl(
   controller: ModuleDisplayController,
   changed: readonly string[],
@@ -7035,6 +7056,12 @@ function mergeStoredBreakpointSpecs(specs: BreakpointSpec[]): void {
 function removeStoredBreakpointSpec(spec: BreakpointSpec): void {
   const targetKey = breakpointSpecKey(spec)
   const next = readStoredBreakpointSpecs().filter((current) => breakpointSpecKey(current) !== targetKey)
+  writeStoredBreakpointSpecs(next)
+}
+
+function syncStoredBreakpointsForModule(controller: ModuleDisplayController, registrations: BreakpointRegistration[]): void {
+  const next = readStoredBreakpointSpecs().filter((spec) => !storedBreakpointSpecMatchesModule(spec, controller))
+  next.push(...registrations.map((registration) => registration.spec))
   writeStoredBreakpointSpecs(next)
 }
 

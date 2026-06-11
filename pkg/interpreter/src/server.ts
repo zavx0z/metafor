@@ -659,8 +659,8 @@ async function handleRoute(
   const processBreakpoints = /^\/processes\/([^/]+)\/breakpoints$/.exec(path)
   if (method === "GET" && processBreakpoints !== null) return getProcessBreakpoints(decodePathParam(processBreakpoints[1]!), options)
   const processBreakpoint = /^\/processes\/([^/]+)\/breakpoint$/.exec(path)
-  if (method === "POST" && processBreakpoint !== null) return await setProcessBreakpoint(decodePathParam(processBreakpoint[1]!), req, options)
-  if (method === "DELETE" && processBreakpoint !== null) return await removeProcessBreakpoint(decodePathParam(processBreakpoint[1]!), req, options)
+  if (method === "POST" && processBreakpoint !== null) return await setProcessBreakpoint(decodePathParam(processBreakpoint[1]!), req, options, broadcast)
+  if (method === "DELETE" && processBreakpoint !== null) return await removeProcessBreakpoint(decodePathParam(processBreakpoint[1]!), req, options, broadcast)
   if (method === "GET" && path === "/events") return jsonResponse(readNdjsonTail(options.eventLogPath, url))
   if (method === "GET" && path === "/console") return jsonResponse(readNdjsonTail(options.consoleLogPath, url))
   // Триггер хард-релоада UI у всех подключённых WS-клиентов: используется
@@ -1157,19 +1157,19 @@ function getProcessBreakpoints(processId: string, options: HttpServerOptions): R
   return jsonResponse(module.breakpoints.registrations)
 }
 
-async function setProcessBreakpoint(processId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+async function setProcessBreakpoint(processId: string, req: Request, options: HttpServerOptions, broadcast: (payload: JsonObject) => void): Promise<Response> {
   const module = moduleForProcessId(processId, options)
   if (module === undefined) return processNotFoundResponse(processId)
-  return await setBreakpoint(req, module)
+  return await setBreakpoint(req, module, broadcast)
 }
 
-async function removeProcessBreakpoint(processId: string, req: Request, options: HttpServerOptions): Promise<Response> {
+async function removeProcessBreakpoint(processId: string, req: Request, options: HttpServerOptions, broadcast: (payload: JsonObject) => void): Promise<Response> {
   const module = moduleForProcessId(processId, options)
   if (module === undefined) return processNotFoundResponse(processId)
-  return await removeBreakpoint(req, module)
+  return await removeBreakpoint(req, module, broadcast)
 }
 
-async function setBreakpoint(req: Request, module: InterpreterModule): Promise<Response> {
+async function setBreakpoint(req: Request, module: InterpreterModule, broadcast: (payload: JsonObject) => void): Promise<Response> {
   let body: JsonObject = {}
   const text = await req.text()
   if (text.length > 0) {
@@ -1203,13 +1203,15 @@ async function setBreakpoint(req: Request, module: InterpreterModule): Promise<R
     const registration = module.breakpoints.add(spec)
     await module.breakpoints.armPendingByUrl([registration.id])
     await module.breakpoints.applyToScripts(module.snapshots.scripts)
-    return jsonResponse({ok: true, breakpoint: registration, breakpoints: module.breakpoints.registrations})
+    const breakpoints = module.breakpoints.registrations
+    broadcast({type: "breakpoints-changed", moduleId: module.id, reason: "set", breakpoint: registration, breakpoints})
+    return jsonResponse({ok: true, breakpoint: registration, breakpoints})
   } catch (error) {
     return jsonResponse({ok: false, error: serializeError(error)}, 500)
   }
 }
 
-async function removeBreakpoint(req: Request, module: InterpreterModule): Promise<Response> {
+async function removeBreakpoint(req: Request, module: InterpreterModule, broadcast: (payload: JsonObject) => void): Promise<Response> {
   let body: JsonObject = {}
   const text = await req.text()
   if (text.length > 0) {
@@ -1227,7 +1229,9 @@ async function removeBreakpoint(req: Request, module: InterpreterModule): Promis
   }
   try {
     const removed = await module.breakpoints.remove(idOrBreakpointId)
-    return jsonResponse({ok: true, removed, breakpoints: module.breakpoints.registrations})
+    const breakpoints = module.breakpoints.registrations
+    broadcast({type: "breakpoints-changed", moduleId: module.id, reason: "remove", removed, breakpoints})
+    return jsonResponse({ok: true, removed, breakpoints})
   } catch (error) {
     return jsonResponse({ok: false, error: serializeError(error)}, 500)
   }

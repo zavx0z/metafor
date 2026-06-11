@@ -315,6 +315,8 @@ type BreakpointSpec = {
 
 `line` - 1-based строка редактора. `column` - 0-based колонка. Интерпретатор переводит source-координаты через `sourceMapURL` из `Debugger.scriptParsed`.
 
+`POST` и `DELETE` рассылают UI событие `breakpoints-changed`; редактор обновляет runtime registrations и localStorage specs из ответа process, поэтому внешний API не оставляет stale-маркер в gutter.
+
 ## SQLite
 
 CLI-аргументы, заканчивающиеся на `.sqlite`, считаются входами display, а не запускаемыми process. Display можно создать до появления файла; UI ждет и повторяет чтение, пока runtime не создаст database.
