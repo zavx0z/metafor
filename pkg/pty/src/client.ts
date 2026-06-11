@@ -23,7 +23,7 @@ const terminal = new TerminalPane({
   fontPx: 13,
   linePx: 18,
   maxScrollback: 10000,
-  cursorLineHighlight: true,
+  respondToTerminalQueries: false,
   onInput: (data, source) => sendInput(data, source),
   onResize: (size) => {
     terminalSize = size

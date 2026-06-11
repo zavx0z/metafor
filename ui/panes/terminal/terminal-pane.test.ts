@@ -348,6 +348,93 @@ describe("TerminalPane control sequences", () => {
     }
   })
 
+  test("can leave terminal query responses to the PTY server", () => {
+    const responses: string[] = []
+    const terminal = new TerminalPane({
+      cols: 20,
+      rows: 4,
+      fitToRect: false,
+      respondToTerminalQueries: false,
+      onInput: (data) => responses.push(data),
+    })
+    try {
+      terminal.write("\x1b[2;3H\x1b[6n\x1b[c\x1b]11;?\x1b\\")
+
+      expect(responses).toEqual([])
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("keeps ANSI foreground, background, and truecolor styles", () => {
+    const terminal = new TerminalPane({cols: 24, rows: 5, fitToRect: false})
+    try {
+      terminal.write("\x1b[31m-old\x1b[0m\r\n")
+      terminal.write("\x1b[32m+new\x1b[0m\r\n")
+      terminal.write("\x1b[48;5;22m bg \x1b[0m\r\n")
+      terminal.write("\x1b[38:2::255:0:0mcolon\x1b[0m")
+
+      const styles = terminal.getStyleSnapshot()
+      expect(styles[0]?.[0]?.fg).toEqual({kind: "ansi", index: 1})
+      expect(styles[1]?.[0]?.fg).toEqual({kind: "ansi", index: 2})
+      expect(styles[2]?.[0]?.bg).toEqual({kind: "rgb", r: 0, g: 95, b: 0})
+      expect(styles[3]?.[0]?.fg).toEqual({kind: "rgb", r: 255, g: 0, b: 0})
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("uses the current background for erased characters", () => {
+    const terminal = new TerminalPane({cols: 8, rows: 2, fitToRect: false})
+    try {
+      terminal.write("abcdef")
+      terminal.write("\r\x1b[48;5;22m\x1b[4X\x1b[0m")
+
+      const styles = terminal.getStyleSnapshot()
+      expect(terminal.toText()).toBe("    ef")
+      for (let col = 0; col < 4; col++) {
+        expect(styles[0]?.[col]?.ch).toBe(" ")
+        expect(styles[0]?.[col]?.bg).toEqual({kind: "rgb", r: 0, g: 95, b: 0})
+      }
+      expect(styles[0]?.[4]?.bg).toBeNull()
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("repeats the previous cell with its background", () => {
+    const terminal = new TerminalPane({cols: 8, rows: 2, fitToRect: false})
+    try {
+      terminal.write("\x1b[48;5;22m \x1b[5b\x1b[0mX")
+
+      const styles = terminal.getStyleSnapshot()
+      expect(terminal.toText()).toBe("      X")
+      for (let col = 0; col < 6; col++) {
+        expect(styles[0]?.[col]?.ch).toBe(" ")
+        expect(styles[0]?.[col]?.bg).toEqual({kind: "rgb", r: 0, g: 95, b: 0})
+      }
+      expect(styles[0]?.[6]?.ch).toBe("X")
+      expect(styles[0]?.[6]?.bg).toBeNull()
+    } finally {
+      terminal.dispose()
+    }
+  })
+
+  test("does not infer diff colors without ANSI sequences", () => {
+    const terminal = new TerminalPane({cols: 24, rows: 3, fitToRect: false})
+    try {
+      terminal.write("-old line\r\n+new line")
+
+      const styles = terminal.getStyleSnapshot()
+      expect(styles[0]?.[0]?.bg).toBeNull()
+      expect(styles[0]?.[0]?.fg).toEqual({kind: "default"})
+      expect(styles[1]?.[0]?.bg).toBeNull()
+      expect(styles[1]?.[0]?.fg).toEqual({kind: "default"})
+    } finally {
+      terminal.dispose()
+    }
+  })
+
   test("uses application cursor key mode for fullscreen terminal apps", () => {
     const responses: string[] = []
     const terminal = new TerminalPane({cols: 20, rows: 4, fitToRect: false, onInput: (data) => responses.push(data)})

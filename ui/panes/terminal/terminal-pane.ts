@@ -95,6 +95,7 @@ type TerminalOutputPaneInternalOpts = TerminalOutputPaneOpts & {
 
 export type TerminalPaneOpts = TerminalOutputPaneOpts & {
   inputEnabled?: boolean
+  respondToTerminalQueries?: boolean
   onInput?: (data: string, source: TerminalInputSource) => void
 }
 
@@ -123,6 +124,22 @@ type TerminalColor =
   | {kind: "default"}
   | {kind: "ansi"; index: number}
   | {kind: "rgb"; r: number; g: number; b: number}
+
+export type TerminalStyleColor =
+  | {kind: "default"}
+  | {kind: "ansi"; index: number}
+  | {kind: "rgb"; r: number; g: number; b: number}
+
+export type TerminalStyleCell = {
+  ch: string
+  width: 0 | 1 | 2
+  fg: TerminalStyleColor
+  bg: TerminalStyleColor | null
+  bold: boolean
+  dim: boolean
+  underline: boolean
+  inverse: boolean
+}
 
 type TerminalAttr = {
   fg: TerminalColor
@@ -224,22 +241,22 @@ const DEFAULT_ATTR: TerminalAttr = {
 }
 
 const ANSI_COLORS = [
-  palette.bgInput,
-  palette.red,
-  palette.green,
-  palette.orange,
-  palette.blue,
-  palette.violet,
-  palette.cyan,
-  palette.text,
-  palette.muted,
-  mixColor(palette.red, palette.text, 0.20),
-  mixColor(palette.green, palette.text, 0.18),
-  mixColor(palette.orange, palette.text, 0.18),
-  mixColor(palette.blue, palette.text, 0.20),
-  mixColor(palette.violet, palette.text, 0.18),
-  mixColor(palette.cyan, palette.text, 0.16),
-  new Color(1, 1, 1, 1),
+  new Color(0x00, 0x00, 0x00, 1),
+  new Color(0xcd, 0x31, 0x31, 1),
+  new Color(0x0d, 0xbc, 0x79, 1),
+  new Color(0xe5, 0xe5, 0x10, 1),
+  new Color(0x24, 0x72, 0xc8, 1),
+  new Color(0xbc, 0x3f, 0xbc, 1),
+  new Color(0x11, 0xa8, 0xcd, 1),
+  new Color(0xe5, 0xe5, 0xe5, 1),
+  new Color(0x66, 0x66, 0x66, 1),
+  new Color(0xf1, 0x4c, 0x4c, 1),
+  new Color(0x23, 0xd1, 0x8b, 1),
+  new Color(0xf5, 0xf5, 0x43, 1),
+  new Color(0x3b, 0x8e, 0xea, 1),
+  new Color(0xd6, 0x70, 0xd6, 1),
+  new Color(0x29, 0xb8, 0xdb, 1),
+  new Color(0xff, 0xff, 0xff, 1),
 ] as const
 
 class TerminalOutputPane extends UiSurface {
@@ -522,6 +539,10 @@ class TerminalOutputPane extends UiSurface {
       .map((line) => trimRightCells(line.map((cell) => cell.ch).join("")))
       .join("\n")
       .replace(/\n+$/g, "")
+  }
+
+  getStyleSnapshot(): TerminalStyleCell[][] {
+    return [...this.#scrollback, ...this.#screen].map((line) => terminalStyleCells(line))
   }
 
   scrollToBottom(): void {
@@ -1516,6 +1537,8 @@ class TerminalOutputPane extends UiSurface {
     }
     else if (final === "P") this.#deleteChars(n())
     else if (final === "@") this.#insertChars(n())
+    else if (final === "X") this.#eraseChars(n())
+    else if (final === "b") this.#repeatPreviousChar(n())
     else if (final === "L") this.#insertLines(n())
     else if (final === "M") this.#deleteLines(n())
     else if (final === "r") this.#setScrollRegion(csiParam(params, 0, 1) - 1, csiParam(params, 1, this.#rows) - 1)
@@ -1633,6 +1656,17 @@ class TerminalOutputPane extends UiSurface {
     this.#cursorCol++
   }
 
+  #repeatPreviousChar(count: number): void {
+    const row = this.#screen[this.#cursorRow]
+    if (row === undefined || this.#cursorCol <= 0) return
+    let prevCol = Math.min(this.#cursorCol - 1, this.#cols - 1)
+    while (prevCol >= 0 && row[prevCol]?.width === 0) prevCol--
+    const previous = row[prevCol]
+    if (previous === undefined || previous.width === 0) return
+    const n = clampInt(count, 1, this.#cols)
+    for (let i = 0; i < n; i++) this.#putCell(previous)
+  }
+
   #lineFeed(): void {
     this.#pendingWrap = false
     if (this.#cursorRow === this.#scrollBottom) {
@@ -1674,18 +1708,18 @@ class TerminalOutputPane extends UiSurface {
     const b = clampInt(bottom, t, this.#rows - 1)
     if (t === 0 && b === this.#rows - 1) {
       this.#pushScrollback(this.#screen.shift() ?? this.#blankLine())
-      this.#screen.push(this.#blankLine(DEFAULT_ATTR))
+      this.#screen.push(this.#blankLine(this.#attr))
       return
     }
     this.#screen.splice(t, 1)
-    this.#screen.splice(b, 0, this.#blankLine(DEFAULT_ATTR))
+    this.#screen.splice(b, 0, this.#blankLine(this.#attr))
   }
 
   #scrollDownRegion(top: number, bottom: number): void {
     const t = clampInt(top, 0, this.#rows - 1)
     const b = clampInt(bottom, t, this.#rows - 1)
     this.#screen.splice(b, 1)
-    this.#screen.splice(t, 0, this.#blankLine(DEFAULT_ATTR))
+    this.#screen.splice(t, 0, this.#blankLine(this.#attr))
   }
 
   #setScrollRegion(top: number, bottom: number): void {
@@ -1739,6 +1773,15 @@ class TerminalOutputPane extends UiSurface {
     for (let col = start; col <= end; col++) row[col] = this.#blankCell()
   }
 
+  #eraseChars(count: number): void {
+    const row = this.#screen[this.#cursorRow]
+    if (row === undefined) return
+    const available = Math.max(0, this.#cols - this.#cursorCol)
+    if (available === 0) return
+    const n = clampInt(count, 1, available)
+    for (let i = 0; i < n; i++) row[this.#cursorCol + i] = this.#blankCell()
+  }
+
   #deleteChars(count: number): void {
     const row = this.#screen[this.#cursorRow]
     if (row === undefined) return
@@ -1757,14 +1800,14 @@ class TerminalOutputPane extends UiSurface {
 
   #insertLines(count: number): void {
     const n = clampInt(count, 1, this.#rows)
-    this.#screen.splice(this.#cursorRow, 0, ...Array.from({length: n}, () => this.#blankLine(DEFAULT_ATTR)))
+    this.#screen.splice(this.#cursorRow, 0, ...Array.from({length: n}, () => this.#blankLine(this.#attr)))
     while (this.#screen.length > this.#rows) this.#screen.pop()
   }
 
   #deleteLines(count: number): void {
     const n = clampInt(count, 1, this.#rows)
     this.#screen.splice(this.#cursorRow, n)
-    while (this.#screen.length < this.#rows) this.#screen.push(this.#blankLine(DEFAULT_ATTR))
+    while (this.#screen.length < this.#rows) this.#screen.push(this.#blankLine(this.#attr))
   }
 
   #materialFor(color: TerminalColor): TextMaterial {
@@ -1781,6 +1824,7 @@ class TerminalOutputPane extends UiSurface {
 
 export class TerminalPane extends TerminalOutputPane {
   #inputEnabled: boolean
+  #respondToTerminalQueries: boolean
   #onInput: ((data: string, source: TerminalInputSource) => void) | undefined
   #pendingLocalEcho: PendingLocalEcho | null = null
   #inputPreviewSnapshot: TerminalOutputSnapshot | null = null
@@ -1790,6 +1834,7 @@ export class TerminalPane extends TerminalOutputPane {
     super(opts)
     this.node.name = "TerminalPane"
     this.#inputEnabled = opts.inputEnabled ?? true
+    this.#respondToTerminalQueries = opts.respondToTerminalQueries ?? true
     this.#onInput = opts.onInput
   }
 
@@ -1929,6 +1974,7 @@ export class TerminalPane extends TerminalOutputPane {
   }
 
   protected override emitTerminalResponse(data: string): void {
+    if (!this.#respondToTerminalQueries) return
     this.#emitInput(data, "api")
   }
 }
@@ -2273,7 +2319,7 @@ function sameColor(a: TerminalColor | null, b: TerminalColor | null): boolean {
 function colorToColor(color: TerminalColor): Color {
   if (color.kind === "default") return palette.text
   if (color.kind === "ansi") return ANSI_COLORS[clampInt(color.index, 0, ANSI_COLORS.length - 1)] ?? palette.text
-  return new Color(color.r, color.g, color.b, 1)
+  return new Color(color.r / 255, color.g / 255, color.b / 255, 1)
 }
 
 function dimTerminalColor(color: TerminalColor): TerminalColor {
@@ -2323,6 +2369,23 @@ function cloneColor(color: TerminalColor): TerminalColor {
   if (color.kind === "default") return DEFAULT_FG
   if (color.kind === "ansi") return {kind: "ansi", index: color.index}
   return {kind: "rgb", r: color.r, g: color.g, b: color.b}
+}
+
+function terminalStyleCells(line: readonly TerminalCell[]): TerminalStyleCell[] {
+  return line.map((cell) => ({
+    ch: cell.ch,
+    width: cell.width,
+    fg: cloneColor(displayFg(cell.attr)),
+    bg: cloneNullableColor(displayBg(cell)),
+    bold: cell.attr.bold,
+    dim: cell.attr.dim,
+    underline: cell.attr.underline,
+    inverse: cell.attr.inverse,
+  }))
+}
+
+function cloneNullableColor(color: TerminalColor | null): TerminalStyleColor | null {
+  return color === null ? null : cloneColor(color)
 }
 
 function terminalLineText(line: readonly TerminalCell[]): string {

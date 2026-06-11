@@ -50,6 +50,12 @@ const DEFAULT_MAX_SESSIONS = 8
 const DEFAULT_SESSION_TTL_MS = 30 * 60_000
 const DEFAULT_SCROLLBACK_BYTES = 2 * 1024 * 1024
 const TERMIOS_ECHO = 0x00000008
+const DEFAULT_TERM_PROGRAM = "iTerm.app"
+const DEFAULT_TERM_PROGRAM_VERSION = "3.5"
+const DEFAULT_COLORFGBG = "15;0"
+const DEFAULT_OSC_FOREGROUND = "rgb:d7dd/e8ff/fbff"
+const DEFAULT_OSC_BACKGROUND = "rgb:0e10/151a/20ff"
+const DEFAULT_OSC_CURSOR = "rgb:94e2/d5ff/ffff"
 
 let buildAssets = new Map<string, Blob>()
 
@@ -115,6 +121,7 @@ export class TerminalSession {
   readonly #onDispose: (id: string) => void
   readonly #scrollback: string[] = []
   readonly #stateTracker = new PtyTerminalStateTracker()
+  readonly #probeResponder = new PtyTerminalProbeResponder((data) => this.write(data))
   readonly id = crypto.randomUUID()
   readonly createdAt = Date.now()
   #disposeTimer: ReturnType<typeof setTimeout> | null = null
@@ -299,6 +306,7 @@ export class TerminalSession {
 
   #write(data: string): void {
     if (data.length === 0 || this.#disposed) return
+    this.#probeResponder.write(data)
     this.#stateTracker.write(data)
     this.#remember(data)
     this.#send({type: "terminal.write", data, state: this.#terminalState()})
@@ -460,6 +468,108 @@ class PtyTerminalStateTracker {
     if (params.includes(66)) this.#applicationKeypad = enabled
     if (params.includes(2004)) this.#bracketedPaste = enabled
     if (params.includes(47) || params.includes(1047) || params.includes(1049)) this.#alternateScreen = enabled
+  }
+}
+
+type PtyProbeParserMode = "text" | "esc" | "csi" | "osc" | "charset"
+
+export class PtyTerminalProbeResponder {
+  readonly #send: (data: string) => void
+  #parserMode: PtyProbeParserMode = "text"
+  #sequence = ""
+  #oscEsc = false
+
+  constructor(send: (data: string) => void) {
+    this.#send = send
+  }
+
+  write(data: string): void {
+    for (const ch of data) this.#consume(ch)
+  }
+
+  #consume(ch: string): void {
+    if (this.#parserMode === "esc") {
+      this.#consumeEsc(ch)
+      return
+    }
+    if (this.#parserMode === "csi") {
+      this.#consumeCsi(ch)
+      return
+    }
+    if (this.#parserMode === "osc") {
+      this.#consumeOsc(ch)
+      return
+    }
+    if (this.#parserMode === "charset") {
+      this.#parserMode = "text"
+      return
+    }
+    if (ch === "\x1b") {
+      this.#parserMode = "esc"
+      this.#sequence = ""
+    }
+  }
+
+  #consumeEsc(ch: string): void {
+    this.#parserMode = "text"
+    if (ch === "[") {
+      this.#parserMode = "csi"
+      this.#sequence = ""
+      return
+    }
+    if (ch === "]") {
+      this.#parserMode = "osc"
+      this.#sequence = ""
+      this.#oscEsc = false
+      return
+    }
+    if ("()*+-./".includes(ch)) this.#parserMode = "charset"
+  }
+
+  #consumeCsi(ch: string): void {
+    const code = ch.charCodeAt(0)
+    if (code >= 0x40 && code <= 0x7e) {
+      this.#parserMode = "text"
+      this.#dispatchCsi(this.#sequence, ch)
+      this.#sequence = ""
+      return
+    }
+    if (this.#sequence.length < 256) this.#sequence += ch
+  }
+
+  #consumeOsc(ch: string): void {
+    if (this.#oscEsc) {
+      if (ch === "\\") {
+        this.#parserMode = "text"
+        this.#dispatchOsc(this.#sequence)
+      } else {
+        this.#parserMode = "osc"
+        if (this.#sequence.length < 1024) this.#sequence += `\x1b${ch}`
+      }
+      this.#oscEsc = false
+      return
+    }
+    if (ch === "\x07") {
+      this.#parserMode = "text"
+      this.#dispatchOsc(this.#sequence)
+      return
+    }
+    if (ch === "\x1b") {
+      this.#oscEsc = true
+      return
+    }
+    if (this.#sequence.length < 1024) this.#sequence += ch
+  }
+
+  #dispatchCsi(raw: string, final: string): void {
+    if (final === "c" && raw.length === 0) this.#send("\x1b[?1;2c")
+    else if (final === "n" && raw === "6") this.#send("\x1b[1;1R")
+  }
+
+  #dispatchOsc(raw: string): void {
+    if (raw === "10;?") this.#send(`\x1b]10;${DEFAULT_OSC_FOREGROUND}\x1b\\`)
+    else if (raw === "11;?") this.#send(`\x1b]11;${DEFAULT_OSC_BACKGROUND}\x1b\\`)
+    else if (raw === "12;?") this.#send(`\x1b]12;${DEFAULT_OSC_CURSOR}\x1b\\`)
   }
 }
 
@@ -663,17 +773,20 @@ function acceptsHtml(req: Request): boolean {
   return accept === null || accept.includes("text/html")
 }
 
-function terminalEnv(): Record<string, string | undefined> {
+export function terminalEnv(base: Record<string, string | undefined> = process.env): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = {
-    ...process.env,
+    ...base,
     COLORTERM: "truecolor",
     CLICOLOR: "1",
-    CLICOLOR_FORCE: "1",
-    FORCE_COLOR: process.env.FORCE_COLOR ?? "1",
+    COLORFGBG: base.COLORFGBG ?? DEFAULT_COLORFGBG,
     PROMPT_EOL_MARK: "",
     TERM: "xterm-256color",
+    TERM_PROGRAM: base.TERM_PROGRAM ?? DEFAULT_TERM_PROGRAM,
+    TERM_PROGRAM_VERSION: base.TERM_PROGRAM_VERSION ?? DEFAULT_TERM_PROGRAM_VERSION,
   }
   delete env.NO_COLOR
+  delete env.CLICOLOR_FORCE
+  delete env.FORCE_COLOR
   if (env.LANG === undefined || env.LANG === "C.UTF-8") env.LANG = "en_US.UTF-8"
   if (env.LC_ALL === "C.UTF-8") delete env.LC_ALL
   if (env.LC_CTYPE === "C.UTF-8") env.LC_CTYPE = "en_US.UTF-8"

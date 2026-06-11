@@ -4420,7 +4420,7 @@ function createHostTerminalPane(
     fontPx: opts.fontPx,
     linePx: opts.linePx,
     maxScrollback: 10000,
-    cursorLineHighlight: true,
+    respondToTerminalQueries: false,
     draggable: opts.draggable ?? false,
     resizable: opts.resizable ?? false,
     inputEnabled: false,
