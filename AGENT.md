@@ -9,14 +9,14 @@ The current `arch` branch documentation is the source of truth.
 
 ## Interpreter API Edit Discipline
 
-When the interpreter is running or the work is happening inside the interpreter/debugger session, do not edit repository files by habit with local patching tools. First call the interpreter API (`GET /health`, then `/context` or the relevant `/processes/:id/...` endpoint) and map the target file to the active process/display/source context.
+When the interpreter is running or the work is happening inside the interpreter/debugger session, do not edit repository files by habit with local patching tools. Assume the interpreter API is available by default; use `/context` or the relevant `/processes/:id/...` endpoint and map the target file to the active process/display/source context. Do not call `/health` as routine preflight.
 
 If the target file belongs to an active process, an open interpreter source, or the current shared debugging context, edits must go through the interpreter API only:
 
 - `POST /processes/:id/apply_patch` for raw patches;
 - `POST /processes/:id/source` for full source replacement.
 
-Before every such edit, state the route being used: `Правлю через interpreter API: <processId>`. Do not use local `apply_patch`, `sed`, shell writes, editor writes, or formatter writes for those files. Use local edits only after explicitly confirming the file is outside the active interpreter context or when the interpreter API cannot address that file and the user accepts the fallback.
+Before every such edit, state the route being used: `Правлю через interpreter API: <processId>`. Do not use local `apply_patch`, `sed`, shell writes, editor writes, or formatter writes for those files. Use local edits only after explicitly confirming the file is outside the active interpreter context or when the interpreter API cannot address that file and the user accepts the fallback. Use `/health` only as diagnostics after an API failure, missing process, restart/close, or unknown context.
 
 ## Communication
 

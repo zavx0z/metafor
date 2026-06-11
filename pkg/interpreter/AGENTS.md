@@ -66,12 +66,13 @@ Runtime-действия адресуются через process. `module` - sou
 
 Перед правкой кода:
 
-1. Прочитай `GET /context` и определи `processId`, `source.identity.sourceUrl` / `source.identity.scriptUrl`.
-2. Если изменяемый файл относится к текущему process/display, открыт в source интерпретатора или работа явно идёт в текущей interpreter/debugger-сессии, не используй локальный `apply_patch`, `sed`, shell-write, редактор или форматтер для записи файла.
-3. Применяй изменение только через:
+1. Считай interpreter API рабочим по умолчанию. Не вызывай `GET /health` как обычный preflight; используй его только для диагностики после ошибки API, отсутствующего process, рестарта/закрытия или неизвестного контекста.
+2. Прочитай `GET /context` и определи `processId`, `source.identity.sourceUrl` / `source.identity.scriptUrl`.
+3. Если изменяемый файл относится к текущему process/display, открыт в source интерпретатора или работа явно идёт в текущей interpreter/debugger-сессии, не используй локальный `apply_patch`, `sed`, shell-write, редактор или форматтер для записи файла.
+4. Применяй изменение только через:
    - `POST /processes/:id/apply_patch` для raw `apply_patch`;
    - `POST /processes/:id/source` для сохранения полного текста source.
-4. После правки проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `/context` или `GET /processes/:id/source`.
+5. После правки проверь, что интерпретатор получил изменение: `source-patched`, replay/restart при необходимости, новый `/context` или `GET /processes/:id/source`.
 
 Причина: только interpreter source API сдвигает breakpoints, рассылает `source-patched`, обновляет source cache/display и сохраняет связь runtime/source context. Правка в обход API оставляет UI и текущий runtime на старом source snapshot.
 
