@@ -12,7 +12,16 @@ export type PaneRect = {
   h: number
 }
 
-export type PaneFrameInteractionKind = "move" | "resize-right" | "resize-bottom" | "resize-bottom-right"
+export type PaneFrameInteractionKind =
+  | "move"
+  | "resize-left"
+  | "resize-right"
+  | "resize-top"
+  | "resize-bottom"
+  | "resize-top-left"
+  | "resize-top-right"
+  | "resize-bottom-left"
+  | "resize-bottom-right"
 
 export type PaneFrameDrag = {
   kind: PaneFrameInteractionKind
@@ -86,10 +95,17 @@ export function paneFrameHit(localX: number, localY: number, rectW: number, rect
   const inside = localX >= 0 && localY >= 0 && localX <= rectW && localY <= rectH
   if (!inside) return null
   if (resizable) {
+    const left = localX <= handle
     const right = localX >= Math.max(0, rectW - handle)
+    const top = localY <= handle
     const bottom = localY >= Math.max(0, rectH - handle)
+    if (left && top) return "resize-top-left"
+    if (right && top) return "resize-top-right"
+    if (left && bottom) return "resize-bottom-left"
     if (right && bottom) return "resize-bottom-right"
+    if (left) return "resize-left"
     if (right) return "resize-right"
+    if (top) return "resize-top"
     if (bottom) return "resize-bottom"
   }
   if (movable && localY <= headerHeight) return "move"
@@ -99,8 +115,9 @@ export function paneFrameHit(localX: number, localY: number, rectW: number, rect
 export function paneFrameCursor(kind: PaneFrameInteractionKind | null, active = false): string | null {
   if (kind === null) return null
   if (kind === "move") return active ? "grabbing" : "grab"
-  if (kind === "resize-right") return "ew-resize"
-  if (kind === "resize-bottom") return "ns-resize"
+  if (kind === "resize-left" || kind === "resize-right") return "ew-resize"
+  if (kind === "resize-top" || kind === "resize-bottom") return "ns-resize"
+  if (kind === "resize-top-right" || kind === "resize-bottom-left") return "nesw-resize"
   return "nwse-resize"
 }
 
@@ -135,13 +152,38 @@ export function paneFrameDragRect(drag: PaneFrameDrag, event: MouseEvent, bounds
     x = clampNumber(x, 0, Math.max(0, bw - w))
     y = clampNumber(y, 0, Math.max(0, bh - h))
     return {x, y, w, h}
-  } else {
-    if (drag.kind === "resize-right" || drag.kind === "resize-bottom-right") {
-      w = clampNumber(drag.startRect.w + dx, Math.min(minW, Math.max(1, bw - x)), Math.max(1, bw - x))
-    }
-    if (drag.kind === "resize-bottom" || drag.kind === "resize-bottom-right") {
-      h = clampNumber(drag.startRect.h + dy, Math.min(minH, Math.max(1, bh - y)), Math.max(1, bh - y))
-    }
+  } else if (paneFrameResizesLeft(drag.kind)) {
+    const right = drag.startRect.x + drag.startRect.w
+    w = Math.min(Math.max(1, right), bw)
+    x = clampNumber(right - w, 0, Math.max(0, bw - w))
+    const nextX = drag.startRect.x + dx
+    const maxX = Math.max(0, right - minW)
+    x = clampNumber(nextX, 0, maxX)
+    w = Math.max(1, right - x)
+  } else if (paneFrameResizesRight(drag.kind)) {
+    const right = drag.startRect.x + drag.startRect.w
+    const nextRight = right + dx
+    const minRight = Math.min(bw, drag.startRect.x + minW)
+    const clampedRight = clampNumber(nextRight, minRight, bw)
+    x = drag.startRect.x
+    w = Math.max(1, clampedRight - x)
+  }
+
+  if (paneFrameResizesTop(drag.kind)) {
+    const bottom = drag.startRect.y + drag.startRect.h
+    h = Math.min(Math.max(1, bottom), bh)
+    y = clampNumber(bottom - h, 0, Math.max(0, bh - h))
+    const nextY = drag.startRect.y + dy
+    const maxY = Math.max(0, bottom - minH)
+    y = clampNumber(nextY, 0, maxY)
+    h = Math.max(1, bottom - y)
+  } else if (paneFrameResizesBottom(drag.kind)) {
+    const bottom = drag.startRect.y + drag.startRect.h
+    const nextBottom = bottom + dy
+    const minBottom = Math.min(bh, drag.startRect.y + minH)
+    const clampedBottom = clampNumber(nextBottom, minBottom, bh)
+    y = drag.startRect.y
+    h = Math.max(1, clampedBottom - y)
   }
 
   w = clampNumber(w, minW, bw)
@@ -149,6 +191,22 @@ export function paneFrameDragRect(drag: PaneFrameDrag, event: MouseEvent, bounds
   x = clampNumber(x, 0, Math.max(0, bw - w))
   y = clampNumber(y, 0, Math.max(0, bh - h))
   return {x, y, w, h}
+}
+
+function paneFrameResizesLeft(kind: PaneFrameInteractionKind): boolean {
+  return kind === "resize-left" || kind === "resize-top-left" || kind === "resize-bottom-left"
+}
+
+function paneFrameResizesRight(kind: PaneFrameInteractionKind): boolean {
+  return kind === "resize-right" || kind === "resize-top-right" || kind === "resize-bottom-right"
+}
+
+function paneFrameResizesTop(kind: PaneFrameInteractionKind): boolean {
+  return kind === "resize-top" || kind === "resize-top-left" || kind === "resize-top-right"
+}
+
+function paneFrameResizesBottom(kind: PaneFrameInteractionKind): boolean {
+  return kind === "resize-bottom" || kind === "resize-bottom-left" || kind === "resize-bottom-right"
 }
 
 function clampNumber(value: number, min: number, max: number): number {
