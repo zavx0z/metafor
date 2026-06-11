@@ -81,6 +81,44 @@ Envelope не должен дублировать `part`, `channel`, `source` и
 Transport-layer не строит собственные очереди поверх `BroadcastChannel`.
 Если нужен порядок, дедупликация, replay или целостность, это обязанность store transaction, revision/domain tick или владельца runtime, а не Promise-очереди подписчика.
 
+## Store commit и доменные сигналы
+
+`Store` хранит полную каноническую форму мира.
+Лёгкий protocol patch с `uuid`, `part` и revision не является payload для
+восстановления другого `Store`; он только сообщает доменам, что уже
+зафиксированная часть мира изменилась и её нужно перечитать из `Store`.
+
+В распределённой системе физически может существовать несколько `Store`:
+серверные SQLite-базы, browser IndexedDB-реплики или другие runtime-узлы.
+Если другой `Store` должен получить изменение, единицей переноса является тот же
+causal commit, а не отдельный независимый sync-канал.
+
+Правильный порядок:
+
+```text
+domain full change
+  -> local Store transaction
+  -> commit(txId / revision / parents)
+  -> commit envelope:
+       writes  — данные для Store-реплик, которым нужно применить изменение
+       signals — лёгкие protocol patches для доменной реакции
+```
+
+На принимающей стороне порядок обратной доставки доменам фиксирован:
+
+```text
+receive commit envelope
+  -> apply writes into local Store transaction
+  -> commit local Store
+  -> deliver signals to Dark / Boundary / Bulk subscribers
+```
+
+Нельзя разводить `store-sync` и domain protocol в два независимых потока, потому
+что тогда `Boundary` или `Bulk` могут получить сигнал раньше, чем локальная
+реплика `Store` содержит данные, на которые этот сигнал указывает.
+Если репликация не нужна, commit envelope может не нести `writes` наружу, но
+доменный patch всё равно должен рождаться только после локального commit.
+
 ## Типы полей
 
 Протокол различает:
