@@ -49,7 +49,10 @@
 
 ## 7. FileListPane / файловая панель
 
-- [ ] [focus][active-row] Развести activeId и визуальную active-подсветку: activeFill/selectedText показывать только у сфокусированной файловой панели; описание: неактивная панель не должна выглядеть текущей.
-- [ ] [selection][empty-state] Проверить clearSelection и пустой selection: после снятия выбора верхняя папка не должна получать selected-like фон; описание: activeId можно сохранять для клавиатуры без визуального выбора.
-- [ ] [render][state] Убрать скрытую смену activeId из render-пути или ограничить ее синхронизацией данных; описание: #syncActiveToVisibleRows сейчас может возвращать подсветку первого элемента при обычном render.
-- [ ] [tests][regression] Добавить тесты для inactive pane, focus/blur, hover, keyboard navigation и empty selection; описание: зафиксировать, что верхняя папка не подсвечивается без фокуса и явного выбора.
+- [ ] [selection][intellij] Сделать row-wide подсветку производной только от `selectedIds`: `activeId` хранит lead/anchor для клавиатуры и открытия, но сам по себе не рисует selected-like фон.
+- [ ] [selection][initial] Привести начальное состояние к IntelliJ-модели: если дерево должно выбрать первую видимую строку после пустого restore/ensure, эта строка должна явно попасть в `selectedIds`, а не подсвечиваться скрытым `activeId`.
+- [ ] [selection][empty-state] Исправить `clearSelection()`, `setItems()` и `#syncActiveToVisibleRows()`: пустой selection не должен визуально выглядеть как выбранная верхняя папка; repair selection выполнять только в явных state transitions.
+- [ ] [focus][theme] Развести focused/inactive selection style как в IntelliJ: выбранная строка остается видимой без фокуса, но получает inactive fill/foreground; hover рисуется только на незавыбранной строке.
+- [ ] [keyboard][lead] Синхронизировать клавиатурную навигацию с selection: ArrowUp/ArrowDown/Home/End меняют настоящий `selectedIds`, а `activeId` следует за выбранной строкой без отдельной визуальной подсветки.
+- [ ] [source-sync][reveal] Развести ручное `revealCurrentWorkspaceFile` и автосинхронизацию с открытым source: `revealWorkspaceSource()` не должен включать скрытый аналог IntelliJ Always Select Opened File без явной настройки или команды.
+- [ ] [tests][regression] Добавить регрессии для FileListPane и interpreter workspace files: пустой selection без active-фона, явный initial select-first, focused/inactive selected style, keyboard selection, manual reveal/autosync и сохранение `selectedIds`.
