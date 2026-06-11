@@ -55,6 +55,10 @@ describe("file list model", () => {
       "readme",
       "src/index",
     ])
+    expect(fileListSelectionAfterClick(rows, ["readme"], "src", "multiple", "readme", {ctrlKey: true}).selectedIds).toEqual([
+      "readme",
+      "src",
+    ])
     expect(fileListSelectionAfterClick(rows, ["readme", "src/index"], "readme", "multiple", "readme", {metaKey: true}).selectedIds).toEqual([
       "src/index",
     ])

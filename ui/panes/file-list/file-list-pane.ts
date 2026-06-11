@@ -28,6 +28,7 @@ export type FileListPaneOpts = {
   items?: readonly FileListItem[]
   selectionMode?: FileListSelectionMode
   selectedIds?: readonly string[]
+  initialSelection?: "none" | "first"
   expandedIds?: readonly string[]
   theme?: FileListPaneThemeInput
   showHeader?: boolean
@@ -67,9 +68,12 @@ export type FileListPaneTheme = {
     activeFill: Color | null
     selectedFill: Color | null
     selectedBorder: Color | null
+    selectedInactiveFill: Color | null
+    selectedInactiveBorder: Color | null
     text: Color
     muted: Color
     selectedText: Color
+    selectedInactiveText: Color
     disabledText: Color
   }
   icon: {
@@ -117,9 +121,12 @@ export const FILE_LIST_INTELLIJ_THEME: FileListPaneTheme = {
     activeFill: new Color(52 / 255, 56 / 255, 64 / 255, 0.88),
     selectedFill: new Color(45 / 255, 93 / 255, 147 / 255, 0.92),
     selectedBorder: new Color(74 / 255, 132 / 255, 190 / 255, 0.78),
+    selectedInactiveFill: new Color(52 / 255, 56 / 255, 64 / 255, 0.88),
+    selectedInactiveBorder: null,
     text: palette.text,
     muted: palette.muted,
     selectedText: palette.text,
+    selectedInactiveText: palette.text,
     disabledText: palette.muted,
   },
   icon: {
@@ -153,9 +160,12 @@ export const FILE_LIST_MATERIAL_THEME: FileListPaneTheme = {
     activeFill: new Color(144 / 255, 202 / 255, 249 / 255, 0.14),
     selectedFill: new Color(25 / 255, 118 / 255, 210 / 255, 0.34),
     selectedBorder: new Color(144 / 255, 202 / 255, 249 / 255, 0.42),
+    selectedInactiveFill: new Color(255 / 255, 255 / 255, 255 / 255, 0.10),
+    selectedInactiveBorder: null,
     text: new Color(238 / 255, 238 / 255, 238 / 255, 1),
     muted: new Color(158 / 255, 158 / 255, 158 / 255, 1),
     selectedText: new Color(245 / 255, 250 / 255, 255 / 255, 1),
+    selectedInactiveText: new Color(238 / 255, 238 / 255, 238 / 255, 1),
     disabledText: new Color(117 / 255, 117 / 255, 117 / 255, 1),
   },
   icon: {
@@ -187,6 +197,8 @@ export const FILE_LIST_DEFAULT_THEME: FileListPaneTheme = {
     activeFill: palette.activeRowFill,
     selectedFill: palette.activeRowFill,
     selectedBorder: palette.border,
+    selectedInactiveFill: new Color(52 / 255, 56 / 255, 64 / 255, 0.88),
+    selectedInactiveBorder: null,
   },
   icon: {
     ...FILE_LIST_INTELLIJ_THEME.icon,
@@ -205,6 +217,7 @@ export class FileListPane extends UiSurface {
   #showHeader: boolean
   #draggable: boolean
   #resizable: boolean
+  #focused = false
   #theme: FileListPaneTheme
   #frameDrag: PaneFrameDrag | null = null
   #lastViewportH = 1
@@ -229,8 +242,8 @@ export class FileListPane extends UiSurface {
     this.#title = opts.title ?? "Files"
     this.#items = opts.items ?? []
     this.#selectionMode = opts.selectionMode ?? "single"
-    this.#selectedIds = normalizeFileListSelection(opts.selectedIds ?? [], this.#items, this.#selectionMode)
     this.#expandedIds = new Set(opts.expandedIds ?? [])
+    this.#selectedIds = this.#initialSelectedIds(opts)
     this.#activeId = this.#selectedIds[0] ?? firstVisibleSelectableId(this.#items, this.#expandedIds)
     this.#selectionAnchorId = this.#activeId
     this.#showHeader = opts.showHeader ?? true
@@ -264,8 +277,9 @@ export class FileListPane extends UiSurface {
     this.#selectedIds = nextSelection
     const knownIds = new Set(fileListAllItemIds(this.#items))
     this.#expandedIds = new Set([...this.#expandedIds].filter((id) => knownIds.has(id)))
-    if (this.#activeId !== null && !knownIds.has(this.#activeId)) this.#activeId = firstVisibleSelectableId(this.#items, this.#expandedIds)
+    if (this.#activeId !== null && !knownIds.has(this.#activeId)) this.#activeId = null
     if (this.#selectionAnchorId !== null && !knownIds.has(this.#selectionAnchorId)) this.#selectionAnchorId = this.#activeId
+    this.#syncActiveToVisibleRows()
     if (selectionChanged) this.#emitSelectionChange()
     this.requestRender()
   }
@@ -295,8 +309,20 @@ export class FileListPane extends UiSurface {
     return [...this.#selectedIds]
   }
 
+  focus(): void {
+    this.canvas?.setFocused(this)
+    this.canvas?.inputProxy?.focus()
+  }
+
   setSelectedIds(ids: readonly string[]): void {
     this.#applySelection(normalizeFileListSelection(ids, this.#items, this.#selectionMode), ids[0] ?? null)
+  }
+
+  ensureSelection(): void {
+    if (this.#selectedIds.length > 0) return
+    const row = this.#activeRow()
+    if (row === null || row.item.disabled === true) return
+    this.#applySelection([row.id], row.id)
   }
 
   expandedIds(): readonly string[] {
@@ -309,6 +335,7 @@ export class FileListPane extends UiSurface {
     if (sameStringArray([...next], [...this.#expandedIds])) return
     this.#expandedIds = next
     this.#visibleRows = null
+    this.#syncActiveToVisibleRows()
     this.#emitExpandedChange()
     this.requestRender()
   }
@@ -409,10 +436,21 @@ export class FileListPane extends UiSurface {
     super.onPointerUp(event, localX, localY)
   }
 
+  onActivate(): void {
+    this.#focused = true
+    this.requestRender()
+  }
+
+  override onDeactivate(): void {
+    super.onDeactivate?.()
+    this.#frameDrag = null
+    this.#focused = false
+    this.requestRender()
+  }
+
   protected render(): void {
     this.#renderSurfaceChrome()
     const rows = this.#rows()
-    this.#syncActiveToVisibleRows(rows)
     if (this.#showHeader) this.#renderHeader()
     const body = paneBodyRect(this.rectW, this.rectH, {showHeader: this.#showHeader})
     if (rows.length === 0) {
@@ -453,7 +491,8 @@ export class FileListPane extends UiSurface {
 
   #renderSelectionGroups(rows: readonly FileListVisibleRow[], x: number, y: number, w: number, rowH: number, scrollTop: number): void {
     const theme = this.#theme
-    if (theme.row.selectedFill === null && theme.row.selectedBorder === null) return
+    const {fill: selectedFill, border: selectedBorder} = fileListSelectionGroupStyle(theme, this.#focused)
+    if (selectedFill === null && selectedBorder === null) return
     const selectedIds = new Set(this.#selectedIds)
     let index = 0
     while (index < rows.length) {
@@ -467,9 +506,9 @@ export class FileListPane extends UiSurface {
       const groupH = (index - start + 1) * rowH
       this.drawRoundedRect(x, groupY, w, groupH, {
         radius: theme.row.radius,
-        fill: theme.row.selectedFill,
-        border: theme.row.selectedBorder,
-        borderWidth: theme.row.selectedBorder === null ? 0 : 1,
+        fill: selectedFill,
+        border: selectedBorder,
+        borderWidth: selectedBorder === null ? 0 : 1,
         z: Z.ELEMENT,
       })
       index += 1
@@ -509,7 +548,7 @@ export class FileListPane extends UiSurface {
     li(this, x, y, w, h, {
       key: `file-list-row:${row.id}`,
       style: (state) => ({
-        background: rowFill(this.#theme, state, selected, active, row.item.disabled === true),
+        background: fileListRowFill(this.#theme, state, selected, row.item.disabled === true),
         borderColor: null,
         borderRadius: this.#theme.row.radius,
         borderWidth: 1,
@@ -546,8 +585,9 @@ export class FileListPane extends UiSurface {
     const metaW = meta === null ? 0 : Math.min(theme.row.metaWidth, Math.max(0, w * 0.30), Math.ceil(this.measureText(meta, 9)) + 12)
     const nameRightGap = meta === null ? 8 : metaW + 10
     const nameW = Math.max(24, x + w - nameX - nameRightGap)
-    const textColor = disabled ? theme.row.disabledText : selected || active ? theme.row.selectedText : theme.row.text
-    const mutedColor = disabled ? theme.row.disabledText : selected ? theme.row.selectedText : theme.row.muted
+    const selectedText = this.#focused ? theme.row.selectedText : theme.row.selectedInactiveText
+    const textColor = disabled ? theme.row.disabledText : selected ? selectedText : theme.row.text
+    const mutedColor = disabled ? theme.row.disabledText : selected ? selectedText : theme.row.muted
 
     if (row.expandable) {
       this.#drawDisclosureChevron(
@@ -556,7 +596,7 @@ export class FileListPane extends UiSurface {
         theme.row.disclosureWidth,
         h,
         row.expanded,
-        state.hovered || active ? theme.header.title : theme.row.muted,
+        state.hovered ? theme.header.title : selected ? selectedText : theme.row.muted,
       )
     }
 
@@ -750,6 +790,7 @@ export class FileListPane extends UiSurface {
     else this.#expandedIds.delete(item.id)
     if (wasExpanded === expanded) return
     this.#visibleRows = null
+    this.#syncActiveToVisibleRows()
     this.#onDirectoryToggle?.(item, expanded)
     this.#emitExpandedChange()
     this.requestRender()
@@ -757,11 +798,14 @@ export class FileListPane extends UiSurface {
 
   #applySelection(ids: readonly string[], anchorId: string | null): void {
     const next = normalizeFileListSelection(ids, this.#items, this.#selectionMode)
+    const nextActiveId = next[0] ?? anchorId
     if (sameStringArray(next, this.#selectedIds) && this.#selectionAnchorId === anchorId) {
+      this.#activeId = nextActiveId
       this.requestRender()
       return
     }
     this.#selectedIds = next
+    this.#activeId = nextActiveId
     this.#selectionAnchorId = anchorId
     this.#emitSelectionChange()
     this.requestRender()
@@ -790,8 +834,9 @@ export class FileListPane extends UiSurface {
       this.#activeId = null
       return
     }
-    if (this.#activeId !== null && rows.some((row) => row.id === this.#activeId)) return
-    this.#activeId = rows.find((row) => row.item.disabled !== true)?.id ?? rows[0]!.id
+    if (this.#activeId !== null && rows.some((row) => row.id === this.#activeId && row.item.disabled !== true)) return
+    const selected = this.#selectedIds.find((id) => rows.some((row) => row.id === id && row.item.disabled !== true))
+    this.#activeId = selected ?? rows.find((row) => row.item.disabled !== true)?.id ?? rows[0]!.id
   }
 
   #scrollActiveIntoView(): void {
@@ -866,14 +911,26 @@ export class FileListPane extends UiSurface {
     const canvasElement = this.canvas.canvas
     if (canvasElement !== undefined) canvasElement.style.cursor = cursor ?? "default"
   }
+
+  #initialSelectedIds(opts: FileListPaneOpts): string[] {
+    const explicit = normalizeFileListSelection(opts.selectedIds ?? [], this.#items, this.#selectionMode)
+    if (explicit.length > 0 || opts.initialSelection !== "first") return explicit
+    const first = firstVisibleSelectableId(this.#items, this.#expandedIds)
+    return first === null ? [] : [first]
+  }
 }
 
-function rowFill(theme: FileListPaneTheme, state: LiElementState, selected: boolean, active: boolean, disabled: boolean): Color | null {
+export function fileListRowFill(theme: FileListPaneTheme, state: LiElementState, selected: boolean, disabled: boolean): Color | null {
   if (disabled) return null
   if (selected) return null
-  if (active) return theme.row.activeFill
   if (state.hovered) return theme.row.hoverFill
   return null
+}
+
+export function fileListSelectionGroupStyle(theme: FileListPaneTheme, focused: boolean): {fill: Color | null; border: Color | null} {
+  return focused
+    ? {fill: theme.row.selectedFill, border: theme.row.selectedBorder}
+    : {fill: theme.row.selectedInactiveFill, border: theme.row.selectedInactiveBorder}
 }
 
 function rowMeta(item: FileListItem): string | null {

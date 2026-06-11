@@ -53,6 +53,22 @@ import {
   breakpointSpecMatchesSource,
   sameSourceUrl,
 } from "./breakpoint-matching.ts"
+import {
+  normalizeSourceFilePath,
+  normalizeWorkspaceExpandedIds,
+  normalizeWorkspacePath,
+  shouldRevealWorkspaceForSourceOpen,
+  stripSourceLine,
+  workspaceDirectoryIds,
+  workspaceFileIdForSources,
+  workspaceFileRevealState,
+  workspaceFileSourceUrl as workspaceFileItemSourceUrl,
+  workspaceFilesContextSnapshot,
+  workspaceFileTree,
+  workspaceParentIds,
+  workspaceRootLabel,
+  type WorkspaceFilesContextSnapshot,
+} from "./workspace-files.ts"
 import {formatTerminalExpressionResult} from "./terminal-value-format.ts"
 import {
   DEFAULT_VOICE_ACTIVATION_PHRASES,
@@ -227,6 +243,7 @@ type ModuleCurrentContext = {
   activeFrameIndex: number | null
   currentFrame: Pick<FrameSnapshot, "index" | "function" | "url" | "line" | "column" | "sourceKind" | "scriptId"> | null
   scopes: ScopeContextSnapshot
+  workspaceFiles: WorkspaceFilesContextSnapshot
   terminal: {
     focused: boolean
     pendingInput: string
@@ -1020,8 +1037,10 @@ async function openInterpreterSource(controller: ModuleDisplayController, params
   const options: SourceOpenOptions = {}
   const line = numberParam(params["line"])
   const column = numberParam(params["column"])
+  const revealInWorkspace = booleanParam(params["revealInWorkspace"]) ?? booleanParam(params["reveal"])
   if (line !== undefined) options.line = line
   if (column !== undefined) options.column = column
+  if (revealInWorkspace !== undefined) options.revealInWorkspace = revealInWorkspace
   return await openWorkspaceSource(controller, sourceUrl, options)
 }
 
@@ -1048,6 +1067,7 @@ type SqliteOpenParams = {
 type SourceOpenOptions = {
   line?: number
   column?: number
+  revealInWorkspace?: boolean
 }
 
 async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unknown> {
@@ -1555,6 +1575,7 @@ function moduleCurrentContextPayload(controller: ModuleDisplayController): Modul
     activeFrameIndex: controller.activeFrameIndex,
     currentFrame: currentFrameContext(currentFrame),
     scopes: controller.scopes.contextSnapshot(),
+    workspaceFiles: workspaceFilesContextSnapshot(controller.workspaceFiles),
     terminal: {
       focused: controller.terminal.isFocused(),
       pendingInput: controller.terminalInput.buffer,
@@ -1721,6 +1742,10 @@ function stringParam(value: unknown): string | undefined {
 
 function numberParam(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function booleanParam(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined
 }
 
 function sideParam(value: unknown): DisplaySelectorSide | undefined {
@@ -5192,7 +5217,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       items: workspaceFiles.items,
       expandedIds: workspaceFiles.expandedIds,
       selectedIds: workspaceFiles.selectedIds,
-      selectionMode: "single",
+      selectionMode: "multiple",
       showHeader: false,
       theme: {
         surface: {
@@ -5204,6 +5229,7 @@ function createModuleDisplayController(module: ModulePaneSnapshot): ModuleDispla
       onSelectionChange: (ids, items) => {
         updateWorkspaceFilesSelectedState(controller, ids)
         if (controller.workspaceFiles.suppressSelectionOpen) return
+        if (ids.length !== 1) return
         const item = items[0]
         if (item?.kind === "file") void openWorkspaceFile(controller, item)
       },
@@ -5383,7 +5409,7 @@ async function refreshWorkspaceFiles(controller: ModuleDisplayController): Promi
       controller.workspaceFiles.items = items
       controller.workspaceFiles.storageKey = storageKey
       controller.workspaceFiles.expandedIds = normalizeWorkspaceExpandedIds(storedState.expandedIds, items)
-      controller.workspaceFiles.selectedIds = normalizeFileListSelection(storedState.selectedIds, items, "single")
+      controller.workspaceFiles.selectedIds = normalizeFileListSelection(storedState.selectedIds, items, "multiple")
       applyWorkspaceFilesToModuleDisplay(controller)
     } catch (error) {
       console.warn(`workspace files refresh failed for ${controller.id}:`, error)
@@ -5422,8 +5448,9 @@ function setWorkspaceFilesExpandedIds(controller: ModuleDisplayController, ids: 
 }
 
 function updateWorkspaceFilesSelectedState(controller: ModuleDisplayController, ids: readonly string[]): void {
-  controller.workspaceFiles.selectedIds = normalizeFileListSelection(ids, controller.workspaceFiles.items, "single")
+  controller.workspaceFiles.selectedIds = normalizeFileListSelection(ids, controller.workspaceFiles.items, "multiple")
   writeStoredWorkspaceFilesState(controller)
+  queuePublishModuleContext(controller)
 }
 
 function setWorkspaceFilesSelectedIds(controller: ModuleDisplayController, ids: readonly string[]): void {
@@ -5457,7 +5484,7 @@ async function openWorkspaceSource(
     sourceUrl,
     key: sourceUrl,
   }
-  revealWorkspaceSource(controller, sourceUrl)
+  if (shouldRevealWorkspaceForSourceOpen(options)) revealWorkspaceSource(controller, sourceUrl)
   setModuleSource(controller, {
     text: "loading...",
     currentLine: 0,
@@ -5501,7 +5528,7 @@ async function openWorkspaceSource(
       ...(data.tokens === undefined ? {} : {tokens: data.tokens}),
     }, "idle", false)
     applySourceOpenPosition(controller, options)
-    revealWorkspaceSource(controller, responseSourceUrl)
+    if (shouldRevealWorkspaceForSourceOpen(options)) revealWorkspaceSource(controller, responseSourceUrl)
     return {
       ok: true,
       sourceUrl: responseSourceUrl,
@@ -5824,78 +5851,7 @@ function applySourceOpenPosition(controller: ModuleDisplayController, options: S
 }
 
 function workspaceFileSourceUrl(controller: ModuleDisplayController, item: FileListItem): string {
-  const itemPath = typeof item.path === "string" && item.path.length > 0 ? item.path : item.id
-  const root = controller.workspaceFiles.root
-  if (root === null || root.trim().length === 0) return itemPath
-  return `${root.replaceAll("\\", "/").replace(/\/+$/, "")}/${itemPath.replaceAll("\\", "/").replace(/^\/+/, "")}`
-}
-
-function workspaceFileTree(paths: readonly string[]): FileListItem[] {
-  const root: WorkspaceTreeNode = {id: "", name: "", dirs: new Map(), files: []}
-  for (const rawPath of paths) {
-    const path = normalizeWorkspaceFilePath(rawPath)
-    if (path === null) continue
-    const parts = path.split("/")
-    const fileName = parts.pop()
-    if (fileName === undefined || fileName.length === 0) continue
-    let node = root
-    let currentPath = ""
-    for (const part of parts) {
-      currentPath = currentPath.length === 0 ? part : `${currentPath}/${part}`
-      let child = node.dirs.get(part)
-      if (child === undefined) {
-        child = {id: currentPath, name: part, dirs: new Map(), files: []}
-        node.dirs.set(part, child)
-      }
-      node = child
-    }
-    node.files.push({
-      id: path,
-      name: fileName,
-      kind: "file",
-      path,
-    })
-  }
-  return workspaceTreeChildren(root)
-}
-
-type WorkspaceTreeNode = {
-  id: string
-  name: string
-  dirs: Map<string, WorkspaceTreeNode>
-  files: FileListItem[]
-}
-
-function workspaceTreeChildren(node: WorkspaceTreeNode): FileListItem[] {
-  const dirs = [...node.dirs.values()]
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((dir): FileListItem => ({
-      id: dir.id,
-      name: dir.name,
-      kind: "directory",
-      path: dir.id,
-      children: workspaceTreeChildren(dir),
-    }))
-  const files = [...node.files].sort((a, b) => a.name.localeCompare(b.name))
-  return [...dirs, ...files]
-}
-
-function normalizeWorkspaceFilePath(path: string): string | null {
-  const normalized = path.trim().replaceAll("\\", "/")
-  if (normalized.length === 0) return null
-  const parts = normalized.split("/").filter((part) => part.length > 0 && part !== ".")
-  if (parts.length === 0 || parts.some((part) => part === "..")) return null
-  return parts.join("/")
-}
-
-function workspaceDirectoryIds(items: readonly FileListItem[]): string[] {
-  const ids: string[] = []
-  for (const item of items) {
-    if (item.kind !== "directory") continue
-    ids.push(item.id)
-    if (item.children !== undefined) ids.push(...workspaceDirectoryIds(item.children))
-  }
-  return ids
+  return workspaceFileItemSourceUrl(controller.workspaceFiles.root, item)
 }
 
 function revealCurrentWorkspaceFile(controller: ModuleDisplayController): void {
@@ -5903,6 +5859,7 @@ function revealCurrentWorkspaceFile(controller: ModuleDisplayController): void {
   if (fileId === null) return
   setWorkspaceFilesExpandedIds(controller, [...new Set([...controller.workspaceFiles.expandedIds, ...workspaceParentIds(fileId)])])
   setWorkspaceFilesSelectedIds(controller, [fileId])
+  controller.files.focus()
 }
 
 function currentWorkspaceFileId(controller: ModuleDisplayController): string | null {
@@ -5912,97 +5869,14 @@ function currentWorkspaceFileId(controller: ModuleDisplayController): string | n
     controller.sourceIdentity?.scriptUrl,
     controller.sourceIdentity?.key,
   ].filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-  return workspaceFileIdForSources(controller, candidates)
+  return workspaceFileIdForSources(controller.workspaceFiles, candidates)
 }
 
 function revealWorkspaceSource(controller: ModuleDisplayController, sourceUrl: string): void {
-  const fileId = workspaceFileIdForSources(controller, [sourceUrl])
-  if (fileId === null) return
-  setWorkspaceFilesExpandedIds(controller, [...new Set([...controller.workspaceFiles.expandedIds, ...workspaceParentIds(fileId)])])
-  setWorkspaceFilesSelectedIds(controller, [fileId])
-}
-
-function workspaceFileIdForSources(controller: ModuleDisplayController, sources: readonly string[]): string | null {
-  const knownIds = new Set(workspaceFileIds(controller.workspaceFiles.items))
-  for (const candidate of sources) {
-    const direct = workspaceFileIdCandidates(candidate, controller.workspaceFiles)
-    for (const id of direct) {
-      if (knownIds.has(id)) return id
-    }
-  }
-
-  for (const candidate of sources) {
-    const normalized = normalizeSourceFilePath(candidate)
-    if (normalized.length === 0) continue
-    const suffixMatches = [...knownIds].filter((id) => normalized === id || normalized.endsWith(`/${id}`))
-    if (suffixMatches.length === 1) return suffixMatches[0]!
-  }
-  return null
-}
-
-function workspaceFileIdCandidates(source: string, state: WorkspaceFilesState): string[] {
-  const candidates = new Set<string>()
-  const add = (value: string): void => {
-    const normalized = normalizeWorkspacePath(value)
-    if (normalized.length === 0) return
-    candidates.add(normalized)
-    const withoutPrefix = stripWorkspacePathPrefix(normalized, state.workspacePath)
-    if (withoutPrefix.length > 0) candidates.add(withoutPrefix)
-  }
-
-  const normalized = normalizeSourceFilePath(source)
-  add(normalized)
-  if (normalized.startsWith("r/")) add(normalized.slice(2))
-
-  const root = normalizeSourceFilePath(state.root ?? "")
-  if (root.length > 0 && normalized.startsWith(`${root}/`)) add(normalized.slice(root.length + 1))
-
-  return [...candidates]
-}
-
-function stripWorkspacePathPrefix(path: string, workspacePath: string): string {
-  const prefix = normalizeWorkspacePath(workspacePath)
-  if (prefix.length === 0) return path
-  if (path === prefix) return ""
-  return path.startsWith(`${prefix}/`) ? path.slice(prefix.length + 1) : path
-}
-
-function workspaceParentIds(fileId: string): string[] {
-  const parts = fileId.split("/")
-  const parents: string[] = []
-  let current = ""
-  for (let idx = 0; idx < parts.length - 1; idx++) {
-    current = current.length === 0 ? parts[idx]! : `${current}/${parts[idx]!}`
-    parents.push(current)
-  }
-  return parents
-}
-
-function workspaceFileIds(items: readonly FileListItem[]): string[] {
-  const ids: string[] = []
-  for (const item of items) {
-    if (item.kind === "file") ids.push(item.id)
-    if (item.children !== undefined) ids.push(...workspaceFileIds(item.children))
-  }
-  return ids
-}
-
-function normalizeWorkspaceExpandedIds(ids: readonly string[], items: readonly FileListItem[]): string[] {
-  const known = new Set(workspaceDirectoryIds(items))
-  const next: string[] = []
-  for (const id of ids) {
-    if (!known.has(id) || next.includes(id)) continue
-    next.push(id)
-  }
-  return next
-}
-
-function workspaceRootLabel(root: string | undefined): string | null {
-  if (root === undefined) return null
-  const normalized = root.trim().replaceAll("\\", "/").replace(/\/+$/, "")
-  if (normalized.length === 0) return null
-  const parts = normalized.split("/").filter((part) => part.length > 0)
-  return parts[parts.length - 1] ?? normalized
+  const reveal = workspaceFileRevealState(controller.workspaceFiles, [sourceUrl])
+  if (reveal === null) return
+  setWorkspaceFilesExpandedIds(controller, reveal.expandedIds)
+  setWorkspaceFilesSelectedIds(controller, reveal.selectedIds)
 }
 
 function workspaceFilesStorageKey(root: string | undefined, moduleId: string): string {
@@ -6034,29 +5908,6 @@ function writeStoredWorkspaceFilesState(controller: ModuleDisplayController): vo
   } catch {
     // Storage can be disabled in private contexts.
   }
-}
-
-function normalizeSourceFilePath(path: string): string {
-  const clean = stripSourceLine(path).trim().replaceAll("\\", "/").replace(/[?#].*$/, "")
-  if (clean.startsWith("file:")) {
-    try {
-      const url = new URL(clean)
-      return normalizeWorkspacePath(decodeURIComponent(url.pathname))
-    } catch {
-      return normalizeWorkspacePath(clean)
-    }
-  }
-  return normalizeWorkspacePath(clean)
-}
-
-function stripSourceLine(path: string): string {
-  const idx = path.lastIndexOf(":")
-  if (idx < 0) return path
-  return /^\d+$/.test(path.slice(idx + 1)) ? path.slice(0, idx) : path
-}
-
-function normalizeWorkspacePath(path: string): string {
-  return path.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "")
 }
 
 function storedStringArray(value: unknown): string[] {
