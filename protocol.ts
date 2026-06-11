@@ -1,10 +1,11 @@
 export const METAFOR_BROADCAST_CHANNEL = "metafor.protocol"
 
 export type Part = "graviton" | "photon" | "gluon" | "higgs" | "w" | "-z" | "+z"
+export type JsonPatchOperation = "add" | "remove" | "replace" | "move" | "copy" | "test"
 
 export type ProtocolPatch = {
   part: Part
-  op: string
+  op: JsonPatchOperation
   path: string
   value?: unknown
   from?: string

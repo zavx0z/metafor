@@ -68,10 +68,11 @@ export const subscribeBulkWeakCoordination = (
   return createSubscription(createProtocolChannel(options.channelName), (message) => {
     for (const patch of message.patches) {
       if (patch.part !== "+z" && patch.part !== "-z") continue
-      if (!isWeakCoordinationKind(patch.op)) continue
+      const coordination = weakCoordinationFromPatch(patch)
+      if (!coordination) continue
       const weak = weakPatchMeta(patch)
       if (!weak) continue
-      listener?.({ ...weak, coordination: patch.op })
+      listener?.({ ...weak, coordination })
     }
   })
 }
@@ -134,8 +135,17 @@ export const createBulkWeakProtocol = (options: BulkWeakProtocolOptions = {}): B
   }
 }
 
-const isWeakCoordinationKind = (value: string): value is WeakCoordinationKind =>
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+const isWeakCoordinationKind = (value: unknown): value is WeakCoordinationKind =>
   value === "claim" || value === "accept" || value === "reject" || value === "release"
+
+const weakCoordinationFromPatch = (patch: ProtocolPatch): WeakCoordinationKind | null => {
+  if (isWeakCoordinationKind(patch.coordination)) return patch.coordination
+  if (isRecord(patch.value) && isWeakCoordinationKind(patch.value.coordination)) return patch.value.coordination
+  return null
+}
 
 const weakPatchMeta = (patch: ProtocolPatch): { wimpId: string; processId: string; executorId?: string } | null => {
   const wimpId = typeof patch.wimpId === "string" ? patch.wimpId : null
@@ -154,8 +164,10 @@ const createBulkZPatch = (
   executorId?: string,
 ): ProtocolPatch => ({
   part: zPart(coordination),
-  op: coordination,
+  op: "test",
   path: createWeakPath(wimpId, processId),
+  value: { coordination },
+  coordination,
   wimpId,
   processId,
   ...(executorId !== undefined ? { executorId } : {}),
@@ -167,7 +179,7 @@ const createBulkWPatches = (
   patches: Array<{ op: "replace"; path: string; value: unknown }>,
 ): ProtocolPatch[] => {
   if (patches.length === 0) {
-    return [{ part: "w", op: "result", path: createWeakPath(wimpId, processId), wimpId, processId }]
+    return [{ part: "w", op: "test", path: createWeakPath(wimpId, processId), value: { kind: "result" }, kind: "result", wimpId, processId }]
   }
 
   return patches.map((patch) => ({

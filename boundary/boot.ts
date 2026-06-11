@@ -70,7 +70,7 @@ const collectWeakResultPackets = (
 
   for (const patch of patches) {
     if (patch.part !== "w") continue
-    if (patch.op !== "replace" && patch.op !== "result") continue
+    if (patch.op !== "replace" && !isWeakResultMarker(patch)) continue
     const wimpId = typeof patch.wimpId === "string" ? patch.wimpId : null
     const processId = typeof patch.processId === "string" ? patch.processId : null
     if (!wimpId || !processId) continue
@@ -88,3 +88,9 @@ const collectWeakResultPackets = (
 
   return [...packets.values()]
 }
+
+const isWeakResultMarker = (patch: ProtocolPatch): boolean =>
+  patch.op === "test" && (patch.kind === "result" || (isRecord(patch.value) && patch.value.kind === "result"))
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)

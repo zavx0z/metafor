@@ -4,6 +4,7 @@ import type { MatterDeclaration, MatterSchema } from "./matter.t.ts"
 import type { ReactionsSchema } from "./reactions.t.ts"
 import type { Superposition, SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.t.ts"
 import type { ReactionsDeclaration } from "./reactions.t.ts"
+import type { JsonPatchOperation } from "./protocol.ts"
 
 export type SRC = string
 export type FieldKey = string
@@ -15,7 +16,7 @@ export interface BulkSchema {
 
 export type Patch = {
   from?: string
-  op: "add" | "remove" | "replace" | "move" | "test"
+  op: JsonPatchOperation
   path: string
   value?: any
 }

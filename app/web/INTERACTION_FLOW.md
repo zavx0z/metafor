@@ -28,7 +28,7 @@
 ## Bulk x Weak
 
 1. `bulk` получает `Photon`
-2. Отправляет patch `part: "+z", op: "claim"`
+2. Отправляет coordination patch `part: "+z", op: "test", value: { coordination: "claim" }`
 3. Исполняет action module из meta process
 4. Возвращает:
    - `part: "w"` field patches, если process дал success patches

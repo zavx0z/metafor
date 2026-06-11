@@ -67,9 +67,9 @@ One patch carries exactly one particle:
 { part: "gluon", op: "replace", path: "/field/<uuid>", value: 42 }
 { part: "higgs", op: "replace", path: "/field/<uuid>", value: "branch" }
 { part: "photon", op: "replace", path: "/wimp/<uuid>", value: "ready" }
-{ part: "w", op: "result", path: "/wimp/<uuid>/process/<uuid>" }
-{ part: "+z", op: "claim", path: "/wimp/<uuid>/process/<uuid>" }
-{ part: "-z", op: "release", path: "/wimp/<uuid>/process/<uuid>" }
+{ part: "w", op: "test", path: "/wimp/<uuid>/process/<uuid>", value: { kind: "result" } }
+{ part: "+z", op: "test", path: "/wimp/<uuid>/process/<uuid>", value: { coordination: "claim" } }
+{ part: "-z", op: "test", path: "/wimp/<uuid>/process/<uuid>", value: { coordination: "release" } }
 ```
 
 In runtime protocol, root/source `path` is written as a direct source path without a leading `/`.

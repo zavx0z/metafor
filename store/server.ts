@@ -4,14 +4,17 @@ import {StoreActorSqlite} from "@store/actor/sqlite"
 import {StoreTopologySqlite} from "@store/topology/sqlite"
 
 import type {Store} from "./index.ts"
-import type {Part} from "../protocol.ts"
+import type {JsonPatchOperation, Part} from "../protocol.ts"
 
 export type StorePart = Part
 
-export type StorePatch =
-  | {part: StorePart; op: "add" | "replace" | "test"; path: string; value?: unknown}
-  | {part: StorePart; op: "remove"; path: string}
-  | {part: StorePart; op: "move" | "copy"; from: string; path: string}
+export type StorePatch = {
+  part: StorePart
+  op: JsonPatchOperation
+  path: string
+  value?: unknown
+  from?: string
+}
 
 export type StoreUpdateMessage = {
   patches: StorePatch[]
@@ -68,7 +71,7 @@ const requireNumber = (value: unknown, key: string, path: string): number => {
   return v
 }
 
-const notSupported = (op: string, path: string, part: StorePart): never => {
+const notSupported = (op: JsonPatchOperation, path: string, part: StorePart): never => {
   throw new Error(`Patch op "${op}" is not supported for "${path}" (part=${part})`)
 }
 
@@ -76,7 +79,7 @@ const notSupported = (op: string, path: string, part: StorePart): never => {
 // graviton — declaration + actor structural row
 // =============================================================================
 
-const applyWimpRow = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyWimpRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>
   const src = segs[1]!
   if (op === "remove") {
@@ -106,7 +109,7 @@ const applyWimpRow = async (tx: Tx, op: string, segs: string[], value: unknown):
   notSupported(op, `/wimp/${src}`, "graviton")
 }
 
-const applyWimpMass = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyWimpMass = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/mass/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/mass/${uuid}`
@@ -131,7 +134,7 @@ const applyWimpMass = async (tx: Tx, op: string, segs: string[], value: unknown)
   `
 }
 
-const applyField = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyField = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/field/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/field/${uuid}`
@@ -151,7 +154,7 @@ const applyField = async (tx: Tx, op: string, segs: string[], value: unknown): P
   `
 }
 
-const applyFieldDefaultMarker = async (tx: Tx, op: string, segs: string[]): Promise<void> => {
+const applyFieldDefaultMarker = async (tx: Tx, op: JsonPatchOperation, segs: string[]): Promise<void> => {
   // /wimp/<src>/field/<uuid>/default
   const [, src, , fieldUuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/field/${fieldUuid}/default`
@@ -163,7 +166,7 @@ const applyFieldDefaultMarker = async (tx: Tx, op: string, segs: string[]): Prom
   await tx`INSERT INTO field_default (field) VALUES (${fieldUuid})`
 }
 
-const applyFieldDefaultScalar = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyFieldDefaultScalar = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/field/<uuid>/default/scalar
   const [, src, , fieldUuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/field/${fieldUuid}/default/scalar`
@@ -193,7 +196,7 @@ const applyFieldDefaultScalar = async (tx: Tx, op: string, segs: string[], value
   throw new Error(`Patch ${path}: unknown scalar default kind "${kind}"`)
 }
 
-const applyFieldDefaultItem = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyFieldDefaultItem = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/field/<fieldUuid>/default/item/<itemUuid>
   const [, src, , fieldUuid, , , itemUuid] = segs as [string, string, string, string, string, string, string]
   const path = `/wimp/${src}/field/${fieldUuid}/default/item/${itemUuid}`
@@ -209,7 +212,7 @@ const applyFieldDefaultItem = async (tx: Tx, op: string, segs: string[], value: 
   `
 }
 
-const applyFieldDefaultVariant = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyFieldDefaultVariant = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/field/<fieldUuid>/default/variant
   const [, src, , fieldUuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/field/${fieldUuid}/default/variant`
@@ -222,7 +225,7 @@ const applyFieldDefaultVariant = async (tx: Tx, op: string, segs: string[], valu
   await tx`INSERT INTO field_enum_default (field, variant) VALUES (${fieldUuid}, ${requireString(v, "variant", path)})`
 }
 
-const applyFieldEnumVariant = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyFieldEnumVariant = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/field/<fieldUuid>/variant/<variantUuid>
   const [, src, , fieldUuid, , variantUuid] = segs as [string, string, string, string, string, string]
   const path = `/wimp/${src}/field/${fieldUuid}/variant/${variantUuid}`
@@ -238,7 +241,7 @@ const applyFieldEnumVariant = async (tx: Tx, op: string, segs: string[], value: 
   `
 }
 
-const applyState = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyState = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/state/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/state/${uuid}`
@@ -254,7 +257,7 @@ const applyState = async (tx: Tx, op: string, segs: string[], value: unknown): P
   `
 }
 
-const applyTransition = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyTransition = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/transition/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/transition/${uuid}`
@@ -270,7 +273,7 @@ const applyTransition = async (tx: Tx, op: string, segs: string[], value: unknow
   `
 }
 
-const applyCondition = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyCondition = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/transition/<transitionUuid>/condition/<uuid>
   const [, src, , transitionUuid, , uuid] = segs as [string, string, string, string, string, string]
   const path = `/wimp/${src}/transition/${transitionUuid}/condition/${uuid}`
@@ -286,7 +289,7 @@ const applyCondition = async (tx: Tx, op: string, segs: string[], value: unknown
   `
 }
 
-const applyConditionPredicate = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyConditionPredicate = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/transition/<transitionUuid>/condition/<conditionUuid>/predicate/<uuid>
   const [, src, , transitionUuid, , conditionUuid, , uuid] = segs as [string, string, string, string, string, string, string, string]
   const path = `/wimp/${src}/transition/${transitionUuid}/condition/${conditionUuid}/predicate/${uuid}`
@@ -311,7 +314,7 @@ const applyConditionPredicate = async (tx: Tx, op: string, segs: string[], value
   `
 }
 
-const applyConditionListItem = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyConditionListItem = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/transition/<t>/condition/<c>/predicate/<p>/item/<order>
   const [, src, , transitionUuid, , conditionUuid, , predicateUuid, , orderRaw] = segs as [
     string, string, string, string, string, string, string, string, string, string,
@@ -336,7 +339,7 @@ const applyConditionListItem = async (tx: Tx, op: string, segs: string[], value:
   `
 }
 
-const applyProcess = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyProcess = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/process/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/process/${uuid}`
@@ -353,7 +356,7 @@ const applyProcess = async (tx: Tx, op: string, segs: string[], value: unknown):
   `
 }
 
-const applyProcessEnv = async (tx: Tx, op: string, segs: string[]): Promise<void> => {
+const applyProcessEnv = async (tx: Tx, op: JsonPatchOperation, segs: string[]): Promise<void> => {
   // /wimp/<src>/process/<uuid>/env/<env>
   const [, src, , processUuid, , env] = segs as [string, string, string, string, string, string]
   const path = `/wimp/${src}/process/${processUuid}/env/${env}`
@@ -365,7 +368,7 @@ const applyProcessEnv = async (tx: Tx, op: string, segs: string[]): Promise<void
   await tx`INSERT INTO process_env (process, env) VALUES (${processUuid}, ${env})`
 }
 
-const applyProcessAction = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyProcessAction = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/process/<uuid>/action
   const [, src, , processUuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/process/${processUuid}/action`
@@ -383,7 +386,7 @@ const applyProcessAction = async (tx: Tx, op: string, segs: string[], value: unk
   `
 }
 
-const applyProcessFinally = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyProcessFinally = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/process/<uuid>/finally
   const [, src, , processUuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/process/${processUuid}/finally`
@@ -398,7 +401,7 @@ const applyProcessFinally = async (tx: Tx, op: string, segs: string[], value: un
 
 const applyProcessActionField = async (
   tx: Tx,
-  op: string,
+  op: JsonPatchOperation,
   segs: string[],
   table: "process_action_read" | "process_action_write",
 ): Promise<void> => {
@@ -423,7 +426,7 @@ const applyProcessActionField = async (
   }
 }
 
-const applyProcessFinallyRead = async (tx: Tx, op: string, segs: string[]): Promise<void> => {
+const applyProcessFinallyRead = async (tx: Tx, op: JsonPatchOperation, segs: string[]): Promise<void> => {
   // /wimp/<src>/process/<uuid>/finally-read/<fieldUuid>
   const [, src, , processUuid, , fieldUuid] = segs as [string, string, string, string, string, string]
   const path = `/wimp/${src}/process/${processUuid}/finally-read/${fieldUuid}`
@@ -435,7 +438,7 @@ const applyProcessFinallyRead = async (tx: Tx, op: string, segs: string[]): Prom
   await tx`INSERT INTO process_finally_read (process, field) VALUES (${processUuid}, ${fieldUuid})`
 }
 
-const applyReaction = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyReaction = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/reaction/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/reaction/${uuid}`
@@ -455,7 +458,7 @@ const applyReaction = async (tx: Tx, op: string, segs: string[], value: unknown)
 
 const applyReactionLink = async (
   tx: Tx,
-  op: string,
+  op: JsonPatchOperation,
   segs: string[],
   table: "reaction_state" | "reaction_read" | "reaction_write",
   rightCol: "state" | "field",
@@ -484,7 +487,7 @@ const applyReactionLink = async (
   void rightCol // structural marker — column is selected by table
 }
 
-const applyMatterBinding = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyMatterBinding = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/binding/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/binding/${uuid}`
@@ -505,7 +508,7 @@ const applyMatterBinding = async (tx: Tx, op: string, segs: string[], value: unk
   `
 }
 
-const applyMatterBindingDep = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyMatterBindingDep = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/binding/<bindingUuid>/dep/<order>
   const [, src, , bindingUuid, , orderRaw] = segs as [string, string, string, string, string, string]
   const order = Number(orderRaw)
@@ -522,7 +525,7 @@ const applyMatterBindingDep = async (tx: Tx, op: string, segs: string[], value: 
   `
 }
 
-const applyMatterParticle = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyMatterParticle = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/particle/<uuid>
   const [, src, , uuid] = segs as [string, string, string, string]
   const path = `/wimp/${src}/particle/${uuid}`
@@ -540,7 +543,7 @@ const applyMatterParticle = async (tx: Tx, op: string, segs: string[], value: un
   `
 }
 
-const applyMatterParticleKind = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyMatterParticleKind = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /wimp/<src>/particle/<uuid>/(wimp|fuzzy|axion|macho)
   const [, src, , particleUuid, kind] = segs as [string, string, string, string, string]
   const path = `/wimp/${src}/particle/${particleUuid}/${kind}`
@@ -586,7 +589,7 @@ const applyMatterParticleKind = async (tx: Tx, op: string, segs: string[], value
   throw new Error(`Patch ${path}: unknown particle kind "${kind}"`)
 }
 
-const applyActorRow = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyActorRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /actor/<uuid>
   const uuid = segs[1]!
   const path = `/actor/${uuid}`
@@ -621,7 +624,7 @@ const applyActorRow = async (tx: Tx, op: string, segs: string[], value: unknown)
   notSupported(op, path, "graviton")
 }
 
-const applyTopologyRow = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyTopologyRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /topology/<uuid>
   const uuid = segs[1]!
   const path = `/topology/${uuid}`
@@ -754,7 +757,7 @@ const clearValueScalarTables = async (tx: Tx, uuid: string): Promise<void> => {
   await tx`DELETE FROM value_enum WHERE value = ${uuid}`
 }
 
-const applyValueRow = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyValueRow = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /value/<uuid>
   const uuid = segs[1]!
   const path = `/value/${uuid}`
@@ -780,7 +783,7 @@ const applyValueRow = async (tx: Tx, op: string, segs: string[], value: unknown)
   notSupported(op, path, "gluon")
 }
 
-const applyValueItem = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyValueItem = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /value/<uuid>/item/<position>
   const valueUuid = segs[1]!
   const position = Number(segs[3])
@@ -805,7 +808,7 @@ const applyValueItem = async (tx: Tx, op: string, segs: string[], value: unknown
   notSupported(op, path, "gluon")
 }
 
-const applyActorValue = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyActorValue = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /actor/<actorUuid>/value/<fieldUuid>
   const actorUuid = segs[1]!
   const fieldUuid = segs[3]!
@@ -848,7 +851,7 @@ const applyGluonPatch = async (tx: Tx, patch: StorePatch): Promise<void> => {
 // photon — actor state
 // =============================================================================
 
-const applyActorState = async (tx: Tx, op: string, segs: string[], value: unknown): Promise<void> => {
+const applyActorState = async (tx: Tx, op: JsonPatchOperation, segs: string[], value: unknown): Promise<void> => {
   // /actor/<uuid>/state
   const actorUuid = segs[1]!
   const path = `/actor/${actorUuid}/state`

@@ -95,12 +95,12 @@
 
 - `protocol.ts` определяет один `METAFOR_BROADCAST_CHANNEL` и `Part`.
 - W/Z идут через patches с отдельными `part`: `w`, `+z`, `-z`.
-- Z coordination patch `{ part:"+z"|"-z", op:"claim"|"accept"|"reject"|"release", wimpId, processId, executorId? }` — neutral mediation.
-- W result patches `{ part:"w", op:"replace"|"result", wimpId, processId, ... }` — active transition с патчами.
+- Z coordination patch `{ part:"+z"|"-z", op:"test", value:{ coordination:"claim"|"accept"|"reject"|"release" }, wimpId, processId, executorId? }` — neutral mediation.
+- W result patches `{ part:"w", op:"replace"|"test", value?:{ kind:"result" }, wimpId, processId, ... }` — active transition с патчами.
 - `boundary/boundary.ts unlock(indexes: number[])` снимает блок с бран по индексам.
 - `boundary/boundary.ts` имеет `applyWeakResultPacket()` и `subscribeBoundaryWeakResultBroadcast()` — приём W-result envelope и unlock после apply (по docstring модуля).
 - `bulk/em/index.ts` публикует `+z` для `claim/accept`, `-z` для `reject/release`, `w` для result patches.
-- `app/web/runtime/bulk.process.ts` уже отправляет `+z claim/accept`, `w` result и `-z release` вокруг исполнения process.
+- `app/web/runtime/bulk.process.ts` уже отправляет `+z/-z` coordination patches и `w` result patches вокруг исполнения process.
 - `boundary/weak/cpu/step.ts` ставит `brane.lock = true` при step.
 
 **Гэп.**

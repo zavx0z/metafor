@@ -67,7 +67,7 @@ Runtime-действия адресуются через process. `module` - sou
 Перед правкой кода:
 
 1. Прочитай `GET /context` и определи `processId`, `source.identity.sourceUrl` / `source.identity.scriptUrl`.
-2. Если изменяемый файл относится к текущему process/display или открыт в source интерпретатора, не используй локальный `apply_patch`, `sed`, shell-write, редактор или форматтер для записи файла.
+2. Если изменяемый файл относится к текущему process/display, открыт в source интерпретатора или работа явно идёт в текущей interpreter/debugger-сессии, не используй локальный `apply_patch`, `sed`, shell-write, редактор или форматтер для записи файла.
 3. Применяй изменение только через:
    - `POST /processes/:id/apply_patch` для raw `apply_patch`;
    - `POST /processes/:id/source` для сохранения полного текста source.
@@ -75,7 +75,7 @@ Runtime-действия адресуются через process. `module` - sou
 
 Причина: только interpreter source API сдвигает breakpoints, рассылает `source-patched`, обновляет source cache/display и сохраняет связь runtime/source context. Правка в обход API оставляет UI и текущий runtime на старом source snapshot.
 
-Документацию, правила, внешние meta-файлы и код, который не является текущим совместно отлаживаемым process, можно править обычными локальными инструментами (`apply_patch`, форматтеры, tests). Не отправляй такие правки через `/processes/:id/apply_patch`.
+Документацию, правила, внешние meta-файлы и код, который не является текущим совместно отлаживаемым process, можно править обычными локальными инструментами только когда работа не идёт внутри активной interpreter/debugger-сессии. Если интерпретатор запущен и текущая работа идёт через него, сначала используй interpreter API; локальный fallback допустим только после явной проверки, что API не может адресовать файл, и после сообщения пользователю.
 
 ## REST API Интерпретатора
 
