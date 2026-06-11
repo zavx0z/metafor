@@ -284,6 +284,9 @@ export async function matter(
     const existing = await store.wimp.get(root)
     if (existing) return
     wimp = await store.wimp.create(root)
+    protocol.postMessage({
+      patches: [{part: "graviton", op: "add", path: wimp.src, value: "wimp"}],
+    })
   } else {
     wimp = root
   }
