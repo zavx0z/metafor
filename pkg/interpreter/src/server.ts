@@ -618,6 +618,10 @@ async function handleRoute(
   if (method === "POST" && path === "/hud/todo/dock") return await dispatchUiHostRouteFromBody("hud.todo.dock", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/todo/show") return await dispatchUiHostRouteFromBody("hud.todo.show", req, dispatchUiHostCommand)
   if (method === "POST" && path === "/hud/todo/toggle") return await dispatchUiHostRouteFromBody("hud.todo.toggle", req, dispatchUiHostCommand)
+  if (method === "GET" && path === "/hud/sqlite") return await dispatchUiHostRoute("hud.sqlite.get", {}, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/sqlite/dock") return await dispatchUiHostRouteFromBody("hud.sqlite.dock", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/sqlite/show") return await dispatchUiHostRouteFromBody("hud.sqlite.show", req, dispatchUiHostCommand)
+  if (method === "POST" && path === "/hud/sqlite/toggle") return await dispatchUiHostRouteFromBody("hud.sqlite.toggle", req, dispatchUiHostCommand)
   const todoItem = /^\/hud\/todo\/items\/([^/]+)$/.exec(path)
   if ((method === "PATCH" || method === "POST") && todoItem !== null) return await patchTodoItem(decodePathParam(todoItem[1]!), req, broadcast)
   if (method === "DELETE" && todoItem !== null) return deleteTodoItem(decodePathParam(todoItem[1]!), broadcast)
@@ -693,7 +697,7 @@ function routeIndex(): Array<{method: string; path: string; description: string}
   return [
     {method: "GET", path: "/health", description: "статус коннекта и параметры"},
     {method: "GET", path: "/space", description: "обзор визуального Space: рабочие поверхности и геометрия"},
-    {method: "POST", path: "/space/focus", description: "{selector:{side|processId|sqliteId|label|order}, dockHostTerminal?} — сфокусировать рабочую поверхность"},
+    {method: "POST", path: "/space/focus", description: "{selector:{side|processId|moduleId|label|order}, dockHostTerminal?} — сфокусировать рабочую поверхность"},
     {method: "POST", path: "/space/frame", description: "показать все рабочие поверхности Space"},
     {method: "GET", path: "/context", description: "server-owned текущий active context: ровно текущий display/source/scopes/terminal"},
     {method: "GET", path: "/processes", description: "список runtime processes интерпретатора"},
@@ -728,8 +732,12 @@ function routeIndex(): Array<{method: string; path: string; description: string}
     {method: "POST", path: "/hud/todo/dock", description: "свернуть TODO HUD"},
     {method: "POST", path: "/hud/todo/show", description: "развернуть TODO HUD"},
     {method: "POST", path: "/hud/todo/toggle", description: "переключить TODO HUD"},
+    {method: "GET", path: "/hud/sqlite", description: "состояние SQLite HUD: active database, rect/dock"},
+    {method: "POST", path: "/hud/sqlite/dock", description: "свернуть SQLite HUD"},
+    {method: "POST", path: "/hud/sqlite/show", description: "развернуть SQLite HUD"},
+    {method: "POST", path: "/hud/sqlite/toggle", description: "переключить SQLite HUD"},
     {method: "GET", path: "/sqlite?path=<file.sqlite>&table=<name>&notBefore=<iso>", description: "просмотреть SQLite database tables/schema/rows; notBefore отсекает файл предыдущего запуска"},
-    {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database как отдельный display"},
+    {method: "POST", path: "/sqlite/open", description: "{path} — открыть SQLite database в HUD"},
     {method: "POST", path: "/sqlite/cell", description: "{path, table, rowid, column, value} — обновить SQLite cell по rowid"},
     {method: "GET", path: "/events?since=<iso>&limit=<n>", description: "хвост event-лога"},
     {method: "GET", path: "/console?since=<iso>&limit=<n>", description: "хвост console-лога"},

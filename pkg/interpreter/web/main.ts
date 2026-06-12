@@ -17,20 +17,26 @@ import {
   type UiRuntimeViewPointVector,
   type UiSurfaceRect,
 } from "@ui/elements"
-import {IconButton, Switcher, VoiceInputHud, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
+import {IconButton, Switcher, Table, VoiceInputHud, tableScrollTo, type TableCellContext, type TableColumn, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
   FileListPane,
   TerminalPane,
   ToDoPane,
+  beginPaneFrameDrag,
   normalizeFileListSelection,
+  paneFrameCursor,
+  paneFrameDragRect,
+  paneFrameHit,
   sourceDisplayLocation,
   sourcePathFromLocation,
   type EditorBreakpoint,
   type EditorSelectionSnapshot,
   type EditorTokens,
   type FileListItem,
+  type PaneFrameDrag,
+  type PaneFrameInteractionOpts,
   type TerminalInputSource,
   type TerminalPaneOpts,
   type TerminalSize,
@@ -326,13 +332,7 @@ type ModuleDisplayInfo = DisplayInfoBase & {
   kind: "module"
   moduleId: string
 }
-type SqliteDisplayInfo = DisplayInfoBase & {
-  kind: "sqlite"
-  moduleId: null
-  sqliteId: string
-  path: string
-}
-type DisplayInfo = ModuleDisplayInfo | SqliteDisplayInfo
+type DisplayInfo = ModuleDisplayInfo
 type SqliteDisplayController = {
   id: string
   requestedPath: string
@@ -502,6 +502,9 @@ const HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.hostTermin
 const TODO_HUD_RECT_STORAGE_KEY = "metafor.interpreter.todo.hudRect:v1"
 const TODO_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.todo.hudDocked:v1"
 const TODO_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.todo.dockPlacement:v1"
+const SQLITE_HUD_RECT_STORAGE_KEY = "metafor.interpreter.sqlite.hudRect:v1"
+const SQLITE_HUD_DOCKED_STORAGE_KEY = "metafor.interpreter.sqlite.hudDocked:v1"
+const SQLITE_DOCK_PLACEMENT_STORAGE_KEY = "metafor.interpreter.sqlite.dockPlacement:v1"
 const VOICE_INPUT_URL_STORAGE_KEY = "metafor.interpreter.voice.url"
 const VOICE_WAKE_URL_STORAGE_KEY = "metafor.interpreter.voice.wakeUrl"
 const VOICE_INPUT_CONTEXT_STORAGE_KEY = "metafor.interpreter.voice.context"
@@ -558,6 +561,14 @@ const TODO_DOCK_SHORT = 34
 const TODO_DOCK_LONG = 96
 const TODO_DOCK_MARGIN = 8
 const TODO_DOCK_LONG_PRESS_MS = 360
+const SQLITE_HUD_MIN_W = 520
+const SQLITE_HUD_MIN_H = 300
+const SQLITE_HUD_HEADER_H = 38
+const SQLITE_HUD_CONTENT_PAD = 8
+const SQLITE_DOCK_SHORT = 34
+const SQLITE_DOCK_LONG = 108
+const SQLITE_DOCK_MARGIN = 8
+const SQLITE_DOCK_LONG_PRESS_MS = 360
 const HOST_TERMINAL_BRAND_LABEL = "Codex"
 const HOST_TERMINAL_MODEL_LABEL = "GPT 5,5"
 const HOST_TERMINAL_AGENT_SIGNAL_BUTTON_SIZE = 22
@@ -576,6 +587,7 @@ const DEFAULT_VOICE_DEACTIVATION_FUZZY = 0.05
 const DEFAULT_VOICE_STOP_FUZZY = 0.06
 const WORKSPACE_FILES_LIMIT = 500
 const SQLITE_OPEN_RETRY_MS = 700
+const SQLITE_TABLE_SCROLL_KEY = "sqlite-table-scroll"
 
 type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 
@@ -598,6 +610,8 @@ const DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "
 const DEFAULT_VOICE_HUD_RECT: UiSurfaceRect = {x: 1783, y: 960, w: VOICE_HUD_W, h: VOICE_HUD_H}
 const DEFAULT_TODO_HUD_RECT: UiSurfaceRect = {x: 16, y: 72, w: 430, h: 560}
 const DEFAULT_TODO_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "left", offset: 260}
+const DEFAULT_SQLITE_HUD_RECT: UiSurfaceRect = {x: 482, y: 96, w: 960, h: 640}
+const DEFAULT_SQLITE_DOCK_PLACEMENT: HostTerminalDockPlacement = {edge: "right", offset: 360}
 
 let uiCanvas: UiRuntime | null = null
 let uiLoading = false
@@ -605,6 +619,8 @@ let displayHoverOutlinePane: DisplayHoverOutlinePane | null = null
 let todoPane: ToDoPane | null = null
 let todoDockPane: TodoDockPane | null = null
 let todoContext: ToDoPaneContextSnapshot | null = null
+let sqliteHudPane: SqliteHudFramePane | null = null
+let sqliteDockPane: SqliteDockPane | null = null
 let hostTerminal: HostTerminalController | null = null
 let hostTerminalDockPane: HostTerminalDockPane | null = null
 let hostTerminalAgentSignalPane: HostTerminalAgentSignalPane | null = null
@@ -615,6 +631,10 @@ let hostTerminalHudRectPreview: UiSurfaceRect | null = null
 let todoHudDocked = readStoredTodoHudDocked()
 let todoDockPlacement: HostTerminalDockPlacement | null = readStoredTodoDockPlacement() ?? DEFAULT_TODO_DOCK_PLACEMENT
 let todoHudRectPreview: UiSurfaceRect | null = null
+let sqliteHudDocked = readStoredSqliteHudDocked()
+let sqliteDockPlacement: HostTerminalDockPlacement | null = readStoredSqliteDockPlacement() ?? DEFAULT_SQLITE_DOCK_PLACEMENT
+let sqliteHudRectPreview: UiSurfaceRect | null = null
+let activeSqliteHudId: string | null = null
 let voiceHudPane: VoiceInputHud | null = null
 let voiceInputClient: VoiceInputClient | null = null
 let voiceActiveTarget: VoiceInputTarget | null = null
@@ -668,7 +688,7 @@ const moduleDisplays = new Map<string, ModuleDisplayController>()
 const moduleDisplayIds = new Set<string>()
 let moduleOrder: string[] = []
 const sqliteDisplays = new Map<string, SqliteDisplayController>()
-const sqliteDisplayIds = new Set<string>()
+const sqliteHudSurfaceIds = new Set<string>()
 let sqliteOrder: string[] = []
 
 const pendingRequests = new Map<number, {
@@ -729,7 +749,7 @@ function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case "hello":
       applyModuleSnapshots(msg.modules ?? [])
-      for (const path of msg.sqliteDatabases ?? []) void openSqliteDisplay(path).catch((error) => console.error(error))
+      for (const path of msg.sqliteDatabases ?? []) void openSqliteDisplay({path, reveal: false}).catch((error) => console.error(error))
       return
     case "modules":
       applyModuleSnapshots(msg.modules)
@@ -837,6 +857,14 @@ async function executeUiHostCommand(command: string, params: unknown): Promise<u
       return setHudTodoDocked(false)
     case "hud.todo.toggle":
       return setHudTodoDocked(!todoHudDocked)
+    case "hud.sqlite.get":
+      return hudSqlitePayload()
+    case "hud.sqlite.dock":
+      return setHudSqliteDocked(true)
+    case "hud.sqlite.show":
+      return setHudSqliteDocked(false)
+    case "hud.sqlite.toggle":
+      return setHudSqliteDocked(!sqliteHudDocked)
     case "sqlite.open":
       return await openSqliteDisplay(sqliteOpenParams(params))
     default:
@@ -1062,6 +1090,7 @@ async function openInterpreterSelectedSource(controller: ModuleDisplayController
 type SqliteOpenParams = {
   path: string
   table?: string
+  reveal?: boolean
 }
 
 type SourceOpenOptions = {
@@ -1073,11 +1102,13 @@ type SourceOpenOptions = {
 async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unknown> {
   const path = typeof input === "string" ? input : input.path
   const table = typeof input === "string" ? undefined : input.table
+  const reveal = typeof input === "string" ? true : input.reveal !== false
   try {
     const payload = await fetchSqlitePayload(path, table)
     const controller = ensureSqliteDisplayController(payload.path)
     applySqlitePayload(controller, payload)
-    syncModuleDisplays()
+    if (reveal) showSqliteHudController(controller.id)
+    else activateSqliteHudController(controller.id)
     return sqliteDisplayPayload(controller)
   } catch (error) {
     if (!isSqliteMissingError(error)) {
@@ -1085,7 +1116,8 @@ async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unkn
     }
     const controller = ensureSqliteDisplayController(path)
     clearSqlitePayload(controller, `Waiting for SQLite database: ${sqliteInitialLabel(path)}`)
-    syncModuleDisplays()
+    if (reveal) showSqliteHudController(controller.id)
+    else activateSqliteHudController(controller.id)
     waitForSqliteDatabase(controller, path, table)
     return sqliteDisplayPayload(controller)
   }
@@ -1093,12 +1125,17 @@ async function openSqliteDisplay(input: string | SqliteOpenParams): Promise<unkn
 
 function ensureSqliteDisplayController(path: string): SqliteDisplayController {
   const existing = sqliteDisplayForPath(path)
-  if (existing !== null) return existing
+  if (existing !== null) {
+    activateSqliteHudController(existing.id)
+    return existing
+  }
   const id = sqliteDisplayKey(path)
   const controller = createSqliteDisplayController(id, path)
   sqliteDisplays.set(id, controller)
   sqliteOrder = [...sqliteOrder.filter((item) => item !== id), id]
   controller.rows.setStatus(`Waiting for SQLite database: ${sqliteInitialLabel(path)}`)
+  installSqliteHudSurfaces(controller)
+  activateSqliteHudController(id)
   return controller
 }
 
@@ -1107,6 +1144,38 @@ function sqliteDisplayForPath(path: string): SqliteDisplayController | null {
     if (controller.requestedPath === path || controller.path === path) return controller
   }
   return sqliteDisplays.get(sqliteDisplayKey(path)) ?? null
+}
+
+function activeSqliteController(): SqliteDisplayController | null {
+  if (activeSqliteHudId !== null) {
+    const active = sqliteDisplays.get(activeSqliteHudId)
+    if (active !== undefined) return active
+  }
+  for (let index = sqliteOrder.length - 1; index >= 0; index -= 1) {
+    const controller = sqliteDisplays.get(sqliteOrder[index]!)
+    if (controller !== undefined) return controller
+  }
+  return null
+}
+
+function activateSqliteHudController(id: string): void {
+  if (!sqliteDisplays.has(id)) return
+  activeSqliteHudId = id
+  sqliteHudPane?.requestRender()
+  sqliteDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
+function showSqliteHudController(id: string): void {
+  activateSqliteHudController(id)
+  setSqliteHudDocked(false)
+}
+
+function installSqliteHudSurfaces(controller: SqliteDisplayController): void {
+  if (uiCanvas === null || sqliteHudSurfaceIds.has(controller.id)) return
+  sqliteHudSurfaceIds.add(controller.id)
+  uiCanvas.addHudSurface(controller.tables, (canvas) => sqliteHudRects(controller.id, canvas).tables)
+  uiCanvas.addHudSurface(controller.rows, (canvas) => sqliteHudRects(controller.id, canvas).rows)
 }
 
 function waitForSqliteDatabase(controller: SqliteDisplayController, path: string, table?: string, notBefore?: string): void {
@@ -1149,7 +1218,12 @@ function sqliteOpenParams(params: unknown): SqliteOpenParams {
     ?? stringParam(body["database"])
   if (path === undefined) throw new Error("sqlite.open requires path")
   const table = stringParam(body["table"])
-  return table === undefined ? {path} : {path, table}
+  const reveal = booleanParam(body["reveal"])
+  return {
+    path,
+    ...(table === undefined ? {} : {table}),
+    ...(reveal === undefined ? {} : {reveal}),
+  }
 }
 
 function refreshSqliteDisplaysAfterTargetRestart(startedAt: string): void {
@@ -1274,9 +1348,14 @@ function clearSqlitePayload(controller: SqliteDisplayController, status: string)
 }
 
 function sqliteDisplayPayload(controller: SqliteDisplayController): unknown {
+  const frame = sqliteHudPane === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(sqliteHudPane)
   return {
     id: controller.id,
-    displayId: sqliteDisplayId(controller.id),
+    hud: true,
+    active: activeSqliteHudId === controller.id,
+    docked: sqliteHudDocked,
+    rect: frame?.rect ?? null,
+    dockPlacement: sqliteDockPlacement,
     path: controller.path,
     label: controller.label,
     selectedTable: controller.selectedTable,
@@ -1370,6 +1449,35 @@ function hudTodoPayload(): unknown {
   }
 }
 
+function setHudSqliteDocked(docked: boolean): unknown {
+  setSqliteHudDocked(docked)
+  return hudSqlitePayload()
+}
+
+function hudSqlitePayload(): unknown {
+  const controller = activeSqliteController()
+  const frame = sqliteHudPane === null || uiCanvas === null ? null : uiCanvas.surfaceFrame(sqliteHudPane)
+  return {
+    docked: sqliteHudDocked,
+    rect: frame?.rect ?? null,
+    dockPlacement: sqliteDockPlacement,
+    activeId: controller?.id ?? activeSqliteHudId,
+    controller: controller === null ? null : sqliteDisplayPayload(controller),
+    databases: sqliteOrder
+      .map((id) => sqliteDisplays.get(id))
+      .filter((item): item is SqliteDisplayController => item !== undefined)
+      .map((item) => ({
+        id: item.id,
+        path: item.path,
+        label: item.label,
+        selectedTable: item.selectedTable,
+        ready: item.payload !== null,
+        loading: item.loading !== null,
+        active: activeSqliteHudId === item.id,
+      })),
+  }
+}
+
 function setHudTodoHighlight(params: unknown): unknown {
   if (todoPane === null) throw new Error("TODO pane is not ready")
   const ids = todoHighlightIdsFromParams(params)
@@ -1405,22 +1513,6 @@ function displayInfos(): DisplayInfo[] {
       kind: "module",
       moduleId,
       label: snapshot.label,
-      order: order++,
-    })
-  }
-  for (const sqliteId of sqliteOrder) {
-    const displayId = sqliteDisplayId(sqliteId)
-    const runtimeDisplay = runtimeDisplays.get(displayId)
-    const controller = sqliteDisplays.get(sqliteId)
-    if (runtimeDisplay === undefined || controller === undefined) continue
-    displays.push({
-      ...runtimeDisplay,
-      displayId,
-      kind: "sqlite",
-      moduleId: null,
-      sqliteId,
-      path: controller.path,
-      label: controller.label,
       order: order++,
     })
   }
@@ -1626,12 +1718,6 @@ function resolveDisplay(selector: Record<string, unknown>): DisplayInfo | null {
 
   const moduleId = stringParam(selector["moduleId"])
   if (moduleId !== undefined) return displays.find((display) => display.kind === "module" && display.moduleId === moduleId) ?? null
-
-  const sqliteId = stringParam(selector["sqliteId"])
-  if (sqliteId !== undefined) return displays.find((display) => display.kind === "sqlite" && display.sqliteId === sqliteId) ?? null
-
-  const path = stringParam(selector["path"])
-  if (path !== undefined) return displays.find((display) => display.kind === "sqlite" && display.path === path) ?? null
 
   const order = numberParam(selector["order"]) ?? numberParam(selector["index"])
   if (order !== undefined && Number.isInteger(order)) return displays.find((display) => display.order === order) ?? null
@@ -2057,6 +2143,13 @@ function installEnginePanes(): void {
   }
   todoDockPane ??= new TodoDockPane(() => setTodoHudDocked(false))
   uiCanvas.addHudSurface(todoDockPane, todoDockRect)
+  sqliteHudPane ??= new SqliteHudFramePane(
+    () => activeSqliteController()?.label ?? "SQLite",
+    () => activeSqliteController()?.path ?? "",
+    () => setSqliteHudDocked(true),
+  )
+  uiCanvas.addHudSurface(sqliteHudPane, sqliteHudRect)
+  for (const controller of sqliteDisplays.values()) installSqliteHudSurfaces(controller)
   const host = ensureHostTerminalController()
   uiCanvas.addHudSurface(host.hudTerminal, hostTerminalHudRect)
   if (host.socket === null) connectHostTerminal(host)
@@ -2064,6 +2157,8 @@ function installEnginePanes(): void {
   uiCanvas.addHudSurface(hostTerminalAgentSignalPane, hostTerminalAgentSignalRect)
   hostTerminalDockPane ??= new HostTerminalDockPane(() => setHostTerminalHudDocked(false))
   uiCanvas.addHudSurface(hostTerminalDockPane, hostTerminalDockRect)
+  sqliteDockPane ??= new SqliteDockPane(() => setSqliteHudDocked(false))
+  uiCanvas.addHudSurface(sqliteDockPane, sqliteDockRect)
   if (voiceHudPane !== null) {
     uiCanvas.addHudSurface(voiceHudPane, voiceHudRect)
   }
@@ -2278,8 +2373,6 @@ class WorkspaceFilesChromePane extends UiSurface {
 class SqliteTablePane extends UiSurface {
   #payload: SqliteDatabasePayload | null = null
   #status = "Open SQLite database"
-  #scrollX = 0
-  #scrollY = 0
   readonly #onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void
 
   constructor(onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void) {
@@ -2293,8 +2386,7 @@ class SqliteTablePane extends UiSurface {
     this.#payload = payload
     this.#status = payload.selectedTable === null ? "No tables" : `${payload.selectedTable} · ${payload.rows.length} rows`
     if (tableChanged) {
-      this.#scrollX = 0
-      this.#scrollY = 0
+      tableScrollTo(this, SQLITE_TABLE_SCROLL_KEY, {left: 0, top: 0})
     }
     this.requestRender()
   }
@@ -2307,8 +2399,7 @@ class SqliteTablePane extends UiSurface {
   clearPayload(status: string): void {
     this.#payload = null
     this.#status = status
-    this.#scrollX = 0
-    this.#scrollY = 0
+    tableScrollTo(this, SQLITE_TABLE_SCROLL_KEY, {left: 0, top: 0})
     this.requestRender()
   }
 
@@ -2348,120 +2439,39 @@ class SqliteTablePane extends UiSurface {
 
     const tableY = headerH + 34
     const tableH = Math.max(1, this.rectH - tableY - pad)
-    const columns = sqliteTableColumns(payload)
-    const widths = sqliteTableColumnWidths(this, payload, columns)
-    const totalW = widths.reduce((sum, width) => sum + width, 0)
-    const rowH = 24
-    const columnHeaderH = 27
-    const rowsViewportH = Math.max(1, tableH - columnHeaderH)
-    const maxScrollX = Math.max(0, totalW - this.rectW + pad * 2)
-    const maxScrollY = Math.max(0, payload.rows.length * rowH - rowsViewportH)
-    this.#scrollX = clampNumber(this.#scrollX, 0, maxScrollX)
-    this.#scrollY = clampNumber(this.#scrollY, 0, maxScrollY)
-    this.wheel(0, tableY, this.rectW, tableH, (event) => {
-      event.preventDefault()
-      const horizontalDelta = event.shiftKey ? event.deltaY : event.deltaX
-      this.#scrollX = clampNumber(this.#scrollX + horizontalDelta, 0, maxScrollX)
-      this.#scrollY = clampNumber(this.#scrollY + event.deltaY, 0, maxScrollY)
-      this.requestRender()
-    }, "sqlite-table-scroll")
-
-    this.pushClip(pad, tableY, Math.max(1, this.rectW - pad * 2), tableH)
-    try {
-      this.#renderGrid(payload, columns, widths, pad, tableY, tableH, rowH, columnHeaderH)
-    } finally {
-      this.popClip()
-    }
-  }
-
-  #renderGrid(
-    payload: SqliteDatabasePayload,
-    columns: readonly string[],
-    widths: readonly number[],
-    x0: number,
-    y0: number,
-    h: number,
-    rowH: number,
-    columnHeaderH: number,
-  ): void {
+    const columnNames = sqliteTableColumns(payload)
+    const widths = sqliteTableColumnWidths(this, payload, columnNames)
     const selectedSummary = payload.tables.find((table) => table.name === payload.selectedTable)
     const editableTable = selectedSummary?.type === "table"
-    const firstRow = Math.max(0, Math.floor(this.#scrollY / rowH))
-    const rowOffset = this.#scrollY - firstRow * rowH
-    const visibleRows = Math.ceil(Math.max(1, h - columnHeaderH) / rowH) + 1
-    let x = x0 - this.#scrollX
-
-    this.drawRect(x0, y0, Math.max(1, this.rectW - x0 * 2), columnHeaderH, palette.bgPanel)
-    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
-      const column = columns[columnIndex]!
-      const w = widths[columnIndex]!
-      this.drawRect(x, y0, 1, h, palette.borderRule)
-      this.drawText(column, x + 8, y0 + 8, {
-        fontPx: 10,
-        material: column === "__rowid" ? this.materials.muted : this.materials.cyan,
-        maxWidthPx: Math.max(1, w - 16),
-      })
-      x += w
-    }
-    this.drawRect(x, y0, 1, h, palette.borderRule)
-    this.drawRect(x0, y0 + columnHeaderH - 1, Math.max(1, this.rectW - x0 * 2), 1, palette.borderDim)
-
-    if (payload.rows.length === 0) {
-      this.drawText("No rows", x0 + 10, y0 + columnHeaderH + 16, {
-        fontPx: 12,
-        material: this.materials.muted,
-        maxWidthPx: Math.max(1, this.rectW - x0 * 2 - 20),
-      })
-      return
-    }
-
-    for (let visibleIndex = 0; visibleIndex < visibleRows; visibleIndex += 1) {
-      const rowIndex = firstRow + visibleIndex
-      const row = payload.rows[rowIndex]
-      if (row === undefined) continue
-      const y = y0 + columnHeaderH + visibleIndex * rowH - rowOffset
-      if (rowIndex % 2 === 1) this.drawRect(x0, y, Math.max(1, this.rectW - x0 * 2), rowH, palette.bgPanelDim)
-      this.drawRect(x0, y + rowH - 1, Math.max(1, this.rectW - x0 * 2), 1, palette.borderRule)
-      this.#renderRow(row, rowIndex, columns, widths, x0, y, rowH, editableTable)
-    }
+    const columns: Array<TableColumn<Record<string, SqliteCellValue>>> = columnNames.map((column, index) => ({
+      key: column,
+      width: widths[index] ?? 104,
+    }))
+    Table(this, pad, tableY, Math.max(1, this.rectW - pad * 2), tableH, {
+      key: SQLITE_TABLE_SCROLL_KEY,
+      columns,
+      rows: payload.rows,
+      rowHeight: 24,
+      headerHeight: 27,
+      emptyLabel: "No rows",
+      getHeaderMaterial: ({column}) => column.key === "__rowid" ? this.materials.muted : this.materials.cyan,
+      getCellText: ({value}) => sqliteCellLabel(value as SqliteCellValue | undefined),
+      getCellMaterial: ({column, value}) => column.key === "__rowid"
+        ? this.materials.muted
+        : value === null || value === undefined ? this.materials.muted : this.materials.text,
+      isCellInteractive: ({row, column}) => editableTable && column.key !== "__rowid" && sqliteRowId(row["__rowid"]) !== null,
+      cellCursor: "text",
+      onCellClick: (ctx) => this.#editCell(ctx),
+    })
   }
 
-  #renderRow(
-    row: Record<string, SqliteCellValue>,
-    rowIndex: number,
-    columns: readonly string[],
-    widths: readonly number[],
-    x0: number,
-    y: number,
-    rowH: number,
-    editableTable: boolean,
-  ): void {
-    const rowid = sqliteRowId(row["__rowid"])
-    let x = x0 - this.#scrollX
-    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
-      const column = columns[columnIndex]!
-      const w = widths[columnIndex]!
-      const value = row[column] ?? null
-      const editable = editableTable && rowid !== null && column !== "__rowid"
-      this.drawText(sqliteCellLabel(value), x + 8, y + 7, {
-        fontPx: 10,
-        material: column === "__rowid" ? this.materials.muted : value === null ? this.materials.muted : this.materials.text,
-        maxWidthPx: Math.max(1, w - 16),
-      })
-      if (editable && x < this.rectW && x + w > 0) {
-        this.hit(x, y, w, rowH, () => this.#editCell(rowid, column, value), {
-          key: `sqlite-cell:${rowIndex}:${column}`,
-          cursor: "text",
-        })
-      }
-      x += w
-    }
-  }
-
-  #editCell(rowid: number, column: string, value: SqliteCellValue): void {
-    const raw = window.prompt(`Edit ${column}`, sqliteCellPromptValue(value))
+  #editCell(ctx: TableCellContext<Record<string, SqliteCellValue>>): void {
+    const rowid = sqliteRowId(ctx.row["__rowid"])
+    if (rowid === null || ctx.column.key === "__rowid") return
+    const value = ctx.row[ctx.column.key] ?? null
+    const raw = window.prompt(`Edit ${ctx.column.key}`, sqliteCellPromptValue(value))
     if (raw === null) return
-    this.#onCellEdit(rowid, column, sqliteCellInputValue(raw, value))
+    this.#onCellEdit(rowid, ctx.column.key, sqliteCellInputValue(raw, value))
   }
 }
 
@@ -2761,6 +2771,247 @@ class TodoDockPane extends UiSurface {
     if (frame === undefined || frame === null) return
     const placement = todoDockPlacementFromPoint(point, frame.bounds)
     setTodoDockPlacement(placement)
+  }
+
+  #canvasPoint(event: MouseEvent): {x: number; y: number} | null {
+    const canvas = this.canvas?.canvas
+    if (canvas === undefined) return null
+    const rect = canvas.getBoundingClientRect()
+    return {x: event.clientX - rect.left, y: event.clientY - rect.top}
+  }
+}
+
+class SqliteHudFramePane extends UiSurface {
+  #frameDrag: PaneFrameDrag | null = null
+
+  constructor(
+    private readonly title: () => string,
+    private readonly subtitle: () => string,
+    private readonly onDock: () => void,
+  ) {
+    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    this.node.name = "SqliteHudFramePane"
+  }
+
+  protected render(): void {
+    const pad = 14
+    const dockButtonSize = 22
+    const dockButtonX = Math.max(pad, this.rectW - pad - dockButtonSize)
+    const titleW = Math.max(1, dockButtonX - pad - 10)
+    this.drawText("SQLite", pad, 10, {fontPx: 13, material: this.materials.cyan, maxWidthPx: 76})
+    this.drawText(this.title(), pad + 62, 10, {
+      fontPx: 12,
+      material: this.materials.text,
+      maxWidthPx: Math.max(1, titleW - 62),
+    })
+    const subtitle = this.subtitle()
+    if (subtitle.length > 0) {
+      this.drawText(subtitle, pad, 24, {
+        fontPx: 9,
+        material: this.materials.muted,
+        maxWidthPx: titleW,
+      })
+    }
+    IconButton(this, dockButtonX, 8, dockButtonSize, dockButtonSize, {
+      label: "Dock SQLite",
+      iconSrc: uiIcons.minus,
+      color: "neutral",
+      action: this.onDock,
+    })
+    this.drawRect(pad, SQLITE_HUD_HEADER_H - 1, Math.max(1, this.rectW - pad * 2), 1, palette.borderDim)
+  }
+
+  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    super.onPointerDown(event, localX, localY)
+    if (this.pressedHit !== null || event.button !== 0) return
+    this.#beginFrameInteraction(event, localX, localY)
+  }
+
+  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+    if (this.#frameDrag !== null) {
+      this.#updateFrameInteraction(event)
+      return
+    }
+    super.onPointerMove(event, localX, localY)
+    this.#syncFrameCursor(localX, localY)
+  }
+
+  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+    if (this.#endFrameInteraction(event, localX, localY)) return
+    super.onPointerUp(event, localX, localY)
+  }
+
+  override onPointerLeave(): void {
+    super.onPointerLeave()
+    if (this.#frameDrag === null && this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = "default"
+  }
+
+  override onDeactivate(): void {
+    super.onDeactivate()
+    this.#frameDrag = null
+  }
+
+  #frameInteractionOpts(): PaneFrameInteractionOpts {
+    return {
+      showHeader: true,
+      movable: true,
+      resizable: true,
+      minW: SQLITE_HUD_MIN_W,
+      minH: SQLITE_HUD_MIN_H,
+    }
+  }
+
+  #beginFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+    const opts = this.#frameInteractionOpts()
+    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, opts)
+    if (kind === null) return false
+    const frame = this.canvas?.surfaceFrame(this)
+    if (frame === undefined || frame === null) return false
+    this.#frameDrag = beginPaneFrameDrag(kind, event, frame.rect, opts)
+    event.preventDefault()
+    const cursor = paneFrameCursor(kind, true)
+    if (cursor !== null && this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = cursor
+    return true
+  }
+
+  #updateFrameInteraction(event: MouseEvent): boolean {
+    const drag = this.#frameDrag
+    const frame = this.canvas?.surfaceFrame(this)
+    if (drag === null || frame === undefined || frame === null) return false
+    const next = paneFrameDragRect(drag, event, frame.bounds)
+    const applied = this.canvas?.setSurfaceRect(this, next)
+    if (applied !== undefined && applied !== null) previewSqliteHudRect(applied)
+    const cursor = paneFrameCursor(drag.kind, true)
+    if (cursor !== null && this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = cursor
+    return true
+  }
+
+  #endFrameInteraction(event: MouseEvent, localX: number, localY: number): boolean {
+    if (this.#frameDrag === null) return false
+    this.#updateFrameInteraction(event)
+    const frame = this.canvas?.surfaceFrame(this)
+    this.#frameDrag = null
+    this.#syncFrameCursor(localX, localY)
+    if (frame !== undefined && frame !== null) storeSqliteHudRectAndRelayout(frame.rect)
+    return true
+  }
+
+  #syncFrameCursor(localX: number, localY: number): void {
+    if (this.canvas === null || this.pressedHit !== null || this.hoveredHit !== null) return
+    const kind = paneFrameHit(localX, localY, this.rectW, this.rectH, this.#frameInteractionOpts())
+    const cursor = paneFrameCursor(kind, false)
+    if (this.canvas.canvas !== undefined) this.canvas.canvas.style.cursor = cursor ?? "default"
+  }
+}
+
+class SqliteDockPane extends UiSurface {
+  #press: {
+    lastX: number
+    lastY: number
+    dragging: boolean
+    timer: ReturnType<typeof setTimeout> | null
+  } | null = null
+  #suppressRestoreClick = false
+
+  constructor(private readonly onRestore: () => void) {
+    super({bgColor: null, borderColor: null})
+    this.node.name = "SqliteDockPane"
+  }
+
+  protected render(): void {
+    const controller = activeSqliteController()
+    HudSideTab(this, {
+      rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
+      key: "sqlite-dock-restore",
+      edge: currentSqliteDockEdge(),
+      icon: uiIcons.database,
+      label: "SQLite",
+      tone: "neutral",
+      tooltip: controller === null ? "SQLite" : controller.label,
+      onClick: () => this.#restoreFromClick(),
+    })
+  }
+
+  override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
+    super.onPointerDown(event, localX, localY)
+    if (event.button !== 0 || this.pressedHit === null) return
+    const point = this.#canvasPoint(event)
+    if (point === null) return
+    const press = {
+      lastX: point.x,
+      lastY: point.y,
+      dragging: false,
+      timer: null as ReturnType<typeof setTimeout> | null,
+    }
+    press.timer = setTimeout(() => {
+      if (this.#press !== press) return
+      press.dragging = true
+      this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
+    }, SQLITE_DOCK_LONG_PRESS_MS)
+    this.#press = press
+  }
+
+  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+    const press = this.#press
+    if (press === null) {
+      super.onPointerMove(event, localX, localY)
+      return
+    }
+    const point = this.#canvasPoint(event)
+    if (point !== null) {
+      press.lastX = point.x
+      press.lastY = point.y
+    }
+    if (!press.dragging) {
+      super.onPointerMove(event, localX, localY)
+      return
+    }
+    event.preventDefault()
+    this.#moveDockToCanvasPoint({x: press.lastX, y: press.lastY})
+    if (this.canvas?.canvas !== undefined) this.canvas.canvas.style.cursor = "grabbing"
+  }
+
+  override onPointerUp(event: MouseEvent, localX: number, localY: number): void {
+    const press = this.#press
+    this.#press = null
+    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
+    const wasDragging = press?.dragging === true
+    if (wasDragging) this.#suppressRestoreClick = true
+    super.onPointerUp(event, localX, localY)
+    if (wasDragging) this.#suppressRestoreClick = false
+  }
+
+  override onPointerLeave(): void {
+    super.onPointerLeave()
+    this.#cancelPress()
+  }
+
+  override onDeactivate(): void {
+    super.onDeactivate()
+    this.#cancelPress()
+  }
+
+  override dispose(): void {
+    this.#cancelPress()
+    super.dispose()
+  }
+
+  #restoreFromClick(): void {
+    if (this.#suppressRestoreClick) return
+    this.onRestore()
+  }
+
+  #cancelPress(): void {
+    const press = this.#press
+    this.#press = null
+    if (press?.timer !== null && press?.timer !== undefined) clearTimeout(press.timer)
+  }
+
+  #moveDockToCanvasPoint(point: {x: number; y: number}): void {
+    const frame = this.canvas?.surfaceFrame(this)
+    if (frame === undefined || frame === null) return
+    const placement = sqliteDockPlacementFromPoint(point, frame.bounds)
+    setSqliteDockPlacement(placement)
   }
 
   #canvasPoint(event: MouseEvent): {x: number; y: number} | null {
@@ -4267,14 +4518,10 @@ function syncModuleDisplays(): void {
   const orderedModules = moduleOrder
     .map((id) => moduleSnapshots.get(id))
     .filter((module): module is ModulePaneSnapshot => module !== undefined)
-  const orderedSqliteDisplays = sqliteOrder
-    .map((id) => sqliteDisplays.get(id))
-    .filter((display): display is SqliteDisplayController => display !== undefined)
 
   const displayMetrics = viewportDisplayMetrics()
   const moduleDisplayIdList = orderedModules.map((module) => moduleDisplayId(module.id))
-  const sqliteDisplayIdList = orderedSqliteDisplays.map((controller) => sqliteDisplayId(controller.id))
-  const displayIds = [...moduleDisplayIdList, ...sqliteDisplayIdList]
+  const displayIds = moduleDisplayIdList
   const totalW = displayIds.length * displayMetrics.widthMm
     + Math.max(0, displayIds.length - 1) * MODULE_DISPLAY_GAP_MM
   let cursorX = -totalW / 2
@@ -4303,31 +4550,6 @@ function syncModuleDisplays(): void {
       void refreshModuleBreakpoints(controller)
       void refreshWorkspaceFiles(controller)
       updateModuleDisplay(controller, module)
-    } else {
-      uiCanvas.resizeDisplay(displayId, displayMetrics)
-      uiCanvas.setDisplayCenter(displayId, center)
-    }
-  }
-
-  for (const controller of orderedSqliteDisplays) {
-    const displayId = sqliteDisplayId(controller.id)
-    const x = cursorX + displayMetrics.widthMm / 2
-    cursorX += displayMetrics.widthMm + MODULE_DISPLAY_GAP_MM
-    const center = displayCenterWithStored(displayId, {x, y: MODULE_DISPLAY_CENTER_Y_MM, z: MODULE_DISPLAY_CENTER_Z_MM})
-
-    if (!sqliteDisplayIds.has(controller.id)) {
-      sqliteDisplayIds.add(controller.id)
-      uiCanvas.createDisplay({
-        id: displayId,
-        widthMm: displayMetrics.widthMm,
-        heightMm: displayMetrics.heightMm,
-        pixelWidth: displayMetrics.pixelWidth,
-        pixelHeight: displayMetrics.pixelHeight,
-        centerMm: center,
-        background: 0x06111f,
-        border: 0x334155,
-      })
-      addSqliteSurfacesToDisplay(displayId, controller)
     } else {
       uiCanvas.resizeDisplay(displayId, displayMetrics)
       uiCanvas.setDisplayCenter(displayId, center)
@@ -4369,10 +4591,7 @@ function removeModuleDisplay(moduleId: string): void {
   interpreterDisplayPositions.delete(displayId)
   if (uiCanvas?.activeDisplayId === displayId) {
     const nextModuleId = moduleOrder.find((id) => id !== moduleId && moduleDisplayIds.has(id))
-    const nextSqliteId = nextModuleId === undefined ? sqliteOrder.find((id) => sqliteDisplayIds.has(id)) : undefined
-    const nextDisplayId = nextModuleId === undefined
-      ? nextSqliteId === undefined ? null : sqliteDisplayId(nextSqliteId)
-      : moduleDisplayId(nextModuleId)
+    const nextDisplayId = nextModuleId === undefined ? null : moduleDisplayId(nextModuleId)
     if (nextDisplayId !== null) uiCanvas.focusDisplay(nextDisplayId)
   }
   uiCanvas?.removeDisplay(displayId)
@@ -4827,6 +5046,35 @@ function storeTodoHudRectAndRelayout(rect: UiSurfaceRect): void {
   relayoutHudSurfaces()
 }
 
+function readStoredSqliteHudRect(): UiSurfaceRect | null {
+  try {
+    return parseStoredPaneRect(localStorage.getItem(SQLITE_HUD_RECT_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+function storeSqliteHudRect(rect: UiSurfaceRect): void {
+  const normalized = normalizeStoredPaneRect(rect)
+  if (normalized === null) return
+  try {
+    localStorage.setItem(SQLITE_HUD_RECT_STORAGE_KEY, JSON.stringify(normalized))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
+function previewSqliteHudRect(rect: UiSurfaceRect): void {
+  sqliteHudRectPreview = rect
+  relayoutHudSurfaces()
+}
+
+function storeSqliteHudRectAndRelayout(rect: UiSurfaceRect): void {
+  sqliteHudRectPreview = null
+  storeSqliteHudRect(rect)
+  relayoutHudSurfaces()
+}
+
 function readStoredVoiceHudPlacement(): VoiceHudAnchorPlacement | UiSurfaceRect | null {
   try {
     const raw = localStorage.getItem(VOICE_HUD_RECT_STORAGE_KEY)
@@ -4888,6 +5136,22 @@ function writeStoredTodoHudDocked(docked: boolean): void {
   }
 }
 
+function readStoredSqliteHudDocked(): boolean {
+  try {
+    return localStorage.getItem(SQLITE_HUD_DOCKED_STORAGE_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function writeStoredSqliteHudDocked(docked: boolean): void {
+  try {
+    localStorage.setItem(SQLITE_HUD_DOCKED_STORAGE_KEY, docked ? "1" : "0")
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
 function readStoredHostTerminalDockPlacement(): HostTerminalDockPlacement | null {
   try {
     const raw = localStorage.getItem(HOST_TERMINAL_DOCK_PLACEMENT_STORAGE_KEY)
@@ -4903,6 +5167,18 @@ function readStoredHostTerminalDockPlacement(): HostTerminalDockPlacement | null
 function readStoredTodoDockPlacement(): HostTerminalDockPlacement | null {
   try {
     const raw = localStorage.getItem(TODO_DOCK_PLACEMENT_STORAGE_KEY)
+    if (raw === null) return null
+    const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
+    if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
+    return {edge: value.edge, offset: value.offset}
+  } catch {
+    return null
+  }
+}
+
+function readStoredSqliteDockPlacement(): HostTerminalDockPlacement | null {
+  try {
+    const raw = localStorage.getItem(SQLITE_DOCK_PLACEMENT_STORAGE_KEY)
     if (raw === null) return null
     const value = JSON.parse(raw) as Partial<HostTerminalDockPlacement>
     if (!isHostTerminalDockEdge(value.edge) || typeof value.offset !== "number" || !Number.isFinite(value.offset)) return null
@@ -4928,6 +5204,14 @@ function writeStoredTodoDockPlacement(placement: HostTerminalDockPlacement): voi
   }
 }
 
+function writeStoredSqliteDockPlacement(placement: HostTerminalDockPlacement): void {
+  try {
+    localStorage.setItem(SQLITE_DOCK_PLACEMENT_STORAGE_KEY, JSON.stringify(placement))
+  } catch {
+    // Storage can be disabled in private contexts.
+  }
+}
+
 function setHostTerminalDockPlacement(placement: HostTerminalDockPlacement): void {
   const previous = hostTerminalDockPlacement
   if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
@@ -4943,6 +5227,15 @@ function setTodoDockPlacement(placement: HostTerminalDockPlacement): void {
   todoDockPlacement = placement
   writeStoredTodoDockPlacement(placement)
   todoDockPane?.requestRender()
+  relayoutHudSurfaces()
+}
+
+function setSqliteDockPlacement(placement: HostTerminalDockPlacement): void {
+  const previous = sqliteDockPlacement
+  if (previous !== null && previous.edge === placement.edge && Math.abs(previous.offset - placement.offset) < 0.5) return
+  sqliteDockPlacement = placement
+  writeStoredSqliteDockPlacement(placement)
+  sqliteDockPane?.requestRender()
   relayoutHudSurfaces()
 }
 
@@ -4975,6 +5268,23 @@ function setTodoHudDocked(docked: boolean): void {
   relayoutHudSurfaces()
 }
 
+function setSqliteHudDocked(docked: boolean): void {
+  if (sqliteHudDocked === docked) return
+  sqliteHudDocked = docked
+  writeStoredSqliteHudDocked(docked)
+  if (docked) {
+    uiCanvas?.setFocused(null)
+    uiCanvas?.inputProxy?.blur()
+  }
+  sqliteHudPane?.requestRender()
+  sqliteDockPane?.requestRender()
+  for (const controller of sqliteDisplays.values()) {
+    controller.tables.requestRender()
+    controller.rows.requestRender()
+  }
+  relayoutHudSurfaces()
+}
+
 function relayoutHudSurfaces(): void {
   uiCanvas?.relayout({scope: "hud", forceSetRect: false})
 }
@@ -4989,6 +5299,10 @@ function currentHostTerminalDockEdge(): HudSideTabEdge {
 
 function currentTodoDockEdge(): HudSideTabEdge {
   return todoDockPlacement?.edge ?? DEFAULT_TODO_DOCK_PLACEMENT.edge
+}
+
+function currentSqliteDockEdge(): HudSideTabEdge {
+  return sqliteDockPlacement?.edge ?? DEFAULT_SQLITE_DOCK_PLACEMENT.edge
 }
 
 function parseStoredPaneRect(raw: string | null): UiSurfaceRect | null {
@@ -5059,10 +5373,6 @@ function moduleDisplayId(moduleId: string): string {
 
 function processApiPath(processId: string, suffix: string): string {
   return `/processes/${encodeURIComponent(processId)}${suffix}`
-}
-
-function sqliteDisplayId(sqliteId: string): string {
-  return `sqlite:${sqliteId}`
 }
 
 function moduleVerboseStorageKey(moduleId: string): string {
@@ -5146,12 +5456,6 @@ function addInterpreterSurfacesToDisplay(displayId: string, controller: ModuleDi
   uiCanvas.addSurfaceToDisplay(displayId, controller.terminal, (canvas) => interpreterRects(canvas, controller.verboseVisible).terminal)
   uiCanvas.addSurfaceToDisplay(displayId, controller.frames, (canvas) => interpreterRects(canvas, controller.verboseVisible).frames)
   uiCanvas.addSurfaceToDisplay(displayId, controller.verbose, (canvas) => interpreterRects(canvas, controller.verboseVisible).verbose ?? hiddenRect())
-}
-
-function addSqliteSurfacesToDisplay(displayId: string, controller: SqliteDisplayController): void {
-  if (uiCanvas === null) return
-  uiCanvas.addSurfaceToDisplay(displayId, controller.tables, (canvas) => sqliteRects(canvas).tables)
-  uiCanvas.addSurfaceToDisplay(displayId, controller.rows, (canvas) => sqliteRects(canvas).rows)
 }
 
 function createSqliteDisplayController(id: string, path: string): SqliteDisplayController {
@@ -7030,6 +7334,35 @@ function todoHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return clampTodoHudRect(DEFAULT_TODO_HUD_RECT, w, h)
 }
 
+function sqliteHudRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (activeSqliteController() === null || sqliteHudDocked) return hiddenRect()
+  if (w < SQLITE_HUD_MIN_W || h < SQLITE_HUD_MIN_H) return hiddenRect()
+  if (sqliteHudRectPreview !== null) return clampSqliteHudRect(sqliteHudRectPreview, w, h)
+  const stored = readStoredSqliteHudRect()
+  if (stored !== null) return clampSqliteHudRect(stored, w, h)
+  return clampSqliteHudRect(DEFAULT_SQLITE_HUD_RECT, w, h)
+}
+
+function sqliteHudRects(controllerId: string, bounds: {w: number; h: number}): SqliteRects {
+  if (activeSqliteController()?.id !== controllerId || sqliteHudDocked) {
+    return {tables: hiddenRect(), rows: hiddenRect()}
+  }
+  const panel = sqliteHudRect(bounds)
+  if (panel.visible === false) return {tables: hiddenRect(), rows: hiddenRect()}
+  const pad = SQLITE_HUD_CONTENT_PAD
+  const x = panel.x + pad
+  const y = panel.y + SQLITE_HUD_HEADER_H + pad
+  const bodyW = Math.max(1, panel.w - pad * 2)
+  const bodyH = Math.max(1, panel.h - SQLITE_HUD_HEADER_H - pad * 2)
+  const tablesW = panel.w >= 900
+    ? Math.min(300, Math.max(230, Math.floor(bodyW * 0.24)))
+    : Math.min(245, Math.max(180, Math.floor(bodyW * 0.32)))
+  return {
+    tables: {x, y, w: tablesW, h: bodyH},
+    rows: {x: x + tablesW + GAP, y, w: Math.max(1, bodyW - tablesW - GAP), h: bodyH},
+  }
+}
+
 function hostTerminalAgentSignalRect(bounds: {w: number; h: number}): UiSurfaceRect {
   const terminal = hostTerminalHudRect(bounds)
   if (terminal.visible === false) return hiddenRect()
@@ -7151,6 +7484,11 @@ function todoDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
   return todoDockRectForPlacement(todoDockPlacement ?? defaultTodoDockPlacement({w, h}), {w, h})
 }
 
+function sqliteDockRect({w, h}: {w: number; h: number}): UiSurfaceRect {
+  if (!sqliteHudDocked || activeSqliteController() === null || w < 80 || h < 80) return hiddenRect()
+  return sqliteDockRectForPlacement(sqliteDockPlacement ?? defaultSqliteDockPlacement({w, h}), {w, h})
+}
+
 function hostTerminalDockRectForPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): UiSurfaceRect {
   const vertical = placement.edge === "left" || placement.edge === "right"
   const dockW = vertical
@@ -7219,6 +7557,40 @@ function todoDockRectForPlacement(placement: HostTerminalDockPlacement, bounds: 
   }
 }
 
+function sqliteDockRectForPlacement(placement: HostTerminalDockPlacement, bounds: {w: number; h: number}): UiSurfaceRect {
+  const vertical = placement.edge === "left" || placement.edge === "right"
+  const dockW = vertical
+    ? Math.min(SQLITE_DOCK_SHORT, Math.max(1, bounds.w - SQLITE_DOCK_MARGIN))
+    : Math.min(SQLITE_DOCK_LONG, Math.max(1, bounds.w - SQLITE_DOCK_MARGIN * 2))
+  const dockH = vertical
+    ? Math.min(SQLITE_DOCK_LONG, Math.max(1, bounds.h - SQLITE_DOCK_MARGIN * 2))
+    : Math.min(SQLITE_DOCK_SHORT, Math.max(1, bounds.h - SQLITE_DOCK_MARGIN))
+  if (vertical) {
+    const centerY = clampNumber(
+      placement.offset,
+      SQLITE_DOCK_MARGIN + dockH / 2,
+      Math.max(SQLITE_DOCK_MARGIN + dockH / 2, bounds.h - SQLITE_DOCK_MARGIN - dockH / 2),
+    )
+    return {
+      x: placement.edge === "left" ? 0 : Math.max(0, bounds.w - dockW),
+      y: centerY - dockH / 2,
+      w: dockW,
+      h: dockH,
+    }
+  }
+  const centerX = clampNumber(
+    placement.offset,
+    SQLITE_DOCK_MARGIN + dockW / 2,
+    Math.max(SQLITE_DOCK_MARGIN + dockW / 2, bounds.w - SQLITE_DOCK_MARGIN - dockW / 2),
+  )
+  return {
+    x: centerX - dockW / 2,
+    y: placement.edge === "top" ? 0 : Math.max(0, bounds.h - dockH),
+    w: dockW,
+    h: dockH,
+  }
+}
+
 function defaultHostTerminalDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
   const placement = DEFAULT_HOST_TERMINAL_DOCK_PLACEMENT
   const vertical = placement.edge === "left" || placement.edge === "right"
@@ -7259,6 +7631,27 @@ function defaultTodoDockPlacement(bounds: {w: number; h: number}): HostTerminalD
   const maxOffset = vertical
     ? Math.max(minOffset, bounds.h - TODO_DOCK_MARGIN - dockH / 2)
     : Math.max(minOffset, bounds.w - TODO_DOCK_MARGIN - dockW / 2)
+  return {
+    edge: placement.edge,
+    offset: clampNumber(placement.offset, minOffset, maxOffset),
+  }
+}
+
+function defaultSqliteDockPlacement(bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  const placement = DEFAULT_SQLITE_DOCK_PLACEMENT
+  const vertical = placement.edge === "left" || placement.edge === "right"
+  const dockW = vertical
+    ? Math.min(SQLITE_DOCK_SHORT, Math.max(1, bounds.w - SQLITE_DOCK_MARGIN))
+    : Math.min(SQLITE_DOCK_LONG, Math.max(1, bounds.w - SQLITE_DOCK_MARGIN * 2))
+  const dockH = vertical
+    ? Math.min(SQLITE_DOCK_LONG, Math.max(1, bounds.h - SQLITE_DOCK_MARGIN * 2))
+    : Math.min(SQLITE_DOCK_SHORT, Math.max(1, bounds.h - SQLITE_DOCK_MARGIN))
+  const minOffset = vertical
+    ? SQLITE_DOCK_MARGIN + dockH / 2
+    : SQLITE_DOCK_MARGIN + dockW / 2
+  const maxOffset = vertical
+    ? Math.max(minOffset, bounds.h - SQLITE_DOCK_MARGIN - dockH / 2)
+    : Math.max(minOffset, bounds.w - SQLITE_DOCK_MARGIN - dockW / 2)
   return {
     edge: placement.edge,
     offset: clampNumber(placement.offset, minOffset, maxOffset),
@@ -7307,6 +7700,27 @@ function todoDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: n
   }
 }
 
+function sqliteDockPlacementFromPoint(point: {x: number; y: number}, bounds: {w: number; h: number}): HostTerminalDockPlacement {
+  const distances: Array<{edge: HudSideTabEdge; distance: number}> = [
+    {edge: "left", distance: point.x},
+    {edge: "right", distance: bounds.w - point.x},
+    {edge: "top", distance: point.y},
+    {edge: "bottom", distance: bounds.h - point.y},
+  ]
+  let best = distances[0]!
+  for (const item of distances.slice(1)) {
+    if (item.distance < best.distance) best = item
+  }
+  const rect = sqliteDockRectForPlacement({
+    edge: best.edge,
+    offset: best.edge === "left" || best.edge === "right" ? point.y : point.x,
+  }, bounds)
+  return {
+    edge: best.edge,
+    offset: best.edge === "left" || best.edge === "right" ? rect.y + rect.h / 2 : rect.x + rect.w / 2,
+  }
+}
+
 function clampHostTerminalHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
   const bw = Math.max(1, Math.round(boundsW))
   const bh = Math.max(1, Math.round(boundsH))
@@ -7337,22 +7751,23 @@ function clampTodoHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number)
   }
 }
 
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
+function clampSqliteHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
+  const bw = Math.max(1, Math.round(boundsW))
+  const bh = Math.max(1, Math.round(boundsH))
+  const minW = Math.min(SQLITE_HUD_MIN_W, bw)
+  const minH = Math.min(SQLITE_HUD_MIN_H, bh)
+  const rectW = clampNumber(rect.w, minW, bw)
+  const rectH = clampNumber(rect.h, minH, bh)
+  return {
+    x: clampNumber(rect.x, 0, Math.max(0, bw - rectW)),
+    y: clampNumber(rect.y, 0, Math.max(0, bh - rectH)),
+    w: rectW,
+    h: rectH,
+  }
 }
 
-function sqliteRects({w, h}: {w: number; h: number}): SqliteRects {
-  const x = PAD
-  const y = BODY_TOP
-  const bodyW = Math.max(1, w - PAD * 2)
-  const bodyH = Math.max(1, h - BODY_TOP - PAD)
-  const tablesW = w >= 980
-    ? Math.min(330, Math.max(250, Math.floor(bodyW * 0.22)))
-    : Math.min(260, Math.max(190, Math.floor(bodyW * 0.30)))
-  return {
-    tables: {x, y, w: tablesW, h: bodyH},
-    rows: {x: x + tablesW + GAP, y, w: Math.max(1, bodyW - tablesW - GAP), h: bodyH},
-  }
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolean): InterpreterRects {

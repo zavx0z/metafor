@@ -153,12 +153,13 @@ curl -sS -X POST 'http://127.0.0.1:6500/processes/dark-server.spec.ts/action' \
   -d '{"action":"evaluate","params":{"expr":"globalThis.location","frame":0}}'
 ```
 
-SQLite display API:
+SQLite HUD API:
 
-- CLI args ending with `.sqlite` считаются входами display, а не runnable modules.
-- Display можно создать до появления файла базы; UI ждет и повторяет чтение, пока runtime не создаст `.sqlite`.
+- CLI args ending with `.sqlite` считаются входами SQLite HUD, а не runnable modules.
+- HUD можно открыть до появления файла базы; UI ждет и повторяет чтение, пока runtime не создаст `.sqlite`.
 - `GET /sqlite?path=<file.sqlite>&table=<name>` возвращает tables, schema и rows.
-- `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает database как отдельный display.
+- `POST /sqlite/open` с `{"path":"dark/tmp/boundary.sqlite"}` открывает database в SQLite HUD.
+- `GET /hud/sqlite` возвращает состояние SQLite HUD; `/hud/sqlite/dock|show|toggle` управляют сворачиванием.
 - `POST /sqlite/cell` с `{"path","table","rowid","column","value"}` редактирует одну ячейку по SQLite `rowid`. Views read-only.
 
 Display selectors:
