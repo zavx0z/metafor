@@ -1,6 +1,7 @@
 import {
   input as renderInput,
   createInputEditState,
+  focusInput,
   handleInputKey,
   insertInputText,
   type InputEditState,
@@ -10,6 +11,7 @@ import {
 import type {UiSurface, StyleProps} from "@ui/elements"
 
 export type TextFieldProps = {
+  key?: string
   value?: string
   children?: string
   placeholder?: string
@@ -32,6 +34,7 @@ export function TextField(host: UiSurface, x: number, y: number, width: number, 
   const inputProps: Parameters<typeof renderInput>[5] = {
     value: props.value ?? props.children ?? "",
   }
+  if (props.key !== undefined) inputProps.key = props.key
   if (props.active !== undefined) inputProps.active = props.active
   if (props.sx !== undefined) inputProps.style = props.sx
   if (props.placeholder !== undefined) inputProps.placeholder = props.placeholder
@@ -55,5 +58,6 @@ export type TextFieldKeyOptions = InputKeyOptions
 export type TextFieldKeyResult = InputKeyResult
 
 export const createTextFieldState = createInputEditState
+export const focusTextField = focusInput
 export const handleTextFieldKey = handleInputKey
 export const insertTextFieldText = insertInputText

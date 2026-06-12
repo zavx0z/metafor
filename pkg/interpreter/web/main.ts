@@ -11,13 +11,14 @@ import {
   palette,
   radii,
   uiIcons,
+  Z,
   type UiRuntimeDisplayCenterChange,
   type UiRuntimeDisplaySnapshot,
   type UiRuntimeViewPointSnapshot,
   type UiRuntimeViewPointVector,
   type UiSurfaceRect,
 } from "@ui/elements"
-import {IconButton, Switcher, Table, VoiceInputHud, tableScrollTo, type TableCellContext, type TableColumn, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
+import {Button, IconButton, Switcher, Table, TextField, VoiceInputHud, focusTextField, tableScrollTo, type TableCellContext, type TableColumn, type TextFieldEditState, type VoiceInputHudDeactivationMode, type VoiceInputHudPhraseGroupId, type VoiceInputHudServiceState} from "@ui/components"
 import {HudSideTab, type HudSideTabEdge} from "@ui/hud"
 import {
   EditorPane,
@@ -318,6 +319,12 @@ type SqliteDatabasePayload = {
   schema: SqliteColumnInfo[]
   rows: Array<Record<string, SqliteCellValue>>
 }
+type SqliteCellEditSession = {
+  rowid: number
+  column: string
+  previous: SqliteCellValue
+  onSubmit(rowid: number, column: string, value: SqliteCellValue): void
+}
 
 type CommandReply = {ok: boolean; result?: unknown; error?: string}
 type ActiveInterpreterCommand = {cmd: string; label: string; startedAt: number}
@@ -588,6 +595,9 @@ const DEFAULT_VOICE_STOP_FUZZY = 0.06
 const WORKSPACE_FILES_LIMIT = 500
 const SQLITE_OPEN_RETRY_MS = 700
 const SQLITE_TABLE_SCROLL_KEY = "sqlite-table-scroll"
+const SQLITE_CELL_EDIT_FIELD_KEY = "sqlite-cell-edit-value"
+const SQLITE_CELL_EDIT_MODAL_W = 500
+const SQLITE_CELL_EDIT_MODAL_H = 192
 
 type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 
@@ -2373,6 +2383,8 @@ class WorkspaceFilesChromePane extends UiSurface {
 class SqliteTablePane extends UiSurface {
   #payload: SqliteDatabasePayload | null = null
   #status = "Open SQLite database"
+  #editSession: SqliteCellEditSession | null = null
+  #editInput: TextFieldEditState = {value: "", cursor: 0, selectionAnchor: null}
   readonly #onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void
 
   constructor(onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void) {
@@ -2387,6 +2399,7 @@ class SqliteTablePane extends UiSurface {
     this.#status = payload.selectedTable === null ? "No tables" : `${payload.selectedTable} · ${payload.rows.length} rows`
     if (tableChanged) {
       tableScrollTo(this, SQLITE_TABLE_SCROLL_KEY, {left: 0, top: 0})
+      this.#closeEdit({blur: false})
     }
     this.requestRender()
   }
@@ -2400,6 +2413,7 @@ class SqliteTablePane extends UiSurface {
     this.#payload = null
     this.#status = status
     tableScrollTo(this, SQLITE_TABLE_SCROLL_KEY, {left: 0, top: 0})
+    this.#closeEdit({blur: false})
     this.requestRender()
   }
 
@@ -2463,15 +2477,162 @@ class SqliteTablePane extends UiSurface {
       cellCursor: "text",
       onCellClick: (ctx) => this.#editCell(ctx),
     })
+    if (this.#editSession !== null) this.#renderEditOverlay()
   }
 
   #editCell(ctx: TableCellContext<Record<string, SqliteCellValue>>): void {
     const rowid = sqliteRowId(ctx.row["__rowid"])
     if (rowid === null || ctx.column.key === "__rowid") return
     const value = ctx.row[ctx.column.key] ?? null
-    const raw = window.prompt(`Edit ${ctx.column.key}`, sqliteCellPromptValue(value))
-    if (raw === null) return
-    this.#onCellEdit(rowid, ctx.column.key, sqliteCellInputValue(raw, value))
+    this.#openEdit({
+      rowid,
+      column: ctx.column.key,
+      previous: value,
+      onSubmit: this.#onCellEdit,
+    })
+  }
+
+  #openEdit(session: SqliteCellEditSession): void {
+    const raw = sqliteCellPromptValue(session.previous)
+    this.#editSession = session
+    this.#editInput = {value: raw, cursor: raw.length, selectionAnchor: raw.length > 0 ? 0 : null}
+    focusTextField(this, SQLITE_CELL_EDIT_FIELD_KEY, this.#editInput)
+    this.canvas?.setFocused(this)
+    this.canvas?.inputProxy?.focus()
+    this.requestRender()
+  }
+
+  #renderEditOverlay(): void {
+    const session = this.#editSession
+    if (session === null) return
+
+    const rect = this.#editModalRect()
+    this.hit(0, 0, this.rectW, this.rectH, () => this.#cancel(), {
+      key: "sqlite-cell-edit-backdrop",
+      cursor: "default",
+    })
+    this.drawRoundedRect(0, 0, this.rectW, this.rectH, {
+      radius: 0,
+      fill: palette.bg,
+      opacity: 0.48,
+      z: Z.CONTAINER,
+    })
+    this.drawRoundedRect(rect.x + 3, rect.y + 4, rect.w, rect.h, {
+      radius: radii.pane,
+      fill: palette.bgInput,
+      opacity: 0.42,
+      z: Z.ELEMENT,
+    })
+    this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
+      radius: radii.pane,
+      fill: palette.bgElevated,
+      border: palette.borderDim,
+      borderWidth: 1,
+      z: Z.ELEMENT + 0.01,
+    })
+    this.hit(rect.x, rect.y, rect.w, rect.h, () => {}, {
+      key: "sqlite-cell-edit-panel",
+      cursor: "default",
+    })
+
+    const pad = 18
+    const titleY = rect.y + 16
+    this.drawText("Edit SQLite cell", rect.x + pad, titleY, {
+      fontPx: 14,
+      material: this.materials.cyan,
+      maxWidthPx: Math.max(1, rect.w - pad * 2),
+      z: Z.TEXT,
+    })
+    this.drawText(`rowid ${session.rowid} · ${session.column}`, rect.x + pad, titleY + 26, {
+      fontPx: 11,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, rect.w - pad * 2),
+      z: Z.TEXT,
+    })
+
+    const fieldY = rect.y + 74
+    TextField(this, rect.x + pad, fieldY, Math.max(1, rect.w - pad * 2), 34, {
+      key: SQLITE_CELL_EDIT_FIELD_KEY,
+      value: this.#editInput.value,
+      cursor: this.#editInput.cursor,
+      selectionAnchor: this.#editInput.selectionAnchor,
+      active: true,
+      submitOnEnter: true,
+      fontPx: 12,
+      sx: {borderRadius: 8},
+      onChange: (_value, state) => {
+        this.#editInput = state
+      },
+      onSubmit: () => this.#submit(),
+    })
+    this.drawText("Use NULL for SQL null. Enter applies, Esc cancels.", rect.x + pad, fieldY + 45, {
+      fontPx: 10,
+      material: this.materials.muted,
+      maxWidthPx: Math.max(1, rect.w - pad * 2),
+      z: Z.TEXT,
+    })
+
+    const buttonY = rect.y + rect.h - 44
+    const buttonW = 104
+    Button(this, rect.x + rect.w - pad - buttonW, buttonY, buttonW, 30, {
+      label: "Apply",
+      variant: "contained",
+      color: "success",
+      onClick: () => this.#submit(),
+    })
+    Button(this, rect.x + rect.w - pad - buttonW * 2 - 10, buttonY, buttonW, 30, {
+      label: "Cancel",
+      variant: "outlined",
+      color: "neutral",
+      onClick: () => this.#cancel(),
+    })
+  }
+
+  onActivate(): void {
+    if (this.#editSession !== null) focusTextField(this, SQLITE_CELL_EDIT_FIELD_KEY, this.#editInput)
+  }
+
+  onKey(event: KeyboardEvent): void {
+    if (this.#editSession === null || event.key !== "Escape") return
+    event.preventDefault()
+    this.#cancel()
+  }
+
+  #submit(): void {
+    const session = this.#editSession
+    if (session === null) return
+    const next = sqliteCellInputValue(this.#editInput.value, session.previous)
+    this.#closeEdit()
+    session.onSubmit(session.rowid, session.column, next)
+  }
+
+  #cancel(): void {
+    if (this.#editSession === null) return
+    this.#closeEdit()
+  }
+
+  #closeEdit(opts: {blur?: boolean} = {}): void {
+    if (this.#editSession === null) return
+    this.#editSession = null
+    this.#editInput = {value: "", cursor: 0, selectionAnchor: null}
+    if (opts.blur !== false) {
+      this.canvas?.setFocused(null)
+      this.canvas?.inputProxy?.blur()
+    }
+    this.requestRender()
+  }
+
+  #editModalRect(): UiSurfaceRect {
+    const maxW = Math.max(1, Math.min(SQLITE_CELL_EDIT_MODAL_W, this.rectW - 32))
+    const maxH = Math.max(1, Math.min(SQLITE_CELL_EDIT_MODAL_H, this.rectH - 32))
+    const modalW = clampNumber(SQLITE_CELL_EDIT_MODAL_W, Math.min(280, maxW), maxW)
+    const modalH = clampNumber(SQLITE_CELL_EDIT_MODAL_H, Math.min(164, maxH), maxH)
+    return {
+      x: clampNumber(this.rectW / 2 - modalW / 2, 16, Math.max(16, this.rectW - modalW - 16)),
+      y: clampNumber(this.rectH / 2 - modalH / 2, 16, Math.max(16, this.rectH - modalH - 16)),
+      w: modalW,
+      h: modalH,
+    }
   }
 }
 

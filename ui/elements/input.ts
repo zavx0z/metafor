@@ -149,6 +149,13 @@ export function insertActiveInputText(surface: UiSurface, text: string): boolean
   return true
 }
 
+export function focusInput(surface: UiSurface, key: string, state?: InputEditState): void {
+  const runtime = inputRuntimeFor(surface)
+  if (state !== undefined) runtime.values.set(key, clampInputState(state))
+  runtime.activeKey = key
+  resetInputBlink(surface, runtime, key)
+}
+
 export function input(surface: UiSurface, x: number, y: number, width: number, height: number, props: InputProps): void {
   const style = mergeStyle(props)
   const disabled = props.disabled === true
