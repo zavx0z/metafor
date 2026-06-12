@@ -59,6 +59,7 @@ const TODO_HEADER_H = PANE_FRAME.headerHeight
 const TODO_MIN_W = 320
 const TODO_MIN_H = PANE_FRAME.headerHeight + 160
 const TODO_EMPTY = "TODO.md не загружен"
+const TODO_PANEL_BG = withAlpha(palette.bg, 0.68)
 
 type ToDoPaneRowLayout = {
   item: ToDoPaneItem
@@ -164,10 +165,9 @@ export class ToDoPane extends UiSurface {
     const h = Math.max(TODO_HEADER_H + 80, this.rectH)
     this.drawRoundedRect(0, 0, w, h, {
       radius: radii.pane,
-      fill: palette.bg,
+      fill: TODO_PANEL_BG,
       border: palette.borderDim,
       borderWidth: 1,
-      opacity: 0.98,
       z: Z.CONTAINER,
     })
     this.#renderHeader(w)

@@ -5,6 +5,7 @@
  * placements; public runtime/source API is scoped to processes.
  */
 
+import {Color} from "@metafor/engine"
 import {
   UiRuntime,
   UiSurface,
@@ -598,6 +599,11 @@ const SQLITE_TABLE_SCROLL_KEY = "sqlite-table-scroll"
 const SQLITE_CELL_EDIT_FIELD_KEY = "sqlite-cell-edit-value"
 const SQLITE_CELL_EDIT_MODAL_W = 500
 const SQLITE_CELL_EDIT_MODAL_H = 192
+const HUD_PANEL_BG = withAlpha(palette.bg, 0.68)
+const HUD_CODE_BG = withAlpha(palette.bgCode, 0.62)
+const HUD_LOCAL_BACKDROP_BG = withAlpha(palette.bg, 0.24)
+const HUD_MODAL_SHADOW_BG = withAlpha(palette.bgInput, 0.32)
+const HUD_MODAL_BG = withAlpha(palette.bgElevated, 0.78)
 
 type HudNotificationKind = "activation" | "deactivation" | "stop" | "agent"
 
@@ -2373,7 +2379,7 @@ function workspaceHeaderIcon(kind: WorkspaceHeaderActionKind): string {
 
 class WorkspaceFilesChromePane extends UiSurface {
   constructor() {
-    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    super({bgColor: HUD_PANEL_BG, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
     this.node.name = "WorkspaceFilesChromePane"
   }
 
@@ -2388,7 +2394,7 @@ class SqliteTablePane extends UiSurface {
   readonly #onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void
 
   constructor(onCellEdit: (rowid: number, column: string, value: SqliteCellValue) => void) {
-    super({bgColor: palette.bgCode, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    super({bgColor: HUD_CODE_BG, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
     this.node.name = "SqliteTablePane"
     this.#onCellEdit = onCellEdit
   }
@@ -2513,19 +2519,17 @@ class SqliteTablePane extends UiSurface {
     })
     this.drawRoundedRect(0, 0, this.rectW, this.rectH, {
       radius: 0,
-      fill: palette.bg,
-      opacity: 0.48,
+      fill: HUD_LOCAL_BACKDROP_BG,
       z: Z.CONTAINER,
     })
     this.drawRoundedRect(rect.x + 3, rect.y + 4, rect.w, rect.h, {
       radius: radii.pane,
-      fill: palette.bgInput,
-      opacity: 0.42,
+      fill: HUD_MODAL_SHADOW_BG,
       z: Z.ELEMENT,
     })
     this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
       radius: radii.pane,
-      fill: palette.bgElevated,
+      fill: HUD_MODAL_BG,
       border: palette.borderDim,
       borderWidth: 1,
       z: Z.ELEMENT + 0.01,
@@ -2950,7 +2954,7 @@ class SqliteHudFramePane extends UiSurface {
     private readonly subtitle: () => string,
     private readonly onDock: () => void,
   ) {
-    super({bgColor: palette.bg, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
+    super({bgColor: HUD_PANEL_BG, borderColor: palette.borderDim, borderWidthPx: 1, borderRadiusPx: radii.pane})
     this.node.name = "SqliteHudFramePane"
   }
 
@@ -3229,10 +3233,9 @@ class HostTerminalAgentSignalPane extends UiSurface {
     const volume = readHostTerminalAgentSoundVolume()
     this.drawRoundedRect(0, panelY, w, panelH, {
       radius: 8,
-      fill: palette.bgPanel,
+      fill: HUD_PANEL_BG,
       border: palette.borderDim,
       borderWidth: 1,
-      opacity: 0.96,
       z: 0.1,
     })
     this.drawText(t("terminalAgentSignal"), pad, panelY + 10, {
@@ -5639,7 +5642,7 @@ function createSqliteDisplayController(id: string, path: string): SqliteDisplayC
       showHeader: true,
       theme: {
         surface: {
-          background: palette.bg,
+          background: HUD_PANEL_BG,
           border: palette.borderDim,
           borderWidthPx: 1,
         },
@@ -7929,6 +7932,10 @@ function clampSqliteHudRect(rect: UiSurfaceRect, boundsW: number, boundsH: numbe
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
+}
+
+function withAlpha(color: Color, alpha: number): Color {
+  return new Color(color.r, color.g, color.b, alpha)
 }
 
 function interpreterRects({w, h}: {w: number; h: number}, verboseVisible: boolean): InterpreterRects {

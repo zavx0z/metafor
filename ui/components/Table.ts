@@ -1,3 +1,4 @@
+import {Color} from "@metafor/engine"
 import {
   div,
   divScrollTo,
@@ -61,6 +62,9 @@ const TABLE_HEADER_RULE_Z = Z.TEXT + 0.05
 const TABLE_HEADER_TEXT_Z = Z.TEXT + 0.06
 const TABLE_HEADER_EDGE_COVER_PX = 3
 const TABLE_BODY_TEXT_TOP_INSET_PX = TABLE_HEADER_EDGE_COVER_PX + 1
+const TABLE_ROW_STRIPE_FILL = withAlpha(palette.bgPanelDim, 0.44)
+const TABLE_HEADER_BACKDROP_FILL = withAlpha(palette.bgToolbar, 0.62)
+const TABLE_HEADER_FILL = withAlpha(palette.bgPanel, 0.58)
 
 export function Table<Row>(host: UiSurface, x: number, y: number, width: number, height: number, props: TableProps<Row>): void {
   if (width <= 0 || height <= 0) return
@@ -145,7 +149,7 @@ function renderTableBody<Row>(
     const row = props.rows[rowIndex]
     if (row === undefined) continue
     const rowY = bodyY + visibleIndex * rowH - rowOffset
-    if (rowIndex % 2 === 1) host.drawRect(x, rowY, Math.max(1, ctx.viewportWidth), rowH, palette.bgPanelDim, TABLE_BODY_BG_Z)
+    if (rowIndex % 2 === 1) host.drawRect(x, rowY, Math.max(1, ctx.viewportWidth), rowH, TABLE_ROW_STRIPE_FILL, TABLE_BODY_BG_Z)
     host.drawRect(x, rowY + rowH - 1, Math.max(1, ctx.viewportWidth), 1, palette.borderRule, TABLE_BODY_RULE_Z)
     renderTableRow(host, x, rowY, rowH, props, ctx, row, rowIndex, key, bodyY, bodyH)
   }
@@ -161,8 +165,8 @@ function renderTableHeader<Row>(
   headerH: number,
 ): void {
   const headerW = Math.max(1, ctx.viewportWidth)
-  host.drawRect(x, y, headerW, headerH + TABLE_HEADER_EDGE_COVER_PX, palette.bgToolbar, TABLE_HEADER_BACKDROP_Z)
-  host.drawRect(x, y, headerW, headerH, palette.bgPanel, TABLE_HEADER_BG_Z)
+  host.drawRect(x, y, headerW, headerH + TABLE_HEADER_EDGE_COVER_PX, TABLE_HEADER_BACKDROP_FILL, TABLE_HEADER_BACKDROP_Z)
+  host.drawRect(x, y, headerW, headerH, TABLE_HEADER_FILL, TABLE_HEADER_BG_Z)
   let columnX = x - ctx.scrollLeft
   const fontPx = props.headerFontPx ?? props.fontPx ?? DEFAULT_TABLE_FONT_PX
   const padX = props.cellPaddingX ?? DEFAULT_TABLE_CELL_PAD_X
@@ -258,4 +262,8 @@ function defaultCellText(value: unknown): string {
   if (typeof value === "string") return value
   if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return String(value)
   return JSON.stringify(value)
+}
+
+function withAlpha(color: Color, alpha: number): Color {
+  return new Color(color.r, color.g, color.b, alpha)
 }
