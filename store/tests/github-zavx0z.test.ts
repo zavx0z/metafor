@@ -3,7 +3,7 @@ import {mkdirSync, rmSync} from "node:fs"
 import {join} from "node:path"
 import {SQL} from "bun"
 import {matter} from "../../dark/index.ts"
-import {createProtocolChannel} from "../../protocol.ts"
+import {createProtocolChannel, type ProtocolMessage, type ProtocolPatch} from "../../protocol.ts"
 import type {Store} from "../index.ts"
 import {open} from "../server.ts"
 
@@ -15,12 +15,20 @@ const requiredRow = <T>(row: T | undefined, message: string): T => {
 const tmpDir = join(import.meta.dir, "..", "tmp")
 const sqliteFilename = join(tmpDir, "github-zavx0z-full-tree.sqlite")
 
-const waitForMessages = async (messages: unknown[], count: number): Promise<void> => {
+const isProtocolMessage = (message: unknown): message is ProtocolMessage =>
+  typeof message === "object"
+  && message !== null
+  && Array.isArray((message as {patches?: unknown}).patches)
+
+const flattenProtocolPatches = (messages: unknown[]): ProtocolPatch[] =>
+  messages.flatMap((message) => isProtocolMessage(message) ? message.patches : [])
+
+const waitForPatches = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 1000
 
-  while (messages.length < count) {
+  while (!predicate()) {
     if (Date.now() > deadline) {
-      throw new Error(`Expected ${count} gravity messages, received ${messages.length}`)
+      throw new Error("Expected gravity patches")
     }
     await new Promise((resolve) => setTimeout(resolve, 0))
   }
@@ -43,26 +51,12 @@ describe("store/tests github/zavx0z startup load", () => {
   test("matter() пишет всё дерево zavx0z/git через patch-flow и публикует gravity-сообщения", async () => {
     const channel = createProtocolChannel()
     const messages: unknown[] = []
-    const materializedWimps: string[] = []
 
     channel.onmessage = (event: MessageEvent<unknown>) => {
       messages.push(event.data)
     }
 
-    try {
-      await matter("zavx0z/git", {
-        async onMaterializedStep(step) {
-          if (step.kind !== "actor") return
-          materializedWimps.push(step.particle.uuid)
-        },
-      })
-
-      // dark больше не эмитит gravity-патчи в matter() — emitAdd удалён.
-      // Микро-задержка чтобы убедиться что никаких сообщений не пришло.
-      await new Promise((resolve) => setTimeout(resolve, 50))
-    } finally {
-      channel.close()
-    }
+    await matter("zavx0z/git")
 
     const metaRows = await sql<Array<{src: string}>>`
         SELECT src
@@ -79,12 +73,23 @@ describe("store/tests github/zavx0z startup load", () => {
         FROM actor_state
         ORDER BY actor
     `
+    const topologyRows = await sql<Array<{uuid: string; kind: string}>>`
+        SELECT uuid, kind
+        FROM topology
+        ORDER BY position, uuid
+    `
+
+    await waitForPatches(() => {
+      const patches = flattenProtocolPatches(messages)
+      return patches.filter((patch) => patch.part === "graviton" && patch.op === "add" && patch.value === "actor").length
+        >= actorRows.length
+    })
+    channel.close()
 
     expect(metaRows.map((row) => row.src)).toContain("zavx0z/git")
     expect(metaRows.map((row) => row.src)).toContain("zavx0z/git-start")
     expect(metaRows.map((row) => row.src)).toContain("zavx0z/git-history-commit")
     expect(metaRows.map((row) => row.src)).toContain("zavx0z/git-error")
-    expect(actorRows.length).toBe(materializedWimps.length)
     expect(actorStateRows.length).toBe(actorRows.length)
     expect(actorRows.length).toBeGreaterThan(20)
 
@@ -117,8 +122,11 @@ describe("store/tests github/zavx0z startup load", () => {
     expect(await commit.values.count()).toBeGreaterThan(0)
     expect((await commit.state())?.metaState).not.toBeNull()
 
-    // dark больше не эмитит gravity-патчи (emitAdd удалён).
-    expect(messages).toEqual([])
+    const patches = flattenProtocolPatches(messages)
+    const actorPatches = patches.filter((patch) => patch.part === "graviton" && patch.op === "add" && patch.value === "actor")
+    const topologyPatches = patches.filter((patch) => patch.part === "graviton" && patch.op === "add" && patch.value === "topology")
+    expect(actorPatches.map((patch) => patch.path).sort()).toEqual(actorRows.map((row) => row.uuid).sort())
+    expect(topologyPatches.map((patch) => patch.path).sort()).toEqual(topologyRows.map((row) => row.uuid).sort())
 
     await sql.close()
     await store.close()

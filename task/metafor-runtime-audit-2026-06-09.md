@@ -163,7 +163,7 @@ Worker все еще содержит старый путь:
 - `StoreWimpSqlite` напрямую;
 - старые `Wimp/Fuzzy/Axion/Macho` из `@dark/strong`;
 - `load.context`;
-- `dbWriter` option в `matter(...)`.
+- прямой `dbWriter` route вокруг `matter(...)`.
 
 Текущий `dark/index.ts` и `dark/dark.ts` работают иначе:
 

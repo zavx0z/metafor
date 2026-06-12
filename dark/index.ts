@@ -1,7 +1,6 @@
 import {open} from "../store/server.ts"
 import {matter} from "./dark.ts"
 export {matter}
-export type {MatterOptions} from "./dark.ts"
 
 if (typeof self !== "undefined" && "postMessage" in self) {
   globalThis.store = await open(":memory:")

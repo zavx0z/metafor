@@ -1,52 +1,61 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {Store} from "../../store/index.ts"
+import {createProtocolChannel, type ProtocolPatch} from "../../protocol.ts"
 import {open} from "../../store/server.ts"
 import {matter} from "../index.ts"
 
-type RecordedStep = {
-  kind: "actor" | "topology"
-  particleUuid: string
-  src?: string
+const waitForPatches = async (predicate: () => boolean): Promise<void> => {
+  const deadline = Date.now() + 1000
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error("Expected dark protocol patches")
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
 }
 
-describe("dark matter — observation hook", () => {
-  const steps: RecordedStep[] = []
+describe("dark matter — protocol patches", () => {
+  const patches: ProtocolPatch[] = []
   let store: Awaited<ReturnType<typeof open>>
+  let channel: ReturnType<typeof createProtocolChannel>
 
   beforeAll(async () => {
     store = await open(":memory:")
     globalThis.store = store
-    await matter("zavx0z/git", {
-      onMaterializedStep(step) {
-        steps.push({
-          kind: step.kind,
-          particleUuid: step.particle.uuid,
-          ...(step.src !== undefined ? {src: step.src} : {}),
-        })
-      },
+    channel = createProtocolChannel()
+    channel.onmessage = (event) => patches.push(...event.data.patches)
+    await matter("zavx0z/git")
+    await waitForPatches(() => {
+      const actorCount = patches.filter((patch) => patch.part === "graviton" && patch.op === "add" && patch.value === "actor").length
+      const topologyCount = patches.filter((patch) => patch.part === "graviton" && patch.op === "add" && patch.value === "topology").length
+      return actorCount > 20 && topologyCount > 0
     })
   })
 
   afterAll(async () => {
+    channel.close()
     await store.close()
   })
 
-  test("первым приходит actor-шаг для root меты", () => {
-    expect(steps[0]?.kind).toBe("actor")
-    expect(steps[0]?.src).toBe("zavx0z/git")
+  const actorPatches = (): ProtocolPatch[] =>
+    patches.filter((patch) => patch.part === "graviton" && patch.op === "add" && patch.value === "actor")
+
+  const topologyPatches = (): ProtocolPatch[] =>
+    patches.filter((patch) => patch.part === "graviton" && patch.op === "add" && patch.value === "topology")
+
+  test("первый actor patch соответствует root actor", async () => {
+    const roots = await store.actor.roots.all()
+    expect(roots).toHaveLength(1)
+    expect(actorPatches()[0]?.path).toBe(roots[0]!.uuid)
   })
 
-  test("публикует actor-шаги для рекурсивно materialized дочерних мет", () => {
-    expect(steps.some((step) => step.kind === "actor" && step.src === "zavx0z/git-start")).toBe(true)
-    expect(steps.some((step) => step.kind === "actor" && step.src === "zavx0z/git-error")).toBe(true)
+  test("публикует actor patches для рекурсивно materialized child wimps", () => {
+    expect(actorPatches().length).toBeGreaterThan(20)
   })
 
-  test("публикует topology-шаги (Fuzzy/Axion)", () => {
-    expect(steps.some((step) => step.kind === "topology")).toBe(true)
+  test("публикует runtime topology patches", () => {
+    expect(topologyPatches().length).toBeGreaterThan(0)
   })
 
-  test("каждый particle uuid уникален в steps", () => {
-    const uuids = steps.map((s) => s.particleUuid)
+  test("каждый runtime particle uuid уникален в patches", () => {
+    const uuids = [...actorPatches(), ...topologyPatches()].map((patch) => patch.path)
     expect(new Set(uuids).size).toBe(uuids.length)
   })
 })

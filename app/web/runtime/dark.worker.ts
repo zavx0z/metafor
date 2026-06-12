@@ -1,5 +1,5 @@
 import { MetaFor } from "../../../metafor.ts"
-import { openDbMaterializationWriter, openDbSqliteBackend } from "store/db"
+import { openDbSqliteBackend } from "store/db"
 import { createProtocolChannel } from "../../../protocol.ts"
 import {
 	createMirroredActorStore,
@@ -404,7 +404,6 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 			const canonicalized = await canonicalizeMetaGraph(dbFilename, src)
 			metaDb = canonicalized.metaDb
 
-			const writer = openDbMaterializationWriter(backend)
 			const emitSnapshot = async (): Promise<void> => {
 				const descriptorRoots = createRuntimeParticleDescriptors(canonicalized.particleModelsBySrc)
 				currentRootSrc = src
@@ -412,11 +411,7 @@ darkWorker.onmessage = (event: MessageEvent<MaterializeMessage | RelayoutMessage
 				const roots = currentDescriptorRoots
 				await publishStructuralSignal(src, roots, layoutSettings ?? {}, dbFilename)
 			}
-			await matter(new Wimp({ src, parent: null }), undefined, {
-				dbWriter: writer,
-				store: { meta: canonicalized.metaStore },
-				onMaterializedStep: emitSnapshot,
-			})
+			await matter(src)
 			await backend.flush()
 			await emitSnapshot()
 

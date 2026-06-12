@@ -24,6 +24,11 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     await import("./server.ts")
 
     outbound = createProtocolChannel()
+    outbound.onmessage = (event) => {
+      for (const patch of event.data.patches) {
+        console.log(`[dark/server.spec] patch ${JSON.stringify(patch)}`)
+      }
+    }
   })
 
   afterAll(() => {

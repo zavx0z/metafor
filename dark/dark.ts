@@ -1,12 +1,12 @@
 import {MetaFor, type FieldDefinition, type FieldKey, type SRC} from ".."
-import {createProtocolChannel, type ProtocolPatch} from "../protocol.ts"
+import {createProtocolChannel} from "../protocol.ts"
 import type {AnyField, Wimp} from "@store/wimp/sqlite"
-import type {ActorRows, ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
+import type {ActorValueRecord, ValueItemRecord, ValueRecord} from "@store/actor"
 import type {MatterParticlePlan} from "@dark/types/dark"
 import {projectStoreMatterParticles, fillGravityMatter} from "@dark/gravity"
 import {fillWeakDynamics} from "@dark/weak"
 import {loadMeta} from "./load.ts"
-import {finalizeFieldValues, resolveFieldInits, type Continuation, type FieldInit} from "./continuation.ts"
+import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./continuation.ts"
 
 // DSL-файлы `github/.../meta.ts` обращаются к `MetaFor(...)` как к глобальной функции,
 // поэтому Dark регистрирует её до первого dynamic import меты.
@@ -14,23 +14,13 @@ import {finalizeFieldValues, resolveFieldInits, type Continuation, type FieldIni
 
 export type ParticleRef = { kind: "actor"; uuid: string } | { kind: "topology"; uuid: string }
 
-export interface MatterMaterializationStep {
-  kind: "actor" | "topology"
-  particle: ParticleRef
-  /** Для `actor` — wimp src; для topology — undefined. */
-  src?: string
-}
-
-export interface MatterOptions {
-  onMaterializedStep?: (step: MatterMaterializationStep) => Promise<void> | void
-}
-
 const protocol = createProtocolChannel()
 
 protocol.onmessage = (event) => {
   for (const patch of event.data.patches) {
     if (patch.part !== "graviton") continue
     if (patch.op !== "add") continue
+    if (patch.value !== undefined) continue
     void matter(patch.path).catch(() => {})
   }
 }
@@ -85,15 +75,68 @@ const resolveSourceValueUuid = async (
   return value.uuid
 }
 
-const buildActorRows = async (params: {
-  actorUuid: string
-  parent: ParticleRef | null
-  wimp: Wimp
-  finalValues: Map<FieldKey, FieldInit>
-  fieldSchemas: Record<FieldKey, FieldDefinition>
-}): Promise<ActorRows> => {
-  const {actorUuid, parent, wimp, finalValues, fieldSchemas} = params
+interface BfsEntry {
+  plan: MatterParticlePlan
+  parent: ParticleRef
+}
+
+interface PendingChildWimp {
+  src: string
+  parent: ParticleRef
+  continuation: Continuation
+}
+
+/**
+ * Послойный проход одной wimp.
+ *
+ * Создаёт root actor, эмитит actor patch, затем BFS по plan-tree:
+ * на каждой итерации обрабатывает все entries текущего фронтира — для topology-узлов
+ * пишет row + emit, для wimp-узлов накапливает pending. По завершении слоя — yield-ит
+ * накопленные pending child wimps наружу. Внешний оркестратор обязан рекурсивно
+ * материализовать их перед `next()`, чтобы дочерние actors встали в БД до того,
+ * как BFS перейдёт к следующему слою топологии.
+ */
+async function* matterWimp(
+  wimp: Wimp,
+  parent: ParticleRef | null,
+  continuation: Continuation | undefined,
+): AsyncGenerator<PendingChildWimp[], void, void> {
   const src = wimp.src
+  const dsl = await loadMeta(src)
+
+  // WIMP: наполняем декларацию сущности в Store.
+  await wimp.name.set(dsl.name ?? null)
+  await wimp.desc.set(dsl.desc ?? null)
+  await wimp.bulk.set(dsl.bulk ?? null)
+  if (dsl.mass !== undefined) {
+    await wimp.mass.set(dsl.mass)
+  }
+
+  // Один и тот же child wimp может упоминаться несколько раз в matter-дереве
+  // (multi-mount под разными topology-узлами). Декларация в store — одна на src;
+  // повторные вызовы matterWimp создают только новые actor rows, fill пропускают.
+  let matterRelations: Awaited<ReturnType<typeof fillGravityMatter>>
+  if (await wimp.fields.exists()) {
+    matterRelations = await wimp.matter.all()
+  } else {
+    for (const [key, {type, ...definition}] of Object.entries(dsl.fields)) {
+      await wimp.fields.add(type, {key, ...definition})
+    }
+    await fillWeakDynamics(wimp, dsl)
+    matterRelations = await fillGravityMatter(wimp, dsl)
+
+    protocol.postMessage({
+      patches: [{part: "graviton", op: "add", path: src, value: "wimp"}],
+    })
+  }
+
+  // ACTOR: переходим от Wimp-декларации к runtime-экземпляру.
+  // fieldSchemas — схема полей Wimp; finalValues — значения полей Actor.
+  const fieldSchemas = dsl.fields ?? {}
+  const finalValues = finalizeFieldValues(fieldSchemas, continuation?.fieldInits)
+
+  const actorUuid = crypto.randomUUID()
+
   const values: ActorValueRecord[] = []
   const valueRecords: ValueRecord[] = []
   const valueItems: ValueItemRecord[] = []
@@ -119,8 +162,7 @@ const buildActorRows = async (params: {
 
   const initial = await wimp.states.initial()
   const initialState = initial ? await initial.uuid() : null
-
-  return {
+  const actorData = {
     actor: {
       uuid: actorUuid,
       parentActor: parent?.kind === "actor" ? parent.uuid : null,
@@ -132,65 +174,11 @@ const buildActorRows = async (params: {
     valueItems,
     state: {actor: actorUuid, metaState: initialState},
   }
-}
+  await store.actor.create(actorData)
 
-interface BfsEntry {
-  plan: MatterParticlePlan
-  parent: ParticleRef
-}
-
-interface PendingChildWimp {
-  src: string
-  parent: ParticleRef
-  continuation: Continuation
-}
-
-/**
- * Послойный проход одной wimp.
- *
- * Создаёт root actor, эмитит `kind: "actor"` step, затем BFS по plan-tree:
- * на каждой итерации обрабатывает все entries текущего фронтира — для topology-узлов
- * пишет row + emit, для wimp-узлов накапливает pending. По завершении слоя — yield-ит
- * накопленные pending child wimps наружу. Внешний оркестратор обязан рекурсивно
- * материализовать их перед `next()`, чтобы дочерние actors встали в БД до того,
- * как BFS перейдёт к следующему слою топологии.
- */
-async function* matterWimp(
-  wimp: Wimp,
-  parent: ParticleRef | null,
-  continuation: Continuation | undefined,
-  options: MatterOptions,
-): AsyncGenerator<PendingChildWimp[], void, void> {
-  const src = wimp.src
-  const dsl = await loadMeta(src)
-
-  await wimp.name.set(dsl.name ?? null)
-  await wimp.desc.set(dsl.desc ?? null)
-  await wimp.bulk.set(dsl.bulk ?? null)
-  if (dsl.mass !== undefined) await wimp.mass.set(dsl.mass)
-
-  // Один и тот же child wimp может упоминаться несколько раз в matter-дереве
-  // (multi-mount под разными topology-узлами). Декларация в store — одна на src;
-  // повторные вызовы matterWimp создают только новые actor rows, fill пропускают.
-  let matterRelations: Awaited<ReturnType<typeof fillGravityMatter>>
-  if (await wimp.fields.exists()) {
-    matterRelations = await wimp.matter.all()
-  } else {
-    for (const [key, {type, ...definition}] of Object.entries(dsl.fields))
-      await wimp.fields.add(type, {key, ...definition})
-    await fillWeakDynamics(wimp, dsl)
-    matterRelations = await fillGravityMatter(wimp, dsl)
-  }
-
-  const fieldSchemas = dsl.fields ?? {}
-  const finalValues = finalizeFieldValues(fieldSchemas, continuation?.fieldInits)
-
-  const actorUuid = crypto.randomUUID()
-
-  const rows = await buildActorRows({actorUuid, parent, wimp, finalValues, fieldSchemas})
-  await store.actor.create(rows)
-
-  await options.onMaterializedStep?.({kind: "actor", particle: {kind: "actor", uuid: actorUuid}, src})
+  protocol.postMessage({
+    patches: [{part: "graviton", op: "add", path: actorUuid, value: "actor"}],
+  })
 
   const fieldValuesSnapshot = new Map<FieldKey, unknown>()
   const fieldTypesSnapshot = new Map<FieldKey, string>()
@@ -236,9 +224,8 @@ async function* matterWimp(
             parentTopology: entry.parent.kind === "topology" ? entry.parent.uuid : null,
             kind: entry.plan.kind,
           })
-          await options.onMaterializedStep?.({
-            kind: "topology",
-            particle: {kind: "topology", uuid: topologyUuid},
+          protocol.postMessage({
+            patches: [{part: "graviton", op: "add", path: topologyUuid, value: "topology"}],
           })
           for (const child of entry.plan.children ?? []) {
             next.push({plan: child, parent: {kind: "topology", uuid: topologyUuid}})
@@ -271,11 +258,10 @@ async function* matterWimp(
  *
  * `parent`/`continuation` — внутренние параметры рекурсии, caller'ам передавать не нужно.
  */
-export async function matter(src: SRC, options?: MatterOptions): Promise<void>
-export async function matter(wimp: Wimp, options?: MatterOptions, parent?: ParticleRef | null, continuation?: Continuation): Promise<void>
+export async function matter(src: SRC): Promise<void>
+export async function matter(wimp: Wimp, parent?: ParticleRef | null, continuation?: Continuation): Promise<void>
 export async function matter(
   root: SRC | Wimp,
-  options: MatterOptions = {},
   parent: ParticleRef | null = null,
   continuation: Continuation | undefined = undefined,
 ): Promise<void> {
@@ -284,14 +270,11 @@ export async function matter(
     const existing = await store.wimp.get(root)
     if (existing) return
     wimp = await store.wimp.create(root)
-    protocol.postMessage({
-      patches: [{part: "graviton", op: "add", path: wimp.src, value: "wimp"}],
-    })
   } else {
     wimp = root
   }
 
-  const generator = matterWimp(wimp, parent, continuation, options)
+  const generator = matterWimp(wimp, parent, continuation)
 
   while (true) {
     const result = await generator.next()
@@ -301,7 +284,7 @@ export async function matter(
       // store.wimp.create destructive (DELETE+INSERT) — берём existing если есть.
       let childWimp = await store.wimp.get(pending.src)
       if (!childWimp) childWimp = await store.wimp.create(pending.src)
-      await matter(childWimp, options, pending.parent, pending.continuation)
+      await matter(childWimp, pending.parent, pending.continuation)
     }
   }
 }

@@ -837,21 +837,13 @@ const canonicalizeMetaGraph = async (dbFilename, rootSrc) => {
                               ▼
   ┌─────────────────────────────────────────────────┐
   │ Stage 2: matter() pipeline                       │
-  │   matter(Wimp(rootSrc), {                        │
-  │     dbWriter: openDbMaterializationWriter(       │
-  │       backend                                    │
-  │     ),                                           │
-  │     sqliteDb: metaDb,                            │
-  │     onMaterializedStep: emitSnapshot             │
-  │   })                                             │
+  │   globalThis.store = store                       │
+  │   matter(rootSrc)                                │
   │                                                  │
   │   Внутри matter():                               │
   │     для каждой раскрытой Wimp:                   │
-  │       writer.saveMetaBundle(meta)  → pkg/db      │
-  │                                      (24 табл.)  │
-  │       writer.saveWimpBundle(wimp)  → pkg/db      │
-  │                                      (entangle.) │
-  │       emitSnapshot()  → publishStructural...     │
+  │       store.wimp/topology/actor writes           │
+  │       protocol patches                           │
   └─────────────────────────────────────────────────┘
                               │
                               ▼
