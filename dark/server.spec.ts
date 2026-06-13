@@ -22,10 +22,6 @@ describe("dark/server разворачивает дерево zavx0z/git по gr
     await import("./server.ts")
   })
 
-  afterAll(() => {
-    // НЕ удаляем storePath — файл остаётся в dark/tmp/boundary.sqlite для ручного осмотра
-  })
-
   test("после add zavx0z/git store содержит каноническое дерево git", async () => {
     globalThis.store.postMessage({
       parts: [{part: "graviton", op: "add", path: "zavx0z/git"}],

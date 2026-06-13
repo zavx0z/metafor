@@ -542,15 +542,92 @@ function generatedLocationFromTranspiledPrefix(
 
   try {
     const prefix = lines.slice(0, line).join("\n")
-    const output = new Bun.Transpiler({loader}).transformSync(prefix)
+    const marker = "__metafor_breakpoint_marker__"
+    const completedPrefix = completeTranspiledPrefix(`${prefix}\nglobalThis.${marker};`)
+    const output = new Bun.Transpiler({loader}).transformSync(completedPrefix)
     const generatedLines = output.split("\n")
-    for (let idx = generatedLines.length - 1; idx >= 0; idx--) {
-      if (generatedLines[idx]!.trim().length > 0) return {line: idx}
-    }
-    return null
+    const markerLine = generatedLines.findIndex((generatedLine) => generatedLine.includes(marker))
+    if (markerLine >= 0) return previousGeneratedLine(generatedLines, markerLine - 1)
+
+    const fallbackOutput = new Bun.Transpiler({loader}).transformSync(prefix)
+    const fallbackLines = fallbackOutput.split("\n")
+    return previousGeneratedLine(fallbackLines, fallbackLines.length - 1)
   } catch {
     return null
   }
+}
+
+function previousGeneratedLine(generatedLines: string[], startIndex: number): {line: number} | null {
+  for (let idx = Math.min(startIndex, generatedLines.length - 1); idx >= 0; idx--) {
+    if (generatedLines[idx]!.trim().length > 0) return {line: idx}
+  }
+  return null
+}
+
+function completeTranspiledPrefix(source: string): string {
+  const stack: string[] = []
+  let quote: "'" | '"' | "`" | null = null
+  let escaped = false
+  let lineComment = false
+  let blockComment = false
+
+  for (let idx = 0; idx < source.length; idx++) {
+    const char = source[idx]!
+    const next = source[idx + 1]
+
+    if (lineComment) {
+      if (char === "\n") lineComment = false
+      continue
+    }
+    if (blockComment) {
+      if (char === "*" && next === "/") {
+        blockComment = false
+        idx += 1
+      }
+      continue
+    }
+    if (quote !== null) {
+      if (escaped) {
+        escaped = false
+        continue
+      }
+      if (char === "\\") {
+        escaped = true
+        continue
+      }
+      if (char === quote) quote = null
+      continue
+    }
+
+    if (char === "/" && next === "/") {
+      lineComment = true
+      idx += 1
+      continue
+    }
+    if (char === "/" && next === "*") {
+      blockComment = true
+      idx += 1
+      continue
+    }
+    if (char === "'" || char === '"' || char === "`") {
+      quote = char
+      continue
+    }
+
+    if (char === "{" || char === "(" || char === "[") {
+      stack.push(char)
+      continue
+    }
+    if (char === "}" || char === ")" || char === "]") {
+      const open = stack.at(-1)
+      if ((open === "{" && char === "}") || (open === "(" && char === ")") || (open === "[" && char === "]")) {
+        stack.pop()
+      }
+    }
+  }
+
+  const closers = stack.reverse().map((char) => char === "{" ? "}" : char === "(" ? ")" : "]").join("")
+  return `${source}\n${closers}`
 }
 
 function localSourcePath(source: string, cwd: string): string | null {

@@ -13,14 +13,12 @@ import {finalizeFieldValues, resolveFieldInits, type Continuation} from "./conti
 
 export type ParticleRef = { kind: "actor"; uuid: string } | { kind: "topology"; uuid: string }
 
-export const listenDarkForce = (): void => {
-  store.onmessage = (event) => {
-    for (const part of event.data.parts) {
-      if (part.part !== "graviton") continue
-      if (part.op !== "add") continue
-      if (part.value !== undefined) continue
-      void matter(part.path).catch(() => {})
-    }
+store.onmessage = (event) => {
+  for (const part of event.data.parts) {
+    if (part.part !== "graviton") continue
+    if (part.op !== "add") continue
+    if (part.value !== undefined) continue
+    void matter(part.path).catch(() => {})
   }
 }
 

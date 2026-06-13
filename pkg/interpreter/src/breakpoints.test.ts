@@ -103,6 +103,50 @@ describe("logicalBreakpointParams", () => {
     }
   })
 
+  test("pre-resolves local TypeScript breakpoints inside open blocks", () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const file = join(dir, "dark.ts")
+      writeFileSync(file, [
+        "const enabled = true",
+        "async function matter(root: string) {",
+        "  let wimp: string",
+        "  if (typeof root === 'string') {",
+        "    wimp = root",
+        "  }",
+        "  return wimp",
+        "}",
+        "",
+      ].join("\n"))
+
+      expect(runtimeBreakpointParams({url: file, line: 3})?.["lineNumber"]).toBe(2)
+      expect(runtimeBreakpointParams({url: file, line: 4})?.["lineNumber"]).toBe(3)
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test("pre-resolves local TypeScript breakpoints inside nested callbacks", () => {
+    const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
+    try {
+      const file = join(dir, "dark.ts")
+      writeFileSync(file, [
+        "store.onmessage = (event) => {",
+        "  for (const part of event.data.parts) {",
+        "    if (part.value !== undefined) continue",
+        "    void matter(part.path)",
+        "  }",
+        "}",
+        "",
+      ].join("\n"))
+
+      expect(runtimeBreakpointParams({url: file, line: 3})?.["lineNumber"]).toBe(3)
+      expect(runtimeBreakpointParams({url: file, line: 4})?.["lineNumber"]).toBe(4)
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
   test("arms local TypeScript breakpoints before the script is parsed", async () => {
     const dir = mkdtempSync(join(tmpdir(), "metafor-bp-"))
     try {
